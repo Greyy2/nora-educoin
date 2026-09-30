@@ -1,4 +1,9 @@
-"""Build selected GeckoTerminal DEX OHLCV datasets as pickle files."""
+"""Build selected GeckoTerminal DEX OHLCV datasets as pickle files.
+
+Phase 1 compliant: crawls raw 1m candles from GeckoTerminal (aggregate=1),
+then delegates ALL resampling and manifest generation to core/resampler.py.
+Single source of truth = 1m.pkl. All higher timeframes are derived.
+"""
 import argparse
 import json
 import os
@@ -11,6 +16,16 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import pandas as pd
 import requests
+
+# Phase 1: delegate resampling to core resampler
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
+
+try:
+    from backend.core.resampler import save_resampled_dataset
+except ImportError:
+    from nora.backend.core.resampler import save_resampled_dataset
 
 DEFAULT_BASE_URL = "https://api.geckoterminal.com/api/v2"
 DEFAULT_OUTPUT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data"))
@@ -601,8 +616,7 @@ def run(args: argparse.Namespace) -> List[Dict[str, Any]]:
     log(f"[range] {datetime.fromtimestamp(start_sec, timezone.utc).isoformat()} -> {datetime.fromtimestamp(end_sec, timezone.utc).isoformat()}")
 
     summaries = []
-    total_steps = len(targets) * (len(minutes) + len(hours))
-    step = 0
+    total_steps = len(targets)
     for target_index, target in enumerate(targets):
         if target_index > 0 and asset_delay_sec:
             log(f"[wait] Sleeping {asset_delay_sec:.1f}s before next asset")
@@ -611,13 +625,12 @@ def run(args: argparse.Namespace) -> List[Dict[str, Any]]:
         asset = _asset_slug(target["asset"])
         network = target["network"]
         pool_address = target["pool_address"]
-        log(f"[asset] {asset} | {network} | {target.get('name', '')} | pool={pool_address}")
+        log(f"[asset] ({target_index+1}/{total_steps}) {asset} | {network} | {target.get('name', '')} | pool={pool_address}")
 
-        rows_by_minute: Dict[int, int] = {}
+        # ── Phase 1: Crawl raw 1m candles (single source of truth) ────────────
         one_minute_path = os.path.join(output_dir, asset, "1m.pkl")
         existing_1m = _read_pickle_if_usable(one_minute_path)
-        step += 1
-        log(f"[crawl] ({step}/{total_steps}) {asset} 1m source")
+        log(f"[crawl] {asset} 1m source (aggregate=1)")
         try:
             frame_1m, minute_pages = _crawl_ohlcv(
                 base_url,
@@ -641,97 +654,43 @@ def run(args: argparse.Namespace) -> List[Dict[str, Any]]:
                 checkpoint_every_pages,
             )
         except Exception as exc:
-            warn(f"[error] {asset} 1m failed: {exc}")
+            warn(f"[error] {asset} 1m crawl failed: {exc}")
+            # Try to use checkpointed data
             frame_1m = _read_pickle_if_usable(one_minute_path)
-            if not frame_1m.empty:
-                rows_by_minute[1] = len(frame_1m)
-                warn(f"[partial] {asset} using checkpointed 1m rows={len(frame_1m)} for local aggregate files")
-            for minute in minutes:
-                if minute == 1:
-                    continue
-                step += 1
-                if frame_1m.empty:
-                    warn(f"[skip] ({step}/{total_steps}) {asset} {minute}m because 1m source failed")
-                    continue
-                log(f"[build] ({step}/{total_steps}) {asset} {minute}m from partial 1m")
-                frame = _aggregate_frame(frame_1m, minute * MINUTE_MS)
-                path = os.path.join(output_dir, asset, f"{minute}m.pkl")
-                _write_pickle(path, frame)
-                rows_by_minute[minute] = len(frame)
-                log(f"[write] {asset} {minute}m rows={len(frame)} path={path}")
-        else:
-            _write_pickle(one_minute_path, frame_1m)
-            rows_by_minute[1] = len(frame_1m)
-            log(f"[write] {asset} 1m rows={len(frame_1m)} pages={minute_pages} path={one_minute_path}")
-
-            for minute in minutes:
-                if minute == 1:
-                    continue
-                step += 1
-                log(f"[build] ({step}/{total_steps}) {asset} {minute}m from 1m")
-                frame = _aggregate_frame(frame_1m, minute * MINUTE_MS)
-                path = os.path.join(output_dir, asset, f"{minute}m.pkl")
-                _write_pickle(path, frame)
-                rows_by_minute[minute] = len(frame)
-                log(f"[write] {asset} {minute}m rows={len(frame)} path={path}")
-
-        rows_by_hour: Dict[int, int] = {}
-        if hours:
-            step += 1
-            log(f"[crawl] ({step}/{total_steps}) {asset} 1h source")
-            try:
-                frame_1h, pages = _crawl_ohlcv(
-                    base_url,
-                    network,
-                    pool_address,
-                    "hour",
-                    1,
-                    start_sec,
-                    end_sec,
-                    limit,
-                    page_delay_sec,
-                    retries,
-                    retry_delay_sec,
-                    timeout,
-                    max_pages,
-                    args.currency,
-                    args.token,
-                    f"{asset} 1h",
-                )
-            except Exception as exc:
-                warn(f"[error] {asset} 1h failed: {exc}")
-                for hour in hours:
-                    if hour == 1:
-                        continue
-                    step += 1
-                    warn(f"[skip] ({step}/{total_steps}) {asset} {hour}h because 1h source failed")
-                summaries.append(
-                    {
-                        "asset": asset,
-                        "network": network,
-                        "pool_address": pool_address,
-                        "name": target.get("name", ""),
-                        "rows_by_minute": rows_by_minute,
-                        "rows_by_hour": rows_by_hour,
-                    }
-                )
+            if frame_1m.empty:
+                warn(f"[skip] {asset}: no 1m data available, skipping.")
                 continue
+            warn(f"[partial] {asset} using checkpointed 1m rows={len(frame_1m)}")
 
-            one_hour_path = os.path.join(output_dir, asset, "1h.pkl")
-            _write_pickle(one_hour_path, frame_1h)
-            rows_by_hour[1] = len(frame_1h)
-            log(f"[write] {asset} 1h rows={len(frame_1h)} pages={pages} path={one_hour_path}")
+        if frame_1m.empty:
+            warn(f"[skip] {asset}: 1m crawl returned 0 rows, skipping.")
+            continue
 
-            for hour in hours:
-                if hour == 1:
-                    continue
-                step += 1
-                log(f"[build] ({step}/{total_steps}) {asset} {hour}h from 1h")
-                frame = _aggregate_frame(frame_1h, hour * HOUR_MS)
-                path = os.path.join(output_dir, asset, f"{hour}h.pkl")
-                _write_pickle(path, frame)
-                rows_by_hour[hour] = len(frame)
-                log(f"[write] {asset} {hour}h rows={len(frame)} path={path}")
+        log(f"[write] {asset} 1m rows={len(frame_1m)} pages={minute_pages}")
+
+        # ── Phase 1: Delegate ALL resampling to core/resampler.py ─────────────
+        # This generates: 1m.pkl, 5m.pkl, 15m.pkl, 1h.pkl, 4h.pkl, 24h.pkl + manifest.json
+        try:
+            manifest = save_resampled_dataset(
+                symbol=asset,
+                output_dir=output_dir,
+                df_1m_raw=frame_1m,
+                pool_address=pool_address,
+                timeframes=("5m", "15m", "1h", "4h", "24h"),
+                source="geckoterminal",
+                synthetic=False,
+            )
+            log(
+                f"[manifest] {asset} rows={manifest['rows']} "
+                f"filled_ratio={manifest['filled_ratio_1m']:.3f} "
+                f"start={datetime.fromtimestamp(manifest['start_ts']/1000, timezone.utc).date()} "
+                f"end={datetime.fromtimestamp(manifest['end_ts']/1000, timezone.utc).date()}"
+            )
+        except Exception as exc:
+            warn(f"[error] {asset} resampling failed: {exc}")
+            import traceback
+            traceback.print_exc()
+            continue
 
         summaries.append(
             {
@@ -739,23 +698,21 @@ def run(args: argparse.Namespace) -> List[Dict[str, Any]]:
                 "network": network,
                 "pool_address": pool_address,
                 "name": target.get("name", ""),
-                "rows_by_minute": rows_by_minute,
-                "rows_by_hour": rows_by_hour,
+                "rows_1m": manifest["rows"].get("1m", 0),
+                "rows_1h": manifest["rows"].get("1h", 0),
+                "rows_4h": manifest["rows"].get("4h", 0),
+                "filled_ratio_1m": manifest["filled_ratio_1m"],
             }
         )
 
     log("[summary]")
     for item in summaries:
-        minute_nonzero = sum(1 for rows in item["rows_by_minute"].values() if rows > 0)
-        hour_nonzero = sum(1 for rows in item["rows_by_hour"].values() if rows > 0)
-        minute_total_rows = sum(item["rows_by_minute"].values())
-        hour_total_rows = sum(item["rows_by_hour"].values())
         log(
-            f"[summary] {item['asset']} minute_files={minute_nonzero}/{len(minutes)} "
-            f"minute_rows={minute_total_rows} hour_files={hour_nonzero}/{len(hours)} "
-            f"hour_rows={hour_total_rows} pool={item['pool_address']}"
+            f"[summary] {item['asset']:12s} 1m={item['rows_1m']:6d} "
+            f"1h={item['rows_1h']:4d} 4h={item['rows_4h']:4d} "
+            f"filled={item['filled_ratio_1m']:.3f} pool={item['pool_address']}"
         )
-    log("[done] Full GeckoTerminal PKL dataset build finished.")
+    log("[done] Full GeckoTerminal PKL dataset build finished (Phase 1 compliant).")
     return summaries
 
 

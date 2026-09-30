@@ -80,7 +80,7 @@ export default function Wfa() {
           id: handle,
           source_handle: handle,
           name: item.strategy_name || 'Studio Simulation',
-          symbol: item.symbol || 'SOL',
+          symbol: item.symbol || '',
           type: 'Studio',
           trades: item.trades_count || 0,
           return_pct: item.summary?.total_pnl_pct,
@@ -102,7 +102,7 @@ export default function Wfa() {
           source_handle: handle,
           run_id: r.id,
           name: r.name || `Run #${r.id}`,
-          symbol: r.symbol || 'SOL',
+          symbol: r.symbol || '',
           type: 'Base',
           trades: r.trades || 0,
           return_pct: r.return_pct ?? null,
@@ -186,7 +186,7 @@ export default function Wfa() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           source_handle: handle,
-          symbol: row.symbol || 'SOL',
+          symbol: row.symbol || '',
           config,
         }),
       })

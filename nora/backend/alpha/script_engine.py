@@ -147,13 +147,16 @@ class Strategy:
             return False
         price = float(self._curr_candle["close"]) * (1.0 + self.slippage)
         invest_usd = self.current_capital * (capital_pct / 100.0)
-        fee = invest_usd * self.taker_fee
+        effective_margin = max(1.0, margin or self.leverage)
+        notional_usd = invest_usd * effective_margin
+        fee = notional_usd * self.taker_fee
         if self.current_capital < invest_usd + fee:
-            invest_usd = max(0.0, self.current_capital - fee)
+            invest_usd = max(0.0, (self.current_capital) / (1.0 + effective_margin * self.taker_fee))
+            notional_usd = invest_usd * effective_margin
+            fee = notional_usd * self.taker_fee
         if invest_usd <= 0:
             return False
-        effective_margin = max(1.0, margin or self.leverage)
-        qty = (invest_usd * effective_margin) / price
+        qty = notional_usd / price
         self.current_capital -= fee
         self.active_position = ActivePosition(
             pos_type="LONG",
@@ -173,13 +176,16 @@ class Strategy:
             return False
         price = float(self._curr_candle["close"]) * (1.0 - self.slippage)
         invest_usd = self.current_capital * (capital_pct / 100.0)
-        fee = invest_usd * self.taker_fee
+        effective_margin = max(1.0, margin or self.leverage)
+        notional_usd = invest_usd * effective_margin
+        fee = notional_usd * self.taker_fee
         if self.current_capital < invest_usd + fee:
-            invest_usd = max(0.0, self.current_capital - fee)
+            invest_usd = max(0.0, (self.current_capital) / (1.0 + effective_margin * self.taker_fee))
+            notional_usd = invest_usd * effective_margin
+            fee = notional_usd * self.taker_fee
         if invest_usd <= 0:
             return False
-        effective_margin = max(1.0, margin or self.leverage)
-        qty = (invest_usd * effective_margin) / price
+        qty = notional_usd / price
         self.current_capital -= fee
         self.active_position = ActivePosition(
             pos_type="SHORT",
@@ -236,7 +242,7 @@ class Strategy:
             pnl_pct = (pos.entry_price - exit_price) / pos.entry_price * 100.0 * pos.margin
             pnl_usd = (pos.entry_price - exit_price) * pos.qty
 
-        exit_fee = (pos.qty * exit_price / pos.margin) * self.taker_fee
+        exit_fee = (pos.qty * exit_price) * self.taker_fee
         net_pnl_usd = pnl_usd - exit_fee
         self.current_capital += net_pnl_usd
 
@@ -312,7 +318,8 @@ class ScriptStrategyRunner:
         strategy_instance.taker_fee = fee_rate
         strategy_instance.slippage = slippage
 
-        # Gọi initialize với full DataFrame để tính toán indicators vector siêu tốc
+        # CẢNH BÁO CAUSAL: initialize(df) nhận toàn bộ DataFrame để tính toán indicators vector siêu tốc.
+        # Script tự viết TUYỆT ĐỐI KHÔNG ĐƯỢC sử dụng shift âm (df.shift(-1)) hoặc truy cập dữ liệu tương lai!
         try:
             strategy_instance.initialize(df)
         except Exception as e:
@@ -329,6 +336,7 @@ class ScriptStrategyRunner:
         max_drawdown_pct = 0.0
         daily_returns: List[float] = []
         prev_day_capital = initial_capital
+        current_day_bucket: Optional[int] = None
 
         # Vòng lặp mô phỏng siêu tốc
         for i, candle in enumerate(candles_list):
@@ -388,10 +396,15 @@ class ScriptStrategyRunner:
                     "price": curr_close,
                 })
 
-            if i % 1440 == 0 and i > 0:
+            # 2.5: Sharpe theo ngày thật. Nhóm equity theo open_time // 86_400_000, không dùng i % 1440
+            day_bucket = open_time // 86_400_000
+            if current_day_bucket is None:
+                current_day_bucket = day_bucket
+            elif day_bucket != current_day_bucket:
                 ret = (equity - prev_day_capital) / prev_day_capital if prev_day_capital > 0 else 0.0
                 daily_returns.append(ret)
                 prev_day_capital = equity
+                current_day_bucket = day_bucket
 
         # Đóng vị thế còn mở ở cây nến cuối
         if strategy_instance.has_position():

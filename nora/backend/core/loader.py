@@ -116,6 +116,7 @@ class CandleLoader:
                 db_name=self.db_name,
             )
 
+        # Nhánh "auto": ưu tiên local data. Nếu local rỗng hoặc thiếu, raise lỗi thay vì âm thầm chuyển sang Mongo
         if has_local_frame(self.symbol, self.frame, data_root=self.local_data_root):
             local_df = fetch_local_candles_df(
                 symbol=self.symbol,
@@ -127,14 +128,14 @@ class CandleLoader:
             )
             if not local_df.empty:
                 return local_df
+            raise FileNotFoundError(
+                f"Local data cho {self.symbol} ({self.frame}) rỗng trong khoảng thời gian yêu cầu. "
+                "Hệ thống không âm thầm fallback sang Mongo (đặt NORA_DATA_SOURCE=mongo nếu thực sự muốn đọc Mongo)."
+            )
 
-        return fetch_mongo_candles_df(
-            symbol=self.symbol,
-            frame=self.frame,
-            start_ts=start_ts,
-            end_ts=end_ts,
-            columns=columns,
-            db_name=self.db_name,
+        raise FileNotFoundError(
+            f"Không tìm thấy file nến local {self.frame}.pkl cho {self.symbol} tại {self.local_data_root}. "
+            "Hệ thống không âm thầm fallback sang Mongo (đặt NORA_DATA_SOURCE=mongo nếu thực sự muốn đọc Mongo)."
         )
 
     def _slice_data(

@@ -251,6 +251,7 @@ def run_simulation(req: SimulateRequest) -> Dict[str, Any]:
     orders = raw_results.get("orders", [])
     metrics = _metrics_payload(positions, initial_capital)
     trades = _serialize_positions(positions, req.result_trade_limit, initial_capital)
+    all_trades = _serialize_positions(positions, len(positions), initial_capital)
     equity_curve = _closed_trade_curve(positions, initial_capital)
     elapsed_ms = int((time.time() - start_wall) * 1000)
 
@@ -277,7 +278,7 @@ def run_simulation(req: SimulateRequest) -> Dict[str, Any]:
         strategy_snapshot=snapshot,
         symbol=clean_symbol,
         summary=metrics,
-        trades=trades,
+        trades=all_trades,
         equity_curve=equity_curve,
         generated_at=int(time.time() * 1000),
     )
@@ -488,6 +489,7 @@ def _serialize_positions(
             "close_price": round(float(position.close_price or 0.0), 8) if position.close_price is not None else None,
             "status": _enum_name(position.status),
             "pnl_pct": pnl_pct,
+            "pnl_usd": round(initial_capital * pnl_pct / 100, 2),
             "estimated_pnl_usd": round(initial_capital * pnl_pct / 100, 2),
             "reason": position.close_reason or position.start_reason,
             "max_price": round(float(position.max_price or 0.0), 8),
@@ -565,29 +567,9 @@ def run_wfa_endpoint(req: WfaRunRequest) -> Dict[str, Any]:
             snapshot = StrategySnapshot(**src["strategy_snapshot"])
 
     if not snapshot:
-        # Fallback thông minh: tự động nạp mẫu chiến lược chuẩn từ STRATEGY_SAMPLES
-        from backend.alpha.templates import STRATEGY_SAMPLES
-        sample = None
-        if req.source_handle:
-            sample = next((s for s in STRATEGY_SAMPLES if s.get("id") == req.source_handle or f"strat_{s.get('id')}" == req.source_handle), None)
-        if not sample and STRATEGY_SAMPLES:
-            sample = STRATEGY_SAMPLES[0]
-        if sample:
-            snapshot = StrategySnapshot(
-                name=sample.get("name", "Studio Strategy"),
-                symbol=(req.symbol or "SOL").upper(),
-                flows=sample.get("flows", []),
-                initial_capital=float(sample.get("default_params", {}).get("initial_capital", 10000.0)),
-                leverage=float(sample.get("default_params", {}).get("leverage", 1.0)),
-                stop_loss_rate=float(sample.get("default_params", {}).get("stop_loss_rate", 4.0)),
-                take_profit_rate=float(sample.get("default_params", {}).get("take_profit_rate", 7.5)),
-                timeout=0,
-            )
-
-    if not snapshot:
         raise HTTPException(
             status_code=400,
-            detail="Cần cung cấp strategy_snapshot hoặc source_handle hợp lệ từ bước Backtest để chạy WFA.",
+            detail=f"Không tìm thấy Strategy Snapshot cho source_handle='{req.source_handle}'. WFA yêu cầu snapshot hợp lệ, không fallback.",
         )
 
     if req.symbol:
@@ -599,6 +581,21 @@ def run_wfa_endpoint(req: WfaRunRequest) -> Dict[str, Any]:
 
     cfg = req.config or WfaFoldConfig()
     source_h = req.source_handle or generate_handle("wfa_src")
+
+    # Validate param_grid size BEFORE submitting background task
+    if snapshot.param_grid:
+        import itertools
+        keys = list(snapshot.param_grid.keys())
+        combos = list(itertools.product(*[snapshot.param_grid[k] for k in keys]))
+        if len(combos) > 50:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"param_grid quá lớn: {len(combos)} tổ hợp (tối đa 50). "
+                    "Hãy giảm số lượng tham số hoặc thu hẹp khoảng giá trị."
+                ),
+            )
+
     job_id = create_wfa_job(snapshot.symbol, snapshot.name, cfg.fold_count, source_handle=source_h)
 
     submit_background_task(execute_wfa_pipeline, job_id, snapshot, cfg, source_h)
@@ -643,7 +640,7 @@ def get_wfa_result(job_id: str) -> Dict[str, Any]:
 def run_monte_carlo_endpoint(req: MonteCarloRunRequest) -> Dict[str, Any]:
     trades: List[Dict[str, Any]] = []
     strategy_name = req.strategy_name or "Strategy"
-    symbol = (req.symbol or "SOL").upper()
+    symbol = req.symbol.upper() if req.symbol else ""
 
     if req.trades and len(req.trades) > 0:
         trades = req.trades
@@ -683,6 +680,12 @@ def run_monte_carlo_endpoint(req: MonteCarloRunRequest) -> Dict[str, Any]:
         raise HTTPException(
             status_code=400,
             detail="Không tìm thấy danh sách lệnh (trades) nào để chạy Monte Carlo. Hãy chạy Backtest hoặc WFA trước.",
+        )
+
+    if len(trades) < 30:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Số lượng lệnh ({len(trades)}) < 30. Monte Carlo yêu cầu tối thiểu 30 lệnh để đảm bảo ý nghĩa thống kê.",
         )
 
     source_wfa = req.source_wfa_id or req.source_handle or ""

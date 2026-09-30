@@ -56,12 +56,31 @@ def resolve_symbol_dir(symbol: str, data_root: Optional[str] = None) -> Optional
 
 
 def has_frame(symbol: str, frame: str = "4h", data_root: Optional[str] = None) -> bool:
+    """Kiểm tra sự tồn tại của file {frame}.pkl cục bộ."""
     s_dir = resolve_symbol_dir(symbol, data_root=data_root)
     if not s_dir:
         return False
     pkl_path = os.path.join(s_dir, f"{frame}.pkl")
+    return os.path.isfile(pkl_path)
+
+
+def has_ticks(symbol: str, data_root: Optional[str] = None) -> bool:
+    """Kiểm tra sự tồn tại của tick thật. Trả về False nếu manifest đánh dấu synthetic=True."""
+    s_dir = resolve_symbol_dir(symbol, data_root=data_root)
+    if not s_dir:
+        return False
+    manifest_path = os.path.join(s_dir, "manifest.json")
+    if os.path.isfile(manifest_path):
+        try:
+            import json
+            with open(manifest_path, "r", encoding="utf-8") as f:
+                manifest = json.load(f)
+                if manifest.get("synthetic", False):
+                    return False
+        except Exception:
+            pass
     tick_path = os.path.join(s_dir, "ticks.parquet")
-    return os.path.isfile(pkl_path) or os.path.isfile(tick_path)
+    return os.path.isfile(tick_path)
 
 
 

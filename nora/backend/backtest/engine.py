@@ -16,12 +16,21 @@ class BacktestEngine:
     MAX_STRATEGIES = 100
     KELTNER_CONFIGS = ((17, 0.5), (20, 1.5))
 
-    def __init__(self, account_id: int, campaign_id: int, symbol: str, start_ts: int, end_ts: int):
+    def __init__(
+        self,
+        account_id: int,
+        campaign_id: int,
+        symbol: str,
+        start_ts: int,
+        end_ts: int,
+        trade_start_ts: Optional[int] = None,
+    ):
         self.account_id = account_id
         self.campaign_id = campaign_id
         self.symbol = symbol
         self.start_ts = start_ts
         self.end_ts = end_ts
+        self.trade_start_ts = trade_start_ts if trade_start_ts is not None else start_ts
 
         days_diff = (end_ts - start_ts) / (86400 * 1000)
         if days_diff > self.MAX_BACKTEST_DAYS:
@@ -40,7 +49,8 @@ class BacktestEngine:
         loader_1m = CandleLoader(self.symbol, frame="1m", use_cache=True)
         self.df_1m = self._prepare_candles(loader_1m.load_data(self.start_ts, self.end_ts))
 
-        buffer_ms = 86400000
+        # 2.4: Tăng buffer load 4h lên 5 ngày (~30 cây 4h) để tính ATR/Keltner 20 kỳ chuẩn xác
+        buffer_ms = 5 * 86400000
         loader_4h = CandleLoader(self.symbol, frame="4h", use_cache=True)
         self.df_4h = self._enrich_4h(
             self._prepare_candles(loader_4h.load_data(self.start_ts - buffer_ms, self.end_ts + buffer_ms))
@@ -50,7 +60,10 @@ class BacktestEngine:
         if len(self.trackers) >= self.MAX_STRATEGIES:
             raise ValueError(f"Chỉ cho phép tối đa {self.MAX_STRATEGIES} strategy flows mỗi lần chạy.")
 
-        ast_type = str(params.extra.get("ast", {}).get("type", "")).upper()
+        ast_dict = params.extra.get("ast", {}) if isinstance(params.extra, dict) else {}
+        ast_type = str(ast_dict.get("type", "")).upper()
+        if not ast_type and isinstance(params.extra, dict) and "type" in params.extra:
+            ast_type = str(params.extra.get("type", "")).upper()
         if ast_type == "LONG":
             pos_type = PositionType.LONG
         elif ast_type == "SHORT":
@@ -84,14 +97,17 @@ class BacktestEngine:
         if df_1m_sorted.empty or df_4h_sorted.empty:
             return
 
-        df_4h_renamed = df_4h_sorted.add_suffix("_4h")
-        if "open_time_4h" in df_4h_renamed.columns:
-            df_4h_renamed = df_4h_renamed.rename(columns={"open_time_4h": "open_time"})
+        # 2.1: Look-ahead khung 4h: một nến 1m chỉ được thấy cây 4h đã đóng tại thời điểm nến 1m đó đóng
+        M1, H4 = 60_000, 4 * 3_600_000
+        left = df_1m_sorted.assign(decision_time=df_1m_sorted["open_time"] + M1)
+        right = df_4h_sorted.add_suffix("_4h")  # giữ open_time_4h
+        right["avail_time"] = right["open_time_4h"] + H4
 
         merged_df = pd.merge_asof(
-            df_1m_sorted.reset_index(drop=True),
-            df_4h_renamed.reset_index(drop=True),
-            on="open_time",
+            left.sort_values("decision_time"),
+            right.sort_values("avail_time"),
+            left_on="decision_time",
+            right_on="avail_time",
             direction="backward",
         )
         merged_df = merged_df.dropna(subset=["close_4h"])
@@ -99,14 +115,25 @@ class BacktestEngine:
             return
 
         records = merged_df.to_dict("records")
-        cols_4h = set(df_4h_renamed.columns) - {"open_time"}
+        cols_4h = set(right.columns) - {"avail_time"}
 
         for row in records:
             row_4h = {k[:-3]: v for k, v in row.items() if k in cols_4h and k.endswith("_4h")}
-            row_1m = {k: v for k, v in row.items() if k not in cols_4h}
+            row_1m = {k: v for k, v in row.items() if k not in cols_4h and k not in ("decision_time", "avail_time")}
+
+            current_time = int(row_1m.get("open_time", 0) or 0)
+            can_trade = (current_time >= self.trade_start_ts)
+            current_open_positions = sum(1 for trk in self.trackers if trk.is_open)
 
             for tracker in self.trackers:
-                tracker.update_candle(row_1m, row_4h)
+                max_trades = getattr(tracker.params, "max_open_trades", 45) or 45
+                tracker.update_candle(
+                    row_1m,
+                    row_4h,
+                    open_positions=current_open_positions,
+                    max_open_trades=max_trades,
+                    can_trade=can_trade,
+                )
 
                 if not tracker.is_open and tracker.position and tracker.position.status != PositionStatus.OPEN:
                     self.closed_positions.append(tracker.position)
@@ -114,18 +141,16 @@ class BacktestEngine:
                     tracker.position = None
                     tracker.orders = []
 
+        # Đóng vị thế còn mở ở cây nến cuối tại giá OPEN của nến cuối
         for tracker in self.trackers:
             if tracker.is_open and tracker.position:
-                last_close = float(records[-1].get("close", 0.0))
+                last_open = float(records[-1].get("open", 0.0))
                 last_time = int(records[-1].get("open_time", 0))
-                if tracker.pos_type == PositionType.LONG:
-                    pnl_pct = (last_close - tracker.avg_entry_price) * 100 / tracker.avg_entry_price
-                else:
-                    pnl_pct = (tracker.avg_entry_price - last_close) * 100 / tracker.avg_entry_price
-
-                tracker._close_position(last_time, last_close, PositionStatus.CANCEL, "End of Backtest", pnl_pct)
+                tracker.force_close(last_time, last_open, "End of Backtest")
                 self.closed_positions.append(tracker.position)
                 self.orders.extend(tracker.orders)
+                tracker.position = None
+                tracker.orders = []
 
         elapsed = time.time() - start_time
         print(f"Hoàn thành backtest. Thu được {len(self.closed_positions)} vị thế. Mất {elapsed:.2f} giây.")

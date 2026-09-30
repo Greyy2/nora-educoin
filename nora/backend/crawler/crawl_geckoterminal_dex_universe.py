@@ -1,13 +1,12 @@
 """Crawl a DEX-only GeckoTerminal universe into Nora's local research format.
 
-The crawler discovers high-activity on-chain pools, excludes CEX-like majors
-and stables, fetches 90 days of OHLCV data, and writes:
-- data/{ASSET}/15m.pkl
-- data/{ASSET}/1h.pkl
-- data/{ASSET}/4h.pkl
-- data/{ASSET}/24h.pkl
-- data/{ASSET}/ticks.parquet, generated from the real OHLCV candles
-- data/{ASSET}/dex_pool.json with GeckoTerminal pool metadata
+Phase 1 compliant: crawls raw 1m candles (aggregate=1) and delegates ALL
+resampling to core/resampler.py. Generates manifest.json per asset.
+No synthetic ticks are generated.
+- data/{ASSET}/1m.pkl   (source of truth)
+- data/{ASSET}/5m.pkl, 15m.pkl, 1h.pkl, 4h.pkl, 24h.pkl (resampled)
+- data/{ASSET}/manifest.json
+- data/{ASSET}/dex_pool.json
 """
 from __future__ import annotations
 
@@ -30,8 +29,10 @@ if REPO_ROOT not in sys.path:
 
 try:
     from backend.db.tick_storage import TICK_COLUMNS, default_data_root
+    from backend.core.resampler import save_resampled_dataset
 except ImportError:
     from nora.backend.db.tick_storage import TICK_COLUMNS, default_data_root
+    from nora.backend.core.resampler import save_resampled_dataset
 
 
 BASE_URL = "https://api.geckoterminal.com/api/v2"
@@ -431,43 +432,28 @@ def aggregate_frame(frame: pd.DataFrame, interval_ms: int) -> pd.DataFrame:
     return grouped.loc[:, PKL_COLUMNS].reset_index(drop=True)
 
 
-def synthetic_ticks_from_ohlcv(frame: pd.DataFrame, symbol: str) -> pd.DataFrame:
-    rows = []
-    if frame.empty:
-        return pd.DataFrame(columns=TICK_COLUMNS)
-    for index, candle in frame.iterrows():
-        open_time = int(candle["open_time"])
-        prices = [float(candle["open"]), float(candle["high"]), float(candle["low"]), float(candle["close"])]
-        volume_usd = max(0.0, float(candle["volume"] or 0.0))
-        side = 1 if prices[-1] >= prices[0] else -1
-        for offset, price in zip([0, 225_000, 450_000, 675_000], prices):
-            price = max(price, 1e-12)
-            tick_value = volume_usd / 4.0
-            rows.append(
-                {
-                    "timestamp_ms": open_time + offset,
-                    "price": price,
-                    "volume_usd": tick_value,
-                    "amount": tick_value / price,
-                    "side": side,
-                    "block_number": 0,
-                    "tx_hash": f"{symbol.lower()}-{open_time}-{offset}-{index}",
-                }
-            )
-    return pd.DataFrame(rows, columns=TICK_COLUMNS)
+# synthetic_ticks_from_ohlcv was REMOVED in Phase 1.
+# Ticks must come from real on-chain data via crawl_dex_ticks.py.
+# All OHLCV resampling is delegated to core/resampler.py.
 
 
-def write_asset(target: Dict[str, Any], frame_15m: pd.DataFrame, frame_1h: pd.DataFrame, output_dir: str) -> None:
+def write_asset(target: Dict[str, Any], frame_1m: pd.DataFrame, output_dir: str) -> None:
+    """Phase 1: write 1m source of truth, resample all timeframes, generate manifest.json."""
     asset = _slug(target["asset"])
+    pool_address = str(target.get("pool_address") or "")
+
+    manifest = save_resampled_dataset(
+        symbol=asset,
+        output_dir=output_dir,
+        df_1m_raw=frame_1m,
+        pool_address=pool_address,
+        timeframes=("5m", "15m", "1h", "4h", "24h"),
+        source="geckoterminal",
+        synthetic=False,
+    )
+
+    # Also write dex_pool.json metadata (separate from manifest.json)
     asset_dir = os.path.join(output_dir, asset)
-    os.makedirs(asset_dir, exist_ok=True)
-
-    frame_15m.to_pickle(os.path.join(asset_dir, "15m.pkl"))
-    frame_1h.to_pickle(os.path.join(asset_dir, "1h.pkl"))
-    aggregate_frame(frame_1h, 4 * 3600 * 1000).to_pickle(os.path.join(asset_dir, "4h.pkl"))
-    aggregate_frame(frame_1h, 24 * 3600 * 1000).to_pickle(os.path.join(asset_dir, "24h.pkl"))
-    synthetic_ticks_from_ohlcv(frame_15m, asset).to_parquet(os.path.join(asset_dir, "ticks.parquet"), index=False)
-
     metadata = dict(target)
     metadata["asset"] = asset
     metadata["crawled_at"] = int(time.time())
@@ -479,14 +465,12 @@ def write_asset(target: Dict[str, Any], frame_15m: pd.DataFrame, frame_1h: pd.Da
     metadata["sellers_24h"] = int(tx_24h.get("sellers") or 0)
     metadata["pool_name"] = target.get("name")
     metadata["pool_age_days"] = target.get("pool_age_days")
-    metadata["rows"] = {
-        "15m": int(len(frame_15m)),
-        "1h": int(len(frame_1h)),
-        "4h": int(len(aggregate_frame(frame_1h, 4 * 3600 * 1000))),
-        "24h": int(len(aggregate_frame(frame_1h, 24 * 3600 * 1000))),
-    }
+    metadata["rows"] = manifest["rows"]
     with open(os.path.join(asset_dir, "dex_pool.json"), "w", encoding="utf-8") as handle:
         json.dump(metadata, handle, indent=2, ensure_ascii=False)
+
+    return manifest
+
 
 
 def clear_universe(output_dir: str, keep_assets: Iterable[str]) -> None:
@@ -549,19 +533,30 @@ def run(args: argparse.Namespace) -> List[Dict[str, Any]]:
     summaries = []
     for idx, target in enumerate(targets, 1):
         log(f"[asset] {idx}/{len(targets)} {target['asset']} | {target['network']} | {target['name']}")
-        frame_15m = crawl_ohlcv(session, target, "minute", 15, start_sec, end_sec, args)
-        frame_1h = crawl_ohlcv(session, target, "hour", 1, start_sec, end_sec, args)
-        if frame_15m.empty or frame_1h.empty:
-            warn(f"[skip] {target['asset']} missing 15m or 1h data")
+        # Phase 1: crawl raw 1m (aggregate=1), delegate resampling to core/resampler.py
+        frame_1m = crawl_ohlcv(session, target, "minute", 1, start_sec, end_sec, args)
+        if frame_1m.empty:
+            warn(f"[skip] {target['asset']} missing 1m data")
             continue
-        write_asset(target, frame_15m, frame_1h, output_dir)
-        summaries.append({"asset": target["asset"], "rows_15m": len(frame_15m), "rows_1h": len(frame_1h)})
-        log(f"[write] {target['asset']} 15m={len(frame_15m)} 1h={len(frame_1h)}")
+        try:
+            manifest = write_asset(target, frame_1m, output_dir)
+            summaries.append({
+                "asset": target["asset"],
+                "rows_1m": manifest["rows"].get("1m", 0),
+                "rows_1h": manifest["rows"].get("1h", 0),
+                "rows_4h": manifest["rows"].get("4h", 0),
+                "filled_ratio_1m": manifest["filled_ratio_1m"],
+            })
+            log(f"[write] {target['asset']} 1m={manifest['rows'].get('1m', 0)} filled={manifest['filled_ratio_1m']:.3f}")
+        except Exception as exc:
+            warn(f"[error] {target['asset']} write failed: {exc}")
+            import traceback
+            traceback.print_exc()
         time.sleep(args.asset_delay_sec)
 
-    log("[done] DEX universe crawl complete")
+    log("[done] DEX universe crawl complete (Phase 1 compliant)")
     for item in summaries:
-        log(f"  {item['asset']:12s} 15m={item['rows_15m']:5d} 1h={item['rows_1h']:5d}")
+        log(f"  {item['asset']:12s} 1m={item['rows_1m']:5d} 1h={item['rows_1h']:4d} 4h={item['rows_4h']:3d} filled={item['filled_ratio_1m']:.3f}")
     return summaries
 
 

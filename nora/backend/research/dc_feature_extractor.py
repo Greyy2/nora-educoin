@@ -46,11 +46,34 @@ def sweep_directional_change(
     t_max = float(df_ticks["timestamp_ms"].max())
     time_span_days = max(0.01, (t_max - t_min) / (1000.0 * 86400.0))
 
+    # Phase 5.2: 60/40 train/test split to prevent selection bias
+    if total_ticks >= 100:
+        split_idx = int(total_ticks * 0.6)
+        df_train = df_ticks.iloc[:split_idx].reset_index(drop=True)
+        df_test = df_ticks.iloc[split_idx:].reset_index(drop=True)
+    else:
+        df_train = df_ticks
+        df_test = df_ticks
+
+    # Step 1: Select best theta on 60% IS train data
+    train_scores = {}
+    for theta in thetas:
+        engine_train = DirectionalChangeEngine(theta=theta)
+        ev_train = engine_train.process_ticks(df_train)
+        if len(ev_train) < 5:
+            train_scores[theta] = -1.0
+            continue
+        os_train = ev_train["overshoot_ratio"].dropna().values
+        med_os_tr = float(np.median(os_train)) if len(os_train) else 0.0
+        cost_adj_os_tr = max(0.0, med_os_tr - (estimated_cost_pct / max(1e-5, theta)))
+        train_scores[theta] = cost_adj_os_tr * min(1.0, len(ev_train) / 20.0)
+
     theta_results: List[Dict[str, Any]] = []
 
+    # Step 2: Evaluate candidates on 40% OOS test data (or full data for reporting)
     for theta in thetas:
         dc_engine = DirectionalChangeEngine(theta=theta)
-        events_df = dc_engine.process_ticks(df_ticks)
+        events_df = dc_engine.process_ticks(df_test)
         n_events = len(events_df)
 
         if n_events < 5:
@@ -183,15 +206,12 @@ def sweep_directional_change(
             "dc_structure_score": structure_score,
         })
 
-    # Select Best Theta (Optimal theta*)
-    valid_candidates = [r for r in theta_results if r["event_count"] >= 15]
-    if not valid_candidates:
-        valid_candidates = [r for r in theta_results if r["event_count"] >= 5]
-    if not valid_candidates:
-        valid_candidates = theta_results
+    # Select Best Theta (Optimal theta*) using 60% IS train scores
+    best_candidate_thetas = sorted(train_scores.keys(), key=lambda t: train_scores[t], reverse=True)
+    best_theta = best_candidate_thetas[0] if best_candidate_thetas and train_scores[best_candidate_thetas[0]] > 0 else 0.02
 
-    best_item = max(valid_candidates, key=lambda x: x["dc_structure_score"])
-    best_theta = best_item["theta"]
+    matching = [r for r in theta_results if r["theta"] == best_theta]
+    best_item = matching[0] if matching else (theta_results[0] if theta_results else {"theta": best_theta, "theta_pct": f"{best_theta*100:.1f}%", "event_count": 0})
 
     return {
         "symbol": symbol,

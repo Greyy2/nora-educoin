@@ -40,11 +40,36 @@ class PositionTracker:
         self.compiled_match = LogicEvaluator.compile_ast(self._combine_conditions(ast_dict.get("match", [])))
         self.compiled_stop = LogicEvaluator.compile_ast(self._combine_conditions(ast_dict.get("stop", [])))
 
+        self.pending_entry = False
+        self.pending_exit = False
+
     @property
     def avg_entry_price(self) -> float:
         if self.position and self.position.enter_price:
             return float(self.position.enter_price)
         return 0.0
+
+    def _check_hard_exits(self, o: float, h: float, l: float):
+        if not self.position or self.position.enter_price <= 0:
+            return None
+        e = self.position.enter_price
+        sl_r = self.params.stop_loss_rate
+        tp_r = self.params.take_profit_rate
+        if self.pos_type == PositionType.LONG:
+            sl = e * (1.0 - sl_r / 100.0) if sl_r > 0 else None
+            tp = e * (1.0 + tp_r / 100.0) if tp_r > 0 else None
+            if sl is not None and l <= sl:
+                return (o if o < sl else sl), PositionStatus.SL  # SL ưu tiên nếu cùng nến
+            if tp is not None and h >= tp:
+                return (o if o > tp else tp), PositionStatus.TP
+        else:  # SHORT
+            sl = e * (1.0 + sl_r / 100.0) if sl_r > 0 else None
+            tp = e * (1.0 - tp_r / 100.0) if tp_r > 0 else None
+            if sl is not None and h >= sl:
+                return (o if o > sl else sl), PositionStatus.SL
+            if tp is not None and l <= tp:
+                return (o if o < tp else tp), PositionStatus.TP
+        return None
 
     def update_candle(
         self,
@@ -54,6 +79,7 @@ class PositionTracker:
         free_cash: float = 10000.0,
         open_positions: int = 0,
         max_open_trades: int = 45,
+        can_trade: bool = True,
     ) -> Dict[str, Any]:
         """Cập nhật vị thế theo nến hiện tại và trả về sự kiện vừa phát sinh."""
         event = {
@@ -70,54 +96,52 @@ class PositionTracker:
             return event
 
         current_time = int(row_1m.get("open_time", 0) or 0)
-        high_p = float(row_1m.get("high", 0.0) or 0.0)
-        low_p = float(row_1m.get("low", 0.0) or 0.0)
-        close_p = float(row_1m.get("close", 0.0) or 0.0)
+        o = float(row_1m.get("open", 0.0) or 0.0)
+        h = float(row_1m.get("high", 0.0) or 0.0)
+        l = float(row_1m.get("low", 0.0) or 0.0)
+        c = float(row_1m.get("close", 0.0) or 0.0)
 
-        if not self.is_open:
-            if open_positions >= max_open_trades:
-                return event
-            if self.compiled_match(row_1m, row_4h):
-                raw_entry_price = close_p
-                if self.params.using_match_price:
-                    raw_entry_price = low_p if self.pos_type == PositionType.LONG else high_p
-                if raw_entry_price <= 0 or available_equity <= 0 or free_cash <= 0:
-                    return event
-                self._open_position(current_time, raw_entry_price, available_equity, free_cash)
+        # 1. Khớp pending entry nếu có từ nến trước ở giá open nến kế tiếp
+        if self.pending_entry and not self.is_open:
+            self.pending_entry = False
+            if open_positions < max_open_trades and o > 0 and available_equity > 0 and free_cash > 0:
+                self._open_position(current_time, o, available_equity, free_cash)
                 event.update({
                     "opened": True,
                     "position": self.position,
                     "entry_margin_usd": float(self.position.entry_margin_usd if self.position else 0.0),
                     "entry_fee_usd": float(self.position.entry_fee_usd if self.position else 0.0),
                 })
-            return event
 
-        if not self.position:
-            return event
-
-        self.position.max_price = max(self.position.max_price, high_p)
-        self.position.min_price = min(self.position.min_price, low_p)
-        event["unrealized_pnl_usd"] = self.unrealized_pnl_usd(close_p)
-        asset_return_pct = self._asset_return_pct(close_p)
-
-        if self.params.stop_loss_rate > 0 and asset_return_pct <= -self.params.stop_loss_rate:
-            self._close_position(current_time, close_p, PositionStatus.SL, f"StopLoss {asset_return_pct:.2f}%")
+        # 2. Khớp pending exit nếu có từ nến trước ở giá open nến kế tiếp
+        if self.pending_exit and self.is_open:
+            self.pending_exit = False
+            status = PositionStatus.TP if self._asset_return_pct(o) > 0 else PositionStatus.SL
+            self._close_position(current_time, o, status, "Stop Condition Triggered")
             event.update(self._closed_event_payload())
             return event
 
-        if self.params.take_profit_rate > 0 and asset_return_pct >= self.params.take_profit_rate:
-            self._close_position(current_time, close_p, PositionStatus.TP, f"TakeProfit {asset_return_pct:.2f}%")
-            event.update(self._closed_event_payload())
-            return event
+        # 3. Kiểm tra hard exits (SL/TP) trong nến hiện tại (kiểm cả nến vừa vào lệnh)
+        if self.is_open:
+            self.position.max_price = max(self.position.max_price, h)
+            self.position.min_price = min(self.position.min_price, l)
+            event["unrealized_pnl_usd"] = self.unrealized_pnl_usd(c)
 
-        if self.compiled_stop(row_1m, row_4h):
-            exit_raw_price = close_p
-            if self.params.using_match_price:
-                exit_raw_price = high_p if self.pos_type == PositionType.LONG else low_p
-            asset_return_pct = self._asset_return_pct(exit_raw_price)
-            status = PositionStatus.TP if asset_return_pct > 0 else PositionStatus.SL
-            self._close_position(current_time, exit_raw_price, status, "Stop Condition Triggered")
-            event.update(self._closed_event_payload())
+            hit = self._check_hard_exits(o, h, l)
+            if hit:
+                exit_price, exit_status = hit
+                self._close_position(current_time, exit_price, exit_status, f"{exit_status.name} Triggered")
+                event.update(self._closed_event_payload())
+                return event
+
+        # 4. Đánh giá AST trên nến đã đóng -> chỉ đặt cờ pending cho nến sau
+        if can_trade:
+            if not self.is_open and not self.pending_entry:
+                if self.compiled_match(row_1m, row_4h):
+                    self.pending_entry = True
+            elif self.is_open and not self.pending_exit:
+                if self.compiled_stop(row_1m, row_4h):
+                    self.pending_exit = True
 
         return event
 
@@ -143,6 +167,8 @@ class PositionTracker:
                 "gross_pnl_usd": 0.0,
             }
 
+        self.pending_entry = False
+        self.pending_exit = False
         self._close_position(current_time, raw_close_price, PositionStatus.CANCEL, reason)
         return self._closed_event_payload()
 

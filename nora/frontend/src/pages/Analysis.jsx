@@ -1943,6 +1943,29 @@ export default function Analysis() {
 
   return (
     <div style={{ maxWidth: 1480, margin: '0 auto', paddingBottom: 80, color: 'var(--ink)' }}>
+      {/* PHASE 0 BANNER: Dữ liệu chưa kiểm định */}
+      <div style={{
+        margin: '0 0 20px 0',
+        padding: '12px 18px',
+        background: 'rgba(239, 68, 68, 0.12)',
+        border: '1px solid rgba(239, 68, 68, 0.35)',
+        borderRadius: 10,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        color: '#ef4444',
+      }}>
+        <span style={{ fontSize: 20 }}>⚠️</span>
+        <div>
+          <div style={{ fontWeight: 800, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Dữ liệu chưa kiểm định
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--ink-2)', marginTop: 2 }}>
+            Toàn bộ cache Scan / Research cũ đã được cách ly vào archive. Dữ liệu và kết quả đang trong quá trình chuẩn hóa 100% causal (Phase 0 – Phase 5).
+          </div>
+        </div>
+      </div>
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16, marginBottom: 24 }}>
         <div>
           <div style={{ fontSize: 10, color: 'var(--ink-3)', fontWeight: 900, letterSpacing: '.14em', textTransform: 'uppercase', marginBottom: 4 }}>
@@ -1995,6 +2018,18 @@ export default function Analysis() {
             {refreshing || loading ? 'Đang quét…' : 'Quét lại Universe'}
           </button>
         </div>
+      </div>
+
+      <div style={{
+        fontSize: 11,
+        color: 'var(--ink-3)',
+        marginBottom: 16,
+        padding: '6px 12px',
+        background: 'var(--panel-2)',
+        borderRadius: 6,
+        display: 'inline-block',
+      }}>
+        ℹ️ <strong>Lưu ý cấu trúc:</strong> Kết quả Directional Change và Backtest simulation chạy trên chuỗi giá liên tục (không đổi theo khung nến). Khung thời gian chọn ở trên chỉ ảnh hưởng tới đánh giá Market Regime và Health Score.
       </div>
 
       {loading && !scanData ? (

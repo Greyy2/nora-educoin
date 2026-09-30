@@ -276,10 +276,10 @@ def compute_real_backtest_simulation(
 
     return {
         "total_trades": sim_result.get("total_trades", len(all_trades)),
-        "win_rate": sim_result.get("win_rate", 60.0),
-        "profit_factor": sim_result.get("profit_factor", 1.5),
-        "avg_net_bps": sim_result.get("avg_net_bps", 50.0),
-        "sharpe": sim_result.get("sharpe", 1.8),
+        "win_rate": sim_result.get("win_rate"),
+        "profit_factor": sim_result.get("profit_factor"),
+        "avg_net_bps": sim_result.get("avg_net_bps"),
+        "sharpe": sim_result.get("sharpe"),
         "trades": all_trades[-max_trades:],
         "tick_series": tick_series,
         "price_series": tick_series,  # backward compatibility alias
@@ -386,12 +386,25 @@ def analyze_market(
         estimated_slippage_pct=estimated_slippage,
     )
 
+    # 8.7 Real Backtest Simulation on historical ticks/candles
+    best_theta = float(dc_sweep.get("best_theta", 0.02))
+    base_friction_hurdle = (0.001 * 2.0 + estimated_slippage * 2.0 + 0.0005) * 10000.0
+    backtest_sim = compute_real_backtest_simulation(
+        clean_sym,
+        df_ticks=df_ticks,
+        df_candles=df_candles,
+        events_df=events_best_df,
+        theta=best_theta,
+        friction_bps=base_friction_hurdle,
+    )
+
     falsification = falsify_edge_candidate(
         symbol=clean_sym,
         theta=best_theta,
         fingerprint=fingerprint,
         playbook_type=playbook.get("playbook_type", "NO_STRATEGY_FIT"),
         estimated_slippage_pct=estimated_slippage,
+        backtest_sim=backtest_sim,
     )
 
     behavior_profile = compute_event_behavior_profile(
@@ -400,18 +413,6 @@ def analyze_market(
         df_candles=df_candles,
         events_df=events_best_df,
         theta=best_theta,
-    )
-
-    # 8.7 Real Backtest Simulation on historical ticks/candles
-    best_theta = float(dc_sweep.get("best_theta", 0.02))
-    friction_hurdle = float(falsification.get("friction_hurdle_bps", 65.0))
-    backtest_sim = compute_real_backtest_simulation(
-        clean_sym,
-        df_ticks=df_ticks,
-        df_candles=df_candles,
-        events_df=events_best_df,
-        theta=best_theta,
-        friction_bps=friction_hurdle,
     )
 
     # 9. Analyst Insight Narrative (WHAT / WHY / SO-WHAT)
@@ -499,7 +500,9 @@ def scan_all_markets(
             try:
                 with open(u_1h_file, "r", encoding="utf-8") as f:
                     u_data = json.load(f)
-                    u_data["timeframe"] = timeframe
+                    if clean_tf != "1h":
+                        u_data["source_timeframe"] = "1h"
+                        u_data["status"] = "building"
                     return u_data
             except Exception:
                 pass
@@ -538,8 +541,8 @@ def scan_all_markets(
                 "total_ticks": res.get("data_quality", {}).get("metrics", {}).get("total_ticks", 0),
                 "estimated_slippage_pct": res.get("data_quality", {}).get("metrics", {}).get("estimated_slippage_pct", 0.25),
                 "scaling_law_score": res.get("scaling_law", {}).get("scaling_law_score", 50.0),
-                "falsified": res.get("edge_falsification", {}).get("falsified", False),
-                "falsification_status": res.get("edge_falsification", {}).get("falsification_status", "SURVIVED_FRICTION_HURDLE"),
+                "falsified": res.get("edge_falsification", {}).get("falsified", True),
+                "falsification_status": res.get("edge_falsification", {}).get("falsification_status", "NOT_TESTED"),
                 "net_expectancy_bps": res.get("edge_falsification", {}).get("net_expectancy_bps", 0.0),
                 "gross_expectancy_bps": res.get("edge_falsification", {}).get("gross_expectancy_bps", 0.0),
                 "friction_hurdle_bps": res.get("edge_falsification", {}).get("friction_hurdle_bps", 0.0),

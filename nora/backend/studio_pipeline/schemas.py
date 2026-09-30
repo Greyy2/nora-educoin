@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 class StrategySnapshot(BaseModel):
     strategy_id: Optional[str] = None
     name: str = Field("Untitled Strategy", description="Tên chiến lược")
-    symbol: str = Field("SOL", description="Cặp tài sản")
+    symbol: str = Field(..., description="Cặp tài sản (bắt buộc, không default)")
     start_ts: int = Field(0, description="Timestamp bắt đầu (ms)")
     end_ts: int = Field(0, description="Timestamp kết thúc (ms)")
     flows: List[Dict[str, Any]] = Field(default_factory=list, description="Danh sách flow AST")
@@ -17,6 +17,7 @@ class StrategySnapshot(BaseModel):
     stop_loss_rate: float = Field(0.0)
     take_profit_rate: float = Field(0.0)
     timeout: int = Field(0)
+    param_grid: Optional[Dict[str, List[Any]]] = Field(default_factory=dict, description="Grid tham số tối ưu IS")
 
 
 class TradeLogEntry(BaseModel):
@@ -44,16 +45,22 @@ class BacktestResultContract(BaseModel):
 
 
 class WfaFoldConfig(BaseModel):
-    train_window_months: int = Field(24, ge=1, le=120, description="Độ dài In-Sample (tháng)")
-    test_window_months: int = Field(6, ge=1, le=60, description="Độ dài Out-of-Sample (tháng)")
-    step_months: int = Field(6, ge=1, le=60, description="Bước trượt mỗi fold (tháng)")
+    train_days: int = Field(30, ge=1, le=365, description="Độ dài In-Sample (ngày)")
+    test_days: int = Field(10, ge=1, le=180, description="Độ dài Out-of-Sample (ngày)")
+    step_days: Optional[int] = Field(None, ge=1, le=180, description="Bước trượt mỗi fold (mặc định = test_days)")
+    embargo_days: int = Field(0, ge=0, le=30, description="Khoảng cách embargo giữa train và test (ngày)")
+    anchored: bool = Field(False, description="Anchored IS window")
     fold_count: int = Field(12, ge=1, le=50, description="Số lượng fold tối đa")
+    min_folds: int = Field(4, ge=1, le=50, description="Số lượng fold tối thiểu để gate xét PASS")
+    min_positive_ratio: float = Field(0.6, ge=0.0, le=1.0, description="Tỉ lệ fold OOS có lãi tối thiểu")
+    min_oos_trades: int = Field(30, ge=1, description="Tổng số lệnh OOS tối thiểu")
+    min_is_trades: int = Field(10, ge=1, description="Số lệnh IS tối thiểu mỗi fold để chấp nhận combo")
     min_is_profit_pct: float = Field(0.0, description="Lợi nhuận IS tối thiểu")
     max_is_mdd_pct: float = Field(15.0, description="MDD IS tối đa (%)")
     min_oos_profit_pct: float = Field(0.0, description="Lợi nhuận OOS tối thiểu (%)")
-    max_oos_mdd_pct: float = Field(15.0, description="MDD OOS tối đa từng fold (%)")
-    min_positive_folds: int = Field(10, description="Số fold OOS có lãi tối thiểu")
-    min_total_oos_profit_pct: float = Field(100.0, description="Tổng lợi nhuận OOS mục tiêu (%)")
+    max_oos_mdd_pct: float = Field(25.0, description="MDD OOS tối đa từng fold (%)")
+    min_positive_folds: int = Field(4, description="Số fold OOS có lãi tối thiểu")
+    min_total_oos_profit_pct: float = Field(0.0, description="Tổng lợi nhuận OOS mục tiêu (%)")
 
 
 class WfaRunRequest(BaseModel):
@@ -84,6 +91,7 @@ class WfaFoldResult(BaseModel):
     oos_trades_count: int
     oos_win_rate: float
     oos_profit_factor: float
+    chosen_params: Dict[str, Any] = Field(default_factory=dict, description="Bộ tham số tối ưu IS được áp dụng cho OOS")
     passed_gate: bool
     gate_notes: List[str] = Field(default_factory=list)
     oos_trades: List[Dict[str, Any]] = Field(default_factory=list)
@@ -103,6 +111,8 @@ class WfaResultContract(BaseModel):
     avg_oos_mdd_pct: float
     total_oos_trades: int
     overall_oos_win_rate: float
+    wfe: Optional[float] = Field(None, description="Walk-Forward Efficiency (OOS Annualized Return / IS Annualized Return)")
+    param_stability: Optional[float] = Field(None, description="Độ ổn định tham số giữa các fold")
     acceptance_gate_passed: bool
     gate_checks: Dict[str, Any]
     aggregate_oos_trades: List[Dict[str, Any]]
@@ -115,12 +125,13 @@ class MonteCarloRunRequest(BaseModel):
     source_handle: Optional[str] = None
     trades: Optional[List[Dict[str, Any]]] = None
     strategy_name: Optional[str] = "Strategy"
-    symbol: Optional[str] = "SOL"
+    symbol: Optional[str] = None
     initial_capital: float = Field(10000.0, ge=1.0)
     simulations: int = Field(1000, ge=100, le=10000)
     ruin_threshold_pct: float = Field(30.0, ge=5.0, le=95.0, description="Ngưỡng sụt giảm vốn tính là Ruin (%)")
     confidence_levels: List[float] = Field(default_factory=lambda: [90.0, 95.0, 99.0])
     block_size: int = Field(1, ge=1, le=50, description="Kích thước block bootstrap (1 = trade độc lập)")
+    seed: Optional[int] = Field(None, description="Random seed để tái lập kết quả")
 
 
 class MonteCarloResultContract(BaseModel):
@@ -136,5 +147,8 @@ class MonteCarloResultContract(BaseModel):
     ruin_threshold_pct: float
     terminal_return_pct: Dict[str, float]
     sample_paths: List[List[float]]
+    quantile_curves: Dict[str, Any] = Field(default_factory=dict, description="Percentile curves (p5, p25, p50, p75, p95)")
+    source_gate_passed: bool = Field(False, description="WFA nguồn đã pass gate hay chưa")
+    seed: Optional[int] = None
     summary: Dict[str, Any]
     generated_at: int

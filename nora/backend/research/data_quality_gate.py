@@ -47,6 +47,99 @@ def evaluate_data_quality(
             "metrics": {"total_bars": 0, "total_ticks": 0},
         }
 
+    # Phase 1 Gate Check: manifest.json phải tồn tại và synthetic == False
+    import json
+    manifest_path = os.path.join(s_dir, "manifest.json")
+    manifest = None
+    if os.path.isfile(manifest_path):
+        try:
+            with open(manifest_path, "r", encoding="utf-8") as f:
+                manifest = json.load(f)
+        except Exception:
+            manifest = None
+
+    if manifest is None:
+        return {
+            "symbol": symbol,
+            "status": DataQualityStatus.BLOCKED,
+            "quality_score": 0.0,
+            "issues": [f"Chặn chạy: {symbol} thiếu manifest.json kiểm định nguồn gốc dữ liệu"],
+            "metrics": {"total_bars": 0, "total_ticks": 0},
+        }
+
+    if manifest.get("synthetic", True) is True:
+        return {
+            "symbol": symbol,
+            "status": DataQualityStatus.BLOCKED,
+            "quality_score": 0.0,
+            "issues": [f"Chặn chạy: {symbol} được đánh dấu dữ liệu nhân tạo (synthetic=true)"],
+            "metrics": {"total_bars": 0, "total_ticks": 0},
+        }
+
+    # Kiểm tra nến 1m và tính nhất quán với các khung khác
+    df_1m = load_candle_df(symbol, "1m", data_root)
+    df_15m = load_candle_df(symbol, "15m", data_root)
+    if df_1m is not None and not df_1m.empty:
+        # 1. Không có timestamp trùng lặp
+        if df_1m["open_time"].duplicated().any():
+            return {
+                "symbol": symbol,
+                "status": DataQualityStatus.BLOCKED,
+                "quality_score": 0.0,
+                "issues": [f"Chặn chạy: Phát hiện timestamp trùng lặp trong nến 1m của {symbol}"],
+                "metrics": {"total_bars": len(df_1m)},
+            }
+
+        # 2. Tỉ lệ nến điền (filled_ratio) không vượt ngưỡng 30%
+        filled_ratio = float(manifest.get("filled_ratio_1m", 0.0))
+        if "is_filled" in df_1m.columns:
+            filled_ratio = float((df_1m["is_filled"] == 1).mean())
+        if filled_ratio > 0.30:
+            return {
+                "symbol": symbol,
+                "status": DataQualityStatus.BLOCKED,
+                "quality_score": 10.0,
+                "issues": [f"Chặn chạy: Tỉ lệ nến điền (filled_ratio={filled_ratio*100:.1f}%) vượt ngưỡng 30%"],
+                "metrics": {"filled_ratio": filled_ratio},
+            }
+
+        # 3. Không có bước nhảy giá bất thường trong 1 phút > 50%
+        pct_1m = df_1m["close"].pct_change().abs()
+        if (pct_1m > 0.50).any():
+            return {
+                "symbol": symbol,
+                "status": DataQualityStatus.BLOCKED,
+                "quality_score": 10.0,
+                "issues": [f"Chặn chạy: Phát hiện bước nhảy giá bất thường > 50% trong 1 phút"],
+                "metrics": {"max_1m_jump": float(pct_1m.max())},
+            }
+
+        # 4. Resample 1m -> 15m phải khớp với 15m đang lưu (sai số < 1e-6)
+        if df_15m is not None and not df_15m.empty:
+            try:
+                from backend.core.resampler import resample_from_1m
+            except ImportError:
+                from nora.backend.core.resampler import resample_from_1m
+            resampled_15m = resample_from_1m(df_1m, "15m")
+            merged_check = pd.merge(resampled_15m, df_15m, on="open_time", suffixes=("_resampled", "_stored"))
+            if merged_check.empty or len(merged_check) != len(df_15m):
+                return {
+                    "symbol": symbol,
+                    "status": DataQualityStatus.BLOCKED,
+                    "quality_score": 0.0,
+                    "issues": [f"Chặn chạy: Timestamps giữa 1m resample và 15m lưu trữ không khớp"],
+                    "metrics": {"resampled_bars": len(resampled_15m), "stored_bars": len(df_15m)},
+                }
+            max_diff = (merged_check["close_resampled"] - merged_check["close_stored"]).abs().max()
+            if max_diff > 1e-6:
+                return {
+                    "symbol": symbol,
+                    "status": DataQualityStatus.BLOCKED,
+                    "quality_score": 0.0,
+                    "issues": [f"Chặn chạy: Resample 1m sang 15m lệch với 15m lưu trữ (max diff: {max_diff:.6e})"],
+                    "metrics": {"max_diff_15m": float(max_diff)},
+                }
+
     # Load candles if not provided
     if df_candles is None or df_candles.empty:
         df_candles = load_candle_df(symbol, timeframe, data_root)

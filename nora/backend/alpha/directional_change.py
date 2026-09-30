@@ -175,6 +175,7 @@ def simulate_causal_dc_trades(
     theta: float = 0.02,
     friction_bps: float = 65.0,
     tp_overshoot_multiplier: float = 1.25,
+    mode: str = "fade",
 ) -> Dict[str, Any]:
     """
     Simulate causal, 100% zero look-ahead trading execution on raw tick data.
@@ -185,6 +186,7 @@ def simulate_causal_dc_trades(
        - Take Profit: If price hits target P_tp = P_entry * (1 +/- k * theta)
        - Stop / Reversal: If opposite DC event is confirmed at i_next_conf at price P_next_conf.
     3. Zero look-ahead bias: Never uses unconfirmed peak/trough extrema for execution.
+    4. mode: 'fade' (counter-trend fade after DC) or 'momentum' (trend-following after DC).
     """
     if df_ticks.empty or len(df_ticks) < 20:
         return {
@@ -241,14 +243,21 @@ def simulate_causal_dc_trades(
         exit_reason = "DC Reversal Trailing Stop"
         exit_i = i_next_bound
 
+        # Determine trade position type
+        if mode == "momentum":
+            is_long = (direction == -1)  # Upturn confirmed -> Long momentum
+            trade_type = "LONG (Momentum sau upturn)" if is_long else "SHORT (Momentum sau downturn)"
+        else:
+            is_long = (direction == 1)   # Downturn confirmed -> Long fade
+            trade_type = "LONG (Fade sau downturn)" if is_long else "SHORT (Fade sau upturn)"
+
         # Check tick-by-tick for Overshoot Take-Profit limit order
-        if direction == 1:
-            # Long Trade
+        if is_long:
             tp_target = entry_p * (1.0 + theta * tp_overshoot_multiplier)
             for tick_i in range(i_conf + 1, i_next_bound + 1):
                 p_tick = prices[tick_i]
                 if p_tick >= tp_target:
-                    exit_p = p_tick
+                    exit_p = tp_target  # Limit order fills at target, not overshoot tick price
                     exit_t = timestamps[tick_i]
                     exit_reason = "Take Profit @ Target Overshoot"
                     exit_i = tick_i
@@ -256,12 +265,11 @@ def simulate_causal_dc_trades(
 
             gross_pct = ((exit_p - entry_p) / entry_p) * 100.0 if entry_p > 0 else 0.0
         else:
-            # Short Trade
             tp_target = entry_p * (1.0 - theta * tp_overshoot_multiplier)
             for tick_i in range(i_conf + 1, i_next_bound + 1):
                 p_tick = prices[tick_i]
                 if p_tick <= tp_target:
-                    exit_p = p_tick
+                    exit_p = tp_target  # Limit order fills at target, not overshoot tick price
                     exit_t = timestamps[tick_i]
                     exit_reason = "Take Profit @ Target Overshoot"
                     exit_i = tick_i
@@ -282,7 +290,7 @@ def simulate_causal_dc_trades(
             "exitTimestamp": int(exit_t),
             "entryIndex": int(i_conf),
             "exitIndex": int(exit_i),
-            "type": "LONG (DC Momentum)" if direction == 1 else "SHORT (DC Overshoot Fade)",
+            "type": trade_type,
             "direction": int(direction),
             "entryPrice": round(float(entry_p), 6),
             "exitPrice": round(float(exit_p), 6),
@@ -302,6 +310,9 @@ def simulate_causal_dc_trades(
         {"key": "stress", "label": "Severe Stress (250 bps)", "friction": 250, "desc": "Nghẽn mạng / Sụp đổ thanh khoản"},
     ]
 
+    time_span_ms = float(timestamps[-1] - timestamps[0]) if len(timestamps) > 1 else 0.0
+    years = max(1.0 / 365.25, time_span_ms / (86400.0 * 1000.0 * 365.25))
+
     cost_models = {}
     for tier in cost_tiers:
         f = tier["friction"]
@@ -314,15 +325,20 @@ def simulate_causal_dc_trades(
         g_losses = [abs(b) for b in tier_net_bps if b < 0]
         sum_gains = sum(g_gains)
         sum_losses = sum(g_losses)
-        pf = round(sum_gains / max(1, sum_losses), 2) if sum_losses > 0 else (3.0 if sum_gains > 0 else 0.0)
+        if sum_losses > 0:
+            pf = round(sum_gains / sum_losses, 2)
+        elif sum_gains > 0:
+            pf = float("inf")
+        else:
+            pf = 0.0
 
         avg_net = round(float(np.mean(tier_net_bps)), 1) if tier_net_bps else 0.0
 
-        # Estimate Sharpe Ratio
-        if len(tier_net_bps) > 2:
+        # Estimate Sharpe Ratio using actual time span in years
+        if len(tier_net_bps) > 2 and years > 0:
             ret_arr = np.array(tier_net_bps) / 10000.0
             std = np.std(ret_arr)
-            sharpe = round(float((np.mean(ret_arr) / max(1e-6, std)) * np.sqrt(365 * 24)), 2) if std > 0 else 0.0
+            sharpe = round(float((np.mean(ret_arr) / max(1e-6, std)) * np.sqrt(len(tier_net_bps) / years)), 2) if std > 0 else 0.0
         else:
             sharpe = 0.0
 
@@ -333,8 +349,15 @@ def simulate_causal_dc_trades(
         max_dd_bps = int(np.max(dd)) if len(dd) else 0
         max_dd_pct = round(max_dd_bps / 100.0, 1)
 
-        ruin_prob = 0.0 if avg_net > 0 and wr >= 50.0 else (round(min(100.0, max(5.0, (100.0 - wr) * 1.2)), 1))
-        survived = (avg_net > 0) and (pf >= 1.05) and (ruin_prob < 5.0)
+        # Survived criteria: n >= 30, avg_net > 0, 95% bootstrap lower bound of avg_net_bps > 0
+        bootstrap_lb = -999.0
+        if len(tier_net_bps) >= 30:
+            rng = np.random.default_rng(42)
+            boot_samples = rng.choice(tier_net_bps, size=(500, len(tier_net_bps)), replace=True)
+            boot_means = np.mean(boot_samples, axis=1)
+            bootstrap_lb = float(np.percentile(boot_means, 2.5))
+
+        survived = bool((len(tier_net_bps) >= 30) and (avg_net > 0) and (bootstrap_lb > 0))
 
         cost_models[tier["key"]] = {
             "key": tier["key"],
@@ -345,16 +368,16 @@ def simulate_causal_dc_trades(
             "desc": tier["desc"],
             "win_rate": wr,
             "winRate": wr,
-            "profit_factor": pf,
-            "profitFactor": pf,
+            "profit_factor": None if pf == float("inf") else pf,
+            "profitFactor": None if pf == float("inf") else pf,
+            "profit_factor_is_inf": pf == float("inf"),
             "avg_net_bps": avg_net,
             "avgNetBps": avg_net,
             "net_bps": avg_net,
             "sharpe": sharpe,
             "max_drawdown_pct": max_dd_pct,
             "maxDdPct": max_dd_pct,
-            "ruin_prob_pct": ruin_prob,
-            "ruinProb": ruin_prob,
+            "bootstrap_lb_95": round(bootstrap_lb, 1) if bootstrap_lb > -900 else None,
             "survived": survived,
             "verdict": "SURVIVED" if survived else "FALSIFIED",
         }
@@ -371,10 +394,10 @@ def simulate_causal_dc_trades(
 
     return {
         "total_trades": len(trades),
-        "win_rate": base_model.get("winRate", 60.0),
-        "profit_factor": base_model.get("profitFactor", 1.5),
-        "avg_net_bps": base_model.get("avgNetBps", 50.0),
-        "sharpe": base_model.get("sharpe", 1.8),
+        "win_rate": base_model.get("winRate"),
+        "profit_factor": base_model.get("profitFactor"),
+        "avg_net_bps": base_model.get("avgNetBps"),
+        "sharpe": base_model.get("sharpe"),
         "trades": trades,
         "cost_models": cost_models,
     }
