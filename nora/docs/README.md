@@ -1,5 +1,38 @@
 # HỆ THỐNG TÀI LIỆU DỰ ÁN NORA (BMAD & KNOWLEDGE BASE)
 
+## Cấu trúc thư mục
+
+```text
+nora/
+├── backend/
+│   ├── main.py            # App FastAPI (uvicorn backend.main:app)
+│   ├── api/               # routers/, schemas.py, control.py (điều khiển node cũ), jobs/ (store, batch, scan)
+│   ├── core/              # Lõi nghiệp vụ
+│   │   ├── contracts.py   # Hợp đồng dữ liệu Backtest/WFA/Monte Carlo
+│   │   ├── data/          # loader, resampler, quality_gate, crawler/
+│   │   ├── signals/       # kernels, diagnostics, evaluator
+│   │   ├── strategy/      # params, strategy_book/library, templates, builder/generator/validator, DC
+│   │   ├── backtest/      # engine, portfolio, execution, metrics, shared_data
+│   │   ├── analytics/     # portfolio_dashboard, stats_metrics, queries
+│   │   └── research/      # nghiên cứu thị trường (regime, DC, insight, scan)
+│   ├── db/                # data_layout, local_pkl, tick_storage, mysql, mongo, models
+│   ├── optimize/          # generator, ranker, runner, registry, book_export
+│   ├── wfa/               # walk_forward (đơn tài sản), portfolio_wfa
+│   ├── carlo/             # monte_carlo
+│   └── utils/             # lru, parallel, memwatch, jsonsafe, jobresult
+├── test/                  # pytest + golden/ (snapshot bit-identical)
+├── scripts/               # CLI: run_limited.sh, run_book_backtest, build_strategy_book, smoke_check, ...
+├── ops/                   # systemd units, install_user_units.sh
+├── alphas/                # sổ alpha / registry
+├── data/                  # dữ liệu & cache (không commit)
+├── frontend/              # Vite SPA
+└── docs/                  # tài liệu
+```
+
+Chạy mọi thứ qua `scripts/run_limited.sh` (PYTHONPATH=nora, cwd=nora); import theo dạng `backend.core.backtest.portfolio`, `backend.api.jobs.batch`, ...
+
+---
+
 Cấu trúc tài liệu dự án Nora được thiết kế theo tiêu chuẩn kép:
 1. **`knowledge_base/` (Tri thức & Định hướng cốt lõi)**: Lưu giữ toàn bộ ý tưởng gốc, lý thuyết định lượng, triết lý vi mô DEX và các **Luật thép (Rule Base)** được đúc kết từ chỉ đạo của Sếp qua các phiên review. Đây là tầng tri thức bất biến, không chứa code.
 2. **`bmad/` (Build - Measure - Architecture - Deliver)**: Bản đồ kỹ thuật chi tiết dành cho Developer và AI. Bao gồm đặc tả kiến trúc (Spec), bản đồ file code (Code Map), hiện trạng hệ thống và báo cáo kết quả theo từng đợt sóng (Wave Reports).

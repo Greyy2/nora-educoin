@@ -7,7 +7,7 @@ Chạy qua run_limited (nora.slice 12G, xếp hàng):
   scripts/run_limited.sh -- scripts/smoke_check.py optcheck  --run DIR1 [--run DIR2]   # kiểm results.json + fold của optimize_alphas
 
 Bất biến mỗi lần chạy: sổ vốn, vị thế, bậc DCA, rủi ro theo SL, trần danh nghĩa/đòn bẩy, trần danh mục.
-Tất định: chạy 2 lần, xoá cache giữa hai lần, so canonical (tests/golden_scenarios.canonicalize).
+Tất định: chạy 2 lần, xoá cache giữa hai lần, so canonical (test/golden_scenarios.canonicalize).
 """
 import os
 
@@ -24,7 +24,7 @@ import time
 from collections import Counter, defaultdict
 
 NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-for _p in (NORA_ROOT, os.path.join(NORA_ROOT, "tests")):
+for _p in (NORA_ROOT, os.path.join(NORA_ROOT, "test")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 from backend.utils.jsonsafe import json_default  # noqa: E402
@@ -249,8 +249,8 @@ def first_config(space):
 
 
 def run_candidate(c, symbol, start, end, trade_start):
-    from backend.alpha.strategy_book import materialize
-    from backend.backtest.portfolio import PortfolioEngine
+    from backend.core.strategy.strategy_book import materialize
+    from backend.core.backtest.portfolio import PortfolioEngine
     st = materialize(c, first_config(c["space"]))
     t0 = time.time()
     eng = PortfolioEngine([symbol], [st], start, end, trade_start_ts=trade_start)
@@ -259,8 +259,8 @@ def run_candidate(c, symbol, start, end, trade_start):
 
 
 def run_bot(strat, symbol, start, end, trade_start, override=None):
-    from backend.backtest.engine import BacktestEngine
-    from backend.backtest.params_builder import build_params
+    from backend.core.backtest.engine import BacktestEngine
+    from backend.core.backtest.params_builder import build_params
     pos = {k: v for k, v in strat["default_params"].items() if k != "initial_capital"}
     pos.update(override or {})
     fl = strat["flows"][0]
@@ -275,8 +275,8 @@ def run_bot(strat, symbol, start, end, trade_start, override=None):
 
 def dca_unit_probe():
     """Thăm dò tất định (không dữ liệu thị trường): giá rơi xuyên mọi bậc DCA -> số tầng đã khớp theo order_size_pct."""
-    from backend.backtest.execution import PositionTracker
-    from backend.backtest.params_builder import build_params
+    from backend.core.backtest.execution import PositionTracker
+    from backend.core.backtest.params_builder import build_params
     from backend.db.models import PositionType
     out = {}
     for size in (20.0, 19.0):
@@ -297,8 +297,8 @@ def dca_unit_probe():
 
 
 def cmd_single(a):
-    from backend.alpha.strategy_book import CANDIDATES
-    from backend.alpha.strategy_library import KERNEL_STRATEGIES
+    from backend.core.strategy.strategy_book import CANDIDATES
+    from backend.core.strategy.strategy_library import KERNEL_STRATEGIES
     start, end, ts = windows()
     rows = []
     print(f"== single: cửa sổ {START} -> {END} (+{WARMUP_D}d khởi động)  [cấu hình = khoá sắp xếp, giá trị đầu tiên của mỗi khoá]", flush=True)
@@ -344,8 +344,8 @@ def cmd_single(a):
 # ─── portfolio ───────────────────────────────────────────────────────────────
 
 def mk_portfolio(shared_dir=None):
-    from backend.alpha.strategy_book import CANDIDATES, RISK, materialize, perp_symbols
-    from backend.backtest.portfolio import PortfolioEngine, RiskConfig
+    from backend.core.strategy.strategy_book import CANDIDATES, RISK, materialize, perp_symbols
+    from backend.core.backtest.portfolio import PortfolioEngine, RiskConfig
     start, end, ts = windows()
     sts = [materialize(c, first_config(c["space"])) for c in CANDIDATES]
     risk = RiskConfig.from_dict(RISK)
@@ -369,7 +369,7 @@ def cmd_portfolio(a):
     quiet(eng2.run)
     det = deterministic(res, eng2.get_results())
     # shared_dir: export mmap rồi chạy lại, phải y hệt
-    from backend.backtest import shared_data
+    from backend.core.backtest import shared_data
     sd = os.path.join(a.out, "_shared")
     clear()
     eng3, _, _ = mk_portfolio(shared_dir=sd)
@@ -418,10 +418,10 @@ def fold_checks(folds, first_test_expected, test_days_ms):
 def cmd_studio(a):
     os.makedirs(a.out, exist_ok=True)
     os.environ["NORA_PIPELINE_DB_PATH"] = os.path.join(a.out, "pipeline.db")
-    from backend.studio_pipeline.jobs import create_mc_job, create_wfa_job, get_mc_job, get_wfa_job, init_db
-    from backend.studio_pipeline.monte_carlo import execute_monte_carlo_pipeline
-    from backend.studio_pipeline.schemas import MonteCarloRunRequest, StrategySnapshot, WfaFoldConfig
-    from backend.studio_pipeline.wfa import execute_wfa_pipeline
+    from backend.api.jobs.store import create_mc_job, create_wfa_job, get_mc_job, get_wfa_job, init_db
+    from backend.carlo.monte_carlo import execute_monte_carlo_pipeline
+    from backend.core.contracts import MonteCarloRunRequest, StrategySnapshot, WfaFoldConfig
+    from backend.wfa.walk_forward import execute_wfa_pipeline
     init_db()
     reg = json.load(open(os.path.join(NORA_ROOT, "alphas", "registry.json"), encoding="utf-8"))
     al = next(x for x in reg["alphas"] if x["alpha_id"] == a.alpha)
@@ -484,8 +484,8 @@ def cmd_optcheck(a):
     import sqlite3
     sys.path.insert(0, os.path.join(NORA_ROOT, "scripts"))
     import optimize_alphas as oa
-    from backend.alpha.strategy_library import OPTIMIZATION_SPACES
-    from backend.backtest.params_builder import data_symbol
+    from backend.core.strategy.strategy_library import OPTIMIZATION_SPACES
+    from backend.core.backtest.params_builder import data_symbol
     from backend.db.local_pkl import read_manifest
     loaded = []
     for d in a.run:

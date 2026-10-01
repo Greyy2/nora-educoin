@@ -30,7 +30,7 @@ NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if NORA_ROOT not in sys.path:
     sys.path.insert(0, NORA_ROOT)
 
-from backend.backtest.portfolio_metrics import portfolio_metrics  # noqa: E402
+from backend.core.backtest.portfolio_metrics import portfolio_metrics  # noqa: E402
 from backend.utils.jobresult import write_job_result  # noqa: E402
 from backend.utils.jsonsafe import json_default  # noqa: E402
 
@@ -53,7 +53,7 @@ def _mid_params(candidate, params):
 
 def load_items(a):
     """-> (items [(id, params)], rủi ro/lệnh mặc định, dict RiskConfig)."""
-    from backend.alpha.strategy_book import BASE_RISK_PER_TRADE_PCT, CANDIDATES, RISK
+    from backend.core.strategy.strategy_book import BASE_RISK_PER_TRADE_PCT, CANDIDATES, RISK
     by_id = {c["id"]: c for c in CANDIDATES}
     if a.strategies:
         raw = json.loads(a.strategies)
@@ -94,8 +94,8 @@ def daily_nav(curve, end):
 
 
 def run(items, symbols, start, end, rpt, stop_fill, risk):
-    from backend.alpha.strategy_book import CANDIDATES, materialize
-    from backend.backtest.portfolio import PortfolioEngine, RiskConfig
+    from backend.core.strategy.strategy_book import CANDIDATES, materialize
+    from backend.core.backtest.portfolio import PortfolioEngine, RiskConfig
     from backend.utils.memwatch import peak_rss_mb
     by_id = {c["id"]: c for c in CANDIDATES}
     strategies = [materialize(by_id[cid], prm, stop_fill=stop_fill, risk_per_trade_pct=rpt) for cid, prm in items]
@@ -141,7 +141,7 @@ def main(argv=None):
         ap.error("chọn một: --book hoặc --strategies")
     from backend.utils.memwatch import require_memory_limit
     require_memory_limit("run_book_backtest")
-    from backend.alpha.strategy_book import perp_symbols
+    from backend.core.strategy.strategy_book import perp_symbols
 
     symbols = [s if "@" in s else f"{s}@perp" for s in a.symbols.split(",") if s] or perp_symbols()
     items, rpt, risk = load_items(a)

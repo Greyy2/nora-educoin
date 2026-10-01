@@ -6,7 +6,7 @@ dùng cùng payload khi được nối sau này.
 
 Quy ước chung:
 - Thời gian là ms UTC. Ngày dạng `YYYY-MM-DD` (UTC). Tiền tệ USDT. Phần trăm là số đã nhân 100 (`4.85` = 4,85%).
-- Job nặng chạy nền qua hàng đợi `run_limited` (`backend/studio_pipeline/batch_jobs.py`). Client poll `GET /api/studio/book/jobs/{id}` mỗi 2 s.
+- Job nặng chạy nền qua hàng đợi `run_limited` (`backend/api/jobs/batch.py`). Client poll `GET /api/studio/book/jobs/{id}` mỗi 2 s.
 - Trạng thái job (`status`): `queued` (đang chờ job khác) | `running` | `done` | `failed`.
 - Lỗi theo FastAPI: `{detail}` với mã 4xx/5xx; 429 khi đã có quá nhiều job đang chờ.
 

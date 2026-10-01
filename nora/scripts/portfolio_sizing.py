@@ -32,8 +32,8 @@ def _run(args):
     """Một tài sản / một giai đoạn với flow của alpha (AST đã thay tham số trong kho)."""
     import contextlib
     import io
-    from backend.backtest.engine import BacktestEngine
-    from backend.backtest.params_builder import build_params
+    from backend.core.backtest.engine import BacktestEngine
+    from backend.core.backtest.params_builder import build_params
     flows, position, symbol, start, end = args
     eng = BacktestEngine(0, 0, symbol, start - 20 * 86_400_000, end, trade_start_ts=start, initial_capital=10000.0)
     for fl in flows:

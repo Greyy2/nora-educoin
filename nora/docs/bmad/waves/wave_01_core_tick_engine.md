@@ -14,7 +14,7 @@
 
 ## 2. Các Thay Đổi Kỹ Thuật Đã Triển Khai
 1. **Kiểm tra và xác nhận Zero Look-Ahead Bias**:
-   - Rà soát toàn bộ pipeline xử lý trong `nora/backend/research/dc_feature_extractor.py` và `event_behavior.py`.
+   - Rà soát toàn bộ pipeline xử lý trong `nora/backend/core/research/dc_feature_extractor.py` và `event_behavior.py`.
    - Xác nhận cơ chế event loop chỉ đọc dữ liệu theo thứ tự tăng dần của timestamp $t_0 \le t_1 \le ... \le t_k$, không có bất kỳ hàm nhìn trước tương lai.
 2. **Loại bỏ nến giả lập ở giao diện List Trade**:
    - Thay thế biểu đồ nến bằng đường biến động liên tục của từng tick (Price Trajectory / Step line).

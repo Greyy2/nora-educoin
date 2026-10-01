@@ -17,8 +17,8 @@ def main(argv=None):
     ap.add_argument("results_dir")
     ap.add_argument("--out", default=os.path.join(NORA_ROOT, "alphas"))
     args = ap.parse_args(argv)
-    from backend.alpha.registry import build_registry, write_registry
-    from backend.alpha.strategy_library import OPTIMIZATION_SPACES
+    from backend.optimize.registry import build_registry, write_registry
+    from backend.core.strategy.strategy_library import OPTIMIZATION_SPACES
 
     with open(os.path.join(args.results_dir, "results.json"), encoding="utf-8") as fh:
         results = json.load(fh)

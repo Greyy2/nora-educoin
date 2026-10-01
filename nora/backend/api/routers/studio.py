@@ -8,22 +8,22 @@ import pandas as pd
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from backend.alpha.features_meta import FEATURES_CATALOG, OPERATORS_CATALOG
-from backend.alpha.templates import STRATEGY_SAMPLES
-from backend.alpha.validator import ASTValidationError, ASTValidator
-from backend.backtest.engine import BacktestEngine
-from backend.backtest.metrics import MetricsCalculator
-from backend.core.params import StrategyParams
+from backend.core.strategy.features_meta import FEATURES_CATALOG, OPERATORS_CATALOG
+from backend.core.strategy.templates import STRATEGY_SAMPLES
+from backend.core.strategy.validator import ASTValidationError, ASTValidator
+from backend.core.backtest.engine import BacktestEngine
+from backend.core.backtest.metrics import MetricsCalculator
+from backend.core.strategy.params import StrategyParams
 from backend.db.local_pkl import default_data_root, has_frame
 from backend.db.models import OrderModel, PositionModel
-from backend.studio_pipeline.schemas import (
+from backend.core.contracts import (
     StrategySnapshot,
     BacktestResultContract,
     WfaFoldConfig,
     WfaRunRequest,
     MonteCarloRunRequest,
 )
-from backend.studio_pipeline.jobs import (
+from backend.api.jobs.store import (
     save_backtest_source,
     get_backtest_source,
     list_backtest_history,
@@ -36,8 +36,8 @@ from backend.studio_pipeline.jobs import (
     generate_handle,
     submit_background_task,
 )
-from backend.studio_pipeline.wfa import execute_wfa_pipeline
-from backend.studio_pipeline.monte_carlo import execute_monte_carlo_pipeline
+from backend.wfa.walk_forward import execute_wfa_pipeline
+from backend.carlo.monte_carlo import execute_monte_carlo_pipeline
 
 router = APIRouter(prefix="/api/studio", tags=["studio"])
 
@@ -111,13 +111,13 @@ def health() -> Dict[str, Any]:
 
 @router.get("/samples")
 def get_samples() -> Dict[str, Any]:
-    from backend.alpha.strategy_library import SIGNALS
+    from backend.core.strategy.strategy_library import SIGNALS
     return {"samples": STRATEGY_SAMPLES, "signals": SIGNALS, "mode": "ast_builder"}
 
 
 @router.get("/features")
 def get_features() -> Dict[str, Any]:
-    from backend.signals.kernels import catalog as kernel_catalog
+    from backend.core.signals.kernels import catalog as kernel_catalog
     return {
         "features": FEATURES_CATALOG,
         "kernels": kernel_catalog(),
@@ -213,7 +213,7 @@ def run_simulation(req: SimulateRequest) -> Dict[str, Any]:
         raise HTTPException(status_code=400, detail="Cần gửi ít nhất một flow AST trong trường flows.")
 
     _validate_range(req.start_ts, req.end_ts)
-    from backend.alpha.params_template import resolve_placeholders
+    from backend.core.strategy.params_template import resolve_placeholders
     try:  # ngưỡng tín hiệu dạng {"param": ...} -> số
         enabled_flows = resolve_placeholders(_enabled_flows(req.flows), req.signal_params or {})
     except ValueError as exc:
@@ -227,7 +227,7 @@ def run_simulation(req: SimulateRequest) -> Dict[str, Any]:
         raise HTTPException(status_code=400, detail=str(exc))
 
     from backend.db.data_layout import AmbiguousSymbolError
-    from backend.backtest.params_builder import data_symbol
+    from backend.core.backtest.params_builder import data_symbol
     data_sym, price_source = data_symbol(clean_symbol, req.market)  # perp -> BTC@perp (giá perp + funding)
     try:
         missing_frames = [
@@ -242,7 +242,7 @@ def run_simulation(req: SimulateRequest) -> Dict[str, Any]:
             detail=f"{clean_symbol} thiếu dữ liệu bắt buộc cho Studio: {', '.join(missing_frames)}. Studio không tự crawl khi thiếu data.",
         )
 
-    from backend.research.data_quality_gate import evaluate_data_quality, DataQualityStatus
+    from backend.core.data.quality_gate import evaluate_data_quality, DataQualityStatus
     dq = evaluate_data_quality(data_sym, timeframe="1m", data_root=default_data_root())
     if dq["status"] in (DataQualityStatus.BLOCKED, DataQualityStatus.NEEDS_MORE_DATA):
         raise HTTPException(
@@ -252,7 +252,7 @@ def run_simulation(req: SimulateRequest) -> Dict[str, Any]:
 
     initial_capital = float(req.capital if req.capital is not None else req.initial_capital)
 
-    from backend.backtest.params_builder import POSITION_KEYS, build_params, venue_of_symbol
+    from backend.core.backtest.params_builder import POSITION_KEYS, build_params, venue_of_symbol
     position = {key: getattr(req, key) for key in POSITION_KEYS}
     try:
         venue = venue_of_symbol(clean_symbol)
@@ -380,7 +380,7 @@ def run_script_simulation(req: ScriptSimulateRequest) -> Dict[str, Any]:
             detail="Python script execution đang tắt. Chỉ bật local bằng NORA_STUDIO_ENABLE_SCRIPT=1 khi thật sự cần nghiên cứu nội bộ.",
         )
 
-    from backend.alpha.script_engine import ScriptStrategyRunner
+    from backend.core.strategy.script_engine import ScriptStrategyRunner
     from backend.db.local_pkl import fetch_candles_df
 
     start_wall = time.time()
@@ -815,9 +815,9 @@ class ScanRequest(BaseModel):
 
 @router.post("/scan")
 def start_scan(req: ScanRequest) -> Dict[str, Any]:
-    from backend.backtest.params_builder import POSITION_KEYS
+    from backend.core.backtest.params_builder import POSITION_KEYS
     from backend.db.data_layout import list_assets
-    from backend.studio_pipeline.scan import create_scan_job, execute_scan
+    from backend.api.jobs.scan import create_scan_job, execute_scan
 
     name = "Custom"
     flows = req.flows
@@ -834,7 +834,7 @@ def start_scan(req: ScanRequest) -> Dict[str, Any]:
     if bad:
         raise HTTPException(status_code=400, detail=f"Tham số vị thế không hỗ trợ: {sorted(bad)}")
     position.update(req.position)
-    from backend.alpha.params_template import resolve_placeholders
+    from backend.core.strategy.params_template import resolve_placeholders
     try:
         ASTValidator.validate_flows_or_raise(resolve_placeholders(_enabled_flows(flows), req.signal_params))
     except (ASTValidationError, ValueError) as exc:
@@ -850,13 +850,13 @@ def start_scan(req: ScanRequest) -> Dict[str, Any]:
 
 @router.get("/scan/history")
 def get_scan_history(limit: int = 30) -> Dict[str, Any]:
-    from backend.studio_pipeline.scan import list_scan_history
+    from backend.api.jobs.scan import list_scan_history
     return {"history": list_scan_history(limit=limit)}
 
 
 @router.get("/scan/{job_id}")
 def get_scan(job_id: str) -> Dict[str, Any]:
-    from backend.studio_pipeline.scan import get_scan_job
+    from backend.api.jobs.scan import get_scan_job
     job = get_scan_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Không tìm thấy scan job.")

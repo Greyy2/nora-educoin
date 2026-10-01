@@ -5,7 +5,7 @@ Ví dụ: Grid Search (Cartesian Product) cho Keltner (length: [10, 20], multipl
 """
 import itertools
 from typing import Any, Dict, List
-from backend.core.params import StrategyParams
+from backend.core.strategy.params import StrategyParams
 
 class ParamGenerator:
     """Sinh mảng cấu hình tham số để chạy Optimizer."""

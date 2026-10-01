@@ -5,10 +5,10 @@ from typing import Any, Dict, List
 from fastapi import APIRouter, HTTPException
 
 from backend.api.schemas import BacktestRequest, BacktestResponse, MetricsResponse, PositionResponse, OptimizeRequest
-from backend.backtest.engine import BacktestEngine
-from backend.backtest.metrics import MetricsCalculator
-from backend.core.params import StrategyParams
-from backend.alpha import generate_full_keltner_strategy
+from backend.core.backtest.engine import BacktestEngine
+from backend.core.backtest.metrics import MetricsCalculator
+from backend.core.strategy.params import StrategyParams
+from backend.core.strategy import generate_full_keltner_strategy
 from backend.optimize.generator import ParamGenerator
 from backend.optimize.runner import OptimizeRunner
 from backend.optimize.ranker import ResultsRanker

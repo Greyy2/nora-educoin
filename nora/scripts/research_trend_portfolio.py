@@ -33,7 +33,7 @@ WARMUP = 20 * DAY
 
 
 def _families():
-    from backend.alpha.strategy_library import cond, f, p
+    from backend.core.strategy.strategy_library import cond, f, p
     return {
         # 1h xu hướng + phá đỉnh/đáy 15m (họ của alpha SOL)
         "ema1h_dch15m": {
@@ -66,9 +66,9 @@ def _run(args):
     """Một tài sản, một cấu hình, một khoảng: đường vốn MTM theo giờ (tỉ lệ so với vốn đầu) + thống kê lệnh."""
     import contextlib
     import io
-    from backend.alpha.params_template import resolve_placeholders, split_params
-    from backend.backtest.engine import BacktestEngine
-    from backend.backtest.params_builder import build_params
+    from backend.core.strategy.params_template import resolve_placeholders, split_params
+    from backend.core.backtest.engine import BacktestEngine
+    from backend.core.backtest.params_builder import build_params
     family, params, symbol, start, end, sides = args
     signal, position = split_params(dict(params))
     fam = _families()[family]

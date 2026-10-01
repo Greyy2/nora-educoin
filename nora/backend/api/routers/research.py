@@ -11,28 +11,28 @@ from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Query
 
 try:
-    from backend.research.market_analyzer import (
+    from backend.core.research.market_analyzer import (
         analyze_market,
         scan_all_markets,
         get_why_not_trade_summary,
         list_known_symbols,
     )
-    from backend.research.event_behavior import fetch_recent_pool_trades
-    from backend.research.discovery_engine import (
+    from backend.core.research.event_behavior import fetch_recent_pool_trades
+    from backend.core.research.discovery_engine import (
         compute_discoveries,
         get_discovery_by_id,
         get_dataset_summary,
         compute_method_comparison,
     )
 except ImportError:
-    from nora.backend.research.market_analyzer import (
+    from nora.backend.core.research.market_analyzer import (
         analyze_market,
         scan_all_markets,
         get_why_not_trade_summary,
         list_known_symbols,
     )
-    from nora.backend.research.event_behavior import fetch_recent_pool_trades
-    from nora.backend.research.discovery_engine import (
+    from nora.backend.core.research.event_behavior import fetch_recent_pool_trades
+    from nora.backend.core.research.discovery_engine import (
         compute_discoveries,
         get_discovery_by_id,
         get_dataset_summary,

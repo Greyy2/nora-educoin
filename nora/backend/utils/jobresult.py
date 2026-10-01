@@ -1,6 +1,6 @@
 """Quy ước job nền của API: khi env NORA_JOB_DIR có đặt, script ghi báo cáo cuối vào $NORA_JOB_DIR/result.json.
 
-API (backend/studio_pipeline/batch_jobs.py) đặt biến này khi chạy script qua run_limited.sh rồi đọc lại file.
+API (backend/api/jobs/batch.py) đặt biến này khi chạy script qua run_limited.sh rồi đọc lại file.
 Không đặt biến -> không làm gì (chạy tay như cũ).
 """
 import json

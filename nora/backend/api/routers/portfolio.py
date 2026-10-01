@@ -1,6 +1,6 @@
 """API trang Danh mục (docs/ui_contract.md §3): GET /api/studio/portfolio/dashboard.
 
-Nguồn `backtest` đọc result.json của một job book_backtest đã xong (dựng bằng backend/analytics/portfolio_dashboard.py);
+Nguồn `backtest` đọc result.json của một job book_backtest đã xong (dựng bằng backend/core/analytics/portfolio_dashboard.py);
 live/paper/testnet chưa có tài khoản -> {"available": false, "reason"} (HTTP 200). Kết quả được đệm LRU theo (job_id, period, mtime).
 """
 import os
@@ -9,8 +9,8 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
-from backend.analytics import portfolio_dashboard as pd_mod
-from backend.studio_pipeline import batch_jobs
+from backend.core.analytics import portfolio_dashboard as pd_mod
+from backend.api.jobs import batch as batch_jobs
 
 router = APIRouter(prefix="/api/studio/portfolio", tags=["portfolio"])
 

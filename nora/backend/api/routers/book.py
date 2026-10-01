@@ -1,6 +1,6 @@
 """API sổ chiến lược (strategy book): xem sổ hiện tại + chạy backtest danh mục / WFA danh mục / dựng sổ như job nền.
 
-Job nặng chạy ở tiến trình riêng qua scripts/run_limited.sh (xem backend/studio_pipeline/batch_jobs.py), handler ở đây chỉ
+Job nặng chạy ở tiến trình riêng qua scripts/run_limited.sh (xem backend/api/jobs/batch.py), handler ở đây chỉ
 khởi chạy / đọc file nên nhanh và là `def` thường (FastAPI chạy trong threadpool).
 """
 import json
@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from backend.studio_pipeline import batch_jobs
+from backend.api.jobs import batch as batch_jobs
 
 router = APIRouter(prefix="/api/studio/book", tags=["book"])
 alphas_router = APIRouter(prefix="/api/studio", tags=["book"])
@@ -162,14 +162,14 @@ def default_params(space: Dict[str, List[Any]]) -> Dict[str, Any]:
 
 
 def _catalog() -> List[Dict[str, Any]]:
-    from backend.alpha.strategy_book import CANDIDATES
+    from backend.core.strategy.strategy_book import CANDIDATES
     return [{"id": c["id"], "family": c["family"], "side": c["side"], "description": c["description"],
              "space": c["space"], "default_params": default_params(c["space"])} for c in CANDIDATES]
 
 
 def _universe_windows(book: Optional[Dict[str, Any]]):
     """(universe, windows dạng ngày): lấy từ sổ nếu có, không thì từ vũ trụ + dữ liệu hiện có (như build_strategy_book.windows)."""
-    from backend.alpha.strategy_book import perp_symbols
+    from backend.core.strategy.strategy_book import perp_symbols
     universe = (book or {}).get("universe") or perp_symbols()
     windows = (book or {}).get("windows")
     if not windows:
@@ -256,7 +256,7 @@ def post_build(req: BuildRequest):
 @router.post("/publish")
 def post_publish(req: PublishRequest):
     """Xuất bản sổ của một job book_build đã xong sang alphas/ (thay sổ hiện hành). Build KHÔNG tự ghi đè alphas/."""
-    from backend.alpha.book_export import publish_book
+    from backend.optimize.book_export import publish_book
     try:
         job = batch_jobs.status(req.job_id)
     except batch_jobs.JobError as e:
@@ -300,7 +300,7 @@ def get_job(job_id: str):
 @router.post("/mc")
 def post_mc(req: McRequest):
     """Block bootstrap lợi suất ngày OOS của một job book_wfa (hoặc chuỗi tự gửi); trả tóm tắt + fan + histogram + gate ruin."""
-    from backend.studio_pipeline.monte_carlo import run_monte_carlo_daily_detail
+    from backend.carlo.monte_carlo import run_monte_carlo_daily_detail
     if req.wfa_job_id:
         try:
             job = batch_jobs.status(req.wfa_job_id)

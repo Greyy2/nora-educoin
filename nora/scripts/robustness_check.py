@@ -30,8 +30,8 @@ def _window_run(args):
     space_id, symbol, params, start, end, trade_start = args
     import contextlib
     import io
-    from backend.alpha.strategy_library import OPTIMIZATION_SPACES
-    from backend.studio_pipeline.wfa import _run_single_window
+    from backend.core.strategy.strategy_library import OPTIMIZATION_SPACES
+    from backend.wfa.walk_forward import _run_single_window
     sd = next(s for s in OPTIMIZATION_SPACES if s["id"] == space_id)
     flows = [{"id": space_id, "type": sd["side"],
               "ast": {"type": sd["side"], "match": [{"condition": sd["tree"]}], "stop": []}}]
@@ -54,7 +54,7 @@ def main(argv=None):
     from backend.utils.parallel import resolve_workers
     # 900 MB/worker: mỗi job là backtest MỘT tài sản (chưa đo thực — hiệu chỉnh khi có số đỉnh RAM)
     workers = resolve_workers(a.workers, 900, "robustness_check")
-    from backend.alpha.strategy_library import OPTIMIZATION_SPACES
+    from backend.core.strategy.strategy_library import OPTIMIZATION_SPACES
     from backend.db.data_layout import list_assets
     from backend.db.local_pkl import read_manifest
     import pandas as pd

@@ -169,8 +169,8 @@ def usable_cpus() -> int:
 def cache_report() -> Dict[str, Any]:
     """RSS hiện tại / đỉnh và kích thước các cache module (số mục + MB)."""
     report: Dict[str, Any] = {"rss_mb": round(rss_mb(), 1), "peak_rss_mb": round(peak_rss_mb(), 1)}
-    for name, module, attr in (("candle_cache", "backend.core.loader", "_CANDLE_CACHE"),
-                               ("data_cache", "backend.backtest.portfolio", "_DATA_CACHE")):
+    for name, module, attr in (("candle_cache", "backend.core.data.loader", "_CANDLE_CACHE"),
+                               ("data_cache", "backend.core.backtest.portfolio", "_DATA_CACHE")):
         try:
             cache = getattr(__import__(module, fromlist=[attr]), attr)
             report[f"{name}_items"] = len(cache)

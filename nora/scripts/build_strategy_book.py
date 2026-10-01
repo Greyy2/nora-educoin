@@ -25,7 +25,7 @@ Bộ nhớ (mỗi worker là một tiến trình có cache riêng):
   BẮT BUỘC chạy dưới trần RAM: scripts/run_limited.sh -- scripts/build_strategy_book.py ...
   (không có trần cgroup thì script từ chối chạy, trừ khi NORA_ALLOW_UNLIMITED=1).
   Dữ liệu dùng chung: trước mỗi pool, tiến trình CHA dựng một lần mảng giá + kernel + funding của cả vũ trụ vào
-  <run_dir>/_shared/ (backend/backtest/shared_data.py); worker chỉ np.load(mmap_mode="r") qua NORA_SHARED_DATA_DIR
+  <run_dir>/_shared/ (backend/core/backtest/shared_data.py); worker chỉ np.load(mmap_mode="r") qua NORA_SHARED_DATA_DIR
   -> RAM riêng (anon) mỗi worker nhỏ, trang file chỉ tính MỘT lần trong cgroup. Chạy xong thì xoá _shared (lỗi thì giữ lại).
   OMP_NUM_THREADS / OPENBLAS_NUM_THREADS / MKL_NUM_THREADS đặt = "1" nếu chưa có.
 """
@@ -52,7 +52,7 @@ NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if NORA_ROOT not in sys.path:
     sys.path.insert(0, NORA_ROOT)
 
-from backend.backtest.portfolio_metrics import bootstrap_daily, portfolio_metrics  # noqa: E402
+from backend.core.backtest.portfolio_metrics import bootstrap_daily, portfolio_metrics  # noqa: E402
 from backend.utils.parallel import auto_workers, pool_map_safe  # noqa: E402
 from backend.utils.jobresult import write_job_result  # noqa: E402
 from backend.utils.jsonsafe import json_default  # noqa: E402
@@ -81,8 +81,8 @@ def windows(symbols):
 
 def _make_engine(job):
     """job = (strategies [(candidate_id, params)], window (start, end), stop_fill, risk dict, risk_per_trade)."""
-    from backend.alpha.strategy_book import CANDIDATES, materialize, perp_symbols
-    from backend.backtest.portfolio import PortfolioEngine, RiskConfig
+    from backend.core.strategy.strategy_book import CANDIDATES, materialize, perp_symbols
+    from backend.core.backtest.portfolio import PortfolioEngine, RiskConfig
     items, (start, end), stop_fill, risk, rpt = job
     by_id = {c["id"]: c for c in CANDIDATES}
     strategies = [materialize(by_id[cid], prm, stop_fill=stop_fill, risk_per_trade_pct=rpt) for cid, prm in items]
@@ -107,9 +107,9 @@ def _export_shared(jobs, shared_dir, label):
     """Tiến trình cha dựng MỘT lần dữ liệu của cả giai đoạn vào shared_dir (worker chỉ mmap). Trả các khoá đã dùng."""
     import ctypes
     import gc
-    from backend.backtest import shared_data
-    from backend.backtest.portfolio import data_cache_clear
-    from backend.core.loader import CandleLoader
+    from backend.core.backtest import shared_data
+    from backend.core.backtest.portfolio import data_cache_clear
+    from backend.core.data.loader import CandleLoader
     t = time.time()
     keys, written = set(), 0
     for job in jobs:
@@ -182,7 +182,7 @@ def _peak(results) -> str:
     return f"đỉnh RAM/worker {max(peaks):.0f} MB (riêng {max(anon):.0f} MB + mmap dùng chung)"
 
 
-# Bản dùng chung nằm ở backend.utils.parallel / backend.backtest.portfolio_metrics; giữ tên cũ để code/test hiện có không đổi.
+# Bản dùng chung nằm ở backend.utils.parallel / backend.core.backtest.portfolio_metrics; giữ tên cũ để code/test hiện có không đổi.
 metrics = portfolio_metrics
 bootstrap = bootstrap_daily
 _pool_map_safe = pool_map_safe
@@ -203,7 +203,7 @@ def main(argv=None):
     a = ap.parse_args(argv)
     from backend.utils.memwatch import require_memory_limit
     require_memory_limit("build_strategy_book")
-    from backend.alpha.strategy_book import BASE_RISK_PER_TRADE_PCT, CANDIDATES, GATES, RISK, perp_symbols
+    from backend.core.strategy.strategy_book import BASE_RISK_PER_TRADE_PCT, CANDIDATES, GATES, RISK, perp_symbols
     from backend.db.data_layout import cache_dir
     from backend.utils.memwatch import check_memory_gate, planning_budget_mb
 
@@ -348,7 +348,7 @@ def main(argv=None):
     print("báo cáo:", os.path.join(run_dir, "report.json"))
     paths = []
     if report.get("book"):
-        from backend.alpha.book_export import write_book
+        from backend.optimize.book_export import write_book
         paths = write_book(report, a.out, source=run_dir, repo_dir=os.path.dirname(NORA_ROOT))
         for path in paths:
             print("ghi:", path)

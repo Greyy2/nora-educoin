@@ -25,7 +25,7 @@ if NORA_ROOT not in sys.path:
 
 from backend.db.data_layout import VENUES, list_assets  # noqa: E402
 from backend.db.local_pkl import read_manifest  # noqa: E402
-from backend.research.data_quality_gate import DataQualityStatus, evaluate_data_quality  # noqa: E402
+from backend.core.data.quality_gate import DataQualityStatus, evaluate_data_quality  # noqa: E402
 
 BLOCKING = (DataQualityStatus.BLOCKED, DataQualityStatus.NEEDS_MORE_DATA)
 

@@ -2,7 +2,7 @@
 
 Luồng: **kernel → tín hiệu → kiểm tra tín hiệu → chiến lược (tín hiệu + quản lý vị thế) → backtest → WFA → Monte Carlo**.
 
-## 1. Kernel (`backend/signals/kernels.py`)
+## 1. Kernel (`backend/core/signals/kernels.py`)
 
 Kernel là một hàm nhỏ, thuần và **causal**: giá trị tại nến t chỉ dùng dữ liệu của các nến ≤ t.
 Test `test_kernel_is_causal_prefix_invariant` kiểm mọi kernel bằng cách cắt chuỗi ở nhiều điểm.
@@ -24,13 +24,13 @@ Tên cột trong AST có dạng `<kernel>_<tham số>`. 23 kernel:
 - **Nến trước:** `{"frame": "15m", "column": "rsi_14", "index": 1}` là RSI của nến 15m trước đó (tối đa 500).
 - **1m trên DEX:** kernel 1m chỉ tính trên các phút có giao dịch (nến điền không phải một quan sát).
 
-## 2. Tín hiệu (`backend/alpha/strategy_library.py` → `SIGNALS`)
+## 2. Tín hiệu (`backend/core/strategy/strategy_library.py` → `SIGNALS`)
 
 Mỗi tín hiệu là một cây điều kiện AST. Tám tín hiệu tham khảo từ lối đánh của bot top OKX/Binance
 (`okx-report.html`): bắt hồi (5m RSI + Bollinger trong regime đi ngang, 1m z-score sâu), theo xu hướng
 (EMA50/200 + ADX + Donchian 15m, hai chiều), theo đà 24h, lướt nhanh VWAP, săn cú lớn sau nén biến động.
 
-## 3. Kiểm tra tín hiệu (`backend/signals/diagnostics.py`)
+## 3. Kiểm tra tín hiệu (`backend/core/signals/diagnostics.py`)
 
 Trả lời câu hỏi "tín hiệu có mang thông tin về giá tương lai không?" **trước** khi ghép thành chiến lược:
 
@@ -45,7 +45,7 @@ Trả lời câu hỏi "tín hiệu có mang thông tin về giá tương lai kh
 
 Công cụ được kiểm bằng dữ liệu có edge cài sẵn (phải ra CO_THONG_TIN) và random walk (không được ra CO_THONG_TIN).
 
-## 4. Quản lý vị thế (`backend/backtest/execution.py`)
+## 4. Quản lý vị thế (`backend/core/backtest/execution.py`)
 
 | Tham số | Ý nghĩa |
 |---|---|

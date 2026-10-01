@@ -40,7 +40,7 @@ nora/data/
   (`manifest.pool_fee_rate`).
 - `nora/data_staging/`: nơi crawler ghi trước. `scripts/promote_staging.py` chỉ chuyển sang
   `data/<venue>/` những tài sản qua quality gate.
-- `nora/tests/data_legacy/`: bộ dữ liệu cũ (tick tổng hợp từ nến 15m, không có manifest).
+- `nora/test/data_legacy/`: bộ dữ liệu cũ (tick tổng hợp từ nến 15m, không có manifest).
   Chỉ giữ để tham chiếu, **không dùng cho backtest**.
 
 ## Vì sao tách CEX / DEX
@@ -86,13 +86,13 @@ thiếu 4h, hoặc resample 1m không khớp với các khung đã lưu (sai s�
 ```bash
 cd nora
 # CEX spot: 3 năm tới hiện tại (file ZIP được cache ở /home/ubuntu/norabt/data/cache/binance)
-PYTHONPATH=. python -m backend.crawler.crawl_binance_klines --symbols BTC,ETH,SOL,BNB,XRP,DOGE,ADA,AVAX \
+PYTHONPATH=. python -m backend.core.data.crawler.crawl_binance_klines --symbols BTC,ETH,SOL,BNB,XRP,DOGE,ADA,AVAX \
     --years 3 --output-dir data_staging
 # CEX perp (USDT-M) + funding -> <out>/<SYM>/perp ; chạy gate rồi chuyển vào data/cex/<SYM>/perp
-PYTHONPATH=. python -m backend.crawler.crawl_binance_klines --market um --symbols BTC,ETH,SOL,BNB,XRP,DOGE,ADA,AVAX \
+PYTHONPATH=. python -m backend.core.data.crawler.crawl_binance_klines --market um --symbols BTC,ETH,SOL,BNB,XRP,DOGE,ADA,AVAX \
     --years 3 --output-dir data_staging_perp
 # DEX: tối đa 179 ngày (giới hạn API miễn phí)
-PYTHONPATH=. python -m backend.crawler.crawl_geckoterminal_full_dataset --targets-file data/_meta/dex_targets.json \
+PYTHONPATH=. python -m backend.core.data.crawler.crawl_geckoterminal_full_dataset --targets-file data/_meta/dex_targets.json \
     --output-dir data_staging --lookback-days 179 --limit 1000 --page-delay-sec 3 --minute-max-pages 300
 # Kiểm gate + chuyển vào data/<venue>/
 PYTHONPATH=. python scripts/promote_staging.py            # xem trước

@@ -60,7 +60,7 @@ _DCA_KEYS = ("leverage", "order_size_pct", "dca_step_pct", "dca_max_layers", "dc
 
 def _dca_filter(space, fixed=None, venue="cex", symbol=None):
     """-> (valid(cfg) -> bool, số tổ hợp không hợp lệ trong toàn không gian). Hợp lệ = qua dca_budget_check."""
-    from backend.backtest.params_builder import dca_budget_check, pool_fee_rate, resolve_costs
+    from backend.core.backtest.params_builder import dca_budget_check, pool_fee_rate, resolve_costs
     keys = sorted(space)
     total = 1
     for k in keys:
@@ -123,7 +123,7 @@ def windows(manifest, venue):
 def monte_carlo_gate(wfa_result, sims=2000, block=5, seed=7):
     """-> (mc, mc_trades) từ kết quả WFA. `mc` (cổng ruin) = bootstrap lợi suất ngày MTM OOS, basis="daily";
     `mc_trades` = bootstrap lệnh đã đóng (tham chiếu, không dùng làm cổng). Ít hơn 30 điểm -> ruin None."""
-    from backend.studio_pipeline.monte_carlo import run_monte_carlo
+    from backend.carlo.monte_carlo import run_monte_carlo
 
     def pack(mc, basis):
         return {"basis": basis, "risk_of_ruin_pct": mc["risk_of_ruin_pct"], "mdd_p95": mc["percentile_mdd"].get("p95"),
@@ -142,12 +142,12 @@ def monte_carlo_gate(wfa_result, sims=2000, block=5, seed=7):
 
 def _run_pair(space_id, symbol, n, seed, db_path):
     os.environ["NORA_PIPELINE_DB_PATH"] = db_path
-    from backend.alpha.strategy_library import OPTIMIZATION_SPACES
-    from backend.backtest.params_builder import data_symbol
+    from backend.core.strategy.strategy_library import OPTIMIZATION_SPACES
+    from backend.core.backtest.params_builder import data_symbol
     from backend.db.local_pkl import read_manifest
-    from backend.studio_pipeline.jobs import create_wfa_job, get_wfa_job, init_db
-    from backend.studio_pipeline.schemas import StrategySnapshot, WfaFoldConfig
-    from backend.studio_pipeline.wfa import _run_single_window, execute_wfa_pipeline
+    from backend.api.jobs.store import create_wfa_job, get_wfa_job, init_db
+    from backend.core.contracts import StrategySnapshot, WfaFoldConfig
+    from backend.wfa.walk_forward import _run_single_window, execute_wfa_pipeline
 
     init_db()
     sd = next(s for s in OPTIMIZATION_SPACES if s["id"] == space_id)
@@ -244,12 +244,12 @@ def run_pair(space_id, symbol, n, seed, db_path):
         return out
     finally:
         try:
-            from backend.core.loader import CandleLoader
+            from backend.core.data.loader import CandleLoader
             CandleLoader.clear_cache()
         except Exception:
             pass
         try:
-            from backend.backtest.portfolio import data_cache_clear
+            from backend.core.backtest.portfolio import data_cache_clear
             data_cache_clear()
         except Exception:
             pass
@@ -268,7 +268,7 @@ def main(argv=None):
     from backend.utils.parallel import resolve_workers
     require_memory_limit("optimize_alphas")
     workers = resolve_workers(args.workers, PER_PAIR_MB, "optimize_alphas")
-    from backend.alpha.strategy_library import OPTIMIZATION_SPACES
+    from backend.core.strategy.strategy_library import OPTIMIZATION_SPACES
     from backend.db.data_layout import cache_dir, list_assets
 
     spaces = [s for s in OPTIMIZATION_SPACES if not args.spaces or s["id"] in args.spaces.split(",")]

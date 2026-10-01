@@ -93,7 +93,7 @@ Alpha `trend_long_perp__SOL`:
 | Danh mục alpha + mức vốn | `scripts/portfolio_sizing.py` | SOL một mình tốt hơn SOL+DOGE. Hệ số vốn tối đa trong ngân sách rủi ro: **0,5x** (extreme) – **0,75x** (level). |
 
 **Bài học về kiểm chứng.** Bộ quét lối "rải limit" từng cho +10–20 bps/lệnh trên cả 8 tài sản. Phép kiểm random walk
-(`tests/test_research_null.py`) cho ra +15 bps, tức edge giả. Có hai nguyên nhân:
+(`test/test_research_null.py`) cho ra +15 bps, tức edge giả. Có hai nguyên nhân:
 1. Chọn trước lệnh "sẽ khớp", một dạng nhìn trước tương lai.
 2. SL khớp đúng mức khi giá giật xuyên mức.
 
@@ -112,7 +112,7 @@ Sổ chiến lược (nhiều tài sản, MỘT sổ vốn) chỉ có dev1/dev2/
   **OOS** chạy CẢ sổ chung vốn bằng các cấu hình đã chọn (kill switch bật, SL "level" và "extreme"). Train 120 ngày, test 30 ngày, OOS không chồng.
 - Nối lợi suất ngày MTM của OOS (extreme, cơ sở bi quan) rồi **Monte Carlo ngày** (`run_monte_carlo_daily`, block 5 ngày, 1 năm): khác Monte Carlo
   theo lệnh vì đường vốn ngày đã gồm lỗ chưa chốt.
-- Gate (hằng số đầu `backend/studio_pipeline/portfolio_wfa.py`): ≥ 5 fold, lãi IS trung bình ≥ 0, ≥ 60% fold OOS có lãi, MDD tệ nhất một fold ≤ 30%,
+- Gate (hằng số đầu `backend/wfa/portfolio_wfa.py`): ≥ 5 fold, lãi IS trung bình ≥ 0, ≥ 60% fold OOS có lãi, MDD tệ nhất một fold ≤ 30%,
   lãi kép OOS ≥ 0, P(MDD ≥ 30% trong 1 năm) ≤ 5%.
 - Lãi IS của một fold = trung bình lãi IS (chạy riêng từng chiến lược) của các cấu hình đã chọn.
 
@@ -126,7 +126,7 @@ Kết quả: `<data>/_cache/book_wfa/<thời điểm>/report.json`.
 
 API có trần RAM riêng (3G) nên KHÔNG chạy backtest/WFA danh mục trong tiến trình. Mỗi job là một tiến trình con
 `scripts/run_limited.sh -- scripts/<script>.py ...` (scope riêng trong `nora.slice`, xếp hàng tuần tự bằng flock, worker tự chia);
-API chỉ khởi chạy, theo dõi và đọc kết quả (`backend/studio_pipeline/batch_jobs.py`, router `backend/api/routers/book.py`).
+API chỉ khởi chạy, theo dõi và đọc kết quả (`backend/api/jobs/batch.py`, router `backend/api/routers/book.py`).
 
 | Endpoint | Việc |
 |---|---|

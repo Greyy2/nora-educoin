@@ -1,7 +1,7 @@
 # Môi trường Python của Nora (đã kiểm 01/10/2026: 265 test qua, chạy trong nora.slice).
 # Tạo venv:  uv venv -p 3.11 /home/vmc03/.venvs/nora
 #            uv pip install -p /home/vmc03/.venvs/nora/bin/python -r nora/requirements.txt
-# numba là tuỳ chọn (backend/alpha/directional_change.py tự chạy không cần numba).
+# numba là tuỳ chọn (backend/core/strategy/directional_change.py tự chạy không cần numba).
 pandas==2.3.3
 numpy==2.4.6
 pyarrow==25.0.1
@@ -14,4 +14,4 @@ pymysql==1.2.3
 redis==8.1.0
 requests==2.34.2
 pytest==9.1.1
-httpx==0.28.1   # cho fastapi.testclient.TestClient (tests/test_book_api.py)
+httpx==0.28.1   # cho fastapi.testclient.TestClient (test/test_book_api.py)

@@ -6,9 +6,9 @@ import concurrent.futures
 import time
 from typing import Callable, Dict, List, Any
 
-from backend.backtest.engine import BacktestEngine
-from backend.core.params import StrategyParams
-from backend.backtest.metrics import MetricsCalculator
+from backend.core.backtest.engine import BacktestEngine
+from backend.core.strategy.params import StrategyParams
+from backend.core.backtest.metrics import MetricsCalculator
 
 def _run_single_backtest(
     worker_id: int,
