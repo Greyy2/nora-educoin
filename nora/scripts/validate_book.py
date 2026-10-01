@@ -7,6 +7,8 @@ Nguồn ứng viên (chọn một):
   --report <thư mục lần chạy build_strategy_book>   đọc stage_a.json + report.json; top-N cấu hình mỗi chiến lược theo điểm dev1;
                                                      mặc định chỉ chiến lược ĐẠT trong report.json (--include-rejected: cả loại)
   --candidates id1,id2 --n K                        lấy mẫu K cấu hình mỗi chiến lược như build_strategy_book.configs(seed)
+  --strategies-json <file>                          [{"id": ..., "configs": [{...}, ...]}] do người dùng chọn; DÙNG ĐÚNG các cấu hình
+                                                     này (1 cấu hình mỗi chiến lược = tham số cố định, WFA chỉ kiểm OOS cuộn)
 Cửa sổ mặc định: dev1_end -> dev2_end (từ report, hoặc windows() của build_strategy_book); --start/--end (YYYY-MM-DD) ghi đè.
 Rủi ro mỗi lệnh: lấy từ report["book"] nếu có, không thì mức chuẩn 0,5% (--risk-per-trade ghi đè).
 
@@ -80,6 +82,29 @@ def candidates_from_ids(ids, n, seed):
     return [{"id": i, "configs": bsb.configs(by_id[i], n, seed)} for i in ids]
 
 
+def candidates_from_json(path):
+    """Cấu hình do người dùng chọn: [{"id", "configs": [{tham số}]}] -> đúng như vậy (kiểm id/khoá tham số theo thư viện ứng viên)."""
+    from backend.alpha.strategy_book import CANDIDATES
+    by_id = {c["id"]: c for c in CANDIDATES}
+    with open(path, encoding="utf-8") as fh:
+        raw = json.load(fh)
+    if not isinstance(raw, list) or not raw:
+        raise SystemExit("--strategies-json phải là danh sách JSON không rỗng")
+    out, seen = [], set()
+    for s in raw:
+        cid, cfgs = s.get("id"), s.get("configs")
+        if cid not in by_id or cid in seen:
+            raise SystemExit(f"Chiến lược lạ hoặc bị lặp: {cid!r}; có: {sorted(by_id)}")
+        if not isinstance(cfgs, list) or not cfgs or not all(isinstance(c, dict) for c in cfgs):
+            raise SystemExit(f"{cid}: configs phải là danh sách không rỗng các dict tham số")
+        bad = sorted({k for c in cfgs for k in c} - set(by_id[cid]["space"]))
+        if bad:
+            raise SystemExit(f"{cid}: khoá tham số không thuộc không gian tham số: {bad}")
+        seen.add(cid)
+        out.append({"id": cid, "configs": cfgs})
+    return out
+
+
 def print_summary(res):
     s, g = res["summary"], res["gate"]
     print(f"\ncửa sổ {res['window'][0]} → {res['window'][1]} | train {res['config']['train_days']}d test {res['config']['test_days']}d "
@@ -115,6 +140,8 @@ def main(argv=None):
     ap.add_argument("--report", default="", help="thư mục lần chạy build_strategy_book (có stage_a.json + report.json)")
     ap.add_argument("--include-rejected", action="store_true", help="với --report: kiểm cả chiến lược bị loại")
     ap.add_argument("--candidates", default="", help="id chiến lược, phân tách bằng dấu phẩy (không dùng report)")
+    ap.add_argument("--strategies-json", default="", help="file JSON [{id, configs:[...]}]: dùng đúng các cấu hình này (không report/candidates)")
+    ap.add_argument("--symbols", default="", help="vd BTC@perp,SOL@perp (mặc định cả vũ trụ của sổ chiến lược)")
     ap.add_argument("--n", type=int, default=3, help="số cấu hình mỗi chiến lược (top-N theo report, hoặc lấy mẫu)")
     ap.add_argument("--seed", type=int, default=7, help="seed lấy mẫu cấu hình (--candidates)")
     ap.add_argument("--start", default="", help="YYYY-MM-DD (mặc định dev1_end)")
@@ -129,8 +156,8 @@ def main(argv=None):
     ap.add_argument("--workers", default="auto")
     ap.add_argument("--per-worker-mb", type=float, default=None)
     a = ap.parse_args(argv)
-    if bool(a.report) == bool(a.candidates):
-        ap.error("chọn đúng một: --report hoặc --candidates")
+    if sum(map(bool, (a.report, a.candidates, a.strategies_json))) != 1:
+        ap.error("chọn đúng một: --report, --candidates hoặc --strategies-json")
 
     from backend.utils.memwatch import check_memory_gate, require_memory_limit
     require_memory_limit("validate_book")
@@ -151,8 +178,10 @@ def main(argv=None):
         rpt = ((report.get("book") or {}).get("risk_per_trade_pct")) or rpt
         w = {k: _ts(v) for k, v in report["windows"].items()}
     else:
-        cands = candidates_from_ids([c for c in a.candidates.split(",") if c], a.n, a.seed)
+        cands = (candidates_from_json(a.strategies_json) if a.strategies_json
+                 else candidates_from_ids([c for c in a.candidates.split(",") if c], a.n, a.seed))
         w = bsb.windows(perp_symbols())
+    symbols = [x if "@" in x else f"{x}@perp" for x in a.symbols.split(",") if x] or perp_symbols()
     if a.risk_per_trade is not None:
         rpt = a.risk_per_trade
     if not cands:
@@ -166,8 +195,9 @@ def main(argv=None):
                              min_is_trades=a.min_is_trades, mc_simulations=a.sims, mc_seed=a.mc_seed)
     print(f"chiến lược {[(c['id'], len(c['configs'])) for c in cands]} | workers={workers} | trần mỗi worker {per_worker_mb:.0f} MB", flush=True)
     t0 = time.time()
-    res = run_portfolio_wfa(cands, perp_symbols(), start, end, cfg, risk, rpt, workers, shared_dir)
+    res = run_portfolio_wfa(cands, symbols, start, end, cfg, risk, rpt, workers, shared_dir)
     res["source"] = {"report": os.path.abspath(a.report) if a.report else None, "include_rejected": a.include_rejected,
+                     "strategies_json": bool(a.strategies_json),
                      "wall_s": round(time.time() - t0, 1)}
     if os.path.isdir(shared_dir):  # chạy xong thành công: dọn (lỗi thì không tới đây -> còn nguyên để gỡ lỗi)
         shutil.rmtree(shared_dir, ignore_errors=True)

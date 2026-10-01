@@ -116,3 +116,18 @@ def test_rejects_unknown_strategy_and_bad_window(market, tmp_path):
         mod.main(["--strategies", '[{"id": "khong_co"}]', "--start", "2023-12-10", "--end", "2024-01-15"])
     with pytest.raises(SystemExit):
         mod.main(["--strategies", json.dumps(STRATS), "--start", "2024-01-15", "--end", "2023-12-10"])
+
+
+def test_trade_list_has_notional_and_daily_nav(market, tmp_path):
+    """Dashboard cần khối lượng/danh nghĩa/ký quỹ mỗi lệnh và vốn cuối ngày chính xác (daily_nav)."""
+    mod = _load_script()
+    out = mod.main(_argv(tmp_path / "o.json"))
+    assert out["trade_list"], "cần có lệnh"
+    for t in out["trade_list"]:
+        assert t["qty"] > 0 and t["notional"] > 0 and t["margin_usd"] > 0
+        assert t["notional"] == pytest.approx(t["qty"] * t["enter_price"], rel=0.2)       # giá TB sau DCA lệch giá vào không nhiều
+    nav = out["daily_nav"]
+    assert nav and nav[0]["date"] == "2023-12-10" and nav[-1]["date"] == "2024-01-15"       # --end gồm cả ngày 15, không có ngày 16
+    days = [pd.Timestamp(n["date"]) for n in nav]
+    assert days == sorted(set(days))
+    assert nav[-1]["equity"] == out["equity_curve"][-1]["equity"]                          # ngày cuối = mẫu vốn cuối

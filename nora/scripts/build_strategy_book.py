@@ -165,6 +165,15 @@ def _strip(m):
     return {k: v for k, v in m.items() if k not in ("daily", "_peak_rss_mb", "_rss_anon_mb")}
 
 
+def stage_a_rows(stage_a):
+    """stage_a (đủ số đo) -> bản gọn cho UI (result.json của job): MỌI cấu hình đã thử, đã xếp theo điểm.
+    score = None khi không đạt cổng (JSON không có -Infinity); passed = qua cổng dev1."""
+    return {cid: [{"params": r["params"],
+                   "dev1": {k: r["dev1"].get(k) for k in ("ret_pct", "mdd_pct", "trades", "symbols_positive", "sharpe")},
+                   "score": (r["score"] if r["score"] > float("-inf") else None), "passed": bool(r["score"] > float("-inf"))}
+                  for r in rows] for cid, rows in stage_a.items()}
+
+
 def _peak(results) -> str:
     peaks = [r.get("_peak_rss_mb", 0.0) for r in results if r]
     anon = [r.get("_rss_anon_mb", 0.0) for r in results if r]
@@ -345,7 +354,7 @@ def main(argv=None):
             print("ghi:", path)
         if len(paths) == 1:  # holdout không đạt: chỉ có book.json (HOLDOUT_FAILED), không có cấu hình testnet
             print("HOLDOUT KHÔNG ĐẠT — không tạo alphas/testnet/book.json.")
-    write_job_result({**report, "run_dir": run_dir, "written": paths})  # chỉ khi chạy như job API (env NORA_JOB_DIR)
+    write_job_result({**report, "run_dir": run_dir, "written": paths, "stage_a": stage_a_rows(stage_a)})  # chỉ khi chạy như job API (env NORA_JOB_DIR)
 
 
 if __name__ == "__main__":

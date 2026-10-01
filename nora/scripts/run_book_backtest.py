@@ -84,6 +84,15 @@ def downsample(curve, limit=MAX_CURVE_POINTS):
     return [curve[i] for i in idx]
 
 
+def daily_nav(curve, end):
+    """Vốn MTM cuối mỗi ngày UTC (từ đường vốn ĐẦY ĐỦ, chưa downsample) -> [{date, equity}]; dashboard dùng khi dữ liệu dài.
+    Mẫu cuối đúng mốc `end` (loại trừ) tính vào ngày cuối thật (end - 1ms), không tạo thêm ngày 00:00."""
+    last = {}
+    for c in curve:
+        last[pd.Timestamp(min(c["time"], end - 1), unit="ms").strftime("%Y-%m-%d")] = float(c["equity"])
+    return [{"date": d, "equity": e} for d, e in last.items()]
+
+
 def run(items, symbols, start, end, rpt, stop_fill, risk):
     from backend.alpha.strategy_book import CANDIDATES, materialize
     from backend.backtest.portfolio import PortfolioEngine, RiskConfig
@@ -100,10 +109,14 @@ def run(items, symbols, start, end, rpt, stop_fill, risk):
         "symbol": p.symbol, "strategy": p.strategy_id, "side": p.pos_type.name,
         "enter_time": p.enter_time, "enter_price": p.enter_price, "close_time": p.close_time, "close_price": p.close_price,
         "pnl": round(p.real_pnl, 4), "status": p.status.name, "close_reason": p.close_reason,
+        # khối lượng + danh nghĩa (qty × giá vào trung bình sau DCA) + ký quỹ: để tính exposure/trọng số ở dashboard
+        "qty": round(p.qty, 8), "notional": round(p.qty * (p.avg_price or p.enter_price), 2),
+        "margin_usd": round(p.total_margin_usd or 0.0, 2),
     } for p in res["positions"]]
     curve = [{"time": c["time"], "equity": round(c["equity"], 2), "equity_worst": round(c["equity_worst"], 2)}
              for c in res["equity_curve"] if c["time"] >= start]
     out["equity_curve"] = downsample(curve)
+    out["daily_nav"] = daily_nav(curve, end)
     out["config"] = {"strategies": [{"id": i, "params": p} for i, p in items], "symbols": symbols, "risk_per_trade_pct": rpt,
                      "stop_fill": stop_fill, "risk": res["risk"], "start": start, "end": end,
                      "initial_capital": res["initial_capital"]}

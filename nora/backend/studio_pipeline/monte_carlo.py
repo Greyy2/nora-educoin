@@ -241,6 +241,11 @@ def run_monte_carlo_daily(
         peak = np.maximum.accumulate(np.r_[1.0, eq])[1:]
         mdds[k] = ((peak - eq) / peak).max()
         rets[k] = eq[-1] - 1
+    return _daily_summary(mdds, rets, ruin_threshold_pct, n, block_days, horizon_days, seed)
+
+
+def _daily_summary(mdds, rets, ruin_threshold_pct, n, block_days, horizon_days, seed) -> Dict[str, Any]:
+    """Tóm tắt từ MDD/lãi cuối của n lần mô phỏng (dùng chung run_monte_carlo_daily và bản chi tiết -> cùng làm tròn)."""
     return {
         "median_ret_pct": round(float(np.median(rets) * 100), 1),
         "p05_ret_pct": round(float(np.percentile(rets, 5) * 100), 1),
@@ -248,6 +253,63 @@ def run_monte_carlo_daily(
         "mdd_p95_pct": round(float(np.percentile(mdds, 95) * 100), 1),
         "p_mdd_ge_ruin_pct": round(float((mdds >= ruin_threshold_pct / 100).mean() * 100), 2),
         "simulations": n, "block_days": int(block_days), "horizon_days": int(horizon_days), "seed": seed,
+    }
+
+
+def _hist(values, bins: int = 20) -> Dict[str, Any]:
+    """Histogram ~`bins` cột: [{lo, hi, count}] (đơn vị của `values`, làm tròn 2 số lẻ)."""
+    v = np.asarray(values, dtype=float)
+    lo, hi = float(v.min()), float(v.max())
+    if hi - lo < 1e-9:
+        hi = lo + 1e-6 if lo == 0 else lo + abs(lo) * 1e-6
+    counts, edges = np.histogram(v, bins=bins, range=(lo, hi))
+    return {"bins": [{"lo": round(float(edges[i]), 2), "hi": round(float(edges[i + 1]), 2), "count": int(counts[i])}
+                     for i in range(len(counts))]}
+
+
+FAN_STEP_DAYS = 5
+FAN_QUANTILES = (5, 25, 50, 75, 95)
+
+
+def run_monte_carlo_daily_detail(
+    daily_returns,
+    simulations: int = 4000,
+    block_days: int = 5,
+    horizon_days: int = 365,
+    ruin_threshold_pct: float = 30.0,
+    seed: int = 1,
+    scale: float = 1.0,
+    max_ruin_pct: float = 5.0,
+) -> Dict[str, Any]:
+    """Như run_monte_carlo_daily (CÙNG RNG, CÙNG thứ tự gọi -> `summary` trùng từng bit) nhưng thêm dữ liệu vẽ:
+    fan = phân vị 5/25/50/75/95 của đường vốn (% lãi từ đầu) lấy mẫu mỗi FAN_STEP_DAYS ngày, histogram MDD và lãi cuối (%), gate ruin."""
+    d = np.asarray(daily_returns, dtype=float)
+    if len(d) == 0:
+        raise ValueError("Cần ít nhất một lợi suất ngày để chạy Monte Carlo")
+    rng = np.random.default_rng(seed)
+    n = int(simulations)
+    days = sorted({0, *range(FAN_STEP_DAYS, int(horizon_days) + 1, FAN_STEP_DAYS), int(horizon_days)})
+    cols = np.asarray([k - 1 for k in days if k > 0], dtype=int)      # đường vốn sau k ngày = eq[k-1]
+    mdds, rets = np.empty(n), np.empty(n)
+    fan_vals = np.empty((n, len(cols)))
+    for k in range(n):
+        idx = (rng.integers(0, len(d), horizon_days // block_days + 1)[:, None] + np.arange(block_days)).ravel()[:horizon_days] % len(d)
+        eq = np.cumprod(1 + scale * d[idx])
+        peak = np.maximum.accumulate(np.r_[1.0, eq])[1:]
+        mdds[k] = ((peak - eq) / peak).max()
+        rets[k] = eq[-1] - 1
+        fan_vals[k] = eq[cols] - 1
+    summary = _daily_summary(mdds, rets, ruin_threshold_pct, n, block_days, horizon_days, seed)
+    q = np.percentile(fan_vals * 100, FAN_QUANTILES, axis=0)
+    fan: Dict[str, Any] = {"days": days}
+    for name, row in zip(("p5", "p25", "p50", "p75", "p95"), q):
+        fan[name] = [0.0] + [round(float(x), 2) for x in row]
+    return {
+        "summary": summary, "fan": fan,
+        "mdd_hist": _hist(mdds * 100), "ret_hist": _hist(rets * 100),
+        "gate": {"ruin_max_pct": float(max_ruin_pct), "passed": bool(summary["p_mdd_ge_ruin_pct"] <= max_ruin_pct)},
+        "params": {"simulations": n, "block_days": int(block_days), "horizon_days": int(horizon_days),
+                   "ruin_threshold_pct": float(ruin_threshold_pct), "seed": seed, "scale": float(scale), "n_days": int(len(d))},
     }
 
 

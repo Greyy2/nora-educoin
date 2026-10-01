@@ -86,7 +86,11 @@ def run_job(job):
     eng, start = _make_engine(job)
     with contextlib.redirect_stdout(io.StringIO()):
         eng.run()
-    result = portfolio_metrics(eng.get_results(), start)
+    res = eng.get_results()
+    result = portfolio_metrics(res, start)
+    # Ngày UTC đầu của chuỗi lợi suất ngày (mẫu vốn đầu tiên >= start) -> dựng nhãn ngày cho đường vốn OOS
+    first = next((c["time"] for c in res["equity_curve"] if c["time"] >= start), None)
+    result["_daily_start"] = _date(first) if first is not None else None
     result["_peak_rss_mb"] = round(peak_rss_mb(), 1)
     result["_rss_anon_mb"] = round(rss_anon_mb(), 1)
     return result
@@ -126,7 +130,7 @@ def _pool_shared(jobs, workers, label, shared_dir):
 
 
 def _strip(m):
-    return {k: v for k, v in m.items() if k not in ("daily", "_peak_rss_mb", "_rss_anon_mb")}
+    return {k: v for k, v in m.items() if k not in ("daily", "_peak_rss_mb", "_rss_anon_mb", "_daily_start")}
 
 
 def _date(ts) -> str:
@@ -196,6 +200,9 @@ def aggregate_folds(folds: List[Dict[str, Any]], cfg: PortfolioWfaConfig) -> Dic
         if picks:
             top = Counter(picks).most_common(1)[0][1]
             stability[cid] = {"share": round(top / len(picks), 4), "folds_chosen": len(picks), "distinct": len(set(picks))}
+    dates = None
+    if all(f.get(f"oos_daily_dates_{sf}") is not None for f in folds for sf in ("level", "extreme")):
+        dates = {sf: [d for f in folds for d in f[f"oos_daily_dates_{sf}"]] for sf in ("level", "extreme")}
     mc = None
     if len(daily["extreme"]) >= MIN_MC_DAYS:
         mc = run_monte_carlo_daily(daily["extreme"], simulations=cfg.mc_simulations, block_days=cfg.mc_block_days,
@@ -207,6 +214,7 @@ def aggregate_folds(folds: List[Dict[str, Any]], cfg: PortfolioWfaConfig) -> Dic
         "avg_is_ret_pct": avg_is, "compounded_oos_ret_pct": compounded, "worst_fold_mdd_pct": worst_mdd,
         "oos_days": len(daily["extreme"]), "oos_trades": {sf: sum(f["trades"][sf] for f in folds) for sf in ("level", "extreme")},
         "param_stability": stability, "oos_daily": daily, "mc": mc,
+        **({"oos_daily_dates": dates} if dates is not None else {}),   # song song với oos_daily (UI vẽ đường vốn OOS)
     }
 
 
@@ -296,6 +304,8 @@ def run_portfolio_wfa(candidates, symbols, start_ts, end_ts, cfg, risk, risk_per
             m = oos_by.get((fi, sf))
             rec[f"oos_{sf}"] = _strip(m) if m else None
             rec[f"oos_daily_{sf}"] = list(m["daily"]) if m else [0.0] * cfg.test_days   # NO_TRADE: vốn đứng yên
+            first = (m or {}).get("_daily_start") or _date(fold["test_start_ts"])
+            rec[f"oos_daily_dates_{sf}"] = [f"{d:%Y-%m-%d}" for d in pd.date_range(first, periods=len(rec[f"oos_daily_{sf}"]), freq="D")]
         rec["trades"] = {sf: (rec[f"oos_{sf}"]["trades"] if rec[f"oos_{sf}"] else 0) for sf in ("level", "extreme")}
         rec["halted_at"] = {sf: (rec[f"oos_{sf}"]["halted_at"] if rec[f"oos_{sf}"] else None) for sf in ("level", "extreme")}
         fold_records.append(rec)
@@ -307,6 +317,7 @@ def run_portfolio_wfa(candidates, symbols, start_ts, end_ts, cfg, risk, risk_per
         "config": asdict(cfg), "risk": risk, "risk_per_trade_pct": rpt, "symbols": symbols,
         "window": [_date(start_ts), _date(end_ts)], "candidates": [{"id": c["id"], "configs": c["configs"]} for c in candidates],
         "folds": fold_records, "summary": summary, "gate": gate,
+        "aggregate": summary, "mc": summary["mc"],   # tên theo docs/ui_contract.md §4 (cùng đối tượng với summary / summary.mc)
         "mem": {"peak_rss_mb": max([m["_peak_rss_mb"] for m in all_res], default=0.0),
                 "rss_anon_mb": max([m["_rss_anon_mb"] for m in all_res], default=0.0)},
     }
