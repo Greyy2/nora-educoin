@@ -1,6 +1,6 @@
 """Chạy thử các truy vấn thống kê trên dữ liệu thật."""
-import sys, time
-sys.path.insert(0, '/home/ubuntu/norabt/nora')
+import os, sys, time
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from backend.stats import queries as q
 
 RUN = 3379

@@ -49,7 +49,8 @@ MARKETS = {
            "source": "binance_usdm", "exchange": "binance_usdm", "market": "perp"},
 }
 MINUTE_MS = 60_000
-DEFAULT_CACHE_DIR = "/home/ubuntu/norabt/data/cache/binance"
+DEFAULT_CACHE_DIR = os.environ.get("NORA_BINANCE_CACHE_DIR") or os.path.join(
+    os.path.dirname(REPO_ROOT), "data", "cache", "binance")  # REPO_ROOT = thư mục nora/ -> cha = gốc repo
 KLINE_COLUMNS = [
     "open_time", "open", "high", "low", "close", "volume_base", "close_time",
     "quote_volume", "trades", "taker_buy_base", "taker_buy_quote", "ignore",

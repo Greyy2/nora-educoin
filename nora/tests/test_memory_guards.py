@@ -9,7 +9,8 @@ Kiểm:
 - _pool_map_safe: giữ thứ tự; lỗi trong job nổi lên ngay (không chạy lại, không che lỗi);
   worker bị kill -> chỉ chạy lại các job còn thiếu;
 - memwatch: RAM dùng được tính cả giới hạn cgroup; script nặng bắt buộc có trần RAM (require_memory_limit);
-  _auto_workers tin cgroup (85%) khi có trần, MemAvailable (60%) khi không.
+  planning_budget_mb = min(85% cgroup trống, MemAvailable − dự phòng) (60% MemAvailable khi không có cgroup);
+  _auto_workers chia ngân sách đó cho trần mỗi worker, CPU = usable_cpus.
 """
 import importlib.util
 import os
@@ -250,26 +251,74 @@ def test_require_memory_limit_returns_the_cap(monkeypatch):
     assert memwatch.require_memory_limit("build_strategy_book") == 8192.0
 
 
-def test_auto_workers_trusts_cgroup_when_limited(monkeypatch):
+def _patch_mem(monkeypatch, cgroup_free, host, reserve="8000"):
     from backend.utils import memwatch
+    monkeypatch.setattr(memwatch, "cgroup_free_mb", lambda: cgroup_free)
+    monkeypatch.setattr(memwatch, "mem_available_mb", lambda: host)
+    if reserve is None:
+        monkeypatch.delenv("NORA_HOST_RESERVE_MB", raising=False)
+    else:
+        monkeypatch.setenv("NORA_HOST_RESERVE_MB", reserve)
+    return memwatch
+
+
+def test_planning_budget_cgroup_limited(monkeypatch):
+    memwatch = _patch_mem(monkeypatch, 10_000.0, 30_000.0)
+    assert memwatch.planning_budget_mb() == pytest.approx(8_500.0)   # min(10000*0.85, 30000-8000)
+
+
+def test_planning_budget_backs_off_when_host_busy(monkeypatch):
+    memwatch = _patch_mem(monkeypatch, 10_000.0, 12_000.0)
+    assert memwatch.planning_budget_mb() == pytest.approx(4_000.0)   # min(8500, 12000-8000)
+
+
+def test_planning_budget_without_cgroup_uses_60pct_of_host(monkeypatch):
+    memwatch = _patch_mem(monkeypatch, None, 20_000.0)
+    assert memwatch.planning_budget_mb() == pytest.approx(12_000.0)
+
+
+def test_planning_budget_clamps_negative_to_zero(monkeypatch):
+    memwatch = _patch_mem(monkeypatch, 10_000.0, 5_000.0)             # máy còn ít hơn phần dự phòng
+    assert memwatch.planning_budget_mb() == 0.0
+    memwatch = _patch_mem(monkeypatch, 0.0, 30_000.0)                 # cgroup hết chỗ
+    assert memwatch.planning_budget_mb() == 0.0
+
+
+def test_planning_budget_reserve_from_env_default_8000(monkeypatch):
+    memwatch = _patch_mem(monkeypatch, 10_000.0, 12_000.0, reserve="2000")
+    assert memwatch.planning_budget_mb() == pytest.approx(8_500.0)   # min(8500, 10000)
+    memwatch = _patch_mem(monkeypatch, 10_000.0, 12_000.0, reserve=None)
+    assert memwatch.planning_budget_mb() == pytest.approx(4_000.0)   # mặc định 8000
+
+
+def test_check_memory_gate_uses_planning_budget(monkeypatch):
+    memwatch = _patch_mem(monkeypatch, 10_000.0, 12_000.0)           # ngân sách 4000
+    memwatch.check_memory_gate(3_000, "x")                            # không raise
+    with pytest.raises(RuntimeError, match="NORA_HOST_RESERVE_MB"):
+        memwatch.check_memory_gate(5_000, "x")
+
+
+def test_auto_workers_trusts_cgroup_when_limited(monkeypatch):
     book = _load_book_script()
-    monkeypatch.setattr(memwatch, "cgroup_limit_mb", lambda: 8192.0)
-    monkeypatch.setattr(memwatch, "cgroup_free_mb", lambda: 8192.0)
-    monkeypatch.setattr(memwatch, "mem_available_mb", lambda: 60_000.0)  # phải bị bỏ qua
+    memwatch = _patch_mem(monkeypatch, 8192.0, 60_000.0)
     monkeypatch.setattr(memwatch, "usable_cpus", lambda: 16)
-    assert book._auto_workers(2000) == 3        # 8192 * 0.85 / 2000 = 3.48
+    assert book._auto_workers(2000) == 3        # min(8192*0.85, 52000) / 2000 = 3.48
 
 
 def test_auto_workers_uses_mem_available_when_unlimited(monkeypatch):
-    from backend.utils import memwatch
     book = _load_book_script()
-    monkeypatch.setattr(memwatch, "cgroup_limit_mb", lambda: None)
-    monkeypatch.setattr(memwatch, "cgroup_free_mb", lambda: None)
-    monkeypatch.setattr(memwatch, "mem_available_mb", lambda: 20_000.0)
+    memwatch = _patch_mem(monkeypatch, None, 20_000.0)
     monkeypatch.setattr(memwatch, "usable_cpus", lambda: 16)
     assert book._auto_workers(2000) == 6        # 20000 * 0.6 / 2000
     monkeypatch.setattr(memwatch, "usable_cpus", lambda: 4)
-    assert book._auto_workers(2000) == 2        # bị chặn bởi CPU − 2
+    assert book._auto_workers(2000) == 4        # bị chặn bởi số CPU (không còn trừ 2)
+
+
+def test_auto_workers_backs_off_when_host_busy(monkeypatch):
+    book = _load_book_script()
+    memwatch = _patch_mem(monkeypatch, 10_000.0, 12_000.0)           # ngân sách 4000
+    monkeypatch.setattr(memwatch, "usable_cpus", lambda: 6)
+    assert book._auto_workers(2000) == 2
 
 
 def test_worker_init_never_raises():

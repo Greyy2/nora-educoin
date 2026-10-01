@@ -45,9 +45,9 @@ except Exception as e:
     print(f"Warning: Could not load V2 routers: {e}")
 
 
-CHART_DIR = Path("/home/ubuntu/norabt/coin_monitor/frontend/build/plot")
-MONITOR_DIR = Path("/home/ubuntu/norabt/coin_monitor")
-PYBIN = "/home/ubuntu/.local/share/uv/python/cpython-3.11-linux-x86_64-gnu/bin/python3.11"
+MONITOR_DIR = Path(os.environ.get("NORA_COIN_MONITOR_DIR") or Path(__file__).resolve().parents[3] / "coin_monitor")
+CHART_DIR = MONITOR_DIR / "frontend" / "build" / "plot"
+PYBIN = sys.executable
 
 
 # ---------------------------------------------------------------- danh sách
@@ -1858,7 +1858,7 @@ def optimization_log(oid: int, tail: int = 120):
 
 # Bộ xử lý dữ liệu nến tính sẵn một lưới cột chỉ báo; quét ra ngoài lưới đó là
 # engine đọc phải cột không tồn tại và lặng lẽ ra kết quả rỗng.
-FILE_XU_LY = Path("/home/ubuntu/norabt/coin_monitor/Backtest/Processors/klineProcessorCustom.py")
+FILE_XU_LY = MONITOR_DIR / "Backtest" / "Processors" / "klineProcessorCustom.py"
 _luoi_cache = {}
 
 

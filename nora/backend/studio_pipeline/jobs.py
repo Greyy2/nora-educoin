@@ -16,10 +16,11 @@ _EXECUTOR = ThreadPoolExecutor(max_workers=3, thread_name_prefix="StudioPipeline
 
 def _get_db_path() -> str:
     """Đọc DB path từ env var mỗi lần gọi để conftest.py có thể override."""
-    return os.environ.get(
-        "NORA_PIPELINE_DB_PATH",
-        "/home/ubuntu/norabt/data/studio_pipeline.db",
-    )
+    env = os.environ.get("NORA_PIPELINE_DB_PATH")
+    if env:
+        return env
+    from backend.db.data_layout import default_data_root
+    return os.path.join(default_data_root(), "_cache", "studio_pipeline.db")  # thư mục được tạo ở _get_db/init_db
 
 # Giá trị tại thời điểm import (giữ để tương thích). Mọi truy cập DB đều gọi
 # _get_db_path() nên đổi NORA_PIPELINE_DB_PATH lúc chạy vẫn có hiệu lực.

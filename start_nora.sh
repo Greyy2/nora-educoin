@@ -2,9 +2,9 @@
 # Nora Backtest — hệ thống backtest độc lập
 #   API + giao diện: http://localhost:18010
 #   Đọc dữ liệu backtest từ MySQL của hệ thống hiện tại (CHỈ ĐỌC)
+#   API chạy như systemd user service (nora-api) trong nora.slice — ngân sách RAM chung của Nora.
 set -e
 BASE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PYBIN=/home/ubuntu/.local/share/uv/python/cpython-3.11-linux-x86_64-gnu/bin/python3.11
 
 echo "======================================================="
 echo "🔬 NORA BACKTEST"
@@ -17,21 +17,23 @@ if [ ! -f "$BASE/nora/frontend/dist/index.html" ]; then
     taskset -c 0-3 nice -n 10 npm run build
 fi
 
-pkill -TERM -f "uvicorn backend.api.main" 2>/dev/null && sleep 1 || true
-pkill -9 -f "uvicorn backend.api.main" 2>/dev/null || true
-fuser -k 18010/tcp 2>/dev/null || true
-sleep 1
-
-cd "$BASE/nora"
-setsid nohup taskset -c 4-7 nice -n 5 "$PYBIN" -m uvicorn backend.api.main:app \
-    --host 0.0.0.0 --port 18010 > "$BASE/data/logs/nora_api.log" 2>&1 < /dev/null &
-
-sleep 6
-if curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:18010/api/health | grep -q 200; then
-    echo "✅ Đang chạy tại http://localhost:18010"
-    echo "   Log: data/logs/nora_api.log"
-else
-    echo "❌ Khởi động thất bại — xem data/logs/nora_api.log"
-    exit 1
+if ! systemctl --user cat nora-api.service >/dev/null 2>&1 || ! systemctl --user cat nora.slice >/dev/null 2>&1; then
+    echo "⚙️  Chưa cài systemd user unit — đang cài..."
+    "$BASE/nora/ops/install_user_units.sh"
 fi
-echo "======================================================="
+
+systemctl --user restart nora-api
+
+for _ in $(seq 1 20); do
+    if curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:18010/api/health | grep -q 200; then
+        echo "✅ Đang chạy tại http://localhost:18010"
+        echo "   Log: journalctl --user -u nora-api -f"
+        echo "======================================================="
+        exit 0
+    fi
+    sleep 1
+done
+
+echo "❌ Khởi động thất bại — 50 dòng log cuối:"
+journalctl --user -u nora-api -n 50 --no-pager || true
+exit 1

@@ -4,6 +4,7 @@
 - effective_available_mb: RAM thật sự còn dùng được = min(MemAvailable của máy, phần còn trống của
   giới hạn cgroup). Khi chạy trong `systemd-run -p MemoryMax=...`, MemAvailable của máy không phản ánh
   giới hạn đó — phải đọc memory.max của cgroup.
+- planning_budget_mb: RAM một job được phép LẬP KẾ HOẠCH dùng ngay bây giờ (cgroup trừ dự phòng + chừa chỗ cho máy).
 """
 import os
 from typing import Any, Dict, Optional
@@ -108,7 +109,7 @@ def require_memory_limit(label: str) -> float:
             raise SystemExit(
                 f"[{label}] Script này phải chạy dưới trần RAM (cgroup) — server dùng chung, không có swap, "
                 "tràn RAM sẽ làm sập cả máy.\n"
-                f"  Chạy: scripts/run_limited.sh --mem 8G -- scripts/{label}.py ...\n"
+                f"  Chạy: scripts/run_limited.sh -- scripts/{label}.py ...\n"
                 "  Hoặc, nếu chắc chắn muốn chạy không giới hạn, đặt NORA_ALLOW_UNLIMITED=1."
             )
         return float("inf")  # chủ động cho phép không giới hạn
@@ -131,6 +132,25 @@ def effective_available_mb() -> float:
     if cg is None:
         return avail
     return min(avail, cg) if avail > 0 else cg
+
+
+def planning_budget_mb() -> float:
+    """RAM (MB) một job có thể lập kế hoạch dùng ngay bây giờ (để chia số worker / kiểm cổng RAM).
+
+    cgroup (nora.slice) là trần CỨNG; phần dự phòng của máy (NORA_HOST_RESERVE_MB, mặc định 8000) khiến Nora
+    tự lùi khi người khác đang dùng nhiều RAM trên server dùng chung.
+    - Có cgroup: min(85% phần trống cgroup, MemAvailable của máy − dự phòng).
+    - Không cgroup: 60% MemAvailable. Không đọc được gì -> 0 (người gọi tự xử lý)."""
+    try:
+        reserve = float(os.environ.get("NORA_HOST_RESERVE_MB", "8000"))
+    except ValueError:
+        reserve = 8000.0
+    host = mem_available_mb()
+    host_room = host - reserve if host > 0 else float("inf")
+    cg_free = cgroup_free_mb()
+    if cg_free is not None:
+        return max(0.0, min(cg_free * 0.85, host_room))
+    return max(0.0, host * 0.6)
 
 
 def usable_cpus() -> int:
@@ -156,13 +176,14 @@ def cache_report() -> Dict[str, Any]:
 
 
 def check_memory_gate(required_mb: float, label: str = "") -> None:
-    """Raise RuntimeError nếu RAM dùng được (gồm giới hạn cgroup) < required_mb."""
-    avail = effective_available_mb()
-    if avail <= 0:
+    """Raise RuntimeError nếu ngân sách RAM hiện tại (planning_budget_mb) < required_mb."""
+    if mem_available_mb() <= 0 and cgroup_free_mb() is None:
         return  # không đọc được /proc (không phải Linux) — bỏ qua
-    if avail < required_mb:
+    budget = planning_budget_mb()
+    if budget < required_mb:
         raise RuntimeError(
             f"Không đủ RAM{f' cho {label}' if label else ''}: "
-            f"cần {required_mb:.0f} MB, chỉ có {avail:.0f} MB dùng được (MemAvailable/cgroup). "
+            f"cần {required_mb:.0f} MB, ngân sách hiện còn {budget:.0f} MB "
+            "(phần trống của cgroup nora.slice, đã trừ dự phòng NORA_HOST_RESERVE_MB cho máy dùng chung). "
             "Dừng lại để tránh OOM."
         )

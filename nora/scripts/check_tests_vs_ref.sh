@@ -3,7 +3,8 @@
 # Chạy test HIỆN TẠI trên code tại <git-ref> để xác nhận test bắt được lỗi cũ
 set -e
 REF=${1:?git ref required}
-ROOT=/home/ubuntu/norabt
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+PY="${NORA_PYTHON:-/home/vmc03/.venvs/nora/bin/python}"
 TMP=$(mktemp -d)
 
 echo "[check_tests_vs_ref] REF=$REF TMP=$TMP"
@@ -17,7 +18,7 @@ rm -rf "$TMP/nora/tests/__pycache__"
 
 # Use python3.11 with PYTHONPATH pointing to extracted code
 cd "$TMP/nora"
-PYTHONPATH=. /home/ubuntu/.local/share/uv/python/cpython-3.11-linux-x86_64-gnu/bin/python3.11 \
+PYTHONPATH=. "$PY" \
   -m pytest tests -q -rA -p no:cacheprovider 2>&1 | grep -E "^(PASSED|FAILED|ERROR|tests/)" || true
 
 echo "[done] cleanup $TMP"

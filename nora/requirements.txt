@@ -1,0 +1,16 @@
+# Môi trường Python của Nora (đã kiểm 01/10/2026: 265 test qua, chạy trong nora.slice).
+# Tạo venv:  uv venv -p 3.11 /home/vmc03/.venvs/nora
+#            uv pip install -p /home/vmc03/.venvs/nora/bin/python -r nora/requirements.txt
+# numba là tuỳ chọn (backend/alpha/directional_change.py tự chạy không cần numba).
+pandas==2.3.3
+numpy==2.4.6
+pyarrow==25.0.1
+pydantic==2.13.5
+fastapi==0.142.2
+starlette==1.7.0
+uvicorn==0.54.0
+pymongo==4.18.2
+pymysql==1.2.3
+redis==8.1.0
+requests==2.34.2
+pytest==9.1.1

@@ -22,7 +22,7 @@ Bộ nhớ (mỗi worker là một tiến trình có cache riêng):
   trần cgroup — worker vượt thì bị giết riêng, _pool_map_safe chạy lại với một nửa số worker).
   Đo lại bằng dòng `đỉnh RAM/worker` và ghi đè bằng --per-worker-mb khi dữ liệu/ngân sách cache đổi.
   --workers auto đọc cả giới hạn cgroup (systemd-run -p MemoryMax=...), không chỉ RAM trống của máy.
-  BẮT BUỘC chạy dưới trần RAM: scripts/run_limited.sh --mem 8G -- scripts/build_strategy_book.py ...
+  BẮT BUỘC chạy dưới trần RAM: scripts/run_limited.sh -- scripts/build_strategy_book.py ...
   (không có trần cgroup thì script từ chối chạy, trừ khi NORA_ALLOW_UNLIMITED=1).
   OMP_NUM_THREADS / OPENBLAS_NUM_THREADS / MKL_NUM_THREADS đặt = "1" nếu chưa có.
 """
@@ -201,17 +201,14 @@ def _pool_map_safe(pool_fn, jobs: list, workers: int, label: str) -> list:
 
 
 def _auto_workers(per_worker_mb: float) -> int:
-    """Số worker = min(CPU dùng được − 2, ngân sách RAM / trần RAM một worker).
+    """Số worker = min(CPU dùng được, ngân sách RAM / trần RAM một worker).
 
-    Có trần cgroup (run_limited.sh): cgroup là rào cứng bảo vệ server -> dùng 85% phần còn trống của nó.
-    Không có: 60% MemAvailable của máy. CPU dùng được tôn trọng taskset (taskset -c 0-5 -> 6)."""
-    from backend.utils.memwatch import cgroup_free_mb, cgroup_limit_mb, mem_available_mb, usable_cpus
-    cpu_limit = max(1, usable_cpus() - 2)
-    if cgroup_limit_mb() is not None:
-        free = cgroup_free_mb()
-        avail = (free if free is not None else 0.0) * 0.85
-    else:
-        avail = mem_available_mb() * 0.6
+    Ngân sách = planning_budget_mb(): phần trống của cgroup nora.slice (85%), không vượt quá MemAvailable của máy
+    trừ dự phòng cho người dùng khác; không có cgroup thì 60% MemAvailable. CPU dùng được tôn trọng taskset
+    (taskset -c 0-5 -> 6); không trừ CPU cho tiến trình điều phối vì nó hầu như chỉ chờ."""
+    from backend.utils.memwatch import planning_budget_mb, usable_cpus
+    cpu_limit = max(1, usable_cpus())
+    avail = planning_budget_mb()
     if avail <= 0:
         return min(cpu_limit, 2)  # không đọc được RAM: chạy dè dặt
     return max(1, min(cpu_limit, int(avail / per_worker_mb)))
@@ -233,13 +230,13 @@ def main(argv=None):
     require_memory_limit("build_strategy_book")
     from backend.alpha.strategy_book import BASE_RISK_PER_TRADE_PCT, CANDIDATES, GATES, RISK, perp_symbols
     from backend.db.data_layout import cache_dir
-    from backend.utils.memwatch import check_memory_gate, effective_available_mb
+    from backend.utils.memwatch import check_memory_gate, planning_budget_mb
 
     # ── Số worker + kiểm RAM trước khi chạy ──────────────────────────────────
     per_worker_mb = a.per_worker_mb or PER_WORKER_MB
     if str(a.workers).strip().lower() == "auto":
         workers = _auto_workers(per_worker_mb)
-        print(f"[auto] workers={workers} (RAM dùng được {effective_available_mb():.0f} MB, "
+        print(f"[auto] workers={workers} (ngân sách RAM {planning_budget_mb():.0f} MB, "
               f"trần mỗi worker {per_worker_mb:.0f} MB)", flush=True)
     else:
         workers = int(a.workers)
