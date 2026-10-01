@@ -25,6 +25,7 @@ import numpy as np
 from backend.backtest.engine import BacktestEngine
 from backend.backtest.execution import CapitalLedger, PositionTracker
 from backend.core.evaluator import VectorEvaluator, lag_key
+from backend.utils.lru import ByteLRU, env_mb
 
 
 @dataclass
@@ -40,55 +41,10 @@ class RiskConfig:
         return cls(**{k: d[k] for k in cls.__dataclass_fields__ if k in d})
 
 
-# Bộ nhớ đệm dữ liệu theo tiến trình: khoá (symbol, start, end, refs, perp) → mảng giá + cột kernel + funding.
-# Dùng ByteLRU giới hạn theo byte (không theo số lượng mục) để tránh OOM.
-# Cấu hình qua NORA_DATA_CACHE_MB (mặc định 1500 MB).
-import os as _os
-from collections import OrderedDict as _OrderedDict
-
-
-class _ByteLRU:
-    """LRU cache giới hạn theo tổng byte — an toàn trong tiến trình đơn."""
-
-    def __init__(self, budget_mb: float):
-        self.budget: int = int(budget_mb * 1024 * 1024)
-        self.used: int = 0
-        self._d: "_OrderedDict" = _OrderedDict()
-
-    def get(self, key):
-        item = self._d.get(key)
-        if item is None:
-            return None
-        self._d.move_to_end(key)
-        return item[0]
-
-    def put(self, key, value, nbytes: int) -> None:
-        if nbytes > self.budget:
-            return  # mục lớn hơn ngân sách → không cache
-        while self._d and self.used + nbytes > self.budget:
-            _, (_, n) = self._d.popitem(last=False)
-            self.used -= n
-        if key in self._d:
-            self.used -= self._d[key][1]
-        self._d[key] = (value, nbytes)
-        self.used += nbytes
-
-    def clear(self) -> None:
-        self._d.clear()
-        self.used = 0
-
-    def __len__(self) -> int:
-        return len(self._d)
-
-
-def _data_cache_budget_mb() -> float:
-    try:
-        return float(_os.environ.get("NORA_DATA_CACHE_MB", "1500"))
-    except (TypeError, ValueError):
-        return 1500.0
-
-
-_DATA_CACHE: _ByteLRU = _ByteLRU(_data_cache_budget_mb())
+# Bộ nhớ đệm dữ liệu theo tiến trình: (symbol, start, end, refs, perp) -> mảng giá + cột kernel + funding.
+# Khi tối ưu ngưỡng tín hiệu / tham số vị thế, cột kernel không đổi nên chỉ tính một lần.
+# Giới hạn theo BYTE (NORA_DATA_CACHE_MB, mặc định 1500 MB), có khoá cho API đa luồng.
+_DATA_CACHE = ByteLRU(env_mb("NORA_DATA_CACHE_MB", 1500))
 
 
 def data_cache_clear() -> None:
@@ -165,11 +121,8 @@ class PortfolioEngine:
             "f_r": eng.funding["rate"].to_numpy(dtype="float64") if eng.funding is not None else np.array([]),
         }
         if self.use_cache:
-            # ước tính byte: mỗi mảng float64 = 8 byte/phần tử; cols là dict nhiều mảng
-            n = len(data["t"])
-            n_cols = len(data["cols"])
-            nbytes = n * 5 * 8 + n_cols * n * 8 + len(data["f_t"]) * 16
-            _DATA_CACHE.put(key, data, nbytes)
+            arrays = [data[k] for k in ("t", "o", "h", "l", "c", "f_t", "f_r")] + list(data["cols"].values())
+            _DATA_CACHE.put(key, data, sum(a.nbytes for a in arrays))
         return data
 
     def load_data(self) -> None:

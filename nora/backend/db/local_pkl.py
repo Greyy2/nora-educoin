@@ -3,6 +3,7 @@ import os
 import re
 from typing import List, Optional
 
+import numpy as np
 import pandas as pd
 
 BASE_COLUMNS = ["open_time", "open", "high", "low", "close", "volume"]
@@ -135,10 +136,10 @@ def fetch_candles_df(
     """Nạp nến từ file pkl cục bộ.
 
     Tối ưu bộ nhớ:
-    - Chỉ sort khi dữ liệu chưa được sắp xếp (thường không cần).
-    - Cắt cửa sổ start_ts/end_ts TRƯỚC khi .copy() → đỉnh RAM chỉ ~1× kích thước cửa sổ.
-    - compat=False (dùng bởi engine nội bộ): bỏ qua các cột symbol/timestamp/close_time/is_close
-      không cần thiết, giảm thêm ~20% RAM.
+    - Chỉ dropna / sort khi thật sự cần (file do resampler ghi đã sạch và sắp xếp).
+    - Cắt cửa sổ bằng iloc TRƯỚC khi .copy(): chỉ sao chép phần trong cửa sổ.
+      (CandleLoader nạp cả file để cache, nên với engine bản sao này là cả file — một lần.)
+    - compat=False (CandleLoader/engine): không thêm cột symbol/timestamp/close_time/is_close.
     """
     symbol_dir = resolve_symbol_dir(symbol, data_root=data_root)
     if not symbol_dir:
@@ -154,20 +155,21 @@ def fetch_candles_df(
     if "open_time" not in df.columns:
         raise ValueError(f"Local PKL file missing open_time column: {path}")
 
-    # Chuẩn hóa open_time
+    # Chuẩn hóa open_time (dropna chỉ khi thật sự có NaN — tránh một bản sao cả file)
     df["open_time"] = pd.to_numeric(df["open_time"], errors="coerce")
-    df = df.dropna(subset=["open_time"])
+    if df["open_time"].isna().any():
+        df = df.dropna(subset=["open_time"])
     df["open_time"] = df["open_time"].astype("int64")
 
-    # Sort chỉ khi chưa monotonic (pkl mới crawl thường đã được sort)
+    # Sort chỉ khi chưa monotonic (pkl do resampler ghi luôn đã sắp xếp)
     if not df["open_time"].is_monotonic_increasing:
-        df = df.sort_values("open_time").reset_index(drop=True)
+        df = df.sort_values("open_time", kind="stable").reset_index(drop=True)
 
-    # Cắt cửa sổ TRƯỚC khi .copy() để tiết kiệm bộ nhớ
-    if start_ts is not None:
-        df = df[df["open_time"] >= int(start_ts)]
-    if end_ts is not None:
-        df = df[df["open_time"] <= int(end_ts)]
+    # Cắt cửa sổ [start_ts, end_ts] bằng vị trí (iloc) TRƯỚC khi .copy(): không sao chép phần ngoài cửa sổ
+    open_times = df["open_time"].to_numpy()
+    lo = int(np.searchsorted(open_times, int(start_ts), side="left")) if start_ts is not None else 0
+    hi = int(np.searchsorted(open_times, int(end_ts), side="right")) if end_ts is not None else len(df)
+    df = df.iloc[lo:hi]
     if limit:
         df = df.head(limit)
 

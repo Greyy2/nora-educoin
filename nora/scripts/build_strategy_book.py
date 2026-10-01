@@ -15,17 +15,21 @@ D. holdout — chạy đúng sổ đã chốt một lần (cả hai cách khớp
 Dùng: PYTHONPATH=. python scripts/build_strategy_book.py [--workers 10] [--n 24] [--only trend_long,trend_short]
 Kết quả: alphas/book.json (+ alphas/testnet/book.json nếu sổ có chiến lược), báo cáo tại <data>/_cache/book/<thời điểm>/.
 
-Biến môi trường:
-  NORA_CANDLE_CACHE_MB   ngân sách RAM cho _CANDLE_CACHE (mặc định 1024 MB)
-  NORA_DATA_CACHE_MB     ngân sách RAM cho _DATA_CACHE (mặc định 1500 MB)
-  OMP_NUM_THREADS / OPENBLAS_NUM_THREADS / MKL_NUM_THREADS  đặt = "1" tự động nếu chưa có
+Bộ nhớ (mỗi worker là một tiến trình có cache riêng):
+  NORA_CANDLE_CACHE_MB   ngân sách cache nến cả file (script này mặc định 512 MB)
+  NORA_DATA_CACHE_MB     ngân sách cache mảng giá + kernel theo cửa sổ (script này mặc định 1024 MB)
+  RAM tối đa một worker ≈ hai ngân sách trên + TRANSIENT_MB + BASE_MB (xem per_worker_budget_mb),
+  ghi đè bằng --per-worker-mb khi đã đo đỉnh thật (cột peak_rss_mb in ra ở mỗi giai đoạn).
+  --workers auto đọc cả giới hạn cgroup (systemd-run -p MemoryMax=...), không chỉ RAM trống của máy.
+  OMP_NUM_THREADS / OPENBLAS_NUM_THREADS / MKL_NUM_THREADS đặt = "1" nếu chưa có.
 """
-# ── Pin BLAS threads TRƯỚC khi import numpy để tránh tranh giành CPU ──────────
+# ── Đặt TRƯỚC mọi import numpy/backend: tiến trình con kế thừa qua fork ──────
 import os
 for _blas_env in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS",
                   "VECLIB_MAXIMUM_THREADS", "NUMEXPR_NUM_THREADS"):
-    if _blas_env not in os.environ:
-        os.environ[_blas_env] = "1"
+    os.environ.setdefault(_blas_env, "1")
+os.environ.setdefault("NORA_CANDLE_CACHE_MB", "512")
+os.environ.setdefault("NORA_DATA_CACHE_MB", "1024")
 # ─────────────────────────────────────────────────────────────────────────────
 
 import argparse
@@ -35,7 +39,8 @@ import random
 import sys
 import time
 import warnings
-from concurrent.futures import ProcessPoolExecutor, BrokenExecutor
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures.process import BrokenProcessPool
 
 import numpy as np
 import pandas as pd
@@ -50,8 +55,14 @@ MDD_LIMIT = 30.0
 RUIN_MAX_PCT = 5.0
 RISK_SCALES = (0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 4.0)
 MAX_RISK_PER_TRADE = 2.0
-# RAM ước tính cho mỗi worker khi chạy dev1 (MB) — dùng để tính --workers auto
-PER_WORKER_MB = 1800
+TRANSIENT_MB = 700   # đỉnh tạm khi nạp + dựng ma trận kernel cho một tài sản (đọc pkl 1m, copy, merge_asof)
+BASE_MB = 300        # interpreter + numpy/pandas + kết quả lệnh
+
+
+def per_worker_budget_mb() -> float:
+    """Trần RAM một worker = cache nến + cache dữ liệu (đều có trần theo byte) + đỉnh tạm + nền."""
+    from backend.utils.lru import env_mb
+    return env_mb("NORA_CANDLE_CACHE_MB", 512) + env_mb("NORA_DATA_CACHE_MB", 1024) + TRANSIENT_MB + BASE_MB
 
 
 def windows(symbols):
@@ -95,7 +106,7 @@ def run_book(job):
     import io
     from backend.alpha.strategy_book import CANDIDATES, materialize, perp_symbols
     from backend.backtest.portfolio import PortfolioEngine, RiskConfig
-    from backend.utils.memwatch import cache_report
+    from backend.utils.memwatch import peak_rss_mb
     items, (start, end), stop_fill, risk, rpt = job
     by_id = {c["id"]: c for c in CANDIDATES}
     strategies = [materialize(by_id[cid], prm, stop_fill=stop_fill, risk_per_trade_pct=rpt) for cid, prm in items]
@@ -104,7 +115,7 @@ def run_book(job):
     with contextlib.redirect_stdout(io.StringIO()):
         eng.run()
     result = metrics(eng.get_results(), start)
-    result["_rss_mb"] = round(cache_report()["rss_mb"], 1)
+    result["_peak_rss_mb"] = round(peak_rss_mb(), 1)  # đỉnh của tiến trình worker tới lúc này
     return result
 
 
@@ -138,47 +149,75 @@ def bootstrap(daily, scale, n=4000, block=5, horizon=365, seed=1):
 
 
 def _strip(m):
-    return {k: v for k, v in m.items() if k not in ("daily", "_rss_mb")}
+    return {k: v for k, v in m.items() if k not in ("daily", "_peak_rss_mb")}
+
+
+def _peak(results) -> str:
+    peaks = [r.get("_peak_rss_mb", 0.0) for r in results if r]
+    return f"đỉnh RAM/worker {max(peaks):.0f} MB" if peaks else "đỉnh RAM/worker ?"
 
 
 def _pool_map_safe(pool_fn, jobs: list, workers: int, label: str) -> list:
-    """Chạy pool.map với retry 1 lần nếu gặp BrokenExecutor (worker bị kill).
+    """Chạy jobs song song, trả kết quả ĐÚNG thứ tự jobs.
 
-    Khi retry: dùng nửa số workers để giảm áp lực RAM.
-    Trả về list kết quả; raise nếu retry vẫn thất bại.
+    - Lỗi trong job (bug, dữ liệu hỏng...) nổi lên ngay và huỷ các job đang chờ — không che lỗi.
+    - Chỉ khi pool bị hỏng (worker bị kill, thường do hết RAM / cgroup OOM): giữ kết quả đã xong,
+      chạy lại một lần CHỈ các job còn thiếu với nửa số worker.
     """
-    try:
-        with ProcessPoolExecutor(max_workers=workers) as pool:
-            return list(pool.map(pool_fn, jobs))
-    except (BrokenExecutor, Exception) as e:
-        half = max(1, workers // 2)
-        print(f"[WARN] {label}: pool bị kill ({e}), retry với {half} workers...", flush=True)
+    results = [None] * len(jobs)
+    done = [False] * len(jobs)
+    n_workers = max(1, min(int(workers), len(jobs)))
+    for attempt in (1, 2):
+        pending = [i for i in range(len(jobs)) if not done[i]]
+        if not pending:
+            break
+        pool = ProcessPoolExecutor(max_workers=n_workers)
+        futures = {}
         try:
-            with ProcessPoolExecutor(max_workers=half) as pool:
-                return list(pool.map(pool_fn, jobs))
-        except Exception as e2:
-            raise RuntimeError(f"{label}: pool thất bại sau retry: {e2}") from e2
+            futures = {pool.submit(pool_fn, jobs[i]): i for i in pending}
+            for fut in as_completed(futures):
+                i = futures[fut]
+                results[i] = fut.result()
+                done[i] = True
+        except BrokenProcessPool as exc:
+            pool.shutdown(wait=False, cancel_futures=True)
+            for fut, i in futures.items():  # job đã xong nhưng chưa kịp lấy kết quả
+                if fut.done() and not fut.cancelled() and fut.exception() is None:
+                    results[i] = fut.result()
+                    done[i] = True
+            missing = sum(not d for d in done)
+            if attempt == 2:
+                raise RuntimeError(f"{label}: pool vẫn hỏng sau khi giảm còn {n_workers} worker "
+                                   f"({missing} job chưa xong)") from exc
+            n_workers = max(1, n_workers // 2)
+            print(f"[WARN] {label}: worker bị kill (thường do hết RAM) — chạy lại {missing} job còn thiếu "
+                  f"với {n_workers} worker", flush=True)
+            continue
+        except BaseException:
+            pool.shutdown(wait=False, cancel_futures=True)
+            raise
+        pool.shutdown(wait=True)
+    return results
 
 
 def _auto_workers(per_worker_mb: float) -> int:
-    """Tính số workers tối ưu dựa trên RAM còn trống."""
-    try:
-        from backend.utils.memwatch import mem_available_mb
-        avail = mem_available_mb()
-    except Exception:
-        avail = 0.0
-    cpu_limit = max(1, os.cpu_count() - 2)
-    if avail > 0:
-        ram_limit = max(1, int(avail * 0.6 / per_worker_mb))
-        return min(cpu_limit, ram_limit)
-    return min(cpu_limit, 4)  # fallback an toàn
+    """Số worker = min(CPU dùng được − 2, 60% RAM dùng được / trần RAM một worker).
+    RAM dùng được tính cả giới hạn cgroup (systemd-run -p MemoryMax=...)."""
+    from backend.utils.memwatch import effective_available_mb, usable_cpus
+    cpu_limit = max(1, usable_cpus() - 2)
+    avail = effective_available_mb()
+    if avail <= 0:
+        return min(cpu_limit, 2)  # không đọc được RAM: chạy dè dặt
+    return max(1, min(cpu_limit, int(avail * 0.6 / per_worker_mb)))
 
 
 def main(argv=None):
     warnings.filterwarnings("ignore")
     ap = argparse.ArgumentParser()
     ap.add_argument("--workers", default="auto",
-                    help="số worker tiến trình song song; 'auto' = tính theo RAM và CPU (khuyến nghị)")
+                    help="số worker tiến trình song song; 'auto' = tính theo RAM (gồm cgroup) và CPU")
+    ap.add_argument("--per-worker-mb", type=float, default=None,
+                    help="trần RAM một worker (MB); mặc định = hai ngân sách cache + TRANSIENT_MB + BASE_MB")
     ap.add_argument("--n", type=int, default=24, help="số cấu hình thử mỗi chiến lược ở dev1")
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--only", default="", help="chỉ các chiến lược này (phân tách bằng dấu phẩy)")
@@ -186,25 +225,24 @@ def main(argv=None):
     a = ap.parse_args(argv)
     from backend.alpha.strategy_book import BASE_RISK_PER_TRADE_PCT, CANDIDATES, GATES, RISK, perp_symbols
     from backend.db.data_layout import cache_dir
-    from backend.utils.memwatch import check_memory_gate, mem_available_mb, rss_mb
+    from backend.utils.memwatch import check_memory_gate, effective_available_mb
 
-    # ── Resolve số workers ────────────────────────────────────────────────────
+    # ── Số worker + kiểm RAM trước khi chạy ──────────────────────────────────
+    per_worker_mb = a.per_worker_mb or per_worker_budget_mb()
     if str(a.workers).strip().lower() == "auto":
-        workers = _auto_workers(PER_WORKER_MB)
-        print(f"[auto] workers={workers} (RAM={mem_available_mb():.0f} MB available)", flush=True)
+        workers = _auto_workers(per_worker_mb)
+        print(f"[auto] workers={workers} (RAM dùng được {effective_available_mb():.0f} MB, "
+              f"trần mỗi worker {per_worker_mb:.0f} MB)", flush=True)
     else:
         workers = int(a.workers)
-
-    # ── Kiểm tra RAM trước khi bắt đầu ───────────────────────────────────────
-    required_mb = workers * PER_WORKER_MB * 1.2
-    check_memory_gate(required_mb, f"build_strategy_book --workers {workers}")
+    check_memory_gate(workers * per_worker_mb, f"build_strategy_book --workers {workers}")
 
     cands = [c for c in CANDIDATES if not a.only or c["id"] in a.only.split(",")]
     w = windows(perp_symbols())
     fmt = lambda x: f"{pd.Timestamp(x, unit='ms'):%Y-%m-%d}"
     print(f"dev1 {fmt(w['start'])} → {fmt(w['dev1_end'])} | dev2 → {fmt(w['dev2_end'])} | holdout → {fmt(w['end'])}", flush=True)
-    print(f"workers={workers} | NORA_CANDLE_CACHE_MB={os.environ.get('NORA_CANDLE_CACHE_MB','1024')} "
-          f"| NORA_DATA_CACHE_MB={os.environ.get('NORA_DATA_CACHE_MB','1500')}", flush=True)
+    print(f"workers={workers} | NORA_CANDLE_CACHE_MB={os.environ['NORA_CANDLE_CACHE_MB']} "
+          f"| NORA_DATA_CACHE_MB={os.environ['NORA_DATA_CACHE_MB']} | trần mỗi worker {per_worker_mb:.0f} MB", flush=True)
     eval_risk = {**RISK, "kill_switch_dd_pct": 0}
     run_dir = cache_dir(None, "book", time.strftime("%Y%m%d_%H%M%S"))
     report = {"windows": {k: fmt(v) for k, v in w.items()}, "gates": GATES, "risk": RISK, "candidates": {}}
@@ -223,26 +261,27 @@ def main(argv=None):
         )
         stage_a[c["id"]] = rows
         best = rows[0]
-        rss_info = f"RSS={best['dev1'].get('_rss_mb','?')} MB"
         print(
             f"[A] {c['id']:18s} {len(cfgs)} cấu hình, đạt {sum(r['score'] > float('-inf') for r in rows)}; "
             f"tốt nhất: lãi {best['dev1']['ret_pct']}% MDD {best['dev1']['mdd_pct']}% lệnh {best['dev1']['trades']} "
-            f"+{best['dev1']['symbols_positive']}/8  ({time.time() - t0:.0f}s | {rss_info})", flush=True
+            f"+{best['dev1']['symbols_positive']}/8  ({time.time() - t0:.0f}s | {_peak(ms)})", flush=True
         )
         # Ghi checkpoint sau mỗi chiến lược — không mất kết quả nếu sập giữa chừng
         with open(os.path.join(run_dir, "stage_a.json"), "w", encoding="utf-8") as fh:
             json.dump(stage_a, fh, ensure_ascii=False, indent=1, default=str)
 
-    # ── B. dev2 — pool riêng cho giai đoạn này ───────────────────────────────
-    jobs, keys = [], []
+    # ── B. dev2 — cũng một pool riêng cho MỖI chiến lược (cache không dồn qua các chiến lược) ──
+    out = {}
     for c in cands:
         top = [r for r in stage_a[c["id"]][:3] if r["score"] > float("-inf")]
-        for rank, r in enumerate(top):
-            for sf in ("level", "extreme"):
-                jobs.append(([(c["id"], r["params"])], (w["dev1_end"], w["dev2_end"]), sf, eval_risk, BASE_RISK_PER_TRADE_PCT))
-                keys.append((c["id"], rank, sf))
-    dev2_results = _pool_map_safe(run_book, jobs, workers, "[B] dev2")
-    out = dict(zip(keys, dev2_results))
+        keys = [(c["id"], rank, sf) for rank in range(len(top)) for sf in ("level", "extreme")]
+        if not keys:
+            continue
+        jobs = [([(cid, top[rank]["params"])], (w["dev1_end"], w["dev2_end"]), sf, eval_risk, BASE_RISK_PER_TRADE_PCT)
+                for cid, rank, sf in keys]
+        res_c = _pool_map_safe(run_book, jobs, workers, f"[B] {c['id']}")
+        out.update(zip(keys, res_c))
+        print(f"[B] {c['id']:18s} {len(jobs)} lần chạy dev2 xong ({time.time() - t0:.0f}s | {_peak(res_c)})", flush=True)
 
     accepted = []
     for c in cands:
@@ -281,7 +320,7 @@ def main(argv=None):
         base_dev2 = _pool_map_safe(
             run_book,
             [(items, (w["dev1_end"], w["dev2_end"]), sf, RISK, BASE_RISK_PER_TRADE_PCT) for sf in ("level", "extreme")],
-            min(workers, 4),
+            workers,
             "[C] base_dev2",
         )
         sizing = {str(s): bootstrap(base_dev2[1]["daily"], s) for s in RISK_SCALES}
@@ -300,7 +339,7 @@ def main(argv=None):
             fin_jobs = [(items, win, sf, RISK, rpt)
                         for win in ((w["dev1_end"], w["dev2_end"]), (w["dev2_end"], w["end"]))
                         for sf in ("level", "extreme")]
-            res = _pool_map_safe(run_book, fin_jobs, 4, "[D] holdout")
+            res = _pool_map_safe(run_book, fin_jobs, workers, "[D] holdout")
             final = {"dev2_level": _strip(res[0]), "dev2_extreme": _strip(res[1]),
                      "holdout_level": _strip(res[2]), "holdout_extreme": _strip(res[3])}
             for k in ("dev2_level", "dev2_extreme", "holdout_level", "holdout_extreme"):
