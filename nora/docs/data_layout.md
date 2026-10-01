@@ -38,7 +38,7 @@ nora/data/
   AVAX 5,2%, BNB −1,0%.
 - Phí pool DEX đã xác minh on-chain (Aerodrome V2 `PoolFactory.getFee`): AERO/USDC và VVV/WETH đều **0,30%**
   (`manifest.pool_fee_rate`).
-- `nora/data_staging/`: nơi crawler ghi trước. `scripts/promote_staging.py` chỉ chuyển sang
+- `nora/data_staging/`: nơi crawler ghi trước. `backend/cli/promote_staging.py` chỉ chuyển sang
   `data/<venue>/` những tài sản qua quality gate.
 - `nora/test/data_legacy/`: bộ dữ liệu cũ (tick tổng hợp từ nến 15m, không có manifest).
   Chỉ giữ để tham chiếu, **không dùng cho backtest**.
@@ -95,6 +95,6 @@ PYTHONPATH=. python -m backend.core.data.crawler.crawl_binance_klines --market u
 PYTHONPATH=. python -m backend.core.data.crawler.crawl_geckoterminal_full_dataset --targets-file data/_meta/dex_targets.json \
     --output-dir data_staging --lookback-days 179 --limit 1000 --page-delay-sec 3 --minute-max-pages 300
 # Kiểm gate + chuyển vào data/<venue>/
-PYTHONPATH=. python scripts/promote_staging.py            # xem trước
-PYTHONPATH=. python scripts/promote_staging.py --apply
+PYTHONPATH=. python -m backend.cli.promote_staging            # xem trước
+PYTHONPATH=. python -m backend.cli.promote_staging --apply
 ```

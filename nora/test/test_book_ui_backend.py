@@ -48,7 +48,7 @@ def test_catalog_default_params_universe_windows(client, tmp_path):
 
 def test_default_params_match_run_book_backtest_mid_params():
     import importlib.util
-    spec = importlib.util.spec_from_file_location("rbb", os.path.join(os.path.dirname(__file__), "..", "scripts", "run_book_backtest.py"))
+    spec = importlib.util.spec_from_file_location("rbb", os.path.join(os.path.dirname(__file__), "..", "backend", "cli", "run_book_backtest.py"))
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     from backend.core.strategy.strategy_book import CANDIDATES
@@ -60,8 +60,8 @@ def test_alphas_endpoint(client, tmp_path, monkeypatch):
     monkeypatch.setattr(batch_jobs, "NORA_DIR", str(tmp_path / "nora"))
     r = client.get("/api/studio/alphas")
     assert r.status_code == 200 and r.json() == {"registry": None, "book": None}
-    os.makedirs(tmp_path / "nora" / "alphas")
-    (tmp_path / "nora" / "alphas" / "registry.json").write_text(json.dumps({"alphas": [1]}))
+    os.makedirs(tmp_path / "nora" / "data" / "alphas")
+    (tmp_path / "nora" / "data" / "alphas" / "registry.json").write_text(json.dumps({"alphas": [1]}))
     (tmp_path / "book.json").write_text(json.dumps({"status": "READY"}))
     assert client.get("/api/studio/alphas").json() == {"registry": {"alphas": [1]}, "book": {"status": "READY"}}
     (tmp_path / "book.json").write_text("{oops")

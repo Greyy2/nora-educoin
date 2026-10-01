@@ -61,7 +61,7 @@ Công cụ được kiểm bằng dữ liệu có edge cài sẵn (phải ra CO_
 **Ngân sách DCA:** với `sizing="margin_pct"`, lệnh đầu + mọi tầng phải vừa `max_capital_usage` (mặc định 100% vốn), gồm phí:
 `order_size_pct × (1·(1+L·taker) + Σ m_k·(1+L·maker)) ≤ 100`, m_k = tích luỹ hệ số, L = đòn bẩy. Tầng nào vượt thì bị bỏ âm thầm,
 nên `build_params` (qua `dca_budget_check`) **từ chối** cấu hình không vừa (vd. 20% × 5 tầng; 19% thì vừa) và nêu `order_size_pct` lớn nhất còn vừa.
-Số tầng bị từ chối vì hết vốn trong lúc chạy ghi ở `dca_layers_rejected`. `optimize_alphas.py` loại tổ hợp không vừa trước khi lấy mẫu (`configs_invalid`).
+Số tầng bị từ chối vì hết vốn trong lúc chạy ghi ở `dca_layers_rejected`. `backend/cli/optimize_alphas.py` loại tổ hợp không vừa trước khi lấy mẫu (`configs_invalid`).
 
 **Loại phí theo loại lệnh:** vào lệnh ở open, SL, trailing, timeout, tín hiệu thoát = taker (market, có trượt giá);
 tầng DCA và chốt lời = maker (limit, không trượt). Mỗi lệnh con ghi `fee_usd` và `liquidity`.
@@ -93,8 +93,8 @@ không cắt lỗ, và số tầng DCA tương quan +0,62 với cú lỗ lớn n
 
 ```bash
 cd nora
-PYTHONPATH=. python scripts/check_signals_strategies.py --workers 4          # 10 tài sản
-PYTHONPATH=. python scripts/check_signals_strategies.py --assets BTC,AERO   # một vài tài sản
+PYTHONPATH=. python -m backend.cli.check_signals_strategies --workers 4          # 10 tài sản
+PYTHONPATH=. python -m backend.cli.check_signals_strategies --assets BTC,AERO   # một vài tài sản
 ```
 
 Kết quả được lưu ở `data/_cache/reports/step2_<thời điểm>.json`.

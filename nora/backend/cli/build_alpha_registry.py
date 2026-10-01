@@ -1,13 +1,13 @@
-"""Dựng kho alpha + cấu hình Binance Futures testnet từ kết quả scripts/optimize_alphas.py.
+"""Dựng kho alpha + cấu hình Binance Futures testnet từ kết quả backend/cli/optimize_alphas.py.
 
-Dùng:  PYTHONPATH=. python scripts/build_alpha_registry.py <thư mục kết quả tối ưu> [--out alphas]
+Dùng:  PYTHONPATH=. python -m backend.cli.build_alpha_registry <thư mục kết quả tối ưu> [--out data/alphas]
 """
 import argparse
 import json
 import os
 import sys
 
-NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if NORA_ROOT not in sys.path:
     sys.path.insert(0, NORA_ROOT)
 
@@ -15,7 +15,7 @@ if NORA_ROOT not in sys.path:
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("results_dir")
-    ap.add_argument("--out", default=os.path.join(NORA_ROOT, "alphas"))
+    ap.add_argument("--out", default=os.path.join(NORA_ROOT, "data", "alphas"))
     args = ap.parse_args(argv)
     from backend.optimize.registry import build_registry, write_registry
     from backend.core.strategy.strategy_library import OPTIMIZATION_SPACES

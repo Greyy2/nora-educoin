@@ -60,7 +60,7 @@ def test_backtest_launches_via_run_limited_without_shell(client, tmp_path):
     assert r.status_code == 200, r.text
     job_id = r.json()["job_id"]
     cmd, kw = FakePopen.calls[0]
-    assert cmd[0].endswith("scripts/run_limited.sh") and cmd[1:3] == ["--", "scripts/run_book_backtest.py"]
+    assert cmd[0].endswith("backend/ops/run_limited.sh") and cmd[1:4] == ["--", "-m", "backend.cli.run_book_backtest"]
     assert cmd[cmd.index("--symbols") + 1] == "BTC@perp,SOL@perp"
     assert cmd[cmd.index("--risk-per-trade") + 1] == "0.75" and "--strategies" not in cmd   # mặc định: alphas/book.json
     assert kw["start_new_session"] is True and not kw.get("shell")
@@ -109,7 +109,7 @@ def test_wfa_requires_exactly_one_source_and_valid_ids(client, tmp_path):
     r = client.post("/api/studio/book/wfa", json=ok)
     assert r.status_code == 200, r.text
     cmd = FakePopen.calls[0][0]
-    assert cmd[2] == "scripts/validate_book.py"
+    assert cmd[2:4] == ["-m", "backend.cli.validate_book"]
     assert cmd[cmd.index("--candidates") + 1] == "breakout_4h_long,breakout_4h_short"
     assert cmd[cmd.index("--train-days") + 1] == "90" and cmd[cmd.index("--n") + 1] == "2"
     for bad in ({}, {**ok, "report_dir": "x"}, {**ok, "candidates": ["nope"]}, {**ok, "train_days": 1}, {**ok, "n": 0},
@@ -137,10 +137,10 @@ def test_build_args_and_whitelist(client):
     r = client.post("/api/studio/book/build", json={"only": ["trend_long"], "n": 6})
     assert r.status_code == 200
     cmd = FakePopen.calls[0][0]
-    assert cmd[2] == "scripts/build_strategy_book.py" and cmd[cmd.index("--only") + 1] == "trend_long"
-    out = cmd[cmd.index("--out") + 1]           # build luôn ghi vào thư mục job, không đụng nora/alphas
+    assert cmd[2:4] == ["-m", "backend.cli.build_strategy_book"] and cmd[cmd.index("--only") + 1] == "trend_long"
+    out = cmd[cmd.index("--out") + 1]           # build luôn ghi vào thư mục job, không đụng nora/data/alphas
     job_id = os.path.basename(os.path.dirname(out))
-    assert out == os.path.join(batch_jobs.jobs_root(), job_id, "alphas") and out != os.path.join(batch_jobs.NORA_DIR, "alphas")
+    assert out == os.path.join(batch_jobs.jobs_root(), job_id, "alphas") and out != os.path.join(batch_jobs.NORA_DIR, "data", "alphas")
     assert cmd.count("--out") == 1
     assert client.post("/api/studio/book/build", json={"only": ["x"]}).status_code == 422
     assert client.post("/api/studio/book/build", json={"n": 0}).status_code == 422

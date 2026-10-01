@@ -6,6 +6,8 @@
 nora/
 ├── backend/
 │   ├── main.py            # App FastAPI (uvicorn backend.main:app)
+│   ├── cli/               # CLI: python -m backend.cli.<tên> (run_book_backtest, build_strategy_book, smoke_check, ...)
+│   ├── ops/               # run_limited.sh, check_tests_vs_ref.sh, install_user_units.sh, systemd/ (xem ops/README.md)
 │   ├── api/               # routers/, schemas.py, control.py (điều khiển node cũ), jobs/ (store, batch, scan)
 │   ├── core/              # Lõi nghiệp vụ
 │   │   ├── contracts.py   # Hợp đồng dữ liệu Backtest/WFA/Monte Carlo
@@ -20,16 +22,14 @@ nora/
 │   ├── wfa/               # walk_forward (đơn tài sản), portfolio_wfa
 │   ├── carlo/             # monte_carlo
 │   └── utils/             # lru, parallel, memwatch, jsonsafe, jobresult
-├── test/                  # pytest + golden/ (snapshot bit-identical)
-├── scripts/               # CLI: run_limited.sh, run_book_backtest, build_strategy_book, smoke_check, ...
-├── ops/                   # systemd units, install_user_units.sh
-├── alphas/                # sổ alpha / registry
-├── data/                  # dữ liệu & cache (không commit)
+├── test/                  # pytest + golden/ (snapshot bit-identical) + make_golden.py
+├── data/                  # dữ liệu & cache (không commit), TRỪ data/alphas/ (sổ alpha / registry, có commit)
+├── requirements.txt
 ├── frontend/              # Vite SPA
 └── docs/                  # tài liệu
 ```
 
-Chạy mọi thứ qua `scripts/run_limited.sh` (PYTHONPATH=nora, cwd=nora); import theo dạng `backend.core.backtest.portfolio`, `backend.api.jobs.batch`, ...
+Chạy mọi thứ từ thư mục `nora/` qua `backend/ops/run_limited.sh -- -m backend.cli.<tên> ...` (PYTHONPATH=nora, cwd=nora); import theo dạng `backend.core.backtest.portfolio`, `backend.api.jobs.batch`, ...
 
 ---
 

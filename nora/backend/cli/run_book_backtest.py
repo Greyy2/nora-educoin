@@ -1,13 +1,13 @@
 """Một lần chạy PortfolioEngine cho sổ chiến lược (job nền của API: POST /api/studio/book/backtest).
 
 Nguồn sổ (chọn một):
-  --book alphas/book.json                                  (mặc định) chiến lược + tham số + rủi ro/lệnh + giới hạn danh mục của sổ đã chốt
+  --book data/alphas/book.json                                (mặc định) chiến lược + tham số + rủi ro/lệnh + giới hạn danh mục của sổ đã chốt
   --strategies '[{"id":"trend_long","params":{...}}]'      tự chỉ định; tham số thiếu lấy mức GIỮA của không gian tham số ứng viên
 Cửa sổ: --start/--end (YYYY-MM-DD, UTC; ngày kết thúc tính CẢ ngày); mặc định = windows() của build_strategy_book (toàn bộ dữ liệu sau warmup).
 Rủi ro/lệnh: --risk-per-trade (mặc định: của sổ, hoặc mức chuẩn 0,5%). SL: --stop-fill level|extreme (mặc định level).
 Kết quả: số đo danh mục (portfolio_metrics) + by_symbol/by_strategy + lệnh + đường vốn (<= 2000 điểm) -> --out và/hoặc $NORA_JOB_DIR/result.json.
 
-Dùng: scripts/run_limited.sh -- scripts/run_book_backtest.py --start 2025-03-01 --end 2025-04-30 --symbols BTC@perp,SOL@perp --out /tmp/r.json
+Dùng: backend/ops/run_limited.sh -- -m backend.cli.run_book_backtest --start 2025-03-01 --end 2025-04-30 --symbols BTC@perp,SOL@perp --out /tmp/r.json
 """
 import os
 for _blas_env in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS",
@@ -26,7 +26,7 @@ import warnings
 
 import pandas as pd
 
-NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if NORA_ROOT not in sys.path:
     sys.path.insert(0, NORA_ROOT)
 
@@ -65,7 +65,7 @@ def load_items(a):
                 raise SystemExit(f"Không có chiến lược: {s.get('id')}; có: {sorted(by_id)}")
             items.append((s["id"], _mid_params(by_id[s["id"]], s.get("params"))))
         return items, BASE_RISK_PER_TRADE_PCT, RISK
-    path = a.book or os.path.join(NORA_ROOT, "alphas", "book.json")
+    path = a.book or os.path.join(NORA_ROOT, "data", "alphas", "book.json")
     with open(path, encoding="utf-8") as fh:
         book = json.load(fh)
     items = [(s["id"], s["params"]) for s in book["strategies"]]
@@ -128,7 +128,7 @@ def run(items, symbols, start, end, rpt, stop_fill, risk):
 def main(argv=None):
     warnings.filterwarnings("ignore")
     ap = argparse.ArgumentParser()
-    ap.add_argument("--book", default="", help="đường dẫn book.json (mặc định alphas/book.json)")
+    ap.add_argument("--book", default="", help="đường dẫn book.json (mặc định data/alphas/book.json)")
     ap.add_argument("--strategies", default="", help='JSON: [{"id": ..., "params": {...}}] (thay cho --book)')
     ap.add_argument("--symbols", default="", help="vd BTC@perp,SOL@perp (mặc định cả vũ trụ của sổ chiến lược)")
     ap.add_argument("--start", default="", help="YYYY-MM-DD UTC (mặc định đầu dữ liệu sau warmup)")

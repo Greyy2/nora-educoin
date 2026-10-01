@@ -5,7 +5,7 @@ Mọi float được mã hoá bằng float.hex() (None giữ nguyên) nên so s�
 Bỏ qua id (result_id/order_id dựa trên thời gian) và mọi thứ không tất định.
 
 Các hàm ở đây thuần tuý (không đụng file ngoài `root` được truyền vào, trừ scenario_portfolio_real chỉ ĐỌC data_root).
-Snapshot lưu ở test/golden/*.json, sinh lại bằng scripts/make_golden.py.
+Snapshot lưu ở test/golden/*.json, sinh lại bằng test/make_golden.py.
 """
 import os
 from contextlib import contextmanager

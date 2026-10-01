@@ -49,7 +49,7 @@ def _stable(res):
 
 # ── Bước 1: số đo dùng chung ────────────────────────────────────────────────
 def _old_bootstrap(daily, scale, n=4000, block=5, horizon=365, seed=1, mdd_limit=30.0):
-    """Bản gốc trong scripts/build_strategy_book.py trước khi chuyển (giữ nguyên để so từng bit)."""
+    """Bản gốc trong backend/cli/build_strategy_book.py trước khi chuyển (giữ nguyên để so từng bit)."""
     rng = np.random.default_rng(seed)
     d = np.asarray(daily, dtype=float)
     mdds, rets = np.empty(n), np.empty(n)

@@ -13,7 +13,7 @@ Chia dữ liệu mỗi tài sản theo thời gian (không giai đoạn nào nh�
 4. Holdout (20% cuối, chưa ai chạm): chạy cấu hình được WFA chọn nhiều nhất.
 ALPHA = qua gate WFA + MC + holdout có lãi và MDD <= 30%. Không có thì báo thẳng là không có.
 
-Dùng:  PYTHONPATH=. python scripts/optimize_alphas.py [--spaces id1,id2] [--assets BTC,ETH] [--n 60] [--workers auto|8]
+Dùng:  PYTHONPATH=. python -m backend.cli.optimize_alphas [--spaces id1,id2] [--assets BTC,ETH] [--n 60] [--workers auto|8]
 """
 # ── Pin BLAS threads TRƯỚC khi import numpy ───────────────────────────────────
 import os
@@ -33,7 +33,7 @@ from collections import Counter
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime, timezone
 
-NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if NORA_ROOT not in sys.path:
     sys.path.insert(0, NORA_ROOT)
 from backend.utils.jsonsafe import json_default  # noqa: E402

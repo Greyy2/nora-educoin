@@ -1,6 +1,6 @@
 """API sổ chiến lược (strategy book): xem sổ hiện tại + chạy backtest danh mục / WFA danh mục / dựng sổ như job nền.
 
-Job nặng chạy ở tiến trình riêng qua scripts/run_limited.sh (xem backend/api/jobs/batch.py), handler ở đây chỉ
+Job nặng chạy ở tiến trình riêng qua backend/ops/run_limited.sh (xem backend/api/jobs/batch.py), handler ở đây chỉ
 khởi chạy / đọc file nên nhanh và là `def` thường (FastAPI chạy trong threadpool).
 """
 import json
@@ -35,7 +35,7 @@ class _DateRange(BaseModel):
 
 
 class BacktestRequest(_DateRange):
-    strategies: Optional[List[StrategyIn]] = Field(None, max_length=16, description="Bỏ trống = dùng alphas/book.json")
+    strategies: Optional[List[StrategyIn]] = Field(None, max_length=16, description="Bỏ trống = dùng data/alphas/book.json")
     symbols: Optional[List[str]] = Field(None, max_length=16, description="Mặc định cả vũ trụ (perp)")
     start: str
     end: str
@@ -100,8 +100,8 @@ class BuildRequest(BaseModel):
 
 # ─── Đọc sổ / báo cáo ───────────────────────────────────────────────────────
 def alphas_dir() -> str:
-    """Thư mục alphas/ đang dùng. Ghi đè bằng NORA_ALPHAS_DIR (dùng cho test); mặc định nora/alphas."""
-    return os.environ.get("NORA_ALPHAS_DIR") or os.path.join(batch_jobs.NORA_DIR, "alphas")
+    """Thư mục data/alphas/ đang dùng. Ghi đè bằng NORA_ALPHAS_DIR (dùng cho test); mặc định nora/data/alphas."""
+    return os.environ.get("NORA_ALPHAS_DIR") or os.path.join(batch_jobs.NORA_DIR, "data", "alphas")
 
 
 def book_path() -> str:
@@ -157,7 +157,7 @@ def latest_wfa_summary() -> Optional[Dict[str, Any]]:
 
 
 def default_params(space: Dict[str, List[Any]]) -> Dict[str, Any]:
-    """Giá trị GIỮA của mỗi khoá trong không gian tham số (cùng quy tắc scripts/run_book_backtest._mid_params)."""
+    """Giá trị GIỮA của mỗi khoá trong không gian tham số (cùng quy tắc backend/cli/run_book_backtest._mid_params)."""
     return {k: v[len(v) // 2] for k, v in space.items()}
 
 
@@ -239,7 +239,7 @@ def _launch(kind: str, params: Dict[str, Any]) -> Dict[str, str]:
 @router.post("/backtest")
 def post_backtest(req: BacktestRequest):
     if not req.strategies and not os.path.isfile(book_path()):
-        raise HTTPException(409, "chưa có alphas/book.json — truyền strategies hoặc dựng sổ trước (POST /build)")
+        raise HTTPException(409, "chưa có data/alphas/book.json — truyền strategies hoặc dựng sổ trước (POST /build)")
     return _launch("book_backtest", req.model_dump())
 
 

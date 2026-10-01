@@ -6,7 +6,7 @@ theo ngân sách rủi ro đã chốt: P(MDD >= 30% trong 1 năm) <= 5%.
 - Báo cả hai cách khớp SL: "level" (cận trên) và "extreme" (bi quan, cận dưới).
 - Bootstrap khối 5 ngày trên lợi suất ngày của danh mục -> lãi trung vị, MDD p95, P(MDD >= 30%) theo hệ số vốn.
 
-Dùng: PYTHONPATH=. python scripts/portfolio_sizing.py --alpha trend_long_perp__SOL --assets SOL,DOGE
+Dùng: PYTHONPATH=. python -m backend.cli.portfolio_sizing --alpha trend_long_perp__SOL --assets SOL,DOGE
 """
 import argparse
 import json
@@ -18,10 +18,9 @@ from concurrent.futures import ProcessPoolExecutor
 import numpy as np
 import pandas as pd
 
-NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if NORA_ROOT not in sys.path:
     sys.path.insert(0, NORA_ROOT)
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 MDD_LIMIT = 0.30
 RUIN_MAX_PCT = 5.0
@@ -67,9 +66,9 @@ def bootstrap(daily: np.ndarray, scale: float, n: int = 4000, block: int = 5, ho
 def main(argv=None):
     warnings.filterwarnings("ignore")
     ap = argparse.ArgumentParser()
-    ap.add_argument("--alpha", required=True, help="alpha_id trong alphas/registry.json")
+    ap.add_argument("--alpha", required=True, help="alpha_id trong data/alphas/registry.json")
     ap.add_argument("--assets", required=True, help="vd. SOL,DOGE (dùng dữ liệu <SYM>@perp)")
-    ap.add_argument("--registry", default=os.path.join(NORA_ROOT, "alphas", "registry.json"))
+    ap.add_argument("--registry", default=os.path.join(NORA_ROOT, "data", "alphas", "registry.json"))
     ap.add_argument("--workers", default="auto",
                     help="số tiến trình song song; 'auto' = tính theo RAM (gồm cgroup) và CPU")
     a = ap.parse_args(argv)
@@ -78,7 +77,7 @@ def main(argv=None):
     from backend.utils.parallel import resolve_workers
     # 900 MB/worker: mỗi job là backtest MỘT tài sản (chưa đo thực — hiệu chỉnh khi có số đỉnh RAM)
     workers = resolve_workers(a.workers, 900, "portfolio_sizing")
-    from research_trend_portfolio import portfolio
+    from backend.cli.research_trend_portfolio import portfolio
 
     reg = json.load(open(a.registry, encoding="utf-8"))
     alpha = next(x for x in reg["alphas"] if x["alpha_id"] == a.alpha)
@@ -123,7 +122,7 @@ def main(argv=None):
         mode["max_scale_within_budget"] = best
         report["modes"][sf] = mode
         print(f"  -> hệ số vốn tối đa trong ngân sách (P(MDD>=30%) <= {RUIN_MAX_PCT}%): {best}")
-    path = os.path.join(NORA_ROOT, "alphas", f"portfolio_{a.alpha}__{'_'.join(s.split('@')[0] for s in assets)}.json")
+    path = os.path.join(NORA_ROOT, "data", "alphas", f"portfolio_{a.alpha}__{'_'.join(s.split('@')[0] for s in assets)}.json")
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(report, fh, ensure_ascii=False, indent=1)
     print("\nlưu:", path)

@@ -26,7 +26,7 @@ Quy ước chung:
 `catalog` và `candidates` là cùng một danh sách (giữ cả hai để tương thích); `wfa` và `latest_wfa` cũng vậy. `default_params` = giá trị giữa của mỗi khoá trong `space`
 (giống `run_book_backtest`). UI đọc `catalog || candidates`, `latest_wfa || wfa`.
 
-`GET /api/studio/alphas` (mới) → `{"registry": <alphas/registry.json hoặc null>, "book": <alphas/book.json hoặc null>}`.
+`GET /api/studio/alphas` (mới) → `{"registry": <data/alphas/registry.json hoặc null>, "book": <data/alphas/book.json hoặc null>}`.
 
 ## 2. Backtest (đã có job)
 `POST /api/studio/book/backtest`
@@ -35,7 +35,7 @@ Quy ước chung:
  "symbols": ["BTC@perp", "SOL@perp"], "start": "2025-03-01", "end": "2025-04-30",
  "risk_per_trade_pct": 0.5, "stop_fill": "level"}
 ```
-→ `{"job_id": "..."}`. Bỏ `strategies` → dùng `alphas/book.json`.
+→ `{"job_id": "..."}`. Bỏ `strategies` → dùng `data/alphas/book.json`.
 
 Chỉ `POST` trả khoá `job_id`. Các hàng job (GET) dùng khoá **`id`** (kèm `state`, bằng `status`); UI chuẩn hoá `job_id = job_id || id`.
 `GET /api/studio/book/jobs/{id}` → `{"id","kind","args","pid","status","state","waiting_in_queue","created","started","finished","exit_code","log_tail":[...],"result":{...}|null}`
@@ -127,9 +127,9 @@ cho **mọi** cấu hình đã thử (`score` là `null` khi `passed=false`), đ
 tức điền `strategies[{id, params}]` vào form backtest.
 
 **Build không ghi đè sổ đang xuất bản.** Mọi job `book_build` chạy với `--out <job_dir>/alphas` (do `batch_jobs.launch` tự thêm; client không đặt được `--out`),
-nên sổ vừa dựng nằm ở `<data>/_cache/api_jobs/<job_id>/alphas/book.json` (+ `testnet/book.json` CHỈ khi holdout đạt); `nora/alphas/` không đổi.
+nên sổ vừa dựng nằm ở `<data>/_cache/api_jobs/<job_id>/alphas/book.json` (+ `testnet/book.json` CHỈ khi holdout đạt); `nora/data/alphas/` không đổi.
 
-`POST /api/studio/book/publish` `{"job_id": "..."}` → chép `book.json` của job sang `nora/alphas/` (thay sổ hiện hành); `testnet/book.json` chỉ được chép khi job có
-(holdout đạt), nếu không thì `nora/alphas/testnet/book.json` cũ bị xoá. Trả `{"published": true, "job_id", "status", "holdout_pass", "generated_at", "strategies": [id], "written": [path], "testnet_removed": bool}`.
-Lỗi: 404 không có job; 422 `job_id` sai định dạng / không phải `book_build`; 409 job chưa xong hoặc không có `alphas/book.json` (không dựng ra sổ, hoặc job cũ chạy trước thay đổi này).
-Thư mục đích mặc định `nora/alphas`; biến môi trường `NORA_ALPHAS_DIR` ghi đè (dùng cho test). UI: nút "Xuất bản sổ này" trên job build đã xong có sổ, có hộp xác nhận.
+`POST /api/studio/book/publish` `{"job_id": "..."}` → chép `book.json` của job sang `nora/data/alphas/` (thay sổ hiện hành); `testnet/book.json` chỉ được chép khi job có
+(holdout đạt), nếu không thì `nora/data/alphas/testnet/book.json` cũ bị xoá. Trả `{"published": true, "job_id", "status", "holdout_pass", "generated_at", "strategies": [id], "written": [path], "testnet_removed": bool}`.
+Lỗi: 404 không có job; 422 `job_id` sai định dạng / không phải `book_build`; 409 job chưa xong hoặc không có `alphas/book.json` trong thư mục job (không dựng ra sổ, hoặc job cũ chạy trước thay đổi này).
+Thư mục đích mặc định `nora/data/alphas`; biến môi trường `NORA_ALPHAS_DIR` ghi đè (dùng cho test). UI: nút "Xuất bản sổ này" trên job build đã xong có sổ, có hộp xác nhận.

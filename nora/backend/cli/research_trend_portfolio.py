@@ -9,7 +9,7 @@ Quy trình chống overfit:
 2. Chọn cấu hình CHỈ theo dev: lãi danh mục / MDD danh mục, yêu cầu >= 5/8 tài sản có lãi.
 3. Holdout 20% cuối: chạy đúng các cấu hình đã chọn (không chọn lại).
 
-Dùng: PYTHONPATH=. python scripts/research_trend_portfolio.py [--workers auto|12] [--top 5]
+Dùng: PYTHONPATH=. python -m backend.cli.research_trend_portfolio [--workers auto|12] [--top 5]
 """
 import argparse
 import itertools
@@ -22,7 +22,7 @@ from concurrent.futures import ProcessPoolExecutor
 import numpy as np
 import pandas as pd
 
-NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if NORA_ROOT not in sys.path:
     sys.path.insert(0, NORA_ROOT)
 from backend.utils.jsonsafe import json_default  # noqa: E402

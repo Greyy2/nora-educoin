@@ -9,8 +9,7 @@ import sys
 import numpy as np
 import pytest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
-import research_maker_scalp as R  # noqa: E402
+from backend.cli import research_maker_scalp as R
 
 
 def _random_walk(n=150_000, sub=20, seed=11):

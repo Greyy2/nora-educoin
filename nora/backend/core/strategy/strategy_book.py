@@ -8,7 +8,7 @@ Nguyên tắc:
   cách giá vào >= 1,5 × khoảng SL; trần đòn bẩy 10x (mức rủi ro đã chốt).
 - Rủi ro danh mục (RiskConfig): số vị thế đồng thời, mỗi tài sản tối đa 1 vị thế, trần tổng danh nghĩa, kill switch 30%.
 
-Chọn chiến lược (scripts/build_strategy_book.py) chạy trên CẢ vũ trụ cùng lúc (backtest danh mục), nên một
+Chọn chiến lược (backend/cli/build_strategy_book.py) chạy trên CẢ vũ trụ cùng lúc (backtest danh mục), nên một
 cấu hình chỉ thắng nhờ một tài sản sẽ bị loại bởi điều kiện độ phủ (đa số tài sản phải có lãi).
 """
 from typing import Any, Dict, List

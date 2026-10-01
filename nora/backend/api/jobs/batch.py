@@ -1,14 +1,14 @@
 """Job nền nặng của sổ chiến lược (backtest danh mục / WFA danh mục / dựng sổ), chạy NGOÀI tiến trình API.
 
 Vì sao: API có trần RAM riêng (3G) nên không được chạy backtest/WFA nặng trong tiến trình. Mỗi job là một tiến trình con
-`scripts/run_limited.sh -- scripts/<script>.py ...`: tự có scope riêng trong nora.slice (trần chung 12G), xếp hàng tuần tự
+`backend/ops/run_limited.sh -- -m backend.cli.<script> ...`: tự có scope riêng trong nora.slice (trần chung 12G), xếp hàng tuần tự
 (flock) và tự chia worker theo RAM còn trống. API chỉ khởi chạy, theo dõi và đọc kết quả.
 
 Mỗi job có thư mục <data>/_cache/api_jobs/<job_id>/:
   job.json    siêu dữ liệu (id, kind, args, pid, created/started/finished, state, exit_code)
   out.log     stdout+stderr của job
   result.json báo cáo cuối do script ghi (quy ước env NORA_JOB_DIR, xem backend/utils/jobresult.py)
-  alphas/     (chỉ job book_build) sổ vừa dựng: book.json [+ testnet/book.json]; KHÔNG ghi đè nora/alphas/ — xuất bản qua POST /book/publish
+  alphas/     (chỉ job book_build) sổ vừa dựng: book.json [+ testnet/book.json]; KHÔNG ghi đè nora/data/alphas/ — xuất bản qua POST /book/publish
 Trạng thái trả ra: queued (đang chờ hàng đợi run_limited) | running | done | failed. Trạng thái bền (job.json) chỉ có running/done/failed;
 queued suy ra từ out.log. Không dùng shell: danh sách đối số đi thẳng vào Popen.
 """
@@ -24,16 +24,16 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 NORA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-RUN_LIMITED = os.path.join(NORA_DIR, "scripts", "run_limited.sh")
+RUN_LIMITED = os.path.join(NORA_DIR, "backend", "ops", "run_limited.sh")
 
-# Danh sách trắng: loại job -> (script, các cờ được phép)
+# Danh sách trắng: loại job -> (module backend.cli.*, các cờ được phép)
 KINDS: Dict[str, Dict[str, Any]] = {
-    "book_backtest": {"script": "scripts/run_book_backtest.py",
+    "book_backtest": {"module": "backend.cli.run_book_backtest",
                       "flags": {"--book", "--strategies", "--symbols", "--start", "--end", "--risk-per-trade", "--stop-fill"}},
-    "book_wfa": {"script": "scripts/validate_book.py",
+    "book_wfa": {"module": "backend.cli.validate_book",
                  "flags": {"--report", "--include-rejected", "--candidates", "--strategies-json", "--symbols", "--n", "--start",
                            "--end", "--train-days", "--test-days", "--risk-per-trade", "--workers"}},
-    "book_build": {"script": "scripts/build_strategy_book.py", "flags": {"--only", "--n", "--workers"}},
+    "book_build": {"module": "backend.cli.build_strategy_book", "flags": {"--only", "--n", "--workers"}},
 }
 MAX_ACTIVE = 8          # số job đang chạy/chờ tối đa cùng lúc (mỗi job chờ là một tiến trình bash nhỏ)
 LOG_TAIL_LINES = 40
@@ -301,7 +301,7 @@ def launch(kind: str, args: List[str], files: Optional[Dict[str, Any]] = None) -
     # Khi API chạy từ user service, run_limited.sh cần bus của user session để gọi systemd-run --user.
     env.setdefault("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
     env.setdefault("DBUS_SESSION_BUS_ADDRESS", f"unix:path={env['XDG_RUNTIME_DIR']}/bus")
-    cmd = [RUN_LIMITED, "--", KINDS[kind]["script"], *args]
+    cmd = [RUN_LIMITED, "--", "-m", KINDS[kind]["module"], *args]
     log = open(os.path.join(job_dir, "out.log"), "ab")
     try:
         proc = subprocess.Popen(cmd, cwd=NORA_DIR, env=env, stdin=subprocess.DEVNULL, stdout=log,

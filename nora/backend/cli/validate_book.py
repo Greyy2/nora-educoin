@@ -12,7 +12,7 @@ Nguồn ứng viên (chọn một):
 Cửa sổ mặc định: dev1_end -> dev2_end (từ report, hoặc windows() của build_strategy_book); --start/--end (YYYY-MM-DD) ghi đè.
 Rủi ro mỗi lệnh: lấy từ report["book"] nếu có, không thì mức chuẩn 0,5% (--risk-per-trade ghi đè).
 
-Dùng: scripts/run_limited.sh -- scripts/validate_book.py --candidates trend_long,reversion_short --n 3 --workers auto
+Dùng: backend/ops/run_limited.sh -- -m backend.cli.validate_book --candidates trend_long,reversion_short --n 3 --workers auto
 Kết quả: <data>/_cache/book_wfa/<thời điểm>/report.json. BẮT BUỘC chạy dưới trần RAM (run_limited.sh).
 """
 # ── Đặt TRƯỚC mọi import numpy/backend: tiến trình con kế thừa qua fork ──────
@@ -33,14 +33,11 @@ import warnings
 
 import pandas as pd
 
-NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if NORA_ROOT not in sys.path:
     sys.path.insert(0, NORA_ROOT)
-SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
-if SCRIPTS_DIR not in sys.path:
-    sys.path.insert(0, SCRIPTS_DIR)
 
-import build_strategy_book as bsb  # noqa: E402  (windows, configs, PER_WORKER_MB, _dir_mb)
+from backend.cli import build_strategy_book as bsb  # noqa: E402  (windows, configs, PER_WORKER_MB, _dir_mb)
 from backend.utils.jobresult import write_job_result  # noqa: E402
 from backend.utils.jsonsafe import json_default  # noqa: E402
 

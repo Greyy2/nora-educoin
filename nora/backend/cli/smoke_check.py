@@ -1,10 +1,10 @@
 """Smoke check NHANH cho pipeline backtest Nora: kiểm bất biến + tất định (KHÔNG phải chạy production).
 
 Chạy qua run_limited (nora.slice 12G, xếp hàng):
-  scripts/run_limited.sh -- scripts/smoke_check.py single    --out DIR   # 7 ứng viên strategy_book (SOL@perp) + 8 bot-style (BTC) + DCA probe
-  scripts/run_limited.sh -- scripts/smoke_check.py portfolio --out DIR   # danh mục 8 tài sản perp x 7 ứng viên (+ shared_dir)
-  scripts/run_limited.sh -- scripts/smoke_check.py studio    --out DIR   # WFA + Monte Carlo (hàm pipeline, không HTTP) cho alpha trong registry
-  scripts/run_limited.sh -- scripts/smoke_check.py optcheck  --run DIR1 [--run DIR2]   # kiểm results.json + fold của optimize_alphas
+  backend/ops/run_limited.sh -- -m backend.cli.smoke_check single    --out DIR   # 7 ứng viên strategy_book (SOL@perp) + 8 bot-style (BTC) + DCA probe
+  backend/ops/run_limited.sh -- -m backend.cli.smoke_check portfolio --out DIR   # danh mục 8 tài sản perp x 7 ứng viên (+ shared_dir)
+  backend/ops/run_limited.sh -- -m backend.cli.smoke_check studio    --out DIR   # WFA + Monte Carlo (hàm pipeline, không HTTP) cho alpha trong registry
+  backend/ops/run_limited.sh -- -m backend.cli.smoke_check optcheck  --run DIR1 [--run DIR2]   # kiểm results.json + fold của optimize_alphas
 
 Bất biến mỗi lần chạy: sổ vốn, vị thế, bậc DCA, rủi ro theo SL, trần danh nghĩa/đòn bẩy, trần danh mục.
 Tất định: chạy 2 lần, xoá cache giữa hai lần, so canonical (test/golden_scenarios.canonicalize).
@@ -23,7 +23,7 @@ import sys
 import time
 from collections import Counter, defaultdict
 
-NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 for _p in (NORA_ROOT, os.path.join(NORA_ROOT, "test")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
@@ -423,7 +423,7 @@ def cmd_studio(a):
     from backend.core.contracts import MonteCarloRunRequest, StrategySnapshot, WfaFoldConfig
     from backend.wfa.walk_forward import execute_wfa_pipeline
     init_db()
-    reg = json.load(open(os.path.join(NORA_ROOT, "alphas", "registry.json"), encoding="utf-8"))
+    reg = json.load(open(os.path.join(NORA_ROOT, "data", "alphas", "registry.json"), encoding="utf-8"))
     al = next(x for x in reg["alphas"] if x["alpha_id"] == a.alpha)
     s0, e0 = ms("2025-01-01"), ms("2026-02-01")
     snap = StrategySnapshot(name=al["alpha_id"], symbol=al["symbol"], start_ts=s0, end_ts=e0, flows=al["flows"],
@@ -467,7 +467,7 @@ def cmd_studio(a):
                                        "fold_checks": fc, "mc": m, "mc_identical": same})
 
 
-# ─── optcheck: kiểm kết quả scripts/optimize_alphas.py ──────────────────────
+# ─── optcheck: kiểm kết quả backend/cli/optimize_alphas.py ──────────────────────
 
 STRIP = ("seconds", "peak_rss_mb")
 
@@ -482,8 +482,7 @@ def _strip(o):
 
 def cmd_optcheck(a):
     import sqlite3
-    sys.path.insert(0, os.path.join(NORA_ROOT, "scripts"))
-    import optimize_alphas as oa
+    from backend.cli import optimize_alphas as oa
     from backend.core.strategy.strategy_library import OPTIMIZATION_SPACES
     from backend.core.backtest.params_builder import data_symbol
     from backend.db.local_pkl import read_manifest

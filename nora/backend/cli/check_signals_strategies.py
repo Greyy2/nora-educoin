@@ -5,7 +5,7 @@
    đo lợi nhuận, MDD mark-to-market (thấy lỗ treo), lỗ treo tối đa trong lệnh, số tầng DCA, thanh lý.
 
 Kết quả: data/_cache/reports/step2_<ngày>.json + bảng tóm tắt in ra màn hình.
-Dùng:  PYTHONPATH=. python scripts/check_signals_strategies.py [--assets BTC,AERO] [--workers auto|4]
+Dùng:  PYTHONPATH=. python -m backend.cli.check_signals_strategies [--assets BTC,AERO] [--workers auto|4]
 """
 import argparse
 import json
@@ -15,7 +15,7 @@ import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime, timezone
 
-NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if NORA_ROOT not in sys.path:
     sys.path.insert(0, NORA_ROOT)
 from backend.utils.jsonsafe import json_default  # noqa: E402

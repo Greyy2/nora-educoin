@@ -14,7 +14,7 @@ Không tính funding (giữ lệnh ngắn); engine thật sẽ tính.
 
 Chống overfit: chọn cấu hình CHỈ trên 80% đầu (dev); 20% cuối (holdout) chỉ in cho các cấu hình đã chọn.
 
-Dùng: PYTHONPATH=. python scripts/research_maker_scalp.py [--assets BTC,ETH] [--workers auto|8]
+Dùng: PYTHONPATH=. python -m backend.cli.research_maker_scalp [--assets BTC,ETH] [--workers auto|8]
 """
 import argparse
 import itertools
@@ -26,7 +26,7 @@ from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
 
-NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if NORA_ROOT not in sys.path:
     sys.path.insert(0, NORA_ROOT)
 

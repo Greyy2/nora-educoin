@@ -114,7 +114,7 @@ def require_memory_limit(label: str) -> float:
             raise SystemExit(
                 f"[{label}] Script này phải chạy dưới trần RAM (cgroup) — server dùng chung, không có swap, "
                 "tràn RAM sẽ làm sập cả máy.\n"
-                f"  Chạy: scripts/run_limited.sh -- scripts/{label}.py ...\n"
+                f"  Chạy: backend/ops/run_limited.sh -- -m backend.cli.{label} ...\n"
                 "  Hoặc, nếu chắc chắn muốn chạy không giới hạn, đặt NORA_ALLOW_UNLIMITED=1."
             )
         return float("inf")  # chủ động cho phép không giới hạn

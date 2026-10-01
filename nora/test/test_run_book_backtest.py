@@ -1,4 +1,4 @@
-"""scripts/run_book_backtest.py trên thị trường giả lập (3 tài sản perp): khoá kết quả, result.json theo NORA_JOB_DIR, tất định."""
+"""backend/cli/run_book_backtest.py trên thị trường giả lập (3 tài sản perp): khoá kết quả, result.json theo NORA_JOB_DIR, tất định."""
 import importlib.util
 import json
 import os
@@ -55,7 +55,7 @@ def market(tmp_path, monkeypatch):
 
 
 def _load_script():
-    path = os.path.join(os.path.dirname(__file__), "..", "scripts", "run_book_backtest.py")
+    path = os.path.join(os.path.dirname(__file__), "..", "backend", "cli", "run_book_backtest.py")
     spec = importlib.util.spec_from_file_location("run_book_backtest", path)
     mod = importlib.util.module_from_spec(spec)
     sys.modules["run_book_backtest"] = mod

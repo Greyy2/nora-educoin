@@ -1,4 +1,4 @@
-"""Xuất sổ chiến lược đã chốt: alphas/book.json (tái lập backtest) + alphas/testnet/book.json (bot Binance Futures testnet).
+"""Xuất sổ chiến lược đã chốt: data/alphas/book.json (tái lập backtest) + data/alphas/testnet/book.json (bot Binance Futures testnet).
 
 Cấu hình testnet mô tả ĐÚNG hành vi đã mô phỏng trong PortfolioEngine:
 - Tín hiệu trên nến đã đóng -> vào MARKET đầu phút kế tiếp; ATR% = natr(atr_period) của nến atr_frame đã đóng.
@@ -104,7 +104,7 @@ def write_book(report: Dict[str, Any], out_dir: str, source: str, repo_dir: str 
 
 
 def publish_book(src_dir: str, dest_dir: str) -> Dict[str, Any]:
-    """Xuất bản một sổ đã dựng (src_dir/book.json [+ testnet/book.json]) sang dest_dir (thư mục alphas/ đang dùng).
+    """Xuất bản một sổ đã dựng (src_dir/book.json [+ testnet/book.json]) sang dest_dir (thư mục data/alphas/ đang dùng).
 
     Cùng quy tắc write_book: testnet/book.json CHỈ có khi sổ nguồn có (holdout đạt); nếu không thì xoá testnet/book.json cũ ở đích.
     Ghi qua file tạm + os.replace nên người đọc không thấy file dở dang. Thiếu src_dir/book.json -> FileNotFoundError."""

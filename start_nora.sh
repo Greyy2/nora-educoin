@@ -19,7 +19,7 @@ fi
 
 if ! systemctl --user cat nora-api.service >/dev/null 2>&1 || ! systemctl --user cat nora.slice >/dev/null 2>&1; then
     echo "⚙️  Chưa cài systemd user unit — đang cài..."
-    "$BASE/nora/ops/install_user_units.sh"
+    "$BASE/nora/backend/ops/install_user_units.sh"
 fi
 
 systemctl --user restart nora-api

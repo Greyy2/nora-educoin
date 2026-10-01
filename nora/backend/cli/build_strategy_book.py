@@ -12,8 +12,8 @@ C. sổ    — các chiến lược đạt chạy CHUNG một sổ vốn với g
            bootstrap 1 năm trên lợi suất ngày dev2 (SL bi quan) có P(MDD >= 30%) <= 5%.
 D. holdout — chạy đúng sổ đã chốt một lần (cả hai cách khớp SL). Không chọn lại gì ở bước này.
 
-Dùng: PYTHONPATH=. python scripts/build_strategy_book.py [--workers 10] [--n 24] [--only trend_long,trend_short]
-Kết quả: alphas/book.json (+ alphas/testnet/book.json CHỈ khi holdout đạt; trượt holdout -> status HOLDOUT_FAILED, không có testnet), báo cáo tại <data>/_cache/book/<thời điểm>/.
+Dùng: PYTHONPATH=. python -m backend.cli.build_strategy_book [--workers 10] [--n 24] [--only trend_long,trend_short]
+Kết quả: data/alphas/book.json (+ data/alphas/testnet/book.json CHỈ khi holdout đạt; trượt holdout -> status HOLDOUT_FAILED, không có testnet), báo cáo tại <data>/_cache/book/<thời điểm>/.
 
 Bộ nhớ (mỗi worker là một tiến trình có cache riêng):
   NORA_CANDLE_CACHE_MB   ngân sách cache nến cả file (script này mặc định 512 MB)
@@ -22,7 +22,7 @@ Bộ nhớ (mỗi worker là một tiến trình có cache riêng):
   trần cgroup — worker vượt thì bị giết riêng, _pool_map_safe chạy lại với một nửa số worker).
   Đo lại bằng dòng `đỉnh RAM/worker` và ghi đè bằng --per-worker-mb khi dữ liệu/ngân sách cache đổi.
   --workers auto đọc cả giới hạn cgroup (systemd-run -p MemoryMax=...), không chỉ RAM trống của máy.
-  BẮT BUỘC chạy dưới trần RAM: scripts/run_limited.sh -- scripts/build_strategy_book.py ...
+  BẮT BUỘC chạy dưới trần RAM: backend/ops/run_limited.sh -- -m backend.cli.build_strategy_book ...
   (không có trần cgroup thì script từ chối chạy, trừ khi NORA_ALLOW_UNLIMITED=1).
   Dữ liệu dùng chung: trước mỗi pool, tiến trình CHA dựng một lần mảng giá + kernel + funding của cả vũ trụ vào
   <run_dir>/_shared/ (backend/core/backtest/shared_data.py); worker chỉ np.load(mmap_mode="r") qua NORA_SHARED_DATA_DIR
@@ -48,7 +48,7 @@ import warnings
 
 import pandas as pd
 
-NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if NORA_ROOT not in sys.path:
     sys.path.insert(0, NORA_ROOT)
 
@@ -199,7 +199,7 @@ def main(argv=None):
     ap.add_argument("--n", type=int, default=24, help="số cấu hình thử mỗi chiến lược ở dev1")
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--only", default="", help="chỉ các chiến lược này (phân tách bằng dấu phẩy)")
-    ap.add_argument("--out", default=os.path.join(NORA_ROOT, "alphas"))
+    ap.add_argument("--out", default=os.path.join(NORA_ROOT, "data", "alphas"))
     a = ap.parse_args(argv)
     from backend.utils.memwatch import require_memory_limit
     require_memory_limit("build_strategy_book")
@@ -353,7 +353,7 @@ def main(argv=None):
         for path in paths:
             print("ghi:", path)
         if len(paths) == 1:  # holdout không đạt: chỉ có book.json (HOLDOUT_FAILED), không có cấu hình testnet
-            print("HOLDOUT KHÔNG ĐẠT — không tạo alphas/testnet/book.json.")
+            print("HOLDOUT KHÔNG ĐẠT — không tạo data/alphas/testnet/book.json.")
     write_job_result({**report, "run_dir": run_dir, "written": paths, "stage_a": stage_a_rows(stage_a)})  # chỉ khi chạy như job API (env NORA_JOB_DIR)
 
 
