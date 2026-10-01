@@ -13,7 +13,7 @@ nora/data/
 ├── cex/                     sàn tập trung (Binance)
 │   └── <SYM>/               BTC, ETH, SOL, BNB, XRP, DOGE, ADA, AVAX  — spot
 │       ├── 1m.pkl           NGUỒN DUY NHẤT (nến 1m chính thức của sàn)
-│       ├── 5m.pkl 15m.pkl 1h.pkl 4h.pkl 24h.pkl   resample từ 1m (core/resampler.py)
+│       ├── 5m.pkl 15m.pkl 1h.pkl 4h.pkl 24h.pkl   resample từ 1m (core/data/resampler.py)
 │       ├── manifest.json
 │       └── perp/            <SYM>@perp — Binance USDT-M perpetual, 3 năm
 │           ├── 1m.pkl ...   nến perp (data.binance.vision/futures/um, có checksum)
@@ -75,7 +75,7 @@ Mỗi tài sản có một file manifest. Quality gate đọc manifest để quy
 | `sha256_1m` | lệch với `1m.pkl` thì bị chặn |
 | `ticks` | khai báo tick thật (DEX) |
 
-## Quality gate (`research/data_quality_gate.py`)
+## Quality gate (`backend/core/data/quality_gate.py`)
 
 Gate được gọi trước Studio `/simulate`, trước WFA và trước Research. Các trường hợp bị chặn:
 thiếu manifest, `synthetic`, `crawl_ok=false`, sha256 lệch, trùng timestamp, `filled_ratio > 60%`,

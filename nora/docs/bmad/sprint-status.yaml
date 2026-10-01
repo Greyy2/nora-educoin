@@ -1,0 +1,126 @@
+# Trạng thái máy đọc được của dự án Nora (BMAD).
+# Giá trị hợp lệ: backlog | ready | in-progress | review | done.
+# Nguồn sự thật cho từng story là file stories/<id>-<slug>.md; file này phải khớp (xem README.md, mục Kiểm tra nhất quán).
+project: nora
+last_updated: 2026-10-01
+baseline_commit: 8a96b4e
+branch: fix/pipeline-audit
+status_values: [backlog, ready, in-progress, review, done]
+summary:
+  epics: {done: 7, in-progress: 1, backlog: 3}
+  stories: {done: 49, review: 0, in-progress: 0, ready: 0, backlog: 21, total: 70}
+epics:
+  E1:
+    title: "Dữ liệu thị trường"
+    status: done
+    stories:
+      E1-S1-crawl-binance-klines: done
+      E1-S2-data-layout-manifest: done
+      E1-S3-causal-resampler: done
+      E1-S4-data-quality-gate: done
+      E1-S5-promote-staging: done
+      E1-S6-dex-data-pipeline: done
+  E2:
+    title: "Tín hiệu & chiến lược"
+    status: done
+    stories:
+      E2-S1-causal-kernels: done
+      E2-S2-multi-frame-alignment-ast: done
+      E2-S3-signal-diagnostics: done
+      E2-S4-strategy-library-templates: done
+      E2-S5-strategy-book-candidates: done
+  E3:
+    title: "Engine backtest, vốn & rủi ro"
+    status: done
+    stories:
+      E3-S1-intrabar-execution: done
+      E3-S2-fees-funding-liquidation: done
+      E3-S3-capital-ledger: done
+      E3-S4-dca-budget-cooldown: done
+      E3-S5-atr-exits-risk-sizing: done
+      E3-S6-portfolio-engine-risk-limits: done
+      E3-S7-shared-mmap-skip-idle: done
+      E3-S8-golden-harness: done
+  E4:
+    title: "Kiểm chứng WFA / Monte Carlo / holdout"
+    status: done
+    stories:
+      E4-S1-wfa-single-asset: done
+      E4-S2-wfa-portfolio: done
+      E4-S3-monte-carlo-trade-daily: done
+      E4-S4-holdout-optimize-alphas: done
+      E4-S5-robustness-stopfill-sizing: done
+      E4-S6-null-falsification-research: done
+  E5:
+    title: "Alpha & sổ chiến lược"
+    status: done
+    stories:
+      E5-S1-alpha-registry-testnet-config: done
+      E5-S2-alpha-sol-validated: done
+      E5-S3-build-strategy-book-stages: done
+      E5-S4-book-export-holdout-rule: done
+      E5-S5-first-book-run-holdout-failed: done
+  E6:
+    title: "Hạ tầng vận hành & bộ nhớ"
+    status: done
+    stories:
+      E6-S1-oom-root-cause-bounded-caches: done
+      E6-S2-cgroup-guard-run-limited: done
+      E6-S3-nora-slice-queue-systemd: done
+      E6-S4-parallel-auto-workers-pool-safe: done
+      E6-S5-package-layout-environment: done
+      E6-S6-smoke-check-ref-check: done
+  E7:
+    title: "Studio API"
+    status: done
+    stories:
+      E7-S1-book-jobs-api: done
+      E7-S2-job-argument-safety-limits: done
+      E7-S3-monte-carlo-endpoint: done
+      E7-S4-book-build-publish: done
+      E7-S5-portfolio-dashboard-endpoint: done
+      E7-S6-mock-feeds-live-testnet: done
+      E7-S7-catalog-alphas-studio-compat: done
+  E8:
+    title: "UI v2"
+    status: in-progress
+    stories:
+      E8-S1-v2-shell-theme-routing: done
+      E8-S2-portfolio-page: done
+      E8-S3-backtest-wfa-mc-loop: done
+      E8-S4-alpha-tuning-publish: done
+      E8-S5-portfolio-sources-mock-banner: done
+      E8-S6-ux-improvements: done
+      E8-S7-frontend-automated-tests: backlog
+  E9:
+    title: "Testnet & Live"
+    status: backlog
+    stories:
+      E9-S1-testnet-bot-executor: backlog
+      E9-S2-exchange-filters-order-rules: backlog
+      E9-S3-testnet-feed: backlog
+      E9-S4-live-feed: backlog
+      E9-S5-live-kill-switch-risk-limits: backlog
+      E9-S6-live-backtest-reconciliation: backlog
+      E9-S7-exchange-secrets-management: backlog
+  E10:
+    title: "Nghiên cứu chiến lược mới & phương pháp"
+    status: backlog
+    stories:
+      E10-S1-deflated-sharpe-ratio: backlog
+      E10-S2-permutation-test: backlog
+      E10-S3-holdout-reuse-policy: backlog
+      E10-S4-new-strategy-families: backlog
+      E10-S5-sol-edge-explanation: backlog
+      E10-S6-trial-ledger-multiple-testing: backlog
+  E11:
+    title: "Bảo mật & phát hành"
+    status: backlog
+    stories:
+      E11-S1-api-bind-localhost: backlog
+      E11-S2-nginx-domain-basic-auth: backlog
+      E11-S3-cors-restriction: backlog
+      E11-S4-frontend-bundle-split: backlog
+      E11-S5-legacy-cleanup: backlog
+      E11-S6-gate-on-book-path: backlog
+      E11-S7-release-process: backlog

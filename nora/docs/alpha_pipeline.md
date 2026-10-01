@@ -14,7 +14,7 @@ Luồng: **data → tín hiệu + chiến lược → backtest (scan) → WFA �
 
 ## 2. Tối ưu trung thực (`backend/cli/optimize_alphas.py`)
 
-Không gian tối ưu nằm ở `alpha/strategy_library.OPTIMIZATION_SPACES`. Ngưỡng tín hiệu được viết dạng `{"param": ...}` và tối ưu qua khoá `sig.<tên>`.
+Không gian tối ưu nằm ở `backend/core/strategy/strategy_library.py` (`OPTIMIZATION_SPACES`). Ngưỡng tín hiệu được viết dạng `{"param": ...}` và tối ưu qua khoá `sig.<tên>`.
 
 ```
 |──────────── dev 80% ─────────────|── holdout 20% ──|

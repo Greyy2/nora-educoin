@@ -33,38 +33,44 @@ Chạy mọi thứ từ thư mục `nora/` qua `backend/ops/run_limited.sh -- -m
 
 ---
 
-Cấu trúc tài liệu dự án Nora được thiết kế theo tiêu chuẩn kép:
-1. **`knowledge_base/` (Tri thức & Định hướng cốt lõi)**: Lưu giữ toàn bộ ý tưởng gốc, lý thuyết định lượng, triết lý vi mô DEX và các **Luật thép (Rule Base)** được đúc kết từ chỉ đạo của Sếp qua các phiên review. Đây là tầng tri thức bất biến, không chứa code.
-2. **`bmad/` (Build - Measure - Architecture - Deliver)**: Bản đồ kỹ thuật chi tiết dành cho Developer và AI. Bao gồm đặc tả kiến trúc (Spec), bản đồ file code (Code Map), hiện trạng hệ thống và báo cáo kết quả theo từng đợt sóng (Wave Reports).
+## Cấu trúc tài liệu
 
----
+Tài liệu gồm ba tầng:
 
-## 📂 Sơ Đồ Cây Thư Mục Tài Liệu
+1. **`bmad/`: bộ tài liệu hiện hành** (BMAD: yêu cầu, kiến trúc, epic, story, trạng thái). Đây là nơi bắt đầu.
+2. **Tài liệu chuyên đề** ở gốc `docs/`: hợp đồng API cho UI, đường ống alpha, tín hiệu và chiến lược, bố cục dữ liệu.
+3. **`knowledge_base/`: tri thức và luật thép** (causal, không nới gate, chi phí thật, lý thuyết nền). Còn hiệu lực, không chứa code.
 
 ```text
 nora/docs/
-├── README.md                                    # Mục lục và định hướng chung
-│
-├── knowledge_base/                              # [PHẦN 1] TRI THỨC VÀ Ý TƯỞNG CỐT LÕI
-│   ├── 01_core_vision_and_principles.md         # Tầm nhìn, triết lý DEX Microstructure & Intrinsic Time
-│   ├── 02_boss_mandates_and_rulebase.md         # Luật thép từ Sếp qua các đợt review (Rule Base)
-│   ├── 03_mathematical_foundations.md           # Lý thuyết toán học: DC, Scaling Laws, Overshoot Deficit
-│   └── 04_friction_and_cost_stress_theory.md    # Lý thuyết ma sát thị trường: Từ Zero Cost đến Extreme Stress
-│
-└── bmad/                                        # [PHẦN 2] SPECS, BẢN ĐỒ CODE & BÁO CÁO TIẾN ĐỘ
-    ├── 01_architecture_and_codemap.md           # Bản đồ định tuyến: chức năng nào nằm ở file nào
-    ├── 02_current_system_status.md              # Hiện trạng các module (Backend, Frontend, Cache, Port)
-    ├── 03_api_and_data_contracts.md             # Đặc tả giao thức REST API & Schema dữ liệu JSON
-    ├── 04_playbook_specifications.md            # Quy tắc chiến thuật (DC Fade, Breakout, Do Not Trade)
-    └── waves/                                   # Báo cáo tiến độ & kết quả từng đợt sóng (Session Logs)
-        ├── wave_01_core_tick_engine.md          # Đợt sóng 1: Lõi Tick Engine, DC Event Profile, loại bỏ nến
-        ├── wave_02_cost_stress_models.md        # Đợt sóng 2: Triển khai 4 cấp độ chi phí (Zero -> Stress)
-        └── wave_03_timeframe_universe_cache.md  # Đợt sóng 3: Độc lập hóa Timeframe 15m/1h/4h & Universe Cache
+├── README.md                     # file này
+├── bmad/
+│   ├── README.md                 # mục lục, quy ước trạng thái, cách cập nhật khi xong một story
+│   ├── prd.md                    # yêu cầu sản phẩm: mục tiêu, FR/NFR, ràng buộc, rủi ro
+│   ├── architecture.md           # kiến trúc và đặc tả kỹ thuật (khớp code)
+│   ├── epics.md                  # 11 epic, 70 story, bảng trạng thái tổng
+│   ├── sprint-status.yaml        # trạng thái máy đọc được
+│   ├── stories/                  # mỗi story một file E<n>-S<m>-<slug>.md
+│   └── legacy/                   # BMAD giai đoạn DEX (chỉ lịch sử, không còn đúng hiện trạng)
+├── ui_contract.md                # hợp đồng API cho UI v2
+├── alpha_pipeline.md             # từ chiến lược tới alpha sẵn sàng testnet
+├── signals_strategies.md         # kernel, tín hiệu, quản lý vị thế, chiến lược
+├── data_layout.md                # dữ liệu thị trường, manifest, quality gate
+└── knowledge_base/               # tri thức, luật thép (01_ đến 04_)
 ```
 
----
+## Hiện trạng (01/10/2026)
 
-## 🧭 Nguyên Tắc Vận Hành Cho Developer & AI
-- **Khi bắt đầu phiên làm việc mới**: Luôn đọc `nora/docs/knowledge_base/02_boss_mandates_and_rulebase.md` và `nora/docs/bmad/02_current_system_status.md` để nắm chắc các ràng buộc bất biến và hiện trạng mã nguồn.
-- **Khi hoàn thành một tính năng/đợt tối ưu**: Cập nhật hiện trạng vào `nora/docs/bmad/02_current_system_status.md` và tạo một file báo cáo đợt sóng mới trong `nora/docs/bmad/waves/wave_XX_...md`.
-- **Khi Sếp đưa ra góp ý mới**: Bổ sung ngay nguyên tắc mới vào `nora/docs/knowledge_base/02_boss_mandates_and_rulebase.md`.
+- Pipeline `data -> tín hiệu -> backtest -> WFA -> Monte Carlo -> holdout -> alpha/sổ` chạy được đầu-cuối trên 8 perp Binance, kết quả tái lập bit-identical (golden test).
+- Alpha `trend_long_perp__SOL` đạt đủ cổng; sổ `breakout_4h_long + breakout_4h_short` trượt holdout (`HOLDOUT_FAILED`), không có cấu hình testnet cho sổ.
+- UI v2 (Danh mục, Backtest/WFA/Monte Carlo, Alpha) chạy với job nền; Live/Testnet hiện là dữ liệu giả lập; chưa có bot testnet/live; API chưa xác thực.
+- Trạng thái chi tiết: [bmad/epics.md](bmad/epics.md) (7 epic done, 1 in-progress, 3 backlog; 70 story).
+
+## Nguyên tắc vận hành cho developer và AI
+
+- **Bắt đầu phiên mới:** đọc [bmad/README.md](bmad/README.md), [bmad/prd.md](bmad/prd.md) (mục 3, 7, 8), [bmad/epics.md](bmad/epics.md) và `knowledge_base/02_boss_mandates_and_rulebase.md`.
+- **Trước khi sửa code:** đọc phần liên quan trong [bmad/architecture.md](bmad/architecture.md). Golden test phải giữ bit-identical trừ khi chủ đích đổi ngữ nghĩa backtest.
+- **Chạy job nặng:** luôn qua `backend/ops/run_limited.sh` (nora.slice 12G, hàng đợi); chi tiết ở `bmad/architecture.md` mục 12.
+- **Khi xong một story:** cập nhật file story (trạng thái, task, Evidence, Change Log), `bmad/sprint-status.yaml`, `bmad/epics.md`, rồi chạy kiểm tra nhất quán trong `bmad/README.md`.
+- **Khi chủ sở hữu đưa ra góp ý hoặc luật mới:** bổ sung vào `knowledge_base/02_boss_mandates_and_rulebase.md`.
+- **Không nới gate** để có kết quả đẹp; không có kết quả đạt thì ghi nhận trung thực.
