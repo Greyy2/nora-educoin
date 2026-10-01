@@ -66,8 +66,10 @@ class PortfolioEngine:
     def __init__(self, symbols: List[str], strategies: List[Dict[str, Any]], start_ts: int, end_ts: int,
                  trade_start_ts: Optional[int] = None, initial_capital: float = 10000.0,
                  risk: Optional[RiskConfig] = None, venue: str = "cex", use_cache: bool = True,
-                 shared_dir: Optional[str] = None):
+                 shared_dir: Optional[str] = None, close_at_end: bool = True):
         """strategies: [{"id", "side": LONG|SHORT, "tree": AST đã thay tham số, "position": {...POSITION_KEYS}}].
+        Khoá tuỳ chọn "symbols": [..] giới hạn chiến lược đó chỉ chạy trên các tài sản này (mặc định: mọi tài sản).
+        close_at_end=False: KHÔNG đóng vị thế còn mở ở cuối dữ liệu (vốn cuối vẫn là MTM) — xem open_positions() (feed giả lập).
         shared_dir: thư mục dữ liệu mmap dùng chung (backend/core/backtest/shared_data.py); mặc định env NORA_SHARED_DATA_DIR.
         Có thì _load_symbol ưu tiên đọc mmap (chỉ đọc) thay vì tự dựng; không thấy khoá thì dựng như cũ."""
         if not symbols or not strategies:
@@ -93,6 +95,8 @@ class PortfolioEngine:
         self.ruined_at: Optional[int] = None
         self.rejected_for_risk = 0
         self.bar_hook = None  # (test) gọi sau mỗi phút: hook(engine, t)
+        self.close_at_end = close_at_end
+        self.last_close: Dict[str, float] = {}   # giá đóng cửa cuối của từng tài sản (đặt khi run() xong)
 
     # ─── Dữ liệu ────────────────────────────────────────────────────────────
     def _make_trackers(self, symbol: str, ledger: CapitalLedger) -> Tuple[BacktestEngine, List[Tuple[Dict, PositionTracker]]]:
@@ -102,6 +106,8 @@ class PortfolioEngine:
         eng.ledger = ledger
         pairs = []
         for st in self.strategies:
+            if st.get("symbols") and symbol not in st["symbols"]:
+                continue
             name = f"{st['side']}_{st['id']}"
             eng.add_strategy_flow(name, build_params(name, _strategy_flow(st), st["side"], st["position"],
                                                      self.venue, symbol=symbol))
@@ -155,6 +161,8 @@ class PortfolioEngine:
         self.books = []
         for sym in self.symbols:
             eng, pairs = self._make_trackers(sym, self.ledger)
+            if not pairs:   # không chiến lược nào chạy trên tài sản này (chỉ xảy ra khi dùng khoá "symbols")
+                continue
             data = self._load_symbol(sym, eng)
             n = len(data["t"])
             cols = data["cols"]
@@ -285,7 +293,8 @@ class PortfolioEngine:
                 last_sample = t
 
         t_end = int(grid[-1]) if len(grid) else self.end_ts
-        for b, book in enumerate(self.books):
+        self.last_close = {book["symbol"]: last_close[b] for b, book in enumerate(self.books)}
+        for b, book in enumerate(self.books if self.close_at_end else ()):
             t_last = int(book["data"]["t"][-1]) if len(book["data"]["t"]) else t_end
             for e in book["entries"]:  # cùng quy ước BacktestEngine: đóng ở open của nến cuối của tài sản
                 pos = e["tracker"].force_close(t_last, last_open[b], "End of Backtest")
@@ -355,6 +364,21 @@ class PortfolioEngine:
         entry["tracker"].orders = []
 
     # ─── Kết quả ────────────────────────────────────────────────────────────
+    def open_positions(self) -> List[Dict[str, Any]]:
+        """Vị thế còn mở sau run() (chỉ khác rỗng khi close_at_end=False), mark = giá đóng cửa cuối của tài sản."""
+        out = []
+        for book in self.books:
+            mark = self.last_close.get(book["symbol"])
+            for e in book["entries"]:
+                tr = e["tracker"]
+                if not tr.is_open or tr.qty <= 0 or tr.position is None or mark is None or mark != mark:
+                    continue
+                out.append({"symbol": book["symbol"], "strategy": e["strategy"], "side": tr.pos_type.name, "qty": tr.qty,
+                            "entry_price": tr.avg, "mark_price": float(mark), "notional": tr.qty * float(mark),
+                            "unrealized_pnl": tr.unrealized_pnl_usd(float(mark)), "opened": int(tr.position.enter_time),
+                            "margin_usd": tr.margin_used, "leverage": tr.pos_leverage})
+        return out
+
     def get_results(self) -> Dict[str, Any]:
         by_strategy: Dict[str, Dict[str, float]] = {}
         by_symbol: Dict[str, Dict[str, float]] = {}

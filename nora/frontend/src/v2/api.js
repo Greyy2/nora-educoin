@@ -65,9 +65,16 @@ async function mockRequest(path, method, body) {
   if (p === '/api/studio/book/mc' && method === 'POST') return mockFile('mc')
   if (p === '/api/studio/portfolio/dashboard') {
     const src = url.searchParams.get('source')
-    if (src && src !== 'backtest') return { available: false, reason: `Chưa kết nối tài khoản ${src} (mock).` }
     const d = await mockFile('dashboard')
-    return { ...d, period: url.searchParams.get('period') || d.period }
+    const base = { ...d, period: url.searchParams.get('period') || d.period }
+    if (src === 'live' || src === 'testnet') { // feed giả lập: backend trả cùng dạng (mock + mock_note + positions)
+      const name = src === 'live' ? 'Live' : 'Testnet'
+      return { ...base, mock: true, mock_note: `Dữ liệu giả lập — chưa kết nối tài khoản ${name}`,
+        source: { ...base.source, kind: src, job_id: null, label: `Giả lập ${name} (dữ liệu mẫu)`, mock: true },
+        positions: [{ symbol: 'SOL@perp', strategy: 'breakout_4h_long', side: 'LONG', qty: 59.71, entry_price: 119.12, mark_price: 120.48, notional: 7193.89,
+          unrealized_pnl: 77.42, opened: Date.now() - 86400000 * 2, margin_usd: 719.39 }] }
+    }
+    return { ...base, positions: base.positions || [] }
   }
   throw new ApiError(`mock: chưa có ${method} ${path}`, 404)
 }

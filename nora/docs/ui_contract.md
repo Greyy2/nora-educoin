@@ -1,8 +1,9 @@
 # Hợp đồng API cho giao diện Nora (v2)
 
 Một vòng trên UI: **Alpha** (hiệu chỉnh tham số từ chiến lược có sẵn) → **Backtest** → **WFA** → **Monte Carlo** →
-theo dõi trên **Danh mục**. Hiện chưa có tài khoản live, nên Danh mục đọc kết quả backtest; nguồn Live/Paper/Testnet
-dùng cùng payload khi được nối sau này.
+theo dõi trên **Danh mục**. Danh mục có ba nguồn: **Live | Testnet | Backtest**. Chưa có tài khoản live/testnet, nên Live và Testnet đang
+dùng feed **giả lập** (lệnh mô phỏng bằng engine thật, xem §3); khi nối tài khoản thật chỉ cần cài `LiveFeed`/`TestnetFeed` (backend/core/analytics/feeds.py),
+payload và UI không đổi.
 
 Quy ước chung:
 - Thời gian là ms UTC. Ngày dạng `YYYY-MM-DD` (UTC). Tiền tệ USDT. Phần trăm là số đã nhân 100 (`4.85` = 4,85%).
@@ -45,7 +46,14 @@ Chỉ `POST` trả khoá `job_id`. Các hàng job (GET) dùng khoá **`id`** (k�
 
 ## 3. Payload Danh mục (mới)
 `GET /api/studio/portfolio/dashboard?source=backtest&job_id=<id>&period=1M|3M|YTD|1Y|ALL`
-`source=live|paper|testnet` → `{"available": false, "reason": "Chưa kết nối tài khoản ..."}` (HTTP 200).
+`source=live|testnet|backtest` (mặc định `backtest`; UI mặc định Live). `source=paper` (hoặc giá trị lạ) → 422.
+- `source=live|testnet`: nếu feed thật chưa nối (hiện luôn vậy) thì dùng **feed giả lập** `data/_cache/mock_feeds/{live,testnet}.json`, payload thêm
+  `"mock": true, "mock_note": "Dữ liệu giả lập — chưa kết nối tài khoản <Live|Testnet>"` và `source.mock = true`; `source.label` = mô tả feed
+  (`source_desc`), `source.job_id = null`. Chưa có file giả lập → `{"available": false, "reason": "... chạy `python -m backend.cli.make_mock_feeds` ..."}` (HTTP 200).
+  Payload backtest không có `mock`/`mock_note`.
+- Feed giả lập do `python -m backend.cli.make_mock_feeds` (qua `run_limited.sh`) sinh, tất định, trên dữ liệu mới nhất, vị thế cuối dữ liệu **không bị đóng ép**:
+  `testnet` = sổ đã chốt (`book.json`) trên 8 perp, 60 ngày, vốn 10.000 USDT; `live` = alpha `trend_long_perp__SOL` (chỉ SOL, `order_size_pct` × hệ số vốn
+  "extreme" tối đa trong `portfolio_*__SOL.json`) + sổ, 120 ngày, vốn 25.000 USDT. File: `{"mock": true, "generated_at", "source_desc", "kind", "positions", ...kết quả dạng book_backtest}`.
 Payload khi có dữ liệu:
 ```json
 {
@@ -79,14 +87,21 @@ Payload khi có dữ liệu:
   },
   "strategies": [{"id": "breakout_4h_long", "side": "LONG", "status": "active", "weight_pct": 50,
                   "pnl": 120.4, "contribution_pct": 1.2, "sharpe": 1.4, "mdd_pct": -3.1, "pnl_30d": [...]}],
-  "events": [{"time": 1745146440000, "level": "warn|crit|info", "text": "..."}]
+  "events": [{"time": 1745146440000, "level": "warn|crit|info", "text": "..."}],
+  "positions": [{"symbol": "SOL@perp", "strategy": "trend_long_perp__SOL", "side": "LONG", "qty": 59.71, "entry_price": 119.12,
+                 "mark_price": 120.48, "notional": 7193.89, "unrealized_pnl": 77.42, "opened": 1790662500000, "margin_usd": 7112.91}],
+  "mock": true, "mock_note": "Dữ liệu giả lập — chưa kết nối tài khoản Live"
 }
 ```
+(`mock`/`mock_note` chỉ có ở feed giả lập.)
 - Không có `job_id` (với `source=backtest`): dùng backtest xong gần nhất; chưa có backtest nào thì `available:false` kèm `reason`.
 - `bench`: mua giữ `BTC@perp`, quy về cùng NAV đầu kỳ. `drawdown_pct` ≤ 0, tính trên NAV theo ngày (nên `mdd_pct` KPI khác MDD intrabar của `result.mdd_pct`). Mọi chuỗi trong `series` cùng độ dài với `dates`.
 - `period` cắt chuỗi ngày theo cuối kỳ của dữ liệu; KPI kỳ tính trên phần đã cắt, còn `mdd`/Sharpe theo kỳ.
 - `risk.win_days_pct` = tỉ lệ ngày lãi **trong các ngày có P&L khác 0** (`risk.active_days` = số ngày đó, `null` nếu 0): ngày đứng ngoài thị trường không tính là ngày lỗ. UI ghi nhãn "Tỉ lệ ngày lãi (ngày có giao dịch)".
-- Exposure/vị thế mở: tại ngày cuối của kỳ, tính từ `trade_list` (danh nghĩa / NAV).
+- Exposure/vị thế mở: tại ngày cuối của kỳ, tính từ `trade_list` (danh nghĩa / NAV) cộng `positions` (feed live/testnet/giả lập).
+- `positions[]` = vị thế **đang mở** tại điểm cuối dữ liệu (không đổi theo `period`): `qty`, `entry_price` (giá TB), `mark_price` (giá đóng cửa cuối), `notional` = qty × mark,
+  `unrealized_pnl` (sau phí vào lệnh; funding đã nằm trong NAV), `opened` (ms UTC), `margin_usd`. Sắp theo `notional` giảm dần. Backtest đã đóng mọi vị thế cuối kỳ nên `positions = []`.
+  Vị thế đang mở được tính vào NAV (MTM) nhưng chưa vào `strategies[].pnl` (chỉ lãi/lỗ đã chốt). UI ẩn bảng "Vị thế đang mở" khi rỗng.
 - `strategies[]`: số liệu **đã thực hiện** (realised: lãi/lỗ các lệnh đã đóng, Sharpe/MDD theo chuỗi realised của chiến lược), nên tổng không khớp từng đồng với NAV mark-to-market.
 - `events`: dựa trên MDD intrabar xấu nhất (không phải NAV ngày): kill switch (`halted_at`), drawdown vượt 50%/80% hạn mức 30%, số lần bị từ chối vì rủi ro.
 

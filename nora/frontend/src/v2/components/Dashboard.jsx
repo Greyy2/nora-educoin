@@ -141,6 +141,34 @@ function StrategiesTable({ rows = [] }) {
   )
 }
 
+function PositionsTable({ rows = [] }) {
+  return (
+    <div className="n-tblwrap">
+      <table className="n-tbl">
+        <thead>
+          <tr><th>Tài sản</th><th>Chiến thuật</th><th>Chiều</th><th className="r">Khối lượng</th><th className="r">Giá vào</th><th className="r">Giá hiện tại</th>
+            <th className="r">Giá trị</th><th className="r">Lãi/lỗ chưa chốt</th><th>Mở lúc</th></tr>
+        </thead>
+        <tbody>
+          {rows.map((p) => (
+            <tr key={`${p.symbol}|${p.strategy}|${p.opened}`}>
+              <td><b className="mono">{String(p.symbol).replace('@perp', '')}</b></td>
+              <td className="mono">{p.strategy}</td>
+              <td><span className={`n-badge ${String(p.side).toLowerCase()}`}>{p.side}</span></td>
+              <td className="r">{fmtNum(p.qty, p.qty >= 100 ? 1 : 4)}</td>
+              <td className="r">{fmtNum(p.entry_price, p.entry_price >= 100 ? 2 : 4)}</td>
+              <td className="r">{fmtNum(p.mark_price, p.mark_price >= 100 ? 2 : 4)}</td>
+              <td className="r">{fmtNum(p.notional, 2)}<small className="muted"> USDT</small></td>
+              <td className={`r ${signClass(p.unrealized_pnl)}`}>{arrow(p.unrealized_pnl)} {fmtMoney(p.unrealized_pnl, true)}</td>
+              <td className="mono">{fmtDateTime(p.opened)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 const LEVEL = { crit: ['●', 'neg', 'Nghiêm trọng'], warn: ['▲', 'warn', 'Cảnh báo'], info: ['ℹ', 'muted', 'Thông tin'] }
 function Events({ rows = [] }) {
   if (!rows.length) return <p className="n-note">Không có sự kiện rủi ro trong kỳ.</p>
@@ -161,7 +189,7 @@ function Events({ rows = [] }) {
 }
 
 export function DashboardView({ data }) {
-  const { kpis: k = {}, series: s = {}, distribution: dist, monthly, risk = {}, strategies = [], events = [], source = {}, period } = data
+  const { kpis: k = {}, series: s = {}, distribution: dist, monthly, risk = {}, strategies = [], events = [], positions = [], source = {}, period } = data
   const [hi, setHi] = useState(null)
   const dates = s.dates || []
   const nDays = dates.length
@@ -169,8 +197,16 @@ export function DashboardView({ data }) {
   const winDays = pl.length ? (pl.filter((x) => x > 0).length / (pl.filter((x) => x !== 0).length || 1)) * 100 : null
   const varPct = dist?.var95_pct
   const bench = source.benchmark || 'BTC@perp'
+  const hasRoll = (s.rolling_sharpe_63 || []).filter(isNum).length >= 2
+  const net = positions.reduce((a, p) => a + (isNum(p.unrealized_pnl) ? p.unrealized_pnl : 0), 0)
   return (
     <>
+      {source.kind && source.kind !== 'backtest' && (
+        <div className="n-srcline">
+          <span className="muted">Nguồn</span> <b>{source.label || source.kind}</b>
+          {data.mock && <span className="n-chip" title={data.mock_note}>MOCK</span>}
+        </div>
+      )}
       <KpiRow k={k} period={period} />
       <div className="n-grid g-main-side">
         <Panel title={`NAV so với ${bench.replace('@perp', '')}`} meta={
@@ -212,8 +248,10 @@ export function DashboardView({ data }) {
           <HeatmapTable years={monthly?.years || []} />
         </Panel>
         <Panel title="Sharpe cuốn chiếu 3 tháng" meta={<span className="n-legend"><span><i style={{ borderTopColor: 'var(--n-blue)' }} />Sharpe 63 ngày</span><span><i className="dash" />Mốc 1.0</span></span>}>
-          <AreaLine dates={dates} height={200} label="Sharpe cuốn chiếu 63 ngày" refLines={[{ y: 1, label: '1.0' }]}
-            series={[{ key: 'sh', label: 'Sharpe 63 ngày', values: s.rolling_sharpe_63 || [], color: 'var(--n-blue)' }]} valueFormat={(v) => fmtNum(v)} />
+          {hasRoll ? (
+            <AreaLine dates={dates} height={200} label="Sharpe cuốn chiếu 63 ngày" refLines={[{ y: 1, label: '1.0' }]}
+              series={[{ key: 'sh', label: 'Sharpe 63 ngày', values: s.rolling_sharpe_63 || [], color: 'var(--n-blue)' }]} valueFormat={(v) => fmtNum(v)} />
+          ) : <p className="n-note">Chưa đủ dữ liệu: cần ít nhất 63 ngày lịch sử để tính Sharpe cuốn chiếu.</p>}
         </Panel>
       </div>
 
@@ -225,6 +263,12 @@ export function DashboardView({ data }) {
           <Events rows={events} />
         </Panel>
       </div>
+
+      {positions.length > 0 && (
+        <Panel title="Vị thế đang mở" meta={<><span>{positions.length} vị thế</span><span>Lãi/lỗ chưa chốt <b className={`mono ${signClass(net)}`}>{fmtMoney(net, true)}</b> USDT</span></>}>
+          <PositionsTable rows={positions} />
+        </Panel>
+      )}
     </>
   )
 }
@@ -251,6 +295,11 @@ export default function DashboardLoader({ source, jobId, period, onLoaded, openL
   return (
     <div style={{ opacity: st.loading ? 0.6 : 1, transition: 'opacity .15s' }}>
       {openLink}
+      {st.data.mock && (
+        <div className="n-banner" role="status">
+          <span>Dữ liệu giả lập · {st.data.mock_note?.replace(/^Dữ liệu giả lập\s*—\s*/, '') || 'chưa kết nối tài khoản'}. Các lệnh và vị thế bên dưới là mô phỏng, không phải giao dịch thật.</span>
+        </div>
+      )}
       <DashboardView data={st.data} />
     </div>
   )

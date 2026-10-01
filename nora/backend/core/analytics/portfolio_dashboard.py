@@ -12,6 +12,8 @@ Quy ước:
   - Exposure/vị thế mở: tại điểm cuối dữ liệu, từ trade_list (danh nghĩa / NAV cuối); vị thế "mở" = đóng bởi "End of Backtest"
     hoặc close_time > mẫu vốn cuối. Danh nghĩa = `notional` (qty × giá vào TB) nếu có, không thì qty × enter_price.
   - Số liệu theo chiến lược dùng PnL ĐÃ CHỐT (theo ngày đóng lệnh): không có MTM riêng từng chiến lược.
+  - `result["positions"]` (feed live/testnet/giả lập; xem feeds.py) = vị thế còn mở cuối dữ liệu, KHÔNG nằm trong trade_list: tính vào exposure/ký quỹ
+    (danh nghĩa theo giá mark) và trả lại ở payload["positions"]; backtest đã đóng hết nên rỗng.
 """
 import math
 from collections import OrderedDict
@@ -170,7 +172,7 @@ def _open_trades(trades: List[Dict[str, Any]], t_ref: int) -> List[Dict[str, Any
             and (t.get("close_reason") == END_REASON or t.get("close_time") is None or t["close_time"] > t_ref)]
 
 
-def _side_of(sid: str) -> Optional[str]:
+def _side_of(sid: str, fallback: Optional[Dict[str, str]] = None) -> Optional[str]:
     try:
         from backend.core.strategy.strategy_book import CANDIDATES
         for c in CANDIDATES:
@@ -178,11 +180,12 @@ def _side_of(sid: str) -> Optional[str]:
                 return c["side"]
     except Exception:   # noqa: BLE001  (thiếu thư viện chiến lược: suy từ tên)
         pass
-    return "LONG" if sid.endswith("_long") else "SHORT" if sid.endswith("_short") else None
+    by_name = "LONG" if sid.endswith("_long") else "SHORT" if sid.endswith("_short") else None
+    return by_name or (fallback or {}).get(sid)      # alpha trong kho (id dạng trend_long_perp__SOL): lấy chiều từ lệnh
 
 
 def _strategy_rows(ids: List[str], trades: List[Dict[str, Any]], dates: pd.DatetimeIndex, init: float, base_nav: float,
-                   halted: bool) -> List[Dict[str, Any]]:
+                   halted: bool, side_hint: Optional[Dict[str, str]] = None) -> List[Dict[str, Any]]:
     """Mỗi chiến lược: PnL đã chốt trong kỳ, đóng góp (% NAV gốc), Sharpe/MDD trên PnL ngày/vốn ban đầu, 30 ngày gần nhất, trọng số."""
     rows, gross = [], {i: 0.0 for i in ids}
     for t in trades:
@@ -200,7 +203,7 @@ def _strategy_rows(ids: List[str], trades: List[Dict[str, Any]], dates: pd.Datet
         peak = np.maximum.accumulate(np.r_[init, eq])[1:]
         pnl = float(pnl_day.sum())
         rows.append({
-            "id": sid, "side": _side_of(sid), "status": "halted" if halted else "active",
+            "id": sid, "side": _side_of(sid, side_hint), "status": "halted" if halted else "active",
             "weight_pct": _num(gross[sid] / total_gross * 100.0, 1) if total_gross > 0 else None,
             "pnl": _num(pnl), "contribution_pct": _num(pnl / base_nav * 100.0) if base_nav > 0 else None,
             "sharpe": _num(_sharpe(r)), "mdd_pct": _num(float(np.min(eq / peak - 1.0)) * 100.0 if len(eq) else 0.0),
@@ -240,8 +243,18 @@ def unavailable(source: str) -> Dict[str, Any]:
     return {"available": False, "reason": f"Chưa kết nối tài khoản {source}: nguồn này sẽ dùng cùng payload khi được nối."}
 
 
+def position_rows(raw: Optional[List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
+    """Vị thế đang mở -> hàng payload (làm tròn, lớn nhất trước). Giữ thêm `margin_usd` (ký quỹ) cho tính ký quỹ đã dùng."""
+    rows = [{"symbol": r["symbol"], "strategy": r["strategy"], "side": r["side"], "qty": _num(r["qty"], 6),
+             "entry_price": _num(r["entry_price"], 4), "mark_price": _num(r["mark_price"], 4), "notional": _num(r["notional"]),
+             "unrealized_pnl": _num(r["unrealized_pnl"]), "opened": int(r["opened"]), "margin_usd": _num(r.get("margin_usd"))}
+            for r in raw or []]
+    return sorted(rows, key=lambda r: -(r["notional"] or 0.0))
+
+
 def build_dashboard(result: Dict[str, Any], bench_closes: Optional[pd.Series] = None, period: str = "ALL",
-                    job_id: Optional[str] = None, label: Optional[str] = None, benchmark: str = "BTC@perp") -> Dict[str, Any]:
+                    job_id: Optional[str] = None, label: Optional[str] = None, benchmark: str = "BTC@perp",
+                    source_kind: str = "backtest") -> Dict[str, Any]:
     """Payload dashboard từ result của job book_backtest (xem docstring module). `bench_closes`: Series giá đóng cửa ngày (index ngày)."""
     if period not in PERIODS:
         raise ValueError(f"period phải thuộc {PERIODS}")
@@ -322,7 +335,10 @@ def build_dashboard(result: Dict[str, Any], bench_closes: Optional[pd.Series] = 
     wins = sum(t["pnl"] for t in p_trades if t["pnl"] > 0)
     losses = -sum(t["pnl"] for t in p_trades if t["pnl"] < 0)
     t_ref = int(result["equity_curve"][-1]["time"]) if result.get("equity_curve") else int(last.value // 1_000_000) + DAY_MS
-    open_t = _open_trades(trades, t_ref)
+    pos_rows = position_rows(result.get("positions"))
+    live_open = [{"strategy": r["strategy"], "side": r["side"], "enter_time": r["opened"], "close_time": None, "notional": r["notional"],
+                  "margin_usd": r["margin_usd"]} for r in pos_rows]       # vị thế chưa đóng: tính vào exposure/ký quỹ
+    open_t = _open_trades(trades, t_ref) + live_open
     notionals = [_notional(t) for t in open_t]
     have_notional = all(x is not None for x in notionals)
     long_n = sum(x for t, x in zip(open_t, notionals) if x and t.get("side") == "LONG")
@@ -347,7 +363,7 @@ def build_dashboard(result: Dict[str, Any], bench_closes: Optional[pd.Series] = 
 
     start_ms, end_ms = cfg.get("start"), cfg.get("end")
     first_d, last_d = nav.index[0], last
-    source = {"kind": "backtest", "job_id": job_id,
+    source = {"kind": source_kind, "job_id": job_id,
               "label": label or f"Backtest · {', '.join(ids)} · {len(cfg.get('symbols') or [])} tài sản",
               "start": _date(start_ms) if start_ms else f"{first_d:%Y-%m-%d}",
               "end": _date(int(end_ms) - 1) if end_ms else f"{last_d:%Y-%m-%d}",
@@ -356,9 +372,32 @@ def build_dashboard(result: Dict[str, Any], bench_closes: Optional[pd.Series] = 
         "available": True, "source": source, "period": period, "kpis": kpis, "series": series,
         "distribution": distribution(ret_p * 100.0, -var_pct if var_pct is not None else None),
         "monthly": monthly_table(nav, init), "risk": risk,
-        "strategies": _strategy_rows(ids, p_trades, dates, init, base_nav, halted),
-        "events": _events(result, p_start),
+        "strategies": _strategy_rows(ids, p_trades, dates, init, base_nav, halted,
+                                     {x["strategy"]: x["side"] for x in list(trades) + pos_rows if x.get("side")}),
+        "events": _events(result, p_start), "positions": pos_rows,
     }
+
+
+def snapshot_benchmark(result: Dict[str, Any], benchmark: str = "BTC@perp") -> Optional[pd.Series]:
+    """Giá đóng cửa ngày của benchmark trong cửa sổ của `result`; None nếu thiếu cấu hình/dữ liệu (bench = null)."""
+    cfg = result.get("config") or {}
+    if not (cfg.get("start") and cfg.get("end")):
+        return None
+    try:
+        return benchmark_daily_closes(benchmark, cfg["start"], cfg["end"])
+    except Exception:   # noqa: BLE001  (thiếu dữ liệu benchmark thì vẫn trả dashboard)
+        return None
+
+
+def build_from_snapshot(snap, period: str = "ALL", bench_closes: Optional[pd.Series] = None, benchmark: str = "BTC@perp") -> Dict[str, Any]:
+    """Payload dashboard từ FeedSnapshot (feeds.py). Feed giả lập gắn `mock`/`mock_note` ở cấp ngoài và trong `source`."""
+    src = snap.source or {}
+    p = build_dashboard(snap.result, bench_closes, period, job_id=src.get("job_id"), label=src.get("label"), benchmark=benchmark,
+                        source_kind=snap.kind)
+    if snap.mock and p.get("available"):
+        p["source"]["mock"] = True
+        p["mock"], p["mock_note"] = True, snap.mock_note
+    return p
 
 
 # ─── Bộ nhớ đệm LRU trong tiến trình ────────────────────────────────────────

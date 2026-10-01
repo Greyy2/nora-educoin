@@ -93,14 +93,20 @@ def daily_nav(curve, end):
     return [{"date": d, "equity": e} for d, e in last.items()]
 
 
-def run(items, symbols, start, end, rpt, stop_fill, risk):
+def run(items, symbols, start, end, rpt, stop_fill, risk, extra_strategies=None, initial_capital=None, close_at_end=True,
+        warmup=WARMUP):
+    """extra_strategies: chiến lược dựng sẵn (dict của PortfolioEngine, có thể có khoá "symbols") chạy cùng sổ — dùng cho feed
+    giả lập. close_at_end=False: giữ vị thế còn mở cuối dữ liệu (kết quả thêm `open_positions`); mặc định như backtest thường."""
     from backend.core.strategy.strategy_book import CANDIDATES, materialize
     from backend.core.backtest.portfolio import PortfolioEngine, RiskConfig
     from backend.utils.memwatch import peak_rss_mb
     by_id = {c["id"]: c for c in CANDIDATES}
     strategies = [materialize(by_id[cid], prm, stop_fill=stop_fill, risk_per_trade_pct=rpt) for cid, prm in items]
+    strategies += list(extra_strategies or [])
     t0 = time.time()
-    eng = PortfolioEngine(symbols, strategies, start - WARMUP, end, trade_start_ts=start, risk=RiskConfig.from_dict(risk))
+    kw = {} if initial_capital is None else {"initial_capital": float(initial_capital)}
+    eng = PortfolioEngine(symbols, strategies, start - warmup, end, trade_start_ts=start, risk=RiskConfig.from_dict(risk),
+                          close_at_end=close_at_end, **kw)
     with contextlib.redirect_stdout(io.StringIO()):
         eng.run()
     res = eng.get_results()
@@ -117,10 +123,13 @@ def run(items, symbols, start, end, rpt, stop_fill, risk):
              for c in res["equity_curve"] if c["time"] >= start]
     out["equity_curve"] = downsample(curve)
     out["daily_nav"] = daily_nav(curve, end)
-    out["config"] = {"strategies": [{"id": i, "params": p} for i, p in items], "symbols": symbols, "risk_per_trade_pct": rpt,
+    out["config"] = {"strategies": [{"id": i, "params": p} for i, p in items]
+                     + [{"id": x["id"], "params": x["position"]} for x in extra_strategies or []], "symbols": symbols, "risk_per_trade_pct": rpt,
                      "stop_fill": stop_fill, "risk": res["risk"], "start": start, "end": end,
                      "initial_capital": res["initial_capital"]}
     out["final_equity"] = round(res["final_equity"], 2)
+    if not close_at_end:
+        out["open_positions"] = eng.open_positions()
     out["meta"] = {"wall_s": round(time.time() - t0, 1), "peak_rss_mb": round(peak_rss_mb(), 1)}  # không tất định -> tách riêng
     return out
 

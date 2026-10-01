@@ -1,7 +1,9 @@
 """API trang Danh mục (docs/ui_contract.md §3): GET /api/studio/portfolio/dashboard.
 
-Nguồn `backtest` đọc result.json của một job book_backtest đã xong (dựng bằng backend/core/analytics/portfolio_dashboard.py);
-live/paper/testnet chưa có tài khoản -> {"available": false, "reason"} (HTTP 200). Kết quả được đệm LRU theo (job_id, period, mtime).
+Nguồn `backtest` đọc result.json của một job book_backtest đã xong (dựng bằng backend/core/analytics/portfolio_dashboard.py).
+`live`/`testnet` đi qua feeds.get_snapshot: chưa có tài khoản thật -> dùng feed GIẢ LẬP (data/_cache/mock_feeds/<nguồn>.json, payload có
+"mock": true + "mock_note"); chưa có file giả lập -> {"available": false, "reason"} (HTTP 200). `paper` đã bỏ (422).
+Kết quả được đệm LRU theo (nguồn/job_id, period, mtime).
 """
 import os
 import threading
@@ -9,6 +11,7 @@ from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
+from backend.core.analytics import feeds
 from backend.core.analytics import portfolio_dashboard as pd_mod
 from backend.api.jobs import batch as batch_jobs
 
@@ -25,11 +28,28 @@ def _latest_done_backtest() -> Optional[str]:
     return None
 
 
+def _mock_dashboard(source: str, period: str):
+    feed = feeds.MockFeed(source)
+    key = ("feed", source, period, feed.mtime())
+    with _LOCK:
+        hit = _CACHE.get(key)
+    if hit is not None:
+        return hit
+    try:
+        snap = feeds.get_snapshot(source)
+    except feeds.NotAvailable as e:
+        return {"available": False, "reason": str(e)}
+    payload = pd_mod.build_from_snapshot(snap, period, pd_mod.snapshot_benchmark(snap.result))
+    with _LOCK:
+        _CACHE.put(key, payload)
+    return payload
+
+
 @router.get("/dashboard")
-def get_dashboard(source: str = Query("backtest", pattern="^(backtest|live|paper|testnet)$"), job_id: Optional[str] = None,
+def get_dashboard(source: str = Query("backtest", pattern="^(backtest|live|testnet)$"), job_id: Optional[str] = None,
                   period: str = Query("ALL", pattern="^(1M|3M|YTD|1Y|ALL)$")):
     if source != "backtest":
-        return pd_mod.unavailable(source)
+        return _mock_dashboard(source, period)
     if not job_id:   # không truyền job: lấy job backtest xong gần nhất (payload.source.job_id cho biết đã dùng job nào)
         job_id = _latest_done_backtest()
         if not job_id:
@@ -54,14 +74,9 @@ def get_dashboard(source: str = Query("backtest", pattern="^(backtest|live|paper
     if job.get("status") != "done" or not job.get("result"):
         raise HTTPException(409, f"job chưa xong (trạng thái {job.get('status')})")
     res = job["result"]
-    cfg = res.get("config") or {}
-    closes = None
-    if cfg.get("start") and cfg.get("end"):
-        try:
-            closes = pd_mod.benchmark_daily_closes("BTC@perp", cfg["start"], cfg["end"])
-        except Exception:   # noqa: BLE001  (thiếu dữ liệu benchmark thì vẫn trả dashboard, bench = null)
-            closes = None
-    payload = pd_mod.build_dashboard(res, closes, period, job_id=job_id, label=batch_jobs.job_label(job["kind"], job.get("args") or []))
+    feed = feeds.BacktestFeed(res, job_id, batch_jobs.job_label(job["kind"], job.get("args") or []))
+    snap = feed.fetch()
+    payload = pd_mod.build_from_snapshot(snap, period, pd_mod.snapshot_benchmark(res))
     with _LOCK:
         _CACHE.put(key, payload)
     return payload

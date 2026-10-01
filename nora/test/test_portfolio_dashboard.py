@@ -2,6 +2,7 @@
 
 Chuỗi NAV dựng từ lợi suất ngày đã biết nên các số (drawdown, VaR, bảng tháng, cắt kỳ) kiểm được bằng tay.
 """
+import hashlib
 import json
 import math
 import os
@@ -13,6 +14,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from backend.core.analytics import feeds
 from backend.core.analytics import portfolio_dashboard as pdash
 from backend.api.routers import portfolio as portfolio_router
 from backend.api.jobs import batch as batch_jobs
@@ -51,7 +53,7 @@ def _trade(strategy, side, notional, pnl, enter, close, reason="Stop Loss"):
             "margin_usd": notional / 10}
 
 
-TOP_KEYS = {"available", "source", "period", "kpis", "series", "distribution", "monthly", "risk", "strategies", "events"}
+TOP_KEYS = {"available", "source", "period", "kpis", "series", "distribution", "monthly", "risk", "strategies", "events", "positions"}
 KPI_KEYS = {"nav", "nav_change_day", "nav_change_day_pct", "pnl_today", "pnl_month", "pnl_year", "ret_period_pct", "bench_ret_period_pct",
             "excess_pct", "sharpe", "sortino", "calmar", "mdd_pct", "dd_now_pct", "var95_1d", "var95_pct", "cvar95_1d",
             "spark_nav", "spark_ret", "spark_dd"}
@@ -310,11 +312,16 @@ def _job(result, kind="book_backtest", name=None, args=None, log="[run_limited] 
     return os.path.basename(d)
 
 
-@pytest.mark.parametrize("source", ["live", "paper", "testnet"])
-def test_non_backtest_sources_are_unavailable(client, source):
+def test_paper_source_is_removed_and_unknown_sources_rejected(client):
+    for src in ("paper", "real"):
+        assert client.get(f"/api/studio/portfolio/dashboard?source={src}").status_code == 422
+
+
+@pytest.mark.parametrize("source", ["live", "testnet"])
+def test_live_testnet_without_mock_file_is_unavailable_with_hint(client, source):
     r = client.get(f"/api/studio/portfolio/dashboard?source={source}")
-    assert r.status_code == 200 and r.json()["available"] is False and source in r.json()["reason"]
-    assert pdash.unavailable("live")["available"] is False
+    assert r.status_code == 200 and r.json()["available"] is False
+    assert "python -m backend.cli.make_mock_feeds" in r.json()["reason"] and source.capitalize() in r.json()["reason"]
 
 
 def test_dashboard_endpoint_caches_and_rebases_benchmark(client, monkeypatch):
@@ -363,3 +370,87 @@ def test_sample_at_exclusive_end_belongs_to_last_day():
     p = pdash.build_dashboard(res, None, "ALL")
     assert p["series"]["dates"] == ["2025-01-01", "2025-01-02", "2025-01-03"] and p["series"]["nav"][-1] == 10500.0
     assert p["source"]["end"] == "2025-01-03"
+
+
+# ─── Feed abstraction: backtest không đổi; live/testnet giả lập ──────────────────────────────────────────────
+def _synthetic_backtest():
+    trades = [_trade("trend_long", "LONG", 5000, 120.0, _ms("2025-02-01"), _ms("2025-02-03")),
+              _trade("trend_short", "SHORT", 3000, -40.0, _ms("2025-02-05"), _ms("2025-02-06")),
+              _trade("trend_long", "LONG", 4000, 15.0, _ms("2025-04-05"), _ms("2025-04-10", 23), "End of Backtest")]
+    return make_result(_rng_returns(100), trades=trades, halted_at=_ms("2025-04-05"), rejected=7)[0]
+
+
+# sha256 của payload (sort_keys) do build_dashboard cũ (trước khi có feed/`positions`) dựng trên _synthetic_backtest() + _bench()
+PRE_FEED_HASH = {"ALL": "dc7bd74e65120cac50e6d1687c8b23d0547f6b7bb8af5cc6e909feaaf8eb7928",
+                 "3M": "5f71446fac72dd105344af019a708c1c87557fb029037207d1c33599c5370e6f"}
+
+
+@pytest.mark.parametrize("period", ["ALL", "3M"])
+def test_backtest_feed_payload_identical_to_pre_feed_output(period):
+    res = _synthetic_backtest()
+    snap = feeds.BacktestFeed(res, "j1", "L").fetch()
+    p = pdash.build_from_snapshot(snap, period, _bench())
+    assert p["positions"] == [] and "mock" not in p and "mock_note" not in p and "mock" not in p["source"]
+    assert p == pdash.build_dashboard(res, _bench(), period, job_id="j1", label="L")
+    p.pop("positions")                                                          # khoá duy nhất được thêm
+    assert hashlib.sha256(json.dumps(p, sort_keys=True).encode()).hexdigest() == PRE_FEED_HASH[period]
+
+
+def _write_mock(kind, with_positions=True):
+    res, _ = make_result(_rng_returns(60, seed=3))
+    res["config"]["initial_capital"] = INIT
+    res["positions"] = [
+        {"symbol": "SOL@perp", "strategy": "trend_long_perp__SOL", "side": "LONG", "qty": 50.0, "entry_price": 100.0, "mark_price": 102.0,
+         "notional": 5100.0, "unrealized_pnl": 95.0, "opened": _ms("2025-02-20"), "margin_usd": 5000.0},
+        {"symbol": "ETH@perp", "strategy": "trend_short", "side": "SHORT", "qty": 1.0, "entry_price": 2000.0, "mark_price": 1990.0,
+         "notional": 1990.0, "unrealized_pnl": 9.0, "opened": _ms("2025-02-21"), "margin_usd": 199.0},
+    ] if with_positions else []
+    res.update({"mock": True, "kind": kind, "source_desc": f"Giả lập {kind} (test)", "generated_at": "2025-03-01T00:00:00Z"})
+    with open(feeds.mock_path(kind), "w", encoding="utf-8") as fh:
+        json.dump(res, fh)
+    return res
+
+
+@pytest.mark.parametrize("source,name", [("live", "Live"), ("testnet", "Testnet")])
+def test_mock_source_has_flag_note_and_positions(client, monkeypatch, source, name):
+    _write_mock(source)
+    monkeypatch.setattr(portfolio_router.pd_mod, "benchmark_daily_closes", lambda *a: _bench())
+    r = client.get(f"/api/studio/portfolio/dashboard?source={source}&period=ALL")
+    assert r.status_code == 200, r.text
+    p = r.json()
+    assert p["available"] is True and p["mock"] is True and p["mock_note"] == f"Dữ liệu giả lập — chưa kết nối tài khoản {name}"
+    assert p["source"]["kind"] == source and p["source"]["mock"] is True and p["source"]["label"] == f"Giả lập {source} (test)"
+    assert p["source"]["job_id"] is None and set(p) == TOP_KEYS | {"mock", "mock_note"}
+    pos = p["positions"]
+    assert [x["symbol"] for x in pos] == ["SOL@perp", "ETH@perp"]                # lớn nhất trước
+    assert set(pos[0]) == {"symbol", "strategy", "side", "qty", "entry_price", "mark_price", "notional", "unrealized_pnl", "opened", "margin_usd"}
+    assert p["risk"]["open_positions"] == 2 and p["risk"]["margin_used_pct"] is not None
+    nav = p["kpis"]["nav"]
+    assert p["risk"]["exposure_gross_pct"] == pytest.approx((5100 + 1990) / nav * 100, abs=0.06)
+    assert p["risk"]["exposure_net_pct"] == pytest.approx((5100 - 1990) / nav * 100, abs=0.06)
+    assert {s["id"]: s["side"] for s in p["strategies"]} == {"trend_long": "LONG", "trend_short": "SHORT"}
+    json.dumps(p, allow_nan=False)
+    assert client.get(f"/api/studio/portfolio/dashboard?source={source}&period=ALL").json() == p       # đệm
+
+
+def test_mock_source_without_positions_and_stale_cache_refreshes(client):
+    _write_mock("live", with_positions=False)
+    p = client.get("/api/studio/portfolio/dashboard?source=live").json()
+    assert p["available"] and p["mock"] and p["positions"] == [] and p["risk"]["open_positions"] == 0
+    _write_mock("live", with_positions=True)
+    os.utime(feeds.mock_path("live"), (time.time() + 5, time.time() + 5))       # mtime đổi -> bộ đệm không dùng lại
+    assert len(client.get("/api/studio/portfolio/dashboard?source=live").json()["positions"]) == 2
+
+
+def test_mock_feed_corrupt_file_is_unavailable(client):
+    open(feeds.mock_path("testnet"), "w").write("{not json")
+    r = client.get("/api/studio/portfolio/dashboard?source=testnet").json()
+    assert r["available"] is False and "make_mock_feeds" in r["reason"]
+
+
+def test_real_feeds_are_stubs_that_raise_not_available():
+    for cls in (feeds.LiveFeed, feeds.TestnetFeed):
+        with pytest.raises(feeds.NotAvailable):
+            cls().fetch()
+    with pytest.raises(ValueError):
+        feeds.get_snapshot("backtest")
