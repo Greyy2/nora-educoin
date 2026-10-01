@@ -183,6 +183,7 @@ def _optimize_is(
             **base_params,
         )
         s["insufficient_is_trades"] = False
+        s["invalid_combos"] = 0
         return base_params, s
 
     if candidates:  # danh sách tổ hợp cụ thể (vd. top-K từ vòng sàng lọc)
@@ -197,17 +198,22 @@ def _optimize_is(
     )
     best = None
     min_is_trades = cfg.min_is_trades  # lấy thẳng từ schema, không dùng getattr/or
+    invalid_combos = 0  # số combo bị build_params từ chối (vd. ngân sách DCA vượt vốn)
 
     for combo in combos:
         param_update = dict(zip(keys, combo))
         p = {**base_params, **param_update}
-        s, _ = _run_single_window(
-            symbol=symbol,
-            flows=flows,
-            start_ts=fold_range["train_start_ts"],
-            end_ts=fold_range["train_end_ts"],
-            **p,
-        )
+        try:
+            s, _ = _run_single_window(
+                symbol=symbol,
+                flows=flows,
+                start_ts=fold_range["train_start_ts"],
+                end_ts=fold_range["train_end_ts"],
+                **p,
+            )
+        except ValueError:
+            invalid_combos += 1  # combo không hợp lệ -> bỏ qua, không làm hỏng cả job
+            continue
         if s["total_trades"] < min_is_trades:
             continue
         score = s["return_pct"] / max(s["max_drawdown_pct"], 1.0)
@@ -216,6 +222,7 @@ def _optimize_is(
 
     if best is not None:
         best[2]["insufficient_is_trades"] = False
+        best[2]["invalid_combos"] = invalid_combos
         return best[1], best[2]
 
     # Không có combo nào đạt min_is_trades → fallback nhưng đánh dấu fold
@@ -227,6 +234,9 @@ def _optimize_is(
         **base_params,
     )
     s_fallback["insufficient_is_trades"] = True
+    s_fallback["invalid_combos"] = invalid_combos
+    if invalid_combos == len(combos):
+        s_fallback["note"] = f"mọi {invalid_combos} combo đều không hợp lệ (bị build_params từ chối) -> dùng tham số gốc"
     return base_params, s_fallback
 
 
