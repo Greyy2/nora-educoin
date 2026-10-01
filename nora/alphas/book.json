@@ -1,0 +1,1668 @@
+{
+  "generated_at": 1790856748686,
+  "source": "/home/vmc03/norabt/nora/data/_cache/book/20261001_115808",
+  "code": {
+    "commit": "06ae13b4b1a2fa466ba33f3ca8123bb1969389e6",
+    "dirty_backend": true
+  },
+  "universe": [
+    "BTC@perp",
+    "ETH@perp",
+    "SOL@perp",
+    "BNB@perp",
+    "XRP@perp",
+    "DOGE@perp",
+    "ADA@perp",
+    "AVAX@perp"
+  ],
+  "windows": {
+    "start": "2023-10-20",
+    "dev1_end": "2024-12-24",
+    "dev2_end": "2026-02-27",
+    "end": "2026-09-30"
+  },
+  "gates": {
+    "min_trades": 40,
+    "min_symbols_positive": 5,
+    "min_symbols_positive_dev2": 4,
+    "max_mdd_pct": 30.0
+  },
+  "risk": {
+    "max_positions": 8,
+    "max_per_symbol": 1,
+    "max_gross_exposure": 3.0,
+    "kill_switch_dd_pct": 30.0
+  },
+  "risk_per_trade_pct": 0.5,
+  "risk_scale_bootstrap": {
+    "0.25": {
+      "median_ret_pct": 3.7,
+      "p05_ret_pct": -4.5,
+      "mdd_p95_pct": 7.7,
+      "p_mdd_ge_30_pct": 0.0
+    },
+    "0.5": {
+      "median_ret_pct": 7.3,
+      "p05_ret_pct": -9.0,
+      "mdd_p95_pct": 14.9,
+      "p_mdd_ge_30_pct": 0.0
+    },
+    "0.75": {
+      "median_ret_pct": 10.8,
+      "p05_ret_pct": -13.5,
+      "mdd_p95_pct": 21.7,
+      "p_mdd_ge_30_pct": 0.38
+    },
+    "1.0": {
+      "median_ret_pct": 14.1,
+      "p05_ret_pct": -17.9,
+      "mdd_p95_pct": 28.0,
+      "p_mdd_ge_30_pct": 3.2
+    },
+    "1.25": {
+      "median_ret_pct": 17.1,
+      "p05_ret_pct": -22.3,
+      "mdd_p95_pct": 33.8,
+      "p_mdd_ge_30_pct": 10.25
+    },
+    "1.5": {
+      "median_ret_pct": 19.9,
+      "p05_ret_pct": -26.6,
+      "mdd_p95_pct": 39.3,
+      "p_mdd_ge_30_pct": 20.62
+    },
+    "2.0": {
+      "median_ret_pct": 24.7,
+      "p05_ret_pct": -35.0,
+      "mdd_p95_pct": 49.2,
+      "p_mdd_ge_30_pct": 46.88
+    },
+    "2.5": {
+      "median_ret_pct": 28.5,
+      "p05_ret_pct": -42.9,
+      "mdd_p95_pct": 57.6,
+      "p_mdd_ge_30_pct": 69.4
+    },
+    "3.0": {
+      "median_ret_pct": 30.8,
+      "p05_ret_pct": -50.3,
+      "mdd_p95_pct": 64.8,
+      "p_mdd_ge_30_pct": 85.52
+    },
+    "4.0": {
+      "median_ret_pct": 31.8,
+      "p05_ret_pct": -63.4,
+      "mdd_p95_pct": 76.2,
+      "p_mdd_ge_30_pct": 97.4
+    }
+  },
+  "strategies": [
+    {
+      "id": "breakout_4h_long",
+      "family": "Theo xu hướng (Turtle)",
+      "side": "LONG",
+      "description": "4h EMA50 > EMA200 và close 4h phá đỉnh 20 nến 4h trước. ATR khung 4h.",
+      "params": {
+        "stop_loss_rate": 3.0,
+        "timeout": 10080,
+        "trailing_activation_pct": 1.0,
+        "trailing_stop": 3.0
+      },
+      "signal_params": {},
+      "position": {
+        "market": "perp",
+        "leverage": 10,
+        "exit_unit": "atr",
+        "atr_frame": "4h",
+        "atr_period": 14,
+        "sizing": "risk",
+        "risk_per_trade_pct": 0.5,
+        "max_notional_pct": 300.0,
+        "stop_fill": "level",
+        "cooldown": 60,
+        "stop_loss_rate": 3.0,
+        "timeout": 10080,
+        "trailing_activation_pct": 1.0,
+        "trailing_stop": 3.0
+      },
+      "flow": {
+        "type": "LONG",
+        "match": [
+          {
+            "condition": [
+              [
+                [
+                  {
+                    "frame": "4h",
+                    "column": "ema_50",
+                    "index": 0
+                  },
+                  ">",
+                  {
+                    "frame": "4h",
+                    "column": "ema_200",
+                    "index": 0
+                  }
+                ],
+                [
+                  {
+                    "frame": "4h",
+                    "column": "close",
+                    "index": 0
+                  },
+                  ">",
+                  {
+                    "frame": "4h",
+                    "column": "dch_20",
+                    "index": 0
+                  }
+                ]
+              ]
+            ]
+          }
+        ],
+        "stop": []
+      },
+      "evidence": {
+        "description": "4h EMA50 > EMA200 và close 4h phá đỉnh 20 nến 4h trước. ATR khung 4h.",
+        "side": "LONG",
+        "family": "Theo xu hướng (Turtle)",
+        "dev1_tried": 24,
+        "dev1_top": [
+          {
+            "params": {
+              "stop_loss_rate": 3.0,
+              "timeout": 10080,
+              "trailing_activation_pct": 1.0,
+              "trailing_stop": 3.0
+            },
+            "dev1": {
+              "ret_pct": 19.46,
+              "mdd_pct": 10.38,
+              "sharpe": 1.26,
+              "trades": 254,
+              "win_pct": 41.7,
+              "symbols_positive": "7",
+              "by_symbol": {
+                "XRP": 433.56,
+                "ADA": 258.96,
+                "BNB": 398.08,
+                "DOGE": 249.07,
+                "BTC": 549.39,
+                "ETH": -213.03,
+                "SOL": 114.07,
+                "AVAX": 155.97
+              },
+              "by_strategy": {
+                "breakout_4h_long": {
+                  "pnl_usd": 1946.07,
+                  "trades": 254
+                }
+              },
+              "fees_usd": 219.2,
+              "funding_usd": 252.96,
+              "rejected_for_risk": 0,
+              "rejected_for_capital": 0,
+              "halted_at": null
+            },
+            "dev2_level": {
+              "ret_pct": 7.26,
+              "mdd_pct": 10.17,
+              "sharpe": 0.57,
+              "trades": 158,
+              "win_pct": 43.0,
+              "symbols_positive": "5",
+              "by_symbol": {
+                "BNB": 228.18,
+                "BTC": 292.1,
+                "ETH": 477.25,
+                "SOL": -37.98,
+                "XRP": 63.43,
+                "ADA": 20.04,
+                "DOGE": -202.17,
+                "AVAX": -115.16
+              },
+              "by_strategy": {
+                "breakout_4h_long": {
+                  "pnl_usd": 725.69,
+                  "trades": 158
+                }
+              },
+              "fees_usd": 160.95,
+              "funding_usd": 73.34,
+              "rejected_for_risk": 0,
+              "rejected_for_capital": 0,
+              "halted_at": null
+            },
+            "dev2_extreme": {
+              "ret_pct": 3.3,
+              "mdd_pct": 10.63,
+              "sharpe": 0.29,
+              "trades": 158,
+              "win_pct": 40.5,
+              "symbols_positive": "5",
+              "by_symbol": {
+                "BNB": 143.3,
+                "BTC": 253.68,
+                "ETH": 403.2,
+                "SOL": -93.18,
+                "XRP": 15.51,
+                "ADA": 5.24,
+                "DOGE": -238.71,
+                "AVAX": -159.2
+              },
+              "by_strategy": {
+                "breakout_4h_long": {
+                  "pnl_usd": 329.83,
+                  "trades": 158
+                }
+              },
+              "fees_usd": 157.9,
+              "funding_usd": 71.96,
+              "rejected_for_risk": 0,
+              "rejected_for_capital": 0,
+              "halted_at": null
+            },
+            "dev2_pass": true
+          },
+          {
+            "params": {
+              "stop_loss_rate": 3.0,
+              "timeout": 0,
+              "trailing_activation_pct": 0.0,
+              "trailing_stop": 3.0
+            },
+            "dev1": {
+              "ret_pct": 19.12,
+              "mdd_pct": 10.36,
+              "sharpe": 1.26,
+              "trades": 243,
+              "win_pct": 39.1,
+              "symbols_positive": "7",
+              "by_symbol": {
+                "XRP": 420.14,
+                "ADA": 473.24,
+                "BNB": 383.84,
+                "DOGE": 190.59,
+                "BTC": 539.49,
+                "ETH": -254.88,
+                "SOL": 152.05,
+                "AVAX": 7.85
+              },
+              "by_strategy": {
+                "breakout_4h_long": {
+                  "pnl_usd": 1912.33,
+                  "trades": 243
+                }
+              },
+              "fees_usd": 210.77,
+              "funding_usd": 242.65,
+              "rejected_for_risk": 0,
+              "rejected_for_capital": 0,
+              "halted_at": null
+            },
+            "dev2_level": {
+              "ret_pct": 3.68,
+              "mdd_pct": 10.0,
+              "sharpe": 0.33,
+              "trades": 160,
+              "win_pct": 37.5,
+              "symbols_positive": "5",
+              "by_symbol": {
+                "BTC": 130.46,
+                "ETH": 507.96,
+                "SOL": -77.15,
+                "XRP": 30.54,
+                "ADA": 27.04,
+                "BNB": 135.2,
+                "DOGE": -238.09,
+                "AVAX": -148.29
+              },
+              "by_strategy": {
+                "breakout_4h_long": {
+                  "pnl_usd": 367.67,
+                  "trades": 160
+                }
+              },
+              "fees_usd": 159.92,
+              "funding_usd": 69.31,
+              "rejected_for_risk": 0,
+              "rejected_for_capital": 0,
+              "halted_at": null
+            },
+            "dev2_extreme": {
+              "ret_pct": 0.07,
+              "mdd_pct": 10.37,
+              "sharpe": 0.06,
+              "trades": 160,
+              "win_pct": 36.2,
+              "symbols_positive": "4",
+              "by_symbol": {
+                "BTC": 97.88,
+                "ETH": 417.95,
+                "SOL": -122.68,
+                "XRP": -1.46,
+                "ADA": 8.06,
+                "BNB": 65.92,
+                "DOGE": -270.61,
+                "AVAX": -187.72
+              },
+              "by_strategy": {
+                "breakout_4h_long": {
+                  "pnl_usd": 7.34,
+                  "trades": 160
+                }
+              },
+              "fees_usd": 156.88,
+              "funding_usd": 68.02,
+              "rejected_for_risk": 0,
+              "rejected_for_capital": 0,
+              "halted_at": null
+            },
+            "dev2_pass": true
+          },
+          {
+            "params": {
+              "stop_loss_rate": 2.0,
+              "timeout": 10080,
+              "trailing_activation_pct": 0.0,
+              "trailing_stop": 4.0
+            },
+            "dev1": {
+              "ret_pct": 29.37,
+              "mdd_pct": 16.04,
+              "sharpe": 1.22,
+              "trades": 248,
+              "win_pct": 33.5,
+              "symbols_positive": "6",
+              "by_symbol": {
+                "XRP": 785.05,
+                "ADA": 583.32,
+                "BTC": 646.26,
+                "SOL": 211.69,
+                "DOGE": 398.66,
+                "AVAX": -185.11,
+                "BNB": 555.06,
+                "ETH": -58.13
+              },
+              "by_strategy": {
+                "breakout_4h_long": {
+                  "pnl_usd": 2936.79,
+                  "trades": 248
+                }
+              },
+              "fees_usd": 331.22,
+              "funding_usd": 420.2,
+              "rejected_for_risk": 0,
+              "rejected_for_capital": 0,
+              "halted_at": null
+            },
+            "dev2_level": {
+              "ret_pct": 5.07,
+              "mdd_pct": 13.89,
+              "sharpe": 0.32,
+              "trades": 157,
+              "win_pct": 31.8,
+              "symbols_positive": "5",
+              "by_symbol": {
+                "BNB": 235.72,
+                "SOL": -194.8,
+                "ETH": 697.09,
+                "BTC": 1.25,
+                "ADA": -194.51,
+                "XRP": -99.15,
+                "DOGE": 27.4,
+                "AVAX": 33.89
+              },
+              "by_strategy": {
+                "breakout_4h_long": {
+                  "pnl_usd": 506.9,
+                  "trades": 157
+                }
+              },
+              "fees_usd": 237.81,
+              "funding_usd": 119.8,
+              "rejected_for_risk": 0,
+              "rejected_for_capital": 0,
+              "halted_at": null
+            },
+            "dev2_extreme": {
+              "ret_pct": 0.18,
+              "mdd_pct": 14.58,
+              "sharpe": 0.1,
+              "trades": 157,
+              "win_pct": 30.6,
+              "symbols_positive": "2",
+              "by_symbol": {
+                "BNB": 165.54,
+                "SOL": -248.0,
+                "ETH": 629.72,
+                "BTC": -54.53,
+                "ADA": -248.49,
+                "XRP": -186.47,
+                "DOGE": -25.8,
+                "AVAX": -13.54
+              },
+              "by_strategy": {
+                "breakout_4h_long": {
+                  "pnl_usd": 18.42,
+                  "trades": 157
+                }
+              },
+              "fees_usd": 232.25,
+              "funding_usd": 116.99,
+              "rejected_for_risk": 0,
+              "rejected_for_capital": 0,
+              "halted_at": null
+            },
+            "dev2_pass": true
+          }
+        ],
+        "accepted": true,
+        "stability": "3/3"
+      }
+    },
+    {
+      "id": "breakout_4h_short",
+      "family": "Theo xu hướng (Turtle)",
+      "side": "SHORT",
+      "description": "Đối xứng breakout_4h_long.",
+      "params": {
+        "stop_loss_rate": 3.0,
+        "timeout": 10080,
+        "trailing_activation_pct": 0.0,
+        "trailing_stop": 4.0
+      },
+      "signal_params": {},
+      "position": {
+        "market": "perp",
+        "leverage": 10,
+        "exit_unit": "atr",
+        "atr_frame": "4h",
+        "atr_period": 14,
+        "sizing": "risk",
+        "risk_per_trade_pct": 0.5,
+        "max_notional_pct": 300.0,
+        "stop_fill": "level",
+        "cooldown": 60,
+        "stop_loss_rate": 3.0,
+        "timeout": 10080,
+        "trailing_activation_pct": 0.0,
+        "trailing_stop": 4.0
+      },
+      "flow": {
+        "type": "SHORT",
+        "match": [
+          {
+            "condition": [
+              [
+                [
+                  {
+                    "frame": "4h",
+                    "column": "ema_50",
+                    "index": 0
+                  },
+                  "<",
+                  {
+                    "frame": "4h",
+                    "column": "ema_200",
+                    "index": 0
+                  }
+                ],
+                [
+                  {
+                    "frame": "4h",
+                    "column": "close",
+                    "index": 0
+                  },
+                  "<",
+                  {
+                    "frame": "4h",
+                    "column": "dcl_20",
+                    "index": 0
+                  }
+                ]
+              ]
+            ]
+          }
+        ],
+        "stop": []
+      },
+      "evidence": {
+        "description": "Đối xứng breakout_4h_long.",
+        "side": "SHORT",
+        "family": "Theo xu hướng (Turtle)",
+        "dev1_tried": 24,
+        "dev1_top": [
+          {
+            "params": {
+              "stop_loss_rate": 3.0,
+              "timeout": 10080,
+              "trailing_activation_pct": 0.0,
+              "trailing_stop": 4.0
+            },
+            "dev1": {
+              "ret_pct": 12.51,
+              "mdd_pct": 6.23,
+              "sharpe": 1.08,
+              "trades": 114,
+              "win_pct": 47.4,
+              "symbols_positive": "6",
+              "by_symbol": {
+                "BNB": 70.19,
+                "DOGE": -104.4,
+                "ADA": 348.64,
+                "AVAX": 495.07,
+                "SOL": -184.32,
+                "XRP": 170.9,
+                "BTC": 180.22,
+                "ETH": 274.89
+              },
+              "by_strategy": {
+                "breakout_4h_short": {
+                  "pnl_usd": 1251.19,
+                  "trades": 114
+                }
+              },
+              "fees_usd": 89.69,
+              "funding_usd": -47.01,
+              "rejected_for_risk": 0,
+              "rejected_for_capital": 0,
+              "halted_at": null
+            },
+            "dev2_level": {
+              "ret_pct": 18.07,
+              "mdd_pct": 12.08,
+              "sharpe": 0.86,
+              "trades": 231,
+              "win_pct": 46.3,
+              "symbols_positive": "7",
+              "by_symbol": {
+                "BTC": -19.74,
+                "ADA": 650.95,
+                "SOL": 98.94,
+                "AVAX": 349.27,
+                "DOGE": 334.65,
+                "ETH": 120.84,
+                "BNB": 145.77,
+                "XRP": 126.55
+              },
+              "by_strategy": {
+                "breakout_4h_short": {
+                  "pnl_usd": 1807.24,
+                  "trades": 231
+                }
+              },
+              "fees_usd": 184.38,
+              "funding_usd": -4.51,
+              "rejected_for_risk": 0,
+              "rejected_for_capital": 0,
+              "halted_at": null
+            },
+            "dev2_extreme": {
+              "ret_pct": 13.41,
+              "mdd_pct": 12.82,
+              "sharpe": 0.68,
+              "trades": 231,
+              "win_pct": 45.5,
+              "symbols_positive": "7",
+              "by_symbol": {
+                "BTC": -66.18,
+                "ADA": 550.24,
+                "SOL": 70.81,
+                "AVAX": 242.45,
+                "DOGE": 282.64,
+                "ETH": 75.62,
+                "BNB": 116.06,
+                "XRP": 69.69
+              },
+              "by_strategy": {
+                "breakout_4h_short": {
+                  "pnl_usd": 1341.31,
+                  "trades": 231
+                }
+              },
+              "fees_usd": 180.38,
+              "funding_usd": -4.59,
+              "rejected_for_risk": 0,
+              "rejected_for_capital": 0,
+              "halted_at": null
+            },
+            "dev2_pass": true
+          },
+          {
+            "params": {
+              "stop_loss_rate": 3.0,
+              "timeout": 10080,
+              "trailing_activation_pct": 1.0,
+              "trailing_stop": 4.0
+            },
+            "dev1": {
+              "ret_pct": 12.51,
+              "mdd_pct": 6.24,
+              "sharpe": 1.08,
+              "trades": 114,
+              "win_pct": 47.4,
+              "symbols_positive": "6",
+              "by_symbol": {
+                "BNB": 70.19,
+                "DOGE": -104.4,
+                "ADA": 348.64,
+                "AVAX": 495.07,
+                "SOL": -184.32,
+                "XRP": 170.9,
+                "BTC": 180.22,
+                "ETH": 274.32
+              },
+              "by_strategy": {
+                "breakout_4h_short": {
+                  "pnl_usd": 1250.62,
+                  "trades": 114
+                }
+              },
+              "fees_usd": 89.69,
+              "funding_usd": -47.24,
+              "rejected_for_risk": 0,
+              "rejected_for_capital": 0,
+              "halted_at": null
+            },
+            "dev2_level": {
+              "ret_pct": 18.06,
+              "mdd_pct": 12.08,
+              "sharpe": 0.86,
+              "trades": 231,
+              "win_pct": 46.3,
+              "symbols_positive": "7",
+              "by_symbol": {
+                "BTC": -19.75,
+                "ADA": 650.91,
+                "SOL": 98.93,
+                "AVAX": 348.84,
+                "DOGE": 334.27,
+                "ETH": 120.83,
+                "BNB": 145.77,
+                "XRP": 126.54
+              },
+              "by_strategy": {
+                "breakout_4h_short": {
+                  "pnl_usd": 1806.34,
+                  "trades": 231
+                }
+              },
+              "fees_usd": 184.37,
+              "funding_usd": -4.51,
+              "rejected_for_risk": 0,
+              "rejected_for_capital": 0,
+              "halted_at": null
+            },
+            "dev2_extreme": {
+              "ret_pct": 13.41,
+              "mdd_pct": 12.82,
+              "sharpe": 0.68,
+              "trades": 231,
+              "win_pct": 45.5,
+              "symbols_positive": "7",
+              "by_symbol": {
+                "BTC": -66.18,
+                "ADA": 550.24,
+                "SOL": 70.81,
+                "AVAX": 242.45,
+                "DOGE": 282.64,
+                "ETH": 75.62,
+                "BNB": 116.06,
+                "XRP": 69.69
+              },
+              "by_strategy": {
+                "breakout_4h_short": {
+                  "pnl_usd": 1341.31,
+                  "trades": 231
+                }
+              },
+              "fees_usd": 180.38,
+              "funding_usd": -4.59,
+              "rejected_for_risk": 0,
+              "rejected_for_capital": 0,
+              "halted_at": null
+            },
+            "dev2_pass": true
+          },
+          {
+            "params": {
+              "stop_loss_rate": 2.0,
+              "timeout": 10080,
+              "trailing_activation_pct": 0.0,
+              "trailing_stop": 4.0
+            },
+            "dev1": {
+              "ret_pct": 19.74,
+              "mdd_pct": 10.38,
+              "sharpe": 1.18,
+              "trades": 122,
+              "win_pct": 42.6,
+              "symbols_positive": "6",
+              "by_symbol": {
+                "BNB": 264.67,
+                "DOGE": -52.45,
+                "ADA": 323.43,
+                "AVAX": 801.55,
+                "SOL": -200.83,
+                "XRP": 233.54,
+                "BTC": 353.09,
+                "ETH": 250.92
+              },
+              "by_strategy": {
+                "breakout_4h_short": {
+                  "pnl_usd": 1973.93,
+                  "trades": 122
+                }
+              },
+              "fees_usd": 148.23,
+              "funding_usd": -57.0,
+              "rejected_for_risk": 0,
+              "rejected_for_capital": 0,
+              "halted_at": null
+            },
+            "dev2_level": {
+              "ret_pct": 20.45,
+              "mdd_pct": 16.91,
+              "sharpe": 0.75,
+              "trades": 258,
+              "win_pct": 39.1,
+              "symbols_positive": "6",
+              "by_symbol": {
+                "SOL": -284.2,
+                "BTC": -286.01,
+                "ADA": 836.78,
+                "AVAX": 551.42,
+                "DOGE": 494.6,
+                "ETH": 153.79,
+                "BNB": 241.18,
+                "XRP": 336.99
+              },
+              "by_strategy": {
+                "breakout_4h_short": {
+                  "pnl_usd": 2044.56,
+                  "trades": 258
+                }
+              },
+              "fees_usd": 318.01,
+              "funding_usd": -7.16,
+              "rejected_for_risk": 0,
+              "rejected_for_capital": 0,
+              "halted_at": null
+            },
+            "dev2_extreme": {
+              "ret_pct": 13.68,
+              "mdd_pct": 17.96,
+              "sharpe": 0.56,
+              "trades": 258,
+              "win_pct": 38.4,
+              "symbols_positive": "6",
+              "by_symbol": {
+                "SOL": -334.29,
+                "BTC": -354.97,
+                "ADA": 722.22,
+                "AVAX": 405.8,
+                "DOGE": 424.97,
+                "ETH": 55.63,
+                "BNB": 204.32,
+                "XRP": 243.86
+              },
+              "by_strategy": {
+                "breakout_4h_short": {
+                  "pnl_usd": 1367.55,
+                  "trades": 258
+                }
+              },
+              "fees_usd": 308.79,
+              "funding_usd": -7.42,
+              "rejected_for_risk": 0,
+              "rejected_for_capital": 0,
+              "halted_at": null
+            },
+            "dev2_pass": true
+          }
+        ],
+        "accepted": true,
+        "stability": "3/3"
+      }
+    }
+  ],
+  "evidence": {
+    "dev2_base_risk": {
+      "level": {
+        "ret_pct": 26.76,
+        "mdd_pct": 14.16,
+        "sharpe": 1.05,
+        "trades": 389,
+        "win_pct": 45.0,
+        "symbols_positive": "8",
+        "by_symbol": {
+          "BTC": 285.04,
+          "BNB": 355.33,
+          "ADA": 736.52,
+          "SOL": 60.73,
+          "AVAX": 258.64,
+          "ETH": 622.67,
+          "XRP": 209.92,
+          "DOGE": 147.09
+        },
+        "by_strategy": {
+          "breakout_4h_short": {
+            "pnl_usd": 1979.02,
+            "trades": 231
+          },
+          "breakout_4h_long": {
+            "pnl_usd": 696.92,
+            "trades": 158
+          }
+        },
+        "fees_usd": 360.34,
+        "funding_usd": 69.75,
+        "rejected_for_risk": 0,
+        "rejected_for_capital": 0,
+        "halted_at": null
+      },
+      "extreme": {
+        "ret_pct": 17.26,
+        "mdd_pct": 15.22,
+        "sharpe": 0.74,
+        "trades": 389,
+        "win_pct": 43.4,
+        "symbols_positive": "7",
+        "by_symbol": {
+          "BTC": 191.17,
+          "BNB": 234.73,
+          "ADA": 594.74,
+          "SOL": -25.4,
+          "AVAX": 94.63,
+          "ETH": 487.9,
+          "XRP": 94.9,
+          "DOGE": 53.58
+        },
+        "by_strategy": {
+          "breakout_4h_short": {
+            "pnl_usd": 1436.3,
+            "trades": 231
+          },
+          "breakout_4h_long": {
+            "pnl_usd": 289.96,
+            "trades": 158
+          }
+        },
+        "fees_usd": 345.18,
+        "funding_usd": 66.91,
+        "rejected_for_risk": 0,
+        "rejected_for_capital": 0,
+        "halted_at": null
+      }
+    },
+    "final": {
+      "dev2_level": {
+        "ret_pct": 26.76,
+        "mdd_pct": 14.16,
+        "sharpe": 1.05,
+        "trades": 389,
+        "win_pct": 45.0,
+        "symbols_positive": "8",
+        "by_symbol": {
+          "BTC": 285.04,
+          "BNB": 355.33,
+          "ADA": 736.52,
+          "SOL": 60.73,
+          "AVAX": 258.64,
+          "ETH": 622.67,
+          "XRP": 209.92,
+          "DOGE": 147.09
+        },
+        "by_strategy": {
+          "breakout_4h_short": {
+            "pnl_usd": 1979.02,
+            "trades": 231
+          },
+          "breakout_4h_long": {
+            "pnl_usd": 696.92,
+            "trades": 158
+          }
+        },
+        "fees_usd": 360.34,
+        "funding_usd": 69.75,
+        "rejected_for_risk": 0,
+        "rejected_for_capital": 0,
+        "halted_at": null
+      },
+      "dev2_extreme": {
+        "ret_pct": 17.26,
+        "mdd_pct": 15.22,
+        "sharpe": 0.74,
+        "trades": 389,
+        "win_pct": 43.4,
+        "symbols_positive": "7",
+        "by_symbol": {
+          "BTC": 191.17,
+          "BNB": 234.73,
+          "ADA": 594.74,
+          "SOL": -25.4,
+          "AVAX": 94.63,
+          "ETH": 487.9,
+          "XRP": 94.9,
+          "DOGE": 53.58
+        },
+        "by_strategy": {
+          "breakout_4h_short": {
+            "pnl_usd": 1436.3,
+            "trades": 231
+          },
+          "breakout_4h_long": {
+            "pnl_usd": 289.96,
+            "trades": 158
+          }
+        },
+        "fees_usd": 345.18,
+        "funding_usd": 66.91,
+        "rejected_for_risk": 0,
+        "rejected_for_capital": 0,
+        "halted_at": null
+      },
+      "holdout_level": {
+        "ret_pct": -4.06,
+        "mdd_pct": 17.07,
+        "sharpe": -0.31,
+        "trades": 186,
+        "win_pct": 34.4,
+        "symbols_positive": "3",
+        "by_symbol": {
+          "XRP": -169.71,
+          "DOGE": 66.16,
+          "AVAX": -256.09,
+          "BNB": 0.92,
+          "BTC": -46.72,
+          "SOL": -9.11,
+          "ETH": -91.85,
+          "ADA": 100.81
+        },
+        "by_strategy": {
+          "breakout_4h_short": {
+            "pnl_usd": -579.46,
+            "trades": 87
+          },
+          "breakout_4h_long": {
+            "pnl_usd": 173.88,
+            "trades": 99
+          }
+        },
+        "fees_usd": 165.96,
+        "funding_usd": 35.61,
+        "rejected_for_risk": 0,
+        "rejected_for_capital": 0,
+        "halted_at": null
+      },
+      "holdout_extreme": {
+        "ret_pct": -7.38,
+        "mdd_pct": 17.65,
+        "sharpe": -0.63,
+        "trades": 186,
+        "win_pct": 32.8,
+        "symbols_positive": "2",
+        "by_symbol": {
+          "XRP": -188.3,
+          "DOGE": 37.14,
+          "AVAX": -361.77,
+          "BNB": -50.69,
+          "BTC": -70.5,
+          "SOL": -38.22,
+          "ETH": -129.79,
+          "ADA": 63.78
+        },
+        "by_strategy": {
+          "breakout_4h_short": {
+            "pnl_usd": -675.08,
+            "trades": 87
+          },
+          "breakout_4h_long": {
+            "pnl_usd": -63.28,
+            "trades": 99
+          }
+        },
+        "fees_usd": 163.93,
+        "funding_usd": 34.89,
+        "rejected_for_risk": 0,
+        "rejected_for_capital": 0,
+        "halted_at": null
+      }
+    }
+  },
+  "holdout_pass": false,
+  "status": "HOLDOUT_FAILED",
+  "rejected_candidates": {
+    "trend_long": {
+      "description": "1h EMA50 > EMA200, ADX14 > ngưỡng, 15m phá đỉnh 20 nến trước. Thoát: SL + trailing theo ATR.",
+      "side": "LONG",
+      "family": "Theo xu hướng",
+      "dev1_tried": 24,
+      "dev1_top": [
+        {
+          "params": {
+            "sig.adx_min": 25,
+            "stop_loss_rate": 3.5,
+            "timeout": 4320,
+            "trailing_activation_pct": 0.0,
+            "trailing_stop": 4.5
+          },
+          "dev1": {
+            "ret_pct": 28.22,
+            "mdd_pct": 27.57,
+            "sharpe": 0.92,
+            "trades": 783,
+            "win_pct": 42.9,
+            "symbols_positive": "8",
+            "by_symbol": {
+              "SOL": 0.98,
+              "XRP": 235.78,
+              "DOGE": 73.64,
+              "ADA": 862.58,
+              "AVAX": 886.5,
+              "BNB": 120.51,
+              "ETH": 319.16,
+              "BTC": 322.59
+            },
+            "by_strategy": {
+              "trend_long": {
+                "pnl_usd": 2821.74,
+                "trades": 783
+              }
+            },
+            "fees_usd": 1287.13,
+            "funding_usd": 675.8,
+            "rejected_for_risk": 0,
+            "rejected_for_capital": 0,
+            "halted_at": null
+          },
+          "dev2_level": {
+            "ret_pct": -2.94,
+            "mdd_pct": 25.26,
+            "sharpe": 0.02,
+            "trades": 573,
+            "win_pct": 37.5,
+            "symbols_positive": "4",
+            "by_symbol": {
+              "BNB": 489.17,
+              "SOL": 263.62,
+              "DOGE": 527.5,
+              "XRP": -217.08,
+              "ADA": -28.37,
+              "AVAX": -910.65,
+              "ETH": 15.45,
+              "BTC": -433.52
+            },
+            "by_strategy": {
+              "trend_long": {
+                "pnl_usd": -293.88,
+                "trades": 573
+              }
+            },
+            "fees_usd": 935.1,
+            "funding_usd": 185.85,
+            "rejected_for_risk": 0,
+            "rejected_for_capital": 0,
+            "halted_at": null
+          },
+          "dev2_extreme": {
+            "ret_pct": -13.97,
+            "mdd_pct": 27.86,
+            "sharpe": -0.39,
+            "trades": 573,
+            "win_pct": 36.8,
+            "symbols_positive": "3",
+            "by_symbol": {
+              "BNB": 223.78,
+              "SOL": 144.74,
+              "DOGE": 393.52,
+              "XRP": -351.53,
+              "ADA": -160.34,
+              "AVAX": -982.77,
+              "ETH": -135.64,
+              "BTC": -528.33
+            },
+            "by_strategy": {
+              "trend_long": {
+                "pnl_usd": -1396.57,
+                "trades": 573
+              }
+            },
+            "fees_usd": 883.56,
+            "funding_usd": 175.73,
+            "rejected_for_risk": 0,
+            "rejected_for_capital": 0,
+            "halted_at": null
+          },
+          "dev2_pass": false
+        },
+        {
+          "params": {
+            "sig.adx_min": 25,
+            "stop_loss_rate": 3.5,
+            "timeout": 4320,
+            "trailing_activation_pct": 1.0,
+            "trailing_stop": 3.0
+          },
+          "dev1": {
+            "ret_pct": 10.0,
+            "mdd_pct": 22.28,
+            "sharpe": 0.47,
+            "trades": 955,
+            "win_pct": 41.3,
+            "symbols_positive": "7",
+            "by_symbol": {
+              "XRP": 48.37,
+              "SOL": 51.38,
+              "ADA": 246.97,
+              "AVAX": 498.9,
+              "DOGE": 104.25,
+              "BTC": 450.85,
+              "ETH": 108.83,
+              "BNB": -509.73
+            },
+            "by_strategy": {
+              "trend_long": {
+                "pnl_usd": 999.83,
+                "trades": 955
+              }
+            },
+            "fees_usd": 1329.05,
+            "funding_usd": 445.66,
+            "rejected_for_risk": 0,
+            "rejected_for_capital": 0,
+            "halted_at": null
+          },
+          "dev2_level": {
+            "ret_pct": -9.53,
+            "mdd_pct": 22.74,
+            "sharpe": -0.29,
+            "trades": 694,
+            "win_pct": 37.9,
+            "symbols_positive": "3",
+            "by_symbol": {
+              "BNB": 262.18,
+              "ADA": -196.52,
+              "DOGE": 611.69,
+              "XRP": -677.1,
+              "SOL": 102.14,
+              "AVAX": -573.59,
+              "ETH": -125.13,
+              "BTC": -357.13
+            },
+            "by_strategy": {
+              "trend_long": {
+                "pnl_usd": -953.48,
+                "trades": 694
+              }
+            },
+            "fees_usd": 1065.39,
+            "funding_usd": 134.06,
+            "rejected_for_risk": 0,
+            "rejected_for_capital": 0,
+            "halted_at": null
+          },
+          "dev2_extreme": {
+            "ret_pct": -21.77,
+            "mdd_pct": 26.09,
+            "sharpe": -0.85,
+            "trades": 694,
+            "win_pct": 36.3,
+            "symbols_positive": "2",
+            "by_symbol": {
+              "BNB": -48.33,
+              "ADA": -321.25,
+              "DOGE": 423.03,
+              "XRP": -812.87,
+              "SOL": 12.69,
+              "AVAX": -644.47,
+              "ETH": -290.84,
+              "BTC": -494.95
+            },
+            "by_strategy": {
+              "trend_long": {
+                "pnl_usd": -2177.0,
+                "trades": 694
+              }
+            },
+            "fees_usd": 994.85,
+            "funding_usd": 125.16,
+            "rejected_for_risk": 0,
+            "rejected_for_capital": 0,
+            "halted_at": null
+          },
+          "dev2_pass": false
+        },
+        {
+          "params": {
+            "sig.adx_min": 25,
+            "stop_loss_rate": 3.5,
+            "timeout": 0,
+            "trailing_activation_pct": 1.0,
+            "trailing_stop": 3.0
+          },
+          "dev1": {
+            "ret_pct": 10.2,
+            "mdd_pct": 23.04,
+            "sharpe": 0.48,
+            "trades": 890,
+            "win_pct": 39.4,
+            "symbols_positive": "7",
+            "by_symbol": {
+              "XRP": 94.9,
+              "SOL": 199.54,
+              "ADA": 193.2,
+              "AVAX": 471.63,
+              "DOGE": 107.68,
+              "BTC": 478.69,
+              "ETH": 44.98,
+              "BNB": -570.9
+            },
+            "by_strategy": {
+              "trend_long": {
+                "pnl_usd": 1019.7,
+                "trades": 890
+              }
+            },
+            "fees_usd": 1221.59,
+            "funding_usd": 473.68,
+            "rejected_for_risk": 0,
+            "rejected_for_capital": 0,
+            "halted_at": null
+          },
+          "dev2_level": {
+            "ret_pct": -13.04,
+            "mdd_pct": 23.1,
+            "sharpe": -0.45,
+            "trades": 683,
+            "win_pct": 37.5,
+            "symbols_positive": "3",
+            "by_symbol": {
+              "BNB": 84.99,
+              "ADA": -234.24,
+              "DOGE": 539.84,
+              "XRP": -610.8,
+              "SOL": 15.95,
+              "ETH": -157.51,
+              "AVAX": -585.29,
+              "BTC": -356.78
+            },
+            "by_strategy": {
+              "trend_long": {
+                "pnl_usd": -1303.84,
+                "trades": 683
+              }
+            },
+            "fees_usd": 1029.13,
+            "funding_usd": 135.03,
+            "rejected_for_risk": 0,
+            "rejected_for_capital": 0,
+            "halted_at": null
+          },
+          "dev2_extreme": {
+            "ret_pct": -25.18,
+            "mdd_pct": 29.63,
+            "sharpe": -1.02,
+            "trades": 683,
+            "win_pct": 35.9,
+            "symbols_positive": "1",
+            "by_symbol": {
+              "BNB": -207.8,
+              "ADA": -360.7,
+              "DOGE": 351.91,
+              "XRP": -746.66,
+              "SOL": -75.52,
+              "ETH": -331.75,
+              "AVAX": -650.27,
+              "BTC": -497.46
+            },
+            "by_strategy": {
+              "trend_long": {
+                "pnl_usd": -2518.25,
+                "trades": 683
+              }
+            },
+            "fees_usd": 959.27,
+            "funding_usd": 125.92,
+            "rejected_for_risk": 0,
+            "rejected_for_capital": 0,
+            "halted_at": null
+          },
+          "dev2_pass": false
+        }
+      ],
+      "accepted": false,
+      "stability": "0/3"
+    },
+    "trend_short": {
+      "description": "Đối xứng trend_long.",
+      "side": "SHORT",
+      "family": "Theo xu hướng",
+      "dev1_tried": 24,
+      "dev1_top": [],
+      "accepted": false,
+      "stability": "0/0"
+    },
+    "momentum_long": {
+      "description": "1h ROC24 > ngưỡng % và 15m close > EMA20 15m.",
+      "side": "LONG",
+      "family": "Theo đà",
+      "dev1_tried": 24,
+      "dev1_top": [
+        {
+          "params": {
+            "sig.roc_min": 5,
+            "stop_loss_rate": 3.5,
+            "timeout": 4320,
+            "trailing_activation_pct": 0.0,
+            "trailing_stop": 4.5
+          },
+          "dev1": {
+            "ret_pct": 27.59,
+            "mdd_pct": 21.53,
+            "sharpe": 1.08,
+            "trades": 593,
+            "win_pct": 40.5,
+            "symbols_positive": "6",
+            "by_symbol": {
+              "SOL": 299.89,
+              "AVAX": 785.38,
+              "BTC": 275.76,
+              "BNB": -78.87,
+              "DOGE": 894.3,
+              "XRP": 535.26,
+              "ADA": 541.85,
+              "ETH": -494.39
+            },
+            "by_strategy": {
+              "momentum_long": {
+                "pnl_usd": 2759.19,
+                "trades": 593
+              }
+            },
+            "fees_usd": 622.53,
+            "funding_usd": 397.29,
+            "rejected_for_risk": 0,
+            "rejected_for_capital": 0,
+            "halted_at": null
+          },
+          "dev2_level": {
+            "ret_pct": 3.84,
+            "mdd_pct": 25.68,
+            "sharpe": 0.25,
+            "trades": 515,
+            "win_pct": 37.7,
+            "symbols_positive": "3",
+            "by_symbol": {
+              "ADA": -111.75,
+              "XRP": 636.98,
+              "AVAX": 269.5,
+              "DOGE": 266.84,
+              "BTC": -45.37,
+              "ETH": -182.01,
+              "SOL": -202.44,
+              "BNB": -247.52
+            },
+            "by_strategy": {
+              "momentum_long": {
+                "pnl_usd": 384.23,
+                "trades": 515
+              }
+            },
+            "fees_usd": 531.31,
+            "funding_usd": 128.28,
+            "rejected_for_risk": 0,
+            "rejected_for_capital": 0,
+            "halted_at": null
+          },
+          "dev2_extreme": {
+            "ret_pct": -3.69,
+            "mdd_pct": 26.93,
+            "sharpe": 0.01,
+            "trades": 515,
+            "win_pct": 37.1,
+            "symbols_positive": "3",
+            "by_symbol": {
+              "ADA": -233.76,
+              "XRP": 501.67,
+              "AVAX": 141.61,
+              "DOGE": 144.61,
+              "BTC": -52.69,
+              "ETH": -282.23,
+              "SOL": -258.15,
+              "BNB": -330.38
+            },
+            "by_strategy": {
+              "momentum_long": {
+                "pnl_usd": -369.33,
+                "trades": 515
+              }
+            },
+            "fees_usd": 510.95,
+            "funding_usd": 123.72,
+            "rejected_for_risk": 0,
+            "rejected_for_capital": 0,
+            "halted_at": null
+          },
+          "dev2_pass": false
+        },
+        {
+          "params": {
+            "sig.roc_min": 3,
+            "stop_loss_rate": 2.5,
+            "timeout": 4320,
+            "trailing_activation_pct": 0.0,
+            "trailing_stop": 3.0
+          },
+          "dev1": {
+            "ret_pct": 21.61,
+            "mdd_pct": 29.58,
+            "sharpe": 0.67,
+            "trades": 1215,
+            "win_pct": 38.3,
+            "symbols_positive": "5",
+            "by_symbol": {
+              "SOL": 304.43,
+              "ADA": -64.44,
+              "AVAX": 1728.29,
+              "BTC": 339.01,
+              "BNB": -177.95,
+              "DOGE": 588.31,
+              "ETH": -590.71,
+              "XRP": 34.32
+            },
+            "by_strategy": {
+              "momentum_long": {
+                "pnl_usd": 2161.27,
+                "trades": 1215
+              }
+            },
+            "fees_usd": 2101.68,
+            "funding_usd": 678.89,
+            "rejected_for_risk": 0,
+            "rejected_for_capital": 0,
+            "halted_at": null
+          },
+          "dev2_level": {
+            "ret_pct": -29.59,
+            "mdd_pct": 42.56,
+            "sharpe": -0.59,
+            "trades": 1087,
+            "win_pct": 31.4,
+            "symbols_positive": "2",
+            "by_symbol": {
+              "AVAX": -163.84,
+              "ADA": -654.35,
+              "DOGE": 33.02,
+              "XRP": 40.28,
+              "BTC": -688.2,
+              "SOL": -549.37,
+              "ETH": -443.68,
+              "BNB": -532.89
+            },
+            "by_strategy": {
+              "momentum_long": {
+                "pnl_usd": -2959.03,
+                "trades": 1087
+              }
+            },
+            "fees_usd": 1428.33,
+            "funding_usd": 184.4,
+            "rejected_for_risk": 0,
+            "rejected_for_capital": 0,
+            "halted_at": null
+          },
+          "dev2_extreme": {
+            "ret_pct": -45.24,
+            "mdd_pct": 54.08,
+            "sharpe": -1.13,
+            "trades": 1087,
+            "win_pct": 30.5,
+            "symbols_positive": "0",
+            "by_symbol": {
+              "AVAX": -359.43,
+              "ADA": -857.36,
+              "DOGE": -310.13,
+              "XRP": -181.41,
+              "BTC": -728.12,
+              "SOL": -665.35,
+              "ETH": -736.29,
+              "BNB": -686.22
+            },
+            "by_strategy": {
+              "momentum_long": {
+                "pnl_usd": -4524.31,
+                "trades": 1087
+              }
+            },
+            "fees_usd": 1262.3,
+            "funding_usd": 163.77,
+            "rejected_for_risk": 0,
+            "rejected_for_capital": 0,
+            "halted_at": null
+          },
+          "dev2_pass": false
+        },
+        {
+          "params": {
+            "sig.roc_min": 5,
+            "stop_loss_rate": 2.5,
+            "timeout": 4320,
+            "trailing_activation_pct": 0.0,
+            "trailing_stop": 3.0
+          },
+          "dev1": {
+            "ret_pct": 16.05,
+            "mdd_pct": 23.9,
+            "sharpe": 0.66,
+            "trades": 756,
+            "win_pct": 37.2,
+            "symbols_positive": "6",
+            "by_symbol": {
+              "SOL": 79.06,
+              "AVAX": 671.89,
+              "DOGE": 675.7,
+              "BTC": 148.66,
+              "BNB": -303.53,
+              "XRP": 544.11,
+              "ADA": 102.58,
+              "ETH": -313.12
+            },
+            "by_strategy": {
+              "momentum_long": {
+                "pnl_usd": 1605.34,
+                "trades": 756
+              }
+            },
+            "fees_usd": 1015.7,
+            "funding_usd": 383.47,
+            "rejected_for_risk": 0,
+            "rejected_for_capital": 0,
+            "halted_at": null
+          },
+          "dev2_level": {
+            "ret_pct": -3.4,
+            "mdd_pct": 29.59,
+            "sharpe": 0.03,
+            "trades": 649,
+            "win_pct": 34.8,
+            "symbols_positive": "3",
+            "by_symbol": {
+              "AVAX": 82.88,
+              "ADA": -551.17,
+              "DOGE": 502.3,
+              "XRP": 685.97,
+              "ETH": -359.83,
+              "BTC": -83.33,
+              "SOL": -510.64,
+              "BNB": -105.97
+            },
+            "by_strategy": {
+              "momentum_long": {
+                "pnl_usd": -339.78,
+                "trades": 649
+              }
+            },
+            "fees_usd": 861.2,
+            "funding_usd": 121.69,
+            "rejected_for_risk": 0,
+            "rejected_for_capital": 0,
+            "halted_at": null
+          },
+          "dev2_extreme": {
+            "ret_pct": -17.82,
+            "mdd_pct": 34.22,
+            "sharpe": -0.45,
+            "trades": 649,
+            "win_pct": 33.0,
+            "symbols_positive": "2",
+            "by_symbol": {
+              "AVAX": -110.36,
+              "ADA": -722.46,
+              "DOGE": 202.34,
+              "XRP": 455.66,
+              "ETH": -623.73,
+              "BTC": -105.64,
+              "SOL": -606.71,
+              "BNB": -270.83
+            },
+            "by_strategy": {
+              "momentum_long": {
+                "pnl_usd": -1781.73,
+                "trades": 649
+              }
+            },
+            "fees_usd": 794.83,
+            "funding_usd": 113.05,
+            "rejected_for_risk": 0,
+            "rejected_for_capital": 0,
+            "halted_at": null
+          },
+          "dev2_pass": false
+        }
+      ],
+      "accepted": false,
+      "stability": "0/3"
+    },
+    "reversion_long": {
+      "description": "5m RSI14 < ngưỡng, dưới Bollinger dưới, regime đi ngang (1h ER20 < ngưỡng). TP/SL theo ATR.",
+      "side": "LONG",
+      "family": "Bắt hồi (có SL)",
+      "dev1_tried": 24,
+      "dev1_top": [],
+      "accepted": false,
+      "stability": "0/0"
+    },
+    "reversion_short": {
+      "description": "Đối xứng reversion_long.",
+      "side": "SHORT",
+      "family": "Bắt hồi (có SL)",
+      "dev1_tried": 24,
+      "dev1_top": [],
+      "accepted": false,
+      "stability": "0/0"
+    }
+  }
+}

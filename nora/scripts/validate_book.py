@@ -39,6 +39,7 @@ if SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, SCRIPTS_DIR)
 
 import build_strategy_book as bsb  # noqa: E402  (windows, configs, PER_WORKER_MB, _dir_mb)
+from backend.utils.jsonsafe import json_default  # noqa: E402
 
 
 def _ts(date_str):
@@ -60,7 +61,8 @@ def candidates_from_report(stage_a, report, n, include_rejected, only=None):
     for cid, rows in stage_a.items():
         if only and cid not in only:
             continue
-        if not include_rejected and not (report.get("candidates", {}).get(cid) or {}).get("accepted"):
+        accepted = (report.get("candidates", {}).get(cid) or {}).get("accepted")
+        if not include_rejected and not (accepted is True or accepted == "True"):  # báo cáo cũ lưu chuỗi 'False' (default=str)
             continue
         ranked = sorted((r for r in rows if r["score"] is not None and r["score"] > float("-inf")), key=lambda r: -r["score"])
         if ranked:
@@ -122,7 +124,7 @@ def main(argv=None):
     ap.add_argument("--min-is-trades", type=int, default=10)
     ap.add_argument("--sims", type=int, default=4000, help="số lần mô phỏng Monte Carlo")
     ap.add_argument("--mc-seed", type=int, default=1)
-    ap.add_argument("--risk-per-trade", type=float, default=None, help="% vốn rủi ro mỗi lệnh (mặc định: report.book hoặc 0,5)")
+    ap.add_argument("--risk-per-trade", type=float, default=None, help="%% vốn rủi ro mỗi lệnh (mặc định: report.book hoặc 0,5)")
     ap.add_argument("--workers", default="auto")
     ap.add_argument("--per-worker-mb", type=float, default=None)
     a = ap.parse_args(argv)
@@ -170,7 +172,7 @@ def main(argv=None):
         shutil.rmtree(shared_dir, ignore_errors=True)
     path = os.path.join(run_dir, "report.json")
     with open(path, "w", encoding="utf-8") as fh:
-        json.dump(res, fh, ensure_ascii=False, indent=1, default=str)
+        json.dump(res, fh, ensure_ascii=False, indent=1, default=json_default)
     print_summary(res)
     print(f"thời gian {res['source']['wall_s']:.0f}s | báo cáo: {path}")
     return res

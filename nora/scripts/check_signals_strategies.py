@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if NORA_ROOT not in sys.path:
     sys.path.insert(0, NORA_ROOT)
+from backend.utils.jsonsafe import json_default  # noqa: E402
 
 
 def run_asset(symbol: str) -> dict:
@@ -100,7 +101,7 @@ def main(argv=None):
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M")
     path = os.path.join(cache_dir(None, "reports"), f"step2_{stamp}.json")
     with open(path, "w", encoding="utf-8") as fh:
-        json.dump(results, fh, ensure_ascii=False, indent=1, default=str)
+        json.dump(results, fh, ensure_ascii=False, indent=1, default=json_default)
     print(f"\nĐã lưu: {path}\n")
 
     print("== TÍN HIỆU (mốc tốt nhất; CO_THONG_TIN = |t|>=3 và ổn định) ==")

@@ -13,7 +13,7 @@ C. sổ    — các chiến lược đạt chạy CHUNG một sổ vốn với g
 D. holdout — chạy đúng sổ đã chốt một lần (cả hai cách khớp SL). Không chọn lại gì ở bước này.
 
 Dùng: PYTHONPATH=. python scripts/build_strategy_book.py [--workers 10] [--n 24] [--only trend_long,trend_short]
-Kết quả: alphas/book.json (+ alphas/testnet/book.json nếu sổ có chiến lược), báo cáo tại <data>/_cache/book/<thời điểm>/.
+Kết quả: alphas/book.json (+ alphas/testnet/book.json CHỈ khi holdout đạt; trượt holdout -> status HOLDOUT_FAILED, không có testnet), báo cáo tại <data>/_cache/book/<thời điểm>/.
 
 Bộ nhớ (mỗi worker là một tiến trình có cache riêng):
   NORA_CANDLE_CACHE_MB   ngân sách cache nến cả file (script này mặc định 512 MB)
@@ -54,6 +54,7 @@ if NORA_ROOT not in sys.path:
 
 from backend.backtest.portfolio_metrics import bootstrap_daily, portfolio_metrics  # noqa: E402
 from backend.utils.parallel import auto_workers, pool_map_safe  # noqa: E402
+from backend.utils.jsonsafe import json_default  # noqa: E402
 
 DAY = 86_400_000
 WARMUP = 20 * DAY
@@ -239,7 +240,7 @@ def main(argv=None):
         )
         # Ghi checkpoint sau mỗi chiến lược — không mất kết quả nếu sập giữa chừng
         with open(os.path.join(run_dir, "stage_a.json"), "w", encoding="utf-8") as fh:
-            json.dump(stage_a, fh, ensure_ascii=False, indent=1, default=str)
+            json.dump(stage_a, fh, ensure_ascii=False, indent=1, default=json_default)
 
     # ── B. dev2 — cũng một pool riêng cho MỖI chiến lược (cache không dồn qua các chiến lược) ──
     out = {}
@@ -262,12 +263,12 @@ def main(argv=None):
         passes = []
         for rank, r in enumerate(top):
             lv, ex = out[(c["id"], rank, "level")], out[(c["id"], rank, "extreme")]
-            ok = (score(lv, GATES, "min_symbols_positive_dev2")[1] and ex["ret_pct"] > 0 and ex["mdd_pct"] <= MDD_LIMIT)
+            ok = bool(score(lv, GATES, "min_symbols_positive_dev2")[1] and ex["ret_pct"] > 0 and ex["mdd_pct"] <= MDD_LIMIT)
             passes.append(ok)
             entry["dev1_top"][rank]["dev2_level"] = _strip(lv)
             entry["dev1_top"][rank]["dev2_extreme"] = _strip(ex)
             entry["dev1_top"][rank]["dev2_pass"] = ok
-        entry["accepted"] = bool(top) and passes[0]
+        entry["accepted"] = bool(bool(top) and passes[0])
         entry["stability"] = f"{sum(passes)}/{len(passes)}" if passes else "0/0"
         if entry["accepted"]:
             accepted.append((c["id"], top[0]["params"], out[(c["id"], 0, "extreme")]))
@@ -281,7 +282,7 @@ def main(argv=None):
 
     # Ghi checkpoint giai đoạn B
     with open(os.path.join(run_dir, "stage_b.json"), "w", encoding="utf-8") as fh:
-        json.dump({"candidates": report["candidates"]}, fh, ensure_ascii=False, indent=1, default=str)
+        json.dump({"candidates": report["candidates"]}, fh, ensure_ascii=False, indent=1, default=json_default)
 
     if not accepted:
         report["book"] = None
@@ -320,8 +321,9 @@ def main(argv=None):
             "risk_per_trade_pct": rpt, "risk": RISK, "risk_scale_bootstrap": sizing,
             "dev2_base_risk": {"level": _strip(base_dev2[0]), "extreme": _strip(base_dev2[1])},
             "final": final,
-            "holdout_pass": bool(final) and final["holdout_level"]["ret_pct"] > 0
-            and final["holdout_level"]["mdd_pct"] <= MDD_LIMIT and final["holdout_extreme"]["mdd_pct"] <= MDD_LIMIT,
+            "holdout_pass": bool(bool(final) and final["holdout_level"]["ret_pct"] > 0
+                                 and final["holdout_level"]["mdd_pct"] <= MDD_LIMIT
+                                 and final["holdout_extreme"]["mdd_pct"] <= MDD_LIMIT),
         }
 
     # Chạy xong thành công: xoá dữ liệu dùng chung (lỗi/ngoại lệ thì không tới đây -> còn nguyên để gỡ lỗi)
@@ -332,12 +334,15 @@ def main(argv=None):
 
     # Ghi báo cáo cuối
     with open(os.path.join(run_dir, "report.json"), "w", encoding="utf-8") as fh:
-        json.dump(report, fh, ensure_ascii=False, indent=1, default=str)
+        json.dump(report, fh, ensure_ascii=False, indent=1, default=json_default)
     print("báo cáo:", os.path.join(run_dir, "report.json"))
     if report.get("book"):
         from backend.alpha.book_export import write_book
-        for path in write_book(report, a.out, source=run_dir, repo_dir=os.path.dirname(NORA_ROOT)):
+        paths = write_book(report, a.out, source=run_dir, repo_dir=os.path.dirname(NORA_ROOT))
+        for path in paths:
             print("ghi:", path)
+        if len(paths) == 1:  # holdout không đạt: chỉ có book.json (HOLDOUT_FAILED), không có cấu hình testnet
+            print("HOLDOUT KHÔNG ĐẠT — không tạo alphas/testnet/book.json.")
 
 
 if __name__ == "__main__":

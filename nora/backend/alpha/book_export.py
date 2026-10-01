@@ -14,11 +14,18 @@ import time
 from typing import Any, Dict, List
 
 from backend.alpha.registry import TESTNET, _git_revision
+from backend.utils.jsonsafe import json_default
+
+
+def _is_true(v) -> bool:
+    """Chặt chẽ: chỉ True thật (hoặc chuỗi "True" của báo cáo cũ do default=str); chuỗi 'False' KHÔNG được coi là đúng."""
+    return v is True or v == "True"
 
 
 def build_book(report: Dict[str, Any], source: str, repo_dir: str = None) -> Dict[str, Any]:
     from backend.alpha.strategy_book import CANDIDATES, UNIVERSE, materialize
     book = report["book"]
+    holdout_pass = _is_true(book.get("holdout_pass"))
     by_id = {c["id"]: c for c in CANDIDATES}
     strategies = []
     for item in book["strategies"]:
@@ -42,8 +49,9 @@ def build_book(report: Dict[str, Any], source: str, repo_dir: str = None) -> Dic
         "risk_scale_bootstrap": book["risk_scale_bootstrap"],
         "strategies": strategies,
         "evidence": {"dev2_base_risk": book["dev2_base_risk"], "final": book["final"]},
-        "holdout_pass": book["holdout_pass"],
-        "rejected_candidates": {k: v for k, v in report["candidates"].items() if not v.get("accepted")},
+        "holdout_pass": holdout_pass,
+        "status": "READY_FOR_TESTNET" if holdout_pass else "HOLDOUT_FAILED",
+        "rejected_candidates": {k: v for k, v in report["candidates"].items() if not _is_true(v.get("accepted"))},
     }
 
 
@@ -76,11 +84,19 @@ def testnet_book_config(book: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def write_book(report: Dict[str, Any], out_dir: str, source: str, repo_dir: str = None) -> List[str]:
+    """Luôn ghi book.json; CHỈ ghi testnet/book.json khi holdout đạt. Holdout trượt -> xoá testnet/book.json cũ (nếu có)."""
     book = build_book(report, source, repo_dir)
-    os.makedirs(os.path.join(out_dir, "testnet"), exist_ok=True)
-    paths = [os.path.join(out_dir, "book.json"), os.path.join(out_dir, "testnet", "book.json")]
+    os.makedirs(out_dir, exist_ok=True)
+    paths = [os.path.join(out_dir, "book.json")]
     with open(paths[0], "w", encoding="utf-8") as fh:
-        json.dump(book, fh, ensure_ascii=False, indent=2, default=str)
-    with open(paths[1], "w", encoding="utf-8") as fh:
-        json.dump(testnet_book_config(book), fh, ensure_ascii=False, indent=2, default=str)
+        json.dump(book, fh, ensure_ascii=False, indent=2, default=json_default)
+    testnet_path = os.path.join(out_dir, "testnet", "book.json")
+    if book["holdout_pass"]:
+        os.makedirs(os.path.dirname(testnet_path), exist_ok=True)
+        with open(testnet_path, "w", encoding="utf-8") as fh:
+            json.dump(testnet_book_config(book), fh, ensure_ascii=False, indent=2, default=json_default)
+        paths.append(testnet_path)
+    elif os.path.exists(testnet_path):
+        os.remove(testnet_path)
+        print(f"holdout KHÔNG đạt: đã xoá {testnet_path} cũ (không cấp cấu hình testnet cho sổ trượt holdout).")
     return paths

@@ -25,6 +25,7 @@ import pandas as pd
 NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if NORA_ROOT not in sys.path:
     sys.path.insert(0, NORA_ROOT)
+from backend.utils.jsonsafe import json_default  # noqa: E402
 
 ASSETS = ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA", "AVAX"]
 DAY = 86_400_000
@@ -179,7 +180,7 @@ def main(argv=None):
     os.makedirs(a.out, exist_ok=True)
     path = os.path.join(a.out, f"trend_portfolio_{time.strftime('%Y%m%d_%H%M')}.json")
     with open(path, "w", encoding="utf-8") as fh:
-        json.dump({"dev_window": [start, split], "holdout_window": [split, end], "table": table}, fh, default=str)
+        json.dump({"dev_window": [start, split], "holdout_window": [split, end], "table": table}, fh, default=json_default)
     print("lưu:", path)
 
 

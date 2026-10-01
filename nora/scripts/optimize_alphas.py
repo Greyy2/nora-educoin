@@ -35,6 +35,7 @@ from datetime import datetime, timezone
 NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if NORA_ROOT not in sys.path:
     sys.path.insert(0, NORA_ROOT)
+from backend.utils.jsonsafe import json_default  # noqa: E402
 
 DAY = 86_400_000
 MAX_MDD = 30.0
@@ -279,7 +280,7 @@ def main(argv=None):
             results.append(r)
             print(f"[{len(results)}/{len(pairs)}] {sid:26s} {sym:5s} -> {r['verdict']}", flush=True)
             with open(os.path.join(out_dir, "results.json"), "w", encoding="utf-8") as fh:
-                json.dump(results, fh, ensure_ascii=False, indent=1, default=str)
+                json.dump(results, fh, ensure_ascii=False, indent=1, default=json_default)
     alphas = [r for r in results if r.get("verdict") == "ALPHA"]
     print(f"\nALPHA đạt mọi gate: {len(alphas)}/{len(results)}  (kết quả: {out_dir}/results.json)")
     for r in sorted(results, key=lambda r: (r["space"], r["symbol"])):

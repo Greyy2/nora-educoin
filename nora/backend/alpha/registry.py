@@ -18,6 +18,8 @@ import subprocess
 import time
 from typing import Any, Dict, List, Optional
 
+from backend.utils.jsonsafe import json_default
+
 TESTNET = {"exchange": "binance_futures_testnet", "rest": "https://testnet.binancefuture.com",
            "ws": "wss://stream.binancefuture.com", "fees_assumed": {"maker": 0.0002, "taker": 0.0005}}
 
@@ -115,11 +117,11 @@ def write_registry(registry: Dict[str, Any], out_dir: str) -> List[str]:
     os.makedirs(os.path.join(out_dir, "testnet"), exist_ok=True)
     written = [os.path.join(out_dir, "registry.json")]
     with open(written[0], "w", encoding="utf-8") as fh:
-        json.dump(registry, fh, ensure_ascii=False, indent=2, default=str)
+        json.dump(registry, fh, ensure_ascii=False, indent=2, default=json_default)
     for alpha in registry["alphas"]:
         if alpha["market"] == "perp":
             path = os.path.join(out_dir, "testnet", f"{alpha['alpha_id']}.json")
             with open(path, "w", encoding="utf-8") as fh:
-                json.dump(testnet_config(alpha), fh, ensure_ascii=False, indent=2, default=str)
+                json.dump(testnet_config(alpha), fh, ensure_ascii=False, indent=2, default=json_default)
             written.append(path)
     return written

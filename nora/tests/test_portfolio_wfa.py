@@ -222,6 +222,22 @@ def test_candidates_from_report_picks_topk_of_accepted():
     assert [c["id"] for c in both] == ["a", "b"] and both[0]["configs"] == [{"k": 2}, {"k": 3}, {"k": 1}]
 
 
+def test_candidates_from_report_old_report_with_string_bools():
+    """Báo cáo cũ (json default=str) lưu 'False'/'True' dạng chuỗi: 'False' KHÔNG được coi là đạt."""
+    vb = _load_script("validate_book")
+    stage_a = {"a": [{"params": {"k": 1}, "score": 1.0}], "b": [{"params": {"k": 2}, "score": 2.0}],
+               "c": [{"params": {"k": 3}, "score": 3.0}], "d": [{"params": {"k": 4}, "score": 4.0}]}
+    report = {"candidates": {"a": {"accepted": "True"}, "b": {"accepted": "False"}, "c": {"accepted": True}, "d": {}}}
+    assert [c["id"] for c in vb.candidates_from_report(stage_a, report, 1, False)] == ["a", "c"]
+
+
+def test_validate_book_help_does_not_crash(capsys):
+    vb = _load_script("validate_book")
+    with pytest.raises(SystemExit) as e:
+        vb.main(["--help"])
+    assert e.value.code == 0 and "% vốn rủi ro" in capsys.readouterr().out
+
+
 def test_validate_book_main_end_to_end(market, monkeypatch, tmp_path):
     _small_book(monkeypatch)
     vb = _load_script("validate_book")

@@ -27,6 +27,7 @@ NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 for _p in (NORA_ROOT, os.path.join(NORA_ROOT, "tests")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
+from backend.utils.jsonsafe import json_default  # noqa: E402
 
 DAY = 86_400_000
 MIN = 60_000
@@ -526,7 +527,7 @@ def cmd_optcheck(a):
 def write_json(out, name, obj):
     os.makedirs(out, exist_ok=True)
     with open(os.path.join(out, name), "w", encoding="utf-8") as fh:
-        json.dump(obj, fh, ensure_ascii=False, indent=1, default=str)
+        json.dump(obj, fh, ensure_ascii=False, indent=1, default=json_default)
 
 
 def main():
