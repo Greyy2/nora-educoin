@@ -331,6 +331,7 @@ def build_dashboard(result: Dict[str, Any], bench_closes: Optional[pd.Series] = 
     pct = lambda x: _num(x / nav_last * 100.0, 1) if nav_last > 0 else None
     ids = [s["id"] for s in cfg.get("strategies") or []] or sorted({t["strategy"] for t in trades})
     halted = bool(result.get("halted_at"))
+    active = np.abs(pnl_p) > 1e-9   # ngày có P&L khác 0 (ngày đứng ngoài thị trường không tính là ngày lỗ)
     risk = {
         "margin_used_pct": pct(sum(margins)) if open_t and all(m is not None for m in margins) else None,
         "exposure_gross_pct": (pct(long_n + short_n) if open_t else 0.0) if have_notional else None,
@@ -338,7 +339,8 @@ def build_dashboard(result: Dict[str, Any], bench_closes: Optional[pd.Series] = 
         "by_market": [{"name": "Crypto perp", "long_pct": pct(long_n) if have_notional else None,
                        "short_pct": pct(short_n) if have_notional else None}],
         "cagr_pct": _num(cagr), "vol_annual_pct": _num(float(np.std(ret_p, ddof=1)) * math.sqrt(ANN) * 100.0) if n >= 2 else None,
-        "win_days_pct": _num(float(np.mean(ret_p > 0)) * 100.0, 1),
+        "win_days_pct": _num(float(np.mean(pnl_p[active] > 0)) * 100.0, 1) if active.any() else None,
+        "active_days": int(active.sum()),
         "profit_factor": _num(wins / losses) if losses > 0 else None,
         "open_positions": len(open_t), "strategies_running": 0 if halted else len(ids),
     }

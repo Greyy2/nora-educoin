@@ -7,20 +7,24 @@ dùng cùng payload khi được nối sau này.
 Quy ước chung:
 - Thời gian là ms UTC. Ngày dạng `YYYY-MM-DD` (UTC). Tiền tệ USDT. Phần trăm là số đã nhân 100 (`4.85` = 4,85%).
 - Job nặng chạy nền qua hàng đợi `run_limited` (`backend/studio_pipeline/batch_jobs.py`). Client poll `GET /api/studio/book/jobs/{id}` mỗi 2 s.
-- Trạng thái job: `queued` (đang chờ job khác) | `running` | `done` | `failed`.
+- Trạng thái job (`status`): `queued` (đang chờ job khác) | `running` | `done` | `failed`.
 - Lỗi theo FastAPI: `{detail}` với mã 4xx/5xx; 429 khi đã có quá nhiều job đang chờ.
 
 ## 1. Danh mục chiến lược, sổ, kho alpha (đã có)
 `GET /api/studio/book/` →
 ```json
 {
-  "book": {"status": "HOLDOUT_FAILED|READY_FOR_TESTNET", "strategies": [{"id": "...", "params": {}}], "evidence": {}} ,
-  "latest_wfa": {"path": "...", "gate_passed": false, "summary": {}},
-  "catalog": [{"id": "trend_long", "family": "...", "side": "LONG", "description": "...", "space": {"stop_loss_rate": [1.5, 2.5, 3.5]}}]
+  "book": {"status": "HOLDOUT_FAILED|READY_FOR_TESTNET", "strategies": [{"id": "...", "params": {}}], "evidence": {}},
+  "wfa": {...}, "latest_wfa": {"report_dir": "...", "gate": {}, "summary": {}},
+  "catalog": [{"id": "trend_long", "family": "...", "side": "LONG", "description": "...", "space": {"stop_loss_rate": [1.5, 2.5, 3.5]},
+               "default_params": {"stop_loss_rate": 2.5}}],
+  "candidates": [... cùng nội dung với catalog ...],
+  "universe": ["BTC@perp", "..."],
+  "windows": {"start": "2023-10-20", "dev1_end": "2024-12-24", "dev2_end": "2026-02-27", "end": "2026-09-30"}
 }
 ```
-Bổ sung (backend): mỗi mục catalog thêm `default_params` (giá trị giữa của mỗi khoá trong space, giống run_book_backtest);
-thêm `universe` (danh sách `<SYM>@perp`) và `windows` ({start, dev1_end, dev2_end, end} dạng ngày) ở cấp gốc.
+`catalog` và `candidates` là cùng một danh sách (giữ cả hai để tương thích); `wfa` và `latest_wfa` cũng vậy. `default_params` = giá trị giữa của mỗi khoá trong `space`
+(giống `run_book_backtest`). UI đọc `catalog || candidates`, `latest_wfa || wfa`.
 
 `GET /api/studio/alphas` (mới) → `{"registry": <alphas/registry.json hoặc null>, "book": <alphas/book.json hoặc null>}`.
 
@@ -33,8 +37,11 @@ thêm `universe` (danh sách `<SYM>@perp`) và `windows` ({start, dev1_end, dev2
 ```
 → `{"job_id": "..."}`. Bỏ `strategies` → dùng `alphas/book.json`.
 
-`GET /api/studio/book/jobs/{id}` → `{"job_id","kind","status","created","started","finished","exit_code","log_tail":[...],"result":{...}|null}`.
-`GET /api/studio/book/jobs?kind=book_backtest|book_wfa|book_build&limit=20` → `{"jobs":[{job_id, kind, status, created, args, label}]}` (backend: thêm lọc `kind`).
+Chỉ `POST` trả khoá `job_id`. Các hàng job (GET) dùng khoá **`id`** (kèm `state`, bằng `status`); UI chuẩn hoá `job_id = job_id || id`.
+`GET /api/studio/book/jobs/{id}` → `{"id","kind","args","pid","status","state","waiting_in_queue","created","started","finished","exit_code","log_tail":[...],"result":{...}|null}`
+(`created/started/finished` là giây Unix; `result` chỉ có khi `done`).
+`GET /api/studio/book/jobs?kind=book_backtest|book_wfa|book_build&limit=20` → `{"jobs":[{id, kind, status, created, args, label, ...}]}` (đã lọc theo `kind`).
+`result` của backtest: `{ret_pct, mdd_pct, sharpe, trades, daily_nav, trade_list, equity_curve, by_symbol, by_strategy, halted_at, ...}`.
 
 ## 3. Payload Danh mục (mới)
 `GET /api/studio/portfolio/dashboard?source=backtest&job_id=<id>&period=1M|3M|YTD|1Y|ALL`
@@ -67,7 +74,7 @@ Payload khi có dữ liệu:
   "risk": {
     "margin_used_pct": null, "exposure_gross_pct": 132, "exposure_net_pct": 95,
     "by_market": [{"name": "Crypto perp", "long_pct": 70, "short_pct": 13}],
-    "cagr_pct": 20.8, "vol_annual_pct": 6.6, "win_days_pct": 58.7, "profit_factor": 1.6,
+    "cagr_pct": 20.8, "vol_annual_pct": 6.6, "win_days_pct": 58.7, "active_days": 52, "profit_factor": 1.6,
     "open_positions": 3, "strategies_running": 2
   },
   "strategies": [{"id": "breakout_4h_long", "side": "LONG", "status": "active", "weight_pct": 50,
@@ -75,10 +82,13 @@ Payload khi có dữ liệu:
   "events": [{"time": 1745146440000, "level": "warn|crit|info", "text": "..."}]
 }
 ```
-- `bench`: mua giữ `BTC@perp`, quy về cùng NAV đầu kỳ. `drawdown_pct` ≤ 0. Mọi chuỗi trong `series` cùng độ dài với `dates`.
+- Không có `job_id` (với `source=backtest`): dùng backtest xong gần nhất; chưa có backtest nào thì `available:false` kèm `reason`.
+- `bench`: mua giữ `BTC@perp`, quy về cùng NAV đầu kỳ. `drawdown_pct` ≤ 0, tính trên NAV theo ngày (nên `mdd_pct` KPI khác MDD intrabar của `result.mdd_pct`). Mọi chuỗi trong `series` cùng độ dài với `dates`.
 - `period` cắt chuỗi ngày theo cuối kỳ của dữ liệu; KPI kỳ tính trên phần đã cắt, còn `mdd`/Sharpe theo kỳ.
+- `risk.win_days_pct` = tỉ lệ ngày lãi **trong các ngày có P&L khác 0** (`risk.active_days` = số ngày đó, `null` nếu 0): ngày đứng ngoài thị trường không tính là ngày lỗ. UI ghi nhãn "Tỉ lệ ngày lãi (ngày có giao dịch)".
 - Exposure/vị thế mở: tại ngày cuối của kỳ, tính từ `trade_list` (danh nghĩa / NAV).
-- `events`: kill switch (`halted_at`), drawdown vượt 50%/80% hạn mức 30%, số lần bị từ chối vì rủi ro.
+- `strategies[]`: số liệu **đã thực hiện** (realised: lãi/lỗ các lệnh đã đóng, Sharpe/MDD theo chuỗi realised của chiến lược), nên tổng không khớp từng đồng với NAV mark-to-market.
+- `events`: dựa trên MDD intrabar xấu nhất (không phải NAV ngày): kill switch (`halted_at`), drawdown vượt 50%/80% hạn mức 30%, số lần bị từ chối vì rủi ro.
 
 ## 4. WFA (đã có job, bổ sung cấu hình cố định)
 `POST /api/studio/book/wfa`, một trong ba dạng:
@@ -86,9 +96,10 @@ Payload khi có dữ liệu:
 - `{"candidates": ["id"], "n": 3}`: lấy mẫu `n` cấu hình mỗi chiến lược;
 - **mới:** `{"strategies": [{"id": "...", "configs": [{...}, {...}]}]}`: cấu hình do người dùng chọn. Một cấu hình mỗi chiến lược nghĩa là tham số cố định (WFA chỉ kiểm OOS cuộn).
 Cùng các trường tuỳ chọn `start`, `end`, `train_days`, `test_days`, `symbols`, `risk_per_trade_pct`.
-Kết quả (`result` của job) là `report.json` của `validate_book.py`: `folds[]`, `aggregate`, `mc`, `gate`.
-Backend thêm vào `aggregate`: `oos_daily_dates` song song với chuỗi lợi suất ngày (cả `level` và `extreme`),
-để UI vẽ đường vốn OOS.
+Kết quả (`result` của job) là `report.json` của `validate_book.py`: `folds[]`, `summary`, `gate`, và các bí danh theo hợp đồng
+`aggregate` (= `summary`) và `mc` (= `summary.mc`) — cùng một đối tượng, UI đọc `aggregate`/`mc`.
+`aggregate.oos_daily` và `aggregate.oos_daily_dates` đều là `{level: [...], extreme: [...]}`, song song theo chỉ số
+(ngày `YYYY-MM-DD`), để UI vẽ đường vốn OOS. `gate = {passed, checks: {<khoá>: {label, required, actual, passed}}}`.
 
 ## 5. Monte Carlo (mới, đồng bộ, nhẹ)
 `POST /api/studio/book/mc`
@@ -98,17 +109,27 @@ Backend thêm vào `aggregate`: `oos_daily_dates` song song với chuỗi lợi 
 ```
 hoặc gửi trực tiếp `"daily_returns": [...]` thay cho `wfa_job_id`. Trả về:
 ```json
-{"summary": {"median_ret_pct": 33.0, "p05_ret_pct": -11.3, "mdd_p50_pct": 16.1, "mdd_p95_pct": 28.4, "p_mdd_ge_ruin_pct": 3.6},
+{"summary": {"median_ret_pct": 33.0, "p05_ret_pct": -11.3, "mdd_p50_pct": 16.1, "mdd_p95_pct": 28.4, "p_mdd_ge_ruin_pct": 3.6,
+              "simulations": 4000, "block_days": 5, "horizon_days": 365, "seed": 7},
  "fan": {"days": [0, 5, ...], "p5": [...], "p25": [...], "p50": [...], "p75": [...], "p95": [...]},
  "mdd_hist": {"bins": [{"lo": 0, "hi": 2, "count": 10}]},
  "ret_hist": {"bins": [...]},
  "gate": {"ruin_max_pct": 5.0, "passed": true},
  "params": {...}}
 ```
-Phải trùng số với `run_monte_carlo_daily` khi cùng seed. Giới hạn: simulations ≤ 10000, horizon_days ≤ 730.
+Phải trùng số với `run_monte_carlo_daily` khi cùng seed. Giới hạn: simulations ≤ 10000, horizon_days ≤ 730 (vượt giới hạn hoặc `wfa_job_id` không hợp lệ: 422/4xx).
 
 ## 6. Alpha: hiệu chỉnh tham số (đã có job build)
 `POST /api/studio/book/build` `{"only": ["breakout_4h_long"], "n": 24}` → job chạy `build_strategy_book` (A→D).
-Bổ sung (backend): `result` thêm `stage_a[id] = [{"params", "dev1": {ret_pct, mdd_pct, trades, symbols_positive, sharpe}, "score", "passed"}]`
-cho **mọi** cấu hình đã thử, để UI hiện bảng xếp hạng. UI cho phép chọn một dòng rồi "Gửi sang Backtest",
+`result` có `windows`, `gates`, `risk`, `candidates`, `book`, `stage_a`. `stage_a[id] = [{"params", "dev1": {ret_pct, mdd_pct, trades, symbols_positive, sharpe}, "score", "passed"}]`
+cho **mọi** cấu hình đã thử (`score` là `null` khi `passed=false`), để UI hiện bảng xếp hạng.
+`candidates[id] = {description, side, family, dev1_tried, dev1_top: [{params, dev1, dev2_level, dev2_extreme, dev2_pass}], accepted, stability: "3/3"}`. UI cho phép chọn một dòng rồi "Gửi sang Backtest",
 tức điền `strategies[{id, params}]` vào form backtest.
+
+**Build không ghi đè sổ đang xuất bản.** Mọi job `book_build` chạy với `--out <job_dir>/alphas` (do `batch_jobs.launch` tự thêm; client không đặt được `--out`),
+nên sổ vừa dựng nằm ở `<data>/_cache/api_jobs/<job_id>/alphas/book.json` (+ `testnet/book.json` CHỈ khi holdout đạt); `nora/alphas/` không đổi.
+
+`POST /api/studio/book/publish` `{"job_id": "..."}` → chép `book.json` của job sang `nora/alphas/` (thay sổ hiện hành); `testnet/book.json` chỉ được chép khi job có
+(holdout đạt), nếu không thì `nora/alphas/testnet/book.json` cũ bị xoá. Trả `{"published": true, "job_id", "status", "holdout_pass", "generated_at", "strategies": [id], "written": [path], "testnet_removed": bool}`.
+Lỗi: 404 không có job; 422 `job_id` sai định dạng / không phải `book_build`; 409 job chưa xong hoặc không có `alphas/book.json` (không dựng ra sổ, hoặc job cũ chạy trước thay đổi này).
+Thư mục đích mặc định `nora/alphas`; biến môi trường `NORA_ALPHAS_DIR` ghi đè (dùng cho test). UI: nút "Xuất bản sổ này" trên job build đã xong có sổ, có hộp xác nhận.

@@ -89,14 +89,23 @@ class McRequest(BaseModel):
         return self
 
 
+class PublishRequest(BaseModel):
+    job_id: str = Field(..., min_length=1, max_length=64, description="Job book_build đã xong có alphas/book.json")
+
+
 class BuildRequest(BaseModel):
     only: Optional[List[str]] = Field(None, max_length=16)
     n: Optional[int] = Field(None, ge=1, le=200, description="Số cấu hình thử mỗi chiến lược ở dev1 (mặc định 24)")
 
 
 # ─── Đọc sổ / báo cáo ───────────────────────────────────────────────────────
+def alphas_dir() -> str:
+    """Thư mục alphas/ đang dùng. Ghi đè bằng NORA_ALPHAS_DIR (dùng cho test); mặc định nora/alphas."""
+    return os.environ.get("NORA_ALPHAS_DIR") or os.path.join(batch_jobs.NORA_DIR, "alphas")
+
+
 def book_path() -> str:
-    return os.environ.get("NORA_BOOK_PATH") or os.path.join(batch_jobs.NORA_DIR, "alphas", "book.json")
+    return os.environ.get("NORA_BOOK_PATH") or os.path.join(alphas_dir(), "book.json")
 
 
 def _metrics(m: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
@@ -212,7 +221,7 @@ def _read_json(path: str):
 @alphas_router.get("/alphas")
 def get_alphas():
     """Kho alpha: registry.json + book.json (null nếu chưa có)."""
-    return {"registry": _read_json(os.path.join(batch_jobs.NORA_DIR, "alphas", "registry.json")),
+    return {"registry": _read_json(os.path.join(alphas_dir(), "registry.json")),
             "book": _read_json(book_path())}
 
 
@@ -242,6 +251,30 @@ def post_wfa(req: WfaRequest):
 @router.post("/build")
 def post_build(req: BuildRequest):
     return _launch("book_build", req.model_dump())
+
+
+@router.post("/publish")
+def post_publish(req: PublishRequest):
+    """Xuất bản sổ của một job book_build đã xong sang alphas/ (thay sổ hiện hành). Build KHÔNG tự ghi đè alphas/."""
+    from backend.alpha.book_export import publish_book
+    try:
+        job = batch_jobs.status(req.job_id)
+    except batch_jobs.JobError as e:
+        raise HTTPException(422, str(e))
+    if job is None:
+        raise HTTPException(404, "không có job này")
+    if job.get("kind") != "book_build":
+        raise HTTPException(422, "job_id phải là job book_build")
+    if job.get("status") != "done":
+        raise HTTPException(409, f"job build chưa xong (trạng thái {job.get('status')})")
+    src = os.path.join(batch_jobs.job_dir(req.job_id), "alphas")
+    try:
+        out = publish_book(src, os.path.dirname(os.path.abspath(book_path())))
+    except FileNotFoundError:
+        raise HTTPException(409, "job này không có alphas/book.json (không dựng ra sổ, hoặc chạy trước khi build tách khỏi alphas/)")
+    except (OSError, ValueError) as e:
+        raise HTTPException(500, f"không xuất bản được: {e}")
+    return {"published": True, "job_id": req.job_id, **out}
 
 
 @router.get("/jobs")

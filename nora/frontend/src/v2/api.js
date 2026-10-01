@@ -61,6 +61,7 @@ async function mockRequest(path, method, body) {
   if (p === '/api/studio/book/backtest' && method === 'POST') { mockStarts['mock-bt-run'] = Date.now(); return { job_id: 'mock-bt-run' } }
   if (p === '/api/studio/book/wfa' && method === 'POST') { mockStarts['mock-wfa-run'] = Date.now(); return { job_id: 'mock-wfa-run' } }
   if (p === '/api/studio/book/build' && method === 'POST') { mockStarts['mock-build-run'] = Date.now(); return { job_id: 'mock-build-run' } }
+  if (p === '/api/studio/book/publish' && method === 'POST') return { published: true, job_id: (body || {}).job_id, status: 'HOLDOUT_FAILED', holdout_pass: false, strategies: [], written: [], testnet_removed: false }
   if (p === '/api/studio/book/mc' && method === 'POST') return mockFile('mc')
   if (p === '/api/studio/portfolio/dashboard') {
     const src = url.searchParams.get('source')
@@ -123,6 +124,7 @@ export const getJob = (id) => request(`/api/studio/book/jobs/${encodeURIComponen
 export const postBacktest = (body) => request('/api/studio/book/backtest', { method: 'POST', body })
 export const postWfa = (body) => request('/api/studio/book/wfa', { method: 'POST', body })
 export const postBuild = (body) => request('/api/studio/book/build', { method: 'POST', body })
+export const postPublish = (jobId) => request('/api/studio/book/publish', { method: 'POST', body: { job_id: jobId } })
 export const postMc = (body) => request('/api/studio/book/mc', { method: 'POST', body })
 
 export function getDashboard({ source, jobId, period }) {

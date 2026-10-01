@@ -28,6 +28,14 @@ function selFromStrategies(list, catalog) {
   return out
 }
 
+function LockIcon() {
+  return (
+    <svg className="n-ico" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="7" width="10" height="7" rx="1.5" /><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" />
+    </svg>
+  )
+}
+
 /* ---------------------------- Bước 1: Backtest ---------------------------- */
 function StepBacktest({ cat, form, setForm, btId, bt, onLaunched, onNext }) {
   const [busy, setBusy] = useState(false)
@@ -143,6 +151,23 @@ function StepWfa({ cat, form, wfaId, wfa, onLaunched, onNext }) {
   const [err, setErr] = useState(null)
   const ids = Object.keys(form.sel)
   const set = (p) => setF((x) => ({ ...x, ...p }))
+
+  // mở bằng link ?wfa=…: điền form WFA theo tham số của job đã chạy (không phải ngày của backtest); mỗi job chỉ áp một lần
+  const syncedFor = useRef('')
+  useEffect(() => {
+    if (!wfaId || !wfa.job || syncedFor.current === wfaId) return
+    syncedFor.current = wfaId
+    const a = parseJobArgs(wfa.job.args)
+    const r = wfa.job.result
+    const train = a.train_days ?? r?.config?.train_days
+    const test = a.test_days ?? r?.config?.test_days
+    setF((x) => ({
+      ...x,
+      train: train ?? x.train, test: test ?? x.test,
+      start: a.start || r?.window?.[0] || x.start, end: a.end || r?.window?.[1] || x.end,
+      mode: a.fixed == null ? x.mode : a.fixed ? 'fixed' : 'reselect', n: a.n ?? x.n,
+    }))
+  }, [wfaId, wfa.job]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function run() {
     setErr(null)
@@ -314,7 +339,7 @@ export default function Backtest() {
             className={`n-step ${step === s.n ? 'on' : ''} ${s.done && step !== s.n ? 'done' : ''}`}
             onClick={() => patch({ step: s.n })}>
             <span className="no">{s.done ? '✓' : s.n}</span>
-            <span><span className="tt">{s.title}</span><span className="st">{s.locked ? '🔒 ' : ''}{s.st}</span></span>
+            <span><span className="tt">{s.title}</span><span className="st">{s.locked ? <LockIcon /> : null}{s.st}</span></span>
           </button>
         ))}
       </div>

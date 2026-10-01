@@ -17,6 +17,11 @@ export function parseJobArgs(args) {
     end: o.end,
     risk_per_trade_pct: o['risk-per-trade'] != null ? Number(o['risk-per-trade']) : undefined,
     stop_fill: o['stop-fill'],
+    // chỉ có ở job WFA
+    train_days: o['train-days'] != null ? Number(o['train-days']) : undefined,
+    test_days: o['test-days'] != null ? Number(o['test-days']) : undefined,
+    n: o.n != null ? Number(o.n) : undefined,
+    fixed: o['strategies-json'] != null ? true : (o.candidates != null || o.report != null ? false : undefined),
   }
 }
 

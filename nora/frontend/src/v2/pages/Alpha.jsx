@@ -4,7 +4,7 @@ import { PageHead, Panel, Field, ErrorBox, Empty, Spinner, Status } from '../com
 import JobPanel from '../components/JobPanel'
 import useJob from '../hooks/useJob'
 import { useCatalog } from '../context/Catalog'
-import { postBuild, getAlphas } from '../api'
+import { postBuild, postPublish, getAlphas } from '../api'
 import { fmtNum, fmtPct, fmtSPct, signClass, fmtDateTime, isNum } from '../lib/format'
 
 function StrategyCards({ catalog, value, onPick }) {
@@ -27,35 +27,63 @@ function StrategyCards({ catalog, value, onPick }) {
   )
 }
 
-const METRIC_KEYS = ['dev1', 'dev2_level', 'dev2_extreme', 'holdout', 'holdout_level', 'holdout_extreme']
-const METRIC_LABEL = { dev1: 'Dev1 (tối ưu)', dev2_level: 'Dev2 · level', dev2_extreme: 'Dev2 · extreme', holdout: 'Holdout', holdout_level: 'Holdout · level', holdout_extreme: 'Holdout · extreme' }
+const PHASE_LABEL = { dev1: 'Dev1 (tối ưu)', dev2_level: 'Dev2 · level', dev2_extreme: 'Dev2 · extreme', holdout_level: 'Holdout · level', holdout_extreme: 'Holdout · extreme' }
 
-function CandidateSummary({ cand }) {
-  const c = Array.isArray(cand) ? cand[0] : cand
-  if (!c || typeof c !== 'object') return null
-  const rows = Object.keys(c).filter((k) => c[k] && typeof c[k] === 'object' && !Array.isArray(c[k]) && ('ret_pct' in c[k] || 'mdd_pct' in c[k]))
-    .sort((a, b) => (METRIC_KEYS.indexOf(a) + 99) % 99 - (METRIC_KEYS.indexOf(b) + 99) % 99)
+/** Kiểm chứng của một chiến lược: số liệu top-1 ở `candidates[id].dev1_top[0]` (dev1, dev2 level/extreme) + holdout của cả sổ (`book.final`). */
+function CandidateSummary({ cand, book }) {
+  if (!cand || typeof cand !== 'object') return null
+  const top = (cand.dev1_top || [])[0] || {}
+  const final = book?.final || {}
+  const rows = [
+    ['dev1', top.dev1], ['dev2_level', top.dev2_level], ['dev2_extreme', top.dev2_extreme],
+    ['holdout_level', final.holdout_level], ['holdout_extreme', final.holdout_extreme],
+  ].filter(([, m]) => m && typeof m === 'object')
+  const hasHoldout = rows.some(([k]) => k.startsWith('holdout'))
   return (
-    <Panel title="Kiểm chứng dev2 / holdout" meta={
+    <Panel title={hasHoldout ? 'Kiểm chứng dev2 / holdout' : 'Kiểm chứng dev2'} meta={
       <>
-        {c.accepted != null && <Status tone={c.accepted ? 'ok' : 'bad'}>{c.accepted ? '✓ Được nhận' : '✗ Bị loại'}</Status>}
-        {isNum(c.stability) && <span>Độ ổn định <b className="mono">{fmtNum(c.stability)}</b></span>}
+        {cand.accepted != null && <Status tone={cand.accepted ? 'ok' : 'bad'}>{cand.accepted ? '✓ Được nhận' : '✗ Bị loại'}</Status>}
+        {top.dev2_pass != null && <Status tone={top.dev2_pass ? 'ok' : 'bad'}>{top.dev2_pass ? 'Qua cổng dev2' : 'Trượt cổng dev2'}</Status>}
+        {cand.stability != null && <span>Độ ổn định (top-3 qua dev2) <b className="mono">{isNum(cand.stability) ? fmtNum(cand.stability) : String(cand.stability)}</b></span>}
+        {book && book.holdout_pass != null && <Status tone={book.holdout_pass ? 'ok' : 'bad'}>{book.holdout_pass ? 'Holdout đạt' : 'Holdout không đạt'}</Status>}
       </>
     }>
       <div className="n-tblwrap">
         <table className="n-tbl">
           <thead><tr><th>Giai đoạn</th><th className="r">Lãi</th><th className="r">MDD</th><th className="r">Sharpe</th><th className="r">Lệnh</th><th className="r">Cặp dương</th></tr></thead>
           <tbody>
-            {rows.map((k) => { const m = c[k]; return (
-              <tr key={k}><td>{METRIC_LABEL[k] || k}</td>
+            {rows.map(([k, m]) => (
+              <tr key={k}><td>{PHASE_LABEL[k] || k}</td>
                 <td className={`r ${signClass(m.ret_pct)}`}>{fmtSPct(m.ret_pct)}</td><td className="r">{fmtPct(m.mdd_pct)}</td>
                 <td className="r">{fmtNum(m.sharpe)}</td><td className="r">{m.trades ?? '—'}</td><td className="r">{m.symbols_positive ?? '—'}</td></tr>
-            ) })}
+            ))}
             {!rows.length && <tr><td colSpan={6} className="muted">Chưa có số liệu dev2/holdout cho chiến lược này.</td></tr>}
           </tbody>
         </table>
       </div>
+      {book && <p className="n-note" style={{ marginTop: 6 }}>Holdout là kết quả của cả sổ vừa dựng, chấm đúng một lần và không dùng để chọn tham số.</p>}
     </Panel>
+  )
+}
+
+/** Xuất bản sổ vừa dựng (chép sang alphas/): có hộp xác nhận vì thay sổ đang dùng. */
+function PublishBar({ jobId }) {
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState(null)
+  const [done, setDone] = useState(null)
+  async function publish() {
+    const ok = window.confirm('Xuất bản sổ này sẽ THAY THẾ sổ đang xuất bản (alphas/book.json, và cấu hình testnet nếu có). Bạn có chắc chắn?')
+    if (!ok) return
+    setErr(null); setBusy(true)
+    try { setDone(await postPublish(jobId)) } catch (e) { setErr(e.message) } finally { setBusy(false) }
+  }
+  return (
+    <div className="n-sticky-actions">
+      <button type="button" className="n-btn primary" onClick={publish} disabled={busy}>{busy ? <Spinner /> : null} Xuất bản sổ này</button>
+      <span className="n-note" style={{ alignSelf: 'center' }}>Sổ vừa dựng chỉ nằm trong job này; chỉ khi xuất bản mới thay sổ hiện hành ở mục Kho alpha.</span>
+      {done && <Status tone="ok">Đã xuất bản · {done.status}{done.testnet_removed ? ' · đã xoá cấu hình testnet cũ' : ''}</Status>}
+      <ErrorBox>{err}</ErrorBox>
+    </div>
   )
 }
 
@@ -208,7 +236,8 @@ export default function Alpha() {
               <Panel title={`Xếp hạng cấu hình · ${sid}`} meta={<span>{rows.length} cấu hình · xếp theo điểm</span>}>
                 <RankTable id={sid} rows={rows} space={cat?.catalog.find((c) => c.id === sid)?.space} onSend={send} />
               </Panel>
-              {cand && <CandidateSummary cand={cand} />}
+              {cand && <CandidateSummary cand={cand} book={result?.book} />}
+              {result?.book && <PublishBar jobId={jobId} />}
             </>
           ) : <Empty title="Chưa có bảng xếp hạng">Job xong nhưng backend chưa trả <code>result.stage_a</code>.</Empty>)}
         </div>

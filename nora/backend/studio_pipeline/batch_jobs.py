@@ -8,6 +8,7 @@ Mỗi job có thư mục <data>/_cache/api_jobs/<job_id>/:
   job.json    siêu dữ liệu (id, kind, args, pid, created/started/finished, state, exit_code)
   out.log     stdout+stderr của job
   result.json báo cáo cuối do script ghi (quy ước env NORA_JOB_DIR, xem backend/utils/jobresult.py)
+  alphas/     (chỉ job book_build) sổ vừa dựng: book.json [+ testnet/book.json]; KHÔNG ghi đè nora/alphas/ — xuất bản qua POST /book/publish
 Trạng thái trả ra: queued (đang chờ hàng đợi run_limited) | running | done | failed. Trạng thái bền (job.json) chỉ có running/done/failed;
 queued suy ra từ out.log. Không dùng shell: danh sách đối số đi thẳng vào Popen.
 """
@@ -294,6 +295,8 @@ def launch(kind: str, args: List[str], files: Optional[Dict[str, Any]] = None) -
         with open(os.path.join(job_dir, os.path.basename(name)), "w", encoding="utf-8") as fh:
             json.dump(content, fh, ensure_ascii=False)
     args = [os.path.join(job_dir, x[len(JOBDIR_TOKEN) + 1:]) if x.startswith(JOBDIR_TOKEN + "/") else x for x in args]
+    if kind == "book_build":   # sổ dựng xong nằm trong thư mục job; alphas/ chỉ đổi khi người dùng xuất bản (book_export.publish_book)
+        args += ["--out", os.path.join(job_dir, "alphas")]
     env = dict(os.environ, NORA_JOB_DIR=job_dir)
     # Khi API chạy từ user service, run_limited.sh cần bus của user session để gọi systemd-run --user.
     env.setdefault("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")

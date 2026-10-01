@@ -56,7 +56,7 @@ KPI_KEYS = {"nav", "nav_change_day", "nav_change_day_pct", "pnl_today", "pnl_mon
             "excess_pct", "sharpe", "sortino", "calmar", "mdd_pct", "dd_now_pct", "var95_1d", "var95_pct", "cvar95_1d",
             "spark_nav", "spark_ret", "spark_dd"}
 SERIES_KEYS = {"dates", "nav", "bench", "drawdown_pct", "daily_pnl", "rolling_sharpe_63"}
-RISK_KEYS = {"margin_used_pct", "exposure_gross_pct", "exposure_net_pct", "by_market", "cagr_pct", "vol_annual_pct", "win_days_pct",
+RISK_KEYS = {"margin_used_pct", "exposure_gross_pct", "exposure_net_pct", "by_market", "cagr_pct", "vol_annual_pct", "win_days_pct", "active_days",
              "profit_factor", "open_positions", "strategies_running"}
 STRAT_KEYS = {"id", "side", "status", "weight_pct", "pnl", "contribution_pct", "sharpe", "mdd_pct", "pnl_30d"}
 
@@ -110,6 +110,16 @@ def test_drawdown_and_nav_known_values():
     assert p["series"]["daily_pnl"] == [round(nav[0] - INIT, 2)] + [round(b - a, 2) for a, b in zip(nav, nav[1:])]
     assert p["kpis"]["pnl_today"] == round(nav[3] - nav[2], 2) and p["kpis"]["nav_change_day"] == p["kpis"]["pnl_today"]
     assert p["series"]["rolling_sharpe_63"] == [None] * 4
+
+
+def test_win_days_counts_only_days_with_pnl():
+    r = [0.02, 0.0, 0.0, -0.01, 0.0, 0.01, 0.0, 0.0]      # 3 ngày có lãi/lỗ (2 lãi, 1 lỗ), 5 ngày đứng ngoài thị trường
+    res, _ = make_result(r)
+    risk = pdash.build_dashboard(res, None, "ALL")["risk"]
+    assert risk["active_days"] == 3 and risk["win_days_pct"] == pytest.approx(66.7, abs=0.05)
+    flat, _ = make_result([0.0] * 5)
+    risk = pdash.build_dashboard(flat, None, "ALL")["risk"]
+    assert risk["active_days"] == 0 and risk["win_days_pct"] is None
 
 
 def test_var_cvar_sharpe_known_values():

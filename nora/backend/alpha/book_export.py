@@ -10,6 +10,7 @@ Cấu hình testnet mô tả ĐÚNG hành vi đã mô phỏng trong PortfolioEng
 """
 import json
 import os
+import shutil
 import time
 from typing import Any, Dict, List
 
@@ -100,3 +101,36 @@ def write_book(report: Dict[str, Any], out_dir: str, source: str, repo_dir: str 
         os.remove(testnet_path)
         print(f"holdout KHÔNG đạt: đã xoá {testnet_path} cũ (không cấp cấu hình testnet cho sổ trượt holdout).")
     return paths
+
+
+def publish_book(src_dir: str, dest_dir: str) -> Dict[str, Any]:
+    """Xuất bản một sổ đã dựng (src_dir/book.json [+ testnet/book.json]) sang dest_dir (thư mục alphas/ đang dùng).
+
+    Cùng quy tắc write_book: testnet/book.json CHỈ có khi sổ nguồn có (holdout đạt); nếu không thì xoá testnet/book.json cũ ở đích.
+    Ghi qua file tạm + os.replace nên người đọc không thấy file dở dang. Thiếu src_dir/book.json -> FileNotFoundError."""
+    src_book = os.path.join(src_dir, "book.json")
+    if not os.path.isfile(src_book):
+        raise FileNotFoundError(src_book)
+    src_testnet = os.path.join(src_dir, "testnet", "book.json")
+    dst_book = os.path.join(dest_dir, "book.json")
+    dst_testnet = os.path.join(dest_dir, "testnet", "book.json")
+
+    def _copy(src: str, dst: str) -> None:
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        tmp = dst + ".tmp"
+        shutil.copyfile(src, tmp)
+        os.replace(tmp, dst)
+
+    with open(src_book, encoding="utf-8") as fh:
+        book = json.load(fh)
+    _copy(src_book, dst_book)
+    written, removed = [dst_book], False
+    if os.path.isfile(src_testnet):
+        _copy(src_testnet, dst_testnet)
+        written.append(dst_testnet)
+    elif os.path.exists(dst_testnet):
+        os.remove(dst_testnet)
+        removed = True
+    return {"status": book.get("status"), "holdout_pass": book.get("holdout_pass"), "generated_at": book.get("generated_at"),
+            "strategies": [s.get("id") for s in book.get("strategies", [])], "written": written, "testnet_removed": removed}
+

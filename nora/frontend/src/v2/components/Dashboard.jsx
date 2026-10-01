@@ -102,7 +102,7 @@ function RiskPanel({ r }) {
       <div className="n-stats">
         <div><span className="k">CAGR</span><span className={`v ${signClass(r.cagr_pct)}`}>{fmtSPct(r.cagr_pct, 1)}</span></div>
         <div><span className="k">Biến động năm</span><span className="v">{fmtPct(r.vol_annual_pct, 1)}</span></div>
-        <div><span className="k">Tỉ lệ ngày lãi</span><span className="v">{fmtPct(r.win_days_pct, 1)}</span></div>
+        <div><span className="k">Tỉ lệ ngày lãi (ngày có giao dịch)</span><span className="v">{fmtPct(r.win_days_pct, 1)}</span></div>
         <div><span className="k">Profit factor</span><span className="v">{fmtNum(r.profit_factor)}</span></div>
         <div><span className="k">Vị thế mở</span><span className="v">{r.open_positions ?? '—'}</span></div>
         <div><span className="k">Chiến thuật đang chạy</span><span className="v">{r.strategies_running ?? '—'}</span></div>
@@ -166,7 +166,7 @@ export function DashboardView({ data }) {
   const dates = s.dates || []
   const nDays = dates.length
   const pl = (s.daily_pnl || []).filter(isNum)
-  const winDays = pl.length ? (pl.filter((x) => x > 0).length / pl.length) * 100 : null
+  const winDays = pl.length ? (pl.filter((x) => x > 0).length / (pl.filter((x) => x !== 0).length || 1)) * 100 : null
   const varPct = dist?.var95_pct
   const bench = source.benchmark || 'BTC@perp'
   return (
@@ -195,7 +195,7 @@ export function DashboardView({ data }) {
       </div>
 
       <div className="n-grid g-main-side">
-        <Panel title="Lãi/lỗ theo ngày" meta={<><span>Ngày lãi <b className="mono">{fmtPct(risk.win_days_pct ?? winDays, 1)}</b></span><span>Profit factor <b className="mono">{fmtNum(risk.profit_factor)}</b></span></>}>
+        <Panel title="Lãi/lỗ theo ngày" meta={<><span>Ngày lãi (ngày có giao dịch) <b className="mono">{fmtPct(risk.win_days_pct ?? winDays, 1)}</b>{isNum(risk.active_days) ? <span className="muted"> · {risk.active_days} ngày</span> : null}</span><span>Profit factor <b className="mono">{fmtNum(risk.profit_factor)}</b></span></>}>
           <BarsPosNeg dates={dates} values={s.daily_pnl || []} height={200} />
         </Panel>
         <Panel title="Phân phối lợi nhuận ngày" meta={<span>VaR 95% <b className="mono neg">{fmtSPct(varPct)}</b></span>}>
@@ -206,7 +206,8 @@ export function DashboardView({ data }) {
         </Panel>
       </div>
 
-      <div className="n-grid g-6-4">
+      {/* ít năm (heatmap thấp): xếp dọc để không có khoảng trống; từ 3 năm trở lên: heatmap + Sharpe cạnh nhau */}
+      <div className={`n-grid ${(monthly?.years || []).length >= 3 ? 'g-6-4' : ''}`} style={{ alignItems: 'start' }}>
         <Panel title="Lợi nhuận theo tháng" meta={<span>toàn bộ lịch sử, %</span>}>
           <HeatmapTable years={monthly?.years || []} />
         </Panel>
