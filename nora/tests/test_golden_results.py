@@ -53,3 +53,28 @@ def test_golden_portfolio_real(monkeypatch):
     finally:
         gs.clear_caches()
     _assert_identical(golden, fresh, "portfolio_real")
+
+
+def _flip_last_hex_digit(h):
+    """Đổi chữ số hex cuối của mantissa (sai lệch 1 ulp-cỡ-bit) — vẫn là chuỗi hex hợp lệ."""
+    head, _, exp = h.partition("p")
+    last = head[-1]
+    return head[:-1] + ("0" if last != "0" else "1") + "p" + exp
+
+
+def test_golden_comparison_detects_one_bit_perturbation():
+    """Chứng minh bộ so sánh KHÔNG mù: đổi 1 chữ số hex cuối của real_pnl một vị thế -> báo khác biệt đúng vị thế + trường."""
+    import copy
+    golden = _load("portfolio_synthetic")
+    fresh = copy.deepcopy(golden)
+    k = len(fresh["positions"]) // 2
+    pos = fresh["positions"][k]
+    old = pos["real_pnl"]
+    pos["real_pnl"] = _flip_last_hex_digit(old)
+    assert pos["real_pnl"] != old and float.fromhex(pos["real_pnl"]) != float.fromhex(old)
+    assert golden != fresh
+    diffs = gs.diff_canonical(golden, fresh)
+    assert diffs, "diff_canonical không thấy sai lệch"
+    assert any(f"position #{k} " in d and "real_pnl" in d and pos["symbol"] in d for d in diffs), diffs
+    with pytest.raises(pytest.fail.Exception, match=f"position #{k} .*real_pnl"):
+        _assert_identical(golden, fresh, "perturbed")

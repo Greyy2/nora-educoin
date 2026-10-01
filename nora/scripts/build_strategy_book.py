@@ -24,6 +24,9 @@ Bộ nhớ (mỗi worker là một tiến trình có cache riêng):
   --workers auto đọc cả giới hạn cgroup (systemd-run -p MemoryMax=...), không chỉ RAM trống của máy.
   BẮT BUỘC chạy dưới trần RAM: scripts/run_limited.sh -- scripts/build_strategy_book.py ...
   (không có trần cgroup thì script từ chối chạy, trừ khi NORA_ALLOW_UNLIMITED=1).
+  Dữ liệu dùng chung: trước mỗi pool, tiến trình CHA dựng một lần mảng giá + kernel + funding của cả vũ trụ vào
+  <run_dir>/_shared/ (backend/backtest/shared_data.py); worker chỉ np.load(mmap_mode="r") qua NORA_SHARED_DATA_DIR
+  -> RAM riêng (anon) mỗi worker nhỏ, trang file chỉ tính MỘT lần trong cgroup. Chạy xong thì xoá _shared (lỗi thì giữ lại).
   OMP_NUM_THREADS / OPENBLAS_NUM_THREADS / MKL_NUM_THREADS đặt = "1" nếu chưa có.
 """
 # ── Đặt TRƯỚC mọi import numpy/backend: tiến trình con kế thừa qua fork ──────
@@ -58,10 +61,11 @@ MDD_LIMIT = 30.0
 RUIN_MAX_PCT = 5.0
 RISK_SCALES = (0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 4.0)
 MAX_RISK_PER_TRADE = 2.0
-# Đo 01/10/2026: VmHWM 1280–1320 MB mỗi worker (8 tài sản perp, dev1 ≈ 14 tháng, cache 512/1024 MB) × 1,3 dự phòng.
+# Đo 01/10/2026 (dữ liệu dùng chung qua mmap, 8 tài sản perp, dev1 ≈ 14 tháng): VmHWM 560–590 MB mỗi worker (đã gồm trang mmap
+# dùng chung ~440 MB/giai đoạn; phần riêng ~150 MB) × 1,3 dự phòng. Trước khi dùng mmap: 1280–1320 MB (xem git log).
 # Đo lại bằng dòng `đỉnh RAM/worker`, ghi đè bằng --per-worker-mb khi kích thước dữ liệu hoặc ngân sách cache đổi;
 # trần cgroup (run_limited.sh) mới là rào cứng.
-PER_WORKER_MB = 1700
+PER_WORKER_MB = 800
 
 
 def windows(symbols):
@@ -99,23 +103,72 @@ def metrics(res, start_ts):
     }
 
 
-def run_book(job):
+def _make_engine(job):
     """job = (strategies [(candidate_id, params)], window (start, end), stop_fill, risk dict, risk_per_trade)."""
-    import contextlib
-    import io
     from backend.alpha.strategy_book import CANDIDATES, materialize, perp_symbols
     from backend.backtest.portfolio import PortfolioEngine, RiskConfig
-    from backend.utils.memwatch import peak_rss_mb
     items, (start, end), stop_fill, risk, rpt = job
     by_id = {c["id"]: c for c in CANDIDATES}
     strategies = [materialize(by_id[cid], prm, stop_fill=stop_fill, risk_per_trade_pct=rpt) for cid, prm in items]
-    eng = PortfolioEngine(perp_symbols(), strategies, start - WARMUP, end, trade_start_ts=start,
-                          risk=RiskConfig.from_dict(risk))
+    return PortfolioEngine(perp_symbols(), strategies, start - WARMUP, end, trade_start_ts=start,
+                           risk=RiskConfig.from_dict(risk)), start
+
+
+def run_book(job):
+    import contextlib
+    import io
+    from backend.utils.memwatch import peak_rss_mb, rss_anon_mb
+    eng, start = _make_engine(job)
     with contextlib.redirect_stdout(io.StringIO()):
         eng.run()
     result = metrics(eng.get_results(), start)
-    result["_peak_rss_mb"] = round(peak_rss_mb(), 1)  # đỉnh của tiến trình worker tới lúc này
+    result["_peak_rss_mb"] = round(peak_rss_mb(), 1)  # đỉnh (gồm trang mmap dùng chung) của tiến trình worker tới lúc này
+    result["_rss_anon_mb"] = round(rss_anon_mb(), 1)  # phần RAM riêng của worker (không gồm mmap dùng chung)
     return result
+
+
+def _export_shared(jobs, shared_dir, label):
+    """Tiến trình cha dựng MỘT lần dữ liệu của cả giai đoạn vào shared_dir (worker chỉ mmap). Trả các khoá đã dùng."""
+    import ctypes
+    import gc
+    from backend.backtest import shared_data
+    from backend.backtest.portfolio import data_cache_clear
+    from backend.core.loader import CandleLoader
+    t = time.time()
+    keys, written = set(), 0
+    for job in jobs:
+        eng, _ = _make_engine(job)
+        info = shared_data.export(eng, shared_dir)
+        keys.update(info["keys"].values())
+        written += len(info["written"])
+    CandleLoader.clear_cache()
+    data_cache_clear()
+    gc.collect()
+    try:
+        ctypes.CDLL("libc.so.6").malloc_trim(0)  # trả heap đã giải phóng về OS trước khi fork pool
+    except OSError:
+        pass
+    print(f"[shared] {label}: {written} bộ mới, {len(keys)} bộ, {_dir_mb(shared_dir, keys):.0f} MB ({time.time() - t:.0f}s)", flush=True)
+    return keys
+
+
+def _dir_mb(shared_dir, keys=None) -> float:
+    total = 0
+    names = keys if keys is not None else os.listdir(shared_dir) if os.path.isdir(shared_dir) else []
+    for name in names:
+        for base, _, files in os.walk(os.path.join(shared_dir, name)):
+            total += sum(os.path.getsize(os.path.join(base, fn)) for fn in files)
+    return total / 1048576
+
+
+def _pool_shared(jobs, workers, label, shared_dir):
+    """Export dữ liệu dùng chung -> pool -> xoá các bộ của giai đoạn này (đã chạy xong; lỗi thì ngoại lệ bay lên, giữ nguyên để gỡ lỗi)."""
+    import shutil
+    keys = _export_shared(jobs, shared_dir, label)
+    res = _pool_map_safe(run_book, jobs, workers, label)
+    for k in keys:
+        shutil.rmtree(os.path.join(shared_dir, k), ignore_errors=True)
+    return res
 
 
 def configs(candidate, n, seed):
@@ -148,12 +201,15 @@ def bootstrap(daily, scale, n=4000, block=5, horizon=365, seed=1):
 
 
 def _strip(m):
-    return {k: v for k, v in m.items() if k not in ("daily", "_peak_rss_mb")}
+    return {k: v for k, v in m.items() if k not in ("daily", "_peak_rss_mb", "_rss_anon_mb")}
 
 
 def _peak(results) -> str:
     peaks = [r.get("_peak_rss_mb", 0.0) for r in results if r]
-    return f"đỉnh RAM/worker {max(peaks):.0f} MB" if peaks else "đỉnh RAM/worker ?"
+    anon = [r.get("_rss_anon_mb", 0.0) for r in results if r]
+    if not peaks:
+        return "đỉnh RAM/worker ?"
+    return f"đỉnh RAM/worker {max(peaks):.0f} MB (riêng {max(anon):.0f} MB + mmap dùng chung)"
 
 
 # Bản dùng chung nằm ở backend.utils.parallel; giữ tên cũ để code/test hiện có không đổi.
@@ -198,6 +254,8 @@ def main(argv=None):
     eval_risk = {**RISK, "kill_switch_dd_pct": 0}
     run_dir = cache_dir(None, "book", time.strftime("%Y%m%d_%H%M%S"))
     report = {"windows": {k: fmt(v) for k, v in w.items()}, "gates": GATES, "risk": RISK, "candidates": {}}
+    shared_dir = os.path.join(run_dir, "_shared")
+    os.environ["NORA_SHARED_DATA_DIR"] = shared_dir  # đặt TRƯỚC khi tạo pool (fork kế thừa); PortfolioEngine đọc biến này
 
     # ── A. dev1 — MỖI CHIẾN LƯỢC DÙNG POOL RIÊNG → xả cache khi xong ────────
     t0 = time.time()
@@ -206,7 +264,7 @@ def main(argv=None):
         cfgs = configs(c, a.n, a.seed)
         jobs = [([(c["id"], cfg)], (w["start"], w["dev1_end"]), "level", eval_risk, BASE_RISK_PER_TRADE_PCT) for cfg in cfgs]
         # Pool mới cho mỗi chiến lược: khi pool đóng, tiến trình con bị thu hồi → RAM giải phóng
-        ms = _pool_map_safe(run_book, jobs, workers, f"[A] {c['id']}")
+        ms = _pool_shared(jobs, workers, f"[A] {c['id']}", shared_dir)
         rows = sorted(
             ({"params": cfg, "dev1": m, "score": score(m, GATES)[0]} for cfg, m in zip(cfgs, ms)),
             key=lambda r: -r["score"],
@@ -231,7 +289,7 @@ def main(argv=None):
             continue
         jobs = [([(cid, top[rank]["params"])], (w["dev1_end"], w["dev2_end"]), sf, eval_risk, BASE_RISK_PER_TRADE_PCT)
                 for cid, rank, sf in keys]
-        res_c = _pool_map_safe(run_book, jobs, workers, f"[B] {c['id']}")
+        res_c = _pool_shared(jobs, workers, f"[B] {c['id']}", shared_dir)
         out.update(zip(keys, res_c))
         print(f"[B] {c['id']:18s} {len(jobs)} lần chạy dev2 xong ({time.time() - t0:.0f}s | {_peak(res_c)})", flush=True)
 
@@ -269,11 +327,9 @@ def main(argv=None):
         print("\nKHÔNG có chiến lược nào đạt — không tạo sổ (không nới gate).")
     else:
         items = [(cid, prm) for cid, prm, _ in accepted]
-        base_dev2 = _pool_map_safe(
-            run_book,
+        base_dev2 = _pool_shared(
             [(items, (w["dev1_end"], w["dev2_end"]), sf, RISK, BASE_RISK_PER_TRADE_PCT) for sf in ("level", "extreme")],
-            workers,
-            "[C] base_dev2",
+            workers, "[C] base_dev2", shared_dir,
         )
         sizing = {str(s): bootstrap(base_dev2[1]["daily"], s) for s in RISK_SCALES}
         ok_scales = [s for s in RISK_SCALES if sizing[str(s)]["p_mdd_ge_30_pct"] <= RUIN_MAX_PCT]
@@ -291,7 +347,7 @@ def main(argv=None):
             fin_jobs = [(items, win, sf, RISK, rpt)
                         for win in ((w["dev1_end"], w["dev2_end"]), (w["dev2_end"], w["end"]))
                         for sf in ("level", "extreme")]
-            res = _pool_map_safe(run_book, fin_jobs, workers, "[D] holdout")
+            res = _pool_shared(fin_jobs, workers, "[D] holdout", shared_dir)
             final = {"dev2_level": _strip(res[0]), "dev2_extreme": _strip(res[1]),
                      "holdout_level": _strip(res[2]), "holdout_extreme": _strip(res[3])}
             for k in ("dev2_level", "dev2_extreme", "holdout_level", "holdout_extreme"):
@@ -306,6 +362,12 @@ def main(argv=None):
             "holdout_pass": bool(final) and final["holdout_level"]["ret_pct"] > 0
             and final["holdout_level"]["mdd_pct"] <= MDD_LIMIT and final["holdout_extreme"]["mdd_pct"] <= MDD_LIMIT,
         }
+
+    # Chạy xong thành công: xoá dữ liệu dùng chung (lỗi/ngoại lệ thì không tới đây -> còn nguyên để gỡ lỗi)
+    if os.path.isdir(shared_dir):
+        import shutil
+        print(f"[shared] xoá {shared_dir} ({_dir_mb(shared_dir):.0f} MB còn lại; mỗi giai đoạn đã tự dọn bộ của nó)", flush=True)
+        shutil.rmtree(shared_dir, ignore_errors=True)
 
     # Ghi báo cáo cuối
     with open(os.path.join(run_dir, "report.json"), "w", encoding="utf-8") as fh:

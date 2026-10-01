@@ -77,6 +77,8 @@ class BacktestEngine:
     MAX_STRATEGIES = 100
     KELTNER_CONFIGS = ((17, 0.5), (20, 1.5))
     MTM_SAMPLE_MINUTES = 60
+    # Bỏ qua nến "rảnh" (không vị thế mở, không lệnh chờ, không tín hiệu vào) — kết quả BIT-IDENTICAL (test golden + test bật/tắt).
+    _SKIP_IDLE = True
 
     def __init__(self, account_id: int, campaign_id: int, symbol: str, start_ts: int, end_ts: int,
                  trade_start_ts: Optional[int] = None, initial_capital: float = 10000.0):
@@ -244,9 +246,36 @@ class BacktestEngine:
         f_times = self.funding["funding_time"].to_numpy(dtype="int64") if self.funding is not None else np.array([], "int64")
         f_rates = self.funding["rate"].to_numpy(dtype="float64") if self.funding is not None else np.array([])
         f_idx = 0
-        for i in range(n):
-            if filled[i]:
-                continue
+        real_pos = np.flatnonzero(~filled)  # chỉ nến có giao dịch (nến điền is_filled=1 bị bỏ qua hoàn toàn)
+        n_real = len(real_pos)
+        rt = t_arr[real_pos]
+        skip = self._SKIP_IDLE and self.bar_hook is None   # bar_hook (test) cần kiểm bất biến mỗi nến
+        if skip:
+            # Nến có tín hiệu vào của BẤT KỲ flow nào, từ trade_start_ts (trước đó on_bar không làm gì khi phẳng)
+            sig_any = np.zeros(n, dtype=bool)
+            for match, _ in signals:
+                sig_any |= match
+            cand = np.flatnonzero(sig_any[real_pos] & (rt >= self.trade_start_ts))
+        busy = False  # nến trước còn flow mở / lệnh chờ?
+        step = self.MTM_SAMPLE_MINUTES * 60_000
+        r = 0
+        while r < n_real:
+            if skip and not busy and not any(tr.is_open or tr.pending_entry or tr.pending_exit for tr in self.trackers):
+                k = int(np.searchsorted(cand, r))
+                land = int(cand[k]) if k < len(cand) else n_real
+                if land > r:  # r..land-1: phẳng, không tín hiệu -> chỉ còn mẫu vốn theo giờ (funding no-op khi phẳng;
+                    # f_idx sẽ trượt tại nến đáp xuống, lúc đó mọi flow vẫn phẳng nên không trả funding)
+                    last_real = int(real_pos[land - 1])
+                    j = r if last_sample is None else int(np.searchsorted(rt, last_sample + step, side="left"))
+                    while j < land:
+                        ij = int(real_pos[j])
+                        self._sample_equity(int(rt[j]), c_arr[ij], l_arr[ij], h_arr[ij])
+                        last_sample = int(rt[j])
+                        j = int(np.searchsorted(rt, last_sample + step, side="left"))
+                    r = land
+                    continue
+            i = int(real_pos[r])
+            r += 1
             last_real = i
             t = int(t_arr[i])
             while f_idx < len(f_times) and f_times[f_idx] <= t:  # funding đến hạn trước/ tại nến này
@@ -256,6 +285,7 @@ class BacktestEngine:
             can_trade = t >= self.trade_start_ts
             open_now = sum(1 for tr in self.trackers if tr.is_open)
             closed_any = False
+            busy = False
             for k, tracker in enumerate(self.trackers):
                 match, stop = signals[k]
                 pos = tracker.on_bar(t, o_arr[i], h_arr[i], l_arr[i], c_arr[i],
@@ -263,6 +293,8 @@ class BacktestEngine:
                                      stop_signal=bool(stop[i]),
                                      can_open=can_trade and open_now < max_open[k],
                                      vol=float(vols[k][i]) if vols[k] is not None else float("nan"))
+                if tracker.is_open or tracker.pending_entry:
+                    busy = True
                 if pos is not None:
                     self._collect(tracker, pos)
                     closed_any = True
@@ -270,7 +302,7 @@ class BacktestEngine:
                         self.ruined_at = t
             if self.bar_hook is not None:
                 self.bar_hook(self, t)
-            if closed_any or last_sample is None or t - last_sample >= self.MTM_SAMPLE_MINUTES * 60_000:
+            if closed_any or last_sample is None or t - last_sample >= step:
                 self._sample_equity(t, c_arr[i], l_arr[i], h_arr[i])
                 last_sample = t
 

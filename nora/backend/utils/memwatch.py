@@ -28,6 +28,11 @@ def rss_mb() -> float:
     return _status_mb("VmRSS")
 
 
+def rss_anon_mb() -> float:
+    """RssAnon (MB): phần RAM RIÊNG của tiến trình (heap), không gồm trang file mmap dùng chung (RssFile)."""
+    return _status_mb("RssAnon")
+
+
 def peak_rss_mb() -> float:
     """VmHWM (MB): RSS lớn nhất từ khi tiến trình khởi động — số dùng để đặt ngân sách mỗi worker."""
     return _status_mb("VmHWM")

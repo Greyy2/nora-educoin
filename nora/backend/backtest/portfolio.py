@@ -17,11 +17,13 @@ nên ngữ nghĩa từng vị thế giống hệt backtest đơn tài sản (tes
 """
 import contextlib
 import io
+import os
 from dataclasses import asdict, dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
+from backend.backtest import shared_data
 from backend.backtest.engine import BacktestEngine
 from backend.backtest.execution import CapitalLedger, PositionTracker
 from backend.core.evaluator import VectorEvaluator, lag_key
@@ -58,11 +60,16 @@ def _strategy_flow(strategy: Dict[str, Any]) -> Dict[str, Any]:
 
 class PortfolioEngine:
     MTM_SAMPLE_MINUTES = 60
+    # Bỏ qua phút "rảnh" (không vị thế mở, không lệnh chờ, không tín hiệu vào) — kết quả BIT-IDENTICAL (test golden + test bật/tắt).
+    _SKIP_IDLE = True
 
     def __init__(self, symbols: List[str], strategies: List[Dict[str, Any]], start_ts: int, end_ts: int,
                  trade_start_ts: Optional[int] = None, initial_capital: float = 10000.0,
-                 risk: Optional[RiskConfig] = None, venue: str = "cex", use_cache: bool = True):
-        """strategies: [{"id", "side": LONG|SHORT, "tree": AST đã thay tham số, "position": {...POSITION_KEYS}}]."""
+                 risk: Optional[RiskConfig] = None, venue: str = "cex", use_cache: bool = True,
+                 shared_dir: Optional[str] = None):
+        """strategies: [{"id", "side": LONG|SHORT, "tree": AST đã thay tham số, "position": {...POSITION_KEYS}}].
+        shared_dir: thư mục dữ liệu mmap dùng chung (backend/backtest/shared_data.py); mặc định env NORA_SHARED_DATA_DIR.
+        Có thì _load_symbol ưu tiên đọc mmap (chỉ đọc) thay vì tự dựng; không thấy khoá thì dựng như cũ."""
         if not symbols or not strategies:
             raise ValueError("Cần ít nhất một tài sản và một chiến lược")
         ids = [s["id"] for s in strategies]
@@ -76,6 +83,7 @@ class PortfolioEngine:
         self.risk = risk or RiskConfig()
         self.venue = venue
         self.use_cache = use_cache
+        self.shared_dir = shared_dir or os.environ.get("NORA_SHARED_DATA_DIR") or None
         self.ledger = CapitalLedger(self.initial_capital)
         self.books: List[Dict[str, Any]] = []   # mỗi tài sản: dữ liệu + trackers
         self.closed_positions: List[Any] = []
@@ -100,19 +108,24 @@ class PortfolioEngine:
             pairs.append((st, eng.trackers[-1]))
         return eng, pairs
 
-    def _load_symbol(self, symbol: str, eng: BacktestEngine) -> Dict[str, Any]:
-        refs = eng._refs_by_frame()
-        key = (symbol, self.start_ts, self.end_ts, tuple(sorted((f, tuple(sorted(r))) for f, r in refs.items())),
-               any(tr.market == "perp" for tr in eng.trackers))
-        if self.use_cache:
-            cached = _DATA_CACHE.get(key)
-            if cached is not None:
-                return cached
+    @staticmethod
+    def _refs_signature(eng: BacktestEngine):
+        return tuple(sorted((f, tuple(sorted(r))) for f, r in eng._refs_by_frame().items()))
+
+    def _cache_key(self, symbol: str, eng: BacktestEngine) -> tuple:
+        return (symbol, self.start_ts, self.end_ts, self._refs_signature(eng), any(tr.market == "perp" for tr in eng.trackers))
+
+    def _shared_key(self, symbol: str, eng: BacktestEngine) -> Optional[str]:
+        sym, start, end, refs, perp = self._cache_key(symbol, eng)
+        return shared_data.data_key(sym, start, end, refs, perp)
+
+    def _build_symbol_data(self, eng: BacktestEngine) -> Dict[str, Any]:
+        """Dựng `data` của một tài sản (nến thật 1m + cột kernel + funding), không đụng cache."""
         with contextlib.redirect_stdout(io.StringIO()):
             eng.load_data()
         df1, cols = eng._build_matrix()
         real = df1["is_filled"].to_numpy() == 0
-        data = {
+        return {
             "t": df1["open_time"].to_numpy(dtype="int64")[real],
             "o": df1["open"].to_numpy(dtype="float64")[real], "h": df1["high"].to_numpy(dtype="float64")[real],
             "l": df1["low"].to_numpy(dtype="float64")[real], "c": df1["close"].to_numpy(dtype="float64")[real],
@@ -120,6 +133,19 @@ class PortfolioEngine:
             "f_t": eng.funding["funding_time"].to_numpy(dtype="int64") if eng.funding is not None else np.array([], "int64"),
             "f_r": eng.funding["rate"].to_numpy(dtype="float64") if eng.funding is not None else np.array([]),
         }
+
+    def _load_symbol(self, symbol: str, eng: BacktestEngine) -> Dict[str, Any]:
+        if self.shared_dir:  # mmap chỉ đọc do tiến trình cha dựng — KHÔNG đưa vào _DATA_CACHE (không nhân bản RAM)
+            skey = self._shared_key(symbol, eng)
+            shared = shared_data.load(self.shared_dir, skey) if skey else None
+            if shared is not None:
+                return shared
+        key = self._cache_key(symbol, eng)
+        if self.use_cache:
+            cached = _DATA_CACHE.get(key)
+            if cached is not None:
+                return cached
+        data = self._build_symbol_data(eng)
         if self.use_cache:
             arrays = [data[k] for k in ("t", "o", "h", "l", "c", "f_t", "f_r")] + list(data["cols"].values())
             _DATA_CACHE.put(key, data, sum(a.nbytes for a in arrays))
@@ -178,10 +204,33 @@ class PortfolioEngine:
         cap = self.risk.max_gross_exposure
         kill = self.risk.kill_switch_dd_pct / 100.0 if self.risk.kill_switch_dd_pct else 0.0
 
-        for g in range(len(grid)):
+        n_grid = len(grid)
+        skip = self._SKIP_IDLE and self.bar_hook is None   # bar_hook (test) cần kiểm bất biến mỗi phút
+        if skip:
+            # Phút có tín hiệu vào của BẤT KỲ chiến lược × tài sản nào, tính từ trade_start_ts (trước đó on_bar không làm gì)
+            sig_any = np.zeros(n_grid, dtype=bool)
+            for book in self.books:
+                pos = np.searchsorted(grid, book["data"]["t"])
+                for e in book["entries"]:
+                    sig_any[pos] |= e["match"]
+            cand = np.flatnonzero(sig_any & (grid >= self.trade_start_ts))
+        busy = False  # vòng trước còn tracker mở / lệnh chờ?
+
+        g = 0
+        while g < n_grid:
+            if skip and not busy and not self._any_active():
+                land = n_grid if self.halted_at is not None else (
+                    int(cand[np.searchsorted(cand, g)]) if np.searchsorted(cand, g) < len(cand) else n_grid)
+                if land > g:  # g..land-1: không có gì xảy ra ngoài funding trượt, last_*, mẫu vốn theo giờ
+                    peak_mtm = max(peak_mtm, self.ledger.equity)
+                    last_sample = self._skip_idle(grid, idx_maps, g, land, last_sample, last_close, last_low, last_high,
+                                                  last_open)
+                    g = land
+                    continue
             t = int(grid[g])
             can_trade = t >= self.trade_start_ts and self.halted_at is None
             touched = False
+            busy = False
             for b, book in enumerate(self.books):
                 i = idx_maps[b][g]
                 if i < 0:
@@ -213,12 +262,15 @@ class PortfolioEngine:
                                     can_open=can_open,
                                     vol=float(e["vol"][i]) if e["vol"] is not None else float("nan"))
                     tr.max_new_notional = float("inf")
+                    if tr.is_open or tr.pending_entry:
+                        busy = True
                     if pos is not None:
                         self._collect(book["symbol"], e, pos)
                         if self.ledger.equity <= 0 and self.ruined_at is None:
                             self.ruined_at = t
                 last_close[b], last_low[b], last_high[b], last_open[b] = float(c), float(l), float(h), float(o)
                 touched = True
+            g += 1
             if not touched:
                 continue
             if self.bar_hook is not None:
@@ -241,6 +293,35 @@ class PortfolioEngine:
                     self._collect(book["symbol"], e, pos)
         mtm, worst = self._mtm(last_close, last_low, last_high)
         self._sample(t_end, mtm, worst)
+
+    def _any_active(self) -> bool:
+        return any(e["tracker"].is_open or e["tracker"].pending_entry or e["tracker"].pending_exit
+                   for book in self.books for e in book["entries"])
+
+    def _skip_idle(self, grid, idx_maps, g: int, land: int, last_sample, last_close, last_low, last_high, last_open):
+        """Tái hiện đúng những gì vòng lặp gốc làm ở các phút rảnh g..land-1 (mọi tracker đang phẳng):
+        - funding: con trỏ f_idx của từng sổ trượt qua mọi funding <= nến cuối của sổ đó trong đoạn (apply_funding là no-op khi phẳng);
+        - last_close/low/high/open: nến thật cuối của từng sổ trước `land`;
+        - mẫu vốn theo giờ: đúng các thời điểm lưới mà vòng gốc sẽ lấy (t - last_sample >= MTM_SAMPLE_MINUTES), vốn = ledger.equity."""
+        t_lo, t_hi = int(grid[g]), int(grid[land]) if land < len(grid) else None
+        for b, book in enumerate(self.books):
+            d = book["data"]
+            lo = int(np.searchsorted(d["t"], t_lo, side="left"))
+            hi = len(d["t"]) if t_hi is None else int(np.searchsorted(d["t"], t_hi, side="left"))
+            if hi <= lo:
+                continue
+            i = hi - 1
+            book["f_idx"] = max(book["f_idx"], int(np.searchsorted(d["f_t"], d["t"][i], side="right")))
+            last_close[b], last_low[b], last_high[b], last_open[b] = (
+                float(d["c"][i]), float(d["l"][i]), float(d["h"][i]), float(d["o"][i]))
+        step = self.MTM_SAMPLE_MINUTES * 60_000
+        k = g if last_sample is None else int(np.searchsorted(grid, last_sample + step, side="left"))
+        while k < land:
+            mtm, worst = self._mtm(last_close, last_low, last_high)  # phẳng: = vốn đã chốt
+            last_sample = int(grid[k])
+            self._sample(last_sample, mtm, worst)
+            k = int(np.searchsorted(grid, last_sample + step, side="left"))
+        return last_sample
 
     def _mtm(self, last_close, last_low, last_high) -> Tuple[float, float]:
         mtm = worst = self.ledger.equity

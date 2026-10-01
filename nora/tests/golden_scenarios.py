@@ -246,7 +246,8 @@ def real_data_available(data_root) -> bool:
                for s in REAL_SYMBOLS)
 
 
-def scenario_portfolio_real(data_root, end: Optional[str] = None) -> Dict[str, Any]:
+def scenario_portfolio_real(data_root, end: Optional[str] = None, shared_dir: Optional[str] = None) -> Dict[str, Any]:
+    """shared_dir: nếu có, export dữ liệu mmap vào đó rồi chạy bằng PortfolioEngine(shared_dir=...) (kết quả phải y hệt)."""
     from backend.alpha import strategy_book as sb
     from backend.backtest.portfolio import PortfolioEngine, RiskConfig
     cand = {c["id"]: c for c in sb.CANDIDATES}
@@ -260,6 +261,10 @@ def scenario_portfolio_real(data_root, end: Optional[str] = None) -> Dict[str, A
     end_ms = int(pd.Timestamp(end or REAL_END, tz="UTC").timestamp() * 1000)
     with data_root_env(str(data_root)):
         eng = PortfolioEngine(REAL_SYMBOLS, strategies, REAL_START_MS - REAL_WARMUP_DAYS * DAY, end_ms,
-                              trade_start_ts=REAL_START_MS, risk=risk)
+                              trade_start_ts=REAL_START_MS, risk=risk, shared_dir=shared_dir)
+        if shared_dir:
+            from backend.backtest import shared_data
+            shared_data.export(eng, shared_dir)
+            clear_caches()
         eng.run()
         return canonicalize(eng.get_results())
