@@ -196,6 +196,8 @@ class WfaResultContract(BaseModel):
     gate_checks: Dict[str, Any]
     aggregate_oos_trades: List[Dict[str, Any]]
     aggregate_oos_equity: List[Dict[str, Any]]
+    aggregate_oos_daily_returns: List[float] = Field(
+        default_factory=list, description="Lợi suất ngày mark-to-market của OOS (fold TRADED, theo thời gian) — nguồn Monte Carlo basis=daily")
     generated_at: int
 
 
@@ -214,6 +216,8 @@ class MonteCarloRunRequest(BaseModel):
     block_size: int = Field(1, ge=1, le=50, description="Kích thước block bootstrap (1 = trade độc lập)")
     seed: Optional[int] = Field(None, description="Random seed để tái lập kết quả")
     max_ruin_pct: float = Field(5.0, ge=0.0, le=100.0, description="Xác suất ruin tối đa (%) để coi là robust")
+    basis: Literal["daily", "trades"] = Field(
+        "daily", description="daily = bootstrap lợi suất ngày MTM của OOS (cần source_wfa_id); trades = bootstrap lệnh đã đóng")
 
 
 class MonteCarloResultContract(BaseModel):
@@ -236,4 +240,5 @@ class MonteCarloResultContract(BaseModel):
     robust_passed: bool = Field(False, description="True chỉ khi nguồn đã qua WFA gate VÀ risk_of_ruin_pct <= max_ruin_pct")
     robust_checks: Dict[str, Any] = Field(default_factory=dict)
     summary: Dict[str, Any]
+    basis: str = Field("trades", description="daily | trades: đơn vị được bootstrap; job cũ không có trường này = trades")
     generated_at: int

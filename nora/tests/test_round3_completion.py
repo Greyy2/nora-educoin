@@ -141,7 +141,9 @@ def test_wfa_then_mc_end_to_end_on_clean_data(clean_asset):
     mc_job = _wait_mc(mc["job_id"])
     assert mc_job["status"] == "completed", mc_job.get("error")
     assert mc_job["result"]["source_gate_passed"] is res["acceptance_gate_passed"]
+    # OOS chỉ ~24 ngày (< 30 điểm ngày) -> basis=daily tự lùi về lệnh đã đóng, có ghi chú
     assert mc_job["result"]["trades_count"] == len(ids)
+    assert mc_job["result"]["basis"] == "trades" and "basis_note" in mc_job["result"]["summary"]
 
 
 # ─── 2. Monte Carlo: ưu tiên nguồn lệnh ─────────────────────────────────────

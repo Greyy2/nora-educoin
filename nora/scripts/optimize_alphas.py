@@ -8,7 +8,8 @@ Chia dữ liệu mỗi tài sản theo thời gian (không giai đoạn nào nh�
 1. Sàng lọc (dev1): thử N cấu hình lấy mẫu ngẫu nhiên (seed cố định) trong không gian tối ưu.
    Giữ cấu hình có lãi, MDD mark-to-market <= 30%, đủ số lệnh; lấy top-K theo lãi/MDD.
 2. WFA (dev2): mỗi fold chọn cấu hình tốt nhất trong top-K trên IS, kiểm trên OOS kế tiếp.
-3. Monte Carlo trên lệnh OOS của WFA: xác suất cháy (MDD >= 30%) <= 5%.
+3. Monte Carlo trên lợi suất NGÀY mark-to-market của OOS (block 5, 2000 mô phỏng): xác suất cháy (MDD >= 30%) <= 5%.
+   (kết quả theo lệnh đã đóng chỉ ghi lại làm tham chiếu: mc_trades)
 4. Holdout (20% cuối, chưa ai chạm): chạy cấu hình được WFA chọn nhiều nhất.
 ALPHA = qua gate WFA + MC + holdout có lãi và MDD <= 30%. Không có thì báo thẳng là không có.
 
@@ -119,13 +120,32 @@ def windows(manifest, venue):
     return {"start": start, "dev1_end": dev1_end, "holdout": holdout, "end": end}
 
 
+def monte_carlo_gate(wfa_result, sims=2000, block=5, seed=7):
+    """-> (mc, mc_trades) từ kết quả WFA. `mc` (cổng ruin) = bootstrap lợi suất ngày MTM OOS, basis="daily";
+    `mc_trades` = bootstrap lệnh đã đóng (tham chiếu, không dùng làm cổng). Ít hơn 30 điểm -> ruin None."""
+    from backend.studio_pipeline.monte_carlo import run_monte_carlo
+
+    def pack(mc, basis):
+        return {"basis": basis, "risk_of_ruin_pct": mc["risk_of_ruin_pct"], "mdd_p95": mc["percentile_mdd"].get("p95"),
+                "terminal_p50": mc["terminal_return_pct"]["p50"], "terminal_p10": mc["terminal_return_pct"]["p10"],
+                "n": mc["trades_count"]}
+
+    def run(rows, basis):
+        if len(rows) < 30:
+            return {"basis": basis, "risk_of_ruin_pct": None, "n": len(rows), "note": "ít hơn 30 điểm"}
+        return pack(run_monte_carlo(rows, simulations=sims, initial_capital=10000.0, ruin_threshold_pct=MAX_MDD,
+                                    block_size=block, seed=seed), basis)
+
+    daily = [{"pnl_pct": float(r) * 100.0} for r in wfa_result.get("aggregate_oos_daily_returns") or []]
+    return run(daily, "daily"), run(wfa_result.get("aggregate_oos_trades") or [], "trades")
+
+
 def _run_pair(space_id, symbol, n, seed, db_path):
     os.environ["NORA_PIPELINE_DB_PATH"] = db_path
     from backend.alpha.strategy_library import OPTIMIZATION_SPACES
     from backend.backtest.params_builder import data_symbol
     from backend.db.local_pkl import read_manifest
     from backend.studio_pipeline.jobs import create_wfa_job, get_wfa_job, init_db
-    from backend.studio_pipeline.monte_carlo import run_monte_carlo
     from backend.studio_pipeline.schemas import StrategySnapshot, WfaFoldConfig
     from backend.studio_pipeline.wfa import _run_single_window, execute_wfa_pipeline
 
@@ -188,15 +208,8 @@ def _run_pair(space_id, symbol, n, seed, db_path):
                                         "worst_fold_mdd_pct", "acceptance_gate_passed", "param_stability", "wfe")}
     out["wfa"]["gate_checks"] = {k: v["passed"] for k, v in res["gate_checks"].items()}
 
-    # 3. Monte Carlo trên lệnh OOS
-    trades = res["aggregate_oos_trades"]
-    if len(trades) >= 30:
-        mc = run_monte_carlo(trades, simulations=2000, initial_capital=10000.0, ruin_threshold_pct=MAX_MDD,
-                             block_size=5, seed=7)
-        out["mc"] = {"risk_of_ruin_pct": mc["risk_of_ruin_pct"], "mdd_p95": mc["percentile_mdd"].get("p95"),
-                     "terminal_p50": mc["terminal_return_pct"]["p50"], "terminal_p10": mc["terminal_return_pct"]["p10"]}
-    else:
-        out["mc"] = {"risk_of_ruin_pct": None, "note": "ít hơn 30 lệnh OOS"}
+    # 3. Monte Carlo: cổng chính trên lợi suất NGÀY MTM của OOS (gồm lỗ treo); kết quả theo lệnh đã đóng giữ để tham chiếu
+    out["mc"], out["mc_trades"] = monte_carlo_gate(res)
 
     # 4. Holdout với cấu hình WFA chọn nhiều nhất
     keys = sorted(top[0])

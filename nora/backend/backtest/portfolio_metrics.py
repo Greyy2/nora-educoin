@@ -10,6 +10,21 @@ import pandas as pd
 MDD_LIMIT = 30.0
 
 
+def daily_returns_from_curve(curve_rows, start_ts, initial_capital):
+    """Lợi suất ngày MTM (vốn đóng cửa mỗi ngày UTC) từ đường vốn `curve_rows` (list dict time/equity/...),
+    chỉ lấy điểm có time >= start_ts, nối từ vốn ban đầu. Dùng chung cho danh mục, WFA đơn tài sản và Monte Carlo ngày."""
+    curve = pd.DataFrame(curve_rows)
+    if curve.empty:
+        return []
+    curve = curve[curve["time"] >= start_ts]
+    if curve.empty:
+        return []
+    s = pd.Series(curve["equity"].to_numpy(), index=pd.to_datetime(curve["time"], unit="ms"))
+    daily = s.resample("1D").last().ffill()
+    daily = pd.concat([pd.Series([initial_capital], index=[daily.index[0] - pd.Timedelta(days=1)]), daily]).pct_change().dropna()
+    return [float(x) for x in daily.to_numpy()]
+
+
 def portfolio_metrics(res, start_ts):
     """Số đo của `res` (PortfolioEngine.get_results()) từ `start_ts` trở đi (bỏ phần warmup).
     `daily` = lợi suất ngày theo vốn MTM (đóng cửa), nối từ vốn ban đầu; ngày lấy theo UTC."""
@@ -20,9 +35,7 @@ def portfolio_metrics(res, start_ts):
     init = res["initial_capital"]
     peak = np.maximum.accumulate(np.r_[init, eq])[1:]
     mdd = float(np.max((peak - np.minimum(eq, worst)) / peak) * 100) if len(eq) else 0.0
-    s = pd.Series(eq, index=pd.to_datetime(curve["time"], unit="ms"))
-    daily = s.resample("1D").last().ffill()
-    daily = pd.concat([pd.Series([init], index=[daily.index[0] - pd.Timedelta(days=1)]), daily]).pct_change().dropna()
+    daily = pd.Series(daily_returns_from_curve(res["equity_curve"], start_ts, init), dtype=float)
     sharpe = float(daily.mean() / daily.std() * np.sqrt(365)) if daily.std() > 0 else 0.0
     by_sym = {k.split("@")[0]: round(v["pnl_usd"], 2) for k, v in res["by_symbol"].items()}
     return {

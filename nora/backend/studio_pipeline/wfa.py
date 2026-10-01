@@ -4,7 +4,8 @@ Thực hiện:
 - Tự động chia cửa sổ trượt In-Sample (Train) và Out-of-Sample (Test) không chồng lấp.
 - Tối ưu tham số trên In-Sample (Train) và test cố định trên Out-of-Sample (Test).
 - Đánh giá tiêu chí Acceptance Gate (min folds, min positive ratio, min trades, max MDD, compounded return).
-- Xuất danh sách lệnh OOS tổng hợp (aggregate_oos_trades) cho Monte Carlo.
+- Xuất danh sách lệnh OOS tổng hợp (aggregate_oos_trades) và chuỗi lợi suất NGÀY mark-to-market của OOS
+  (aggregate_oos_daily_returns, gồm lỗ chưa chốt) cho Monte Carlo.
 """
 import itertools
 import os
@@ -108,7 +109,8 @@ def _run_single_window(
 
     engine.load_data()
     if engine.df_1m is None or engine.df_1m.empty:
-        return {"return_pct": 0.0, "max_drawdown_pct": 0.0, "total_trades": 0, "win_rate": 0.0, "profit_factor": 0.0}, []
+        return {"return_pct": 0.0, "max_drawdown_pct": 0.0, "total_trades": 0, "win_rate": 0.0, "profit_factor": 0.0,
+                "daily_returns": []}, []
 
     engine.run()
     res = engine.get_results()
@@ -142,6 +144,11 @@ def _run_single_window(
             "reason": str(pos.close_reason or pos.start_reason or ""),
         })
 
+    # Lợi suất ngày MTM chỉ từ trade_start_ts (bỏ warmup), cùng công thức với số đo danh mục
+    from backend.backtest.portfolio_metrics import daily_returns_from_curve
+    daily_returns = daily_returns_from_curve(
+        res.get("equity_curve") or [], trade_start_ts if trade_start_ts is not None else start_ts, initial_capital)
+
     summary = {
         "return_pct": return_pct,
         "max_drawdown_pct": mdd_pct,
@@ -156,6 +163,7 @@ def _run_single_window(
         "funding_modeled": bool(res.get("funding_modeled")),
         "rejected_for_capital": int(res.get("rejected_for_capital", 0) or 0),
         "avg_layers": round(sum(int(getattr(p, "layers", 1) or 1) for p in positions) / len(positions), 3) if positions else 0.0,
+        "daily_returns": daily_returns,
     }
     return summary, trade_items
 
@@ -316,6 +324,7 @@ def execute_wfa_pipeline(
 
         fold_results: List[WfaFoldResult] = []
         all_oos_trades: List[Dict[str, Any]] = []
+        all_oos_daily: List[float] = []   # lợi suất ngày MTM OOS của các fold TRADED, theo thứ tự thời gian
         chosen_param_list: List[Dict[str, Any]] = []
 
         for idx, fold_range in enumerate(raw_folds, start=1):
@@ -400,6 +409,7 @@ def execute_wfa_pipeline(
             fold_results.append(fold_res)
             if fold_status == "TRADED":   # Chỉ fold TRADED đưa lệnh sang MC
                 all_oos_trades.extend(oos_trades)
+                all_oos_daily.extend(oos_summary.get("daily_returns") or [])
 
         update_wfa_progress(job_id, total_folds, total_folds, "Tổng hợp kết quả OOS và đánh giá Acceptance Gate...")
 
@@ -530,6 +540,7 @@ def execute_wfa_pipeline(
             gate_checks=gate_checks,
             aggregate_oos_trades=all_oos_trades,
             aggregate_oos_equity=aggregate_oos_equity,
+            aggregate_oos_daily_returns=[round(float(x), 8) for x in all_oos_daily],
             generated_at=int(time.time() * 1000),  # milliseconds, consistent with MC
         )
 

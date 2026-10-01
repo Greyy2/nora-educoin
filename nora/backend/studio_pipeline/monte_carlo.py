@@ -1,7 +1,8 @@
 """Monte Carlo Simulation Engine cho Studio Pipeline.
 
 Thực hiện:
-- Vectorized Block Bootstrap Resampling trên tỷ lệ lợi nhuận lệnh (pnl_pct).
+- Vectorized Block Bootstrap Resampling trên tỷ lệ lợi nhuận lệnh (pnl_pct) HOẶC (basis="daily", mặc định khi có WFA nguồn)
+  trên lợi suất NGÀY mark-to-market của OOS — đường vốn ngày đã chứa lỗ treo nên MDD không bị đánh giá thấp.
 - Mô phỏng tăng trưởng vốn theo lãi kép thực tế (Compounded Equity: equity *= 1 + r).
 - Đo lường phân phối xác suất Max Drawdown theo danh sách confidence_levels (Percentile 50th, 90th, 95th, 99th).
 - Tính toán Xác suất Cháy / Thua lỗ nghiêm trọng (Risk of Ruin %).
@@ -273,8 +274,10 @@ def execute_monte_carlo_pipeline(
         # ── Lấy trades từ WFA job nếu có source_wfa_id ───────────────────────
         # Ưu tiên: source_wfa_id > trades truyền vào (không cho phép bypass)
         effective_trades = trades
+        basis = "trades"
+        basis_note = None
         if req.source_wfa_id:
-            # Có source_wfa_id thì CHỈ dùng lệnh OOS của job; không fallback về trades của client.
+            # Có source_wfa_id thì CHỈ dùng dữ liệu OOS của job; không fallback về trades của client.
             # Job thiếu lệnh -> danh sách rỗng -> run_monte_carlo raise (< 30 lệnh) -> job failed.
             from .jobs import get_wfa_job
             wfa_job = get_wfa_job(req.source_wfa_id)
@@ -286,7 +289,19 @@ def execute_monte_carlo_pipeline(
                         res = json.loads(wfa_job["result_json"])
                     except Exception:
                         res = None
-            effective_trades = list((res or {}).get("aggregate_oos_trades") or [])
+            res = res or {}
+            effective_trades = list(res.get("aggregate_oos_trades") or [])
+            if req.basis == "daily":
+                daily = list(res.get("aggregate_oos_daily_returns") or [])
+                if len(daily) >= 30:
+                    # Lợi suất ngày -> "lệnh giả" pnl_pct để dùng chung bộ mô phỏng vector (horizon = độ dài lịch sử OOS)
+                    effective_trades = [{"pnl_pct": float(r) * 100.0} for r in daily]
+                    basis = "daily"
+                else:
+                    basis_note = (f"WFA nguồn chỉ có {len(daily)} lợi suất ngày (< 30; job cũ thì không có) "
+                                  "-> dùng lệnh đã đóng (basis=trades)")
+        elif req.basis == "daily":
+            basis_note = "basis=daily cần source_wfa_id; nguồn lệnh trực tiếp -> dùng lệnh đã đóng (basis=trades)"
 
         res = run_monte_carlo(
             trades=effective_trades,
@@ -324,7 +339,8 @@ def execute_monte_carlo_pipeline(
                 },
             },
             seed=req.seed,
-            summary=res["summary"],
+            summary={**res["summary"], **({"basis_note": basis_note} if basis_note else {})},
+            basis=basis,
             generated_at=int(time.time() * 1000),
         )
 

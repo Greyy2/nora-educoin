@@ -181,10 +181,20 @@
       }
     },
     "monte_carlo": {
+      "basis": "daily",
+      "risk_of_ruin_pct": 0.8,
+      "mdd_p95": 22.39,
+      "terminal_p50": 33.94,
+      "terminal_p10": 3.55,
+      "n": 434
+    },
+    "monte_carlo_trades": {
+      "basis": "trades",
       "risk_of_ruin_pct": 0.55,
       "mdd_p95": 22.59,
       "terminal_p50": 25.62,
-      "terminal_p10": -2.89
+      "terminal_p10": -2.89,
+      "n": 78
     },
     "holdout": {
       "return_pct": 14.7103,
