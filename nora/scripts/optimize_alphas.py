@@ -52,21 +52,60 @@ def _quiet(fn, *a, **k):
         return fn(*a, **k)
 
 
-def sample_configs(space, n, seed):
+# Khoá không gian ảnh hưởng ngân sách DCA (params_builder.dca_budget_check)
+_DCA_KEYS = ("leverage", "order_size_pct", "dca_step_pct", "dca_max_layers", "dca_size_multiplier")
+
+
+def _dca_filter(space, fixed=None, venue="cex", symbol=None):
+    """-> (valid(cfg) -> bool, số tổ hợp không hợp lệ trong toàn không gian). Hợp lệ = qua dca_budget_check."""
+    from backend.backtest.params_builder import dca_budget_check, pool_fee_rate, resolve_costs
     keys = sorted(space)
     total = 1
     for k in keys:
         total *= len(space[k])
+    fixed = dict(fixed or {})
+    market = str(fixed.get("market") or "spot").lower()
+    pool = pool_fee_rate(symbol) if venue == "dex" else None   # DEX: phí pool thật như build_params
+    costs = resolve_costs(venue, market, pool, None, pool)
+
+    def valid(c):
+        return dca_budget_check({**fixed, **{k: v for k, v in c.items() if not k.startswith("sig.")}}, costs)["ok"]
+
+    # Hợp lệ chỉ phụ thuộc vài khoá -> đếm trên không gian con, nhân với phần còn lại
+    rel = [k for k in keys if k in _DCA_KEYS]
+    rel_total = 1
+    for k in rel:
+        rel_total *= len(space[k])
+    rel_valid = sum(valid(dict(zip(rel, c))) for c in itertools.product(*[space[k] for k in rel]))
+    return valid, (rel_total - rel_valid) * (total // rel_total)
+
+
+def configs_invalid(space, fixed=None, venue="cex", symbol=None):
+    """Số tổ hợp trong TOÀN không gian vi phạm ngân sách DCA (ghi vào kết quả mỗi cặp)."""
+    return _dca_filter(space, fixed, venue, symbol)[1]
+
+
+def sample_configs(space, n, seed, fixed=None, venue="cex", symbol=None):
+    """Lấy mẫu n cấu hình HỢP LỆ (seed cố định -> tái lập). Tổ hợp vi phạm ngân sách DCA (tầng cuối không bao giờ khớp,
+    vd. order_size 20% × 5 tầng) bị loại TRƯỚC khi lấy mẫu để đủ n cấu hình dùng được. -> (configs, tổng số tổ hợp)."""
+    keys = sorted(space)
+    total = 1
+    for k in keys:
+        total *= len(space[k])
+    valid, invalid = _dca_filter(space, fixed, venue, symbol)
     rng = random.Random(seed)
-    if total <= n:
+    if total - invalid <= n:
         combos = [dict(zip(keys, c)) for c in itertools.product(*[space[k] for k in keys])]
+        combos = [c for c in combos if valid(c)]
     else:
         seen, combos = set(), []
         while len(combos) < n:
             c = tuple(rng.choice(space[k]) for k in keys)
             if c not in seen:
                 seen.add(c)
-                combos.append(dict(zip(keys, c)))
+                cfg = dict(zip(keys, c))
+                if valid(cfg):
+                    combos.append(cfg)
     return combos, total
 
 
@@ -101,12 +140,13 @@ def _run_pair(space_id, symbol, n, seed, db_path):
     min_trades = 15 if is_dex else 30
     out = {"space": space_id, "symbol": symbol, "data_symbol": data_sym, "price_source": price_source,
            "windows": {k: datetime.fromtimestamp(v / 1000, timezone.utc).strftime("%Y-%m-%d") for k, v in w.items()},
-           "configs_tried": 0, "space_size": 0}
+           "configs_tried": 0, "space_size": 0, "configs_invalid": 0}
     t0 = time.time()
 
     # 1. Sàng lọc trên dev1
-    configs, total = sample_configs(sd["space"], n, seed)
+    configs, total = sample_configs(sd["space"], n, seed, fixed=fixed, venue=sd["venue"], symbol=symbol)
     out["configs_tried"], out["space_size"] = len(configs), total
+    out["configs_invalid"] = configs_invalid(sd["space"], fixed, sd["venue"], symbol)
     screened = []
     for cfg in configs:
         try:
@@ -131,7 +171,8 @@ def _run_pair(space_id, symbol, n, seed, db_path):
     snap = StrategySnapshot(name=space_id, symbol=symbol, flows=flows, start_ts=w["dev1_end"] - train * DAY,
                             end_ts=w["holdout"], initial_capital=10000.0, param_candidates=top,
                             **{k: v for k, v in fixed.items()})
-    cfgw = WfaFoldConfig(train_days=train, test_days=test, min_folds=3 if is_dex else 5, min_positive_ratio=0.5,
+    # min_positive_ratio=0.6: thống nhất với Studio (WfaFoldConfig mặc định)
+    cfgw = WfaFoldConfig(train_days=train, test_days=test, min_folds=3 if is_dex else 5, min_positive_ratio=0.6,
                          min_oos_trades=min_trades, max_oos_mdd_pct=MAX_MDD, min_total_oos_profit_pct=0.0,
                          min_is_trades=10, min_is_profit_pct=0.0)
     job = create_wfa_job(symbol, space_id, 0)

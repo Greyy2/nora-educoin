@@ -17,7 +17,7 @@ POSITION_KEYS = (
     "trailing_activation_pct", "timeout", "order_size_pct", "dca_step_pct", "dca_max_layers",
     "dca_size_multiplier", "maintenance_margin_rate", "fee_rate", "maker_fee_rate", "slippage_rate",
     "using_match_price", "stop_fill", "exit_unit", "atr_frame", "atr_period", "sizing", "risk_per_trade_pct",
-    "max_notional_pct",
+    "max_notional_pct", "cooldown",
 )
 
 VENUE_COSTS = {  # (taker, maker, trượt giá)
@@ -68,6 +68,42 @@ def pool_fee_rate(symbol: Optional[str]) -> Optional[float]:
     return float(value) if value is not None else None
 
 
+def dca_budget_check(position: Dict[str, Any], venue_costs: Tuple[float, float, float]) -> Dict[str, Any]:
+    """Kiểm tra mọi tầng DCA khai báo có vừa trần vốn (max_capital_usage) không — chỉ với sizing="margin_pct".
+
+    Ký quỹ lệnh đầu = order_size_pct% vốn, tầng k = tầng k-1 × hệ số; PositionTracker bỏ âm thầm tầng nào làm
+    ký quỹ + phí đã trả vượt vốn × max_capital_usage. need_pct = order_size_pct × (m0·(1+L·taker) + Σ m_k·(1+L·maker)),
+    m0 = 1, m_k = tích luỹ hệ số; L = đòn bẩy (1 với spot). venue_costs = (taker, maker, trượt) đã resolve.
+    -> {"ok", "need_pct", "cap_pct", "layers", "max_order_size_pct"} (max_order_size_pct = order_size lớn nhất còn vừa)."""
+    taker, maker = float(venue_costs[0]), float(venue_costs[1])
+    market = str(position.get("market") or "spot").lower()
+    lev = 1.0 if market == "spot" else max(1.0, float(position.get("leverage") or 1.0))
+    size = float(position.get("order_size_pct") if position.get("order_size_pct") is not None else 100.0)
+    cap = 100.0 * float(position.get("max_capital_usage") if position.get("max_capital_usage") is not None else 1.0)
+    cap = max(0.0, min(cap, 100.0))
+    steps = [float(x) for x in (position.get("dca_steps") or [])]
+    if not steps:
+        n, step = int(position.get("dca_max_layers") or 0), float(position.get("dca_step_pct") or 0.0)
+        steps = [step] * n if step > 0 else []
+    layers = len(steps)
+    result = {"ok": True, "need_pct": size, "cap_pct": cap, "layers": layers, "max_order_size_pct": size}
+    if layers == 0 or str(position.get("sizing") or "margin_pct").lower() != "margin_pct":
+        return result
+    mults = [float(x) for x in (position.get("dca_multipliers") or [])] or \
+            [float(position.get("dca_size_multiplier") or 1.0)] * layers
+    if len(mults) < layers:
+        mults += [mults[-1]] * (layers - len(mults))
+    unit = 1.0 + lev * taker          # lệnh đầu (market, taker)
+    m = 1.0
+    for k in mults[:layers]:
+        m *= k
+        unit += m * (1.0 + lev * maker)   # tầng DCA (limit, maker)
+    result["need_pct"] = size * unit
+    result["max_order_size_pct"] = cap / unit
+    result["ok"] = size * unit <= cap + 1e-9
+    return result
+
+
 def build_params(flow_name: str, flow_ast: Dict[str, Any], flow_type: str, position: Dict[str, Any],
                  venue: str, symbol: Optional[str] = None) -> StrategyParams:
     market = str(position.get("market") or "spot").lower()
@@ -82,6 +118,12 @@ def build_params(flow_name: str, flow_ast: Dict[str, Any], flow_type: str, posit
     leverage = float(position.get("leverage") or 1.0)
     if market == "spot" and leverage != 1.0:
         raise ValueError("Spot không dùng đòn bẩy — đặt leverage=1 hoặc market='perp'.")
+    budget = dca_budget_check(position, (fee, maker, slip))
+    if not budget["ok"]:
+        raise ValueError(
+            f"Flow '{flow_name}': ngân sách DCA không đủ — {budget['layers']} tầng nhồi (+ lệnh đầu) cần "
+            f"{budget['need_pct']:.1f}% vốn (gồm phí) nhưng trần là {budget['cap_pct']:.1f}%; tầng cuối sẽ bị bỏ "
+            f"âm thầm. Giảm order_size_pct xuống tối đa {budget['max_order_size_pct']:.2f}% (hoặc bớt tầng/hệ số).")
     return StrategyParams(
         name=flow_name,
         strategy="studio_ast",
@@ -99,6 +141,7 @@ def build_params(flow_name: str, flow_ast: Dict[str, Any], flow_type: str, posit
         trailing_activation_pct=float(position.get("trailing_activation_pct") or 0.0),
         timeout=int(position.get("timeout") or 0),
         stop_fill=str(position.get("stop_fill") or "level"),
+        cooldown=int(position.get("cooldown") or 0),
         exit_unit=str(position.get("exit_unit") or "pct"),
         atr_frame=str(position.get("atr_frame") or "1h"),
         atr_period=int(position.get("atr_period") or 14),

@@ -367,11 +367,12 @@ class PortfolioEngine:
                 agg["fees_usd"] += p.fees_usd or 0.0
                 agg["funding_usd"] += p.funding_usd or 0.0
         skipped = sum(e["tracker"].skipped_no_vol for b in self.books for e in b["entries"])
+        dca_rejected = sum(e["tracker"].dca_rejected for b in self.books for e in b["entries"])
         return {
             "positions": self.closed_positions, "orders": self.orders, "equity_curve": self.equity_curve,
             "final_equity": self.ledger.equity, "initial_capital": self.initial_capital,
             "by_strategy": by_strategy, "by_symbol": by_symbol,
             "rejected_for_capital": self.ledger.rejected, "rejected_for_risk": self.rejected_for_risk,
-            "skipped_no_vol": skipped, "halted_at": self.halted_at, "ruined_at": self.ruined_at,
+            "skipped_no_vol": skipped, "dca_layers_rejected": dca_rejected, "halted_at": self.halted_at, "ruined_at": self.ruined_at,
             "risk": asdict(self.risk), "symbols": self.symbols, "strategies": [s["id"] for s in self.strategies],
         }

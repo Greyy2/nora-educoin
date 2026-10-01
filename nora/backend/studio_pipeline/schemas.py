@@ -37,6 +37,7 @@ class StrategySnapshot(BaseModel):
     fee_rate: Optional[float] = Field(None)
     maker_fee_rate: Optional[float] = Field(None)
     stop_fill: str = Field("level", pattern="^(level|extreme)$", description="Khớp SL: đúng mức | giá xấu nhất của nến (bi quan)")
+    cooldown: int = Field(0, ge=0, description="Phút chờ sau khi đóng vị thế mới được vào lại (0 = không chờ)")
     exit_unit: str = Field("pct", pattern="^(pct|atr)$", description="SL/TP/trailing/bước DCA: % | bội số ATR% lúc vào lệnh")
     atr_frame: str = Field("1h", pattern="^(1m|5m|15m|1h|4h|24h)$")
     atr_period: int = Field(14, ge=2, le=200)

@@ -35,6 +35,7 @@ class StrategyParams:
     timeout: int = 0                       # Số PHÚT tối đa giữ lệnh (0 = không giới hạn)
     stop_fill: str = "level"               # Giá khớp SL/trailing khi chạm TRONG nến: "level" (đúng mức + trượt)
                                            # | "extreme" (giá xấu nhất của nến — bi quan, dùng để kiểm độ bền)
+    cooldown: int = 0                      # Số PHÚT chờ sau khi đóng vị thế mới được nhận tín hiệu vào lại (0 = không chờ)
 
     # 4. Thị trường, khối lượng, DCA / Nhồi lệnh
     market: str = "spot"                   # "spot" (không đòn bẩy, không short) | "perp" (đòn bẩy + thanh lý)
@@ -102,6 +103,7 @@ class StrategyParams:
             "trailing_activation_pct": self.trailing_activation_pct,
             "timeout": self.timeout,
             "stop_fill": self.stop_fill,
+            "cooldown": self.cooldown,
             "exit_unit": self.exit_unit,
             "atr_frame": self.atr_frame,
             "atr_period": self.atr_period,

@@ -251,11 +251,12 @@ def scenario_portfolio_real(data_root, end: Optional[str] = None, shared_dir: Op
     from backend.alpha import strategy_book as sb
     from backend.backtest.portfolio import PortfolioEngine, RiskConfig
     cand = {c["id"]: c for c in sb.CANDIDATES}
+    # cooldown=0: snapshot này sinh trước khi BASE_POSITION có cooldown=60; ghim 0 để golden vẫn đo đúng ngữ nghĩa cũ
     strategies = [
         sb.materialize(cand["trend_long"], {"sig.adx_min": 25, "stop_loss_rate": 2.5, "trailing_stop": 3.0,
-                                            "trailing_activation_pct": 1.0, "timeout": 4320}),
+                                            "trailing_activation_pct": 1.0, "timeout": 4320}, cooldown=0),
         sb.materialize(cand["reversion_long"], {"sig.rsi_lo": 25, "sig.er_max": 0.3, "stop_loss_rate": 1.5,
-                                                "take_profit_rate": 1.0, "timeout": 1440}),
+                                                "take_profit_rate": 1.0, "timeout": 1440}, cooldown=0),
     ]
     risk = RiskConfig.from_dict({**sb.RISK, "kill_switch_dd_pct": 0})
     end_ms = int(pd.Timestamp(end or REAL_END, tz="UTC").timestamp() * 1000)

@@ -70,6 +70,7 @@ class SimulateRequest(BaseModel):
     fee_rate: Optional[float] = Field(None, ge=0.0, le=0.05, description="Phí taker; mặc định theo venue/market")
     maker_fee_rate: Optional[float] = Field(None, ge=0.0, le=0.05, description="Phí maker (lệnh limit); mặc định theo venue/market")
     stop_fill: str = Field("level", pattern="^(level|extreme)$", description="Khớp SL/trailing: 'level' (đúng mức) | 'extreme' (giá xấu nhất của nến — bi quan)")
+    cooldown: int = Field(0, ge=0, le=525600, description="Phút chờ sau khi đóng vị thế mới được vào lại (0 = không chờ)")
     exit_unit: str = Field("pct", pattern="^(pct|atr)$", description="SL/TP/trailing/bước DCA: % | bội số ATR% lúc vào lệnh")
     atr_frame: str = Field("1h", pattern="^(1m|5m|15m|1h|4h|24h)$")
     atr_period: int = Field(14, ge=2, le=200)
@@ -320,7 +321,7 @@ def run_simulation(req: SimulateRequest) -> Dict[str, Any]:
         **{k: getattr(req, k) for k in ("trailing_stop", "trailing_activation_pct", "market", "order_size_pct",
                                         "dca_step_pct", "dca_max_layers", "dca_size_multiplier",
                                         "maintenance_margin_rate", "fee_rate", "maker_fee_rate", "slippage_rate",
-                                        "stop_fill", "exit_unit", "atr_frame", "atr_period", "sizing",
+                                        "stop_fill", "cooldown", "exit_unit", "atr_frame", "atr_period", "sizing",
                                         "risk_per_trade_pct", "max_notional_pct", "signal_params")},
     )
     source_contract = BacktestResultContract(

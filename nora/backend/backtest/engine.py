@@ -335,6 +335,7 @@ class BacktestEngine:
         return {"positions": self.closed_positions, "orders": self.orders, "equity_curve": self.equity_curve,
                 "ruined_at": getattr(self, "ruined_at", None), "final_equity": self.ledger.equity,
                 "rejected_for_capital": self.ledger.rejected,
+                "dca_layers_rejected": sum(tr.dca_rejected for tr in self.trackers),
                 "funding_modeled": self.funding is not None,
                 "funding_events": 0 if self.funding is None else int(len(self.funding))}
 

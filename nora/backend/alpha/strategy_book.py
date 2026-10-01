@@ -37,6 +37,7 @@ BASE_POSITION = {
     "market": "perp", "leverage": MAX_LEVERAGE, "exit_unit": "atr", "atr_frame": "1h", "atr_period": 14,
     "sizing": "risk", "risk_per_trade_pct": BASE_RISK_PER_TRADE_PCT, "max_notional_pct": 300.0,
     "stop_fill": "level",
+    "cooldown": 60,   # phút: một nến 1h — tránh vào lại ngay trên cùng trạng thái tín hiệu cũ sau khi vừa thoát (SL/trailing)
 }
 
 _UP_1H = (f("1h", "ema_50"), ">", f("1h", "ema_200"))

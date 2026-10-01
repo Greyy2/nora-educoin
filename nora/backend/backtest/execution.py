@@ -22,6 +22,9 @@ Chế độ thị trường:
 - stop_fill="extreme": SL/trailing khớp ở giá xấu nhất của nến chạm mức (bi quan). Mặc định "level"
   giả định khớp đúng mức + trượt — lạc quan khi giá giật xuyên mức trong một nến.
 
+Cooldown (tuỳ chọn): sau khi đóng vị thế (kể cả force_close), tín hiệu vào lệnh trong `cooldown` phút bị bỏ qua
+— tín hiệu là TRẠNG THÁI nên nếu không chờ, flow có thể vào lại vài phút sau SL trên cùng trạng thái cũ.
+
 Khối lượng: ký quỹ tầng đầu = VỐN HIỆN TẠI (vốn ban đầu + lãi/lỗ đã chốt, do engine cập nhật)
 × order_size_pct%; tầng k = tầng k-1 × hệ số. Ngân sách một vị thế = vốn hiện tại lúc mở × max_capital_usage;
 tầng nào vượt ngân sách thì bị bỏ qua. Vốn <= 0 -> không mở lệnh mới (cháy tài khoản).
@@ -122,6 +125,9 @@ class PositionTracker:
         self.base_trail = max(0.0, float(params.trailing_stop or 0.0))
         self.base_trail_act = max(0.0, float(getattr(params, "trailing_activation_pct", 0.0) or 0.0))
         self.timeout_ms = max(0, int(params.timeout or 0)) * 60_000
+        self.cooldown_ms = max(0, int(getattr(params, "cooldown", 0) or 0)) * 60_000
+        self.last_close_time: Optional[int] = None   # thời điểm đóng vị thế gần nhất (cho cooldown)
+        self.dca_rejected = 0       # số tầng DCA bị từ chối vì hết ngân sách vốn (không đổi logic khớp lệnh)
         self.stop_fill = str(getattr(params, "stop_fill", "level") or "level").lower()
         if self.stop_fill not in ("level", "extreme"):
             raise ValueError(f"stop_fill phải là 'level' hoặc 'extreme', nhận '{self.stop_fill}'")
@@ -367,6 +373,7 @@ class PositionTracker:
         self.is_open = False
         self.pending_exit = False
         self.position = None
+        self.last_close_time = t
         self._reset_state()
         return pos
 
@@ -407,7 +414,8 @@ class PositionTracker:
             self.peak = max(self.peak, h) if self.is_long else min(self.peak, l)
             if stop_signal:
                 self.pending_exit = True
-        elif closed is None and entry_signal:
+        elif closed is None and entry_signal and (
+                not self.cooldown_ms or self.last_close_time is None or t - self.last_close_time >= self.cooldown_ms):
             self.pending_entry = True
             self.pending_vol = vol
         return closed
@@ -446,6 +454,7 @@ class PositionTracker:
                     self.next_margin = margin
                     dca_filled = True
                     continue
+                self.dca_rejected += 1
                 self.dca_steps = self.dca_steps[: k]  # hết vốn: không nhồi thêm tầng nào nữa
                 continue
             if kind == "liq":

@@ -52,10 +52,16 @@ Công cụ được kiểm bằng dữ liệu có edge cài sẵn (phải ra CO_
 | `market` | `spot` (không đòn bẩy, không short) hoặc `perp` (đòn bẩy, ký quỹ isolated, thanh lý; dùng giá USDT-M thật `<SYM>@perp` + funding thật; chỉ khi thiếu dữ liệu perp mới dùng giá spot làm proxy, và `price_source` ghi rõ) |
 | `order_size_pct` | ký quỹ lệnh đầu = % vốn **hiện tại** |
 | `dca_step_pct`, `dca_max_layers`, `dca_size_multiplier` | nhồi khi giá đi ngược X% so với tầng trước; tối đa N tầng; size tầng sau = tầng trước × hệ số |
+| `cooldown` | số phút chờ sau khi đóng vị thế mới nhận tín hiệu vào lại (mặc định 0). Tín hiệu là trạng thái nên không chờ thì có thể vào lại vài phút sau SL trên cùng trạng thái cũ; sổ chiến lược dùng 60 |
 | `take_profit_rate`, `stop_loss_rate` | % tính từ **giá trung bình** |
 | `trailing_stop`, `trailing_activation_pct` | trailing từ đỉnh/đáy có lợi nhất; bật khi lãi ≥ ngưỡng |
 | `timeout` | số phút giữ lệnh tối đa |
 | `fee_rate` (taker), `maker_fee_rate`, `slippage_rate` | mặc định theo venue: CEX spot 0,10%/0,10% + trượt 0,02%; CEX perp (Binance USDT-M VIP0) taker 0,05% / maker 0,02% + 0,02%; DEX = phí pool thật trong manifest (0,30%) + 0,10% |
+
+**Ngân sách DCA:** với `sizing="margin_pct"`, lệnh đầu + mọi tầng phải vừa `max_capital_usage` (mặc định 100% vốn), gồm phí:
+`order_size_pct × (1·(1+L·taker) + Σ m_k·(1+L·maker)) ≤ 100`, m_k = tích luỹ hệ số, L = đòn bẩy. Tầng nào vượt thì bị bỏ âm thầm,
+nên `build_params` (qua `dca_budget_check`) **từ chối** cấu hình không vừa (vd. 20% × 5 tầng; 19% thì vừa) và nêu `order_size_pct` lớn nhất còn vừa.
+Số tầng bị từ chối vì hết vốn trong lúc chạy ghi ở `dca_layers_rejected`. `optimize_alphas.py` loại tổ hợp không vừa trước khi lấy mẫu (`configs_invalid`).
 
 **Loại phí theo loại lệnh:** vào lệnh ở open, SL, trailing, timeout, tín hiệu thoát = taker (market, có trượt giá);
 tầng DCA và chốt lời = maker (limit, không trượt). Mỗi lệnh con ghi `fee_usd` và `liquidity`.

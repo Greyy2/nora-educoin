@@ -109,12 +109,14 @@ def _strategy(sid, name, signal, family, description, params, tags) -> Dict[str,
     }
 
 
+# Bot DCA dùng order_size_pct=19 (không phải 20): lệnh đầu + 4 tầng ×1,0 = 5 × 19% + phí ≤ 100% vốn nên tầng 5
+# luôn khớp được; ở 20% thì 5 × 20% + phí > 100% và tầng cuối bị bỏ âm thầm (backtest/params_builder.dca_budget_check).
 KERNEL_STRATEGIES: List[Dict[str, Any]] = [
     _strategy(
         "okx_dca_reversion_long", "Bắt hồi + DCA vừa (spot)", "dip_5m_rsi_bb_ranging", "Bắt hồi + DCA",
         "Kiểu 'DCA vừa' của bot top OKX: vào khi 5m quá bán trong regime đi ngang, nhồi mỗi 0,75% tối đa "
         "4 tầng cùng size, chốt 0,8% từ giá TB. KHÁC bot OKX: cắt lỗ cứng 6% từ giá TB, timeout 3 ngày.",
-        {"market": "spot", "leverage": 1.0, "order_size_pct": 20.0, "dca_step_pct": 0.75, "dca_max_layers": 4,
+        {"market": "spot", "leverage": 1.0, "order_size_pct": 19.0, "dca_step_pct": 0.75, "dca_max_layers": 4,
          "dca_size_multiplier": 1.0, "take_profit_rate": 0.8, "stop_loss_rate": 6.0, "timeout": 4320},
         "okx-report 6.4: DCA vừa — bước 0,74%, 4 tầng, ×1,0, 10x",
     ),
@@ -123,7 +125,7 @@ KERNEL_STRATEGIES: List[Dict[str, Any]] = [
         "Bắt hồi + DCA",
         "Chiều short của lối bắt hồi (nhiều bot top chạy hai chiều). Perp 5x, ký quỹ isolated, "
         "có thanh lý. Giá spot làm proxy, chưa tính funding.",
-        {"market": "perp", "leverage": 5.0, "order_size_pct": 20.0, "dca_step_pct": 0.75, "dca_max_layers": 4,
+        {"market": "perp", "leverage": 5.0, "order_size_pct": 19.0, "dca_step_pct": 0.75, "dca_max_layers": 4,
          "dca_size_multiplier": 1.0, "take_profit_rate": 0.8, "stop_loss_rate": 6.0, "timeout": 4320},
         "okx-report 4.1: cùng người tạo chạy DCA long và DCA short",
     ),
@@ -131,7 +133,7 @@ KERNEL_STRATEGIES: List[Dict[str, Any]] = [
         "okx_dca_dense_fast", "DCA dày, chốt nhanh (spot)", "dip_1m_deep_zscore", "Bắt hồi + DCA (dày)",
         "Kiểu 'DCA dày' của bot top OKX: bước 0,3%, 4 tầng, chốt 0,4% từ giá TB. Phí spot 0,1%/chiều ăn "
         "gần hết biên lãi — dùng để kiểm chứng lối này có sống được sau phí hay không.",
-        {"market": "spot", "leverage": 1.0, "order_size_pct": 20.0, "dca_step_pct": 0.3, "dca_max_layers": 4,
+        {"market": "spot", "leverage": 1.0, "order_size_pct": 19.0, "dca_step_pct": 0.3, "dca_max_layers": 4,
          "dca_size_multiplier": 1.0, "take_profit_rate": 0.4, "stop_loss_rate": 3.0, "timeout": 720},
         "okx-report 6.4: DCA dày — bước 0,25%, 4 tầng, chốt nhanh, 20x",
     ),

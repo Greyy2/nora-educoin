@@ -21,10 +21,10 @@ Không gian tối ưu nằm ở `alpha/strategy_library.OPTIMIZATION_SPACES`. Ng
 |── dev1: sàng lọc ──|─ dev2: WFA ─|   chấm cuối     |
 ```
 
-1. **Sàng lọc (dev1):** thử N cấu hình lấy mẫu ngẫu nhiên (seed cố định, ghi lại số cấu hình đã thử). Giữ cấu hình có lãi,
+1. **Sàng lọc (dev1):** thử N cấu hình lấy mẫu ngẫu nhiên (seed cố định, ghi lại số cấu hình đã thử; tổ hợp vi phạm ngân sách DCA bị loại trước khi lấy mẫu, đếm ở `configs_invalid`). Giữ cấu hình có lãi,
    MDD mark-to-market ≤ 30% và đủ số lệnh; lấy top-8.
 2. **WFA (dev2):** fold test đầu tiên bắt đầu đúng tại cuối dev1. Mỗi fold chọn cấu hình tốt nhất trong top-8 trên IS và
-   kiểm trên OOS. Gate: lợi nhuận IS ≥ 0, ≥ 50% fold OOS có lãi, đủ lệnh, MDD fold ≤ 30%, lợi nhuận OOS lãi kép ≥ 0.
+   kiểm trên OOS. Gate: lợi nhuận IS ≥ 0, ≥ 60% fold OOS có lãi, đủ lệnh, MDD fold ≤ 30%, lợi nhuận OOS lãi kép ≥ 0.
 3. **Monte Carlo** trên lệnh OOS của WFA (block bootstrap 5, 2000 lần): xác suất cháy (MDD ≥ 30%) ≤ 5%.
 4. **Holdout (20% cuối, chưa ai chạm):** chạy cấu hình được WFA chọn nhiều nhất. Phải có lãi, MDD ≤ 30%, đủ lệnh.
 
@@ -103,3 +103,21 @@ Mọi bộ quét mới phải qua phép kiểm null này trước khi tin kết 
 cộng lỗ treo không hiển thị. Với alpha SOL:
 - hệ số 3x cho lãi trung vị 1 năm ~150%, nhưng P(MDD ≥ 30%) ≈ 99%;
 - trong ngân sách đã chốt (≤ 5%), lãi trung vị ~20–40%/năm.
+
+## 8. WFA danh mục + Monte Carlo ngày cho sổ chiến lược (`scripts/validate_book.py`)
+
+Sổ chiến lược (nhiều tài sản, MỘT sổ vốn) chỉ có dev1/dev2/holdout và bootstrap. `validate_book.py` bổ sung WFA trượt:
+
+- Mỗi fold: **IS** chọn lại cấu hình của từng chiến lược (top-K ứng viên, điểm = lãi / max(MDD,1), kill switch tắt, SL "level");
+  **OOS** chạy CẢ sổ chung vốn bằng các cấu hình đã chọn (kill switch bật, SL "level" và "extreme"). Train 120 ngày, test 30 ngày, OOS không chồng.
+- Nối lợi suất ngày MTM của OOS (extreme, cơ sở bi quan) rồi **Monte Carlo ngày** (`run_monte_carlo_daily`, block 5 ngày, 1 năm): khác Monte Carlo
+  theo lệnh vì đường vốn ngày đã gồm lỗ chưa chốt.
+- Gate (hằng số đầu `backend/studio_pipeline/portfolio_wfa.py`): ≥ 5 fold, lãi IS trung bình ≥ 0, ≥ 60% fold OOS có lãi, MDD tệ nhất một fold ≤ 30%,
+  lãi kép OOS ≥ 0, P(MDD ≥ 30% trong 1 năm) ≤ 5%.
+- Lãi IS của một fold = trung bình lãi IS (chạy riêng từng chiến lược) của các cấu hình đã chọn.
+
+```bash
+scripts/run_limited.sh -- scripts/validate_book.py --report data/_cache/book/<thời điểm> [--include-rejected]
+scripts/run_limited.sh -- scripts/validate_book.py --candidates trend_long,reversion_short --n 3 --workers auto
+```
+Kết quả: `<data>/_cache/book_wfa/<thời điểm>/report.json`.
