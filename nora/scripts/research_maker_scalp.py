@@ -14,7 +14,7 @@ Không tính funding (giữ lệnh ngắn); engine thật sẽ tính.
 
 Chống overfit: chọn cấu hình CHỈ trên 80% đầu (dev); 20% cuối (holdout) chỉ in cho các cấu hình đã chọn.
 
-Dùng: PYTHONPATH=. python scripts/research_maker_scalp.py [--assets BTC,ETH] [--workers 8]
+Dùng: PYTHONPATH=. python scripts/research_maker_scalp.py [--assets BTC,ETH] [--workers auto|8]
 """
 import argparse
 import itertools
@@ -249,6 +249,8 @@ def run_asset(symbol):
 
 
 def _init_grid(round_id):
+    from backend.utils.memwatch import worker_init
+    worker_init()
     global OFFS, TTLS, TPS, SLS, TOS, SIGNAL_SET
     OFFS, TTLS, TPS, SLS, TOS = (GRIDS[round_id][k] for k in ("OFFS", "TTLS", "TPS", "SLS", "TOS"))
     SIGNAL_SET = round_id
@@ -257,15 +259,21 @@ def _init_grid(round_id):
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--assets", default="BTC,ETH,SOL,BNB,XRP,DOGE,ADA,AVAX")
-    ap.add_argument("--workers", type=int, default=8)
+    ap.add_argument("--workers", default="auto",
+                    help="số tiến trình song song; 'auto' = tính theo RAM (gồm cgroup) và CPU")
     ap.add_argument("--round", default="r1", choices=sorted(GRIDS))
     ap.add_argument("--out", default=os.path.join(NORA_ROOT, "data", "_cache", "reports"))
     a = ap.parse_args(argv)
     assets = a.assets.split(",")
+    from backend.utils.memwatch import require_memory_limit
+    from backend.utils.parallel import resolve_workers
+    require_memory_limit("research_maker_scalp")
+    # 1500 MB/worker: mỗi job nạp nến 1m cả lịch sử một tài sản + mảng tín hiệu/khớp lệnh cho cả lưới cấu hình (chưa đo thực)
+    workers = resolve_workers(a.workers, 1500, "research_maker_scalp")
     global OFFS, TTLS, TPS, SLS, TOS, SIGNAL_SET
     OFFS, TTLS, TPS, SLS, TOS = (GRIDS[a.round][k] for k in ("OFFS", "TTLS", "TPS", "SLS", "TOS"))
     SIGNAL_SET = a.round
-    with ProcessPoolExecutor(max_workers=min(a.workers, len(assets)), initializer=_init_grid,
+    with ProcessPoolExecutor(max_workers=min(workers, len(assets)), initializer=_init_grid,
                              initargs=(a.round,)) as pool:
         rows = list(itertools.chain.from_iterable(pool.map(run_asset, assets)))
     os.makedirs(a.out, exist_ok=True)

@@ -9,7 +9,7 @@ Quy trình chống overfit:
 2. Chọn cấu hình CHỈ theo dev: lãi danh mục / MDD danh mục, yêu cầu >= 5/8 tài sản có lãi.
 3. Holdout 20% cuối: chạy đúng các cấu hình đã chọn (không chọn lại).
 
-Dùng: PYTHONPATH=. python scripts/research_trend_portfolio.py [--workers 12] [--top 5]
+Dùng: PYTHONPATH=. python scripts/research_trend_portfolio.py [--workers auto|12] [--top 5]
 """
 import argparse
 import itertools
@@ -121,11 +121,18 @@ def portfolio(runs):
 
 def main(argv=None):
     ap = argparse.ArgumentParser()
-    ap.add_argument("--workers", type=int, default=12)
+    ap.add_argument("--workers", default="auto",
+                    help="số tiến trình song song; 'auto' = tính theo RAM (gồm cgroup) và CPU")
     ap.add_argument("--top", type=int, default=5)
     ap.add_argument("--out", default=os.path.join(NORA_ROOT, "data", "_cache", "reports"))
     a = ap.parse_args(argv)
     from backend.db.local_pkl import read_manifest
+    from backend.utils.memwatch import require_memory_limit, worker_init
+    from backend.utils.parallel import resolve_workers
+    require_memory_limit("research_trend_portfolio")
+    # 900 MB/worker: mỗi job (_run) backtest MỘT tài sản × một cấu hình × một khoảng — danh mục 8 tài sản chỉ gộp đường vốn
+    # ở tiến trình chính, không nạp 8 tài sản trong một worker (chưa đo thực)
+    workers = resolve_workers(a.workers, 900, "research_trend_portfolio")
     starts, ends = [], []
     for s in ASSETS:
         m = read_manifest(f"{s}@perp")
@@ -139,7 +146,7 @@ def main(argv=None):
     grid = _grid()
     t0 = time.time()
     jobs = [(fam, prm, sym, start, split, ("LONG", "SHORT")) for fam, prm in grid for sym in ASSETS]
-    with ProcessPoolExecutor(max_workers=a.workers) as pool:
+    with ProcessPoolExecutor(max_workers=workers, initializer=worker_init) as pool:
         runs = list(pool.map(_run, jobs, chunksize=1))
     print(f"dev: {len(jobs)} lần chạy, {time.time() - t0:.0f}s", flush=True)
 
@@ -159,7 +166,7 @@ def main(argv=None):
 
     chosen = [r for r in table if r["score"] > 0][: a.top]
     jobs = [(r["family"], r["params"], sym, split, end, ("LONG", "SHORT")) for r in chosen for sym in ASSETS]
-    with ProcessPoolExecutor(max_workers=a.workers) as pool:
+    with ProcessPoolExecutor(max_workers=workers, initializer=worker_init) as pool:
         hruns = list(pool.map(_run, jobs, chunksize=1))
     print("\n== HOLDOUT (chỉ các cấu hình đã chọn trên dev) ==")
     for ci, row in enumerate(chosen):

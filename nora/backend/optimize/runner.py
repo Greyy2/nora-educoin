@@ -104,7 +104,10 @@ class OptimizeRunner:
         # Dùng ProcessPoolExecutor với context 'spawn' để tránh deadlock từ PyMongo/Sockets
         import multiprocessing
         context = multiprocessing.get_context("spawn")
-        with concurrent.futures.ProcessPoolExecutor(max_workers=self.max_workers, mp_context=context) as executor:
+        # worker_init: oom_score_adj cao để khi OOM kernel giết worker chứ không giết API
+        from backend.utils.memwatch import worker_init
+        with concurrent.futures.ProcessPoolExecutor(max_workers=self.max_workers, mp_context=context,
+                                                    initializer=worker_init) as executor:
             # Chuẩn bị danh sách args
             futures = []
             for i, p in enumerate(params_list):

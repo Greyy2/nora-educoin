@@ -42,8 +42,6 @@ import random
 import sys
 import time
 import warnings
-from concurrent.futures import ProcessPoolExecutor, as_completed
-from concurrent.futures.process import BrokenProcessPool
 
 import numpy as np
 import pandas as pd
@@ -51,6 +49,8 @@ import pandas as pd
 NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if NORA_ROOT not in sys.path:
     sys.path.insert(0, NORA_ROOT)
+
+from backend.utils.parallel import auto_workers, pool_map_safe  # noqa: E402
 
 DAY = 86_400_000
 WARMUP = 20 * DAY
@@ -156,62 +156,9 @@ def _peak(results) -> str:
     return f"đỉnh RAM/worker {max(peaks):.0f} MB" if peaks else "đỉnh RAM/worker ?"
 
 
-def _pool_map_safe(pool_fn, jobs: list, workers: int, label: str) -> list:
-    """Chạy jobs song song, trả kết quả ĐÚNG thứ tự jobs.
-
-    - Lỗi trong job (bug, dữ liệu hỏng...) nổi lên ngay và huỷ các job đang chờ — không che lỗi.
-    - Chỉ khi pool bị hỏng (worker bị kill, thường do hết RAM / cgroup OOM): giữ kết quả đã xong,
-      chạy lại một lần CHỈ các job còn thiếu với nửa số worker.
-    """
-    results = [None] * len(jobs)
-    done = [False] * len(jobs)
-    n_workers = max(1, min(int(workers), len(jobs)))
-    for attempt in (1, 2):
-        pending = [i for i in range(len(jobs)) if not done[i]]
-        if not pending:
-            break
-        from backend.utils.memwatch import worker_init
-        pool = ProcessPoolExecutor(max_workers=n_workers, initializer=worker_init)
-        futures = {}
-        try:
-            futures = {pool.submit(pool_fn, jobs[i]): i for i in pending}
-            for fut in as_completed(futures):
-                i = futures[fut]
-                results[i] = fut.result()
-                done[i] = True
-        except BrokenProcessPool as exc:
-            pool.shutdown(wait=False, cancel_futures=True)
-            for fut, i in futures.items():  # job đã xong nhưng chưa kịp lấy kết quả
-                if fut.done() and not fut.cancelled() and fut.exception() is None:
-                    results[i] = fut.result()
-                    done[i] = True
-            missing = sum(not d for d in done)
-            if attempt == 2:
-                raise RuntimeError(f"{label}: pool vẫn hỏng sau khi giảm còn {n_workers} worker "
-                                   f"({missing} job chưa xong)") from exc
-            n_workers = max(1, n_workers // 2)
-            print(f"[WARN] {label}: worker bị kill (thường do hết RAM) — chạy lại {missing} job còn thiếu "
-                  f"với {n_workers} worker", flush=True)
-            continue
-        except BaseException:
-            pool.shutdown(wait=False, cancel_futures=True)
-            raise
-        pool.shutdown(wait=True)
-    return results
-
-
-def _auto_workers(per_worker_mb: float) -> int:
-    """Số worker = min(CPU dùng được, ngân sách RAM / trần RAM một worker).
-
-    Ngân sách = planning_budget_mb(): phần trống của cgroup nora.slice (85%), không vượt quá MemAvailable của máy
-    trừ dự phòng cho người dùng khác; không có cgroup thì 60% MemAvailable. CPU dùng được tôn trọng taskset
-    (taskset -c 0-5 -> 6); không trừ CPU cho tiến trình điều phối vì nó hầu như chỉ chờ."""
-    from backend.utils.memwatch import planning_budget_mb, usable_cpus
-    cpu_limit = max(1, usable_cpus())
-    avail = planning_budget_mb()
-    if avail <= 0:
-        return min(cpu_limit, 2)  # không đọc được RAM: chạy dè dặt
-    return max(1, min(cpu_limit, int(avail / per_worker_mb)))
+# Bản dùng chung nằm ở backend.utils.parallel; giữ tên cũ để code/test hiện có không đổi.
+_pool_map_safe = pool_map_safe
+_auto_workers = auto_workers
 
 
 def main(argv=None):

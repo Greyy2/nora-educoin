@@ -5,7 +5,7 @@
 # (scripts/run_limited.sh), mỗi job tự chia số worker theo phần ngân sách còn trống nên không cần trần riêng.
 # MemorySwapMax=0: máy không có swap; tràn trần thì kernel chỉ giết tiến trình trong slice, không ảnh hưởng người khác.
 # MemoryHigh (90% trần) làm kernel ép/giảm tốc sớm trước khi chạm OOM. Controller `cpu` không uỷ quyền cho user
-# session -> CPU giới hạn bằng taskset / CPUAffinity (lõi 0-5), không đặt ở đây.
+# session -> CPU giới hạn bằng taskset / CPUAffinity (lõi 0-13, nice 10 để nhường người khác), không đặt ở đây.
 # Cài bằng: ops/install_user_units.sh
 [Unit]
 Description=Ngân sách RAM chung của dự án Nora (12G, không swap)

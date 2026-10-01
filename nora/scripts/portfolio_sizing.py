@@ -70,10 +70,14 @@ def main(argv=None):
     ap.add_argument("--alpha", required=True, help="alpha_id trong alphas/registry.json")
     ap.add_argument("--assets", required=True, help="vd. SOL,DOGE (dùng dữ liệu <SYM>@perp)")
     ap.add_argument("--registry", default=os.path.join(NORA_ROOT, "alphas", "registry.json"))
-    ap.add_argument("--workers", type=int, default=8)
+    ap.add_argument("--workers", default="auto",
+                    help="số tiến trình song song; 'auto' = tính theo RAM (gồm cgroup) và CPU")
     a = ap.parse_args(argv)
     from backend.utils.memwatch import require_memory_limit, worker_init
     require_memory_limit("portfolio_sizing")
+    from backend.utils.parallel import resolve_workers
+    # 900 MB/worker: mỗi job là backtest MỘT tài sản (chưa đo thực — hiệu chỉnh khi có số đỉnh RAM)
+    workers = resolve_workers(a.workers, 900, "portfolio_sizing")
     from research_trend_portfolio import portfolio
 
     reg = json.load(open(a.registry, encoding="utf-8"))
@@ -89,7 +93,7 @@ def main(argv=None):
             for sym in assets:
                 jobs.append((alpha["flows"], {**base, "stop_fill": sf}, sym, s, e))
                 keys.append((sf, per, sym))
-    with ProcessPoolExecutor(max_workers=a.workers, initializer=worker_init) as pool:
+    with ProcessPoolExecutor(max_workers=workers, initializer=worker_init) as pool:
         out = dict(zip(keys, pool.map(_run, jobs)))
 
     report = {"alpha": a.alpha, "assets": assets, "periods": {k: [str(pd.Timestamp(v[0], unit="ms").date()),

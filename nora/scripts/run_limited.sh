@@ -10,23 +10,23 @@
 # Controller `cpu` không được uỷ quyền cho user session nên không dùng CPUQuota được -> giới hạn CPU bằng taskset
 # (+ nice 10 để nhường tải cho người khác). Script Python dùng usable_cpus() nên tự thấy đúng số CPU được cấp.
 #
-# Dùng:  scripts/run_limited.sh [--mem 8G] [--cpus 0-5] [--log FILE] [--no-wait | --no-lock] -- scripts/build_strategy_book.py --n 24 ...
+# Dùng:  scripts/run_limited.sh [--mem 8G] [--cpus 0-13] [--log FILE] [--no-wait | --no-lock] -- scripts/build_strategy_book.py --n 24 ...
 #   --no-wait  job khác đang chạy thì thoát ngay với mã 75 (mặc định: chờ trong hàng đợi)
 #   --no-lock  bỏ qua hàng đợi (cho lệnh nhẹ); vẫn nằm trong nora.slice
-# Biến môi trường (mặc định): NORA_MEM_MAX= (rỗng = chỉ dùng trần slice)  NORA_CPUS=0-5
+# Biến môi trường (mặc định): NORA_MEM_MAX= (rỗng = chỉ dùng trần slice)  NORA_CPUS=0-13
 #                             NORA_PYTHON=/home/vmc03/.venvs/nora/bin/python
 #                             NORA_MEM_LOG= (file ghi "epoch,current_mb" mỗi giây; rỗng = data/_cache/runs/<ts>_mem.csv)
 set -euo pipefail
 
 NORA_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MEM="${NORA_MEM_MAX:-}"
-CPUS="${NORA_CPUS:-0-5}"
+CPUS="${NORA_CPUS:-0-13}"
 PY="${NORA_PYTHON:-/home/vmc03/.venvs/nora/bin/python}"
 LOG="${NORA_MEM_LOG:-}"
 LOCK_MODE=wait   # wait | nowait | none
 LOCK_FILE="${XDG_RUNTIME_DIR:-/tmp}/nora-heavy.lock"
 
-usage() { echo "Dùng: $0 [--mem 8G] [--cpus 0-5] [--log FILE] [--no-wait | --no-lock] -- <đối số python...>" >&2; exit 2; }
+usage() { echo "Dùng: $0 [--mem 8G] [--cpus 0-13] [--log FILE] [--no-wait | --no-lock] -- <đối số python...>" >&2; exit 2; }
 
 while [ $# -gt 0 ]; do
   case "$1" in

@@ -12,7 +12,7 @@ Chia dữ liệu mỗi tài sản theo thời gian (không giai đoạn nào nh�
 4. Holdout (20% cuối, chưa ai chạm): chạy cấu hình được WFA chọn nhiều nhất.
 ALPHA = qua gate WFA + MC + holdout có lãi và MDD <= 30%. Không có thì báo thẳng là không có.
 
-Dùng:  PYTHONPATH=. python scripts/optimize_alphas.py [--spaces id1,id2] [--assets BTC,ETH] [--n 60] [--workers 8]
+Dùng:  PYTHONPATH=. python scripts/optimize_alphas.py [--spaces id1,id2] [--assets BTC,ETH] [--n 60] [--workers auto|8]
 """
 # ── Pin BLAS threads TRƯỚC khi import numpy ───────────────────────────────────
 import os
@@ -40,6 +40,9 @@ DAY = 86_400_000
 MAX_MDD = 30.0
 MAX_RUIN = 5.0
 TOP_K = 8
+# RAM ước tính mỗi worker (MB) để chia số worker: WFA đơn tài sản cho MỘT cặp, CHƯA đo thực —
+# hiệu chỉnh từ "peak_rss_mb" mới ghi trong results.json của mỗi cặp.
+PER_PAIR_MB = 900
 
 
 def _quiet(fn, *a, **k):
@@ -76,7 +79,7 @@ def windows(manifest, venue):
     return {"start": start, "dev1_end": dev1_end, "holdout": holdout, "end": end}
 
 
-def run_pair(space_id, symbol, n, seed, db_path):
+def _run_pair(space_id, symbol, n, seed, db_path):
     os.environ["NORA_PIPELINE_DB_PATH"] = db_path
     from backend.alpha.strategy_library import OPTIMIZATION_SPACES
     from backend.backtest.params_builder import data_symbol
@@ -177,16 +180,39 @@ def run_pair(space_id, symbol, n, seed, db_path):
     return out
 
 
+def run_pair(space_id, symbol, n, seed, db_path):
+    """Chạy một cặp, ghi đỉnh RAM của worker, rồi xả cache để cặp kế tiếp trong cùng tiến trình không cộng dồn RAM."""
+    try:
+        out = _run_pair(space_id, symbol, n, seed, db_path)
+        from backend.utils.memwatch import peak_rss_mb
+        out["peak_rss_mb"] = round(peak_rss_mb(), 1)
+        return out
+    finally:
+        try:
+            from backend.core.loader import CandleLoader
+            CandleLoader.clear_cache()
+        except Exception:
+            pass
+        try:
+            from backend.backtest.portfolio import data_cache_clear
+            data_cache_clear()
+        except Exception:
+            pass
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--spaces", default=None)
     ap.add_argument("--assets", default=None)
     ap.add_argument("--n", type=int, default=60)
     ap.add_argument("--seed", type=int, default=20260930)
-    ap.add_argument("--workers", type=int, default=8)
+    ap.add_argument("--workers", default="auto",
+                    help="số tiến trình song song; 'auto' = tính theo RAM (gồm cgroup) và CPU")
     args = ap.parse_args(argv)
     from backend.utils.memwatch import require_memory_limit, worker_init
+    from backend.utils.parallel import resolve_workers
     require_memory_limit("optimize_alphas")
+    workers = resolve_workers(args.workers, PER_PAIR_MB, "optimize_alphas")
     from backend.alpha.strategy_library import OPTIMIZATION_SPACES
     from backend.db.data_layout import cache_dir, list_assets
 
@@ -198,10 +224,10 @@ def main(argv=None):
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M")
     out_dir = cache_dir(None, "optimize", stamp)
     db_path = os.path.join(out_dir, "pipeline.db")
-    print(f"{len(pairs)} cặp (chiến lược × tài sản), {args.n} cấu hình/cặp, {args.workers} tiến trình -> {out_dir}", flush=True)
+    print(f"{len(pairs)} cặp (chiến lược × tài sản), {args.n} cấu hình/cặp, {workers} tiến trình -> {out_dir}", flush=True)
 
     results = []
-    with ProcessPoolExecutor(max_workers=args.workers, initializer=worker_init) as pool:
+    with ProcessPoolExecutor(max_workers=workers, initializer=worker_init) as pool:
         futs = {pool.submit(run_pair, sid, sym, args.n, args.seed, db_path): (sid, sym) for sid, sym in pairs}
         for fut in as_completed(futs):
             sid, sym = futs[fut]

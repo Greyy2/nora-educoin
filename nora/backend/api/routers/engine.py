@@ -93,8 +93,8 @@ async def run_backtest(req: BacktestRequest):
 
 
 @router.post("/optimize/run")
-async def run_optimize(req: OptimizeRequest):
-    """Kích hoạt Optimize (Quét Lưới Đa Luồng)."""
+def run_optimize(req: OptimizeRequest):
+    """Kích hoạt Optimize (Quét Lưới Đa Luồng). Hàm đồng bộ (def) để FastAPI chạy trong threadpool, không chặn event loop."""
     try:
         # 1. Sinh tổ hợp Grid
         base_params = req.base_params.copy()
@@ -106,7 +106,9 @@ async def run_optimize(req: OptimizeRequest):
             raise HTTPException(status_code=400, detail="Vượt quá giới hạn 200 tổ hợp.")
             
         # 2. Khởi chạy
-        runner = OptimizeRunner(max_workers=None)
+        # Số worker theo RAM/CPU còn trống (trong cgroup 3G của API tự ra ít worker), tối đa 4
+        from backend.utils.parallel import auto_workers
+        runner = OptimizeRunner(max_workers=auto_workers(900, max_workers=4))
         results = runner.run_optimization(
             account_id=req.account_id,
             campaign_id=req.campaign_id,

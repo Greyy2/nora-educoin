@@ -5,7 +5,7 @@
    đo lợi nhuận, MDD mark-to-market (thấy lỗ treo), lỗ treo tối đa trong lệnh, số tầng DCA, thanh lý.
 
 Kết quả: data/_cache/reports/step2_<ngày>.json + bảng tóm tắt in ra màn hình.
-Dùng:  PYTHONPATH=. python scripts/check_signals_strategies.py [--assets BTC,AERO] [--workers 4]
+Dùng:  PYTHONPATH=. python scripts/check_signals_strategies.py [--assets BTC,AERO] [--workers auto|4]
 """
 import argparse
 import json
@@ -74,16 +74,22 @@ def run_asset(symbol: str) -> dict:
 def main(argv=None):
     p = argparse.ArgumentParser()
     p.add_argument("--assets", default=None)
-    p.add_argument("--workers", type=int, default=4)
+    p.add_argument("--workers", default="auto",
+                   help="số tiến trình song song; 'auto' = tính theo RAM (gồm cgroup) và CPU")
     args = p.parse_args(argv)
     from backend.db.data_layout import cache_dir, list_assets
+    from backend.utils.memwatch import require_memory_limit, worker_init
+    from backend.utils.parallel import resolve_workers
+    require_memory_limit("check_signals_strategies")
+    # 1200 MB/worker: mỗi job nạp TOÀN BỘ nến một tài sản (nhiều khung) cho check_signals + backtest từng chiến lược (chưa đo thực)
+    workers = resolve_workers(args.workers, 1200, "check_signals_strategies")
     assets = [a["qualified"] for a in list_assets() if a["venue"] in ("cex", "dex")]
     if args.assets:
         wanted = {s.strip().upper() for s in args.assets.split(",")}
         assets = [a for a in assets if a.split(":")[-1] in wanted]
 
     results = []
-    with ProcessPoolExecutor(max_workers=args.workers) as pool:
+    with ProcessPoolExecutor(max_workers=workers, initializer=worker_init) as pool:
         futures = {pool.submit(run_asset, a): a for a in assets}
         for fut in as_completed(futures):
             res = fut.result()
