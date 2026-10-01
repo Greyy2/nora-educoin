@@ -34,17 +34,23 @@ const LEGACY = [
 ]
 
 function ThemeButton() {
-  const [theme, setTheme] = useState(() => { try { return localStorage.getItem(KEY) || 'dark' } catch (e) { return 'dark' } })
+  const [theme, setTheme] = useState(() => {
+    try { const s = localStorage.getItem(KEY); if (s === 'light' || s === 'dark') return s } catch (e) { /* bỏ qua */ }
+    try { return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light' } catch (e) { return 'dark' }
+  })
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
-    try { localStorage.setItem(KEY, theme) } catch (e) { /* bỏ qua */ }
   }, [theme])
-  const dark = theme === 'dark'
+  const pick = (t) => {
+    document.documentElement.setAttribute('data-theme', t)
+    try { localStorage.setItem(KEY, t) } catch (e) { /* bỏ qua */ }
+    setTheme(t)
+  }
   return (
-    <button type="button" className="n-icon-btn" onClick={() => setTheme(dark ? 'light' : 'dark')}
-      aria-label={dark ? 'Chuyển sang chế độ sáng' : 'Chuyển sang chế độ tối'} title={dark ? 'Chế độ sáng' : 'Chế độ tối'}>
-      {dark ? I.sun : I.moon}
-    </button>
+    <div className="n-theme-switch" role="group" aria-label="Chế độ hiển thị">
+      <button type="button" aria-pressed={theme === 'light'} onClick={() => pick('light')}>{I.sun}<span>Sáng</span></button>
+      <button type="button" aria-pressed={theme === 'dark'} onClick={() => pick('dark')}>{I.moon}<span>Tối</span></button>
+    </div>
   )
 }
 
