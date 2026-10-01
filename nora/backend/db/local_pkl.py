@@ -9,11 +9,12 @@ BASE_COLUMNS = ["open_time", "open", "high", "low", "close", "volume"]
 _COMPAT_COLUMNS = {"symbol", "timestamp", "close_time", "is_close"}
 
 
-def default_data_root() -> str:
-    return os.environ.get(
-        "NORA_LOCAL_DATA_ROOT",
-        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data")),
-    )
+from .data_layout import (  # noqa: E402  (một nơi duy nhất quyết định đường dẫn)
+    default_data_root,
+    is_asset_dir,
+    list_assets,
+    resolve_asset_dir,
+)
 
 
 def _frame_ms(frame: str) -> int:
@@ -47,10 +48,15 @@ def _symbol_candidates(symbol: str) -> List[str]:
 
 
 def resolve_symbol_dir(symbol: str, data_root: Optional[str] = None) -> Optional[str]:
-    root = data_root or default_data_root()
+    """Thư mục tài sản (cex/<SYM>, dex/<SYM>, hoặc phẳng kiểu cũ). Chấp nhận 'cex:BTC', 'BTCUSDT'."""
+    from .data_layout import parse_symbol, split_instrument
+    _, instrument = split_instrument(symbol)
+    venue, _ = parse_symbol(symbol)
+    if venue or instrument:  # ký hiệu có venue/instrument rõ ràng -> chỉ phân giải chính xác, không đoán
+        return resolve_asset_dir(symbol, data_root=data_root)
     for candidate in _symbol_candidates(symbol):
-        path = os.path.join(root, candidate)
-        if os.path.isdir(path):
+        path = resolve_asset_dir(candidate, data_root=data_root)
+        if path:
             return path
     return None
 
@@ -64,36 +70,55 @@ def has_frame(symbol: str, frame: str = "4h", data_root: Optional[str] = None) -
     return os.path.isfile(pkl_path)
 
 
-def has_ticks(symbol: str, data_root: Optional[str] = None) -> bool:
-    """Kiểm tra sự tồn tại của tick thật. Trả về False nếu manifest đánh dấu synthetic=True."""
+def read_manifest(symbol: str, data_root: Optional[str] = None) -> Optional[dict]:
+    """Đọc manifest.json của asset; None nếu không có hoặc hỏng."""
     s_dir = resolve_symbol_dir(symbol, data_root=data_root)
     if not s_dir:
-        return False
-    manifest_path = os.path.join(s_dir, "manifest.json")
-    if os.path.isfile(manifest_path):
-        try:
-            import json
-            with open(manifest_path, "r", encoding="utf-8") as f:
-                manifest = json.load(f)
-                if manifest.get("synthetic", False):
-                    return False
-        except Exception:
-            pass
-    tick_path = os.path.join(s_dir, "ticks.parquet")
-    return os.path.isfile(tick_path)
+        return None
+    path = os.path.join(s_dir, "manifest.json")
+    if not os.path.isfile(path):
+        return None
+    try:
+        import json
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else None
+    except Exception:
+        return None
 
+
+def has_ticks(symbol: str, data_root: Optional[str] = None, min_days: float = 0.0) -> bool:
+    """True chỉ khi có tick THẬT đã được khai báo trong manifest (fail-closed).
+
+    Yêu cầu: manifest.json tồn tại, có khối manifest["ticks"] với synthetic=False,
+    file ticks.parquet tồn tại và độ phủ thời gian của tick >= min_days.
+    File ticks.parquet không có manifest khai báo -> KHÔNG được coi là tick thật.
+    """
+    s_dir = resolve_symbol_dir(symbol, data_root=data_root)
+    if not s_dir or not os.path.isfile(os.path.join(s_dir, "ticks.parquet")):
+        return False
+    manifest = read_manifest(symbol, data_root=data_root)
+    ticks_meta = manifest.get("ticks") if manifest else None
+    if not isinstance(ticks_meta, dict) or ticks_meta.get("synthetic", True) is not False:
+        return False
+    if min_days > 0:
+        start_ts = int(ticks_meta.get("start_ts") or 0)
+        end_ts = int(ticks_meta.get("end_ts") or 0)
+        if end_ts <= start_ts or (end_ts - start_ts) / 86_400_000 < min_days:
+            return False
+    return True
+
+
+def list_asset_dirs(data_root: Optional[str] = None) -> List[str]:
+    """Ký hiệu các tài sản đang có (có tiền tố venue nếu tên trùng giữa cex/dex)."""
+    return sorted(item["qualified"] for item in list_assets(data_root))
 
 
 def list_symbols(frame: str = "4h", data_root: Optional[str] = None) -> List[str]:
-    root = data_root or default_data_root()
-    if not os.path.isdir(root):
-        return []
-    symbols = []
-    for name in os.listdir(root):
-        symbol_dir = os.path.join(root, name)
-        if os.path.isdir(symbol_dir) and os.path.isfile(os.path.join(symbol_dir, f"{frame}.pkl")):
-            symbols.append(name)
-    return sorted(symbols)
+    return sorted(
+        item["qualified"] for item in list_assets(data_root)
+        if os.path.isfile(os.path.join(item["path"], f"{frame}.pkl"))
+    )
 
 
 def fetch_candles_df(
@@ -105,7 +130,16 @@ def fetch_candles_df(
     db_name: str = "",
     limit: Optional[int] = None,
     data_root: Optional[str] = None,
+    compat: bool = True,
 ) -> pd.DataFrame:
+    """Nạp nến từ file pkl cục bộ.
+
+    Tối ưu bộ nhớ:
+    - Chỉ sort khi dữ liệu chưa được sắp xếp (thường không cần).
+    - Cắt cửa sổ start_ts/end_ts TRƯỚC khi .copy() → đỉnh RAM chỉ ~1× kích thước cửa sổ.
+    - compat=False (dùng bởi engine nội bộ): bỏ qua các cột symbol/timestamp/close_time/is_close
+      không cần thiết, giảm thêm ~20% RAM.
+    """
     symbol_dir = resolve_symbol_dir(symbol, data_root=data_root)
     if not symbol_dir:
         return pd.DataFrame()
@@ -120,19 +154,16 @@ def fetch_candles_df(
     if "open_time" not in df.columns:
         raise ValueError(f"Local PKL file missing open_time column: {path}")
 
-    needed_columns = list(BASE_COLUMNS)
-    if columns:
-        for column in columns:
-            if column in df.columns and column not in needed_columns:
-                needed_columns.append(column)
-    existing_columns = [column for column in needed_columns if column in df.columns]
-    df = df.loc[:, existing_columns].copy()
-
+    # Chuẩn hóa open_time
     df["open_time"] = pd.to_numeric(df["open_time"], errors="coerce")
     df = df.dropna(subset=["open_time"])
     df["open_time"] = df["open_time"].astype("int64")
-    df = df.sort_values("open_time").reset_index(drop=True)
 
+    # Sort chỉ khi chưa monotonic (pkl mới crawl thường đã được sort)
+    if not df["open_time"].is_monotonic_increasing:
+        df = df.sort_values("open_time").reset_index(drop=True)
+
+    # Cắt cửa sổ TRƯỚC khi .copy() để tiết kiệm bộ nhớ
     if start_ts is not None:
         df = df[df["open_time"] >= int(start_ts)]
     if end_ts is not None:
@@ -140,8 +171,19 @@ def fetch_candles_df(
     if limit:
         df = df.head(limit)
 
+    # Luôn giữ is_filled nếu có: engine cần biết nến nào là nến điền
+    needed_columns = list(BASE_COLUMNS) + (["is_filled"] if "is_filled" in df.columns else [])
+    if columns:
+        for column in columns:
+            if column in df.columns and column not in needed_columns:
+                needed_columns.append(column)
+    existing_columns = [column for column in needed_columns if column in df.columns]
+    # .copy() tại đây — sau khi đã cắt cửa sổ, chỉ sao chép phần cần dùng
+    df = df.loc[:, existing_columns].copy()
+
+    # Cột compat chỉ thêm khi cần thiết (caller yêu cầu hoặc không chỉ định columns)
     requested = set(columns or [])
-    needs_compat = not columns or bool(requested & _COMPAT_COLUMNS)
+    needs_compat = compat and (not columns or bool(requested & _COMPAT_COLUMNS))
     if needs_compat:
         symbol_name = os.path.basename(symbol_dir)
         interval_ms = _frame_ms(frame)
