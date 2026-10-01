@@ -40,3 +40,37 @@ export const JOB_STATUS = {
 }
 
 export const jobWhen = (j) => fmtDateTime(toMs(j.created))
+
+export const JOB_KIND = {
+  book_backtest: { text: 'Backtest', short: 'Backtest' },
+  book_wfa: { text: 'Walk-forward', short: 'WFA' },
+  book_build: { text: 'Alpha · tối ưu', short: 'Alpha' },
+}
+export const jobKindText = (k) => JOB_KIND[k]?.text || String(k || '—')
+
+/** Đường dẫn mở đúng trang/bước của một job (deep link). */
+export function jobLink(j) {
+  const id = encodeURIComponent(j.job_id || j.id)
+  if (j.kind === 'book_wfa') return `/backtest?wfa=${id}&step=2`
+  if (j.kind === 'book_build') return `/alpha?build=${id}`
+  return `/backtest?job=${id}`
+}
+
+export const isActiveJob = (j) => j.status === 'running' || j.status === 'queued'
+
+/** Thời gian của job (giây): đang chạy = từ lúc bắt đầu tới nay, xong = lúc chạy thực tế, đang chờ = đã chờ bao lâu. */
+export function jobElapsed(j, now = Date.now()) {
+  const created = toMs(j.created)
+  const started = toMs(j.started)
+  const finished = toMs(j.finished)
+  const from = started || created
+  if (!from) return null
+  return Math.max(0, ((finished || now) - from) / 1000)
+}
+
+/** Nhãn job bỏ phần tên loại ở đầu ("Backtest · …"), ngày đổi sang dd/mm/yyyy. */
+export function jobDetail(j) {
+  const parts = String(j.label || '').split(' · ')
+  const body = (parts.length > 1 ? parts.slice(1).join(' · ') : parts[0]) || j.job_id || ''
+  return body.replace(/(\d{4})-(\d{2})-(\d{2})/g, '$3/$2/$1').replace(/→/g, ' → ')
+}

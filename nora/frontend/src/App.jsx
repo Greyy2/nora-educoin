@@ -19,6 +19,7 @@ import { CatalogProvider } from './v2/context/Catalog'
 import Portfolio from './v2/pages/Portfolio'
 import Backtest from './v2/pages/Backtest'
 import AlphaV2 from './v2/pages/Alpha'
+import History from './v2/pages/History'
 
 function AppRoutes() {
   return (
@@ -29,6 +30,7 @@ function AppRoutes() {
         <Route path="/portfolio" element={<Portfolio />} />
         <Route path="/backtest" element={<Backtest />} />
         <Route path="/alpha" element={<AlphaV2 />} />
+        <Route path="/history" element={<History />} />
 
         {/* giao diện cũ (nhóm Legacy ở thanh bên) */}
         <Route path="/dashboard" element={<Dashboard />} />

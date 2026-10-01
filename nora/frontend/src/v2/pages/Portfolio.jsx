@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { PageHead, Segmented, Field } from '../components/ui'
+import QuickGuide, { GUIDE_KEY } from '../components/QuickGuide'
 import DashboardLoader, { PERIODS } from '../components/Dashboard'
 import useStored from '../hooks/useStored'
 import { listJobs } from '../api'
@@ -13,6 +14,8 @@ const SOURCES = [
 export default function Portfolio() {
   const [pref, setPref] = useStored('nora-v2-portfolio', { source: 'live', jobId: '', period: 'ALL' })
   const [jobs, setJobs] = useState({ loading: false, rows: [], error: null })
+  const [guide, setGuide] = useState(() => { try { return localStorage.getItem(GUIDE_KEY) !== '1' } catch (e) { return true } })
+  const dismissGuide = () => { setGuide(false); try { localStorage.setItem(GUIDE_KEY, '1') } catch (e) { /* bỏ qua */ } }
   const source = SOURCES.some((o) => o.value === pref.source) ? pref.source : 'live' // giá trị cũ đã lưu (vd. nguồn đã bỏ) -> Live
 
   useEffect(() => {
@@ -41,6 +44,8 @@ export default function Portfolio() {
         <Segmented label="Kỳ xem" value={pref.period} onChange={(v) => setPref({ period: v })} options={PERIODS} />
       </PageHead>
 
+      {guide && <QuickGuide onDismiss={dismissGuide} />}
+
       {isBt && (
         <div className="n-panel" style={{ padding: '10px 14px', marginBottom: 12, display: 'flex', gap: 14, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <div style={{ minWidth: 320, flex: '1 1 320px' }}>
@@ -56,7 +61,7 @@ export default function Portfolio() {
         </div>
       )}
 
-      <DashboardLoader source={source} jobId={isBt ? pref.jobId : undefined} period={pref.period} />
+      <DashboardLoader source={source} jobId={isBt ? pref.jobId : undefined} period={pref.period} refreshMs={isBt ? 0 : 60000} />
     </>
   )
 }

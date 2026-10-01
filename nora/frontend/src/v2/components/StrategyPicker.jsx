@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react'
+import { paramHeader, fmtParam } from '../lib/params'
 
 const same = (a, b) => Number(a) === Number(b)
 
@@ -15,9 +16,9 @@ export function ParamEditor({ item, value, onChange }) {
         const id = `p-${item.id}-${k}`
         return (
           <div className="n-field" key={k}>
-            <label htmlFor={id}>{k}</label>
-            <select id={id} className="n-sel" value={cur ?? ''} onChange={(e) => onChange({ ...value, [k]: Number(e.target.value) })}>
-              {opts.map((o) => <option key={o} value={o}>{o}</option>)}
+            <label htmlFor={id} title={k}>{paramHeader(k)}</label>
+            <select id={id} className="n-sel" title={k} value={cur ?? ''} onChange={(e) => onChange({ ...value, [k]: Number(e.target.value) })}>
+              {opts.map((o) => <option key={o} value={o}>{fmtParam(k, o)}</option>)}
             </select>
           </div>
         )

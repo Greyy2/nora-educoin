@@ -93,7 +93,8 @@ class PortfolioEngine:
         self.equity_curve: List[Dict[str, float]] = []
         self.halted_at: Optional[int] = None
         self.ruined_at: Optional[int] = None
-        self.rejected_for_risk = 0
+        self.rejected_for_risk = 0           # số PHÚT lệnh vào bị chặn bởi giới hạn rủi ro (giữ nguyên nghĩa, golden dựa vào đây)
+        self.risk_blocked_attempts = 0       # số LẦN vào lệnh bị chặn: các phút liên tiếp của cùng một tracker tính là một lần
         self.bar_hook = None  # (test) gọi sau mỗi phút: hook(engine, t)
         self.close_at_end = close_at_end
         self.last_close: Dict[str, float] = {}   # giá đóng cửa cuối của từng tài sản (đặt khi run() xong)
@@ -257,15 +258,18 @@ class PortfolioEngine:
                     can_open = False
                     if can_trade and tr.pending_entry and not tr.is_open:
                         n_open, per = self._open_counts()
-                        if n_open >= self.risk.max_positions or per[b] >= self.risk.max_per_symbol:
-                            self.rejected_for_risk += 1
-                        else:
+                        blocked = n_open >= self.risk.max_positions or per[b] >= self.risk.max_per_symbol
+                        if not blocked:
                             last_close[b] = float(o)  # giá tại thời điểm vào lệnh
                             room = cap * self.ledger.equity - self._gross_notional(last_close)
                             tr.max_new_notional = max(0.0, room)
                             can_open = room > 0
-                            if not can_open:
-                                self.rejected_for_risk += 1
+                            blocked = not can_open
+                        if blocked:
+                            self.rejected_for_risk += 1
+                            if e.get("blk_g") != g - 1:   # phút trước tracker này không bị chặn -> một lần vào lệnh mới bị chặn
+                                self.risk_blocked_attempts += 1
+                            e["blk_g"] = g
                     pos = tr.on_bar(t, o, h, l, c, entry_signal=sig and can_trade, stop_signal=bool(e["stop"][i]),
                                     can_open=can_open,
                                     vol=float(e["vol"][i]) if e["vol"] is not None else float("nan"))
@@ -397,6 +401,7 @@ class PortfolioEngine:
             "final_equity": self.ledger.equity, "initial_capital": self.initial_capital,
             "by_strategy": by_strategy, "by_symbol": by_symbol,
             "rejected_for_capital": self.ledger.rejected, "rejected_for_risk": self.rejected_for_risk,
+            "risk_blocked_attempts": self.risk_blocked_attempts,
             "skipped_no_vol": skipped, "dca_layers_rejected": dca_rejected, "halted_at": self.halted_at, "ruined_at": self.ruined_at,
             "risk": asdict(self.risk), "symbols": self.symbols, "strategies": [s["id"] for s in self.strategies],
         }

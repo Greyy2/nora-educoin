@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { PageHead, Panel, Field, ErrorBox, Empty, Spinner, Status } from '../components/ui'
+import { PageHead, Panel, Field, ErrorBox, Empty, Spinner, Status, Loading, ErrorState } from '../components/ui'
+import Term from '../components/Term'
+import { paramHeader, paramLabel, fmtParam, fmtParamFull } from '../lib/params'
+import { stopFillText } from '../lib/stopfill'
 import JobPanel from '../components/JobPanel'
 import useJob from '../hooks/useJob'
 import { useCatalog } from '../context/Catalog'
 import { postBuild, postPublish, getAlphas } from '../api'
-import { fmtNum, fmtPct, fmtSPct, signClass, fmtDateTime, isNum } from '../lib/format'
+import { fmtNum, fmtPct, fmtSPct, signClass, fmtDateTime, isNum, fullDate } from '../lib/format'
 
 function StrategyCards({ catalog, value, onPick }) {
   return (
@@ -18,8 +21,10 @@ function StrategyCards({ catalog, value, onPick }) {
           </span>
           <span className="muted" style={{ fontSize: 11.5 }}>{c.family}</span>
           <span className="ds">{c.description}</span>
-          <span className="mono" style={{ fontSize: 11, color: 'var(--n-ink-2)' }}>
-            {Object.entries(c.space || {}).map(([k, a]) => `${k}: [${a.join(', ')}]`).join(' · ')}
+          <span className="n-pspace">
+            {Object.entries(c.space || {}).map(([k, a]) => (
+              <div key={k} title={k}><b>{paramHeader(k)}:</b><span>{a.map((x) => fmtParam(k, x)).join(' · ')}</span></div>
+            ))}
           </span>
         </button>
       ))}
@@ -27,7 +32,11 @@ function StrategyCards({ catalog, value, onPick }) {
   )
 }
 
-const PHASE_LABEL = { dev1: 'Dev1 (tối ưu)', dev2_level: 'Dev2 · level', dev2_extreme: 'Dev2 · extreme', holdout_level: 'Holdout · level', holdout_extreme: 'Holdout · extreme' }
+const PHASE_LABEL = {
+  dev1: <><Term k="dev1">Dev1</Term> (tối ưu)</>,
+  dev2_level: <><Term k="dev2">Dev2</Term> · {stopFillText('level')}</>, dev2_extreme: <><Term k="dev2">Dev2</Term> · {stopFillText('extreme')}</>,
+  holdout_level: <><Term k="holdout">Holdout</Term> · {stopFillText('level')}</>, holdout_extreme: <><Term k="holdout">Holdout</Term> · {stopFillText('extreme')}</>,
+}
 
 /** Kiểm chứng của một chiến lược: số liệu top-1 ở `candidates[id].dev1_top[0]` (dev1, dev2 level/extreme) + holdout của cả sổ (`book.final`). */
 function CandidateSummary({ cand, book }) {
@@ -40,7 +49,7 @@ function CandidateSummary({ cand, book }) {
   ].filter(([, m]) => m && typeof m === 'object')
   const hasHoldout = rows.some(([k]) => k.startsWith('holdout'))
   return (
-    <Panel title={hasHoldout ? 'Kiểm chứng dev2 / holdout' : 'Kiểm chứng dev2'} meta={
+    <Panel title={hasHoldout ? <>Kiểm chứng <Term k="dev2">dev2</Term> / <Term k="holdout">holdout</Term></> : <>Kiểm chứng <Term k="dev2">dev2</Term></>} meta={
       <>
         {cand.accepted != null && <Status tone={cand.accepted ? 'ok' : 'bad'}>{cand.accepted ? '✓ Được nhận' : '✗ Bị loại'}</Status>}
         {top.dev2_pass != null && <Status tone={top.dev2_pass ? 'ok' : 'bad'}>{top.dev2_pass ? 'Qua cổng dev2' : 'Trượt cổng dev2'}</Status>}
@@ -50,7 +59,7 @@ function CandidateSummary({ cand, book }) {
     }>
       <div className="n-tblwrap">
         <table className="n-tbl">
-          <thead><tr><th>Giai đoạn</th><th className="r">Lãi</th><th className="r">MDD</th><th className="r">Sharpe</th><th className="r">Lệnh</th><th className="r">Cặp dương</th></tr></thead>
+          <thead><tr><th>Giai đoạn</th><th className="r">Lãi</th><th className="r"><Term k="mdd">MDD</Term></th><th className="r"><Term k="sharpe">Sharpe</Term></th><th className="r">Lệnh</th><th className="r">Cặp dương</th></tr></thead>
           <tbody>
             {rows.map(([k, m]) => (
               <tr key={k}><td>{PHASE_LABEL[k] || k}</td>
@@ -92,16 +101,16 @@ function RankTable({ id, rows, space, onSend }) {
   const keys = used.length ? used : Object.keys(space || {})
   const sorted = [...rows].sort((a, b) => (b.score ?? -1e9) - (a.score ?? -1e9))
   return (
-    <div className="n-tblwrap">
+    <div className="n-tblwrap long">
       <table className="n-tbl">
         <thead>
-          <tr><th>#</th>{keys.map((k) => <th key={k} className="r">{k}</th>)}<th className="r">Lãi dev1</th><th className="r">MDD</th><th className="r">Lệnh</th><th className="r">Cặp dương</th><th className="r">Sharpe</th><th className="r">Điểm</th><th>Đạt</th><th /></tr>
+          <tr><th>#</th>{keys.map((k) => <th key={k} className="r" title={k}>{paramHeader(k)}</th>)}<th className="r">Lãi <Term k="dev1">dev1</Term></th><th className="r"><Term k="mdd">MDD</Term></th><th className="r">Lệnh</th><th className="r">Cặp dương</th><th className="r"><Term k="sharpe">Sharpe</Term></th><th className="r"><Term k="score">Điểm</Term></th><th>Đạt</th><th /></tr>
         </thead>
         <tbody>
           {sorted.map((r, i) => (
             <tr key={i}>
               <td className="num">{i + 1}</td>
-              {keys.map((k) => <td key={k} className="r">{r.params?.[k] ?? '—'}</td>)}
+              {keys.map((k) => <td key={k} className="r" title={`${k} = ${r.params?.[k] ?? '—'}`}>{r.params?.[k] != null ? fmtParam(k, r.params[k]) : '—'}</td>)}
               <td className={`r ${signClass(r.dev1?.ret_pct)}`}>{fmtSPct(r.dev1?.ret_pct)}</td>
               <td className="r">{fmtPct(r.dev1?.mdd_pct)}</td>
               <td className="r">{r.dev1?.trades ?? '—'}</td>
@@ -120,13 +129,15 @@ function RankTable({ id, rows, space, onSend }) {
 
 function AlphaVault() {
   const [st, setSt] = useState({ loading: true, data: null, error: null })
+  const [tryN, setTry] = useState(0)
   useEffect(() => {
     let dead = false
+    setSt((x) => ({ ...x, loading: true, error: null }))
     getAlphas().then((data) => !dead && setSt({ loading: false, data, error: null }), (e) => !dead && setSt({ loading: false, data: null, error: e.message }))
     return () => { dead = true }
-  }, [])
-  if (st.loading) return <Empty title="Đang tải kho alpha"><Spinner /></Empty>
-  if (st.error) return <ErrorBox>Không tải được kho alpha: {st.error}</ErrorBox>
+  }, [tryN])
+  if (st.loading) return <Loading what="kho alpha" />
+  if (st.error) return <ErrorState title="Không tải được kho alpha" error={st.error} onRetry={() => setTry((n) => n + 1)} />
   const { registry, book } = st.data || {}
   const alphas = registry?.alphas || []
   const bookTone = book?.status === 'READY_FOR_TESTNET' ? 'ok' : book?.status === 'HOLDOUT_FAILED' ? 'bad' : 'warn'
@@ -147,11 +158,11 @@ function AlphaVault() {
                 </div>
                 <div className="n-stats" style={{ marginTop: 6 }}>
                   {Object.entries({ ...(a.position || {}), ...(a.signal_params || {}) }).slice(0, 8).map(([k, v]) => (
-                    <div key={k}><span className="k">{k}</span><span className="v">{String(v)}</span></div>
+                    <div key={k} title={k}><span className="k">{paramLabel(k)}</span><span className="v">{fmtParamFull(k, v)}</span></div>
                   ))}
                 </div>
                 {best && <p className="n-note" style={{ marginTop: 6 }}>Cấu hình tốt nhất khi sàng lọc: lãi <b className={`mono ${signClass(best.ret)}`}>{fmtSPct(best.ret, 1)}</b>, MDD <b className="mono">{fmtPct(best.mdd, 1)}</b>, {best.n} lệnh.</p>}
-                {w && <p className="n-note">Cửa sổ: {w.start} → {w.end}{w.holdout ? ` · holdout từ ${w.holdout}` : ''}</p>}
+                {w && <p className="n-note">Cửa sổ: {fullDate(w.start)} → {fullDate(w.end)}{w.holdout ? <> · <Term k="holdout">holdout</Term> từ {fullDate(w.holdout)}</> : ''}</p>}
               </div>
             )
           })}
@@ -161,14 +172,16 @@ function AlphaVault() {
         {!book && <p className="n-note">Chưa có alphas/book.json.</p>}
         {book && (
           <>
-            <p className="n-note">Tạo lúc {fmtDateTime(book.generated_at)}{book.windows ? ` · dữ liệu ${book.windows.start} → ${book.windows.end}` : ''}</p>
+            <p className="n-note">Tạo lúc {fmtDateTime(book.generated_at)}{book.windows ? ` · dữ liệu ${fullDate(book.windows.start)} → ${fullDate(book.windows.end)}` : ''}</p>
             <div className="n-tblwrap">
               <table className="n-tbl">
                 <thead><tr><th>Chiến lược</th><th>Tham số</th></tr></thead>
                 <tbody>
                   {(book.strategies || []).map((s) => (
                     <tr key={s.id}><td className="mono"><b>{s.id}</b></td>
-                      <td className="mono" style={{ whiteSpace: 'normal', fontSize: 11.5 }}>{Object.entries(s.params || {}).map(([k, v]) => `${k}=${v}`).join(', ')}</td></tr>
+                      <td style={{ whiteSpace: 'normal', fontSize: 11.5 }}>
+                        <span className="n-plist">{Object.entries(s.params || {}).map(([k, v]) => <span key={k} title={k}><b>{paramLabel(k)}</b>{fmtParamFull(k, v)}</span>)}</span>
+                      </td></tr>
                   ))}
                 </tbody>
               </table>
@@ -181,10 +194,10 @@ function AlphaVault() {
 }
 
 export default function Alpha() {
-  const { data: cat, loading, error } = useCatalog()
+  const { data: cat, loading, error, reload } = useCatalog()
   const [sp, setSp] = useSearchParams()
   const nav = useNavigate()
-  const jobId = sp.get('job') || ''
+  const jobId = sp.get('build') || sp.get('job') || ''   // ?build=<id> (link từ Lịch sử chạy); ?job= là tên cũ
   const picked = sp.get('s') || ''
   const [n, setN] = useState(24)
   const [busy, setBusy] = useState(false)
@@ -193,6 +206,7 @@ export default function Alpha() {
 
   const patch = (o) => {
     const q = new URLSearchParams(sp)
+    if ('build' in o) q.delete('job')
     Object.entries(o).forEach(([k, v]) => (v ? q.set(k, v) : q.delete(k)))
     setSp(q)
   }
@@ -201,7 +215,7 @@ export default function Alpha() {
   async function run() {
     if (!strat) return setErr('Chọn một chiến lược.')
     setErr(null); setBusy(true)
-    try { const r = await postBuild({ only: [strat.id], n: Number(n) }); patch({ job: r.job_id }) } catch (e) { setErr(e.message) } finally { setBusy(false) }
+    try { const r = await postBuild({ only: [strat.id], n: Number(n) }); patch({ build: r.job_id }) } catch (e) { setErr(e.message) } finally { setBusy(false) }
   }
   const send = (id, params) => nav('/backtest', { state: { prefill: { strategies: [{ id, params }] } } })
 
@@ -213,9 +227,9 @@ export default function Alpha() {
   return (
     <>
       <PageHead kicker="Bước đầu của vòng kiểm chứng" title="Alpha · Hiệu chỉnh tham số"
-        subtitle="Chọn một chiến lược có sẵn, thử n cấu hình tham số trên dev1, xếp hạng theo điểm, rồi gửi cấu hình tốt sang Backtest." />
-      {error && <ErrorBox>Không tải được danh mục chiến lược: {error}</ErrorBox>}
-      {loading && !cat && <Empty title="Đang tải danh mục"><Spinner /></Empty>}
+        subtitle={<>Chọn một chiến lược có sẵn, thử n cấu hình tham số trên <Term k="dev1">dev1</Term>, xếp hạng theo <Term k="score">điểm</Term>, rồi gửi cấu hình tốt sang Backtest.</>} />
+      {error && <ErrorState title="Không tải được danh mục chiến lược" error={error} onRetry={reload} />}
+      {loading && !cat && <Loading what="danh mục chiến lược" />}
       {cat && (
         <Panel title="Chiến lược" meta={<span>{cat.catalog.length} chiến lược</span>}>
           <StrategyCards catalog={cat.catalog} value={picked} onPick={(id) => patch({ s: id })} />

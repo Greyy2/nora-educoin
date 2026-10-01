@@ -3,6 +3,8 @@ import { Panel, Status } from './ui'
 import FanChart from './charts/FanChart'
 import Histogram from './charts/Histogram'
 import GateList from './GateList'
+import Term from './Term'
+import { stopFillText } from '../lib/stopfill'
 import { fmtNum, fmtSPct, fmtPct, signClass, isNum } from '../lib/format'
 
 // Quạt có thể là % lợi nhuận (bắt đầu 0), hệ số vốn (bắt đầu 1) hoặc chỉ số (bắt đầu 100): quy về %.
@@ -23,20 +25,20 @@ export default function McResult({ mc, ruinPct }) {
   const sm = mc.summary || {}
   const ruin = mc.params?.ruin_threshold_pct ?? ruinPct ?? 30
   const gate = mc.gate || {}
-  const gateChecks = [{ key: 'ruin', label: `P(MDD ≥ ${ruin}%) trong ${mc.params?.horizon_days ?? '—'} ngày`, required: `≤ ${gate.ruin_max_pct}%`, actual: sm.p_mdd_ge_ruin_pct, passed: gate.passed }]
+  const gateChecks = [{ key: 'ruin', unit: '%', label: `P(MDD ≥ ${ruin}%) trong ${mc.params?.horizon_days ?? '—'} ngày`, required: `≤ ${fmtNum(gate.ruin_max_pct, 2)}%`, actual: sm.p_mdd_ge_ruin_pct, passed: gate.passed }]
   return (
     <div style={{ display: 'grid', gap: 12 }}>
       <div className="n-grid g-kpi" style={{ marginBottom: 0 }}>
-        <div className="n-panel n-kpi"><div className="lbl">Lợi nhuận trung vị</div><div className={`val ${signClass(sm.median_ret_pct)}`}>{fmtSPct(sm.median_ret_pct, 1)}</div><div className="sub">P50 cuối kỳ</div></div>
-        <div className="n-panel n-kpi"><div className="lbl">Lợi nhuận P5</div><div className={`val ${signClass(sm.p05_ret_pct)}`}>{fmtSPct(sm.p05_ret_pct, 1)}</div><div className="sub">kịch bản xấu 5%</div></div>
-        <div className="n-panel n-kpi"><div className="lbl">MDD trung vị</div><div className="val neg">{fmtPct(sm.mdd_p50_pct, 1)}</div><div className="sub">P50</div></div>
-        <div className="n-panel n-kpi"><div className="lbl">MDD P95</div><div className="val neg">{fmtPct(sm.mdd_p95_pct, 1)}</div><div className="sub">kịch bản xấu 5%</div></div>
-        <div className="n-panel n-kpi"><div className="lbl">P(MDD ≥ {ruin}%)</div><div className="val">{fmtPct(sm.p_mdd_ge_ruin_pct, 1)}</div><div className="sub">ngưỡng phá sản</div></div>
-        <div className="n-panel n-kpi"><div className="lbl">Cổng Monte Carlo</div><div className="val" style={{ fontSize: 16, marginTop: 4 }}><Status tone={gate.passed ? 'ok' : 'bad'}>{gate.passed ? '✓ Đạt' : '✗ Không đạt'}</Status></div><div className="sub">ruin tối đa {fmtPct(gate.ruin_max_pct, 1)}</div></div>
+        <div className="n-panel n-kpi"><div className="lbl">Lợi nhuận trung vị</div><div className={`val ${signClass(sm.median_ret_pct)}`}>{fmtSPct(sm.median_ret_pct)}</div><div className="sub">P50 cuối kỳ</div></div>
+        <div className="n-panel n-kpi"><div className="lbl">Lợi nhuận P5</div><div className={`val ${signClass(sm.p05_ret_pct)}`}>{fmtSPct(sm.p05_ret_pct)}</div><div className="sub">kịch bản xấu 5%</div></div>
+        <div className="n-panel n-kpi"><div className="lbl"><Term k="mdd">MDD</Term> trung vị</div><div className="val neg">{fmtPct(sm.mdd_p50_pct)}</div><div className="sub">P50</div></div>
+        <div className="n-panel n-kpi"><div className="lbl"><Term k="mdd">MDD</Term> P95</div><div className="val neg">{fmtPct(sm.mdd_p95_pct)}</div><div className="sub">kịch bản xấu 5%</div></div>
+        <div className="n-panel n-kpi"><div className="lbl"><Term k="p_mdd">P(MDD ≥ {ruin}%)</Term></div><div className="val">{fmtPct(sm.p_mdd_ge_ruin_pct)}</div><div className="sub">ngưỡng phá sản</div></div>
+        <div className="n-panel n-kpi"><div className="lbl">Cổng <Term k="mc">Monte Carlo</Term></div><div className="val" style={{ fontSize: 16, marginTop: 4 }}><Status tone={gate.passed ? 'ok' : 'bad'}>{gate.passed ? '✓ Đạt' : '✗ Không đạt'}</Status></div><div className="sub">ruin tối đa {fmtPct(gate.ruin_max_pct)}</div></div>
       </div>
-      <Panel title="Quạt lợi nhuận tích luỹ" meta={<span className="n-legend"><span><i style={{ borderTopColor: 'var(--n-blue)' }} />P50</span><span><i className="sq" style={{ background: 'var(--n-blue)', opacity: 0.4 }} />P25–P75</span><span><i className="sq" style={{ background: 'var(--n-blue)', opacity: 0.18 }} />P5–P95</span></span>}>
+      <Panel title={<>Quạt lợi nhuận tích luỹ (<Term k="fan">P5–P95</Term>)</>} meta={<span className="n-legend"><span><i style={{ borderTopColor: 'var(--n-blue)' }} />P50</span><span><i className="sq" style={{ background: 'var(--n-blue)', opacity: 0.4 }} />P25–P75</span><span><i className="sq" style={{ background: 'var(--n-blue)', opacity: 0.18 }} />P5–P95</span></span>}>
         <FanChart fan={fan} height={270} />
-        <p className="n-note">Trục x: số ngày kể từ đầu mô phỏng. {mc.params && <span className="mono">{fmtNum(mc.params.simulations, 0)} mô phỏng · khối {mc.params.block_days} ngày · seed {mc.params.seed}</span>}</p>
+        <p className="n-note">Trục x: số ngày kể từ đầu mô phỏng. {mc.params && <span className="mono">{fmtNum(mc.params.simulations, 0)} mô phỏng · <Term k="bootstrap">khối</Term> {mc.params.block_days} ngày · seed {mc.params.seed}{mc.params.basis ? ` · khớp cắt lỗ: ${stopFillText(mc.params.basis)}` : ''}</span>}</p>
       </Panel>
       <div className="n-grid g-2" style={{ marginBottom: 0 }}>
         <Panel title="Phân phối max drawdown" meta={<span>ngưỡng phá sản <b className="mono neg">{ruin}%</b></span>}>

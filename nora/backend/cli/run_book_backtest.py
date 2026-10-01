@@ -111,6 +111,7 @@ def run(items, symbols, start, end, rpt, stop_fill, risk, extra_strategies=None,
         eng.run()
     res = eng.get_results()
     out = portfolio_metrics(res, start)
+    out["risk_blocked_attempts"] = res["risk_blocked_attempts"]   # số lần vào lệnh bị chặn (rejected_for_risk đếm phút)
     out["trade_list"] = [{
         "symbol": p.symbol, "strategy": p.strategy_id, "side": p.pos_type.name,
         "enter_time": p.enter_time, "enter_price": p.enter_price, "close_time": p.close_time, "close_price": p.close_price,

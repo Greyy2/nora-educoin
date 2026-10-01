@@ -212,6 +212,29 @@ def _strategy_rows(ids: List[str], trades: List[Dict[str, Any]], dates: pd.Datet
     return rows
 
 
+def _risk_block_events(result: Dict[str, Any], cfg: Dict[str, Any], curve: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Số LẦN vào lệnh bị chặn bởi giới hạn rủi ro danh mục (các phút liên tiếp của cùng một tracker = một lần).
+    Kết quả cũ chỉ có `rejected_for_risk` (đếm phút) nên không đổi được thành số lần: nêu sự việc, không nêu con số."""
+    t = int(curve[-1]["time"]) if curve else 0
+    risk = cfg.get("risk") or {}
+    n = result.get("risk_blocked_attempts")
+    bits = []
+    if risk.get("max_positions") is not None:
+        bits.append(f"tối đa {int(risk['max_positions'])} vị thế")
+    if risk.get("max_per_symbol") is not None:
+        bits.append(f"{int(risk['max_per_symbol'])} mỗi tài sản")
+    if risk.get("max_gross_exposure") is not None:
+        bits.append(f"trần exposure {float(risk['max_gross_exposure']):g}× vốn")
+    limits = f" ({' / '.join(bits)})" if bits else ""
+    if n is not None:
+        if int(n) <= 0:
+            return []
+        return [{"time": t, "level": "info", "text": f"{int(n)} lần vào lệnh bị chặn do giới hạn rủi ro danh mục{limits}"}]
+    if result.get("rejected_for_risk"):
+        return [{"time": t, "level": "info", "text": f"Có lần vào lệnh bị chặn do giới hạn rủi ro danh mục{limits} (kết quả cũ chưa đếm theo lần)"}]
+    return []
+
+
 def _events(result: Dict[str, Any], t_min: int) -> List[Dict[str, Any]]:
     """Kill switch, MDD chạm 50%/80% hạn mức, lệnh bị từ chối vì rủi ro. Dùng điểm xấu nhất của nến trong equity_curve."""
     cfg = result.get("config") or {}
@@ -231,10 +254,7 @@ def _events(result: Dict[str, Any], t_min: int) -> List[Dict[str, Any]]:
     if result.get("halted_at"):
         ev.append({"time": int(result["halted_at"]), "level": "crit",
                    "text": f"Kill switch kích hoạt (sụt {budget:g}% từ đỉnh): đã đóng mọi vị thế và dừng mở lệnh mới"})
-    rej = result.get("rejected_for_risk")
-    if rej:
-        ev.append({"time": int(curve[-1]["time"]) if curve else 0, "level": "info",
-                   "text": f"{int(rej)} tín hiệu bị từ chối vì giới hạn rủi ro danh mục"})
+    ev.extend(_risk_block_events(result, cfg, curve))
     return sorted((e for e in ev if e["time"] >= t_min), key=lambda e: e["time"])
 
 

@@ -64,3 +64,18 @@ export class ErrorBoundary extends React.Component {
     return this.props.children
   }
 }
+
+/** Trạng thái đang tải thống nhất. */
+export function Loading({ what = 'dữ liệu' }) {
+  return <div className="n-empty" role="status"><h3>Đang tải {what}</h3><Spinner /></div>
+}
+
+/** Trạng thái lỗi thống nhất, kèm nút thử lại. */
+export function ErrorState({ title = 'Không tải được dữ liệu', error, onRetry }) {
+  return (
+    <div className="n-err n-err-state" role="alert">
+      <div><b>{title}</b>{error ? <>: {error}</> : null}</div>
+      {onRetry && <button type="button" className="n-btn sm" onClick={onRetry}>Thử lại</button>}
+    </div>
+  )
+}

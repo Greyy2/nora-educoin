@@ -125,6 +125,11 @@ export async function listJobs(kind, limit = 20) {
   // bản backend chưa lọc theo kind thì lọc phía client
   return (r.jobs || []).filter((j) => !j.kind || j.kind === kind).map((j) => ({ ...normJob(j), label: j.label || jobLabel(j), parsed: parseJobArgs(j.args) }))
 }
+// mọi loại job (khay công việc, trang Lịch sử chạy)
+export async function listAllJobs(limit = 20) {
+  const r = await request(`/api/studio/book/jobs?limit=${limit}`)
+  return (r.jobs || []).map((j) => ({ ...normJob(j), label: j.label || jobLabel(j), parsed: parseJobArgs(j.args) }))
+}
 // backend hiện trả khoá `id`; hợp đồng ghi `job_id` — chấp nhận cả hai
 const normJob = (j) => ({ ...j, job_id: j.job_id || j.id })
 export const getJob = (id) => request(`/api/studio/book/jobs/${encodeURIComponent(id)}`).then(normJob)

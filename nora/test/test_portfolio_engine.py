@@ -199,6 +199,8 @@ def test_portfolio_risk_caps_and_shared_ledger(market):
     assert not seen["violations"], seen["violations"][:5]
     assert seen["max_open"] == 2                       # trần có tác dụng (tín hiệu dày)
     assert res["rejected_for_risk"] > 0
+    # số lần vào lệnh bị chặn: phút liên tiếp của cùng một tracker chỉ tính một lần -> không vượt số phút
+    assert 0 < res["risk_blocked_attempts"] <= res["rejected_for_risk"]
     assert seen["max_gross"] <= 1.5 * 1.02             # sai lệch nhỏ do vốn thay đổi khi lệnh khác đóng
     assert set(res["by_symbol"]) == set(syms) and set(res["by_strategy"]) == {"rsi_long", "rsi_short"}
     total = sum(p.real_pnl for p in res["positions"])

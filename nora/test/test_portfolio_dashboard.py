@@ -27,7 +27,7 @@ def _ms(date, hour=0):
     return int(pd.Timestamp(date, tz="UTC").value // 1_000_000) + hour * 3_600_000
 
 
-def make_result(returns, start="2025-01-01", trades=None, halted_at=None, rejected=0, kill_pct=30.0):
+def make_result(returns, start="2025-01-01", trades=None, halted_at=None, rejected=0, kill_pct=30.0, attempts=None):
     """Đường vốn từ lợi suất ngày: mỗi ngày 2 mẫu (12h thấp hơn 0,1%, 23h = NAV cuối ngày) -> test lấy 'mẫu cuối ngày'."""
     nav, rows, prev = [], [], INIT
     for i, r in enumerate(returns):
@@ -40,9 +40,10 @@ def make_result(returns, start="2025-01-01", trades=None, halted_at=None, reject
     end_ms = _ms(start) + len(returns) * DAY
     return {
         "equity_curve": rows, "trade_list": trades or [], "halted_at": halted_at, "rejected_for_risk": rejected,
+        **({} if attempts is None else {"risk_blocked_attempts": attempts}),
         "config": {"strategies": [{"id": "trend_long", "params": {}}, {"id": "trend_short", "params": {}}],
                    "symbols": ["BTC@perp", "SOL@perp"], "start": _ms(start), "end": end_ms, "initial_capital": INIT,
-                   "risk": {"kill_switch_dd_pct": kill_pct}},
+                   "risk": {"kill_switch_dd_pct": kill_pct, "max_positions": 8, "max_per_symbol": 1, "max_gross_exposure": 3.0}},
         "final_equity": nav[-1],
     }, nav
 
@@ -78,7 +79,7 @@ def test_payload_has_every_key_and_aligned_series(period):
     trades = [_trade("trend_long", "LONG", 5000, 120.0, _ms("2025-02-01"), _ms("2025-02-03")),
               _trade("trend_short", "SHORT", 3000, -40.0, _ms("2025-02-05"), _ms("2025-02-06")),
               _trade("trend_long", "LONG", 4000, 15.0, _ms("2025-04-05"), _ms("2025-04-10", 23), "End of Backtest")]
-    res, _ = make_result(_rng_returns(100), trades=trades, halted_at=_ms("2025-04-05"), rejected=7)
+    res, _ = make_result(_rng_returns(100), trades=trades, halted_at=_ms("2025-04-05"), rejected=700, attempts=7)
     p = pdash.build_dashboard(res, _bench(), period, job_id="j1", label="L")
     assert set(p) == TOP_KEYS and p["available"] is True and p["period"] == period
     assert set(p["kpis"]) == KPI_KEYS and set(p["series"]) == SERIES_KEYS and set(p["risk"]) == RISK_KEYS
@@ -92,8 +93,23 @@ def test_payload_has_every_key_and_aligned_series(period):
     assert set(p["source"]) == {"kind", "job_id", "label", "start", "end", "strategies", "symbols", "benchmark"}
     assert p["source"]["start"] == "2025-01-01" and p["source"]["end"] == "2025-04-10" and p["source"]["job_id"] == "j1"
     assert [e["level"] for e in p["events"] if e["level"] == "crit"]            # kill switch
-    assert any("7" in e["text"] for e in p["events"])                            # lệnh bị từ chối vì rủi ro
+    assert any(e["text"].startswith("7 lần vào lệnh bị chặn") for e in p["events"])   # lệnh bị chặn vì rủi ro
     json.dumps(p, allow_nan=False)                                               # không có NaN/inf
+
+
+def test_risk_block_event_counts_attempts_not_minutes():
+    res, _ = make_result(_rng_returns(30), rejected=1234, attempts=7)
+    texts = [e["text"] for e in pdash.build_dashboard(res, None, "ALL")["events"]]
+    assert ("7 lần vào lệnh bị chặn do giới hạn rủi ro danh mục (tối đa 8 vị thế / 1 mỗi tài sản / trần exposure 3× vốn)") in texts
+    assert not any("1234" in t for t in texts)                                   # không phơi số phút thô
+
+
+def test_risk_block_event_absent_when_no_attempts_and_hedged_for_old_results():
+    res, _ = make_result(_rng_returns(30), rejected=0, attempts=0)
+    assert not any("chặn" in e["text"] for e in pdash.build_dashboard(res, None, "ALL")["events"])
+    old, _ = make_result(_rng_returns(30), rejected=55)                           # kết quả cũ: chỉ có số phút
+    texts = [e["text"] for e in pdash.build_dashboard(old, None, "ALL")["events"]]
+    assert any("chặn do giới hạn rủi ro" in t and "55" not in t for t in texts)
 
 
 # ─── Giá trị biết trước ─────────────────────────────────────────────────────
@@ -380,9 +396,10 @@ def _synthetic_backtest():
     return make_result(_rng_returns(100), trades=trades, halted_at=_ms("2025-04-05"), rejected=7)[0]
 
 
+# (băm cập nhật khi đổi lời văn sự kiện "bị chặn do giới hạn rủi ro"; đã kiểm: thay lại câu cũ thì ra đúng băm trước đó, mọi khoá khác không đổi)
 # sha256 của payload (sort_keys) do build_dashboard cũ (trước khi có feed/`positions`) dựng trên _synthetic_backtest() + _bench()
-PRE_FEED_HASH = {"ALL": "dc7bd74e65120cac50e6d1687c8b23d0547f6b7bb8af5cc6e909feaaf8eb7928",
-                 "3M": "5f71446fac72dd105344af019a708c1c87557fb029037207d1c33599c5370e6f"}
+PRE_FEED_HASH = {"ALL": "36b304102d85e7b4c6dd812b21042b835bcc105567dc0056bdd161c7f7c27d60",
+                 "3M": "332ce8d8e8959ab1532205483e7a2aafaf1bd4a6630357827764596bc2dec731"}
 
 
 @pytest.mark.parametrize("period", ["ALL", "3M"])

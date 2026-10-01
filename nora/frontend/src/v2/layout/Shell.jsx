@@ -4,6 +4,8 @@ import '../v2.css'
 import { useCatalog } from '../context/Catalog'
 import { mockEnabled } from '../api'
 import { ErrorBoundary } from '../components/ui'
+import JobTray from '../components/JobTray'
+import { GuideSteps } from '../components/QuickGuide'
 
 const KEY = 'nora-theme' // cùng khoá với ThemeToggle cũ
 
@@ -13,6 +15,8 @@ const I = {
   backtest: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v5h5" /><path d="M12 8v4l3 2" /></svg>,
   alpha: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 3h6M10 3v6l-5.5 9.5A1.5 1.5 0 0 0 5.8 21h12.4a1.5 1.5 0 0 0 1.3-2.5L14 9V3" /><path d="M7.5 15h9" /></svg>,
   legacy: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="5" rx="1" /><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9M10 13h4" /></svg>,
+  history: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 2" /></svg>,
+  help: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="8.5" /><path d="M9.6 9.4a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1.1.9-1.1 1.7" /><circle cx="12" cy="16.6" r=".6" fill="currentColor" /></svg>,
   search: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>,
   sun: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>,
   moon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 13.5A8.5 8.5 0 1 1 10.5 3 6.7 6.7 0 0 0 21 13.5Z" /></svg>,
@@ -22,6 +26,7 @@ const PAGES = [
   { to: '/portfolio', title: 'Danh mục', icon: I.portfolio },
   { to: '/backtest', title: 'Backtest · WFA · Monte Carlo', short: 'Backtest', icon: I.backtest },
   { to: '/alpha', title: 'Alpha · Hiệu chỉnh tham số', short: 'Alpha', icon: I.alpha },
+  { to: '/history', title: 'Lịch sử chạy', short: 'Lịch sử chạy', icon: I.history },
 ]
 const LEGACY = [
   { to: '/dashboard', title: 'Tổng quan (cũ)' },
@@ -50,6 +55,32 @@ function ThemeButton() {
     <div className="n-theme-switch" role="group" aria-label="Chế độ hiển thị">
       <button type="button" aria-pressed={theme === 'light'} onClick={() => pick('light')}>{I.sun}<span>Sáng</span></button>
       <button type="button" aria-pressed={theme === 'dark'} onClick={() => pick('dark')}>{I.moon}<span>Tối</span></button>
+    </div>
+  )
+}
+
+function HelpButton() {
+  const [open, setOpen] = useState(false)
+  const box = useRef(null)
+  const loc = useLocation()
+  useEffect(() => { setOpen(false) }, [loc.pathname])
+  useEffect(() => {
+    if (!open) return undefined
+    const click = (e) => { if (box.current && !box.current.contains(e.target)) setOpen(false) }
+    const key = (e) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', click)
+    document.addEventListener('keydown', key)
+    return () => { document.removeEventListener('mousedown', click); document.removeEventListener('keydown', key) }
+  }, [open])
+  return (
+    <div className="n-tray" ref={box}>
+      <button type="button" className="n-icon-btn n-help" aria-expanded={open} aria-haspopup="true" aria-controls="n-help-pop" aria-label="Hướng dẫn nhanh" title="Hướng dẫn nhanh" onClick={() => setOpen((o) => !o)}>{I.help}</button>
+      {open && (
+        <div className="n-pop n-help-pop" id="n-help-pop">
+          <div className="n-pop-h"><b>Hướng dẫn nhanh</b><span className="muted">Vòng kiểm chứng 5 bước</span></div>
+          <div style={{ padding: '4px 14px 12px' }}><GuideSteps onNavigate={() => setOpen(false)} /></div>
+        </div>
+      )}
     </div>
   )
 }
@@ -100,13 +131,13 @@ export default function Shell({ children }) {
       <nav className="n-rail" aria-label="Điều hướng chính">
         <div className="n-logo" aria-hidden="true">{I.logo}</div>
         {PAGES.map((p) => (
-          <NavLink key={p.to} to={p.to} className={({ isActive }) => `n-rail-btn ${isActive ? 'on' : ''}`} aria-label={p.short || p.title}>
-            {p.icon}<span className="n-tipl">{p.short || p.title}</span>
+          <NavLink key={p.to} to={p.to} className={({ isActive }) => `n-rail-btn ${isActive ? 'on' : ''}`} title={p.title}>
+            {p.icon}<span className="n-rl">{p.short || p.title}</span>
           </NavLink>
         ))}
         <div className="n-rail-sp" />
-        <button type="button" className={`n-rail-btn ${isLegacy || legacyOpen ? 'on' : ''}`} aria-expanded={legacyOpen} aria-controls="n-legacy" aria-label="Legacy" onClick={() => setLegacyOpen((o) => !o)}>
-          {I.legacy}<span className="n-tipl">Legacy</span>
+        <button type="button" className={`n-rail-btn ${isLegacy || legacyOpen ? 'on' : ''}`} aria-expanded={legacyOpen} aria-controls="n-legacy" title="Giao diện cũ" onClick={() => setLegacyOpen((o) => !o)}>
+          {I.legacy}<span className="n-rl">Legacy</span>
         </button>
         {legacyOpen && (
           <div className="n-legacy-pop" id="n-legacy">
@@ -124,6 +155,8 @@ export default function Shell({ children }) {
           </div>
           <div className="n-top-sp" />
           <Search />
+          <JobTray />
+          <HelpButton />
           {data?.windows?.end && <span className="n-pill" title="Ngày cuối của dữ liệu thị trường"><span className="n-dot ok" />Dữ liệu đến <span className="mono">{dataEnd}</span></span>}
           <span className="n-pill"><span className={`n-dot ${apiTone}`} />{apiText}</span>
           {mockEnabled() && <span className="n-pill" title="Đang dùng dữ liệu mẫu khi mất kết nối"><span className="n-dot warn" />Mock</span>}

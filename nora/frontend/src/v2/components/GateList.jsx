@@ -1,6 +1,18 @@
 import React from 'react'
 import { Status } from './ui'
+import Term from './Term'
+import { fillWording } from '../lib/stopfill'
 import { fmtNum, isNum } from '../lib/format'
+
+// khoá cổng của backend -> thuật ngữ giải thích
+const GATE_TERMS = { folds: 'fold', avg_is_return: 'is', positive_folds: 'oos', worst_fold_mdd: 'mdd', compounded_oos: 'oos', mc_ruin: 'p_mdd', ruin: 'p_mdd' }
+
+// giá trị thực tế: cổng theo % luôn 2 chữ số thập phân (khớp ô KPI tương ứng), số đếm là số nguyên
+function fmtActual(c) {
+  if (!isNum(c.actual)) return String(c.actual ?? '—')
+  const pct = (c.unit ?? (/%\s*$/.test(String(c.required)) ? '%' : '')) === '%'
+  return pct ? `${fmtNum(c.actual, 2)}%` : `${fmtNum(c.actual, Number.isInteger(c.actual) ? 0 : 2)}${c.unit || ''}`
+}
 
 /** Checklist cổng chấp nhận: thực tế so với yêu cầu, kèm biểu tượng đạt/không đạt (không chỉ màu). */
 export default function GateList({ checks, passed, title = 'Cổng chấp nhận' }) {
@@ -15,8 +27,8 @@ export default function GateList({ checks, passed, title = 'Cổng chấp nhận
         {rows.map((c, i) => (
           <li key={c.key || i}>
             <span className={c.passed ? 'pos' : 'neg'} role="img" aria-label={c.passed ? 'đạt' : 'không đạt'}>{c.passed ? '✓' : '✗'}</span>
-            <span>{c.label || c.key}</span>
-            <span className="v">{isNum(c.actual) ? fmtNum(c.actual, Number.isInteger(c.actual) ? 0 : 2) : String(c.actual ?? '—')}</span>
+            <span>{GATE_TERMS[c.key] ? <Term k={GATE_TERMS[c.key]}>{fillWording(c.label || c.key)}</Term> : fillWording(c.label || c.key)}</span>
+            <span className="v">{fmtActual(c)}</span>
             <span className="req">yêu cầu {c.required}</span>
           </li>
         ))}

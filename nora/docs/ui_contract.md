@@ -103,7 +103,9 @@ Payload khi có dữ liệu:
   `unrealized_pnl` (sau phí vào lệnh; funding đã nằm trong NAV), `opened` (ms UTC), `margin_usd`. Sắp theo `notional` giảm dần. Backtest đã đóng mọi vị thế cuối kỳ nên `positions = []`.
   Vị thế đang mở được tính vào NAV (MTM) nhưng chưa vào `strategies[].pnl` (chỉ lãi/lỗ đã chốt). UI ẩn bảng "Vị thế đang mở" khi rỗng.
 - `strategies[]`: số liệu **đã thực hiện** (realised: lãi/lỗ các lệnh đã đóng, Sharpe/MDD theo chuỗi realised của chiến lược), nên tổng không khớp từng đồng với NAV mark-to-market.
-- `events`: dựa trên MDD intrabar xấu nhất (không phải NAV ngày): kill switch (`halted_at`), drawdown vượt 50%/80% hạn mức 30%, số lần bị từ chối vì rủi ro.
+- `events`: dựa trên MDD intrabar xấu nhất (không phải NAV ngày): kill switch (`halted_at`), drawdown vượt 50%/80% hạn mức 30%, và số **lần vào lệnh** bị chặn bởi giới hạn rủi ro danh mục
+  (`result.risk_blocked_attempts`: các phút liên tiếp bị chặn của cùng một tracker tính là một lần; `rejected_for_risk` vẫn là số phút, golden dựa vào đó). Lời văn:
+  "N lần vào lệnh bị chặn do giới hạn rủi ro danh mục (tối đa X vị thế / Y mỗi tài sản / trần exposure Z× vốn)"; kết quả cũ không có `risk_blocked_attempts` thì chỉ nêu sự việc, không nêu số.
 
 ## 4. WFA (đã có job, bổ sung cấu hình cố định)
 `POST /api/studio/book/wfa`, một trong ba dạng:

@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
-import { PageHead, Panel, Segmented, Field, ErrorBox, Empty, Spinner, Status } from '../components/ui'
+import { PageHead, Panel, Segmented, Field, ErrorBox, Empty, Spinner, Loading, ErrorState } from '../components/ui'
+import Term from '../components/Term'
+import { DateInput, DatePresets } from '../components/DateField'
 import StrategyPicker from '../components/StrategyPicker'
 import JobPanel from '../components/JobPanel'
 import DashboardLoader, { PERIODS } from '../components/Dashboard'
@@ -10,6 +12,9 @@ import useJob from '../hooks/useJob'
 import { useCatalog } from '../context/Catalog'
 import { postBacktest, postWfa, postMc } from '../api'
 import { parseJobArgs, JOB_STATUS } from '../lib/jobs'
+import { daysInclusive } from '../lib/dates'
+import { fullDate } from '../lib/format'
+import { STOP_FILL, stopFillOptions } from '../lib/stopfill'
 
 function readPrefill(location, sp) {
   const st = location.state?.prefill
@@ -28,6 +33,8 @@ function selFromStrategies(list, catalog) {
   return out
 }
 
+const isNumStr = (v) => v !== '' && v != null && Number.isFinite(Number(v))
+
 function LockIcon() {
   return (
     <svg className="n-ico" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -44,11 +51,18 @@ function StepBacktest({ cat, form, setForm, btId, bt, onLaunched, onNext }) {
   const universe = cat.universe || []
   const nSel = Object.keys(form.sel).length
 
+  const nSym = form.symbols.length
+  const days = daysInclusive(form.start, form.end)
+  const riskNum = Number(form.risk)
+  const reason = !nSel ? 'Chọn ít nhất một chiến lược ở bảng bên trên'
+    : !nSym ? 'Chọn ít nhất một cặp giao dịch'
+      : !form.start || !form.end ? 'Nhập ngày bắt đầu và kết thúc hợp lệ (dd/mm/yyyy)'
+        : form.start >= form.end ? 'Ngày bắt đầu phải trước ngày kết thúc'
+          : !(riskNum >= 0.01 && riskNum <= 5) ? 'Rủi ro mỗi lệnh phải từ 0.01% đến 5%' : null
+
   async function run() {
     setErr(null)
-    if (!nSel) return setErr('Chọn ít nhất một chiến lược.')
-    if (!form.symbols.length) return setErr('Chọn ít nhất một cặp giao dịch.')
-    if (!form.start || !form.end || form.start >= form.end) return setErr('Ngày bắt đầu phải trước ngày kết thúc.')
+    if (reason) return setErr(reason)
     setBusy(true)
     try {
       const r = await postBacktest({
@@ -78,17 +92,19 @@ function StepBacktest({ cat, form, setForm, btId, bt, onLaunched, onNext }) {
         <div style={{ display: 'grid', gap: 12, alignContent: 'start' }}>
           <Panel title="Phạm vi chạy">
             <div className="n-form-row" style={{ gridTemplateColumns: '1fr 1fr' }}>
-              <Field id="bt-start" label="Từ ngày"><input id="bt-start" type="date" className="n-in" value={form.start} onChange={(e) => setForm({ start: e.target.value })} /></Field>
-              <Field id="bt-end" label="Đến ngày"><input id="bt-end" type="date" className="n-in" value={form.end} onChange={(e) => setForm({ end: e.target.value })} /></Field>
+              <Field id="bt-start" label="Từ ngày"><DateInput id="bt-start" label="Từ ngày" value={form.start} onChange={(v) => setForm({ start: v })} /></Field>
+              <Field id="bt-end" label="Đến ngày"><DateInput id="bt-end" label="Đến ngày" value={form.end} onChange={(v) => setForm({ end: v })} /></Field>
               <Field id="bt-risk" label="Rủi ro mỗi lệnh (%)"><input id="bt-risk" type="number" step="0.1" min="0.01" max="5" className="n-in" value={form.risk} onChange={(e) => setForm({ risk: e.target.value })} /></Field>
-              <Field id="bt-fill" label="Mức khớp cắt lỗ">
+              <div style={{ gridColumn: '1 / -1' }}>
+                <Field id="bt-fill" label={<Term k="fill">Khớp cắt lỗ</Term>}>
                 <select id="bt-fill" className="n-sel" value={form.stopFill} onChange={(e) => setForm({ stopFill: e.target.value })}>
-                  <option value="level">level</option>
-                  <option value="extreme">extreme</option>
+                  {stopFillOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </Field>
+              </div>
             </div>
-            {cat.windows && <p className="n-note" style={{ marginTop: 8 }}>Dữ liệu từ {cat.windows.start} đến {cat.windows.end}. Mặc định chạy vùng dev2 → hết dữ liệu ({cat.windows.dev2_end} → {cat.windows.end}).</p>}
+            <DatePresets windows={cat.windows} start={form.start} end={form.end} onPick={(start, end) => setForm({ start, end })} />
+            {cat.windows && <p className="n-note" style={{ marginTop: 8 }}>Dữ liệu từ {fullDate(cat.windows.start)} đến {fullDate(cat.windows.end)}. Mặc định chạy từ hết <Term k="dev2">dev2</Term> đến hết dữ liệu, tức vùng <Term k="holdout">Holdout</Term> ({fullDate(cat.windows.dev2_end)} → {fullDate(cat.windows.end)}).</p>}
           </Panel>
           <Panel title="Cặp giao dịch" meta={
             <>
@@ -111,9 +127,16 @@ function StepBacktest({ cat, form, setForm, btId, bt, onLaunched, onNext }) {
         </div>
       </div>
 
-      <div className="n-sticky-actions" style={{ marginBottom: 12 }}>
-        <button type="button" className="n-btn primary" onClick={run} disabled={busy}>{busy ? <Spinner /> : null} Chạy backtest</button>
-        <ErrorBox>{err}</ErrorBox>
+      <div className="n-runbar" role="region" aria-label="Chạy backtest">
+        <div className="sum">
+          {nSel} chiến lược · {nSym} tài sản · {days != null && days > 0 ? `${days} ngày` : '— ngày'} · rủi ro {isNumStr(form.risk) ? String(+riskNum.toFixed(2)) : '—'}%/lệnh · Khớp cắt lỗ: {STOP_FILL[form.stopFill]?.text || form.stopFill}
+          {reason && <div className="why" role="status">Chưa chạy được: {reason}.</div>}
+        </div>
+        <ErrorBox>{err && err !== reason ? err : null}</ErrorBox>
+        <button type="button" className="n-btn primary" onClick={run} disabled={busy || !!reason} aria-describedby={reason ? 'bt-why' : undefined} title={reason || 'Chạy backtest với cấu hình này'}>
+          {busy ? <Spinner /> : null} Chạy backtest
+        </button>
+        {reason && <span id="bt-why" className="sr-only">{reason}</span>}
       </div>
 
       {btId && (
@@ -172,6 +195,7 @@ function StepWfa({ cat, form, wfaId, wfa, onLaunched, onNext }) {
   async function run() {
     setErr(null)
     if (!ids.length) return setErr('Chưa có chiến lược: quay lại bước 1 để chọn.')
+    if (!f.start || !f.end) return setErr('Nhập ngày bắt đầu và kết thúc hợp lệ (dd/mm/yyyy).')
     if (f.start >= f.end) return setErr('Ngày bắt đầu phải trước ngày kết thúc.')
     const body = {
       start: f.start, end: f.end, train_days: Number(f.train), test_days: Number(f.test),
@@ -186,13 +210,14 @@ function StepWfa({ cat, form, wfaId, wfa, onLaunched, onNext }) {
   const report = wfa.job?.result
   return (
     <>
-      <Panel title="Cấu hình walk-forward">
+      <Panel title={<>Cấu hình <Term k="wfa">walk-forward</Term></>}>
         <div className="n-form-row">
-          <Field id="wf-train" label="Số ngày train (IS)"><input id="wf-train" type="number" min="7" max="1000" className="n-in" value={f.train} onChange={(e) => set({ train: e.target.value })} /></Field>
-          <Field id="wf-test" label="Số ngày test (OOS)"><input id="wf-test" type="number" min="1" max="365" className="n-in" value={f.test} onChange={(e) => set({ test: e.target.value })} /></Field>
-          <Field id="wf-start" label="Từ ngày"><input id="wf-start" type="date" className="n-in" value={f.start} onChange={(e) => set({ start: e.target.value })} /></Field>
-          <Field id="wf-end" label="Đến ngày"><input id="wf-end" type="date" className="n-in" value={f.end} onChange={(e) => set({ end: e.target.value })} /></Field>
+          <Field id="wf-train" label={<>Số ngày train (<Term k="is">IS</Term>)</>}><input id="wf-train" type="number" min="7" max="1000" className="n-in" value={f.train} onChange={(e) => set({ train: e.target.value })} /></Field>
+          <Field id="wf-test" label={<>Số ngày test (<Term k="oos">OOS</Term>)</>}><input id="wf-test" type="number" min="1" max="365" className="n-in" value={f.test} onChange={(e) => set({ test: e.target.value })} /></Field>
+          <Field id="wf-start" label="Từ ngày"><DateInput id="wf-start" label="Từ ngày" value={f.start} onChange={(v) => set({ start: v })} /></Field>
+          <Field id="wf-end" label="Đến ngày"><DateInput id="wf-end" label="Đến ngày" value={f.end} onChange={(v) => set({ end: v })} /></Field>
         </div>
+        <DatePresets windows={cat.windows} start={f.start} end={f.end} onPick={(start, end) => set({ start, end })} />
         <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end', flexWrap: 'wrap', marginTop: 12 }}>
           <div className="n-field"><span className="n-lbl">Chế độ</span>
             <Segmented label="Chế độ WFA" value={f.mode} onChange={(mode) => set({ mode })} options={[{ value: 'fixed', label: 'Cố định tham số' }, { value: 'reselect', label: 'Chọn lại trên IS' }]} />
@@ -202,8 +227,8 @@ function StepWfa({ cat, form, wfaId, wfa, onLaunched, onNext }) {
           )}
           <div className="n-note" style={{ flex: 1, minWidth: 260 }}>
             {f.mode === 'fixed'
-              ? 'Dùng đúng tham số đã chỉnh ở bước 1; WFA chỉ kiểm tra out-of-sample cuốn chiếu.'
-              : 'Mỗi fold lấy mẫu n cấu hình, chọn cấu hình tốt nhất trên IS rồi chạy OOS.'}
+              ? <>Dùng đúng tham số đã chỉnh ở bước 1; WFA chỉ kiểm tra <Term k="oos">out-of-sample</Term> cuốn chiếu.</>
+              : <>Mỗi <Term k="fold">fold</Term> lấy mẫu n cấu hình, chọn cấu hình tốt nhất trên IS rồi chạy OOS.</>}
             <div style={{ marginTop: 4 }}>Chiến lược: {ids.map((i) => <span key={i} className="n-badge" style={{ marginRight: 4 }}>{i}</span>)}</div>
           </div>
         </div>
@@ -248,19 +273,19 @@ function StepMc({ wfaId }) {
   }
   return (
     <>
-      <Panel title="Cấu hình Monte Carlo (bootstrap theo khối, mark-to-market ngày)">
+      <Panel title={<>Cấu hình <Term k="mc">Monte Carlo</Term> (<Term k="bootstrap">bootstrap theo khối</Term>, mark-to-market ngày)</>}>
         <div className="n-form-row">
           <Field id="mc-sims" label="Số mô phỏng (≤ 10000)"><input id="mc-sims" type="number" min="100" max="10000" className="n-in" value={f.sims} onChange={(e) => set({ sims: e.target.value })} /></Field>
           <Field id="mc-block" label="Độ dài khối (ngày)"><input id="mc-block" type="number" min="1" max="60" className="n-in" value={f.block} onChange={(e) => set({ block: e.target.value })} /></Field>
           <Field id="mc-hz" label="Chân trời (ngày ≤ 730)"><input id="mc-hz" type="number" min="5" max="730" className="n-in" value={f.horizon} onChange={(e) => set({ horizon: e.target.value })} /></Field>
           <Field id="mc-seed" label="Seed"><input id="mc-seed" type="number" className="n-in" value={f.seed} onChange={(e) => set({ seed: e.target.value })} /></Field>
-          <Field id="mc-basis" label="Cơ sở lợi suất">
+          <Field id="mc-basis" label={<Term k="fill">Khớp cắt lỗ (cơ sở lợi suất)</Term>}>
             <select id="mc-basis" className="n-sel" value={f.basis} onChange={(e) => set({ basis: e.target.value })}>
-              <option value="extreme">extreme</option><option value="level">level</option>
+              <option value="extreme">{STOP_FILL.extreme.text}</option><option value="level">{STOP_FILL.level.text}</option>
             </select>
           </Field>
           <Field id="mc-scale" label="Hệ số quy mô"><input id="mc-scale" type="number" step="0.1" min="0.1" className="n-in" value={f.scale} onChange={(e) => set({ scale: e.target.value })} /></Field>
-          <Field id="mc-ruin" label="Ngưỡng phá sản MDD (%)"><input id="mc-ruin" type="number" min="1" max="100" className="n-in" value={f.ruin} onChange={(e) => set({ ruin: e.target.value })} /></Field>
+          <Field id="mc-ruin" label={<>Ngưỡng phá sản <Term k="mdd">MDD</Term> (%)</>}><input id="mc-ruin" type="number" min="1" max="100" className="n-in" value={f.ruin} onChange={(e) => set({ ruin: e.target.value })} /></Field>
         </div>
         <div className="n-sticky-actions">
           <button type="button" className="n-btn primary" onClick={run} disabled={busy}>{busy ? <Spinner /> : null} Chạy Monte Carlo</button>
@@ -275,7 +300,7 @@ function StepMc({ wfaId }) {
 
 /* --------------------------------- Trang --------------------------------- */
 export default function Backtest() {
-  const { data: cat, loading, error } = useCatalog()
+  const { data: cat, loading, error, reload } = useCatalog()
   const [sp, setSp] = useSearchParams()
   const location = useLocation()
   const btId = sp.get('job') || ''
@@ -321,13 +346,13 @@ export default function Backtest() {
 
   const btDone = bt.status === 'done'
   const wfaDone = wfa.status === 'done'
-  const step = stepQ >= 3 && wfaDone ? 3 : stepQ >= 2 && btDone ? 2 : 1
+  const step = stepQ >= 3 && wfaDone ? 3 : stepQ >= 2 && (btDone || !!wfaId) ? 2 : 1  // link ?wfa=…&step=2 mở thẳng bước 2
 
   const steps = useMemo(() => [
     { n: 1, title: 'Backtest', st: bt.status ? (JOB_STATUS[bt.status]?.text || 'Đang tải') : 'Chưa chạy', locked: false, done: btDone },
-    { n: 2, title: 'Walk-forward (WFA)', st: !btDone ? 'Mở khoá sau backtest' : wfa.status ? (JOB_STATUS[wfa.status]?.text || 'Đang tải') : 'Chưa chạy', locked: !btDone, done: wfaDone },
+    { n: 2, title: 'Walk-forward (WFA)', st: !btDone && !wfaId ? 'Mở khoá sau backtest' : wfa.status ? (JOB_STATUS[wfa.status]?.text || 'Đang tải') : 'Chưa chạy', locked: !btDone && !wfaId, done: wfaDone },
     { n: 3, title: 'Monte Carlo', st: !wfaDone ? 'Mở khoá sau WFA' : 'Sẵn sàng', locked: !wfaDone, done: false },
-  ], [bt.status, wfa.status, btDone, wfaDone])
+  ], [bt.status, wfa.status, btDone, wfaDone, wfaId])
 
   return (
     <>
@@ -344,8 +369,8 @@ export default function Backtest() {
         ))}
       </div>
 
-      {error && <ErrorBox>Không tải được danh mục chiến lược: {error}</ErrorBox>}
-      {loading && !cat && <Empty title="Đang tải danh mục chiến lược"><Spinner /></Empty>}
+      {error && <ErrorState title="Không tải được danh mục chiến lược" error={error} onRetry={reload} />}
+      {loading && !cat && <Loading what="danh mục chiến lược" />}
       {cat && form && step === 1 && (
         <StepBacktest cat={cat} form={form} setForm={setForm} btId={btId} bt={bt}
           onLaunched={(id) => patch({ job: id, wfa: null, step: 1 })} onNext={() => patch({ step: 2 })} />
