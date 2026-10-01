@@ -46,13 +46,13 @@ import sys
 import time
 import warnings
 
-import numpy as np
 import pandas as pd
 
 NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if NORA_ROOT not in sys.path:
     sys.path.insert(0, NORA_ROOT)
 
+from backend.backtest.portfolio_metrics import bootstrap_daily, portfolio_metrics  # noqa: E402
 from backend.utils.parallel import auto_workers, pool_map_safe  # noqa: E402
 
 DAY = 86_400_000
@@ -75,32 +75,6 @@ def windows(symbols):
     end = min(int(m["end_ts"]) for m in ms)
     span = end - start
     return {"start": start, "dev1_end": start + int(span * 0.4), "dev2_end": start + int(span * 0.8), "end": end}
-
-
-def metrics(res, start_ts):
-    curve = pd.DataFrame(res["equity_curve"])
-    curve = curve[curve["time"] >= start_ts]
-    eq = curve["equity"].to_numpy()
-    worst = curve["equity_worst"].to_numpy()
-    init = res["initial_capital"]
-    peak = np.maximum.accumulate(np.r_[init, eq])[1:]
-    mdd = float(np.max((peak - np.minimum(eq, worst)) / peak) * 100) if len(eq) else 0.0
-    s = pd.Series(eq, index=pd.to_datetime(curve["time"], unit="ms"))
-    daily = s.resample("1D").last().ffill()
-    daily = pd.concat([pd.Series([init], index=[daily.index[0] - pd.Timedelta(days=1)]), daily]).pct_change().dropna()
-    sharpe = float(daily.mean() / daily.std() * np.sqrt(365)) if daily.std() > 0 else 0.0
-    by_sym = {k.split("@")[0]: round(v["pnl_usd"], 2) for k, v in res["by_symbol"].items()}
-    return {
-        "ret_pct": round((res["final_equity"] / init - 1) * 100, 2), "mdd_pct": round(mdd, 2), "sharpe": round(sharpe, 2),
-        "trades": len(res["positions"]), "win_pct": round(float(np.mean([p.real_pnl > 0 for p in res["positions"]]) * 100), 1)
-        if res["positions"] else 0.0,
-        "symbols_positive": sum(v > 0 for v in by_sym.values()), "by_symbol": by_sym,
-        "by_strategy": {k: {"pnl_usd": round(v["pnl_usd"], 2), "trades": v["trades"]} for k, v in res["by_strategy"].items()},
-        "fees_usd": round(sum(p.fees_usd or 0 for p in res["positions"]), 2),
-        "funding_usd": round(sum(p.funding_usd or 0 for p in res["positions"]), 2),
-        "rejected_for_risk": res["rejected_for_risk"], "rejected_for_capital": res["rejected_for_capital"],
-        "halted_at": res["halted_at"], "daily": [round(float(x), 6) for x in daily.to_numpy()],
-    }
 
 
 def _make_engine(job):
@@ -185,21 +159,6 @@ def score(m, gates, sym_key="min_symbols_positive"):
     return (m["ret_pct"] / max(m["mdd_pct"], 1.0)) if ok else float("-inf"), ok
 
 
-def bootstrap(daily, scale, n=4000, block=5, horizon=365, seed=1):
-    rng = np.random.default_rng(seed)
-    d = np.asarray(daily, dtype=float)
-    mdds, rets = np.empty(n), np.empty(n)
-    for k in range(n):
-        idx = (rng.integers(0, len(d), horizon // block + 1)[:, None] + np.arange(block)).ravel()[:horizon] % len(d)
-        eq = np.cumprod(1 + scale * d[idx])
-        peak = np.maximum.accumulate(np.r_[1.0, eq])[1:]
-        mdds[k] = ((peak - eq) / peak).max()
-        rets[k] = eq[-1] - 1
-    return {"median_ret_pct": round(float(np.median(rets) * 100), 1), "p05_ret_pct": round(float(np.percentile(rets, 5) * 100), 1),
-            "mdd_p95_pct": round(float(np.percentile(mdds, 95) * 100), 1),
-            "p_mdd_ge_30_pct": round(float((mdds >= MDD_LIMIT / 100).mean() * 100), 2)}
-
-
 def _strip(m):
     return {k: v for k, v in m.items() if k not in ("daily", "_peak_rss_mb", "_rss_anon_mb")}
 
@@ -212,7 +171,9 @@ def _peak(results) -> str:
     return f"đỉnh RAM/worker {max(peaks):.0f} MB (riêng {max(anon):.0f} MB + mmap dùng chung)"
 
 
-# Bản dùng chung nằm ở backend.utils.parallel; giữ tên cũ để code/test hiện có không đổi.
+# Bản dùng chung nằm ở backend.utils.parallel / backend.backtest.portfolio_metrics; giữ tên cũ để code/test hiện có không đổi.
+metrics = portfolio_metrics
+bootstrap = bootstrap_daily
 _pool_map_safe = pool_map_safe
 _auto_workers = auto_workers
 

@@ -213,6 +213,43 @@ def run_monte_carlo(
     }
 
 
+def run_monte_carlo_daily(
+    daily_returns,
+    simulations: int = 4000,
+    block_days: int = 5,
+    horizon_days: int = 365,
+    ruin_threshold_pct: float = 30.0,
+    seed: int = 1,
+    scale: float = 1.0,
+) -> Dict[str, Any]:
+    """Block bootstrap trên LỢI SUẤT NGÀY mark-to-market (gồm cả lỗ chưa chốt), mô phỏng `horizon_days` ngày.
+
+    Khác run_monte_carlo (lệnh đã đóng): đường vốn ngày đã chứa lỗ treo nên MDD không bị đánh giá thấp.
+    `scale` nhân lợi suất ngày (hệ số rủi ro). Thứ tự gọi RNG GIỮ NGUYÊN bản bootstrap của build_strategy_book
+    (mỗi lần mô phỏng một lệnh rng.integers) -> cùng seed/scale cho đúng cùng số; đừng vector hoá khi chưa so lại bit.
+    """
+    d = np.asarray(daily_returns, dtype=float)
+    if len(d) == 0:
+        raise ValueError("Cần ít nhất một lợi suất ngày để chạy Monte Carlo")
+    rng = np.random.default_rng(seed)
+    n = int(simulations)
+    mdds, rets = np.empty(n), np.empty(n)
+    for k in range(n):
+        idx = (rng.integers(0, len(d), horizon_days // block_days + 1)[:, None] + np.arange(block_days)).ravel()[:horizon_days] % len(d)
+        eq = np.cumprod(1 + scale * d[idx])
+        peak = np.maximum.accumulate(np.r_[1.0, eq])[1:]
+        mdds[k] = ((peak - eq) / peak).max()
+        rets[k] = eq[-1] - 1
+    return {
+        "median_ret_pct": round(float(np.median(rets) * 100), 1),
+        "p05_ret_pct": round(float(np.percentile(rets, 5) * 100), 1),
+        "mdd_p50_pct": round(float(np.percentile(mdds, 50) * 100), 1),
+        "mdd_p95_pct": round(float(np.percentile(mdds, 95) * 100), 1),
+        "p_mdd_ge_ruin_pct": round(float((mdds >= ruin_threshold_pct / 100).mean() * 100), 2),
+        "simulations": n, "block_days": int(block_days), "horizon_days": int(horizon_days), "seed": seed,
+    }
+
+
 # Alias for backward compatibility
 run_monte_carlo_simulation = run_monte_carlo
 
