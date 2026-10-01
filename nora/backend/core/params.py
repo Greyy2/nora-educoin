@@ -25,19 +25,35 @@ class StrategyParams:
     # 3. Tham số quản lý rủi ro / vốn
     volume_rate: float = 1.0               # % vốn cho mỗi lệnh (1.0 = 100%)
     leverage: int = 1                      # Đòn bẩy
-    max_capital_usage: float = 1.0        # Tối đa phần trăm vốn được dùng
-    fee_rate: float = 0.0005               # Phí khớp mỗi chiều (mặc định taker)
+    fee_rate: float = 0.0005               # Phí TAKER mỗi chiều (lệnh market)
+    maker_fee_rate: Optional[float] = None # Phí MAKER mỗi chiều (lệnh limit: DCA, chốt lời); None = bằng taker
     slippage_rate: float = 0.0002          # Slippage mỗi chiều
-    stop_loss_rate: float = 0.0            # % Cắt lỗ (0 = không cắt)
-    take_profit_rate: float = 0.0          # % Chốt lời (0 = không chốt)
-    trailing_stop: float = 0.0             # % Trailing stop
-    timeout: int = 0                       # Số nến tối đa giữ lệnh
+    stop_loss_rate: float = 0.0            # % Cắt lỗ tính từ GIÁ TRUNG BÌNH (0 = không cắt)
+    take_profit_rate: float = 0.0          # % Chốt lời tính từ GIÁ TRUNG BÌNH (0 = không chốt)
+    trailing_stop: float = 0.0             # % Trailing stop tính từ đỉnh/đáy có lợi nhất (0 = tắt)
+    trailing_activation_pct: float = 0.0   # Chỉ bật trailing khi đã lãi >= % này so với giá TB (0 = bật ngay)
+    timeout: int = 0                       # Số PHÚT tối đa giữ lệnh (0 = không giới hạn)
+    stop_fill: str = "level"               # Giá khớp SL/trailing khi chạm TRONG nến: "level" (đúng mức + trượt)
+                                           # | "extreme" (giá xấu nhất của nến — bi quan, dùng để kiểm độ bền)
 
-    # 4. Tham số DCA / Nhồi lệnh
-    dca_steps: List[float] = field(default_factory=list)      # Ví dụ: [-2.0, -5.0] (giảm 2%, 5% thì nhồi)
-    dca_multipliers: List[float] = field(default_factory=list) # Hệ số vốn nhồi: [1.5, 2.0]
+    # 4. Thị trường, khối lượng, DCA / Nhồi lệnh
+    market: str = "spot"                   # "spot" (không đòn bẩy, không short) | "perp" (đòn bẩy + thanh lý)
+    order_size_pct: float = 100.0          # Ký quỹ lệnh đầu = % vốn ban đầu
+    dca_step_pct: float = 0.0              # Giá đi ngược bao nhiêu % so với tầng trước thì nhồi (0 = tắt DCA)
+    dca_max_layers: int = 0                # Số tầng nhồi thêm tối đa (không tính lệnh đầu)
+    dca_size_multiplier: float = 1.0       # Ký quỹ tầng sau = tầng trước × hệ số (2.0 = martingale)
+    maintenance_margin_rate: float = 0.005 # Tỉ lệ ký quỹ duy trì (perp) để tính giá thanh lý
+    # 5. Đơn vị thoát lệnh + khối lượng theo rủi ro (để MỘT bộ tham số dùng chung cho mọi tài sản)
+    exit_unit: str = "pct"                 # "pct": SL/TP/trailing/bước DCA tính bằng % | "atr": bội số ATR% lúc vào lệnh
+    atr_frame: str = "1h"                  # khung tính ATR% (natr) khi exit_unit="atr" — nến ĐÃ ĐÓNG lúc có tín hiệu
+    atr_period: int = 14
+    sizing: str = "margin_pct"             # "margin_pct": ký quỹ = order_size_pct% vốn | "risk": lỗ tại SL = risk_per_trade_pct% vốn
+    risk_per_trade_pct: float = 0.5        # (sizing="risk") % vốn chấp nhận mất nếu chạm SL (gồm phí khứ hồi)
+    max_notional_pct: float = 100.0        # (sizing="risk") trần giá trị danh nghĩa một vị thế, % vốn
+    dca_steps: List[float] = field(default_factory=list)      # (tuỳ chọn) bước riêng từng tầng, % — ghi đè dca_step_pct
+    dca_multipliers: List[float] = field(default_factory=list) # (tuỳ chọn) hệ số riêng từng tầng
 
-    # 5. Các tham số tự do khác (để đánh giá điều kiện)
+    # 6. Các tham số tự do khác (để đánh giá điều kiện)
     extra: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
@@ -83,7 +99,24 @@ class StrategyParams:
             "stop_loss_rate": self.stop_loss_rate,
             "take_profit_rate": self.take_profit_rate,
             "trailing_stop": self.trailing_stop,
+            "trailing_activation_pct": self.trailing_activation_pct,
             "timeout": self.timeout,
+            "stop_fill": self.stop_fill,
+            "exit_unit": self.exit_unit,
+            "atr_frame": self.atr_frame,
+            "atr_period": self.atr_period,
+            "sizing": self.sizing,
+            "risk_per_trade_pct": self.risk_per_trade_pct,
+            "max_notional_pct": self.max_notional_pct,
+            "market": self.market,
+            "order_size_pct": self.order_size_pct,
+            "dca_step_pct": self.dca_step_pct,
+            "dca_max_layers": self.dca_max_layers,
+            "dca_size_multiplier": self.dca_size_multiplier,
+            "maintenance_margin_rate": self.maintenance_margin_rate,
+            "fee_rate": self.fee_rate,
+            "maker_fee_rate": self.maker_fee_rate,
+            "slippage_rate": self.slippage_rate,
             "dca_steps": self.dca_steps,
             "dca_multipliers": self.dca_multipliers,
         }

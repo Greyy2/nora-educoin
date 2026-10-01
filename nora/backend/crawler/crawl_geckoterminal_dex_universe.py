@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import re
 import shutil
@@ -371,7 +372,10 @@ def crawl_ohlcv(
     before = end_sec
     path = f"/networks/{target['network']}/pools/{target['pool_address']}/ohlcv/{timeframe}"
 
-    for page in range(1, args.max_pages + 1):
+    needed_pages = math.ceil(args.lookback_days * 1440 / args.limit) + 2
+    max_pages = max(getattr(args, "max_pages", 0), needed_pages)
+
+    for page in range(1, max_pages + 1):
         payload = _api_get(
             session,
             path,
@@ -437,7 +441,14 @@ def aggregate_frame(frame: pd.DataFrame, interval_ms: int) -> pd.DataFrame:
 # All OHLCV resampling is delegated to core/resampler.py.
 
 
-def write_asset(target: Dict[str, Any], frame_1m: pd.DataFrame, output_dir: str) -> None:
+def write_asset(
+    target: Dict[str, Any],
+    frame_1m: pd.DataFrame,
+    output_dir: str,
+    crawl_ok: bool = True,
+    requested_start_ts: Optional[int] = None,
+    requested_end_ts: Optional[int] = None,
+) -> Dict[str, Any]:
     """Phase 1: write 1m source of truth, resample all timeframes, generate manifest.json."""
     asset = _slug(target["asset"])
     pool_address = str(target.get("pool_address") or "")
@@ -450,6 +461,10 @@ def write_asset(target: Dict[str, Any], frame_1m: pd.DataFrame, output_dir: str)
         timeframes=("5m", "15m", "1h", "4h", "24h"),
         source="geckoterminal",
         synthetic=False,
+        crawl_ok=crawl_ok,
+        requested_start_ts=requested_start_ts,
+        requested_end_ts=requested_end_ts,
+        extra_meta={"venue": "dex", "exchange": "geckoterminal", "network": target.get("network"), "volume_unit": "usd"},
     )
 
     # Also write dex_pool.json metadata (separate from manifest.json)
@@ -539,15 +554,25 @@ def run(args: argparse.Namespace) -> List[Dict[str, Any]]:
             warn(f"[skip] {target['asset']} missing 1m data")
             continue
         try:
-            manifest = write_asset(target, frame_1m, output_dir)
+            oldest = int(frame_1m["open_time"].min()) // 1000
+            crawl_ok = oldest <= start_sec + 86400  # cho phép lệch 1 ngày
+            manifest = write_asset(
+                target,
+                frame_1m,
+                output_dir,
+                crawl_ok=crawl_ok,
+                requested_start_ts=start_sec * 1000,
+                requested_end_ts=end_sec * 1000,
+            )
             summaries.append({
                 "asset": target["asset"],
                 "rows_1m": manifest["rows"].get("1m", 0),
                 "rows_1h": manifest["rows"].get("1h", 0),
                 "rows_4h": manifest["rows"].get("4h", 0),
                 "filled_ratio_1m": manifest["filled_ratio_1m"],
+                "crawl_ok": manifest.get("crawl_ok", True),
             })
-            log(f"[write] {target['asset']} 1m={manifest['rows'].get('1m', 0)} filled={manifest['filled_ratio_1m']:.3f}")
+            log(f"[write] {target['asset']} 1m={manifest['rows'].get('1m', 0)} filled={manifest['filled_ratio_1m']:.3f} crawl_ok={crawl_ok}")
         except Exception as exc:
             warn(f"[error] {target['asset']} write failed: {exc}")
             import traceback
@@ -562,9 +587,9 @@ def run(args: argparse.Namespace) -> List[Dict[str, Any]]:
 
 def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Crawl top DEX universe data from GeckoTerminal.")
-    parser.add_argument("--output-dir", default=default_data_root())
+    parser.add_argument("--output-dir", default=os.path.join(default_data_root(), "dex"))
     parser.add_argument("--targets-file", default=None, help="Optional GeckoTerminal DEX targets JSON to crawl without rediscovery.")
-    parser.add_argument("--targets-out", default=os.path.join(default_data_root(), "geckoterminal_dex_targets.json"))
+    parser.add_argument("--targets-out", default=os.path.join(default_data_root(), "_meta", "geckoterminal_dex_targets.json"))
     parser.add_argument("--networks", default="solana,base,eth,bsc")
     parser.add_argument("--count", type=int, default=50)
     parser.add_argument("--lookback-days", type=float, default=90.0)

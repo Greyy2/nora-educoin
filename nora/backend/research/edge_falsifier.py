@@ -64,6 +64,9 @@ def falsify_edge_candidate(
         # Match closest cost model or standard
         model = cost_models.get("standard") or cost_models.get("low") or next(iter(cost_models.values()))
         survived = bool(model.get("survived", False))
+        t_stat = model.get("t_stat")
+        if t_stat is not None and float(t_stat) <= 3.0:
+            survived = False
         is_falsified = not survived
         falsification_status = "SURVIVED_FRICTION_HURDLE" if survived else "FALSIFIED_AFTER_COST"
         net_expectancy_bps = float(model.get("avg_net_bps", 0.0))
@@ -72,8 +75,9 @@ def falsify_edge_candidate(
         gross_expectancy_pct = gross_expectancy_bps / 10000.0
 
         if is_falsified:
+            t_note = f", t-stat={float(t_stat):.2f} <= 3.0" if t_stat is not None and float(t_stat) <= 3.0 else ""
             falsification_reasons.append(
-                f"Mô phỏng khớp lệnh thực tế không vượt qua kiểm định ma sát {total_friction_bps:.0f} bps (Avg Net: {net_expectancy_bps:.1f} bps, Bootstrap 95% CI <= 0 hoặc < 30 lệnh)."
+                f"Mô phỏng khớp lệnh thực tế không vượt qua kiểm định ma sát {total_friction_bps:.0f} bps (Avg Net: {net_expectancy_bps:.1f} bps{t_note}, Bootstrap 95% CI <= 0 hoặc < 30 lệnh)."
             )
     else:
         # Fail closed when not tested

@@ -1,0 +1,450 @@
+{
+  "generated_at": 1790790219774,
+  "source_optimization": "/home/ubuntu/norabt/nora/data/_cache/optimize/20260930_1728",
+  "code": {
+    "commit": "808d7f4d30ebd92e3ffdb5f1f9806e617b9132d2",
+    "dirty_backend": true
+  },
+  "gates": {
+    "wfa": "acceptance_gate_passed",
+    "mc_ruin_max_pct": 5.0,
+    "holdout_mdd_max_pct": 30.0,
+    "leverage_max": 10
+  },
+  "pairs_evaluated": 34,
+  "alphas": [
+    {
+      "alpha_id": "trend_long_perp__SOL",
+      "strategy": "trend_long_perp",
+      "family": "Theo xu hướng",
+      "side": "LONG",
+      "symbol": "SOL",
+      "data_symbol": "SOL@perp",
+      "price_source": "perp",
+      "market": "perp",
+      "position": {
+        "market": "perp",
+        "leverage": 1,
+        "order_size_pct": 50,
+        "stop_loss_rate": 4.0,
+        "timeout": 4320,
+        "trailing_activation_pct": 1.5,
+        "trailing_stop": 5.0
+      },
+      "signal_params": {
+        "adx_min": 25
+      },
+      "flows": [
+        {
+          "id": "trend_long_perp",
+          "name": "LONG trend_long_perp",
+          "type": "LONG",
+          "ast": {
+            "type": "LONG",
+            "match": [
+              {
+                "condition": [
+                  [
+                    [
+                      {
+                        "frame": "1h",
+                        "column": "ema_50",
+                        "index": 0
+                      },
+                      ">",
+                      {
+                        "frame": "1h",
+                        "column": "ema_200",
+                        "index": 0
+                      }
+                    ],
+                    [
+                      {
+                        "frame": "1h",
+                        "column": "adx_14",
+                        "index": 0
+                      },
+                      ">",
+                      25.0
+                    ],
+                    [
+                      {
+                        "frame": "15m",
+                        "column": "close",
+                        "index": 0
+                      },
+                      ">",
+                      {
+                        "frame": "15m",
+                        "column": "dch_20",
+                        "index": 0
+                      }
+                    ]
+                  ]
+                ]
+              }
+            ],
+            "stop": []
+          }
+        }
+      ],
+      "evidence": {
+        "windows": {
+          "start": "2023-10-01",
+          "dev1_end": "2024-12-12",
+          "holdout": "2026-02-23",
+          "end": "2026-09-30"
+        },
+        "screen": {
+          "passed": 3,
+          "best": [
+            {
+              "cfg": {
+                "leverage": 1,
+                "order_size_pct": 50,
+                "sig.adx_min": 25,
+                "stop_loss_rate": 4.0,
+                "timeout": 4320,
+                "trailing_activation_pct": 1.5,
+                "trailing_stop": 5.0
+              },
+              "ret": 21.4228,
+              "mdd": 19.8594,
+              "n": 115,
+              "score": 1.0787234256825482,
+              "ok": true
+            },
+            {
+              "cfg": {
+                "leverage": 2,
+                "order_size_pct": 30,
+                "sig.adx_min": 25,
+                "stop_loss_rate": 2.5,
+                "timeout": 1440,
+                "trailing_activation_pct": 0.5,
+                "trailing_stop": 5.0
+              },
+              "ret": 18.5395,
+              "mdd": 18.7246,
+              "n": 153,
+              "score": 0.9901146085897697,
+              "ok": true
+            },
+            {
+              "cfg": {
+                "leverage": 3,
+                "order_size_pct": 30,
+                "sig.adx_min": 25,
+                "stop_loss_rate": 1.5,
+                "timeout": 4320,
+                "trailing_activation_pct": 0.0,
+                "trailing_stop": 5.0
+              },
+              "ret": 3.1893,
+              "mdd": 28.657,
+              "n": 155,
+              "score": 0.11129217992113619,
+              "ok": true
+            }
+          ],
+          "median_return": -31.4494
+        },
+        "wfa": {
+          "total_folds": 14,
+          "positive_folds_count": 9,
+          "total_oos_return_pct": 35.97,
+          "total_oos_trades": 78,
+          "worst_fold_mdd_pct": 9.1266,
+          "acceptance_gate_passed": true,
+          "param_stability": 0.8571,
+          "wfe": 0.89,
+          "gate_checks": {
+            "is_return": true,
+            "total_folds": true,
+            "positive_ratio": true,
+            "total_trades": true,
+            "worst_mdd": true,
+            "compounded_return": true
+          }
+        },
+        "monte_carlo": {
+          "risk_of_ruin_pct": 0.55,
+          "mdd_p95": 22.59,
+          "terminal_p50": 25.62,
+          "terminal_p10": -2.89
+        },
+        "holdout": {
+          "return_pct": 14.7103,
+          "mdd_pct": 12.2303,
+          "trades": 35,
+          "win_rate": 57.14,
+          "profit_factor": 1.71
+        },
+        "checks": {
+          "wfa_gate": true,
+          "mc_ruin_le_5": true,
+          "holdout_profit": true,
+          "holdout_mdd_le_30": true,
+          "holdout_trades": true,
+          "leverage_le_10": true
+        },
+        "configs_tried": 60,
+        "space_size": 5184
+      },
+      "robustness": {
+        "space": "trend_long_perp",
+        "symbol": "SOL",
+        "neighbors": [
+          {
+            "variant": "GỐC",
+            "dev2": {
+              "ret": 36.4275,
+              "mdd": 11.1633,
+              "n": 69
+            },
+            "holdout": {
+              "ret": 14.7103,
+              "mdd": 12.0507,
+              "n": 35
+            },
+            "profitable_both": true
+          },
+          {
+            "variant": "leverage=2",
+            "dev2": {
+              "ret": 77.726,
+              "mdd": 21.0568,
+              "n": 69
+            },
+            "holdout": {
+              "ret": 28.588,
+              "mdd": 22.8469,
+              "n": 35
+            },
+            "profitable_both": true
+          },
+          {
+            "variant": "order_size_pct=30",
+            "dev2": {
+              "ret": 21.1831,
+              "mdd": 6.8622,
+              "n": 69
+            },
+            "holdout": {
+              "ret": 8.9047,
+              "mdd": 7.3874,
+              "n": 35
+            },
+            "profitable_both": true
+          },
+          {
+            "variant": "order_size_pct=100",
+            "dev2": {
+              "ret": 77.683,
+              "mdd": 21.0475,
+              "n": 69
+            },
+            "holdout": {
+              "ret": 28.5747,
+              "mdd": 22.8367,
+              "n": 35
+            },
+            "profitable_both": true
+          },
+          {
+            "variant": "stop_loss_rate=2.5",
+            "dev2": {
+              "ret": 36.6289,
+              "mdd": 11.6188,
+              "n": 77
+            },
+            "holdout": {
+              "ret": 4.2561,
+              "mdd": 13.7004,
+              "n": 41
+            },
+            "profitable_both": true
+          },
+          {
+            "variant": "trailing_stop=3.0",
+            "dev2": {
+              "ret": 3.1167,
+              "mdd": 12.6944,
+              "n": 95
+            },
+            "holdout": {
+              "ret": 9.3838,
+              "mdd": 13.1896,
+              "n": 47
+            },
+            "profitable_both": true
+          },
+          {
+            "variant": "trailing_activation_pct=0.5",
+            "dev2": {
+              "ret": 34.1927,
+              "mdd": 12.7088,
+              "n": 70
+            },
+            "holdout": {
+              "ret": 14.8981,
+              "mdd": 12.0507,
+              "n": 35
+            },
+            "profitable_both": true
+          },
+          {
+            "variant": "timeout=1440",
+            "dev2": {
+              "ret": 19.0197,
+              "mdd": 13.2178,
+              "n": 100
+            },
+            "holdout": {
+              "ret": 14.6337,
+              "mdd": 13.162,
+              "n": 49
+            },
+            "profitable_both": true
+          },
+          {
+            "variant": "sig.adx_min=20",
+            "dev2": {
+              "ret": 14.8819,
+              "mdd": 16.843,
+              "n": 84
+            },
+            "holdout": {
+              "ret": 12.8227,
+              "mdd": 12.404,
+              "n": 44
+            },
+            "profitable_both": true
+          },
+          {
+            "variant": "sig.adx_min=30",
+            "dev2": {
+              "ret": 18.223,
+              "mdd": 13.2649,
+              "n": 56
+            },
+            "holdout": {
+              "ret": 7.0645,
+              "mdd": 9.7445,
+              "n": 25
+            },
+            "profitable_both": true
+          }
+        ],
+        "other_assets": [
+          {
+            "symbol": "ADA",
+            "dev2": {
+              "ret": -23.4148,
+              "mdd": 29.6774,
+              "n": 73
+            },
+            "holdout": {
+              "ret": -3.3136,
+              "mdd": 15.4489,
+              "n": 35
+            },
+            "profitable_both": false
+          },
+          {
+            "symbol": "AVAX",
+            "dev2": {
+              "ret": -18.367,
+              "mdd": 24.0258,
+              "n": 72
+            },
+            "holdout": {
+              "ret": -3.9114,
+              "mdd": 15.467,
+              "n": 39
+            },
+            "profitable_both": false
+          },
+          {
+            "symbol": "BNB",
+            "dev2": {
+              "ret": -9.3098,
+              "mdd": 15.9792,
+              "n": 73
+            },
+            "holdout": {
+              "ret": -1.1049,
+              "mdd": 8.9468,
+              "n": 36
+            },
+            "profitable_both": false
+          },
+          {
+            "symbol": "BTC",
+            "dev2": {
+              "ret": -14.1564,
+              "mdd": 18.9225,
+              "n": 68
+            },
+            "holdout": {
+              "ret": 3.9152,
+              "mdd": 7.6943,
+              "n": 35
+            },
+            "profitable_both": false
+          },
+          {
+            "symbol": "DOGE",
+            "dev2": {
+              "ret": 21.1401,
+              "mdd": 15.1148,
+              "n": 70
+            },
+            "holdout": {
+              "ret": 10.719,
+              "mdd": 10.8561,
+              "n": 33
+            },
+            "profitable_both": true
+          },
+          {
+            "symbol": "ETH",
+            "dev2": {
+              "ret": -14.7502,
+              "mdd": 26.4088,
+              "n": 66
+            },
+            "holdout": {
+              "ret": -3.9125,
+              "mdd": 14.5102,
+              "n": 43
+            },
+            "profitable_both": false
+          },
+          {
+            "symbol": "XRP",
+            "dev2": {
+              "ret": -26.4522,
+              "mdd": 33.1831,
+              "n": 81
+            },
+            "holdout": {
+              "ret": -2.1856,
+              "mdd": 15.2037,
+              "n": 42
+            },
+            "profitable_both": false
+          }
+        ],
+        "neighbors_profitable": "9/9",
+        "other_assets_profitable": "1/7"
+      },
+      "data": {
+        "sha256_1m": "5c9f6ad418039be55216ced9306c82e69598fddd42e6ba5ba9949147447cd89a",
+        "start_ts": 1696115280000,
+        "end_ts": 1790788080000,
+        "exchange": "binance_usdm"
+      }
+    }
+  ]
+}

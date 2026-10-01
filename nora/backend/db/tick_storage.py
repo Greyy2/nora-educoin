@@ -24,19 +24,26 @@ STANDARD_MINUTE_FRAMES = [1, 5, 10, 15]
 STANDARD_HOUR_FRAMES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]
 
 
-def default_data_root() -> str:
-    return os.environ.get(
-        "NORA_DATA_ROOT",
-        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data")),
-    )
+from .data_layout import (  # noqa: E402
+    asset_dir_for_write,
+    clean_name,
+    default_data_root,
+    resolve_asset_dir,
+)
 
 
-def symbol_dir(symbol: str, data_root: Optional[str] = None) -> str:
+def symbol_dir(symbol: str, data_root: Optional[str] = None, create: bool = False, venue: str = "dex") -> str:
+    """Thư mục tài sản. KHÔNG tạo thư mục khi chỉ đọc (trước đây tạo thư mục rỗng mỗi lần gọi).
+
+    create=True chỉ dùng cho bộ ghi (vd. lưu tick DEX) -> <root>/<venue>/<SYM>.
+    """
     root = data_root or default_data_root()
-    clean_sym = re.sub(r"[^A-Za-z0-9_]+", "", str(symbol or "").strip()).upper()
-    path = os.path.join(root, clean_sym)
-    os.makedirs(path, exist_ok=True)
-    return path
+    found = resolve_asset_dir(symbol, data_root=root)
+    if found:
+        return found
+    if create:
+        return asset_dir_for_write(venue, symbol, data_root=root)
+    return os.path.join(root, venue, clean_name(symbol))  # đường dẫn chưa tồn tại
 
 
 def resolve_tick_file(symbol: str, data_root: Optional[str] = None) -> Optional[str]:
@@ -55,14 +62,17 @@ def save_ticks_and_sync_candles(
     df_new_ticks: pd.DataFrame,
     symbol: str,
     data_root: Optional[str] = None,
-    sync_all_timeframes: bool = True,
+    sync_all_timeframes: bool = False,
 ) -> Dict[str, Any]:
     """
     1. Merge new ticks into data/{SYMBOL}/ticks.parquet (deduplicated).
-    2. Resample ticks into 1m, 5m, 15m, 1h, 4h, 24h candles.
-    3. Update/merge all corresponding .pkl files in data/{SYMBOL}/.
+    2. Ghi metadata ticks vào manifest.json.
+    3. Cấm sync_all_timeframes vì nến chỉ được resample qua core/resampler.py.
     """
-    s_dir = symbol_dir(symbol, data_root)
+    if sync_all_timeframes:
+        raise ValueError("sync_all_timeframes is deprecated and forbidden. Ticks must only be written to ticks.parquet, and candles are resampled strictly via resampler.py")
+
+    s_dir = symbol_dir(symbol, data_root, create=True, venue="dex")
     tick_path = os.path.join(s_dir, "ticks.parquet")
 
     # 1. Merge with existing ticks if present
@@ -94,34 +104,30 @@ def save_ticks_and_sync_candles(
     cols = [c for c in TICK_COLUMNS if c in combined.columns]
     combined[cols].to_parquet(tick_path, engine="pyarrow", compression="snappy", index=False)
 
-    updated_frames = []
-
-    # 2. Sync minute and hour candles into data/{SYMBOL}/{frame}.pkl
-    if sync_all_timeframes and not combined.empty:
-        # Base 1m resampling
-        df_1m = resample_ticks_to_bars(combined, bar_type="time", param="1m")
-        if not df_1m.empty:
-            # Sync 1m
-            _merge_and_save_pkl(os.path.join(s_dir, "1m.pkl"), df_1m)
-            updated_frames.append("1m")
-
-            # Higher minute frames: 5m, 10m, 15m
-            for m in [5, 10, 15]:
-                df_m = aggregate_from_1m(df_1m, bucket_ms=m * 60 * 1000)
-                _merge_and_save_pkl(os.path.join(s_dir, f"{m}m.pkl"), df_m)
-                updated_frames.append(f"{m}m")
-
-            # Hour frames: 1h, 2h, 3h, 4h, 6h, 8h, 12h, 24h, etc.
-            for h in STANDARD_HOUR_FRAMES:
-                df_h = aggregate_from_1m(df_1m, bucket_ms=h * 3600 * 1000)
-                _merge_and_save_pkl(os.path.join(s_dir, f"{h}h.pkl"), df_h)
-                updated_frames.append(f"{h}h")
+    # 2. Update manifest.json ticks metadata
+    manifest_path = os.path.join(s_dir, "manifest.json")
+    if os.path.isfile(manifest_path):
+        try:
+            import json
+            with open(manifest_path, "r", encoding="utf-8") as f:
+                manifest = json.load(f)
+            manifest["ticks"] = {
+                "source": "geckoterminal_trades",
+                "synthetic": False,
+                "start_ts": int(combined["timestamp_ms"].min()) if not combined.empty else 0,
+                "end_ts": int(combined["timestamp_ms"].max()) if not combined.empty else 0,
+                "rows": len(combined),
+            }
+            with open(manifest_path, "w", encoding="utf-8") as f:
+                json.dump(manifest, f, indent=2)
+        except Exception:
+            pass
 
     return {
         "symbol": symbol,
         "tick_path": tick_path,
         "total_ticks": len(combined),
-        "updated_frames": updated_frames,
+        "updated_frames": [],
     }
 
 
@@ -277,12 +283,7 @@ def load_candle_df(symbol: str, timeframe: str = "1h", data_root: Optional[str] 
         except Exception:
             pass
 
-    # 2. Try resample from ticks if pkl empty
-    ticks = load_ticks_df(symbol, data_root)
-    if not ticks.empty:
-        tf_map = {"1m": 60_000, "5m": 300_000, "15m": 900_000, "1h": 3600_000, "4h": 14400_000, "24h": 86400_000}
-        bucket_ms = tf_map.get(clean_tf, 3600_000)
-        return resample_ticks_to_bars(ticks, bar_type="time", param=bucket_ms)
-
+    # Không tự dựng nến từ tick khi thiếu pkl: nến chỉ có một nguồn duy nhất là
+    # 1m.pkl + core/resampler.py. Thiếu pkl -> trả rỗng để gate chặn rõ ràng.
     return pd.DataFrame(columns=PKL_COLUMNS)
 

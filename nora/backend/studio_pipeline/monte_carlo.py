@@ -8,6 +8,7 @@ Thực hiện:
 - Xuất dữ liệu biểu đồ phân tán và quantile bands (Fan Chart: p5, p25, p50, p75, p95).
 - Sử dụng Local Generator ngẫu nhiên `np.random.default_rng(seed)` an toàn đa luồng.
 """
+import json
 import time
 from typing import Any, Dict, List, Optional
 
@@ -15,6 +16,53 @@ import numpy as np
 
 from .jobs import complete_mc_job, fail_mc_job
 from .schemas import MonteCarloResultContract, MonteCarloRunRequest
+
+
+def _resolve_wfa_gate(source_wfa_id: Optional[str]) -> Optional[bool]:
+    """
+    Xác định trạng thái gate của WFA nguồn.
+
+    Returns:
+        True  – WFA job đã completed với acceptance_gate_passed=True
+        False – WFA job tồn tại nhưng gate False, chưa completed,
+                không tìm thấy, hoặc có lỗi parse
+        None  – Không có source_wfa_id (MC chạy standalone, không qua WFA)
+
+    Luật đọc result (ưu tiên theo thứ tự):
+        1. job["result"] (in-memory, luôn là dict nếu đã complete)
+        2. json.loads(job["result_json"]) (từ SQLite sau restart)
+    """
+    if not source_wfa_id:
+        return None
+
+    from .jobs import get_wfa_job
+
+    try:
+        job = get_wfa_job(source_wfa_id)
+    except Exception:
+        return False
+
+    if not job:
+        return False
+
+    # Job phải ở trạng thái completed
+    if job.get("status") != "completed":
+        return False
+
+    # Đọc result: ưu tiên in-memory dict, fallback JSON string từ SQLite
+    res = job.get("result")
+    if res is None:
+        raw_json = job.get("result_json")
+        if raw_json:
+            try:
+                res = json.loads(raw_json)
+            except Exception:
+                return False
+
+    if not res:
+        return False
+
+    return bool(res.get("acceptance_gate_passed") is True)
 
 
 def run_monte_carlo(
@@ -40,7 +88,7 @@ def run_monte_carlo(
             "Monte Carlo yêu cầu tối thiểu 30 lệnh để đảm bảo ý nghĩa thống kê."
         )
 
-    # Đọc pnl_pct để tính lãi kép; nếu thiếu thì trích xuất từ pnl_usd / initial_capital, nếu không có thì raise
+    # Đọc pnl_pct để tính lãi kép; nếu thiếu thì trích xuất từ pnl_usd / initial_capital
     pnl_pct_list = []
     for t in trades:
         if "pnl_pct" in t and t["pnl_pct"] is not None:
@@ -174,27 +222,37 @@ def execute_monte_carlo_pipeline(
     req: MonteCarloRunRequest,
     trades: List[Dict[str, Any]],
 ):
-    """Tiến trình thực thi Monte Carlo chạy trên background worker thread."""
+    """
+    Tiến trình thực thi Monte Carlo chạy trên background worker thread.
+
+    Ưu tiên nguồn lệnh: source_wfa_id > trades truyền vào.
+    Nếu có source_wfa_id, LUÔN dùng aggregate_oos_trades từ WFA job.
+    Client không được bypass gate bằng cách tự gửi trades giả.
+    """
     try:
-        # Fail-closed: gate defaults False when source_wfa_id is provided.
-        # Only True when WFA job is found AND acceptance_gate_passed=True is
-        # explicitly confirmed in the result JSON.
-        # When source_wfa_id is absent (standalone MC), gate = True (no WFA to check).
-        source_gate_passed = (not req.source_wfa_id)  # True only if no WFA dependency
+        # ── Resolve gate (3 giá trị: True / False / None) ────────────────────
+        source_gate_passed = _resolve_wfa_gate(req.source_wfa_id)
+
+        # ── Lấy trades từ WFA job nếu có source_wfa_id ───────────────────────
+        # Ưu tiên: source_wfa_id > trades truyền vào (không cho phép bypass)
+        effective_trades = trades
         if req.source_wfa_id:
+            # Có source_wfa_id thì CHỈ dùng lệnh OOS của job; không fallback về trades của client.
+            # Job thiếu lệnh -> danh sách rỗng -> run_monte_carlo raise (< 30 lệnh) -> job failed.
             from .jobs import get_wfa_job
-            import json
-            try:
-                wfa_job = get_wfa_job(req.source_wfa_id)
-                if wfa_job and wfa_job.get("result_json"):
-                    res_dict = json.loads(wfa_job["result_json"])
-                    source_gate_passed = bool(res_dict.get("acceptance_gate_passed", False))
-                # else: job not found or no result -> gate stays False
-            except Exception:
-                source_gate_passed = False  # Parse failure -> fail-closed
+            wfa_job = get_wfa_job(req.source_wfa_id)
+            res = None
+            if wfa_job:
+                res = wfa_job.get("result")
+                if res is None and wfa_job.get("result_json"):
+                    try:
+                        res = json.loads(wfa_job["result_json"])
+                    except Exception:
+                        res = None
+            effective_trades = list((res or {}).get("aggregate_oos_trades") or [])
 
         res = run_monte_carlo(
-            trades=trades,
+            trades=effective_trades,
             simulations=req.simulations,
             initial_capital=req.initial_capital,
             ruin_threshold_pct=req.ruin_threshold_pct,
@@ -218,6 +276,16 @@ def execute_monte_carlo_pipeline(
             sample_paths=res["sample_paths"],
             quantile_curves=res["quantile_curves"],
             source_gate_passed=source_gate_passed,
+            max_ruin_pct=req.max_ruin_pct,
+            robust_passed=bool(source_gate_passed is True and res["risk_of_ruin_pct"] <= req.max_ruin_pct),
+            robust_checks={
+                "wfa_gate": {"required": True, "actual": source_gate_passed, "passed": source_gate_passed is True},
+                "risk_of_ruin": {
+                    "required": f"<= {req.max_ruin_pct}% (MDD >= {req.ruin_threshold_pct}%)",
+                    "actual": res["risk_of_ruin_pct"],
+                    "passed": res["risk_of_ruin_pct"] <= req.max_ruin_pct,
+                },
+            },
             seed=req.seed,
             summary=res["summary"],
             generated_at=int(time.time() * 1000),

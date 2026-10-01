@@ -19,6 +19,7 @@ from backend.core.params import StrategyParams
 from backend.db.local_pkl import default_data_root, has_frame, resolve_symbol_dir
 from .jobs import complete_wfa_job, fail_wfa_job, update_wfa_progress
 from .schemas import (
+    MAX_GRID_COMBOS,
     StrategySnapshot,
     WfaFoldConfig,
     WfaFoldResult,
@@ -72,46 +73,38 @@ def _run_single_window(
     start_ts: int,
     end_ts: int,
     initial_capital: float = 10000.0,
-    leverage: float = 1.0,
-    stop_loss_rate: float = 0.0,
-    take_profit_rate: float = 0.0,
-    using_match_price: bool = True,
-    max_open_trades: int = 45,
-    timeout: int = 0,
     trade_start_ts: Optional[int] = None,
+    **position: Any,
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
-    """Chạy backtest cho một cửa sổ thời gian đơn lẻ qua BacktestEngine causal chuẩn."""
+    """Chạy backtest cho một cửa sổ thời gian đơn lẻ qua BacktestEngine causal chuẩn.
+
+    `position`: tham số quản lý vị thế (xem backtest/params_builder.POSITION_KEYS).
+    """
+    from backend.alpha.params_template import resolve_placeholders, split_params
+    from backend.backtest.params_builder import POSITION_KEYS, build_params, data_symbol, venue_of_symbol
+    signal_values, position = split_params(position)          # "sig.x" -> ngưỡng tín hiệu
+    flows = resolve_placeholders(flows, signal_values)
+    unknown = set(position) - set(POSITION_KEYS)
+    if unknown:
+        raise ValueError(f"Tham số vị thế không hỗ trợ: {sorted(unknown)}")
+    data_sym, _ = data_symbol(symbol, str(position.get("market") or "spot"))
     engine = BacktestEngine(
         account_id=0,
         campaign_id=0,
-        symbol=symbol,
+        symbol=data_sym,
         start_ts=start_ts,
         end_ts=end_ts,
         trade_start_ts=trade_start_ts,
+        initial_capital=initial_capital,
     )
-
+    venue = venue_of_symbol(symbol)
     for index, flow in enumerate(flows):
         flow_ast = dict(flow.get("ast", flow))
         flow_type = str(flow.get("type", flow_ast.get("type", "LONG"))).upper()
         flow_name = str(flow.get("name") or flow.get("id") or f"{flow_type}_{index + 1}")
         if flow_type not in flow_name.upper():
             flow_name = f"{flow_type}_{flow_name}"
-        flow_ast["type"] = flow_type
-
-        params = StrategyParams(
-            name=flow_name,
-            strategy="studio_ast",
-            data_type="1m",
-            using_match_price=bool(using_match_price),
-            max_open_trades=int(max_open_trades),
-            volume_rate=1.0,
-            leverage=int(leverage),
-            stop_loss_rate=float(stop_loss_rate),
-            take_profit_rate=float(take_profit_rate),
-            timeout=int(timeout),
-            extra={"ast": flow_ast, "type": flow_type},
-        )
-        engine.add_strategy_flow(flow_name, params)
+        engine.add_strategy_flow(flow_name, build_params(flow_name, flow_ast, flow_type, position, venue, symbol))
 
     engine.load_data()
     if engine.df_1m is None or engine.df_1m.empty:
@@ -121,7 +114,7 @@ def _run_single_window(
     res = engine.get_results()
     positions = res.get("positions", [])
 
-    base = MetricsCalculator.calculate(positions, initial_capital)
+    base = MetricsCalculator.calculate(positions, initial_capital, equity_curve=res.get("equity_curve") or None)
     total_trades = int(base.get("total_trades", 0) or 0)
     win_rate = float(base.get("winrate", 0.0) or 0.0)
     return_pct = float(base.get("total_pnl_pct", 0.0) or 0.0)
@@ -156,6 +149,13 @@ def _run_single_window(
         "win_rate": win_rate,
         "profit_factor": profit_factor,
         "net_profit": net_profit,
+        "data_symbol": data_sym,
+        "liquidations": sum(1 for p in positions if int(p.status) == 5),
+        "fees_usd": round(sum(float(getattr(p, "fees_usd", 0.0) or 0.0) for p in positions), 4),
+        "funding_usd": round(sum(float(getattr(p, "funding_usd", 0.0) or 0.0) for p in positions), 4),
+        "funding_modeled": bool(res.get("funding_modeled")),
+        "rejected_for_capital": int(res.get("rejected_for_capital", 0) or 0),
+        "avg_layers": round(sum(int(getattr(p, "layers", 1) or 1) for p in positions) / len(positions), 3) if positions else 0.0,
     }
     return summary, trade_items
 
@@ -167,13 +167,14 @@ def _optimize_is(
     grid: Dict[str, List[Any]],
     cfg: WfaFoldConfig,
     base_params: Dict[str, Any],
+    candidates: Optional[List[Dict[str, Any]]] = None,
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """
     Tối ưu tham số trên In-Sample (Train).
     Trả về (chosen_params, is_summary).
     is_summary có thêm key 'insufficient_is_trades'=True nếu không combo nào đạt min_is_trades.
     """
-    if not grid:
+    if not grid and not candidates:
         s, _ = _run_single_window(
             symbol=symbol,
             flows=flows,
@@ -184,13 +185,18 @@ def _optimize_is(
         s["insufficient_is_trades"] = False
         return base_params, s
 
-    keys = list(grid.keys())
-    combos = list(itertools.product(*[grid[k] for k in keys]))
-    if len(combos) > 50:
-        combos = combos[:50]
-
+    if candidates:  # danh sách tổ hợp cụ thể (vd. top-K từ vòng sàng lọc)
+        keys = sorted({k for c in candidates for k in c})
+        combos = [tuple(c.get(k, base_params.get(k)) for k in keys) for c in candidates]
+    else:
+        keys = list(grid.keys())
+        combos = list(itertools.product(*[grid[k] for k in keys]))
+    assert len(combos) <= MAX_GRID_COMBOS, (
+        f"param_grid vượt giới hạn {MAX_GRID_COMBOS} tổ hợp (got {len(combos)}). "
+        "Validator schema phải bắt trước khi tới đây."
+    )
     best = None
-    min_is_trades = getattr(cfg, "min_is_trades", 10) or 10
+    min_is_trades = cfg.min_is_trades  # lấy thẳng từ schema, không dùng getattr/or
 
     for combo in combos:
         param_update = dict(zip(keys, combo))
@@ -242,7 +248,8 @@ def execute_wfa_pipeline(
         if not sym_dir or not os.path.isdir(sym_dir):
             fail_wfa_job(job_id, f"Symbol '{raw_sym}' không tồn tại trong data_root. Vui lòng crawl trước khi chạy WFA.")
             return
-        symbol = os.path.basename(sym_dir).upper()
+        from backend.db.data_layout import qualified_symbol
+        symbol = qualified_symbol(sym_dir, data_root)  # giữ tiền tố cex:/dex: nếu tên bị trùng
 
         flows = snapshot.flows
         if not flows:
@@ -254,6 +261,13 @@ def execute_wfa_pipeline(
             if not has_frame(symbol, frame, data_root=data_root):
                 fail_wfa_job(job_id, f"Thiếu nến {frame} cho {symbol} trong data_root.")
                 return
+
+        from backend.research.data_quality_gate import evaluate_data_quality, DataQualityStatus
+        from backend.backtest.params_builder import data_symbol
+        dq = evaluate_data_quality(data_symbol(symbol, snapshot.market)[0], timeframe="1m", data_root=data_root)
+        if dq["status"] in (DataQualityStatus.BLOCKED, DataQualityStatus.NEEDS_MORE_DATA):
+            fail_wfa_job(job_id, f"Dữ liệu không đạt quality gate: {'; '.join(dq['issues'])}")
+            return
 
         start_ts = snapshot.start_ts
         end_ts = snapshot.end_ts
@@ -284,15 +298,10 @@ def execute_wfa_pipeline(
         total_folds = len(raw_folds)
         update_wfa_progress(job_id, 0, total_folds, f"Đã sinh {total_folds} folds không chồng lấp. Bắt đầu kiểm định...")
 
-        base_params = {
-            "initial_capital": snapshot.initial_capital,
-            "leverage": snapshot.leverage,
-            "stop_loss_rate": snapshot.stop_loss_rate,
-            "take_profit_rate": snapshot.take_profit_rate,
-            "using_match_price": snapshot.using_match_price,
-            "max_open_trades": snapshot.max_open_trades,
-            "timeout": snapshot.timeout,
-        }
+        from backend.backtest.params_builder import POSITION_KEYS
+        base_params = {"initial_capital": snapshot.initial_capital,
+                       **{key: getattr(snapshot, key) for key in POSITION_KEYS},
+                       **{f"sig.{k}": v for k, v in (snapshot.signal_params or {}).items()}}
         grid = snapshot.param_grid or {}
 
         fold_results: List[WfaFoldResult] = []
@@ -310,37 +319,48 @@ def execute_wfa_pipeline(
                 grid=grid,
                 cfg=cfg,
                 base_params=base_params,
+                candidates=snapshot.param_candidates,
             )
             chosen_param_list.append(chosen_params)
 
-            # 2. Chạy Out-of-Sample (Test) với chosen_params và warm-up
-            # Dùng trade_start_ts = test_start để indicators được làm ấm từ train_end
-            warmup_ms = 5 * 86_400_000
-            oos_load_start = max(fold_range["train_end_ts"] - warmup_ms, fold_range["train_start_ts"])
-            oos_summary, oos_trades = _run_single_window(
-                symbol=symbol,
-                flows=flows,
-                start_ts=oos_load_start,
-                end_ts=fold_range["test_end_ts"],
-                trade_start_ts=fold_range["test_start_ts"],
-                **chosen_params,
-            )
-
-            # Đánh giá tiêu chí từng fold
-            gate_notes = []
-            passed_gate = True
+        # ── Bước 2: NO_TRADE check → skip OOS nếu IS không đủ lệnh ─────────
             if is_summary.get("insufficient_is_trades", False):
+                # Fold này không có tham số hợp lệ → không chạy OOS, không đưa lệnh sang MC
+                fold_status = "NO_TRADE"
+                oos_summary = {
+                    "return_pct": 0.0, "max_drawdown_pct": 0.0,
+                    "total_trades": 0, "win_rate": 0.0,
+                    "profit_factor": 0.0, "net_profit": 0.0,
+                }
+                oos_trades = []
+                gate_notes = [f"IS: không có combo nào đạt min_is_trades={cfg.min_is_trades} → fold bị đánh dấu NO_TRADE"]
                 passed_gate = False
-                gate_notes.append(f"IS: không có combo tham số nào đạt min_is_trades={cfg.min_is_trades}")
-            if oos_summary["return_pct"] < cfg.min_oos_profit_pct:
-                passed_gate = False
-                gate_notes.append(f"OOS Profit {oos_summary['return_pct']}% < {cfg.min_oos_profit_pct}%")
-            if oos_summary["max_drawdown_pct"] > cfg.max_oos_mdd_pct:
-                passed_gate = False
-                gate_notes.append(f"OOS MDD {oos_summary['max_drawdown_pct']}% > {cfg.max_oos_mdd_pct}%")
-            if is_summary["total_trades"] < cfg.min_is_trades:
-                passed_gate = False
-                gate_notes.append(f"IS Trades {is_summary['total_trades']} < {cfg.min_is_trades}")
+            else:
+                fold_status = "TRADED"
+                # 2. Chạy Out-of-Sample (Test) với chosen_params và warm-up
+                warmup_ms = 5 * 86_400_000
+                oos_load_start = max(fold_range["train_end_ts"] - warmup_ms, fold_range["train_start_ts"])
+                oos_summary, oos_trades = _run_single_window(
+                    symbol=symbol,
+                    flows=flows,
+                    start_ts=oos_load_start,
+                    end_ts=fold_range["test_end_ts"],
+                    trade_start_ts=fold_range["test_start_ts"],
+                    **chosen_params,
+                )
+
+                # Đánh giá tiêu chí từng fold
+                gate_notes = []
+                passed_gate = True
+                if oos_summary["return_pct"] < cfg.min_oos_profit_pct:
+                    passed_gate = False
+                    gate_notes.append(f"OOS Profit {oos_summary['return_pct']}% < {cfg.min_oos_profit_pct}%")
+                if oos_summary["max_drawdown_pct"] > cfg.max_oos_mdd_pct:
+                    passed_gate = False
+                    gate_notes.append(f"OOS MDD {oos_summary['max_drawdown_pct']}% > {cfg.max_oos_mdd_pct}%")
+                if is_summary["total_trades"] < cfg.min_is_trades:
+                    passed_gate = False
+                    gate_notes.append(f"IS Trades {is_summary['total_trades']} < {cfg.min_is_trades}")
 
             fold_res = WfaFoldResult(
                 fold_index=idx,
@@ -365,14 +385,17 @@ def execute_wfa_pipeline(
                 passed_gate=passed_gate,
                 gate_notes=gate_notes,
                 oos_trades=oos_trades,
+                status=fold_status,
             )
             fold_results.append(fold_res)
-            all_oos_trades.extend(oos_trades)
+            if fold_status == "TRADED":   # Chỉ fold TRADED đưa lệnh sang MC
+                all_oos_trades.extend(oos_trades)
 
         update_wfa_progress(job_id, total_folds, total_folds, "Tổng hợp kết quả OOS và đánh giá Acceptance Gate...")
 
         # Thống kê OOS tổng thể
-        positive_folds_count = sum(1 for f in fold_results if f.oos_return_pct > 0)
+        # positive_folds_count: chỉ đếm fold TRADED có lãi. Mẫu số là total_folds (fold NO_TRADE = fold không có lãi)
+        positive_folds_count = sum(1 for f in fold_results if f.status == "TRADED" and f.oos_return_pct > 0)
         worst_fold_mdd = max((f.oos_max_drawdown_pct for f in fold_results), default=0.0)
         avg_oos_mdd = round(sum(f.oos_max_drawdown_pct for f in fold_results) / total_folds, 2) if total_folds > 0 else 0.0
         avg_oos_return = round(sum(f.oos_return_pct for f in fold_results) / total_folds, 2) if total_folds > 0 else 0.0
@@ -392,7 +415,8 @@ def execute_wfa_pipeline(
         avg_is_ret = sum(f.is_return_pct for f in fold_results) / total_folds if total_folds > 0 else 0.0
         ann_is = avg_is_ret * (365.0 / max(total_is_days / total_folds, 1.0)) if total_folds > 0 else 0.0
         ann_oos = avg_oos_return * (365.0 / max(total_oos_days / total_folds, 1.0)) if total_folds > 0 else 0.0
-        wfe = round(ann_oos / ann_is, 2) if ann_is > 0 else 0.0
+        # wfe = None khi ann_is <= 0 (không bịạ giá trị)
+        wfe: Optional[float] = round(ann_oos / ann_is, 2) if ann_is > 0 else None
 
         # Sắp xếp lệnh OOS theo thời gian vào lệnh
         all_oos_trades.sort(key=lambda t: t.get("entry_time", 0))
@@ -413,59 +437,66 @@ def execute_wfa_pipeline(
                 "trade_index": i + 1,
             })
 
-        # Đánh giá Acceptance Gate (Phase 3.3)
-        min_folds = getattr(cfg, "min_folds", 4) or 4
-        min_pos_ratio = getattr(cfg, "min_positive_ratio", 0.6) or 0.6
-        min_oos_trades = getattr(cfg, "min_oos_trades", 30) or 30
-        min_total_return = getattr(cfg, "min_total_oos_profit_pct", 0.0) or 0.0
-        max_oos_mdd = getattr(cfg, "max_oos_mdd_pct", 25.0) or 25.0
-
+        # Acceptance Gate — sử dụng thẻ trường schema trực tiếp (không getattr/or để tôn trọng giá trị 0.0)
         pos_ratio = positive_folds_count / total_folds if total_folds > 0 else 0.0
 
+        # Lợi nhuận IS trung bình của các fold TRADED: chiến lược lỗ ngay trên dữ liệu
+        # dùng để chọn tham số thì kết quả OOS dương chỉ là may mắn -> không cho qua gate.
+        traded_folds = [f for f in fold_results if f.status == "TRADED"]
+        avg_is_return_traded = (
+            round(sum(f.is_return_pct for f in traded_folds) / len(traded_folds), 2) if traded_folds else None
+        )
+
         gate_checks = {
+            "is_return": {
+                "label": f"Lợi nhuận IS trung bình các fold TRADED ({avg_is_return_traded}%)",
+                "required": f">= {cfg.min_is_profit_pct}%",
+                "actual": avg_is_return_traded,
+                "passed": avg_is_return_traded is not None and avg_is_return_traded >= cfg.min_is_profit_pct,
+            },
             "total_folds": {
                 "label": f"Số lượng Fold ({total_folds})",
-                "required": f">= {min_folds} folds",
+                "required": f">= {cfg.min_folds} folds",
                 "actual": total_folds,
-                "passed": total_folds >= min_folds,
+                "passed": total_folds >= cfg.min_folds,
             },
             "positive_ratio": {
                 "label": f"Tỉ lệ Fold có lãi ({positive_folds_count}/{total_folds} = {pos_ratio*100:.1f}%)",
-                "required": f">= {min_pos_ratio*100:.1f}%",
+                "required": f">= {cfg.min_positive_ratio*100:.1f}%",
                 "actual": round(pos_ratio * 100.0, 1),
-                "passed": pos_ratio >= min_pos_ratio,
+                "passed": pos_ratio >= cfg.min_positive_ratio,
             },
             "total_trades": {
                 "label": f"Tổng số lệnh OOS ({total_oos_trades_count})",
-                "required": f">= {min_oos_trades} trades",
+                "required": f">= {cfg.min_oos_trades} trades",
                 "actual": total_oos_trades_count,
-                "passed": total_oos_trades_count >= min_oos_trades,
+                "passed": total_oos_trades_count >= cfg.min_oos_trades,
             },
             "worst_mdd": {
                 "label": f"Max Drawdown tệ nhất từng Fold ({worst_fold_mdd}%)",
-                "required": f"<= {max_oos_mdd}%",
+                "required": f"<= {cfg.max_oos_mdd_pct}%",
                 "actual": worst_fold_mdd,
-                "passed": worst_fold_mdd <= max_oos_mdd,
+                "passed": worst_fold_mdd <= cfg.max_oos_mdd_pct,
             },
             "compounded_return": {
                 "label": f"Tổng lợi nhuận OOS lãi kép ({total_compounded_oos_return}%)",
-                "required": f">= {min_total_return}%",
+                "required": f">= {cfg.min_total_oos_profit_pct}%",
                 "actual": total_compounded_oos_return,
-                "passed": total_compounded_oos_return >= min_total_return,
+                "passed": total_compounded_oos_return >= cfg.min_total_oos_profit_pct,
             },
         }
         acceptance_gate_passed = all(check["passed"] for check in gate_checks.values())
 
-        # Tính param_stability thực tế:
-        # Tỉ lệ folds dùng chung param combo đa số (mode) / tổng folds.
-        # 1.0 = mọi fold chọn cùng một combo (cực kỳ ổn định).
-        # 0.0 = mỗi fold chọn combo khác nhau (không ổn định).
-        if chosen_param_list:
+        # param_stability:
+        # - None khi không có grid (không tối ưu tham số)
+        # - most_common_count / n folds khi có grid (giá trị nhỏ nhất = 1/n khi mọi fold chọn combo khác nhau)
+        has_grid = bool(grid) or bool(snapshot.param_candidates)
+        if has_grid and chosen_param_list:
             import json as _json
-            serialized = [_json.dumps(p, sort_keys=True) for p in chosen_param_list]
             from collections import Counter
+            serialized = [_json.dumps(p, sort_keys=True) for p in chosen_param_list]
             most_common_count = Counter(serialized).most_common(1)[0][1]
-            param_stability_val = round(most_common_count / len(chosen_param_list), 4)
+            param_stability_val: Optional[float] = round(most_common_count / len(chosen_param_list), 4)
         else:
             param_stability_val = None
 

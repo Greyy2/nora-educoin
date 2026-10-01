@@ -13,7 +13,7 @@ import json
 import os
 import time
 import datetime
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 import concurrent.futures
 import pandas as pd
 import numpy as np
@@ -47,23 +47,20 @@ except ImportError:
 
 
 def get_cache_dir(data_root: Optional[str] = None) -> str:
-    root = data_root or default_data_root()
-    c_dir = os.path.join(root, "research", "market_analysis")
-    os.makedirs(c_dir, exist_ok=True)
-    return c_dir
+    try:
+        from backend.db.data_layout import cache_dir
+    except ImportError:
+        from nora.backend.db.data_layout import cache_dir
+    return cache_dir(data_root, "research", "market_analysis")
 
 
 def list_known_symbols(data_root: Optional[str] = None) -> List[str]:
     """Lists available DEX assets that have local data directories."""
-    root = data_root or default_data_root()
-    if not os.path.isdir(root):
-        return []
-    symbols = []
-    for item in os.listdir(root):
-        full_p = os.path.join(root, item)
-        if os.path.isdir(full_p) and not item.startswith(".") and item not in ["research", "research_scans", "ticks"]:
-            symbols.append(item.upper())
-    return sorted(symbols)
+    try:
+        from backend.db.local_pkl import list_asset_dirs
+    except ImportError:
+        from nora.backend.db.local_pkl import list_asset_dirs
+    return sorted(name.upper() for name in list_asset_dirs(data_root))
 
 
 def _safe_float(value: Any) -> Optional[float]:
@@ -288,6 +285,86 @@ def compute_real_backtest_simulation(
     }
 
 
+MIN_PRICE_PATH_DAYS = 30.0
+
+# Mô hình chi phí theo loại sàn (mỗi chiều, dạng tỉ lệ).
+# CEX: phí taker Binance spot mặc định 0,1%/chiều + trượt giá nhỏ trên sổ lệnh sâu.
+# DEX: phí pool + trượt giá ước tính theo thanh khoản pool + adverse selection (MEV/sandwich).
+CEX_TAKER_FEE = 0.001
+CEX_SLIPPAGE = 0.0002
+DEX_POOL_FEE = 0.001
+DEX_ADVERSE_SELECTION = 0.0005
+
+
+def friction_model_for(sym: str, dex_estimated_slippage: float, data_root: Optional[str] = None) -> Dict[str, Any]:
+    """Chi phí khứ hồi theo venue ghi trong manifest ('cex' | 'dex'; mặc định 'dex' = bảo thủ hơn)."""
+    try:
+        from backend.db.local_pkl import read_manifest
+    except ImportError:
+        from nora.backend.db.local_pkl import read_manifest
+    manifest = read_manifest(sym, data_root=data_root) or {}
+    venue = str(manifest.get("venue") or "dex").lower()
+    if venue == "cex":
+        fee, slip, adverse = CEX_TAKER_FEE, CEX_SLIPPAGE, 0.0
+    else:
+        venue = "dex"
+        fee, slip, adverse = DEX_POOL_FEE, float(dex_estimated_slippage), DEX_ADVERSE_SELECTION
+    return {
+        "venue": venue,
+        "exchange": manifest.get("exchange"),
+        "fee_pct": fee,
+        "slippage_pct": slip,
+        "adverse_selection_pct": adverse,
+        "round_trip_bps": round((fee * 2 + slip * 2 + adverse) * 10000.0, 2),
+    }
+
+
+
+def _data_source_mtime(sym: str, tick_file: Optional[str], data_root: Optional[str] = None) -> float:
+    """mtime lớn nhất trong các file dữ liệu đầu vào; 0 nếu không có file nào."""
+    try:
+        from backend.db.local_pkl import resolve_symbol_dir
+    except ImportError:
+        from nora.backend.db.local_pkl import resolve_symbol_dir
+    paths = [tick_file] if tick_file else []
+    s_dir = resolve_symbol_dir(sym, data_root=data_root)
+    if s_dir:
+        paths += [os.path.join(s_dir, name) for name in ("1m.pkl", "manifest.json", "ticks.parquet")]
+    mtimes = [os.path.getmtime(p) for p in paths if p and os.path.isfile(p)]
+    return max(mtimes) if mtimes else 0.0
+
+
+def load_price_path(sym: str, data_root: Optional[str] = None) -> Tuple[pd.DataFrame, str]:
+    """Tải chuỗi giá: ưu tiên tick thật nếu có, ngược lại nạp close 1m (bỏ nến điền)."""
+    try:
+        from backend.db.local_pkl import has_ticks, fetch_candles_df, BASE_COLUMNS
+    except ImportError:
+        from nora.backend.db.local_pkl import has_ticks, fetch_candles_df, BASE_COLUMNS
+
+    clean_sym = sym.strip().upper()
+    m1 = fetch_candles_df(clean_sym, "1m", columns=BASE_COLUMNS + ["is_filled"], data_root=data_root)
+
+    # Tick thật chỉ được ưu tiên khi phủ gần hết khoảng thời gian của 1m (tick từ
+    # crawl_dex_ticks thường chỉ có ~24h gần nhất -> không đủ để thay chuỗi 1m 90 ngày).
+    m1_days = 0.0
+    if m1 is not None and not m1.empty:
+        m1_days = (int(m1["open_time"].max()) - int(m1["open_time"].min())) / 86_400_000
+    min_tick_days = max(MIN_PRICE_PATH_DAYS, 0.9 * m1_days)
+    if has_ticks(clean_sym, data_root=data_root, min_days=min_tick_days):
+        df_t = load_ticks_df(clean_sym, data_root=data_root)
+        if df_t is not None and not df_t.empty and "price" in df_t.columns:
+            return df_t, "ticks"
+
+    if m1 is None or m1.empty:
+        return pd.DataFrame(columns=["timestamp_ms", "price"]), "none"
+    if "is_filled" in m1.columns:
+        m1 = m1[m1["is_filled"].fillna(0).astype(int) != 1].reset_index(drop=True)
+    return pd.DataFrame({
+        "timestamp_ms": m1["open_time"].astype("int64") + 60_000,
+        "price": m1["close"].astype(float),
+    }), "1m_close"
+
+
 def analyze_market(
     symbol: str,
     theta_grid: Optional[List[float]] = None,
@@ -313,8 +390,9 @@ def analyze_market(
     if not force_refresh and os.path.isfile(cache_file) and os.path.getsize(cache_file) > 10:
         try:
             cache_mtime = os.path.getmtime(cache_file)
-            tick_mtime = os.path.getmtime(tick_file) if tick_file and os.path.isfile(tick_file) else 0
-            if cache_mtime >= tick_mtime:
+            # Cache chỉ hợp lệ khi mới hơn MỌI nguồn dữ liệu đầu vào (tick, 1m, manifest)
+            data_mtime = _data_source_mtime(clean_sym, tick_file, data_root)
+            if data_mtime > 0 and cache_mtime >= data_mtime:
                 with open(cache_file, "r", encoding="utf-8") as f:
                     cached_data = json.load(f)
                     if cached_data.get("behavior_event_profile") and cached_data.get("backtest_simulation", {}).get("cost_models"):
@@ -323,15 +401,41 @@ def analyze_market(
             pass
 
     # 2. Load Data
-    df_ticks = load_ticks_df(clean_sym, data_root=data_root)
+    df_path, price_resolution = load_price_path(clean_sym, data_root=data_root)
     df_candles = load_candle_df(clean_sym, timeframe=timeframe, data_root=data_root)
+    df_ticks = df_path if price_resolution == "ticks" else None
 
     # 3. Data Quality Gate
     dq = evaluate_data_quality(clean_sym, timeframe=timeframe, df_candles=df_candles, df_ticks=df_ticks, data_root=data_root)
+    if dq.get("status") == DataQualityStatus.BLOCKED:
+        return {
+            "symbol": clean_sym,
+            "verdict": "DATA_BLOCKED",
+            "falsification_verdict": "DATA_BLOCKED",
+            "price_resolution": price_resolution,
+            "data_quality": dq,
+            "issues": dq.get("issues", []),
+            "timeframe": clean_tf,
+            "analyzed_at": int(time.time()),
+        }
 
-    # 4. Directional Change Multi-Theta Sweep
+    # 4. Directional Change Multi-Theta Sweep trên df_path
     thetas = theta_grid or DEFAULT_THETA_GRID
-    dc_sweep = sweep_directional_change(df_ticks, clean_sym, theta_grid=thetas)
+    dc_sweep = sweep_directional_change(df_path, clean_sym, theta_grid=thetas)
+    best_theta = dc_sweep.get("best_theta")
+    split_ts = dc_sweep.get("split_ts")
+
+    if best_theta is None:
+        return {
+            "symbol": clean_sym,
+            "verdict": "NOT_TESTED",
+            "falsification_verdict": "NOT_TESTED",
+            "reason": "Không có ngưỡng theta nào đạt điểm tối ưu trên tập train 60%",
+            "price_resolution": price_resolution,
+            "data_quality": dq,
+            "timeframe": clean_tf,
+            "analyzed_at": int(time.time()),
+        }
 
     # 5. Scaling Law Analysis
     scaling = analyze_scaling_laws(dc_sweep.get("theta_results", []), symbol=clean_sym)
@@ -351,7 +455,7 @@ def analyze_market(
         clean_sym,
         timeframe=timeframe,
         df_candles=df_candles,
-        df_ticks=df_ticks,
+        df_ticks=df_path,
         dc_data=dc_sweep,
         scaling_law_data=scaling,
         data_root=data_root,
@@ -367,15 +471,18 @@ def analyze_market(
         data_quality_data=dq,
     )
 
-    # 8.5 Market Fingerprint (F_i) & Edge Falsification Gate
-    best_theta = float(dc_sweep.get("best_theta", 0.02))
+    # 8.5 Market Fingerprint & Edge Falsification trên 40% OOS
     estimated_slippage = float(dq.get("metrics", {}).get("estimated_slippage_pct", 0.25)) / 100.0
 
+    df_eval = df_path
+    if split_ts is not None and "timestamp_ms" in df_path.columns:
+        df_eval = df_path[df_path["timestamp_ms"] >= split_ts].reset_index(drop=True)
+
     events_best_df = None
-    if df_ticks is not None and not df_ticks.empty:
+    if not df_eval.empty:
         try:
             dc_engine = DirectionalChangeEngine(theta=best_theta)
-            events_best_df = dc_engine.process_ticks(df_ticks)
+            events_best_df = dc_engine.process_ticks(df_eval)
         except Exception:
             events_best_df = None
 
@@ -386,12 +493,12 @@ def analyze_market(
         estimated_slippage_pct=estimated_slippage,
     )
 
-    # 8.7 Real Backtest Simulation on historical ticks/candles
-    best_theta = float(dc_sweep.get("best_theta", 0.02))
-    base_friction_hurdle = (0.001 * 2.0 + estimated_slippage * 2.0 + 0.0005) * 10000.0
+    # 8.7 Real Backtest Simulation on 40% OOS (df_eval)
+    friction = friction_model_for(clean_sym, estimated_slippage, data_root=data_root)
+    base_friction_hurdle = friction["round_trip_bps"]
     backtest_sim = compute_real_backtest_simulation(
         clean_sym,
-        df_ticks=df_ticks,
+        df_ticks=df_eval,
         df_candles=df_candles,
         events_df=events_best_df,
         theta=best_theta,
@@ -403,13 +510,15 @@ def analyze_market(
         theta=best_theta,
         fingerprint=fingerprint,
         playbook_type=playbook.get("playbook_type", "NO_STRATEGY_FIT"),
-        estimated_slippage_pct=estimated_slippage,
+        estimated_slippage_pct=friction["slippage_pct"],
+        base_fee_pct=friction["fee_pct"],
+        adverse_selection_pct=friction["adverse_selection_pct"],
         backtest_sim=backtest_sim,
     )
 
     behavior_profile = compute_event_behavior_profile(
         clean_sym,
-        df_ticks=df_ticks,
+        df_ticks=df_eval,
         df_candles=df_candles,
         events_df=events_best_df,
         theta=best_theta,
@@ -431,12 +540,22 @@ def analyze_market(
         "symbol": clean_sym,
         "analyzed_at": int(time.time()),
         "timeframe": timeframe,
+        "price_resolution": price_resolution,
+        "friction_model": friction,
+        "evaluation_window": {
+            "split_ts": split_ts,
+            "start_ts": int(df_eval["timestamp_ms"].min()) if not df_eval.empty and "timestamp_ms" in df_eval.columns else None,
+            "end_ts": int(df_eval["timestamp_ms"].max()) if not df_eval.empty and "timestamp_ms" in df_eval.columns else None,
+            "rows": len(df_eval),
+        },
+        "verdict": falsification.get("falsification_status", "FALSIFIED_AFTER_COST"),
+        "falsification_verdict": falsification.get("falsification_status", "FALSIFIED_AFTER_COST"),
         "classification": health.get("classification"),
         "meta": health.get("meta", {}),
         "confidence": health.get("confidence", 0.70),
         "market_health_score": health.get("market_health_score", 0.0),
         "tradeability_score": health.get("tradeability_score", 0.0),
-        "best_theta": dc_sweep.get("best_theta", 0.02),
+        "best_theta": best_theta,
         "best_theta_pct": dc_sweep.get("best_theta_pct", "2.0%"),
         "best_metrics": dc_sweep.get("best_metrics", {}),
         "components": health.get("components", {}),
@@ -528,9 +647,9 @@ def scan_all_markets(
                 "meta": res.get("meta", {}),
                 "market_health_score": res.get("market_health_score", 0.0),
                 "tradeability_score": res.get("tradeability_score", 0.0),
-                "confidence": res.get("confidence", 0.70),
-                "best_theta": res.get("best_theta", 0.02),
-                "best_theta_pct": res.get("best_theta_pct", "2.0%"),
+                "confidence": res.get("confidence", 0.0),
+                "best_theta": res.get("best_theta"),
+                "best_theta_pct": res.get("best_theta_pct"),
                 "current_regime": res.get("regime", {}).get("current_regime"),
                 "regime_name": res.get("regime", {}).get("regime_info", {}).get("name", "N/A"),
                 "recommended_playbook": res.get("playbook", {}).get("playbook_type"),
@@ -542,7 +661,8 @@ def scan_all_markets(
                 "estimated_slippage_pct": res.get("data_quality", {}).get("metrics", {}).get("estimated_slippage_pct", 0.25),
                 "scaling_law_score": res.get("scaling_law", {}).get("scaling_law_score", 50.0),
                 "falsified": res.get("edge_falsification", {}).get("falsified", True),
-                "falsification_status": res.get("edge_falsification", {}).get("falsification_status", "NOT_TESTED"),
+                "falsification_status": res.get("edge_falsification", {}).get("falsification_status") or res.get("verdict") or "NOT_TESTED",
+                "price_resolution": res.get("price_resolution"),
                 "net_expectancy_bps": res.get("edge_falsification", {}).get("net_expectancy_bps", 0.0),
                 "gross_expectancy_bps": res.get("edge_falsification", {}).get("gross_expectancy_bps", 0.0),
                 "friction_hurdle_bps": res.get("edge_falsification", {}).get("friction_hurdle_bps", 0.0),
@@ -560,8 +680,8 @@ def scan_all_markets(
                 "market_health_score": 0.0,
                 "tradeability_score": 0.0,
                 "confidence": 0.0,
-                "best_theta": 0.02,
-                "best_theta_pct": "2.0%",
+                "best_theta": None,
+                "best_theta_pct": None,
                 "current_regime": "N/A",
                 "regime_name": "Lỗi",
                 "recommended_playbook": "NO_STRATEGY_FIT",

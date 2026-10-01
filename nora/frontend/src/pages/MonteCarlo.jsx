@@ -9,6 +9,12 @@ import { useLocation, useNavigate } from 'react-router-dom'
  *   - Khi đang chạy: hiển thị progress bar inline
  *   - Khi xong: kết quả gắn ngay vào hàng
  */
+const gateBadge = (g) => {
+  if (g === true) return { text: '✓ Nguồn đã qua WFA gate', color: '#10b981' }
+  if (g === false) return { text: '⚠ Nguồn KHÔNG qua WFA gate — kết quả chỉ để tham khảo', color: '#ef4444' }
+  return { text: 'Chưa kiểm định WFA (chạy trực tiếp từ backtest)', color: '#f59e0b' }
+}
+
 export default function MonteCarlo() {
   const location = useLocation()
   const navigate = useNavigate()
@@ -95,16 +101,22 @@ export default function MonteCarlo() {
       const res = await fetch('/api/studio/monte-carlo/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        // Gửi source_wfa_id để backend tự lấy lệnh OOS từ job WFA và xác định gate
         body: JSON.stringify({
+          source_wfa_id: row.job_id,
           strategy_name: row.strategy_name,
-          symbol: row.symbol,
+          ...(row.symbol ? { symbol: row.symbol } : {}),
           simulations: Number(simCount),
-          trades,
+          trades, // backend bỏ qua khi có source_wfa_id (dùng lệnh OOS của job)
         }),
       })
       if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.detail || 'Lỗi khởi chạy Monte Carlo')
+        const err = await res.json().catch(() => ({}))
+        const d = err.detail
+        const msg = !d ? '' : typeof d === 'string' ? d
+          : Array.isArray(d) ? d.map((x) => `${(x.loc || []).join('.')}: ${x.msg}`).join('\n')
+          : d.message ? [d.message, ...(d.issues || [])].join('\n') : JSON.stringify(d)
+        throw new Error(msg || 'Lỗi khởi chạy Monte Carlo')
       }
       const jobData = await res.json()
       const jobId = jobData.job_id
@@ -125,10 +137,12 @@ export default function MonteCarlo() {
                 status: 'completed',
                 result: finalRes,
                 risk_of_ruin_pct: finalRes.risk_of_ruin_pct,
+                source_gate_passed: finalRes.source_gate_passed,
+                robust_passed: finalRes.robust_passed,
                 percentile_mdd: finalRes.percentile_mdd,
                 summary: finalRes.summary,
                 simulations: Number(simCount),
-                trades_count: trades.length,
+                trades_count: finalRes.trades_count ?? trades.length,
               }
               setRows((prev) => prev.map((r) => r.job_id === rowId ? { ...r, mcResult } : r))
               setExpandedId(rowId) // Open the result row
@@ -151,7 +165,9 @@ export default function MonteCarlo() {
   const formatPct = (v) => (v != null ? `${Number(v) >= 0 ? '+' : ''}${Number(v).toFixed(2)}%` : '—')
   const isSafe = (mc) => {
     if (!mc) return false
-    return (mc.risk_of_ruin_pct ?? 100) === 0 && (mc.percentile_mdd?.p95 ?? 100) <= 20
+    // Backend quyết định: robust_passed = nguồn đã qua WFA gate VÀ ruin <= max_ruin_pct
+    const robust = mc.robust_passed ?? mc.result?.robust_passed
+    return robust === true && (mc.percentile_mdd?.p95 ?? 100) <= 20
   }
 
   const displayedRows = filterPass
@@ -526,6 +542,10 @@ export default function MonteCarlo() {
                             </div>
                           ) : (
                             <div style={{ paddingTop: 12 }}>
+                              {(() => {
+                                const b = gateBadge(mc.source_gate_passed ?? mc.result?.source_gate_passed)
+                                return <div style={{ fontSize: 12, fontWeight: 600, color: b.color, marginBottom: 10 }}>{b.text}</div>
+                              })()}
                               {/* 5 Metrics */}
                               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 14 }}>
                                 {[

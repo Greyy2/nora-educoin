@@ -56,23 +56,13 @@ export default function RunDetail() {
             </p>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <Link
-              to="/library/wfa"
-              state={{
-                wfaInput: {
-                  source_handle: `run_${id}`,
-                  symbol: info?.dataset || 'SOL',
-                  strategy_name: info?.name || `Run #${id}`,
-                  metrics: ov,
-                }
-              }}
-              className="btn pri"
-              style={{ display: 'flex', alignItems: 'center', gap: 6, textDecoration: 'none' }}
-              title="Chuyển kết quả lần chạy này sang bước kiểm định trượt Walk-Forward (WFA)"
+            <button
+              className="btn"
+              disabled
+              title="Run legacy (MySQL) chưa có snapshot AST nên không chạy được WFA. Hãy chạy lại chiến lược trong Studio."
             >
-              <span>🔄 Kiểm định WFA tiếp</span>
-              <span>➔</span>
-            </Link>
+              🔄 WFA: cần chạy lại trong Studio
+            </button>
           </div>
         </div>
       </div>

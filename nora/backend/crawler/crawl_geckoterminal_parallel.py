@@ -25,9 +25,13 @@ import requests
 
 # ─── Constants ─────────────────────────────────────────────────────────────────
 DEFAULT_BASE_URL = "https://api.geckoterminal.com/api/v2"
-DEFAULT_OUTPUT_DIR = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "data")
-)
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
+from backend.core.resampler import save_resampled_dataset  # noqa: E402
+
+# Dữ liệu DEX ghi vào data/dex/<SYM>; danh sách target ở data/_meta (xem backend/db/data_layout.py)
+DEFAULT_OUTPUT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data", "dex"))
 DEFAULT_LIMIT = 500
 DEFAULT_LOOKBACK_DAYS = 120.0
 DEFAULT_MINUTE_MAX_PAGES = 400
@@ -36,7 +40,7 @@ DEFAULT_RETRY_DELAY_SEC = 30.0
 DEFAULT_REQUESTS_PER_MINUTE = 28  # stay slightly under 30 to be safe
 DEFAULT_WORKERS = 4
 DEFAULT_TARGETS_FILE = os.path.abspath(
-    os.path.join(DEFAULT_OUTPUT_DIR, "geckoterminal_targets.json")
+    os.path.join(os.path.dirname(__file__), "..", "..", "data", "_meta", "geckoterminal_targets.json")
 )
 
 MINUTE_MS = 60 * 1000
@@ -312,16 +316,17 @@ def _crawl_asset(
         warn(asset, "No data returned – skipping write.")
         return {"asset": asset, "status": "empty", "rows": 0}
 
-    _write_pickle(one_minute_path, frame_1m)
-    log(asset, f"✓ Wrote 1m.pkl | rows={len(frame_1m)} pages={page}")
-
-    for agg in minute_aggregates:
-        if agg == 1:
-            continue
-        frame = _aggregate_frame(frame_1m, agg * MINUTE_MS)
-        path_out = os.path.join(asset_dir, f"{agg}m.pkl")
-        _write_pickle(path_out, frame)
-        log(asset, f"✓ Wrote {agg}m.pkl | rows={len(frame)}")
+    # Một nguồn duy nhất: 1m -> core/resampler (điền phút trống, resample, manifest.json).
+    # minute_aggregates chỉ còn để tương thích tham số CLI; các khung do resampler sinh.
+    crawl_ok = bool(raw_rows) and min(int(r[0]) for r in raw_rows) <= start_sec + 86400
+    manifest = save_resampled_dataset(
+        symbol=asset, output_dir=output_dir, df_1m_raw=frame_1m, pool_address=pool_address,
+        source="geckoterminal", synthetic=False, crawl_ok=crawl_ok,
+        requested_start_ts=start_sec * 1000, requested_end_ts=end_sec * 1000,
+        extra_meta={"venue": "dex", "exchange": "geckoterminal", "network": network, "volume_unit": "usd"},
+    )
+    log(asset, f"✓ Wrote 1m + resampled frames + manifest | rows={manifest['rows']['1m']} "
+               f"filled={manifest['filled_ratio_1m']:.3f} crawl_ok={crawl_ok} pages={page}")
 
     return {"asset": asset, "status": "done", "rows": len(frame_1m), "pages": page}
 

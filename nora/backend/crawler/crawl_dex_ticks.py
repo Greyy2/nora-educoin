@@ -1,5 +1,8 @@
-"""DEX Tick Crawler: Fetch real on-chain swaps/trades & save directly into data/{SYMBOL}/
-Automatically syncs data/{SYMBOL}/ticks.parquet AND all minute (1m, 5m, 15m) & hour (1h, 4h, 24h) candle .pkl files.
+"""DEX Tick Crawler: lấy swap/trade on-chain THẬT gần đây (GeckoTerminal /trades, ~24h)
+và gộp dần vào data/dex/{SYMBOL}/ticks.parquet (khai báo trong manifest["ticks"]).
+
+Không ghi nến: nến chỉ có một nguồn là 1m.pkl + core/resampler.py.
+Chạy định kỳ (cron) để tích luỹ lịch sử tick thật theo thời gian.
 """
 import argparse
 import json
@@ -11,14 +14,13 @@ from typing import Dict, List, Optional, Any
 import pandas as pd
 import requests
 
-from nora.backend.db.tick_storage import (
-    save_ticks_and_sync_candles,
-    default_data_root,
-    symbol_dir,
-)
+try:
+    from backend.db.tick_storage import default_data_root, save_ticks_and_sync_candles, symbol_dir
+except ImportError:  # chạy từ thư mục gốc repo
+    from nora.backend.db.tick_storage import default_data_root, save_ticks_and_sync_candles, symbol_dir
 
 DEFAULT_BASE_URL = "https://api.geckoterminal.com/api/v2"
-DEFAULT_TARGETS_FILE = os.path.abspath(os.path.join(default_data_root(), "geckoterminal_targets.json"))
+DEFAULT_TARGETS_FILE = os.path.abspath(os.path.join(default_data_root(), "_meta", "geckoterminal_targets.json"))
 DEFAULT_LOOKBACK_DAYS = 90.0  # Chuẩn 3 tháng gần nhất cho dữ liệu DEX (90 ngày)
 
 # Built-in fallback DEX Pools
@@ -152,7 +154,7 @@ def fetch_pool_trades(network: str, pool_address: str, retries: int = 4) -> List
 
 
 def crawl_and_sync_symbol(symbol: str, pool_info: Dict[str, str], data_root: Optional[str] = None) -> Optional[Dict]:
-    target_dir = symbol_dir(symbol, data_root)
+    target_dir = symbol_dir(symbol, data_root, create=True, venue="dex")
     print(f"\n=======================================================", flush=True)
     print(f"🔬 Crawling Tick Data for {symbol} ({pool_info['name']})", flush=True)
     print(f"📁 Target Folder: {target_dir}", flush=True)
@@ -165,8 +167,8 @@ def crawl_and_sync_symbol(symbol: str, pool_info: Dict[str, str], data_root: Opt
         
     df = pd.DataFrame(trades)
     
-    # Save ticks.parquet AND resample + sync all minute/hour .pkl files
-    res = save_ticks_and_sync_candles(df, symbol, data_root=data_root, sync_all_timeframes=True)
+    # Save ticks.parquet (candles are resampled strictly via resampler.py)
+    res = save_ticks_and_sync_candles(df, symbol, data_root=data_root, sync_all_timeframes=False)
     
     print(f"  ✅ Saved {res['total_ticks']:,} ticks -> {res['tick_path']}", flush=True)
     print(f"  📊 Synced {len(res['updated_frames'])} candle frames into {target_dir}/: {', '.join(res['updated_frames'][:8])}...", flush=True)

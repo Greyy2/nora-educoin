@@ -90,11 +90,15 @@ def create_test_engine(df_1m, df_4h, flow_config, using_match_price=False, stop_
 
 def test_no_lookahead_when_future_modified():
     """
-    Test không look-ahead:
-    Khi sửa ngẫu nhiên mọi nến sau thời điểm T,
-    mọi lệnh có entry trước T phải hoàn toàn giữ nguyên (cùng entry_time, cùng entry_price).
+    Test không look-ahead (Đợt 6.1):
+    Chiến lược sử dụng cả 1m lẫn 4h (1m close > 4h close -> match, 1m close < 4h close -> stop).
+    Đặt T lệch mốc 4h (T = mốc 4h + 2h).
+    Khi sửa ngẫu nhiên mọi nến sau T:
+    - 4h: mọi nến có open_time + 4 * 3600_000 > T
+    - 1m: mọi nến có open_time >= T
+    mọi lệnh có entry trước T phải hoàn toàn giữ nguyên (cùng enter_time, cùng enter_price).
     """
-    df_1m, df_4h = make_dummy_candles(n_minutes=60 * 24 * 5, seed=123)
+    df_1m, df_4h = make_dummy_candles(n_minutes=60 * 24 * 7, seed=123)
     
     flow_config = {
         "flows": [{
@@ -103,12 +107,12 @@ def test_no_lookahead_when_future_modified():
             "ast": {
                 "match": [{
                     "condition": [
-                        [[{"frame": "1m", "column": "close"}, ">", {"frame": "1m", "column": "open"}]]
+                        [[{"frame": "1m", "column": "close"}, ">", {"frame": "4h", "column": "close"}]]
                     ]
                 }],
                 "stop": [{
                     "condition": [
-                        [[{"frame": "1m", "column": "close"}, "<", {"frame": "1m", "column": "open"}]]
+                        [[{"frame": "1m", "column": "close"}, "<", {"frame": "4h", "column": "close"}]]
                     ]
                 }]
             }
@@ -120,13 +124,19 @@ def test_no_lookahead_when_future_modified():
     trades1 = engine1.closed_positions
     assert len(trades1) > 0, "Cần có ít nhất 1 trade để kiểm tra"
     
-    T = trades1[len(trades1) // 2].enter_time
+    # Chọn trade ở giữa, rồi đặt T = mốc 4h + 2h
+    t_mid = trades1[len(trades1) // 2].enter_time
+    h4_boundary = (t_mid // (4 * 3600 * 1000)) * (4 * 3600 * 1000)
+    T = h4_boundary + 2 * 3600 * 1000
+    
     trades_before_T_1 = [
         (t.enter_time, t.enter_price) for t in trades1 if t.enter_time < T
     ]
-    assert len(trades_before_T_1) > 0
+    assert len(trades_before_T_1) > 0, "Cần có trade trước T"
     
-    # Sửa toàn bộ dữ liệu 1m và 4h sau T
+    # Sửa toàn bộ dữ liệu tương lai sau T:
+    # 4h: nến chưa đóng tại T (tức open_time + 4h > T)
+    # 1m: nến có open_time >= T
     df_1m_mod = df_1m.copy()
     df_4h_mod = df_4h.copy()
     
@@ -136,7 +146,7 @@ def test_no_lookahead_when_future_modified():
     df_1m_mod.loc[mask_1m, "low"] *= 2.5
     df_1m_mod.loc[mask_1m, "close"] *= 2.5
     
-    mask_4h = df_4h_mod["open_time"] >= T
+    mask_4h = (df_4h_mod["open_time"] + 4 * 3600_000) > T
     df_4h_mod.loc[mask_4h, "open"] *= 2.5
     df_4h_mod.loc[mask_4h, "high"] *= 2.5
     df_4h_mod.loc[mask_4h, "low"] *= 2.5
@@ -285,10 +295,12 @@ def test_gap_through_sl_fills_at_open():
     assert len(trades) > 0
     trade = trades[0]
     assert trade.status == PositionStatus.SL
-    # Giá đóng phải xấp xỉ gap_open_p (có slippage), KHÔNG PHẢI sl_target
-    assert trade.close_price <= sl_target, (
-        f"SL phải khớp ở giá open thực tế khi gap: {trade.close_price} vs SL target {sl_target}"
+    # Giá đóng phải là gap_open_p có slippage (0.0002), KHÔNG PHẢI sl_target
+    expected_exit_price = gap_open_p * (1.0 - 0.0002)
+    assert trade.close_price == pytest.approx(expected_exit_price, rel=1e-9), (
+        f"SL phải khớp ở giá open thực tế khi gap: {trade.close_price} vs expected {expected_exit_price}"
     )
+    assert trade.close_price < sl_target
 
 
 

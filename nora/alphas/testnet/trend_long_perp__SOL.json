@@ -1,0 +1,208 @@
+{
+  "exchange": "binance_futures_testnet",
+  "rest": "https://testnet.binancefuture.com",
+  "ws": "wss://stream.binancefuture.com",
+  "fees_assumed": {
+    "maker": 0.0002,
+    "taker": 0.0005
+  },
+  "alpha_id": "trend_long_perp__SOL",
+  "symbol": "SOLUSDT",
+  "margin_type": "ISOLATED",
+  "leverage": 1,
+  "position_side": "LONG",
+  "sizing": {
+    "order_size_pct_of_equity": 50,
+    "note": "ký quỹ lệnh đầu = % vốn hiện tại; notional = ký quỹ × đòn bẩy"
+  },
+  "entry": {
+    "order_type": "MARKET",
+    "when": "đầu phút kế tiếp sau khi tín hiệu đúng trên nến 1m đã đóng",
+    "signal_flows": [
+      {
+        "id": "trend_long_perp",
+        "name": "LONG trend_long_perp",
+        "type": "LONG",
+        "ast": {
+          "type": "LONG",
+          "match": [
+            {
+              "condition": [
+                [
+                  [
+                    {
+                      "frame": "1h",
+                      "column": "ema_50",
+                      "index": 0
+                    },
+                    ">",
+                    {
+                      "frame": "1h",
+                      "column": "ema_200",
+                      "index": 0
+                    }
+                  ],
+                  [
+                    {
+                      "frame": "1h",
+                      "column": "adx_14",
+                      "index": 0
+                    },
+                    ">",
+                    25.0
+                  ],
+                  [
+                    {
+                      "frame": "15m",
+                      "column": "close",
+                      "index": 0
+                    },
+                    ">",
+                    {
+                      "frame": "15m",
+                      "column": "dch_20",
+                      "index": 0
+                    }
+                  ]
+                ]
+              ]
+            }
+          ],
+          "stop": []
+        }
+      }
+    ]
+  },
+  "dca": {
+    "enabled": false,
+    "step_pct_from_last_fill": 0.0,
+    "max_layers": 0,
+    "size_multiplier": 1.0,
+    "order_type": "LIMIT",
+    "time_in_force": "GTX"
+  },
+  "take_profit": {
+    "pct_from_avg": 0.0,
+    "order_type": "LIMIT",
+    "reduce_only": true
+  },
+  "stop_loss": {
+    "pct_from_avg": 4.0,
+    "order_type": "STOP_MARKET",
+    "reduce_only": true
+  },
+  "trailing": {
+    "pct_from_peak": 5.0,
+    "activation_pct": 1.5,
+    "order_type": "MARKET"
+  },
+  "timeout_minutes": 4320,
+  "risk_limits": {
+    "kill_switch_drawdown_pct": 30.0,
+    "max_leverage": 10
+  },
+  "backtest_evidence": {
+    "windows": {
+      "start": "2023-10-01",
+      "dev1_end": "2024-12-12",
+      "holdout": "2026-02-23",
+      "end": "2026-09-30"
+    },
+    "screen": {
+      "passed": 3,
+      "best": [
+        {
+          "cfg": {
+            "leverage": 1,
+            "order_size_pct": 50,
+            "sig.adx_min": 25,
+            "stop_loss_rate": 4.0,
+            "timeout": 4320,
+            "trailing_activation_pct": 1.5,
+            "trailing_stop": 5.0
+          },
+          "ret": 21.4228,
+          "mdd": 19.8594,
+          "n": 115,
+          "score": 1.0787234256825482,
+          "ok": true
+        },
+        {
+          "cfg": {
+            "leverage": 2,
+            "order_size_pct": 30,
+            "sig.adx_min": 25,
+            "stop_loss_rate": 2.5,
+            "timeout": 1440,
+            "trailing_activation_pct": 0.5,
+            "trailing_stop": 5.0
+          },
+          "ret": 18.5395,
+          "mdd": 18.7246,
+          "n": 153,
+          "score": 0.9901146085897697,
+          "ok": true
+        },
+        {
+          "cfg": {
+            "leverage": 3,
+            "order_size_pct": 30,
+            "sig.adx_min": 25,
+            "stop_loss_rate": 1.5,
+            "timeout": 4320,
+            "trailing_activation_pct": 0.0,
+            "trailing_stop": 5.0
+          },
+          "ret": 3.1893,
+          "mdd": 28.657,
+          "n": 155,
+          "score": 0.11129217992113619,
+          "ok": true
+        }
+      ],
+      "median_return": -31.4494
+    },
+    "wfa": {
+      "total_folds": 14,
+      "positive_folds_count": 9,
+      "total_oos_return_pct": 35.97,
+      "total_oos_trades": 78,
+      "worst_fold_mdd_pct": 9.1266,
+      "acceptance_gate_passed": true,
+      "param_stability": 0.8571,
+      "wfe": 0.89,
+      "gate_checks": {
+        "is_return": true,
+        "total_folds": true,
+        "positive_ratio": true,
+        "total_trades": true,
+        "worst_mdd": true,
+        "compounded_return": true
+      }
+    },
+    "monte_carlo": {
+      "risk_of_ruin_pct": 0.55,
+      "mdd_p95": 22.59,
+      "terminal_p50": 25.62,
+      "terminal_p10": -2.89
+    },
+    "holdout": {
+      "return_pct": 14.7103,
+      "mdd_pct": 12.2303,
+      "trades": 35,
+      "win_rate": 57.14,
+      "profit_factor": 1.71
+    },
+    "checks": {
+      "wfa_gate": true,
+      "mc_ruin_le_5": true,
+      "holdout_profit": true,
+      "holdout_mdd_le_30": true,
+      "holdout_trades": true,
+      "leverage_le_10": true
+    },
+    "configs_tried": 60,
+    "space_size": 5184
+  },
+  "exchange_filters": "lấy tickSize / stepSize / minNotional từ /fapi/v1/exchangeInfo khi khởi động"
+}

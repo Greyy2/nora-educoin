@@ -1,17 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react'
 
 export default function StudioWfa({ wfaInput, onSendToMonteCarlo, onBackToBuilder, autoRun = false, initialResult = null, onCompleted = null }) {
+  // Khớp với backend WfaFoldConfig (extra="forbid"): chỉ gửi các field backend hiểu
   const [config, setConfig] = useState({
-    train_window_months: 1,
-    test_window_months: 1,
-    step_months: 1,
-    fold_count: 6,
-    min_is_profit_pct: 0.0,
-    max_is_mdd_pct: 15.0,
+    train_days: 30,
+    test_days: 10,
+    step_days: 10,
+    embargo_days: 0,
+    min_folds: 4,
+    min_positive_ratio: 0.6,
+    min_oos_trades: 30,
+    min_is_trades: 10,
     min_oos_profit_pct: 0.0,
-    max_oos_mdd_pct: 15.0,
-    min_positive_folds: 5,
-    min_total_oos_profit_pct: 30.0,
+    max_oos_mdd_pct: 25.0,
+    min_total_oos_profit_pct: 0.0,
   })
 
   const [running, setRunning] = useState(false)
@@ -29,7 +31,7 @@ export default function StudioWfa({ wfaInput, onSendToMonteCarlo, onBackToBuilde
   const autoRanRef = useRef(false)
 
   const stratName = wfaInput?.strategy_snapshot?.name || wfaInput?.strategy_name || 'Studio Strategy'
-  const symbol = wfaInput?.symbol || wfaInput?.strategy_snapshot?.symbol || 'SOL'
+  const symbol = wfaInput?.symbol || wfaInput?.strategy_snapshot?.symbol || ''
   const sourceHandle = wfaInput?.source_handle || 'N/A'
 
   const handleRunWfa = async () => {
@@ -41,13 +43,13 @@ export default function StudioWfa({ wfaInput, onSendToMonteCarlo, onBackToBuilde
     setRunning(true)
     setError(null)
     setResult(null)
-    setProgress({ progress_pct: 0, message: 'Đang gửi yêu cầu khởi chạy WFA...', current_fold: 0, total_folds: config.fold_count })
+    setProgress({ progress_pct: 0, message: 'Đang gửi yêu cầu khởi chạy WFA...', current_fold: 0, total_folds: 0 })
 
     try {
       const payload = {
         source_handle: wfaInput.source_handle,
         strategy_snapshot: wfaInput.strategy_snapshot,
-        symbol: symbol,
+        ...(symbol ? { symbol } : {}),
         config: config,
       }
 
@@ -58,8 +60,12 @@ export default function StudioWfa({ wfaInput, onSendToMonteCarlo, onBackToBuilde
       })
 
       if (!res.ok) {
-        const errData = await res.json()
-        throw new Error(errData.detail || 'Không thể khởi chạy WFA')
+        const errData = await res.json().catch(() => ({}))
+        const d = errData.detail
+        const msg = !d ? '' : typeof d === 'string' ? d
+          : Array.isArray(d) ? d.map((x) => `${(x.loc || []).join('.')}: ${x.msg}`).join('\n')
+          : d.message ? [d.message, ...(d.issues || [])].join('\n') : JSON.stringify(d)
+        throw new Error(msg || 'Không thể khởi chạy WFA')
       }
 
       const jobData = await res.json()
@@ -76,7 +82,7 @@ export default function StudioWfa({ wfaInput, onSendToMonteCarlo, onBackToBuilde
             progress_pct: progData.progress_pct || 0,
             message: progData.message || 'Đang thực thi...',
             current_fold: progData.current_fold || 0,
-            total_folds: progData.total_folds || config.fold_count,
+            total_folds: progData.total_folds || 0,
           })
 
           if (progData.status === 'completed') {
@@ -155,78 +161,106 @@ export default function StudioWfa({ wfaInput, onSendToMonteCarlo, onBackToBuilde
             <label>Cửa sổ Train (IS)</label>
             <div className="studio-input-group">
               <input
-                type="number"
-                min="1"
-                max="60"
-                value={config.train_window_months}
-                onChange={(e) => setConfig({ ...config, train_window_months: Number(e.target.value) })}
+                type="number" min="1" max="365"
+                value={config.train_days}
+                onChange={(e) => setConfig({ ...config, train_days: Number(e.target.value) })}
               />
-              <span>tháng</span>
+              <span>ngày</span>
             </div>
           </div>
-
           <div className="studio-config-item">
             <label>Cửa sổ Test (OOS)</label>
             <div className="studio-input-group">
               <input
-                type="number"
-                min="1"
-                max="24"
-                value={config.test_window_months}
-                onChange={(e) => setConfig({ ...config, test_window_months: Number(e.target.value) })}
+                type="number" min="1" max="180"
+                value={config.test_days}
+                onChange={(e) => setConfig({ ...config, test_days: Number(e.target.value) })}
               />
-              <span>tháng</span>
+              <span>ngày</span>
             </div>
           </div>
-
           <div className="studio-config-item">
-            <label>Bước trượt (Step)</label>
+            <label>Bước trượt (≥ Test)</label>
             <div className="studio-input-group">
               <input
-                type="number"
-                min="1"
-                max="24"
-                value={config.step_months}
-                onChange={(e) => setConfig({ ...config, step_months: Number(e.target.value) })}
+                type="number" min="1" max="180"
+                value={config.step_days}
+                onChange={(e) => setConfig({ ...config, step_days: Number(e.target.value) })}
               />
-              <span>tháng</span>
+              <span>ngày</span>
             </div>
           </div>
-
           <div className="studio-config-item">
-            <label>Số lượng Fold</label>
+            <label>Embargo Train→Test</label>
             <div className="studio-input-group">
               <input
-                type="number"
-                min="1"
-                max="24"
-                value={config.fold_count}
-                onChange={(e) => setConfig({ ...config, fold_count: Number(e.target.value) })}
+                type="number" min="0" max="30"
+                value={config.embargo_days}
+                onChange={(e) => setConfig({ ...config, embargo_days: Number(e.target.value) })}
+              />
+              <span>ngày</span>
+            </div>
+          </div>
+          <div className="studio-config-item">
+            <label>Số fold tối thiểu</label>
+            <div className="studio-input-group">
+              <input
+                type="number" min="1" max="50"
+                value={config.min_folds}
+                onChange={(e) => setConfig({ ...config, min_folds: Number(e.target.value) })}
               />
               <span>folds</span>
             </div>
           </div>
-
+          <div className="studio-config-item">
+            <label>Tỉ lệ fold có lãi tối thiểu</label>
+            <div className="studio-input-group">
+              <input
+                type="number" min="0" max="1" step="0.05"
+                value={config.min_positive_ratio}
+                onChange={(e) => setConfig({ ...config, min_positive_ratio: Number(e.target.value) })}
+              />
+              <span>(0–1)</span>
+            </div>
+          </div>
+          <div className="studio-config-item">
+            <label>Tổng lệnh OOS tối thiểu</label>
+            <div className="studio-input-group">
+              <input
+                type="number" min="1"
+                value={config.min_oos_trades}
+                onChange={(e) => setConfig({ ...config, min_oos_trades: Number(e.target.value) })}
+              />
+              <span>lệnh</span>
+            </div>
+          </div>
+          <div className="studio-config-item">
+            <label>Lệnh IS tối thiểu / fold</label>
+            <div className="studio-input-group">
+              <input
+                type="number" min="1"
+                value={config.min_is_trades}
+                onChange={(e) => setConfig({ ...config, min_is_trades: Number(e.target.value) })}
+              />
+              <span>lệnh</span>
+            </div>
+          </div>
           <div className="studio-config-item">
             <label>Max Drawdown từng Fold</label>
             <div className="studio-input-group">
               <input
-                type="number"
-                min="1"
-                max="50"
+                type="number" min="1" max="100"
                 value={config.max_oos_mdd_pct}
                 onChange={(e) => setConfig({ ...config, max_oos_mdd_pct: Number(e.target.value) })}
               />
               <span>%</span>
             </div>
           </div>
-
           <div className="studio-config-item">
-            <label>Mục tiêu Tổng Lợi nhuận OOS</label>
+            <label>Tổng lợi nhuận OOS (lãi kép) tối thiểu</label>
             <div className="studio-input-group">
               <input
                 type="number"
-                min="0"
                 value={config.min_total_oos_profit_pct}
                 onChange={(e) => setConfig({ ...config, min_total_oos_profit_pct: Number(e.target.value) })}
               />
@@ -237,7 +271,7 @@ export default function StudioWfa({ wfaInput, onSendToMonteCarlo, onBackToBuilde
 
         <div style={{ marginTop: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>
-            Tiêu chuẩn Gate theo sơ đồ: Ít nhất 10/12 fold OOS có lãi, MDD mỗi fold ≤ 15%, tổng lợi nhuận OOS đạt ngưỡng.
+            Gate: đủ số fold tối thiểu, tỉ lệ fold có lãi ≥ ngưỡng, đủ lệnh OOS, MDD mỗi fold ≤ ngưỡng, lợi nhuận OOS lãi kép ≥ ngưỡng. Fold không đủ lệnh IS được đánh NO_TRADE.
           </span>
           <button
             className="studio-simulate-btn"
@@ -406,8 +440,11 @@ export default function StudioWfa({ wfaInput, onSendToMonteCarlo, onBackToBuilde
                       <td style={{ textAlign: 'right' }}>{f.oos_win_rate}%</td>
                       <td style={{ textAlign: 'right' }}>{f.oos_trades_count}</td>
                       <td style={{ textAlign: 'center' }}>
-                        <span className={`tag ${f.passed_gate ? 'run' : 'off'}`}>
-                          {f.passed_gate ? 'PASS' : 'WARN'}
+                        <span
+                          className={`tag ${f.passed_gate ? 'run' : 'off'}`}
+                          title={(f.gate_notes || []).join('\n')}
+                        >
+                          {f.status === 'NO_TRADE' ? 'NO_TRADE' : f.passed_gate ? 'PASS' : 'WARN'}
                         </span>
                       </td>
                     </tr>

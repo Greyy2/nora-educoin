@@ -56,15 +56,34 @@ class SimulateRequest(BaseModel):
     leverage: float = Field(1.0, ge=1.0, le=100.0)
     using_match_price: bool = Field(True)
     max_open_trades: int = Field(45, ge=1, le=100)
-    stop_loss_rate: float = Field(0.0, ge=0.0, le=100.0)
-    take_profit_rate: float = Field(0.0, ge=0.0, le=1000.0)
-    timeout: int = Field(0, ge=0, le=525600)
+    stop_loss_rate: float = Field(0.0, ge=0.0, le=100.0, description="% từ giá trung bình")
+    take_profit_rate: float = Field(0.0, ge=0.0, le=1000.0, description="% từ giá trung bình")
+    timeout: int = Field(0, ge=0, le=525600, description="Phút giữ lệnh tối đa (0 = không giới hạn)")
+    trailing_stop: float = Field(0.0, ge=0.0, le=100.0, description="% từ đỉnh/đáy có lợi nhất")
+    trailing_activation_pct: float = Field(0.0, ge=0.0, le=100.0)
+    market: str = Field("spot", pattern="^(spot|perp)$", description="spot: không đòn bẩy/không short; perp: đòn bẩy + thanh lý")
+    order_size_pct: float = Field(100.0, gt=0.0, le=100.0, description="Ký quỹ lệnh đầu, % vốn")
+    dca_step_pct: float = Field(0.0, ge=0.0, le=50.0)
+    dca_max_layers: int = Field(0, ge=0, le=50)
+    dca_size_multiplier: float = Field(1.0, gt=0.0, le=5.0)
+    maintenance_margin_rate: float = Field(0.005, ge=0.0, le=0.2)
+    fee_rate: Optional[float] = Field(None, ge=0.0, le=0.05, description="Phí taker; mặc định theo venue/market")
+    maker_fee_rate: Optional[float] = Field(None, ge=0.0, le=0.05, description="Phí maker (lệnh limit); mặc định theo venue/market")
+    stop_fill: str = Field("level", pattern="^(level|extreme)$", description="Khớp SL/trailing: 'level' (đúng mức) | 'extreme' (giá xấu nhất của nến — bi quan)")
+    exit_unit: str = Field("pct", pattern="^(pct|atr)$", description="SL/TP/trailing/bước DCA: % | bội số ATR% lúc vào lệnh")
+    atr_frame: str = Field("1h", pattern="^(1m|5m|15m|1h|4h|24h)$")
+    atr_period: int = Field(14, ge=2, le=200)
+    sizing: str = Field("margin_pct", pattern="^(margin_pct|risk)$", description="Khối lượng: % vốn làm ký quỹ | theo rủi ro tại SL")
+    risk_per_trade_pct: float = Field(0.5, gt=0.0, le=5.0, description="sizing=risk: % vốn mất nếu chạm SL")
+    max_notional_pct: float = Field(100.0, gt=0.0, le=1000.0, description="sizing=risk: trần danh nghĩa một vị thế, % vốn")
+    signal_params: Dict[str, float] = Field(default_factory=dict, description="Giá trị cho node {'param': ...} trong AST")
+    slippage_rate: Optional[float] = Field(None, ge=0.0, le=0.05, description="Mặc định theo venue/market")
     result_trade_limit: int = Field(300, ge=1, le=2000)
 
 
 class ScriptSimulateRequest(BaseModel):
     code: str = Field(..., min_length=1)
-    symbol: str = Field("SOL")
+    symbol: str = Field(..., min_length=1, description="Bắt buộc, không mặc định")
     timeframe: str = Field("15m")
     capital: float = Field(10000.0, ge=1.0)
     leverage: float = Field(1.0, ge=1.0)
@@ -91,13 +110,17 @@ def health() -> Dict[str, Any]:
 
 @router.get("/samples")
 def get_samples() -> Dict[str, Any]:
-    return {"samples": STRATEGY_SAMPLES, "mode": "ast_builder"}
+    from backend.alpha.strategy_library import SIGNALS
+    return {"samples": STRATEGY_SAMPLES, "signals": SIGNALS, "mode": "ast_builder"}
 
 
 @router.get("/features")
 def get_features() -> Dict[str, Any]:
+    from backend.signals.kernels import catalog as kernel_catalog
     return {
         "features": FEATURES_CATALOG,
+        "kernels": kernel_catalog(),
+        "kernel_column_format": "<kernel>_<tham số>[_<tham số>] — vd rsi_14, ema_50, bbl_20_2, dch_20; index = số nến trước",
         "supported_columns": {
             frame: ASTValidator.supported_columns(frame)
             for frame in sorted(ASTValidator.VALID_FRAMES)
@@ -120,12 +143,13 @@ def get_datasets() -> Dict[str, Any]:
     data_root = default_data_root()
     datasets: List[Dict[str, Any]] = []
 
+    from backend.db.data_layout import list_assets
+    from backend.db.local_pkl import read_manifest
     if os.path.isdir(data_root):
-        for asset in sorted(os.listdir(data_root)):
-            asset_dir = os.path.join(data_root, asset)
-            if not os.path.isdir(asset_dir) or asset.startswith("."):
-                continue
-
+        for item in list_assets(data_root):
+            asset = item["qualified"]
+            asset_dir = item["path"]
+            manifest = read_manifest(asset, data_root=data_root) or {}
             pkl_files = [name for name in sorted(os.listdir(asset_dir)) if name.endswith(".pkl")]
             timeframes = [name[:-4] for name in pkl_files]
             frame_details = []
@@ -148,6 +172,12 @@ def get_datasets() -> Dict[str, Any]:
             datasets.append({
                 "asset": asset,
                 "symbol": asset,
+                "venue": item["venue"],
+                "exchange": manifest.get("exchange"),
+                "network": manifest.get("network"),
+                "source": manifest.get("source"),
+                "coverage_days": manifest.get("coverage_days"),
+                "filled_ratio_1m": manifest.get("filled_ratio_1m"),
                 "timeframes": timeframes,
                 "timeframe_details": frame_details,
                 "required_frames": REQUIRED_FRAMES,
@@ -182,7 +212,11 @@ def run_simulation(req: SimulateRequest) -> Dict[str, Any]:
         raise HTTPException(status_code=400, detail="Cần gửi ít nhất một flow AST trong trường flows.")
 
     _validate_range(req.start_ts, req.end_ts)
-    enabled_flows = _enabled_flows(req.flows)
+    from backend.alpha.params_template import resolve_placeholders
+    try:  # ngưỡng tín hiệu dạng {"param": ...} -> số
+        enabled_flows = resolve_placeholders(_enabled_flows(req.flows), req.signal_params or {})
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     if not enabled_flows:
         raise HTTPException(status_code=400, detail="Không có flow nào đang bật để mô phỏng.")
 
@@ -191,25 +225,43 @@ def run_simulation(req: SimulateRequest) -> Dict[str, Any]:
     except ASTValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
-    missing_frames = [
-        frame for frame in REQUIRED_FRAMES
-        if not has_frame(clean_symbol, frame, data_root=default_data_root())
-    ]
+    from backend.db.data_layout import AmbiguousSymbolError
+    from backend.backtest.params_builder import data_symbol
+    data_sym, price_source = data_symbol(clean_symbol, req.market)  # perp -> BTC@perp (giá perp + funding)
+    try:
+        missing_frames = [
+            frame for frame in REQUIRED_FRAMES
+            if not has_frame(data_sym, frame, data_root=default_data_root())
+        ]
+    except AmbiguousSymbolError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     if missing_frames:
         raise HTTPException(
             status_code=404,
             detail=f"{clean_symbol} thiếu dữ liệu bắt buộc cho Studio: {', '.join(missing_frames)}. Studio không tự crawl khi thiếu data.",
         )
 
+    from backend.research.data_quality_gate import evaluate_data_quality, DataQualityStatus
+    dq = evaluate_data_quality(data_sym, timeframe="1m", data_root=default_data_root())
+    if dq["status"] in (DataQualityStatus.BLOCKED, DataQualityStatus.NEEDS_MORE_DATA):
+        raise HTTPException(
+            status_code=422,
+            detail={"message": "Dữ liệu không đạt quality gate", "issues": dq["issues"]}
+        )
+
     initial_capital = float(req.capital if req.capital is not None else req.initial_capital)
 
+    from backend.backtest.params_builder import POSITION_KEYS, build_params, venue_of_symbol
+    position = {key: getattr(req, key) for key in POSITION_KEYS}
     try:
+        venue = venue_of_symbol(clean_symbol)
         engine = BacktestEngine(
             account_id=0,
             campaign_id=0,
-            symbol=clean_symbol,
+            symbol=data_sym,
             start_ts=int(req.start_ts),
             end_ts=int(req.end_ts),
+            initial_capital=initial_capital,
         )
         for index, flow in enumerate(enabled_flows):
             flow_ast = _flow_ast(flow)
@@ -217,21 +269,7 @@ def run_simulation(req: SimulateRequest) -> Dict[str, Any]:
             flow_name = str(flow.get("name") or flow.get("id") or f"{flow_type}_{index + 1}")
             if flow_type not in flow_name.upper():
                 flow_name = f"{flow_type}_{flow_name}"
-
-            params = StrategyParams(
-                name=flow_name,
-                strategy="studio_ast",
-                data_type="1m",
-                using_match_price=bool(req.using_match_price),
-                max_open_trades=int(req.max_open_trades),
-                volume_rate=1.0,
-                leverage=int(req.leverage),
-                stop_loss_rate=float(req.stop_loss_rate),
-                take_profit_rate=float(req.take_profit_rate),
-                timeout=int(req.timeout),
-                extra={"ast": flow_ast},
-            )
-            engine.add_strategy_flow(flow_name, params)
+            engine.add_strategy_flow(flow_name, build_params(flow_name, flow_ast, flow_type, position, venue, clean_symbol))
 
         engine.load_data()
         if engine.df_1m is None or engine.df_1m.empty:
@@ -249,7 +287,14 @@ def run_simulation(req: SimulateRequest) -> Dict[str, Any]:
 
     positions = raw_results.get("positions", [])
     orders = raw_results.get("orders", [])
-    metrics = _metrics_payload(positions, initial_capital)
+    mtm_curve = raw_results.get("equity_curve", [])
+    metrics = _metrics_payload(positions, initial_capital, mtm_curve)
+    metrics.update({"venue": venue, "market": req.market, "data_symbol": data_sym, "price_source": price_source,
+                    "funding_events": raw_results.get("funding_events", 0),
+                    "rejected_for_capital": raw_results.get("rejected_for_capital", 0),
+                    "fee_rate": engine.trackers[0].fee_rate if engine.trackers else None,
+                    "slippage_rate": engine.trackers[0].slippage_rate if engine.trackers else None,
+                    "funding_modeled": bool(raw_results.get("funding_modeled"))})
     trades = _serialize_positions(positions, req.result_trade_limit, initial_capital)
     all_trades = _serialize_positions(positions, len(positions), initial_capital)
     equity_curve = _closed_trade_curve(positions, initial_capital)
@@ -272,6 +317,11 @@ def run_simulation(req: SimulateRequest) -> Dict[str, Any]:
         stop_loss_rate=float(req.stop_loss_rate),
         take_profit_rate=float(req.take_profit_rate),
         timeout=int(req.timeout),
+        **{k: getattr(req, k) for k in ("trailing_stop", "trailing_activation_pct", "market", "order_size_pct",
+                                        "dca_step_pct", "dca_max_layers", "dca_size_multiplier",
+                                        "maintenance_margin_rate", "fee_rate", "maker_fee_rate", "slippage_rate",
+                                        "stop_fill", "exit_unit", "atr_frame", "atr_period", "sizing",
+                                        "risk_per_trade_pct", "max_notional_pct", "signal_params")},
     )
     source_contract = BacktestResultContract(
         source_handle=source_handle,
@@ -438,8 +488,13 @@ def _format_dt(ts: Optional[int]) -> str:
     return datetime.fromtimestamp(int(ts) / 1000, timezone.utc).strftime("%Y-%m-%d %H:%M")
 
 
-def _metrics_payload(positions: List[PositionModel], initial_capital: float) -> Dict[str, Any]:
-    base = MetricsCalculator.calculate(positions, initial_capital)
+def _metrics_payload(positions: List[PositionModel], initial_capital: float,
+                     mtm_curve: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    """Metrics từ lệnh đã đóng + đường vốn mark-to-market (MDD tính cả lỗ treo trong lệnh)."""
+    base = MetricsCalculator.calculate(positions, initial_capital, equity_curve=mtm_curve or None)
+    closed_only = MetricsCalculator.calculate(positions, initial_capital)
+    maes = [float(getattr(p, "mae_pct", 0.0) or 0.0) for p in positions]
+    layers = [int(getattr(p, "layers", 1) or 1) for p in positions]
     total_trades = int(base.get("total_trades", 0) or 0)
     winning_trades = sum(1 for position in positions if float(position.profit_pct or 0.0) > 0)
     losing_trades = total_trades - winning_trades
@@ -455,7 +510,7 @@ def _metrics_payload(positions: List[PositionModel], initial_capital: float) -> 
         "win_rate": float(base.get("winrate", 0.0) or 0.0),
         "total_pnl_pct": round(total_pnl_pct, 4),
         "return_pct": round(total_pnl_pct, 4),
-        "return_mode": "closed_trade_cumulative_pct",
+        "return_mode": "equity_curve_fixed_capital" if mtm_curve else "closed_trade_cumulative_pct",
         "estimated_pnl_usd": estimated_pnl_usd,
         "max_drawdown": float(base.get("max_drawdown", 0.0) or 0.0),
         "max_drawdown_pct": float(base.get("max_drawdown", 0.0) or 0.0),
@@ -463,6 +518,12 @@ def _metrics_payload(positions: List[PositionModel], initial_capital: float) -> 
         "gross_profit": float(base.get("gross_profit", 0.0) or 0.0),
         "gross_loss": float(base.get("gross_loss", 0.0) or 0.0),
         "unsupported_metrics": ["sharpe_ratio", "sortino_ratio", "tick_equity_curve"],
+        "max_drawdown_closed_trades_pct": float(closed_only.get("max_drawdown", 0.0) or 0.0),
+        "drawdown_mode": "mark_to_market_worst_intrabar" if mtm_curve else "closed_trades",
+        "worst_trade_mae_pct": round(min(maes), 4) if maes else 0.0,
+        "avg_layers": round(sum(layers) / len(layers), 3) if layers else 0.0,
+        "max_layers": max(layers) if layers else 0,
+        "liquidations": sum(1 for p in positions if int(getattr(p, "status", 0)) == 5),
     }
 
 
@@ -494,6 +555,11 @@ def _serialize_positions(
             "reason": position.close_reason or position.start_reason,
             "max_price": round(float(position.max_price or 0.0), 8),
             "min_price": round(float(position.min_price or 0.0), 8),
+            "layers": int(getattr(position, "layers", 1) or 1),
+            "avg_price": round(float(getattr(position, "avg_price", 0.0) or 0.0), 8),
+            "mae_pct": round(float(getattr(position, "mae_pct", 0.0) or 0.0), 4),
+            "fees_usd": round(float(getattr(position, "fees_usd", 0.0) or 0.0), 4),
+            "net_pnl_usd": round(float(position.real_pnl or 0.0), 4),
         })
     return rows
 
@@ -582,19 +648,8 @@ def run_wfa_endpoint(req: WfaRunRequest) -> Dict[str, Any]:
     cfg = req.config or WfaFoldConfig()
     source_h = req.source_handle or generate_handle("wfa_src")
 
-    # Validate param_grid size BEFORE submitting background task
-    if snapshot.param_grid:
-        import itertools
-        keys = list(snapshot.param_grid.keys())
-        combos = list(itertools.product(*[snapshot.param_grid[k] for k in keys]))
-        if len(combos) > 50:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"param_grid quá lớn: {len(combos)} tổ hợp (tối đa 50). "
-                    "Hãy giảm số lượng tham số hoặc thu hẹp khoảng giá trị."
-                ),
-            )
+    # param_grid validation đã được StrategySnapshot.field_validator xử lý
+    # FastAPI trả 422 tự động nếu grid sai → không cần validate lại ở đây
 
     job_id = create_wfa_job(snapshot.symbol, snapshot.name, cfg.fold_count, source_handle=source_h)
 
@@ -642,39 +697,41 @@ def run_monte_carlo_endpoint(req: MonteCarloRunRequest) -> Dict[str, Any]:
     strategy_name = req.strategy_name or "Strategy"
     symbol = req.symbol.upper() if req.symbol else ""
 
-    if req.trades and len(req.trades) > 0:
-        trades = req.trades
-    elif req.source_wfa_id:
+    # Thứ tự ưu tiên nguồn lệnh: source_wfa_id > source_handle > trades.
+    # Khi có source_wfa_id, luôn dùng aggregate_oos_trades của chính job WFA
+    # (không cho client tự gửi trades kèm một WFA id đã pass để "mượn" gate).
+    if req.source_wfa_id:
         w_job = get_wfa_job(req.source_wfa_id)
-        if w_job and w_job.get("result"):
-            trades = w_job["result"].get("aggregate_oos_trades", [])
-            strategy_name = w_job["result"].get("strategy_name", strategy_name)
-            symbol = w_job["result"].get("symbol", symbol)
+        if not w_job:
+            raise HTTPException(status_code=404, detail=f"Không tìm thấy WFA job '{req.source_wfa_id}'.")
+        if w_job.get("status") != "completed":
+            raise HTTPException(
+                status_code=409,
+                detail=f"WFA job '{req.source_wfa_id}' chưa hoàn thành (status={w_job.get('status')}).",
+            )
+        w_res = w_job.get("result")
+        if w_res is None and w_job.get("result_json"):
+            import json as _json
+            w_res = _json.loads(w_job["result_json"])
+        w_res = w_res or {}
+        trades = list(w_res.get("aggregate_oos_trades") or [])
+        strategy_name = w_res.get("strategy_name", strategy_name)
+        symbol = w_res.get("symbol", symbol)
     elif req.source_handle:
+        if req.source_handle.startswith("run_"):
+            raise HTTPException(
+                status_code=400,
+                detail="Run legacy (MySQL) không hỗ trợ Monte Carlo: lệnh bị phân trang và không có pnl_pct chuẩn. Hãy chạy lại chiến lược trong Studio.",
+            )
         b_src = get_backtest_source(req.source_handle)
-        if b_src and "trades" in b_src:
-            trades = b_src["trades"]
-            symbol = b_src.get("symbol", symbol)
-            if "strategy_snapshot" in b_src:
-                strategy_name = b_src["strategy_snapshot"].get("name", strategy_name)
-
-    if not trades and req.source_handle and req.source_handle.startswith("run_"):
-        try:
-            r_id = int(req.source_handle.replace("run_", ""))
-            from backend.stats import queries as sq
-            run_trades_res = sq.trades(r_id, page=1, size=200)
-            if run_trades_res and run_trades_res.get("rows"):
-                trades = [
-                    {
-                        "pnl_usd": float(r.get("pnl") or 0.0),
-                        "profit_pct": float(r.get("profit_pct") or 0.0),
-                        "entry_time": int(r.get("enter_time") or 0),
-                        "close_time": int(r.get("exit_time") or 0),
-                    }
-                    for r in run_trades_res["rows"]
-                ]
-        except Exception as ex:
-            print(f"Failed to fetch trades for {req.source_handle}: {ex}")
+        if not b_src:
+            raise HTTPException(status_code=404, detail=f"Không tìm thấy backtest source '{req.source_handle}'.")
+        trades = list(b_src.get("trades") or [])
+        symbol = b_src.get("symbol", symbol)
+        if "strategy_snapshot" in b_src:
+            strategy_name = b_src["strategy_snapshot"].get("name", strategy_name)
+    elif req.trades:
+        trades = req.trades
 
     if not trades:
         raise HTTPException(
@@ -737,3 +794,69 @@ def get_backtest_history_endpoint(limit: int = 30) -> Dict[str, Any]:
     return {"history": list_backtest_history(limit=limit)}
 
 
+
+
+# ─── Scan backtest: một chiến lược × nhiều tài sản (chạy nền) ────────────────
+
+class ScanRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    strategy_id: Optional[str] = Field(None, description="id trong /samples (dùng flows + default_params của mẫu)")
+    flows: Optional[List[Dict[str, Any]]] = Field(None, description="Hoặc tự gửi flows AST")
+    symbols: Optional[List[str]] = Field(None, description="Mặc định: mọi tài sản phù hợp thị trường")
+    start_ts: Optional[int] = None
+    end_ts: Optional[int] = None
+    days: Optional[int] = Field(None, ge=1, le=1100, description="Chỉ lấy N ngày gần nhất của mỗi tài sản")
+    initial_capital: float = Field(10000.0, ge=1.0)
+    position: Dict[str, Any] = Field(default_factory=dict, description="Ghi đè tham số vị thế (POSITION_KEYS)")
+    signal_params: Dict[str, float] = Field(default_factory=dict)
+
+
+@router.post("/scan")
+def start_scan(req: ScanRequest) -> Dict[str, Any]:
+    from backend.backtest.params_builder import POSITION_KEYS
+    from backend.db.data_layout import list_assets
+    from backend.studio_pipeline.scan import create_scan_job, execute_scan
+
+    name = "Custom"
+    flows = req.flows
+    position: Dict[str, Any] = {}
+    if req.strategy_id:
+        sample = next((s for s in STRATEGY_SAMPLES if s.get("id") == req.strategy_id), None)
+        if sample is None:
+            raise HTTPException(status_code=404, detail=f"Không có mẫu chiến lược '{req.strategy_id}'.")
+        name, flows = sample["name"], sample["flows"]
+        position = {k: v for k, v in sample.get("default_params", {}).items() if k in POSITION_KEYS}
+    if not flows:
+        raise HTTPException(status_code=400, detail="Cần strategy_id hoặc flows.")
+    bad = set(req.position) - set(POSITION_KEYS)
+    if bad:
+        raise HTTPException(status_code=400, detail=f"Tham số vị thế không hỗ trợ: {sorted(bad)}")
+    position.update(req.position)
+    from backend.alpha.params_template import resolve_placeholders
+    try:
+        ASTValidator.validate_flows_or_raise(resolve_placeholders(_enabled_flows(flows), req.signal_params))
+    except (ASTValidationError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    market = str(position.get("market") or "spot")
+    symbols = req.symbols or sorted({a["symbol"] for a in list_assets()
+                                     if a["instrument"] == "spot" and (market == "spot" or a["venue"] == "cex")})
+    job_id = create_scan_job(name, len(symbols), req.model_dump())
+    submit_background_task(execute_scan, job_id, _enabled_flows(flows), symbols, position, req.signal_params,
+                           req.start_ts, req.end_ts, req.days, req.initial_capital)
+    return {"job_id": job_id, "status": "pending", "strategy_name": name, "symbols": symbols, "position": position}
+
+
+@router.get("/scan/history")
+def get_scan_history(limit: int = 30) -> Dict[str, Any]:
+    from backend.studio_pipeline.scan import list_scan_history
+    return {"history": list_scan_history(limit=limit)}
+
+
+@router.get("/scan/{job_id}")
+def get_scan(job_id: str) -> Dict[str, Any]:
+    from backend.studio_pipeline.scan import get_scan_job
+    job = get_scan_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Không tìm thấy scan job.")
+    return job

@@ -6,7 +6,6 @@ import StudioResults from '../components/StudioResults'
 
 const API_BASE = '/api/studio'
 const DAY_MS = 86_400_000
-const FALLBACK_SYMBOLS = ['SOL', 'ETH', 'BTC', 'CATE', 'CYBERLEEK', 'FONE', 'ILLY', 'PILL']
 const COMPARISON_OPERATORS = ['>', '<', '>=', '<=', '==', '!=']
 const DEFAULT_SETTINGS = {
   initial_capital: 10000,
@@ -78,7 +77,7 @@ const createFlow = (type = 'LONG', name) => ({
 const createDefaultTab = (index = 1) => ({
   id: `tab_${Date.now()}_${index}`,
   name: `Strategy ${index}`,
-  symbol: 'SOL',
+  symbol: '',
   startDate: '',
   endDate: '',
   activeFlowIndex: 0,
@@ -128,6 +127,7 @@ export default function Studio() {
   const [features, setFeatures] = useState([])
   const [operators, setOperators] = useState([])
   const [datasets, setDatasets] = useState([])
+  const [maxBacktestDays, setMaxBacktestDays] = useState(1100)
   const [sampleSearch, setSampleSearch] = useState('')
   const [sampleCategory, setSampleCategory] = useState('ALL')
   const [savedStrategies, setSavedStrategies] = useState(() => {
@@ -212,11 +212,6 @@ export default function Studio() {
     [valueNodeOptions]
   )
 
-  const symbolOptions = useMemo(() => {
-    const fromDatasets = datasets.map((dataset) => dataset.symbol || dataset.asset).filter(Boolean)
-    return fromDatasets.length ? Array.from(new Set(fromDatasets)) : FALLBACK_SYMBOLS
-  }, [datasets])
-
   const categories = useMemo(
     () => ['ALL', ...Array.from(new Set(samples.map((sample) => sample.category).filter(Boolean)))],
     [samples]
@@ -243,14 +238,14 @@ export default function Studio() {
     const warnings = []
     if (activeDataset && !activeDataset.has_required_frames) warnings.push('Asset này thiếu 1m hoặc 4h nên chưa đủ điều kiện chạy Studio canonical.')
     if (activeDataset?.warnings) warnings.push(...activeDataset.warnings)
-    if (rangeDays > 90) warnings.push('Khoảng mô phỏng đang vượt giới hạn 90 ngày của BacktestEngine.')
+    if (rangeDays > maxBacktestDays) warnings.push(`Khoảng mô phỏng đang vượt giới hạn ${maxBacktestDays} ngày của BacktestEngine.`)
     return Array.from(new Set(warnings))
-  }, [activeDataset, rangeDays])
+  }, [activeDataset, rangeDays, maxBacktestDays])
 
   const astPreview = useMemo(
     () => ({
       strategy: activeTab?.name || 'Strategy',
-      symbol: activeTab?.symbol || 'SOL',
+      symbol: activeTab?.symbol || '',
       execution_frame: '1m',
       indicator_frame: '4h',
       range: { start_date: startDate, end_date: endDate },
@@ -278,9 +273,21 @@ export default function Studio() {
 
     fetch(`${API_BASE}/datasets`)
       .then((res) => res.json())
-      .then((data) => setDatasets(data.datasets || []))
+      .then((data) => {
+        setDatasets(data.datasets || [])
+        if (data.max_backtest_days) setMaxBacktestDays(data.max_backtest_days)
+      })
       .catch(() => {})
   }, [])
+
+  // Chọn asset mặc định = asset đầu tiên đủ 1m + 4h (không mặc định cứng 'SOL')
+  useEffect(() => {
+    if (!datasets.length) return
+    const known = new Set(datasets.map((d) => d.symbol || d.asset))
+    const firstReady = datasets.find((d) => d.has_required_frames) || datasets[0]
+    const fallback = firstReady ? (firstReady.symbol || firstReady.asset) : ''
+    setTabs((prev) => prev.map((t) => (t.symbol && known.has(t.symbol) ? t : { ...t, symbol: fallback })))
+  }, [datasets])
 
   const showToast = (message) => {
     setSaveMessage(message)
@@ -715,11 +722,20 @@ export default function Studio() {
         <div className="studio-top-controls">
           <input className="studio-title-input" value={activeTab.name} onChange={(e) => updateActiveTab({ name: e.target.value })} placeholder="Tên chiến lược" />
           <select className="studio-select" value={activeTab.symbol} onChange={(e) => updateActiveTab({ symbol: e.target.value, startDate: '', endDate: '' })} title="Asset local PKL">
-            {symbolOptions.map((symbol) => (
-              <option key={symbol} value={symbol}>
-                {symbol}
-              </option>
-            ))}
+            {['cex', 'dex', 'legacy'].map((venue) => {
+              const items = datasets.filter((d) => (d.venue || 'legacy') === venue)
+              if (!items.length) return null
+              const label = venue === 'cex' ? 'CEX · nến sàn (3 năm)' : venue === 'dex' ? 'DEX · pool on-chain' : 'Khác'
+              return (
+                <optgroup key={venue} label={label}>
+                  {items.map((d) => (
+                    <option key={d.symbol} value={d.symbol}>
+                      {d.symbol}{d.exchange ? ` · ${d.exchange}` : ''}{d.network ? `/${d.network}` : ''}
+                    </option>
+                  ))}
+                </optgroup>
+              )
+            })}
           </select>
           <input className="studio-date-input" type="date" value={startDate} onChange={(e) => updateActiveTab({ startDate: e.target.value })} />
           <input className="studio-date-input" type="date" value={endDate} onChange={(e) => updateActiveTab({ endDate: e.target.value })} />

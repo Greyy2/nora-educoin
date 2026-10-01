@@ -75,6 +75,7 @@ STRATEGY_SAMPLES: List[Dict[str, Any]] = [
         "description": "Mở SHORT khi nến 1m phá Keltner Lower 4h; thoát khi giá hồi lên Mid/Upper.",
         "tags": ["AST", "SHORT", "Keltner", "Canonical"],
         "default_params": {
+            "market": "perp",  # SHORT cần perp (spot không bán khống)
             "initial_capital": 10000.0,
             "leverage": 1.0,
             "stop_loss_rate": 4.0,
@@ -297,79 +298,6 @@ STRATEGY_SAMPLES: List[Dict[str, Any]] = [
         ],
     },
     {
-        "id": "dca_multi_tier_reversion",
-        "name": "DCA Multi-Tier Reversion (15-Slots)",
-        "category": "DCA / Grid Averaging",
-        "market": "DEX Crypto",
-        "universe": "Local PKL",
-        "execution_frame": "1m",
-        "indicator_frame": "4h",
-        "description": "Chiến lược DCA đa tầng trung bình giá: mở Base Order khi giá chạm Keltner Lower, nhồi Safety Order khi giá giảm thêm 2%, và chốt lời theo giá vốn trung bình khi hồi về Keltner Mid.",
-        "tags": ["AST", "LONG", "DCA", "Martingale", "Canonical"],
-        "default_params": {
-            "initial_capital": 10000.0,
-            "leverage": 2.0,
-            "stop_loss_rate": 8.0,
-            "take_profit_rate": 3.5,
-            "using_match_price": True,
-            "max_open_trades": 15,
-        },
-        "flows": [
-            {
-                "id": "dca_tier1_base",
-                "name": "LONG Tier 1 (Base Order)",
-                "enabled": True,
-                "ast": {
-                    "type": "LONG",
-                    "match": [
-                        {
-                            "enter_price": "touch",
-                            "condition": [
-                                [
-                                    [field("1m", "low"), "<", field("4h", "klo20_15")],
-                                    [field("4h", "atr"), ">", 0],
-                                ]
-                            ],
-                        }
-                    ],
-                    "stop": [
-                        {
-                            "condition": [
-                                [[field("1m", "close"), ">", field("4h", "kmid20_15")]],
-                            ]
-                        }
-                    ],
-                },
-            },
-            {
-                "id": "dca_tier2_safety",
-                "name": "LONG Tier 2 (Safety Ladder)",
-                "enabled": True,
-                "ast": {
-                    "type": "LONG",
-                    "match": [
-                        {
-                            "enter_price": "touch",
-                            "condition": [
-                                [
-                                    [field("1m", "close"), "<", calc(field("4h", "klo20_15"), "*", 0.98)],
-                                    [field("4h", "atr"), ">", 0],
-                                ]
-                            ],
-                        }
-                    ],
-                    "stop": [
-                        {
-                            "condition": [
-                                [[field("1m", "close"), ">", field("4h", "kmid20_15")]],
-                            ]
-                        }
-                    ],
-                },
-            },
-        ],
-    },
-    {
         "id": "two_sided_keltner_lab",
         "name": "Two-sided Keltner Lab",
         "category": "Research Workspace",
@@ -380,6 +308,7 @@ STRATEGY_SAMPLES: List[Dict[str, Any]] = [
         "description": "Mẫu research gồm cả LONG và SHORT để kiểm tra hai phía của kênh Keltner trong cùng một lần simulate.",
         "tags": ["AST", "LONG", "SHORT", "Keltner"],
         "default_params": {
+            "market": "perp",  # SHORT cần perp (spot không bán khống)
             "initial_capital": 10000.0,
             "leverage": 1.0,
             "stop_loss_rate": 4.0,
@@ -417,3 +346,8 @@ def get_sample_by_id(sample_id: str) -> Dict[str, Any]:
         if item["id"] == sample_id:
             return item
     return STRATEGY_SAMPLES[0]
+
+# Thư viện kernel (bước 2): bắt hồi + DCA, theo xu hướng, theo đà, lướt nhanh, săn cú lớn
+from backend.alpha.strategy_library import KERNEL_STRATEGIES  # noqa: E402
+
+STRATEGY_SAMPLES.extend(KERNEL_STRATEGIES)

@@ -14,10 +14,16 @@ from typing import Any, Dict, List, Optional
 
 _EXECUTOR = ThreadPoolExecutor(max_workers=3, thread_name_prefix="StudioPipelineWorker")
 
-DB_PATH = os.environ.get(
-    "NORA_PIPELINE_DB_PATH",
-    "/home/ubuntu/norabt/data/studio_pipeline.db",
-)
+def _get_db_path() -> str:
+    """Đọc DB path từ env var mỗi lần gọi để conftest.py có thể override."""
+    return os.environ.get(
+        "NORA_PIPELINE_DB_PATH",
+        "/home/ubuntu/norabt/data/studio_pipeline.db",
+    )
+
+# Giá trị tại thời điểm import (giữ để tương thích). Mọi truy cập DB đều gọi
+# _get_db_path() nên đổi NORA_PIPELINE_DB_PATH lúc chạy vẫn có hiệu lực.
+DB_PATH = _get_db_path()
 
 # In-memory fast caches
 _BACKTEST_SOURCES: Dict[str, Dict[str, Any]] = {}
@@ -26,7 +32,9 @@ _MC_JOBS: Dict[str, Dict[str, Any]] = {}
 
 
 def _get_db() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH, timeout=15.0)
+    path = _get_db_path()
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    conn = sqlite3.connect(path, timeout=15.0)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL;")
     return conn
@@ -34,7 +42,8 @@ def _get_db() -> sqlite3.Connection:
 
 def init_db():
     """Khởi tạo các bảng SQLite nếu chưa tồn tại."""
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+    path = _get_db_path()
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     with _get_db() as conn:
         conn.executescript("""
         CREATE TABLE IF NOT EXISTS backtest_sources (
@@ -77,6 +86,22 @@ def init_db():
             error TEXT
         );
 
+        CREATE TABLE IF NOT EXISTS scan_jobs (
+            job_id TEXT PRIMARY KEY,
+            strategy_name TEXT,
+            status TEXT,
+            progress_pct REAL,
+            total INTEGER,
+            done INTEGER,
+            message TEXT,
+            created_at INTEGER,
+            completed_at INTEGER,
+            request_json TEXT,
+            result_json TEXT,
+            error TEXT
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_scan_created ON scan_jobs(created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_wfa_created ON wfa_jobs(created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_mc_created ON mc_jobs(created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_bt_created ON backtest_sources(saved_at DESC);
@@ -112,7 +137,7 @@ def save_backtest_source(source_data: Dict[str, Any]) -> str:
     source_data["saved_at"] = now_ms
     _BACKTEST_SOURCES[handle] = source_data
 
-    symbol = str(source_data.get("symbol") or "SOL")
+    symbol = str(source_data.get("symbol") or "")
     strat_name = "Studio Strategy"
     if "strategy_snapshot" in source_data:
         strat_name = str(source_data["strategy_snapshot"].get("name") or strat_name)

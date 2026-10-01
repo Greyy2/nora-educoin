@@ -32,18 +32,28 @@ export default function Wfa() {
 
   const timerRefs = useRef({})
 
+  // Khớp với backend WfaFoldConfig (extra="forbid"): chỉ gửi các field backend hiểu
   const defaultConfig = () => ({
-    train_window_months: 1,
-    test_window_months: 1,
-    step_months: 1,
-    fold_count: 6,
-    min_is_profit_pct: 0.0,
-    max_is_mdd_pct: 15.0,
+    train_days: 30,
+    test_days: 10,
+    step_days: 10,
+    embargo_days: 0,
+    min_folds: 4,
+    min_positive_ratio: 0.6,
+    min_oos_trades: 30,
+    min_is_trades: 10,
     min_oos_profit_pct: 0.0,
-    max_oos_mdd_pct: 15.0,
-    min_positive_folds: 5,
-    min_total_oos_profit_pct: 30.0,
+    max_oos_mdd_pct: 25.0,
+    min_total_oos_profit_pct: 0.0,
   })
+
+  const formatApiError = (detail) => {
+    if (!detail) return 'Lỗi không xác định'
+    if (typeof detail === 'string') return detail
+    if (Array.isArray(detail)) return detail.map((d) => `${(d.loc || []).join('.')}: ${d.msg}`).join('\n')
+    if (detail.message) return [detail.message, ...(detail.issues || [])].join('\n')
+    return JSON.stringify(detail)
+  }
 
   // ── Load & merge Backtest runs với WFA history ──
   const fetchAll = () => {
@@ -170,13 +180,17 @@ export default function Wfa() {
   }
 
   const handleRunWfa = async (row) => {
+    if (row.type === 'Base') {
+      alert('Run legacy (Base) chưa có snapshot AST nên không thể chạy WFA. Hãy chạy lại chiến lược trong Studio.')
+      return
+    }
     const config = configMap[row.id] || defaultConfig()
     const handle = row.source_handle
 
     // Mark as running
     setRunningMap((prev) => ({
       ...prev,
-      [row.id]: { progress_pct: 0, message: 'Đang khởi chạy WFA...', current_fold: 0, total_folds: config.fold_count },
+      [row.id]: { progress_pct: 0, message: 'Đang khởi chạy WFA...', current_fold: 0, total_folds: 0 },
     }))
     setExpandedId(null) // Close config when running starts
 
@@ -191,8 +205,8 @@ export default function Wfa() {
         }),
       })
       if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.detail || 'Lỗi khởi chạy WFA')
+        const err = await res.json().catch(() => ({}))
+        throw new Error(formatApiError(err.detail) || 'Lỗi khởi chạy WFA')
       }
       const jobData = await res.json()
       const jobId = jobData.job_id
@@ -209,7 +223,7 @@ export default function Wfa() {
               progress_pct: prog.progress_pct || 0,
               message: prog.message || 'Đang thực thi...',
               current_fold: prog.current_fold || 0,
-              total_folds: prog.total_folds || config.fold_count,
+              total_folds: prog.total_folds || 0,
             },
           }))
 
@@ -498,45 +512,44 @@ export default function Wfa() {
                               )}
                             </div>
 
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr) auto', gap: 12, alignItems: 'end' }}>
-                              {/* Fold count */}
+                            {row.type === 'Base' ? (
+                              <div style={{ fontSize: 12, color: 'var(--down)', padding: '8px 0' }}>
+                                ⚠ Run legacy (Base) chưa có snapshot AST nên không thể chạy WFA. Hãy chạy lại chiến lược trong Studio để có source_handle hợp lệ.
+                              </div>
+                            ) : (<>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr) auto', gap: 12, alignItems: 'end' }}>
                               <div>
-                                <label style={{ fontSize: 11, color: 'var(--ink-3)', display: 'block', marginBottom: 3 }}>Số Folds</label>
-                                <select
-                                  className="input"
-                                  value={config.fold_count}
-                                  onChange={(e) => updateConfig(row.id, { fold_count: Number(e.target.value) })}
+                                <label style={{ fontSize: 11, color: 'var(--ink-3)', display: 'block', marginBottom: 3 }}>Train / IS (ngày)</label>
+                                <input type="number" className="input" min={1} max={365}
+                                  value={config.train_days}
+                                  onChange={(e) => updateConfig(row.id, { train_days: Number(e.target.value) })}
                                   style={{ width: '100%', fontSize: 12 }}
-                                >
-                                  <option value={6}>6 Folds</option>
-                                  <option value={12}>12 Folds (Chuẩn)</option>
-                                  <option value={18}>18 Folds</option>
-                                </select>
-                              </div>
-
-                              {/* Train window */}
-                              <div>
-                                <label style={{ fontSize: 11, color: 'var(--ink-3)', display: 'block', marginBottom: 3 }}>Train Window (tháng)</label>
-                                <input
-                                  type="number" className="input"
-                                  value={config.train_window_months}
-                                  onChange={(e) => updateConfig(row.id, { train_window_months: Number(e.target.value) })}
-                                  style={{ width: '100%', fontSize: 12 }} min={1} max={36}
                                 />
                               </div>
-
-                              {/* Test window */}
                               <div>
-                                <label style={{ fontSize: 11, color: 'var(--ink-3)', display: 'block', marginBottom: 3 }}>Test Window / OOS (tháng)</label>
-                                <input
-                                  type="number" className="input"
-                                  value={config.test_window_months}
-                                  onChange={(e) => updateConfig(row.id, { test_window_months: Number(e.target.value) })}
-                                  style={{ width: '100%', fontSize: 12 }} min={1} max={12}
+                                <label style={{ fontSize: 11, color: 'var(--ink-3)', display: 'block', marginBottom: 3 }}>Test / OOS (ngày)</label>
+                                <input type="number" className="input" min={1} max={180}
+                                  value={config.test_days}
+                                  onChange={(e) => updateConfig(row.id, { test_days: Number(e.target.value) })}
+                                  style={{ width: '100%', fontSize: 12 }}
                                 />
                               </div>
-
-                              {/* Run button */}
+                              <div>
+                                <label style={{ fontSize: 11, color: 'var(--ink-3)', display: 'block', marginBottom: 3 }}>Bước trượt (ngày, ≥ Test)</label>
+                                <input type="number" className="input" min={1} max={180}
+                                  value={config.step_days}
+                                  onChange={(e) => updateConfig(row.id, { step_days: Number(e.target.value) })}
+                                  style={{ width: '100%', fontSize: 12 }}
+                                />
+                              </div>
+                              <div>
+                                <label style={{ fontSize: 11, color: 'var(--ink-3)', display: 'block', marginBottom: 3 }}>Embargo (ngày)</label>
+                                <input type="number" className="input" min={0} max={30}
+                                  value={config.embargo_days}
+                                  onChange={(e) => updateConfig(row.id, { embargo_days: Number(e.target.value) })}
+                                  style={{ width: '100%', fontSize: 12 }}
+                                />
+                              </div>
                               <button
                                 className="btn btn-primary"
                                 onClick={(e) => { e.stopPropagation(); handleRunWfa(row) }}
@@ -546,25 +559,66 @@ export default function Wfa() {
                               </button>
                             </div>
 
-                            {/* Gate thresholds (collapsible) */}
-                            <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+                            {/* Acceptance gate thresholds */}
+                            <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
                               <div>
-                                <label style={{ fontSize: 10.5, color: 'var(--ink-3)', display: 'block', marginBottom: 3 }}>Min OOS Profit (% / Fold)</label>
-                                <input type="number" className="input"
+                                <label style={{ fontSize: 11, color: 'var(--ink-3)', display: 'block', marginBottom: 3 }}>Số fold tối thiểu</label>
+                                <input type="number" className="input" min={1} max={50}
+                                  value={config.min_folds}
+                                  onChange={(e) => updateConfig(row.id, { min_folds: Number(e.target.value) })}
+                                  style={{ width: '100%', fontSize: 11 }}
+                                />
+                              </div>
+                              <div>
+                                <label style={{ fontSize: 11, color: 'var(--ink-3)', display: 'block', marginBottom: 3 }}>Tỉ lệ fold có lãi tối thiểu (0–1)</label>
+                                <input type="number" className="input" step={0.05} min={0} max={1}
+                                  value={config.min_positive_ratio}
+                                  onChange={(e) => updateConfig(row.id, { min_positive_ratio: Number(e.target.value) })}
+                                  style={{ width: '100%', fontSize: 11 }}
+                                />
+                              </div>
+                              <div>
+                                <label style={{ fontSize: 11, color: 'var(--ink-3)', display: 'block', marginBottom: 3 }}>Tổng lệnh OOS tối thiểu</label>
+                                <input type="number" className="input" min={1}
+                                  value={config.min_oos_trades}
+                                  onChange={(e) => updateConfig(row.id, { min_oos_trades: Number(e.target.value) })}
+                                  style={{ width: '100%', fontSize: 11 }}
+                                />
+                              </div>
+                              <div>
+                                <label style={{ fontSize: 11, color: 'var(--ink-3)', display: 'block', marginBottom: 3 }}>Lệnh IS tối thiểu / fold</label>
+                                <input type="number" className="input" min={1}
+                                  value={config.min_is_trades}
+                                  onChange={(e) => updateConfig(row.id, { min_is_trades: Number(e.target.value) })}
+                                  style={{ width: '100%', fontSize: 11 }}
+                                />
+                              </div>
+                              <div>
+                                <label style={{ fontSize: 11, color: 'var(--ink-3)', display: 'block', marginBottom: 3 }}>Min OOS Profit (% / Fold)</label>
+                                <input type="number" className="input" 
                                   value={config.min_oos_profit_pct}
                                   onChange={(e) => updateConfig(row.id, { min_oos_profit_pct: Number(e.target.value) })}
                                   style={{ width: '100%', fontSize: 11 }}
                                 />
                               </div>
                               <div>
-                                <label style={{ fontSize: 10.5, color: 'var(--ink-3)', display: 'block', marginBottom: 3 }}>Max OOS MDD (%)</label>
-                                <input type="number" className="input"
+                                <label style={{ fontSize: 11, color: 'var(--ink-3)', display: 'block', marginBottom: 3 }}>Max OOS MDD (%)</label>
+                                <input type="number" className="input" min={1} max={100}
                                   value={config.max_oos_mdd_pct}
                                   onChange={(e) => updateConfig(row.id, { max_oos_mdd_pct: Number(e.target.value) })}
                                   style={{ width: '100%', fontSize: 11 }}
                                 />
                               </div>
+                              <div>
+                                <label style={{ fontSize: 11, color: 'var(--ink-3)', display: 'block', marginBottom: 3 }}>Tổng lợi nhuận OOS (lãi kép) tối thiểu (%)</label>
+                                <input type="number" className="input" 
+                                  value={config.min_total_oos_profit_pct}
+                                  onChange={(e) => updateConfig(row.id, { min_total_oos_profit_pct: Number(e.target.value) })}
+                                  style={{ width: '100%', fontSize: 11 }}
+                                />
+                              </div>
                             </div>
+                            </>)}
 
                             {/* WFA fold breakdown (if already ran) */}
                             {hasWfa && wfa?.result?.folds?.length > 0 && (
@@ -580,10 +634,16 @@ export default function Wfa() {
                                       borderRadius: 5, padding: '4px 8px', fontSize: 10.5, minWidth: 80, textAlign: 'center',
                                     }}>
                                       <div style={{ fontWeight: 600 }}>Fold #{f.fold_index}</div>
-                                      <div style={{ color: f.oos_return_pct >= 0 ? '#10b981' : '#ef4444' }}>
-                                        {f.oos_return_pct >= 0 ? '+' : ''}{f.oos_return_pct.toFixed(1)}%
-                                      </div>
-                                      <div style={{ color: 'var(--ink-3)' }}>MDD {f.oos_max_drawdown_pct.toFixed(1)}%</div>
+                                      {f.status === 'NO_TRADE' ? (
+                                        <div style={{ color: 'var(--ink-3)' }} title={(f.gate_notes || []).join('\n')}>NO_TRADE</div>
+                                      ) : (
+                                        <>
+                                          <div style={{ color: f.oos_return_pct >= 0 ? '#10b981' : '#ef4444' }}>
+                                            {f.oos_return_pct >= 0 ? '+' : ''}{f.oos_return_pct.toFixed(1)}%
+                                          </div>
+                                          <div style={{ color: 'var(--ink-3)' }}>MDD {f.oos_max_drawdown_pct.toFixed(1)}%</div>
+                                        </>
+                                      )}
                                     </div>
                                   ))}
                                 </div>

@@ -403,22 +403,12 @@ export default function Results() {
                             </td>
                             <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
                               <button
-                                className="btn btn-primary"
-                                onClick={() => {
-                                  navigate('/library/wfa', {
-                                    state: {
-                                      wfaInput: {
-                                        source_handle: `run_${r.id}`,
-                                        strategy_name: r.name,
-                                        symbol: r.dataset?.split('_')[0] || 'SOL',
-                                      },
-                                      autoRun: true,
-                                    },
-                                  })
-                                }}
+                                className="btn"
+                                disabled
+                                title="Run legacy (MySQL) chưa có snapshot AST nên không chạy được WFA. Hãy chạy lại chiến lược trong Studio."
                                 style={{ fontSize: 11.5, padding: '3px 10px' }}
                               >
-                                🔄 Chạy WFA ➔
+                                WFA: cần Studio
                               </button>
                             </td>
                           </tr>

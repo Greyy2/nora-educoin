@@ -125,7 +125,7 @@ def classify_market_regime(
     ann_vol = float(np.std(returns) * np.sqrt(365 * 24) * 100.0) if len(returns) > 1 else 0.0
 
     # 2. ATR proxy
-    tr = np.maximum(high[1:] - low[1:], np.abs(high[1:] - close[:-1]), np.abs(low[1:] - close[:-1]))
+    tr = np.maximum(np.maximum(high[1:] - low[1:], np.abs(high[1:] - close[:-1])), np.abs(low[1:] - close[:-1]))
     atr_window = min(14, len(tr))
     atr = pd.Series(tr).rolling(atr_window, min_periods=1).mean().values if len(tr) > 0 else np.array([0.0])
     recent_atr = float(atr[-1]) if len(atr) > 0 else 0.0

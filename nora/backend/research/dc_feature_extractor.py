@@ -29,13 +29,14 @@ def sweep_directional_change(
     if df_ticks.empty or len(df_ticks) < 30:
         return {
             "symbol": symbol,
-            "best_theta": 0.02,
-            "best_theta_pct": "2.0%",
+            "best_theta": None,
+            "best_theta_pct": None,
             "best_metrics": {},
             "theta_results": [],
             "total_ticks": len(df_ticks),
             "time_span_days": 0.0,
             "has_sufficient_events": False,
+            "split_ts": None,
         }
 
     thetas = theta_grid or DEFAULT_THETA_GRID
@@ -47,11 +48,16 @@ def sweep_directional_change(
     time_span_days = max(0.01, (t_max - t_min) / (1000.0 * 86400.0))
 
     # Phase 5.2: 60/40 train/test split to prevent selection bias
+    split_ts = None
     if total_ticks >= 100:
         split_idx = int(total_ticks * 0.6)
         df_train = df_ticks.iloc[:split_idx].reset_index(drop=True)
         df_test = df_ticks.iloc[split_idx:].reset_index(drop=True)
+        if "timestamp_ms" in df_test.columns and not df_test.empty:
+            split_ts = int(df_test["timestamp_ms"].iloc[0])
     else:
+        # Quá ít điểm để tách train/test độc lập -> không được chọn theta (tránh
+        # chọn và đánh giá trên cùng một dữ liệu). Vẫn tính theta_results để hiển thị.
         df_train = df_ticks
         df_test = df_ticks
 
@@ -208,18 +214,22 @@ def sweep_directional_change(
 
     # Select Best Theta (Optimal theta*) using 60% IS train scores
     best_candidate_thetas = sorted(train_scores.keys(), key=lambda t: train_scores[t], reverse=True)
-    best_theta = best_candidate_thetas[0] if best_candidate_thetas and train_scores[best_candidate_thetas[0]] > 0 else 0.02
-
-    matching = [r for r in theta_results if r["theta"] == best_theta]
-    best_item = matching[0] if matching else (theta_results[0] if theta_results else {"theta": best_theta, "theta_pct": f"{best_theta*100:.1f}%", "event_count": 0})
+    if split_ts is not None and best_candidate_thetas and train_scores[best_candidate_thetas[0]] > 0:
+        best_theta = best_candidate_thetas[0]
+        matching = [r for r in theta_results if r["theta"] == best_theta]
+        best_item = matching[0] if matching else (theta_results[0] if theta_results else None)
+    else:
+        best_theta = None
+        best_item = None
 
     return {
         "symbol": symbol,
         "best_theta": best_theta,
-        "best_theta_pct": best_item["theta_pct"],
+        "best_theta_pct": best_item["theta_pct"] if best_item else None,
         "best_metrics": best_item,
         "theta_results": theta_results,
         "total_ticks": total_ticks,
         "time_span_days": round(time_span_days, 1),
-        "has_sufficient_events": best_item["event_count"] >= 20,
+        "has_sufficient_events": best_item["event_count"] >= 20 if best_item else False,
+        "split_ts": split_ts,
     }

@@ -349,15 +349,18 @@ def simulate_causal_dc_trades(
         max_dd_bps = int(np.max(dd)) if len(dd) else 0
         max_dd_pct = round(max_dd_bps / 100.0, 1)
 
-        # Survived criteria: n >= 30, avg_net > 0, 95% bootstrap lower bound of avg_net_bps > 0
+        # Survived criteria: n >= 30, avg_net > 0, 95% bootstrap lower bound of avg_net_bps > 0, t-stat > 3.0
         bootstrap_lb = -999.0
+        t_stat = 0.0
         if len(tier_net_bps) >= 30:
             rng = np.random.default_rng(42)
             boot_samples = rng.choice(tier_net_bps, size=(500, len(tier_net_bps)), replace=True)
             boot_means = np.mean(boot_samples, axis=1)
             bootstrap_lb = float(np.percentile(boot_means, 2.5))
+            bps_std = float(np.std(tier_net_bps))
+            t_stat = (float(np.mean(tier_net_bps)) / (bps_std / np.sqrt(len(tier_net_bps)))) if bps_std > 0 else 0.0
 
-        survived = bool((len(tier_net_bps) >= 30) and (avg_net > 0) and (bootstrap_lb > 0))
+        survived = bool((len(tier_net_bps) >= 30) and (avg_net > 0) and (bootstrap_lb > 0) and (t_stat > 3.0))
 
         cost_models[tier["key"]] = {
             "key": tier["key"],
@@ -368,6 +371,7 @@ def simulate_causal_dc_trades(
             "desc": tier["desc"],
             "win_rate": wr,
             "winRate": wr,
+            "t_stat": round(t_stat, 2),
             "profit_factor": None if pf == float("inf") else pf,
             "profitFactor": None if pf == float("inf") else pf,
             "profit_factor_is_inf": pf == float("inf"),

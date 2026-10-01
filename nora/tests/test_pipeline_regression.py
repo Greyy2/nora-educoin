@@ -107,9 +107,9 @@ def test_data_quality_gate_checks():
         assert res["status"] == DataQualityStatus.BLOCKED
         assert "synthetic=true" in res["issues"][0]
 
-        # 3. Create valid 1m candles (> 35 hours = 2100 minutes) and resample using core resampler
+        # 3. Create valid 1m candles (>= 30 days = 35 days) and resample using core resampler
         t0 = 1700000000000
-        n_bars = 2500
+        n_bars = 1440 * 35
         times = [t0 + i * 60_000 for i in range(n_bars)]
         prices = [100.0 * (1.0 + 0.0001 * (i % 50)) for i in range(n_bars)]
         df_1m_clean = pd.DataFrame({
@@ -129,6 +129,7 @@ def test_data_quality_gate_checks():
             pool_address="0x123",
             timeframes=("15m", "1h", "4h"),
             synthetic=False,
+            crawl_ok=True,
         )
 
         res = evaluate_data_quality(sym, data_root=tmp_dir)

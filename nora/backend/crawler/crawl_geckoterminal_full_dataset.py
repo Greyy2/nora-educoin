@@ -28,7 +28,8 @@ except ImportError:
     from nora.backend.core.resampler import save_resampled_dataset
 
 DEFAULT_BASE_URL = "https://api.geckoterminal.com/api/v2"
-DEFAULT_OUTPUT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data"))
+# Dữ liệu DEX ghi vào data/dex/<SYM>; danh sách target ở data/_meta (xem backend/db/data_layout.py)
+DEFAULT_OUTPUT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data", "dex"))
 DEFAULT_LIMIT = 500
 MINUTE_MS = 60 * 1000
 HOUR_MS = 60 * MINUTE_MS
@@ -47,7 +48,7 @@ DEFAULT_NEW_COUNT = 2
 DEFAULT_TRENDING_NETWORKS = "solana,eth"
 DEFAULT_CURRENCY = "usd"
 DEFAULT_TOKEN = "base"
-DEFAULT_TARGETS_FILE = os.path.abspath(os.path.join(DEFAULT_OUTPUT_DIR, "geckoterminal_targets.json"))
+DEFAULT_TARGETS_FILE = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data", "_meta", "geckoterminal_targets.json"))
 
 CORE_POOLS = {
     "BTC": {
@@ -456,6 +457,10 @@ def _read_pickle_if_usable(path: str) -> pd.DataFrame:
     if missing:
         warn(f"[warn] Cannot resume from {path}: missing columns {','.join(missing)}")
         return pd.DataFrame(columns=PKL_COLUMNS)
+    # Bỏ nến điền (is_filled==1) TRƯỚC khi cắt về PKL_COLUMNS: nếu cắt cột trước thì
+    # mất cờ is_filled và nến điền bị coi là phút có giao dịch thật khi resume.
+    if "is_filled" in frame.columns:
+        frame = frame[frame["is_filled"].fillna(0).astype(int) != 1]
     frame = frame.loc[:, PKL_COLUMNS].copy()
     frame["open_time"] = frame["open_time"].astype("int64")
     return frame.sort_values("open_time").drop_duplicates("open_time").reset_index(drop=True)
@@ -609,12 +614,156 @@ def run(args: argparse.Namespace) -> List[Dict[str, Any]]:
     if args.clear:
         _clear_asset_dirs(output_dir, [target["asset"] for target in targets])
 
+    # --minutes/--hours không còn tác dụng: chỉ crawl 1m, các khung khác do core/resampler.py sinh ra
     log(
-        f"[start] {len(targets)} assets, minute_files={_format_frame_list(minutes, 'm')}, "
-        f"hour_files={_format_frame_list(hours, 'h')}, output={output_dir}"
+        f"[start] {len(targets)} assets, source=1m, derived=5m,15m,1h,4h,24h (core/resampler.py), "
+        f"output={output_dir}"
     )
     log(f"[range] {datetime.fromtimestamp(start_sec, timezone.utc).isoformat()} -> {datetime.fromtimestamp(end_sec, timezone.utc).isoformat()}")
 
+    return run_pipeline(
+        args=args,
+        targets=targets,
+        output_dir=output_dir,
+        base_url=base_url,
+        start_sec=start_sec,
+        end_sec=end_sec,
+        limit=limit,
+        page_delay_sec=page_delay_sec,
+        asset_delay_sec=asset_delay_sec,
+        retries=retries,
+        retry_delay_sec=retry_delay_sec,
+        timeout=timeout,
+        minute_max_pages=minute_max_pages,
+        checkpoint_every_pages=checkpoint_every_pages,
+    )
+
+def _process_asset(
+    target: Dict[str, Any],
+    args: Any,
+    output_dir: str,
+    base_url: str = "https://api.geckoterminal.com/api/v2",
+    start_sec: Optional[int] = None,
+    end_sec: Optional[int] = None,
+    limit: int = 100,
+    page_delay_sec: float = 0.0,
+    retries: int = 3,
+    retry_delay_sec: float = 1.0,
+    timeout: int = 15,
+    minute_max_pages: int = 150,
+    checkpoint_every_pages: int = 5,
+) -> Optional[Dict[str, Any]]:
+    """Xử lý crawl và resample cho một pool tài sản duy nhất."""
+    asset = _asset_slug(target["asset"])
+    network = target["network"]
+    pool_address = target["pool_address"]
+
+    one_minute_path = os.path.join(output_dir, asset, "1m.pkl")
+    checkpoint_path = os.path.join(output_dir, asset, "1m_raw.partial.pkl")
+    existing_1m = _read_pickle_if_usable(one_minute_path)
+    if not existing_1m.empty and "is_filled" in existing_1m.columns:
+        existing_1m = existing_1m[existing_1m["is_filled"] != 1].reset_index(drop=True)
+
+    log(f"[crawl] {asset} 1m source (aggregate=1)")
+
+    minute_pages = 0
+    crawl_ok = True
+    frame_1m = pd.DataFrame()
+
+    try:
+        frame_1m, minute_pages = _crawl_ohlcv(
+            base_url,
+            network,
+            pool_address,
+            "minute",
+            1,
+            start_sec,
+            end_sec,
+            limit,
+            page_delay_sec,
+            retries,
+            retry_delay_sec,
+            timeout,
+            minute_max_pages,
+            getattr(args, "currency", "usd"),
+            getattr(args, "token", "base"),
+            f"{asset} 1m",
+            existing_1m,
+            checkpoint_path,
+            checkpoint_every_pages,
+        )
+    except Exception as exc:
+        warn(f"[error] {asset} 1m crawl failed: {exc}")
+        crawl_ok = False
+        # Try to use checkpointed data
+        frame_1m = _read_pickle_if_usable(checkpoint_path)
+        if frame_1m.empty:
+            frame_1m = _read_pickle_if_usable(one_minute_path)
+        if frame_1m.empty:
+            warn(f"[skip] {asset}: no 1m data available, skipping.")
+            return None
+        warn(f"[partial] {asset} using checkpointed 1m rows={len(frame_1m)}")
+
+    if frame_1m.empty:
+        warn(f"[skip] {asset}: 1m crawl returned 0 rows, skipping.")
+        return None
+
+    log(f"[write] {asset} 1m rows={len(frame_1m)} pages={minute_pages}")
+
+    try:
+        manifest = save_resampled_dataset(
+            symbol=asset,
+            output_dir=output_dir,
+            df_1m_raw=frame_1m,
+            pool_address=pool_address,
+            timeframes=("5m", "15m", "1h", "4h", "24h"),
+            source="geckoterminal",
+            synthetic=False,
+            crawl_ok=crawl_ok,
+            requested_start_ts=start_sec * 1000 if start_sec else None,
+            requested_end_ts=end_sec * 1000 if end_sec else None,
+            extra_meta={
+                "venue": "dex",
+                "exchange": "geckoterminal",
+                "network": network,
+                "volume_unit": "usd",
+                "pool_name": target.get("name", ""),
+            },
+        )
+        log(
+            f"[manifest] {asset} rows={manifest['rows']} "
+            f"filled_ratio={manifest['filled_ratio_1m']:.3f} "
+            f"crawl_ok={manifest['crawl_ok']} "
+            f"start={datetime.fromtimestamp(manifest['start_ts']/1000, timezone.utc).date()} "
+            f"end={datetime.fromtimestamp(manifest['end_ts']/1000, timezone.utc).date()}"
+        )
+        # Crawl + resample thành công: xoá checkpoint thô để lần sau không đọc nhầm dữ liệu dở dang
+        if crawl_ok and os.path.isfile(checkpoint_path):
+            os.remove(checkpoint_path)
+        return manifest
+    except Exception as exc:
+        warn(f"[error] {asset} resampling failed: {exc}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+def run_pipeline(
+    args: argparse.Namespace,
+    targets: List[Dict[str, Any]],
+    output_dir: str,
+    base_url: str,
+    start_sec: int,
+    end_sec: int,
+    limit: int,
+    page_delay_sec: float,
+    asset_delay_sec: float,
+    retries: int,
+    retry_delay_sec: float,
+    timeout: int,
+    minute_max_pages: int,
+    checkpoint_every_pages: int,
+) -> List[Dict[str, Any]]:
     summaries = []
     total_steps = len(targets)
     for target_index, target in enumerate(targets):
@@ -627,83 +776,35 @@ def run(args: argparse.Namespace) -> List[Dict[str, Any]]:
         pool_address = target["pool_address"]
         log(f"[asset] ({target_index+1}/{total_steps}) {asset} | {network} | {target.get('name', '')} | pool={pool_address}")
 
-        # ── Phase 1: Crawl raw 1m candles (single source of truth) ────────────
-        one_minute_path = os.path.join(output_dir, asset, "1m.pkl")
-        existing_1m = _read_pickle_if_usable(one_minute_path)
-        log(f"[crawl] {asset} 1m source (aggregate=1)")
-        try:
-            frame_1m, minute_pages = _crawl_ohlcv(
-                base_url,
-                network,
-                pool_address,
-                "minute",
-                1,
-                start_sec,
-                end_sec,
-                limit,
-                page_delay_sec,
-                retries,
-                retry_delay_sec,
-                timeout,
-                minute_max_pages,
-                args.currency,
-                args.token,
-                f"{asset} 1m",
-                existing_1m,
-                one_minute_path,
-                checkpoint_every_pages,
-            )
-        except Exception as exc:
-            warn(f"[error] {asset} 1m crawl failed: {exc}")
-            # Try to use checkpointed data
-            frame_1m = _read_pickle_if_usable(one_minute_path)
-            if frame_1m.empty:
-                warn(f"[skip] {asset}: no 1m data available, skipping.")
-                continue
-            warn(f"[partial] {asset} using checkpointed 1m rows={len(frame_1m)}")
-
-        if frame_1m.empty:
-            warn(f"[skip] {asset}: 1m crawl returned 0 rows, skipping.")
-            continue
-
-        log(f"[write] {asset} 1m rows={len(frame_1m)} pages={minute_pages}")
-
-        # ── Phase 1: Delegate ALL resampling to core/resampler.py ─────────────
-        # This generates: 1m.pkl, 5m.pkl, 15m.pkl, 1h.pkl, 4h.pkl, 24h.pkl + manifest.json
-        try:
-            manifest = save_resampled_dataset(
-                symbol=asset,
-                output_dir=output_dir,
-                df_1m_raw=frame_1m,
-                pool_address=pool_address,
-                timeframes=("5m", "15m", "1h", "4h", "24h"),
-                source="geckoterminal",
-                synthetic=False,
-            )
-            log(
-                f"[manifest] {asset} rows={manifest['rows']} "
-                f"filled_ratio={manifest['filled_ratio_1m']:.3f} "
-                f"start={datetime.fromtimestamp(manifest['start_ts']/1000, timezone.utc).date()} "
-                f"end={datetime.fromtimestamp(manifest['end_ts']/1000, timezone.utc).date()}"
-            )
-        except Exception as exc:
-            warn(f"[error] {asset} resampling failed: {exc}")
-            import traceback
-            traceback.print_exc()
-            continue
-
-        summaries.append(
-            {
-                "asset": asset,
-                "network": network,
-                "pool_address": pool_address,
-                "name": target.get("name", ""),
-                "rows_1m": manifest["rows"].get("1m", 0),
-                "rows_1h": manifest["rows"].get("1h", 0),
-                "rows_4h": manifest["rows"].get("4h", 0),
-                "filled_ratio_1m": manifest["filled_ratio_1m"],
-            }
+        manifest = _process_asset(
+            target=target,
+            args=args,
+            output_dir=output_dir,
+            base_url=base_url,
+            start_sec=start_sec,
+            end_sec=end_sec,
+            limit=limit,
+            page_delay_sec=page_delay_sec,
+            retries=retries,
+            retry_delay_sec=retry_delay_sec,
+            timeout=timeout,
+            minute_max_pages=minute_max_pages,
+            checkpoint_every_pages=checkpoint_every_pages,
         )
+        if manifest:
+            summaries.append(
+                {
+                    "asset": asset,
+                    "network": network,
+                    "pool_address": pool_address,
+                    "name": target.get("name", ""),
+                    "rows_1m": manifest["rows"].get("1m", 0),
+                    "rows_1h": manifest["rows"].get("1h", 0),
+                    "rows_4h": manifest["rows"].get("4h", 0),
+                    "filled_ratio_1m": manifest["filled_ratio_1m"],
+                    "crawl_ok": manifest.get("crawl_ok", True),
+                }
+            )
 
     log("[summary]")
     for item in summaries:
@@ -714,6 +815,7 @@ def run(args: argparse.Namespace) -> List[Dict[str, Any]]:
         )
     log("[done] Full GeckoTerminal PKL dataset build finished (Phase 1 compliant).")
     return summaries
+
 
 
 def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:

@@ -1,5 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react'
 
+const gateBadge = (g) => {
+  if (g === true) return { text: '✓ Nguồn đã qua WFA gate', color: '#10b981' }
+  if (g === false) return { text: '⚠ Nguồn KHÔNG qua WFA gate — kết quả chỉ để tham khảo', color: '#ef4444' }
+  return { text: 'Chưa kiểm định WFA (chạy trực tiếp từ backtest)', color: '#f59e0b' }
+}
+
 export default function StudioMonteCarlo({ mcInput, onBackToWfa, autoRun = false, initialResult = null, onCompleted = null }) {
   const [simulations, setSimulations] = useState(1000)
   const [ruinThreshold, setRuinThreshold] = useState(30)
@@ -17,7 +23,7 @@ export default function StudioMonteCarlo({ mcInput, onBackToWfa, autoRun = false
   const autoRanRef = useRef(false)
 
   const stratName = mcInput?.strategy_name || 'Studio Strategy'
-  const symbol = mcInput?.symbol || 'SOL'
+  const symbol = mcInput?.symbol || ''
   const tradesCount = mcInput?.trades?.length || 0
   const sourceWfaId = mcInput?.source_wfa_id || null
 
@@ -32,7 +38,7 @@ export default function StudioMonteCarlo({ mcInput, onBackToWfa, autoRun = false
         source_handle: mcInput?.source_handle,
         trades: mcInput?.trades,
         strategy_name: stratName,
-        symbol: symbol,
+        ...(symbol ? { symbol } : {}),
         simulations: Number(simulations),
         ruin_threshold_pct: Number(ruinThreshold),
         block_size: Number(blockSize),
@@ -45,8 +51,12 @@ export default function StudioMonteCarlo({ mcInput, onBackToWfa, autoRun = false
       })
 
       if (!res.ok) {
-        const errData = await res.json()
-        throw new Error(errData.detail || 'Không thể khởi chạy Monte Carlo')
+        const err = await res.json().catch(() => ({}))
+        const d = err.detail
+        const msg = !d ? '' : typeof d === 'string' ? d
+          : Array.isArray(d) ? d.map((x) => `${(x.loc || []).join('.')}: ${x.msg}`).join('\n')
+          : d.message ? [d.message, ...(d.issues || [])].join('\n') : JSON.stringify(d)
+        throw new Error(msg || 'Không thể khởi chạy Monte Carlo')
       }
 
       const jobData = await res.json()
@@ -229,6 +239,10 @@ export default function StudioMonteCarlo({ mcInput, onBackToWfa, autoRun = false
       {/* ── Result Section ── */}
       {result && (
         <>
+          {(() => {
+            const b = gateBadge(result.source_gate_passed)
+            return <div style={{ marginTop: 14, fontSize: 13, fontWeight: 600, color: b.color }}>{b.text}</div>
+          })()}
           {/* Risk Metrics Cards */}
           <div className="studio-metrics-grid" style={{ gridTemplateColumns: 'repeat(5, 1fr)', marginTop: 14 }}>
             <div className="studio-metric-card">

@@ -27,6 +27,7 @@ class PositionStatus(IntEnum):
     TP = 2      # Chốt lãi (Take Profit)
     SL = 3      # Cắt lỗ (Stop Loss / Stop Trend)
     CANCEL = 4  # Huỷ lệnh
+    LIQ = 5     # Bị thanh lý (perp, đòn bẩy)
     WAIT = 6    # Đang chờ / Đang mở
 
 
@@ -111,6 +112,16 @@ class PositionModel:
     entry_notional_usd: float = 0.0
     entry_fee_usd: float = 0.0
     exit_fee_usd: float = 0.0
+    layers: int = 1                 # số lần vào lệnh (1 = không DCA)
+    avg_price: float = 0.0          # giá trung bình sau các tầng DCA
+    total_margin_usd: float = 0.0   # tổng ký quỹ đã dùng
+    mae_pct: float = 0.0            # lỗ treo tối đa trong lệnh (% vốn ban đầu, số âm)
+    fees_usd: float = 0.0           # tổng phí mọi tầng + thoát
+    funding_usd: float = 0.0        # funding đã trả (+) / nhận (−) trong lệnh (perp)
+    unit_pct: float = 0.0           # exit_unit="atr": ATR% lúc vào lệnh (SL/TP/trailing = bội số của nó)
+    leverage_used: float = 1.0      # đòn bẩy thực dùng cho vị thế (có thể < tham số để thanh lý xa SL)
+    risk_usd: float = 0.0           # sizing="risk": số tiền dự kiến mất nếu chạm SL
+    strategy_id: str = ""           # backtest danh mục: id chiến lược sinh ra vị thế
 
     @classmethod
     def from_row(cls, row: Dict[str, Any]) -> "PositionModel":
@@ -127,7 +138,7 @@ class PositionModel:
             enter_price=float(row.get("lab_result_chart_price") or row.get("lab_result_enter_price") or 0.0),
             close_time=int(row.get("lab_result_close_time")) if row.get("lab_result_close_time") else None,
             close_price=float(row.get("lab_result_sell_price")) if row.get("lab_result_sell_price") else None,
-            status=PositionStatus(raw_status) if raw_status in [0, 1, 2, 3, 4, 6] else PositionStatus.OPEN,
+            status=PositionStatus(raw_status) if raw_status in [0, 1, 2, 3, 4, 5, 6] else PositionStatus.OPEN,
             real_pnl=float(row.get("lab_result_realpnl") or row.get("lab_result_profit") or 0.0),
             profit_pct=float(row.get("lab_result_realprofit") or row.get("lab_result_eventprofit") or 0.0),
             flow=row.get("lab_result_flow") or "",
@@ -149,6 +160,8 @@ class OrderModel:
     order_price: float = 0.0
     qty: float = 0.0
     phase: int = 0
+    fee_usd: float = 0.0          # phí của riêng lệnh này
+    liquidity: str = ""           # "maker" (limit) | "taker" (market) | "liquidation"
 
     @classmethod
     def from_row(cls, row: Dict[str, Any]) -> "OrderModel":

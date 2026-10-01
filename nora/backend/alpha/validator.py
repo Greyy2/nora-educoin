@@ -11,7 +11,8 @@ class ASTValidationError(ValueError):
 class ASTValidator:
     VALID_OPERATORS = {">", "<", ">=", "<=", "==", "!="}
     VALID_MATH_LOGIC = {"+", "-", "*", "/"}
-    VALID_FRAMES = {"1m", "4h"}
+    VALID_FRAMES = {"1m", "5m", "15m", "1h", "4h", "24h"}
+    MAX_INDEX = 500  # số nến trễ tối đa (index) trên cùng khung
     BASE_COLUMNS = {"open_time", "open", "high", "low", "close", "volume"}
     FIELD_KEYS = {"type", "frame", "column", "index", "add", "subtract", "divide"}
     CALCULATE_KEYS = {"type", "number_1", "number_2", "logic", "multiply"}
@@ -185,9 +186,14 @@ class ASTValidator:
         if not isinstance(column, str) or not cls._is_allowed_column(frame, column):
             raise ASTValidationError(f"{flow_name}: cột {frame}.{column} chưa được hỗ trợ.")
 
-        index = value.get("index", "0")
-        if index not in (0, "0", None):
-            raise ASTValidationError(f"{flow_name}: {path}.index hiện chỉ hỗ trợ 0.")
+        index = value.get("index", 0)
+        try:
+            index_int = int(index) if index not in (None, "") else 0
+        except (TypeError, ValueError):
+            raise ASTValidationError(f"{flow_name}: {path}.index phải là số nguyên (số nến trước).")
+        if isinstance(index, bool) or str(index_int) != str(index).strip() and index not in (None, "") \
+                or not 0 <= index_int <= cls.MAX_INDEX:
+            raise ASTValidationError(f"{flow_name}: {path}.index phải là số nguyên 0..{cls.MAX_INDEX}.")
 
         for modifier in ("add", "subtract", "divide"):
             if modifier in value:
@@ -236,7 +242,8 @@ class ASTValidator:
 
     @classmethod
     def _is_allowed_column(cls, frame: str, column: str) -> bool:
-        if column in cls.BASE_COLUMNS:
+        from backend.signals.kernels import is_kernel_column
+        if column in cls.BASE_COLUMNS or is_kernel_column(column):
             return True
         if frame == "4h" and (cls.ATR_RE.fullmatch(column) or cls.KELTNER_RE.fullmatch(column)):
             return True
@@ -250,7 +257,9 @@ class ASTValidator:
 
     @classmethod
     def supported_columns(cls, frame: str) -> List[str]:
-        base = ["open_time", "open", "high", "low", "close", "volume"]
+        """Cột cố định + ví dụ kernel (kernel nhận mọi tham số hợp lệ, xem signals/kernels.py)."""
+        from backend.signals.kernels import catalog
+        base = ["open_time", "open", "high", "low", "close", "volume", *[k["example"] for k in catalog()]]
         if frame == "4h":
             return [*base, "atr", "atr14", "atr17", "atr20", "kup17_05", "kmid17_05", "klo17_05", "kup20_15", "kmid20_15", "klo20_15"]
         return base

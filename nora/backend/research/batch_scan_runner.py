@@ -42,10 +42,8 @@ def run_full_batch_scan(
         except Exception:
             pass
 
-    symbols = [
-        d for d in sorted(os.listdir(root))
-        if os.path.isdir(os.path.join(root, d)) and not d.startswith(".") and d not in ["logs", "research_scans", "ticks"]
-    ]
+    from backend.db.local_pkl import list_asset_dirs
+    symbols = list_asset_dirs(root)
 
     leaderboard: List[Dict[str, Any]] = []
     sharpes: List[float] = []
