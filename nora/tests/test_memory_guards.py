@@ -8,7 +8,8 @@ Kiểm:
 - Mongo: luôn nạp theo cửa sổ, không cache (không kéo cả collection vào RAM);
 - _pool_map_safe: giữ thứ tự; lỗi trong job nổi lên ngay (không chạy lại, không che lỗi);
   worker bị kill -> chỉ chạy lại các job còn thiếu;
-- memwatch: RAM dùng được tính cả giới hạn cgroup.
+- memwatch: RAM dùng được tính cả giới hạn cgroup; script nặng bắt buộc có trần RAM (require_memory_limit);
+  _auto_workers tin cgroup (85%) khi có trần, MemAvailable (60%) khi không.
 """
 import importlib.util
 import os
@@ -220,3 +221,57 @@ def test_peak_rss_is_at_least_current_rss():
     if not os.path.exists("/proc/self/status"):
         pytest.skip("cần Linux /proc")
     assert memwatch.peak_rss_mb() >= memwatch.rss_mb() > 0
+
+
+# ─── trần RAM bắt buộc + cỡ pool theo cgroup ─────────────────────────────────
+
+def test_require_memory_limit_refuses_without_cap(monkeypatch):
+    from backend.utils import memwatch
+    monkeypatch.setattr(memwatch, "cgroup_limit_mb", lambda: None)
+    monkeypatch.delenv("NORA_ALLOW_UNLIMITED", raising=False)
+    with pytest.raises(SystemExit, match="run_limited.sh"):
+        memwatch.require_memory_limit("build_strategy_book")
+    monkeypatch.setenv("NORA_ALLOW_UNLIMITED", "0")
+    with pytest.raises(SystemExit):
+        memwatch.require_memory_limit("build_strategy_book")
+
+
+def test_require_memory_limit_allows_explicit_unlimited(monkeypatch):
+    from backend.utils import memwatch
+    monkeypatch.setattr(memwatch, "cgroup_limit_mb", lambda: None)
+    monkeypatch.setenv("NORA_ALLOW_UNLIMITED", "1")
+    memwatch.require_memory_limit("build_strategy_book")  # không raise
+
+
+def test_require_memory_limit_returns_the_cap(monkeypatch):
+    from backend.utils import memwatch
+    monkeypatch.setattr(memwatch, "cgroup_limit_mb", lambda: 8192.0)
+    monkeypatch.delenv("NORA_ALLOW_UNLIMITED", raising=False)
+    assert memwatch.require_memory_limit("build_strategy_book") == 8192.0
+
+
+def test_auto_workers_trusts_cgroup_when_limited(monkeypatch):
+    from backend.utils import memwatch
+    book = _load_book_script()
+    monkeypatch.setattr(memwatch, "cgroup_limit_mb", lambda: 8192.0)
+    monkeypatch.setattr(memwatch, "cgroup_free_mb", lambda: 8192.0)
+    monkeypatch.setattr(memwatch, "mem_available_mb", lambda: 60_000.0)  # phải bị bỏ qua
+    monkeypatch.setattr(memwatch, "usable_cpus", lambda: 16)
+    assert book._auto_workers(2000) == 3        # 8192 * 0.85 / 2000 = 3.48
+
+
+def test_auto_workers_uses_mem_available_when_unlimited(monkeypatch):
+    from backend.utils import memwatch
+    book = _load_book_script()
+    monkeypatch.setattr(memwatch, "cgroup_limit_mb", lambda: None)
+    monkeypatch.setattr(memwatch, "cgroup_free_mb", lambda: None)
+    monkeypatch.setattr(memwatch, "mem_available_mb", lambda: 20_000.0)
+    monkeypatch.setattr(memwatch, "usable_cpus", lambda: 16)
+    assert book._auto_workers(2000) == 6        # 20000 * 0.6 / 2000
+    monkeypatch.setattr(memwatch, "usable_cpus", lambda: 4)
+    assert book._auto_workers(2000) == 2        # bị chặn bởi CPU − 2
+
+
+def test_worker_init_never_raises():
+    from backend.utils import memwatch
+    memwatch.worker_init()

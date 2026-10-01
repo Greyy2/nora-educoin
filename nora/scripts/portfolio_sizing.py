@@ -72,6 +72,8 @@ def main(argv=None):
     ap.add_argument("--registry", default=os.path.join(NORA_ROOT, "alphas", "registry.json"))
     ap.add_argument("--workers", type=int, default=8)
     a = ap.parse_args(argv)
+    from backend.utils.memwatch import require_memory_limit, worker_init
+    require_memory_limit("portfolio_sizing")
     from research_trend_portfolio import portfolio
 
     reg = json.load(open(a.registry, encoding="utf-8"))
@@ -87,7 +89,7 @@ def main(argv=None):
             for sym in assets:
                 jobs.append((alpha["flows"], {**base, "stop_fill": sf}, sym, s, e))
                 keys.append((sf, per, sym))
-    with ProcessPoolExecutor(max_workers=a.workers) as pool:
+    with ProcessPoolExecutor(max_workers=a.workers, initializer=worker_init) as pool:
         out = dict(zip(keys, pool.map(_run, jobs)))
 
     report = {"alpha": a.alpha, "assets": assets, "periods": {k: [str(pd.Timestamp(v[0], unit="ms").date()),

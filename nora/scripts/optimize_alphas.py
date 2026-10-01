@@ -29,7 +29,7 @@ import random
 import sys
 import time
 from collections import Counter
-from concurrent.futures import ProcessPoolExecutor, as_completed, BrokenExecutor
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime, timezone
 
 NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -185,6 +185,8 @@ def main(argv=None):
     ap.add_argument("--seed", type=int, default=20260930)
     ap.add_argument("--workers", type=int, default=8)
     args = ap.parse_args(argv)
+    from backend.utils.memwatch import require_memory_limit, worker_init
+    require_memory_limit("optimize_alphas")
     from backend.alpha.strategy_library import OPTIMIZATION_SPACES
     from backend.db.data_layout import cache_dir, list_assets
 
@@ -199,7 +201,7 @@ def main(argv=None):
     print(f"{len(pairs)} cặp (chiến lược × tài sản), {args.n} cấu hình/cặp, {args.workers} tiến trình -> {out_dir}", flush=True)
 
     results = []
-    with ProcessPoolExecutor(max_workers=args.workers) as pool:
+    with ProcessPoolExecutor(max_workers=args.workers, initializer=worker_init) as pool:
         futs = {pool.submit(run_pair, sid, sym, args.n, args.seed, db_path): (sid, sym) for sid, sym in pairs}
         for fut in as_completed(futs):
             sid, sym = futs[fut]

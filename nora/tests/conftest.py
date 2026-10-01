@@ -12,6 +12,8 @@ _TMP = tempfile.mkdtemp(prefix="nora_test_")
 os.environ["NORA_PIPELINE_DB_PATH"] = os.path.join(_TMP, "pipeline.db")
 os.environ["NORA_LOCAL_DATA_ROOT"] = os.path.join(_TMP, "data")
 os.makedirs(os.environ["NORA_LOCAL_DATA_ROOT"], exist_ok=True)
+# Test nhỏ, và cũng được chạy dưới run_limited.sh ở CI/chạy tay: không bắt buộc trần cgroup cho script nặng.
+os.environ.setdefault("NORA_ALLOW_UNLIMITED", "1")
 
 import pytest  # noqa: E402
 

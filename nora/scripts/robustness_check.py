@@ -48,6 +48,8 @@ def main(argv=None):
     ap.add_argument("symbol")
     ap.add_argument("--workers", type=int, default=8)
     a = ap.parse_args(argv)
+    from backend.utils.memwatch import require_memory_limit, worker_init
+    require_memory_limit("robustness_check")
     from backend.alpha.strategy_library import OPTIMIZATION_SPACES
     from backend.db.data_layout import list_assets
     from backend.db.local_pkl import read_manifest
@@ -72,7 +74,7 @@ def main(argv=None):
 
     jobs = [(a.space_id, a.symbol, p, *periods[per]) for _, p in variants for per in ("dev2", "holdout")]
     jobs += [(a.space_id, sym, final, *periods[per]) for sym in others for per in ("dev2", "holdout")]
-    with ProcessPoolExecutor(max_workers=a.workers) as pool:
+    with ProcessPoolExecutor(max_workers=a.workers, initializer=worker_init) as pool:
         out = list(pool.map(_window_run, jobs))
     k = 0
     report = {"space": a.space_id, "symbol": a.symbol, "neighbors": [], "other_assets": []}

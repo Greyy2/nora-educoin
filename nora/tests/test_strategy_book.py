@@ -87,7 +87,8 @@ def test_book_pipeline_runs_all_stages_with_shared_params(market, monkeypatch, t
     assert m["trades"] > 0 and set(m["by_symbol"]) == set(SYMS)
 
     out = tmp_path / "alphas"
-    mod.main(["--workers", "2", "--n", "4", "--out", str(out)])
+    # bộ dữ liệu giả lập rất nhỏ: số RAM/worker mặc định (cỡ production) không phù hợp, đặt thấp để qua cổng RAM
+    mod.main(["--workers", "2", "--per-worker-mb", "300", "--n", "4", "--out", str(out)])
     reports = sorted((market / "_cache" / "book").glob("*/report.json"))
     assert reports, "phải ghi báo cáo"
     rep = json.loads(reports[-1].read_text())

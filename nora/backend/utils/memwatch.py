@@ -53,14 +53,13 @@ def _read_int(path: str) -> Optional[int]:
     return None if raw == "max" else int(raw)
 
 
-def cgroup_free_mb() -> Optional[float]:
-    """Phần còn trống (MB) của giới hạn bộ nhớ cgroup chặt nhất chứa tiến trình; None nếu không bị giới hạn."""
+def _cgroup_levels():
+    """Duyệt mọi cấp cgroup chứa tiến trình (lá -> gốc); yield (giới_hạn_byte, đang_dùng_byte) của cấp có giới hạn thật."""
     try:
         with open("/proc/self/cgroup", "r") as f:
             lines = f.read().splitlines()
     except OSError:
-        return None
-    free: Optional[float] = None
+        return
     for line in lines:
         parts = line.split(":", 2)
         if len(parts) != 3:
@@ -77,12 +76,52 @@ def cgroup_free_mb() -> Optional[float]:
             limit = _read_int(f"{base}{p}/{files[0]}")
             used = _read_int(f"{base}{p}/{files[1]}")
             if limit is not None and limit < _UNLIMITED_V1 and used is not None:
-                level_free = max(0.0, (limit - used) / (1024 * 1024))
-                free = level_free if free is None else min(free, level_free)
+                yield limit, used
             if not p:
                 break
             p = p.rsplit("/", 1)[0]
+
+
+def cgroup_free_mb() -> Optional[float]:
+    """Phần còn trống (MB) của giới hạn bộ nhớ cgroup chặt nhất chứa tiến trình; None nếu không bị giới hạn."""
+    free: Optional[float] = None
+    for limit, used in _cgroup_levels():
+        level_free = max(0.0, (limit - used) / (1024 * 1024))
+        free = level_free if free is None else min(free, level_free)
     return free
+
+
+def cgroup_limit_mb() -> Optional[float]:
+    """Giới hạn bộ nhớ (MB) chặt nhất trong chuỗi cgroup chứa tiến trình; None nếu không bị giới hạn."""
+    limits = [limit / (1024 * 1024) for limit, _ in _cgroup_levels()]
+    return min(limits) if limits else None
+
+
+def require_memory_limit(label: str) -> float:
+    """Bắt buộc script nặng chạy dưới trần RAM cgroup; trả về trần (MB; inf nếu được phép chạy không giới hạn).
+
+    Không có trần và NORA_ALLOW_UNLIMITED != "1" -> SystemExit (server dùng chung, không swap: tràn RAM là sập máy).
+    """
+    limit = cgroup_limit_mb()
+    if limit is None:
+        if os.environ.get("NORA_ALLOW_UNLIMITED") != "1":
+            raise SystemExit(
+                f"[{label}] Script này phải chạy dưới trần RAM (cgroup) — server dùng chung, không có swap, "
+                "tràn RAM sẽ làm sập cả máy.\n"
+                f"  Chạy: scripts/run_limited.sh --mem 8G -- scripts/{label}.py ...\n"
+                "  Hoặc, nếu chắc chắn muốn chạy không giới hạn, đặt NORA_ALLOW_UNLIMITED=1."
+            )
+        return float("inf")  # chủ động cho phép không giới hạn
+    return limit
+
+
+def worker_init() -> None:
+    """Initializer cho ProcessPoolExecutor: đặt oom_score_adj cao để khi OOM kernel giết worker, không giết tiến trình điều phối."""
+    try:
+        with open("/proc/self/oom_score_adj", "w") as f:
+            f.write("1000")
+    except Exception:
+        pass
 
 
 def effective_available_mb() -> float:

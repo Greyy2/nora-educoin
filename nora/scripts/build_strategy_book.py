@@ -18,9 +18,12 @@ Kết quả: alphas/book.json (+ alphas/testnet/book.json nếu sổ có chiến
 Bộ nhớ (mỗi worker là một tiến trình có cache riêng):
   NORA_CANDLE_CACHE_MB   ngân sách cache nến cả file (script này mặc định 512 MB)
   NORA_DATA_CACHE_MB     ngân sách cache mảng giá + kernel theo cửa sổ (script này mặc định 1024 MB)
-  RAM tối đa một worker ≈ hai ngân sách trên + TRANSIENT_MB + BASE_MB (xem per_worker_budget_mb),
-  ghi đè bằng --per-worker-mb khi đã đo đỉnh thật (cột peak_rss_mb in ra ở mỗi giai đoạn).
+  RAM một worker: mặc định PER_WORKER_MB (số ĐO THỰC, chỉ để hoạch định số worker + cổng RAM; rào cứng là
+  trần cgroup — worker vượt thì bị giết riêng, _pool_map_safe chạy lại với một nửa số worker).
+  Đo lại bằng dòng `đỉnh RAM/worker` và ghi đè bằng --per-worker-mb khi dữ liệu/ngân sách cache đổi.
   --workers auto đọc cả giới hạn cgroup (systemd-run -p MemoryMax=...), không chỉ RAM trống của máy.
+  BẮT BUỘC chạy dưới trần RAM: scripts/run_limited.sh --mem 8G -- scripts/build_strategy_book.py ...
+  (không có trần cgroup thì script từ chối chạy, trừ khi NORA_ALLOW_UNLIMITED=1).
   OMP_NUM_THREADS / OPENBLAS_NUM_THREADS / MKL_NUM_THREADS đặt = "1" nếu chưa có.
 """
 # ── Đặt TRƯỚC mọi import numpy/backend: tiến trình con kế thừa qua fork ──────
@@ -55,14 +58,10 @@ MDD_LIMIT = 30.0
 RUIN_MAX_PCT = 5.0
 RISK_SCALES = (0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 4.0)
 MAX_RISK_PER_TRADE = 2.0
-TRANSIENT_MB = 700   # đỉnh tạm khi nạp + dựng ma trận kernel cho một tài sản (đọc pkl 1m, copy, merge_asof)
-BASE_MB = 300        # interpreter + numpy/pandas + kết quả lệnh
-
-
-def per_worker_budget_mb() -> float:
-    """Trần RAM một worker = cache nến + cache dữ liệu (đều có trần theo byte) + đỉnh tạm + nền."""
-    from backend.utils.lru import env_mb
-    return env_mb("NORA_CANDLE_CACHE_MB", 512) + env_mb("NORA_DATA_CACHE_MB", 1024) + TRANSIENT_MB + BASE_MB
+# Đo 01/10/2026: VmHWM 1280–1320 MB mỗi worker (8 tài sản perp, dev1 ≈ 14 tháng, cache 512/1024 MB) × 1,3 dự phòng.
+# Đo lại bằng dòng `đỉnh RAM/worker`, ghi đè bằng --per-worker-mb khi kích thước dữ liệu hoặc ngân sách cache đổi;
+# trần cgroup (run_limited.sh) mới là rào cứng.
+PER_WORKER_MB = 1700
 
 
 def windows(symbols):
@@ -171,7 +170,8 @@ def _pool_map_safe(pool_fn, jobs: list, workers: int, label: str) -> list:
         pending = [i for i in range(len(jobs)) if not done[i]]
         if not pending:
             break
-        pool = ProcessPoolExecutor(max_workers=n_workers)
+        from backend.utils.memwatch import worker_init
+        pool = ProcessPoolExecutor(max_workers=n_workers, initializer=worker_init)
         futures = {}
         try:
             futures = {pool.submit(pool_fn, jobs[i]): i for i in pending}
@@ -201,14 +201,20 @@ def _pool_map_safe(pool_fn, jobs: list, workers: int, label: str) -> list:
 
 
 def _auto_workers(per_worker_mb: float) -> int:
-    """Số worker = min(CPU dùng được − 2, 60% RAM dùng được / trần RAM một worker).
-    RAM dùng được tính cả giới hạn cgroup (systemd-run -p MemoryMax=...)."""
-    from backend.utils.memwatch import effective_available_mb, usable_cpus
+    """Số worker = min(CPU dùng được − 2, ngân sách RAM / trần RAM một worker).
+
+    Có trần cgroup (run_limited.sh): cgroup là rào cứng bảo vệ server -> dùng 85% phần còn trống của nó.
+    Không có: 60% MemAvailable của máy. CPU dùng được tôn trọng taskset (taskset -c 0-5 -> 6)."""
+    from backend.utils.memwatch import cgroup_free_mb, cgroup_limit_mb, mem_available_mb, usable_cpus
     cpu_limit = max(1, usable_cpus() - 2)
-    avail = effective_available_mb()
+    if cgroup_limit_mb() is not None:
+        free = cgroup_free_mb()
+        avail = (free if free is not None else 0.0) * 0.85
+    else:
+        avail = mem_available_mb() * 0.6
     if avail <= 0:
         return min(cpu_limit, 2)  # không đọc được RAM: chạy dè dặt
-    return max(1, min(cpu_limit, int(avail * 0.6 / per_worker_mb)))
+    return max(1, min(cpu_limit, int(avail / per_worker_mb)))
 
 
 def main(argv=None):
@@ -217,18 +223,20 @@ def main(argv=None):
     ap.add_argument("--workers", default="auto",
                     help="số worker tiến trình song song; 'auto' = tính theo RAM (gồm cgroup) và CPU")
     ap.add_argument("--per-worker-mb", type=float, default=None,
-                    help="trần RAM một worker (MB); mặc định = hai ngân sách cache + TRANSIENT_MB + BASE_MB")
+                    help="trần RAM một worker (MB); mặc định = PER_WORKER_MB (số đo thực)")
     ap.add_argument("--n", type=int, default=24, help="số cấu hình thử mỗi chiến lược ở dev1")
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--only", default="", help="chỉ các chiến lược này (phân tách bằng dấu phẩy)")
     ap.add_argument("--out", default=os.path.join(NORA_ROOT, "alphas"))
     a = ap.parse_args(argv)
+    from backend.utils.memwatch import require_memory_limit
+    require_memory_limit("build_strategy_book")
     from backend.alpha.strategy_book import BASE_RISK_PER_TRADE_PCT, CANDIDATES, GATES, RISK, perp_symbols
     from backend.db.data_layout import cache_dir
     from backend.utils.memwatch import check_memory_gate, effective_available_mb
 
     # ── Số worker + kiểm RAM trước khi chạy ──────────────────────────────────
-    per_worker_mb = a.per_worker_mb or per_worker_budget_mb()
+    per_worker_mb = a.per_worker_mb or PER_WORKER_MB
     if str(a.workers).strip().lower() == "auto":
         workers = _auto_workers(per_worker_mb)
         print(f"[auto] workers={workers} (RAM dùng được {effective_available_mb():.0f} MB, "
