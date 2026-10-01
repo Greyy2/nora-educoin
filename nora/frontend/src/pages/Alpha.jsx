@@ -1,7 +1,7 @@
 import React from 'react'
 import { useSearchParams } from 'react-router-dom'
 import KhoAlpha from './Strategies'
-import PhienDao from './Miner'
+import PhienDao from './PhienDao'
 import Studio from './Studio'
 
 /**
