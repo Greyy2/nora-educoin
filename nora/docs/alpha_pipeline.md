@@ -121,3 +121,24 @@ scripts/run_limited.sh -- scripts/validate_book.py --report data/_cache/book/<th
 scripts/run_limited.sh -- scripts/validate_book.py --candidates trend_long,reversion_short --n 3 --workers auto
 ```
 Kết quả: `<data>/_cache/book_wfa/<thời điểm>/report.json`.
+
+## 9. API sổ chiến lược: job nền (`/api/studio/book`)
+
+API có trần RAM riêng (3G) nên KHÔNG chạy backtest/WFA danh mục trong tiến trình. Mỗi job là một tiến trình con
+`scripts/run_limited.sh -- scripts/<script>.py ...` (scope riêng trong `nora.slice`, xếp hàng tuần tự bằng flock, worker tự chia);
+API chỉ khởi chạy, theo dõi và đọc kết quả (`backend/studio_pipeline/batch_jobs.py`, router `backend/api/routers/book.py`).
+
+| Endpoint | Việc |
+|---|---|
+| `GET /api/studio/book/` | `alphas/book.json` (status, chiến lược + tham số + tóm tắt bằng chứng), tóm tắt báo cáo `book_wfa` mới nhất, danh mục ứng viên (id, family, side, mô tả, không gian tham số) |
+| `POST /backtest` `{strategies?, symbols?, start, end, risk_per_trade_pct?, stop_fill?}` | `scripts/run_book_backtest.py`; bỏ `strategies` = dùng `alphas/book.json`; tham số thiếu = mức giữa của không gian |
+| `POST /wfa` `{report_dir? \| candidates + n, start?, end?, train_days?, test_days?}` | `scripts/validate_book.py` |
+| `POST /build` `{only?, n?}` | `scripts/build_strategy_book.py` (ghi đè `alphas/book.json`) |
+| `GET /jobs`, `GET /jobs/{job_id}` | danh sách / trạng thái + 40 dòng log cuối + `result` khi xong |
+
+Mô hình job: mỗi job có thư mục `<data>/_cache/api_jobs/<job_id>/` gồm `job.json` (loại, đối số, pid, mốc thời gian, mã thoát),
+`out.log` (stdout+stderr) và `result.json` (báo cáo cuối; script ghi khi có env `NORA_JOB_DIR`). Trạng thái:
+`queued` (log chỉ có dòng "đang chờ job khác" của run_limited) → `running` → `done` | `failed`. Trạng thái sống sót qua khởi động lại API
+(đọc lại từ pid / dòng `exit N` cuối log / `result.json`). Chỉ có danh sách trắng loại job + cờ; đối số được kiểm (ngày, tài sản trong vũ trụ,
+số trong khoảng), không dùng shell; tối đa 8 job đang chạy/chờ (429). `POST /backtest` trả `result.trade_list` (từng lệnh) và `equity_curve` (≤ 2000 điểm),
+cùng các số đo của `portfolio_metrics`.

@@ -39,6 +39,7 @@ if SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, SCRIPTS_DIR)
 
 import build_strategy_book as bsb  # noqa: E402  (windows, configs, PER_WORKER_MB, _dir_mb)
+from backend.utils.jobresult import write_job_result  # noqa: E402
 from backend.utils.jsonsafe import json_default  # noqa: E402
 
 
@@ -175,6 +176,7 @@ def main(argv=None):
         json.dump(res, fh, ensure_ascii=False, indent=1, default=json_default)
     print_summary(res)
     print(f"thời gian {res['source']['wall_s']:.0f}s | báo cáo: {path}")
+    write_job_result({**res, "report_path": path})  # chỉ khi chạy như job API (env NORA_JOB_DIR)
     return res
 
 

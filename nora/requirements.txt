@@ -14,3 +14,4 @@ pymysql==1.2.3
 redis==8.1.0
 requests==2.34.2
 pytest==9.1.1
+httpx==0.28.1   # cho fastapi.testclient.TestClient (tests/test_book_api.py)

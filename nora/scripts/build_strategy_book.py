@@ -54,6 +54,7 @@ if NORA_ROOT not in sys.path:
 
 from backend.backtest.portfolio_metrics import bootstrap_daily, portfolio_metrics  # noqa: E402
 from backend.utils.parallel import auto_workers, pool_map_safe  # noqa: E402
+from backend.utils.jobresult import write_job_result  # noqa: E402
 from backend.utils.jsonsafe import json_default  # noqa: E402
 
 DAY = 86_400_000
@@ -336,6 +337,7 @@ def main(argv=None):
     with open(os.path.join(run_dir, "report.json"), "w", encoding="utf-8") as fh:
         json.dump(report, fh, ensure_ascii=False, indent=1, default=json_default)
     print("báo cáo:", os.path.join(run_dir, "report.json"))
+    paths = []
     if report.get("book"):
         from backend.alpha.book_export import write_book
         paths = write_book(report, a.out, source=run_dir, repo_dir=os.path.dirname(NORA_ROOT))
@@ -343,6 +345,7 @@ def main(argv=None):
             print("ghi:", path)
         if len(paths) == 1:  # holdout không đạt: chỉ có book.json (HOLDOUT_FAILED), không có cấu hình testnet
             print("HOLDOUT KHÔNG ĐẠT — không tạo alphas/testnet/book.json.")
+    write_job_result({**report, "run_dir": run_dir, "written": paths})  # chỉ khi chạy như job API (env NORA_JOB_DIR)
 
 
 if __name__ == "__main__":

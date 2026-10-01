@@ -34,11 +34,12 @@ app.add_middleware(
 )
 
 try:
-    from backend.api.routers import engine, meta, studio, research
+    from backend.api.routers import engine, meta, studio, research, book
     app.include_router(engine.router)
     app.include_router(meta.router)
     app.include_router(studio.router)
     app.include_router(research.router)
+    app.include_router(book.router)
 except Exception as e:
     import traceback
     traceback.print_exc()
