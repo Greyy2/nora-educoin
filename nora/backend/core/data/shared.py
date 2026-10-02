@@ -6,7 +6,7 @@ TỪNG cột kernel là một file; nhóm nào cũng dùng lại phần đã có
 nên N worker đọc chung không nhân bản RAM.
 
 Bố cục <out_dir>/:
-  base/<khoá nền>/{t,o,h,l,c,f_t,f_r}.npy + meta.json
+  base/<khoá nền>/{t,o,h,l,c,v,f_t,f_r}.npy + meta.json
   cols/<khoá cột>.npy
 
 Khoá phải tái lập ĐÚNG dữ liệu mà engine tự dựng (bằng từng bit):
@@ -16,8 +16,11 @@ Khoá phải tái lập ĐÚNG dữ liệu mà engine tự dựng (bằng từng
   -> cột chỉ báo đệ quy (EMA, RSI...) phụ thuộc điểm bắt đầu nạp, nên cùng tên cột nhưng khác điểm bắt đầu là hai file khác nhau.
 Ghi nguyên tử (thư mục / file tạm + rename): người đọc không bao giờ thấy dữ liệu dở; hai tiến trình ghi cùng khoá thì một bản thắng.
 
-Dùng: PortfolioEngine._load_symbol (khi có shared_dir) gọi plan -> load; thiếu thì fill (chỉ tính phần thiếu, ngay trong tiến trình đó)
-rồi load lại. export() = fill cho mọi tài sản của một engine (tiến trình cha làm nóng trước khi chạy pool).
+Dùng:
+  export() (tiến trình cha làm nóng trước pool: sổ, WFA, phễu) ghi nền + cột — các job sau dùng lại đúng bộ cột đó.
+  PortfolioEngine._load_shared (worker, khi có shared_dir): đủ thì đọc mmap; thiếu nền thì tự ghi nền (một lần cho cả pool);
+  cột thiếu thì tính NGAY TRONG RAM từ file khung (15m/1h/4h, nhỏ) căn theo lưới `t` của nền — KHÔNG ghi ra đĩa: với tham số
+  sinh theo schema, điểm bắt đầu nạp khung đổi theo từng nhóm nên cột gần như không dùng lại (đo: ~5 MB/cột, 2354 file / 900 alpha).
 """
 import hashlib
 import json
@@ -31,9 +34,9 @@ if TYPE_CHECKING:  # tránh import vòng (portfolio import module này)
     from backend.core.backtest.engine import BacktestEngine
     from backend.core.backtest.portfolio import PortfolioEngine
 
-FORMAT_VERSION = 2
-BASE_ARRAYS = ("t", "o", "h", "l", "c", "f_t", "f_r")
-STATS = {"fills": 0, "cols_written": 0, "bases_written": 0}   # theo tiến trình: số lần phải tự điền (giám sát phễu)
+FORMAT_VERSION = 3
+BASE_ARRAYS = ("t", "o", "h", "l", "c", "v", "f_t", "f_r")   # v: khối lượng phút thật — để tính cột 1m từ nền
+STATS = {"fills": 0, "cols_written": 0, "bases_written": 0, "cols_in_memory": 0}   # theo tiến trình (giám sát / test)
 
 
 def _sha1(payload: Dict[str, Any]) -> str:
@@ -108,21 +111,48 @@ def _load_array(path: str) -> np.ndarray:
     return np.asarray(arr)  # ndarray thường (index từng phần tử nhanh hơn np.memmap), vẫn chia sẻ mmap, chỉ đọc
 
 
-def load(out_dir: str, p: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """Dict giống PortfolioEngine._build_symbol_data, mọi mảng là view mmap chỉ đọc; None nếu thiếu / hỏng bất kỳ phần nào."""
+def load_base(out_dir: str, p: Dict[str, Any]) -> Optional[Dict[str, np.ndarray]]:
+    """Mảng nền {t,o,h,l,c,f_t,f_r} (mmap chỉ đọc); None nếu chưa có / hỏng."""
     bdir = _base_dir(out_dir, p["base"])
     try:
         with open(os.path.join(bdir, "meta.json"), encoding="utf-8") as fh:
             if json.load(fh).get("version") != FORMAT_VERSION:
                 return None
-        arrays = {name: _load_array(os.path.join(bdir, f"{name}.npy")) for name in BASE_ARRAYS}
-        cols = {cid: _load_array(_col_path(out_dir, k)) for cid, k in p["cols"].items()}
+        return {name: _load_array(os.path.join(bdir, f"{name}.npy")) for name in BASE_ARRAYS}
     except (OSError, ValueError):
         return None
-    data: Dict[str, Any] = {k: arrays[k] for k in ("t", "o", "h", "l", "c")}
-    data["cols"] = cols
-    data["f_t"], data["f_r"] = arrays["f_t"], arrays["f_r"]
+
+
+def load_cols(out_dir: str, p: Dict[str, Any]) -> Dict[str, np.ndarray]:
+    """Các cột ĐÃ có trên đĩa của kế hoạch (mmap chỉ đọc); cột chưa có thì không có trong dict."""
+    out = {}
+    for cid, k in p["cols"].items():
+        path = _col_path(out_dir, k)
+        if os.path.isfile(path):
+            try:
+                out[cid] = _load_array(path)
+            except (OSError, ValueError):
+                pass
+    return out
+
+
+def assemble(base: Dict[str, np.ndarray], cols: Dict[str, np.ndarray], order) -> Dict[str, Any]:
+    """Dict giống PortfolioEngine._build_symbol_data (cột theo thứ tự `order`)."""
+    data: Dict[str, Any] = {k: base[k] for k in ("t", "o", "h", "l", "c")}
+    data["cols"] = {cid: cols[cid] for cid in order}
+    data["f_t"], data["f_r"] = base["f_t"], base["f_r"]
     return data
+
+
+def load(out_dir: str, p: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Dict giống PortfolioEngine._build_symbol_data, mọi mảng là view mmap chỉ đọc; None nếu thiếu / hỏng bất kỳ phần nào."""
+    base = load_base(out_dir, p)
+    if base is None:
+        return None
+    cols = load_cols(out_dir, p)
+    if len(cols) != len(p["cols"]):
+        return None
+    return assemble(base, cols, p["cols"])
 
 
 def _save(path: str, arr: np.ndarray) -> None:
@@ -137,7 +167,7 @@ def fill(out_dir: str, pe: "PortfolioEngine", eng: "BacktestEngine", p: Dict[str
     need = missing(out_dir, p)
     if not need["base"] and not need["cols"]:
         return {"base": False, "cols": 0}
-    data = pe._build_symbol_data(eng, only=set(need["cols"]))
+    data = pe._build_symbol_data(eng, only=set(need["cols"]), with_volume=need["base"])
     if need["base"]:
         final = _base_dir(out_dir, p["base"])
         os.makedirs(os.path.dirname(final), exist_ok=True)

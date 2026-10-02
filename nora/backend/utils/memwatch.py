@@ -59,8 +59,23 @@ def _read_int(path: str) -> Optional[int]:
     return None if raw == "max" else int(raw)
 
 
+def _inactive_file(stat_path: str, key: str) -> int:
+    """Page cache KHÔNG hoạt động (byte) trong memory.stat — kernel thu hồi được ngay khi cần, không tính là RAM đang dùng."""
+    try:
+        with open(stat_path, "r") as f:
+            for line in f:
+                name, _, val = line.partition(" ")
+                if name == key:
+                    return int(val)
+    except (OSError, ValueError):
+        pass
+    return 0
+
+
 def _cgroup_levels():
-    """Duyệt mọi cấp cgroup chứa tiến trình (lá -> gốc); yield (giới_hạn_byte, đang_dùng_byte) của cấp có giới hạn thật."""
+    """Duyệt mọi cấp cgroup chứa tiến trình (lá -> gốc); yield (giới_hạn_byte, đang_dùng_byte) của cấp có giới hạn thật.
+    đang_dùng = memory.current trừ page cache không hoạt động (inactive_file): file mmap dùng chung / dữ liệu đã đọc nằm trong
+    cache của cgroup nhưng thu hồi được — tính vào thì chia worker quá ít (đo: 8,6 GB cache -> chỉ 4/14 worker)."""
     try:
         with open("/proc/self/cgroup", "r") as f:
             lines = f.read().splitlines()
@@ -72,9 +87,9 @@ def _cgroup_levels():
             continue
         hier, controllers, path = parts
         if hier == "0" and controllers == "":           # cgroup v2: kiểm mọi cấp từ lá lên gốc
-            base, files = "/sys/fs/cgroup", ("memory.max", "memory.current")
+            base, files, inactive = "/sys/fs/cgroup", ("memory.max", "memory.current"), "inactive_file"
         elif "memory" in controllers.split(","):        # cgroup v1
-            base, files = "/sys/fs/cgroup/memory", ("memory.limit_in_bytes", "memory.usage_in_bytes")
+            base, files, inactive = "/sys/fs/cgroup/memory", ("memory.limit_in_bytes", "memory.usage_in_bytes"), "total_inactive_file"
         else:
             continue
         p = path.rstrip("/")
@@ -82,7 +97,7 @@ def _cgroup_levels():
             limit = _read_int(f"{base}{p}/{files[0]}")
             used = _read_int(f"{base}{p}/{files[1]}")
             if limit is not None and limit < _UNLIMITED_V1 and used is not None:
-                yield limit, used
+                yield limit, max(0, used - _inactive_file(f"{base}{p}/memory.stat", inactive))
             if not p:
                 break
             p = p.rsplit("/", 1)[0]

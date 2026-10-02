@@ -188,7 +188,8 @@ def test_run_with_shared_dir_matches_run_without(market, tmp_path, monkeypatch):
     lazy = _engine(shared_dir=empty)
     lazy.run()
     assert gs.canonicalize(lazy.get_results()) == golden
-    assert shared_data.STATS["fills"] - before == len(SYMS) and os.listdir(os.path.join(empty, "cols"))
+    assert shared_data.STATS["fills"] - before == len(SYMS)                         # chỉ ghi nền (mỗi tài sản một lần)
+    assert len(os.listdir(os.path.join(empty, "base"))) == len(SYMS) and not os.path.isdir(os.path.join(empty, "cols"))
     calls = []
     orig = PortfolioEngine._build_symbol_data
     monkeypatch.setattr(PortfolioEngine, "_build_symbol_data", lambda self, e, only=None: calls.append(1) or orig(self, e, only))
@@ -208,3 +209,32 @@ def test_golden_real_through_shared_mmap(tmp_path):
     fresh = gs.scenario_portfolio_real(root, shared_dir=str(tmp_path / "shared"))
     assert os.listdir(tmp_path / "shared")
     assert golden == fresh, gs.diff_canonical(golden, fresh)
+
+
+@pytest.mark.parametrize("frame", ["15m", "1m"])
+def test_lazy_columns_in_memory_equal_built(market, tmp_path, frame):
+    """Nền có sẵn, cột thiếu: tính trong RAM (khung lớn căn theo t của nền; cột 1m dựng riêng) -> bằng từng bit với tự dựng, không ghi cột."""
+    from backend.core.backtest.portfolio import PortfolioEngine, RiskConfig
+    from backend.core.data import shared as shared_data
+    out = tmp_path / "shared"
+    st = {"id": "s", "side": "LONG", "position": gs._POSITION,
+          "tree": [[[{"frame": frame, "column": "rsi_14"}, "<", {"frame": "4h", "column": "ema_30", "index": 1}]]]}
+    pe = PortfolioEngine(SYMS, [st], T0, T0 + 30 * DAY, trade_start_ts=T0 + 3 * DAY, risk=RiskConfig(), use_cache=False,
+                         shared_dir=str(out))
+    for sym in SYMS:
+        e, _ = pe._make_trackers(sym, pe.ledger)
+        p = shared_data.plan(e)
+        shared_data.fill(str(out), pe, e, {"base": p["base"], "cols": {}})
+    before = shared_data.STATS["cols_in_memory"]
+    for sym in SYMS:
+        e, _ = pe._make_trackers(sym, pe.ledger)
+        lazy = pe._load_symbol(sym, e)
+        e2, _ = pe._make_trackers(sym, pe.ledger)
+        built = pe._build_symbol_data(e2)
+        assert list(lazy["cols"]) == list(built["cols"])
+        for k in ("t", "o", "h", "l", "c", "f_t", "f_r"):
+            assert lazy[k].tobytes() == built[k].tobytes(), k
+        for k in built["cols"]:
+            assert lazy["cols"][k].dtype == built["cols"][k].dtype and lazy["cols"][k].tobytes() == built["cols"][k].tobytes(), k
+    assert shared_data.STATS["cols_in_memory"] - before == len(SYMS) * len(built["cols"])
+    assert not (out / "cols").exists()

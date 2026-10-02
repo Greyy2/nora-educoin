@@ -150,6 +150,13 @@ class BacktestEngine:
         if self.trade_start_ts < self.start_ts:
             self.trade_start_ts = self.start_ts
 
+        self.load_frames(refs)
+        if any(tr.market == "perp" for tr in self.trackers):
+            self.funding = self._load_funding()
+
+    def load_frames(self, refs: Optional[Dict[str, Set[Tuple[str, int]]]] = None) -> None:
+        """Nạp các khung lớn (không gồm 1m), mỗi khung từ start − warmup lớn nhất của các cột cùng khung (+5 ngày với 4h)."""
+        refs = self._refs_by_frame() if refs is None else refs
         for frame in sorted(set(refs) | {"4h"}):
             if frame == "1m" or frame not in FRAME_MS:
                 continue
@@ -158,8 +165,6 @@ class BacktestEngine:
             df = self._prepare_candles(loader.load_data(self.start_ts - buffer_ms, self.end_ts))
             self.frames[frame] = self._enrich_4h(df) if frame == "4h" else df
         self.df_4h = self.frames.get("4h")
-        if any(tr.market == "perp" for tr in self.trackers):
-            self.funding = self._load_funding()
 
     def _load_funding(self) -> Optional[pd.DataFrame]:
         """funding.pkl của instrument perp (nếu symbol là BTC@perp). Không có -> None (ghi rõ trong kết quả)."""
@@ -180,16 +185,11 @@ class BacktestEngine:
         if "is_filled" not in df1.columns:
             df1["is_filled"] = 0
         df1["is_filled"] = pd.to_numeric(df1["is_filled"], errors="coerce").fillna(0).astype(int)
-        frames = dict(self.frames)
-        if self.df_4h is not None and not self.df_4h.empty:
-            frames["4h"] = self._enrich_4h(self._prepare_candles(self.df_4h))
-
         refs = self._refs_by_frame()
         if only is not None:
             refs = {fr: {(c, lag) for c, lag in rs if f"{fr}|{lag_key(c, lag)}" in only} for fr, rs in refs.items()}
             refs = {fr: rs for fr, rs in refs.items() if rs}
         cols: Dict[str, np.ndarray] = {}
-        n = len(df1)
 
         # Khung 1m: kernel chỉ tính trên phút có giao dịch
         if refs.get("1m"):
@@ -199,10 +199,18 @@ class BacktestEngine:
             for name in feat.columns:
                 if name != KEY:
                     cols[f"1m|{name}"] = aligned[name].to_numpy(dtype="float64")
+        cols.update(self.frame_columns(refs, df1["open_time"].to_numpy()))
+        return df1, cols
 
-        # Các khung lớn: chỉ nến đã đóng
-        decision = pd.DataFrame({"decision_time": df1["open_time"].to_numpy() + FRAME_MS["1m"],
-                                 "_row": np.arange(n)})
+    def frame_columns(self, refs: Dict[str, Set[Tuple[str, int]]], open_time: np.ndarray) -> Dict[str, np.ndarray]:
+        """Cột của các khung lớn (đã nạp bằng load_frames) căn về các phút `open_time`: tại phút t chỉ thấy nến khung ĐÃ ĐÓNG trước
+        t + 1 phút. Mỗi phút ghép độc lập (merge_asof lùi) nên căn trên tập phút con cho đúng giá trị của các phút đó."""
+        frames = dict(self.frames)
+        if self.df_4h is not None and not self.df_4h.empty:
+            frames["4h"] = self._enrich_4h(self._prepare_candles(self.df_4h))
+        cols: Dict[str, np.ndarray] = {}
+        n = len(open_time)
+        decision = np.asarray(open_time, dtype="int64") + FRAME_MS["1m"]
         for frame, frame_refs in refs.items():
             if frame == "1m" or frame not in FRAME_MS:
                 continue
@@ -212,14 +220,25 @@ class BacktestEngine:
                     cols[f"{frame}|{lag_key(column, lag)}"] = np.full(n, np.nan)
                 continue
             feat = frame_features(fdf, frame_refs)
-            feat["avail_time"] = feat[KEY] + FRAME_MS[frame]
-            merged = pd.merge_asof(decision, feat.drop(columns=[KEY]).sort_values("avail_time"),
-                                   left_on="decision_time", right_on="avail_time", direction="backward")
-            merged = merged.sort_values("_row")
+            # ghép lùi (asof): nến cuối có avail_time = open + độ dài khung <= phút quyết định. open_time của khung tăng ngặt
+            # (_prepare_candles bỏ trùng) -> searchsorted phải - 1 chọn đúng dòng như merge_asof(direction="backward").
+            avail = feat[KEY].to_numpy(dtype="int64") + FRAME_MS[frame]
+            idx = np.searchsorted(avail, decision, side="right") - 1
+            miss = idx < 0
+            idx[miss] = 0
             for name in feat.columns:
-                if name not in (KEY, "avail_time"):
-                    cols[f"{frame}|{name}"] = merged[name].to_numpy(dtype="float64")
-        return df1, cols
+                if name != KEY:
+                    vals = feat[name].to_numpy(dtype="float64")
+                    out = vals[idx] if len(vals) else np.full(n, np.nan)
+                    out[miss] = np.nan
+                    cols[f"{frame}|{name}"] = out
+        return cols
+
+    @staticmethod
+    def minute_columns(real: pd.DataFrame, refs: Set[Tuple[str, int]]) -> Dict[str, np.ndarray]:
+        """Cột khung 1m tính trên các phút CÓ giao dịch (`real`, đã bỏ nến điền) — đúng phép tính _build_matrix dùng cho các phút đó."""
+        feat = frame_features(real, refs)
+        return {f"1m|{name}": feat[name].to_numpy(dtype="float64") for name in feat.columns if name != KEY}
 
     def run(self):
         """Chạy backtest bằng kernel numba (core/backtest/kernel.py) — kết quả trùng từng bit với vòng lặp Python cũ (test/reference_engine.py)."""
