@@ -491,6 +491,50 @@ def _on_bar(k, t, o, h, l, c, entry_signal, stop_signal, can_open, max_new, vol,
     return closed
 
 
+@njit(**_JIT)
+def _quiet_bar(k, t, o, h, l, peak, P, PI, F, I):
+    """True nếu nến (t, o, h, l) KHÔNG kích hoạt gì cho vị thế đang mở k: không timeout, không chạm DCA / SL / trailing / thanh lý / TP,
+    với `peak` = đỉnh có lợi tính tới nến TRƯỚC. Cùng biểu thức (cùng thứ tự phép toán float) với _on_bar/_intrabar khi chúng không làm gì
+    -> tua nhanh qua các nến yên tĩnh cho kết quả bit-identical (test_kernel_parity)."""
+    if PI[k, PI_TIMEOUT] != 0 and t - I[k, I_ENTRY_T] >= PI[k, PI_TIMEOUT]:
+        return False
+    long_ = PI[k, PI_LONG] == 1
+    adverse = l if long_ else h
+    favorable = h if long_ else l
+    sign = 1.0 if long_ else -1.0
+    kk = I[k, I_LAYERS] - 1
+    if kk < I[k, I_NST]:
+        level = F[k, F_LAST_FILL] * (1.0 - sign * F[k, F_DS0 + kk] / 100.0)
+        if (adverse <= level) if long_ else (adverse >= level):
+            return False
+    if F[k, F_SL] != 0.0:
+        level = F[k, F_AVG] * (1.0 - sign * F[k, F_SL] / 100.0)
+        if (adverse <= level) if long_ else (adverse >= level):
+            return False
+    if F[k, F_TRAIL] != 0.0:
+        if F[k, F_AVG] != 0.0:
+            gain_pct = sign * (peak - F[k, F_AVG]) / F[k, F_AVG] * 100.0
+        else:
+            gain_pct = 0.0
+        if gain_pct >= F[k, F_TACT]:
+            level = peak * (1.0 - sign * F[k, F_TRAIL] / 100.0)
+            if (adverse <= level) if long_ else (adverse >= level):
+                return False
+    if PI[k, PI_PERP] == 1 and F[k, F_QTY] > 0.0:
+        if long_:
+            liq = F[k, F_AVG] * (1.0 - 1.0 / F[k, F_POS_LEV] + P[k, P_MMR])
+        else:
+            liq = F[k, F_AVG] * (1.0 + 1.0 / F[k, F_POS_LEV] - P[k, P_MMR])
+        if liq > 0.0:
+            if (adverse <= liq) if long_ else (adverse >= liq):
+                return False
+    if F[k, F_TP] != 0.0:
+        tp_level = F[k, F_AVG] * (1.0 + sign * F[k, F_TP] / 100.0)
+        if (favorable >= tp_level) if long_ else (favorable <= tp_level):
+            return False
+    return True
+
+
 # ─── Tiện ích tìm kiếm ──────────────────────────────────────────────────────
 @njit(**_JIT)
 def _lower(arr, x, n):
@@ -557,6 +601,7 @@ def portfolio_kernel(PB, BL, PE, tr_book, book_off, P, PI, F, I, cfg_i, cfg_f,
     init_cap = cfg_f[0]
     cap = cfg_f[1]
     kill = cfg_f[2]
+    ffwd = kill == 0.0                           # tua nhanh phút yên tĩnh chỉ khi không có kill switch (cần MTM từng phút)
 
     # view mảng (không sao chép)
     Ts = [carray(_ptr(PB[b, 0]), (BL[b, 0],), np.int64) for b in range(nb)]
@@ -638,6 +683,119 @@ def portfolio_kernel(PB, BL, PE, tr_book, book_off, P, PI, F, I, cfg_i, cfg_f,
                     k = _lower(grid, last_sample + step, n)
                 g = land
                 continue
+        if ffwd and busy:
+            # Tua nhanh qua các phút YÊN TĨNH (không có kill switch nên MTM từng phút không ảnh hưởng gì ngoài mẫu vốn theo giờ):
+            # dừng ở phút sớm nhất có việc — mẫu vốn đến hạn, funding của sổ đang có vị thế, tín hiệu vào của tracker phẳng, vị thế mở
+            # chạm DCA/SL/trailing/thanh lý/TP/timeout hoặc có tín hiệu thoát. Phút đó xử lý như thường.
+            lim = _lower(grid, last_sample + step, n) if has_sample else g
+            for k in range(nt):
+                if I[k, I_PE] == 1 or I[k, I_PX] == 1:
+                    lim = g
+                    break
+            for b in range(nb):
+                if lim <= g:
+                    break
+                has_open = False
+                for k in range(book_off[b], book_off[b + 1]):
+                    if I[k, I_OPEN] == 1:
+                        has_open = True
+                if has_open and f_ptr[b] < BL[b, 1]:
+                    fi = _lower(grid, Fts[b][f_ptr[b]], n)
+                    if fi < lim:
+                        lim = fi
+                for k in range(book_off[b], book_off[b + 1]):
+                    if I[k, I_OPEN] == 1:
+                        continue
+                    m = Ms[k]
+                    j = g
+                    while j < lim:
+                        if BL[b, 2] == 0:
+                            i = j
+                        else:
+                            i = Ims[b][j]
+                            if i < 0:
+                                j += 1
+                                continue
+                        if m[i]:
+                            tj = grid[j]          # tín hiệu chỉ có tác dụng khi được giao dịch và hết cooldown (như _on_bar)
+                            if tj >= trade_start and (PI[k, PI_COOL] == 0 or I[k, I_HASLC] == 0
+                                                      or tj - I[k, I_LASTCLOSE] >= PI[k, PI_COOL]):
+                                lim = j
+                                break
+                        j += 1
+            for b in range(nb):
+                for k in range(book_off[b], book_off[b + 1]):
+                    if lim <= g:
+                        break
+                    if I[k, I_OPEN] == 0:
+                        continue
+                    long_ = PI[k, PI_LONG] == 1
+                    peak = F[k, F_PEAK]
+                    s = Ss[k]
+                    j = g
+                    while j < lim:
+                        if BL[b, 2] == 0:
+                            i = j
+                        else:
+                            i = Ims[b][j]
+                            if i < 0:
+                                j += 1
+                                continue
+                        if s[i] or not _quiet_bar(k, grid[j], Os[b][i], Hs[b][i], Ls[b][i], peak, P, PI, F, I):
+                            lim = j
+                            break
+                        if long_:
+                            if Hs[b][i] > peak:
+                                peak = Hs[b][i]
+                        else:
+                            if Ls[b][i] < peak:
+                                peak = Ls[b][i]
+                        j += 1
+            if lim > g:
+                # áp đúng các cập nhật của từng phút yên tĩnh: max/min giá, MAE, đỉnh; nến thật cuối của từng sổ
+                for b in range(nb):
+                    j = lim - 1
+                    ii = -1
+                    if BL[b, 2] == 0:
+                        ii = j
+                    else:
+                        while j >= g:
+                            if Ims[b][j] >= 0:
+                                ii = Ims[b][j]
+                                break
+                            j -= 1
+                    if ii >= 0:
+                        lg[b] = j
+                        lg_i[b] = ii
+                    for k in range(book_off[b], book_off[b + 1]):
+                        if I[k, I_OPEN] == 0:
+                            continue
+                        long_ = PI[k, PI_LONG] == 1
+                        pidx = I[k, I_POS]
+                        for j in range(g, lim):
+                            if BL[b, 2] == 0:
+                                i = j
+                            else:
+                                i = Ims[b][j]
+                                if i < 0:
+                                    continue
+                            h = Hs[b][i]
+                            l = Ls[b][i]
+                            if h > outF[pidx, O_MAXP]:
+                                outF[pidx, O_MAXP] = h
+                            if l < outF[pidx, O_MINP]:
+                                outF[pidx, O_MINP] = l
+                            u = _unreal(k, l if long_ else h, PI, F, I)
+                            if u < F[k, F_MAE]:
+                                F[k, F_MAE] = u
+                            if long_:
+                                if h > F[k, F_PEAK]:
+                                    F[k, F_PEAK] = h
+                            else:
+                                if l < F[k, F_PEAK]:
+                                    F[k, F_PEAK] = l
+                g = lim
+                continue
         t = grid[g]
         can_trade = t >= trade_start and not halted
         touched = False
@@ -712,6 +870,8 @@ def portfolio_kernel(PB, BL, PE, tr_book, book_off, P, PI, F, I, cfg_i, cfg_f,
         g += 1
         if not touched:
             continue
+        if ffwd and has_sample and t - last_sample < step:
+            continue                               # không kill switch: MTM chỉ dùng cho mẫu vốn theo giờ
         # _mtm
         mtm = LG[LG_EQ]
         worst = LG[LG_EQ]
@@ -885,6 +1045,9 @@ LIQUIDITY = {1: "maker", 2: "taker", 3: "liquidation"}
 _RETRY_FACTOR = 4
 _INIT_CAP_POS, _INIT_CAP_ORD = 2048, 8192   # dung lượng khởi đầu của mảng vị thế / lệnh (tràn -> chạy lại gấp 4)
 _MAX_TRIES = 6
+# Dung lượng đã phải mở rộng gần nhất trong tiến trình: run_many chạy liền nhiều alpha cùng tín hiệu (số lệnh tương tự) -> bắt đầu từ mức
+# đó thay vì tràn rồi chạy lại cả kernel. Chỉ ảnh hưởng cấp phát, không ảnh hưởng kết quả.
+_CAP_HINT = [_INIT_CAP_POS, _INIT_CAP_ORD]
 
 
 # ─── Đóng gói tracker ───────────────────────────────────────────────────────
@@ -1125,7 +1288,7 @@ def run_portfolio(eng: Any) -> None:
     tr_book_a, book_off_a = np.asarray(tr_book, dtype=np.int64), np.asarray(book_off, dtype=np.int64)
     span_samples = int((int(grid[-1]) - int(grid[0])) // int(cfg_i[4])) + 8
 
-    cap_pos, cap_ord = _INIT_CAP_POS, _INIT_CAP_ORD
+    cap_pos, cap_ord = _CAP_HINT
     for _ in range(_MAX_TRIES):
         outs = _alloc(cap_pos, cap_ord, min(n, span_samples) + 8)
         P2, PI2, F2, I2 = P.copy(), PI, F.copy(), I.copy()
@@ -1137,6 +1300,7 @@ def run_portfolio(eng: Any) -> None:
         if G[G_OVF] == 0:
             break
         cap_pos, cap_ord = cap_pos * _RETRY_FACTOR, cap_ord * _RETRY_FACTOR
+        _CAP_HINT[0], _CAP_HINT[1] = cap_pos, cap_ord
     else:
         raise RuntimeError("kernel: tràn bộ nhớ đệm kết quả sau nhiều lần mở rộng")
 

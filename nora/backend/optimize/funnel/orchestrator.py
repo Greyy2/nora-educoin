@@ -21,7 +21,7 @@ from .generate import alpha_id_of, count_params, iter_params, iter_params_factor
 from .storage import RunStore, StageResult
 from backend.optimize.funnel.gates import compute_windows, windows_iso, wfa_folds
 
-PER_WORKER_MB = 700            # đo thực (P1.8, 10k alpha schema, 8 tài sản): RAM riêng mỗi worker đỉnh ~630 MB; nền giá dùng chung qua mmap
+PER_WORKER_MB = 800            # đo thực (P1.8, 10k alpha schema, 8 tài sản): RAM riêng mỗi worker đỉnh ~715 MB; nền giá dùng chung qua mmap
 GEN_BATCH = 5000               # alpha ghi mỗi giao dịch ở S0
 PAGE = 1000                    # số alpha nạp mỗi lần từ `pending`
 S2_CHUNK = 2000                # số alpha S2 xử lý mỗi lượt (bộ nhớ + gom điểm lân cận cần chạy)

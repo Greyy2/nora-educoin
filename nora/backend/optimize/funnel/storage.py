@@ -294,7 +294,8 @@ class RunStore:
                                           "reject_msg=? WHERE alpha_id=?", (r.stage, idx, r.stage, idx, r.code, r.msg, r.alpha_id))
                 self._con.execute("COMMIT")
             except BaseException:
-                self._con.execute("ROLLBACK")
+                if self._con.in_transaction:   # SIGTERM có thể tới ngay SAU khi COMMIT xong -> không còn giao dịch để huỷ
+                    self._con.execute("ROLLBACK")
                 raise
         self._commits += 1
         if self._fail_after and self._commits >= self._fail_after:

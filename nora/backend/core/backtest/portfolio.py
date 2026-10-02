@@ -175,7 +175,7 @@ class PortfolioEngine:
             cols.update(eng.frame_columns(big, base["t"]))
         shared_data.STATS["cols_in_memory"] += len(need)
         eng.df_1m, eng.frames, eng.df_4h, eng.funding = None, {}, None, None   # như khi đọc thẳng mmap (không giữ DataFrame)
-        CandleLoader.clear_cache()
+        CandleLoader.clear_cache()                 # không giữ file khung trong worker (đo: giữ lại +~250 MB/worker, chỉ nhanh ~6%)
         return shared_data.assemble(base, cols, p["cols"])
 
     def _load_symbol(self, symbol: str, eng: BacktestEngine) -> Dict[str, Any]:

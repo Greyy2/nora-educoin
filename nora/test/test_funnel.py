@@ -618,3 +618,32 @@ def test_schema_space_factored_sampling_deterministic_unique_grouped():
     assert len(groups) == 100 // gen.PER_SIGNAL and all(len(v) == gen.PER_SIGNAL for v in groups.values())
     valid = [p for p in a if gen.validate_alpha(cand, p, "schema") is None]
     assert len(valid) >= 80                                           # phần lớn hợp lệ; EMA nhanh >= chậm / DCA quá ngân sách bị loại ở S0
+
+
+def test_sigterm_right_after_commit_exits_cleanly(tmp_path):
+    """SIGTERM tới ngay SAU khi COMMIT xong (handler ném SystemExit ở dòng COMMIT): phải thoát bằng SystemExit (huỷ gọn),
+    không bị che bởi lỗi 'cannot rollback - no transaction is active'; lô đã commit vẫn còn (resume không mất việc)."""
+    from backend.optimize.funnel.storage import RunStore, StageResult
+    store = RunStore(str(tmp_path / "run"))
+    store.add_alphas([{"alpha_id": "a1", "strategy": "t_long", "params": {"x": 1}, "ord": 0}])
+    real = store._con
+
+    class Con:
+        def __init__(self, c):
+            self.c = c
+
+        def __getattr__(self, name):
+            return getattr(self.c, name)
+
+        def execute(self, sql, *a):
+            out = self.c.execute(sql, *a)
+            if sql == "COMMIT":
+                raise SystemExit(143)
+            return out
+
+    store._con = Con(real)
+    with pytest.raises(SystemExit):
+        store.commit_results([StageResult("a1", "S1_backtest", {"ret_pct": 1.0, "mdd_pct": 1.0}, True)])
+    store._con = real
+    assert dict(store.metrics_of(["a1"], "S1_backtest"))["a1"]["ret_pct"] == 1.0
+    store.close()
