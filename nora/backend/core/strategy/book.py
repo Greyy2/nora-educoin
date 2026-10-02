@@ -209,6 +209,19 @@ CANDIDATES: List[Dict[str, Any]] = [
 ]
 
 
+# Regime được phép vào lệnh + cầu chì (core/regime/classifier.py). Chỉ áp khi bật regime (materialize(..., regime=True));
+# tắt -> chiến lược y như cũ (golden bất biến). Cầu chì: LONG gặp CRASH / SHORT gặp SURGE -> thoát ngay, không vào mới.
+REGIME_MAP: Dict[str, Dict[str, Any]] = {
+    "trend_long": {"allowed": ["TREND_UP", "SURGE"], "fuse": True},
+    "trend_short": {"allowed": ["TREND_DOWN", "CRASH"], "fuse": True},
+    "breakout_4h_long": {"allowed": ["TREND_UP", "VOL_EXPANSION", "SURGE"], "fuse": True},
+    "breakout_4h_short": {"allowed": ["TREND_DOWN", "VOL_EXPANSION", "CRASH"], "fuse": True},
+    "momentum_long": {"allowed": ["TREND_UP", "SURGE"], "fuse": True},
+    "reversion_long": {"allowed": ["RANGE"], "fuse": True},
+    "reversion_short": {"allowed": ["RANGE"], "fuse": True},
+}
+
+
 def schema_defaults(candidate: Dict[str, Any], group: str = None) -> Dict[str, Any]:
     """{khoá: mặc định} của params_schema (lọc theo nhóm nếu có)."""
     return {k: v["default"] for k, v in (candidate.get("params_schema") or {}).items() if group is None or v["group"] == group}
@@ -220,12 +233,14 @@ def signal_defaults(candidate: Dict[str, Any]) -> Dict[str, Any]:
     return {k[len(SIG_PREFIX):]: v for k, v in schema_defaults(candidate, "signal").items()}
 
 
-def materialize(candidate: Dict[str, Any], params: Dict[str, Any], **position_overrides) -> Dict[str, Any]:
+def materialize(candidate: Dict[str, Any], params: Dict[str, Any], regime: bool = False, **position_overrides) -> Dict[str, Any]:
     """Chiến lược cụ thể cho PortfolioEngine: thay ngưỡng/chu kỳ/khung tín hiệu, ghép tham số vị thế.
-    `signal_params` trả về chỉ gồm tham số tín hiệu được truyền vào (không gồm mặc định) — như trước."""
+    `signal_params` trả về chỉ gồm tham số tín hiệu được truyền vào (không gồm mặc định) — như trước.
+    regime=True: gắn khoá "regime" theo REGIME_MAP (lọc tín hiệu vào + cầu chì trong PortfolioEngine.load_data)."""
     from backend.core.params.template import resolve_placeholders, split_params
     signal, position = split_params(dict(params))
-    return {
+    extra = {"regime": REGIME_MAP[candidate["id"]]} if regime and candidate["id"] in REGIME_MAP else {}
+    return {**extra,
         "id": candidate["id"], "side": candidate["side"],
         "tree": resolve_placeholders(candidate["tree"], signal, signal_defaults(candidate)),
         "position": {**BASE_POSITION, **candidate.get("position", {}), **position, **position_overrides},

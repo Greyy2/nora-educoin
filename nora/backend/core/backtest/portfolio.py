@@ -107,6 +107,9 @@ class PortfolioEngine:
         for st in self.strategies:
             if st.get("symbols") and symbol not in st["symbols"]:
                 continue
+            if st.get("regime"):   # đặc trưng regime đi qua cùng bộ máy căn khung với tín hiệu
+                from backend.core.regime.classifier import REFS
+                eng.extra_refs = REFS
             name = f"{st['side']}_{st['id']}"
             eng.add_strategy_flow(name, build_params(name, _strategy_flow(st), st["side"], st["position"],
                                                      self.venue, symbol=symbol))
@@ -170,13 +173,23 @@ class PortfolioEngine:
             n = len(data["t"])
             cols = data["cols"]
             vec = VectorEvaluator(n, lambda fr, c, lag: cols.get(f"{fr}|{lag_key(c, lag)}", np.full(n, np.nan)))
+            labels = None
+            if any(st.get("regime") for st, _ in pairs):
+                from backend.core.regime.classifier import classify
+                labels = classify(lambda fr, c: cols.get(f"{fr}|{c}", np.full(n, np.nan)), data["t"])
             entries = []
             for st, tr in pairs:
                 vcol = BacktestEngine.vol_column(tr)
+                match, stop = vec.tree(tr.match_tree), vec.tree(tr.stop_tree)
+                if labels is not None and st.get("regime"):   # lọc tín hiệu vào theo regime + cầu chì thoát khi sốc ngược chiều
+                    from backend.core.regime.classifier import masks_for
+                    allowed, fuse = masks_for(st, st["side"], labels)
+                    match = match & allowed
+                    if fuse is not None:
+                        stop = stop | fuse
                 entries.append({
-                    "strategy": st["id"], "tracker": tr,
-                    "match": vec.tree(tr.match_tree), "stop": vec.tree(tr.stop_tree),
-                    "vol": cols.get(vcol) if vcol else None,
+                    "strategy": st["id"], "tracker": tr, "match": match, "stop": stop,
+                    "vol": cols.get(vcol) if vcol else None, "regime": labels,
                 })
             self.books.append({"symbol": sym, "data": data, "entries": entries, "f_idx": 0})
 

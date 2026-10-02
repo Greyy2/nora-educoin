@@ -81,9 +81,11 @@ def signal_snapshot(symbol: str, strategies: List[Dict[str, Any]], end_ts: int, 
     start = int(end_ts) - int(lookback_minutes) * MINUTE
     pe = PortfolioEngine([symbol], strategies, start, int(end_ts), trade_start_ts=start, venue=venue, use_cache=True)
     eng, pairs = pe._make_trackers(symbol, pe.ledger)
-    out: Dict[str, Any] = {"symbol": symbol, "bar_open_time": None, "as_of": None, "close": None, "strategies": []}
+    out: Dict[str, Any] = {"symbol": symbol, "bar_open_time": None, "as_of": None, "close": None, "regime": None, "strategies": []}
     if not pairs:
         return out
+    from backend.core.regime import classifier as rg
+    eng.extra_refs = rg.REFS                         # regime luôn hiển thị, cùng cột đặc trưng với backtest bật regime
     eng.load_data()
     if eng.df_1m is None or eng.df_1m.empty:
         return out
@@ -102,21 +104,37 @@ def signal_snapshot(symbol: str, strategies: List[Dict[str, Any]], end_ts: int, 
     vec = VectorEvaluator(n, get)
     t_real = t_all[real]
     out.update(bar_open_time=int(t_all[i]), as_of=int(t_all[i]) + MINUTE, close=_num(df1["close"].to_numpy()[i]))
+    labels = rg.classify(lambda fr, c: cols.get(f"{fr}|{c}", np.full(n, np.nan)), t_all)
+    raw = rg.raw_states(lambda fr, c: cols.get(f"{fr}|{c}", np.full(n, np.nan)), n)
+    name = rg.NAMES[int(labels[i])]
+    out["regime"] = {"state": name, "label": rg.LABEL_VI[name], "raw": rg.NAMES[int(raw[i])],
+                     "since": _since(labels[real], t_real, len(real) - 1),
+                     "features": {f"{fr} {c}": _num(cols.get(f"{fr}|{c}", np.full(n, np.nan))[i])
+                                  for fr, refs in sorted(rg.REFS.items()) for c, _ in sorted(refs)}}
     for st, tr in pairs:
         match, stop = vec.tree(tr.match_tree), vec.tree(tr.stop_tree)
+        entry_raw = bool(match[i])
+        if st.get("regime"):                          # cùng mặt nạ với PortfolioEngine.load_data
+            allowed, fuse = rg.masks_for(st, st["side"], labels)
+            match = match & allowed
+            if fuse is not None:
+                stop = stop | fuse
         m_real = match[real]
         out["strategies"].append({
-            "id": st["id"], "side": st["side"], "entry": bool(match[i]), "exit": bool(stop[i]),
+            "id": st["id"], "side": st["side"], "entry": bool(match[i]), "exit": bool(stop[i]), "entry_raw": entry_raw,
             "entry_since": _since(m_real, t_real, len(real) - 1),
             "entry_minutes_in_window": int(m_real.sum()),
             "entry_blocks": _explain(vec, tr.match_tree, i), "exit_blocks": _explain(vec, tr.stop_tree, i),
+            "regime_allowed": (st.get("regime") or {}).get("allowed"),
+            "regime_ok": bool(not st.get("regime") or labels[i] in [rg.CODE[x] for x in st["regime"].get("allowed") or rg.NAMES]),
         })
     return out
 
 
-def book_strategies(ids: Optional[List[str]] = None) -> List[Dict[str, Any]]:
-    """7 chiến lược lõi của sổ với bộ tham số tốt nhất (presets.json) — tham số khác vẫn là cùng chiến lược."""
+def book_strategies(ids: Optional[List[str]] = None, regime: bool = True) -> List[Dict[str, Any]]:
+    """7 chiến lược lõi của sổ với bộ tham số tốt nhất (presets.json) — tham số khác vẫn là cùng chiến lược.
+    regime=True: kèm bảng regime cho phép (entry = tín hiệu thô VÀ regime cho phép; entry_raw = tín hiệu thô)."""
     from backend.core.params.presets import load_presets
     from backend.core.strategy.book import CANDIDATES, materialize
     presets = load_presets()
-    return [materialize(c, presets[c["id"]]["params"]) for c in CANDIDATES if not ids or c["id"] in ids]
+    return [materialize(c, presets[c["id"]]["params"], regime=regime) for c in CANDIDATES if not ids or c["id"] in ids]

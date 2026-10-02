@@ -7,6 +7,7 @@ from collections import OrderedDict
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/api/studio/market", tags=["market"])
 _CACHE: "OrderedDict[tuple, Dict[str, Any]]" = OrderedDict()
@@ -61,3 +62,27 @@ def get_signals(symbols: Optional[str] = Query(None, description="vd BTC,SOL (m�
     rows = [snapshot_cached(s, ids) for s in syms]
     return {"symbols": rows, "strategies": ids or None,
             "note": "Tín hiệu tại nến 1m đã đóng cuối của dữ liệu; điều kiện khung lớn chỉ dùng nến đã đóng. Tham số = preset của từng chiến lược."}
+
+
+class RegimeReportRequest(BaseModel):
+    symbols: Optional[List[str]] = Field(None, max_length=16, description="Mặc định cả vũ trụ perp của sổ")
+    start: Optional[str] = None
+    end: Optional[str] = None
+    event_pct: float = Field(12.0, ge=3.0, le=50.0, description="Ngưỡng sự kiện thẳng đứng (|lợi suất 24h| %) dùng để chấm điểm")
+    backtest: bool = Field(True, description="Chạy kèm sổ presets tắt/bật regime để so sánh")
+
+
+@router.post("/regime/report")
+def post_regime_report(req: RegimeReportRequest):
+    """Báo cáo độ chính xác regime + so sánh bật/tắt regime (job nền regime_report, kết quả ở result.json của job)."""
+    from backend.api.jobs import batch as batch_jobs
+    p: Dict[str, Any] = {"event_pct": req.event_pct, "backtest": req.backtest}
+    try:
+        if req.symbols:
+            p["symbols"] = ",".join(batch_jobs.check_symbols(req.symbols))
+        for k in ("start", "end"):
+            if getattr(req, k):
+                p[k] = batch_jobs.check_date(getattr(req, k))
+    except batch_jobs.JobError as e:
+        raise HTTPException(422, str(e))
+    return batch_jobs.http_launch("regime_report", p)

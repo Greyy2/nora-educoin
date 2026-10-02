@@ -34,7 +34,7 @@ RUN_LIMITED = os.path.join(NORA_DIR, "backend", "utils", "ops", "run_limited.sh"
 RUNNER = "backend.api.jobs.runner"
 KINDS: Dict[str, Dict[str, Any]] = {
     "book_backtest": {"module": "backend.core.backtest.run",
-                      "params": {"book", "strategies", "symbols", "start", "end", "risk_per_trade", "stop_fill"}},
+                      "params": {"book", "strategies", "symbols", "start", "end", "risk_per_trade", "stop_fill", "regime"}},
     "book_wfa": {"module": "backend.wfa.run",
                  "params": {"report", "include_rejected", "candidates", "strategies", "symbols", "n", "start", "end", "train_days",
                             "test_days", "step_days", "sims", "mc_seed", "risk_per_trade", "workers", "resume", "max_configs", "force_large"}},
@@ -42,12 +42,13 @@ KINDS: Dict[str, Dict[str, Any]] = {
                    "params": {"only", "n", "workers", "keep_top", "resume", "max_configs", "force_large"}},   # out do launch() đặt
     "funnel_run": {"module": "backend.optimize.funnel.run",
                    "params": {"strategies", "n_per_strategy", "full_grid", "seed", "symbols", "windows", "run_id", "resume", "force_large",
-                              "train_days", "test_days"}},
+                              "train_days", "test_days", "space"}},
     "funnel_recompute": {"module": "backend.optimize.funnel.recompute", "params": {"run_id", "alpha_id"}},
     "presets_build": {"module": "backend.core.params.presets", "params": set()},
     "mock_feeds": {"module": "backend.core.analytics.feeds", "params": {"only"}},
     "data_crawl": {"module": "backend.core.data.crawler", "params": {"symbols", "market", "years", "output_dir"}},   # output_dir do router đặt
     "data_promote": {"module": "backend.core.data.promote", "params": {"apply", "archive_legacy"}},
+    "regime_report": {"module": "backend.core.regime.report", "params": {"symbols", "start", "end", "event_pct", "backtest"}},
 }
 MAX_BUILD_CONFIGS = 1_000_000   # trần cứng của API cho --n (mỗi chiến lược); CLI còn có --max-configs (mặc định 200000) + --force-large
 MAX_ACTIVE = 8          # số job đang chạy/chờ tối đa cùng lúc (mỗi job chờ là một tiến trình bash nhỏ)
@@ -203,6 +204,8 @@ def build_job(kind: str, p: Dict[str, Any]) -> Dict[str, Any]:
             if p["stop_fill"] not in ("level", "extreme"):
                 raise JobError("stop_fill phải là level|extreme")
             out["stop_fill"] = p["stop_fill"]
+        if p.get("regime"):
+            out["regime"] = True
     elif kind == "book_wfa":
         if sum(map(bool, (p.get("report_dir"), p.get("candidates"), p.get("strategies")))) != 1:
             raise JobError("chọn đúng một: report_dir, candidates hoặc strategies")
@@ -315,6 +318,7 @@ def _env() -> Dict[str, str]:
     # Khi API chạy từ user service, run_limited.sh cần bus của user session để gọi systemd-run --user.
     env.setdefault("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
     env.setdefault("DBUS_SESSION_BUS_ADDRESS", f"unix:path={env['XDG_RUNTIME_DIR']}/bus")
+    env["PYTHONUNBUFFERED"] = "1"     # log của job hiện ngay trong out.log (không chờ đầy bộ đệm)
     return env
 
 

@@ -91,8 +91,8 @@ def launch_backtest(req) -> Dict[str, str]:
     ignored = False
     if not req.strategies:   # không chọn chiến lược: dùng nguyên sổ data/alphas/book.json (như trước)
         payload = {"symbols": req.symbols, "start": req.start, "end": req.end, "risk_per_trade_pct": req.risk_per_trade_pct if mode == "advanced" else None,
-                   "stop_fill": req.stop_fill if mode == "advanced" else "level"}
-        resolved.update(source="book.json", strategies=_book_strategies(), risk_per_trade_pct=payload["risk_per_trade_pct"],
+                   "stop_fill": req.stop_fill if mode == "advanced" else "level", "regime": req.regime}
+        resolved.update(regime=req.regime, source="book.json", strategies=_book_strategies(), risk_per_trade_pct=payload["risk_per_trade_pct"],
                         stop_fill=payload["stop_fill"])
         return launch("book_backtest", _build("book_backtest", payload), _stamp(mode, False, resolved, ignored_client_params=False))
     errors = _check_ids(req.strategies, "strategies")
@@ -119,9 +119,10 @@ def launch_backtest(req) -> Dict[str, str]:
         rpt, stop_fill = (rpt if rpt is not None else BASE_RISK_PER_TRADE_PCT), req.stop_fill
     fulls = [(cid, {**full, "risk_per_trade_pct": rpt}) for cid, full in fulls]
     items = [{"id": cid, "params": rm.job_params(BY_ID[cid], full)} for cid, full in fulls]
-    payload = {"symbols": req.symbols, "start": req.start, "end": req.end, "risk_per_trade_pct": rpt, "stop_fill": stop_fill}
+    payload = {"symbols": req.symbols, "start": req.start, "end": req.end, "risk_per_trade_pct": rpt, "stop_fill": stop_fill,
+               "regime": req.regime}
     params = {**_build("book_backtest", payload), "strategies": items}
-    resolved.update(source="presets" if mode == "basic" else "client+presets", risk_per_trade_pct=rpt, stop_fill=stop_fill,
+    resolved.update(regime=req.regime, source="presets" if mode == "basic" else "client+presets", risk_per_trade_pct=rpt, stop_fill=stop_fill,
                     strategies=[{"id": cid, "params": full,
                                  "preset_source": presets[cid]["source"] if mode == "basic" else None} for cid, full in fulls])
     return launch("book_backtest", params, _stamp(mode, False, resolved, ignored_client_params=ignored))

@@ -48,6 +48,7 @@ class BacktestRequest(_DateRange):
     end: str
     risk_per_trade_pct: Optional[float] = Field(None, gt=0.0, le=5.0)
     stop_fill: str = Field("level", pattern="^(level|extreme)$")
+    regime: bool = Field(False, description="Bật lọc regime + cầu chì (core/regime, strategy.book.REGIME_MAP)")
     mode: str = Field("basic", **MODE_FIELD)
 
 

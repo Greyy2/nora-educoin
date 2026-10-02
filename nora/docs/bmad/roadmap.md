@@ -81,7 +81,7 @@ Mỗi dòng chỉ chuyển `done` khi đạt đúng cột "Xong khi".
 | P1.5 | Core thêm `run_many(params_list)` cho alpha chung tín hiệu | `core/backtest/portfolio.py` | S | P1.3 | Kết quả từng alpha trùng bit với chạy lẻ | todo |
 | P1.6 | `optimize` gom alpha theo tín hiệu vào lệnh, chia lô, gọi `run_many`; worker lấy từ `utils/parallel` | `optimize/runner.py`, `utils/parallel.py` | S | P1.5, P0 | Không thêm cấu hình worker mới; test xanh | todo |
 | P1.7 | Lọc thô nhiều vòng (successive halving) — chỉ làm nếu P1.4–P1.6 chưa đạt | `optimize/` | S | P1.6 | Đạt mục tiêu thời gian | todo |
-| P1.8 | Load test thật 10k và 100k; ngoại suy 500k/1M; kiểm RAM, ổn định, resume | `nora.slice` | O+S | P1.6 | 500k ước tính ≤ 4 h; không OOM; resume đúng | todo |
+| P1.8 | Load test thật 10k và 100k; ngoại suy 500k/1M; kiểm RAM, ổn định, resume | `nora.slice` | O+S | P1.6 | 500k ước tính ≤ 4 h; không OOM; resume đúng | chặn: worker S1 ~1.3 GB > ngân sách 800 MB → OOM; cần sửa trước |
 
 ### PM — Bộ số đo chuẩn (chi tiết: `docs/metrics_inventory.md`)
 
@@ -98,10 +98,10 @@ Mỗi dòng chỉ chuyển `done` khi đạt đúng cột "Xong khi".
 
 | ID | Việc | Nơi sửa | Người | Cần trước | Xong khi | Trạng thái |
 |---|---|---|---|---|---|---|
-| P2.1 | Thiết kế regime: trạng thái, chỉ báo, khung, trễ chuyển, thời gian tối thiểu | `docs/bmad/stories/E15-*` | O | P0 | Spec được duyệt | todo |
-| P2.2 | Engine regime causal đa khung (15m/1h/4h/1d): tăng mạnh, giảm mạnh, đi ngang, biến động bùng nổ, sập/đứng giá | `core/regime/` | S | P2.1 | Test prefix-invariant (không nhìn tương lai) | todo |
-| P2.3 | Bảng ghép regime ↔ chiến lược + cầu chì: trend thẳng đứng/biến động bùng nổ thì cấm nhồi DCA, có thể đóng sớm | `core/regime/`, `core/backtest` | S | P2.2, P1.3 | Golden không đổi khi tắt regime; có test cầu chì | todo |
-| P2.4 | Đo độ chuẩn: nhãn causal vs nhãn dữ liệu tương lai (bảng nhầm lẫn, độ trễ) + PnL từng chiến lược theo regime | `cli/regime_report.py` | S | P2.2 | Báo cáo trên 8 tài sản; chiến lược lãi trong regime của nó | todo |
+| P2.1 | Thiết kế regime: trạng thái, chỉ báo, khung, trễ chuyển, thời gian tối thiểu | `docs/bmad/stories/E15-*` | O | P0 | Spec được duyệt | done (stories/E15-S1-regime-spec.md) |
+| P2.2 | Engine regime causal đa khung (15m/1h/4h/1d): tăng mạnh, giảm mạnh, đi ngang, biến động bùng nổ, sập/đứng giá | `core/regime/` | S | P2.1 | Test prefix-invariant (không nhìn tương lai) | done (core/regime/classifier.py, test_regime.py) |
+| P2.3 | Bảng ghép regime ↔ chiến lược + cầu chì: trend thẳng đứng/biến động bùng nổ thì cấm nhồi DCA, có thể đóng sớm | `core/regime/`, `core/backtest` | S | P2.2, P1.3 | Golden không đổi khi tắt regime; có test cầu chì | done (book.REGIME_MAP + mặt nạ trong PortfolioEngine.load_data; mặc định tắt) |
+| P2.4 | Đo độ chuẩn: nhãn causal vs nhãn dữ liệu tương lai (bảng nhầm lẫn, độ trễ) + PnL từng chiến lược theo regime | `cli/regime_report.py` | S | P2.2 | Báo cáo trên 8 tài sản; chiến lược lãi trong regime của nó | code xong (core/regime/report.py, job regime_report) — chưa chạy dữ liệu thật |
 | P2.5 | Backtest theo regime: tối ưu từng chiến lược trong regime → backtest cả sổ có chuyển đổi → WFA (ngưỡng regime chỉ học trên train) | `optimize/`, `wfa/` | S | P2.3, P1.6 | Sổ nhiều chiến lược qua WFA | todo |
 | P2.6 | MC thêm kịch bản trend thẳng đứng (+40%/3 ngày, −30%/1 ngày, chuỗi liên tiếp) | `carlo/monte_carlo.py` | S | P0.4 | Bot kiểu OKX trượt cổng; test xanh | todo |
 | P2.7 | Ngưỡng regime tính là tham số trong DSR/PBO | `optimize/funnel/` | S | P2.5, P0.2 | Số trial tính đủ | todo |

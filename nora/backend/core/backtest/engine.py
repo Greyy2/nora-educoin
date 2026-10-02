@@ -124,6 +124,8 @@ class BacktestEngine:
 
     def _refs_by_frame(self) -> Dict[str, Set[Tuple[str, int]]]:
         by_frame: Dict[str, Set[Tuple[str, int]]] = {}
+        for frame, refs in (getattr(self, "extra_refs", None) or {}).items():   # vd. đặc trưng regime (core/regime)
+            by_frame.setdefault(frame, set()).update(refs)
         for tracker in self.trackers:
             for frame, column, lag in collect_field_refs(tracker.match_tree) | collect_field_refs(tracker.stop_tree):
                 by_frame.setdefault(frame, set()).add((column, lag))
