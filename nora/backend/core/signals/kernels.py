@@ -19,6 +19,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+from numba import njit
 
 BASE_COLUMNS = ("open", "high", "low", "close", "volume")
 
@@ -35,9 +36,46 @@ class KernelSpec:
     description: str
 
 
+@njit(cache=True)
+def _ewm_sma_seed(x: np.ndarray, alpha: float, n: int) -> np.ndarray:
+    """Trung bình mũ kiểu TradingView (ta.ema / ta.rma): giá trị đầu tiên = SMA của n giá trị hợp lệ liên tiếp đầu tiên, sau đó
+    s = alpha*x + (1-alpha)*s. Trước đó NaN. Giá trị vào NaN sau khi đã khởi tạo -> ra NaN, giữ nguyên trạng thái. Đệ quy -> causal."""
+    out = np.full(x.shape[0], np.nan)
+    s = 0.0
+    seeded = False
+    run = 0
+    acc = 0.0
+    for i in range(x.shape[0]):
+        v = x[i]
+        if not seeded:
+            if v != v:
+                run = 0
+                acc = 0.0
+                continue
+            run += 1
+            acc += v
+            if run > n:
+                acc -= x[i - n]
+                run = n
+            if run == n:
+                s = acc / n
+                seeded = True
+                out[i] = s
+            continue
+        if v != v:
+            continue
+        s = alpha * v + (1.0 - alpha) * s
+        out[i] = s
+    return out
+
+
+def _tv_ewm(x: pd.Series, alpha: float, n: int) -> pd.Series:
+    return pd.Series(_ewm_sma_seed(x.to_numpy(dtype="float64"), float(alpha), int(n)), index=x.index)
+
+
 def _rma(x: pd.Series, n: int) -> pd.Series:
-    """Wilder moving average (RMA), đệ quy -> causal. NaN trong n-1 nến đầu."""
-    return x.ewm(alpha=1.0 / n, adjust=False, min_periods=n).mean()
+    """Wilder moving average (RMA) chuẩn TradingView ta.rma: seed SMA n giá trị đầu, rồi alpha = 1/n. Causal."""
+    return _tv_ewm(x, 1.0 / n, n)
 
 
 def _true_range(df: pd.DataFrame) -> pd.Series:
@@ -53,7 +91,8 @@ def sma(df, n):
 
 
 def ema(df, n):
-    return df["close"].ewm(span=int(n), adjust=False, min_periods=int(n)).mean()
+    """EMA chuẩn TradingView ta.ema: seed SMA n nến đầu, alpha = 2/(n+1)."""
+    return _tv_ewm(df["close"], 2.0 / (int(n) + 1.0), int(n))
 
 
 def roc(df, n):

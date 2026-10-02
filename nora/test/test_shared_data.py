@@ -105,20 +105,28 @@ def test_key_changes_when_source_file_changes(market):
     assert shared_data.load(str(market), {"base": "0" * 40, "cols": {}}) is None
 
 
-def test_column_key_depends_on_frame_load_start(market):
-    """Cùng tên cột nhưng khung nạp từ điểm khác (vì cột khác cùng khung cần warmup dài hơn) -> khoá khác: EMA phụ thuộc điểm bắt đầu."""
+def test_indicators_are_window_invariant_fixed_origin(market):
+    """Chỉ báo tính từ đầu lịch sử (gốc cố định, như TradingView): cùng phút -> cùng giá trị dù cửa sổ backtest bắt đầu khác nhau,
+    và dù cột khác cùng khung cần warmup dài hơn. Khoá cột vì thế không phụ thuộc cửa sổ nạp."""
     from backend.core.backtest.portfolio import PortfolioEngine, RiskConfig
     from backend.core.data import shared as shared_data
-    a = {"id": "a", "side": "LONG", "tree": [[[{"frame": "4h", "column": "ema_20"}, ">", 0]]], "position": gs._POSITION}
-    b = {"id": "b", "side": "LONG", "tree": [[[{"frame": "4h", "column": "ema_20"}, ">", {"frame": "4h", "column": "ema_120"}]]],
-         "position": gs._POSITION}
-    plans = []
-    for st in (a, b):
-        pe = PortfolioEngine(["AAA@perp"], [st], T0, T0 + 30 * DAY, trade_start_ts=T0 + 3 * DAY, risk=RiskConfig(), use_cache=False)
+    a = {"id": "a", "side": "LONG", "tree": [[[{"frame": "4h", "column": "ema_20"}, ">", 0],
+                                             [{"frame": "1m", "column": "rsi_14"}, ">", 0]]], "position": gs._POSITION}
+    b = {"id": "b", "side": "LONG", "tree": [[[{"frame": "4h", "column": "ema_20"}, ">", {"frame": "4h", "column": "ema_120"}],
+                                             [{"frame": "1m", "column": "rsi_14"}, ">", 0]]], "position": gs._POSITION}
+    got = []
+    for st, start in ((a, T0), (b, T0 + 9 * DAY)):
+        pe = PortfolioEngine(["AAA@perp"], [st], start, T0 + 30 * DAY, trade_start_ts=T0 + 12 * DAY, risk=RiskConfig(), use_cache=False)
         e, _ = pe._make_trackers("AAA@perp", pe.ledger)
-        plans.append(shared_data.plan(e))
-    assert plans[0]["base"] == plans[1]["base"]
-    assert plans[0]["cols"]["4h|ema_20"] != plans[1]["cols"]["4h|ema_20"]
+        got.append((shared_data.plan(e), pe._build_symbol_data(e)))
+    (p1, d1), (p2, d2) = got
+    assert p1["cols"]["4h|ema_20"] != p2["cols"]["4h|ema_20"]          # khác cửa sổ (khoá nền) ...
+    common = np.intersect1d(d1["t"], d2["t"])
+    assert len(common) > 1000
+    for cid in ("4h|ema_20", "1m|rsi_14"):
+        v1 = d1["cols"][cid][np.searchsorted(d1["t"], common)]
+        v2 = d2["cols"][cid][np.searchsorted(d2["t"], common)]
+        assert v1.tobytes() == v2.tobytes(), cid                        # ... nhưng cùng giá trị từng bit ở mọi phút chung
 
 
 def test_two_groups_share_base_and_only_add_missing_columns(market, tmp_path):

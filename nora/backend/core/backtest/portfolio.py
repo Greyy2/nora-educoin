@@ -22,7 +22,6 @@ from dataclasses import asdict, dataclass
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 import numpy as np
-import pandas as pd
 
 from backend.core.data import shared as shared_data
 from backend.core.backtest.engine import BacktestEngine
@@ -124,16 +123,14 @@ class PortfolioEngine:
     def _cache_key(self, symbol: str, eng: BacktestEngine) -> tuple:
         return (symbol, self.start_ts, self.end_ts, self._refs_signature(eng), any(tr.market == "perp" for tr in eng.trackers))
 
-    def _build_symbol_data(self, eng: BacktestEngine, only: Optional[Set[str]] = None, with_volume: bool = False) -> Dict[str, Any]:
+    def _build_symbol_data(self, eng: BacktestEngine, only: Optional[Set[str]] = None) -> Dict[str, Any]:
         """Dựng `data` của một tài sản (nến thật 1m + cột kernel + funding), không đụng cache.
-        only: chỉ tính các cột này; with_volume: thêm "v" (khối lượng phút thật) — nền dùng chung cần để tính cột 1m (core/data/shared)."""
+        only: chỉ tính các cột này (dữ liệu dùng chung điền phần còn thiếu — core/data/shared.fill)."""
         with contextlib.redirect_stdout(io.StringIO()):
             eng.load_data()
         df1, cols = eng._build_matrix(only=only)
         real = df1["is_filled"].to_numpy() == 0
-        extra = {"v": (df1["volume"].to_numpy(dtype="float64") if "volume" in df1.columns else np.full(len(df1), np.nan))[real]} \
-            if with_volume else {}
-        return {**extra,
+        return {
             "t": df1["open_time"].to_numpy(dtype="int64")[real],
             "o": df1["open"].to_numpy(dtype="float64")[real], "h": df1["high"].to_numpy(dtype="float64")[real],
             "l": df1["low"].to_numpy(dtype="float64")[real], "c": df1["close"].to_numpy(dtype="float64")[real],
@@ -144,7 +141,7 @@ class PortfolioEngine:
 
     def _load_shared(self, eng: BacktestEngine) -> Optional[Dict[str, Any]]:
         """Dữ liệu qua mmap dùng chung (shared_dir, core/data/shared.py). Nền thiếu -> tự dựng và ghi (tiến trình khác dùng lại). Cột thiếu
-        -> tính trong RAM: khung lớn từ file khung căn theo `t` của nền, khung 1m từ chính nền (không nạp lại 1m.pkl).
+        -> tính trong RAM từ file của khung (gốc cố định) rồi căn theo `t` của nền.
         Kết quả bằng từng bit với _build_symbol_data. None nếu tài sản không có 1m.pkl (dựng như thường)."""
         from backend.core.data.loader import CandleLoader
         from backend.core.signals.evaluator import lag_key
@@ -164,17 +161,14 @@ class PortfolioEngine:
         need = set(p["cols"]) - set(cols)
         refs = eng._refs_by_frame()
         sub = {fr: {(c, lag) for c, lag in rs if f"{fr}|{lag_key(c, lag)}" in need} for fr, rs in refs.items()}
-        if sub.get("1m"):                              # cột 1m: phút thật của nền (+ khối lượng), không nạp lại 1m.pkl
-            real = pd.DataFrame({"open_time": base["t"], "open": base["o"], "high": base["h"], "low": base["l"], "close": base["c"],
-                                 "volume": base["v"], "is_filled": 0})
-            cols.update(BacktestEngine.minute_columns(real, sub["1m"]))
-            del real
+        if sub.get("1m"):                              # cột 1m: kernel trên toàn bộ phút thật từ đầu lịch sử, lấy các phút của nền
+            cols.update(eng.minute_columns(sub["1m"], base["t"]))
         big = {fr: rs for fr, rs in sub.items() if rs and fr != "1m"}
         if big:
             eng.load_frames(refs)                      # mỗi khung nạp theo refs ĐẦY ĐỦ (cùng điểm bắt đầu như khi dựng cả bộ)
             cols.update(eng.frame_columns(big, base["t"]))
         shared_data.STATS["cols_in_memory"] += len(need)
-        eng.df_1m, eng.frames, eng.df_4h, eng.funding = None, {}, None, None   # như khi đọc thẳng mmap (không giữ DataFrame)
+        eng.df_1m, eng.df_1m_hist, eng.frames, eng.df_4h, eng.funding = None, None, {}, None, None   # như khi đọc thẳng mmap
         CandleLoader.clear_cache()                 # không giữ file khung trong worker (đo: giữ lại +~250 MB/worker, chỉ nhanh ~6%)
         return shared_data.assemble(base, cols, p["cols"])
 

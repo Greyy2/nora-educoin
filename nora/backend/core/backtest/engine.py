@@ -70,6 +70,9 @@ def frame_features(df: pd.DataFrame, refs: Set[Tuple[str, int]]) -> pd.DataFrame
     return out
 
 
+HISTORY_START = 0   # chỉ báo tính từ đầu lịch sử dữ liệu (gốc cố định)
+
+
 class BacktestEngine:
     """Điều phối dữ liệu, tín hiệu và các flow chiến lược."""
 
@@ -99,6 +102,7 @@ class BacktestEngine:
         self.ledger = CapitalLedger(self.initial_capital)
         self.funding: Optional[pd.DataFrame] = None  # perp: funding_time, rate
         self.df_1m: Optional[pd.DataFrame] = None
+        self.df_1m_hist: Optional[pd.DataFrame] = None   # lịch sử 1m từ gốc (chỉ khi có cột khung 1m)
         self.df_4h: Optional[pd.DataFrame] = None
         self.frames: Dict[str, pd.DataFrame] = {}
         self.closed_positions = []
@@ -147,6 +151,8 @@ class BacktestEngine:
         warm_1m = self._warmup_ms("1m", refs.get("1m", set()))
         loader_1m = CandleLoader(self.symbol, frame="1m", use_cache=True)
         self.df_1m = self._prepare_candles(loader_1m.load_data(self.start_ts - warm_1m, self.end_ts))
+        # chỉ báo khung 1m tính từ đầu lịch sử (gốc cố định) -> cần cả lịch sử 1m khi có cột 1m
+        self.df_1m_hist = loader_1m.load_data(HISTORY_START, self.end_ts) if refs.get("1m") else None
         if self.trade_start_ts < self.start_ts:
             self.trade_start_ts = self.start_ts
 
@@ -155,14 +161,14 @@ class BacktestEngine:
             self.funding = self._load_funding()
 
     def load_frames(self, refs: Optional[Dict[str, Set[Tuple[str, int]]]] = None) -> None:
-        """Nạp các khung lớn (không gồm 1m), mỗi khung từ start − warmup lớn nhất của các cột cùng khung (+5 ngày với 4h)."""
+        """Nạp các khung lớn (không gồm 1m) từ ĐẦU lịch sử dữ liệu tới end_ts: chỉ báo tính từ gốc cố định (như TradingView) nên giá trị
+        tại nến t không phụ thuộc cửa sổ backtest bắt đầu ở đâu (chỉ phụ thuộc dữ liệu <= t)."""
         refs = self._refs_by_frame() if refs is None else refs
         for frame in sorted(set(refs) | {"4h"}):
             if frame == "1m" or frame not in FRAME_MS:
                 continue
-            buffer_ms = max(self._warmup_ms(frame, refs.get(frame, set())), 5 * 86_400_000 if frame == "4h" else 0)
             loader = CandleLoader(self.symbol, frame=frame, use_cache=True)
-            df = self._prepare_candles(loader.load_data(self.start_ts - buffer_ms, self.end_ts))
+            df = self._prepare_candles(loader.load_data(HISTORY_START, self.end_ts))
             self.frames[frame] = self._enrich_4h(df) if frame == "4h" else df
         self.df_4h = self.frames.get("4h")
 
@@ -191,14 +197,8 @@ class BacktestEngine:
             refs = {fr: rs for fr, rs in refs.items() if rs}
         cols: Dict[str, np.ndarray] = {}
 
-        # Khung 1m: kernel chỉ tính trên phút có giao dịch
         if refs.get("1m"):
-            real = df1[df1["is_filled"] == 0].reset_index(drop=True)
-            feat = frame_features(real, refs["1m"])
-            aligned = pd.DataFrame({KEY: df1["open_time"].to_numpy()}).merge(feat, on=KEY, how="left")
-            for name in feat.columns:
-                if name != KEY:
-                    cols[f"1m|{name}"] = aligned[name].to_numpy(dtype="float64")
+            cols.update(self.minute_columns(refs["1m"], df1["open_time"].to_numpy()))
         cols.update(self.frame_columns(refs, df1["open_time"].to_numpy()))
         return df1, cols
 
@@ -234,11 +234,32 @@ class BacktestEngine:
                     cols[f"{frame}|{name}"] = out
         return cols
 
-    @staticmethod
-    def minute_columns(real: pd.DataFrame, refs: Set[Tuple[str, int]]) -> Dict[str, np.ndarray]:
-        """Cột khung 1m tính trên các phút CÓ giao dịch (`real`, đã bỏ nến điền) — đúng phép tính _build_matrix dùng cho các phút đó."""
-        feat = frame_features(real, refs)
-        return {f"1m|{name}": feat[name].to_numpy(dtype="float64") for name in feat.columns if name != KEY}
+    def minute_columns(self, refs: Set[Tuple[str, int]], open_time: np.ndarray) -> Dict[str, np.ndarray]:
+        """Cột khung 1m: kernel tính trên MỌI phút có giao dịch từ đầu lịch sử tới end_ts (gốc cố định, bỏ nến điền), rồi lấy đúng
+        các phút `open_time` (phút không có giao dịch -> NaN)."""
+        full = getattr(self, "df_1m_hist", None)
+        if full is None:
+            full = self.df_1m       # dữ liệu gán thẳng (test) = toàn bộ lịch sử
+        if full is None:            # đường dữ liệu dùng chung: engine chưa nạp gì
+            full = self._prepare_candles(CandleLoader(self.symbol, frame="1m", use_cache=True).load_data(HISTORY_START, self.end_ts))
+        full = self._prepare_candles(full)
+        if "is_filled" in full.columns:
+            full = full[pd.to_numeric(full["is_filled"], errors="coerce").fillna(0).astype(int) == 0].reset_index(drop=True)
+        feat = frame_features(full, refs)
+        t_full = feat[KEY].to_numpy(dtype="int64")
+        q = np.asarray(open_time, dtype="int64")
+        pos = np.searchsorted(t_full, q)
+        hit = pos < len(t_full)
+        hit[hit] = t_full[pos[hit]] == q[hit]
+        pos[~hit] = 0
+        out = {}
+        for name in feat.columns:
+            if name != KEY:
+                vals = feat[name].to_numpy(dtype="float64")
+                col = vals[pos] if len(vals) else np.full(len(q), np.nan)
+                col[~hit] = np.nan
+                out[f"1m|{name}"] = col
+        return out
 
     def run(self):
         """Chạy backtest bằng kernel numba (core/backtest/kernel.py) — kết quả trùng từng bit với vòng lặp Python cũ (test/reference_engine.py)."""

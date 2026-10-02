@@ -6,7 +6,7 @@ TỪNG cột kernel là một file; nhóm nào cũng dùng lại phần đã có
 nên N worker đọc chung không nhân bản RAM.
 
 Bố cục <out_dir>/:
-  base/<khoá nền>/{t,o,h,l,c,v,f_t,f_r}.npy + meta.json
+  base/<khoá nền>/{t,o,h,l,c,f_t,f_r}.npy + meta.json
   cols/<khoá cột>.npy
 
 Khoá phải tái lập ĐÚNG dữ liệu mà engine tự dựng (bằng từng bit):
@@ -34,8 +34,8 @@ if TYPE_CHECKING:  # tránh import vòng (portfolio import module này)
     from backend.core.backtest.engine import BacktestEngine
     from backend.core.backtest.portfolio import PortfolioEngine
 
-FORMAT_VERSION = 3
-BASE_ARRAYS = ("t", "o", "h", "l", "c", "v", "f_t", "f_r")   # v: khối lượng phút thật — để tính cột 1m từ nền
+FORMAT_VERSION = 4
+BASE_ARRAYS = ("t", "o", "h", "l", "c", "f_t", "f_r")
 STATS = {"fills": 0, "cols_written": 0, "bases_written": 0, "cols_in_memory": 0}   # theo tiến trình (giám sát / test)
 
 
@@ -72,16 +72,11 @@ def plan(eng: "BacktestEngine") -> Optional[Dict[str, Any]]:
     for frame in order:
         if frame != "1m" and frame not in FRAME_MS:
             continue                                    # engine không dựng cột cho khung lạ
-        if frame == "1m":
-            start, fp = None, None                      # cột 1m chỉ phụ thuộc dữ liệu 1m (đã ở khoá nền)
-        else:
-            buffer_ms = max(eng._warmup_ms(frame, refs[frame]), 5 * 86_400_000 if frame == "4h" else 0)
-            start = int(eng.start_ts - buffer_ms)
-            fp = _file_fingerprint(eng.symbol, frame, root)
-            fp = list(fp) if fp is not None else None
+        fp = _file_fingerprint(eng.symbol, frame, root)  # chỉ báo tính từ đầu file khung (gốc cố định) -> chỉ phụ thuộc file
+        fp = list(fp) if fp is not None else None
         for col, lag in sorted(refs[frame]):
             cid = f"{frame}|{lag_key(col, lag)}"
-            cols[cid] = _sha1({"base": base, "cid": cid, "start": start, "fp": fp})
+            cols[cid] = _sha1({"base": base, "cid": cid, "fp": fp})
     return {"base": base, "cols": cols}
 
 
@@ -167,7 +162,7 @@ def fill(out_dir: str, pe: "PortfolioEngine", eng: "BacktestEngine", p: Dict[str
     need = missing(out_dir, p)
     if not need["base"] and not need["cols"]:
         return {"base": False, "cols": 0}
-    data = pe._build_symbol_data(eng, only=set(need["cols"]), with_volume=need["base"])
+    data = pe._build_symbol_data(eng, only=set(need["cols"]))
     if need["base"]:
         final = _base_dir(out_dir, p["base"])
         os.makedirs(os.path.dirname(final), exist_ok=True)

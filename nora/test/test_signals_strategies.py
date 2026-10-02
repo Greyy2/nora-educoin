@@ -55,15 +55,18 @@ def test_kernel_reference_values():
     df = _ohlcv(400, seed=3)
     c = df["close"]
     np.testing.assert_allclose(kernels.compute(df, "sma_20"), c.rolling(20).mean(), equal_nan=True)
-    alpha = 2 / 51
-    e = c.iloc[0]
-    manual = []
-    for x in c:
-        e = alpha * x + (1 - alpha) * e
-        manual.append(e)
-    manual = pd.Series(manual)
-    manual.iloc[:49] = np.nan
-    np.testing.assert_allclose(kernels.compute(df, "ema_50"), manual, rtol=1e-12, equal_nan=True)
+    # EMA / RMA chuẩn TradingView (ta.ema / ta.rma): giá trị đầu = SMA của n nến đầu, sau đó đệ quy
+    def tv(x, alpha, n):
+        out = [np.nan] * len(x)
+        e = float(np.mean(x[:n]))
+        out[n - 1] = e
+        for i in range(n, len(x)):
+            e = alpha * x[i] + (1 - alpha) * e
+            out[i] = e
+        return pd.Series(out)
+    np.testing.assert_allclose(kernels.compute(df, "ema_50"), tv(c.to_numpy(), 2 / 51, 50), rtol=1e-12, equal_nan=True)
+    tr = pd.concat([df["high"] - df["low"], (df["high"] - c.shift(1)).abs(), (df["low"] - c.shift(1)).abs()], axis=1).max(axis=1)
+    np.testing.assert_allclose(kernels.compute(df, "atr_14"), tv(tr.to_numpy(), 1 / 14, 14), rtol=1e-12, equal_nan=True)
     # RSI Wilder: giá trị nằm trong [0, 100]
     r = kernels.compute(df, "rsi_14")
     assert r.dropna().between(0, 100).all()

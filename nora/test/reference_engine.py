@@ -15,9 +15,9 @@ import numpy as np
 import pandas as pd
 
 from backend.core.data import shared as shared_data
-from backend.core.backtest.engine import (BASE_COLS, FRAME_MS, KEY, collect_field_refs, frame_features)
+from backend.core.backtest.engine import BacktestEngine as _ProdEngine
+from backend.core.backtest.engine import FRAME_MS, collect_field_refs
 from backend.core.backtest.portfolio import _DATA_CACHE, RiskConfig, _strategy_flow
-from backend.core.data.loader import CandleLoader
 from backend.core.signals import kernels
 from backend.core.signals.evaluator import VectorEvaluator, lag_key
 
@@ -553,80 +553,16 @@ class RefBacktestEngine:
         bars = max([kernels.warmup_bars(c) + lag for c, lag in refs] + [0])
         return (bars + 2) * FRAME_MS[frame]
 
-    # ─── Dữ liệu ────────────────────────────────────────────────────────────
-    def load_data(self):
-        refs = self._refs_by_frame()
-        warm_1m = self._warmup_ms("1m", refs.get("1m", set()))
-        loader_1m = CandleLoader(self.symbol, frame="1m", use_cache=True)
-        self.df_1m = self._prepare_candles(loader_1m.load_data(self.start_ts - warm_1m, self.end_ts))
-        if self.trade_start_ts < self.start_ts:
-            self.trade_start_ts = self.start_ts
-
-        for frame in sorted(set(refs) | {"4h"}):
-            if frame == "1m" or frame not in FRAME_MS:
-                continue
-            buffer_ms = max(self._warmup_ms(frame, refs.get(frame, set())), 5 * 86_400_000 if frame == "4h" else 0)
-            loader = CandleLoader(self.symbol, frame=frame, use_cache=True)
-            df = self._prepare_candles(loader.load_data(self.start_ts - buffer_ms, self.end_ts))
-            self.frames[frame] = self._enrich_4h(df) if frame == "4h" else df
-        self.df_4h = self.frames.get("4h")
-        if any(tr.market == "perp" for tr in self.trackers):
-            self.funding = self._load_funding()
-
-    def _load_funding(self) -> Optional[pd.DataFrame]:
-        """funding.pkl của instrument perp (nếu symbol là BTC@perp). Không có -> None (ghi rõ trong kết quả)."""
-        import os
-        from backend.db.local_pkl import resolve_symbol_dir
-        path = resolve_symbol_dir(self.symbol)
-        file = os.path.join(path, "funding.pkl") if path else None
-        if not file or not os.path.isfile(file):
-            return None
-        df = pd.read_pickle(file)
-        return df[(df["funding_time"] >= self.start_ts) & (df["funding_time"] <= self.end_ts)].sort_values("funding_time")
-
-    # ─── Chạy ───────────────────────────────────────────────────────────────
-    def _build_matrix(self) -> Tuple[pd.DataFrame, Dict[str, np.ndarray]]:
-        df1 = self._prepare_candles(self.df_1m)
-        if "is_filled" not in df1.columns:
-            df1["is_filled"] = 0
-        df1["is_filled"] = pd.to_numeric(df1["is_filled"], errors="coerce").fillna(0).astype(int)
-        frames = dict(self.frames)
-        if self.df_4h is not None and not self.df_4h.empty:
-            frames["4h"] = self._enrich_4h(self._prepare_candles(self.df_4h))
-
-        refs = self._refs_by_frame()
-        cols: Dict[str, np.ndarray] = {}
-        n = len(df1)
-
-        # Khung 1m: kernel chỉ tính trên phút có giao dịch
-        if refs.get("1m"):
-            real = df1[df1["is_filled"] == 0].reset_index(drop=True)
-            feat = frame_features(real, refs["1m"])
-            aligned = pd.DataFrame({KEY: df1["open_time"].to_numpy()}).merge(feat, on=KEY, how="left")
-            for name in feat.columns:
-                if name != KEY:
-                    cols[f"1m|{name}"] = aligned[name].to_numpy(dtype="float64")
-
-        # Các khung lớn: chỉ nến đã đóng
-        decision = pd.DataFrame({"decision_time": df1["open_time"].to_numpy() + FRAME_MS["1m"],
-                                 "_row": np.arange(n)})
-        for frame, frame_refs in refs.items():
-            if frame == "1m" or frame not in FRAME_MS:
-                continue
-            fdf = frames.get(frame)
-            if fdf is None or fdf.empty:
-                for column, lag in frame_refs:
-                    cols[f"{frame}|{lag_key(column, lag)}"] = np.full(n, np.nan)
-                continue
-            feat = frame_features(fdf, frame_refs)
-            feat["avail_time"] = feat[KEY] + FRAME_MS[frame]
-            merged = pd.merge_asof(decision, feat.drop(columns=[KEY]).sort_values("avail_time"),
-                                   left_on="decision_time", right_on="avail_time", direction="backward")
-            merged = merged.sort_values("_row")
-            for name in feat.columns:
-                if name not in (KEY, "avail_time"):
-                    cols[f"{frame}|{name}"] = merged[name].to_numpy(dtype="float64")
-        return df1, cols
+    # ─── Dữ liệu: dùng CHUNG đường nạp / căn khung / chỉ báo của engine thật (tham chiếu chỉ đóng băng logic khớp lệnh từng nến) ───
+    load_data = _ProdEngine.__dict__["load_data"]
+    load_frames = _ProdEngine.__dict__["load_frames"]
+    _load_funding = _ProdEngine.__dict__["_load_funding"]
+    _build_matrix = _ProdEngine.__dict__["_build_matrix"]
+    frame_columns = _ProdEngine.__dict__["frame_columns"]
+    minute_columns = _ProdEngine.__dict__["minute_columns"]
+    _prepare_candles = _ProdEngine.__dict__["_prepare_candles"]
+    _enrich_4h = _ProdEngine.__dict__["_enrich_4h"]
+    _keltner_suffix = _ProdEngine.__dict__["_keltner_suffix"]
 
     def run(self):
         if self.df_1m is None or self.df_1m.empty:
@@ -750,48 +686,6 @@ class RefBacktestEngine:
                 "funding_modeled": self.funding is not None,
                 "funding_events": 0 if self.funding is None else int(len(self.funding))}
 
-    # ─── Tiện ích dữ liệu ───────────────────────────────────────────────────
-    @staticmethod
-    def _prepare_candles(df: Optional[pd.DataFrame]) -> pd.DataFrame:
-        if df is None or df.empty:
-            return pd.DataFrame()
-        if "open_time" not in df.columns:
-            raise ValueError("Candle data thiếu cột open_time.")
-        clean = df.reset_index(drop=True).copy()
-        clean["open_time"] = pd.to_numeric(clean["open_time"], errors="coerce")
-        clean = clean.dropna(subset=["open_time"])
-        clean["open_time"] = clean["open_time"].astype("int64")
-        for column in BASE_COLS:
-            if column in clean.columns:
-                clean[column] = pd.to_numeric(clean[column], errors="coerce")
-        return clean.sort_values("open_time").drop_duplicates(subset=["open_time"], keep="last").reset_index(drop=True)
-
-    @classmethod
-    def _enrich_4h(cls, df: pd.DataFrame) -> pd.DataFrame:
-        """Cột 4h kiểu cũ (atr*, Keltner kup/kmid/klo) — giữ để tương thích template cũ."""
-        if df is None or df.empty or not {"high", "low", "close"}.issubset(df.columns):
-            return df
-        if "kup20_15" in df.columns:
-            return df
-        enriched = df.copy()
-        high, low, close = enriched["high"], enriched["low"], enriched["close"]
-        prev_close = close.shift(1)
-        true_range = pd.concat([(high - low).abs(), (high - prev_close).abs(), (low - prev_close).abs()],
-                               axis=1).max(axis=1)
-        for period in (14, 17, 20):
-            enriched[f"atr{period}"] = true_range.rolling(period, min_periods=1).mean()
-        enriched["atr"] = enriched["atr17"]
-        for period, multiplier in cls.KELTNER_CONFIGS:
-            mid = close.ewm(span=period, adjust=False, min_periods=1).mean()
-            suffix = f"{period}_{str(multiplier).replace('.', '')}"
-            enriched[f"kmid{suffix}"] = mid
-            enriched[f"kup{suffix}"] = mid + enriched[f"atr{period}"] * multiplier
-            enriched[f"klo{suffix}"] = mid - enriched[f"atr{period}"] * multiplier
-        return enriched
-
-    @staticmethod
-    def _keltner_suffix(period: int, multiplier: float) -> str:
-        return f"{period}_{str(multiplier).replace('.', '')}"
 
 
 
