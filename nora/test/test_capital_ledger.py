@@ -73,7 +73,10 @@ SCENARIOS = [(seed, market) for seed in range(12) for market in ("spot", "perp")
 
 
 @pytest.mark.parametrize("seed,market", SCENARIOS)
-def test_ledger_invariants_every_bar_random_multi_flow(seed, market):
+def test_ledger_invariants_every_bar_random_multi_flow(seed, market, monkeypatch):
+    """Bất biến sổ vốn kiểm SAU MỖI NẾN trên vòng lặp tham chiếu (kernel = tham chiếu từng bit, test_kernel_parity)."""
+    import reference_engine as ref
+    monkeypatch.setattr(__import__("test_capital_ledger"), "BacktestEngine", ref.RefBacktestEngine)
     rng = np.random.default_rng(seed)
     df = _df(2500, seed, drift=float(rng.normal(0, 0.0003)))
     flows = [_random_flow(rng, market) for _ in range(int(rng.integers(2, 4)))]

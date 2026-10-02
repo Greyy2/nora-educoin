@@ -174,7 +174,11 @@ def test_portfolio_single_symbol_matches_single_engine(market):
     assert a["final_equity"] == pytest.approx(b["final_equity"], rel=1e-12)
 
 
-def test_portfolio_risk_caps_and_shared_ledger(market):
+def test_portfolio_risk_caps_and_shared_ledger(market, monkeypatch):
+    """Trần rủi ro kiểm SAU MỖI PHÚT trên vòng lặp tham chiếu (kernel = tham chiếu từng bit, test_kernel_parity)."""
+    import reference_engine as ref
+    from backend.core.backtest import portfolio as portfolio_mod
+    monkeypatch.setattr(portfolio_mod, "PortfolioEngine", ref.RefPortfolioEngine)
     syms = ["AAA@perp", "BBB@perp", "CCC@perp"]
     risk = {"max_positions": 2, "max_per_symbol": 1, "max_gross_exposure": 1.5, "kill_switch_dd_pct": 0}
     eng = _portfolio(syms, [LONG, SHORT], risk=risk)

@@ -60,9 +60,7 @@ def _strategy_flow(strategy: Dict[str, Any]) -> Dict[str, Any]:
 
 
 class PortfolioEngine:
-    MTM_SAMPLE_MINUTES = 60
-    # Bỏ qua phút "rảnh" (không vị thế mở, không lệnh chờ, không tín hiệu vào) — kết quả BIT-IDENTICAL (test golden + test bật/tắt).
-    _SKIP_IDLE = True
+    MTM_SAMPLE_MINUTES = 60   # mẫu vốn MTM mỗi giờ (+ mỗi lần đóng lệnh); kernel bỏ qua phút rảnh, kết quả như vòng lặp từng phút
 
     def __init__(self, symbols: List[str], strategies: List[Dict[str, Any]], start_ts: int, end_ts: int,
                  trade_start_ts: Optional[int] = None, initial_capital: float = 10000.0,
@@ -96,7 +94,6 @@ class PortfolioEngine:
         self.ruined_at: Optional[int] = None
         self.rejected_for_risk = 0           # số PHÚT lệnh vào bị chặn bởi giới hạn rủi ro (giữ nguyên nghĩa, golden dựa vào đây)
         self.risk_blocked_attempts = 0       # số LẦN vào lệnh bị chặn: các phút liên tiếp của cùng một tracker tính là một lần
-        self.bar_hook = None  # (test) gọi sau mỗi phút: hook(engine, t)
         self.close_at_end = close_at_end
         self.last_close: Dict[str, float] = {}   # giá đóng cửa cuối của từng tài sản (đặt khi run() xong)
 
@@ -184,195 +181,20 @@ class PortfolioEngine:
             self.books.append({"symbol": sym, "data": data, "entries": entries, "f_idx": 0})
 
     # ─── Giới hạn rủi ro ────────────────────────────────────────────────────
-    def _gross_notional(self, last_close: List[float]) -> float:
-        total = 0.0
-        for b, book in enumerate(self.books):
-            px = last_close[b]
-            if px != px:  # NaN: tài sản chưa có nến nào
-                continue
-            for e in book["entries"]:
-                if e["tracker"].is_open:
-                    total += e["tracker"].qty * px
-        return total
-
-    def _open_counts(self) -> Tuple[int, List[int]]:
-        per = [sum(1 for e in book["entries"] if e["tracker"].is_open) for book in self.books]
-        return sum(per), per
-
-    # ─── Chạy ───────────────────────────────────────────────────────────────
     def run(self) -> None:
+        """Chạy cả lần backtest bằng kernel numba (core/backtest/kernel.py): cùng ngữ nghĩa, kết quả trùng từng bit với vòng lặp Python cũ
+        (test/reference_engine.py + test/test_kernel_parity.py)."""
+        from backend.core.backtest.kernel import run_portfolio
         if not self.books:
             self.load_data()
-        grid = np.unique(np.concatenate([b["data"]["t"] for b in self.books]))
-        idx_maps = []
-        for book in self.books:
-            m = np.full(len(grid), -1, dtype=np.int64)
-            m[np.searchsorted(grid, book["data"]["t"])] = np.arange(len(book["data"]["t"]))
-            idx_maps.append(m)
-        last_close = [float("nan")] * len(self.books)
-        last_low = [float("nan")] * len(self.books)
-        last_high = [float("nan")] * len(self.books)
-        last_open = [float("nan")] * len(self.books)
-        peak_mtm = self.initial_capital
-        last_sample = None
-        cap = self.risk.max_gross_exposure
-        kill = self.risk.kill_switch_dd_pct / 100.0 if self.risk.kill_switch_dd_pct else 0.0
+        run_portfolio(self)
 
-        n_grid = len(grid)
-        skip = self._SKIP_IDLE and self.bar_hook is None   # bar_hook (test) cần kiểm bất biến mỗi phút
-        if skip:
-            # Phút có tín hiệu vào của BẤT KỲ chiến lược × tài sản nào, tính từ trade_start_ts (trước đó on_bar không làm gì)
-            sig_any = np.zeros(n_grid, dtype=bool)
-            for book in self.books:
-                pos = np.searchsorted(grid, book["data"]["t"])
-                for e in book["entries"]:
-                    sig_any[pos] |= e["match"]
-            cand = np.flatnonzero(sig_any & (grid >= self.trade_start_ts))
-        busy = False  # vòng trước còn tracker mở / lệnh chờ?
+    def run_many(self, position_overrides: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Nhiều bộ tham số vị thế/thoát lệnh trên CÙNG dữ liệu + CÙNG tín hiệu (nạp/tính một lần) -> danh sách get_results() cùng thứ tự.
+        Không được đổi exit_unit / atr_frame / atr_period (đổi cột tín hiệu ATR). Gom alpha theo tín hiệu là việc của backend/optimize."""
+        from backend.core.backtest.kernel import run_many
+        return run_many(self, position_overrides)
 
-        g = 0
-        while g < n_grid:
-            if skip and not busy and not self._any_active():
-                land = n_grid if self.halted_at is not None else (
-                    int(cand[np.searchsorted(cand, g)]) if np.searchsorted(cand, g) < len(cand) else n_grid)
-                if land > g:  # g..land-1: không có gì xảy ra ngoài funding trượt, last_*, mẫu vốn theo giờ
-                    peak_mtm = max(peak_mtm, self.ledger.equity)
-                    last_sample = self._skip_idle(grid, idx_maps, g, land, last_sample, last_close, last_low, last_high,
-                                                  last_open)
-                    g = land
-                    continue
-            t = int(grid[g])
-            can_trade = t >= self.trade_start_ts and self.halted_at is None
-            touched = False
-            busy = False
-            for b, book in enumerate(self.books):
-                i = idx_maps[b][g]
-                if i < 0:
-                    continue
-                d = book["data"]
-                o, h, l, c = d["o"][i], d["h"][i], d["l"][i], d["c"][i]
-                while book["f_idx"] < len(d["f_t"]) and d["f_t"][book["f_idx"]] <= t:
-                    for e in book["entries"]:
-                        e["tracker"].apply_funding(float(d["f_r"][book["f_idx"]]), float(o))
-                    book["f_idx"] += 1
-                for e in book["entries"]:
-                    tr = e["tracker"]
-                    sig = bool(e["match"][i])
-                    if not tr.is_open and not tr.pending_entry and not sig:
-                        continue  # không có gì xảy ra với tracker này ở phút này
-                    can_open = False
-                    if can_trade and tr.pending_entry and not tr.is_open:
-                        n_open, per = self._open_counts()
-                        blocked = n_open >= self.risk.max_positions or per[b] >= self.risk.max_per_symbol
-                        if not blocked:
-                            last_close[b] = float(o)  # giá tại thời điểm vào lệnh
-                            room = cap * self.ledger.equity - self._gross_notional(last_close)
-                            tr.max_new_notional = max(0.0, room)
-                            can_open = room > 0
-                            blocked = not can_open
-                        if blocked:
-                            self.rejected_for_risk += 1
-                            if e.get("blk_g") != g - 1:   # phút trước tracker này không bị chặn -> một lần vào lệnh mới bị chặn
-                                self.risk_blocked_attempts += 1
-                            e["blk_g"] = g
-                    pos = tr.on_bar(t, o, h, l, c, entry_signal=sig and can_trade, stop_signal=bool(e["stop"][i]),
-                                    can_open=can_open,
-                                    vol=float(e["vol"][i]) if e["vol"] is not None else float("nan"))
-                    tr.max_new_notional = float("inf")
-                    if tr.is_open or tr.pending_entry:
-                        busy = True
-                    if pos is not None:
-                        self._collect(book["symbol"], e, pos)
-                        if self.ledger.equity <= 0 and self.ruined_at is None:
-                            self.ruined_at = t
-                last_close[b], last_low[b], last_high[b], last_open[b] = float(c), float(l), float(h), float(o)
-                touched = True
-            g += 1
-            if not touched:
-                continue
-            if self.bar_hook is not None:
-                self.bar_hook(self, t)
-            mtm, worst = self._mtm(last_close, last_low, last_high)
-            peak_mtm = max(peak_mtm, mtm)
-            if kill and self.halted_at is None and worst <= peak_mtm * (1.0 - kill):
-                self._halt(t, last_close)
-                mtm, worst = self._mtm(last_close, last_low, last_high)
-            if last_sample is None or t - last_sample >= self.MTM_SAMPLE_MINUTES * 60_000:
-                self._sample(t, mtm, worst)
-                last_sample = t
-
-        t_end = int(grid[-1]) if len(grid) else self.end_ts
-        self.last_close = {book["symbol"]: last_close[b] for b, book in enumerate(self.books)}
-        for b, book in enumerate(self.books if self.close_at_end else ()):
-            t_last = int(book["data"]["t"][-1]) if len(book["data"]["t"]) else t_end
-            for e in book["entries"]:  # cùng quy ước BacktestEngine: đóng ở open của nến cuối của tài sản
-                pos = e["tracker"].force_close(t_last, last_open[b], "End of Backtest")
-                if pos is not None:
-                    self._collect(book["symbol"], e, pos)
-        mtm, worst = self._mtm(last_close, last_low, last_high)
-        self._sample(t_end, mtm, worst)
-
-    def _any_active(self) -> bool:
-        return any(e["tracker"].is_open or e["tracker"].pending_entry or e["tracker"].pending_exit
-                   for book in self.books for e in book["entries"])
-
-    def _skip_idle(self, grid, idx_maps, g: int, land: int, last_sample, last_close, last_low, last_high, last_open):
-        """Tái hiện đúng những gì vòng lặp gốc làm ở các phút rảnh g..land-1 (mọi tracker đang phẳng):
-        - funding: con trỏ f_idx của từng sổ trượt qua mọi funding <= nến cuối của sổ đó trong đoạn (apply_funding là no-op khi phẳng);
-        - last_close/low/high/open: nến thật cuối của từng sổ trước `land`;
-        - mẫu vốn theo giờ: đúng các thời điểm lưới mà vòng gốc sẽ lấy (t - last_sample >= MTM_SAMPLE_MINUTES), vốn = ledger.equity."""
-        t_lo, t_hi = int(grid[g]), int(grid[land]) if land < len(grid) else None
-        for b, book in enumerate(self.books):
-            d = book["data"]
-            lo = int(np.searchsorted(d["t"], t_lo, side="left"))
-            hi = len(d["t"]) if t_hi is None else int(np.searchsorted(d["t"], t_hi, side="left"))
-            if hi <= lo:
-                continue
-            i = hi - 1
-            book["f_idx"] = max(book["f_idx"], int(np.searchsorted(d["f_t"], d["t"][i], side="right")))
-            last_close[b], last_low[b], last_high[b], last_open[b] = (
-                float(d["c"][i]), float(d["l"][i]), float(d["h"][i]), float(d["o"][i]))
-        step = self.MTM_SAMPLE_MINUTES * 60_000
-        k = g if last_sample is None else int(np.searchsorted(grid, last_sample + step, side="left"))
-        while k < land:
-            mtm, worst = self._mtm(last_close, last_low, last_high)  # phẳng: = vốn đã chốt
-            last_sample = int(grid[k])
-            self._sample(last_sample, mtm, worst)
-            k = int(np.searchsorted(grid, last_sample + step, side="left"))
-        return last_sample
-
-    def _mtm(self, last_close, last_low, last_high) -> Tuple[float, float]:
-        mtm = worst = self.ledger.equity
-        for b, book in enumerate(self.books):
-            for e in book["entries"]:
-                tr = e["tracker"]
-                if tr.is_open:
-                    mtm += tr.unrealized_pnl_usd(last_close[b])
-                    worst += tr.unrealized_pnl_usd(last_low[b] if tr.is_long else last_high[b])
-        return mtm, worst
-
-    def _halt(self, t: int, last_close: List[float]) -> None:
-        """Kill switch: đóng mọi vị thế ở giá hiện tại (market) và dừng mở lệnh mới."""
-        self.halted_at = t
-        for b, book in enumerate(self.books):
-            for e in book["entries"]:
-                tr = e["tracker"]
-                tr.pending_entry = False
-                pos = tr.force_close(t, last_close[b], "Kill switch danh mục")
-                if pos is not None:
-                    self._collect(book["symbol"], e, pos)
-
-    def _sample(self, t: int, mtm: float, worst: float) -> None:
-        self.equity_curve.append({"time": t, "equity": round(mtm, 4), "equity_worst": round(worst, 4)})
-
-    def _collect(self, symbol: str, entry: Dict[str, Any], pos) -> None:
-        pos.symbol = symbol
-        pos.strategy_id = entry["strategy"]
-        self.closed_positions.append(pos)
-        self.orders.extend(entry["tracker"].orders)
-        entry["tracker"].orders = []
-
-    # ─── Kết quả ────────────────────────────────────────────────────────────
     def open_positions(self) -> List[Dict[str, Any]]:
         """Vị thế còn mở sau run() (chỉ khác rỗng khi close_at_end=False), mark = giá đóng cửa cuối của tài sản."""
         out = []

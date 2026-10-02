@@ -10,7 +10,6 @@ Luồng:
 5. Vòng lặp khớp lệnh theo từng nến 1m có giao dịch (backtest/execution.py).
 6. Đường vốn mark-to-market (lấy mẫu mỗi giờ + mỗi lần đóng lệnh) để đo sụt giảm cả phần lỗ treo.
 """
-import time
 from typing import Dict, List, Optional, Set, Tuple
 
 import numpy as np
@@ -18,7 +17,7 @@ import pandas as pd
 
 from backend.core.execute.ledger import CapitalLedger
 from backend.core.execute.tracker import PositionTracker
-from backend.core.signals.evaluator import VectorEvaluator, lag_key
+from backend.core.signals.evaluator import lag_key
 from backend.core.data.loader import CandleLoader
 from backend.core.params.schema import StrategyParams
 from backend.core.execute.models import PositionType
@@ -77,9 +76,7 @@ class BacktestEngine:
     MAX_BACKTEST_DAYS = 1100
     MAX_STRATEGIES = 100
     KELTNER_CONFIGS = ((17, 0.5), (20, 1.5))
-    MTM_SAMPLE_MINUTES = 60
-    # Bỏ qua nến "rảnh" (không vị thế mở, không lệnh chờ, không tín hiệu vào) — kết quả BIT-IDENTICAL (test golden + test bật/tắt).
-    _SKIP_IDLE = True
+    MTM_SAMPLE_MINUTES = 60   # mẫu vốn MTM mỗi giờ (+ mỗi lần đóng lệnh); kernel bỏ qua phút rảnh, kết quả như vòng lặp từng phút
 
     def __init__(self, account_id: int, campaign_id: int, symbol: str, start_ts: int, end_ts: int,
                  trade_start_ts: Optional[int] = None, initial_capital: float = 10000.0):
@@ -107,7 +104,6 @@ class BacktestEngine:
         self.closed_positions = []
         self.orders = []
         self.equity_curve: List[Dict[str, float]] = []
-        self.bar_hook = None  # (tuỳ chọn, dùng cho test) gọi sau mỗi nến có giao dịch: hook(engine, t)
 
     # ─── Cấu hình ───────────────────────────────────────────────────────────
     def add_strategy_flow(self, flow_name: str, params: StrategyParams):
@@ -219,118 +215,11 @@ class BacktestEngine:
         return df1, cols
 
     def run(self):
+        """Chạy backtest bằng kernel numba (core/backtest/kernel.py) — kết quả trùng từng bit với vòng lặp Python cũ (test/reference_engine.py)."""
         if self.df_1m is None or self.df_1m.empty:
             return
-        self.closed_positions, self.orders, self.equity_curve = [], [], []
-        print(f"Bắt đầu chạy backtest cho {self.symbol} ({len(self.df_1m)} nến 1 phút)...")
-        started = time.time()
-
-        df1, cols = self._build_matrix()
-        n = len(df1)
-
-        def get(frame, column, lag):
-            return cols.get(f"{frame}|{lag_key(column, lag)}", np.full(n, np.nan))
-
-        vec = VectorEvaluator(n, get)
-        signals = [(vec.tree(tr.match_tree), vec.tree(tr.stop_tree)) for tr in self.trackers]
-        vols = [cols.get(self.vol_column(tr)) if self.vol_column(tr) else None for tr in self.trackers]
-
-        t_arr = df1["open_time"].to_numpy(dtype="int64")
-        o_arr, h_arr = df1["open"].to_numpy(dtype="float64"), df1["high"].to_numpy(dtype="float64")
-        l_arr, c_arr = df1["low"].to_numpy(dtype="float64"), df1["close"].to_numpy(dtype="float64")
-        filled = df1["is_filled"].to_numpy() == 1
-        max_open = [int(getattr(tr.params, "max_open_trades", 45) or 45) for tr in self.trackers]
-
-        last_sample = None
-        last_real = None
-        self.ruined_at = None
-        f_times = self.funding["funding_time"].to_numpy(dtype="int64") if self.funding is not None else np.array([], "int64")
-        f_rates = self.funding["rate"].to_numpy(dtype="float64") if self.funding is not None else np.array([])
-        f_idx = 0
-        real_pos = np.flatnonzero(~filled)  # chỉ nến có giao dịch (nến điền is_filled=1 bị bỏ qua hoàn toàn)
-        n_real = len(real_pos)
-        rt = t_arr[real_pos]
-        skip = self._SKIP_IDLE and self.bar_hook is None   # bar_hook (test) cần kiểm bất biến mỗi nến
-        if skip:
-            # Nến có tín hiệu vào của BẤT KỲ flow nào, từ trade_start_ts (trước đó on_bar không làm gì khi phẳng)
-            sig_any = np.zeros(n, dtype=bool)
-            for match, _ in signals:
-                sig_any |= match
-            cand = np.flatnonzero(sig_any[real_pos] & (rt >= self.trade_start_ts))
-        busy = False  # nến trước còn flow mở / lệnh chờ?
-        step = self.MTM_SAMPLE_MINUTES * 60_000
-        r = 0
-        while r < n_real:
-            if skip and not busy and not any(tr.is_open or tr.pending_entry or tr.pending_exit for tr in self.trackers):
-                k = int(np.searchsorted(cand, r))
-                land = int(cand[k]) if k < len(cand) else n_real
-                if land > r:  # r..land-1: phẳng, không tín hiệu -> chỉ còn mẫu vốn theo giờ (funding no-op khi phẳng;
-                    # f_idx sẽ trượt tại nến đáp xuống, lúc đó mọi flow vẫn phẳng nên không trả funding)
-                    last_real = int(real_pos[land - 1])
-                    j = r if last_sample is None else int(np.searchsorted(rt, last_sample + step, side="left"))
-                    while j < land:
-                        ij = int(real_pos[j])
-                        self._sample_equity(int(rt[j]), c_arr[ij], l_arr[ij], h_arr[ij])
-                        last_sample = int(rt[j])
-                        j = int(np.searchsorted(rt, last_sample + step, side="left"))
-                    r = land
-                    continue
-            i = int(real_pos[r])
-            r += 1
-            last_real = i
-            t = int(t_arr[i])
-            while f_idx < len(f_times) and f_times[f_idx] <= t:  # funding đến hạn trước/ tại nến này
-                for tr in self.trackers:
-                    tr.apply_funding(float(f_rates[f_idx]), float(o_arr[i]))
-                f_idx += 1
-            can_trade = t >= self.trade_start_ts
-            open_now = sum(1 for tr in self.trackers if tr.is_open)
-            closed_any = False
-            busy = False
-            for k, tracker in enumerate(self.trackers):
-                match, stop = signals[k]
-                pos = tracker.on_bar(t, o_arr[i], h_arr[i], l_arr[i], c_arr[i],
-                                     entry_signal=bool(match[i]) and can_trade,
-                                     stop_signal=bool(stop[i]),
-                                     can_open=can_trade and open_now < max_open[k],
-                                     vol=float(vols[k][i]) if vols[k] is not None else float("nan"))
-                if tracker.is_open or tracker.pending_entry:
-                    busy = True
-                if pos is not None:
-                    self._collect(tracker, pos)
-                    closed_any = True
-                    if self.ledger.equity <= 0 and self.ruined_at is None:
-                        self.ruined_at = t
-            if self.bar_hook is not None:
-                self.bar_hook(self, t)
-            if closed_any or last_sample is None or t - last_sample >= step:
-                self._sample_equity(t, c_arr[i], l_arr[i], h_arr[i])
-                last_sample = t
-
-        if last_real is not None:
-            t = int(t_arr[last_real])
-            for tracker in self.trackers:
-                pos = tracker.force_close(t, float(o_arr[last_real]), "End of Backtest")
-                if pos is not None:
-                    self._collect(tracker, pos)
-            self._sample_equity(t, c_arr[last_real], l_arr[last_real], h_arr[last_real])
-
-        print(f"Hoàn thành backtest. Thu được {len(self.closed_positions)} vị thế. Mất {time.time() - started:.2f} giây.")
-
-    def _collect(self, tracker: PositionTracker, pos) -> None:
-        self.closed_positions.append(pos)
-        self.orders.extend(tracker.orders)
-        tracker.orders = []
-
-    def _sample_equity(self, t: int, close: float, low: float, high: float) -> None:
-        """Vốn mark-to-market = vốn đã chốt (ledger, gồm funding) + lãi/lỗ treo của vị thế mở."""
-        mtm = sum(tr.unrealized_pnl_usd(close) for tr in self.trackers)
-        worst = sum(tr.unrealized_pnl_usd(low if tr.is_long else high) for tr in self.trackers)
-        self.equity_curve.append({
-            "time": t,
-            "equity": round(self.ledger.equity + mtm, 4),
-            "equity_worst": round(self.ledger.equity + worst, 4),
-        })
+        from backend.core.backtest.kernel import run_backtest
+        run_backtest(self)
 
     def get_results(self):
         return {"positions": self.closed_positions, "orders": self.orders, "equity_curve": self.equity_curve,

@@ -1,11 +1,24 @@
-"""Bỏ qua phút rảnh (_SKIP_IDLE) phải cho kết quả BIT-IDENTICAL với vòng lặp từng phút (tắt cờ) — và thực sự bỏ qua."""
+"""Bỏ qua phút rảnh (_SKIP_IDLE) phải cho kết quả BIT-IDENTICAL với vòng lặp từng phút (tắt cờ) — và thực sự bỏ qua.
+
+Kiểm trên vòng lặp Python THAM CHIẾU (test/reference_engine.py): kernel numba của engine thật bỏ qua phút rảnh theo đúng luật này và đã được
+chứng minh trùng từng bit với tham chiếu (test_kernel_parity) -> bỏ qua đúng ở tham chiếu => đúng ở kernel."""
 import os
 
 import pytest
 
 import golden_scenarios as gs
-from backend.core.backtest.engine import BacktestEngine
-from backend.core.backtest.portfolio import PortfolioEngine, RiskConfig
+import reference_engine as ref
+from backend.core.backtest import engine as _engine_mod, portfolio as _portfolio_mod
+from backend.core.backtest.portfolio import RiskConfig
+
+BacktestEngine, PortfolioEngine = ref.RefBacktestEngine, ref.RefPortfolioEngine
+
+
+@pytest.fixture(autouse=True)
+def _reference_engines(monkeypatch):
+    """Kịch bản golden dựng engine qua module backend -> trỏ sang lớp tham chiếu trong file này."""
+    monkeypatch.setattr(_portfolio_mod, "PortfolioEngine", PortfolioEngine)
+    monkeypatch.setattr(_engine_mod, "BacktestEngine", BacktestEngine)
 
 DAY = gs.DAY
 T0 = gs.T0

@@ -183,6 +183,11 @@ def test_cooldown_applies_after_force_close_and_timeout():
 
 @pytest.mark.parametrize("cooldown", [0, 45])
 def test_skip_idle_identical_with_cooldown(monkeypatch, cooldown):
+    """Trên vòng lặp tham chiếu (kernel = tham chiếu từng bit, test_kernel_parity)."""
+    import reference_engine as ref
+    from backend.core.backtest import engine as engine_mod
+    monkeypatch.setattr(engine_mod, "BacktestEngine", ref.RefBacktestEngine)   # _engine() dựng qua module
+    BacktestEngine = ref.RefBacktestEngine
     df = _ohlcv(4000, seed=5)
     tree = [[[{"frame": "1m", "column": "rsi_14"}, "<", 35]]]
 
