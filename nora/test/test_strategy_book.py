@@ -109,7 +109,7 @@ def test_book_pipeline_runs_all_stages_with_shared_params(market, monkeypatch, t
 
 
 def test_book_export_describes_simulated_rules(tmp_path):
-    from backend.optimize.book_export import build_book, testnet_book_config
+    from backend.optimize.registry import build_book, testnet_book_config
     report = {
         "windows": {"start": "a", "dev1_end": "b", "dev2_end": "c", "end": "d"}, "gates": {},
         "candidates": {"trend_long": {"accepted": True}, "trend_short": {"accepted": False}},
@@ -145,7 +145,7 @@ def _book_report(holdout_pass):
 
 
 def test_write_book_holdout_pass_writes_testnet(tmp_path):
-    from backend.optimize.book_export import write_book
+    from backend.optimize.registry import write_book
     paths = write_book(_book_report(True), str(tmp_path), source="x")
     assert len(paths) == 2 and (tmp_path / "testnet" / "book.json").exists()
     book = json.loads((tmp_path / "book.json").read_text())
@@ -154,7 +154,7 @@ def test_write_book_holdout_pass_writes_testnet(tmp_path):
 
 @pytest.mark.parametrize("hp", [False, "False", None])
 def test_write_book_holdout_fail_no_testnet_and_removes_stale(tmp_path, capsys, hp):
-    from backend.optimize.book_export import write_book
+    from backend.optimize.registry import write_book
     (tmp_path / "testnet").mkdir()
     (tmp_path / "testnet" / "book.json").write_text("{}")             # file cũ từ lần trước
     paths = write_book(_book_report(hp), str(tmp_path), source="x")

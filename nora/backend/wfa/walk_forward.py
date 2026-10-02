@@ -131,8 +131,8 @@ def _pool_shared(jobs, workers, label, shared_dir, store=None, stage=None, progr
         for k in keys:
             shutil.rmtree(os.path.join(shared_dir, k), ignore_errors=True)
         return res
-    from backend.optimize.results_store import data_fingerprint, make_job_key
-    from backend.optimize.stream import normalize
+    from backend.optimize.store import data_fingerprint, make_job_key
+    from backend.optimize.store import normalize
     stage = stage or "wfa"
     results: List[Any] = [None] * len(jobs)
     keys_of: List[Optional[str]] = [None] * len(jobs)

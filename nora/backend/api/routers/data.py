@@ -1,4 +1,5 @@
 """Dữ liệu thị trường (/api/data): tải nến Binance và đưa dữ liệu đã qua quality gate từ staging vào kho — đều là job nền."""
+import os
 from typing import List
 
 from fastapi import APIRouter
@@ -7,6 +8,7 @@ from pydantic import BaseModel, Field
 from backend.api.jobs import batch as batch_jobs
 
 router = APIRouter(prefix="/api/data", tags=["data"])
+STAGING = os.path.join(batch_jobs.NORA_DIR, "data_staging")   # crawl ghi vào staging; chỉ promote (qua quality gate) mới đưa vào data/
 
 
 class CrawlRequest(BaseModel):
@@ -22,9 +24,9 @@ class PromoteRequest(BaseModel):
 
 @router.post("/crawl")
 def post_crawl(req: CrawlRequest):
-    """Tải nến 1m (+ funding với perp) cho các tài sản; quality gate vẫn chặn ở mọi bước chạy sau."""
+    """Tải nến 1m (+ funding với perp) vào data_staging/; sau đó POST /promote đưa tài sản qua quality gate vào data/."""
     syms = [s.strip().upper() for s in req.symbols if s.strip().isalnum()]
-    return batch_jobs.http_launch("data_crawl", {"symbols": syms, "market": req.market, "years": req.years})
+    return batch_jobs.http_launch("data_crawl", {"symbols": syms, "market": req.market, "years": req.years, "output_dir": STAGING})
 
 
 @router.post("/promote")

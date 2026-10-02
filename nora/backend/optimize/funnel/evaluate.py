@@ -99,7 +99,7 @@ def mc_detail(series, scale: float, basis: str = "extreme") -> Dict[str, Any]:
 
 # ── WFA tham số cố định ─────────────────────────────────────────────────────
 def fold_job_plan(folds: List[Dict[str, int]]) -> List[Dict[str, Any]]:
-    from .windows import iso_date
+    from backend.optimize.funnel.gates import iso_date
     return [{"fold": i + 1, "train": [f["train_start_ts"], f["train_end_ts"]], "test": [f["test_start_ts"], f["test_end_ts"]],
              "train_iso": [iso_date(f["train_start_ts"]), iso_date(f["train_end_ts"])],
              "test_iso": [iso_date(f["test_start_ts"]), iso_date(f["test_end_ts"])]} for i, f in enumerate(folds)]

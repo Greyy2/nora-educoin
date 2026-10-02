@@ -30,7 +30,7 @@ def test_backend_has_only_planned_packages():
 
 
 def test_resume_code_fingerprint_files_exist():
-    from backend.optimize import results_store
+    from backend.optimize import store as results_store
     root = os.path.join(os.path.dirname(__file__), "..")
     missing = [f for f in results_store._CODE_FILES if not os.path.isfile(os.path.join(root, f))]
     assert not missing        # file đổi tên mà quên cập nhật -> khoá resume không còn theo dõi mã thật

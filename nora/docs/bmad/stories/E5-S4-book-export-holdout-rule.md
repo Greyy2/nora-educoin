@@ -25,7 +25,7 @@ Là người vận hành, tôi muốn một sổ trượt holdout không bao gi�
 
 ## Dev Notes
 
-- Code: `backend/optimize/book_export.py`, `backend/utils/jsonsafe.py`. Đặc tả: `architecture.md` §8.3.
+- Code: `backend/optimize/registry.py`, `backend/utils/jsonsafe.py`. Đặc tả: `architecture.md` §8.3.
 - Lỗi đã sửa: numpy bool ghi thành chuỗi `'False'` (truthy) khiến `validate_book` coi chiến lược bị loại là đạt, `holdout_pass` không đáng tin.
 
 ## Evidence

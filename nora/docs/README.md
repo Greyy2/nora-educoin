@@ -4,50 +4,54 @@
 
 ```text
 nora/
-├── backend/
-│   ├── main.py            # App FastAPI (uvicorn backend.main:app)
-│   ├── api/               # routers/, schemas.py, control.py (điều khiển node cũ), jobs/ (job nền: store, batch, scan)
-│   ├── core/              # Lõi nghiệp vụ
-│   │   ├── contracts.py   # Hợp đồng dữ liệu Backtest/WFA/Monte Carlo
-│   │   ├── data/          # loader, resampler, quality_gate, crawler/
-│   │   ├── signals/       # kernels, diagnostics, evaluator
-│   │   ├── strategy/      # params, strategy_book/library, templates, builder/generator/validator, DC
-│   │   ├── backtest/      # engine, portfolio, execution, metrics, shared_data
-│   │   ├── analytics/     # portfolio_dashboard, stats_metrics, queries
-│   │   └── research/      # nghiên cứu thị trường (regime, DC, insight, scan)
-│   ├── db/                # data_layout, local_pkl, tick_storage, mysql, mongo, models
-│   ├── optimize/          # sinh/chạy alpha, funnel/ (phễu S0–FINAL), build_strategy_book, optimize_alphas, run_funnel, registry, book_export
-│   ├── wfa/               # walk_forward (đơn tài sản), portfolio_wfa, validate_book (lệnh WFA sổ)
-│   ├── carlo/             # monte_carlo
-│   └── utils/             # lru, parallel, memwatch, jsonsafe, jobresult, ops/ (run_limited.sh, systemd)
-├── test/                  # pytest + golden/ (snapshot bit-identical) + make_golden.py
-├── data/                  # dữ liệu & cache (không commit), TRỪ data/alphas/ (sổ alpha / registry, có commit)
-├── requirements.txt
-├── frontend/              # Vite SPA
-└── docs/                  # tài liệu
+├── backend/                  # CHỈ logic lõi (không script, không lệnh terminal)
+│   ├── main.py               # app FastAPI: gắn router + phục vụ frontend/dist
+│   ├── api/
+│   │   ├── routers/          # book (backtest/WFA/MC, sổ, kho alpha), funnel, strategies, portfolio, data
+│   │   ├── jobs/             # batch.py (khởi chạy/theo dõi/huỷ job), runner.py (MỘT cửa chạy mọi job)
+│   │   └── modes.py          # chế độ Cơ bản / Nâng cao -> params của job
+│   ├── core/
+│   │   ├── data/             # loader, resampler, quality_gate, shared (mmap dùng chung), crawler (Binance), promote
+│   │   ├── signals/          # kernels (chỉ báo causal), evaluator (cây điều kiện), diagnostics
+│   │   ├── strategy/         # library (chiến lược lõi + bot), book (7 ứng viên sổ, materialize)
+│   │   ├── params/           # schema (StrategyParams), template, builder (chi phí sàn, kiểm DCA), presets, modes
+│   │   ├── execute/          # tracker (vào/ra, SL/TP/trailing, DCA, thanh lý, funding), ledger (vốn chung), models
+│   │   ├── metrics/          # trades (PnL, win rate, PF), returns (lợi suất ngày, Sharpe, Sortino, MDD), portfolio
+│   │   ├── backtest/         # engine (một tài sản), portfolio (nhiều tài sản/chiến lược), run (job backtest)
+│   │   └── analytics/        # dashboard (payload trang Danh mục), feeds (Backtest/Live/Testnet + feed giả lập)
+│   ├── db/                   # data_layout (đường dẫn), local_pkl (đọc/ghi nến), tick_storage
+│   ├── optimize/             # book (dựng sổ A–D), store (kho kết quả SQLite + streaming), registry (kho alpha, sổ, xuất bản)
+│   │   └── funnel/           # phễu S0–FINAL: gates, generate, evaluate, antiluck, sizing, stats, storage, orchestrator, run
+│   ├── wfa/                  # walk_forward (fold + WFA danh mục), run (job WFA)
+│   ├── carlo/                # monte_carlo (bootstrap, kịch bản cực xấu, gate)
+│   └── utils/                # parallel (worker), memwatch (RAM), lru, jsonsafe, jobs (tham số/tiến độ/kết quả job), ops/ (run_limited.sh, systemd)
+├── test/                     # pytest + golden/ + scripts/ (smoke, bench, research, make_golden, check_tests_vs_ref)
+├── data/                     # dữ liệu & cache (không commit), TRỪ data/alphas/ (sổ alpha / registry, có commit)
+├── frontend/src/             # Vite + React: pages/, components/, lib/, hooks/, api.js
+└── docs/                     # tài liệu
 ```
 
-### Lệnh chạy nằm ở đâu
+### Chạy việc gì ở đâu — một cửa: API
 
-| Lệnh (`python -m …`) | Nằm ở | Làm gì |
+Mọi việc nặng là **job** chạy qua cùng một đường: endpoint API → `api/jobs/batch.launch` ghi `params.json` → tiến trình riêng
+`backend/utils/ops/run_limited.sh -- -m backend.api.jobs.runner <job_dir>` (trần RAM nora.slice) → `run_job(params)` của module.
+UI, terminal (curl) hay script đều gọi **cùng endpoint**; không có lệnh terminal riêng cho từng việc.
+
+| Việc | Endpoint | Loại job → module |
 |---|---|---|
-| `backend.optimize.run_funnel` | `optimize/` | Phễu lọc alpha: sinh → backtest → chống ăn may → WFA → MC → chốt |
-| `backend.optimize.build_strategy_book` | `optimize/` | Dựng sổ chiến lược (tối ưu nhiều giai đoạn A–D) |
-| `backend.optimize.optimize_alphas` | `optimize/` | Tối ưu alpha đơn tài sản |
-| `backend.optimize.build_presets` | `optimize/` | Ghi `data/alphas/presets.json` (tham số tốt nhất từng chiến lược) |
-| `backend.optimize.build_alpha_registry`, `portfolio_sizing`, `robustness_check` | `optimize/` | Kho alpha, chọn cỡ vị thế, kiểm độ bền |
-| `backend.wfa.validate_book` | `wfa/` | Walk-forward cho sổ danh mục |
-| `backend.core.backtest.run_book_backtest` | `core/backtest/` | Backtest một sổ / danh sách chiến lược |
-| `backend.core.backtest.smoke_check`, `check_signals_strategies`, `bench_engine` | `core/backtest/` | Kiểm nhanh bất biến, kiểm tín hiệu, đo tốc độ engine |
-| `backend.core.analytics.make_mock_feeds` | `core/analytics/` | Feed giả lập Live/Testnet cho trang Danh mục |
-| `backend.core.data.promote_staging` | `core/data/` | Đưa dữ liệu đã kiểm từ staging vào kho |
-| `backend.core.research.research_*` | `core/research/` | Nghiên cứu (bot top OKX, maker scalp, trend danh mục) |
+| Backtest | `POST /api/studio/book/backtest` | `book_backtest` → `core/backtest/run.py` |
+| Walk-forward | `POST /api/studio/book/wfa` | `book_wfa` → `wfa/run.py` |
+| Monte Carlo | `POST /api/studio/book/mc` | (nhẹ, chạy ngay trong API) → `carlo/monte_carlo.py` |
+| Dựng sổ chiến lược | `POST /api/studio/book/build` | `book_build` → `optimize/book.py` |
+| Phễu alpha | `POST /api/studio/funnel/runs` | `funnel_run` → `optimize/funnel/run.py` |
+| Dựng preset | `POST /api/studio/strategies/presets` | `presets_build` → `core/params/presets.py` |
+| Feed giả lập Live/Testnet | `POST /api/studio/portfolio/mock-feeds` | `mock_feeds` → `core/analytics/feeds.py` |
+| Tải dữ liệu Binance | `POST /api/data/crawl` | `data_crawl` → `core/data/crawler.py` |
+| Đưa dữ liệu vào kho | `POST /api/data/promote` | `data_promote` → `core/data/promote.py` |
 
-Luôn chạy qua `backend/utils/ops/run_limited.sh -- -m <lệnh> …` từ thư mục `nora/`.
-Bấm "Chạy" trên UI = API tạo **job** gọi đúng lệnh trên trong tiến trình riêng (`backend/api/jobs/batch.py`, danh sách trắng `KINDS`).
-
-
-Chạy mọi thứ từ thư mục `nora/` qua `backend/utils/ops/run_limited.sh -- -m backend.<gói>.<lệnh> ...` (PYTHONPATH=nora, cwd=nora); import theo dạng `backend.core.backtest.portfolio`, `backend.api.jobs.batch`, ...
+Theo dõi / huỷ: `GET /api/studio/book/jobs`, `GET /api/studio/book/jobs/{id}`, `POST /api/studio/book/jobs/{id}/cancel`.
+Ví dụ terminal: `curl -X POST localhost:18010/api/studio/book/backtest -H 'content-type: application/json' -d '{"mode":"basic","strategies":[{"id":"trend_long"}],"start":"2025-03-01","end":"2025-04-30"}'`.
+Script kiểm tra/nghiên cứu (không phải logic sản phẩm) nằm ở `test/scripts/`, chạy bằng `backend/utils/ops/run_limited.sh -- test/scripts/<tên>.py`.
 
 ---
 

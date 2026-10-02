@@ -25,7 +25,7 @@ Là người vận hành, tôi muốn việc hiệu chỉnh tham số trên UI k
 
 ## Dev Notes
 
-- Code: `backend/api/routers/book.py`, `backend/optimize/book_export.py`, `backend/api/jobs/batch.py`.
+- Code: `backend/api/routers/book.py`, `backend/optimize/registry.py`, `backend/api/jobs/batch.py`.
 - Rủi ro còn lại: `publish` ghi đè sổ mà không cần xác thực (R-5, E11-S1/S2).
 
 ## Evidence

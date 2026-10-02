@@ -7,7 +7,7 @@ import json
 import os
 from typing import Any, Dict, Optional
 
-from . import backtest as bt, gates
+from backend.optimize.funnel import evaluate as bt, gates
 from .storage import RunStore, atomic_write_json
 
 

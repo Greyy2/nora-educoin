@@ -17,9 +17,9 @@ import time
 import pytest
 
 from backend.core.data import quality_gate as qg
-from backend.optimize import results_store as rs
+from backend.optimize import store as rs
 from backend.utils.jobs import Progress, graceful_sigterm
-from backend.optimize.stream import stream_stage
+from backend.optimize.store import stream_stage
 from backend.utils import parallel
 from test_portfolio_wfa import CFG, DAY, RISK, START, T0, _load_script, _small_book, market  # noqa: F401  (market là fixture)
 
@@ -505,7 +505,7 @@ def test_progress_resumed_ticks_do_not_count_toward_rate(tmp_path):
 _KILL_SCRIPT = r"""
 import os, sys, time
 sys.path.insert(0, {root!r})
-from backend.optimize.results_store import ResultsStore
+from backend.optimize.store import ResultsStore
 from backend.utils.jobs import Progress, graceful_sigterm
 d = sys.argv[1]
 store = ResultsStore(d)

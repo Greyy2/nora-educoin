@@ -15,7 +15,7 @@ D. holdout — chạy đúng sổ đã chốt một lần (cả hai cách khớp
 Job API (POST /api/studio/book/build -> api/jobs/runner.py -> run_job(params)); tham số và mặc định: DEFAULTS
 (workers, per_worker_mb, n, seed, only, out, keep_top, resume, max_configs, force_large).
 Quy mô lớn (tới ~1.000.000 cấu hình): giai đoạn A chạy STREAMING — cấu hình sinh lười, mỗi kết quả ghi ngay vào <run_dir>/results.sqlite
-(backend/optimize/results_store.py), tiến trình cha chỉ giữ top-K (K = max(3, keep_top), mặc định 50) nên RAM cha phẳng.
+(backend/optimize/store.py), tiến trình cha chỉ giữ top-K (K = max(3, keep_top), mặc định 50) nên RAM cha phẳng.
   resume=<run_dir>     chạy tiếp lần bị ngắt (bỏ qua job đã có trong kho; kết quả cuối y hệt lần chạy không gián đoạn)
   max_configs=N        từ chối khi tổng số cấu hình > N (mặc định 200000) trừ khi force_large; trước khi chạy in ước lượng
                        (số cấu hình × giây đo thực của 1 cấu hình / số worker) và ghi <run_dir>/estimate.json
@@ -60,8 +60,8 @@ NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 from backend.carlo.monte_carlo import bootstrap_daily
 from backend.core.metrics.portfolio import portfolio_metrics
 from backend.utils.parallel import auto_workers, pool_map_safe
-from backend.optimize.results_store import ResultsStore, data_fingerprint, make_job_key
-from backend.optimize.stream import normalize, stream_stage
+from backend.optimize.store import ResultsStore, data_fingerprint, make_job_key
+from backend.optimize.store import normalize, stream_stage
 from backend.utils.jobs import as_list, options, write_job_result
 from backend.utils.jsonsafe import json_default
 
@@ -304,7 +304,7 @@ def _release_memory():
 
 
 def _job_key(stage, cand_id, job, fingerprint):
-    """job = (strategies [(id, params)], (start, end), stop_fill, risk, rpt) -> job_key (xem results_store.make_job_key)."""
+    """job = (strategies [(id, params)], (start, end), stop_fill, risk, rpt) -> job_key (xem store.make_job_key)."""
     items, window, stop_fill, risk, rpt = job
     return make_job_key(stage, cand_id, [[cid, prm] for cid, prm in items], list(window), stop_fill, risk, fingerprint,
                         extra={"rpt": rpt})
@@ -634,7 +634,7 @@ def _run(a, cands, keep, counts_per_cand, total_configs, w, fmt, eval_risk, run_
     print("báo cáo:", os.path.join(run_dir, "report.json"))
     paths = []
     if report.get("book"):
-        from backend.optimize.book_export import write_book
+        from backend.optimize.registry import write_book
         paths = write_book(report, a.out, source=run_dir, repo_dir=os.path.dirname(NORA_ROOT))
         for path in paths:
             print("ghi:", path)

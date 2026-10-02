@@ -2,56 +2,21 @@
 
 Luồng: **data → tín hiệu + chiến lược → backtest (scan) → WFA → Monte Carlo → holdout → kho alpha → cấu hình testnet**.
 
-## 1. Backtest và scan
+## 1. Backtest
 
-- `POST /api/studio/simulate`: một chiến lược trên một tài sản. `market="perp"` tự dùng dữ liệu `<SYM>@perp` và funding.
-- `POST /api/studio/scan`: một chiến lược trên nhiều tài sản, chạy nền, có tiến độ, lưu SQLite (`scan_jobs`).
-  - Tham số: `strategy_id` (mẫu trong `/samples`) hoặc `flows`; `symbols` (mặc định mọi tài sản hợp thị trường);
-    `days`; `position` (ghi đè tham số vị thế); `signal_params`.
-  - Mỗi tài sản đều qua quality gate. Tài sản không hợp lệ (vd. DEX + perp) được bỏ qua kèm lý do.
-  - Theo dõi bằng `GET /api/studio/scan/{job_id}`; lịch sử ở `GET /api/studio/scan/history`.
+- `POST /api/studio/book/backtest` (job `book_backtest` → `core/backtest/run.py`): một hoặc nhiều chiến lược của sổ trên các tài sản perp,
+  chế độ Cơ bản (preset khoá) / Nâng cao (sửa từng tham số). Mỗi tài sản đều qua quality gate.
 - Kết quả tái lập được: cùng dữ liệu (`sha256_1m` trong manifest) và cùng tham số thì cho cùng số.
 
-## 2. Tối ưu trung thực (`backend/optimize/optimize_alphas.py`)
+## 2–3. Tối ưu và kiểm duyệt alpha: phễu S0–FINAL
 
-Không gian tối ưu nằm ở `backend/core/strategy/strategy_library.py` (`OPTIMIZATION_SPACES`). Ngưỡng tín hiệu được viết dạng `{"param": ...}` và tối ưu qua khoá `sig.<tên>`.
-
-```
-|──────────── dev 80% ─────────────|── holdout 20% ──|
-|── dev1: sàng lọc ──|─ dev2: WFA ─|   chấm cuối     |
-```
-
-1. **Sàng lọc (dev1):** thử N cấu hình lấy mẫu ngẫu nhiên (seed cố định, ghi lại số cấu hình đã thử; tổ hợp vi phạm ngân sách DCA bị loại trước khi lấy mẫu, đếm ở `configs_invalid`). Giữ cấu hình có lãi,
-   MDD mark-to-market ≤ 30% và đủ số lệnh; lấy top-8.
-2. **WFA (dev2):** fold test đầu tiên bắt đầu đúng tại cuối dev1. Mỗi fold chọn cấu hình tốt nhất trong top-8 trên IS và
-   kiểm trên OOS. Gate: lợi nhuận IS ≥ 0, ≥ 60% fold OOS có lãi, đủ lệnh, MDD fold ≤ 30%, lợi nhuận OOS lãi kép ≥ 0.
-3. **Monte Carlo** trên lệnh OOS của WFA (block bootstrap 5, 2000 lần): xác suất cháy (MDD ≥ 30%) ≤ 5%.
-4. **Holdout (20% cuối, chưa ai chạm):** chạy cấu hình được WFA chọn nhiều nhất. Phải có lãi, MDD ≤ 30%, đủ lệnh.
-
-**ALPHA** = qua cả 4 giai đoạn, và đòn bẩy ≤ 10x (mức rủi ro "vừa phải" đã chốt).
-Nếu không có cặp nào đạt thì báo thẳng là không có; không nới gate để có kết quả đẹp.
-
-```bash
-cd nora
-PYTHONPATH=. python -m backend.optimize.optimize_alphas --n 60 --workers 10          # mọi cặp
-PYTHONPATH=. python -m backend.optimize.optimize_alphas --spaces trend_long_perp --assets BTC,ETH
-```
-
-## 3. Kiểm độ bền (`backend/optimize/robustness_check.py`)
-
-```bash
-PYTHONPATH=. python -m backend.optimize.robustness_check data/_cache/optimize/<thời điểm>/results.json <space_id> <SYM>
-```
-
-- **Lân cận tham số:** đổi từng tham số sang mức kề bên. Nếu phần lớn lân cận vẫn lãi ở cả dev2 và holdout thì alpha không nằm trên một "đỉnh nhọn" overfit.
-- **Chuyển tài sản:** giữ nguyên tham số, chạy trên các tài sản cùng venue. Kết quả này cho biết edge là chung hay riêng từng tài sản.
-- Kết quả lưu ở `robustness_<space>__<SYM>.json` cạnh `results.json`. Bước dựng kho tự gắn nó vào mục `robustness` của alpha.
+Đường tối ưu đơn tài sản cũ (`optimize_alphas`, `robustness_check`, `build_alpha_registry`) đã bỏ ngày 02/10/2026; thay bằng **phễu**
+(`docs/funnel_contract.md`, `POST /api/studio/funnel/runs` → job `funnel_run` → `optimize/funnel/run.py`):
+sinh alpha → S1 backtest dev1 → S2 chống ăn may (DSR, PBO, lân cận tham số) → S3 WFA dev2 → S4 Monte Carlo 10.000 kịch bản + kịch bản cực xấu →
+S5 khối lượng sống sót → S6 holdout (một lần) → FINAL → `POST /api/studio/funnel/promote` đưa vào kho alpha.
+Không nới gate để có kết quả đẹp: không alpha nào qua thì báo thẳng là không có.
 
 ## 4. Kho alpha và cấu hình testnet
-
-```bash
-PYTHONPATH=. python -m backend.optimize.build_alpha_registry data/_cache/optimize/<thời điểm>
-```
 
 - `data/alphas/registry.json`: mỗi alpha gồm template, tham số, AST đã thay tham số, số liệu sàng lọc/WFA/MC/holdout,
   sha256 dữ liệu và commit code.
@@ -104,9 +69,9 @@ cộng lỗ treo không hiển thị. Với alpha SOL:
 - hệ số 3x cho lãi trung vị 1 năm ~150%, nhưng P(MDD ≥ 30%) ≈ 99%;
 - trong ngân sách đã chốt (≤ 5%), lãi trung vị ~20–40%/năm.
 
-## 8. WFA danh mục + Monte Carlo ngày cho sổ chiến lược (`backend/wfa/validate_book.py`)
+## 8. WFA danh mục + Monte Carlo ngày cho sổ chiến lược (`backend/wfa/run.py`)
 
-Sổ chiến lược (nhiều tài sản, MỘT sổ vốn) chỉ có dev1/dev2/holdout và bootstrap. `validate_book.py` bổ sung WFA trượt:
+Sổ chiến lược (nhiều tài sản, MỘT sổ vốn) chỉ có dev1/dev2/holdout và bootstrap. `wfa/run.py` bổ sung WFA trượt:
 
 - Mỗi fold: **IS** chọn lại cấu hình của từng chiến lược (top-K ứng viên, điểm = lãi / max(MDD,1), kill switch tắt, SL "level");
   **OOS** chạy CẢ sổ chung vốn bằng các cấu hình đã chọn (kill switch bật, SL "level" và "extreme"). Train 120 ngày, test 30 ngày, OOS không chồng.
@@ -117,8 +82,8 @@ Sổ chiến lược (nhiều tài sản, MỘT sổ vốn) chỉ có dev1/dev2/
 - Lãi IS của một fold = trung bình lãi IS (chạy riêng từng chiến lược) của các cấu hình đã chọn.
 
 ```bash
-backend/utils/ops/run_limited.sh -- -m backend.wfa.validate_book --report data/_cache/book/<thời điểm> [--include-rejected]
-backend/utils/ops/run_limited.sh -- -m backend.wfa.validate_book --candidates trend_long,reversion_short --n 3 --workers auto
+curl -X POST localhost:18010/api/studio/book/wfa -H 'content-type: application/json' -d '{"mode":"advanced","report_dir":"<thời điểm>","include_rejected":false}'
+curl -X POST localhost:18010/api/studio/book/wfa -H 'content-type: application/json' -d '{"mode":"advanced","candidates":["trend_long","reversion_short"],"n":3}'
 ```
 Kết quả: `<data>/_cache/book_wfa/<thời điểm>/report.json`.
 
@@ -132,8 +97,8 @@ API chỉ khởi chạy, theo dõi và đọc kết quả (`backend/api/jobs/bat
 |---|---|
 | `GET /api/studio/book/` | `data/alphas/book.json` (status, chiến lược + tham số + tóm tắt bằng chứng), tóm tắt báo cáo `book_wfa` mới nhất, danh mục ứng viên (id, family, side, mô tả, không gian tham số) |
 | `POST /backtest` `{strategies?, symbols?, start, end, risk_per_trade_pct?, stop_fill?}` | `backend/core/backtest/run_book_backtest.py`; bỏ `strategies` = dùng `data/alphas/book.json`; tham số thiếu = mức giữa của không gian |
-| `POST /wfa` `{report_dir? \| candidates + n, start?, end?, train_days?, test_days?}` | `backend/wfa/validate_book.py` |
-| `POST /build` `{only?, n?}` | `backend/optimize/build_strategy_book.py` (ghi vào thư mục job; xuất bản sang `data/alphas/` qua `/book/publish`) |
+| `POST /wfa` `{report_dir? \| candidates + n \| strategies, start?, end?, train_days?, test_days?, step_days?, sims?}` | `backend/wfa/run.py` |
+| `POST /build` `{only?, n?}` | `backend/optimize/book.py` (ghi vào thư mục job; xuất bản sang `data/alphas/` qua `/book/publish`) |
 | `GET /jobs`, `GET /jobs/{job_id}` | danh sách / trạng thái + 40 dòng log cuối + `result` khi xong |
 
 Mô hình job: mỗi job có thư mục `<data>/_cache/api_jobs/<job_id>/` gồm `job.json` (loại, đối số, pid, mốc thời gian, mã thoát),

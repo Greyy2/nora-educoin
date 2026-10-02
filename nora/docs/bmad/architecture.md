@@ -19,16 +19,16 @@ flowchart LR
   CR --> D[(data/cex, data/dex<br/>1m.pkl + manifest + funding)]
   D --> QG{quality gate}
   D --> K[kernels causal<br/>+ căn khung avail_time]
-  K --> S[tín hiệu AST<br/>strategy_library / strategy_book]
-  S --> E[BacktestEngine / PortfolioEngine<br/>PositionTracker + CapitalLedger]
-  E --> WFA[WFA<br/>đơn tài sản / danh mục]
-  WFA --> MC[Monte Carlo<br/>theo lệnh / theo ngày MTM]
+  K --> S[tín hiệu AST<br/>strategy/library, strategy/book]
+  S --> E[BacktestEngine / PortfolioEngine<br/>execute: PositionTracker + CapitalLedger]
+  E --> WFA[WFA danh mục]
+  WFA --> MC[Monte Carlo<br/>theo ngày MTM + kịch bản cực xấu]
   MC --> HO[Holdout 20% cuối]
   HO --> REG[(data/alphas<br/>registry.json, book.json, testnet/)]
   REG --> API[FastAPI backend.main:app<br/>/api/studio/*]
   E --> API
-  API <--> JOBS[[run_limited.sh -> backend.<gói>.<lệnh><br/>nora.slice 12G]]
-  API --> UI[UI v2: Danh mục, Backtest, Alpha]
+  API <--> JOBS[[run_limited.sh -> api/jobs/runner.py -> run_job(params)<br/>nora.slice 12G]]
+  API --> UI[UI: Danh mục, Backtest, Phễu, Alpha, Lịch sử]
   REG -. chưa có bot .-> TN[Binance Futures testnet / live]
   TN -. feed thật, chưa có .-> API
 ```
@@ -37,28 +37,33 @@ flowchart LR
 
 ## 2. Bản đồ package
 
+`backend/` chỉ chứa logic lõi. Mọi việc nặng chạy qua MỘT cửa: endpoint API -> `api/jobs/batch.launch` (ghi `params.json`) ->
+`run_limited.sh -- -m backend.api.jobs.runner <job_dir>` -> `run_job(params)` của module trong `batch.KINDS`. Script kiểm tra/nghiên cứu ở `test/scripts/`.
+
 | Thư mục | Trách nhiệm | File chính |
 |---|---|---|
-| `backend/main.py` | App FastAPI (`uvicorn backend.main:app`), CORS, phục vụ SPA từ `frontend/dist`; còn route cũ đọc MySQL (`/api/runs`, `/api/miner/*`...) | `main.py` (2261 dòng) |
-| `backend/api/routers/` | Router: `book.py` (sổ, job, mc, publish, alphas), `portfolio.py` (dashboard), `studio.py` (simulate, scan, WFA/MC cũ), `research.py`, `engine.py` (`/api/v2`), `meta.py` | |
-| `backend/api/jobs/` | `batch.py` (job nền qua `run_limited`), `store.py` (SQLite: backtest/WFA/MC/scan), `scan.py` | |
-| `backend/api/` | `schemas.py`, `control.py` (điều khiển node cũ) | |
-| `backend/core/contracts.py` | Hợp đồng pydantic cho WFA/MC/Studio (`WfaFoldConfig`, `MonteCarloRunRequest`...) | |
-| `backend/core/data/` | `loader.py` (đọc nến, cache LRU theo byte), `resampler.py`, `quality_gate.py`, `crawler/` | |
-| `backend/core/signals/` | `kernels.py` (23 kernel), `evaluator.py` (AST), `diagnostics.py` | |
-| `backend/core/strategy/` | `strategy_library.py` (SIGNALS, KERNEL_STRATEGIES, OPTIMIZATION_SPACES), `strategy_book.py` (CANDIDATES, GATES, RISK), `params.py`, `params_template.py`, `templates.py`, `validator.py`, DC | |
-| `backend/core/backtest/` | `engine.py`, `execution.py` (`PositionTracker`, `CapitalLedger`), `portfolio.py` (`PortfolioEngine`, `RiskConfig`), `shared_data.py`, `params_builder.py`, `metrics.py`, `portfolio_metrics.py` | |
-| `backend/core/analytics/` | `portfolio_dashboard.py` (payload Danh mục), `feeds.py`, `stats_metrics.py`, `queries.py` (MySQL cũ) | |
-| `backend/core/research/` | Nghiên cứu thị trường giai đoạn DEX (DC, regime, insight); không thuộc trục chính | |
-| `backend/db/` | `data_layout.py` (đường dẫn), `local_pkl.py`, `tick_storage.py`, `models.py`, `mysql.py`, `mongo.py` | |
-| `backend/optimize/` | `registry.py` (kho alpha, cấu hình testnet), `book_export.py` (book + publish), `generator.py`, `ranker.py`, `runner.py`, `results_store.py`/`stream.py`/`progress.py`; lệnh `build_strategy_book`, `optimize_alphas`, `run_funnel`, `build_presets`, `build_alpha_registry`, `portfolio_sizing`, `robustness_check`; `funnel/` (phễu S0–FINAL) | |
-| `backend/wfa/` | `walk_forward.py` (đơn tài sản), `portfolio_wfa.py` (danh mục), lệnh `validate_book` | |
-| `backend/carlo/` | `monte_carlo.py` | |
-| `backend/utils/` | `lru.py`, `parallel.py`, `memwatch.py`, `jsonsafe.py`, `jobresult.py` | |
-| `backend/utils/ops/` | `run_limited.sh`, `install_user_units.sh`, `check_tests_vs_ref.sh`, `systemd/` | |
-| `test/` | pytest, `golden_scenarios.py`, `make_golden.py`, `golden/*.json` | |
+| `backend/main.py` | App FastAPI: gắn router, phục vụ SPA từ `frontend/dist` | `main.py` |
+| `backend/api/routers/` | `book.py` (backtest/WFA/MC, dựng sổ, publish, job, kho alpha), `funnel.py`, `strategies.py` (danh mục chiến lược, kiểm tham số, dựng preset), `portfolio.py` (dashboard, feed giả lập), `data.py` (crawl, promote) | |
+| `backend/api/jobs/` | `batch.py` (KINDS, khởi chạy/theo dõi/huỷ, nhãn), `runner.py` (một cửa chạy job) | |
+| `backend/api/modes.py` | Cơ bản / Nâng cao -> params job (preset khoá / kiểm từng tham số, cờ custom_gates) | |
+| `backend/core/data/` | `loader.py` (đọc nến, cache LRU theo byte), `resampler.py`, `quality_gate.py`, `shared.py` (mmap dùng chung cho worker), `crawler.py` (Binance; job `data_crawl`), `promote.py` (job `data_promote`) | |
+| `backend/core/signals/` | `kernels.py` (kernel causal), `evaluator.py` (AST), `diagnostics.py` | |
+| `backend/core/strategy/` | `library.py` (SIGNALS, KERNEL_STRATEGIES, bot), `book.py` (CANDIDATES, GATES, RISK, `materialize`) | |
+| `backend/core/params/` | `schema.py` (`StrategyParams`), `template.py` (`{tên}` trong cây tín hiệu), `builder.py` (dựng params + chi phí sàn + kiểm DCA), `presets.py` (+ job `presets_build`), `modes.py` | |
+| `backend/core/execute/` | `tracker.py` (`PositionTracker`: vào/ra, SL/TP/trailing, DCA, thanh lý, funding, cooldown), `ledger.py` (`CapitalLedger`), `models.py` | |
+| `backend/core/metrics/` | `trades.py` (`MetricsCalculator`, bảng lệnh, win rate/PF), `returns.py` (lợi suất ngày, NAV, Sharpe, Sortino, MDD, thống kê chuỗi), `portfolio.py` (`portfolio_metrics`, `series_metrics`) | |
+| `backend/core/backtest/` | `engine.py` (`BacktestEngine`), `portfolio.py` (`PortfolioEngine`, `RiskConfig`), `run.py` (job `book_backtest`) | |
+| `backend/core/analytics/` | `dashboard.py` (payload Danh mục), `feeds.py` (Backtest/Live/Testnet + job `mock_feeds`) | |
+| `backend/db/` | `data_layout.py` (đường dẫn), `local_pkl.py`, `tick_storage.py` | |
+| `backend/optimize/` | `book.py` (job `book_build`, giai đoạn A–D), `store.py` (ResultsStore SQLite + `stream_stage`), `registry.py` (kho alpha, cấu hình testnet, ghi/xuất bản sổ) | |
+| `backend/optimize/funnel/` | `gates`, `generate`, `evaluate`, `antiluck` (DSR, PBO), `sizing`, `stats`, `storage`, `orchestrator`, `promote`, `recompute` (job), `run` (job `funnel_run`) | |
+| `backend/wfa/` | `walk_forward.py` (fold + WFA danh mục, gate), `run.py` (job `book_wfa`) | |
+| `backend/carlo/` | `monte_carlo.py` (bootstrap ngày, kịch bản cực xấu, gate, `bootstrap_daily`) | |
+| `backend/utils/` | `parallel.py`, `memwatch.py`, `lru.py`, `jsonsafe.py`, `jobs.py` (options, Progress, SIGTERM, result.json) | |
+| `backend/utils/ops/` | `run_limited.sh`, `install_user_units.sh`, `systemd/` | |
+| `test/` | pytest, `golden_scenarios.py`, `golden/*.json`, `scripts/` (smoke_check, bench_engine, check_signals_strategies, research_*, make_golden, check_tests_vs_ref) | |
 | `data/` | dữ liệu và cache; chỉ `data/alphas/` được commit | |
-| `frontend/` | Vite + React SPA, cổng dev 18011, proxy `/api` tới 18010 | |
+| `frontend/src/` | Vite + React: `pages/`, `components/`, `lib/`, `hooks/`, `api.js` (cổng dev 18011, proxy `/api` tới 18010) | |
 
 ## 3. Dữ liệu
 
@@ -338,7 +343,7 @@ Báo cáo `report.json` có `folds[]`, `summary` (= `aggregate`), `gate`, `mc` (
 - **C. sổ:** các chiến lược đạt chạy chung với `RISK` thật. Bootstrap ngày trên dev2 (`extreme`) cho `RISK_SCALES = 0,25..4,0`; rủi ro/lệnh cuối = `0,5% × hệ số lớn nhất có P(MDD ≥ 30%) ≤ 5%`, trần `MAX_RISK_PER_TRADE = 2,0%`.
 - **D. holdout:** chạy đúng sổ đã chốt một lần (level và extreme). `holdout_pass = holdout_level.ret_pct > 0 ∧ holdout_level.mdd_pct ≤ 30 ∧ holdout_extreme.mdd_pct ≤ 30`.
 - **Quy mô lớn (E12.2-12.4, tới ~1.000.000 cấu hình):** giai đoạn A chạy streaming — `iter_configs` sinh lười (lấy mẫu theo chỉ số, cùng dãy với bản cũ),
-  `pool_imap_bounded` (≤ `workers×4` future đang gửi), mỗi kết quả ghi ngay vào `results.sqlite` (`backend/optimize/results_store.py`, WAL, idempotent theo `job_key` =
+  `pool_imap_bounded` (≤ `workers×4` future đang gửi), mỗi kết quả ghi ngay vào `results.sqlite` (`backend/optimize/store.py`, WAL, idempotent theo `job_key` =
   sha1(giai đoạn, chiến lược, tham số, cửa sổ, stop_fill, risk, sha256 dữ liệu, phiên bản mã)), cha chỉ giữ top-K (`--keep-top`, mặc định 50; hàng ngoài top-K bỏ `daily`).
   `stage_a.json`/`result.json.stage_a` = top-K; `stage_a_counts.json` = tried/passed; mọi hàng đọc qua `GET /api/studio/book/jobs/{id}/stage_a?candidate=&offset=&limit=&sort=`.
   `--resume <run_dir>` (build_strategy_book, validate_book, optimize_alphas) bỏ qua job đã có; kết quả cuối y hệt lần chạy không gián đoạn.
@@ -353,7 +358,7 @@ Một lần WFA danh mục khác của hai chiến lược này (`data/_cache/bo
 
 ### 8.3 Xuất sổ, kho alpha, testnet
 
-`backend/optimize/book_export.py`:
+`backend/optimize/registry.py`:
 - `build_book` → `book.json` luôn có `status ∈ {READY_FOR_TESTNET, HOLDOUT_FAILED}`, `holdout_pass`, `windows`, `gates`, `risk`, `risk_scale_bootstrap`, `strategies[]` (id, tham số, `position`, `flow` AST, `evidence`),
   `rejected_candidates`, `code {commit, dirty_backend}`.
 - `write_book`: **luôn** ghi `book.json`; **chỉ** ghi `testnet/book.json` khi `holdout_pass`; trượt thì xoá `testnet/book.json` cũ. `_is_true` chỉ nhận `True` thật hoặc chuỗi `"True"` của báo cáo cũ

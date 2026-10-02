@@ -116,7 +116,7 @@ def test_gate_constants_match_existing_gates():
 
 def test_windows_match_build_strategy_book(market):
     from backend.core.strategy import book as sb
-    from backend.optimize.funnel.windows import compute_windows
+    from backend.optimize.funnel.gates import compute_windows
     import importlib
     bsb = importlib.import_module("backend.optimize.book")
     syms = [f"{s}@perp" for s in SYMS]

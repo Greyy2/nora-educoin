@@ -275,7 +275,7 @@ def post_build(req: BuildRequest):
 @router.post("/publish")
 def post_publish(req: PublishRequest):
     """Xuất bản sổ của một job book_build đã xong sang alphas/ (thay sổ hiện hành). Build KHÔNG tự ghi đè alphas/."""
-    from backend.optimize.book_export import publish_book
+    from backend.optimize.registry import publish_book
     try:
         job = batch_jobs.status(req.job_id)
     except batch_jobs.JobError as e:
@@ -352,7 +352,7 @@ def _job_run_dir(job_id: str) -> str:
 def get_stage_a(job_id: str, candidate: Optional[str] = None, offset: int = 0, limit: int = 100, sort: str = "order"):
     """Phân trang MỌI cấu hình dev1 đã chạy (đọc kho results.sqlite của job dựng sổ; result.stage_a chỉ có top-K).
     sort=order (thứ tự lấy mẫu) | score (điểm cao -> thấp). Mỗi hàng: {ord, params, dev1{ret_pct,mdd_pct,trades,symbols_positive,sharpe}, score|null, passed}."""
-    from backend.optimize.results_store import ResultsStore
+    from backend.optimize.store import ResultsStore
     if sort not in ("order", "score"):
         raise HTTPException(422, "sort phải là order|score")
     if offset < 0 or not 1 <= limit <= 1000:

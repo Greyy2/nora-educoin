@@ -32,7 +32,7 @@ Làm **đúng thứ tự**, xong dòng nào thì sửa cột "Trạng thái" tro
 | `requirements.txt` | Chưa ghim `numba` |
 
 ### P1.1 Profile
-1. `backend/utils/ops/run_limited.sh --no-lock -- -m backend.core.backtest.bench_engine --help` → xem tham số.
+1. `backend/utils/ops/run_limited.sh --no-lock -- test/scripts/bench_engine.py --help` → xem tham số.
 2. Chạy 1 alpha thật (breakout_4h_long mặc định, 8 tài sản perp, cửa sổ dev1) với cProfile.
 3. Ghi bảng % thời gian: nạp dữ liệu / tín hiệu (VectorEvaluator) / vòng lặp / metrics vào `docs/bmad/stories/E12-S6-profile.md`.
 - **Xong khi:** biết vòng lặp chiếm bao nhiêu %. Nếu tín hiệu chiếm lớn → P1.5 (dùng chung tín hiệu) quan trọng hơn numba.

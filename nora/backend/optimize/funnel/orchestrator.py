@@ -16,10 +16,10 @@ from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Tupl
 
 from backend.utils.jobs import Progress, graceful_sigterm
 
-from . import antiluck, backtest as bt, gates, sizing
+from backend.optimize.funnel import antiluck, evaluate as bt, gates, sizing
 from .generate import alpha_id_of, count_params, iter_params, validate_alpha
 from .storage import RunStore, StageResult
-from .windows import compute_windows, windows_iso, wfa_folds
+from backend.optimize.funnel.gates import compute_windows, windows_iso, wfa_folds
 
 PER_WORKER_MB = 800            # như build_strategy_book (đo thực, dữ liệu dùng chung qua mmap)
 GEN_BATCH = 5000               # alpha ghi mỗi giao dịch ở S0
@@ -487,7 +487,7 @@ def run_funnel(cfg: FunnelConfig, run_id: Optional[str] = None, workers: int = 0
                ) -> Dict[str, Any]:
     """Chạy (hoặc chạy tiếp) một lượt phễu. workers = 0: tuần tự trong tiến trình (test); > 0: pool_imap_bounded. Trả tóm tắt (counts, run_dir...)."""
     from backend.core.strategy import book as sb
-    from backend.optimize.results_store import data_fingerprint
+    from backend.optimize.store import data_fingerprint
     if until is not None and until not in gates.STAGE_IDX:
         raise ValueError(f"until phải thuộc {gates.STAGES}")
     run_id = run_id or new_run_id()

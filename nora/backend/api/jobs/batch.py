@@ -46,7 +46,7 @@ KINDS: Dict[str, Dict[str, Any]] = {
     "funnel_recompute": {"module": "backend.optimize.funnel.recompute", "params": {"run_id", "alpha_id"}},
     "presets_build": {"module": "backend.core.params.presets", "params": set()},
     "mock_feeds": {"module": "backend.core.analytics.feeds", "params": {"only"}},
-    "data_crawl": {"module": "backend.core.data.crawler", "params": {"symbols", "market", "years"}},
+    "data_crawl": {"module": "backend.core.data.crawler", "params": {"symbols", "market", "years", "output_dir"}},   # output_dir do router đặt
     "data_promote": {"module": "backend.core.data.promote", "params": {"apply", "archive_legacy"}},
 }
 MAX_BUILD_CONFIGS = 1_000_000   # trần cứng của API cho --n (mỗi chiến lược); CLI còn có --max-configs (mặc định 200000) + --force-large

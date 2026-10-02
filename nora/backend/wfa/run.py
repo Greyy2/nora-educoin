@@ -165,7 +165,7 @@ def run_job(params=None):
     end = _ts(a.end) if a.end else w["dev2_end"]
 
     from backend.utils.jobs import Progress, graceful_sigterm
-    from backend.optimize.results_store import ResultsStore
+    from backend.optimize.store import ResultsStore
     from backend.wfa import walk_forward as pw
     from backend.wfa.walk_forward import generate_folds
 
