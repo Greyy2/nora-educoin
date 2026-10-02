@@ -97,12 +97,6 @@ def test_every_entry_point_refuses_bad_data(market, monkeypatch, tmp_path, kind)
     mf = _load_script("make_mock_feeds")
     with pytest.raises(SystemExit, match="CCC@perp"):
         mf.main(["--only", "testnet"])
-    # optimize_alphas: _run_pair tường minh kiểm gate trước khi sàng lọc
-    from backend.core.strategy import strategy_library as lib
-    monkeypatch.setattr(lib, "OPTIMIZATION_SPACES", [_oa_space(sb)])
-    oa = _load_script("optimize_alphas")
-    with pytest.raises(qg.DataQualityError, match="CCC"):
-        oa._run_pair("t_space", "CCC", 2, 1, str(tmp_path / "p.db"))
     _restore_cache()
 
 
@@ -278,18 +272,6 @@ def _old_sample_configs(space, n, seed, fixed=None, venue="cex", symbol=None, oa
                 if valid(cfg):
                     combos.append(cfg)
     return combos, total
-
-
-@pytest.mark.parametrize("n,seed", [(5, 1), (60, 20260930), (500, 4), (5000, 4)])
-def test_optimize_alphas_iter_sample_configs_same_as_old(n, seed):
-    oa = _load_script("optimize_alphas")
-    space = {"leverage": [1, 2, 3, 5], "order_size_pct": [5, 10, 20], "dca_step_pct": [0.5, 1.0, 2.0], "dca_max_layers": [1, 2, 3, 5],
-             "dca_size_multiplier": [1.0, 1.5], "take_profit_rate": [1.0, 2.0, 3.0, 4.0], "sig.x": [10, 20, 30]}
-    fixed = {"market": "spot"}
-    new, total = oa.sample_configs(space, n, seed, fixed=fixed, venue="cex")
-    old, total_old = _old_sample_configs(space, n, seed, fixed=fixed, venue="cex", oa=oa)
-    assert new == old and total == total_old
-    assert oa.count_configs(space, n, fixed, "cex") == len(old)
 
 
 def test_topk_equals_stable_sort_prefix():
@@ -493,62 +475,6 @@ def _oa_space(sb, market="perp"):
     return {"id": "t_space", "venue": "cex", "side": "LONG", "tree": cond((f("15m", "rsi_14"), "<", p("lo", 40))),
             "fixed": {"market": market, "leverage": 2, "order_size_pct": 50, "take_profit_rate": 2.0, "stop_loss_rate": 2.0},
             "space": {"sig.lo": [25, 30, 35, 40, 45, 50], "trailing_stop": [1.0, 2.0, 3.0]}}
-
-
-def test_optimize_alphas_screen_streaming_and_resume(market, monkeypatch, tmp_path):
-    sb = _small_book(monkeypatch)
-    from backend.core.strategy import strategy_library as lib
-    monkeypatch.setattr(lib, "OPTIMIZATION_SPACES", [_oa_space(sb)])
-    oa = _load_script("optimize_alphas")
-    db = str(tmp_path / "p.db")
-    plain = oa.run_pair("t_space", "AAA", 12, 3, db)                         # không kho (đường cũ)
-    s1 = str(tmp_path / "s1")
-    os.makedirs(s1)
-    stored = oa.run_pair("t_space", "AAA", 12, 3, db, os.path.join(s1, "results.sqlite"))
-    for k in ("seconds", "peak_rss_mb"):
-        plain.pop(k, None), stored.pop(k, None)
-    assert plain["screen"] == stored["screen"] and plain["configs_tried"] == stored["configs_tried"] == 12
-    st = rs.ResultsStore(s1, read_only=True)
-    assert st.count("screen") == 12
-    # chạy lại với kho: không tính lại (đọc từ kho) và cho đúng kết quả
-    again = oa.run_pair("t_space", "AAA", 12, 3, db, os.path.join(s1, "results.sqlite"))
-    again.pop("seconds", None), again.pop("peak_rss_mb", None)
-    assert again["screen"] == stored["screen"] and rs.ResultsStore(s1, read_only=True).count("screen") == 12
-    # sàng lọc streaming = bản duyệt toàn bộ danh sách (tham chiếu)
-    cfgs, _ = oa.sample_configs(_oa_space(sb)["space"], 12, 3, fixed=_oa_space(sb)["fixed"], venue="cex")
-    assert len(cfgs) == 12 and all(json.dumps(r["params"], sort_keys=True) in {json.dumps(c, sort_keys=True) for c in cfgs} for r in st.iter_rows("screen", "t_space:AAA"))
-
-
-def test_optimize_alphas_main_resume_identical_and_cap(market, monkeypatch, tmp_path):
-    sb = _small_book(monkeypatch)
-    from backend.core.strategy import strategy_library as lib
-    monkeypatch.setattr(lib, "OPTIMIZATION_SPACES", [_oa_space(sb)])
-    oa = _load_script("optimize_alphas")
-    monkeypatch.setattr(oa, "PER_PAIR_MB", 300)
-    from backend.db import data_layout
-    monkeypatch.setattr(data_layout, "list_assets", lambda *a, **k: [{"symbol": s, "venue": "cex", "instrument": "spot"} for s in ("AAA", "BBB", "CCC")])
-    base = market / "_cache" / "optimize"
-    args = ["--n", "6", "--seed", "3", "--workers", "2"]
-    oa.main(args)
-    straight = sorted(base.iterdir())[-1]
-    # sập giữa chừng: móc kiểm thử làm worker ném lỗi sau 4 cấu hình sàng lọc của mỗi cặp (verdict LOI, KHÔNG lưu cặp) -> --resume chạy lại
-    monkeypatch.setenv("NORA_TEST_FAIL_AFTER_PUTS", "4")
-    oa.main(args)
-    killed = [d for d in sorted(base.iterdir()) if d != straight][-1]
-    rows_k = json.loads((killed / "results.json").read_text())
-    assert all(r["verdict"] == "LOI" for r in rows_k), rows_k
-    assert rs.ResultsStore(str(killed), read_only=True).count("screen") == 4 * 3, [(r["symbol"], r.get("error")) for r in rows_k]   # 4 cấu hình/cặp
-    monkeypatch.delenv("NORA_TEST_FAIL_AFTER_PUTS")
-    oa.main(args + ["--resume", str(killed)])
-
-    def load(d):
-        rows = json.loads((d / "results.json").read_text())
-        for r in rows:
-            r.pop("seconds", None), r.pop("peak_rss_mb", None)
-        return json.dumps(rows)
-    assert load(killed) == load(straight)
-    with pytest.raises(SystemExit, match="max-configs"):
-        oa.main(args + ["--max-configs", "5"])
 
 
 # ─── 12.4 tiến độ + huỷ (SIGTERM flush kho) ─────────────────────────────────

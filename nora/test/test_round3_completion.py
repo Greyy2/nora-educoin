@@ -106,91 +106,7 @@ def test_gate_approves_clean_resampled_data(clean_asset):
     assert dq["status"] == DataQualityStatus.APPROVED, dq["issues"]
 
 
-def test_simulate_accepts_clean_data(clean_asset):
-    from backend.api.routers.studio import SimulateRequest, run_simulation
-    sym, _ = clean_asset
-    res = run_simulation(SimulateRequest(symbol=sym, start_ts=T0 + 6 * D, end_ts=T0 + 30 * D, flows=[FLOW_1M]))
-    assert res["metrics"]["total_trades"] > 0
-
-
-def test_wfa_then_mc_end_to_end_on_clean_data(clean_asset):
-    from backend.api.routers.studio import run_monte_carlo_endpoint
-    from backend.api.jobs.store import create_wfa_job, get_wfa_job
-    from backend.core.contracts import MonteCarloRunRequest, StrategySnapshot, WfaFoldConfig
-    from backend.wfa.walk_forward import execute_wfa_pipeline
-
-    sym, _ = clean_asset
-    snap = StrategySnapshot(name="E2E", symbol=sym, flows=[FLOW_1M], start_ts=T0 + 6 * D, end_ts=T0 + 39 * D)
-    cfg = WfaFoldConfig(train_days=10, test_days=5, min_folds=3)
-    job_id = create_wfa_job(sym, "E2E", 0)
-    execute_wfa_pipeline(job_id, snap, cfg, "h")
-    job = get_wfa_job(job_id)
-    assert job["status"] == "completed", job.get("error")
-    res = job["result"]
-
-    assert res["generated_at"] > 10**12, "generated_at phải là ms"
-    assert res["param_stability"] is None, "Không có grid -> param_stability phải None"
-    folds = res["folds"]
-    assert len(folds) >= 3
-    for a, b in zip(folds, folds[1:]):
-        assert b["test_start_ts"] >= a["test_end_ts"], "OOS chồng lấp"
-    ids = [t["trade_id"] for t in res["aggregate_oos_trades"]]
-    assert len(ids) == len(set(ids)) and len(ids) >= 30
-
-    mc = run_monte_carlo_endpoint(MonteCarloRunRequest(source_wfa_id=job_id, simulations=200, seed=3))
-    mc_job = _wait_mc(mc["job_id"])
-    assert mc_job["status"] == "completed", mc_job.get("error")
-    assert mc_job["result"]["source_gate_passed"] is res["acceptance_gate_passed"]
-    # OOS chỉ ~24 ngày (< 30 điểm ngày) -> basis=daily tự lùi về lệnh đã đóng, có ghi chú
-    assert mc_job["result"]["trades_count"] == len(ids)
-    assert mc_job["result"]["basis"] == "trades" and "basis_note" in mc_job["result"]["summary"]
-
-
 # ─── 2. Monte Carlo: ưu tiên nguồn lệnh ─────────────────────────────────────
-
-def test_mc_endpoint_ignores_client_trades_when_source_wfa_id():
-    from backend.api.routers.studio import run_monte_carlo_endpoint
-    from backend.core.contracts import MonteCarloRunRequest
-
-    job_id = _completed_wfa(_small_trades(40), gate=True)
-    fake = [{"trade_id": str(i), "pnl_pct": 50.0} for i in range(200)]
-    resp = run_monte_carlo_endpoint(MonteCarloRunRequest(source_wfa_id=job_id, trades=fake, simulations=200, seed=1))
-    assert resp["trades_count"] == 40, "Phải dùng lệnh của job WFA, không dùng trades client gửi"
-    result = _wait_mc(resp["job_id"])["result"]
-    assert result["trades_count"] == 40
-    assert result["summary"]["max_terminal_equity"] < 10_000 * 2, "Kết quả đang dùng trades giả (+50%/lệnh)"
-    assert result["source_gate_passed"] is True
-
-
-@pytest.mark.parametrize("case", ["missing", "not_completed", "legacy_run", "missing_source"])
-def test_mc_endpoint_rejects_invalid_sources(case):
-    from backend.api.routers.studio import run_monte_carlo_endpoint
-    from backend.api.jobs.store import create_wfa_job
-    from backend.core.contracts import MonteCarloRunRequest
-
-    trades = _small_trades(40)
-    if case == "missing":
-        req, code = MonteCarloRunRequest(source_wfa_id="wfa_job_khong_ton_tai", trades=trades), 404
-    elif case == "not_completed":
-        req, code = MonteCarloRunRequest(source_wfa_id=create_wfa_job("X", "S", 4), trades=trades), 409
-    elif case == "legacy_run":
-        req, code = MonteCarloRunRequest(source_handle="run_123", trades=trades), 400
-    else:
-        req, code = MonteCarloRunRequest(source_handle="bt_src_khong_ton_tai", trades=trades), 404
-    with pytest.raises(HTTPException) as exc:
-        run_monte_carlo_endpoint(req)
-    assert exc.value.status_code == code
-
-
-def test_mc_pipeline_never_falls_back_to_client_trades():
-    from backend.api.jobs.store import create_mc_job, get_mc_job
-    from backend.carlo.monte_carlo import execute_monte_carlo_pipeline
-    from backend.core.contracts import MonteCarloRunRequest
-
-    job_id = _completed_wfa([], gate=True)  # job WFA không có lệnh OOS
-    mc_id = create_mc_job("X", "S", 200, source_wfa_id=job_id)
-    execute_monte_carlo_pipeline(mc_id, MonteCarloRunRequest(source_wfa_id=job_id, simulations=200), _small_trades(40))
-    assert get_mc_job(mc_id)["status"] == "failed"
 
 
 # ─── 3. Tick thật: fail-closed và phải đủ độ phủ ────────────────────────────
@@ -216,52 +132,10 @@ def test_has_ticks_requires_manifest_declaration(tmp_path):
     assert has_ticks("TK", data_root=str(tmp_path), min_days=30) is False
 
 
-def test_short_real_ticks_do_not_replace_long_1m_path(clean_asset):
-    from backend.core.research.market_analyzer import load_price_path
-    sym, root = clean_asset
-    sym_dir = os.path.join(root, sym)
-    _write_ticks(sym_dir, T0 + 39 * D, n=1000, step_ms=60_000)  # ~0.7 ngày tick thật
-    mpath = os.path.join(sym_dir, "manifest.json")
-    m = json.load(open(mpath))
-    m["ticks"] = {"source": "geckoterminal_trades", "synthetic": False, "start_ts": T0 + 39 * D, "end_ts": T0 + 39 * D + 999 * 60_000, "rows": 1000}
-    json.dump(m, open(mpath, "w"))
-
-    df, resolution = load_price_path(sym, data_root=root)
-    assert resolution == "1m_close"
-    assert len(df) > 50_000
-
-
 # ─── 4. Cache research hết hạn khi dữ liệu đổi ──────────────────────────────
-
-def test_research_cache_invalidated_when_data_newer(clean_asset):
-    from backend.core.research.market_analyzer import analyze_market, get_cache_dir
-    sym, root = clean_asset
-    cache = os.path.join(get_cache_dir(root), f"{sym}_1h.json")
-    fake = {"FAKE_CACHE": True, "behavior_event_profile": {"x": 1}, "backtest_simulation": {"cost_models": {"a": 1}}}
-    with open(cache, "w") as f:
-        json.dump(fake, f)
-
-    # Cache mới hơn dữ liệu -> được dùng
-    future = time.time() + 3600
-    os.utime(cache, (future, future))
-    assert analyze_market(sym, data_root=root).get("FAKE_CACHE") is True
-
-    # Dữ liệu (manifest) mới hơn cache -> phải tính lại
-    past = time.time() - 3600
-    os.utime(cache, (past, past))
-    assert analyze_market(sym, data_root=root).get("FAKE_CACHE") is None
 
 
 # ─── 5. Sweep θ ─────────────────────────────────────────────────────────────
-
-def test_sweep_does_not_pick_theta_without_train_test_split():
-    from backend.core.research.dc_feature_extractor import sweep_directional_change
-    rng = np.random.default_rng(1)
-    prices = 100 * np.exp(np.cumsum(rng.normal(0, 0.03, 80)))  # 80 điểm, biến động mạnh
-    df = pd.DataFrame({"timestamp_ms": T0 + np.arange(80) * 60_000, "price": prices})
-    out = sweep_directional_change(df, "X")
-    assert out["best_theta"] is None
-    assert sweep_directional_change(df.iloc[:10], "X")["best_theta"] is None
 
 
 # ─── 6. Gate bắt buộc 4h; không dựng nến từ tick ────────────────────────────
@@ -285,29 +159,9 @@ def test_load_candle_df_has_no_tick_fallback(tmp_path):
 
 # ─── 7. Không default 'SOL'; frontend khớp schema ───────────────────────────
 
-def test_script_request_requires_symbol():
-    from backend.api.routers.studio import ScriptSimulateRequest
-    with pytest.raises(ValidationError):
-        ScriptSimulateRequest(code="class S(Strategy): pass")
-
 
 def _js_object_numbers(block: str) -> dict:
     return {k: float(v) for k, v in re.findall(r"(\w+):\s*(-?[\d.]+)\s*,", block)}
-
-
-@pytest.mark.parametrize("rel_path,anchor", [
-    ("pages/Wfa.jsx", "const defaultConfig = () => ({"),
-    ("components/StudioWfa.jsx", "const [config, setConfig] = useState({"),
-])
-def test_frontend_wfa_default_config_matches_backend_schema(rel_path, anchor):
-    """Backend WfaFoldConfig là extra='forbid': frontend gửi field lạ sẽ bị 422."""
-    from backend.core.contracts import WfaFoldConfig
-    src = open(os.path.join(FRONTEND_SRC, rel_path), encoding="utf-8").read()
-    start = src.index(anchor) + len(anchor)
-    block = src[start:src.index("})", start)]
-    cfg = _js_object_numbers(block)
-    assert cfg, f"Không đọc được default config trong {rel_path}"
-    WfaFoldConfig(**cfg)  # raise nếu có field lạ / sai kiểu
 
 
 def test_no_hardcoded_sol_fallback_in_frontend():
@@ -323,29 +177,4 @@ def test_no_hardcoded_sol_fallback_in_frontend():
 
 # ─── 8. Crawler xoá checkpoint khi thành công ───────────────────────────────
 
-def test_crawler_removes_checkpoint_after_success(tmp_path, monkeypatch):
-    import backend.core.data.crawler.crawl_geckoterminal_full_dataset as crawler
-    asset_dir = tmp_path / "OKASSET"
-    asset_dir.mkdir()
-    ckpt = asset_dir / "1m_raw.partial.pkl"
-    _rw_1m(1).to_pickle(ckpt)
 
-    df = _rw_1m(1)
-    monkeypatch.setattr(crawler, "_crawl_ohlcv", lambda *a, **k: (df, 3))
-
-    class Args:
-        currency, token = "usd", "base"
-
-    manifest = crawler._process_asset(
-        target={"asset": "OKASSET", "network": "base", "pool_address": "0xok", "name": "ok"},
-        args=Args(), output_dir=str(tmp_path),
-        start_sec=int(df.open_time.min()) // 1000, end_sec=int(df.open_time.max()) // 1000,
-    )
-    assert manifest and manifest["crawl_ok"] is True
-    assert not ckpt.exists(), "Checkpoint thô phải bị xoá sau khi crawl + resample thành công"
-
-
-def test_tests_never_touch_prod_db():
-    """(Chuyển từ conftest.py: pytest không thu thập test trong conftest.)"""
-    from backend.api.jobs import store as jobs
-    assert jobs._get_db_path().startswith(tempfile.gettempdir())

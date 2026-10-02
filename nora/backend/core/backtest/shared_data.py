@@ -43,9 +43,7 @@ def _fingerprints(symbol: str, refs_signature) -> Dict[str, Any]:
 
 
 def data_key(symbol: str, start_ts: int, end_ts: int, refs_signature, perp: bool) -> Optional[str]:
-    """sha1 hex ổn định của một bộ dữ liệu. None nếu không có dấu vân tay file 1m (Mongo/không tìm thấy) -> không chia sẻ."""
-    if os.environ.get("NORA_DATA_SOURCE", "auto").strip().lower() == "mongo":
-        return None
+    """sha1 hex ổn định của một bộ dữ liệu. None nếu không có dấu vân tay file 1m (không tìm thấy) -> không chia sẻ."""
     info = _fingerprints(symbol, refs_signature)
     if info["fps"].get("1m") is None:
         return None

@@ -100,35 +100,6 @@ def test_data_root_env_is_single_source(monkeypatch, tmp_path):
     assert local_pkl.default_data_root() == tick_storage.default_data_root() == str(tmp_path / "a")
 
 
-def test_research_cache_lives_under_cache_dir(layout):
-    from backend.core.research.market_analyzer import get_cache_dir
-    assert get_cache_dir(layout).startswith(os.path.join(layout, "_cache"))
-
-
-def test_datasets_endpoint_reports_venue(layout):
-    from backend.api.routers.studio import get_datasets
-    rows = {d["symbol"]: d for d in get_datasets()["datasets"]}
-    assert set(rows) == {"BTC", "AERO"}
-    assert rows["BTC"]["venue"] == "cex" and rows["BTC"]["exchange"] == "binance"
-    assert rows["AERO"]["venue"] == "dex" and rows["AERO"]["has_required_frames"] is True
-
-
-def test_simulate_and_wfa_work_on_venue_layout(layout):
-    from backend.api.routers.studio import SimulateRequest, run_simulation
-    from backend.api.jobs.store import create_wfa_job, get_wfa_job
-    from backend.core.contracts import StrategySnapshot, WfaFoldConfig
-    from backend.wfa.walk_forward import execute_wfa_pipeline
-    flow = {"id": "f", "type": "LONG", "ast": {"type": "LONG",
-            "match": [{"condition": [[[{"frame": "1m", "column": "close"}, ">", {"frame": "1m", "column": "open"}]]]}],
-            "stop": [{"condition": [[[{"frame": "1m", "column": "close"}, "<", {"frame": "1m", "column": "open"}]]]}]}}
-    res = run_simulation(SimulateRequest(symbol="cex:BTC", start_ts=T0 + 6 * D, end_ts=T0 + 20 * D, flows=[flow]))
-    assert res["metrics"]["total_trades"] > 0
-    job = create_wfa_job("AERO", "S", 0)
-    execute_wfa_pipeline(job, StrategySnapshot(name="S", symbol="AERO", flows=[flow], start_ts=T0 + 6 * D,
-                                               end_ts=T0 + 34 * D), WfaFoldConfig(train_days=10, test_days=5, min_folds=2), "h")
-    assert get_wfa_job(job)["status"] == "completed", get_wfa_job(job).get("error")
-
-
 def test_promote_script_places_assets_by_venue(tmp_path):
     import importlib.util
     staging, data = tmp_path / "staging", tmp_path / "data"

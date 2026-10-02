@@ -5,7 +5,7 @@ Cung cấp cơ chế nạp nến (Candle Loader) sử dụng bộ đệm (Memory
 
 Thiết kế bộ đệm (v2 — fix OOM):
 - Local pkl: cache CẢ FILE (toàn bộ lịch sử) một lần, không cache từng cửa sổ.
-  Khoá: (data_source, data_root, symbol, frame, mtime_ns, size_bytes) -> file crawl lại thì tự hết hạn.
+  Khoá: (data_root, symbol, frame, mtime_ns, size_bytes) -> file crawl lại thì tự hết hạn.
 - Cửa sổ start_ts -> end_ts cắt bằng .loc trên index open_time đã sắp xếp (không sao chép).
   Kết quả là VIEW của bản trong cache: người gọi phải copy trước khi sửa (engine copy trong _prepare_candles).
 - Tổng RAM giới hạn bằng ByteLRU (backend/utils/lru.py), NORA_CANDLE_CACHE_MB (mặc định 1024 MB).
@@ -22,7 +22,6 @@ from backend.db.local_pkl import (
     has_frame as has_local_frame,
     resolve_symbol_dir,
 )
-from backend.db.mongo import fetch_candles_df as fetch_mongo_candles_df
 from backend.utils.lru import ByteLRU, env_mb
 
 _CANDLE_CACHE = ByteLRU(env_mb("NORA_CANDLE_CACHE_MB", 1024))
@@ -53,27 +52,17 @@ def _index_by_open_time(df: pd.DataFrame) -> pd.DataFrame:
 class CandleLoader:
     """Công cụ nạp và quản lý dữ liệu nến cho Backtest."""
 
-    def __init__(
-        self,
-        symbol: str,
-        frame: str = "4h",
-        db_name: str = "backtest_data_1m_strategy810",
-        use_cache: bool = True,
-    ):
+    def __init__(self, symbol: str, frame: str = "4h", use_cache: bool = True, **_ignored):
         self.symbol = symbol
         self.frame = frame
-        self.db_name = db_name
         self.use_cache = use_cache
-        self.data_source = os.environ.get("NORA_DATA_SOURCE", "auto").strip().lower()
-        if self.data_source not in {"auto", "local", "mongo"}:
-            self.data_source = "auto"
         self.local_data_root = default_data_root()
 
     def _cache_key(self) -> Optional[tuple]:
         fp = _file_fingerprint(self.symbol, self.frame, self.local_data_root)
         if fp is None:
             return None
-        return (self.data_source, self.local_data_root, self.symbol, self.frame, *fp)
+        return (self.local_data_root, self.symbol, self.frame, *fp)
 
     def load_data(
         self,
@@ -85,12 +74,6 @@ class CandleLoader:
         """Nạp nến trong [start_ts, end_ts] (gồm hai đầu)."""
         if start_ts is None or end_ts is None:
             raise ValueError("CandleLoader require explicit start_ts and end_ts to prevent Memory Overload!")
-
-        if self.data_source == "mongo":
-            fetch_columns = list(dict.fromkeys(["open_time", *columns])) if columns else None
-            df = fetch_mongo_candles_df(symbol=self.symbol, frame=self.frame, start_ts=start_ts, end_ts=end_ts,
-                                        columns=fetch_columns, db_name=self.db_name)
-            return self._slice_data(_index_by_open_time(df), start_ts, end_ts, columns)
 
         key = self._cache_key() if self.use_cache else None
         if key is None:  # không cache: chỉ nạp đúng cửa sổ
@@ -104,20 +87,13 @@ class CandleLoader:
         return self._slice_data(full_df, start_ts, end_ts, columns)
 
     def _fetch_local(self, start_ts: Optional[int], end_ts: Optional[int]) -> pd.DataFrame:
-        """Nến từ file local (đã sắp xếp; None/None = cả file), chỉ các cột engine cần.
-        Không âm thầm chuyển sang Mongo."""
-        if self.data_source == "auto" and not has_local_frame(self.symbol, self.frame, data_root=self.local_data_root):
-            raise FileNotFoundError(
-                f"Không tìm thấy file nến local {self.frame}.pkl cho {self.symbol} tại {self.local_data_root}. "
-                "Hệ thống không âm thầm fallback sang Mongo (đặt NORA_DATA_SOURCE=mongo nếu thực sự muốn đọc Mongo)."
-            )
+        """Nến từ file local (đã sắp xếp; None/None = cả file), chỉ các cột engine cần."""
+        if not has_local_frame(self.symbol, self.frame, data_root=self.local_data_root):
+            raise FileNotFoundError(f"Không tìm thấy file nến local {self.frame}.pkl cho {self.symbol} tại {self.local_data_root}.")
         df = fetch_local_candles_df(symbol=self.symbol, frame=self.frame, start_ts=start_ts, end_ts=end_ts,
                                     data_root=self.local_data_root, compat=False)
-        if df.empty and self.data_source == "auto":
-            raise FileNotFoundError(
-                f"Local data cho {self.symbol} ({self.frame}) rỗng. "
-                "Hệ thống không âm thầm fallback sang Mongo (đặt NORA_DATA_SOURCE=mongo nếu thực sự muốn đọc Mongo)."
-            )
+        if df.empty:
+            raise FileNotFoundError(f"Dữ liệu local cho {self.symbol} ({self.frame}) rỗng.")
         return df
 
     @staticmethod

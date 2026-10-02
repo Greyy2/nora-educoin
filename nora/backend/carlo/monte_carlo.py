@@ -1,4 +1,4 @@
-"""Monte Carlo Simulation Engine cho Studio Pipeline.
+"""Monte Carlo: bootstrap theo khối + kịch bản cực xấu + gate (mọi cổng alpha/sổ đều đọc hằng số ở đây).
 
 Thực hiện:
 - Vectorized Block Bootstrap Resampling trên tỷ lệ lợi nhuận lệnh (pnl_pct) HOẶC (basis="daily", mặc định khi có WFA nguồn)
@@ -9,14 +9,10 @@ Thực hiện:
 - Xuất dữ liệu biểu đồ phân tán và quantile bands (Fan Chart: p5, p25, p50, p75, p95).
 - Sử dụng Local Generator ngẫu nhiên `np.random.default_rng(seed)` an toàn đa luồng.
 """
-import json
-import time
 from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-from ..api.jobs.store import complete_mc_job, fail_mc_job
-from ..core.contracts import MonteCarloResultContract, MonteCarloRunRequest
 
 # ─── Hằng số GATE Monte Carlo (mọi cổng alpha/sổ đều đọc ở đây; KHÔNG nới để có kết quả đẹp) ───────────────
 MC_MIN_SIMULATIONS = 10_000        # số kịch bản bootstrap TỐI THIỂU để một kết quả được dùng làm gate (ít hơn -> gate_eligible=False)
@@ -43,53 +39,6 @@ STRESS_LABELS_VI = {
     "longest_losing_streak_x2": "Chuỗi thua dài nhất lặp 2 lần ở đầu",
     "worst_bootstrap": "Đường bootstrap tệ nhất (MDD lớn nhất)",
 }
-
-
-def _resolve_wfa_gate(source_wfa_id: Optional[str]) -> Optional[bool]:
-    """
-    Xác định trạng thái gate của WFA nguồn.
-
-    Returns:
-        True  – WFA job đã completed với acceptance_gate_passed=True
-        False – WFA job tồn tại nhưng gate False, chưa completed,
-                không tìm thấy, hoặc có lỗi parse
-        None  – Không có source_wfa_id (MC chạy standalone, không qua WFA)
-
-    Luật đọc result (ưu tiên theo thứ tự):
-        1. job["result"] (in-memory, luôn là dict nếu đã complete)
-        2. json.loads(job["result_json"]) (từ SQLite sau restart)
-    """
-    if not source_wfa_id:
-        return None
-
-    from ..api.jobs.store import get_wfa_job
-
-    try:
-        job = get_wfa_job(source_wfa_id)
-    except Exception:
-        return False
-
-    if not job:
-        return False
-
-    # Job phải ở trạng thái completed
-    if job.get("status") != "completed":
-        return False
-
-    # Đọc result: ưu tiên in-memory dict, fallback JSON string từ SQLite
-    res = job.get("result")
-    if res is None:
-        raw_json = job.get("result_json")
-        if raw_json:
-            try:
-                res = json.loads(raw_json)
-            except Exception:
-                return False
-
-    if not res:
-        return False
-
-    return bool(res.get("acceptance_gate_passed") is True)
 
 
 # ─── Kịch bản cực xấu (tất định, KHÔNG ngẫu nhiên) + gate ──────────────────────────────────────────────
@@ -533,113 +482,3 @@ def run_monte_carlo_daily_detail(
 
 # Alias for backward compatibility
 run_monte_carlo_simulation = run_monte_carlo
-
-
-def execute_monte_carlo_pipeline(
-    job_id: str,
-    req: MonteCarloRunRequest,
-    trades: List[Dict[str, Any]],
-):
-    """
-    Tiến trình thực thi Monte Carlo chạy trên background worker thread.
-
-    Ưu tiên nguồn lệnh: source_wfa_id > trades truyền vào.
-    Nếu có source_wfa_id, LUÔN dùng aggregate_oos_trades từ WFA job.
-    Client không được bypass gate bằng cách tự gửi trades giả.
-    """
-    try:
-        # ── Resolve gate (3 giá trị: True / False / None) ────────────────────
-        source_gate_passed = _resolve_wfa_gate(req.source_wfa_id)
-
-        # ── Lấy trades từ WFA job nếu có source_wfa_id ───────────────────────
-        # Ưu tiên: source_wfa_id > trades truyền vào (không cho phép bypass)
-        effective_trades = trades
-        basis = "trades"
-        basis_note = None
-        if req.source_wfa_id:
-            # Có source_wfa_id thì CHỈ dùng dữ liệu OOS của job; không fallback về trades của client.
-            # Job thiếu lệnh -> danh sách rỗng -> run_monte_carlo raise (< 30 lệnh) -> job failed.
-            from ..api.jobs.store import get_wfa_job
-            wfa_job = get_wfa_job(req.source_wfa_id)
-            res = None
-            if wfa_job:
-                res = wfa_job.get("result")
-                if res is None and wfa_job.get("result_json"):
-                    try:
-                        res = json.loads(wfa_job["result_json"])
-                    except Exception:
-                        res = None
-            res = res or {}
-            effective_trades = list(res.get("aggregate_oos_trades") or [])
-            if req.basis == "daily":
-                daily = list(res.get("aggregate_oos_daily_returns") or [])
-                if len(daily) >= 30:
-                    # Lợi suất ngày -> "lệnh giả" pnl_pct để dùng chung bộ mô phỏng vector (horizon = độ dài lịch sử OOS)
-                    effective_trades = [{"pnl_pct": float(r) * 100.0} for r in daily]
-                    basis = "daily"
-                else:
-                    basis_note = (f"WFA nguồn chỉ có {len(daily)} lợi suất ngày (< 30; job cũ thì không có) "
-                                  "-> dùng lệnh đã đóng (basis=trades)")
-        elif req.basis == "daily":
-            basis_note = "basis=daily cần source_wfa_id; nguồn lệnh trực tiếp -> dùng lệnh đã đóng (basis=trades)"
-
-        res = run_monte_carlo(
-            trades=effective_trades,
-            simulations=req.simulations,
-            initial_capital=req.initial_capital,
-            ruin_threshold_pct=req.ruin_threshold_pct,
-            confidence_levels=req.confidence_levels,
-            block_size=req.block_size,
-            seed=req.seed,
-        )
-
-        # Kịch bản cực xấu tất định trên CÙNG chuỗi đã bootstrap (lợi suất ngày hoặc pnl lệnh) + gate đầy đủ
-        series = [float(t.get("pnl_pct", 0.0)) / 100.0 for t in effective_trades] if basis == "daily" else [
-            float(t["pnl_pct"]) / 100.0 if t.get("pnl_pct") is not None else
-            float(t.get("pnl_usd", t.get("estimated_pnl_usd", 0.0)) or 0.0) / req.initial_capital for t in effective_trades]
-        stress = stress_scenarios(series) + [res["worst_bootstrap"]]
-        gate = evaluate_mc_gate(req.simulations, res["risk_of_ruin_pct"], stress, max_ruin_pct=req.max_ruin_pct,
-                                ruin_threshold_pct=req.ruin_threshold_pct)
-        robust = bool(source_gate_passed is True and gate["passed"])
-
-        mc_contract = MonteCarloResultContract(
-            mc_id=job_id,
-            source_wfa_id=req.source_wfa_id,
-            strategy_name=req.strategy_name or "Strategy",
-            symbol=req.symbol or "",
-            simulations=req.simulations,
-            trades_count=res["trades_count"],
-            initial_capital=res["initial_capital"],
-            percentile_mdd=res["percentile_mdd"],
-            risk_of_ruin_pct=res["risk_of_ruin_pct"],
-            ruin_threshold_pct=res["ruin_threshold_pct"],
-            terminal_return_pct=res["terminal_return_pct"],
-            sample_paths=res["sample_paths"],
-            quantile_curves=res["quantile_curves"],
-            source_gate_passed=source_gate_passed,
-            max_ruin_pct=req.max_ruin_pct,
-            robust_passed=robust,
-            robust_checks={
-                "wfa_gate": {"required": True, "actual": source_gate_passed, "passed": source_gate_passed is True},
-                "risk_of_ruin": {
-                    "required": f"<= {req.max_ruin_pct}% (MDD >= {req.ruin_threshold_pct}%)",
-                    "actual": res["risk_of_ruin_pct"],
-                    "passed": res["risk_of_ruin_pct"] <= req.max_ruin_pct,
-                },
-                **{k: v for k, v in gate["checks"].items() if k != "ruin"},
-            },
-            seed=req.seed,
-            summary={**res["summary"], **({"basis_note": basis_note} if basis_note else {})},
-            basis=basis,
-            stress=stress,
-            gate=gate,
-            gate_eligible=gate["gate_eligible"],
-            generated_at=int(time.time() * 1000),
-        )
-
-        complete_mc_job(job_id, mc_contract.model_dump())
-
-    except Exception as exc:
-        import traceback
-        traceback.print_exc()
-        fail_mc_job(job_id, f"Ngoại lệ khi thực thi Monte Carlo: {str(exc)}")

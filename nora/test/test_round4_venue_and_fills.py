@@ -128,21 +128,6 @@ def test_gate_filled_ratio_threshold(tmp_path, empty_ratio, blocked):
 
 # ─── 4. WFA: điều kiện lợi nhuận IS ─────────────────────────────────────────
 
-@pytest.mark.parametrize("min_is,expect_pass", [(1e9, False), (-1e9, True)])
-def test_wfa_gate_has_is_return_check(clean_asset, min_is, expect_pass):
-    from backend.api.jobs.store import create_wfa_job, get_wfa_job
-    from backend.core.contracts import StrategySnapshot, WfaFoldConfig
-    from backend.wfa.walk_forward import execute_wfa_pipeline
-    sym, _ = clean_asset
-    snap = StrategySnapshot(name="IS", symbol=sym, flows=[FLOW_1M], start_ts=T0 + 6 * D, end_ts=T0 + 39 * D)
-    cfg = WfaFoldConfig(train_days=10, test_days=5, min_folds=3, min_is_profit_pct=min_is)
-    job_id = create_wfa_job(sym, "IS", 0)
-    execute_wfa_pipeline(job_id, snap, cfg, "h")
-    res = get_wfa_job(job_id)["result"]
-    assert res["gate_checks"]["is_return"]["passed"] is expect_pass
-    if not expect_pass:
-        assert res["acceptance_gate_passed"] is False
-
 
 # ─── 5. Monte Carlo robust verdict ──────────────────────────────────────────
 
@@ -157,20 +142,6 @@ def _mc(trades, gate, sims=10_000):
     mc_id = create_mc_job("X", "S", sims, source_wfa_id=wfa_id or "")
     execute_monte_carlo_pipeline(mc_id, MonteCarloRunRequest(source_wfa_id=wfa_id, simulations=sims, seed=5), trades)
     return get_mc_job(mc_id)["result"]
-
-
-def test_mc_robust_requires_wfa_gate_and_low_ruin():
-    calm = [{"pnl_pct": 0.3 if i % 2 else -0.2} for i in range(60)]
-    wild = [{"pnl_pct": 12.0 if i % 2 else -11.0} for i in range(60)]
-    assert _mc(calm, True)["robust_passed"] is True
-    assert _mc(wild, True)["robust_passed"] is False, "ruin cao phải FAIL dù WFA pass"
-    assert _mc(calm, False)["robust_passed"] is False, "WFA gate FAIL -> không robust"
-    standalone = _mc(calm, None)
-    assert standalone["robust_passed"] is False and standalone["source_gate_passed"] is None
-    few = _mc(calm, True, sims=300)        # < 10.000 kịch bản: không đủ làm gate dù lệnh êm
-    assert few["robust_passed"] is False and few["gate_eligible"] is False and few["gate"]["checks"]["simulations"]["passed"] is False
-    ok = _mc(calm, True)
-    assert ok["gate_eligible"] is True and {r["name"] for r in ok["stress"]} >= {"worst_days_first", "worst_bootstrap"}
 
 
 # ─── 6. Crawler Binance ─────────────────────────────────────────────────────
@@ -258,57 +229,11 @@ def test_binance_missing_month_marks_crawl_not_ok(tmp_path, monkeypatch):
 
 # ─── 7. Phí theo venue ──────────────────────────────────────────────────────
 
-def test_friction_model_by_venue(clean_asset, tmp_path):
-    from backend.core.research.market_analyzer import friction_model_for
-    sym, root = clean_asset
-    cex = friction_model_for(sym, dex_estimated_slippage=0.004, data_root=root)
-    assert cex["venue"] == "cex" and cex["round_trip_bps"] == pytest.approx(24.0)
-    dex = friction_model_for("NO_MANIFEST", dex_estimated_slippage=0.004, data_root=str(tmp_path))
-    assert dex["venue"] == "dex" and dex["round_trip_bps"] == pytest.approx(105.0)
-
 
 # ─── 8. Crawler resume không được biến nến điền thành nến thật ──────────────
 # (Thay cho test_crawler_strips_filled_from_existing: test đó tự viết lại logic lọc
 #  thay vì gọi code crawler nên luôn pass; lỗi thật nằm ở _read_pickle_if_usable
 #  cắt về 6 cột OHLCV trước khi lọc -> mất cờ is_filled.)
-
-def test_crawler_resume_preserves_filled_ratio(tmp_path, monkeypatch):
-    import backend.core.data.crawler.crawl_geckoterminal_full_dataset as crawler
-    df = _rw_1m(2)
-    keep = np.random.default_rng(3).random(len(df)) >= 0.4
-    keep[0] = keep[-1] = True
-    m1 = save_resampled_dataset(symbol="RES", output_dir=str(tmp_path), df_1m_raw=df[keep], pool_address="0x",
-                                crawl_ok=True, requested_start_ts=int(df.open_time.min()), requested_end_ts=int(df.open_time.max()))
-    assert m1["filled_ratio_1m"] > 0.3
-
-    seen = {}
-
-    def fake_crawl(*args, **kwargs):
-        existing = args[16]                           # existing_frame (tham số thứ 17 của _crawl_ohlcv)
-        seen["rows"] = len(existing)
-        return existing.copy(), 0                     # giả lập: dữ liệu cũ đã phủ đủ, không cần gọi API
-
-    monkeypatch.setattr(crawler, "_crawl_ohlcv", fake_crawl)
-
-    class Args:
-        currency, token = "usd", "base"
-
-    m2 = crawler._process_asset(
-        target={"asset": "RES", "network": "base", "pool_address": "0x", "name": "r"}, args=Args(),
-        output_dir=str(tmp_path), start_sec=int(df.open_time.min()) // 1000, end_sec=int(df.open_time.max()) // 1000,
-    )
-    assert seen["rows"] == int(keep.sum()), "Resume phải chỉ nạp phút có giao dịch thật"
-    assert m2["filled_ratio_1m"] == pytest.approx(m1["filled_ratio_1m"]), "filled_ratio bị xoá khi resume"
-
-
-def test_read_pickle_if_usable_drops_filled_rows(tmp_path):
-    from backend.core.data.crawler.crawl_geckoterminal_full_dataset import _read_pickle_if_usable
-    df = _rw_1m(0.1)
-    df["is_filled"] = 0
-    df.loc[5:9, "is_filled"] = 1
-    path = tmp_path / "1m.pkl"
-    df.to_pickle(path)
-    assert len(_read_pickle_if_usable(str(path))) == len(df) - 5
 
 
 # ─── 9. Bước nhảy > 50%/phút: CEX đã kiểm checksum -> WARNING; nguồn khác -> BLOCKED ─

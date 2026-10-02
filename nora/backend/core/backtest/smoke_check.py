@@ -397,132 +397,6 @@ def shutil_rm(path):
     shutil.rmtree(path, ignore_errors=True)
 
 
-# ─── studio (WFA + MC) ───────────────────────────────────────────────────────
-
-def fold_checks(folds, first_test_expected, test_days_ms):
-    """Cửa sổ test không chồng lấp, theo thứ tự, test đầu tiên bắt đầu đúng chỗ mong đợi, lệnh OOS nằm trong cửa sổ test."""
-    out = {}
-    folds = sorted(folds, key=lambda f: f["fold_index"])
-    out["first_test_start"] = [folds[0]["test_start_ts"] == first_test_expected,
-                               f"{folds[0]['test_start_ts']} vs expected {first_test_expected}"]
-    bad = [(f["fold_index"], nx["fold_index"]) for f, nx in zip(folds, folds[1:]) if f["test_end_ts"] > nx["test_start_ts"]]
-    out["test_windows_disjoint"] = [not bad, f"overlap {bad}"]
-    bad = [f["fold_index"] for f in folds if f["train_end_ts"] > f["test_start_ts"] or f["test_end_ts"] <= f["test_start_ts"]]
-    out["train_before_test"] = [not bad, f"folds {bad}"]
-    bad = [(f["fold_index"], t["entry_time"]) for f in folds for t in f.get("oos_trades", [])
-           if not f["test_start_ts"] <= t["entry_time"] <= f["test_end_ts"]]
-    out["oos_trades_in_window"] = [not bad, f"{bad[:3]}"]
-    return {k: ("PASS" if v[0] else "FAIL " + v[1]) for k, v in out.items()}
-
-
-def cmd_studio(a):
-    os.makedirs(a.out, exist_ok=True)
-    os.environ["NORA_PIPELINE_DB_PATH"] = os.path.join(a.out, "pipeline.db")
-    from backend.api.jobs.store import create_mc_job, create_wfa_job, get_mc_job, get_wfa_job, init_db
-    from backend.carlo.monte_carlo import execute_monte_carlo_pipeline
-    from backend.core.contracts import MonteCarloRunRequest, StrategySnapshot, WfaFoldConfig
-    from backend.wfa.walk_forward import execute_wfa_pipeline
-    init_db()
-    reg = json.load(open(os.path.join(NORA_ROOT, "data", "alphas", "registry.json"), encoding="utf-8"))
-    al = next(x for x in reg["alphas"] if x["alpha_id"] == a.alpha)
-    s0, e0 = ms("2025-01-01"), ms("2026-02-01")
-    snap = StrategySnapshot(name=al["alpha_id"], symbol=al["symbol"], start_ts=s0, end_ts=e0, flows=al["flows"],
-                            signal_params=al["signal_params"], initial_capital=10000.0,
-                            param_grid={"stop_loss_rate": [2.5, 4.0], "trailing_stop": [3.0, 5.0]}, **al["position"])
-    cfg = WfaFoldConfig(train_days=90, test_days=30, min_folds=3)
-    job = create_wfa_job(al["symbol"], al["alpha_id"], 0)
-    t0 = time.time()
-    quiet(execute_wfa_pipeline, job, snap, cfg, f"smoke_{al['alpha_id']}")
-    wj = get_wfa_job(job)
-    print(f"WFA status={wj.get('status')} {time.time() - t0:.0f}s error={wj.get('error')}", flush=True)
-    if wj.get("status") != "completed":
-        return
-    r = wj["result"]
-    fc = fold_checks(r["folds"], s0 + 90 * DAY, 30 * DAY)
-    print(f"  folds={r['total_folds']} positive={r['positive_folds_count']} oos_trades={r['total_oos_trades']} "
-          f"oos_return={r['total_oos_return_pct']}% worst_mdd={r['worst_fold_mdd_pct']}% gate={r['acceptance_gate_passed']} "
-          f"wfe={r['wfe']} stability={r['param_stability']}", flush=True)
-    print("  gate_checks: " + ", ".join(f"{k}={'PASS' if v['passed'] else 'FAIL'}({v['actual']})" for k, v in r["gate_checks"].items()), flush=True)
-    print("  fold checks: " + json.dumps(fc), flush=True)
-    for f in r["folds"]:
-        print(f"   fold{f['fold_index']:2d} {f['status']:8s} test {f['test_start_date']}..{f['test_end_date']} IS={f['is_return_pct']:7.2f}%/{f['is_trades_count']:3d} "
-              f"OOS={f['oos_return_pct']:7.2f}%/{f['oos_trades_count']:3d} mdd={f['oos_max_drawdown_pct']:5.2f} {f['chosen_params'].get('stop_loss_rate')}/{f['chosen_params'].get('trailing_stop')}", flush=True)
-    outs = []
-    for i in (1, 2):
-        mj = create_mc_job(al["symbol"], al["alpha_id"], 2000, source_wfa_id=job)
-        req = MonteCarloRunRequest(source_wfa_id=job, simulations=2000, block_size=5, seed=7, symbol=al["symbol"],
-                                   strategy_name=al["alpha_id"])
-        execute_monte_carlo_pipeline(mj, req, [])
-        m = get_mc_job(mj)
-        if m.get("status") != "completed":
-            print(f"MC run{i} status={m.get('status')} error={m.get('error')}", flush=True)
-            return
-        outs.append({k: v for k, v in m["result"].items() if k not in ("mc_id", "generated_at")})
-    same = outs[0] == outs[1]
-    m = outs[0]
-    print(f"MC trades={m['trades_count']} percentile_mdd={m['percentile_mdd']} risk_of_ruin={m['risk_of_ruin_pct']}% "
-          f"terminal={m['terminal_return_pct']} source_gate={m['source_gate_passed']} robust={m['robust_passed']} "
-          f"identical-twice={'PASS' if same else 'FAIL'}", flush=True)
-    write_json(a.out, "studio.json", {"wfa": {k: v for k, v in r.items() if k not in ("aggregate_oos_trades", "aggregate_oos_equity")},
-                                       "fold_checks": fc, "mc": m, "mc_identical": same})
-
-
-# ─── optcheck: kiểm kết quả backend/optimize/optimize_alphas.py ──────────────────────
-
-STRIP = ("seconds", "peak_rss_mb")
-
-
-def _strip(o):
-    if isinstance(o, dict):
-        return {k: _strip(v) for k, v in o.items() if k not in STRIP}
-    if isinstance(o, list):
-        return [_strip(x) for x in o]
-    return o
-
-
-def cmd_optcheck(a):
-    import sqlite3
-    from backend.optimize import optimize_alphas as oa
-    from backend.core.strategy.strategy_library import OPTIMIZATION_SPACES
-    from backend.core.backtest.params_builder import data_symbol
-    from backend.db.local_pkl import read_manifest
-    loaded = []
-    for d in a.run:
-        res = json.load(open(os.path.join(d, "results.json"), encoding="utf-8"))
-        res = sorted(res, key=lambda r: (r["space"], r["symbol"]))
-        print(f"== {d}", flush=True)
-        db = sqlite3.connect(os.path.join(d, "pipeline.db"))
-        folds_by = {}
-        for jid, sym, name, rj in db.execute("SELECT job_id, symbol, strategy_name, result_json FROM wfa_jobs WHERE status='completed'"):
-            folds_by[(name, sym)] = json.loads(rj)
-        for r in res:
-            wf, mc, h, sc = r.get("wfa") or {}, r.get("mc") or {}, r.get("holdout") or {}, r.get("screen") or {}
-            line = (f"{r['space']}/{r['symbol']:4s} verdict={r['verdict']:16s} screen={sc.get('passed')}/{r.get('configs_tried')} "
-                    f"wfa folds={wf.get('total_folds')} pos={wf.get('positive_folds_count')} oos_trades={wf.get('total_oos_trades')} "
-                    f"gate={wf.get('acceptance_gate_passed')} {json.dumps(wf.get('gate_checks'))} "
-                    f"mc ruin={mc.get('risk_of_ruin_pct')} mdd_p95={mc.get('mdd_p95')} "
-                    f"holdout ret={h.get('return_pct')} mdd={h.get('mdd_pct')} n={h.get('trades')} rss={r.get('peak_rss_mb')}MB {r.get('seconds')}s")
-            print(line, flush=True)
-            wr = folds_by.get((r["space"], r["symbol"]))
-            if wr:
-                sd = next(s for s in OPTIMIZATION_SPACES if s["id"] == r["space"])
-                dsym, _ = data_symbol(r["symbol"], sd["fixed"].get("market", "spot"))
-                w = oa.windows(read_manifest(dsym), sd["venue"])
-                fc = fold_checks(wr["folds"], w["dev1_end"], 30 * DAY)
-                last_end = max(f["test_end_ts"] for f in wr["folds"])
-                fc["last_test_end<=holdout"] = "PASS" if last_end <= w["holdout"] else f"FAIL {last_end} > {w['holdout']}"
-                print("   fold checks: " + json.dumps(fc), flush=True)
-        loaded.append(_strip(res))
-    if len(loaded) >= 2:
-        same = loaded[0] == loaded[1]
-        print(f"results.json identical (except seconds/peak_rss_mb): {'PASS' if same else 'FAIL'}", flush=True)
-        if not same:
-            for x, y in zip(loaded[0], loaded[1]):
-                if x != y:
-                    ks = [k for k in x if x.get(k) != y.get(k)]
-                    print(f"   differs {x['space']}/{x['symbol']} keys={ks}", flush=True)
-
-
 def write_json(out, name, obj):
     os.makedirs(out, exist_ok=True)
     with open(os.path.join(out, name), "w", encoding="utf-8") as fh:
@@ -531,15 +405,12 @@ def write_json(out, name, obj):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["single", "portfolio", "studio", "optcheck"])
+    ap.add_argument("cmd", choices=["single", "portfolio"])
     ap.add_argument("--out", default=os.path.join(NORA_ROOT, "data", "_cache", "smoke"))
-    ap.add_argument("--alpha", default="trend_long_perp__SOL")
-    ap.add_argument("--run", action="append", default=[])
     a = ap.parse_args()
     from backend.utils.memwatch import require_memory_limit
-    if a.cmd != "optcheck":
-        require_memory_limit("smoke_check")
-    {"single": cmd_single, "portfolio": cmd_portfolio, "studio": cmd_studio, "optcheck": cmd_optcheck}[a.cmd](a)
+    require_memory_limit("smoke_check")
+    {"single": cmd_single, "portfolio": cmd_portfolio}[a.cmd](a)
 
 
 if __name__ == "__main__":

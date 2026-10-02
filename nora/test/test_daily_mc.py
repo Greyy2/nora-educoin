@@ -91,20 +91,6 @@ def _wfa(sym):
     return job_id, job["result"]
 
 
-def test_wfa_result_has_oos_daily_returns(clean_asset):
-    _, res = _wfa(clean_asset)
-    traded = [f for f in res["folds"] if f["status"] == "TRADED"]
-    daily = res["aggregate_oos_daily_returns"]
-    assert traded and daily and all(isinstance(x, float) for x in daily)
-    # mỗi fold test 5 ngày (ngày UTC lẻ đầu/cuối cho phép +1) -> độ dài khớp số fold TRADED
-    assert 5 * len(traded) <= len(daily) <= 6 * len(traded)
-    assert any(abs(x) > 0 for x in daily)
-    # lãi kép của chuỗi ngày ≈ lãi kép OOS từng fold (cùng đường vốn MTM, chênh do lệnh còn mở/làm tròn)
-    comp = np.prod([1 + x for x in daily]) - 1
-    folds_comp = np.prod([1 + f["oos_return_pct"] / 100 for f in traded]) - 1
-    assert abs(comp - folds_comp) < 0.05
-
-
 # ── 3. Chọn basis của Monte Carlo ───────────────────────────────────────────
 def _wait_mc(job_id, timeout=30):
     from backend.api.jobs.store import get_mc_job
@@ -139,42 +125,6 @@ def _run_mc(job_id, **kw):
     return job["result"]
 
 
-def test_mc_default_basis_is_daily_and_matches_manual_run():
-    from backend.carlo.monte_carlo import run_monte_carlo
-    from backend.core.contracts import MonteCarloRunRequest
-    assert MonteCarloRunRequest().basis == "daily"
-    rng = np.random.default_rng(5)
-    daily = [float(x) for x in rng.normal(0.001, 0.02, 90)]
-    trades = [{"pnl_pct": 0.5 if i % 2 else -0.4} for i in range(40)]
-    job = _fake_wfa(daily, trades)
-    r = _run_mc(job, seed=9, block_size=5)
-    assert r["basis"] == "daily" and r["trades_count"] == 90                      # horizon = độ dài lịch sử OOS
-    manual = run_monte_carlo([{"pnl_pct": x * 100.0} for x in daily], simulations=200, block_size=5, seed=9)
-    assert r["percentile_mdd"] == manual["percentile_mdd"] and r["risk_of_ruin_pct"] == manual["risk_of_ruin_pct"]
-    assert r["terminal_return_pct"] == manual["terminal_return_pct"]
-    assert r["quantile_curves"]["steps"] == manual["quantile_curves"]["steps"] and r["sample_paths"]
-    assert _run_mc(job, seed=9, block_size=5)["percentile_mdd"] == r["percentile_mdd"]   # tái lập theo seed
-
-
-def test_mc_basis_trades_and_fallback_for_old_jobs():
-    daily = [0.001] * 60
-    trades = [{"pnl_pct": 0.5 if i % 2 else -0.4} for i in range(40)]
-    r_t = _run_mc(_fake_wfa(daily, trades), basis="trades", seed=1)
-    assert r_t["basis"] == "trades" and r_t["trades_count"] == 40 and "basis_note" not in r_t["summary"]
-    r_old = _run_mc(_fake_wfa(None, trades), basis="daily", seed=1)               # job WFA cũ: không có chuỗi ngày
-    assert r_old["basis"] == "trades" and r_old["trades_count"] == 40 and "basis_note" in r_old["summary"]
-    assert r_old["percentile_mdd"] == r_t["percentile_mdd"]
-
-
-def test_mc_daily_sees_unrealized_drawdown_that_trades_miss():
-    """Đường vốn ngày có lỗ treo (-3%/ngày × 8 rồi hồi) nhưng lệnh đóng chỉ ghi nhận kết quả cuối -> MDD ngày lớn hơn."""
-    daily = ([-0.03] * 8 + [0.04] * 8) * 6
-    trades = [{"pnl_pct": 1.0} for _ in range(40)]
-    job = _fake_wfa(daily, trades)
-    assert _run_mc(job, seed=2, block_size=5)["percentile_mdd"]["p95"] > \
-        _run_mc(job, basis="trades", seed=2, block_size=5)["percentile_mdd"]["p95"]
-
-
 # ── 4. Cổng MC của optimize_alphas ──────────────────────────────────────────
 def _load_optimize():
     spec = importlib.util.spec_from_file_location("optimize_alphas_mod", os.path.join(NORA_ROOT, "backend", "optimize", "optimize_alphas.py"))
@@ -183,16 +133,3 @@ def _load_optimize():
     return mod
 
 
-def test_optimize_alphas_gate_reads_daily_mc_and_keeps_trade_mc():
-    mod = _load_optimize()
-    rng = np.random.default_rng(1)
-    calm_trades = [{"pnl_pct": float(x)} for x in rng.normal(0.5, 1.0, 60)]       # lệnh đóng trông an toàn
-    wild_daily = [float(x) for x in rng.normal(0.0, 0.05, 200)]                   # nhưng đường vốn ngày dao động mạnh
-    res = {"aggregate_oos_trades": calm_trades, "aggregate_oos_daily_returns": wild_daily}
-    mc, mc_trades = mod.monte_carlo_gate(res)
-    assert mc["basis"] == "daily" and mc_trades["basis"] == "trades"
-    assert mc["risk_of_ruin_pct"] > mod.MAX_RUIN >= mc_trades["risk_of_ruin_pct"]  # gate đọc MC ngày, không phải MC lệnh
-    assert (mc, mc_trades) == mod.monte_carlo_gate(res)                             # seed cố định -> tái lập
-    # thiếu chuỗi ngày (< 30 điểm) -> ruin None -> gate rớt
-    mc2, _ = mod.monte_carlo_gate({"aggregate_oos_trades": calm_trades, "aggregate_oos_daily_returns": [0.01] * 10})
-    assert mc2["risk_of_ruin_pct"] is None

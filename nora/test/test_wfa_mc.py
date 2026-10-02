@@ -33,21 +33,6 @@ def test_generate_folds_no_overlap():
         assert folds[i]["train_end_ts"] <= folds[i]["test_start_ts"]
 
 
-def test_wfa_nonexistent_handle_returns_400():
-    """
-    Test 3.4: WFA với source_handle không tồn tại phải trả HTTP 400 (không được fallback âm thầm).
-    """
-    from fastapi import HTTPException
-    from backend.api.routers.studio import run_wfa_endpoint
-    from backend.core.contracts import WfaRunRequest
-    
-    req = WfaRunRequest(source_handle="non_existent_handle_12345", symbol="TEST")
-    with pytest.raises(HTTPException) as exc_info:
-        run_wfa_endpoint(req)
-    assert exc_info.value.status_code == 400
-    assert "Không tìm thấy Strategy Snapshot" in exc_info.value.detail
-
-
 def test_mc_reproducible_and_mdd():
     """
     Test Phase 4:

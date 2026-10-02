@@ -281,23 +281,3 @@ def _load_optimize():
     return mod
 
 
-def test_optimize_alphas_gate_records_simulations_stress_and_gate():
-    mod = _load_optimize()
-    rng = np.random.default_rng(1)
-    daily = [float(x) for x in rng.normal(0.001, 0.006, 200)]
-    trades = [{"pnl_pct": float(x)} for x in rng.normal(0.5, 1.0, 60)]
-    folds = [{"status": "TRADED", "chosen_params": {"order_size_pct": 50, "leverage": 2}}]
-    res = {"aggregate_oos_trades": trades, "aggregate_oos_daily_returns": daily, "folds": folds}
-    mc, mc_trades = mod.monte_carlo_gate(res)
-    assert mc["simulations"] == mc_trades["simulations"] == 10_000 and mc["gate"]["gate_eligible"] is True
-    assert [r["name"] for r in mc["stress"]] == NAMES + ["worst_bootstrap"] and all("path" not in r for r in mc["stress"])
-    assert mc["gate"]["passed"] == all(c["passed"] for c in mc["gate"]["checks"].values())
-    assert mc["extra_cost_daily"] == pytest.approx((0.0005 + 0.0002) * 2 * 60 * (0.5 * 2) / 200)       # vòng quay thật từ lệnh + tham số
-    assert "stress" not in mc_trades and (mc, mc_trades) == mod.monte_carlo_gate(res)
-    json.dumps(mc, allow_nan=False)
-    low, _ = mod.monte_carlo_gate(res, sims=2000)                                                       # có thể chạy ít hơn nhưng không đủ gate
-    assert low["gate"]["gate_eligible"] is False and low["gate"]["passed"] is False
-    short, _ = mod.monte_carlo_gate({"aggregate_oos_trades": trades, "aggregate_oos_daily_returns": [0.01] * 10})
-    assert short["risk_of_ruin_pct"] is None and short["gate"]["passed"] is False
-    wild = {"aggregate_oos_trades": trades, "aggregate_oos_daily_returns": [float(x) for x in rng.normal(0.0, 0.05, 200)]}
-    assert mod.monte_carlo_gate(wild)[0]["gate"]["passed"] is False

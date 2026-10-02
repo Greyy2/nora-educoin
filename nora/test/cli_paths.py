@@ -8,7 +8,6 @@ COMMAND_DIRS = {
     "run_book_backtest": "core/backtest", "smoke_check": "core/backtest", "check_signals_strategies": "core/backtest",
     "bench_engine": "core/backtest",
     "make_mock_feeds": "core/analytics", "promote_staging": "core/data",
-    "research_maker_scalp": "core/research", "research_topbots": "core/research", "research_trend_portfolio": "core/research",
 }
 
 

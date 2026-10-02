@@ -138,24 +138,6 @@ def test_loader_cache_expires_when_file_is_rewritten(one_asset):
     np.testing.assert_allclose(after, before * 2)
 
 
-def test_mongo_source_is_always_windowed_and_never_cached(monkeypatch):
-    from backend.core.data import loader
-    calls = []
-
-    def fake_fetch(**kw):
-        calls.append(kw)
-        t = np.arange(kw["start_ts"], kw["end_ts"] + 1, M, dtype=np.int64)
-        return pd.DataFrame({"open_time": t, "open": 1.0, "high": 1.0, "low": 1.0, "close": 1.0, "volume": 1.0})
-
-    monkeypatch.setattr(loader, "fetch_mongo_candles_df", fake_fetch)
-    monkeypatch.setenv("NORA_DATA_SOURCE", "mongo")
-    loader.CandleLoader.clear_cache()
-    df = loader.CandleLoader("AAA", "1m").load_data(T0, T0 + 10 * M)
-    assert len(df) == 11
-    assert calls and calls[0]["start_ts"] == T0 and calls[0]["end_ts"] == T0 + 10 * M
-    assert len(loader._CANDLE_CACHE) == 0
-
-
 # ─── _pool_map_safe ─────────────────────────────────────────────────────────
 
 def _load_book_script():

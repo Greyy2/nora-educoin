@@ -39,63 +39,6 @@ def _create_sample_1m_data(n: int = 1440, t0: int = 1700000000000) -> pd.DataFra
 
 # ─── 2.1: _process_asset handle exception, minute_pages defined, crawl_ok=False ───
 
-def test_crawler_handles_crawl_failure_and_sets_crawl_ok_false(monkeypatch):
-    """
-    Khi _crawl_ohlcv vấp exception, _process_asset không bị UnboundLocalError: minute_pages,
-    sử dụng dữ liệu checkpoint 1m_raw.partial.pkl và manifest có crawl_ok = False.
-    """
-    from backend.core.data.crawler.crawl_geckoterminal_full_dataset import _process_asset, _crawl_ohlcv
-
-    with tempfile.TemporaryDirectory() as tmp:
-        asset = "TESTFAIL"
-        asset_dir = os.path.join(tmp, asset)
-        os.makedirs(asset_dir, exist_ok=True)
-
-        # Tạo checkpoint 1m_raw.partial.pkl sẵn
-        df_cp = _create_sample_1m_data(n=200)
-        df_cp.to_pickle(os.path.join(asset_dir, "1m_raw.partial.pkl"))
-
-        # Giả lập _crawl_ohlcv ném Exception
-        def _failing_crawl(*args, **kwargs):
-            raise ConnectionError("GeckoTerminal rate limit / timeout")
-
-        monkeypatch.setattr(
-            "backend.core.data.crawler.crawl_geckoterminal_full_dataset._crawl_ohlcv",
-            _failing_crawl,
-        )
-
-        target = {
-            "asset": asset,
-            "network": "base",
-            "pool_address": "0x1234567890abcdef",
-            "name": "Test Fail Pool",
-        }
-
-        class MockArgs:
-            currency = "usd"
-            token = "base"
-            limit = 100
-            max_pages = 10
-            page_delay_sec = 0.0
-            retries = 1
-            retry_delay_sec = 0.0
-            timeout = 5
-            checkpoint_every_pages = 5
-            lookback_days = 1.0
-
-        manifest = _process_asset(
-            target=target,
-            args=MockArgs(),
-            output_dir=tmp,
-            base_url="https://api.geckoterminal.com/api/v2",
-            start_sec=1700000000,
-            end_sec=1700086400,
-        )
-
-        assert manifest is not None, "Phải sinh manifest từ checkpoint"
-        assert manifest.get("crawl_ok") is False, "crawl_ok phải là False khi crawl bị đứt"
-        assert os.path.isfile(os.path.join(asset_dir, "1m.pkl")), "1m.pkl phải được tạo từ checkpoint"
-
 
 # ─── 2.2: crawl_ok=False → Gate BLOCKED; coverage_days < 30 → NEEDS_MORE_DATA ───
 

@@ -205,18 +205,6 @@ def test_skip_idle_identical_with_cooldown(monkeypatch, cooldown):
         assert len(eng0.closed_positions) > len(off[0])                    # cooldown thực sự chặn bớt lệnh
 
 
-def test_cooldown_in_params_snapshot_and_book():
-    from backend.core.strategy.strategy_book import BASE_POSITION
-    from backend.core.backtest.params_builder import POSITION_KEYS
-    from backend.core.contracts import StrategySnapshot
-    assert "cooldown" in POSITION_KEYS and BASE_POSITION["cooldown"] == 60
-    assert StrategySnapshot(symbol="BTC").cooldown == 0
-    with pytest.raises(Exception):
-        StrategySnapshot(symbol="BTC", cooldown=-1)
-    p = build_params("LONG_x", {"match": [], "stop": []}, "LONG", {"cooldown": 60}, "cex")
-    assert p.cooldown == 60 and p.to_dict()["cooldown"] == 60
-
-
 # ─── optimize_alphas.sample_configs ─────────────────────────────────────────
 
 def _load_script(name):
@@ -229,19 +217,3 @@ def _load_script(name):
     return mod
 
 
-def test_sample_configs_filters_invalid_before_sampling_and_is_deterministic():
-    oa = _load_script("optimize_alphas")
-    space = {"order_size_pct": [10, 20, 30], "dca_max_layers": [2, 4], "dca_step_pct": [0.5],
-             "leverage": [1, 5], "take_profit_rate": [0.5, 1.0, 2.0], "sig.rsi_lo": [20, 25]}
-    fixed = {"market": "perp"}
-    # perp: hợp lệ khi order_size × ~(1 + layers) ≤ 100: 10%×3 ok, 10%×5 ok, 20%×3 ok, 20%×5 FAIL, 30%×3 ok(90,2%), 30%×5 FAIL
-    all_c, total = oa.sample_configs(space, 10_000, 1, fixed=fixed, venue="cex")
-    invalid = oa.configs_invalid(space, fixed, "cex")
-    assert total == 3 * 2 * 1 * 2 * 3 * 2 and invalid == 2 * 2 * 3 * 2 and len(all_c) == total - invalid
-    costs = resolve_costs("cex", "perp", None, None)
-    assert all(dca_budget_check({**fixed, **{k: v for k, v in c.items() if not k.startswith("sig.")}}, costs)["ok"]
-               for c in all_c)
-    a, _ = oa.sample_configs(space, 20, 7, fixed=fixed, venue="cex")
-    b, _ = oa.sample_configs(space, 20, 7, fixed=fixed, venue="cex")
-    assert a == b and len(a) == 20                    # đủ N cấu hình hợp lệ, tái lập
-    assert all(c in all_c for c in a)
