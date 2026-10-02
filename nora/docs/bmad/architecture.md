@@ -104,8 +104,10 @@ Kết quả cache trong tiến trình, khoá theo `(mtime_ns, size)` của mọi
 
 **Nơi gate được gọi:** `api/routers/studio.py` (`/simulate`), `api/jobs/scan.py`, `wfa/walk_forward.py` (`execute_wfa_pipeline`),
 `core/research/market_analyzer.py`, `market_health.py`, `cli/promote_staging.py`.
-**Không** gọi trong `core/backtest/*`, `core/data/loader.py`, `build_strategy_book`, `validate_book`, `run_book_backtest`:
-đường danh mục tin vào dữ liệu đã được `promote_staging` duyệt. Đây là khoảng trống đã biết (R-7, E11-S6).
+**Cổng bắt buộc cho đường sổ chiến lược (E12.1):** `require_data_ok(symbols)` (cũng `require_data_ok_or_exit` cho CLI) trong `quality_gate.py` ném
+`DataQualityError` (tiếng Việt, liệt kê từng tài sản) khi BLOCKED / NEEDS_MORE_DATA; WARNING chạy tiếp và ghi log. Được gọi ở: `PortfolioEngine.load_data`
+(mỗi tài sản, dùng cache của gate), đầu `main` của `build_strategy_book`, `validate_book`, `run_book_backtest`, `make_mock_feeds`, và `optimize_alphas`
+(trước khi fork pool + tường minh ở `_run_pair` cho giai đoạn sàng lọc). Tiến trình cha gọi trước khi fork nên worker thừa kế cache gate (tránh đọc lại 1m).
 
 ### 3.5 Cache nến
 
@@ -275,7 +277,7 @@ Cấu hình của `optimize_alphas`: train/test 120/30 ngày (30/10 cho DEX), `m
 
 `backend/wfa/portfolio_wfa.py`. Hằng số gate (đầu file): `MIN_FOLDS = 5`, `MIN_AVG_IS_RET_PCT = 0`, `MIN_POSITIVE_FOLD_RATIO = 0.60`,
 `MAX_FOLD_MDD_PCT = 30`, `MIN_COMPOUNDED_OOS_PCT = 0`, `MAX_MC_RUIN_PCT = 5`, `MC_RUIN_THRESHOLD_PCT = 30`, `MIN_MC_DAYS = 20`.
-`PortfolioWfaConfig`: train 120 ngày, test 30 ngày, `min_is_trades = 10`, MC 4000 mô phỏng, block 5 ngày, horizon 365 ngày, `seed = 1`.
+`PortfolioWfaConfig`: train 120 ngày, test 30 ngày, `min_is_trades = 10`, MC 10.000 mô phỏng, block 5 ngày, horizon 365 ngày, `seed = 1`.
 
 Mỗi fold:
 - **IS:** mỗi (chiến lược × cấu hình ứng viên) chạy RIÊNG một `PortfolioEngine` trên cửa sổ train, kill switch tắt, SL "level". Điểm = `lãi / max(MDD, 1)`,
@@ -285,7 +287,7 @@ Mỗi fold:
 - Không nhìn trước: lựa chọn chỉ dùng kết quả IS, cửa sổ IS kết thúc ≤ đầu test (`test_is_selection_never_sees_oos_data`, `test_folds_do_not_overlap_and_oos_daily_only_from_test_windows`).
 
 Tổng hợp: lãi kép OOS từ lợi suất ngày, MDD fold tệ nhất, tỉ lệ fold có lãi (`extreme`), độ ổn định tham số (tỉ lệ cấu hình được chọn nhiều nhất), rồi Monte Carlo trên chuỗi ngày OOS `extreme`.
-**6 check:** `folds` (≥ 5), `avg_is_return` (≥ 0), `positive_folds` (≥ 60%), `worst_fold_mdd` (≤ 30%), `compounded_oos` (≥ 0), `mc_ruin` (≤ 5%).
+**9 check:** `folds` (≥ 5), `avg_is_return` (≥ 0), `positive_folds` (≥ 60%), `worst_fold_mdd` (≤ 30%), `compounded_oos` (≥ 0), `mc_ruin` (≤ 5%), `mc_simulations` (≥ 10.000), `mc_stress_mdd` (< 50%), `mc_stress_ruin` (không cháy) — ba check MC cuối đọc `evaluate_mc_gate` (§7.3).
 Hai pool song song: mọi job IS của mọi fold, rồi mọi job OOS; trước mỗi pool tiến trình cha xuất dữ liệu mmap, sau pool xoá.
 Báo cáo `report.json` có `folds[]`, `summary` (= `aggregate`), `gate`, `mc` (= `summary.mc`), `mem`.
 
@@ -293,12 +295,16 @@ Báo cáo `report.json` có `folds[]`, `summary` (= `aggregate`), `gate`, `mc` (
 
 `backend/carlo/monte_carlo.py`.
 - **Theo lệnh** (`run_monte_carlo`): block bootstrap trên `pnl_pct` của lệnh đã đóng, lãi kép, trả phân phối MDD, `risk_of_ruin_pct`, đường vốn mẫu.
-- **Theo ngày MTM** (`run_monte_carlo_daily`): block bootstrap trên lợi suất ngày MTM, mặc định 4000 mô phỏng, block 5 ngày, horizon 365 ngày, ngưỡng cháy 30%, `seed = 1`
+- **Theo ngày MTM** (`run_monte_carlo_daily`): block bootstrap trên lợi suất ngày MTM, mặc định 10.000 mô phỏng (tối thiểu để làm gate; API cho tới 50.000), block 5 ngày, horizon 365 ngày, ngưỡng cháy 30%, `seed = 1`
   (API mặc định `seed = 7`). Đường vốn ngày đã chứa lỗ treo nên MDD không bị đánh giá thấp. Thứ tự gọi RNG được giữ nguyên bản bootstrap của `build_strategy_book`
   (một lệnh `rng.integers` mỗi lần mô phỏng): **đừng vector hoá** khi chưa so lại từng bit. `scale` nhân lợi suất ngày (hệ số vốn).
-- `run_monte_carlo_daily_detail` cho cùng `summary` (trùng bit) cộng `fan` (phân vị 5/25/50/75/95 mỗi 5 ngày), `mdd_hist`, `ret_hist`, `gate {ruin_max_pct: 5, passed}`.
+- `run_monte_carlo_daily_detail` cho cùng `summary` (trùng bit) cộng `fan` (phân vị 5/25/50/75/95 mỗi 5 ngày), `mdd_hist`, `ret_hist`, `stress`, `worst_path`, `gate`.
+- **Kịch bản cực xấu + gate (mọi gate alpha/sổ):** hằng số ở đầu `backend/carlo/monte_carlo.py` (`MC_MIN_SIMULATIONS = 10_000`, `MC_MAX_RUIN_PCT = 5`, `STRESS_MAX_MDD_PCT = 50`).
+  `stress_scenarios` dựng 5 kịch bản tất định từ chuỗi lợi suất ngày (`worst_days_first`, `reversed_order`, `crash_day` = 2× ngày xấu nhất chặn −95% đặt đầu,
+  `cost_x2`, `longest_losing_streak_x2`), thêm `worst_bootstrap` (đường MDD lớn nhất). `evaluate_mc_gate`: `simulations` ≥ 10.000, P(MDD ≥ 30%) ≤ 5%,
+  MDD mọi kịch bản < 50%, không kịch bản nào cháy vốn; < 10.000 mô phỏng thì `gate_eligible = false`. `run_monte_carlo` chia lô (`MC_CHUNK_ELEMS`) nên RAM không tỉ lệ số mô phỏng.
 - **Cổng ruin của alpha đơn tài sản** (`optimize_alphas.monte_carlo_gate`, `mc_basis="daily"`): gọi `run_monte_carlo` (không phải `run_monte_carlo_daily`) trên chuỗi lợi suất ngày OOS đổi sang `pnl_pct`,
-  2000 mô phỏng, block 5, seed 7, **số bước mô phỏng = số ngày OOS** (ví dụ 434 ngày cho SOL, không cố định 365 ngày); `P(MDD ≥ 30%) ≤ 5%`. MC theo lệnh chỉ ghi tham chiếu (`monte_carlo_trades`).
+  10.000 mô phỏng, block 5, seed 7, **số bước mô phỏng = số ngày OOS** (ví dụ 434 ngày cho SOL, không cố định 365 ngày); `P(MDD ≥ 30%) ≤ 5%` VÀ gate cực xấu (`mc.stress`, `mc.gate`; check `mc_stress_gate`). MC theo lệnh chỉ ghi tham chiếu (`monte_carlo_trades`).
   Ít hơn 30 điểm thì `risk_of_ruin_pct = None` và check trượt. Cổng của sổ chiến lược (§7.2) dùng `run_monte_carlo_daily` với horizon 365 ngày: hai cổng không cùng horizon nên không so trực tiếp con số.
 - Nếu có `source_wfa_id`, MC luôn dùng dữ liệu của WFA job, không nhận dữ liệu do client gửi (`test_mc_uses_wfa_trades_not_fake`, `test_mc_pipeline_never_falls_back_to_client_trades`).
 
@@ -332,6 +338,13 @@ Báo cáo `report.json` có `folds[]`, `summary` (= `aggregate`), `gate`, `mc` (
 - **B. dev2:** cấu hình top-1 phải lãi với SL "level" **và** "extreme", MDD ≤ 30%, đủ lệnh, `≥ 4/8` tài sản có lãi. Top-2, top-3 chỉ đo độ ổn định (`stability = "k/m"`).
 - **C. sổ:** các chiến lược đạt chạy chung với `RISK` thật. Bootstrap ngày trên dev2 (`extreme`) cho `RISK_SCALES = 0,25..4,0`; rủi ro/lệnh cuối = `0,5% × hệ số lớn nhất có P(MDD ≥ 30%) ≤ 5%`, trần `MAX_RISK_PER_TRADE = 2,0%`.
 - **D. holdout:** chạy đúng sổ đã chốt một lần (level và extreme). `holdout_pass = holdout_level.ret_pct > 0 ∧ holdout_level.mdd_pct ≤ 30 ∧ holdout_extreme.mdd_pct ≤ 30`.
+- **Quy mô lớn (E12.2-12.4, tới ~1.000.000 cấu hình):** giai đoạn A chạy streaming — `iter_configs` sinh lười (lấy mẫu theo chỉ số, cùng dãy với bản cũ),
+  `pool_imap_bounded` (≤ `workers×4` future đang gửi), mỗi kết quả ghi ngay vào `results.sqlite` (`backend/optimize/results_store.py`, WAL, idempotent theo `job_key` =
+  sha1(giai đoạn, chiến lược, tham số, cửa sổ, stop_fill, risk, sha256 dữ liệu, phiên bản mã)), cha chỉ giữ top-K (`--keep-top`, mặc định 50; hàng ngoài top-K bỏ `daily`).
+  `stage_a.json`/`result.json.stage_a` = top-K; `stage_a_counts.json` = tried/passed; mọi hàng đọc qua `GET /api/studio/book/jobs/{id}/stage_a?candidate=&offset=&limit=&sort=`.
+  `--resume <run_dir>` (build_strategy_book, validate_book, optimize_alphas) bỏ qua job đã có; kết quả cuối y hệt lần chạy không gián đoạn.
+  Trước khi chạy: trần `--max-configs` (mặc định 200000, trừ `--force-large`), hiệu chỉnh 1 cấu hình/chiến lược -> `[estimate]` + `estimate.json`; `progress.json` (≤ 5 giây) hiện ở `job.progress`;
+  `POST /api/studio/book/jobs/{id}/cancel` gửi SIGTERM cả nhóm tiến trình, CLI flush kho rồi thoát (trạng thái `cancelled`, resume được).
 - Checkpoint `stage_a.json`, `stage_b.json`, `report.json` ở `data/_cache/book/<thời điểm>/`. `PER_WORKER_MB = 800` (số đo: 576-587 MB VmHWM gồm mmap × 1,3).
   Thiếu trần RAM cgroup thì từ chối chạy (`require_memory_limit`).
 
@@ -362,11 +375,11 @@ Một lần WFA danh mục khác của hai chiến lược này (`data/_cache/bo
 |---|---|---|
 | `book_backtest` | `backend.cli.run_book_backtest` | `--book --strategies --symbols --start --end --risk-per-trade --stop-fill` |
 | `book_wfa` | `backend.cli.validate_book` | `--report --include-rejected --candidates --strategies-json --symbols --n --start --end --train-days --test-days --risk-per-trade --workers` |
-| `book_build` | `backend.cli.build_strategy_book` | `--only --n --workers` (và `--out <job_dir>/alphas` do `launch` tự thêm; client không đặt được) |
+| `book_build` | `backend.cli.build_strategy_book` | `--only --n --workers --keep-top --force-large` (và `--out <job_dir>/alphas` do `launch` tự thêm; client không đặt được) |
 
 - Thư mục job `data/_cache/api_jobs/<job_id>/`: `job.json` (loại, đối số, pid, created/started/finished, state, exit_code), `out.log` (stdout+stderr), `result.json` (script ghi khi có `NORA_JOB_DIR`), `alphas/` (chỉ `book_build`).
   `job_id = YYYYMMDD_HHMMSS_<6 hex>` (regex kiểm chặt).
-- Trạng thái trả ra: `queued` (log chỉ có dòng "đang chờ job khác của Nora") → `running` → `done | failed`. `job.json` chỉ giữ `running/done/failed`; `queued` suy ra từ log. Sống sót qua khởi động lại API
+- Trạng thái trả ra: `queued` (log chỉ có dòng "đang chờ job khác của Nora") → `running` → `done | failed | cancelled`. `job.json` chỉ giữ `running/done/failed/cancelled`; `queued` suy ra từ log. Sống sót qua khởi động lại API
   (đọc lại từ pid, dòng `[run_limited] peak RAM ... | exit N`, `result.json`).
 - Giới hạn: `MAX_ACTIVE = 8` job chạy/chờ (vượt → `JobBusy` → 429); WFA tối đa 16 chiến lược × 50 cấu hình; ngày `YYYY-MM-DD` hợp lệ; tài sản phải thuộc vũ trụ; số trong khoảng; `--report` phải nằm trong `data/_cache/book/` và có `stage_a.json` + `report.json`.
 - Log trả về 40 dòng cuối (`LOG_TAIL_LINES`). Client poll mỗi 2 s.

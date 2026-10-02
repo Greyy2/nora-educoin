@@ -118,23 +118,45 @@ Kết quả (`result` của job) là `report.json` của `validate_book.py`: `fo
 `aggregate.oos_daily` và `aggregate.oos_daily_dates` đều là `{level: [...], extreme: [...]}`, song song theo chỉ số
 (ngày `YYYY-MM-DD`), để UI vẽ đường vốn OOS. `gate = {passed, checks: {<khoá>: {label, required, actual, passed}}}`.
 
-## 5. Monte Carlo (mới, đồng bộ, nhẹ)
+## 5. Monte Carlo (đồng bộ, nhẹ): >= 10.000 kịch bản + kịch bản cực xấu
 `POST /api/studio/book/mc`
 ```json
-{"wfa_job_id": "...", "basis": "extreme|level", "simulations": 4000, "block_days": 5, "horizon_days": 365,
- "ruin_threshold_pct": 30, "seed": 7, "scale": 1.0}
+{"wfa_job_id": "...", "basis": "extreme|level", "simulations": 10000, "block_days": 5, "horizon_days": 365,
+ "ruin_threshold_pct": 30, "seed": 7, "scale": 1.0, "stress_max_mdd_pct": 50, "extra_cost_daily_pct": null}
 ```
-hoặc gửi trực tiếp `"daily_returns": [...]` thay cho `wfa_job_id`. Trả về:
+hoặc gửi trực tiếp `"daily_returns": [...]` thay cho `wfa_job_id`. `simulations`: mặc định **10.000**, cho phép 100–**50.000**; dưới 10.000 vẫn chạy
+nhưng kết quả có `gate.gate_eligible = false` và `gate.passed = false` (không dùng làm gate). `extra_cost_daily_pct` (tuỳ chọn, 0–5): phí bổ sung
+%/ngày hoạt động cho `cost_x2`; bỏ trống = hằng số bảo thủ 0,07%/ngày ((taker 0,05% + trượt giá 0,02%) × 2 chiều × vòng quay giả định 0,5×/ngày). Trả về:
 ```json
 {"summary": {"median_ret_pct": 33.0, "p05_ret_pct": -11.3, "mdd_p50_pct": 16.1, "mdd_p95_pct": 28.4, "p_mdd_ge_ruin_pct": 3.6,
-              "simulations": 4000, "block_days": 5, "horizon_days": 365, "seed": 7},
+              "simulations": 10000, "block_days": 5, "horizon_days": 365, "seed": 7},
  "fan": {"days": [0, 5, ...], "p5": [...], "p25": [...], "p50": [...], "p75": [...], "p95": [...]},
  "mdd_hist": {"bins": [{"lo": 0, "hi": 2, "count": 10}]},
  "ret_hist": {"bins": [...]},
- "gate": {"ruin_max_pct": 5.0, "passed": true},
+ "stress": [{"name": "worst_days_first", "label_vi": "Ngày lỗ tệ nhất đến trước", "mdd_pct": 34.07, "terminal_ret_pct": 2.39,
+             "worst_day_pct": -2.75, "days_underwater": 309, "ruin": false, "days": 310, "passed": true,
+             "path": {"days": [0, 5, ...], "ret_pct": [0.0, -1.2, ...]}}, ...],
+ "worst_path": {"days": [0, 5, ...], "ret_pct": [...]},
+ "gate": {"passed": true, "gate_eligible": true, "min_simulations": 10000, "ruin_max_pct": 5.0, "stress_max_mdd_pct": 50.0,
+          "checks": {"simulations": {"label": "...", "required": ">= 10000", "actual": 10000, "passed": true},
+                     "ruin": {"required": "<= 5.0%", "actual": 3.6, "passed": true},
+                     "stress_mdd": {"required": "< 50%", "actual": 35.18, "passed": true, "detail": "worst_bootstrap"},
+                     "stress_ruin": {"required": "không có", "actual": 0, "passed": true}}},
  "params": {...}}
 ```
-Phải trùng số với `run_monte_carlo_daily` khi cùng seed. Giới hạn: simulations ≤ 10000, horizon_days ≤ 730 (vượt giới hạn hoặc `wfa_job_id` không hợp lệ: 422/4xx).
+`summary` phải trùng số với `run_monte_carlo_daily` khi cùng seed và số mô phỏng (và với bản bootstrap trước khi nâng cấp). Giới hạn: simulations 100–50000,
+horizon_days ≤ 730 (vượt giới hạn hoặc `wfa_job_id` không hợp lệ: 422/4xx).
+
+**`stress` (6 dòng, theo thứ tự)** — năm kịch bản TẤT ĐỊNH dựng từ chính chuỗi lợi suất ngày (× `scale`) và đường bootstrap tệ nhất; độ dài = số ngày lịch sử
+(cộng phần chèn thêm), không cắt theo `horizon_days`:
+`worst_days_first` (chuỗi xếp tăng dần: mọi ngày lỗ trước, tệ nhất trước), `reversed_order` (đảo ngược lịch sử), `crash_day` (ngày sập = 2 × ngày xấu nhất, chặn −95%,
+đặt ĐẦU chuỗi), `cost_x2` (mọi ngày lợi suất ≠ 0 trừ thêm phí khứ hồi; `note_vi` nói rõ mức phí), `longest_losing_streak_x2` (chuỗi ngày lỗ liên tiếp dài nhất lặp 2 lần ở đầu, rồi lịch sử),
+`worst_bootstrap` (đường có MDD lớn nhất trong các mô phỏng; `worst_path` = `stress[-1].path`). `path` = `{days, ret_pct}` lấy mẫu ≤ 75 điểm (ret_pct = % lãi từ đầu) để vẽ
+chồng lên quạt; `ruin` = vốn chạm 0; `days_underwater` = số ngày vốn dưới đỉnh; `passed` = `mdd_pct < stress_max_mdd_pct` và không cháy.
+
+**`gate`** (hằng số ở đầu `backend/carlo/monte_carlo.py`): đạt khi CẢ 4 check qua — `simulations` ≥ 10.000, `ruin` P(MDD ≥ 30%) ≤ 5%, `stress_mdd` MDD mọi dòng `stress` < 50%
+(`STRESS_MAX_MDD_PCT`, đổi bằng `stress_max_mdd_pct`), `stress_ruin` không dòng nào cháy vốn. Mỗi check có `required`, `actual`, `passed`.
+WFA danh mục (`summary.mc`) cũng mang `stress` (không có `path`) và `gate`; `gate.checks` của WFA có thêm `mc_simulations`, `mc_stress_mdd`, `mc_stress_ruin`.
 
 ## 6. Alpha: hiệu chỉnh tham số (đã có job build)
 `POST /api/studio/book/build` `{"only": ["breakout_4h_long"], "n": 24}` → job chạy `build_strategy_book` (A→D).
@@ -150,3 +172,77 @@ nên sổ vừa dựng nằm ở `<data>/_cache/api_jobs/<job_id>/alphas/book.js
 (holdout đạt), nếu không thì `nora/data/alphas/testnet/book.json` cũ bị xoá. Trả `{"published": true, "job_id", "status", "holdout_pass", "generated_at", "strategies": [id], "written": [path], "testnet_removed": bool}`.
 Lỗi: 404 không có job; 422 `job_id` sai định dạng / không phải `book_build`; 409 job chưa xong hoặc không có `alphas/book.json` trong thư mục job (không dựng ra sổ, hoặc job cũ chạy trước thay đổi này).
 Thư mục đích mặc định `nora/data/alphas`; biến môi trường `NORA_ALPHAS_DIR` ghi đè (dùng cho test). UI: nút "Xuất bản sổ này" trên job build đã xong có sổ, có hộp xác nhận.
+
+## 7. Chế độ chạy (Cơ bản / Nâng cao)
+Backtest, WFA và Monte Carlo nhận `mode: "basic" | "advanced"` (mặc định `basic`). **Cơ bản** = bộ tham số tốt nhất khoá sẵn; **Nâng cao** = mọi tham số chiến lược chỉnh được
+(chu kỳ chỉ báo, khung thời gian của từng điều kiện, thoát lệnh, rủi ro). Client cũ không gửi `mode` sẽ chạy ở chế độ Cơ bản: tham số `params` gửi lên bị **bỏ qua**.
+
+### 7.1 Lược đồ tham số + preset: `GET /api/studio/strategies`
+→ mảng 7 chiến lược lõi (cùng thứ tự `catalog`):
+```json
+[{"id": "trend_long", "family": "Theo xu hướng", "side": "LONG", "description": "...",
+  "frames_allowed": ["1m", "5m", "15m", "1h", "4h", "24h"],
+  "params_schema": {
+    "sig.trend_tf": {"group": "signal", "type": "choice", "choices": ["15m", "1h", "4h", "24h"], "default": "1h", "label_vi": "Khung xu hướng", "unit": "", "help_vi": "..."},
+    "sig.ema_fast": {"group": "signal", "type": "int", "min": 5, "max": 100, "step": 1, "default": 50, "label_vi": "EMA nhanh", "unit": "nến", "help_vi": "..."},
+    "sig.adx_min":  {"group": "signal", "type": "float", "min": 10.0, "max": 40.0, "step": 1.0, "default": 20.0, "...": "..."},
+    "stop_loss_rate": {"group": "exit", "type": "float", "min": 0.5, "max": 10.0, "step": 0.1, "default": 2.5, "unit": "× ATR", "...": "..."},
+    "risk_per_trade_pct": {"group": "risk", "type": "float", "min": 0.05, "max": 5.0, "default": 0.5, "unit": "% vốn", "...": "..."}},
+  "preset": {"params": {"sig.adx_min": 25, "...": "ĐẦY ĐỦ mọi khoá của params_schema"}, "source": "build 20261001_115808 stage A top-1 dev1",
+             "source_kind": "book|stage_a|default", "evidence": {"stage": "dev1", "dev1": {"ret_pct": 28.22, "mdd_pct": 27.57, "sharpe": 0.92, "trades": 783, "symbols_positive": 8},
+                                                                 "accepted": false, "dev2_pass": false, "dev2_extreme": {"ret_pct": -13.97}}}}]
+```
+- `params_schema` là dict **có thứ tự** (tín hiệu → thoát lệnh → rủi ro). Khoá nhóm `signal` có tiền tố `sig.` (cùng quy ước `space`, `book.json`, cấu hình WFA); nhóm `exit`/`risk` là khoá vị thế.
+  `type`: `int` | `float` (kèm `min`, `max`, `step`) | `choice` (kèm `choices`, giá trị là chuỗi như `"4h"`). `unit`: `nến`, `phút`, `× ATR`, `% vốn`, `x`. `help_vi` là chú thích tiếng Việt.
+  Nhóm `signal` gồm chu kỳ (`sig.ema_fast`, `sig.ema_slow`, `sig.adx_n`, `sig.dch_n`, `sig.rsi_n`, `sig.bb_n`, `sig.er_n`, `sig.roc_n`, `sig.ema_n`...), hệ số (`sig.bb_k`), ngưỡng (`sig.adx_min`,
+  `sig.roc_min`, `sig.rsi_lo|hi`, `sig.er_max`) và khung thời gian (`sig.trend_tf`, `sig.entry_tf`, `sig.signal_tf`, `sig.roc_tf`, `sig.regime_tf`). Nhóm `exit`: `stop_loss_rate`, `take_profit_rate`,
+  `trailing_stop`, `trailing_activation_pct` (cả bốn theo × ATR), `timeout`, `cooldown` (phút), `atr_frame`, `atr_period`. Nhóm `risk`: `risk_per_trade_pct`, `max_notional_pct`, `leverage`.
+- Mặc định (`default`) tái lập đúng chiến lược cũ: giá trị literal cũ của cây (EMA 50/200, ADX 14, Donchian 20, khung 1h/15m...) và mức giữa của không gian tối ưu cho tham số thoát lệnh.
+- `preset` lấy từ `data/alphas/presets.json` (`python -m backend.cli.build_presets`): ưu tiên sổ `book.json` → lần `build_strategy_book` mới nhất có cấu hình qua cổng dev1 (stage A top-1 theo điểm) →
+  mặc định (`source = "mặc định — chưa tối ưu"`, `evidence = null`). `evidence.accepted/dev2_pass` cho biết cấu hình đó đã qua kiểm chứng dev2 hay chưa — UI cần hiện rõ khi là `false`.
+- `POST /api/studio/strategies/validate` `{"id": "trend_long", "params": {...}}` → `{"ok": bool, "errors": [{"field", "message"}], "resolved": {tham số đầy đủ}|null}` (không chạy job; khoá thiếu lấy từ preset).
+
+### 7.2 Ngữ nghĩa `mode`
+| | `basic` | `advanced` |
+|---|---|---|
+| Backtest `strategies[]` | chỉ cần `id` (tối đa 7, không lặp); **`params`, `risk_per_trade_pct`, `stop_fill` bị bỏ qua** — dùng preset, rủi ro = mức nhỏ nhất của các preset, `stop_fill=level` | `params` kiểm theo `params_schema`; khoá thiếu lấy từ **preset**; `risk_per_trade_pct`/`stop_fill` theo request |
+| WFA | fold mặc định 120/30, gate chuẩn; nguồn = `candidates` hoặc `strategies[].id` (mỗi chiến lược 1 cấu hình = preset); `report_dir`, `train_days`, `test_days`, `n`, `configs` bị bỏ qua/từ chối | `train_days`, `test_days`, `step_days`, `sims`, `mc_seed`, `candidates`+`n`, `report_dir`, `strategies[].configs[]` (kiểm theo schema) |
+| Monte Carlo | 10.000 kịch bản, block 5, horizon 365, ngưỡng cháy 30%, seed 7, đủ 6 kịch bản cực xấu, gate chuẩn; mọi tham số MC của client bị bỏ qua (chỉ lấy nguồn `wfa_job_id`/`daily_returns`) | `simulations` (100–50.000), `block_days`, `horizon_days`, `seed`, `scale`, `ruin_threshold_pct`, `stress_max_mdd_pct`, `extra_cost_daily_pct`, `stress_scenarios` (tập con của `worst_days_first, reversed_order, crash_day, cost_x2, longest_losing_streak_x2, worst_bootstrap`) |
+| Cửa sổ ngày, `symbols` | cho phép | cho phép |
+
+Ràng buộc nâng cao: mọi chiến lược trong **một lần backtest** phải cùng `risk_per_trade_pct` (danh mục dùng một mức rủi ro; nếu request có `risk_per_trade_pct` thì mức đó thắng, không thì các `params.risk_per_trade_pct` phải bằng nhau);
+`sig.ema_fast < sig.ema_slow`. WFA nâng cao hiện **chỉ nhận khoá thuộc không gian tối ưu** (`space`: ngưỡng, thoát lệnh) trong `strategies[].configs`; chu kỳ/khung thời gian đổi qua backtest.
+`embargo_days > 0` và các cờ `step_days`/`sims`/`mc_seed` chưa nằm trong danh sách trắng job `book_wfa` trả 422 "Máy chủ chưa hỗ trợ ..." (xem báo cáo giao việc).
+
+### 7.3 `custom_gates` và không xuất bản được
+Ở chế độ nâng cao, nếu request **đổi ngưỡng gate** (`ruin_threshold_pct` ≠ 30, `stress_max_mdd_pct` ≠ 50, thiếu kịch bản cực xấu) hoặc dùng **< 10.000 kịch bản** (MC `simulations`, WFA `sims`) thì kết quả mang
+`custom_gates: true`, `promotable: false` (và `gate.gate_eligible = false` với MC). Chỉ đổi tham số dữ liệu (block, horizon, seed, scale) hoặc tham số chiến lược thì vẫn là gate chuẩn.
+`POST /api/studio/book/publish` từ chối job có `custom_gates` bằng **409** ("... KHÔNG được xuất bản/promote ..."). MC có nguồn `wfa_job_id` của job `custom_gates` cũng bị đánh dấu như vậy.
+MC (đồng bộ): `params` có thêm `mode`, `custom_gates`, `promotable`, `ignored_client_params`; `gate.custom_gates`.
+
+### 7.4 Bản ghi job
+`POST /book/backtest|wfa` vẫn trả `{"job_id"}`. `GET /book/jobs/{id}` và các hàng của `GET /book/jobs` có thêm:
+`mode`, `custom_gates`, `promotable`, `ignored_client_params` (basic: client có gửi tham số bị bỏ qua) và **`resolved`** — tham số ĐẦY ĐỦ đã giải quyết để tái lập:
+```json
+{"mode": "advanced", "custom_gates": false, "promotable": true, "ignored_client_params": false,
+ "resolved": {"source": "client+presets", "symbols": ["BTC", "SOL"], "start": "2025-03-01", "end": "2025-06-30", "risk_per_trade_pct": 0.5, "stop_fill": "level",
+              "strategies": [{"id": "trend_long", "params": {"sig.trend_tf": "4h", "sig.ema_fast": 20, "...": "mọi khoá của params_schema"}, "preset_source": null}]}}
+```
+WFA: `resolved.strategies[] = {id, configs: [tham số đầy đủ]}`, `train_days`, `test_days`, `step_days`, `sims`, `mc_seed`. Khi job `done`, `result` được phản chiếu `mode`, `custom_gates`, `promotable`.
+Job nhận tham số tối thiểu (khoá của `space` + khoá khác mặc định) qua `--strategies` (JSON, khung thời gian là chuỗi) hoặc `strategies.json` của thư mục job.
+
+### 7.5 Lỗi 422 theo trường
+`detail` là danh sách kiểu FastAPI, mỗi phần tử có thêm `field` (đường dẫn trường) và `msg` tiếng Việt:
+```json
+{"detail": [{"loc": ["body", "strategies[0].params.sig.ema_fast"], "field": "strategies[0].params.sig.ema_fast", "type": "value_error",
+             "msg": "trend_long: EMA nhanh (sig.ema_fast) phải nằm trong khoảng 5 đến 100 nến, nhận 150"}]}
+```
+Các lỗi: khoá lạ (kèm gợi ý `sig.`), sai kiểu / không nguyên / ngoài `[min, max]`, khung thời gian không thuộc `choices`, `sig.ema_fast >= sig.ema_slow`, cột kernel không hợp lệ sau khi thay tham số
+(chu kỳ phải nguyên 2..500, `k` trong (0, 10]), ngân sách DCA vượt trần vốn, `risk_per_trade_pct` khác nhau giữa các chiến lược, id chiến lược lạ/lặp/quá 7, `stress_scenarios` không hợp lệ.
+
+### 7.6 Giao diện `/backtest` (P4.1)
+Công tắc "Cơ bản | Nâng cao" ở đầu cả ba bước; mọi request gửi `mode`. Cơ bản: chọn chiến lược, hiện preset chỉ đọc + nguồn/bằng chứng (nói rõ "mặc định — chưa tối ưu"; cảnh báo khi preset trượt dev2),
+rủi ro/khớp cắt lỗ/fold 120-30/MC 10.000 hiện dạng khoá. Nâng cao: mọi khoá của `params_schema` có ô nhập đúng kiểu (số có min/max, chọn khung thời gian), kiểm phía client + `POST /strategies/validate`;
+422 theo `field` được gắn vào đúng ô. WFA nâng cao: chỉ khoá thuộc `space` sửa được; `step_days`/`sims`/`mc_seed` và khoá ngoài `space` bị khoá ghi "chưa hỗ trợ ở WFA (đang làm)" cho tới khi
+`WFA_SCHEMA_KEYS_SUPPORTED` (frontend `lib/modes.js`) bật (API chưa công bố cờ này). Kết quả `custom_gates`/`promotable:false` hiện huy hiệu "Cấu hình tuỳ chỉnh — không xuất bản được", nút Xuất bản bị khoá kèm lý do.
+Nhãn tham số chỉ lấy từ `frontend/src/v2/lib/params.js` (không dùng `label_vi` của API). Job hiện `mode` + `resolved` ở JobPanel và Lịch sử chạy.
