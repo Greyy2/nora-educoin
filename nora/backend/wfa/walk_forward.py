@@ -72,11 +72,14 @@ def _make_engine(job):
     """job = (strategies [(candidate_id, params)], (start, end), stop_fill, risk dict, risk_per_trade, symbols, shared_dir)."""
     from backend.core.strategy.book import CANDIDATES, materialize
     from backend.core.backtest.portfolio import PortfolioEngine, RiskConfig
+    from backend.core.params.modes import lift_frames
     items, (start, end), stop_fill, risk, rpt, symbols, shared_dir = job
+    base = risk.get("base_frame", "1m")   # khung chạy đi cùng cấu hình danh mục (nằm trong khoá resume của job)
     by_id = {c["id"]: c for c in CANDIDATES}
-    strategies = [materialize(by_id[cid], prm, stop_fill=stop_fill, risk_per_trade_pct=rpt) for cid, prm in items]
+    strategies = [materialize(by_id[cid], lift_frames(by_id[cid], prm, base), stop_fill=stop_fill, risk_per_trade_pct=rpt)
+                  for cid, prm in items]
     return PortfolioEngine(symbols, strategies, start - WARMUP, end, trade_start_ts=start,
-                           risk=RiskConfig.from_dict(risk), shared_dir=shared_dir), start
+                           risk=RiskConfig.from_dict(risk), shared_dir=shared_dir, base_frame=base), start
 
 
 def run_job(job):

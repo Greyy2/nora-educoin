@@ -34,7 +34,7 @@ from backend.utils.jsonsafe import json_default
 
 DEFAULTS = {"report": "", "include_rejected": False, "candidates": "", "strategies": None, "symbols": "", "n": 3, "seed": 7,
             "start": "", "end": "", "train_days": 120, "test_days": 30, "step_days": None, "min_is_trades": 10, "sims": 10_000,
-            "mc_seed": 1, "risk_per_trade": None, "workers": "auto", "per_worker_mb": None, "resume": "", "max_configs": 200_000,
+            "mc_seed": 1, "timeframe": "1m", "risk_per_trade": None, "workers": "auto", "per_worker_mb": None, "resume": "", "max_configs": 200_000,
             "force_large": False}
 
 
@@ -154,6 +154,8 @@ def run_job(params=None):
         cands = (candidates_from_list(a.strategies) if a.strategies
                  else candidates_from_ids(as_list(a.candidates), a.n, a.seed))
         w = bsb.windows(perp_symbols())
+    if a.timeframe and a.timeframe != "1m":   # khung chạy đi cùng cấu hình danh mục -> tới mọi job + khoá resume
+        risk = {**risk, "base_frame": a.timeframe}
     symbols = [x if "@" in x else f"{x}@perp" for x in as_list(a.symbols)] or perp_symbols()
     from backend.core.data.quality_gate import require_data_ok_or_exit
     require_data_ok_or_exit(symbols)   # cổng chất lượng dữ liệu bắt buộc (trước khi fork pool để worker thừa kế cache gate)

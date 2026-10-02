@@ -1329,7 +1329,7 @@ def run_many(eng: Any, position_overrides: List[Dict[str, Any]]) -> List[Dict[st
         strategies = [{**st, "position": {**st["position"], **ov}} for st in eng.strategies]
         sub = type(eng)(eng.symbols, strategies, eng.start_ts, eng.end_ts, trade_start_ts=eng.trade_start_ts,
                         initial_capital=eng.initial_capital, risk=eng.risk, venue=eng.venue, use_cache=False,
-                        shared_dir=eng.shared_dir, close_at_end=eng.close_at_end)
+                        shared_dir=eng.shared_dir, close_at_end=eng.close_at_end, base_frame=eng.base_frame)
         for book in eng.books:
             _, pairs = sub._make_trackers(book["symbol"], sub.ledger)
             entries = []

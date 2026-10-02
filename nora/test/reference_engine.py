@@ -554,6 +554,8 @@ class RefBacktestEngine:
         return (bars + 2) * FRAME_MS[frame]
 
     # ─── Dữ liệu: dùng CHUNG đường nạp / căn khung / chỉ báo của engine thật (tham chiếu chỉ đóng băng logic khớp lệnh từng nến) ───
+    base_frame = "1m"   # tham chiếu chạy trên nến 1m
+    check_frames = _ProdEngine.__dict__["check_frames"]
     load_data = _ProdEngine.__dict__["load_data"]
     load_frames = _ProdEngine.__dict__["load_frames"]
     _load_funding = _ProdEngine.__dict__["_load_funding"]

@@ -28,7 +28,7 @@ from backend.utils.jobs import as_list, options, write_job_result
 from backend.utils.jsonsafe import json_default
 
 NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-DEFAULTS = {"book": "", "strategies": None, "symbols": "", "start": "", "end": "", "risk_per_trade": None, "stop_fill": "level", "regime": False, "out": ""}
+DEFAULTS = {"book": "", "strategies": None, "symbols": "", "start": "", "end": "", "risk_per_trade": None, "stop_fill": "level", "regime": False, "timeframe": "1m", "out": ""}
 
 DAY = 86_400_000
 WARMUP = 20 * DAY            # bằng build_strategy_book.WARMUP (chỉ số đo từ start trở đi)
@@ -90,20 +90,21 @@ def daily_nav(curve, end):
 
 
 def run(items, symbols, start, end, rpt, stop_fill, risk, extra_strategies=None, initial_capital=None, close_at_end=True,
-        warmup=WARMUP, regime=False):
+        warmup=WARMUP, regime=False, base_frame="1m"):
     """extra_strategies: chiến lược dựng sẵn (dict của PortfolioEngine, có thể có khoá "symbols") chạy cùng sổ — dùng cho feed
     giả lập. close_at_end=False: giữ vị thế còn mở cuối dữ liệu (kết quả thêm `open_positions`); mặc định như backtest thường."""
     from backend.core.strategy.book import CANDIDATES, materialize
     from backend.core.backtest.portfolio import PortfolioEngine, RiskConfig
     from backend.utils.memwatch import peak_rss_mb
     by_id = {c["id"]: c for c in CANDIDATES}
-    strategies = [materialize(by_id[cid], prm, regime=regime, stop_fill=stop_fill, risk_per_trade_pct=rpt)
-                  for cid, prm in items]
+    from backend.core.params.modes import lift_frames
+    strategies = [materialize(by_id[cid], lift_frames(by_id[cid], prm, base_frame), regime=regime, stop_fill=stop_fill,
+                              risk_per_trade_pct=rpt) for cid, prm in items]
     strategies += list(extra_strategies or [])
     t0 = time.time()
     kw = {} if initial_capital is None else {"initial_capital": float(initial_capital)}
     eng = PortfolioEngine(symbols, strategies, start - warmup, end, trade_start_ts=start, risk=RiskConfig.from_dict(risk),
-                          close_at_end=close_at_end, **kw)
+                          close_at_end=close_at_end, base_frame=base_frame, **kw)
     with contextlib.redirect_stdout(io.StringIO()):
         eng.run()
     res = eng.get_results()
@@ -131,6 +132,8 @@ def run(items, symbols, start, end, rpt, stop_fill, risk, extra_strategies=None,
                      "initial_capital": res["initial_capital"]}
     if regime:
         out["config"]["regime"] = True
+    if base_frame != "1m":
+        out["config"]["timeframe"] = base_frame
     out["final_equity"] = round(res["final_equity"], 2)
     if not close_at_end:
         out["open_positions"] = eng.open_positions()
@@ -169,7 +172,7 @@ def run_job(params=None):
         raise SystemExit("end phải sau start")
     print(f"sổ {[i for i, _ in items]} | {len(symbols)} tài sản | {pd.Timestamp(start, unit='ms'):%Y-%m-%d} → "
           f"{pd.Timestamp(end, unit='ms'):%Y-%m-%d} | rủi ro/lệnh {rpt}% | SL {a.stop_fill}", flush=True)
-    out = run(items, symbols, start, end, rpt, a.stop_fill, risk, regime=bool(a.regime))
+    out = run(items, symbols, start, end, rpt, a.stop_fill, risk, regime=bool(a.regime), base_frame=a.timeframe or "1m")
     print(f"lãi {out['ret_pct']}%  MDD {out['mdd_pct']}%  sharpe {out['sharpe']}  lệnh {out['trades']}  "
           f"+{out['symbols_positive']}/{len(symbols)}  kill={'có' if out['halted_at'] else 'không'}  "
           f"{json.dumps(out['by_strategy'], ensure_ascii=False, default=json_default)}", flush=True)

@@ -5,12 +5,12 @@ Chỉ báo tính từ gốc cố định (đầu lịch sử, BacktestEngine.fra
 cho cả lần chạy (mọi nhóm alpha dùng lại), ở dạng nến khung (nhỏ: 15m ~100k nến), rồi mỗi worker căn về phút bằng chỉ số dùng chung.
 
 Bố cục <out_dir>/:
-  base/<khoá nền>/{t,o,h,l,c,f_t,f_r}.npy + meta.json   nến 1m thật + funding của cửa sổ (theo engine.load_data)
+  base/<khoá nền>/{t,o,h,l,c,f_t,f_r}.npy + meta.json   nến khung chạy (thật) + funding của cửa sổ (theo engine.load_data)
   ft/<khoá khung>.npy                                     open_time các nến của khung (khung 1m: các phút có giao dịch)
   fv/<khoá cột>.npy                                       giá trị cột trên các nến đó
   ix/<khoá căn>.npy                                       chỉ số nến khung dùng ở từng phút của nền (-1 = chưa có)
 Khoá:
-  nền  = sha1(tài sản, nguồn, cửa sổ, điểm bắt đầu nạp 1m, perp, vân tay 1m.pkl + funding.pkl)
+  nền  = sha1(tài sản, nguồn, cửa sổ, khung chạy, điểm bắt đầu nạp, perp, vân tay file khung chạy + funding.pkl)
   khung = sha1(tài sản, nguồn, khung, vân tay file khung, mốc cuối)       cột = sha1(khung, cột)       căn = sha1(nền, khung)
 Ghi nguyên tử (file / thư mục tạm + rename): người đọc không bao giờ thấy dữ liệu dở; hai tiến trình ghi cùng khoá thì một bản thắng.
 
@@ -55,24 +55,26 @@ def plan(eng: "BacktestEngine") -> Optional[Dict[str, Any]]:
     from backend.core.signals.evaluator import lag_key
     from backend.db.local_pkl import default_data_root, resolve_symbol_dir
     root = default_data_root()
-    fp1 = _file_fingerprint(eng.symbol, "1m", root)
+    base_fr = eng.base_frame
+    fp1 = _file_fingerprint(eng.symbol, base_fr, root)
     if fp1 is None:
         return None
     refs = eng._refs_by_frame()
     perp = any(tr.market == "perp" for tr in eng.trackers)
     sym_dir = resolve_symbol_dir(eng.symbol)
     base = _sha1({"v": FORMAT_VERSION, "sym": eng.symbol, "root": root, "start": int(eng.start_ts), "end": int(eng.end_ts),
-                  "load_1m": int(eng.start_ts - eng._warmup_ms("1m", refs.get("1m", set()))), "perp": perp, "fp_1m": list(fp1),
+                  "base_frame": base_fr, "load_base": int(eng.start_ts - eng._warmup_ms(base_fr, refs.get(base_fr, set()))),
+                  "perp": perp, "fp_base": list(fp1),
                   "fp_funding": _stat(os.path.join(sym_dir, "funding.pkl")) if (perp and sym_dir) else None})
     frames: Dict[str, Dict[str, str]] = {}
     cols: Dict[str, Dict[str, str]] = {}
-    for frame in (["1m"] if "1m" in refs else []) + [f for f in refs if f != "1m"]:   # cùng thứ tự với _build_matrix
-        if frame != "1m" and frame not in FRAME_MS:
+    for frame in ([base_fr] if base_fr in refs else []) + [f for f in refs if f != base_fr]:   # cùng thứ tự với _build_matrix
+        if frame not in FRAME_MS:
             continue
         fp = _file_fingerprint(eng.symbol, frame, root)
         tkey = _sha1({"v": FORMAT_VERSION, "sym": eng.symbol, "root": root, "frame": frame, "fp": list(fp) if fp else None,
                       "end": int(eng.end_ts)})
-        frames[frame] = {"t": tkey, "ix": _sha1({"base": base, "frame": tkey})}
+        frames[frame] = {"t": tkey, "ix": _sha1({"base": base, "frame": tkey, "base_frame": base_fr})}
         for col, lag in sorted(refs[frame]):
             cid = f"{frame}|{lag_key(col, lag)}"
             cols[cid] = {"frame": frame, "v": _sha1({"frame": tkey, "cid": cid})}
@@ -175,7 +177,7 @@ def fill(out_dir: str, pe: "PortfolioEngine", eng: "BacktestEngine", p: Dict[str
         t_path, ix_path = _file(out_dir, "ft", f["t"]), _file(out_dir, "ix", f["ix"])
         if not miss_cols and os.path.isfile(t_path) and os.path.isfile(ix_path):
             continue
-        if frame != "1m" and not loaded:
+        if frame != eng.base_frame and not loaded:
             eng.load_frames(refs)               # khung lớn từ đầu lịch sử (gốc cố định)
             loaded = True
         sub = {(col, lag) for col, lag in refs[frame] if f"{frame}|{lag_key(col, lag)}" in miss_cols}
@@ -188,7 +190,7 @@ def fill(out_dir: str, pe: "PortfolioEngine", eng: "BacktestEngine", p: Dict[str
                 _save(t_path, t_frame)
                 wrote["frames"] += 1
         if not os.path.isfile(ix_path):
-            _save(ix_path, eng.align_index(frame, _load_array(t_path), base_t))
+            _save(ix_path, eng.align_index(frame, _load_array(t_path), base_t, eng.base_frame))
             wrote["index"] += 1
     STATS["fills"] += 1
     for k, n in wrote.items():

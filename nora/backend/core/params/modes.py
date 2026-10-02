@@ -144,3 +144,36 @@ def schema_space(candidate: Dict[str, Any], exclude=SCHEMA_SPACE_EXCLUDE) -> Dic
             nd = max(0, -int(math.floor(math.log10(step)))) + 2 if step < 1 else 2
             out[key] = [round(lo + i * step, nd) for i in range(n)]
     return out
+
+
+# ─── Khung chạy (nến mô phỏng) ───────────────────────────────────────────────
+def frame_keys(candidate: Dict[str, Any]) -> List[str]:
+    """Khoá chọn KHUNG nến của chiến lược (sig.*_tf, atr_frame...): kiểu choice, mọi lựa chọn là khung."""
+    from backend.core.backtest.engine import FRAME_MS
+    return [k for k, v in (candidate.get("params_schema") or {}).items()
+            if v.get("type") == "choice" and set(v.get("choices") or []) <= set(FRAME_MS)]
+
+
+def lift_frame(frame: str, base_frame: str, choices: List[str]) -> Optional[str]:
+    """Khung >= khung chạy giữ nguyên; nhỏ hơn -> khung chạy nếu là lựa chọn hợp lệ, không thì None (không chạy được)."""
+    from backend.core.backtest.engine import FRAME_MS
+    if FRAME_MS[frame] >= FRAME_MS[base_frame]:
+        return frame
+    return base_frame if base_frame in choices else None
+
+
+def lift_frames(candidate: Dict[str, Any], params: Dict[str, Any], base_frame: str) -> Dict[str, Any]:
+    """Tham số với mọi khung (kể cả mặc định schema) nâng lên >= khung chạy. ValueError nếu một khung không thể nâng."""
+    from backend.core.strategy.book import schema_defaults
+    if base_frame == "1m":
+        return dict(params)
+    out = dict(params)
+    defaults = schema_defaults(candidate)
+    for k in frame_keys(candidate):
+        cur = out.get(k, defaults[k])
+        new = lift_frame(cur, base_frame, list(candidate["params_schema"][k]["choices"]))
+        if new is None:
+            raise ValueError(f"{candidate['id']}: {k}={cur} nhỏ hơn khung chạy {base_frame} và không có lựa chọn >= {base_frame}")
+        if new != cur or k in out:
+            out[k] = new
+    return out

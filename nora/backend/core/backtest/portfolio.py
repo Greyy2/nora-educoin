@@ -65,8 +65,9 @@ class PortfolioEngine:
     def __init__(self, symbols: List[str], strategies: List[Dict[str, Any]], start_ts: int, end_ts: int,
                  trade_start_ts: Optional[int] = None, initial_capital: float = 10000.0,
                  risk: Optional[RiskConfig] = None, venue: str = "cex", use_cache: bool = True,
-                 shared_dir: Optional[str] = None, close_at_end: bool = True):
-        """strategies: [{"id", "side": LONG|SHORT, "tree": AST đã thay tham số, "position": {...POSITION_KEYS}}].
+                 shared_dir: Optional[str] = None, close_at_end: bool = True, base_frame: str = "1m"):
+        """base_frame: khung nến dùng để mô phỏng (1m mặc định; 15m/1h/4h chạy nhanh hơn nhiều, khung tín hiệu phải >= khung chạy).
+        strategies: [{"id", "side": LONG|SHORT, "tree": AST đã thay tham số, "position": {...POSITION_KEYS}}].
         Khoá tuỳ chọn "symbols": [..] giới hạn chiến lược đó chỉ chạy trên các tài sản này (mặc định: mọi tài sản).
         close_at_end=False: KHÔNG đóng vị thế còn mở ở cuối dữ liệu (vốn cuối vẫn là MTM) — xem open_positions() (feed giả lập).
         shared_dir: thư mục dữ liệu mmap dùng chung (backend/core/data/shared.py); mặc định env NORA_SHARED_DATA_DIR.
@@ -95,13 +96,14 @@ class PortfolioEngine:
         self.rejected_for_risk = 0           # số PHÚT lệnh vào bị chặn bởi giới hạn rủi ro (giữ nguyên nghĩa, golden dựa vào đây)
         self.risk_blocked_attempts = 0       # số LẦN vào lệnh bị chặn: các phút liên tiếp của cùng một tracker tính là một lần
         self.close_at_end = close_at_end
+        self.base_frame = base_frame
         self.last_close: Dict[str, float] = {}   # giá đóng cửa cuối của từng tài sản (đặt khi run() xong)
 
     # ─── Dữ liệu ────────────────────────────────────────────────────────────
     def _make_trackers(self, symbol: str, ledger: CapitalLedger) -> Tuple[BacktestEngine, List[Tuple[Dict, PositionTracker]]]:
         from backend.core.params.builder import build_params
         eng = BacktestEngine(0, 0, symbol, self.start_ts, self.end_ts, trade_start_ts=self.trade_start_ts,
-                             initial_capital=self.initial_capital)
+                             initial_capital=self.initial_capital, base_frame=self.base_frame)
         eng.ledger = ledger
         pairs = []
         for st in self.strategies:
@@ -121,7 +123,8 @@ class PortfolioEngine:
         return tuple(sorted((f, tuple(sorted(r))) for f, r in eng._refs_by_frame().items()))
 
     def _cache_key(self, symbol: str, eng: BacktestEngine) -> tuple:
-        return (symbol, self.start_ts, self.end_ts, self._refs_signature(eng), any(tr.market == "perp" for tr in eng.trackers))
+        return (symbol, self.start_ts, self.end_ts, self._refs_signature(eng), any(tr.market == "perp" for tr in eng.trackers),
+                self.base_frame)
 
     def _build_symbol_data(self, eng: BacktestEngine, only: Optional[Set[str]] = None) -> Dict[str, Any]:
         """Dựng `data` của một tài sản (nến thật 1m + cột kernel + funding), không đụng cache.

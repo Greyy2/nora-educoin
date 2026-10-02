@@ -604,3 +604,26 @@ def test_presets_evidence_bools_are_real_bools(tmp_path):
     out = tmp_path / "p.json"
     pr.write_presets({"x": np.bool_(True)}, str(out))
     assert json.loads(out.read_text()) == {"x": True}
+
+
+def test_timeframe_lifts_frames_and_blocks_incompatible_strategies():
+    """Khung chạy: lựa chọn khung < khung chạy được nâng lên (nếu là lựa chọn hợp lệ) hoặc bỏ; chiến lược không còn khung hợp lệ bị báo."""
+    from backend.core.strategy.book import CANDIDATES
+    from backend.optimize.funnel import generate as gen
+    by = {c["id"]: c for c in CANDIDATES}
+    sp = gen.space_for(by["trend_long"], "schema", "1h")
+    assert set(sp["sig.entry_tf"]) == {"1h"} and set(sp["sig.trend_tf"]) == {"1h", "4h", "24h"}
+    grid = gen.space_for(by["reversion_long"], "grid", "15m")
+    assert grid["sig.entry_tf"] == ["15m"]                                     # mặc định 5m -> 15m
+    p = next(gen.iter_params(grid, 1, 1))
+    assert gen.validate_alpha(by["reversion_long"], p, "grid", "15m") is None
+    assert gen.validate_alpha(by["reversion_long"], {**p, "sig.entry_tf": "5m"}, "grid", "15m")
+    bad = gen.incompatible([by["trend_long"], by["keltner_trend_long"]], "schema", "4h")
+    assert "trend_long" in bad and "keltner_trend_long" not in bad
+
+
+def test_api_rejects_strategy_incompatible_with_timeframe():
+    from fastapi.testclient import TestClient
+    from backend.main import app
+    r = TestClient(app).post("/api/studio/funnel/runs", json={"strategies": ["trend_long"], "n_per_strategy": 5, "timeframe": "4h"})
+    assert r.status_code == 422 and "khung 4h" in r.text

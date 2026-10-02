@@ -647,3 +647,4 @@ def test_sigterm_right_after_commit_exits_cleanly(tmp_path):
     store._con = real
     assert dict(store.metrics_of(["a1"], "S1_backtest"))["a1"]["ret_pct"] == 1.0
     store.close()
+

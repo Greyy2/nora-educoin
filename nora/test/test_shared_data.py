@@ -248,3 +248,28 @@ def test_lazy_fill_equals_built_and_is_reused(market, tmp_path, frame):
     pe2 = engine()
     pe2.load_data()
     assert shared_data.STATS["fills"] == before                                       # đọc thẳng kho, không tính lại
+
+
+def test_base_frame_1h_shared_equals_built_and_rejects_smaller_frames(market, tmp_path):
+    """Khung chạy 1h: kho dùng chung bằng từng bit với tự dựng; khung tín hiệu nhỏ hơn khung chạy bị từ chối rõ ràng."""
+    from backend.core.backtest.portfolio import PortfolioEngine, RiskConfig
+    st = {"id": "s", "side": "LONG", "position": {**gs._POSITION, "atr_frame": "1h"},
+          "tree": [[[{"frame": "1h", "column": "rsi_14"}, "<", {"frame": "4h", "column": "ema_30", "index": 1}]]]}
+    kw = dict(trade_start_ts=T0 + 3 * DAY, risk=RiskConfig(), use_cache=False, base_frame="1h")
+    pe = PortfolioEngine(SYMS, [st], T0, T0 + 30 * DAY, shared_dir=str(tmp_path / "shared"), **kw)
+    for sym in SYMS:
+        e, _ = pe._make_trackers(sym, pe.ledger)
+        lazy = pe._load_symbol(sym, e)
+        e2, _ = pe._make_trackers(sym, pe.ledger)
+        built = pe._build_symbol_data(e2)
+        assert len(built["t"]) and np.all(np.diff(built["t"]) == 3_600_000)          # nến 1h
+        for k in ("t", "o", "h", "l", "c"):
+            assert lazy[k].tobytes() == built[k].tobytes(), k
+        for k in built["cols"]:
+            assert lazy["cols"][k].tobytes() == built["cols"][k].tobytes(), k
+    plain = PortfolioEngine(SYMS, [st], T0, T0 + 30 * DAY, **kw)
+    plain.run()
+    assert plain.get_results()["positions"]
+    small = {**st, "tree": [[[{"frame": "15m", "column": "rsi_14"}, "<", 30]]]}
+    with pytest.raises(ValueError, match="nhỏ hơn khung chạy"):
+        PortfolioEngine(SYMS, [small], T0, T0 + 30 * DAY, **kw).load_data()

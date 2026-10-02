@@ -82,7 +82,10 @@ class BacktestEngine:
     MTM_SAMPLE_MINUTES = 60   # mẫu vốn MTM mỗi giờ (+ mỗi lần đóng lệnh); kernel bỏ qua phút rảnh, kết quả như vòng lặp từng phút
 
     def __init__(self, account_id: int, campaign_id: int, symbol: str, start_ts: int, end_ts: int,
-                 trade_start_ts: Optional[int] = None, initial_capital: float = 10000.0):
+                 trade_start_ts: Optional[int] = None, initial_capital: float = 10000.0, base_frame: str = "1m"):
+        if base_frame not in FRAME_MS:
+            raise ValueError(f"Khung chạy không hợp lệ: {base_frame!r} (có: {list(FRAME_MS)})")
+        self.base_frame = base_frame   # khung nến dùng để MÔ PHỎNG (khớp lệnh, SL/TP theo high/low của nến này)
         self.account_id = account_id
         self.campaign_id = campaign_id
         self.symbol = symbol
@@ -146,13 +149,23 @@ class BacktestEngine:
         return (bars + 2) * FRAME_MS[frame]
 
     # ─── Dữ liệu ────────────────────────────────────────────────────────────
+    def check_frames(self, refs: Optional[Dict[str, Set[Tuple[str, int]]]] = None) -> None:
+        """Mọi khung tín hiệu / ATR phải >= khung chạy (không thể nhìn nến nhỏ hơn nến đang mô phỏng)."""
+        refs = self._refs_by_frame() if refs is None else refs
+        small = sorted(fr for fr in refs if fr in FRAME_MS and FRAME_MS[fr] < FRAME_MS[self.base_frame])
+        if small:
+            raise ValueError(f"Khung {small} nhỏ hơn khung chạy {self.base_frame} — chọn khung tín hiệu/ATR >= {self.base_frame}")
+
     def load_data(self):
         refs = self._refs_by_frame()
-        warm_1m = self._warmup_ms("1m", refs.get("1m", set()))
-        loader_1m = CandleLoader(self.symbol, frame="1m", use_cache=True)
-        self.df_1m = self._prepare_candles(loader_1m.load_data(self.start_ts - warm_1m, self.end_ts))
-        # chỉ báo khung 1m tính từ đầu lịch sử (gốc cố định) -> cần cả lịch sử 1m khi có cột 1m
-        self.df_1m_hist = loader_1m.load_data(HISTORY_START, self.end_ts) if refs.get("1m") else None
+        self.check_frames(refs)
+        base = self.base_frame
+        warm = self._warmup_ms(base, refs.get(base, set()))
+        loader = CandleLoader(self.symbol, frame=base, use_cache=True)
+        # df_1m = nến của KHUNG CHẠY (tên giữ vì lịch sử; 1m là mặc định)
+        self.df_1m = self._prepare_candles(loader.load_data(self.start_ts - warm, self.end_ts))
+        # chỉ báo trên chính khung chạy tính từ đầu lịch sử (gốc cố định) -> cần cả lịch sử khi có cột của khung chạy
+        self.df_1m_hist = loader.load_data(HISTORY_START, self.end_ts) if refs.get(base) else None
         if self.trade_start_ts < self.start_ts:
             self.trade_start_ts = self.start_ts
 
@@ -165,7 +178,7 @@ class BacktestEngine:
         tại nến t không phụ thuộc cửa sổ backtest bắt đầu ở đâu (chỉ phụ thuộc dữ liệu <= t)."""
         refs = self._refs_by_frame() if refs is None else refs
         for frame in sorted(set(refs) | {"4h"}):
-            if frame == "1m" or frame not in FRAME_MS:
+            if frame == self.base_frame or frame not in FRAME_MS or FRAME_MS[frame] < FRAME_MS[self.base_frame]:
                 continue
             loader = CandleLoader(self.symbol, frame=frame, use_cache=True)
             df = self._prepare_candles(loader.load_data(HISTORY_START, self.end_ts))
@@ -197,11 +210,12 @@ class BacktestEngine:
             refs = {fr: rs for fr, rs in refs.items() if rs}
         cols: Dict[str, np.ndarray] = {}
         open_time = df1["open_time"].to_numpy()
-        for frame in (["1m"] if "1m" in refs else []) + [f for f in refs if f != "1m"]:
-            if frame != "1m" and frame not in FRAME_MS:
+        base = self.base_frame
+        for frame in ([base] if base in refs else []) + [f for f in refs if f != base]:
+            if frame not in FRAME_MS:
                 continue
             t_frame, vals = self.frame_values(frame, refs[frame])
-            idx = self.align_index(frame, t_frame, open_time)
+            idx = self.align_index(frame, t_frame, open_time, base)
             for cid, v in vals.items():
                 cols[cid] = self.gather(v, idx)
         return df1, cols
@@ -209,15 +223,17 @@ class BacktestEngine:
     def frame_values(self, frame: str, refs: Set[Tuple[str, int]]) -> Tuple[np.ndarray, Dict[str, np.ndarray]]:
         """Giá trị các cột `refs` của khung `frame` trên MỌI nến của khung từ đầu lịch sử (gốc cố định) -> (open_time nến, {cid: giá trị}).
         Khung 1m: chỉ phút có giao dịch (bỏ nến điền). Khung lớn: các nến đã nạp bằng load_frames. Mỗi cột tính độc lập."""
-        if frame == "1m":
+        if frame == self.base_frame:
             src = getattr(self, "df_1m_hist", None)
             if src is None:
                 src = self.df_1m       # dữ liệu gán thẳng (test) = toàn bộ lịch sử
             if src is None:            # đường dữ liệu dùng chung: engine chưa nạp gì
-                src = CandleLoader(self.symbol, frame="1m", use_cache=True).load_data(HISTORY_START, self.end_ts)
+                src = CandleLoader(self.symbol, frame=frame, use_cache=True).load_data(HISTORY_START, self.end_ts)
             src = self._prepare_candles(src)
             if "is_filled" in src.columns:
                 src = src[pd.to_numeric(src["is_filled"], errors="coerce").fillna(0).astype(int) == 0].reset_index(drop=True)
+            if frame == "4h":
+                src = self._enrich_4h(src)
         elif frame == "4h" and self.df_4h is not None and not self.df_4h.empty:
             src = self._enrich_4h(self._prepare_candles(self.df_4h))
         else:
@@ -229,20 +245,20 @@ class BacktestEngine:
                 {f"{frame}|{name}": feat[name].to_numpy(dtype="float64") for name in feat.columns if name != KEY})
 
     @staticmethod
-    def align_index(frame: str, t_frame: np.ndarray, open_time: np.ndarray) -> np.ndarray:
-        """Chỉ số nến khung dùng ở từng phút `open_time` (-1 = chưa có). Khung 1m: đúng phút đó (phút không giao dịch -> -1).
-        Khung lớn: nến cuối ĐÃ ĐÓNG trước phút quyết định (open + độ dài khung <= t + 1 phút); open_time khung tăng ngặt
+    def align_index(frame: str, t_frame: np.ndarray, open_time: np.ndarray, base: str = "1m") -> np.ndarray:
+        """Chỉ số nến khung dùng ở từng nến chạy `open_time` (-1 = chưa có). Khung = khung chạy: đúng nến đó (nến không giao dịch -> -1).
+        Khung lớn hơn: nến cuối ĐÃ ĐÓNG trước thời điểm quyết định (open + độ dài khung <= t + độ dài nến chạy); open_time khung tăng ngặt
         (_prepare_candles bỏ trùng) nên searchsorted phải − 1 chọn đúng nến như merge_asof(direction="backward")."""
         q = np.asarray(open_time, dtype="int64")
         if len(t_frame) == 0:
             return np.full(len(q), -1, dtype="int64")
-        if frame == "1m":
+        if frame == base:
             pos = np.searchsorted(t_frame, q)
             hit = pos < len(t_frame)
             hit[hit] = t_frame[pos[hit]] == q[hit]
             pos[~hit] = -1
             return pos.astype("int64")
-        return (np.searchsorted(t_frame + FRAME_MS[frame], q + FRAME_MS["1m"], side="right") - 1).astype("int64")
+        return (np.searchsorted(t_frame + FRAME_MS[frame], q + FRAME_MS[base], side="right") - 1).astype("int64")
 
     @staticmethod
     def gather(vals: np.ndarray, idx: np.ndarray) -> np.ndarray:

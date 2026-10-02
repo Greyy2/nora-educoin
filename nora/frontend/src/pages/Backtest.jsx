@@ -110,7 +110,7 @@ function StepBacktest({ cat, strats, form, setForm, btId, bt, onLaunched, onNext
     if (reason) return setErr(reason)
     setBusy(true)
     try {
-      const body = { mode, symbols: form.symbols, start: form.start, end: form.end }
+      const body = { mode, symbols: form.symbols, start: form.start, end: form.end, timeframe: form.timeframe || '15m' }
       if (adv) {
         body.strategies = ids.map((id) => ({ id, params: coerceParams(strats.byId[id].params_schema, paramsFor(id)) }))
         body.risk_per_trade_pct = Number(form.risk)
@@ -146,6 +146,13 @@ function StepBacktest({ cat, strats, form, setForm, btId, bt, onLaunched, onNext
             <div className="n-form-row" style={{ gridTemplateColumns: '1fr 1fr' }}>
               <Field id="bt-start" label="Từ ngày"><DateInput id="bt-start" label="Từ ngày" value={form.start} onChange={(v) => setForm({ start: v })} /></Field>
               <Field id="bt-end" label="Đến ngày"><DateInput id="bt-end" label="Đến ngày" value={form.end} onChange={(v) => setForm({ end: v })} /></Field>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <Field id="bt-tf" label="Khung chạy (nến mô phỏng, dùng cho cả Backtest và WFA)">
+                  <select id="bt-tf" className="n-sel" value={form.timeframe || '15m'} onChange={(e) => setForm({ timeframe: e.target.value })}>
+                    <option value="15m">15 phút</option><option value="1h">1 giờ</option><option value="4h">4 giờ</option>
+                  </select>
+                </Field>
+              </div>
               {adv ? (
                 <>
                   <Field id="bt-risk" label="Rủi ro mỗi lệnh (%)">
@@ -293,7 +300,7 @@ function StepWfa({ cat, strats, form, setForm, wfaId, wfa, onLaunched, onNext })
   async function run() {
     setErr(null); setRunErr(null)
     if (reason) return setErr(`${reason}.`)
-    const body = { mode, start: f.start, end: f.end, symbols: form.symbols }
+    const body = { mode, start: f.start, end: f.end, symbols: form.symbols, timeframe: form.timeframe || '15m' }
     if (adv) {
       Object.assign(body, { train_days: Number(f.train), test_days: Number(f.test), risk_per_trade_pct: Number(form.risk) })
       if (WFA_SCHEMA_KEYS_SUPPORTED) {
@@ -558,6 +565,7 @@ export default function Backtest() {
       mode: pre?.mode || (customPre ? 'advanced' : 'basic'), sel,
       symbols: pre?.symbols || cat.universe || [], start: pre?.start || w.dev2_end || '', end: pre?.end || w.end || '',
       risk: pre?.risk_per_trade_pct ?? cat.book?.risk_per_trade_pct ?? 0.5, stopFill: pre?.stop_fill || 'level',
+      timeframe: pre?.timeframe || '15m',
     })
   }, [cat, strats.list]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -575,6 +583,7 @@ export default function Backtest() {
       symbols: (rs?.symbols || a.symbols || f.symbols).map((s) => (cat.universe?.includes(s) || String(s).includes('@') ? s : `${s}@perp`)),
       start: rs?.start || a.start || f.start, end: rs?.end || a.end || f.end,
       risk: rs?.risk_per_trade_pct ?? a.risk_per_trade_pct ?? f.risk, stopFill: rs?.stop_fill || a.stop_fill || f.stopFill,
+      timeframe: rs?.timeframe || a.timeframe || f.timeframe,
     }))
   }, [bt.job, form, cat]) // eslint-disable-line react-hooks/exhaustive-deps
 

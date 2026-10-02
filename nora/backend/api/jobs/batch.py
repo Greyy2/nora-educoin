@@ -34,15 +34,16 @@ RUN_LIMITED = os.path.join(NORA_DIR, "backend", "utils", "ops", "run_limited.sh"
 RUNNER = "backend.api.jobs.runner"
 KINDS: Dict[str, Dict[str, Any]] = {
     "book_backtest": {"module": "backend.core.backtest.run",
-                      "params": {"book", "strategies", "symbols", "start", "end", "risk_per_trade", "stop_fill", "regime"}},
+                      "params": {"book", "strategies", "symbols", "start", "end", "risk_per_trade", "stop_fill", "regime", "timeframe"}},
     "book_wfa": {"module": "backend.wfa.run",
                  "params": {"report", "include_rejected", "candidates", "strategies", "symbols", "n", "start", "end", "train_days",
-                            "test_days", "step_days", "sims", "mc_seed", "risk_per_trade", "workers", "resume", "max_configs", "force_large"}},
+                            "test_days", "step_days", "sims", "mc_seed", "risk_per_trade", "workers", "resume", "max_configs", "force_large",
+                            "timeframe"}},
     "book_build": {"module": "backend.optimize.book",
                    "params": {"only", "n", "workers", "keep_top", "resume", "max_configs", "force_large"}},   # out do launch() đặt
     "funnel_run": {"module": "backend.optimize.funnel.run",
                    "params": {"strategies", "n_per_strategy", "full_grid", "seed", "symbols", "windows", "run_id", "resume", "force_large",
-                              "train_days", "test_days", "space"}},
+                              "train_days", "test_days", "space", "timeframe"}},
     "funnel_recompute": {"module": "backend.optimize.funnel.recompute", "params": {"run_id", "alpha_id"}},
     "presets_build": {"module": "backend.core.params.presets", "params": set()},
     "mock_feeds": {"module": "backend.core.analytics.feeds", "params": {"only"}},
@@ -175,6 +176,15 @@ def check_wfa_strategies(items: Any) -> List[Dict[str, Any]]:
     return out
 
 
+RUN_TIMEFRAMES = ("1m", "15m", "1h", "4h")   # khung chạy (nến mô phỏng); API mở 15m/1h/4h, 1m giữ cho đường nội bộ
+
+
+def check_timeframe(value: Any) -> str:
+    if value not in RUN_TIMEFRAMES:
+        raise JobError(f"timeframe phải là một trong {list(RUN_TIMEFRAMES)}")
+    return str(value)
+
+
 def build_job(kind: str, p: Dict[str, Any]) -> Dict[str, Any]:
     """Từ tham số đã qua pydantic -> params của job (kiểm lại ở đây: tầng này không tin router)."""
     if kind not in KINDS:
@@ -206,7 +216,11 @@ def build_job(kind: str, p: Dict[str, Any]) -> Dict[str, Any]:
             out["stop_fill"] = p["stop_fill"]
         if p.get("regime"):
             out["regime"] = True
+        if p.get("timeframe"):
+            out["timeframe"] = check_timeframe(p["timeframe"])
     elif kind == "book_wfa":
+        if p.get("timeframe"):
+            out["timeframe"] = check_timeframe(p["timeframe"])
         if sum(map(bool, (p.get("report_dir"), p.get("candidates"), p.get("strategies")))) != 1:
             raise JobError("chọn đúng một: report_dir, candidates hoặc strategies")
         if p.get("report_dir"):

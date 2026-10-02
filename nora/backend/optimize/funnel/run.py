@@ -4,7 +4,7 @@ Kho: data/_cache/funnel/<run_id>/ (run.json, results.sqlite, trades/, daily/, mc
 Tầng: S0 sinh alpha → S1 backtest dev1 → S2 chống ăn may (DSR / lân cận / PBO) → S3 walk-forward dev2 (tham số cố định) → S4 Monte Carlo →
 S5 khối lượng sống sót (tìm s + xác nhận thật) → S6 holdout (một lần) → FINAL. Mọi dữ liệu thật: quality gate bắt buộc, không mock.
 
-Tham số (DEFAULTS): strategies, space (grid | schema), n_per_strategy | full_grid, seed, symbols, windows, train_days, test_days, run_id, resume (run_id của lượt
+Tham số (DEFAULTS): strategies, space (grid | schema), timeframe (khung chạy 15m | 1h | 4h; mặc định 15m), n_per_strategy | full_grid, seed, symbols, windows, train_days, test_days, run_id, resume (run_id của lượt
 bị ngắt: cấu hình lấy từ run.json), until (dừng sau tầng này), workers, per_worker_mb, max_alphas, force_large.
 SIGTERM (nút Huỷ của API) -> flush lô đang ghi rồi thoát; resume tiếp tục đúng chỗ dừng.
 """
@@ -16,7 +16,7 @@ from backend.utils.jobs import as_list, options, write_job_result
 
 DEFAULTS = {"strategies": "", "n_per_strategy": None, "full_grid": False, "seed": 7, "symbols": "", "windows": None, "train_days": None,
             "test_days": None, "run_id": "", "resume": "", "until": "", "workers": "auto", "per_worker_mb": None, "max_alphas": 200_000,
-            "force_large": False, "space": "grid"}
+            "force_large": False, "space": "grid", "timeframe": "15m"}
 
 
 def run_job(params=None):
@@ -52,7 +52,9 @@ def run_job(params=None):
         symbols=as_list(a.symbols) or saved.get("symbols"),
         windows=a.windows or saved.get("windows"),
         space=a.space if not a.resume else saved.get("space", "grid"),
+        timeframe=a.timeframe if not a.resume else saved.get("timeframe", "1m"),
         **{k: v for k, v in (("train_days", a.train_days), ("test_days", a.test_days)) if v})
+    orch.check_timeframe(cfg)
     planned = orch.planned_alphas(cfg)
     total = sum(planned.values())
     cap = 1_000_000 if a.force_large else a.max_alphas

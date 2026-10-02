@@ -41,6 +41,7 @@ class FunnelConfig:
     train_days: int = gates.S3_TRAIN_DAYS
     test_days: int = gates.S3_TEST_DAYS
     space: str = "grid"                            # grid = lưới nhỏ `space`; schema = toàn bộ params_schema (quy mô lớn)
+    timeframe: str = "1m"                          # khung chạy (nến mô phỏng): 15m / 1h / 4h nhanh hơn 1m hàng chục lần; khung tín hiệu >= khung này
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -77,7 +78,7 @@ def _candidates(strategies: List[str]) -> Dict[str, Dict[str, Any]]:
 
 def planned_alphas(cfg: FunnelConfig) -> Dict[str, int]:
     cands = _candidates(cfg.strategies)
-    return {s: count_params(space_for(c, cfg.space), cfg.n_per_strategy, cfg.full_grid) for s, c in cands.items()}
+    return {s: count_params(space_for(c, cfg.space, cfg.timeframe), cfg.n_per_strategy, cfg.full_grid) for s, c in cands.items()}
 
 
 # ── Bối cảnh chạy ───────────────────────────────────────────────────────────
@@ -87,6 +88,7 @@ class Ctx:
         self.serial = workers <= 0
         self.shared_dir = None if self.serial else os.path.join(store.run_dir, "_shared")
         self.symbols = list(cfg.symbols)
+        self.base_frame = cfg.timeframe
         self.cands = _candidates(cfg.strategies)
         self.exporter = bt.SharedExporter(self.shared_dir, workers, "funnel")
         self.folds = bt.fold_job_plan(wfa_folds(windows, cfg.train_days, cfg.test_days))
@@ -99,7 +101,8 @@ class Ctx:
 
     def s1_job(self, strategy: str, params: Dict[str, Any], rpt: float = gates.BASE_RISK_PER_TRADE_PCT, trades: Any = False) -> Dict[str, Any]:
         w = self.windows
-        return {**bt.base_job(strategy, params, (w["start"], w["dev1_end"]), "level", False, rpt, self.symbols, self.shared_dir), "trades": trades}
+        return {**bt.base_job(strategy, params, (w["start"], w["dev1_end"]), "level", False, rpt, self.symbols, self.shared_dir,
+                             self.base_frame), "trades": trades}
 
     def tick(self, worker_peak_mb: Optional[float] = None) -> None:
         self.progress.tick(worker_peak_mb=worker_peak_mb)
@@ -220,6 +223,18 @@ def _scalar_base(m: Dict[str, Any]) -> Dict[str, Any]:
 
 
 # ── Từng tầng ───────────────────────────────────────────────────────────────
+def check_timeframe(cfg: FunnelConfig) -> None:
+    """Khung chạy phải là khung có dữ liệu và mọi chiến lược đã chọn phải có khung tín hiệu >= khung chạy."""
+    from backend.core.backtest.engine import FRAME_MS
+    from backend.optimize.funnel.generate import incompatible
+    if cfg.timeframe not in FRAME_MS:
+        raise ValueError(f"khung chạy không hợp lệ: {cfg.timeframe!r}")
+    bad = incompatible(list(_candidates(cfg.strategies).values()), cfg.space, cfg.timeframe)
+    if bad:
+        raise ValueError(f"chiến lược không chạy được ở khung {cfg.timeframe} (khung tín hiệu tối đa nhỏ hơn khung chạy): "
+                         + "; ".join(f"{k} ({', '.join(v)})" for k, v in bad.items()))
+
+
 def stage_s0(ctx: Ctx) -> None:
     store, cfg = ctx.store, ctx.cfg
     total = sum(planned_alphas(cfg).values())
@@ -229,11 +244,11 @@ def stage_s0(ctx: Ctx) -> None:
     bad = 0
     for strategy in cfg.strategies:
         cand = ctx.cands[strategy]
-        sp = space_for(cand, cfg.space)
+        sp = space_for(cand, cfg.space, cfg.timeframe)
         gen = (iter_params_factored(sp, cfg.n_per_strategy, cfg.seed) if cfg.space == "schema" and cfg.n_per_strategy and not cfg.full_grid
                else iter_params(sp, cfg.n_per_strategy, cfg.seed, cfg.full_grid))
         for params in gen:
-            err = validate_alpha(cand, params, cfg.space)
+            err = validate_alpha(cand, params, cfg.space, cfg.timeframe)
             row = {"alpha_id": alpha_id_of(strategy, params), "strategy": strategy, "params": params, "ord": ord_}
             if err:
                 row.update(reject_code="S0.invalid_params", reject_msg=f"S0.invalid_params: {gates.reason_label('S0.invalid_params')} ({err})")
@@ -337,7 +352,7 @@ def _neighbour_ratios(ctx: Ctx, strategy: str, cand: Dict[str, Any], rows: List[
     nb_params: Dict[str, Dict[str, Any]] = {}
     for r in rows:
         ids = []
-        for p in antiluck.neighbours(space_for(cand, ctx.cfg.space), r["params"]):
+        for p in antiluck.neighbours(space_for(cand, ctx.cfg.space, ctx.cfg.timeframe), r["params"]):
             nid = alpha_id_of(strategy, p)
             nb_params[nid] = p
             ids.append(nid)
@@ -345,7 +360,7 @@ def _neighbour_ratios(ctx: Ctx, strategy: str, cand: Dict[str, Any], rows: List[
     all_ids = sorted(nb_params)
     known = store.metrics_of(all_ids, "S1_backtest")
     known_nb = store.metrics_of([i for i in all_ids if i not in known], "S2_neighbour")
-    missing = [i for i in all_ids if i not in known and i not in known_nb and validate_alpha(cand, nb_params[i], ctx.cfg.space) is None]
+    missing = [i for i in all_ids if i not in known and i not in known_nb and validate_alpha(cand, nb_params[i], ctx.cfg.space, ctx.cfg.timeframe) is None]
     if missing:
         ctx.exporter.ensure([ctx.s1_job(strategy, nb_params[i]) for i in missing])
         got: List[StageResult] = []
@@ -376,7 +391,7 @@ def _export_wfa_windows(ctx: Ctx, strategy: str, params: Dict[str, Any], dev1: b
         jobs.append(ctx.s1_job(strategy, params))
     for f in ctx.folds:
         for win, fill, kill in ((f["train"], "level", False), (f["test"], "extreme", True)):
-            jobs.append(bt.base_job(strategy, params, win, fill, kill, gates.BASE_RISK_PER_TRADE_PCT, ctx.symbols, ctx.shared_dir))
+            jobs.append(bt.base_job(strategy, params, win, fill, kill, gates.BASE_RISK_PER_TRADE_PCT, ctx.symbols, ctx.shared_dir, ctx.base_frame))
     ctx.exporter.ensure(jobs)
 
 
@@ -389,7 +404,7 @@ def stage_s3(ctx: Ctx) -> None:
     def make_job(row):
         _export_wfa_windows(ctx, row["strategy"], row["params"])
         return {"strategy": row["strategy"], "params": row["params"], "folds": ctx.folds, "symbols": ctx.symbols,
-                "rpt": gates.BASE_RISK_PER_TRADE_PCT, "shared_dir": ctx.shared_dir}
+                "rpt": gates.BASE_RISK_PER_TRADE_PCT, "shared_dir": ctx.shared_dir, "base_frame": ctx.base_frame}
 
     def on_result(row, res):
         if "error" in res:
@@ -455,7 +470,7 @@ def stage_s5(ctx: Ctx) -> None:
     def make_job(row):
         _export_wfa_windows(ctx, row["strategy"], row["params"], dev1=True)
         return {"strategy": row["strategy"], "params": row["params"], "series": row["series"], "windows": ctx.windows, "folds": ctx.folds,
-                "symbols": ctx.symbols, "shared_dir": ctx.shared_dir}
+                "symbols": ctx.symbols, "shared_dir": ctx.shared_dir, "base_frame": ctx.base_frame}
 
     def on_result(row, res):
         a = row["alpha_id"]
@@ -494,9 +509,9 @@ def stage_s6(ctx: Ctx) -> None:
                 yield {**r, "scale": m5[r["alpha_id"]]["final_scale"]}
 
     def make_job(row):
-        ctx.exporter.ensure([bt.base_job(row["strategy"], row["params"], (w["dev2_end"], w["end"]), "level", True, gates.BASE_RISK_PER_TRADE_PCT, ctx.symbols, ctx.shared_dir)])
+        ctx.exporter.ensure([bt.base_job(row["strategy"], row["params"], (w["dev2_end"], w["end"]), "level", True, gates.BASE_RISK_PER_TRADE_PCT, ctx.symbols, ctx.shared_dir, ctx.base_frame)])
         return {"strategy": row["strategy"], "params": row["params"], "windows": w, "rpt": sizing.risk_for_scale(row["scale"]),
-                "symbols": ctx.symbols, "shared_dir": ctx.shared_dir}
+                "symbols": ctx.symbols, "shared_dir": ctx.shared_dir, "base_frame": ctx.base_frame}
 
     def on_result(row, res):
         lv, ex = res["level"], res["extreme"]
@@ -555,6 +570,7 @@ def run_funnel(cfg: FunnelConfig, run_id: Optional[str] = None, workers: int = 0
         cfg = FunnelConfig(**{k: saved[k] for k in FunnelConfig.__dataclass_fields__ if k in saved})
     cfg.symbols = cfg.symbols or sb.perp_symbols()
     cfg.symbols = [s if "@" in s else f"{s}@perp" for s in cfg.symbols]
+    check_timeframe(cfg)
     planned = planned_alphas(cfg)
     if sum(planned.values()) > max_alphas:
         raise ValueError(f"{sum(planned.values()):,} alpha vượt giới hạn {max_alphas:,} (giảm n_per_strategy hoặc số chiến lược)")

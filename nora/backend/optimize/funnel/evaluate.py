@@ -27,14 +27,15 @@ def risk_dict(kill: bool) -> Dict[str, Any]:
 
 
 def make_engine(job: Dict[str, Any]):
-    """job: strategy, params, window [start, end], stop_fill, kill (bool), rpt, symbols, shared_dir."""
+    """job: strategy, params, window [start, end], stop_fill, kill (bool), rpt, symbols, shared_dir, base_frame (khung chạy)."""
     from backend.core.backtest.portfolio import PortfolioEngine, RiskConfig
     from backend.core.strategy import book as sb
     by_id = {c["id"]: c for c in sb.CANDIDATES}
     start, end = job["window"]
     st = sb.materialize(by_id[job["strategy"]], job["params"], stop_fill=job["stop_fill"], risk_per_trade_pct=job["rpt"])
     return PortfolioEngine(list(job["symbols"]), [st], start - gates.WARMUP_DAYS * DAY, end, trade_start_ts=start,
-                           risk=RiskConfig.from_dict(risk_dict(job["kill"])), shared_dir=job.get("shared_dir")), start
+                           risk=RiskConfig.from_dict(risk_dict(job["kill"])), shared_dir=job.get("shared_dir"),
+                           base_frame=job.get("base_frame", "1m")), start
 
 
 def _outputs(res: Dict[str, Any], start: int, want_trades: bool) -> Dict[str, Any]:
@@ -74,7 +75,7 @@ def signal_key(job: Dict[str, Any]) -> str:
     st = sb.materialize(by_id[job["strategy"]], job["params"], stop_fill=job["stop_fill"], risk_per_trade_pct=job["rpt"])
     pos = st["position"]
     return json.dumps([job["strategy"], st["tree"], st.get("stop"), pos.get("exit_unit"), pos.get("atr_frame"), pos.get("atr_period"),
-                       job["window"], job["kill"], list(job["symbols"])], sort_keys=True, default=str)
+                       job["window"], job["kill"], list(job["symbols"]), job.get("base_frame", "1m")], sort_keys=True, default=str)
 
 
 def run_backtest_many(jobs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -90,9 +91,10 @@ def run_backtest_many(jobs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return [_outputs(r, start, bool(j.get("trades"))) for r, j in zip(results, jobs)]
 
 
-def base_job(strategy: str, params: Dict[str, Any], window, stop_fill: str, kill: bool, rpt: float, symbols, shared_dir) -> Dict[str, Any]:
+def base_job(strategy: str, params: Dict[str, Any], window, stop_fill: str, kill: bool, rpt: float, symbols, shared_dir,
+             base_frame: str = "1m") -> Dict[str, Any]:
     return {"strategy": strategy, "params": params, "window": [int(window[0]), int(window[1])], "stop_fill": stop_fill, "kill": kill,
-            "rpt": rpt, "symbols": list(symbols), "shared_dir": shared_dir}
+            "rpt": rpt, "symbols": list(symbols), "shared_dir": shared_dir, "base_frame": base_frame}
 
 
 # ── Monte Carlo (DÙNG LẠI backend/carlo/monte_carlo.py) ─────────────────────
@@ -136,13 +138,13 @@ def fold_job_plan(folds: List[Dict[str, int]]) -> List[Dict[str, Any]]:
 
 
 def run_wfa(strategy: str, params: Dict[str, Any], folds: List[Dict[str, Any]], symbols, rpt: float, shared_dir: Optional[str],
-            ) -> Dict[str, Any]:
+            base_frame: str = "1m") -> Dict[str, Any]:
     """Mỗi fold: IS = backtest cửa sổ train (SL level, kill tắt); OOS = backtest cửa sổ test (SL extreme = khớp bi quan, kill BẬT).
     Cùng quy ước validate_book với một cấu hình duy nhất (không chọn lại tham số). Cơ sở kết luận là OOS extreme."""
     out = []
     for f in folds:
-        is_r = run_backtest(base_job(strategy, params, f["train"], "level", False, rpt, symbols, shared_dir))
-        oos = run_backtest(base_job(strategy, params, f["test"], "extreme", True, rpt, symbols, shared_dir), want_trades=True)
+        is_r = run_backtest(base_job(strategy, params, f["train"], "level", False, rpt, symbols, shared_dir, base_frame))
+        oos = run_backtest(base_job(strategy, params, f["test"], "extreme", True, rpt, symbols, shared_dir, base_frame), want_trades=True)
         out.append({"fold": f["fold"], "train": f["train_iso"], "test": f["test_iso"], "is_ret_pct": is_r["metrics"]["ret_pct"],
                     "is_trades": is_r["metrics"]["trades"], "oos": oos["metrics"], "daily": oos["daily"],
                     "daily_start": oos["daily_start"] or f["test_iso"][0], "trades": oos["trades"]})
@@ -204,7 +206,7 @@ def w_backtest_group_rss(group: Dict[str, Any]) -> Dict[str, Any]:
 def w_wfa(job: Dict[str, Any]) -> Dict[str, Any]:
     """S3: job = {strategy, params, folds (fold_job_plan), symbols, rpt, shared_dir}."""
     try:
-        return run_wfa(job["strategy"], job["params"], job["folds"], job["symbols"], job["rpt"], job["shared_dir"])
+        return run_wfa(job["strategy"], job["params"], job["folds"], job["symbols"], job["rpt"], job["shared_dir"], job.get("base_frame", "1m"))
     except ValueError as exc:
         return {"error": f"{type(exc).__name__}: {exc}"}
 
@@ -231,14 +233,15 @@ def w_sizing(job: Dict[str, Any]) -> Dict[str, Any]:
     def confirm(s: float) -> Dict[str, Any]:
         rpt = sizing.risk_for_scale(s)
         r1 = run_backtest(base_job(job["strategy"], job["params"], (job["windows"]["start"], job["windows"]["dev1_end"]), "level", False, rpt,
-                                   job["symbols"], job["shared_dir"]))
+                                   job["symbols"], job["shared_dir"], job.get("base_frame", "1m")))
         ok1 = gates.evaluate_s1(r1["metrics"])
         att: Dict[str, Any] = {"backtest": ok1[0], "backtest_ret_pct": r1["metrics"]["ret_pct"], "backtest_mdd_pct": r1["metrics"]["mdd_pct"],
                                "wfa": None, "mc": None, "passed": False}
         if not ok1[0]:
             att["reason"] = ok1[2]
             return att
-        wfa = aggregate_wfa(run_wfa(job["strategy"], job["params"], job["folds"], job["symbols"], rpt, job["shared_dir"])["folds"])
+        wfa = aggregate_wfa(run_wfa(job["strategy"], job["params"], job["folds"], job["symbols"], rpt, job["shared_dir"],
+                                    job.get("base_frame", "1m"))["folds"])
         ok3 = gates.evaluate_s3(wfa["summary"])
         att["wfa"] = ok3[0]
         if not ok3[0]:
@@ -271,8 +274,8 @@ def w_holdout(job: Dict[str, Any]) -> Dict[str, Any]:
     win = (job["windows"]["dev2_end"], job["windows"]["end"])
     out = {}
     for fill in ("level", "extreme"):
-        out[fill] = run_backtest(base_job(job["strategy"], job["params"], win, fill, True, job["rpt"], job["symbols"], job["shared_dir"]),
-                                 want_trades=True)
+        out[fill] = run_backtest(base_job(job["strategy"], job["params"], win, fill, True, job["rpt"], job["symbols"], job["shared_dir"],
+                                          job.get("base_frame", "1m")), want_trades=True)
     return out
 
 

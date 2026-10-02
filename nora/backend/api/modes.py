@@ -87,11 +87,12 @@ def _basic_risk(items: List[Tuple[str, Dict[str, Any]]]) -> float:
 def launch_backtest(req) -> Dict[str, str]:
     mode = req.mode
     presets = presets_mod.load_presets()
-    resolved: Dict[str, Any] = {"symbols": req.symbols, "start": req.start, "end": req.end}
+    resolved: Dict[str, Any] = {"symbols": req.symbols, "start": req.start, "end": req.end, "timeframe": req.timeframe}
     ignored = False
     if not req.strategies:   # không chọn chiến lược: dùng nguyên sổ data/alphas/book.json (như trước)
         payload = {"symbols": req.symbols, "start": req.start, "end": req.end, "risk_per_trade_pct": req.risk_per_trade_pct if mode == "advanced" else None,
-                   "stop_fill": req.stop_fill if mode == "advanced" else "level", "regime": req.regime}
+                   "stop_fill": req.stop_fill if mode == "advanced" else "level", "regime": req.regime,
+                   "timeframe": req.timeframe}
         resolved.update(regime=req.regime, source="book.json", strategies=_book_strategies(), risk_per_trade_pct=payload["risk_per_trade_pct"],
                         stop_fill=payload["stop_fill"])
         return launch("book_backtest", _build("book_backtest", payload), _stamp(mode, False, resolved, ignored_client_params=False))
@@ -120,7 +121,7 @@ def launch_backtest(req) -> Dict[str, str]:
     fulls = [(cid, {**full, "risk_per_trade_pct": rpt}) for cid, full in fulls]
     items = [{"id": cid, "params": rm.job_params(BY_ID[cid], full)} for cid, full in fulls]
     payload = {"symbols": req.symbols, "start": req.start, "end": req.end, "risk_per_trade_pct": rpt, "stop_fill": stop_fill,
-               "regime": req.regime}
+               "regime": req.regime, "timeframe": req.timeframe}
     params = {**_build("book_backtest", payload), "strategies": items}
     resolved.update(regime=req.regime, source="presets" if mode == "basic" else "client+presets", risk_per_trade_pct=rpt, stop_fill=stop_fill,
                     strategies=[{"id": cid, "params": full,
@@ -146,10 +147,10 @@ def _with_configs(params: Dict[str, Any], cfgs: List[Dict[str, Any]]) -> Dict[st
 def launch_wfa(req) -> Dict[str, str]:
     mode = req.mode
     presets = presets_mod.load_presets()
-    resolved: Dict[str, Any] = {"symbols": req.symbols, "start": req.start, "end": req.end}
+    resolved: Dict[str, Any] = {"symbols": req.symbols, "start": req.start, "end": req.end, "timeframe": req.timeframe}
     errors: List[rm.FieldError] = []
     custom = False
-    payload: Dict[str, Any] = {"symbols": req.symbols, "start": req.start, "end": req.end}
+    payload: Dict[str, Any] = {"symbols": req.symbols, "start": req.start, "end": req.end, "timeframe": req.timeframe}
 
     if mode == "basic":
         if req.report_dir:

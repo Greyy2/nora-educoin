@@ -11,6 +11,7 @@ export function parseJobParams(p) {
     end: p.end,
     risk_per_trade_pct: p.risk_per_trade != null ? Number(p.risk_per_trade) : undefined,
     stop_fill: p.stop_fill,
+    timeframe: p.timeframe,
     // chỉ có ở job WFA
     train_days: p.train_days != null ? Number(p.train_days) : undefined,
     test_days: p.test_days != null ? Number(p.test_days) : undefined,

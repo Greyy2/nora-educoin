@@ -91,32 +91,67 @@ def count_params(space: Dict[str, List[Any]], n: Optional[int], full_grid: bool 
 SPACE_MODES = ("grid", "schema")
 
 
-def space_for(candidate: Dict[str, Any], mode: str = "grid") -> Dict[str, List[Any]]:
+def space_for(candidate: Dict[str, Any], mode: str = "grid", base_frame: str = "1m") -> Dict[str, List[Any]]:
     """grid = lưới nhỏ `space` của chiến lược (vài giá trị/khoá); schema = toàn bộ params_schema (chu kỳ chỉ báo, khung thời gian, mọi tham số
-    thoát lệnh theo min/max/bước) — không gian khổng lồ cho chạy quy mô lớn."""
+    thoát lệnh theo min/max/bước) — không gian khổng lồ cho chạy quy mô lớn.
+    base_frame (khung chạy): mọi khung tín hiệu/ATR phải >= khung chạy -> lựa chọn nhỏ hơn được nâng lên bằng khung chạy; ở grid, khung mặc
+    định nhỏ hơn khung chạy được thêm vào lưới với đúng một giá trị là khung chạy."""
     if mode == "schema":
         from backend.core.params.modes import schema_space
-        return schema_space(candidate)
-    if mode != "grid":
+        space = dict(schema_space(candidate))
+    elif mode == "grid":
+        space = dict(candidate["space"])
+    else:
         raise ValueError(f"space phải là một trong {SPACE_MODES}")
-    return candidate["space"]
+    if base_frame != "1m":
+        from backend.core.params.modes import frame_keys, lift_frame
+        from backend.core.strategy.book import schema_defaults
+        defaults = schema_defaults(candidate)
+        schema = candidate.get("params_schema") or {}
+        for k in frame_keys(candidate):
+            choices = list(schema[k]["choices"])
+            if k in space:
+                lifted = [lift_frame(fr, base_frame, choices) for fr in space[k]]
+                space[k] = list(dict.fromkeys(fr for fr in lifted if fr is not None))
+            elif lift_frame(defaults[k], base_frame, choices) != defaults[k]:
+                fr = lift_frame(defaults[k], base_frame, choices)
+                space[k] = [fr] if fr is not None else []
+    return space
 
 
-def validate_alpha(candidate: Dict[str, Any], params: Dict[str, Any], mode: str = "grid") -> Optional[str]:
+def incompatible(candidates: List[Dict[str, Any]], mode: str, base_frame: str) -> Dict[str, List[str]]:
+    """{id: [khoá khung không còn lựa chọn nào >= khung chạy]} — chiến lược không chạy được ở khung chạy này."""
+    out = {}
+    for c in candidates:
+        empty = [k for k, v in space_for(c, mode, base_frame).items() if not v]
+        if empty:
+            out[c["id"]] = empty
+    return out
+
+
+def validate_alpha(candidate: Dict[str, Any], params: Dict[str, Any], mode: str = "grid", base_frame: str = "1m") -> Optional[str]:
     """None nếu hợp lệ; ngược lại câu tiếng Việt. Kiểm: khoá thuộc không gian tham số, giá trị số hữu hạn (hoặc lựa chọn hợp lệ ở schema),
-    EMA nhanh < chậm, đòn bẩy <= S0_MAX_LEVERAGE, và dựng được tham số vị thế (build_params: ngân sách DCA, đòn bẩy spot...)."""
+    mọi khung >= khung chạy, EMA nhanh < chậm, đòn bẩy <= S0_MAX_LEVERAGE, và dựng được tham số vị thế (build_params: ngân sách DCA...)."""
     import math
-    space = space_for(candidate, mode)
+    from backend.core.backtest.engine import FRAME_MS
+    from backend.core.params.modes import frame_keys
+    from backend.core.strategy.book import schema_defaults
+    space = space_for(candidate, mode, base_frame)
     bad = sorted(set(params) - set(space))
     if bad:
         return f"khoá tham số không thuộc không gian của {candidate['id']}: {bad}"
+    fkeys = frame_keys(candidate)
+    defaults = schema_defaults(candidate)
+    small = [k for k in fkeys if FRAME_MS.get(params.get(k, defaults.get(k)), 0) < FRAME_MS[base_frame]]
+    if small:
+        return f"khung {small} nhỏ hơn khung chạy {base_frame}"
     if mode == "schema":
         from backend.core.params.modes import validate_params
         from backend.core.strategy.book import schema_defaults
         _, errs = validate_params(candidate, params, schema_defaults(candidate))
         if errs:
             return errs[0][1]
-    elif not all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) for v in params.values()):
+    elif not all(k in fkeys or (isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)) for k, v in params.items()):
         return "mọi tham số phải là số hữu hạn"
     try:
         from backend.core.params.builder import build_params

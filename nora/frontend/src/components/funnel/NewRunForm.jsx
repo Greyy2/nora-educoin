@@ -28,6 +28,7 @@ export default function NewRunForm({ cat, runs, onLaunched, onCancel }) {
   const [mode, setMode] = useState('n')
   const [n, setN] = useState(1000)
   const [seed, setSeed] = useState(42)
+  const [timeframe, setTimeframe] = useState('15m')   // khung chạy (nến mô phỏng): 15m / 1h / 4h
   const [symbols, setSymbols] = useState(universe)
   const [winMode, setWinMode] = useState('default')
   const w0 = cat?.windows || {}
@@ -42,18 +43,18 @@ export default function NewRunForm({ cat, runs, onLaunched, onCancel }) {
   const total = mode === 'full' ? chosen.reduce((s, c) => s + gridSize(c), 0) : chosen.length * (Number(n) || 0)
   const est = useMemo(() => estimate(total, runs), [total, runs])
   const selKey = sel.join(',')
-  useEffect(() => { setConfirming(false) }, [selKey, mode, n, seed, symbols, winMode, win])
+  useEffect(() => { setConfirming(false) }, [selKey, mode, n, seed, timeframe, symbols, winMode, win])
   // ước tính do máy chủ (đo thực): gọi lại sau 400 ms kể từ lần chỉnh cuối
   useEffect(() => {
     if (!chosen.length || (mode === 'n' && !(Number(n) >= 1))) { setSrvEst({ state: 'idle', data: null, error: null }); return undefined }
     setSrvEst((x) => ({ ...x, state: 'loading' }))
     let dead = false
     const t = setTimeout(() => {
-      getFunnelEstimate({ strategies: sel, nPerStrategy: Number(n), fullGrid: mode === 'full', workers: 6 })
+      getFunnelEstimate({ strategies: sel, nPerStrategy: Number(n), fullGrid: mode === 'full', workers: 6, timeframe })
         .then((d) => { if (!dead) setSrvEst({ state: 'ok', data: d, error: null }) }, (e) => { if (!dead) setSrvEst({ state: 'error', data: null, error: e.message }) })
     }, 400)
     return () => { dead = true; clearTimeout(t) }
-  }, [selKey, mode, n]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selKey, mode, n, timeframe]) // eslint-disable-line react-hooks/exhaustive-deps
   const srv = srvEst.state === 'ok' ? srvEst.data : null
   const totalShown = srv ? srv.total_alphas : total
   const winOk = winMode === 'default' || (win.start && win.dev1_end && win.dev2_end && win.end && win.start < win.dev1_end && win.dev1_end < win.dev2_end && win.dev2_end < win.end)
@@ -71,7 +72,7 @@ export default function NewRunForm({ cat, runs, onLaunched, onCancel }) {
     if (reason) return setErr(reason)
     setBusy(true)
     try {
-      const body = { strategies: sel, seed: Number(seed), symbols }
+      const body = { strategies: sel, seed: Number(seed), symbols, timeframe }
       if (mode === 'full') body.full_grid = true
       else body.n_per_strategy = Number(n)
       if (winMode === 'custom') body.windows = win
@@ -136,6 +137,12 @@ export default function NewRunForm({ cat, runs, onLaunched, onCancel }) {
               <button type="button" className="n-btn" onClick={() => setSeed(Math.floor(Math.random() * 100000))}>Ngẫu nhiên</button>
             </div>
           </Panel>
+          <Panel title={<>Khung chạy</>}>
+            <Segmented label="Khung chạy" value={timeframe} onChange={setTimeframe}
+              options={[{ value: '15m', label: '15 phút' }, { value: '1h', label: '1 giờ' }, { value: '4h', label: '4 giờ' }]} />
+            <p className="n-note" style={{ marginTop: 8 }}>Nến dùng để mô phỏng khớp lệnh. Khung tín hiệu của mọi alpha được sinh ≥ khung này
+              (nhỏ hơn thì nâng lên); chiến lược không có khung tín hiệu đủ lớn sẽ bị từ chối.</p>
+          </Panel>
           <Panel title={<>Cửa sổ dữ liệu</>}>
             <Segmented label="Cửa sổ dữ liệu" value={winMode} onChange={setWinMode} options={[{ value: 'default', label: 'Mặc định' }, { value: 'custom', label: 'Tuỳ chỉnh' }]} />
             {winMode === 'default' ? (
@@ -171,7 +178,7 @@ export default function NewRunForm({ cat, runs, onLaunched, onCancel }) {
           <p><b>Xác nhận chạy phễu {fmtCount(totalShown)} alpha?</b></p>
           <div className="n-estimate">
             <span>Chiến lược: <span className="mono">{chosen.map((c) => `${c.id} ${fmtCount(srv?.per_strategy?.[c.id] ?? (mode === 'full' ? gridSize(c) : Number(n)))}`).join(' · ')}</span></span>
-            <span>Cửa sổ: <span className="mono">{winMode === 'default' ? 'mặc định' : `${win.start} → ${win.end}`}</span> · {symbols.length} cặp · seed {seed}</span>
+            <span>Cửa sổ: <span className="mono">{winMode === 'default' ? 'mặc định' : `${win.start} → ${win.end}`}</span> · {symbols.length} cặp · seed {seed} · khung chạy {timeframe}</span>
             <span>Ước tính S1: <b className="mono">{srv ? fmtEta(srv.s1_eta_s) : fmtEta(est.seconds)}</b>{srv ? <span className="muted"> ({fmtNum(srv.sec_per_backtest, 0)} giây/backtest, {srv.workers} worker)</span> : <span className="muted"> ({est.basis})</span>}</span>
             <span className="muted">Job chạy nền trong hàng đợi, dùng nhiều CPU/RAM; có thể huỷ và chạy tiếp (resume).</span>
           </div>

@@ -35,7 +35,8 @@ def recompute_s1(run_dir: str, alpha_id: str, shared_dir: Optional[str] = None) 
         raise KeyError(alpha_id)
     w = run["windows_ms"]
     symbols = run["config"]["symbols"]
-    job = bt.base_job(alpha["strategy"], alpha["params"], (w["start"], w["dev1_end"]), "level", False, gates.BASE_RISK_PER_TRADE_PCT, symbols, shared_dir)
+    job = bt.base_job(alpha["strategy"], alpha["params"], (w["start"], w["dev1_end"]), "level", False, gates.BASE_RISK_PER_TRADE_PCT, symbols, shared_dir,
+                       run["config"].get("timeframe", "1m"))
     res = bt.run_backtest(job, want_trades=True)
     return {"alpha_id": alpha_id, "trades": res["trades"], "metrics": res["metrics"], "daily": res["daily"], "daily_start": res["daily_start"]}
 

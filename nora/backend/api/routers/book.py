@@ -49,6 +49,7 @@ class BacktestRequest(_DateRange):
     risk_per_trade_pct: Optional[float] = Field(None, gt=0.0, le=5.0)
     stop_fill: str = Field("level", pattern="^(level|extreme)$")
     regime: bool = Field(False, description="Bật lọc regime + cầu chì (core/regime, strategy.book.REGIME_MAP)")
+    timeframe: str = Field("15m", pattern="^(15m|1h|4h)$", description="Khung chạy (nến mô phỏng); khung tín hiệu nhỏ hơn được nâng lên")
     mode: str = Field("basic", **MODE_FIELD)
 
 
@@ -76,6 +77,7 @@ class WfaRequest(_DateRange):
     embargo_days: Optional[int] = Field(None, ge=0, le=30, description="Chỉ advanced: chưa hỗ trợ (>0 -> 422)")
     sims: Optional[int] = Field(None, ge=100, le=MC_MAX_SIMULATIONS, description="Chỉ advanced: số kịch bản MC của gate WFA; < 10.000 -> custom_gates")
     mc_seed: Optional[int] = Field(None, ge=0, le=2**31 - 1)
+    timeframe: str = Field("15m", pattern="^(15m|1h|4h)$", description="Khung chạy (nến mô phỏng); khung tín hiệu nhỏ hơn được nâng lên")
 
     @model_validator(mode="after")
     def _one_source(self):
