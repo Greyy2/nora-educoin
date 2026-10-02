@@ -15,7 +15,7 @@ export function LockIcon() {
   )
 }
 
-/** 7 chiến lược lõi (lược đồ + preset) từ GET /api/studio/strategies. */
+/** Các chiến lược lõi (lược đồ + preset) từ GET /api/studio/strategies. */
 export function useStrategies() {
   const q = useAsync(() => getStrategies(), [])
   const byId = useMemo(() => Object.fromEntries((q.data || []).map((s) => [s.id, s])), [q.data])
@@ -280,7 +280,7 @@ export function StrategyCard({ strat, mode, params, onChange, onReset, errors = 
   )
 }
 
-/** Chọn chiến lược theo họ (7 chiến lược lõi), mỗi chiến lược mở thẻ theo chế độ. sel = { [id]: params đầy đủ }. */
+/** Chọn chiến lược theo họ (mọi chiến lược lõi), mỗi chiến lược mở thẻ theo chế độ. sel = { [id]: params đầy đủ }. */
 export default function StrategyRunPicker({ strategies, mode, sel, setSel, errors = {}, riskShared }) {
   const families = useMemo(() => {
     const m = new Map()

@@ -1,6 +1,6 @@
 """API chiến lược lõi + lược đồ tham số + bộ tham số tốt nhất (preset) cho chế độ Cơ bản / Nâng cao (docs/ui_contract.md §"Chế độ chạy").
 
-GET  /api/studio/strategies           7 chiến lược lõi: params_schema (mọi tham số chỉnh được), preset {params, source, evidence}, frames_allowed.
+GET  /api/studio/strategies           các chiến lược lõi: params_schema (mọi tham số chỉnh được), preset {params, source, evidence}, frames_allowed.
 POST /api/studio/strategies/validate  Kiểm thử tham số một chiến lược theo params_schema (không chạy job): {ok, errors[{field, message}], resolved}.
 """
 from typing import Any, Dict, List

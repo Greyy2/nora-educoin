@@ -13,7 +13,7 @@ cấu hình chỉ thắng nhờ một tài sản sẽ bị loại bởi điều 
 """
 from typing import Any, Dict, List
 
-from backend.core.strategy.library import cond, f, p
+from backend.core.strategy.library import calc, cond, cross_over, cross_under, f, p
 
 UNIVERSE = ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA", "AVAX"]
 MAX_LEVERAGE = 10
@@ -113,6 +113,29 @@ def _breakout_schema():
     }
 
 
+def _keltner_schema():
+    return {
+        "sig.signal_tf": _choice("signal", "Khung tín hiệu", "4h", _TF_SLOW, "Khung nến tính kênh Keltner và xét điểm cắt."),
+        "sig.ema_n": _int("signal", "Chu kỳ EMA (đường giữa)", 30, 5, 200, "nến", "EMA đường giữa của kênh Keltner."),
+        "sig.atr_n": _int("signal", "Chu kỳ ATR của kênh", 14, 5, 50, "nến", "ATR (Wilder) đo độ rộng kênh."),
+        "sig.k_up": _flt("signal", "Hệ số dải trên", 2.0, 0.5, 5.0, 0.1, "× ATR", "Dải trên = EMA + hệ số × ATR."),
+        "sig.k_dn": _flt("signal", "Hệ số dải dưới", 2.0, 0.5, 5.0, 0.1, "× ATR", "Dải dưới = EMA − hệ số × ATR."),
+        **_exit_risk_schema(3.0, 0.0, 0.0, 0.0, 0, "4h"),
+    }
+
+
+def _keltner_bands():
+    """(dải trên, dải dưới) của kênh Keltner trên khung tín hiệu: EMA(ema_n) ± k × ATR(atr_n) — như KEMA của sova."""
+    atr = f("{signal_tf}", "atr_{atr_n}")
+    up = {**f("{signal_tf}", "ema_{ema_n}"), "add": calc(atr, "*", p("k_up", 2.0))}
+    dn = {**f("{signal_tf}", "ema_{ema_n}"), "subtract": calc(atr, "*", p("k_dn", 2.0))}
+    return up, dn
+
+
+_KC_UP, _KC_DN = _keltner_bands()
+_KC_CLOSE = f("{signal_tf}", "close")
+
+
 def _reversion_schema(side_key, side_default, side_lo, side_hi, side_label):
     return {
         "sig.entry_tf": _choice("signal", "Khung điểm vào", "5m", _TF_FAST, "Khung nến tính RSI và dải Bollinger."),
@@ -130,10 +153,10 @@ def _reversion_schema(side_key, side_default, side_lo, side_hi, side_label):
 CANDIDATES: List[Dict[str, Any]] = [
     {
         "id": "trend_long", "family": "Theo xu hướng", "side": "LONG",
-        "description": "1h EMA50 > EMA200, ADX14 > ngưỡng, 15m phá đỉnh 20 nến trước. Thoát: SL + trailing theo ATR.",
+        "description": "1h EMA50 > EMA200, ADX14 > ngưỡng, 15m close CẮT LÊN đỉnh 20 nến trước (sự kiện phá đỉnh). Thoát: SL + trailing theo ATR.",
         "tree": cond((f("{trend_tf}", "ema_{ema_fast}"), ">", f("{trend_tf}", "ema_{ema_slow}")),
                      (f("{trend_tf}", "adx_{adx_n}"), ">", p("adx_min", 20)),
-                     (f("{entry_tf}", "close"), ">", f("{entry_tf}", "dch_{dch_n}"))),
+                     *cross_over(f("{entry_tf}", "close"), f("{entry_tf}", "dch_{dch_n}"))),
         "position": {},
         "space": {"sig.adx_min": [20, 25, 30], "stop_loss_rate": [1.5, 2.5, 3.5], "trailing_stop": [2.0, 3.0, 4.5],
                   "trailing_activation_pct": [0.0, 1.0], "timeout": [0, 4320]},
@@ -144,7 +167,7 @@ CANDIDATES: List[Dict[str, Any]] = [
         "description": "Đối xứng trend_long.",
         "tree": cond((f("{trend_tf}", "ema_{ema_fast}"), "<", f("{trend_tf}", "ema_{ema_slow}")),
                      (f("{trend_tf}", "adx_{adx_n}"), ">", p("adx_min", 20)),
-                     (f("{entry_tf}", "close"), "<", f("{entry_tf}", "dcl_{dch_n}"))),
+                     *cross_under(f("{entry_tf}", "close"), f("{entry_tf}", "dcl_{dch_n}"))),
         "position": {},
         "space": {"sig.adx_min": [20, 25, 30], "stop_loss_rate": [1.5, 2.5, 3.5], "trailing_stop": [2.0, 3.0, 4.5],
                   "trailing_activation_pct": [0.0, 1.0], "timeout": [0, 4320]},
@@ -152,9 +175,9 @@ CANDIDATES: List[Dict[str, Any]] = [
     },
     {
         "id": "breakout_4h_long", "family": "Theo xu hướng (Turtle)", "side": "LONG",
-        "description": "4h EMA50 > EMA200 và close 4h phá đỉnh 20 nến 4h trước. ATR khung 4h.",
+        "description": "4h EMA50 > EMA200 và close 4h CẮT LÊN đỉnh 20 nến 4h trước. ATR khung 4h.",
         "tree": cond((f("{signal_tf}", "ema_{ema_fast}"), ">", f("{signal_tf}", "ema_{ema_slow}")),
-                     (f("{signal_tf}", "close"), ">", f("{signal_tf}", "dch_{dch_n}"))),
+                     *cross_over(f("{signal_tf}", "close"), f("{signal_tf}", "dch_{dch_n}"))),
         "position": {"atr_frame": "4h"},
         "space": {"stop_loss_rate": [1.5, 2.0, 3.0], "trailing_stop": [2.0, 3.0, 4.0],
                   "trailing_activation_pct": [0.0, 1.0], "timeout": [0, 10080]},
@@ -164,16 +187,37 @@ CANDIDATES: List[Dict[str, Any]] = [
         "id": "breakout_4h_short", "family": "Theo xu hướng (Turtle)", "side": "SHORT",
         "description": "Đối xứng breakout_4h_long.",
         "tree": cond((f("{signal_tf}", "ema_{ema_fast}"), "<", f("{signal_tf}", "ema_{ema_slow}")),
-                     (f("{signal_tf}", "close"), "<", f("{signal_tf}", "dcl_{dch_n}"))),
+                     *cross_under(f("{signal_tf}", "close"), f("{signal_tf}", "dcl_{dch_n}"))),
         "position": {"atr_frame": "4h"},
         "space": {"stop_loss_rate": [1.5, 2.0, 3.0], "trailing_stop": [2.0, 3.0, 4.0],
                   "trailing_activation_pct": [0.0, 1.0], "timeout": [0, 10080]},
         "params_schema": _breakout_schema(),
     },
     {
+        "id": "keltner_trend_long", "family": "Theo xu hướng (Keltner)", "side": "LONG",
+        "description": "Close cắt LÊN dải trên Keltner (EMA + k×ATR) -> mua; thoát khi close cắt XUỐNG dải dưới (đảo chiều xu hướng) "
+                       "hoặc chạm SL theo ATR. Lối đánh trend-following của KEMA (sova).",
+        "tree": cond(*cross_over(_KC_CLOSE, _KC_UP)),
+        "stop": cond(*cross_under(_KC_CLOSE, _KC_DN)),
+        "position": {"atr_frame": "4h"},
+        "space": {"sig.ema_n": [20, 30, 50], "sig.k_up": [1.5, 2.0, 2.5], "sig.k_dn": [1.5, 2.0, 2.5],
+                  "stop_loss_rate": [2.0, 3.0, 4.0]},
+        "params_schema": _keltner_schema(),
+    },
+    {
+        "id": "keltner_trend_short", "family": "Theo xu hướng (Keltner)", "side": "SHORT",
+        "description": "Đối xứng keltner_trend_long: close cắt XUỐNG dải dưới -> bán; thoát khi close cắt LÊN dải trên hoặc chạm SL.",
+        "tree": cond(*cross_under(_KC_CLOSE, _KC_DN)),
+        "stop": cond(*cross_over(_KC_CLOSE, _KC_UP)),
+        "position": {"atr_frame": "4h"},
+        "space": {"sig.ema_n": [20, 30, 50], "sig.k_up": [1.5, 2.0, 2.5], "sig.k_dn": [1.5, 2.0, 2.5],
+                  "stop_loss_rate": [2.0, 3.0, 4.0]},
+        "params_schema": _keltner_schema(),
+    },
+    {
         "id": "momentum_long", "family": "Theo đà", "side": "LONG",
-        "description": "1h ROC24 > ngưỡng % và 15m close > EMA20 15m.",
-        "tree": cond((f("{roc_tf}", "roc_{roc_n}"), ">", p("roc_min", 3)), (f("{entry_tf}", "close"), ">", f("{entry_tf}", "ema_{ema_n}"))),
+        "description": "1h ROC24 CẮT LÊN ngưỡng % và 15m close > EMA20 15m.",
+        "tree": cond(*cross_over(f("{roc_tf}", "roc_{roc_n}"), p("roc_min", 3)), (f("{entry_tf}", "close"), ">", f("{entry_tf}", "ema_{ema_n}"))),
         "position": {},
         "space": {"sig.roc_min": [3, 5, 8], "stop_loss_rate": [1.5, 2.5, 3.5], "trailing_stop": [2.0, 3.0, 4.5],
                   "trailing_activation_pct": [0.0, 1.0], "timeout": [1440, 4320]},
@@ -217,6 +261,8 @@ REGIME_MAP: Dict[str, Dict[str, Any]] = {
     "breakout_4h_long": {"allowed": ["TREND_UP", "VOL_EXPANSION", "SURGE"], "fuse": True},
     "breakout_4h_short": {"allowed": ["TREND_DOWN", "VOL_EXPANSION", "CRASH"], "fuse": True},
     "momentum_long": {"allowed": ["TREND_UP", "SURGE"], "fuse": True},
+    "keltner_trend_long": {"allowed": ["TREND_UP", "VOL_EXPANSION", "SURGE"], "fuse": True},
+    "keltner_trend_short": {"allowed": ["TREND_DOWN", "VOL_EXPANSION", "CRASH"], "fuse": True},
     "reversion_long": {"allowed": ["RANGE"], "fuse": True},
     "reversion_short": {"allowed": ["RANGE"], "fuse": True},
 }
@@ -240,6 +286,8 @@ def materialize(candidate: Dict[str, Any], params: Dict[str, Any], regime: bool 
     from backend.core.params.template import resolve_placeholders, split_params
     signal, position = split_params(dict(params))
     extra = {"regime": REGIME_MAP[candidate["id"]]} if regime and candidate["id"] in REGIME_MAP else {}
+    if candidate.get("stop"):   # tín hiệu thoát (vd. cắt ngược kênh) -> đóng ở open nến 1m kế tiếp
+        extra["stop"] = [{"condition": resolve_placeholders(candidate["stop"], signal, signal_defaults(candidate))}]
     return {**extra,
         "id": candidate["id"], "side": candidate["side"],
         "tree": resolve_placeholders(candidate["tree"], signal, signal_defaults(candidate)),

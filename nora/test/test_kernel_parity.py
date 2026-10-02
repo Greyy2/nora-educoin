@@ -480,7 +480,7 @@ def test_random_single_symbol_configs_bit_identical(market_root, chunk):
 
 # ─── Các đường phụ ──────────────────────────────────────────────────────────
 def test_capacity_overflow_retry_is_transparent(market_root, monkeypatch):
-    cfg = rand_portfolio_config(3, market_root)
+    cfg = rand_portfolio_config(1, market_root)
     cfg["close_at_end"] = True
     with gs.data_root_env(market_root):
         base = _run_portfolio(PortfolioEngine, cfg).get_results()

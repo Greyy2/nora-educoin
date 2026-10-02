@@ -403,3 +403,24 @@ def test_spot_equity_never_negative_and_size_follows_equity():
     assert min(equity) > -1e-6, "Spot không thể mất quá 100% vốn"
     first, last = eng.closed_positions[0], eng.closed_positions[-1]
     assert last.entry_margin_usd < first.entry_margin_usd * 0.5, "Khối lượng phải co lại theo vốn hiện tại"
+
+
+def test_cross_over_is_an_event_on_the_frame_bar():
+    """cross_over(a, b) = a > b và a[1] <= b[1] trên nến của khung (ta.crossover, KEMA của sova): đúng ở nến cắt, không đúng suốt đoạn
+    a > b. Ở lưới 1m, tín hiệu chỉ bật trong các phút thuộc nến 15m ngay sau nến cắt đóng."""
+    from backend.core.strategy.library import cross_over
+    df = _ohlcv(6000, seed=11)
+    a, b = {"frame": "15m", "column": "close"}, {"frame": "15m", "column": "dch_20"}
+    eng = _engine(df, [[list(t) for t in cross_over(a, b)]])
+    df1, cols = eng._build_matrix()
+    from backend.core.signals.evaluator import VectorEvaluator, lag_key
+    vec = VectorEvaluator(len(df1), lambda fr, c, lag: cols.get(f"{fr}|{lag_key(c, lag)}", np.full(len(df1), np.nan)))
+    cross = vec.tree([[list(t) for t in cross_over(a, b)]])
+    state = vec.tree([[[a, ">", b]]])
+    f15 = eng.frames["15m"]
+    close, dch = f15["close"].to_numpy(), kernels.compute(f15, "dch_20").to_numpy()
+    with np.errstate(invalid="ignore"):
+        n_cross = int(np.sum((close[1:] > dch[1:]) & (close[:-1] <= dch[:-1])))
+    starts = np.flatnonzero(np.diff(np.r_[0, cross.astype(np.int8)]) == 1)
+    assert 0 < len(starts) == n_cross                          # mỗi điểm cắt trên khung -> một đoạn tín hiệu
+    assert cross.sum() < state.sum() and not (cross & ~state).any()

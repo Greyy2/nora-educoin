@@ -114,3 +114,18 @@ def test_regime_filters_entries_to_allowed_states(market):
         assert labels[j] in codes or labels[i] in codes
     none = _run([{**LONG, "regime": {"allowed": ["SURGE"], "fuse": False}}])
     assert len(none["positions"]) < len(plain["positions"])
+
+
+def test_keltner_trend_exits_on_opposite_band_cross(market):
+    """keltner_trend_long (KEMA của sova): vào khi close cắt lên dải trên, thoát khi close cắt xuống dải dưới (cây stop)."""
+    from backend.core.backtest.portfolio import PortfolioEngine, RiskConfig
+    from backend.core.strategy.book import CANDIDATES, materialize
+    cand = {c["id"]: c for c in CANDIDATES}["keltner_trend_long"]
+    st = materialize(cand, {"sig.signal_tf": "1h", "sig.ema_n": 20, "sig.k_up": 1.0, "sig.k_dn": 1.0, "stop_loss_rate": 6.0})
+    assert st["stop"] and st["stop"][0]["condition"]
+    eng = PortfolioEngine(["AAA@perp", "BBB@perp", "CCC@perp"], [st], T0 + 2 * DAY, T0 + 68 * DAY, trade_start_ts=T0 + 35 * DAY,
+                          risk=RiskConfig.from_dict({"max_positions": 9, "max_per_symbol": 1, "max_gross_exposure": 1e9,
+                                                     "kill_switch_dd_pct": 0}), use_cache=False)
+    eng.run()
+    reasons = [p.close_reason for p in eng.get_results()["positions"]]
+    assert len(reasons) > 3 and "Tín hiệu thoát (AST stop)" in reasons, reasons

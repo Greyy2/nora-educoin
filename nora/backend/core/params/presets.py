@@ -155,7 +155,7 @@ def from_build_runs(runs_dir: str, candidates: List[Dict[str, Any]], skip: set) 
 # ─── Dựng + đọc ─────────────────────────────────────────────────────────────
 def build_presets(book: Optional[Dict[str, Any]] = None, runs_dir: Optional[str] = None,
                   use_book_file: bool = True) -> Dict[str, Any]:
-    """Dựng bảng preset cho 7 chiến lược lõi. book=None -> đọc book.json hiện hành; runs_dir=None -> data/_cache/book/."""
+    """Dựng bảng preset cho mọi chiến lược lõi. book=None -> đọc book.json hiện hành; runs_dir=None -> data/_cache/book/."""
     from backend.core.strategy.book import CANDIDATES, schema_defaults
     if book is None and use_book_file:
         book = _read_json(book_path())

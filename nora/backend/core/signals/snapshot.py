@@ -132,7 +132,7 @@ def signal_snapshot(symbol: str, strategies: List[Dict[str, Any]], end_ts: int, 
 
 
 def book_strategies(ids: Optional[List[str]] = None, regime: bool = True) -> List[Dict[str, Any]]:
-    """7 chiến lược lõi của sổ với bộ tham số tốt nhất (presets.json) — tham số khác vẫn là cùng chiến lược.
+    """Mọi chiến lược lõi của sổ với bộ tham số tốt nhất (presets.json) — tham số khác vẫn là cùng chiến lược.
     regime=True: kèm bảng regime cho phép (entry = tín hiệu thô VÀ regime cho phép; entry_raw = tín hiệu thô)."""
     from backend.core.params.presets import load_presets
     from backend.core.strategy.book import CANDIDATES, materialize

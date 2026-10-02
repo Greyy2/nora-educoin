@@ -20,19 +20,24 @@ from backend.core.params import presets as pr
 from backend.core.params import modes as rm
 from backend.core.params.template import FRAMES, collect_placeholders, collect_string_placeholders, resolve_placeholders
 from backend.core.strategy.book import BASE_POSITION, CANDIDATES, materialize, schema_defaults
-from backend.core.strategy.library import cond, f, p
+from backend.core.strategy.library import calc, cond, cross_over, cross_under, f, p
 
 BY_ID = {c["id"]: c for c in CANDIDATES}
 
 # ─── Cây CŨ (literal, trước khi tham số hoá chu kỳ/khung) — bằng chứng bit-identical của mặc định ──────────
 _UP_1H = (f("1h", "ema_50"), ">", f("1h", "ema_200"))
 _DN_1H = (f("1h", "ema_50"), "<", f("1h", "ema_200"))
+_KC_UP = {**f("4h", "ema_30"), "add": calc(f("4h", "atr_14"), "*", p("k_up", 2.0))}
+_KC_DN = {**f("4h", "ema_30"), "subtract": calc(f("4h", "atr_14"), "*", p("k_dn", 2.0))}
+# Cây mặc định (tham số = mặc định schema). Họ trend/breakout/momentum vào lệnh khi CẮT (sự kiện, như ta.crossover / KEMA của sova).
 OLD_TREES = {
-    "trend_long": cond(_UP_1H, (f("1h", "adx_14"), ">", p("adx_min", 20)), (f("15m", "close"), ">", f("15m", "dch_20"))),
-    "trend_short": cond(_DN_1H, (f("1h", "adx_14"), ">", p("adx_min", 20)), (f("15m", "close"), "<", f("15m", "dcl_20"))),
-    "breakout_4h_long": cond((f("4h", "ema_50"), ">", f("4h", "ema_200")), (f("4h", "close"), ">", f("4h", "dch_20"))),
-    "breakout_4h_short": cond((f("4h", "ema_50"), "<", f("4h", "ema_200")), (f("4h", "close"), "<", f("4h", "dcl_20"))),
-    "momentum_long": cond((f("1h", "roc_24"), ">", p("roc_min", 3)), (f("15m", "close"), ">", f("15m", "ema_20"))),
+    "trend_long": cond(_UP_1H, (f("1h", "adx_14"), ">", p("adx_min", 20)), *cross_over(f("15m", "close"), f("15m", "dch_20"))),
+    "trend_short": cond(_DN_1H, (f("1h", "adx_14"), ">", p("adx_min", 20)), *cross_under(f("15m", "close"), f("15m", "dcl_20"))),
+    "breakout_4h_long": cond((f("4h", "ema_50"), ">", f("4h", "ema_200")), *cross_over(f("4h", "close"), f("4h", "dch_20"))),
+    "breakout_4h_short": cond((f("4h", "ema_50"), "<", f("4h", "ema_200")), *cross_under(f("4h", "close"), f("4h", "dcl_20"))),
+    "keltner_trend_long": cond(*cross_over(f("4h", "close"), _KC_UP)),
+    "keltner_trend_short": cond(*cross_under(f("4h", "close"), _KC_DN)),
+    "momentum_long": cond(*cross_over(f("1h", "roc_24"), p("roc_min", 3)), (f("15m", "close"), ">", f("15m", "ema_20"))),
     "reversion_long": cond((f("5m", "rsi_14"), "<", p("rsi_lo", 25)), (f("5m", "close"), "<", f("5m", "bbl_20_2")),
                            (f("1h", "er_20"), "<", p("er_max", 0.3))),
     "reversion_short": cond((f("5m", "rsi_14"), ">", p("rsi_hi", 75)), (f("5m", "close"), ">", f("5m", "bbu_20_2")),
@@ -84,10 +89,11 @@ def test_schema_is_well_formed(cid):
             assert spec["default"] == mid[key], key                                 # mặc định thoát lệnh = mức giữa của space
         _, err = rm.check_value(key, spec, spec["default"])
         assert err is None
-    # mọi {tên} và node {"param"} trong cây đều có tham số signal tương ứng, mặc định node khớp schema
-    names = collect_string_placeholders(c["tree"]) | set(collect_placeholders(c["tree"]))
+    # mọi {tên} và node {"param"} trong cây vào + cây thoát đều có tham số signal tương ứng, mặc định node khớp schema
+    trees = [c["tree"], c.get("stop") or []]
+    names = set().union(*(collect_string_placeholders(t) | set(collect_placeholders(t)) for t in trees))
     assert {"sig." + n for n in names} == {k for k, v in schema.items() if v["group"] == "signal"}
-    for n, d in collect_placeholders(c["tree"]).items():
+    for n, d in {k: v for t in trees for k, v in collect_placeholders(t).items()}.items():
         assert schema["sig." + n]["default"] == d
     assert set(c["space"]) | {k for k, v in schema.items() if v["group"] == "signal"} >= {k for k in c["space"] if k.startswith("sig.")}
 
@@ -300,7 +306,7 @@ def test_get_strategies_shape(client):
     r = client.get("/api/studio/strategies")
     assert r.status_code == 200
     rows = r.json()
-    assert [x["id"] for x in rows] == [c["id"] for c in CANDIDATES] and len(rows) == 7
+    assert [x["id"] for x in rows] == [c["id"] for c in CANDIDATES] and len(rows) == 9
     x = {r["id"]: r for r in rows}["trend_long"]
     assert set(x) == {"id", "family", "side", "description", "params_schema", "preset", "frames_allowed"}
     assert x["frames_allowed"] == list(FRAMES) and list(x["params_schema"]) == list(BY_ID["trend_long"]["params_schema"])   # thứ tự giữ nguyên
@@ -346,10 +352,10 @@ def test_basic_mode_ignores_client_params_and_uses_presets(client):
 
 def test_basic_mode_limits_strategy_count_and_ids(client):
     ids = [c["id"] for c in CANDIDATES]
-    assert client.post(URL, json={**BT, "strategies": [{"id": i} for i in ids]}).status_code == 200      # đúng 7
+    assert client.post(URL, json={**BT, "strategies": [{"id": i} for i in ids]}).status_code == 200      # đúng 9 (cả sổ)
     n = len(FakePopen.calls)
     r = client.post(URL, json={**BT, "strategies": [{"id": i} for i in ids] + [{"id": "trend_long"}]})
-    assert r.status_code == 422                                                                   # 8 mục: vượt trần / lặp id
+    assert r.status_code == 422                                                                   # 10 mục: vượt trần / lặp id
     r = client.post(URL, json={**BT, "strategies": [{"id": "khong_co"}]})
     assert r.status_code == 422 and r.json()["detail"][0]["field"] == "strategies[0].id" and "Không có chiến lược" in r.json()["detail"][0]["msg"]
     assert len(FakePopen.calls) == n

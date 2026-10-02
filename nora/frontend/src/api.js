@@ -180,7 +180,7 @@ export const postMc = (body) => request('/api/studio/book/mc', { method: 'POST',
 
 // ---- chiến lược: lược đồ tham số + preset (docs/ui_contract.md §7.1) ----
 let strategiesP = null
-/** 7 chiến lược lõi: params_schema, preset {params, source, source_kind, evidence}, frames_allowed. Có đệm theo phiên trang; `force` tải lại. */
+/** Các chiến lược lõi: params_schema, preset {params, source, source_kind, evidence}, frames_allowed. Có đệm theo phiên trang; `force` tải lại. */
 export function getStrategies(force = false) {
   if (!strategiesP || force) strategiesP = request('/api/studio/strategies').catch((e) => { strategiesP = null; throw e })
   return strategiesP

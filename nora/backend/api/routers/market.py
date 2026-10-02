@@ -51,7 +51,7 @@ def snapshot_cached(symbol: str, ids: List[str]) -> Dict[str, Any]:
 
 @router.get("/signals")
 def get_signals(symbols: Optional[str] = Query(None, description="vd BTC,SOL (mặc định cả vũ trụ perp của sổ)"),
-                strategies: Optional[str] = Query(None, description="id chiến lược, phân tách dấu phẩy (mặc định cả 7)")):
+                strategies: Optional[str] = Query(None, description="id chiến lược, phân tách dấu phẩy (mặc định cả sổ)")):
     from backend.api.jobs.batch import JobError, check_candidate_ids, check_symbols
     from backend.core.strategy.book import perp_symbols
     try:

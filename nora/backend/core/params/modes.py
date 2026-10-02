@@ -8,7 +8,7 @@ import math
 from typing import Any, Dict, List, Optional, Tuple
 
 MODES = ("basic", "advanced")
-MAX_STRATEGIES = 7                 # số chiến lược lõi
+MAX_STRATEGIES = 9                 # số chiến lược lõi (strategy.book.CANDIDATES)
 DEFAULT_TRAIN_DAYS, DEFAULT_TEST_DAYS = 120, 30   # fold mặc định của WFA (validate_book)
 STANDARD_MC_SIMULATIONS = 10_000    # = carlo.monte_carlo.MC_MIN_SIMULATIONS
 STANDARD_MC = {"block_days": 5, "horizon_days": 365, "ruin_threshold_pct": 30.0, "seed": 7, "scale": 1.0}

@@ -24,6 +24,39 @@ def cond(*triplets) -> List[List[List[Any]]]:
     return [[list(t) for t in triplets]]
 
 
+def lagged(item: Any, k: int = 1) -> Any:
+    """Biểu thức giá trị của k nến TRƯỚC trên cùng khung (cộng k vào `index` của mọi trường; hằng / tham số giữ nguyên)."""
+    if not isinstance(item, dict):
+        return item
+    if "frame" in item and "column" in item:
+        out = {**item, "index": int(item.get("index", 0) or 0) + k}
+        for key in ("add", "subtract", "divide"):
+            if key in out:
+                out[key] = lagged(out[key], k)
+        return out
+    if item.get("type") == "calculate":
+        return {**item, "number_1": lagged(item.get("number_1"), k), "number_2": lagged(item.get("number_2"), k)}
+    if item.get("type") in ("min", "max"):
+        return {**item, "numbers": [lagged(x, k) for x in item.get("numbers", [])]}
+    return item
+
+
+def cross_over(a: Any, b: Any) -> tuple:
+    """a CẮT LÊN b ở nến vừa đóng của khung (như ta.crossover của TradingView / KEMA của sova): a > b và a[1] <= b[1].
+    Là SỰ KIỆN (chỉ đúng ở nến cắt), khác trạng thái a > b — tránh vào lại liên tục suốt cả đoạn xu hướng."""
+    return (a, ">", b), (lagged(a), "<=", lagged(b))
+
+
+def cross_under(a: Any, b: Any) -> tuple:
+    """a CẮT XUỐNG b: a < b và a[1] >= b[1] (ta.crossunder)."""
+    return (a, "<", b), (lagged(a), ">=", lagged(b))
+
+
+def calc(a: Any, logic: str, b: Any) -> Dict[str, Any]:
+    """Nút tính toán a (+ - *) b."""
+    return {"type": "calculate", "number_1": a, "logic": logic, "number_2": b}
+
+
 # ─── SIGNALS (điều kiện vào lệnh; kiểm tra thông tin trước khi dùng) ─────────
 SIGNALS: Dict[str, Dict[str, Any]] = {
     "dip_5m_rsi_bb_ranging": {

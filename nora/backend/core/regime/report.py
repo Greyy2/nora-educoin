@@ -7,7 +7,7 @@ Phần B — sự kiện thẳng đứng (định nghĩa SAU sự việc, chỉ 
   (tăng dựng). Gộp giờ liên tiếp thành đợt. Phát hiện = nhãn CRASH/SURGE xuất hiện trong [đầu đợt, đầu đợt + 24h):
   tỷ lệ phát hiện, độ trễ (phút), % quãng giá đã đi trước khi phát hiện. Cảnh báo: mỗi đợt CRASH/SURGE (nhãn) -> lợi suất 24h sau khi bật
   (cầu chì đúng khi giá tiếp tục đi ngược vị thế bị cắt).
-Phần C — sổ 7 chiến lược (presets) chạy 2 lần trên cùng dữ liệu: tắt / bật regime. Kết quả tổng + theo chiến lược, và lãi/lỗ theo
+Phần C — sổ mọi chiến lược lõi (presets) chạy 2 lần trên cùng dữ liệu: tắt / bật regime. Kết quả tổng + theo chiến lược, và lãi/lỗ theo
   (chiến lược, regime lúc vào lệnh) của lần tắt -> kiểm chứng bảng REGIME_MAP (chiến lược nào lỗ ở regime nào).
 """
 import time
