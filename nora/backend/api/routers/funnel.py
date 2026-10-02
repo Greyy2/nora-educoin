@@ -1,13 +1,12 @@
 """API phễu kiểm duyệt alpha (/api/studio/funnel): tạo lượt chạy (job nền qua run_limited), liệt kê, thống kê từng tầng, bảng alpha, chi tiết alpha,
 danh sách lệnh (phân trang, tính lại cho alpha bị loại ở S1), đưa alpha FINAL vào kho alpha. Hợp đồng: docs/funnel_contract.md.
 
-Job nặng chạy ở tiến trình riêng (backend.optimize.run_funnel qua backend/utils/ops/run_limited.sh) bằng cơ chế job của backend/api/jobs/batch.py: loại job
+Job nặng chạy ở tiến trình riêng (backend.optimize.funnel.run qua backend/utils/ops/run_limited.sh) bằng cơ chế job của backend/api/jobs/batch.py: loại job
 `funnel_run` (danh sách trắng cờ + nhãn nằm ở batch.KINDS / batch.job_label). Handler chỉ đọc kho (SQLite chỉ đọc + parquet) nên là `def` thường (FastAPI chạy trong threadpool).
 """
 import json
 import os
 import re
-import subprocess
 import time
 from typing import Any, Dict, List, Optional
 
@@ -120,7 +119,7 @@ def post_run(req: FunnelRunRequest):
         run_id = req.resume_run_id
         if not os.path.isfile(os.path.join(_run_dir(run_id), "results.sqlite")):
             raise HTTPException(404, f"không có lượt {run_id} để chạy tiếp")
-        args = ["--resume", run_id]
+        params = {"resume": run_id}
         planned = None
     else:
         planned = _planned(strategies, req.n_per_strategy, req.full_grid)
@@ -128,14 +127,14 @@ def post_run(req: FunnelRunRequest):
         if total > MAX_ALPHAS or (total > LARGE_ALPHAS and not req.force_large):
             raise HTTPException(422, f"{total:,} alpha vượt giới hạn ({LARGE_ALPHAS:,}; trần cứng {MAX_ALPHAS:,}); giảm n_per_strategy hoặc đặt force_large")
         run_id = new_run_id()
-        args = ["--strategies", ",".join(strategies), "--seed", str(req.seed), "--run-id", run_id]
-        args += ["--full-grid"] if req.full_grid else ["--n-per-strategy", str(req.n_per_strategy)]
+        params = {"strategies": strategies, "seed": req.seed, "run_id": run_id}
+        params.update({"full_grid": True} if req.full_grid else {"n_per_strategy": req.n_per_strategy})
         if symbols:
-            args += ["--symbols", ",".join(symbols)]
+            params["symbols"] = symbols
         if req.windows:
-            args += ["--windows-json", json.dumps(req.windows)]
+            params["windows"] = req.windows
         if total > LARGE_ALPHAS:
-            args += ["--force-large"]
+            params["force_large"] = True
         # bản run.json "queued" TRƯỚC khi chạy: danh sách lượt thấy ngay lượt đang xếp hàng; CLI ghi đè bằng run.json đầy đủ khi bắt đầu
         atomic_write_json(os.path.join(_run_dir(run_id), "run.json"), {
             "run_id": run_id, "status": "queued", "created": time.time(), "started": None, "finished": None, "total_alphas": total,
@@ -143,12 +142,12 @@ def post_run(req: FunnelRunRequest):
                                            "seed": req.seed, "symbols": symbols, "windows": req.windows},
             "stages": {s: {"status": "pending"} for s in gates.STAGES}})
     try:
-        job_id = batch_jobs.launch(KIND, args)
+        job_id = batch_jobs.launch(KIND, params)
     except batch_jobs.JobError as e:
         raise HTTPException(422, str(e))
     except batch_jobs.JobBusy as e:
         raise HTTPException(429, str(e))
-    atomic_write_json(os.path.join(_run_dir(run_id), "api_job.json"), {"job_id": job_id, "kind": KIND, "args": args, "launched": time.time()})
+    atomic_write_json(os.path.join(_run_dir(run_id), "api_job.json"), {"job_id": job_id, "kind": KIND, "params": params, "launched": time.time()})
     return {"run_id": run_id, "job_id": job_id}
 
 
@@ -417,17 +416,15 @@ def _trade_item(r: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _run_recompute_subprocess(run_id: str, alpha_id: str) -> None:
-    """Tính lại S1 ngoài tiến trình API (run_limited --no-lock: nằm trong nora.slice); ghi đệm vào <run>/recomputed/. Test thay hàm này."""
-    env = dict(os.environ)
-    env.setdefault("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
-    env.setdefault("DBUS_SESSION_BUS_ADDRESS", f"unix:path={env['XDG_RUNTIME_DIR']}/bus")
-    cmd = [batch_jobs.RUN_LIMITED, "--no-lock", "--", "-m", "backend.optimize.funnel.recompute", run_id, alpha_id]
+    """Tính lại S1 ngoài tiến trình API (job funnel_recompute qua runner, run_limited --no-lock: nằm trong nora.slice); ghi đệm vào
+    <run>/recomputed/. Test thay hàm này."""
+    job_dir = os.path.join(_run_dir(run_id), "recomputed", f"{alpha_id}.job")
     try:
-        p = subprocess.run(cmd, cwd=batch_jobs.NORA_DIR, env=env, capture_output=True, text=True, timeout=1800, stdin=subprocess.DEVNULL)
-    except subprocess.TimeoutExpired:
+        batch_jobs.run_sync("funnel_recompute", {"run_id": run_id, "alpha_id": alpha_id}, job_dir, timeout=1800)
+    except TimeoutError:
         raise HTTPException(504, "tính lại lệnh quá thời gian (30 phút)")
-    if p.returncode != 0:
-        raise HTTPException(500, "tính lại lệnh thất bại: " + (p.stderr or p.stdout or "")[-400:])
+    except RuntimeError as e:
+        raise HTTPException(500, f"tính lại lệnh thất bại: {e}")
 
 
 @router.get("/runs/{run_id}/alphas/{alpha_id}/trades")

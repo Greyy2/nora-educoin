@@ -1,13 +1,12 @@
-"""Một lần chạy PortfolioEngine cho sổ chiến lược (job nền của API: POST /api/studio/book/backtest).
+"""Job backtest (POST /api/studio/book/backtest -> api/jobs/runner.py -> run_job): một lần PortfolioEngine cho sổ chiến lược.
 
-Nguồn sổ (chọn một):
-  --book data/alphas/book.json                                (mặc định) chiến lược + tham số + rủi ro/lệnh + giới hạn danh mục của sổ đã chốt
-  --strategies '[{"id":"trend_long","params":{...}}]'      tự chỉ định; tham số thiếu lấy mức GIỮA của không gian tham số ứng viên
-Cửa sổ: --start/--end (YYYY-MM-DD, UTC; ngày kết thúc tính CẢ ngày); mặc định = windows() của build_strategy_book (toàn bộ dữ liệu sau warmup).
-Rủi ro/lệnh: --risk-per-trade (mặc định: của sổ, hoặc mức chuẩn 0,5%). SL: --stop-fill level|extreme (mặc định level).
-Kết quả: số đo danh mục (portfolio_metrics) + by_symbol/by_strategy + lệnh + đường vốn (<= 2000 điểm) -> --out và/hoặc $NORA_JOB_DIR/result.json.
-
-Dùng: backend/utils/ops/run_limited.sh -- -m backend.core.backtest.run_book_backtest --start 2025-03-01 --end 2025-04-30 --symbols BTC@perp,SOL@perp --out /tmp/r.json
+Tham số (run_job params; mặc định ở DEFAULTS):
+  book        đường dẫn book.json (mặc định data/alphas/book.json) — chiến lược + tham số + rủi ro/lệnh + giới hạn danh mục của sổ đã chốt
+  strategies  [{"id": "trend_long", "params": {...}}] thay cho book; tham số thiếu lấy mức GIỮA của không gian tham số ứng viên
+  start, end  YYYY-MM-DD UTC (ngày kết thúc tính CẢ ngày); mặc định = toàn bộ dữ liệu sau warmup
+  risk_per_trade  % vốn rủi ro mỗi lệnh (mặc định: của sổ, hoặc mức chuẩn 0,5%); stop_fill level|extreme (mặc định level)
+  out         (tuỳ chọn) ghi kết quả JSON ra đường dẫn này
+Kết quả: số đo danh mục (portfolio_metrics) + by_symbol/by_strategy + lệnh + đường vốn (<= 2000 điểm) -> $NORA_JOB_DIR/result.json.
 """
 import os
 for _blas_env in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS",
@@ -16,23 +15,20 @@ for _blas_env in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS",
 os.environ.setdefault("NORA_CANDLE_CACHE_MB", "512")
 os.environ.setdefault("NORA_DATA_CACHE_MB", "1024")
 
-import argparse
 import contextlib
 import io
 import json
-import sys
 import time
 import warnings
 
 import pandas as pd
 
-NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-if NORA_ROOT not in sys.path:
-    sys.path.insert(0, NORA_ROOT)
+from backend.core.metrics.portfolio import portfolio_metrics
+from backend.utils.jobs import as_list, options, write_job_result
+from backend.utils.jsonsafe import json_default
 
-from backend.core.metrics.portfolio import portfolio_metrics  # noqa: E402
-from backend.utils.jobresult import write_job_result  # noqa: E402
-from backend.utils.jsonsafe import json_default  # noqa: E402
+NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+DEFAULTS = {"book": "", "strategies": None, "symbols": "", "start": "", "end": "", "risk_per_trade": None, "stop_fill": "level", "out": ""}
 
 DAY = 86_400_000
 WARMUP = 20 * DAY            # bằng build_strategy_book.WARMUP (chỉ số đo từ start trở đi)
@@ -56,9 +52,9 @@ def load_items(a):
     from backend.core.strategy.book import BASE_RISK_PER_TRADE_PCT, CANDIDATES, RISK
     by_id = {c["id"]: c for c in CANDIDATES}
     if a.strategies:
-        raw = json.loads(a.strategies)
+        raw = a.strategies
         if not isinstance(raw, list) or not raw:
-            raise SystemExit("--strategies phải là danh sách JSON không rỗng")
+            raise SystemExit("strategies phải là danh sách không rỗng")
         items = []
         for s in raw:
             if s.get("id") not in by_id:
@@ -135,25 +131,19 @@ def run(items, symbols, start, end, rpt, stop_fill, risk, extra_strategies=None,
     return out
 
 
-def main(argv=None):
+def run_job(params=None):
+    """Chạy job backtest với `params` (xem docstring module) -> dict kết quả (cũng ghi $NORA_JOB_DIR/result.json)."""
     warnings.filterwarnings("ignore")
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--book", default="", help="đường dẫn book.json (mặc định data/alphas/book.json)")
-    ap.add_argument("--strategies", default="", help='JSON: [{"id": ..., "params": {...}}] (thay cho --book)')
-    ap.add_argument("--symbols", default="", help="vd BTC@perp,SOL@perp (mặc định cả vũ trụ của sổ chiến lược)")
-    ap.add_argument("--start", default="", help="YYYY-MM-DD UTC (mặc định đầu dữ liệu sau warmup)")
-    ap.add_argument("--end", default="", help="YYYY-MM-DD UTC, gồm cả ngày này (mặc định cuối dữ liệu)")
-    ap.add_argument("--risk-per-trade", type=float, default=None)
-    ap.add_argument("--stop-fill", default="level", choices=("level", "extreme"))
-    ap.add_argument("--out", default="", help="ghi kết quả JSON ra đường dẫn này")
-    a = ap.parse_args(argv)
+    a = options(DEFAULTS, params)
+    if a.stop_fill not in ("level", "extreme"):
+        raise ValueError("stop_fill phải là level|extreme")
     if a.book and a.strategies:
-        ap.error("chọn một: --book hoặc --strategies")
+        raise ValueError("chọn một: book hoặc strategies")
     from backend.utils.memwatch import require_memory_limit
     require_memory_limit("run_book_backtest")
     from backend.core.strategy.book import perp_symbols
 
-    symbols = [s if "@" in s else f"{s}@perp" for s in a.symbols.split(",") if s] or perp_symbols()
+    symbols = [s if "@" in s else f"{s}@perp" for s in as_list(a.symbols)] or perp_symbols()
     from backend.core.data.quality_gate import require_data_ok_or_exit
     require_data_ok_or_exit(symbols)   # cổng chất lượng dữ liệu bắt buộc (synthetic / sai sha256 / thiếu dữ liệu -> từ chối)
     items, rpt, risk = load_items(a)
@@ -169,7 +159,7 @@ def main(argv=None):
     start = _ts(a.start) if a.start else data_start
     end = _ts(a.end) + DAY if a.end else data_end
     if end <= start:
-        raise SystemExit("--end phải sau --start")
+        raise SystemExit("end phải sau start")
     print(f"sổ {[i for i, _ in items]} | {len(symbols)} tài sản | {pd.Timestamp(start, unit='ms'):%Y-%m-%d} → "
           f"{pd.Timestamp(end, unit='ms'):%Y-%m-%d} | rủi ro/lệnh {rpt}% | SL {a.stop_fill}", flush=True)
     out = run(items, symbols, start, end, rpt, a.stop_fill, risk)
@@ -184,7 +174,3 @@ def main(argv=None):
         print("ghi:", a.out)
     write_job_result(out)  # chỉ khi chạy như job API (env NORA_JOB_DIR)
     return out
-
-
-if __name__ == "__main__":
-    main()

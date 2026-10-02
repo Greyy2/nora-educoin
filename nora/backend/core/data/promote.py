@@ -2,41 +2,31 @@
 
 venue lấy từ manifest.json ("cex" | "dex"); xem backend/db/data_layout.py.
 
-Mặc định chỉ in kế hoạch (dry-run). Thêm --apply để thực hiện.
+Job API `data_promote` (POST /api/data/promote -> api/jobs/runner.py -> run_job). Mặc định chỉ lập kế hoạch (dry-run); apply=True để thực hiện.
 
 - Tài sản trong staging qua gate (không BLOCKED / NEEDS_MORE_DATA) -> chuyển vào data/<SYM>
   (thư mục cùng tên ở data/ được cất vào _archive_invalid trước).
-- --archive-legacy: cất mọi thư mục tài sản trong data/ KHÔNG có manifest.json
+- archive_legacy=True: cất mọi thư mục tài sản trong data/ KHÔNG có manifest.json
   vào data/_archive_invalid/legacy_<ngày>/ (không xoá).
-
-Dùng:
-    PYTHONPATH=nora python -m backend.core.data.promote_staging                 # xem trước
-    PYTHONPATH=nora python -m backend.core.data.promote_staging --apply --archive-legacy
 """
-import argparse
 import os
 import shutil
-import sys
 from datetime import datetime, timezone
 
-NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-if NORA_ROOT not in sys.path:
-    sys.path.insert(0, NORA_ROOT)
+from backend.core.data.quality_gate import DataQualityStatus, evaluate_data_quality
+from backend.db.data_layout import VENUES, list_assets
+from backend.db.local_pkl import read_manifest
+from backend.utils.jobs import options, write_job_result
 
-from backend.db.data_layout import VENUES, list_assets  # noqa: E402
-from backend.db.local_pkl import read_manifest  # noqa: E402
-from backend.core.data.quality_gate import DataQualityStatus, evaluate_data_quality  # noqa: E402
+NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+DEFAULTS = {"staging": os.path.join(NORA_ROOT, "data_staging"), "data": os.path.join(NORA_ROOT, "data"), "apply": False, "archive_legacy": False}
 
 BLOCKING = (DataQualityStatus.BLOCKED, DataQualityStatus.NEEDS_MORE_DATA)
 
 
-def main(argv=None) -> int:
-    p = argparse.ArgumentParser()
-    p.add_argument("--staging", default=os.path.join(NORA_ROOT, "data_staging"))
-    p.add_argument("--data", default=os.path.join(NORA_ROOT, "data"))
-    p.add_argument("--apply", action="store_true")
-    p.add_argument("--archive-legacy", action="store_true")
-    args = p.parse_args(argv)
+def run_job(params=None):
+    """Lập kế hoạch (và nếu apply=True thì thực hiện) chuyển tài sản đã qua gate từ staging sang data -> {"actions", "applied"}."""
+    args = options(DEFAULTS, params)
 
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     archive_root = os.path.join(args.data, "_archive_invalid", f"legacy_{stamp}")
@@ -77,9 +67,7 @@ def main(argv=None) -> int:
             os.makedirs(os.path.dirname(dst), exist_ok=True)
             shutil.move(src, dst)
     if not args.apply:
-        print("\n(dry-run) Thêm --apply để thực hiện.")
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())
+        print("\n(dry-run) Đặt apply=True để thực hiện.")
+    out = {"actions": [{"kind": k, "src": a, "dst": b} for k, a, b in actions], "applied": bool(args.apply)}
+    write_job_result(out)
+    return out

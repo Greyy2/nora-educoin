@@ -1,32 +1,27 @@
 import { toMs, fmtDateTime } from './format'
 
-// args của job là danh sách CLI (["--start","2025-01-01",...]) ở backend hiện tại, hoặc object ở bản sau.
-export function parseJobArgs(args) {
-  if (!args) return {}
-  if (!Array.isArray(args)) return args
-  const o = {}
-  for (let i = 0; i < args.length; i++) {
-    if (typeof args[i] === 'string' && args[i].startsWith('--')) { o[args[i].slice(2)] = args[i + 1]; i++ }
-  }
-  let strategies
-  try { strategies = o.strategies ? JSON.parse(o.strategies) : undefined } catch (e) { strategies = undefined }
+// params của job (job.json): dict tham số mà API đã kiểm, cùng tên khoá với run_job(params) của backend.
+export function parseJobParams(p) {
+  if (!p || typeof p !== 'object' || Array.isArray(p)) return {}
+  const list = (v) => (v == null ? undefined : Array.isArray(v) ? v : String(v).split(',').filter(Boolean))
   return {
-    strategies,
-    symbols: o.symbols ? o.symbols.split(',') : undefined,
-    start: o.start,
-    end: o.end,
-    risk_per_trade_pct: o['risk-per-trade'] != null ? Number(o['risk-per-trade']) : undefined,
-    stop_fill: o['stop-fill'],
+    strategies: Array.isArray(p.strategies) ? p.strategies : undefined,
+    symbols: list(p.symbols),
+    start: p.start,
+    end: p.end,
+    risk_per_trade_pct: p.risk_per_trade != null ? Number(p.risk_per_trade) : undefined,
+    stop_fill: p.stop_fill,
     // chỉ có ở job WFA
-    train_days: o['train-days'] != null ? Number(o['train-days']) : undefined,
-    test_days: o['test-days'] != null ? Number(o['test-days']) : undefined,
-    n: o.n != null ? Number(o.n) : undefined,
-    fixed: o['strategies-json'] != null ? true : (o.candidates != null || o.report != null ? false : undefined),
+    train_days: p.train_days != null ? Number(p.train_days) : undefined,
+    test_days: p.test_days != null ? Number(p.test_days) : undefined,
+    n: p.n != null ? Number(p.n) : undefined,
+    fixed: Array.isArray(p.strategies) && p.strategies.some((s) => s && s.configs) ? true : (p.candidates != null || p.report != null ? false : undefined),
+    run_id: p.run_id || p.resume,
   }
 }
 
 export function jobLabel(j) {
-  const a = parseJobArgs(j.args)
+  const a = parseJobParams(j.params)
   const ids = a.strategies ? a.strategies.map((s) => s.id).join(' + ') : 'sổ hiện tại'
   const win = a.start && a.end ? ` · ${a.start} → ${a.end}` : ''
   return `${ids}${win}`
@@ -47,6 +42,11 @@ export const JOB_KIND = {
   book_wfa: { text: 'Walk-forward', short: 'WFA' },
   book_build: { text: 'Alpha · tối ưu', short: 'Alpha' },
   funnel_run: { text: 'Phễu kiểm duyệt', short: 'Phễu' },
+  funnel_recompute: { text: 'Phễu · tính lại lệnh', short: 'Phễu' },
+  presets_build: { text: 'Dựng preset', short: 'Preset' },
+  mock_feeds: { text: 'Feed giả lập', short: 'Feed' },
+  data_crawl: { text: 'Tải dữ liệu', short: 'Dữ liệu' },
+  data_promote: { text: 'Đưa dữ liệu vào kho', short: 'Dữ liệu' },
 }
 export const jobKindText = (k) => JOB_KIND[k]?.text || String(k || '—')
 
@@ -54,7 +54,7 @@ export const jobKindText = (k) => JOB_KIND[k]?.text || String(k || '—')
 export function jobLink(j) {
   const id = encodeURIComponent(j.job_id || j.id)
   if (String(j.kind || '').startsWith('funnel')) {
-    const rid = j.run_id || parseJobArgs(j.args)['run-id'] || parseJobArgs(j.args).run_id
+    const rid = j.run_id || parseJobParams(j.params).run_id
     return rid ? `/funnel/${encodeURIComponent(rid)}` : '/funnel'
   }
   if (j.kind === 'book_wfa') return `/backtest?wfa=${id}&step=2`

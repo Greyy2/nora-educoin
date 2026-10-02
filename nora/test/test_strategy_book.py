@@ -48,8 +48,8 @@ def market(tmp_path, monkeypatch):
 
 
 def _load_script(name):
-    from cli_paths import command_path
-    path = command_path(name)
+    from job_modules import job_path
+    path = job_path(name)
     spec = importlib.util.spec_from_file_location(name, path)
     mod = importlib.util.module_from_spec(spec)
     import sys
@@ -89,7 +89,7 @@ def test_book_pipeline_runs_all_stages_with_shared_params(market, monkeypatch, t
 
     out = tmp_path / "alphas"
     # bộ dữ liệu giả lập rất nhỏ: số RAM/worker mặc định (cỡ production) không phù hợp, đặt thấp để qua cổng RAM
-    mod.main(["--workers", "2", "--per-worker-mb", "300", "--n", "4", "--out", str(out)])
+    mod.run_job({"workers": 2, "per_worker_mb": 300, "n": 4, "out": str(out)})
     reports = sorted((market / "_cache" / "book").glob("*/report.json"))
     assert reports, "phải ghi báo cáo"
     rep = json.loads(reports[-1].read_text())

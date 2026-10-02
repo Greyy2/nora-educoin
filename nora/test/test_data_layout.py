@@ -100,16 +100,12 @@ def test_data_root_env_is_single_source(monkeypatch, tmp_path):
     assert local_pkl.default_data_root() == tick_storage.default_data_root() == str(tmp_path / "a")
 
 
-def test_promote_script_places_assets_by_venue(tmp_path):
-    import importlib.util
+def test_promote_job_places_assets_by_venue(tmp_path):
     staging, data = tmp_path / "staging", tmp_path / "data"
     _save(str(staging), "cex", "ETH")               # save_resampled_dataset ghi vào staging/cex/ETH
     os.rename(staging / "cex" / "ETH", staging / "ETH")  # staging là phẳng, venue lấy từ manifest
-    spec = importlib.util.spec_from_file_location(
-        "promote", os.path.join(os.path.dirname(__file__), "..", "backend", "core", "data", "promote_staging.py"))
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    mod.main(["--staging", str(staging), "--data", str(data), "--apply"])
+    from backend.core.data import promote
+    promote.run_job({"staging": str(staging), "data": str(data), "apply": True})
     assert os.path.isfile(data / "cex" / "ETH" / "manifest.json")
     assert json.load(open(data / "cex" / "ETH" / "manifest.json"))["venue"] == "cex"
 

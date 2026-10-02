@@ -1,17 +1,19 @@
-"""Job nền nặng của sổ chiến lược (backtest danh mục / WFA danh mục / dựng sổ), chạy NGOÀI tiến trình API.
+"""Job nền nặng (backtest, WFA, dựng sổ, phễu, dữ liệu...), chạy NGOÀI tiến trình API qua MỘT cửa: backend/api/jobs/runner.py.
 
-Vì sao: API có trần RAM riêng (3G) nên không được chạy backtest/WFA nặng trong tiến trình. Mỗi job là một tiến trình con
-`backend/utils/ops/run_limited.sh -- -m backend.<gói>.<lệnh> ...`: tự có scope riêng trong nora.slice (trần chung 12G), xếp hàng tuần tự
-(flock) và tự chia worker theo RAM còn trống. API chỉ khởi chạy, theo dõi và đọc kết quả.
+Vì sao: API có trần RAM riêng (3G) nên không được chạy việc nặng trong tiến trình. Mỗi job là một tiến trình con
+`backend/utils/ops/run_limited.sh -- -m backend.api.jobs.runner <job_dir>`: tự có scope riêng trong nora.slice (trần chung 12G), xếp hàng
+tuần tự (flock) và tự chia worker theo RAM còn trống. runner đọc job.json {kind, params} rồi gọi run_job(params) của module trong KINDS.
+API chỉ khởi chạy, theo dõi và đọc kết quả. UI, terminal (curl) và script đều đi qua cùng endpoint -> cùng job.
 
 Mỗi job có thư mục <data>/_cache/api_jobs/<job_id>/:
-  job.json    siêu dữ liệu (id, kind, args, pid, created/started/finished, state, exit_code)
+  params.json đầu vào của runner {kind, params}
+  job.json    siêu dữ liệu (id, kind, params, pid, created/started/finished, state, exit_code)
   out.log     stdout+stderr của job
-  result.json báo cáo cuối do script ghi (quy ước env NORA_JOB_DIR, xem backend/utils/jobresult.py)
+  result.json báo cáo cuối do script ghi (quy ước env NORA_JOB_DIR, xem backend/utils/jobs.py)
   alphas/     (chỉ job book_build) sổ vừa dựng: book.json [+ testnet/book.json]; KHÔNG ghi đè nora/data/alphas/ — xuất bản qua POST /book/publish
-  progress.json  (job tối ưu quy mô lớn) tiến độ do CLI ghi mỗi <= 5 giây: stage, done, total, rate, eta_s, peak_rss_mb (xem backend/optimize/progress.py)
+  progress.json  (job tối ưu quy mô lớn) tiến độ do job ghi mỗi <= 5 giây: stage, done, total, rate, eta_s, peak_rss_mb (xem backend/utils/jobs.py)
 Trạng thái trả ra: queued (đang chờ hàng đợi run_limited) | running | done | failed | cancelled. Trạng thái bền (job.json) chỉ có running/done/failed/cancelled;
-queued suy ra từ out.log. Huỷ: cancel(job_id) gửi SIGTERM cho CẢ nhóm tiến trình (CLI flush kho kết quả rồi thoát -> chạy lại bằng --resume). Không dùng shell: danh sách đối số đi thẳng vào Popen.
+queued suy ra từ out.log. Huỷ: cancel(job_id) gửi SIGTERM cho CẢ nhóm tiến trình (job flush kho kết quả rồi thoát -> chạy lại bằng resume). Không dùng shell.
 """
 import json
 import math
@@ -23,25 +25,29 @@ import threading
 import time
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 NORA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 RUN_LIMITED = os.path.join(NORA_DIR, "backend", "utils", "ops", "run_limited.sh")
 
-# Danh sách trắng: loại job -> (module backend.<gói>.<lệnh>, các cờ được phép)
+# Danh sách trắng: loại job -> (module có run_job(params), các khoá tham số được phép)
+RUNNER = "backend.api.jobs.runner"
 KINDS: Dict[str, Dict[str, Any]] = {
-    "book_backtest": {"module": "backend.core.backtest.run_book_backtest",
-                      "flags": {"--book", "--strategies", "--symbols", "--start", "--end", "--risk-per-trade", "--stop-fill"}},
-    "book_wfa": {"module": "backend.wfa.validate_book",
-                 "flags": {"--report", "--include-rejected", "--candidates", "--strategies-json", "--symbols", "--n", "--start",
-                           "--end", "--train-days", "--test-days", "--step-days", "--sims", "--mc-seed", "--risk-per-trade", "--workers",
-                           "--resume", "--max-configs", "--force-large"}},
-    "book_build": {"module": "backend.optimize.build_strategy_book",
-                   "flags": {"--only", "--n", "--workers", "--keep-top", "--resume", "--max-configs", "--force-large"}},
-    # phễu kiểm duyệt alpha (backend/api/routers/funnel.py dựng và kiểm đối số)
-    "funnel_run": {"module": "backend.optimize.run_funnel",
-                   "flags": {"--strategies", "--n-per-strategy", "--full-grid", "--seed", "--symbols", "--windows-json", "--run-id",
-                             "--resume", "--force-large", "--train-days", "--test-days"}},
+    "book_backtest": {"module": "backend.core.backtest.run",
+                      "params": {"book", "strategies", "symbols", "start", "end", "risk_per_trade", "stop_fill"}},
+    "book_wfa": {"module": "backend.wfa.run",
+                 "params": {"report", "include_rejected", "candidates", "strategies", "symbols", "n", "start", "end", "train_days",
+                            "test_days", "step_days", "sims", "mc_seed", "risk_per_trade", "workers", "resume", "max_configs", "force_large"}},
+    "book_build": {"module": "backend.optimize.book",
+                   "params": {"only", "n", "workers", "keep_top", "resume", "max_configs", "force_large"}},   # out do launch() đặt
+    "funnel_run": {"module": "backend.optimize.funnel.run",
+                   "params": {"strategies", "n_per_strategy", "full_grid", "seed", "symbols", "windows", "run_id", "resume", "force_large",
+                              "train_days", "test_days"}},
+    "funnel_recompute": {"module": "backend.optimize.funnel.recompute", "params": {"run_id", "alpha_id"}},
+    "presets_build": {"module": "backend.core.params.presets", "params": set()},
+    "mock_feeds": {"module": "backend.core.analytics.feeds", "params": {"only"}},
+    "data_crawl": {"module": "backend.core.data.crawler", "params": {"symbols", "market", "years"}},
+    "data_promote": {"module": "backend.core.data.promote", "params": {"apply", "archive_legacy"}},
 }
 MAX_BUILD_CONFIGS = 1_000_000   # trần cứng của API cho --n (mỗi chiến lược); CLI còn có --max-configs (mặc định 200000) + --force-large
 MAX_ACTIVE = 8          # số job đang chạy/chờ tối đa cùng lúc (mỗi job chờ là một tiến trình bash nhỏ)
@@ -50,7 +56,6 @@ WAITING_MARK = "đang chờ job khác của Nora"   # dòng run_limited.sh in kh
 _JOB_ID_RE = re.compile(r"^\d{8}_\d{6}_[0-9a-f]{6}$")
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _EXIT_RE = re.compile(r"\[run_limited\] peak RAM .*\| exit (\d+)")
-JOBDIR_TOKEN = "@JOBDIR"   # trong args: launch() thay bằng thư mục job (để ghi file đầu vào cho script)
 MAX_WFA_STRATEGIES, MAX_WFA_CONFIGS = 16, 50
 _LOCK = threading.Lock()
 
@@ -119,7 +124,7 @@ def check_number(value: Any, name: str, lo: float, hi: float, integer: bool = Fa
         raise JobError(f"{name} phải là số: {value!r}")
     if not math.isfinite(x) or not lo <= x <= hi:
         raise JobError(f"{name} ngoài khoảng [{lo}, {hi}]: {value!r}")
-    return str(int(x)) if integer else repr(x)
+    return int(x) if integer else x
 
 
 def check_report_dir(report_dir: str) -> str:
@@ -169,17 +174,11 @@ def check_wfa_strategies(items: Any) -> List[Dict[str, Any]]:
     return out
 
 
-def build_args(kind: str, p: Dict[str, Any]) -> List[str]:
-    """Từ tham số đã qua pydantic -> danh sách đối số CLI (đã kiểm lại ở đây: tầng này không tin router)."""
-    return build_job(kind, p)[0]
-
-
-def build_job(kind: str, p: Dict[str, Any]) -> Tuple[List[str], Dict[str, Any]]:
-    """(đối số CLI, {tên file: nội dung JSON} cần ghi vào thư mục job trước khi chạy). Đối số trỏ tới file đó bằng `@JOBDIR/<tên>`."""
+def build_job(kind: str, p: Dict[str, Any]) -> Dict[str, Any]:
+    """Từ tham số đã qua pydantic -> params của job (kiểm lại ở đây: tầng này không tin router)."""
     if kind not in KINDS:
         raise JobError(f"loại job không có trong danh sách trắng: {kind!r}")
-    a: List[str] = []
-    files: Dict[str, Any] = {}
+    out: Dict[str, Any] = {}
     if kind == "book_backtest":
         if p.get("strategies"):
             ids = check_candidate_ids([s["id"] for s in p["strategies"]])
@@ -192,65 +191,68 @@ def build_job(kind: str, p: Dict[str, Any]) -> Tuple[List[str], Dict[str, Any]]:
                                                         and math.isfinite(v) for k, v in prm.items()):
                     raise JobError("params phải là {tên: số}")
                 items.append({"id": s["id"], "params": prm})
-            a += ["--strategies", json.dumps(items, ensure_ascii=False)]
+            out["strategies"] = items
         if p.get("symbols"):
-            a += ["--symbols", ",".join(check_symbols(p["symbols"]))]
-        a += ["--start", check_date(p["start"]), "--end", check_date(p["end"])]
+            out["symbols"] = check_symbols(p["symbols"])
+        out["start"], out["end"] = check_date(p["start"]), check_date(p["end"])
         if p["start"] >= p["end"]:
             raise JobError("start phải trước end")
         if p.get("risk_per_trade_pct") is not None:
-            a += ["--risk-per-trade", check_number(p["risk_per_trade_pct"], "risk_per_trade_pct", 0.01, 5.0)]
+            out["risk_per_trade"] = check_number(p["risk_per_trade_pct"], "risk_per_trade_pct", 0.01, 5.0)
         if p.get("stop_fill"):
             if p["stop_fill"] not in ("level", "extreme"):
                 raise JobError("stop_fill phải là level|extreme")
-            a += ["--stop-fill", p["stop_fill"]]
+            out["stop_fill"] = p["stop_fill"]
     elif kind == "book_wfa":
         if sum(map(bool, (p.get("report_dir"), p.get("candidates"), p.get("strategies")))) != 1:
             raise JobError("chọn đúng một: report_dir, candidates hoặc strategies")
         if p.get("report_dir"):
-            a += ["--report", check_report_dir(p["report_dir"])]
+            out["report"] = check_report_dir(p["report_dir"])
             if p.get("include_rejected"):
-                a += ["--include-rejected"]
+                out["include_rejected"] = True
         elif p.get("strategies"):
-            files["strategies.json"] = check_wfa_strategies(p["strategies"])
-            a += ["--strategies-json", f"{JOBDIR_TOKEN}/strategies.json"]
+            out["strategies"] = check_wfa_strategies(p["strategies"])
         else:
-            a += ["--candidates", ",".join(check_candidate_ids(p["candidates"]))]
-        a += ["--n", check_number(p.get("n", 3), "n", 1, 50, integer=True)]
-        for key, flag in (("start", "--start"), ("end", "--end")):
+            out["candidates"] = check_candidate_ids(p["candidates"])
+        out["n"] = check_number(p.get("n", 3), "n", 1, 50, integer=True)
+        for key in ("start", "end"):
             if p.get(key):
-                a += [flag, check_date(p[key])]
+                out[key] = check_date(p[key])
         if p.get("start") and p.get("end") and p["start"] >= p["end"]:
             raise JobError("start phải trước end")
         if p.get("symbols"):
-            a += ["--symbols", ",".join(check_symbols(p["symbols"]))]
-        if p.get("train_days") is not None:
-            a += ["--train-days", check_number(p["train_days"], "train_days", 7, 1000, integer=True)]
-        if p.get("test_days") is not None:
-            a += ["--test-days", check_number(p["test_days"], "test_days", 1, 365, integer=True)]
+            out["symbols"] = check_symbols(p["symbols"])
+        for key, lo, hi in (("train_days", 7, 1000), ("test_days", 1, 365), ("step_days", 1, 365), ("sims", 100, 50_000), ("mc_seed", 0, 2 ** 31 - 1)):
+            if p.get(key) is not None:
+                out[key] = check_number(p[key], key, lo, hi, integer=True)
         if p.get("risk_per_trade_pct") is not None:
-            a += ["--risk-per-trade", check_number(p["risk_per_trade_pct"], "risk_per_trade_pct", 0.01, 5.0)]
-    else:  # book_build
+            out["risk_per_trade"] = check_number(p["risk_per_trade_pct"], "risk_per_trade_pct", 0.01, 5.0)
+    elif kind == "book_build":
         if p.get("only"):
-            a += ["--only", ",".join(check_candidate_ids(p["only"]))]
+            out["only"] = check_candidate_ids(p["only"])
         if p.get("n") is not None:
-            a += ["--n", check_number(p["n"], "n", 1, MAX_BUILD_CONFIGS, integer=True)]
+            out["n"] = check_number(p["n"], "n", 1, MAX_BUILD_CONFIGS, integer=True)
         if p.get("keep_top") is not None:
-            a += ["--keep-top", check_number(p["keep_top"], "keep_top", 3, 5000, integer=True)]
+            out["keep_top"] = check_number(p["keep_top"], "keep_top", 3, 5000, integer=True)
         if p.get("force_large"):
-            a += ["--force-large"]
-    return a, files
+            out["force_large"] = True
+    else:
+        raise JobError(f"{kind}: dựng params ở router của nó")
+    return out
 
 
-def _check_launch_args(kind: str, args: List[str]) -> None:
+def _check_params(kind: str, params: Dict[str, Any]) -> None:
     if kind not in KINDS:
         raise JobError(f"loại job không có trong danh sách trắng: {kind!r}")
-    if not isinstance(args, list) or not all(isinstance(x, str) and "\0" not in x for x in args):
-        raise JobError("args phải là danh sách chuỗi")
-    allowed = KINDS[kind]["flags"]
-    bad = [x for x in args if x.startswith("--") and x not in allowed]
+    if not isinstance(params, dict):
+        raise JobError("params phải là dict")
+    bad = sorted(set(params) - KINDS[kind]["params"])
     if bad:
-        raise JobError(f"cờ không được phép cho {kind}: {bad}")
+        raise JobError(f"tham số không được phép cho {kind}: {bad}")
+    try:
+        json.dumps(params, allow_nan=False)   # phải ghi được ra params.json (không NaN/kiểu lạ)
+    except (TypeError, ValueError) as e:
+        raise JobError(f"params không ghi được JSON: {e}")
 
 
 # ─── Lưu/đọc job.json ───────────────────────────────────────────────────────
@@ -308,37 +310,67 @@ def _active_count() -> int:
     return n
 
 
-def launch(kind: str, args: List[str], files: Optional[Dict[str, Any]] = None) -> str:
-    """Khởi chạy job nền, trả job_id ngay (không chờ). args/files đã qua build_job (`@JOBDIR/<tên>` -> file trong thư mục job)."""
-    _check_launch_args(kind, args)
+def _env() -> Dict[str, str]:
+    env = dict(os.environ)
+    # Khi API chạy từ user service, run_limited.sh cần bus của user session để gọi systemd-run --user.
+    env.setdefault("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
+    env.setdefault("DBUS_SESSION_BUS_ADDRESS", f"unix:path={env['XDG_RUNTIME_DIR']}/bus")
+    return env
+
+
+def launch(kind: str, params: Dict[str, Any]) -> str:
+    """Khởi chạy job nền, trả job_id ngay (không chờ). params đã qua build_job / router."""
+    params = dict(params)
+    _check_params(kind, params)
     if _active_count() >= MAX_ACTIVE:
         raise JobBusy(f"đang có >= {MAX_ACTIVE} job chạy/chờ; thử lại sau")
     job_id = f"{time.strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
     job_dir = os.path.join(jobs_root(), job_id)
     os.makedirs(job_dir)
-    for name, content in (files or {}).items():
-        with open(os.path.join(job_dir, os.path.basename(name)), "w", encoding="utf-8") as fh:
-            json.dump(content, fh, ensure_ascii=False)
-    args = [os.path.join(job_dir, x[len(JOBDIR_TOKEN) + 1:]) if x.startswith(JOBDIR_TOKEN + "/") else x for x in args]
     if kind == "book_build":   # sổ dựng xong nằm trong thư mục job; alphas/ chỉ đổi khi người dùng xuất bản (book_export.publish_book)
-        args += ["--out", os.path.join(job_dir, "alphas")]
-    env = dict(os.environ, NORA_JOB_DIR=job_dir)
-    # Khi API chạy từ user service, run_limited.sh cần bus của user session để gọi systemd-run --user.
-    env.setdefault("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
-    env.setdefault("DBUS_SESSION_BUS_ADDRESS", f"unix:path={env['XDG_RUNTIME_DIR']}/bus")
-    cmd = [RUN_LIMITED, "--", "-m", KINDS[kind]["module"], *args]
+        params["out"] = os.path.join(job_dir, "alphas")
+    with open(os.path.join(job_dir, "params.json"), "w", encoding="utf-8") as fh:   # đầu vào của runner (ghi TRƯỚC khi chạy)
+        json.dump({"kind": kind, "params": params}, fh, ensure_ascii=False)
+    env = dict(_env(), NORA_JOB_DIR=job_dir)
+    cmd = [RUN_LIMITED, "--", "-m", RUNNER, job_dir]
     log = open(os.path.join(job_dir, "out.log"), "ab")
     try:
         proc = subprocess.Popen(cmd, cwd=NORA_DIR, env=env, stdin=subprocess.DEVNULL, stdout=log,
                                 stderr=subprocess.STDOUT, start_new_session=True)
     finally:
         log.close()  # tiến trình con giữ bản riêng của fd
-    now = time.time()
     with _LOCK:
-        _write_meta(job_dir, {"id": job_id, "kind": kind, "args": args, "pid": proc.pid, "created": now, "started": None,
+        _write_meta(job_dir, {"id": job_id, "kind": kind, "params": params, "pid": proc.pid, "created": time.time(), "started": None,
                               "finished": None, "state": "running", "exit_code": None})
     threading.Thread(target=_waiter, args=(proc, job_dir), name=f"batch-job-{job_id}", daemon=True).start()
     return job_id
+
+
+def http_launch(kind: str, params: Dict[str, Any]) -> Dict[str, str]:
+    """launch() cho router: JobError -> HTTP 422, JobBusy -> 429. Trả {"job_id"}."""
+    from fastapi import HTTPException
+    try:
+        return {"job_id": launch(kind, params)}
+    except JobError as e:
+        raise HTTPException(422, str(e))
+    except JobBusy as e:
+        raise HTTPException(429, str(e))
+
+
+def run_sync(kind: str, params: Dict[str, Any], job_dir: str, timeout: float = 1800) -> None:
+    """Chạy một job NGAY và chờ xong (không qua hàng đợi: run_limited --no-lock, vẫn trong nora.slice). Dùng cho việc ngắn mà API cần
+    kết quả tại chỗ (vd. tính lại lệnh một alpha). Lỗi -> RuntimeError kèm đuôi log; quá thời gian -> TimeoutError."""
+    _check_params(kind, params)
+    os.makedirs(job_dir, exist_ok=True)
+    with open(os.path.join(job_dir, "params.json"), "w", encoding="utf-8") as fh:
+        json.dump({"kind": kind, "params": params}, fh, ensure_ascii=False)
+    try:
+        p = subprocess.run([RUN_LIMITED, "--no-lock", "--", "-m", RUNNER, job_dir], cwd=NORA_DIR, env=dict(_env(), NORA_JOB_DIR=job_dir),
+                           capture_output=True, text=True, timeout=timeout, stdin=subprocess.DEVNULL)
+    except subprocess.TimeoutExpired:
+        raise TimeoutError(f"{kind}: quá {timeout:.0f} giây")
+    if p.returncode != 0:
+        raise RuntimeError((p.stderr or p.stdout or "")[-400:])
 
 
 # ─── Theo dõi ───────────────────────────────────────────────────────────────
@@ -447,45 +479,42 @@ def status(job_id: str) -> Optional[Dict[str, Any]]:
     return out
 
 
-def _arg(args: List[str], flag: str) -> Optional[str]:
-    return args[args.index(flag) + 1] if flag in args and args.index(flag) + 1 < len(args) else None
+def _names(v: Any) -> str:
+    return ", ".join(v) if isinstance(v, (list, tuple)) else str(v or "").replace(",", ", ")
 
 
-def job_label(kind: str, args: List[str]) -> str:
+def job_label(kind: str, params: Optional[Dict[str, Any]]) -> str:
     """Nhãn ngắn cho người đọc, vd "Backtest · breakout_4h_long, breakout_4h_short · BTC,SOL · 2025-03-01→2025-04-30"."""
-    args = args or []
-    syms = _arg(args, "--symbols")
-    syms = ",".join(x.split("@")[0] for x in syms.split(",") if x) if syms else "cả vũ trụ"
-    rng = f"{_arg(args, '--start') or '…'}→{_arg(args, '--end') or '…'}"
+    p = params if isinstance(params, dict) else {}
+    syms = ",".join(str(x).split("@")[0] for x in p["symbols"]) if p.get("symbols") else "cả vũ trụ"
+    rng = f"{p.get('start') or '…'}→{p.get('end') or '…'}"
     if kind == "book_backtest":
-        ids = "sổ alphas/book.json"
-        raw = _arg(args, "--strategies")
-        if raw:
-            try:
-                ids = ", ".join(s["id"] for s in json.loads(raw))
-            except (ValueError, KeyError, TypeError):
-                ids = "tự chọn"
+        ids = ", ".join(s["id"] for s in p["strategies"]) if p.get("strategies") else "sổ alphas/book.json"
         return f"Backtest · {ids} · {syms} · {rng}"
     if kind == "book_wfa":
-        if _arg(args, "--candidates"):
-            src = f"{_arg(args, '--candidates').replace(',', ', ')} (n={_arg(args, '--n') or 3})"
-        elif _arg(args, "--strategies-json"):
-            src = "cấu hình chọn tay"
-            try:
-                with open(_arg(args, "--strategies-json"), encoding="utf-8") as fh:
-                    src = ", ".join(f"{s['id']}×{len(s['configs'])}" for s in json.load(fh))
-            except (OSError, ValueError, KeyError, TypeError):
-                pass
+        if p.get("candidates"):
+            src = f"{_names(p['candidates'])} (n={p.get('n') or 3})"
+        elif p.get("strategies"):
+            src = ", ".join(f"{s['id']}×{len(s['configs'])}" for s in p["strategies"])
         else:
-            src = f"báo cáo {os.path.basename(_arg(args, '--report') or '?')}"
-        return f"WFA · {src} · {syms} · {rng}" if (_arg(args, "--start") or _arg(args, "--symbols")) else f"WFA · {src}"
+            src = f"báo cáo {os.path.basename(p.get('report') or '?')}"
+        return f"WFA · {src} · {syms} · {rng}" if (p.get("start") or p.get("symbols")) else f"WFA · {src}"
     if kind == "funnel_run":
-        if _arg(args, "--resume"):
-            return f"Phễu · chạy tiếp {_arg(args, '--resume')}"
-        n = "lưới đủ" if "--full-grid" in args else f"n={_arg(args, '--n-per-strategy') or '?'}/chiến lược"
-        return f"Phễu · {(_arg(args, '--strategies') or '?').replace(',', ', ')} · {n} · {syms}"
-    only = _arg(args, "--only")
-    return f"Dựng sổ · {only.replace(',', ', ') if only else 'mọi chiến lược'} · n={_arg(args, '--n') or 24}"
+        if p.get("resume"):
+            return f"Phễu · chạy tiếp {p['resume']}"
+        n = "lưới đủ" if p.get("full_grid") else f"n={p.get('n_per_strategy') or '?'}/chiến lược"
+        return f"Phễu · {_names(p.get('strategies')) or '?'} · {n} · {syms}"
+    if kind == "funnel_recompute":
+        return f"Phễu · tính lại lệnh {p.get('alpha_id')}"
+    if kind == "presets_build":
+        return "Dựng presets.json"
+    if kind == "mock_feeds":
+        return f"Feed giả lập · {p.get('only') or 'live + testnet'}"
+    if kind == "data_crawl":
+        return f"Tải dữ liệu · {_names(p.get('symbols'))} · {p.get('market', 'spot')} · {p.get('years', 3)} năm"
+    if kind == "data_promote":
+        return f"Đưa dữ liệu staging vào kho · {'thực hiện' if p.get('apply') else 'xem trước'}"
+    return f"Dựng sổ · {_names(p.get('only')) or 'mọi chiến lược'} · n={p.get('n') or 24}"
 
 
 def list_jobs(limit: int = 20, kind: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -499,7 +528,7 @@ def list_jobs(limit: int = 20, kind: Optional[str] = None) -> List[Dict[str, Any
         if not s or (kind and s.get("kind") != kind):
             continue
         s.pop("_lines", None)
-        s["label"] = job_label(s.get("kind"), s.get("args") or [])
+        s["label"] = job_label(s.get("kind"), s.get("params"))
         rows.append(s)
         if len(rows) >= limit:
             break

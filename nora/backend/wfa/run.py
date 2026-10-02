@@ -1,19 +1,15 @@
-"""Kiểm sổ chiến lược bằng Walk-Forward danh mục + Monte Carlo trên lợi suất ngày MTM (backend/wfa/portfolio_wfa.py).
+"""Job WFA danh mục (POST /api/studio/book/wfa -> api/jobs/runner.py -> run_job): Walk-Forward cả sổ + Monte Carlo lợi suất ngày MTM.
 
 Mỗi fold: IS chọn lại cấu hình của TỪNG chiến lược (top-K ứng viên), OOS chạy CẢ sổ chung vốn (kill switch bật, SL "level" và
-"extreme"). Sau đó nối lợi suất ngày OOS (extreme) -> Monte Carlo 1 năm. Gate: xem hằng số đầu portfolio_wfa.py.
+"extreme"). Sau đó nối lợi suất ngày OOS (extreme) -> Monte Carlo 1 năm. Gate: xem hằng số đầu walk_forward.py.
 
-Nguồn ứng viên (chọn một):
-  --report <thư mục lần chạy build_strategy_book>   đọc stage_a.json + report.json; top-N cấu hình mỗi chiến lược theo điểm dev1;
-                                                     mặc định chỉ chiến lược ĐẠT trong report.json (--include-rejected: cả loại)
-  --candidates id1,id2 --n K                        lấy mẫu K cấu hình mỗi chiến lược như build_strategy_book.configs(seed)
-  --strategies-json <file>                          [{"id": ..., "configs": [{...}, ...]}] do người dùng chọn; DÙNG ĐÚNG các cấu hình
-                                                     này (1 cấu hình mỗi chiến lược = tham số cố định, WFA chỉ kiểm OOS cuộn)
-Cửa sổ mặc định: dev1_end -> dev2_end (từ report, hoặc windows() của build_strategy_book); --start/--end (YYYY-MM-DD) ghi đè.
-Rủi ro mỗi lệnh: lấy từ report["book"] nếu có, không thì mức chuẩn 0,5% (--risk-per-trade ghi đè).
-
-Dùng: backend/utils/ops/run_limited.sh -- -m backend.wfa.validate_book --candidates trend_long,reversion_short --n 3 --workers auto
-Kết quả: <data>/_cache/book_wfa/<thời điểm>/report.json. BẮT BUỘC chạy dưới trần RAM (run_limited.sh).
+Nguồn ứng viên (chọn một tham số):
+  report       thư mục lần dựng sổ (optimize/book.py): top-N cấu hình mỗi chiến lược theo điểm dev1; mặc định chỉ chiến lược ĐẠT
+               (include_rejected=True: cả loại)
+  candidates   "id1,id2" hoặc [id...]: lấy mẫu n cấu hình mỗi chiến lược như optimize.book.configs(seed)
+  strategies   [{"id": ..., "configs": [{...}, ...]}] do người dùng chọn; DÙNG ĐÚNG các cấu hình này
+Cửa sổ mặc định: dev1_end -> dev2_end; start/end (YYYY-MM-DD) ghi đè. Rủi ro/lệnh: report["book"] hoặc 0,5% (risk_per_trade ghi đè).
+Kết quả: <data>/_cache/book_wfa/<thời điểm>/report.json + $NORA_JOB_DIR/result.json.
 """
 # ── Đặt TRƯỚC mọi import numpy/backend: tiến trình con kế thừa qua fork ──────
 import os
@@ -24,23 +20,22 @@ os.environ.setdefault("NORA_CANDLE_CACHE_MB", "512")
 os.environ.setdefault("NORA_DATA_CACHE_MB", "1024")
 # ─────────────────────────────────────────────────────────────────────────────
 
-import argparse
 import itertools
 import json
 import shutil
-import sys
 import time
 import warnings
 
 import pandas as pd
 
-NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-if NORA_ROOT not in sys.path:
-    sys.path.insert(0, NORA_ROOT)
+from backend.optimize import book as bsb   # windows, configs, PER_WORKER_MB, _dir_mb
+from backend.utils.jobs import as_list, options, write_job_result
+from backend.utils.jsonsafe import json_default
 
-from backend.optimize import build_strategy_book as bsb  # noqa: E402  (windows, configs, PER_WORKER_MB, _dir_mb)
-from backend.utils.jobresult import write_job_result  # noqa: E402
-from backend.utils.jsonsafe import json_default  # noqa: E402
+DEFAULTS = {"report": "", "include_rejected": False, "candidates": "", "strategies": None, "symbols": "", "n": 3, "seed": 7,
+            "start": "", "end": "", "train_days": 120, "test_days": 30, "step_days": None, "min_is_trades": 10, "sims": 10_000,
+            "mc_seed": 1, "risk_per_trade": None, "workers": "auto", "per_worker_mb": None, "resume": "", "max_configs": 200_000,
+            "force_large": False}
 
 
 def _ts(date_str):
@@ -80,14 +75,12 @@ def candidates_from_ids(ids, n, seed):
     return [{"id": i, "configs": bsb.configs(by_id[i], n, seed)} for i in ids]
 
 
-def candidates_from_json(path):
+def candidates_from_list(raw):
     """Cấu hình do người dùng chọn: [{"id", "configs": [{tham số}]}] -> đúng như vậy (kiểm id/khoá tham số theo `space` + `params_schema`)."""
     from backend.core.strategy.book import CANDIDATES
     by_id = {c["id"]: c for c in CANDIDATES}
-    with open(path, encoding="utf-8") as fh:
-        raw = json.load(fh)
     if not isinstance(raw, list) or not raw:
-        raise SystemExit("--strategies-json phải là danh sách JSON không rỗng")
+        raise SystemExit("strategies phải là danh sách không rỗng")
     out, seen = [], set()
     for s in raw:
         cid, cfgs = s.get("id"), s.get("configs")
@@ -132,40 +125,18 @@ def print_summary(res):
     print(f"đỉnh RAM/worker {m['peak_rss_mb']:.0f} MB (riêng {m['rss_anon_mb']:.0f} MB + mmap dùng chung)", flush=True)
 
 
-def main(argv=None):
+def run_job(params=None):
+    """Chạy job WFA với `params` (xem docstring module) -> báo cáo (cũng ghi report.json + $NORA_JOB_DIR/result.json)."""
     warnings.filterwarnings("ignore")
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--report", default="", help="thư mục lần chạy build_strategy_book (có stage_a.json + report.json)")
-    ap.add_argument("--include-rejected", action="store_true", help="với --report: kiểm cả chiến lược bị loại")
-    ap.add_argument("--candidates", default="", help="id chiến lược, phân tách bằng dấu phẩy (không dùng report)")
-    ap.add_argument("--strategies-json", default="", help="file JSON [{id, configs:[...]}]: dùng đúng các cấu hình này (không report/candidates)")
-    ap.add_argument("--symbols", default="", help="vd BTC@perp,SOL@perp (mặc định cả vũ trụ của sổ chiến lược)")
-    ap.add_argument("--n", type=int, default=3, help="số cấu hình mỗi chiến lược (top-N theo report, hoặc lấy mẫu)")
-    ap.add_argument("--seed", type=int, default=7, help="seed lấy mẫu cấu hình (--candidates)")
-    ap.add_argument("--start", default="", help="YYYY-MM-DD (mặc định dev1_end)")
-    ap.add_argument("--end", default="", help="YYYY-MM-DD (mặc định dev2_end)")
-    ap.add_argument("--train-days", type=int, default=120)
-    ap.add_argument("--test-days", type=int, default=30)
-    ap.add_argument("--step-days", type=int, default=None)
-    ap.add_argument("--min-is-trades", type=int, default=10)
-    ap.add_argument("--sims", type=int, default=10_000, help="số lần mô phỏng Monte Carlo (< 10.000: gate WFA trượt check mc_simulations)")
-    ap.add_argument("--mc-seed", type=int, default=1)
-    ap.add_argument("--risk-per-trade", type=float, default=None, help="%% vốn rủi ro mỗi lệnh (mặc định: report.book hoặc 0,5)")
-    ap.add_argument("--workers", default="auto")
-    ap.add_argument("--per-worker-mb", type=float, default=None)
-    ap.add_argument("--resume", default="", help="thư mục lần chạy bị ngắt (data/_cache/book_wfa/<...>): bỏ qua job đã có trong results.sqlite "
-                                                 "(truyền lại ĐÚNG các đối số nguồn/cửa sổ như lần trước)")
-    ap.add_argument("--max-configs", type=int, default=200_000, help="từ chối khi số job IS (fold × cấu hình) vượt ngưỡng này (trừ --force-large)")
-    ap.add_argument("--force-large", action="store_true", help="cho phép vượt --max-configs")
-    a = ap.parse_args(argv)
-    if sum(map(bool, (a.report, a.candidates, a.strategies_json))) != 1:
-        ap.error("chọn đúng một: --report, --candidates hoặc --strategies-json")
+    a = options(DEFAULTS, params)
+    if sum(map(bool, (a.report, a.candidates, a.strategies))) != 1:
+        raise ValueError("chọn đúng một: report, candidates hoặc strategies")
 
     from backend.utils.memwatch import check_memory_gate, require_memory_limit
     require_memory_limit("validate_book")
     from backend.core.strategy.book import BASE_RISK_PER_TRADE_PCT, RISK, perp_symbols
     from backend.db.data_layout import cache_dir
-    from backend.wfa.portfolio_wfa import PortfolioWfaConfig, run_portfolio_wfa
+    from backend.wfa.walk_forward import PortfolioWfaConfig, run_portfolio_wfa
     from backend.utils.parallel import resolve_workers
 
     per_worker_mb = a.per_worker_mb or bsb.PER_WORKER_MB
@@ -180,22 +151,22 @@ def main(argv=None):
         rpt = ((report.get("book") or {}).get("risk_per_trade_pct")) or rpt
         w = {k: _ts(v) for k, v in report["windows"].items()}
     else:
-        cands = (candidates_from_json(a.strategies_json) if a.strategies_json
-                 else candidates_from_ids([c for c in a.candidates.split(",") if c], a.n, a.seed))
+        cands = (candidates_from_list(a.strategies) if a.strategies
+                 else candidates_from_ids(as_list(a.candidates), a.n, a.seed))
         w = bsb.windows(perp_symbols())
-    symbols = [x if "@" in x else f"{x}@perp" for x in a.symbols.split(",") if x] or perp_symbols()
+    symbols = [x if "@" in x else f"{x}@perp" for x in as_list(a.symbols)] or perp_symbols()
     from backend.core.data.quality_gate import require_data_ok_or_exit
     require_data_ok_or_exit(symbols)   # cổng chất lượng dữ liệu bắt buộc (trước khi fork pool để worker thừa kế cache gate)
     if a.risk_per_trade is not None:
         rpt = a.risk_per_trade
     if not cands:
-        raise SystemExit("Không có chiến lược nào để kiểm (report không có chiến lược đạt? thử --include-rejected)")
+        raise SystemExit("Không có chiến lược nào để kiểm (report không có chiến lược đạt? thử include_rejected)")
     start = _ts(a.start) if a.start else w["dev1_end"]
     end = _ts(a.end) if a.end else w["dev2_end"]
 
-    from backend.optimize.progress import Progress, graceful_sigterm
+    from backend.utils.jobs import Progress, graceful_sigterm
     from backend.optimize.results_store import ResultsStore
-    from backend.wfa import portfolio_wfa as pw
+    from backend.wfa import walk_forward as pw
     from backend.wfa.walk_forward import generate_folds
 
     # Ước lượng + trần số job TRƯỚC khi chạy: IS = fold × tổng số cấu hình; OOS = 2 × fold
@@ -203,13 +174,13 @@ def main(argv=None):
     n_cfg = sum(len(c["configs"]) for c in cands)
     is_total = len(folds) * n_cfg
     if is_total > a.max_configs and not a.force_large:
-        raise SystemExit(f"Từ chối: {is_total:,} job IS ({len(folds)} fold × {n_cfg} cấu hình) vượt --max-configs {a.max_configs:,}. "
-                         f"Giảm --n / số chiến lược hoặc thêm --force-large.")
+        raise SystemExit(f"Từ chối: {is_total:,} job IS ({len(folds)} fold × {n_cfg} cấu hình) vượt max_configs {a.max_configs:,}. "
+                         f"Giảm n / số chiến lược hoặc đặt force_large.")
     if a.resume:
         run_dir = os.path.abspath(a.resume if os.path.isabs(a.resume) or os.path.isdir(a.resume)
                                   else os.path.join(cache_dir(None, "book_wfa"), a.resume))
         if not os.path.isfile(os.path.join(run_dir, "results.sqlite")):
-            raise SystemExit(f"--resume: {run_dir} không có results.sqlite")
+            raise SystemExit(f"resume: {run_dir} không có results.sqlite")
     else:
         base = time.strftime("%Y%m%d_%H%M%S")
         for k in itertools.count(1):
@@ -243,7 +214,7 @@ def main(argv=None):
             progress.set_estimate(est)
             res = run_portfolio_wfa(cands, symbols, start, end, cfg, risk, rpt, workers, shared_dir, store=store, progress=progress)
             res["source"] = {"report": os.path.abspath(a.report) if a.report else None, "include_rejected": a.include_rejected,
-                             "strategies_json": bool(a.strategies_json),
+                             "strategies": bool(a.strategies),
                              "wall_s": round(time.time() - t0, 1)}
             if os.path.isdir(shared_dir):  # chạy xong thành công: dọn (lỗi thì không tới đây -> còn nguyên để gỡ lỗi)
                 shutil.rmtree(shared_dir, ignore_errors=True)
@@ -258,7 +229,3 @@ def main(argv=None):
     finally:
         store.close()   # flush lô ghi cuối (cả khi SIGTERM/ngoại lệ) -> --resume dùng được
     return res
-
-
-if __name__ == "__main__":
-    main()

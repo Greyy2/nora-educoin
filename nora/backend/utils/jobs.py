@@ -1,18 +1,25 @@
-"""Tiến độ + huỷ an toàn cho job tối ưu dài: <run_dir>/progress.json (ghi tối đa mỗi 5 giây) và xử lý SIGTERM.
+"""Tiện ích chung cho job nền (chạy qua api/jobs/runner.py): tham số, kết quả, tiến độ, huỷ an toàn.
+
+Tiến độ + huỷ an toàn cho job dài: <run_dir>/progress.json (ghi tối đa mỗi 5 giây) và xử lý SIGTERM.
 
 progress.json = {"run_dir", "stage", "done", "total", "rate" (job/giây của giai đoạn), "eta_s", "elapsed_s", "peak_rss_mb" (tiến trình cha),
                  "worker_peak_rss_mb", "status": running|done|cancelled|failed, "updated", "estimate": {...}}
 Nếu env NORA_JOB_DIR có đặt (job của API) file được ghi thêm vào đó để API (backend/api/jobs/batch.py) hiển thị.
 
-SIGTERM (nút "Huỷ" của API gửi cho cả nhóm tiến trình): handler ném SystemExit(143) ở luồng chính -> các khối finally của CLI flush kho kết quả
+SIGTERM (nút "Huỷ" của API gửi cho cả nhóm tiến trình): handler ném SystemExit(143) ở luồng chính -> các khối finally của job flush kho kết quả
 (ResultsStore.close) rồi ghi progress status="cancelled" -> chạy lại với --resume tiếp tục đúng chỗ dừng.
+
+Thêm: write_job_result (result.json của job API) và options (tham số job: mặc định + giá trị truyền vào, từ chối khoá lạ).
 """
 import contextlib
 import json
 import os
 import signal
 import time
+from types import SimpleNamespace
 from typing import Any, Dict, Iterator, Optional, Sequence
+
+from backend.utils.jsonsafe import json_default
 
 WRITE_EVERY_S = 5.0
 
@@ -146,3 +153,35 @@ def graceful_sigterm(progress: Optional[Progress] = None) -> Iterator[None]:
                 signal.signal(sig, h)
             except ValueError:
                 pass
+
+
+# ─── Kết quả + tham số job ──────────────────────────────────────────────────
+def write_job_result(result: Any) -> Optional[str]:
+    job_dir = os.environ.get("NORA_JOB_DIR")
+    if not job_dir:
+        return None
+    os.makedirs(job_dir, exist_ok=True)
+    path = os.path.join(job_dir, "result.json")
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(result, fh, ensure_ascii=False, default=json_default)
+    os.replace(tmp, path)  # ghi nguyên tử: API không bao giờ đọc file dở
+    return path
+
+
+def options(defaults: Dict[str, Any], params: Optional[Dict[str, Any]] = None) -> SimpleNamespace:
+    """Tham số của một job: `defaults` ghi đè bởi `params`. Khoá lạ -> ValueError (không âm thầm bỏ qua lỗi gõ tên)."""
+    params = dict(params or {})
+    unknown = sorted(set(params) - set(defaults))
+    if unknown:
+        raise ValueError(f"tham số lạ: {unknown}; có: {sorted(defaults)}")
+    return SimpleNamespace(**{**defaults, **params})
+
+
+def as_list(value) -> list:
+    """Danh sách từ tham số job: None/"" -> [], "a,b" -> ["a", "b"], list/tuple -> list."""
+    if not value:
+        return []
+    if isinstance(value, str):
+        return [x for x in value.split(",") if x]
+    return list(value)

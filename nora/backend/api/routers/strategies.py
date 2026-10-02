@@ -3,11 +3,12 @@
 GET  /api/studio/strategies           7 chiến lược lõi: params_schema (mọi tham số chỉnh được), preset {params, source, evidence}, frames_allowed.
 POST /api/studio/strategies/validate  Kiểm thử tham số một chiến lược theo params_schema (không chạy job): {ok, errors[{field, message}], resolved}.
 """
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from backend.api.jobs import batch as batch_jobs
 from backend.core.params import presets as presets_mod
 from backend.core.params import modes as rm
 from backend.core.params.template import FRAMES
@@ -37,3 +38,9 @@ def post_validate(req: ValidateRequest):
         raise HTTPException(404, f"Không có chiến lược '{req.id}'; có: {[c['id'] for c in CANDIDATES]}")
     full, errors = rm.validate_params(cand, req.params, presets_mod.load_presets()[req.id]["params"], "params")
     return {"ok": not errors, "errors": [{"field": f, "message": m} for f, m in errors], "resolved": None if errors else full}
+
+
+@router.post("/presets")
+def post_build_presets():
+    """Dựng lại data/alphas/presets.json từ sổ đã chốt + lần dựng sổ mới nhất (job nền presets_build, không chạy backtest)."""
+    return batch_jobs.http_launch("presets_build", {})

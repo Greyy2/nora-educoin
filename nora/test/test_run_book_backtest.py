@@ -1,4 +1,4 @@
-"""backend/core/backtest/run_book_backtest.py trên thị trường giả lập (3 tài sản perp): khoá kết quả, result.json theo NORA_JOB_DIR, tất định."""
+"""backend/core/backtest/run.py trên thị trường giả lập (3 tài sản perp): khoá kết quả, result.json theo NORA_JOB_DIR, tất định."""
 import importlib.util
 import json
 import os
@@ -55,7 +55,7 @@ def market(tmp_path, monkeypatch):
 
 
 def _load_script():
-    path = os.path.join(os.path.dirname(__file__), "..", "backend", "core", "backtest", "run_book_backtest.py")
+    path = os.path.join(os.path.dirname(__file__), "..", "backend", "core", "backtest", "run.py")
     spec = importlib.util.spec_from_file_location("run_book_backtest", path)
     mod = importlib.util.module_from_spec(spec)
     sys.modules["run_book_backtest"] = mod
@@ -63,16 +63,15 @@ def _load_script():
     return mod
 
 
-def _argv(out):
-    return ["--strategies", json.dumps(STRATS), "--symbols", "AAA@perp,BBB@perp,CCC",
-            "--start", "2023-12-10", "--end", "2024-01-15", "--out", str(out)]
+def _params(out):
+    return {"strategies": STRATS, "symbols": "AAA@perp,BBB@perp,CCC", "start": "2023-12-10", "end": "2024-01-15", "out": str(out)}
 
 
 def test_main_writes_result_json_with_expected_keys(market, tmp_path, monkeypatch):
     job_dir = tmp_path / "job"
     monkeypatch.setenv("NORA_JOB_DIR", str(job_dir))
     mod = _load_script()
-    out = mod.main(_argv(tmp_path / "out.json"))
+    out = mod.run_job(_params(tmp_path / "out.json"))
     res = json.loads((job_dir / "result.json").read_text())
     assert json.loads((tmp_path / "out.json").read_text()).keys() == res.keys()
     for k in ("ret_pct", "mdd_pct", "sharpe", "trades", "win_pct", "symbols_positive", "by_symbol", "by_strategy", "daily",
@@ -94,8 +93,8 @@ def test_main_writes_result_json_with_expected_keys(market, tmp_path, monkeypatc
 def test_deterministic(market, tmp_path, monkeypatch):
     monkeypatch.delenv("NORA_JOB_DIR", raising=False)
     mod = _load_script()
-    a = mod.main(_argv(tmp_path / "a.json"))
-    b = mod.main(_argv(tmp_path / "b.json"))
+    a = mod.run_job(_params(tmp_path / "a.json"))
+    b = mod.run_job(_params(tmp_path / "b.json"))
     assert not (tmp_path / "result.json").exists()   # không đặt NORA_JOB_DIR -> không ghi result.json
     for r in (a, b):
         r.pop("meta")                                # thời gian chạy / RAM không tất định
@@ -113,15 +112,15 @@ def test_downsample_keeps_ends_and_limit():
 def test_rejects_unknown_strategy_and_bad_window(market, tmp_path):
     mod = _load_script()
     with pytest.raises(SystemExit):
-        mod.main(["--strategies", '[{"id": "khong_co"}]', "--start", "2023-12-10", "--end", "2024-01-15"])
+        mod.run_job({"strategies": [{"id": "khong_co"}], "start": "2023-12-10", "end": "2024-01-15"})
     with pytest.raises(SystemExit):
-        mod.main(["--strategies", json.dumps(STRATS), "--start", "2024-01-15", "--end", "2023-12-10"])
+        mod.run_job({"strategies": STRATS, "start": "2024-01-15", "end": "2023-12-10"})
 
 
 def test_trade_list_has_notional_and_daily_nav(market, tmp_path):
     """Dashboard cần khối lượng/danh nghĩa/ký quỹ mỗi lệnh và vốn cuối ngày chính xác (daily_nav)."""
     mod = _load_script()
-    out = mod.main(_argv(tmp_path / "o.json"))
+    out = mod.run_job(_params(tmp_path / "o.json"))
     assert out["trade_list"], "cần có lệnh"
     for t in out["trade_list"]:
         assert t["qty"] > 0 and t["notional"] > 0 and t["margin_usd"] > 0
@@ -133,15 +132,15 @@ def test_trade_list_has_notional_and_daily_nav(market, tmp_path):
     assert nav[-1]["equity"] == out["equity_curve"][-1]["equity"]                          # ngày cuối = mẫu vốn cuối
 
 
-# ─── Feed giả lập (make_mock_feeds): vị thế cuối dữ liệu không bị đóng ép ─────────────────────────────────────
+# ─── Feed giả lập (feeds.make_feed, job mock_feeds): vị thế cuối dữ liệu không bị đóng ép ─────────────────────────────────────
 def _mock_plan():
     return {"days": 25, "capital": 5_000.0, "alpha": False}
 
 
 def _feed(end_ms):
-    from backend.core.analytics import make_mock_feeds as mmf
+    from backend.core.analytics import feeds as mmf
     return mmf.make_feed("testnet", symbols=[f"{s}@perp" for s in SYMS], end_ms=end_ms, plan=_mock_plan(),
-                         book_args=type("A", (), {"strategies": json.dumps(STRATS), "book": ""})())
+                         book_args=type("A", (), {"strategies": STRATS, "book": ""})())
 
 
 def test_make_mock_feed_keeps_open_positions_and_is_deterministic(market):
@@ -182,7 +181,7 @@ def test_strategy_symbols_filter_restricts_markets(market):
 
 
 def test_alpha_strategy_scales_order_size_by_max_scale(tmp_path, monkeypatch):
-    from backend.core.analytics import make_mock_feeds as mmf
+    from backend.core.analytics import feeds as mmf
     ast = {"type": "LONG", "match": [{"condition": [[["x"]]]}], "stop": []}
     reg = {"alphas": [{"alpha_id": "a__SOL", "side": "LONG", "symbol": "SOL", "data_symbol": "SOL@perp",
                        "position": {"market": "perp", "leverage": 1, "order_size_pct": 50}, "flows": [{"ast": ast}]}]}

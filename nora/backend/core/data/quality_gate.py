@@ -10,10 +10,7 @@ from typing import Dict, Any, List, Optional
 import numpy as np
 import pandas as pd
 
-try:
-    from backend.db.tick_storage import load_ticks_df, load_candle_df, default_data_root, symbol_dir
-except ImportError:
-    from nora.backend.db.tick_storage import load_ticks_df, load_candle_df, default_data_root, symbol_dir
+from backend.db.tick_storage import load_ticks_df, load_candle_df, symbol_dir
 
 
 # Tỉ lệ phút không có giao dịch tối đa cho phép. Engine KHÔNG khớp lệnh trên nến điền
@@ -164,10 +161,7 @@ def _evaluate_data_quality_uncached(
     # 4. sha256 1m integrity check
     manifest_sha = manifest.get("sha256_1m")
     if manifest_sha:
-        try:
-            from backend.core.data.resampler import compute_df_sha256
-        except ImportError:
-            from nora.backend.core.data.resampler import compute_df_sha256
+        from backend.core.data.resampler import compute_df_sha256
         actual_sha = compute_df_sha256(df_1m)
         if actual_sha != manifest_sha:
             return {
@@ -226,10 +220,7 @@ def _evaluate_data_quality_uncached(
         )
 
     # 8. So resample: mọi khung đang có (bắt buộc 4h), O/H/L/C sai số tương đối < 1e-9, volume < 1e-6
-    try:
-        from backend.core.data.resampler import resample_from_1m
-    except ImportError:
-        from nora.backend.core.data.resampler import resample_from_1m
+    from backend.core.data.resampler import resample_from_1m
 
     for check_tf in ["4h", "15m", "1h", "5m"]:
         df_stored = load_candle_df(symbol, check_tf, data_root)

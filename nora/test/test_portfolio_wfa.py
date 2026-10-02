@@ -8,7 +8,7 @@ import json
 import numpy as np
 import pytest
 
-from backend.wfa import portfolio_wfa as pw
+from backend.wfa import walk_forward as pw
 from backend.wfa.walk_forward import generate_folds
 from test_strategy_book import SYMS, T0, _load_script, _small_book, market  # noqa: F401  (market là fixture)
 
@@ -49,7 +49,7 @@ def _stable(res):
 
 # ── Bước 1: số đo dùng chung ────────────────────────────────────────────────
 def _old_bootstrap(daily, scale, n=4000, block=5, horizon=365, seed=1, mdd_limit=30.0):
-    """Bản gốc trong backend/optimize/build_strategy_book.py trước khi chuyển (giữ nguyên để so từng bit)."""
+    """Bản gốc trong backend/optimize/book.py trước khi chuyển (giữ nguyên để so từng bit)."""
     rng = np.random.default_rng(seed)
     d = np.asarray(daily, dtype=float)
     mdds, rets = np.empty(n), np.empty(n)
@@ -246,19 +246,18 @@ def test_candidates_from_report_old_report_with_string_bools():
     assert [c["id"] for c in vb.candidates_from_report(stage_a, report, 1, False)] == ["a", "c"]
 
 
-def test_validate_book_help_does_not_crash(capsys):
+def test_wfa_job_rejects_unknown_params():
     vb = _load_script("validate_book")
-    with pytest.raises(SystemExit) as e:
-        vb.main(["--help"])
-    assert e.value.code == 0 and "% vốn rủi ro" in capsys.readouterr().out
+    with pytest.raises(ValueError, match="tham số lạ"):
+        vb.run_job({"candidates": "t_long", "bogus": 1})
 
 
 def test_validate_book_main_end_to_end(market, monkeypatch, tmp_path):
     _small_book(monkeypatch)
     vb = _load_script("validate_book")
     start, end = (f"{__import__('pandas').Timestamp(t, unit='ms'):%Y-%m-%d}" for t in (START, T0 + 66 * DAY))
-    res = vb.main(["--candidates", "t_long,t_short", "--n", "2", "--workers", "2", "--per-worker-mb", "300",
-                   "--start", start, "--end", end, "--train-days", "15", "--test-days", "10", "--sims", "200"])
+    res = vb.run_job({"candidates": "t_long,t_short", "n": 2, "workers": 2, "per_worker_mb": 300,
+                      "start": start, "end": end, "train_days": 15, "test_days": 10, "sims": 200})
     reports = sorted((market / "_cache" / "book_wfa").glob("*/report.json"))
     assert reports
     rep = json.loads(reports[-1].read_text())

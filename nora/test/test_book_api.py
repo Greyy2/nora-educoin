@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 
 from backend.api.routers import book as book_router
 from backend.api.jobs import batch as batch_jobs
+from job_modules import launched
 
 
 class FakePopen:
@@ -61,9 +62,10 @@ def test_backtest_launches_via_run_limited_without_shell(client, tmp_path):
     assert r.status_code == 200, r.text
     job_id = r.json()["job_id"]
     cmd, kw = FakePopen.calls[0]
-    assert cmd[0].endswith("backend/utils/ops/run_limited.sh") and cmd[1:4] == ["--", "-m", "backend.core.backtest.run_book_backtest"]
-    assert cmd[cmd.index("--symbols") + 1] == "BTC@perp,SOL@perp"
-    assert cmd[cmd.index("--risk-per-trade") + 1] == "0.75" and "--strategies" not in cmd   # mặc định: alphas/book.json
+    kind, p = launched(FakePopen.calls[0])
+    assert cmd[0].endswith("backend/utils/ops/run_limited.sh") and kind == "book_backtest"
+    assert p["symbols"] == ["BTC@perp", "SOL@perp"]
+    assert p["risk_per_trade"] == 0.75 and "strategies" not in p   # mặc định: alphas/book.json
     assert kw["start_new_session"] is True and not kw.get("shell")
     assert kw["env"]["NORA_JOB_DIR"].endswith(job_id)
     assert kw["env"]["DBUS_SESSION_BUS_ADDRESS"] and kw["env"]["XDG_RUNTIME_DIR"]
@@ -74,9 +76,8 @@ def test_backtest_with_explicit_strategies(client):
     r = client.post("/api/studio/book/backtest", json={**BT, "mode": "advanced", "strategies": [
         {"id": "trend_long", "params": {"stop_loss_rate": 2.0}}]})
     assert r.status_code == 200, r.text
-    cmd = FakePopen.calls[0][0]
     # advanced: khoá người dùng giữ nguyên, khoá thiếu lấy từ preset (ở đây = mặc định schema) — đủ mọi khoá của space
-    assert json.loads(cmd[cmd.index("--strategies") + 1]) == [{"id": "trend_long", "params": {
+    assert launched(FakePopen.calls[0])[1]["strategies"] == [{"id": "trend_long", "params": {
         "sig.adx_min": 20.0, "stop_loss_rate": 2.0, "trailing_stop": 3.0, "trailing_activation_pct": 1.0, "timeout": 4320}}]
 
 
@@ -111,10 +112,10 @@ def test_wfa_requires_exactly_one_source_and_valid_ids(client, tmp_path):
           "train_days": 90, "test_days": 30, "mode": "advanced"}
     r = client.post("/api/studio/book/wfa", json=ok)
     assert r.status_code == 200, r.text
-    cmd = FakePopen.calls[0][0]
-    assert cmd[2:4] == ["-m", "backend.wfa.validate_book"]
-    assert cmd[cmd.index("--candidates") + 1] == "breakout_4h_long,breakout_4h_short"
-    assert cmd[cmd.index("--train-days") + 1] == "90" and cmd[cmd.index("--n") + 1] == "2"
+    kind, p = launched(FakePopen.calls[0])
+    assert kind == "book_wfa"
+    assert p["candidates"] == ["breakout_4h_long", "breakout_4h_short"]
+    assert p["train_days"] == 90 and p["n"] == 2
     for bad in ({}, {**ok, "report_dir": "x"}, {**ok, "candidates": ["nope"]}, {**ok, "train_days": 1}, {**ok, "n": 0},
                 {**ok, "start": "2025-10-01"}):
         assert client.post("/api/studio/book/wfa", json=bad).status_code == 422, bad
@@ -130,32 +131,31 @@ def test_wfa_report_dir_must_be_a_book_run(client, tmp_path):
     (run / "report.json").write_text("{}")
     r = client.post("/api/studio/book/wfa", json={"report_dir": "20260101_000000", "include_rejected": True, "mode": "advanced"})
     assert r.status_code == 200, r.text
-    cmd = FakePopen.calls[0][0]
-    assert cmd[cmd.index("--report") + 1] == str(run) and "--include-rejected" in cmd
+    p = launched(FakePopen.calls[0])[1]
+    assert p["report"] == str(run) and p["include_rejected"] is True
     for evil in ("../../etc", "/etc", str(tmp_path)):
         assert client.post("/api/studio/book/wfa", json={"report_dir": evil}).status_code == 422
 
 
-def test_build_args_and_whitelist(client):
+def test_build_params_and_whitelist(client):
     r = client.post("/api/studio/book/build", json={"only": ["trend_long"], "n": 6})
     assert r.status_code == 200
-    cmd = FakePopen.calls[0][0]
-    assert cmd[2:4] == ["-m", "backend.optimize.build_strategy_book"] and cmd[cmd.index("--only") + 1] == "trend_long"
-    out = cmd[cmd.index("--out") + 1]           # build luôn ghi vào thư mục job, không đụng nora/data/alphas
+    kind, p = launched(FakePopen.calls[0])
+    assert kind == "book_build" and p["only"] == ["trend_long"] and p["n"] == 6
+    out = p["out"]           # build luôn ghi vào thư mục job, không đụng nora/data/alphas
     job_id = os.path.basename(os.path.dirname(out))
     assert out == os.path.join(batch_jobs.jobs_root(), job_id, "alphas") and out != os.path.join(batch_jobs.NORA_DIR, "data", "alphas")
-    assert cmd.count("--out") == 1
     assert client.post("/api/studio/book/build", json={"only": ["x"]}).status_code == 422
     assert client.post("/api/studio/book/build", json={"n": 0}).status_code == 422
-    # tầng batch_jobs không tin router: loại job lạ / cờ lạ / byte NUL bị chặn
+    # tầng batch_jobs không tin router: loại job lạ / tham số lạ / giá trị không ghi được JSON bị chặn
     with pytest.raises(batch_jobs.JobError):
-        batch_jobs.launch("shell", ["-c", "id"])
+        batch_jobs.launch("shell", {"c": "id"})
     with pytest.raises(batch_jobs.JobError):
-        batch_jobs.launch("book_build", ["--out", "/etc"])
+        batch_jobs.launch("book_build", {"out": "/etc"})
     with pytest.raises(batch_jobs.JobError):
-        batch_jobs.launch("book_build", ["--n", "1\0"])
+        batch_jobs.launch("book_build", {"n": float("nan")})
     with pytest.raises(batch_jobs.JobError):
-        batch_jobs.build_args("rm", {})
+        batch_jobs.build_job("rm", {})
 
 
 # ─── Xuất bản sổ đã dựng ────────────────────────────────────────────────────
@@ -211,7 +211,7 @@ def test_publish_errors(client, tmp_path, monkeypatch):
 def _fake_job(kind="book_backtest", pid=2 ** 22 + 1, state="running", log="", result=None, name=None):
     d = os.path.join(batch_jobs.jobs_root(), name or f"{time.strftime('%Y%m%d_%H%M%S')}_abc123")
     os.makedirs(d, exist_ok=True)
-    batch_jobs._write_meta(d, {"id": os.path.basename(d), "kind": kind, "args": [], "pid": pid, "created": 1.0, "started": None,
+    batch_jobs._write_meta(d, {"id": os.path.basename(d), "kind": kind, "params": {}, "pid": pid, "created": 1.0, "started": None,
                                "finished": None, "state": state, "exit_code": None})
     open(os.path.join(d, "out.log"), "w", encoding="utf-8").write(log)
     if result is not None:
@@ -257,7 +257,7 @@ def test_job_status_log_tail_and_bad_ids(client):
 
 
 def test_waiter_thread_records_exit_code(client, tmp_path):
-    jid = batch_jobs.launch("book_build", ["--n", "2"])
+    jid = batch_jobs.launch("book_build", {"n": 2})
     deadline = time.time() + 5
     while time.time() < deadline and batch_jobs._read_meta(os.path.join(batch_jobs.jobs_root(), jid))["state"] == "running":
         time.sleep(0.05)

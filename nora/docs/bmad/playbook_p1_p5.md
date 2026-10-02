@@ -9,7 +9,7 @@ Làm **đúng thứ tự**, xong dòng nào thì sửa cột "Trạng thái" tro
 |---|---|
 | Chạy Python | Luôn qua `backend/utils/ops/run_limited.sh` từ thư mục `nora/`. Lệnh nhẹ thêm `--no-lock`. Ví dụ: `backend/utils/ops/run_limited.sh --no-lock -- -m pytest -q test/test_golden_results.py` |
 | Biến môi trường | `export PYTHONDONTWRITEBYTECODE=1` trước khi chạy |
-| Golden | Sau MỌI thay đổi engine: `test/test_golden_results.py` phải xanh (trùng từng bit). Không chạy `test/make_golden.py` trừ khi CỐ Ý đổi luật khớp lệnh |
+| Golden | Sau MỌI thay đổi engine: `test/test_golden_results.py` phải xanh (trùng từng bit). Không chạy `test/scripts/make_golden.py` trừ khi CỐ Ý đổi luật khớp lệnh |
 | Một engine | Không tạo engine thứ hai. Tăng tốc = sửa ruột `PortfolioEngine`/`BacktestEngine` |
 | Một chỗ cấu hình worker | `backend/utils/parallel.py` + `backend/utils/memwatch.py`. Không thêm biến/cờ worker ở chỗ khác |
 | Dữ liệu thật | Không mock trong backtest/WFA/MC. Quality gate (`require_data_ok`) đã chặn sẵn |

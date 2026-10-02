@@ -249,13 +249,10 @@ def get_alphas():
 
 def _launch(kind: str, params: Dict[str, Any]) -> Dict[str, str]:
     try:
-        args, files = batch_jobs.build_job(kind, params)
-        job_id = batch_jobs.launch(kind, args, files)
+        job_params = batch_jobs.build_job(kind, params)
     except batch_jobs.JobError as e:
         raise HTTPException(422, str(e))
-    except batch_jobs.JobBusy as e:
-        raise HTTPException(429, str(e))
-    return {"job_id": job_id}
+    return batch_jobs.http_launch(kind, job_params)
 
 
 @router.post("/backtest")

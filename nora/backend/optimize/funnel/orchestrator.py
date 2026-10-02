@@ -3,7 +3,7 @@
 - RAM cha phẳng: chỉ giữ một lô (FLUSH_N alpha) + các trang `pending` (1000 hàng); worker trả dict thuần dữ liệu.
 - RESUME theo run_id: kho là sổ cam kết (xem storage.py). Chạy lại = mỗi tầng chỉ chấm alpha chưa có hàng stage_metrics của tầng đó.
 - S2 là tầng CHÉO alpha: số liệu mức chiến lược (N lần thử, phương sai Sharpe, PBO) tính một lần/chiến lược và lưu vào bảng kv (resume không tính lại).
-- Tiến độ/ETA: backend.optimize.progress.Progress (progress.json mỗi <= 5 giây, cũng ghi vào $NORA_JOB_DIR để API hiển thị).
+- Tiến độ/ETA: backend.utils.jobs.Progress (progress.json mỗi <= 5 giây, cũng ghi vào $NORA_JOB_DIR để API hiển thị).
 """
 import hashlib
 import json
@@ -14,7 +14,7 @@ import time
 from dataclasses import asdict, dataclass
 from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Tuple
 
-from backend.optimize.progress import Progress, graceful_sigterm
+from backend.utils.jobs import Progress, graceful_sigterm
 
 from . import antiluck, backtest as bt, gates, sizing
 from .generate import alpha_id_of, count_params, iter_params, validate_alpha

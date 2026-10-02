@@ -23,7 +23,7 @@ Là người vận hành, tôi muốn một bộ kiểm nhanh các bất biến 
 
 ## Dev Notes
 
-- Code: `backend/core/backtest/smoke_check.py` (546 dòng), `backend/utils/ops/check_tests_vs_ref.sh`.
+- Code: `backend/core/backtest/smoke_check.py` (546 dòng), `test/scripts/check_tests_vs_ref.sh`.
 - Cửa sổ smoke: 2025-04-01 đến 2025-05-31 + 20 ngày khởi động. Báo cáo ghi ở `data/_cache/smoke/`.
 
 ## Evidence

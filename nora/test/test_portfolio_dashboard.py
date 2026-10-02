@@ -320,7 +320,7 @@ def client(monkeypatch, tmp_path):
 def _job(result, kind="book_backtest", name=None, args=None, log="[run_limited] peak RAM 1 MB / limit x | exit 0\n"):
     d = os.path.join(batch_jobs.jobs_root(), name or f"{time.strftime('%Y%m%d_%H%M%S')}_a1b2c3")
     os.makedirs(d, exist_ok=True)
-    batch_jobs._write_meta(d, {"id": os.path.basename(d), "kind": kind, "args": args or ["--start", "2025-01-01", "--end", "2025-04-10"],
+    batch_jobs._write_meta(d, {"id": os.path.basename(d), "kind": kind, "params": args or {"start": "2025-01-01", "end": "2025-04-10"},
                                "pid": 2 ** 22 + 7, "created": 1.0, "started": None, "finished": None, "state": "running", "exit_code": None})
     open(os.path.join(d, "out.log"), "w").write(log)
     if result is not None:
@@ -337,7 +337,7 @@ def test_paper_source_is_removed_and_unknown_sources_rejected(client):
 def test_live_testnet_without_mock_file_is_unavailable_with_hint(client, source):
     r = client.get(f"/api/studio/portfolio/dashboard?source={source}")
     assert r.status_code == 200 and r.json()["available"] is False
-    assert "python -m backend.core.analytics.make_mock_feeds" in r.json()["reason"] and source.capitalize() in r.json()["reason"]
+    assert "POST /api/studio/portfolio/mock-feeds" in r.json()["reason"] and source.capitalize() in r.json()["reason"]
 
 
 def test_dashboard_endpoint_caches_and_rebases_benchmark(client, monkeypatch):
@@ -462,7 +462,7 @@ def test_mock_source_without_positions_and_stale_cache_refreshes(client):
 def test_mock_feed_corrupt_file_is_unavailable(client):
     open(feeds.mock_path("testnet"), "w").write("{not json")
     r = client.get("/api/studio/portfolio/dashboard?source=testnet").json()
-    assert r["available"] is False and "make_mock_feeds" in r["reason"]
+    assert r["available"] is False and "mock-feeds" in r["reason"]
 
 
 def test_real_feeds_are_stubs_that_raise_not_available():

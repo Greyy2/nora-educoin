@@ -18,7 +18,7 @@ import pytest
 
 from backend.core.data import quality_gate as qg
 from backend.optimize import results_store as rs
-from backend.optimize.progress import Progress, graceful_sigterm
+from backend.utils.jobs import Progress, graceful_sigterm
 from backend.optimize.stream import stream_stage
 from backend.utils import parallel
 from test_portfolio_wfa import CFG, DAY, RISK, START, T0, _load_script, _small_book, market  # noqa: F401  (market là fixture)
@@ -84,19 +84,19 @@ def test_portfolio_engine_refuses_bad_data(market, monkeypatch, kind):
 def test_every_entry_point_refuses_bad_data(market, monkeypatch, tmp_path, kind):
     sb = _small_book(monkeypatch)
     _tamper(market, "CCC", **BAD[kind])
-    common = ["--workers", "1", "--per-worker-mb", "300"]
+    common = {"workers": 1, "per_worker_mb": 300}
     bsb = _load_script("build_strategy_book")
     with pytest.raises(SystemExit, match="CCC@perp"):
-        bsb.main(common + ["--n", "2", "--out", str(tmp_path / "alphas")])
+        bsb.run_job({**common, "n": 2, "out": str(tmp_path / "alphas")})
     vb = _load_script("validate_book")
     with pytest.raises(SystemExit, match="CCC@perp"):
-        vb.main(common + ["--candidates", "t_long", "--n", "1"])
+        vb.run_job({**common, "candidates": "t_long", "n": 1})
     rbb = _load_script("run_book_backtest")
     with pytest.raises(SystemExit, match="CCC@perp"):
-        rbb.main(["--strategies", json.dumps([{"id": "t_long"}]), "--start", "2023-11-20", "--end", "2023-11-25"])
+        rbb.run_job({"strategies": [{"id": "t_long"}], "start": "2023-11-20", "end": "2023-11-25"})
     mf = _load_script("make_mock_feeds")
     with pytest.raises(SystemExit, match="CCC@perp"):
-        mf.main(["--only", "testnet"])
+        mf.run_job({"only": "testnet"})
     _restore_cache()
 
 
@@ -330,26 +330,26 @@ def _files(run_dir, names):
     return {n: json.dumps(_strip_rss(json.loads((run_dir / n).read_text()))) for n in names}
 
 
-BOOK_ARGS = ["--workers", "2", "--per-worker-mb", "300", "--n", "4"]
+BOOK_ARGS = {"workers": 2, "per_worker_mb": 300, "n": 4}
 
 
 @pytest.mark.parametrize("fail_after", [2, 3, 6, 9])
 def test_build_strategy_book_resume_is_identical_to_straight_run(market, monkeypatch, tmp_path, fail_after):
     _small_book(monkeypatch)
     bsb = _load_script("build_strategy_book")
-    bsb.main(BOOK_ARGS + ["--out", str(tmp_path / "straight")])
+    bsb.run_job({**BOOK_ARGS, "out": str(tmp_path / "straight")})
     straight = _run_dirs(market)[-1]
     # lần chạy bị "sập" sau N job (móc kiểm thử), rồi --resume
     monkeypatch.setenv("NORA_TEST_FAIL_AFTER_PUTS", str(fail_after))
     with pytest.raises(RuntimeError, match="mô phỏng sập"):
-        bsb.main(BOOK_ARGS + ["--out", str(tmp_path / "resumed")])
+        bsb.run_job({**BOOK_ARGS, "out": str(tmp_path / "resumed")})
     killed = [d for d in _run_dirs(market) if d != straight][-1]
     assert not (killed / "report.json").exists()
     assert json.loads((killed / "progress.json").read_text())["status"] == "failed"
     monkeypatch.delenv("NORA_TEST_FAIL_AFTER_PUTS")
     store_rows_before = rs.ResultsStore(str(killed), read_only=True).count()
     assert store_rows_before >= fail_after
-    bsb.main(BOOK_ARGS + ["--out", str(tmp_path / "resumed"), "--resume", str(killed)])
+    bsb.run_job({**BOOK_ARGS, "out": str(tmp_path / "resumed"), "resume": str(killed)})
     names = ["report.json", "stage_a.json", "stage_b.json", "stage_a_counts.json"]
     assert _files(killed, names) == _files(straight, names)
     assert (tmp_path / "resumed" / "book.json").exists() == (tmp_path / "straight" / "book.json").exists()
@@ -368,7 +368,7 @@ def test_build_strategy_book_resume_requires_store(market, monkeypatch, tmp_path
     _small_book(monkeypatch)
     bsb = _load_script("build_strategy_book")
     with pytest.raises(SystemExit, match="results.sqlite"):
-        bsb.main(BOOK_ARGS + ["--resume", str(tmp_path)])
+        bsb.run_job({**BOOK_ARGS, "resume": str(tmp_path)})
 
 
 # ─── 12.2 stage A: top-K + đếm + store; 12.4 trần/ước lượng/tiến độ ─────────
@@ -378,7 +378,7 @@ def test_stage_a_keeps_only_topk_counts_and_full_rows_in_store(market, monkeypat
     bsb = _load_script("build_strategy_book")
     job_dir = tmp_path / "job"
     monkeypatch.setenv("NORA_JOB_DIR", str(job_dir))
-    bsb.main(["--workers", "2", "--per-worker-mb", "300", "--n", "12", "--keep-top", "4", "--only", "t_long", "--out", str(tmp_path / "a")])
+    bsb.run_job({"workers": 2, "per_worker_mb": 300, "n": 12, "keep_top": 4, "only": "t_long", "out": str(tmp_path / "a")})
     run = _run_dirs(market)[-1]
     sa = json.loads((run / "stage_a.json").read_text())
     counts = json.loads((run / "stage_a_counts.json").read_text())
@@ -410,20 +410,20 @@ def test_max_configs_refuses_unless_force_large(market, monkeypatch, tmp_path, c
     sb = _small_book(monkeypatch)
     sb.CANDIDATES[0]["space"] = {"sig.lo": list(range(20, 60)), "stop_loss_rate": [1.5, 2.0], "take_profit_rate": [2.0], "timeout": [720]}
     bsb = _load_script("build_strategy_book")
-    args = ["--workers", "2", "--per-worker-mb", "300", "--n", "1000", "--only", "t_long", "--max-configs", "50", "--out", str(tmp_path / "o")]
-    with pytest.raises(SystemExit, match="max-configs"):
-        bsb.main(args)
+    args = {"workers": 2, "per_worker_mb": 300, "n": 1000, "only": "t_long", "max_configs": 50, "out": str(tmp_path / "o")}
+    with pytest.raises(SystemExit, match="max_configs"):
+        bsb.run_job(args)
     assert not _run_dirs(market)                                                # từ chối trước khi tạo thư mục chạy
     monkeypatch.setenv("NORA_TEST_FAIL_AFTER_PUTS", "1")                       # --force-large: cho chạy (dừng ngay sau 1 job để test nhanh)
     with pytest.raises(RuntimeError, match="mô phỏng sập"):
-        bsb.main(args + ["--force-large"])
+        bsb.run_job({**args, "force_large": True})
 
 
 def test_estimate_printed_and_recorded_when_calibrating(market, monkeypatch, tmp_path, capsys):
     sb = _small_book(monkeypatch)
     sb.CANDIDATES[0]["space"] = {"sig.lo": [30, 35, 40, 45, 50], "stop_loss_rate": [1.5, 2.0], "take_profit_rate": [2.0], "timeout": [720]}
     bsb = _load_script("build_strategy_book")
-    bsb.main(["--workers", "1", "--per-worker-mb", "300", "--n", "10", "--only", "t_long", "--out", str(tmp_path / "o")])
+    bsb.run_job({"workers": 1, "per_worker_mb": 300, "n": 10, "only": "t_long", "out": str(tmp_path / "o")})
     out = capsys.readouterr().out
     assert "[estimate] 10 cấu hình ×" in out and "s/cấu hình" in out and "worker" in out
     est = json.loads((_run_dirs(market)[-1] / "estimate.json").read_text())
@@ -434,8 +434,8 @@ def test_estimate_printed_and_recorded_when_calibrating(market, monkeypatch, tmp
 def _vb_args(market):
     import pandas as pd
     start, end = (f"{pd.Timestamp(t, unit='ms'):%Y-%m-%d}" for t in (START, T0 + 66 * DAY))
-    return ["--candidates", "t_long,t_short", "--n", "2", "--workers", "2", "--per-worker-mb", "300", "--start", start, "--end", end,
-            "--train-days", "15", "--test-days", "10", "--sims", "200"]
+    return {"candidates": "t_long,t_short", "n": 2, "workers": 2, "per_worker_mb": 300, "start": start, "end": end,
+            "train_days": 15, "test_days": 10, "sims": 200}
 
 
 @pytest.mark.parametrize("fail_after", [2, 5, 11])
@@ -444,15 +444,15 @@ def test_validate_book_resume_is_identical_to_straight_run(market, monkeypatch, 
     vb = _load_script("validate_book")
     args = _vb_args(market)
     base = market / "_cache" / "book_wfa"
-    vb.main(args)
+    vb.run_job(args)
     straight = sorted(base.iterdir())[-1]
     monkeypatch.setenv("NORA_TEST_FAIL_AFTER_PUTS", str(fail_after))
     with pytest.raises(RuntimeError, match="mô phỏng sập"):
-        vb.main(args)
+        vb.run_job(args)
     killed = [d for d in sorted(base.iterdir()) if d != straight][-1]
     assert not (killed / "report.json").exists()
     monkeypatch.delenv("NORA_TEST_FAIL_AFTER_PUTS")
-    vb.main(args + ["--resume", str(killed)])
+    vb.run_job({**args, "resume": str(killed)})
 
     def load(d):
         r = json.loads((d / "report.json").read_text())
@@ -465,8 +465,8 @@ def test_validate_book_resume_is_identical_to_straight_run(market, monkeypatch, 
 def test_validate_book_max_configs(market, monkeypatch):
     _small_book(monkeypatch)
     vb = _load_script("validate_book")
-    with pytest.raises(SystemExit, match="max-configs"):
-        vb.main(_vb_args(market) + ["--max-configs", "3"])
+    with pytest.raises(SystemExit, match="max_configs"):
+        vb.run_job({**_vb_args(market), "max_configs": 3})
 
 
 # ─── 12.3 resume optimize_alphas (sàng lọc theo cấu hình + cặp) ─────────────
@@ -506,7 +506,7 @@ _KILL_SCRIPT = r"""
 import os, sys, time
 sys.path.insert(0, {root!r})
 from backend.optimize.results_store import ResultsStore
-from backend.optimize.progress import Progress, graceful_sigterm
+from backend.utils.jobs import Progress, graceful_sigterm
 d = sys.argv[1]
 store = ResultsStore(d)
 prog = Progress(d)
@@ -545,7 +545,7 @@ from backend.api.jobs import batch as batch_jobs  # noqa: E402
 def _job(state="running", pid=None, name="20260101_000009_a1b2c3", **extra):
     d = os.path.join(batch_jobs.jobs_root(), name)
     os.makedirs(d, exist_ok=True)
-    batch_jobs._write_meta(d, {"id": name, "kind": "book_build", "args": ["--n", "5"], "pid": pid, "created": time.time(), "started": time.time(),
+    batch_jobs._write_meta(d, {"id": name, "kind": "book_build", "params": {"n": 5}, "pid": pid, "created": time.time(), "started": time.time(),
                                "finished": None, "state": state, "exit_code": None if state == "running" else 0, **extra})
     return name, d
 
@@ -615,14 +615,15 @@ def test_build_request_accepts_large_n_and_new_flags(client):
     from test_book_api import FakePopen
     r = client.post("/api/studio/book/build", json={"only": ["trend_long"], "n": 500_000, "keep_top": 100, "force_large": True})
     assert r.status_code == 200, r.text
-    cmd = FakePopen.calls[-1][0]
-    assert cmd[cmd.index("--n") + 1] == "500000" and cmd[cmd.index("--keep-top") + 1] == "100" and "--force-large" in cmd
+    from job_modules import launched
+    p = launched(FakePopen.calls[-1])[1]
+    assert p["n"] == 500_000 and p["keep_top"] == 100 and p["force_large"] is True
     assert client.post("/api/studio/book/build", json={"n": 1_000_001}).status_code == 422
     assert client.post("/api/studio/book/build", json={"keep_top": 2}).status_code == 422
-    # --resume / --max-configs chỉ qua launch() ở tầng batch (không phải đầu vào người dùng của router)
-    batch_jobs._check_launch_args("book_build", ["--resume", "/x", "--max-configs", "9"])
+    # resume / max_configs chỉ qua launch() ở tầng batch (không phải đầu vào người dùng của router)
+    batch_jobs._check_params("book_build", {"resume": "/x", "max_configs": 9})
     with pytest.raises(batch_jobs.JobError):
-        batch_jobs._check_launch_args("book_backtest", ["--resume", "/x"])
+        batch_jobs._check_params("book_backtest", {"resume": "/x"})
 
 
 def _fast_then_slow(x):

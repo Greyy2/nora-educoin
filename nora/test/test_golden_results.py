@@ -1,7 +1,7 @@
 """Golden results: kết quả backtest phải BIT-IDENTICAL với snapshot trong test/golden/*.json.
 
 Dùng để chứng minh thay đổi hiệu năng (mmap dùng chung, bỏ qua phút rảnh...) không đổi kết quả.
-Sinh lại snapshot CHỈ khi chủ đích đổi ngữ nghĩa:  backend/utils/ops/run_limited.sh -- test/make_golden.py
+Sinh lại snapshot CHỈ khi chủ đích đổi ngữ nghĩa:  backend/utils/ops/run_limited.sh -- test/scripts/make_golden.py
 """
 import json
 import os
@@ -17,7 +17,7 @@ REAL_ROOT = os.environ.get("NORA_GOLDEN_DATA_ROOT") or os.path.join(os.path.dirn
 def _load(name):
     path = os.path.join(GOLDEN_DIR, f"{name}.json")
     if not os.path.isfile(path):
-        pytest.fail(f"Thiếu snapshot {path} — chạy test/make_golden.py")
+        pytest.fail(f"Thiếu snapshot {path} — chạy test/scripts/make_golden.py")
     with open(path, encoding="utf-8") as fh:
         return json.load(fh)
 

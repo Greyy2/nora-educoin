@@ -1,6 +1,6 @@
 """Sinh lại snapshot "golden results" vào test/golden/*.json từ code HIỆN TẠI.
 
-Chạy:  cd nora && backend/utils/ops/run_limited.sh -- test/make_golden.py
+Chạy:  cd nora && backend/utils/ops/run_limited.sh -- test/scripts/make_golden.py
 Chỉ chạy lại khi CHỦ ĐÍCH đổi ngữ nghĩa backtest; thay đổi hiệu năng phải giữ nguyên các file này.
 Kịch bản dữ liệu thật dùng NORA_GOLDEN_DATA_ROOT (mặc định <nora>/data), bỏ qua nếu thiếu dữ liệu.
 Nhẹ (không dùng pool/đa tiến trình), không phụ thuộc NORA_ALLOW_UNLIMITED.
@@ -11,7 +11,7 @@ import sys
 import tempfile
 import time
 
-NORA = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+NORA = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, NORA)
 sys.path.insert(0, os.path.join(NORA, "test"))
 GOLDEN_DIR = os.path.join(NORA, "test", "golden")

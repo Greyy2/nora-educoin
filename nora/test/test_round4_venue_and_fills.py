@@ -220,8 +220,7 @@ def test_binance_missing_month_marks_crawl_not_ok(tmp_path, monkeypatch):
     monkeypatch.setattr(cb, "fetch_vision_zip", fake_zip)
     monkeypatch.setattr(cb, "fetch_rest_klines", lambda *a, **k: pd.DataFrame(columns=["open_time", "open", "high", "low", "close", "volume"]))
     end_ms = int(pd.Timestamp("2024-04-01", tz="UTC").value // 10**6) - 60_000
-    args = cb.parse_args(["--symbols", "TST", "--years", str(90 / 365.25), "--end-ts", str(end_ms), "--output-dir", str(tmp_path)])
-    manifest = cb.run(args)[0]
+    manifest = cb.run_job({"symbols": "TST", "years": 90 / 365.25, "end_ts": end_ms, "output_dir": str(tmp_path)})[0]
     assert manifest["venue"] == "cex" and manifest["exchange"] == "binance"
     assert manifest["crawl_ok"] is False and any("2024-02" in i for i in manifest["crawl_issues"])
     assert evaluate_data_quality("TST", timeframe="1m", data_root=str(tmp_path))["status"] == "BLOCKED"

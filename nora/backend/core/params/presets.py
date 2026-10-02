@@ -2,11 +2,11 @@
 
 Nguồn, theo thứ tự ưu tiên (mỗi chiến lược lấy nguồn đầu tiên có dữ liệu):
   1. book    sổ đã chốt data/alphas/book.json (biến NORA_BOOK_PATH): tham số + bằng chứng dev1/dev2 của chiến lược trong sổ.
-  2. stage_a lần chạy backend.optimize.build_strategy_book MỚI NHẤT trong data/_cache/book/ có cấu hình QUA CỔNG dev1 cho chiến lược đó:
+  2. stage_a lần chạy backend.optimize.book MỚI NHẤT trong data/_cache/book/ có cấu hình QUA CỔNG dev1 cho chiến lược đó:
              lấy cấu hình điểm cao nhất (điểm = lãi / MDD, đã loại cấu hình không đạt cổng) từ stage_a.json.
   3. default giá trị mặc định của params_schema ("mặc định — chưa tối ưu"), không có bằng chứng.
 `params` của preset luôn ĐẦY ĐỦ mọi khoá của params_schema (khoá thiếu lấy mặc định) để UI hiển thị/sửa; khi chạy job chỉ cần phần khác mặc định
-(api/modes.job_params). File xuất ra: data/alphas/presets.json (backend/optimize/build_presets.py).
+(api/modes.job_params). File xuất ra: data/alphas/presets.json (job presets_build = run_job cuối file này).
 """
 import json
 import math
@@ -197,3 +197,38 @@ def load_presets(path: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
         else:
             out[c["id"]] = {"params": dict(schema_defaults(c)), "source": SOURCE_DEFAULT, "source_kind": "default", "evidence": None}
     return out
+
+
+# ─── Job dựng presets.json (POST /api/studio/strategies/presets) ────────────
+def _key_params(params, schema):
+    """Chỉ các tham số khác mặc định (để bảng gọn)."""
+    return {k: v for k, v in params.items() if v != schema[k]["default"]}
+
+
+def format_table(doc):
+    from backend.core.strategy.book import CANDIDATES
+    lines = []
+    for c in CANDIDATES:
+        p = doc["presets"][c["id"]]
+        ev = (p.get("evidence") or {}).get("dev1") or {}
+        ev_txt = (f" | dev1 lãi {ev.get('ret_pct')}% MDD {ev.get('mdd_pct')}% sharpe {ev.get('sharpe')} lệnh {ev.get('trades')} "
+                  f"+{ev.get('symbols_positive')}") if ev else ""
+        full = p.get("evidence") or {}
+        d2 = full.get("dev2_extreme") or {}
+        ev_txt += (f" | dev2(extreme) lãi {d2.get('ret_pct')}% MDD {d2.get('mdd_pct')}% — "
+                   f"{'ĐẠT' if full.get('dev2_pass', full.get('accepted')) is True else 'LOẠI'} dev2") if d2 else ""
+        lines.append(f"{c['id']:18s} {p['source']}{ev_txt}")
+        lines.append(f"{'':18s} khác mặc định: {_key_params(p['params'], c['params_schema']) or '(không — toàn bộ là mặc định)'}")
+    return "\n".join(lines)
+
+
+def run_job(params=None) -> Dict[str, Any]:
+    """Dựng presets.json từ file có sẵn (không chạy backtest). params: out, book, runs_dir, dry_run."""
+    from backend.utils.jobs import options, write_job_result
+    a = options({"out": "", "book": "", "runs_dir": "", "dry_run": False}, params)
+    doc = build_presets(book=_read_json(a.book or book_path()), runs_dir=a.runs_dir or None, use_book_file=False)
+    print(format_table(doc))
+    if not a.dry_run:
+        print("ghi:", write_presets(doc, a.out or None))
+    write_job_result(doc)
+    return doc

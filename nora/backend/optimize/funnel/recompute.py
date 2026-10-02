@@ -1,19 +1,11 @@
 """Tính lại danh sách lệnh S1 của một alpha (alpha bị loại ở S1 chỉ lưu thống kê). Tất định: cùng PortfolioEngine, cùng tham số/cửa sổ/dữ liệu
 -> TRÙNG TỪNG BIT với lệnh một alpha qua S1 đã lưu (test_funnel kiểm). Kết quả được ghi đệm tại <run_dir>/recomputed/<alpha_id>.json.
 
-CLI (API chạy qua run_limited.sh --no-lock để RAM nằm trong nora.slice, không trong tiến trình API):
-    backend/utils/ops/run_limited.sh --no-lock -- -m backend.optimize.funnel.recompute <run_id> <alpha_id>
+Job API `funnel_recompute` (api/jobs/runner.py -> run_job({"run_id", "alpha_id"})): RAM nằm trong nora.slice, không trong tiến trình API.
 """
-import os
-if __name__ == "__main__":   # chỉ khi chạy như script (tiến trình con của API): đặt TRƯỚC khi nạp numpy; import từ API không đổi môi trường
-    for _e in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "VECLIB_MAXIMUM_THREADS", "NUMEXPR_NUM_THREADS"):
-        os.environ.setdefault(_e, "1")
-    os.environ.setdefault("NORA_CANDLE_CACHE_MB", "512")
-    os.environ.setdefault("NORA_DATA_CACHE_MB", "1024")
-
 import json
-import sys
-from typing import Any, Dict, List, Optional
+import os
+from typing import Any, Dict, Optional
 
 from . import backtest as bt, gates
 from .storage import RunStore, atomic_write_json
@@ -48,27 +40,24 @@ def recompute_s1(run_dir: str, alpha_id: str, shared_dir: Optional[str] = None) 
     return {"alpha_id": alpha_id, "trades": res["trades"], "metrics": res["metrics"], "daily": res["daily"], "daily_start": res["daily_start"]}
 
 
-def main(argv: Optional[List[str]] = None) -> int:
-    argv = list(sys.argv[1:] if argv is None else argv)
-    if len(argv) != 2:
-        print("dùng: python -m backend.optimize.funnel.recompute <run_id> <alpha_id>", file=sys.stderr)
-        return 2
+def run_job(params=None) -> Dict[str, Any]:
+    """Tính lại lệnh S1 của params["alpha_id"] trong lượt params["run_id"] -> ghi <run_dir>/recomputed/<alpha_id>.json."""
+    from backend.utils.jobs import options
     from backend.utils.memwatch import require_memory_limit
-    require_memory_limit("funnel.recompute")
-    from .orchestrator import funnel_root
-    run_id, alpha_id = argv
-    run_dir = os.path.join(funnel_root(), run_id)
     from backend.core.data.quality_gate import require_data_ok_or_exit
+    from .orchestrator import funnel_root
+    a = options({"run_id": "", "alpha_id": ""}, params)
+    if not a.run_id or not a.alpha_id:
+        raise ValueError("cần run_id và alpha_id")
+    require_memory_limit("funnel.recompute")
+    run_dir = os.path.join(funnel_root(), a.run_id)
     store = RunStore(run_dir, read_only=True)
     try:
         symbols = store.read_run()["config"]["symbols"]
     finally:
         store.close()
     require_data_ok_or_exit(symbols)
-    atomic_write_json(cache_path(run_dir, alpha_id), recompute_s1(run_dir, alpha_id))
-    print(f"ghi: {cache_path(run_dir, alpha_id)}", flush=True)
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())
+    path = cache_path(run_dir, a.alpha_id)
+    atomic_write_json(path, recompute_s1(run_dir, a.alpha_id))
+    print(f"ghi: {path}", flush=True)
+    return {"path": path}

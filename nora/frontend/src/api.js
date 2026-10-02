@@ -2,7 +2,7 @@
 // Khi mất kết nối (lỗi mạng / 502-504) và đang chạy `npm run dev` với `?mock=1` trên URL, trả dữ liệu mẫu trong ./mock
 // (ưu tiên *.sample.json do backend sinh, nếu chưa có thì dùng *.mock.json viết tay). Ngoại lệ duy nhất ở bản production:
 // API phễu không kết nối được -> dữ liệu mẫu phễu, và trang Phễu BẮT BUỘC hiện biểu ngữ "dữ liệu mẫu" (mockNoticeStore).
-import { parseJobArgs, jobLabel } from './lib/jobs'
+import { parseJobParams, jobLabel } from './lib/jobs'
 import { normRun, normRuns, normStats, normAlphaPage, normAlphaDetail, normTrades } from './lib/funnel'
 
 const mockModules = import.meta.glob('./mock/*.json') // nạp lười: không vào bundle chính
@@ -161,12 +161,12 @@ export const getAlphas = () => request('/api/studio/alphas')
 export async function listJobs(kind, limit = 20) {
   const r = await request(`/api/studio/book/jobs?kind=${encodeURIComponent(kind)}&limit=${limit}`)
   // bản backend chưa lọc theo kind thì lọc phía client
-  return (r.jobs || []).filter((j) => !j.kind || j.kind === kind).map((j) => ({ ...normJob(j), label: j.label || jobLabel(j), parsed: parseJobArgs(j.args) }))
+  return (r.jobs || []).filter((j) => !j.kind || j.kind === kind).map((j) => ({ ...normJob(j), label: j.label || jobLabel(j), parsed: parseJobParams(j.params) }))
 }
 // mọi loại job (khay công việc, trang Lịch sử chạy)
 export async function listAllJobs(limit = 20) {
   const r = await request(`/api/studio/book/jobs?limit=${limit}`)
-  return (r.jobs || []).map((j) => ({ ...normJob(j), label: j.label || jobLabel(j), parsed: parseJobArgs(j.args) }))
+  return (r.jobs || []).map((j) => ({ ...normJob(j), label: j.label || jobLabel(j), parsed: parseJobParams(j.params) }))
 }
 // backend hiện trả khoá `id`; hợp đồng ghi `job_id` — chấp nhận cả hai
 const normJob = (j) => ({ ...j, job_id: j.job_id || j.id })

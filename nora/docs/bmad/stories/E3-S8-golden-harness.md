@@ -12,12 +12,12 @@ Là người phát triển, tôi muốn một bộ snapshot mã hoá float bằn
 
 1. **Given** ba kịch bản (`portfolio_synthetic`, `single_dca_filled`, `portfolio_real` trên BTC/SOL/DOGE perp), **When** chạy engine, **Then** mọi vị thế, lệnh, hàng đường vốn bằng snapshot `test/golden/*.json` (`test_golden_portfolio_synthetic`, `test_golden_single_dca_filled`, `test_golden_portfolio_real`).
 2. **Given** một snapshot bị đổi 1 ulp, **When** so sánh, **Then** bị phát hiện (`test_golden_comparison_detects_one_bit_perturbation`).
-3. **Given** chủ đích đổi ngữ nghĩa backtest, **When** cần cập nhật, **Then** chỉ sinh lại bằng `backend/utils/ops/run_limited.sh -- test/make_golden.py` và ghi lý do trong Change Log.
+3. **Given** chủ đích đổi ngữ nghĩa backtest, **When** cần cập nhật, **Then** chỉ sinh lại bằng `backend/utils/ops/run_limited.sh -- test/scripts/make_golden.py` và ghi lý do trong Change Log.
 
 ## Tasks / Subtasks
 
 - [x] `test/golden_scenarios.py` (`hx`, `canonicalize`)
-- [x] `test/make_golden.py`
+- [x] `test/scripts/make_golden.py`
 - [x] 3 snapshot trong `test/golden/`
 - [x] Test phát hiện xáo trộn 1 bit
 

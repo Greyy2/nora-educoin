@@ -12,6 +12,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from backend.api.jobs import batch as batch_jobs
+from job_modules import launched
 from backend.api.routers import book as book_router
 from backend.api.routers import strategies as strategies_router
 from backend.core.params.builder import POSITION_KEYS
@@ -285,8 +286,8 @@ URL = "/api/studio/book/backtest"
 
 
 def _cmd_strategies():
-    cmd = FakePopen.calls[-1][0]
-    return json.loads(cmd[cmd.index("--strategies") + 1]), cmd
+    p = launched(FakePopen.calls[-1])[1]
+    return p["strategies"], p
 
 
 def _job(client, jid):
@@ -331,8 +332,8 @@ def test_basic_mode_ignores_client_params_and_uses_presets(client):
     items, cmd = _cmd_strategies()
     assert items == [{"id": "breakout_4h_long", "params": {"stop_loss_rate": 3.0, "trailing_stop": 3.0, "trailing_activation_pct": 1.0, "timeout": 10080}},
                      {"id": "trend_long", "params": {"sig.adx_min": 25, "stop_loss_rate": 3.5, "trailing_stop": 4.5, "trailing_activation_pct": 0.0, "timeout": 4320}}]
-    assert cmd[cmd.index("--risk-per-trade") + 1] == "0.5" and cmd[cmd.index("--stop-fill") + 1] == "level"   # khoá sẵn: bỏ qua rủi ro/stop_fill của client
-    assert cmd[cmd.index("--symbols") + 1] == "BTC@perp,SOL@perp"                                           # tài sản + cửa sổ ngày vẫn theo client
+    assert cmd["risk_per_trade"] == 0.5 and cmd["stop_fill"] == "level"   # khoá sẵn: bỏ qua rủi ro/stop_fill của client
+    assert cmd["symbols"] == ["BTC@perp", "SOL@perp"]                                           # tài sản + cửa sổ ngày vẫn theo client
     job = _job(client, r.json()["job_id"])
     assert job["mode"] == "basic" and job["custom_gates"] is False and job["promotable"] is True and job["ignored_client_params"] is True
     rs = {s["id"]: s for s in job["resolved"]["strategies"]}
@@ -381,7 +382,7 @@ def test_advanced_backtest_risk_per_trade(client):
                                "strategies": [{"id": "trend_long"}, {"id": "breakout_4h_long", "params": {"risk_per_trade_pct": 0.3}}]})
     assert r.status_code == 200, r.text                                    # mức của request thắng
     _, cmd = _cmd_strategies()
-    assert cmd[cmd.index("--risk-per-trade") + 1] == "0.8"
+    assert cmd["risk_per_trade"] == 0.8
     r = client.post(URL, json={**BT, "mode": "advanced", "strategies": [{"id": "trend_long"}, {"id": "breakout_4h_long", "params": {"risk_per_trade_pct": 0.3}}]})
     assert r.status_code == 422 and r.json()["detail"][0]["field"] == "strategies[1].params.risk_per_trade_pct"
 
@@ -463,7 +464,7 @@ def test_mc_advanced_bad_stress_names_422(client):
 def _stamped_job(kind, state="done", name=None, result=None, **meta):
     d = os.path.join(batch_jobs.jobs_root(), name or f"{time.strftime('%Y%m%d_%H%M%S')}_a1b2c3")
     os.makedirs(d, exist_ok=True)
-    batch_jobs._write_meta(d, {"id": os.path.basename(d), "kind": kind, "args": [], "pid": 2 ** 22 + 1, "created": 1.0, "started": 2.0,
+    batch_jobs._write_meta(d, {"id": os.path.basename(d), "kind": kind, "params": {}, "pid": 2 ** 22 + 1, "created": 1.0, "started": 2.0,
                                "finished": 3.0, "state": state, "exit_code": 0, **meta})
     open(os.path.join(d, "out.log"), "w").write("")
     if result is not None:
@@ -503,9 +504,8 @@ WFA = {"start": "2025-01-01", "end": "2025-09-30"}
 
 
 def _wfa_files():
-    cmd, kw = FakePopen.calls[-1]
-    path = cmd[cmd.index("--strategies-json") + 1]
-    return cmd, json.load(open(path))
+    p = launched(FakePopen.calls[-1])[1]
+    return p, p["strategies"]
 
 
 def test_wfa_basic_uses_presets_default_folds(client):
@@ -513,10 +513,10 @@ def test_wfa_basic_uses_presets_default_folds(client):
                                                   "risk_per_trade_pct": 4.0, "sims": 100})
     assert r.status_code == 200, r.text
     cmd, cfgs = _wfa_files()
-    assert "--candidates" not in cmd and "--train-days" not in cmd and "--test-days" not in cmd and "--sims" not in cmd   # fold/gate chuẩn
+    assert not {"candidates", "train_days", "test_days", "sims"} & set(cmd)   # fold/gate chuẩn
     assert cfgs == [{"id": "breakout_4h_long", "configs": [{"stop_loss_rate": 3.0, "trailing_stop": 3.0, "trailing_activation_pct": 1.0, "timeout": 10080}]},
                     {"id": "trend_long", "configs": [{"sig.adx_min": 25, "stop_loss_rate": 3.5, "trailing_stop": 4.5, "trailing_activation_pct": 0.0, "timeout": 4320}]}]
-    assert cmd[cmd.index("--risk-per-trade") + 1] == "0.5"
+    assert cmd["risk_per_trade"] == 0.5
     job = _job(client, r.json()["job_id"])
     assert job["mode"] == "basic" and job["custom_gates"] is False and job["resolved"]["train_days"] == 120 and job["resolved"]["test_days"] == 30
     assert job["ignored_client_params"] is True
@@ -527,14 +527,12 @@ def test_wfa_basic_uses_presets_default_folds(client):
 
 
 def test_wfa_advanced_passes_folds_and_flags_custom_sims(client, monkeypatch):
-    flags = batch_jobs.KINDS["book_wfa"]["flags"]
-    monkeypatch.setitem(batch_jobs.KINDS["book_wfa"], "flags", set(flags) | {"--step-days", "--sims", "--mc-seed"})
     body = {**WFA, "mode": "advanced", "candidates": ["trend_long"], "n": 4, "train_days": 90, "test_days": 20, "step_days": 10, "mc_seed": 5}
     r = client.post("/api/studio/book/wfa", json={**body, "sims": 10_000})
     assert r.status_code == 200, r.text
-    cmd = FakePopen.calls[-1][0]
-    assert cmd[cmd.index("--candidates") + 1] == "trend_long" and cmd[cmd.index("--n") + 1] == "4"
-    assert cmd[cmd.index("--train-days") + 1] == "90" and cmd[cmd.index("--step-days") + 1] == "10" and cmd[cmd.index("--sims") + 1] == "10000"
+    cmd = launched(FakePopen.calls[-1])[1]
+    assert cmd["candidates"] == ["trend_long"] and cmd["n"] == 4
+    assert cmd["train_days"] == 90 and cmd["step_days"] == 10 and cmd["sims"] == 10000
     assert _job(client, r.json()["job_id"])["custom_gates"] is False
     r = client.post("/api/studio/book/wfa", json={**body, "sims": 500})
     job = _job(client, r.json()["job_id"])
@@ -548,8 +546,8 @@ def test_wfa_advanced_unsupported_options_are_reported(client):
     assert not FakePopen.calls
     r = client.post("/api/studio/book/wfa", json={**body, "step_days": 10, "sims": 10_000, "mc_seed": 3})   # cờ đã nằm trong danh sách trắng
     assert r.status_code == 200, r.text
-    cmd = FakePopen.calls[-1][0]
-    assert cmd[cmd.index("--step-days") + 1] == "10" and cmd[cmd.index("--sims") + 1] == "10000" and cmd[cmd.index("--mc-seed") + 1] == "3"
+    cmd = launched(FakePopen.calls[-1])[1]
+    assert cmd["step_days"] == 10 and cmd["sims"] == 10000 and cmd["mc_seed"] == 3
     r = client.post("/api/studio/book/wfa", json={**body, "step_days": 999})
     assert r.status_code == 422 and r.json()["detail"][0]["loc"][-1] == "step_days"
 
@@ -580,15 +578,12 @@ def test_check_wfa_strategies_accepts_schema_keys_and_choices():
             batch_jobs.check_wfa_strategies([{"id": "trend_long", "configs": [bad]}])
 
 
-def test_validate_book_candidates_from_json_accepts_schema_keys(tmp_path):
+def test_wfa_job_candidates_from_list_accepts_schema_keys():
     import importlib
-    vb = importlib.import_module("backend.wfa.validate_book")
-    p = tmp_path / "s.json"
-    p.write_text(json.dumps([{"id": "trend_long", "configs": [{"sig.ema_fast": 20, "sig.trend_tf": "4h"}]}]))
-    assert vb.candidates_from_json(str(p))[0]["configs"][0]["sig.trend_tf"] == "4h"
-    p.write_text(json.dumps([{"id": "trend_long", "configs": [{"nope": 1}]}]))
+    vb = importlib.import_module("backend.wfa.run")
+    assert vb.candidates_from_list([{"id": "trend_long", "configs": [{"sig.ema_fast": 20, "sig.trend_tf": "4h"}]}])[0]["configs"][0]["sig.trend_tf"] == "4h"
     with pytest.raises(SystemExit):
-        vb.candidates_from_json(str(p))
+        vb.candidates_from_list([{"id": "trend_long", "configs": [{"nope": 1}]}])
 
 
 def test_presets_evidence_bools_are_real_bools(tmp_path):

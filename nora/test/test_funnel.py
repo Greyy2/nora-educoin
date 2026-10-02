@@ -11,6 +11,8 @@ import numpy as np
 import pandas as pd
 import pyarrow.parquet as pq
 import pytest
+
+from job_modules import launched
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -99,7 +101,7 @@ def _run(run_id, **kw):
 def test_gate_constants_match_existing_gates():
     from backend.carlo import monte_carlo as mc
     from backend.core.strategy.book import BASE_RISK_PER_TRADE_PCT, GATES
-    from backend.wfa import portfolio_wfa as pw
+    from backend.wfa import walk_forward as pw
     assert gates.S1_MIN_TRADES == GATES["min_trades"] and gates.S1_MIN_SYMBOLS_POSITIVE == GATES["min_symbols_positive"]
     assert gates.S1_MAX_MDD_PCT == GATES["max_mdd_pct"] and gates.BASE_RISK_PER_TRADE_PCT == BASE_RISK_PER_TRADE_PCT
     assert gates.S3_MIN_FOLDS == pw.MIN_FOLDS and gates.S3_MIN_POSITIVE_FOLD_RATIO == pw.MIN_POSITIVE_FOLD_RATIO
@@ -116,7 +118,7 @@ def test_windows_match_build_strategy_book(market):
     from backend.core.strategy import book as sb
     from backend.optimize.funnel.windows import compute_windows
     import importlib
-    bsb = importlib.import_module("backend.optimize.build_strategy_book")
+    bsb = importlib.import_module("backend.optimize.book")
     syms = [f"{s}@perp" for s in SYMS]
     assert compute_windows(syms) == bsb.windows(syms)
 
@@ -533,10 +535,10 @@ def test_api_post_run_launches_job_and_writes_queued_stub(small_book, client, mo
     assert r.status_code == 200, r.text
     j = r.json()
     assert set(j) == {"run_id", "job_id"} and j["run_id"].startswith("fr-")
-    cmd = FakePopen.calls[0][0]
-    assert cmd[0].endswith("run_limited.sh") and cmd[1:4] == ["--", "-m", "backend.optimize.run_funnel"]
-    assert "--run-id" in cmd and cmd[cmd.index("--run-id") + 1] == j["run_id"] and cmd[cmd.index("--n-per-strategy") + 1] == "5"
-    assert cmd[cmd.index("--strategies") + 1] == "t_long" and json.loads(cmd[cmd.index("--windows-json") + 1]) == {"start": "2025-01-01"}
+    kind, p = launched(FakePopen.calls[0])
+    assert FakePopen.calls[0][0][0].endswith("run_limited.sh") and kind == "funnel_run"
+    assert p["run_id"] == j["run_id"] and p["n_per_strategy"] == 5
+    assert p["strategies"] == ["t_long"] and p["windows"] == {"start": "2025-01-01"}
     queued = [x for x in client.get(f"{base}/runs").json()["runs"] if x["run_id"] == j["run_id"]][0]
     assert queued["job_id"] == j["job_id"] and queued["strategies"] == ["t_long"] and queued["total_alphas"] == 3
     from backend.api.routers import funnel as fr
@@ -550,7 +552,7 @@ def test_api_post_run_launches_job_and_writes_queued_stub(small_book, client, mo
     monkeypatch.setattr(fr, "LARGE_ALPHAS", 2)
     assert client.post(f"{base}/runs", json={"strategies": ["t_long"], "n_per_strategy": 3}).status_code == 422   # > ngưỡng lớn, không force_large
     assert client.post(f"{base}/runs", json={"strategies": ["t_long"], "n_per_strategy": 3, "force_large": True}).status_code == 200
-    assert "--force-large" in FakePopen.calls[-1][0]
+    assert launched(FakePopen.calls[-1])[1]["force_large"] is True
     monkeypatch.setattr(fr, "MAX_ALPHAS", 2)
     assert client.post(f"{base}/runs", json={"strategies": ["t_long"], "n_per_strategy": 3, "force_large": True}).status_code == 422   # trần cứng
     assert client.post(f"{base}/runs", json={"strategies": ["t_long"], "n_per_strategy": 2, "windows": {"foo": "2025-01-01"}}).status_code == 422
@@ -570,7 +572,7 @@ def test_pool_mode_matches_serial_with_shared_data(small_book, lenient):
 
 def test_funnel_job_kind_registered_in_batch_with_label():
     from backend.api.jobs import batch
-    assert batch.KINDS["funnel_run"]["module"] == "backend.optimize.run_funnel"
-    lab = batch.job_label("funnel_run", ["--strategies", "trend_long,breakout_4h_long", "--n-per-strategy", "40", "--symbols", "BTC@perp"])
+    assert batch.KINDS["funnel_run"]["module"] == "backend.optimize.funnel.run"
+    lab = batch.job_label("funnel_run", {"strategies": ["trend_long", "breakout_4h_long"], "n_per_strategy": 40, "symbols": ["BTC@perp"]})
     assert lab == "Phễu · trend_long, breakout_4h_long · n=40/chiến lược · BTC"
-    assert batch.job_label("funnel_run", ["--resume", "fr-x"]) == "Phễu · chạy tiếp fr-x"
+    assert batch.job_label("funnel_run", {"resume": "fr-x"}) == "Phễu · chạy tiếp fr-x"

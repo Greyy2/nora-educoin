@@ -12,11 +12,12 @@ C. sổ    — các chiến lược đạt chạy CHUNG một sổ vốn với g
            bootstrap 1 năm trên lợi suất ngày dev2 (SL bi quan) có P(MDD >= 30%) <= 5%.
 D. holdout — chạy đúng sổ đã chốt một lần (cả hai cách khớp SL). Không chọn lại gì ở bước này.
 
-Dùng: PYTHONPATH=. python -m backend.optimize.build_strategy_book [--workers 10] [--n 24] [--only trend_long,trend_short]
+Job API (POST /api/studio/book/build -> api/jobs/runner.py -> run_job(params)); tham số và mặc định: DEFAULTS
+(workers, per_worker_mb, n, seed, only, out, keep_top, resume, max_configs, force_large).
 Quy mô lớn (tới ~1.000.000 cấu hình): giai đoạn A chạy STREAMING — cấu hình sinh lười, mỗi kết quả ghi ngay vào <run_dir>/results.sqlite
-(backend/optimize/results_store.py), tiến trình cha chỉ giữ top-K (K = max(3, --keep-top), mặc định 50) nên RAM cha phẳng.
-  --resume <run_dir>   chạy tiếp lần bị ngắt (bỏ qua job đã có trong kho; kết quả cuối y hệt lần chạy không gián đoạn)
-  --max-configs N      từ chối khi tổng số cấu hình > N (mặc định 200000) trừ khi --force-large; trước khi chạy in ước lượng
+(backend/optimize/results_store.py), tiến trình cha chỉ giữ top-K (K = max(3, keep_top), mặc định 50) nên RAM cha phẳng.
+  resume=<run_dir>     chạy tiếp lần bị ngắt (bỏ qua job đã có trong kho; kết quả cuối y hệt lần chạy không gián đoạn)
+  max_configs=N        từ chối khi tổng số cấu hình > N (mặc định 200000) trừ khi force_large; trước khi chạy in ước lượng
                        (số cấu hình × giây đo thực của 1 cấu hình / số worker) và ghi <run_dir>/estimate.json
   tiến độ: <run_dir>/progress.json (tối đa mỗi 5 giây); SIGTERM -> flush kho rồi thoát (resume được).
   stage_a.json / result.json chỉ chứa top-K mỗi chiến lược + số đếm (stage_a_counts.json: tried/passed); toàn bộ hàng xem qua kho.
@@ -27,10 +28,9 @@ Bộ nhớ (mỗi worker là một tiến trình có cache riêng):
   NORA_DATA_CACHE_MB     ngân sách cache mảng giá + kernel theo cửa sổ (script này mặc định 1024 MB)
   RAM một worker: mặc định PER_WORKER_MB (số ĐO THỰC, chỉ để hoạch định số worker + cổng RAM; rào cứng là
   trần cgroup — worker vượt thì bị giết riêng, _pool_map_safe chạy lại với một nửa số worker).
-  Đo lại bằng dòng `đỉnh RAM/worker` và ghi đè bằng --per-worker-mb khi dữ liệu/ngân sách cache đổi.
-  --workers auto đọc cả giới hạn cgroup (systemd-run -p MemoryMax=...), không chỉ RAM trống của máy.
-  BẮT BUỘC chạy dưới trần RAM: backend/utils/ops/run_limited.sh -- -m backend.optimize.build_strategy_book ...
-  (không có trần cgroup thì script từ chối chạy, trừ khi NORA_ALLOW_UNLIMITED=1).
+  Đo lại bằng dòng `đỉnh RAM/worker` và ghi đè bằng per_worker_mb khi dữ liệu/ngân sách cache đổi.
+  workers="auto" đọc cả giới hạn cgroup (systemd-run -p MemoryMax=...), không chỉ RAM trống của máy.
+  BẮT BUỘC chạy dưới trần RAM (job API luôn qua backend/utils/ops/run_limited.sh; không có trần cgroup thì từ chối, trừ khi NORA_ALLOW_UNLIMITED=1).
   Dữ liệu dùng chung: trước mỗi pool, tiến trình CHA dựng một lần mảng giá + kernel + funding của cả vũ trụ vào
   <run_dir>/_shared/ (backend/core/data/shared.py); worker chỉ np.load(mmap_mode="r") qua NORA_SHARED_DATA_DIR
   -> RAM riêng (anon) mỗi worker nhỏ, trang file chỉ tính MỘT lần trong cgroup. Chạy xong thì xoá _shared (lỗi thì giữ lại).
@@ -45,11 +45,9 @@ os.environ.setdefault("NORA_CANDLE_CACHE_MB", "512")
 os.environ.setdefault("NORA_DATA_CACHE_MB", "1024")
 # ─────────────────────────────────────────────────────────────────────────────
 
-import argparse
 import heapq
 import itertools
 import json
-import math
 import random
 import sys
 import time
@@ -58,16 +56,14 @@ import warnings
 import pandas as pd
 
 NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-if NORA_ROOT not in sys.path:
-    sys.path.insert(0, NORA_ROOT)
 
-from backend.carlo.monte_carlo import bootstrap_daily  # noqa: E402
+from backend.carlo.monte_carlo import bootstrap_daily
 from backend.core.metrics.portfolio import portfolio_metrics
-from backend.utils.parallel import auto_workers, pool_map_safe  # noqa: E402
-from backend.optimize.results_store import ResultsStore, data_fingerprint, make_job_key  # noqa: E402
-from backend.optimize.stream import normalize, stream_stage  # noqa: E402
-from backend.utils.jobresult import write_job_result  # noqa: E402
-from backend.utils.jsonsafe import json_default  # noqa: E402
+from backend.utils.parallel import auto_workers, pool_map_safe
+from backend.optimize.results_store import ResultsStore, data_fingerprint, make_job_key
+from backend.optimize.stream import normalize, stream_stage
+from backend.utils.jobs import as_list, options, write_job_result
+from backend.utils.jsonsafe import json_default
 
 DAY = 86_400_000
 WARMUP = 20 * DAY
@@ -77,7 +73,7 @@ RISK_SCALES = (0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 4.0)
 MAX_RISK_PER_TRADE = 2.0
 # Đo 01/10/2026 (dữ liệu dùng chung qua mmap, 8 tài sản perp, dev1 ≈ 14 tháng): VmHWM 560–590 MB mỗi worker (đã gồm trang mmap
 # dùng chung ~440 MB/giai đoạn; phần riêng ~150 MB) × 1,3 dự phòng. Trước khi dùng mmap: 1280–1320 MB (xem git log).
-# Đo lại bằng dòng `đỉnh RAM/worker`, ghi đè bằng --per-worker-mb khi kích thước dữ liệu hoặc ngân sách cache đổi;
+# Đo lại bằng dòng `đỉnh RAM/worker`, ghi đè bằng per_worker_mb khi kích thước dữ liệu hoặc ngân sách cache đổi;
 # trần cgroup (run_limited.sh) mới là rào cứng.
 PER_WORKER_MB = 800
 
@@ -382,29 +378,21 @@ def _fmt_duration(sec):
     return f"{sec / 86400:.1f} ngày"
 
 
-def main(argv=None):
+DEFAULTS = {"workers": "auto", "per_worker_mb": None, "n": 24, "seed": 7, "only": "", "out": os.path.join(NORA_ROOT, "data", "alphas"),
+            "keep_top": 50, "resume": "", "max_configs": 200_000, "force_large": False}
+
+
+def run_job(params=None):
+    """Dựng sổ chiến lược với `params` (xem DEFAULTS) -> báo cáo (cũng ghi book.json vào `out` + $NORA_JOB_DIR/result.json)."""
     warnings.filterwarnings("ignore")
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--workers", default="auto",
-                    help="số worker tiến trình song song; 'auto' = tính theo RAM (gồm cgroup) và CPU")
-    ap.add_argument("--per-worker-mb", type=float, default=None,
-                    help="trần RAM một worker (MB); mặc định = PER_WORKER_MB (số đo thực)")
-    ap.add_argument("--n", type=int, default=24, help="số cấu hình thử mỗi chiến lược ở dev1")
-    ap.add_argument("--seed", type=int, default=7)
-    ap.add_argument("--only", default="", help="chỉ các chiến lược này (phân tách bằng dấu phẩy)")
-    ap.add_argument("--out", default=os.path.join(NORA_ROOT, "data", "alphas"))
-    ap.add_argument("--keep-top", type=int, default=50, help="số hàng tốt nhất mỗi chiến lược giữ trong stage_a.json/RAM (tối thiểu 3)")
-    ap.add_argument("--resume", default="", help="thư mục lần chạy bị ngắt: bỏ qua job đã có trong results.sqlite và chạy tiếp")
-    ap.add_argument("--max-configs", type=int, default=200_000, help="từ chối khi tổng số cấu hình dev1 vượt ngưỡng này (trừ --force-large)")
-    ap.add_argument("--force-large", action="store_true", help="cho phép vượt --max-configs")
-    a = ap.parse_args(argv)
+    a = options(DEFAULTS, params)
     from backend.utils.memwatch import require_memory_limit
     require_memory_limit("build_strategy_book")
     from backend.core.strategy.book import BASE_RISK_PER_TRADE_PCT, CANDIDATES, GATES, RISK, perp_symbols
     from backend.db.data_layout import cache_dir
     from backend.utils.memwatch import check_memory_gate, planning_budget_mb
     from backend.core.data.quality_gate import require_data_ok_or_exit
-    from backend.optimize.progress import Progress, graceful_sigterm
+    from backend.utils.jobs import Progress, graceful_sigterm
 
     # Cổng chất lượng dữ liệu BẮT BUỘC — trước mọi việc khác và trước khi fork pool (worker thừa kế cache gate)
     require_data_ok_or_exit(perp_symbols())
@@ -419,13 +407,14 @@ def main(argv=None):
         workers = int(a.workers)
     check_memory_gate(workers * per_worker_mb, f"build_strategy_book --workers {workers}")
 
-    cands = [c for c in CANDIDATES if not a.only or c["id"] in a.only.split(",")]
+    only = as_list(a.only)
+    cands = [c for c in CANDIDATES if not only or c["id"] in only]
     keep = max(3, int(a.keep_top))
     counts_per_cand = {c["id"]: config_count(c, a.n) for c in cands}
     total_configs = sum(counts_per_cand.values())
     if total_configs > a.max_configs and not a.force_large:
-        raise SystemExit(f"Từ chối: {total_configs:,} cấu hình dev1 ({len(cands)} chiến lược × --n {a.n}) vượt --max-configs "
-                         f"{a.max_configs:,}. Giảm --n / --only hoặc thêm --force-large nếu thật sự muốn chạy.")
+        raise SystemExit(f"Từ chối: {total_configs:,} cấu hình dev1 ({len(cands)} chiến lược × n {a.n}) vượt max_configs "
+                         f"{a.max_configs:,}. Giảm n / only hoặc đặt force_large nếu thật sự muốn chạy.")
     w = windows(perp_symbols())
     fmt = lambda x: f"{pd.Timestamp(x, unit='ms'):%Y-%m-%d}"
     print(f"dev1 {fmt(w['start'])} → {fmt(w['dev1_end'])} | dev2 → {fmt(w['dev2_end'])} | holdout → {fmt(w['end'])}", flush=True)
@@ -437,11 +426,11 @@ def main(argv=None):
     store = ResultsStore(run_dir)
     progress = Progress(run_dir)
     fingerprint = data_fingerprint(perp_symbols())
-    run_args = {"n": a.n, "seed": a.seed, "only": a.only, "keep_top": keep}
+    run_args = {"n": a.n, "seed": a.seed, "only": ",".join(only), "keep_top": keep}
     if resuming:
         old = store.get_meta("args")
         if old and {k: old.get(k) for k in ("n", "seed", "only")} != {k: run_args[k] for k in ("n", "seed", "only")}:
-            print(f"[WARN] --resume: tham số lần chạy cũ {old} khác lần này {run_args} — chỉ job trùng job_key được dùng lại", flush=True)
+            print(f"[WARN] resume: tham số lần chạy cũ {old} khác lần này {run_args} — chỉ job trùng job_key được dùng lại", flush=True)
         print(f"[resume] {run_dir}: kho đã có {store.count():,} kết quả", flush=True)
     store.set_meta("args", run_args)
     report = {"windows": {k: fmt(v) for k, v in w.items()}, "gates": GATES, "risk": RISK, "candidates": {}}
@@ -656,7 +645,3 @@ def _run(a, cands, keep, counts_per_cand, total_configs, w, fmt, eval_risk, run_
     write_job_result({**report, "run_dir": run_dir, "written": paths, "stage_a": stage_a_rows(stage_a),
                       "stage_a_counts": stage_a_counts, "estimate": estimate,
                       "store": {"path": os.path.join(run_dir, "results.sqlite"), "rows": store.count()}})  # chỉ khi chạy như job API (env NORA_JOB_DIR)
-
-
-if __name__ == "__main__":
-    main()

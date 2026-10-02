@@ -459,9 +459,9 @@ Hằng số gate nằm đúng một nơi cho mỗi đường ống (§7, §8): s
 - **Số lượng:** 440 test qua tại `a3202c9` (báo cáo commit); đếm tĩnh có 303 hàm `test_*` trong 33 file (chênh vì tham số hoá). Cây làm việc hiện có thay đổi chưa commit ở `test_portfolio_dashboard.py` và `test_portfolio_engine.py`, nên số hiện tại có thể khác. `requirements.txt` còn ghi "265 test" (lỗi thời).
   Lịch sử (từ message commit): 258 (`407f51f`) → 265 (`836103b`) → 271 (`030c7f9`) → 285 (`b179f2b`) → 313 (`edb26f4`) → 316 (`06ae13b`) → 323 (`935d4d1`) → 351 (`2d4698f`) → 358 (`45f734e`) → 427 (`efe4fb2`) → 430 (`876ce9e`, `6d35c0d`, `4e8dd61`) → 440 (`a3202c9`).
 - **Golden bit-identical:** `test/golden_scenarios.py` chạy engine và chuẩn hoá mọi float bằng `float.hex()`; 3 kịch bản (`portfolio_synthetic`, `single_dca_filled`, `portfolio_real` trên BTC/SOL/DOGE perp, ghim `cooldown=0`) + 1 test chứng minh phép so sánh bắt được xáo trộn 1 bit
-  (`test_golden_comparison_detects_one_bit_perturbation`). Snapshot `test/golden/*.json`; sinh lại bằng `backend/utils/ops/run_limited.sh -- test/make_golden.py` **chỉ khi chủ đích đổi ngữ nghĩa backtest**. Mọi thay đổi hiệu năng/tái cấu trúc phải để golden không đổi.
+  (`test_golden_comparison_detects_one_bit_perturbation`). Snapshot `test/golden/*.json`; sinh lại bằng `backend/utils/ops/run_limited.sh -- test/scripts/make_golden.py` **chỉ khi chủ đích đổi ngữ nghĩa backtest**. Mọi thay đổi hiệu năng/tái cấu trúc phải để golden không đổi.
 - **Smoke:** `backend/core/backtest/smoke_check.py` (`single`, `portfolio`, `studio`, `optcheck`): bất biến sổ vốn, DCA, rủi ro theo SL, trần danh nghĩa/đòn bẩy, trần danh mục; chạy hai lần xoá cache để kiểm tất định. Kết quả gần nhất ghi trong commit: "0 FAIL" (`6d35c0d`, `4e8dd61`).
-- **Đối chiếu lỗi cũ:** `backend/utils/ops/check_tests_vs_ref.sh <git-ref>` chạy test hiện tại trên code ở ref cũ (ref phải từ `6d35c0d` trở đi vì đường import đã đổi).
+- **Đối chiếu lỗi cũ:** `test/scripts/check_tests_vs_ref.sh <git-ref>` chạy test hiện tại trên code ở ref cũ (ref phải từ `6d35c0d` trở đi vì đường import đã đổi).
 
 | Nhóm test | File chính |
 |---|---|

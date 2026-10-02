@@ -100,7 +100,7 @@ def test_endpoint_needs_exactly_one_source(client):
 def _wfa_job(result, kind="book_wfa", name="20260101_000000_a1b2c3", ok=True):
     d = os.path.join(batch_jobs.jobs_root(), name)
     os.makedirs(d, exist_ok=True)
-    batch_jobs._write_meta(d, {"id": name, "kind": kind, "args": [], "pid": 2 ** 22 + 9, "created": 1.0, "started": None,
+    batch_jobs._write_meta(d, {"id": name, "kind": kind, "params": {}, "pid": 2 ** 22 + 9, "created": 1.0, "started": None,
                                "finished": None, "state": "running", "exit_code": None})
     open(os.path.join(d, "out.log"), "w").write(f"[run_limited] peak RAM 1 MB / limit x | exit {0 if ok else 1}\n")
     if result is not None:

@@ -12,15 +12,13 @@ Lưu ý định dạng:
   (trước đó là mili-giây). REST API vẫn trả mili-giây. Mọi timestamp được chuẩn hoá về ms.
 - volume ghi vào pkl là quote_asset_volume (USDT) để cùng đơn vị USD với dữ liệu DEX.
 
-Ví dụ:
-    python -m backend.core.data.crawler --symbols BTC,ETH --years 3            # -> data/cex/<SYM>
+Job API `data_crawl` (POST /api/data/crawl -> api/jobs/runner.py -> run_job): params symbols ("BTC,ETH" hoặc list), market (spot|um),
+years, quote, end_ts; mặc định ghi vào <data_root>/cex.
 """
-import argparse
 import hashlib
 import io
 import json
 import os
-import sys
 import time
 import zipfile
 from datetime import date, datetime, timedelta, timezone
@@ -30,14 +28,11 @@ import numpy as np
 import pandas as pd
 import requests
 
-REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
-if REPO_ROOT not in sys.path:
-    sys.path.insert(0, REPO_ROOT)
+from backend.utils.jobs import as_list, options, write_job_result
 
-try:
-    from backend.core.data.resampler import save_resampled_dataset
-except ImportError:  # pragma: no cover
-    from nora.backend.core.data.resampler import save_resampled_dataset
+from backend.core.data.resampler import save_resampled_dataset
+
+NORA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 
 VISION_BASE = "https://data.binance.vision/data/spot"
 REST_BASE = "https://api.binance.com/api/v3/klines"
@@ -50,7 +45,7 @@ MARKETS = {
 }
 MINUTE_MS = 60_000
 DEFAULT_CACHE_DIR = os.environ.get("NORA_BINANCE_CACHE_DIR") or os.path.join(
-    os.path.dirname(REPO_ROOT), "data", "cache", "binance")  # REPO_ROOT = thư mục nora/ -> cha = gốc repo
+    os.path.dirname(NORA_DIR), "data", "cache", "binance")  # cha của thư mục nora/ = gốc repo
 KLINE_COLUMNS = [
     "open_time", "open", "high", "low", "close", "volume_base", "close_time",
     "quote_volume", "trades", "taker_buy_base", "taker_buy_quote", "ignore",
@@ -291,7 +286,7 @@ def crawl_symbol(
     return df, stats, issues
 
 
-def run(args: argparse.Namespace) -> List[Dict]:
+def crawl(args) -> List[Dict]:
     if not args.output_dir:
         from backend.db.data_layout import default_data_root
         args.output_dir = os.path.join(default_data_root(), "cex")
@@ -301,7 +296,7 @@ def run(args: argparse.Namespace) -> List[Dict]:
     session = requests.Session()
     session.headers.update({"User-Agent": "nora-research/1.0"})
     summaries = []
-    for base in [s.strip().upper() for s in args.symbols.split(",") if s.strip()]:
+    for base in [s.strip().upper() for s in as_list(args.symbols) if s.strip()]:
         log(f"[asset] {base}{args.quote} {datetime.fromtimestamp(start_ms/1000, timezone.utc):%Y-%m-%d} -> "
             f"{datetime.fromtimestamp(end_ms/1000, timezone.utc):%Y-%m-%d %H:%M}")
         cfg = MARKETS[args.market]
@@ -363,17 +358,14 @@ def run(args: argparse.Namespace) -> List[Dict]:
     return summaries
 
 
-def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
-    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--symbols", required=True, help="Base assets, vd BTC,ETH,SOL")
-    p.add_argument("--quote", default="USDT")
-    p.add_argument("--market", choices=sorted(MARKETS), default="spot", help="spot | um (USDT-M perpetual)")
-    p.add_argument("--years", type=float, default=3.0)
-    p.add_argument("--end-ts", default=None, help="End timestamp ms (mặc định: hiện tại)")
-    p.add_argument("--output-dir", default=None, help="Mặc định: <data_root>/cex")
-    p.add_argument("--cache-dir", default=DEFAULT_CACHE_DIR)
-    return p.parse_args(argv)
-
-
-if __name__ == "__main__":
-    run(parse_args())
+def run_job(params=None) -> List[Dict]:
+    """Crawl theo `params` (khoá: symbols, quote, market, years, end_ts, output_dir, cache_dir) -> báo cáo từng tài sản."""
+    a = options({"symbols": "", "quote": "USDT", "market": "spot", "years": 3.0, "end_ts": None, "output_dir": None,
+                 "cache_dir": DEFAULT_CACHE_DIR}, params)
+    if not as_list(a.symbols):
+        raise ValueError("cần symbols")
+    if a.market not in MARKETS:
+        raise ValueError(f"market phải là một trong {sorted(MARKETS)}")
+    out = crawl(a)
+    write_job_result({"assets": out})
+    return out

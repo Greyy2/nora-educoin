@@ -10,6 +10,7 @@ import threading
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel, Field
 
 from backend.core.analytics import feeds
 from backend.core.analytics import dashboard as pd_mod
@@ -74,9 +75,19 @@ def get_dashboard(source: str = Query("backtest", pattern="^(backtest|live|testn
     if job.get("status") != "done" or not job.get("result"):
         raise HTTPException(409, f"job chưa xong (trạng thái {job.get('status')})")
     res = job["result"]
-    feed = feeds.BacktestFeed(res, job_id, batch_jobs.job_label(job["kind"], job.get("args") or []))
+    feed = feeds.BacktestFeed(res, job_id, batch_jobs.job_label(job["kind"], job.get("params")))
     snap = feed.fetch()
     payload = pd_mod.build_from_snapshot(snap, period, pd_mod.snapshot_benchmark(res))
     with _LOCK:
         _CACHE.put(key, payload)
     return payload
+
+
+class MockFeedsRequest(BaseModel):
+    only: str = Field("", pattern="^(|live|testnet)$")
+
+
+@router.post("/mock-feeds")
+def post_mock_feeds(req: MockFeedsRequest):
+    """Dựng lại feed giả lập Live/Testnet (job nền mock_feeds: engine thật trên dữ liệu mới nhất)."""
+    return batch_jobs.http_launch("mock_feeds", {"only": req.only} if req.only else {})

@@ -208,8 +208,8 @@ def test_skip_idle_identical_with_cooldown(monkeypatch, cooldown):
 # ─── optimize_alphas.sample_configs ─────────────────────────────────────────
 
 def _load_script(name):
-    from cli_paths import command_path
-    path = command_path(name)
+    from job_modules import job_path
+    path = job_path(name)
     spec = importlib.util.spec_from_file_location(name, path)
     mod = importlib.util.module_from_spec(spec)
     sys.modules[name] = mod

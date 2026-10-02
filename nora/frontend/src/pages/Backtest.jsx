@@ -11,7 +11,7 @@ import McResult from '../components/McResult'
 import useJob from '../hooks/useJob'
 import { useCatalog } from '../context/Catalog'
 import { postBacktest, postWfa, postMc } from '../api'
-import { parseJobArgs, JOB_STATUS } from '../lib/jobs'
+import { parseJobParams, JOB_STATUS } from '../lib/jobs'
 import { daysInclusive } from '../lib/dates'
 import { fullDate } from '../lib/format'
 import { STOP_FILL, stopFillOptions } from '../lib/stopfill'
@@ -268,7 +268,7 @@ function StepWfa({ cat, strats, form, setForm, wfaId, wfa, onLaunched, onNext })
   useEffect(() => {
     if (!wfaId || !wfa.job || syncedFor.current === wfaId) return
     syncedFor.current = wfaId
-    const a = parseJobArgs(wfa.job.args)
+    const a = parseJobParams(wfa.job.params)
     const r = wfa.job.result
     const rs = wfa.job.resolved
     const train = rs?.train_days ?? a.train_days ?? r?.config?.train_days
@@ -565,7 +565,7 @@ export default function Backtest() {
   useEffect(() => {
     if (!form || !cat || seeded.current || !bt.job) return
     seeded.current = true
-    const a = parseJobArgs(bt.job.args)
+    const a = parseJobParams(bt.job.params)
     const rs = bt.job.resolved
     const list = rs?.strategies || a.strategies
     setFormRaw((f) => ({
