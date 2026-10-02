@@ -140,37 +140,20 @@ class PortfolioEngine:
         }
 
     def _load_shared(self, eng: BacktestEngine) -> Optional[Dict[str, Any]]:
-        """Dữ liệu qua mmap dùng chung (shared_dir, core/data/shared.py). Nền thiếu -> tự dựng và ghi (tiến trình khác dùng lại). Cột thiếu
-        -> tính trong RAM từ file của khung (gốc cố định) rồi căn theo `t` của nền.
-        Kết quả bằng từng bit với _build_symbol_data. None nếu tài sản không có 1m.pkl (dựng như thường)."""
+        """Dữ liệu qua kho dùng chung (shared_dir, core/data/shared.py): nền mmap + cột chỉ báo tính sẵn theo khung, căn theo chỉ số
+        dùng chung. Thiếu phần nào thì tự tính ĐÚNG phần đó, ghi vào kho (tiến trình khác dùng lại) rồi đọc lại.
+        Bằng từng bit với _build_symbol_data. None nếu tài sản không có 1m.pkl (dựng như thường)."""
         from backend.core.data.loader import CandleLoader
-        from backend.core.signals.evaluator import lag_key
         p = shared_data.plan(eng)
         if p is None:
             return None
         data = shared_data.load(self.shared_dir, p)
         if data is not None:
             return data
-        base = shared_data.load_base(self.shared_dir, p)
-        if base is None:
-            shared_data.fill(self.shared_dir, self, eng, {"base": p["base"], "cols": {}})
-            base = shared_data.load_base(self.shared_dir, p)
-            if base is None:
-                return None
-        cols = shared_data.load_cols(self.shared_dir, p)
-        need = set(p["cols"]) - set(cols)
-        refs = eng._refs_by_frame()
-        sub = {fr: {(c, lag) for c, lag in rs if f"{fr}|{lag_key(c, lag)}" in need} for fr, rs in refs.items()}
-        if sub.get("1m"):                              # cột 1m: kernel trên toàn bộ phút thật từ đầu lịch sử, lấy các phút của nền
-            cols.update(eng.minute_columns(sub["1m"], base["t"]))
-        big = {fr: rs for fr, rs in sub.items() if rs and fr != "1m"}
-        if big:
-            eng.load_frames(refs)                      # mỗi khung nạp theo refs ĐẦY ĐỦ (cùng điểm bắt đầu như khi dựng cả bộ)
-            cols.update(eng.frame_columns(big, base["t"]))
-        shared_data.STATS["cols_in_memory"] += len(need)
-        eng.df_1m, eng.df_1m_hist, eng.frames, eng.df_4h, eng.funding = None, None, {}, None, None   # như khi đọc thẳng mmap
-        CandleLoader.clear_cache()                 # không giữ file khung trong worker (đo: giữ lại +~250 MB/worker, chỉ nhanh ~6%)
-        return shared_data.assemble(base, cols, p["cols"])
+        shared_data.fill(self.shared_dir, self, eng, p)
+        eng.df_1m, eng.df_1m_hist, eng.frames, eng.df_4h, eng.funding = None, None, {}, None, None   # như khi đọc thẳng kho
+        CandleLoader.clear_cache()
+        return shared_data.load(self.shared_dir, p)
 
     def _load_symbol(self, symbol: str, eng: BacktestEngine) -> Dict[str, Any]:
         if self.shared_dir:  # mmap chỉ đọc dùng chung — KHÔNG đưa vào _DATA_CACHE (không nhân bản RAM)

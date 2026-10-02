@@ -67,11 +67,12 @@ def _assert_same(built, loaded):
         assert a.shape == b.shape, name
         assert np.array_equal(a, b, equal_nan=True), name
         assert a.tobytes() == b.tobytes(), name   # NaN/-0.0 cũng giống từng bit
-        assert not b.flags.writeable, name        # chỉ đọc
+        if not name.startswith("cols["):
+            assert not b.flags.writeable, name    # nền: view mmap chỉ đọc (cột = giá trị khung mmap gom theo chỉ số)
 
 
 def _tmp_left(out):
-    return [n for sub in ("base", "cols") if (out / sub).is_dir() for n in os.listdir(out / sub) if ".tmp" in n]
+    return [n for sub in ("base", "ft", "fv", "ix") if (out / sub).is_dir() for n in os.listdir(out / sub) if ".tmp" in n]
 
 
 def test_mmap_data_equals_built_data_bit_for_bit(market, tmp_path):
@@ -101,8 +102,8 @@ def test_key_changes_when_source_file_changes(market):
     st = fund.stat()
     os.utime(fund, ns=(st.st_atime_ns, st.st_mtime_ns + 1_000_000_000))
     p2 = shared_data.plan(e)
-    assert p2["base"] != p1["base"] and set(p2["cols"].values()).isdisjoint(p1["cols"].values())
-    assert shared_data.load(str(market), {"base": "0" * 40, "cols": {}}) is None
+    assert p2["base"] != p1["base"]
+    assert shared_data.load(str(market), {"base": "0" * 40, "frames": {}, "cols": {}}) is None
 
 
 def test_indicators_are_window_invariant_fixed_origin(market):
@@ -120,7 +121,7 @@ def test_indicators_are_window_invariant_fixed_origin(market):
         e, _ = pe._make_trackers("AAA@perp", pe.ledger)
         got.append((shared_data.plan(e), pe._build_symbol_data(e)))
     (p1, d1), (p2, d2) = got
-    assert p1["cols"]["4h|ema_20"] != p2["cols"]["4h|ema_20"]          # khác cửa sổ (khoá nền) ...
+    assert p1["base"] != p2["base"] and p1["cols"]["4h|ema_20"] == p2["cols"]["4h|ema_20"]   # khác cửa sổ, CÙNG giá trị khung ...
     common = np.intersect1d(d1["t"], d2["t"])
     assert len(common) > 1000
     for cid in ("4h|ema_20", "1m|rsi_14"):
@@ -138,12 +139,12 @@ def test_two_groups_share_base_and_only_add_missing_columns(market, tmp_path):
     engs = [PortfolioEngine(SYMS, [st], T0, T0 + 30 * DAY, trade_start_ts=T0 + 3 * DAY, risk=RiskConfig(), use_cache=False)
             for st in (st1, st2)]
     shared_data.export(engs[0], str(out))
-    n_cols = len(os.listdir(out / "cols"))
+    n_cols = len(os.listdir(out / "fv"))
     before = dict(shared_data.STATS)
     shared_data.export(engs[1], str(out))
     assert len(os.listdir(out / "base")) == len(SYMS)                                 # nền dùng chung
     assert shared_data.STATS["bases_written"] == before["bases_written"]
-    assert len(os.listdir(out / "cols")) - n_cols == len(SYMS)                        # chỉ thêm rsi_20 cho mỗi tài sản
+    assert len(os.listdir(out / "fv")) - n_cols == len(SYMS)                          # chỉ thêm rsi_20 cho mỗi tài sản
     for pe in engs:
         for sym in SYMS:
             e, _ = pe._make_trackers(sym, pe.ledger)
@@ -196,8 +197,8 @@ def test_run_with_shared_dir_matches_run_without(market, tmp_path, monkeypatch):
     lazy = _engine(shared_dir=empty)
     lazy.run()
     assert gs.canonicalize(lazy.get_results()) == golden
-    assert shared_data.STATS["fills"] - before == len(SYMS)                         # chỉ ghi nền (mỗi tài sản một lần)
-    assert len(os.listdir(os.path.join(empty, "base"))) == len(SYMS) and not os.path.isdir(os.path.join(empty, "cols"))
+    assert shared_data.STATS["fills"] - before == len(SYMS)                         # mỗi tài sản điền một lần
+    assert len(os.listdir(os.path.join(empty, "base"))) == len(SYMS) and os.listdir(os.path.join(empty, "fv"))
     calls = []
     orig = PortfolioEngine._build_symbol_data
     monkeypatch.setattr(PortfolioEngine, "_build_symbol_data", lambda self, e, only=None: calls.append(1) or orig(self, e, only))
@@ -220,20 +221,19 @@ def test_golden_real_through_shared_mmap(tmp_path):
 
 
 @pytest.mark.parametrize("frame", ["15m", "1m"])
-def test_lazy_columns_in_memory_equal_built(market, tmp_path, frame):
-    """Nền có sẵn, cột thiếu: tính trong RAM (khung lớn căn theo t của nền; cột 1m dựng riêng) -> bằng từng bit với tự dựng, không ghi cột."""
+def test_lazy_fill_equals_built_and_is_reused(market, tmp_path, frame):
+    """Kho trống: worker tự điền (nền + giá trị cột theo khung + chỉ số căn) -> bằng từng bit với tự dựng; engine thứ hai cùng refs
+    không phải tính gì nữa. Gồm cả cột khung 1m (tính trên toàn bộ phút thật từ đầu lịch sử)."""
     from backend.core.backtest.portfolio import PortfolioEngine, RiskConfig
     from backend.core.data import shared as shared_data
     out = tmp_path / "shared"
     st = {"id": "s", "side": "LONG", "position": gs._POSITION,
           "tree": [[[{"frame": frame, "column": "rsi_14"}, "<", {"frame": "4h", "column": "ema_30", "index": 1}]]]}
-    pe = PortfolioEngine(SYMS, [st], T0, T0 + 30 * DAY, trade_start_ts=T0 + 3 * DAY, risk=RiskConfig(), use_cache=False,
-                         shared_dir=str(out))
-    for sym in SYMS:
-        e, _ = pe._make_trackers(sym, pe.ledger)
-        p = shared_data.plan(e)
-        shared_data.fill(str(out), pe, e, {"base": p["base"], "cols": {}})
-    before = shared_data.STATS["cols_in_memory"]
+
+    def engine():
+        return PortfolioEngine(SYMS, [st], T0, T0 + 30 * DAY, trade_start_ts=T0 + 3 * DAY, risk=RiskConfig(), use_cache=False,
+                               shared_dir=str(out))
+    pe = engine()
     for sym in SYMS:
         e, _ = pe._make_trackers(sym, pe.ledger)
         lazy = pe._load_symbol(sym, e)
@@ -244,5 +244,7 @@ def test_lazy_columns_in_memory_equal_built(market, tmp_path, frame):
             assert lazy[k].tobytes() == built[k].tobytes(), k
         for k in built["cols"]:
             assert lazy["cols"][k].dtype == built["cols"][k].dtype and lazy["cols"][k].tobytes() == built["cols"][k].tobytes(), k
-    assert shared_data.STATS["cols_in_memory"] - before == len(SYMS) * len(built["cols"])
-    assert not (out / "cols").exists()
+    before = shared_data.STATS["fills"]
+    pe2 = engine()
+    pe2.load_data()
+    assert shared_data.STATS["fills"] == before                                       # đọc thẳng kho, không tính lại

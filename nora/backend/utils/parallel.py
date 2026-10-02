@@ -138,7 +138,7 @@ def pool_imap_bounded(fn, job_iter: Iterable, workers: int, label: str,
 
 
 def auto_workers(per_worker_mb: float, max_workers: Optional[int] = None) -> int:
-    """Số worker = min(CPU dùng được, ngân sách RAM / trần RAM một worker[, max_workers]).
+    """Số worker = min(số core thật dùng được, ngân sách RAM / trần RAM một worker[, max_workers]) — một worker mỗi core thật.
 
     Ngân sách = planning_budget_mb(): phần trống của cgroup nora.slice (85%), không vượt quá MemAvailable của máy
     trừ dự phòng cho người dùng khác; không có cgroup thì 60% MemAvailable. CPU dùng được tôn trọng taskset

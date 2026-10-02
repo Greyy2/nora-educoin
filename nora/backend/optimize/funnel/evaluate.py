@@ -332,6 +332,6 @@ class SharedExporter:
         import shutil
         if not self.shared_dir:
             return
-        for sub in ("base", "cols"):
+        for sub in ("base", "ft", "fv", "ix"):
             shutil.rmtree(os.path.join(self.shared_dir, sub), ignore_errors=True)
         self.sigs.clear()

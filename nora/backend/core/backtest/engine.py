@@ -196,69 +196,61 @@ class BacktestEngine:
             refs = {fr: {(c, lag) for c, lag in rs if f"{fr}|{lag_key(c, lag)}" in only} for fr, rs in refs.items()}
             refs = {fr: rs for fr, rs in refs.items() if rs}
         cols: Dict[str, np.ndarray] = {}
-
-        if refs.get("1m"):
-            cols.update(self.minute_columns(refs["1m"], df1["open_time"].to_numpy()))
-        cols.update(self.frame_columns(refs, df1["open_time"].to_numpy()))
+        open_time = df1["open_time"].to_numpy()
+        for frame in (["1m"] if "1m" in refs else []) + [f for f in refs if f != "1m"]:
+            if frame != "1m" and frame not in FRAME_MS:
+                continue
+            t_frame, vals = self.frame_values(frame, refs[frame])
+            idx = self.align_index(frame, t_frame, open_time)
+            for cid, v in vals.items():
+                cols[cid] = self.gather(v, idx)
         return df1, cols
 
-    def frame_columns(self, refs: Dict[str, Set[Tuple[str, int]]], open_time: np.ndarray) -> Dict[str, np.ndarray]:
-        """Cột của các khung lớn (đã nạp bằng load_frames) căn về các phút `open_time`: tại phút t chỉ thấy nến khung ĐÃ ĐÓNG trước
-        t + 1 phút. Mỗi phút ghép độc lập (merge_asof lùi) nên căn trên tập phút con cho đúng giá trị của các phút đó."""
-        frames = dict(self.frames)
-        if self.df_4h is not None and not self.df_4h.empty:
-            frames["4h"] = self._enrich_4h(self._prepare_candles(self.df_4h))
-        cols: Dict[str, np.ndarray] = {}
-        n = len(open_time)
-        decision = np.asarray(open_time, dtype="int64") + FRAME_MS["1m"]
-        for frame, frame_refs in refs.items():
-            if frame == "1m" or frame not in FRAME_MS:
-                continue
-            fdf = frames.get(frame)
-            if fdf is None or fdf.empty:
-                for column, lag in frame_refs:
-                    cols[f"{frame}|{lag_key(column, lag)}"] = np.full(n, np.nan)
-                continue
-            feat = frame_features(fdf, frame_refs)
-            # ghép lùi (asof): nến cuối có avail_time = open + độ dài khung <= phút quyết định. open_time của khung tăng ngặt
-            # (_prepare_candles bỏ trùng) -> searchsorted phải - 1 chọn đúng dòng như merge_asof(direction="backward").
-            avail = feat[KEY].to_numpy(dtype="int64") + FRAME_MS[frame]
-            idx = np.searchsorted(avail, decision, side="right") - 1
-            miss = idx < 0
-            idx[miss] = 0
-            for name in feat.columns:
-                if name != KEY:
-                    vals = feat[name].to_numpy(dtype="float64")
-                    out = vals[idx] if len(vals) else np.full(n, np.nan)
-                    out[miss] = np.nan
-                    cols[f"{frame}|{name}"] = out
-        return cols
+    def frame_values(self, frame: str, refs: Set[Tuple[str, int]]) -> Tuple[np.ndarray, Dict[str, np.ndarray]]:
+        """Giá trị các cột `refs` của khung `frame` trên MỌI nến của khung từ đầu lịch sử (gốc cố định) -> (open_time nến, {cid: giá trị}).
+        Khung 1m: chỉ phút có giao dịch (bỏ nến điền). Khung lớn: các nến đã nạp bằng load_frames. Mỗi cột tính độc lập."""
+        if frame == "1m":
+            src = getattr(self, "df_1m_hist", None)
+            if src is None:
+                src = self.df_1m       # dữ liệu gán thẳng (test) = toàn bộ lịch sử
+            if src is None:            # đường dữ liệu dùng chung: engine chưa nạp gì
+                src = CandleLoader(self.symbol, frame="1m", use_cache=True).load_data(HISTORY_START, self.end_ts)
+            src = self._prepare_candles(src)
+            if "is_filled" in src.columns:
+                src = src[pd.to_numeric(src["is_filled"], errors="coerce").fillna(0).astype(int) == 0].reset_index(drop=True)
+        elif frame == "4h" and self.df_4h is not None and not self.df_4h.empty:
+            src = self._enrich_4h(self._prepare_candles(self.df_4h))
+        else:
+            src = self.frames.get(frame)
+        if src is None or src.empty:
+            return np.zeros(0, dtype="int64"), {f"{frame}|{lag_key(c, lag)}": np.zeros(0) for c, lag in sorted(refs)}
+        feat = frame_features(src, refs)
+        return (feat[KEY].to_numpy(dtype="int64"),
+                {f"{frame}|{name}": feat[name].to_numpy(dtype="float64") for name in feat.columns if name != KEY})
 
-    def minute_columns(self, refs: Set[Tuple[str, int]], open_time: np.ndarray) -> Dict[str, np.ndarray]:
-        """Cột khung 1m: kernel tính trên MỌI phút có giao dịch từ đầu lịch sử tới end_ts (gốc cố định, bỏ nến điền), rồi lấy đúng
-        các phút `open_time` (phút không có giao dịch -> NaN)."""
-        full = getattr(self, "df_1m_hist", None)
-        if full is None:
-            full = self.df_1m       # dữ liệu gán thẳng (test) = toàn bộ lịch sử
-        if full is None:            # đường dữ liệu dùng chung: engine chưa nạp gì
-            full = self._prepare_candles(CandleLoader(self.symbol, frame="1m", use_cache=True).load_data(HISTORY_START, self.end_ts))
-        full = self._prepare_candles(full)
-        if "is_filled" in full.columns:
-            full = full[pd.to_numeric(full["is_filled"], errors="coerce").fillna(0).astype(int) == 0].reset_index(drop=True)
-        feat = frame_features(full, refs)
-        t_full = feat[KEY].to_numpy(dtype="int64")
+    @staticmethod
+    def align_index(frame: str, t_frame: np.ndarray, open_time: np.ndarray) -> np.ndarray:
+        """Chỉ số nến khung dùng ở từng phút `open_time` (-1 = chưa có). Khung 1m: đúng phút đó (phút không giao dịch -> -1).
+        Khung lớn: nến cuối ĐÃ ĐÓNG trước phút quyết định (open + độ dài khung <= t + 1 phút); open_time khung tăng ngặt
+        (_prepare_candles bỏ trùng) nên searchsorted phải − 1 chọn đúng nến như merge_asof(direction="backward")."""
         q = np.asarray(open_time, dtype="int64")
-        pos = np.searchsorted(t_full, q)
-        hit = pos < len(t_full)
-        hit[hit] = t_full[pos[hit]] == q[hit]
-        pos[~hit] = 0
-        out = {}
-        for name in feat.columns:
-            if name != KEY:
-                vals = feat[name].to_numpy(dtype="float64")
-                col = vals[pos] if len(vals) else np.full(len(q), np.nan)
-                col[~hit] = np.nan
-                out[f"1m|{name}"] = col
+        if len(t_frame) == 0:
+            return np.full(len(q), -1, dtype="int64")
+        if frame == "1m":
+            pos = np.searchsorted(t_frame, q)
+            hit = pos < len(t_frame)
+            hit[hit] = t_frame[pos[hit]] == q[hit]
+            pos[~hit] = -1
+            return pos.astype("int64")
+        return (np.searchsorted(t_frame + FRAME_MS[frame], q + FRAME_MS["1m"], side="right") - 1).astype("int64")
+
+    @staticmethod
+    def gather(vals: np.ndarray, idx: np.ndarray) -> np.ndarray:
+        """Giá trị theo chỉ số căn phút (-1 -> NaN)."""
+        if len(vals) == 0:
+            return np.full(len(idx), np.nan)
+        out = vals[np.maximum(idx, 0)]
+        out[idx < 0] = np.nan
         return out
 
     def run(self):

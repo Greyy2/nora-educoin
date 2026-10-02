@@ -173,12 +173,35 @@ def planning_budget_mb() -> float:
     return max(0.0, host * 0.6)
 
 
-def usable_cpus() -> int:
-    """Số CPU tiến trình được phép dùng (tôn trọng cpuset/taskset)."""
+def logical_cpus() -> int:
+    """Số CPU logic tiến trình được phép dùng (tôn trọng cpuset/taskset), gồm cả luồng hyper-threading."""
     try:
         return len(os.sched_getaffinity(0))
     except (AttributeError, OSError):
         return os.cpu_count() or 1
+
+
+def usable_cpus() -> int:
+    """Số CORE THẬT trong các CPU được phép dùng — trần số worker. Backtest là việc tính toán thuần (kernel numba): hai luồng HT trên
+    cùng một core gần như không nhanh hơn một (đo P1.8: 10 -> 12 worker trên 8 core chỉ +6%) mà nhân đôi RAM. Không đọc được topo
+    -> số CPU logic. NORA_CPU_LOGICAL=1 -> dùng số CPU logic."""
+    if os.environ.get("NORA_CPU_LOGICAL") == "1":
+        return logical_cpus()
+    try:
+        cpus = sorted(os.sched_getaffinity(0))
+    except (AttributeError, OSError):
+        return logical_cpus()
+    cores = set()
+    for c in cpus:
+        try:
+            with open(f"/sys/devices/system/cpu/cpu{c}/topology/core_id") as f:
+                core = f.read().strip()
+            with open(f"/sys/devices/system/cpu/cpu{c}/topology/physical_package_id") as f:
+                pkg = f.read().strip()
+        except OSError:
+            return logical_cpus()
+        cores.add((pkg, core))
+    return max(1, len(cores))
 
 
 def cache_report() -> Dict[str, Any]:

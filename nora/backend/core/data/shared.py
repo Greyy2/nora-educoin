@@ -1,26 +1,23 @@
-"""Dữ liệu giá + cột kernel dùng CHUNG giữa các tiến trình qua mmap (chỉ đọc), lưu THEO CỘT.
+"""Dữ liệu giá + chỉ báo dùng CHUNG giữa các tiến trình qua mmap (chỉ đọc) — kho tính sẵn kiểu "ma trận chỉ báo" (học từ sova/prepare.py).
 
-Vì sao: mỗi worker từng tự dựng `data` của 8 tài sản perp (~1,3 GB) trong _DATA_CACHE riêng; khi phễu sinh tham số theo schema (chu kỳ /
-khung đổi theo alpha) mỗi nhóm tín hiệu cần bộ cột khác -> worker dựng lại liên tục, RAM vượt ngân sách. Ở đây nền (giá, funding) và
-TỪNG cột kernel là một file; nhóm nào cũng dùng lại phần đã có, chỉ tính thêm cột còn thiếu. Trang file nằm trong page cache của kernel
-nên N worker đọc chung không nhân bản RAM.
+Chỉ báo tính từ gốc cố định (đầu lịch sử, BacktestEngine.frame_values) nên giá trị của một cột trên nến khung chỉ phụ thuộc
+(tài sản, khung, cột, file dữ liệu, mốc cuối) — KHÔNG phụ thuộc cửa sổ hay các cột khác. Vì vậy mỗi cột của mỗi khung tính đúng MỘT lần
+cho cả lần chạy (mọi nhóm alpha dùng lại), ở dạng nến khung (nhỏ: 15m ~100k nến), rồi mỗi worker căn về phút bằng chỉ số dùng chung.
 
 Bố cục <out_dir>/:
-  base/<khoá nền>/{t,o,h,l,c,f_t,f_r}.npy + meta.json
-  cols/<khoá cột>.npy
-
-Khoá phải tái lập ĐÚNG dữ liệu mà engine tự dựng (bằng từng bit):
-  khoá nền = sha1(tài sản, nguồn, cửa sổ, điểm bắt đầu nạp 1m (= start − warmup 1m theo refs 1m), perp, vân tay 1m.pkl + funding.pkl)
-  khoá cột = sha1(khoá nền, "khung|cột[__lagN]", điểm bắt đầu nạp của KHUNG đó (= start − max warmup các cột cùng khung, như
-             BacktestEngine.load_data), vân tay file của khung)
-  -> cột chỉ báo đệ quy (EMA, RSI...) phụ thuộc điểm bắt đầu nạp, nên cùng tên cột nhưng khác điểm bắt đầu là hai file khác nhau.
-Ghi nguyên tử (thư mục / file tạm + rename): người đọc không bao giờ thấy dữ liệu dở; hai tiến trình ghi cùng khoá thì một bản thắng.
+  base/<khoá nền>/{t,o,h,l,c,f_t,f_r}.npy + meta.json   nến 1m thật + funding của cửa sổ (theo engine.load_data)
+  ft/<khoá khung>.npy                                     open_time các nến của khung (khung 1m: các phút có giao dịch)
+  fv/<khoá cột>.npy                                       giá trị cột trên các nến đó
+  ix/<khoá căn>.npy                                       chỉ số nến khung dùng ở từng phút của nền (-1 = chưa có)
+Khoá:
+  nền  = sha1(tài sản, nguồn, cửa sổ, điểm bắt đầu nạp 1m, perp, vân tay 1m.pkl + funding.pkl)
+  khung = sha1(tài sản, nguồn, khung, vân tay file khung, mốc cuối)       cột = sha1(khung, cột)       căn = sha1(nền, khung)
+Ghi nguyên tử (file / thư mục tạm + rename): người đọc không bao giờ thấy dữ liệu dở; hai tiến trình ghi cùng khoá thì một bản thắng.
 
 Dùng:
-  export() (tiến trình cha làm nóng trước pool: sổ, WFA, phễu) ghi nền + cột — các job sau dùng lại đúng bộ cột đó.
-  PortfolioEngine._load_shared (worker, khi có shared_dir): đủ thì đọc mmap; thiếu nền thì tự ghi nền (một lần cho cả pool);
-  cột thiếu thì tính NGAY TRONG RAM từ file khung (15m/1h/4h, nhỏ) căn theo lưới `t` của nền — KHÔNG ghi ra đĩa: với tham số
-  sinh theo schema, điểm bắt đầu nạp khung đổi theo từng nhóm nên cột gần như không dùng lại (đo: ~5 MB/cột, 2354 file / 900 alpha).
+  export()  — tiến trình cha làm nóng trước khi chạy pool (sổ, WFA, phễu).
+  PortfolioEngine._load_shared — worker: đủ thì đọc; thiếu thì fill() đúng phần thiếu (nền / cột / chỉ số căn) rồi đọc lại.
+Kết quả bằng từng bit với PortfolioEngine._build_symbol_data (test/test_shared_data.py).
 """
 import hashlib
 import json
@@ -34,9 +31,9 @@ if TYPE_CHECKING:  # tránh import vòng (portfolio import module này)
     from backend.core.backtest.engine import BacktestEngine
     from backend.core.backtest.portfolio import PortfolioEngine
 
-FORMAT_VERSION = 4
+FORMAT_VERSION = 5
 BASE_ARRAYS = ("t", "o", "h", "l", "c", "f_t", "f_r")
-STATS = {"fills": 0, "cols_written": 0, "bases_written": 0, "cols_in_memory": 0}   # theo tiến trình (giám sát / test)
+STATS = {"fills": 0, "bases_written": 0, "cols_written": 0, "frames_written": 0, "index_written": 0}   # theo tiến trình (giám sát / test)
 
 
 def _sha1(payload: Dict[str, Any]) -> str:
@@ -52,7 +49,7 @@ def _stat(path: Optional[str]):
 
 
 def plan(eng: "BacktestEngine") -> Optional[Dict[str, Any]]:
-    """Khoá nền + khoá từng cột cho đúng bộ dữ liệu `eng` sẽ dựng (refs, cửa sổ nạp từng khung như load_data). None nếu không có 1m.pkl."""
+    """Khoá nền + khoá từng khung / cột / chỉ số căn cho đúng bộ dữ liệu `eng` sẽ dựng. None nếu không có 1m.pkl."""
     from backend.core.backtest.engine import FRAME_MS
     from backend.core.data.loader import _file_fingerprint
     from backend.core.signals.evaluator import lag_key
@@ -67,35 +64,35 @@ def plan(eng: "BacktestEngine") -> Optional[Dict[str, Any]]:
     base = _sha1({"v": FORMAT_VERSION, "sym": eng.symbol, "root": root, "start": int(eng.start_ts), "end": int(eng.end_ts),
                   "load_1m": int(eng.start_ts - eng._warmup_ms("1m", refs.get("1m", set()))), "perp": perp, "fp_1m": list(fp1),
                   "fp_funding": _stat(os.path.join(sym_dir, "funding.pkl")) if (perp and sym_dir) else None})
-    cols: Dict[str, str] = {}
-    order = (["1m"] if "1m" in refs else []) + [f for f in refs if f != "1m"]   # cùng thứ tự với _build_matrix
-    for frame in order:
+    frames: Dict[str, Dict[str, str]] = {}
+    cols: Dict[str, Dict[str, str]] = {}
+    for frame in (["1m"] if "1m" in refs else []) + [f for f in refs if f != "1m"]:   # cùng thứ tự với _build_matrix
         if frame != "1m" and frame not in FRAME_MS:
-            continue                                    # engine không dựng cột cho khung lạ
-        fp = _file_fingerprint(eng.symbol, frame, root)  # chỉ báo tính từ đầu file khung (gốc cố định) -> chỉ phụ thuộc file
-        fp = list(fp) if fp is not None else None
+            continue
+        fp = _file_fingerprint(eng.symbol, frame, root)
+        tkey = _sha1({"v": FORMAT_VERSION, "sym": eng.symbol, "root": root, "frame": frame, "fp": list(fp) if fp else None,
+                      "end": int(eng.end_ts)})
+        frames[frame] = {"t": tkey, "ix": _sha1({"base": base, "frame": tkey})}
         for col, lag in sorted(refs[frame]):
             cid = f"{frame}|{lag_key(col, lag)}"
-            cols[cid] = _sha1({"base": base, "cid": cid, "fp": fp})
-    return {"base": base, "cols": cols}
+            cols[cid] = {"frame": frame, "v": _sha1({"frame": tkey, "cid": cid})}
+    return {"base": base, "frames": frames, "cols": cols}
 
 
 def _base_dir(out_dir: str, key: str) -> str:
     return os.path.join(out_dir, "base", key)
 
 
-def _col_path(out_dir: str, key: str) -> str:
-    return os.path.join(out_dir, "cols", f"{key}.npy")
+def _file(out_dir: str, kind: str, key: str) -> str:
+    return os.path.join(out_dir, kind, f"{key}.npy")
 
 
 def paths(p: Dict[str, Any]) -> Set[str]:
     """Đường dẫn tương đối (trong out_dir) của mọi phần thuộc kế hoạch `p` — để dọn theo giai đoạn (remove)."""
-    return {os.path.join("base", p["base"])} | {os.path.join("cols", f"{k}.npy") for k in p["cols"].values()}
-
-
-def missing(out_dir: str, p: Dict[str, Any]) -> Dict[str, Any]:
-    return {"base": not os.path.isfile(os.path.join(_base_dir(out_dir, p["base"]), "meta.json")),
-            "cols": [cid for cid, k in p["cols"].items() if not os.path.isfile(_col_path(out_dir, k))]}
+    out = {os.path.join("base", p["base"])}
+    for f in p["frames"].values():
+        out |= {os.path.join("ft", f"{f['t']}.npy"), os.path.join("ix", f"{f['ix']}.npy")}
+    return out | {os.path.join("fv", f"{c['v']}.npy") for c in p["cols"].values()}
 
 
 def _load_array(path: str) -> np.ndarray:
@@ -118,80 +115,89 @@ def load_base(out_dir: str, p: Dict[str, Any]) -> Optional[Dict[str, np.ndarray]
         return None
 
 
-def load_cols(out_dir: str, p: Dict[str, Any]) -> Dict[str, np.ndarray]:
-    """Các cột ĐÃ có trên đĩa của kế hoạch (mmap chỉ đọc); cột chưa có thì không có trong dict."""
-    out = {}
-    for cid, k in p["cols"].items():
-        path = _col_path(out_dir, k)
-        if os.path.isfile(path):
-            try:
-                out[cid] = _load_array(path)
-            except (OSError, ValueError):
-                pass
-    return out
-
-
-def assemble(base: Dict[str, np.ndarray], cols: Dict[str, np.ndarray], order) -> Dict[str, Any]:
-    """Dict giống PortfolioEngine._build_symbol_data (cột theo thứ tự `order`)."""
+def load(out_dir: str, p: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Dict giống PortfolioEngine._build_symbol_data: nền là view mmap chỉ đọc, cột = giá trị khung (mmap) căn theo chỉ số dùng chung.
+    None nếu thiếu / hỏng bất kỳ phần nào."""
+    from backend.core.backtest.engine import BacktestEngine
+    base = load_base(out_dir, p)
+    if base is None:
+        return None
+    try:
+        idx = {fr: _load_array(_file(out_dir, "ix", f["ix"])) for fr, f in p["frames"].items()}
+        cols = {cid: BacktestEngine.gather(_load_array(_file(out_dir, "fv", c["v"])), idx[c["frame"]]) for cid, c in p["cols"].items()}
+    except (OSError, ValueError):
+        return None
     data: Dict[str, Any] = {k: base[k] for k in ("t", "o", "h", "l", "c")}
-    data["cols"] = {cid: cols[cid] for cid in order}
+    data["cols"] = cols
     data["f_t"], data["f_r"] = base["f_t"], base["f_r"]
     return data
 
 
-def load(out_dir: str, p: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """Dict giống PortfolioEngine._build_symbol_data, mọi mảng là view mmap chỉ đọc; None nếu thiếu / hỏng bất kỳ phần nào."""
-    base = load_base(out_dir, p)
-    if base is None:
-        return None
-    cols = load_cols(out_dir, p)
-    if len(cols) != len(p["cols"]):
-        return None
-    return assemble(base, cols, p["cols"])
-
-
 def _save(path: str, arr: np.ndarray) -> None:
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = f"{path}.tmp-{os.getpid()}"
     with open(tmp, "wb") as fh:
         np.save(fh, np.ascontiguousarray(arr), allow_pickle=False)
     os.replace(tmp, path)
 
 
-def fill(out_dir: str, pe: "PortfolioEngine", eng: "BacktestEngine", p: Dict[str, Any]) -> Dict[str, Any]:
-    """Tính và ghi phần còn thiếu của kế hoạch `p` (nền nếu chưa có + đúng các cột thiếu), qua đúng đường dựng của engine."""
-    need = missing(out_dir, p)
-    if not need["base"] and not need["cols"]:
-        return {"base": False, "cols": 0}
-    data = pe._build_symbol_data(eng, only=set(need["cols"]))
-    if need["base"]:
-        final = _base_dir(out_dir, p["base"])
-        os.makedirs(os.path.dirname(final), exist_ok=True)
-        tmp = f"{final}.tmp-{os.getpid()}"
+def _write_base(out_dir: str, key: str, symbol: str, data: Dict[str, Any]) -> None:
+    final = _base_dir(out_dir, key)
+    os.makedirs(os.path.dirname(final), exist_ok=True)
+    tmp = f"{final}.tmp-{os.getpid()}"
+    shutil.rmtree(tmp, ignore_errors=True)
+    os.makedirs(tmp)
+    for name in BASE_ARRAYS:
+        with open(os.path.join(tmp, f"{name}.npy"), "wb") as fh:
+            np.save(fh, data[name], allow_pickle=False)
+    with open(os.path.join(tmp, "meta.json"), "w", encoding="utf-8") as fh:
+        json.dump({"version": FORMAT_VERSION, "symbol": symbol}, fh)
+    try:
+        os.rename(tmp, final)
+    except OSError:                 # tiến trình khác đã ghi xong cùng khoá
         shutil.rmtree(tmp, ignore_errors=True)
-        os.makedirs(tmp)
-        for name in BASE_ARRAYS:
-            with open(os.path.join(tmp, f"{name}.npy"), "wb") as fh:
-                np.save(fh, data[name], allow_pickle=False)
-        with open(os.path.join(tmp, "meta.json"), "w", encoding="utf-8") as fh:
-            json.dump({"version": FORMAT_VERSION, "symbol": eng.symbol}, fh)
-        try:
-            os.rename(tmp, final)
-        except OSError:                 # tiến trình khác đã ghi xong cùng khoá
-            shutil.rmtree(tmp, ignore_errors=True)
-            if not os.path.isdir(final):
-                raise
-        STATS["bases_written"] += 1
-    if need["cols"]:
-        os.makedirs(os.path.join(out_dir, "cols"), exist_ok=True)
-        for cid in need["cols"]:
-            _save(_col_path(out_dir, p["cols"][cid]), data["cols"][cid])
-        STATS["cols_written"] += len(need["cols"])
+        if not os.path.isdir(final):
+            raise
+
+
+def fill(out_dir: str, pe: "PortfolioEngine", eng: "BacktestEngine", p: Dict[str, Any]) -> Dict[str, int]:
+    """Tính và ghi phần còn thiếu của kế hoạch `p`: nền, giá trị cột theo khung, chỉ số căn — qua đúng hàm của engine."""
+    from backend.core.signals.evaluator import lag_key
+    wrote = {"base": 0, "cols": 0, "frames": 0, "index": 0}
+    if load_base(out_dir, p) is None:
+        _write_base(out_dir, p["base"], eng.symbol, pe._build_symbol_data(eng, only=set()))
+        wrote["base"] = 1
+    base_t = load_base(out_dir, p)["t"]
+    refs = eng._refs_by_frame()
+    loaded = False
+    for frame, f in p["frames"].items():
+        miss_cols = {cid for cid, c in p["cols"].items() if c["frame"] == frame and not os.path.isfile(_file(out_dir, "fv", c["v"]))}
+        t_path, ix_path = _file(out_dir, "ft", f["t"]), _file(out_dir, "ix", f["ix"])
+        if not miss_cols and os.path.isfile(t_path) and os.path.isfile(ix_path):
+            continue
+        if frame != "1m" and not loaded:
+            eng.load_frames(refs)               # khung lớn từ đầu lịch sử (gốc cố định)
+            loaded = True
+        sub = {(col, lag) for col, lag in refs[frame] if f"{frame}|{lag_key(col, lag)}" in miss_cols}
+        if sub or not os.path.isfile(t_path):
+            t_frame, vals = eng.frame_values(frame, sub or {sorted(refs[frame])[0]})
+            for cid in miss_cols:
+                _save(_file(out_dir, "fv", p["cols"][cid]["v"]), vals[cid])
+            wrote["cols"] += len(miss_cols)
+            if not os.path.isfile(t_path):
+                _save(t_path, t_frame)
+                wrote["frames"] += 1
+        if not os.path.isfile(ix_path):
+            _save(ix_path, eng.align_index(frame, _load_array(t_path), base_t))
+            wrote["index"] += 1
     STATS["fills"] += 1
-    return {"base": need["base"], "cols": len(need["cols"])}
+    for k, n in wrote.items():
+        STATS[{"base": "bases_written", "cols": "cols_written", "frames": "frames_written", "index": "index_written"}[k]] += n
+    return wrote
 
 
 def export(pe: "PortfolioEngine", out_dir: str) -> Dict[str, Any]:
-    """Làm nóng: điền nền + cột cho mọi tài sản của `pe`. Trả {"paths": tập đường dẫn tương đối, "written": [tài sản có ghi mới]}."""
+    """Làm nóng: điền nền + cột + chỉ số cho mọi tài sản của `pe`. Trả {"paths": tập đường dẫn tương đối, "written": [tài sản có ghi mới]}."""
     os.makedirs(out_dir, exist_ok=True)
     out: Dict[str, Any] = {"paths": set(), "written": []}
     for sym in pe.symbols:
@@ -199,15 +205,14 @@ def export(pe: "PortfolioEngine", out_dir: str) -> Dict[str, Any]:
         p = plan(eng)
         if p is None:
             raise RuntimeError(f"{sym}: không tạo được khoá dữ liệu dùng chung (thiếu 1m.pkl)")
-        r = fill(out_dir, pe, eng, p)
-        if r["base"] or r["cols"]:
+        if any(fill(out_dir, pe, eng, p).values()):
             out["written"].append(sym)
         out["paths"] |= paths(p)
     return out
 
 
 def remove(out_dir: str, rel_paths: Iterable[str]) -> None:
-    """Xoá các phần (thư mục nền / file cột) theo đường dẫn tương đối — dọn sau một giai đoạn."""
+    """Xoá các phần (thư mục nền / file) theo đường dẫn tương đối — dọn sau một giai đoạn."""
     for rel in rel_paths:
         path = os.path.join(out_dir, rel)
         if os.path.isdir(path):
