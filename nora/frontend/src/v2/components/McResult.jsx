@@ -20,24 +20,56 @@ export function normalizeFan(fan) {
   return out
 }
 
+// Kịch bản cực xấu vẽ chồng lên quạt: đường bootstrap tệ nhất (đỏ, liền) và ngày lỗ xếp trước (cam, nét đứt) — khác màu quạt xanh.
+const OVERLAYS = [
+  { name: 'worst_bootstrap', label: 'Bootstrap tệ nhất', color: 'var(--n-neg)', dash: false },
+  { name: 'worst_days_first', label: 'Ngày lỗ xếp trước', color: 'var(--n-warn)', dash: true },
+]
+
+function StressChip({ r }) {
+  if (r.ruin) return <Status tone="bad">✗ Cháy vốn</Status>
+  return r.passed ? <Status tone="ok">✓ Đạt</Status> : <Status tone="bad">✗ Không đạt</Status>
+}
+
 export default function McResult({ mc, ruinPct }) {
   const fan = useMemo(() => normalizeFan(mc.fan), [mc.fan])
   const sm = mc.summary || {}
   const ruin = mc.params?.ruin_threshold_pct ?? ruinPct ?? 30
   const gate = mc.gate || {}
-  const gateChecks = [{ key: 'ruin', unit: '%', label: `P(MDD ≥ ${ruin}%) trong ${mc.params?.horizon_days ?? '—'} ngày`, required: `≤ ${fmtNum(gate.ruin_max_pct, 2)}%`, actual: sm.p_mdd_ge_ruin_pct, passed: gate.passed }]
+  const stress = mc.stress || []
+  const stressMax = gate.stress_max_mdd_pct ?? 50
+  const minSims = gate.min_simulations ?? 10000
+  const eligible = gate.gate_eligible !== false     // kết quả cũ không có trường này: coi như đủ điều kiện
+  const overlays = useMemo(
+    () => OVERLAYS.map((o) => ({ ...o, key: o.name, path: stress.find((r) => r.name === o.name)?.path })).filter((o) => o.path?.days?.length > 1)
+      .map((o) => ({ key: o.key, label: o.label, color: o.color, dash: o.dash, days: o.path.days, ret_pct: o.path.ret_pct })),
+    [stress])
+  // Cổng: kiểm tra thực tế so với yêu cầu (backend). Kết quả cũ chỉ có ruin_max_pct nên dựng một dòng như trước.
+  const gateChecks = gate.checks
+    ? Object.entries(gate.checks).map(([k, c]) => ({
+      key: k, ...c,
+      label: k === 'ruin' ? `P(MDD ≥ ${ruin}%) trong ${mc.params?.horizon_days ?? '—'} ngày` : (c.detail ? `${c.label} (${c.detail})` : c.label),
+    }))
+    : [{ key: 'ruin', unit: '%', label: `P(MDD ≥ ${ruin}%) trong ${mc.params?.horizon_days ?? '—'} ngày`, required: `≤ ${fmtNum(gate.ruin_max_pct, 2)}%`, actual: sm.p_mdd_ge_ruin_pct, passed: gate.passed }]
   return (
     <div style={{ display: 'grid', gap: 12 }}>
+      {!eligible && (
+        <div className="n-banner" role="alert" style={{ borderLeftColor: 'var(--n-warn)', marginBottom: 0 }}>
+          <Status tone="warn">⚠ gate_eligible: false</Status>
+          <span>Chỉ {fmtNum(mc.params?.simulations, 0)} mô phỏng (cần ≥ {fmtNum(minSims, 0)}): kết quả chỉ để tham khảo, <b>không dùng làm cổng chấp nhận</b>. Chạy lại với {fmtNum(minSims, 0)} mô phỏng trở lên.</span>
+        </div>
+      )}
       <div className="n-grid g-kpi" style={{ marginBottom: 0 }}>
         <div className="n-panel n-kpi"><div className="lbl">Lợi nhuận trung vị</div><div className={`val ${signClass(sm.median_ret_pct)}`}>{fmtSPct(sm.median_ret_pct)}</div><div className="sub">P50 cuối kỳ</div></div>
         <div className="n-panel n-kpi"><div className="lbl">Lợi nhuận P5</div><div className={`val ${signClass(sm.p05_ret_pct)}`}>{fmtSPct(sm.p05_ret_pct)}</div><div className="sub">kịch bản xấu 5%</div></div>
         <div className="n-panel n-kpi"><div className="lbl"><Term k="mdd">MDD</Term> trung vị</div><div className="val neg">{fmtPct(sm.mdd_p50_pct)}</div><div className="sub">P50</div></div>
         <div className="n-panel n-kpi"><div className="lbl"><Term k="mdd">MDD</Term> P95</div><div className="val neg">{fmtPct(sm.mdd_p95_pct)}</div><div className="sub">kịch bản xấu 5%</div></div>
         <div className="n-panel n-kpi"><div className="lbl"><Term k="p_mdd">P(MDD ≥ {ruin}%)</Term></div><div className="val">{fmtPct(sm.p_mdd_ge_ruin_pct)}</div><div className="sub">ngưỡng phá sản</div></div>
-        <div className="n-panel n-kpi"><div className="lbl">Cổng <Term k="mc">Monte Carlo</Term></div><div className="val" style={{ fontSize: 16, marginTop: 4 }}><Status tone={gate.passed ? 'ok' : 'bad'}>{gate.passed ? '✓ Đạt' : '✗ Không đạt'}</Status></div><div className="sub">ruin tối đa {fmtPct(gate.ruin_max_pct)}</div></div>
+        <div className="n-panel n-kpi"><div className="lbl">Cổng <Term k="mc">Monte Carlo</Term></div><div className="val" style={{ fontSize: 16, marginTop: 4 }}><Status tone={gate.passed ? 'ok' : 'bad'}>{gate.passed ? '✓ Đạt' : '✗ Không đạt'}</Status></div><div className="sub">ruin ≤ {fmtPct(gate.ruin_max_pct)} · kịch bản cực xấu &lt; {fmtNum(stressMax, 0)}%</div></div>
       </div>
-      <Panel title={<>Quạt lợi nhuận tích luỹ (<Term k="fan">P5–P95</Term>)</>} meta={<span className="n-legend"><span><i style={{ borderTopColor: 'var(--n-blue)' }} />P50</span><span><i className="sq" style={{ background: 'var(--n-blue)', opacity: 0.4 }} />P25–P75</span><span><i className="sq" style={{ background: 'var(--n-blue)', opacity: 0.18 }} />P5–P95</span></span>}>
-        <FanChart fan={fan} height={270} />
+      <Panel title={<>Quạt lợi nhuận tích luỹ (<Term k="fan">P5–P95</Term>)</>} meta={<span className="n-legend"><span><i style={{ borderTopColor: 'var(--n-blue)' }} />P50</span><span><i className="sq" style={{ background: 'var(--n-blue)', opacity: 0.4 }} />P25–P75</span><span><i className="sq" style={{ background: 'var(--n-blue)', opacity: 0.18 }} />P5–P95</span>
+        {overlays.map((o) => <span key={o.key}><i className={o.dash ? 'dash' : ''} style={{ borderTopColor: o.color }} />{o.label}</span>)}</span>}>
+        <FanChart fan={fan} height={270} overlays={overlays} />
         <p className="n-note">Trục x: số ngày kể từ đầu mô phỏng. {mc.params && <span className="mono">{fmtNum(mc.params.simulations, 0)} mô phỏng · <Term k="bootstrap">khối</Term> {mc.params.block_days} ngày · seed {mc.params.seed}{mc.params.basis ? ` · khớp cắt lỗ: ${stopFillText(mc.params.basis)}` : ''}</span>}</p>
       </Panel>
       <div className="n-grid g-2" style={{ marginBottom: 0 }}>
@@ -50,7 +82,30 @@ export default function McResult({ mc, ruinPct }) {
             colorOf={(b) => (b.hi <= 0 ? 'var(--n-neg)' : 'var(--n-teal)')} />
         </Panel>
       </div>
-      <Panel title="Cổng chấp nhận"><GateList checks={gateChecks} passed={gate.passed} title="Rủi ro phá sản" /></Panel>
+      {stress.length > 0 && (
+        <Panel title="Kịch bản cực xấu" meta={<span>mỗi kịch bản phải có MDD &lt; <b className="mono">{fmtNum(stressMax, 0)}%</b> và không cháy vốn</span>}>
+          <div className="n-tblwrap">
+            <table className="n-tbl">
+              <thead><tr><th>Kịch bản</th><th className="r"><Term k="mdd">MDD</Term></th><th className="r">Lãi cuối</th><th className="r">Ngày tệ nhất</th><th className="r">Ngày dưới đỉnh</th><th>Kết quả</th></tr></thead>
+              <tbody>
+                {stress.map((r) => (
+                  <tr key={r.name}>
+                    <td title={r.note_vi || undefined}>{r.label_vi || r.name}<div className="muted mono" style={{ fontSize: 11 }}>{r.name}{r.days ? ` · ${r.days} ngày` : ''}</div></td>
+                    <td className={`r ${r.mdd_pct >= stressMax ? 'neg' : ''}`}>{fmtPct(r.mdd_pct)}</td>
+                    <td className={`r ${signClass(r.terminal_ret_pct)}`}>{fmtSPct(r.terminal_ret_pct)}</td>
+                    <td className="r neg">{fmtSPct(r.worst_day_pct)}</td>
+                    <td className="r">{fmtNum(r.days_underwater, 0)}{r.days ? <span className="muted"> / {fmtNum(r.days, 0)}</span> : null}</td>
+                    <td><StressChip r={r} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="n-note">Kịch bản dựng tất định từ chính chuỗi lợi suất ngày (không ngẫu nhiên): xếp ngày lỗ lên trước, đảo ngược thứ tự, một ngày sập gấp đôi ngày tệ nhất, chi phí giao dịch gấp đôi, chuỗi thua dài nhất lặp 2 lần — cộng với đường bootstrap tệ nhất trong {fmtNum(mc.params?.simulations, 0)} mô phỏng.
+            {stress.find((r) => r.note_vi) && <> {stress.find((r) => r.note_vi).note_vi}.</>}</p>
+        </Panel>
+      )}
+      <Panel title="Cổng chấp nhận"><GateList checks={gateChecks} passed={gate.passed} title="Rủi ro phá sản và kịch bản cực xấu" /></Panel>
     </div>
   )
 }

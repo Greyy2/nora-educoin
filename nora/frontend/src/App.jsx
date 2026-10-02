@@ -20,6 +20,7 @@ import Portfolio from './v2/pages/Portfolio'
 import Backtest from './v2/pages/Backtest'
 import AlphaV2 from './v2/pages/Alpha'
 import History from './v2/pages/History'
+import Funnel from './v2/pages/Funnel'
 
 function AppRoutes() {
   return (
@@ -29,6 +30,8 @@ function AppRoutes() {
         {/* giao diện v2 */}
         <Route path="/portfolio" element={<Portfolio />} />
         <Route path="/backtest" element={<Backtest />} />
+        <Route path="/funnel" element={<Funnel />} />
+        <Route path="/funnel/:runId" element={<Funnel />} />
         <Route path="/alpha" element={<AlphaV2 />} />
         <Route path="/history" element={<History />} />
 

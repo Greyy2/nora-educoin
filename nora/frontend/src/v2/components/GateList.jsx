@@ -5,7 +5,7 @@ import { fillWording } from '../lib/stopfill'
 import { fmtNum, isNum } from '../lib/format'
 
 // khoá cổng của backend -> thuật ngữ giải thích
-const GATE_TERMS = { folds: 'fold', avg_is_return: 'is', positive_folds: 'oos', worst_fold_mdd: 'mdd', compounded_oos: 'oos', mc_ruin: 'p_mdd', ruin: 'p_mdd' }
+const GATE_TERMS = { simulations: 'mc', stress_mdd: 'mdd', mc_simulations: 'mc', mc_stress_mdd: 'mdd', folds: 'fold', avg_is_return: 'is', positive_folds: 'oos', worst_fold_mdd: 'mdd', compounded_oos: 'oos', mc_ruin: 'p_mdd', ruin: 'p_mdd' }
 
 // giá trị thực tế: cổng theo % luôn 2 chữ số thập phân (khớp ô KPI tương ứng), số đếm là số nguyên
 function fmtActual(c) {

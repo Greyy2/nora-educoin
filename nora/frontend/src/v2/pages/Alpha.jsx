@@ -5,6 +5,7 @@ import Term from '../components/Term'
 import { paramHeader, paramLabel, fmtParam, fmtParamFull } from '../lib/params'
 import { stopFillText } from '../lib/stopfill'
 import JobPanel from '../components/JobPanel'
+import { CUSTOM_BADGE, CUSTOM_REASON } from '../lib/modes'
 import useJob from '../hooks/useJob'
 import { useCatalog } from '../context/Catalog'
 import { postBuild, postPublish, getAlphas } from '../api'
@@ -76,7 +77,7 @@ function CandidateSummary({ cand, book }) {
 }
 
 /** Xuất bản sổ vừa dựng (chép sang alphas/): có hộp xác nhận vì thay sổ đang dùng. */
-function PublishBar({ jobId }) {
+function PublishBar({ jobId, blocked }) {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(null)
   const [done, setDone] = useState(null)
@@ -88,7 +89,8 @@ function PublishBar({ jobId }) {
   }
   return (
     <div className="n-sticky-actions">
-      <button type="button" className="n-btn primary" onClick={publish} disabled={busy}>{busy ? <Spinner /> : null} Xuất bản sổ này</button>
+      <button type="button" className="n-btn primary" onClick={publish} disabled={busy || blocked} title={blocked ? CUSTOM_REASON : undefined}>{busy ? <Spinner /> : null} Xuất bản sổ này</button>
+      {blocked && <span className="n-custom-badge" role="status">⚠ {CUSTOM_BADGE}</span>}
       <span className="n-note" style={{ alignSelf: 'center' }}>Sổ vừa dựng chỉ nằm trong job này; chỉ khi xuất bản mới thay sổ hiện hành ở mục Kho alpha.</span>
       {done && <Status tone="ok">Đã xuất bản · {done.status}{done.testnet_removed ? ' · đã xoá cấu hình testnet cũ' : ''}</Status>}
       <ErrorBox>{err}</ErrorBox>
@@ -223,6 +225,7 @@ export default function Alpha() {
   const sid = strat?.id || Object.keys(result?.stage_a || {})[0]
   const rows = result?.stage_a?.[sid] || []
   const cand = result?.candidates?.[sid]
+  const counts = result?.stage_a_counts?.[sid]   // build lớn: result.stage_a chỉ có top-K, đủ số đếm ở đây (toàn bộ hàng: GET /book/jobs/{id}/stage_a)
 
   return (
     <>
@@ -247,11 +250,11 @@ export default function Alpha() {
           <Panel title="Tiến trình tối ưu" meta={<span className="mono">{jobId}</span>}><JobPanel job={job.job} status={job.status} error={job.error} /></Panel>
           {job.status === 'done' && (rows.length ? (
             <>
-              <Panel title={`Xếp hạng cấu hình · ${sid}`} meta={<span>{rows.length} cấu hình · xếp theo điểm</span>}>
+              <Panel title={`Xếp hạng cấu hình · ${sid}`} meta={<span>{counts?.tried > rows.length ? `Top ${rows.length}/${counts.tried.toLocaleString('vi-VN')} cấu hình` : `${rows.length} cấu hình`} · xếp theo điểm</span>}>
                 <RankTable id={sid} rows={rows} space={cat?.catalog.find((c) => c.id === sid)?.space} onSend={send} />
               </Panel>
               {cand && <CandidateSummary cand={cand} book={result?.book} />}
-              {result?.book && <PublishBar jobId={jobId} />}
+              {result?.book && <PublishBar jobId={jobId} blocked={!!job.job?.custom_gates || job.job?.promotable === false} />}
             </>
           ) : <Empty title="Chưa có bảng xếp hạng">Job xong nhưng backend chưa trả <code>result.stage_a</code>.</Empty>)}
         </div>

@@ -2,6 +2,9 @@ import React, { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { PageHead, Panel, Segmented, Status, Spinner, Empty, Loading, ErrorState } from '../components/ui'
 import useJobList from '../hooks/useJobList'
+import { ResolvedParams } from '../components/RunModes'
+import { CUSTOM_BADGE, CUSTOM_REASON } from '../lib/modes'
+import Term from '../components/Term'
 import { JOB_STATUS, jobKindText, jobLink, jobElapsed, isActiveJob, jobDetail } from '../lib/jobs'
 import { fmtDuration, fmtDateTime, toMs } from '../lib/format'
 
@@ -49,7 +52,7 @@ export default function History() {
           <div className="n-tblwrap long">
             <table className="n-tbl">
               <thead>
-                <tr><th>Bắt đầu (UTC)</th><th>Loại</th><th>Nội dung</th><th>Trạng thái</th><th className="r">Thời lượng</th><th>Mã job</th><th /></tr>
+                <tr><th>Bắt đầu (UTC)</th><th>Loại</th><th>Chế độ</th><th>Nội dung</th><th>Trạng thái</th><th className="r">Thời lượng</th><th>Mã job</th><th /></tr>
               </thead>
               <tbody>
                 {rows.map((j) => {
@@ -59,7 +62,13 @@ export default function History() {
                     <tr key={j.job_id}>
                       <td className="mono">{fmtDateTime(toMs(j.created))}</td>
                       <td>{jobKindText(j.kind)}</td>
-                      <td className="wrap" title={j.label}>{jobDetail(j)}</td>
+                      <td>{j.mode ? (
+                        <span className="n-modecell">
+                          <span className={`n-mode-badge ${j.mode}`}>{j.mode === 'advanced' ? <Term k="mode_advanced">Nâng cao</Term> : <Term k="mode_basic">Cơ bản</Term>}</span>
+                          {(j.custom_gates || j.promotable === false) && <span className="n-custom-badge" title={CUSTOM_REASON}>⚠ {CUSTOM_BADGE}</span>}
+                        </span>
+                      ) : <span className="muted">—</span>}</td>
+                      <td className="wrap" title={j.label}>{jobDetail(j)}<ResolvedParams job={j} /></td>
                       <td><Status tone={meta.cls}>{isActiveJob(j) && <Spinner />}{meta.text}</Status></td>
                       <td className="r">{el != null ? fmtDuration(el) : '—'}</td>
                       <td className="mono muted">{j.job_id}</td>
@@ -70,7 +79,7 @@ export default function History() {
                     </tr>
                   )
                 })}
-                {!rows.length && <tr><td colSpan={7} className="muted">Không có lần chạy nào khớp bộ lọc.</td></tr>}
+                {!rows.length && <tr><td colSpan={8} className="muted">Không có lần chạy nào khớp bộ lọc.</td></tr>}
               </tbody>
             </table>
           </div>

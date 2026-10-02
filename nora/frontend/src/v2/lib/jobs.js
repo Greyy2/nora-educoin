@@ -37,6 +37,7 @@ export const JOB_STATUS = {
   running: { text: 'Đang chạy', cls: 'info' },
   done: { text: 'Hoàn tất', cls: 'ok' },
   failed: { text: 'Thất bại', cls: 'bad' },
+  cancelled: { text: 'Đã huỷ', cls: 'warn' },
 }
 
 export const jobWhen = (j) => fmtDateTime(toMs(j.created))
@@ -45,12 +46,17 @@ export const JOB_KIND = {
   book_backtest: { text: 'Backtest', short: 'Backtest' },
   book_wfa: { text: 'Walk-forward', short: 'WFA' },
   book_build: { text: 'Alpha · tối ưu', short: 'Alpha' },
+  funnel_run: { text: 'Phễu kiểm duyệt', short: 'Phễu' },
 }
 export const jobKindText = (k) => JOB_KIND[k]?.text || String(k || '—')
 
 /** Đường dẫn mở đúng trang/bước của một job (deep link). */
 export function jobLink(j) {
   const id = encodeURIComponent(j.job_id || j.id)
+  if (String(j.kind || '').startsWith('funnel')) {
+    const rid = j.run_id || parseJobArgs(j.args)['run-id'] || parseJobArgs(j.args).run_id
+    return rid ? `/funnel/${encodeURIComponent(rid)}` : '/funnel'
+  }
   if (j.kind === 'book_wfa') return `/backtest?wfa=${id}&step=2`
   if (j.kind === 'book_build') return `/alpha?build=${id}`
   return `/backtest?job=${id}`
@@ -73,4 +79,19 @@ export function jobDetail(j) {
   const parts = String(j.label || '').split(' · ')
   const body = (parts.length > 1 ? parts.slice(1).join(' · ') : parts[0]) || j.job_id || ''
   return body.replace(/(\d{4})-(\d{2})-(\d{2})/g, '$3/$2/$1').replace(/→/g, ' → ')
+}
+
+/** Tiến độ job tối ưu lớn từ progress.json (backend/optimize/progress.py): {pct, rate, eta, stage, done, total} hoặc null. */
+export function jobProgress(j) {
+  const p = j?.progress
+  if (!p || !(p.total > 0)) return null
+  const done = Math.max(0, Math.min(p.done || 0, p.total))
+  return { pct: Math.round((done / p.total) * 1000) / 10, done, total: p.total, stage: p.stage || '', rate: p.rate || 0, eta: p.eta_s ?? null,
+    peakMb: p.peak_rss_mb ?? null, status: p.status }
+}
+
+/** Tốc độ dễ đọc: >= 1/giây -> "x/giây", ngược lại "y/phút". */
+export function fmtRate(rate) {
+  if (!(rate > 0)) return '—'
+  return rate >= 1 ? `${rate.toFixed(1)}/giây` : `${(rate * 60).toFixed(rate * 60 >= 10 ? 0 : 1)}/phút`
 }

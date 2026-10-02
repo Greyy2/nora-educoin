@@ -13,6 +13,7 @@ const I = {
   logo: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M20 12a8 8 0 1 1-3-6.2" /><circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none" /></svg>,
   portfolio: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5" /><rect x="13.5" y="3.5" width="7" height="7" rx="1.5" /><rect x="3.5" y="13.5" width="7" height="7" rx="1.5" /><rect x="13.5" y="13.5" width="7" height="7" rx="1.5" /></svg>,
   backtest: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v5h5" /><path d="M12 8v4l3 2" /></svg>,
+  funnel: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3.5 5h17l-6.5 7.6V19l-4 1.5v-7.9z" /></svg>,
   alpha: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 3h6M10 3v6l-5.5 9.5A1.5 1.5 0 0 0 5.8 21h12.4a1.5 1.5 0 0 0 1.3-2.5L14 9V3" /><path d="M7.5 15h9" /></svg>,
   legacy: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="5" rx="1" /><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9M10 13h4" /></svg>,
   history: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 2" /></svg>,
@@ -25,6 +26,7 @@ const I = {
 const PAGES = [
   { to: '/portfolio', title: 'Danh mục', icon: I.portfolio },
   { to: '/backtest', title: 'Backtest · WFA · Monte Carlo', short: 'Backtest', icon: I.backtest },
+  { to: '/funnel', title: 'Phễu kiểm duyệt', short: 'Phễu', icon: I.funnel },
   { to: '/alpha', title: 'Alpha · Hiệu chỉnh tham số', short: 'Alpha', icon: I.alpha },
   { to: '/history', title: 'Lịch sử chạy', short: 'Lịch sử chạy', icon: I.history },
 ]
@@ -119,6 +121,7 @@ export default function Shell({ children }) {
   const [legacyOpen, setLegacyOpen] = useState(false)
   const page = PAGES.find((p) => loc.pathname.startsWith(p.to))
   const isLegacy = !page
+  const runCrumb = loc.pathname.startsWith('/funnel/') ? decodeURIComponent(loc.pathname.split('/')[2] || '') : ''
   const legacyPage = LEGACY.find((l) => loc.pathname.startsWith(l.to))
   const apiTone = error ? 'bad' : loading && !data ? 'warn' : 'ok'
   const apiText = error ? 'API ngoại tuyến' : loading && !data ? 'Đang kết nối' : 'API trực tuyến'
@@ -151,7 +154,8 @@ export default function Shell({ children }) {
         <header className="n-top">
           <div className="n-crumb">
             <Link to="/portfolio">Tổng quan</Link><span className="sep">›</span>
-            <span>{page ? page.title : `Legacy${legacyPage ? ` · ${legacyPage.title}` : ''}`}</span>
+            {runCrumb ? <><Link to={page.to}>{page.title}</Link><span className="sep">›</span><span className="mono">Lượt {runCrumb}</span></>
+              : <span>{page ? page.title : `Legacy${legacyPage ? ` · ${legacyPage.title}` : ''}`}</span>}
           </div>
           <div className="n-top-sp" />
           <Search />
