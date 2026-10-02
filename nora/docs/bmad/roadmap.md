@@ -83,6 +83,17 @@ Mỗi dòng chỉ chuyển `done` khi đạt đúng cột "Xong khi".
 | P1.7 | Lọc thô nhiều vòng (successive halving) — chỉ làm nếu P1.4–P1.6 chưa đạt | `optimize/` | S | P1.6 | Đạt mục tiêu thời gian | todo |
 | P1.8 | Load test thật 10k và 100k; ngoại suy 500k/1M; kiểm RAM, ổn định, resume | `nora.slice` | O+S | P1.6 | 500k ước tính ≤ 4 h; không OOM; resume đúng | todo |
 
+### PM — Bộ số đo chuẩn (chi tiết: `docs/metrics_inventory.md`)
+
+| ID | Việc | Nơi sửa | Người | Cần trước | Xong khi | Trạng thái |
+|---|---|---|---|---|---|---|
+| PM.1 | Sửa Sharpe của `MetricsCalculator` (đang lấy mẫu vốn mỗi giờ nhưng nhân √365) -> tính trên lợi suất ngày | `core/metrics/trades.py` | S | — | Test: Sharpe = Sharpe trên `daily_returns_from_curve` | todo |
+| PM.2 | Thống nhất thắng/thua/hoà (thắng > 0, thua < 0, hoà riêng) ở mọi nơi | `core/metrics/*` | S | — | Một định nghĩa; test lệnh PnL = 0 | todo |
+| PM.3 | Tách tên MDD: `mdd_intrabar_pct` / `mdd_daily_pct`, báo cả hai ở mọi tầng (sổ, phễu S1–S6, WFA, Danh mục, UI) | `core/metrics`, `optimize/funnel`, `wfa`, frontend | S | PM.5 | Không còn `mdd_pct` mơ hồ | todo |
+| PM.4 | Gom Sharpe/Sortino về một hàm (bỏ 3 bản tính lặp, 2 bản Sortino) | `core/metrics/returns.py` | S | — | Kết quả số không đổi (test so cũ/mới) | todo |
+| PM.5 | `core/metrics/summary.py: summarize()` — bộ số đo chuẩn (lợi nhuận, CAGR, sụt giảm + thời gian hồi phục, Sharpe/Sortino/Calmar, VaR/CVaR, theo lệnh: payoff, expectancy, chuỗi thua, top-5 share, thời gian giữ, long/short; DCA: MAE, tầng, vốn đỉnh, khoảng cách thanh lý, số lần thanh lý) | `core/metrics/summary.py`, `core/execute/tracker.py` (ghi thêm `peak_capital_use`, `min_liq_distance`) | S | PM.1–PM.4 | Golden trùng bit; test từng số đo bằng ví dụ tính tay | todo |
+| PM.6 | Mọi tầng dùng `summarize()`; phễu lưu thêm CAGR/Calmar/CVaR/payoff/expectancy; Danh mục thêm tương quan chiến lược + exposure TB/max | `optimize/funnel/*`, `wfa`, `core/analytics/dashboard.py`, frontend | S | PM.5 | Bảng alpha của phễu lọc/sắp theo được các số đo mới | todo |
+
 ### P2 — Regime và điều phối chiến lược
 
 | ID | Việc | Nơi sửa | Người | Cần trước | Xong khi | Trạng thái |
