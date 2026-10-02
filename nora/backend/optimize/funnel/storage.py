@@ -47,12 +47,13 @@ CREATE TABLE IF NOT EXISTS kv(key TEXT PRIMARY KEY, value TEXT);
 """
 
 TRADE_COLS = ["alpha_id", "stage", "fold", "symbol", "side", "enter_time", "close_time", "enter_price", "close_price", "qty",
-              "pnl_usd", "pnl_pct", "fees_usd", "funding_usd", "status", "layers", "mae_pct"]
+              "pnl_usd", "pnl_pct", "fees_usd", "funding_usd", "status", "layers", "mae_pct", "strategy", "margin_usd", "leverage", "entry_equity"]
 TRADE_SCHEMA = pa.schema([
     ("alpha_id", pa.string()), ("stage", pa.string()), ("fold", pa.int32()), ("symbol", pa.string()), ("side", pa.string()),
     ("enter_time", pa.int64()), ("close_time", pa.int64()), ("enter_price", pa.float64()), ("close_price", pa.float64()),
     ("qty", pa.float64()), ("pnl_usd", pa.float64()), ("pnl_pct", pa.float64()), ("fees_usd", pa.float64()),
-    ("funding_usd", pa.float64()), ("status", pa.string()), ("layers", pa.int32()), ("mae_pct", pa.float64())])
+    ("funding_usd", pa.float64()), ("status", pa.string()), ("layers", pa.int32()), ("mae_pct", pa.float64()),
+    ("strategy", pa.string()), ("margin_usd", pa.float64()), ("leverage", pa.float64()), ("entry_equity", pa.float64())])   # file cũ thiếu 4 cột cuối: đọc vẫn được
 DAILY_SCHEMA = pa.schema([("alpha_id", pa.string()), ("stage", pa.string()), ("fold", pa.int32()), ("start_date", pa.string()),
                           ("rets", pa.list_(pa.float64()))])
 FLAT_KEYS = ("ret_pct", "mdd_pct", "sharpe", "trades", "win_rate", "profit_factor")

@@ -1,5 +1,10 @@
 # Bộ số đo (metrics): hiện có, cách tính, chỗ thiếu
 
+> **Cập nhật 02/10/2026 — đã làm (PM.1–PM.6):** mục 3 đã sửa hết; bộ số đo ở mục 4 đã có trong `core/metrics/` (`returns.return_metrics`,
+> `trades.trade_metrics` / `exposure_metrics` / `strategy_correlation`, `portfolio.portfolio_metrics` -> khoá `stats` + `mdd_intrabar_pct` /
+> `mdd_daily_pct` / `mdd_basis` / `cagr_pct` / `calmar`). Phễu lưu thêm số đo phẳng (`portfolio.flat_extras`) và sắp xếp được theo chúng;
+> trang Danh mục/Backtest có khối "Số đo chi tiết". `MetricsCalculator` (Sharpe sai đơn vị) đã xoá. Mục 1–3 dưới đây là ảnh chụp TRƯỚC khi sửa.
+
 Rà ngày 02/10/2026 trên code `backend/` (sau tái cấu trúc). Quy ước chung hiện tại: năm = 365 ngày, lãi suất phi rủi ro = 0,
 lợi suất ngày = vốn MTM cuối ngày UTC (`core/metrics/returns.daily_returns_from_curve`).
 
@@ -89,7 +94,7 @@ lợi suất ngày = vốn MTM cuối ngày UTC (`core/metrics/returns.daily_ret
 
 ## 4. Đề xuất bộ số đo chuẩn (một hàm, mọi tầng dùng chung)
 
-`core/metrics/summary.py: summarize(result, start_ts) -> dict` thay `portfolio_metrics`/`series_metrics`/`MetricsCalculator`, trả:
+Đã làm: `core/metrics/portfolio.portfolio_metrics(res, start_ts)["stats"]` (thay vì file `summary.py` riêng) + `series_metrics` cho chuỗi OOS nối, trả:
 
 - **Lợi nhuận:** `ret_pct`, `cagr_pct`, `pnl_usd`, `fees_usd`, `funding_usd`, `fee_drag_pct`
 - **Sụt giảm:** `mdd_intrabar_pct`, `mdd_daily_pct`, `max_dd_duration_days`, `recovery_days`, `ulcer_index`

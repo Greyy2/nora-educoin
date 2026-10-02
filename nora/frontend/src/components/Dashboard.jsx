@@ -287,12 +287,78 @@ export function DashboardView({ data, refresh }) {
         </Panel>
       </div>
 
+      {data.stats && <StatsPanel stats={data.stats} mdd={data.mdd} />}
+
       {positions.length > 0 && (
         <Panel title="Vị thế đang mở" meta={<><span>{positions.length} vị thế</span><span>Lãi/lỗ chưa chốt <b className={`mono ${signClass(net)}`}>{fmtMoney(net, true)}</b> USDT</span></>}>
           <PositionsTable rows={positions} />
         </Panel>
       )}
     </>
+  )
+}
+
+/** Bộ số đo chuẩn toàn kỳ chạy (core/metrics): lợi nhuận, sụt giảm, rủi ro, theo lệnh, DCA/đòn bẩy, danh mục. */
+const STAT_GROUPS = [
+  ['Lợi nhuận', 'returns', [['ret_pct', 'Lãi kỳ', 'pct'], ['cagr_pct', 'CAGR', 'pct', 'cagr'], ['vol_ann_pct', 'Biến động năm', 'pct'],
+    ['win_days_pct', 'Tỉ lệ ngày lãi', 'pct'], ['best_day_pct', 'Ngày tốt nhất', 'spct'], ['worst_day_pct', 'Ngày tệ nhất', 'spct']]],
+  ['Sụt giảm', 'returns', [['mdd_daily_pct', 'MDD theo ngày', 'pct', 'mdd_daily'], ['max_dd_days', 'Đợt sụt dài nhất (ngày)', 'int'],
+    ['recovery_days', 'Hồi phục sau MDD (ngày)', 'int'], ['ulcer_index', 'Ulcer index', 'num', 'ulcer']]],
+  ['Rủi ro / lợi nhuận', 'returns', [['sharpe', 'Sharpe', 'num', 'sharpe'], ['sortino', 'Sortino', 'num', 'sortino'], ['calmar', 'Calmar', 'num', 'calmar'],
+    ['var95_pct', 'VaR 95% (1 ngày)', 'pct', 'var95'], ['cvar95_pct', 'CVaR 95% (1 ngày)', 'pct'], ['skew', 'Độ lệch', 'num'], ['kurt', 'Độ nhọn', 'num']]],
+  ['Theo lệnh', 'trades', [['trades', 'Số lệnh', 'int'], ['win_rate', 'Win rate', 'pct'], ['breakeven', 'Lệnh hoà', 'int'],
+    ['profit_factor', 'Profit factor', 'num', 'profit_factor'], ['payoff', 'Payoff (TB lãi / TB lỗ)', 'num', 'payoff'], ['expectancy_usd', 'Kỳ vọng / lệnh (USDT)', 'money', 'expectancy'],
+    ['expectancy_pct', 'Kỳ vọng / lệnh (%)', 'spct'], ['max_consec_losses', 'Chuỗi thua dài nhất', 'int'], ['top5_share_pct', '5 lệnh lãi nhất / tổng lãi', 'pct'],
+    ['avg_hold_h', 'Giữ lệnh TB (giờ)', 'num'], ['fee_drag_pct', 'Phí / lãi trước phí', 'pct', 'fee_drag'], ['funding_usd', 'Funding (USDT)', 'money']]],
+  ['DCA / đòn bẩy', 'trades', [['layers_avg', 'Số tầng TB', 'num'], ['layers_max', 'Số tầng tối đa', 'int'], ['mae_avg_pct', 'Lỗ treo TB', 'spct'],
+    ['mae_worst_pct', 'Lỗ treo tệ nhất', 'spct', 'mae'], ['liq_proximity_max_pct', 'Gần thanh lý nhất (% ký quỹ mất)', 'pct', 'liq_proximity'], ['liquidations', 'Số lần thanh lý', 'int']]],
+  ['Danh mục', 'exposure', [['time_in_market_pct', '% thời gian có vị thế', 'pct'], ['peak_margin_pct', 'Ký quỹ đỉnh (% vốn)', 'pct'],
+    ['exposure_gross_avg_pct', 'Exposure gộp TB', 'pct'], ['exposure_gross_max_pct', 'Exposure gộp max', 'pct'],
+    ['exposure_net_max_pct', 'Exposure ròng max', 'pct'], ['max_concurrent', 'Vị thế đồng thời max', 'int']]],
+]
+
+function fmtStat(v, kind) {
+  if (!isNum(v)) return '—'
+  if (kind === 'pct') return fmtPct(v)
+  if (kind === 'spct') return fmtSPct(v)
+  if (kind === 'int') return String(Math.round(v))
+  if (kind === 'money') return fmtMoney(v, true)
+  return fmtNum(v)
+}
+
+function StatsPanel({ stats, mdd }) {
+  const t = stats.trades || {}
+  const corr = stats.correlation
+  return (
+    <Panel title="Số đo chi tiết" meta={<span>toàn kỳ chạy · <Term k="mdd_intrabar">MDD trong nến</Term> <b className="mono">{fmtPct(mdd?.intrabar_pct)}</b> · <Term k="mdd_daily">theo ngày</Term> <b className="mono">{fmtPct(mdd?.daily_pct)}</b></span>}>
+      <div className="n-mx">
+        {STAT_GROUPS.map(([title, src, items]) => (
+          <div key={title} className="n-mx-group">
+            <h4>{title}</h4>
+            <dl>
+              {items.map(([k, label, kind, term]) => (
+                <React.Fragment key={k}>
+                  <dt>{term ? <Term k={term}>{label}</Term> : label}</dt>
+                  <dd className="mono">{fmtStat((stats[src] || {})[k], kind)}</dd>
+                </React.Fragment>
+              ))}
+              {title === 'Theo lệnh' && ['long', 'short'].map((side) => t[side] && t[side].trades > 0 && (
+                <React.Fragment key={side}>
+                  <dt>{side === 'long' ? 'Long' : 'Short'}: lệnh · win · PnL</dt>
+                  <dd className="mono">{t[side].trades} · {fmtPct(t[side].win_rate, 0)} · {fmtMoney(t[side].pnl_usd, true)}</dd>
+                </React.Fragment>
+              ))}
+              {title === 'Danh mục' && corr && (
+                <React.Fragment>
+                  <dt>Tương quan PnL ngày giữa chiến thuật (TB · max)</dt>
+                  <dd className="mono">{fmtNum(corr.avg)} · {fmtNum(corr.max)}</dd>
+                </React.Fragment>
+              )}
+            </dl>
+          </div>
+        ))}
+      </div>
+    </Panel>
   )
 }
 

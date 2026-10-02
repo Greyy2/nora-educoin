@@ -326,15 +326,16 @@ def test_fees_charged_on_every_layer_and_exit():
 
 def test_mark_to_market_drawdown_sees_floating_loss():
     # lệnh lỗ treo sâu (-8%) rồi hồi về có lãi: MDD theo lệnh đóng = 0, MDD MTM phải thấy lỗ treo
-    from backend.core.metrics.trades import MetricsCalculator
+    from backend.core.metrics.portfolio import curve_mdd_pct
+    from backend.core.metrics.returns import equity_mdd_pct
     prices = [100] * 5 + list(np.linspace(100, 92, 120)) + list(np.linspace(92, 101, 120))
     df = _path(prices)
     eng = _engine(df, _signal_at(df, 4), take_profit_rate=0.8, fee_rate=0.0, slippage_rate=0.0)
     eng.run()
-    closed_only = MetricsCalculator.calculate(eng.closed_positions, 10000.0)
-    mtm = MetricsCalculator.calculate(eng.closed_positions, 10000.0, equity_curve=eng.equity_curve)
-    assert closed_only["max_drawdown_pct"] == 0.0
-    assert mtm["max_drawdown_pct"] > 7.5
+    closed_only = equity_mdd_pct([p.profit_pct / 100.0 for p in eng.closed_positions])   # vốn chỉ đổi khi đóng lệnh
+    mtm = curve_mdd_pct(eng.equity_curve, 0, 10000.0)
+    assert closed_only == 0.0
+    assert mtm > 7.5
     assert eng.closed_positions[0].mae_pct < -7.5
 
 

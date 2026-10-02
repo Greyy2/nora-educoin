@@ -26,7 +26,9 @@ def run_asset(symbol: str) -> dict:
     import contextlib
     from backend.core.strategy.library import KERNEL_STRATEGIES, SIGNALS
     from backend.core.backtest.engine import BacktestEngine
-    from backend.core.metrics.trades import MetricsCalculator
+    from backend.core.metrics.portfolio import curve_mdd_pct
+    from backend.core.metrics.returns import equity_mdd_pct
+    from backend.core.metrics.trades import trade_metrics, trade_rows
     from backend.core.params.builder import build_params, venue_of_symbol
     from backend.db.local_pkl import read_manifest
     from backend.core.signals.diagnostics import check_signals
@@ -54,15 +56,15 @@ def run_asset(symbol: str) -> dict:
             engine.load_data()
             engine.run()
         pos = engine.closed_positions
-        mtm = MetricsCalculator.calculate(pos, 10000.0, equity_curve=engine.equity_curve)
-        closed = MetricsCalculator.calculate(pos, 10000.0)
+        tm = trade_metrics(trade_rows(pos))
+        final = engine.equity_curve[-1]["equity"] if engine.equity_curve else 10000.0
         out["strategies"][strat["id"]] = {
             "trades": len(pos),
-            "return_pct": mtm["total_pnl_pct"],
-            "mdd_mtm_pct": mtm["max_drawdown_pct"],
-            "mdd_closed_trades_pct": closed["max_drawdown_pct"],
-            "win_rate": closed["winrate"],
-            "profit_factor": closed["profit_factor"],
+            "return_pct": round((final / 10000.0 - 1) * 100, 4),
+            "mdd_mtm_pct": round(curve_mdd_pct(engine.equity_curve, start, 10000.0), 4),
+            "mdd_closed_trades_pct": round(equity_mdd_pct([p.profit_pct / 100.0 for p in pos]), 4),
+            "win_rate": round(tm["win_rate"], 2),
+            "profit_factor": round(tm["profit_factor"], 2),
             "avg_layers": round(sum(p.layers for p in pos) / len(pos), 2) if pos else 0,
             "worst_mae_pct": round(min((p.mae_pct for p in pos), default=0.0), 2),
             "liquidations": sum(1 for p in pos if int(p.status) == 5),

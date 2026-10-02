@@ -472,7 +472,7 @@ def _run(a, cands, keep, counts_per_cand, total_configs, w, fmt, eval_risk, run_
                 top.offer(sc, ord_, {"params": params, "dev1": m, "score": sc})
                 stored = m
             else:           # không thuộc top-K: bỏ chuỗi daily + số đo RAM trước khi lưu (RAM cha phẳng, kho gọn)
-                stored = {k: v for k, v in m.items() if k not in ("daily", "_peak_rss_mb", "_rss_anon_mb")}
+                stored = {k: v for k, v in m.items() if k not in ("daily", "stats", "_peak_rss_mb", "_rss_anon_mb")}
             return stored, sc
 
         def jobs(c=c, cid=cid):

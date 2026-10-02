@@ -12,8 +12,8 @@ import numpy as np
 import pandas as pd
 
 from . import gates, sizing
-from backend.core.metrics.portfolio import series_metrics
-from backend.core.metrics.returns import daily_stats, sortino_annual
+from backend.core.metrics.portfolio import flat_extras, series_metrics
+from backend.core.metrics.returns import daily_stats, sortino
 from backend.core.metrics.trades import trade_rows, trade_stats
 
 DAY = 86_400_000
@@ -50,11 +50,12 @@ def run_backtest(job: Dict[str, Any], want_trades: bool = False) -> Dict[str, An
     rows = trade_rows(res["positions"])
     ds = daily_stats(daily)
     m = {
-        "ret_pct": pm["ret_pct"], "mdd_pct": pm["mdd_pct"], "sharpe": pm["sharpe"], "sortino": round(sortino_annual(daily), 2),
+        "ret_pct": pm["ret_pct"], "mdd_pct": pm["mdd_pct"], "sharpe": pm["sharpe"], "sortino": round(sortino(daily) or 0.0, 2),
         "trades": pm["trades"], "symbols_positive": pm["symbols_positive"], **trade_stats(rows),
         "sr_daily": round(ds["sr_daily"], 6), "skew": round(ds["skew"], 4), "kurt": round(ds["kurt"], 4), "n_days": ds["n_days"],
         "fees_usd": pm["fees_usd"], "funding_usd": pm["funding_usd"], "halted": bool(pm["halted_at"]),
         "by_symbol": pm["by_symbol"],
+        "mdd_intrabar_pct": pm["mdd_intrabar_pct"], "mdd_daily_pct": pm["mdd_daily_pct"], "mdd_basis": "intrabar", **flat_extras(pm["stats"]),
     }
     return {"metrics": m, "daily": daily, "daily_start": f"{pd.Timestamp(int(first), unit='ms'):%Y-%m-%d}" if first is not None else None,
             "trades": rows if want_trades else None}

@@ -120,3 +120,10 @@ S5 thêm `final_scale, search_s, search_steps, confirm_attempts`; S6 thêm `extr
 - `POST …/promote` body `{confirm: true, note?}` (thiếu confirm → 400; chưa FINAL → 409) → `{registry_path, alpha_id, registry_alpha_id, final_scale, testnet_config}`: thêm/ thay mục `funnel__<chiến lược>__<alpha_id>` trong `registry.json`
   (cùng các khoá của `registry.build_registry` + khoá mới `funnel` chứa s, bằng chứng, MC) và ghi `testnet/funnel__….json` (định dạng `testnet/book.json`, rủi ro/lệnh = 0,5 × s).
 - Thêm (ngoài hợp đồng gốc): `POST /runs/{id}/cancel` (SIGTERM → resume được), `GET /estimate?strategies=&n_per_strategy=|full_grid=&workers=` (ước tính thời gian S1 trước khi chạy).
+
+## 7. Số đo mở rộng của alpha (02/10/2026)
+
+`metrics_json` mỗi tầng có thêm (core/metrics/portfolio.flat_extras): `cagr_pct`, `calmar`, `cvar95_pct`, `max_dd_days`, `payoff`,
+`expectancy_pct`, `max_consec_losses`, `top5_share_pct`, `mae_worst_pct`, `liq_proximity_max_pct`, `liquidations`, `fee_drag_pct`,
+`mdd_daily_pct`, `mdd_intrabar_pct` (S1/S6), `mdd_basis` ("intrabar" ở S1/S6, "daily" ở S3–S5). `GET /alphas?sort=` nhận thêm các khoá này
+(đọc bằng json_extract; thêm "-" để giảm dần). Bảng lệnh có thêm `strategy`, `margin_usd`, `leverage`, `entry_equity`.

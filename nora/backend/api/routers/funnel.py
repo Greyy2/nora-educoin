@@ -32,7 +32,11 @@ SEC_PER_S1_BACKTEST = 32.0      # đo 02/10/2026: dev1 (~14 tháng, 8 tài sản
 _RUN_RE = re.compile(r"^fr-[0-9A-Za-z_-]{1,40}$|^[0-9A-Za-z_-]{3,48}$")
 _ALPHA_RE = re.compile(r"^[0-9a-f]{8,64}$")
 SORT_COLS = {"ret_pct": "m.ret_pct", "mdd_pct": "m.mdd_pct", "sharpe": "m.sharpe", "trades": "m.trades", "win_rate": "m.win_rate",
-             "profit_factor": "m.profit_factor", "score": "m.score", "order": "a.ord", "ord": "a.ord", "final_scale": "a.final_scale"}
+             "profit_factor": "m.profit_factor", "score": "m.score", "order": "a.ord", "ord": "a.ord", "final_scale": "a.final_scale",
+             # số đo mở rộng (metrics_json; core/metrics/portfolio.flat_extras) — sắp xếp qua json_extract
+             **{k: f"json_extract(m.metrics_json, '$.{k}')" for k in (
+                 "cagr_pct", "calmar", "cvar95_pct", "max_dd_days", "payoff", "expectancy_pct", "max_consec_losses", "top5_share_pct",
+                 "mae_worst_pct", "liq_proximity_max_pct", "liquidations", "fee_drag_pct", "mdd_daily_pct", "mdd_intrabar_pct", "sortino")}}
 
 
 # ─── Đường dẫn / mở kho ─────────────────────────────────────────────────────

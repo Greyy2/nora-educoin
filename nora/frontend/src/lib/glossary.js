@@ -39,4 +39,12 @@ export const GLOSSARY = {
   mode_advanced: { label: 'Nâng cao', def: 'Chỉnh được từng tham số của chiến lược (chu kỳ chỉ báo, khung thời gian, thoát lệnh, rủi ro), ngày và cổng. Đổi ngưỡng cổng hoặc dùng ít hơn 10.000 kịch bản thì kết quả không xuất bản được.' },
   preset: { label: 'Preset', def: 'Bộ tham số tốt nhất đã biết của một chiến lược: lấy từ sổ đã xuất bản, hoặc cấu hình top-1 của lần tối ưu mới nhất, hoặc giá trị mặc định nếu chưa tối ưu. Kèm bằng chứng kiểm chứng (dev1, dev2).' },
   custom_gates: { label: 'Cấu hình tuỳ chỉnh', def: 'Cổng bị đổi so với chuẩn (ngưỡng phá sản, MDD kịch bản cực xấu, thiếu kịch bản, dưới 10.000 mô phỏng). Kết quả chỉ để thử nghiệm: không xuất bản / promote được.' },
+  mdd_intrabar: { label: 'MDD trong nến', def: 'Sụt giảm lớn nhất tính cả giá XẤU NHẤT bên trong mỗi nến (lỗ treo chạm đáy rồi hồi). Khắt hơn MDD theo ngày; gate của backtest/sổ dùng số này.' },
+  mdd_daily: { label: 'MDD theo ngày', def: 'Sụt giảm lớn nhất trên vốn đóng cửa mỗi ngày. Nhẹ hơn MDD trong nến vì bỏ qua dao động trong ngày.' },
+  payoff: { label: 'Payoff', def: 'Lãi trung bình của lệnh thắng chia cho lỗ trung bình của lệnh thua. Trend thường win rate thấp nhưng payoff cao.' },
+  expectancy: { label: 'Kỳ vọng mỗi lệnh', def: 'Lãi/lỗ trung bình của một lệnh (đã trừ phí). Dương mới có edge, bất kể win rate.' },
+  ulcer: { label: 'Ulcer index', def: 'Căn của trung bình bình phương mức sụt giảm mỗi ngày: phạt cả độ sâu lẫn thời gian nằm dưới đỉnh.' },
+  mae: { label: 'Lỗ treo (MAE)', def: 'Lỗ chưa chốt sâu nhất trong suốt một lệnh, theo % vốn lúc mở lệnh. Bot DCA win cao nhưng MAE rất sâu.' },
+  liq_proximity: { label: 'Gần thanh lý', def: 'Phần ký quỹ của lệnh đã bị lỗ treo ăn mất ở điểm xấu nhất. 100% = bị thanh lý (ký quỹ isolated).' },
+  fee_drag: { label: 'Phí ăn lãi', def: 'Phí giao dịch chia cho lãi trước phí. Cao nghĩa là phần lớn edge bị sàn lấy mất (hay gặp ở scalp).' },
 }

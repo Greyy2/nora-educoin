@@ -293,15 +293,9 @@ def build_dashboard(result: Dict[str, Any], bench_closes: Optional[pd.Series] = 
     month_ref = _nav_at_or_before(nav, last.replace(day=1) - pd.Timedelta(days=1), init)
     year_ref = _nav_at_or_before(nav, pd.Timestamp(year=last.year - 1, month=12, day=31), init)
     ret_period = (nav_p[-1] / base_nav - 1.0) * 100.0
-    cagr = ((nav_p[-1] / base_nav) ** (ANN / n) - 1.0) * 100.0 if base_nav > 0 and nav_p[-1] > 0 else None
+    cagr = rt.cagr_pct(ret_p) if base_nav > 0 and nav_p[-1] > 0 else None
     sharpe, sortino = rt.sharpe(ret_p), rt.sortino(ret_p)
-    if n >= 2:
-        q = float(np.percentile(ret_p, 5))
-        tail = ret_p[ret_p <= q]
-        var_pct = max(0.0, -q * 100.0)
-        cvar_pct = max(0.0, -float(tail.mean()) * 100.0) if len(tail) else None
-    else:
-        var_pct = cvar_pct = None
+    var_pct, cvar_pct = rt.var_cvar_pct(ret_p)
     kpis = {
         "nav": _num(nav_last), "nav_change_day": _num(nav_last - prev_day),
         "nav_change_day_pct": _num((nav_last / prev_day - 1.0) * 100.0) if prev_day > 0 else None,
@@ -365,6 +359,9 @@ def build_dashboard(result: Dict[str, Any], bench_closes: Optional[pd.Series] = 
         "strategies": _strategy_rows(ids, p_trades, dates, init, base_nav, halted,
                                      {x["strategy"]: x["side"] for x in list(trades) + pos_rows if x.get("side")}),
         "events": _events(result, p_start), "positions": pos_rows,
+        # bộ số đo chuẩn toàn kỳ chạy (core/metrics/portfolio.portfolio_metrics) — không cắt theo `period`; None với kết quả cũ
+        "stats": result.get("stats"),
+        "mdd": {"intrabar_pct": result.get("mdd_intrabar_pct", result.get("mdd_pct")), "daily_pct": result.get("mdd_daily_pct")},
     }
 
 

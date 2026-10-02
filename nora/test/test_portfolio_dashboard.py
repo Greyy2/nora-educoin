@@ -54,7 +54,7 @@ def _trade(strategy, side, notional, pnl, enter, close, reason="Stop Loss"):
             "margin_usd": notional / 10}
 
 
-TOP_KEYS = {"available", "source", "period", "kpis", "series", "distribution", "monthly", "risk", "strategies", "events", "positions"}
+TOP_KEYS = {"available", "source", "period", "kpis", "series", "distribution", "monthly", "risk", "strategies", "events", "positions", "stats", "mdd"}
 KPI_KEYS = {"nav", "nav_change_day", "nav_change_day_pct", "pnl_today", "pnl_month", "pnl_year", "ret_period_pct", "bench_ret_period_pct",
             "excess_pct", "sharpe", "sortino", "calmar", "mdd_pct", "dd_now_pct", "var95_1d", "var95_pct", "cvar95_1d",
             "spark_nav", "spark_ret", "spark_dd"}
@@ -409,7 +409,8 @@ def test_backtest_feed_payload_identical_to_pre_feed_output(period):
     p = pdash.build_from_snapshot(snap, period, _bench())
     assert p["positions"] == [] and "mock" not in p and "mock_note" not in p and "mock" not in p["source"]
     assert p == pdash.build_dashboard(res, _bench(), period, job_id="j1", label="L")
-    p.pop("positions")                                                          # khoá duy nhất được thêm
+    for k in ("positions", "stats", "mdd"):                                     # khoá được thêm sau (feed, bộ số đo chuẩn)
+        p.pop(k)
     assert hashlib.sha256(json.dumps(p, sort_keys=True).encode()).hexdigest() == PRE_FEED_HASH[period]
 
 

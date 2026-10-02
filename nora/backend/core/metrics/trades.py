@@ -1,184 +1,159 @@
-"""Số đo theo lệnh: tổng hợp một lần chạy (MetricsCalculator), bảng lệnh phẳng, win rate / profit factor."""
-import math
+"""Số đo theo LỆNH (đã đóng) và theo phơi nhiễm vốn: bảng lệnh phẳng, thắng/thua, profit factor, payoff, expectancy, chuỗi thua,
+độ tập trung lãi, thời gian giữ, tách long/short, phí/funding, DCA (tầng, lỗ treo, độ gần thanh lý), ký quỹ/exposure theo thời gian.
 
-import numpy as np
+Quy ước:
+  - thắng = PnL > 0, thua = PnL < 0, hoà (= 0) đếm riêng; win_rate = thắng / tổng lệnh (hoà làm giảm win_rate, không tính là thua);
+  - profit_factor = Σ lãi / Σ lỗ, chặn ở PF_CAP khi không có lệnh lỗ (xem `losses` để biết có phải "không lỗ" không);
+  - payoff = TB lệnh thắng / |TB lệnh thua|; expectancy = PnL trung bình mỗi lệnh (USD và % vốn lúc mở lệnh);
+  - fee_drag_pct = phí / lãi trước phí (phần lãi gộp bị phí ăn mất); None khi lãi trước phí <= 0;
+  - liq_proximity_pct = |lỗ treo tối đa của lệnh| / ký quỹ của lệnh × 100 (100 = mất hết ký quỹ = thanh lý, isolated);
+  - ký quỹ / exposure theo thời gian dựng lại từ [enter, close] của lệnh với ký quỹ CUỐI của lệnh (sau mọi tầng DCA) -> hơi cao hơn
+    thực tế trước khi nhồi; tính theo % vốn ban đầu.
+"""
 from typing import Any, Dict, List, Optional
 
-from backend.core.execute.models import PositionModel
-
-
-class MetricsCalculator:
-    """Xử lý mảng vị thế (Positions) để xuất ra các chỉ số định lượng."""
-
-    @staticmethod
-    def calculate(
-        positions: List[PositionModel],
-        initial_balance: float = 10000.0,
-        equity_curve: Optional[List[Dict[str, float]]] = None,
-    ) -> Dict[str, float]:
-        start_balance = float(initial_balance or 0.0)
-        trades = sorted(
-            positions or [],
-            key=lambda p: (int(p.close_time or p.enter_time or 0), int(p.result_id or 0)),
-        )
-
-        if equity_curve:
-            curve = MetricsCalculator._normalize_equity_curve(equity_curve, start_balance)
-        else:
-            curve = MetricsCalculator._equity_from_positions(trades, start_balance)
-
-        if not curve:
-            curve = [{"time": None, "date": "Start", "equity": round(start_balance, 2), "drawdown_pct": 0.0}]
-
-        trade_returns = [MetricsCalculator._trade_return_pct(position) / 100.0 for position in trades]
-        winning_trades = sum(1 for position in trades if float(getattr(position, "real_pnl", 0.0) or 0.0) > 0)
-        losing_trades = sum(1 for position in trades if float(getattr(position, "real_pnl", 0.0) or 0.0) <= 0)
-        gross_profit = sum(max(float(getattr(position, "real_pnl", 0.0) or 0.0), 0.0) for position in trades)
-        gross_loss = abs(sum(min(float(getattr(position, "real_pnl", 0.0) or 0.0), 0.0) for position in trades))
-        net_pnl_usd = sum(float(getattr(position, "real_pnl", 0.0) or 0.0) for position in trades)
-
-        end_balance = float(curve[-1].get("equity", curve[-1].get("balance", start_balance)))
-        total_pnl_pct = ((end_balance - start_balance) / start_balance * 100.0) if start_balance > 0 else 0.0
-        max_drawdown_pct = MetricsCalculator._max_drawdown_pct(curve)
-        winrate = (winning_trades / len(trades) * 100.0) if trades else 0.0
-
-        sharpe_ratio = MetricsCalculator._sharpe_ratio(curve)
-        profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else (999.0 if gross_profit > 0 else 0.0)
-
-        return {
-            "total_trades": len(trades),
-            "winning_trades": winning_trades,
-            "losing_trades": losing_trades,
-            "winrate": round(winrate, 2),
-            "win_rate": round(winrate, 2),
-            "total_pnl_pct": round(total_pnl_pct, 4),
-            "return_pct": round(total_pnl_pct, 4),
-            "max_drawdown": round(max_drawdown_pct, 4),
-            "max_drawdown_pct": round(max_drawdown_pct, 4),
-            "profit_factor": round(profit_factor, 2),
-            "gross_profit": round(gross_profit, 4),
-            "gross_loss": round(gross_loss, 4),
-            "net_pnl_usd": round(net_pnl_usd, 2),
-            "estimated_pnl_usd": round(end_balance - start_balance, 2),
-            "start_balance": round(start_balance, 2),
-            "end_balance": round(end_balance, 2),
-            "sharpe_ratio": round(sharpe_ratio, 4) if sharpe_ratio is not None else 0.0,
-            "return_mode": "compounded_equity",
-            "equity_curve": curve,
-        }
-
-    @staticmethod
-    def calculate_all(
-        positions: List[PositionModel],
-        initial_balance: float = 10000.0,
-        equity_curve: Optional[List[Dict[str, float]]] = None,
-    ) -> Dict[str, float]:
-        return MetricsCalculator.calculate(positions, initial_balance=initial_balance, equity_curve=equity_curve)
-
-    @staticmethod
-    def _trade_return_pct(position: PositionModel) -> float:
-        pnl_pct = float(getattr(position, "profit_pct", 0.0) or 0.0)
-        if pnl_pct != 0.0:
-            return pnl_pct
-        entry_equity = float(getattr(position, "entry_equity", 0.0) or 0.0)
-        if entry_equity > 0:
-            return float(getattr(position, "real_pnl", 0.0) or 0.0) / entry_equity * 100.0
-        return 0.0
-
-    @staticmethod
-    def _equity_from_positions(positions: List[PositionModel], initial_balance: float) -> List[Dict[str, float]]:
-        equity = float(initial_balance)
-        peak = equity
-        curve: List[Dict[str, float]] = [
-            {"time": None, "date": "Start", "equity": round(equity, 2), "drawdown_pct": 0.0}
-        ]
-        for position in positions:
-            trade_return = MetricsCalculator._trade_return_pct(position) / 100.0
-            equity *= 1.0 + trade_return
-            peak = max(peak, equity)
-            drawdown_pct = ((peak - equity) / peak * 100.0) if peak > 0 else 0.0
-            curve.append({
-                "time": int(getattr(position, "close_time", 0) or getattr(position, "enter_time", 0) or 0),
-                "date": str(getattr(position, "close_time", None) or getattr(position, "enter_time", None) or ""),
-                "equity": round(equity, 2),
-                "drawdown_pct": round(drawdown_pct, 4),
-            })
-        return curve
-
-    @staticmethod
-    def _normalize_equity_curve(curve: List[Dict[str, float]], initial_balance: float) -> List[Dict[str, float]]:
-        normalized: List[Dict[str, float]] = []
-        for row in curve:
-            equity = row.get("equity")
-            if equity is None:
-                equity = row.get("balance")
-            if equity is None:
-                equity = initial_balance
-            normalized.append({
-                **row,
-                "equity": round(float(equity), 2),
-            })
-        return normalized
-
-    @staticmethod
-    def _max_drawdown_pct(curve: List[Dict[str, float]]) -> float:
-        peak = None
-        max_dd = 0.0
-        for row in curve:
-            value = row.get("equity_worst")
-            if value is None:
-                value = row.get("equity", row.get("balance", 0.0))
-            value = float(value or 0.0)
-            if peak is None or value > peak:
-                peak = value
-                continue
-            if peak > 0:
-                dd = (peak - value) / peak * 100.0
-                max_dd = max(max_dd, dd)
-        return max_dd
-
-    @staticmethod
-    def _sharpe_ratio(curve: List[Dict[str, float]]) -> Optional[float]:
-        returns: List[float] = []
-        prev = None
-        for row in curve:
-            value = row.get("equity")
-            if value is None:
-                value = row.get("balance")
-            value = float(value or 0.0)
-            if prev is not None and prev > 0:
-                returns.append((value - prev) / prev)
-            prev = value
-
-        if len(returns) < 2:
-            return None
-
-        mean = sum(returns) / len(returns)
-        variance = sum((item - mean) ** 2 for item in returns) / (len(returns) - 1)
-        sd = math.sqrt(variance)
-        if sd <= 0:
-            return None
-        periods_per_year = 365.0
-        return (mean / sd) * math.sqrt(periods_per_year)
-
+import numpy as np
 
 PF_CAP = 99.0   # profit factor khi không có lệnh lỗ (tránh inf trong JSON/biểu đồ)
+LIQ_STATUS = "LIQ"
 
 
 def trade_rows(positions) -> List[Dict[str, Any]]:
     return [{
-        "symbol": p.symbol, "side": p.pos_type.name, "enter_time": int(p.enter_time), "close_time": int(p.close_time),
+        "symbol": p.symbol, "strategy": getattr(p, "strategy_id", "") or "", "side": p.pos_type.name,
+        "enter_time": int(p.enter_time), "close_time": int(p.close_time),
         "enter_price": float(p.enter_price), "close_price": float(p.close_price), "qty": float(p.qty),
         "pnl_usd": float(p.real_pnl), "pnl_pct": float(p.profit_pct), "fees_usd": float(p.fees_usd or 0.0),
         "funding_usd": float(p.funding_usd or 0.0), "status": p.status.name, "layers": int(p.layers or 0),
-        "mae_pct": float(p.mae_pct or 0.0),
+        "mae_pct": float(p.mae_pct or 0.0), "margin_usd": float(getattr(p, "total_margin_usd", 0.0) or 0.0),
+        "leverage": float(getattr(p, "leverage_used", 1.0) or 1.0), "entry_equity": float(getattr(p, "entry_equity", 0.0) or 0.0),
     } for p in positions]
 
 
 def trade_stats(rows: List[Dict[str, Any]]) -> Dict[str, float]:
+    """win_rate (1 chữ số) + profit_factor (3 chữ số) — giữ nguyên định dạng cũ cho gate/bảng của phễu."""
     pnl = np.asarray([r["pnl_usd"] for r in rows], dtype=float)
     if pnl.size == 0:
         return {"win_rate": 0.0, "profit_factor": 0.0}
     gp, gl = float(pnl[pnl > 0].sum()), float(-pnl[pnl < 0].sum())
     pf = gp / gl if gl > 0 else (PF_CAP if gp > 0 else 0.0)
     return {"win_rate": round(float((pnl > 0).mean() * 100), 1), "profit_factor": round(min(pf, PF_CAP), 3)}
+
+
+def _side_block(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
+    pnl = np.asarray([r["pnl_usd"] for r in rows], dtype=float)
+    return {"trades": int(pnl.size), "pnl_usd": float(pnl.sum()) if pnl.size else 0.0,
+            "win_rate": float((pnl > 0).mean() * 100.0) if pnl.size else None}
+
+
+def max_consecutive(flags) -> int:
+    best = cur = 0
+    for f in flags:
+        cur = cur + 1 if f else 0
+        best = max(best, cur)
+    return best
+
+
+def trade_metrics(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Mọi số đo theo lệnh từ trade_rows (lệnh xếp theo thời điểm đóng)."""
+    rows = sorted(rows, key=lambda r: (r["close_time"], r["enter_time"]))
+    n = len(rows)
+    pnl = np.asarray([r["pnl_usd"] for r in rows], dtype=float)
+    pct = np.asarray([r["pnl_pct"] for r in rows], dtype=float)
+    fees = float(sum(r.get("fees_usd", 0.0) for r in rows))
+    funding = float(sum(r.get("funding_usd", 0.0) for r in rows))
+    wins, losses = pnl[pnl > 0], pnl[pnl < 0]
+    gp, gl = float(wins.sum()), float(-losses.sum())
+    avg_win = float(wins.mean()) if wins.size else None
+    avg_loss = float(losses.mean()) if losses.size else None
+    pre_fee = float(pnl.sum()) + fees
+    top = np.sort(wins)[::-1][:5]
+    hold_h = np.asarray([(r["close_time"] - r["enter_time"]) / 3_600_000 for r in rows], dtype=float)
+    mae = np.asarray([r.get("mae_pct", 0.0) for r in rows], dtype=float)
+    layers = np.asarray([r.get("layers", 1) for r in rows], dtype=float)
+    prox = [abs(r["mae_pct"]) / 100.0 * r["entry_equity"] / r["margin_usd"] * 100.0
+            for r in rows if r.get("margin_usd") and r.get("entry_equity")]
+    return {
+        "trades": n, "wins": int(wins.size), "losses": int(losses.size), "breakeven": int(n - wins.size - losses.size),
+        "win_rate": float(wins.size / n * 100.0) if n else 0.0, "loss_rate": float(losses.size / n * 100.0) if n else 0.0,
+        "profit_factor": min(gp / gl, PF_CAP) if gl > 0 else (PF_CAP if gp > 0 else 0.0),
+        "gross_profit_usd": gp, "gross_loss_usd": gl, "pnl_usd": float(pnl.sum()),
+        "avg_win_usd": avg_win, "avg_loss_usd": avg_loss,
+        "payoff": (avg_win / abs(avg_loss)) if avg_win is not None and avg_loss else None,
+        "expectancy_usd": float(pnl.mean()) if n else None, "expectancy_pct": float(pct.mean()) if n else None,
+        "best_trade_usd": float(pnl.max()) if n else None, "worst_trade_usd": float(pnl.min()) if n else None,
+        "best_trade_pct": float(pct.max()) if n else None, "worst_trade_pct": float(pct.min()) if n else None,
+        "max_consec_wins": max_consecutive(pnl > 0), "max_consec_losses": max_consecutive(pnl < 0),
+        "top5_share_pct": float(top.sum() / gp * 100.0) if gp > 0 else None,
+        "avg_hold_h": float(hold_h.mean()) if n else None, "max_hold_h": float(hold_h.max()) if n else None,
+        "fees_usd": fees, "funding_usd": funding, "fee_drag_pct": float(fees / pre_fee * 100.0) if pre_fee > 0 else None,
+        "long": _side_block([r for r in rows if r["side"] == "LONG"]),
+        "short": _side_block([r for r in rows if r["side"] == "SHORT"]),
+        "layers_avg": float(layers.mean()) if n else None, "layers_max": int(layers.max()) if n else 0,
+        "mae_avg_pct": float(mae.mean()) if n else None, "mae_worst_pct": float(mae.min()) if n else None,
+        "liq_proximity_max_pct": float(max(prox)) if prox else None,
+        "liquidations": int(sum(1 for r in rows if r.get("status") == LIQ_STATUS)),
+    }
+
+
+def exposure_metrics(rows: List[Dict[str, Any]], start_ts: int, end_ts: int, capital: float) -> Dict[str, Any]:
+    """Theo thời gian, từ khoảng [enter, close] của lệnh: % thời gian có vị thế, ký quỹ đỉnh, exposure gộp/ròng TB (theo thời gian) và
+    lớn nhất — % vốn ban đầu. Ký quỹ mỗi lệnh = ký quỹ cuối (sau DCA); danh nghĩa = ký quỹ × đòn bẩy."""
+    span = max(1, int(end_ts) - int(start_ts))
+    if not rows or capital <= 0:
+        return {"time_in_market_pct": 0.0, "peak_margin_pct": 0.0, "exposure_gross_avg_pct": 0.0, "exposure_gross_max_pct": 0.0,
+                "exposure_net_avg_pct": 0.0, "exposure_net_max_pct": 0.0, "max_concurrent": 0}
+    ev = []
+    for r in rows:
+        a, b = max(int(r["enter_time"]), int(start_ts)), min(int(r["close_time"]), int(end_ts))
+        if b <= a:
+            continue
+        m = float(r.get("margin_usd") or 0.0)
+        g = m * float(r.get("leverage") or 1.0)
+        s = g if r["side"] == "LONG" else -g
+        ev.append((a, 1, m, g, s))
+        ev.append((b, -1, -m, -g, -s))
+    ev.sort(key=lambda e: (e[0], e[1]))          # đóng trước mở cùng thời điểm
+    open_n = 0
+    margin = gross = net = 0.0
+    peak_m = peak_g = peak_abs_net = 0.0
+    max_open = 0
+    t_prev = None
+    covered = area_g = area_n = 0.0
+    for t, d, m, g, s in ev:
+        if t_prev is not None and t > t_prev:
+            dt = t - t_prev
+            if open_n > 0:
+                covered += dt
+            area_g += gross * dt
+            area_n += net * dt
+        open_n += d
+        margin += m
+        gross += g
+        net += s
+        peak_m, peak_g, peak_abs_net = max(peak_m, margin), max(peak_g, gross), max(peak_abs_net, abs(net))
+        max_open = max(max_open, open_n)
+        t_prev = t
+    return {"time_in_market_pct": covered / span * 100.0, "peak_margin_pct": peak_m / capital * 100.0,
+            "exposure_gross_avg_pct": area_g / span / capital * 100.0, "exposure_gross_max_pct": peak_g / capital * 100.0,
+            "exposure_net_avg_pct": area_n / span / capital * 100.0, "exposure_net_max_pct": peak_abs_net / capital * 100.0,
+            "max_concurrent": int(max_open)}
+
+
+def strategy_correlation(rows: List[Dict[str, Any]], start_ts: int, end_ts: int) -> Optional[Dict[str, Any]]:
+    """Tương quan PnL NGÀY (theo ngày đóng lệnh) giữa các chiến lược: {"pairs": {"a|b": r}, "avg": r TB, "max": r lớn nhất}.
+    < 2 chiến lược có lệnh -> None."""
+    import pandas as pd
+    ids = sorted({r["strategy"] for r in rows if r.get("strategy")})
+    if len(ids) < 2:
+        return None
+    days = pd.date_range(pd.Timestamp(int(start_ts), unit="ms").normalize(), pd.Timestamp(int(end_ts), unit="ms").normalize(), freq="D")
+    m = pd.DataFrame(0.0, index=days, columns=ids)
+    for r in rows:
+        d = pd.Timestamp(int(r["close_time"]), unit="ms").normalize()
+        if r.get("strategy") in m.columns and d in m.index:
+            m.loc[d, r["strategy"]] += float(r["pnl_usd"])
+    c = m.corr()
+    pairs = {f"{a}|{b}": (float(c.loc[a, b]) if np.isfinite(c.loc[a, b]) else None) for i, a in enumerate(ids) for b in ids[i + 1:]}
+    vals = [v for v in pairs.values() if v is not None]
+    return {"pairs": pairs, "avg": float(np.mean(vals)) if vals else None, "max": float(np.max(vals)) if vals else None}

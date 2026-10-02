@@ -107,6 +107,17 @@ Payload khi có dữ liệu:
   (`result.risk_blocked_attempts`: các phút liên tiếp bị chặn của cùng một tracker tính là một lần; `rejected_for_risk` vẫn là số phút, golden dựa vào đó). Lời văn:
   "N lần vào lệnh bị chặn do giới hạn rủi ro danh mục (tối đa X vị thế / Y mỗi tài sản / trần exposure Z× vốn)"; kết quả cũ không có `risk_blocked_attempts` thì chỉ nêu sự việc, không nêu số.
 
+### Bộ số đo chuẩn trong payload Danh mục (02/10/2026)
+
+`GET /api/studio/portfolio/dashboard` trả thêm (null với kết quả job cũ):
+- `stats` = `portfolio_metrics(...)["stats"]` của TOÀN kỳ chạy (không cắt theo `period`): `returns` (ret_pct, cagr_pct, vol_ann_pct, sharpe,
+  sortino, calmar, mdd_daily_pct, max_dd_days, recovery_days, ulcer_index, var95_pct, cvar95_pct, skew, kurt, days, win_days_pct,
+  best/worst_day_pct), `trades` (trades, wins, losses, breakeven, win_rate, loss_rate, profit_factor, payoff, expectancy_usd/pct,
+  avg_win/loss_usd, best/worst_trade_usd/pct, max_consec_wins/losses, top5_share_pct, avg/max_hold_h, fees_usd, funding_usd, fee_drag_pct,
+  long/short {trades, pnl_usd, win_rate}, layers_avg/max, mae_avg/worst_pct, liq_proximity_max_pct, liquidations), `exposure`
+  (time_in_market_pct, peak_margin_pct, exposure_gross/net_avg/max_pct, max_concurrent), `correlation` ({pairs, avg, max} hoặc null).
+- `mdd` = `{intrabar_pct, daily_pct}` — MDD trong nến (giá xấu nhất của nến) và theo ngày của toàn kỳ chạy.
+
 ## 4. WFA (đã có job, bổ sung cấu hình cố định)
 `POST /api/studio/book/wfa`, một trong ba dạng:
 - `{"report_dir": "..."}`: các chiến lược đã đạt của một lần build;

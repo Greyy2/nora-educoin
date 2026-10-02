@@ -634,3 +634,11 @@ td .n-resolved-b { min-width: 320px; }
 .n-estimate { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid var(--n-line); border-radius: 8px; background: var(--n-surface-2); font-size: 12.5px; }
 .n-estimate .mono { color: var(--n-ink); }
 .n-recompute { display: flex; align-items: center; gap: 10px; justify-content: center; padding: 20px; color: var(--n-ink-2); }
+
+/* Số đo chi tiết (bộ số đo chuẩn core/metrics) */
+.n-mx { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px 22px; }
+.n-mx-group h4 { margin: 0 0 6px; font-size: 12px; font-weight: 600; color: var(--n-ink-2); text-transform: uppercase; letter-spacing: .04em; }
+.n-mx-group dl { margin: 0; display: grid; grid-template-columns: 1fr auto; gap: 0 12px; font-size: 12.5px; }
+.n-mx-group dt, .n-mx-group dd { margin: 0; padding: 3px 0; border-bottom: 1px solid var(--n-line-soft); }
+.n-mx-group dt { color: var(--n-ink-2); min-width: 0; }
+.n-mx-group dd { text-align: right; white-space: nowrap; }

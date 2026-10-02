@@ -159,6 +159,7 @@ def _pool_shared(jobs, workers, label, shared_dir, store=None, stage=None, progr
             m = normalize(res)
             if stage == "wfa_is":
                 m.pop("daily", None)
+                m.pop("stats", None)
             results[i] = m
             if store is not None:
                 store.put(keys_of[i], stage, "-", [[c, p] for c, p in jobs[i][0]], m, ord=i)
