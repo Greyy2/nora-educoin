@@ -859,10 +859,6 @@ class RefPortfolioEngine:
     def _cache_key(self, symbol: str, eng: RefBacktestEngine) -> tuple:
         return (symbol, self.start_ts, self.end_ts, self._refs_signature(eng), any(tr.market == "perp" for tr in eng.trackers))
 
-    def _shared_key(self, symbol: str, eng: RefBacktestEngine) -> Optional[str]:
-        sym, start, end, refs, perp = self._cache_key(symbol, eng)
-        return shared_data.data_key(sym, start, end, refs, perp)
-
     def _build_symbol_data(self, eng: RefBacktestEngine) -> Dict[str, Any]:
         """Dựng `data` của một tài sản (nến thật 1m + cột kernel + funding), không đụng cache."""
         with contextlib.redirect_stdout(io.StringIO()):
@@ -880,8 +876,8 @@ class RefPortfolioEngine:
 
     def _load_symbol(self, symbol: str, eng: RefBacktestEngine) -> Dict[str, Any]:
         if self.shared_dir:  # mmap chỉ đọc do tiến trình cha dựng — KHÔNG đưa vào _DATA_CACHE (không nhân bản RAM)
-            skey = self._shared_key(symbol, eng)
-            shared = shared_data.load(self.shared_dir, skey) if skey else None
+            plan = shared_data.plan(eng)     # chỉ đọc phần đã có (lưu theo cột); thiếu thì dựng như thường
+            shared = shared_data.load(self.shared_dir, plan) if plan else None
             if shared is not None:
                 return shared
         key = self._cache_key(symbol, eng)

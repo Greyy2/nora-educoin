@@ -101,8 +101,8 @@ class Ctx:
         w = self.windows
         return {**bt.base_job(strategy, params, (w["start"], w["dev1_end"]), "level", False, rpt, self.symbols, self.shared_dir), "trades": trades}
 
-    def tick(self) -> None:
-        self.progress.tick()
+    def tick(self, worker_peak_mb: Optional[float] = None) -> None:
+        self.progress.tick(worker_peak_mb=worker_peak_mb)
 
 
 def _stream(ctx: Ctx, stage: str, pages: Iterator[Dict[str, Any]], make_job: Callable[[Dict[str, Any]], Dict[str, Any]], fn: Callable,
@@ -163,6 +163,8 @@ def _stream_grouped(ctx: Ctx, stage: str, pages: Iterator[Dict[str, Any]], make_
             held -= len(items)
             pending[n] = [row for row, _ in items]
             n += 1
+            if items:
+                ctx.exporter.ensure([items[0][1]])
             return {"jobs": [job for _, job in items]}
 
         for row in pages:
@@ -177,12 +179,12 @@ def _stream_grouped(ctx: Ctx, stage: str, pages: Iterator[Dict[str, Any]], make_
         for key in list(buf):
             yield emit(key)
 
-    for i, outs in ctx.imap(bt.w_backtest_group, feeder(), f"[{stage}]"):
+    for i, got in ctx.imap(bt.w_backtest_group_rss, feeder(), f"[{stage}]"):
         rows = pending.pop(i)
-        for row, res in zip(rows, outs):
+        for k, (row, res) in enumerate(zip(rows, got["outs"])):
             batch.append(on_result(row, res))
             done += 1
-            ctx.tick()
+            ctx.tick(got["rss_anon_mb"] if k == 0 else None)
         if len(batch) >= flush_n or time.time() - t_flush > FLUSH_SECONDS:
             ctx.store.commit_results(batch)
             batch, t_flush = [], time.time()
@@ -251,12 +253,6 @@ def stage_s0(ctx: Ctx) -> None:
 def stage_s1(ctx: Ctx) -> None:
     store = ctx.store
     ctx.progress.start_stage("S1_backtest", store.count_pending(0))
-    reps = []
-    for s in ctx.cfg.strategies:
-        r = store.pending(0, s, limit=1)
-        if r:
-            reps.append(ctx.s1_job(s, r[0]["params"]))
-    ctx.exporter.ensure(reps)
 
     def on_result(row, res):
         if "error" in res:
@@ -351,7 +347,7 @@ def _neighbour_ratios(ctx: Ctx, strategy: str, cand: Dict[str, Any], rows: List[
     known_nb = store.metrics_of([i for i in all_ids if i not in known], "S2_neighbour")
     missing = [i for i in all_ids if i not in known and i not in known_nb and validate_alpha(cand, nb_params[i], ctx.cfg.space) is None]
     if missing:
-        ctx.exporter.ensure([ctx.s1_job(strategy, nb_params[missing[0]])])
+        ctx.exporter.ensure([ctx.s1_job(strategy, nb_params[i]) for i in missing])
         got: List[StageResult] = []
         jobs = [ctx.s1_job(strategy, nb_params[i]) for i in missing]
         for i, res in ctx.imap(bt.w_backtest, iter(jobs), "[S2 lân cận]"):
@@ -389,11 +385,9 @@ def stage_s3(ctx: Ctx) -> None:
     ctx.progress.start_stage("S3_wfa", store.count_pending(2))
     if not ctx.folds:
         raise ValueError("dev2 không đủ dài để tạo fold WFA (train/test ngày)")
-    for s in store.strategies_at(2):
-        r = store.pending(2, s, limit=1)
-        _export_wfa_windows(ctx, s, r[0]["params"])
 
     def make_job(row):
+        _export_wfa_windows(ctx, row["strategy"], row["params"])
         return {"strategy": row["strategy"], "params": row["params"], "folds": ctx.folds, "symbols": ctx.symbols,
                 "rpt": gates.BASE_RISK_PER_TRADE_PCT, "shared_dir": ctx.shared_dir}
 
@@ -457,11 +451,9 @@ def stage_s4(ctx: Ctx) -> None:
 def stage_s5(ctx: Ctx) -> None:
     store = ctx.store
     ctx.progress.start_stage("S5_sizing", store.count_pending(4))
-    for s in store.strategies_at(4):
-        r = store.pending(4, s, limit=1)
-        _export_wfa_windows(ctx, s, r[0]["params"], dev1=True)
 
     def make_job(row):
+        _export_wfa_windows(ctx, row["strategy"], row["params"], dev1=True)
         return {"strategy": row["strategy"], "params": row["params"], "series": row["series"], "windows": ctx.windows, "folds": ctx.folds,
                 "symbols": ctx.symbols, "shared_dir": ctx.shared_dir}
 
@@ -494,9 +486,6 @@ def stage_s6(ctx: Ctx) -> None:
     store = ctx.store
     ctx.progress.start_stage("S6_holdout", store.count_pending(5))
     w = ctx.windows
-    for s in store.strategies_at(5):
-        r = store.pending(5, s, limit=1)
-        ctx.exporter.ensure([bt.base_job(s, r[0]["params"], (w["dev2_end"], w["end"]), "level", True, gates.BASE_RISK_PER_TRADE_PCT, ctx.symbols, ctx.shared_dir)])
 
     def rows_with_scale() -> Iterator[Dict[str, Any]]:
         for chunk in _page_chunks(store, 5, 200):
@@ -505,6 +494,7 @@ def stage_s6(ctx: Ctx) -> None:
                 yield {**r, "scale": m5[r["alpha_id"]]["final_scale"]}
 
     def make_job(row):
+        ctx.exporter.ensure([bt.base_job(row["strategy"], row["params"], (w["dev2_end"], w["end"]), "level", True, gates.BASE_RISK_PER_TRADE_PCT, ctx.symbols, ctx.shared_dir)])
         return {"strategy": row["strategy"], "params": row["params"], "windows": w, "rpt": sizing.risk_for_scale(row["scale"]),
                 "symbols": ctx.symbols, "shared_dir": ctx.shared_dir}
 

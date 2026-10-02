@@ -1,114 +1,103 @@
-"""Dữ liệu giá + kernel theo (tài sản, cửa sổ, refs) dùng CHUNG giữa các tiến trình qua mmap (chỉ đọc).
+"""Dữ liệu giá + cột kernel dùng CHUNG giữa các tiến trình qua mmap (chỉ đọc), lưu THEO CỘT.
 
-Vì sao: mỗi worker của pool từng tự dựng `data` (t/o/h/l/c + cột kernel + funding, ~1,3 GB cho 8 tài sản perp) trong
-_DATA_CACHE riêng. Ở đây tiến trình cha dựng MỘT lần cho mỗi giai đoạn (export), worker chỉ np.load(mmap_mode="r") —
-trang file được page cache của kernel chia sẻ giữa các worker nên RAM mỗi worker giảm mạnh.
+Vì sao: mỗi worker từng tự dựng `data` của 8 tài sản perp (~1,3 GB) trong _DATA_CACHE riêng; khi phễu sinh tham số theo schema (chu kỳ /
+khung đổi theo alpha) mỗi nhóm tín hiệu cần bộ cột khác -> worker dựng lại liên tục, RAM vượt ngân sách. Ở đây nền (giá, funding) và
+TỪNG cột kernel là một file; nhóm nào cũng dùng lại phần đã có, chỉ tính thêm cột còn thiếu. Trang file nằm trong page cache của kernel
+nên N worker đọc chung không nhân bản RAM.
 
-Cấu trúc: <out_dir>/<key>/{t,o,h,l,c,f_t,f_r}.npy + cols/<tên an toàn>.npy + meta.json (tên an toàn -> khoá `frame|col`).
-Khoá = sha1(symbol, cửa sổ, refs, perp, nguồn dữ liệu, dấu vân tay (mtime_ns, size) của 1m.pkl + mọi khung được dùng +
-funding.pkl) -> dữ liệu cũ không bao giờ khớp khi file nguồn đổi. Ghi nguyên tử (thư mục tạm + rename).
-Kết quả load() bằng từng bit với dict do PortfolioEngine._build_symbol_data dựng (test/test_shared_data.py).
+Bố cục <out_dir>/:
+  base/<khoá nền>/{t,o,h,l,c,f_t,f_r}.npy + meta.json
+  cols/<khoá cột>.npy
+
+Khoá phải tái lập ĐÚNG dữ liệu mà engine tự dựng (bằng từng bit):
+  khoá nền = sha1(tài sản, nguồn, cửa sổ, điểm bắt đầu nạp 1m (= start − warmup 1m theo refs 1m), perp, vân tay 1m.pkl + funding.pkl)
+  khoá cột = sha1(khoá nền, "khung|cột[__lagN]", điểm bắt đầu nạp của KHUNG đó (= start − max warmup các cột cùng khung, như
+             BacktestEngine.load_data), vân tay file của khung)
+  -> cột chỉ báo đệ quy (EMA, RSI...) phụ thuộc điểm bắt đầu nạp, nên cùng tên cột nhưng khác điểm bắt đầu là hai file khác nhau.
+Ghi nguyên tử (thư mục / file tạm + rename): người đọc không bao giờ thấy dữ liệu dở; hai tiến trình ghi cùng khoá thì một bản thắng.
+
+Dùng: PortfolioEngine._load_symbol (khi có shared_dir) gọi plan -> load; thiếu thì fill (chỉ tính phần thiếu, ngay trong tiến trình đó)
+rồi load lại. export() = fill cho mọi tài sản của một engine (tiến trình cha làm nóng trước khi chạy pool).
 """
 import hashlib
 import json
 import os
-import re
 import shutil
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Iterable, Optional, Set
 
 import numpy as np
 
 if TYPE_CHECKING:  # tránh import vòng (portfolio import module này)
+    from backend.core.backtest.engine import BacktestEngine
     from backend.core.backtest.portfolio import PortfolioEngine
 
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2
 BASE_ARRAYS = ("t", "o", "h", "l", "c", "f_t", "f_r")
+STATS = {"fills": 0, "cols_written": 0, "bases_written": 0}   # theo tiến trình: số lần phải tự điền (giám sát phễu)
 
 
-def _fingerprints(symbol: str, refs_signature) -> Dict[str, Any]:
-    from backend.core.backtest.engine import FRAME_MS
-    from backend.core.data.loader import _file_fingerprint
-    from backend.db.local_pkl import default_data_root, resolve_symbol_dir
-    root = default_data_root()
-    frames = ["1m"] + sorted(({f for f, _ in refs_signature} | {"4h"}) - {"1m"})
-    fps = {f: _file_fingerprint(symbol, f, root) for f in frames if f == "1m" or f in FRAME_MS}
-    sym_dir = resolve_symbol_dir(symbol)
-    funding = os.path.join(sym_dir, "funding.pkl") if sym_dir else None
-    try:
-        st = os.stat(funding) if funding else None
-        fps["funding"] = (st.st_mtime_ns, st.st_size) if st else None
-    except OSError:
-        fps["funding"] = None
-    return {"root": root, "fps": fps}
-
-
-def data_key(symbol: str, start_ts: int, end_ts: int, refs_signature, perp: bool) -> Optional[str]:
-    """sha1 hex ổn định của một bộ dữ liệu. None nếu không có dấu vân tay file 1m (không tìm thấy) -> không chia sẻ."""
-    info = _fingerprints(symbol, refs_signature)
-    if info["fps"].get("1m") is None:
-        return None
-    payload = {"v": FORMAT_VERSION, "symbol": symbol, "start": int(start_ts), "end": int(end_ts),
-               "refs": [[f, [[c, int(lag)] for c, lag in sorted(r)]] for f, r in refs_signature],
-               "perp": bool(perp), "root": info["root"],
-               "fps": {k: (list(v) if v is not None else None) for k, v in sorted(info["fps"].items())}}
+def _sha1(payload: Dict[str, Any]) -> str:
     return hashlib.sha1(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()
 
 
-def _safe_name(i: int, key: str) -> str:
-    return f"{i:04d}_" + re.sub(r"[^A-Za-z0-9_.-]+", "_", key)
+def _stat(path: Optional[str]):
+    try:
+        st = os.stat(path) if path else None
+    except OSError:
+        return None
+    return [st.st_mtime_ns, st.st_size] if st else None
 
 
-def _dir_size(path: str) -> int:
-    total = 0
-    for base, _, files in os.walk(path):
-        for fn in files:
-            try:
-                total += os.path.getsize(os.path.join(base, fn))
-            except OSError:
-                pass
-    return total
+def plan(eng: "BacktestEngine") -> Optional[Dict[str, Any]]:
+    """Khoá nền + khoá từng cột cho đúng bộ dữ liệu `eng` sẽ dựng (refs, cửa sổ nạp từng khung như load_data). None nếu không có 1m.pkl."""
+    from backend.core.backtest.engine import FRAME_MS
+    from backend.core.data.loader import _file_fingerprint
+    from backend.core.signals.evaluator import lag_key
+    from backend.db.local_pkl import default_data_root, resolve_symbol_dir
+    root = default_data_root()
+    fp1 = _file_fingerprint(eng.symbol, "1m", root)
+    if fp1 is None:
+        return None
+    refs = eng._refs_by_frame()
+    perp = any(tr.market == "perp" for tr in eng.trackers)
+    sym_dir = resolve_symbol_dir(eng.symbol)
+    base = _sha1({"v": FORMAT_VERSION, "sym": eng.symbol, "root": root, "start": int(eng.start_ts), "end": int(eng.end_ts),
+                  "load_1m": int(eng.start_ts - eng._warmup_ms("1m", refs.get("1m", set()))), "perp": perp, "fp_1m": list(fp1),
+                  "fp_funding": _stat(os.path.join(sym_dir, "funding.pkl")) if (perp and sym_dir) else None})
+    cols: Dict[str, str] = {}
+    order = (["1m"] if "1m" in refs else []) + [f for f in refs if f != "1m"]   # cùng thứ tự với _build_matrix
+    for frame in order:
+        if frame != "1m" and frame not in FRAME_MS:
+            continue                                    # engine không dựng cột cho khung lạ
+        if frame == "1m":
+            start, fp = None, None                      # cột 1m chỉ phụ thuộc dữ liệu 1m (đã ở khoá nền)
+        else:
+            buffer_ms = max(eng._warmup_ms(frame, refs[frame]), 5 * 86_400_000 if frame == "4h" else 0)
+            start = int(eng.start_ts - buffer_ms)
+            fp = _file_fingerprint(eng.symbol, frame, root)
+            fp = list(fp) if fp is not None else None
+        for col, lag in sorted(refs[frame]):
+            cid = f"{frame}|{lag_key(col, lag)}"
+            cols[cid] = _sha1({"base": base, "cid": cid, "start": start, "fp": fp})
+    return {"base": base, "cols": cols}
 
 
-def export(engine: "PortfolioEngine", out_dir: str) -> Dict[str, Any]:
-    """Dựng `data` của từng tài sản của engine (đúng đường _make_trackers + _build_symbol_data, không qua cache)
-    rồi ghi vào out_dir/<key>/. Trả {"keys": {symbol: key}, "written": [symbol], "skipped": [symbol], "bytes": int}."""
-    os.makedirs(out_dir, exist_ok=True)
-    out = {"keys": {}, "written": [], "skipped": [], "bytes": 0}
-    for sym in engine.symbols:
-        eng, _ = engine._make_trackers(sym, engine.ledger)
-        key = engine._shared_key(sym, eng)
-        if key is None:
-            raise RuntimeError(f"{sym}: không tạo được khoá dữ liệu dùng chung (thiếu 1m.pkl hoặc nguồn Mongo)")
-        out["keys"][sym] = key
-        final = os.path.join(out_dir, key)
-        if os.path.isdir(final):
-            out["skipped"].append(sym)
-            out["bytes"] += _dir_size(final)
-            continue
-        data = engine._build_symbol_data(eng)
-        tmp = os.path.join(out_dir, f".tmp-{key}-{os.getpid()}")
-        shutil.rmtree(tmp, ignore_errors=True)
-        os.makedirs(os.path.join(tmp, "cols"))
-        meta = {"version": FORMAT_VERSION, "symbol": sym, "arrays": {}, "cols": []}
-        for name in BASE_ARRAYS:
-            np.save(os.path.join(tmp, f"{name}.npy"), data[name], allow_pickle=False)
-            meta["arrays"][name] = str(data[name].dtype)
-        for i, (k, arr) in enumerate(data["cols"].items()):
-            safe = _safe_name(i, k)
-            np.save(os.path.join(tmp, "cols", f"{safe}.npy"), arr, allow_pickle=False)
-            meta["cols"].append({"file": safe, "key": k, "dtype": str(arr.dtype)})
-        with open(os.path.join(tmp, "meta.json"), "w", encoding="utf-8") as fh:
-            json.dump(meta, fh, ensure_ascii=False)
-        del data
-        try:
-            os.rename(tmp, final)  # nguyên tử; người đọc không bao giờ thấy thư mục dở dang
-        except OSError:
-            shutil.rmtree(tmp, ignore_errors=True)  # tiến trình khác đã ghi xong cùng khoá
-            if not os.path.isdir(final):
-                raise
-        out["written"].append(sym)
-        out["bytes"] += _dir_size(final)
-    return out
+def _base_dir(out_dir: str, key: str) -> str:
+    return os.path.join(out_dir, "base", key)
+
+
+def _col_path(out_dir: str, key: str) -> str:
+    return os.path.join(out_dir, "cols", f"{key}.npy")
+
+
+def paths(p: Dict[str, Any]) -> Set[str]:
+    """Đường dẫn tương đối (trong out_dir) của mọi phần thuộc kế hoạch `p` — để dọn theo giai đoạn (remove)."""
+    return {os.path.join("base", p["base"])} | {os.path.join("cols", f"{k}.npy") for k in p["cols"].values()}
+
+
+def missing(out_dir: str, p: Dict[str, Any]) -> Dict[str, Any]:
+    return {"base": not os.path.isfile(os.path.join(_base_dir(out_dir, p["base"]), "meta.json")),
+            "cols": [cid for cid, k in p["cols"].items() if not os.path.isfile(_col_path(out_dir, k))]}
 
 
 def _load_array(path: str) -> np.ndarray:
@@ -116,22 +105,103 @@ def _load_array(path: str) -> np.ndarray:
         arr = np.load(path, mmap_mode="r", allow_pickle=False)
     except ValueError:  # mảng rỗng không mmap được
         return np.load(path, allow_pickle=False)
-    return np.asarray(arr)  # ndarray thường (không phải np.memmap: index từng phần tử nhanh hơn), vẫn chia sẻ mmap, chỉ đọc
+    return np.asarray(arr)  # ndarray thường (index từng phần tử nhanh hơn np.memmap), vẫn chia sẻ mmap, chỉ đọc
 
 
-def load(out_dir: str, key: str) -> Optional[Dict[str, Any]]:
-    """Dict giống `data` của _build_symbol_data nhưng mọi mảng là view mmap chỉ đọc; None nếu chưa có / hỏng."""
-    base = os.path.join(out_dir, key)
+def load(out_dir: str, p: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Dict giống PortfolioEngine._build_symbol_data, mọi mảng là view mmap chỉ đọc; None nếu thiếu / hỏng bất kỳ phần nào."""
+    bdir = _base_dir(out_dir, p["base"])
     try:
-        with open(os.path.join(base, "meta.json"), encoding="utf-8") as fh:
-            meta = json.load(fh)
-        if meta.get("version") != FORMAT_VERSION:
-            return None
-        arrays = {name: _load_array(os.path.join(base, f"{name}.npy")) for name in BASE_ARRAYS}
-        cols = {c["key"]: _load_array(os.path.join(base, "cols", f"{c['file']}.npy")) for c in meta["cols"]}
-        data: Dict[str, Any] = {k: arrays[k] for k in ("t", "o", "h", "l", "c")}
-        data["cols"] = cols
-        data["f_t"], data["f_r"] = arrays["f_t"], arrays["f_r"]
-    except (OSError, ValueError, KeyError):
+        with open(os.path.join(bdir, "meta.json"), encoding="utf-8") as fh:
+            if json.load(fh).get("version") != FORMAT_VERSION:
+                return None
+        arrays = {name: _load_array(os.path.join(bdir, f"{name}.npy")) for name in BASE_ARRAYS}
+        cols = {cid: _load_array(_col_path(out_dir, k)) for cid, k in p["cols"].items()}
+    except (OSError, ValueError):
         return None
+    data: Dict[str, Any] = {k: arrays[k] for k in ("t", "o", "h", "l", "c")}
+    data["cols"] = cols
+    data["f_t"], data["f_r"] = arrays["f_t"], arrays["f_r"]
     return data
+
+
+def _save(path: str, arr: np.ndarray) -> None:
+    tmp = f"{path}.tmp-{os.getpid()}"
+    with open(tmp, "wb") as fh:
+        np.save(fh, np.ascontiguousarray(arr), allow_pickle=False)
+    os.replace(tmp, path)
+
+
+def fill(out_dir: str, pe: "PortfolioEngine", eng: "BacktestEngine", p: Dict[str, Any]) -> Dict[str, Any]:
+    """Tính và ghi phần còn thiếu của kế hoạch `p` (nền nếu chưa có + đúng các cột thiếu), qua đúng đường dựng của engine."""
+    need = missing(out_dir, p)
+    if not need["base"] and not need["cols"]:
+        return {"base": False, "cols": 0}
+    data = pe._build_symbol_data(eng, only=set(need["cols"]))
+    if need["base"]:
+        final = _base_dir(out_dir, p["base"])
+        os.makedirs(os.path.dirname(final), exist_ok=True)
+        tmp = f"{final}.tmp-{os.getpid()}"
+        shutil.rmtree(tmp, ignore_errors=True)
+        os.makedirs(tmp)
+        for name in BASE_ARRAYS:
+            with open(os.path.join(tmp, f"{name}.npy"), "wb") as fh:
+                np.save(fh, data[name], allow_pickle=False)
+        with open(os.path.join(tmp, "meta.json"), "w", encoding="utf-8") as fh:
+            json.dump({"version": FORMAT_VERSION, "symbol": eng.symbol}, fh)
+        try:
+            os.rename(tmp, final)
+        except OSError:                 # tiến trình khác đã ghi xong cùng khoá
+            shutil.rmtree(tmp, ignore_errors=True)
+            if not os.path.isdir(final):
+                raise
+        STATS["bases_written"] += 1
+    if need["cols"]:
+        os.makedirs(os.path.join(out_dir, "cols"), exist_ok=True)
+        for cid in need["cols"]:
+            _save(_col_path(out_dir, p["cols"][cid]), data["cols"][cid])
+        STATS["cols_written"] += len(need["cols"])
+    STATS["fills"] += 1
+    return {"base": need["base"], "cols": len(need["cols"])}
+
+
+def export(pe: "PortfolioEngine", out_dir: str) -> Dict[str, Any]:
+    """Làm nóng: điền nền + cột cho mọi tài sản của `pe`. Trả {"paths": tập đường dẫn tương đối, "written": [tài sản có ghi mới]}."""
+    os.makedirs(out_dir, exist_ok=True)
+    out: Dict[str, Any] = {"paths": set(), "written": []}
+    for sym in pe.symbols:
+        eng, _ = pe._make_trackers(sym, pe.ledger)
+        p = plan(eng)
+        if p is None:
+            raise RuntimeError(f"{sym}: không tạo được khoá dữ liệu dùng chung (thiếu 1m.pkl)")
+        r = fill(out_dir, pe, eng, p)
+        if r["base"] or r["cols"]:
+            out["written"].append(sym)
+        out["paths"] |= paths(p)
+    return out
+
+
+def remove(out_dir: str, rel_paths: Iterable[str]) -> None:
+    """Xoá các phần (thư mục nền / file cột) theo đường dẫn tương đối — dọn sau một giai đoạn."""
+    for rel in rel_paths:
+        path = os.path.join(out_dir, rel)
+        if os.path.isdir(path):
+            shutil.rmtree(path, ignore_errors=True)
+        else:
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+
+
+def size_mb(out_dir: str, rel_paths: Optional[Iterable[str]] = None) -> float:
+    """Dung lượng (MB) của các phần chỉ định, hoặc cả out_dir."""
+    targets = [os.path.join(out_dir, r) for r in rel_paths] if rel_paths is not None else [out_dir]
+    total = 0
+    for t in targets:
+        if os.path.isfile(t):
+            total += os.path.getsize(t)
+            continue
+        for base, _, files in os.walk(t):
+            total += sum(os.path.getsize(os.path.join(base, f)) for f in files)
+    return total / 1048576

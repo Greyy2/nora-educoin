@@ -17,7 +17,6 @@ dựng dữ liệu dùng chung (mmap) cho từng (cửa sổ, refs) và xoá sau
 import gc
 import json
 import os
-import shutil
 import time
 from collections import Counter
 from dataclasses import asdict, dataclass
@@ -108,7 +107,7 @@ def _export_shared(jobs, shared_dir, label):
     for job in jobs:
         eng, _ = _make_engine(job)
         info = shared_data.export(eng, shared_dir)
-        keys.update(info["keys"].values())
+        keys |= info["paths"]
         written += len(info["written"])
     CandleLoader.clear_cache()
     data_cache_clear()
@@ -122,14 +121,14 @@ def _export_shared(jobs, shared_dir, label):
 
 
 def _pool_shared(jobs, workers, label, shared_dir, store=None, stage=None, progress=None):
+    from backend.core.data import shared as shared_data
     """Export dữ liệu dùng chung -> pool -> xoá các bộ của pool này (lỗi thì ngoại lệ bay lên, giữ nguyên để gỡ lỗi).
     store (ResultsStore, tuỳ chọn): mỗi kết quả ghi ngay khi xong; job đã có trong kho (cùng job_key) bỏ qua -> `--resume`.
     stage "wfa_is": bỏ chuỗi `daily` (chọn cấu hình IS không cần) để RAM/kho gọn. Kết quả luôn đúng thứ tự jobs."""
     if store is None and progress is None:
         keys = _export_shared(jobs, shared_dir, label)
         res = _pool_map(run_job, jobs, workers, label)
-        for k in keys:
-            shutil.rmtree(os.path.join(shared_dir, k), ignore_errors=True)
+        shared_data.remove(shared_dir, keys)
         return res
     from backend.optimize.store import data_fingerprint, make_job_key
     from backend.optimize.store import normalize
@@ -166,8 +165,7 @@ def _pool_shared(jobs, workers, label, shared_dir, store=None, stage=None, progr
             if progress is not None:
                 progress.tick(worker_peak_mb=m.get("_peak_rss_mb"))
         _pool_map(run_job, sub, workers, label, on_done=_done)
-        for k in exp_keys:
-            shutil.rmtree(os.path.join(shared_dir, k), ignore_errors=True)
+        shared_data.remove(shared_dir, exp_keys)
     return results
 
 

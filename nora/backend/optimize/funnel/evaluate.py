@@ -6,7 +6,7 @@ Dữ liệu giá + kernel đọc qua mmap dùng chung (backend/core/data/shared.
 """
 import contextlib
 import io
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import numpy as np
 import pandas as pd
@@ -194,6 +194,13 @@ def w_backtest_group(group: Dict[str, Any]) -> List[Dict[str, Any]]:
     return outs
 
 
+def w_backtest_group_rss(group: Dict[str, Any]) -> Dict[str, Any]:
+    """w_backtest_group + RAM RIÊNG của worker sau nhóm (heap, không gồm trang mmap dùng chung) -> progress.worker_peak_rss_mb."""
+    from backend.utils.memwatch import rss_anon_mb
+    outs = w_backtest_group(group)
+    return {"outs": outs, "rss_anon_mb": round(rss_anon_mb(), 1)}
+
+
 def w_wfa(job: Dict[str, Any]) -> Dict[str, Any]:
     """S3: job = {strategy, params, folds (fold_job_plan), symbols, rpt, shared_dir}."""
     try:
@@ -275,7 +282,7 @@ def _export_one(job: Dict[str, Any]) -> List[str]:
     eng, _ = make_engine(job)
     info = shared_data.export(eng, job["shared_dir"])
     _release_memory()
-    return list(info["keys"].values())
+    return sorted(info["paths"])
 
 
 def _release_memory() -> None:
@@ -293,13 +300,13 @@ def _release_memory() -> None:
 
 
 class SharedExporter:
-    """Dựng dữ liệu dùng chung cho các (chiến lược, cửa sổ) của một tầng TRƯỚC khi chạy pool (song song theo tiến trình, tối đa `workers`),
-    và dọn sau tầng. `ensure(jobs)` bỏ qua cặp đã xuất (chữ ký = cửa sổ + refs kernel của chiến lược). Worker thiếu khoá thì tự dựng (cùng kết quả)."""
+    """Làm nóng dữ liệu dùng chung (core/data/shared.py, lưu theo cột) TRƯỚC khi chạy pool của một tầng, và dọn sau tầng.
+    Không bắt buộc đủ: worker thiếu nền / cột nào thì tự tính đúng phần thiếu và ghi vào shared_dir cho worker khác (song song,
+    không nghẽn ở tiến trình cha). `ensure(jobs)` chỉ xuất một lần cho mỗi (chiến lược, cửa sổ)."""
 
     def __init__(self, shared_dir: Optional[str], workers: int = 1, label: str = ""):
         self.shared_dir, self.workers, self.label = shared_dir, max(1, int(workers)), label
-        self.sigs: Dict[Tuple, bool] = {}
-        self.keys: set = set()
+        self.sigs: Set[Tuple] = set()
 
     def ensure(self, jobs: List[Dict[str, Any]]) -> None:
         if not self.shared_dir:
@@ -309,24 +316,22 @@ class SharedExporter:
             memo = (j["strategy"], tuple(j["window"]))
             if memo in self.sigs:
                 continue
-            self.sigs[memo] = True
+            self.sigs.add(memo)
             todo.append({**j, "shared_dir": self.shared_dir})
         if not todo:
             return
         from backend.utils.parallel import pool_map_safe
         if self.workers <= 1 or len(todo) == 1:
-            res = [_export_one(j) for j in todo]
+            [_export_one(j) for j in todo]
         else:
-            res = pool_map_safe(_export_one, todo, min(self.workers, len(todo)), f"[shared] {self.label}")
-        for ks in res:
-            self.keys.update(ks)
+            pool_map_safe(_export_one, todo, min(self.workers, len(todo)), f"[shared] {self.label}")
 
     def cleanup(self) -> None:
+        """Xoá toàn bộ dữ liệu dùng chung của tầng (gồm phần worker tự điền) — các tầng chạy tuần tự nên an toàn."""
         import os
         import shutil
         if not self.shared_dir:
             return
-        for k in self.keys:
-            shutil.rmtree(os.path.join(self.shared_dir, k), ignore_errors=True)
-        self.keys.clear()
+        for sub in ("base", "cols"):
+            shutil.rmtree(os.path.join(self.shared_dir, sub), ignore_errors=True)
         self.sigs.clear()

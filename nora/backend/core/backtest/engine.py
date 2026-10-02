@@ -173,7 +173,9 @@ class BacktestEngine:
         return df[(df["funding_time"] >= self.start_ts) & (df["funding_time"] <= self.end_ts)].sort_values("funding_time")
 
     # ─── Chạy ───────────────────────────────────────────────────────────────
-    def _build_matrix(self) -> Tuple[pd.DataFrame, Dict[str, np.ndarray]]:
+    def _build_matrix(self, only: Optional[Set[str]] = None) -> Tuple[pd.DataFrame, Dict[str, np.ndarray]]:
+        """only: chỉ tính các cột có tên trong tập này ("khung|cột[__lagN]") — dữ liệu dùng chung điền cột còn thiếu.
+        Mỗi cột tính độc lập trên khung đã nạp theo refs ĐẦY ĐỦ (frame_features), nên giá trị y hệt khi tính cả bộ."""
         df1 = self._prepare_candles(self.df_1m)
         if "is_filled" not in df1.columns:
             df1["is_filled"] = 0
@@ -183,6 +185,9 @@ class BacktestEngine:
             frames["4h"] = self._enrich_4h(self._prepare_candles(self.df_4h))
 
         refs = self._refs_by_frame()
+        if only is not None:
+            refs = {fr: {(c, lag) for c, lag in rs if f"{fr}|{lag_key(c, lag)}" in only} for fr, rs in refs.items()}
+            refs = {fr: rs for fr, rs in refs.items() if rs}
         cols: Dict[str, np.ndarray] = {}
         n = len(df1)
 

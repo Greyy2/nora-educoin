@@ -19,7 +19,7 @@ import contextlib
 import io
 import os
 from dataclasses import asdict, dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import numpy as np
 
@@ -123,15 +123,12 @@ class PortfolioEngine:
     def _cache_key(self, symbol: str, eng: BacktestEngine) -> tuple:
         return (symbol, self.start_ts, self.end_ts, self._refs_signature(eng), any(tr.market == "perp" for tr in eng.trackers))
 
-    def _shared_key(self, symbol: str, eng: BacktestEngine) -> Optional[str]:
-        sym, start, end, refs, perp = self._cache_key(symbol, eng)
-        return shared_data.data_key(sym, start, end, refs, perp)
-
-    def _build_symbol_data(self, eng: BacktestEngine) -> Dict[str, Any]:
-        """Dựng `data` của một tài sản (nến thật 1m + cột kernel + funding), không đụng cache."""
+    def _build_symbol_data(self, eng: BacktestEngine, only: Optional[Set[str]] = None) -> Dict[str, Any]:
+        """Dựng `data` của một tài sản (nến thật 1m + cột kernel + funding), không đụng cache.
+        only: chỉ tính các cột này (dữ liệu dùng chung điền phần còn thiếu — xem core/data/shared.fill)."""
         with contextlib.redirect_stdout(io.StringIO()):
             eng.load_data()
-        df1, cols = eng._build_matrix()
+        df1, cols = eng._build_matrix(only=only)
         real = df1["is_filled"].to_numpy() == 0
         return {
             "t": df1["open_time"].to_numpy(dtype="int64")[real],
@@ -142,12 +139,26 @@ class PortfolioEngine:
             "f_r": eng.funding["rate"].to_numpy(dtype="float64") if eng.funding is not None else np.array([]),
         }
 
+    def _load_shared(self, eng: BacktestEngine) -> Optional[Dict[str, Any]]:
+        """Dữ liệu qua mmap dùng chung (shared_dir). Thiếu nền / cột thì tự tính ĐÚNG phần thiếu, ghi vào shared_dir (tiến trình khác dùng
+        lại) rồi đọc lại qua mmap -> RAM riêng của tiến trình không giữ bản dựng. None nếu tài sản không có 1m.pkl (dựng như thường)."""
+        p = shared_data.plan(eng)
+        if p is None:
+            return None
+        data = shared_data.load(self.shared_dir, p)
+        if data is not None:
+            return data
+        shared_data.fill(self.shared_dir, self, eng, p)
+        eng.df_1m, eng.frames, eng.df_4h, eng.funding = None, {}, None, None   # như khi đọc thẳng mmap (không nạp DataFrame)
+        from backend.core.data.loader import CandleLoader
+        CandleLoader.clear_cache()
+        return shared_data.load(self.shared_dir, p)
+
     def _load_symbol(self, symbol: str, eng: BacktestEngine) -> Dict[str, Any]:
-        if self.shared_dir:  # mmap chỉ đọc do tiến trình cha dựng — KHÔNG đưa vào _DATA_CACHE (không nhân bản RAM)
-            skey = self._shared_key(symbol, eng)
-            shared = shared_data.load(self.shared_dir, skey) if skey else None
-            if shared is not None:
-                return shared
+        if self.shared_dir:  # mmap chỉ đọc dùng chung — KHÔNG đưa vào _DATA_CACHE (không nhân bản RAM)
+            data = self._load_shared(eng)
+            if data is not None:
+                return data
         key = self._cache_key(symbol, eng)
         if self.use_cache:
             cached = _DATA_CACHE.get(key)

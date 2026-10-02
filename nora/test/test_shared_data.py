@@ -57,29 +57,37 @@ def _engine(**kw):
                            risk=RiskConfig(), use_cache=False, **kw)
 
 
+def _assert_same(built, loaded):
+    assert loaded is not None
+    assert list(loaded) == list(built) and list(loaded["cols"]) == list(built["cols"]) and built["cols"]
+    pairs = [(k, built[k], loaded[k]) for k in ("t", "o", "h", "l", "c", "f_t", "f_r")]
+    pairs += [(f"cols[{k}]", built["cols"][k], loaded["cols"][k]) for k in built["cols"]]
+    for name, a, b in pairs:
+        assert a.dtype == b.dtype, name
+        assert a.shape == b.shape, name
+        assert np.array_equal(a, b, equal_nan=True), name
+        assert a.tobytes() == b.tobytes(), name   # NaN/-0.0 cũng giống từng bit
+        assert not b.flags.writeable, name        # chỉ đọc
+
+
+def _tmp_left(out):
+    return [n for sub in ("base", "cols") if (out / sub).is_dir() for n in os.listdir(out / sub) if ".tmp" in n]
+
+
 def test_mmap_data_equals_built_data_bit_for_bit(market, tmp_path):
     from backend.core.data import shared as shared_data
     eng = _engine()
     out = tmp_path / "shared"
     info = shared_data.export(eng, str(out))
-    assert sorted(info["written"]) == sorted(SYMS) and info["bytes"] > 0
-    again = shared_data.export(eng, str(out))        # đã có -> bỏ qua, không ghi lại
-    assert again["written"] == [] and sorted(again["skipped"]) == sorted(SYMS) and again["keys"] == info["keys"]
-    assert not [n for n in os.listdir(out) if n.startswith(".tmp")]
+    assert sorted(info["written"]) == sorted(SYMS) and shared_data.size_mb(str(out), info["paths"]) > 0
+    again = shared_data.export(eng, str(out))        # đã có -> không ghi lại
+    assert again["written"] == [] and again["paths"] == info["paths"]
+    assert not _tmp_left(out)
     for sym in SYMS:
         e, _ = eng._make_trackers(sym, eng.ledger)
         built = eng._build_symbol_data(e)
-        loaded = shared_data.load(str(out), info["keys"][sym])
-        assert loaded is not None
-        assert list(loaded) == list(built) and list(loaded["cols"]) == list(built["cols"]) and built["cols"]
-        pairs = [(k, built[k], loaded[k]) for k in ("t", "o", "h", "l", "c", "f_t", "f_r")]
-        pairs += [(f"cols[{k}]", built["cols"][k], loaded["cols"][k]) for k in built["cols"]]
-        for name, a, b in pairs:
-            assert a.dtype == b.dtype, name
-            assert a.shape == b.shape, name
-            assert np.array_equal(a, b, equal_nan=True), name
-            assert a.tobytes() == b.tobytes(), name   # NaN/-0.0 cũng giống từng bit
-            assert not b.flags.writeable, name        # chỉ đọc
+        loaded = shared_data.load(str(out), shared_data.plan(e))
+        _assert_same(built, loaded)
         assert len(loaded["f_t"]) > 0
 
 
@@ -87,13 +95,63 @@ def test_key_changes_when_source_file_changes(market):
     from backend.core.data import shared as shared_data
     eng = _engine()
     e, _ = eng._make_trackers("AAA@perp", eng.ledger)
-    k1 = eng._shared_key("AAA@perp", e)
-    assert k1 == eng._shared_key("AAA@perp", e) and len(k1) == 40
+    p1 = shared_data.plan(e)
+    assert p1 == shared_data.plan(e) and len(p1["base"]) == 40 and p1["cols"]
     fund = market / "cex" / "AAA" / "perp" / "funding.pkl"
     st = fund.stat()
     os.utime(fund, ns=(st.st_atime_ns, st.st_mtime_ns + 1_000_000_000))
-    assert eng._shared_key("AAA@perp", e) != k1
-    assert shared_data.load(str(market), "0" * 40) is None
+    p2 = shared_data.plan(e)
+    assert p2["base"] != p1["base"] and set(p2["cols"].values()).isdisjoint(p1["cols"].values())
+    assert shared_data.load(str(market), {"base": "0" * 40, "cols": {}}) is None
+
+
+def test_column_key_depends_on_frame_load_start(market):
+    """Cùng tên cột nhưng khung nạp từ điểm khác (vì cột khác cùng khung cần warmup dài hơn) -> khoá khác: EMA phụ thuộc điểm bắt đầu."""
+    from backend.core.backtest.portfolio import PortfolioEngine, RiskConfig
+    from backend.core.data import shared as shared_data
+    a = {"id": "a", "side": "LONG", "tree": [[[{"frame": "4h", "column": "ema_20"}, ">", 0]]], "position": gs._POSITION}
+    b = {"id": "b", "side": "LONG", "tree": [[[{"frame": "4h", "column": "ema_20"}, ">", {"frame": "4h", "column": "ema_120"}]]],
+         "position": gs._POSITION}
+    plans = []
+    for st in (a, b):
+        pe = PortfolioEngine(["AAA@perp"], [st], T0, T0 + 30 * DAY, trade_start_ts=T0 + 3 * DAY, risk=RiskConfig(), use_cache=False)
+        e, _ = pe._make_trackers("AAA@perp", pe.ledger)
+        plans.append(shared_data.plan(e))
+    assert plans[0]["base"] == plans[1]["base"]
+    assert plans[0]["cols"]["4h|ema_20"] != plans[1]["cols"]["4h|ema_20"]
+
+
+def test_two_groups_share_base_and_only_add_missing_columns(market, tmp_path):
+    from backend.core.backtest.portfolio import PortfolioEngine, RiskConfig
+    from backend.core.data import shared as shared_data
+    out = tmp_path / "shared"
+    st1 = {"id": "s1", "side": "LONG", "tree": [[[{"frame": "15m", "column": "rsi_14"}, "<", 40]]], "position": gs._POSITION}
+    st2 = {"id": "s2", "side": "LONG", "tree": [[[{"frame": "15m", "column": "rsi_20"}, "<", 30]]], "position": gs._POSITION}
+    engs = [PortfolioEngine(SYMS, [st], T0, T0 + 30 * DAY, trade_start_ts=T0 + 3 * DAY, risk=RiskConfig(), use_cache=False)
+            for st in (st1, st2)]
+    shared_data.export(engs[0], str(out))
+    n_cols = len(os.listdir(out / "cols"))
+    before = dict(shared_data.STATS)
+    shared_data.export(engs[1], str(out))
+    assert len(os.listdir(out / "base")) == len(SYMS)                                 # nền dùng chung
+    assert shared_data.STATS["bases_written"] == before["bases_written"]
+    assert len(os.listdir(out / "cols")) - n_cols == len(SYMS)                        # chỉ thêm rsi_20 cho mỗi tài sản
+    for pe in engs:
+        for sym in SYMS:
+            e, _ = pe._make_trackers(sym, pe.ledger)
+            _assert_same(pe._build_symbol_data(e), shared_data.load(str(out), shared_data.plan(e)))
+
+
+def test_build_matrix_only_equals_subset_of_full(market):
+    eng = _engine()
+    e, _ = eng._make_trackers("BBB@perp", eng.ledger)
+    e.load_data()
+    _, full = e._build_matrix()
+    pick = set(list(full)[:1] + list(full)[-1:])
+    _, part = e._build_matrix(only=pick)
+    assert set(part) == pick
+    for k in pick:
+        assert part[k].tobytes() == full[k].tobytes()
 
 
 def test_run_with_shared_dir_matches_run_without(market, tmp_path, monkeypatch):
@@ -124,10 +182,19 @@ def test_run_with_shared_dir_matches_run_without(market, tmp_path, monkeypatch):
     assert gs.canonicalize(env_eng.get_results()) == golden
     assert portfolio._DATA_CACHE.used == 0
 
-    # khoá không có trong thư mục -> rơi về đường tự dựng như cũ
-    fallback = _engine(shared_dir=str(tmp_path / "empty"))
-    fallback.run()
-    assert gs.canonicalize(fallback.get_results()) == golden
+    # thư mục trống -> engine tự điền đúng phần thiếu vào shared_dir rồi đọc mmap; lần sau không phải dựng lại
+    empty = str(tmp_path / "empty")
+    before = shared_data.STATS["fills"]
+    lazy = _engine(shared_dir=empty)
+    lazy.run()
+    assert gs.canonicalize(lazy.get_results()) == golden
+    assert shared_data.STATS["fills"] - before == len(SYMS) and os.listdir(os.path.join(empty, "cols"))
+    calls = []
+    orig = PortfolioEngine._build_symbol_data
+    monkeypatch.setattr(PortfolioEngine, "_build_symbol_data", lambda self, e, only=None: calls.append(1) or orig(self, e, only))
+    again = _engine(shared_dir=empty)
+    again.run()
+    assert calls == [] and gs.canonicalize(again.get_results()) == golden
 
 
 def test_golden_real_through_shared_mmap(tmp_path):

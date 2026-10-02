@@ -123,7 +123,7 @@ def _export_shared(jobs, shared_dir, label):
     for job in jobs:
         eng, _ = _make_engine(job)
         info = shared_data.export(eng, shared_dir)
-        keys.update(info["keys"].values())
+        keys |= info["paths"]
         written += len(info["written"])
     CandleLoader.clear_cache()
     data_cache_clear()
@@ -132,26 +132,22 @@ def _export_shared(jobs, shared_dir, label):
         ctypes.CDLL("libc.so.6").malloc_trim(0)  # trả heap đã giải phóng về OS trước khi fork pool
     except OSError:
         pass
-    print(f"[shared] {label}: {written} bộ mới, {len(keys)} bộ, {_dir_mb(shared_dir, keys):.0f} MB ({time.time() - t:.0f}s)", flush=True)
+    print(f"[shared] {label}: {written} tài sản ghi mới, {len(keys)} phần, {shared_data.size_mb(shared_dir, keys):.0f} MB "
+          f"({time.time() - t:.0f}s)", flush=True)
     return keys
 
 
 def _dir_mb(shared_dir, keys=None) -> float:
-    total = 0
-    names = keys if keys is not None else os.listdir(shared_dir) if os.path.isdir(shared_dir) else []
-    for name in names:
-        for base, _, files in os.walk(os.path.join(shared_dir, name)):
-            total += sum(os.path.getsize(os.path.join(base, fn)) for fn in files)
-    return total / 1048576
+    from backend.core.data import shared as shared_data
+    return shared_data.size_mb(shared_dir, keys) if os.path.isdir(shared_dir) else 0.0
 
 
 def _pool_shared(jobs, workers, label, shared_dir):
     """Export dữ liệu dùng chung -> pool -> xoá các bộ của giai đoạn này (đã chạy xong; lỗi thì ngoại lệ bay lên, giữ nguyên để gỡ lỗi)."""
-    import shutil
+    from backend.core.data import shared as shared_data
     keys = _export_shared(jobs, shared_dir, label)
     res = _pool_map_safe(run_book, jobs, workers, label)
-    for k in keys:
-        shutil.rmtree(os.path.join(shared_dir, k), ignore_errors=True)
+    shared_data.remove(shared_dir, keys)
     return res
 
 
@@ -277,16 +273,15 @@ class SharedExporter:
             return
         self.sigs.add(sig)
         info = shared_data.export(eng, self.shared_dir)
-        self.keys.update(info["keys"].values())
+        self.keys |= info["paths"]
         self.written += len(info["written"])
         _release_memory()
 
     def cleanup(self):
-        import shutil
         print(f"[shared] {self.label}: {self.written} bộ mới, {len(self.keys)} bộ, {_dir_mb(self.shared_dir, self.keys):.0f} MB "
               f"({time.time() - self.t0:.0f}s)", flush=True)
-        for k in self.keys:
-            shutil.rmtree(os.path.join(self.shared_dir, k), ignore_errors=True)
+        from backend.core.data import shared as shared_data
+        shared_data.remove(self.shared_dir, self.keys)
 
 
 def _release_memory():
@@ -335,9 +330,8 @@ def _pool_shared_stored(jobs, workers, label, shared_dir, store, stage, cand_id,
             if progress is not None:
                 progress.tick(worker_peak_mb=results[i].get("_peak_rss_mb"))
         _pool_map_safe(run_book, sub, workers, label, on_done=_done)
-        import shutil
-        for k in exp_keys:
-            shutil.rmtree(os.path.join(shared_dir, k), ignore_errors=True)
+        from backend.core.data import shared as shared_data
+        shared_data.remove(shared_dir, exp_keys)
     return results
 
 
