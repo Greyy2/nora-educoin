@@ -10,16 +10,16 @@ echo "======================================================="
 echo "🔬 NORA BACKTEST"
 echo "======================================================="
 
-if [ ! -f "$BASE/nora/frontend/dist/index.html" ]; then
+if [ ! -f "$BASE/frontend/dist/index.html" ]; then
     echo "📦 Chưa có bản build giao diện — đang build (giới hạn 4 cores)..."
-    cd "$BASE/nora/frontend"
+    cd "$BASE/frontend"
     [ -d node_modules ] || taskset -c 0-3 nice -n 10 npm install --no-audit --no-fund
     taskset -c 0-3 nice -n 10 npm run build
 fi
 
 if ! systemctl --user cat nora-api.service >/dev/null 2>&1 || ! systemctl --user cat nora.slice >/dev/null 2>&1; then
     echo "⚙️  Chưa cài systemd user unit — đang cài..."
-    "$BASE/nora/backend/utils/ops/install_user_units.sh"
+    "$BASE/backend/utils/ops/install_user_units.sh"
 fi
 
 systemctl --user restart nora-api

@@ -19,4 +19,4 @@ echo "[install_user_units] Đã cài vào $UNIT_DIR: nora.slice, nora-api.servic
 
 systemctl --user daemon-reload
 systemctl --user show nora.slice -p MemoryMax -p MemoryHigh -p TasksMax
-echo "[install_user_units] Khởi động API: systemctl --user restart nora-api (hoặc ./start_nora.sh)"
+echo "[install_user_units] Khởi động API: systemctl --user restart nora-api (hoặc nora/start.sh)"

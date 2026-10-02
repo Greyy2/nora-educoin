@@ -454,13 +454,13 @@ Bundle hiện là một file JS ≈ 583 KB chưa nén (đo `ls -la frontend/dist
 | Cổng RAM | `check_memory_gate(required)` ném lỗi nếu ngân sách hiện tại < `workers × per_worker_mb`; `require_memory_limit` bắt buộc cgroup (trừ `NORA_ALLOW_UNLIMITED=1`) | `utils/memwatch.py` |
 | Cache | `NORA_CANDLE_CACHE_MB` (1024, script đặt 512), `NORA_DATA_CACHE_MB` (1500, script đặt 1024); xả giữa các cặp/chiến lược | `loader.py`, `portfolio.py` |
 | Môi trường | Python 3.11, venv `~/.venvs/nora` (`uv venv -p 3.11`), `requirements.txt` ghim: pandas 2.3.3, numpy 2.4.6, pyarrow 25.0.1, pydantic 2.13.5, fastapi 0.142.2, starlette 1.7.0, uvicorn 0.54.0, pymongo, pymysql, redis, requests, pytest 9.1.1, httpx 0.28.1; `numba` tuỳ chọn | `requirements.txt` |
-| Cài đặt | `backend/utils/ops/install_user_units.sh` (idempotent, không enable/start); `./start_nora.sh` ở gốc repo cài unit nếu thiếu, build UI nếu thiếu `dist`, rồi `systemctl --user restart nora-api` | `backend/utils/ops/`, `start_nora.sh` |
+| Cài đặt | `backend/utils/ops/install_user_units.sh` (idempotent, không enable/start); `nora/start.sh` / `nora/stop.sh` cài unit nếu thiếu, build UI nếu thiếu `dist`, rồi `systemctl --user restart nora-api` | `backend/utils/ops/`, `nora/start.sh` |
 
 Hằng số gate nằm đúng một nơi cho mỗi đường ống (§7, §8): sửa gate phải sửa hằng số đó và test tương ứng.
 
 ## 13. Kiểm thử
 
-- Chạy: `backend/utils/ops/run_limited.sh -- -m pytest test -q -p no:cacheprovider` (từ `nora/`). `pytest.ini` ở gốc repo: `testpaths = nora/test tests`. `test/conftest.py` cô lập DB và data root (`NORA_PIPELINE_DB_PATH`, `NORA_LOCAL_DATA_ROOT` trong thư mục tạm).
+- Chạy: `backend/utils/ops/run_limited.sh -- -m pytest test -q -p no:cacheprovider` (từ `nora/`). `nora/pytest.ini`: `testpaths = test`. `test/conftest.py` cô lập DB và data root (`NORA_PIPELINE_DB_PATH`, `NORA_LOCAL_DATA_ROOT` trong thư mục tạm).
 - **Số lượng:** 440 test qua tại `a3202c9` (báo cáo commit); đếm tĩnh có 303 hàm `test_*` trong 33 file (chênh vì tham số hoá). Cây làm việc hiện có thay đổi chưa commit ở `test_portfolio_dashboard.py` và `test_portfolio_engine.py`, nên số hiện tại có thể khác. `requirements.txt` còn ghi "265 test" (lỗi thời).
   Lịch sử (từ message commit): 258 (`407f51f`) → 265 (`836103b`) → 271 (`030c7f9`) → 285 (`b179f2b`) → 313 (`edb26f4`) → 316 (`06ae13b`) → 323 (`935d4d1`) → 351 (`2d4698f`) → 358 (`45f734e`) → 427 (`efe4fb2`) → 430 (`876ce9e`, `6d35c0d`, `4e8dd61`) → 440 (`a3202c9`).
 - **Golden bit-identical:** `test/golden_scenarios.py` chạy engine và chuẩn hoá mọi float bằng `float.hex()`; 3 kịch bản (`portfolio_synthetic`, `single_dca_filled`, `portfolio_real` trên BTC/SOL/DOGE perp, ghim `cooldown=0`) + 1 test chứng minh phép so sánh bắt được xáo trộn 1 bit

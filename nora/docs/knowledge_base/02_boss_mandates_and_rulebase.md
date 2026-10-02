@@ -55,7 +55,7 @@ Tài liệu này ghi chép trực tiếp các nguyên tắc chỉ đạo tối c
 
 - **Quy tắc thi hành**:
   1. Thư mục gốc (`/home/ubuntu/norabt/`) chỉ duy trì đúng 2 file shell điều khiển:
-     - `start_nora.sh`: Khởi động backend uvicorn chạy daemon, tự động dọn dẹp port cũ và health-check.
-     - `stop_nora.sh`: Tắt hệ thống an toàn bằng SIGTERM ➔ SIGKILL fallback và giải phóng cổng 18010.
+     - `nora/start.sh`: Khởi động backend uvicorn chạy daemon, tự động dọn dẹp port cũ và health-check.
+     - `nora/stop.sh`: Tắt hệ thống an toàn bằng SIGTERM ➔ SIGKILL fallback và giải phóng cổng 18010.
   2. Tuyệt đối không để các file script test lẻ tẻ, docs nháp, hay các bản prototype frontend cũ vương vãi ở thư mục gốc.
   3. Giữ nguyên vẹn các thư mục lõi phục vụ engine gốc (`coin_monitor/`, `coin_service/`, `coins/`, `data/`).
