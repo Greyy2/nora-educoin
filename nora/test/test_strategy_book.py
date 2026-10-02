@@ -48,7 +48,8 @@ def market(tmp_path, monkeypatch):
 
 
 def _load_script(name):
-    path = os.path.join(os.path.dirname(__file__), "..", "backend", "cli", f"{name}.py")
+    from cli_paths import command_path
+    path = command_path(name)
     spec = importlib.util.spec_from_file_location(name, path)
     mod = importlib.util.module_from_spec(spec)
     import sys

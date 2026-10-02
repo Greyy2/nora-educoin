@@ -27,7 +27,7 @@ Là người nghiên cứu, tôi muốn kiểm cả sổ chiến lược bằng 
 
 ## Dev Notes
 
-- Code: `backend/wfa/portfolio_wfa.py`, `backend/cli/validate_book.py`, `backend/core/backtest/portfolio_metrics.py`. Đặc tả và hằng số gate: `architecture.md` §7.2.
+- Code: `backend/wfa/portfolio_wfa.py`, `backend/wfa/validate_book.py`, `backend/core/backtest/portfolio_metrics.py`. Đặc tả và hằng số gate: `architecture.md` §7.2.
 - Cơ sở kết luận là SL "extreme"; "level" chỉ để so sánh.
 
 ## Evidence

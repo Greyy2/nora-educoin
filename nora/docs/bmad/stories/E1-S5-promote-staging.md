@@ -23,8 +23,8 @@ Là người vận hành, tôi muốn dữ liệu mới crawl nằm ở vùng đ
 
 ## Dev Notes
 
-- Code: `backend/cli/promote_staging.py`. `BLOCKING = (BLOCKED, NEEDS_MORE_DATA)`; trạng thái `WARNING` vẫn được promote.
-- Chạy: `python -m backend.cli.promote_staging [--apply] [--archive-legacy]` (script nhẹ, không cần `run_limited`).
+- Code: `backend/core/data/promote_staging.py`. `BLOCKING = (BLOCKED, NEEDS_MORE_DATA)`; trạng thái `WARNING` vẫn được promote.
+- Chạy: `python -m backend.core.data.promote_staging [--apply] [--archive-legacy]` (script nhẹ, không cần `run_limited`).
 
 ## Evidence
 

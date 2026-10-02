@@ -4,9 +4,9 @@ Tầng: S0 sinh alpha → S1 backtest dev1 → S2 chống ăn may (DSR / lân c�
 S5 khối lượng sống sót (tìm s + xác nhận thật) → S6 holdout (một lần) → FINAL. Mọi dữ liệu thật: quality gate bắt buộc, không mock.
 
 Dùng (BẮT BUỘC dưới trần RAM):
-  backend/ops/run_limited.sh -- -m backend.cli.run_funnel --strategies breakout_4h_long,trend_long --n-per-strategy 200 --seed 7
-  backend/ops/run_limited.sh -- -m backend.cli.run_funnel --strategies trend_long --full-grid
-  backend/ops/run_limited.sh -- -m backend.cli.run_funnel --resume fr-20261002-ab12cd          # chạy tiếp lượt bị ngắt (cùng cấu hình)
+  backend/utils/ops/run_limited.sh -- -m backend.optimize.run_funnel --strategies breakout_4h_long,trend_long --n-per-strategy 200 --seed 7
+  backend/utils/ops/run_limited.sh -- -m backend.optimize.run_funnel --strategies trend_long --full-grid
+  backend/utils/ops/run_limited.sh -- -m backend.optimize.run_funnel --resume fr-20261002-ab12cd          # chạy tiếp lượt bị ngắt (cùng cấu hình)
 Đối số theo body của POST /api/studio/funnel/runs: strategies, n_per_strategy | full_grid, seed, symbols, windows (--windows-json), resume.
   --until <tầng>   dừng sau tầng này (vd. S2_antiluck); chạy tiếp sau bằng --resume.
 SIGTERM (nút Huỷ của API) -> flush lô đang ghi rồi thoát; --resume tiếp tục đúng chỗ dừng.
@@ -54,8 +54,8 @@ def main(argv=None):
     a = build_parser().parse_args(argv)
     from backend.utils.memwatch import check_memory_gate, require_memory_limit
     require_memory_limit("run_funnel")
-    from backend.funnel import orchestrator as orch
-    from backend.funnel.orchestrator import FunnelConfig
+    from backend.optimize.funnel import orchestrator as orch
+    from backend.optimize.funnel.orchestrator import FunnelConfig
     from backend.utils.parallel import resolve_workers
 
     run_id = a.resume or a.run_id or orch.new_run_id()

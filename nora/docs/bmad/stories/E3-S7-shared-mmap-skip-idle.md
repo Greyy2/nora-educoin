@@ -25,7 +25,7 @@ Là người vận hành, tôi muốn giảm RAM và thời gian của job nặn
 
 ## Dev Notes
 
-- Code: `backend/core/backtest/shared_data.py`, `portfolio.py` (`_skip_idle`), `backend/cli/build_strategy_book.py`, `backend/wfa/portfolio_wfa.py`. Đặc tả: `architecture.md` §6.2-6.3.
+- Code: `backend/core/backtest/shared_data.py`, `portfolio.py` (`_skip_idle`), `backend/optimize/build_strategy_book.py`, `backend/wfa/portfolio_wfa.py`. Đặc tả: `architecture.md` §6.2-6.3.
 - Khoá `None` khi nguồn là Mongo hoặc thiếu `1m.pkl`: không chia sẻ, rơi về đường dựng cũ.
 
 ## Evidence

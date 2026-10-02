@@ -1,6 +1,6 @@
 """Kho alpha (C3) + xuất cấu hình cho Binance Futures testnet (D).
 
-Kho alpha = các bộ (chiến lược × tài sản × tham số) đã qua ĐỦ gate của backend/cli/optimize_alphas.py:
+Kho alpha = các bộ (chiến lược × tài sản × tham số) đã qua ĐỦ gate của backend/optimize/optimize_alphas.py:
 WFA (OOS) + Monte Carlo (cháy <= 5%) + holdout 20% cuối có lãi và MDD <= 30%, đòn bẩy <= 10x.
 Mỗi mục ghi đủ để tái lập: template, tham số, AST đã thay tham số, số liệu từng giai đoạn,
 sha256 dữ liệu 1m, commit code tại thời điểm tối ưu.

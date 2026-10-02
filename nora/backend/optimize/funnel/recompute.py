@@ -2,7 +2,7 @@
 -> TRÙNG TỪNG BIT với lệnh một alpha qua S1 đã lưu (test_funnel kiểm). Kết quả được ghi đệm tại <run_dir>/recomputed/<alpha_id>.json.
 
 CLI (API chạy qua run_limited.sh --no-lock để RAM nằm trong nora.slice, không trong tiến trình API):
-    backend/ops/run_limited.sh --no-lock -- -m backend.funnel.recompute <run_id> <alpha_id>
+    backend/utils/ops/run_limited.sh --no-lock -- -m backend.optimize.funnel.recompute <run_id> <alpha_id>
 """
 import os
 if __name__ == "__main__":   # chỉ khi chạy như script (tiến trình con của API): đặt TRƯỚC khi nạp numpy; import từ API không đổi môi trường
@@ -51,7 +51,7 @@ def recompute_s1(run_dir: str, alpha_id: str, shared_dir: Optional[str] = None) 
 def main(argv: Optional[List[str]] = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     if len(argv) != 2:
-        print("dùng: python -m backend.funnel.recompute <run_id> <alpha_id>", file=sys.stderr)
+        print("dùng: python -m backend.optimize.funnel.recompute <run_id> <alpha_id>", file=sys.stderr)
         return 2
     from backend.utils.memwatch import require_memory_limit
     require_memory_limit("funnel.recompute")

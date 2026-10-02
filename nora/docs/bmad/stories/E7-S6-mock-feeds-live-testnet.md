@@ -28,7 +28,7 @@ Là người theo dõi danh mục, tôi muốn trang Danh mục có đủ ba ngu
 
 ## Dev Notes
 
-- Code: `backend/core/analytics/feeds.py`, `backend/cli/make_mock_feeds.py`; file `data/_cache/mock_feeds/{live,testnet}.json`.
+- Code: `backend/core/analytics/feeds.py`, `backend/core/analytics/make_mock_feeds.py`; file `data/_cache/mock_feeds/{live,testnet}.json`.
 - Feed giả lập không phải dữ liệu thật; banner và chip MOCK là bắt buộc (R-6). Alpha SOL ở feed live nhân `order_size_pct` với hệ số vốn extreme tối đa (0,5).
 
 ## Evidence

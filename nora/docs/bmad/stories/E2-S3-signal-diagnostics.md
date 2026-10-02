@@ -23,7 +23,7 @@ Là người nghiên cứu, tôi muốn biết một tín hiệu có dự báo g
 
 ## Dev Notes
 
-- Code: `backend/core/signals/diagnostics.py`; CLI `backend/cli/check_signals_strategies.py` (`--workers`, `--assets`); kết quả `data/_cache/reports/step2_<thời điểm>.json`.
+- Code: `backend/core/signals/diagnostics.py`; CLI `backend/core/backtest/check_signals_strategies.py` (`--workers`, `--assets`); kết quả `data/_cache/reports/step2_<thời điểm>.json`.
 - Ngưỡng |t| ≥ 3 vì kiểm nhiều tín hiệu cùng lúc; chưa hiệu chỉnh đa kiểm định chính thức (E10-S1).
 
 ## Evidence

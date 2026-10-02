@@ -2,11 +2,11 @@
 
 Nguồn, theo thứ tự ưu tiên (mỗi chiến lược lấy nguồn đầu tiên có dữ liệu):
   1. book    sổ đã chốt data/alphas/book.json (biến NORA_BOOK_PATH): tham số + bằng chứng dev1/dev2 của chiến lược trong sổ.
-  2. stage_a lần chạy backend.cli.build_strategy_book MỚI NHẤT trong data/_cache/book/ có cấu hình QUA CỔNG dev1 cho chiến lược đó:
+  2. stage_a lần chạy backend.optimize.build_strategy_book MỚI NHẤT trong data/_cache/book/ có cấu hình QUA CỔNG dev1 cho chiến lược đó:
              lấy cấu hình điểm cao nhất (điểm = lãi / MDD, đã loại cấu hình không đạt cổng) từ stage_a.json.
   3. default giá trị mặc định của params_schema ("mặc định — chưa tối ưu"), không có bằng chứng.
 `params` của preset luôn ĐẦY ĐỦ mọi khoá của params_schema (khoá thiếu lấy mặc định) để UI hiển thị/sửa; khi chạy job chỉ cần phần khác mặc định
-(api/modes.job_params). File xuất ra: data/alphas/presets.json (backend/cli/build_presets.py).
+(api/modes.job_params). File xuất ra: data/alphas/presets.json (backend/optimize/build_presets.py).
 """
 import json
 import math

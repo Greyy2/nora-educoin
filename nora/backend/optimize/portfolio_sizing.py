@@ -6,7 +6,7 @@ theo ngân sách rủi ro đã chốt: P(MDD >= 30% trong 1 năm) <= 5%.
 - Báo cả hai cách khớp SL: "level" (cận trên) và "extreme" (bi quan, cận dưới).
 - Bootstrap khối 5 ngày trên lợi suất ngày của danh mục -> lãi trung vị, MDD p95, P(MDD >= 30%) theo hệ số vốn.
 
-Dùng: PYTHONPATH=. python -m backend.cli.portfolio_sizing --alpha trend_long_perp__SOL --assets SOL,DOGE
+Dùng: PYTHONPATH=. python -m backend.optimize.portfolio_sizing --alpha trend_long_perp__SOL --assets SOL,DOGE
 """
 import argparse
 import json
@@ -77,7 +77,7 @@ def main(argv=None):
     from backend.utils.parallel import resolve_workers
     # 900 MB/worker: mỗi job là backtest MỘT tài sản (chưa đo thực — hiệu chỉnh khi có số đỉnh RAM)
     workers = resolve_workers(a.workers, 900, "portfolio_sizing")
-    from backend.cli.research_trend_portfolio import portfolio
+    from backend.core.research.research_trend_portfolio import portfolio
 
     reg = json.load(open(a.registry, encoding="utf-8"))
     alpha = next(x for x in reg["alphas"] if x["alpha_id"] == a.alpha)

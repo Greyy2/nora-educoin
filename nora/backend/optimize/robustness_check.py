@@ -4,7 +4,7 @@
    lân cận vẫn có lãi ở cả giai đoạn WFA-test (dev2) và holdout. Sụp khi đổi nhẹ = overfit.
 2. Chuyển tài sản: chạy nguyên bộ tham số trên các tài sản cùng loại khác (không tối ưu lại).
 
-Dùng:  PYTHONPATH=. python -m backend.cli.robustness_check <results.json> <space_id> <SYMBOL> [--workers auto|8]
+Dùng:  PYTHONPATH=. python -m backend.optimize.robustness_check <results.json> <space_id> <SYMBOL> [--workers auto|8]
 """
 # ── Pin BLAS threads TRƯỚC khi import numpy ───────────────────────────────────
 import os

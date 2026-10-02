@@ -275,7 +275,7 @@ def test_api_low_count_runs_but_is_not_gate_eligible_and_max_allowed(client):
 
 # ── 5. optimize_alphas.monte_carlo_gate ─────────────────────────────────────
 def _load_optimize():
-    spec = importlib.util.spec_from_file_location("optimize_alphas_mod2", os.path.join(NORA_ROOT, "backend", "cli", "optimize_alphas.py"))
+    spec = importlib.util.spec_from_file_location("optimize_alphas_mod2", os.path.join(NORA_ROOT, "backend", "optimize", "optimize_alphas.py"))
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod

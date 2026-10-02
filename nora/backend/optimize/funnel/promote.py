@@ -73,7 +73,7 @@ def promote_alpha(run_dir: str, alpha_id: str, alphas_dir: str, note: Optional[s
         with open(reg_path, encoding="utf-8") as fh:
             registry = json.load(fh)
     except FileNotFoundError:
-        repo = os.path.dirname(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+        repo = os.path.dirname(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
         registry = build_registry([], [], source=run_dir, repo_dir=repo)
     alphas = [a for a in registry.get("alphas", []) if a.get("alpha_id") != reg_id]
     alphas.append(entry)

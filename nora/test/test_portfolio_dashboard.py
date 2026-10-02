@@ -337,7 +337,7 @@ def test_paper_source_is_removed_and_unknown_sources_rejected(client):
 def test_live_testnet_without_mock_file_is_unavailable_with_hint(client, source):
     r = client.get(f"/api/studio/portfolio/dashboard?source={source}")
     assert r.status_code == 200 and r.json()["available"] is False
-    assert "python -m backend.cli.make_mock_feeds" in r.json()["reason"] and source.capitalize() in r.json()["reason"]
+    assert "python -m backend.core.analytics.make_mock_feeds" in r.json()["reason"] and source.capitalize() in r.json()["reason"]
 
 
 def test_dashboard_endpoint_caches_and_rebases_benchmark(client, monkeypatch):

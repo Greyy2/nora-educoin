@@ -6,9 +6,7 @@
 nora/
 ├── backend/
 │   ├── main.py            # App FastAPI (uvicorn backend.main:app)
-│   ├── cli/               # CLI: python -m backend.cli.<tên> (run_book_backtest, build_strategy_book, smoke_check, ...)
-│   ├── ops/               # run_limited.sh, check_tests_vs_ref.sh, install_user_units.sh, systemd/ (xem ops/README.md)
-│   ├── api/               # routers/, schemas.py, control.py (điều khiển node cũ), jobs/ (store, batch, scan)
+│   ├── api/               # routers/, schemas.py, control.py (điều khiển node cũ), jobs/ (job nền: store, batch, scan)
 │   ├── core/              # Lõi nghiệp vụ
 │   │   ├── contracts.py   # Hợp đồng dữ liệu Backtest/WFA/Monte Carlo
 │   │   ├── data/          # loader, resampler, quality_gate, crawler/
@@ -18,10 +16,10 @@ nora/
 │   │   ├── analytics/     # portfolio_dashboard, stats_metrics, queries
 │   │   └── research/      # nghiên cứu thị trường (regime, DC, insight, scan)
 │   ├── db/                # data_layout, local_pkl, tick_storage, mysql, mongo, models
-│   ├── optimize/          # generator, ranker, runner, registry, book_export
-│   ├── wfa/               # walk_forward (đơn tài sản), portfolio_wfa
+│   ├── optimize/          # sinh/chạy alpha, funnel/ (phễu S0–FINAL), build_strategy_book, optimize_alphas, run_funnel, registry, book_export
+│   ├── wfa/               # walk_forward (đơn tài sản), portfolio_wfa, validate_book (lệnh WFA sổ)
 │   ├── carlo/             # monte_carlo
-│   └── utils/             # lru, parallel, memwatch, jsonsafe, jobresult
+│   └── utils/             # lru, parallel, memwatch, jsonsafe, jobresult, ops/ (run_limited.sh, systemd)
 ├── test/                  # pytest + golden/ (snapshot bit-identical) + make_golden.py
 ├── data/                  # dữ liệu & cache (không commit), TRỪ data/alphas/ (sổ alpha / registry, có commit)
 ├── requirements.txt
@@ -29,7 +27,27 @@ nora/
 └── docs/                  # tài liệu
 ```
 
-Chạy mọi thứ từ thư mục `nora/` qua `backend/ops/run_limited.sh -- -m backend.cli.<tên> ...` (PYTHONPATH=nora, cwd=nora); import theo dạng `backend.core.backtest.portfolio`, `backend.api.jobs.batch`, ...
+### Lệnh chạy nằm ở đâu
+
+| Lệnh (`python -m …`) | Nằm ở | Làm gì |
+|---|---|---|
+| `backend.optimize.run_funnel` | `optimize/` | Phễu lọc alpha: sinh → backtest → chống ăn may → WFA → MC → chốt |
+| `backend.optimize.build_strategy_book` | `optimize/` | Dựng sổ chiến lược (tối ưu nhiều giai đoạn A–D) |
+| `backend.optimize.optimize_alphas` | `optimize/` | Tối ưu alpha đơn tài sản |
+| `backend.optimize.build_presets` | `optimize/` | Ghi `data/alphas/presets.json` (tham số tốt nhất từng chiến lược) |
+| `backend.optimize.build_alpha_registry`, `portfolio_sizing`, `robustness_check` | `optimize/` | Kho alpha, chọn cỡ vị thế, kiểm độ bền |
+| `backend.wfa.validate_book` | `wfa/` | Walk-forward cho sổ danh mục |
+| `backend.core.backtest.run_book_backtest` | `core/backtest/` | Backtest một sổ / danh sách chiến lược |
+| `backend.core.backtest.smoke_check`, `check_signals_strategies`, `bench_engine` | `core/backtest/` | Kiểm nhanh bất biến, kiểm tín hiệu, đo tốc độ engine |
+| `backend.core.analytics.make_mock_feeds` | `core/analytics/` | Feed giả lập Live/Testnet cho trang Danh mục |
+| `backend.core.data.promote_staging` | `core/data/` | Đưa dữ liệu đã kiểm từ staging vào kho |
+| `backend.core.research.research_*` | `core/research/` | Nghiên cứu (bot top OKX, maker scalp, trend danh mục) |
+
+Luôn chạy qua `backend/utils/ops/run_limited.sh -- -m <lệnh> …` từ thư mục `nora/`.
+Bấm "Chạy" trên UI = API tạo **job** gọi đúng lệnh trên trong tiến trình riêng (`backend/api/jobs/batch.py`, danh sách trắng `KINDS`).
+
+
+Chạy mọi thứ từ thư mục `nora/` qua `backend/utils/ops/run_limited.sh -- -m backend.<gói>.<lệnh> ...` (PYTHONPATH=nora, cwd=nora); import theo dạng `backend.core.backtest.portfolio`, `backend.api.jobs.batch`, ...
 
 ---
 
@@ -70,7 +88,7 @@ nora/docs/
 
 - **Bắt đầu phiên mới:** đọc [bmad/README.md](bmad/README.md), [bmad/prd.md](bmad/prd.md) (mục 3, 7, 8), [bmad/epics.md](bmad/epics.md) và `knowledge_base/02_boss_mandates_and_rulebase.md`.
 - **Trước khi sửa code:** đọc phần liên quan trong [bmad/architecture.md](bmad/architecture.md). Golden test phải giữ bit-identical trừ khi chủ đích đổi ngữ nghĩa backtest.
-- **Chạy job nặng:** luôn qua `backend/ops/run_limited.sh` (nora.slice 12G, hàng đợi); chi tiết ở `bmad/architecture.md` mục 12.
+- **Chạy job nặng:** luôn qua `backend/utils/ops/run_limited.sh` (nora.slice 12G, hàng đợi); chi tiết ở `bmad/architecture.md` mục 12.
 - **Khi xong một story:** cập nhật file story (trạng thái, task, Evidence, Change Log), `bmad/sprint-status.yaml`, `bmad/epics.md`, rồi chạy kiểm tra nhất quán trong `bmad/README.md`.
 - **Khi chủ sở hữu đưa ra góp ý hoặc luật mới:** bổ sung vào `knowledge_base/02_boss_mandates_and_rulebase.md`.
 - **Không nới gate** để có kết quả đẹp; không có kết quả đạt thì ghi nhận trung thực.

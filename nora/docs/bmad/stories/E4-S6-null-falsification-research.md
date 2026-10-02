@@ -24,7 +24,7 @@ Là người nghiên cứu, tôi muốn mọi bộ quét mới phải ra "không
 
 ## Dev Notes
 
-- Code: `backend/cli/research_maker_scalp.py`, `backend/cli/research_trend_portfolio.py`; test `test/test_research_null.py`.
+- Code: `backend/core/research/research_maker_scalp.py`, `backend/core/research/research_trend_portfolio.py`; test `test/test_research_null.py`.
 - Hai nguyên nhân edge giả đã xác định (`docs/alpha_pipeline.md` §7): chọn trước lệnh sẽ khớp (nhìn trước) và SL khớp đúng mức khi giá giật xuyên mức.
 
 ## Evidence

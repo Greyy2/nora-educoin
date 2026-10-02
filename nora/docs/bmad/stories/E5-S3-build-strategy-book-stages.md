@@ -27,8 +27,8 @@ Là người nghiên cứu, tôi muốn một lệnh dựng sổ nhiều chiến
 
 ## Dev Notes
 
-- Code: `backend/cli/build_strategy_book.py`, `backend/core/strategy/strategy_book.py`. Đặc tả: `architecture.md` §8.2.
-- Chạy: `backend/ops/run_limited.sh -- -m backend.cli.build_strategy_book --n 24` (từ `nora/`).
+- Code: `backend/optimize/build_strategy_book.py`, `backend/core/strategy/strategy_book.py`. Đặc tả: `architecture.md` §8.2.
+- Chạy: `backend/utils/ops/run_limited.sh -- -m backend.optimize.build_strategy_book --n 24` (từ `nora/`).
 - Cửa sổ: `start = max(start_ts) + 20 ngày`, dev1 đến 40%, dev2 đến 80%, holdout 20% cuối.
 
 ## Evidence

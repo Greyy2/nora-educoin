@@ -1,4 +1,4 @@
-"""backend/cli/run_book_backtest.py trên thị trường giả lập (3 tài sản perp): khoá kết quả, result.json theo NORA_JOB_DIR, tất định."""
+"""backend/core/backtest/run_book_backtest.py trên thị trường giả lập (3 tài sản perp): khoá kết quả, result.json theo NORA_JOB_DIR, tất định."""
 import importlib.util
 import json
 import os
@@ -55,7 +55,7 @@ def market(tmp_path, monkeypatch):
 
 
 def _load_script():
-    path = os.path.join(os.path.dirname(__file__), "..", "backend", "cli", "run_book_backtest.py")
+    path = os.path.join(os.path.dirname(__file__), "..", "backend", "core", "backtest", "run_book_backtest.py")
     spec = importlib.util.spec_from_file_location("run_book_backtest", path)
     mod = importlib.util.module_from_spec(spec)
     sys.modules["run_book_backtest"] = mod
@@ -139,7 +139,7 @@ def _mock_plan():
 
 
 def _feed(end_ms):
-    from backend.cli import make_mock_feeds as mmf
+    from backend.core.analytics import make_mock_feeds as mmf
     return mmf.make_feed("testnet", symbols=[f"{s}@perp" for s in SYMS], end_ms=end_ms, plan=_mock_plan(),
                          book_args=type("A", (), {"strategies": json.dumps(STRATS), "book": ""})())
 
@@ -182,7 +182,7 @@ def test_strategy_symbols_filter_restricts_markets(market):
 
 
 def test_alpha_strategy_scales_order_size_by_max_scale(tmp_path, monkeypatch):
-    from backend.cli import make_mock_feeds as mmf
+    from backend.core.analytics import make_mock_feeds as mmf
     ast = {"type": "LONG", "match": [{"condition": [[["x"]]]}], "stop": []}
     reg = {"alphas": [{"alpha_id": "a__SOL", "side": "LONG", "symbol": "SOL", "data_symbol": "SOL@perp",
                        "position": {"market": "perp", "leverage": 1, "order_size_pct": 50}, "flows": [{"ast": ast}]}]}

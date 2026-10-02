@@ -25,7 +25,7 @@ Là người nghiên cứu, tôi muốn alpha đạt gate được ghi vào kho 
 
 ## Dev Notes
 
-- Code: `backend/optimize/registry.py`, `backend/cli/build_alpha_registry.py`. Đặc tả: `architecture.md` §8.3.
+- Code: `backend/optimize/registry.py`, `backend/optimize/build_alpha_registry.py`. Đặc tả: `architecture.md` §8.3.
 - Cấu hình testnet là **file cấu hình**; chưa có bot đọc nó (E9-S1).
 
 ## Evidence

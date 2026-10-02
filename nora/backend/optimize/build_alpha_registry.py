@@ -1,6 +1,6 @@
-"""Dựng kho alpha + cấu hình Binance Futures testnet từ kết quả backend/cli/optimize_alphas.py.
+"""Dựng kho alpha + cấu hình Binance Futures testnet từ kết quả backend/optimize/optimize_alphas.py.
 
-Dùng:  PYTHONPATH=. python -m backend.cli.build_alpha_registry <thư mục kết quả tối ưu> [--out data/alphas]
+Dùng:  PYTHONPATH=. python -m backend.optimize.build_alpha_registry <thư mục kết quả tối ưu> [--out data/alphas]
 """
 import argparse
 import json

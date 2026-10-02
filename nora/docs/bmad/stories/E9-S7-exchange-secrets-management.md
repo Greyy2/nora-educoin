@@ -24,7 +24,7 @@ Là người vận hành, tôi muốn khoá API được lưu và nạp an toàn
 
 ## Dev Notes
 
-- Unit API đã có `EnvironmentFile=-%h/.config/nora/nora.env` (`backend/ops/systemd/nora-api.service.in`).
+- Unit API đã có `EnvironmentFile=-%h/.config/nora/nora.env` (`backend/utils/ops/systemd/nora-api.service.in`).
 
 ## Evidence
 

@@ -1,7 +1,7 @@
 """Golden results: kết quả backtest phải BIT-IDENTICAL với snapshot trong test/golden/*.json.
 
 Dùng để chứng minh thay đổi hiệu năng (mmap dùng chung, bỏ qua phút rảnh...) không đổi kết quả.
-Sinh lại snapshot CHỈ khi chủ đích đổi ngữ nghĩa:  backend/ops/run_limited.sh -- test/make_golden.py
+Sinh lại snapshot CHỈ khi chủ đích đổi ngữ nghĩa:  backend/utils/ops/run_limited.sh -- test/make_golden.py
 """
 import json
 import os

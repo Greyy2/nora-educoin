@@ -7,7 +7,7 @@ Cửa sổ: --start/--end (YYYY-MM-DD, UTC; ngày kết thúc tính CẢ ngày);
 Rủi ro/lệnh: --risk-per-trade (mặc định: của sổ, hoặc mức chuẩn 0,5%). SL: --stop-fill level|extreme (mặc định level).
 Kết quả: số đo danh mục (portfolio_metrics) + by_symbol/by_strategy + lệnh + đường vốn (<= 2000 điểm) -> --out và/hoặc $NORA_JOB_DIR/result.json.
 
-Dùng: backend/ops/run_limited.sh -- -m backend.cli.run_book_backtest --start 2025-03-01 --end 2025-04-30 --symbols BTC@perp,SOL@perp --out /tmp/r.json
+Dùng: backend/utils/ops/run_limited.sh -- -m backend.core.backtest.run_book_backtest --start 2025-03-01 --end 2025-04-30 --symbols BTC@perp,SOL@perp --out /tmp/r.json
 """
 import os
 for _blas_env in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS",
@@ -26,7 +26,7 @@ import warnings
 
 import pandas as pd
 
-NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 if NORA_ROOT not in sys.path:
     sys.path.insert(0, NORA_ROOT)
 

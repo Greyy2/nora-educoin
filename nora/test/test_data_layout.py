@@ -135,7 +135,7 @@ def test_promote_script_places_assets_by_venue(tmp_path):
     _save(str(staging), "cex", "ETH")               # save_resampled_dataset ghi vào staging/cex/ETH
     os.rename(staging / "cex" / "ETH", staging / "ETH")  # staging là phẳng, venue lấy từ manifest
     spec = importlib.util.spec_from_file_location(
-        "promote", os.path.join(os.path.dirname(__file__), "..", "backend", "cli", "promote_staging.py"))
+        "promote", os.path.join(os.path.dirname(__file__), "..", "backend", "core", "data", "promote_staging.py"))
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     mod.main(["--staging", str(staging), "--data", str(data), "--apply"])

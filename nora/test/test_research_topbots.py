@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from backend.cli import research_topbots as rt
+from backend.core.research import research_topbots as rt
 from backend.core.backtest.params_builder import dca_budget_check, resolve_costs
 from backend.core.data.resampler import save_resampled_dataset
 

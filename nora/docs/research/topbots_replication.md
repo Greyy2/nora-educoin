@@ -1,9 +1,9 @@
 # Tái tạo lối đánh của bot copy-trading top trên nến 1m thật — "toàn thắng" che giấu điều gì?
 
 > Thí nghiệm nghiên cứu, không phải khuyến nghị giao dịch. Mọi con số trong tài liệu này lấy từ lần chạy `20261002_023453.json` của
-> `backend/cli/research_topbots.py` (dữ liệu Binance USDT-M perp 1m thật, kết thúc 1790788080000 ms epoch ≈ 2026-09-30 17:08 UTC,
+> `backend/core/research/research_topbots.py` (dữ liệu Binance USDT-M perp 1m thật, kết thúc 1790788080000 ms epoch ≈ 2026-09-30 17:08 UTC,
 > cổng chất lượng dữ liệu: BTC@perp APPROVED, DOGE@perp APPROVED, ETH@perp APPROVED, SOL@perp APPROVED).
-> Chạy lại: `backend/ops/run_limited.sh -- -m backend.cli.research_topbots` (≈ 463 giây, đỉnh RAM ≈ 5,1 GB cho 5 worker).
+> Chạy lại: `backend/utils/ops/run_limited.sh -- -m backend.core.research.research_topbots` (≈ 463 giây, đỉnh RAM ≈ 5,1 GB cho 5 worker).
 
 ## 1. Câu hỏi và phương pháp
 
@@ -308,6 +308,6 @@ MDD MTM vẫn 31–99%. **Lãi thực hiện ở B vẫn âm ở 11/12 ô** (−
 
 ## 8. Tái lập
 
-- Code: `backend/cli/research_topbots.py` (tất định; `require_memory_limit`; cổng chất lượng dữ liệu `require_data_ok_or_exit` bắt buộc), test: `test/test_research_topbots.py`.
+- Code: `backend/core/research/research_topbots.py` (tất định; `require_memory_limit`; cổng chất lượng dữ liệu `require_data_ok_or_exit` bắt buộc), test: `test/test_research_topbots.py`.
 - Kết quả thô (mọi bot × cách vào × cửa sổ × cấu hình, từng tài sản, đường vốn theo ngày, các tham số ánh xạ): `data/_cache/research/topbots/<ts>.json`.
-- Lệnh: `backend/ops/run_limited.sh -- -m backend.cli.research_topbots [--bots a,b] [--windows A,B] [--variants reentry,reversion] [--size-scale 0.25 --no-controls]`.
+- Lệnh: `backend/utils/ops/run_limited.sh -- -m backend.core.research.research_topbots [--bots a,b] [--windows A,B] [--variants reentry,reversion] [--size-scale 0.25 --no-controls]`.

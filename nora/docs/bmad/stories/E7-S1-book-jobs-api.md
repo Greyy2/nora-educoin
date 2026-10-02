@@ -21,12 +21,12 @@ Là người nghiên cứu, tôi muốn gọi backtest, WFA và build sổ qua A
 
 - [x] `backend/api/jobs/batch.py` (launch, status, list)
 - [x] `backend/api/routers/book.py` (backtest, wfa, build, jobs)
-- [x] `backend/cli/run_book_backtest.py` (một lần chạy `PortfolioEngine`)
+- [x] `backend/core/backtest/run_book_backtest.py` (một lần chạy `PortfolioEngine`)
 - [x] `NORA_JOB_DIR/result.json` cho `build_strategy_book`, `validate_book`
 
 ## Dev Notes
 
-- Code: `batch.py`, `routers/book.py`, `cli/run_book_backtest.py`. Đặc tả: `architecture.md` §9, §10; hợp đồng: `docs/ui_contract.md` §2, §4, §6.
+- Code: `batch.py`, `routers/book.py`, `core/backtest/run_book_backtest.py`. Đặc tả: `architecture.md` §9, §10; hợp đồng: `docs/ui_contract.md` §2, §4, §6.
 - Hàng đợi job do `run_limited` (flock); API chỉ khởi chạy và đọc kết quả.
 
 ## Evidence

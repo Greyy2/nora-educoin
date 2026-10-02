@@ -1,4 +1,4 @@
-# Mẫu unit API Nora (user service). Điền @NORA_DIR@ / @NORA_PYTHON@ bằng backend/ops/install_user_units.sh.
+# Mẫu unit API Nora (user service). Điền @NORA_DIR@ / @NORA_PYTHON@ bằng backend/utils/ops/install_user_units.sh.
 # Nằm trong nora.slice (ngân sách chung 12G); API tự giới hạn thêm 3G để không lấn phần của job nặng.
 [Unit]
 Description=Nora Backtest API (uvicorn)

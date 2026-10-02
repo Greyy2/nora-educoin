@@ -1,7 +1,7 @@
 """Job nền nặng của sổ chiến lược (backtest danh mục / WFA danh mục / dựng sổ), chạy NGOÀI tiến trình API.
 
 Vì sao: API có trần RAM riêng (3G) nên không được chạy backtest/WFA nặng trong tiến trình. Mỗi job là một tiến trình con
-`backend/ops/run_limited.sh -- -m backend.cli.<script> ...`: tự có scope riêng trong nora.slice (trần chung 12G), xếp hàng tuần tự
+`backend/utils/ops/run_limited.sh -- -m backend.<gói>.<lệnh> ...`: tự có scope riêng trong nora.slice (trần chung 12G), xếp hàng tuần tự
 (flock) và tự chia worker theo RAM còn trống. API chỉ khởi chạy, theo dõi và đọc kết quả.
 
 Mỗi job có thư mục <data>/_cache/api_jobs/<job_id>/:
@@ -26,20 +26,20 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 NORA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-RUN_LIMITED = os.path.join(NORA_DIR, "backend", "ops", "run_limited.sh")
+RUN_LIMITED = os.path.join(NORA_DIR, "backend", "utils", "ops", "run_limited.sh")
 
-# Danh sách trắng: loại job -> (module backend.cli.*, các cờ được phép)
+# Danh sách trắng: loại job -> (module backend.<gói>.<lệnh>, các cờ được phép)
 KINDS: Dict[str, Dict[str, Any]] = {
-    "book_backtest": {"module": "backend.cli.run_book_backtest",
+    "book_backtest": {"module": "backend.core.backtest.run_book_backtest",
                       "flags": {"--book", "--strategies", "--symbols", "--start", "--end", "--risk-per-trade", "--stop-fill"}},
-    "book_wfa": {"module": "backend.cli.validate_book",
+    "book_wfa": {"module": "backend.wfa.validate_book",
                  "flags": {"--report", "--include-rejected", "--candidates", "--strategies-json", "--symbols", "--n", "--start",
                            "--end", "--train-days", "--test-days", "--step-days", "--sims", "--mc-seed", "--risk-per-trade", "--workers",
                            "--resume", "--max-configs", "--force-large"}},
-    "book_build": {"module": "backend.cli.build_strategy_book",
+    "book_build": {"module": "backend.optimize.build_strategy_book",
                    "flags": {"--only", "--n", "--workers", "--keep-top", "--resume", "--max-configs", "--force-large"}},
     # phễu kiểm duyệt alpha (backend/api/routers/funnel.py dựng và kiểm đối số)
-    "funnel_run": {"module": "backend.cli.run_funnel",
+    "funnel_run": {"module": "backend.optimize.run_funnel",
                    "flags": {"--strategies", "--n-per-strategy", "--full-grid", "--seed", "--symbols", "--windows-json", "--run-id",
                              "--resume", "--force-large", "--train-days", "--test-days"}},
 }

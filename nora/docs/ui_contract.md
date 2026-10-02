@@ -49,9 +49,9 @@ Chỉ `POST` trả khoá `job_id`. Các hàng job (GET) dùng khoá **`id`** (k�
 `source=live|testnet|backtest` (mặc định `backtest`; UI mặc định Live). `source=paper` (hoặc giá trị lạ) → 422.
 - `source=live|testnet`: nếu feed thật chưa nối (hiện luôn vậy) thì dùng **feed giả lập** `data/_cache/mock_feeds/{live,testnet}.json`, payload thêm
   `"mock": true, "mock_note": "Dữ liệu giả lập — chưa kết nối tài khoản <Live|Testnet>"` và `source.mock = true`; `source.label` = mô tả feed
-  (`source_desc`), `source.job_id = null`. Chưa có file giả lập → `{"available": false, "reason": "... chạy `python -m backend.cli.make_mock_feeds` ..."}` (HTTP 200).
+  (`source_desc`), `source.job_id = null`. Chưa có file giả lập → `{"available": false, "reason": "... chạy `python -m backend.core.analytics.make_mock_feeds` ..."}` (HTTP 200).
   Payload backtest không có `mock`/`mock_note`.
-- Feed giả lập do `python -m backend.cli.make_mock_feeds` (qua `run_limited.sh`) sinh, tất định, trên dữ liệu mới nhất, vị thế cuối dữ liệu **không bị đóng ép**:
+- Feed giả lập do `python -m backend.core.analytics.make_mock_feeds` (qua `run_limited.sh`) sinh, tất định, trên dữ liệu mới nhất, vị thế cuối dữ liệu **không bị đóng ép**:
   `testnet` = sổ đã chốt (`book.json`) trên 8 perp, 60 ngày, vốn 10.000 USDT; `live` = alpha `trend_long_perp__SOL` (chỉ SOL, `order_size_pct` × hệ số vốn
   "extreme" tối đa trong `portfolio_*__SOL.json`) + sổ, 120 ngày, vốn 25.000 USDT. File: `{"mock": true, "generated_at", "source_desc", "kind", "positions", ...kết quả dạng book_backtest}`.
 Payload khi có dữ liệu:
@@ -198,7 +198,7 @@ Backtest, WFA và Monte Carlo nhận `mode: "basic" | "advanced"` (mặc định
   `sig.roc_min`, `sig.rsi_lo|hi`, `sig.er_max`) và khung thời gian (`sig.trend_tf`, `sig.entry_tf`, `sig.signal_tf`, `sig.roc_tf`, `sig.regime_tf`). Nhóm `exit`: `stop_loss_rate`, `take_profit_rate`,
   `trailing_stop`, `trailing_activation_pct` (cả bốn theo × ATR), `timeout`, `cooldown` (phút), `atr_frame`, `atr_period`. Nhóm `risk`: `risk_per_trade_pct`, `max_notional_pct`, `leverage`.
 - Mặc định (`default`) tái lập đúng chiến lược cũ: giá trị literal cũ của cây (EMA 50/200, ADX 14, Donchian 20, khung 1h/15m...) và mức giữa của không gian tối ưu cho tham số thoát lệnh.
-- `preset` lấy từ `data/alphas/presets.json` (`python -m backend.cli.build_presets`): ưu tiên sổ `book.json` → lần `build_strategy_book` mới nhất có cấu hình qua cổng dev1 (stage A top-1 theo điểm) →
+- `preset` lấy từ `data/alphas/presets.json` (`python -m backend.optimize.build_presets`): ưu tiên sổ `book.json` → lần `build_strategy_book` mới nhất có cấu hình qua cổng dev1 (stage A top-1 theo điểm) →
   mặc định (`source = "mặc định — chưa tối ưu"`, `evidence = null`). `evidence.accepted/dev2_pass` cho biết cấu hình đó đã qua kiểm chứng dev2 hay chưa — UI cần hiện rõ khi là `false`.
 - `POST /api/studio/strategies/validate` `{"id": "trend_long", "params": {...}}` → `{"ok": bool, "errors": [{"field", "message"}], "resolved": {tham số đầy đủ}|null}` (không chạy job; khoá thiếu lấy từ preset).
 

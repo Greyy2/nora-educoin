@@ -5,7 +5,7 @@ Dashboard (`portfolio_dashboard.build_dashboard`) chỉ cần một dict dạng 
   by_strategy, halted_at, rejected_for_risk, và (tuỳ chọn) `positions` = vị thế đang mở.
 Mỗi feed trả `FeedSnapshot` gói dict đó cùng mô tả nguồn:
   BacktestFeed   — bọc kết quả một job book_backtest đã xong (vị thế cuối kỳ đã bị engine đóng nên `positions` rỗng).
-  MockFeed       — đọc file giả lập do `python -m backend.cli.make_mock_feeds` ghi ở data/_cache/mock_feeds/<kind>.json.
+  MockFeed       — đọc file giả lập do `python -m backend.core.analytics.make_mock_feeds` ghi ở data/_cache/mock_feeds/<kind>.json.
   LiveFeed / TestnetFeed — CHƯA có tài khoản: luôn NotAvailable. Khi nối Binance (lịch sử lệnh + số dư + vị thế) chỉ cần cài `fetch()`
                    trả đúng dạng FeedSnapshot; router và UI không đổi.
 `get_snapshot(kind)` = feed thật nếu có, không thì rơi về MockFeed (snapshot.mock = True, kèm mock_note); thiếu file giả lập -> NotAvailable.
@@ -20,7 +20,7 @@ from backend.db.data_layout import cache_dir
 KINDS = ("live", "testnet", "backtest")
 MOCK_KINDS = ("live", "testnet")
 KIND_VI = {"live": "Live", "testnet": "Testnet", "backtest": "Backtest"}
-MAKE_MOCK_CMD = "python -m backend.cli.make_mock_feeds"
+MAKE_MOCK_CMD = "python -m backend.core.analytics.make_mock_feeds"
 
 
 class NotAvailable(Exception):

@@ -14,7 +14,7 @@ Chia dữ liệu mỗi tài sản theo thời gian (không giai đoạn nào nh�
 4. Holdout (20% cuối, chưa ai chạm): chạy cấu hình được WFA chọn nhiều nhất.
 ALPHA = qua gate WFA + MC + holdout có lãi và MDD <= 30%. Không có thì báo thẳng là không có.
 
-Dùng:  PYTHONPATH=. python -m backend.cli.optimize_alphas [--spaces id1,id2] [--assets BTC,ETH] [--n 60] [--workers auto|8]
+Dùng:  PYTHONPATH=. python -m backend.optimize.optimize_alphas [--spaces id1,id2] [--assets BTC,ETH] [--n 60] [--workers auto|8]
 """
 # ── Pin BLAS threads TRƯỚC khi import numpy ───────────────────────────────────
 import os
@@ -468,7 +468,7 @@ def main(argv=None):
     print(f"{len(pairs)} cặp (chiến lược × tài sản), {args.n} cấu hình/cặp, {workers} tiến trình -> {out_dir}", flush=True)
 
     code = code_version()
-    extra_code = _file_sig("backend/cli/optimize_alphas.py", "backend/carlo/monte_carlo.py", "backend/wfa/walk_forward.py")
+    extra_code = _file_sig("backend/optimize/optimize_alphas.py", "backend/carlo/monte_carlo.py", "backend/wfa/walk_forward.py")
     pair_keys = {}
     for sid, sym in pairs:
         sd = by_space[sid]

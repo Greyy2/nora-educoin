@@ -27,7 +27,7 @@ Là người nghiên cứu, tôi muốn bootstrap trên lợi suất ngày mark-
 
 ## Dev Notes
 
-- Code: `backend/carlo/monte_carlo.py`, `backend/core/backtest/portfolio_metrics.py` (`daily_returns_from_curve`), `backend/cli/optimize_alphas.py` (`monte_carlo_gate`).
+- Code: `backend/carlo/monte_carlo.py`, `backend/core/backtest/portfolio_metrics.py` (`daily_returns_from_curve`), `backend/optimize/optimize_alphas.py` (`monte_carlo_gate`).
 - Cảnh báo: **đừng vector hoá** vòng bootstrap khi chưa so lại từng bit; số seed/thứ tự RNG là một phần hợp đồng.
 
 ## Evidence

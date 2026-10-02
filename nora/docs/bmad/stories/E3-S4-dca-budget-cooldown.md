@@ -25,7 +25,7 @@ Là người nghiên cứu, tôi muốn cấu hình DCA không vừa vốn bị 
 
 ## Dev Notes
 
-- Code: `backend/core/backtest/params_builder.py`, `execution.py`, `backend/wfa/walk_forward.py`, `backend/cli/optimize_alphas.py`. Đặc tả: `architecture.md` §5.5.
+- Code: `backend/core/backtest/params_builder.py`, `execution.py`, `backend/wfa/walk_forward.py`, `backend/optimize/optimize_alphas.py`. Đặc tả: `architecture.md` §5.5.
 - Chỉ áp cho `sizing="margin_pct"`; `sizing="risk"` chia khối lượng theo tổng hệ số tầng.
 - Sổ chiến lược dùng `cooldown=60` (một nến 1h). Golden `portfolio_real` ghim `cooldown=0` để giữ bit-identical.
 

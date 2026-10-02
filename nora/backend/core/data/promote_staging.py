@@ -10,8 +10,8 @@ Mặc định chỉ in kế hoạch (dry-run). Thêm --apply để thực hiện
   vào data/_archive_invalid/legacy_<ngày>/ (không xoá).
 
 Dùng:
-    PYTHONPATH=nora python -m backend.cli.promote_staging                 # xem trước
-    PYTHONPATH=nora python -m backend.cli.promote_staging --apply --archive-legacy
+    PYTHONPATH=nora python -m backend.core.data.promote_staging                 # xem trước
+    PYTHONPATH=nora python -m backend.core.data.promote_staging --apply --archive-legacy
 """
 import argparse
 import os
@@ -19,7 +19,7 @@ import shutil
 import sys
 from datetime import datetime, timezone
 
-NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 if NORA_ROOT not in sys.path:
     sys.path.insert(0, NORA_ROOT)
 

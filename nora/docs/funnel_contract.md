@@ -7,7 +7,7 @@ Mọi dữ liệu đều thật: quality gate bắt buộc, không mock.
 
 ## 1. Các tầng (theo thứ tự)
 
-| Mã | Tầng | Dữ liệu | Điều kiện qua (hằng số trong `backend/funnel/gates.py`) |
+| Mã | Tầng | Dữ liệu | Điều kiện qua (hằng số trong `backend/optimize/funnel/gates.py`) |
 |---|---|---|---|
 | `S0_generate` | Sinh alpha | không gian tham số của chiến lược | hợp lệ (vd. ngân sách DCA); mỗi alpha có `alpha_id` = sha1(chiến lược, tham số chuẩn hoá) |
 | `S1_backtest` | Backtest sàng lọc | dev1 | lãi > 0, MDD ≤ 30%, số lệnh ≥ ngưỡng, số tài sản có lãi ≥ ngưỡng (danh mục) |
@@ -70,9 +70,9 @@ Alpha bị loại ở tầng k thì dừng; lý do loại lưu dạng mã + câu
 
 ## 6. Triển khai backend (đã làm) — chi tiết ngữ nghĩa + hình dạng phản hồi
 
-Mã: `backend/funnel/` (`gates.py` ngưỡng, `generate.py` S0, `antiluck.py` DSR/PBO/lân cận, `sizing.py` tìm s, `storage.py` kho, `stats.py` thống kê,
-`backtest.py` worker, `orchestrator.py` điều phối, `recompute.py`, `promote.py`), CLI `backend/cli/run_funnel.py`, router `backend/api/routers/funnel.py`.
-Chạy: `backend/ops/run_limited.sh -- -m backend.cli.run_funnel --strategies a,b --n-per-strategy 200 --seed 7` (`--full-grid`, `--resume <run_id>`, `--until <tầng>`).
+Mã: `backend/optimize/funnel/` (`gates.py` ngưỡng, `generate.py` S0, `antiluck.py` DSR/PBO/lân cận, `sizing.py` tìm s, `storage.py` kho, `stats.py` thống kê,
+`backtest.py` worker, `orchestrator.py` điều phối, `recompute.py`, `promote.py`), CLI `backend/optimize/run_funnel.py`, router `backend/api/routers/funnel.py`.
+Chạy: `backend/utils/ops/run_limited.sh -- -m backend.optimize.run_funnel --strategies a,b --n-per-strategy 200 --seed 7` (`--full-grid`, `--resume <run_id>`, `--until <tầng>`).
 
 ### 6.1 Ngữ nghĩa từng tầng (chỗ hợp đồng để ngỏ)
 - **alpha_id** = `sha1(chiến lược + "|" + JSON tham số chuẩn hoá (khoá sắp xếp))[:16]`. Lấy mẫu cùng thuật toán `build_strategy_book.iter_configs` (theo chỉ số lưới).
@@ -116,7 +116,7 @@ S5 thêm `final_scale, search_s, search_steps, confirm_attempts`; S6 thêm `extr
 - `GET …/alphas/{id}` → các trường alpha + `stage_metrics:{tầng:{…}}`, `metrics` (tầng đã tới), `nav:{tầng:{dates, values}}` (S1/S3/S5/S6; vốn đầu 10.000), `mc` (cùng dạng `POST /book/mc`: `summary, fan, mdd_hist, ret_hist, stress, worst_path, gate, params`; sau S5 là MC ở s đã xác nhận),
   `mc_full_size`, `scale_search`, `verified`, `confirm_attempts`, `min_size`, `stored_trades:{tầng: bool}`.
 - `GET …/alphas/{id}/trades?stage=&fold=&offset=&limit=&recompute=` → `{items, total, offset, limit, stage, fold, stored, folds?}`; item: `fold, symbol, side, enter_time (ISO UTC), close_time, enter_price, close_price, qty, pnl_usd, pnl_pct, fees_usd, funding_usd, status, layers, mae_pct`.
-  Chưa lưu (loại ở S1) → `stored:false, items:[], can_recompute:true`; `recompute=true` → tính lại tất định (tiến trình con `run_limited --no-lock -m backend.funnel.recompute`, đệm ở `<run>/recomputed/`) → thêm `recomputed:true`.
+  Chưa lưu (loại ở S1) → `stored:false, items:[], can_recompute:true`; `recompute=true` → tính lại tất định (tiến trình con `run_limited --no-lock -m backend.optimize.funnel.recompute`, đệm ở `<run>/recomputed/`) → thêm `recomputed:true`.
 - `POST …/promote` body `{confirm: true, note?}` (thiếu confirm → 400; chưa FINAL → 409) → `{registry_path, alpha_id, registry_alpha_id, final_scale, testnet_config}`: thêm/ thay mục `funnel__<chiến lược>__<alpha_id>` trong `registry.json`
   (cùng các khoá của `registry.build_registry` + khoá mới `funnel` chứa s, bằng chứng, MC) và ghi `testnet/funnel__….json` (định dạng `testnet/book.json`, rủi ro/lệnh = 0,5 × s).
 - Thêm (ngoài hợp đồng gốc): `POST /runs/{id}/cancel` (SIGTERM → resume được), `GET /estimate?strategies=&n_per_strategy=|full_grid=&workers=` (ước tính thời gian S1 trước khi chạy).

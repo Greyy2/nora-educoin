@@ -16,7 +16,7 @@ GIẢ ĐỊNH VỀ ĐIỂM VÀO (báo cáo không tiết lộ trigger của bot)
                 chỉ vào khi 24h trước đó đi ngược chiều lệnh, momentum >= 60% (theo đà) chỉ vào cùng chiều 24h.
   "reversion" : tín hiệu bắt hồi có sẵn (strategy_library: dip_5m_rsi_bb_ranging / rip_5m_rsi_bb_ranging).
 
-Chạy: backend/ops/run_limited.sh -- -m backend.cli.research_topbots [--bots a,b] [--windows A,B] [--workers auto|8]
+Chạy: backend/utils/ops/run_limited.sh -- -m backend.core.research.research_topbots [--bots a,b] [--windows A,B] [--workers auto|8]
 Kết quả: data/_cache/research/topbots/<ts>.json + bảng in ra stdout. Tất định (không ngẫu nhiên).
 """
 import argparse
@@ -31,7 +31,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 if NORA_ROOT not in sys.path:
     sys.path.insert(0, NORA_ROOT)
 

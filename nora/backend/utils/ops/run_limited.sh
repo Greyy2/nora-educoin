@@ -3,14 +3,14 @@
 #
 # Vì sao: server dùng chung (67 GB RAM, KHÔNG có swap). Một job tràn RAM từng làm sập cả máy. Cả dự án Nora dùng
 # MỘT ngân sách: nora.slice (MemoryMax=12G, MemorySwapMax=0) — API, script nặng và test đều nằm trong đó. Vượt trần
-# thì kernel chỉ giết tiến trình trong slice, người khác không bị ảnh hưởng (cài slice: backend/ops/install_user_units.sh).
+# thì kernel chỉ giết tiến trình trong slice, người khác không bị ảnh hưởng (cài slice: backend/utils/ops/install_user_units.sh).
 # Các giai đoạn pipeline chạy TUẦN TỰ (backtest -> WFA -> Monte Carlo -> holdout) nên job nặng xếp hàng từng cái một
 # (flock trên ${XDG_RUNTIME_DIR:-/tmp}/nora-heavy.lock) và mỗi job tự chia số worker theo phần ngân sách còn trống.
 # Mặc định KHÔNG đặt trần riêng cho job (trần slice 12G áp dụng); --mem X (hoặc NORA_MEM_MAX) đặt thêm trần riêng.
 # Controller `cpu` không được uỷ quyền cho user session nên không dùng CPUQuota được -> giới hạn CPU bằng taskset
 # (+ nice 10 để nhường tải cho người khác). Script Python dùng usable_cpus() nên tự thấy đúng số CPU được cấp.
 #
-# Dùng (từ thư mục nora/):  backend/ops/run_limited.sh [--mem 8G] [--cpus 0-13] [--log FILE] [--no-wait | --no-lock] -- -m backend.cli.build_strategy_book --n 24 ...
+# Dùng (từ thư mục nora/):  backend/utils/ops/run_limited.sh [--mem 8G] [--cpus 0-13] [--log FILE] [--no-wait | --no-lock] -- -m backend.optimize.build_strategy_book --n 24 ...
 #   --no-wait  job khác đang chạy thì thoát ngay với mã 75 (mặc định: chờ trong hàng đợi)
 #   --no-lock  bỏ qua hàng đợi (cho lệnh nhẹ); vẫn nằm trong nora.slice
 # Biến môi trường (mặc định): NORA_MEM_MAX= (rỗng = chỉ dùng trần slice)  NORA_CPUS=0-13
@@ -18,7 +18,7 @@
 #                             NORA_MEM_LOG= (file ghi "epoch,current_mb" mỗi giây; rỗng = data/_cache/runs/<ts>_mem.csv)
 set -euo pipefail
 
-NORA_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+NORA_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 MEM="${NORA_MEM_MAX:-}"
 CPUS="${NORA_CPUS:-0-13}"
 PY="${NORA_PYTHON:-/home/vmc03/.venvs/nora/bin/python}"
@@ -48,7 +48,7 @@ command -v taskset >/dev/null 2>&1 || { echo "[run_limited] Thiếu taskset." >&
 command -v flock >/dev/null 2>&1 || { echo "[run_limited] Thiếu flock." >&2; exit 1; }
 [ -x "$PY" ] || { echo "[run_limited] Không chạy được python: $PY (đặt NORA_PYTHON)." >&2; exit 1; }
 systemctl --user cat nora.slice >/dev/null 2>&1 || {
-  echo "[run_limited] Chưa có nora.slice — chạy $NORA_DIR/backend/ops/install_user_units.sh trước." >&2; exit 1; }
+  echo "[run_limited] Chưa có nora.slice — chạy $NORA_DIR/backend/utils/ops/install_user_units.sh trước." >&2; exit 1; }
 
 # Hàng đợi job nặng: giữ khoá (fd 9) suốt thời gian job chạy — KHÔNG exec, để khoá không bị mất khi script kết thúc.
 if [ "$LOCK_MODE" != none ]; then

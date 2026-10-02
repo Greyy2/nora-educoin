@@ -2,7 +2,7 @@
 
 Ưu tiên nguồn: sổ đã chốt book.json -> lần build_strategy_book mới nhất có cấu hình qua cổng dev1 (stage A top-1 theo điểm) -> mặc định schema.
 Chỉ đọc file có sẵn (không chạy backtest) nên nhẹ; vẫn nên chạy qua run_limited.sh cho đồng nhất.
-Dùng (từ nora/):  backend/ops/run_limited.sh --no-lock -- -m backend.cli.build_presets [--out data/alphas/presets.json] [--dry-run]
+Dùng (từ nora/):  backend/utils/ops/run_limited.sh --no-lock -- -m backend.optimize.build_presets [--out data/alphas/presets.json] [--dry-run]
 """
 import argparse
 import os

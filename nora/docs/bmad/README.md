@@ -79,7 +79,7 @@ PY
 
 1. [prd.md](prd.md) mục 3, 7, 8 (mục tiêu, ràng buộc, rủi ro) và [knowledge_base/02_boss_mandates_and_rulebase.md](../knowledge_base/02_boss_mandates_and_rulebase.md).
 2. [epics.md](epics.md) và [sprint-status.yaml](sprint-status.yaml): việc đang làm và việc kế tiếp.
-3. [architecture.md](architecture.md) phần liên quan đến code sắp đụng; đặc biệt mục 12 (vận hành) trước khi chạy job nặng: **mọi lệnh nặng phải qua `backend/ops/run_limited.sh`**.
+3. [architecture.md](architecture.md) phần liên quan đến code sắp đụng; đặc biệt mục 12 (vận hành) trước khi chạy job nặng: **mọi lệnh nặng phải qua `backend/utils/ops/run_limited.sh`**.
 4. Story cần làm trong `stories/`.
 
 Ràng buộc bất biến khi sửa: golden test phải giữ bit-identical (trừ khi chủ đích đổi ngữ nghĩa); không nới gate; không chạm `frontend/src/v2` khi tác tử UI đang làm E8-S6 mà không thống nhất.

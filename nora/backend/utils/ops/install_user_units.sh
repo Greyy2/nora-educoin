@@ -4,7 +4,7 @@
 set -euo pipefail
 
 OPS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-NORA_DIR="$(cd "$OPS_DIR/../.." && pwd)"
+NORA_DIR="$(cd "$OPS_DIR/../../.." && pwd)"
 NORA_PYTHON="${NORA_PYTHON:-/home/vmc03/.venvs/nora/bin/python}"
 UNIT_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 

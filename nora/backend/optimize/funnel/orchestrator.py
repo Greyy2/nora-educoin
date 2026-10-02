@@ -56,7 +56,7 @@ def funnel_root() -> str:
 
 
 def git_info() -> Dict[str, Any]:
-    root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
     try:
         head = subprocess.run(["git", "-C", root, "rev-parse", "--short", "HEAD"], capture_output=True, text=True, timeout=10).stdout.strip()
         dirty = bool(subprocess.run(["git", "-C", root, "status", "--porcelain", "backend"], capture_output=True, text=True, timeout=10).stdout.strip())

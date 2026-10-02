@@ -2,7 +2,7 @@
 
 - portfolio_metrics: từ results của PortfolioEngine -> lãi, MDD (điểm xấu nhất trong nến), sharpe, lợi suất ngày MTM...
 - bootstrap_daily: block bootstrap 1 năm trên lợi suất ngày (mỏng bọc run_monte_carlo_daily).
-Chuyển nguyên văn từ backend/cli/build_strategy_book.py (metrics/bootstrap) — KHÔNG đổi hành vi, cùng RNG, cùng làm tròn.
+Chuyển nguyên văn từ backend/optimize/build_strategy_book.py (metrics/bootstrap) — KHÔNG đổi hành vi, cùng RNG, cùng làm tròn.
 """
 import numpy as np
 import pandas as pd

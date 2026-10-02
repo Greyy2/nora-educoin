@@ -6,7 +6,7 @@ Khác backtest thường: vị thế còn mở cuối dữ liệu KHÔNG bị đ
   testnet: sổ đã chốt (data/alphas/book.json) trên cả 8 perp, 60 ngày cuối, vốn 10.000 USDT.
   live:    alpha trend_long_perp__SOL (data/alphas/registry.json; chỉ chạy trên SOL, order_size_pct nhân hệ số vốn "extreme" tối đa của
            data/alphas/portfolio_trend_long_perp__SOL__SOL.json nếu có) + các chiến lược của sổ, 120 ngày cuối, vốn 25.000 USDT.
-Dùng (từ nora/):  backend/ops/run_limited.sh -- -m backend.cli.make_mock_feeds [--only live|testnet]
+Dùng (từ nora/):  backend/utils/ops/run_limited.sh -- -m backend.core.analytics.make_mock_feeds [--only live|testnet]
 """
 import argparse
 import json
@@ -16,11 +16,11 @@ import time
 import warnings
 from types import SimpleNamespace
 
-NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 if NORA_ROOT not in sys.path:
     sys.path.insert(0, NORA_ROOT)
 
-from backend.cli import run_book_backtest as rbb  # noqa: E402  (đặt biến môi trường BLAS/cache trước khi import nặng)
+from backend.core.backtest import run_book_backtest as rbb  # noqa: E402  (đặt biến môi trường BLAS/cache trước khi import nặng)
 from backend.utils.jsonsafe import json_default  # noqa: E402
 
 DAY = rbb.DAY

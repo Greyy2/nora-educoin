@@ -1,4 +1,4 @@
-"""Phễu kiểm duyệt alpha (backend/funnel): ngưỡng, DSR, PBO, lân cận, tìm s, kho/resume, thống kê, API, lệnh tính lại.
+"""Phễu kiểm duyệt alpha (backend/optimize/funnel): ngưỡng, DSR, PBO, lân cận, tìm s, kho/resume, thống kê, API, lệnh tính lại.
 
 Dữ liệu giả lập 3 tài sản perp (như test_strategy_book, không mạng); phễu chạy TUẦN TỰ trong tiến trình (workers=0). Ngưỡng được nới bằng monkeypatch
 CHỈ TRONG TEST (để alpha ngẫu nhiên đi hết các tầng) — phần ngưỡng thật được kiểm riêng bằng hàm evaluate_*.
@@ -15,9 +15,9 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from backend.core.data.resampler import save_resampled_dataset
-from backend.funnel import antiluck, gates, sizing, stats as fstats
-from backend.funnel.generate import alpha_id_of, iter_params, validate_alpha
-from backend.funnel.storage import RunStore
+from backend.optimize.funnel import antiluck, gates, sizing, stats as fstats
+from backend.optimize.funnel.generate import alpha_id_of, iter_params, validate_alpha
+from backend.optimize.funnel.storage import RunStore
 
 T0 = 1_700_006_400_000
 SYMS = ("AAA", "BBB", "CCC")
@@ -86,12 +86,12 @@ def lenient(monkeypatch):
 
 
 def _cfg(**kw):
-    from backend.funnel.orchestrator import FunnelConfig
+    from backend.optimize.funnel.orchestrator import FunnelConfig
     return FunnelConfig(strategies=["t_long"], n_per_strategy=3, seed=7, train_days=5, test_days=4, **kw)
 
 
 def _run(run_id, **kw):
-    from backend.funnel import orchestrator as orch
+    from backend.optimize.funnel import orchestrator as orch
     return orch.run_funnel(_cfg(), run_id=run_id, workers=0, log=lambda s: None, **kw)
 
 
@@ -114,9 +114,9 @@ def test_gate_constants_match_existing_gates():
 
 def test_windows_match_build_strategy_book(market):
     from backend.core.strategy import strategy_book as sb
-    from backend.funnel.windows import compute_windows
+    from backend.optimize.funnel.windows import compute_windows
     import importlib
-    bsb = importlib.import_module("backend.cli.build_strategy_book")
+    bsb = importlib.import_module("backend.optimize.build_strategy_book")
     syms = [f"{s}@perp" for s in SYMS]
     assert compute_windows(syms) == bsb.windows(syms)
 
@@ -294,7 +294,7 @@ def test_full_pipeline_stage_transitions_and_storage(full_run):
             assert sm["S5_sizing"]["final_scale"] == fa["final_scale"] == sm["FINAL"]["final_scale"]
             t1, t3, t5, t6 = (store.read_trades(a, s) for s in ("S1_backtest", "S3_wfa", "S5_sizing", "S6_holdout"))
             assert t1 and t3 and t6
-            assert set(t3[0]) == set(__import__("backend.funnel.storage", fromlist=["TRADE_COLS"]).TRADE_COLS)
+            assert set(t3[0]) == set(__import__("backend.optimize.funnel.storage", fromlist=["TRADE_COLS"]).TRADE_COLS)
             assert all(r["fold"] in (1, 2) for r in t3) and all(r["fold"] is None for r in t1)
             assert {r["stage"] for r in t6} == {"S6_holdout", "S6_holdout_extreme"}
             assert store.read_daily(a, "S1_backtest") and store.read_daily(a, "S3_wfa", "S3_wfa") and store.read_daily(a, "S6_holdout")
@@ -337,7 +337,7 @@ def test_stage_stats_payload_shape(full_run):
 
 
 def test_trades_recompute_identical_to_stored_for_passer(full_run):
-    from backend.funnel.recompute import recompute_s1
+    from backend.optimize.funnel.recompute import recompute_s1
     a = full_run["final_alphas"][0]["alpha_id"]
     store = RunStore(full_run["run_dir"], read_only=True)
     try:
@@ -431,8 +431,8 @@ def test_s1_rejects_store_stats_only_and_recompute_endpoint(small_book, monkeypa
     finally:
         store.close()
     from backend.api.routers import funnel as fr
-    from backend.funnel.recompute import cache_path, recompute_s1
-    from backend.funnel.storage import atomic_write_json
+    from backend.optimize.funnel.recompute import cache_path, recompute_s1
+    from backend.optimize.funnel.storage import atomic_write_json
     calls = []
     monkeypatch.setattr(fr, "_run_recompute_subprocess", lambda run_id, aid: (calls.append(aid), atomic_write_json(cache_path(res["run_dir"], aid), recompute_s1(res["run_dir"], aid))))
     base = f"/api/studio/funnel/runs/{res['run_id']}/alphas/{a}/trades"
@@ -482,7 +482,7 @@ def _dump(run_dir):
 
 
 def test_resume_after_crash_is_identical(small_book, lenient, monkeypatch, tmp_path):
-    from backend.funnel import orchestrator as orch
+    from backend.optimize.funnel import orchestrator as orch
     monkeypatch.setitem(orch.FLUSH_N, "S1_backtest", 1)      # mỗi alpha một lô -> sập giữa chừng thật sự
     ref = _run("fr-test-ref", until="S2_antiluck")
     assert ref["status"] == "done"
@@ -534,7 +534,7 @@ def test_api_post_run_launches_job_and_writes_queued_stub(small_book, client, mo
     j = r.json()
     assert set(j) == {"run_id", "job_id"} and j["run_id"].startswith("fr-")
     cmd = FakePopen.calls[0][0]
-    assert cmd[0].endswith("run_limited.sh") and cmd[1:4] == ["--", "-m", "backend.cli.run_funnel"]
+    assert cmd[0].endswith("run_limited.sh") and cmd[1:4] == ["--", "-m", "backend.optimize.run_funnel"]
     assert "--run-id" in cmd and cmd[cmd.index("--run-id") + 1] == j["run_id"] and cmd[cmd.index("--n-per-strategy") + 1] == "5"
     assert cmd[cmd.index("--strategies") + 1] == "t_long" and json.loads(cmd[cmd.index("--windows-json") + 1]) == {"start": "2025-01-01"}
     queued = [x for x in client.get(f"{base}/runs").json()["runs"] if x["run_id"] == j["run_id"]][0]
@@ -560,7 +560,7 @@ def test_api_post_run_launches_job_and_writes_queued_stub(small_book, client, mo
 
 def test_pool_mode_matches_serial_with_shared_data(small_book, lenient):
     """Chạy bằng pool 2 worker + dữ liệu dùng chung mmap cho KẾT QUẢ y hệt chạy tuần tự (S1..S3), và dọn _shared khi xong."""
-    from backend.funnel import orchestrator as orch
+    from backend.optimize.funnel import orchestrator as orch
     ser = _run("fr-test-serial", until="S3_wfa")
     par = orch.run_funnel(_cfg(), run_id="fr-test-pool", workers=2, until="S3_wfa", log=lambda s: None)
     a, b = _dump(ser["run_dir"]), _dump(par["run_dir"])
@@ -570,7 +570,7 @@ def test_pool_mode_matches_serial_with_shared_data(small_book, lenient):
 
 def test_funnel_job_kind_registered_in_batch_with_label():
     from backend.api.jobs import batch
-    assert batch.KINDS["funnel_run"]["module"] == "backend.cli.run_funnel"
+    assert batch.KINDS["funnel_run"]["module"] == "backend.optimize.run_funnel"
     lab = batch.job_label("funnel_run", ["--strategies", "trend_long,breakout_4h_long", "--n-per-strategy", "40", "--symbols", "BTC@perp"])
     assert lab == "Phễu · trend_long, breakout_4h_long · n=40/chiến lược · BTC"
     assert batch.job_label("funnel_run", ["--resume", "fr-x"]) == "Phễu · chạy tiếp fr-x"

@@ -28,7 +28,7 @@ Là người dùng UI v2, tôi muốn tham số, thuật ngữ và trạng thái
 - [x] Bảng fold WFA chỉ hiện tham số khi đổi so với fold trước ("như fold trước").
 - [x] Diễn đạt khớp cắt lỗ: "Đúng mức (lạc quan)" / "Giá xấu nhất của nến (bi quan)" (`lib/stopfill.js`).
 - [x] KPI so với BTC: "BTC +x% · chênh y điểm %", có màu theo dấu.
-- [x] Backend: `risk_blocked_attempts` trong `core/backtest/portfolio.py`, lưu ở `cli/run_book_backtest.py`, câu sự kiện mới trong `core/analytics/portfolio_dashboard.py`; dựng lại mock feed (Live: 3129 phút → 37 lần).
+- [x] Backend: `risk_blocked_attempts` trong `core/backtest/portfolio.py`, lưu ở `core/backtest/run_book_backtest.py`, câu sự kiện mới trong `core/analytics/portfolio_dashboard.py`; dựng lại mock feed (Live: 3129 phút → 37 lần).
 - [x] Live/Testnet tự làm mới 60 s + nút làm mới.
 - [x] Thẻ "Hướng dẫn nhanh" (`components/QuickGuide.jsx`) + nút "?" trên thanh đầu.
 - [x] Thanh chạy dính đáy ở bước Backtest kèm tóm tắt cấu hình; khoá nút kèm lý do khi chưa chọn gì.

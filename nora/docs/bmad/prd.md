@@ -39,7 +39,7 @@ Nguyên tắc không đổi:
 
 | Người dùng | Việc cần làm | Tính năng chính |
 |---|---|---|
-| Người nghiên cứu / quant | Đề xuất chiến lược, hiệu chỉnh tham số, kiểm chứng, đọc bằng chứng | Trang Alpha, Backtest/WFA/Monte Carlo, kho alpha, CLI `backend/cli/*` |
+| Người nghiên cứu / quant | Đề xuất chiến lược, hiệu chỉnh tham số, kiểm chứng, đọc bằng chứng | Trang Alpha, Backtest/WFA/Monte Carlo, kho alpha, lệnh `python -m backend.<gói>.<lệnh>` |
 | Người vận hành | Chạy job nặng an toàn trên máy dùng chung, xuất bản sổ, theo dõi danh mục, xử lý sự cố | Hàng đợi `run_limited`, `nora.slice`, trang Danh mục, `publish`, log RAM |
 
 Hiện chưa có người dùng trả tiền hay đa người dùng; hệ thống chạy một máy, một nhóm nhỏ, không có xác thực (xem NFR-9, R-5).
@@ -54,7 +54,7 @@ Hiện chưa có người dùng trả tiền hay đa người dùng; hệ thốn
 | G4 | Chạy gọn trong ngân sách RAM chung | `nora.slice` MemoryMax 12 GB, không swap; không job nào làm sập máy | Sau sửa OOM: build 7 ứng viên × 24 cấu hình 487 s, đỉnh 2,5 GB (`06ae13b`); benchmark 8 perp: đỉnh slice 5950 → 2045 MB (`b179f2b`) |
 | G5 | Vòng lặp UI đầy đủ không cần CLI | Alpha build → Backtest → WFA → Monte Carlo → Danh mục | Chạy thật: build 71,1 s, backtest 6,6 s, WFA 53,5 s (đọc từ `data/_cache/api_jobs/*/job.json`); Monte Carlo đồng bộ, ngưỡng test < 15 s ở kích thước tối đa, thời gian thực tế chưa ghi log |
 | G6 | Theo dõi danh mục Live / Testnet / Backtest | Cùng một payload cho cả ba nguồn; Live/Testnet nối tài khoản thật không đổi UI | Payload xong; Live/Testnet đang dùng feed **giả lập** (`mock: true`); chưa có tài khoản thật |
-| G7 | Không có gate nào bị nới âm thầm | Hằng số gate nằm ở một nơi, có test | `backend/wfa/portfolio_wfa.py` (đầu file), `backend/core/strategy/strategy_book.py` (`GATES`), `backend/cli/optimize_alphas.py` |
+| G7 | Không có gate nào bị nới âm thầm | Hằng số gate nằm ở một nơi, có test | `backend/wfa/portfolio_wfa.py` (đầu file), `backend/core/strategy/strategy_book.py` (`GATES`), `backend/optimize/optimize_alphas.py` |
 
 ## 4. Phạm vi
 
@@ -145,7 +145,7 @@ Cột "TT": **Có** = đã có và có test; **Một phần** = có nhưng thi�
 
 | ID | Yêu cầu | TT | Epic |
 |---|---|---|---|
-| FR-38 | Mọi job nặng chạy qua `backend/ops/run_limited.sh` trong `nora.slice` (12 GB, không swap), xếp hàng tuần tự bằng `flock`, CPU 0-13, nice 10 | Có | E6 |
+| FR-38 | Mọi job nặng chạy qua `backend/utils/ops/run_limited.sh` trong `nora.slice` (12 GB, không swap), xếp hàng tuần tự bằng `flock`, CPU 0-13, nice 10 | Có | E6 |
 | FR-39 | Script nặng từ chối chạy khi không có trần RAM cgroup (trừ `NORA_ALLOW_UNLIMITED=1`) | Có | E6 |
 | FR-40 | Số worker tự chia: min(CPU dùng được, ngân sách RAM / RAM mỗi worker); ngân sách chừa dự phòng 8 GB cho máy dùng chung | Có | E6 |
 | FR-41 | Worker bị OOM-kill thì chạy lại riêng các job còn thiếu với nửa số worker; lỗi thật của job nổi lên ngay | Có | E6 |
@@ -197,7 +197,7 @@ Cột "TT": **Có** = đã có và có test; **Một phần** = có nhưng thi�
 | NFR-7 | Khả dụng UI | Dùng được ở trình duyệt bị chính sách chặn URL chứa "miner"; Sáng/Tối; trạng thái job rõ (queued/running/done/failed) | commit `cc68087`, `b0419d5` |
 | NFR-8 | Quan sát | Mỗi job có `out.log`, thời điểm bắt đầu/kết thúc, mã thoát; mỗi lần chạy nặng có log RAM mỗi giây | `data/_cache/api_jobs/<id>/`, `data/_cache/runs/` |
 | NFR-9 | Bảo mật mạng | API chỉ nên nghe trong mạng tin cậy | Hiện unit systemd đặt `NORA_API_HOST=0.0.0.0`, CORS `*`: **chưa đạt** (E11) |
-| NFR-10 | Bảo trì | Bố cục package rõ (core/db/api/optimize/wfa/carlo/utils/cli/ops); không import vòng | commit `6d35c0d`: 94 module import được; `backend/main.py` vẫn 2261 dòng chứa route cũ |
+| NFR-10 | Bảo trì | Bố cục package rõ (core/db/api/optimize/wfa/carlo/utils + main.py; lệnh nằm trong gói của nó, ops trong utils/ops); không import vòng | commit `6d35c0d`: 94 module import được; `backend/main.py` vẫn 2261 dòng chứa route cũ |
 
 ## 7. Ràng buộc
 

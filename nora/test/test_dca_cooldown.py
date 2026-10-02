@@ -220,7 +220,8 @@ def test_cooldown_in_params_snapshot_and_book():
 # ─── optimize_alphas.sample_configs ─────────────────────────────────────────
 
 def _load_script(name):
-    path = os.path.join(os.path.dirname(__file__), "..", "backend", "cli", f"{name}.py")
+    from cli_paths import command_path
+    path = command_path(name)
     spec = importlib.util.spec_from_file_location(name, path)
     mod = importlib.util.module_from_spec(spec)
     sys.modules[name] = mod

@@ -49,7 +49,7 @@ def test_catalog_default_params_universe_windows(client, tmp_path):
 
 def test_default_params_match_run_book_backtest_mid_params():
     import importlib.util
-    spec = importlib.util.spec_from_file_location("rbb", os.path.join(os.path.dirname(__file__), "..", "backend", "cli", "run_book_backtest.py"))
+    spec = importlib.util.spec_from_file_location("rbb", os.path.join(os.path.dirname(__file__), "..", "backend", "core", "backtest", "run_book_backtest.py"))
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     from backend.core.strategy.strategy_book import CANDIDATES

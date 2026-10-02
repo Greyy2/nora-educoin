@@ -1,10 +1,10 @@
 """Smoke check NHANH cho pipeline backtest Nora: kiểm bất biến + tất định (KHÔNG phải chạy production).
 
 Chạy qua run_limited (nora.slice 12G, xếp hàng):
-  backend/ops/run_limited.sh -- -m backend.cli.smoke_check single    --out DIR   # 7 ứng viên strategy_book (SOL@perp) + 8 bot-style (BTC) + DCA probe
-  backend/ops/run_limited.sh -- -m backend.cli.smoke_check portfolio --out DIR   # danh mục 8 tài sản perp x 7 ứng viên (+ shared_dir)
-  backend/ops/run_limited.sh -- -m backend.cli.smoke_check studio    --out DIR   # WFA + Monte Carlo (hàm pipeline, không HTTP) cho alpha trong registry
-  backend/ops/run_limited.sh -- -m backend.cli.smoke_check optcheck  --run DIR1 [--run DIR2]   # kiểm results.json + fold của optimize_alphas
+  backend/utils/ops/run_limited.sh -- -m backend.core.backtest.smoke_check single    --out DIR   # 7 ứng viên strategy_book (SOL@perp) + 8 bot-style (BTC) + DCA probe
+  backend/utils/ops/run_limited.sh -- -m backend.core.backtest.smoke_check portfolio --out DIR   # danh mục 8 tài sản perp x 7 ứng viên (+ shared_dir)
+  backend/utils/ops/run_limited.sh -- -m backend.core.backtest.smoke_check studio    --out DIR   # WFA + Monte Carlo (hàm pipeline, không HTTP) cho alpha trong registry
+  backend/utils/ops/run_limited.sh -- -m backend.core.backtest.smoke_check optcheck  --run DIR1 [--run DIR2]   # kiểm results.json + fold của optimize_alphas
 
 Bất biến mỗi lần chạy: sổ vốn, vị thế, bậc DCA, rủi ro theo SL, trần danh nghĩa/đòn bẩy, trần danh mục.
 Tất định: chạy 2 lần, xoá cache giữa hai lần, so canonical (test/golden_scenarios.canonicalize).
@@ -23,7 +23,7 @@ import sys
 import time
 from collections import Counter, defaultdict
 
-NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 for _p in (NORA_ROOT, os.path.join(NORA_ROOT, "test")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
@@ -467,7 +467,7 @@ def cmd_studio(a):
                                        "fold_checks": fc, "mc": m, "mc_identical": same})
 
 
-# ─── optcheck: kiểm kết quả backend/cli/optimize_alphas.py ──────────────────────
+# ─── optcheck: kiểm kết quả backend/optimize/optimize_alphas.py ──────────────────────
 
 STRIP = ("seconds", "peak_rss_mb")
 
@@ -482,7 +482,7 @@ def _strip(o):
 
 def cmd_optcheck(a):
     import sqlite3
-    from backend.cli import optimize_alphas as oa
+    from backend.optimize import optimize_alphas as oa
     from backend.core.strategy.strategy_library import OPTIMIZATION_SPACES
     from backend.core.backtest.params_builder import data_symbol
     from backend.db.local_pkl import read_manifest

@@ -12,7 +12,7 @@ C. sổ    — các chiến lược đạt chạy CHUNG một sổ vốn với g
            bootstrap 1 năm trên lợi suất ngày dev2 (SL bi quan) có P(MDD >= 30%) <= 5%.
 D. holdout — chạy đúng sổ đã chốt một lần (cả hai cách khớp SL). Không chọn lại gì ở bước này.
 
-Dùng: PYTHONPATH=. python -m backend.cli.build_strategy_book [--workers 10] [--n 24] [--only trend_long,trend_short]
+Dùng: PYTHONPATH=. python -m backend.optimize.build_strategy_book [--workers 10] [--n 24] [--only trend_long,trend_short]
 Quy mô lớn (tới ~1.000.000 cấu hình): giai đoạn A chạy STREAMING — cấu hình sinh lười, mỗi kết quả ghi ngay vào <run_dir>/results.sqlite
 (backend/optimize/results_store.py), tiến trình cha chỉ giữ top-K (K = max(3, --keep-top), mặc định 50) nên RAM cha phẳng.
   --resume <run_dir>   chạy tiếp lần bị ngắt (bỏ qua job đã có trong kho; kết quả cuối y hệt lần chạy không gián đoạn)
@@ -29,7 +29,7 @@ Bộ nhớ (mỗi worker là một tiến trình có cache riêng):
   trần cgroup — worker vượt thì bị giết riêng, _pool_map_safe chạy lại với một nửa số worker).
   Đo lại bằng dòng `đỉnh RAM/worker` và ghi đè bằng --per-worker-mb khi dữ liệu/ngân sách cache đổi.
   --workers auto đọc cả giới hạn cgroup (systemd-run -p MemoryMax=...), không chỉ RAM trống của máy.
-  BẮT BUỘC chạy dưới trần RAM: backend/ops/run_limited.sh -- -m backend.cli.build_strategy_book ...
+  BẮT BUỘC chạy dưới trần RAM: backend/utils/ops/run_limited.sh -- -m backend.optimize.build_strategy_book ...
   (không có trần cgroup thì script từ chối chạy, trừ khi NORA_ALLOW_UNLIMITED=1).
   Dữ liệu dùng chung: trước mỗi pool, tiến trình CHA dựng một lần mảng giá + kernel + funding của cả vũ trụ vào
   <run_dir>/_shared/ (backend/core/backtest/shared_data.py); worker chỉ np.load(mmap_mode="r") qua NORA_SHARED_DATA_DIR

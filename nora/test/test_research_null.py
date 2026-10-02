@@ -9,7 +9,7 @@ import sys
 import numpy as np
 import pytest
 
-from backend.cli import research_maker_scalp as R
+from backend.core.research import research_maker_scalp as R
 
 
 def _random_walk(n=150_000, sub=20, seed=11):

@@ -1,7 +1,7 @@
 """API phễu kiểm duyệt alpha (/api/studio/funnel): tạo lượt chạy (job nền qua run_limited), liệt kê, thống kê từng tầng, bảng alpha, chi tiết alpha,
 danh sách lệnh (phân trang, tính lại cho alpha bị loại ở S1), đưa alpha FINAL vào kho alpha. Hợp đồng: docs/funnel_contract.md.
 
-Job nặng chạy ở tiến trình riêng (backend.cli.run_funnel qua backend/ops/run_limited.sh) bằng cơ chế job của backend/api/jobs/batch.py: loại job
+Job nặng chạy ở tiến trình riêng (backend.optimize.run_funnel qua backend/utils/ops/run_limited.sh) bằng cơ chế job của backend/api/jobs/batch.py: loại job
 `funnel_run` (danh sách trắng cờ + nhãn nằm ở batch.KINDS / batch.job_label). Handler chỉ đọc kho (SQLite chỉ đọc + parquet) nên là `def` thường (FastAPI chạy trong threadpool).
 """
 import json
@@ -16,11 +16,11 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from backend.api.jobs import batch as batch_jobs
-from backend.funnel import gates
-from backend.funnel.generate import count_params
-from backend.funnel.recompute import read_cached
-from backend.funnel.stats import scalar_metrics, stage_stats
-from backend.funnel.storage import RunStore, atomic_write_json
+from backend.optimize.funnel import gates
+from backend.optimize.funnel.generate import count_params
+from backend.optimize.funnel.recompute import read_cached
+from backend.optimize.funnel.stats import scalar_metrics, stage_stats
+from backend.optimize.funnel.storage import RunStore, atomic_write_json
 
 router = APIRouter(prefix="/api/studio/funnel", tags=["funnel"])
 
@@ -115,7 +115,7 @@ def post_run(req: FunnelRunRequest):
         symbols = batch_jobs.check_symbols(req.symbols) if req.symbols else None
     except batch_jobs.JobError as e:
         raise HTTPException(422, str(e))
-    from backend.funnel.orchestrator import new_run_id
+    from backend.optimize.funnel.orchestrator import new_run_id
     if req.resume_run_id:
         run_id = req.resume_run_id
         if not os.path.isfile(os.path.join(_run_dir(run_id), "results.sqlite")):
@@ -421,7 +421,7 @@ def _run_recompute_subprocess(run_id: str, alpha_id: str) -> None:
     env = dict(os.environ)
     env.setdefault("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
     env.setdefault("DBUS_SESSION_BUS_ADDRESS", f"unix:path={env['XDG_RUNTIME_DIR']}/bus")
-    cmd = [batch_jobs.RUN_LIMITED, "--no-lock", "--", "-m", "backend.funnel.recompute", run_id, alpha_id]
+    cmd = [batch_jobs.RUN_LIMITED, "--no-lock", "--", "-m", "backend.optimize.funnel.recompute", run_id, alpha_id]
     try:
         p = subprocess.run(cmd, cwd=batch_jobs.NORA_DIR, env=env, capture_output=True, text=True, timeout=1800, stdin=subprocess.DEVNULL)
     except subprocess.TimeoutExpired:
@@ -485,7 +485,7 @@ def post_promote(run_id: str, alpha_id: str, req: PromoteRequest):
     if not req.confirm:
         raise HTTPException(400, "cần confirm=true (xác nhận đưa alpha vào kho alpha)")
     _open(run_id).close()
-    from backend.funnel.promote import promote_alpha
+    from backend.optimize.funnel.promote import promote_alpha
     try:
         return promote_alpha(_run_dir(run_id), alpha_id, alphas_dir(), req.note)
     except KeyError:

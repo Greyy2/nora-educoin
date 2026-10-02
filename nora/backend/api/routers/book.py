@@ -1,6 +1,6 @@
 """API sổ chiến lược (strategy book): xem sổ hiện tại + chạy backtest danh mục / WFA danh mục / dựng sổ như job nền.
 
-Job nặng chạy ở tiến trình riêng qua backend/ops/run_limited.sh (xem backend/api/jobs/batch.py), handler ở đây chỉ
+Job nặng chạy ở tiến trình riêng qua backend/utils/ops/run_limited.sh (xem backend/api/jobs/batch.py), handler ở đây chỉ
 khởi chạy / đọc file nên nhanh và là `def` thường (FastAPI chạy trong threadpool).
 """
 import json
@@ -179,7 +179,7 @@ def latest_wfa_summary() -> Optional[Dict[str, Any]]:
 
 
 def default_params(space: Dict[str, List[Any]]) -> Dict[str, Any]:
-    """Giá trị GIỮA của mỗi khoá trong không gian tham số (cùng quy tắc backend/cli/run_book_backtest._mid_params)."""
+    """Giá trị GIỮA của mỗi khoá trong không gian tham số (cùng quy tắc backend/core/backtest/run_book_backtest._mid_params)."""
     return {k: v[len(v) // 2] for k, v in space.items()}
 
 

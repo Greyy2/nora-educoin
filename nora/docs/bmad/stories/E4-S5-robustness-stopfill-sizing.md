@@ -16,14 +16,14 @@ Là người nghiên cứu, tôi muốn biết alpha có nằm trên đỉnh nh�
 
 ## Tasks / Subtasks
 
-- [x] `backend/cli/robustness_check.py` (lân cận, chuyển tài sản)
-- [x] `backend/cli/portfolio_sizing.py` (hệ số vốn, hai chế độ SL)
+- [x] `backend/optimize/robustness_check.py` (lân cận, chuyển tài sản)
+- [x] `backend/optimize/portfolio_sizing.py` (hệ số vốn, hai chế độ SL)
 - [x] Gắn `robustness` vào registry
 - [x] Tài liệu `alpha_pipeline.md` §3, §6
 
 ## Dev Notes
 
-- Chạy: `backend/ops/run_limited.sh -- -m backend.cli.robustness_check data/_cache/optimize/<thời điểm>/results.json trend_long_perp SOL`.
+- Chạy: `backend/utils/ops/run_limited.sh -- -m backend.optimize.robustness_check data/_cache/optimize/<thời điểm>/results.json trend_long_perp SOL`.
 - Kết quả `portfolio_*.json` nằm ở `data/alphas/` (được commit).
 
 ## Evidence

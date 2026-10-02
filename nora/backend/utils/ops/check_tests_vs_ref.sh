@@ -1,10 +1,10 @@
 #!/bin/bash
-# Dùng: backend/ops/check_tests_vs_ref.sh <git-ref>
+# Dùng: backend/utils/ops/check_tests_vs_ref.sh <git-ref>
 # Chạy test HIỆN TẠI trên code tại <git-ref> để xác nhận test bắt được lỗi cũ
 # (lưu ý: sau khi tái cấu trúc package, import của test dùng đường dẫn mới nên <git-ref> phải từ commit tái cấu trúc trở đi)
 set -e
 REF=${1:?git ref required}
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 PY="${NORA_PYTHON:-/home/vmc03/.venvs/nora/bin/python}"
 TMP=$(mktemp -d)
 

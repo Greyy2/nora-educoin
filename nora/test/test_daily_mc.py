@@ -177,7 +177,7 @@ def test_mc_daily_sees_unrealized_drawdown_that_trades_miss():
 
 # ── 4. Cổng MC của optimize_alphas ──────────────────────────────────────────
 def _load_optimize():
-    spec = importlib.util.spec_from_file_location("optimize_alphas_mod", os.path.join(NORA_ROOT, "backend", "cli", "optimize_alphas.py"))
+    spec = importlib.util.spec_from_file_location("optimize_alphas_mod", os.path.join(NORA_ROOT, "backend", "optimize", "optimize_alphas.py"))
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod

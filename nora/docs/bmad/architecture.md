@@ -27,7 +27,7 @@ flowchart LR
   HO --> REG[(data/alphas<br/>registry.json, book.json, testnet/)]
   REG --> API[FastAPI backend.main:app<br/>/api/studio/*]
   E --> API
-  API <--> JOBS[[run_limited.sh -> backend.cli.*<br/>nora.slice 12G]]
+  API <--> JOBS[[run_limited.sh -> backend.<gói>.<lệnh><br/>nora.slice 12G]]
   API --> UI[UI v2: Danh mục, Backtest, Alpha]
   REG -. chưa có bot .-> TN[Binance Futures testnet / live]
   TN -. feed thật, chưa có .-> API
@@ -51,12 +51,11 @@ flowchart LR
 | `backend/core/analytics/` | `portfolio_dashboard.py` (payload Danh mục), `feeds.py`, `stats_metrics.py`, `queries.py` (MySQL cũ) | |
 | `backend/core/research/` | Nghiên cứu thị trường giai đoạn DEX (DC, regime, insight); không thuộc trục chính | |
 | `backend/db/` | `data_layout.py` (đường dẫn), `local_pkl.py`, `tick_storage.py`, `models.py`, `mysql.py`, `mongo.py` | |
-| `backend/optimize/` | `registry.py` (kho alpha, cấu hình testnet), `book_export.py` (book + publish), `generator.py`, `ranker.py`, `runner.py` | |
-| `backend/wfa/` | `walk_forward.py` (đơn tài sản), `portfolio_wfa.py` (danh mục) | |
+| `backend/optimize/` | `registry.py` (kho alpha, cấu hình testnet), `book_export.py` (book + publish), `generator.py`, `ranker.py`, `runner.py`, `results_store.py`/`stream.py`/`progress.py`; lệnh `build_strategy_book`, `optimize_alphas`, `run_funnel`, `build_presets`, `build_alpha_registry`, `portfolio_sizing`, `robustness_check`; `funnel/` (phễu S0–FINAL) | |
+| `backend/wfa/` | `walk_forward.py` (đơn tài sản), `portfolio_wfa.py` (danh mục), lệnh `validate_book` | |
 | `backend/carlo/` | `monte_carlo.py` | |
 | `backend/utils/` | `lru.py`, `parallel.py`, `memwatch.py`, `jsonsafe.py`, `jobresult.py` | |
-| `backend/cli/` | CLI nghiệp vụ `python -m backend.cli.<tên>` (xem §8, §12) | |
-| `backend/ops/` | `run_limited.sh`, `install_user_units.sh`, `check_tests_vs_ref.sh`, `systemd/` | |
+| `backend/utils/ops/` | `run_limited.sh`, `install_user_units.sh`, `check_tests_vs_ref.sh`, `systemd/` | |
 | `test/` | pytest, `golden_scenarios.py`, `make_golden.py`, `golden/*.json` | |
 | `data/` | dữ liệu và cache; chỉ `data/alphas/` được commit | |
 | `frontend/` | Vite + React SPA, cổng dev 18011, proxy `/api` tới 18010 | |
@@ -103,7 +102,7 @@ WARNING với dữ liệu CEX đã kiểm checksum (sự kiện thật, ví dụ
 Kết quả cache trong tiến trình, khoá theo `(mtime_ns, size)` của mọi file tài sản (`test_gate_cache_invalidates_on_file_change`).
 
 **Nơi gate được gọi:** `api/routers/studio.py` (`/simulate`), `api/jobs/scan.py`, `wfa/walk_forward.py` (`execute_wfa_pipeline`),
-`core/research/market_analyzer.py`, `market_health.py`, `cli/promote_staging.py`.
+`core/research/market_analyzer.py`, `market_health.py`, `core/data/promote_staging.py`.
 **Cổng bắt buộc cho đường sổ chiến lược (E12.1):** `require_data_ok(symbols)` (cũng `require_data_ok_or_exit` cho CLI) trong `quality_gate.py` ném
 `DataQualityError` (tiếng Việt, liệt kê từng tài sản) khi BLOCKED / NEEDS_MORE_DATA; WARNING chạy tiếp và ghi log. Được gọi ở: `PortfolioEngine.load_data`
 (mỗi tài sản, dùng cache của gate), đầu `main` của `build_strategy_book`, `validate_book`, `run_book_backtest`, `make_mock_feeds`, và `optimize_alphas`
@@ -315,16 +314,16 @@ Báo cáo `report.json` có `folds[]`, `summary` (= `aggregate`), `gate`, `mc` (
   Checks: `wfa_gate`, `mc_ruin_le_5`, `holdout_profit` (> 0), `holdout_mdd_le_30`, `holdout_trades` (≥ 10; 5 cho DEX), `leverage_le_10`.
 - **Cửa sổ sổ chiến lược** (`build_strategy_book.windows`): `start = max(start_ts các tài sản) + 20 ngày`, `dev1_end = +40%`, `dev2_end = +80%`, `end = min(end_ts)`.
   Book hiện hành: 2023-10-20 → 2024-12-24 → 2026-02-27 → 2026-09-30.
-- **Kiểm độ bền** (`cli/robustness_check.py`): đổi từng tham số sang mức kề bên (cần phần lớn lân cận vẫn lãi ở dev2 và holdout) và chuyển tài sản (giữ tham số). Lưu `robustness_<space>__<SYM>.json`,
+- **Kiểm độ bền** (`optimize/robustness_check.py`): đổi từng tham số sang mức kề bên (cần phần lớn lân cận vẫn lãi ở dev2 và holdout) và chuyển tài sản (giữ tham số). Lưu `robustness_<space>__<SYM>.json`,
   `build_alpha_registry` gắn vào mục `robustness`.
 - **Kiểm null:** `test/test_research_null.py::test_limit_scalp_has_no_edge_on_random_walk` và `test_pipeline_regression::test_random_walk_falsification`: bộ quét phải ra không có edge trên random walk.
-- **Hệ số vốn** (`cli/portfolio_sizing.py`): chạy alpha ngoài mẫu, bootstrap khối 5 ngày, tìm hệ số lớn nhất sao cho `P(MDD ≥ 30%) ≤ 5%`. SOL: 0,75x (level), 0,5x (extreme).
+- **Hệ số vốn** (`optimize/portfolio_sizing.py`): chạy alpha ngoài mẫu, bootstrap khối 5 ngày, tìm hệ số lớn nhất sao cho `P(MDD ≥ 30%) ≤ 5%`. SOL: 0,75x (level), 0,5x (extreme).
 
 ## 8. Đường ống alpha và sổ chiến lược
 
 ### 8.1 `optimize_alphas` (alpha đơn tài sản)
 
-`backend/cli/optimize_alphas.py`, đối số: `--spaces`, `--assets`, `--n` (60), `--seed` (20260930), `--workers auto`. Mỗi cặp (không gian × tài sản) chạy trong một tiến trình, `PER_PAIR_MB = 900` (chưa đo lại).
+`backend/optimize/optimize_alphas.py`, đối số: `--spaces`, `--assets`, `--n` (60), `--seed` (20260930), `--workers auto`. Mỗi cặp (không gian × tài sản) chạy trong một tiến trình, `PER_PAIR_MB = 900` (chưa đo lại).
 1. **Sàng lọc dev1:** lấy mẫu `n` cấu hình hợp lệ (đã loại tổ hợp vi phạm ngân sách DCA), giữ cấu hình lãi > 0, MDD ≤ 30%, đủ lệnh (30; 15 DEX); điểm = `lãi / max(MDD, 5)`; top-8 (`TOP_K`).
 2. **WFA dev2** (§7.1): fold test đầu tiên bắt đầu đúng tại cuối dev1.
 3. **Monte Carlo ngày** trên chuỗi lợi suất ngày OOS (§7.3; horizon = số ngày OOS).
@@ -333,7 +332,7 @@ Báo cáo `report.json` có `folds[]`, `summary` (= `aggregate`), `gate`, `mc` (
 
 ### 8.2 `build_strategy_book` (sổ nhiều chiến lược)
 
-`backend/cli/build_strategy_book.py`; vũ trụ 8 perp, rủi ro chuẩn 0,5%/lệnh, kill switch tắt khi chọn tham số (`eval_risk`).
+`backend/optimize/build_strategy_book.py`; vũ trụ 8 perp, rủi ro chuẩn 0,5%/lệnh, kill switch tắt khi chọn tham số (`eval_risk`).
 - **A. dev1:** mỗi chiến lược thử `n` cấu hình (24 mặc định, seed 7) trên cả vũ trụ. Đạt khi `trades ≥ 40`, `symbols_positive ≥ 5/8`, lãi > 0, `MDD ≤ 30%`; điểm `lãi/max(MDD,1)`; giữ top-3. Mỗi chiến lược một pool riêng (pool đóng thì RAM trả hết).
 - **B. dev2:** cấu hình top-1 phải lãi với SL "level" **và** "extreme", MDD ≤ 30%, đủ lệnh, `≥ 4/8` tài sản có lãi. Top-2, top-3 chỉ đo độ ổn định (`stability = "k/m"`).
 - **C. sổ:** các chiến lược đạt chạy chung với `RISK` thật. Bootstrap ngày trên dev2 (`extreme`) cho `RISK_SCALES = 0,25..4,0`; rủi ro/lệnh cuối = `0,5% × hệ số lớn nhất có P(MDD ≥ 30%) ≤ 5%`, trần `MAX_RISK_PER_TRADE = 2,0%`.
@@ -369,13 +368,13 @@ Một lần WFA danh mục khác của hai chiến lược này (`data/_cache/bo
 ## 9. Job nền
 
 `backend/api/jobs/batch.py`. API (cấp RAM 3 GB) **không** chạy backtest/WFA nặng trong tiến trình; mỗi job là tiến trình con
-`backend/ops/run_limited.sh -- -m backend.cli.<module> <cờ...>` (không shell: danh sách đối số đi thẳng vào `Popen`).
+`backend/utils/ops/run_limited.sh -- -m backend.<gói>.<lệnh> <cờ...>` (không shell: danh sách đối số đi thẳng vào `Popen`).
 
 | `kind` | Module | Cờ cho phép |
 |---|---|---|
-| `book_backtest` | `backend.cli.run_book_backtest` | `--book --strategies --symbols --start --end --risk-per-trade --stop-fill` |
-| `book_wfa` | `backend.cli.validate_book` | `--report --include-rejected --candidates --strategies-json --symbols --n --start --end --train-days --test-days --risk-per-trade --workers` |
-| `book_build` | `backend.cli.build_strategy_book` | `--only --n --workers --keep-top --force-large` (và `--out <job_dir>/alphas` do `launch` tự thêm; client không đặt được) |
+| `book_backtest` | `backend.core.backtest.run_book_backtest` | `--book --strategies --symbols --start --end --risk-per-trade --stop-fill` |
+| `book_wfa` | `backend.wfa.validate_book` | `--report --include-rejected --candidates --strategies-json --symbols --n --start --end --train-days --test-days --risk-per-trade --workers` |
+| `book_build` | `backend.optimize.build_strategy_book` | `--only --n --workers --keep-top --force-large` (và `--out <job_dir>/alphas` do `launch` tự thêm; client không đặt được) |
 
 - Thư mục job `data/_cache/api_jobs/<job_id>/`: `job.json` (loại, đối số, pid, created/started/finished, state, exit_code), `out.log` (stdout+stderr), `result.json` (script ghi khi có `NORA_JOB_DIR`), `alphas/` (chỉ `book_build`).
   `job_id = YYYYMMDD_HHMMSS_<6 hex>` (regex kiểm chặt).
@@ -415,7 +414,7 @@ cần MySQL của hệ thống cũ, chỉ đọc. Các route này không nằm t
 
 `core/analytics/portfolio_dashboard.py` dựng payload từ kết quả `book_backtest` (hàm thuần, test được): NAV ngày MTM, lợi suất ngày, Sharpe/Sortino/Calmar quy năm bằng √365,
 VaR/CVaR lịch sử 95%, phân phối, bảng tháng, rolling Sharpe 63 ngày, exposure/margin, bảng chiến lược (realised), sự kiện rủi ro (MDD chạm 50%/80% hạn mức kill switch).
-`core/analytics/feeds.py`: `BacktestFeed`, `MockFeed` (đọc `data/_cache/mock_feeds/{live,testnet}.json` do `backend/cli/make_mock_feeds.py` sinh, tất định),
+`core/analytics/feeds.py`: `BacktestFeed`, `MockFeed` (đọc `data/_cache/mock_feeds/{live,testnet}.json` do `backend/core/analytics/make_mock_feeds.py` sinh, tất định),
 `LiveFeed`/`TestnetFeed` (stub, luôn `NotAvailable`). `get_snapshot(kind)`: feed thật nếu có, không thì feed giả lập (`mock: true`, `mock_note`), thiếu file giả lập thì `available: false`.
 Kết quả đệm LRU 32 mục theo `(nguồn/job_id, period, mtime)`. Khi nối tài khoản thật chỉ cần cài `LiveFeed.fetch()`/`TestnetFeed.fetch()`; router và UI không đổi.
 
@@ -438,9 +437,9 @@ Bundle hiện là một file JS ≈ 583 KB chưa nén (đo `ls -la frontend/dist
 
 | Hạng mục | Cấu hình | Nguồn |
 |---|---|---|
-| Ngân sách RAM chung | `nora.slice`: `MemoryMax=12G`, `MemoryHigh=10800M` (90%), `MemorySwapMax=0`, `TasksMax=512` | `backend/ops/systemd/nora.slice` |
+| Ngân sách RAM chung | `nora.slice`: `MemoryMax=12G`, `MemoryHigh=10800M` (90%), `MemorySwapMax=0`, `TasksMax=512` | `backend/utils/ops/systemd/nora.slice` |
 | API | unit user `nora-api.service` trong slice: `MemoryMax=3G`, `MemoryHigh=2700M`, `CPUAffinity=0-13`, `Nice=5`, `Restart=on-failure`, cổng 18010, `NORA_CANDLE_CACHE_MB=512`, `NORA_DATA_CACHE_MB=512`, BLAS 1 luồng, `EnvironmentFile=-%h/.config/nora/nora.env` | `systemd/nora-api.service.in` |
-| Job nặng | `run_limited.sh`: `systemd-run --user --scope --slice=nora.slice` + `taskset -c 0-13` + `nice -n 10`; tuỳ chọn `--mem`, `--cpus`, `--log`, `--no-wait` (thoát 75), `--no-lock`; thoát 137/9 thì báo có thể do OOM | `backend/ops/run_limited.sh` |
+| Job nặng | `run_limited.sh`: `systemd-run --user --scope --slice=nora.slice` + `taskset -c 0-13` + `nice -n 10`; tuỳ chọn `--mem`, `--cpus`, `--log`, `--no-wait` (thoát 75), `--no-lock`; thoát 137/9 thì báo có thể do OOM | `backend/utils/ops/run_limited.sh` |
 | Hàng đợi | `flock` trên `${XDG_RUNTIME_DIR:-/tmp}/nora-heavy.lock`: job nặng xếp hàng từng cái | như trên |
 | Log RAM | mỗi giây `epoch,current_mb` → `data/_cache/runs/<ts>_mem.csv`; in đỉnh `[run_limited] peak RAM X MB / limit ... | exit N` | như trên |
 | Dự phòng cho máy | `planning_budget_mb() = min(85% × phần trống cgroup, MemAvailable − NORA_HOST_RESERVE_MB)`; `NORA_HOST_RESERVE_MB` mặc định **8000**; không cgroup: 60% MemAvailable | `backend/utils/memwatch.py` |
@@ -450,19 +449,19 @@ Bundle hiện là một file JS ≈ 583 KB chưa nén (đo `ls -la frontend/dist
 | Cổng RAM | `check_memory_gate(required)` ném lỗi nếu ngân sách hiện tại < `workers × per_worker_mb`; `require_memory_limit` bắt buộc cgroup (trừ `NORA_ALLOW_UNLIMITED=1`) | `utils/memwatch.py` |
 | Cache | `NORA_CANDLE_CACHE_MB` (1024, script đặt 512), `NORA_DATA_CACHE_MB` (1500, script đặt 1024); xả giữa các cặp/chiến lược | `loader.py`, `portfolio.py` |
 | Môi trường | Python 3.11, venv `~/.venvs/nora` (`uv venv -p 3.11`), `requirements.txt` ghim: pandas 2.3.3, numpy 2.4.6, pyarrow 25.0.1, pydantic 2.13.5, fastapi 0.142.2, starlette 1.7.0, uvicorn 0.54.0, pymongo, pymysql, redis, requests, pytest 9.1.1, httpx 0.28.1; `numba` tuỳ chọn | `requirements.txt` |
-| Cài đặt | `backend/ops/install_user_units.sh` (idempotent, không enable/start); `./start_nora.sh` ở gốc repo cài unit nếu thiếu, build UI nếu thiếu `dist`, rồi `systemctl --user restart nora-api` | `backend/ops/`, `start_nora.sh` |
+| Cài đặt | `backend/utils/ops/install_user_units.sh` (idempotent, không enable/start); `./start_nora.sh` ở gốc repo cài unit nếu thiếu, build UI nếu thiếu `dist`, rồi `systemctl --user restart nora-api` | `backend/utils/ops/`, `start_nora.sh` |
 
 Hằng số gate nằm đúng một nơi cho mỗi đường ống (§7, §8): sửa gate phải sửa hằng số đó và test tương ứng.
 
 ## 13. Kiểm thử
 
-- Chạy: `backend/ops/run_limited.sh -- -m pytest test -q -p no:cacheprovider` (từ `nora/`). `pytest.ini` ở gốc repo: `testpaths = nora/test tests`. `test/conftest.py` cô lập DB và data root (`NORA_PIPELINE_DB_PATH`, `NORA_LOCAL_DATA_ROOT` trong thư mục tạm).
+- Chạy: `backend/utils/ops/run_limited.sh -- -m pytest test -q -p no:cacheprovider` (từ `nora/`). `pytest.ini` ở gốc repo: `testpaths = nora/test tests`. `test/conftest.py` cô lập DB và data root (`NORA_PIPELINE_DB_PATH`, `NORA_LOCAL_DATA_ROOT` trong thư mục tạm).
 - **Số lượng:** 440 test qua tại `a3202c9` (báo cáo commit); đếm tĩnh có 303 hàm `test_*` trong 33 file (chênh vì tham số hoá). Cây làm việc hiện có thay đổi chưa commit ở `test_portfolio_dashboard.py` và `test_portfolio_engine.py`, nên số hiện tại có thể khác. `requirements.txt` còn ghi "265 test" (lỗi thời).
   Lịch sử (từ message commit): 258 (`407f51f`) → 265 (`836103b`) → 271 (`030c7f9`) → 285 (`b179f2b`) → 313 (`edb26f4`) → 316 (`06ae13b`) → 323 (`935d4d1`) → 351 (`2d4698f`) → 358 (`45f734e`) → 427 (`efe4fb2`) → 430 (`876ce9e`, `6d35c0d`, `4e8dd61`) → 440 (`a3202c9`).
 - **Golden bit-identical:** `test/golden_scenarios.py` chạy engine và chuẩn hoá mọi float bằng `float.hex()`; 3 kịch bản (`portfolio_synthetic`, `single_dca_filled`, `portfolio_real` trên BTC/SOL/DOGE perp, ghim `cooldown=0`) + 1 test chứng minh phép so sánh bắt được xáo trộn 1 bit
-  (`test_golden_comparison_detects_one_bit_perturbation`). Snapshot `test/golden/*.json`; sinh lại bằng `backend/ops/run_limited.sh -- test/make_golden.py` **chỉ khi chủ đích đổi ngữ nghĩa backtest**. Mọi thay đổi hiệu năng/tái cấu trúc phải để golden không đổi.
-- **Smoke:** `backend/cli/smoke_check.py` (`single`, `portfolio`, `studio`, `optcheck`): bất biến sổ vốn, DCA, rủi ro theo SL, trần danh nghĩa/đòn bẩy, trần danh mục; chạy hai lần xoá cache để kiểm tất định. Kết quả gần nhất ghi trong commit: "0 FAIL" (`6d35c0d`, `4e8dd61`).
-- **Đối chiếu lỗi cũ:** `backend/ops/check_tests_vs_ref.sh <git-ref>` chạy test hiện tại trên code ở ref cũ (ref phải từ `6d35c0d` trở đi vì đường import đã đổi).
+  (`test_golden_comparison_detects_one_bit_perturbation`). Snapshot `test/golden/*.json`; sinh lại bằng `backend/utils/ops/run_limited.sh -- test/make_golden.py` **chỉ khi chủ đích đổi ngữ nghĩa backtest**. Mọi thay đổi hiệu năng/tái cấu trúc phải để golden không đổi.
+- **Smoke:** `backend/core/backtest/smoke_check.py` (`single`, `portfolio`, `studio`, `optcheck`): bất biến sổ vốn, DCA, rủi ro theo SL, trần danh nghĩa/đòn bẩy, trần danh mục; chạy hai lần xoá cache để kiểm tất định. Kết quả gần nhất ghi trong commit: "0 FAIL" (`6d35c0d`, `4e8dd61`).
+- **Đối chiếu lỗi cũ:** `backend/utils/ops/check_tests_vs_ref.sh <git-ref>` chạy test hiện tại trên code ở ref cũ (ref phải từ `6d35c0d` trở đi vì đường import đã đổi).
 
 | Nhóm test | File chính |
 |---|---|

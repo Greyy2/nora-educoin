@@ -582,7 +582,7 @@ def test_check_wfa_strategies_accepts_schema_keys_and_choices():
 
 def test_validate_book_candidates_from_json_accepts_schema_keys(tmp_path):
     import importlib
-    vb = importlib.import_module("backend.cli.validate_book")
+    vb = importlib.import_module("backend.wfa.validate_book")
     p = tmp_path / "s.json"
     p.write_text(json.dumps([{"id": "trend_long", "configs": [{"sig.ema_fast": 20, "sig.trend_tf": "4h"}]}]))
     assert vb.candidates_from_json(str(p))[0]["configs"][0]["sig.trend_tf"] == "4h"

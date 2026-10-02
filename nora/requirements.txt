@@ -1,7 +1,7 @@
 # Môi trường Python của Nora (đã kiểm 01/10/2026: 265 test qua, chạy trong nora.slice).
 # Tạo venv:  uv venv -p 3.11 /home/vmc03/.venvs/nora
 #            uv pip install -p /home/vmc03/.venvs/nora/bin/python -r nora/requirements.txt
-# Chạy từ thư mục nora/: backend/ops/run_limited.sh -- -m pytest test -q  |  -m backend.cli.<tên> (xem backend/ops/README.md)
+# Chạy từ thư mục nora/: backend/utils/ops/run_limited.sh -- -m pytest test -q  |  -m backend.<gói>.<lệnh> (xem backend/utils/ops/README.md)
 # numba là tuỳ chọn (backend/core/strategy/directional_change.py tự chạy không cần numba).
 pandas==2.3.3
 numpy==2.4.6
