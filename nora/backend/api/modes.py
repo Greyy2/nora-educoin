@@ -1,4 +1,4 @@
-"""Chế độ chạy Cơ bản / Nâng cao cho backtest, WFA, Monte Carlo (lớp API; logic kiểm tham số ở backend/core/strategy/run_modes.py).
+"""Chế độ chạy Cơ bản / Nâng cao cho backtest, WFA, Monte Carlo (lớp API; logic kiểm tham số ở backend/core/params/modes.py).
 
 basic     MÁY CHỦ bỏ qua tham số do client gửi, dùng preset (data/alphas/presets.json) của các chiến lược được chọn (tối đa 7);
           WFA fold mặc định 120/30 và gate chuẩn; MC 10.000 kịch bản + đủ 6 kịch bản cực xấu + gate chuẩn.
@@ -13,9 +13,9 @@ from typing import Any, Dict, List, Optional, Tuple
 from fastapi import HTTPException
 
 from backend.api.jobs import batch as batch_jobs
-from backend.core.strategy import presets as presets_mod
-from backend.core.strategy import run_modes as rm
-from backend.core.strategy.strategy_book import BASE_RISK_PER_TRADE_PCT, CANDIDATES
+from backend.core.params import presets as presets_mod
+from backend.core.params import modes as rm
+from backend.core.strategy.book import BASE_RISK_PER_TRADE_PCT, CANDIDATES
 
 BY_ID = {c["id"]: c for c in CANDIDATES}
 

@@ -13,7 +13,7 @@ cấu hình chỉ thắng nhờ một tài sản sẽ bị loại bởi điều 
 """
 from typing import Any, Dict, List
 
-from backend.core.strategy.strategy_library import cond, f, p
+from backend.core.strategy.library import cond, f, p
 
 UNIVERSE = ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA", "AVAX"]
 MAX_LEVERAGE = 10
@@ -216,14 +216,14 @@ def schema_defaults(candidate: Dict[str, Any], group: str = None) -> Dict[str, A
 
 def signal_defaults(candidate: Dict[str, Any]) -> Dict[str, Any]:
     """Mặc định tham số tín hiệu KHÔNG tiền tố "sig." (dùng thay các `{tên}` trong cây khi thiếu giá trị)."""
-    from backend.core.strategy.params_template import SIG_PREFIX
+    from backend.core.params.template import SIG_PREFIX
     return {k[len(SIG_PREFIX):]: v for k, v in schema_defaults(candidate, "signal").items()}
 
 
 def materialize(candidate: Dict[str, Any], params: Dict[str, Any], **position_overrides) -> Dict[str, Any]:
     """Chiến lược cụ thể cho PortfolioEngine: thay ngưỡng/chu kỳ/khung tín hiệu, ghép tham số vị thế.
     `signal_params` trả về chỉ gồm tham số tín hiệu được truyền vào (không gồm mặc định) — như trước."""
-    from backend.core.strategy.params_template import resolve_placeholders, split_params
+    from backend.core.params.template import resolve_placeholders, split_params
     signal, position = split_params(dict(params))
     return {
         "id": candidate["id"], "side": candidate["side"],

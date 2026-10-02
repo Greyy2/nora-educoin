@@ -59,7 +59,7 @@ def _load_script(name):
 
 
 def _small_book(monkeypatch):
-    from backend.core.strategy import strategy_book as sb
+    from backend.core.strategy import book as sb
     f = sb.f
     cands = [
         {"id": "t_long", "family": "x", "side": "LONG", "description": "test",

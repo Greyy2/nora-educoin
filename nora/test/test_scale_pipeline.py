@@ -240,7 +240,7 @@ def test_iter_configs_same_sequence_as_old_configs(n, seed):
 
 def test_iter_configs_real_candidate_spaces_and_huge_space_is_lazy():
     bsb = _load_script("build_strategy_book")
-    from backend.core.strategy.strategy_book import CANDIDATES
+    from backend.core.strategy.book import CANDIDATES
     for c in CANDIDATES:
         assert list(bsb.iter_configs(c, 24, 7)) == _old_configs(c, 24, 7)
     huge = {"space": {f"k{i}": list(range(10)) for i in range(40)}}                   # 10^40 tổ hợp (> 2^63): không dựng lưới
@@ -471,7 +471,7 @@ def test_validate_book_max_configs(market, monkeypatch):
 
 # ─── 12.3 resume optimize_alphas (sàng lọc theo cấu hình + cặp) ─────────────
 def _oa_space(sb, market="perp"):
-    from backend.core.strategy.strategy_library import cond, f, p
+    from backend.core.strategy.library import cond, f, p
     return {"id": "t_space", "venue": "cex", "side": "LONG", "tree": cond((f("15m", "rsi_14"), "<", p("lo", 40))),
             "fixed": {"market": market, "leverage": 2, "order_size_pct": 50, "take_profit_rate": 2.0, "stop_loss_rate": 2.0},
             "space": {"sig.lo": [25, 30, 35, 40, 45, 50], "trailing_stop": [1.0, 2.0, 3.0]}}

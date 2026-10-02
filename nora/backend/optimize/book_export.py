@@ -24,7 +24,7 @@ def _is_true(v) -> bool:
 
 
 def build_book(report: Dict[str, Any], source: str, repo_dir: str = None) -> Dict[str, Any]:
-    from backend.core.strategy.strategy_book import CANDIDATES, UNIVERSE, materialize
+    from backend.core.strategy.book import CANDIDATES, UNIVERSE, materialize
     book = report["book"]
     holdout_pass = _is_true(book.get("holdout_pass"))
     by_id = {c["id"]: c for c in CANDIDATES}

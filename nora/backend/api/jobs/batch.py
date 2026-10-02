@@ -92,7 +92,7 @@ def check_date(value: str) -> str:
 
 def check_symbols(symbols: List[str]) -> List[str]:
     """Chuẩn hoá 'BTC' / 'BTC@perp' -> 'BTC@perp'; chỉ nhận tài sản trong vũ trụ của sổ chiến lược."""
-    from backend.core.strategy.strategy_book import UNIVERSE
+    from backend.core.strategy.book import UNIVERSE
     out = []
     for s in symbols:
         base = str(s).split("@")[0].upper()
@@ -104,7 +104,7 @@ def check_symbols(symbols: List[str]) -> List[str]:
 
 
 def check_candidate_ids(ids: List[str]) -> List[str]:
-    from backend.core.strategy.strategy_book import CANDIDATES
+    from backend.core.strategy.book import CANDIDATES
     known = {c["id"] for c in CANDIDATES}
     bad = [i for i in ids if i not in known]
     if bad:
@@ -138,7 +138,7 @@ def check_report_dir(report_dir: str) -> str:
 def check_wfa_strategies(items: Any) -> List[Dict[str, Any]]:
     """[{"id", "configs": [{tham số: giá trị}]}] do người dùng chọn: id thuộc thư viện; khoá thuộc `space` hoặc `params_schema` của ứng viên;
     giá trị là số hữu hạn, riêng khoá kiểu "choice" (khung thời gian) là chuỗi nằm trong danh sách lựa chọn."""
-    from backend.core.strategy.strategy_book import CANDIDATES
+    from backend.core.strategy.book import CANDIDATES
     by_id = {c["id"]: c for c in CANDIDATES}
     if not isinstance(items, list) or not items or len(items) > MAX_WFA_STRATEGIES:
         raise JobError(f"strategies phải là danh sách 1..{MAX_WFA_STRATEGIES} chiến lược")

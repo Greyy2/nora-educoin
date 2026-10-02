@@ -2,34 +2,34 @@
 
 Mọi hàm `w_*` là hàm cấp module (pickle được qua ProcessPoolExecutor), nhận một dict `job` thuần dữ liệu và trả dict thuần dữ liệu.
 Máy chạy là PortfolioEngine DÙNG LẠI (cùng đường với build_strategy_book giai đoạn A / validate_book): không có logic mô phỏng riêng ở đây.
-Dữ liệu giá + kernel đọc qua mmap dùng chung (backend/core/backtest/shared_data.py) khi `shared_dir` có đặt; không thì tự dựng (cùng kết quả từng bit).
+Dữ liệu giá + kernel đọc qua mmap dùng chung (backend/core/data/shared.py) khi `shared_dir` có đặt; không thì tự dựng (cùng kết quả từng bit).
 """
 import contextlib
 import io
-import math
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 
 from . import gates, sizing
-from .antiluck import daily_stats, sortino_annual
+from backend.core.metrics.portfolio import series_metrics
+from backend.core.metrics.returns import daily_stats, sortino_annual
+from backend.core.metrics.trades import trade_rows, trade_stats
 
 DAY = 86_400_000
-PF_CAP = 99.0   # profit factor khi không có lệnh lỗ (tránh inf trong JSON/biểu đồ)
 
 
 # ── Engine ──────────────────────────────────────────────────────────────────
 def risk_dict(kill: bool) -> Dict[str, Any]:
     """Giới hạn danh mục của sổ (RISK); kill=False = đánh giá tham số (kill switch tắt, như build_strategy_book giai đoạn A/IS)."""
-    from backend.core.strategy.strategy_book import RISK
+    from backend.core.strategy.book import RISK
     return {**RISK, "kill_switch_dd_pct": RISK["kill_switch_dd_pct"] if kill else 0}
 
 
 def make_engine(job: Dict[str, Any]):
     """job: strategy, params, window [start, end], stop_fill, kill (bool), rpt, symbols, shared_dir."""
     from backend.core.backtest.portfolio import PortfolioEngine, RiskConfig
-    from backend.core.strategy import strategy_book as sb
+    from backend.core.strategy import book as sb
     by_id = {c["id"]: c for c in sb.CANDIDATES}
     start, end = job["window"]
     st = sb.materialize(by_id[job["strategy"]], job["params"], stop_fill=job["stop_fill"], risk_per_trade_pct=job["rpt"])
@@ -37,28 +37,9 @@ def make_engine(job: Dict[str, Any]):
                            risk=RiskConfig.from_dict(risk_dict(job["kill"])), shared_dir=job.get("shared_dir")), start
 
 
-def trade_rows(positions) -> List[Dict[str, Any]]:
-    return [{
-        "symbol": p.symbol, "side": p.pos_type.name, "enter_time": int(p.enter_time), "close_time": int(p.close_time),
-        "enter_price": float(p.enter_price), "close_price": float(p.close_price), "qty": float(p.qty),
-        "pnl_usd": float(p.real_pnl), "pnl_pct": float(p.profit_pct), "fees_usd": float(p.fees_usd or 0.0),
-        "funding_usd": float(p.funding_usd or 0.0), "status": p.status.name, "layers": int(p.layers or 0),
-        "mae_pct": float(p.mae_pct or 0.0),
-    } for p in positions]
-
-
-def trade_stats(rows: List[Dict[str, Any]]) -> Dict[str, float]:
-    pnl = np.asarray([r["pnl_usd"] for r in rows], dtype=float)
-    if pnl.size == 0:
-        return {"win_rate": 0.0, "profit_factor": 0.0}
-    gp, gl = float(pnl[pnl > 0].sum()), float(-pnl[pnl < 0].sum())
-    pf = gp / gl if gl > 0 else (PF_CAP if gp > 0 else 0.0)
-    return {"win_rate": round(float((pnl > 0).mean() * 100), 1), "profit_factor": round(min(pf, PF_CAP), 3)}
-
-
 def run_backtest(job: Dict[str, Any], want_trades: bool = False) -> Dict[str, Any]:
     """Một lần PortfolioEngine -> {"metrics", "daily", "daily_start", "trades"}. metrics = số đo phẳng của phễu (không gồm chuỗi ngày)."""
-    from backend.core.backtest.portfolio_metrics import portfolio_metrics
+    from backend.core.metrics.portfolio import portfolio_metrics
     eng, start = make_engine(job)
     with contextlib.redirect_stdout(io.StringIO()):
         eng.run()
@@ -82,31 +63,6 @@ def run_backtest(job: Dict[str, Any], want_trades: bool = False) -> Dict[str, An
 def base_job(strategy: str, params: Dict[str, Any], window, stop_fill: str, kill: bool, rpt: float, symbols, shared_dir) -> Dict[str, Any]:
     return {"strategy": strategy, "params": params, "window": [int(window[0]), int(window[1])], "stop_fill": stop_fill, "kill": kill,
             "rpt": rpt, "symbols": list(symbols), "shared_dir": shared_dir}
-
-
-# ── Chuỗi ngày / số đo ──────────────────────────────────────────────────────
-def equity_mdd_pct(daily) -> float:
-    d = np.asarray(daily, dtype=float)
-    if d.size == 0:
-        return 0.0
-    eq = np.cumprod(np.maximum(0.0, 1.0 + d))
-    peak = np.maximum.accumulate(np.r_[1.0, eq])[1:]
-    return float(((peak - eq) / peak).max() * 100.0)
-
-
-def series_metrics(daily, trades: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Số đo phẳng từ chuỗi ngày nối + danh sách lệnh (cho S3/S4/S5): lãi kép, MDD ngày, Sharpe/Sortino quy năm, lệnh, win rate, PF."""
-    d = np.asarray(daily, dtype=float)
-    sd = float(d.std(ddof=1)) if d.size > 1 else 0.0
-    return {"ret_pct": round(float((np.prod(1.0 + d) - 1.0) * 100), 2) if d.size else 0.0, "mdd_pct": round(equity_mdd_pct(d), 2),
-            "sharpe": round(float(d.mean() / sd * math.sqrt(365)), 2) if sd > 0 else 0.0, "sortino": round(sortino_annual(d), 2),
-            "trades": len(trades), **trade_stats(trades), "oos_days": int(d.size)}
-
-
-def nav_from_returns(rets, start_date: str, initial: float = gates.INITIAL_CAPITAL) -> Tuple[List[str], List[float]]:
-    d = np.asarray(rets, dtype=float)
-    dates = [f"{x:%Y-%m-%d}" for x in pd.date_range(start_date, periods=len(d), freq="D")]
-    return dates, [round(float(v), 2) for v in initial * np.cumprod(1.0 + d)]
 
 
 # ── Monte Carlo (DÙNG LẠI backend/carlo/monte_carlo.py) ─────────────────────
@@ -271,7 +227,7 @@ def w_holdout(job: Dict[str, Any]) -> Dict[str, Any]:
 
 # ── Xuất dữ liệu dùng chung (mmap) ──────────────────────────────────────────
 def _export_one(job: Dict[str, Any]) -> List[str]:
-    from backend.core.backtest import shared_data
+    from backend.core.data import shared as shared_data
     eng, _ = make_engine(job)
     info = shared_data.export(eng, job["shared_dir"])
     _release_memory()

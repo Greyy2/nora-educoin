@@ -200,7 +200,7 @@ def scenario_portfolio_synthetic(root) -> Dict[str, Any]:
 
 def scenario_single_dca_filled(root) -> Dict[str, Any]:
     from backend.core.backtest.engine import BacktestEngine
-    from backend.core.backtest.params_builder import build_params
+    from backend.core.params.builder import build_params
     from backend.core.data.resampler import save_resampled_dataset
     root = str(root)
     n = 25 * 1440
@@ -248,7 +248,7 @@ def real_data_available(data_root) -> bool:
 
 def scenario_portfolio_real(data_root, end: Optional[str] = None, shared_dir: Optional[str] = None) -> Dict[str, Any]:
     """shared_dir: nếu có, export dữ liệu mmap vào đó rồi chạy bằng PortfolioEngine(shared_dir=...) (kết quả phải y hệt)."""
-    from backend.core.strategy import strategy_book as sb
+    from backend.core.strategy import book as sb
     from backend.core.backtest.portfolio import PortfolioEngine, RiskConfig
     cand = {c["id"]: c for c in sb.CANDIDATES}
     # cooldown=0: snapshot này sinh trước khi BASE_POSITION có cooldown=60; ghim 0 để golden vẫn đo đúng ngữ nghĩa cũ
@@ -264,7 +264,7 @@ def scenario_portfolio_real(data_root, end: Optional[str] = None, shared_dir: Op
         eng = PortfolioEngine(REAL_SYMBOLS, strategies, REAL_START_MS - REAL_WARMUP_DAYS * DAY, end_ms,
                               trade_start_ts=REAL_START_MS, risk=risk, shared_dir=shared_dir)
         if shared_dir:
-            from backend.core.backtest import shared_data
+            from backend.core.data import shared as shared_data
             shared_data.export(eng, shared_dir)
             clear_caches()
         eng.run()

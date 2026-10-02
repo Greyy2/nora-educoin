@@ -482,3 +482,11 @@ def run_monte_carlo_daily_detail(
 
 # Alias for backward compatibility
 run_monte_carlo_simulation = run_monte_carlo
+
+
+def bootstrap_daily(daily, scale, n=10_000, block=5, horizon=365, seed=1):  # n = carlo.MC_MIN_SIMULATIONS
+    """Block bootstrap lợi suất ngày (nhân `scale` = hệ số rủi ro). Giữ khoá kết quả cũ của build_strategy_book."""
+    r = run_monte_carlo_daily(daily, simulations=n, block_days=block, horizon_days=horizon,
+                              ruin_threshold_pct=MC_RUIN_THRESHOLD_PCT, seed=seed, scale=scale)
+    return {"median_ret_pct": r["median_ret_pct"], "p05_ret_pct": r["p05_ret_pct"], "mdd_p95_pct": r["mdd_p95_pct"],
+            "p_mdd_ge_30_pct": r["p_mdd_ge_ruin_pct"]}

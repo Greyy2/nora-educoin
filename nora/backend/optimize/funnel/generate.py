@@ -71,9 +71,9 @@ def validate_alpha(candidate: Dict[str, Any], params: Dict[str, Any]) -> Optiona
     if not all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) for v in params.values()):
         return "mọi tham số phải là số hữu hạn"
     try:
-        from backend.core.backtest.params_builder import build_params
+        from backend.core.params.builder import build_params
         from backend.core.backtest.portfolio import _strategy_flow
-        from backend.core.strategy import strategy_book as sb
+        from backend.core.strategy import book as sb
         st = sb.materialize(candidate, params)
         if float(st["position"].get("leverage") or 1) > gates.S0_MAX_LEVERAGE:
             return f"đòn bẩy > {gates.S0_MAX_LEVERAGE}x"

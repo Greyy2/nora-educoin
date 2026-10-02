@@ -52,7 +52,7 @@ def test_default_params_match_run_book_backtest_mid_params():
     spec = importlib.util.spec_from_file_location("rbb", os.path.join(os.path.dirname(__file__), "..", "backend", "core", "backtest", "run_book_backtest.py"))
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    from backend.core.strategy.strategy_book import CANDIDATES
+    from backend.core.strategy.book import CANDIDATES
     for c in CANDIDATES:
         assert book_router.default_params(c["space"]) == mod._mid_params(c, {})
 

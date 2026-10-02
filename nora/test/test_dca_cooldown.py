@@ -14,10 +14,10 @@ import pandas as pd
 import pytest
 
 from backend.core.backtest.engine import BacktestEngine
-from backend.core.backtest.execution import PositionTracker
-from backend.core.backtest.params_builder import build_params, dca_budget_check, resolve_costs
-from backend.core.strategy.params import StrategyParams
-from backend.db.models import PositionType
+from backend.core.execute.tracker import PositionTracker
+from backend.core.params.builder import build_params, dca_budget_check, resolve_costs
+from backend.core.params.schema import StrategyParams
+from backend.core.execute.models import PositionType
 from test_signals_strategies import M, _engine, _ohlcv, _path
 
 SPOT = resolve_costs("cex", "spot", None, None)   # taker 0,10% / maker 0,10%
@@ -82,7 +82,7 @@ def test_build_params_rejects_over_budget_with_clear_message():
 
 
 def test_library_dca_bots_fit_budget():
-    from backend.core.strategy.strategy_library import KERNEL_STRATEGIES
+    from backend.core.strategy.library import KERNEL_STRATEGIES
     dca = [s for s in KERNEL_STRATEGIES if s["default_params"].get("dca_max_layers")]
     assert len(dca) == 3
     for s in dca:

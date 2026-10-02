@@ -36,7 +36,7 @@ def _git_revision(repo_dir: str) -> Dict[str, Any]:
 
 def build_registry(results: List[Dict[str, Any]], spaces: List[Dict[str, Any]], source: str,
                    repo_dir: Optional[str] = None, robustness: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    from backend.core.strategy.params_template import resolve_placeholders, split_params
+    from backend.core.params.template import resolve_placeholders, split_params
     from backend.db.local_pkl import read_manifest
 
     by_id = {s["id"]: s for s in spaces}

@@ -40,7 +40,7 @@ def _metrics(m: Any) -> Optional[Dict[str, Any]]:
 
 def _clean_params(candidate: Dict[str, Any], raw: Dict[str, Any]) -> Dict[str, Any]:
     """Mặc định schema, ghi đè bằng khoá của `raw` thuộc schema (khoá lạ bị bỏ)."""
-    from backend.core.strategy.strategy_book import schema_defaults
+    from backend.core.strategy.book import schema_defaults
     schema = candidate["params_schema"]
     params = dict(schema_defaults(candidate))
     for key, value in (raw or {}).items():
@@ -156,7 +156,7 @@ def from_build_runs(runs_dir: str, candidates: List[Dict[str, Any]], skip: set) 
 def build_presets(book: Optional[Dict[str, Any]] = None, runs_dir: Optional[str] = None,
                   use_book_file: bool = True) -> Dict[str, Any]:
     """Dựng bảng preset cho 7 chiến lược lõi. book=None -> đọc book.json hiện hành; runs_dir=None -> data/_cache/book/."""
-    from backend.core.strategy.strategy_book import CANDIDATES, schema_defaults
+    from backend.core.strategy.book import CANDIDATES, schema_defaults
     if book is None and use_book_file:
         book = _read_json(book_path())
     if runs_dir is None:
@@ -184,7 +184,7 @@ def write_presets(doc: Dict[str, Any], path: Optional[str] = None) -> str:
 def load_presets(path: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
     """{id: {params, source, source_kind, evidence}} cho MỌI chiến lược lõi. Đọc presets.json; chiến lược thiếu/hỏng -> mặc định schema
     (không ghi file). File được kiểm lại theo schema hiện hành (khoá lạ bỏ, thiếu thì điền mặc định)."""
-    from backend.core.strategy.strategy_book import CANDIDATES, schema_defaults
+    from backend.core.strategy.book import CANDIDATES, schema_defaults
     doc = _read_json(path or presets_path())
     stored = (doc or {}).get("presets") if isinstance(doc, dict) else None
     stored = stored if isinstance(stored, dict) else {}

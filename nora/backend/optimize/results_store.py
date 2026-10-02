@@ -40,10 +40,13 @@ CREATE INDEX IF NOT EXISTS results_ord ON results(stage, candidate, ord);
 CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT);
 """
 
-_CODE_FILES = (
-    "backend/core/backtest/portfolio.py", "backend/core/backtest/engine.py", "backend/core/backtest/execution.py",
-    "backend/core/backtest/portfolio_metrics.py", "backend/core/backtest/params_builder.py", "backend/core/backtest/shared_data.py",
-    "backend/core/signals/evaluator.py", "backend/core/strategy/strategy_book.py", "backend/wfa/walk_forward.py",
+_CODE_FILES = (   # mọi file ảnh hưởng kết quả backtest: đổi một file -> khoá job đổi -> --resume không dùng lại kết quả cũ
+    "backend/core/backtest/portfolio.py", "backend/core/backtest/engine.py",
+    "backend/core/execute/tracker.py", "backend/core/execute/ledger.py", "backend/core/execute/models.py",
+    "backend/core/metrics/portfolio.py", "backend/core/metrics/returns.py", "backend/core/metrics/trades.py",
+    "backend/core/params/builder.py", "backend/core/params/schema.py", "backend/core/params/template.py",
+    "backend/core/data/shared.py", "backend/core/signals/evaluator.py", "backend/core/signals/kernels.py",
+    "backend/core/strategy/book.py", "backend/core/strategy/library.py", "backend/wfa/walk_forward.py",
 )
 _CODE_VERSION: Optional[str] = None
 

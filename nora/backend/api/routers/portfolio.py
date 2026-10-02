@@ -1,6 +1,6 @@
 """API trang Danh mục (docs/ui_contract.md §3): GET /api/studio/portfolio/dashboard.
 
-Nguồn `backtest` đọc result.json của một job book_backtest đã xong (dựng bằng backend/core/analytics/portfolio_dashboard.py).
+Nguồn `backtest` đọc result.json của một job book_backtest đã xong (dựng bằng backend/core/analytics/dashboard.py).
 `live`/`testnet` đi qua feeds.get_snapshot: chưa có tài khoản thật -> dùng feed GIẢ LẬP (data/_cache/mock_feeds/<nguồn>.json, payload có
 "mock": true + "mock_note"); chưa có file giả lập -> {"available": false, "reason"} (HTTP 200). `paper` đã bỏ (422).
 Kết quả được đệm LRU theo (nguồn/job_id, period, mtime).
@@ -12,7 +12,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 
 from backend.core.analytics import feeds
-from backend.core.analytics import portfolio_dashboard as pd_mod
+from backend.core.analytics import dashboard as pd_mod
 from backend.api.jobs import batch as batch_jobs
 
 router = APIRouter(prefix="/api/studio/portfolio", tags=["portfolio"])

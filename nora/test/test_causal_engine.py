@@ -4,8 +4,8 @@ import pandas as pd
 from typing import Dict, Any
 
 from backend.core.backtest.engine import BacktestEngine
-from backend.core.strategy.params import StrategyParams
-from backend.db.models import PositionStatus, PositionType
+from backend.core.params.schema import StrategyParams
+from backend.core.execute.models import PositionStatus, PositionType
 
 
 def make_dummy_candles(n_minutes: int = 1440 * 10, seed: int = 42, warmup_days: int = 2):

@@ -41,7 +41,7 @@ def market(tmp_path, monkeypatch):
                                    requested_start_ts=T0, requested_end_ts=end, extra_meta={**meta, **extra})
         ft = T0 + np.arange(1, 70 * 3) * 8 * 3_600_000
         pd.DataFrame({"funding_time": ft, "interval_h": 8.0, "rate": 0.0001}).to_pickle(root / "cex" / sym / "perp" / "funding.pkl")
-    from backend.core.strategy import strategy_book as sb
+    from backend.core.strategy import book as sb
     f = sb.f
     monkeypatch.setattr(sb, "UNIVERSE", list(SYMS))
     monkeypatch.setattr(sb, "CANDIDATES", [
@@ -167,7 +167,7 @@ def test_make_mock_feed_keeps_open_positions_and_is_deterministic(market):
 
 def test_strategy_symbols_filter_restricts_markets(market):
     """Khoá "symbols" của chiến lược dựng sẵn (alpha trong kho) -> chỉ chạy trên các tài sản đó; mặc định vẫn là mọi tài sản."""
-    from backend.core.strategy import strategy_book as sb
+    from backend.core.strategy import book as sb
     mod = _load_script()
     cand = next(c for c in sb.CANDIDATES if c["id"] == "t_long")
     base = sb.materialize(cand, {"sig.lo": 45, "stop_loss_rate": 2.0, "take_profit_rate": 2.0, "timeout": 720})

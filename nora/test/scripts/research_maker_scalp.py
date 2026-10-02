@@ -50,7 +50,7 @@ SL_FILL = "extreme"
 
 
 def _signals():
-    from backend.core.strategy.strategy_library import cond, f
+    from backend.core.strategy.library import cond, f
     if SIGNAL_SET == "r2":
         up = (f("4h", "ema_50"), ">", f("4h", "ema_200"))
         rng = (f("1h", "er_20"), "<", 0.3)
@@ -90,7 +90,7 @@ def _signals():
 
 def _load(symbol):
     from backend.core.backtest.engine import BacktestEngine
-    from backend.core.backtest.params_builder import build_params
+    from backend.core.params.builder import build_params
     from backend.core.signals.evaluator import VectorEvaluator, lag_key
     from backend.db.local_pkl import read_manifest
     m = read_manifest(symbol)

@@ -1,0 +1,1 @@
+"""Tham số chiến lược: schema (StrategyParams), template ({tên} trong cây tín hiệu), builder (dựng StrategyParams + chi phí sàn + kiểm DCA), presets (bộ tốt nhất mỗi chiến lược), modes (Cơ bản/Nâng cao)."""

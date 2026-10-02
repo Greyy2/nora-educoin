@@ -4,25 +4,14 @@
 - bootstrap_daily: block bootstrap 1 năm trên lợi suất ngày (mỏng bọc run_monte_carlo_daily).
 Chuyển nguyên văn từ backend/optimize/build_strategy_book.py (metrics/bootstrap) — KHÔNG đổi hành vi, cùng RNG, cùng làm tròn.
 """
+import math
+from typing import Any, Dict, List
+
 import numpy as np
 import pandas as pd
 
-MDD_LIMIT = 30.0
-
-
-def daily_returns_from_curve(curve_rows, start_ts, initial_capital):
-    """Lợi suất ngày MTM (vốn đóng cửa mỗi ngày UTC) từ đường vốn `curve_rows` (list dict time/equity/...),
-    chỉ lấy điểm có time >= start_ts, nối từ vốn ban đầu. Dùng chung cho danh mục, WFA đơn tài sản và Monte Carlo ngày."""
-    curve = pd.DataFrame(curve_rows)
-    if curve.empty:
-        return []
-    curve = curve[curve["time"] >= start_ts]
-    if curve.empty:
-        return []
-    s = pd.Series(curve["equity"].to_numpy(), index=pd.to_datetime(curve["time"], unit="ms"))
-    daily = s.resample("1D").last().ffill()
-    daily = pd.concat([pd.Series([initial_capital], index=[daily.index[0] - pd.Timedelta(days=1)]), daily]).pct_change().dropna()
-    return [float(x) for x in daily.to_numpy()]
+from backend.core.metrics.returns import daily_returns_from_curve, equity_mdd_pct, sortino_annual
+from backend.core.metrics.trades import trade_stats
 
 
 def portfolio_metrics(res, start_ts):
@@ -51,10 +40,10 @@ def portfolio_metrics(res, start_ts):
     }
 
 
-def bootstrap_daily(daily, scale, n=10_000, block=5, horizon=365, seed=1):  # n = carlo.MC_MIN_SIMULATIONS
-    """Block bootstrap lợi suất ngày (nhân `scale` = hệ số rủi ro). Giữ khoá kết quả cũ của build_strategy_book."""
-    from backend.carlo.monte_carlo import run_monte_carlo_daily  # import muộn: tránh kéo pydantic vào worker
-    r = run_monte_carlo_daily(daily, simulations=n, block_days=block, horizon_days=horizon,
-                              ruin_threshold_pct=MDD_LIMIT, seed=seed, scale=scale)
-    return {"median_ret_pct": r["median_ret_pct"], "p05_ret_pct": r["p05_ret_pct"], "mdd_p95_pct": r["mdd_p95_pct"],
-            "p_mdd_ge_30_pct": r["p_mdd_ge_ruin_pct"]}
+def series_metrics(daily, trades: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Số đo phẳng từ chuỗi ngày nối + danh sách lệnh (cho S3/S4/S5): lãi kép, MDD ngày, Sharpe/Sortino quy năm, lệnh, win rate, PF."""
+    d = np.asarray(daily, dtype=float)
+    sd = float(d.std(ddof=1)) if d.size > 1 else 0.0
+    return {"ret_pct": round(float((np.prod(1.0 + d) - 1.0) * 100), 2) if d.size else 0.0, "mdd_pct": round(equity_mdd_pct(d), 2),
+            "sharpe": round(float(d.mean() / sd * math.sqrt(365)), 2) if sd > 0 else 0.0, "sortino": round(sortino_annual(d), 2),
+            "trades": len(trades), **trade_stats(trades), "oos_days": int(d.size)}

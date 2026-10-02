@@ -13,7 +13,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from backend.core.backtest.portfolio_metrics import daily_returns_from_curve, portfolio_metrics
+from backend.core.metrics.returns import daily_returns_from_curve
+from backend.core.metrics.portfolio import portfolio_metrics
 from backend.core.data.resampler import save_resampled_dataset
 from test_round3_completion import FLOW_1M, T0, D, _rw_1m
 

@@ -66,7 +66,7 @@ def git_info() -> Dict[str, Any]:
 
 
 def _candidates(strategies: List[str]) -> Dict[str, Dict[str, Any]]:
-    from backend.core.strategy import strategy_book as sb
+    from backend.core.strategy import book as sb
     by_id = {c["id"]: c for c in sb.CANDIDATES}
     bad = [s for s in strategies if s not in by_id]
     if bad:
@@ -486,7 +486,7 @@ def run_funnel(cfg: FunnelConfig, run_id: Optional[str] = None, workers: int = 0
                log: Callable[[str], None] = lambda s: print(s, flush=True), check_data: bool = True, max_alphas: int = MAX_ALPHAS_DEFAULT,
                ) -> Dict[str, Any]:
     """Chạy (hoặc chạy tiếp) một lượt phễu. workers = 0: tuần tự trong tiến trình (test); > 0: pool_imap_bounded. Trả tóm tắt (counts, run_dir...)."""
-    from backend.core.strategy import strategy_book as sb
+    from backend.core.strategy import book as sb
     from backend.optimize.results_store import data_fingerprint
     if until is not None and until not in gates.STAGE_IDX:
         raise ValueError(f"until phải thuộc {gates.STAGES}")

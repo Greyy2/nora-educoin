@@ -100,7 +100,7 @@ def check_signals(symbol: str, signals: Dict[str, Dict[str, Any]], start_ts: Opt
                   baseline_step: int = 7) -> Dict[str, Any]:
     """Kiểm tra nhiều tín hiệu trên một tài sản (nạp dữ liệu + tính kernel một lần)."""
     from backend.core.backtest.engine import BacktestEngine
-    from backend.core.backtest.params_builder import VENUE_COSTS, build_params, venue_of_symbol
+    from backend.core.params.builder import VENUE_COSTS, build_params, venue_of_symbol
     from backend.core.signals.evaluator import VectorEvaluator, lag_key
     from backend.db.local_pkl import read_manifest
 

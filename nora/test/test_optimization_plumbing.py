@@ -16,7 +16,7 @@ import pandas as pd
 import pytest
 from pydantic import ValidationError
 
-from backend.core.strategy.params_template import collect_placeholders, resolve_placeholders, split_params
+from backend.core.params.template import collect_placeholders, resolve_placeholders, split_params
 from backend.core.data.resampler import save_resampled_dataset
 
 T0 = 1_700_006_400_000
@@ -64,7 +64,7 @@ def perp_root(tmp_path, monkeypatch):
 
 
 def test_dex_uses_verified_pool_fee(tmp_path, monkeypatch):
-    from backend.core.backtest.params_builder import build_params
+    from backend.core.params.builder import build_params
     root = tmp_path / "data"
     monkeypatch.setenv("NORA_LOCAL_DATA_ROOT", str(root))
     df = _rw(35)

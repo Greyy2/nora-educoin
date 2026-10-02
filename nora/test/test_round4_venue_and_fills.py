@@ -67,7 +67,7 @@ def clean_asset(tmp_path, monkeypatch):
 
 def _engine_with(df_1m: pd.DataFrame, match_time: int):
     from backend.core.backtest.engine import BacktestEngine
-    from backend.core.strategy.params import StrategyParams
+    from backend.core.params.schema import StrategyParams
     df_4h = df_1m.assign(dt=pd.to_datetime(df_1m.open_time, unit="ms", utc=True)).set_index("dt").resample(
         "4h", closed="left", label="left").agg({"open_time": "first", "open": "first", "high": "max",
                                                 "low": "min", "close": "last", "volume": "sum"}).dropna().reset_index(drop=True)
@@ -151,7 +151,7 @@ def _kline_csv(rows):
 
 
 def test_parse_kline_csv_normalizes_microseconds_and_uses_quote_volume():
-    from backend.core.data.crawler.crawl_binance_klines import parse_kline_csv
+    from backend.core.data.crawler import parse_kline_csv
     ms, us = 1717200000000, 1785542400000000
     raw = b"open_time,open,high,low,close,volume,close_time,quote_volume,count,tbb,tbq,ignore\n" + _kline_csv([
         [ms, 1, 2, 0.5, 1.5, 10, ms + 59999, 15.0, 3, 1, 1, 0],
@@ -175,7 +175,7 @@ def _zip_bytes(csv: bytes) -> bytes:
 
 
 def test_fetch_vision_zip_rejects_bad_checksum(tmp_path, monkeypatch):
-    import backend.core.data.crawler.crawl_binance_klines as cb
+    import backend.core.data.crawler as cb
     payload = _zip_bytes(_kline_csv([[T0, 1, 1, 1, 1, 1, T0 + 59999, 1, 1, 1, 1, 0]]))
     monkeypatch.setattr(cb, "_http_get", lambda s, url, **k: _Resp(text="0" * 64 + "  f.zip") if url.endswith(".CHECKSUM") else _Resp(content=payload))
     with pytest.raises(cb.ChecksumMismatch):
@@ -184,7 +184,7 @@ def test_fetch_vision_zip_rejects_bad_checksum(tmp_path, monkeypatch):
 
 
 def test_fetch_vision_zip_ok_and_cached(tmp_path, monkeypatch):
-    import backend.core.data.crawler.crawl_binance_klines as cb
+    import backend.core.data.crawler as cb
     csv = _kline_csv([[T0, 1, 1, 1, 1, 1, T0 + 59999, 1, 1, 1, 1, 0]])
     payload = _zip_bytes(csv)
     good = hashlib.sha256(payload).hexdigest()
@@ -201,7 +201,7 @@ def test_fetch_vision_zip_ok_and_cached(tmp_path, monkeypatch):
 
 
 def test_binance_missing_month_marks_crawl_not_ok(tmp_path, monkeypatch):
-    import backend.core.data.crawler.crawl_binance_klines as cb
+    import backend.core.data.crawler as cb
     from backend.core.data.quality_gate import evaluate_data_quality
 
     def fake_zip(session, url, cache_dir):

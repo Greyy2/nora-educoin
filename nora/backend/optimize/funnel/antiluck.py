@@ -26,29 +26,6 @@ def norm_ppf(p: float) -> float:
     return _N01.inv_cdf(p)
 
 
-# ── Thống kê chuỗi ngày ─────────────────────────────────────────────────────
-def daily_stats(daily: Sequence[float]) -> Dict[str, Any]:
-    """Sharpe/độ lệch/kurtosis thô theo NGÀY của chuỗi lợi suất ngày (dùng cho DSR). Chuỗi < 3 ngày hoặc std = 0 -> sr = 0."""
-    d = np.asarray(daily, dtype=float)
-    n = int(d.size)
-    if n < 3:
-        return {"sr_daily": 0.0, "skew": 0.0, "kurt": 3.0, "n_days": n}
-    sd = float(d.std(ddof=1))
-    if not sd > 0:
-        return {"sr_daily": 0.0, "skew": 0.0, "kurt": 3.0, "n_days": n}
-    mu = float(d.mean())
-    z = (d - mu) / float(d.std(ddof=0))
-    return {"sr_daily": mu / sd, "skew": float((z ** 3).mean()), "kurt": float((z ** 4).mean()), "n_days": n}
-
-
-def sortino_annual(daily: Sequence[float]) -> float:
-    d = np.asarray(daily, dtype=float)
-    if d.size < 2:
-        return 0.0
-    dd = float(np.sqrt(np.mean(np.minimum(d, 0.0) ** 2)))
-    return float(d.mean() / dd * math.sqrt(365)) if dd > 0 else 0.0
-
-
 # ── DSR ─────────────────────────────────────────────────────────────────────
 def expected_max_sr(n_trials: int, sr_var: float) -> float:
     """SR0: kỳ vọng Sharpe lớn nhất của n_trials lần thử độc lập có phương sai Sharpe sr_var (theo ngày). n <= 1 -> 0."""

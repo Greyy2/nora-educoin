@@ -1,4 +1,4 @@
-"""Payload Danh mục (backend/core/analytics/portfolio_dashboard.py + GET /api/studio/portfolio/dashboard) trên đường vốn/lệnh giả lập.
+"""Payload Danh mục (backend/core/analytics/dashboard.py + GET /api/studio/portfolio/dashboard) trên đường vốn/lệnh giả lập.
 
 Chuỗi NAV dựng từ lợi suất ngày đã biết nên các số (drawdown, VaR, bảng tháng, cắt kỳ) kiểm được bằng tay.
 """
@@ -15,7 +15,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from backend.core.analytics import feeds
-from backend.core.analytics import portfolio_dashboard as pdash
+from backend.core.analytics import dashboard as pdash
 from backend.api.routers import portfolio as portfolio_router
 from backend.api.jobs import batch as batch_jobs
 

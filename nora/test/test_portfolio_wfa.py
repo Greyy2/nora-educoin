@@ -66,7 +66,7 @@ def _old_bootstrap(daily, scale, n=4000, block=5, horizon=365, seed=1, mdd_limit
 
 @pytest.mark.parametrize("scale", [0.25, 1.0, 3.0])
 def test_bootstrap_daily_identical_to_old_implementation(scale):
-    from backend.core.backtest.portfolio_metrics import bootstrap_daily
+    from backend.carlo.monte_carlo import bootstrap_daily
     from backend.carlo.monte_carlo import run_monte_carlo_daily
     daily = np.random.default_rng(3).normal(0.001, 0.02, 300)
     old = _old_bootstrap(daily, scale, n=500, seed=5)
@@ -79,9 +79,10 @@ def test_bootstrap_daily_identical_to_old_implementation(scale):
 
 
 def test_script_aliases_still_point_to_shared_metrics():
-    from backend.core.backtest import portfolio_metrics as pm
+    from backend.carlo.monte_carlo import bootstrap_daily
+    from backend.core.metrics.portfolio import portfolio_metrics
     mod = _load_script("build_strategy_book")
-    assert mod.metrics is pm.portfolio_metrics and mod.bootstrap is pm.bootstrap_daily
+    assert mod.metrics is portfolio_metrics and mod.bootstrap is bootstrap_daily
 
 
 # ── Bước 2: fold, OOS, không nhìn trước, tái lập ────────────────────────────
@@ -271,5 +272,5 @@ def test_validate_book_main_end_to_end(market, monkeypatch, tmp_path):
 def test_bootstrap_daily_default_sims_is_mc_minimum():
     import inspect
     from backend.carlo.monte_carlo import MC_MIN_SIMULATIONS
-    from backend.core.backtest.portfolio_metrics import bootstrap_daily
+    from backend.carlo.monte_carlo import bootstrap_daily
     assert inspect.signature(bootstrap_daily).parameters["n"].default == MC_MIN_SIMULATIONS

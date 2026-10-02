@@ -1,4 +1,4 @@
-"""Dữ liệu dùng chung qua mmap (backend/core/backtest/shared_data.py) phải BẰNG TỪNG BIT dữ liệu tự dựng,
+"""Dữ liệu dùng chung qua mmap (backend/core/data/shared.py) phải BẰNG TỪNG BIT dữ liệu tự dựng,
 và PortfolioEngine chạy với shared_dir cho kết quả chuẩn hoá y hệt khi không dùng nó."""
 import os
 
@@ -58,7 +58,7 @@ def _engine(**kw):
 
 
 def test_mmap_data_equals_built_data_bit_for_bit(market, tmp_path):
-    from backend.core.backtest import shared_data
+    from backend.core.data import shared as shared_data
     eng = _engine()
     out = tmp_path / "shared"
     info = shared_data.export(eng, str(out))
@@ -84,7 +84,7 @@ def test_mmap_data_equals_built_data_bit_for_bit(market, tmp_path):
 
 
 def test_key_changes_when_source_file_changes(market):
-    from backend.core.backtest import shared_data
+    from backend.core.data import shared as shared_data
     eng = _engine()
     e, _ = eng._make_trackers("AAA@perp", eng.ledger)
     k1 = eng._shared_key("AAA@perp", e)
@@ -97,7 +97,8 @@ def test_key_changes_when_source_file_changes(market):
 
 
 def test_run_with_shared_dir_matches_run_without(market, tmp_path, monkeypatch):
-    from backend.core.backtest import portfolio, shared_data
+    from backend.core.backtest import portfolio
+    from backend.core.data import shared as shared_data
     plain = _engine()
     plain.run()
     golden = gs.canonicalize(plain.get_results())

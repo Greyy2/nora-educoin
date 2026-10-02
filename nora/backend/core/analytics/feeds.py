@@ -1,6 +1,6 @@
 """Nguồn dữ liệu (feed) cho trang Danh mục (docs/ui_contract.md §3).
 
-Dashboard (`portfolio_dashboard.build_dashboard`) chỉ cần một dict dạng kết quả `book_backtest`:
+Dashboard (`dashboard.build_dashboard`) chỉ cần một dict dạng kết quả `book_backtest`:
   equity_curve / daily_nav (vốn MTM), trade_list (qty, notional, margin_usd), config (initial_capital, strategies, symbols, start, end, risk),
   by_strategy, halted_at, rejected_for_risk, và (tuỳ chọn) `positions` = vị thế đang mở.
 Mỗi feed trả `FeedSnapshot` gói dict đó cùng mô tả nguồn:

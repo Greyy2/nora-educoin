@@ -10,7 +10,7 @@ Người dùng có thể ghi đè fee_rate (taker) / maker_fee_rate / slippage_r
 """
 from typing import Any, Dict, Optional, Tuple
 
-from backend.core.strategy.params import StrategyParams
+from backend.core.params.schema import StrategyParams
 
 POSITION_KEYS = (
     "market", "leverage", "max_open_trades", "stop_loss_rate", "take_profit_rate", "trailing_stop",

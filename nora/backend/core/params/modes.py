@@ -75,9 +75,9 @@ def validate_params(candidate: Dict[str, Any], params: Any, base: Dict[str, Any]
         return full, errors
     # Thay thử vào cây: bắt cột kernel/khung không hợp lệ (cùng kiểm tra lúc chạy thật) + ngân sách DCA của vị thế
     try:
-        from backend.core.strategy.strategy_book import materialize
+        from backend.core.strategy.book import materialize
         st = materialize(candidate, full)
-        from backend.core.backtest.params_builder import VENUE_COSTS, dca_budget_check
+        from backend.core.params.builder import VENUE_COSTS, dca_budget_check
         budget = dca_budget_check(st["position"], VENUE_COSTS[("cex", "perp")])
         if not budget["ok"]:
             errors.append((prefix, f"{cid}: ngân sách DCA không đủ — cần {budget['need_pct']:.1f}% vốn, trần {budget['cap_pct']:.1f}%"))

@@ -32,7 +32,7 @@ Bộ nhớ (mỗi worker là một tiến trình có cache riêng):
   BẮT BUỘC chạy dưới trần RAM: backend/utils/ops/run_limited.sh -- -m backend.optimize.build_strategy_book ...
   (không có trần cgroup thì script từ chối chạy, trừ khi NORA_ALLOW_UNLIMITED=1).
   Dữ liệu dùng chung: trước mỗi pool, tiến trình CHA dựng một lần mảng giá + kernel + funding của cả vũ trụ vào
-  <run_dir>/_shared/ (backend/core/backtest/shared_data.py); worker chỉ np.load(mmap_mode="r") qua NORA_SHARED_DATA_DIR
+  <run_dir>/_shared/ (backend/core/data/shared.py); worker chỉ np.load(mmap_mode="r") qua NORA_SHARED_DATA_DIR
   -> RAM riêng (anon) mỗi worker nhỏ, trang file chỉ tính MỘT lần trong cgroup. Chạy xong thì xoá _shared (lỗi thì giữ lại).
   OMP_NUM_THREADS / OPENBLAS_NUM_THREADS / MKL_NUM_THREADS đặt = "1" nếu chưa có.
 """
@@ -61,7 +61,8 @@ NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if NORA_ROOT not in sys.path:
     sys.path.insert(0, NORA_ROOT)
 
-from backend.core.backtest.portfolio_metrics import bootstrap_daily, portfolio_metrics  # noqa: E402
+from backend.carlo.monte_carlo import bootstrap_daily  # noqa: E402
+from backend.core.metrics.portfolio import portfolio_metrics
 from backend.utils.parallel import auto_workers, pool_map_safe  # noqa: E402
 from backend.optimize.results_store import ResultsStore, data_fingerprint, make_job_key  # noqa: E402
 from backend.optimize.stream import normalize, stream_stage  # noqa: E402
@@ -92,7 +93,7 @@ def windows(symbols):
 
 def _make_engine(job):
     """job = (strategies [(candidate_id, params)], window (start, end), stop_fill, risk dict, risk_per_trade)."""
-    from backend.core.strategy.strategy_book import CANDIDATES, materialize, perp_symbols
+    from backend.core.strategy.book import CANDIDATES, materialize, perp_symbols
     from backend.core.backtest.portfolio import PortfolioEngine, RiskConfig
     items, (start, end), stop_fill, risk, rpt = job
     by_id = {c["id"]: c for c in CANDIDATES}
@@ -118,7 +119,7 @@ def _export_shared(jobs, shared_dir, label):
     """Tiến trình cha dựng MỘT lần dữ liệu của cả giai đoạn vào shared_dir (worker chỉ mmap). Trả các khoá đã dùng."""
     import ctypes
     import gc
-    from backend.core.backtest import shared_data
+    from backend.core.data import shared as shared_data
     from backend.core.backtest.portfolio import data_cache_clear
     from backend.core.data.loader import CandleLoader
     t = time.time()
@@ -271,7 +272,7 @@ class SharedExporter:
         self.t0 = time.time()
 
     def __call__(self, job):
-        from backend.core.backtest import shared_data
+        from backend.core.data import shared as shared_data
         eng, _ = _make_engine(job)
         sym = eng.symbols[0]
         te, _ = eng._make_trackers(sym, eng.ledger)
@@ -399,7 +400,7 @@ def main(argv=None):
     a = ap.parse_args(argv)
     from backend.utils.memwatch import require_memory_limit
     require_memory_limit("build_strategy_book")
-    from backend.core.strategy.strategy_book import BASE_RISK_PER_TRADE_PCT, CANDIDATES, GATES, RISK, perp_symbols
+    from backend.core.strategy.book import BASE_RISK_PER_TRADE_PCT, CANDIDATES, GATES, RISK, perp_symbols
     from backend.db.data_layout import cache_dir
     from backend.utils.memwatch import check_memory_gate, planning_budget_mb
     from backend.core.data.quality_gate import require_data_ok_or_exit

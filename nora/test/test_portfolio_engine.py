@@ -63,9 +63,9 @@ SHORT = {"id": "rsi_short", "side": "SHORT", "tree": [[[f("15m", "rsi_14"), ">",
 # ─── Tracker: ATR + rủi ro ──────────────────────────────────────────────────
 
 def _tracker(**pos):
-    from backend.core.backtest.execution import PositionTracker
-    from backend.core.backtest.params_builder import build_params
-    from backend.db.models import PositionType
+    from backend.core.execute.tracker import PositionTracker
+    from backend.core.params.builder import build_params
+    from backend.core.execute.models import PositionType
     side = pos.pop("side", "LONG")
     params = build_params("f", {"match": [], "stop": []}, side, {**POSITION, **pos}, "cex")
     return PositionTracker(0, 0, "X", "f", params, PositionType.LONG if side == "LONG" else PositionType.SHORT,
@@ -122,7 +122,7 @@ def test_risk_sizing_requires_stop_loss():
 
 def test_engine_atr_unit_comes_from_closed_bar_at_signal(market):
     from backend.core.backtest.engine import BacktestEngine
-    from backend.core.backtest.params_builder import build_params
+    from backend.core.params.builder import build_params
     eng = BacktestEngine(0, 0, "BBB@perp", T0, T0 + 20 * DAY, trade_start_ts=T0 + 3 * DAY)
     eng.add_strategy_flow("LONG_x", build_params("LONG_x", {"match": [{"condition": LONG["tree"]}], "stop": []},
                                                  "LONG", POSITION, "cex", symbol="BBB@perp"))
@@ -156,7 +156,7 @@ def _portfolio(symbols, strategies, risk=None, days=(3, 30), **kw):
 
 def test_portfolio_single_symbol_matches_single_engine(market):
     from backend.core.backtest.engine import BacktestEngine
-    from backend.core.backtest.params_builder import build_params
+    from backend.core.params.builder import build_params
     pe = _portfolio(["BBB@perp"], [LONG], risk={"max_positions": 99, "max_per_symbol": 99,
                                                  "max_gross_exposure": 1e9, "kill_switch_dd_pct": 0})
     pe.run()

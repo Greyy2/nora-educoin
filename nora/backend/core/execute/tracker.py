@@ -34,8 +34,9 @@ import itertools
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
-from backend.core.strategy.params import StrategyParams
-from backend.db.models import OrderModel, OrderType, PositionModel, PositionStatus, PositionType
+from backend.core.params.schema import StrategyParams
+from backend.core.execute.ledger import CapitalLedger
+from backend.core.execute.models import OrderModel, OrderType, PositionModel, PositionStatus, PositionType
 
 # Bộ đếm id toàn cục, tăng dần và không trùng (int(time.time()*1000) trùng khi
 # nhiều lệnh mở trong cùng 1 ms). Bắt đầu từ epoch-ms * 1000 để vẫn sắp xếp theo thời gian.
@@ -44,39 +45,6 @@ _ID_SEQ = itertools.count(int(time.time() * 1000) * 1000)
 
 def _next_id() -> int:
     return next(_ID_SEQ)
-
-
-class CapitalLedger:
-    """Sổ vốn chung của một lần chạy — nguồn sự thật duy nhất cho phân bổ vốn.
-
-    equity   : vốn đã chốt (vốn đầu + Σ lãi/lỗ đã đóng + funding đã trả/nhận).
-    reserved : tiền đang bị khoá trong các vị thế mở (ký quỹ + phí vào lệnh đã trả).
-    free     : equity × usage − reserved. Mọi lệnh vào / tầng DCA phải giữ chỗ được từ free,
-               nên nhiều flow cùng lúc KHÔNG thể dùng quá vốn (lỗi cũ: mỗi flow tự dùng 100%).
-    """
-
-    def __init__(self, capital: float, usage: float = 1.0):
-        self.initial = float(capital)
-        self.equity = float(capital)
-        self.reserved = 0.0
-        self.usage = max(0.0, min(float(usage), 1.0))
-        self.rejected = 0  # số lần vào lệnh/tầng bị từ chối vì không đủ vốn
-
-    def free(self) -> float:
-        return self.equity * self.usage - self.reserved
-
-    def reserve(self, amount: float) -> bool:
-        if amount <= 0 or amount > self.free() + 1e-9:
-            self.rejected += 1
-            return False
-        self.reserved += amount
-        return True
-
-    def release(self, amount: float) -> None:
-        self.reserved = max(0.0, self.reserved - amount)
-
-    def settle(self, cash_delta: float) -> None:
-        self.equity += cash_delta
 
 
 class PositionTracker:

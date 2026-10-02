@@ -1,11 +1,7 @@
-"""Data Schemas & Models for Nora Backtest.
-
-Định nghĩa các cấu trúc dữ liệu chuẩn hóa (Dataclasses / Enums)
-đại diện cho các thực thể cốt lõi trong toàn bộ hệ thống backend.
-"""
-from dataclasses import asdict, dataclass, field
+"""Mô hình vị thế / lệnh của engine (dataclass + enum loại vị thế, loại lệnh, trạng thái)."""
+from dataclasses import dataclass
 from enum import IntEnum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 
 class PositionType(IntEnum):
@@ -29,60 +25,6 @@ class PositionStatus(IntEnum):
     CANCEL = 4  # Huỷ lệnh
     LIQ = 5     # Bị thanh lý (perp, đòn bẩy)
     WAIT = 6    # Đang chờ / Đang mở
-
-
-@dataclass
-class AccountModel:
-    """Mô hình tài khoản backtest (lab_account)."""
-    account_id: int
-    name: str
-    db_name: str = "backtest_data_1m_strategy810"
-    created_at: Optional[int] = None
-    status: int = 1
-    description: str = ""
-    extra: Dict[str, Any] = field(default_factory=dict)
-
-    @classmethod
-    def from_row(cls, row: Dict[str, Any]) -> "AccountModel":
-        return cls(
-            account_id=row.get("lab_account_id") or 0,
-            name=row.get("lab_account_name") or "",
-            db_name=row.get("lab_account_db") or "backtest_data_1m_strategy810",
-            created_at=row.get("lab_account_created"),
-            status=row.get("lab_account_status", 1),
-            description=row.get("lab_account_description") or "",
-        )
-
-    def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
-
-
-@dataclass
-class CampaignModel:
-    """Mô hình chiến dịch chạy backtest (lab_campaigns)."""
-    campaign_id: int
-    account_id: int
-    symbol: str
-    start_time: int
-    end_time: int
-    initial_balance: float = 10000.0
-    current_balance: float = 10000.0
-    total_profit: float = 0.0
-    status: int = 1
-
-    @classmethod
-    def from_row(cls, row: Dict[str, Any]) -> "CampaignModel":
-        return cls(
-            campaign_id=row.get("lab_campaign_id") or 0,
-            account_id=row.get("lab_campaign_account") or 0,
-            symbol=row.get("lab_campaign_symbol") or "",
-            start_time=row.get("lab_campaign_start_time") or 0,
-            end_time=row.get("lab_campaign_end_time") or 0,
-            initial_balance=float(row.get("lab_campaign_balance") or 10000.0),
-            current_balance=float(row.get("lab_campaign_current_balance") or 10000.0),
-            total_profit=float(row.get("lab_campaign_profit") or 0.0),
-            status=row.get("lab_campaign_status", 1),
-        )
 
 
 @dataclass
@@ -178,23 +120,3 @@ class OrderModel:
         )
 
 
-@dataclass
-class OptimizationModel:
-    """Mô hình tác vụ tối ưu hóa (lab_optimization)."""
-    opt_id: int
-    name: str
-    account_id: int
-    params_json: str
-    status: int = 0
-    created_at: Optional[int] = None
-
-    @classmethod
-    def from_row(cls, row: Dict[str, Any]) -> "OptimizationModel":
-        return cls(
-            opt_id=row.get("lab_opt_id") or 0,
-            name=row.get("lab_opt_name") or "",
-            account_id=row.get("lab_opt_account") or 0,
-            params_json=row.get("lab_opt_params") or "[]",
-            status=row.get("lab_opt_status", 0),
-            created_at=row.get("lab_opt_created"),
-        )

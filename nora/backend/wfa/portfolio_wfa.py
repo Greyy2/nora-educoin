@@ -26,7 +26,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from backend.core.backtest.portfolio_metrics import portfolio_metrics
+from backend.core.metrics.portfolio import portfolio_metrics
 from backend.utils.parallel import pool_map_safe
 
 from ..carlo.monte_carlo import (MC_MAX_RUIN_PCT, MC_MIN_SIMULATIONS, MC_RUIN_THRESHOLD_PCT, STRESS_MAX_MDD_PCT,
@@ -72,7 +72,7 @@ _pool_map = pool_map_safe
 # ── Job & worker ────────────────────────────────────────────────────────────
 def _make_engine(job):
     """job = (strategies [(candidate_id, params)], (start, end), stop_fill, risk dict, risk_per_trade, symbols, shared_dir)."""
-    from backend.core.strategy.strategy_book import CANDIDATES, materialize
+    from backend.core.strategy.book import CANDIDATES, materialize
     from backend.core.backtest.portfolio import PortfolioEngine, RiskConfig
     items, (start, end), stop_fill, risk, rpt, symbols, shared_dir = job
     by_id = {c["id"]: c for c in CANDIDATES}
@@ -101,7 +101,7 @@ def run_job(job):
 def _export_shared(jobs, shared_dir, label):
     """Cha dựng MỘT lần dữ liệu cho mọi (tài sản, cửa sổ, refs) của các job vào shared_dir. Trả các khoá đã dùng."""
     import ctypes
-    from backend.core.backtest import shared_data
+    from backend.core.data import shared as shared_data
     from backend.core.backtest.portfolio import data_cache_clear
     from backend.core.data.loader import CandleLoader
     t = time.time()

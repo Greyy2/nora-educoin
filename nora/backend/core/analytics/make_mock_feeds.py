@@ -67,7 +67,7 @@ def data_end(symbols):
 
 def make_feed(kind, symbols=None, end_ms=None, book_args=None, plan=None):
     """-> dict ghi ra file feed (chưa có generated_at). Tham số tuỳ chọn để test dùng thị trường giả."""
-    from backend.core.strategy.strategy_book import perp_symbols
+    from backend.core.strategy.book import perp_symbols
     plan = plan or PLANS[kind]
     symbols = symbols or perp_symbols()
     items, rpt, risk = rbb.load_items(book_args or SimpleNamespace(strategies="", book=""))
@@ -107,7 +107,7 @@ def main(argv=None):
     require_memory_limit("make_mock_feeds")
     from backend.core.analytics.feeds import mock_path
     from backend.core.data.quality_gate import require_data_ok_or_exit
-    from backend.core.strategy.strategy_book import perp_symbols
+    from backend.core.strategy.book import perp_symbols
     require_data_ok_or_exit(perp_symbols())   # cổng chất lượng dữ liệu bắt buộc
     kinds = [a.only] if a.only else list(PLANS)
     for kind in kinds:

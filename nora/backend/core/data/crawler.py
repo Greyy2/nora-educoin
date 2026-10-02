@@ -13,7 +13,7 @@ Lưu ý định dạng:
 - volume ghi vào pkl là quote_asset_volume (USDT) để cùng đơn vị USD với dữ liệu DEX.
 
 Ví dụ:
-    python -m backend.core.data.crawler.crawl_binance_klines --symbols BTC,ETH --years 3            # -> data/cex/<SYM>
+    python -m backend.core.data.crawler --symbols BTC,ETH --years 3            # -> data/cex/<SYM>
 """
 import argparse
 import hashlib

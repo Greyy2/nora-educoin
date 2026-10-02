@@ -116,7 +116,7 @@ def test_promote_script_places_assets_by_venue(tmp_path):
 
 def test_instrument_symbol_never_falls_back_to_spot(layout):
     """Lỗi đã gặp: 'BTC@perp' không có dữ liệu perp -> bị phân giải thành thư mục spot BTC (qua hậu tố PERP)."""
-    from backend.core.backtest.params_builder import data_symbol
+    from backend.core.params.builder import data_symbol
     from backend.db.local_pkl import resolve_symbol_dir
     assert resolve_symbol_dir("BTC@perp", layout) is None
     assert data_symbol("BTC", "perp") == ("BTC", "spot_proxy")

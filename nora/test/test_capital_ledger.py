@@ -15,8 +15,8 @@ import pandas as pd
 import pytest
 
 from backend.core.backtest.engine import BacktestEngine
-from backend.core.backtest.params_builder import build_params
-from backend.db.models import OrderType, PositionType
+from backend.core.params.builder import build_params
+from backend.core.execute.models import OrderType, PositionType
 
 T0 = 1_700_006_400_000
 M = 60_000

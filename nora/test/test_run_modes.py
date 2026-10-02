@@ -14,12 +14,12 @@ from fastapi.testclient import TestClient
 from backend.api.jobs import batch as batch_jobs
 from backend.api.routers import book as book_router
 from backend.api.routers import strategies as strategies_router
-from backend.core.backtest.params_builder import POSITION_KEYS
-from backend.core.strategy import presets as pr
-from backend.core.strategy import run_modes as rm
-from backend.core.strategy.params_template import FRAMES, collect_placeholders, collect_string_placeholders, resolve_placeholders
-from backend.core.strategy.strategy_book import BASE_POSITION, CANDIDATES, materialize, schema_defaults
-from backend.core.strategy.strategy_library import cond, f, p
+from backend.core.params.builder import POSITION_KEYS
+from backend.core.params import presets as pr
+from backend.core.params import modes as rm
+from backend.core.params.template import FRAMES, collect_placeholders, collect_string_placeholders, resolve_placeholders
+from backend.core.strategy.book import BASE_POSITION, CANDIDATES, materialize, schema_defaults
+from backend.core.strategy.library import cond, f, p
 
 BY_ID = {c["id"]: c for c in CANDIDATES}
 

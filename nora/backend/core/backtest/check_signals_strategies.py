@@ -24,10 +24,10 @@ from backend.utils.jsonsafe import json_default  # noqa: E402
 def run_asset(symbol: str) -> dict:
     import io
     import contextlib
-    from backend.core.strategy.strategy_library import KERNEL_STRATEGIES, SIGNALS
+    from backend.core.strategy.library import KERNEL_STRATEGIES, SIGNALS
     from backend.core.backtest.engine import BacktestEngine
-    from backend.core.backtest.metrics import MetricsCalculator
-    from backend.core.backtest.params_builder import build_params, venue_of_symbol
+    from backend.core.metrics.trades import MetricsCalculator
+    from backend.core.params.builder import build_params, venue_of_symbol
     from backend.db.local_pkl import read_manifest
     from backend.core.signals.diagnostics import check_signals
 

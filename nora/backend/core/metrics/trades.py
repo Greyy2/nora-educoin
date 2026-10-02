@@ -1,8 +1,10 @@
-"""Tính toán các chỉ số hiệu năng (Metrics Calculation)."""
+"""Số đo theo lệnh: tổng hợp một lần chạy (MetricsCalculator), bảng lệnh phẳng, win rate / profit factor."""
 import math
-from typing import Dict, List, Optional
 
-from backend.db.models import PositionModel
+import numpy as np
+from typing import Any, Dict, List, Optional
+
+from backend.core.execute.models import PositionModel
 
 
 class MetricsCalculator:
@@ -158,3 +160,25 @@ class MetricsCalculator:
             return None
         periods_per_year = 365.0
         return (mean / sd) * math.sqrt(periods_per_year)
+
+
+PF_CAP = 99.0   # profit factor khi không có lệnh lỗ (tránh inf trong JSON/biểu đồ)
+
+
+def trade_rows(positions) -> List[Dict[str, Any]]:
+    return [{
+        "symbol": p.symbol, "side": p.pos_type.name, "enter_time": int(p.enter_time), "close_time": int(p.close_time),
+        "enter_price": float(p.enter_price), "close_price": float(p.close_price), "qty": float(p.qty),
+        "pnl_usd": float(p.real_pnl), "pnl_pct": float(p.profit_pct), "fees_usd": float(p.fees_usd or 0.0),
+        "funding_usd": float(p.funding_usd or 0.0), "status": p.status.name, "layers": int(p.layers or 0),
+        "mae_pct": float(p.mae_pct or 0.0),
+    } for p in positions]
+
+
+def trade_stats(rows: List[Dict[str, Any]]) -> Dict[str, float]:
+    pnl = np.asarray([r["pnl_usd"] for r in rows], dtype=float)
+    if pnl.size == 0:
+        return {"win_rate": 0.0, "profit_factor": 0.0}
+    gp, gl = float(pnl[pnl > 0].sum()), float(-pnl[pnl < 0].sum())
+    pf = gp / gl if gl > 0 else (PF_CAP if gp > 0 else 0.0)
+    return {"win_rate": round(float((pnl > 0).mean() * 100), 1), "profit_factor": round(min(pf, PF_CAP), 3)}

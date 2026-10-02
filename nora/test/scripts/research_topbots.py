@@ -73,7 +73,7 @@ def feasible_layers(leverage: float, step: float, layers_req: int, mult: float, 
                     min_pct: float = MIN_ORDER_SIZE_PCT) -> Tuple[int, float]:
     """Số tầng DCA lớn nhất <= layers_req mà ký quỹ lệnh đầu lớn nhất (theo dca_budget_check) >= min_pct.
     -> (số tầng, order_size_pct lớn nhất cho phép)."""
-    from backend.core.backtest.params_builder import dca_budget_check
+    from backend.core.params.builder import dca_budget_check
     taker = costs[0]
     for n in range(max(0, int(layers_req)), -1, -1):
         if n == 0 or step <= 0:   # không DCA: ký quỹ + phí vào lệnh <= 100% vốn (đúng PositionTracker._open)
@@ -149,7 +149,7 @@ def available_symbols() -> List[str]:
 
 # ─── Chiến lược ─────────────────────────────────────────────────────────────
 def entry_tree(variant: str, side: str, mode: str):
-    from backend.core.strategy.strategy_library import SIGNALS, cond, f
+    from backend.core.strategy.library import SIGNALS, cond, f
     if variant == "reversion":
         return SIGNALS["dip_5m_rsi_bb_ranging" if side == "LONG" else "rip_5m_rsi_bb_ranging"]["tree"]
     base = [(f("1m", "close"), ">", 0)]
@@ -215,7 +215,7 @@ def curve_stats(df: pd.DataFrame, trade_start_ms: int) -> Dict[str, Any]:
 
 def compute_metrics(res: Dict[str, Any], trade_start: int, end: int) -> Dict[str, Any]:
     """Thống kê một lần chạy (một tài sản, một cấu hình) từ kết quả PortfolioEngine.get_results()."""
-    from backend.db.models import PositionStatus
+    from backend.core.execute.models import PositionStatus
     pos = res["positions"]
     forced = [p for p in pos if p.close_reason == "End of Backtest"]
     closed = [p for p in pos if p.close_reason != "End of Backtest"]
@@ -389,7 +389,7 @@ def main(argv=None):
     ap.add_argument("--out", default=OUT_DIR)
     a = ap.parse_args(argv)
 
-    from backend.core.backtest.params_builder import resolve_costs
+    from backend.core.params.builder import resolve_costs
     from backend.core.data.quality_gate import require_data_ok_or_exit
     from backend.db.local_pkl import read_manifest
     from backend.utils.memwatch import require_memory_limit, worker_init
@@ -453,7 +453,7 @@ def main(argv=None):
     os.makedirs(a.out, exist_ok=True)
     ts = time.strftime("%Y%m%d_%H%M%S")
     path = os.path.join(a.out, f"{ts}.json" if a.size_scale == 1.0 else f"{ts}_scale{a.size_scale:g}.json")
-    from backend.core.strategy.strategy_library import SIGNALS
+    from backend.core.strategy.library import SIGNALS
     payload = {
         "ts": ts, "size_scale": a.size_scale, "source_html": BOTS_HTML, "data_end": end_common, "costs_taker_maker_slip": list(costs),
         "constants": {"COOLDOWN_MIN": COOLDOWN_MIN, "MIN_ORDER_SIZE_PCT": MIN_ORDER_SIZE_PCT, "RUIN_FRAC": RUIN_FRAC,

@@ -30,7 +30,7 @@ def _atomic_dump(path: str, obj: Any) -> None:
 
 def promote_alpha(run_dir: str, alpha_id: str, alphas_dir: str, note: Optional[str] = None) -> Dict[str, Any]:
     """-> {"registry_path", "alpha_id", "registry_alpha_id", "final_scale", "testnet_config"}. ValueError nếu alpha chưa FINAL."""
-    from backend.core.strategy import strategy_book as sb
+    from backend.core.strategy import book as sb
     from backend.optimize.book_export import testnet_book_config
     from backend.optimize.registry import build_registry
     store = RunStore(run_dir, read_only=True)

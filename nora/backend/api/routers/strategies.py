@@ -8,10 +8,10 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from backend.core.strategy import presets as presets_mod
-from backend.core.strategy import run_modes as rm
-from backend.core.strategy.params_template import FRAMES
-from backend.core.strategy.strategy_book import CANDIDATES
+from backend.core.params import presets as presets_mod
+from backend.core.params import modes as rm
+from backend.core.params.template import FRAMES
+from backend.core.strategy.book import CANDIDATES
 
 router = APIRouter(prefix="/api/studio/strategies", tags=["strategies"])
 

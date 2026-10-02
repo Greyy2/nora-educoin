@@ -72,7 +72,7 @@ def candidates_from_report(stage_a, report, n, include_rejected, only=None):
 
 
 def candidates_from_ids(ids, n, seed):
-    from backend.core.strategy.strategy_book import CANDIDATES
+    from backend.core.strategy.book import CANDIDATES
     by_id = {c["id"]: c for c in CANDIDATES}
     missing = [i for i in ids if i not in by_id]
     if missing:
@@ -82,7 +82,7 @@ def candidates_from_ids(ids, n, seed):
 
 def candidates_from_json(path):
     """Cấu hình do người dùng chọn: [{"id", "configs": [{tham số}]}] -> đúng như vậy (kiểm id/khoá tham số theo `space` + `params_schema`)."""
-    from backend.core.strategy.strategy_book import CANDIDATES
+    from backend.core.strategy.book import CANDIDATES
     by_id = {c["id"]: c for c in CANDIDATES}
     with open(path, encoding="utf-8") as fh:
         raw = json.load(fh)
@@ -163,7 +163,7 @@ def main(argv=None):
 
     from backend.utils.memwatch import check_memory_gate, require_memory_limit
     require_memory_limit("validate_book")
-    from backend.core.strategy.strategy_book import BASE_RISK_PER_TRADE_PCT, RISK, perp_symbols
+    from backend.core.strategy.book import BASE_RISK_PER_TRADE_PCT, RISK, perp_symbols
     from backend.db.data_layout import cache_dir
     from backend.wfa.portfolio_wfa import PortfolioWfaConfig, run_portfolio_wfa
     from backend.utils.parallel import resolve_workers

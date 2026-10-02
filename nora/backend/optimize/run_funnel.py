@@ -85,7 +85,7 @@ def main(argv=None):
     if total > cap:
         raise SystemExit(f"Từ chối: {total:,} alpha ({planned}) vượt --max-alphas {cap:,}. Giảm --n-per-strategy / số chiến lược hoặc thêm --force-large (trần cứng 1.000.000).")
 
-    from backend.core.strategy.strategy_book import perp_symbols
+    from backend.core.strategy.book import perp_symbols
     from backend.core.data.quality_gate import require_data_ok_or_exit
     require_data_ok_or_exit(cfg.symbols or perp_symbols())   # cổng chất lượng dữ liệu BẮT BUỘC, trước mọi việc khác và trước khi fork pool
 

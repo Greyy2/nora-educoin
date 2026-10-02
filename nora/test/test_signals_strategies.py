@@ -131,7 +131,7 @@ def test_vector_evaluator_matches_scalar_on_random_asts():
 
 def _engine(df1, match, stop=None, **pos):
     from backend.core.backtest.engine import BacktestEngine
-    from backend.core.backtest.params_builder import build_params
+    from backend.core.params.builder import build_params
     eng = BacktestEngine(0, 0, "T", int(df1.open_time.min()), int(df1.open_time.max()),
                          initial_capital=pos.pop("capital", 10000.0))
     flow_type = pos.pop("side", "LONG")
@@ -303,7 +303,7 @@ def test_spot_rejects_short_and_leverage():
 
 
 def test_dex_perp_rejected_and_venue_fees():
-    from backend.core.backtest.params_builder import resolve_costs
+    from backend.core.params.builder import resolve_costs
     assert resolve_costs("cex", "spot", None, None) == (0.001, 0.001, 0.0002)
     assert resolve_costs("cex", "perp", None, None) == (0.0005, 0.0002, 0.0002)  # Binance USDT-M VIP0
     assert resolve_costs("dex", "spot", None, None) == (0.003, 0.003, 0.001)
@@ -326,7 +326,7 @@ def test_fees_charged_on_every_layer_and_exit():
 
 def test_mark_to_market_drawdown_sees_floating_loss():
     # lệnh lỗ treo sâu (-8%) rồi hồi về có lãi: MDD theo lệnh đóng = 0, MDD MTM phải thấy lỗ treo
-    from backend.core.backtest.metrics import MetricsCalculator
+    from backend.core.metrics.trades import MetricsCalculator
     prices = [100] * 5 + list(np.linspace(100, 92, 120)) + list(np.linspace(92, 101, 120))
     df = _path(prices)
     eng = _engine(df, _signal_at(df, 4), take_profit_rate=0.8, fee_rate=0.0, slippage_rate=0.0)

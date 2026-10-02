@@ -65,7 +65,7 @@ def _data_root(market):
 @pytest.fixture
 def small_book(monkeypatch):
     """Chiến lược test + vũ trụ 3 tài sản; ngưỡng NỚI (chỉ test): mọi alpha có lệnh đi hết các tầng."""
-    from backend.core.strategy import strategy_book as sb
+    from backend.core.strategy import book as sb
     f = sb.f
     cands = [{"id": "t_long", "family": "x", "side": "LONG", "description": "test",
               "tree": sb.cond((f("15m", "rsi_14"), "<", sb.p("lo", 40))), "position": {},
@@ -98,7 +98,7 @@ def _run(run_id, **kw):
 # ─── Ngưỡng + hàm thuần ─────────────────────────────────────────────────────
 def test_gate_constants_match_existing_gates():
     from backend.carlo import monte_carlo as mc
-    from backend.core.strategy.strategy_book import BASE_RISK_PER_TRADE_PCT, GATES
+    from backend.core.strategy.book import BASE_RISK_PER_TRADE_PCT, GATES
     from backend.wfa import portfolio_wfa as pw
     assert gates.S1_MIN_TRADES == GATES["min_trades"] and gates.S1_MIN_SYMBOLS_POSITIVE == GATES["min_symbols_positive"]
     assert gates.S1_MAX_MDD_PCT == GATES["max_mdd_pct"] and gates.BASE_RISK_PER_TRADE_PCT == BASE_RISK_PER_TRADE_PCT
@@ -113,7 +113,7 @@ def test_gate_constants_match_existing_gates():
 
 
 def test_windows_match_build_strategy_book(market):
-    from backend.core.strategy import strategy_book as sb
+    from backend.core.strategy import book as sb
     from backend.optimize.funnel.windows import compute_windows
     import importlib
     bsb = importlib.import_module("backend.optimize.build_strategy_book")
@@ -199,7 +199,7 @@ def test_neighbours_and_alpha_ids():
 
 
 def test_validate_alpha_rejects_bad_params():
-    from backend.core.strategy.strategy_book import CANDIDATES
+    from backend.core.strategy.book import CANDIDATES
     c = CANDIDATES[0]
     ok = next(iter_params(c["space"], 1, 7))
     assert validate_alpha(c, ok) is None
@@ -250,7 +250,7 @@ def test_stats_histogram_bins_and_in_out():
 def full_run(market):
     """Một lượt đầy đủ S0 → FINAL (ngưỡng nới) dùng chung cho các test đọc kết quả."""
     mp = pytest.MonkeyPatch()
-    from backend.core.strategy import strategy_book as sb
+    from backend.core.strategy import book as sb
     f = sb.f
     cands = [{"id": "t_long", "family": "x", "side": "LONG", "description": "test",
               "tree": sb.cond((f("15m", "rsi_14"), "<", sb.p("lo", 40))), "position": {},

@@ -12,7 +12,7 @@ NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if NORA_ROOT not in sys.path:
     sys.path.insert(0, NORA_ROOT)
 
-from backend.core.strategy import presets as pr  # noqa: E402
+from backend.core.params import presets as pr  # noqa: E402
 
 
 def _key_params(params, schema):
@@ -21,7 +21,7 @@ def _key_params(params, schema):
 
 
 def format_table(doc):
-    from backend.core.strategy.strategy_book import CANDIDATES
+    from backend.core.strategy.book import CANDIDATES
     lines = []
     for c in CANDIDATES:
         p = doc["presets"][c["id"]]

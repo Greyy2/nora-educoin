@@ -23,9 +23,10 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
-from backend.core.backtest import shared_data
+from backend.core.data import shared as shared_data
 from backend.core.backtest.engine import BacktestEngine
-from backend.core.backtest.execution import CapitalLedger, PositionTracker
+from backend.core.execute.ledger import CapitalLedger
+from backend.core.execute.tracker import PositionTracker
 from backend.core.signals.evaluator import VectorEvaluator, lag_key
 from backend.utils.lru import ByteLRU, env_mb
 
@@ -70,7 +71,7 @@ class PortfolioEngine:
         """strategies: [{"id", "side": LONG|SHORT, "tree": AST đã thay tham số, "position": {...POSITION_KEYS}}].
         Khoá tuỳ chọn "symbols": [..] giới hạn chiến lược đó chỉ chạy trên các tài sản này (mặc định: mọi tài sản).
         close_at_end=False: KHÔNG đóng vị thế còn mở ở cuối dữ liệu (vốn cuối vẫn là MTM) — xem open_positions() (feed giả lập).
-        shared_dir: thư mục dữ liệu mmap dùng chung (backend/core/backtest/shared_data.py); mặc định env NORA_SHARED_DATA_DIR.
+        shared_dir: thư mục dữ liệu mmap dùng chung (backend/core/data/shared.py); mặc định env NORA_SHARED_DATA_DIR.
         Có thì _load_symbol ưu tiên đọc mmap (chỉ đọc) thay vì tự dựng; không thấy khoá thì dựng như cũ."""
         if not symbols or not strategies:
             raise ValueError("Cần ít nhất một tài sản và một chiến lược")
@@ -101,7 +102,7 @@ class PortfolioEngine:
 
     # ─── Dữ liệu ────────────────────────────────────────────────────────────
     def _make_trackers(self, symbol: str, ledger: CapitalLedger) -> Tuple[BacktestEngine, List[Tuple[Dict, PositionTracker]]]:
-        from backend.core.backtest.params_builder import build_params
+        from backend.core.params.builder import build_params
         eng = BacktestEngine(0, 0, symbol, self.start_ts, self.end_ts, trade_start_ts=self.trade_start_ts,
                              initial_capital=self.initial_capital)
         eng.ledger = ledger

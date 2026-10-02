@@ -184,14 +184,14 @@ def default_params(space: Dict[str, List[Any]]) -> Dict[str, Any]:
 
 
 def _catalog() -> List[Dict[str, Any]]:
-    from backend.core.strategy.strategy_book import CANDIDATES
+    from backend.core.strategy.book import CANDIDATES
     return [{"id": c["id"], "family": c["family"], "side": c["side"], "description": c["description"],
              "space": c["space"], "default_params": default_params(c["space"])} for c in CANDIDATES]
 
 
 def _universe_windows(book: Optional[Dict[str, Any]]):
     """(universe, windows dạng ngày): lấy từ sổ nếu có, không thì từ vũ trụ + dữ liệu hiện có (như build_strategy_book.windows)."""
-    from backend.core.strategy.strategy_book import perp_symbols
+    from backend.core.strategy.book import perp_symbols
     universe = (book or {}).get("universe") or perp_symbols()
     windows = (book or {}).get("windows")
     if not windows:

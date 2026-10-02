@@ -249,7 +249,7 @@ def first_config(space):
 
 
 def run_candidate(c, symbol, start, end, trade_start):
-    from backend.core.strategy.strategy_book import materialize
+    from backend.core.strategy.book import materialize
     from backend.core.backtest.portfolio import PortfolioEngine
     st = materialize(c, first_config(c["space"]))
     t0 = time.time()
@@ -260,7 +260,7 @@ def run_candidate(c, symbol, start, end, trade_start):
 
 def run_bot(strat, symbol, start, end, trade_start, override=None):
     from backend.core.backtest.engine import BacktestEngine
-    from backend.core.backtest.params_builder import build_params
+    from backend.core.params.builder import build_params
     pos = {k: v for k, v in strat["default_params"].items() if k != "initial_capital"}
     pos.update(override or {})
     fl = strat["flows"][0]
@@ -275,9 +275,9 @@ def run_bot(strat, symbol, start, end, trade_start, override=None):
 
 def dca_unit_probe():
     """Thăm dò tất định (không dữ liệu thị trường): giá rơi xuyên mọi bậc DCA -> số tầng đã khớp theo order_size_pct."""
-    from backend.core.backtest.execution import PositionTracker
-    from backend.core.backtest.params_builder import build_params
-    from backend.db.models import PositionType
+    from backend.core.execute.tracker import PositionTracker
+    from backend.core.params.builder import build_params
+    from backend.core.execute.models import PositionType
     out = {}
     for size in (20.0, 19.0):
         pos = {"market": "spot", "leverage": 1.0, "order_size_pct": size, "dca_step_pct": 0.75, "dca_max_layers": 4,
@@ -297,8 +297,8 @@ def dca_unit_probe():
 
 
 def cmd_single(a):
-    from backend.core.strategy.strategy_book import CANDIDATES
-    from backend.core.strategy.strategy_library import KERNEL_STRATEGIES
+    from backend.core.strategy.book import CANDIDATES
+    from backend.core.strategy.library import KERNEL_STRATEGIES
     start, end, ts = windows()
     rows = []
     print(f"== single: cửa sổ {START} -> {END} (+{WARMUP_D}d khởi động)  [cấu hình = khoá sắp xếp, giá trị đầu tiên của mỗi khoá]", flush=True)
@@ -344,7 +344,7 @@ def cmd_single(a):
 # ─── portfolio ───────────────────────────────────────────────────────────────
 
 def mk_portfolio(shared_dir=None):
-    from backend.core.strategy.strategy_book import CANDIDATES, RISK, materialize, perp_symbols
+    from backend.core.strategy.book import CANDIDATES, RISK, materialize, perp_symbols
     from backend.core.backtest.portfolio import PortfolioEngine, RiskConfig
     start, end, ts = windows()
     sts = [materialize(c, first_config(c["space"])) for c in CANDIDATES]
@@ -369,7 +369,7 @@ def cmd_portfolio(a):
     quiet(eng2.run)
     det = deterministic(res, eng2.get_results())
     # shared_dir: export mmap rồi chạy lại, phải y hệt
-    from backend.core.backtest import shared_data
+    from backend.core.data import shared as shared_data
     sd = os.path.join(a.out, "_shared")
     clear()
     eng3, _, _ = mk_portfolio(shared_dir=sd)

@@ -22,8 +22,10 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 
+from backend.core.metrics import returns as rt
+from backend.core.metrics.returns import ANN, daily_nav_series
+
 PERIODS = ("1M", "3M", "YTD", "1Y", "ALL")
-ANN = 365                     # số ngày quy năm (crypto giao dịch cả tuần)
 ROLL = 63                     # cửa sổ rolling Sharpe
 SPARK = 30                    # số điểm sparkline / pnl_30d
 DIST_BINS = 20
@@ -52,38 +54,6 @@ def _lst(arr, nd=2) -> List[Optional[float]]:
 
 def _date(ts_ms) -> str:
     return f"{pd.Timestamp(int(ts_ms), unit='ms'):%Y-%m-%d}"
-
-
-def _sharpe(r: np.ndarray) -> Optional[float]:
-    if len(r) < 2:
-        return None
-    sd = float(np.std(r, ddof=1))
-    return float(np.mean(r) / sd * math.sqrt(ANN)) if sd > 1e-12 else None
-
-
-def _sortino(r: np.ndarray) -> Optional[float]:
-    if len(r) < 2:
-        return None
-    dd = float(np.sqrt(np.mean(np.minimum(r, 0.0) ** 2)))   # độ lệch xuống so với 0
-    return float(np.mean(r) / dd * math.sqrt(ANN)) if dd > 1e-12 else None
-
-
-# ─── NAV ngày ───────────────────────────────────────────────────────────────
-def daily_nav_series(result: Dict[str, Any]) -> pd.Series:
-    """NAV cuối mỗi ngày UTC (liên tục theo ngày, ngày thiếu lấy giá trị trước đó). Index = ngày (00:00, không múi giờ)."""
-    rows = result.get("daily_nav")
-    if rows:
-        s = pd.Series([float(r["equity"]) for r in rows], index=pd.to_datetime([r["date"] for r in rows]))
-    else:
-        curve = result.get("equity_curve") or []
-        if not curve:
-            return pd.Series(dtype=float)
-        end = (result.get("config") or {}).get("end")     # mẫu đúng mốc end (loại trừ) thuộc ngày cuối thật
-        t = pd.to_datetime([min(c["time"], end - 1) if end else c["time"] for c in curve], unit="ms")
-        s = pd.Series([float(c["equity"]) for c in curve], index=t)
-        s = s.groupby(s.index.normalize()).last()
-    s = s.sort_index()
-    return s.reindex(pd.date_range(s.index[0], s.index[-1], freq="D")).ffill()
 
 
 def _cutoff(last: pd.Timestamp, period: str) -> Optional[pd.Timestamp]:
@@ -174,7 +144,7 @@ def _open_trades(trades: List[Dict[str, Any]], t_ref: int) -> List[Dict[str, Any
 
 def _side_of(sid: str, fallback: Optional[Dict[str, str]] = None) -> Optional[str]:
     try:
-        from backend.core.strategy.strategy_book import CANDIDATES
+        from backend.core.strategy.book import CANDIDATES
         for c in CANDIDATES:
             if c["id"] == sid:
                 return c["side"]
@@ -206,7 +176,7 @@ def _strategy_rows(ids: List[str], trades: List[Dict[str, Any]], dates: pd.Datet
             "id": sid, "side": _side_of(sid, side_hint), "status": "halted" if halted else "active",
             "weight_pct": _num(gross[sid] / total_gross * 100.0, 1) if total_gross > 0 else None,
             "pnl": _num(pnl), "contribution_pct": _num(pnl / base_nav * 100.0) if base_nav > 0 else None,
-            "sharpe": _num(_sharpe(r)), "mdd_pct": _num(float(np.min(eq / peak - 1.0)) * 100.0 if len(eq) else 0.0),
+            "sharpe": _num(rt.sharpe(r)), "mdd_pct": _num(float(np.min(eq / peak - 1.0)) * 100.0 if len(eq) else 0.0),
             "pnl_30d": _lst(pnl_day.to_numpy()[-SPARK:]),
         })
     return rows
@@ -324,7 +294,7 @@ def build_dashboard(result: Dict[str, Any], bench_closes: Optional[pd.Series] = 
     year_ref = _nav_at_or_before(nav, pd.Timestamp(year=last.year - 1, month=12, day=31), init)
     ret_period = (nav_p[-1] / base_nav - 1.0) * 100.0
     cagr = ((nav_p[-1] / base_nav) ** (ANN / n) - 1.0) * 100.0 if base_nav > 0 and nav_p[-1] > 0 else None
-    sharpe, sortino = _sharpe(ret_p), _sortino(ret_p)
+    sharpe, sortino = rt.sharpe(ret_p), rt.sortino(ret_p)
     if n >= 2:
         q = float(np.percentile(ret_p, 5))
         tail = ret_p[ret_p <= q]

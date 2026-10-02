@@ -101,7 +101,7 @@ class FunnelRunRequest(BaseModel):
 
 
 def _planned(strategies: List[str], n: Optional[int], full_grid: bool) -> Dict[str, int]:
-    from backend.core.strategy import strategy_book as sb
+    from backend.core.strategy import book as sb
     by_id = {c["id"]: c for c in sb.CANDIDATES}
     return {s: count_params(by_id[s]["space"], n, full_grid) for s in strategies}
 
