@@ -93,6 +93,7 @@ Mỗi dòng chỉ chuyển `done` khi đạt đúng cột "Xong khi".
 | P1.15 | Tín hiệu CẮT (ta.crossover) cho trend/breakout/momentum + chiến lược Keltner trend (KEMA của sova), thoát khi cắt dải ngược | `core/strategy` | S | P1.11 | Test sự kiện cắt + thoát bằng cây stop | done (3227345) |
 | P1.16 | Load test 10k, 9 chiến lược | `nora.slice` | S | P1.11–P1.15 | 500k ≤ 4 h | đo: 26,9 alpha/s TB (ổn định ~31/s), RAM riêng ≤ 730 MB/worker, không OOM -> 500k ≈ 4,5–5,2 h |
 | P1.17 | Khung chạy (nến mô phỏng) 15m / 1h / 4h chọn trước khi sinh tham số; khung tín hiệu < khung chạy được nâng lên hoặc từ chối | `core/backtest`, `optimize/funnel`, API, UI | S | P1.16 | 500k ≤ 4 h | done (fa0a93b) — 10k: 15m 80 alpha/s (500k ≈ 1,7 h), 1h 103 alpha/s (500k ≈ 1,35 h); RAM ≤ 395 MB/worker |
+| P1.18 | Dọn kiến trúc: một đặc tả `BacktestJob` + `make_engine` cho sổ / WFA / phễu, một `SharedExporter` (optimize/shared.py), khung chạy là trường của job (cả book_build), df_1m -> df_base, xoá code chết, pyflakes sạch | `core/backtest/run.py`, `optimize/`, `wfa/` | S | P1.17 | Kết quả không đổi | done (1b30398) — 597 test xanh; chạy lại 10k 15m trùng từng con số |
 
 ### PM — Bộ số đo chuẩn (chi tiết: `docs/metrics_inventory.md`)
 
