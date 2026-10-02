@@ -124,6 +124,10 @@ Mỗi dòng chỉ chuyển `done` khi đạt đúng cột "Xong khi".
 | P4.2b | Kiểm thật các nhánh lỗi chưa chạm: 422 thật theo field, promote 400/409, recompute trades, POST /runs nhỏ | frontend | S | P0.7 | Ảnh kiểm từng nhánh | todo |
 | P4.3 | Hiển thị regime hiện tại, lịch sử, chiến lược đang bật | `pages/Portfolio.jsx` | S | P2.2 | Có cả sáng/tối | todo |
 | P4.4 | Ảnh kiểm sáng/tối; `npm run build` sạch | frontend | O | P4.1–P4.3 | Không lỗi console | todo |
+| P4.5 | Danh sách lệnh (trade list) ở trang Tổng quan (Backtest/Live/Testnet) và ở mỗi bước Backtest/WFA/MC: lọc theo chiến lược/tài sản/chiều/kết quả, phân trang, tải CSV | `core/analytics/dashboard.py`, `api/routers/portfolio.py`, frontend | O | — | Bảng lệnh khớp `trade_list`; lọc/sắp/phân trang đúng | todo |
+| P4.6 | Thống kê theo CHIẾN LƯỢC (họ chiến lược, gộp mọi bộ tham số của cùng chiến lược) ở Tổng quan: bộ số đo chuẩn tính riêng từng chiến lược | `core/metrics`, `core/analytics/dashboard.py`, frontend | O | PM | Mỗi chiến lược có đủ số đo; alpha `x__SOL` gộp về chiến lược gốc | todo |
+| P4.7 | Tích hợp Phễu vào trang Alpha (một trang: tối ưu sổ + phễu kiểm duyệt), bỏ mục Phễu riêng trên thanh bên | frontend | O | — | `/alpha` có tab Phễu; `/funnel` chuyển hướng | todo |
+| P4.8 | Mục "Tín hiệu thị trường" ở Tổng quan: trạng thái tín hiệu từng chiến lược × tài sản trên nến ĐÃ ĐÓNG mới nhất (điều kiện vào/thoát, giá trị chỉ báo, regime), dùng chung một hàm causal cho backtest/live/testnet | `core/signals/snapshot.py`, `api/routers/market.py`, frontend | O | — | Snapshot trùng với tín hiệu engine dùng ở cùng phút (test); không nhìn nến chưa đóng | todo |
 
 ### P5 — Tài liệu và báo cáo
 

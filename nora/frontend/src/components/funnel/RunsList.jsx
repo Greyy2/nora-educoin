@@ -42,9 +42,9 @@ export default function RunsList({ q, onCreate }) {
               const p = r.progress
               const pct = p?.total > 0 ? (p.done / p.total) * 100 : null
               return (
-                <tr key={r.run_id} className="click" tabIndex={0} onClick={() => nav(`/funnel/${encodeURIComponent(r.run_id)}`)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') nav(`/funnel/${encodeURIComponent(r.run_id)}`) }}>
-                  <td className="mono"><a href={`/funnel/${encodeURIComponent(r.run_id)}`} onClick={(e) => { e.preventDefault(); e.stopPropagation(); nav(`/funnel/${encodeURIComponent(r.run_id)}`) }}>{r.run_id}</a></td>
+                <tr key={r.run_id} className="click" tabIndex={0} onClick={() => nav(`/alpha/funnel/${encodeURIComponent(r.run_id)}`)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') nav(`/alpha/funnel/${encodeURIComponent(r.run_id)}`) }}>
+                  <td className="mono"><a href={`/alpha/funnel/${encodeURIComponent(r.run_id)}`} onClick={(e) => { e.preventDefault(); e.stopPropagation(); nav(`/alpha/funnel/${encodeURIComponent(r.run_id)}`) }}>{r.run_id}</a></td>
                   <td><Status tone={st.cls}>{live && <Spinner />}{st.text}</Status></td>
                   <td className="num">{fmtDateTime(r.created)}</td>
                   <td className="wrap"><span className="n-plist-inline">{r.strategies.join(', ') || '—'}</span>{r.n_per_strategy ? <span className="muted mono"> · {fmtCount(r.n_per_strategy)}/cl</span> : null}</td>

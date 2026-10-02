@@ -182,6 +182,33 @@ def _strategy_rows(ids: List[str], trades: List[Dict[str, Any]], dates: pd.Datet
     return rows
 
 
+def _family_stats(trades: List[Dict[str, Any]], dates: pd.DatetimeIndex, init: float, base_nav: float) -> List[Dict[str, Any]]:
+    """Thống kê theo HỌ chiến lược (gộp mọi bộ tham số / alpha của cùng chiến lược) trên lệnh đã đóng trong kỳ: bộ số đo theo lệnh chuẩn
+    (core/metrics/trades.trade_metrics) + PnL, đóng góp, Sharpe/MDD trên PnL ngày / vốn ban đầu, số tài sản và id con."""
+    from backend.core.metrics.trades import rows_from_trade_list, strategy_family, trade_metrics
+    rows = rows_from_trade_list(trades)
+    fams: Dict[str, List[Dict[str, Any]]] = {}
+    for r in rows:
+        fams.setdefault(strategy_family(r["strategy"]), []).append(r)
+    out = []
+    for fam in sorted(fams):
+        mine = fams[fam]
+        pnl_day = pd.Series(0.0, index=dates)
+        for r in mine:
+            d = pd.Timestamp(int(r["close_time"]), unit="ms").normalize()
+            if d in pnl_day.index:
+                pnl_day[d] += r["pnl_usd"]
+        eq = init + np.cumsum(pnl_day.to_numpy())
+        peak = np.maximum.accumulate(np.r_[init, eq])[1:]
+        tm = trade_metrics(mine)
+        out.append({"family": fam, "ids": sorted({r["strategy"] for r in mine}), "symbols": sorted({r["symbol"] for r in mine}),
+                    "pnl": _num(tm["pnl_usd"]), "contribution_pct": _num(tm["pnl_usd"] / base_nav * 100.0) if base_nav > 0 else None,
+                    "sharpe": _num(rt.sharpe(pnl_day.to_numpy() / init)),
+                    "mdd_pct": _num(float(np.min(eq / peak - 1.0)) * 100.0 if len(eq) else 0.0),
+                    "trades": {k: (_num(v, 4) if isinstance(v, float) else v) for k, v in tm.items()}})
+    return out
+
+
 def _risk_block_events(result: Dict[str, Any], cfg: Dict[str, Any], curve: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Số LẦN vào lệnh bị chặn bởi giới hạn rủi ro danh mục (các phút liên tiếp của cùng một tracker = một lần).
     Kết quả cũ chỉ có `rejected_for_risk` (đếm phút) nên không đổi được thành số lần: nêu sự việc, không nêu con số."""
@@ -359,6 +386,7 @@ def build_dashboard(result: Dict[str, Any], bench_closes: Optional[pd.Series] = 
         "strategies": _strategy_rows(ids, p_trades, dates, init, base_nav, halted,
                                      {x["strategy"]: x["side"] for x in list(trades) + pos_rows if x.get("side")}),
         "events": _events(result, p_start), "positions": pos_rows,
+        "strategy_stats": _family_stats(p_trades, dates, init, base_nav),
         # bộ số đo chuẩn toàn kỳ chạy (core/metrics/portfolio.portfolio_metrics) — không cắt theo `period`; None với kết quả cũ
         "stats": result.get("stats"),
         "mdd": {"intrabar_pct": result.get("mdd_intrabar_pct", result.get("mdd_pct")), "daily_pct": result.get("mdd_daily_pct")},

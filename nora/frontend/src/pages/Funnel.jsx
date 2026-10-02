@@ -40,7 +40,7 @@ function RunsPage() {
         <Panel className="n-fn-launched" title="Lượt vừa tạo" meta={<span className="mono">{launched.run_id}</span>}>
           <JobPanel job={job.job} status={job.status} error={job.error} />
           <div className="n-sticky-actions">
-            <button type="button" className="n-btn primary" onClick={() => nav(`/funnel/${encodeURIComponent(launched.run_id)}`)}>Mở lượt này →</button>
+            <button type="button" className="n-btn primary" onClick={() => nav(`/alpha/funnel/${encodeURIComponent(launched.run_id)}`)}>Mở lượt này →</button>
             <button type="button" className="n-btn" onClick={() => setLaunched(null)}>Ẩn</button>
           </div>
         </Panel>
@@ -133,7 +133,7 @@ function RunView({ runId }) {
   const toTrades = useCallback((id, st) => setParams({ alpha: '', sel: id, tab: 'trades', ...(st ? { stage: st } : {}) }, false), [setParams])
   const pickStage = (st) => setParams({ stage: st, tab: st === 'S0_generate' && tab !== 'stats' ? 'stats' : tab })
 
-  if (runQ.error && !run) return <><PageHead kicker="Phễu kiểm duyệt" title={`Lượt ${runId}`} /><MockBanner /><ErrorState title="Không tải được lượt chạy" error={runQ.error} onRetry={runQ.reload} /><p><Link to="/funnel" className="n-btn" style={{ marginTop: 10 }}>← Danh sách lượt</Link></p></>
+  if (runQ.error && !run) return <><PageHead kicker="Phễu kiểm duyệt" title={`Lượt ${runId}`} /><MockBanner /><ErrorState title="Không tải được lượt chạy" error={runQ.error} onRetry={runQ.reload} /><p><Link to="/alpha/funnel" className="n-btn" style={{ marginTop: 10 }}>← Danh sách lượt</Link></p></>
   if (!run) return <Loading what="lượt chạy" />
 
   const strategies = run.strategies
@@ -153,7 +153,7 @@ function RunView({ runId }) {
 
   return (
     <>
-      <PageHead kicker={<Link to="/funnel" className="n-back">← Tất cả lượt chạy</Link>} title={`Phễu · ${run.run_id}`}
+      <PageHead kicker={<Link to="/alpha/funnel" className="n-back">← Tất cả lượt chạy</Link>} title={`Phễu · ${run.run_id}`}
         subtitle="Số alpha còn lại qua từng tầng; chọn một tầng để xem phân phối, bảng alpha và danh sách lệnh." />
       <MockBanner />
       <RunMeta run={run} />

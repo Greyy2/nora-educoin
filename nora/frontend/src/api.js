@@ -195,7 +195,12 @@ export function getDashboard({ source, jobId, period }) {
   return request(`/api/studio/portfolio/dashboard?${q}`)
 }
 
-export async function getNode() { return request('/api/node') }
+const _qs = (o) => new URLSearchParams(Object.entries(o).filter(([, v]) => v !== undefined && v !== null && v !== '')).toString()
+/** Danh sách lệnh đã đóng của nguồn Tổng quan: {items, total, strategies, families, symbols}. */
+export const getPortfolioTrades = (o) => request(`/api/studio/portfolio/trades?${_qs(o)}`)
+export const portfolioTradesCsvUrl = (o) => `/api/studio/portfolio/trades?${_qs({ ...o, format: 'csv' })}`
+/** Tín hiệu thị trường tại nến 1m đã đóng cuối (core/signals/snapshot): {symbols: [{symbol, close, as_of, strategies: [...]}]}. */
+export const getMarketSignals = (o = {}) => request(`/api/studio/market/signals?${_qs(o)}`)
 
 // ---- phễu kiểm duyệt (docs/funnel_contract.md §4) ----
 const qs = (o) => {

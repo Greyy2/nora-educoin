@@ -13,7 +13,6 @@ const I = {
   logo: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M20 12a8 8 0 1 1-3-6.2" /><circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none" /></svg>,
   portfolio: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5" /><rect x="13.5" y="3.5" width="7" height="7" rx="1.5" /><rect x="3.5" y="13.5" width="7" height="7" rx="1.5" /><rect x="13.5" y="13.5" width="7" height="7" rx="1.5" /></svg>,
   backtest: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v5h5" /><path d="M12 8v4l3 2" /></svg>,
-  funnel: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3.5 5h17l-6.5 7.6V19l-4 1.5v-7.9z" /></svg>,
   alpha: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 3h6M10 3v6l-5.5 9.5A1.5 1.5 0 0 0 5.8 21h12.4a1.5 1.5 0 0 0 1.3-2.5L14 9V3" /><path d="M7.5 15h9" /></svg>,
   history: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 2" /></svg>,
   help: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="8.5" /><path d="M9.6 9.4a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1.1.9-1.1 1.7" /><circle cx="12" cy="16.6" r=".6" fill="currentColor" /></svg>,
@@ -25,8 +24,7 @@ const I = {
 const PAGES = [
   { to: '/portfolio', title: 'Danh mục', icon: I.portfolio },
   { to: '/backtest', title: 'Backtest · WFA · Monte Carlo', short: 'Backtest', icon: I.backtest },
-  { to: '/funnel', title: 'Phễu kiểm duyệt', short: 'Phễu', icon: I.funnel },
-  { to: '/alpha', title: 'Alpha · Hiệu chỉnh tham số', short: 'Alpha', icon: I.alpha },
+  { to: '/alpha', title: 'Alpha · Tối ưu + Phễu kiểm duyệt', short: 'Alpha', icon: I.alpha },
   { to: '/history', title: 'Lịch sử chạy', short: 'Lịch sử chạy', icon: I.history },
 ]
 
@@ -109,7 +107,7 @@ export default function Shell({ children }) {
   const loc = useLocation()
   const { data, loading, error } = useCatalog()
   const page = PAGES.find((p) => loc.pathname.startsWith(p.to))
-  const runCrumb = loc.pathname.startsWith('/funnel/') ? decodeURIComponent(loc.pathname.split('/')[2] || '') : ''
+  const runCrumb = loc.pathname.startsWith('/alpha/funnel/') ? decodeURIComponent(loc.pathname.split('/')[3] || '') : ''
   const apiTone = error ? 'bad' : loading && !data ? 'warn' : 'ok'
   const apiText = error ? 'API ngoại tuyến' : loading && !data ? 'Đang kết nối' : 'API trực tuyến'
   const dataEnd = data?.windows?.end

@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from backend.api.routers import book, data, funnel, portfolio, strategies
+from backend.api.routers import book, data, funnel, market, portfolio, strategies
 
 app = FastAPI(title="Nora API", version="3.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -21,6 +21,7 @@ app.include_router(portfolio.router)
 app.include_router(funnel.router)
 app.include_router(strategies.router)
 app.include_router(data.router)
+app.include_router(market.router)
 
 
 @app.get("/api/health")

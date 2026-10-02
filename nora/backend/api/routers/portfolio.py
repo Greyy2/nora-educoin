@@ -83,6 +83,80 @@ def get_dashboard(source: str = Query("backtest", pattern="^(backtest|live|testn
     return payload
 
 
+def _result_for(source: str, job_id: Optional[str]):
+    """Kết quả dạng book_backtest của nguồn: (result, job_id). Live/Testnet = feed (giả lập tới khi nối sàn)."""
+    if source != "backtest":
+        try:
+            return feeds.get_snapshot(source).result, None
+        except feeds.NotAvailable as e:
+            raise HTTPException(404, str(e))
+    job_id = job_id or _latest_done_backtest()
+    if not job_id:
+        raise HTTPException(404, "Chưa có job backtest nào hoàn tất — chạy Backtest trước.")
+    try:
+        job = batch_jobs.status(job_id)
+    except batch_jobs.JobError as e:
+        raise HTTPException(422, str(e))
+    if job is None:
+        raise HTTPException(404, "không có job này")
+    if job.get("kind") != "book_backtest" or job.get("status") != "done" or not job.get("result"):
+        raise HTTPException(409, "job phải là book_backtest đã xong")
+    return job["result"], job_id
+
+
+TRADE_SORT = {"close_time", "enter_time", "pnl", "pnl_pct", "mae_pct", "notional", "symbol", "strategy"}
+
+
+@router.get("/trades")
+def get_trades(source: str = Query("backtest", pattern="^(backtest|live|testnet)$"), job_id: Optional[str] = None,
+               period: str = Query("ALL", pattern="^(1M|3M|YTD|1Y|ALL)$"), strategy: Optional[str] = None, symbol: Optional[str] = None,
+               side: Optional[str] = Query(None, pattern="^(LONG|SHORT)$"), outcome: Optional[str] = Query(None, pattern="^(win|loss|breakeven)$"),
+               sort: str = "-close_time", offset: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=2000),
+               format: str = Query("json", pattern="^(json|csv)$")):
+    """Danh sách lệnh đã đóng của nguồn (lọc: kỳ / chiến lược — id hoặc HỌ chiến lược / tài sản / chiều / kết quả), sắp xếp, phân trang;
+    format=csv trả toàn bộ hàng đã lọc (không phân trang)."""
+    from backend.core.metrics.trades import strategy_family
+    res, jid = _result_for(source, job_id)
+    rows = [t for t in res.get("trade_list") or [] if t.get("close_time") is not None]
+    if period != "ALL":
+        nav = pd_mod.daily_nav_series(res)
+        if len(nav):
+            cut = pd_mod._cutoff(nav.index[-1], period)
+            if cut is not None:
+                start_ms = int((cut + pd_mod.pd.Timedelta(days=1)).value // 1_000_000)
+                rows = [t for t in rows if t["close_time"] >= start_ms]
+    if strategy:
+        rows = [t for t in rows if t.get("strategy") == strategy or strategy_family(t.get("strategy")) == strategy]
+    if symbol:
+        want = symbol if "@" in symbol else f"{symbol.upper()}@perp"
+        rows = [t for t in rows if t.get("symbol") in (symbol, want)]
+    if side:
+        rows = [t for t in rows if t.get("side") == side]
+    if outcome:
+        rows = [t for t in rows if (outcome == "win" and t["pnl"] > 0) or (outcome == "loss" and t["pnl"] < 0) or (outcome == "breakeven" and t["pnl"] == 0)]
+    key = sort.lstrip("-")
+    if key not in TRADE_SORT:
+        raise HTTPException(422, f"sort phải là một trong {sorted(TRADE_SORT)} (thêm '-' để giảm dần)")
+    rows = sorted(rows, key=lambda t: (t.get(key) is None, t.get(key) if t.get(key) is not None else 0), reverse=sort.startswith("-"))
+    if format == "csv":
+        import csv
+        import io
+        from fastapi.responses import Response
+        cols = ["close_time", "enter_time", "symbol", "strategy", "side", "enter_price", "avg_price", "close_price", "qty", "notional",
+                "margin_usd", "leverage", "layers", "pnl", "pnl_pct", "fees_usd", "funding_usd", "mae_pct", "status", "close_reason"]
+        buf = io.StringIO()
+        w = csv.DictWriter(buf, fieldnames=cols, extrasaction="ignore")
+        w.writeheader()
+        w.writerows(rows)
+        return Response(buf.getvalue(), media_type="text/csv",
+                        headers={"Content-Disposition": f'attachment; filename="trades_{source}_{jid or "feed"}.csv"'})
+    total = len(rows)
+    return {"items": rows[offset:offset + limit], "total": total, "offset": offset, "limit": limit, "job_id": jid,
+            "strategies": sorted({t.get("strategy") for t in res.get("trade_list") or [] if t.get("strategy")}),
+            "families": sorted({strategy_family(t.get("strategy")) for t in res.get("trade_list") or [] if t.get("strategy")}),
+            "symbols": sorted({t.get("symbol") for t in res.get("trade_list") or [] if t.get("symbol")})}
+
+
 class MockFeedsRequest(BaseModel):
     only: str = Field("", pattern="^(|live|testnet)$")
 

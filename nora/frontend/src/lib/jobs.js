@@ -55,7 +55,7 @@ export function jobLink(j) {
   const id = encodeURIComponent(j.job_id || j.id)
   if (String(j.kind || '').startsWith('funnel')) {
     const rid = j.run_id || parseJobParams(j.params).run_id
-    return rid ? `/funnel/${encodeURIComponent(rid)}` : '/funnel'
+    return rid ? `/alpha/funnel/${encodeURIComponent(rid)}` : '/alpha/funnel'
   }
   if (j.kind === 'book_wfa') return `/backtest?wfa=${id}&step=2`
   if (j.kind === 'book_build') return `/alpha?build=${id}`

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { PageHead, Segmented, Field } from '../components/ui'
 import QuickGuide, { GUIDE_KEY } from '../components/QuickGuide'
 import DashboardLoader, { PERIODS } from '../components/Dashboard'
+import { MarketSignalsPanel } from '../components/OverviewExtras'
 import useStored from '../hooks/useStored'
 import { listJobs } from '../api'
 import { fmtDateTime, toMs } from '../lib/format'
@@ -60,6 +61,8 @@ export default function Portfolio() {
           <span className="n-note">{jobs.error ? `Lỗi tải danh sách: ${jobs.error}` : 'Chạy thêm tại'} <Link to="/backtest" style={{ color: 'var(--n-accent)' }}>Backtest</Link></span>
         </div>
       )}
+
+      <MarketSignalsPanel />
 
       <DashboardLoader source={source} jobId={isBt ? pref.jobId : undefined} period={pref.period} refreshMs={isBt ? 0 : 60000} />
     </>

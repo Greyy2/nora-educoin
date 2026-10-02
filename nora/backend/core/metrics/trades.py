@@ -30,6 +30,29 @@ def trade_rows(positions) -> List[Dict[str, Any]]:
     } for p in positions]
 
 
+def strategy_family(sid: str) -> str:
+    """Họ chiến lược của một id: id của sổ ("trend_long") giữ nguyên; alpha kho dạng "<chiến lược>__<TÀI SẢN>" -> phần trước "__".
+    Đổi tham số KHÔNG đổi họ: mọi alpha của cùng chiến lược gộp chung một nhóm."""
+    return str(sid or "").split("__")[0] or "?"
+
+
+def rows_from_trade_list(trade_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """trade_list của job backtest / feed (khoá `pnl`, ...) -> dạng trade_rows để tính trade_metrics. Lệnh chưa đóng bị bỏ qua."""
+    out = []
+    for t in trade_list or []:
+        if t.get("close_time") is None:
+            continue
+        eq = float(t.get("entry_equity") or 0.0)
+        pnl = float(t.get("pnl") or 0.0)
+        out.append({"symbol": t.get("symbol"), "strategy": t.get("strategy") or "", "side": t.get("side") or "LONG",
+                    "enter_time": int(t.get("enter_time") or 0), "close_time": int(t["close_time"]),
+                    "pnl_usd": pnl, "pnl_pct": float(t["pnl_pct"]) if t.get("pnl_pct") is not None else (pnl / eq * 100.0 if eq > 0 else 0.0),
+                    "fees_usd": float(t.get("fees_usd") or 0.0), "funding_usd": float(t.get("funding_usd") or 0.0),
+                    "status": t.get("status"), "layers": int(t.get("layers") or 1), "mae_pct": float(t.get("mae_pct") or 0.0),
+                    "margin_usd": float(t.get("margin_usd") or 0.0), "leverage": float(t.get("leverage") or 1.0), "entry_equity": eq})
+    return out
+
+
 def trade_stats(rows: List[Dict[str, Any]]) -> Dict[str, float]:
     """win_rate (1 chữ số) + profit_factor (3 chữ số) — giữ nguyên định dạng cũ cho gate/bảng của phễu."""
     pnl = np.asarray([r["pnl_usd"] for r in rows], dtype=float)

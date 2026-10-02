@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Panel, Status, Empty, Spinner, Loading, ErrorState } from './ui'
 import Term from './Term'
+import { FamilyStatsPanel, TradesPanel } from './OverviewExtras'
 import AreaLine from './charts/AreaLine'
 import UnderwaterStrip from './charts/UnderwaterStrip'
 import BarsPosNeg from './charts/BarsPosNeg'
@@ -202,7 +203,7 @@ function Events({ rows = [] }) {
   )
 }
 
-export function DashboardView({ data, refresh }) {
+export function DashboardView({ data, refresh, ctx }) {
   const { kpis: k = {}, series: s = {}, distribution: dist, monthly, risk = {}, strategies = [], events = [], positions = [], source = {}, period } = data
   const [hi, setHi] = useState(null)
   const dates = s.dates || []
@@ -287,6 +288,8 @@ export function DashboardView({ data, refresh }) {
         </Panel>
       </div>
 
+      <FamilyStatsPanel rows={data.strategy_stats} period={periodLong(period)} />
+
       {data.stats && <StatsPanel stats={data.stats} mdd={data.mdd} />}
 
       {positions.length > 0 && (
@@ -294,6 +297,8 @@ export function DashboardView({ data, refresh }) {
           <PositionsTable rows={positions} />
         </Panel>
       )}
+
+      {ctx && <TradesPanel source={ctx.source} jobId={ctx.jobId} period={period} />}
     </>
   )
 }
@@ -415,7 +420,7 @@ export default function DashboardLoader({ source, jobId, period, onLoaded, openL
           <span>Dữ liệu giả lập · {st.data.mock_note?.replace(/^Dữ liệu giả lập\s*—\s*/, '') || 'chưa kết nối tài khoản'}. Các lệnh và vị thế bên dưới là mô phỏng, không phải giao dịch thật.</span>
         </div>
       )}
-      <DashboardView data={st.data} refresh={rf} />
+      <DashboardView data={st.data} refresh={rf} ctx={{ source, jobId }} />
     </div>
   )
 }

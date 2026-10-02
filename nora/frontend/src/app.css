@@ -642,3 +642,32 @@ td .n-resolved-b { min-width: 320px; }
 .n-mx-group dt, .n-mx-group dd { margin: 0; padding: 3px 0; border-bottom: 1px solid var(--n-line-soft); }
 .n-mx-group dt { color: var(--n-ink-2); min-width: 0; }
 .n-mx-group dd { text-align: right; white-space: nowrap; }
+
+/* Tổng quan: lọc danh sách lệnh, phân trang, tín hiệu thị trường */
+.n-filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.n-filters .n-sel { min-width: 150px; }
+.n-pager { display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-top: 10px; font-size: 12.5px; }
+.n-tbl th.sortable { cursor: pointer; user-select: none; }
+.n-tbl th.sortable:hover { color: var(--n-accent); }
+.n-sig th { white-space: nowrap; font-size: 11.5px; }
+.n-sig th .n-badge { margin-left: 4px; }
+.n-sigchip { font: inherit; font-size: 12px; min-width: 52px; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--n-line); background: transparent; color: var(--n-ink-2); cursor: pointer; }
+.n-sigchip.entry { border-color: var(--n-pos, #2f9e6b); color: var(--n-pos, #2f9e6b); font-weight: 600; }
+.n-sigchip.exit { border-color: var(--n-neg, #d0574a); color: var(--n-neg, #d0574a); font-weight: 600; }
+.n-sigchip[aria-expanded="true"] { background: var(--n-line-soft); }
+.n-sigdetail { margin-top: 12px; border-top: 1px solid var(--n-line-soft); padding-top: 10px; }
+.n-sigdetail h4 { margin: 0 0 8px; font-size: 13px; }
+.n-sigdetail h5 { margin: 0 0 6px; font-size: 11.5px; color: var(--n-ink-2); text-transform: uppercase; letter-spacing: .04em; }
+.n-sigcols { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+.n-block { border: 1px dashed var(--n-line); border-radius: 6px; padding: 6px 8px; margin-bottom: 6px; }
+.n-block.ok { border-style: solid; border-color: var(--n-pos, #2f9e6b); }
+.n-cond { font-size: 12px; padding: 2px 0; display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
+.n-cond.no { color: var(--n-ink-2); }
+.n-cond-mark { margin-left: auto; font-weight: 700; }
+.n-cond.ok .n-cond-mark { color: var(--n-pos, #2f9e6b); } .n-cond.no .n-cond-mark { color: var(--n-neg, #d0574a); }
+
+/* Tab trong trang (Alpha: tối ưu sổ | phễu kiểm duyệt) */
+.n-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--n-line); margin: 0 0 14px; }
+.n-tabs a { padding: 8px 14px; font-size: 13px; color: var(--n-ink-2); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.n-tabs a.on { color: var(--n-ink); border-bottom-color: var(--n-accent); font-weight: 600; }
+.n-tabs a:hover { color: var(--n-ink); }
