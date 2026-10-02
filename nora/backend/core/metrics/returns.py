@@ -10,7 +10,7 @@ Quy ước (một nguồn duy nhất cho mọi tầng: backtest, sổ, phễu, W
   - VaR/CVaR 95% = phân vị 5% lịch sử của r ngày (số dương = mức lỗ 1 ngày) và trung bình phần đuôi tệ hơn nó.
 """
 import math
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
@@ -182,8 +182,3 @@ def daily_nav_series(result: Dict[str, Any]) -> pd.Series:
     s = s.sort_index()
     return s.reindex(pd.date_range(s.index[0], s.index[-1], freq="D")).ffill()
 
-
-def nav_from_returns(rets, start_date: str, initial: float = 10_000.0) -> Tuple[List[str], List[float]]:
-    d = _arr(rets)
-    dates = [f"{x:%Y-%m-%d}" for x in pd.date_range(start_date, periods=len(d), freq="D")]
-    return dates, [round(float(v), 2) for v in initial * np.cumprod(1.0 + d)]

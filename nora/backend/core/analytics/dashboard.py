@@ -256,10 +256,6 @@ def _events(result: Dict[str, Any], t_min: int) -> List[Dict[str, Any]]:
 
 
 # ─── Dựng payload ───────────────────────────────────────────────────────────
-def unavailable(source: str) -> Dict[str, Any]:
-    return {"available": False, "reason": f"Chưa kết nối tài khoản {source}: nguồn này sẽ dùng cùng payload khi được nối."}
-
-
 def position_rows(raw: Optional[List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
     """Vị thế đang mở -> hàng payload (làm tròn, lớn nhất trước). Giữ thêm `margin_usd` (ký quỹ) cho tính ký quỹ đã dùng."""
     rows = [{"symbol": r["symbol"], "strategy": r["strategy"], "side": r["side"], "qty": _num(r["qty"], 6),

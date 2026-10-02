@@ -53,7 +53,8 @@ def plan(eng: "BacktestEngine") -> Optional[Dict[str, Any]]:
     from backend.core.backtest.engine import FRAME_MS
     from backend.core.data.loader import _file_fingerprint
     from backend.core.signals.evaluator import lag_key
-    from backend.db.local_pkl import default_data_root, resolve_symbol_dir
+    from backend.db.data_layout import default_data_root
+    from backend.db.local_pkl import resolve_symbol_dir
     root = default_data_root()
     base_fr = eng.base_frame
     fp1 = _file_fingerprint(eng.symbol, base_fr, root)

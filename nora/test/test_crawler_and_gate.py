@@ -14,7 +14,6 @@ import json
 import time
 import tempfile
 import pandas as pd
-import numpy as np
 import pytest
 
 from backend.core.data.resampler import save_resampled_dataset

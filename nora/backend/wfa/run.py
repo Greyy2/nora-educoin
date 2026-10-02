@@ -28,7 +28,7 @@ import warnings
 
 import pandas as pd
 
-from backend.optimize import book as bsb   # windows, configs, PER_WORKER_MB, _dir_mb
+from backend.optimize import book as bsb   # windows, configs, PER_WORKER_MB
 from backend.utils.jobs import as_list, options, write_job_result
 from backend.utils.jsonsafe import json_default
 
@@ -154,8 +154,6 @@ def run_job(params=None):
         cands = (candidates_from_list(a.strategies) if a.strategies
                  else candidates_from_ids(as_list(a.candidates), a.n, a.seed))
         w = bsb.windows(perp_symbols())
-    if a.timeframe and a.timeframe != "1m":   # khung chạy đi cùng cấu hình danh mục -> tới mọi job + khoá resume
-        risk = {**risk, "base_frame": a.timeframe}
     symbols = [x if "@" in x else f"{x}@perp" for x in as_list(a.symbols)] or perp_symbols()
     from backend.core.data.quality_gate import require_data_ok_or_exit
     require_data_ok_or_exit(symbols)   # cổng chất lượng dữ liệu bắt buộc (trước khi fork pool để worker thừa kế cache gate)
@@ -202,7 +200,7 @@ def run_job(params=None):
                 print(f"[resume] {run_dir}: kho đã có {store.count():,} kết quả", flush=True)
             # Hiệu chỉnh: chạy 1 job IS đầu (1 worker, ghi vào kho như job thường) -> ước lượng thời gian
             os.makedirs(shared_dir, exist_ok=True)
-            _, is_jobs0 = pw.plan_is_jobs(cands, folds, symbols, risk, rpt, shared_dir)
+            _, is_jobs0 = pw.plan_is_jobs(cands, folds, symbols, risk, rpt, shared_dir, a.timeframe or "1m")
             t_cal = time.time()
             pw._pool_shared(is_jobs0[:1], 1, "[WFA] hiệu chỉnh", shared_dir, store, "wfa_is", None)
             sec = time.time() - t_cal
@@ -214,7 +212,8 @@ def run_job(params=None):
             with open(os.path.join(run_dir, "estimate.json"), "w", encoding="utf-8") as fh:
                 json.dump(est, fh, ensure_ascii=False, indent=1)
             progress.set_estimate(est)
-            res = run_portfolio_wfa(cands, symbols, start, end, cfg, risk, rpt, workers, shared_dir, store=store, progress=progress)
+            res = run_portfolio_wfa(cands, symbols, start, end, cfg, risk, rpt, workers, shared_dir, store=store, progress=progress,
+                                    base_frame=a.timeframe or "1m")
             res["source"] = {"report": os.path.abspath(a.report) if a.report else None, "include_rejected": a.include_rejected,
                              "strategies": bool(a.strategies),
                              "wall_s": round(time.time() - t0, 1)}

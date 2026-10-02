@@ -511,7 +511,7 @@ class RefBacktestEngine:
         self.trackers: List[RefPositionTracker] = []
         self.ledger = RefCapitalLedger(self.initial_capital)
         self.funding: Optional[pd.DataFrame] = None  # perp: funding_time, rate
-        self.df_1m: Optional[pd.DataFrame] = None
+        self.df_base: Optional[pd.DataFrame] = None
         self.df_4h: Optional[pd.DataFrame] = None
         self.frames: Dict[str, pd.DataFrame] = {}
         self.closed_positions = []
@@ -568,10 +568,10 @@ class RefBacktestEngine:
     _keltner_suffix = _ProdEngine.__dict__["_keltner_suffix"]
 
     def run(self):
-        if self.df_1m is None or self.df_1m.empty:
+        if self.df_base is None or self.df_base.empty:
             return
         self.closed_positions, self.orders, self.equity_curve = [], [], []
-        print(f"Bắt đầu chạy backtest cho {self.symbol} ({len(self.df_1m)} nến 1 phút)...")
+        print(f"Bắt đầu chạy backtest cho {self.symbol} ({len(self.df_base)} nến 1 phút)...")
         started = time.time()
 
         df1, cols = self._build_matrix()

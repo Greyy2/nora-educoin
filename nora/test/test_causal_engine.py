@@ -1,11 +1,10 @@
 import pytest
 import numpy as np
 import pandas as pd
-from typing import Dict, Any
 
 from backend.core.backtest.engine import BacktestEngine
 from backend.core.params.schema import StrategyParams
-from backend.core.execute.models import PositionStatus, PositionType
+from backend.core.execute.models import PositionStatus
 
 
 def make_dummy_candles(n_minutes: int = 1440 * 10, seed: int = 42, warmup_days: int = 2):
@@ -83,7 +82,7 @@ def create_test_engine(df_1m, df_4h, flow_config, using_match_price=False, stop_
             extra={"ast": flow_ast, "type": flow_type},
         )
         engine.add_strategy_flow(flow_name, params)
-    engine.df_1m = engine._prepare_candles(df_1m)
+    engine.df_base = engine._prepare_candles(df_1m)
     engine.df_4h = engine._enrich_4h(engine._prepare_candles(df_4h))
     return engine
 
@@ -223,7 +222,6 @@ def test_entry_at_next_candle_open():
     target_idx = 10
     target_candle_time = int(df_1m.iloc[target_idx]["open_time"])
     next_candle_time = int(df_1m.iloc[target_idx + 1]["open_time"])
-    next_candle_open = float(df_1m.iloc[target_idx + 1]["open"])
     
     flow_config = {
         "flows": [{

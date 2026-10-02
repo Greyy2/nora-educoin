@@ -334,11 +334,9 @@ def get_alphas(run_id: str, stage: Optional[str] = None, status: Optional[str] =
         if strategy:
             where.append("a.strategy=?")
             args.append(strategy)
-        metrics_stage = None
         if stage:
             stage = _stage(stage)
         if stage and stage != "S0_generate":
-            metrics_stage = stage
             base = "FROM stage_metrics m JOIN alphas a ON a.alpha_id=m.alpha_id"
             where.insert(0, "m.stage=?")
             args.insert(0, stage)

@@ -11,8 +11,6 @@ _COMPAT_COLUMNS = {"symbol", "timestamp", "close_time", "is_close"}
 
 
 from .data_layout import (  # noqa: E402  (một nơi duy nhất quyết định đường dẫn)
-    default_data_root,
-    is_asset_dir,
     list_assets,
     resolve_asset_dir,
 )
@@ -113,13 +111,6 @@ def has_ticks(symbol: str, data_root: Optional[str] = None, min_days: float = 0.
 def list_asset_dirs(data_root: Optional[str] = None) -> List[str]:
     """Ký hiệu các tài sản đang có (có tiền tố venue nếu tên trùng giữa cex/dex)."""
     return sorted(item["qualified"] for item in list_assets(data_root))
-
-
-def list_symbols(frame: str = "4h", data_root: Optional[str] = None) -> List[str]:
-    return sorted(
-        item["qualified"] for item in list_assets(data_root)
-        if os.path.isfile(os.path.join(item["path"], f"{frame}.pkl"))
-    )
 
 
 def fetch_candles_df(

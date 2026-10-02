@@ -94,10 +94,10 @@ def test_tick_writer_goes_to_dex_folder(layout):
 
 
 def test_data_root_env_is_single_source(monkeypatch, tmp_path):
-    from backend.db import local_pkl, tick_storage
+    from backend.db import data_layout, tick_storage
     monkeypatch.setenv("NORA_LOCAL_DATA_ROOT", str(tmp_path / "a"))
     monkeypatch.setenv("NORA_DATA_ROOT", str(tmp_path / "b"))
-    assert local_pkl.default_data_root() == tick_storage.default_data_root() == str(tmp_path / "a")
+    assert data_layout.default_data_root() == tick_storage.default_data_root() == str(tmp_path / "a")
 
 
 def test_promote_job_places_assets_by_venue(tmp_path):

@@ -13,7 +13,7 @@ C. sổ    — các chiến lược đạt chạy CHUNG một sổ vốn với g
 D. holdout — chạy đúng sổ đã chốt một lần (cả hai cách khớp SL). Không chọn lại gì ở bước này.
 
 Job API (POST /api/studio/book/build -> api/jobs/runner.py -> run_job(params)); tham số và mặc định: DEFAULTS
-(workers, per_worker_mb, n, seed, only, out, keep_top, resume, max_configs, force_large).
+(workers, per_worker_mb, n, seed, only, out, keep_top, resume, max_configs, force_large, timeframe = khung chạy 1m/15m/1h/4h).
 Quy mô lớn (tới ~1.000.000 cấu hình): giai đoạn A chạy STREAMING — cấu hình sinh lười, mỗi kết quả ghi ngay vào <run_dir>/results.sqlite
 (backend/optimize/store.py), tiến trình cha chỉ giữ top-K (K = max(3, keep_top), mặc định 50) nên RAM cha phẳng.
   resume=<run_dir>     chạy tiếp lần bị ngắt (bỏ qua job đã có trong kho; kết quả cuối y hệt lần chạy không gián đoạn)
@@ -64,6 +64,8 @@ from backend.optimize.store import ResultsStore, data_fingerprint, make_job_key
 from backend.optimize.store import normalize, stream_stage
 from backend.utils.jobs import as_list, options, write_job_result
 from backend.utils.jsonsafe import json_default
+from backend.core.backtest.run import BacktestJob, make_engine
+from backend.optimize.shared import SharedExporter
 
 DAY = 86_400_000
 WARMUP = 20 * DAY
@@ -87,22 +89,11 @@ def windows(symbols):
     return {"start": start, "dev1_end": start + int(span * 0.4), "dev2_end": start + int(span * 0.8), "end": end}
 
 
-def _make_engine(job):
-    """job = (strategies [(candidate_id, params)], window (start, end), stop_fill, risk dict, risk_per_trade)."""
-    from backend.core.strategy.book import CANDIDATES, materialize, perp_symbols
-    from backend.core.backtest.portfolio import PortfolioEngine, RiskConfig
-    items, (start, end), stop_fill, risk, rpt = job
-    by_id = {c["id"]: c for c in CANDIDATES}
-    strategies = [materialize(by_id[cid], prm, stop_fill=stop_fill, risk_per_trade_pct=rpt) for cid, prm in items]
-    return PortfolioEngine(perp_symbols(), strategies, start - WARMUP, end, trade_start_ts=start,
-                           risk=RiskConfig.from_dict(risk)), start
-
-
 def run_book(job):
     import contextlib
     import io
     from backend.utils.memwatch import peak_rss_mb, rss_anon_mb
-    eng, start = _make_engine(job)
+    eng, start = make_engine(job)
     with contextlib.redirect_stdout(io.StringIO()):
         eng.run()
     result = metrics(eng.get_results(), start)
@@ -111,43 +102,12 @@ def run_book(job):
     return result
 
 
-def _export_shared(jobs, shared_dir, label):
-    """Tiến trình cha dựng MỘT lần dữ liệu của cả giai đoạn vào shared_dir (worker chỉ mmap). Trả các khoá đã dùng."""
-    import ctypes
-    import gc
-    from backend.core.data import shared as shared_data
-    from backend.core.backtest.portfolio import data_cache_clear
-    from backend.core.data.loader import CandleLoader
-    t = time.time()
-    keys, written = set(), 0
-    for job in jobs:
-        eng, _ = _make_engine(job)
-        info = shared_data.export(eng, shared_dir)
-        keys |= info["paths"]
-        written += len(info["written"])
-    CandleLoader.clear_cache()
-    data_cache_clear()
-    gc.collect()
-    try:
-        ctypes.CDLL("libc.so.6").malloc_trim(0)  # trả heap đã giải phóng về OS trước khi fork pool
-    except OSError:
-        pass
-    print(f"[shared] {label}: {written} tài sản ghi mới, {len(keys)} phần, {shared_data.size_mb(shared_dir, keys):.0f} MB "
-          f"({time.time() - t:.0f}s)", flush=True)
-    return keys
-
-
-def _dir_mb(shared_dir, keys=None) -> float:
-    from backend.core.data import shared as shared_data
-    return shared_data.size_mb(shared_dir, keys) if os.path.isdir(shared_dir) else 0.0
-
-
 def _pool_shared(jobs, workers, label, shared_dir):
-    """Export dữ liệu dùng chung -> pool -> xoá các bộ của giai đoạn này (đã chạy xong; lỗi thì ngoại lệ bay lên, giữ nguyên để gỡ lỗi)."""
-    from backend.core.data import shared as shared_data
-    keys = _export_shared(jobs, shared_dir, label)
+    """Làm nóng kho dùng chung -> pool -> dọn kho của giai đoạn này (lỗi thì ngoại lệ bay lên, kho giữ nguyên để gỡ lỗi)."""
+    exporter = SharedExporter(shared_dir, label)
+    exporter.ensure(jobs)
     res = _pool_map_safe(run_book, jobs, workers, label)
-    shared_data.remove(shared_dir, keys)
+    exporter.cleanup()
     return res
 
 
@@ -253,56 +213,13 @@ class TopK:
         return [r for _, _, r in sorted(self._heap, key=lambda t: (-t[0], -t[1]))]
 
 
-class SharedExporter:
-    """Xuất dữ liệu dùng chung (mmap) CHO ĐÚNG những job mới cần, ngay trước khi job được gửi đi (giai đoạn A streaming).
-    Mỗi (cửa sổ, refs kernel, perp) khác nhau xuất đúng một lần (như _export_shared cũ làm cho cả danh sách job); job trùng chữ ký bỏ qua
-    rất rẻ (chỉ dựng tracker của 1 tài sản). Worker thấy khoá chưa có thì tự dựng (đúng kết quả, chỉ tốn RAM hơn)."""
-
-    def __init__(self, shared_dir, label):
-        self.shared_dir, self.label = shared_dir, label
-        self.sigs, self.keys, self.written = set(), set(), 0
-        self.t0 = time.time()
-
-    def __call__(self, job):
-        from backend.core.data import shared as shared_data
-        eng, _ = _make_engine(job)
-        sym = eng.symbols[0]
-        te, _ = eng._make_trackers(sym, eng.ledger)
-        sig = (eng.start_ts, eng.end_ts) + tuple(eng._cache_key(sym, te)[3:])
-        if sig in self.sigs:
-            return
-        self.sigs.add(sig)
-        info = shared_data.export(eng, self.shared_dir)
-        self.keys |= info["paths"]
-        self.written += len(info["written"])
-        _release_memory()
-
-    def cleanup(self):
-        print(f"[shared] {self.label}: {self.written} bộ mới, {len(self.keys)} bộ, {_dir_mb(self.shared_dir, self.keys):.0f} MB "
-              f"({time.time() - self.t0:.0f}s)", flush=True)
-        from backend.core.data import shared as shared_data
-        shared_data.remove(self.shared_dir, self.keys)
-
-
-def _release_memory():
-    import ctypes
-    import gc
-    from backend.core.backtest.portfolio import data_cache_clear
-    from backend.core.data.loader import CandleLoader
-    CandleLoader.clear_cache()
-    data_cache_clear()
-    gc.collect()
-    try:
-        ctypes.CDLL("libc.so.6").malloc_trim(0)  # trả heap đã giải phóng về OS trước khi fork pool
-    except OSError:
-        pass
-
-
 def _job_key(stage, cand_id, job, fingerprint):
-    """job = (strategies [(id, params)], (start, end), stop_fill, risk, rpt) -> job_key (xem store.make_job_key)."""
-    items, window, stop_fill, risk, rpt = job
-    return make_job_key(stage, cand_id, [[cid, prm] for cid, prm in items], list(window), stop_fill, risk, fingerprint,
-                        extra={"rpt": rpt})
+    """BacktestJob -> job_key (xem store.make_job_key). Khung chạy khác 1m nằm trong khoá (resume không trộn kết quả hai khung)."""
+    extra = {"rpt": job.rpt}
+    if job.base_frame != "1m":
+        extra["base_frame"] = job.base_frame
+    return make_job_key(stage, cand_id, [[cid, prm] for cid, prm in job.items], list(job.window), job.stop_fill, job.risk, fingerprint,
+                        extra=extra)
 
 
 def _pool_shared_stored(jobs, workers, label, shared_dir, store, stage, cand_id, fingerprint, progress=None):
@@ -321,17 +238,17 @@ def _pool_shared_stored(jobs, workers, label, shared_dir, store, stage, cand_id,
             missing.append(i)
     if missing:
         sub = [jobs[i] for i in missing]
-        exp_keys = _export_shared(sub, shared_dir, label)
+        exporter = SharedExporter(shared_dir, label)
+        exporter.ensure(sub)
 
         def _done(j, res):
             i = missing[j]
             results[i] = normalize(res)
-            store.put(keys[i], stage, cand_id if cand_id is not None else "-", [[c, p] for c, p in jobs[i][0]], results[i], ord=i)
+            store.put(keys[i], stage, cand_id if cand_id is not None else "-", [[c, p] for c, p in jobs[i].items], results[i], ord=i)
             if progress is not None:
                 progress.tick(worker_peak_mb=results[i].get("_peak_rss_mb"))
         _pool_map_safe(run_book, sub, workers, label, on_done=_done)
-        from backend.core.data import shared as shared_data
-        shared_data.remove(shared_dir, exp_keys)
+        exporter.cleanup()
     return results
 
 
@@ -373,7 +290,7 @@ def _fmt_duration(sec):
 
 
 DEFAULTS = {"workers": "auto", "per_worker_mb": None, "n": 24, "seed": 7, "only": "", "out": os.path.join(NORA_ROOT, "data", "alphas"),
-            "keep_top": 50, "resume": "", "max_configs": 200_000, "force_large": False}
+            "keep_top": 50, "resume": "", "max_configs": 200_000, "force_large": False, "timeframe": "1m"}
 
 
 def run_job(params=None):
@@ -442,6 +359,7 @@ def run_job(params=None):
 def _run(a, cands, keep, counts_per_cand, total_configs, w, fmt, eval_risk, run_dir, store, progress, fingerprint,
          workers, per_worker_mb, report, shared_dir, resuming, consts):
     BASE_RISK_PER_TRADE_PCT, GATES, RISK = consts
+    tf = a.timeframe or "1m"   # khung chạy (nến mô phỏng) của mọi backtest trong lần dựng sổ
 
     # ── A. dev1 — STREAMING: cấu hình sinh lười -> pool (bounded) -> kho; cha chỉ giữ top-K ───────────
     t0 = time.time()
@@ -471,7 +389,8 @@ def _run(a, cands, keep, counts_per_cand, total_configs, w, fmt, eval_risk, run_
 
         def jobs(c=c, cid=cid):
             for ord_, cfg in enumerate(iter_configs(c, a.n, a.seed)):
-                yield ord_, cfg, ([(cid, cfg)], (w["start"], w["dev1_end"]), "level", eval_risk, BASE_RISK_PER_TRADE_PCT)
+                yield ord_, cfg, BacktestJob([(cid, cfg)], (w["start"], w["dev1_end"]), "level", eval_risk, BASE_RISK_PER_TRADE_PCT,
+                                             base_frame=tf)
 
         stream_kw = dict(store=store, stage="A", candidate=cid, key_of=lambda o, p, j: _job_key("A", cid, j, fingerprint),
                          handle=handle, progress=progress, prepare=exporter)
@@ -536,8 +455,8 @@ def _run(a, cands, keep, counts_per_cand, total_configs, w, fmt, eval_risk, run_
             b_plan.append((c, top, keys))
     progress.start_stage("B", sum(len(k) for _, _, k in b_plan))
     for c, top, keys in b_plan:
-        jobs_b = [([(cid, top[rank]["params"])], (w["dev1_end"], w["dev2_end"]), sf, eval_risk, BASE_RISK_PER_TRADE_PCT)
-                  for cid, rank, sf in keys]
+        jobs_b = [BacktestJob([(cid, top[rank]["params"])], (w["dev1_end"], w["dev2_end"]), sf, eval_risk, BASE_RISK_PER_TRADE_PCT,
+                              base_frame=tf) for cid, rank, sf in keys]
         res_c = _pool_shared_stored(jobs_b, workers, f"[B] {c['id']}", shared_dir, store, "B", c["id"], fingerprint, progress)
         out.update(zip(keys, res_c))
         print(f"[B] {c['id']:18s} {len(jobs_b)} lần chạy dev2 xong ({time.time() - t0:.0f}s | "
@@ -579,7 +498,7 @@ def _run(a, cands, keep, counts_per_cand, total_configs, w, fmt, eval_risk, run_
         items = [(cid, prm) for cid, prm, _ in accepted]
         progress.start_stage("C", 2)
         base_dev2 = _pool_shared_stored(
-            [(items, (w["dev1_end"], w["dev2_end"]), sf, RISK, BASE_RISK_PER_TRADE_PCT) for sf in ("level", "extreme")],
+            [BacktestJob(items, (w["dev1_end"], w["dev2_end"]), sf, RISK, BASE_RISK_PER_TRADE_PCT, base_frame=tf) for sf in ("level", "extreme")],
             workers, "[C] base_dev2", shared_dir, store, "C", "book", fingerprint, progress,
         )
         sizing = {str(s): bootstrap(base_dev2[1]["daily"], s) for s in RISK_SCALES}
@@ -595,7 +514,7 @@ def _run(a, cands, keep, counts_per_cand, total_configs, w, fmt, eval_risk, run_
         print(f"    -> rủi ro mỗi lệnh chốt: {rpt}%", flush=True)
         final = {}
         if rpt > 0:
-            fin_jobs = [(items, win, sf, RISK, rpt)
+            fin_jobs = [BacktestJob(items, win, sf, RISK, rpt, base_frame=tf)
                         for win in ((w["dev1_end"], w["dev2_end"]), (w["dev2_end"], w["end"]))
                         for sf in ("level", "extreme")]
             progress.start_stage("D", len(fin_jobs))
@@ -619,9 +538,11 @@ def _run(a, cands, keep, counts_per_cand, total_configs, w, fmt, eval_risk, run_
     # Chạy xong thành công: xoá dữ liệu dùng chung (lỗi/ngoại lệ thì không tới đây -> còn nguyên để gỡ lỗi)
     if os.path.isdir(shared_dir):
         import shutil
-        print(f"[shared] xoá {shared_dir} ({_dir_mb(shared_dir):.0f} MB còn lại; mỗi giai đoạn đã tự dọn bộ của nó)", flush=True)
+        from backend.core.data import shared as shared_data
+        print(f"[shared] xoá {shared_dir} ({shared_data.size_mb(shared_dir):.0f} MB còn lại; mỗi giai đoạn đã tự dọn kho của nó)", flush=True)
         shutil.rmtree(shared_dir, ignore_errors=True)
 
+    report["timeframe"] = tf
     # Ghi báo cáo cuối
     with open(os.path.join(run_dir, "report.json"), "w", encoding="utf-8") as fh:
         json.dump(report, fh, ensure_ascii=False, indent=1, default=json_default)

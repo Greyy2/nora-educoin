@@ -39,7 +39,7 @@ def _build(df, flows, capital=10000.0, funding=None):
         params = build_params(name, {"match": [{"condition": tree}], "stop": []}, side, {**pos, "order_size_pct": 1.0}, "cex")
         params.order_size_pct = float(pos.get("order_size_pct", 100.0))   # bỏ qua kiểm tra ngân sách DCA có chủ đích:
         eng.add_strategy_flow(name, params)                               # test này ép sổ vốn xử lý cả tầng DCA bị từ chối
-    eng.df_1m = eng._prepare_candles(df)
+    eng.df_base = eng._prepare_candles(df)
     tmp = df.assign(dt=pd.to_datetime(df.open_time, unit="ms", utc=True)).set_index("dt")
     agg = tmp.resample("240min", closed="left", label="left").agg(
         {"open_time": "first", "open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"}).dropna()

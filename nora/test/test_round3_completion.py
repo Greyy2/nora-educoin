@@ -16,14 +16,11 @@ commit 808d7f4 (baseline) và PASS sau khi sửa.
 import json
 import os
 import re
-import tempfile
 import time
 
 import numpy as np
 import pandas as pd
 import pytest
-from fastapi import HTTPException
-from pydantic import ValidationError
 
 from backend.core.data.resampler import save_resampled_dataset
 

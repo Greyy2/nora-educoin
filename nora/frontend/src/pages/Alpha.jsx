@@ -204,6 +204,7 @@ export default function Alpha() {
   const [n, setN] = useState(24)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(null)
+  const [timeframe, setTimeframe] = useState('15m')   // khung chạy (nến mô phỏng)
   const job = useJob(jobId)
 
   const patch = (o) => {
@@ -217,7 +218,7 @@ export default function Alpha() {
   async function run() {
     if (!strat) return setErr('Chọn một chiến lược.')
     setErr(null); setBusy(true)
-    try { const r = await postBuild({ only: [strat.id], n: Number(n) }); patch({ build: r.job_id }) } catch (e) { setErr(e.message) } finally { setBusy(false) }
+    try { const r = await postBuild({ only: [strat.id], n: Number(n), timeframe }); patch({ build: r.job_id }) } catch (e) { setErr(e.message) } finally { setBusy(false) }
   }
   const send = (id, params) => nav('/backtest', { state: { prefill: { strategies: [{ id, params }] } } })
 
@@ -238,6 +239,10 @@ export default function Alpha() {
           <StrategyCards catalog={cat.catalog} value={picked} onPick={(id) => patch({ s: id })} />
           <div className="n-sticky-actions">
             <div style={{ width: 170 }}><Field id="al-n" label="Số cấu hình thử (n)"><input id="al-n" type="number" min="1" max="200" className="n-in" value={n} onChange={(e) => setN(e.target.value)} /></Field></div>
+            <div style={{ width: 150 }}><Field id="al-tf" label="Khung chạy">
+              <select id="al-tf" className="n-sel" value={timeframe} onChange={(e) => setTimeframe(e.target.value)}>
+                <option value="15m">15 phút</option><option value="1h">1 giờ</option><option value="4h">4 giờ</option>
+              </select></Field></div>
             <button type="button" className="n-btn primary" style={{ alignSelf: 'flex-end' }} onClick={run} disabled={busy || !strat}>{busy ? <Spinner /> : null} Chạy tối ưu</button>
             {!strat && <span className="n-note" style={{ alignSelf: 'flex-end' }}>Chọn một chiến lược để bắt đầu.</span>}
             <ErrorBox>{err}</ErrorBox>

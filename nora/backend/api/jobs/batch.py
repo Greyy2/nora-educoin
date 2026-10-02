@@ -40,7 +40,7 @@ KINDS: Dict[str, Dict[str, Any]] = {
                             "test_days", "step_days", "sims", "mc_seed", "risk_per_trade", "workers", "resume", "max_configs", "force_large",
                             "timeframe"}},
     "book_build": {"module": "backend.optimize.book",
-                   "params": {"only", "n", "workers", "keep_top", "resume", "max_configs", "force_large"}},   # out do launch() đặt
+                   "params": {"only", "n", "workers", "keep_top", "resume", "max_configs", "force_large", "timeframe"}},   # out do launch() đặt
     "funnel_run": {"module": "backend.optimize.funnel.run",
                    "params": {"strategies", "n_per_strategy", "full_grid", "seed", "symbols", "windows", "run_id", "resume", "force_large",
                               "train_days", "test_days", "space", "timeframe"}},
@@ -253,6 +253,8 @@ def build_job(kind: str, p: Dict[str, Any]) -> Dict[str, Any]:
             out["keep_top"] = check_number(p["keep_top"], "keep_top", 3, 5000, integer=True)
         if p.get("force_large"):
             out["force_large"] = True
+        if p.get("timeframe"):
+            out["timeframe"] = check_timeframe(p["timeframe"])
     else:
         raise JobError(f"{kind}: dựng params ở router của nó")
     return out

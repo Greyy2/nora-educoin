@@ -154,7 +154,7 @@ class PortfolioEngine:
         if data is not None:
             return data
         shared_data.fill(self.shared_dir, self, eng, p)
-        eng.df_1m, eng.df_1m_hist, eng.frames, eng.df_4h, eng.funding = None, None, {}, None, None   # như khi đọc thẳng kho
+        eng.df_base, eng.df_base_hist, eng.frames, eng.df_4h, eng.funding = None, None, {}, None, None   # như khi đọc thẳng kho
         CandleLoader.clear_cache()
         return shared_data.load(self.shared_dir, p)
 

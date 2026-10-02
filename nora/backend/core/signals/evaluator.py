@@ -16,7 +16,7 @@ class LogicEvaluator:
 
     Ngữ cảnh (ctx) là dict khung -> row, vd {"1m": {...}, "15m": {...}, "4h": {...}}.
     Trường AST {"frame": "15m", "column": "rsi_14", "index": 1} đọc ctx["15m"]["rsi_14__lag1"].
-    API cũ (row_1m, row_4h, row_1h) vẫn được giữ.
+    Là bản tham chiếu từng nến cho VectorEvaluator (test_signals_strategies) và nguồn bảng toán tử dùng chung.
     """
 
     COMPARATORS = {
@@ -34,38 +34,6 @@ class LogicEvaluator:
         "-": operator.sub,
         "*": operator.mul,
     }
-
-    @staticmethod
-    def _ctx(row_1m: Optional[Dict], row_4h: Optional[Dict], row_1h: Optional[Dict] = None) -> Dict[str, Dict]:
-        return {k: v for k, v in (("1m", row_1m), ("4h", row_4h), ("1h", row_1h)) if v is not None}
-
-    @staticmethod
-    def compile_value_expr(item: Any) -> str:
-        return str(item)
-
-    @staticmethod
-    def compile_condition_expr(condition_tree: Any) -> str:
-        return str(condition_tree)
-
-    @staticmethod
-    def compile_ast(node: list) -> Callable[..., bool]:
-        if not node:
-            return lambda row_1m, row_4h=None, row_1h=None: False
-
-        def _compiled(row_1m: Dict, row_4h: Optional[Dict] = None, row_1h: Optional[Dict] = None) -> bool:
-            return LogicEvaluator.evaluate_condition_tree(node, row_1m, row_4h, row_1h)
-
-        return _compiled
-
-    @staticmethod
-    def evaluate_condition_tree(condition_tree: Any, row_1m: Dict, row_4h: Optional[Dict] = None,
-                                row_1h: Optional[Dict] = None) -> bool:
-        return LogicEvaluator.evaluate_tree_ctx(condition_tree, LogicEvaluator._ctx(row_1m, row_4h, row_1h))
-
-    @staticmethod
-    def evaluate_value(item: Any, row_1m: Dict, row_4h: Optional[Dict] = None,
-                       row_1h: Optional[Dict] = None) -> Optional[float]:
-        return LogicEvaluator.value_ctx(item, LogicEvaluator._ctx(row_1m, row_4h, row_1h))
 
     # ─── Lõi theo ngữ cảnh nhiều khung ──────────────────────────────────────
     @staticmethod

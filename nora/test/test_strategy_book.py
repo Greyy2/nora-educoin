@@ -7,7 +7,6 @@ Dữ liệu giả lập 3 tài sản perp (không gọi mạng). Kiểm:
 """
 import importlib.util
 import json
-import os
 
 import numpy as np
 import pandas as pd
@@ -83,8 +82,9 @@ def test_book_pipeline_runs_all_stages_with_shared_params(market, monkeypatch, t
     assert w["start"] < w["dev1_end"] < w["dev2_end"] < w["end"]
 
     # cùng một bộ tham số chạy trên cả 3 tài sản: mọi tài sản đều có lệnh từ cùng chiến lược
-    m = mod.run_book(([("t_long", {"sig.lo": 40, "stop_loss_rate": 2.0, "take_profit_rate": 2.0, "timeout": 720})],
-                      (w["start"], w["dev2_end"]), "level", {"max_positions": 3, "kill_switch_dd_pct": 0}, 0.5))
+    from backend.core.backtest.run import BacktestJob
+    m = mod.run_book(BacktestJob([("t_long", {"sig.lo": 40, "stop_loss_rate": 2.0, "take_profit_rate": 2.0, "timeout": 720})],
+                                 (w["start"], w["dev2_end"]), "level", {"max_positions": 3, "kill_switch_dd_pct": 0}, 0.5))
     assert m["trades"] > 0 and set(m["by_symbol"]) == set(SYMS)
 
     out = tmp_path / "alphas"

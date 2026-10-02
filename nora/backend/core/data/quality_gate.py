@@ -261,7 +261,7 @@ def _evaluate_data_quality_uncached(
                 "symbol": symbol,
                 "status": DataQualityStatus.BLOCKED,
                 "quality_score": 10.0,
-                "issues": [f"Chặn chạy: Phát hiện bước nhảy giá bất thường > 50% trong 1 phút"],
+                "issues": ["Chặn chạy: Phát hiện bước nhảy giá bất thường > 50% trong 1 phút"],
                 "metrics": {"max_1m_jump": float(pct_1m.max())},
             }
         jump_times = pd.to_datetime(df_1m.loc[jump_mask, "open_time"], unit="ms", utc=True)
@@ -400,7 +400,6 @@ def _evaluate_data_quality_uncached(
     inter_trade_p95_sec = 0.0
     trades_per_day = 0.0
     dup_timestamp_rate = 0.0
-    dup_tx_rate = 0.0
     estimated_slippage_pct = 0.15  # baseline 0.15%
     buy_sell_imbalance = 0.0
 
@@ -427,10 +426,6 @@ def _evaluate_data_quality_uncached(
             # Check duplicates
             dup_ts_count = int(pd.Series(sorted_ts).duplicated().sum())
             dup_timestamp_rate = float(dup_ts_count / total_ticks)
-
-        if "tx_hash" in df_ticks.columns:
-            dup_tx_count = int(df_ticks["tx_hash"].duplicated().sum())
-            dup_tx_rate = float(dup_tx_count / total_ticks)
 
         # Slippage estimation based on trade activity and trade sizes
         if "volume_usd" in df_ticks.columns:

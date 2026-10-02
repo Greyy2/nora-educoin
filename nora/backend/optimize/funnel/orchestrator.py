@@ -17,6 +17,7 @@ from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Tupl
 from backend.utils.jobs import Progress, graceful_sigterm
 
 from backend.optimize.funnel import antiluck, evaluate as bt, gates, sizing
+from backend.optimize.shared import SharedExporter
 from .generate import alpha_id_of, count_params, iter_params, iter_params_factored, space_for, validate_alpha
 from .storage import RunStore, StageResult
 from backend.optimize.funnel.gates import compute_windows, windows_iso, wfa_folds
@@ -90,7 +91,7 @@ class Ctx:
         self.symbols = list(cfg.symbols)
         self.base_frame = cfg.timeframe
         self.cands = _candidates(cfg.strategies)
-        self.exporter = bt.SharedExporter(self.shared_dir, workers, "funnel")
+        self.exporter = SharedExporter(self.shared_dir, "funnel", workers, to_job=bt.to_job)
         self.folds = bt.fold_job_plan(wfa_folds(windows, cfg.train_days, cfg.test_days))
 
     def imap(self, fn: Callable, jobs: Iterable, label: str) -> Iterator[Tuple[int, Any]]:

@@ -87,7 +87,7 @@ def signal_snapshot(symbol: str, strategies: List[Dict[str, Any]], end_ts: int, 
     from backend.core.regime import classifier as rg
     eng.extra_refs = rg.REFS                         # regime luôn hiển thị, cùng cột đặc trưng với backtest bật regime
     eng.load_data()
-    if eng.df_1m is None or eng.df_1m.empty:
+    if eng.df_base is None or eng.df_base.empty:
         return out
     df1, cols = eng._build_matrix()
     n = len(df1)

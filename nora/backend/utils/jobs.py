@@ -100,27 +100,7 @@ class Progress:
             except OSError:
                 pass
 
-    def start_poller(self, fn, interval: float = WRITE_EVERY_S) -> None:
-        """Luồng nền: done = fn() mỗi `interval` giây (vd. đếm hàng trong kho khi worker tự ghi) rồi ghi progress.json."""
-        import threading
-        self._stop = threading.Event()
-
-        def loop():
-            while not self._stop.wait(interval):
-                try:
-                    self.done = int(fn())
-                except Exception:
-                    continue
-                self.write(force=True)
-        self._thread = threading.Thread(target=loop, name="progress-poller", daemon=True)
-        self._thread.start()
-
-    def stop_poller(self) -> None:
-        if getattr(self, "_stop", None) is not None:
-            self._stop.set()
-
     def finish(self, status: str = "done") -> None:
-        self.stop_poller()
         self.status = status
         self.write(force=True)
 

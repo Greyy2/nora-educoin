@@ -16,8 +16,8 @@ import os
 from typing import List, Optional, Tuple
 
 import pandas as pd
+from backend.db.data_layout import default_data_root
 from backend.db.local_pkl import (
-    default_data_root,
     fetch_candles_df as fetch_local_candles_df,
     has_frame as has_local_frame,
     resolve_symbol_dir,

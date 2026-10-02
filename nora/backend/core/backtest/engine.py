@@ -104,8 +104,8 @@ class BacktestEngine:
         self.trackers: List[PositionTracker] = []
         self.ledger = CapitalLedger(self.initial_capital)
         self.funding: Optional[pd.DataFrame] = None  # perp: funding_time, rate
-        self.df_1m: Optional[pd.DataFrame] = None
-        self.df_1m_hist: Optional[pd.DataFrame] = None   # lịch sử 1m từ gốc (chỉ khi có cột khung 1m)
+        self.df_base: Optional[pd.DataFrame] = None        # nến khung chạy của cửa sổ (đã gồm warmup)
+        self.df_base_hist: Optional[pd.DataFrame] = None   # lịch sử khung chạy từ gốc (chỉ khi có cột của chính khung chạy)
         self.df_4h: Optional[pd.DataFrame] = None
         self.frames: Dict[str, pd.DataFrame] = {}
         self.closed_positions = []
@@ -162,10 +162,10 @@ class BacktestEngine:
         base = self.base_frame
         warm = self._warmup_ms(base, refs.get(base, set()))
         loader = CandleLoader(self.symbol, frame=base, use_cache=True)
-        # df_1m = nến của KHUNG CHẠY (tên giữ vì lịch sử; 1m là mặc định)
-        self.df_1m = self._prepare_candles(loader.load_data(self.start_ts - warm, self.end_ts))
+        # df_base = nến của KHUNG CHẠY (mặc định 1m)
+        self.df_base = self._prepare_candles(loader.load_data(self.start_ts - warm, self.end_ts))
         # chỉ báo trên chính khung chạy tính từ đầu lịch sử (gốc cố định) -> cần cả lịch sử khi có cột của khung chạy
-        self.df_1m_hist = loader.load_data(HISTORY_START, self.end_ts) if refs.get(base) else None
+        self.df_base_hist = loader.load_data(HISTORY_START, self.end_ts) if refs.get(base) else None
         if self.trade_start_ts < self.start_ts:
             self.trade_start_ts = self.start_ts
 
@@ -200,7 +200,7 @@ class BacktestEngine:
     def _build_matrix(self, only: Optional[Set[str]] = None) -> Tuple[pd.DataFrame, Dict[str, np.ndarray]]:
         """only: chỉ tính các cột có tên trong tập này ("khung|cột[__lagN]") — dữ liệu dùng chung điền cột còn thiếu.
         Mỗi cột tính độc lập trên khung đã nạp theo refs ĐẦY ĐỦ (frame_features), nên giá trị y hệt khi tính cả bộ."""
-        df1 = self._prepare_candles(self.df_1m)
+        df1 = self._prepare_candles(self.df_base)
         if "is_filled" not in df1.columns:
             df1["is_filled"] = 0
         df1["is_filled"] = pd.to_numeric(df1["is_filled"], errors="coerce").fillna(0).astype(int)
@@ -224,9 +224,9 @@ class BacktestEngine:
         """Giá trị các cột `refs` của khung `frame` trên MỌI nến của khung từ đầu lịch sử (gốc cố định) -> (open_time nến, {cid: giá trị}).
         Khung 1m: chỉ phút có giao dịch (bỏ nến điền). Khung lớn: các nến đã nạp bằng load_frames. Mỗi cột tính độc lập."""
         if frame == self.base_frame:
-            src = getattr(self, "df_1m_hist", None)
+            src = getattr(self, "df_base_hist", None)
             if src is None:
-                src = self.df_1m       # dữ liệu gán thẳng (test) = toàn bộ lịch sử
+                src = self.df_base       # dữ liệu gán thẳng (test) = toàn bộ lịch sử
             if src is None:            # đường dữ liệu dùng chung: engine chưa nạp gì
                 src = CandleLoader(self.symbol, frame=frame, use_cache=True).load_data(HISTORY_START, self.end_ts)
             src = self._prepare_candles(src)
@@ -271,7 +271,7 @@ class BacktestEngine:
 
     def run(self):
         """Chạy backtest bằng kernel numba (core/backtest/kernel.py) — kết quả trùng từng bit với vòng lặp Python cũ (test/reference_engine.py)."""
-        if self.df_1m is None or self.df_1m.empty:
+        if self.df_base is None or self.df_base.empty:
             return
         from backend.core.backtest.kernel import run_backtest
         run_backtest(self)

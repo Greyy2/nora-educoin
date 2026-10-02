@@ -7,7 +7,7 @@
 - planning_budget_mb: RAM một job được phép LẬP KẾ HOẠCH dùng ngay bây giờ (cgroup trừ dự phòng + chừa chỗ cho máy).
 """
 import os
-from typing import Any, Dict, Optional
+from typing import Optional
 
 _UNLIMITED_V1 = 1 << 60  # cgroup v1 ghi giá trị cực lớn khi không giới hạn
 
@@ -205,20 +205,6 @@ def usable_cpus() -> int:
     core thật = 22,8 alpha/s, mỗi worker nhanh hơn nhưng tổng chậm hơn khi dùng cả luồng HT. NORA_CPU_PHYSICAL=1 -> chỉ core thật
     (ít RAM hơn ~40%)."""
     return physical_cores() if os.environ.get("NORA_CPU_PHYSICAL") == "1" else logical_cpus()
-
-
-def cache_report() -> Dict[str, Any]:
-    """RSS hiện tại / đỉnh và kích thước các cache module (số mục + MB)."""
-    report: Dict[str, Any] = {"rss_mb": round(rss_mb(), 1), "peak_rss_mb": round(peak_rss_mb(), 1)}
-    for name, module, attr in (("candle_cache", "backend.core.data.loader", "_CANDLE_CACHE"),
-                               ("data_cache", "backend.core.backtest.portfolio", "_DATA_CACHE")):
-        try:
-            cache = getattr(__import__(module, fromlist=[attr]), attr)
-            report[f"{name}_items"] = len(cache)
-            report[f"{name}_mb"] = round(cache.used_mb(), 1)
-        except Exception:
-            report[f"{name}_items"] = -1
-    return report
 
 
 def check_memory_gate(required_mb: float, label: str = "") -> None:

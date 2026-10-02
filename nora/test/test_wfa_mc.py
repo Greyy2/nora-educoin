@@ -1,6 +1,5 @@
 import pytest
 import numpy as np
-from typing import Dict, Any
 
 
 def test_generate_folds_no_overlap():

@@ -14,7 +14,6 @@ Sau cùng: nối lợi suất ngày OOS (extreme) của mọi fold -> Monte Carl
 Chạy song song: MỌI job IS của MỌI fold trong một pool, rồi MỌI job OOS trong một pool; trước mỗi pool tiến trình cha
 dựng dữ liệu dùng chung (mmap) cho từng (cửa sổ, refs) và xoá sau khi pool thành công.
 """
-import gc
 import json
 import os
 import time
@@ -25,14 +24,15 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+from backend.core.backtest.run import BacktestJob, make_engine
 from backend.core.metrics.portfolio import portfolio_metrics
+from backend.optimize.shared import SharedExporter
 from backend.utils.parallel import pool_map_safe
 
 from ..carlo.monte_carlo import (MC_MAX_RUIN_PCT, MC_MIN_SIMULATIONS, MC_RUIN_THRESHOLD_PCT, STRESS_MAX_MDD_PCT,
                                  evaluate_mc_gate, run_monte_carlo_daily_gate)
 
 DAY = 86_400_000
-WARMUP = 20 * DAY                  # nạp thêm trước đầu cửa sổ để kernel đủ dữ liệu (như build_strategy_book)
 
 # ── Gate chấp nhận (không nới để có kết quả đẹp) ────────────────────────────
 MIN_FOLDS = 5                      # tối thiểu số fold
@@ -68,25 +68,11 @@ _pool_map = pool_map_safe
 
 
 # ── Job & worker ────────────────────────────────────────────────────────────
-def _make_engine(job):
-    """job = (strategies [(candidate_id, params)], (start, end), stop_fill, risk dict, risk_per_trade, symbols, shared_dir)."""
-    from backend.core.strategy.book import CANDIDATES, materialize
-    from backend.core.backtest.portfolio import PortfolioEngine, RiskConfig
-    from backend.core.params.modes import lift_frames
-    items, (start, end), stop_fill, risk, rpt, symbols, shared_dir = job
-    base = risk.get("base_frame", "1m")   # khung chạy đi cùng cấu hình danh mục (nằm trong khoá resume của job)
-    by_id = {c["id"]: c for c in CANDIDATES}
-    strategies = [materialize(by_id[cid], lift_frames(by_id[cid], prm, base), stop_fill=stop_fill, risk_per_trade_pct=rpt)
-                  for cid, prm in items]
-    return PortfolioEngine(symbols, strategies, start - WARMUP, end, trade_start_ts=start,
-                           risk=RiskConfig.from_dict(risk), shared_dir=shared_dir, base_frame=base), start
-
-
 def run_job(job):
     import contextlib
     import io
     from backend.utils.memwatch import peak_rss_mb, rss_anon_mb
-    eng, start = _make_engine(job)
+    eng, start = make_engine(job)
     with contextlib.redirect_stdout(io.StringIO()):
         eng.run()
     res = eng.get_results()
@@ -99,39 +85,15 @@ def run_job(job):
     return result
 
 
-def _export_shared(jobs, shared_dir, label):
-    """Cha dựng MỘT lần dữ liệu cho mọi (tài sản, cửa sổ, refs) của các job vào shared_dir. Trả các khoá đã dùng."""
-    import ctypes
-    from backend.core.data import shared as shared_data
-    from backend.core.backtest.portfolio import data_cache_clear
-    from backend.core.data.loader import CandleLoader
-    t = time.time()
-    keys, written = set(), 0
-    for job in jobs:
-        eng, _ = _make_engine(job)
-        info = shared_data.export(eng, shared_dir)
-        keys |= info["paths"]
-        written += len(info["written"])
-    CandleLoader.clear_cache()
-    data_cache_clear()
-    gc.collect()
-    try:
-        ctypes.CDLL("libc.so.6").malloc_trim(0)
-    except OSError:
-        pass
-    print(f"[shared] {label}: {written} bộ mới, {len(keys)} bộ ({time.time() - t:.0f}s)", flush=True)
-    return keys
-
-
 def _pool_shared(jobs, workers, label, shared_dir, store=None, stage=None, progress=None):
-    from backend.core.data import shared as shared_data
-    """Export dữ liệu dùng chung -> pool -> xoá các bộ của pool này (lỗi thì ngoại lệ bay lên, giữ nguyên để gỡ lỗi).
+    """Làm nóng kho dùng chung -> pool -> dọn kho (lỗi thì ngoại lệ bay lên, kho giữ nguyên để gỡ lỗi). jobs: [BacktestJob].
     store (ResultsStore, tuỳ chọn): mỗi kết quả ghi ngay khi xong; job đã có trong kho (cùng job_key) bỏ qua -> `--resume`.
     stage "wfa_is": bỏ chuỗi `daily` (chọn cấu hình IS không cần) để RAM/kho gọn. Kết quả luôn đúng thứ tự jobs."""
     if store is None and progress is None:
-        keys = _export_shared(jobs, shared_dir, label)
+        exporter = SharedExporter(shared_dir, label)
+        exporter.ensure(jobs)
         res = _pool_map(run_job, jobs, workers, label)
-        shared_data.remove(shared_dir, keys)
+        exporter.cleanup()
         return res
     from backend.optimize.store import data_fingerprint, make_job_key
     from backend.optimize.store import normalize
@@ -139,12 +101,14 @@ def _pool_shared(jobs, workers, label, shared_dir, store=None, stage=None, progr
     results: List[Any] = [None] * len(jobs)
     keys_of: List[Optional[str]] = [None] * len(jobs)
     missing = []
-    fp = data_fingerprint(jobs[0][5]) if (store is not None and jobs) else None
+    fp = data_fingerprint(jobs[0].symbols) if (store is not None and jobs) else None
     for i, job in enumerate(jobs):
         if store is not None:
-            items, window, stop_fill, risk, rpt, symbols, _shared = job
-            keys_of[i] = make_job_key(stage, "-", [[c, p] for c, p in items], list(window), stop_fill, risk, fp,
-                                      extra={"rpt": rpt, "symbols": list(symbols)})
+            extra = {"rpt": job.rpt, "symbols": list(job.symbols)}
+            if job.base_frame != "1m":   # khung chạy khác -> khoá khác (resume không trộn kết quả hai khung)
+                extra["base_frame"] = job.base_frame
+            keys_of[i] = make_job_key(stage, "-", [[c, p] for c, p in job.items], list(job.window), job.stop_fill, job.risk, fp,
+                                      extra=extra)
             row = store.get(keys_of[i])
             if row is not None:
                 results[i] = row["metrics"]
@@ -154,7 +118,8 @@ def _pool_shared(jobs, workers, label, shared_dir, store=None, stage=None, progr
         missing.append(i)
     if missing:
         sub = [jobs[i] for i in missing]
-        exp_keys = _export_shared(sub, shared_dir, label)
+        exporter = SharedExporter(shared_dir, label)
+        exporter.ensure(sub)
 
         def _done(j, res):
             i = missing[j]
@@ -164,11 +129,11 @@ def _pool_shared(jobs, workers, label, shared_dir, store=None, stage=None, progr
                 m.pop("stats", None)
             results[i] = m
             if store is not None:
-                store.put(keys_of[i], stage, "-", [[c, p] for c, p in jobs[i][0]], m, ord=i)
+                store.put(keys_of[i], stage, "-", [[c, p] for c, p in jobs[i].items], m, ord=i)
             if progress is not None:
                 progress.tick(worker_peak_mb=m.get("_peak_rss_mb"))
         _pool_map(run_job, sub, workers, label, on_done=_done)
-        shared_data.remove(shared_dir, exp_keys)
+        exporter.cleanup()
     return results
 
 
@@ -198,7 +163,7 @@ def select_best(rows: List[Dict[str, Any]], min_trades: int) -> Optional[int]:
     return best_i
 
 
-def plan_is_jobs(candidates, folds, symbols, risk, rpt, shared_dir):
+def plan_is_jobs(candidates, folds, symbols, risk, rpt, shared_dir, base_frame="1m"):
     """Danh sách (khoá, job) IS: khoá = (fold, candidate_id, chỉ số cấu hình). Cửa sổ IS = [train_start, train_end]."""
     is_risk = {**risk, "kill_switch_dd_pct": 0}
     keys, jobs = [], []
@@ -206,12 +171,12 @@ def plan_is_jobs(candidates, folds, symbols, risk, rpt, shared_dir):
         for cand in candidates:
             for ci, cfg_params in enumerate(cand["configs"]):
                 keys.append((fi, cand["id"], ci))
-                jobs.append(([(cand["id"], cfg_params)], (fold["train_start_ts"], fold["train_end_ts"]), "level", is_risk,
-                             rpt, symbols, shared_dir))
+                jobs.append(BacktestJob([(cand["id"], cfg_params)], (fold["train_start_ts"], fold["train_end_ts"]), "level", is_risk,
+                                        rpt, symbols, shared_dir, base_frame))
     return keys, jobs
 
 
-def plan_oos_jobs(chosen, folds, symbols, risk, rpt, shared_dir):
+def plan_oos_jobs(chosen, folds, symbols, risk, rpt, shared_dir, base_frame="1m"):
     """chosen[fold] = [(candidate_id, params)] (rỗng -> fold NO_TRADE, không chạy). Khoá = (fold, stop_fill)."""
     keys, jobs = [], []
     for fi, fold in enumerate(folds):
@@ -219,7 +184,7 @@ def plan_oos_jobs(chosen, folds, symbols, risk, rpt, shared_dir):
             continue
         for sf in ("level", "extreme"):
             keys.append((fi, sf))
-            jobs.append((chosen[fi], (fold["test_start_ts"], fold["test_end_ts"]), sf, risk, rpt, symbols, shared_dir))
+            jobs.append(BacktestJob(chosen[fi], (fold["test_start_ts"], fold["test_end_ts"]), sf, risk, rpt, symbols, shared_dir, base_frame))
     return keys, jobs
 
 
@@ -291,7 +256,7 @@ def evaluate_gate(summary: Dict[str, Any]) -> Dict[str, Any]:
 
 # ── Chạy ────────────────────────────────────────────────────────────────────
 def run_portfolio_wfa(candidates, symbols, start_ts, end_ts, cfg, risk, risk_per_trade_pct, workers, shared_root,
-                      store=None, progress=None) -> Dict[str, Any]:
+                      store=None, progress=None, base_frame="1m") -> Dict[str, Any]:
     """candidates = [{"id": candidate_id, "configs": [params...]}]; cfg: PortfolioWfaConfig hoặc dict.
     risk: dict RiskConfig dùng cho OOS (kill switch BẬT); IS tự tắt kill switch. Trả dict kết quả (xem aggregate_folds).
     store/progress (tuỳ chọn, backend/optimize): ghi từng kết quả job vào kho + bỏ qua job đã có (--resume) + tiến độ."""
@@ -304,7 +269,7 @@ def run_portfolio_wfa(candidates, symbols, start_ts, end_ts, cfg, risk, risk_per
     t0 = time.time()
 
     # IS: MỌI fold × chiến lược × cấu hình trong MỘT pool
-    is_keys, is_jobs = plan_is_jobs(candidates, folds, symbols, risk, rpt, shared_root)
+    is_keys, is_jobs = plan_is_jobs(candidates, folds, symbols, risk, rpt, shared_root, base_frame)
     if progress is not None:
         progress.start_stage("WFA-IS", len(is_jobs))
     is_res = _pool_shared(is_jobs, workers, f"[WFA-IS] {len(folds)} fold × {len(is_jobs) // len(folds)} job", shared_root,
@@ -327,7 +292,7 @@ def run_portfolio_wfa(candidates, symbols, start_ts, end_ts, cfg, risk, risk_per
         picks.append(pick)
 
     # OOS: MỌI fold × {level, extreme} trong MỘT pool
-    oos_keys, oos_jobs = plan_oos_jobs(chosen, folds, symbols, risk, rpt, shared_root)
+    oos_keys, oos_jobs = plan_oos_jobs(chosen, folds, symbols, risk, rpt, shared_root, base_frame)
     if progress is not None:
         progress.start_stage("WFA-OOS", len(oos_jobs))
     oos_res = _pool_shared(oos_jobs, workers, f"[WFA-OOS] {len(oos_jobs)} job", shared_root, store, "wfa_oos", progress) if oos_jobs else []

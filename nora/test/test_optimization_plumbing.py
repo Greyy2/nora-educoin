@@ -8,13 +8,10 @@ test_optimization_plumbing.py — hạ tầng cho bước B (tối ưu) và A3/A
 - Script tối ưu: chia cửa sổ không chồng lấn, lấy mẫu cấu hình tái lập được.
 """
 import importlib.util
-import json
-import os
 
 import numpy as np
 import pandas as pd
 import pytest
-from pydantic import ValidationError
 
 from backend.core.params.template import collect_placeholders, resolve_placeholders, split_params
 from backend.core.data.resampler import save_resampled_dataset

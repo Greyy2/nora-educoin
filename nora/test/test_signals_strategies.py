@@ -144,7 +144,7 @@ def _engine(df1, match, stop=None, **pos):
     params = build_params(f"{flow_type}_f", {"match": [{"condition": match}], "stop": [{"condition": stop or []}]},
                           flow_type, pos, venue)
     eng.add_strategy_flow(f"{flow_type}_f", params)
-    eng.df_1m = eng._prepare_candles(df1)
+    eng.df_base = eng._prepare_candles(df1)
     for frame, ms in (("15m", 900_000), ("1h", 3_600_000), ("4h", 14_400_000)):
         tmp = df1.assign(dt=pd.to_datetime(df1.open_time, unit="ms", utc=True)).set_index("dt")
         agg = tmp.resample(f"{ms // 60000}min", closed="left", label="left").agg(

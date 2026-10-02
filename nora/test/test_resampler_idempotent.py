@@ -11,11 +11,8 @@ Test phải FAIL trên code cũ (trước khi sửa resampler):
 4. Crawler: existing_1m sau khi lọc is_filled==1 không chứa nến điền
 """
 import os
-import json
 import tempfile
-import numpy as np
 import pandas as pd
-import pytest
 
 from backend.core.data.resampler import fill_missing_1m_candles, save_resampled_dataset
 
@@ -100,7 +97,7 @@ def test_real_data_replaces_filled():
     row = df_refilled[df_refilled["open_time"] == filled_ts]
     assert len(row) == 1, f"Phải có đúng 1 dòng cho timestamp {filled_ts}"
     assert int(row.iloc[0]["is_filled"]) == 0, (
-        f"Phút được thay bằng dữ liệu thật vẫn bị đánh dấu is_filled=1"
+        "Phút được thay bằng dữ liệu thật vẫn bị đánh dấu is_filled=1"
     )
     assert abs(float(row.iloc[0]["close"]) - real_price) < 1e-6, (
         f"Giá phải là giá thật {real_price}, không phải giá điền {float(row.iloc[0]['close'])}"

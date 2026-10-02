@@ -6,7 +6,7 @@ Dữ liệu giá + kernel đọc qua mmap dùng chung (backend/core/data/shared.
 """
 import contextlib
 import io
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -15,6 +15,8 @@ from . import gates, sizing
 from backend.core.metrics.portfolio import flat_extras, series_metrics
 from backend.core.metrics.returns import daily_stats, sortino
 from backend.core.metrics.trades import trade_rows, trade_stats
+from backend.core.backtest.run import BacktestJob
+from backend.core.backtest.run import make_engine as _make_engine
 
 DAY = 86_400_000
 
@@ -26,16 +28,14 @@ def risk_dict(kill: bool) -> Dict[str, Any]:
     return {**RISK, "kill_switch_dd_pct": RISK["kill_switch_dd_pct"] if kill else 0}
 
 
+def to_job(job: Dict[str, Any]) -> BacktestJob:
+    """Job phễu (dict: strategy, params, window, stop_fill, kill, rpt, symbols, shared_dir, base_frame) -> đặc tả chung BacktestJob."""
+    return BacktestJob([(job["strategy"], job["params"])], (int(job["window"][0]), int(job["window"][1])), job["stop_fill"],
+                       risk_dict(job["kill"]), job["rpt"], list(job["symbols"]), job.get("shared_dir"), job.get("base_frame", "1m"))
+
+
 def make_engine(job: Dict[str, Any]):
-    """job: strategy, params, window [start, end], stop_fill, kill (bool), rpt, symbols, shared_dir, base_frame (khung chạy)."""
-    from backend.core.backtest.portfolio import PortfolioEngine, RiskConfig
-    from backend.core.strategy import book as sb
-    by_id = {c["id"]: c for c in sb.CANDIDATES}
-    start, end = job["window"]
-    st = sb.materialize(by_id[job["strategy"]], job["params"], stop_fill=job["stop_fill"], risk_per_trade_pct=job["rpt"])
-    return PortfolioEngine(list(job["symbols"]), [st], start - gates.WARMUP_DAYS * DAY, end, trade_start_ts=start,
-                           risk=RiskConfig.from_dict(risk_dict(job["kill"])), shared_dir=job.get("shared_dir"),
-                           base_frame=job.get("base_frame", "1m")), start
+    return _make_engine(to_job(job))
 
 
 def _outputs(res: Dict[str, Any], start: int, want_trades: bool) -> Dict[str, Any]:
@@ -277,64 +277,3 @@ def w_holdout(job: Dict[str, Any]) -> Dict[str, Any]:
         out[fill] = run_backtest(base_job(job["strategy"], job["params"], win, fill, True, job["rpt"], job["symbols"], job["shared_dir"],
                                           job.get("base_frame", "1m")), want_trades=True)
     return out
-
-
-# ── Xuất dữ liệu dùng chung (mmap) ──────────────────────────────────────────
-def _export_one(job: Dict[str, Any]) -> List[str]:
-    from backend.core.data import shared as shared_data
-    eng, _ = make_engine(job)
-    info = shared_data.export(eng, job["shared_dir"])
-    _release_memory()
-    return sorted(info["paths"])
-
-
-def _release_memory() -> None:
-    import ctypes
-    import gc
-    from backend.core.backtest.portfolio import data_cache_clear
-    from backend.core.data.loader import CandleLoader
-    CandleLoader.clear_cache()
-    data_cache_clear()
-    gc.collect()
-    try:
-        ctypes.CDLL("libc.so.6").malloc_trim(0)
-    except OSError:
-        pass
-
-
-class SharedExporter:
-    """Làm nóng dữ liệu dùng chung (core/data/shared.py, lưu theo cột) TRƯỚC khi chạy pool của một tầng, và dọn sau tầng.
-    Không bắt buộc đủ: worker thiếu nền / cột nào thì tự tính đúng phần thiếu và ghi vào shared_dir cho worker khác (song song,
-    không nghẽn ở tiến trình cha). `ensure(jobs)` chỉ xuất một lần cho mỗi (chiến lược, cửa sổ)."""
-
-    def __init__(self, shared_dir: Optional[str], workers: int = 1, label: str = ""):
-        self.shared_dir, self.workers, self.label = shared_dir, max(1, int(workers)), label
-        self.sigs: Set[Tuple] = set()
-
-    def ensure(self, jobs: List[Dict[str, Any]]) -> None:
-        if not self.shared_dir:
-            return
-        todo = []
-        for j in jobs:
-            memo = (j["strategy"], tuple(j["window"]))
-            if memo in self.sigs:
-                continue
-            self.sigs.add(memo)
-            todo.append({**j, "shared_dir": self.shared_dir})
-        if not todo:
-            return
-        from backend.utils.parallel import pool_map_safe
-        if self.workers <= 1 or len(todo) == 1:
-            [_export_one(j) for j in todo]
-        else:
-            pool_map_safe(_export_one, todo, min(self.workers, len(todo)), f"[shared] {self.label}")
-
-    def cleanup(self) -> None:
-        """Xoá toàn bộ dữ liệu dùng chung của tầng (gồm phần worker tự điền) — các tầng chạy tuần tự nên an toàn."""
-        import os
-        import shutil
-        if not self.shared_dir:
-            return
-        for sub in ("base", "ft", "fv", "ix"):
-            shutil.rmtree(os.path.join(self.shared_dir, sub), ignore_errors=True)
-        self.sigs.clear()

@@ -125,20 +125,6 @@ def testnet_config(alpha: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def write_registry(registry: Dict[str, Any], out_dir: str) -> List[str]:
-    os.makedirs(os.path.join(out_dir, "testnet"), exist_ok=True)
-    written = [os.path.join(out_dir, "registry.json")]
-    with open(written[0], "w", encoding="utf-8") as fh:
-        json.dump(registry, fh, ensure_ascii=False, indent=2, default=json_default)
-    for alpha in registry["alphas"]:
-        if alpha["market"] == "perp":
-            path = os.path.join(out_dir, "testnet", f"{alpha['alpha_id']}.json")
-            with open(path, "w", encoding="utf-8") as fh:
-                json.dump(testnet_config(alpha), fh, ensure_ascii=False, indent=2, default=json_default)
-            written.append(path)
-    return written
-
-
 # ─── Sổ chiến lược: ghi book.json / testnet, xuất bản (book_export) ────────
 def _is_true(v) -> bool:
     """Chặt chẽ: chỉ True thật (hoặc chuỗi "True" của báo cáo cũ do default=str); chuỗi 'False' KHÔNG được coi là đúng."""

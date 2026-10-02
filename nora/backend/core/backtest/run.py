@@ -20,6 +20,7 @@ import io
 import json
 import time
 import warnings
+from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
 import pandas as pd
 
@@ -87,6 +88,33 @@ def daily_nav(curve, end):
     for c in curve:
         last[pd.Timestamp(min(c["time"], end - 1), unit="ms").strftime("%Y-%m-%d")] = float(c["equity"])
     return [{"date": d, "equity": e} for d, e in last.items()]
+
+
+class BacktestJob(NamedTuple):
+    """Đặc tả MỘT lần backtest danh mục — dùng chung cho dựng sổ (optimize/book), WFA (wfa/walk_forward) và phễu (optimize/funnel).
+    items: [(id chiến lược lõi, tham số)]; window: (start, end) ms — chỉ số đo từ start, nạp thêm WARMUP trước đó; symbols None = vũ trụ
+    perp của sổ; shared_dir None = env NORA_SHARED_DATA_DIR (core/data/shared); base_frame = khung chạy (nến mô phỏng)."""
+    items: List[Tuple[str, Dict[str, Any]]]
+    window: Tuple[int, int]
+    stop_fill: str
+    risk: Dict[str, Any]
+    rpt: float
+    symbols: Optional[List[str]] = None
+    shared_dir: Optional[str] = None
+    base_frame: str = "1m"
+
+
+def make_engine(job: BacktestJob):
+    """PortfolioEngine của job (chưa nạp dữ liệu) + mốc bắt đầu đo. Khung tín hiệu nhỏ hơn khung chạy được nâng lên (params.modes.lift_frames)."""
+    from backend.core.backtest.portfolio import PortfolioEngine, RiskConfig
+    from backend.core.params.modes import lift_frames
+    from backend.core.strategy.book import CANDIDATES, materialize, perp_symbols
+    by_id = {c["id"]: c for c in CANDIDATES}
+    strategies = [materialize(by_id[cid], lift_frames(by_id[cid], prm, job.base_frame), stop_fill=job.stop_fill,
+                              risk_per_trade_pct=job.rpt) for cid, prm in job.items]
+    start, end = job.window
+    return PortfolioEngine(list(job.symbols or perp_symbols()), strategies, start - WARMUP, end, trade_start_ts=start,
+                           risk=RiskConfig.from_dict(job.risk), shared_dir=job.shared_dir, base_frame=job.base_frame), start
 
 
 def run(items, symbols, start, end, rpt, stop_fill, risk, extra_strategies=None, initial_capital=None, close_at_end=True,

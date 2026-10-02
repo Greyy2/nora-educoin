@@ -42,10 +42,6 @@ def default_data_root() -> str:
     return env or os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data"))
 
 
-def meta_dir(data_root: Optional[str] = None) -> str:
-    return os.path.join(data_root or default_data_root(), "_meta")
-
-
 def cache_dir(data_root: Optional[str] = None, *parts: str) -> str:
     path = os.path.join(data_root or default_data_root(), "_cache", *parts)
     os.makedirs(path, exist_ok=True)
@@ -145,15 +141,6 @@ def resolve_asset_dir(symbol: str, data_root: Optional[str] = None) -> Optional[
     return flat if os.path.isdir(flat) else None
 
 
-def qualified_symbol(path: str, data_root: Optional[str] = None) -> str:
-    """Ký hiệu ổn định cho một thư mục tài sản (có tiền tố venue nếu tên bị trùng)."""
-    target = os.path.normpath(path)
-    for item in list_assets(data_root):
-        if os.path.normpath(item["path"]) == target:
-            return item["qualified"]
-    return os.path.basename(target).upper()
-
-
 def asset_dir_for_write(venue: str, symbol: str, data_root: Optional[str] = None) -> str:
     """Thư mục để GHI dữ liệu mới: <root>/<venue>/<SYM> (tạo nếu chưa có)."""
     venue = str(venue or "").lower()
@@ -163,7 +150,3 @@ def asset_dir_for_write(venue: str, symbol: str, data_root: Optional[str] = None
     os.makedirs(path, exist_ok=True)
     return path
 
-
-def venue_of(path: str) -> Optional[str]:
-    parent = os.path.basename(os.path.dirname(os.path.normpath(path))).lower()
-    return parent if parent in VENUES else None

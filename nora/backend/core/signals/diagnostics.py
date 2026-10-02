@@ -15,7 +15,7 @@ Kết luận mỗi tín hiệu (mốc h tốt nhất theo |t|):
     KHONG          |t| < 2 hoặc quá ít sự kiện
 Ngưỡng |t| >= 3 (không phải 2) vì kiểm nhiều tín hiệu × nhiều tài sản × nhiều mốc cùng lúc.
 """
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, Optional
 
 import numpy as np
 

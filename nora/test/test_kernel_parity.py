@@ -373,7 +373,7 @@ def test_random_portfolio_configs_bit_identical(market_root, chunk):
             cfg = rand_portfolio_config(seed, market_root)
             try:
                 r = _run_portfolio(ref.RefPortfolioEngine, cfg)
-            except ValueError as exc:   # cấu hình bị từ chối (ngân sách DCA, ...): engine mới cũng phải từ chối giống hệt
+            except ValueError:   # cấu hình bị từ chối (ngân sách DCA, ...): engine mới cũng phải từ chối giống hệt
                 with pytest.raises(ValueError):
                     _run_portfolio(PortfolioEngine, cfg)
                 skipped += 1

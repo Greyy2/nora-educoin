@@ -2,7 +2,6 @@
 stage_a trong result của build_strategy_book, oos_daily_dates của WFA."""
 import json
 import os
-import time
 
 import pandas as pd
 import pytest
@@ -12,7 +11,7 @@ from fastapi.testclient import TestClient
 from backend.api.routers import book as book_router
 from backend.api.jobs import batch as batch_jobs
 from job_modules import launched
-from test_portfolio_wfa import CFG, DAY, RISK, START, T0, _load_script, _small_book, market  # noqa: F401  (market là fixture)
+from test_portfolio_wfa import DAY, START, T0, _load_script, _small_book, market  # noqa: F401  (market là fixture)
 from test_book_api import FakePopen
 
 

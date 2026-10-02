@@ -10,7 +10,7 @@ import pytest
 
 from backend.wfa import walk_forward as pw
 from backend.wfa.walk_forward import generate_folds
-from test_strategy_book import SYMS, T0, _load_script, _small_book, market  # noqa: F401  (market là fixture)
+from test_strategy_book import T0, _load_script, _small_book, market  # noqa: F401  (market là fixture)
 
 DAY = 86_400_000
 RISK = {"max_positions": 3, "max_per_symbol": 1, "max_gross_exposure": 3.0, "kill_switch_dd_pct": 30.0}

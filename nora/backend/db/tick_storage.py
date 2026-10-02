@@ -2,11 +2,9 @@
 Stores ticks into data/{SYMBOL}/ticks.parquet and automatically syncs all minute & hour .pkl frames.
 """
 import os
-import re
 import time
-from typing import List, Optional, Dict, Any
+from typing import Optional, Dict, Any
 import pandas as pd
-import numpy as np
 
 TICK_COLUMNS = [
     "timestamp_ms",
@@ -131,54 +129,6 @@ def save_ticks_and_sync_candles(
     }
 
 
-def _merge_and_save_pkl(path: str, new_df: pd.DataFrame) -> None:
-    """Merge new OHLCV candles with existing .pkl file without gaps."""
-    if new_df.empty:
-        return
-    
-    if os.path.isfile(path) and os.path.getsize(path) > 0:
-        try:
-            old_df = pd.read_pickle(path)
-            if all(c in old_df.columns for c in PKL_COLUMNS):
-                merged = pd.concat([old_df, new_df], ignore_index=True)
-                merged["open_time"] = merged["open_time"].astype("int64")
-                # Trim data older than 90 days (3 months)
-                cutoff_ms = int(time.time() * 1000) - int(90 * 24 * 3600 * 1000)
-                merged = merged[merged["open_time"] >= cutoff_ms]
-                # Keep latest update for the same open_time bucket
-                merged = merged.drop_duplicates(subset=["open_time"], keep="last").sort_values("open_time").reset_index(drop=True)
-                merged[PKL_COLUMNS].to_pickle(path)
-                return
-        except Exception:
-            pass
-
-    # Save fresh (also trimmed to 90 days)
-    cutoff_ms = int(time.time() * 1000) - int(90 * 24 * 3600 * 1000)
-    trimmed_new = new_df[new_df["open_time"] >= cutoff_ms].copy()
-    trimmed_new[PKL_COLUMNS].to_pickle(path)
-
-
-def aggregate_from_1m(df_1m: pd.DataFrame, bucket_ms: int) -> pd.DataFrame:
-    """Aggregate 1m candles into higher timeframe buckets."""
-    if df_1m.empty:
-        return pd.DataFrame(columns=PKL_COLUMNS)
-    
-    df = df_1m.copy()
-    df["_bucket"] = (df["open_time"] // bucket_ms) * bucket_ms
-    grouped = (
-        df.groupby("_bucket", as_index=False)
-        .agg(
-            open_time=("_bucket", "first"),
-            open=("open", "first"),
-            high=("high", "max"),
-            low=("low", "min"),
-            close=("close", "last"),
-            volume=("volume", "sum"),
-        )
-    )
-    return grouped[PKL_COLUMNS].sort_values("open_time").reset_index(drop=True)
-
-
 def load_ticks_df(
     symbol: str,
     start_ms: Optional[Any] = 0,
@@ -200,73 +150,6 @@ def load_ticks_df(
     if end_ms and isinstance(end_ms, (int, float)) and end_ms > 0:
         df = df[df["timestamp_ms"] <= end_ms]
     return df.reset_index(drop=True)
-
-
-def resample_ticks_to_bars(df_ticks: pd.DataFrame, bar_type: str = "time", param: Any = "1m") -> pd.DataFrame:
-    """
-    Resample tick stream into bars:
-    - bar_type='time': 1m, 5m, 1h
-    - bar_type='tick': N ticks per bar
-    - bar_type='volume': V token volume per bar
-    - bar_type='dollar': D USD volume per bar
-    """
-    if df_ticks.empty:
-        return pd.DataFrame(columns=PKL_COLUMNS)
-
-    df = df_ticks.sort_values("timestamp_ms").copy()
-
-    if bar_type == "time":
-        # 1m time bucket ms
-        bucket_ms = 60 * 1000
-        if isinstance(param, str) and param.endswith("m"):
-            bucket_ms = int(param[:-1]) * 60 * 1000
-        elif isinstance(param, str) and param.endswith("h"):
-            bucket_ms = int(param[:-1]) * 3600 * 1000
-
-        df["_bucket"] = (df["timestamp_ms"] // bucket_ms) * bucket_ms
-        grouped = df.groupby("_bucket", as_index=False).agg(
-            open_time=("_bucket", "first"),
-            open=("price", "first"),
-            high=("price", "max"),
-            low=("price", "min"),
-            close=("price", "last"),
-            volume=("amount", "sum"),
-        )
-        return grouped[PKL_COLUMNS].sort_values("open_time").reset_index(drop=True)
-
-    elif bar_type == "tick":
-        n_ticks = int(param)
-        df["group"] = np.arange(len(df)) // n_ticks
-        bars = df.groupby("group").agg({
-            "timestamp_ms": "first",
-            "price": ["first", "max", "min", "last"],
-            "amount": "sum",
-        })
-        bars.columns = ["open_time", "open", "high", "low", "close", "volume"]
-        return bars.reset_index(drop=True)
-
-    elif bar_type == "dollar":
-        dollar_thresh = float(param)
-        df["cum_usd"] = df["volume_usd"].cumsum()
-        df["group"] = (df["cum_usd"] // dollar_thresh).astype(int)
-        bars = df.groupby("group").agg({
-            "timestamp_ms": "first",
-            "price": ["first", "max", "min", "last"],
-            "amount": "sum",
-        })
-        bars.columns = ["open_time", "open", "high", "low", "close", "volume"]
-        return bars.reset_index(drop=True)
-
-    elif bar_type == "volume":
-        vol_thresh = float(param)
-        df["cum_vol"] = df["amount"].cumsum()
-        df["group"] = (df["cum_vol"] // vol_thresh).astype(int)
-        bars = df.groupby("group").agg({
-            "timestamp_ms": "first",
-            "price": ["first", "max", "min", "last"],
-            "amount": "sum",
-        })
-    return pd.DataFrame(columns=PKL_COLUMNS)
 
 
 def load_candle_df(symbol: str, timeframe: str = "1h", data_root: Optional[str] = None) -> pd.DataFrame:

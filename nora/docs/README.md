@@ -11,7 +11,7 @@ nora/
 │   │   ├── jobs/             # batch.py (khởi chạy/theo dõi/huỷ job), runner.py (MỘT cửa chạy mọi job)
 │   │   └── modes.py          # chế độ Cơ bản / Nâng cao -> params của job
 │   ├── core/
-│   │   ├── data/             # loader, resampler, quality_gate, shared (mmap dùng chung), crawler (Binance), promote
+│   │   ├── data/             # loader, resampler, quality_gate, shared (kho chỉ báo + nền mmap dùng chung), crawler (Binance), promote
 │   │   ├── signals/          # kernels (chỉ báo causal), evaluator (cây điều kiện), diagnostics
 │   │   ├── strategy/         # library (chiến lược lõi + bot), book (7 ứng viên sổ, materialize)
 │   │   ├── params/           # schema (StrategyParams), template, builder (chi phí sàn, kiểm DCA), presets, modes
@@ -20,7 +20,7 @@ nora/
 │   │   ├── backtest/         # engine (một tài sản), portfolio (nhiều tài sản/chiến lược), run (job backtest)
 │   │   └── analytics/        # dashboard (payload trang Danh mục), feeds (Backtest/Live/Testnet + feed giả lập)
 │   ├── db/                   # data_layout (đường dẫn), local_pkl (đọc/ghi nến), tick_storage
-│   ├── optimize/             # book (dựng sổ A–D), store (kho kết quả SQLite + streaming), registry (kho alpha, sổ, xuất bản)
+│   ├── optimize/             # book (dựng sổ A–D), store (kho kết quả SQLite + streaming), registry (kho alpha, sổ, xuất bản), shared (làm nóng/dọn kho dùng chung)
 │   │   └── funnel/           # phễu S0–FINAL: gates, generate, evaluate, antiluck, sizing, stats, storage, orchestrator, run
 │   ├── wfa/                  # walk_forward (fold + WFA danh mục), run (job WFA)
 │   ├── carlo/                # monte_carlo (bootstrap, kịch bản cực xấu, gate)

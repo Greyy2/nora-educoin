@@ -18,10 +18,10 @@ import pytest
 
 from backend.core.data import quality_gate as qg
 from backend.optimize import store as rs
-from backend.utils.jobs import Progress, graceful_sigterm
+from backend.utils.jobs import Progress
 from backend.optimize.store import stream_stage
 from backend.utils import parallel
-from test_portfolio_wfa import CFG, DAY, RISK, START, T0, _load_script, _small_book, market  # noqa: F401  (market là fixture)
+from test_portfolio_wfa import DAY, START, T0, _load_script, _small_book, market  # noqa: F401  (market là fixture)
 
 
 # ─── 12.1 cổng chất lượng dữ liệu bắt buộc ──────────────────────────────────
@@ -82,7 +82,7 @@ def test_portfolio_engine_refuses_bad_data(market, monkeypatch, kind):
 
 @pytest.mark.parametrize("kind", sorted(BAD))
 def test_every_entry_point_refuses_bad_data(market, monkeypatch, tmp_path, kind):
-    sb = _small_book(monkeypatch)
+    _small_book(monkeypatch)
     _tamper(market, "CCC", **BAD[kind])
     common = {"workers": 1, "per_worker_mb": 300}
     bsb = _load_script("build_strategy_book")
@@ -296,7 +296,7 @@ def _echo(job):
 
 def test_stream_stage_skips_done_keys_and_normalizes(tmp_path):
     store = rs.ResultsStore(str(tmp_path))
-    seen, order = [], []
+    seen = []
 
     def handle(o, p, m, from_store):
         seen.append((o, from_store))

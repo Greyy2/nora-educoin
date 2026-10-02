@@ -11,8 +11,6 @@ test_round4_venue_and_fills.py — vòng 4: dữ liệu 3 năm CEX (Binance) + 2
 """
 import hashlib
 import io
-import json
-import os
 import time
 import zipfile
 
@@ -76,7 +74,7 @@ def _engine_with(df_1m: pd.DataFrame, match_time: int):
            "match": [{"condition": [[[{"frame": "1m", "column": "open_time"}, "==", match_time]]]}],
            "stop": []}
     eng.add_strategy_flow("LONG_f", StrategyParams(name="LONG_f", extra={"ast": ast}))
-    eng.df_1m = eng._prepare_candles(df_1m)
+    eng.df_base = eng._prepare_candles(df_1m)
     eng.df_4h = eng._enrich_4h(eng._prepare_candles(df_4h))
     return eng
 

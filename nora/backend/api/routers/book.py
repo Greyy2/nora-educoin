@@ -121,6 +121,7 @@ class BuildRequest(BaseModel):
                              description="Số cấu hình thử mỗi chiến lược ở dev1 (mặc định 24). Tổng > 200.000 cần force_large")
     keep_top: Optional[int] = Field(None, ge=3, le=5000, description="Số hàng tốt nhất mỗi chiến lược giữ trong kết quả (mặc định 50)")
     force_large: bool = Field(False, description="Cho phép tổng số cấu hình vượt trần 200.000 của CLI (--force-large)")
+    timeframe: str = Field("15m", pattern="^(15m|1h|4h)$", description="Khung chạy (nến mô phỏng); khung tín hiệu nhỏ hơn được nâng lên")
 
 
 # ─── Đọc sổ / báo cáo ───────────────────────────────────────────────────────

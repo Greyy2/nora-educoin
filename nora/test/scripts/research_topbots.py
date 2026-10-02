@@ -435,7 +435,6 @@ def main(argv=None):
     for r in results:
         groups.setdefault((r["bot"], r["variant"], r["window"]), []).append(r)
     rows, per_asset = [], []
-    spec_by = {s["name"]: s for s in specs}
     for (bot, variant, window), items in groups.items():
         for cfg in items[0]["runs"]:
             agg = aggregate([it["runs"][cfg] for it in items], items[0]["trade_start"], items[0]["end"])

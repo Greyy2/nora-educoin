@@ -46,16 +46,16 @@ flowchart LR
 | `backend/api/routers/` | `book.py` (backtest/WFA/MC, dựng sổ, publish, job, kho alpha), `funnel.py`, `strategies.py` (danh mục chiến lược, kiểm tham số, dựng preset), `portfolio.py` (dashboard, feed giả lập), `data.py` (crawl, promote) | |
 | `backend/api/jobs/` | `batch.py` (KINDS, khởi chạy/theo dõi/huỷ, nhãn), `runner.py` (một cửa chạy job) | |
 | `backend/api/modes.py` | Cơ bản / Nâng cao -> params job (preset khoá / kiểm từng tham số, cờ custom_gates) | |
-| `backend/core/data/` | `loader.py` (đọc nến, cache LRU theo byte), `resampler.py`, `quality_gate.py`, `shared.py` (mmap dùng chung cho worker), `crawler.py` (Binance; job `data_crawl`), `promote.py` (job `data_promote`) | |
+| `backend/core/data/` | `loader.py` (đọc nến, cache LRU theo byte), `resampler.py`, `quality_gate.py`, `shared.py` (kho chỉ báo tính sẵn theo khung + nền giá mmap dùng chung cho worker), `crawler.py` (Binance; job `data_crawl`), `promote.py` (job `data_promote`) | |
 | `backend/core/signals/` | `kernels.py` (kernel causal), `evaluator.py` (AST), `diagnostics.py` | |
 | `backend/core/strategy/` | `library.py` (SIGNALS, KERNEL_STRATEGIES, bot), `book.py` (CANDIDATES, GATES, RISK, `materialize`) | |
 | `backend/core/params/` | `schema.py` (`StrategyParams`), `template.py` (`{tên}` trong cây tín hiệu), `builder.py` (dựng params + chi phí sàn + kiểm DCA), `presets.py` (+ job `presets_build`), `modes.py` | |
 | `backend/core/execute/` | `tracker.py` (`PositionTracker`: vào/ra, SL/TP/trailing, DCA, thanh lý, funding, cooldown), `ledger.py` (`CapitalLedger`), `models.py` | |
 | `backend/core/metrics/` | `trades.py` (`MetricsCalculator`, bảng lệnh, win rate/PF), `returns.py` (lợi suất ngày, NAV, Sharpe, Sortino, MDD, thống kê chuỗi), `portfolio.py` (`portfolio_metrics`, `series_metrics`) | |
-| `backend/core/backtest/` | `engine.py` (`BacktestEngine`), `portfolio.py` (`PortfolioEngine`, `RiskConfig`), `run.py` (job `book_backtest`) | |
+| `backend/core/backtest/` | `engine.py` (`BacktestEngine`), `portfolio.py` (`PortfolioEngine`, `RiskConfig`), `run.py` (job `book_backtest`; `BacktestJob` + `make_engine` — đặc tả job dùng chung cho sổ / WFA / phễu) | |
 | `backend/core/analytics/` | `dashboard.py` (payload Danh mục), `feeds.py` (Backtest/Live/Testnet + job `mock_feeds`) | |
 | `backend/db/` | `data_layout.py` (đường dẫn), `local_pkl.py`, `tick_storage.py` | |
-| `backend/optimize/` | `book.py` (job `book_build`, giai đoạn A–D), `store.py` (ResultsStore SQLite + `stream_stage`), `registry.py` (kho alpha, cấu hình testnet, ghi/xuất bản sổ) | |
+| `backend/optimize/` | `book.py` (job `book_build`, giai đoạn A–D), `store.py` (ResultsStore SQLite + `stream_stage`), `registry.py` (kho alpha, cấu hình testnet, ghi/xuất bản sổ), `shared.py` (`SharedExporter`: làm nóng / dọn kho dùng chung cho mọi lối chạy nhiều alpha) | |
 | `backend/optimize/funnel/` | `gates`, `generate`, `evaluate`, `antiluck` (DSR, PBO), `sizing`, `stats`, `storage`, `orchestrator`, `promote`, `recompute` (job), `run` (job `funnel_run`) | |
 | `backend/wfa/` | `walk_forward.py` (fold + WFA danh mục, gate), `run.py` (job `book_wfa`) | |
 | `backend/carlo/` | `monte_carlo.py` (bootstrap ngày, kịch bản cực xấu, gate, `bootstrap_daily`) | |
@@ -255,12 +255,13 @@ và các mẫu vốn theo giờ. Kết quả **bit-identical**: `test_portfolio_
 
 ### 6.3 Dữ liệu dùng chung qua mmap
 
-`backend/core/backtest/shared_data.py`: tiến trình cha dựng MỘT lần `{t,o,h,l,c,f_t,f_r, cols/*}` của từng (tài sản, cửa sổ, refs) thành `.npy` rồi worker chỉ
-`np.load(mmap_mode="r")` (trang file chia sẻ giữa worker qua page cache). Khoá thư mục = `sha1(JSON{v, symbol, start, end, refs, perp, root, fps})` với `fps` =
-`(mtime_ns, size)` của `1m.pkl`, mọi khung được dùng và `funding.pkl`: file nguồn đổi thì khoá đổi, dữ liệu cũ không bao giờ khớp. Khoá `None` khi nguồn là Mongo hoặc thiếu `1m.pkl`
-(không chia sẻ). Ghi nguyên tử (thư mục tạm rồi `rename`). Kết quả `load()` bằng từng bit với dữ liệu dựng trực tiếp (`test_mmap_data_equals_built_data_bit_for_bit`).
-Bật bằng `NORA_SHARED_DATA_DIR` hoặc tham số `shared_dir`; các CLI xuất trước mỗi pool và xoá sau khi pool thành công (lỗi thì giữ lại để gỡ lỗi).
-Đo (`b179f2b`, 8 perp, n=14): RAM riêng ≈ 142 MB mỗi worker (VmHWM 576-587 MB gồm mmap dùng chung), đỉnh slice 5950 → 2045 MB, 5 → 12 worker, 115 → 78 s.
+`backend/core/data/shared.py` (kho dùng chung, mmap chỉ đọc): nền `base/` = nến khung chạy + funding của cửa sổ; `fv/` = giá trị MỘT cột
+chỉ báo trên các nến của khung (tính từ gốc cố định nên chỉ phụ thuộc tài sản, khung, cột, file dữ liệu, mốc cuối — mỗi cột tính một lần cho cả
+lần chạy); `ft/` = open_time của khung; `ix/` = chỉ số căn nến khung về từng nến chạy. Worker đủ thì đọc, thiếu thì tự điền đúng phần thiếu
+(`fill`). `backend/optimize/shared.py::SharedExporter` làm nóng trước pool và dọn sau mỗi giai đoạn — một bản cho sổ, WFA và phễu.
+Mọi lần backtest của ba lối mô tả bằng `core/backtest/run.BacktestJob` (chiến lược + tham số, cửa sổ, stop_fill, rủi ro, tài sản, khung chạy)
+và dựng engine bằng `make_engine` duy nhất. Khung chạy (`base_frame` 1m / 15m / 1h / 4h) = nến mô phỏng; khung tín hiệu < khung chạy được nâng
+lên (`params.modes.lift_frames`) hoặc bị từ chối.
 
 ## 7. Kiểm chứng
 

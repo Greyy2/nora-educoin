@@ -5,12 +5,8 @@
 - cooldown: chặn tín hiệu vào lại trong N phút sau khi đóng; cooldown=0 y hệt cũ; bật/tắt _SKIP_IDLE cho kết quả y hệt.
 """
 import importlib.util
-import itertools
-import os
 import sys
 
-import numpy as np
-import pandas as pd
 import pytest
 
 from backend.core.backtest.engine import BacktestEngine

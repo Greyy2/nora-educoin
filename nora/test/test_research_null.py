@@ -3,8 +3,6 @@
 Lỗi đã gặp: bộ quét lối "rải limit" cho +10–15 bps/lệnh trên random walk vì chọn trước lệnh "sẽ khớp"
 (bỏ qua lệnh khớp sớm nhưng sắp lỗ). Sau khi sửa, kỳ vọng phải xấp xỉ −phí.
 """
-import os
-import sys
 
 import numpy as np
 import pytest

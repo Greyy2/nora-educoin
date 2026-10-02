@@ -382,8 +382,8 @@ def cmd_portfolio(a):
     show("portfolio 8 asset x 7 strat", s, ck, secs, det,
          f"rej_risk={res['rejected_for_risk']} rej_cap={res['rejected_for_capital']} halted_at={res['halted_at']} ruined_at={res['ruined_at']}")
     print(f"  stats: {json.dumps(stats)}", flush=True)
-    print(f"  by_strategy: " + ", ".join(f"{k}:{int(v['trades'])}/{v['pnl_usd']:.0f}" for k, v in sorted(res['by_strategy'].items())), flush=True)
-    print(f"  by_symbol:   " + ", ".join(f"{k}:{int(v['trades'])}/{v['pnl_usd']:.0f}" for k, v in sorted(res['by_symbol'].items())), flush=True)
+    print("  by_strategy: " + ", ".join(f"{k}:{int(v['trades'])}/{v['pnl_usd']:.0f}" for k, v in sorted(res['by_strategy'].items())), flush=True)
+    print("  by_symbol:   " + ", ".join(f"{k}:{int(v['trades'])}/{v['pnl_usd']:.0f}" for k, v in sorted(res['by_symbol'].items())), flush=True)
     print(f"  shared_dir run: {secs3:.1f}s identical-to-first={'PASS' if det3[0] else 'FAIL ' + det3[1]}", flush=True)
     print("  checks: " + json.dumps(check_table(ck)), flush=True)
     write_json(a.out, "portfolio.json", {"summary": s, "stats": stats, "checks": check_table(ck), "det_rerun": det,

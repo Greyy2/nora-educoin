@@ -1349,7 +1349,7 @@ def run_backtest(eng: Any) -> None:
     import time
     from backend.core.signals.evaluator import VectorEvaluator, lag_key
     eng.closed_positions, eng.orders, eng.equity_curve = [], [], []
-    print(f"Bắt đầu chạy backtest cho {eng.symbol} ({len(eng.df_1m)} nến 1 phút)...")
+    print(f"Bắt đầu chạy backtest cho {eng.symbol} ({len(eng.df_base)} nến {eng.base_frame})...")
     started = time.time()
     df1, cols = eng._build_matrix()
     n = len(df1)

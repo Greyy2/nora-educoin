@@ -1,6 +1,5 @@
 """backend.utils.parallel: số worker dùng chung cho mọi đường nặng (resolve_workers / auto_workers / pool_map_safe)."""
 import importlib.util
-import os
 import sys
 
 from backend.utils import memwatch, parallel
