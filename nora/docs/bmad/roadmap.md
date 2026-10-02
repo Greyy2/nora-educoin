@@ -82,6 +82,8 @@ Mỗi dòng chỉ chuyển `done` khi đạt đúng cột "Xong khi".
 | P1.6 | `optimize` gom alpha theo tín hiệu vào lệnh, chia lô, gọi `run_many`; worker lấy từ `utils/parallel` | `optimize/runner.py`, `utils/parallel.py` | S | P1.5, P0 | Không thêm cấu hình worker mới; test xanh | done (9bc8a85, S1 gom theo signal_key) |
 | P1.7 | Lọc thô nhiều vòng (successive halving) — chỉ làm nếu P1.4–P1.6 chưa đạt | `optimize/` | S | P1.6 | Đạt mục tiêu thời gian | todo |
 | P1.8 | Load test thật 10k và 100k; ngoại suy 500k/1M; kiểm RAM, ổn định, resume | `nora.slice` | O+S | P1.6 | 500k ước tính ≤ 4 h; không OOM; resume đúng | chặn: worker S1 ~1.3 GB > ngân sách 800 MB → OOM; cần sửa trước |
+| P1.8a | Dữ liệu dùng chung (mmap) lưu THEO CỘT (frame/cột/lag) thay vì theo cả chữ ký refs; S1 xuất các cột còn thiếu cho từng nhóm tín hiệu trước khi chạy nhóm | `core/data/shared.py`, `optimize/funnel/evaluate.py` (SharedExporter), `orchestrator.stage_s1` | S | P1.6 | Worker không tự dựng dữ liệu khi có shared_dir; test parity mmap = tự dựng | todo |
+| P1.8b | Worker phễu tắt/hạ `_DATA_CACHE` (NORA_DATA_CACHE_MB) khi đã có shared_dir; đo lại RSS thật một worker → cập nhật `PER_WORKER_MB` | `optimize/funnel/run.py`, `orchestrator.PER_WORKER_MB` | S | P1.8a | RSS/worker ổn định sau ≥ 50 nhóm, khớp ngân sách | todo |
 
 ### PM — Bộ số đo chuẩn (chi tiết: `docs/metrics_inventory.md`)
 
