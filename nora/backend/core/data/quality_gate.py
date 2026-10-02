@@ -47,6 +47,54 @@ def _gate_cache_key(symbol: str, timeframe: str, data_root: Optional[str]) -> Op
     return (os.path.abspath(s_dir), timeframe, tuple(files))
 
 
+_CODE_SIG: Optional[str] = None
+
+
+def _code_sig() -> str:
+    """sha1 mã nguồn module này: luật gate đổi -> cache trên đĩa tự hết hạn."""
+    global _CODE_SIG
+    if _CODE_SIG is None:
+        import hashlib
+        with open(__file__, "rb") as fh:
+            _CODE_SIG = hashlib.sha1(fh.read()).hexdigest()[:16]
+    return _CODE_SIG
+
+
+def _disk_cache_path(key: tuple, data_root: Optional[str]) -> str:
+    """Cache kết quả gate TRÊN ĐĨA (data/_cache/quality_gate/): mỗi job là một tiến trình mới -> không phải kiểm lại ~10 s/tài sản.
+    Khoá = (thư mục, khung, (tên, mtime_ns, size) mọi file của tài sản, chữ ký mã gate)."""
+    import hashlib
+    import json
+    from backend.db.data_layout import cache_dir
+    h = hashlib.sha1(json.dumps([list(key[:2]), [list(f) for f in key[2]], _code_sig()]).encode()).hexdigest()
+    return os.path.join(cache_dir(data_root, "quality_gate"), f"{h}.json")
+
+
+def _disk_get(key: tuple, data_root: Optional[str]) -> Optional[Dict[str, Any]]:
+    import json
+    try:
+        with open(_disk_cache_path(key, data_root), encoding="utf-8") as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return None
+
+
+def _disk_put(key: tuple, data_root: Optional[str], result: Dict[str, Any]) -> None:
+    import json
+    from backend.utils.jsonsafe import json_default
+    path = _disk_cache_path(key, data_root)
+    tmp = f"{path}.{os.getpid()}.tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(result, fh, ensure_ascii=False, default=json_default)
+        os.replace(tmp, path)
+    except (OSError, TypeError, ValueError):
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+
+
 def evaluate_data_quality(
     symbol: str,
     timeframe: str = "1h",
@@ -60,7 +108,11 @@ def evaluate_data_quality(
     key = _gate_cache_key(symbol, timeframe, data_root)
     if key is not None and key in _GATE_CACHE:
         return copy.deepcopy(_GATE_CACHE[key])
-    result = _evaluate_data_quality_uncached(symbol, timeframe, None, None, data_root)
+    result = _disk_get(key, data_root) if key is not None else None
+    if result is None:
+        result = _evaluate_data_quality_uncached(symbol, timeframe, None, None, data_root)
+        if key is not None:
+            _disk_put(key, data_root, result)
     if key is not None:
         if len(_GATE_CACHE) >= _GATE_CACHE_MAX:
             _GATE_CACHE.clear()

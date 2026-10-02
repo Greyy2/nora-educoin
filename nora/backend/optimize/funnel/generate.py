@@ -56,19 +56,67 @@ def iter_params(space: Dict[str, List[Any]], n: Optional[int], seed: int, full_g
         yield dict(zip(keys, vals))
 
 
+SIGNAL_POSITION_KEYS = ("exit_unit", "atr_frame", "atr_period")   # đổi cột tín hiệu ATR -> cùng nhóm tín hiệu
+PER_SIGNAL = 20                                                  # schema: số bộ tham số vị thế/thoát lệnh cho mỗi bộ tín hiệu
+
+
+def iter_params_factored(space: Dict[str, List[Any]], n: int, seed: int, per_signal: int = PER_SIGNAL) -> Iterator[Dict[str, Any]]:
+    """Lấy mẫu PHÂN TẦNG (chế độ schema): rút một bộ tham số tín hiệu (sig.* + khung/chu kỳ ATR) rồi `per_signal` bộ tham số vị thế/thoát lệnh
+    cho bộ tín hiệu đó -> các alpha cùng tín hiệu đi chung một nhóm run_many (nạp dữ liệu + tính tín hiệu một lần). Tất định theo seed;
+    không lặp (bộ trùng bị bỏ, rút tiếp)."""
+    sig_keys = sorted(k for k in space if k.startswith("sig.") or k in SIGNAL_POSITION_KEYS)
+    pos_keys = sorted(k for k in space if k not in sig_keys)
+    rng = random.Random(seed)
+    seen = set()
+    made = 0
+    tries = 0
+    while made < n and tries < n * 20:
+        sig = {k: rng.choice(space[k]) for k in sig_keys}
+        for _ in range(min(per_signal, n - made)):
+            tries += 1
+            p = {**sig, **{k: rng.choice(space[k]) for k in pos_keys}}
+            key = canonical_params(p)
+            if key in seen:
+                continue
+            seen.add(key)
+            made += 1
+            yield p
+
+
 def count_params(space: Dict[str, List[Any]], n: Optional[int], full_grid: bool = False) -> int:
     total = grid_size(space)
     return total if (full_grid or n is None) else min(int(n), total)
 
 
-def validate_alpha(candidate: Dict[str, Any], params: Dict[str, Any]) -> Optional[str]:
-    """None nếu hợp lệ; ngược lại câu tiếng Việt. Kiểm: khoá thuộc không gian tham số, giá trị số hữu hạn, đòn bẩy <= S0_MAX_LEVERAGE,
-    và dựng được tham số vị thế (build_params: kiểm cả ngân sách DCA khi sizing="margin_pct", đòn bẩy spot...)."""
+SPACE_MODES = ("grid", "schema")
+
+
+def space_for(candidate: Dict[str, Any], mode: str = "grid") -> Dict[str, List[Any]]:
+    """grid = lưới nhỏ `space` của chiến lược (vài giá trị/khoá); schema = toàn bộ params_schema (chu kỳ chỉ báo, khung thời gian, mọi tham số
+    thoát lệnh theo min/max/bước) — không gian khổng lồ cho chạy quy mô lớn."""
+    if mode == "schema":
+        from backend.core.params.modes import schema_space
+        return schema_space(candidate)
+    if mode != "grid":
+        raise ValueError(f"space phải là một trong {SPACE_MODES}")
+    return candidate["space"]
+
+
+def validate_alpha(candidate: Dict[str, Any], params: Dict[str, Any], mode: str = "grid") -> Optional[str]:
+    """None nếu hợp lệ; ngược lại câu tiếng Việt. Kiểm: khoá thuộc không gian tham số, giá trị số hữu hạn (hoặc lựa chọn hợp lệ ở schema),
+    EMA nhanh < chậm, đòn bẩy <= S0_MAX_LEVERAGE, và dựng được tham số vị thế (build_params: ngân sách DCA, đòn bẩy spot...)."""
     import math
-    bad = sorted(set(params) - set(candidate["space"]))
+    space = space_for(candidate, mode)
+    bad = sorted(set(params) - set(space))
     if bad:
         return f"khoá tham số không thuộc không gian của {candidate['id']}: {bad}"
-    if not all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) for v in params.values()):
+    if mode == "schema":
+        from backend.core.params.modes import validate_params
+        from backend.core.strategy.book import schema_defaults
+        _, errs = validate_params(candidate, params, schema_defaults(candidate))
+        if errs:
+            return errs[0][1]
+    elif not all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) for v in params.values()):
         return "mọi tham số phải là số hữu hạn"
     try:
         from backend.core.params.builder import build_params

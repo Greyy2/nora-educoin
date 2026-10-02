@@ -576,3 +576,45 @@ def test_funnel_job_kind_registered_in_batch_with_label():
     lab = batch.job_label("funnel_run", {"strategies": ["trend_long", "breakout_4h_long"], "n_per_strategy": 40, "symbols": ["BTC@perp"]})
     assert lab == "Phễu · trend_long, breakout_4h_long · n=40/chiến lược · BTC"
     assert batch.job_label("funnel_run", {"resume": "fr-x"}) == "Phễu · chạy tiếp fr-x"
+
+
+def test_s1_grouped_run_many_equals_individual_runs(small_book):
+    """S1 theo nhóm (cùng tín hiệu, nhiều bộ tham số vị thế -> run_many) phải TRÙNG TỪNG BIT với chạy từng alpha riêng."""
+    from backend.optimize.funnel import evaluate as ev
+    start, end = T0 + 3 * 86_400_000, T0 + 20 * 86_400_000
+    params = [{"sig.lo": 40, "stop_loss_rate": sl, "take_profit_rate": tp, "timeout": to}
+              for sl, tp, to in ((2.0, 2.0, 720), (1.0, 3.0, 0), (3.0, 1.5, 1440), (0.8, 0.8, 360))]
+    jobs = [{**ev.base_job("t_long", p, (start, end), "level", False, 0.5, [f"{s}@perp" for s in SYMS], None), "trades": True} for p in params]
+    assert len({ev.signal_key(j) for j in jobs}) == 1
+    other = {**jobs[0], "params": {**params[0], "sig.lo": 35}}
+    assert ev.signal_key(other) != ev.signal_key(jobs[0])                    # khác tín hiệu -> khác nhóm
+    grouped = ev.w_backtest_group({"jobs": jobs})
+    single = [ev.w_backtest(j) for j in jobs]
+    assert len(grouped) == len(single) == 4 and any(g["metrics"]["trades"] for g in grouped)
+    for g, s in zip(grouped, single):
+        assert json.dumps(g, sort_keys=True, default=str) == json.dumps(s, sort_keys=True, default=str)
+
+
+def test_schema_space_factored_sampling_deterministic_unique_grouped():
+    """space=schema: lưới rời rạc từ params_schema; lấy mẫu phân tầng tất định, không lặp, mỗi bộ tín hiệu có PER_SIGNAL bộ vị thế."""
+    import importlib.util
+    from backend.core.params.modes import schema_space
+    from backend.optimize.funnel import generate as gen
+    # bản riêng của module sổ chiến lược (fixture phạm vi module khác đang thay CANDIDATES bằng chiến lược test)
+    path = os.path.join(os.path.dirname(__file__), "..", "backend", "core", "strategy", "book.py")
+    spec = importlib.util.spec_from_file_location("book_fresh_for_test", path)
+    fresh = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(fresh)
+    cand = next(c for c in fresh.CANDIDATES if c["id"] == "trend_long")
+    sp = schema_space(cand)
+    assert "risk_per_trade_pct" not in sp and sp["sig.trend_tf"] == cand["params_schema"]["sig.trend_tf"]["choices"]
+    assert gen.grid_size(sp) > 10 ** 20
+    a = list(gen.iter_params_factored(sp, 100, 3))
+    assert a == list(gen.iter_params_factored(sp, 100, 3)) and len({gen.canonical_params(p) for p in a}) == 100
+    sig = lambda p: tuple((k, v) for k, v in sorted(p.items()) if k.startswith("sig.") or k in gen.SIGNAL_POSITION_KEYS)  # noqa: E731
+    groups = {}
+    for p in a:
+        groups.setdefault(sig(p), []).append(p)
+    assert len(groups) == 100 // gen.PER_SIGNAL and all(len(v) == gen.PER_SIGNAL for v in groups.values())
+    valid = [p for p in a if gen.validate_alpha(cand, p, "schema") is None]
+    assert len(valid) >= 80                                           # phần lớn hợp lệ; EMA nhanh >= chậm / DCA quá ngân sách bị loại ở S0

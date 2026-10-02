@@ -17,7 +17,7 @@ from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Tupl
 from backend.utils.jobs import Progress, graceful_sigterm
 
 from backend.optimize.funnel import antiluck, evaluate as bt, gates, sizing
-from .generate import alpha_id_of, count_params, iter_params, validate_alpha
+from .generate import alpha_id_of, count_params, iter_params, iter_params_factored, space_for, validate_alpha
 from .storage import RunStore, StageResult
 from backend.optimize.funnel.gates import compute_windows, windows_iso, wfa_folds
 
@@ -40,6 +40,7 @@ class FunnelConfig:
     windows: Optional[Dict[str, str]] = None       # ghi đè mốc YYYY-MM-DD: start, dev1_end, dev2_end, end
     train_days: int = gates.S3_TRAIN_DAYS
     test_days: int = gates.S3_TEST_DAYS
+    space: str = "grid"                            # grid = lưới nhỏ `space`; schema = toàn bộ params_schema (quy mô lớn)
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -76,7 +77,7 @@ def _candidates(strategies: List[str]) -> Dict[str, Dict[str, Any]]:
 
 def planned_alphas(cfg: FunnelConfig) -> Dict[str, int]:
     cands = _candidates(cfg.strategies)
-    return {s: count_params(c["space"], cfg.n_per_strategy, cfg.full_grid) for s, c in cands.items()}
+    return {s: count_params(space_for(c, cfg.space), cfg.n_per_strategy, cfg.full_grid) for s, c in cands.items()}
 
 
 # ── Bối cảnh chạy ───────────────────────────────────────────────────────────
@@ -136,6 +137,64 @@ def _stream(ctx: Ctx, stage: str, pages: Iterator[Dict[str, Any]], make_job: Cal
     return done
 
 
+GROUP_MAX = 50        # số alpha tối đa mỗi nhóm run_many (cân tải giữa worker)
+GROUP_LOOKAHEAD = 2000   # gom nhóm trong cửa sổ trượt này của hàng chờ (alpha sinh ngẫu nhiên hiếm khi liền kề cùng tín hiệu)
+
+
+def _stream_grouped(ctx: Ctx, stage: str, pages: Iterator[Dict[str, Any]], make_job: Callable[[Dict[str, Any]], Dict[str, Any]],
+                    on_result: Callable[[Dict[str, Any], Any], StageResult]) -> int:
+    """Như _stream nhưng mỗi job pool là một NHÓM alpha cùng signal_key (evaluate.w_backtest_group -> run_many): dữ liệu + tín hiệu nạp một
+    lần cho cả nhóm. Kết quả từng alpha giống hệt chạy riêng; lô ghi / resume theo từng alpha như _stream."""
+    pending: Dict[int, List[Dict[str, Any]]] = {}
+    batch: List[StageResult] = []
+    flush_n = FLUSH_N.get(stage, 100)
+    t_flush = time.time()
+    t_log = time.time()
+    done = 0
+
+    def feeder():
+        buf: Dict[str, List[Tuple[Dict[str, Any], Dict[str, Any]]]] = {}
+        held = 0
+        n = 0
+
+        def emit(key):
+            nonlocal held, n
+            items = buf.pop(key)
+            held -= len(items)
+            pending[n] = [row for row, _ in items]
+            n += 1
+            return {"jobs": [job for _, job in items]}
+
+        for row in pages:
+            job = make_job(row)
+            key = bt.signal_key(job)
+            buf.setdefault(key, []).append((row, job))
+            held += 1
+            if len(buf[key]) >= GROUP_MAX:
+                yield emit(key)
+            elif held >= GROUP_LOOKAHEAD:
+                yield emit(max(buf, key=lambda k: len(buf[k])))
+        for key in list(buf):
+            yield emit(key)
+
+    for i, outs in ctx.imap(bt.w_backtest_group, feeder(), f"[{stage}]"):
+        rows = pending.pop(i)
+        for row, res in zip(rows, outs):
+            batch.append(on_result(row, res))
+            done += 1
+            ctx.tick()
+        if len(batch) >= flush_n or time.time() - t_flush > FLUSH_SECONDS:
+            ctx.store.commit_results(batch)
+            batch, t_flush = [], time.time()
+        if time.time() - t_log > 30:
+            snap = ctx.progress.snapshot()
+            ctx.log(f"[{stage}] {snap['done']}/{snap['total']}  ETA {_fmt_eta(snap.get('eta_s'))}")
+            t_log = time.time()
+    if batch:
+        ctx.store.commit_results(batch)
+    return done
+
+
 def _fmt_eta(s: Optional[float]) -> str:
     if s is None:
         return "?"
@@ -168,8 +227,11 @@ def stage_s0(ctx: Ctx) -> None:
     bad = 0
     for strategy in cfg.strategies:
         cand = ctx.cands[strategy]
-        for params in iter_params(cand["space"], cfg.n_per_strategy, cfg.seed, cfg.full_grid):
-            err = validate_alpha(cand, params)
+        sp = space_for(cand, cfg.space)
+        gen = (iter_params_factored(sp, cfg.n_per_strategy, cfg.seed) if cfg.space == "schema" and cfg.n_per_strategy and not cfg.full_grid
+               else iter_params(sp, cfg.n_per_strategy, cfg.seed, cfg.full_grid))
+        for params in gen:
+            err = validate_alpha(cand, params, cfg.space)
             row = {"alpha_id": alpha_id_of(strategy, params), "strategy": strategy, "params": params, "ord": ord_}
             if err:
                 row.update(reject_code="S0.invalid_params", reject_msg=f"S0.invalid_params: {gates.reason_label('S0.invalid_params')} ({err})")
@@ -206,7 +268,7 @@ def stage_s1(ctx: Ctx) -> None:
         trades = [("S1_backtest", res["trades"])] if ok and res["trades"] is not None else []
         return StageResult(row["alpha_id"], "S1_backtest", m, ok, code, msg, trades=trades, daily=daily)
 
-    _stream(ctx, "S1_backtest", _pages(store, 0), lambda r: ctx.s1_job(r["strategy"], r["params"], trades="pass"), bt.w_backtest, on_result)
+    _stream_grouped(ctx, "S1_backtest", _pages(store, 0), lambda r: ctx.s1_job(r["strategy"], r["params"], trades="pass"), on_result)
     # KHÔNG dọn dữ liệu dùng chung ở đây: S2 chạy các điểm lân cận trên cùng cửa sổ dev1 (S2 dọn).
 
 
@@ -279,7 +341,7 @@ def _neighbour_ratios(ctx: Ctx, strategy: str, cand: Dict[str, Any], rows: List[
     nb_params: Dict[str, Dict[str, Any]] = {}
     for r in rows:
         ids = []
-        for p in antiluck.neighbours(cand["space"], r["params"]):
+        for p in antiluck.neighbours(space_for(cand, ctx.cfg.space), r["params"]):
             nid = alpha_id_of(strategy, p)
             nb_params[nid] = p
             ids.append(nid)
@@ -287,7 +349,7 @@ def _neighbour_ratios(ctx: Ctx, strategy: str, cand: Dict[str, Any], rows: List[
     all_ids = sorted(nb_params)
     known = store.metrics_of(all_ids, "S1_backtest")
     known_nb = store.metrics_of([i for i in all_ids if i not in known], "S2_neighbour")
-    missing = [i for i in all_ids if i not in known and i not in known_nb and validate_alpha(cand, nb_params[i]) is None]
+    missing = [i for i in all_ids if i not in known and i not in known_nb and validate_alpha(cand, nb_params[i], ctx.cfg.space) is None]
     if missing:
         ctx.exporter.ensure([ctx.s1_job(strategy, nb_params[missing[0]])])
         got: List[StageResult] = []

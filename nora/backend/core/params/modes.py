@@ -121,3 +121,26 @@ def mc_standard(simulations: int, ruin_threshold_pct: float, stress_max_mdd_pct:
     full_set = stress is None or set(stress) == set(STRESS_NAMES)
     return (simulations >= STANDARD_MC_SIMULATIONS and float(ruin_threshold_pct) == STANDARD_MC["ruin_threshold_pct"]
             and float(stress_max_mdd_pct) == float(standard_stress_max_mdd_pct) and full_set)
+
+
+SCHEMA_SPACE_EXCLUDE = ("risk_per_trade_pct",)   # phễu cố định rủi ro/lệnh (S5 tìm hệ số khối lượng sau)
+
+
+def schema_space(candidate: Dict[str, Any], exclude=SCHEMA_SPACE_EXCLUDE) -> Dict[str, List[Any]]:
+    """Không gian sinh alpha từ params_schema: số nguyên/thực -> mọi giá trị min, min+step, ..., max; lựa chọn -> mọi lựa chọn.
+    Là lưới rời rạc (cùng định dạng `space`) nên dùng chung được bộ sinh / lân cận ±1 bước của phễu."""
+    out: Dict[str, List[Any]] = {}
+    for key, spec in (candidate.get("params_schema") or {}).items():
+        if key in exclude:
+            continue
+        if spec["type"] == "choice":
+            out[key] = list(spec["choices"])
+            continue
+        lo, hi, step = spec["min"], spec["max"], spec.get("step") or 1
+        n = int(math.floor((hi - lo) / step + 1e-9)) + 1
+        if spec["type"] == "int":
+            out[key] = [int(lo + i * step) for i in range(n)]
+        else:
+            nd = max(0, -int(math.floor(math.log10(step)))) + 2 if step < 1 else 2
+            out[key] = [round(lo + i * step, nd) for i in range(n)]
+    return out

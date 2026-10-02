@@ -37,13 +37,9 @@ def make_engine(job: Dict[str, Any]):
                            risk=RiskConfig.from_dict(risk_dict(job["kill"])), shared_dir=job.get("shared_dir")), start
 
 
-def run_backtest(job: Dict[str, Any], want_trades: bool = False) -> Dict[str, Any]:
-    """Một lần PortfolioEngine -> {"metrics", "daily", "daily_start", "trades"}. metrics = số đo phẳng của phễu (không gồm chuỗi ngày)."""
+def _outputs(res: Dict[str, Any], start: int, want_trades: bool) -> Dict[str, Any]:
+    """get_results() của một lần chạy -> {"metrics", "daily", "daily_start", "trades"} (số đo phẳng của phễu, không gồm chuỗi ngày)."""
     from backend.core.metrics.portfolio import portfolio_metrics
-    eng, start = make_engine(job)
-    with contextlib.redirect_stdout(io.StringIO()):
-        eng.run()
-    res = eng.get_results()
     pm = portfolio_metrics(res, start)
     daily = pm["daily"]
     first = next((c["time"] for c in res["equity_curve"] if c["time"] >= start), None)
@@ -59,6 +55,39 @@ def run_backtest(job: Dict[str, Any], want_trades: bool = False) -> Dict[str, An
     }
     return {"metrics": m, "daily": daily, "daily_start": f"{pd.Timestamp(int(first), unit='ms'):%Y-%m-%d}" if first is not None else None,
             "trades": rows if want_trades else None}
+
+
+def run_backtest(job: Dict[str, Any], want_trades: bool = False) -> Dict[str, Any]:
+    """Một lần PortfolioEngine -> {"metrics", "daily", "daily_start", "trades"}."""
+    eng, start = make_engine(job)
+    with contextlib.redirect_stdout(io.StringIO()):
+        eng.run()
+    return _outputs(eng.get_results(), start, want_trades)
+
+
+def signal_key(job: Dict[str, Any]) -> str:
+    """Khoá nhóm cho run_many: cùng chiến lược + cùng cây tín hiệu sau khi thay tham số + cùng đơn vị thoát / khung ATR + cùng cửa sổ/tài sản/
+    kill/stop_fill -> dữ liệu và tín hiệu dùng chung; chỉ tham số vị thế/thoát lệnh khác nhau."""
+    import json
+    from backend.core.strategy import book as sb
+    by_id = {c["id"]: c for c in sb.CANDIDATES}
+    st = sb.materialize(by_id[job["strategy"]], job["params"], stop_fill=job["stop_fill"], risk_per_trade_pct=job["rpt"])
+    pos = st["position"]
+    return json.dumps([job["strategy"], st["tree"], st.get("stop"), pos.get("exit_unit"), pos.get("atr_frame"), pos.get("atr_period"),
+                       job["window"], job["kill"], list(job["symbols"])], sort_keys=True, default=str)
+
+
+def run_backtest_many(jobs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Nhiều alpha CÙNG signal_key: nạp dữ liệu + tính tín hiệu một lần (engine của job đầu), chạy các bộ tham số vị thế bằng
+    PortfolioEngine.run_many (trùng từng bit với chạy riêng — test_kernel_parity / test_funnel)."""
+    from backend.core.strategy import book as sb
+    by_id = {c["id"]: c for c in sb.CANDIDATES}
+    eng, start = make_engine(jobs[0])
+    with contextlib.redirect_stdout(io.StringIO()):
+        eng.load_data()
+        results = eng.run_many([sb.materialize(by_id[j["strategy"]], j["params"], stop_fill=j["stop_fill"], risk_per_trade_pct=j["rpt"])["position"]
+                                for j in jobs])
+    return [_outputs(r, start, bool(j.get("trades"))) for r, j in zip(results, jobs)]
 
 
 def base_job(strategy: str, params: Dict[str, Any], window, stop_fill: str, kill: bool, rpt: float, symbols, shared_dir) -> Dict[str, Any]:
@@ -149,6 +178,20 @@ def w_backtest(job: Dict[str, Any]) -> Dict[str, Any]:
         return out
     except ValueError as exc:   # tham số không hợp lệ ngoài dự kiến (S0 đã lọc phần lớn) -> loại alpha này, không sập cả lượt
         return {"error": f"{type(exc).__name__}: {exc}"}
+
+
+def w_backtest_group(group: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """S1 theo nhóm: group = {"jobs": [job w_backtest, ...]} cùng signal_key -> danh sách kết quả cùng thứ tự (như w_backtest từng job).
+    Lỗi tham số ở một job -> chạy riêng từng job của nhóm để chỉ alpha lỗi bị loại."""
+    jobs = group["jobs"]
+    try:
+        outs = run_backtest_many(jobs)
+    except ValueError:
+        return [w_backtest(j) for j in jobs]
+    for j, out in zip(jobs, outs):
+        if j.get("trades") == "pass" and not gates.evaluate_s1(out["metrics"])[0]:
+            out["trades"] = None
+    return outs
 
 
 def w_wfa(job: Dict[str, Any]) -> Dict[str, Any]:

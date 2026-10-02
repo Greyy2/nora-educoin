@@ -2,8 +2,8 @@
 
 Một alpha thật (mặc định breakout_4h_long, tham số mặc định) chạy trên 8 tài sản perp, cửa sổ dev1 của phễu, dữ liệu mmap dùng chung.
 
-  backend/utils/ops/run_limited.sh -- -m backend.core.backtest.bench_engine profile            # Bước 0: phân rã thời gian + hot-spot (engine cũ)
-  backend/utils/ops/run_limited.sh -- -m backend.core.backtest.bench_engine compare --n 3 --batch 100   # cũ vs kernel (+ kiểm bằng nhau từng bit)
+  backend/utils/ops/run_limited.sh -- test/scripts/bench_engine.py profile            # Bước 0: phân rã thời gian + hot-spot (engine cũ)
+  backend/utils/ops/run_limited.sh -- test/scripts/bench_engine.py compare --n 3 --batch 100   # cũ vs kernel (+ kiểm bằng nhau từng bit)
   Tuỳ chọn chung: --strategy breakout_4h_long  --symbols BTC,ETH,...  --shared-dir DIR  --keep-shared
 
 Engine cũ = test/reference_engine.py (bản chụp đóng băng của vòng lặp Python); engine mới = PortfolioEngine (kernel numba).
@@ -23,7 +23,7 @@ import shutil
 import sys
 import time
 
-NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 for _p in (NORA_ROOT, os.path.join(NORA_ROOT, "test")):
     if _p not in sys.path:
         sys.path.insert(0, _p)

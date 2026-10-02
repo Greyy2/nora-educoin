@@ -28,7 +28,8 @@ assert KIND in batch_jobs.KINDS
 
 MAX_ALPHAS = 1_000_000
 LARGE_ALPHAS = 200_000
-SEC_PER_S1_BACKTEST = 32.0      # đo 02/10/2026: dev1 (~14 tháng, 8 tài sản perp) với dữ liệu đã nạp/mmap; lần đầu mỗi chiến lược còn tốn xuất dữ liệu
+SEC_PER_S1_BACKTEST = 0.5       # đo 02/10/2026 sau kernel numba: dev1 (~14 tháng, 8 perp), lô cùng tín hiệu ~0,46 s + số đo; 1 worker
+DEFAULT_WORKERS = 14            # CPU 0-13 của nora.slice
 _RUN_RE = re.compile(r"^fr-[0-9A-Za-z_-]{1,40}$|^[0-9A-Za-z_-]{3,48}$")
 _ALPHA_RE = re.compile(r"^[0-9a-f]{8,64}$")
 SORT_COLS = {"ret_pct": "m.ret_pct", "mdd_pct": "m.mdd_pct", "sharpe": "m.sharpe", "trades": "m.trades", "win_rate": "m.win_rate",
@@ -84,6 +85,7 @@ class FunnelRunRequest(BaseModel):
     windows: Optional[Dict[str, str]] = Field(None, description="ghi đè mốc YYYY-MM-DD: start, dev1_end, dev2_end, end")
     resume_run_id: Optional[str] = None
     force_large: bool = False
+    space: str = Field("grid", pattern="^(grid|schema)$", description="grid = lưới nhỏ của chiến lược; schema = mọi tham số theo min/max/bước")
 
     @field_validator("windows")
     @classmethod
@@ -103,10 +105,11 @@ class FunnelRunRequest(BaseModel):
         return self
 
 
-def _planned(strategies: List[str], n: Optional[int], full_grid: bool) -> Dict[str, int]:
+def _planned(strategies: List[str], n: Optional[int], full_grid: bool, space: str = "grid") -> Dict[str, int]:
     from backend.core.strategy import book as sb
+    from backend.optimize.funnel.generate import space_for
     by_id = {c["id"]: c for c in sb.CANDIDATES}
-    return {s: count_params(by_id[s]["space"], n, full_grid) for s in strategies}
+    return {s: count_params(space_for(by_id[s], space), n, full_grid) for s in strategies}
 
 
 # ─── Tạo lượt / ước tính ────────────────────────────────────────────────────
@@ -126,12 +129,12 @@ def post_run(req: FunnelRunRequest):
         params = {"resume": run_id}
         planned = None
     else:
-        planned = _planned(strategies, req.n_per_strategy, req.full_grid)
+        planned = _planned(strategies, req.n_per_strategy, req.full_grid, req.space)
         total = sum(planned.values())
         if total > MAX_ALPHAS or (total > LARGE_ALPHAS and not req.force_large):
             raise HTTPException(422, f"{total:,} alpha vượt giới hạn ({LARGE_ALPHAS:,}; trần cứng {MAX_ALPHAS:,}); giảm n_per_strategy hoặc đặt force_large")
         run_id = new_run_id()
-        params = {"strategies": strategies, "seed": req.seed, "run_id": run_id}
+        params = {"strategies": strategies, "seed": req.seed, "run_id": run_id, "space": req.space}
         params.update({"full_grid": True} if req.full_grid else {"n_per_strategy": req.n_per_strategy})
         if symbols:
             params["symbols"] = symbols
@@ -142,7 +145,7 @@ def post_run(req: FunnelRunRequest):
         # bản run.json "queued" TRƯỚC khi chạy: danh sách lượt thấy ngay lượt đang xếp hàng; CLI ghi đè bằng run.json đầy đủ khi bắt đầu
         atomic_write_json(os.path.join(_run_dir(run_id), "run.json"), {
             "run_id": run_id, "status": "queued", "created": time.time(), "started": None, "finished": None, "total_alphas": total,
-            "planned": planned, "config": {"strategies": strategies, "n_per_strategy": req.n_per_strategy, "full_grid": req.full_grid,
+            "planned": planned, "config": {"strategies": strategies, "n_per_strategy": req.n_per_strategy, "full_grid": req.full_grid, "space": req.space,
                                            "seed": req.seed, "symbols": symbols, "windows": req.windows},
             "stages": {s: {"status": "pending"} for s in gates.STAGES}})
     try:
@@ -157,7 +160,8 @@ def post_run(req: FunnelRunRequest):
 
 @router.get("/estimate")
 def get_estimate(strategies: str = Query(..., description="id phân tách bằng dấu phẩy"), n_per_strategy: Optional[int] = Query(None, ge=1, le=MAX_ALPHAS),
-                 full_grid: bool = False, workers: int = Query(6, ge=1, le=64)):
+                 full_grid: bool = False, workers: int = Query(DEFAULT_WORKERS, ge=1, le=64),
+                 space: str = Query("grid", pattern="^(grid|schema)$")):
     """Ước tính thời gian S1 (tầng chiếm gần hết thời gian) TRƯỚC khi chạy: alpha × giây/backtest đo thực / số worker. Các tầng sau chỉ chạy cho alpha còn sống."""
     try:
         ids = batch_jobs.check_candidate_ids([s for s in strategies.split(",") if s])
@@ -165,9 +169,9 @@ def get_estimate(strategies: str = Query(..., description="id phân tách bằng
         raise HTTPException(422, str(e))
     if bool(n_per_strategy) == bool(full_grid):
         raise HTTPException(422, "chọn đúng một: n_per_strategy hoặc full_grid")
-    planned = _planned(ids, n_per_strategy, full_grid)
+    planned = _planned(ids, n_per_strategy, full_grid, space)
     total = sum(planned.values())
-    return {"per_strategy": planned, "total_alphas": total, "sec_per_backtest": SEC_PER_S1_BACKTEST, "workers": workers,
+    return {"space": space, "per_strategy": planned, "total_alphas": total, "sec_per_backtest": SEC_PER_S1_BACKTEST, "workers": workers,
             "s1_eta_s": round(total * SEC_PER_S1_BACKTEST / workers, 1)}
 
 
