@@ -35,7 +35,8 @@ def _round_tree(obj, nd=4):
 
 def curve_mdd_pct(curve_rows, start_ts, initial_capital) -> float:
     """MDD TRONG NẾN (%) từ đường vốn engine: đỉnh vốn MTM so với min(vốn MTM, vốn ở giá xấu nhất của nến), từ start_ts."""
-    curve = pd.DataFrame(curve_rows)
+    from backend.core.metrics.returns import curve_frame
+    curve = curve_frame(curve_rows)
     if curve.empty:
         return 0.0
     curve = curve[curve["time"] >= start_ts]

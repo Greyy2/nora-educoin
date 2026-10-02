@@ -86,6 +86,12 @@ Mỗi dòng chỉ chuyển `done` khi đạt đúng cột "Xong khi".
 | P1.8b | Worker phễu tắt/hạ `_DATA_CACHE` (NORA_DATA_CACHE_MB) khi đã có shared_dir; đo lại RSS thật một worker → cập nhật `PER_WORKER_MB` | `optimize/funnel/run.py`, `orchestrator.PER_WORKER_MB` | S | P1.8a | RSS/worker ổn định sau ≥ 50 nhóm, khớp ngân sách | done — RAM riêng/worker đỉnh ~630 MB (trước 1,3 GB); PER_WORKER_MB=700; ngân sách không tính page cache (inactive_file) |
 | P1.9 | Đo bên trong bước khớp lệnh: chi phí ∝ số lệnh × thời gian giữ (khung vào lệnh 5m/15m/1h nặng, 4h/1d nhẹ); mỗi phút có vị thế xử lý cả 8 tài sản + MTM | `core/backtest/kernel.py` | O | P1.8 | Biết chỗ tốn | done |
 | P1.10 | Kernel tua nhanh phút yên tĩnh (không DCA/SL/trailing/thanh lý/TP/timeout/tín hiệu/funding/mẫu vốn) khi không có kill switch; MTM chỉ ở phút lấy mẫu; nhớ dung lượng đệm | `core/backtest/kernel.py` | S | P1.9 | Parity + golden bit-identical | done — 0,37 → 0,18 s/alpha |
+| P1.11 | Chỉ báo chuẩn TradingView (EMA/RMA seed SMA) + tính từ gốc cố định (đầu lịch sử), không phụ thuộc cửa sổ | `core/signals/kernels.py`, `core/backtest/engine.py` | S | P1.10 | Test giá trị bất biến theo cửa sổ; golden tạo lại có chủ đích | done (dc8061c) |
+| P1.12 | Kho chỉ báo tính sẵn theo khung (học sova/prepare.py): mỗi cột mỗi khung tính 1 lần/run, worker gom theo chỉ số dùng chung | `core/data/shared.py` | S | P1.11 | Bằng từng bit với tự dựng | done (8f97e33) |
+| P1.13 | Số worker theo CPU: đo core thật (7 worker 22,8/s) vs luồng logic (11 worker 26,9/s) -> mặc định luồng logic, NORA_CPU_PHYSICAL=1 để chỉ dùng core thật | `utils/memwatch.py` | S | P1.12 | Có số đo | done |
+| P1.14 | Metrics nhẹ hơn: đường vốn dựng DataFrame theo cột | `core/metrics` | S | P1.12 | Số liệu không đổi | done (+~3%) |
+| P1.15 | Tín hiệu CẮT (ta.crossover) cho trend/breakout/momentum + chiến lược Keltner trend (KEMA của sova), thoát khi cắt dải ngược | `core/strategy` | S | P1.11 | Test sự kiện cắt + thoát bằng cây stop | done (3227345) |
+| P1.16 | Load test 10k, 9 chiến lược | `nora.slice` | S | P1.11–P1.15 | 500k ≤ 4 h | đo: 26,9 alpha/s TB (ổn định ~31/s), RAM riêng ≤ 730 MB/worker, không OOM -> 500k ≈ 4,5–5,2 h |
 
 ### PM — Bộ số đo chuẩn (chi tiết: `docs/metrics_inventory.md`)
 

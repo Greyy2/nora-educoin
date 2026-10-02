@@ -22,10 +22,21 @@ def _arr(r) -> np.ndarray:
     return np.asarray(r, dtype=float)
 
 
+def curve_frame(curve_rows) -> pd.DataFrame:
+    """DataFrame của đường vốn (list dict time/equity/equity_worst) dựng theo CỘT — cùng giá trị/dtype với pd.DataFrame(curve_rows)
+    nhưng nhanh hơn nhiều (đường vốn theo giờ có hàng chục nghìn điểm, tính lại cho mọi alpha)."""
+    if not curve_rows:
+        return pd.DataFrame()
+    try:
+        return pd.DataFrame({k: [r[k] for r in curve_rows] for k in curve_rows[0]})
+    except KeyError:                                  # dòng thiếu khoá -> để pandas tự điền NaN
+        return pd.DataFrame(curve_rows)
+
+
 def daily_returns_from_curve(curve_rows, start_ts, initial_capital):
     """Lợi suất ngày MTM (vốn đóng cửa mỗi ngày UTC) từ đường vốn `curve_rows` (list dict time/equity/...),
     chỉ lấy điểm có time >= start_ts, nối từ vốn ban đầu. Dùng chung cho danh mục, WFA và Monte Carlo ngày."""
-    curve = pd.DataFrame(curve_rows)
+    curve = curve_frame(curve_rows)
     if curve.empty:
         return []
     curve = curve[curve["time"] >= start_ts]

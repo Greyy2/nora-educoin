@@ -181,12 +181,8 @@ def logical_cpus() -> int:
         return os.cpu_count() or 1
 
 
-def usable_cpus() -> int:
-    """Số CORE THẬT trong các CPU được phép dùng — trần số worker. Backtest là việc tính toán thuần (kernel numba): hai luồng HT trên
-    cùng một core gần như không nhanh hơn một (đo P1.8: 10 -> 12 worker trên 8 core chỉ +6%) mà nhân đôi RAM. Không đọc được topo
-    -> số CPU logic. NORA_CPU_LOGICAL=1 -> dùng số CPU logic."""
-    if os.environ.get("NORA_CPU_LOGICAL") == "1":
-        return logical_cpus()
+def physical_cores() -> int:
+    """Số core thật trong các CPU được phép dùng (đọc topo /sys); không đọc được -> số CPU logic."""
     try:
         cpus = sorted(os.sched_getaffinity(0))
     except (AttributeError, OSError):
@@ -202,6 +198,13 @@ def usable_cpus() -> int:
             return logical_cpus()
         cores.add((pkg, core))
     return max(1, len(cores))
+
+
+def usable_cpus() -> int:
+    """Trần số worker theo CPU: số CPU logic được phép dùng (gồm hyper-threading). Đo P1.16 (10k alpha, 9 chiến lược): 7 worker theo
+    core thật = 22,8 alpha/s, mỗi worker nhanh hơn nhưng tổng chậm hơn khi dùng cả luồng HT. NORA_CPU_PHYSICAL=1 -> chỉ core thật
+    (ít RAM hơn ~40%)."""
+    return physical_cores() if os.environ.get("NORA_CPU_PHYSICAL") == "1" else logical_cpus()
 
 
 def cache_report() -> Dict[str, Any]:
