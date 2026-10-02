@@ -1,7 +1,7 @@
 #!/bin/bash
 # Nora Backtest — hệ thống backtest độc lập
 #   API + giao diện: http://localhost:18010
-#   Đọc dữ liệu backtest từ MySQL của hệ thống hiện tại (CHỈ ĐỌC)
+#   Mọi việc nặng (backtest, WFA, phễu...) chạy thành job nền qua API (backend/api/jobs/runner.py)
 #   API chạy như systemd user service (nora-api) trong nora.slice — ngân sách RAM chung của Nora.
 set -e
 BASE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
