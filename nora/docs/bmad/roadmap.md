@@ -74,12 +74,12 @@ Mỗi dòng chỉ chuyển `done` khi đạt đúng cột "Xong khi".
 
 | ID | Việc | Nơi sửa | Người | Cần trước | Xong khi | Trạng thái |
 |---|---|---|---|---|---|---|
-| P1.1 | Profile 1 alpha thật: load dữ liệu / tín hiệu / vòng lặp / metrics | `core/backtest/bench_engine.py` | S | — | Có bảng % thời gian từng phần | doing |
-| P1.2 | Numba kernel thay vòng lặp trong `PortfolioEngine`/`BacktestEngine`; xoá vòng lặp Python cũ | `core/backtest/kernel.py`, `portfolio.py`, `engine.py` | S | P1.1 | Một engine duy nhất; giữ nguyên hàm gọi và kết quả | doing |
-| P1.3 | Kiểm parity: 3 golden + ≥ 300 cấu hình ngẫu nhiên (DCA, ATR, risk sizing, thanh lý, cooldown, stop_fill, kill switch) | `test/test_fast_engine.py`, `test/reference_engine.py` | S | P1.2 | 100% trùng từng bit; lệch → sửa kernel, không nới | doing |
-| P1.4 | Benchmark thật 8 tài sản dev1: s/alpha cũ vs mới; RAM/worker | `core/backtest/bench_engine.py` | S | P1.3 | ≤ 0,4 s/alpha | todo |
-| P1.5 | Core thêm `run_many(params_list)` cho alpha chung tín hiệu | `core/backtest/portfolio.py` | S | P1.3 | Kết quả từng alpha trùng bit với chạy lẻ | todo |
-| P1.6 | `optimize` gom alpha theo tín hiệu vào lệnh, chia lô, gọi `run_many`; worker lấy từ `utils/parallel` | `optimize/runner.py`, `utils/parallel.py` | S | P1.5, P0 | Không thêm cấu hình worker mới; test xanh | todo |
+| P1.1 | Profile 1 alpha thật: load dữ liệu / tín hiệu / vòng lặp / metrics | `core/backtest/bench_engine.py` | S | — | Có bảng % thời gian từng phần | done |
+| P1.2 | Numba kernel thay vòng lặp trong `PortfolioEngine`/`BacktestEngine`; xoá vòng lặp Python cũ | `core/backtest/kernel.py`, `portfolio.py`, `engine.py` | S | P1.1 | Một engine duy nhất; giữ nguyên hàm gọi và kết quả | done (f7e9c1b) |
+| P1.3 | Kiểm parity: 3 golden + ≥ 300 cấu hình ngẫu nhiên (DCA, ATR, risk sizing, thanh lý, cooldown, stop_fill, kill switch) | `test/test_fast_engine.py`, `test/reference_engine.py` | S | P1.2 | 100% trùng từng bit; lệch → sửa kernel, không nới | done (golden + test_kernel_parity) |
+| P1.4 | Benchmark thật 8 tài sản dev1: s/alpha cũ vs mới; RAM/worker | `core/backtest/bench_engine.py` | S | P1.3 | ≤ 0,4 s/alpha | done (0.74 s/alpha; lô 0.463 s) |
+| P1.5 | Core thêm `run_many(params_list)` cho alpha chung tín hiệu | `core/backtest/portfolio.py` | S | P1.3 | Kết quả từng alpha trùng bit với chạy lẻ | done (PortfolioEngine.run_many) |
+| P1.6 | `optimize` gom alpha theo tín hiệu vào lệnh, chia lô, gọi `run_many`; worker lấy từ `utils/parallel` | `optimize/runner.py`, `utils/parallel.py` | S | P1.5, P0 | Không thêm cấu hình worker mới; test xanh | done (9bc8a85, S1 gom theo signal_key) |
 | P1.7 | Lọc thô nhiều vòng (successive halving) — chỉ làm nếu P1.4–P1.6 chưa đạt | `optimize/` | S | P1.6 | Đạt mục tiêu thời gian | todo |
 | P1.8 | Load test thật 10k và 100k; ngoại suy 500k/1M; kiểm RAM, ổn định, resume | `nora.slice` | O+S | P1.6 | 500k ước tính ≤ 4 h; không OOM; resume đúng | chặn: worker S1 ~1.3 GB > ngân sách 800 MB → OOM; cần sửa trước |
 
@@ -124,10 +124,10 @@ Mỗi dòng chỉ chuyển `done` khi đạt đúng cột "Xong khi".
 | P4.2b | Kiểm thật các nhánh lỗi chưa chạm: 422 thật theo field, promote 400/409, recompute trades, POST /runs nhỏ | frontend | S | P0.7 | Ảnh kiểm từng nhánh | todo |
 | P4.3 | Hiển thị regime hiện tại, lịch sử, chiến lược đang bật | `pages/Portfolio.jsx` | S | P2.2 | Có cả sáng/tối | todo |
 | P4.4 | Ảnh kiểm sáng/tối; `npm run build` sạch | frontend | O | P4.1–P4.3 | Không lỗi console | todo |
-| P4.5 | Danh sách lệnh (trade list) ở trang Tổng quan (Backtest/Live/Testnet) và ở mỗi bước Backtest/WFA/MC: lọc theo chiến lược/tài sản/chiều/kết quả, phân trang, tải CSV | `core/analytics/dashboard.py`, `api/routers/portfolio.py`, frontend | O | — | Bảng lệnh khớp `trade_list`; lọc/sắp/phân trang đúng | todo |
-| P4.6 | Thống kê theo CHIẾN LƯỢC (họ chiến lược, gộp mọi bộ tham số của cùng chiến lược) ở Tổng quan: bộ số đo chuẩn tính riêng từng chiến lược | `core/metrics`, `core/analytics/dashboard.py`, frontend | O | PM | Mỗi chiến lược có đủ số đo; alpha `x__SOL` gộp về chiến lược gốc | todo |
-| P4.7 | Tích hợp Phễu vào trang Alpha (một trang: tối ưu sổ + phễu kiểm duyệt), bỏ mục Phễu riêng trên thanh bên | frontend | O | — | `/alpha` có tab Phễu; `/funnel` chuyển hướng | todo |
-| P4.8 | Mục "Tín hiệu thị trường" ở Tổng quan: trạng thái tín hiệu từng chiến lược × tài sản trên nến ĐÃ ĐÓNG mới nhất (điều kiện vào/thoát, giá trị chỉ báo, regime), dùng chung một hàm causal cho backtest/live/testnet | `core/signals/snapshot.py`, `api/routers/market.py`, frontend | O | — | Snapshot trùng với tín hiệu engine dùng ở cùng phút (test); không nhìn nến chưa đóng | todo |
+| P4.5 | Danh sách lệnh (trade list) ở trang Tổng quan (Backtest/Live/Testnet) và ở mỗi bước Backtest/WFA/MC: lọc theo chiến lược/tài sản/chiều/kết quả, phân trang, tải CSV | `core/analytics/dashboard.py`, `api/routers/portfolio.py`, frontend | O | — | Bảng lệnh khớp `trade_list`; lọc/sắp/phân trang đúng | done (b42bfc2) |
+| P4.6 | Thống kê theo CHIẾN LƯỢC (họ chiến lược, gộp mọi bộ tham số của cùng chiến lược) ở Tổng quan: bộ số đo chuẩn tính riêng từng chiến lược | `core/metrics`, `core/analytics/dashboard.py`, frontend | O | PM | Mỗi chiến lược có đủ số đo; alpha `x__SOL` gộp về chiến lược gốc | done (b42bfc2) |
+| P4.7 | Tích hợp Phễu vào trang Alpha (một trang: tối ưu sổ + phễu kiểm duyệt), bỏ mục Phễu riêng trên thanh bên | frontend | O | — | `/alpha` có tab Phễu; `/funnel` chuyển hướng | done (b42bfc2) |
+| P4.8 | Mục "Tín hiệu thị trường" ở Tổng quan: trạng thái tín hiệu từng chiến lược × tài sản trên nến ĐÃ ĐÓNG mới nhất (điều kiện vào/thoát, giá trị chỉ báo, regime), dùng chung một hàm causal cho backtest/live/testnet | `core/signals/snapshot.py`, `api/routers/market.py`, frontend | O | — | Snapshot trùng với tín hiệu engine dùng ở cùng phút (test); không nhìn nến chưa đóng | done (b42bfc2; regime thêm ở aa3823f) |
 
 ### P5 — Tài liệu và báo cáo
 
