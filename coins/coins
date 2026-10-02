@@ -1,8 +1,0 @@
-0 */6 * * * root php /var/www/html/crawler/artisan coin_list >/dev/null 2>&1
-1 */1 * * * root php /var/www/html/crawler/artisan coin_history >/dev/null 2>&1
-2 */1 * * * root php /var/www/html/crawler/artisan coin_fear >/dev/null 2>&1
-3 */6 * * * root php /var/www/html/crawler/artisan coin_transaction >/dev/null 2>&1
-4 */6 * * * root php /var/www/html/crawler/artisan coin_sub >/dev/null 2>&1
-5 */6 * * * root php /var/www/html/crawler/artisan coin_telegram >/dev/null 2>&1
-6 */6 * * * root php /var/www/html/crawler/artisan coin_twitter >/dev/null 2>&1
-

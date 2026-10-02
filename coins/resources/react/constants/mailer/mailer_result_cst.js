@@ -1,9 +1,0 @@
-global.MAILER_RESULT_TABLE = 'mailer_result';
-global.MRESULT_ID = 'mresult_id';
-global.MRESULT_MAILER = 'mresult_mailer';
-global.MRESULT_CONTENT = 'mresult_content';
-global.MRESULT_TO = 'mresult_to';
-global.MRESULT_FROM = 'mresult_from';
-global.MRESULT_TIME = 'mresult_time';
-global.MRESULT_RESULT = 'mresult_result';
-global.MRESULT_LOG = 'mresult_log';

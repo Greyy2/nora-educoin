@@ -1,9 +1,0 @@
-global.TESTNET_EVENTS_TABLE = 'testnet_events';
-global.TESTNET_EVENTS_ID = 'testnet_events_id';
-global.TESTNET_EVENTS_SYMBOL = 'testnet_events_symbol';
-global.TESTNET_EVENTS_TIME = 'testnet_events_time';
-global.TESTNET_EVENTS_ICON = 'testnet_events_icon';
-global.TESTNET_EVENTS_PROFIT = 'testnet_events_profit';
-global.TESTNET_EVENTS_CONTENT = 'testnet_events_content';
-global.TESTNET_EVENTS_STRATEGY = 'testnet_events_strategy';
-global.TESTNET_EVENTS_CAMPAIGN = 'testnet_events_campaign';

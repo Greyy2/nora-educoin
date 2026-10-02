@@ -1,7 +1,0 @@
-@import '../variables/theme/_theme_dark';
-@import '../overrides/_theme_variables';
-// Fallback (!default) cho các biến mà theme-base mới cần nhưng template v7 chưa định nghĩa
-@import './designer/_variables-dark-fallback';
-@import './designer/_components';
-@import './extensions/_vendor_extensions';
-@import '../overrides/_theme_styles';

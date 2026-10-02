@@ -1,9 +1,0 @@
-global.EVENTS_TABLE = 'events';
-global.EVENT_ID = 'event_id';
-global.EVENT_SYMBOL = 'event_symbol';
-global.EVENT_TIME = 'event_time';
-global.EVENT_CHART = 'event_chart';
-global.EVENT_PRICE = 'event_price';
-global.EVENT_TYPE = 'event_type';
-global.EVENT_BASE = 'event_base';
-global.EVENT_PARAMS = 'event_params';

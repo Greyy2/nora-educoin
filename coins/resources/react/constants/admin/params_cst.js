@@ -1,9 +1,0 @@
-global.PARAMS_TABLE = 'params';
-global.PARAM_ID = 'param_id';
-global.PARAM_NAME = 'param_name';
-global.PARAM_TIMELIFE = 'param_timelife';
-global.PARAM_TAKEPROFIT = 'param_takeprofit';
-global.PARAM_BASEPROFIT = 'param_baseprofit';
-global.PARAM_STEPPROFIT = 'param_stepprofit';
-global.PARAM_TOPLOSS = 'param_toploss';
-global.PARAM_MARGIN = 'param_margin';

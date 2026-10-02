@@ -1,52 +1,33 @@
 import React, { useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useSession } from "../context/SessionContext.jsx";
 
+// Entry screen: two tabs, Admin and User. For now both open with one click
+// and no credential (project owner, 2026-09-26). The admin key form is only
+// shown when the server has open access switched off.
 export default function AdminLoginPage() {
-  const { session, login, adminOpenAccess } = useSession();
+  const { login, adminOpenAccess } = useSession();
   const navigate = useNavigate();
 
+  const [tab, setTab] = useState("admin");
   const [adminKey, setAdminKey] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
-  // If already logged in as admin, redirect to admin console
-  if (session && session.role === "admin") {
-    return <Navigate to="/admin" replace />;
-  }
-
-  async function handleLogin(keyToUse) {
-    const trimmed = (keyToUse || adminKey).trim();
-    if (!trimmed) {
-      setError("Please enter an Admin Key to continue.");
-      return;
-    }
+  async function enterAdmin(key) {
     setBusy(true);
     setError(null);
-
-    const result = await login(trimmed);
+    const result = await login(key);
     setBusy(false);
-
-    if (!result.ok) {
-      setError(result.message || "Invalid Admin Key. Please check it and try again.");
-      return;
-    }
-
-    if (result.session?.role === "admin") {
+    if (result.ok && result.session?.role === "admin") {
       navigate("/admin", { replace: true });
     } else {
-      setError("This key does not have Admin privileges.");
+      setError(result.message || "This key does not have admin access.");
     }
   }
 
-  function handleFormSubmit(e) {
-    e.preventDefault();
-    handleLogin(adminKey);
-  }
-
-  function handleQuickDevAccess() {
-    handleLogin("admin");
+  function enterUser() {
+    navigate("/user");
   }
 
   return (
@@ -54,7 +35,6 @@ export default function AdminLoginPage() {
       <div className="admin-login-bg-glow" />
 
       <div className="admin-login-card">
-        {/* Top Header & Security Badge */}
         <div className="admin-login-header">
           <div className="admin-login-brand-row">
             <div className="admin-login-logo-box">
@@ -70,99 +50,67 @@ export default function AdminLoginPage() {
               <span className="admin-login-brand-tag">AI ENGINE</span>
             </div>
           </div>
-
-          <div className="admin-login-badge">
-            <span className="admin-login-badge-dot" />
-            <span>RESTRICTED ACCESS · ADMIN CONSOLE</span>
-          </div>
-
-          <h1 className="admin-login-title">Admin Gateway</h1>
-          <p className="admin-login-desc">
-            A secure area reserved for system administrators to monitor quantitative risk, review verdicts, and manage OKX bots.
-          </p>
+          <h1 className="admin-login-title">Welcome</h1>
+          <p className="admin-login-desc">Risk assessment for OKX copy-trading bots. Choose how you want to enter.</p>
         </div>
 
-        {/* Error Notice */}
+        <div className="login-tabs" role="tablist">
+          <button type="button" role="tab" aria-selected={tab === "admin"}
+            className={`login-tab${tab === "admin" ? " on" : ""}`} onClick={() => setTab("admin")}>
+            Admin
+          </button>
+          <button type="button" role="tab" aria-selected={tab === "user"}
+            className={`login-tab${tab === "user" ? " on" : ""}`} onClick={() => setTab("user")}>
+            User
+          </button>
+        </div>
+
         {error && (
           <div className="admin-login-error" role="alert">
-            <span className="admin-login-error-icon">⚠️</span>
             <span className="admin-login-error-text">{error}</span>
           </div>
         )}
 
-        {/* Login Form */}
-        <form className="admin-login-form" onSubmit={handleFormSubmit}>
-          <div className="admin-login-field">
-            <label htmlFor="adminKey">Admin Secret Key</label>
-            <div className="admin-login-input-wrap">
-              <svg className="admin-login-input-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
-              <input
-                id="adminKey"
-                type={showPassword ? "text" : "password"}
-                value={adminKey}
-                onChange={(e) => setAdminKey(e.target.value)}
-                placeholder="Enter the admin key (Admin Key)..."
-                disabled={busy}
-                autoComplete="current-password"
-                autoFocus
-              />
-              <button
-                type="button"
-                className="admin-login-toggle-pw"
-                onClick={() => setShowPassword((prev) => !prev)}
-                title={showPassword ? "Hide password" : "Show password"}
-                tabIndex={-1}
-              >
-                {showPassword ? (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-                    <line x1="1" y1="1" x2="23" y2="23" />
-                  </svg>
-                ) : (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                    <circle cx="12" cy="12" r="3" />
-                  </svg>
-                )}
+        {tab === "admin" ? (
+          <div className="login-pane">
+            <ul className="login-points">
+              <li>Overview of every scored bot and portfolio</li>
+              <li>Full reports: summary, markets, trades &amp; positions</li>
+              <li>Assess any bot or portfolio</li>
+            </ul>
+            {adminOpenAccess ? (
+              <button type="button" className="admin-login-staff-btn" onClick={() => enterAdmin("admin")} disabled={busy}>
+                <span className="admin-login-staff-title">{busy ? "Opening…" : "Enter as Admin →"}</span>
+                <span className="admin-login-staff-sub">OKX staff: one click, no key needed</span>
               </button>
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            className="admin-login-submit-btn"
-            disabled={busy || !adminKey.trim()}
-          >
-            {busy ? (
-              <span className="admin-login-loading-row">
-                <span className="admin-login-spinner" />
-                <span>Authenticating...</span>
-              </span>
             ) : (
-              <span>Log in to Admin Console →</span>
+              <form className="admin-login-form" onSubmit={(e) => { e.preventDefault(); if (adminKey.trim()) enterAdmin(adminKey.trim()); }}>
+                <div className="admin-login-field">
+                  <label htmlFor="adminKey">Admin key</label>
+                  <div className="admin-login-input-wrap">
+                    <input id="adminKey" type="password" value={adminKey} onChange={(e) => setAdminKey(e.target.value)}
+                      placeholder="Enter the admin key" disabled={busy} autoComplete="current-password" />
+                  </div>
+                </div>
+                <button type="submit" className="admin-login-submit-btn" disabled={busy || !adminKey.trim()}>
+                  {busy ? "Signing in…" : "Log in to Admin Console →"}
+                </button>
+              </form>
             )}
-          </button>
-
-          {/* Quick Dev Access button if adminOpenAccess is true */}
-          {adminOpenAccess && (
-            <button
-              type="button"
-              className="admin-login-dev-btn"
-              onClick={handleQuickDevAccess}
-              disabled={busy}
-            >
-              Quick Admin Access (Open Access Mode)
-            </button>
-          )}
-        </form>
-
-        {/* Informational Disclaimer for Users */}
-        <div className="admin-login-disclaimer">
-          <div className="admin-login-disclaimer-icon">ℹ️</div>
-          <div className="admin-login-disclaimer-text">
-            <strong>Reserved for administrators:</strong> Users &amp; investors view reports directly through a link containing the bot code &amp; contract, with no login required.
           </div>
-        </div>
+        ) : (
+          <div className="login-pane">
+            <ul className="login-points">
+              <li>Check one bot, or a portfolio of 2–8 bots, by bot code</li>
+              <li>Risk verdict, Monte Carlo and full report</li>
+              <li>Only your own checks, no overview of other bots</li>
+            </ul>
+            <button type="button" className="admin-login-staff-btn login-user-btn" onClick={enterUser}>
+              <span className="admin-login-staff-title">Enter as User →</span>
+              <span className="admin-login-staff-sub">No sign-in needed</span>
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

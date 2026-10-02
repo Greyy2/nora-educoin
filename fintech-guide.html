@@ -1,0 +1,1147 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cẩm nang Fintech & Đầu tư cho Người Mới</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --card-muted: #f1f5f9;
+      --border: #e2e8f0;
+      --border-subtle: #f1f5f9;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --text-subtle: #94a3b8;
+      
+      --primary: #4338ca;
+      --primary-light: #eef2ff;
+      --primary-border: #c7d2fe;
+      
+      --emerald: #059669;
+      --emerald-light: #ecfdf5;
+      --emerald-border: #a7f3d0;
+      
+      --amber: #d97706;
+      --amber-light: #fffbeb;
+      --amber-border: #fde68a;
+      
+      --rose: #e11d48;
+      --rose-light: #fff1f2;
+      --rose-border: #fecdd3;
+      
+      --blue: #2563eb;
+      --blue-light: #eff6ff;
+      --blue-border: #bfdbfe;
+
+      --sidebar-w: 260px;
+      --radius: 12px;
+      --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+      --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 15px;
+      line-height: 1.7;
+      color: var(--text);
+      background-color: var(--bg);
+      display: flex;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── SIDEBAR ── */
+    .sidebar {
+      width: var(--sidebar-w);
+      flex-shrink: 0;
+      background: var(--card);
+      border-right: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      z-index: 40;
+    }
+
+    .sb-header {
+      padding: 24px 20px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .sb-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 8px;
+      border-radius: 9999px;
+      background: var(--primary-light);
+      color: var(--primary);
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .sb-title {
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: var(--text);
+      letter-spacing: -0.02em;
+    }
+    .sb-sub {
+      font-size: 0.76rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .sb-nav {
+      padding: 16px 12px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .nav-link {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      transition: all 0.15s ease;
+      position: relative;
+    }
+    .nav-link:hover {
+      background: var(--card-muted);
+      color: var(--text);
+    }
+    .nav-link.active {
+      background: var(--primary-light);
+      color: var(--primary);
+      font-weight: 700;
+    }
+    .nav-link.active::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 6px;
+      bottom: 6px;
+      width: 3px;
+      border-radius: 0 4px 4px 0;
+      background: var(--primary);
+    }
+
+    .nav-num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--text-subtle);
+      width: 18px;
+    }
+    .nav-link.active .nav-num {
+      color: var(--primary);
+      font-weight: 700;
+    }
+
+    .sb-subnav {
+      margin-left: 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      border-left: 1px solid var(--border);
+      padding-left: 8px;
+      margin-top: 2px;
+      margin-bottom: 4px;
+    }
+    .sb-sublink {
+      font-size: 0.76rem;
+      color: var(--text-muted);
+      text-decoration: none;
+      padding: 3px 6px;
+      border-radius: 4px;
+      transition: color 0.15s;
+    }
+    .sb-sublink:hover { color: var(--primary); }
+
+    .sb-footer {
+      padding: 16px 20px;
+      border-top: 1px solid var(--border);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      background: #fafafa;
+    }
+
+    /* ── MAIN CONTENT ── */
+    .main-wrap {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      justify-content: center;
+      padding: 40px 32px 80px;
+    }
+
+    .content {
+      width: 100%;
+      max-width: 780px;
+    }
+
+    /* ── HERO BANNER ── */
+    .hero {
+      background: linear-gradient(135deg, #1e1b4b 0%, #312e81 60%, #4338ca 100%);
+      border-radius: 16px;
+      padding: 32px 36px;
+      color: #ffffff;
+      margin-bottom: 44px;
+      box-shadow: 0 12px 28px -6px rgba(49, 46, 129, 0.25);
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::after {
+      content: "";
+      position: absolute;
+      right: -30px;
+      bottom: -30px;
+      width: 160px;
+      height: 160px;
+      background: radial-gradient(circle, rgba(255,255,255,0.12) 0%, transparent 70%);
+      border-radius: 50%;
+    }
+    .hero-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255, 255, 255, 0.16);
+      backdrop-filter: blur(4px);
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-size: 0.74rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      margin-bottom: 12px;
+    }
+    .hero h1 {
+      font-size: 1.6rem;
+      font-weight: 800;
+      line-height: 1.3;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+    }
+    .hero p {
+      font-size: 0.92rem;
+      line-height: 1.6;
+      color: #e0e7ff;
+      max-width: 620px;
+    }
+
+    /* ── SECTIONS ── */
+    .section {
+      margin-bottom: 56px;
+      scroll-margin-top: 32px;
+    }
+
+    .sec-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+    .sec-icon-wrap {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      background: var(--primary-light);
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .sec-title-group h2 {
+      font-size: 1.3rem;
+      font-weight: 800;
+      color: var(--text);
+      letter-spacing: -0.02em;
+    }
+    .sec-subtitle {
+      font-size: 0.84rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* ── CALLOUT / DEFINITION BOX ── */
+    .definition-box {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--primary);
+      border-radius: 0 var(--radius) var(--radius) 0;
+      padding: 18px 22px;
+      margin-bottom: 22px;
+      box-shadow: var(--shadow-sm);
+    }
+    .definition-box p {
+      font-size: 0.92rem;
+      color: #334155;
+      line-height: 1.7;
+    }
+    .definition-box strong {
+      color: var(--text);
+    }
+
+    /* ── FEATURE GRID & CARDS ── */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      box-shadow: var(--shadow-sm);
+      transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    }
+    .card:hover {
+      box-shadow: var(--shadow-md);
+      border-color: #cbd5e1;
+    }
+    .card-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .card-icon {
+      font-size: 1.25rem;
+      line-height: 1;
+    }
+    .card-title {
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .card-desc {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    /* ── BADGES & TAGS ── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 7px;
+      border-radius: 6px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+    .badge-green { background: var(--emerald-light); color: var(--emerald); border: 1px solid var(--emerald-border); }
+    .badge-blue  { background: var(--blue-light); color: var(--blue); border: 1px solid var(--blue-border); }
+    .badge-amber { background: var(--amber-light); color: var(--amber); border: 1px solid var(--amber-border); }
+    .badge-rose  { background: var(--rose-light); color: var(--rose); border: 1px solid var(--rose-border); }
+    .badge-purple{ background: var(--primary-light); color: var(--primary); border: 1px solid var(--primary-border); }
+
+    /* ── SUBSECTION STYLING ── */
+    .subsection {
+      margin-top: 32px;
+      padding-top: 24px;
+      border-top: 1px dashed var(--border);
+    }
+    .sub-title {
+      font-size: 1.08rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* ── RISK MANAGEMENT EMBEDDED CONTAINER ── */
+    .risk-container {
+      background: #fdfdfd;
+      border: 1px solid var(--amber-border);
+      border-radius: var(--radius);
+      padding: 22px 24px;
+      margin-top: 20px;
+      position: relative;
+    }
+    .risk-badge-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .risk-headline {
+      font-size: 1.02rem;
+      font-weight: 800;
+      color: #92400e;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .risk-intro {
+      font-size: 0.85rem;
+      color: #78350f;
+      margin-bottom: 16px;
+      line-height: 1.6;
+    }
+
+    .risk-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .risk-item {
+      background: #ffffff;
+      border: 1px solid #fed7aa;
+      border-radius: 8px;
+      padding: 12px 16px;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .risk-item-icon {
+      font-size: 1.15rem;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .risk-item-content h4 {
+      font-size: 0.87rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 2px;
+    }
+    .risk-item-content p {
+      font-size: 0.81rem;
+      color: var(--text-muted);
+      line-height: 1.55;
+    }
+
+    /* ── NOTICE / TIP BOX ── */
+    .tip-box {
+      border-radius: 10px;
+      padding: 14px 18px;
+      font-size: 0.84rem;
+      line-height: 1.6;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      margin-top: 16px;
+    }
+    .tip-info {
+      background: var(--primary-light);
+      border: 1px solid var(--primary-border);
+      color: #3730a3;
+    }
+    .tip-success {
+      background: var(--emerald-light);
+      border: 1px solid var(--emerald-border);
+      color: #065f46;
+    }
+
+    /* ── REFERENCES / RESOURCES SECTION ── */
+    .ref-category {
+      margin-bottom: 24px;
+    }
+    .ref-cat-title {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .ref-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+    .ref-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      text-decoration: none;
+      color: inherit;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+    .ref-card:hover {
+      border-color: var(--primary);
+      box-shadow: 0 4px 12px rgba(67, 56, 202, 0.08);
+      transform: translateY(-2px);
+    }
+    .ref-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .ref-name {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .ref-card:hover .ref-name {
+      color: var(--primary);
+    }
+    .ref-external-icon {
+      font-size: 0.75rem;
+      color: var(--text-subtle);
+    }
+    .ref-card:hover .ref-external-icon {
+      color: var(--primary);
+    }
+    .ref-desc {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+      margin-bottom: 10px;
+      flex: 1;
+    }
+    .ref-meta {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    /* ── DIVIDER ── */
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 48px 0;
+      border: none;
+    }
+
+    /* ── FOOTER ── */
+    .page-footer {
+      text-align: center;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      padding: 30px 0 10px;
+      border-top: 1px solid var(--border);
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 960px) {
+      .sidebar { display: none; }
+      .main-wrap { padding: 24px 16px 60px; }
+      .grid-2 { grid-template-columns: 1fr; }
+      .ref-grid { grid-template-columns: 1fr; }
+      .hero { padding: 24px 20px; }
+      .hero h1 { font-size: 1.35rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- SIDEBAR NAVIGATION -->
+  <aside class="sidebar">
+    <div class="sb-header">
+      <div class="sb-badge">🌱 Starter Guide</div>
+      <div class="sb-title">Fintech & Tài Chính</div>
+      <div class="sb-sub">Cẩm nang kiến thức nền tảng</div>
+    </div>
+
+    <nav class="sb-nav">
+      <a href="#fintech" class="nav-link active">
+        <span class="nav-num">01</span>
+        <span>Fintech là gì?</span>
+      </a>
+
+      <a href="#personal-finance" class="nav-link">
+        <span class="nav-num">02</span>
+        <span>Quản lý tài chính</span>
+      </a>
+
+      <a href="#investment" class="nav-link">
+        <span class="nav-num">03</span>
+        <span>Đầu tư & Rủi ro</span>
+      </a>
+      <div class="sb-subnav">
+        <a href="#investment-types" class="sb-sublink">• Các dạng đầu tư</a>
+        <a href="#risk-management" class="sb-sublink">• Quản lý rủi ro</a>
+      </div>
+
+      <a href="#references" class="nav-link">
+        <span class="nav-num">04</span>
+        <span>Tài liệu tham khảo</span>
+      </a>
+    </nav>
+
+    <div class="sb-footer">
+      💡 <em>Dành cho người mới bắt đầu học quản lý tiền & đầu tư an toàn.</em>
+    </div>
+  </aside>
+
+  <!-- MAIN VIEWPORT -->
+  <div class="main-wrap">
+    <main class="content">
+
+      <!-- HERO INTRO -->
+      <header class="hero">
+        <div class="hero-tag">✨ Nhập Môn Cơ Bản</div>
+        <h1>Khái niệm Fintech, Tài chính & Đầu tư</h1>
+        <p>Bản tổng hợp ngắn gọn, chuẩn xác giúp bạn hiểu đúng bản chất thị trường, kiểm soát rủi ro trước khi bắt đầu bước chân vào hành trình tích lũy và đầu tư tài sản.</p>
+      </header>
+
+      <!-- ══════════════ 1. FINTECH LÀ GÌ? ══════════════ -->
+      <section class="section" id="fintech">
+        <div class="sec-header">
+          <div class="sec-icon-wrap">🌐</div>
+          <div class="sec-title-group">
+            <h2>1. Fintech là gì?</h2>
+            <div class="sec-subtitle">Financial Technology — Công nghệ Tài chính</div>
+          </div>
+        </div>
+
+        <div class="definition-box">
+          <p>
+            <strong>Fintech (Công nghệ Tài chính)</strong> là sự giao thoa giữa <strong>Finance (Tài chính)</strong> và <strong>Technology (Công nghệ)</strong>. 
+            Mục tiêu cốt lõi là ứng dụng internet, điện toán đám mây và phần mềm để <strong>tối ưu hóa quy trình tài chính</strong>, giúp việc giao dịch, tiết kiệm, vay mượn và đầu tư trở nên nhanh chóng, chi phí thấp và ai cũng có thể tiếp cận chỉ với chiếc điện thoại thông minh.
+          </p>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-head">
+              <span class="card-icon">📱</span>
+              <span class="card-title">Thanh toán & Ví điện tử</span>
+            </div>
+            <p class="card-desc">
+              Chuyển tiền tức thì, quét mã QR, thanh toán hóa đơn 24/7 mà không cần đến quầy ngân hàng.<br/>
+              <em>Ví dụ: MoMo, ZaloPay, VNPay, Apple Pay.</em>
+            </p>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <span class="card-icon">🏦</span>
+              <span class="card-title">Ngân hàng số (Neobank)</span>
+            </div>
+            <p class="card-desc">
+              Mở tài khoản bằng eKYC (định danh gương mặt online), gửi tiết kiệm linh hoạt, quản lý thẻ mà không cần phòng giao dịch truyền thống.<br/>
+              <em>Ví dụ: Timo, Cake, VPBank NEO.</em>
+            </p>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <span class="card-icon">📊</span>
+              <span class="card-title">Đầu tư thông minh (Wealthtech)</span>
+            </div>
+            <p class="card-desc">
+              Số hóa việc mua cổ phiếu, chứng chỉ quỹ mở, trái phiếu với số vốn nhỏ chỉ từ vài chục nghìn đồng, theo dõi danh mục tự động.<br/>
+              <em>Ví dụ: TCBS iCopy, Finhay, Tikop, Dragon Capital.</em>
+            </p>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <span class="card-icon">⛓️</span>
+              <span class="card-title">Blockchain & Crypto (DeFi)</span>
+            </div>
+            <p class="card-desc">
+              Tài chính phi tập trung trên nền tảng chuỗi khối, thanh toán toàn cầu không qua biên giới và tự lưu ký tài sản mã hóa.<br/>
+              <em>Ví dụ: Bitcoin, Ethereum, ví Metamask.</em>
+            </p>
+          </div>
+        </div>
+
+        <div class="tip-box tip-info">
+          <span>🔒</span>
+          <div><strong>Nguyên tắc bảo mật quan trọng:</strong> Khi dùng các ứng dụng Fintech, luôn bật xác thực 2 lớp (2FA qua Google Authenticator / SMS), tuyệt đối không chia sẻ mã OTP hoặc cụm từ khôi phục (seed phrase) cho bất kỳ ai.</div>
+        </div>
+      </section>
+
+      <hr class="divider" />
+
+      <!-- ══════════════ 2. QUẢN LÝ TÀI CHÍNH LÀ GÌ? ══════════════ -->
+      <section class="section" id="personal-finance">
+        <div class="sec-header">
+          <div class="sec-icon-wrap">💰</div>
+          <div class="sec-title-group">
+            <h2>2. Quản lý tài chính là gì?</h2>
+            <div class="sec-subtitle">Nền móng quan trọng nhất: Quản lý dòng tiền trước khi nghĩ đến đầu tư</div>
+          </div>
+        </div>
+
+        <div class="definition-box">
+          <p>
+            <strong>Quản lý tài chính cá nhân</strong> là nghệ thuật và phương pháp lập kế hoạch, phân bổ nguồn thu nhập, kiểm soát chi tiêu và tích lũy có kỷ luật. 
+            Mục đích là duy trì sự an toàn tài chính, chuẩn bị quỹ dự phòng trước biến cố và gia tăng giá trị tài sản ròng theo thời gian mà không bị rơi vào áp lực nợ nần.
+          </p>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-head">
+              <span class="card-icon">⚖️</span>
+              <span class="card-title">Quy tắc phân bổ 50/30/20</span>
+            </div>
+            <p class="card-desc">
+              • <strong>50% Thiết yếu:</strong> Tiền nhà, ăn uống, đi lại, y tế.<br/>
+              • <strong>30% Mong muốn:</strong> Gặp gỡ bạn bè, du lịch, mua sắm cá nhân.<br/>
+              • <strong>20% Tích lũy:</strong> Gửi tiết kiệm, trả nợ và đầu tư tạo lãi kép.
+            </p>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <span class="card-icon">🛡️</span>
+              <span class="card-title">Quỹ dự phòng khẩn cấp</span>
+            </div>
+            <p class="card-desc">
+              Khoản tiền tương đương <strong>3 đến 6 tháng chi phí sinh hoạt tối thiểu</strong> gửi ở tài khoản thanh khoản cao (tiết kiệm không kỳ hạn/kỳ hạn ngắn). Đây là "lưới bảo hiểm" khi mất việc hoặc ốm đau, <em>tuyệt đối không đem đi đầu tư rủi ro</em>.
+            </p>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <span class="card-icon">🧾</span>
+              <span class="card-title">Kiểm soát dòng tiền (Cashflow)</span>
+            </div>
+            <p class="card-desc">
+              Ghi chép thu chi thường xuyên để biết rõ tiền đang thất thoát ở đâu. Quy tắc vàng: <em>"Thu nhập - Tiết kiệm = Chi tiêu"</em>, không làm ngược lại là tiêu xong còn thừa mới tiết kiệm.
+            </p>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <span class="card-icon">🚫</span>
+              <span class="card-title">Xử lý nợ xấu lãi cao</span>
+            </div>
+            <p class="card-desc">
+              Ưu tiên trả dứt điểm các khoản nợ tín dụng lãi suất cao (25–35%/năm) trước khi mang tiền đi đầu tư, vì hiếm có kênh đầu tư nào sinh lời bù đắp nổi lãi vay tiêu dùng.
+            </p>
+          </div>
+        </div>
+
+        <div class="tip-box tip-info">
+          <span>💡</span>
+          <div><strong>Ghi nhớ:</strong> Nếu bạn không thể quản lý tốt 10 triệu đồng, bạn cũng sẽ không thể quản lý được 1 tỷ đồng. Kỷ luật tài chính cá nhân là tấm khiên vững chắc nhất.</div>
+        </div>
+      </section>
+
+      <hr class="divider" />
+
+      <!-- ══════════════ 3. ĐẦU TƯ LÀ GÌ? CÓ NHỮNG DẠNG NÀO? + QUẢN LÝ RỦI RO ══════════════ -->
+      <section class="section" id="investment">
+        <div class="sec-header">
+          <div class="sec-icon-wrap">📈</div>
+          <div class="sec-title-group">
+            <h2>3. Đầu tư là gì? & Quản lý rủi ro</h2>
+            <div class="sec-subtitle">Cách tiền sinh ra tiền và nghệ thuật bảo toàn vốn sống còn</div>
+          </div>
+        </div>
+
+        <div class="definition-box">
+          <p>
+            <strong>Đầu tư</strong> là hành động đưa nguồn vốn nhàn rỗi vào các kênh tài sản (cổ phiếu, trái phiếu, vàng, bất động sản, tiền mã hóa,...) với kỳ vọng tài sản sẽ tăng trưởng giá trị hoặc tạo ra dòng tiền thu nhập thụ động theo thời gian.<br/>
+            Quy luật bất biến của tài chính: <strong>Lợi nhuận tiềm năng luôn tỷ lệ thuận với rủi ro</strong>. Không có kênh nào "lãi suất cao mà an toàn tuyệt đối".
+          </p>
+        </div>
+
+        <!-- 3.1 CÁC DẠNG ĐẦU TƯ PHỔ BIẾN -->
+        <div class="subsection" id="investment-types" style="border-top:none; padding-top:0; margin-top:10px;">
+          <h3 class="sub-title">📦 Các dạng tài sản đầu tư phổ biến</h3>
+          <p style="font-size:0.84rem; color:var(--text-muted); margin-bottom:14px;">
+            Sắp xếp từ mức độ an toàn cao đến biến động mạo hiểm:
+          </p>
+
+          <div class="grid-2">
+            <!-- 1. Tiết kiệm -->
+            <div class="card">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <span class="card-title" style="display:flex; align-items:center; gap:6px;">
+                  <span>🏦</span> Tiết kiệm & Chứng chỉ tiền gửi
+                </span>
+                <span class="badge badge-green">Rủi ro rất thấp</span>
+              </div>
+              <p class="card-desc">
+                Nhận lãi cố định (khoảng 4–7%/năm). Vốn được bảo toàn gần như tuyệt đối bởi bảo hiểm tiền gửi ngân hàng. Thích hợp giữ vốn ngắn hạn và quỹ khẩn cấp.
+              </p>
+            </div>
+
+            <!-- 2. Vàng & Trái phiếu -->
+            <div class="card">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <span class="card-title" style="display:flex; align-items:center; gap:6px;">
+                  <span>🥇</span> Vàng & Trái phiếu DN uy tín
+                </span>
+                <span class="badge badge-blue">Rủi ro thấp - vừa</span>
+              </div>
+              <p class="card-desc">
+                Vàng là hầm trú ẩn phòng chống lạm phát và suy thoái kinh tế. Trái phiếu đem lại nguồn coupon (lãi) định kỳ tốt hơn gửi tiết kiệm.
+              </p>
+            </div>
+
+            <!-- 3. Cổ phiếu & Quỹ chỉ số -->
+            <div class="card">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <span class="card-title" style="display:flex; align-items:center; gap:6px;">
+                  <span>📊</span> Cổ phiếu & Quỹ mở / ETF
+                </span>
+                <span class="badge badge-amber">Rủi ro trung bình - cao</span>
+              </div>
+              <p class="card-desc">
+                Sở hữu một phần doanh nghiệp kinh doanh tăng trưởng hoặc mua rổ chỉ số (VN30, S&P 500). Kỳ vọng lợi nhuận 12–20%/năm trong dài hạn. Biến động theo chu kỳ thị trường.
+              </p>
+            </div>
+
+            <!-- 4. Bất động sản -->
+            <div class="card">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <span class="card-title" style="display:flex; align-items:center; gap:6px;">
+                  <span>🏡</span> Bất động sản
+                </span>
+                <span class="badge badge-amber">Rủi ro trung bình</span>
+              </div>
+              <p class="card-desc">
+                Đầu tư đất nền, căn hộ cho thuê. Tiềm năng tăng giá ổn định nhưng yêu cầu vốn lớn, thanh khoản chậm (mất thời gian để bán ra tiền mặt).
+              </p>
+            </div>
+
+            <!-- 5. Crypto Top -->
+            <div class="card">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <span class="card-title" style="display:flex; align-items:center; gap:6px;">
+                  <span>🪙</span> Tiền mã hóa lớn (BTC, ETH)
+                </span>
+                <span class="badge badge-rose">Rủi ro cao</span>
+              </div>
+              <p class="card-desc">
+                Tài sản số có biến động mạnh (có thể dao động ±30% đến 70% trong vài tháng). Tiềm năng bứt phá công nghệ lớn nhưng cần tâm lý vững vàng và kiến thức blockchain.
+              </p>
+            </div>
+
+            <!-- 6. Meme / Altcoin nhỏ -->
+            <div class="card">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <span class="card-title" style="display:flex; align-items:center; gap:6px;">
+                  <span>🎲</span> Meme coin & Đầu cơ đòn bẩy
+                </span>
+                <span class="badge badge-rose">Rủi ro cực cao</span>
+              </div>
+              <p class="card-desc">
+                Tính đầu cơ cực mạnh, dễ bị làm giá (bơm - xả) hoặc mất trắng. <strong>Khuyến cáo:</strong> Người mới tuyệt đối không nên bỏ vốn vào nhóm này khi chưa có kinh nghiệm.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3.2 QUẢN LÝ RỦI RO (ĐƯỢC ĐẶT BÊN TRONG MỤC ĐẦU TƯ) -->
+        <div class="subsection" id="risk-management">
+          <div class="risk-container">
+            <div class="risk-badge-header">
+              <div class="risk-headline">
+                <span>🛡️</span> Quản lý rủi ro trong đầu tư (Risk Management)
+              </div>
+              <span class="badge badge-amber">Nguyên tắc sống còn</span>
+            </div>
+
+            <p class="risk-intro">
+              Trong đầu tư, <strong>người chiến thắng không phải là người kiếm được nhiều tiền nhất lúc thị trường lên, mà là người giữ được vốn khi thị trường sụp đổ</strong>. Quản lý rủi ro chính là ranh giới giữa một nhà đầu tư có phương pháp và một con bạc.
+            </p>
+
+            <div class="risk-list">
+              <div class="risk-item">
+                <div class="risk-item-icon">🎯</div>
+                <div class="risk-item-content">
+                  <h4>Quy tắc 1% — Giới hạn lỗ trên mỗi giao dịch</h4>
+                  <p>Không bao giờ mạo hiểm quá <strong>1% đến 2% tổng tài khoản</strong> cho một cơ hội đầu tư duy nhất. Điều này đảm bảo dù bạn gặp chuỗi thua lỗ 10–20 lần liên tiếp, tài khoản của bạn vẫn còn nguyên vẹn để tiếp tục làm lại.</p>
+                </div>
+              </div>
+
+              <div class="risk-item">
+                <div class="risk-item-icon">🛑</div>
+                <div class="risk-item-content">
+                  <h4>Stop-loss (Cắt lỗ) kỷ luật — Tuyệt đối không "gồng lỗ"</h4>
+                  <p>Luôn đặt câu hỏi: <em>"Nếu giá chạm mốc nào thì chứng minh nhận định ban đầu của mình là sai?"</em> trước khi bấm mua. Khi chạm điểm cắt lỗ, hãy dứt khoát thoát lệnh thay vì hy vọng thị trường sẽ quay lại.</p>
+                </div>
+              </div>
+
+              <div class="risk-item">
+                <div class="risk-item-icon">🧺</div>
+                <div class="risk-item-content">
+                  <h4>Đa dạng hóa danh mục (Asset Allocation)</h4>
+                  <p>Không bỏ toàn bộ trứng vào một giỏ. Chia danh mục thành: Tiền mặt phòng thủ (20-30%), Kênh an toàn tăng trưởng dài hạn (Cổ phiếu/ETF 50-60%), và Kênh mạo hiểm chỉ từ 5-10%.</p>
+                </div>
+              </div>
+
+              <div class="risk-item">
+                <div class="risk-item-icon">🧠</div>
+                <div class="risk-item-content">
+                  <h4>Kiểm soát bẫy tâm lý: FOMO và FUD</h4>
+                  <p><strong>FOMO (Fear of Missing Out):</strong> Sợ bỏ lỡ khi thấy người khác khoe lãi dẫn đến mua đúng đỉnh. <strong>FUD (Fear, Uncertainty, Doubt):</strong> Hoảng loạn bán tháo ở đáy khi nghe tin đồn xấu. Hãy mua khi có kế hoạch và bán khi đạt mục tiêu hoặc vi phạm nguyên tắc.</p>
+                </div>
+              </div>
+
+              <div class="risk-item">
+                <div class="risk-item-icon">⚡</div>
+                <div class="risk-item-content">
+                  <h4>Nói không với Đòn bẩy (Margin / Futures Leverage)</h4>
+                  <p>Đòn bẩy vay nợ (x5, x10, x50) giúp nhân nhanh lợi nhuận nhưng chỉ cần thị trường đi ngược vài phần trăm là tài khoản sẽ bị thanh lý sạch (cháy tài khoản). Người mới chỉ nên giao dịch Spot (tiền thật mua tài sản thật).</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tip-box tip-success">
+          <span>🎯</span>
+          <div><strong>Chiến lược DCA (Dollar-Cost Averaging):</strong> Đối với người mới, cách đầu tư tối ưu nhất là chia nhỏ số tiền định kỳ hàng tháng để mua tích lũy các tài sản chất lượng (chỉ số VN30, ETF hoặc Bitcoin), giúp bình quân giá vốn và loại bỏ áp lực đoán đỉnh đoán đáy thị trường.</div>
+        </div>
+      </section>
+
+      <hr class="divider" />
+
+      <!-- ══════════════ 4. TÀI LIỆU & NGUỒN THAM KHẢO ══════════════ -->
+      <section class="section" id="references">
+        <div class="sec-header">
+          <div class="sec-icon-wrap">📚</div>
+          <div class="sec-title-group">
+            <h2>4. Tài liệu & Nguồn tham khảo</h2>
+            <div class="sec-subtitle">Nguồn tài liệu uy tín, chọn lọc giúp bạn tiếp tục đào sâu kiến thức chuẩn mực</div>
+          </div>
+        </div>
+
+        <!-- SÁCH NÊN ĐỌC -->
+        <div class="ref-category">
+          <div class="ref-cat-title">📖 Sách gối đầu giường cho người mới</div>
+          <div class="ref-grid">
+            <div class="ref-card">
+              <div class="ref-top">
+                <span class="ref-name">Tâm Lý Học Về Tiền (The Psychology of Money)</span>
+              </div>
+              <p class="ref-desc">Tác giả Morgan Housel. Giúp bạn hiểu rằng thành công tài chính không nằm ở việc bạn thông minh cỡ nào, mà ở cách bạn kiểm soát hành vi và cái tôi của mình.</p>
+              <div class="ref-meta">
+                <span class="badge badge-purple">Sách nhập môn</span>
+                <span class="badge badge-green">Khuyên đọc số 1</span>
+              </div>
+            </div>
+
+            <div class="ref-card">
+              <div class="ref-top">
+                <span class="ref-name">Nhà Đầu Tư Thông Minh (The Intelligent Investor)</span>
+              </div>
+              <p class="ref-desc">Tác giả Benjamin Graham (thầy của Warren Buffett). Cuốn kinh thánh về triết lý đầu tư giá trị, cách phân biệt đầu tư thực thụ với đầu cơ may rủi.</p>
+              <div class="ref-meta">
+                <span class="badge badge-purple">Kinh điển</span>
+                <span class="badge badge-blue">Tư duy đầu tư</span>
+              </div>
+            </div>
+
+            <div class="ref-card">
+              <div class="ref-top">
+                <span class="ref-name">Bước Đi Ngẫu Nhiên Trên Phố Wall</span>
+              </div>
+              <p class="ref-desc">Tác giả Burton Malkiel. Giải thích vì sao việc đầu tư đều đặn vào các quỹ chỉ số (ETF) lại thường chiến thắng phần lớn các chuyên gia phân tích kỹ thuật.</p>
+              <div class="ref-meta">
+                <span class="badge badge-purple">Chiến lược</span>
+                <span class="badge badge-amber">Đầu tư thụ động</span>
+              </div>
+            </div>
+
+            <div class="ref-card">
+              <div class="ref-top">
+                <span class="ref-name">Người Giàu Có Nhất Thành Babylon</span>
+              </div>
+              <p class="ref-desc">Tác giả George S. Clason. Những câu chuyện ngụ ngôn dễ hiểu truyền tải các bài học bất hủ về tiết kiệm 1/10 thu nhập và cách làm cho vàng sinh sôi nảy nở.</p>
+              <div class="ref-meta">
+                <span class="badge badge-purple">Căn bản</span>
+                <span class="badge badge-green">Tài chính cá nhân</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- WEBSITES TÀI CHÍNH QUỐC TẾ & VIỆT NAM -->
+        <div class="ref-category">
+          <div class="ref-cat-title">🌐 Nền tảng học thuật & Dữ liệu thị trường</div>
+          <div class="ref-grid">
+            <a href="https://www.investopedia.com" target="_blank" rel="noopener noreferrer" class="ref-card">
+              <div class="ref-top">
+                <span class="ref-name">Investopedia <span class="ref-external-icon">↗</span></span>
+                <span class="badge badge-blue">English</span>
+              </div>
+              <p class="ref-desc">Bách khoa toàn thư tài chính lớn nhất hành tinh. Tra cứu mọi thuật ngữ từ P/E, ROI, Lạm phát đến chiến lược phân bổ danh mục với ví dụ trực quan.</p>
+              <div class="ref-meta">
+                <span class="badge badge-purple">Tra cứu chuẩn</span>
+                <span class="badge badge-green">Miễn phí</span>
+              </div>
+            </a>
+
+            <a href="https://www.khanacademy.org/economics-finance-policy/core-finance" target="_blank" rel="noopener noreferrer" class="ref-card">
+              <div class="ref-top">
+                <span class="ref-name">Khan Academy - Finance <span class="ref-external-icon">↗</span></span>
+                <span class="badge badge-blue">English</span>
+              </div>
+              <p class="ref-desc">Khóa học video hoàn toàn miễn phí giảng dạy về lãi suất kép, bảng cân đối kế toán, cách định giá cổ phiếu và thị trường vốn dành cho mọi lứa tuổi.</p>
+              <div class="ref-meta">
+                <span class="badge badge-purple">Khóa học Video</span>
+                <span class="badge badge-green">Miễn phí 100%</span>
+              </div>
+            </a>
+
+            <a href="https://vietstock.vn" target="_blank" rel="noopener noreferrer" class="ref-card">
+              <div class="ref-top">
+                <span class="ref-name">Vietstock.vn <span class="ref-external-icon">↗</span></span>
+                <span class="badge badge-green">Tiếng Việt</span>
+              </div>
+              <p class="ref-desc">Cổng thông tin và dữ liệu tài chính doanh nghiệp niêm yết tại Việt Nam. Cung cấp báo cáo tài chính, biểu đồ kỹ thuật và lịch trả cổ tức chi tiết.</p>
+              <div class="ref-meta">
+                <span class="badge badge-amber">Chứng khoán VN</span>
+                <span class="badge badge-blue">Dữ liệu vĩ mô</span>
+              </div>
+            </a>
+
+            <a href="https://cafef.vn" target="_blank" rel="noopener noreferrer" class="ref-card">
+              <div class="ref-top">
+                <span class="ref-name">CafeF — Kinh tế & Tài chính <span class="ref-external-icon">↗</span></span>
+                <span class="badge badge-green">Tiếng Việt</span>
+              </div>
+              <p class="ref-desc">Trang tin tức nhanh nhất về diễn biến kinh tế vĩ mô Việt Nam, lãi suất ngân hàng, thị trường bất động sản và các thông báo doanh nghiệp hàng ngày.</p>
+              <div class="ref-meta">
+                <span class="badge badge-amber">Tin tức hàng ngày</span>
+              </div>
+            </a>
+          </div>
+        </div>
+
+        <!-- BLOCKCHAIN & CRYPTO ACADEMY -->
+        <div class="ref-category">
+          <div class="ref-cat-title">⛓️ Tài liệu học tập Blockchain & Crypto</div>
+          <div class="ref-grid">
+            <a href="https://academy.binance.com/vi" target="_blank" rel="noopener noreferrer" class="ref-card">
+              <div class="ref-top">
+                <span class="ref-name">Binance Academy <span class="ref-external-icon">↗</span></span>
+                <span class="badge badge-green">Tiếng Việt</span>
+              </div>
+              <p class="ref-desc">Cổng kiến thức đầy đủ từ cơ bản đến nâng cao về công nghệ chuỗi khối, bảo mật ví lạnh, cách đọc nến kỹ thuật và phân tích on-chain.</p>
+              <div class="ref-meta">
+                <span class="badge badge-purple">Học Crypto</span>
+                <span class="badge badge-green">Có tiếng Việt</span>
+              </div>
+            </a>
+
+            <a href="https://coinmarketcap.com/alexandria" target="_blank" rel="noopener noreferrer" class="ref-card">
+              <div class="ref-top">
+                <span class="ref-name">CoinMarketCap Alexandria <span class="ref-external-icon">↗</span></span>
+                <span class="badge badge-blue">English</span>
+              </div>
+              <p class="ref-desc">Thư viện giáo dục tiền mã hóa độc lập. Cung cấp bài viết phân tích tokenomics, dự án Web3, DeFi và hướng dẫn bảo vệ bản thân trước các hình thức lừa đảo.</p>
+              <div class="ref-meta">
+                <span class="badge badge-purple">Nghiên cứu dự án</span>
+              </div>
+            </a>
+
+            <a href="https://ethereum.org/vi/learn/" target="_blank" rel="noopener noreferrer" class="ref-card">
+              <div class="ref-top">
+                <span class="ref-name">Ethereum.org (Learn) <span class="ref-external-icon">↗</span></span>
+                <span class="badge badge-green">Tiếng Việt</span>
+              </div>
+              <p class="ref-desc">Nguồn tài liệu chuẩn mực chính thức của mạng lưới Ethereum. Giải thích cặn kẽ về smart contract, ứng dụng phi tập trung (dApps) và ví kỹ thuật số.</p>
+              <div class="ref-meta">
+                <span class="badge badge-blue">Kiến thức Web3</span>
+              </div>
+            </a>
+
+            <a href="https://coin98.net" target="_blank" rel="noopener noreferrer" class="ref-card">
+              <div class="ref-top">
+                <span class="ref-name">Coin98 Insights <span class="ref-external-icon">↗</span></span>
+                <span class="badge badge-green">Tiếng Việt</span>
+              </div>
+              <p class="ref-desc">Trang nghiên cứu chuyên sâu về các hệ sinh thái blockchain, phân tích xu hướng dòng tiền được viết bởi đội ngũ chuyên gia nghiên cứu Web3 Việt Nam.</p>
+              <div class="ref-meta">
+                <span class="badge badge-purple">Phân tích chuyên sâu</span>
+              </div>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <!-- PAGE FOOTER -->
+      <footer class="page-footer">
+        <p>Fintech & Finance Starter Guide • Biên soạn nhằm mục đích giáo dục kiến thức tài chính nền tảng</p>
+      </footer>
+
+    </main>
+  </div>
+
+  <!-- SCROLLSPY SCRIPT -->
+  <script>
+    const links = document.querySelectorAll('.sb-nav a.nav-link');
+    const sections = document.querySelectorAll('section[id]');
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          const id = entry.target.getAttribute('id');
+          links.forEach((link) => {
+            if (link.getAttribute('href') === '#' + id) {
+              link.classList.add('active');
+            } else {
+              link.classList.remove('active');
+            }
+          });
+        }
+      });
+    }, {
+      rootMargin: '-15% 0px -65% 0px',
+      threshold: 0.05
+    });
+
+    sections.forEach((section) => observer.observe(section));
+
+    // Smooth scroll handling for all internal anchor links
+    document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
+      anchor.addEventListener('click', function (e) {
+        const targetId = this.getAttribute('href');
+        if (targetId.length > 1) {
+          e.preventDefault();
+          const targetElement = document.querySelector(targetId);
+          if (targetElement) {
+            targetElement.scrollIntoView({
+              behavior: 'smooth',
+              block: 'start'
+            });
+          }
+        }
+      });
+    });
+  </script>
+</body>
+</html>

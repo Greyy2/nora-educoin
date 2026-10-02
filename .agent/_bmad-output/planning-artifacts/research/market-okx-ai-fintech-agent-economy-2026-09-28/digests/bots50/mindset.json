@@ -1,0 +1,222 @@
+{
+ "n": 28,
+ "dims": [
+  {
+   "dim": "Vào lệnh",
+   "top": "Ngược đà",
+   "n": 13,
+   "share": 46,
+   "rest": [
+    [
+     "Trung tính",
+     10
+    ],
+    [
+     "Theo đà",
+     5
+    ]
+   ],
+   "level": "Khác nhau"
+  },
+  {
+   "dim": "Khi giá đi ngược",
+   "top": "Vào thêm hoặc gồng",
+   "n": 21,
+   "share": 75,
+   "rest": [
+    [
+     "Không vào thêm",
+     7
+    ]
+   ],
+   "level": "Giống nhau"
+  },
+  {
+   "dim": "Tỷ lệ thắng",
+   "top": "≥ 70%",
+   "n": 22,
+   "share": 79,
+   "rest": [
+    [
+     "< 70%",
+     6
+    ]
+   ],
+   "level": "Giống nhau"
+  },
+  {
+   "dim": "Lãi TB so với lỗ TB",
+   "top": "Lãi lớn hơn lỗ",
+   "n": 19,
+   "share": 68,
+   "rest": [
+    [
+     "Lãi nhỏ hơn lỗ",
+     9
+    ]
+   ],
+   "level": "Khá giống"
+  },
+  {
+   "dim": "Giữ lệnh lỗ",
+   "top": "Lâu hơn lệnh lãi",
+   "n": 15,
+   "share": 54,
+   "rest": [
+    [
+     "Ngắn hơn lệnh lãi",
+     13
+    ]
+   ],
+   "level": "Khác nhau"
+  },
+  {
+   "dim": "Kiếm nhiều nhất khi",
+   "top": "Đi ngang",
+   "n": 14,
+   "share": 50,
+   "rest": [
+    [
+     "Xu hướng tăng",
+     11
+    ],
+    [
+     "Xu hướng giảm",
+     3
+    ]
+   ],
+   "level": "Khác nhau"
+  },
+  {
+   "dim": "Chiều",
+   "top": "Hai chiều",
+   "n": 13,
+   "share": 46,
+   "rest": [
+    [
+     "Nghiêng long",
+     11
+    ],
+    [
+     "Nghiêng short",
+     4
+    ]
+   ],
+   "level": "Khác nhau"
+  },
+  {
+   "dim": "Đòn bẩy",
+   "top": "< 20x",
+   "n": 16,
+   "share": 57,
+   "rest": [
+    [
+     "≥ 20x",
+     12
+    ]
+   ],
+   "level": "Khá giống"
+  },
+  {
+   "dim": "Nguồn lãi",
+   "top": "Rải đều nhiều lệnh",
+   "n": 16,
+   "share": 57,
+   "rest": [
+    [
+     "Dồn vào ≤ 5 lệnh",
+     12
+    ]
+   ],
+   "level": "Khá giống"
+  }
+ ],
+ "arch": [
+  {
+   "name": "Bắt hồi, bình quân giá",
+   "desc": "Vào ngược hoặc trung tính, giá đi ngược thì vào thêm hoặc gồng, chốt khi hồi. Thắng nhiều lần nhỏ.",
+   "n": 12,
+   "okx": 7,
+   "win": 81,
+   "lev": 10.0,
+   "hold": 14.29,
+   "examples": [
+    "maomao12345",
+    "好望角9999",
+    "xiaojian888999"
+   ]
+  },
+  {
+   "name": "Săn cú lớn",
+   "desc": "Chấp nhận thua nhiều lần, lãi dồn vào vài lệnh lớn.",
+   "n": 7,
+   "okx": 4,
+   "win": 53,
+   "lev": 15.0,
+   "hold": 19.15,
+   "examples": [
+    "Shallow-Pair-Frog",
+    "01pp",
+    "Master Dust."
+   ]
+  },
+  {
+   "name": "Theo đà",
+   "desc": "Vào cùng chiều giá vừa chạy, bám xu hướng.",
+   "n": 5,
+   "okx": 3,
+   "win": 86,
+   "lev": 20.0,
+   "hold": 13.94,
+   "examples": [
+    "Milies L",
+    "Kunpeng Plan",
+    "RuiJie"
+   ]
+  },
+  {
+   "name": "Lướt ngắn, chốt nhanh",
+   "desc": "Giữ lệnh ngắn, vào ra dứt khoát, ít khi vào thêm.",
+   "n": 4,
+   "okx": 0,
+   "win": 97,
+   "lev": 10.0,
+   "hold": 6.27,
+   "examples": [
+    "百辉财经",
+    "星火研究院-大象",
+    "玄冥二老"
+   ]
+  }
+ ],
+ "of": {
+  "maomao12345": "Bắt hồi, bình quân giá",
+  "好望角9999": "Bắt hồi, bình quân giá",
+  "Shallow-Pair-Frog": "Săn cú lớn",
+  "01pp": "Săn cú lớn",
+  "Milies L": "Theo đà",
+  "xiaojian888999": "Bắt hồi, bình quân giá",
+  "Master Dust.": "Săn cú lớn",
+  "FJ Investment": "Săn cú lớn",
+  "Mine13": "Bắt hồi, bình quân giá",
+  "Kunpeng Plan": "Theo đà",
+  "Ail.Wang": "Bắt hồi, bình quân giá",
+  "BestMax": "Bắt hồi, bình quân giá",
+  "RuiJie": "Theo đà",
+  "Bare-Payee-Fox": "Bắt hồi, bình quân giá",
+  "Feed-Creator-4bc0690bb": "Bắt hồi, bình quân giá",
+  "Benny_256": "Bắt hồi, bình quân giá",
+  "一亏三千里-装逼资本": "Theo đà",
+  "百辉财经": "Lướt ngắn, chốt nhanh",
+  "顺其自然2016": "Bắt hồi, bình quân giá",
+  "风雪哥": "Săn cú lớn",
+  "星辰社区-意钦": "Bắt hồi, bình quân giá",
+  "星火研究院-大象": "Lướt ngắn, chốt nhanh",
+  "Kristofer Hogon SAzs": "Theo đà",
+  "玄冥二老": "Lướt ngắn, chốt nhanh",
+  "hugehead": "Săn cú lớn",
+  "乾坤策略量化": "Săn cú lớn",
+  "A路飞": "Lướt ngắn, chốt nhanh",
+  "币圈心灵导师": "Bắt hồi, bình quân giá"
+ }
+}

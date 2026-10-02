@@ -1,9 +1,0 @@
-global.RANK_HISTORY_TABLE = 'rank_history';
-global.RANK_HIS_ID = 'rank_his_id';
-global.RANK_HIS_YEAR = 'rank_his_year';
-global.RANK_HIS_TIME = 'rank_his_time';
-global.RANK_HIS_SYMBOL = 'rank_his_symbol';
-global.RANK_HIS_VALUE = 'rank_his_value';
-global.RANK_HIS_MARKET_CAP = 'rank_his_market_cap';
-global.RANK_HIS_PRICE = 'rank_his_price';
-global.RANK_HIS_VOLUME_24H = 'rank_his_volume_24h';

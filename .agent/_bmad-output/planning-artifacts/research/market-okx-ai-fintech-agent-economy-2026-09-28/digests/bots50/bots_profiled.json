@@ -1,0 +1,4650 @@
+[
+ {
+  "exchange": "OKX",
+  "id": "F6476365DB0D09A3",
+  "name": "maomao12345",
+  "api": false,
+  "pnl": 3967569.4035719996,
+  "roi": 138.69,
+  "aum": 88666.0670760001,
+  "copiers": 298,
+  "cap": 300,
+  "lead_days": 1094,
+  "win_official": 59,
+  "mdd": null,
+  "url": "https://www.okx.com/copy-trading/account/F6476365DB0D09A3?tab=swap",
+  "style": "Hỗn hợp / linh hoạt",
+  "tags": [
+   "Đòn bẩy cao",
+   "Nghiêng long",
+   "Meme coin",
+   "Lỗ treo lớn (vị thế đang mở)"
+  ],
+  "story": "Đánh ETH, DOGE, BTC, chủ yếu long; giữ lệnh trung vị 20.6 giờ, đòn bẩy trung vị 30x, 2.86 lệnh/ngày. 49% lệnh vào cùng chiều biến động 24 giờ trước đó. Kiếm nhiều nhất khi thị trường đi ngang. Đang giữ 14 vị thế mở. lỗ chưa chốt -961.094 USDT. so với lãi đã chốt 5.113.155 USDT.",
+  "p": {
+   "n": 251,
+   "tagged": 251,
+   "days": 88,
+   "per_day": 2.86,
+   "top_syms": [
+    [
+     "ETH",
+     35
+    ],
+    [
+     "DOGE",
+     30
+    ],
+    [
+     "BTC",
+     28
+    ]
+   ],
+   "n_syms": 4,
+   "cls": {
+    "meme": 30,
+    "major": 63,
+    "alt": 7
+   },
+   "long_pct": 92,
+   "lev_med": 30.0,
+   "lev_p90": 50.0,
+   "hold_med": 20.58,
+   "hold_lt1": 0,
+   "hold_gt24": 47,
+   "win": 76,
+   "payoff": 0.72,
+   "pf": 2.24,
+   "net": 5113155,
+   "reg_share": {
+    "up": 65,
+    "range": 33,
+    "down": 2
+   },
+   "reg_pnl": {
+    "up": 1435389,
+    "range": 3200439,
+    "down": 477326
+   },
+   "reg_win": {
+    "up": 79,
+    "range": 70,
+    "down": 50
+   },
+   "hv_share": 63,
+   "hv_pnl": 1500834,
+   "aligned": 86,
+   "momentum": 49,
+   "overlap": 83,
+   "hold_ratio": 0.73,
+   "top5_share": 32,
+   "tail": 11.7,
+   "peak_hours": [
+    19,
+    1,
+    13
+   ],
+   "dca": {
+    "adds": 83,
+    "down": 55,
+    "stack": 58
+   }
+  },
+  "rank": 1,
+  "open": {
+   "n": 14,
+   "upl": -961094,
+   "margin": 1081340
+  }
+ },
+ {
+  "exchange": "Binance",
+  "id": "4657722487947555584",
+  "name": "Feed-Creator-4bc0690bb",
+  "api": false,
+  "pnl": 551153.42502739,
+  "roi": 131.0625545,
+  "aum": 1108895.78769527,
+  "copiers": 359,
+  "cap": 400,
+  "lead_days": 406,
+  "win_official": 53,
+  "mdd": 23.1,
+  "url": "https://www.binance.com/en/copy-trading/lead-details/4657722487947555584",
+  "style": "Bắt đảo chiều, ngược đà",
+  "tags": [
+   "Đòn bẩy cao",
+   "TradFi (cổ phiếu, hàng hoá)",
+   "Lãi dồn vào vài lệnh",
+   "Giữ lệnh lỗ lâu hơn lệnh lãi"
+  ],
+  "story": "Đánh BTC, KORU, LPT, cả long lẫn short; giữ lệnh trung vị 25.6 giờ, đòn bẩy trung vị 20x, 0.25 lệnh/ngày. 21% lệnh vào cùng chiều biến động 24 giờ trước đó, tức hay đánh ngược đà, bắt đỉnh đáy. Kiếm nhiều nhất khi thị trường xu hướng tăng. Cần để ý: lãi dồn vào vài lệnh, giữ lệnh lỗ lâu hơn lệnh lãi.",
+  "p": {
+   "n": 29,
+   "tagged": 25,
+   "days": 114,
+   "per_day": 0.25,
+   "top_syms": [
+    [
+     "BTC",
+     28
+    ],
+    [
+     "KORU",
+     28
+    ],
+    [
+     "LPT",
+     10
+    ]
+   ],
+   "n_syms": 11,
+   "cls": {
+    "major": 28,
+    "alt": 21,
+    "tradfi": 52
+   },
+   "long_pct": 62,
+   "lev_med": 20.0,
+   "lev_p90": 20.0,
+   "hold_med": 25.58,
+   "hold_lt1": 7,
+   "hold_gt24": 59,
+   "win": 72,
+   "payoff": 1.46,
+   "pf": 3.84,
+   "net": 532174,
+   "reg_share": {
+    "up": 32,
+    "range": 36,
+    "down": 32
+   },
+   "reg_pnl": {
+    "up": 255997,
+    "range": 86260,
+    "down": 125353
+   },
+   "reg_win": {
+    "up": 62,
+    "range": 67,
+    "down": 75
+   },
+   "hv_share": 44,
+   "hv_pnl": 146615,
+   "aligned": 44,
+   "momentum": 21,
+   "overlap": 0,
+   "hold_ratio": 3.08,
+   "top5_share": 91,
+   "tail": 1.7,
+   "peak_hours": [
+    14,
+    17,
+    18
+   ],
+   "dca": null
+  },
+  "rank": 2,
+  "open": null
+ },
+ {
+  "exchange": "OKX",
+  "id": "28AEEA33C8C78CC9",
+  "name": "好望角9999",
+  "api": false,
+  "pnl": 188321.192806693,
+  "roi": 82.71,
+  "aum": 358399.9521438334,
+  "copiers": 502,
+  "cap": 601,
+  "lead_days": 605,
+  "win_official": 57,
+  "mdd": null,
+  "url": "https://www.okx.com/copy-trading/account/28AEEA33C8C78CC9?tab=swap",
+  "style": "Nhồi lệnh, gồng lỗ (DCA)",
+  "tags": [
+   "Nghiêng short",
+   "Giữ lệnh lỗ lâu hơn lệnh lãi",
+   "Có lệnh lỗ cực lớn",
+   "Lỗ treo lớn (vị thế đang mở)",
+   "Bình quân giá xuống (DCA)"
+  ],
+  "story": "Đánh ETH, ONE, ZEC, chủ yếu short; giữ lệnh trung vị 2.7 giờ, đòn bẩy trung vị 10x, 36.06 lệnh/ngày. 23% lệnh vào cùng chiều biến động 24 giờ trước đó, tức hay đánh ngược đà, bắt đỉnh đáy. Kiếm nhiều nhất khi thị trường đi ngang. Cần để ý: giữ lệnh lỗ lâu hơn lệnh lãi, có lệnh lỗ cực lớn. Đang giữ 87 vị thế mở. lỗ chưa chốt -33.496 USDT. so với lãi đã chốt 123.551 USDT. Mở thêm lệnh cùng chiều khi lệnh cũ chưa đóng ở 92% số lệnh, 76% trong đó ở giá xấu hơn (bình quân giá xuống), chồng tối đa 61 vị thế.",
+  "p": {
+   "n": 1000,
+   "tagged": 1000,
+   "days": 28,
+   "per_day": 36.06,
+   "top_syms": [
+    [
+     "ETH",
+     24
+    ],
+    [
+     "ONE",
+     21
+    ],
+    [
+     "ZEC",
+     16
+    ]
+   ],
+   "n_syms": 20,
+   "cls": {
+    "major": 36,
+    "tradfi": 10,
+    "alt": 41,
+    "meme": 13
+   },
+   "long_pct": 16,
+   "lev_med": 10.0,
+   "lev_p90": 100.0,
+   "hold_med": 2.71,
+   "hold_lt1": 38,
+   "hold_gt24": 24,
+   "win": 90,
+   "payoff": 1.25,
+   "pf": 11.36,
+   "net": 123551,
+   "reg_share": {
+    "range": 29,
+    "up": 70,
+    "down": 1
+   },
+   "reg_pnl": {
+    "range": 79974,
+    "up": 43000,
+    "down": 576
+   },
+   "reg_win": {
+    "range": 95,
+    "up": 88,
+    "down": 100
+   },
+   "hv_share": 70,
+   "hv_pnl": 69019,
+   "aligned": 3,
+   "momentum": 23,
+   "overlap": 92,
+   "hold_ratio": 35.17,
+   "top5_share": 21,
+   "tail": 97.8,
+   "peak_hours": [
+    14,
+    15,
+    13
+   ],
+   "dca": {
+    "adds": 92,
+    "down": 76,
+    "stack": 61
+   }
+  },
+  "rank": 3,
+  "open": {
+   "n": 87,
+   "upl": -33496,
+   "margin": 17654
+  }
+ },
+ {
+  "exchange": "OKX",
+  "id": "35F888C7BB441B2B",
+  "name": "Shallow-Pair-Frog",
+  "api": false,
+  "pnl": 155095.49140617892,
+  "roi": 32.5,
+  "aum": 422260.78114134143,
+  "copiers": 436,
+  "cap": 600,
+  "lead_days": 1047,
+  "win_official": 55,
+  "mdd": null,
+  "url": "https://www.okx.com/copy-trading/account/35F888C7BB441B2B?tab=swap",
+  "style": "Bắt đảo chiều, ngược đà",
+  "tags": [
+   "Đòn bẩy rất cao",
+   "Lãi dồn vào vài lệnh",
+   "Có lệnh lỗ cực lớn",
+   "Bình quân giá xuống (DCA)"
+  ],
+  "story": "Đánh BTC, ETH, ZEC, chủ yếu long; giữ lệnh trung vị 3.6 ngày, đòn bẩy trung vị 50x, 4.6 lệnh/ngày. 36% lệnh vào cùng chiều biến động 24 giờ trước đó, tức hay đánh ngược đà, bắt đỉnh đáy. Kiếm nhiều nhất khi thị trường đi ngang. Cần để ý: đòn bẩy rất cao, lãi dồn vào vài lệnh, có lệnh lỗ cực lớn. Mở thêm lệnh cùng chiều khi lệnh cũ chưa đóng ở 75% số lệnh, 73% trong đó ở giá xấu hơn (bình quân giá xuống), chồng tối đa 12 vị thế.",
+  "p": {
+   "n": 416,
+   "tagged": 415,
+   "days": 90,
+   "per_day": 4.6,
+   "top_syms": [
+    [
+     "BTC",
+     12
+    ],
+    [
+     "ETH",
+     11
+    ],
+    [
+     "ZEC",
+     9
+    ]
+   ],
+   "n_syms": 26,
+   "cls": {
+    "alt": 57,
+    "major": 23,
+    "tradfi": 12,
+    "meme": 8
+   },
+   "long_pct": 69,
+   "lev_med": 50.0,
+   "lev_p90": 100.0,
+   "hold_med": 86.14,
+   "hold_lt1": 10,
+   "hold_gt24": 62,
+   "win": 48,
+   "payoff": 4.93,
+   "pf": 4.52,
+   "net": 154767,
+   "reg_share": {
+    "up": 28,
+    "range": 60,
+    "down": 12
+   },
+   "reg_pnl": {
+    "up": 9115,
+    "range": 140198,
+    "down": 5455
+   },
+   "reg_win": {
+    "up": 61,
+    "range": 43,
+    "down": 40
+   },
+   "hv_share": 23,
+   "hv_pnl": -1095,
+   "aligned": 80,
+   "momentum": 36,
+   "overlap": 75,
+   "hold_ratio": 0.05,
+   "top5_share": 95,
+   "tail": 353.7,
+   "peak_hours": [
+    13,
+    16,
+    21
+   ],
+   "dca": {
+    "adds": 75,
+    "down": 73,
+    "stack": 12
+   }
+  },
+  "rank": 4,
+  "open": {
+   "n": 0,
+   "upl": 0,
+   "margin": 0
+  }
+ },
+ {
+  "exchange": "Binance",
+  "id": "5189801791355564544",
+  "name": "Benny_256",
+  "api": false,
+  "pnl": 1219648.33605805,
+  "roi": 139.88501517,
+  "aum": 1649236.99359199,
+  "copiers": 80,
+  "cap": 200,
+  "lead_days": 39,
+  "win_official": 74,
+  "mdd": 19.9,
+  "url": "https://www.binance.com/en/copy-trading/lead-details/5189801791355564544",
+  "style": "Hỗn hợp / linh hoạt",
+  "tags": [
+   "TradFi (cổ phiếu, hàng hoá)",
+   "Lãi dồn vào vài lệnh"
+  ],
+  "story": "Đánh MSTR, SOXL, KORU, cả long lẫn short; giữ lệnh trung vị 22.9 giờ, đòn bẩy trung vị 10x, 2.18 lệnh/ngày. 44% lệnh vào cùng chiều biến động 24 giờ trước đó. Kiếm nhiều nhất khi thị trường đi ngang, lỗ khi xu hướng giảm. Cần để ý: lãi dồn vào vài lệnh.",
+  "p": {
+   "n": 115,
+   "tagged": 98,
+   "days": 53,
+   "per_day": 2.18,
+   "top_syms": [
+    [
+     "MSTR",
+     16
+    ],
+    [
+     "SOXL",
+     10
+    ],
+    [
+     "KORU",
+     10
+    ]
+   ],
+   "n_syms": 28,
+   "cls": {
+    "tradfi": 66,
+    "alt": 30,
+    "meme": 1,
+    "major": 3
+   },
+   "long_pct": 63,
+   "lev_med": 10.0,
+   "lev_p90": 20.0,
+   "hold_med": 22.88,
+   "hold_lt1": 5,
+   "hold_gt24": 49,
+   "win": 77,
+   "payoff": 0.66,
+   "pf": 2.26,
+   "net": 1501399,
+   "reg_share": {
+    "range": 47,
+    "up": 38,
+    "down": 15
+   },
+   "reg_pnl": {
+    "range": 942308,
+    "up": 428606,
+    "down": -168184
+   },
+   "reg_win": {
+    "range": 78,
+    "up": 81,
+    "down": 60
+   },
+   "hv_share": 33,
+   "hv_pnl": 92143,
+   "aligned": 46,
+   "momentum": 44,
+   "overlap": 0,
+   "hold_ratio": 0.7,
+   "top5_share": 81,
+   "tail": 13.0,
+   "peak_hours": [
+    0,
+    13,
+    2
+   ],
+   "dca": null
+  },
+  "rank": 5,
+  "open": null
+ },
+ {
+  "exchange": "Binance",
+  "id": "4925133974869249281",
+  "name": "一亏三千里-装逼资本",
+  "api": false,
+  "pnl": 329938.49004964,
+  "roi": 46.63489949,
+  "aum": 1378732.35714859,
+  "copiers": 288,
+  "cap": 700,
+  "lead_days": 221,
+  "win_official": 57,
+  "mdd": 17.3,
+  "url": "https://www.binance.com/en/copy-trading/lead-details/4925133974869249281",
+  "style": "Theo xu hướng, theo đà",
+  "tags": [
+   "Đòn bẩy cao",
+   "Lãi dồn vào vài lệnh"
+  ],
+  "story": "Đánh BTC, ETH, XRP, chủ yếu short; giữ lệnh trung vị 3.7 ngày, đòn bẩy trung vị 20x, 0.2 lệnh/ngày. 67% lệnh vào cùng chiều biến động 24 giờ trước đó, tức đánh theo đà. Kiếm nhiều nhất khi thị trường xu hướng giảm. Cần để ý: lãi dồn vào vài lệnh.",
+  "p": {
+   "n": 36,
+   "tagged": 32,
+   "days": 176,
+   "per_day": 0.2,
+   "top_syms": [
+    [
+     "BTC",
+     17
+    ],
+    [
+     "ETH",
+     11
+    ],
+    [
+     "XRP",
+     11
+    ]
+   ],
+   "n_syms": 18,
+   "cls": {
+    "alt": 58,
+    "tradfi": 3,
+    "major": 28,
+    "meme": 11
+   },
+   "long_pct": 33,
+   "lev_med": 20.0,
+   "lev_p90": 20.0,
+   "hold_med": 88.58,
+   "hold_lt1": 11,
+   "hold_gt24": 69,
+   "win": 86,
+   "payoff": 53.19,
+   "pf": 329.79,
+   "net": 1057984,
+   "reg_share": {
+    "up": 19,
+    "range": 34,
+    "down": 47
+   },
+   "reg_pnl": {
+    "up": 253794,
+    "range": 370250,
+    "down": 412383
+   },
+   "reg_win": {
+    "up": 100,
+    "range": 82,
+    "down": 87
+   },
+   "hv_share": 59,
+   "hv_pnl": 488187,
+   "aligned": 67,
+   "momentum": 67,
+   "overlap": 0,
+   "hold_ratio": 0.75,
+   "top5_share": 76,
+   "tail": 3.5,
+   "peak_hours": [
+    21,
+    23,
+    14
+   ],
+   "dca": null
+  },
+  "rank": 6,
+  "open": null
+ },
+ {
+  "exchange": "Binance",
+  "id": "5218493701996013313",
+  "name": "百辉财经",
+  "api": true,
+  "pnl": 21731.52856564,
+  "roi": 4346.30571312,
+  "aum": 765908.81991755,
+  "copiers": 598,
+  "cap": 800,
+  "lead_days": 19,
+  "win_official": 85,
+  "mdd": 17.9,
+  "url": "https://www.binance.com/en/copy-trading/lead-details/5218493701996013313",
+  "style": "Hỗn hợp / linh hoạt",
+  "tags": [
+   "Chạy bằng API/bot"
+  ],
+  "story": "Đánh ZEC, XMR, LTC, chủ yếu short; giữ lệnh trung vị 6.3 giờ, đòn bẩy trung vị 10x, 4.89 lệnh/ngày. 51% lệnh vào cùng chiều biến động 24 giờ trước đó. Kiếm nhiều nhất khi thị trường xu hướng tăng.",
+  "p": {
+   "n": 93,
+   "tagged": 93,
+   "days": 19,
+   "per_day": 4.89,
+   "top_syms": [
+    [
+     "ZEC",
+     22
+    ],
+    [
+     "XMR",
+     14
+    ],
+    [
+     "LTC",
+     13
+    ]
+   ],
+   "n_syms": 11,
+   "cls": {
+    "alt": 70,
+    "tradfi": 20,
+    "major": 10
+   },
+   "long_pct": 35,
+   "lev_med": 10.0,
+   "lev_p90": 15.0,
+   "hold_med": 6.27,
+   "hold_lt1": 17,
+   "hold_gt24": 20,
+   "win": 89,
+   "payoff": 12.47,
+   "pf": 103.53,
+   "net": 19325,
+   "reg_share": {
+    "up": 69,
+    "range": 31
+   },
+   "reg_pnl": {
+    "up": 11593,
+    "range": 7732
+   },
+   "reg_win": {
+    "up": 92,
+    "range": 83
+   },
+   "hv_share": 63,
+   "hv_pnl": 18804,
+   "aligned": 36,
+   "momentum": 51,
+   "overlap": 0,
+   "hold_ratio": 2.04,
+   "top5_share": 51,
+   "tail": 8.2,
+   "peak_hours": [
+    14,
+    0,
+    13
+   ],
+   "dca": null
+  },
+  "rank": 7,
+  "open": null
+ },
+ {
+  "exchange": "OKX",
+  "id": "CA1C48E543EF7A95",
+  "name": "01pp",
+  "api": false,
+  "pnl": 227979.3822086751,
+  "roi": 652.1899999999999,
+  "aum": 246635.20080073492,
+  "copiers": 238,
+  "cap": 300,
+  "lead_days": 211,
+  "win_official": 56,
+  "mdd": null,
+  "url": "https://www.okx.com/copy-trading/account/CA1C48E543EF7A95?tab=swap",
+  "style": "Bắt đảo chiều, ngược đà",
+  "tags": [
+   "TradFi (cổ phiếu, hàng hoá)",
+   "Có lệnh lỗ cực lớn",
+   "Bình quân giá xuống (DCA)"
+  ],
+  "story": "Đánh ETH, MSTR, UNI, cả long lẫn short; giữ lệnh trung vị 19.1 giờ, đòn bẩy trung vị 15x, 4.32 lệnh/ngày. 42% lệnh vào cùng chiều biến động 24 giờ trước đó, tức hay đánh ngược đà, bắt đỉnh đáy. Kiếm nhiều nhất khi thị trường đi ngang. Cần để ý: có lệnh lỗ cực lớn. Mở thêm lệnh cùng chiều khi lệnh cũ chưa đóng ở 54% số lệnh, 60% trong đó ở giá xấu hơn (bình quân giá xuống), chồng tối đa 11 vị thế.",
+  "p": {
+   "n": 389,
+   "tagged": 389,
+   "days": 90,
+   "per_day": 4.32,
+   "top_syms": [
+    [
+     "ETH",
+     21
+    ],
+    [
+     "MSTR",
+     15
+    ],
+    [
+     "UNI",
+     9
+    ]
+   ],
+   "n_syms": 25,
+   "cls": {
+    "alt": 31,
+    "major": 29,
+    "meme": 6,
+    "tradfi": 34
+   },
+   "long_pct": 52,
+   "lev_med": 15.0,
+   "lev_p90": 50.0,
+   "hold_med": 19.15,
+   "hold_lt1": 6,
+   "hold_gt24": 42,
+   "win": 63,
+   "payoff": 1.05,
+   "pf": 1.76,
+   "net": 204083,
+   "reg_share": {
+    "range": 47,
+    "up": 43,
+    "down": 10
+   },
+   "reg_pnl": {
+    "range": 129503,
+    "up": 38266,
+    "down": 36314
+   },
+   "reg_win": {
+    "range": 64,
+    "up": 58,
+    "down": 80
+   },
+   "hv_share": 42,
+   "hv_pnl": 81267,
+   "aligned": 32,
+   "momentum": 42,
+   "overlap": 54,
+   "hold_ratio": 0.81,
+   "top5_share": 55,
+   "tail": 17.3,
+   "peak_hours": [
+    14,
+    13,
+    12
+   ],
+   "dca": {
+    "adds": 54,
+    "down": 60,
+    "stack": 11
+   }
+  },
+  "rank": 8,
+  "open": {
+   "n": 7,
+   "upl": 22711,
+   "margin": 77873
+  }
+ },
+ {
+  "exchange": "OKX",
+  "id": "87CE370F79220167",
+  "name": "Milies L",
+  "api": false,
+  "pnl": 257386.9804785871,
+  "roi": 155.83,
+  "aum": 514311.0954312503,
+  "copiers": 32,
+  "cap": 300,
+  "lead_days": 1076,
+  "win_official": 48,
+  "mdd": null,
+  "url": "https://www.okx.com/copy-trading/account/87CE370F79220167?tab=swap",
+  "style": "Theo xu hướng, theo đà",
+  "tags": [
+   "Nghiêng long",
+   "TradFi (cổ phiếu, hàng hoá)",
+   "Lỗ treo lớn (vị thế đang mở)"
+  ],
+  "story": "Đánh BTC, SOL, MSTR, chủ yếu long; giữ lệnh trung vị 3.2 ngày, đòn bẩy trung vị 10x, 1.6 lệnh/ngày. 63% lệnh vào cùng chiều biến động 24 giờ trước đó, tức đánh theo đà. Kiếm nhiều nhất khi thị trường đi ngang. Đang giữ 17 vị thế mở. lỗ chưa chốt -22.725 USDT. so với lãi đã chốt 268.894 USDT.",
+  "p": {
+   "n": 143,
+   "tagged": 140,
+   "days": 90,
+   "per_day": 1.6,
+   "top_syms": [
+    [
+     "BTC",
+     10
+    ],
+    [
+     "SOL",
+     8
+    ],
+    [
+     "MSTR",
+     8
+    ]
+   ],
+   "n_syms": 41,
+   "cls": {
+    "tradfi": 44,
+    "major": 15,
+    "alt": 34,
+    "meme": 6
+   },
+   "long_pct": 94,
+   "lev_med": 10.0,
+   "lev_p90": 50.0,
+   "hold_med": 76.33,
+   "hold_lt1": 6,
+   "hold_gt24": 71,
+   "win": 78,
+   "payoff": 2.41,
+   "pf": 8.71,
+   "net": 268894,
+   "reg_share": {
+    "range": 56,
+    "up": 36,
+    "down": 8
+   },
+   "reg_pnl": {
+    "range": 168200,
+    "up": 58340,
+    "down": 41771
+   },
+   "reg_win": {
+    "range": 78,
+    "up": 75,
+    "down": 100
+   },
+   "hv_share": 31,
+   "hv_pnl": 69379,
+   "aligned": 73,
+   "momentum": 63,
+   "overlap": 37,
+   "hold_ratio": 0.9,
+   "top5_share": 29,
+   "tail": 12.7,
+   "peak_hours": [
+    13,
+    14,
+    1
+   ],
+   "dca": {
+    "adds": 37,
+    "down": 53,
+    "stack": 6
+   }
+  },
+  "rank": 9,
+  "open": {
+   "n": 17,
+   "upl": -22725,
+   "margin": 40727
+  }
+ },
+ {
+  "exchange": "Binance",
+  "id": "5203615152894891009",
+  "name": "顺其自然2016",
+  "api": false,
+  "pnl": 97842.98116276,
+  "roi": 3382.18882892,
+  "aum": 805044.3036709,
+  "copiers": 362,
+  "cap": 400,
+  "lead_days": 29,
+  "win_official": 72,
+  "mdd": 17.1,
+  "url": "https://www.binance.com/en/copy-trading/lead-details/5203615152894891009",
+  "style": "Hỗn hợp / linh hoạt",
+  "tags": [
+   "Đòn bẩy rất cao",
+   "TradFi (cổ phiếu, hàng hoá)",
+   "Có lệnh lỗ cực lớn"
+  ],
+  "story": "Đánh ETH, SNDK, BTC, cả long lẫn short; giữ lệnh trung vị 2.4 giờ, đòn bẩy trung vị 50x, 4.39 lệnh/ngày. 43% lệnh vào cùng chiều biến động 24 giờ trước đó. Kiếm nhiều nhất khi thị trường đi ngang. Cần để ý: đòn bẩy rất cao, có lệnh lỗ cực lớn.",
+  "p": {
+   "n": 136,
+   "tagged": 135,
+   "days": 31,
+   "per_day": 4.39,
+   "top_syms": [
+    [
+     "ETH",
+     34
+    ],
+    [
+     "SNDK",
+     24
+    ],
+    [
+     "BTC",
+     15
+    ]
+   ],
+   "n_syms": 16,
+   "cls": {
+    "tradfi": 40,
+    "major": 49,
+    "alt": 10
+   },
+   "long_pct": 54,
+   "lev_med": 50.0,
+   "lev_p90": 100.0,
+   "hold_med": 2.39,
+   "hold_lt1": 32,
+   "hold_gt24": 12,
+   "win": 74,
+   "payoff": 0.98,
+   "pf": 2.73,
+   "net": 101931,
+   "reg_share": {
+    "range": 41,
+    "up": 53,
+    "down": 5
+   },
+   "reg_pnl": {
+    "range": 59912,
+    "up": 40755,
+    "down": 1149
+   },
+   "reg_win": {
+    "range": 75,
+    "up": 75,
+    "down": 43
+   },
+   "hv_share": 36,
+   "hv_pnl": 42396,
+   "aligned": 48,
+   "momentum": 43,
+   "overlap": 0,
+   "hold_ratio": 0.41,
+   "top5_share": 45,
+   "tail": 15.0,
+   "peak_hours": [
+    14,
+    13,
+    16
+   ],
+   "dca": null
+  },
+  "rank": 10,
+  "open": null
+ },
+ {
+  "exchange": "Binance",
+  "id": "4708220152086930177",
+  "name": "风雪哥",
+  "api": false,
+  "pnl": 171375.50610465,
+  "roi": 30.87074508,
+  "aum": 1124616.10338706,
+  "copiers": 216,
+  "cap": 700,
+  "lead_days": 371,
+  "win_official": 45,
+  "mdd": 12.1,
+  "url": "https://www.binance.com/en/copy-trading/lead-details/4708220152086930177",
+  "style": "Swing, giữ lệnh dài",
+  "tags": [
+   "Nghiêng long",
+   "TradFi (cổ phiếu, hàng hoá)",
+   "Lãi dồn vào vài lệnh"
+  ],
+  "story": "Đánh SNDK, ETH, SOXL, chủ yếu long; giữ lệnh trung vị 35.5 giờ, đòn bẩy trung vị 10x, 0.53 lệnh/ngày. 48% lệnh vào cùng chiều biến động 24 giờ trước đó. Kiếm nhiều nhất khi thị trường đi ngang. Cần để ý: lãi dồn vào vài lệnh.",
+  "p": {
+   "n": 70,
+   "tagged": 56,
+   "days": 133,
+   "per_day": 0.53,
+   "top_syms": [
+    [
+     "SNDK",
+     9
+    ],
+    [
+     "ETH",
+     9
+    ],
+    [
+     "SOXL",
+     9
+    ]
+   ],
+   "n_syms": 34,
+   "cls": {
+    "alt": 44,
+    "tradfi": 40,
+    "meme": 4,
+    "major": 11
+   },
+   "long_pct": 79,
+   "lev_med": 10.0,
+   "lev_p90": 20.0,
+   "hold_med": 35.53,
+   "hold_lt1": 10,
+   "hold_gt24": 63,
+   "win": 49,
+   "payoff": 2.67,
+   "pf": 2.52,
+   "net": 428901,
+   "reg_share": {
+    "up": 27,
+    "range": 36,
+    "down": 38
+   },
+   "reg_pnl": {
+    "up": 64636,
+    "range": 188234,
+    "down": 64231
+   },
+   "reg_win": {
+    "up": 47,
+    "range": 60,
+    "down": 33
+   },
+   "hv_share": 50,
+   "hv_pnl": 117738,
+   "aligned": 58,
+   "momentum": 48,
+   "overlap": 0,
+   "hold_ratio": 0.58,
+   "top5_share": 81,
+   "tail": 7.3,
+   "peak_hours": [
+    2,
+    0,
+    1
+   ],
+   "dca": null
+  },
+  "rank": 11,
+  "open": null
+ },
+ {
+  "exchange": "OKX",
+  "id": "819848249304757406",
+  "name": "xiaojian888999",
+  "api": false,
+  "pnl": 329007.0782269687,
+  "roi": 78.14999999999999,
+  "aum": 177317.9003397689,
+  "copiers": 103,
+  "cap": 301,
+  "lead_days": 188,
+  "win_official": 58,
+  "mdd": null,
+  "url": "https://www.okx.com/copy-trading/account/819848249304757406?tab=swap",
+  "style": "Bắt đảo chiều, ngược đà",
+  "tags": [
+   "TradFi (cổ phiếu, hàng hoá)",
+   "Bình quân giá xuống (DCA)"
+  ],
+  "story": "Đánh BTC, ETH, SNDK, cả long lẫn short; giữ lệnh trung vị 13.3 giờ, đòn bẩy trung vị 10x, 4.36 lệnh/ngày. 39% lệnh vào cùng chiều biến động 24 giờ trước đó, tức hay đánh ngược đà, bắt đỉnh đáy. Kiếm nhiều nhất khi thị trường đi ngang. Mở thêm lệnh cùng chiều khi lệnh cũ chưa đóng ở 62% số lệnh, 79% trong đó ở giá xấu hơn (bình quân giá xuống), chồng tối đa 10 vị thế.",
+  "p": {
+   "n": 399,
+   "tagged": 399,
+   "days": 91,
+   "per_day": 4.36,
+   "top_syms": [
+    [
+     "BTC",
+     27
+    ],
+    [
+     "ETH",
+     26
+    ],
+    [
+     "SNDK",
+     22
+    ]
+   ],
+   "n_syms": 11,
+   "cls": {
+    "major": 53,
+    "tradfi": 37,
+    "alt": 10,
+    "meme": 1
+   },
+   "long_pct": 48,
+   "lev_med": 10.0,
+   "lev_p90": 10.0,
+   "hold_med": 13.33,
+   "hold_lt1": 9,
+   "hold_gt24": 40,
+   "win": 71,
+   "payoff": 0.96,
+   "pf": 2.32,
+   "net": 333799,
+   "reg_share": {
+    "range": 43,
+    "up": 50,
+    "down": 7
+   },
+   "reg_pnl": {
+    "range": 188513,
+    "up": 76668,
+    "down": 68617
+   },
+   "reg_win": {
+    "range": 75,
+    "up": 66,
+    "down": 79
+   },
+   "hv_share": 37,
+   "hv_pnl": 75808,
+   "aligned": 43,
+   "momentum": 39,
+   "overlap": 62,
+   "hold_ratio": 1.01,
+   "top5_share": 27,
+   "tail": 13.3,
+   "peak_hours": [
+    13,
+    14,
+    19
+   ],
+   "dca": {
+    "adds": 62,
+    "down": 79,
+    "stack": 10
+   }
+  },
+  "rank": 12,
+  "open": {
+   "n": 6,
+   "upl": -11699,
+   "margin": 73136
+  }
+ },
+ {
+  "exchange": "Binance",
+  "id": "4788776444236355328",
+  "name": "星辰社区-意钦",
+  "api": false,
+  "pnl": 1843.6947896,
+  "roi": 8.65527784,
+  "aum": 831062.11652503,
+  "copiers": 946,
+  "cap": 1000,
+  "lead_days": 315,
+  "win_official": 93,
+  "mdd": 19.1,
+  "url": "https://www.binance.com/en/copy-trading/lead-details/4788776444236355328",
+  "style": "Bắt đảo chiều, ngược đà",
+  "tags": [
+   "Lãi dồn vào vài lệnh",
+   "Giữ lệnh lỗ lâu hơn lệnh lãi"
+  ],
+  "story": "Đánh LAB, AKE, ESPORTS, cả long lẫn short; giữ lệnh trung vị 2 phút, đòn bẩy trung vị 5x, 1.57 lệnh/ngày. 18% lệnh vào cùng chiều biến động 24 giờ trước đó, tức hay đánh ngược đà, bắt đỉnh đáy. Kiếm nhiều nhất khi thị trường xu hướng tăng. Cần để ý: lãi dồn vào vài lệnh, giữ lệnh lỗ lâu hơn lệnh lãi.",
+  "p": {
+   "n": 181,
+   "tagged": 174,
+   "days": 115,
+   "per_day": 1.57,
+   "top_syms": [
+    [
+     "LAB",
+     16
+    ],
+    [
+     "AKE",
+     10
+    ],
+    [
+     "ESPORTS",
+     7
+    ]
+   ],
+   "n_syms": 42,
+   "cls": {
+    "alt": 90,
+    "meme": 8,
+    "major": 2
+   },
+   "long_pct": 49,
+   "lev_med": 5.0,
+   "lev_p90": 10.0,
+   "hold_med": 0.03,
+   "hold_lt1": 88,
+   "hold_gt24": 3,
+   "win": 97,
+   "payoff": 0.07,
+   "pf": 2.12,
+   "net": 11015,
+   "reg_share": {
+    "range": 29,
+    "up": 43,
+    "down": 28
+   },
+   "reg_pnl": {
+    "range": 123,
+    "up": 11936,
+    "down": 2850
+   },
+   "reg_win": {
+    "range": 94,
+    "up": 97,
+    "down": 100
+   },
+   "hv_share": 72,
+   "hv_pnl": 12183,
+   "aligned": 19,
+   "momentum": 18,
+   "overlap": 0,
+   "hold_ratio": 698.87,
+   "top5_share": 76,
+   "tail": 3.9,
+   "peak_hours": [
+    9,
+    5,
+    7
+   ],
+   "dca": null
+  },
+  "rank": 13,
+  "open": null
+ },
+ {
+  "exchange": "OKX",
+  "id": "4A8AB04BF304EBD8",
+  "name": "Master Dust.",
+  "api": false,
+  "pnl": 229346.95165329677,
+  "roi": 33.47,
+  "aum": 182556.43142656342,
+  "copiers": 147,
+  "cap": 600,
+  "lead_days": 408,
+  "win_official": 54,
+  "mdd": null,
+  "url": "https://www.okx.com/copy-trading/account/4A8AB04BF304EBD8?tab=swap",
+  "style": "Bắt đảo chiều, ngược đà",
+  "tags": [
+   "TradFi (cổ phiếu, hàng hoá)",
+   "Có lệnh lỗ cực lớn",
+   "Bình quân giá xuống (DCA)"
+  ],
+  "story": "Đánh MSTR, SNDK, CL, cả long lẫn short; giữ lệnh trung vị 38.9 giờ, đòn bẩy trung vị 10x, 2.81 lệnh/ngày. 34% lệnh vào cùng chiều biến động 24 giờ trước đó, tức hay đánh ngược đà, bắt đỉnh đáy. Kiếm nhiều nhất khi thị trường xu hướng giảm. Cần để ý: có lệnh lỗ cực lớn. Mở thêm lệnh cùng chiều khi lệnh cũ chưa đóng ở 71% số lệnh, 69% trong đó ở giá xấu hơn (bình quân giá xuống), chồng tối đa 16 vị thế.",
+  "p": {
+   "n": 256,
+   "tagged": 252,
+   "days": 91,
+   "per_day": 2.81,
+   "top_syms": [
+    [
+     "MSTR",
+     19
+    ],
+    [
+     "SNDK",
+     16
+    ],
+    [
+     "CL",
+     10
+    ]
+   ],
+   "n_syms": 22,
+   "cls": {
+    "tradfi": 78,
+    "meme": 4,
+    "major": 16,
+    "alt": 3
+   },
+   "long_pct": 50,
+   "lev_med": 10.0,
+   "lev_p90": 10.0,
+   "hold_med": 38.87,
+   "hold_lt1": 5,
+   "hold_gt24": 65,
+   "win": 53,
+   "payoff": 1.63,
+   "pf": 1.82,
+   "net": 222834,
+   "reg_share": {
+    "range": 37,
+    "up": 52,
+    "down": 11
+   },
+   "reg_pnl": {
+    "range": 41176,
+    "up": 16696,
+    "down": 163904
+   },
+   "reg_win": {
+    "range": 60,
+    "up": 44,
+    "down": 64
+   },
+   "hv_share": 27,
+   "hv_pnl": 114946,
+   "aligned": 42,
+   "momentum": 34,
+   "overlap": 71,
+   "hold_ratio": 0.62,
+   "top5_share": 59,
+   "tail": 24.7,
+   "peak_hours": [
+    13,
+    14,
+    15
+   ],
+   "dca": {
+    "adds": 71,
+    "down": 69,
+    "stack": 16
+   }
+  },
+  "rank": 14,
+  "open": {
+   "n": 20,
+   "upl": -11420,
+   "margin": 44537
+  }
+ },
+ {
+  "exchange": "OKX",
+  "id": "AD2B6E949E5E91EC",
+  "name": "FJ Investment",
+  "api": false,
+  "pnl": 122579.03970204444,
+  "roi": 156.92,
+  "aum": 383970.8282691728,
+  "copiers": 288,
+  "cap": 313,
+  "lead_days": 918,
+  "win_official": 51,
+  "mdd": null,
+  "url": "https://www.okx.com/copy-trading/account/AD2B6E949E5E91EC?tab=swap",
+  "style": "Bắt đảo chiều, ngược đà",
+  "tags": [
+   "Đòn bẩy cao",
+   "Tập trung 1 mã",
+   "Lãi dồn vào vài lệnh"
+  ],
+  "story": "Đánh BTC, ETH, ZEC, cả long lẫn short; giữ lệnh trung vị 13.8 giờ, đòn bẩy trung vị 30x, 0.85 lệnh/ngày. 25% lệnh vào cùng chiều biến động 24 giờ trước đó, tức hay đánh ngược đà, bắt đỉnh đáy. Kiếm nhiều nhất khi thị trường xu hướng tăng. Cần để ý: lãi dồn vào vài lệnh.",
+  "p": {
+   "n": 78,
+   "tagged": 78,
+   "days": 92,
+   "per_day": 0.85,
+   "top_syms": [
+    [
+     "BTC",
+     87
+    ],
+    [
+     "ETH",
+     8
+    ],
+    [
+     "ZEC",
+     4
+    ]
+   ],
+   "n_syms": 4,
+   "cls": {
+    "major": 95,
+    "alt": 5
+   },
+   "long_pct": 46,
+   "lev_med": 30.0,
+   "lev_p90": 30.0,
+   "hold_med": 13.77,
+   "hold_lt1": 9,
+   "hold_gt24": 45,
+   "win": 37,
+   "payoff": 3.91,
+   "pf": 2.32,
+   "net": 124559,
+   "reg_share": {
+    "range": 45,
+    "up": 45,
+    "down": 10
+   },
+   "reg_pnl": {
+    "range": 40255,
+    "up": 77200,
+    "down": 7104
+   },
+   "reg_win": {
+    "range": 26,
+    "up": 43,
+    "down": 62
+   },
+   "hv_share": 31,
+   "hv_pnl": 6721,
+   "aligned": 33,
+   "momentum": 25,
+   "overlap": 36,
+   "hold_ratio": 0.1,
+   "top5_share": 109,
+   "tail": 4.6,
+   "peak_hours": [
+    1,
+    12,
+    9
+   ],
+   "dca": {
+    "adds": 36,
+    "down": 36,
+    "stack": 5
+   }
+  },
+  "rank": 15,
+  "open": {
+   "n": 0,
+   "upl": 0,
+   "margin": 0
+  }
+ },
+ {
+  "exchange": "OKX",
+  "id": "F2BCA22ABBB69F57",
+  "name": "Mine13",
+  "api": false,
+  "pnl": 120859.42609131761,
+  "roi": 119.49000000000001,
+  "aum": 844178.0771796855,
+  "copiers": 191,
+  "cap": 604,
+  "lead_days": 349,
+  "win_official": 54,
+  "mdd": null,
+  "url": "https://www.okx.com/copy-trading/account/F2BCA22ABBB69F57?tab=swap",
+  "style": "Bắt đảo chiều, ngược đà",
+  "tags": [
+   "Nghiêng long",
+   "TradFi (cổ phiếu, hàng hoá)",
+   "Bình quân giá xuống (DCA)"
+  ],
+  "story": "Đánh BTC, CL, LTC, chủ yếu long; giữ lệnh trung vị 8.7 ngày, đòn bẩy trung vị 10x, 0.45 lệnh/ngày. 24% lệnh vào cùng chiều biến động 24 giờ trước đó, tức hay đánh ngược đà, bắt đỉnh đáy. Kiếm nhiều nhất khi thị trường xu hướng giảm. Mở thêm lệnh cùng chiều khi lệnh cũ chưa đóng ở 54% số lệnh, 70% trong đó ở giá xấu hơn (bình quân giá xuống), chồng tối đa 4 vị thế.",
+  "p": {
+   "n": 37,
+   "tagged": 37,
+   "days": 82,
+   "per_day": 0.45,
+   "top_syms": [
+    [
+     "BTC",
+     46
+    ],
+    [
+     "CL",
+     19
+    ],
+    [
+     "LTC",
+     11
+    ]
+   ],
+   "n_syms": 7,
+   "cls": {
+    "major": 46,
+    "tradfi": 43,
+    "alt": 11
+   },
+   "long_pct": 76,
+   "lev_med": 10.0,
+   "lev_p90": 10.0,
+   "hold_med": 208.4,
+   "hold_lt1": 3,
+   "hold_gt24": 86,
+   "win": 81,
+   "payoff": 4.97,
+   "pf": 21.29,
+   "net": 70478,
+   "reg_share": {
+    "up": 30,
+    "range": 38,
+    "down": 32
+   },
+   "reg_pnl": {
+    "up": 12423,
+    "range": 28917,
+    "down": 29138
+   },
+   "reg_win": {
+    "up": 45,
+    "range": 93,
+    "down": 100
+   },
+   "hv_share": 32,
+   "hv_pnl": 12988,
+   "aligned": 13,
+   "momentum": 24,
+   "overlap": 54,
+   "hold_ratio": 1.26,
+   "top5_share": 42,
+   "tail": 3.3,
+   "peak_hours": [
+    14,
+    2,
+    3
+   ],
+   "dca": {
+    "adds": 54,
+    "down": 70,
+    "stack": 4
+   }
+  },
+  "rank": 16,
+  "open": {
+   "n": 6,
+   "upl": -54,
+   "margin": 44603
+  }
+ },
+ {
+  "exchange": "Binance",
+  "id": "4287847543651684864",
+  "name": "星火研究院-大象",
+  "api": false,
+  "pnl": 67158.36595064,
+  "roi": 29.05487008,
+  "aum": 391021.53410426,
+  "copiers": 499,
+  "cap": 500,
+  "lead_days": 661,
+  "win_official": 98,
+  "mdd": 11.8,
+  "url": "https://www.binance.com/en/copy-trading/lead-details/4287847543651684864",
+  "style": "Bắt đảo chiều, ngược đà",
+  "tags": [
+   "Lãi dồn vào vài lệnh",
+   "Giữ lệnh lỗ lâu hơn lệnh lãi"
+  ],
+  "story": "Đánh ETH, BTC, HYPE, cả long lẫn short; giữ lệnh trung vị 46 phút, đòn bẩy trung vị 8x, 2.66 lệnh/ngày. 41% lệnh vào cùng chiều biến động 24 giờ trước đó, tức hay đánh ngược đà, bắt đỉnh đáy. Kiếm nhiều nhất khi thị trường đi ngang. Cần để ý: lãi dồn vào vài lệnh, giữ lệnh lỗ lâu hơn lệnh lãi.",
+  "p": {
+   "n": 363,
+   "tagged": 363,
+   "days": 137,
+   "per_day": 2.66,
+   "top_syms": [
+    [
+     "ETH",
+     43
+    ],
+    [
+     "BTC",
+     16
+    ],
+    [
+     "HYPE",
+     15
+    ]
+   ],
+   "n_syms": 12,
+   "cls": {
+    "major": 59,
+    "alt": 41,
+    "meme": 0
+   },
+   "long_pct": 53,
+   "lev_med": 8.0,
+   "lev_p90": 19.0,
+   "hold_med": 0.77,
+   "hold_lt1": 55,
+   "hold_gt24": 7,
+   "win": 99,
+   "payoff": 0.08,
+   "pf": 14.58,
+   "net": 83228,
+   "reg_share": {
+    "range": 50,
+    "up": 44,
+    "down": 6
+   },
+   "reg_pnl": {
+    "range": 54831,
+    "up": 20743,
+    "down": 7654
+   },
+   "reg_win": {
+    "range": 99,
+    "up": 99,
+    "down": 100
+   },
+   "hv_share": 45,
+   "hv_pnl": 16958,
+   "aligned": 69,
+   "momentum": 41,
+   "overlap": 0,
+   "hold_ratio": 41.25,
+   "top5_share": 71,
+   "tail": 2.0,
+   "peak_hours": [
+    14,
+    13,
+    15
+   ],
+   "dca": null
+  },
+  "rank": 17,
+  "open": null
+ },
+ {
+  "exchange": "OKX",
+  "id": "08E31CADCFDDCFB8",
+  "name": "Kunpeng Plan",
+  "api": false,
+  "pnl": 809682.5830057136,
+  "roi": 10.489999999999998,
+  "aum": 40148.95081857295,
+  "copiers": 36,
+  "cap": 601,
+  "lead_days": 576,
+  "win_official": 52,
+  "mdd": null,
+  "url": "https://www.okx.com/copy-trading/account/08E31CADCFDDCFB8?tab=swap",
+  "style": "Nhồi lệnh, gồng lỗ (DCA)",
+  "tags": [
+   "Nghiêng long",
+   "Có lệnh lỗ cực lớn"
+  ],
+  "story": "Đánh ZEC, ADA, DOGE, chủ yếu long; giữ lệnh trung vị 13.9 giờ, đòn bẩy trung vị 3x, 159.93 lệnh/ngày. 73% lệnh vào cùng chiều biến động 24 giờ trước đó, tức đánh theo đà. Kiếm nhiều nhất khi thị trường xu hướng tăng. Cần để ý: có lệnh lỗ cực lớn.",
+  "p": {
+   "n": 996,
+   "tagged": 996,
+   "days": 6,
+   "per_day": 159.93,
+   "top_syms": [
+    [
+     "ZEC",
+     28
+    ],
+    [
+     "ADA",
+     27
+    ],
+    [
+     "DOGE",
+     18
+    ]
+   ],
+   "n_syms": 5,
+   "cls": {
+    "alt": 82,
+    "meme": 18
+   },
+   "long_pct": 100,
+   "lev_med": 3.0,
+   "lev_p90": 3.0,
+   "hold_med": 13.94,
+   "hold_lt1": 7,
+   "hold_gt24": 41,
+   "win": 75,
+   "payoff": 1.18,
+   "pf": 3.57,
+   "net": 16634,
+   "reg_share": {
+    "range": 2,
+    "up": 98
+   },
+   "reg_pnl": {
+    "range": 315,
+    "up": 16319
+   },
+   "reg_win": {
+    "range": 94,
+    "up": 75
+   },
+   "hv_share": 100,
+   "hv_pnl": 16634,
+   "aligned": 100,
+   "momentum": 73,
+   "overlap": 99,
+   "hold_ratio": 2.59,
+   "top5_share": 19,
+   "tail": 47.8,
+   "peak_hours": [
+    14,
+    20,
+    16
+   ],
+   "dca": {
+    "adds": 99,
+    "down": 59,
+    "stack": 101
+   }
+  },
+  "rank": 18,
+  "open": {
+   "n": 100,
+   "upl": -1695,
+   "margin": 33533
+  }
+ },
+ {
+  "exchange": "Binance",
+  "id": "4988953636837287681",
+  "name": "Kristofer Hogon SAzs",
+  "api": true,
+  "pnl": 951.80422695,
+  "roi": 18.22371244,
+  "aum": 728435.14067709,
+  "copiers": 599,
+  "cap": 600,
+  "lead_days": 177,
+  "win_official": 98,
+  "mdd": 4.0,
+  "url": "https://www.binance.com/en/copy-trading/lead-details/4988953636837287681",
+  "style": "Theo xu hướng, theo đà",
+  "tags": [
+   "Đòn bẩy rất cao",
+   "Nghiêng long",
+   "Tập trung 1 mã",
+   "Chạy bằng API/bot"
+  ],
+  "story": "Đánh HYPE, chủ yếu long; giữ lệnh trung vị 3.1 giờ, đòn bẩy trung vị 50x, 2.74 lệnh/ngày. 73% lệnh vào cùng chiều biến động 24 giờ trước đó, tức đánh theo đà. Kiếm nhiều nhất khi thị trường xu hướng tăng. Cần để ý: đòn bẩy rất cao.",
+  "p": {
+   "n": 323,
+   "tagged": 323,
+   "days": 118,
+   "per_day": 2.74,
+   "top_syms": [
+    [
+     "HYPE",
+     100
+    ]
+   ],
+   "n_syms": 1,
+   "cls": {
+    "alt": 100
+   },
+   "long_pct": 100,
+   "lev_med": 50.0,
+   "lev_p90": 50.0,
+   "hold_med": 3.06,
+   "hold_lt1": 24,
+   "hold_gt24": 9,
+   "win": 100,
+   "payoff": null,
+   "pf": null,
+   "net": 5365,
+   "reg_share": {
+    "up": 46,
+    "range": 52,
+    "down": 2
+   },
+   "reg_pnl": {
+    "up": 2626,
+    "range": 2485,
+    "down": 254
+   },
+   "reg_win": {
+    "up": 100,
+    "range": 100,
+    "down": 100
+   },
+   "hv_share": 42,
+   "hv_pnl": 2439,
+   "aligned": 95,
+   "momentum": 73,
+   "overlap": 0,
+   "hold_ratio": 0.0,
+   "top5_share": 19,
+   "tail": null,
+   "peak_hours": [
+    14,
+    13,
+    17
+   ],
+   "dca": null
+  },
+  "rank": 19,
+  "open": null
+ },
+ {
+  "exchange": "Binance",
+  "id": "4908633203782592768",
+  "name": "玄冥二老",
+  "api": true,
+  "pnl": 1446.65931119,
+  "roi": 29.43904641,
+  "aum": 548281.57163635,
+  "copiers": 765,
+  "cap": 800,
+  "lead_days": 233,
+  "win_official": 100,
+  "mdd": 0.0,
+  "url": "https://www.binance.com/en/copy-trading/lead-details/4908633203782592768",
+  "style": "Bắt đảo chiều, ngược đà",
+  "tags": [
+   "Chạy bằng API/bot",
+   "Giữ lệnh lỗ lâu hơn lệnh lãi",
+   "Có lệnh lỗ cực lớn"
+  ],
+  "story": "Đánh AKE, LAB, TUT, cả long lẫn short; giữ lệnh trung vị 1 phút, đòn bẩy trung vị 5x, 2.01 lệnh/ngày. 19% lệnh vào cùng chiều biến động 24 giờ trước đó, tức hay đánh ngược đà, bắt đỉnh đáy. Kiếm nhiều nhất khi thị trường xu hướng tăng. Cần để ý: giữ lệnh lỗ lâu hơn lệnh lãi, có lệnh lỗ cực lớn.",
+  "p": {
+   "n": 232,
+   "tagged": 214,
+   "days": 115,
+   "per_day": 2.01,
+   "top_syms": [
+    [
+     "AKE",
+     11
+    ],
+    [
+     "LAB",
+     11
+    ],
+    [
+     "TUT",
+     5
+    ]
+   ],
+   "n_syms": 53,
+   "cls": {
+    "alt": 90,
+    "meme": 8,
+    "major": 2
+   },
+   "long_pct": 37,
+   "lev_med": 5.0,
+   "lev_p90": 10.0,
+   "hold_med": 0.02,
+   "hold_lt1": 97,
+   "hold_gt24": 0,
+   "win": 97,
+   "payoff": 0.97,
+   "pf": 36.56,
+   "net": 3475,
+   "reg_share": {
+    "range": 31,
+    "up": 51,
+    "down": 18
+   },
+   "reg_pnl": {
+    "range": 678,
+    "up": 2030,
+    "down": 467
+   },
+   "reg_win": {
+    "range": 94,
+    "up": 98,
+    "down": 100
+   },
+   "hv_share": 76,
+   "hv_pnl": 2585,
+   "aligned": 18,
+   "momentum": 19,
+   "overlap": 0,
+   "hold_ratio": 10.79,
+   "top5_share": 28,
+   "tail": 241.6,
+   "peak_hours": [
+    10,
+    5,
+    7
+   ],
+   "dca": null
+  },
+  "rank": 20,
+  "open": null
+ },
+ {
+  "exchange": "Binance",
+  "id": "5199386369841615104",
+  "name": "hugehead",
+  "api": false,
+  "pnl": 546909.62116148,
+  "roi": 109.86554837,
+  "aum": 724449.51242969,
+  "copiers": 4,
+  "cap": 200,
+  "lead_days": 32,
+  "win_official": 58,
+  "mdd": 46.1,
+  "url": "https://www.binance.com/en/copy-trading/lead-details/5199386369841615104",
+  "style": "Hỗn hợp / linh hoạt",
+  "tags": [
+   "Đòn bẩy cao",
+   "TradFi (cổ phiếu, hàng hoá)",
+   "Lãi dồn vào vài lệnh"
+  ],
+  "story": "Đánh SNDK, ETH, SPCX, cả long lẫn short; giữ lệnh trung vị 8.0 giờ, đòn bẩy trung vị 20x, 1.64 lệnh/ngày. 47% lệnh vào cùng chiều biến động 24 giờ trước đó. Kiếm nhiều nhất khi thị trường xu hướng tăng. Cần để ý: lãi dồn vào vài lệnh.",
+  "p": {
+   "n": 54,
+   "tagged": 53,
+   "days": 33,
+   "per_day": 1.64,
+   "top_syms": [
+    [
+     "SNDK",
+     31
+    ],
+    [
+     "ETH",
+     19
+    ],
+    [
+     "SPCX",
+     9
+    ]
+   ],
+   "n_syms": 14,
+   "cls": {
+    "tradfi": 74,
+    "major": 19,
+    "alt": 7
+   },
+   "long_pct": 41,
+   "lev_med": 20.0,
+   "lev_p90": 50.0,
+   "hold_med": 7.95,
+   "hold_lt1": 9,
+   "hold_gt24": 30,
+   "win": 57,
+   "payoff": 1.37,
+   "pf": 1.85,
+   "net": 526609,
+   "reg_share": {
+    "range": 51,
+    "up": 45,
+    "down": 4
+   },
+   "reg_pnl": {
+    "range": 112988,
+    "up": 388666,
+    "down": 25601
+   },
+   "reg_win": {
+    "range": 56,
+    "up": 58,
+    "down": 100
+   },
+   "hv_share": 11,
+   "hv_pnl": -88008,
+   "aligned": 15,
+   "momentum": 47,
+   "overlap": 0,
+   "hold_ratio": 0.49,
+   "top5_share": 131,
+   "tail": 7.7,
+   "peak_hours": [
+    13,
+    17,
+    16
+   ],
+   "dca": null
+  },
+  "rank": 21,
+  "open": null
+ },
+ {
+  "exchange": "OKX",
+  "id": "31F3288F9B90B496",
+  "name": "Ail.Wang",
+  "api": false,
+  "pnl": 252123.1663467395,
+  "roi": 21.67,
+  "aum": 211055.99892959584,
+  "copiers": 25,
+  "cap": 304,
+  "lead_days": 987,
+  "win_official": 53,
+  "mdd": null,
+  "url": "https://www.okx.com/copy-trading/account/31F3288F9B90B496?tab=swap",
+  "style": "Nhồi lệnh, gồng lỗ (DCA)",
+  "tags": [
+   "Nghiêng short",
+   "Lãi dồn vào vài lệnh",
+   "Giữ lệnh lỗ lâu hơn lệnh lãi",
+   "Có lệnh lỗ cực lớn",
+   "Lỗ treo lớn (vị thế đang mở)",
+   "Bình quân giá xuống (DCA)"
+  ],
+  "story": "Đánh ENA, ARB, USELESS, chủ yếu short; giữ lệnh trung vị 3.9 giờ, đòn bẩy trung vị 10x, 23.76 lệnh/ngày. 5% lệnh vào cùng chiều biến động 24 giờ trước đó, tức hay đánh ngược đà, bắt đỉnh đáy. Kiếm nhiều nhất khi thị trường xu hướng tăng, lỗ khi đi ngang. Cần để ý: lãi dồn vào vài lệnh, giữ lệnh lỗ lâu hơn lệnh lãi, có lệnh lỗ cực lớn. Đang giữ 72 vị thế mở. lỗ chưa chốt -72.442 USDT. so với lãi đã chốt 6.223 USDT. Mở thêm lệnh cùng chiều khi lệnh cũ chưa đóng ở 70% số lệnh, 63% trong đó ở giá xấu hơn (bình quân giá xuống), chồng tối đa 37 vị thế.",
+  "p": {
+   "n": 996,
+   "tagged": 917,
+   "days": 42,
+   "per_day": 23.76,
+   "top_syms": [
+    [
+     "ENA",
+     8
+    ],
+    [
+     "ARB",
+     7
+    ],
+    [
+     "USELESS",
+     4
+    ]
+   ],
+   "n_syms": 116,
+   "cls": {
+    "alt": 77,
+    "major": 3,
+    "meme": 19,
+    "tradfi": 1
+   },
+   "long_pct": 6,
+   "lev_med": 10.0,
+   "lev_p90": 10.0,
+   "hold_med": 3.93,
+   "hold_lt1": 22,
+   "hold_gt24": 19,
+   "win": 87,
+   "payoff": 0.15,
+   "pf": 1.06,
+   "net": 6223,
+   "reg_share": {
+    "up": 80,
+    "range": 18,
+    "down": 2
+   },
+   "reg_pnl": {
+    "up": 56641,
+    "range": -59828,
+    "down": 992
+   },
+   "reg_win": {
+    "up": 87,
+    "range": 85,
+    "down": 57
+   },
+   "hv_share": 76,
+   "hv_pnl": 62798,
+   "aligned": 5,
+   "momentum": 5,
+   "overlap": 70,
+   "hold_ratio": 9.69,
+   "top5_share": 381,
+   "tail": 254.9,
+   "peak_hours": [
+    6,
+    7,
+    3
+   ],
+   "dca": {
+    "adds": 70,
+    "down": 63,
+    "stack": 37
+   }
+  },
+  "rank": 22,
+  "open": {
+   "n": 72,
+   "upl": -72442,
+   "margin": 89246
+  }
+ },
+ {
+  "exchange": "OKX",
+  "id": "C84F6F6717746BD4",
+  "name": "BestMax",
+  "api": false,
+  "pnl": 17507.582472389604,
+  "roi": 17.03,
+  "aum": 349955.19870894484,
+  "copiers": 297,
+  "cap": 600,
+  "lead_days": 817,
+  "win_official": 66,
+  "mdd": null,
+  "url": "https://www.okx.com/copy-trading/account/C84F6F6717746BD4?tab=swap",
+  "style": "Nhồi lệnh, gồng lỗ (DCA)",
+  "tags": [
+   "Đòn bẩy cao",
+   "Nghiêng long",
+   "Tập trung 1 mã",
+   "Meme coin",
+   "Có lệnh lỗ cực lớn",
+   "Bình quân giá xuống (DCA)"
+  ],
+  "story": "Đánh PUMP, HYPE, SOL, chủ yếu long; giữ lệnh trung vị 2.0 giờ, đòn bẩy trung vị 20x, 11.07 lệnh/ngày. 44% lệnh vào cùng chiều biến động 24 giờ trước đó. Kiếm nhiều nhất khi thị trường đi ngang. Cần để ý: có lệnh lỗ cực lớn. Mở thêm lệnh cùng chiều khi lệnh cũ chưa đóng ở 78% số lệnh, 91% trong đó ở giá xấu hơn (bình quân giá xuống), chồng tối đa 25 vị thế.",
+  "p": {
+   "n": 998,
+   "tagged": 998,
+   "days": 90,
+   "per_day": 11.07,
+   "top_syms": [
+    [
+     "PUMP",
+     73
+    ],
+    [
+     "HYPE",
+     12
+    ],
+    [
+     "SOL",
+     5
+    ]
+   ],
+   "n_syms": 5,
+   "cls": {
+    "alt": 23,
+    "meme": 73,
+    "major": 4
+   },
+   "long_pct": 100,
+   "lev_med": 20.0,
+   "lev_p90": 20.0,
+   "hold_med": 2.02,
+   "hold_lt1": 30,
+   "hold_gt24": 10,
+   "win": 74,
+   "payoff": 1.92,
+   "pf": 5.41,
+   "net": 17686,
+   "reg_share": {
+    "range": 41,
+    "up": 57,
+    "down": 2
+   },
+   "reg_pnl": {
+    "range": 8311,
+    "up": 7747,
+    "down": 1628
+   },
+   "reg_win": {
+    "range": 72,
+    "up": 75,
+    "down": 81
+   },
+   "hv_share": 78,
+   "hv_pnl": 10821,
+   "aligned": 96,
+   "momentum": 44,
+   "overlap": 78,
+   "hold_ratio": 2.3,
+   "top5_share": 9,
+   "tail": 49.7,
+   "peak_hours": [
+    22,
+    17,
+    12
+   ],
+   "dca": {
+    "adds": 78,
+    "down": 91,
+    "stack": 25
+   }
+  },
+  "rank": 23,
+  "open": {
+   "n": 0,
+   "upl": 0,
+   "margin": 0
+  }
+ },
+ {
+  "exchange": "Binance",
+  "id": "5229164046792448257",
+  "name": "乾坤策略量化",
+  "api": true,
+  "pnl": 16523.24459761,
+  "roi": 3304.64891952,
+  "aum": 365883.06223616,
+  "copiers": 426,
+  "cap": 500,
+  "lead_days": 12,
+  "win_official": 74,
+  "mdd": 5.7,
+  "url": "https://www.binance.com/en/copy-trading/lead-details/5229164046792448257",
+  "style": "Hỗn hợp / linh hoạt",
+  "tags": [
+   "Chạy bằng API/bot",
+   "Lãi dồn vào vài lệnh",
+   "Giữ lệnh lỗ lâu hơn lệnh lãi"
+  ],
+  "story": "Đánh ZEC, XMR, ETH, cả long lẫn short; giữ lệnh trung vị 16.5 giờ, đòn bẩy trung vị 10x, 4.18 lệnh/ngày. 52% lệnh vào cùng chiều biến động 24 giờ trước đó. Kiếm nhiều nhất khi thị trường xu hướng tăng. Cần để ý: lãi dồn vào vài lệnh, giữ lệnh lỗ lâu hơn lệnh lãi.",
+  "p": {
+   "n": 46,
+   "tagged": 46,
+   "days": 11,
+   "per_day": 4.18,
+   "top_syms": [
+    [
+     "ZEC",
+     26
+    ],
+    [
+     "XMR",
+     22
+    ],
+    [
+     "ETH",
+     15
+    ]
+   ],
+   "n_syms": 9,
+   "cls": {
+    "alt": 83,
+    "meme": 2,
+    "major": 15
+   },
+   "long_pct": 48,
+   "lev_med": 10.0,
+   "lev_p90": 15.0,
+   "hold_med": 16.47,
+   "hold_lt1": 4,
+   "hold_gt24": 30,
+   "win": 91,
+   "payoff": 25.65,
+   "pf": 269.32,
+   "net": 15446,
+   "reg_share": {
+    "up": 98,
+    "range": 2
+   },
+   "reg_pnl": {
+    "up": 15432,
+    "range": 14
+   },
+   "reg_win": {
+    "up": 91,
+    "range": 100
+   },
+   "hv_share": 91,
+   "hv_pnl": 15396,
+   "aligned": 49,
+   "momentum": 52,
+   "overlap": 0,
+   "hold_ratio": 3.21,
+   "top5_share": 67,
+   "tail": 2.0,
+   "peak_hours": [
+    9,
+    0,
+    1
+   ],
+   "dca": null
+  },
+  "rank": 24,
+  "open": null
+ },
+ {
+  "exchange": "Binance",
+  "id": "5154344801714752768",
+  "name": "A路飞",
+  "api": false,
+  "pnl": 1812.94652057,
+  "roi": 10.19346286,
+  "aum": 511039.7460691,
+  "copiers": 433,
+  "cap": 1000,
+  "lead_days": 63,
+  "win_official": 62,
+  "mdd": 55.1,
+  "url": "https://www.binance.com/en/copy-trading/lead-details/5154344801714752768",
+  "style": "Hỗn hợp / linh hoạt",
+  "tags": [
+   "Đòn bẩy cao",
+   "Lãi dồn vào vài lệnh"
+  ],
+  "story": "Đánh BTC, ZEC, ETH, cả long lẫn short; giữ lệnh trung vị 6.7 giờ, đòn bẩy trung vị 20x, 4.49 lệnh/ngày. 50% lệnh vào cùng chiều biến động 24 giờ trước đó. Kiếm nhiều nhất khi thị trường đi ngang. Cần để ý: lãi dồn vào vài lệnh.",
+  "p": {
+   "n": 284,
+   "tagged": 283,
+   "days": 63,
+   "per_day": 4.49,
+   "top_syms": [
+    [
+     "BTC",
+     17
+    ],
+    [
+     "ZEC",
+     16
+    ],
+    [
+     "ETH",
+     15
+    ]
+   ],
+   "n_syms": 27,
+   "cls": {
+    "alt": 43,
+    "meme": 6,
+    "major": 32,
+    "tradfi": 19
+   },
+   "long_pct": 51,
+   "lev_med": 20.0,
+   "lev_p90": 20.0,
+   "hold_med": 6.74,
+   "hold_lt1": 14,
+   "hold_gt24": 18,
+   "win": 70,
+   "payoff": 0.6,
+   "pf": 1.38,
+   "net": 24811,
+   "reg_share": {
+    "up": 62,
+    "range": 35,
+    "down": 3
+   },
+   "reg_pnl": {
+    "up": 10205,
+    "range": 13551,
+    "down": 1047
+   },
+   "reg_win": {
+    "up": 69,
+    "range": 69,
+    "down": 88
+   },
+   "hv_share": 47,
+   "hv_pnl": 9256,
+   "aligned": 58,
+   "momentum": 50,
+   "overlap": 0,
+   "hold_ratio": 1.06,
+   "top5_share": 78,
+   "tail": 12.2,
+   "peak_hours": [
+    13,
+    14,
+    15
+   ],
+   "dca": null
+  },
+  "rank": 25,
+  "open": null
+ },
+ {
+  "exchange": "OKX",
+  "id": "EF1CC6F40E834D1A",
+  "name": "RuiJie",
+  "api": false,
+  "pnl": 469276.9265413095,
+  "roi": 32.67,
+  "aum": 7484.901090773191,
+  "copiers": 46,
+  "cap": 300,
+  "lead_days": 656,
+  "win_official": 58,
+  "mdd": null,
+  "url": "https://www.okx.com/copy-trading/account/EF1CC6F40E834D1A?tab=swap",
+  "style": "Nhồi lệnh, gồng lỗ (DCA)",
+  "tags": [
+   "Đòn bẩy cao",
+   "Nghiêng long",
+   "Tập trung 1 mã",
+   "Giữ lệnh lỗ lâu hơn lệnh lãi",
+   "Có lệnh lỗ cực lớn",
+   "Bình quân giá xuống (DCA)"
+  ],
+  "story": "Đánh ETH, SNDK, USELESS, chủ yếu long; giữ lệnh trung vị 6.9 giờ, đòn bẩy trung vị 20x, 5.55 lệnh/ngày. 58% lệnh vào cùng chiều biến động 24 giờ trước đó, tức đánh theo đà. Kiếm nhiều nhất khi thị trường xu hướng tăng. Cần để ý: giữ lệnh lỗ lâu hơn lệnh lãi, có lệnh lỗ cực lớn. Mở thêm lệnh cùng chiều khi lệnh cũ chưa đóng ở 71% số lệnh, 73% trong đó ở giá xấu hơn (bình quân giá xuống), chồng tối đa 14 vị thế.",
+  "p": {
+   "n": 507,
+   "tagged": 507,
+   "days": 91,
+   "per_day": 5.55,
+   "top_syms": [
+    [
+     "ETH",
+     64
+    ],
+    [
+     "SNDK",
+     18
+    ],
+    [
+     "USELESS",
+     7
+    ]
+   ],
+   "n_syms": 9,
+   "cls": {
+    "major": 64,
+    "tradfi": 18,
+    "alt": 12,
+    "meme": 7
+   },
+   "long_pct": 71,
+   "lev_med": 20.0,
+   "lev_p90": 20.0,
+   "hold_med": 6.9,
+   "hold_lt1": 20,
+   "hold_gt24": 29,
+   "win": 90,
+   "payoff": 1.06,
+   "pf": 9.5,
+   "net": 232394,
+   "reg_share": {
+    "range": 47,
+    "up": 49,
+    "down": 4
+   },
+   "reg_pnl": {
+    "range": 70235,
+    "up": 150914,
+    "down": 11244
+   },
+   "reg_win": {
+    "range": 88,
+    "up": 92,
+    "down": 91
+   },
+   "hv_share": 47,
+   "hv_pnl": 121966,
+   "aligned": 75,
+   "momentum": 58,
+   "overlap": 71,
+   "hold_ratio": 4.66,
+   "top5_share": 10,
+   "tail": 33.4,
+   "peak_hours": [
+    14,
+    15,
+    16
+   ],
+   "dca": {
+    "adds": 71,
+    "down": 73,
+    "stack": 14
+   }
+  },
+  "rank": 26,
+  "open": {
+   "n": 17,
+   "upl": -9394,
+   "margin": 37012
+  }
+ },
+ {
+  "exchange": "Binance",
+  "id": "5195004133729120001",
+  "name": "币圈心灵导师",
+  "api": false,
+  "pnl": 515630.37386802,
+  "roi": 502.53165189,
+  "aum": 194911.92815396,
+  "copiers": 133,
+  "cap": 200,
+  "lead_days": 35,
+  "win_official": 76,
+  "mdd": 60.6,
+  "url": "https://www.binance.com/en/copy-trading/lead-details/5195004133729120001",
+  "style": "Bắt đảo chiều, ngược đà",
+  "tags": [
+   "Đòn bẩy cao",
+   "Nghiêng long",
+   "Giữ lệnh lỗ lâu hơn lệnh lãi"
+  ],
+  "story": "Đánh BTC, ZEC, ORDI, chủ yếu long; giữ lệnh trung vị 14.3 giờ, đòn bẩy trung vị 20x, 2.09 lệnh/ngày. 42% lệnh vào cùng chiều biến động 24 giờ trước đó, tức hay đánh ngược đà, bắt đỉnh đáy. Kiếm nhiều nhất khi thị trường đi ngang. Cần để ý: giữ lệnh lỗ lâu hơn lệnh lãi.",
+  "p": {
+   "n": 143,
+   "tagged": 133,
+   "days": 68,
+   "per_day": 2.09,
+   "top_syms": [
+    [
+     "BTC",
+     14
+    ],
+    [
+     "ZEC",
+     7
+    ],
+    [
+     "ORDI",
+     7
+    ]
+   ],
+   "n_syms": 34,
+   "cls": {
+    "alt": 37,
+    "major": 17,
+    "meme": 26,
+    "tradfi": 20
+   },
+   "long_pct": 75,
+   "lev_med": 20.0,
+   "lev_p90": 20.0,
+   "hold_med": 14.29,
+   "hold_lt1": 13,
+   "hold_gt24": 38,
+   "win": 96,
+   "payoff": 9.47,
+   "pf": 216.14,
+   "net": 290437,
+   "reg_share": {
+    "up": 60,
+    "range": 37,
+    "down": 3
+   },
+   "reg_pnl": {
+    "up": 99480,
+    "range": 137193,
+    "down": 27203
+   },
+   "reg_win": {
+    "up": 96,
+    "range": 98,
+    "down": 100
+   },
+   "hv_share": 44,
+   "hv_pnl": 35693,
+   "aligned": 56,
+   "momentum": 42,
+   "overlap": 0,
+   "hold_ratio": 4.2,
+   "top5_share": 49,
+   "tail": 10.0,
+   "peak_hours": [
+    12,
+    14,
+    13
+   ],
+   "dca": null
+  },
+  "rank": 27,
+  "open": null
+ },
+ {
+  "exchange": "Binance",
+  "id": "5170016259600335617",
+  "name": "爽翻天 满人跟私域",
+  "api": true,
+  "pnl": 2305.91739555,
+  "roi": 41.0167266,
+  "aum": 411475.02604634,
+  "copiers": 390,
+  "cap": 400,
+  "lead_days": 52,
+  "win_official": 97,
+  "mdd": 9.3,
+  "url": "https://www.binance.com/en/copy-trading/lead-details/5170016259600335617",
+  "style": "Bắt đảo chiều, ngược đà",
+  "tags": [
+   "Đòn bẩy cao",
+   "Chạy bằng API/bot",
+   "Lãi dồn vào vài lệnh",
+   "Giữ lệnh lỗ lâu hơn lệnh lãi"
+  ],
+  "story": "Đánh ZEC, ETH, SNDK, chủ yếu short; giữ lệnh trung vị 3.7 giờ, đòn bẩy trung vị 20x, 1.45 lệnh/ngày. 42% lệnh vào cùng chiều biến động 24 giờ trước đó, tức hay đánh ngược đà, bắt đỉnh đáy. Kiếm nhiều nhất khi thị trường xu hướng tăng. Cần để ý: lãi dồn vào vài lệnh, giữ lệnh lỗ lâu hơn lệnh lãi.",
+  "p": {
+   "n": 71,
+   "tagged": 71,
+   "days": 49,
+   "per_day": 1.45,
+   "top_syms": [
+    [
+     "ZEC",
+     46
+    ],
+    [
+     "ETH",
+     20
+    ],
+    [
+     "SNDK",
+     15
+    ]
+   ],
+   "n_syms": 7,
+   "cls": {
+    "alt": 49,
+    "major": 25,
+    "tradfi": 24,
+    "meme": 1
+   },
+   "long_pct": 34,
+   "lev_med": 20.0,
+   "lev_p90": 20.0,
+   "hold_med": 3.7,
+   "hold_lt1": 32,
+   "hold_gt24": 14,
+   "win": 99,
+   "payoff": 1.89,
+   "pf": 132.61,
+   "net": 14034,
+   "reg_share": {
+    "up": 69,
+    "range": 31
+   },
+   "reg_pnl": {
+    "up": 13026,
+    "range": 1008
+   },
+   "reg_win": {
+    "up": 98,
+    "range": 100
+   },
+   "hv_share": 59,
+   "hv_pnl": 1799,
+   "aligned": 20,
+   "momentum": 42,
+   "overlap": 0,
+   "hold_ratio": 15.16,
+   "top5_share": 79,
+   "tail": 1.0,
+   "peak_hours": [
+    15,
+    13,
+    14
+   ],
+   "dca": null
+  },
+  "rank": 28,
+  "open": null
+ },
+ {
+  "exchange": "Binance",
+  "id": "5219911688676500225",
+  "name": "DAmorné",
+  "api": true,
+  "pnl": 22787.22582114,
+  "roi": 4557.44516422,
+  "aum": 188215.44539247,
+  "copiers": 398,
+  "cap": 400,
+  "lead_days": 18,
+  "win_official": 81,
+  "mdd": 1.5,
+  "url": "https://www.binance.com/en/copy-trading/lead-details/5219911688676500225",
+  "style": "Scalper, lướt sóng ngắn",
+  "tags": [
+   "TradFi (cổ phiếu, hàng hoá)",
+   "Chạy bằng API/bot",
+   "Lãi dồn vào vài lệnh",
+   "Giữ lệnh lỗ lâu hơn lệnh lãi",
+   "Có lệnh lỗ cực lớn"
+  ],
+  "story": "Đánh XEC, SOXL, UNI, cả long lẫn short; giữ lệnh trung vị 55 phút, đòn bẩy trung vị 2x, 5.22 lệnh/ngày. 43% lệnh vào cùng chiều biến động 24 giờ trước đó. Kiếm nhiều nhất khi thị trường xu hướng tăng. Cần để ý: lãi dồn vào vài lệnh, giữ lệnh lỗ lâu hơn lệnh lãi, có lệnh lỗ cực lớn.",
+  "p": {
+   "n": 92,
+   "tagged": 92,
+   "days": 18,
+   "per_day": 5.22,
+   "top_syms": [
+    [
+     "XEC",
+     18
+    ],
+    [
+     "SOXL",
+     15
+    ],
+    [
+     "UNI",
+     15
+    ]
+   ],
+   "n_syms": 11,
+   "cls": {
+    "alt": 53,
+    "tradfi": 36,
+    "meme": 11
+   },
+   "long_pct": 50,
+   "lev_med": 2.0,
+   "lev_p90": 14.0,
+   "hold_med": 0.91,
+   "hold_lt1": 51,
+   "hold_gt24": 7,
+   "win": 85,
+   "payoff": 8.71,
+   "pf": 48.55,
+   "net": 22553,
+   "reg_share": {
+    "up": 64,
+    "range": 22,
+    "down": 14
+   },
+   "reg_pnl": {
+    "up": 10847,
+    "range": 5448,
+    "down": 6258
+   },
+   "reg_win": {
+    "up": 88,
+    "range": 90,
+    "down": 62
+   },
+   "hv_share": 53,
+   "hv_pnl": 6465,
+   "aligned": 49,
+   "momentum": 43,
+   "overlap": 0,
+   "hold_ratio": 12.1,
+   "top5_share": 97,
+   "tail": 507.4,
+   "peak_hours": [
+    14,
+    12,
+    13
+   ],
+   "dca": null
+  },
+  "rank": 29,
+  "open": null
+ },
+ {
+  "exchange": "OKX",
+  "id": "44570B03F5CBCEDE",
+  "name": "Bare-Payee-Fox",
+  "api": false,
+  "pnl": 137216.1232858411,
+  "roi": 108.79,
+  "aum": 21805.09547046435,
+  "copiers": 90,
+  "cap": 300,
+  "lead_days": 246,
+  "win_official": 57,
+  "mdd": null,
+  "url": "https://www.okx.com/copy-trading/account/44570B03F5CBCEDE?tab=swap",
+  "style": "Swing, giữ lệnh dài",
+  "tags": [
+   "Nghiêng long",
+   "Lỗ treo lớn (vị thế đang mở)"
+  ],
+  "story": "Đánh LIT, BTC, NVDA, chủ yếu long; giữ lệnh trung vị 30.2 giờ, đòn bẩy trung vị 3x, 0.72 lệnh/ngày. 52% lệnh vào cùng chiều biến động 24 giờ trước đó. Kiếm nhiều nhất khi thị trường đi ngang. Đang giữ 25 vị thế mở. lỗ chưa chốt -13.804 USDT. so với lãi đã chốt 42.995 USDT.",
+  "p": {
+   "n": 61,
+   "tagged": 61,
+   "days": 85,
+   "per_day": 0.72,
+   "top_syms": [
+    [
+     "LIT",
+     36
+    ],
+    [
+     "BTC",
+     15
+    ],
+    [
+     "NVDA",
+     15
+    ]
+   ],
+   "n_syms": 8,
+   "cls": {
+    "alt": 43,
+    "major": 26,
+    "meme": 15,
+    "tradfi": 16
+   },
+   "long_pct": 85,
+   "lev_med": 3.0,
+   "lev_p90": 10.0,
+   "hold_med": 30.25,
+   "hold_lt1": 3,
+   "hold_gt24": 56,
+   "win": 100,
+   "payoff": null,
+   "pf": null,
+   "net": 42995,
+   "reg_share": {
+    "up": 44,
+    "range": 43,
+    "down": 13
+   },
+   "reg_pnl": {
+    "up": 18981,
+    "range": 21223,
+    "down": 2791
+   },
+   "reg_win": {
+    "up": 100,
+    "range": 100,
+    "down": 100
+   },
+   "hv_share": 28,
+   "hv_pnl": 20124,
+   "aligned": 94,
+   "momentum": 52,
+   "overlap": 23,
+   "hold_ratio": 0.0,
+   "top5_share": 29,
+   "tail": null,
+   "peak_hours": [
+    14,
+    15,
+    13
+   ],
+   "dca": {
+    "adds": 23,
+    "down": 100,
+    "stack": 3
+   }
+  },
+  "rank": 30,
+  "open": {
+   "n": 25,
+   "upl": -13804,
+   "margin": 95247
+  }
+ },
+ {
+  "exchange": "OKX",
+  "id": "F76CC883269E6FFB",
+  "name": "Auroraxwt",
+  "api": false,
+  "pnl": 164403.65976554292,
+  "roi": 58.52,
+  "aum": 261345.13266292313,
+  "copiers": 10,
+  "cap": 302,
+  "lead_days": 89,
+  "win_official": 53,
+  "mdd": null,
+  "url": "https://www.okx.com/copy-trading/account/F76CC883269E6FFB?tab=swap",
+  "style": "Nhồi lệnh, gồng lỗ (DCA)",
+  "tags": [
+   "TradFi (cổ phiếu, hàng hoá)",
+   "Giữ lệnh lỗ lâu hơn lệnh lãi",
+   "Có lệnh lỗ cực lớn",
+   "Lỗ treo lớn (vị thế đang mở)",
+   "Bình quân giá xuống (DCA)"
+  ],
+  "story": "Đánh SNDK, BTC, SPCX, cả long lẫn short; giữ lệnh trung vị 59 phút, đòn bẩy trung vị 10x, 18.15 lệnh/ngày. 53% lệnh vào cùng chiều biến động 24 giờ trước đó. Kiếm nhiều nhất khi thị trường xu hướng tăng. Cần để ý: giữ lệnh lỗ lâu hơn lệnh lãi, có lệnh lỗ cực lớn. Đang giữ 23 vị thế mở. lỗ chưa chốt -60.956 USDT. so với lãi đã chốt 158.092 USDT. Mở thêm lệnh cùng chiều khi lệnh cũ chưa đóng ở 42% số lệnh, 90% trong đó ở giá xấu hơn (bình quân giá xuống), chồng tối đa 10 vị thế.",
+  "p": {
+   "n": 998,
+   "tagged": 997,
+   "days": 55,
+   "per_day": 18.15,
+   "top_syms": [
+    [
+     "SNDK",
+     16
+    ],
+    [
+     "BTC",
+     14
+    ],
+    [
+     "SPCX",
+     12
+    ]
+   ],
+   "n_syms": 21,
+   "cls": {
+    "tradfi": 74,
+    "alt": 7,
+    "major": 19
+   },
+   "long_pct": 56,
+   "lev_med": 10.0,
+   "lev_p90": 30.0,
+   "hold_med": 0.98,
+   "hold_lt1": 51,
+   "hold_gt24": 15,
+   "win": 76,
+   "payoff": 0.54,
+   "pf": 1.67,
+   "net": 158092,
+   "reg_share": {
+    "range": 57,
+    "up": 36,
+    "down": 7
+   },
+   "reg_pnl": {
+    "range": 39768,
+    "up": 110215,
+    "down": 7810
+   },
+   "reg_win": {
+    "range": 75,
+    "up": 79,
+    "down": 69
+   },
+   "hv_share": 18,
+   "hv_pnl": 56498,
+   "aligned": 62,
+   "momentum": 53,
+   "overlap": 42,
+   "hold_ratio": 13.76,
+   "top5_share": 36,
+   "tail": 57.0,
+   "peak_hours": [
+    13,
+    14,
+    20
+   ],
+   "dca": {
+    "adds": 42,
+    "down": 90,
+    "stack": 10
+   }
+  },
+  "rank": 31,
+  "open": {
+   "n": 23,
+   "upl": -60956,
+   "margin": 58184
+  }
+ },
+ {
+  "exchange": "Binance",
+  "id": "5217743622504837633",
+  "name": "BTC拖拉机",
+  "api": true,
+  "pnl": 17919.72080542,
+  "roi": 3583.94416108,
+  "aum": 293544.68120776,
+  "copiers": 359,
+  "cap": 400,
+  "lead_days": 19,
+  "win_official": 82,
+  "mdd": 16.0,
+  "url": "https://www.binance.com/en/copy-trading/lead-details/5217743622504837633",
+  "style": "Hỗn hợp / linh hoạt",
+  "tags": [
+   "TradFi (cổ phiếu, hàng hoá)",
+   "Chạy bằng API/bot",
+   "Lãi dồn vào vài lệnh",
+   "Giữ lệnh lỗ lâu hơn lệnh lãi"
+  ],
+  "story": "Đánh ZEC, XMR, LTC, cả long lẫn short; giữ lệnh trung vị 11.1 giờ, đòn bẩy trung vị 10x, 4.45 lệnh/ngày. 44% lệnh vào cùng chiều biến động 24 giờ trước đó. Kiếm nhiều nhất khi thị trường xu hướng tăng. Cần để ý: lãi dồn vào vài lệnh, giữ lệnh lỗ lâu hơn lệnh lãi.",
+  "p": {
+   "n": 85,
+   "tagged": 85,
+   "days": 19,
+   "per_day": 4.45,
+   "top_syms": [
+    [
+     "ZEC",
+     31
+    ],
+    [
+     "XMR",
+     8
+    ],
+    [
+     "LTC",
+     8
+    ]
+   ],
+   "n_syms": 14,
+   "cls": {
+    "meme": 6,
+    "alt": 56,
+    "tradfi": 32,
+    "major": 6
+   },
+   "long_pct": 41,
+   "lev_med": 10.0,
+   "lev_p90": 15.0,
+   "hold_med": 11.07,
+   "hold_lt1": 12,
+   "hold_gt24": 34,
+   "win": 88,
+   "payoff": 4.37,
+   "pf": 32.79,
+   "net": 18045,
+   "reg_share": {
+    "range": 42,
+    "up": 58
+   },
+   "reg_pnl": {
+    "range": 4641,
+    "up": 13404
+   },
+   "reg_win": {
+    "range": 83,
+    "up": 92
+   },
+   "hv_share": 53,
+   "hv_pnl": 16437,
+   "aligned": 43,
+   "momentum": 44,
+   "overlap": 0,
+   "hold_ratio": 19.84,
+   "top5_share": 61,
+   "tail": 8.3,
+   "peak_hours": [
+    14,
+    3,
+    13
+   ],
+   "dca": null
+  },
+  "rank": 32,
+  "open": null
+ },
+ {
+  "exchange": "Binance",
+  "id": "4885616028810285312",
+  "name": "NotForEveryone",
+  "api": true,
+  "pnl": 14531.10356834,
+  "roi": 19.761916,
+  "aum": 471924.40657726,
+  "copiers": 106,
+  "cap": 200,
+  "lead_days": 249,
+  "win_official": 30,
+  "mdd": 2.1,
+  "url": "https://www.binance.com/en/copy-trading/lead-details/4885616028810285312",
+  "style": "Theo xu hướng, theo đà",
+  "tags": [
+   "Nghiêng long",
+   "Chạy bằng API/bot",
+   "Lãi dồn vào vài lệnh",
+   "Có lệnh lỗ cực lớn"
+  ],
+  "story": "Đánh ZEC, USELESS, BICO, chủ yếu long; giữ lệnh trung vị 1.1 giờ, đòn bẩy trung vị 4x, 17.52 lệnh/ngày. 87% lệnh vào cùng chiều biến động 24 giờ trước đó, tức đánh theo đà. Kiếm nhiều nhất khi thị trường xu hướng tăng, lỗ khi xu hướng giảm. Cần để ý: lãi dồn vào vài lệnh, có lệnh lỗ cực lớn.",
+  "p": {
+   "n": 1000,
+   "tagged": 938,
+   "days": 57,
+   "per_day": 17.52,
+   "top_syms": [
+    [
+     "ZEC",
+     5
+    ],
+    [
+     "USELESS",
+     5
+    ],
+    [
+     "BICO",
+     4
+    ]
+   ],
+   "n_syms": 133,
+   "cls": {
+    "alt": 86,
+    "meme": 13,
+    "major": 2
+   },
+   "long_pct": 100,
+   "lev_med": 4.0,
+   "lev_p90": 5.0,
+   "hold_med": 1.13,
+   "hold_lt1": 33,
+   "hold_gt24": 4,
+   "win": 33,
+   "payoff": 3.29,
+   "pf": 1.59,
+   "net": 17291,
+   "reg_share": {
+    "up": 71,
+    "range": 27,
+    "down": 2
+   },
+   "reg_pnl": {
+    "up": 15156,
+    "range": 5536,
+    "down": -558
+   },
+   "reg_win": {
+    "up": 33,
+    "range": 35,
+    "down": 41
+   },
+   "hv_share": 67,
+   "hv_pnl": 20049,
+   "aligned": 98,
+   "momentum": 87,
+   "overlap": 0,
+   "hold_ratio": 0.71,
+   "top5_share": 92,
+   "tail": 39.2,
+   "peak_hours": [
+    0,
+    15,
+    3
+   ],
+   "dca": null
+  },
+  "rank": 33,
+  "open": null
+ },
+ {
+  "exchange": "Binance",
+  "id": "5182474258601929472",
+  "name": "web3牛哥",
+  "api": false,
+  "pnl": 296917.94036284,
+  "roi": 79.84714443,
+  "aum": 330234.29691971,
+  "copiers": 28,
+  "cap": 200,
+  "lead_days": 44,
+  "win_official": 40,
+  "mdd": 67.5,
+  "url": "https://www.binance.com/en/copy-trading/lead-details/5182474258601929472",
+  "style": "Theo xu hướng, theo đà",
+  "tags": [
+   "Đòn bẩy cao",
+   "Nghiêng long",
+   "Lãi dồn vào vài lệnh",
+   "Có lệnh lỗ cực lớn"
+  ],
+  "story": "Đánh ETH, BTC, HEMI, chủ yếu long; giữ lệnh trung vị 2.6 ngày, đòn bẩy trung vị 20x, 1.12 lệnh/ngày. 60% lệnh vào cùng chiều biến động 24 giờ trước đó, tức đánh theo đà. Kiếm nhiều nhất khi thị trường xu hướng tăng. Cần để ý: lãi dồn vào vài lệnh, có lệnh lỗ cực lớn.",
+  "p": {
+   "n": 112,
+   "tagged": 89,
+   "days": 100,
+   "per_day": 1.12,
+   "top_syms": [
+    [
+     "ETH",
+     16
+    ],
+    [
+     "BTC",
+     7
+    ],
+    [
+     "HEMI",
+     5
+    ]
+   ],
+   "n_syms": 53,
+   "cls": {
+    "alt": 62,
+    "meme": 12,
+    "major": 23,
+    "tradfi": 3
+   },
+   "long_pct": 85,
+   "lev_med": 20.0,
+   "lev_p90": 57.0,
+   "hold_med": 62.34,
+   "hold_lt1": 10,
+   "hold_gt24": 61,
+   "win": 52,
+   "payoff": 2.26,
+   "pf": 2.43,
+   "net": 482252,
+   "reg_share": {
+    "up": 67,
+    "range": 33
+   },
+   "reg_pnl": {
+    "up": 354221,
+    "range": 164338
+   },
+   "reg_win": {
+    "up": 58,
+    "range": 48
+   },
+   "hv_share": 67,
+   "hv_pnl": 394485,
+   "aligned": 80,
+   "momentum": 60,
+   "overlap": 0,
+   "hold_ratio": 1.66,
+   "top5_share": 80,
+   "tail": 21.4,
+   "peak_hours": [
+    5,
+    17,
+    13
+   ],
+   "dca": null
+  },
+  "rank": 34,
+  "open": null
+ },
+ {
+  "exchange": "OKX",
+  "id": "AD43C20F20C153C8",
+  "name": "babaige",
+  "api": false,
+  "pnl": 588224.873462372,
+  "roi": 17.11,
+  "aum": 3761.748358234378,
+  "copiers": 13,
+  "cap": 300,
+  "lead_days": 476,
+  "win_official": 50,
+  "mdd": null,
+  "url": "https://www.okx.com/copy-trading/account/AD43C20F20C153C8?tab=swap",
+  "style": "Bắt đảo chiều, ngược đà",
+  "tags": [
+   "Nghiêng long",
+   "TradFi (cổ phiếu, hàng hoá)",
+   "Lãi dồn vào vài lệnh"
+  ],
+  "story": "Đánh SNDK, INTC, SOXL, chủ yếu long; giữ lệnh trung vị 2.3 ngày, đòn bẩy trung vị 10x, 4.7 lệnh/ngày. 38% lệnh vào cùng chiều biến động 24 giờ trước đó, tức hay đánh ngược đà, bắt đỉnh đáy. Kiếm nhiều nhất khi thị trường xu hướng giảm, lỗ khi xu hướng tăng. Cần để ý: lãi dồn vào vài lệnh.",
+  "p": {
+   "n": 329,
+   "tagged": 326,
+   "days": 70,
+   "per_day": 4.7,
+   "top_syms": [
+    [
+     "SNDK",
+     34
+    ],
+    [
+     "INTC",
+     33
+    ],
+    [
+     "SOXL",
+     18
+    ]
+   ],
+   "n_syms": 10,
+   "cls": {
+    "tradfi": 96,
+    "major": 4,
+    "meme": 0
+   },
+   "long_pct": 100,
+   "lev_med": 10.0,
+   "lev_p90": 10.0,
+   "hold_med": 55.7,
+   "hold_lt1": 8,
+   "hold_gt24": 79,
+   "win": 41,
+   "payoff": 1.67,
+   "pf": 1.15,
+   "net": 22185,
+   "reg_share": {
+    "range": 28,
+    "up": 10,
+    "down": 62
+   },
+   "reg_pnl": {
+    "range": -10537,
+    "up": -10828,
+    "down": 44515
+   },
+   "reg_win": {
+    "range": 44,
+    "up": 34,
+    "down": 41
+   },
+   "hv_share": 15,
+   "hv_pnl": 63283,
+   "aligned": 14,
+   "momentum": 38,
+   "overlap": 95,
+   "hold_ratio": 0.25,
+   "top5_share": 206,
+   "tail": 8.9,
+   "peak_hours": [
+    13,
+    14,
+    15
+   ],
+   "dca": {
+    "adds": 95,
+    "down": 58,
+    "stack": 29
+   }
+  },
+  "rank": 35,
+  "open": {
+   "n": 46,
+   "upl": 521026,
+   "margin": 113776
+  }
+ },
+ {
+  "exchange": "OKX",
+  "id": "1D7BB961DBFDECFC",
+  "name": "Mashen666",
+  "api": false,
+  "pnl": 53355.00529259827,
+  "roi": 29.349999999999998,
+  "aum": 107248.12907823341,
+  "copiers": 34,
+  "cap": 54,
+  "lead_days": 88,
+  "win_official": 49,
+  "mdd": null,
+  "url": "https://www.okx.com/copy-trading/account/1D7BB961DBFDECFC?tab=swap",
+  "style": "Theo xu hướng, theo đà",
+  "tags": [
+   "Nghiêng long",
+   "Lãi dồn vào vài lệnh"
+  ],
+  "story": "Đánh DOT, ETH, BTC, chủ yếu long; giữ lệnh trung vị 32.1 giờ, đòn bẩy trung vị 12x, 0.84 lệnh/ngày. 74% lệnh vào cùng chiều biến động 24 giờ trước đó, tức đánh theo đà. Kiếm nhiều nhất khi thị trường đi ngang, lỗ khi xu hướng tăng. Cần để ý: lãi dồn vào vài lệnh.",
+  "p": {
+   "n": 74,
+   "tagged": 74,
+   "days": 89,
+   "per_day": 0.84,
+   "top_syms": [
+    [
+     "DOT",
+     27
+    ],
+    [
+     "ETH",
+     26
+    ],
+    [
+     "BTC",
+     23
+    ]
+   ],
+   "n_syms": 8,
+   "cls": {
+    "alt": 49,
+    "major": 49,
+    "meme": 1,
+    "tradfi": 1
+   },
+   "long_pct": 80,
+   "lev_med": 12.0,
+   "lev_p90": 20.0,
+   "hold_med": 32.15,
+   "hold_lt1": 3,
+   "hold_gt24": 64,
+   "win": 53,
+   "payoff": 1.21,
+   "pf": 1.34,
+   "net": 55198,
+   "reg_share": {
+    "up": 76,
+    "range": 23,
+    "down": 1
+   },
+   "reg_pnl": {
+    "up": -65974,
+    "range": 121276,
+    "down": -105
+   },
+   "reg_win": {
+    "up": 45,
+    "range": 82,
+    "down": 0
+   },
+   "hv_share": 62,
+   "hv_pnl": -68103,
+   "aligned": 75,
+   "momentum": 74,
+   "overlap": 69,
+   "hold_ratio": 1.49,
+   "top5_share": 240,
+   "tail": 5.8,
+   "peak_hours": [
+    13,
+    14,
+    8
+   ],
+   "dca": {
+    "adds": 69,
+    "down": 43,
+    "stack": 16
+   }
+  },
+  "rank": 36,
+  "open": {
+   "n": 11,
+   "upl": -4524,
+   "margin": 83645
+  }
+ },
+ {
+  "exchange": "Binance",
+  "id": "4480958555490754305",
+  "name": "菩萨保右",
+  "api": true,
+  "pnl": 23862.96203578,
+  "roi": 49.03353582,
+  "aum": 250204.08724387,
+  "copiers": 28,
+  "cap": 200,
+  "lead_days": 528,
+  "win_official": 47,
+  "mdd": 9.7,
+  "url": "https://www.binance.com/en/copy-trading/lead-details/4480958555490754305",
+  "style": "Theo xu hướng, theo đà",
+  "tags": [
+   "Nghiêng long",
+   "Chạy bằng API/bot",
+   "Lãi dồn vào vài lệnh",
+   "Có lệnh lỗ cực lớn"
+  ],
+  "story": "Đánh BTC, Q, ETH, chủ yếu long; giữ lệnh trung vị 3.0 ngày, đòn bẩy trung vị 5x, 1.6 lệnh/ngày. 91% lệnh vào cùng chiều biến động 24 giờ trước đó, tức đánh theo đà. Kiếm nhiều nhất khi thị trường xu hướng tăng. Cần để ý: lãi dồn vào vài lệnh, có lệnh lỗ cực lớn.",
+  "p": {
+   "n": 193,
+   "tagged": 113,
+   "days": 121,
+   "per_day": 1.6,
+   "top_syms": [
+    [
+     "BTC",
+     4
+    ],
+    [
+     "Q",
+     3
+    ],
+    [
+     "ETH",
+     3
+    ]
+   ],
+   "n_syms": 136,
+   "cls": {
+    "alt": 83,
+    "meme": 9,
+    "major": 7,
+    "tradfi": 1
+   },
+   "long_pct": 97,
+   "lev_med": 5.0,
+   "lev_p90": 5.0,
+   "hold_med": 71.15,
+   "hold_lt1": 9,
+   "hold_gt24": 72,
+   "win": 37,
+   "payoff": 4.11,
+   "pf": 2.45,
+   "net": 27196,
+   "reg_share": {
+    "up": 32,
+    "range": 65,
+    "down": 4
+   },
+   "reg_pnl": {
+    "up": 20092,
+    "range": 7008,
+    "down": 498
+   },
+   "reg_win": {
+    "up": 31,
+    "range": 47,
+    "down": 75
+   },
+   "hv_share": 34,
+   "hv_pnl": 3667,
+   "aligned": 95,
+   "momentum": 91,
+   "overlap": 0,
+   "hold_ratio": 0.5,
+   "top5_share": 112,
+   "tail": 15.4,
+   "peak_hours": [
+    23,
+    0,
+    22
+   ],
+   "dca": null
+  },
+  "rank": 37,
+  "open": null
+ },
+ {
+  "exchange": "Binance",
+  "id": "5133788913238036737",
+  "name": "0x ZHAO",
+  "api": false,
+  "pnl": 312281.23879676,
+  "roi": 62.90551407,
+  "aum": 108414.02021695,
+  "copiers": 3,
+  "cap": 200,
+  "lead_days": 77,
+  "win_official": 71,
+  "mdd": 31.6,
+  "url": "https://www.binance.com/en/copy-trading/lead-details/5133788913238036737",
+  "style": "Bắt đảo chiều, ngược đà",
+  "tags": [
+   "Nghiêng long",
+   "TradFi (cổ phiếu, hàng hoá)",
+   "Có lệnh lỗ cực lớn"
+  ],
+  "story": "Đánh BTC, SNDK, ETH, chủ yếu long; giữ lệnh trung vị 3.4 giờ, đòn bẩy trung vị 10x, 1.97 lệnh/ngày. 28% lệnh vào cùng chiều biến động 24 giờ trước đó, tức hay đánh ngược đà, bắt đỉnh đáy. Kiếm nhiều nhất khi thị trường đi ngang. Cần để ý: có lệnh lỗ cực lớn.",
+  "p": {
+   "n": 152,
+   "tagged": 130,
+   "days": 77,
+   "per_day": 1.97,
+   "top_syms": [
+    [
+     "BTC",
+     9
+    ],
+    [
+     "SNDK",
+     8
+    ],
+    [
+     "ETH",
+     7
+    ]
+   ],
+   "n_syms": 39,
+   "cls": {
+    "tradfi": 80,
+    "major": 16,
+    "alt": 3,
+    "meme": 2
+   },
+   "long_pct": 83,
+   "lev_med": 10.0,
+   "lev_p90": 50.0,
+   "hold_med": 3.44,
+   "hold_lt1": 36,
+   "hold_gt24": 10,
+   "win": 72,
+   "payoff": 1.62,
+   "pf": 4.24,
+   "net": 406705,
+   "reg_share": {
+    "down": 44,
+    "range": 40,
+    "up": 16
+   },
+   "reg_pnl": {
+    "down": 110105,
+    "range": 229083,
+    "up": 23045
+   },
+   "reg_win": {
+    "down": 77,
+    "range": 77,
+    "up": 57
+   },
+   "hv_share": 15,
+   "hv_pnl": 23020,
+   "aligned": 22,
+   "momentum": 28,
+   "overlap": 0,
+   "hold_ratio": 0.24,
+   "top5_share": 45,
+   "tail": 66.7,
+   "peak_hours": [
+    14,
+    2,
+    13
+   ],
+   "dca": null
+  },
+  "rank": 38,
+  "open": null
+ },
+ {
+  "exchange": "OKX",
+  "id": "F1344E1B7AE2D41F",
+  "name": "010pp",
+  "api": false,
+  "pnl": 146201.195727991,
+  "roi": 63.93,
+  "aum": 10031.557616831276,
+  "copiers": 26,
+  "cap": 300,
+  "lead_days": 396,
+  "win_official": 50,
+  "mdd": null,
+  "url": "https://www.okx.com/copy-trading/account/F1344E1B7AE2D41F?tab=swap",
+  "style": "Bắt đảo chiều, ngược đà",
+  "tags": [
+   "TradFi (cổ phiếu, hàng hoá)",
+   "Lãi dồn vào vài lệnh",
+   "Có lệnh lỗ cực lớn",
+   "Bình quân giá xuống (DCA)"
+  ],
+  "story": "Đánh ETH, MSTR, BTC, cả long lẫn short; giữ lệnh trung vị 23.1 giờ, đòn bẩy trung vị 10x, 2.84 lệnh/ngày. 31% lệnh vào cùng chiều biến động 24 giờ trước đó, tức hay đánh ngược đà, bắt đỉnh đáy. Kiếm nhiều nhất khi thị trường đi ngang. Cần để ý: lãi dồn vào vài lệnh, có lệnh lỗ cực lớn. Mở thêm lệnh cùng chiều khi lệnh cũ chưa đóng ở 52% số lệnh, 63% trong đó ở giá xấu hơn (bình quân giá xuống), chồng tối đa 8 vị thế.",
+  "p": {
+   "n": 219,
+   "tagged": 219,
+   "days": 77,
+   "per_day": 2.84,
+   "top_syms": [
+    [
+     "ETH",
+     19
+    ],
+    [
+     "MSTR",
+     10
+    ],
+    [
+     "BTC",
+     8
+    ]
+   ],
+   "n_syms": 23,
+   "cls": {
+    "major": 26,
+    "alt": 37,
+    "meme": 5,
+    "tradfi": 32
+   },
+   "long_pct": 53,
+   "lev_med": 10.0,
+   "lev_p90": 20.0,
+   "hold_med": 23.11,
+   "hold_lt1": 3,
+   "hold_gt24": 46,
+   "win": 68,
+   "payoff": 0.8,
+   "pf": 1.66,
+   "net": 121572,
+   "reg_share": {
+    "range": 42,
+    "up": 50,
+    "down": 7
+   },
+   "reg_pnl": {
+    "range": 86604,
+    "up": 15886,
+    "down": 19082
+   },
+   "reg_win": {
+    "range": 71,
+    "up": 64,
+    "down": 75
+   },
+   "hv_share": 47,
+   "hv_pnl": -11016,
+   "aligned": 37,
+   "momentum": 31,
+   "overlap": 52,
+   "hold_ratio": 1.12,
+   "top5_share": 63,
+   "tail": 18.8,
+   "peak_hours": [
+    14,
+    13,
+    0
+   ],
+   "dca": {
+    "adds": 52,
+    "down": 63,
+    "stack": 8
+   }
+  },
+  "rank": 39,
+  "open": {
+   "n": 8,
+   "upl": 28134,
+   "margin": 75722
+  }
+ },
+ {
+  "exchange": "OKX",
+  "id": "BB3398A957270A39",
+  "name": "Modern-dAPI-Manatee",
+  "api": false,
+  "pnl": 53261.81196253222,
+  "roi": 55.14,
+  "aum": 16604.344435948227,
+  "copiers": 77,
+  "cap": 300,
+  "lead_days": 438,
+  "win_official": 65,
+  "mdd": null,
+  "url": "https://www.okx.com/copy-trading/account/BB3398A957270A39?tab=swap",
+  "style": "Bắt đảo chiều, ngược đà",
+  "tags": [
+   "TradFi (cổ phiếu, hàng hoá)",
+   "Có lệnh lỗ cực lớn",
+   "Bình quân giá xuống (DCA)"
+  ],
+  "story": "Đánh SNDK, MU, SKHYNIX, cả long lẫn short; giữ lệnh trung vị 22.2 giờ, đòn bẩy trung vị 2x, 1.17 lệnh/ngày. 23% lệnh vào cùng chiều biến động 24 giờ trước đó, tức hay đánh ngược đà, bắt đỉnh đáy. Kiếm nhiều nhất khi thị trường đi ngang. Cần để ý: có lệnh lỗ cực lớn. Mở thêm lệnh cùng chiều khi lệnh cũ chưa đóng ở 38% số lệnh, 70% trong đó ở giá xấu hơn (bình quân giá xuống), chồng tối đa 5 vị thế.",
+  "p": {
+   "n": 86,
+   "tagged": 86,
+   "days": 73,
+   "per_day": 1.17,
+   "top_syms": [
+    [
+     "SNDK",
+     30
+    ],
+    [
+     "MU",
+     26
+    ],
+    [
+     "SKHYNIX",
+     16
+    ]
+   ],
+   "n_syms": 8,
+   "cls": {
+    "tradfi": 97,
+    "alt": 1,
+    "major": 2
+   },
+   "long_pct": 50,
+   "lev_med": 2.0,
+   "lev_p90": 5.0,
+   "hold_med": 22.2,
+   "hold_lt1": 7,
+   "hold_gt24": 49,
+   "win": 76,
+   "payoff": 1.33,
+   "pf": 4.12,
+   "net": 51477,
+   "reg_share": {
+    "up": 33,
+    "range": 57,
+    "down": 10
+   },
+   "reg_pnl": {
+    "up": 15906,
+    "range": 28400,
+    "down": 7170
+   },
+   "reg_win": {
+    "up": 82,
+    "range": 69,
+    "down": 89
+   },
+   "hv_share": 6,
+   "hv_pnl": 692,
+   "aligned": 16,
+   "momentum": 23,
+   "overlap": 38,
+   "hold_ratio": 1.15,
+   "top5_share": 33,
+   "tail": 24.4,
+   "peak_hours": [
+    14,
+    15,
+    13
+   ],
+   "dca": {
+    "adds": 38,
+    "down": 70,
+    "stack": 5
+   }
+  },
+  "rank": 40,
+  "open": {
+   "n": 2,
+   "upl": 1543,
+   "margin": 39949
+  }
+ },
+ {
+  "exchange": "OKX",
+  "id": "6BDAFE4381357DBA",
+  "name": "笨笨球",
+  "api": false,
+  "pnl": 43725.45855843529,
+  "roi": 36.69,
+  "aum": 21144.641729845796,
+  "copiers": 86,
+  "cap": 300,
+  "lead_days": 1093,
+  "win_official": 63,
+  "mdd": null,
+  "url": "https://www.okx.com/copy-trading/account/6BDAFE4381357DBA?tab=swap",
+  "style": "Bắt đảo chiều, ngược đà",
+  "tags": [
+   "Có lệnh lỗ cực lớn",
+   "Bình quân giá xuống (DCA)"
+  ],
+  "story": "Đánh ZEC, ETH, BTC, cả long lẫn short; giữ lệnh trung vị 15.5 giờ, đòn bẩy trung vị 1x, 6.51 lệnh/ngày. 28% lệnh vào cùng chiều biến động 24 giờ trước đó, tức hay đánh ngược đà, bắt đỉnh đáy. Kiếm nhiều nhất khi thị trường xu hướng tăng. Cần để ý: có lệnh lỗ cực lớn. Mở thêm lệnh cùng chiều khi lệnh cũ chưa đóng ở 86% số lệnh, 81% trong đó ở giá xấu hơn (bình quân giá xuống), chồng tối đa 50 vị thế.",
+  "p": {
+   "n": 575,
+   "tagged": 573,
+   "days": 88,
+   "per_day": 6.51,
+   "top_syms": [
+    [
+     "ZEC",
+     24
+    ],
+    [
+     "ETH",
+     13
+    ],
+    [
+     "BTC",
+     13
+    ]
+   ],
+   "n_syms": 31,
+   "cls": {
+    "alt": 45,
+    "tradfi": 29,
+    "meme": 1,
+    "major": 25
+   },
+   "long_pct": 58,
+   "lev_med": 1.0,
+   "lev_p90": 10.0,
+   "hold_med": 15.49,
+   "hold_lt1": 5,
+   "hold_gt24": 39,
+   "win": 59,
+   "payoff": 2.55,
+   "pf": 3.62,
+   "net": 44462,
+   "reg_share": {
+    "up": 55,
+    "down": 18,
+    "range": 26
+   },
+   "reg_pnl": {
+    "up": 34303,
+    "down": 6565,
+    "range": 3759
+   },
+   "reg_win": {
+    "up": 51,
+    "down": 55,
+    "range": 77
+   },
+   "hv_share": 59,
+   "hv_pnl": 42494,
+   "aligned": 29,
+   "momentum": 28,
+   "overlap": 86,
+   "hold_ratio": 0.48,
+   "top5_share": 17,
+   "tail": 50.0,
+   "peak_hours": [
+    13,
+    14,
+    11
+   ],
+   "dca": {
+    "adds": 86,
+    "down": 81,
+    "stack": 50
+   }
+  },
+  "rank": 41,
+  "open": {
+   "n": 30,
+   "upl": -1222,
+   "margin": 12828
+  }
+ },
+ {
+  "exchange": "OKX",
+  "id": "1499200359BAE11A",
+  "name": "dai***@yinowealth.com",
+  "api": false,
+  "pnl": 2563375.5380835864,
+  "roi": 36.980000000000004,
+  "aum": 826.6063389353994,
+  "copiers": 3,
+  "cap": 300,
+  "lead_days": 451,
+  "win_official": 53,
+  "mdd": null,
+  "url": "https://www.okx.com/copy-trading/account/1499200359BAE11A?tab=swap",
+  "style": "Nhồi lệnh, gồng lỗ (DCA)",
+  "tags": [
+   "Nghiêng long",
+   "Bình quân giá xuống (DCA)"
+  ],
+  "story": "Đánh ZEC, SOL, XRP, chủ yếu long; giữ lệnh trung vị 21.4 giờ, đòn bẩy trung vị 3x, 158.45 lệnh/ngày. 80% lệnh vào cùng chiều biến động 24 giờ trước đó, tức đánh theo đà. Kiếm nhiều nhất khi thị trường xu hướng tăng. Mở thêm lệnh cùng chiều khi lệnh cũ chưa đóng ở 99% số lệnh, 62% trong đó ở giá xấu hơn (bình quân giá xuống), chồng tối đa 123 vị thế.",
+  "p": {
+   "n": 996,
+   "tagged": 996,
+   "days": 6,
+   "per_day": 158.45,
+   "top_syms": [
+    [
+     "ZEC",
+     52
+    ],
+    [
+     "SOL",
+     20
+    ],
+    [
+     "XRP",
+     13
+    ]
+   ],
+   "n_syms": 5,
+   "cls": {
+    "meme": 12,
+    "alt": 85,
+    "major": 3
+   },
+   "long_pct": 100,
+   "lev_med": 3.0,
+   "lev_p90": 3.0,
+   "hold_med": 21.42,
+   "hold_lt1": 4,
+   "hold_gt24": 45,
+   "win": 74,
+   "payoff": 1.78,
+   "pf": 5.07,
+   "net": 7495,
+   "reg_share": {
+    "up": 100
+   },
+   "reg_pnl": {
+    "up": 7495
+   },
+   "reg_win": {
+    "up": 74
+   },
+   "hv_share": 100,
+   "hv_pnl": 7495,
+   "aligned": 100,
+   "momentum": 80,
+   "overlap": 99,
+   "hold_ratio": 2.44,
+   "top5_share": 7,
+   "tail": 13.8,
+   "peak_hours": [
+    14,
+    20,
+    16
+   ],
+   "dca": {
+    "adds": 99,
+    "down": 62,
+    "stack": 123
+   }
+  },
+  "rank": 42,
+  "open": {
+   "n": 100,
+   "upl": -1713,
+   "margin": 30708
+  }
+ },
+ {
+  "exchange": "Binance",
+  "id": "5163855802101492736",
+  "name": "Smart2X",
+  "api": false,
+  "pnl": 358.54656701,
+  "roi": 25.19662282,
+  "aum": 353798.41022836,
+  "copiers": 105,
+  "cap": 200,
+  "lead_days": 57,
+  "win_official": 61,
+  "mdd": 13.4,
+  "url": "https://www.binance.com/en/copy-trading/lead-details/5163855802101492736",
+  "style": "Bắt đảo chiều, ngược đà",
+  "tags": [
+   "Giữ lệnh lỗ lâu hơn lệnh lãi",
+   "Có lệnh lỗ cực lớn"
+  ],
+  "story": "Đánh CAP, TUT, SOXL, cả long lẫn short; giữ lệnh trung vị 5.2 giờ, đòn bẩy trung vị 2x, 4.12 lệnh/ngày. 33% lệnh vào cùng chiều biến động 24 giờ trước đó, tức hay đánh ngược đà, bắt đỉnh đáy. Kiếm nhiều nhất khi thị trường đi ngang. Cần để ý: giữ lệnh lỗ lâu hơn lệnh lãi, có lệnh lỗ cực lớn.",
+  "p": {
+   "n": 232,
+   "tagged": 202,
+   "days": 56,
+   "per_day": 4.12,
+   "top_syms": [
+    [
+     "CAP",
+     10
+    ],
+    [
+     "TUT",
+     8
+    ],
+    [
+     "SOXL",
+     7
+    ]
+   ],
+   "n_syms": 71,
+   "cls": {
+    "alt": 63,
+    "major": 3,
+    "tradfi": 20,
+    "meme": 13
+   },
+   "long_pct": 61,
+   "lev_med": 2.0,
+   "lev_p90": 2.0,
+   "hold_med": 5.24,
+   "hold_lt1": 30,
+   "hold_gt24": 36,
+   "win": 77,
+   "payoff": 1.34,
+   "pf": 4.43,
+   "net": 724,
+   "reg_share": {
+    "up": 47,
+    "range": 43,
+    "down": 10
+   },
+   "reg_pnl": {
+    "up": 97,
+    "range": 430,
+    "down": 69
+   },
+   "reg_win": {
+    "up": 83,
+    "range": 72,
+    "down": 80
+   },
+   "hv_share": 51,
+   "hv_pnl": 131,
+   "aligned": 26,
+   "momentum": 33,
+   "overlap": 0,
+   "hold_ratio": 5.22,
+   "top5_share": 32,
+   "tail": 29.0,
+   "peak_hours": [
+    18,
+    10,
+    19
+   ],
+   "dca": null
+  },
+  "rank": 43,
+  "open": null
+ },
+ {
+  "exchange": "OKX",
+  "id": "7743960680DF3CC3",
+  "name": "M Power7",
+  "api": false,
+  "pnl": 127252.04699680618,
+  "roi": 89.91,
+  "aum": 3621.190732592674,
+  "copiers": 28,
+  "cap": 300,
+  "lead_days": 256,
+  "win_official": 53,
+  "mdd": null,
+  "url": "https://www.okx.com/copy-trading/account/7743960680DF3CC3?tab=swap",
+  "style": "Hỗn hợp / linh hoạt",
+  "tags": [
+   "Đòn bẩy cao",
+   "Nghiêng long",
+   "TradFi (cổ phiếu, hàng hoá)",
+   "Lãi dồn vào vài lệnh",
+   "Có lệnh lỗ cực lớn"
+  ],
+  "story": "Đánh SNDK, ZEC, ETH, chủ yếu long; giữ lệnh trung vị 2.5 giờ, đòn bẩy trung vị 20x, 1.26 lệnh/ngày. 44% lệnh vào cùng chiều biến động 24 giờ trước đó. Kiếm nhiều nhất khi thị trường xu hướng giảm, lỗ khi đi ngang. Cần để ý: lãi dồn vào vài lệnh, có lệnh lỗ cực lớn.",
+  "p": {
+   "n": 103,
+   "tagged": 101,
+   "days": 82,
+   "per_day": 1.26,
+   "top_syms": [
+    [
+     "SNDK",
+     32
+    ],
+    [
+     "ZEC",
+     16
+    ],
+    [
+     "ETH",
+     8
+    ]
+   ],
+   "n_syms": 19,
+   "cls": {
+    "alt": 21,
+    "major": 9,
+    "tradfi": 70
+   },
+   "long_pct": 79,
+   "lev_med": 20.0,
+   "lev_p90": 20.0,
+   "hold_med": 2.55,
+   "hold_lt1": 33,
+   "hold_gt24": 18,
+   "win": 57,
+   "payoff": 0.98,
+   "pf": 1.31,
+   "net": 7518,
+   "reg_share": {
+    "up": 20,
+    "range": 38,
+    "down": 43
+   },
+   "reg_pnl": {
+    "up": 2288,
+    "range": -228,
+    "down": 5350
+   },
+   "reg_win": {
+    "up": 70,
+    "range": 58,
+    "down": 49
+   },
+   "hv_share": 45,
+   "hv_pnl": 5636,
+   "aligned": 37,
+   "momentum": 44,
+   "overlap": 16,
+   "hold_ratio": 0.66,
+   "top5_share": 189,
+   "tail": 23.9,
+   "peak_hours": [
+    13,
+    14,
+    17
+   ],
+   "dca": {
+    "adds": 16,
+    "down": 31,
+    "stack": 3
+   }
+  },
+  "rank": 44,
+  "open": {
+   "n": 19,
+   "upl": 26945,
+   "margin": 36461
+  }
+ },
+ {
+  "exchange": "OKX",
+  "id": "81739B09A6B5E3E9",
+  "name": "Zhybitcoin",
+  "api": false,
+  "pnl": 251189.705420091,
+  "roi": 135.23000000000002,
+  "aum": 1112.3823582367306,
+  "copiers": 9,
+  "cap": 300,
+  "lead_days": 321,
+  "win_official": 54,
+  "mdd": null,
+  "url": "https://www.okx.com/copy-trading/account/81739B09A6B5E3E9?tab=swap",
+  "style": "Hỗn hợp / linh hoạt",
+  "tags": [
+   "Đòn bẩy rất cao",
+   "Nghiêng long",
+   "Tập trung 1 mã",
+   "Có lệnh lỗ cực lớn"
+  ],
+  "story": "Đánh BTC, ETH, XAU, chủ yếu long; giữ lệnh trung vị 1.4 giờ, đòn bẩy trung vị 100x, 17.54 lệnh/ngày. 43% lệnh vào cùng chiều biến động 24 giờ trước đó. Kiếm nhiều nhất khi thị trường đi ngang, lỗ khi xu hướng giảm. Cần để ý: đòn bẩy rất cao, có lệnh lỗ cực lớn.",
+  "p": {
+   "n": 996,
+   "tagged": 995,
+   "days": 57,
+   "per_day": 17.54,
+   "top_syms": [
+    [
+     "BTC",
+     71
+    ],
+    [
+     "ETH",
+     21
+    ],
+    [
+     "XAU",
+     3
+    ]
+   ],
+   "n_syms": 16,
+   "cls": {
+    "major": 91,
+    "alt": 1,
+    "tradfi": 7,
+    "meme": 0
+   },
+   "long_pct": 89,
+   "lev_med": 100.0,
+   "lev_p90": 100.0,
+   "hold_med": 1.41,
+   "hold_lt1": 47,
+   "hold_gt24": 14,
+   "win": 40,
+   "payoff": 1.39,
+   "pf": 0.92,
+   "net": -13149,
+   "reg_share": {
+    "range": 71,
+    "up": 19,
+    "down": 11
+   },
+   "reg_pnl": {
+    "range": 16430,
+    "up": -13973,
+    "down": -15614
+   },
+   "reg_win": {
+    "range": 40,
+    "up": 48,
+    "down": 28
+   },
+   "hv_share": 14,
+   "hv_pnl": 9959,
+   "aligned": 74,
+   "momentum": 43,
+   "overlap": 74,
+   "hold_ratio": 0.05,
+   "top5_share": null,
+   "tail": 23.3,
+   "peak_hours": [
+    13,
+    14,
+    15
+   ],
+   "dca": {
+    "adds": 74,
+    "down": 43,
+    "stack": 28
+   }
+  },
+  "rank": 45,
+  "open": {
+   "n": 13,
+   "upl": 251677,
+   "margin": 26500
+  }
+ },
+ {
+  "exchange": "OKX",
+  "id": "B0583281810AF42D",
+  "name": "Lanayafrv07",
+  "api": false,
+  "pnl": 47616.33981852834,
+  "roi": 34.68,
+  "aum": 54288.766848631494,
+  "copiers": 21,
+  "cap": 300,
+  "lead_days": 1075,
+  "win_official": 53,
+  "mdd": null,
+  "url": "https://www.okx.com/copy-trading/account/B0583281810AF42D?tab=swap",
+  "style": "Bắt đảo chiều, ngược đà",
+  "tags": [
+   "Đòn bẩy cao",
+   "Nghiêng long",
+   "Tập trung 1 mã",
+   "Lỗ treo lớn (vị thế đang mở)",
+   "Bình quân giá xuống (DCA)"
+  ],
+  "story": "Đánh SOL, chủ yếu long; giữ lệnh trung vị 2.8 ngày, đòn bẩy trung vị 20x, 0.43 lệnh/ngày. 41% lệnh vào cùng chiều biến động 24 giờ trước đó, tức hay đánh ngược đà, bắt đỉnh đáy. Kiếm nhiều nhất khi thị trường xu hướng tăng. Đang giữ 75 vị thế mở. lỗ chưa chốt -53.441 USDT. so với lãi đã chốt 4.074 USDT. Mở thêm lệnh cùng chiều khi lệnh cũ chưa đóng ở 86% số lệnh, 93% trong đó ở giá xấu hơn (bình quân giá xuống), chồng tối đa 7 vị thế.",
+  "p": {
+   "n": 35,
+   "tagged": 35,
+   "days": 81,
+   "per_day": 0.43,
+   "top_syms": [
+    [
+     "SOL",
+     100
+    ]
+   ],
+   "n_syms": 1,
+   "cls": {
+    "alt": 100
+   },
+   "long_pct": 100,
+   "lev_med": 20.0,
+   "lev_p90": 20.0,
+   "hold_med": 66.95,
+   "hold_lt1": 3,
+   "hold_gt24": 89,
+   "win": 100,
+   "payoff": null,
+   "pf": null,
+   "net": 4074,
+   "reg_share": {
+    "up": 40,
+    "range": 54,
+    "down": 6
+   },
+   "reg_pnl": {
+    "up": 1952,
+    "range": 1878,
+    "down": 245
+   },
+   "reg_win": {
+    "up": 100,
+    "range": 100,
+    "down": 100
+   },
+   "hv_share": 46,
+   "hv_pnl": 2511,
+   "aligned": 88,
+   "momentum": 41,
+   "overlap": 86,
+   "hold_ratio": 0.0,
+   "top5_share": 35,
+   "tail": null,
+   "peak_hours": [
+    5,
+    12,
+    14
+   ],
+   "dca": {
+    "adds": 86,
+    "down": 93,
+    "stack": 7
+   }
+  },
+  "rank": 46,
+  "open": {
+   "n": 75,
+   "upl": -53441,
+   "margin": 8310
+  }
+ },
+ {
+  "exchange": "Binance",
+  "id": "5219564572036331265",
+  "name": "宇通科技",
+  "api": true,
+  "pnl": 17215.28193943,
+  "roi": 3443.05638788,
+  "aum": 44617.25098071,
+  "copiers": 58,
+  "cap": 400,
+  "lead_days": 18,
+  "win_official": 95,
+  "mdd": 36.1,
+  "url": "https://www.binance.com/en/copy-trading/lead-details/5219564572036331265",
+  "style": "Bắt đảo chiều, ngược đà",
+  "tags": [
+   "Nghiêng short",
+   "Chạy bằng API/bot",
+   "Lãi dồn vào vài lệnh",
+   "Giữ lệnh lỗ lâu hơn lệnh lãi"
+  ],
+  "story": "Đánh BR, ZEC, QNT, chủ yếu short; giữ lệnh trung vị 1.4 giờ, đòn bẩy trung vị 10x, 6.32 lệnh/ngày. 31% lệnh vào cùng chiều biến động 24 giờ trước đó, tức hay đánh ngược đà, bắt đỉnh đáy. Kiếm nhiều nhất khi thị trường xu hướng tăng. Cần để ý: lãi dồn vào vài lệnh, giữ lệnh lỗ lâu hơn lệnh lãi.",
+  "p": {
+   "n": 102,
+   "tagged": 95,
+   "days": 16,
+   "per_day": 6.32,
+   "top_syms": [
+    [
+     "BR",
+     12
+    ],
+    [
+     "ZEC",
+     10
+    ],
+    [
+     "QNT",
+     10
+    ]
+   ],
+   "n_syms": 26,
+   "cls": {
+    "alt": 89,
+    "meme": 4,
+    "major": 7
+   },
+   "long_pct": 15,
+   "lev_med": 10.0,
+   "lev_p90": 20.0,
+   "hold_med": 1.36,
+   "hold_lt1": 44,
+   "hold_gt24": 1,
+   "win": 97,
+   "payoff": 2.13,
+   "pf": 70.32,
+   "net": 17382,
+   "reg_share": {
+    "range": 6,
+    "up": 94
+   },
+   "reg_pnl": {
+    "range": 58,
+    "up": 17076
+   },
+   "reg_win": {
+    "range": 100,
+    "up": 97
+   },
+   "hv_share": 96,
+   "hv_pnl": 16137,
+   "aligned": 16,
+   "momentum": 31,
+   "overlap": 0,
+   "hold_ratio": 9.78,
+   "top5_share": 84,
+   "tail": 2.2,
+   "peak_hours": [
+    2,
+    16,
+    10
+   ],
+   "dca": null
+  },
+  "rank": 47,
+  "open": null
+ },
+ {
+  "exchange": "OKX",
+  "id": "818313090499674879",
+  "name": "ryry^",
+  "api": false,
+  "pnl": 182056.66455024638,
+  "roi": 92.75,
+  "aum": 1159.4125818315313,
+  "copiers": 13,
+  "cap": 300,
+  "lead_days": 160,
+  "win_official": 53,
+  "mdd": null,
+  "url": "https://www.okx.com/copy-trading/account/818313090499674879?tab=swap",
+  "style": "Bắt đảo chiều, ngược đà",
+  "tags": [
+   "TradFi (cổ phiếu, hàng hoá)",
+   "Có lệnh lỗ cực lớn",
+   "Bình quân giá xuống (DCA)"
+  ],
+  "story": "Đánh SOXL, SNDK, BTC, chủ yếu long; giữ lệnh trung vị 3.2 ngày, đòn bẩy trung vị 5x, 1.87 lệnh/ngày. 24% lệnh vào cùng chiều biến động 24 giờ trước đó, tức hay đánh ngược đà, bắt đỉnh đáy. Kiếm nhiều nhất khi thị trường đi ngang. Cần để ý: có lệnh lỗ cực lớn. Mở thêm lệnh cùng chiều khi lệnh cũ chưa đóng ở 65% số lệnh, 73% trong đó ở giá xấu hơn (bình quân giá xuống), chồng tối đa 33 vị thế.",
+  "p": {
+   "n": 131,
+   "tagged": 131,
+   "days": 70,
+   "per_day": 1.87,
+   "top_syms": [
+    [
+     "SOXL",
+     40
+    ],
+    [
+     "SNDK",
+     17
+    ],
+    [
+     "BTC",
+     11
+    ]
+   ],
+   "n_syms": 14,
+   "cls": {
+    "tradfi": 68,
+    "alt": 8,
+    "major": 14,
+    "meme": 10
+   },
+   "long_pct": 68,
+   "lev_med": 5.0,
+   "lev_p90": 5.0,
+   "hold_med": 77.37,
+   "hold_lt1": 5,
+   "hold_gt24": 66,
+   "win": 72,
+   "payoff": 2.2,
+   "pf": 5.58,
+   "net": 189483,
+   "reg_share": {
+    "range": 32,
+    "up": 22,
+    "down": 46
+   },
+   "reg_pnl": {
+    "range": 81228,
+    "up": 60300,
+    "down": 47955
+   },
+   "reg_win": {
+    "range": 76,
+    "up": 69,
+    "down": 70
+   },
+   "hv_share": 15,
+   "hv_pnl": 6524,
+   "aligned": 15,
+   "momentum": 24,
+   "overlap": 65,
+   "hold_ratio": 0.85,
+   "top5_share": 45,
+   "tail": 18.3,
+   "peak_hours": [
+    13,
+    14,
+    15
+   ],
+   "dca": {
+    "adds": 65,
+    "down": 73,
+    "stack": 33
+   }
+  },
+  "rank": 48,
+  "open": {
+   "n": 23,
+   "upl": -8162,
+   "margin": 303135
+  }
+ },
+ {
+  "exchange": "Binance",
+  "id": "5217752912495035905",
+  "name": "建斌论坛",
+  "api": true,
+  "pnl": 15826.25905965,
+  "roi": 3165.25181193,
+  "aum": 12435.25161037,
+  "copiers": 60,
+  "cap": 200,
+  "lead_days": 19,
+  "win_official": 82,
+  "mdd": 42.3,
+  "url": "https://www.binance.com/en/copy-trading/lead-details/5217752912495035905",
+  "style": "Hỗn hợp / linh hoạt",
+  "tags": [
+   "Chạy bằng API/bot",
+   "Lãi dồn vào vài lệnh"
+  ],
+  "story": "Đánh ZEC, ETH, SKHYNIX, cả long lẫn short; giữ lệnh trung vị 8.5 giờ, đòn bẩy trung vị 15x, 1.83 lệnh/ngày. 47% lệnh vào cùng chiều biến động 24 giờ trước đó. Kiếm nhiều nhất khi thị trường xu hướng tăng. Cần để ý: lãi dồn vào vài lệnh.",
+  "p": {
+   "n": 35,
+   "tagged": 35,
+   "days": 19,
+   "per_day": 1.83,
+   "top_syms": [
+    [
+     "ZEC",
+     43
+    ],
+    [
+     "ETH",
+     34
+    ],
+    [
+     "SKHYNIX",
+     9
+    ]
+   ],
+   "n_syms": 7,
+   "cls": {
+    "alt": 51,
+    "major": 34,
+    "tradfi": 14
+   },
+   "long_pct": 40,
+   "lev_med": 15.0,
+   "lev_p90": 35.0,
+   "hold_med": 8.53,
+   "hold_lt1": 20,
+   "hold_gt24": 26,
+   "win": 94,
+   "payoff": 0.2,
+   "pf": 3.31,
+   "net": 15733,
+   "reg_share": {
+    "up": 66,
+    "range": 31,
+    "down": 3
+   },
+   "reg_pnl": {
+    "up": 12813,
+    "range": 2899,
+    "down": 22
+   },
+   "reg_win": {
+    "up": 96,
+    "range": 91,
+    "down": 100
+   },
+   "hv_share": 66,
+   "hv_pnl": 13422,
+   "aligned": 25,
+   "momentum": 47,
+   "overlap": 0,
+   "hold_ratio": 2.05,
+   "top5_share": 94,
+   "tail": 1.9,
+   "peak_hours": [
+    14,
+    15,
+    13
+   ],
+   "dca": null
+  },
+  "rank": 49,
+  "open": null
+ },
+ {
+  "exchange": "OKX",
+  "id": "B31CCBB35ADBF9C0",
+  "name": "稳稳赚钱",
+  "api": false,
+  "pnl": 79002.96254632065,
+  "roi": 20.89,
+  "aum": 9365.879558131744,
+  "copiers": 9,
+  "cap": 300,
+  "lead_days": 875,
+  "win_official": 53,
+  "mdd": null,
+  "url": "https://www.okx.com/copy-trading/account/B31CCBB35ADBF9C0?tab=swap",
+  "style": "Bắt đảo chiều, ngược đà",
+  "tags": [
+   "Nghiêng long",
+   "Lỗ treo lớn (vị thế đang mở)"
+  ],
+  "story": "Đánh LDO, DOT, SUI, chủ yếu long; giữ lệnh trung vị 24.9 giờ, đòn bẩy trung vị 1x, 0.35 lệnh/ngày. 38% lệnh vào cùng chiều biến động 24 giờ trước đó, tức hay đánh ngược đà, bắt đỉnh đáy. Kiếm nhiều nhất khi thị trường xu hướng tăng. Đang giữ 21 vị thế mở. lỗ chưa chốt -25.958 USDT. so với lãi đã chốt 11.144 USDT.",
+  "p": {
+   "n": 30,
+   "tagged": 30,
+   "days": 87,
+   "per_day": 0.35,
+   "top_syms": [
+    [
+     "LDO",
+     37
+    ],
+    [
+     "DOT",
+     23
+    ],
+    [
+     "SUI",
+     20
+    ]
+   ],
+   "n_syms": 6,
+   "cls": {
+    "alt": 97,
+    "major": 3
+   },
+   "long_pct": 100,
+   "lev_med": 1.0,
+   "lev_p90": 1.0,
+   "hold_med": 24.94,
+   "hold_lt1": 0,
+   "hold_gt24": 50,
+   "win": 100,
+   "payoff": null,
+   "pf": null,
+   "net": 11144,
+   "reg_share": {
+    "up": 43,
+    "range": 47,
+    "down": 10
+   },
+   "reg_pnl": {
+    "up": 4879,
+    "range": 4766,
+    "down": 1500
+   },
+   "reg_win": {
+    "up": 100,
+    "range": 100,
+    "down": 100
+   },
+   "hv_share": 50,
+   "hv_pnl": 5522,
+   "aligned": 81,
+   "momentum": 38,
+   "overlap": 27,
+   "hold_ratio": 0.0,
+   "top5_share": 31,
+   "tail": null,
+   "peak_hours": [
+    14,
+    12,
+    19
+   ],
+   "dca": {
+    "adds": 27,
+    "down": 100,
+    "stack": 4
+   }
+  },
+  "rank": 50,
+  "open": {
+   "n": 21,
+   "upl": -25958,
+   "margin": 139622
+  }
+ }
+]

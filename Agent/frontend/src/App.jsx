@@ -34,6 +34,31 @@ function RequireAdmin({ children }) {
   return children;
 }
 
+// `/#/okx`: the link handed to the OKX review team. On an open-access
+// deployment it signs in exactly like the "OKX staff: click here" button and
+// lands on the console; otherwise it falls back to the normal login screen.
+function OkxStaffEntry() {
+  const { session, login, adminOpenAccess } = useSession();
+  const navigate = useNavigate();
+  const [failed, setFailed] = React.useState(false);
+  React.useEffect(() => {
+    if (session && session.role === "admin") {
+      navigate("/admin", { replace: true });
+      return;
+    }
+    if (!adminOpenAccess) {
+      setFailed(true);
+      return;
+    }
+    login("admin").then((r) => {
+      if (r.ok && r.session?.role === "admin") navigate("/admin", { replace: true });
+      else setFailed(true);
+    });
+  }, [session, adminOpenAccess]);
+  if (failed) return <Navigate to="/login" replace />;
+  return <div className="msg" style={{ marginTop: 60 }}>Opening the console…</div>;
+}
+
 function RootRoute() {
   const [searchParams] = useSearchParams();
   const { session } = useSession();
@@ -47,16 +72,16 @@ function RootRoute() {
     return <UserHome />;
   }
 
-  if (session && session.role === "admin") {
-    return <Navigate to="/admin" replace />;
-  }
-
   // A brand-new visitor with no bot code and no admin session used to land
   // here, on `/login` -- an admin-only screen with no link back to the
   // free "look up & analyze your own bot" tool. `/user` (UserHome) needs
   // no login at all, so that is the correct default landing spot, not a
   // dead end that only an admin can pass through.
-  return <Navigate to="/user" replace />;
+  //
+  // 2026-09-26 (project owner): the site opens on the entry screen, which
+  // offers an Admin tab and a User tab; a bot-code link still opens its
+  // report directly (above).
+  return <Navigate to="/login" replace />;
 }
 
 function AppHeader() {
@@ -102,7 +127,7 @@ function AppHeader() {
 
   React.useEffect(() => {
     if (isLoginPage) {
-      document.title = "Nora - Admin Login";
+      document.title = "Nora - Sign in";
     } else if (botCode) {
       document.title = `Nora - Risk Management · ${botCode}`;
     } else if (isAdmin) {
@@ -152,7 +177,7 @@ function AppHeader() {
             <div className="brand-name-row">
               <span className="brand-name">NORABT</span>
               <span className="brand-badge-fintech">
-                {isLoginPage ? "Admin portal" : "AI Engine"}
+                AI Engine
               </span>
             </div>
             <span className="brand-sub">OKX quant risk protocol</span>
@@ -215,7 +240,7 @@ function AppHeader() {
         {isLoginPage ? (
           <div className="user-badge-capsule">
             <span className="user-badge-pulse" style={{ background: "#38BDF8", boxShadow: "0 0 8px #38BDF8" }} />
-            <span className="user-badge-label">ADMIN PORTAL</span>
+            <span className="user-badge-label">SIGN IN</span>
           </div>
         ) : isUserView ? (
           <div className="user-badge-capsule user-badge-client">
@@ -233,12 +258,12 @@ function AppHeader() {
 
         <ThemeToggle />
 
-        {isAdmin && !isLoginPage && (
+        {(isAdmin || isUserView) && !isLoginPage && (
           <button
             type="button"
             className="btn-logout"
             onClick={handleLogout}
-            title="Log out of the Admin role"
+            title={isAdmin ? "Log out of the Admin role" : "Log out and return to the entry screen"}
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
@@ -267,6 +292,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<AdminLoginPage />} />
+      <Route path="/okx" element={<OkxStaffEntry />} />
       <Route
         path="/admin"
         element={

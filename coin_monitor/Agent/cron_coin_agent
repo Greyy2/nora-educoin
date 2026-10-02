@@ -1,3 +1,0 @@
-*/5 * * * * ubuntu /home/ubuntu/anaconda3/bin/python /home/ubuntu/linhvhv/coin_monitor/manage.py scraper_process >> /dev/null 2>&1
-*/5 * * * * ubuntu /home/ubuntu/anaconda3/bin/python /home/ubuntu/linhvhv/coin_monitor/manage.py scrape_info >> /dev/null 2>&1
-*/3 * * * * ubuntu /home/ubuntu/anaconda3/bin/python /home/ubuntu/linhvhv/coin_monitor/manage.py scraper_coin >> /dev/null 2>&1

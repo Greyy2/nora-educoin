@@ -1,0 +1,1215 @@
+{
+ "28AEEA33C8C78CC9": {
+  "n_open": 87,
+  "upl": -33496,
+  "margin": 17654,
+  "oldest_open": 1776419239201,
+  "sample": [
+   {
+    "instId": "ETH-USDT-SWAP",
+    "posSide": "long",
+    "lever": "100",
+    "openTime": "1790606780937",
+    "upl": "-40.29416",
+    "uplRatio": "-0.26935875359676",
+    "margin": "149.5929108"
+   },
+   {
+    "instId": "BTC-USDT-SWAP",
+    "posSide": "long",
+    "lever": "100",
+    "openTime": "1790605805846",
+    "upl": "7.8",
+    "uplRatio": "0.01882057716437",
+    "margin": "414.44"
+   },
+   {
+    "instId": "ETH-USDT-SWAP",
+    "posSide": "long",
+    "lever": "100",
+    "openTime": "1790605779053",
+    "upl": "4.1",
+    "uplRatio": "0.01542513167795",
+    "margin": "265.8"
+   },
+   {
+    "instId": "CRCL-USDT-SWAP",
+    "posSide": "long",
+    "lever": "10",
+    "openTime": "1790602425441",
+    "upl": "-24.5",
+    "uplRatio": "-0.113953488372093",
+    "margin": "215"
+   },
+   {
+    "instId": "CRCL-USDT-SWAP",
+    "posSide": "long",
+    "lever": "10",
+    "openTime": "1790602417332",
+    "upl": "0.5",
+    "uplRatio": "0.002352941176471",
+    "margin": "212.5"
+   }
+  ]
+ },
+ "F6476365DB0D09A3": {
+  "n_open": 14,
+  "upl": -961094,
+  "margin": 1081340,
+  "oldest_open": 1790046899886,
+  "sample": [
+   {
+    "instId": "ETH-USDT-SWAP",
+    "posSide": "long",
+    "lever": "30",
+    "openTime": "1790345045395",
+    "upl": "-20671.2256199999994375",
+    "uplRatio": "-0.246784755494868",
+    "margin": "83762.1658539999999813"
+   },
+   {
+    "instId": "ETH-USDT-SWAP",
+    "posSide": "long",
+    "lever": "30",
+    "openTime": "1790344072355",
+    "upl": "-25636.5973999999999688",
+    "uplRatio": "-0.30546058148604",
+    "margin": "83927.6782466666666656"
+   },
+   {
+    "instId": "BTC-USDT-SWAP",
+    "posSide": "long",
+    "lever": "50",
+    "openTime": "1790173738644",
+    "upl": "-37854.4163399999999993",
+    "uplRatio": "-0.71132371276288",
+    "margin": "53216.8626756"
+   },
+   {
+    "instId": "ETH-USDT-SWAP",
+    "posSide": "long",
+    "lever": "30",
+    "openTime": "1790173704844",
+    "upl": "8327.7034300000000287",
+    "uplRatio": "0.090598934420874",
+    "margin": "91918.3374863333333324"
+   },
+   {
+    "instId": "ETH-USDT-SWAP",
+    "posSide": "long",
+    "lever": "30",
+    "openTime": "1790171220659",
+    "upl": "-58320.9486700000000087",
+    "uplRatio": "-0.619513213638096",
+    "margin": "94139.9592230000000003"
+   }
+  ]
+ },
+ "35F888C7BB441B2B": {
+  "n_open": 0,
+  "upl": 0,
+  "margin": 0,
+  "oldest_open": null,
+  "sample": []
+ },
+ "819848249304757406": {
+  "n_open": 6,
+  "upl": -11699,
+  "margin": 73136,
+  "oldest_open": null,
+  "sample": [
+   {
+    "instId": "",
+    "posSide": "net",
+    "lever": "10",
+    "openTime": "",
+    "upl": "1793.1",
+    "uplRatio": "0.21990434142752",
+    "margin": "8154"
+   },
+   {
+    "instId": "",
+    "posSide": "net",
+    "lever": "10",
+    "openTime": "",
+    "upl": "1403.1",
+    "uplRatio": "0.172902033271719",
+    "margin": "8115"
+   },
+   {
+    "instId": "",
+    "posSide": "net",
+    "lever": "10",
+    "openTime": "",
+    "upl": "-342",
+    "uplRatio": "-0.027456647398844",
+    "margin": "12456"
+   },
+   {
+    "instId": "",
+    "posSide": "net",
+    "lever": "10",
+    "openTime": "",
+    "upl": "-1422",
+    "uplRatio": "-0.113180515759312",
+    "margin": "12564"
+   },
+   {
+    "instId": "",
+    "posSide": "net",
+    "lever": "10",
+    "openTime": "",
+    "upl": "-6244.4",
+    "uplRatio": "-0.391365932536947",
+    "margin": "15955.4"
+   }
+  ]
+ },
+ "CA1C48E543EF7A95": {
+  "n_open": 7,
+  "upl": 22711,
+  "margin": 77873,
+  "oldest_open": 1790099271527,
+  "sample": [
+   {
+    "instId": "LITE-USDT-SWAP",
+    "posSide": "long",
+    "lever": "10",
+    "openTime": "1790616512608",
+    "upl": "188.7193",
+    "uplRatio": "0.211088786060151",
+    "margin": "894.02807"
+   },
+   {
+    "instId": "BTC-USDT-SWAP",
+    "posSide": "short",
+    "lever": "10",
+    "openTime": "1790615776011",
+    "upl": "1333.8",
+    "uplRatio": "0.158345551354271",
+    "margin": "8423.35"
+   },
+   {
+    "instId": "BTC-USDT-SWAP",
+    "posSide": "short",
+    "lever": "10",
+    "openTime": "1790615662319",
+    "upl": "3751.33632",
+    "uplRatio": "0.148596943411296",
+    "margin": "25245.043632"
+   },
+   {
+    "instId": "DOGE-USDT-SWAP",
+    "posSide": "short",
+    "lever": "10",
+    "openTime": "1790613636013",
+    "upl": "1165.118199999923268",
+    "uplRatio": "0.227554424920305",
+    "margin": "5120.1737799999923268"
+   },
+   {
+    "instId": "ETH-USDT-SWAP",
+    "posSide": "short",
+    "lever": "20",
+    "openTime": "1790597249768",
+    "upl": "8100",
+    "uplRatio": "0.240835789387616",
+    "margin": "33632.875"
+   }
+  ]
+ },
+ "4A8AB04BF304EBD8": {
+  "n_open": 20,
+  "upl": -11420,
+  "margin": 44537,
+  "oldest_open": null,
+  "sample": [
+   {
+    "instId": "",
+    "posSide": "long",
+    "lever": "10",
+    "openTime": "",
+    "upl": "-17",
+    "uplRatio": "-0.010928259192594",
+    "margin": "1555.6"
+   },
+   {
+    "instId": "",
+    "posSide": "long",
+    "lever": "10",
+    "openTime": "",
+    "upl": "-126",
+    "uplRatio": "-0.080434088732844",
+    "margin": "1566.5"
+   },
+   {
+    "instId": "",
+    "posSide": "long",
+    "lever": "10",
+    "openTime": "",
+    "upl": "-132",
+    "uplRatio": "-0.084232020930381",
+    "margin": "1567.1"
+   },
+   {
+    "instId": "",
+    "posSide": "long",
+    "lever": "10",
+    "openTime": "",
+    "upl": "-234",
+    "uplRatio": "-0.049945572132932",
+    "margin": "4685.1"
+   },
+   {
+    "instId": "",
+    "posSide": "long",
+    "lever": "10",
+    "openTime": "",
+    "upl": "-375",
+    "uplRatio": "-0.31809313767071",
+    "margin": "1178.9"
+   }
+  ]
+ },
+ "87CE370F79220167": {
+  "n_open": 17,
+  "upl": -22725,
+  "margin": 40727,
+  "oldest_open": 1788769240267,
+  "sample": [
+   {
+    "instId": "GRASS-USDT-SWAP",
+    "posSide": "long",
+    "lever": "10",
+    "openTime": "1790518057118",
+    "upl": "-133.28",
+    "uplRatio": "-0.309636650868878",
+    "margin": "430.44"
+   },
+   {
+    "instId": "PUMP-USDT-SWAP",
+    "posSide": "long",
+    "lever": "10",
+    "openTime": "1790336943320",
+    "upl": "2013.122000000364",
+    "uplRatio": "1.285037819186419",
+    "margin": "1566.5857999999636"
+   },
+   {
+    "instId": "GOOGL-USDT-SWAP",
+    "posSide": "long",
+    "lever": "20",
+    "openTime": "1790335684998",
+    "upl": "-561.666",
+    "uplRatio": "-0.10001744490318",
+    "margin": "5615.68035"
+   },
+   {
+    "instId": "QQQ-USDT-SWAP",
+    "posSide": "long",
+    "lever": "10",
+    "openTime": "1790256637850",
+    "upl": "-359.37",
+    "uplRatio": "-0.020387082744373",
+    "margin": "17627.33808"
+   },
+   {
+    "instId": "GOOGL-USDT-SWAP",
+    "posSide": "long",
+    "lever": "20",
+    "openTime": "1790254889175",
+    "upl": "334.6989000000000001",
+    "uplRatio": "0.258695156741202",
+    "margin": "1293.796545"
+   }
+  ]
+ },
+ "AD2B6E949E5E91EC": {
+  "n_open": 0,
+  "upl": 0,
+  "margin": 0,
+  "oldest_open": null,
+  "sample": []
+ },
+ "F2BCA22ABBB69F57": {
+  "n_open": 6,
+  "upl": -54,
+  "margin": 44603,
+  "oldest_open": 1789955336491,
+  "sample": [
+   {
+    "instId": "BTC-USDT-SWAP",
+    "posSide": "short",
+    "lever": "10",
+    "openTime": "1790260642274",
+    "upl": "830.35",
+    "uplRatio": "0.196389145440548",
+    "margin": "4228.085"
+   },
+   {
+    "instId": "NBIS-USDT-SWAP",
+    "posSide": "short",
+    "lever": "5",
+    "openTime": "1790260599444",
+    "upl": "773",
+    "uplRatio": "0.3165178937023995",
+    "margin": "2442.2"
+   },
+   {
+    "instId": "NBIS-USDT-SWAP",
+    "posSide": "short",
+    "lever": "5",
+    "openTime": "1790215701430",
+    "upl": "-667.9579",
+    "uplRatio": "-0.0740791939771525",
+    "margin": "9016.80842"
+   },
+   {
+    "instId": "BTC-USDT-SWAP",
+    "posSide": "short",
+    "lever": "10",
+    "openTime": "1790002434310",
+    "upl": "1514.2",
+    "uplRatio": "0.352428854385111",
+    "margin": "4296.47"
+   },
+   {
+    "instId": "BTC-USDT-SWAP",
+    "posSide": "short",
+    "lever": "10",
+    "openTime": "1789980405111",
+    "upl": "676.7041200000000001",
+    "uplRatio": "0.080967062582671",
+    "margin": "8357.770412"
+   }
+  ]
+ },
+ "08E31CADCFDDCFB8": {
+  "n_open": 100,
+  "upl": -1695,
+  "margin": 33533,
+  "oldest_open": null,
+  "sample": [
+   {
+    "instId": "",
+    "posSide": "long",
+    "lever": "3",
+    "openTime": "",
+    "upl": "-2.542",
+    "uplRatio": "-0.0382873610539317",
+    "margin": "66.3926666666666667"
+   },
+   {
+    "instId": "",
+    "posSide": "long",
+    "lever": "3",
+    "openTime": "",
+    "upl": "-2.368",
+    "uplRatio": "-0.0395061728395062",
+    "margin": "59.94"
+   },
+   {
+    "instId": "",
+    "posSide": "long",
+    "lever": "3",
+    "openTime": "",
+    "upl": "-3.773",
+    "uplRatio": "-0.0177820885871322",
+    "margin": "212.1798"
+   },
+   {
+    "instId": "",
+    "posSide": "long",
+    "lever": "3",
+    "openTime": "",
+    "upl": "-2.3414",
+    "uplRatio": "-0.0148867313915859",
+    "margin": "157.281"
+   },
+   {
+    "instId": "",
+    "posSide": "long",
+    "lever": "3",
+    "openTime": "",
+    "upl": "-37.584",
+    "uplRatio": "-0.0358467243510507",
+    "margin": "1048.464"
+   }
+  ]
+ },
+ "31F3288F9B90B496": {
+  "n_open": 72,
+  "upl": -72442,
+  "margin": 89246,
+  "oldest_open": 1761974447656,
+  "sample": [
+   {
+    "instId": "NMR-USDT-SWAP",
+    "posSide": "short",
+    "lever": "10",
+    "openTime": "1790650997415",
+    "upl": "-34.2672",
+    "uplRatio": "-0.122389710966671",
+    "margin": "279.98432"
+   },
+   {
+    "instId": "NMR-USDT-SWAP",
+    "posSide": "short",
+    "lever": "10",
+    "openTime": "1790650988201",
+    "upl": "-62.5355",
+    "uplRatio": "-0.125190206114262",
+    "margin": "499.5239"
+   },
+   {
+    "instId": "UNI-USDT-SWAP",
+    "posSide": "long",
+    "lever": "10",
+    "openTime": "1790645828805",
+    "upl": "2.34",
+    "uplRatio": "0.001170001170001",
+    "margin": "1999.998"
+   },
+   {
+    "instId": "HBAR-USDT-SWAP",
+    "posSide": "short",
+    "lever": "10",
+    "openTime": "1790635074401",
+    "upl": "0.067",
+    "uplRatio": "0.538498633660183",
+    "margin": "0.12442"
+   },
+   {
+    "instId": "HBAR-USDT-SWAP",
+    "posSide": "short",
+    "lever": "10",
+    "openTime": "1790601488382",
+    "upl": "12.4",
+    "uplRatio": "0.104236718224613",
+    "margin": "118.96"
+   }
+  ]
+ },
+ "EF1CC6F40E834D1A": {
+  "n_open": 17,
+  "upl": -9394,
+  "margin": 37012,
+  "oldest_open": 1784031142761,
+  "sample": [
+   {
+    "instId": "ETH-USDT-SWAP",
+    "posSide": "long",
+    "lever": "20",
+    "openTime": "1790645422439",
+    "upl": "-28.58208",
+    "uplRatio": "-0.005716649742374",
+    "margin": "4999.79556"
+   },
+   {
+    "instId": "ETH-USDT-SWAP",
+    "posSide": "long",
+    "lever": "20",
+    "openTime": "1790645417806",
+    "upl": "-28.20675",
+    "uplRatio": "-0.005641451884056",
+    "margin": "4999.9097005"
+   },
+   {
+    "instId": "ETH-USDT-SWAP",
+    "posSide": "long",
+    "lever": "20",
+    "openTime": "1790644333493",
+    "upl": "-377.39339",
+    "uplRatio": "-0.075481315188834",
+    "margin": "4999.8253085"
+   },
+   {
+    "instId": "ETH-USDT-SWAP",
+    "posSide": "long",
+    "lever": "20",
+    "openTime": "1790643912290",
+    "upl": "-613.2964700000000004",
+    "uplRatio": "-0.122683970715212",
+    "margin": "4998.9942975"
+   },
+   {
+    "instId": "ETH-USDT-SWAP",
+    "posSide": "long",
+    "lever": "20",
+    "openTime": "1790643901311",
+    "upl": "-626.22064",
+    "uplRatio": "-0.125313095816666",
+    "margin": "4997.24818"
+   }
+  ]
+ },
+ "44570B03F5CBCEDE": {
+  "n_open": 25,
+  "upl": -13804,
+  "margin": 95247,
+  "oldest_open": null,
+  "sample": [
+   {
+    "instId": "",
+    "posSide": "net",
+    "lever": "3",
+    "openTime": "",
+    "upl": "-288.6075",
+    "uplRatio": "-0.0432954545454546",
+    "margin": "6666"
+   },
+   {
+    "instId": "",
+    "posSide": "net",
+    "lever": "3",
+    "openTime": "",
+    "upl": "2206.988",
+    "uplRatio": "0.3311111111111112",
+    "margin": "6665.4"
+   },
+   {
+    "instId": "",
+    "posSide": "net",
+    "lever": "3",
+    "openTime": "",
+    "upl": "-5801.3928",
+    "uplRatio": "-0.8702097902097903",
+    "margin": "6666.66"
+   },
+   {
+    "instId": "",
+    "posSide": "net",
+    "lever": "3",
+    "openTime": "",
+    "upl": "-2264.0961",
+    "uplRatio": "-0.339618320610687",
+    "margin": "6666.59"
+   },
+   {
+    "instId": "",
+    "posSide": "net",
+    "lever": "5",
+    "openTime": "",
+    "upl": "1049.7344",
+    "uplRatio": "0.262471395881007",
+    "margin": "3999.424"
+   }
+  ]
+ },
+ "F76CC883269E6FFB": {
+  "n_open": 23,
+  "upl": -60956,
+  "margin": 58184,
+  "oldest_open": null,
+  "sample": [
+   {
+    "instId": "",
+    "posSide": "short",
+    "lever": "20",
+    "openTime": "",
+    "upl": "-5.1216999999999972",
+    "uplRatio": "-0.004485877764084",
+    "margin": "1141.7386450000000001"
+   },
+   {
+    "instId": "",
+    "posSide": "short",
+    "lever": "20",
+    "openTime": "",
+    "upl": "1596.9683999999999984",
+    "uplRatio": "1.051051904280146",
+    "margin": "1519.4001299999999999"
+   },
+   {
+    "instId": "",
+    "posSide": "short",
+    "lever": "10",
+    "openTime": "",
+    "upl": "72.6388999999999871",
+    "uplRatio": "0.019300456631434",
+    "margin": "3763.5845299999999987"
+   },
+   {
+    "instId": "",
+    "posSide": "long",
+    "lever": "20",
+    "openTime": "",
+    "upl": "-2481.705",
+    "uplRatio": "-1.528664560203546",
+    "margin": "1623.446415"
+   },
+   {
+    "instId": "",
+    "posSide": "long",
+    "lever": "20",
+    "openTime": "",
+    "upl": "-2114.8108000000000002",
+    "uplRatio": "-2.001705179457164",
+    "margin": "1056.504635"
+   }
+  ]
+ },
+ "F1344E1B7AE2D41F": {
+  "n_open": 8,
+  "upl": 28134,
+  "margin": 75722,
+  "oldest_open": 1790099368934,
+  "sample": [
+   {
+    "instId": "LITE-USDT-SWAP",
+    "posSide": "long",
+    "lever": "10",
+    "openTime": "1790616022445",
+    "upl": "364.5294",
+    "uplRatio": "0.203772128888574",
+    "margin": "1788.90706"
+   },
+   {
+    "instId": "BTC-USDT-SWAP",
+    "posSide": "short",
+    "lever": "20",
+    "openTime": "1790615894130",
+    "upl": "4788",
+    "uplRatio": "0.284661456196738",
+    "margin": "16819.98"
+   },
+   {
+    "instId": "XRP-USDT-SWAP",
+    "posSide": "short",
+    "lever": "10",
+    "openTime": "1790598086889",
+    "upl": "2658.5110999999977732",
+    "uplRatio": "0.262167207706785",
+    "margin": "10140.5172799999997773"
+   },
+   {
+    "instId": "ETH-USDT-SWAP",
+    "posSide": "short",
+    "lever": "20",
+    "openTime": "1790597325640",
+    "upl": "4797.099290000000016",
+    "uplRatio": "0.198529837607768",
+    "margin": "24163.1149645000000008"
+   },
+   {
+    "instId": "SUI-USDT-SWAP",
+    "posSide": "short",
+    "lever": "10",
+    "openTime": "1790559905998",
+    "upl": "12448",
+    "uplRatio": "1.2300395256917",
+    "margin": "10120"
+   }
+  ]
+ },
+ "AD43C20F20C153C8": {
+  "n_open": 46,
+  "upl": 521026,
+  "margin": 113776,
+  "oldest_open": 1779677657762,
+  "sample": [
+   {
+    "instId": "SOXL-USDT-SWAP",
+    "posSide": "long",
+    "lever": "10",
+    "openTime": "1787900591368",
+    "upl": "2541",
+    "uplRatio": "1.537693459810285",
+    "margin": "1652.475"
+   },
+   {
+    "instId": "SKHY-USDT-SWAP",
+    "posSide": "long",
+    "lever": "10",
+    "openTime": "1787900270148",
+    "upl": "532.5632",
+    "uplRatio": "1.4864101437449",
+    "margin": "358.28819"
+   },
+   {
+    "instId": "SKHY-USDT-SWAP",
+    "posSide": "long",
+    "lever": "10",
+    "openTime": "1787899854958",
+    "upl": "1035.936",
+    "uplRatio": "1.508081252751399",
+    "margin": "686.9232"
+   },
+   {
+    "instId": "ETH-USDT-SWAP",
+    "posSide": "long",
+    "lever": "10",
+    "openTime": "1787896216186",
+    "upl": "301.88052",
+    "uplRatio": "0.649167507972373",
+    "margin": "465.027156"
+   },
+   {
+    "instId": "SOXL-USDT-SWAP",
+    "posSide": "long",
+    "lever": "10",
+    "openTime": "1787882068844",
+    "upl": "1433.2626",
+    "uplRatio": "1.398273736128237",
+    "margin": "1025.0229"
+   }
+  ]
+ },
+ "7743960680DF3CC3": {
+  "n_open": 19,
+  "upl": 26945,
+  "margin": 36461,
+  "oldest_open": 1779632250152,
+  "sample": [
+   {
+    "instId": "SPCX-USDT-SWAP",
+    "posSide": "net",
+    "lever": "20",
+    "openTime": "1790604497649",
+    "upl": "-59.6322999999999954",
+    "uplRatio": "-0.074491407607638",
+    "margin": "800.5258849999999998"
+   },
+   {
+    "instId": "SPCX-USDT-SWAP",
+    "posSide": "net",
+    "lever": "20",
+    "openTime": "1790238750904",
+    "upl": "-49.8272",
+    "uplRatio": "-0.249204306900522",
+    "margin": "199.94518"
+   },
+   {
+    "instId": "ETH-USDT-SWAP",
+    "posSide": "net",
+    "lever": "10",
+    "openTime": "1790172835487",
+    "upl": "-94.09902",
+    "uplRatio": "-0.047065607284872",
+    "margin": "1999.315964"
+   },
+   {
+    "instId": "CL-USDT-SWAP",
+    "posSide": "net",
+    "lever": "20",
+    "openTime": "1790058386405",
+    "upl": "-12.792",
+    "uplRatio": "-0.051216389244558",
+    "margin": "249.7638"
+   },
+   {
+    "instId": "SNDK-USDT-SWAP",
+    "posSide": "net",
+    "lever": "20",
+    "openTime": "1790020380003",
+    "upl": "-140.9666000000000001",
+    "uplRatio": "-0.70480269348418",
+    "margin": "200.0086"
+   }
+  ]
+ },
+ "1D7BB961DBFDECFC": {
+  "n_open": 11,
+  "upl": -4524,
+  "margin": 83645,
+  "oldest_open": 1790565782525,
+  "sample": [
+   {
+    "instId": "ETH-USDT-SWAP",
+    "posSide": "short",
+    "lever": "18",
+    "openTime": "1790589390790",
+    "upl": "-617",
+    "uplRatio": "-0.0418778280542988",
+    "margin": "14733.3333333333333333"
+   },
+   {
+    "instId": "ETH-USDT-SWAP",
+    "posSide": "short",
+    "lever": "18",
+    "openTime": "1790581648685",
+    "upl": "-308.5",
+    "uplRatio": "-0.0418778280542988",
+    "margin": "7366.6666666666666667"
+   },
+   {
+    "instId": "ETH-USDT-SWAP",
+    "posSide": "short",
+    "lever": "18",
+    "openTime": "1790572443101",
+    "upl": "-143.4",
+    "uplRatio": "-0.0486835156544706",
+    "margin": "2945.5555555555555556"
+   },
+   {
+    "instId": "ETH-USDT-SWAP",
+    "posSide": "short",
+    "lever": "18",
+    "openTime": "1790572307611",
+    "upl": "-103.4",
+    "uplRatio": "-0.0350772710139468",
+    "margin": "2947.7777777777777778"
+   },
+   {
+    "instId": "ETH-USDT-SWAP",
+    "posSide": "short",
+    "lever": "18",
+    "openTime": "1790572176156",
+    "upl": "-103.4",
+    "uplRatio": "-0.0350772710139468",
+    "margin": "2947.7777777777777778"
+   }
+  ]
+ },
+ "BB3398A957270A39": {
+  "n_open": 2,
+  "upl": 1543,
+  "margin": 39949,
+  "oldest_open": 1789740551934,
+  "sample": [
+   {
+    "instId": "MSTR-USDT-SWAP",
+    "posSide": "short",
+    "lever": "3",
+    "openTime": "1789980760181",
+    "upl": "2235.900593797647522",
+    "uplRatio": "0.1421417552619423",
+    "margin": "19970.0734999999999791"
+   },
+   {
+    "instId": "BTC-USDT-SWAP",
+    "posSide": "short",
+    "lever": "2",
+    "openTime": "1789740551934",
+    "upl": "-692.9579",
+    "uplRatio": "-0.069354393838604",
+    "margin": "19979.093945"
+   }
+  ]
+ },
+ "818313090499674879": {
+  "n_open": 23,
+  "upl": -8162,
+  "margin": 303135,
+  "oldest_open": 1787201302344,
+  "sample": [
+   {
+    "instId": "ETH-USDT-SWAP",
+    "posSide": "net",
+    "lever": "5",
+    "openTime": "1790613472445",
+    "upl": "3548.43912",
+    "uplRatio": "0.0591449814126395",
+    "margin": "59995.608"
+   },
+   {
+    "instId": "BTC-USDT-SWAP",
+    "posSide": "net",
+    "lever": "10",
+    "openTime": "1789983537675",
+    "upl": "12670.8379900000000003",
+    "uplRatio": "0.253443725893096",
+    "margin": "24997.3400315"
+   },
+   {
+    "instId": "BTC-USDT-SWAP",
+    "posSide": "net",
+    "lever": "10",
+    "openTime": "1789979932367",
+    "upl": "667.52068",
+    "uplRatio": "0.133560871589764",
+    "margin": "4997.87604"
+   },
+   {
+    "instId": "BTC-USDT-SWAP",
+    "posSide": "net",
+    "lever": "10",
+    "openTime": "1789979918291",
+    "upl": "418.74",
+    "uplRatio": "0.083728151437911",
+    "margin": "5001.185298"
+   },
+   {
+    "instId": "BTC-USDT-SWAP",
+    "posSide": "net",
+    "lever": "10",
+    "openTime": "1789979577117",
+    "upl": "-207.418",
+    "uplRatio": "-0.041484277156153",
+    "margin": "9999.836768"
+   }
+  ]
+ },
+ "6BDAFE4381357DBA": {
+  "n_open": 30,
+  "upl": -1222,
+  "margin": 12828,
+  "oldest_open": 1790074905645,
+  "sample": [
+   {
+    "instId": "BCH-USDT-SWAP",
+    "posSide": "long",
+    "lever": "5",
+    "openTime": "1790510096666",
+    "upl": "-6.066",
+    "uplRatio": "-0.499851676060516",
+    "margin": "12.1356"
+   },
+   {
+    "instId": "BCH-USDT-SWAP",
+    "posSide": "long",
+    "lever": "5",
+    "openTime": "1790510096666",
+    "upl": "-3.222",
+    "uplRatio": "-0.5277122641509435",
+    "margin": "6.1056"
+   },
+   {
+    "instId": "BCH-USDT-SWAP",
+    "posSide": "long",
+    "lever": "5",
+    "openTime": "1790510096666",
+    "upl": "-10.692",
+    "uplRatio": "-0.171865054105665",
+    "margin": "62.2116"
+   },
+   {
+    "instId": "BCH-USDT-SWAP",
+    "posSide": "long",
+    "lever": "5",
+    "openTime": "1790510096666",
+    "upl": "-12.193",
+    "uplRatio": "-0.2160201829076",
+    "margin": "56.4438"
+   },
+   {
+    "instId": "BCH-USDT-SWAP",
+    "posSide": "long",
+    "lever": "5",
+    "openTime": "1790510096666",
+    "upl": "-12.87",
+    "uplRatio": "-0.257893091591122",
+    "margin": "49.9044"
+   }
+  ]
+ },
+ "81739B09A6B5E3E9": {
+  "n_open": 13,
+  "upl": 251677,
+  "margin": 26500,
+  "oldest_open": 1786974340860,
+  "sample": [
+   {
+    "instId": "BTC-USDT-SWAP",
+    "posSide": "long",
+    "lever": "50",
+    "openTime": "1790607235161",
+    "upl": "92.35845",
+    "uplRatio": "0.04618070479603",
+    "margin": "1999.9359128"
+   },
+   {
+    "instId": "BTC-USDT-SWAP",
+    "posSide": "long",
+    "lever": "50",
+    "openTime": "1790607233517",
+    "upl": "85.59048",
+    "uplRatio": "0.042797262906785",
+    "margin": "1999.9054656"
+   },
+   {
+    "instId": "BTC-USDT-SWAP",
+    "posSide": "long",
+    "lever": "50",
+    "openTime": "1790585544939",
+    "upl": "-9.16636",
+    "uplRatio": "-0.00458323332638",
+    "margin": "1999.9767298"
+   },
+   {
+    "instId": "BTC-USDT-SWAP",
+    "posSide": "long",
+    "lever": "50",
+    "openTime": "1790573984880",
+    "upl": "94.99596",
+    "uplRatio": "0.09498937110027",
+    "margin": "1000.0693646"
+   },
+   {
+    "instId": "BTC-USDT-SWAP",
+    "posSide": "long",
+    "lever": "50",
+    "openTime": "1790573979470",
+    "upl": "8.06637",
+    "uplRatio": "0.0871808504211",
+    "margin": "999.894238"
+   }
+  ]
+ },
+ "C84F6F6717746BD4": {
+  "n_open": 0,
+  "upl": 0,
+  "margin": 0,
+  "oldest_open": null,
+  "sample": []
+ },
+ "B0583281810AF42D": {
+  "n_open": 75,
+  "upl": -53441,
+  "margin": 8310,
+  "oldest_open": 1747105422347,
+  "sample": [
+   {
+    "instId": "SOL-USDT-SWAP",
+    "posSide": "long",
+    "lever": "20",
+    "openTime": "1790505836770",
+    "upl": "-2.3463",
+    "uplRatio": "-0.018774534903568",
+    "margin": "124.97247"
+   },
+   {
+    "instId": "SOL-USDT-SWAP",
+    "posSide": "long",
+    "lever": "20",
+    "openTime": "1769565872436",
+    "upl": "-55.499",
+    "uplRatio": "-1.389396709323584",
+    "margin": "39.944675"
+   },
+   {
+    "instId": "SOL-USDT-SWAP",
+    "posSide": "long",
+    "lever": "20",
+    "openTime": "1769479467697",
+    "upl": "-199.67",
+    "uplRatio": "-0.79875348532065",
+    "margin": "249.977"
+   },
+   {
+    "instId": "SOL-USDT-SWAP",
+    "posSide": "long",
+    "lever": "20",
+    "openTime": "1769131247357",
+    "upl": "-219.8163",
+    "uplRatio": "-1.759114989093176",
+    "margin": "124.95846"
+   },
+   {
+    "instId": "SOL-USDT-SWAP",
+    "posSide": "long",
+    "lever": "20",
+    "openTime": "1769131014382",
+    "upl": "-218.0931",
+    "uplRatio": "-1.744893185716514",
+    "margin": "124.98937"
+   }
+  ]
+ },
+ "B31CCBB35ADBF9C0": {
+  "n_open": 21,
+  "upl": -25958,
+  "margin": 139622,
+  "oldest_open": 1761732495344,
+  "sample": [
+   {
+    "instId": "LDO-USDT-SWAP",
+    "posSide": "long",
+    "lever": "1",
+    "openTime": "1790587731207",
+    "upl": "-270",
+    "uplRatio": "-0.0590809628008753",
+    "margin": "4570"
+   },
+   {
+    "instId": "DOT-USDT-SWAP",
+    "posSide": "long",
+    "lever": "1",
+    "openTime": "1790550233596",
+    "upl": "-327.3",
+    "uplRatio": "-0.0866973935155753",
+    "margin": "3775.2"
+   },
+   {
+    "instId": "SUI-USDT-SWAP",
+    "posSide": "long",
+    "lever": "1",
+    "openTime": "1790495119516",
+    "upl": "-816.5",
+    "uplRatio": "-0.1282091544319699",
+    "margin": "6368.5"
+   },
+   {
+    "instId": "LDO-USDT-SWAP",
+    "posSide": "long",
+    "lever": "1",
+    "openTime": "1790495019554",
+    "upl": "-552",
+    "uplRatio": "-0.1137675185490519",
+    "margin": "4852"
+   },
+   {
+    "instId": "LDO-USDT-SWAP",
+    "posSide": "long",
+    "lever": "1",
+    "openTime": "1790468640170",
+    "upl": "-460",
+    "uplRatio": "-0.0966386554621849",
+    "margin": "4760"
+   }
+  ]
+ },
+ "1499200359BAE11A": {
+  "n_open": 100,
+  "upl": -1713,
+  "margin": 30708,
+  "oldest_open": null,
+  "sample": [
+   {
+    "instId": "",
+    "posSide": "long",
+    "lever": "3",
+    "openTime": "",
+    "upl": "-1.38",
+    "uplRatio": "-0.0222676419965577",
+    "margin": "61.9733333333333333"
+   },
+   {
+    "instId": "",
+    "posSide": "long",
+    "lever": "3",
+    "openTime": "",
+    "upl": "0.476",
+    "uplRatio": "0.0104181865935156",
+    "margin": "45.6893333333333333"
+   },
+   {
+    "instId": "",
+    "posSide": "long",
+    "lever": "3",
+    "openTime": "",
+    "upl": "0.3495",
+    "uplRatio": "0.0050906336710095",
+    "margin": "68.6555"
+   },
+   {
+    "instId": "",
+    "posSide": "long",
+    "lever": "3",
+    "openTime": "",
+    "upl": "8.7636",
+    "uplRatio": "0.0176393154892497",
+    "margin": "496.822"
+   },
+   {
+    "instId": "",
+    "posSide": "long",
+    "lever": "3",
+    "openTime": "",
+    "upl": "-1.32",
+    "uplRatio": "-0.0213063596255247",
+    "margin": "61.9533333333333333"
+   }
+  ]
+ }
+}

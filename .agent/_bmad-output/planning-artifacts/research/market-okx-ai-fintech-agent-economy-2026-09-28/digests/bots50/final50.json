@@ -1,0 +1,3081 @@
+[
+ {
+  "group": "Trade",
+  "name": "maomao12345",
+  "where": "OKX Copy Trading",
+  "url": "https://www.okx.com/copy-trading/account/F6476365DB0D09A3?tab=swap",
+  "money": "PnL công bố $3.967.569",
+  "users": "298 người copy",
+  "users_n": 298,
+  "style": "Hỗn hợp / linh hoạt",
+  "how": "Đánh ETH, DOGE, BTC, chủ yếu long; giữ lệnh trung vị 20.6 giờ, đòn bẩy trung vị 30x, 2.86 lệnh/ngày. 49% lệnh vào cùng chiều biến động 24 giờ trước đó. Kiếm nhiều nhất khi thị trường đi ngang. Đang giữ 14 vị thế mở. lỗ chưa chốt -961.094 USDT. so với lãi đã chốt 5.113.155 USDT.",
+  "why": "AUM $88.666 và 298 người copy: đám đông thấy tiền đông thì theo; ROI công bố 139%.",
+  "trend": "Đang săn meme coin (30% lệnh).",
+  "fit": "Hợp: mã chính đang đi ngang (−3,1%/7 ngày)",
+  "fit_tone": "good",
+  "risks": [
+   "Lỗ treo lớn (vị thế đang mở)"
+  ],
+  "metrics": {
+   "p": {
+    "n": 251,
+    "tagged": 251,
+    "days": 88,
+    "per_day": 2.86,
+    "top_syms": [
+     [
+      "ETH",
+      35
+     ],
+     [
+      "DOGE",
+      30
+     ],
+     [
+      "BTC",
+      28
+     ]
+    ],
+    "n_syms": 4,
+    "cls": {
+     "meme": 30,
+     "major": 63,
+     "alt": 7
+    },
+    "long_pct": 92,
+    "lev_med": 30.0,
+    "lev_p90": 50.0,
+    "hold_med": 20.58,
+    "hold_lt1": 0,
+    "hold_gt24": 47,
+    "win": 76,
+    "payoff": 0.72,
+    "pf": 2.24,
+    "net": 5113155,
+    "reg_share": {
+     "up": 65,
+     "range": 33,
+     "down": 2
+    },
+    "reg_pnl": {
+     "up": 1435389,
+     "range": 3200439,
+     "down": 477326
+    },
+    "reg_win": {
+     "up": 79,
+     "range": 70,
+     "down": 50
+    },
+    "hv_share": 63,
+    "hv_pnl": 1500834,
+    "aligned": 86,
+    "momentum": 49,
+    "overlap": 83,
+    "hold_ratio": 0.73,
+    "top5_share": 32,
+    "tail": 11.7,
+    "peak_hours": [
+     19,
+     1,
+     13
+    ],
+    "dca": {
+     "adds": 83,
+     "down": 55,
+     "stack": 58
+    }
+   },
+   "open": {
+    "n": 14,
+    "upl": -961094,
+    "margin": 1081340
+   },
+   "mdd": null,
+   "roi": 138.69,
+   "aum": 88666.0670760001
+  },
+  "rank": 1
+ },
+ {
+  "group": "Trade",
+  "name": "好望角9999",
+  "where": "OKX Copy Trading",
+  "url": "https://www.okx.com/copy-trading/account/28AEEA33C8C78CC9?tab=swap",
+  "money": "PnL công bố $188.321",
+  "users": "502 người copy",
+  "users_n": 502,
+  "style": "Nhồi lệnh, gồng lỗ (DCA)",
+  "how": "Đánh ETH, ONE, ZEC, chủ yếu short; giữ lệnh trung vị 2.7 giờ, đòn bẩy trung vị 10x, 36.06 lệnh/ngày. 23% lệnh vào cùng chiều biến động 24 giờ trước đó, tức hay đánh ngược đà, bắt đỉnh đáy. Kiếm nhiều nhất khi thị trường đi ngang. Cần để ý: giữ lệnh lỗ lâu hơn lệnh lãi, có lệnh lỗ cực lớn. Đang giữ 87 vị thế mở. lỗ chưa chốt -33.496 USDT. so với lãi đã chốt 123.551 USDT. Mở thêm lệnh cùng chiều khi lệnh cũ chưa đóng ở 92% số lệnh, 76% trong đó ở giá xấu hơn (bình quân giá xuống), chồng tối đa 61 vị thế.",
+  "why": "AUM $358.400 và 502 người copy: đám đông thấy tiền đông thì theo; ROI công bố 83%.",
+  "trend": "Đang vận hành bằng bình quân giá xuống.",
+  "fit": "Hợp: mã chính đang đi ngang (−3,1%/7 ngày)",
+  "fit_tone": "good",
+  "risks": [
+   "Giữ lệnh lỗ lâu hơn lệnh lãi",
+   "Có lệnh lỗ cực lớn",
+   "Lỗ treo lớn (vị thế đang mở)"
+  ],
+  "metrics": {
+   "p": {
+    "n": 1000,
+    "tagged": 1000,
+    "days": 28,
+    "per_day": 36.06,
+    "top_syms": [
+     [
+      "ETH",
+      24
+     ],
+     [
+      "ONE",
+      21
+     ],
+     [
+      "ZEC",
+      16
+     ]
+    ],
+    "n_syms": 20,
+    "cls": {
+     "major": 36,
+     "tradfi": 10,
+     "alt": 41,
+     "meme": 13
+    },
+    "long_pct": 16,
+    "lev_med": 10.0,
+    "lev_p90": 100.0,
+    "hold_med": 2.71,
+    "hold_lt1": 38,
+    "hold_gt24": 24,
+    "win": 90,
+    "payoff": 1.25,
+    "pf": 11.36,
+    "net": 123551,
+    "reg_share": {
+     "range": 29,
+     "up": 70,
+     "down": 1
+    },
+    "reg_pnl": {
+     "range": 79974,
+     "up": 43000,
+     "down": 576
+    },
+    "reg_win": {
+     "range": 95,
+     "up": 88,
+     "down": 100
+    },
+    "hv_share": 70,
+    "hv_pnl": 69019,
+    "aligned": 3,
+    "momentum": 23,
+    "overlap": 92,
+    "hold_ratio": 35.17,
+    "top5_share": 21,
+    "tail": 97.8,
+    "peak_hours": [
+     14,
+     15,
+     13
+    ],
+    "dca": {
+     "adds": 92,
+     "down": 76,
+     "stack": 61
+    }
+   },
+   "open": {
+    "n": 87,
+    "upl": -33496,
+    "margin": 17654
+   },
+   "mdd": null,
+   "roi": 82.71,
+   "aum": 358399.9521438334
+  },
+  "rank": 2
+ },
+ {
+  "group": "Trade",
+  "name": "Shallow-Pair-Frog",
+  "where": "OKX Copy Trading",
+  "url": "https://www.okx.com/copy-trading/account/35F888C7BB441B2B?tab=swap",
+  "money": "PnL công bố $155.095",
+  "users": "436 người copy",
+  "users_n": 436,
+  "style": "Bắt đảo chiều, ngược đà",
+  "how": "Đánh BTC, ETH, ZEC, chủ yếu long; giữ lệnh trung vị 3.6 ngày, đòn bẩy trung vị 50x, 4.6 lệnh/ngày. 36% lệnh vào cùng chiều biến động 24 giờ trước đó, tức hay đánh ngược đà, bắt đỉnh đáy. Kiếm nhiều nhất khi thị trường đi ngang. Cần để ý: đòn bẩy rất cao, lãi dồn vào vài lệnh, có lệnh lỗ cực lớn. Mở thêm lệnh cùng chiều khi lệnh cũ chưa đóng ở 75% số lệnh, 73% trong đó ở giá xấu hơn (bình quân giá xuống), chồng tối đa 12 vị thế.",
+  "why": "AUM $422.261 và 436 người copy: đám đông thấy tiền đông thì theo; ROI công bố 32%.",
+  "trend": "Đang vận hành bằng bình quân giá xuống.",
+  "fit": "Hợp: mã chính đang đi ngang (−3,6%/7 ngày)",
+  "fit_tone": "good",
+  "risks": [
+   "Đòn bẩy rất cao",
+   "Lãi dồn vào vài lệnh",
+   "Có lệnh lỗ cực lớn"
+  ],
+  "metrics": {
+   "p": {
+    "n": 416,
+    "tagged": 415,
+    "days": 90,
+    "per_day": 4.6,
+    "top_syms": [
+     [
+      "BTC",
+      12
+     ],
+     [
+      "ETH",
+      11
+     ],
+     [
+      "ZEC",
+      9
+     ]
+    ],
+    "n_syms": 26,
+    "cls": {
+     "alt": 57,
+     "major": 23,
+     "tradfi": 12,
+     "meme": 8
+    },
+    "long_pct": 69,
+    "lev_med": 50.0,
+    "lev_p90": 100.0,
+    "hold_med": 86.14,
+    "hold_lt1": 10,
+    "hold_gt24": 62,
+    "win": 48,
+    "payoff": 4.93,
+    "pf": 4.52,
+    "net": 154767,
+    "reg_share": {
+     "up": 28,
+     "range": 60,
+     "down": 12
+    },
+    "reg_pnl": {
+     "up": 9115,
+     "range": 140198,
+     "down": 5455
+    },
+    "reg_win": {
+     "up": 61,
+     "range": 43,
+     "down": 40
+    },
+    "hv_share": 23,
+    "hv_pnl": -1095,
+    "aligned": 80,
+    "momentum": 36,
+    "overlap": 75,
+    "hold_ratio": 0.05,
+    "top5_share": 95,
+    "tail": 353.7,
+    "peak_hours": [
+     13,
+     16,
+     21
+    ],
+    "dca": {
+     "adds": 75,
+     "down": 73,
+     "stack": 12
+    }
+   },
+   "open": {
+    "n": 0,
+    "upl": 0,
+    "margin": 0
+   },
+   "mdd": null,
+   "roi": 32.5,
+   "aum": 422260.78114134143
+  },
+  "rank": 3
+ },
+ {
+  "group": "Trade",
+  "name": "01pp",
+  "where": "OKX Copy Trading",
+  "url": "https://www.okx.com/copy-trading/account/CA1C48E543EF7A95?tab=swap",
+  "money": "PnL công bố $227.979",
+  "users": "238 người copy",
+  "users_n": 238,
+  "style": "Bắt đảo chiều, ngược đà",
+  "how": "Đánh ETH, MSTR, UNI, cả long lẫn short; giữ lệnh trung vị 19.1 giờ, đòn bẩy trung vị 15x, 4.32 lệnh/ngày. 42% lệnh vào cùng chiều biến động 24 giờ trước đó, tức hay đánh ngược đà, bắt đỉnh đáy. Kiếm nhiều nhất khi thị trường đi ngang. Cần để ý: có lệnh lỗ cực lớn. Mở thêm lệnh cùng chiều khi lệnh cũ chưa đóng ở 54% số lệnh, 60% trong đó ở giá xấu hơn (bình quân giá xuống), chồng tối đa 11 vị thế.",
+  "why": "AUM $246.635 và 238 người copy: đám đông thấy tiền đông thì theo; ROI công bố 652%.",
+  "trend": "Đang dịch chuyển sang TradFi (34% lệnh), vận hành bằng bình quân giá xuống.",
+  "fit": "Hợp: mã chính đang đi ngang (−3,1%/7 ngày)",
+  "fit_tone": "good",
+  "risks": [
+   "Có lệnh lỗ cực lớn"
+  ],
+  "metrics": {
+   "p": {
+    "n": 389,
+    "tagged": 389,
+    "days": 90,
+    "per_day": 4.32,
+    "top_syms": [
+     [
+      "ETH",
+      21
+     ],
+     [
+      "MSTR",
+      15
+     ],
+     [
+      "UNI",
+      9
+     ]
+    ],
+    "n_syms": 25,
+    "cls": {
+     "alt": 31,
+     "major": 29,
+     "meme": 6,
+     "tradfi": 34
+    },
+    "long_pct": 52,
+    "lev_med": 15.0,
+    "lev_p90": 50.0,
+    "hold_med": 19.15,
+    "hold_lt1": 6,
+    "hold_gt24": 42,
+    "win": 63,
+    "payoff": 1.05,
+    "pf": 1.76,
+    "net": 204083,
+    "reg_share": {
+     "range": 47,
+     "up": 43,
+     "down": 10
+    },
+    "reg_pnl": {
+     "range": 129503,
+     "up": 38266,
+     "down": 36314
+    },
+    "reg_win": {
+     "range": 64,
+     "up": 58,
+     "down": 80
+    },
+    "hv_share": 42,
+    "hv_pnl": 81267,
+    "aligned": 32,
+    "momentum": 42,
+    "overlap": 54,
+    "hold_ratio": 0.81,
+    "top5_share": 55,
+    "tail": 17.3,
+    "peak_hours": [
+     14,
+     13,
+     12
+    ],
+    "dca": {
+     "adds": 54,
+     "down": 60,
+     "stack": 11
+    }
+   },
+   "open": {
+    "n": 7,
+    "upl": 22711,
+    "margin": 77873
+   },
+   "mdd": null,
+   "roi": 652.1899999999999,
+   "aum": 246635.20080073492
+  },
+  "rank": 4
+ },
+ {
+  "group": "Trade",
+  "name": "Milies L",
+  "where": "OKX Copy Trading",
+  "url": "https://www.okx.com/copy-trading/account/87CE370F79220167?tab=swap",
+  "money": "PnL công bố $257.387",
+  "users": "32 người copy",
+  "users_n": 32,
+  "style": "Theo xu hướng, theo đà",
+  "how": "Đánh BTC, SOL, MSTR, chủ yếu long; giữ lệnh trung vị 3.2 ngày, đòn bẩy trung vị 10x, 1.6 lệnh/ngày. 63% lệnh vào cùng chiều biến động 24 giờ trước đó, tức đánh theo đà. Kiếm nhiều nhất khi thị trường đi ngang. Đang giữ 17 vị thế mở. lỗ chưa chốt -22.725 USDT. so với lãi đã chốt 268.894 USDT.",
+  "why": "AUM $514.311 và 32 người copy: đám đông thấy tiền đông thì theo; ROI công bố 156%.",
+  "trend": "Đang dịch chuyển sang TradFi (44% lệnh).",
+  "fit": "Kém hợp: thị trường đi ngang, dễ bị quét hai đầu",
+  "fit_tone": "warn",
+  "risks": [
+   "Lỗ treo lớn (vị thế đang mở)"
+  ],
+  "metrics": {
+   "p": {
+    "n": 143,
+    "tagged": 140,
+    "days": 90,
+    "per_day": 1.6,
+    "top_syms": [
+     [
+      "BTC",
+      10
+     ],
+     [
+      "SOL",
+      8
+     ],
+     [
+      "MSTR",
+      8
+     ]
+    ],
+    "n_syms": 41,
+    "cls": {
+     "tradfi": 44,
+     "major": 15,
+     "alt": 34,
+     "meme": 6
+    },
+    "long_pct": 94,
+    "lev_med": 10.0,
+    "lev_p90": 50.0,
+    "hold_med": 76.33,
+    "hold_lt1": 6,
+    "hold_gt24": 71,
+    "win": 78,
+    "payoff": 2.41,
+    "pf": 8.71,
+    "net": 268894,
+    "reg_share": {
+     "range": 56,
+     "up": 36,
+     "down": 8
+    },
+    "reg_pnl": {
+     "range": 168200,
+     "up": 58340,
+     "down": 41771
+    },
+    "reg_win": {
+     "range": 78,
+     "up": 75,
+     "down": 100
+    },
+    "hv_share": 31,
+    "hv_pnl": 69379,
+    "aligned": 73,
+    "momentum": 63,
+    "overlap": 37,
+    "hold_ratio": 0.9,
+    "top5_share": 29,
+    "tail": 12.7,
+    "peak_hours": [
+     13,
+     14,
+     1
+    ],
+    "dca": {
+     "adds": 37,
+     "down": 53,
+     "stack": 6
+    }
+   },
+   "open": {
+    "n": 17,
+    "upl": -22725,
+    "margin": 40727
+   },
+   "mdd": null,
+   "roi": 155.83,
+   "aum": 514311.0954312503
+  },
+  "rank": 5
+ },
+ {
+  "group": "Trade",
+  "name": "xiaojian888999",
+  "where": "OKX Copy Trading",
+  "url": "https://www.okx.com/copy-trading/account/819848249304757406?tab=swap",
+  "money": "PnL công bố $329.007",
+  "users": "103 người copy",
+  "users_n": 103,
+  "style": "Bắt đảo chiều, ngược đà",
+  "how": "Đánh BTC, ETH, SNDK, cả long lẫn short; giữ lệnh trung vị 13.3 giờ, đòn bẩy trung vị 10x, 4.36 lệnh/ngày. 39% lệnh vào cùng chiều biến động 24 giờ trước đó, tức hay đánh ngược đà, bắt đỉnh đáy. Kiếm nhiều nhất khi thị trường đi ngang. Mở thêm lệnh cùng chiều khi lệnh cũ chưa đóng ở 62% số lệnh, 79% trong đó ở giá xấu hơn (bình quân giá xuống), chồng tối đa 10 vị thế.",
+  "why": "AUM $177.318 và 103 người copy: đám đông thấy tiền đông thì theo; ROI công bố 78%.",
+  "trend": "Đang dịch chuyển sang TradFi (37% lệnh), vận hành bằng bình quân giá xuống.",
+  "fit": "Hợp: mã chính đang đi ngang (−3,6%/7 ngày)",
+  "fit_tone": "good",
+  "risks": [],
+  "metrics": {
+   "p": {
+    "n": 399,
+    "tagged": 399,
+    "days": 91,
+    "per_day": 4.36,
+    "top_syms": [
+     [
+      "BTC",
+      27
+     ],
+     [
+      "ETH",
+      26
+     ],
+     [
+      "SNDK",
+      22
+     ]
+    ],
+    "n_syms": 11,
+    "cls": {
+     "major": 53,
+     "tradfi": 37,
+     "alt": 10,
+     "meme": 1
+    },
+    "long_pct": 48,
+    "lev_med": 10.0,
+    "lev_p90": 10.0,
+    "hold_med": 13.33,
+    "hold_lt1": 9,
+    "hold_gt24": 40,
+    "win": 71,
+    "payoff": 0.96,
+    "pf": 2.32,
+    "net": 333799,
+    "reg_share": {
+     "range": 43,
+     "up": 50,
+     "down": 7
+    },
+    "reg_pnl": {
+     "range": 188513,
+     "up": 76668,
+     "down": 68617
+    },
+    "reg_win": {
+     "range": 75,
+     "up": 66,
+     "down": 79
+    },
+    "hv_share": 37,
+    "hv_pnl": 75808,
+    "aligned": 43,
+    "momentum": 39,
+    "overlap": 62,
+    "hold_ratio": 1.01,
+    "top5_share": 27,
+    "tail": 13.3,
+    "peak_hours": [
+     13,
+     14,
+     19
+    ],
+    "dca": {
+     "adds": 62,
+     "down": 79,
+     "stack": 10
+    }
+   },
+   "open": {
+    "n": 6,
+    "upl": -11699,
+    "margin": 73136
+   },
+   "mdd": null,
+   "roi": 78.14999999999999,
+   "aum": 177317.9003397689
+  },
+  "rank": 6
+ },
+ {
+  "group": "Trade",
+  "name": "Master Dust.",
+  "where": "OKX Copy Trading",
+  "url": "https://www.okx.com/copy-trading/account/4A8AB04BF304EBD8?tab=swap",
+  "money": "PnL công bố $229.347",
+  "users": "147 người copy",
+  "users_n": 147,
+  "style": "Bắt đảo chiều, ngược đà",
+  "how": "Đánh MSTR, SNDK, CL, cả long lẫn short; giữ lệnh trung vị 38.9 giờ, đòn bẩy trung vị 10x, 2.81 lệnh/ngày. 34% lệnh vào cùng chiều biến động 24 giờ trước đó, tức hay đánh ngược đà, bắt đỉnh đáy. Kiếm nhiều nhất khi thị trường xu hướng giảm. Cần để ý: có lệnh lỗ cực lớn. Mở thêm lệnh cùng chiều khi lệnh cũ chưa đóng ở 71% số lệnh, 69% trong đó ở giá xấu hơn (bình quân giá xuống), chồng tối đa 16 vị thế.",
+  "why": "AUM $182.556 và 147 người copy: đám đông thấy tiền đông thì theo; ROI công bố 33%.",
+  "trend": "Đang dịch chuyển sang TradFi (78% lệnh), vận hành bằng bình quân giá xuống.",
+  "fit": "Hợp: mã chính đang đi ngang (−7,2%/7 ngày)",
+  "fit_tone": "good",
+  "risks": [
+   "Có lệnh lỗ cực lớn"
+  ],
+  "metrics": {
+   "p": {
+    "n": 256,
+    "tagged": 252,
+    "days": 91,
+    "per_day": 2.81,
+    "top_syms": [
+     [
+      "MSTR",
+      19
+     ],
+     [
+      "SNDK",
+      16
+     ],
+     [
+      "CL",
+      10
+     ]
+    ],
+    "n_syms": 22,
+    "cls": {
+     "tradfi": 78,
+     "meme": 4,
+     "major": 16,
+     "alt": 3
+    },
+    "long_pct": 50,
+    "lev_med": 10.0,
+    "lev_p90": 10.0,
+    "hold_med": 38.87,
+    "hold_lt1": 5,
+    "hold_gt24": 65,
+    "win": 53,
+    "payoff": 1.63,
+    "pf": 1.82,
+    "net": 222834,
+    "reg_share": {
+     "range": 37,
+     "up": 52,
+     "down": 11
+    },
+    "reg_pnl": {
+     "range": 41176,
+     "up": 16696,
+     "down": 163904
+    },
+    "reg_win": {
+     "range": 60,
+     "up": 44,
+     "down": 64
+    },
+    "hv_share": 27,
+    "hv_pnl": 114946,
+    "aligned": 42,
+    "momentum": 34,
+    "overlap": 71,
+    "hold_ratio": 0.62,
+    "top5_share": 59,
+    "tail": 24.7,
+    "peak_hours": [
+     13,
+     14,
+     15
+    ],
+    "dca": {
+     "adds": 71,
+     "down": 69,
+     "stack": 16
+    }
+   },
+   "open": {
+    "n": 20,
+    "upl": -11420,
+    "margin": 44537
+   },
+   "mdd": null,
+   "roi": 33.47,
+   "aum": 182556.43142656342
+  },
+  "rank": 7
+ },
+ {
+  "group": "Trade",
+  "name": "FJ Investment",
+  "where": "OKX Copy Trading",
+  "url": "https://www.okx.com/copy-trading/account/AD2B6E949E5E91EC?tab=swap",
+  "money": "PnL công bố $122.579",
+  "users": "288 người copy",
+  "users_n": 288,
+  "style": "Bắt đảo chiều, ngược đà",
+  "how": "Đánh BTC, ETH, ZEC, cả long lẫn short; giữ lệnh trung vị 13.8 giờ, đòn bẩy trung vị 30x, 0.85 lệnh/ngày. 25% lệnh vào cùng chiều biến động 24 giờ trước đó, tức hay đánh ngược đà, bắt đỉnh đáy. Kiếm nhiều nhất khi thị trường xu hướng tăng. Cần để ý: lãi dồn vào vài lệnh.",
+  "why": "AUM $383.971 và 288 người copy: đám đông thấy tiền đông thì theo; ROI công bố 157%.",
+  "trend": "Đang tập trung vào BTC.",
+  "fit": "Hợp: mã chính đang đi ngang (−3,6%/7 ngày)",
+  "fit_tone": "good",
+  "risks": [
+   "Lãi dồn vào vài lệnh"
+  ],
+  "metrics": {
+   "p": {
+    "n": 78,
+    "tagged": 78,
+    "days": 92,
+    "per_day": 0.85,
+    "top_syms": [
+     [
+      "BTC",
+      87
+     ],
+     [
+      "ETH",
+      8
+     ],
+     [
+      "ZEC",
+      4
+     ]
+    ],
+    "n_syms": 4,
+    "cls": {
+     "major": 95,
+     "alt": 5
+    },
+    "long_pct": 46,
+    "lev_med": 30.0,
+    "lev_p90": 30.0,
+    "hold_med": 13.77,
+    "hold_lt1": 9,
+    "hold_gt24": 45,
+    "win": 37,
+    "payoff": 3.91,
+    "pf": 2.32,
+    "net": 124559,
+    "reg_share": {
+     "range": 45,
+     "up": 45,
+     "down": 10
+    },
+    "reg_pnl": {
+     "range": 40255,
+     "up": 77200,
+     "down": 7104
+    },
+    "reg_win": {
+     "range": 26,
+     "up": 43,
+     "down": 62
+    },
+    "hv_share": 31,
+    "hv_pnl": 6721,
+    "aligned": 33,
+    "momentum": 25,
+    "overlap": 36,
+    "hold_ratio": 0.1,
+    "top5_share": 109,
+    "tail": 4.6,
+    "peak_hours": [
+     1,
+     12,
+     9
+    ],
+    "dca": {
+     "adds": 36,
+     "down": 36,
+     "stack": 5
+    }
+   },
+   "open": {
+    "n": 0,
+    "upl": 0,
+    "margin": 0
+   },
+   "mdd": null,
+   "roi": 156.92,
+   "aum": 383970.8282691728
+  },
+  "rank": 8
+ },
+ {
+  "group": "Trade",
+  "name": "Mine13",
+  "where": "OKX Copy Trading",
+  "url": "https://www.okx.com/copy-trading/account/F2BCA22ABBB69F57?tab=swap",
+  "money": "PnL công bố $120.859",
+  "users": "191 người copy",
+  "users_n": 191,
+  "style": "Bắt đảo chiều, ngược đà",
+  "how": "Đánh BTC, CL, LTC, chủ yếu long; giữ lệnh trung vị 8.7 ngày, đòn bẩy trung vị 10x, 0.45 lệnh/ngày. 24% lệnh vào cùng chiều biến động 24 giờ trước đó, tức hay đánh ngược đà, bắt đỉnh đáy. Kiếm nhiều nhất khi thị trường xu hướng giảm. Mở thêm lệnh cùng chiều khi lệnh cũ chưa đóng ở 54% số lệnh, 70% trong đó ở giá xấu hơn (bình quân giá xuống), chồng tối đa 4 vị thế.",
+  "why": "AUM $844.178 và 191 người copy: đám đông thấy tiền đông thì theo; ROI công bố 119%.",
+  "trend": "Đang dịch chuyển sang TradFi (43% lệnh), vận hành bằng bình quân giá xuống.",
+  "fit": "Hợp: mã chính đang đi ngang (−3,6%/7 ngày)",
+  "fit_tone": "good",
+  "risks": [],
+  "metrics": {
+   "p": {
+    "n": 37,
+    "tagged": 37,
+    "days": 82,
+    "per_day": 0.45,
+    "top_syms": [
+     [
+      "BTC",
+      46
+     ],
+     [
+      "CL",
+      19
+     ],
+     [
+      "LTC",
+      11
+     ]
+    ],
+    "n_syms": 7,
+    "cls": {
+     "major": 46,
+     "tradfi": 43,
+     "alt": 11
+    },
+    "long_pct": 76,
+    "lev_med": 10.0,
+    "lev_p90": 10.0,
+    "hold_med": 208.4,
+    "hold_lt1": 3,
+    "hold_gt24": 86,
+    "win": 81,
+    "payoff": 4.97,
+    "pf": 21.29,
+    "net": 70478,
+    "reg_share": {
+     "up": 30,
+     "range": 38,
+     "down": 32
+    },
+    "reg_pnl": {
+     "up": 12423,
+     "range": 28917,
+     "down": 29138
+    },
+    "reg_win": {
+     "up": 45,
+     "range": 93,
+     "down": 100
+    },
+    "hv_share": 32,
+    "hv_pnl": 12988,
+    "aligned": 13,
+    "momentum": 24,
+    "overlap": 54,
+    "hold_ratio": 1.26,
+    "top5_share": 42,
+    "tail": 3.3,
+    "peak_hours": [
+     14,
+     2,
+     3
+    ],
+    "dca": {
+     "adds": 54,
+     "down": 70,
+     "stack": 4
+    }
+   },
+   "open": {
+    "n": 6,
+    "upl": -54,
+    "margin": 44603
+   },
+   "mdd": null,
+   "roi": 119.49000000000001,
+   "aum": 844178.0771796855
+  },
+  "rank": 9
+ },
+ {
+  "group": "Trade",
+  "name": "Kunpeng Plan",
+  "where": "OKX Copy Trading",
+  "url": "https://www.okx.com/copy-trading/account/08E31CADCFDDCFB8?tab=swap",
+  "money": "PnL công bố $809.683",
+  "users": "36 người copy",
+  "users_n": 36,
+  "style": "Nhồi lệnh, gồng lỗ (DCA)",
+  "how": "Đánh ZEC, ADA, DOGE, chủ yếu long; giữ lệnh trung vị 13.9 giờ, đòn bẩy trung vị 3x, 159.93 lệnh/ngày. 73% lệnh vào cùng chiều biến động 24 giờ trước đó, tức đánh theo đà. Kiếm nhiều nhất khi thị trường xu hướng tăng. Cần để ý: có lệnh lỗ cực lớn.",
+  "why": "AUM $40.149 và 36 người copy: đám đông thấy tiền đông thì theo; ROI công bố 10%.",
+  "trend": "Lối chơi ổn định trong kỳ khảo sát.",
+  "fit": "Tạm hợp: đi ngang nhưng biến động cao, dễ phá vùng",
+  "fit_tone": "warn",
+  "risks": [
+   "Có lệnh lỗ cực lớn"
+  ],
+  "metrics": {
+   "p": {
+    "n": 996,
+    "tagged": 996,
+    "days": 6,
+    "per_day": 159.93,
+    "top_syms": [
+     [
+      "ZEC",
+      28
+     ],
+     [
+      "ADA",
+      27
+     ],
+     [
+      "DOGE",
+      18
+     ]
+    ],
+    "n_syms": 5,
+    "cls": {
+     "alt": 82,
+     "meme": 18
+    },
+    "long_pct": 100,
+    "lev_med": 3.0,
+    "lev_p90": 3.0,
+    "hold_med": 13.94,
+    "hold_lt1": 7,
+    "hold_gt24": 41,
+    "win": 75,
+    "payoff": 1.18,
+    "pf": 3.57,
+    "net": 16634,
+    "reg_share": {
+     "range": 2,
+     "up": 98
+    },
+    "reg_pnl": {
+     "range": 315,
+     "up": 16319
+    },
+    "reg_win": {
+     "range": 94,
+     "up": 75
+    },
+    "hv_share": 100,
+    "hv_pnl": 16634,
+    "aligned": 100,
+    "momentum": 73,
+    "overlap": 99,
+    "hold_ratio": 2.59,
+    "top5_share": 19,
+    "tail": 47.8,
+    "peak_hours": [
+     14,
+     20,
+     16
+    ],
+    "dca": {
+     "adds": 99,
+     "down": 59,
+     "stack": 101
+    }
+   },
+   "open": {
+    "n": 100,
+    "upl": -1695,
+    "margin": 33533
+   },
+   "mdd": null,
+   "roi": 10.489999999999998,
+   "aum": 40148.95081857295
+  },
+  "rank": 10
+ },
+ {
+  "group": "Trade",
+  "name": "Ail.Wang",
+  "where": "OKX Copy Trading",
+  "url": "https://www.okx.com/copy-trading/account/31F3288F9B90B496?tab=swap",
+  "money": "PnL công bố $252.123",
+  "users": "25 người copy",
+  "users_n": 25,
+  "style": "Nhồi lệnh, gồng lỗ (DCA)",
+  "how": "Đánh ENA, ARB, USELESS, chủ yếu short; giữ lệnh trung vị 3.9 giờ, đòn bẩy trung vị 10x, 23.76 lệnh/ngày. 5% lệnh vào cùng chiều biến động 24 giờ trước đó, tức hay đánh ngược đà, bắt đỉnh đáy. Kiếm nhiều nhất khi thị trường xu hướng tăng, lỗ khi đi ngang. Cần để ý: lãi dồn vào vài lệnh, giữ lệnh lỗ lâu hơn lệnh lãi, có lệnh lỗ cực lớn. Đang giữ 72 vị thế mở. lỗ chưa chốt -72.442 USDT. so với lãi đã chốt 6.223 USDT. Mở thêm lệnh cùng chiều khi lệnh cũ chưa đóng ở 70% số lệnh, 63% trong đó ở giá xấu hơn (bình quân giá xuống), chồng tối đa 37 vị thế.",
+  "why": "AUM $211.056 và 25 người copy: đám đông thấy tiền đông thì theo; ROI công bố 22%.",
+  "trend": "Đang vận hành bằng bình quân giá xuống.",
+  "fit": "Rủi ro: mã chính đang xu hướng tăng, lối ngược đà dễ bị kéo",
+  "fit_tone": "bad",
+  "risks": [
+   "Lãi dồn vào vài lệnh",
+   "Giữ lệnh lỗ lâu hơn lệnh lãi",
+   "Có lệnh lỗ cực lớn",
+   "Lỗ treo lớn (vị thế đang mở)"
+  ],
+  "metrics": {
+   "p": {
+    "n": 996,
+    "tagged": 917,
+    "days": 42,
+    "per_day": 23.76,
+    "top_syms": [
+     [
+      "ENA",
+      8
+     ],
+     [
+      "ARB",
+      7
+     ],
+     [
+      "USELESS",
+      4
+     ]
+    ],
+    "n_syms": 116,
+    "cls": {
+     "alt": 77,
+     "major": 3,
+     "meme": 19,
+     "tradfi": 1
+    },
+    "long_pct": 6,
+    "lev_med": 10.0,
+    "lev_p90": 10.0,
+    "hold_med": 3.93,
+    "hold_lt1": 22,
+    "hold_gt24": 19,
+    "win": 87,
+    "payoff": 0.15,
+    "pf": 1.06,
+    "net": 6223,
+    "reg_share": {
+     "up": 80,
+     "range": 18,
+     "down": 2
+    },
+    "reg_pnl": {
+     "up": 56641,
+     "range": -59828,
+     "down": 992
+    },
+    "reg_win": {
+     "up": 87,
+     "range": 85,
+     "down": 57
+    },
+    "hv_share": 76,
+    "hv_pnl": 62798,
+    "aligned": 5,
+    "momentum": 5,
+    "overlap": 70,
+    "hold_ratio": 9.69,
+    "top5_share": 381,
+    "tail": 254.9,
+    "peak_hours": [
+     6,
+     7,
+     3
+    ],
+    "dca": {
+     "adds": 70,
+     "down": 63,
+     "stack": 37
+    }
+   },
+   "open": {
+    "n": 72,
+    "upl": -72442,
+    "margin": 89246
+   },
+   "mdd": null,
+   "roi": 21.67,
+   "aum": 211055.99892959584
+  },
+  "rank": 11
+ },
+ {
+  "group": "Trade",
+  "name": "BestMax",
+  "where": "OKX Copy Trading",
+  "url": "https://www.okx.com/copy-trading/account/C84F6F6717746BD4?tab=swap",
+  "money": "PnL công bố $17.508",
+  "users": "297 người copy",
+  "users_n": 297,
+  "style": "Nhồi lệnh, gồng lỗ (DCA)",
+  "how": "Đánh PUMP, HYPE, SOL, chủ yếu long; giữ lệnh trung vị 2.0 giờ, đòn bẩy trung vị 20x, 11.07 lệnh/ngày. 44% lệnh vào cùng chiều biến động 24 giờ trước đó. Kiếm nhiều nhất khi thị trường đi ngang. Cần để ý: có lệnh lỗ cực lớn. Mở thêm lệnh cùng chiều khi lệnh cũ chưa đóng ở 78% số lệnh, 91% trong đó ở giá xấu hơn (bình quân giá xuống), chồng tối đa 25 vị thế.",
+  "why": "AUM $349.955 và 297 người copy: đám đông thấy tiền đông thì theo; ROI công bố 17%.",
+  "trend": "Đang săn meme coin (73% lệnh), tập trung vào PUMP, vận hành bằng bình quân giá xuống.",
+  "fit": "Rủi ro: mã chính đang xu hướng tăng, lối ngược đà dễ bị kéo",
+  "fit_tone": "warn",
+  "risks": [
+   "Có lệnh lỗ cực lớn"
+  ],
+  "metrics": {
+   "p": {
+    "n": 998,
+    "tagged": 998,
+    "days": 90,
+    "per_day": 11.07,
+    "top_syms": [
+     [
+      "PUMP",
+      73
+     ],
+     [
+      "HYPE",
+      12
+     ],
+     [
+      "SOL",
+      5
+     ]
+    ],
+    "n_syms": 5,
+    "cls": {
+     "alt": 23,
+     "meme": 73,
+     "major": 4
+    },
+    "long_pct": 100,
+    "lev_med": 20.0,
+    "lev_p90": 20.0,
+    "hold_med": 2.02,
+    "hold_lt1": 30,
+    "hold_gt24": 10,
+    "win": 74,
+    "payoff": 1.92,
+    "pf": 5.41,
+    "net": 17686,
+    "reg_share": {
+     "range": 41,
+     "up": 57,
+     "down": 2
+    },
+    "reg_pnl": {
+     "range": 8311,
+     "up": 7747,
+     "down": 1628
+    },
+    "reg_win": {
+     "range": 72,
+     "up": 75,
+     "down": 81
+    },
+    "hv_share": 78,
+    "hv_pnl": 10821,
+    "aligned": 96,
+    "momentum": 44,
+    "overlap": 78,
+    "hold_ratio": 2.3,
+    "top5_share": 9,
+    "tail": 49.7,
+    "peak_hours": [
+     22,
+     17,
+     12
+    ],
+    "dca": {
+     "adds": 78,
+     "down": 91,
+     "stack": 25
+    }
+   },
+   "open": {
+    "n": 0,
+    "upl": 0,
+    "margin": 0
+   },
+   "mdd": null,
+   "roi": 17.03,
+   "aum": 349955.19870894484
+  },
+  "rank": 12
+ },
+ {
+  "group": "Trade",
+  "name": "RuiJie",
+  "where": "OKX Copy Trading",
+  "url": "https://www.okx.com/copy-trading/account/EF1CC6F40E834D1A?tab=swap",
+  "money": "PnL công bố $469.277",
+  "users": "46 người copy",
+  "users_n": 46,
+  "style": "Nhồi lệnh, gồng lỗ (DCA)",
+  "how": "Đánh ETH, SNDK, USELESS, chủ yếu long; giữ lệnh trung vị 6.9 giờ, đòn bẩy trung vị 20x, 5.55 lệnh/ngày. 58% lệnh vào cùng chiều biến động 24 giờ trước đó, tức đánh theo đà. Kiếm nhiều nhất khi thị trường xu hướng tăng. Cần để ý: giữ lệnh lỗ lâu hơn lệnh lãi, có lệnh lỗ cực lớn. Mở thêm lệnh cùng chiều khi lệnh cũ chưa đóng ở 71% số lệnh, 73% trong đó ở giá xấu hơn (bình quân giá xuống), chồng tối đa 14 vị thế.",
+  "why": "AUM $7.485 và 46 người copy: đám đông thấy tiền đông thì theo; ROI công bố 33%.",
+  "trend": "Đang tập trung vào ETH, vận hành bằng bình quân giá xuống.",
+  "fit": "Hợp: mã chính đang đi ngang (−3,1%/7 ngày)",
+  "fit_tone": "good",
+  "risks": [
+   "Giữ lệnh lỗ lâu hơn lệnh lãi",
+   "Có lệnh lỗ cực lớn"
+  ],
+  "metrics": {
+   "p": {
+    "n": 507,
+    "tagged": 507,
+    "days": 91,
+    "per_day": 5.55,
+    "top_syms": [
+     [
+      "ETH",
+      64
+     ],
+     [
+      "SNDK",
+      18
+     ],
+     [
+      "USELESS",
+      7
+     ]
+    ],
+    "n_syms": 9,
+    "cls": {
+     "major": 64,
+     "tradfi": 18,
+     "alt": 12,
+     "meme": 7
+    },
+    "long_pct": 71,
+    "lev_med": 20.0,
+    "lev_p90": 20.0,
+    "hold_med": 6.9,
+    "hold_lt1": 20,
+    "hold_gt24": 29,
+    "win": 90,
+    "payoff": 1.06,
+    "pf": 9.5,
+    "net": 232394,
+    "reg_share": {
+     "range": 47,
+     "up": 49,
+     "down": 4
+    },
+    "reg_pnl": {
+     "range": 70235,
+     "up": 150914,
+     "down": 11244
+    },
+    "reg_win": {
+     "range": 88,
+     "up": 92,
+     "down": 91
+    },
+    "hv_share": 47,
+    "hv_pnl": 121966,
+    "aligned": 75,
+    "momentum": 58,
+    "overlap": 71,
+    "hold_ratio": 4.66,
+    "top5_share": 10,
+    "tail": 33.4,
+    "peak_hours": [
+     14,
+     15,
+     16
+    ],
+    "dca": {
+     "adds": 71,
+     "down": 73,
+     "stack": 14
+    }
+   },
+   "open": {
+    "n": 17,
+    "upl": -9394,
+    "margin": 37012
+   },
+   "mdd": null,
+   "roi": 32.67,
+   "aum": 7484.901090773191
+  },
+  "rank": 13
+ },
+ {
+  "group": "Trade",
+  "name": "Bare-Payee-Fox",
+  "where": "OKX Copy Trading",
+  "url": "https://www.okx.com/copy-trading/account/44570B03F5CBCEDE?tab=swap",
+  "money": "PnL công bố $137.216",
+  "users": "90 người copy",
+  "users_n": 90,
+  "style": "Swing, giữ lệnh dài",
+  "how": "Đánh LIT, BTC, NVDA, chủ yếu long; giữ lệnh trung vị 30.2 giờ, đòn bẩy trung vị 3x, 0.72 lệnh/ngày. 52% lệnh vào cùng chiều biến động 24 giờ trước đó. Kiếm nhiều nhất khi thị trường đi ngang. Đang giữ 25 vị thế mở. lỗ chưa chốt -13.804 USDT. so với lãi đã chốt 42.995 USDT.",
+  "why": "AUM $21.805 và 90 người copy: đám đông thấy tiền đông thì theo; ROI công bố 109%.",
+  "trend": "Lối chơi ổn định trong kỳ khảo sát.",
+  "fit": "Mã chính đang đi ngang",
+  "fit_tone": "neu",
+  "risks": [
+   "Lỗ treo lớn (vị thế đang mở)"
+  ],
+  "metrics": {
+   "p": {
+    "n": 61,
+    "tagged": 61,
+    "days": 85,
+    "per_day": 0.72,
+    "top_syms": [
+     [
+      "LIT",
+      36
+     ],
+     [
+      "BTC",
+      15
+     ],
+     [
+      "NVDA",
+      15
+     ]
+    ],
+    "n_syms": 8,
+    "cls": {
+     "alt": 43,
+     "major": 26,
+     "meme": 15,
+     "tradfi": 16
+    },
+    "long_pct": 85,
+    "lev_med": 3.0,
+    "lev_p90": 10.0,
+    "hold_med": 30.25,
+    "hold_lt1": 3,
+    "hold_gt24": 56,
+    "win": 100,
+    "payoff": null,
+    "pf": null,
+    "net": 42995,
+    "reg_share": {
+     "up": 44,
+     "range": 43,
+     "down": 13
+    },
+    "reg_pnl": {
+     "up": 18981,
+     "range": 21223,
+     "down": 2791
+    },
+    "reg_win": {
+     "up": 100,
+     "range": 100,
+     "down": 100
+    },
+    "hv_share": 28,
+    "hv_pnl": 20124,
+    "aligned": 94,
+    "momentum": 52,
+    "overlap": 23,
+    "hold_ratio": 0.0,
+    "top5_share": 29,
+    "tail": null,
+    "peak_hours": [
+     14,
+     15,
+     13
+    ],
+    "dca": {
+     "adds": 23,
+     "down": 100,
+     "stack": 3
+    }
+   },
+   "open": {
+    "n": 25,
+    "upl": -13804,
+    "margin": 95247
+   },
+   "mdd": null,
+   "roi": 108.79,
+   "aum": 21805.09547046435
+  },
+  "rank": 14
+ },
+ {
+  "group": "Trade",
+  "name": "Feed-Creator-4bc0690bb",
+  "where": "Binance Copy Trading",
+  "url": "https://www.binance.com/en/copy-trading/lead-details/4657722487947555584",
+  "money": "PnL công bố $551.153",
+  "users": "359 người copy",
+  "users_n": 359,
+  "style": "Bắt đảo chiều, ngược đà",
+  "how": "Đánh BTC, KORU, LPT, cả long lẫn short; giữ lệnh trung vị 25.6 giờ, đòn bẩy trung vị 20x, 0.25 lệnh/ngày. 21% lệnh vào cùng chiều biến động 24 giờ trước đó, tức hay đánh ngược đà, bắt đỉnh đáy. Kiếm nhiều nhất khi thị trường xu hướng tăng. Cần để ý: lãi dồn vào vài lệnh, giữ lệnh lỗ lâu hơn lệnh lãi.",
+  "why": "Tỷ lệ thắng 72%, MDD công bố 23.1%, 359/400 suất copy (90%): người dùng Binance chọn bot thắng đều, ít sụt.",
+  "trend": "Đang dịch chuyển sang TradFi (52% lệnh).",
+  "fit": "Hợp: mã chính đang đi ngang (−3,6%/7 ngày)",
+  "fit_tone": "good",
+  "risks": [
+   "Lãi dồn vào vài lệnh",
+   "Giữ lệnh lỗ lâu hơn lệnh lãi"
+  ],
+  "metrics": {
+   "p": {
+    "n": 29,
+    "tagged": 25,
+    "days": 114,
+    "per_day": 0.25,
+    "top_syms": [
+     [
+      "BTC",
+      28
+     ],
+     [
+      "KORU",
+      28
+     ],
+     [
+      "LPT",
+      10
+     ]
+    ],
+    "n_syms": 11,
+    "cls": {
+     "major": 28,
+     "alt": 21,
+     "tradfi": 52
+    },
+    "long_pct": 62,
+    "lev_med": 20.0,
+    "lev_p90": 20.0,
+    "hold_med": 25.58,
+    "hold_lt1": 7,
+    "hold_gt24": 59,
+    "win": 72,
+    "payoff": 1.46,
+    "pf": 3.84,
+    "net": 532174,
+    "reg_share": {
+     "up": 32,
+     "range": 36,
+     "down": 32
+    },
+    "reg_pnl": {
+     "up": 255997,
+     "range": 86260,
+     "down": 125353
+    },
+    "reg_win": {
+     "up": 62,
+     "range": 67,
+     "down": 75
+    },
+    "hv_share": 44,
+    "hv_pnl": 146615,
+    "aligned": 44,
+    "momentum": 21,
+    "overlap": 0,
+    "hold_ratio": 3.08,
+    "top5_share": 91,
+    "tail": 1.7,
+    "peak_hours": [
+     14,
+     17,
+     18
+    ],
+    "dca": null
+   },
+   "open": null,
+   "mdd": 23.1,
+   "roi": 131.0625545,
+   "aum": 1108895.78769527
+  },
+  "rank": 15
+ },
+ {
+  "group": "Trade",
+  "name": "Benny_256",
+  "where": "Binance Copy Trading",
+  "url": "https://www.binance.com/en/copy-trading/lead-details/5189801791355564544",
+  "money": "PnL công bố $1.219.648",
+  "users": "80 người copy",
+  "users_n": 80,
+  "style": "Hỗn hợp / linh hoạt",
+  "how": "Đánh MSTR, SOXL, KORU, cả long lẫn short; giữ lệnh trung vị 22.9 giờ, đòn bẩy trung vị 10x, 2.18 lệnh/ngày. 44% lệnh vào cùng chiều biến động 24 giờ trước đó. Kiếm nhiều nhất khi thị trường đi ngang, lỗ khi xu hướng giảm. Cần để ý: lãi dồn vào vài lệnh.",
+  "why": "Tỷ lệ thắng 77%, MDD công bố 19.9%, 80/200 suất copy (40%): người dùng Binance chọn bot thắng đều, ít sụt.",
+  "trend": "Đang dịch chuyển sang TradFi (66% lệnh).",
+  "fit": "Hợp: mã chính đang đi ngang (−7,2%/7 ngày)",
+  "fit_tone": "good",
+  "risks": [
+   "Lãi dồn vào vài lệnh"
+  ],
+  "metrics": {
+   "p": {
+    "n": 115,
+    "tagged": 98,
+    "days": 53,
+    "per_day": 2.18,
+    "top_syms": [
+     [
+      "MSTR",
+      16
+     ],
+     [
+      "SOXL",
+      10
+     ],
+     [
+      "KORU",
+      10
+     ]
+    ],
+    "n_syms": 28,
+    "cls": {
+     "tradfi": 66,
+     "alt": 30,
+     "meme": 1,
+     "major": 3
+    },
+    "long_pct": 63,
+    "lev_med": 10.0,
+    "lev_p90": 20.0,
+    "hold_med": 22.88,
+    "hold_lt1": 5,
+    "hold_gt24": 49,
+    "win": 77,
+    "payoff": 0.66,
+    "pf": 2.26,
+    "net": 1501399,
+    "reg_share": {
+     "range": 47,
+     "up": 38,
+     "down": 15
+    },
+    "reg_pnl": {
+     "range": 942308,
+     "up": 428606,
+     "down": -168184
+    },
+    "reg_win": {
+     "range": 78,
+     "up": 81,
+     "down": 60
+    },
+    "hv_share": 33,
+    "hv_pnl": 92143,
+    "aligned": 46,
+    "momentum": 44,
+    "overlap": 0,
+    "hold_ratio": 0.7,
+    "top5_share": 81,
+    "tail": 13.0,
+    "peak_hours": [
+     0,
+     13,
+     2
+    ],
+    "dca": null
+   },
+   "open": null,
+   "mdd": 19.9,
+   "roi": 139.88501517,
+   "aum": 1649236.99359199
+  },
+  "rank": 16
+ },
+ {
+  "group": "Trade",
+  "name": "一亏三千里-装逼资本",
+  "where": "Binance Copy Trading",
+  "url": "https://www.binance.com/en/copy-trading/lead-details/4925133974869249281",
+  "money": "PnL công bố $329.938",
+  "users": "288 người copy",
+  "users_n": 288,
+  "style": "Theo xu hướng, theo đà",
+  "how": "Đánh BTC, ETH, XRP, chủ yếu short; giữ lệnh trung vị 3.7 ngày, đòn bẩy trung vị 20x, 0.2 lệnh/ngày. 67% lệnh vào cùng chiều biến động 24 giờ trước đó, tức đánh theo đà. Kiếm nhiều nhất khi thị trường xu hướng giảm. Cần để ý: lãi dồn vào vài lệnh.",
+  "why": "Tỷ lệ thắng 86%, MDD công bố 17.3%, 288/700 suất copy (41%): người dùng Binance chọn bot thắng đều, ít sụt.",
+  "trend": "Lối chơi ổn định trong kỳ khảo sát.",
+  "fit": "Kém hợp: thị trường đi ngang, dễ bị quét hai đầu",
+  "fit_tone": "warn",
+  "risks": [
+   "Lãi dồn vào vài lệnh"
+  ],
+  "metrics": {
+   "p": {
+    "n": 36,
+    "tagged": 32,
+    "days": 176,
+    "per_day": 0.2,
+    "top_syms": [
+     [
+      "BTC",
+      17
+     ],
+     [
+      "ETH",
+      11
+     ],
+     [
+      "XRP",
+      11
+     ]
+    ],
+    "n_syms": 18,
+    "cls": {
+     "alt": 58,
+     "tradfi": 3,
+     "major": 28,
+     "meme": 11
+    },
+    "long_pct": 33,
+    "lev_med": 20.0,
+    "lev_p90": 20.0,
+    "hold_med": 88.58,
+    "hold_lt1": 11,
+    "hold_gt24": 69,
+    "win": 86,
+    "payoff": 53.19,
+    "pf": 329.79,
+    "net": 1057984,
+    "reg_share": {
+     "up": 19,
+     "range": 34,
+     "down": 47
+    },
+    "reg_pnl": {
+     "up": 253794,
+     "range": 370250,
+     "down": 412383
+    },
+    "reg_win": {
+     "up": 100,
+     "range": 82,
+     "down": 87
+    },
+    "hv_share": 59,
+    "hv_pnl": 488187,
+    "aligned": 67,
+    "momentum": 67,
+    "overlap": 0,
+    "hold_ratio": 0.75,
+    "top5_share": 76,
+    "tail": 3.5,
+    "peak_hours": [
+     21,
+     23,
+     14
+    ],
+    "dca": null
+   },
+   "open": null,
+   "mdd": 17.3,
+   "roi": 46.63489949,
+   "aum": 1378732.35714859
+  },
+  "rank": 17
+ },
+ {
+  "group": "Trade",
+  "name": "百辉财经",
+  "where": "Binance Copy Trading · API",
+  "url": "https://www.binance.com/en/copy-trading/lead-details/5218493701996013313",
+  "money": "PnL công bố $21.732",
+  "users": "598 người copy",
+  "users_n": 598,
+  "style": "Hỗn hợp / linh hoạt",
+  "how": "Đánh ZEC, XMR, LTC, chủ yếu short; giữ lệnh trung vị 6.3 giờ, đòn bẩy trung vị 10x, 4.89 lệnh/ngày. 51% lệnh vào cùng chiều biến động 24 giờ trước đó. Kiếm nhiều nhất khi thị trường xu hướng tăng.",
+  "why": "Tỷ lệ thắng 89%, MDD công bố 17.9%, 598/800 suất copy (75%): người dùng Binance chọn bot thắng đều, ít sụt.",
+  "trend": "Lối chơi ổn định trong kỳ khảo sát.",
+  "fit": "Tạm hợp: đi ngang nhưng biến động cao, dễ phá vùng",
+  "fit_tone": "warn",
+  "risks": [],
+  "metrics": {
+   "p": {
+    "n": 93,
+    "tagged": 93,
+    "days": 19,
+    "per_day": 4.89,
+    "top_syms": [
+     [
+      "ZEC",
+      22
+     ],
+     [
+      "XMR",
+      14
+     ],
+     [
+      "LTC",
+      13
+     ]
+    ],
+    "n_syms": 11,
+    "cls": {
+     "alt": 70,
+     "tradfi": 20,
+     "major": 10
+    },
+    "long_pct": 35,
+    "lev_med": 10.0,
+    "lev_p90": 15.0,
+    "hold_med": 6.27,
+    "hold_lt1": 17,
+    "hold_gt24": 20,
+    "win": 89,
+    "payoff": 12.47,
+    "pf": 103.53,
+    "net": 19325,
+    "reg_share": {
+     "up": 69,
+     "range": 31
+    },
+    "reg_pnl": {
+     "up": 11593,
+     "range": 7732
+    },
+    "reg_win": {
+     "up": 92,
+     "range": 83
+    },
+    "hv_share": 63,
+    "hv_pnl": 18804,
+    "aligned": 36,
+    "momentum": 51,
+    "overlap": 0,
+    "hold_ratio": 2.04,
+    "top5_share": 51,
+    "tail": 8.2,
+    "peak_hours": [
+     14,
+     0,
+     13
+    ],
+    "dca": null
+   },
+   "open": null,
+   "mdd": 17.9,
+   "roi": 4346.30571312,
+   "aum": 765908.81991755
+  },
+  "rank": 18
+ },
+ {
+  "group": "Trade",
+  "name": "顺其自然2016",
+  "where": "Binance Copy Trading",
+  "url": "https://www.binance.com/en/copy-trading/lead-details/5203615152894891009",
+  "money": "PnL công bố $97.843",
+  "users": "362 người copy",
+  "users_n": 362,
+  "style": "Hỗn hợp / linh hoạt",
+  "how": "Đánh ETH, SNDK, BTC, cả long lẫn short; giữ lệnh trung vị 2.4 giờ, đòn bẩy trung vị 50x, 4.39 lệnh/ngày. 43% lệnh vào cùng chiều biến động 24 giờ trước đó. Kiếm nhiều nhất khi thị trường đi ngang. Cần để ý: đòn bẩy rất cao, có lệnh lỗ cực lớn.",
+  "why": "Tỷ lệ thắng 74%, MDD công bố 17.1%, 362/400 suất copy (90%): người dùng Binance chọn bot thắng đều, ít sụt.",
+  "trend": "Đang dịch chuyển sang TradFi (40% lệnh).",
+  "fit": "Hợp: mã chính đang đi ngang (−3,1%/7 ngày)",
+  "fit_tone": "good",
+  "risks": [
+   "Đòn bẩy rất cao",
+   "Có lệnh lỗ cực lớn"
+  ],
+  "metrics": {
+   "p": {
+    "n": 136,
+    "tagged": 135,
+    "days": 31,
+    "per_day": 4.39,
+    "top_syms": [
+     [
+      "ETH",
+      34
+     ],
+     [
+      "SNDK",
+      24
+     ],
+     [
+      "BTC",
+      15
+     ]
+    ],
+    "n_syms": 16,
+    "cls": {
+     "tradfi": 40,
+     "major": 49,
+     "alt": 10
+    },
+    "long_pct": 54,
+    "lev_med": 50.0,
+    "lev_p90": 100.0,
+    "hold_med": 2.39,
+    "hold_lt1": 32,
+    "hold_gt24": 12,
+    "win": 74,
+    "payoff": 0.98,
+    "pf": 2.73,
+    "net": 101931,
+    "reg_share": {
+     "range": 41,
+     "up": 53,
+     "down": 5
+    },
+    "reg_pnl": {
+     "range": 59912,
+     "up": 40755,
+     "down": 1149
+    },
+    "reg_win": {
+     "range": 75,
+     "up": 75,
+     "down": 43
+    },
+    "hv_share": 36,
+    "hv_pnl": 42396,
+    "aligned": 48,
+    "momentum": 43,
+    "overlap": 0,
+    "hold_ratio": 0.41,
+    "top5_share": 45,
+    "tail": 15.0,
+    "peak_hours": [
+     14,
+     13,
+     16
+    ],
+    "dca": null
+   },
+   "open": null,
+   "mdd": 17.1,
+   "roi": 3382.18882892,
+   "aum": 805044.3036709
+  },
+  "rank": 19
+ },
+ {
+  "group": "Trade",
+  "name": "风雪哥",
+  "where": "Binance Copy Trading",
+  "url": "https://www.binance.com/en/copy-trading/lead-details/4708220152086930177",
+  "money": "PnL công bố $171.376",
+  "users": "216 người copy",
+  "users_n": 216,
+  "style": "Swing, giữ lệnh dài",
+  "how": "Đánh SNDK, ETH, SOXL, chủ yếu long; giữ lệnh trung vị 35.5 giờ, đòn bẩy trung vị 10x, 0.53 lệnh/ngày. 48% lệnh vào cùng chiều biến động 24 giờ trước đó. Kiếm nhiều nhất khi thị trường đi ngang. Cần để ý: lãi dồn vào vài lệnh.",
+  "why": "Tỷ lệ thắng 49%, MDD công bố 12.1%, 216/700 suất copy (31%): người dùng Binance chọn bot thắng đều, ít sụt.",
+  "trend": "Đang dịch chuyển sang TradFi (40% lệnh).",
+  "fit": "Mã chính đang đi ngang",
+  "fit_tone": "neu",
+  "risks": [
+   "Lãi dồn vào vài lệnh"
+  ],
+  "metrics": {
+   "p": {
+    "n": 70,
+    "tagged": 56,
+    "days": 133,
+    "per_day": 0.53,
+    "top_syms": [
+     [
+      "SNDK",
+      9
+     ],
+     [
+      "ETH",
+      9
+     ],
+     [
+      "SOXL",
+      9
+     ]
+    ],
+    "n_syms": 34,
+    "cls": {
+     "alt": 44,
+     "tradfi": 40,
+     "meme": 4,
+     "major": 11
+    },
+    "long_pct": 79,
+    "lev_med": 10.0,
+    "lev_p90": 20.0,
+    "hold_med": 35.53,
+    "hold_lt1": 10,
+    "hold_gt24": 63,
+    "win": 49,
+    "payoff": 2.67,
+    "pf": 2.52,
+    "net": 428901,
+    "reg_share": {
+     "up": 27,
+     "range": 36,
+     "down": 38
+    },
+    "reg_pnl": {
+     "up": 64636,
+     "range": 188234,
+     "down": 64231
+    },
+    "reg_win": {
+     "up": 47,
+     "range": 60,
+     "down": 33
+    },
+    "hv_share": 50,
+    "hv_pnl": 117738,
+    "aligned": 58,
+    "momentum": 48,
+    "overlap": 0,
+    "hold_ratio": 0.58,
+    "top5_share": 81,
+    "tail": 7.3,
+    "peak_hours": [
+     2,
+     0,
+     1
+    ],
+    "dca": null
+   },
+   "open": null,
+   "mdd": 12.1,
+   "roi": 30.87074508,
+   "aum": 1124616.10338706
+  },
+  "rank": 20
+ },
+ {
+  "group": "Trade",
+  "name": "星辰社区-意钦",
+  "where": "Binance Copy Trading",
+  "url": "https://www.binance.com/en/copy-trading/lead-details/4788776444236355328",
+  "money": "PnL công bố $1.844",
+  "users": "946 người copy",
+  "users_n": 946,
+  "style": "Bắt đảo chiều, ngược đà",
+  "how": "Đánh LAB, AKE, ESPORTS, cả long lẫn short; giữ lệnh trung vị 2 phút, đòn bẩy trung vị 5x, 1.57 lệnh/ngày. 18% lệnh vào cùng chiều biến động 24 giờ trước đó, tức hay đánh ngược đà, bắt đỉnh đáy. Kiếm nhiều nhất khi thị trường xu hướng tăng. Cần để ý: lãi dồn vào vài lệnh, giữ lệnh lỗ lâu hơn lệnh lãi.",
+  "why": "Tỷ lệ thắng 97%, MDD công bố 19.1%, 946/1000 suất copy (95%): người dùng Binance chọn bot thắng đều, ít sụt.",
+  "trend": "Lối chơi ổn định trong kỳ khảo sát.",
+  "fit": "Rủi ro: mã chính đang xu hướng giảm, lối ngược đà dễ bị kéo",
+  "fit_tone": "warn",
+  "risks": [
+   "Lãi dồn vào vài lệnh",
+   "Giữ lệnh lỗ lâu hơn lệnh lãi"
+  ],
+  "metrics": {
+   "p": {
+    "n": 181,
+    "tagged": 174,
+    "days": 115,
+    "per_day": 1.57,
+    "top_syms": [
+     [
+      "LAB",
+      16
+     ],
+     [
+      "AKE",
+      10
+     ],
+     [
+      "ESPORTS",
+      7
+     ]
+    ],
+    "n_syms": 42,
+    "cls": {
+     "alt": 90,
+     "meme": 8,
+     "major": 2
+    },
+    "long_pct": 49,
+    "lev_med": 5.0,
+    "lev_p90": 10.0,
+    "hold_med": 0.03,
+    "hold_lt1": 88,
+    "hold_gt24": 3,
+    "win": 97,
+    "payoff": 0.07,
+    "pf": 2.12,
+    "net": 11015,
+    "reg_share": {
+     "range": 29,
+     "up": 43,
+     "down": 28
+    },
+    "reg_pnl": {
+     "range": 123,
+     "up": 11936,
+     "down": 2850
+    },
+    "reg_win": {
+     "range": 94,
+     "up": 97,
+     "down": 100
+    },
+    "hv_share": 72,
+    "hv_pnl": 12183,
+    "aligned": 19,
+    "momentum": 18,
+    "overlap": 0,
+    "hold_ratio": 698.87,
+    "top5_share": 76,
+    "tail": 3.9,
+    "peak_hours": [
+     9,
+     5,
+     7
+    ],
+    "dca": null
+   },
+   "open": null,
+   "mdd": 19.1,
+   "roi": 8.65527784,
+   "aum": 831062.11652503
+  },
+  "rank": 21
+ },
+ {
+  "group": "Trade",
+  "name": "星火研究院-大象",
+  "where": "Binance Copy Trading",
+  "url": "https://www.binance.com/en/copy-trading/lead-details/4287847543651684864",
+  "money": "PnL công bố $67.158",
+  "users": "499 người copy",
+  "users_n": 499,
+  "style": "Bắt đảo chiều, ngược đà",
+  "how": "Đánh ETH, BTC, HYPE, cả long lẫn short; giữ lệnh trung vị 46 phút, đòn bẩy trung vị 8x, 2.66 lệnh/ngày. 41% lệnh vào cùng chiều biến động 24 giờ trước đó, tức hay đánh ngược đà, bắt đỉnh đáy. Kiếm nhiều nhất khi thị trường đi ngang. Cần để ý: lãi dồn vào vài lệnh, giữ lệnh lỗ lâu hơn lệnh lãi.",
+  "why": "Tỷ lệ thắng 99%, MDD công bố 11.8%, 499/500 suất copy (100%): người dùng Binance chọn bot thắng đều, ít sụt.",
+  "trend": "Lối chơi ổn định trong kỳ khảo sát.",
+  "fit": "Hợp: mã chính đang đi ngang (−3,1%/7 ngày)",
+  "fit_tone": "good",
+  "risks": [
+   "Lãi dồn vào vài lệnh",
+   "Giữ lệnh lỗ lâu hơn lệnh lãi"
+  ],
+  "metrics": {
+   "p": {
+    "n": 363,
+    "tagged": 363,
+    "days": 137,
+    "per_day": 2.66,
+    "top_syms": [
+     [
+      "ETH",
+      43
+     ],
+     [
+      "BTC",
+      16
+     ],
+     [
+      "HYPE",
+      15
+     ]
+    ],
+    "n_syms": 12,
+    "cls": {
+     "major": 59,
+     "alt": 41,
+     "meme": 0
+    },
+    "long_pct": 53,
+    "lev_med": 8.0,
+    "lev_p90": 19.0,
+    "hold_med": 0.77,
+    "hold_lt1": 55,
+    "hold_gt24": 7,
+    "win": 99,
+    "payoff": 0.08,
+    "pf": 14.58,
+    "net": 83228,
+    "reg_share": {
+     "range": 50,
+     "up": 44,
+     "down": 6
+    },
+    "reg_pnl": {
+     "range": 54831,
+     "up": 20743,
+     "down": 7654
+    },
+    "reg_win": {
+     "range": 99,
+     "up": 99,
+     "down": 100
+    },
+    "hv_share": 45,
+    "hv_pnl": 16958,
+    "aligned": 69,
+    "momentum": 41,
+    "overlap": 0,
+    "hold_ratio": 41.25,
+    "top5_share": 71,
+    "tail": 2.0,
+    "peak_hours": [
+     14,
+     13,
+     15
+    ],
+    "dca": null
+   },
+   "open": null,
+   "mdd": 11.8,
+   "roi": 29.05487008,
+   "aum": 391021.53410426
+  },
+  "rank": 22
+ },
+ {
+  "group": "Trade",
+  "name": "Kristofer Hogon SAzs",
+  "where": "Binance Copy Trading · API",
+  "url": "https://www.binance.com/en/copy-trading/lead-details/4988953636837287681",
+  "money": "PnL công bố $952",
+  "users": "599 người copy",
+  "users_n": 599,
+  "style": "Theo xu hướng, theo đà",
+  "how": "Đánh HYPE, chủ yếu long; giữ lệnh trung vị 3.1 giờ, đòn bẩy trung vị 50x, 2.74 lệnh/ngày. 73% lệnh vào cùng chiều biến động 24 giờ trước đó, tức đánh theo đà. Kiếm nhiều nhất khi thị trường xu hướng tăng. Cần để ý: đòn bẩy rất cao.",
+  "why": "Tỷ lệ thắng 100%, MDD công bố 4.0%, 599/600 suất copy (100%): người dùng Binance chọn bot thắng đều, ít sụt.",
+  "trend": "Đang tập trung vào HYPE.",
+  "fit": "Kém hợp: thị trường đi ngang, dễ bị quét hai đầu",
+  "fit_tone": "warn",
+  "risks": [
+   "Đòn bẩy rất cao"
+  ],
+  "metrics": {
+   "p": {
+    "n": 323,
+    "tagged": 323,
+    "days": 118,
+    "per_day": 2.74,
+    "top_syms": [
+     [
+      "HYPE",
+      100
+     ]
+    ],
+    "n_syms": 1,
+    "cls": {
+     "alt": 100
+    },
+    "long_pct": 100,
+    "lev_med": 50.0,
+    "lev_p90": 50.0,
+    "hold_med": 3.06,
+    "hold_lt1": 24,
+    "hold_gt24": 9,
+    "win": 100,
+    "payoff": null,
+    "pf": null,
+    "net": 5365,
+    "reg_share": {
+     "up": 46,
+     "range": 52,
+     "down": 2
+    },
+    "reg_pnl": {
+     "up": 2626,
+     "range": 2485,
+     "down": 254
+    },
+    "reg_win": {
+     "up": 100,
+     "range": 100,
+     "down": 100
+    },
+    "hv_share": 42,
+    "hv_pnl": 2439,
+    "aligned": 95,
+    "momentum": 73,
+    "overlap": 0,
+    "hold_ratio": 0.0,
+    "top5_share": 19,
+    "tail": null,
+    "peak_hours": [
+     14,
+     13,
+     17
+    ],
+    "dca": null
+   },
+   "open": null,
+   "mdd": 4.0,
+   "roi": 18.22371244,
+   "aum": 728435.14067709
+  },
+  "rank": 23
+ },
+ {
+  "group": "Trade",
+  "name": "玄冥二老",
+  "where": "Binance Copy Trading · API",
+  "url": "https://www.binance.com/en/copy-trading/lead-details/4908633203782592768",
+  "money": "PnL công bố $1.447",
+  "users": "765 người copy",
+  "users_n": 765,
+  "style": "Bắt đảo chiều, ngược đà",
+  "how": "Đánh AKE, LAB, TUT, cả long lẫn short; giữ lệnh trung vị 1 phút, đòn bẩy trung vị 5x, 2.01 lệnh/ngày. 19% lệnh vào cùng chiều biến động 24 giờ trước đó, tức hay đánh ngược đà, bắt đỉnh đáy. Kiếm nhiều nhất khi thị trường xu hướng tăng. Cần để ý: giữ lệnh lỗ lâu hơn lệnh lãi, có lệnh lỗ cực lớn.",
+  "why": "Tỷ lệ thắng 97%, MDD công bố 0.0%, 765/800 suất copy (96%): người dùng Binance chọn bot thắng đều, ít sụt.",
+  "trend": "Lối chơi ổn định trong kỳ khảo sát.",
+  "fit": "Tạm hợp: đi ngang nhưng biến động cao, dễ phá vùng",
+  "fit_tone": "warn",
+  "risks": [
+   "Giữ lệnh lỗ lâu hơn lệnh lãi",
+   "Có lệnh lỗ cực lớn"
+  ],
+  "metrics": {
+   "p": {
+    "n": 232,
+    "tagged": 214,
+    "days": 115,
+    "per_day": 2.01,
+    "top_syms": [
+     [
+      "AKE",
+      11
+     ],
+     [
+      "LAB",
+      11
+     ],
+     [
+      "TUT",
+      5
+     ]
+    ],
+    "n_syms": 53,
+    "cls": {
+     "alt": 90,
+     "meme": 8,
+     "major": 2
+    },
+    "long_pct": 37,
+    "lev_med": 5.0,
+    "lev_p90": 10.0,
+    "hold_med": 0.02,
+    "hold_lt1": 97,
+    "hold_gt24": 0,
+    "win": 97,
+    "payoff": 0.97,
+    "pf": 36.56,
+    "net": 3475,
+    "reg_share": {
+     "range": 31,
+     "up": 51,
+     "down": 18
+    },
+    "reg_pnl": {
+     "range": 678,
+     "up": 2030,
+     "down": 467
+    },
+    "reg_win": {
+     "range": 94,
+     "up": 98,
+     "down": 100
+    },
+    "hv_share": 76,
+    "hv_pnl": 2585,
+    "aligned": 18,
+    "momentum": 19,
+    "overlap": 0,
+    "hold_ratio": 10.79,
+    "top5_share": 28,
+    "tail": 241.6,
+    "peak_hours": [
+     10,
+     5,
+     7
+    ],
+    "dca": null
+   },
+   "open": null,
+   "mdd": 0.0,
+   "roi": 29.43904641,
+   "aum": 548281.57163635
+  },
+  "rank": 24
+ },
+ {
+  "group": "Trade",
+  "name": "hugehead",
+  "where": "Binance Copy Trading",
+  "url": "https://www.binance.com/en/copy-trading/lead-details/5199386369841615104",
+  "money": "PnL công bố $546.910",
+  "users": "4 người copy",
+  "users_n": 4,
+  "style": "Hỗn hợp / linh hoạt",
+  "how": "Đánh SNDK, ETH, SPCX, cả long lẫn short; giữ lệnh trung vị 8.0 giờ, đòn bẩy trung vị 20x, 1.64 lệnh/ngày. 47% lệnh vào cùng chiều biến động 24 giờ trước đó. Kiếm nhiều nhất khi thị trường xu hướng tăng. Cần để ý: lãi dồn vào vài lệnh.",
+  "why": "Tỷ lệ thắng 57%, MDD công bố 46.1%, 4/200 suất copy (2%): người dùng Binance chọn bot thắng đều, ít sụt.",
+  "trend": "Đang dịch chuyển sang TradFi (74% lệnh).",
+  "fit": "Hợp: mã chính đang đi ngang (−3,6%/7 ngày)",
+  "fit_tone": "good",
+  "risks": [
+   "Lãi dồn vào vài lệnh"
+  ],
+  "metrics": {
+   "p": {
+    "n": 54,
+    "tagged": 53,
+    "days": 33,
+    "per_day": 1.64,
+    "top_syms": [
+     [
+      "SNDK",
+      31
+     ],
+     [
+      "ETH",
+      19
+     ],
+     [
+      "SPCX",
+      9
+     ]
+    ],
+    "n_syms": 14,
+    "cls": {
+     "tradfi": 74,
+     "major": 19,
+     "alt": 7
+    },
+    "long_pct": 41,
+    "lev_med": 20.0,
+    "lev_p90": 50.0,
+    "hold_med": 7.95,
+    "hold_lt1": 9,
+    "hold_gt24": 30,
+    "win": 57,
+    "payoff": 1.37,
+    "pf": 1.85,
+    "net": 526609,
+    "reg_share": {
+     "range": 51,
+     "up": 45,
+     "down": 4
+    },
+    "reg_pnl": {
+     "range": 112988,
+     "up": 388666,
+     "down": 25601
+    },
+    "reg_win": {
+     "range": 56,
+     "up": 58,
+     "down": 100
+    },
+    "hv_share": 11,
+    "hv_pnl": -88008,
+    "aligned": 15,
+    "momentum": 47,
+    "overlap": 0,
+    "hold_ratio": 0.49,
+    "top5_share": 131,
+    "tail": 7.7,
+    "peak_hours": [
+     13,
+     17,
+     16
+    ],
+    "dca": null
+   },
+   "open": null,
+   "mdd": 46.1,
+   "roi": 109.86554837,
+   "aum": 724449.51242969
+  },
+  "rank": 25
+ },
+ {
+  "group": "Trade",
+  "name": "乾坤策略量化",
+  "where": "Binance Copy Trading · API",
+  "url": "https://www.binance.com/en/copy-trading/lead-details/5229164046792448257",
+  "money": "PnL công bố $16.523",
+  "users": "426 người copy",
+  "users_n": 426,
+  "style": "Hỗn hợp / linh hoạt",
+  "how": "Đánh ZEC, XMR, ETH, cả long lẫn short; giữ lệnh trung vị 16.5 giờ, đòn bẩy trung vị 10x, 4.18 lệnh/ngày. 52% lệnh vào cùng chiều biến động 24 giờ trước đó. Kiếm nhiều nhất khi thị trường xu hướng tăng. Cần để ý: lãi dồn vào vài lệnh, giữ lệnh lỗ lâu hơn lệnh lãi.",
+  "why": "Tỷ lệ thắng 91%, MDD công bố 5.7%, 426/500 suất copy (85%): người dùng Binance chọn bot thắng đều, ít sụt.",
+  "trend": "Lối chơi ổn định trong kỳ khảo sát.",
+  "fit": "Tạm hợp: đi ngang nhưng biến động cao, dễ phá vùng",
+  "fit_tone": "warn",
+  "risks": [
+   "Lãi dồn vào vài lệnh",
+   "Giữ lệnh lỗ lâu hơn lệnh lãi"
+  ],
+  "metrics": {
+   "p": {
+    "n": 46,
+    "tagged": 46,
+    "days": 11,
+    "per_day": 4.18,
+    "top_syms": [
+     [
+      "ZEC",
+      26
+     ],
+     [
+      "XMR",
+      22
+     ],
+     [
+      "ETH",
+      15
+     ]
+    ],
+    "n_syms": 9,
+    "cls": {
+     "alt": 83,
+     "meme": 2,
+     "major": 15
+    },
+    "long_pct": 48,
+    "lev_med": 10.0,
+    "lev_p90": 15.0,
+    "hold_med": 16.47,
+    "hold_lt1": 4,
+    "hold_gt24": 30,
+    "win": 91,
+    "payoff": 25.65,
+    "pf": 269.32,
+    "net": 15446,
+    "reg_share": {
+     "up": 98,
+     "range": 2
+    },
+    "reg_pnl": {
+     "up": 15432,
+     "range": 14
+    },
+    "reg_win": {
+     "up": 91,
+     "range": 100
+    },
+    "hv_share": 91,
+    "hv_pnl": 15396,
+    "aligned": 49,
+    "momentum": 52,
+    "overlap": 0,
+    "hold_ratio": 3.21,
+    "top5_share": 67,
+    "tail": 2.0,
+    "peak_hours": [
+     9,
+     0,
+     1
+    ],
+    "dca": null
+   },
+   "open": null,
+   "mdd": 5.7,
+   "roi": 3304.64891952,
+   "aum": 365883.06223616
+  },
+  "rank": 26
+ },
+ {
+  "group": "Trade",
+  "name": "A路飞",
+  "where": "Binance Copy Trading",
+  "url": "https://www.binance.com/en/copy-trading/lead-details/5154344801714752768",
+  "money": "PnL công bố $1.813",
+  "users": "433 người copy",
+  "users_n": 433,
+  "style": "Hỗn hợp / linh hoạt",
+  "how": "Đánh BTC, ZEC, ETH, cả long lẫn short; giữ lệnh trung vị 6.7 giờ, đòn bẩy trung vị 20x, 4.49 lệnh/ngày. 50% lệnh vào cùng chiều biến động 24 giờ trước đó. Kiếm nhiều nhất khi thị trường đi ngang. Cần để ý: lãi dồn vào vài lệnh.",
+  "why": "Tỷ lệ thắng 70%, MDD công bố 55.1%, 433/1000 suất copy (43%): người dùng Binance chọn bot thắng đều, ít sụt.",
+  "trend": "Lối chơi ổn định trong kỳ khảo sát.",
+  "fit": "Hợp: mã chính đang đi ngang (−3,6%/7 ngày)",
+  "fit_tone": "good",
+  "risks": [
+   "Lãi dồn vào vài lệnh"
+  ],
+  "metrics": {
+   "p": {
+    "n": 284,
+    "tagged": 283,
+    "days": 63,
+    "per_day": 4.49,
+    "top_syms": [
+     [
+      "BTC",
+      17
+     ],
+     [
+      "ZEC",
+      16
+     ],
+     [
+      "ETH",
+      15
+     ]
+    ],
+    "n_syms": 27,
+    "cls": {
+     "alt": 43,
+     "meme": 6,
+     "major": 32,
+     "tradfi": 19
+    },
+    "long_pct": 51,
+    "lev_med": 20.0,
+    "lev_p90": 20.0,
+    "hold_med": 6.74,
+    "hold_lt1": 14,
+    "hold_gt24": 18,
+    "win": 70,
+    "payoff": 0.6,
+    "pf": 1.38,
+    "net": 24811,
+    "reg_share": {
+     "up": 62,
+     "range": 35,
+     "down": 3
+    },
+    "reg_pnl": {
+     "up": 10205,
+     "range": 13551,
+     "down": 1047
+    },
+    "reg_win": {
+     "up": 69,
+     "range": 69,
+     "down": 88
+    },
+    "hv_share": 47,
+    "hv_pnl": 9256,
+    "aligned": 58,
+    "momentum": 50,
+    "overlap": 0,
+    "hold_ratio": 1.06,
+    "top5_share": 78,
+    "tail": 12.2,
+    "peak_hours": [
+     13,
+     14,
+     15
+    ],
+    "dca": null
+   },
+   "open": null,
+   "mdd": 55.1,
+   "roi": 10.19346286,
+   "aum": 511039.7460691
+  },
+  "rank": 27
+ },
+ {
+  "group": "Trade",
+  "name": "币圈心灵导师",
+  "where": "Binance Copy Trading",
+  "url": "https://www.binance.com/en/copy-trading/lead-details/5195004133729120001",
+  "money": "PnL công bố $515.630",
+  "users": "133 người copy",
+  "users_n": 133,
+  "style": "Bắt đảo chiều, ngược đà",
+  "how": "Đánh BTC, ZEC, ORDI, chủ yếu long; giữ lệnh trung vị 14.3 giờ, đòn bẩy trung vị 20x, 2.09 lệnh/ngày. 42% lệnh vào cùng chiều biến động 24 giờ trước đó, tức hay đánh ngược đà, bắt đỉnh đáy. Kiếm nhiều nhất khi thị trường đi ngang. Cần để ý: giữ lệnh lỗ lâu hơn lệnh lãi.",
+  "why": "Tỷ lệ thắng 96%, MDD công bố 60.6%, 133/200 suất copy (66%): người dùng Binance chọn bot thắng đều, ít sụt.",
+  "trend": "Lối chơi ổn định trong kỳ khảo sát.",
+  "fit": "Hợp: mã chính đang đi ngang (−3,6%/7 ngày)",
+  "fit_tone": "good",
+  "risks": [
+   "Giữ lệnh lỗ lâu hơn lệnh lãi"
+  ],
+  "metrics": {
+   "p": {
+    "n": 143,
+    "tagged": 133,
+    "days": 68,
+    "per_day": 2.09,
+    "top_syms": [
+     [
+      "BTC",
+      14
+     ],
+     [
+      "ZEC",
+      7
+     ],
+     [
+      "ORDI",
+      7
+     ]
+    ],
+    "n_syms": 34,
+    "cls": {
+     "alt": 37,
+     "major": 17,
+     "meme": 26,
+     "tradfi": 20
+    },
+    "long_pct": 75,
+    "lev_med": 20.0,
+    "lev_p90": 20.0,
+    "hold_med": 14.29,
+    "hold_lt1": 13,
+    "hold_gt24": 38,
+    "win": 96,
+    "payoff": 9.47,
+    "pf": 216.14,
+    "net": 290437,
+    "reg_share": {
+     "up": 60,
+     "range": 37,
+     "down": 3
+    },
+    "reg_pnl": {
+     "up": 99480,
+     "range": 137193,
+     "down": 27203
+    },
+    "reg_win": {
+     "up": 96,
+     "range": 98,
+     "down": 100
+    },
+    "hv_share": 44,
+    "hv_pnl": 35693,
+    "aligned": 56,
+    "momentum": 42,
+    "overlap": 0,
+    "hold_ratio": 4.2,
+    "top5_share": 49,
+    "tail": 10.0,
+    "peak_hours": [
+     12,
+     14,
+     13
+    ],
+    "dca": null
+   },
+   "open": null,
+   "mdd": 60.6,
+   "roi": 502.53165189,
+   "aum": 194911.92815396
+  },
+  "rank": 28
+ },
+ {
+  "group": "Bot grid/DCA",
+  "name": "Used-WebSocket-Lilac · DCA short ETH (từ 10/2025)",
+  "where": "OKX Bot Marketplace",
+  "url": "https://www.okx.com/trading-bot/marketplace",
+  "money": "PnL $1.148.663 (639%)",
+  "users": "10.055 người copy",
+  "users_n": 10055,
+  "style": "DCA futures",
+  "how": "DCA hợp đồng ETH chiều short, đòn bẩy 20x, chạy từ 10/2025: vào dần theo bước giá khi giá đi ngược, chốt lời khi hồi. Người copy mang $3.048.581 chạy theo; người tạo nhận 30% lợi nhuận.",
+  "why": "Lợi nhuận tích luỹ lớn và lâu năm hiển thị ngay trên chợ; một chạm là copy.",
+  "trend": "Cùng người tạo chạy song song bản long và bản short ETH: kiếm tiền từ dao động hai chiều thay vì đoán hướng.",
+  "fit": "Hợp: mã chính đang đi ngang (−3,1%/7 ngày)",
+  "fit_tone": "good",
+  "risks": [
+   "Đòn bẩy 20x",
+   "DCA dễ chồng lỗ khi ETH đi một chiều dài"
+  ],
+  "metrics": null,
+  "rank": 29
+ },
+ {
+  "group": "Bot grid/DCA",
+  "name": "Clever-Bandwidth-Pea · DCA long ETH",
+  "where": "OKX Bot Marketplace",
+  "url": "https://www.okx.com/trading-bot/marketplace",
+  "money": "PnL $757.656 (306%)",
+  "users": "7.705 người copy",
+  "users_n": 7705,
+  "style": "DCA futures",
+  "how": "DCA hợp đồng ETH chiều long, đòn bẩy 20x, chạy từ 08/2025: vào dần theo bước giá khi giá đi ngược, chốt lời khi hồi. Người copy mang $2.206.391 chạy theo; người tạo nhận 30% lợi nhuận.",
+  "why": "Lợi nhuận tích luỹ lớn và lâu năm hiển thị ngay trên chợ; một chạm là copy.",
+  "trend": "Bản DCA long ETH chạy lâu, nhiều người copy.",
+  "fit": "Hợp: mã chính đang đi ngang (−3,1%/7 ngày)",
+  "fit_tone": "good",
+  "risks": [
+   "Đòn bẩy 20x",
+   "DCA dễ chồng lỗ khi ETH đi một chiều dài"
+  ],
+  "metrics": null,
+  "rank": 30
+ },
+ {
+  "group": "Bot grid/DCA",
+  "name": "Used-WebSocket-Lilac · DCA short ETH (từ 08/2025)",
+  "where": "OKX Bot Marketplace",
+  "url": "https://www.okx.com/trading-bot/marketplace",
+  "money": "PnL $910.747 (382%)",
+  "users": "3.127 người copy",
+  "users_n": 3127,
+  "style": "DCA futures",
+  "how": "DCA hợp đồng ETH chiều short, đòn bẩy 20x, chạy từ 08/2025: vào dần theo bước giá khi giá đi ngược, chốt lời khi hồi. Người copy mang $623.159 chạy theo; người tạo nhận 30% lợi nhuận.",
+  "why": "Lợi nhuận tích luỹ lớn và lâu năm hiển thị ngay trên chợ; một chạm là copy.",
+  "trend": "Cùng người tạo chạy song song bản long và bản short ETH: kiếm tiền từ dao động hai chiều thay vì đoán hướng.",
+  "fit": "Hợp: mã chính đang đi ngang (−3,1%/7 ngày)",
+  "fit_tone": "good",
+  "risks": [
+   "Đòn bẩy 20x",
+   "DCA dễ chồng lỗ khi ETH đi một chiều dài"
+  ],
+  "metrics": null,
+  "rank": 31
+ },
+ {
+  "group": "Bot grid/DCA",
+  "name": "The nightisbeautiful · DCA long ETH",
+  "where": "OKX Bot Marketplace",
+  "url": "https://www.okx.com/trading-bot/marketplace",
+  "money": "PnL $607.856 (337%)",
+  "users": "2.354 người copy",
+  "users_n": 2354,
+  "style": "DCA futures",
+  "how": "DCA hợp đồng ETH chiều long, đòn bẩy 20x, chạy từ 07/2025: vào dần theo bước giá khi giá đi ngược, chốt lời khi hồi. Người copy mang $320.773 chạy theo; người tạo nhận 30% lợi nhuận.",
+  "why": "Lợi nhuận tích luỹ lớn và lâu năm hiển thị ngay trên chợ; một chạm là copy.",
+  "trend": "Bản DCA long ETH chạy lâu, nhiều người copy.",
+  "fit": "Hợp: mã chính đang đi ngang (−3,1%/7 ngày)",
+  "fit_tone": "good",
+  "risks": [
+   "Đòn bẩy 20x",
+   "DCA dễ chồng lỗ khi ETH đi một chiều dài"
+  ],
+  "metrics": null,
+  "rank": 32
+ },
+ {
+  "group": "Bot grid/DCA",
+  "name": "Mist will disperse · DCA short ETH (từ 10/2025)",
+  "where": "OKX Bot Marketplace",
+  "url": "https://www.okx.com/trading-bot/marketplace",
+  "money": "PnL $1.037.425 (610%)",
+  "users": "2.327 người copy",
+  "users_n": 2327,
+  "style": "DCA futures",
+  "how": "DCA hợp đồng ETH chiều short, đòn bẩy 20x, chạy từ 10/2025: vào dần theo bước giá khi giá đi ngược, chốt lời khi hồi. Người copy mang $318.578 chạy theo; người tạo nhận 30% lợi nhuận.",
+  "why": "Lợi nhuận tích luỹ lớn và lâu năm hiển thị ngay trên chợ; một chạm là copy.",
+  "trend": "Cùng người tạo chạy song song bản long và bản short ETH: kiếm tiền từ dao động hai chiều thay vì đoán hướng.",
+  "fit": "Hợp: mã chính đang đi ngang (−3,1%/7 ngày)",
+  "fit_tone": "good",
+  "risks": [
+   "Đòn bẩy 20x",
+   "DCA dễ chồng lỗ khi ETH đi một chiều dài"
+  ],
+  "metrics": null,
+  "rank": 33
+ },
+ {
+  "group": "Bot grid/DCA",
+  "name": "Mist will disperse · DCA short ETH (từ 08/2025)",
+  "where": "OKX Bot Marketplace",
+  "url": "https://www.okx.com/trading-bot/marketplace",
+  "money": "PnL $765.897 (367%)",
+  "users": "967 người copy",
+  "users_n": 967,
+  "style": "DCA futures",
+  "how": "DCA hợp đồng ETH chiều short, đòn bẩy 20x, chạy từ 08/2025: vào dần theo bước giá khi giá đi ngược, chốt lời khi hồi. Người copy mang $105.697 chạy theo; người tạo nhận 30% lợi nhuận.",
+  "why": "Lợi nhuận tích luỹ lớn và lâu năm hiển thị ngay trên chợ; một chạm là copy.",
+  "trend": "Cùng người tạo chạy song song bản long và bản short ETH: kiếm tiền từ dao động hai chiều thay vì đoán hướng.",
+  "fit": "Hợp: mã chính đang đi ngang (−3,1%/7 ngày)",
+  "fit_tone": "good",
+  "risks": [
+   "Đòn bẩy 20x",
+   "DCA dễ chồng lỗ khi ETH đi một chiều dài"
+  ],
+  "metrics": null,
+  "rank": 34
+ },
+ {
+  "group": "Bot grid/DCA",
+  "name": "Grid futures NEARUSDT",
+  "where": "Binance Trading Bots",
+  "url": "https://www.binance.com/en/trading-bots",
+  "money": "PnL $36.846 (ROI 9.2%)",
+  "users": "71 người copy",
+  "users_n": 71,
+  "style": "Grid futures",
+  "how": "Lưới ARITH 88 mức từ 3.6000 đến 6.8000, đòn bẩy 5x, chạy 171 ngày: mua thấp bán cao trong vùng; giá hiện trong vùng (38% từ đáy).",
+  "why": "Bảng 'top strategy' của Binance hiển thị PnL và cho copy tham số một chạm.",
+  "trend": "Có tính năng trượt vùng lên (trailing up).",
+  "fit": "Rủi ro: mã chính đang xu hướng tăng, lối ngược đà dễ bị kéo",
+  "fit_tone": "warn",
+  "risks": [
+   "Phá vùng khi thị trường ra xu hướng",
+   "Đòn bẩy 5x"
+  ],
+  "metrics": null,
+  "rank": 35
+ },
+ {
+  "group": "Bot grid/DCA",
+  "name": "Grid futures SPCXUSDT",
+  "where": "Binance Trading Bots",
+  "url": "https://www.binance.com/en/trading-bots",
+  "money": "PnL $28.080 (ROI 7.0%)",
+  "users": "100 người copy",
+  "users_n": 100,
+  "style": "Grid futures",
+  "how": "Lưới ARITH 200 mức từ 146.00000 đến 170.00000, đòn bẩy 10x, chạy 220 ngày: mua thấp bán cao trong vùng; giá hiện trong vùng (1% từ đáy).",
+  "why": "Bảng 'top strategy' của Binance hiển thị PnL và cho copy tham số một chạm.",
+  "trend": "Vùng giá cố định, không tự dời.",
+  "fit": "Hợp: mã chính đang đi ngang (−4,3%/7 ngày)",
+  "fit_tone": "good",
+  "risks": [
+   "Phá vùng khi thị trường ra xu hướng",
+   "Đòn bẩy 10x"
+  ],
+  "metrics": null,
+  "rank": 36
+ },
+ {
+  "group": "Bot grid/DCA",
+  "name": "Grid futures PUMPUSDT",
+  "where": "Binance Trading Bots",
+  "url": "https://www.binance.com/en/trading-bots",
+  "money": "PnL $14.027 (ROI 28.1%)",
+  "users": "92 người copy",
+  "users_n": 92,
+  "style": "Grid futures",
+  "how": "Lưới GEO 34 mức từ 0.0035000 đến 0.0055000, đòn bẩy 5x, chạy 289 ngày: mua thấp bán cao trong vùng; giá hiện trong vùng (71% từ đáy).",
+  "why": "Bảng 'top strategy' của Binance hiển thị PnL và cho copy tham số một chạm.",
+  "trend": "Vùng giá cố định, không tự dời.",
+  "fit": "Rủi ro: mã chính đang xu hướng tăng, lối ngược đà dễ bị kéo",
+  "fit_tone": "warn",
+  "risks": [
+   "Phá vùng khi thị trường ra xu hướng",
+   "Đòn bẩy 5x"
+  ],
+  "metrics": null,
+  "rank": 37
+ },
+ {
+  "group": "Bot grid/DCA",
+  "name": "Grid futures XRPUSDC",
+  "where": "Binance Trading Bots",
+  "url": "https://www.binance.com/en/trading-bots",
+  "money": "PnL $10.978 (ROI 6.9%)",
+  "users": "44 người copy",
+  "users_n": 44,
+  "style": "Grid futures",
+  "how": "Lưới ARITH 169 mức từ 1.2500 đến 1.8500, đòn bẩy 7x, chạy 351 ngày: mua thấp bán cao trong vùng; giá hiện trong vùng (41% từ đáy).",
+  "why": "Bảng 'top strategy' của Binance hiển thị PnL và cho copy tham số một chạm.",
+  "trend": "Vùng giá cố định, không tự dời.",
+  "fit": "Tạm hợp: đi ngang nhưng biến động cao, dễ phá vùng",
+  "fit_tone": "warn",
+  "risks": [
+   "Phá vùng khi thị trường ra xu hướng",
+   "Đòn bẩy 7x"
+  ],
+  "metrics": null,
+  "rank": 38
+ },
+ {
+  "group": "Signal",
+  "name": "[AM] Occultation MIX",
+  "where": "OKX Signal Marketplace",
+  "url": "https://www.okx.com/trading-bot/signal-marketplace",
+  "money": "AUM người theo $26.780",
+  "users": "20.200 người theo",
+  "users_n": 20200,
+  "style": "Kênh tín hiệu tự vào lệnh",
+  "how": "Phát tín hiệu, bot của người theo tự vào lệnh. APY backtest 30 ngày +15%, tỷ lệ thắng của người theo 52%. Người tạo nhận 20% lợi nhuận.",
+  "why": "Kênh lâu năm, thương hiệu quen (AM Management): số người theo lớn dù hiệu suất gần đây yếu.",
+  "trend": "Hiệu suất và tỷ lệ thắng khá khớp.",
+  "fit": "Tín hiệu, không gắn một regime cố định",
+  "fit_tone": "neu",
+  "risks": [
+   "APY là backtest, không phải kết quả thực"
+  ],
+  "metrics": null,
+  "rank": 39
+ },
+ {
+  "group": "Signal",
+  "name": "[AM] Occultation",
+  "where": "OKX Signal Marketplace",
+  "url": "https://www.okx.com/trading-bot/signal-marketplace",
+  "money": "AUM người theo $102.516",
+  "users": "50.002 người theo",
+  "users_n": 50002,
+  "style": "Kênh tín hiệu tự vào lệnh",
+  "how": "Phát tín hiệu, bot của người theo tự vào lệnh. APY backtest 30 ngày -10%, tỷ lệ thắng của người theo 50%. Người tạo nhận 20% lợi nhuận.",
+  "why": "Kênh lâu năm, thương hiệu quen (AM Management): số người theo lớn dù hiệu suất gần đây yếu.",
+  "trend": "Hiệu suất 30 ngày đang âm.",
+  "fit": "Tín hiệu, không gắn một regime cố định",
+  "fit_tone": "neu",
+  "risks": [
+   "APY là backtest, không phải kết quả thực"
+  ],
+  "metrics": null,
+  "rank": 40
+ },
+ {
+  "group": "Signal",
+  "name": "[Kira] BTC多指标加权趋势策略（固定仓位）",
+  "where": "OKX Signal Marketplace",
+  "url": "https://www.okx.com/trading-bot/signal-marketplace",
+  "money": "AUM người theo $2.363",
+  "users": "68 người theo",
+  "users_n": 68,
+  "style": "Kênh tín hiệu tự vào lệnh",
+  "how": "Phát tín hiệu, bot của người theo tự vào lệnh. APY backtest 30 ngày +304%, tỷ lệ thắng của người theo 100%. Người tạo nhận 30% lợi nhuận.",
+  "why": "APY backtest cao hiển thị nổi bật.",
+  "trend": "Hiệu suất và tỷ lệ thắng khá khớp.",
+  "fit": "Tín hiệu, không gắn một regime cố định",
+  "fit_tone": "neu",
+  "risks": [
+   "APY là backtest, không phải kết quả thực"
+  ],
+  "metrics": null,
+  "rank": 41
+ },
+ {
+  "group": "Signal",
+  "name": "[CoinKarma]BTC Overall LIQ+LIQ 3X (峙樺特優化)",
+  "where": "OKX Signal Marketplace",
+  "url": "https://www.okx.com/trading-bot/signal-marketplace",
+  "money": "AUM người theo $30.147",
+  "users": "1.176 người theo",
+  "users_n": 1176,
+  "style": "Kênh tín hiệu tự vào lệnh",
+  "how": "Phát tín hiệu, bot của người theo tự vào lệnh. APY backtest 30 ngày +392%, tỷ lệ thắng của người theo 81%. Người tạo nhận 10% lợi nhuận.",
+  "why": "APY backtest cao hiển thị nổi bật.",
+  "trend": "Hiệu suất và tỷ lệ thắng khá khớp.",
+  "fit": "Tín hiệu, không gắn một regime cố định",
+  "fit_tone": "neu",
+  "risks": [
+   "APY là backtest, không phải kết quả thực"
+  ],
+  "metrics": null,
+  "rank": 42
+ },
+ {
+  "group": "Signal",
+  "name": "[mossin] Nagnats BTC-ETH",
+  "where": "OKX Signal Marketplace",
+  "url": "https://www.okx.com/trading-bot/signal-marketplace",
+  "money": "AUM người theo $960",
+  "users": "417 người theo",
+  "users_n": 417,
+  "style": "Kênh tín hiệu tự vào lệnh",
+  "how": "Phát tín hiệu, bot của người theo tự vào lệnh. APY backtest 30 ngày +1218%, tỷ lệ thắng của người theo 44%. Người tạo nhận 20% lợi nhuận.",
+  "why": "APY backtest cao hiển thị nổi bật.",
+  "trend": "Chênh lớn giữa APY backtest và tỷ lệ thắng thực của người theo.",
+  "fit": "Tín hiệu, không gắn một regime cố định",
+  "fit_tone": "neu",
+  "risks": [
+   "APY là backtest, không phải kết quả thực",
+   "Tỷ lệ thắng thực dưới 50%"
+  ],
+  "metrics": null,
+  "rank": 43
+ },
+ {
+  "group": "Signal",
+  "name": "[IntellyBot] BTC",
+  "where": "OKX Signal Marketplace",
+  "url": "https://www.okx.com/trading-bot/signal-marketplace",
+  "money": "AUM người theo $95.359",
+  "users": "14.512 người theo",
+  "users_n": 14512,
+  "style": "Kênh tín hiệu tự vào lệnh",
+  "how": "Phát tín hiệu, bot của người theo tự vào lệnh. APY backtest 30 ngày +234%, tỷ lệ thắng của người theo 37%. Người tạo nhận 20% lợi nhuận.",
+  "why": "Kênh lâu năm, thương hiệu quen (IntellyBot): số người theo lớn dù hiệu suất gần đây yếu.",
+  "trend": "Chênh lớn giữa APY backtest và tỷ lệ thắng thực của người theo.",
+  "fit": "Tín hiệu, không gắn một regime cố định",
+  "fit_tone": "neu",
+  "risks": [
+   "APY là backtest, không phải kết quả thực",
+   "Tỷ lệ thắng thực dưới 50%"
+  ],
+  "metrics": null,
+  "rank": 44
+ },
+ {
+  "group": "Alpha/Agent",
+  "name": "GMGN",
+  "where": "Solana, BSC, Base",
+  "url": "https://defillama.com/protocol/gmgn",
+  "money": "DT 30 ngày $42,55M",
+  "users": "Hàng triệu trader meme",
+  "users_n": 0,
+  "style": "Alpha / agent",
+  "how": "Terminal theo dõi ví smart money, bắn lệnh nhanh; thu phí mỗi lệnh.",
+  "why": "Bán alpha (ví cá voi, token mới) kèm công cụ vào lệnh ngay.",
+  "trend": "Tăng mạnh: 30 ngày cao hơn trung bình năm.",
+  "fit": "Không phụ thuộc một regime",
+  "fit_tone": "neu",
+  "risks": [
+   "Doanh thu dao động mạnh theo mùa meme"
+  ],
+  "metrics": null,
+  "rank": 45
+ },
+ {
+  "group": "Alpha/Agent",
+  "name": "fomo",
+  "where": "Solana, BSC, Monad",
+  "url": "https://fomo.family",
+  "money": "DT 30 ngày $31,08M",
+  "users": "Người dùng phổ thông",
+  "users_n": 0,
+  "style": "Alpha / agent",
+  "how": "Ví và app giao dịch mạng xã hội, xem người khác mua gì rồi mua theo.",
+  "why": "Copy-trade kiểu mạng xã hội, dễ dùng trên điện thoại.",
+  "trend": "Tăng nhanh nhất: 30 ngày = 45% doanh thu cả năm.",
+  "fit": "Không phụ thuộc một regime",
+  "fit_tone": "neu",
+  "risks": [
+   "Doanh thu dao động mạnh theo mùa meme"
+  ],
+  "metrics": null,
+  "rank": 46
+ },
+ {
+  "group": "Alpha/Agent",
+  "name": "Axiom",
+  "where": "Solana, BSC",
+  "url": "https://axiom.trade",
+  "money": "DT 30 ngày $18,23M",
+  "users": "Trader meme, perp",
+  "users_n": 0,
+  "style": "Alpha / agent",
+  "how": "Terminal giao dịch meme và perp tốc độ cao.",
+  "why": "Vào lệnh nhanh, gom nhiều nguồn thanh khoản.",
+  "trend": "Đi ngang ở mức cao.",
+  "fit": "Không phụ thuộc một regime",
+  "fit_tone": "neu",
+  "risks": [
+   "Doanh thu dao động mạnh theo mùa meme"
+  ],
+  "metrics": null,
+  "rank": 47
+ },
+ {
+  "group": "Alpha/Agent",
+  "name": "Bankr",
+  "where": "Base",
+  "url": "https://defillama.com/protocol/bankr",
+  "money": "DT 30 ngày $1,12M",
+  "users": "Người dùng X/Farcaster",
+  "users_n": 0,
+  "style": "Alpha / agent",
+  "how": "AI agent nhận lệnh bằng ngôn ngữ tự nhiên trên X, tự giao dịch và phát hành token.",
+  "why": "Giao dịch chỉ bằng một câu chat.",
+  "trend": "Đang giảm so với trung bình năm.",
+  "fit": "Không phụ thuộc một regime",
+  "fit_tone": "neu",
+  "risks": [],
+  "metrics": null,
+  "rank": 48
+ },
+ {
+  "group": "Alpha/Agent",
+  "name": "缠论趋势指标 · TradeDesk",
+  "where": "OKX.AI",
+  "url": "https://www.okx.ai/agents/11167",
+  "money": "8.580 lượt bán × 0,1 USDT",
+  "users": "Trader châu Á",
+  "users_n": 0,
+  "style": "Alpha / agent",
+  "how": "API chỉ báo xu hướng theo lý thuyết Chan, trả tiền theo lượt.",
+  "why": "Phương pháp phân tích riêng, quen thuộc với trader Trung Quốc.",
+  "trend": "Chiếm 92% lượt dùng fintech trên OKX.AI.",
+  "fit": "Không phụ thuộc một regime",
+  "fit_tone": "neu",
+  "risks": [],
+  "metrics": null,
+  "rank": 49
+ },
+ {
+  "group": "Alpha/Agent",
+  "name": "1M · 斯巴达",
+  "where": "OKX.AI",
+  "url": "https://www.okx.ai/agents/8136",
+  "money": "Vô địch Hackathon S1, lãi $24.907",
+  "users": "154 thuê bao",
+  "users_n": 0,
+  "style": "Alpha / agent",
+  "how": "Tín hiệu copy-trade theo xu hướng, 2–5 lệnh/tháng, thuê bao 20 USDT/tháng.",
+  "why": "PnL thật được kiểm chứng qua hackathon.",
+  "trend": "Gói thuê bao cao nhất đang có trên OKX.AI.",
+  "fit": "Không phụ thuộc một regime",
+  "fit_tone": "neu",
+  "risks": [],
+  "metrics": null,
+  "rank": 50
+ }
+]
