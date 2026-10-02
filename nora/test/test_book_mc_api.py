@@ -45,7 +45,9 @@ def test_detail_shapes_and_consistency():
         bins = d[h]["bins"]
         assert len(bins) == 20 and sum(b["count"] for b in bins) == 500 and all(b["lo"] <= b["hi"] for b in bins)
     assert d["mdd_hist"]["bins"][0]["lo"] >= 0
-    assert d["gate"] == {"ruin_max_pct": 5.0, "passed": d["summary"]["p_mdd_ge_ruin_pct"] <= 5.0}
+    g = d["gate"]
+    assert g["ruin_max_pct"] == 5.0 and g["gate_eligible"] is False and g["passed"] is False       # 500 < 10.000 kịch bản: không đủ làm gate
+    assert g["checks"]["ruin"]["passed"] == (d["summary"]["p_mdd_ge_ruin_pct"] <= 5.0)
     assert d["params"]["seed"] == 2 and d["params"]["n_days"] == 150
     json.dumps(d, allow_nan=False)
     with pytest.raises(ValueError):
@@ -59,26 +61,27 @@ def test_detail_horizon_not_multiple_of_step_keeps_last_day():
 
 def test_endpoint_matches_run_monte_carlo_daily(client):
     body = {"daily_returns": DAILY, "simulations": 500, "block_days": 5, "horizon_days": 200, "ruin_threshold_pct": 25, "seed": 7,
-            "scale": 1.5}
+            "scale": 1.5, "mode": "advanced"}
     r = client.post("/api/studio/book/mc", json=body)
     assert r.status_code == 200, r.text
     out = r.json()
     ref = run_monte_carlo_daily(DAILY, simulations=500, block_days=5, horizon_days=200, ruin_threshold_pct=25.0, seed=7, scale=1.5)
     assert out["summary"] == ref
-    assert set(out) == {"summary", "fan", "mdd_hist", "ret_hist", "gate", "params"}
+    assert set(out) == {"summary", "fan", "mdd_hist", "ret_hist", "stress", "worst_path", "gate", "params"}
     assert out["gate"]["ruin_max_pct"] == 5.0 and out["params"]["source"] == {"kind": "daily_returns"}
 
 
 def test_endpoint_defaults_use_contract_values(client):
     out = client.post("/api/studio/book/mc", json={"daily_returns": DAILY}).json()
-    assert out["params"]["simulations"] == 4000 and out["params"]["block_days"] == 5 and out["params"]["horizon_days"] == 365
+    assert out["params"]["simulations"] == 10_000 and out["params"]["block_days"] == 5 and out["params"]["horizon_days"] == 365
     assert out["params"]["ruin_threshold_pct"] == 30.0 and out["params"]["seed"] == 7
-    assert out["summary"] == run_monte_carlo_daily(DAILY, simulations=4000, seed=7)
+    assert out["summary"] == run_monte_carlo_daily(DAILY, simulations=10_000, seed=7)
+    assert out["gate"]["gate_eligible"] is True
 
 
 @pytest.mark.parametrize("patch", [
-    {"simulations": 10_001}, {"simulations": 5}, {"horizon_days": 731}, {"horizon_days": 1}, {"block_days": 0}, {"block_days": 31},
-    {"ruin_threshold_pct": 0}, {"ruin_threshold_pct": 101}, {"scale": 0}, {"scale": 11}, {"basis": "mid"}, {"seed": -1},
+    {"simulations": 50_001}, {"simulations": 5}, {"horizon_days": 731}, {"horizon_days": 1}, {"block_days": 0}, {"block_days": 31},
+    {"ruin_threshold_pct": 0}, {"ruin_threshold_pct": 101}, {"scale": 0}, {"scale": 11}, {"stress_max_mdd_pct": 0}, {"extra_cost_daily_pct": -1}, {"basis": "mid"}, {"seed": -1},
     {"daily_returns": [0.01] * 5},                     # quá ít ngày
     {"daily_returns": [0.01] * 19 + [-1.0]},           # lỗ 100%
     {"daily_returns": [0.01] * 19 + [float("nan")]},
@@ -109,7 +112,7 @@ def test_endpoint_from_wfa_job_uses_chosen_basis(client):
     lv, ex = DAILY, [x * 0.5 for x in DAILY]
     jid = _wfa_job({"summary": {"oos_daily": {"level": lv, "extreme": ex}}})
     for basis, series in (("level", lv), ("extreme", ex)):
-        r = client.post("/api/studio/book/mc", json={"wfa_job_id": jid, "basis": basis, "simulations": 300, "seed": 4})
+        r = client.post("/api/studio/book/mc", json={"wfa_job_id": jid, "basis": basis, "simulations": 300, "seed": 4, "mode": "advanced"})
         assert r.status_code == 200, r.text
         assert r.json()["summary"] == run_monte_carlo_daily(series, simulations=300, seed=4)
         assert r.json()["params"]["source"] == {"kind": "wfa", "job_id": jid, "basis": basis}
@@ -125,5 +128,5 @@ def test_endpoint_from_wfa_job_uses_chosen_basis(client):
 
 def test_endpoint_is_fast_at_max_size(client):
     t0 = time.time()
-    r = client.post("/api/studio/book/mc", json={"daily_returns": DAILY, "simulations": 10_000, "horizon_days": 730, "block_days": 5})
-    assert r.status_code == 200 and time.time() - t0 < 15
+    r = client.post("/api/studio/book/mc", json={"daily_returns": DAILY, "simulations": 50_000, "horizon_days": 730, "block_days": 5, "mode": "advanced"})
+    assert r.status_code == 200 and time.time() - t0 < 60

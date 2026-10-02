@@ -48,7 +48,7 @@ def _run(args):
             "ret_pct": (res["final_equity"] / 1e4 - 1) * 100}
 
 
-def bootstrap(daily: np.ndarray, scale: float, n: int = 4000, block: int = 5, horizon: int = 365, seed: int = 1):
+def bootstrap(daily: np.ndarray, scale: float, n: int = 10_000, block: int = 5, horizon: int = 365, seed: int = 1):
     rng = np.random.default_rng(seed)
     mdds, rets = np.empty(n), np.empty(n)
     for k in range(n):

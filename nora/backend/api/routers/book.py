@@ -11,20 +11,27 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from backend.api import modes
 from backend.api.jobs import batch as batch_jobs
+from backend.carlo.monte_carlo import (MC_MAX_RUIN_PCT as MC_RUIN_MAX_PCT, MC_MAX_SIMULATIONS, MC_MIN_SIMULATIONS,
+                                       STRESS_MAX_MDD_PCT)
 
 router = APIRouter(prefix="/api/studio/book", tags=["book"])
 alphas_router = APIRouter(prefix="/api/studio", tags=["book"])
 
 MC_MIN_DAYS, MC_MAX_DAYS = 20, 5000
-MC_RUIN_MAX_PCT = 5.0   # gate ruin (khớp portfolio_wfa.MAX_MC_RUIN_PCT)
 _METRIC_KEYS = ("ret_pct", "mdd_pct", "sharpe", "trades", "win_pct", "symbols_positive", "halted_at")
 
 
 # ─── Mô hình yêu cầu ────────────────────────────────────────────────────────
+MODE_FIELD = dict(pattern="^(basic|advanced)$", description="basic: máy chủ BỎ QUA tham số client, dùng preset (data/alphas/presets.json); "
+                                                          "advanced: kiểm mọi tham số theo params_schema (xem docs/ui_contract.md §\"Chế độ chạy\")")
+
+
 class StrategyIn(BaseModel):
     id: str = Field(..., min_length=1, max_length=64)
-    params: Dict[str, float] = Field(default_factory=dict, description="Thiếu khoá nào lấy mức giữa của không gian tham số ứng viên")
+    params: Dict[str, Any] = Field(default_factory=dict, description="Chỉ dùng ở mode=advanced: khoá theo params_schema (số hoặc khung thời gian \"4h\"); "
+                                                                      "thiếu khoá nào lấy từ preset. mode=basic: bỏ qua")
 
 
 class _DateRange(BaseModel):
@@ -41,12 +48,13 @@ class BacktestRequest(_DateRange):
     end: str
     risk_per_trade_pct: Optional[float] = Field(None, gt=0.0, le=5.0)
     stop_fill: str = Field("level", pattern="^(level|extreme)$")
+    mode: str = Field("basic", **MODE_FIELD)
 
 
 class WfaStrategyIn(BaseModel):
     id: str = Field(..., min_length=1, max_length=64)
-    configs: List[Dict[str, float]] = Field(..., min_length=1, max_length=batch_jobs.MAX_WFA_CONFIGS,
-                                            description="1 cấu hình = tham số cố định (WFA chỉ kiểm OOS cuộn)")
+    configs: List[Dict[str, Any]] = Field(..., min_length=1, max_length=batch_jobs.MAX_WFA_CONFIGS,
+                                          description="1 cấu hình = tham số cố định (WFA chỉ kiểm OOS cuộn); mode=basic: bỏ qua, dùng preset")
 
 
 class WfaRequest(_DateRange):
@@ -62,6 +70,11 @@ class WfaRequest(_DateRange):
     train_days: Optional[int] = Field(None, ge=7, le=1000)
     test_days: Optional[int] = Field(None, ge=1, le=365)
     risk_per_trade_pct: Optional[float] = Field(None, gt=0.0, le=5.0)
+    mode: str = Field("basic", **MODE_FIELD)
+    step_days: Optional[int] = Field(None, ge=1, le=365, description="Chỉ advanced: bước trượt fold (mặc định = test_days)")
+    embargo_days: Optional[int] = Field(None, ge=0, le=30, description="Chỉ advanced: chưa hỗ trợ (>0 -> 422)")
+    sims: Optional[int] = Field(None, ge=100, le=MC_MAX_SIMULATIONS, description="Chỉ advanced: số kịch bản MC của gate WFA; < 10.000 -> custom_gates")
+    mc_seed: Optional[int] = Field(None, ge=0, le=2**31 - 1)
 
     @model_validator(mode="after")
     def _one_source(self):
@@ -75,12 +88,18 @@ class McRequest(BaseModel):
     daily_returns: Optional[List[float]] = Field(None, min_length=MC_MIN_DAYS, max_length=MC_MAX_DAYS,
                                                  description="Lợi suất ngày dạng số thập phân (0.01 = 1%)")
     basis: str = Field("extreme", pattern="^(extreme|level)$")
-    simulations: int = Field(4000, ge=100, le=10_000)
+    simulations: int = Field(MC_MIN_SIMULATIONS, ge=100, le=MC_MAX_SIMULATIONS,
+                             description="< 10.000 vẫn chạy nhưng gate.gate_eligible = false (không dùng làm gate); tối đa 50.000")
     block_days: int = Field(5, ge=1, le=30)
     horizon_days: int = Field(365, ge=5, le=730)
     ruin_threshold_pct: float = Field(30.0, gt=0.0, le=100.0)
     seed: int = Field(7, ge=0, le=2**31 - 1)
     scale: float = Field(1.0, gt=0.0, le=10.0)
+    stress_max_mdd_pct: float = Field(STRESS_MAX_MDD_PCT, gt=0.0, le=100.0, description="MDD tối đa cho phép của MỌI kịch bản cực xấu (gate)")
+    extra_cost_daily_pct: Optional[float] = Field(None, ge=0.0, le=5.0,
+                                                  description="Phí bổ sung (%/ngày hoạt động) cho kịch bản cost_x2; bỏ trống = hằng số bảo thủ 0,07%")
+    mode: str = Field("basic", **MODE_FIELD)
+    stress_scenarios: Optional[List[str]] = Field(None, max_length=6, description="Chỉ advanced: tập con kịch bản cực xấu (mặc định đủ 6); thiếu -> custom_gates")
 
     @model_validator(mode="after")
     def _one_source(self):
@@ -95,7 +114,10 @@ class PublishRequest(BaseModel):
 
 class BuildRequest(BaseModel):
     only: Optional[List[str]] = Field(None, max_length=16)
-    n: Optional[int] = Field(None, ge=1, le=200, description="Số cấu hình thử mỗi chiến lược ở dev1 (mặc định 24)")
+    n: Optional[int] = Field(None, ge=1, le=batch_jobs.MAX_BUILD_CONFIGS,
+                             description="Số cấu hình thử mỗi chiến lược ở dev1 (mặc định 24). Tổng > 200.000 cần force_large")
+    keep_top: Optional[int] = Field(None, ge=3, le=5000, description="Số hàng tốt nhất mỗi chiến lược giữ trong kết quả (mặc định 50)")
+    force_large: bool = Field(False, description="Cho phép tổng số cấu hình vượt trần 200.000 của CLI (--force-large)")
 
 
 # ─── Đọc sổ / báo cáo ───────────────────────────────────────────────────────
@@ -240,12 +262,12 @@ def _launch(kind: str, params: Dict[str, Any]) -> Dict[str, str]:
 def post_backtest(req: BacktestRequest):
     if not req.strategies and not os.path.isfile(book_path()):
         raise HTTPException(409, "chưa có data/alphas/book.json — truyền strategies hoặc dựng sổ trước (POST /build)")
-    return _launch("book_backtest", req.model_dump())
+    return modes.launch_backtest(req)
 
 
 @router.post("/wfa")
 def post_wfa(req: WfaRequest):
-    return _launch("book_wfa", req.model_dump())
+    return modes.launch_wfa(req)
 
 
 @router.post("/build")
@@ -265,6 +287,8 @@ def post_publish(req: PublishRequest):
         raise HTTPException(404, "không có job này")
     if job.get("kind") != "book_build":
         raise HTTPException(422, "job_id phải là job book_build")
+    if job.get("custom_gates"):
+        raise HTTPException(409, "job này dùng ngưỡng gate tuỳ chỉnh (custom_gates) nên KHÔNG được xuất bản/promote — chạy lại ở chế độ Cơ bản (gate chuẩn)")
     if job.get("status") != "done":
         raise HTTPException(409, f"job build chưa xong (trạng thái {job.get('status')})")
     src = os.path.join(batch_jobs.job_dir(req.job_id), "alphas")
@@ -293,14 +317,78 @@ def get_job(job_id: str):
         raise HTTPException(422, str(e))
     if s is None:
         raise HTTPException(404, "không có job này")
+    return modes.decorate(s)
+
+
+@router.post("/jobs/{job_id}/cancel")
+def post_cancel(job_id: str):
+    """Huỷ job đang chạy/chờ: SIGTERM cả nhóm tiến trình; CLI flush kho kết quả rồi thoát -> có thể chạy tiếp bằng --resume <run_dir>."""
+    try:
+        s = batch_jobs.cancel(job_id)
+    except batch_jobs.JobError as e:
+        raise HTTPException(409 if "không còn chạy" in str(e) else 422, str(e))
+    if s is None:
+        raise HTTPException(404, "không có job này")
     return s
+
+
+def _job_run_dir(job_id: str) -> str:
+    """Thư mục lần chạy (có results.sqlite) của một job build: progress.json (khi đang chạy) hoặc result.json (khi xong); phải nằm trong data/_cache/."""
+    from backend.db.data_layout import cache_dir
+    jd = batch_jobs.job_dir(job_id)
+    run_dir = None
+    for name in ("progress.json", "result.json"):
+        data = _read_json(os.path.join(jd, name))
+        if isinstance(data, dict) and data.get("run_dir"):
+            run_dir = data["run_dir"]
+            break
+    if not run_dir:
+        raise HTTPException(404, "job chưa có thư mục kết quả (chưa bắt đầu hoặc không phải job dựng sổ)")
+    root = os.path.realpath(cache_dir(None))
+    real = os.path.realpath(run_dir)
+    if not real.startswith(root + os.sep) or not os.path.isfile(os.path.join(real, "results.sqlite")):
+        raise HTTPException(404, "không có kho kết quả của job này")
+    return real
+
+
+@router.get("/jobs/{job_id}/stage_a")
+def get_stage_a(job_id: str, candidate: Optional[str] = None, offset: int = 0, limit: int = 100, sort: str = "order"):
+    """Phân trang MỌI cấu hình dev1 đã chạy (đọc kho results.sqlite của job dựng sổ; result.stage_a chỉ có top-K).
+    sort=order (thứ tự lấy mẫu) | score (điểm cao -> thấp). Mỗi hàng: {ord, params, dev1{ret_pct,mdd_pct,trades,symbols_positive,sharpe}, score|null, passed}."""
+    from backend.optimize.results_store import ResultsStore
+    if sort not in ("order", "score"):
+        raise HTTPException(422, "sort phải là order|score")
+    if offset < 0 or not 1 <= limit <= 1000:
+        raise HTTPException(422, "offset >= 0 và 1 <= limit <= 1000")
+    try:
+        run_dir = _job_run_dir(job_id)
+    except batch_jobs.JobError as e:
+        raise HTTPException(422, str(e))
+    store = ResultsStore(run_dir, read_only=True)
+    try:
+        if candidate is not None and candidate not in store.candidates("A"):
+            raise HTTPException(404, f"không có chiến lược {candidate!r} trong kho (có: {store.candidates('A')})")
+        rows = store.page("A", candidate, offset, limit, sort)
+        total = store.count("A", candidate)
+        return {"job_id": job_id, "candidate": candidate, "offset": offset, "limit": limit, "sort": sort, "total": total,
+                "candidates": store.candidates("A"),
+                "rows": [{"candidate": r["candidate"], "ord": r["ord"], "params": r["params"],
+                          "dev1": {k: r["metrics"].get(k) for k in ("ret_pct", "mdd_pct", "trades", "symbols_positive", "sharpe")},
+                          "score": r["score"], "passed": r["score"] is not None} for r in rows]}
+    finally:
+        store.close()
 
 
 # ─── Monte Carlo ngày (đồng bộ, nhẹ) ────────────────────────────────────────
 @router.post("/mc")
 def post_mc(req: McRequest):
-    """Block bootstrap lợi suất ngày OOS của một job book_wfa (hoặc chuỗi tự gửi); trả tóm tắt + fan + histogram + gate ruin."""
-    from backend.carlo.monte_carlo import run_monte_carlo_daily_detail
+    """Block bootstrap (mặc định 10.000 kịch bản) lợi suất ngày OOS của một job book_wfa (hoặc chuỗi tự gửi); trả tóm tắt + fan + histogram
+    + `stress` (kịch bản cực xấu tất định + worst_bootstrap) + `worst_path` + `gate` (checks thực tế/yêu cầu, gate_eligible).
+    mode=basic: bỏ qua mọi tham số MC của client (10.000 kịch bản, đủ 6 kịch bản cực xấu, gate chuẩn).
+    mode=advanced: dùng tham số client; ngưỡng gate khác chuẩn / < 10.000 kịch bản / thiếu kịch bản cực xấu -> params.custom_gates=true (không promote được)."""
+    from backend.carlo.monte_carlo import evaluate_mc_gate, run_monte_carlo_daily_detail
+    cfg = modes.resolve_mc(req)
+    custom = cfg["custom_gates"]
     if req.wfa_job_id:
         try:
             job = batch_jobs.status(req.wfa_job_id)
@@ -312,6 +400,7 @@ def post_mc(req: McRequest):
             raise HTTPException(422, "wfa_job_id phải là job book_wfa")
         if job.get("status") != "done" or not job.get("result"):
             raise HTTPException(409, f"job WFA chưa xong (trạng thái {job.get('status')})")
+        custom = custom or bool(job.get("custom_gates"))   # nguồn đã dùng gate tuỳ chỉnh -> kết quả cũng không promote được
         daily = (((job["result"].get("summary") or {}).get("oos_daily")) or {}).get(req.basis) or []
         source = {"kind": "wfa", "job_id": req.wfa_job_id, "basis": req.basis}
     else:
@@ -321,8 +410,19 @@ def post_mc(req: McRequest):
             raise HTTPException(422, "daily_returns phải hữu hạn và > -1 (-100%)")
     if len(daily) < MC_MIN_DAYS:
         raise HTTPException(422, f"cần >= {MC_MIN_DAYS} lợi suất ngày (có {len(daily)})")
-    out = run_monte_carlo_daily_detail(daily, simulations=req.simulations, block_days=req.block_days, horizon_days=req.horizon_days,
-                                       ruin_threshold_pct=req.ruin_threshold_pct, seed=req.seed, scale=req.scale,
-                                       max_ruin_pct=MC_RUIN_MAX_PCT)
-    out["params"].update(source=source, basis=req.basis)
+    extra = cfg["extra_cost_daily_pct"]
+    out = run_monte_carlo_daily_detail(daily, simulations=cfg["simulations"], block_days=cfg["block_days"], horizon_days=cfg["horizon_days"],
+                                       ruin_threshold_pct=cfg["ruin_threshold_pct"], seed=cfg["seed"], scale=cfg["scale"],
+                                       max_ruin_pct=MC_RUIN_MAX_PCT, stress_max_mdd_pct=cfg["stress_max_mdd_pct"],
+                                       extra_cost_daily=None if extra is None else extra / 100.0)
+    if cfg["stress"] is not None:   # tập con kịch bản cực xấu: lọc + tính lại gate trên đúng tập đó
+        keep = set(cfg["stress"])
+        out["stress"] = [r for r in out["stress"] if r["name"] in keep]
+        out["gate"] = evaluate_mc_gate(cfg["simulations"], out["summary"]["p_mdd_ge_ruin_pct"], out["stress"], max_ruin_pct=MC_RUIN_MAX_PCT,
+                                       ruin_threshold_pct=cfg["ruin_threshold_pct"], stress_max_mdd_pct=cfg["stress_max_mdd_pct"])
+    out["gate"]["custom_gates"] = custom
+    if custom:
+        out["gate"]["gate_eligible"] = False   # kết quả dùng ngưỡng tuỳ chỉnh không bao giờ là gate
+    out["params"].update(source=source, basis=req.basis, mode=cfg["mode"], custom_gates=custom, promotable=not custom,
+                         ignored_client_params=cfg["ignored_client_params"])
     return out

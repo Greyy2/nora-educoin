@@ -154,6 +154,8 @@ def main(argv=None):
     from backend.core.strategy.strategy_book import perp_symbols
 
     symbols = [s if "@" in s else f"{s}@perp" for s in a.symbols.split(",") if s] or perp_symbols()
+    from backend.core.data.quality_gate import require_data_ok_or_exit
+    require_data_ok_or_exit(symbols)   # cổng chất lượng dữ liệu bắt buộc (synthetic / sai sha256 / thiếu dữ liệu -> từ chối)
     items, rpt, risk = load_items(a)
     if a.risk_per_trade is not None:
         rpt = a.risk_per_trade

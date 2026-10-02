@@ -17,6 +17,9 @@ MemoryHigh=2700M
 MemorySwapMax=0
 Restart=on-failure
 RestartSec=5
+# Job nền (run_limited.sh, kể cả job đang xếp hàng) là tiến trình con của API: restart/stop API CHỈ dừng uvicorn, không giết job.
+# Job đang chạy vẫn ghi out.log/result.json; API mới đọc trạng thái theo pid + dòng "exit N" của run_limited.
+KillMode=process
 
 [Install]
 WantedBy=default.target

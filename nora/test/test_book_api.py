@@ -30,6 +30,7 @@ class FakePopen:
 def client(monkeypatch, tmp_path):
     monkeypatch.setenv("NORA_LOCAL_DATA_ROOT", str(tmp_path / "data"))
     monkeypatch.setenv("NORA_BOOK_PATH", str(tmp_path / "book.json"))
+    monkeypatch.setenv("NORA_PRESETS_PATH", str(tmp_path / "presets.json"))   # không đọc preset thật của data/alphas
     FakePopen.calls = []
     monkeypatch.setattr(batch_jobs.subprocess, "Popen", FakePopen)
     app = FastAPI()
@@ -56,7 +57,7 @@ def _write_book(tmp_path, **extra):
 # ─── Khởi chạy + danh sách trắng ────────────────────────────────────────────
 def test_backtest_launches_via_run_limited_without_shell(client, tmp_path):
     _write_book(tmp_path)
-    r = client.post("/api/studio/book/backtest", json={**BT, "symbols": ["BTC", "SOL@perp"], "risk_per_trade_pct": 0.75})
+    r = client.post("/api/studio/book/backtest", json={**BT, "symbols": ["BTC", "SOL@perp"], "risk_per_trade_pct": 0.75, "mode": "advanced"})
     assert r.status_code == 200, r.text
     job_id = r.json()["job_id"]
     cmd, kw = FakePopen.calls[0]
@@ -70,11 +71,13 @@ def test_backtest_launches_via_run_limited_without_shell(client, tmp_path):
 
 
 def test_backtest_with_explicit_strategies(client):
-    r = client.post("/api/studio/book/backtest", json={**BT, "strategies": [
-        {"id": "trend_long", "params": {"stop_loss_rate": 2.5}}]})
+    r = client.post("/api/studio/book/backtest", json={**BT, "mode": "advanced", "strategies": [
+        {"id": "trend_long", "params": {"stop_loss_rate": 2.0}}]})
     assert r.status_code == 200, r.text
     cmd = FakePopen.calls[0][0]
-    assert json.loads(cmd[cmd.index("--strategies") + 1]) == [{"id": "trend_long", "params": {"stop_loss_rate": 2.5}}]
+    # advanced: khoá người dùng giữ nguyên, khoá thiếu lấy từ preset (ở đây = mặc định schema) — đủ mọi khoá của space
+    assert json.loads(cmd[cmd.index("--strategies") + 1]) == [{"id": "trend_long", "params": {
+        "sig.adx_min": 20.0, "stop_loss_rate": 2.0, "trailing_stop": 3.0, "trailing_activation_pct": 1.0, "timeout": 4320}}]
 
 
 @pytest.mark.parametrize("body", [
@@ -89,7 +92,7 @@ def test_backtest_with_explicit_strategies(client):
     {**BT, "stop_fill": "worst"},
     {**BT, "risk_per_trade_pct": 50},
     {**BT, "risk_per_trade_pct": 0},
-    {**BT, "strategies": [{"id": "trend_long", "params": {"stop_loss_rate": "abc"}}]},
+    {**BT, "mode": "advanced", "strategies": [{"id": "trend_long", "params": {"stop_loss_rate": "abc"}}]},
 ])
 def test_backtest_rejects_bad_requests(client, tmp_path, body):
     _write_book(tmp_path)
@@ -105,7 +108,7 @@ def test_backtest_without_book_or_strategies_is_409(client):
 
 def test_wfa_requires_exactly_one_source_and_valid_ids(client, tmp_path):
     ok = {"candidates": ["breakout_4h_long", "breakout_4h_short"], "n": 2, "start": "2025-01-01", "end": "2025-09-30",
-          "train_days": 90, "test_days": 30}
+          "train_days": 90, "test_days": 30, "mode": "advanced"}
     r = client.post("/api/studio/book/wfa", json=ok)
     assert r.status_code == 200, r.text
     cmd = FakePopen.calls[0][0]
@@ -121,11 +124,11 @@ def test_wfa_requires_exactly_one_source_and_valid_ids(client, tmp_path):
 def test_wfa_report_dir_must_be_a_book_run(client, tmp_path):
     run = tmp_path / "data" / "_cache" / "book" / "20260101_000000"
     run.mkdir(parents=True)
-    r = client.post("/api/studio/book/wfa", json={"report_dir": "20260101_000000"})
+    r = client.post("/api/studio/book/wfa", json={"report_dir": "20260101_000000", "mode": "advanced"})
     assert r.status_code == 422                                  # thiếu stage_a.json / report.json
     (run / "stage_a.json").write_text("{}")
     (run / "report.json").write_text("{}")
-    r = client.post("/api/studio/book/wfa", json={"report_dir": "20260101_000000", "include_rejected": True})
+    r = client.post("/api/studio/book/wfa", json={"report_dir": "20260101_000000", "include_rejected": True, "mode": "advanced"})
     assert r.status_code == 200, r.text
     cmd = FakePopen.calls[0][0]
     assert cmd[cmd.index("--report") + 1] == str(run) and "--include-rejected" in cmd

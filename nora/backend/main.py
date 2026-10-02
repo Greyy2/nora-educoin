@@ -34,7 +34,7 @@ app.add_middleware(
 )
 
 try:
-    from backend.api.routers import engine, meta, studio, research, book, portfolio
+    from backend.api.routers import engine, meta, studio, research, book, portfolio, funnel, strategies
     app.include_router(engine.router)
     app.include_router(meta.router)
     app.include_router(studio.router)
@@ -42,6 +42,8 @@ try:
     app.include_router(book.router)
     app.include_router(book.alphas_router)
     app.include_router(portfolio.router)
+    app.include_router(funnel.router)
+    app.include_router(strategies.router)
 except Exception as e:
     import traceback
     traceback.print_exc()

@@ -25,6 +25,7 @@ os.environ.setdefault("NORA_DATA_CACHE_MB", "1024")
 # ─────────────────────────────────────────────────────────────────────────────
 
 import argparse
+import itertools
 import json
 import shutil
 import sys
@@ -80,7 +81,7 @@ def candidates_from_ids(ids, n, seed):
 
 
 def candidates_from_json(path):
-    """Cấu hình do người dùng chọn: [{"id", "configs": [{tham số}]}] -> đúng như vậy (kiểm id/khoá tham số theo thư viện ứng viên)."""
+    """Cấu hình do người dùng chọn: [{"id", "configs": [{tham số}]}] -> đúng như vậy (kiểm id/khoá tham số theo `space` + `params_schema`)."""
     from backend.core.strategy.strategy_book import CANDIDATES
     by_id = {c["id"]: c for c in CANDIDATES}
     with open(path, encoding="utf-8") as fh:
@@ -94,9 +95,9 @@ def candidates_from_json(path):
             raise SystemExit(f"Chiến lược lạ hoặc bị lặp: {cid!r}; có: {sorted(by_id)}")
         if not isinstance(cfgs, list) or not cfgs or not all(isinstance(c, dict) for c in cfgs):
             raise SystemExit(f"{cid}: configs phải là danh sách không rỗng các dict tham số")
-        bad = sorted({k for c in cfgs for k in c} - set(by_id[cid]["space"]))
+        bad = sorted({k for c in cfgs for k in c} - set(by_id[cid]["space"]) - set(by_id[cid].get("params_schema") or {}))
         if bad:
-            raise SystemExit(f"{cid}: khoá tham số không thuộc không gian tham số: {bad}")
+            raise SystemExit(f"{cid}: khoá tham số không thuộc không gian tham số / lược đồ tham số: {bad}")
         seen.add(cid)
         out.append({"id": cid, "configs": cfgs})
     return out
@@ -147,11 +148,15 @@ def main(argv=None):
     ap.add_argument("--test-days", type=int, default=30)
     ap.add_argument("--step-days", type=int, default=None)
     ap.add_argument("--min-is-trades", type=int, default=10)
-    ap.add_argument("--sims", type=int, default=4000, help="số lần mô phỏng Monte Carlo")
+    ap.add_argument("--sims", type=int, default=10_000, help="số lần mô phỏng Monte Carlo (< 10.000: gate WFA trượt check mc_simulations)")
     ap.add_argument("--mc-seed", type=int, default=1)
     ap.add_argument("--risk-per-trade", type=float, default=None, help="%% vốn rủi ro mỗi lệnh (mặc định: report.book hoặc 0,5)")
     ap.add_argument("--workers", default="auto")
     ap.add_argument("--per-worker-mb", type=float, default=None)
+    ap.add_argument("--resume", default="", help="thư mục lần chạy bị ngắt (data/_cache/book_wfa/<...>): bỏ qua job đã có trong results.sqlite "
+                                                 "(truyền lại ĐÚNG các đối số nguồn/cửa sổ như lần trước)")
+    ap.add_argument("--max-configs", type=int, default=200_000, help="từ chối khi số job IS (fold × cấu hình) vượt ngưỡng này (trừ --force-large)")
+    ap.add_argument("--force-large", action="store_true", help="cho phép vượt --max-configs")
     a = ap.parse_args(argv)
     if sum(map(bool, (a.report, a.candidates, a.strategies_json))) != 1:
         ap.error("chọn đúng một: --report, --candidates hoặc --strategies-json")
@@ -179,6 +184,8 @@ def main(argv=None):
                  else candidates_from_ids([c for c in a.candidates.split(",") if c], a.n, a.seed))
         w = bsb.windows(perp_symbols())
     symbols = [x if "@" in x else f"{x}@perp" for x in a.symbols.split(",") if x] or perp_symbols()
+    from backend.core.data.quality_gate import require_data_ok_or_exit
+    require_data_ok_or_exit(symbols)   # cổng chất lượng dữ liệu bắt buộc (trước khi fork pool để worker thừa kế cache gate)
     if a.risk_per_trade is not None:
         rpt = a.risk_per_trade
     if not cands:
@@ -186,24 +193,70 @@ def main(argv=None):
     start = _ts(a.start) if a.start else w["dev1_end"]
     end = _ts(a.end) if a.end else w["dev2_end"]
 
-    run_dir = cache_dir(None, "book_wfa", time.strftime("%Y%m%d_%H%M%S"))
+    from backend.optimize.progress import Progress, graceful_sigterm
+    from backend.optimize.results_store import ResultsStore
+    from backend.wfa import portfolio_wfa as pw
+    from backend.wfa.walk_forward import generate_folds
+
+    # Ước lượng + trần số job TRƯỚC khi chạy: IS = fold × tổng số cấu hình; OOS = 2 × fold
+    folds = generate_folds(int(start), int(end), a.train_days, a.test_days, a.step_days)
+    n_cfg = sum(len(c["configs"]) for c in cands)
+    is_total = len(folds) * n_cfg
+    if is_total > a.max_configs and not a.force_large:
+        raise SystemExit(f"Từ chối: {is_total:,} job IS ({len(folds)} fold × {n_cfg} cấu hình) vượt --max-configs {a.max_configs:,}. "
+                         f"Giảm --n / số chiến lược hoặc thêm --force-large.")
+    if a.resume:
+        run_dir = os.path.abspath(a.resume if os.path.isabs(a.resume) or os.path.isdir(a.resume)
+                                  else os.path.join(cache_dir(None, "book_wfa"), a.resume))
+        if not os.path.isfile(os.path.join(run_dir, "results.sqlite")):
+            raise SystemExit(f"--resume: {run_dir} không có results.sqlite")
+    else:
+        base = time.strftime("%Y%m%d_%H%M%S")
+        for k in itertools.count(1):
+            run_dir = cache_dir(None, "book_wfa", base if k == 1 else f"{base}_{k}")
+            if not os.path.exists(os.path.join(run_dir, "results.sqlite")):
+                break
     shared_dir = os.path.join(run_dir, "_shared")
     cfg = PortfolioWfaConfig(train_days=a.train_days, test_days=a.test_days, step_days=a.step_days,
                              min_is_trades=a.min_is_trades, mc_simulations=a.sims, mc_seed=a.mc_seed)
     print(f"chiến lược {[(c['id'], len(c['configs'])) for c in cands]} | workers={workers} | trần mỗi worker {per_worker_mb:.0f} MB", flush=True)
+    store = ResultsStore(run_dir)
+    progress = Progress(run_dir)
     t0 = time.time()
-    res = run_portfolio_wfa(cands, symbols, start, end, cfg, risk, rpt, workers, shared_dir)
-    res["source"] = {"report": os.path.abspath(a.report) if a.report else None, "include_rejected": a.include_rejected,
-                     "strategies_json": bool(a.strategies_json),
-                     "wall_s": round(time.time() - t0, 1)}
-    if os.path.isdir(shared_dir):  # chạy xong thành công: dọn (lỗi thì không tới đây -> còn nguyên để gỡ lỗi)
-        shutil.rmtree(shared_dir, ignore_errors=True)
-    path = os.path.join(run_dir, "report.json")
-    with open(path, "w", encoding="utf-8") as fh:
-        json.dump(res, fh, ensure_ascii=False, indent=1, default=json_default)
-    print_summary(res)
-    print(f"thời gian {res['source']['wall_s']:.0f}s | báo cáo: {path}")
-    write_job_result({**res, "report_path": path})  # chỉ khi chạy như job API (env NORA_JOB_DIR)
+    try:
+        with graceful_sigterm(progress):
+            if a.resume:
+                print(f"[resume] {run_dir}: kho đã có {store.count():,} kết quả", flush=True)
+            # Hiệu chỉnh: chạy 1 job IS đầu (1 worker, ghi vào kho như job thường) -> ước lượng thời gian
+            os.makedirs(shared_dir, exist_ok=True)
+            _, is_jobs0 = pw.plan_is_jobs(cands, folds, symbols, risk, rpt, shared_dir)
+            t_cal = time.time()
+            pw._pool_shared(is_jobs0[:1], 1, "[WFA] hiệu chỉnh", shared_dir, store, "wfa_is", None)
+            sec = time.time() - t_cal
+            n_jobs = is_total + 2 * len(folds)
+            est = {"is_jobs": is_total, "oos_jobs": 2 * len(folds), "sec_per_job": round(sec, 3), "workers": workers,
+                   "eta_s": round(n_jobs * sec / workers, 1)}
+            print(f"[estimate] {n_jobs:,} job ({is_total:,} IS + {2 * len(folds)} OOS) × {sec:.1f} s/job / {workers} worker ≈ "
+                  f"{est['eta_s'] / 60:.1f} phút", flush=True)
+            with open(os.path.join(run_dir, "estimate.json"), "w", encoding="utf-8") as fh:
+                json.dump(est, fh, ensure_ascii=False, indent=1)
+            progress.set_estimate(est)
+            res = run_portfolio_wfa(cands, symbols, start, end, cfg, risk, rpt, workers, shared_dir, store=store, progress=progress)
+            res["source"] = {"report": os.path.abspath(a.report) if a.report else None, "include_rejected": a.include_rejected,
+                             "strategies_json": bool(a.strategies_json),
+                             "wall_s": round(time.time() - t0, 1)}
+            if os.path.isdir(shared_dir):  # chạy xong thành công: dọn (lỗi thì không tới đây -> còn nguyên để gỡ lỗi)
+                shutil.rmtree(shared_dir, ignore_errors=True)
+            path = os.path.join(run_dir, "report.json")
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump(res, fh, ensure_ascii=False, indent=1, default=json_default)
+            print_summary(res)
+            print(f"thời gian {res['source']['wall_s']:.0f}s | báo cáo: {path}")
+            store.flush()
+            progress.finish("done")
+            write_job_result({**res, "report_path": path})  # chỉ khi chạy như job API (env NORA_JOB_DIR)
+    finally:
+        store.close()   # flush lô ghi cuối (cả khi SIGTERM/ngoại lệ) -> --resume dùng được
     return res
 
 

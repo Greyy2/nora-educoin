@@ -29,7 +29,8 @@ import pandas as pd
 from backend.core.backtest.portfolio_metrics import portfolio_metrics
 from backend.utils.parallel import pool_map_safe
 
-from ..carlo.monte_carlo import run_monte_carlo_daily
+from ..carlo.monte_carlo import (MC_MAX_RUIN_PCT, MC_MIN_SIMULATIONS, MC_RUIN_THRESHOLD_PCT, STRESS_MAX_MDD_PCT,
+                                 evaluate_mc_gate, run_monte_carlo_daily_gate)
 from .walk_forward import generate_folds
 
 DAY = 86_400_000
@@ -41,8 +42,9 @@ MIN_AVG_IS_RET_PCT = 0.0           # lãi IS trung bình các fold >= 0 (lỗ ng
 MIN_POSITIVE_FOLD_RATIO = 0.60     # >= 60% fold OOS có lãi (extreme)
 MAX_FOLD_MDD_PCT = 30.0            # MDD tệ nhất của một fold OOS (extreme) <= 30%
 MIN_COMPOUNDED_OOS_PCT = 0.0       # lãi kép OOS (extreme) >= 0
-MAX_MC_RUIN_PCT = 5.0              # Monte Carlo: P(MDD >= 30% trong 1 năm) <= 5%
-MC_RUIN_THRESHOLD_PCT = 30.0
+# Monte Carlo (hằng số gốc ở backend/carlo/monte_carlo.py, dùng chung mọi gate): >= 10.000 bootstrap, P(MDD >= 30% trong 1 năm) <= 5%,
+# và MỌI kịch bản cực xấu tất định (+ đường bootstrap tệ nhất) có MDD < STRESS_MAX_MDD_PCT, không cháy vốn.
+MAX_MC_RUIN_PCT = MC_MAX_RUIN_PCT
 MIN_MC_DAYS = 20                   # ít hơn ngần này ngày OOS thì không đủ để bootstrap -> check MC trượt
 
 
@@ -52,7 +54,7 @@ class PortfolioWfaConfig:
     test_days: int = 30
     step_days: Optional[int] = None    # None = test_days (OOS liền nhau, không chồng)
     min_is_trades: int = 10            # cấu hình có ít lệnh IS hơn bị loại khỏi việc chọn
-    mc_simulations: int = 4000
+    mc_simulations: int = MC_MIN_SIMULATIONS   # < MC_MIN_SIMULATIONS: chạy được nhưng gate trượt (check mc_simulations)
     mc_block_days: int = 5
     mc_horizon_days: int = 365
     mc_seed: int = 1
@@ -120,13 +122,53 @@ def _export_shared(jobs, shared_dir, label):
     return keys
 
 
-def _pool_shared(jobs, workers, label, shared_dir):
-    """Export dữ liệu dùng chung -> pool -> xoá các bộ của pool này (lỗi thì ngoại lệ bay lên, giữ nguyên để gỡ lỗi)."""
-    keys = _export_shared(jobs, shared_dir, label)
-    res = _pool_map(run_job, jobs, workers, label)
-    for k in keys:
-        shutil.rmtree(os.path.join(shared_dir, k), ignore_errors=True)
-    return res
+def _pool_shared(jobs, workers, label, shared_dir, store=None, stage=None, progress=None):
+    """Export dữ liệu dùng chung -> pool -> xoá các bộ của pool này (lỗi thì ngoại lệ bay lên, giữ nguyên để gỡ lỗi).
+    store (ResultsStore, tuỳ chọn): mỗi kết quả ghi ngay khi xong; job đã có trong kho (cùng job_key) bỏ qua -> `--resume`.
+    stage "wfa_is": bỏ chuỗi `daily` (chọn cấu hình IS không cần) để RAM/kho gọn. Kết quả luôn đúng thứ tự jobs."""
+    if store is None and progress is None:
+        keys = _export_shared(jobs, shared_dir, label)
+        res = _pool_map(run_job, jobs, workers, label)
+        for k in keys:
+            shutil.rmtree(os.path.join(shared_dir, k), ignore_errors=True)
+        return res
+    from backend.optimize.results_store import data_fingerprint, make_job_key
+    from backend.optimize.stream import normalize
+    stage = stage or "wfa"
+    results: List[Any] = [None] * len(jobs)
+    keys_of: List[Optional[str]] = [None] * len(jobs)
+    missing = []
+    fp = data_fingerprint(jobs[0][5]) if (store is not None and jobs) else None
+    for i, job in enumerate(jobs):
+        if store is not None:
+            items, window, stop_fill, risk, rpt, symbols, _shared = job
+            keys_of[i] = make_job_key(stage, "-", [[c, p] for c, p in items], list(window), stop_fill, risk, fp,
+                                      extra={"rpt": rpt, "symbols": list(symbols)})
+            row = store.get(keys_of[i])
+            if row is not None:
+                results[i] = row["metrics"]
+                if progress is not None:
+                    progress.tick(resumed=True)
+                continue
+        missing.append(i)
+    if missing:
+        sub = [jobs[i] for i in missing]
+        exp_keys = _export_shared(sub, shared_dir, label)
+
+        def _done(j, res):
+            i = missing[j]
+            m = normalize(res)
+            if stage == "wfa_is":
+                m.pop("daily", None)
+            results[i] = m
+            if store is not None:
+                store.put(keys_of[i], stage, "-", [[c, p] for c, p in jobs[i][0]], m, ord=i)
+            if progress is not None:
+                progress.tick(worker_peak_mb=m.get("_peak_rss_mb"))
+        _pool_map(run_job, sub, workers, label, on_done=_done)
+        for k in exp_keys:
+            shutil.rmtree(os.path.join(shared_dir, k), ignore_errors=True)
+    return results
 
 
 def _strip(m):
@@ -205,9 +247,9 @@ def aggregate_folds(folds: List[Dict[str, Any]], cfg: PortfolioWfaConfig) -> Dic
         dates = {sf: [d for f in folds for d in f[f"oos_daily_dates_{sf}"]] for sf in ("level", "extreme")}
     mc = None
     if len(daily["extreme"]) >= MIN_MC_DAYS:
-        mc = run_monte_carlo_daily(daily["extreme"], simulations=cfg.mc_simulations, block_days=cfg.mc_block_days,
-                                   horizon_days=cfg.mc_horizon_days, ruin_threshold_pct=MC_RUIN_THRESHOLD_PCT,
-                                   seed=cfg.mc_seed)
+        mc = run_monte_carlo_daily_gate(daily["extreme"], simulations=cfg.mc_simulations, block_days=cfg.mc_block_days,
+                                        horizon_days=cfg.mc_horizon_days, ruin_threshold_pct=MC_RUIN_THRESHOLD_PCT,
+                                        seed=cfg.mc_seed, max_ruin_pct=MAX_MC_RUIN_PCT, stress_max_mdd_pct=STRESS_MAX_MDD_PCT)
     return {
         "n_folds": n, "n_traded_folds": len(traded), "positive_folds": positive,
         "positive_ratio_pct": round(positive / n * 100, 1) if n else 0.0,
@@ -226,6 +268,8 @@ def evaluate_gate(summary: Dict[str, Any]) -> Dict[str, Any]:
     comp = summary["compounded_oos_ret_pct"]["extreme"]
     mc = summary["mc"]
     ruin = mc["p_mdd_ge_ruin_pct"] if mc else None
+    mg = evaluate_mc_gate(mc.get("simulations", 0) if mc else 0, ruin, mc.get("stress") if mc else None,
+                          max_ruin_pct=MAX_MC_RUIN_PCT, ruin_threshold_pct=MC_RUIN_THRESHOLD_PCT, stress_max_mdd_pct=STRESS_MAX_MDD_PCT)["checks"]
     checks = {
         "folds": _check("Số fold", f">= {MIN_FOLDS}", n, n >= MIN_FOLDS),
         "avg_is_return": _check("Lãi IS trung bình các fold", f">= {MIN_AVG_IS_RET_PCT}%", avg_is,
@@ -236,14 +280,20 @@ def evaluate_gate(summary: Dict[str, Any]) -> Dict[str, Any]:
         "compounded_oos": _check("Lãi kép OOS (extreme)", f">= {MIN_COMPOUNDED_OOS_PCT}%", comp, comp >= MIN_COMPOUNDED_OOS_PCT),
         "mc_ruin": _check(f"Monte Carlo P(MDD >= {MC_RUIN_THRESHOLD_PCT:.0f}%) trong 1 năm", f"<= {MAX_MC_RUIN_PCT}%", ruin,
                           ruin is not None and ruin <= MAX_MC_RUIN_PCT),
+        # Monte Carlo cực xấu: đủ số kịch bản + kịch bản tất định không vượt MDD cho phép / không cháy vốn (nhãn/required từ evaluate_mc_gate)
+        "mc_simulations": mg["simulations"],
+        "mc_stress_mdd": mg["stress_mdd"],
+        "mc_stress_ruin": mg["stress_ruin"],
     }
     return {"passed": all(c["passed"] for c in checks.values()), "checks": checks}
 
 
 # ── Chạy ────────────────────────────────────────────────────────────────────
-def run_portfolio_wfa(candidates, symbols, start_ts, end_ts, cfg, risk, risk_per_trade_pct, workers, shared_root) -> Dict[str, Any]:
+def run_portfolio_wfa(candidates, symbols, start_ts, end_ts, cfg, risk, risk_per_trade_pct, workers, shared_root,
+                      store=None, progress=None) -> Dict[str, Any]:
     """candidates = [{"id": candidate_id, "configs": [params...]}]; cfg: PortfolioWfaConfig hoặc dict.
-    risk: dict RiskConfig dùng cho OOS (kill switch BẬT); IS tự tắt kill switch. Trả dict kết quả (xem aggregate_folds)."""
+    risk: dict RiskConfig dùng cho OOS (kill switch BẬT); IS tự tắt kill switch. Trả dict kết quả (xem aggregate_folds).
+    store/progress (tuỳ chọn, backend/optimize): ghi từng kết quả job vào kho + bỏ qua job đã có (--resume) + tiến độ."""
     cfg = cfg if isinstance(cfg, PortfolioWfaConfig) else PortfolioWfaConfig.from_dict(cfg)
     symbols, rpt = list(symbols), float(risk_per_trade_pct)
     folds = generate_folds(int(start_ts), int(end_ts), cfg.train_days, cfg.test_days, cfg.step_days)
@@ -254,7 +304,10 @@ def run_portfolio_wfa(candidates, symbols, start_ts, end_ts, cfg, risk, risk_per
 
     # IS: MỌI fold × chiến lược × cấu hình trong MỘT pool
     is_keys, is_jobs = plan_is_jobs(candidates, folds, symbols, risk, rpt, shared_root)
-    is_res = _pool_shared(is_jobs, workers, f"[WFA-IS] {len(folds)} fold × {len(is_jobs) // len(folds)} job", shared_root)
+    if progress is not None:
+        progress.start_stage("WFA-IS", len(is_jobs))
+    is_res = _pool_shared(is_jobs, workers, f"[WFA-IS] {len(folds)} fold × {len(is_jobs) // len(folds)} job", shared_root,
+                          store, "wfa_is", progress)
     is_by = {k: m for k, m in zip(is_keys, is_res)}
     print(f"[WFA-IS] {len(is_jobs)} job IS xong ({time.time() - t0:.0f}s)", flush=True)
 
@@ -274,7 +327,9 @@ def run_portfolio_wfa(candidates, symbols, start_ts, end_ts, cfg, risk, risk_per
 
     # OOS: MỌI fold × {level, extreme} trong MỘT pool
     oos_keys, oos_jobs = plan_oos_jobs(chosen, folds, symbols, risk, rpt, shared_root)
-    oos_res = _pool_shared(oos_jobs, workers, f"[WFA-OOS] {len(oos_jobs)} job", shared_root) if oos_jobs else []
+    if progress is not None:
+        progress.start_stage("WFA-OOS", len(oos_jobs))
+    oos_res = _pool_shared(oos_jobs, workers, f"[WFA-OOS] {len(oos_jobs)} job", shared_root, store, "wfa_oos", progress) if oos_jobs else []
     oos_by = {k: m for k, m in zip(oos_keys, oos_res)}
     print(f"[WFA-OOS] {len(oos_jobs)} job OOS xong ({time.time() - t0:.0f}s)", flush=True)
 

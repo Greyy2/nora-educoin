@@ -37,7 +37,16 @@ def _get_db() -> sqlite3.Connection:
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     conn = sqlite3.connect(path, timeout=15.0)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL;")
+    # Nhiều tiến trình (worker optimize_alphas) cùng mở DB lần đầu: PRAGMA đổi chế độ có thể trả "database is locked" ngay
+    # (không qua busy handler) -> thử lại ngắn thay vì làm hỏng cả cặp.
+    for attempt in range(8):
+        try:
+            conn.execute("PRAGMA journal_mode=WAL;")
+            break
+        except sqlite3.OperationalError as exc:
+            if "locked" not in str(exc).lower() or attempt == 7:
+                raise
+            time.sleep(0.1 * (attempt + 1))
     return conn
 
 

@@ -2,21 +2,38 @@
 
 - auto_workers: số worker = min(CPU dùng được, ngân sách RAM / trần RAM một worker, max_workers).
 - resolve_workers: đổi đối số --workers ("auto" hoặc số nguyên) thành int, in dòng [auto] để dễ kiểm.
-- pool_map_safe: map song song chịu được worker bị kill (OOM) mà không che lỗi thật trong job.
+- pool_map_safe: map song song chịu được worker bị kill (OOM) mà không che lỗi thật trong job (giai đoạn nhỏ, danh sách job đủ trong RAM).
+- pool_imap_bounded: như trên nhưng job là một iterator (sinh lười) và kết quả trả dần theo thứ tự hoàn thành, luôn giữ <= max_inflight
+  future đang gửi -> bộ nhớ cha phẳng dù có hàng triệu job (đường tối ưu quy mô lớn).
 
 memwatch được import lúc gọi (không phải lúc import module) để test monkeypatch được `backend.utils.memwatch`.
 """
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, as_completed, wait
 from concurrent.futures.process import BrokenProcessPool
-from typing import Optional
+from typing import Any, Callable, Iterable, Iterator, Optional, Tuple
 
 
-def pool_map_safe(pool_fn, jobs: list, workers: int, label: str) -> list:
+def _abort_pool(pool, exc: BaseException) -> None:
+    """Đóng pool khi có lỗi/huỷ. SIGTERM/Ctrl-C của tiến trình cha (SystemExit/KeyboardInterrupt) -> kết thúc luôn các worker
+    đang chạy dở (không để chúng chạy tiếp sau khi cha đã thoát); lỗi job thường thì giữ hành vi cũ (chỉ huỷ job chưa chạy)."""
+    procs = getattr(pool, "_processes", None) or {}
+    procs = list(procs.values()) if isinstance(procs, dict) else list(procs)   # lấy TRƯỚC shutdown (shutdown xoá bảng tiến trình)
+    pool.shutdown(wait=False, cancel_futures=True)
+    if isinstance(exc, (SystemExit, KeyboardInterrupt)):
+        for proc in procs:
+            try:
+                proc.terminate()
+            except Exception:
+                pass
+
+
+def pool_map_safe(pool_fn, jobs: list, workers: int, label: str, on_done: Optional[Callable[[int, Any], None]] = None) -> list:
     """Chạy jobs song song, trả kết quả ĐÚNG thứ tự jobs.
 
     - Lỗi trong job (bug, dữ liệu hỏng...) nổi lên ngay và huỷ các job đang chờ — không che lỗi.
     - Chỉ khi pool bị hỏng (worker bị kill, thường do hết RAM / cgroup OOM): giữ kết quả đã xong,
       chạy lại một lần CHỈ các job còn thiếu với nửa số worker.
+    - on_done(i, kết quả) (tuỳ chọn) được gọi mỗi khi một job xong (để ghi tiến độ).
     """
     results = [None] * len(jobs)
     done = [False] * len(jobs)
@@ -34,12 +51,16 @@ def pool_map_safe(pool_fn, jobs: list, workers: int, label: str) -> list:
                 i = futures[fut]
                 results[i] = fut.result()
                 done[i] = True
+                if on_done is not None:
+                    on_done(i, results[i])
         except BrokenProcessPool as exc:
             pool.shutdown(wait=False, cancel_futures=True)
             for fut, i in futures.items():  # job đã xong nhưng chưa kịp lấy kết quả
-                if fut.done() and not fut.cancelled() and fut.exception() is None:
+                if fut.done() and not fut.cancelled() and fut.exception() is None and not done[i]:
                     results[i] = fut.result()
                     done[i] = True
+                    if on_done is not None:
+                        on_done(i, results[i])
             missing = sum(not d for d in done)
             if attempt == 2:
                 raise RuntimeError(f"{label}: pool vẫn hỏng sau khi giảm còn {n_workers} worker "
@@ -48,11 +69,72 @@ def pool_map_safe(pool_fn, jobs: list, workers: int, label: str) -> list:
             print(f"[WARN] {label}: worker bị kill (thường do hết RAM) — chạy lại {missing} job còn thiếu "
                   f"với {n_workers} worker", flush=True)
             continue
-        except BaseException:
-            pool.shutdown(wait=False, cancel_futures=True)
+        except BaseException as exc:
+            _abort_pool(pool, exc)
             raise
         pool.shutdown(wait=True)
     return results
+
+
+def pool_imap_bounded(fn, job_iter: Iterable, workers: int, label: str,
+                      max_inflight: Optional[int] = None) -> Iterator[Tuple[int, Any]]:
+    """Chạy fn trên từng job của `job_iter` (iterator, sinh lười), yield (chỉ số job theo thứ tự sinh, kết quả) NGAY khi xong.
+
+    - Luôn giữ <= max_inflight (mặc định workers*4) future đã gửi: không bao giờ nạp cả iterator vào RAM.
+    - Lỗi trong job nổi lên ngay, huỷ các job đang chờ (không che lỗi) — như pool_map_safe.
+    - Chỉ khi pool hỏng (worker bị kill, thường do hết RAM): giữ kết quả đã yield, chạy lại CHỈ các job đã gửi mà chưa xong rồi
+      tiếp tục phần iterator còn lại với nửa số worker; hỏng lần hai -> RuntimeError (một lần thử lại, như pool_map_safe).
+    - Đóng generator sớm (break / ngoại lệ / SIGTERM của cha) -> pool bị đóng, các job chưa chạy bị huỷ."""
+    it = iter(enumerate(job_iter))
+    n_workers = max(1, int(workers))
+    cap = max(1, int(max_inflight) if max_inflight else n_workers * 4)
+    retry: list = []          # (index, job) đã gửi nhưng chưa xong khi pool hỏng
+    exhausted = False
+    from backend.utils.memwatch import worker_init
+    for attempt in (1, 2):
+        pool = ProcessPoolExecutor(max_workers=n_workers, initializer=worker_init)
+        inflight: dict = {}   # future -> (index, job)
+        try:
+            while True:
+                while len(inflight) < cap:
+                    if retry:
+                        i, job = retry.pop(0)
+                    elif not exhausted:
+                        nxt = next(it, None)
+                        if nxt is None:
+                            exhausted = True
+                            continue
+                        i, job = nxt
+                    else:
+                        break
+                    inflight[pool.submit(fn, job)] = (i, job)
+                if not inflight:
+                    break
+                finished, _ = wait(list(inflight), return_when=FIRST_COMPLETED)
+                for fut in finished:
+                    i, job = inflight[fut]
+                    res = fut.result()          # lỗi trong job -> bay lên (BrokenProcessPool nếu pool hỏng)
+                    del inflight[fut]
+                    yield i, res
+            pool.shutdown(wait=True)
+            return
+        except BrokenProcessPool as exc:
+            pool.shutdown(wait=False, cancel_futures=True)
+            for fut, (i, job) in list(inflight.items()):   # job đã xong nhưng chưa kịp lấy kết quả
+                if fut.done() and not fut.cancelled() and fut.exception() is None:
+                    inflight.pop(fut)
+                    yield i, fut.result()
+            retry = sorted(inflight.values(), key=lambda v: v[0])
+            if attempt == 2:
+                raise RuntimeError(f"{label}: pool vẫn hỏng sau khi giảm còn {n_workers} worker "
+                                   f"({len(retry)} job đã gửi chưa xong)") from exc
+            n_workers = max(1, n_workers // 2)
+            print(f"[WARN] {label}: worker bị kill (thường do hết RAM) — chạy lại {len(retry)} job còn thiếu "
+                  f"với {n_workers} worker", flush=True)
+            continue
+        except BaseException as exc:
+            _abort_pool(pool, exc)
+            raise
 
 
 def auto_workers(per_worker_mb: float, max_workers: Optional[int] = None) -> int:

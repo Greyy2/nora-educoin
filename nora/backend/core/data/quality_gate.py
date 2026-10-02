@@ -474,3 +474,53 @@ def _evaluate_data_quality_uncached(
             "buy_sell_imbalance": round(buy_sell_imbalance, 3),
         },
     }
+
+
+_WARNED: set = set()
+
+
+class DataQualityError(RuntimeError):
+    """Dữ liệu của ít nhất một tài sản không đạt quality gate (BLOCKED / NEEDS_MORE_DATA) -> từ chối chạy."""
+
+
+def require_data_ok(symbols, data_root: Optional[str] = None, timeframe: str = "1m", logger=None) -> Dict[str, Dict[str, Any]]:
+    """Cổng dữ liệu BẮT BUỘC cho mọi đường sổ chiến lược (backtest danh mục, dựng sổ, WFA, feed giả lập, tối ưu alpha).
+
+    Chạy `evaluate_data_quality` cho từng ký hiệu (kết quả có cache theo (mtime_ns, size) của file tài sản, nên gọi lại rẻ).
+    BLOCKED / NEEDS_MORE_DATA -> ném DataQualityError (tiếng Việt, liệt kê vấn đề từng tài sản, KHÔNG nới gate).
+    WARNING được phép chạy nhưng ghi log. Trả {symbol: kết quả gate}."""
+    import logging
+    log = logger or logging.getLogger("nora.data_gate")
+    out: Dict[str, Dict[str, Any]] = {}
+    bad: List[str] = []
+    t0 = time.time()
+    for sym in dict.fromkeys(str(s) for s in (symbols or [])):
+        dq = evaluate_data_quality(sym, timeframe=timeframe, data_root=data_root)
+        out[sym] = dq
+        status = dq.get("status")
+        if status in (DataQualityStatus.BLOCKED, DataQualityStatus.NEEDS_MORE_DATA):
+            bad.append(f"  - {sym} [{status}]: " + "; ".join(str(i) for i in dq.get("issues") or []))
+        elif status == DataQualityStatus.WARNING:
+            msg = f"[data-gate] {sym}: WARNING — " + "; ".join(str(i) for i in dq.get("issues") or [])
+            if msg not in _WARNED:   # PortfolioEngine gọi lại mỗi job: chỉ ghi log một lần mỗi tiến trình
+                _WARNED.add(msg)
+                log.warning(msg)   # stderr qua logging (lastResort) -> có trong out.log của job
+    if time.time() - t0 > 0.5:   # vừa đọc/so khớp 1m thật: trả heap đã giải phóng về OS (tiến trình cha sắp fork pool)
+        import gc
+        gc.collect()
+        try:
+            import ctypes
+            ctypes.CDLL("libc.so.6").malloc_trim(0)
+        except OSError:
+            pass
+    if bad:
+        raise DataQualityError("Dữ liệu không đạt kiểm định chất lượng (quality gate) — từ chối chạy:\n" + "\n".join(bad))
+    return out
+
+
+def require_data_ok_or_exit(symbols, data_root: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
+    """Như require_data_ok nhưng cho CLI: lỗi -> SystemExit(thông điệp) (không in traceback)."""
+    try:
+        return require_data_ok(symbols, data_root)
+    except DataQualityError as exc:
+        raise SystemExit(str(exc)) from None

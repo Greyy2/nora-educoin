@@ -146,7 +146,7 @@ def test_wfa_gate_has_is_return_check(clean_asset, min_is, expect_pass):
 
 # ─── 5. Monte Carlo robust verdict ──────────────────────────────────────────
 
-def _mc(trades, gate):
+def _mc(trades, gate, sims=10_000):
     from backend.api.jobs.store import complete_wfa_job, create_mc_job, create_wfa_job, get_mc_job
     from backend.carlo.monte_carlo import execute_monte_carlo_pipeline
     from backend.core.contracts import MonteCarloRunRequest
@@ -154,8 +154,8 @@ def _mc(trades, gate):
     if gate is not None:
         wfa_id = create_wfa_job("X", "S", 4)
         complete_wfa_job(wfa_id, {"acceptance_gate_passed": gate, "aggregate_oos_trades": trades})
-    mc_id = create_mc_job("X", "S", 300, source_wfa_id=wfa_id or "")
-    execute_monte_carlo_pipeline(mc_id, MonteCarloRunRequest(source_wfa_id=wfa_id, simulations=300, seed=5), trades)
+    mc_id = create_mc_job("X", "S", sims, source_wfa_id=wfa_id or "")
+    execute_monte_carlo_pipeline(mc_id, MonteCarloRunRequest(source_wfa_id=wfa_id, simulations=sims, seed=5), trades)
     return get_mc_job(mc_id)["result"]
 
 
@@ -167,6 +167,10 @@ def test_mc_robust_requires_wfa_gate_and_low_ruin():
     assert _mc(calm, False)["robust_passed"] is False, "WFA gate FAIL -> không robust"
     standalone = _mc(calm, None)
     assert standalone["robust_passed"] is False and standalone["source_gate_passed"] is None
+    few = _mc(calm, True, sims=300)        # < 10.000 kịch bản: không đủ làm gate dù lệnh êm
+    assert few["robust_passed"] is False and few["gate_eligible"] is False and few["gate"]["checks"]["simulations"]["passed"] is False
+    ok = _mc(calm, True)
+    assert ok["gate_eligible"] is True and {r["name"] for r in ok["stress"]} >= {"worst_days_first", "worst_bootstrap"}
 
 
 # ─── 6. Crawler Binance ─────────────────────────────────────────────────────

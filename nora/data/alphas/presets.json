@@ -1,0 +1,313 @@
+{
+ "version": 1,
+ "generated_at": 1790913034561,
+ "presets": {
+  "trend_long": {
+   "params": {
+    "sig.trend_tf": "1h",
+    "sig.ema_fast": 50,
+    "sig.ema_slow": 200,
+    "sig.adx_n": 14,
+    "sig.adx_min": 25,
+    "sig.entry_tf": "15m",
+    "sig.dch_n": 20,
+    "stop_loss_rate": 3.5,
+    "take_profit_rate": 0.0,
+    "trailing_stop": 4.5,
+    "trailing_activation_pct": 0.0,
+    "timeout": 4320,
+    "cooldown": 60,
+    "atr_frame": "1h",
+    "atr_period": 14,
+    "risk_per_trade_pct": 0.5,
+    "max_notional_pct": 300.0,
+    "leverage": 10
+   },
+   "source": "build 20261001_115808 stage A top-1 dev1",
+   "source_kind": "stage_a",
+   "evidence": {
+    "stage": "dev1",
+    "run": "20261001_115808",
+    "dev1_tried": 24,
+    "score": 1.0236,
+    "dev1": {
+     "ret_pct": 28.22,
+     "mdd_pct": 27.57,
+     "sharpe": 0.92,
+     "trades": 783,
+     "win_pct": 42.9,
+     "symbols_positive": "8",
+     "halted_at": null
+    },
+    "accepted": false,
+    "stability": "0/3",
+    "dev2_pass": false,
+    "dev2_level": {
+     "ret_pct": -2.94,
+     "mdd_pct": 25.26,
+     "sharpe": 0.02,
+     "trades": 573,
+     "win_pct": 37.5,
+     "symbols_positive": "4",
+     "halted_at": null
+    },
+    "dev2_extreme": {
+     "ret_pct": -13.97,
+     "mdd_pct": 27.86,
+     "sharpe": -0.39,
+     "trades": 573,
+     "win_pct": 36.8,
+     "symbols_positive": "3",
+     "halted_at": null
+    }
+   }
+  },
+  "trend_short": {
+   "params": {
+    "sig.trend_tf": "1h",
+    "sig.ema_fast": 50,
+    "sig.ema_slow": 200,
+    "sig.adx_n": 14,
+    "sig.adx_min": 20.0,
+    "sig.entry_tf": "15m",
+    "sig.dch_n": 20,
+    "stop_loss_rate": 2.5,
+    "take_profit_rate": 0.0,
+    "trailing_stop": 3.0,
+    "trailing_activation_pct": 1.0,
+    "timeout": 4320,
+    "cooldown": 60,
+    "atr_frame": "1h",
+    "atr_period": 14,
+    "risk_per_trade_pct": 0.5,
+    "max_notional_pct": 300.0,
+    "leverage": 10
+   },
+   "source": "mặc định — chưa tối ưu",
+   "source_kind": "default",
+   "evidence": null
+  },
+  "breakout_4h_long": {
+   "params": {
+    "sig.signal_tf": "4h",
+    "sig.ema_fast": 50,
+    "sig.ema_slow": 200,
+    "sig.dch_n": 20,
+    "stop_loss_rate": 3.0,
+    "take_profit_rate": 0.0,
+    "trailing_stop": 3.0,
+    "trailing_activation_pct": 1.0,
+    "timeout": 10080,
+    "cooldown": 60,
+    "atr_frame": "4h",
+    "atr_period": 14,
+    "risk_per_trade_pct": 0.5,
+    "max_notional_pct": 300.0,
+    "leverage": 10
+   },
+   "source": "book.json (sổ đã build 01/10)",
+   "source_kind": "book",
+   "evidence": {
+    "stage": "book",
+    "accepted": true,
+    "stability": "3/3",
+    "dev1_tried": 24,
+    "dev1": {
+     "ret_pct": 19.46,
+     "mdd_pct": 10.38,
+     "sharpe": 1.26,
+     "trades": 254,
+     "win_pct": 41.7,
+     "symbols_positive": "7",
+     "halted_at": null
+    },
+    "dev2_level": {
+     "ret_pct": 7.26,
+     "mdd_pct": 10.17,
+     "sharpe": 0.57,
+     "trades": 158,
+     "win_pct": 43.0,
+     "symbols_positive": "5",
+     "halted_at": null
+    },
+    "dev2_extreme": {
+     "ret_pct": 3.3,
+     "mdd_pct": 10.63,
+     "sharpe": 0.29,
+     "trades": 158,
+     "win_pct": 40.5,
+     "symbols_positive": "5",
+     "halted_at": null
+    },
+    "holdout_pass": false,
+    "book_status": "HOLDOUT_FAILED"
+   }
+  },
+  "breakout_4h_short": {
+   "params": {
+    "sig.signal_tf": "4h",
+    "sig.ema_fast": 50,
+    "sig.ema_slow": 200,
+    "sig.dch_n": 20,
+    "stop_loss_rate": 3.0,
+    "take_profit_rate": 0.0,
+    "trailing_stop": 4.0,
+    "trailing_activation_pct": 0.0,
+    "timeout": 10080,
+    "cooldown": 60,
+    "atr_frame": "4h",
+    "atr_period": 14,
+    "risk_per_trade_pct": 0.5,
+    "max_notional_pct": 300.0,
+    "leverage": 10
+   },
+   "source": "book.json (sổ đã build 01/10)",
+   "source_kind": "book",
+   "evidence": {
+    "stage": "book",
+    "accepted": true,
+    "stability": "3/3",
+    "dev1_tried": 24,
+    "dev1": {
+     "ret_pct": 12.51,
+     "mdd_pct": 6.23,
+     "sharpe": 1.08,
+     "trades": 114,
+     "win_pct": 47.4,
+     "symbols_positive": "6",
+     "halted_at": null
+    },
+    "dev2_level": {
+     "ret_pct": 18.07,
+     "mdd_pct": 12.08,
+     "sharpe": 0.86,
+     "trades": 231,
+     "win_pct": 46.3,
+     "symbols_positive": "7",
+     "halted_at": null
+    },
+    "dev2_extreme": {
+     "ret_pct": 13.41,
+     "mdd_pct": 12.82,
+     "sharpe": 0.68,
+     "trades": 231,
+     "win_pct": 45.5,
+     "symbols_positive": "7",
+     "halted_at": null
+    },
+    "holdout_pass": false,
+    "book_status": "HOLDOUT_FAILED"
+   }
+  },
+  "momentum_long": {
+   "params": {
+    "sig.roc_tf": "1h",
+    "sig.roc_n": 24,
+    "sig.roc_min": 5,
+    "sig.entry_tf": "15m",
+    "sig.ema_n": 20,
+    "stop_loss_rate": 3.5,
+    "take_profit_rate": 0.0,
+    "trailing_stop": 4.5,
+    "trailing_activation_pct": 0.0,
+    "timeout": 4320,
+    "cooldown": 60,
+    "atr_frame": "1h",
+    "atr_period": 14,
+    "risk_per_trade_pct": 0.5,
+    "max_notional_pct": 300.0,
+    "leverage": 10
+   },
+   "source": "build 20261001_115808 stage A top-1 dev1",
+   "source_kind": "stage_a",
+   "evidence": {
+    "stage": "dev1",
+    "run": "20261001_115808",
+    "dev1_tried": 24,
+    "score": 1.2815,
+    "dev1": {
+     "ret_pct": 27.59,
+     "mdd_pct": 21.53,
+     "sharpe": 1.08,
+     "trades": 593,
+     "win_pct": 40.5,
+     "symbols_positive": "6",
+     "halted_at": null
+    },
+    "accepted": false,
+    "stability": "0/3",
+    "dev2_pass": false,
+    "dev2_level": {
+     "ret_pct": 3.84,
+     "mdd_pct": 25.68,
+     "sharpe": 0.25,
+     "trades": 515,
+     "win_pct": 37.7,
+     "symbols_positive": "3",
+     "halted_at": null
+    },
+    "dev2_extreme": {
+     "ret_pct": -3.69,
+     "mdd_pct": 26.93,
+     "sharpe": 0.01,
+     "trades": 515,
+     "win_pct": 37.1,
+     "symbols_positive": "3",
+     "halted_at": null
+    }
+   }
+  },
+  "reversion_long": {
+   "params": {
+    "sig.entry_tf": "5m",
+    "sig.rsi_n": 14,
+    "sig.rsi_lo": 25.0,
+    "sig.bb_n": 20,
+    "sig.bb_k": 2.0,
+    "sig.regime_tf": "1h",
+    "sig.er_n": 20,
+    "sig.er_max": 0.3,
+    "stop_loss_rate": 1.5,
+    "take_profit_rate": 1.5,
+    "trailing_stop": 0.0,
+    "trailing_activation_pct": 0.0,
+    "timeout": 1440,
+    "cooldown": 60,
+    "atr_frame": "1h",
+    "atr_period": 14,
+    "risk_per_trade_pct": 0.5,
+    "max_notional_pct": 300.0,
+    "leverage": 10
+   },
+   "source": "mặc định — chưa tối ưu",
+   "source_kind": "default",
+   "evidence": null
+  },
+  "reversion_short": {
+   "params": {
+    "sig.entry_tf": "5m",
+    "sig.rsi_n": 14,
+    "sig.rsi_hi": 75.0,
+    "sig.bb_n": 20,
+    "sig.bb_k": 2.0,
+    "sig.regime_tf": "1h",
+    "sig.er_n": 20,
+    "sig.er_max": 0.3,
+    "stop_loss_rate": 1.5,
+    "take_profit_rate": 1.5,
+    "trailing_stop": 0.0,
+    "trailing_activation_pct": 0.0,
+    "timeout": 1440,
+    "cooldown": 60,
+    "atr_frame": "1h",
+    "atr_period": 14,
+    "risk_per_trade_pct": 0.5,
+    "max_notional_pct": 300.0,
+    "leverage": 10
+   },
+   "source": "mặc định — chưa tối ưu",
+   "source_kind": "default",
+   "evidence": null
+  }
+ }
+}

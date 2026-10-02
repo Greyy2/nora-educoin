@@ -1,0 +1,332 @@
+"""Phía WORKER của phễu: backtest danh mục một alpha, WFA cố định tham số, Monte Carlo, tìm/xác nhận hệ số s, holdout.
+
+Mọi hàm `w_*` là hàm cấp module (pickle được qua ProcessPoolExecutor), nhận một dict `job` thuần dữ liệu và trả dict thuần dữ liệu.
+Máy chạy là PortfolioEngine DÙNG LẠI (cùng đường với build_strategy_book giai đoạn A / validate_book): không có logic mô phỏng riêng ở đây.
+Dữ liệu giá + kernel đọc qua mmap dùng chung (backend/core/backtest/shared_data.py) khi `shared_dir` có đặt; không thì tự dựng (cùng kết quả từng bit).
+"""
+import contextlib
+import io
+import math
+from typing import Any, Dict, List, Optional, Tuple
+
+import numpy as np
+import pandas as pd
+
+from . import gates, sizing
+from .antiluck import daily_stats, sortino_annual
+
+DAY = 86_400_000
+PF_CAP = 99.0   # profit factor khi không có lệnh lỗ (tránh inf trong JSON/biểu đồ)
+
+
+# ── Engine ──────────────────────────────────────────────────────────────────
+def risk_dict(kill: bool) -> Dict[str, Any]:
+    """Giới hạn danh mục của sổ (RISK); kill=False = đánh giá tham số (kill switch tắt, như build_strategy_book giai đoạn A/IS)."""
+    from backend.core.strategy.strategy_book import RISK
+    return {**RISK, "kill_switch_dd_pct": RISK["kill_switch_dd_pct"] if kill else 0}
+
+
+def make_engine(job: Dict[str, Any]):
+    """job: strategy, params, window [start, end], stop_fill, kill (bool), rpt, symbols, shared_dir."""
+    from backend.core.backtest.portfolio import PortfolioEngine, RiskConfig
+    from backend.core.strategy import strategy_book as sb
+    by_id = {c["id"]: c for c in sb.CANDIDATES}
+    start, end = job["window"]
+    st = sb.materialize(by_id[job["strategy"]], job["params"], stop_fill=job["stop_fill"], risk_per_trade_pct=job["rpt"])
+    return PortfolioEngine(list(job["symbols"]), [st], start - gates.WARMUP_DAYS * DAY, end, trade_start_ts=start,
+                           risk=RiskConfig.from_dict(risk_dict(job["kill"])), shared_dir=job.get("shared_dir")), start
+
+
+def trade_rows(positions) -> List[Dict[str, Any]]:
+    return [{
+        "symbol": p.symbol, "side": p.pos_type.name, "enter_time": int(p.enter_time), "close_time": int(p.close_time),
+        "enter_price": float(p.enter_price), "close_price": float(p.close_price), "qty": float(p.qty),
+        "pnl_usd": float(p.real_pnl), "pnl_pct": float(p.profit_pct), "fees_usd": float(p.fees_usd or 0.0),
+        "funding_usd": float(p.funding_usd or 0.0), "status": p.status.name, "layers": int(p.layers or 0),
+        "mae_pct": float(p.mae_pct or 0.0),
+    } for p in positions]
+
+
+def trade_stats(rows: List[Dict[str, Any]]) -> Dict[str, float]:
+    pnl = np.asarray([r["pnl_usd"] for r in rows], dtype=float)
+    if pnl.size == 0:
+        return {"win_rate": 0.0, "profit_factor": 0.0}
+    gp, gl = float(pnl[pnl > 0].sum()), float(-pnl[pnl < 0].sum())
+    pf = gp / gl if gl > 0 else (PF_CAP if gp > 0 else 0.0)
+    return {"win_rate": round(float((pnl > 0).mean() * 100), 1), "profit_factor": round(min(pf, PF_CAP), 3)}
+
+
+def run_backtest(job: Dict[str, Any], want_trades: bool = False) -> Dict[str, Any]:
+    """Một lần PortfolioEngine -> {"metrics", "daily", "daily_start", "trades"}. metrics = số đo phẳng của phễu (không gồm chuỗi ngày)."""
+    from backend.core.backtest.portfolio_metrics import portfolio_metrics
+    eng, start = make_engine(job)
+    with contextlib.redirect_stdout(io.StringIO()):
+        eng.run()
+    res = eng.get_results()
+    pm = portfolio_metrics(res, start)
+    daily = pm["daily"]
+    first = next((c["time"] for c in res["equity_curve"] if c["time"] >= start), None)
+    rows = trade_rows(res["positions"])
+    ds = daily_stats(daily)
+    m = {
+        "ret_pct": pm["ret_pct"], "mdd_pct": pm["mdd_pct"], "sharpe": pm["sharpe"], "sortino": round(sortino_annual(daily), 2),
+        "trades": pm["trades"], "symbols_positive": pm["symbols_positive"], **trade_stats(rows),
+        "sr_daily": round(ds["sr_daily"], 6), "skew": round(ds["skew"], 4), "kurt": round(ds["kurt"], 4), "n_days": ds["n_days"],
+        "fees_usd": pm["fees_usd"], "funding_usd": pm["funding_usd"], "halted": bool(pm["halted_at"]),
+        "by_symbol": pm["by_symbol"],
+    }
+    return {"metrics": m, "daily": daily, "daily_start": f"{pd.Timestamp(int(first), unit='ms'):%Y-%m-%d}" if first is not None else None,
+            "trades": rows if want_trades else None}
+
+
+def base_job(strategy: str, params: Dict[str, Any], window, stop_fill: str, kill: bool, rpt: float, symbols, shared_dir) -> Dict[str, Any]:
+    return {"strategy": strategy, "params": params, "window": [int(window[0]), int(window[1])], "stop_fill": stop_fill, "kill": kill,
+            "rpt": rpt, "symbols": list(symbols), "shared_dir": shared_dir}
+
+
+# ── Chuỗi ngày / số đo ──────────────────────────────────────────────────────
+def equity_mdd_pct(daily) -> float:
+    d = np.asarray(daily, dtype=float)
+    if d.size == 0:
+        return 0.0
+    eq = np.cumprod(np.maximum(0.0, 1.0 + d))
+    peak = np.maximum.accumulate(np.r_[1.0, eq])[1:]
+    return float(((peak - eq) / peak).max() * 100.0)
+
+
+def series_metrics(daily, trades: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Số đo phẳng từ chuỗi ngày nối + danh sách lệnh (cho S3/S4/S5): lãi kép, MDD ngày, Sharpe/Sortino quy năm, lệnh, win rate, PF."""
+    d = np.asarray(daily, dtype=float)
+    sd = float(d.std(ddof=1)) if d.size > 1 else 0.0
+    return {"ret_pct": round(float((np.prod(1.0 + d) - 1.0) * 100), 2) if d.size else 0.0, "mdd_pct": round(equity_mdd_pct(d), 2),
+            "sharpe": round(float(d.mean() / sd * math.sqrt(365)), 2) if sd > 0 else 0.0, "sortino": round(sortino_annual(d), 2),
+            "trades": len(trades), **trade_stats(trades), "oos_days": int(d.size)}
+
+
+def nav_from_returns(rets, start_date: str, initial: float = gates.INITIAL_CAPITAL) -> Tuple[List[str], List[float]]:
+    d = np.asarray(rets, dtype=float)
+    dates = [f"{x:%Y-%m-%d}" for x in pd.date_range(start_date, periods=len(d), freq="D")]
+    return dates, [round(float(v), 2) for v in initial * np.cumprod(1.0 + d)]
+
+
+# ── Monte Carlo (DÙNG LẠI backend/carlo/monte_carlo.py) ─────────────────────
+def _mc_kwargs(scale: float) -> Dict[str, Any]:
+    return dict(simulations=gates.S4_MIN_SIMULATIONS, block_days=gates.S4_BLOCK_DAYS, horizon_days=gates.S4_HORIZON_DAYS,
+                ruin_threshold_pct=gates.S4_RUIN_THRESHOLD_PCT, seed=gates.S4_SEED, scale=scale,
+                max_ruin_pct=gates.S4_MAX_RUIN_PCT, stress_max_mdd_pct=gates.S4_STRESS_MAX_MDD_PCT)
+
+
+def _gate_of(simulations: int, ruin: float, stress) -> Dict[str, Any]:
+    from backend.carlo.monte_carlo import evaluate_mc_gate
+    return evaluate_mc_gate(simulations, ruin, stress, min_simulations=gates.S4_MIN_SIMULATIONS, max_ruin_pct=gates.S4_MAX_RUIN_PCT,
+                            ruin_threshold_pct=gates.S4_RUIN_THRESHOLD_PCT, stress_max_mdd_pct=gates.S4_STRESS_MAX_MDD_PCT)
+
+
+def mc_check(series, scale: float) -> Dict[str, Any]:
+    """MC dạng gate (không điểm vẽ) trên chuỗi ngày × scale -> {"passed", "p_mdd_ge_30", "stress_max_mdd", "gate", "summary"}."""
+    from backend.carlo.monte_carlo import run_monte_carlo_daily_gate
+    r = run_monte_carlo_daily_gate(series, **_mc_kwargs(scale))
+    gate = _gate_of(r["simulations"], r["p_mdd_ge_ruin_pct"], r["stress"])
+    return {"passed": bool(gate["passed"]), "p_mdd_ge_30": r["p_mdd_ge_ruin_pct"],
+            "stress_max_mdd": max((x["mdd_pct"] for x in r["stress"]), default=None), "gate": gate,
+            "summary": {k: r[k] for k in ("median_ret_pct", "p05_ret_pct", "mdd_p50_pct", "mdd_p95_pct", "p_mdd_ge_ruin_pct", "simulations")}}
+
+
+def mc_detail(series, scale: float, basis: str = "extreme") -> Dict[str, Any]:
+    """MC chi tiết (quạt, histogram, kịch bản cực xấu có đường vẽ) + gate theo ngưỡng của phễu. Ghi vào mc/<alpha_id>.json."""
+    from backend.carlo.monte_carlo import run_monte_carlo_daily_detail
+    out = run_monte_carlo_daily_detail(series, **_mc_kwargs(scale))
+    out["gate"] = _gate_of(out["summary"]["simulations"], out["summary"]["p_mdd_ge_ruin_pct"], out["stress"])
+    out["params"] = {**out["params"], "basis": basis}
+    return out
+
+
+# ── WFA tham số cố định ─────────────────────────────────────────────────────
+def fold_job_plan(folds: List[Dict[str, int]]) -> List[Dict[str, Any]]:
+    from .windows import iso_date
+    return [{"fold": i + 1, "train": [f["train_start_ts"], f["train_end_ts"]], "test": [f["test_start_ts"], f["test_end_ts"]],
+             "train_iso": [iso_date(f["train_start_ts"]), iso_date(f["train_end_ts"])],
+             "test_iso": [iso_date(f["test_start_ts"]), iso_date(f["test_end_ts"])]} for i, f in enumerate(folds)]
+
+
+def run_wfa(strategy: str, params: Dict[str, Any], folds: List[Dict[str, Any]], symbols, rpt: float, shared_dir: Optional[str],
+            ) -> Dict[str, Any]:
+    """Mỗi fold: IS = backtest cửa sổ train (SL level, kill tắt); OOS = backtest cửa sổ test (SL extreme = khớp bi quan, kill BẬT).
+    Cùng quy ước validate_book với một cấu hình duy nhất (không chọn lại tham số). Cơ sở kết luận là OOS extreme."""
+    out = []
+    for f in folds:
+        is_r = run_backtest(base_job(strategy, params, f["train"], "level", False, rpt, symbols, shared_dir))
+        oos = run_backtest(base_job(strategy, params, f["test"], "extreme", True, rpt, symbols, shared_dir), want_trades=True)
+        out.append({"fold": f["fold"], "train": f["train_iso"], "test": f["test_iso"], "is_ret_pct": is_r["metrics"]["ret_pct"],
+                    "is_trades": is_r["metrics"]["trades"], "oos": oos["metrics"], "daily": oos["daily"],
+                    "daily_start": oos["daily_start"] or f["test_iso"][0], "trades": oos["trades"]})
+    return {"folds": out}
+
+
+def aggregate_wfa(folds: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """-> {"summary" (cho evaluate_s3), "metrics" (stage_metrics S3), "series" (chuỗi ngày OOS nối), "trades" (có cột fold), "daily" (theo fold)}."""
+    n = len(folds)
+    series = [x for f in folds for x in f["daily"]]
+    trades = [{**t, "fold": f["fold"]} for f in folds for t in (f["trades"] or [])]
+    positive = sum(1 for f in folds if f["oos"]["ret_pct"] > 0)
+    compounded = round(float((np.prod(1.0 + np.asarray(series, dtype=float)) - 1.0) * 100), 2) if series else 0.0
+    is_avg = round(sum(f["is_ret_pct"] for f in folds) / n, 2) if n else None
+    summary = {"folds": n, "positive_ratio": (positive / n) if n else 0.0, "compounded_oos_ret_pct": compounded,
+               "worst_fold_mdd": max((f["oos"]["mdd_pct"] for f in folds), default=0.0), "is_ret_avg": is_avg}
+    metrics = {**series_metrics(series, trades), "folds": n, "folds_profitable": positive, "positive_ratio": round(summary["positive_ratio"], 4),
+               "worst_fold_mdd": summary["worst_fold_mdd"], "is_ret_avg": is_avg,
+               "fold_detail": [{"fold": f["fold"], "train": f["train"], "test": f["test"], "is_ret_pct": f["is_ret_pct"],
+                                "oos_ret_pct": f["oos"]["ret_pct"], "oos_mdd_pct": f["oos"]["mdd_pct"], "trades": f["oos"]["trades"],
+                                "halted": f["oos"]["halted"]} for f in folds]}
+    daily = [{"fold": f["fold"], "start": f["daily_start"], "rets": f["daily"]} for f in folds]
+    return {"summary": summary, "metrics": metrics, "series": series, "trades": trades, "daily": daily}
+
+
+# ── Hàm worker (một job = một alpha) ────────────────────────────────────────
+def w_backtest(job: Dict[str, Any]) -> Dict[str, Any]:
+    """S1 / điểm lân cận (S2) / tính lại lệnh: job gồm các khoá của base_job + "trades": False | True | "pass" (chỉ trả lệnh khi qua S1)."""
+    try:
+        out = run_backtest(job, want_trades=bool(job.get("trades")))
+        if job.get("trades") == "pass" and not gates.evaluate_s1(out["metrics"])[0]:
+            out["trades"] = None   # alpha bị loại ở S1: chỉ lưu thống kê (lệnh tính lại khi cần)
+        return out
+    except ValueError as exc:   # tham số không hợp lệ ngoài dự kiến (S0 đã lọc phần lớn) -> loại alpha này, không sập cả lượt
+        return {"error": f"{type(exc).__name__}: {exc}"}
+
+
+def w_wfa(job: Dict[str, Any]) -> Dict[str, Any]:
+    """S3: job = {strategy, params, folds (fold_job_plan), symbols, rpt, shared_dir}."""
+    try:
+        return run_wfa(job["strategy"], job["params"], job["folds"], job["symbols"], job["rpt"], job["shared_dir"])
+    except ValueError as exc:
+        return {"error": f"{type(exc).__name__}: {exc}"}
+
+
+def w_mc(job: Dict[str, Any]) -> Dict[str, Any]:
+    """S4: job = {series}. Chi tiết ở s = 1 (ghi mc/<alpha>.json) + gate ở hệ số tối thiểu S5_S_MIN (alpha còn cứu được bằng giảm khối lượng không?)."""
+    series = job["series"]
+    if len(series) < gates.S4_MIN_DAYS:
+        return {"days": len(series), "detail": None, "min_size": None}
+    detail = mc_detail(series, 1.0)
+    mn = mc_check(series, gates.S5_S_MIN)
+    return {"days": len(series), "detail": detail, "min_size": {"s": gates.S5_S_MIN, **{k: mn[k] for k in ("passed", "p_mdd_ge_30", "stress_max_mdd", "gate")}}}
+
+
+def w_sizing(job: Dict[str, Any]) -> Dict[str, Any]:
+    """S5: tìm nhị phân s trên chuỗi ngày nhân s; xác nhận bằng S1 + WFA + MC thật ở s (hạ s từng bước nếu trượt).
+    job = {strategy, params, series, windows {start, dev1_end}, folds, symbols, shared_dir}."""
+    series = np.asarray(job["series"], dtype=float)
+    s_star, steps = sizing.search_scale(lambda s: mc_check(series, s))
+    if s_star is None:
+        return {"s": None, "search": steps, "attempts": [], "reason": "scale_low"}
+    keep: Dict[str, Any] = {}
+
+    def confirm(s: float) -> Dict[str, Any]:
+        rpt = sizing.risk_for_scale(s)
+        r1 = run_backtest(base_job(job["strategy"], job["params"], (job["windows"]["start"], job["windows"]["dev1_end"]), "level", False, rpt,
+                                   job["symbols"], job["shared_dir"]))
+        ok1 = gates.evaluate_s1(r1["metrics"])
+        att: Dict[str, Any] = {"backtest": ok1[0], "backtest_ret_pct": r1["metrics"]["ret_pct"], "backtest_mdd_pct": r1["metrics"]["mdd_pct"],
+                               "wfa": None, "mc": None, "passed": False}
+        if not ok1[0]:
+            att["reason"] = ok1[2]
+            return att
+        wfa = aggregate_wfa(run_wfa(job["strategy"], job["params"], job["folds"], job["symbols"], rpt, job["shared_dir"])["folds"])
+        ok3 = gates.evaluate_s3(wfa["summary"])
+        att["wfa"] = ok3[0]
+        if not ok3[0]:
+            att["reason"] = ok3[2]
+            return att
+        if len(wfa["series"]) < gates.S4_MIN_DAYS:
+            att["mc"], att["reason"] = False, "quá ít ngày OOS"
+            return att
+        mcr = mc_check(wfa["series"], 1.0)
+        att["mc"], att["p_mdd_ge_30"], att["stress_max_mdd"] = mcr["passed"], mcr["p_mdd_ge_30"], mcr["stress_max_mdd"]
+        att["passed"] = bool(mcr["passed"])
+        if not att["passed"]:
+            att["reason"] = gates.evaluate_mc_checks(mcr["gate"], "S5")[2]
+        else:
+            keep.update(s=s, wfa=wfa, backtest=r1)
+        return att
+
+    s_ok, attempts = sizing.confirm_with_stepdown(s_star, confirm)
+    out: Dict[str, Any] = {"s": s_ok, "s_search": s_star, "search": steps, "attempts": attempts}
+    if s_ok is None:
+        out["reason"] = "scale_low" if (attempts and attempts[-1]["s"] - gates.S5_CONFIRM_STEP < gates.S5_S_MIN - 1e-9) else "confirm"
+        return out
+    wfa = keep["wfa"]
+    out.update({"wfa": wfa, "backtest": {"metrics": keep["backtest"]["metrics"]}, "mc_detail": mc_detail(wfa["series"], 1.0, basis="confirmed_wfa_at_s")})
+    return out
+
+
+def w_holdout(job: Dict[str, Any]) -> Dict[str, Any]:
+    """S6: chạy MỘT lần ở hệ số s trên holdout: SL khớp đúng mức ("level") và giá xấu nhất ("extreme"), kill switch BẬT."""
+    win = (job["windows"]["dev2_end"], job["windows"]["end"])
+    out = {}
+    for fill in ("level", "extreme"):
+        out[fill] = run_backtest(base_job(job["strategy"], job["params"], win, fill, True, job["rpt"], job["symbols"], job["shared_dir"]),
+                                 want_trades=True)
+    return out
+
+
+# ── Xuất dữ liệu dùng chung (mmap) ──────────────────────────────────────────
+def _export_one(job: Dict[str, Any]) -> List[str]:
+    from backend.core.backtest import shared_data
+    eng, _ = make_engine(job)
+    info = shared_data.export(eng, job["shared_dir"])
+    _release_memory()
+    return list(info["keys"].values())
+
+
+def _release_memory() -> None:
+    import ctypes
+    import gc
+    from backend.core.backtest.portfolio import data_cache_clear
+    from backend.core.data.loader import CandleLoader
+    CandleLoader.clear_cache()
+    data_cache_clear()
+    gc.collect()
+    try:
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except OSError:
+        pass
+
+
+class SharedExporter:
+    """Dựng dữ liệu dùng chung cho các (chiến lược, cửa sổ) của một tầng TRƯỚC khi chạy pool (song song theo tiến trình, tối đa `workers`),
+    và dọn sau tầng. `ensure(jobs)` bỏ qua cặp đã xuất (chữ ký = cửa sổ + refs kernel của chiến lược). Worker thiếu khoá thì tự dựng (cùng kết quả)."""
+
+    def __init__(self, shared_dir: Optional[str], workers: int = 1, label: str = ""):
+        self.shared_dir, self.workers, self.label = shared_dir, max(1, int(workers)), label
+        self.sigs: Dict[Tuple, bool] = {}
+        self.keys: set = set()
+
+    def ensure(self, jobs: List[Dict[str, Any]]) -> None:
+        if not self.shared_dir:
+            return
+        todo = []
+        for j in jobs:
+            memo = (j["strategy"], tuple(j["window"]))
+            if memo in self.sigs:
+                continue
+            self.sigs[memo] = True
+            todo.append({**j, "shared_dir": self.shared_dir})
+        if not todo:
+            return
+        from backend.utils.parallel import pool_map_safe
+        if self.workers <= 1 or len(todo) == 1:
+            res = [_export_one(j) for j in todo]
+        else:
+            res = pool_map_safe(_export_one, todo, min(self.workers, len(todo)), f"[shared] {self.label}")
+        for ks in res:
+            self.keys.update(ks)
+
+    def cleanup(self) -> None:
+        import os
+        import shutil
+        if not self.shared_dir:
+            return
+        for k in self.keys:
+            shutil.rmtree(os.path.join(self.shared_dir, k), ignore_errors=True)
+        self.keys.clear()
+        self.sigs.clear()

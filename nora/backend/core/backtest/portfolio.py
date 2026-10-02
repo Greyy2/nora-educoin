@@ -164,6 +164,10 @@ class PortfolioEngine:
             eng, pairs = self._make_trackers(sym, self.ledger)
             if not pairs:   # không chiến lược nào chạy trên tài sản này (chỉ xảy ra khi dùng khoá "symbols")
                 continue
+            # Cổng chất lượng dữ liệu BẮT BUỘC (synthetic / sai sha256 / thiếu dữ liệu -> từ chối); có cache theo file nên rẻ khi gọi lại.
+            # Tiến trình cha của CLI đã gọi trước khi fork pool -> worker thừa kế cache, không đọc lại 1m.
+            from backend.core.data.quality_gate import require_data_ok
+            require_data_ok([sym])
             data = self._load_symbol(sym, eng)
             n = len(data["t"])
             cols = data["cols"]

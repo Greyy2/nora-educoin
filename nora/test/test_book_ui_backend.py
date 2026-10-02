@@ -19,6 +19,7 @@ from test_book_api import FakePopen
 def client(monkeypatch, tmp_path):
     monkeypatch.setenv("NORA_LOCAL_DATA_ROOT", str(tmp_path / "data"))
     monkeypatch.setenv("NORA_BOOK_PATH", str(tmp_path / "book.json"))
+    monkeypatch.setenv("NORA_PRESETS_PATH", str(tmp_path / "presets.json"))   # không đọc preset thật của data/alphas
     FakePopen.calls = []
     monkeypatch.setattr(batch_jobs.subprocess, "Popen", FakePopen)
     app = FastAPI()
@@ -104,14 +105,19 @@ STRATS = [{"id": "breakout_4h_long", "configs": [{"stop_loss_rate": 2.0, "traili
 
 
 def test_wfa_strategies_written_to_job_dir(client):
-    r = client.post("/api/studio/book/wfa", json={"strategies": STRATS, "symbols": ["BTC", "SOL@perp"], "risk_per_trade_pct": 0.4,
+    r = client.post("/api/studio/book/wfa", json={"mode": "advanced", "strategies": STRATS, "symbols": ["BTC", "SOL@perp"], "risk_per_trade_pct": 0.4,
                                                   "start": "2025-01-01", "end": "2025-09-30", "train_days": 90, "test_days": 30})
     assert r.status_code == 200, r.text
     jid = r.json()["job_id"]
     cmd, kw = FakePopen.calls[0]
     path = cmd[cmd.index("--strategies-json") + 1]
     assert path == os.path.join(batch_jobs.jobs_root(), jid, "strategies.json")
-    assert json.load(open(path)) == STRATS
+    saved = json.load(open(path))     # advanced: khoá người dùng giữ nguyên; khoá thiếu của space lấy từ preset (đủ mọi khoá của space)
+    assert [s["id"] for s in saved] == [s["id"] for s in STRATS]
+    for want, got in zip(STRATS, saved):
+        assert len(want["configs"]) == len(got["configs"])
+        for w, g in zip(want["configs"], got["configs"]):
+            assert {k: g[k] for k in w} == w and set(g) >= {"stop_loss_rate", "trailing_stop", "trailing_activation_pct", "timeout"}
     assert cmd[cmd.index("--symbols") + 1] == "BTC@perp,SOL@perp" and cmd[cmd.index("--risk-per-trade") + 1] == "0.4"
     assert "--candidates" not in cmd and "--report" not in cmd
     # nhãn đọc lại file
@@ -133,7 +139,7 @@ def test_wfa_strategies_written_to_job_dir(client):
     {"strategies": [{"id": "trend_long", "configs": [{}] * 51}]},
 ])
 def test_wfa_strategies_rejects_bad_requests(client, patch):
-    assert client.post("/api/studio/book/wfa", json=patch).status_code == 422, patch
+    assert client.post("/api/studio/book/wfa", json={"mode": "advanced", **patch}).status_code == 422, patch
     assert not FakePopen.calls
 
 

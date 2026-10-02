@@ -9,13 +9,15 @@ Mỗi job có thư mục <data>/_cache/api_jobs/<job_id>/:
   out.log     stdout+stderr của job
   result.json báo cáo cuối do script ghi (quy ước env NORA_JOB_DIR, xem backend/utils/jobresult.py)
   alphas/     (chỉ job book_build) sổ vừa dựng: book.json [+ testnet/book.json]; KHÔNG ghi đè nora/data/alphas/ — xuất bản qua POST /book/publish
-Trạng thái trả ra: queued (đang chờ hàng đợi run_limited) | running | done | failed. Trạng thái bền (job.json) chỉ có running/done/failed;
-queued suy ra từ out.log. Không dùng shell: danh sách đối số đi thẳng vào Popen.
+  progress.json  (job tối ưu quy mô lớn) tiến độ do CLI ghi mỗi <= 5 giây: stage, done, total, rate, eta_s, peak_rss_mb (xem backend/optimize/progress.py)
+Trạng thái trả ra: queued (đang chờ hàng đợi run_limited) | running | done | failed | cancelled. Trạng thái bền (job.json) chỉ có running/done/failed/cancelled;
+queued suy ra từ out.log. Huỷ: cancel(job_id) gửi SIGTERM cho CẢ nhóm tiến trình (CLI flush kho kết quả rồi thoát -> chạy lại bằng --resume). Không dùng shell: danh sách đối số đi thẳng vào Popen.
 """
 import json
 import math
 import os
 import re
+import signal
 import subprocess
 import threading
 import time
@@ -32,9 +34,16 @@ KINDS: Dict[str, Dict[str, Any]] = {
                       "flags": {"--book", "--strategies", "--symbols", "--start", "--end", "--risk-per-trade", "--stop-fill"}},
     "book_wfa": {"module": "backend.cli.validate_book",
                  "flags": {"--report", "--include-rejected", "--candidates", "--strategies-json", "--symbols", "--n", "--start",
-                           "--end", "--train-days", "--test-days", "--risk-per-trade", "--workers"}},
-    "book_build": {"module": "backend.cli.build_strategy_book", "flags": {"--only", "--n", "--workers"}},
+                           "--end", "--train-days", "--test-days", "--step-days", "--sims", "--mc-seed", "--risk-per-trade", "--workers",
+                           "--resume", "--max-configs", "--force-large"}},
+    "book_build": {"module": "backend.cli.build_strategy_book",
+                   "flags": {"--only", "--n", "--workers", "--keep-top", "--resume", "--max-configs", "--force-large"}},
+    # phễu kiểm duyệt alpha (backend/api/routers/funnel.py dựng và kiểm đối số)
+    "funnel_run": {"module": "backend.cli.run_funnel",
+                   "flags": {"--strategies", "--n-per-strategy", "--full-grid", "--seed", "--symbols", "--windows-json", "--run-id",
+                             "--resume", "--force-large", "--train-days", "--test-days"}},
 }
+MAX_BUILD_CONFIGS = 1_000_000   # trần cứng của API cho --n (mỗi chiến lược); CLI còn có --max-configs (mặc định 200000) + --force-large
 MAX_ACTIVE = 8          # số job đang chạy/chờ tối đa cùng lúc (mỗi job chờ là một tiến trình bash nhỏ)
 LOG_TAIL_LINES = 40
 WAITING_MARK = "đang chờ job khác của Nora"   # dòng run_limited.sh in khi xếp hàng
@@ -127,7 +136,8 @@ def check_report_dir(report_dir: str) -> str:
 
 
 def check_wfa_strategies(items: Any) -> List[Dict[str, Any]]:
-    """[{"id", "configs": [{tham số: số}]}] do người dùng chọn: id thuộc thư viện, khoá thuộc không gian tham số của ứng viên."""
+    """[{"id", "configs": [{tham số: giá trị}]}] do người dùng chọn: id thuộc thư viện; khoá thuộc `space` hoặc `params_schema` của ứng viên;
+    giá trị là số hữu hạn, riêng khoá kiểu "choice" (khung thời gian) là chuỗi nằm trong danh sách lựa chọn."""
     from backend.core.strategy.strategy_book import CANDIDATES
     by_id = {c["id"]: c for c in CANDIDATES}
     if not isinstance(items, list) or not items or len(items) > MAX_WFA_STRATEGIES:
@@ -140,13 +150,21 @@ def check_wfa_strategies(items: Any) -> List[Dict[str, Any]]:
         cfgs = s.get("configs")
         if not isinstance(cfgs, list) or not 1 <= len(cfgs) <= MAX_WFA_CONFIGS:
             raise JobError(f"{s['id']}: configs phải có 1..{MAX_WFA_CONFIGS} cấu hình")
+        cand = by_id[s["id"]]
+        schema = cand.get("params_schema") or {}
         for c in cfgs:
-            if not isinstance(c, dict) or not all(isinstance(k, str) and isinstance(v, (int, float)) and not isinstance(v, bool)
-                                                  and math.isfinite(v) for k, v in c.items()):
-                raise JobError(f"{s['id']}: mỗi cấu hình phải là {{tên: số}}")
-            bad = sorted(set(c) - set(by_id[s["id"]]["space"]))
+            if not isinstance(c, dict) or not all(isinstance(k, str) for k in c):
+                raise JobError(f"{s['id']}: mỗi cấu hình phải là {{tên: giá trị}}")
+            bad = sorted(set(c) - set(cand["space"]) - set(schema))
             if bad:
-                raise JobError(f"{s['id']}: khoá không thuộc không gian tham số: {bad}")
+                raise JobError(f"{s['id']}: khoá không thuộc không gian tham số / lược đồ tham số: {bad}")
+            for k, v in c.items():
+                spec = schema.get(k) or {}
+                if spec.get("type") == "choice":
+                    if v not in spec["choices"]:
+                        raise JobError(f"{s['id']}: {k} phải là một trong {spec['choices']}")
+                elif not (isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)):
+                    raise JobError(f"{s['id']}: {k} phải là số hữu hạn")
         out.append({"id": s["id"], "configs": cfgs})
     return out
 
@@ -216,7 +234,11 @@ def build_job(kind: str, p: Dict[str, Any]) -> Tuple[List[str], Dict[str, Any]]:
         if p.get("only"):
             a += ["--only", ",".join(check_candidate_ids(p["only"]))]
         if p.get("n") is not None:
-            a += ["--n", check_number(p["n"], "n", 1, 200, integer=True)]
+            a += ["--n", check_number(p["n"], "n", 1, MAX_BUILD_CONFIGS, integer=True)]
+        if p.get("keep_top") is not None:
+            a += ["--keep-top", check_number(p["keep_top"], "keep_top", 3, 5000, integer=True)]
+        if p.get("force_large"):
+            a += ["--force-large"]
     return a, files
 
 
@@ -257,8 +279,11 @@ def _finish(job_dir: str, exit_code: Optional[int]) -> Dict[str, Any]:
         if exit_code is None:  # tiến trình mất dấu (API khởi động lại): thử mã thoát ở dòng cuối run_limited, rồi tới result.json
             m = _EXIT_RE.findall(_tail_text(os.path.join(job_dir, "out.log"), 8192))
             exit_code = int(m[-1]) if m else (0 if has_result else None)
-        meta.update(state="done" if exit_code == 0 else "failed", exit_code=exit_code, finished=time.time())
-        if exit_code is None:
+        state = "done" if exit_code == 0 else "failed"
+        if meta.get("cancel_requested") and exit_code != 0 and not has_result:
+            state = "cancelled"   # người dùng bấm Huỷ: SIGTERM -> CLI flush kho rồi thoát khác 0 (chạy lại bằng --resume)
+        meta.update(state=state, exit_code=exit_code, finished=time.time())
+        if exit_code is None and state != "cancelled":
             meta["error"] = "tiến trình kết thúc không rõ mã thoát và không có result.json"
         _write_meta(job_dir, meta)
         return meta
@@ -356,8 +381,53 @@ def _summary(job_dir: str) -> Optional[Dict[str, Any]]:
             meta = fresh
     status = "queued" if waiting else meta["state"]
     out = {**meta, "status": status, "waiting_in_queue": waiting}
+    out["progress"] = _read_progress(job_dir) if status in ("running", "done", "cancelled", "failed") else None
     out["_lines"] = lines
     return out
+
+
+def _read_progress(job_dir: str) -> Optional[Dict[str, Any]]:
+    """progress.json do CLI ghi (stage/done/total/rate/eta_s/peak_rss_mb); None nếu job không có/chưa ghi."""
+    try:
+        with open(os.path.join(job_dir, "progress.json"), encoding="utf-8") as fh:
+            p = json.load(fh)
+        return p if isinstance(p, dict) else None
+    except (OSError, ValueError):
+        return None
+
+
+def cancel(job_id: str) -> Optional[Dict[str, Any]]:
+    """Huỷ job đang chạy/chờ: SIGTERM cho CẢ nhóm tiến trình (job chạy với start_new_session -> pgid = pid). CLI bắt SIGTERM, flush kho
+    kết quả rồi thoát nên có thể chạy tiếp bằng --resume <run_dir>. Sau 20 giây nhóm còn sống thì SIGKILL. Trả trạng thái mới;
+    None nếu không có job. Job đã kết thúc -> JobError."""
+    job_dir = _job_dir(job_id)
+    meta = _read_meta(job_dir)
+    if meta is None:
+        return None
+    pid = meta.get("pid")
+    if meta.get("state") != "running" or not _alive(pid):
+        raise JobError(f"job không còn chạy (trạng thái {meta.get('state')})")
+    with _LOCK:
+        fresh = _read_meta(job_dir) or meta
+        fresh["cancel_requested"] = time.time()
+        _write_meta(job_dir, fresh)
+    try:
+        os.killpg(int(pid), signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    except PermissionError as exc:
+        raise JobError(f"không gửi được SIGTERM cho nhóm tiến trình {pid}: {exc}")
+
+    def _hard_kill():
+        try:
+            os.killpg(int(pid), 0)            # nhóm còn sống?
+            os.killpg(int(pid), signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            pass
+    timer = threading.Timer(20.0, _hard_kill)
+    timer.daemon = True
+    timer.start()
+    return status(job_id)
 
 
 def status(job_id: str) -> Optional[Dict[str, Any]]:
@@ -409,6 +479,11 @@ def job_label(kind: str, args: List[str]) -> str:
         else:
             src = f"báo cáo {os.path.basename(_arg(args, '--report') or '?')}"
         return f"WFA · {src} · {syms} · {rng}" if (_arg(args, "--start") or _arg(args, "--symbols")) else f"WFA · {src}"
+    if kind == "funnel_run":
+        if _arg(args, "--resume"):
+            return f"Phễu · chạy tiếp {_arg(args, '--resume')}"
+        n = "lưới đủ" if "--full-grid" in args else f"n={_arg(args, '--n-per-strategy') or '?'}/chiến lược"
+        return f"Phễu · {(_arg(args, '--strategies') or '?').replace(',', ', ')} · {n} · {syms}"
     only = _arg(args, "--only")
     return f"Dựng sổ · {only.replace(',', ', ') if only else 'mọi chiến lược'} · n={_arg(args, '--n') or 24}"
 

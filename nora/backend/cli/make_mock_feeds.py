@@ -106,6 +106,9 @@ def main(argv=None):
     from backend.utils.memwatch import require_memory_limit
     require_memory_limit("make_mock_feeds")
     from backend.core.analytics.feeds import mock_path
+    from backend.core.data.quality_gate import require_data_ok_or_exit
+    from backend.core.strategy.strategy_book import perp_symbols
+    require_data_ok_or_exit(perp_symbols())   # cổng chất lượng dữ liệu bắt buộc
     kinds = [a.only] if a.only else list(PLANS)
     for kind in kinds:
         t0 = time.time()

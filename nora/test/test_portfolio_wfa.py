@@ -118,7 +118,9 @@ def test_folds_do_not_overlap_and_oos_daily_only_from_test_windows(market, monke
     s = res["summary"]
     assert s["oos_days"] == len(s["oos_daily"]["extreme"]) == sum(len(f["oos_daily_extreme"]) for f in folds)
     assert s["mc"] is not None and s["mc"]["simulations"] == CFG.mc_simulations
-    assert set(res["gate"]["checks"]) == {"folds", "avg_is_return", "positive_folds", "worst_fold_mdd", "compounded_oos", "mc_ruin"}
+    assert set(res["gate"]["checks"]) == {"folds", "avg_is_return", "positive_folds", "worst_fold_mdd", "compounded_oos", "mc_ruin",
+                                          "mc_simulations", "mc_stress_mdd", "mc_stress_ruin"}
+    assert res["gate"]["checks"]["mc_simulations"]["passed"] is False       # 300 < 10.000 kịch bản
     assert res["gate"]["checks"]["folds"]["passed"] is False                # 3 fold < 5 -> gate trượt
 
 
@@ -164,9 +166,17 @@ def test_select_best_ties_go_to_first_and_min_trades():
 
 
 # ── Gate ────────────────────────────────────────────────────────────────────
+def _mc(**kw):
+    """MC giả đạt gate: 10.000 kịch bản, P(MDD>=30%) 1,5%, mọi kịch bản cực xấu MDD 20% và không cháy."""
+    row = {"name": "worst_days_first", "mdd_pct": 20.0, "ruin": False}
+    mc = {"p_mdd_ge_ruin_pct": 1.5, "simulations": 10_000, "stress": [row, {**row, "name": "worst_bootstrap"}]}
+    mc.update(kw)
+    return mc
+
+
 def _summary(**kw):
     s = {"n_folds": 6, "avg_is_ret_pct": 3.0, "positive_ratio_pct": 66.7, "worst_fold_mdd_pct": {"level": 8.0, "extreme": 12.0},
-         "compounded_oos_ret_pct": {"level": 10.0, "extreme": 6.0}, "mc": {"p_mdd_ge_ruin_pct": 1.5}}
+         "compounded_oos_ret_pct": {"level": 10.0, "extreme": 6.0}, "mc": _mc()}
     s.update(kw)
     return s
 
@@ -179,16 +189,20 @@ def test_gate_checks_on_crafted_result():
         "folds": _summary(n_folds=4), "avg_is_return": _summary(avg_is_ret_pct=-0.1), "positive_folds": _summary(positive_ratio_pct=59.9),
         "worst_fold_mdd": _summary(worst_fold_mdd_pct={"level": 5.0, "extreme": 30.5}),
         "compounded_oos": _summary(compounded_oos_ret_pct={"level": 9.0, "extreme": -0.01}),
-        "mc_ruin": _summary(mc={"p_mdd_ge_ruin_pct": 5.01}),
+        "mc_ruin": _summary(mc=_mc(p_mdd_ge_ruin_pct=5.01)),
+        "mc_simulations": _summary(mc=_mc(simulations=9_999)),
+        "mc_stress_mdd": _summary(mc=_mc(stress=[{"name": "crash_day", "mdd_pct": 50.0, "ruin": False}])),
+        "mc_stress_ruin": _summary(mc=_mc(stress=[{"name": "crash_day", "mdd_pct": 49.0, "ruin": True}])),
     }
     for name, summary in cases.items():
         res = pw.evaluate_gate(summary)
         assert not res["passed"] and [k for k, c in res["checks"].items() if not c["passed"]] == [name]
     edge = pw.evaluate_gate(_summary(n_folds=5, avg_is_ret_pct=0.0, positive_ratio_pct=60.0,
                                      worst_fold_mdd_pct={"level": 1.0, "extreme": 30.0},
-                                     compounded_oos_ret_pct={"level": 0.0, "extreme": 0.0}, mc={"p_mdd_ge_ruin_pct": 5.0}))
+                                     compounded_oos_ret_pct={"level": 0.0, "extreme": 0.0}, mc=_mc(p_mdd_ge_ruin_pct=5.0, simulations=10_000)))
     assert edge["passed"]                                       # đúng ngưỡng thì qua
-    assert not pw.evaluate_gate(_summary(mc=None))["checks"]["mc_ruin"]["passed"]       # thiếu MC -> trượt
+    miss = pw.evaluate_gate(_summary(mc=None))["checks"]
+    assert not any(miss[k]["passed"] for k in ("mc_ruin", "mc_simulations", "mc_stress_mdd", "mc_stress_ruin"))   # thiếu MC -> trượt hết
     assert not pw.evaluate_gate(_summary(avg_is_ret_pct=None))["passed"]                # không có fold TRADED
 
 
@@ -252,3 +266,10 @@ def test_validate_book_main_end_to_end(market, monkeypatch, tmp_path):
     assert rep["summary"]["mc"]["simulations"] == 200
     assert res["summary"]["compounded_oos_ret_pct"] == rep["summary"]["compounded_oos_ret_pct"]
     assert not (reports[-1].parent / "_shared").exists()                      # đã dọn dữ liệu dùng chung
+
+
+def test_bootstrap_daily_default_sims_is_mc_minimum():
+    import inspect
+    from backend.carlo.monte_carlo import MC_MIN_SIMULATIONS
+    from backend.core.backtest.portfolio_metrics import bootstrap_daily
+    assert inspect.signature(bootstrap_daily).parameters["n"].default == MC_MIN_SIMULATIONS

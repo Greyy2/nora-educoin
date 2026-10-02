@@ -210,7 +210,7 @@ class MonteCarloRunRequest(BaseModel):
     strategy_name: Optional[str] = "Strategy"
     symbol: Optional[str] = None
     initial_capital: float = Field(10000.0, ge=1.0)
-    simulations: int = Field(1000, ge=100, le=10000)
+    simulations: int = Field(10000, ge=100, le=50000, description="< 10.000 vẫn chạy được nhưng kết quả gate_eligible=false (không dùng làm gate)")
     ruin_threshold_pct: float = Field(30.0, ge=5.0, le=95.0, description="Ngưỡng sụt giảm vốn tính là Ruin (%)")
     confidence_levels: List[float] = Field(default_factory=lambda: [90.0, 95.0, 99.0])
     block_size: int = Field(1, ge=1, le=50, description="Kích thước block bootstrap (1 = trade độc lập)")
@@ -241,4 +241,7 @@ class MonteCarloResultContract(BaseModel):
     robust_checks: Dict[str, Any] = Field(default_factory=dict)
     summary: Dict[str, Any]
     basis: str = Field("trades", description="daily | trades: đơn vị được bootstrap; job cũ không có trường này = trades")
+    stress: List[Dict[str, Any]] = Field(default_factory=list, description="Kịch bản cực xấu tất định + worst_bootstrap (job cũ: rỗng)")
+    gate: Dict[str, Any] = Field(default_factory=dict, description="evaluate_mc_gate: passed, gate_eligible, checks (job cũ: rỗng)")
+    gate_eligible: bool = Field(False, description="True khi simulations >= 10.000")
     generated_at: int

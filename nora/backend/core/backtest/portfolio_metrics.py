@@ -51,7 +51,7 @@ def portfolio_metrics(res, start_ts):
     }
 
 
-def bootstrap_daily(daily, scale, n=4000, block=5, horizon=365, seed=1):
+def bootstrap_daily(daily, scale, n=10_000, block=5, horizon=365, seed=1):  # n = carlo.MC_MIN_SIMULATIONS
     """Block bootstrap lợi suất ngày (nhân `scale` = hệ số rủi ro). Giữ khoá kết quả cũ của build_strategy_book."""
     from backend.carlo.monte_carlo import run_monte_carlo_daily  # import muộn: tránh kéo pydantic vào worker
     r = run_monte_carlo_daily(daily, simulations=n, block_days=block, horizon_days=horizon,
