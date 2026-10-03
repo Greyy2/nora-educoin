@@ -160,10 +160,10 @@ def _with_configs(params: Dict[str, Any], cfgs: List[Dict[str, Any]]) -> Dict[st
 def launch_wfa(req) -> Dict[str, Any]:
     mode = req.mode
     presets = presets_mod.load_presets()
-    resolved: Dict[str, Any] = {"symbols": req.symbols, "start": req.start, "end": req.end, "timeframe": req.timeframe}
+    resolved: Dict[str, Any] = {"symbols": req.symbols, "start": req.start, "end": req.end, "timeframe": req.timeframe, "regime": req.regime}
     errors: List[rm.FieldError] = []
     custom = False
-    payload: Dict[str, Any] = {"symbols": req.symbols, "start": req.start, "end": req.end, "timeframe": req.timeframe}
+    payload: Dict[str, Any] = {"symbols": req.symbols, "start": req.start, "end": req.end, "timeframe": req.timeframe, "regime": req.regime}
 
     if mode == "basic":
         if req.report_dir:

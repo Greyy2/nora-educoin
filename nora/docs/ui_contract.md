@@ -123,7 +123,11 @@ Payload khi có dữ liệu:
 - `{"report_dir": "..."}`: các chiến lược đã đạt của một lần build;
 - `{"candidates": ["id"], "n": 3}`: lấy mẫu `n` cấu hình mỗi chiến lược;
 - **mới:** `{"strategies": [{"id": "...", "configs": [{...}, {...}]}]}`: cấu hình do người dùng chọn. Một cấu hình mỗi chiến lược nghĩa là tham số cố định (WFA chỉ kiểm OOS cuộn).
-Cùng các trường tuỳ chọn `start`, `end`, `train_days`, `test_days`, `symbols`, `risk_per_trade_pct`.
+Cùng các trường tuỳ chọn `start`, `end`, `train_days`, `test_days`, `symbols`, `risk_per_trade_pct`, `timeframe` (`15m`|`1h`|`4h`),
+`regime` (`off` mặc định | `learn`: mỗi fold học bảng regime ↔ chiến lược trên train — `core/regime/learn.py` — rồi áp lên test; fold có thêm
+`regime_map` {id: {allowed, fuse, blocked}} và `train_by_regime`; kết quả có `regime: "learn"`).
+`summary.shock` = `{crash_loss, surge_loss, max_long_exposure, max_short_exposure}`: vị thế ngược chiều lớn nhất của các fold OOS (extreme), dùng cho
+3 kịch bản trend thẳng đứng của MC (§5).
 Kết quả (`result` của job) là `report.json` của `validate_book.py`: `folds[]`, `summary`, `gate`, và các bí danh theo hợp đồng
 `aggregate` (= `summary`) và `mc` (= `summary.mc`) — cùng một đối tượng, UI đọc `aggregate`/`mc`.
 `aggregate.oos_daily` và `aggregate.oos_daily_dates` đều là `{level: [...], extreme: [...]}`, song song theo chỉ số
@@ -164,6 +168,12 @@ horizon_days ≤ 730 (vượt giới hạn hoặc `wfa_job_id` không hợp lệ
 đặt ĐẦU chuỗi), `cost_x2` (mọi ngày lợi suất ≠ 0 trừ thêm phí khứ hồi; `note_vi` nói rõ mức phí), `longest_losing_streak_x2` (chuỗi ngày lỗ liên tiếp dài nhất lặp 2 lần ở đầu, rồi lịch sử),
 `worst_bootstrap` (đường có MDD lớn nhất trong các mô phỏng; `worst_path` = `stress[-1].path`). `path` = `{days, ret_pct}` lấy mẫu ≤ 75 điểm (ret_pct = % lãi từ đầu) để vẽ
 chồng lên quạt; `ruin` = vốn chạm 0; `days_underwater` = số ngày vốn dưới đỉnh; `passed` = `mdd_pct < stress_max_mdd_pct` và không cháy.
+
+**Trend thẳng đứng (P2.6, thêm 3 dòng khi nguồn biết vị thế — job WFA có `summary.shock`; gửi `daily_returns` thì không có):**
+`vertical_surge` (+40% trong 3 ngày ngược vị thế SHORT lớn nhất), `vertical_crash` (−30% trong 1 ngày ngược vị thế LONG lớn nhất), `vertical_chain`
+(tăng dựng rồi sập, lặp 2 lần), đặt ĐẦU chuỗi rồi lịch sử. Lỗ mỗi vị thế: có cắt lỗ theo rủi ro → min(danh nghĩa × biên độ, 2 × rủi ro kế hoạch);
+không cắt lỗ (bot DCA kiểu OKX) → min(danh nghĩa × biên độ, ký quỹ). Bỏ một trong 3 dòng này (advanced `stress_scenarios`) khi nguồn có vị thế → `custom_gates`.
+`stress_scenarios` nhận tối đa 9 tên; đủ 6 kịch bản cơ bản là gate chuẩn.
 
 **`gate`** (hằng số ở đầu `backend/carlo/monte_carlo.py`): đạt khi CẢ 4 check qua — `simulations` ≥ 10.000, `ruin` P(MDD ≥ 30%) ≤ 5%, `stress_mdd` MDD mọi dòng `stress` < 50%
 (`STRESS_MAX_MDD_PCT`, đổi bằng `stress_max_mdd_pct`), `stress_ruin` không dòng nào cháy vốn. Mỗi check có `required`, `actual`, `passed`.
@@ -257,3 +267,21 @@ rủi ro/khớp cắt lỗ/fold 120-30/MC 10.000 hiện dạng khoá. Nâng cao:
 422 theo `field` được gắn vào đúng ô. WFA nâng cao: chỉ khoá thuộc `space` sửa được; `step_days`/`sims`/`mc_seed` và khoá ngoài `space` bị khoá ghi "chưa hỗ trợ ở WFA (đang làm)" cho tới khi
 `WFA_SCHEMA_KEYS_SUPPORTED` (frontend `lib/modes.js`) bật (API chưa công bố cờ này). Kết quả `custom_gates`/`promotable:false` hiện huy hiệu "Cấu hình tuỳ chỉnh — không xuất bản được", nút Xuất bản bị khoá kèm lý do.
 Nhãn tham số chỉ lấy từ `frontend/src/v2/lib/params.js` (không dùng `label_vi` của API). Job hiện `mode` + `resolved` ở JobPanel và Lịch sử chạy.
+
+## 8. Regime thị trường (P4.3) và kiểm lại alpha trong kho (P3.3)
+
+`GET /api/studio/market/regime?days=30&symbols=BTC,SOL` (days 1–365, mặc định cả vũ trụ perp):
+```json
+{"days": 30, "frame": "15m", "names": ["UNKNOWN", "RANGE", ...], "labels_vi": {"RANGE": "Đi ngang", ...},
+ "symbols": [{"symbol": "BTC@perp", "as_of": 1790...,
+              "current": {"state": "RANGE", "label": "Đi ngang", "since": 1790...},
+              "segments": [[start_ms, end_ms, "RANGE"], ...],
+              "share_pct": {"RANGE": 74.2, "TREND_UP": 17.9},
+              "strategies_on": ["reversion_long", "reversion_short"], "strategies_off": [...]}]}
+```
+Nhãn trên nến 15m đã đóng qua `classifier.series` (cùng đường với backtest). `strategies_on` theo bảng regime tĩnh của sổ (`book.REGIME_MAP`).
+
+`POST /api/studio/alphas/{alpha_id}/revalidate?apply=false` → `{job_id}` (job `alpha_revalidate`, `backend/optimize/revalidate.py`): chạy lại cây tín hiệu +
+tham số đã lưu của alpha bằng engine hiện hành: WFA dev2 (cổng S3) → hệ số s qua MC (S5, có trend thẳng đứng) → holdout ở s (S6). Kết quả:
+`{status: "validated"|"retired", final_scale, reject_code, reason, wfa, sizing, holdout, shock, windows}`. `apply=true`: ghi `status` + `revalidation`
+vào `registry.json`; `retired` → `testnet/<id>.json` chuyển sang `testnet/_retired/`. Feed live bỏ qua alpha `retired`.

@@ -124,13 +124,14 @@ def masks_for(strategy: Dict[str, Any], side: str, labels: np.ndarray) -> Tuple[
     return allowed, fuse
 
 
-def series(symbol: str, start: int, end: int, venue: str = "cex", cfg: Optional[Dict[str, float]] = None) -> Dict[str, np.ndarray]:
-    """Nhãn regime từng phút của một tài sản qua đúng đường dữ liệu của engine (nạp + căn khung + warmup theo khung).
+def series(symbol: str, start: int, end: int, venue: str = "cex", cfg: Optional[Dict[str, float]] = None,
+           base_frame: str = "1m") -> Dict[str, np.ndarray]:
+    """Nhãn regime từng nến khung chạy của một tài sản qua đúng đường dữ liệu của engine (nạp + căn khung + warmup theo khung).
     -> {t, close, real (nến thật, không điền), raw, labels}."""
     from backend.core.backtest.portfolio import PortfolioEngine
     probe = {"id": "_regime_probe", "side": "LONG", "position": {"market": "perp"},
              "tree": [[[{"frame": "1h", "column": "roc_1", "index": 0}, ">", 1e18]]]}
-    pe = PortfolioEngine([symbol], [probe], start, end, trade_start_ts=start, venue=venue, use_cache=False)
+    pe = PortfolioEngine([symbol], [probe], start, end, trade_start_ts=start, venue=venue, use_cache=False, base_frame=base_frame)
     eng, _ = pe._make_trackers(symbol, pe.ledger)
     eng.extra_refs = REFS
     eng.load_data()

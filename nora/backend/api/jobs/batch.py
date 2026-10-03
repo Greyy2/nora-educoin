@@ -38,18 +38,19 @@ KINDS: Dict[str, Dict[str, Any]] = {
     "book_wfa": {"module": "backend.wfa.run",
                  "params": {"report", "include_rejected", "candidates", "strategies", "symbols", "n", "start", "end", "train_days",
                             "test_days", "step_days", "sims", "mc_seed", "risk_per_trade", "workers", "resume", "max_configs", "force_large",
-                            "timeframe"}},
+                            "timeframe", "regime"}},
     "book_build": {"module": "backend.optimize.book",
                    "params": {"only", "n", "workers", "keep_top", "resume", "max_configs", "force_large", "timeframe"}},   # out do launch() đặt
     "funnel_run": {"module": "backend.optimize.funnel.run",
                    "params": {"strategies", "n_per_strategy", "full_grid", "seed", "symbols", "windows", "run_id", "resume", "force_large",
-                              "train_days", "test_days", "space", "timeframe"}},
+                              "train_days", "test_days", "space", "timeframe", "regime"}},
     "funnel_recompute": {"module": "backend.optimize.funnel.recompute", "params": {"run_id", "alpha_id"}},
     "presets_build": {"module": "backend.core.params.presets", "params": set()},
     "mock_feeds": {"module": "backend.core.analytics.feeds", "params": {"only"}},
     "data_crawl": {"module": "backend.core.data.crawler", "params": {"symbols", "market", "years", "output_dir"}},   # output_dir do router đặt
     "data_promote": {"module": "backend.core.data.promote", "params": {"apply", "archive_legacy"}},
-    "regime_report": {"module": "backend.core.regime.report", "params": {"symbols", "start", "end", "event_pct", "backtest"}},
+    "alpha_revalidate": {"module": "backend.optimize.revalidate", "params": {"alpha_id", "apply"}},
+    "regime_report": {"module": "backend.core.regime.report", "params": {"symbols", "start", "end", "event_pct", "backtest", "timeframe"}},
 }
 MAX_BUILD_CONFIGS = 1_000_000   # trần cứng của API cho --n (mỗi chiến lược); CLI còn có --max-configs (mặc định 200000) + --force-large
 MAX_ACTIVE = 8          # số job đang chạy/chờ tối đa cùng lúc (mỗi job chờ là một tiến trình bash nhỏ)
@@ -221,6 +222,10 @@ def build_job(kind: str, p: Dict[str, Any]) -> Dict[str, Any]:
     elif kind == "book_wfa":
         if p.get("timeframe"):
             out["timeframe"] = check_timeframe(p["timeframe"])
+        if p.get("regime", "off") != "off":
+            if p["regime"] != "learn":
+                raise JobError("regime phải là off|learn")
+            out["regime"] = "learn"
         if sum(map(bool, (p.get("report_dir"), p.get("candidates"), p.get("strategies")))) != 1:
             raise JobError("chọn đúng một: report_dir, candidates hoặc strategies")
         if p.get("report_dir"):

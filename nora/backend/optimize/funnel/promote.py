@@ -48,7 +48,14 @@ def promote_alpha(run_dir: str, alpha_id: str, alphas_dir: str, note: Optional[s
     s = float(alpha["final_scale"])
     rpt = sizing.risk_for_scale(s)
     cand = {c["id"]: c for c in sb.CANDIDATES}[alpha["strategy"]]
-    st = sb.materialize(cand, alpha["params"], risk_per_trade_pct=rpt, stop_fill="level")
+    from backend.optimize.funnel.generate import split_regime
+    params, rmode = split_regime(alpha["params"])
+    regime = False
+    if rmode == "learn":   # bảng regime của lần chạy holdout (học trên dữ liệu trước holdout)
+        from backend.core.regime.classifier import NAMES
+        blocked = ((stages.get("S6_holdout") or {}).get("regime_blocked")) or []
+        regime = {"allowed": [r for r in NAMES if r not in blocked], "fuse": False, "blocked": blocked} if blocked else False
+    st = sb.materialize(cand, params, regime=regime, risk_per_trade_pct=rpt, stop_fill="level")
     cfg = run.get("config", {})
     reg_id = registry_alpha_id(alpha["strategy"], alpha_id)
     funnel = {
@@ -62,6 +69,7 @@ def promote_alpha(run_dir: str, alpha_id: str, alphas_dir: str, note: Optional[s
     entry = {
         "alpha_id": reg_id, "strategy": alpha["strategy"], "family": cand["family"], "side": cand["side"], "symbol": "PORTFOLIO",
         "data_symbol": None, "price_source": None, "market": "perp", "position": st["position"], "signal_params": st["signal_params"],
+        **({"regime": st["regime"]} if st.get("regime") else {}),
         "flows": [{"id": alpha["strategy"], "name": f"{cand['side']} {alpha['strategy']}", "type": cand["side"],
                    "ast": {"type": cand["side"], "match": [{"condition": st["tree"]}], "stop": []}}],
         "evidence": {"windows": cfg.get("windows"), "funnel": {k: stages.get(k) for k in ("S1_backtest", "S3_wfa", "S6_holdout")}},

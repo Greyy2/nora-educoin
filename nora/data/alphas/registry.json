@@ -455,6 +455,45 @@
         "start_ts": 1696115280000,
         "end_ts": 1790788080000,
         "exchange": "binance_usdm"
+      },
+      "status": "retired",
+      "revalidation": {
+        "symbol": "SOL@perp",
+        "windows": {
+          "start": "2023-10-20",
+          "dev1_end": "2024-12-24",
+          "dev2_end": "2026-02-27",
+          "end": "2026-09-30"
+        },
+        "checked_at": 1791029342321,
+        "wfa": {
+          "summary": {
+            "folds": 10,
+            "positive_ratio": 0.5,
+            "compounded_oos_ret_pct": 14.04,
+            "worst_fold_mdd": 6.97,
+            "is_ret_avg": 8.56
+          },
+          "passed": false,
+          "reason": "S3.positive_ratio: Tỉ lệ fold lãi < 60% (50% < 60%)",
+          "metrics": {
+            "ret_pct": 14.04,
+            "mdd_pct": 11.92,
+            "sharpe": 0.98,
+            "trades": 53,
+            "win_rate": 45.3,
+            "profit_factor": 1.387
+          }
+        },
+        "shock": {
+          "crash_loss": 0.15,
+          "max_long_exposure": 0.5,
+          "surge_loss": 0.0,
+          "max_short_exposure": 0.0
+        },
+        "status": "retired",
+        "reject_code": "S3.positive_ratio",
+        "reason": "S3.positive_ratio: Tỉ lệ fold lãi < 60% (50% < 60%)"
       }
     }
   ]

@@ -140,6 +140,8 @@ def alpha_strategy(alpha_id=ALPHA_ID, base=None):
     al = next((a for a in reg["alphas"] if a.get("alpha_id") == alpha_id), None)
     if al is None:
         raise SystemExit(f"Không có alpha {alpha_id} trong registry.json")
+    if al.get("status") == "retired":   # kiểm lại bằng engine hiện hành đã loại (optimize/revalidate.py) -> không chạy nữa
+        return None, None
     ast = al["flows"][0]["ast"]
     pos = dict(al["position"])
     scale = None
@@ -173,7 +175,7 @@ def make_feed(kind, symbols=None, end_ms=None, book_args=None, plan=None):
     extra, scale = ([], None)
     if plan["alpha"]:
         st, scale = alpha_strategy()
-        extra = [st]
+        extra = [st] if st else []
     out = rbb.run(items, symbols, start, end, rpt, "level", risk, extra_strategies=extra, initial_capital=plan["capital"],
                   close_at_end=False, warmup=WARMUP_DAYS * DAY)
     feed = {k: v for k, v in out.items() if k not in ("daily", "meta", "open_positions")}

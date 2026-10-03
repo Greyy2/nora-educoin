@@ -281,3 +281,57 @@ def _load_optimize():
     return mod
 
 
+
+
+# ── P2.6: trend thẳng đứng ──────────────────────────────────────────────────
+DAY_MS = 86_400_000
+
+
+def _trade(side, t0, t1, notional, eq=10_000.0, lev=1.0):
+    return {"side": side, "enter_time": t0, "close_time": t1, "entry_equity": eq, "margin_usd": notional / lev, "leverage": lev}
+
+
+def test_vertical_exposure_sums_only_overlapping_positions():
+    trades = [_trade("LONG", 0, 10 * DAY_MS, 2000), _trade("LONG", 5 * DAY_MS, 20 * DAY_MS, 3000),   # chồng nhau: 0,2 + 0,3 = 0,5
+              _trade("LONG", 20 * DAY_MS, 30 * DAY_MS, 4000),                                         # mở đúng lúc lệnh trước đóng: không cộng
+              _trade("SHORT", 0, DAY_MS, 1000)]
+    ex = mcm.vertical_exposure(trades, None)                       # không cắt lỗ, đòn bẩy 1: mất trọn biên độ
+    assert ex["max_long_exposure"] == 0.5 and ex["max_short_exposure"] == 0.1
+    assert ex["crash_loss"] == pytest.approx(0.5 * 0.30) and ex["surge_loss"] == pytest.approx(0.1 * 0.40)
+    sl = mcm.vertical_exposure(trades, 0.5)                        # có cắt lỗ: mỗi lệnh mất tối đa 2 × 0,5% vốn
+    assert sl["crash_loss"] == pytest.approx(2 * 0.01) and sl["surge_loss"] == pytest.approx(0.01)
+    assert mcm.vertical_exposure([], 0.5) is None
+    assert mcm.merge_exposure([sl, None, ex])["crash_loss"] == ex["crash_loss"]
+
+
+def test_vertical_scenarios_fail_okx_style_dca_bot_but_not_stopped_trend_book():
+    daily = [0.002, -0.001, 0.003, 0.001, -0.002] * 30            # lịch sử êm: 6 kịch bản cũ đều qua
+    old = stress_scenarios(daily, with_path=False)
+    assert [r["name"] for r in old] == NAMES and all(r["passed"] for r in old)
+    # bot DCA kiểu OKX: LONG không cắt lỗ, danh nghĩa 3 × vốn (đòn bẩy 3, ký quỹ = vốn) -> sập −30% mất 90% vốn
+    okx = mcm.vertical_exposure([_trade("LONG", 0, 100 * DAY_MS, 30_000, lev=3.0)], None)
+    rows = by_name(stress_scenarios(daily, with_path=False, shock=okx))
+    assert set(rows) == set(NAMES) | set(mcm.VERTICAL_NAMES)
+    assert rows["vertical_crash"]["worst_day_pct"] == -90.0 and not rows["vertical_crash"]["passed"]
+    assert not rows["vertical_chain"]["passed"]
+    gate = evaluate_mc_gate(MC_MIN_SIMULATIONS, 0.0, list(rows.values()))
+    assert gate["passed"] is False
+    # sổ trend có cắt lỗ theo rủi ro (0,5%/lệnh), 8 lệnh LONG + 8 SHORT mở cùng lúc, mỗi lệnh 0,2 × vốn -> lỗ tối đa 8 × 1% = 8%
+    book = [_trade(s, 0, 10 * DAY_MS, 2000) for s in ("LONG", "SHORT") for _ in range(8)]
+    rows = by_name(stress_scenarios(daily, with_path=False, shock=mcm.vertical_exposure(book, 0.5)))
+    assert all(rows[n]["passed"] for n in mcm.VERTICAL_NAMES)
+    assert rows["vertical_crash"]["worst_day_pct"] == -8.0
+    # hệ số khối lượng nhân lỗ
+    up = by_name(stress_scenarios(daily, scale=2.0, with_path=False, shock=mcm.vertical_exposure(book, 0.5)))
+    assert up["vertical_crash"]["worst_day_pct"] == -16.0
+
+
+def test_daily_gate_and_detail_without_shock_unchanged():
+    d = list(np.random.default_rng(3).normal(0.001, 0.01, 200))
+    a = mcm.run_monte_carlo_daily_gate(d, simulations=500)
+    b = mcm.run_monte_carlo_daily_gate(d, simulations=500, shock=None)
+    assert a == b and len(a["stress"]) == 6
+    c = mcm.run_monte_carlo_daily_gate(d, simulations=500, shock={"crash_loss": 0.6, "surge_loss": 0.0})
+    assert len(c["stress"]) == 9 and c["gate"]["passed"] is False and c["p_mdd_ge_ruin_pct"] == a["p_mdd_ge_ruin_pct"]
+    det = run_monte_carlo_daily_detail(d, simulations=500, shock={"crash_loss": 0.1, "surge_loss": 0.1})
+    assert det["params"]["shock"] == {"crash_loss": 0.1, "surge_loss": 0.1} and "shock" not in run_monte_carlo_daily_detail(d, simulations=500)["params"]

@@ -1,5 +1,6 @@
 """Báo cáo độ chính xác regime + so sánh backtest bật/tắt regime (job API `regime_report`, POST /api/studio/regime/report).
 
+Khung chạy (timeframe, mặc định 15m): nhãn + backtest trên nến khung chạy (như mọi job); "minutes" = số nến, độ trễ tính theo phút.
 Phần A — nhãn regime (core/regime/classifier.series, đúng đường dữ liệu của engine) trên dữ liệu thật từng tài sản:
   tỷ trọng thời gian, số đợt, thời lượng trung bình, số lần đổi / 30 ngày; lợi suất 24h TIẾP THEO theo nhãn (lấy mẫu mỗi giờ):
   trung bình, trung vị, % dương, |lợi suất| trung bình -> nhãn xu hướng phải có lợi suất tiếp theo cùng chiều, RANGE có biên độ nhỏ.
@@ -18,9 +19,10 @@ import numpy as np
 import pandas as pd
 
 from backend.core.regime import classifier as rg
+from backend.core.regime.learn import by_regime
 from backend.utils.jobs import as_list, options, write_job_result
 
-DEFAULTS = {"symbols": "", "start": "", "end": "", "event_pct": 12.0, "backtest": True}
+DEFAULTS = {"symbols": "", "start": "", "end": "", "event_pct": 12.0, "backtest": True, "timeframe": "15m"}
 MINUTE, HOUR, DAY = 60_000, 3_600_000, 86_400_000
 
 
@@ -137,28 +139,6 @@ def _summary(out: Dict[str, Any]) -> Dict[str, Any]:
     return {**{k: out.get(k) for k in keys}, "by_strategy": out.get("by_strategy")}
 
 
-def by_regime(trades: List[Dict[str, Any]], labels: Dict[str, Dict[str, np.ndarray]]) -> Dict[str, Any]:
-    """Lãi/lỗ theo (chiến lược, regime ở phút đã đóng ngay trước khi vào lệnh)."""
-    agg: Dict[str, Dict[str, Dict[str, float]]] = {}
-    for tr in trades:
-        s = labels.get(tr["symbol"])
-        if s is None:
-            continue
-        i = int(np.searchsorted(s["t"], int(tr["enter_time"]), side="left")) - 1
-        name = rg.NAMES[int(s["labels"][max(i, 0)])]
-        a = agg.setdefault(tr["strategy"], {}).setdefault(name, {"trades": 0, "wins": 0, "pnl_usd": 0.0, "pnl_pct_sum": 0.0})
-        a["trades"] += 1
-        a["wins"] += tr["pnl"] > 0
-        a["pnl_usd"] += tr["pnl"]
-        a["pnl_pct_sum"] += tr.get("pnl_pct") or 0.0
-    for st in agg.values():
-        for a in st.values():
-            a["win_rate"] = round(100 * a["wins"] / a["trades"], 1)
-            a["avg_pnl_pct"] = round(a.pop("pnl_pct_sum") / a["trades"], 3)
-            a["pnl_usd"] = round(a["pnl_usd"], 2)
-    return agg
-
-
 def run_job(params=None):
     warnings.filterwarnings("ignore")
     a = options(DEFAULTS, params)
@@ -176,12 +156,13 @@ def run_job(params=None):
     start = _ts(a.start) if a.start else max(int(m["start_ts"]) for m in ms) + WARMUP
     end = _ts(a.end) + DAY if a.end else min(int(m["end_ts"]) for m in ms)
     t0 = time.time()
-    report: Dict[str, Any] = {"config": {"symbols": symbols, "start": start, "end": end, "event_pct": float(a.event_pct),
+    tf = a.timeframe
+    report: Dict[str, Any] = {"config": {"symbols": symbols, "start": start, "end": end, "event_pct": float(a.event_pct), "timeframe": tf,
                                          "classifier": rg.DEFAULTS, "regime_map": REGIME_MAP},
                               "labels": {}, "shocks": {}}
     series = {}
     for sym in symbols:
-        s = rg.series(sym, start - WARMUP, end)
+        s = rg.series(sym, start - WARMUP, end, base_frame=tf)
         series[sym] = {"t": s["t"], "labels": s["labels"]}
         report["labels"][sym] = label_stats(s, start)
         report["shocks"][sym] = shock_stats(s, start, float(a.event_pct))
@@ -192,9 +173,9 @@ def run_job(params=None):
     report["labels_all"] = _pool_states(report["labels"])
     if a.backtest:
         items, rpt = _book_items()
-        off = run(items, symbols, start, end, rpt, "level", None)
+        off = run(items, symbols, start, end, rpt, "level", None, base_frame=tf)
         print(f"tắt regime: lãi {off['ret_pct']}% MDD {off['mdd_pct']}% sharpe {off['sharpe']} lệnh {off['trades']}", flush=True)
-        on = run(items, symbols, start, end, rpt, "level", None, regime=True)
+        on = run(items, symbols, start, end, rpt, "level", None, regime=True, base_frame=tf)
         print(f"bật regime: lãi {on['ret_pct']}% MDD {on['mdd_pct']}% sharpe {on['sharpe']} lệnh {on['trades']}", flush=True)
         report["backtest"] = {"risk_per_trade_pct": rpt, "off": _summary(off), "on": _summary(on),
                               "off_by_regime": by_regime(off["trade_list"], series),

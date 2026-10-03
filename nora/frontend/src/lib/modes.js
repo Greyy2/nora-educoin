@@ -21,6 +21,10 @@ export const STRESS = [
   { name: 'cost_x2', label: 'Phí gấp đôi' },
   { name: 'longest_losing_streak_x2', label: 'Chuỗi ngày lỗ dài nhất lặp 2 lần' },
   { name: 'worst_bootstrap', label: 'Bootstrap tệ nhất' },
+  // trend thẳng đứng: chỉ có khi nguồn là job WFA (biết vị thế đã mở)
+  { name: 'vertical_surge', label: 'Tăng thẳng đứng +40%/3 ngày' },
+  { name: 'vertical_crash', label: 'Sập −30%/1 ngày' },
+  { name: 'vertical_chain', label: 'Tăng dựng rồi sập, lặp 2 lần' },
 ]
 export const STRESS_ALL = STRESS.map((s) => s.name)
 

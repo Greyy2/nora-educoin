@@ -129,3 +129,26 @@ def test_keltner_trend_exits_on_opposite_band_cross(market):
     eng.run()
     reasons = [p.close_reason for p in eng.get_results()["positions"]]
     assert len(reasons) > 3 and "Tín hiệu thoát (AST stop)" in reasons, reasons
+
+
+def test_learn_map_blocks_only_losing_regimes_with_enough_trades():
+    from backend.core.regime.learn import by_regime, learn_map
+    t = _t(10)
+    labels = {"A@perp": {"t": t, "labels": np.array([rg.RANGE] * 5 + [rg.TREND_UP] * 5, dtype=np.int8)}}
+    trades = ([{"symbol": "A@perp", "strategy": "s", "enter_time": int(t[2]), "pnl": -1.0}] * 5          # RANGE: 5 lệnh lỗ -> chặn
+              + [{"symbol": "A@perp", "strategy": "s", "enter_time": int(t[7]), "pnl": 2.0}] * 5         # TREND_UP: lãi -> giữ
+              + [{"symbol": "A@perp", "strategy": "u", "enter_time": int(t[2]), "pnl": -1.0}] * 4)        # 4 < 5 lệnh: chưa đủ bằng chứng
+    st = by_regime(trades, labels)
+    assert st["s"]["RANGE"]["trades"] == 5 and st["s"]["RANGE"]["pnl_usd"] == -5.0 and st["s"]["TREND_UP"]["win_rate"] == 100.0
+    m = learn_map(st, ["s", "u", "none"])
+    assert m["s"]["blocked"] == ["RANGE"] and "RANGE" not in m["s"]["allowed"] and m["s"]["fuse"] is False
+    assert set(m["s"]["allowed"]) == set(rg.NAMES) - {"RANGE"}
+    assert m["u"] is None and m["none"] is None                                   # không chặn gì -> không lọc
+    assert learn_map(st, ["u"], fuse=True)["u"] == {"allowed": list(rg.NAMES), "fuse": True, "blocked": []}
+
+
+def test_observe_regime_keeps_trades_identical(market):
+    from backend.core.regime.learn import OBSERVE
+    plain = _run([LONG])
+    seen = _run([{**LONG, "regime": OBSERVE}])
+    assert _sig(plain) == _sig(seen) and plain["final_equity"] == seen["final_equity"]

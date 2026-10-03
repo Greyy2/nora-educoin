@@ -18,7 +18,7 @@ from backend.utils.jobs import Progress, graceful_sigterm
 
 from backend.optimize.funnel import antiluck, evaluate as bt, gates, sizing
 from backend.optimize.shared import SharedExporter
-from .generate import alpha_id_of, count_params, iter_params, iter_params_factored, space_for, validate_alpha
+from .generate import alpha_id_of, count_params, iter_params, iter_params_factored, regime_variants, space_for, validate_alpha
 from .storage import RunStore, StageResult
 from backend.optimize.funnel.gates import compute_windows, windows_iso, wfa_folds
 
@@ -43,6 +43,7 @@ class FunnelConfig:
     test_days: int = gates.S3_TEST_DAYS
     space: str = "grid"                            # grid = lưới nhỏ `space`; schema = toàn bộ params_schema (quy mô lớn)
     timeframe: str = "1m"                          # khung chạy (nến mô phỏng): 15m / 1h / 4h nhanh hơn 1m hàng chục lần; khung tín hiệu >= khung này
+    regime: str = "off"                            # off | learn | both (generate.regime_variants): biến thể regime là alpha riêng -> DSR/PBO đếm đủ
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -79,7 +80,8 @@ def _candidates(strategies: List[str]) -> Dict[str, Dict[str, Any]]:
 
 def planned_alphas(cfg: FunnelConfig) -> Dict[str, int]:
     cands = _candidates(cfg.strategies)
-    return {s: count_params(space_for(c, cfg.space, cfg.timeframe), cfg.n_per_strategy, cfg.full_grid) for s, c in cands.items()}
+    k = len(regime_variants({}, cfg.regime))
+    return {s: k * count_params(space_for(c, cfg.space, cfg.timeframe), cfg.n_per_strategy, cfg.full_grid) for s, c in cands.items()}
 
 
 # ── Bối cảnh chạy ───────────────────────────────────────────────────────────
@@ -248,7 +250,7 @@ def stage_s0(ctx: Ctx) -> None:
         sp = space_for(cand, cfg.space, cfg.timeframe)
         gen = (iter_params_factored(sp, cfg.n_per_strategy, cfg.seed) if cfg.space == "schema" and cfg.n_per_strategy and not cfg.full_grid
                else iter_params(sp, cfg.n_per_strategy, cfg.seed, cfg.full_grid))
-        for params in gen:
+        for params in (v for p in gen for v in regime_variants(p, cfg.regime)):
             err = validate_alpha(cand, params, cfg.space, cfg.timeframe)
             row = {"alpha_id": alpha_id_of(strategy, params), "strategy": strategy, "params": params, "ord": ord_}
             if err:
@@ -411,7 +413,7 @@ def stage_s3(ctx: Ctx) -> None:
         if "error" in res:
             return StageResult(row["alpha_id"], "S3_wfa", {"error": res["error"]}, False, "S3.folds",
                                f"S3.folds: lỗi chạy WFA ({res['error']})")
-        agg = bt.aggregate_wfa(res["folds"])
+        agg = bt.aggregate_wfa(res["folds"], gates.BASE_RISK_PER_TRADE_PCT)
         ok, code, msg = gates.evaluate_s3(agg["summary"])
         return StageResult(row["alpha_id"], "S3_wfa", agg["metrics"], ok, code, msg, trades=[("S3_wfa", agg["trades"])],
                            daily=[("S3_wfa", agg["daily"])])
@@ -439,6 +441,11 @@ def _with_series(ctx: Ctx, prev_idx: int, from_stage: str, size: int = 64) -> It
             yield {**r, "series": _series_of(daily.get(r["alpha_id"], []))}
 
 
+def _shock_of(store: RunStore, alpha_id: str):
+    """Vị thế ngược chiều lớn nhất ở OOS của S3 (metrics["shock"]) -> kịch bản trend thẳng đứng của MC (S4/S5)."""
+    return store.metrics_of([alpha_id], "S3_wfa").get(alpha_id, {}).get("shock")
+
+
 def stage_s4(ctx: Ctx) -> None:
     store = ctx.store
     ctx.progress.start_stage("S4_montecarlo", store.count_pending(3))
@@ -461,7 +468,8 @@ def stage_s4(ctx: Ctx) -> None:
         store.write_mc(a, {"mc": d, "min_size": {k: mn[k] for k in ("s", "passed", "p_mdd_ge_30", "stress_max_mdd")}, "scale_search": [], "verified": None})
         return StageResult(a, "S4_montecarlo", m, ok, code, msg)
 
-    _stream(ctx, "S4_montecarlo", _with_series(ctx, 3, "S3_wfa"), lambda r: {"series": r["series"]}, bt.w_mc, on_result)
+    _stream(ctx, "S4_montecarlo", _with_series(ctx, 3, "S3_wfa"), lambda r: {"series": r["series"], "shock": _shock_of(store, r["alpha_id"])},
+            bt.w_mc, on_result)
 
 
 def stage_s5(ctx: Ctx) -> None:
@@ -470,7 +478,8 @@ def stage_s5(ctx: Ctx) -> None:
 
     def make_job(row):
         _export_wfa_windows(ctx, row["strategy"], row["params"], dev1=True)
-        return {"strategy": row["strategy"], "params": row["params"], "series": row["series"], "windows": ctx.windows, "folds": ctx.folds,
+        return {"strategy": row["strategy"], "params": row["params"], "series": row["series"], "shock": _shock_of(store, row["alpha_id"]),
+                "windows": ctx.windows, "folds": ctx.folds,
                 "symbols": ctx.symbols, "shared_dir": ctx.shared_dir, "base_frame": ctx.base_frame}
 
     def on_result(row, res):
@@ -519,6 +528,8 @@ def stage_s6(ctx: Ctx) -> None:
         ml, me = lv["metrics"], ex["metrics"]
         m = {**_scalar_base(ml), "final_scale": row["scale"], "extreme_ret_pct": me["ret_pct"], "extreme_mdd_pct": me["mdd_pct"],
              "extreme_trades": me["trades"], "halted": ml["halted"] or me["halted"]}
+        if "regime_blocked" in ml:   # bảng regime học trên dữ liệu trước holdout (promote dùng lại)
+            m["regime_blocked"] = ml["regime_blocked"]
         ok, code, msg = gates.evaluate_s6(ml, me)
         return StageResult(row["alpha_id"], "S6_holdout", m, ok, code, msg,
                            trades=[("S6_holdout", lv["trades"]), ("S6_holdout_extreme", ex["trades"])],

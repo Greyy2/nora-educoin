@@ -273,3 +273,25 @@ def test_bootstrap_daily_default_sims_is_mc_minimum():
     from backend.carlo.monte_carlo import MC_MIN_SIMULATIONS
     from backend.carlo.monte_carlo import bootstrap_daily
     assert inspect.signature(bootstrap_daily).parameters["n"].default == MC_MIN_SIMULATIONS
+
+
+def test_wfa_regime_learn_maps_come_from_train_only(market, monkeypatch, tmp_path):
+    from backend.core.regime.learn import OBSERVE
+    sb = _small_book(monkeypatch)
+    log = _serial(monkeypatch)
+    off = _run(sb, tmp_path, "off")
+    res = pw.run_portfolio_wfa(_cands(), sb.perp_symbols(), START, T0 + 66 * DAY, CFG, RISK, 0.5, 1, str(tmp_path / "learn"),
+                               regime="learn")
+    assert res["regime"] == "learn" and "regime" not in off and all("regime_map" not in f for f in off["folds"])
+    rg_jobs = next(jobs for label, jobs in log if "WFA-REGIME" in label)
+    oos_jobs = [j for label, jobs in log if "WFA-OOS" in label for j in jobs][-6:]   # OOS của lần chạy learn
+    for f in res["folds"]:
+        job = next(j for j in rg_jobs if j.window == tuple(f["train_ts"]))          # học trên đúng cửa sổ train của fold
+        assert job.window[1] <= f["test_ts"][0] and all(v == OBSERVE for v in job.regime.values())
+        assert isinstance(f["train_by_regime"], dict) and isinstance(f["regime_map"], dict)
+        for j in (j for j in oos_jobs if j.window == tuple(f["test_ts"])):
+            assert (j.regime or {}) == f["regime_map"]                              # OOS dùng bảng học từ train
+    # IS / chọn cấu hình không đổi khi bật learn
+    assert [f["chosen"] for f in res["folds"]] == [f["chosen"] for f in off["folds"]]
+    with pytest.raises(ValueError):
+        pw.run_portfolio_wfa(_cands(), sb.perp_symbols(), START, T0 + 66 * DAY, CFG, RISK, 0.5, 1, str(tmp_path / "bad"), regime="static")

@@ -88,6 +88,8 @@ class FunnelRunRequest(BaseModel):
     space: str = Field("grid", pattern="^(grid|schema)$", description="grid = lưới nhỏ của chiến lược; schema = mọi tham số theo min/max/bước")
     timeframe: str = Field("15m", pattern="^(15m|1h|4h)$",
                            description="khung chạy (nến mô phỏng): 15m / 1h / 4h; khung tín hiệu của mọi alpha >= khung này")
+    regime: str = Field("off", pattern="^(off|learn|both)$",
+                        description="learn: alpha học bảng regime trên train; both: mỗi bộ tham số chạy cả off và learn (DSR/PBO đếm cả hai)")
 
     @field_validator("windows")
     @classmethod
@@ -107,7 +109,8 @@ class FunnelRunRequest(BaseModel):
         return self
 
 
-def _planned(strategies: List[str], n: Optional[int], full_grid: bool, space: str = "grid", timeframe: str = "15m") -> Dict[str, int]:
+def _planned(strategies: List[str], n: Optional[int], full_grid: bool, space: str = "grid", timeframe: str = "15m",
+             regime: str = "off") -> Dict[str, int]:
     from backend.core.strategy import book as sb
     from backend.optimize.funnel.generate import incompatible, space_for
     by_id = {c["id"]: c for c in sb.CANDIDATES}
@@ -115,7 +118,9 @@ def _planned(strategies: List[str], n: Optional[int], full_grid: bool, space: st
     if bad:
         raise HTTPException(422, f"chiến lược không chạy được ở khung {timeframe} (khung tín hiệu tối đa nhỏ hơn khung chạy): "
                                  + "; ".join(f"{k} ({', '.join(v)})" for k, v in bad.items()))
-    return {s: count_params(space_for(by_id[s], space, timeframe), n, full_grid) for s in strategies}
+    from backend.optimize.funnel.generate import regime_variants
+    k = len(regime_variants({}, regime))
+    return {s: k * count_params(space_for(by_id[s], space, timeframe), n, full_grid) for s in strategies}
 
 
 # ─── Tạo lượt / ước tính ────────────────────────────────────────────────────
@@ -135,12 +140,12 @@ def post_run(req: FunnelRunRequest):
         params = {"resume": run_id}
         planned = None
     else:
-        planned = _planned(strategies, req.n_per_strategy, req.full_grid, req.space, req.timeframe)
+        planned = _planned(strategies, req.n_per_strategy, req.full_grid, req.space, req.timeframe, req.regime)
         total = sum(planned.values())
         if total > MAX_ALPHAS or (total > LARGE_ALPHAS and not req.force_large):
             raise HTTPException(422, f"{total:,} alpha vượt giới hạn ({LARGE_ALPHAS:,}; trần cứng {MAX_ALPHAS:,}); giảm n_per_strategy hoặc đặt force_large")
         run_id = new_run_id()
-        params = {"strategies": strategies, "seed": req.seed, "run_id": run_id, "space": req.space, "timeframe": req.timeframe}
+        params = {"strategies": strategies, "seed": req.seed, "run_id": run_id, "space": req.space, "timeframe": req.timeframe, "regime": req.regime}
         params.update({"full_grid": True} if req.full_grid else {"n_per_strategy": req.n_per_strategy})
         if symbols:
             params["symbols"] = symbols
@@ -152,7 +157,8 @@ def post_run(req: FunnelRunRequest):
         atomic_write_json(os.path.join(_run_dir(run_id), "run.json"), {
             "run_id": run_id, "status": "queued", "created": time.time(), "started": None, "finished": None, "total_alphas": total,
             "planned": planned, "config": {"strategies": strategies, "n_per_strategy": req.n_per_strategy, "full_grid": req.full_grid, "space": req.space,
-                                           "timeframe": req.timeframe, "seed": req.seed, "symbols": symbols, "windows": req.windows},
+                                           "timeframe": req.timeframe, "regime": req.regime, "seed": req.seed, "symbols": symbols,
+                                           "windows": req.windows},
             "stages": {s: {"status": "pending"} for s in gates.STAGES}})
     try:
         job_id = batch_jobs.launch(KIND, params)
@@ -168,7 +174,8 @@ def post_run(req: FunnelRunRequest):
 def get_estimate(strategies: str = Query(..., description="id phân tách bằng dấu phẩy"), n_per_strategy: Optional[int] = Query(None, ge=1, le=MAX_ALPHAS),
                  full_grid: bool = False, workers: int = Query(DEFAULT_WORKERS, ge=1, le=64),
                  space: str = Query("grid", pattern="^(grid|schema)$"),
-                 timeframe: str = Query("15m", pattern="^(15m|1h|4h)$")):
+                 timeframe: str = Query("15m", pattern="^(15m|1h|4h)$"),
+                 regime: str = Query("off", pattern="^(off|learn|both)$")):
     """Ước tính thời gian S1 (tầng chiếm gần hết thời gian) TRƯỚC khi chạy: alpha × giây/backtest đo thực / số worker. Các tầng sau chỉ chạy cho alpha còn sống."""
     try:
         ids = batch_jobs.check_candidate_ids([s for s in strategies.split(",") if s])
@@ -176,7 +183,7 @@ def get_estimate(strategies: str = Query(..., description="id phân tách bằng
         raise HTTPException(422, str(e))
     if bool(n_per_strategy) == bool(full_grid):
         raise HTTPException(422, "chọn đúng một: n_per_strategy hoặc full_grid")
-    planned = _planned(ids, n_per_strategy, full_grid, space, timeframe)
+    planned = _planned(ids, n_per_strategy, full_grid, space, timeframe, regime)
     total = sum(planned.values())
     return {"space": space, "per_strategy": planned, "total_alphas": total, "sec_per_backtest": SEC_PER_S1_BACKTEST, "workers": workers,
             "s1_eta_s": round(total * SEC_PER_S1_BACKTEST / workers, 1)}

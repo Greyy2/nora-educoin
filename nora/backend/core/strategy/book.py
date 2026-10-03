@@ -279,13 +279,17 @@ def signal_defaults(candidate: Dict[str, Any]) -> Dict[str, Any]:
     return {k[len(SIG_PREFIX):]: v for k, v in schema_defaults(candidate, "signal").items()}
 
 
-def materialize(candidate: Dict[str, Any], params: Dict[str, Any], regime: bool = False, **position_overrides) -> Dict[str, Any]:
+def materialize(candidate: Dict[str, Any], params: Dict[str, Any], regime: Any = False, **position_overrides) -> Dict[str, Any]:
     """Chiến lược cụ thể cho PortfolioEngine: thay ngưỡng/chu kỳ/khung tín hiệu, ghép tham số vị thế.
     `signal_params` trả về chỉ gồm tham số tín hiệu được truyền vào (không gồm mặc định) — như trước.
-    regime=True: gắn khoá "regime" theo REGIME_MAP (lọc tín hiệu vào + cầu chì trong PortfolioEngine.load_data)."""
+    regime=True: gắn khoá "regime" theo REGIME_MAP (lọc tín hiệu vào + cầu chì trong PortfolioEngine.load_data);
+    regime=dict: cấu hình regime riêng của chiến lược này ({"allowed", "fuse"}, vd. bảng học từ train — core/regime/learn.py)."""
     from backend.core.params.template import resolve_placeholders, split_params
     signal, position = split_params(dict(params))
-    extra = {"regime": REGIME_MAP[candidate["id"]]} if regime and candidate["id"] in REGIME_MAP else {}
+    if isinstance(regime, dict):
+        extra = {"regime": regime}
+    else:
+        extra = {"regime": REGIME_MAP[candidate["id"]]} if regime and candidate["id"] in REGIME_MAP else {}
     if candidate.get("stop"):   # tín hiệu thoát (vd. cắt ngược kênh) -> đóng ở open nến 1m kế tiếp
         extra["stop"] = [{"condition": resolve_placeholders(candidate["stop"], signal, signal_defaults(candidate))}]
     return {**extra,

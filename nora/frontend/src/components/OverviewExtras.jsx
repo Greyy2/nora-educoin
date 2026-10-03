@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { Panel, Empty, Spinner } from './ui'
 import Term from './Term'
-import { getPortfolioTrades, portfolioTradesCsvUrl, getMarketSignals } from '../api'
+import { getPortfolioTrades, portfolioTradesCsvUrl, getMarketSignals, getMarketRegime } from '../api'
 import { fmtNum, fmtMoney, fmtPct, fmtSPct, signClass, arrow, fmtDateTime, isNum } from '../lib/format'
 
 /* ─── Thống kê theo HỌ chiến lược (gộp mọi bộ tham số / alpha cùng chiến lược) ─────────────────────────────── */
@@ -150,6 +150,71 @@ function Cond({ c }) {
       {c.right_value !== null && c.right !== String(c.right_value) && <b className="mono"> {fmtNum(c.right_value, 4)}</b>}
       <span className="n-cond-mark">{c.pass ? '✓' : '✗'}</span>
     </div>
+  )
+}
+
+/* ─── Regime thị trường: hiện tại, lịch sử, chiến lược đang bật ─────────────────────────────── */
+const REGIME_DAYS = [7, 30, 90]
+
+function RegimeBar({ segs, from, to, labels }) {
+  const span = Math.max(1, to - from)
+  return (
+    <div className="n-rgbar" role="img" aria-label="Lịch sử regime">
+      {segs.map(([a, b, st], i) => (
+        <span key={i} className={`n-rg-${st}`} style={{ left: `${((a - from) / span) * 100}%`, width: `${Math.max(0.15, ((b - a) / span) * 100)}%` }}
+          title={`${labels[st] || st}: ${fmtDateTime(a)} → ${fmtDateTime(b)}`} />
+      ))}
+    </div>
+  )
+}
+
+export function RegimePanel() {
+  const [days, setDays] = useState(30)
+  const [st, setSt] = useState({ loading: true, data: null, error: null })
+  useEffect(() => {
+    let dead = false
+    setSt((x) => ({ ...x, loading: true }))
+    getMarketRegime({ days }).then((data) => !dead && setSt({ loading: false, data, error: null }), (e) => !dead && setSt({ loading: false, data: null, error: e.message }))
+    return () => { dead = true }
+  }, [days])
+  const d = st.data
+  const rows = (d?.symbols || []).filter((r) => !r.error)
+  const labels = d?.labels_vi || {}
+  const to = Math.max(0, ...rows.map((r) => r.as_of || 0))
+  const from = to - days * 86400000
+  return (
+    <Panel title="Regime thị trường" meta={
+      <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+        {st.loading && <Spinner />}
+        {REGIME_DAYS.map((n) => <button key={n} type="button" className={`n-btn sm ${days === n ? 'on' : ''}`} aria-pressed={days === n} onClick={() => setDays(n)}>{n} ngày</button>)}
+      </span>}>
+      {st.error && <Empty title="Không tải được regime">{st.error}</Empty>}
+      {rows.length > 0 && (
+        <>
+          <div className="n-tblwrap">
+            <table className="n-tbl n-rg">
+              <thead><tr><th>Tài sản</th><th>Hiện tại</th><th>Từ</th><th>Lịch sử {days} ngày (nến {d.frame})</th><th>Chiến lược đang bật</th></tr></thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.symbol}>
+                    <td><b>{r.symbol.replace('@perp', '')}</b></td>
+                    <td><span className={`n-rgchip n-rg-${r.current.state}`}>{r.current.label}</span></td>
+                    <td className="mono">{r.current.since ? fmtDateTime(r.current.since) : '—'}</td>
+                    <td style={{ minWidth: 220 }}><RegimeBar segs={r.segments} from={from} to={to} labels={labels} /></td>
+                    <td>{r.strategies_on.length ? r.strategies_on.map((id) => <span key={id} className="n-badge" style={{ marginRight: 4 }}>{id}</span>) : <span className="muted">không chiến lược nào</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="n-rglegend">
+            {(d.names || []).filter((n) => n !== 'UNKNOWN').map((n) => <span key={n}><i className={`n-rg-${n}`} />{labels[n] || n}</span>)}
+          </div>
+          <p className="n-note">Chiến lược đang bật = được phép vào lệnh ở regime hiện tại theo bảng regime của sổ (chỉ áp khi chạy với regime bật).
+            Báo cáo P2.4: bảng tĩnh chưa khớp dữ liệu — WFA dùng chế độ "học trên train" thay vì bảng này.</p>
+        </>
+      )}
+    </Panel>
   )
 }
 

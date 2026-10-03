@@ -20,6 +20,14 @@ Mọi dữ liệu đều thật: quality gate bắt buộc, không mock.
 
 Alpha bị loại ở tầng k thì dừng; lý do loại lưu dạng mã + câu tiếng Việt (vd. `S3.positive_ratio: 40% < 60%`).
 
+**Regime (P2.5/P2.7, `FunnelConfig.regime`):** `off` (mặc định) | `learn` | `both`. Biến thể `learn` là khoá `"regime": "learn"` trong `params` của alpha
+→ `alpha_id` riêng → mỗi biến thể là MỘT lần thử: N của DSR và ma trận PBO ở S2 đếm đủ cả hai biến thể (`both` → số alpha gấp đôi).
+Alpha `learn` học bảng regime (`core/regime/learn.py`: chặn regime có ≥ 5 lệnh và tổng lãi ≤ 0) trên cửa sổ HỌC rồi mới chạy: S1/S2 = chính dev1 (trong mẫu,
+đã bị DSR/PBO phạt như mọi lựa chọn trong mẫu), S3 OOS = train của từng fold, S6 holdout = toàn bộ dữ liệu trước holdout. Ngưỡng của classifier
+(`classifier.DEFAULTS`) KHÔNG tối ưu; nếu sau này tối ưu thì phải đưa vào `params` như trên để được đếm. S1/S6 ghi `regime_blocked`; promote dựng
+`regime` của kho từ `regime_blocked` của S6.
+**Trend thẳng đứng (P2.6):** S3 ghi `metrics.shock` (vị thế ngược chiều lớn nhất ở OOS); S4/S5 thêm 3 kịch bản `vertical_*` vào MC (xem ui_contract §5).
+
 ## 2. Lưu trữ một lượt phễu (`data/_cache/funnel/<run_id>/`)
 
 - `run.json`: cấu hình (chiến lược, số alpha, seed, cửa sổ, ngưỡng, commit, sha256 dữ liệu), trạng thái từng tầng, thời gian.

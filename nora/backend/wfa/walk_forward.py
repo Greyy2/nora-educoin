@@ -30,7 +30,7 @@ from backend.optimize.shared import SharedExporter
 from backend.utils.parallel import pool_map_safe
 
 from ..carlo.monte_carlo import (MC_MAX_RUIN_PCT, MC_MIN_SIMULATIONS, MC_RUIN_THRESHOLD_PCT, STRESS_MAX_MDD_PCT,
-                                 evaluate_mc_gate, run_monte_carlo_daily_gate)
+                                 evaluate_mc_gate, merge_exposure, run_monte_carlo_daily_gate, vertical_exposure)
 
 DAY = 86_400_000
 
@@ -77,6 +77,11 @@ def run_job(job):
         eng.run()
     res = eng.get_results()
     result = portfolio_metrics(res, start)
+    from backend.core.metrics.trades import trade_rows
+    result["shock"] = vertical_exposure(trade_rows(res["positions"]), job.rpt)   # MC: kịch bản trend thẳng đứng
+    if job.regime:   # lãi/lỗ theo (chiến lược, regime lúc vào lệnh) -> học bảng regime (regime="learn")
+        from backend.core.regime.learn import engine_by_regime
+        result["by_regime"] = engine_by_regime(eng, res["positions"])
     # Ngày UTC đầu của chuỗi lợi suất ngày (mẫu vốn đầu tiên >= start) -> dựng nhãn ngày cho đường vốn OOS
     first = next((c["time"] for c in res["equity_curve"] if c["time"] >= start), None)
     result["_daily_start"] = _date(first) if first is not None else None
@@ -107,6 +112,8 @@ def _pool_shared(jobs, workers, label, shared_dir, store=None, stage=None, progr
             extra = {"rpt": job.rpt, "symbols": list(job.symbols)}
             if job.base_frame != "1m":   # khung chạy khác -> khoá khác (resume không trộn kết quả hai khung)
                 extra["base_frame"] = job.base_frame
+            if job.regime:
+                extra["regime"] = job.regime
             keys_of[i] = make_job_key(stage, "-", [[c, p] for c, p in job.items], list(job.window), job.stop_fill, job.risk, fp,
                                       extra=extra)
             row = store.get(keys_of[i])
@@ -138,7 +145,7 @@ def _pool_shared(jobs, workers, label, shared_dir, store=None, stage=None, progr
 
 
 def _strip(m):
-    return {k: v for k, v in m.items() if k not in ("daily", "_peak_rss_mb", "_rss_anon_mb", "_daily_start")}
+    return {k: v for k, v in m.items() if k not in ("daily", "_peak_rss_mb", "_rss_anon_mb", "_daily_start", "by_regime", "shock")}
 
 
 def _date(ts) -> str:
@@ -176,15 +183,32 @@ def plan_is_jobs(candidates, folds, symbols, risk, rpt, shared_dir, base_frame="
     return keys, jobs
 
 
-def plan_oos_jobs(chosen, folds, symbols, risk, rpt, shared_dir, base_frame="1m"):
-    """chosen[fold] = [(candidate_id, params)] (rỗng -> fold NO_TRADE, không chạy). Khoá = (fold, stop_fill)."""
+def plan_oos_jobs(chosen, folds, symbols, risk, rpt, shared_dir, base_frame="1m", regime_maps=None):
+    """chosen[fold] = [(candidate_id, params)] (rỗng -> fold NO_TRADE, không chạy). Khoá = (fold, stop_fill).
+    regime_maps[fold] (tuỳ chọn): bảng regime học trên train của fold đó."""
     keys, jobs = [], []
     for fi, fold in enumerate(folds):
         if not chosen[fi]:
             continue
+        rmap = regime_maps[fi] if regime_maps else None
         for sf in ("level", "extreme"):
             keys.append((fi, sf))
-            jobs.append(BacktestJob(chosen[fi], (fold["test_start_ts"], fold["test_end_ts"]), sf, risk, rpt, symbols, shared_dir, base_frame))
+            jobs.append(BacktestJob(chosen[fi], (fold["test_start_ts"], fold["test_end_ts"]), sf, risk, rpt, symbols, shared_dir, base_frame,
+                                    rmap))
+    return keys, jobs
+
+
+def plan_regime_jobs(chosen, folds, symbols, risk, rpt, shared_dir, base_frame="1m"):
+    """regime="learn": mỗi fold chạy lại các cấu hình đã chọn trên TRAIN (kill switch tắt như IS) ở chế độ quan sát regime
+    -> lãi/lỗ theo (chiến lược, regime). Khoá = fold."""
+    from backend.core.regime.learn import OBSERVE
+    is_risk = {**risk, "kill_switch_dd_pct": 0}
+    keys, jobs = [], []
+    for fi, fold in enumerate(folds):
+        if chosen[fi]:
+            keys.append(fi)
+            jobs.append(BacktestJob(chosen[fi], (fold["train_start_ts"], fold["train_end_ts"]), "level", is_risk, rpt, symbols, shared_dir,
+                                    base_frame, {cid: OBSERVE for cid, _ in chosen[fi]}))
     return keys, jobs
 
 
@@ -212,16 +236,17 @@ def aggregate_folds(folds: List[Dict[str, Any]], cfg: PortfolioWfaConfig) -> Dic
     if all(f.get(f"oos_daily_dates_{sf}") is not None for f in folds for sf in ("level", "extreme")):
         dates = {sf: [d for f in folds for d in f[f"oos_daily_dates_{sf}"]] for sf in ("level", "extreme")}
     mc = None
+    shock = merge_exposure([f.get("shock") for f in folds])   # vị thế ngược chiều lớn nhất của mọi fold OOS (extreme)
     if len(daily["extreme"]) >= MIN_MC_DAYS:
         mc = run_monte_carlo_daily_gate(daily["extreme"], simulations=cfg.mc_simulations, block_days=cfg.mc_block_days,
                                         horizon_days=cfg.mc_horizon_days, ruin_threshold_pct=MC_RUIN_THRESHOLD_PCT,
-                                        seed=cfg.mc_seed, max_ruin_pct=MAX_MC_RUIN_PCT, stress_max_mdd_pct=STRESS_MAX_MDD_PCT)
+                                        seed=cfg.mc_seed, max_ruin_pct=MAX_MC_RUIN_PCT, stress_max_mdd_pct=STRESS_MAX_MDD_PCT, shock=shock)
     return {
         "n_folds": n, "n_traded_folds": len(traded), "positive_folds": positive,
         "positive_ratio_pct": round(positive / n * 100, 1) if n else 0.0,
         "avg_is_ret_pct": avg_is, "compounded_oos_ret_pct": compounded, "worst_fold_mdd_pct": worst_mdd,
         "oos_days": len(daily["extreme"]), "oos_trades": {sf: sum(f["trades"][sf] for f in folds) for sf in ("level", "extreme")},
-        "param_stability": stability, "oos_daily": daily, "mc": mc,
+        "param_stability": stability, "oos_daily": daily, "mc": mc, "shock": shock,
         **({"oos_daily_dates": dates} if dates is not None else {}),   # song song với oos_daily (UI vẽ đường vốn OOS)
     }
 
@@ -256,8 +281,9 @@ def evaluate_gate(summary: Dict[str, Any]) -> Dict[str, Any]:
 
 # ── Chạy ────────────────────────────────────────────────────────────────────
 def run_portfolio_wfa(candidates, symbols, start_ts, end_ts, cfg, risk, risk_per_trade_pct, workers, shared_root,
-                      store=None, progress=None, base_frame="1m") -> Dict[str, Any]:
+                      store=None, progress=None, base_frame="1m", regime="off") -> Dict[str, Any]:
     """candidates = [{"id": candidate_id, "configs": [params...]}]; cfg: PortfolioWfaConfig hoặc dict.
+    regime: "off" (mặc định, như trước) | "learn": mỗi fold học bảng regime ↔ chiến lược trên TRAIN (core/regime/learn.py) rồi áp lên test.
     risk: dict RiskConfig dùng cho OOS (kill switch BẬT); IS tự tắt kill switch. Trả dict kết quả (xem aggregate_folds).
     store/progress (tuỳ chọn, backend/optimize): ghi từng kết quả job vào kho + bỏ qua job đã có (--resume) + tiến độ."""
     cfg = cfg if isinstance(cfg, PortfolioWfaConfig) else PortfolioWfaConfig.from_dict(cfg)
@@ -291,8 +317,23 @@ def run_portfolio_wfa(candidates, symbols, start_ts, end_ts, cfg, risk, risk_per
         chosen.append(items)
         picks.append(pick)
 
+    # regime="learn": bảng regime của mỗi fold chỉ học từ train
+    regime_maps, train_regime = None, {}
+    if regime == "learn":
+        from backend.core.regime.learn import learn_map
+        rg_keys, rg_jobs = plan_regime_jobs(chosen, folds, symbols, risk, rpt, shared_root, base_frame)
+        if progress is not None:
+            progress.start_stage("WFA-REGIME", len(rg_jobs))
+        rg_res = _pool_shared(rg_jobs, workers, f"[WFA-REGIME] {len(rg_jobs)} job", shared_root, store, "wfa_regime", progress) if rg_jobs else []
+        train_regime = {fi: m.get("by_regime") or {} for fi, m in zip(rg_keys, rg_res)}
+        regime_maps = [{cid: rc for cid, rc in learn_map(train_regime.get(fi, {}), [c for c, _ in chosen[fi]]).items() if rc}
+                       for fi in range(len(folds))]
+        print(f"[WFA-REGIME] {len(rg_jobs)} job học regime xong ({time.time() - t0:.0f}s)", flush=True)
+    elif regime != "off":
+        raise ValueError(f"regime phải là off|learn (nhận {regime!r})")
+
     # OOS: MỌI fold × {level, extreme} trong MỘT pool
-    oos_keys, oos_jobs = plan_oos_jobs(chosen, folds, symbols, risk, rpt, shared_root, base_frame)
+    oos_keys, oos_jobs = plan_oos_jobs(chosen, folds, symbols, risk, rpt, shared_root, base_frame, regime_maps)
     if progress is not None:
         progress.start_stage("WFA-OOS", len(oos_jobs))
     oos_res = _pool_shared(oos_jobs, workers, f"[WFA-OOS] {len(oos_jobs)} job", shared_root, store, "wfa_oos", progress) if oos_jobs else []
@@ -327,6 +368,10 @@ def run_portfolio_wfa(candidates, symbols, start_ts, end_ts, cfg, risk, risk_per
             rec[f"oos_daily_{sf}"] = list(m["daily"]) if m else [0.0] * cfg.test_days   # NO_TRADE: vốn đứng yên
             first = (m or {}).get("_daily_start") or _date(fold["test_start_ts"])
             rec[f"oos_daily_dates_{sf}"] = [f"{d:%Y-%m-%d}" for d in pd.date_range(first, periods=len(rec[f"oos_daily_{sf}"]), freq="D")]
+        rec["shock"] = (oos_by.get((fi, "extreme")) or {}).get("shock")
+        if regime_maps is not None:
+            rec["regime_map"] = regime_maps[fi]
+            rec["train_by_regime"] = train_regime.get(fi, {})
         rec["trades"] = {sf: (rec[f"oos_{sf}"]["trades"] if rec[f"oos_{sf}"] else 0) for sf in ("level", "extreme")}
         rec["halted_at"] = {sf: (rec[f"oos_{sf}"]["halted_at"] if rec[f"oos_{sf}"] else None) for sf in ("level", "extreme")}
         fold_records.append(rec)
@@ -336,6 +381,7 @@ def run_portfolio_wfa(candidates, symbols, start_ts, end_ts, cfg, risk, risk_per
     all_res = [m for m in list(is_res) + list(oos_res) if m]
     return {
         "config": asdict(cfg), "risk": risk, "risk_per_trade_pct": rpt, "symbols": symbols,
+        **({"regime": regime} if regime != "off" else {}),
         "window": [_date(start_ts), _date(end_ts)], "candidates": [{"id": c["id"], "configs": c["configs"]} for c in candidates],
         "folds": fold_records, "summary": summary, "gate": gate,
         "aggregate": summary, "mc": summary["mc"],   # tên theo docs/ui_contract.md §4 (cùng đối tượng với summary / summary.mc)

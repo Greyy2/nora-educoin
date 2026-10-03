@@ -30,6 +30,13 @@ STRESS_COST_FALLBACK_DAILY = (STRESS_COST_TAKER + STRESS_COST_SLIPPAGE) * 2 * ST
 CRASH_CAP = 0.95                   # ngày sập tối đa -95%
 MC_CHUNK_ELEMS = 2_000_000         # xử lý theo lô: mỗi mảng (lô x bước) <= 16 MB float64 -> đỉnh RAM vài chục MB dù 50.000 mô phỏng
 STRESS_PATH_POINTS = 72            # số điểm tối đa mỗi đường vẽ trả về cho UI
+# Trend thẳng đứng (P2.6): giá đi +40% trong 3 ngày / −30% trong 1 ngày NGƯỢC vị thế lớn nhất từng mở. Lỗ mỗi vị thế:
+#   có cắt lỗ theo rủi ro (sizing "risk": danh nghĩa × khoảng SL = rpt × vốn): min(danh nghĩa × biên độ, STRESS_GAP_MULT × rpt × vốn)
+#     (giá chạy thẳng -> SL khớp trượt, coi như mất gấp đôi rủi ro kế hoạch);
+#   không cắt lỗ (bot DCA/grid kiểu OKX): min(danh nghĩa × biên độ, ký quỹ) — bị thanh lý thì mất hết ký quỹ.
+VERTICAL_SURGE_PCT, VERTICAL_SURGE_DAYS = 40.0, 3
+VERTICAL_CRASH_PCT = 30.0
+STRESS_GAP_MULT = 2.0
 
 STRESS_LABELS_VI = {
     "worst_days_first": "Ngày lỗ tệ nhất đến trước",
@@ -38,7 +45,11 @@ STRESS_LABELS_VI = {
     "cost_x2": "Chi phí giao dịch gấp đôi",
     "longest_losing_streak_x2": "Chuỗi thua dài nhất lặp 2 lần ở đầu",
     "worst_bootstrap": "Đường bootstrap tệ nhất (MDD lớn nhất)",
+    "vertical_surge": "Tăng thẳng đứng +40%/3 ngày ngược vị thế SHORT lớn nhất",
+    "vertical_crash": "Sập −30%/1 ngày ngược vị thế LONG lớn nhất",
+    "vertical_chain": "Chuỗi liên tiếp: tăng +40%/3 ngày rồi sập −30%, lặp 2 lần",
 }
+VERTICAL_NAMES = ("vertical_surge", "vertical_crash", "vertical_chain")
 
 
 # ─── Kịch bản cực xấu (tất định, KHÔNG ngẫu nhiên) + gate ──────────────────────────────────────────────
@@ -87,8 +98,64 @@ def longest_losing_run(d) -> np.ndarray:
     return d[best_lo:best_lo + best_len].copy()
 
 
+def _notional(t: Dict[str, Any]) -> float:
+    if t.get("notional") is not None:
+        return float(t["notional"])
+    margin, lev = float(t.get("margin_usd") or 0.0), float(t.get("leverage") or 1.0)
+    if margin > 0:
+        return margin * lev
+    return float(t.get("qty") or 0.0) * float(t.get("avg_price") or t.get("enter_price") or 0.0)
+
+
+def vertical_exposure(trades: List[Dict[str, Any]], rpt_pct: Optional[float],
+                      gap_mult: float = STRESS_GAP_MULT) -> Optional[Dict[str, float]]:
+    """Lỗ (phần vốn) nếu trend thẳng đứng xảy ra đúng lúc vị thế ngược chiều MỞ NHIỀU NHẤT (quét theo thời gian, cộng mọi lệnh đang mở).
+    trades: [{side, enter_time, close_time, entry_equity, notional | margin_usd+leverage | qty+giá}] (trade_rows / trade_list).
+    rpt_pct: rủi ro kế hoạch mỗi lệnh (% vốn) khi chiến lược có cắt lỗ; None = không cắt lỗ (mất tối đa ký quỹ).
+    -> {"crash_loss": lỗ LONG khi −30%, "surge_loss": lỗ SHORT khi +40%, "max_long_exposure", "max_short_exposure"} hoặc None (không lệnh)."""
+    ev: Dict[str, List] = {"LONG": [], "SHORT": []}
+    for t in trades or []:
+        eq = float(t.get("entry_equity") or 0.0)
+        if eq <= 0 or t.get("enter_time") is None:
+            continue
+        n = _notional(t) / eq
+        move = (VERTICAL_CRASH_PCT if t.get("side") == "LONG" else VERTICAL_SURGE_PCT) / 100.0
+        cap = gap_mult * rpt_pct / 100.0 if rpt_pct is not None else n / max(float(t.get("leverage") or 1.0), 1.0)
+        loss = min(n * move, cap)
+        end = t.get("close_time")
+        end = int(end) if end is not None else 2 ** 62
+        side = "LONG" if t.get("side") == "LONG" else "SHORT"
+        ev[side] += [(int(t["enter_time"]), 1, loss, n), (end, 0, -loss, -n)]   # cùng thời điểm: đóng (0) trước mở (1)
+    if not ev["LONG"] and not ev["SHORT"]:
+        return None
+    out = {}
+    for side, key in (("LONG", "crash"), ("SHORT", "surge")):
+        cur_l = cur_n = best_l = best_n = 0.0
+        for _, _, dl, dn in sorted(ev[side], key=lambda e: (e[0], e[1])):
+            cur_l, cur_n = cur_l + dl, cur_n + dn
+            best_l, best_n = max(best_l, cur_l), max(best_n, cur_n)
+        out[f"{key}_loss"] = round(min(best_l, 1.0), 6)
+        out[f"max_{side.lower()}_exposure"] = round(best_n, 4)
+    return out
+
+
+def merge_exposure(rows: List[Optional[Dict[str, float]]]) -> Optional[Dict[str, float]]:
+    """Gộp nhiều cửa sổ (vd. các fold OOS): lấy mức xấu nhất từng khoá."""
+    rows = [r for r in rows if r]
+    return {k: max(r[k] for r in rows) for k in rows[0]} if rows else None
+
+
+def vertical_sequences(shock: Dict[str, float], scale: float = 1.0) -> Dict[str, np.ndarray]:
+    """Chuỗi lợi suất ngày của 3 kịch bản trend thẳng đứng (đặt ở ĐẦU, trước lịch sử)."""
+    lc = min(1.0, scale * float(shock.get("crash_loss") or 0.0))
+    ls = min(1.0, scale * float(shock.get("surge_loss") or 0.0))
+    up = np.full(VERTICAL_SURGE_DAYS, (1.0 - ls) ** (1.0 / VERTICAL_SURGE_DAYS) - 1.0)
+    return {"vertical_surge": up, "vertical_crash": np.array([-lc]), "vertical_chain": np.r_[up, -lc, up, -lc]}
+
+
 def stress_scenarios(daily, scale: float = 1.0, extra_cost_daily: Optional[float] = None,
-                     max_mdd_pct: float = STRESS_MAX_MDD_PCT, with_path: bool = True) -> List[Dict[str, Any]]:
+                     max_mdd_pct: float = STRESS_MAX_MDD_PCT, with_path: bool = True,
+                     shock: Optional[Dict[str, float]] = None) -> List[Dict[str, Any]]:
     """5 kịch bản cực xấu TẤT ĐỊNH dựng từ chính chuỗi lợi suất ngày (`daily` x `scale`); mỗi cái cho một đường vốn.
     (kịch bản thứ 6, worst_bootstrap, lấy từ bootstrap nên do hàm chạy bootstrap thêm vào.)
       worst_days_first          chuỗi xếp TĂNG dần: mọi ngày lỗ trước, tệ nhất trước, rồi phần còn lại (cực xấu theo cấu trúc).
@@ -97,6 +164,7 @@ def stress_scenarios(daily, scale: float = 1.0, extra_cost_daily: Optional[float
       cost_x2                   mọi ngày có hoạt động (lợi suất != 0) trừ thêm `extra_cost_daily` (phí khứ hồi bổ sung = chi phí gấp đôi).
                                 `extra_cost_daily` = (taker+trượt giá) x 2 x vòng quay vốn/ngày nếu nguồn biết; None -> STRESS_COST_FALLBACK_DAILY.
       longest_losing_streak_x2  chuỗi lỗ liên tiếp dài nhất lặp 2 lần liền nhau ở ĐẦU, rồi toàn bộ lịch sử (không có ngày lỗ thì giữ nguyên).
+    shock (vertical_exposure, tuỳ chọn) -> thêm vertical_surge / vertical_crash / vertical_chain (vertical_sequences) ở ĐẦU, rồi lịch sử.
     Độ dài = số ngày lịch sử (cộng phần chèn thêm), KHÔNG cắt/kéo theo horizon của bootstrap."""
     d = scale * np.asarray(daily, dtype=float)
     if d.size == 0:
@@ -111,6 +179,8 @@ def stress_scenarios(daily, scale: float = 1.0, extra_cost_daily: Optional[float
         "cost_x2": np.where(d != 0.0, d - c, d),
         "longest_losing_streak_x2": np.r_[streak, streak, d],
     }
+    if shock:
+        seqs.update({k: np.r_[v, d] for k, v in vertical_sequences(shock, scale).items()})
     rows = []
     for name, seq in seqs.items():
         row = _path_row(name, seq, max_mdd_pct=max_mdd_pct, with_path=with_path)
@@ -118,6 +188,9 @@ def stress_scenarios(daily, scale: float = 1.0, extra_cost_daily: Optional[float
             row["note_vi"] = (f"Trừ thêm {c * 100:.3f}%/ngày hoạt động "
                               + ("(ước lượng từ vòng quay vốn của nguồn)" if extra_cost_daily is not None
                                  else "(hằng số bảo thủ: (taker 0,05% + trượt giá 0,02%) x 2 x vòng quay 0,5x/ngày)"))
+        elif name in VERTICAL_NAMES:
+            row["note_vi"] = (f"Lỗ LONG khi sập {shock['crash_loss'] * scale * 100:.1f}% vốn, lỗ SHORT khi tăng dựng "
+                              f"{shock['surge_loss'] * scale * 100:.1f}% vốn (vị thế ngược chiều lớn nhất từng mở)")
         rows.append(row)
     return rows
 
@@ -407,6 +480,7 @@ def run_monte_carlo_daily_gate(
     max_ruin_pct: float = MC_MAX_RUIN_PCT,
     stress_max_mdd_pct: float = STRESS_MAX_MDD_PCT,
     extra_cost_daily: Optional[float] = None,
+    shock: Optional[Dict[str, float]] = None,
 ) -> Dict[str, Any]:
     """MC ngày dạng GATE: `summary` (trùng bit run_monte_carlo_daily) + `stress` (5 kịch bản tất định + worst_bootstrap, không điểm vẽ)
     + `gate` (evaluate_mc_gate). Dùng cho gate WFA danh mục."""
@@ -416,7 +490,7 @@ def run_monte_carlo_daily_gate(
     n = int(simulations)
     mdds, rets, _, worst_idx = _daily_bootstrap(d, n, block_days, horizon_days, seed, scale)
     summary = _daily_summary(mdds, rets, ruin_threshold_pct, n, block_days, horizon_days, seed)
-    stress = strip_paths(stress_scenarios(d, scale, extra_cost_daily, stress_max_mdd_pct)
+    stress = strip_paths(stress_scenarios(d, scale, extra_cost_daily, stress_max_mdd_pct, shock=shock)
                          + [_path_row("worst_bootstrap", scale * d[worst_idx], max_mdd_pct=stress_max_mdd_pct)])
     return {**summary, "stress": stress, "extra_cost_daily": extra_cost_daily,
             "gate": evaluate_mc_gate(n, summary["p_mdd_ge_ruin_pct"], stress, max_ruin_pct=max_ruin_pct,
@@ -449,6 +523,7 @@ def run_monte_carlo_daily_detail(
     max_ruin_pct: float = MC_MAX_RUIN_PCT,
     stress_max_mdd_pct: float = STRESS_MAX_MDD_PCT,
     extra_cost_daily: Optional[float] = None,
+    shock: Optional[Dict[str, float]] = None,
 ) -> Dict[str, Any]:
     """Như run_monte_carlo_daily (CÙNG RNG, CÙNG thứ tự gọi -> `summary` trùng từng bit) nhưng thêm dữ liệu vẽ:
     fan = phân vị 5/25/50/75/95 của đường vốn (% lãi từ đầu) lấy mẫu mỗi FAN_STEP_DAYS ngày, histogram MDD và lãi cuối (%),
@@ -467,7 +542,7 @@ def run_monte_carlo_daily_detail(
     for name, row in zip(("p5", "p25", "p50", "p75", "p95"), q):
         fan[name] = [0.0] + [round(float(x), 2) for x in row]
     worst = _path_row("worst_bootstrap", scale * d[worst_idx], max_mdd_pct=stress_max_mdd_pct)
-    stress = stress_scenarios(d, scale, extra_cost_daily, stress_max_mdd_pct) + [worst]
+    stress = stress_scenarios(d, scale, extra_cost_daily, stress_max_mdd_pct, shock=shock) + [worst]
     gate = evaluate_mc_gate(n, summary["p_mdd_ge_ruin_pct"], stress, max_ruin_pct=max_ruin_pct,
                             ruin_threshold_pct=ruin_threshold_pct, stress_max_mdd_pct=stress_max_mdd_pct)
     return {
@@ -476,7 +551,8 @@ def run_monte_carlo_daily_detail(
         "stress": stress, "worst_path": worst["path"], "gate": gate,
         "params": {"simulations": n, "block_days": int(block_days), "horizon_days": int(horizon_days),
                    "ruin_threshold_pct": float(ruin_threshold_pct), "seed": seed, "scale": float(scale), "n_days": int(len(d)),
-                   "extra_cost_daily": extra_cost_daily if extra_cost_daily is not None else STRESS_COST_FALLBACK_DAILY},
+                   "extra_cost_daily": extra_cost_daily if extra_cost_daily is not None else STRESS_COST_FALLBACK_DAILY,
+                   **({"shock": shock} if shock else {})},
     }
 
 

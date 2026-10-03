@@ -201,6 +201,8 @@ export const getPortfolioTrades = (o) => request(`/api/studio/portfolio/trades?$
 export const portfolioTradesCsvUrl = (o) => `/api/studio/portfolio/trades?${_qs({ ...o, format: 'csv' })}`
 /** Tín hiệu thị trường tại nến 1m đã đóng cuối (core/signals/snapshot): {symbols: [{symbol, close, as_of, strategies: [...]}]}. */
 export const getMarketSignals = (o = {}) => request(`/api/studio/market/signals?${_qs(o)}`)
+/** Regime hiện tại + lịch sử từng tài sản (nến 15m đã đóng) + chiến lược đang bật theo bảng regime của sổ. */
+export const getMarketRegime = (o = {}) => request(`/api/studio/market/regime?${_qs(o)}`)
 
 // ---- phễu kiểm duyệt (docs/funnel_contract.md §4) ----
 const qs = (o) => {
@@ -220,5 +222,5 @@ export const getFunnelAlpha = (id, alphaId) => request(`${FR}/${enc(id)}/alphas/
 export const getFunnelTrades = (id, alphaId, o) => request(`${FR}/${enc(id)}/alphas/${enc(alphaId)}/trades${qs(o)}`).then(normTrades)
 export const postFunnelPromote = (id, alphaId, note) => request(`${FR}/${enc(id)}/alphas/${enc(alphaId)}/promote`, { method: 'POST', body: { confirm: true, ...(note ? { note } : {}) } })
 /** Ước tính thời gian S1 trước khi chạy: { per_strategy, total_alphas, sec_per_backtest, workers, s1_eta_s }. */
-export const getFunnelEstimate = ({ strategies, nPerStrategy, fullGrid, workers, timeframe }) =>
-  request(`/api/studio/funnel/estimate${qs({ strategies: strategies.join(','), n_per_strategy: fullGrid ? '' : nPerStrategy, full_grid: fullGrid ? 'true' : '', workers, timeframe })}`)
+export const getFunnelEstimate = ({ strategies, nPerStrategy, fullGrid, workers, timeframe, regime }) =>
+  request(`/api/studio/funnel/estimate${qs({ strategies: strategies.join(','), n_per_strategy: fullGrid ? '' : nPerStrategy, full_grid: fullGrid ? 'true' : '', workers, timeframe, regime })}`)

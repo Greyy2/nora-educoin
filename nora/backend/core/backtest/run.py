@@ -102,6 +102,7 @@ class BacktestJob(NamedTuple):
     symbols: Optional[List[str]] = None
     shared_dir: Optional[str] = None
     base_frame: str = "1m"
+    regime: Optional[Dict[str, Any]] = None   # {id chiến lược: cấu hình regime} (core/regime/learn.py); thiếu id -> không lọc
 
 
 def make_engine(job: BacktestJob):
@@ -110,8 +111,9 @@ def make_engine(job: BacktestJob):
     from backend.core.params.modes import lift_frames
     from backend.core.strategy.book import CANDIDATES, materialize, perp_symbols
     by_id = {c["id"]: c for c in CANDIDATES}
-    strategies = [materialize(by_id[cid], lift_frames(by_id[cid], prm, job.base_frame), stop_fill=job.stop_fill,
-                              risk_per_trade_pct=job.rpt) for cid, prm in job.items]
+    regime = job.regime or {}
+    strategies = [materialize(by_id[cid], lift_frames(by_id[cid], prm, job.base_frame), regime=regime.get(cid) or False,
+                              stop_fill=job.stop_fill, risk_per_trade_pct=job.rpt) for cid, prm in job.items]
     start, end = job.window
     return PortfolioEngine(list(job.symbols or perp_symbols()), strategies, start - WARMUP, end, trade_start_ts=start,
                            risk=RiskConfig.from_dict(job.risk), shared_dir=job.shared_dir, base_frame=job.base_frame), start

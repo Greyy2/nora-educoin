@@ -129,6 +129,30 @@ def incompatible(candidates: List[Dict[str, Any]], mode: str, base_frame: str) -
     return out
 
 
+REGIME_KEY = "regime"                     # khoá đặc biệt trong params của alpha: "learn" = học bảng regime trên dữ liệu train (core/regime/learn.py)
+REGIME_MODES = ("off", "learn", "both")
+
+
+def regime_variants(params: Dict[str, Any], mode: str) -> List[Dict[str, Any]]:
+    """off: [params]; learn: [params + regime=learn]; both: cả hai (mỗi biến thể là MỘT alpha -> một lần thử trong DSR/PBO)."""
+    if mode == "off":
+        return [params]
+    learn = {**params, REGIME_KEY: "learn"}
+    if mode == "learn":
+        return [learn]
+    if mode == "both":
+        return [params, learn]
+    raise ValueError(f"regime phải là một trong {REGIME_MODES}")
+
+
+def split_regime(params: Dict[str, Any]):
+    """-> (tham số chiến lược, chế độ regime | None)."""
+    if REGIME_KEY not in params:
+        return params, None
+    p = dict(params)
+    return p, p.pop(REGIME_KEY)
+
+
 def validate_alpha(candidate: Dict[str, Any], params: Dict[str, Any], mode: str = "grid", base_frame: str = "1m") -> Optional[str]:
     """None nếu hợp lệ; ngược lại câu tiếng Việt. Kiểm: khoá thuộc không gian tham số, giá trị số hữu hạn (hoặc lựa chọn hợp lệ ở schema),
     mọi khung >= khung chạy, EMA nhanh < chậm, đòn bẩy <= S0_MAX_LEVERAGE, và dựng được tham số vị thế (build_params: ngân sách DCA...)."""
@@ -136,6 +160,9 @@ def validate_alpha(candidate: Dict[str, Any], params: Dict[str, Any], mode: str 
     from backend.core.backtest.engine import FRAME_MS
     from backend.core.params.modes import frame_keys
     from backend.core.strategy.book import schema_defaults
+    params, rmode = split_regime(params)
+    if rmode not in (None, "learn"):
+        return f"regime phải là learn (nhận {rmode!r})"
     space = space_for(candidate, mode, base_frame)
     bad = sorted(set(params) - set(space))
     if bad:

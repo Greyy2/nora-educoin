@@ -29,9 +29,22 @@ def risk_dict(kill: bool) -> Dict[str, Any]:
 
 
 def to_job(job: Dict[str, Any]) -> BacktestJob:
-    """Job phễu (dict: strategy, params, window, stop_fill, kill, rpt, symbols, shared_dir, base_frame) -> đặc tả chung BacktestJob."""
+    """Job phễu (dict: strategy, params, window, stop_fill, kill, rpt, symbols, shared_dir, base_frame, regime_map?) -> đặc tả chung BacktestJob."""
+    rmap = job.get("regime_map")
     return BacktestJob([(job["strategy"], job["params"])], (int(job["window"][0]), int(job["window"][1])), job["stop_fill"],
-                       risk_dict(job["kill"]), job["rpt"], list(job["symbols"]), job.get("shared_dir"), job.get("base_frame", "1m"))
+                       risk_dict(job["kill"]), job["rpt"], list(job["symbols"]), job.get("shared_dir"), job.get("base_frame", "1m"),
+                       {job["strategy"]: rmap} if rmap else None)
+
+
+def learned_regime(job: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Alpha regime="learn": chạy chế độ quan sát (SL level, kill tắt) trên cửa sổ HỌC (job["learn_window"], mặc định chính cửa sổ của job —
+    S1 dev1 là trong mẫu, đã tính là một lần thử riêng trong DSR/PBO) -> bảng regime của chiến lược (None = không chặn regime nào)."""
+    from backend.core.regime.learn import OBSERVE, engine_by_regime, learn_map
+    obs = to_job({**job, "window": job.get("learn_window") or job["window"], "stop_fill": "level", "kill": False, "regime_map": OBSERVE})
+    eng, _ = _make_engine(obs)
+    with contextlib.redirect_stdout(io.StringIO()):
+        eng.run()
+    return learn_map(engine_by_regime(eng, eng.get_results()["positions"]), [job["strategy"]])[job["strategy"]]
 
 
 def make_engine(job: Dict[str, Any]):
@@ -59,11 +72,16 @@ def _outputs(res: Dict[str, Any], start: int, want_trades: bool) -> Dict[str, An
 
 
 def run_backtest(job: Dict[str, Any], want_trades: bool = False) -> Dict[str, Any]:
-    """Một lần PortfolioEngine -> {"metrics", "daily", "daily_start", "trades"}."""
+    """Một lần PortfolioEngine -> {"metrics", "daily", "daily_start", "trades"}. Alpha regime="learn": học bảng regime trước (learned_regime)."""
+    if job.get("regime_mode") == "learn":
+        job = {**job, "regime_map": learned_regime(job)}
     eng, start = make_engine(job)
     with contextlib.redirect_stdout(io.StringIO()):
         eng.run()
-    return _outputs(eng.get_results(), start, want_trades)
+    out = _outputs(eng.get_results(), start, want_trades)
+    if job.get("regime_mode") == "learn":
+        out["metrics"]["regime_blocked"] = (job["regime_map"] or {}).get("blocked", [])
+    return out
 
 
 def signal_key(job: Dict[str, Any]) -> str:
@@ -75,13 +93,16 @@ def signal_key(job: Dict[str, Any]) -> str:
     st = sb.materialize(by_id[job["strategy"]], job["params"], stop_fill=job["stop_fill"], risk_per_trade_pct=job["rpt"])
     pos = st["position"]
     return json.dumps([job["strategy"], st["tree"], st.get("stop"), pos.get("exit_unit"), pos.get("atr_frame"), pos.get("atr_period"),
-                       job["window"], job["kill"], list(job["symbols"]), job.get("base_frame", "1m")], sort_keys=True, default=str)
+                       job["window"], job["kill"], list(job["symbols"]), job.get("base_frame", "1m"), job.get("regime_mode")],
+                      sort_keys=True, default=str)
 
 
 def run_backtest_many(jobs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Nhiều alpha CÙNG signal_key: nạp dữ liệu + tính tín hiệu một lần (engine của job đầu), chạy các bộ tham số vị thế bằng
     PortfolioEngine.run_many (trùng từng bit với chạy riêng — test_kernel_parity / test_funnel)."""
     from backend.core.strategy import book as sb
+    if jobs[0].get("regime_mode"):   # bảng regime học riêng từng alpha -> tín hiệu vào khác nhau, chạy riêng
+        return [run_backtest(j, bool(j.get("trades"))) for j in jobs]
     by_id = {c["id"]: c for c in sb.CANDIDATES}
     eng, start = make_engine(jobs[0])
     with contextlib.redirect_stdout(io.StringIO()):
@@ -92,9 +113,17 @@ def run_backtest_many(jobs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 
 def base_job(strategy: str, params: Dict[str, Any], window, stop_fill: str, kill: bool, rpt: float, symbols, shared_dir,
-             base_frame: str = "1m") -> Dict[str, Any]:
-    return {"strategy": strategy, "params": params, "window": [int(window[0]), int(window[1])], "stop_fill": stop_fill, "kill": kill,
-            "rpt": rpt, "symbols": list(symbols), "shared_dir": shared_dir, "base_frame": base_frame}
+             base_frame: str = "1m", learn_window=None) -> Dict[str, Any]:
+    """params có thể kèm khoá regime ("learn") -> tách ra regime_mode; learn_window: cửa sổ học bảng regime (mặc định = window)."""
+    from .generate import split_regime
+    params, rmode = split_regime(params)
+    job = {"strategy": strategy, "params": params, "window": [int(window[0]), int(window[1])], "stop_fill": stop_fill, "kill": kill,
+           "rpt": rpt, "symbols": list(symbols), "shared_dir": shared_dir, "base_frame": base_frame}
+    if rmode:
+        job["regime_mode"] = rmode
+        if learn_window is not None:
+            job["learn_window"] = [int(learn_window[0]), int(learn_window[1])]
+    return job
 
 
 # ── Monte Carlo (DÙNG LẠI backend/carlo/monte_carlo.py) ─────────────────────
@@ -110,20 +139,21 @@ def _gate_of(simulations: int, ruin: float, stress) -> Dict[str, Any]:
                             ruin_threshold_pct=gates.S4_RUIN_THRESHOLD_PCT, stress_max_mdd_pct=gates.S4_STRESS_MAX_MDD_PCT)
 
 
-def mc_check(series, scale: float) -> Dict[str, Any]:
-    """MC dạng gate (không điểm vẽ) trên chuỗi ngày × scale -> {"passed", "p_mdd_ge_30", "stress_max_mdd", "gate", "summary"}."""
+def mc_check(series, scale: float, shock: Optional[Dict[str, float]] = None) -> Dict[str, Any]:
+    """MC dạng gate (không điểm vẽ) trên chuỗi ngày × scale -> {"passed", "p_mdd_ge_30", "stress_max_mdd", "gate", "summary"}.
+    shock (metrics["shock"] của S3): thêm kịch bản trend thẳng đứng (lỗ nhân scale)."""
     from backend.carlo.monte_carlo import run_monte_carlo_daily_gate
-    r = run_monte_carlo_daily_gate(series, **_mc_kwargs(scale))
+    r = run_monte_carlo_daily_gate(series, **_mc_kwargs(scale), shock=shock)
     gate = _gate_of(r["simulations"], r["p_mdd_ge_ruin_pct"], r["stress"])
     return {"passed": bool(gate["passed"]), "p_mdd_ge_30": r["p_mdd_ge_ruin_pct"],
             "stress_max_mdd": max((x["mdd_pct"] for x in r["stress"]), default=None), "gate": gate,
             "summary": {k: r[k] for k in ("median_ret_pct", "p05_ret_pct", "mdd_p50_pct", "mdd_p95_pct", "p_mdd_ge_ruin_pct", "simulations")}}
 
 
-def mc_detail(series, scale: float, basis: str = "extreme") -> Dict[str, Any]:
+def mc_detail(series, scale: float, basis: str = "extreme", shock: Optional[Dict[str, float]] = None) -> Dict[str, Any]:
     """MC chi tiết (quạt, histogram, kịch bản cực xấu có đường vẽ) + gate theo ngưỡng của phễu. Ghi vào mc/<alpha_id>.json."""
     from backend.carlo.monte_carlo import run_monte_carlo_daily_detail
-    out = run_monte_carlo_daily_detail(series, **_mc_kwargs(scale))
+    out = run_monte_carlo_daily_detail(series, **_mc_kwargs(scale), shock=shock)
     out["gate"] = _gate_of(out["summary"]["simulations"], out["summary"]["p_mdd_ge_ruin_pct"], out["stress"])
     out["params"] = {**out["params"], "basis": basis}
     return out
@@ -144,15 +174,17 @@ def run_wfa(strategy: str, params: Dict[str, Any], folds: List[Dict[str, Any]], 
     out = []
     for f in folds:
         is_r = run_backtest(base_job(strategy, params, f["train"], "level", False, rpt, symbols, shared_dir, base_frame))
-        oos = run_backtest(base_job(strategy, params, f["test"], "extreme", True, rpt, symbols, shared_dir, base_frame), want_trades=True)
+        oos = run_backtest(base_job(strategy, params, f["test"], "extreme", True, rpt, symbols, shared_dir, base_frame, learn_window=f["train"]),
+                           want_trades=True)   # regime="learn": bảng regime học trên train của fold
         out.append({"fold": f["fold"], "train": f["train_iso"], "test": f["test_iso"], "is_ret_pct": is_r["metrics"]["ret_pct"],
                     "is_trades": is_r["metrics"]["trades"], "oos": oos["metrics"], "daily": oos["daily"],
                     "daily_start": oos["daily_start"] or f["test_iso"][0], "trades": oos["trades"]})
     return {"folds": out}
 
 
-def aggregate_wfa(folds: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """-> {"summary" (cho evaluate_s3), "metrics" (stage_metrics S3), "series" (chuỗi ngày OOS nối), "trades" (có cột fold), "daily" (theo fold)}."""
+def aggregate_wfa(folds: List[Dict[str, Any]], rpt: Optional[float] = None) -> Dict[str, Any]:
+    """-> {"summary" (cho evaluate_s3), "metrics" (stage_metrics S3), "series" (chuỗi ngày OOS nối), "trades" (có cột fold), "daily" (theo fold)}.
+    rpt (rủi ro/lệnh lúc chạy OOS): metrics["shock"] = vị thế ngược chiều lớn nhất (carlo.vertical_exposure) cho kịch bản trend thẳng đứng."""
     n = len(folds)
     series = [x for f in folds for x in f["daily"]]
     trades = [{**t, "fold": f["fold"]} for f in folds for t in (f["trades"] or [])]
@@ -166,6 +198,9 @@ def aggregate_wfa(folds: List[Dict[str, Any]]) -> Dict[str, Any]:
                "fold_detail": [{"fold": f["fold"], "train": f["train"], "test": f["test"], "is_ret_pct": f["is_ret_pct"],
                                 "oos_ret_pct": f["oos"]["ret_pct"], "oos_mdd_pct": f["oos"]["mdd_pct"], "trades": f["oos"]["trades"],
                                 "halted": f["oos"]["halted"]} for f in folds]}
+    if rpt is not None:
+        from backend.carlo.monte_carlo import vertical_exposure
+        metrics["shock"] = vertical_exposure(trades, rpt)
     daily = [{"fold": f["fold"], "start": f["daily_start"], "rets": f["daily"]} for f in folds]
     return {"summary": summary, "metrics": metrics, "series": series, "trades": trades, "daily": daily}
 
@@ -212,20 +247,20 @@ def w_wfa(job: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def w_mc(job: Dict[str, Any]) -> Dict[str, Any]:
-    """S4: job = {series}. Chi tiết ở s = 1 (ghi mc/<alpha>.json) + gate ở hệ số tối thiểu S5_S_MIN (alpha còn cứu được bằng giảm khối lượng không?)."""
+    """S4: job = {series, shock?}. Chi tiết ở s = 1 (ghi mc/<alpha>.json) + gate ở hệ số tối thiểu S5_S_MIN (alpha còn cứu được bằng giảm khối lượng không?)."""
     series = job["series"]
     if len(series) < gates.S4_MIN_DAYS:
         return {"days": len(series), "detail": None, "min_size": None}
-    detail = mc_detail(series, 1.0)
-    mn = mc_check(series, gates.S5_S_MIN)
+    detail = mc_detail(series, 1.0, shock=job.get("shock"))
+    mn = mc_check(series, gates.S5_S_MIN, job.get("shock"))
     return {"days": len(series), "detail": detail, "min_size": {"s": gates.S5_S_MIN, **{k: mn[k] for k in ("passed", "p_mdd_ge_30", "stress_max_mdd", "gate")}}}
 
 
 def w_sizing(job: Dict[str, Any]) -> Dict[str, Any]:
     """S5: tìm nhị phân s trên chuỗi ngày nhân s; xác nhận bằng S1 + WFA + MC thật ở s (hạ s từng bước nếu trượt).
-    job = {strategy, params, series, windows {start, dev1_end}, folds, symbols, shared_dir}."""
+    job = {strategy, params, series, shock?, windows {start, dev1_end}, folds, symbols, shared_dir}."""
     series = np.asarray(job["series"], dtype=float)
-    s_star, steps = sizing.search_scale(lambda s: mc_check(series, s))
+    s_star, steps = sizing.search_scale(lambda s: mc_check(series, s, job.get("shock")))
     if s_star is None:
         return {"s": None, "search": steps, "attempts": [], "reason": "scale_low"}
     keep: Dict[str, Any] = {}
@@ -241,7 +276,7 @@ def w_sizing(job: Dict[str, Any]) -> Dict[str, Any]:
             att["reason"] = ok1[2]
             return att
         wfa = aggregate_wfa(run_wfa(job["strategy"], job["params"], job["folds"], job["symbols"], rpt, job["shared_dir"],
-                                    job.get("base_frame", "1m"))["folds"])
+                                    job.get("base_frame", "1m"))["folds"], rpt)
         ok3 = gates.evaluate_s3(wfa["summary"])
         att["wfa"] = ok3[0]
         if not ok3[0]:
@@ -250,7 +285,7 @@ def w_sizing(job: Dict[str, Any]) -> Dict[str, Any]:
         if len(wfa["series"]) < gates.S4_MIN_DAYS:
             att["mc"], att["reason"] = False, "quá ít ngày OOS"
             return att
-        mcr = mc_check(wfa["series"], 1.0)
+        mcr = mc_check(wfa["series"], 1.0, wfa["metrics"].get("shock"))
         att["mc"], att["p_mdd_ge_30"], att["stress_max_mdd"] = mcr["passed"], mcr["p_mdd_ge_30"], mcr["stress_max_mdd"]
         att["passed"] = bool(mcr["passed"])
         if not att["passed"]:
@@ -265,15 +300,17 @@ def w_sizing(job: Dict[str, Any]) -> Dict[str, Any]:
         out["reason"] = "scale_low" if (attempts and attempts[-1]["s"] - gates.S5_CONFIRM_STEP < gates.S5_S_MIN - 1e-9) else "confirm"
         return out
     wfa = keep["wfa"]
-    out.update({"wfa": wfa, "backtest": {"metrics": keep["backtest"]["metrics"]}, "mc_detail": mc_detail(wfa["series"], 1.0, basis="confirmed_wfa_at_s")})
+    out.update({"wfa": wfa, "backtest": {"metrics": keep["backtest"]["metrics"]}, "mc_detail": mc_detail(wfa["series"], 1.0, basis="confirmed_wfa_at_s",
+                                                                                                      shock=wfa["metrics"].get("shock"))})
     return out
 
 
 def w_holdout(job: Dict[str, Any]) -> Dict[str, Any]:
     """S6: chạy MỘT lần ở hệ số s trên holdout: SL khớp đúng mức ("level") và giá xấu nhất ("extreme"), kill switch BẬT."""
     win = (job["windows"]["dev2_end"], job["windows"]["end"])
+    learn = (job["windows"]["start"], job["windows"]["dev2_end"])   # regime="learn": học trên toàn bộ dữ liệu trước holdout
     out = {}
     for fill in ("level", "extreme"):
         out[fill] = run_backtest(base_job(job["strategy"], job["params"], win, fill, True, job["rpt"], job["symbols"], job["shared_dir"],
-                                          job.get("base_frame", "1m")), want_trades=True)
+                                          job.get("base_frame", "1m"), learn_window=learn), want_trades=True)
     return out

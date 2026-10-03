@@ -9,6 +9,7 @@ Nguồn ứng viên (chọn một tham số):
   candidates   "id1,id2" hoặc [id...]: lấy mẫu n cấu hình mỗi chiến lược như optimize.book.configs(seed)
   strategies   [{"id": ..., "configs": [{...}, ...]}] do người dùng chọn; DÙNG ĐÚNG các cấu hình này
 Cửa sổ mặc định: dev1_end -> dev2_end; start/end (YYYY-MM-DD) ghi đè. Rủi ro/lệnh: report["book"] hoặc 0,5% (risk_per_trade ghi đè).
+regime "learn": mỗi fold học bảng regime ↔ chiến lược trên train (core/regime/learn.py) rồi áp lên OOS; "off" (mặc định): không lọc.
 Kết quả: <data>/_cache/book_wfa/<thời điểm>/report.json + $NORA_JOB_DIR/result.json.
 """
 # ── Đặt TRƯỚC mọi import numpy/backend: tiến trình con kế thừa qua fork ──────
@@ -34,7 +35,7 @@ from backend.utils.jsonsafe import json_default
 
 DEFAULTS = {"report": "", "include_rejected": False, "candidates": "", "strategies": None, "symbols": "", "n": 3, "seed": 7,
             "start": "", "end": "", "train_days": 120, "test_days": 30, "step_days": None, "min_is_trades": 10, "sims": 10_000,
-            "mc_seed": 1, "timeframe": "1m", "risk_per_trade": None, "workers": "auto", "per_worker_mb": None, "resume": "", "max_configs": 200_000,
+            "mc_seed": 1, "timeframe": "1m", "regime": "off", "risk_per_trade": None, "workers": "auto", "per_worker_mb": None, "resume": "", "max_configs": 200_000,
             "force_large": False}
 
 
@@ -213,7 +214,7 @@ def run_job(params=None):
                 json.dump(est, fh, ensure_ascii=False, indent=1)
             progress.set_estimate(est)
             res = run_portfolio_wfa(cands, symbols, start, end, cfg, risk, rpt, workers, shared_dir, store=store, progress=progress,
-                                    base_frame=a.timeframe or "1m")
+                                    base_frame=a.timeframe or "1m", regime=a.regime or "off")
             res["source"] = {"report": os.path.abspath(a.report) if a.report else None, "include_rejected": a.include_rejected,
                              "strategies": bool(a.strategies),
                              "wall_s": round(time.time() - t0, 1)}

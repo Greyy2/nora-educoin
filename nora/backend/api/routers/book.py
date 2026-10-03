@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from backend.api import modes
 from backend.api.jobs import batch as batch_jobs
+from backend.core.params.modes import STRESS_VERTICAL
 from backend.carlo.monte_carlo import (MC_MAX_RUIN_PCT as MC_RUIN_MAX_PCT, MC_MAX_SIMULATIONS, MC_MIN_SIMULATIONS,
                                        STRESS_MAX_MDD_PCT)
 
@@ -78,6 +79,8 @@ class WfaRequest(_DateRange):
     sims: Optional[int] = Field(None, ge=100, le=MC_MAX_SIMULATIONS, description="Chỉ advanced: số kịch bản MC của gate WFA; < 10.000 -> custom_gates")
     mc_seed: Optional[int] = Field(None, ge=0, le=2**31 - 1)
     timeframe: str = Field("15m", pattern="^(15m|1h|4h)$", description="Khung chạy (nến mô phỏng); khung tín hiệu nhỏ hơn được nâng lên")
+    regime: str = Field("off", pattern="^(off|learn)$",
+                        description="learn: mỗi fold học bảng regime ↔ chiến lược trên train rồi áp lên test (core/regime/learn.py)")
 
     @model_validator(mode="after")
     def _one_source(self):
@@ -102,7 +105,7 @@ class McRequest(BaseModel):
     extra_cost_daily_pct: Optional[float] = Field(None, ge=0.0, le=5.0,
                                                   description="Phí bổ sung (%/ngày hoạt động) cho kịch bản cost_x2; bỏ trống = hằng số bảo thủ 0,07%")
     mode: str = Field("basic", **MODE_FIELD)
-    stress_scenarios: Optional[List[str]] = Field(None, max_length=6, description="Chỉ advanced: tập con kịch bản cực xấu (mặc định đủ 6); thiếu -> custom_gates")
+    stress_scenarios: Optional[List[str]] = Field(None, max_length=9, description="Chỉ advanced: tập con kịch bản cực xấu (mặc định đủ cả); thiếu -> custom_gates")
 
     @model_validator(mode="after")
     def _one_source(self):
@@ -249,6 +252,16 @@ def get_alphas():
     """Kho alpha: registry.json + book.json (null nếu chưa có)."""
     return {"registry": _read_json(os.path.join(alphas_dir(), "registry.json")),
             "book": _read_json(book_path())}
+
+
+@alphas_router.post("/alphas/{alpha_id}/revalidate")
+def post_alpha_revalidate(alpha_id: str, apply: bool = False):
+    """Kiểm lại alpha trong kho bằng engine hiện hành theo cổng phễu (WFA dev2 -> hệ số s qua MC -> holdout) — job nền alpha_revalidate.
+    apply=true: ghi status (validated / retired) vào registry; retired -> cấu hình testnet chuyển sang testnet/_retired/."""
+    reg = _read_json(os.path.join(alphas_dir(), "registry.json")) or {}
+    if not any(a.get("alpha_id") == alpha_id for a in reg.get("alphas") or []):
+        raise HTTPException(404, f"không có alpha {alpha_id} trong registry.json")
+    return batch_jobs.http_launch("alpha_revalidate", {"alpha_id": alpha_id, "apply": bool(apply)})
 
 
 def _launch(kind: str, params: Dict[str, Any]) -> Dict[str, str]:
@@ -402,20 +415,24 @@ def post_mc(req: McRequest):
         if job.get("status") != "done" or not job.get("result"):
             raise HTTPException(409, f"job WFA chưa xong (trạng thái {job.get('status')})")
         custom = custom or bool(job.get("custom_gates"))   # nguồn đã dùng gate tuỳ chỉnh -> kết quả cũng không promote được
-        daily = (((job["result"].get("summary") or {}).get("oos_daily")) or {}).get(req.basis) or []
+        summary = job["result"].get("summary") or {}
+        daily = (summary.get("oos_daily") or {}).get(req.basis) or []
+        shock = summary.get("shock")   # WFA ghi vị thế ngược chiều lớn nhất -> thêm kịch bản trend thẳng đứng
         source = {"kind": "wfa", "job_id": req.wfa_job_id, "basis": req.basis}
     else:
-        daily, source = req.daily_returns, {"kind": "daily_returns"}
+        daily, source, shock = req.daily_returns, {"kind": "daily_returns"}, None
         # kiểm ở đây (không trong validator pydantic): lỗi validator kèm đầu vào NaN làm FastAPI không dựng được phản hồi 422
         if not all(math.isfinite(x) and x > -1.0 for x in daily):
             raise HTTPException(422, "daily_returns phải hữu hạn và > -1 (-100%)")
     if len(daily) < MC_MIN_DAYS:
         raise HTTPException(422, f"cần >= {MC_MIN_DAYS} lợi suất ngày (có {len(daily)})")
+    if shock and cfg["stress"] is not None and not set(STRESS_VERTICAL) <= set(cfg["stress"]):
+        custom = True   # nguồn biết vị thế mà bỏ kịch bản trend thẳng đứng -> gate không chuẩn
     extra = cfg["extra_cost_daily_pct"]
     out = run_monte_carlo_daily_detail(daily, simulations=cfg["simulations"], block_days=cfg["block_days"], horizon_days=cfg["horizon_days"],
                                        ruin_threshold_pct=cfg["ruin_threshold_pct"], seed=cfg["seed"], scale=cfg["scale"],
                                        max_ruin_pct=MC_RUIN_MAX_PCT, stress_max_mdd_pct=cfg["stress_max_mdd_pct"],
-                                       extra_cost_daily=None if extra is None else extra / 100.0)
+                                       extra_cost_daily=None if extra is None else extra / 100.0, shock=shock)
     if cfg["stress"] is not None:   # tập con kịch bản cực xấu: lọc + tính lại gate trên đúng tập đó
         keep = set(cfg["stress"])
         out["stress"] = [r for r in out["stress"] if r["name"] in keep]

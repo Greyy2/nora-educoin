@@ -249,7 +249,7 @@ function StepBacktest({ cat, strats, form, setForm, btId, bt, onLaunched, onNext
 function StepWfa({ cat, strats, form, setForm, wfaId, wfa, onLaunched, onNext }) {
   const mode = form.mode
   const adv = mode === 'advanced'
-  const [f, setF] = useState({ train: WFA_STD.train_days, test: WFA_STD.test_days, kind: 'fixed', n: 3, start: form.start, end: form.end, step: '', sims: '', mcSeed: '' })
+  const [f, setF] = useState({ train: WFA_STD.train_days, test: WFA_STD.test_days, kind: 'fixed', n: 3, start: form.start, end: form.end, step: '', sims: '', mcSeed: '', regime: 'off' })
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(null)
   const [runErr, setRunErr] = useState(null)
@@ -306,7 +306,7 @@ function StepWfa({ cat, strats, form, setForm, wfaId, wfa, onLaunched, onNext })
   async function run() {
     setErr(null); setRunErr(null)
     if (reason) return setErr(`${reason}.`)
-    const body = { mode, start: f.start, end: f.end, symbols: form.symbols, timeframe: form.timeframe || '15m' }
+    const body = { mode, start: f.start, end: f.end, symbols: form.symbols, timeframe: form.timeframe || '15m', regime: f.regime || 'off' }
     if (adv) {
       Object.assign(body, { train_days: Number(f.train), test_days: Number(f.test), risk_per_trade_pct: Number(form.risk) })
       if (WFA_SCHEMA_KEYS_SUPPORTED) {
@@ -372,6 +372,10 @@ function StepWfa({ cat, strats, form, setForm, wfaId, wfa, onLaunched, onNext })
           ) : (
             <div className="n-field"><span className="n-lbl"><LockIcon /> Cách chọn tham số</span><div className="n-locked-v">Preset cố định (WFA chỉ kiểm tra OOS cuốn chiếu)</div></div>
           )}
+          <div className="n-field"><span className="n-lbl">Lọc theo regime</span>
+            <Segmented label="Lọc theo regime" value={f.regime || 'off'} onChange={(regime) => set({ regime })}
+              options={[{ value: 'off', label: 'Tắt' }, { value: 'learn', label: 'Học trên train' }]} />
+          </div>
           {adv && f.kind === 'reselect' && (
             <div style={{ width: 150 }}><Field id="wf-n" label="Số cấu hình mỗi chiến lược"><input id="wf-n" type="number" min="1" max="50" className="n-in" value={f.n} onChange={(e) => set({ n: e.target.value })} /></Field></div>
           )}

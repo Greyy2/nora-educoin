@@ -647,3 +647,36 @@ def test_sigterm_right_after_commit_exits_cleanly(tmp_path):
     assert dict(store.metrics_of(["a1"], "S1_backtest"))["a1"]["ret_pct"] == 1.0
     store.close()
 
+
+
+def test_regime_both_variants_are_separate_trials_and_learn_on_train(small_book, lenient, monkeypatch):
+    """P2.7: regime="both" -> mỗi bộ tham số thành 2 alpha (off + learn) -> DSR/PBO đếm N = tổng số biến thể. Biến thể learn học bảng regime
+    trên cửa sổ HỌC: S1 = chính dev1 (trong mẫu, đã là một lần thử), WFA OOS = train của fold, holdout = toàn bộ trước holdout."""
+    from backend.optimize.funnel import evaluate as bt
+    from backend.optimize.funnel import orchestrator as orch
+    seen = []
+    orig = bt.learned_regime
+
+    def spy(job):
+        seen.append((tuple(job["window"]), tuple(job.get("learn_window") or job["window"])))
+        return orig(job)
+    monkeypatch.setattr(bt, "learned_regime", spy)
+    res = orch.run_funnel(_cfg(regime="both"), run_id="fr-test-regime", workers=0, log=lambda s: None, until="S3_wfa")
+    store = RunStore(res["run_dir"], read_only=True)
+    try:
+        c = {x["stage"]: x for x in store.stage_counts()}
+        assert c["S0_generate"]["passed"] + c["S0_generate"]["rejected"] == 6
+        learn = [a for a, _, m, _ in store.iter_stage_metrics("S1_backtest") if store.get_alpha(a)["params"].get("regime") == "learn"]
+        off = [a for a, _, m, _ in store.iter_stage_metrics("S1_backtest") if "regime" not in store.get_alpha(a)["params"]]
+        assert len(learn) == 3 and len(off) == 3
+        m1 = store.metrics_of(learn, "S1_backtest")
+        assert all(isinstance(m1[a]["regime_blocked"], list) for a in learn)
+        assert all("regime_blocked" not in m for m in store.metrics_of(off, "S1_backtest").values())
+        m2 = store.metrics_of(learn + off, "S2_antiluck")
+        assert {m["n_trials"] for m in m2.values()} == {6}                      # cả 2 biến thể là lần thử
+        windows = store.read_run()["windows_ms"]
+    finally:
+        store.close()
+    folds = {tuple(f["test"]): tuple(f["train"]) for f in bt.fold_job_plan(orch.wfa_folds(windows, 5, 4))}
+    oos = [(w, lw) for w, lw in seen if w in folds]
+    assert oos and all(lw == folds[w] and lw[1] <= w[0] for w, lw in oos)    # OOS chỉ học trên train của fold

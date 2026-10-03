@@ -671,3 +671,18 @@ td .n-resolved-b { min-width: 320px; }
 .n-tabs a { padding: 8px 14px; font-size: 13px; color: var(--n-ink-2); border-bottom: 2px solid transparent; margin-bottom: -1px; }
 .n-tabs a.on { color: var(--n-ink); border-bottom-color: var(--n-accent); font-weight: 600; }
 .n-tabs a:hover { color: var(--n-ink); }
+
+/* Regime thị trường (RegimePanel) — màu theo token chủ đề, đúng cả sáng/tối */
+.n-rgbar { position: relative; height: 14px; border-radius: 4px; background: var(--n-surface-3); overflow: hidden; }
+.n-rgbar > span { position: absolute; top: 0; bottom: 0; }
+.n-rgchip { display: inline-block; padding: 1px 8px; border-radius: 6px; font-size: 12px; font-weight: 600; color: var(--n-bg); white-space: nowrap; }
+.n-rglegend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; font-size: 12px; color: var(--n-ink-2); }
+.n-rglegend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.n-rg-UNKNOWN { background: var(--n-line); }
+.n-rg-RANGE { background: var(--n-ink-3); }
+.n-rg-TREND_UP { background: var(--n-pos); }
+.n-rg-TREND_DOWN { background: var(--n-neg); }
+.n-rg-VOL_EXPANSION { background: var(--n-info); }
+.n-rg-SURGE { background: var(--n-teal); }
+.n-rg-CRASH { background: var(--n-accent); }
+.n-btn.sm.on { border-color: var(--n-accent); color: var(--n-accent); }

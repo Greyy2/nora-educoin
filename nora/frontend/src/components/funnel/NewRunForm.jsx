@@ -29,6 +29,7 @@ export default function NewRunForm({ cat, runs, onLaunched, onCancel }) {
   const [n, setN] = useState(1000)
   const [seed, setSeed] = useState(42)
   const [timeframe, setTimeframe] = useState('15m')   // khung chạy (nến mô phỏng): 15m / 1h / 4h
+  const [regime, setRegime] = useState('off')          // off | learn | both (mỗi biến thể là một alpha -> DSR/PBO đếm đủ)
   const [symbols, setSymbols] = useState(universe)
   const [winMode, setWinMode] = useState('default')
   const w0 = cat?.windows || {}
@@ -43,18 +44,18 @@ export default function NewRunForm({ cat, runs, onLaunched, onCancel }) {
   const total = mode === 'full' ? chosen.reduce((s, c) => s + gridSize(c), 0) : chosen.length * (Number(n) || 0)
   const est = useMemo(() => estimate(total, runs), [total, runs])
   const selKey = sel.join(',')
-  useEffect(() => { setConfirming(false) }, [selKey, mode, n, seed, timeframe, symbols, winMode, win])
+  useEffect(() => { setConfirming(false) }, [selKey, mode, n, seed, timeframe, regime, symbols, winMode, win])
   // ước tính do máy chủ (đo thực): gọi lại sau 400 ms kể từ lần chỉnh cuối
   useEffect(() => {
     if (!chosen.length || (mode === 'n' && !(Number(n) >= 1))) { setSrvEst({ state: 'idle', data: null, error: null }); return undefined }
     setSrvEst((x) => ({ ...x, state: 'loading' }))
     let dead = false
     const t = setTimeout(() => {
-      getFunnelEstimate({ strategies: sel, nPerStrategy: Number(n), fullGrid: mode === 'full', workers: 6, timeframe })
+      getFunnelEstimate({ strategies: sel, nPerStrategy: Number(n), fullGrid: mode === 'full', workers: 6, timeframe, regime })
         .then((d) => { if (!dead) setSrvEst({ state: 'ok', data: d, error: null }) }, (e) => { if (!dead) setSrvEst({ state: 'error', data: null, error: e.message }) })
     }, 400)
     return () => { dead = true; clearTimeout(t) }
-  }, [selKey, mode, n, timeframe]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selKey, mode, n, timeframe, regime]) // eslint-disable-line react-hooks/exhaustive-deps
   const srv = srvEst.state === 'ok' ? srvEst.data : null
   const totalShown = srv ? srv.total_alphas : total
   const winOk = winMode === 'default' || (win.start && win.dev1_end && win.dev2_end && win.end && win.start < win.dev1_end && win.dev1_end < win.dev2_end && win.dev2_end < win.end)
@@ -72,7 +73,7 @@ export default function NewRunForm({ cat, runs, onLaunched, onCancel }) {
     if (reason) return setErr(reason)
     setBusy(true)
     try {
-      const body = { strategies: sel, seed: Number(seed), symbols, timeframe }
+      const body = { strategies: sel, seed: Number(seed), symbols, timeframe, regime }
       if (mode === 'full') body.full_grid = true
       else body.n_per_strategy = Number(n)
       if (winMode === 'custom') body.windows = win
@@ -142,6 +143,12 @@ export default function NewRunForm({ cat, runs, onLaunched, onCancel }) {
               options={[{ value: '15m', label: '15 phút' }, { value: '1h', label: '1 giờ' }, { value: '4h', label: '4 giờ' }]} />
             <p className="n-note" style={{ marginTop: 8 }}>Nến dùng để mô phỏng khớp lệnh. Khung tín hiệu của mọi alpha được sinh ≥ khung này
               (nhỏ hơn thì nâng lên); chiến lược không có khung tín hiệu đủ lớn sẽ bị từ chối.</p>
+          </Panel>
+          <Panel title={<>Regime</>}>
+            <Segmented label="Regime" value={regime} onChange={setRegime}
+              options={[{ value: 'off', label: 'Tắt' }, { value: 'learn', label: 'Học trên train' }, { value: 'both', label: 'Cả hai' }]} />
+            <p className="n-note" style={{ marginTop: 8 }}>Học trên train: mỗi alpha chặn các regime mà nó lỗ trên dữ liệu học (WFA học trên train
+              của từng fold). Cả hai: mỗi bộ tham số chạy hai biến thể — số alpha gấp đôi và DSR/PBO đếm đủ số lần thử.</p>
           </Panel>
           <Panel title={<>Cửa sổ dữ liệu</>}>
             <Segmented label="Cửa sổ dữ liệu" value={winMode} onChange={setWinMode} options={[{ value: 'default', label: 'Mặc định' }, { value: 'custom', label: 'Tuỳ chỉnh' }]} />

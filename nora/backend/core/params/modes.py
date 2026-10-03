@@ -12,7 +12,10 @@ MAX_STRATEGIES = 9                 # số chiến lược lõi (strategy.book.CA
 DEFAULT_TRAIN_DAYS, DEFAULT_TEST_DAYS = 120, 30   # fold mặc định của WFA (validate_book)
 STANDARD_MC_SIMULATIONS = 10_000    # = carlo.monte_carlo.MC_MIN_SIMULATIONS
 STANDARD_MC = {"block_days": 5, "horizon_days": 365, "ruin_threshold_pct": 30.0, "seed": 7, "scale": 1.0}
-STRESS_NAMES = ("worst_days_first", "reversed_order", "crash_day", "cost_x2", "longest_losing_streak_x2", "worst_bootstrap")
+# 6 kịch bản luôn có + 3 kịch bản trend thẳng đứng (chỉ có khi nguồn biết vị thế, vd. WFA — carlo.vertical_exposure)
+STRESS_BASE = ("worst_days_first", "reversed_order", "crash_day", "cost_x2", "longest_losing_streak_x2", "worst_bootstrap")
+STRESS_VERTICAL = ("vertical_surge", "vertical_crash", "vertical_chain")
+STRESS_NAMES = STRESS_BASE + STRESS_VERTICAL
 
 FieldError = Tuple[str, str]       # (trường, thông báo)
 
@@ -117,8 +120,9 @@ def common_risk(items: List[Tuple[str, Dict[str, Any]]], override: Optional[floa
 
 def mc_standard(simulations: int, ruin_threshold_pct: float, stress_max_mdd_pct: float, stress: Optional[List[str]],
                 standard_stress_max_mdd_pct: float) -> bool:
-    """True nếu cấu hình MC là gate CHUẨN (>= 10.000 kịch bản, ngưỡng cháy 30%, MDD cực xấu chuẩn, đủ 6 kịch bản cực xấu)."""
-    full_set = stress is None or set(stress) == set(STRESS_NAMES)
+    """True nếu cấu hình MC là gate CHUẨN (>= 10.000 kịch bản, ngưỡng cháy 30%, MDD cực xấu chuẩn, đủ 6 kịch bản cực xấu cơ bản).
+    Bỏ kịch bản trend thẳng đứng khi nguồn có vị thế -> API /mc tự gắn custom (chỉ ở đó mới biết nguồn)."""
+    full_set = stress is None or set(STRESS_BASE) <= set(stress)
     return (simulations >= STANDARD_MC_SIMULATIONS and float(ruin_threshold_pct) == STANDARD_MC["ruin_threshold_pct"]
             and float(stress_max_mdd_pct) == float(standard_stress_max_mdd_pct) and full_set)
 
