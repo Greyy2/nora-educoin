@@ -1,6 +1,6 @@
 {
  "version": 1,
- "generated_at": 1791021494979,
+ "generated_at": 1791033206780,
  "presets": {
   "trend_long": {
    "params": {
@@ -8,13 +8,13 @@
     "sig.ema_fast": 50,
     "sig.ema_slow": 200,
     "sig.adx_n": 14,
-    "sig.adx_min": 25,
+    "sig.adx_min": 30,
     "sig.entry_tf": "15m",
     "sig.dch_n": 20,
     "stop_loss_rate": 3.5,
     "take_profit_rate": 0.0,
     "trailing_stop": 4.5,
-    "trailing_activation_pct": 0.0,
+    "trailing_activation_pct": 1.0,
     "timeout": 0,
     "cooldown": 60,
     "atr_frame": "1h",
@@ -24,45 +24,25 @@
     "leverage": 10
    },
    "timeframe": "15m",
-   "source": "build 20261003_035715 stage A top-1 dev1 (chưa kiểm chứng dev2)",
+   "source": "build 20261003_035715 stage A bền vững dev1 (điểm cùng lân cận)",
    "source_kind": "stage_a",
    "evidence": {
     "stage": "dev1",
     "run": "20261003_035715",
     "timeframe": "15m",
     "dev1_tried": 108,
-    "dev2_verified": false,
-    "score": 1.9882,
+    "score": 1.5653,
+    "robust_score": 1.2936,
     "dev1": {
-     "ret_pct": 45.67,
-     "mdd_pct": 22.97,
-     "sharpe": 1.27,
-     "trades": 601,
-     "win_pct": 40.6,
+     "ret_pct": 32.12,
+     "mdd_pct": 20.52,
+     "sharpe": 1.1,
+     "trades": 510,
+     "win_pct": 39.2,
      "symbols_positive": 7,
      "halted_at": null
     },
-    "accepted": false,
-    "stability": "0/3",
-    "dev2_pass": false,
-    "dev2_level": {
-     "ret_pct": -8.14,
-     "mdd_pct": 24.25,
-     "sharpe": -0.15,
-     "trades": 496,
-     "win_pct": 35.1,
-     "symbols_positive": 3,
-     "halted_at": null
-    },
-    "dev2_extreme": {
-     "ret_pct": -31.45,
-     "mdd_pct": 36.47,
-     "sharpe": -1.06,
-     "trades": 496,
-     "win_pct": 33.1,
-     "symbols_positive": 3,
-     "halted_at": null
-    }
+    "dev2_verified": null
    }
   },
   "trend_short": {
@@ -77,7 +57,7 @@
     "stop_loss_rate": 3.5,
     "take_profit_rate": 0.0,
     "trailing_stop": 4.5,
-    "trailing_activation_pct": 0.0,
+    "trailing_activation_pct": 1.0,
     "timeout": 0,
     "cooldown": 60,
     "atr_frame": "1h",
@@ -87,24 +67,25 @@
     "leverage": 10
    },
    "timeframe": "15m",
-   "source": "build 20261003_035715 stage A top-1 dev1 (chưa kiểm chứng dev2)",
+   "source": "build 20261003_035715 stage A bền vững dev1 (điểm cùng lân cận)",
    "source_kind": "stage_a",
    "evidence": {
     "stage": "dev1",
     "run": "20261003_035715",
     "timeframe": "15m",
     "dev1_tried": 108,
-    "dev2_verified": false,
-    "score": 0.0288,
+    "score": 0.0283,
+    "robust_score": 0.0109,
     "dev1": {
-     "ret_pct": 0.61,
-     "mdd_pct": 21.18,
+     "ret_pct": 0.6,
+     "mdd_pct": 21.19,
      "sharpe": 0.12,
      "trades": 431,
      "win_pct": 36.7,
      "symbols_positive": 5,
      "halted_at": null
     },
+    "dev2_verified": false,
     "accepted": false,
     "stability": "0/3",
     "dev2_pass": false,
@@ -264,15 +245,15 @@
     "leverage": 10
    },
    "timeframe": "15m",
-   "source": "build 20261003_035715 stage A top-1 dev1 (chưa kiểm chứng dev2)",
+   "source": "build 20261003_035715 stage A bền vững dev1 (điểm cùng lân cận)",
    "source_kind": "stage_a",
    "evidence": {
     "stage": "dev1",
     "run": "20261003_035715",
     "timeframe": "15m",
     "dev1_tried": 81,
-    "dev2_verified": false,
     "score": 13.9498,
+    "robust_score": 11.7802,
     "dev1": {
      "ret_pct": 211.06,
      "mdd_pct": 15.13,
@@ -282,6 +263,7 @@
      "symbols_positive": 8,
      "halted_at": null
     },
+    "dev2_verified": false,
     "accepted": false,
     "stability": "0/3",
     "dev2_pass": false,
@@ -349,15 +331,15 @@
     "leverage": 10
    },
    "timeframe": "15m",
-   "source": "build 20261003_035715 stage A top-1 dev1 (chưa kiểm chứng dev2)",
+   "source": "build 20261003_035715 stage A bền vững dev1 (điểm cùng lân cận)",
    "source_kind": "stage_a",
    "evidence": {
     "stage": "dev1",
     "run": "20261003_035715",
     "timeframe": "15m",
     "dev1_tried": 108,
-    "dev2_verified": false,
     "score": 1.9307,
+    "robust_score": 0.9532,
     "dev1": {
      "ret_pct": 56.26,
      "mdd_pct": 29.14,
@@ -367,6 +349,7 @@
      "symbols_positive": 7,
      "halted_at": null
     },
+    "dev2_verified": false,
     "accepted": false,
     "stability": "0/3",
     "dev2_pass": false,
@@ -400,7 +383,7 @@
     "sig.regime_tf": "1h",
     "sig.er_n": 20,
     "sig.er_max": 0.3,
-    "stop_loss_rate": 1.5,
+    "stop_loss_rate": 2.5,
     "take_profit_rate": 0.75,
     "trailing_stop": 0.0,
     "trailing_activation_pct": 0.0,
@@ -413,42 +396,43 @@
     "leverage": 10
    },
    "timeframe": "15m",
-   "source": "build 20261003_035715 stage A top-1 dev1 (chưa kiểm chứng dev2)",
+   "source": "build 20261003_035715 stage A bền vững dev1 (điểm cùng lân cận)",
    "source_kind": "stage_a",
    "evidence": {
     "stage": "dev1",
     "run": "20261003_035715",
     "timeframe": "15m",
     "dev1_tried": 144,
-    "dev2_verified": false,
-    "score": 0.1625,
+    "score": 0.0498,
+    "robust_score": 0.0362,
     "dev1": {
-     "ret_pct": 3.28,
-     "mdd_pct": 20.19,
-     "sharpe": 0.32,
-     "trades": 651,
-     "win_pct": 69.3,
+     "ret_pct": 0.77,
+     "mdd_pct": 15.47,
+     "sharpe": 0.12,
+     "trades": 649,
+     "win_pct": 72.3,
      "symbols_positive": 5,
      "halted_at": null
     },
+    "dev2_verified": false,
     "accepted": false,
     "stability": "0/3",
     "dev2_pass": false,
     "dev2_level": {
-     "ret_pct": -27.81,
-     "mdd_pct": 30.27,
-     "sharpe": -2.11,
-     "trades": 782,
-     "win_pct": 60.5,
+     "ret_pct": -19.94,
+     "mdd_pct": 21.51,
+     "sharpe": -1.83,
+     "trades": 776,
+     "win_pct": 63.9,
      "symbols_positive": 0,
      "halted_at": null
     },
     "dev2_extreme": {
-     "ret_pct": -50.11,
-     "mdd_pct": 50.81,
-     "sharpe": -3.29,
-     "trades": 782,
-     "win_pct": 60.5,
+     "ret_pct": -31.37,
+     "mdd_pct": 32.5,
+     "sharpe": -2.46,
+     "trades": 776,
+     "win_pct": 63.9,
      "symbols_positive": 0,
      "halted_at": null
     }

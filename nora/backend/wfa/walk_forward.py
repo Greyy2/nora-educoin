@@ -198,16 +198,18 @@ def plan_oos_jobs(chosen, folds, symbols, risk, rpt, shared_dir, base_frame="1m"
     return keys, jobs
 
 
-def plan_regime_jobs(chosen, folds, symbols, risk, rpt, shared_dir, base_frame="1m"):
-    """regime="learn": mỗi fold chạy lại các cấu hình đã chọn trên TRAIN (kill switch tắt như IS) ở chế độ quan sát regime
-    -> lãi/lỗ theo (chiến lược, regime). Khoá = fold."""
+def plan_regime_jobs(chosen, folds, symbols, risk, rpt, shared_dir, base_frame="1m", learn_from=None):
+    """regime="learn": mỗi fold chạy lại các cấu hình đã chọn trên cửa sổ HỌC (kill switch tắt như IS) ở chế độ quan sát regime
+    -> lãi/lỗ theo (chiến lược, regime). Cửa sổ học = [learn_from, train_end] (mở rộng: thêm mẫu, vẫn kết thúc trước test);
+    learn_from=None -> đúng cửa sổ train của fold. Khoá = fold."""
     from backend.core.regime.learn import OBSERVE
     is_risk = {**risk, "kill_switch_dd_pct": 0}
     keys, jobs = [], []
     for fi, fold in enumerate(folds):
         if chosen[fi]:
             keys.append(fi)
-            jobs.append(BacktestJob(chosen[fi], (fold["train_start_ts"], fold["train_end_ts"]), "level", is_risk, rpt, symbols, shared_dir,
+            lo = fold["train_start_ts"] if learn_from is None else min(int(learn_from), fold["train_start_ts"])
+            jobs.append(BacktestJob(chosen[fi], (lo, fold["train_end_ts"]), "level", is_risk, rpt, symbols, shared_dir,
                                     base_frame, {cid: OBSERVE for cid, _ in chosen[fi]}))
     return keys, jobs
 
@@ -281,9 +283,10 @@ def evaluate_gate(summary: Dict[str, Any]) -> Dict[str, Any]:
 
 # ── Chạy ────────────────────────────────────────────────────────────────────
 def run_portfolio_wfa(candidates, symbols, start_ts, end_ts, cfg, risk, risk_per_trade_pct, workers, shared_root,
-                      store=None, progress=None, base_frame="1m", regime="off") -> Dict[str, Any]:
+                      store=None, progress=None, base_frame="1m", regime="off", regime_learn_from=None) -> Dict[str, Any]:
     """candidates = [{"id": candidate_id, "configs": [params...]}]; cfg: PortfolioWfaConfig hoặc dict.
-    regime: "off" (mặc định, như trước) | "learn": mỗi fold học bảng regime ↔ chiến lược trên TRAIN (core/regime/learn.py) rồi áp lên test.
+    regime: "off" (mặc định, như trước) | "learn": mỗi fold học bảng regime ↔ chiến lược trên TRAIN (core/regime/learn.py) rồi áp lên test;
+    regime_learn_from (ms, tuỳ chọn): học trên cửa sổ mở rộng [regime_learn_from, train_end] thay vì chỉ train của fold.
     risk: dict RiskConfig dùng cho OOS (kill switch BẬT); IS tự tắt kill switch. Trả dict kết quả (xem aggregate_folds).
     store/progress (tuỳ chọn, backend/optimize): ghi từng kết quả job vào kho + bỏ qua job đã có (--resume) + tiến độ."""
     cfg = cfg if isinstance(cfg, PortfolioWfaConfig) else PortfolioWfaConfig.from_dict(cfg)
@@ -321,7 +324,7 @@ def run_portfolio_wfa(candidates, symbols, start_ts, end_ts, cfg, risk, risk_per
     regime_maps, train_regime = None, {}
     if regime == "learn":
         from backend.core.regime.learn import learn_map
-        rg_keys, rg_jobs = plan_regime_jobs(chosen, folds, symbols, risk, rpt, shared_root, base_frame)
+        rg_keys, rg_jobs = plan_regime_jobs(chosen, folds, symbols, risk, rpt, shared_root, base_frame, regime_learn_from)
         if progress is not None:
             progress.start_stage("WFA-REGIME", len(rg_jobs))
         rg_res = _pool_shared(rg_jobs, workers, f"[WFA-REGIME] {len(rg_jobs)} job", shared_root, store, "wfa_regime", progress) if rg_jobs else []
@@ -382,6 +385,7 @@ def run_portfolio_wfa(candidates, symbols, start_ts, end_ts, cfg, risk, risk_per
     return {
         "config": asdict(cfg), "risk": risk, "risk_per_trade_pct": rpt, "symbols": symbols,
         **({"regime": regime} if regime != "off" else {}),
+        **({"regime_learn_from": _date(regime_learn_from)} if regime != "off" and regime_learn_from else {}),
         "window": [_date(start_ts), _date(end_ts)], "candidates": [{"id": c["id"], "configs": c["configs"]} for c in candidates],
         "folds": fold_records, "summary": summary, "gate": gate,
         "aggregate": summary, "mc": summary["mc"],   # tên theo docs/ui_contract.md §4 (cùng đối tượng với summary / summary.mc)

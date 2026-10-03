@@ -253,18 +253,15 @@ CANDIDATES: List[Dict[str, Any]] = [
 ]
 
 
-# Regime được phép vào lệnh + cầu chì (core/regime/classifier.py). Chỉ áp khi bật regime (materialize(..., regime=True));
-# tắt -> chiến lược y như cũ (golden bất biến). Cầu chì: LONG gặp CRASH / SHORT gặp SURGE -> thoát ngay, không vào mới.
+# Regime cho phép vào lệnh (core/regime/classifier.py). Chỉ áp khi bật regime (materialize(..., regime=True)); tắt -> chiến lược y như cũ
+# (golden bất biến). Dạng "CHẶN NGƯỢC CHIỀU": LONG không vào khi TREND_DOWN / CRASH, SHORT không vào khi TREND_UP / SURGE; mọi regime khác được vào.
+# Cầu chì TẮT: chiến lược lõi đều có cắt lỗ theo rủi ro (MC trend thẳng đứng: lỗ tối đa ~6% vốn); sau CRASH giá thường hồi nên cầu chì cắt LONG ở
+# đáy. Bảng "chỉ cho vào ở regime X" cũ (+ cầu chì) bị dữ liệu thật bác bỏ: sổ +29,6% -> −26,0%; bảng tĩnh chỉ cho vào 8–12% lệnh lãi của chiến
+# lược xu hướng vì nhãn xu hướng 4h đến muộn hơn điểm phá vỡ (test/scripts/research_regime_diagnosis.py, roadmap P2.4).
+REGIME_DENY: Dict[str, List[str]] = {"LONG": ["TREND_DOWN", "CRASH"], "SHORT": ["TREND_UP", "SURGE"]}
+_REGIME_NAMES = ("UNKNOWN", "RANGE", "TREND_UP", "TREND_DOWN", "VOL_EXPANSION", "SURGE", "CRASH")   # = classifier.NAMES
 REGIME_MAP: Dict[str, Dict[str, Any]] = {
-    "trend_long": {"allowed": ["TREND_UP", "SURGE"], "fuse": True},
-    "trend_short": {"allowed": ["TREND_DOWN", "CRASH"], "fuse": True},
-    "breakout_4h_long": {"allowed": ["TREND_UP", "VOL_EXPANSION", "SURGE"], "fuse": True},
-    "breakout_4h_short": {"allowed": ["TREND_DOWN", "VOL_EXPANSION", "CRASH"], "fuse": True},
-    "momentum_long": {"allowed": ["TREND_UP", "SURGE"], "fuse": True},
-    "keltner_trend_long": {"allowed": ["TREND_UP", "VOL_EXPANSION", "SURGE"], "fuse": True},
-    "keltner_trend_short": {"allowed": ["TREND_DOWN", "VOL_EXPANSION", "CRASH"], "fuse": True},
-    "reversion_long": {"allowed": ["RANGE"], "fuse": True},
-    "reversion_short": {"allowed": ["RANGE"], "fuse": True},
+    c["id"]: {"allowed": [r for r in _REGIME_NAMES if r not in REGIME_DENY[c["side"]]], "fuse": False} for c in CANDIDATES
 }
 
 

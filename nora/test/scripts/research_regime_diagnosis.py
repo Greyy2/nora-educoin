@@ -5,6 +5,9 @@
   C. Độ trễ nhãn: lệnh lãi của chiến lược xu hướng vào ở regime nào, 12 h sau là regime nào
   D. Luật học có giữ được ngoài mẫu không: học trên dev1, đo trên dev2 (cùng chiến lược, regime): tỉ lệ quyết định chặn đúng dấu
   E. Danh mục dev2: tắt vs bảng học trên dev1 (ngoài mẫu thật)
+  F. Lãi/lỗ từng chiến lược dev1 -> dev2 (không regime): chiến lược có edge ngoài mẫu không
+  G. So hồ sơ nhãn "slow" (xu hướng 4h, xác nhận 180 phút) và "fast" (1h, 60 phút) cho C, D và bảng chặn ngược chiều
+  H. Tiêu chí P2.4 (viết lại): trên dev2 (ngoài mẫu), lãi trung bình/lệnh trong regime ĐƯỢC PHÉP > trong regime BỊ CHẶN, ở >= 2/3 chiến lược
 
 Dùng (từ nora/): backend/utils/ops/run_limited.sh -- test/scripts/research_regime_diagnosis.py [--out FILE]
 """
@@ -147,6 +150,53 @@ def main():
     print("[F] lãi/lỗ từng chiến lược dev1 -> dev2 (không regime):", flush=True)
     for cid, v in rep["F_edge_dev1_vs_dev2"].items():
         print(f"  {cid:20s} {v['dev1_pnl']:9.2f} -> {v['dev2_pnl']:9.2f}", flush=True)
+
+    print("[G/H] hồ sơ nhãn slow vs fast", flush=True)
+    rep["G_profiles"] = {}
+    for prof in ("slow", "fast"):
+        cfg = rg.PROFILES[prof]
+        lab = {}
+        for sym in symbols:
+            s_ = rg.series(sym, S - WARMUP, E, base_frame=TF, cfg=cfg)
+            lab[sym] = {"t": s_["t"], "labels": s_["labels"]}
+        deny = lambda cid, prof=prof: {**REGIME_MAP[cid], "classifier": prof}  # noqa: E731
+        full = bt(items, symbols, S, E, rpt, deny)
+        dv2 = bt(items, symbols, w["dev1_end"], w["dev2_end"], rpt, deny)
+        hol = bt(items, symbols, w["dev2_end"], E, rpt, deny)
+        # C: tỉ lệ lệnh lãi (toàn kỳ, tắt regime) rơi vào regime được phép
+        win_ok = {}
+        for cid in ids:
+            wins = [t for t in A["off"]["trade_list"] if t["strategy"] == cid and t["pnl"] > 0]
+            ok = sum(1 for t in wins if trade_regime(lab[t["symbol"]]["t"], lab[t["symbol"]]["labels"], t["enter_time"]) in REGIME_MAP[cid]["allowed"])
+            win_ok[cid] = round(100 * ok / max(1, len(wins)), 1)
+        # D: độ bền dấu (dev1 -> dev2) với luật chặt + luật cũ
+        s1, s2 = by_regime(d1["trade_list"], lab), by_regime(d2["trade_list"], lab)
+        pairs = [(cid, r) for cid in ids for r in rg.NAMES
+                 if (s1.get(cid) or {}).get(r, {}).get("trades", 0) >= 30 and (s2.get(cid) or {}).get(r, {}).get("trades", 0) >= 30]
+        same = sum(1 for cid, r in pairs if (s1[cid][r]["pnl_usd"] > 0) == (s2[cid][r]["pnl_usd"] > 0))
+        strict = learn_map(s1, ids)
+        lrn2 = bt(items, symbols, w["dev1_end"], w["dev2_end"], rpt, lambda cid: ({**strict[cid], "classifier": prof} if strict.get(cid) else None))
+        # H: dev2, lãi TB/lệnh trong regime được phép vs bị chặn (bảng chặn ngược chiều), từ lệnh dev2 khi TẮT regime
+        H, better = {}, 0
+        for cid in ids:
+            al = [t["pnl"] for t in d2["trade_list"] if t["strategy"] == cid
+                  and trade_regime(lab[t["symbol"]]["t"], lab[t["symbol"]]["labels"], t["enter_time"]) in REGIME_MAP[cid]["allowed"]]
+            bl = [t["pnl"] for t in d2["trade_list"] if t["strategy"] == cid
+                  and trade_regime(lab[t["symbol"]]["t"], lab[t["symbol"]]["labels"], t["enter_time"]) not in REGIME_MAP[cid]["allowed"]]
+            ma, mb = (float(np.mean(al)) if al else None), (float(np.mean(bl)) if bl else None)
+            ok = ma is not None and mb is not None and ma > mb
+            better += ok
+            H[cid] = {"allowed_n": len(al), "allowed_avg": None if ma is None else round(ma, 3), "blocked_n": len(bl),
+                      "blocked_avg": None if mb is None else round(mb, 3), "allowed_better": ok}
+        g = {"deny_full": short(full), "deny_dev2": short(dv2), "deny_holdout": short(hol), "winners_allowed_pct": win_ok,
+             "D_pairs_30": len(pairs), "D_same_sign_pct": round(100 * same / len(pairs), 1) if pairs else None,
+             "strict_learned_dev1": {k: v["blocked"] for k, v in strict.items() if v}, "dev2_strict_learned": short(lrn2),
+             "H_dev2": H, "H_allowed_better_count": better, "H_pass": better >= (2 * len(ids) + 2) // 3}
+        rep["G_profiles"][prof] = g
+        print(f"  [{prof}] chặn ngược chiều: toàn kỳ {full['ret_pct']}% | dev2 {dv2['ret_pct']}% | holdout {hol['ret_pct']}% ; "
+              f"lệnh lãi được phép TB {round(float(np.mean(list(win_ok.values()))), 1)}% ; D(>=30 lệnh) {g['D_pairs_30']} cặp, cùng dấu "
+              f"{g['D_same_sign_pct']}% ; học chặt dev1->dev2 {lrn2['ret_pct']}% (chặn {g['strict_learned_dev1']}) ; "
+              f"H: {better}/{len(ids)} chiến lược regime được phép tốt hơn -> {'ĐẠT' if g['H_pass'] else 'TRƯỢT'}", flush=True)
     rep["wall_s"] = round(time.time() - t0, 1)
     os.makedirs(os.path.dirname(a.out), exist_ok=True)
     from backend.utils.jsonsafe import json_default

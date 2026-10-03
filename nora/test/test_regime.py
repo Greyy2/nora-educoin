@@ -140,11 +140,34 @@ def test_learn_map_blocks_only_losing_regimes_with_enough_trades():
               + [{"symbol": "A@perp", "strategy": "u", "enter_time": int(t[2]), "pnl": -1.0}] * 4)        # 4 < 5 lệnh: chưa đủ bằng chứng
     st = by_regime(trades, labels)
     assert st["s"]["RANGE"]["trades"] == 5 and st["s"]["RANGE"]["pnl_usd"] == -5.0 and st["s"]["TREND_UP"]["win_rate"] == 100.0
-    m = learn_map(st, ["s", "u", "none"])
+    assert st["s"]["RANGE"]["t_stat"] == -99.0 and st["s"]["TREND_UP"]["t_stat"] == 99.0   # lỗ đều: phương sai 0 -> t cực trị
+    assert learn_map(st, ["s"])["s"] is None                                    # mặc định cần >= 30 lệnh: 5 lệnh không đủ để chặn
+    m = learn_map(st, ["s", "u", "none"], min_trades=5)
     assert m["s"]["blocked"] == ["RANGE"] and "RANGE" not in m["s"]["allowed"] and m["s"]["fuse"] is False
     assert set(m["s"]["allowed"]) == set(rg.NAMES) - {"RANGE"}
     assert m["u"] is None and m["none"] is None                                   # không chặn gì -> không lọc
-    assert learn_map(st, ["u"], fuse=True)["u"] == {"allowed": list(rg.NAMES), "fuse": True, "blocked": []}
+    assert learn_map(st, ["u"], fuse=True, min_trades=5)["u"] == {"allowed": list(rg.NAMES), "fuse": True, "blocked": []}
+    noisy = by_regime([{"symbol": "A@perp", "strategy": "n", "enter_time": int(t[2]), "pnl": x} for x in [-5.0, 4.0, -6.0, 3.0, -1.0] * 8], labels)
+    assert noisy["n"]["RANGE"]["trades"] == 40 and -2.0 < noisy["n"]["RANGE"]["t_stat"] < 0                 # lỗ nhưng không ý nghĩa
+    assert learn_map(noisy, ["n"])["n"] is None
+
+
+def test_regime_map_is_opposite_trend_deny_list_without_fuse():
+    from backend.core.strategy.book import CANDIDATES, REGIME_DENY, REGIME_MAP
+    assert set(REGIME_MAP) == {c["id"] for c in CANDIDATES}
+    for c in CANDIDATES:
+        cfg = REGIME_MAP[c["id"]]
+        assert cfg["fuse"] is False and set(cfg["allowed"]) == set(rg.NAMES) - set(REGIME_DENY[c["side"]])
+
+
+def test_fast_profile_uses_1h_trend_features():
+    n = 4
+    vals = {("4h", "er_20"): 0.1, ("4h", "adx_14"): 10.0, ("1h", "er_20"): 0.5, ("1h", "adx_14"): 30.0, ("4h", "ema_50"): 2.0,
+            ("4h", "ema_200"): 1.0, ("1h", "ema_50"): 2.0, ("1h", "ema_200"): 1.0}
+    get = lambda fr, c: np.full(n, vals.get((fr, c), np.nan))  # noqa: E731
+    assert (rg.raw_states(get, n) == rg.RANGE).all()                             # 4h yếu -> đi ngang
+    assert (rg.raw_states(get, n, rg.PROFILES["fast"]) == rg.TREND_UP).all()    # 1h mạnh -> xu hướng tăng
+    assert rg.profile_cfg("fast")["confirm_min"] == 60 and rg.profile_cfg(None) is None
 
 
 def test_observe_regime_keeps_trades_identical(market):

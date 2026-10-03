@@ -7,9 +7,9 @@ export const modeText = (m) => (m === 'advanced' ? 'Nâng cao' : 'Cơ bản')
 export const CUSTOM_BADGE = 'Cấu hình tuỳ chỉnh — không xuất bản được'
 export const CUSTOM_REASON = 'Cổng khác chuẩn (ngưỡng, kịch bản cực xấu hoặc dưới 10.000 mô phỏng) nên kết quả chỉ để thử nghiệm: không xuất bản / promote được.'
 
-// Backend (backend/api/modes.py): WFA chỉ nhận khoá thuộc `space`; step_days / sims / mc_seed trả 422 cho tới khi cờ này bật.
-// API chưa công bố cờ, nên đây là hằng số phía giao diện: đổi thành true khi backend hỗ trợ (chỗ khác không cần sửa).
-export const WFA_SCHEMA_KEYS_SUPPORTED = false
+// Khớp backend/api/modes.py WFA_SCHEMA_KEYS_SUPPORTED (= True từ P0.3b): WFA nâng cao nhận mọi khoá của lược đồ (chu kỳ, khung)
+// cùng step_days / sims / mc_seed. Trước đây cờ phía giao diện bị bỏ quên ở false nên các ô này bị khoá dù máy chủ đã hỗ trợ.
+export const WFA_SCHEMA_KEYS_SUPPORTED = true
 export const WFA_PENDING_NOTE = 'chưa hỗ trợ ở WFA (đang làm)'
 
 export const WFA_STD = { train_days: 120, test_days: 30 }

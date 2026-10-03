@@ -3,7 +3,7 @@
 Nguồn:
   book    sổ đã chốt data/alphas/book.json (biến NORA_BOOK_PATH): tham số + bằng chứng dev1/dev2 của chiến lược trong sổ.
   stage_a lần chạy backend.optimize.book MỚI NHẤT trong data/_cache/book/ có cấu hình QUA CỔNG dev1 cho chiến lược đó:
-          cấu hình top-K qua dev2, không có thì điểm cao nhất dev1 (điểm = lãi / MDD) gắn nhãn chưa kiểm chứng.
+          cấu hình có điểm BỀN cao nhất trên dev1 (điểm = lãi / MDD, trung bình cùng lân cận lưới; xem robust_scores).
   default giá trị mặc định của params_schema ("mặc định — chưa tối ưu"), không có bằng chứng, timeframe=None.
 Có cả book lẫn stage_a: nguồn đã qua dev2 thắng; cùng mức thì bằng chứng mới hơn thắng (book: generated_at, stage_a: tên run).
 Mỗi preset ghi `timeframe` = khung chạy lúc tối ưu (dữ liệu cũ không ghi -> "1m").
@@ -96,8 +96,8 @@ def _evidence_time(preset: Dict[str, Any], book_ts: float) -> float:
 
 
 def _verified(preset: Dict[str, Any]) -> bool:
-    """Sổ chỉ chứa chiến lược đã qua dev2; stage A thì xem dev2_verified."""
-    return preset["source_kind"] == "book" or bool(preset["evidence"].get("dev2_verified"))
+    """Sổ chỉ chứa chiến lược đã qua dev2; stage A thì xem dev2_verified (chỉ khi cấu hình bền nằm trong top-K đã kiểm dev2)."""
+    return preset["source_kind"] == "book" or preset["evidence"].get("dev2_verified") is True
 
 
 # ─── Nguồn 1: book.json ─────────────────────────────────────────────────────
@@ -147,9 +147,49 @@ def _bool(v: Any) -> Optional[bool]:
     return bool(v)
 
 
+def _all_rows(run: str, cid: str, stage_a: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """MỌI cấu hình đã thử ở stage A của chiến lược (kho results.sqlite của lần dựng sổ; thiếu kho -> top-K trong stage_a.json).
+    -> [{"params", "score" (None/-inf = trượt cổng dev1), "dev1"}]."""
+    if os.path.isfile(os.path.join(run, "results.sqlite")):
+        from backend.optimize.store import ResultsStore
+        st = ResultsStore(run, read_only=True)
+        try:
+            rows = [{"params": r["params"], "score": r["score"], "dev1": r["metrics"]} for r in st.iter_rows("A", cid)]
+        finally:
+            st.close()
+        if rows:
+            return rows
+    return list(stage_a.get(cid) or [])
+
+
+def robust_scores(rows: List[Dict[str, Any]]) -> List[float]:
+    """Điểm BỀN của từng cấu hình (chỉ dùng dev1): trung bình điểm của chính nó và mọi lân cận lưới (±1 bước trên đúng một khoá, lưới dựng
+    từ các giá trị đã thử). Cấu hình trượt cổng / lân cận không có trong danh sách tính 0 — đỉnh nhọn giữa vùng trượt bị hạ điểm."""
+    from backend.optimize.funnel.antiluck import neighbours
+    def key(p):
+        return json.dumps(p, sort_keys=True)
+    space: Dict[str, List[Any]] = {}
+    for r in rows:
+        for k, v in (r.get("params") or {}).items():
+            space.setdefault(k, [])
+            if v not in space[k]:
+                space[k].append(v)
+    space = {k: sorted(v, key=lambda x: (isinstance(x, str), x)) for k, v in space.items() if len(v) > 1}
+    sc = {}
+    for r in rows:
+        v = r.get("score")
+        sc[key(r.get("params") or {})] = float(v) if isinstance(v, (int, float)) and math.isfinite(v) and v > 0 else 0.0
+    out = []
+    for r in rows:
+        pts = [r.get("params") or {}] + neighbours(space, r.get("params") or {})
+        out.append(sum(sc.get(key(p), 0.0) for p in pts) / len(pts))
+    return out
+
+
 def from_build_runs(runs_dir: str, candidates: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
-    """Duyệt các lần chạy từ MỚI tới CŨ; mỗi chiến lược lấy lần chạy mới nhất có cấu hình qua cổng dev1. Trong lần chạy đó: cấu hình
-    đầu tiên của top-K (report dev1_top) QUA dev2; không có thì cấu hình điểm cao nhất dev1, gắn nhãn chưa kiểm chứng (dev2_verified=False)."""
+    """Duyệt các lần chạy từ MỚI tới CŨ; mỗi chiến lược lấy lần chạy mới nhất có cấu hình qua cổng dev1. Chọn cấu hình qua cổng có ĐIỂM BỀN
+    (robust_scores: trung bình cùng lân cận lưới) cao nhất — CHỈ dùng dev1. Không dùng dev2 để chọn: WFA kiểm trên dev2, chọn theo dev2 là rò rỉ.
+    Kết quả dev2 của top-K (nếu cấu hình nằm trong đó) chỉ để hiển thị: dev2_verified True/False, hoặc None khi chưa có."""
     out: Dict[str, Dict[str, Any]] = {}
     if not os.path.isdir(runs_dir):
         return out
@@ -165,29 +205,25 @@ def from_build_runs(runs_dir: str, candidates: List[Dict[str, Any]]) -> Dict[str
             continue
         tf = report.get("timeframe", "1m")
         for cid in list(todo):
-            rows = _passing_rows(stage_a.get(cid) or [])
-            if not rows:
+            rows = _all_rows(run, cid, stage_a)
+            ok = [i for i, r in enumerate(rows) if _passing_rows([r])]
+            if not ok:
                 continue
+            rob = robust_scores(rows)
+            pick = max(ok, key=lambda i: rob[i])   # max ổn định: hoà -> cấu hình đứng trước
+            best = rows[pick]
             entry = (report.get("candidates") or {}).get(cid) or {}
-            rtops = entry.get("dev1_top") or []
-            top = next((t for t in rtops if _bool(t.get("dev2_pass")) is True), None)
-            verified = top is not None
-            if verified:
-                best = next((r for r in rows if r.get("params") == top.get("params")), top)
-            else:
-                best = max(rows, key=lambda r: r["score"])   # max ổn định: hoà điểm -> hàng đứng trước (thứ tự đã xếp)
-                top = next((t for t in rtops if t.get("params") == best.get("params")), None)
+            top = next((t for t in entry.get("dev1_top") or [] if t.get("params") == best.get("params")), None)
             evidence = {"stage": "dev1", "run": name, "timeframe": tf, "dev1_tried": entry.get("dev1_tried"),
-                        "dev2_verified": verified, "score": round(float(best["score"]), 4) if "score" in best else None,
-                        "dev1": _metrics(best.get("dev1"))}
-            if top is not None:   # có trong top-K: kèm kết quả dev2
+                        "score": round(float(best["score"]), 4), "robust_score": round(rob[pick], 4), "dev1": _metrics(best.get("dev1")),
+                        "dev2_verified": _bool(top.get("dev2_pass")) if top is not None else None}
+            if top is not None:   # có trong top-K: kèm kết quả dev2 (chỉ hiển thị)
                 evidence.update(accepted=_bool(entry.get("accepted")), stability=entry.get("stability"),
                                 dev2_pass=_bool(top.get("dev2_pass")), dev2_level=_metrics(top.get("dev2_level")),
                                 dev2_extreme=_metrics(top.get("dev2_extreme")))
             out[cid] = {
                 "params": _clean_params(by_id[cid], best.get("params") or {}), "timeframe": tf,
-                "source": f"build {name} stage A " + ("qua dev2" if verified else "top-1 dev1 (chưa kiểm chứng dev2)"),
-                "source_kind": "stage_a", "evidence": evidence,
+                "source": f"build {name} stage A bền vững dev1 (điểm cùng lân cận)", "source_kind": "stage_a", "evidence": evidence,
             }
             todo.remove(cid)
     return out

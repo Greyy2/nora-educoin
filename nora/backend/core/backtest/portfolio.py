@@ -190,8 +190,9 @@ class PortfolioEngine:
             vec = VectorEvaluator(n, lambda fr, c, lag: cols.get(f"{fr}|{lag_key(c, lag)}", np.full(n, np.nan)))
             labels = None
             if any(st.get("regime") for st, _ in pairs):
-                from backend.core.regime.classifier import classify
-                labels = classify(lambda fr, c: cols.get(f"{fr}|{c}", np.full(n, np.nan)), data["t"])
+                from backend.core.regime.classifier import classify, profile_cfg
+                cfg = profile_cfg(next((st["regime"].get("classifier") for st, _ in pairs if st.get("regime")), None))
+                labels = classify(lambda fr, c: cols.get(f"{fr}|{c}", np.full(n, np.nan)), data["t"], cfg)
             entries = []
             for st, tr in pairs:
                 vcol = BacktestEngine.vol_column(tr)

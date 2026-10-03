@@ -263,19 +263,18 @@ def test_presets_new_verified_run_beats_old_book_unverified_does_not(tmp_path):
     assert pr.build_presets(book=book, runs_dir=str(tmp_path / "c"))["presets"]["breakout_4h_long"]["source_kind"] == "book"
 
 
-def test_presets_stage_a_prefers_dev2_pass_in_top_k(tmp_path):
-    # top-1 dev1 (điểm 9) trượt dev2, top-2 (điểm 4) qua dev2 -> chọn top-2; không ai qua -> top-1 gắn nhãn chưa kiểm chứng
-    _run(tmp_path, "20261003_000000", {"trend_long": [_row({"sig.adx_min": 30}, 9.0), _row({"sig.adx_min": 20}, 4.0)],
-                                       "momentum_long": [_row({"sig.roc_min": 5}, 3.0), _row({"sig.roc_min": 3}, 2.0)]},
-         {"trend_long": {"dev1_top": [{"params": {"sig.adx_min": 30}, "dev2_pass": False},
-                                      {"params": {"sig.adx_min": 20}, "dev2_pass": True, "dev2_extreme": {"ret_pct": 4.0}}]},
-          "momentum_long": {"dev1_top": [{"params": {"sig.roc_min": 5}, "dev2_pass": False}]}})
-    P = pr.build_presets(book=None, runs_dir=str(tmp_path), use_book_file=False)["presets"]
-    t = P["trend_long"]
-    assert t["params"]["sig.adx_min"] == 20 and t["evidence"]["score"] == 4.0 and t["evidence"]["dev2_verified"] is True
-    assert t["evidence"]["dev2_extreme"] == {"ret_pct": 4.0} and t["source"].endswith("qua dev2")
-    m = P["momentum_long"]
-    assert m["params"]["sig.roc_min"] == 5 and m["evidence"]["dev2_verified"] is False and "chưa kiểm chứng" in m["source"]
+def test_presets_stage_a_picks_robust_plateau_on_dev1_only(tmp_path):
+    # đỉnh nhọn adx=30 (điểm 9, hai lân cận trượt cổng) vs vùng phẳng adx=20..25 (điểm 4, 4) -> chọn vùng phẳng; dev2 KHÔNG ảnh hưởng lựa chọn
+    rows = [_row({"sig.adx_min": 15}, NEG), _row({"sig.adx_min": 20}, 4.0), _row({"sig.adx_min": 25}, 4.0),
+            _row({"sig.adx_min": 30}, 9.0), _row({"sig.adx_min": 35}, NEG)]
+    rob = pr.robust_scores(rows)
+    assert rob[1] == pytest.approx((0 + 4 + 4) / 3) and rob[2] == pytest.approx((4 + 4 + 9) / 3) and rob[3] == pytest.approx((4 + 9 + 0) / 3)
+    _run(tmp_path, "20261003_000000", {"trend_long": rows},
+         {"trend_long": {"dev1_top": [{"params": {"sig.adx_min": 30}, "dev2_pass": True}]}})       # đỉnh qua dev2 vẫn không được chọn
+    t = pr.build_presets(book=None, runs_dir=str(tmp_path), use_book_file=False)["presets"]["trend_long"]
+    assert t["params"]["sig.adx_min"] == 25 and t["evidence"]["score"] == 4.0
+    assert t["evidence"]["robust_score"] == pytest.approx(17 / 3, abs=1e-4) and t["evidence"]["dev2_verified"] is None
+    assert "bền vững dev1" in t["source"]
 
 
 def test_presets_write_load_roundtrip_and_fallbacks(tmp_path):

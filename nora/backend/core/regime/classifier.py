@@ -22,22 +22,35 @@ LABEL_VI = {"UNKNOWN": "Chưa đủ dữ liệu", "RANGE": "Đi ngang", "TREND_U
             "VOL_EXPANSION": "Biến động bùng nổ", "SURGE": "Tăng thẳng đứng", "CRASH": "Sập mạnh"}
 CODE = {n: i for i, n in enumerate(NAMES)}
 
-DEFAULTS: Dict[str, float] = {"er_min": 0.30, "adx_min": 20.0, "vol_pct": 90.0, "crash_24h_pct": 12.0, "surge_24h_pct": 12.0,
-                              "shock_1h_pct": 5.0, "confirm_min": 180, "shock_hold_min": 360}
+DEFAULTS: Dict[str, Any] = {"er_min": 0.30, "adx_min": 20.0, "vol_pct": 90.0, "crash_24h_pct": 12.0, "surge_24h_pct": 12.0,
+                            "shock_1h_pct": 5.0, "confirm_min": 180, "shock_hold_min": 360, "trend_frame": "4h"}
+# Hồ sơ ngưỡng (P2 khắc phục): "slow" = mặc định (xu hướng 4h, xác nhận 180 phút); "fast" = xu hướng đo trên 1h, xác nhận 60 phút — nhãn đến sớm
+# hơn, gần điểm phá vỡ mà chiến lược 15m/1h vào lệnh. Chọn hồ sơ bằng khoá "classifier" trong cấu hình regime của chiến lược.
+PROFILES: Dict[str, Dict[str, Any]] = {"slow": dict(DEFAULTS), "fast": {**DEFAULTS, "trend_frame": "1h", "confirm_min": 60}}
 
 # (khung, cột kernel, độ trễ) — thêm vào refs của engine khi có chiến lược bật regime / khi cần hiển thị regime
 REFS: Dict[str, Set[Tuple[str, int]]] = {
     "4h": {("er_20", 0), ("adx_14", 0), ("ema_50", 0), ("ema_200", 0)},
-    "1h": {("roc_24", 0), ("roc_1", 0), ("bbwp_20_2_720", 0)},
+    "1h": {("roc_24", 0), ("roc_1", 0), ("bbwp_20_2_720", 0), ("er_20", 0), ("adx_14", 0), ("ema_50", 0), ("ema_200", 0)},
 }
 MINUTE = 60_000
+
+
+def profile_cfg(spec: Any) -> Optional[Dict[str, Any]]:
+    """Khoá "classifier" của cấu hình regime -> cfg: None (mặc định) | tên hồ sơ trong PROFILES | dict ngưỡng."""
+    if spec is None or isinstance(spec, dict):
+        return spec
+    if spec not in PROFILES:
+        raise ValueError(f"hồ sơ regime không có: {spec!r} (có {sorted(PROFILES)})")
+    return PROFILES[spec]
 
 
 def raw_states(get: Callable[[str, str], np.ndarray], n: int, cfg: Optional[Dict[str, float]] = None) -> np.ndarray:
     """Trạng thái thô từng phút từ các cột đặc trưng đã căn (get(frame, column) -> mảng float độ dài n, NaN = chưa có)."""
     c = {**DEFAULTS, **(cfg or {})}
-    er, adx = get("4h", "er_20"), get("4h", "adx_14")
-    e50, e200 = get("4h", "ema_50"), get("4h", "ema_200")
+    tf = c["trend_frame"]
+    er, adx = get(tf, "er_20"), get(tf, "adx_14")
+    e50, e200 = get(tf, "ema_50"), get(tf, "ema_200")
     r24, r1, bw = get("1h", "roc_24"), get("1h", "roc_1"), get("1h", "bbwp_20_2_720")
     out = np.full(n, UNKNOWN, dtype=np.int8)
     with np.errstate(invalid="ignore"):

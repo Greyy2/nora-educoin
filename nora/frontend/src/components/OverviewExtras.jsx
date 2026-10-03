@@ -210,8 +210,8 @@ export function RegimePanel() {
           <div className="n-rglegend">
             {(d.names || []).filter((n) => n !== 'UNKNOWN').map((n) => <span key={n}><i className={`n-rg-${n}`} />{labels[n] || n}</span>)}
           </div>
-          <p className="n-note">Chiến lược đang bật = được phép vào lệnh ở regime hiện tại theo bảng regime của sổ (chỉ áp khi chạy với regime bật).
-            Báo cáo P2.4: bảng tĩnh chưa khớp dữ liệu — WFA dùng chế độ "học trên train" thay vì bảng này.</p>
+          <p className="n-note">Chiến lược đang bật = được phép vào lệnh ở regime hiện tại theo bảng regime của sổ (chỉ áp khi chạy với regime bật):
+            LONG không vào khi xu hướng giảm / sập mạnh, SHORT không vào khi xu hướng tăng / tăng thẳng đứng.</p>
         </>
       )}
     </Panel>

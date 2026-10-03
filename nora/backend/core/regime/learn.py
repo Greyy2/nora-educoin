@@ -3,11 +3,14 @@
 Lý do (P2.4, báo cáo regime trên 8 tài sản): bảng tĩnh không khớp dữ liệu — vd. momentum_long lãi ở RANGE nhưng chỉ được phép TREND_UP/SURGE;
 sau CRASH giá thường hồi (lợi suất 24h tới +2,5%) nên cầu chì cắt LONG khi CRASH làm lỗ thêm. Bật bảng tĩnh làm sổ từ +29,6% thành −26%.
 
-Luật học (chỉ dùng lệnh của cửa sổ train, không nhìn test):
-  chặn regime R của chiến lược S  khi  số lệnh S vào trong R >= min_trades  VÀ  tổng lãi/lỗ của chúng <= 0.
-  regime ít lệnh hơn min_trades: không đủ bằng chứng để chặn -> vẫn cho phép.  Cầu chì: tắt (fuse=False) trừ khi truyền fuse=True.
+Luật học (chỉ dùng lệnh của cửa sổ học, không nhìn test):
+  chặn regime R của chiến lược S  khi  số lệnh S vào trong R >= min_trades (30)  VÀ  t-stat của lãi/lỗ trung bình mỗi lệnh <= t_max (−2).
+  Ít lệnh hơn / lỗ không có ý nghĩa thống kê: không đủ bằng chứng để chặn -> vẫn cho phép.  Cầu chì: tắt (fuse=False) trừ khi truyền fuse=True.
+  Vì sao chặt: luật cũ (>= 5 lệnh, tổng lỗ) chỉ giữ cùng dấu 48% cặp (chiến lược, regime) từ dev1 sang dev2 — học nhiễu
+  (test/scripts/research_regime_diagnosis.py phần D).
 OBSERVE: cấu hình regime "chỉ quan sát" (cho phép mọi regime, không cầu chì) -> engine tính nhãn mà lệnh trùng bit với khi tắt regime.
 """
+import math
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -15,7 +18,8 @@ import numpy as np
 from backend.core.regime.classifier import NAMES
 
 OBSERVE: Dict[str, Any] = {"allowed": list(NAMES), "fuse": False}
-MIN_TRADES = 5
+MIN_TRADES = 30
+T_MAX = -2.0
 
 
 def trade_regime(t: np.ndarray, labels: np.ndarray, enter_time: int) -> str:
@@ -33,15 +37,20 @@ def by_regime(trades: List[Dict[str, Any]], labels: Dict[str, Dict[str, np.ndarr
         if s is None:
             continue
         name = trade_regime(s["t"], s["labels"], tr["enter_time"])
-        a = agg.setdefault(tr["strategy"], {}).setdefault(name, {"trades": 0, "wins": 0, "pnl_usd": 0.0, "pnl_pct_sum": 0.0})
+        a = agg.setdefault(tr["strategy"], {}).setdefault(name, {"trades": 0, "wins": 0, "pnl_usd": 0.0, "pnl_pct_sum": 0.0, "_sq": 0.0})
         a["trades"] += 1
         a["wins"] += tr["pnl"] > 0
         a["pnl_usd"] += tr["pnl"]
+        a["_sq"] += tr["pnl"] ** 2
         a["pnl_pct_sum"] += tr.get("pnl_pct") or 0.0
     for st in agg.values():
         for a in st.values():
-            a["win_rate"] = round(100 * a["wins"] / a["trades"], 1)
-            a["avg_pnl_pct"] = round(a.pop("pnl_pct_sum") / a["trades"], 3)
+            n, sq = a["trades"], a.pop("_sq")
+            mean = a["pnl_usd"] / n
+            var = max(0.0, (sq - n * mean * mean) / (n - 1)) if n > 1 else 0.0
+            a["t_stat"] = (round(mean / math.sqrt(var / n), 3) if var > 0 else (0.0 if mean == 0 else math.copysign(99.0, mean))) if n > 1 else 0.0
+            a["win_rate"] = round(100 * a["wins"] / n, 1)
+            a["avg_pnl_pct"] = round(a.pop("pnl_pct_sum") / n, 3)
             a["pnl_usd"] = round(a["pnl_usd"], 2)
     return agg
 
@@ -59,12 +68,12 @@ def engine_by_regime(eng, positions) -> Dict[str, Dict[str, Dict[str, Any]]]:
 
 
 def learn_map(stats: Dict[str, Dict[str, Dict[str, Any]]], strategies: List[str], min_trades: int = MIN_TRADES,
-              fuse: bool = False) -> Dict[str, Optional[Dict[str, Any]]]:
+              fuse: bool = False, t_max: float = T_MAX) -> Dict[str, Optional[Dict[str, Any]]]:
     """{chiến lược: cấu hình regime | None (không lọc)} theo luật ở đầu file."""
     out: Dict[str, Optional[Dict[str, Any]]] = {}
     for sid in strategies:
         st = stats.get(sid) or {}
-        blocked = sorted(r for r, a in st.items() if a["trades"] >= min_trades and a["pnl_usd"] <= 0)
+        blocked = sorted(r for r, a in st.items() if a["trades"] >= min_trades and a["pnl_usd"] < 0 and a.get("t_stat", 0.0) <= t_max)
         if not blocked and not fuse:
             out[sid] = None
             continue
