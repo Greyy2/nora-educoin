@@ -46,6 +46,7 @@ S2_PBO_MAX = 0.5                    # PBO của chiến lược (CSCV) tối đa
 S2_PBO_BLOCKS = 16                  # số khối của CSCV (C(16,8) = 12.870 cách chia)
 S2_PBO_MAX_ALPHAS = 2000            # > 2000 alpha: chỉ lấy 2000 alpha điểm IS cao nhất cho ma trận PBO
 S2_PBO_MIN_ALPHAS = 4               # ít hơn: không đủ alpha để xếp hạng -> không đo PBO (không gắn cờ)
+S2_EFF_SAMPLE = 600                 # số alpha điểm cao nhất dùng để ước lượng N hiệu dụng của DSR (antiluck.effective_trials)
 
 # ── S3: walk-forward danh mục trên dev2 với tham số CỐ ĐỊNH ────────────────
 S3_TRAIN_DAYS = 120

@@ -6,6 +6,8 @@
 - PBO: Bailey, Borwein, López de Prado, Zhu (2017) — CSCV: chia T ngày thành S khối liền kề, mọi C(S, S/2) cách chọn nửa IS;
   alpha tốt nhất IS có hạng OOS tương đối ω; logit = ln(ω / (1 - ω)); PBO = P(logit <= 0).
 - Lân cận: ±1 bước trên lưới của TỪNG khoá của không gian tham số (khoá chỉ có 1 giá trị thì không có lân cận).
+- N hiệu dụng (effective_trials): các lần thử gần trùng nhau (lân cận lưới, biến thể regime) không phải phép thử độc lập. Theo López de Prado
+  (gom cụm các chiến lược tương quan), N dùng cho SR0 = số cụm (tương quan lợi suất ngày > rho) trong mẫu top-K, phóng theo tỉ lệ ra cả N.
 """
 import itertools
 import math
@@ -111,6 +113,26 @@ def align_daily(series: List[Dict[str, Any]], n_max: Optional[int] = None) -> np
         off = int((st - lo).days)
         M[off:off + len(s["rets"]), j] = s["rets"]
     return M
+
+
+EFF_RHO = 0.7   # hai lần thử tương quan lợi suất ngày > 0,7 -> cùng một cụm (không độc lập)
+
+
+def effective_trials(M: np.ndarray, n_total: int, rho: float = EFF_RHO) -> int:
+    """N hiệu dụng: gom cụm tham lam các cột của M (ngày × alpha, thứ tự = xếp hạng giảm dần) — alpha vào cụm có đại diện tương quan > rho,
+    không thì mở cụm mới; N_eff = round(số cụm / số cột × n_total), trong [1, n_total]. Mẫu rỗng -> n_total (bảo thủ)."""
+    if M.size == 0 or M.shape[1] < 2:
+        return max(1, int(n_total))
+    M = M[:, M.std(axis=0) > 0]
+    k = M.shape[1]
+    if k < 2:
+        return max(1, int(n_total))
+    C = np.corrcoef(M.T)
+    reps: List[int] = []
+    for j in range(k):
+        if not any(C[j, r] > rho for r in reps):
+            reps.append(j)
+    return int(min(n_total, max(1, round(len(reps) / k * n_total))))
 
 
 # ── Lân cận tham số ─────────────────────────────────────────────────────────

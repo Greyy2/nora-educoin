@@ -294,17 +294,21 @@ def _s2_strategy_level(ctx: Ctx, strategy: str) -> Dict[str, Any]:
     if cached is not None:
         return cached
     srs = [m["sr_daily"] for _, _, m, _ in store.iter_stage_metrics("S1_backtest", strategy) if "sr_daily" in m]
-    info: Dict[str, Any] = {"n_trials": len(srs), "sr_var": antiluck.trial_sr_variance(srs), "pbo": None, "pbo_alphas": 0, "pbo_days": 0}
+    info: Dict[str, Any] = {"n_trials": len(srs), "n_trials_raw": len(srs), "sr_var": antiluck.trial_sr_variance(srs), "pbo": None,
+                            "pbo_alphas": 0, "pbo_days": 0}
     ids = store.top_by_score("S1_backtest", strategy, gates.S2_PBO_MAX_ALPHAS)
     if len(ids) >= gates.S2_PBO_MIN_ALPHAS:
         daily = store.read_daily_many(ids, "S1_backtest")
         series = [{"start": rows[0]["start_date"], "rets": rows[0]["rets"]} for a in ids for rows in [daily.get(a)] if rows]
         if len(series) >= gates.S2_PBO_MIN_ALPHAS:
-            r = antiluck.pbo_cscv(antiluck.align_daily(series), gates.S2_PBO_BLOCKS)
+            M = antiluck.align_daily(series)
+            # N hiệu dụng cho DSR: lần thử gần trùng (lân cận lưới, biến thể regime) không độc lập (antiluck.effective_trials)
+            info["n_trials"] = antiluck.effective_trials(M[:, :gates.S2_EFF_SAMPLE], len(srs))
+            r = antiluck.pbo_cscv(M, gates.S2_PBO_BLOCKS)
             info.update(pbo=r["pbo"], pbo_alphas=r["n_alphas"], pbo_days=r["n_days"], pbo_logit_median=r["logit_median"], pbo_splits=r["n_splits"])
     info["flag"] = bool(info["pbo"] is not None and info["pbo"] > gates.S2_PBO_MAX)
     store.set_kv(key, info)
-    ctx.log(f"[S2_antiluck] {strategy}: N={info['n_trials']} sr_var={info['sr_var']:.2e} PBO={info['pbo']}")
+    ctx.log(f"[S2_antiluck] {strategy}: N={info['n_trials_raw']} N_eff={info['n_trials']} sr_var={info['sr_var']:.2e} PBO={info['pbo']}")
     return info
 
 
@@ -336,7 +340,8 @@ def stage_s2(ctx: Ctx) -> None:
                 ratio, n_nb = (nb if nb else (None, 0))
                 ok, code, msg = gates.evaluate_s2(ev[a]["dsr"], ratio, info["pbo"])
                 m = {**_scalar_base(m1[a]), "dsr": round(ev[a]["dsr"], 4), "dsr_sr0": round(ev[a]["sr0"], 6), "neighbor_ratio": ratio,
-                     "neighbor_n": n_nb, "pbo_strategy": info["pbo"], "pbo_flag": info["flag"], "n_trials": info["n_trials"]}
+                     "neighbor_n": n_nb, "pbo_strategy": info["pbo"], "pbo_flag": info["flag"], "n_trials": info["n_trials"],
+                     "n_trials_raw": info.get("n_trials_raw", info["n_trials"])}
                 results.append(StageResult(a, "S2_antiluck", m, ok, code, msg))
                 ctx.tick()
             store.commit_results(results)

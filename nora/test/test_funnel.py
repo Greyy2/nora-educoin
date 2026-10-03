@@ -678,7 +678,8 @@ def test_regime_both_variants_are_separate_trials_and_learn_on_train(small_book,
         assert all(isinstance(m1[a]["regime_blocked"], list) for a in learn)
         assert all("regime_blocked" not in m for m in store.metrics_of(off, "S1_backtest").values())
         m2 = store.metrics_of(learn + off, "S2_antiluck")
-        assert {m["n_trials"] for m in m2.values()} == {6}                      # cả 2 biến thể là lần thử
+        assert {m["n_trials_raw"] for m in m2.values()} == {6}                  # cả 2 biến thể là lần thử
+        assert all(1 <= m["n_trials"] <= 6 for m in m2.values())               # N hiệu dụng (gom lần thử tương quan) <= N
         windows = store.read_run()["windows_ms"]
     finally:
         store.close()
@@ -710,3 +711,15 @@ def test_s3_gate_is_skew_robust(monkeypatch):
     assert quiet["traded_folds"] == 2
     assert gates.evaluate_s3({**base, **quiet, "compounded_oos_ret_pct": 3.0})[1] == "S3.traded_folds"
     assert gates.evaluate_s3({**base, **fs, "compounded_oos_ret_pct": 0.0})[1] == "S3.oos_compound"
+
+
+def test_effective_trials_clusters_correlated_trials():
+    rng = np.random.default_rng(0)
+    base = rng.normal(0, 0.01, (300, 3))                                       # 3 nguồn độc lập
+    cols = [base[:, i % 3] + rng.normal(0, 0.001, 300) for i in range(30)]   # 30 lần thử = 3 cụm gần trùng
+    M = np.column_stack(cols)
+    assert antiluck.effective_trials(M, 30) == 3
+    assert antiluck.effective_trials(M, 3000) == 300                          # phóng theo tỉ lệ cụm / mẫu
+    indep = rng.normal(0, 0.01, (300, 20))
+    assert antiluck.effective_trials(indep, 20) == 20
+    assert antiluck.effective_trials(np.zeros((0, 0)), 50) == 50               # không có mẫu: giữ N (bảo thủ)
