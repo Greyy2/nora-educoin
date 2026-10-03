@@ -1,6 +1,6 @@
 # Epic và story
 
-Cập nhật: 2026-10-01 · Baseline code: `a3202c9` (nhánh `fix/pipeline-audit`). Yêu cầu: [prd.md](prd.md); kiến trúc: [architecture.md](architecture.md); trạng thái máy đọc: [sprint-status.yaml](sprint-status.yaml).
+Cập nhật: 2026-10-03 · Baseline code: `dc08366` (nhánh `fix/pipeline-audit`). Yêu cầu: [prd.md](prd.md); kiến trúc: [architecture.md](architecture.md); trạng thái máy đọc: [sprint-status.yaml](sprint-status.yaml).
 
 Trạng thái: `backlog` (chưa làm) · `ready` (đủ điều kiện làm) · `in-progress` · `review` · `done`. Mỗi story có một file trong [stories/](stories/).
 
@@ -19,10 +19,14 @@ Trạng thái: `backlog` (chưa làm) · `ready` (đủ điều kiện làm) · 
 | E9 | Testnet & Live | backlog | 0 / 7 | Chưa có bot, chưa có tài khoản. |
 | E10 | Nghiên cứu chiến lược mới & phương pháp | backlog | 0 / 6 | Giải quyết R-1 đến R-4. |
 | E11 | Bảo mật & phát hành | backlog | 0 / 7 | Giải quyết R-5, R-7, R-9. |
+| E12 | Tốc độ (500k alpha ≤ 4 h) | done | 3 / 3 | 15m: 80 alpha/s (500k ≈ 1,7 h); 1h: 103 alpha/s. |
+| E13 | Hai chế độ chạy Cơ bản / Nâng cao | done | 2 / 2 | 5/7 preset stage A chưa qua dev2 (ghi nhãn). |
+| E14 | Phễu kiểm duyệt alpha | done | 3 / 3 | Lượt thật 36.000 alpha → 0 FINAL; alpha SOL bị loại khi kiểm lại. |
+| E15 | Regime và điều phối chiến lược | done | 6 / 6 | Bảng tĩnh không khớp dữ liệu; học trên train cải thiện nhưng WFA chưa qua. |
 
-Tổng: 11 epic (7 done, 1 in-progress, 3 backlog); 70 story (48 done, 1 in-progress, 0 review, 0 ready, 21 backlog).
+Tổng: 15 epic (11 done, 1 in-progress, 3 backlog); 84 story (63 done, 0 in-progress, 0 review, 0 ready, 21 backlog).
 
-Epic E5 mang trạng thái `done` về mặt tính năng. Kết quả nghiên cứu là: alpha `trend_long_perp__SOL` hợp lệ; sổ `breakout_4h_long + breakout_4h_short` ở trạng thái `HOLDOUT_FAILED`, không có cấu hình testnet cho sổ. Việc tìm sổ qua holdout nằm ở E10.
+Epic E5 mang trạng thái `done` về mặt tính năng. Kết quả nghiên cứu là: alpha `trend_long_perp__SOL` từng hợp lệ nhưng bị loại khi kiểm lại bằng engine hiện hành (E14-S3, 03/10/2026); sổ `breakout_4h_long + breakout_4h_short` ở trạng thái `HOLDOUT_FAILED`, không có cấu hình testnet cho sổ. Việc tìm sổ qua holdout nằm ở E10.
 
 ## E1: Dữ liệu thị trường [done]
 
@@ -208,3 +212,53 @@ Ghi chú: Giải quyết R-5, R-7, R-9.
 | [E11-S5](stories/E11-S5-legacy-cleanup.md) | Dọn legacy: route MySQL cũ, trang Legacy, mã nghiên cứu DEX | backlog |
 | [E11-S6](stories/E11-S6-gate-on-book-path.md) | Gate dữ liệu trên đường danh mục/sổ | backlog |
 | [E11-S7](stories/E11-S7-release-process.md) | Quy trình phát hành và tài liệu | backlog |
+
+## E12: Tốc độ (500k alpha ≤ 4 h) [done]
+
+Engine numba, kho dữ liệu dùng chung, khung chạy 15m/1h/4h (roadmap P1).
+
+Ghi chú: Golden trùng bit qua mọi bước; P1.7 (lọc thô nhiều vòng) đo và quyết định không làm.
+
+| Story | Tiêu đề | Trạng thái |
+|---|---|---|
+| [E12-S1](stories/E12-S1-numba-kernel-fast-forward.md) | Kernel numba + tua nhanh phút yên lặng | done |
+| [E12-S2](stories/E12-S2-shared-column-store.md) | Kho dữ liệu dùng chung mức cột/khung + điền lười | done |
+| [E12-S3](stories/E12-S3-run-timeframe.md) | Khung chạy 15m / 1h / 4h chọn trước khi sinh tham số | done |
+
+## E13: Hai chế độ chạy Cơ bản / Nâng cao [done]
+
+Preset khoá tham số ở Cơ bản; Nâng cao sửa từng tham số, gate khác chuẩn → custom_gates (roadmap P0.3, P4.1, P0.3c).
+
+Ghi chú: Preset stage A chưa qua dev2 được gắn nhãn rõ trên UI.
+
+| Story | Tiêu đề | Trạng thái |
+|---|---|---|
+| [E13-S1](stories/E13-S1-basic-advanced-modes.md) | Chế độ Cơ bản / Nâng cao cho Backtest, WFA, Monte Carlo | done |
+| [E13-S2](stories/E13-S2-presets-timeframe-dev2.md) | Preset ghi khung tối ưu, ưu tiên nguồn qua dev2 | done |
+
+## E14: Phễu kiểm duyệt alpha [done]
+
+S0 → FINAL với DSR/PBO/lân cận, WFA, MC, sizing, holdout (roadmap P0.2, P3).
+
+Ghi chú: Chưa có alpha/sổ nào đủ điều kiện testnet; tìm edge mới thuộc E10.
+
+| Story | Tiêu đề | Trạng thái |
+|---|---|---|
+| [E14-S1](stories/E14-S1-funnel-s0-final.md) | Phễu S0 → FINAL | done |
+| [E14-S2](stories/E14-S2-funnel-real-run-9-strategies.md) | Chạy phễu thật 9 chiến lược có regime | done |
+| [E14-S3](stories/E14-S3-alpha-sol-revalidate-testnet.md) | Kiểm lại alpha SOL; registry + testnet đúng trạng thái | done |
+
+## E15: Regime và điều phối chiến lược [done]
+
+Regime causal đa khung, báo cáo độ chuẩn, học bảng regime trên train, stress trend thẳng đứng, UI (roadmap P2, P4.3).
+
+Ghi chú: Kết quả trung thực: regime chưa tạo được sổ qua WFA (E15-S3).
+
+| Story | Tiêu đề | Trạng thái |
+|---|---|---|
+| [E15-S1](stories/E15-S1-regime-spec.md) | Đặc tả regime | done |
+| [E15-S2](stories/E15-S2-regime-report-real-data.md) | Báo cáo độ chuẩn trên 8 tài sản thật | done |
+| [E15-S3](stories/E15-S3-regime-learn-wfa.md) | WFA học bảng regime chỉ trên train | done |
+| [E15-S4](stories/E15-S4-vertical-trend-stress.md) | Monte Carlo: kịch bản trend thẳng đứng | done |
+| [E15-S5](stories/E15-S5-regime-trials-dsr-pbo.md) | Biến thể regime là lần thử trong DSR/PBO | done |
+| [E15-S6](stories/E15-S6-regime-ui.md) | Hiển thị regime hiện tại, lịch sử, chiến lược đang bật | done |

@@ -1,7 +1,7 @@
 # Bộ tài liệu BMAD của Nora
 
 Bộ tài liệu theo phương pháp BMAD (Business, Model, Architecture, Delivery): yêu cầu sản phẩm, kiến trúc và đặc tả kỹ thuật, epic, story có tiêu chí chấp nhận và bằng chứng.
-Viết bằng tiếng Việt; tên kỹ thuật (file, hàm, tham số, trạng thái) giữ nguyên tiếng Anh. Khớp code tại commit `a3202c9` (nhánh `fix/pipeline-audit`), cập nhật 01/10/2026.
+Viết bằng tiếng Việt; tên kỹ thuật (file, hàm, tham số, trạng thái) giữ nguyên tiếng Anh. Khớp code tại commit `dc08366` (nhánh `fix/pipeline-audit`), cập nhật 03/10/2026.
 
 ## Mục lục
 
@@ -9,7 +9,7 @@ Viết bằng tiếng Việt; tên kỹ thuật (file, hàm, tham số, trạng 
 |---|---|---|
 | [prd.md](prd.md) | Vấn đề, tầm nhìn, người dùng, mục tiêu và chỉ số, phạm vi, FR/NFR, ràng buộc, rủi ro và câu hỏi mở | Bắt đầu phiên làm việc; trước khi đề xuất tính năng |
 | [architecture.md](architecture.md) | Sơ đồ ngữ cảnh, bản đồ package, đặc tả chính xác (dữ liệu, tín hiệu, engine, danh mục, WFA, Monte Carlo, đường ống alpha, job, API, UI, vận hành, test) | Trước khi sửa code; khi cần ngữ nghĩa chính xác |
-| [epics.md](epics.md) | 11 epic, 70 story, bảng trạng thái tổng | Chọn việc tiếp theo |
+| [epics.md](epics.md) | 15 epic, 84 story, bảng trạng thái tổng | Chọn việc tiếp theo |
 | [sprint-status.yaml](sprint-status.yaml) | Trạng thái máy đọc được của epic và story | Công cụ, script, tác tử |
 | [stories/](stories/) | Mỗi story một file `E<n>-S<m>-<slug>.md` | Làm hoặc xác minh một story |
 | [legacy/](legacy/README.md) | Tài liệu BMAD giai đoạn DEX (01_ đến 04_, waves/), chỉ để tra cứu lịch sử | Chỉ khi cần lịch sử |

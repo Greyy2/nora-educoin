@@ -1,5 +1,9 @@
 # E15-S1 — Regime thị trường: đặc tả (P2.1–P2.4)
 
+- **Epic:** E15 Regime
+- **Trạng thái:** done
+- **Cập nhật:** 2026-10-03
+
 **Mục tiêu.** Sổ có nhiều chiến lược. Mỗi chiến lược chỉ vào lệnh trong trạng thái thị trường (regime) mà nó được thiết kế cho. Khi giá chạy thẳng đứng ngược chiều vị thế, sổ cắt lệnh trước khi thang DCA bị thanh lý. Kiểu cháy tài khoản của các bot OKX nhồi lệnh xảy ra đúng lúc trend thẳng đứng; regime là lớp chặn chuyện đó.
 
 ## 1. Nguyên tắc
@@ -72,3 +76,17 @@ Ngưỡng nằm trong `classifier.DEFAULTS`. Mọi tham số này được tính
   - bật regime thì MDD giảm;
   - lãi không giảm quá 20% tương đối;
   - CRASH recall ≥ 60%.
+
+
+## Evidence
+
+- Commit: `aa3823f` (classifier, REGIME_MAP + cầu chì, job báo cáo), `dc08366` (chạy dữ liệu thật, học trên train).
+- Test: `test/test_regime.py` (nhân quả, golden khi tắt, lọc vào lệnh, cầu chì).
+- Số đo: xem E15-S2 (báo cáo thật) và E15-S3 (WFA học trên train).
+
+## Change Log
+
+| Ngày | Thay đổi | Commit |
+|---|---|---|
+| 2026-10-02 | Đặc tả + classifier + bảng tĩnh | aa3823f |
+| 2026-10-03 | Thêm trạng thái/Evidence; kết quả thật cho thấy bảng tĩnh không khớp dữ liệu (E15-S2) | dc08366 |

@@ -2,13 +2,13 @@
 # Giá trị hợp lệ: backlog | ready | in-progress | review | done.
 # Nguồn sự thật cho từng story là file stories/<id>-<slug>.md; file này phải khớp (xem README.md, mục Kiểm tra nhất quán).
 project: nora
-last_updated: 2026-10-01
-baseline_commit: 8a96b4e
+last_updated: 2026-10-03
+baseline_commit: dc08366
 branch: fix/pipeline-audit
 status_values: [backlog, ready, in-progress, review, done]
 summary:
-  epics: {done: 7, in-progress: 1, backlog: 3}
-  stories: {done: 49, review: 0, in-progress: 0, ready: 0, backlog: 21, total: 70}
+  epics: {done: 11, in-progress: 1, backlog: 3}
+  stories: {done: 63, review: 0, in-progress: 0, ready: 0, backlog: 21, total: 84}
 epics:
   E1:
     title: "Dữ liệu thị trường"
@@ -124,3 +124,33 @@ epics:
       E11-S5-legacy-cleanup: backlog
       E11-S6-gate-on-book-path: backlog
       E11-S7-release-process: backlog
+  E12:
+    title: "Tốc độ (500k alpha ≤ 4 h)"
+    status: done
+    stories:
+      E12-S1-numba-kernel-fast-forward: done
+      E12-S2-shared-column-store: done
+      E12-S3-run-timeframe: done
+  E13:
+    title: "Hai chế độ chạy Cơ bản / Nâng cao"
+    status: done
+    stories:
+      E13-S1-basic-advanced-modes: done
+      E13-S2-presets-timeframe-dev2: done
+  E14:
+    title: "Phễu kiểm duyệt alpha"
+    status: done
+    stories:
+      E14-S1-funnel-s0-final: done
+      E14-S2-funnel-real-run-9-strategies: done
+      E14-S3-alpha-sol-revalidate-testnet: done
+  E15:
+    title: "Regime và điều phối chiến lược"
+    status: done
+    stories:
+      E15-S1-regime-spec: done
+      E15-S2-regime-report-real-data: done
+      E15-S3-regime-learn-wfa: done
+      E15-S4-vertical-trend-stress: done
+      E15-S5-regime-trials-dsr-pbo: done
+      E15-S6-regime-ui: done

@@ -130,19 +130,19 @@ Mỗi dòng chỉ chuyển `done` khi đạt đúng cột "Xong khi".
 | P2.1 | Thiết kế regime: trạng thái, chỉ báo, khung, trễ chuyển, thời gian tối thiểu | `docs/bmad/stories/E15-*` | O | P0 | Spec được duyệt | done (stories/E15-S1-regime-spec.md) |
 | P2.2 | Engine regime causal đa khung (15m/1h/4h/1d): tăng mạnh, giảm mạnh, đi ngang, biến động bùng nổ, sập/đứng giá | `core/regime/` | S | P2.1 | Test prefix-invariant (không nhìn tương lai) | done (core/regime/classifier.py, test_regime.py) |
 | P2.3 | Bảng ghép regime ↔ chiến lược + cầu chì: trend thẳng đứng/biến động bùng nổ thì cấm nhồi DCA, có thể đóng sớm | `core/regime/`, `core/backtest` | S | P2.2, P1.3 | Golden không đổi khi tắt regime; có test cầu chì | done (book.REGIME_MAP + mặt nạ trong PortfolioEngine.load_data; mặc định tắt) |
-| P2.4 | Đo độ chuẩn: nhãn causal vs nhãn dữ liệu tương lai (bảng nhầm lẫn, độ trễ) + PnL từng chiến lược theo regime | `cli/regime_report.py` | S | P2.2 | Báo cáo trên 8 tài sản; chiến lược lãi trong regime của nó | code xong (core/regime/report.py, job regime_report) — chưa chạy dữ liệu thật |
-| P2.5 | Backtest theo regime: tối ưu từng chiến lược trong regime → backtest cả sổ có chuyển đổi → WFA (ngưỡng regime chỉ học trên train) | `optimize/`, `wfa/` | S | P2.3, P1.6 | Sổ nhiều chiến lược qua WFA | todo |
-| P2.6 | MC thêm kịch bản trend thẳng đứng (+40%/3 ngày, −30%/1 ngày, chuỗi liên tiếp) | `carlo/monte_carlo.py` | S | P0.4 | Bot kiểu OKX trượt cổng; test xanh | todo |
-| P2.7 | Ngưỡng regime tính là tham số trong DSR/PBO | `optimize/funnel/` | S | P2.5, P0.2 | Số trial tính đủ | todo |
+| P2.4 | Đo độ chuẩn: nhãn causal vs nhãn dữ liệu tương lai (bảng nhầm lẫn, độ trễ) + PnL từng chiến lược theo regime | `cli/regime_report.py` | S | P2.2 | Báo cáo trên 8 tài sản; chiến lược lãi trong regime của nó | done — chạy thật (job 20261003_114116_8f0064, 15m): bảng tĩnh KHÔNG khớp dữ liệu (tắt +29,6% / bật −26,0%); sau CRASH giá hồi +2,5%. Hướng xử lý: học trên train (P2.5). E15-S2 |
+| P2.5 | Backtest theo regime: tối ưu từng chiến lược trong regime → backtest cả sổ có chuyển đổi → WFA (ngưỡng regime chỉ học trên train) | `optimize/`, `wfa/` | S | P2.3, P1.6 | Sổ nhiều chiến lược qua WFA | done — WFA `regime=learn` (học trên train từng fold). Thật: lãi kép OOS extreme −26,5% → −16,0%, P(MDD≥30%) 82% → 60%, nhưng gate vẫn trượt (fold dương 30%) → sổ CHƯA qua WFA. E15-S3 |
+| P2.6 | MC thêm kịch bản trend thẳng đứng (+40%/3 ngày, −30%/1 ngày, chuỗi liên tiếp) | `carlo/monte_carlo.py` | S | P0.4 | Bot kiểu OKX trượt cổng; test xanh | done — vertical_surge/crash/chain theo vị thế ngược chiều lớn nhất; bot DCA kiểu OKX trượt (−90%), sổ có cắt lỗ qua. E15-S4 |
+| P2.7 | Ngưỡng regime tính là tham số trong DSR/PBO | `optimize/funnel/` | S | P2.5, P0.2 | Số trial tính đủ | done — phễu `regime` off/learn/both: biến thể learn là alpha riêng → N của DSR/PBO đếm đủ; ngưỡng classifier không tối ưu. E15-S5 |
 
 ### P3 — Chạy phễu thật end-to-end
 
 | ID | Việc | Nơi sửa | Người | Cần trước | Xong khi | Trạng thái |
 |---|---|---|---|---|---|---|
-| P3.1 | Sinh alpha 7 chiến lược (có regime) → backtest → WFA → MC → FINAL trên dữ liệu thật | `optimize/run_funnel.py` | S | P1, P2 | Chạy hết, không lỗi, không OOM | todo |
-| P3.2 | Thống kê từng tầng: số lượng, phân phối chỉ số, danh sách lệnh | `optimize/funnel/` | S | P3.1 | Có số liệu ví dụ 100k → 1k → 10 | todo |
-| P3.3 | Alpha SOL: sizing S5; cập nhật registry, gỡ testnet nếu trượt | `data/alphas/` | S | P0.2 | Registry đúng trạng thái | todo |
-| P3.4 | Xuất sổ testnet nếu holdout đạt | `optimize/book_export.py` | O | P3.2 | `READY_FOR_TESTNET` hoặc ghi rõ lý do trượt | todo |
+| P3.1 | Sinh alpha 9 chiến lược (có regime) → backtest → WFA → MC → FINAL trên dữ liệu thật | `optimize/run_funnel.py` | S | P1, P2 | Chạy hết, không lỗi, không OOM | done — lượt fr-20261003-4ab03b: 9 chiến lược × 2.000 × regime both, 15m, 16,4 phút, không lỗi/OOM. E14-S2 |
+| P3.2 | Thống kê từng tầng: số lượng, phân phối chỉ số, danh sách lệnh | `optimize/funnel/` | S | P3.1 | Có số liệu ví dụ 100k → 1k → 10 | done — 36.000 → S1 34.480 → 12.881 → S2 1 (PBO gắn cờ 5 chiến lược) → S3 0 → FINAL 0. E14-S2 |
+| P3.3 | Alpha SOL: sizing S5; cập nhật registry, gỡ testnet nếu trượt | `data/alphas/` | S | P0.2 | Registry đúng trạng thái | done — job alpha_revalidate: trend_long_perp__SOL retired (S3 fold dương 50% < 60%, OOS +14%); testnet → testnet/_retired. E14-S3 |
+| P3.4 | Xuất sổ testnet nếu holdout đạt | `optimize/book_export.py` | O | P3.2 | `READY_FOR_TESTNET` hoặc ghi rõ lý do trượt | done — không xuất: sổ HOLDOUT_FAILED, phễu 0 FINAL → không có cấu hình testnet hoạt động (lý do ghi ở E14-S2/S3) |
 
 ### P4 — UI
 
@@ -150,9 +150,9 @@ Mỗi dòng chỉ chuyển `done` khi đạt đúng cột "Xong khi".
 |---|---|---|---|---|---|---|
 | P4.1 | Hai chế độ Basic/Advanced cho Backtest, WFA, MC | `frontend/src/v2/pages/*` | S | P0.3 | Basic khoá tham số; Advanced sửa từng tham số, khung, ngày | done |
 | P4.2 | Trang `/funnel` nối dữ liệu thật | `pages/Funnel.jsx` | S | P0.2, P0.5 | Hiện thống kê + lệnh từng tầng từ job thật | done |
-| P4.2b | Kiểm thật các nhánh lỗi chưa chạm: 422 thật theo field, promote 400/409, recompute trades, POST /runs nhỏ | frontend | S | P0.7 | Ảnh kiểm từng nhánh | todo |
-| P4.3 | Hiển thị regime hiện tại, lịch sử, chiến lược đang bật | `pages/Portfolio.jsx` | S | P2.2 | Có cả sáng/tối | todo |
-| P4.4 | Ảnh kiểm sáng/tối; `npm run build` sạch | frontend | O | P4.1–P4.3 | Không lỗi console | todo |
+| P4.2b | Kiểm thật các nhánh lỗi chưa chạm: 422 thật theo field, promote 400/409, recompute trades, POST /runs nhỏ | frontend | S | P0.7 | Ảnh kiểm từng nhánh | done — nhánh thật: 422 theo trường, promote 400 (thiếu confirm) / 409 (chưa FINAL), tính lại lệnh S1, POST /runs nhỏ (fr-20261003-971bd4); ảnh kiểm sáng/tối |
+| P4.3 | Hiển thị regime hiện tại, lịch sử, chiến lược đang bật | `pages/Portfolio.jsx` | S | P2.2 | Có cả sáng/tối | done — GET /market/regime + RegimePanel (hiện tại, lịch sử 7/30/90 ngày, chiến lược đang bật). E15-S6 |
+| P4.4 | Ảnh kiểm sáng/tối; `npm run build` sạch | frontend | O | P4.1–P4.3 | Không lỗi console | done — `npm run build` sạch; ảnh kiểm 5 trang + phễu × sáng/tối, 0 lỗi console |
 | P4.5 | Danh sách lệnh (trade list) ở trang Tổng quan (Backtest/Live/Testnet) và ở mỗi bước Backtest/WFA/MC: lọc theo chiến lược/tài sản/chiều/kết quả, phân trang, tải CSV | `core/analytics/dashboard.py`, `api/routers/portfolio.py`, frontend | O | — | Bảng lệnh khớp `trade_list`; lọc/sắp/phân trang đúng | done (b42bfc2) |
 | P4.6 | Thống kê theo CHIẾN LƯỢC (họ chiến lược, gộp mọi bộ tham số của cùng chiến lược) ở Tổng quan: bộ số đo chuẩn tính riêng từng chiến lược | `core/metrics`, `core/analytics/dashboard.py`, frontend | O | PM | Mỗi chiến lược có đủ số đo; alpha `x__SOL` gộp về chiến lược gốc | done (b42bfc2) |
 | P4.7 | Tích hợp Phễu vào trang Alpha (một trang: tối ưu sổ + phễu kiểm duyệt), bỏ mục Phễu riêng trên thanh bên | frontend | O | — | `/alpha` có tab Phễu; `/funnel` chuyển hướng | done (b42bfc2) |
@@ -162,8 +162,8 @@ Mỗi dòng chỉ chuyển `done` khi đạt đúng cột "Xong khi".
 
 | ID | Việc | Nơi sửa | Người | Cần trước | Xong khi | Trạng thái |
 |---|---|---|---|---|---|---|
-| P5.1 | Cập nhật BMAD: E12 tốc độ, E13 hai chế độ, E14 phễu, E15 regime; `sprint-status.yaml` | `docs/bmad/` | S | từng phase | Story khớp code | todo |
-| P5.2 | Báo cáo chốt | — | O | P0–P4 | Gửi user | todo |
+| P5.1 | Cập nhật BMAD: E12 tốc độ, E13 hai chế độ, E14 phễu, E15 regime; `sprint-status.yaml` | `docs/bmad/` | S | từng phase | Story khớp code | done — thêm E12–E15 (14 story), sprint-status 84 story, kiểm tra nhất quán OK |
+| P5.2 | Báo cáo chốt | — | O | P0–P4 | Gửi user | done — báo cáo chốt dưới đây |
 
 ### Ngoài phạm vi (giữ nguyên theo quyết định user)
 
@@ -182,3 +182,16 @@ P0 ──► P1 ──► P2 ──► P3 ──► P5
 - P1 trước P2: regime nhân số tổ hợp cần chạy, engine chậm thì không chạy nổi.
 - P2 sau P0: các agent P0 đang sửa đúng file chiến lược/phễu, làm song song sẽ ghi đè.
 - P3 chạy sau P2 để sổ cuối cùng có regime.
+
+## 6. Báo cáo chốt (P5.2, 03/10/2026)
+
+| Pha | Kết quả | Bằng chứng |
+|---|---|---|
+| P0 | Pipeline chạy được quy mô lớn, chế độ Cơ bản/Nâng cao, preset 15m có nhãn kiểm chứng | 21d8adb |
+| P1 | 500k alpha ≈ 1,7 h (15m) / 1,35 h (1h); RAM worker ≤ 395 MB; golden trùng bit | 1b30398 |
+| P2 | Regime causal; bảng tĩnh sai theo dữ liệu thật; học trên train cải thiện WFA nhưng chưa qua; MC có trend thẳng đứng; biến thể regime được đếm trong DSR/PBO | dc08366 |
+| P3 | Phễu thật 36.000 alpha → 0 FINAL (PBO/DSR loại gần hết); alpha SOL bị loại khi kiểm lại; không có cấu hình testnet hoạt động | dc08366 |
+| P4 | UI regime, cảnh báo lệch khung, nhãn preset; build sạch; 0 lỗi console sáng/tối | dc08366 |
+
+Kết luận trung thực: hạ tầng (tốc độ, kiểm chứng, chống ăn may, regime) đã đủ; **edge chưa có** — chưa alpha/sổ nào qua đủ cổng. Việc tiếp theo thuộc E10
+(chiến lược mới, hiệu chỉnh đa kiểm định) và E9 (testnet) chỉ khi có alpha FINAL.
