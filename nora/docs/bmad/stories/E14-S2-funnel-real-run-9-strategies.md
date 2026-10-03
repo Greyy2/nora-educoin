@@ -29,6 +29,11 @@ Lượt 1h `fr-20261003-c25fcd` (engine đã sửa khớp extreme): 36.000 → S
 Chẩn đoán bỏ qua S2 (270 alpha qua S1): 48% có lãi OOS; cổng S3 mới qua 19 (7%); holdout một lần của 19 alpha này: 10/19 lãi, TB **+2,0%**
 (30 alpha ngẫu nhiên qua S1: TB −2,1%) — nhóm LONG (breakout_4h_long, trend_long, momentum_long) tốt nhất, nhóm SHORT âm. Edge yếu, chưa đủ ý nghĩa thống kê theo DSR.
 
+**Hướng A (814487c, 03/10).** S2 = top 5% DSR mỗi chiến lược + lân cận; PBO chỉ cảnh báo. Lượt 1h `fr-20261003-cb0966`:
+36.000 → S1 10.596 → S2 541 → S3 58 → S4 58 → S5 58 → S6 40 → **FINAL 40** (20 alpha duy nhất: bản "learn" trùng bản "off" vì luật học chặt không chặn regime nào).
+FINAL: trend_long, breakout_4h_long, breakout_4h_short, momentum_long. Holdout TB +1,67%, MDD TB 1,69% (rủi ro 0,5%/lệnh, s = 1,0); S4 P(MDD ≥ 30%) = 0, stress MDD tối đa 16,5%.
+Lưu ý: cổng S3 mới được thiết kế sau khi đã nhìn holdout trong chẩn đoán — kết quả FINAL cần xác nhận trên dữ liệu mới (forward/testnet).
+
 ## Evidence
 
 - Commit: `dc08366`.
@@ -41,3 +46,4 @@ Chẩn đoán bỏ qua S2 (270 alpha qua S1): 48% có lãi OOS; cổng S3 mới 
 |---|---|---|
 | 2026-10-03 | Chạy thật + ghi nhận | dc08366 |
 | 2026-10-03 | Cổng S3 mới + N hiệu dụng; lượt 1h; chẩn đoán holdout | 574e6a6, 80bbc58 |
+| 2026-10-03 | Hướng A: S2 xếp hạng DSR; lượt 1h ra 40 FINAL (20 duy nhất) | 814487c |

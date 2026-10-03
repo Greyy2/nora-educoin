@@ -140,7 +140,7 @@ Mỗi dòng chỉ chuyển `done` khi đạt đúng cột "Xong khi".
 | ID | Việc | Nơi sửa | Người | Cần trước | Xong khi | Trạng thái |
 |---|---|---|---|---|---|---|
 | P3.1 | Sinh alpha 9 chiến lược (có regime) → backtest → WFA → MC → FINAL trên dữ liệu thật | `optimize/run_funnel.py` | S | P1, P2 | Chạy hết, không lỗi, không OOM | done — lượt fr-20261003-4ab03b: 9 chiến lược × 2.000 × regime both, 15m, 16,4 phút, không lỗi/OOM. E14-S2 |
-| P3.2 | Thống kê từng tầng: số lượng, phân phối chỉ số, danh sách lệnh | `optimize/funnel/` | S | P3.1 | Có số liệu ví dụ 100k → 1k → 10 | done — 36.000 → S1 34.480 → 12.881 → S2 1 (PBO gắn cờ 5 chiến lược) → S3 0 → FINAL 0. E14-S2 |
+| P3.2 | Thống kê từng tầng: số lượng, phân phối chỉ số, danh sách lệnh | `optimize/funnel/` | S | P3.1 | Có số liệu ví dụ 100k → 1k → 10 | done — lượt 1h fr-20261003-cb0966 (cổng S3 mới, S2 xếp hạng DSR): 36.000 → 10.596 → 541 → 58 → 58 → 58 → 40 FINAL (20 duy nhất; holdout TB +1,67%, MDD TB 1,69%). Lượt cũ 15m: 0 FINAL. E14-S2 |
 | P3.3 | Alpha SOL: sizing S5; cập nhật registry, gỡ testnet nếu trượt | `data/alphas/` | S | P0.2 | Registry đúng trạng thái | done — job alpha_revalidate: trend_long_perp__SOL retired (S3 fold dương 50% < 60%, OOS +14%); testnet → testnet/_retired. E14-S3 |
 | P3.4 | Xuất sổ testnet nếu holdout đạt | `optimize/book_export.py` | O | P3.2 | `READY_FOR_TESTNET` hoặc ghi rõ lý do trượt | done — không xuất: sổ HOLDOUT_FAILED, phễu 0 FINAL → không có cấu hình testnet hoạt động (lý do ghi ở E14-S2/S3) |
 
