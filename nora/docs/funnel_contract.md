@@ -12,7 +12,7 @@ Mọi dữ liệu đều thật: quality gate bắt buộc, không mock.
 | `S0_generate` | Sinh alpha | không gian tham số của chiến lược | hợp lệ (vd. ngân sách DCA); mỗi alpha có `alpha_id` = sha1(chiến lược, tham số chuẩn hoá) |
 | `S1_backtest` | Backtest sàng lọc | dev1 | lãi > 0, MDD ≤ 30%, số lệnh ≥ ngưỡng, số tài sản có lãi ≥ ngưỡng (danh mục) |
 | `S2_antiluck` | Chống ăn may | dev1 (+ lân cận) | DSR ≥ 0,95 (Deflated Sharpe, N = số alpha đã thử của chiến lược); lân cận tham số (±1 bước mỗi khoá) có lãi ≥ 60%; PBO của chiến lược (CSCV, 16 khối) ≤ 0,5 → nếu > 0,5 mọi alpha của chiến lược bị gắn cờ và loại |
-| `S3_wfa` | Walk-forward | dev2 | fold ≥ 5, ≥ 60% fold OOS lãi, lãi kép OOS > 0, MDD fold xấu nhất ≤ 30%, lãi IS TB ≥ 0 |
+| `S3_wfa` | Walk-forward | dev2 | fold ≥ 5, ≥ 3 fold có lệnh, lãi kép OOS > 0, **t-stat lãi theo fold ≥ 1** (fold có lệnh), **bỏ fold tốt nhất vẫn ≥ −2%**, MDD fold xấu nhất ≤ 30%, lãi IS TB ≥ 0. (Trước 03/10/2026: "≥ 60% fold OOS lãi" — sai với lãi lệch phải của chiến lược theo xu hướng; xem `core/metrics/returns.fold_stats`) |
 | `S4_montecarlo` | Monte Carlo | chuỗi ngày OOS của S3 | ≥ 10.000 kịch bản, P(MDD ≥ 30%) ≤ 5%, mọi kịch bản cực xấu MDD < 50% và không cháy |
 | `S5_sizing` | Khối lượng sống sót | như S4 | tìm hệ số vốn lớn nhất s ∈ (0, 1] qua mọi điều kiện S4 (tìm nhị phân trên chuỗi ngày nhân s, rồi **xác nhận bằng backtest + WFA + MC thật ở s**); s < 0,2 → loại |
 | `S6_holdout` | Holdout (chấm một lần) | 20% cuối | ở hệ số s: lãi > 0, MDD ≤ 30% (cả khớp đúng mức và giá xấu nhất) |

@@ -51,7 +51,9 @@ S2_PBO_MIN_ALPHAS = 4               # ít hơn: không đủ alpha để xếp h
 S3_TRAIN_DAYS = 120
 S3_TEST_DAYS = 30
 S3_MIN_FOLDS = 5                    # tối thiểu số fold
-S3_MIN_POSITIVE_FOLD_RATIO = 0.60   # >= 60% fold OOS có lãi
+S3_MIN_TRADED_FOLDS = 3             # tối thiểu số fold có lệnh (fold 0 lệnh trung tính)
+S3_MIN_FOLD_T = 1.0                 # t-stat lãi TB/fold OOS (fold có lệnh) >= 1 — thay cổng "tỉ lệ fold lãi >= 60%" (sai với lãi lệch phải)
+S3_MIN_EX_BEST_FOLD_PCT = -2.0      # bỏ fold OOS tốt nhất, lãi kép còn lại >= -2% (không dựa vào một fold may mắn)
 S3_MIN_COMPOUNDED_OOS_PCT = 0.0     # lãi kép OOS phải > 0
 S3_MAX_FOLD_MDD_PCT = 30.0          # MDD fold OOS xấu nhất tối đa
 S3_MIN_AVG_IS_RET_PCT = 0.0         # lãi IS trung bình các fold >= 0
@@ -89,7 +91,10 @@ REASON_LABELS: Dict[str, str] = {
     "S2.dsr": "DSR < 0,95",
     "S2.neighbor": "Lân cận tham số có lãi < 60%",
     "S3.folds": "Số fold < 5",
-    "S3.positive_ratio": "Tỉ lệ fold lãi < 60%",
+    "S3.positive_ratio": "Tỉ lệ fold lãi < 60% (cổng cũ, trước 03/10/2026)",
+    "S3.traded_folds": "Quá ít fold có lệnh (< 3)",
+    "S3.fold_t": "Lãi theo fold không đủ ý nghĩa (t < 1)",
+    "S3.ex_best": "Bỏ fold tốt nhất thì lỗ > 2%",
     "S3.oos_compound": "Lãi kép OOS ≤ 0",
     "S3.worst_fold_mdd": "MDD fold xấu nhất > 30%",
     "S3.avg_is": "Lãi IS trung bình < 0",
@@ -155,13 +160,19 @@ def evaluate_s2(dsr: Optional[float], neighbour_ratio: Optional[float], pbo: Opt
 
 # ── S3 ──────────────────────────────────────────────────────────────────────
 def evaluate_s3(s: Dict[str, Any]) -> Verdict:
-    """s = {folds, positive_ratio (0..1), compounded_oos_ret_pct, worst_fold_mdd, is_ret_avg}."""
+    """s = {folds, traded_folds, compounded_oos_ret_pct, fold_t, oos_ex_best_pct, worst_fold_mdd, is_ret_avg} (aggregate_wfa;
+    fold_t / oos_ex_best_pct / traded_folds: core.metrics.returns.fold_stats). Thứ tự: số fold, fold có lệnh, lãi kép OOS, t theo fold,
+    bỏ fold tốt nhất, MDD fold, lãi IS. positive_ratio vẫn có trong số đo để xem nhưng KHÔNG còn là cổng (lãi lệch phải)."""
     if s["folds"] < S3_MIN_FOLDS:
         return False, "S3.folds", _msg("S3.folds", f"{s['folds']} < {S3_MIN_FOLDS}")
-    if s["positive_ratio"] < S3_MIN_POSITIVE_FOLD_RATIO:
-        return False, "S3.positive_ratio", _msg("S3.positive_ratio", f"{_fmt(s['positive_ratio'] * 100, 0)}% < {_fmt(S3_MIN_POSITIVE_FOLD_RATIO * 100, 0)}%")
+    if s.get("traded_folds", s["folds"]) < S3_MIN_TRADED_FOLDS:
+        return False, "S3.traded_folds", _msg("S3.traded_folds", f"{s.get('traded_folds')} < {S3_MIN_TRADED_FOLDS}")
     if not s["compounded_oos_ret_pct"] > S3_MIN_COMPOUNDED_OOS_PCT:
         return False, "S3.oos_compound", _msg("S3.oos_compound", f"{_fmt(s['compounded_oos_ret_pct'])}%")
+    if not s.get("fold_t", 0.0) >= S3_MIN_FOLD_T:
+        return False, "S3.fold_t", _msg("S3.fold_t", f"t = {_fmt(s.get('fold_t'))} < {_fmt(S3_MIN_FOLD_T)}")
+    if not s.get("oos_ex_best_pct", 0.0) >= S3_MIN_EX_BEST_FOLD_PCT:
+        return False, "S3.ex_best", _msg("S3.ex_best", f"{_fmt(s.get('oos_ex_best_pct'))}% < {_fmt(S3_MIN_EX_BEST_FOLD_PCT)}%")
     if s["worst_fold_mdd"] > S3_MAX_FOLD_MDD_PCT:
         return False, "S3.worst_fold_mdd", _msg("S3.worst_fold_mdd", f"{_fmt(s['worst_fold_mdd'])}% > {_fmt(S3_MAX_FOLD_MDD_PCT)}%")
     if s["is_ret_avg"] is None or s["is_ret_avg"] < S3_MIN_AVG_IS_RET_PCT:

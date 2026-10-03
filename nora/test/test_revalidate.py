@@ -41,7 +41,7 @@ def test_retired_when_wfa_fails_and_apply_moves_testnet(market, monkeypatch, tmp
 
 def test_validated_with_lenient_gates_gets_scale_and_keeps_testnet(market, monkeypatch, tmp_path):
     base = _kit(tmp_path)
-    for k, v in dict(S3_TRAIN_DAYS=10, S3_TEST_DAYS=5, S3_MIN_FOLDS=2, S3_MIN_POSITIVE_FOLD_RATIO=0.0, S3_MIN_COMPOUNDED_OOS_PCT=-1000.0,
+    for k, v in dict(S3_TRAIN_DAYS=10, S3_TEST_DAYS=5, S3_MIN_FOLDS=2, S3_MIN_TRADED_FOLDS=0, S3_MIN_FOLD_T=-1e9, S3_MIN_EX_BEST_FOLD_PCT=-1e9, S3_MIN_COMPOUNDED_OOS_PCT=-1000.0,
                      S3_MAX_FOLD_MDD_PCT=1000.0, S3_MIN_AVG_IS_RET_PCT=-1000.0, S4_MIN_SIMULATIONS=200, S4_MAX_RUIN_PCT=100.0,
                      S4_STRESS_MAX_MDD_PCT=1000.0, S4_MIN_DAYS=5, S6_MIN_RET_PCT=-1000.0, S6_MAX_MDD_PCT=1000.0).items():
         monkeypatch.setattr(gates, k, v)

@@ -130,6 +130,8 @@ Cùng các trường tuỳ chọn `start`, `end`, `train_days`, `test_days`, `sy
 3 kịch bản trend thẳng đứng của MC (§5).
 Kết quả (`result` của job) là `report.json` của `validate_book.py`: `folds[]`, `summary`, `gate`, và các bí danh theo hợp đồng
 `aggregate` (= `summary`) và `mc` (= `summary.mc`) — cùng một đối tượng, UI đọc `aggregate`/`mc`.
+Gate WFA danh mục (03/10/2026): `active_folds` (≥ 3 fold có lệnh), `fold_t` (t-stat lãi theo fold OOS extreme ≥ 1), `ex_best_fold`
+(lãi kép OOS bỏ fold tốt nhất ≥ −2%) thay cho `positive_folds`; summary có thêm `fold_t`, `oos_ex_best_pct`, `n_active_folds`.
 `aggregate.oos_daily` và `aggregate.oos_daily_dates` đều là `{level: [...], extreme: [...]}`, song song theo chỉ số
 (ngày `YYYY-MM-DD`), để UI vẽ đường vốn OOS. `gate = {passed, checks: {<khoá>: {label, required, actual, passed}}}`.
 

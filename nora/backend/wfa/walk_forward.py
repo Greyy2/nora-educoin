@@ -37,7 +37,10 @@ DAY = 86_400_000
 # ── Gate chấp nhận (không nới để có kết quả đẹp) ────────────────────────────
 MIN_FOLDS = 5                      # tối thiểu số fold
 MIN_AVG_IS_RET_PCT = 0.0           # lãi IS trung bình các fold >= 0 (lỗ ngay trên dữ liệu chọn tham số thì OOS dương chỉ là may)
-MIN_POSITIVE_FOLD_RATIO = 0.60     # >= 60% fold OOS có lãi (extreme)
+MIN_TRADED_FOLDS = 3               # tối thiểu số fold có lệnh (fold NO_TRADE trung tính)
+MIN_FOLD_T = 1.0                   # t-stat lãi TB/fold OOS (extreme, fold có lệnh) >= 1 — thay "tỉ lệ fold lãi >= 60%" (lãi lệch phải;
+                                   # core/metrics/returns.fold_stats, cùng cổng với phễu S3)
+MIN_EX_BEST_FOLD_PCT = -2.0        # bỏ fold OOS tốt nhất, lãi kép (extreme) còn lại >= -2%
 MAX_FOLD_MDD_PCT = 30.0            # MDD tệ nhất của một fold OOS (extreme) <= 30%
 MIN_COMPOUNDED_OOS_PCT = 0.0       # lãi kép OOS (extreme) >= 0
 # Monte Carlo (hằng số gốc ở backend/carlo/monte_carlo.py, dùng chung mọi gate): >= 10.000 bootstrap, P(MDD >= 30% trong 1 năm) <= 5%,
@@ -243,9 +246,13 @@ def aggregate_folds(folds: List[Dict[str, Any]], cfg: PortfolioWfaConfig) -> Dic
         mc = run_monte_carlo_daily_gate(daily["extreme"], simulations=cfg.mc_simulations, block_days=cfg.mc_block_days,
                                         horizon_days=cfg.mc_horizon_days, ruin_threshold_pct=MC_RUIN_THRESHOLD_PCT,
                                         seed=cfg.mc_seed, max_ruin_pct=MAX_MC_RUIN_PCT, stress_max_mdd_pct=STRESS_MAX_MDD_PCT, shock=shock)
+    from backend.core.metrics.returns import fold_stats
+    fs = fold_stats([f["oos_extreme"]["ret_pct"] if f["oos_extreme"] else 0.0 for f in folds],
+                    [f["status"] == "TRADED" and (f["oos_extreme"] or {}).get("trades", 0) > 0 for f in folds])
     return {
         "n_folds": n, "n_traded_folds": len(traded), "positive_folds": positive,
         "positive_ratio_pct": round(positive / n * 100, 1) if n else 0.0,
+        "fold_t": fs["fold_t"], "oos_ex_best_pct": fs["oos_ex_best_pct"], "n_active_folds": fs["traded_folds"],
         "avg_is_ret_pct": avg_is, "compounded_oos_ret_pct": compounded, "worst_fold_mdd_pct": worst_mdd,
         "oos_days": len(daily["extreme"]), "oos_trades": {sf: sum(f["trades"][sf] for f in folds) for sf in ("level", "extreme")},
         "param_stability": stability, "oos_daily": daily, "mc": mc, "shock": shock,
@@ -256,7 +263,7 @@ def aggregate_folds(folds: List[Dict[str, Any]], cfg: PortfolioWfaConfig) -> Dic
 def evaluate_gate(summary: Dict[str, Any]) -> Dict[str, Any]:
     """Gate chấp nhận: mọi check phải qua. Trả {"passed", "checks": {tên: {label, required, actual, passed}}}."""
     n, avg_is = summary["n_folds"], summary["avg_is_ret_pct"]
-    pos = summary["positive_ratio_pct"]
+    ft, exb, act = summary.get("fold_t", 0.0), summary.get("oos_ex_best_pct", 0.0), summary.get("n_active_folds", n)
     worst = summary["worst_fold_mdd_pct"]["extreme"]
     comp = summary["compounded_oos_ret_pct"]["extreme"]
     mc = summary["mc"]
@@ -267,8 +274,9 @@ def evaluate_gate(summary: Dict[str, Any]) -> Dict[str, Any]:
         "folds": _check("Số fold", f">= {MIN_FOLDS}", n, n >= MIN_FOLDS),
         "avg_is_return": _check("Lãi IS trung bình các fold", f">= {MIN_AVG_IS_RET_PCT}%", avg_is,
                                 avg_is is not None and avg_is >= MIN_AVG_IS_RET_PCT),
-        "positive_folds": _check("Tỉ lệ fold OOS có lãi (extreme)", f">= {MIN_POSITIVE_FOLD_RATIO * 100:.0f}%", pos,
-                                 n > 0 and pos >= MIN_POSITIVE_FOLD_RATIO * 100),
+        "active_folds": _check("Số fold OOS có lệnh", f">= {MIN_TRADED_FOLDS}", act, act >= MIN_TRADED_FOLDS),
+        "fold_t": _check("t-stat lãi theo fold OOS (extreme)", f">= {MIN_FOLD_T}", ft, ft >= MIN_FOLD_T),
+        "ex_best_fold": _check("Lãi kép OOS khi bỏ fold tốt nhất (extreme)", f">= {MIN_EX_BEST_FOLD_PCT}%", exb, exb >= MIN_EX_BEST_FOLD_PCT),
         "worst_fold_mdd": _check("MDD tệ nhất một fold OOS (extreme)", f"<= {MAX_FOLD_MDD_PCT}%", worst, worst <= MAX_FOLD_MDD_PCT),
         "compounded_oos": _check("Lãi kép OOS (extreme)", f">= {MIN_COMPOUNDED_OOS_PCT}%", comp, comp >= MIN_COMPOUNDED_OOS_PCT),
         "mc_ruin": _check(f"Monte Carlo P(MDD >= {MC_RUIN_THRESHOLD_PCT:.0f}%) trong 1 năm", f"<= {MAX_MC_RUIN_PCT}%", ruin,

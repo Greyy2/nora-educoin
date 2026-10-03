@@ -454,7 +454,8 @@ def stage_s4(ctx: Ctx) -> None:
         a = row["alpha_id"]
         m3 = store.metrics_of([a], "S3_wfa").get(a, {})
         base = {k: v for k, v in m3.items() if k in ("ret_pct", "mdd_pct", "sharpe", "sortino", "trades", "win_rate", "profit_factor",
-                                                      "oos_days", "folds", "positive_ratio", "worst_fold_mdd", "is_ret_avg")}
+                                                      "oos_days", "folds", "positive_ratio", "worst_fold_mdd", "is_ret_avg",
+                                                      "traded_folds", "fold_t", "oos_ex_best_pct")}
         if res["detail"] is None:
             code = "S4.days"
             return StageResult(a, "S4_montecarlo", {**base, "days": res["days"]}, False, code,

@@ -191,9 +191,13 @@ def aggregate_wfa(folds: List[Dict[str, Any]], rpt: Optional[float] = None) -> D
     positive = sum(1 for f in folds if f["oos"]["ret_pct"] > 0)
     compounded = round(float((np.prod(1.0 + np.asarray(series, dtype=float)) - 1.0) * 100), 2) if series else 0.0
     is_avg = round(sum(f["is_ret_pct"] for f in folds) / n, 2) if n else None
-    summary = {"folds": n, "positive_ratio": (positive / n) if n else 0.0, "compounded_oos_ret_pct": compounded,
-               "worst_fold_mdd": max((f["oos"]["mdd_pct"] for f in folds), default=0.0), "is_ret_avg": is_avg}
+    from backend.core.metrics.returns import fold_stats
+    fs = fold_stats([f["oos"]["ret_pct"] for f in folds], [f["oos"]["trades"] > 0 for f in folds])
+    summary = {"folds": n, "positive_ratio": fs["positive_ratio"], "compounded_oos_ret_pct": compounded,
+               "worst_fold_mdd": max((f["oos"]["mdd_pct"] for f in folds), default=0.0), "is_ret_avg": is_avg,
+               "traded_folds": fs["traded_folds"], "fold_t": fs["fold_t"], "oos_ex_best_pct": fs["oos_ex_best_pct"]}
     metrics = {**series_metrics(series, trades), "folds": n, "folds_profitable": positive, "positive_ratio": round(summary["positive_ratio"], 4),
+               "traded_folds": fs["traded_folds"], "fold_t": fs["fold_t"], "oos_ex_best_pct": fs["oos_ex_best_pct"],
                "worst_fold_mdd": summary["worst_fold_mdd"], "is_ret_avg": is_avg,
                "fold_detail": [{"fold": f["fold"], "train": f["train"], "test": f["test"], "is_ret_pct": f["is_ret_pct"],
                                 "oos_ret_pct": f["oos"]["ret_pct"], "oos_mdd_pct": f["oos"]["mdd_pct"], "trades": f["oos"]["trades"],

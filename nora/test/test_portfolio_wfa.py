@@ -119,8 +119,8 @@ def test_folds_do_not_overlap_and_oos_daily_only_from_test_windows(market, monke
     s = res["summary"]
     assert s["oos_days"] == len(s["oos_daily"]["extreme"]) == sum(len(f["oos_daily_extreme"]) for f in folds)
     assert s["mc"] is not None and s["mc"]["simulations"] == CFG.mc_simulations
-    assert set(res["gate"]["checks"]) == {"folds", "avg_is_return", "positive_folds", "worst_fold_mdd", "compounded_oos", "mc_ruin",
-                                          "mc_simulations", "mc_stress_mdd", "mc_stress_ruin"}
+    assert set(res["gate"]["checks"]) == {"folds", "avg_is_return", "active_folds", "fold_t", "ex_best_fold", "worst_fold_mdd", "compounded_oos",
+                                          "mc_ruin", "mc_simulations", "mc_stress_mdd", "mc_stress_ruin"}
     assert res["gate"]["checks"]["mc_simulations"]["passed"] is False       # 300 < 10.000 kịch bản
     assert res["gate"]["checks"]["folds"]["passed"] is False                # 3 fold < 5 -> gate trượt
 
@@ -176,7 +176,8 @@ def _mc(**kw):
 
 
 def _summary(**kw):
-    s = {"n_folds": 6, "avg_is_ret_pct": 3.0, "positive_ratio_pct": 66.7, "worst_fold_mdd_pct": {"level": 8.0, "extreme": 12.0},
+    s = {"n_folds": 6, "avg_is_ret_pct": 3.0, "positive_ratio_pct": 66.7, "fold_t": 1.5, "oos_ex_best_pct": 1.0, "n_active_folds": 6,
+         "worst_fold_mdd_pct": {"level": 8.0, "extreme": 12.0},
          "compounded_oos_ret_pct": {"level": 10.0, "extreme": 6.0}, "mc": _mc()}
     s.update(kw)
     return s
@@ -187,7 +188,8 @@ def test_gate_checks_on_crafted_result():
     assert g["passed"] and all(c["passed"] for c in g["checks"].values())
     assert g["checks"]["worst_fold_mdd"]["actual"] == 12.0 and g["checks"]["mc_ruin"]["required"] == "<= 5.0%"
     cases = {
-        "folds": _summary(n_folds=4), "avg_is_return": _summary(avg_is_ret_pct=-0.1), "positive_folds": _summary(positive_ratio_pct=59.9),
+        "folds": _summary(n_folds=4), "avg_is_return": _summary(avg_is_ret_pct=-0.1), "active_folds": _summary(n_active_folds=2),
+        "fold_t": _summary(fold_t=0.99), "ex_best_fold": _summary(oos_ex_best_pct=-2.01),
         "worst_fold_mdd": _summary(worst_fold_mdd_pct={"level": 5.0, "extreme": 30.5}),
         "compounded_oos": _summary(compounded_oos_ret_pct={"level": 9.0, "extreme": -0.01}),
         "mc_ruin": _summary(mc=_mc(p_mdd_ge_ruin_pct=5.01)),
@@ -198,7 +200,8 @@ def test_gate_checks_on_crafted_result():
     for name, summary in cases.items():
         res = pw.evaluate_gate(summary)
         assert not res["passed"] and [k for k, c in res["checks"].items() if not c["passed"]] == [name]
-    edge = pw.evaluate_gate(_summary(n_folds=5, avg_is_ret_pct=0.0, positive_ratio_pct=60.0,
+    assert pw.evaluate_gate(_summary(positive_ratio_pct=20.0))["passed"]     # tỉ lệ fold lãi không còn là cổng (lãi lệch phải)
+    edge = pw.evaluate_gate(_summary(n_folds=5, avg_is_ret_pct=0.0, fold_t=1.0, oos_ex_best_pct=-2.0, n_active_folds=3,
                                      worst_fold_mdd_pct={"level": 1.0, "extreme": 30.0},
                                      compounded_oos_ret_pct={"level": 0.0, "extreme": 0.0}, mc=_mc(p_mdd_ge_ruin_pct=5.0, simulations=10_000)))
     assert edge["passed"]                                       # đúng ngưỡng thì qua
@@ -217,6 +220,9 @@ def test_aggregate_folds_on_crafted_folds():
     folds.append(fold(4, 0.0, 0.0, [0.0] * 30, None, status="NO_TRADE") | {"oos_level": None, "oos_extreme": None})
     s = pw.aggregate_folds(folds, pw.PortfolioWfaConfig(mc_simulations=200))
     assert s["n_folds"] == 4 and s["n_traded_folds"] == 3 and s["positive_folds"] == 2 and s["positive_ratio_pct"] == 50.0
+    x = [5.0, -2.0, 3.0]                                                    # fold NO_TRADE trung tính: không vào t-stat
+    t = (sum(x) / 3) / ((sum((v - 2.0) ** 2 for v in x) / 2) ** 0.5 / 3 ** 0.5)
+    assert s["n_active_folds"] == 3 and s["fold_t"] == round(t, 4) and s["oos_ex_best_pct"] == round((0.98 * 1.03 * 1.0 - 1) * 100, 4)
     assert s["worst_fold_mdd_pct"]["extreme"] == 9.0 and s["avg_is_ret_pct"] == 2.0
     expect = (1.01 ** 30) * (0.998 ** 30) * (1.001 ** 30) - 1
     assert s["compounded_oos_ret_pct"]["extreme"] == round(expect * 100, 2)
