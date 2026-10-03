@@ -86,6 +86,18 @@ def _basic_risk(items: List[Tuple[str, Dict[str, Any]]]) -> float:
     return min(vals) if vals else BASE_RISK_PER_TRADE_PCT
 
 
+def _timeframe_errors(fulls: List[Tuple[str, Dict[str, Any]]], timeframe: str, field: str) -> List[rm.FieldError]:
+    """Khung tín hiệu không nâng lên được tới khung chạy (vd. trend_long entry_tf tối đa 1h, chạy 4h) -> lỗi 422 trước khi tạo job
+    (trước đây job chạy rồi mới hỏng)."""
+    errs: List[rm.FieldError] = []
+    for i, (cid, full) in enumerate(fulls):
+        try:
+            rm.lift_frames(BY_ID[cid], full, timeframe)
+        except ValueError as e:
+            errs.append((f"{field}[{i}]", f"{e}. Chọn khung chạy nhỏ hơn hoặc bỏ chiến lược này"))
+    return errs
+
+
 # ─── Backtest ────────────────────────────────────────────────────────────────
 def launch_backtest(req) -> Dict[str, Any]:
     mode = req.mode
@@ -119,6 +131,7 @@ def launch_backtest(req) -> Dict[str, Any]:
             full, errs = rm.validate_params(cand, s.params or {}, presets[s.id]["params"], f"strategies[{i}].params")
             errors += errs
             fulls.append((s.id, full))
+    errors += _timeframe_errors(fulls, req.timeframe, "strategies")
     if errors:
         raise http_422(errors)
     if mode == "basic" and mismatches:
@@ -181,6 +194,9 @@ def launch_wfa(req) -> Dict[str, Any]:
             detail_tf = ", ".join(f"{cid}: {tf}" for cid, tf in mismatches.items())
             resolved["timeframe_mismatch"] = f"Khung chạy ({req.timeframe}) khác khung tối ưu của preset ({detail_tf})"
         fulls = [(cid, dict(presets[cid]["params"])) for cid in ids]
+        tf_errs = _timeframe_errors(fulls, req.timeframe, "candidates" if req.candidates else "strategies")
+        if tf_errs:
+            raise http_422(tf_errs)
         rpt = _basic_risk(fulls)
         cfgs = [{"id": cid, "configs": [rm.job_params(BY_ID[cid], full)]} for cid, full in fulls]
         payload.update(candidates=ids, risk_per_trade_pct=rpt)    # chỉ để build_job dựng các cờ chung; nguồn thật là strategies.json
@@ -218,6 +234,10 @@ def launch_wfa(req) -> Dict[str, Any]:
                     errors.append((f"strategies[{i}].configs[{j}]",
                                    f"{s.id}: WFA hiện chỉ nhận tham số thuộc không gian tối ưu {sorted(cand['space'])}; "
                                    f"chưa hỗ trợ đổi {outside} (chu kỳ chỉ báo/khung thời gian). Dùng backtest để thử các tham số này."))
+                    continue
+                tf_errs = _timeframe_errors([(s.id, full)], req.timeframe, f"strategies[{i}].configs[{j}]")
+                if tf_errs:
+                    errors.append((f"strategies[{i}].configs[{j}]", tf_errs[0][1]))
                     continue
                 out_cfgs.append(prm)
                 full_cfgs.append(full)

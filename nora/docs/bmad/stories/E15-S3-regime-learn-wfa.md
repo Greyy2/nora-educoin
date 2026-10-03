@@ -28,6 +28,11 @@ Kết quả thật (báo cáo 20261003_035715, top-3 mỗi chiến lược, 15m,
 
 **Khắc phục 03/10.** Luật học chặt: ≥ 30 lệnh/ô và t-stat ≤ −2; WFA học trên cửa sổ mở rộng (đầu dev1 → hết train). Bảng học giờ ổn định (gần như mọi fold chặn reversion_long/short ở RANGE). WFA preset 9 chiến lược: tắt −27,3% / học −22,7% lãi kép OOS extreme (ruin 81% → 74%); gate vẫn trượt. Sổ 5 chiến lược dev1 dương cũng trượt (fold dương 30%). Nguyên nhân gốc: chiến lược đổi dấu từ dev1 sang dev2 (vd. keltner_trend_long +5.003$ → −724$) — regime không tạo được edge. Ghi chú: khớp SL "level" OOS dương (+5,5% / +8,1%) còn "extreme" âm → nhạy với giả định trượt giá khi cắt lỗ.
 
+**Sửa engine + lưới thử 03/10.** Khớp SL "extreme" ở khung chạy > 1m từng lấy giá xấu nhất của cả nến 15m/1h — OOS extreme bị phạt sai theo khung
+(trend_short dev2: 1m +21,8%, 15m +2,9%). Nay lấy nến 1m đầu tiên chạm mức (15m +17,5%, 1h +17,1%; commit d1e9b3d). Lưới WFA sau sửa: 1h tốt hơn 15m;
+"học regime" không giúp ở 1h; bộ 5 chiến lược dương trên dev1 kém hơn cả 9 chiến lược (chọn theo dev1 không bền). Cấu hình qua gate WFA: 1h, 9 chiến lược preset,
+rủi ro 0,15%/lệnh, test 60 ngày (fold dương 3/5, OOS +2,1%, stress MDD 44,6%) — mong manh, chọn sau ~20 lần thử; holdout một lần −4,4% / −7,25% → không đạt thực chất.
+
 ## Evidence
 
 - Commit: `dc08366`.
@@ -40,3 +45,4 @@ Kết quả thật (báo cáo 20261003_035715, top-3 mỗi chiến lược, 15m,
 |---|---|---|
 | 2026-10-03 | Tạo + chạy thật | dc08366 |
 | 2026-10-03 | Luật học chặt + cửa sổ mở rộng; WFA lại với preset bền | a06efb9 |
+| 2026-10-03 | Sửa khớp extreme theo nến 1m; lưới WFA khung/bộ/rủi ro; holdout một lần trượt | d1e9b3d |

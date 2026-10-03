@@ -701,3 +701,13 @@ def test_api_rejects_strategy_incompatible_with_timeframe():
     from backend.main import app
     r = TestClient(app).post("/api/studio/funnel/runs", json={"strategies": ["trend_long"], "n_per_strategy": 5, "timeframe": "4h"})
     assert r.status_code == 422 and "khung 4h" in r.text
+
+
+def test_incompatible_timeframe_is_422_before_job(client):
+    """trend_long: khung vào lệnh tối đa nhỏ hơn 4h -> 422 theo trường ngay ở API (trước đây job WFA chạy rồi mới hỏng)."""
+    n = len(FakePopen.calls)
+    r = client.post(URL, json={**BT, "timeframe": "4h", "strategies": [{"id": "trend_long"}]})
+    assert r.status_code == 422 and "4h" in r.text and "strategies[0]" in r.text
+    w = client.post("/api/studio/book/wfa", json={**WFA, "timeframe": "4h", "candidates": ["trend_long"]})
+    assert w.status_code == 422 and "candidates[0]" in w.text
+    assert len(FakePopen.calls) == n
