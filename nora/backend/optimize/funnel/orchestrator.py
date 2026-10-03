@@ -306,9 +306,15 @@ def _s2_strategy_level(ctx: Ctx, strategy: str) -> Dict[str, Any]:
             info["n_trials"] = antiluck.effective_trials(M[:, :gates.S2_EFF_SAMPLE], len(srs))
             r = antiluck.pbo_cscv(M, gates.S2_PBO_BLOCKS)
             info.update(pbo=r["pbo"], pbo_alphas=r["n_alphas"], pbo_days=r["n_days"], pbo_logit_median=r["logit_median"], pbo_splits=r["n_splits"])
-    info["flag"] = bool(info["pbo"] is not None and info["pbo"] > gates.S2_PBO_MAX)
+    info["flag"] = bool(info["pbo"] is not None and info["pbo"] > gates.S2_PBO_MAX)   # cảnh báo, không loại
+    # ngưỡng top DSR trong các alpha ĐÃ QUA S1 của chiến lược (xếp hạng thay cho cổng DSR >= 0,95)
+    dsrs = [antiluck.deflated_sharpe(m["sr_daily"], m["n_days"], m["skew"], m["kurt"], info["n_trials"], info["sr_var"])["dsr"]
+            for _, _, m, _ in store.iter_stage_metrics("S1_backtest", strategy, passed_only=True) if "sr_daily" in m]
+    info["dsr_cut"] = gates.dsr_cut(dsrs)
+    info["n_s1_passed"] = len(dsrs)
     store.set_kv(key, info)
-    ctx.log(f"[S2_antiluck] {strategy}: N={info['n_trials_raw']} N_eff={info['n_trials']} sr_var={info['sr_var']:.2e} PBO={info['pbo']}")
+    ctx.log(f"[S2_antiluck] {strategy}: N={info['n_trials_raw']} N_eff={info['n_trials']} sr_var={info['sr_var']:.2e} PBO={info['pbo']} "
+            f"ngưỡng top DSR={info['dsr_cut']} ({len(dsrs)} alpha qua S1)")
     return info
 
 
@@ -330,17 +336,19 @@ def stage_s2(ctx: Ctx) -> None:
                 m = m1[r["alpha_id"]]
                 d = antiluck.deflated_sharpe(m["sr_daily"], m["n_days"], m["skew"], m["kurt"], info["n_trials"], info["sr_var"])
                 ev[r["alpha_id"]] = {"dsr": d["dsr"], "sr0": d["sr0"]}
-            # điểm lân cận: chỉ cho alpha còn sống sau PBO + DSR (tiết kiệm backtest)
-            survivors = [r for r in chunk if not info["flag"] and ev[r["alpha_id"]]["dsr"] >= gates.S2_DSR_MIN]
+            # điểm lân cận: chỉ cho alpha trong top DSR của chiến lược (tiết kiệm backtest)
+            cut = info.get("dsr_cut")
+            survivors = [r for r in chunk if cut is not None and ev[r["alpha_id"]]["dsr"] >= cut]
             nb_ratio = _neighbour_ratios(ctx, strategy, cand, survivors)
             results = []
             for r in chunk:
                 a = r["alpha_id"]
                 nb = nb_ratio.get(a)
                 ratio, n_nb = (nb if nb else (None, 0))
-                ok, code, msg = gates.evaluate_s2(ev[a]["dsr"], ratio, info["pbo"])
+                ok, code, msg = gates.evaluate_s2(ev[a]["dsr"], cut, ratio)
                 m = {**_scalar_base(m1[a]), "dsr": round(ev[a]["dsr"], 4), "dsr_sr0": round(ev[a]["sr0"], 6), "neighbor_ratio": ratio,
                      "neighbor_n": n_nb, "pbo_strategy": info["pbo"], "pbo_flag": info["flag"], "n_trials": info["n_trials"],
+                     "dsr_cut": None if cut is None else round(cut, 4),
                      "n_trials_raw": info.get("n_trials_raw", info["n_trials"])}
                 results.append(StageResult(a, "S2_antiluck", m, ok, code, msg))
                 ctx.tick()

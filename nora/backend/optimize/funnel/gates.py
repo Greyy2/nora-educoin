@@ -40,9 +40,13 @@ S1_MIN_TRADES = 40           # số lệnh tối thiểu trên cả danh mục
 S1_MIN_SYMBOLS_POSITIVE = 5  # số tài sản có lãi tối thiểu (độ phủ danh mục)
 
 # ── S2: chống ăn may ────────────────────────────────────────────────────────
-S2_DSR_MIN = 0.95                   # Deflated Sharpe Ratio (Bailey & López de Prado 2014) tối thiểu
-S2_NEIGHBOUR_MIN_PROFIT_RATIO = 0.60   # >= 60% điểm lân cận (±1 bước mỗi khoá) có lãi trên dev1
-S2_PBO_MAX = 0.5                    # PBO của chiến lược (CSCV) tối đa; vượt -> MỌI alpha của chiến lược bị gắn cờ và loại
+# Từ 03/10/2026 DSR / PBO là XẾP HẠNG + CẢNH BÁO, không còn cổng cứng trước WFA: DSR >= 0,95 chặn 100% (kể cả với N hiệu dụng) trong khi
+# nhóm alpha qua WFA (cổng S3 mới) lãi trên holdout (TB +2% so với −2,1% của alpha ngẫu nhiên). Quyết định qua/không giao cho các cổng NGOÀI
+# MẪU (S3 WFA, S4 Monte Carlo, S6 holdout); S2 chỉ giữ top DSR của mỗi chiến lược + kiểm lân cận tham số.
+S2_DSR_TOP_FRAC = 0.05              # đi tiếp: top 5% DSR trong các alpha đã qua S1 của CÙNG chiến lược
+S2_DSR_TOP_MIN = 3                  # ... nhưng ít nhất 3 alpha mỗi chiến lược (nếu có)
+S2_NEIGHBOUR_MIN_PROFIT_RATIO = 0.60   # >= 60% điểm lân cận (±1 bước mỗi khoá) có lãi trên dev1 (cổng cứng)
+S2_PBO_MAX = 0.5                    # PBO của chiến lược (CSCV) > 0,5 -> CẢNH BÁO (pbo_flag) ghi vào số đo, không loại
 S2_PBO_BLOCKS = 16                  # số khối của CSCV (C(16,8) = 12.870 cách chia)
 S2_PBO_MAX_ALPHAS = 2000            # > 2000 alpha: chỉ lấy 2000 alpha điểm IS cao nhất cho ma trận PBO
 S2_PBO_MIN_ALPHAS = 4               # ít hơn: không đủ alpha để xếp hạng -> không đo PBO (không gắn cờ)
@@ -88,8 +92,9 @@ REASON_LABELS: Dict[str, str] = {
     "S1.min_trades": "Số lệnh ít hơn ngưỡng",
     "S1.symbols_positive": "Quá ít tài sản có lãi",
     "S1.error": "Backtest lỗi",
-    "S2.pbo": "PBO của chiến lược > 0,5",
-    "S2.dsr": "DSR < 0,95",
+    "S2.pbo": "PBO của chiến lược > 0,5 (cổng cũ, trước 03/10/2026)",
+    "S2.dsr": "DSR < 0,95 (cổng cũ, trước 03/10/2026)",
+    "S2.dsr_rank": "DSR ngoài top 5% của chiến lược",
     "S2.neighbor": "Lân cận tham số có lãi < 60%",
     "S3.folds": "Số fold < 5",
     "S3.positive_ratio": "Tỉ lệ fold lãi < 60% (cổng cũ, trước 03/10/2026)",
@@ -148,12 +153,21 @@ def evaluate_s1(m: Dict[str, Any]) -> Verdict:
 
 
 # ── S2 ──────────────────────────────────────────────────────────────────────
-def evaluate_s2(dsr: Optional[float], neighbour_ratio: Optional[float], pbo: Optional[float]) -> Verdict:
-    """Thứ tự: PBO chiến lược (cờ cho mọi alpha) -> DSR -> lân cận. neighbour_ratio None = không có điểm lân cận (qua)."""
-    if pbo is not None and pbo > S2_PBO_MAX:
-        return False, "S2.pbo", _msg("S2.pbo", f"PBO {_fmt(pbo)}")
-    if dsr is None or not dsr >= S2_DSR_MIN:
-        return False, "S2.dsr", _msg("S2.dsr", f"{_fmt(dsr, 3)} < {_fmt(S2_DSR_MIN)}")
+def dsr_cut(dsrs: List[float]) -> Optional[float]:
+    """Ngưỡng DSR để vào top của chiến lược: giá trị thứ k = max(S2_DSR_TOP_MIN, ceil(S2_DSR_TOP_FRAC × n)) khi xếp giảm dần.
+    Không có alpha -> None. Hoà điểm ở ngưỡng: mọi alpha bằng ngưỡng đều đi tiếp."""
+    vals = sorted((float(d) for d in dsrs if d is not None and math.isfinite(d)), reverse=True)
+    if not vals:
+        return None
+    k = min(len(vals), max(S2_DSR_TOP_MIN, math.ceil(S2_DSR_TOP_FRAC * len(vals))))
+    return vals[k - 1]
+
+
+def evaluate_s2(dsr: Optional[float], cut: Optional[float], neighbour_ratio: Optional[float]) -> Verdict:
+    """Thứ tự: DSR trong top của chiến lược (cut = dsr_cut) -> lân cận. neighbour_ratio None = không có điểm lân cận (qua).
+    PBO không loại (cảnh báo pbo_flag ở số đo)."""
+    if dsr is None or cut is None or not dsr >= cut:
+        return False, "S2.dsr_rank", _msg("S2.dsr_rank", f"DSR {_fmt(dsr, 3)} < ngưỡng top {_fmt(cut, 3)}")
     if neighbour_ratio is not None and neighbour_ratio < S2_NEIGHBOUR_MIN_PROFIT_RATIO:
         return False, "S2.neighbor", _msg("S2.neighbor", f"{_fmt(neighbour_ratio * 100, 0)}% < {_fmt(S2_NEIGHBOUR_MIN_PROFIT_RATIO * 100, 0)}%")
     return _OK

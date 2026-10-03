@@ -79,7 +79,7 @@ def small_book(monkeypatch):
 
 @pytest.fixture
 def lenient(monkeypatch):
-    for k, v in dict(S1_MIN_RET_PCT=-1000.0, S1_MAX_MDD_PCT=1000.0, S1_MIN_TRADES=1, S1_MIN_SYMBOLS_POSITIVE=0, S2_DSR_MIN=0.0,
+    for k, v in dict(S1_MIN_RET_PCT=-1000.0, S1_MAX_MDD_PCT=1000.0, S1_MIN_TRADES=1, S1_MIN_SYMBOLS_POSITIVE=0, S2_DSR_TOP_FRAC=1.0,
                      S2_NEIGHBOUR_MIN_PROFIT_RATIO=0.0, S2_PBO_MAX=1.0, S3_MIN_FOLDS=2, S3_MIN_TRADED_FOLDS=0, S3_MIN_FOLD_T=-1e9, S3_MIN_EX_BEST_FOLD_PCT=-1e9,
                      S3_MIN_COMPOUNDED_OOS_PCT=-1000.0, S3_MAX_FOLD_MDD_PCT=1000.0, S3_MIN_AVG_IS_RET_PCT=-1000.0,
                      S4_MIN_SIMULATIONS=200, S4_MAX_RUIN_PCT=100.0, S4_STRESS_MAX_MDD_PCT=1000.0, S4_MIN_DAYS=5,
@@ -110,7 +110,7 @@ def test_gate_constants_match_existing_gates():
     assert (gates.S3_TRAIN_DAYS, gates.S3_TEST_DAYS) == (120, 30)
     assert gates.S4_MIN_SIMULATIONS == mc.MC_MIN_SIMULATIONS == 10_000 and gates.S4_MAX_RUIN_PCT == mc.MC_MAX_RUIN_PCT == 5.0
     assert gates.S4_STRESS_MAX_MDD_PCT == mc.STRESS_MAX_MDD_PCT == 50.0 and gates.S4_RUIN_THRESHOLD_PCT == mc.MC_RUIN_THRESHOLD_PCT
-    assert (gates.S2_DSR_MIN, gates.S2_NEIGHBOUR_MIN_PROFIT_RATIO, gates.S2_PBO_MAX, gates.S2_PBO_BLOCKS) == (0.95, 0.60, 0.5, 16)
+    assert (gates.S2_DSR_TOP_FRAC, gates.S2_DSR_TOP_MIN, gates.S2_NEIGHBOUR_MIN_PROFIT_RATIO, gates.S2_PBO_MAX, gates.S2_PBO_BLOCKS) == (0.05, 3, 0.60, 0.5, 16)
     assert (gates.S5_S_MIN, gates.S5_S_MAX, gates.S5_TOLERANCE) == (0.2, 1.0, 0.01)
     assert gates.STAGES[0] == "S0_generate" and gates.STAGES[-1] == "FINAL" and len(gates.STAGES) == 8
 
@@ -132,10 +132,12 @@ def test_reject_codes_and_messages():
     assert gates.evaluate_s1({**ok, "symbols_positive": 2})[1] == "S1.symbols_positive"
     ok_, code, msg = gates.evaluate_s1({**ok, "trades": 10})
     assert msg.startswith("S1.min_trades: ") and "10 < 40" in msg
-    assert gates.evaluate_s2(0.99, 0.8, 0.2)[0]
-    assert gates.evaluate_s2(0.99, 0.8, 0.6)[1] == "S2.pbo"
-    assert gates.evaluate_s2(0.5, 0.8, 0.2)[1] == "S2.dsr"
-    assert gates.evaluate_s2(0.99, 0.5, 0.2)[1] == "S2.neighbor"
+    assert gates.evaluate_s2(0.3, 0.3, 0.8)[0]                                   # đúng ngưỡng top: qua (DSR thấp vẫn đi tiếp nếu ở top)
+    assert gates.evaluate_s2(0.29, 0.3, 0.8)[1] == "S2.dsr_rank"
+    assert gates.evaluate_s2(0.5, None, 0.8)[1] == "S2.dsr_rank"                 # chiến lược không có alpha qua S1
+    assert gates.evaluate_s2(0.99, 0.3, 0.5)[1] == "S2.neighbor"
+    assert gates.dsr_cut([0.1 * i for i in range(100)]) == 0.1 * 95              # top 5% của 100 = 5 alpha -> giá trị thứ 5
+    assert gates.dsr_cut([0.2, 0.9]) == 0.2 and gates.dsr_cut([]) is None        # ít hơn 3 alpha: lấy hết
     s3 = {"folds": 8, "traded_folds": 8, "positive_ratio": 0.75, "compounded_oos_ret_pct": 3.0, "fold_t": 1.4, "oos_ex_best_pct": 0.5,
           "worst_fold_mdd": 12.0, "is_ret_avg": 4.0}
     assert gates.evaluate_s3(s3)[0]
@@ -188,7 +190,6 @@ def test_pbo_overfit_high_robust_low():
     po, pr = antiluck.pbo_cscv(over), antiluck.pbo_cscv(rob)
     assert po["n_splits"] == 12870 and po["pbo"] > 0.6
     assert pr["pbo"] < 0.1
-    assert gates.evaluate_s2(0.99, 0.9, po["pbo"])[1] == "S2.pbo"
     assert antiluck.pbo_cscv(over[:10])["pbo"] is None   # không đủ ngày
 
 
@@ -263,7 +264,7 @@ def full_run(market):
               "space": {"sig.lo": [35, 40, 45], "stop_loss_rate": [2.0], "take_profit_rate": [2.0], "timeout": [720]}}]
     mp.setattr(sb, "UNIVERSE", list(SYMS))
     mp.setattr(sb, "CANDIDATES", cands)
-    for k, v in dict(S1_MIN_RET_PCT=-1000.0, S1_MAX_MDD_PCT=1000.0, S1_MIN_TRADES=1, S1_MIN_SYMBOLS_POSITIVE=0, S2_DSR_MIN=0.0,
+    for k, v in dict(S1_MIN_RET_PCT=-1000.0, S1_MAX_MDD_PCT=1000.0, S1_MIN_TRADES=1, S1_MIN_SYMBOLS_POSITIVE=0, S2_DSR_TOP_FRAC=1.0,
                      S2_NEIGHBOUR_MIN_PROFIT_RATIO=0.0, S2_PBO_MAX=1.0, S3_MIN_FOLDS=2, S3_MIN_TRADED_FOLDS=0, S3_MIN_FOLD_T=-1e9, S3_MIN_EX_BEST_FOLD_PCT=-1e9,
                      S3_MIN_COMPOUNDED_OOS_PCT=-1000.0, S3_MAX_FOLD_MDD_PCT=1000.0, S3_MIN_AVG_IS_RET_PCT=-1000.0,
                      S4_MIN_SIMULATIONS=200, S4_MAX_RUIN_PCT=100.0, S4_STRESS_MAX_MDD_PCT=1000.0, S4_MIN_DAYS=5,
@@ -313,7 +314,7 @@ def test_full_pipeline_stage_transitions_and_storage(full_run):
         assert os.path.isfile(os.path.join(res["run_dir"], fn))
     run = json.load(open(os.path.join(res["run_dir"], "run.json"), encoding="utf-8"))
     assert run["status"] == "done" and all(run["stages"][s]["status"] == "done" for s in gates.STAGES)
-    assert run["config"]["strategies"] == ["t_long"] and run["config"]["data_sha256"] and run["config"]["thresholds"]["S2_DSR_MIN"] == 0.0
+    assert run["config"]["strategies"] == ["t_long"] and run["config"]["data_sha256"] and run["config"]["thresholds"]["S2_DSR_TOP_FRAC"] == 1.0
     assert not os.path.exists(os.path.join(res["run_dir"], "_shared"))
 
 

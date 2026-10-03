@@ -8,7 +8,7 @@ export const STAGES = ['S0_generate', 'S1_backtest', 'S2_antiluck', 'S3_wfa', 'S
 export const STAGE_META = {
   S0_generate: { short: 'S0', name: 'Sinh alpha', data: 'Không gian tham số', rule: 'Hợp lệ (vd. ngân sách DCA); mỗi alpha có mã riêng' },
   S1_backtest: { short: 'S1', name: 'Backtest sàng lọc', data: 'dev1', rule: 'Lãi > 0, MDD ≤ 30%, đủ số lệnh, đủ số tài sản có lãi' },
-  S2_antiluck: { short: 'S2', name: 'Chống ăn may', data: 'dev1 + lân cận', rule: 'DSR ≥ 0,95; lân cận tham số có lãi ≥ 60%; PBO chiến lược ≤ 0,5' },
+  S2_antiluck: { short: 'S2', name: 'Chống ăn may', data: 'dev1 + lân cận', rule: 'Top 5% DSR của chiến lược (N hiệu dụng); lân cận tham số có lãi ≥ 60%; PBO chiến lược > 0,5 chỉ cảnh báo' },
   S3_wfa: { short: 'S3', name: 'Walk-forward', data: 'dev2', rule: '≥ 5 fold, ≥ 60% fold OOS lãi, lãi kép OOS > 0, MDD fold xấu nhất ≤ 30%' },
   S4_montecarlo: { short: 'S4', name: 'Monte Carlo', data: 'chuỗi ngày OOS', rule: '≥ 10.000 kịch bản, P(MDD ≥ 30%) ≤ 5%, mọi kịch bản cực xấu MDD < 50%' },
   S5_sizing: { short: 'S5', name: 'Khối lượng sống sót', data: 'như S4', rule: 'Hệ số vốn lớn nhất s sống sót qua S4, xác nhận bằng backtest + WFA + MC; s ≥ 0,2' },

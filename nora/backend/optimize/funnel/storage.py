@@ -396,10 +396,11 @@ class RunStore:
             out.update({a: json.loads(m) for a, m in rows})
         return out
 
-    def iter_stage_metrics(self, stage: str, strategy: Optional[str] = None, flat: bool = True) -> Iterator[Tuple[str, str, Dict[str, Any], float]]:
-        """Duyệt (alpha_id, strategy, metrics_json đã parse, score) của một tầng theo ord (streaming, lô 2000)."""
+    def iter_stage_metrics(self, stage: str, strategy: Optional[str] = None, flat: bool = True,
+                           passed_only: bool = False) -> Iterator[Tuple[str, str, Dict[str, Any], float]]:
+        """Duyệt (alpha_id, strategy, metrics_json đã parse, score) của một tầng theo ord (streaming, lô 2000). passed_only: chỉ alpha qua tầng."""
         q = ("SELECT m.alpha_id, a.strategy, m.metrics_json, m.score FROM stage_metrics m JOIN alphas a ON a.alpha_id=m.alpha_id "
-             "WHERE m.stage=?")
+             "WHERE m.stage=?" + (" AND m.passed=1" if passed_only else ""))
         args: List[Any] = [stage]
         if strategy is not None:
             q += " AND a.strategy=?"
