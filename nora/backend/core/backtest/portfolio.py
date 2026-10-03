@@ -124,7 +124,7 @@ class PortfolioEngine:
 
     def _cache_key(self, symbol: str, eng: BacktestEngine) -> tuple:
         return (symbol, self.start_ts, self.end_ts, self._refs_signature(eng), any(tr.market == "perp" for tr in eng.trackers),
-                self.base_frame)
+                self.base_frame, eng.needs_minute_path())
 
     def _build_symbol_data(self, eng: BacktestEngine, only: Optional[Set[str]] = None) -> Dict[str, Any]:
         """Dựng `data` của một tài sản (nến thật 1m + cột kernel + funding), không đụng cache.
@@ -133,14 +133,18 @@ class PortfolioEngine:
             eng.load_data()
         df1, cols = eng._build_matrix(only=only)
         real = df1["is_filled"].to_numpy() == 0
-        return {
-            "t": df1["open_time"].to_numpy(dtype="int64")[real],
+        t = df1["open_time"].to_numpy(dtype="int64")[real]
+        out = {
+            "t": t,
             "o": df1["open"].to_numpy(dtype="float64")[real], "h": df1["high"].to_numpy(dtype="float64")[real],
             "l": df1["low"].to_numpy(dtype="float64")[real], "c": df1["close"].to_numpy(dtype="float64")[real],
             "cols": {k: v[real] for k, v in cols.items()},
             "f_t": eng.funding["funding_time"].to_numpy(dtype="int64") if eng.funding is not None else np.array([], "int64"),
             "f_r": eng.funding["rate"].to_numpy(dtype="float64") if eng.funding is not None else np.array([]),
         }
+        if eng.needs_minute_path():   # khớp "extreme" ở khung chạy > 1m: giá xấu nhất của nến 1m đầu tiên chạm mức
+            out["minute"] = eng.minute_path(t)
+        return out
 
     def _load_shared(self, eng: BacktestEngine) -> Optional[Dict[str, Any]]:
         """Dữ liệu qua kho dùng chung (shared_dir, core/data/shared.py): nền mmap + cột chỉ báo tính sẵn theo khung, căn theo chỉ số
@@ -170,7 +174,8 @@ class PortfolioEngine:
                 return cached
         data = self._build_symbol_data(eng)
         if self.use_cache:
-            arrays = [data[k] for k in ("t", "o", "h", "l", "c", "f_t", "f_r")] + list(data["cols"].values())
+            arrays = ([data[k] for k in ("t", "o", "h", "l", "c", "f_t", "f_r")] + list(data["cols"].values())
+                      + list((data.get("minute") or {}).values()))
             _DATA_CACHE.put(key, data, sum(a.nbytes for a in arrays))
         return data
 

@@ -354,7 +354,7 @@ def _better(long_, level, prio, best_level, best_prio):
 
 
 @njit(**_JIT)
-def _intrabar(k, t, o, h, l, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq):
+def _intrabar(k, t, o, h, l, ML, MH, ja, jb, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq):
     long_ = PI[k, PI_LONG] == 1
     adverse = l if long_ else h
     favorable = h if long_ else l
@@ -427,10 +427,21 @@ def _intrabar(k, t, o, h, l, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSe
             _close(k, t, price, S_LIQ, R_LIQ, False, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq)
             return True
         if PI[k, PI_EXTREME] == 1:
+            # bi quan: khớp ở giá xấu nhất của NẾN 1m đầu tiên chạm mức (ML/MH[ja:jb] = nến 1m trong nến chạy). Khung chạy 1m
+            # (ja == jb): chính nến đó -> giá xấu nhất của nến như trước. Không tìm thấy (thiếu 1m) -> giá xấu nhất của nến chạy.
+            worst = adverse
+            for j in range(ja, jb):
+                if long_:
+                    if ML[j] <= level:
+                        worst = ML[j]
+                        break
+                elif MH[j] >= level:
+                    worst = MH[j]
+                    break
             if long_:
-                price = adverse if adverse < price else price
+                price = worst if worst < price else price
             else:
-                price = adverse if adverse > price else price
+                price = worst if worst > price else price
         if best_kind == 1:
             _close(k, t, price, S_SL, R_SL, True, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq)
             return True
@@ -449,7 +460,7 @@ def _intrabar(k, t, o, h, l, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSe
 
 
 @njit(**_JIT)
-def _on_bar(k, t, o, h, l, c, entry_signal, stop_signal, can_open, max_new, vol, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq):
+def _on_bar(k, t, o, h, l, c, ML, MH, ja, jb, entry_signal, stop_signal, can_open, max_new, vol, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq):
     """Một nến có giao dịch cho tracker k. Trả True nếu vị thế vừa đóng."""
     closed = False
     long_ = PI[k, PI_LONG] == 1
@@ -470,7 +481,7 @@ def _on_bar(k, t, o, h, l, c, entry_signal, stop_signal, can_open, max_new, vol,
             outF[pidx, O_MAXP] = h
         if l < outF[pidx, O_MINP]:
             outF[pidx, O_MINP] = l
-        closed = _intrabar(k, t, o, h, l, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq)
+        closed = _intrabar(k, t, o, h, l, ML, MH, ja, jb, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq)
     if I[k, I_OPEN] == 1:
         adverse = l if long_ else h
         u = _unreal(k, adverse, PI, F, I)
@@ -586,7 +597,8 @@ def _sample(t, mtm, worst, eqT, eqM, eqW, G):
 @njit(**_JIT)
 def portfolio_kernel(PB, BL, PE, tr_book, book_off, P, PI, F, I, cfg_i, cfg_f,
                      outF, outI, ordF, ordI, closeSeq, eqT, eqM, eqW, G, LG, last_px):
-    """PB[b] = (t,o,h,l,c,f_t,f_r,idxm) địa chỉ; BL[b] = (n_bars, n_funding, mapped, last_t); PE[e] = (match, stop, vol, có_vol) (địa chỉ).
+    """PB[b] = (t,o,h,l,c,f_t,f_r,idxm,m_a,m_b,m_l,m_h) địa chỉ (m_*: nến 1m trong nến chạy cho khớp "extreme");
+    BL[b] = (n_bars, n_funding, mapped, last_t, n_1m); PE[e] = (match, stop, vol, có_vol) (địa chỉ).
     cfg_i = (trade_start, max_positions, max_per_symbol, close_at_end, step_ms, địa chỉ lưới, độ dài lưới); cfg_f = (initial, gross_cap, kill_frac).
     last_px[b] = (close, low, high, open) của nến cuối đã xử lý; G/LG/I/F/outputs cập nhật tại chỗ."""
     n = cfg_i[6]
@@ -612,6 +624,10 @@ def portfolio_kernel(PB, BL, PE, tr_book, book_off, P, PI, F, I, cfg_i, cfg_f,
     Fts = [carray(_ptr(PB[b, 5]), (BL[b, 1],), np.int64) for b in range(nb)]
     Frs = [carray(_ptr(PB[b, 6]), (BL[b, 1],), np.float64) for b in range(nb)]
     Ims = [carray(_ptr(PB[b, 7]), (n if BL[b, 2] == 1 else 1,), np.int64) for b in range(nb)]
+    MAs = [carray(_ptr(PB[b, 8]), (BL[b, 0] if BL[b, 4] > 0 else 1,), np.int64) for b in range(nb)]
+    MBs = [carray(_ptr(PB[b, 9]), (BL[b, 0] if BL[b, 4] > 0 else 1,), np.int64) for b in range(nb)]
+    MLs = [carray(_ptr(PB[b, 10]), (BL[b, 4] if BL[b, 4] > 0 else 1,), np.float64) for b in range(nb)]
+    MHs = [carray(_ptr(PB[b, 11]), (BL[b, 4] if BL[b, 4] > 0 else 1,), np.float64) for b in range(nb)]
     Ms = [carray(_ptr(PE[e, 0]), (BL[tr_book[e], 0],), np.bool_) for e in range(nt)]
     Ss = [carray(_ptr(PE[e, 1]), (BL[tr_book[e], 0],), np.bool_) for e in range(nt)]
     Vs = [carray(_ptr(PE[e, 2]), (BL[tr_book[e], 0],), np.float64) for e in range(nt)]
@@ -811,6 +827,12 @@ def portfolio_kernel(PB, BL, PE, tr_book, book_off, P, PI, F, I, cfg_i, cfg_f,
             h = Hs[b][i]
             l = Ls[b][i]
             c = Cs[b][i]
+            if BL[b, 4] > 0:
+                ja = MAs[b][i]
+                jb = MBs[b][i]
+            else:
+                ja = 0
+                jb = 0
             fe = BL[b, 1]
             while f_ptr[b] < fe and Fts[b][f_ptr[b]] <= t:
                 rate = Frs[b][f_ptr[b]]
@@ -858,7 +880,7 @@ def portfolio_kernel(PB, BL, PE, tr_book, book_off, P, PI, F, I, cfg_i, cfg_f,
                             G[G_ATT] += 1
                         I[k, I_BLK] = g
                 vol = Vs[k][i] if PE[k, 3] == 1 else np.nan
-                closed = _on_bar(k, t, o, h, l, c, sig and can_trade, Ss[k][i], can_open, max_new, vol,
+                closed = _on_bar(k, t, o, h, l, c, MLs[b], MHs[b], ja, jb, sig and can_trade, Ss[k][i], can_open, max_new, vol,
                                  P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq)
                 if I[k, I_OPEN] == 1 or I[k, I_PE] == 1:
                     busy = True
@@ -944,6 +966,11 @@ def single_kernel(PB, BL, PE, P, PI, F, I, cfg_i, cfg_f,
     Hh = carray(_ptr(PB[0, 2]), (n,), np.float64)
     Ll = carray(_ptr(PB[0, 3]), (n,), np.float64)
     Cc = carray(_ptr(PB[0, 4]), (n,), np.float64)
+    hm = BL[0, 4] > 0
+    MA = carray(_ptr(PB[0, 8]), (n if hm else 1,), np.int64)
+    MB = carray(_ptr(PB[0, 9]), (n if hm else 1,), np.int64)
+    ML = carray(_ptr(PB[0, 10]), (BL[0, 4] if hm else 1,), np.float64)
+    MH = carray(_ptr(PB[0, 11]), (BL[0, 4] if hm else 1,), np.float64)
     nf = BL[0, 1]
     Ft = carray(_ptr(PB[0, 5]), (nf,), np.int64)
     Fr = carray(_ptr(PB[0, 6]), (nf,), np.float64)
@@ -1000,7 +1027,7 @@ def single_kernel(PB, BL, PE, P, PI, F, I, cfg_i, cfg_f,
         for k in range(nt):
             sig = Ms[k][i]
             vol = Vs[k][i] if PE[k, 3] == 1 else np.nan
-            closed = _on_bar(k, t, Oo[i], Hh[i], Ll[i], Cc[i], sig and can_trade, Ss[k][i],
+            closed = _on_bar(k, t, Oo[i], Hh[i], Ll[i], Cc[i], ML, MH, MA[i] if hm else 0, MB[i] if hm else 0, sig and can_trade, Ss[k][i],
                              can_trade and open_now < PI[k, PI_MAXOPEN], np.inf, vol,
                              P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq)
             if I[k, I_OPEN] == 1 or I[k, I_PE] == 1:
@@ -1094,8 +1121,8 @@ class _Tables:
 
     def __init__(self, n_books: int, n_entries: int):
         self.keep: List[np.ndarray] = []
-        self.PB = np.zeros((n_books, 8), dtype=np.int64)
-        self.BL = np.zeros((n_books, 4), dtype=np.int64)
+        self.PB = np.zeros((n_books, 12), dtype=np.int64)
+        self.BL = np.zeros((n_books, 5), dtype=np.int64)
         self.PE = np.zeros((n_entries, 4), dtype=np.int64)
         self._dummy_f = np.zeros(1)
         self._dummy_i = np.full(1, -1, dtype=np.int64)
@@ -1104,7 +1131,9 @@ class _Tables:
         self.keep.append(a)
         return int(a.ctypes.data)
 
-    def book(self, b: int, t, o, h, l, c, f_t, f_r, last_t: int, idxm: Optional[np.ndarray]) -> None:
+    def book(self, b: int, t, o, h, l, c, f_t, f_r, last_t: int, idxm: Optional[np.ndarray],
+             minute: Optional[Dict[str, np.ndarray]] = None) -> None:
+        """minute: {"m_a","m_b","m_l","m_h"} (engine.minute_path) — nến 1m trong từng nến chạy cho khớp "extreme"; None/rỗng = khung chạy 1m."""
         t = np.ascontiguousarray(t, dtype=np.int64)
         arrs = [t] + [np.ascontiguousarray(x, dtype=np.float64) for x in (o, h, l, c)]
         f_t = np.ascontiguousarray(f_t, dtype=np.int64)
@@ -1117,7 +1146,18 @@ class _Tables:
             self.PB[b, q] = self.addr(a)
         self.PB[b, 5], self.PB[b, 6] = self.addr(f_t), self.addr(f_r)
         self.PB[b, 7] = self.addr(idxm if idxm is not None else self._dummy_i)
-        self.BL[b] = (len(t), len(f_t), 0 if idxm is None else 1, last_t)
+        n1 = 0
+        if minute is not None and len(minute.get("m_l", ())) > 0:
+            ma, mb = (np.ascontiguousarray(minute[k], dtype=np.int64) for k in ("m_a", "m_b"))
+            ml, mh = (np.ascontiguousarray(minute[k], dtype=np.float64) for k in ("m_l", "m_h"))
+            if len(ma) != len(t) or len(mb) != len(t) or len(ml) != len(mh):
+                raise ValueError("minute path: độ dài không khớp")
+            self.PB[b, 8], self.PB[b, 9], self.PB[b, 10], self.PB[b, 11] = self.addr(ma), self.addr(mb), self.addr(ml), self.addr(mh)
+            n1 = len(ml)
+        else:
+            self.PB[b, 8] = self.PB[b, 9] = self.addr(self._dummy_i)
+            self.PB[b, 10] = self.PB[b, 11] = self.addr(self._dummy_f)
+        self.BL[b] = (len(t), len(f_t), 0 if idxm is None else 1, last_t, n1)
 
     def entry(self, e: int, match, stop, vol) -> None:
         m = np.ascontiguousarray(match, dtype=np.bool_)
@@ -1278,7 +1318,7 @@ def run_portfolio(eng: Any) -> None:
     for b, bk in enumerate(books):
         d = bk["data"]
         last_t = int(d["t"][-1]) if len(d["t"]) else t_end
-        tab.book(b, d["t"], d["o"], d["h"], d["l"], d["c"], d["f_t"], d["f_r"], last_t, idxms[b])
+        tab.book(b, d["t"], d["o"], d["h"], d["l"], d["c"], d["f_t"], d["f_r"], last_t, idxms[b], d.get("minute"))
     for k in range(nt):
         e = books[tr_book[k]]["entries"][k - book_off[tr_book[k]]]
         tab.entry(k, e["match"], e["stop"], e["vol"])
@@ -1364,15 +1404,17 @@ def run_backtest(eng: Any) -> None:
     eng.ruined_at = None
     f_t = eng.funding["funding_time"].to_numpy(dtype="int64") if eng.funding is not None else np.array([], "int64")
     f_r = eng.funding["rate"].to_numpy(dtype="float64") if eng.funding is not None else np.array([])
-    run_single(eng, df1["open_time"].to_numpy(dtype="int64")[real], df1["open"].to_numpy(dtype="float64")[real],
+    t_r = df1["open_time"].to_numpy(dtype="int64")[real]
+    run_single(eng, t_r, df1["open"].to_numpy(dtype="float64")[real],
                df1["high"].to_numpy(dtype="float64")[real], df1["low"].to_numpy(dtype="float64")[real],
                df1["close"].to_numpy(dtype="float64")[real], [(m[real], s[real]) for m, s in signals],
-               [v[real] if v is not None else None for v in vols], f_t, f_r)
+               [v[real] if v is not None else None for v in vols], f_t, f_r,
+               eng.minute_path(t_r) if eng.needs_minute_path() else None)
     print(f"Hoàn thành backtest. Thu được {len(eng.closed_positions)} vị thế. Mất {time.time() - started:.2f} giây.")
 
 
 def run_single(eng: Any, t, o, h, l, c, signals: List[Tuple[np.ndarray, np.ndarray]], vols: List[Optional[np.ndarray]],
-               f_t: np.ndarray, f_r: np.ndarray) -> None:
+               f_t: np.ndarray, f_r: np.ndarray, minute: Optional[Dict[str, np.ndarray]] = None) -> None:
     """BacktestEngine.run(): các mảng CHỈ gồm nến có giao dịch (đã lọc is_filled). Ghi kết quả vào eng."""
     trackers = eng.trackers
     nt, n = len(trackers), len(t)
@@ -1380,7 +1422,7 @@ def run_single(eng: Any, t, o, h, l, c, signals: List[Tuple[np.ndarray, np.ndarr
         return
     P, PI, F, I = pack_trackers(trackers)
     tab = _Tables(1, nt)
-    tab.book(0, t, o, h, l, c, f_t, f_r, int(t[-1]), None)
+    tab.book(0, t, o, h, l, c, f_t, f_r, int(t[-1]), None, minute)
     for k in range(nt):
         tab.entry(k, signals[k][0], signals[k][1], vols[k])
     step = eng.MTM_SAMPLE_MINUTES * 60_000

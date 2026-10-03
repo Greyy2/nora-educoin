@@ -173,6 +173,25 @@ class BacktestEngine:
         if any(tr.market == "perp" for tr in self.trackers):
             self.funding = self._load_funding()
 
+    def minute_path(self, open_time: np.ndarray) -> Dict[str, np.ndarray]:
+        """Đường giá 1m bên trong từng nến chạy (khung chạy > 1m) — cho khớp "extreme" đúng ngữ nghĩa 1m: lệnh stop khớp ở giá xấu nhất của
+        NẾN 1m ĐẦU TIÊN chạm mức, không phải của cả nến 15m/1h/4h (quá bi quan, phụ thuộc khung chạy).
+        -> {"m_a", "m_b": int64 (n) — nến chạy i gồm nến 1m [m_a[i], m_b[i]), "m_l", "m_h": float64}. Khung chạy 1m: mảng rỗng."""
+        t = np.asarray(open_time, dtype="int64")
+        if self.base_frame == "1m" or len(t) == 0:
+            return {"m_a": np.zeros(0, dtype="int64"), "m_b": np.zeros(0, dtype="int64"), "m_l": np.zeros(0), "m_h": np.zeros(0)}
+        step = FRAME_MS[self.base_frame]
+        m1 = CandleLoader(self.symbol, frame="1m", use_cache=False).load_data(int(t[0]), int(t[-1]) + step - 1,
+                                                                              columns=["open_time", "high", "low", "is_filled"])
+        if "is_filled" in m1.columns:   # nến 1m điền (không giao dịch) không thể khớp lệnh
+            m1 = m1[pd.to_numeric(m1["is_filled"], errors="coerce").fillna(0).astype(int) == 0]
+        mt = m1["open_time"].to_numpy(dtype="int64")
+        return {"m_a": np.searchsorted(mt, t).astype("int64"), "m_b": np.searchsorted(mt, t + step).astype("int64"),
+                "m_l": m1["low"].to_numpy(dtype="float64"), "m_h": m1["high"].to_numpy(dtype="float64")}
+
+    def needs_minute_path(self) -> bool:
+        return self.base_frame != "1m" and any(getattr(tr, "stop_fill", "level") == "extreme" for tr in self.trackers)
+
     def load_frames(self, refs: Optional[Dict[str, Set[Tuple[str, int]]]] = None) -> None:
         """Nạp các khung lớn (không gồm 1m) từ ĐẦU lịch sử dữ liệu tới end_ts: chỉ báo tính từ gốc cố định (như TradingView) nên giá trị
         tại nến t không phụ thuộc cửa sổ backtest bắt đầu ở đâu (chỉ phụ thuộc dữ liệu <= t)."""

@@ -31,8 +31,9 @@ if TYPE_CHECKING:  # tránh import vòng (portfolio import module này)
     from backend.core.backtest.engine import BacktestEngine
     from backend.core.backtest.portfolio import PortfolioEngine
 
-FORMAT_VERSION = 5
+FORMAT_VERSION = 6   # 6: nền có thể kèm đường giá 1m trong nến chạy (MINUTE_ARRAYS) cho khớp "extreme" ở khung chạy > 1m
 BASE_ARRAYS = ("t", "o", "h", "l", "c", "f_t", "f_r")
+MINUTE_ARRAYS = ("m_a", "m_b", "m_l", "m_h")
 STATS = {"fills": 0, "bases_written": 0, "cols_written": 0, "frames_written": 0, "index_written": 0}   # theo tiến trình (giám sát / test)
 
 
@@ -65,7 +66,8 @@ def plan(eng: "BacktestEngine") -> Optional[Dict[str, Any]]:
     sym_dir = resolve_symbol_dir(eng.symbol)
     base = _sha1({"v": FORMAT_VERSION, "sym": eng.symbol, "root": root, "start": int(eng.start_ts), "end": int(eng.end_ts),
                   "base_frame": base_fr, "load_base": int(eng.start_ts - eng._warmup_ms(base_fr, refs.get(base_fr, set()))),
-                  "perp": perp, "fp_base": list(fp1),
+                  "perp": perp, "fp_base": list(fp1), "minute": eng.needs_minute_path(),
+                  "fp_1m": list(_file_fingerprint(eng.symbol, "1m", root) or []) if eng.needs_minute_path() else None,
                   "fp_funding": _stat(os.path.join(sym_dir, "funding.pkl")) if (perp and sym_dir) else None})
     frames: Dict[str, Dict[str, str]] = {}
     cols: Dict[str, Dict[str, str]] = {}
@@ -79,7 +81,7 @@ def plan(eng: "BacktestEngine") -> Optional[Dict[str, Any]]:
         for col, lag in sorted(refs[frame]):
             cid = f"{frame}|{lag_key(col, lag)}"
             cols[cid] = {"frame": frame, "v": _sha1({"frame": tkey, "cid": cid})}
-    return {"base": base, "frames": frames, "cols": cols}
+    return {"base": base, "frames": frames, "cols": cols, "minute": eng.needs_minute_path()}
 
 
 def _base_dir(out_dir: str, key: str) -> str:
@@ -113,7 +115,8 @@ def load_base(out_dir: str, p: Dict[str, Any]) -> Optional[Dict[str, np.ndarray]
         with open(os.path.join(bdir, "meta.json"), encoding="utf-8") as fh:
             if json.load(fh).get("version") != FORMAT_VERSION:
                 return None
-        return {name: _load_array(os.path.join(bdir, f"{name}.npy")) for name in BASE_ARRAYS}
+        names = BASE_ARRAYS + (MINUTE_ARRAYS if p.get("minute") else ())
+        return {name: _load_array(os.path.join(bdir, f"{name}.npy")) for name in names}
     except (OSError, ValueError):
         return None
 
@@ -133,6 +136,8 @@ def load(out_dir: str, p: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     data: Dict[str, Any] = {k: base[k] for k in ("t", "o", "h", "l", "c")}
     data["cols"] = cols
     data["f_t"], data["f_r"] = base["f_t"], base["f_r"]
+    if p.get("minute"):
+        data["minute"] = {k: base[k] for k in MINUTE_ARRAYS}
     return data
 
 
@@ -153,6 +158,9 @@ def _write_base(out_dir: str, key: str, symbol: str, data: Dict[str, Any]) -> No
     for name in BASE_ARRAYS:
         with open(os.path.join(tmp, f"{name}.npy"), "wb") as fh:
             np.save(fh, data[name], allow_pickle=False)
+    for name, arr in (data.get("minute") or {}).items():
+        with open(os.path.join(tmp, f"{name}.npy"), "wb") as fh:
+            np.save(fh, arr, allow_pickle=False)
     with open(os.path.join(tmp, "meta.json"), "w", encoding="utf-8") as fh:
         json.dump({"version": FORMAT_VERSION, "symbol": symbol}, fh)
     try:
