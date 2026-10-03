@@ -205,6 +205,7 @@ export function PresetNote({ preset }) {
         {info.isDefault
           ? <span className="n-status warn">mặc định — chưa tối ưu</span>
           : <span className="n-status">{info.kindText || 'nguồn'}</span>}
+        {info.timeframe && <span className="n-status info" title="Khung chạy lúc tối ưu preset">khung {info.timeframe}</span>}
         <span className="mono muted">{info.isDefault ? 'chưa có kết quả kiểm chứng' : info.sourceText}</span>
       </div>
       {info.failedDev2 && (

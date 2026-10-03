@@ -53,7 +53,7 @@ Mỗi dòng chỉ chuyển `done` khi đạt đúng cột "Xong khi".
 | P0.2 | Phễu S0–FINAL: chống ăn may (DSR, PBO, lân cận), sizing S5, API, chạy thật | `optimize/funnel/*`, `optimize/run_funnel.py`, `api/routers/funnel.py` | S | — | Chạy thật ra thống kê từng tầng + danh sách lệnh; test xanh | done |
 | P0.3 | Chiến lược tham số hoá; `presets.json`; mode basic/advanced ở API | `core/strategy/{presets,run_modes,params_template}.py`, `api/routers/strategies.py`, `api/modes.py` | S | — | Tham số mặc định cho kết quả trùng bit với trước; basic khoá tham số; advanced sửa được khung/ngày | done |
 | P0.3b | WFA advanced: cho phép key ngoài `space` (chu kỳ, khung) + thêm cờ `--step-days`, `--sims`, `--mc-seed` vào whitelist `book_wfa`; bật `WFA_SCHEMA_KEYS_SUPPORTED` | `wfa/validate_book.py` (`candidates_from_json`), `api/jobs/batch.py` (`check_wfa_strategies`, whitelist), `api/modes.py` | S | P0.1 xong (tránh đụng file) | WFA advanced đổi chu kỳ/khung chạy thật, không 422 | done |
-| P0.3c | Tối ưu preset cho trend_short, reversion_long, reversion_short (đang dùng mặc định chưa tối ưu) | `optimize/build_presets.py`, `data/alphas/presets.json` | S | P1.4 (engine nhanh) | Preset có nguồn tối ưu, ghi rõ bằng chứng | chuyển sang P1 (cần P1.4) |
+| P0.3c | Tối ưu preset cho cả 9 chiến lược ở khung 15m; thêm khung chạy vào preset + bằng chứng; nguồn qua dev2 thắng, cùng mức thì bằng chứng mới hơn thắng; stage A ưu tiên cấu hình top-K qua dev2, không có thì gắn nhãn "chưa kiểm chứng dev2"; cảnh báo lệch khung (API + UI) | `backend/core/params/presets.py`, `backend/api/modes.py`, `frontend/src/lib/modes.js`, `data/alphas/presets.json` | S | P1.8 | Preset ghi khung 15m; 9 chiến lược tối ưu lại theo engine mới | done |
 | P0.4 | Commit MC 10k + 6 kịch bản stress | `carlo/monte_carlo.py`, `wfa/portfolio_wfa.py`, UI McResult | O | — | Test `test_mc_stress.py` xanh; commit | done |
 | P0.5 | Commit UI trang `/funnel` | `frontend/src/v2/pages/Funnel.jsx`, `components/funnel/*` | O | — | `npm run build` sạch; commit | done |
 | P0.6 | `bootstrap_daily` 4000 → 10.000 mô phỏng | `core/backtest/portfolio_metrics.py` | S | P0.1–P0.3 xong | Test xanh; golden không đổi | done |
@@ -69,6 +69,23 @@ Mỗi dòng chỉ chuyển `done` khi đạt đúng cột "Xong khi".
 | P0.11f | Một cửa chạy: bỏ mọi argparse trong backend; mỗi việc có `run(params)`; API job gọi `api/jobs/runner.py`; terminal gọi API (curl) | `api/jobs/runner.py`, `optimize/`, `wfa/`, `core/backtest/run.py` | O | P0.11e | Job thật qua API `done`; không còn `__main__`/argparse trong backend | done |
 | P0.11g | Mọi file script → `test/scripts/` (smoke, bench, research, golden, mock feeds, crawl, check_tests_vs_ref) | `test/scripts/` | O | P0.11f | backend chỉ còn logic | done |
 | P0.11h | Gọn từng folder (optimize, funnel, wfa, carlo, utils, api, db); cập nhật docs/README cây thư mục + architecture | toàn repo | O | P0.11g | full test xanh; docs khớp code | done |
+
+#### Kết quả P0.3c (Run `20261003_035715`, job `20261003_035715_3e7ecb`, khung 15m)
+- Sổ xuất bản `book.json`: gồm 2 chiến lược qua gate (`breakout_4h_long`, `breakout_4h_short`).
+- `presets.json`: 7/9 chiến lược có nguồn tối ưu mới (`book` hoặc `stage_a`), 2 chiến lược không có cấu hình qua cổng dev1 ở 15m (`keltner_trend_short`, `reversion_short`) giữ mặc định (timeframe trống, không cảnh báo lệch khung).
+- **Cảnh báo:** 5 preset stage A đều **chưa qua dev2** (không cấu hình nào trong top-3 qua) → gắn nhãn "chưa kiểm chứng dev2"; dev1 cao nhưng dev2 lỗ (vd. keltner_trend_long +211% → −15%) = khớp quá mức. Chỉ 2 preset breakout (từ sổ) đã kiểm chứng. Sổ vẫn `HOLDOUT_FAILED` (như sổ cũ).
+
+| Chiến lược | Thử (dev1) | Đạt dev1 | Dev1 Lãi% / MDD% (Sharpe) | Dev2 Level Lãi% / MDD% | Dev2 Extreme Lãi% / MDD% | Nguồn Preset |
+|---|---|---|---|---|---|---|
+| `trend_long` | 108 | 28 | +45.67% / 22.97% (1.27) | -8.14% / 24.25% | -31.45% / 36.47% | stage A (`20261003_035715`), chưa kiểm chứng dev2 |
+| `trend_short` | 108 | 3 | +0.61% / 21.18% (0.12) | +37.32% / 24.35% | +2.99% / 35.39% | stage A (`20261003_035715`), chưa kiểm chứng dev2 |
+| `breakout_4h_long` | 36 | 34 | +14.00% / 9.42% (1.11) | +10.54% / 7.37% | +1.87% / 8.48% | book (`03/10`) |
+| `breakout_4h_short` | 36 | 36 | +12.46% / 6.26% (1.09) | +11.59% / 11.95% | +0.52% / 14.42% | book (`03/10`) |
+| `keltner_trend_long` | 81 | 73 | +211.06% / 15.13% (2.85) | -7.54% / 23.58% | -15.29% / 28.17% | stage A (`20261003_035715`), chưa kiểm chứng dev2 |
+| `keltner_trend_short` | 81 | 0 | Không đạt ở 15m (-12.44% / 21.66%) | — | — | default (mặc định) |
+| `momentum_long` | 108 | 15 | +56.26% / 29.14% (1.22) | -21.64% / 39.88% | -50.64% / 58.30% | stage A (`20261003_035715`), chưa kiểm chứng dev2 |
+| `reversion_long` | 144 | 5 | +3.28% / 20.19% (0.32) | -27.81% / 30.27% | -50.11% / 50.81% | stage A (`20261003_035715`), chưa kiểm chứng dev2 |
+| `reversion_short` | 144 | 0 | Không đạt ở 15m (-53.24% / 53.90%) | — | — | default (mặc định) |
 
 ### P1 — Tốc độ (mục tiêu 500k alpha ≤ 4 h trên 14 worker)
 

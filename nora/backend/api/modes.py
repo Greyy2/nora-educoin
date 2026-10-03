@@ -37,9 +37,12 @@ def stamp_job(job_id: str, **fields: Any) -> None:
         batch_jobs._write_meta(jd, meta)
 
 
-def launch(kind: str, params: Dict[str, Any], stamp: Dict[str, Any]) -> Dict[str, str]:
+def launch(kind: str, params: Dict[str, Any], stamp: Dict[str, Any]) -> Dict[str, Any]:
     out = batch_jobs.http_launch(kind, params)
     stamp_job(out["job_id"], **stamp)
+    tf_mismatch = stamp.get("resolved", {}).get("timeframe_mismatch")
+    if tf_mismatch:
+        out["timeframe_mismatch"] = tf_mismatch
     return out
 
 
@@ -84,12 +87,15 @@ def _basic_risk(items: List[Tuple[str, Dict[str, Any]]]) -> float:
 
 
 # ─── Backtest ────────────────────────────────────────────────────────────────
-def launch_backtest(req) -> Dict[str, str]:
+def launch_backtest(req) -> Dict[str, Any]:
     mode = req.mode
     presets = presets_mod.load_presets()
     resolved: Dict[str, Any] = {"symbols": req.symbols, "start": req.start, "end": req.end, "timeframe": req.timeframe}
     ignored = False
     if not req.strategies:   # không chọn chiến lược: dùng nguyên sổ data/alphas/book.json (như trước)
+        book_tf = presets_mod.book_timeframe()
+        if mode == "basic" and req.timeframe != book_tf:
+            resolved["timeframe_mismatch"] = f"Khung chạy ({req.timeframe}) khác khung của sổ ({book_tf})"
         payload = {"symbols": req.symbols, "start": req.start, "end": req.end, "risk_per_trade_pct": req.risk_per_trade_pct if mode == "advanced" else None,
                    "stop_fill": req.stop_fill if mode == "advanced" else "level", "regime": req.regime,
                    "timeframe": req.timeframe}
@@ -100,10 +106,14 @@ def launch_backtest(req) -> Dict[str, str]:
     if errors:
         raise http_422(errors)
     fulls: List[Tuple[str, Dict[str, Any]]] = []
+    mismatches: Dict[str, str] = {}
     for i, s in enumerate(req.strategies):
         cand = BY_ID[s.id]
         if mode == "basic":
             ignored = ignored or bool(s.params)
+            p_tf = presets[s.id].get("timeframe")
+            if p_tf and req.timeframe != p_tf:
+                mismatches[s.id] = p_tf
             fulls.append((s.id, dict(presets[s.id]["params"])))
         else:
             full, errs = rm.validate_params(cand, s.params or {}, presets[s.id]["params"], f"strategies[{i}].params")
@@ -111,6 +121,9 @@ def launch_backtest(req) -> Dict[str, str]:
             fulls.append((s.id, full))
     if errors:
         raise http_422(errors)
+    if mode == "basic" and mismatches:
+        detail_tf = ", ".join(f"{cid}: {tf}" for cid, tf in mismatches.items())
+        resolved["timeframe_mismatch"] = f"Khung chạy ({req.timeframe}) khác khung tối ưu của preset ({detail_tf})"
     if mode == "basic":
         rpt, stop_fill = _basic_risk(fulls), "level"
     else:
@@ -144,7 +157,7 @@ def _with_configs(params: Dict[str, Any], cfgs: List[Dict[str, Any]]) -> Dict[st
     return out
 
 
-def launch_wfa(req) -> Dict[str, str]:
+def launch_wfa(req) -> Dict[str, Any]:
     mode = req.mode
     presets = presets_mod.load_presets()
     resolved: Dict[str, Any] = {"symbols": req.symbols, "start": req.start, "end": req.end, "timeframe": req.timeframe}
@@ -159,6 +172,14 @@ def launch_wfa(req) -> Dict[str, str]:
         errors = _check_ids(ids, "candidates" if req.candidates else "strategies")
         if errors:
             raise http_422(errors)
+        mismatches: Dict[str, str] = {}
+        for cid in ids:
+            p_tf = presets[cid].get("timeframe")
+            if p_tf and req.timeframe != p_tf:
+                mismatches[cid] = p_tf
+        if mismatches:
+            detail_tf = ", ".join(f"{cid}: {tf}" for cid, tf in mismatches.items())
+            resolved["timeframe_mismatch"] = f"Khung chạy ({req.timeframe}) khác khung tối ưu của preset ({detail_tf})"
         fulls = [(cid, dict(presets[cid]["params"])) for cid in ids]
         rpt = _basic_risk(fulls)
         cfgs = [{"id": cid, "configs": [rm.job_params(BY_ID[cid], full)]} for cid, full in fulls]

@@ -225,20 +225,57 @@ def test_presets_priority_book_then_latest_stage_a_then_defaults(tmp_path):
     b = P["breakout_4h_long"]
     assert b["source_kind"] == "book" and b["source"] == "book.json (sổ đã build 01/10)" and b["params"]["stop_loss_rate"] == 3.0
     assert "bogus" not in b["params"] and b["params"]["sig.ema_fast"] == 50 and b["evidence"]["dev1"] == {"ret_pct": 19.5}
+    assert b["timeframe"] == "1m" and b["evidence"]["timeframe"] == "1m"
     # 2. run mới nhất có cấu hình qua cổng; chọn điểm cao nhất (7.0), kèm dev2
     t = P["trend_long"]
-    assert t["source"] == "build 20260102_000000 stage A top-1 dev1" and t["params"]["sig.adx_min"] == 30
+    assert "build 20260102_000000 stage A" in t["source"] and t["params"]["sig.adx_min"] == 30
     assert t["evidence"]["score"] == 7.0 and t["evidence"]["accepted"] is False and t["evidence"]["dev2_extreme"] == {"ret_pct": -3.0}
+    assert t["timeframe"] == "1m" and t["evidence"]["timeframe"] == "1m"
     # run cũ chỉ dùng khi run mới không có cấu hình qua cổng
-    assert P["reversion_long"]["source"] == "build 20260101_000000 stage A top-1 dev1" and P["reversion_long"]["params"]["sig.rsi_lo"] == 30
-    # 3. còn lại: mặc định schema
+    assert "build 20260101_000000 stage A" in P["reversion_long"]["source"] and P["reversion_long"]["params"]["sig.rsi_lo"] == 30
+    # 3. còn lại: mặc định schema, timeframe=None
     for cid in ("trend_short", "momentum_long", "reversion_short", "breakout_4h_short"):
         assert P[cid]["source"] == pr.SOURCE_DEFAULT and P[cid]["source_kind"] == "default" and P[cid]["evidence"] is None
         assert P[cid]["params"] == schema_defaults(BY_ID[cid])
+        assert P[cid]["timeframe"] is None
     for cid, preset in P.items():                       # params luôn đầy đủ và hợp lệ theo schema
         assert set(preset["params"]) == set(BY_ID[cid]["params_schema"])
         _, errs = rm.validate_params(BY_ID[cid], preset["params"], preset["params"])
         assert not errs, (cid, errs)
+
+
+def test_presets_new_verified_run_beats_old_book_unverified_does_not(tmp_path):
+    book = {"generated_at": 1790856748686, "timeframe": "15m", "strategies": [
+        {"id": "breakout_4h_long", "params": {"stop_loss_rate": 3.0}, "evidence": {}}]}
+    # run mới hơn sổ nhưng top-K không qua dev2 -> sổ (đã qua dev2) vẫn thắng
+    _run(tmp_path / "a", "20261003_120000", {"breakout_4h_long": [_row({"stop_loss_rate": 2.0}, 6.0)]})
+    b = pr.build_presets(book=book, runs_dir=str(tmp_path / "a"))["presets"]["breakout_4h_long"]
+    assert b["source_kind"] == "book" and b["timeframe"] == "15m"
+    # run mới hơn sổ, có cấu hình qua dev2 -> stage A thắng
+    _run(tmp_path / "b", "20261003_120000", {"breakout_4h_long": [_row({"stop_loss_rate": 2.0}, 6.0)]},
+         {"breakout_4h_long": {"dev1_top": [{"params": {"stop_loss_rate": 2.0}, "dev2_pass": True}]}})
+    b = pr.build_presets(book=book, runs_dir=str(tmp_path / "b"))["presets"]["breakout_4h_long"]
+    assert b["source_kind"] == "stage_a" and "20261003_120000" in b["source"] and b["params"]["stop_loss_rate"] == 2.0
+    assert b["evidence"]["dev2_verified"] is True and b["timeframe"] == "1m"
+    # run cũ hơn sổ, dù qua dev2 -> sổ thắng (cùng mức kiểm chứng, sổ mới hơn)
+    _run(tmp_path / "c", "20260101_000000", {"breakout_4h_long": [_row({"stop_loss_rate": 2.0}, 6.0)]},
+         {"breakout_4h_long": {"dev1_top": [{"params": {"stop_loss_rate": 2.0}, "dev2_pass": True}]}})
+    assert pr.build_presets(book=book, runs_dir=str(tmp_path / "c"))["presets"]["breakout_4h_long"]["source_kind"] == "book"
+
+
+def test_presets_stage_a_prefers_dev2_pass_in_top_k(tmp_path):
+    # top-1 dev1 (điểm 9) trượt dev2, top-2 (điểm 4) qua dev2 -> chọn top-2; không ai qua -> top-1 gắn nhãn chưa kiểm chứng
+    _run(tmp_path, "20261003_000000", {"trend_long": [_row({"sig.adx_min": 30}, 9.0), _row({"sig.adx_min": 20}, 4.0)],
+                                       "momentum_long": [_row({"sig.roc_min": 5}, 3.0), _row({"sig.roc_min": 3}, 2.0)]},
+         {"trend_long": {"dev1_top": [{"params": {"sig.adx_min": 30}, "dev2_pass": False},
+                                      {"params": {"sig.adx_min": 20}, "dev2_pass": True, "dev2_extreme": {"ret_pct": 4.0}}]},
+          "momentum_long": {"dev1_top": [{"params": {"sig.roc_min": 5}, "dev2_pass": False}]}})
+    P = pr.build_presets(book=None, runs_dir=str(tmp_path), use_book_file=False)["presets"]
+    t = P["trend_long"]
+    assert t["params"]["sig.adx_min"] == 20 and t["evidence"]["score"] == 4.0 and t["evidence"]["dev2_verified"] is True
+    assert t["evidence"]["dev2_extreme"] == {"ret_pct": 4.0} and t["source"].endswith("qua dev2")
+    m = P["momentum_long"]
+    assert m["params"]["sig.roc_min"] == 5 and m["evidence"]["dev2_verified"] is False and "chưa kiểm chứng" in m["source"]
 
 
 def test_presets_write_load_roundtrip_and_fallbacks(tmp_path):
@@ -278,8 +315,10 @@ def client(monkeypatch, tmp_path):
     monkeypatch.setattr(batch_jobs.subprocess, "Popen", FakePopen)
     pr.write_presets({"presets": {
         "breakout_4h_long": {"params": {"stop_loss_rate": 3.0, "trailing_stop": 3.0, "trailing_activation_pct": 1.0, "timeout": 10080},
+                             "timeframe": "15m",
                              "source": "book.json (sổ đã build 01/10)", "source_kind": "book", "evidence": {"stage": "book"}},
         "trend_long": {"params": {"sig.adx_min": 25, "stop_loss_rate": 3.5, "trailing_stop": 4.5, "trailing_activation_pct": 0.0, "timeout": 4320},
+                       "timeframe": "15m",
                        "source": "build X stage A top-1 dev1", "source_kind": "stage_a", "evidence": {"stage": "dev1"}}}})
     app = FastAPI()
     app.include_router(book_router.router)
@@ -316,9 +355,11 @@ def test_get_strategies_shape(client):
     assert x["params_schema"]["sig.trend_tf"]["type"] == "choice" and "4h" in x["params_schema"]["sig.trend_tf"]["choices"]
     assert x["preset"]["source"] == "build X stage A top-1 dev1" and x["preset"]["params"]["sig.adx_min"] == 25
     assert x["preset"]["params"]["sig.ema_fast"] == 50                                       # preset đầy đủ khoá
+    assert x["preset"]["timeframe"] == "15m"
     # chiến lược không có trong presets.json -> mặc định schema
     d = {r["id"]: r for r in rows}["reversion_short"]["preset"]
     assert d["source"] == pr.SOURCE_DEFAULT and d["evidence"] is None
+    assert d["timeframe"] is None
     json.dumps(rows, allow_nan=False)
 
 
@@ -359,6 +400,40 @@ def test_basic_mode_limits_strategy_count_and_ids(client):
     r = client.post(URL, json={**BT, "strategies": [{"id": "khong_co"}]})
     assert r.status_code == 422 and r.json()["detail"][0]["field"] == "strategies[0].id" and "Không có chiến lược" in r.json()["detail"][0]["msg"]
     assert len(FakePopen.calls) == n
+
+
+def test_basic_mode_timeframe_mismatch_warning(client):
+    # Khớp khung (15m): không có cảnh báo
+    r_ok = client.post(URL, json={**BT, "timeframe": "15m", "strategies": [{"id": "trend_long"}]})
+    assert r_ok.status_code == 200
+    assert "timeframe_mismatch" not in r_ok.json()
+    job_ok = _job(client, r_ok.json()["job_id"])
+    assert "timeframe_mismatch" not in job_ok["resolved"]
+
+    # Lệch khung (1h != preset 15m): có cảnh báo trong response và job resolved, không chặn (200)
+    r_warn = client.post(URL, json={**BT, "timeframe": "1h", "strategies": [{"id": "trend_long"}]})
+    assert r_warn.status_code == 200
+    assert "timeframe_mismatch" in r_warn.json()
+    assert "1h" in r_warn.json()["timeframe_mismatch"] and "15m" in r_warn.json()["timeframe_mismatch"]
+    job_warn = _job(client, r_warn.json()["job_id"])
+    assert "timeframe_mismatch" in job_warn["resolved"]
+
+    # Preset mặc định (timeframe=None): không cảnh báo lệch khung
+    r_def = client.post(URL, json={**BT, "timeframe": "1h", "strategies": [{"id": "reversion_short"}]})
+    assert r_def.status_code == 200
+    assert "timeframe_mismatch" not in r_def.json()
+
+    # WFA basic: lệch khung cũng cảnh báo
+    wfa_warn = client.post("/api/studio/book/wfa", json={**WFA, "timeframe": "1h", "candidates": ["trend_long"]})
+    assert wfa_warn.status_code == 200
+    assert "timeframe_mismatch" in wfa_warn.json()
+    job_wfa = _job(client, wfa_warn.json()["job_id"])
+    assert "timeframe_mismatch" in job_wfa["resolved"]
+
+    # WFA basic: đúng khung 15m không cảnh báo
+    wfa_ok = client.post("/api/studio/book/wfa", json={**WFA, "timeframe": "15m", "candidates": ["trend_long"]})
+    assert wfa_ok.status_code == 200
+    assert "timeframe_mismatch" not in wfa_ok.json()
 
 
 def test_invalid_mode_is_422(client):
@@ -599,7 +674,7 @@ def test_presets_evidence_bools_are_real_bools(tmp_path):
     params = {k: v[0] for k, v in cand["space"].items()}
     (run / "stage_a.json").write_text(json.dumps({"trend_long": [{"score": 1.0, "params": params, "dev1": {}}]}))
     (run / "report.json").write_text(json.dumps({"candidates": {"trend_long": {"accepted": "False", "dev1_top": [{"params": params, "dev2_pass": "True"}]}}}))
-    ev = pr.from_build_runs(str(tmp_path), CANDIDATES, set())["trend_long"]["evidence"]
+    ev = pr.from_build_runs(str(tmp_path), CANDIDATES)["trend_long"]["evidence"]
     assert ev["accepted"] is False and ev["dev2_pass"] is True
     out = tmp_path / "p.json"
     pr.write_presets({"x": np.bool_(True)}, str(out))

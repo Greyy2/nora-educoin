@@ -57,3 +57,6 @@ dist/
 # BMAD
 _bmad/config.user.toml
 _bmad/custom/config.user.toml
+
+# Untracked subprojects
+sova/

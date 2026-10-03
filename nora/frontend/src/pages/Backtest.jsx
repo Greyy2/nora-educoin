@@ -18,7 +18,7 @@ import { STOP_FILL, stopFillOptions } from '../lib/stopfill'
 import { paramLabel } from '../lib/params'
 import {
   MC_STD, STRESS, STRESS_ALL, WFA_STD, WFA_SCHEMA_KEYS_SUPPORTED, WFA_PENDING_NOTE, mcIsCustom, presetParams,
-  validateStrategy, coerceParams, splitServerErrors, flatServerErrors, CUSTOM_BADGE,
+  validateStrategy, coerceParams, splitServerErrors, flatServerErrors, CUSTOM_BADGE, timeframeMismatch,
 } from '../lib/modes'
 
 function readPrefill(location, sp) {
@@ -84,6 +84,7 @@ function StepBacktest({ cat, strats, form, setForm, btId, bt, onLaunched, onNext
   const nSel = ids.length
   const risk = adv ? form.risk : basicRisk(form.sel, strats.byId)
   const fill = adv ? form.stopFill : 'level'
+  const tfMismatch = adv ? [] : timeframeMismatch(ids, strats.byId, form.timeframe || '15m')
 
   const paramsFor = (id) => ({ ...form.sel[id], risk_per_trade_pct: form.risk })
   const clientErr = useMemo(() => {
@@ -151,6 +152,11 @@ function StepBacktest({ cat, strats, form, setForm, btId, bt, onLaunched, onNext
                   <select id="bt-tf" className="n-sel" value={form.timeframe || '15m'} onChange={(e) => setForm({ timeframe: e.target.value })}>
                     <option value="15m">15 phút</option><option value="1h">1 giờ</option><option value="4h">4 giờ</option>
                   </select>
+                  {tfMismatch.length > 0 && (
+                    <span className="n-pf-note" role="status">
+                      Preset tối ưu ở khung khác: {tfMismatch.map((x) => `${x.id} (${x.timeframe})`).join(', ')} — kết quả có thể kém hơn bằng chứng.
+                    </span>
+                  )}
                 </Field>
               </div>
               {adv ? (

@@ -33,7 +33,7 @@ export function mcIsCustom(f) {
 
 // ---- preset ----
 const flag = (v) => (v === true ? true : v === false ? false : null)   // presets.json ghi bool thật (P0.9)
-export const SOURCE_KIND = { book: 'Sổ đã xuất bản', stage_a: 'Top-1 dev1 của lần tối ưu gần nhất', default: 'Mặc định — chưa tối ưu' }
+export const SOURCE_KIND = { book: 'Sổ đã xuất bản', stage_a: 'Lần tối ưu gần nhất (stage A)', default: 'Mặc định — chưa tối ưu' }
 
 /** Gom thông tin hiển thị của preset: nguồn, có phải mặc định chưa tối ưu không, kết quả kiểm chứng dev2. */
 export function presetInfo(preset) {
@@ -41,15 +41,23 @@ export function presetInfo(preset) {
   const isDefault = preset?.source_kind === 'default' || !ev
   const accepted = ev ? flag(ev.accepted) : null
   const dev2Pass = ev ? flag(ev.dev2_pass) : null
-  // kiểm chứng dev2 trượt: dev2_pass=false, hoặc accepted=false khi không có dev2_pass
-  const failedDev2 = !isDefault && (dev2Pass === false || (dev2Pass == null && accepted === false))
+  // kiểm chứng dev2 trượt: dev2_verified=false (stage A không có cấu hình top-K qua dev2), dev2_pass=false,
+  // hoặc accepted=false khi không có dev2_pass
+  const failedDev2 = !isDefault && (ev.dev2_verified === false || dev2Pass === false || (dev2Pass == null && accepted === false))
   return {
-    isDefault, failedDev2, accepted, dev2Pass,
+    isDefault, failedDev2, accepted, dev2Pass, timeframe: preset?.timeframe || null,
     sourceText: preset?.source || SOURCE_KIND[preset?.source_kind] || '—',
     kindText: SOURCE_KIND[preset?.source_kind] || '',
     dev1: ev?.dev1 || null, dev2Level: ev?.dev2_level || null, dev2Extreme: ev?.dev2_extreme || null,
     stability: ev?.stability || null, holdoutPass: ev ? flag(ev.holdout_pass) : null, bookStatus: ev?.book_status || null,
   }
+}
+
+/** Chế độ Cơ bản: các preset đã chọn được tối ưu ở khung khác khung chạy -> [{ id, timeframe }] (khớp timeframe_mismatch của backend).
+ *  Preset mặc định (timeframe null) không tính. */
+export function timeframeMismatch(ids, byId, timeframe) {
+  return ids.map((id) => ({ id, timeframe: byId[id]?.preset?.timeframe || null }))
+    .filter((x) => x.timeframe && x.timeframe !== timeframe)
 }
 
 // ---- kiểm tham số theo lược đồ (khớp backend/core/strategy/run_modes.py: kiểu, khoảng, tập chọn) ----

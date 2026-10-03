@@ -74,8 +74,12 @@ Làm **đúng thứ tự**, xong dòng nào thì sửa cột "Trạng thái" tro
 3. 100k tương tự (chạy đêm). Ngoại suy 500k/1M.
 - **Xong khi:** 500k ước tính ≤ 4 h, không OOM, resume đúng.
 
-### P0.3c (dời sang đây) Preset 3 chiến lược chưa tối ưu
-- Sau P1.4: `build_strategy_book --only trend_short,reversion_long,reversion_short --n <lớn>` → `backend.optimize.build_presets` → kiểm `presets.json` có nguồn "build … stage A".
+### P0.3c (dời sang đây) Preset 9 chiến lược tối ưu lại ở khung 15m — [DONE]
+- Build job `20261003_035715_3e7ecb` (run `20261003_035715`) toàn lưới 846 cấu hình khung 15m.
+- Xuất bản `book.json` mới (timeframe: 15m, gồm `breakout_4h_long` và `breakout_4h_short`).
+- Dựng lại `presets.json` với 7/9 chiến lược có nguồn tối ưu mới (`book` hoặc `stage_a`), 2 chiến lược không qua cổng ở 15m giữ mặc định (timeframe trống).
+- Chọn nguồn: qua dev2 thắng; cùng mức thì bằng chứng mới hơn thắng. Stage A ưu tiên cấu hình top-K qua dev2, không có thì gắn nhãn "chưa kiểm chứng dev2" (5/7 preset hiện tại).
+- Cảnh báo lệch khung ở chế độ Cơ bản: API (`timeframe_mismatch`) + UI (dưới ô Khung chạy; thẻ preset hiện `khung …`).
 
 ---
 
