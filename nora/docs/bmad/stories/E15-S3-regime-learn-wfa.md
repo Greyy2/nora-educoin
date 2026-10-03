@@ -26,6 +26,8 @@ Là nhà nghiên cứu, tôi muốn mỗi fold WFA tự học regime nào chiế
 
 Kết quả thật (báo cáo 20261003_035715, top-3 mỗi chiến lược, 15m, 10 fold dev2): tắt — lãi kép OOS extreme −26,45%, MDD fold xấu nhất 17,3%, P(MDD≥30%) 81,9%; learn — −15,99%, 11,8%, 59,6%. Learn cải thiện rõ nhưng gate vẫn trượt (fold dương 30% < 60%). Bảng học đổi nhiều giữa các fold (quan hệ regime ↔ lãi không bền) → AC roadmap "sổ nhiều chiến lược qua WFA" CHƯA đạt; ghi nhận trung thực.
 
+**Khắc phục 03/10.** Luật học chặt: ≥ 30 lệnh/ô và t-stat ≤ −2; WFA học trên cửa sổ mở rộng (đầu dev1 → hết train). Bảng học giờ ổn định (gần như mọi fold chặn reversion_long/short ở RANGE). WFA preset 9 chiến lược: tắt −27,3% / học −22,7% lãi kép OOS extreme (ruin 81% → 74%); gate vẫn trượt. Sổ 5 chiến lược dev1 dương cũng trượt (fold dương 30%). Nguyên nhân gốc: chiến lược đổi dấu từ dev1 sang dev2 (vd. keltner_trend_long +5.003$ → −724$) — regime không tạo được edge. Ghi chú: khớp SL "level" OOS dương (+5,5% / +8,1%) còn "extreme" âm → nhạy với giả định trượt giá khi cắt lỗ.
+
 ## Evidence
 
 - Commit: `dc08366`.
@@ -37,3 +39,4 @@ Kết quả thật (báo cáo 20261003_035715, top-3 mỗi chiến lược, 15m,
 | Ngày | Thay đổi | Commit |
 |---|---|---|
 | 2026-10-03 | Tạo + chạy thật | dc08366 |
+| 2026-10-03 | Luật học chặt + cửa sổ mở rộng; WFA lại với preset bền | a06efb9 |

@@ -46,13 +46,16 @@ Ngưỡng nằm trong `classifier.DEFAULTS`. Mọi tham số này được tính
 
 ## 5. Ghép regime ↔ chiến lược — `core/strategy/book.py::REGIME_MAP`
 
-| Chiến lược | Regime được vào lệnh | Cầu chì |
+**Hiện hành (từ 03/10/2026): "chặn ngược chiều", cầu chì tắt.**
+
+| Phía | Không vào lệnh khi | Cầu chì |
 |---|---|---|
-| trend_long, momentum_long | TREND_UP, SURGE | CRASH → thoát |
-| trend_short | TREND_DOWN, CRASH | SURGE → thoát |
-| breakout_4h_long | TREND_UP, VOL_EXPANSION, SURGE | CRASH → thoát |
-| breakout_4h_short | TREND_DOWN, VOL_EXPANSION, CRASH | SURGE → thoát |
-| reversion_long, reversion_short | RANGE | sốc ngược chiều → thoát |
+| LONG (trend_long, momentum_long, breakout_4h_long, keltner_trend_long, reversion_long) | TREND_DOWN, CRASH | tắt |
+| SHORT (trend_short, breakout_4h_short, keltner_trend_short, reversion_short) | TREND_UP, SURGE | tắt |
+
+Bảng cũ ("chỉ cho vào ở TREND_UP/SURGE…" + cầu chì) bị dữ liệu thật bác bỏ (E15-S2): cầu chì cắt LONG ở đáy sau CRASH (~−20 điểm %); nhãn xu hướng
+4h đến muộn nên bảng chỉ cho vào 8–12% lệnh lãi của chiến lược xu hướng. Cầu chì vẫn dùng được (`"fuse": true`) cho chiến lược nhồi lệnh không cắt lỗ.
+Hồ sơ nhãn: `classifier.PROFILES` ("slow" mặc định; "fast" = xu hướng 1h, xác nhận 60 phút, đo kém hơn trên dev2) — chọn bằng khoá `"classifier"`.
 
 - **Áp dụng.** `match &= allowed`; `stop |= fuse`. Tín hiệu thoát đóng lệnh ở nến sau, gồm cả thang DCA, nên lệnh không bị nhồi tiếp khi trend thẳng đứng.
 - **Bật.** Dùng `materialize(..., regime=True)`, `run(..., regime=True)` hoặc `POST /api/studio/book/backtest {"regime": true}`. Mặc định là tắt, và chỉ bật mặc định sau khi báo cáo P2.4 xác nhận.

@@ -24,6 +24,8 @@ Là người dùng chế độ Cơ bản, tôi muốn preset ghi rõ khung đã 
 
 Roadmap P0.3c. Kết quả: 5/7 preset stage A chưa qua dev2; sổ `HOLDOUT_FAILED`.
 
+**Khắc phục 03/10.** Chọn preset stage A theo ĐIỂM BỀN chỉ trên dev1 (`robust_scores`: trung bình điểm của cấu hình và lân cận lưới, đọc mọi cấu hình từ kho results.sqlite). Bỏ dùng dev2 để chọn vì WFA kiểm trên dev2 (rò rỉ). `dev2_verified` chỉ còn để hiển thị (None khi cấu hình không nằm trong top-K đã kiểm dev2).
+
 ## Evidence
 
 - Commit: `21d8adb`.
@@ -35,3 +37,4 @@ Roadmap P0.3c. Kết quả: 5/7 preset stage A chưa qua dev2; sổ `HOLDOUT_FAI
 | Ngày | Thay đổi | Commit |
 |---|---|---|
 | 2026-10-03 | Tạo story | 21d8adb |
+| 2026-10-03 | Preset theo độ bền dev1, bỏ chọn theo dev2 | a06efb9 |

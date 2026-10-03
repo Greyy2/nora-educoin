@@ -23,6 +23,8 @@ Là nhà nghiên cứu, tôi muốn đo nhãn regime causal so với diễn bi�
 
 Kết quả (job `20261003_114116_8f0064`, 7,5 s): RANGE 66% thời gian; nhãn xu hướng gần như không dự báo lợi suất 24h tới (TREND_UP +0,26%, TREND_DOWN +0,06%); sau CRASH giá hồi +2,5% (cầu chì cắt LONG là sai chiều; alarm continuation 0–46%). Recall sự kiện ±12%/24h: 67–94%, trễ trung vị ~20 h (nhãn cần roc_24 đã đi). Sổ preset tắt regime +29,6% / MDD 29,5%; bật bảng tĩnh −26,0% / MDD 30,1%. Bảng tĩnh không khớp dữ liệu (vd. momentum_long lãi ở RANGE nhưng chỉ được TREND_UP/SURGE) → AC P2.4 "chiến lược lãi trong regime của nó" KHÔNG đạt với bảng tĩnh; hướng xử lý = học trên train (E15-S3).
 
+**Khắc phục 03/10.** Chẩn đoán (test/scripts/research_regime_diagnosis.py): cầu chì gây ~−20 điểm %; bảng "chỉ cho vào" chỉ cho 8–12% lệnh lãi vì nhãn xu hướng 4h đến muộn hơn điểm phá vỡ. Đã đổi `REGIME_MAP` sang "chặn ngược chiều" (LONG không vào TREND_DOWN/CRASH, SHORT không vào TREND_UP/SURGE), cầu chì tắt. Tiêu chí viết lại (ngoài mẫu dev2, regime được phép tốt hơn bị chặn ở ≥ 2/3 chiến lược): **6/9 đạt** (hồ sơ slow; hồ sơ fast 1h/60 phút chỉ 5/9 và dev2 kém hơn → giữ slow). Toàn kỳ: tắt +35,5%, bật +38,5%.
+
 ## Evidence
 
 - Commit: `dc08366`.
@@ -34,3 +36,4 @@ Kết quả (job `20261003_114116_8f0064`, 7,5 s): RANGE 66% thời gian; nhãn 
 | Ngày | Thay đổi | Commit |
 |---|---|---|
 | 2026-10-03 | Chạy dữ liệu thật, thêm timeframe | dc08366 |
+| 2026-10-03 | Chẩn đoán + bảng chặn ngược chiều, cầu chì tắt, tiêu chí đo được | a06efb9 |
