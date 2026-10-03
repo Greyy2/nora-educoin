@@ -51,7 +51,7 @@ def _stat(path: Optional[str]):
 
 def plan(eng: "BacktestEngine") -> Optional[Dict[str, Any]]:
     """Khoá nền + khoá từng khung / cột / chỉ số căn cho đúng bộ dữ liệu `eng` sẽ dựng. None nếu không có 1m.pkl."""
-    from backend.core.backtest.engine import FRAME_MS
+    from backend.core.backtest.engine import FRAME_MS, needs_minute_path
     from backend.core.data.loader import _file_fingerprint
     from backend.core.signals.evaluator import lag_key
     from backend.db.data_layout import default_data_root
@@ -66,8 +66,8 @@ def plan(eng: "BacktestEngine") -> Optional[Dict[str, Any]]:
     sym_dir = resolve_symbol_dir(eng.symbol)
     base = _sha1({"v": FORMAT_VERSION, "sym": eng.symbol, "root": root, "start": int(eng.start_ts), "end": int(eng.end_ts),
                   "base_frame": base_fr, "load_base": int(eng.start_ts - eng._warmup_ms(base_fr, refs.get(base_fr, set()))),
-                  "perp": perp, "fp_base": list(fp1), "minute": eng.needs_minute_path(),
-                  "fp_1m": list(_file_fingerprint(eng.symbol, "1m", root) or []) if eng.needs_minute_path() else None,
+                  "perp": perp, "fp_base": list(fp1), "minute": needs_minute_path(eng),
+                  "fp_1m": list(_file_fingerprint(eng.symbol, "1m", root) or []) if needs_minute_path(eng) else None,
                   "fp_funding": _stat(os.path.join(sym_dir, "funding.pkl")) if (perp and sym_dir) else None})
     frames: Dict[str, Dict[str, str]] = {}
     cols: Dict[str, Dict[str, str]] = {}
@@ -81,7 +81,7 @@ def plan(eng: "BacktestEngine") -> Optional[Dict[str, Any]]:
         for col, lag in sorted(refs[frame]):
             cid = f"{frame}|{lag_key(col, lag)}"
             cols[cid] = {"frame": frame, "v": _sha1({"frame": tkey, "cid": cid})}
-    return {"base": base, "frames": frames, "cols": cols, "minute": eng.needs_minute_path()}
+    return {"base": base, "frames": frames, "cols": cols, "minute": needs_minute_path(eng)}
 
 
 def _base_dir(out_dir: str, key: str) -> str:

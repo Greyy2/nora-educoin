@@ -190,7 +190,7 @@ class BacktestEngine:
                 "m_l": m1["low"].to_numpy(dtype="float64"), "m_h": m1["high"].to_numpy(dtype="float64")}
 
     def needs_minute_path(self) -> bool:
-        return self.base_frame != "1m" and any(getattr(tr, "stop_fill", "level") == "extreme" for tr in self.trackers)
+        return needs_minute_path(self)
 
     def load_frames(self, refs: Optional[Dict[str, Set[Tuple[str, int]]]] = None) -> None:
         """Nạp các khung lớn (không gồm 1m) từ ĐẦU lịch sử dữ liệu tới end_ts: chỉ báo tính từ gốc cố định (như TradingView) nên giá trị
@@ -345,3 +345,9 @@ class BacktestEngine:
     @staticmethod
     def _keltner_suffix(period: int, multiplier: float) -> str:
         return f"{period}_{str(multiplier).replace('.', '')}"
+
+
+def needs_minute_path(eng) -> bool:
+    """Có cần đường giá 1m trong nến chạy không: khung chạy > 1m và có chiến lược khớp SL "extreme". Hàm tự do để engine tham chiếu
+    (test/reference_engine.py) đi qua cùng đường dữ liệu dùng chung."""
+    return getattr(eng, "base_frame", "1m") != "1m" and any(getattr(tr, "stop_fill", "level") == "extreme" for tr in getattr(eng, "trackers", []))

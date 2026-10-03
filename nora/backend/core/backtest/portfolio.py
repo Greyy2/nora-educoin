@@ -24,7 +24,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 import numpy as np
 
 from backend.core.data import shared as shared_data
-from backend.core.backtest.engine import BacktestEngine
+from backend.core.backtest.engine import BacktestEngine, needs_minute_path
 from backend.core.execute.ledger import CapitalLedger
 from backend.core.execute.tracker import PositionTracker
 from backend.core.signals.evaluator import VectorEvaluator, lag_key
@@ -124,7 +124,7 @@ class PortfolioEngine:
 
     def _cache_key(self, symbol: str, eng: BacktestEngine) -> tuple:
         return (symbol, self.start_ts, self.end_ts, self._refs_signature(eng), any(tr.market == "perp" for tr in eng.trackers),
-                self.base_frame, eng.needs_minute_path())
+                self.base_frame, needs_minute_path(eng))
 
     def _build_symbol_data(self, eng: BacktestEngine, only: Optional[Set[str]] = None) -> Dict[str, Any]:
         """Dựng `data` của một tài sản (nến thật 1m + cột kernel + funding), không đụng cache.
@@ -142,7 +142,7 @@ class PortfolioEngine:
             "f_t": eng.funding["funding_time"].to_numpy(dtype="int64") if eng.funding is not None else np.array([], "int64"),
             "f_r": eng.funding["rate"].to_numpy(dtype="float64") if eng.funding is not None else np.array([]),
         }
-        if eng.needs_minute_path():   # khớp "extreme" ở khung chạy > 1m: giá xấu nhất của nến 1m đầu tiên chạm mức
+        if needs_minute_path(eng):   # khớp "extreme" ở khung chạy > 1m: giá xấu nhất của nến 1m đầu tiên chạm mức
             out["minute"] = eng.minute_path(t)
         return out
 
