@@ -345,3 +345,18 @@ def test_paper_book_replays_engine_trades_exactly(market, risk):
                  for x in pb.trades)
     assert got == want
     assert (pb.halted_at is not None) == (res.get("halted_at") is not None)
+
+
+def test_stale_state_of_other_book_is_archived(tmp_path):
+    from backend.live import bot as lb
+    sdir, spath = str(tmp_path), str(tmp_path / "state.json")
+    lb._archive_stale_state(sdir, spath, {"generated_at": 1})          # chưa có gì: không làm gì
+    assert os.listdir(sdir) == []
+    with open(spath, "w") as fh:
+        json.dump({"book": 1}, fh)
+    (tmp_path / "paper.pkl").write_bytes(b"x")
+    lb._archive_stale_state(sdir, spath, {"generated_at": 1})          # cùng sổ: giữ nguyên
+    assert sorted(os.listdir(sdir)) == ["paper.pkl", "state.json"]
+    lb._archive_stale_state(sdir, spath, {"generated_at": 2})          # sổ mới: cất trạng thái cũ
+    left = os.listdir(sdir)
+    assert len(left) == 1 and left[0].startswith("archive_") and sorted(os.listdir(tmp_path / left[0])) == ["paper.pkl", "state.json"]

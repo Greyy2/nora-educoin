@@ -50,6 +50,24 @@ def book_strategies(book: Dict[str, Any]) -> List[Dict[str, Any]]:
                         stop_fill="level") for s in book["strategies"]]
 
 
+def _archive_stale_state(sdir: str, spath: str, book: Dict[str, Any]) -> None:
+    """Trạng thái của sổ KHÁC (book.generated_at khác) -> cất state.json / paper.pkl / events.jsonl vào sdir/archive_<giờ>/ (không xoá)."""
+    names = [n for n in ("state.json", "paper.pkl", "events.jsonl") if os.path.isfile(os.path.join(sdir, n))]
+    if not names:
+        return
+    old = None
+    if os.path.isfile(spath):
+        with open(spath, encoding="utf-8") as fh:
+            old = json.load(fh).get("book")
+    if old == book.get("generated_at"):
+        return
+    dst = os.path.join(sdir, time.strftime("archive_%Y%m%d_%H%M%S"))
+    os.makedirs(dst, exist_ok=True)
+    for n in names:
+        os.replace(os.path.join(sdir, n), os.path.join(dst, n))
+    print(f"trạng thái của sổ cũ ({old}) -> {dst}", flush=True)
+
+
 class State:
     def __init__(self, path: str, capital: float):
         self.path = path
@@ -324,7 +342,8 @@ def run_job(params=None) -> Dict[str, Any]:
     client, keys = make_adapter(a.venue, a.mode)
     sdir = a.state_dir or cache_dir(None, "live", f"{a.venue}_{a.mode}")
     os.makedirs(sdir, exist_ok=True)
-    events, pkl = os.path.join(sdir, "events.jsonl"), os.path.join(sdir, "paper.pkl")
+    events, pkl, spath = os.path.join(sdir, "events.jsonl"), os.path.join(sdir, "paper.pkl"), os.path.join(sdir, "state.json")
+    _archive_stale_state(sdir, spath, book)
 
     def log(ev):
         line = redact(json.dumps(ev, ensure_ascii=False, default=str), keys)
@@ -337,7 +356,9 @@ def run_job(params=None) -> Dict[str, Any]:
     if os.path.isfile(pkl):
         with open(pkl, "rb") as fh:
             paper = pickle.load(fh)
-    bot = Bot(book, a.mode, client, State(os.path.join(sdir, "state.json"), float(a.capital)), log, filters, paper, float(a.capital))
+    state = State(spath, float(a.capital))
+    state.d["book"] = book.get("generated_at")
+    bot = Bot(book, a.mode, client, state, log, filters, paper, float(a.capital))
     if a.mode in EXEC_MODES:
         client.check_account()
         bot.reconcile(_now_ms())
