@@ -48,8 +48,9 @@ export default function AlphaTable({ runId, stage, strategies, catalog, selected
                   {COLS.map((c) => (
                     <th key={c.k} className="r" aria-sort={sort.k === c.k ? (sort.desc ? 'descending' : 'ascending') : 'none'}>
                       <button type="button" className="n-th-sort" onClick={() => toggleSort(c.k)} title="Bấm để sắp xếp">
-                        {c.term ? <Term k={c.term}>{c.label}</Term> : c.label}<span aria-hidden="true">{sort.k === c.k ? (sort.desc ? ' ▼' : ' ▲') : ''}</span>
+                        {c.label}<span aria-hidden="true">{sort.k === c.k ? (sort.desc ? ' ▼' : ' ▲') : ''}</span>
                       </button>
+                      {c.term && <Term k={c.term}>{''}</Term>}
                     </th>
                   ))}
                   {showS && <th className="r"><Term k="scale_s">s</Term></th>}

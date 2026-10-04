@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Panel, Empty, Spinner } from './ui'
 import Term from './Term'
-import { getPortfolioTrades, portfolioTradesCsvUrl, getMarketSignals, getMarketRegime } from '../api'
+import { getPortfolioTrades, portfolioTradesCsvUrl, getMarketRegime } from '../api'
 import { fmtNum, fmtMoney, fmtPct, fmtSPct, signClass, arrow, fmtDateTime, isNum } from '../lib/format'
 
 /* ─── Thống kê theo HỌ chiến lược (gộp mọi bộ tham số / alpha cùng chiến lược) ─────────────────────────────── */
-export function FamilyStatsPanel({ rows = [], period }) {
+export function FamilyStatsPanel({ rows = [], period, bare = false }) {
   if (!rows.length) return null
   return (
-    <Panel title="Thống kê theo chiến lược" meta={<span>gộp mọi bộ tham số của cùng chiến lược · lệnh đã đóng trong kỳ {period}</span>}>
+    <Panel className={bare ? 'pf-bare' : ''} title={bare ? null : 'Thống kê theo chiến lược'} meta={<span>gộp mọi bộ tham số của cùng chiến lược · lệnh đã đóng trong kỳ {period}</span>}>
       <div className="n-tblwrap">
         <table className="n-tbl">
           <thead>
@@ -58,7 +59,7 @@ const COLS = [
   [null, 'Giá vào → ra'], ['notional', 'Danh nghĩa'], [null, 'Tầng'], ['mae_pct', 'Lỗ treo'], ['pnl', 'Lãi/lỗ'], ['pnl_pct', '% vốn'], [null, 'Lý do đóng'],
 ]
 
-export function TradesPanel({ source, jobId, period }) {
+export function TradesPanel({ source, jobId, period, bare = false }) {
   const [f, setF] = useState({ strategy: '', symbol: '', side: '', outcome: '', sort: '-close_time', offset: 0 })
   const [st, setSt] = useState({ loading: true, data: null, error: null })
   const q = { source, job_id: jobId || undefined, period, ...Object.fromEntries(Object.entries(f).filter(([, v]) => v !== '')), limit: PAGE }
@@ -76,7 +77,7 @@ export function TradesPanel({ source, jobId, period }) {
   const d = st.data
   const total = d?.total || 0
   return (
-    <Panel title="Danh sách lệnh" meta={<>
+    <Panel className={bare ? 'pf-bare' : ''} title={bare ? null : 'Danh sách lệnh'} meta={<>
       <span>{st.loading ? <Spinner /> : `${total} lệnh`}</span>
       <a className="n-btn sm" href={portfolioTradesCsvUrl({ ...q, limit: undefined, offset: undefined })}>Tải CSV</a>
     </>}>
@@ -142,17 +143,6 @@ export function TradesPanel({ source, jobId, period }) {
   )
 }
 
-/* ─── Tín hiệu thị trường (nến 1m đã đóng cuối; cùng đường tính với backtest; dùng lại cho Live/Testnet) ─────── */
-function Cond({ c }) {
-  return (
-    <div className={`n-cond ${c.pass ? 'ok' : 'no'}`}>
-      <span className="mono">{c.left}</span> <b className="mono">{fmtNum(c.left_value, 4)}</b> <span>{c.op}</span> <span className="mono">{c.right}</span>
-      {c.right_value !== null && c.right !== String(c.right_value) && <b className="mono"> {fmtNum(c.right_value, 4)}</b>}
-      <span className="n-cond-mark">{c.pass ? '✓' : '✗'}</span>
-    </div>
-  )
-}
-
 /* ─── Regime thị trường: hiện tại, lịch sử, chiến lược đang bật ─────────────────────────────── */
 const REGIME_DAYS = [7, 30, 90]
 
@@ -168,7 +158,7 @@ function RegimeBar({ segs, from, to, labels }) {
   )
 }
 
-export function RegimePanel() {
+export function RegimePanel({ bare = false }) {
   const [days, setDays] = useState(30)
   const [st, setSt] = useState({ loading: true, data: null, error: null })
   useEffect(() => {
@@ -183,7 +173,7 @@ export function RegimePanel() {
   const to = Math.max(0, ...rows.map((r) => r.as_of || 0))
   const from = to - days * 86400000
   return (
-    <Panel title="Regime thị trường" meta={
+    <Panel className={bare ? 'pf-bare' : ''} title={bare ? null : 'Regime thị trường'} meta={
       <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
         {st.loading && <Spinner />}
         {REGIME_DAYS.map((n) => <button key={n} type="button" className={`n-btn sm ${days === n ? 'on' : ''}`} aria-pressed={days === n} onClick={() => setDays(n)}>{n} ngày</button>)}
@@ -218,61 +208,12 @@ export function RegimePanel() {
   )
 }
 
-export function MarketSignalsPanel() {
-  const [st, setSt] = useState({ loading: true, data: null, error: null })
-  const [open, setOpen] = useState(null)
-  useEffect(() => {
-    let dead = false
-    getMarketSignals().then((data) => !dead && setSt({ loading: false, data, error: null }), (e) => !dead && setSt({ loading: false, data: null, error: e.message }))
-    return () => { dead = true }
-  }, [])
-  const rows = st.data?.symbols || []
-  const ids = rows.find((r) => r.strategies?.length)?.strategies.map((s) => [s.id, s.side]) || []
-  const asOf = rows.map((r) => r.as_of).filter(Boolean)
+/* ─── Thẻ dẫn sang trang Live: tín hiệu của sổ đang chạy (kèm biểu đồ và giải thích từng điều kiện) nằm ở đó ─── */
+export function LiveBotCard() {
   return (
-    <Panel title="Tín hiệu thị trường" meta={<span>{st.loading ? <Spinner /> : asOf.length ? `nến 1m đã đóng lúc ${fmtDateTime(Math.min(...asOf))}` : ''} · tham số = preset từng chiến lược</span>}>
-      {st.error && <Empty title="Không tải được tín hiệu">{st.error}</Empty>}
-      {rows.length > 0 && (
-        <div className="n-tblwrap">
-          <table className="n-tbl n-sig">
-            <thead><tr><th>Tài sản</th><th className="r">Giá</th>{ids.map(([id, side]) => <th key={id}>{id}<span className={`n-badge ${String(side).toLowerCase()}`}>{side}</span></th>)}</tr></thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.symbol}>
-                  <td><b>{r.symbol.replace('@perp', '')}</b></td>
-                  <td className="mono r">{fmtNum(r.close, 4)}</td>
-                  {(r.strategies || []).map((s) => {
-                    const k = `${r.symbol}|${s.id}`
-                    const tone = s.exit ? 'exit' : s.entry ? 'entry' : 'idle'
-                    return (
-                      <td key={s.id}>
-                        <button type="button" className={`n-sigchip ${tone}`} aria-expanded={open === k} onClick={() => setOpen(open === k ? null : k)}
-                          title={s.entry_since ? `giữ trạng thái từ ${fmtDateTime(s.entry_since)}` : undefined}>
-                          {s.exit ? 'Thoát' : s.entry ? 'Vào' : '—'}
-                        </button>
-                      </td>
-                    )
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      {open && (() => {
-        const [sym, id] = open.split('|')
-        const s = rows.find((r) => r.symbol === sym)?.strategies.find((x) => x.id === id)
-        if (!s) return null
-        return (
-          <div className="n-sigdetail">
-            <h4>{sym.replace('@perp', '')} · {id} — {s.entry ? 'có tín hiệu VÀO' : 'chưa có tín hiệu vào'}{s.exit ? ' · có tín hiệu THOÁT' : ''}</h4>
-            <div className="n-sigcols">
-              <div><h5>Điều kiện vào (đạt một khối là đủ)</h5>{s.entry_blocks.map((b, i) => <div key={i} className={`n-block ${b.pass ? 'ok' : ''}`}>{b.conditions.map((c, j) => <Cond key={j} c={c} />)}</div>)}</div>
-              <div><h5>Điều kiện thoát</h5>{s.exit_blocks.length ? s.exit_blocks.map((b, i) => <div key={i} className={`n-block ${b.pass ? 'ok' : ''}`}>{b.conditions.map((c, j) => <Cond key={j} c={c} />)}</div>) : <span className="muted">Không có (thoát bằng SL/TP/trailing/thời gian).</span>}</div>
-            </div>
-          </div>
-        )
-      })()}
+    <Panel title="Tín hiệu & bot live" className="pf-live">
+      <p>Tín hiệu live của sổ đang chạy, kèm biểu đồ nến và giải thích từng điều kiện vào/thoát, nằm ở trang Live.</p>
+      <Link to="/live" className="n-btn">Mở trang Live</Link>
     </Panel>
   )
 }

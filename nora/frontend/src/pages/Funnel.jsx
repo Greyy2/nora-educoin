@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { PageHead, Panel, Status, Spinner, Loading, ErrorState, Empty } from '../components/ui'
+import { PageHead, Panel, Status, Spinner, Loading, ErrorState, Empty, Segmented } from '../components/ui'
 import JobPanel from '../components/JobPanel'
 import FunnelChart from '../components/funnel/FunnelChart'
 import StageStats from '../components/funnel/StageStats'
@@ -9,12 +9,14 @@ import TradesView from '../components/funnel/TradesView'
 import AlphaDrawer from '../components/funnel/AlphaDrawer'
 import NewRunForm from '../components/funnel/NewRunForm'
 import RunsList from '../components/funnel/RunsList'
+import { Headline, FinalSummary } from '../components/funnel/RunSummary'
+import '../styles/funnel.css'
 import { MockBanner, EmptyStage } from '../components/funnel/parts'
 import useAsync from '../hooks/useAsync'
 import useJob from '../hooks/useJob'
 import { useCatalog } from '../context/Catalog'
-import { listFunnelRuns, getFunnelRun, getFunnelStats } from '../api'
-import { STAGES, STAGE_META, RUN_STATUS, stageHasTrades, shortId, fmtCount, stageShort } from '../lib/funnel'
+import { listFunnelRuns, getFunnelRun, getFunnelStats, getFunnelAlphas } from '../api'
+import { STAGES, STAGE_META, RUN_STATUS, shortId, fmtCount, stageShort } from '../lib/funnel'
 import { isNum } from '../lib/format'
 import { fmtDateTime, fullDate } from '../lib/format'
 
@@ -54,6 +56,10 @@ function RunsPage() {
 }
 
 /* ------------------------------- xem một lượt ------------------------------- */
+// tầng thật sự lưu lệnh; S2/S4 (chống ăn may, Monte Carlo) và FINAL xem lệnh qua tầng gần nhất có lệnh
+const TRADE_STAGES = ['S1_backtest', 'S3_wfa', 'S5_sizing', 'S6_holdout']
+const TRADE_STAGE_OF = { S2_antiluck: 'S1_backtest', S4_montecarlo: 'S3_wfa', FINAL: 'S6_holdout' }
+const tradeStageOf = (st) => (TRADE_STAGES.includes(st) ? st : TRADE_STAGE_OF[st] || null)
 const TABS = [{ value: 'stats', label: 'Thống kê' }, { value: 'alphas', label: 'Alpha' }, { value: 'trades', label: 'Lệnh' }]
 
 function RunMeta({ run }) {
@@ -92,6 +98,8 @@ function RunView({ runId }) {
   const stage = STAGES.includes(sp.get('stage')) ? sp.get('stage') : 'S1_backtest'
   const tab = TABS.some((t) => t.value === sp.get('tab')) ? sp.get('tab') : 'stats'
   const sel = sp.get('sel') || ''
+  // mặc định chỉ hiện tóm tắt; phần chi tiết tầng (và dữ liệu nặng của nó) chỉ mở khi chọn tầng / tab / alpha
+  const detail = sp.has('stage') || sp.has('tab') || sp.has('sel')
   const drawer = sp.get('alpha') || ''
   const setParams = useCallback((patch, replace = true) => {
     const n = new URLSearchParams(sp)
@@ -99,8 +107,16 @@ function RunView({ runId }) {
     setSp(n, { replace })
   }, [sp, setSp])
 
-  const statsQ = useAsync(() => getFunnelStats(runId, stage), [runId, stage, run?.status], { poll: () => (live ? 8000 : 0) })
+  // thống kê tầng (S1 ~450 KB): chỉ tải khi mở tab Thống kê của một tầng
+  const wantStats = detail && tab === 'stats'
+  const statsQ = useAsync(wantStats ? () => getFunnelStats(runId, stage) : null, [runId, stage, run?.status, wantStats], { poll: () => (live ? 8000 : 0) })
   const stats = statsQ.data
+  // tóm tắt FINAL ở trang tổng quan (~45 KB), chỉ khi đã có alpha FINAL
+  const finalCount = run?.counts?.[7]?.passed
+  const finalQ = useAsync(isNum(finalCount) && finalCount > 0 ? () => getFunnelStats(runId, 'FINAL') : null, [runId, finalCount, run?.status])
+  // danh sách alpha cho ô chọn ở tab Lệnh: nhẹ hơn nhiều so với /stats
+  const tStage = tradeStageOf(stage) || 'S1_backtest'
+  const pickQ = useAsync(detail && tab === 'trades' ? () => getFunnelAlphas(runId, { stage: tStage, status: 'passed', sort: '-sharpe', limit: 25 }) : null, [runId, tStage, detail, tab])
 
   // lý do loại chính của mọi tầng: nếu backend không kèm trong `counts` thì lấy từ /stats từng tầng (tuần tự, sau khi lượt không còn chạy)
   const [tops, setTops] = useState({})
@@ -128,10 +144,18 @@ function RunView({ runId }) {
   const deadAt = run && !live && lastKnown && lastKnown.stage !== 'S0_generate' && lastKnown.passed === 0 ? lastKnown : null
   const deadQ = useAsync(deadAt ? () => getFunnelStats(runId, deadAt.stage) : null, [runId, deadAt?.stage])
 
+  // mở phần chi tiết tầng (hoặc vào thẳng bằng đường dẫn có ?tab=…) thì cuộn tới nó, vì phần tóm tắt nằm phía trên
+  const barRef = useRef(null)
+  const loaded = !!run && (!(finalCount > 0) || !!finalQ.data || !!finalQ.error)
+  const bodyReady = !!statsQ.data || !!pickQ.data || tab === 'alphas' // nội dung đủ cao rồi mới cuộn được tới đỉnh
+  useEffect(() => { if (detail && loaded) barRef.current?.scrollIntoView({ block: 'start' }) }, [detail, loaded, bodyReady])
+
   const openAlpha = useCallback((id) => setParams({ alpha: id }, false), [setParams])
   const closeAlpha = useCallback(() => setParams({ alpha: '' }, false), [setParams])
-  const toTrades = useCallback((id, st) => setParams({ alpha: '', sel: id, tab: 'trades', ...(st ? { stage: st } : {}) }, false), [setParams])
-  const pickStage = (st) => setParams({ stage: st, tab: st === 'S0_generate' && tab !== 'stats' ? 'stats' : tab })
+  const toTrades = useCallback((id, st) => setParams({ alpha: '', sel: id, tab: 'trades', stage: tradeStageOf(st) || 'S1_backtest' }, false), [setParams])
+  const closeDetail = () => setParams({ stage: '', tab: '', sel: '' }, false)
+  const pickStage = (st) => (detail && st === stage ? closeDetail() : setParams({ stage: st, tab: st === 'S0_generate' && tab !== 'stats' ? 'stats' : tab }, false))
+  const openFinal = () => setParams({ stage: 'FINAL', tab: 'alphas', sel: '' }, false)
 
   if (runQ.error && !run) return <><PageHead kicker="Phễu kiểm duyệt" title={`Lượt ${runId}`} /><MockBanner /><ErrorState title="Không tải được lượt chạy" error={runQ.error} onRetry={runQ.reload} /><p><Link to="/alpha/funnel" className="n-btn" style={{ marginTop: 10 }}>← Danh sách lượt</Link></p></>
   if (!run) return <Loading what="lượt chạy" />
@@ -145,8 +169,8 @@ function RunView({ runId }) {
   const prevCount = run.counts.find((c) => c.stage === prevStage)
   const deadReasons = deadQ.data?.reject_reasons?.length ? deadQ.data.reject_reasons : (deadAt?.top_reject ? [deadAt.top_reject] : [])
   const finalPassed = isNum(run.counts[7].passed) ? run.counts[7].passed : (deadAt ? 0 : null)
-  const tradesOk = stageHasTrades(stage)
-  const topAlphas = stats?.top || []
+  const tradesOk = stage !== 'S0_generate'
+  const topAlphas = pickQ.data?.items || []
   const tradeAlpha = sel || topAlphas[0]?.alpha_id || ''
   const alphaOptions = [...new Map([...(sel ? [[sel, { alpha_id: sel }]] : []), ...topAlphas.map((a) => [a.alpha_id, a])]).values()]
   const jobLike = jobQ.job || (run.progress ? { job_id: run.job_id, created: run.created, started: run.started, progress: run.progress } : null)
@@ -154,7 +178,7 @@ function RunView({ runId }) {
   return (
     <>
       <PageHead kicker={<Link to="/alpha/funnel" className="n-back">← Tất cả lượt chạy</Link>} title={`Phễu · ${run.run_id}`}
-        subtitle="Số alpha còn lại qua từng tầng; chọn một tầng để xem phân phối, bảng alpha và danh sách lệnh." />
+        subtitle="Tóm tắt một lượt kiểm duyệt: số alpha còn lại sau từng tầng, lý do loại chính và kết quả FINAL. Bấm một tầng để xem chi tiết." />
       <MockBanner />
       <RunMeta run={run} />
       {(live || run.status === 'failed' || run.status === 'cancelled') && (
@@ -162,6 +186,9 @@ function RunView({ runId }) {
           <JobPanel job={jobLike} status={jobQ.job ? jobQ.status : run.status} error={jobQ.job || !run.progress ? jobQ.error : null} onCancelled={runQ.reload} />
         </Panel>
       )}
+      <div className="n-fs-stack" style={{ marginBottom: 12 }}>
+        <Headline run={run} finalPassed={finalPassed} fin={finalQ.data} />
+      </div>
       <Panel title="Phễu kiểm duyệt" meta={<span className="mono">{fmtCount(run.counts[0].passed)} alpha → {fmtCount(finalPassed)} FINAL</span>}>
         {deadAt && (
           <div className="n-fn-dead" role="status">
@@ -174,10 +201,15 @@ function RunView({ runId }) {
             )}
           </div>
         )}
-        <FunnelChart counts={run.counts} selected={stage} onSelect={pickStage} tops={tops} running={live} deadAt={deadAt?.stage || null} />
+        <FunnelChart counts={run.counts} selected={detail ? stage : null} onSelect={pickStage} tops={tops} running={live} deadAt={deadAt?.stage || null} />
       </Panel>
 
-      <div className="n-fn-stagebar">
+      <div style={{ marginTop: 12 }}>
+        <FinalSummary run={run} finalPassed={finalPassed} q={finalQ} catalog={catalog} onOpen={openAlpha} onAll={openFinal} live={live} />
+      </div>
+
+      {detail && <>
+      <div className="n-fn-stagebar" ref={barRef} style={{ scrollMarginTop: 8 }}>
         <h2><span className="code">{STAGE_META[stage].short}</span> {STAGE_META[stage].name}</h2>
         <div className="n-tabs" role="tablist" aria-label="Nội dung của tầng">
           {TABS.map((t) => {
@@ -188,6 +220,7 @@ function RunView({ runId }) {
             )
           })}
         </div>
+        <button type="button" className="n-btn sm n-fs-close" onClick={closeDetail}>Đóng chi tiết ✕</button>
       </div>
 
       <div key={`${stage}-${tab}`} role="tabpanel">
@@ -202,20 +235,23 @@ function RunView({ runId }) {
         {!stageEmpty && tab === 'trades' && (
           <Panel title="Lệnh của alpha đang chọn" meta={
             <>
+              <Segmented label="Tầng của danh sách lệnh" value={tStage} onChange={(st) => setParams({ stage: st })}
+                options={TRADE_STAGES.map((st) => ({ value: st, label: stageShort(st) }))} />
               <label className="n-lbl" htmlFor="tr-alpha">Alpha</label>
-              <select id="tr-alpha" className="n-sel" style={{ width: 280 }} value={tradeAlpha} onChange={(e) => setParams({ sel: e.target.value })}>
-                {!alphaOptions.length && <option value="">Chưa có alpha</option>}
+              <select id="tr-alpha" className="n-sel n-fs-pick" value={tradeAlpha} onChange={(e) => setParams({ sel: e.target.value })}>
+                {!alphaOptions.length && <option value="">{pickQ.loading ? 'Đang tải…' : 'Chưa có alpha'}</option>}
                 {alphaOptions.map((a) => <option key={a.alpha_id} value={a.alpha_id}>{shortId(a.alpha_id)}{a.strategy ? ` · ${a.strategy}` : ''}</option>)}
               </select>
               {tradeAlpha && <button type="button" className="n-btn sm" onClick={() => openAlpha(tradeAlpha)}>Chi tiết alpha</button>}
             </>
           }>
             {!tradesOk ? <Empty title="Tầng này không có lệnh">Tầng sinh alpha chưa chạy backtest.</Empty>
-              : !tradeAlpha ? <Empty title="Chọn một alpha">Chọn alpha ở danh sách trên hoặc bấm "Lệnh →" ở tab Alpha để xem lệnh của nó ở tầng này.</Empty>
-                : <TradesView key={`${tradeAlpha}-${stage}`} runId={runId} alphaId={tradeAlpha} stage={stage} />}
+              : !tradeAlpha ? (pickQ.loading ? <Loading what="danh sách alpha" /> : <Empty title="Chọn một alpha">Chọn alpha ở danh sách trên hoặc bấm "Lệnh →" ở tab Alpha để xem lệnh của nó ở tầng này.</Empty>)
+                : <TradesView key={`${tradeAlpha}-${tStage}`} runId={runId} alphaId={tradeAlpha} stage={tStage} />}
           </Panel>
         )}
       </div>
+      </>}
 
       {drawer && <AlphaDrawer key={drawer} runId={runId} alphaId={drawer} catalog={catalog} onClose={closeAlpha} onTrades={toTrades} />}
     </>

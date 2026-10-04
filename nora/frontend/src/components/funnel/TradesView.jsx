@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Loading, ErrorState, Empty, Status, Spinner } from '../ui'
 import Pager from './Pager'
 import TradeChartDrawer from '../chart/TradeChartDrawer'
@@ -12,7 +12,7 @@ const ts = (iso) => (typeof iso === 'string' && iso.length >= 16 ? `${fullDate(i
 const iso = (v) => { const m = typeof v === 'string' ? Date.parse(v) : NaN; return Number.isNaN(m) ? null : m }
 const price = (v) => (isNum(v) ? fmtNum(v, Math.abs(v) >= 100 ? 2 : 4) : '—')
 
-/** Danh sách lệnh của một alpha ở một tầng. Tầng walk-forward gom theo fold. Lệnh chưa lưu (alpha bị loại ở S1) thì có nút "Tính lại". */
+/** Danh sách lệnh của một alpha ở một tầng. Tầng walk-forward gom theo fold. Lệnh chưa lưu (alpha bị loại ở S1) thì tự tính lại bằng backtest tất định. */
 export default function TradesView({ runId, alphaId, stage, compact = false }) {
   const [fold, setFold] = useState('')
   const [recompute, setRecompute] = useState(false)
@@ -21,30 +21,25 @@ export default function TradesView({ runId, alphaId, stage, compact = false }) {
   const q = useAsync(() => getFunnelTrades(runId, alphaId, { stage, fold, offset: pg.offset, limit: pg.limit, recompute: recompute ? 'true' : '' }),
     [runId, alphaId, stage, fold, pg.offset, pg.limit, recompute])
   const d = q.data
+  const have = !!d && (d.stored || d.recomputed) // lệnh đã lưu, hoặc vừa tính lại xong
+  const canRecompute = !!d && !have && d.raw?.can_recompute !== false && !recompute
+  const stale = !!d && !have && d.raw?.can_recompute === true // phản hồi cũ (trước khi tính lại)
+  // lệnh chưa lưu mà tính lại được: tự gọi lại với recompute=true (không cần bấm nút)
+  useEffect(() => { if (canRecompute) setRecompute(true) }, [canRecompute])
   const folds = useMemo(() => d?.folds || [...new Set((d?.items || []).map((t) => t.fold).filter((f) => f != null))].sort((a, b) => a - b), [d])
   const grouped = folds.length > 0 && !fold
 
-  if (recompute && q.loading && !d?.recomputed) {
+  if (q.error) return <ErrorState title={recompute ? 'Không tính lại được danh sách lệnh' : 'Không tải được danh sách lệnh'} error={q.error} onRetry={q.reload} />
+  if (!d) return <Loading what="danh sách lệnh" />
+  if (canRecompute || stale || (recompute && q.loading && !d.recomputed)) {
     return (
       <div className="n-recompute" role="status" aria-live="polite">
-        <Spinner /> <span><b>Đang tính lại danh sách lệnh</b> bằng backtest tất định trên dev1 (tiến trình con, có thể mất vài phút lần đầu; lần sau lấy từ bộ đệm). Đừng đóng trang.</span>
+        <Spinner /> <span><b>Đang tính lại lệnh từ backtest tất định…</b> <span className="n-note">Alpha bị loại ở S1 không lưu lệnh; kết quả trùng từng bit với lần chạy gốc và được lưu đệm cho lần sau.</span></span>
       </div>
     )
   }
-  if (q.error) return <ErrorState title={recompute ? 'Không tính lại được danh sách lệnh' : 'Không tải được danh sách lệnh'} error={q.error} onRetry={q.reload} />
-  if (!d) return <Loading what="danh sách lệnh" />
-  if (!d.stored && !recompute && d.raw?.can_recompute === false) {
+  if (!have) {
     return <Empty title="Không có lệnh được lưu cho tầng này">Tầng này không lưu danh sách lệnh của alpha này (alpha chưa vào tầng, hoặc tầng không sinh lệnh).</Empty>
-  }
-  if (!d.stored && !recompute) {
-    return (
-      <Empty title="Danh sách lệnh chưa được lưu">
-        <p>Alpha bị loại ở tầng S1 chỉ lưu thống kê. Lệnh có thể <b>tính lại</b> bằng cách chạy lại backtest tất định (trùng từng bit với lần chạy gốc).</p>
-        <div className="n-sticky-actions" style={{ justifyContent: 'center' }}>
-          <button type="button" className="n-btn primary" onClick={() => setRecompute(true)}>Tính lại danh sách lệnh</button>
-        </div>
-      </Empty>
-    )
   }
   const rows = []
   let lastFold = Symbol('none')

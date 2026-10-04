@@ -183,8 +183,13 @@ export default function AlphaDrawer({ runId, alphaId, catalog, onClose, onTrades
     return () => { document.removeEventListener('keydown', key); try { opener.current?.focus?.() } catch (e) { /* bỏ qua */ } }
   }, [onClose])
   useEffect(() => { setTradeStage('') }, [alphaId])
-  const tStages = useMemo(() => (d ? d.stages.filter((s) => s.status !== 'none' && stageHasTrades(s.stage)).map((s) => s.stage) : []), [d])
-  const ts = tradeStage || tStages[0] || ''
+  // tầng có danh sách lệnh: theo `stored_trades` của backend nếu có (S2/S4 không sinh lệnh riêng); ưu tiên tầng đã lưu sẵn
+  const tStages = useMemo(() => {
+    if (!d) return []
+    const st = d.stored_trades
+    return d.stages.filter((s) => s.status !== 'none' && stageHasTrades(s.stage) && (!st || s.stage in st)).map((s) => s.stage)
+  }, [d])
+  const ts = tradeStage || tStages.find((s) => d?.stored_trades?.[s]) || tStages[0] || ''
   const side = catalog?.find((c) => c.id === d?.strategy)?.side
   const mc = d?.mc
   const mcFits = mc && mc.fan?.p50?.length > 1 && mc.summary

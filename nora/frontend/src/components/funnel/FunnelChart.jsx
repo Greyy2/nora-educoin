@@ -18,7 +18,7 @@ export default function FunnelChart({ counts, selected, onSelect, tops = {}, run
   return (
     <div className="n-fn">
       <div className="n-fn-tools">
-        <span className="n-note">Vạch xanh: alpha qua tầng · vạch xám: alpha vào tầng (phần xám lòi ra là số bị loại). Bấm một tầng để xem chi tiết.</span>
+        <span className="n-note">Vạch xanh: qua tầng · vạch xám: vào tầng. Bấm một tầng để xem thống kê, alpha và lệnh của tầng đó.</span>
         <Segmented label="Thang vạch" value={scale} onChange={setScale} options={[{ value: 'linear', label: 'Tuyến tính' }, { value: 'log', label: 'Log' }]} />
       </div>
       <div className="n-fn-head" aria-hidden="true">

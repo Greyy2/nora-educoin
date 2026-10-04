@@ -3,7 +3,9 @@ import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { PageHead, Panel, Segmented, Field, ErrorBox, Empty, Spinner, Loading, ErrorState } from '../components/ui'
 import Term from '../components/Term'
 import { DateInput, DatePresets } from '../components/DateField'
-import StrategyRunPicker, { StrategyCard, ModeSwitch, ModeStamp, PublishBlocked, ParamField, LockIcon, useStrategies, useServerValidation } from '../components/RunModes'
+import { StrategyCard, PresetNote, ModeSwitch, ModeStamp, PublishBlocked, ParamField, LockIcon, useStrategies, useServerValidation } from '../components/RunModes'
+import StrategyChoice from '../components/backtest/StrategyChoice'
+import PresetSummary from '../components/backtest/PresetSummary'
 import JobPanel from '../components/JobPanel'
 import DashboardLoader, { PERIODS } from '../components/Dashboard'
 import WfaResult from '../components/WfaResult'
@@ -16,6 +18,7 @@ import { daysInclusive } from '../lib/dates'
 import { fullDate } from '../lib/format'
 import { STOP_FILL, stopFillOptions } from '../lib/stopfill'
 import { paramLabel } from '../lib/params'
+import '../styles/backtest.css'
 import {
   MC_STD, STRESS, STRESS_ALL, WFA_STD, WFA_SCHEMA_KEYS_SUPPORTED, WFA_PENDING_NOTE, mcIsCustom, presetParams,
   validateStrategy, coerceParams, splitServerErrors, flatServerErrors, CUSTOM_BADGE, timeframeMismatch,
@@ -72,6 +75,19 @@ function Locked({ label, children, id, note }) {
 }
 
 /* ---------------------------- Bước 1: Backtest ---------------------------- */
+const symName = (s) => String(s).replace('@perp', '')
+const defaultSymbols = (universe) => { const s = universe.find((x) => symName(x) === 'BTC') || universe[0]; return s ? [s] : [] }
+
+/** Preset chỉ đọc của một chiến lược: nguồn + bằng chứng, rồi từng tham số kèm mô tả. */
+function PresetBlock({ strat }) {
+  return (
+    <div>
+      <PresetNote preset={strat.preset} />
+      <PresetSummary strat={strat} />
+    </div>
+  )
+}
+
 function StepBacktest({ cat, strats, form, setForm, btId, bt, onLaunched, onNext }) {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(null)
@@ -80,11 +96,12 @@ function StepBacktest({ cat, strats, form, setForm, btId, bt, onLaunched, onNext
   const universe = cat.universe || []
   const mode = form.mode
   const adv = mode === 'advanced'
+  const multi = !!form.multi
   const ids = Object.keys(form.sel)
   const nSel = ids.length
   const risk = adv ? form.risk : basicRisk(form.sel, strats.byId)
   const fill = adv ? form.stopFill : 'level'
-  const tfMismatch = adv ? [] : timeframeMismatch(ids, strats.byId, form.timeframe || '15m')
+  const tfMismatch = adv ? [] : timeframeMismatch(ids, strats.byId, form.timeframe || '1h')
 
   const paramsFor = (id) => ({ ...form.sel[id], risk_per_trade_pct: form.risk })
   const clientErr = useMemo(() => {
@@ -99,8 +116,8 @@ function StepBacktest({ cat, strats, form, setForm, btId, bt, onLaunched, onNext
 
   const nSym = form.symbols.length
   const days = daysInclusive(form.start, form.end)
-  const reason = !nSel ? 'Chọn ít nhất một chiến lược ở bảng bên trên'
-    : !nSym ? 'Chọn ít nhất một cặp giao dịch'
+  const reason = !nSel ? (multi ? 'Chọn ít nhất một chiến lược ở danh sách bên trên' : 'Chọn một chiến lược ở danh sách bên trên')
+    : !nSym ? (multi ? 'Chọn ít nhất một cặp giao dịch' : 'Chọn cặp giao dịch')
       : !form.start || !form.end ? 'Nhập ngày bắt đầu và kết thúc hợp lệ (dd/mm/yyyy)'
         : form.start >= form.end ? 'Ngày bắt đầu phải trước ngày kết thúc'
           : adv && !riskOk(form.risk) ? `Rủi ro mỗi lệnh phải từ ${RISK_MIN}% đến ${RISK_MAX}%`
@@ -111,7 +128,7 @@ function StepBacktest({ cat, strats, form, setForm, btId, bt, onLaunched, onNext
     if (reason) return setErr(reason)
     setBusy(true)
     try {
-      const body = { mode, symbols: form.symbols, start: form.start, end: form.end, timeframe: form.timeframe || '15m' }
+      const body = { mode, symbols: form.symbols, start: form.start, end: form.end, timeframe: form.timeframe || '1h' }
       if (adv) {
         body.strategies = ids.map((id) => ({ id, params: coerceParams(strats.byId[id].params_schema, paramsFor(id)) }))
         body.risk_per_trade_pct = Number(form.risk)
@@ -125,31 +142,98 @@ function StepBacktest({ cat, strats, form, setForm, btId, bt, onLaunched, onNext
     } finally { setBusy(false) }
   }
 
+  // một chiến lược: bấm thẻ là thay luôn bằng preset của nó; danh mục: bật/tắt từng thẻ
+  const pickStrategy = (c) => {
+    if (!multi) return setForm({ sel: { [c.id]: presetParams(c) }, risk: basicRisk({ [c.id]: 1 }, strats.byId) })
+    const next = { ...form.sel }
+    if (next[c.id]) delete next[c.id]; else next[c.id] = presetParams(c)
+    setForm({ sel: next })
+  }
+  const setMulti = (on) => {
+    if (on) return setForm({ multi: true })
+    const first = ids[0]
+    setForm({ multi: false, sel: first ? { [first]: form.sel[first] } : {}, symbols: form.symbols.length > 1 ? defaultSymbols(universe.filter((s) => form.symbols.includes(s))) : form.symbols })
+  }
   const toggleSym = (s) => setForm({ symbols: form.symbols.includes(s) ? form.symbols.filter((x) => x !== s) : [...form.symbols, s] })
-  const useBook = () => setForm({ sel: selFromList(cat.book?.strategies, strats.byId) })
+  const applyBook = () => setForm({ multi: true, sel: selFromList(cat.book?.strategies, strats.byId) })
+  const symOpts = form.symbols[0] && !universe.includes(form.symbols[0]) ? [form.symbols[0], ...universe] : universe
 
   return (
     <>
-      <ModeSwitch mode={mode} onChange={(m) => setForm({ mode: m })} />
-      <div className="n-grid g-main-side">
-        <Panel title="Chiến lược" meta={
-          <>
-            <button type="button" className="n-btn sm" onClick={useBook} disabled={!cat.book?.strategies?.length}>Dùng sổ hiện tại</button>
-            <button type="button" className="n-btn sm" onClick={() => setForm({ sel: {} })} disabled={!nSel}>Bỏ chọn</button>
-            <span className="mono">{nSel} đã chọn</span>
-          </>
-        }>
-          <StrategyRunPicker strategies={strats.list} mode={mode} sel={form.sel} setSel={(sel) => setForm({ sel })} errors={errors}
-            riskShared={adv ? { value: form.risk, onChange: (v) => setForm({ risk: v }) } : null} />
-        </Panel>
-        <div style={{ display: 'grid', gap: 12, alignContent: 'start' }}>
+      <Panel title="Chọn chiến lược" meta={multi ? (
+        <>
+          <button type="button" className="n-btn sm" onClick={applyBook} disabled={!cat.book?.strategies?.length}>Dùng sổ hiện tại</button>
+          <button type="button" className="n-btn sm" onClick={() => setForm({ sel: {} })} disabled={!nSel}>Bỏ chọn</button>
+          <span className="mono">{nSel} đã chọn</span>
+        </>
+      ) : null}>
+        <StrategyChoice strategies={strats.list} sel={form.sel} multi={multi} onPick={pickStrategy} />
+      </Panel>
+
+      {!nSel && <p className="n-note" style={{ marginTop: 12 }}>Chọn một chiến lược để xem tham số và thiết lập phạm vi chạy.</p>}
+
+      {nSel > 0 && (
+        <div className="n-grid g-main-side" style={{ marginTop: 12 }}>
+          <Panel title={multi ? 'Tham số các chiến lược' : <>Tham số của <span className="mono">{ids[0]}</span></>}>
+            <label className={`n-bt-adv ${adv ? 'on' : ''}`}>
+              <input type="checkbox" checked={adv} onChange={(e) => setForm({ mode: e.target.checked ? 'advanced' : 'basic' })} />
+              <span>
+                <b>Điều chỉnh nâng cao</b>
+                <span className="n-note">
+                  {adv
+                    ? <><Term k="mode_advanced">Nâng cao</Term>: tự sửa từng tham số, rủi ro và cách khớp cắt lỗ.</>
+                    : <>Đang dùng bộ tham số tốt nhất (<Term k="preset">preset</Term>) bên dưới, đã khoá. Bật để tự chỉnh.</>}
+                </span>
+              </span>
+            </label>
+
+            {!adv && (
+              <div style={{ marginTop: 10, display: 'grid', gap: 10 }}>
+                {multi ? ids.map((id) => strats.byId[id] && (
+                  <details key={id} className="n-details">
+                    <summary><b className="mono">{id}</b> <span className={`n-badge ${String(strats.byId[id].side).toLowerCase()}`}>{strats.byId[id].side}</span></summary>
+                    <PresetBlock strat={strats.byId[id]} />
+                  </details>
+                )) : strats.byId[ids[0]] && <PresetBlock strat={strats.byId[ids[0]]} />}
+              </div>
+            )}
+
+            {adv && (
+              <div className="n-bt-advbox">
+                <div className="n-form-row">
+                  <Field id="bt-fill" label={<Term k="fill">Khớp cắt lỗ</Term>}>
+                    <select id="bt-fill" className="n-sel" value={form.stopFill} onChange={(e) => setForm({ stopFill: e.target.value })}>
+                      {stopFillOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+                  </Field>
+                </div>
+                {ids.map((id) => strats.byId[id] && (
+                  <StrategyCard key={id} strat={strats.byId[id]} mode="advanced" params={form.sel[id]} errors={errors[id] || {}}
+                    onChange={(p) => setForm({ sel: { ...form.sel, [id]: p } })}
+                    onReset={() => setForm({ sel: { ...form.sel, [id]: presetParams(strats.byId[id]) }, risk: strats.byId[id].preset?.params?.risk_per_trade_pct ?? form.risk })}
+                    riskShared={{ value: form.risk, onChange: (v) => setForm({ risk: v }) }} />
+                ))}
+              </div>
+            )}
+
+            {(adv || multi) && (
+              <label className={`n-bt-adv ${multi ? 'on' : ''}`}>
+                <input type="checkbox" checked={multi} onChange={(e) => setMulti(e.target.checked)} />
+                <span>
+                  <b>Chạy danh mục nhiều chiến lược và nhiều tài sản</b>
+                  <span className="n-note">Mặc định chỉ một chiến lược trên một cặp. Bật để chọn thêm chiến lược ở danh sách trên và nhiều cặp ở ô bên cạnh.</span>
+                </span>
+              </label>
+            )}
+          </Panel>
+
           <Panel title="Phạm vi chạy">
             <div className="n-form-row" style={{ gridTemplateColumns: '1fr 1fr' }}>
               <Field id="bt-start" label="Từ ngày"><DateInput id="bt-start" label="Từ ngày" value={form.start} onChange={(v) => setForm({ start: v })} /></Field>
               <Field id="bt-end" label="Đến ngày"><DateInput id="bt-end" label="Đến ngày" value={form.end} onChange={(v) => setForm({ end: v })} /></Field>
               <div style={{ gridColumn: '1 / -1' }}>
                 <Field id="bt-tf" label="Khung chạy (nến mô phỏng, dùng cho cả Backtest và WFA)">
-                  <select id="bt-tf" className="n-sel" value={form.timeframe || '15m'} onChange={(e) => setForm({ timeframe: e.target.value })}>
+                  <select id="bt-tf" className="n-sel" value={form.timeframe || '1h'} onChange={(e) => setForm({ timeframe: e.target.value })}>
                     <option value="15m">15 phút</option><option value="1h">1 giờ</option><option value="4h">4 giờ</option>
                   </select>
                   {tfMismatch.length > 0 && (
@@ -159,67 +243,66 @@ function StepBacktest({ cat, strats, form, setForm, btId, bt, onLaunched, onNext
                   )}
                 </Field>
               </div>
-              {adv ? (
-                <>
-                  <Field id="bt-risk" label="Rủi ro mỗi lệnh (%)">
-                    <input id="bt-risk" type="number" step="0.05" min={RISK_MIN} max={RISK_MAX} className="n-in" value={form.risk} aria-invalid={!riskOk(form.risk) || undefined} onChange={(e) => setForm({ risk: e.target.value })} />
-                    {!riskOk(form.risk) && <span className="n-field-err" role="alert">Phải nằm trong khoảng {RISK_MIN} đến {RISK_MAX}% vốn</span>}
-                  </Field>
-                  <div style={{ gridColumn: '1 / -1' }}>
-                    <Field id="bt-fill" label={<Term k="fill">Khớp cắt lỗ</Term>}>
-                      <select id="bt-fill" className="n-sel" value={form.stopFill} onChange={(e) => setForm({ stopFill: e.target.value })}>
-                        {stopFillOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                      </select>
-                    </Field>
+              <div style={{ gridColumn: '1 / -1' }}>
+                {multi ? (
+                  <div className="n-field">
+                    <span className="n-lbl" id="bt-sym-l">Cặp giao dịch ({nSym} đã chọn)</span>
+                    <div className="n-chips" role="group" aria-labelledby="bt-sym-l">
+                      {universe.map((s) => {
+                        const on = form.symbols.includes(s)
+                        return (
+                          <label key={s} className={`n-chip-lbl ${on ? 'on' : ''}`}>
+                            <input type="checkbox" checked={on} onChange={() => toggleSym(s)} />{symName(s)}
+                          </label>
+                        )
+                      })}
+                    </div>
+                    <div className="n-bt-actions">
+                      <button type="button" className="n-btn sm" onClick={() => setForm({ symbols: universe })}>Tất cả</button>
+                      <button type="button" className="n-btn sm" onClick={() => setForm({ symbols: [] })}>Bỏ chọn</button>
+                    </div>
                   </div>
-                </>
-              ) : (
-                <>
-                  <Locked label="Rủi ro mỗi lệnh" id="lk-risk" note="mức nhỏ nhất của các preset đã chọn">{String(+Number(risk).toFixed(2))}% vốn</Locked>
-                  <Locked label="Khớp cắt lỗ" id="lk-fill">{STOP_FILL.level.text}</Locked>
-                </>
-              )}
+                ) : (
+                  <Field id="bt-sym" label="Cặp giao dịch">
+                    <select id="bt-sym" className="n-sel" value={form.symbols[0] ?? ''} onChange={(e) => setForm({ symbols: [e.target.value] })}>
+                      {symOpts.map((s) => <option key={s} value={s}>{symName(s)}</option>)}
+                    </select>
+                  </Field>
+                )}
+              </div>
             </div>
+            {!adv && (
+              <p className="n-bt-line"><LockIcon /> Rủi ro {isNumStr(risk) ? String(+Number(risk).toFixed(2)) : '—'}% vốn mỗi lệnh (mức nhỏ nhất của các preset) · Khớp cắt lỗ: {STOP_FILL.level.text}. Cố định ở chế độ cơ bản.</p>
+            )}
             <DatePresets windows={cat.windows} start={form.start} end={form.end} onPick={(start, end) => setForm({ start, end })} />
             {cat.windows && <p className="n-note" style={{ marginTop: 8 }}>Dữ liệu từ {fullDate(cat.windows.start)} đến {fullDate(cat.windows.end)}. Mặc định chạy từ hết <Term k="dev2">dev2</Term> đến hết dữ liệu, tức vùng <Term k="holdout">Holdout</Term> ({fullDate(cat.windows.dev2_end)} → {fullDate(cat.windows.end)}).</p>}
           </Panel>
-          <Panel title="Cặp giao dịch" meta={
-            <>
-              <button type="button" className="n-btn sm" onClick={() => setForm({ symbols: universe })}>Tất cả</button>
-              <button type="button" className="n-btn sm" onClick={() => setForm({ symbols: [] })}>Bỏ chọn</button>
-            </>
-          }>
-            <div className="n-chips" role="group" aria-label="Cặp giao dịch">
-              {universe.map((s) => {
-                const on = form.symbols.includes(s)
-                return (
-                  <label key={s} className={`n-chip ${on ? 'on' : ''}`}>
-                    <input type="checkbox" checked={on} onChange={() => toggleSym(s)} />{s.replace('@perp', '')}
-                  </label>
-                )
-              })}
-              {!universe.length && <span className="n-note">Chưa có danh sách cặp.</span>}
-            </div>
-          </Panel>
         </div>
-      </div>
+      )}
 
-      <div className="n-runbar" role="region" aria-label="Chạy backtest">
-        <div className="sum">
-          <span className={`n-mode-badge ${mode}`}>{adv ? 'Nâng cao' : 'Cơ bản'}</span>{' '}
-          {nSel} chiến lược · {nSym} tài sản · {days != null && days > 0 ? `${days} ngày` : '— ngày'} · rủi ro {isNumStr(risk) ? String(+Number(risk).toFixed(2)) : '—'}%/lệnh · Khớp cắt lỗ: {STOP_FILL[fill]?.text || fill}
-          {reason && <div className="why" role="status">Chưa chạy được: {reason}.</div>}
+      {nSel > 0 && (
+        <div className="n-runbar" role="region" aria-label="Chạy backtest">
+          <div className="sum">
+            <span className={`n-mode-badge ${mode}`}>{adv ? 'Nâng cao' : 'Cơ bản'}</span>{' '}
+            {nSel} chiến lược · {nSym} tài sản · {days != null && days > 0 ? `${days} ngày` : '— ngày'} · rủi ro {isNumStr(risk) ? String(+Number(risk).toFixed(2)) : '—'}%/lệnh · Khớp cắt lỗ: {STOP_FILL[fill]?.text || fill}
+            {reason && <div className="why" role="status">Chưa chạy được: {reason}.</div>}
+          </div>
+          <ErrorBox>{err && err !== reason ? err : null}</ErrorBox>
+          <button type="button" className="n-btn primary" onClick={run} disabled={busy || !!reason} aria-describedby={reason ? 'bt-why' : undefined} title={reason || 'Chạy backtest với cấu hình này'}>
+            {busy ? <Spinner /> : null} Chạy backtest
+          </button>
+          {reason && <span id="bt-why" className="sr-only">{reason}</span>}
         </div>
-        <ErrorBox>{err && err !== reason ? err : null}</ErrorBox>
-        <button type="button" className="n-btn primary" onClick={run} disabled={busy || !!reason} aria-describedby={reason ? 'bt-why' : undefined} title={reason || 'Chạy backtest với cấu hình này'}>
-          {busy ? <Spinner /> : null} Chạy backtest
-        </button>
-        {reason && <span id="bt-why" className="sr-only">{reason}</span>}
-      </div>
+      )}
 
       {btId && (
         <Panel title="Tiến trình backtest" className="" meta={<span className="mono">{btId}</span>}>
-          <JobPanel job={bt.job} status={bt.status} error={bt.error} />
+          {bt.status === 'done' ? (
+            <details className="n-details">
+              <summary>Job đã xong: xem chi tiết job và tham số đã dùng</summary>
+              <JobPanel job={bt.job} status={bt.status} error={bt.error} />
+            </details>
+          ) : <JobPanel job={bt.job} status={bt.status} error={bt.error} />}
           {bt.status === 'done' && (
             <div className="n-sticky-actions">
               <button type="button" className="n-btn primary" onClick={onNext}>Tiếp tục: Walk-forward →</button>
@@ -238,7 +321,7 @@ function StepBacktest({ cat, strats, form, setForm, btId, bt, onLaunched, onNext
               Mở trên Danh mục ↗
             </Link>
           </div>
-          <DashboardLoader source="backtest" jobId={btId} period={period} />
+          <DashboardLoader source="backtest" jobId={btId} period={period} compact />
         </div>
       )}
     </>
@@ -306,7 +389,7 @@ function StepWfa({ cat, strats, form, setForm, wfaId, wfa, onLaunched, onNext })
   async function run() {
     setErr(null); setRunErr(null)
     if (reason) return setErr(`${reason}.`)
-    const body = { mode, start: f.start, end: f.end, symbols: form.symbols, timeframe: form.timeframe || '15m', regime: f.regime || 'off' }
+    const body = { mode, start: f.start, end: f.end, symbols: form.symbols, timeframe: form.timeframe || '1h', regime: f.regime || 'off' }
     if (adv) {
       Object.assign(body, { train_days: Number(f.train), test_days: Number(f.test), risk_per_trade_pct: Number(form.risk) })
       if (WFA_SCHEMA_KEYS_SUPPORTED) {
@@ -568,14 +651,15 @@ export default function Backtest() {
     if (!cat || !strats.list.length || form) return
     const pre = readPrefill(location, sp)
     const w = cat.windows || {}
-    const sel = selFromList(pre?.strategies || cat.book?.strategies, strats.byId)
+    const sel = selFromList(pre?.strategies, strats.byId)
     if (pre) seeded.current = true
     const customPre = !!pre?.strategies?.some((s) => s.params && Object.keys(s.params).length)
+    const symbols = pre?.symbols || defaultSymbols(cat.universe || [])
     setFormRaw({
-      mode: pre?.mode || (customPre ? 'advanced' : 'basic'), sel,
-      symbols: pre?.symbols || cat.universe || [], start: pre?.start || w.dev2_end || '', end: pre?.end || w.end || '',
+      mode: pre?.mode || (customPre ? 'advanced' : 'basic'), sel, multi: Object.keys(sel).length > 1 || symbols.length > 1,
+      symbols, start: pre?.start || w.dev2_end || '', end: pre?.end || w.end || '',
       risk: pre?.risk_per_trade_pct ?? cat.book?.risk_per_trade_pct ?? 0.5, stopFill: pre?.stop_fill || 'level',
-      timeframe: pre?.timeframe || '15m',
+      timeframe: pre?.timeframe || '1h',
     })
   }, [cat, strats.list]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -586,11 +670,12 @@ export default function Backtest() {
     const a = parseJobParams(bt.job.params)
     const rs = bt.job.resolved
     const list = rs?.strategies || a.strategies
+    const sel = list ? selFromList(list.map((s) => ({ id: s.id, params: s.params })), strats.byId) : form.sel
+    const symbols = (rs?.symbols || a.symbols || form.symbols).map((s) => (cat.universe?.includes(s) || String(s).includes('@') ? s : `${s}@perp`))
     setFormRaw((f) => ({
       ...f,
       mode: bt.job.mode || f.mode,
-      sel: list ? selFromList(list.map((s) => ({ id: s.id, params: s.params })), strats.byId) : f.sel,
-      symbols: (rs?.symbols || a.symbols || f.symbols).map((s) => (cat.universe?.includes(s) || String(s).includes('@') ? s : `${s}@perp`)),
+      sel, symbols, multi: Object.keys(sel).length > 1 || symbols.length > 1,
       start: rs?.start || a.start || f.start, end: rs?.end || a.end || f.end,
       risk: rs?.risk_per_trade_pct ?? a.risk_per_trade_pct ?? f.risk, stopFill: rs?.stop_fill || a.stop_fill || f.stopFill,
       timeframe: rs?.timeframe || a.timeframe || f.timeframe,
@@ -611,7 +696,7 @@ export default function Backtest() {
   return (
     <>
       <PageHead kicker="Một vòng kiểm chứng" title="Backtest · WFA · Monte Carlo"
-        subtitle="Chạy backtest danh mục, kiểm tra out-of-sample bằng walk-forward, rồi mô phỏng Monte Carlo để đo rủi ro phá sản. Mỗi bước mở khoá sau khi bước trước chạy xong." />
+        subtitle="Chọn một chiến lược, chạy backtest, kiểm tra out-of-sample bằng walk-forward, rồi mô phỏng Monte Carlo để đo rủi ro phá sản. Mỗi bước mở khoá sau khi bước trước chạy xong." />
       <div className="n-stepper" role="tablist" aria-label="Các bước">
         {steps.map((s) => (
           <button key={s.n} type="button" role="tab" aria-selected={step === s.n} disabled={s.locked}

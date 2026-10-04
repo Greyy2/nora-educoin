@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { PageHead, Segmented, Field } from '../components/ui'
 import QuickGuide, { GUIDE_KEY } from '../components/QuickGuide'
 import DashboardLoader, { PERIODS } from '../components/Dashboard'
-import { MarketSignalsPanel, RegimePanel } from '../components/OverviewExtras'
+import '../styles/portfolio.css'
 import useStored from '../hooks/useStored'
 import { listJobs } from '../api'
 import { fmtDateTime, toMs } from '../lib/format'
@@ -37,10 +37,12 @@ export default function Portfolio() {
   }, [jobs, source, pref.jobId, setPref])
 
   const isBt = source === 'backtest'
+  // chỉ tải dashboard khi job đã lưu còn hợp lệ trong danh sách (tránh tải thừa với job cũ rồi tải lại)
+  const btJob = jobs.rows.some((j) => j.job_id === pref.jobId) ? pref.jobId : ''
   return (
     <>
       <PageHead kicker="Tổng quan" title="Danh mục"
-        subtitle="NAV, lãi/lỗ, rủi ro và hiệu suất các chiến thuật. Số liệu theo ngày (UTC), quy đổi USDT, so với BTC@perp.">
+        subtitle="Tổng quan nhanh: các chỉ số chính và đường NAV. Số liệu chi tiết nằm trong các mục “Chi tiết” bên dưới (bấm để mở).">
         <Segmented label="Nguồn dữ liệu" value={source} onChange={(v) => setPref({ source: v })} options={SOURCES} />
         <Segmented label="Kỳ xem" value={pref.period} onChange={(v) => setPref({ period: v })} options={PERIODS} />
       </PageHead>
@@ -62,11 +64,7 @@ export default function Portfolio() {
         </div>
       )}
 
-      <RegimePanel />
-
-      <MarketSignalsPanel />
-
-      <DashboardLoader source={source} jobId={isBt ? pref.jobId : undefined} period={pref.period} refreshMs={isBt ? 0 : 60000} />
+      <DashboardLoader compact source={source} jobId={isBt ? btJob : undefined} period={pref.period} refreshMs={isBt ? 0 : 60000} />
     </>
   )
 }

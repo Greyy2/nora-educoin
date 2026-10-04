@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Panel, Status, Empty, Spinner, Loading, ErrorState } from './ui'
 import Term from './Term'
-import { FamilyStatsPanel, TradesPanel } from './OverviewExtras'
+import { FamilyStatsPanel, TradesPanel, RegimePanel, LiveBotCard } from './OverviewExtras'
+import DetailSection from './portfolio/DetailSection'
 import AreaLine from './charts/AreaLine'
 import UnderwaterStrip from './charts/UnderwaterStrip'
 import BarsPosNeg from './charts/BarsPosNeg'
@@ -88,17 +89,23 @@ function RiskPanel({ r }) {
   const mx = Math.max(1, ...mk.flatMap((m) => [m.long_pct || 0, m.short_pct || 0])) * 1.4
   return (
     <Panel title="Rủi ro và ký quỹ">
-      <div className="n-meter-top">
-        <span><Term k="margin_used">Ký quỹ đã dùng</Term></span>
-        <span className="v">{marginNull ? '—' : fmtPct(r.margin_used_pct)}</span>
-      </div>
-      <ProgressBar value={r.margin_used_pct} marks={[50, 70]} warnAt={50} critAt={70} label="Ký quỹ đã dùng" />
-      <div className="n-meter-scale"><span>0</span><span>cảnh báo 50 · dừng lệnh mới 70</span><span>100</span></div>
+      {!marginNull && (
+        <>
+          <div className="n-meter-top">
+            <span><Term k="margin_used">Ký quỹ đã dùng</Term></span>
+            <span className="v">{fmtPct(r.margin_used_pct)}</span>
+          </div>
+          <ProgressBar value={r.margin_used_pct} marks={[50, 70]} warnAt={50} critAt={70} label="Ký quỹ đã dùng" />
+          <div className="n-meter-scale"><span>0</span><span>cảnh báo 50 · dừng lệnh mới 70</span><span>100</span></div>
+        </>
+      )}
       {marginNull && <p className="n-note" style={{ marginTop: 6 }}>Backtest không có tài khoản ký quỹ nên chưa có số liệu này.</p>}
-      <div className="n-tiles">
-        <div className="n-tile"><div className="l"><Term k="exposure_gross">Exposure gộp</Term></div><div className="v">{fmtPct(r.exposure_gross_pct)}</div></div>
-        <div className="n-tile"><div className="l"><Term k="exposure_net">Exposure ròng</Term></div><div className={`v ${signClass(r.exposure_net_pct)}`}>{fmtSPct(r.exposure_net_pct)}</div></div>
-      </div>
+      {(isNum(r.exposure_gross_pct) || isNum(r.exposure_net_pct)) && (
+        <div className="n-tiles">
+          {isNum(r.exposure_gross_pct) && <div className="n-tile"><div className="l"><Term k="exposure_gross">Exposure gộp</Term></div><div className="v">{fmtPct(r.exposure_gross_pct)}</div></div>}
+          {isNum(r.exposure_net_pct) && <div className="n-tile"><div className="l"><Term k="exposure_net">Exposure ròng</Term></div><div className={`v ${signClass(r.exposure_net_pct)}`}>{fmtSPct(r.exposure_net_pct)}</div></div>}
+        </div>
+      )}
       {mk.length > 0 && (
         <div className="n-ls" role="group" aria-label="Long/short theo thị trường">
           <div />
@@ -115,12 +122,14 @@ function RiskPanel({ r }) {
         </div>
       )}
       <div className="n-stats">
-        <div><span className="k"><Term k="cagr">CAGR</Term></span><span className={`v ${signClass(r.cagr_pct)}`}>{fmtSPct(r.cagr_pct)}</span></div>
-        <div><span className="k"><Term k="vol_annual">Biến động năm</Term></span><span className="v">{fmtPct(r.vol_annual_pct)}</span></div>
-        <div><span className="k"><Term k="win_days">Tỉ lệ ngày lãi</Term> (ngày có giao dịch)</span><span className="v">{fmtPct(r.win_days_pct)}</span></div>
-        <div><span className="k"><Term k="profit_factor">Profit factor</Term></span><span className="v">{fmtNum(r.profit_factor)}</span></div>
-        <div><span className="k">Vị thế mở</span><span className="v">{r.open_positions ?? '—'}</span></div>
-        <div><span className="k">Chiến thuật đang chạy</span><span className="v">{r.strategies_running ?? '—'}</span></div>
+        {[
+          [<Term k="cagr">CAGR</Term>, r.cagr_pct, fmtSPct(r.cagr_pct), signClass(r.cagr_pct)],
+          [<Term k="vol_annual">Biến động năm</Term>, r.vol_annual_pct, fmtPct(r.vol_annual_pct)],
+          [<><Term k="win_days">Tỉ lệ ngày lãi</Term> (ngày có giao dịch)</>, r.win_days_pct, fmtPct(r.win_days_pct)],
+          [<Term k="profit_factor">Profit factor</Term>, r.profit_factor, fmtNum(r.profit_factor)],
+          ['Vị thế mở', r.open_positions, r.open_positions],
+          ['Chiến thuật đang chạy', r.strategies_running, r.strategies_running],
+        ].filter(([, raw]) => isNum(raw)).map(([k, , v, cls], i) => <div key={i}><span className="k">{k}</span><span className={`v ${cls || ''}`}>{v}</span></div>)}
       </div>
     </Panel>
   )
@@ -203,34 +212,245 @@ function Events({ rows = [] }) {
   )
 }
 
-export function DashboardView({ data, refresh, ctx }) {
+function SourceLine({ source, mock, mockNote, refresh, wrap = false }) {
+  if (!source.kind || source.kind === 'backtest') return null
+  return (
+    <div className={`n-srcline ${wrap ? 'pf-src' : ''}`}>
+      <span className="muted">Nguồn</span> <b>{source.label || source.kind}</b>
+      {mock && <span className="n-chip" title={mockNote}>MOCK</span>}
+      {refresh && (
+        <>
+          <span className="sp" />
+          <span className="upd muted" aria-live="off">{refresh.updatedAt ? `Cập nhật lúc ${fmtClock(refresh.updatedAt)}` : 'Chưa cập nhật'}{refresh.everyMs ? ` · tự làm mới mỗi ${Math.round(refresh.everyMs / 1000)} giây` : ''}</span>
+          <button type="button" className="n-btn sm" onClick={refresh.onRefresh} disabled={refresh.refreshing} aria-label="Làm mới dữ liệu">
+            {refresh.refreshing ? <Spinner /> : <span aria-hidden="true">↻</span>} Làm mới
+          </button>
+        </>
+      )}
+    </div>
+  )
+}
+
+/** Biểu đồ phụ (lãi/lỗ ngày, phân phối, theo tháng, Sharpe cuốn chiếu); khối nào thiếu dữ liệu thì ẩn hẳn. */
+function ExtraCharts({ s, dist, monthly, risk }) {
+  const dates = s.dates || []
+  const pl = (s.daily_pnl || []).filter(isNum)
+  const winDays = pl.length ? (pl.filter((x) => x > 0).length / (pl.filter((x) => x !== 0).length || 1)) * 100 : null
+  const varPct = dist?.var95_pct
+  const hasRoll = (s.rolling_sharpe_63 || []).filter(isNum).length >= 2
+  const years = monthly?.years || []
+  return (
+    <>
+      {(pl.length > 0 || (dist?.bins || []).length > 0) && (
+        <div className="n-grid g-main-side">
+          {pl.length > 0 && (
+            <Panel title="Lãi/lỗ theo ngày" meta={<><span><Term k="win_days">Ngày lãi</Term> (ngày có giao dịch) <b className="mono">{fmtPct(risk.win_days_pct ?? winDays)}</b>{isNum(risk.active_days) ? <span className="muted"> · {risk.active_days} ngày</span> : null}</span>{isNum(risk.profit_factor) && <span><Term k="profit_factor">Profit factor</Term> <b className="mono">{fmtNum(risk.profit_factor)}</b></span>}</>}>
+              <BarsPosNeg dates={dates} values={s.daily_pnl || []} height={200} />
+            </Panel>
+          )}
+          {(dist?.bins || []).length > 0 && (
+            <Panel title="Phân phối lợi nhuận ngày" meta={isNum(varPct) ? <span><Term k="var95">VaR 95%</Term> <b className="mono neg">{fmtSPct(varPct)}</b></span> : null}>
+              <Histogram bins={dist.bins} height={200} unit="%" xFormat={(v) => `${fmtNum(v, 1)}%`} label="Phân phối lợi nhuận ngày"
+                colorOf={(b) => (isNum(varPct) && b.hi <= varPct + 1e-9 ? 'var(--n-neg)' : 'var(--n-teal)')}
+                marker={isNum(varPct) ? { x: varPct, label: 'VaR 95%' } : null} />
+              <div className="n-legend" style={{ marginTop: 6 }}><span><i className="sq" style={{ background: 'var(--n-neg)' }} />Vùng VaR (đuôi lỗ 5%)</span><span><i className="sq" style={{ background: 'var(--n-teal)' }} />Còn lại</span></div>
+            </Panel>
+          )}
+        </div>
+      )}
+      {/* ít năm (heatmap thấp): xếp dọc để không có khoảng trống; từ 3 năm trở lên: heatmap + Sharpe cạnh nhau */}
+      {(years.length > 0 || hasRoll) && (
+        <div className={`n-grid ${years.length >= 3 && hasRoll ? 'g-6-4' : ''}`} style={{ alignItems: 'start' }}>
+          {years.length > 0 && (
+            <Panel title="Lợi nhuận theo tháng" meta={<span>toàn bộ lịch sử, %</span>}>
+              <HeatmapTable years={years} />
+            </Panel>
+          )}
+          {hasRoll && (
+            <Panel title={<><Term k="sharpe">Sharpe</Term> cuốn chiếu 3 tháng</>} meta={<span className="n-legend"><span><i style={{ borderTopColor: 'var(--n-blue)' }} />Sharpe 63 ngày</span><span><i className="dash" />Mốc 1.0</span></span>}>
+              <AreaLine dates={dates} height={200} label="Sharpe cuốn chiếu 63 ngày" refLines={[{ y: 1, label: '1.0' }]}
+                series={[{ key: 'sh', label: 'Sharpe 63 ngày', values: s.rolling_sharpe_63 || [], color: 'var(--n-blue)' }]} valueFormat={(v) => fmtNum(v)} />
+            </Panel>
+          )}
+        </div>
+      )}
+    </>
+  )
+}
+
+const unrealizedOf = (positions) => positions.reduce((a, p) => a + (isNum(p.unrealized_pnl) ? p.unrealized_pnl : 0), 0)
+
+/** Tổng quan ngắn gọn: hàng KPI, một biểu đồ NAV, vài khối tóm tắt; mọi thứ chi tiết nằm trong các mục thu gọn. */
+function OverviewView({ data, refresh, ctx }) {
+  const { kpis: k = {}, series: s = {}, risk = {}, strategies = [], events = [], positions = [], source = {}, period } = data
+  const st = data.stats || {}
+  const t = st.trades || {}
+  const bench = (source.benchmark || 'BTC@perp').replace('@perp', '')
+  const dates = s.dates || []
+  const [hi, setHi] = useState(null)
+  const net = unrealizedOf(positions)
+  const retColor = (k.ret_period_pct ?? 0) >= 0 ? 'var(--n-pos)' : 'var(--n-neg)'
+  const sortino = isNum(k.sortino) ? <><Term k="sortino">Sortino</Term> {fmtNum(k.sortino)}</> : null
+  const calmar = isNum(k.calmar) ? <><Term k="calmar">Calmar</Term> {fmtNum(k.calmar)}</> : null
+  const kpis = [
+    isNum(k.nav) && (
+      <Kpi key="nav" label={<Term k="nav">NAV</Term>} labelText="NAV" spark={k.spark_nav} sparkColor="var(--n-accent)" sparkArea
+        sub={isNum(k.nav_change_day) ? <><Delta v={k.nav_change_day} /> <Delta v={k.nav_change_day_pct} suffix="%" /> hôm nay</> : null}>
+        {fmtNum(k.nav, 2)}<small>USDT</small>
+      </Kpi>
+    ),
+    isNum(k.ret_period_pct) && (
+      <Kpi key="ret" label={`Lợi nhuận ${periodLong(period)}`} spark={k.spark_ret} sparkColor={retColor} sub={isNum(k.bench_ret_period_pct) ? <BenchSub bench={bench} k={k} /> : null}>
+        <span className={signClass(k.ret_period_pct)}>{arrow(k.ret_period_pct)} {fmtSPct(k.ret_period_pct)}</span>
+      </Kpi>
+    ),
+    isNum(k.mdd_pct) && (
+      <Kpi key="mdd" label={<Term k="mdd">Max drawdown</Term>} labelText="Max drawdown" spark={k.spark_dd} sparkColor="var(--n-neg)"
+        sub={isNum(k.dd_now_pct) ? <>Hiện tại <span className={signClass(k.dd_now_pct)}>{fmtPct(k.dd_now_pct)}</span></> : null}>
+        <span className="neg">{fmtSPct(k.mdd_pct)}</span>
+      </Kpi>
+    ),
+    isNum(k.sharpe) && (
+      <Kpi key="sharpe" label={<Term k="sharpe">Sharpe</Term>} sub={sortino || calmar ? <>{sortino}{sortino && calmar ? ' · ' : ''}{calmar}</> : null}>{fmtNum(k.sharpe)}</Kpi>
+    ),
+    isNum(t.trades) && (
+      <Kpi key="trades" label="Số lệnh" sub={<>toàn kỳ chạy{t.long?.trades >= 0 && t.short?.trades >= 0 ? ` · Long ${t.long.trades} · Short ${t.short.trades}` : ''}</>}>{t.trades}</Kpi>
+    ),
+    isNum(t.win_rate) && (
+      <Kpi key="win" label="Tỉ lệ thắng" sub={isNum(t.profit_factor) ? <><Term k="profit_factor">Profit factor</Term> {fmtNum(t.profit_factor)}</> : null}>{fmtPct(t.win_rate, 1)}</Kpi>
+    ),
+  ].filter(Boolean)
+
+  const TOP = 5
+  const hasRisk = isNum(risk.margin_used_pct) || isNum(risk.exposure_gross_pct) || positions.length > 0
+  return (
+    <>
+      <SourceLine wrap source={source} mock={data.mock} mockNote={data.mock_note} refresh={refresh} />
+      {kpis.length > 0 && <div className="pf-kpis">{kpis}</div>}
+
+      {dates.length > 1 && (
+        <Panel title={<><Term k="nav">NAV</Term> so với {bench}</>} meta={
+          <>
+            <span className="mono">{dates.length} ngày</span>
+            <span className="n-legend">
+              <span><i style={{ borderTopColor: 'var(--n-accent)' }} />NAV</span>
+              <span><i className="dash" style={{ borderTopColor: 'var(--n-bench)' }} />{bench}</span>
+              <span><i className="sq" style={{ background: 'var(--n-neg)', opacity: 0.6 }} />Drawdown</span>
+            </span>
+          </>
+        }>
+          <AreaLine dates={dates} height={250} hover={hi} onHover={setHi} label="NAV so với benchmark"
+            series={[
+              { key: 'nav', label: 'NAV', values: s.nav || [], color: 'var(--n-accent)', area: true },
+              { key: 'bench', label: bench, values: s.bench || [], color: 'var(--n-bench)', dashed: true },
+            ]} />
+          <div className="n-uw-h"><Term k="underwater">Underwater</Term> (sụt giảm từ đỉnh)</div>
+          <UnderwaterStrip dates={dates} values={s.drawdown_pct || []} hover={hi} onHover={setHi} />
+        </Panel>
+      )}
+
+      <div className="pf-blocks" style={{ marginTop: 12 }}>
+        {strategies.length > 0 && (
+          <Panel title="Chiến thuật" meta={<span>kỳ {periodLong(period)}</span>}>
+            <div className="n-tblwrap">
+              <table className="n-tbl">
+                <thead><tr><th>Chiến thuật</th><th className="r">Lãi/lỗ</th><th className="r">Đóng góp</th></tr></thead>
+                <tbody>
+                  {strategies.slice(0, TOP).map((x) => (
+                    <tr key={x.id}>
+                      <td><b className="mono">{x.id}</b> {x.side && <span className={`n-badge ${String(x.side).toLowerCase()}`}>{x.side}</span>}</td>
+                      <td className={`r ${signClass(x.pnl)}`}>{arrow(x.pnl)} {fmtMoney(x.pnl, true)}</td>
+                      <td className={`r ${signClass(x.contribution_pct)}`}>{fmtSPct(x.contribution_pct)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {strategies.length > TOP && <p className="pf-more">+{strategies.length - TOP} chiến thuật khác trong mục Chi tiết bên dưới.</p>}
+          </Panel>
+        )}
+        {hasRisk && (
+          <Panel title="Rủi ro và vị thế">
+            {isNum(risk.margin_used_pct) && (
+              <>
+                <div className="n-meter-top">
+                  <span><Term k="margin_used">Ký quỹ đã dùng</Term></span>
+                  <span className="v">{fmtPct(risk.margin_used_pct)}</span>
+                </div>
+                <ProgressBar value={risk.margin_used_pct} marks={[50, 70]} warnAt={50} critAt={70} label="Ký quỹ đã dùng" />
+              </>
+            )}
+            {(isNum(risk.exposure_gross_pct) || isNum(risk.exposure_net_pct)) && (
+              <div className="n-tiles">
+                {isNum(risk.exposure_gross_pct) && <div className="n-tile"><div className="l"><Term k="exposure_gross">Exposure gộp</Term></div><div className="v">{fmtPct(risk.exposure_gross_pct)}</div></div>}
+                {isNum(risk.exposure_net_pct) && <div className="n-tile"><div className="l"><Term k="exposure_net">Exposure ròng</Term></div><div className={`v ${signClass(risk.exposure_net_pct)}`}>{fmtSPct(risk.exposure_net_pct)}</div></div>}
+              </div>
+            )}
+            {positions.length > 0 && (
+              <div style={{ marginTop: 10 }}>
+                <div className="pf-line"><span className="k">Vị thế đang mở</span><span className="v">{positions.length}</span></div>
+                <div className="pf-line"><span className="k">Lãi/lỗ chưa chốt</span><span className={`v ${signClass(net)}`}>{fmtMoney(net, true)} USDT</span></div>
+              </div>
+            )}
+          </Panel>
+        )}
+        {ctx?.source !== 'backtest' && <LiveBotCard />}
+      </div>
+
+      <h2 className="pf-details-h">Chi tiết</h2>
+      {(strategies.length > 0 || events.length > 0 || (data.strategy_stats || []).length > 0) && (
+        <DetailSection title="Chiến thuật và sự kiện rủi ro" hint={`${strategies.length} chiến thuật${events.length ? ` · ${events.length} sự kiện` : ''}`}>
+          {strategies.length > 0 && (
+            <Panel title="Hiệu suất chiến thuật" meta={<span>{strategies.length} chiến thuật · kỳ {periodLong(period)}</span>}>
+              <StrategiesTable rows={strategies} />
+            </Panel>
+          )}
+          {events.length > 0 && (
+            <Panel title="Sự kiện rủi ro" meta={<span>trong kỳ</span>} className="pf-gap"><Events rows={events} /></Panel>
+          )}
+          {(data.strategy_stats || []).length > 0 && <div className="pf-gap"><FamilyStatsPanel rows={data.strategy_stats} period={periodLong(period)} /></div>}
+        </DetailSection>
+      )}
+      {positions.length > 0 && (
+        <DetailSection title="Vị thế đang mở" hint={`${positions.length} vị thế · chưa chốt ${fmtMoney(net, true)} USDT`}>
+          <PositionsTable rows={positions} />
+        </DetailSection>
+      )}
+      <DetailSection title="Biểu đồ phụ" hint="lãi/lỗ ngày, phân phối, theo tháng, Sharpe cuốn chiếu">
+        <ExtraCharts s={s} dist={data.distribution} monthly={data.monthly} risk={risk} />
+      </DetailSection>
+      {data.stats && (
+        <DetailSection title="Số đo chi tiết" hint="toàn kỳ chạy">
+          <StatsPanel stats={data.stats} mdd={data.mdd} bare />
+        </DetailSection>
+      )}
+      <DetailSection title="Regime thị trường" hint="theo từng tài sản">
+        <RegimePanel bare />
+      </DetailSection>
+      {ctx && (
+        <DetailSection title="Danh sách lệnh" hint="lọc, sắp xếp, tải CSV">
+          <TradesPanel source={ctx.source} jobId={ctx.jobId} period={period} bare />
+        </DetailSection>
+      )}
+    </>
+  )
+}
+
+export function DashboardView({ compact = false, ...props }) {
+  return compact ? <OverviewView {...props} /> : <FullView {...props} />
+}
+
+/** Bản đầy đủ (dùng ở trang Backtest). */
+function FullView({ data, refresh, ctx }) {
   const { kpis: k = {}, series: s = {}, distribution: dist, monthly, risk = {}, strategies = [], events = [], positions = [], source = {}, period } = data
   const [hi, setHi] = useState(null)
   const dates = s.dates || []
   const nDays = dates.length
-  const pl = (s.daily_pnl || []).filter(isNum)
-  const winDays = pl.length ? (pl.filter((x) => x > 0).length / (pl.filter((x) => x !== 0).length || 1)) * 100 : null
-  const varPct = dist?.var95_pct
   const bench = source.benchmark || 'BTC@perp'
-  const hasRoll = (s.rolling_sharpe_63 || []).filter(isNum).length >= 2
-  const net = positions.reduce((a, p) => a + (isNum(p.unrealized_pnl) ? p.unrealized_pnl : 0), 0)
+  const net = unrealizedOf(positions)
   return (
     <>
-      {source.kind && source.kind !== 'backtest' && (
-        <div className="n-srcline">
-          <span className="muted">Nguồn</span> <b>{source.label || source.kind}</b>
-          {data.mock && <span className="n-chip" title={data.mock_note}>MOCK</span>}
-          {refresh && (
-            <>
-              <span className="sp" />
-              <span className="upd muted" aria-live="off">{refresh.updatedAt ? `Cập nhật lúc ${fmtClock(refresh.updatedAt)}` : 'Chưa cập nhật'}{refresh.everyMs ? ` · tự làm mới mỗi ${Math.round(refresh.everyMs / 1000)} giây` : ''}</span>
-              <button type="button" className="n-btn sm" onClick={refresh.onRefresh} disabled={refresh.refreshing} aria-label="Làm mới dữ liệu">
-                {refresh.refreshing ? <Spinner /> : <span aria-hidden="true">↻</span>} Làm mới
-              </button>
-            </>
-          )}
-        </div>
-      )}
+      <SourceLine source={source} mock={data.mock} mockNote={data.mock_note} refresh={refresh} />
       <KpiRow k={k} period={period} bench={bench.replace('@perp', '')} />
       <div className="n-grid g-main-side">
         <Panel title={<><Term k="nav">NAV</Term> so với {bench.replace('@perp', '')}</>} meta={
@@ -254,30 +474,7 @@ export function DashboardView({ data, refresh, ctx }) {
         <RiskPanel r={risk} />
       </div>
 
-      <div className="n-grid g-main-side">
-        <Panel title="Lãi/lỗ theo ngày" meta={<><span><Term k="win_days">Ngày lãi</Term> (ngày có giao dịch) <b className="mono">{fmtPct(risk.win_days_pct ?? winDays)}</b>{isNum(risk.active_days) ? <span className="muted"> · {risk.active_days} ngày</span> : null}</span><span><Term k="profit_factor">Profit factor</Term> <b className="mono">{fmtNum(risk.profit_factor)}</b></span></>}>
-          <BarsPosNeg dates={dates} values={s.daily_pnl || []} height={200} />
-        </Panel>
-        <Panel title="Phân phối lợi nhuận ngày" meta={<span><Term k="var95">VaR 95%</Term> <b className="mono neg">{fmtSPct(varPct)}</b></span>}>
-          <Histogram bins={dist?.bins || []} height={200} unit="%" xFormat={(v) => `${fmtNum(v, 1)}%`} label="Phân phối lợi nhuận ngày"
-            colorOf={(b) => (isNum(varPct) && b.hi <= varPct + 1e-9 ? 'var(--n-neg)' : 'var(--n-teal)')}
-            marker={isNum(varPct) ? { x: varPct, label: 'VaR 95%' } : null} />
-          <div className="n-legend" style={{ marginTop: 6 }}><span><i className="sq" style={{ background: 'var(--n-neg)' }} />Vùng VaR (đuôi lỗ 5%)</span><span><i className="sq" style={{ background: 'var(--n-teal)' }} />Còn lại</span></div>
-        </Panel>
-      </div>
-
-      {/* ít năm (heatmap thấp): xếp dọc để không có khoảng trống; từ 3 năm trở lên: heatmap + Sharpe cạnh nhau */}
-      <div className={`n-grid ${(monthly?.years || []).length >= 3 ? 'g-6-4' : ''}`} style={{ alignItems: 'start' }}>
-        <Panel title="Lợi nhuận theo tháng" meta={<span>toàn bộ lịch sử, %</span>}>
-          <HeatmapTable years={monthly?.years || []} />
-        </Panel>
-        <Panel title={<><Term k="sharpe">Sharpe</Term> cuốn chiếu 3 tháng</>} meta={<span className="n-legend"><span><i style={{ borderTopColor: 'var(--n-blue)' }} />Sharpe 63 ngày</span><span><i className="dash" />Mốc 1.0</span></span>}>
-          {hasRoll ? (
-            <AreaLine dates={dates} height={200} label="Sharpe cuốn chiếu 63 ngày" refLines={[{ y: 1, label: '1.0' }]}
-              series={[{ key: 'sh', label: 'Sharpe 63 ngày', values: s.rolling_sharpe_63 || [], color: 'var(--n-blue)' }]} valueFormat={(v) => fmtNum(v)} />
-          ) : <p className="n-note">Chưa đủ dữ liệu: cần ít nhất 63 ngày lịch sử để tính Sharpe cuốn chiếu.</p>}
-        </Panel>
-      </div>
+      <ExtraCharts s={s} dist={dist} monthly={monthly} risk={risk} />
 
       <div className="n-grid g-table-ev">
         <Panel title="Hiệu suất chiến thuật" meta={<span>{strategies.length} chiến thuật · kỳ {periodLong(period)}</span>}>
@@ -331,13 +528,14 @@ function fmtStat(v, kind) {
   return fmtNum(v)
 }
 
-function StatsPanel({ stats, mdd }) {
+function StatsPanel({ stats, mdd, bare = false }) {
   const t = stats.trades || {}
   const corr = stats.correlation
   return (
-    <Panel title="Số đo chi tiết" meta={<span>toàn kỳ chạy · <Term k="mdd_intrabar">MDD trong nến</Term> <b className="mono">{fmtPct(mdd?.intrabar_pct)}</b> · <Term k="mdd_daily">theo ngày</Term> <b className="mono">{fmtPct(mdd?.daily_pct)}</b></span>}>
+    <Panel className={bare ? 'pf-bare' : ''} title={bare ? null : 'Số đo chi tiết'}
+      meta={<span>toàn kỳ chạy{isNum(mdd?.intrabar_pct) && <> · <Term k="mdd_intrabar">MDD trong nến</Term> <b className="mono">{fmtPct(mdd.intrabar_pct)}</b></>}{isNum(mdd?.daily_pct) && <> · <Term k="mdd_daily">theo ngày</Term> <b className="mono">{fmtPct(mdd.daily_pct)}</b></>}</span>}>
       <div className="n-mx">
-        {STAT_GROUPS.map(([title, src, items]) => (
+        {STAT_GROUPS.map(([title, src, all]) => [title, src, all.filter(([k]) => isNum((stats[src] || {})[k]))]).filter(([, , items]) => items.length > 0).map(([title, src, items]) => (
           <div key={title} className="n-mx-group">
             <h4>{title}</h4>
             <dl>
@@ -371,7 +569,7 @@ function StatsPanel({ stats, mdd }) {
  * Tải payload Danh mục theo nguồn và hiển thị: rỗng (kèm lý do) / lỗi / dashboard.
  * `refreshMs` (Live/Testnet): tự tải lại theo chu kỳ khi tab đang hiện, hiện "Cập nhật lúc …" và nút làm mới thủ công.
  */
-export default function DashboardLoader({ source, jobId, period, onLoaded, openLink, refreshMs = 0 }) {
+export default function DashboardLoader({ source, jobId, period, onLoaded, openLink, refreshMs = 0, compact = false }) {
   const [st, setSt] = useState({ loading: true, data: null, error: null, updatedAt: null })
   const [tick, setTick] = useState(0)      // đổi để buộc tải lại
   const silent = useRef(false)             // true: tải lại nền, giữ nguyên dữ liệu đang hiện
@@ -420,7 +618,7 @@ export default function DashboardLoader({ source, jobId, period, onLoaded, openL
           <span>Dữ liệu giả lập · {st.data.mock_note?.replace(/^Dữ liệu giả lập\s*—\s*/, '') || 'chưa kết nối tài khoản'}. Các lệnh và vị thế bên dưới là mô phỏng, không phải giao dịch thật.</span>
         </div>
       )}
-      <DashboardView data={st.data} refresh={rf} ctx={{ source, jobId }} />
+      <DashboardView data={st.data} refresh={rf} ctx={{ source, jobId }} compact={compact} />
     </div>
   )
 }
