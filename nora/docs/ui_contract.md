@@ -1,9 +1,8 @@
 # Hợp đồng API cho giao diện Nora (v2)
 
 Một vòng trên UI: **Alpha** (hiệu chỉnh tham số từ chiến lược có sẵn) → **Backtest** → **WFA** → **Monte Carlo** →
-theo dõi trên **Danh mục**. Danh mục có ba nguồn: **Live | Testnet | Backtest**. Chưa có tài khoản live/testnet, nên Live và Testnet đang
-dùng feed **giả lập** (lệnh mô phỏng bằng engine thật, xem §3); khi nối tài khoản thật chỉ cần cài `LiveFeed`/`TestnetFeed` (backend/core/analytics/feeds.py),
-payload và UI không đổi.
+xem kết quả trên **Danh mục** (chỉ dữ liệu backtest). Bot đang chạy thật (OKX paper/demo) xem riêng ở trang **Live**
+(`GET /api/studio/live/trades`, gồm `equity_series` và `started`); hai nguồn không bao giờ trộn.
 
 Quy ước chung:
 - Thời gian là ms UTC. Ngày dạng `YYYY-MM-DD` (UTC). Tiền tệ USDT. Phần trăm là số đã nhân 100 (`4.85` = 4,85%).
@@ -46,14 +45,7 @@ Chỉ `POST` trả khoá `job_id`. Các hàng job (GET) dùng khoá **`id`** (k�
 
 ## 3. Payload Danh mục (mới)
 `GET /api/studio/portfolio/dashboard?source=backtest&job_id=<id>&period=1M|3M|YTD|1Y|ALL`
-`source=live|testnet|backtest` (mặc định `backtest`; UI mặc định Live). `source=paper` (hoặc giá trị lạ) → 422.
-- `source=live|testnet`: nếu feed thật chưa nối (hiện luôn vậy) thì dùng **feed giả lập** `data/_cache/mock_feeds/{live,testnet}.json`, payload thêm
-  `"mock": true, "mock_note": "Dữ liệu giả lập — chưa kết nối tài khoản <Live|Testnet>"` và `source.mock = true`; `source.label` = mô tả feed
-  (`source_desc`), `source.job_id = null`. Chưa có file giả lập → `{"available": false, "reason": "... gọi `POST /api/studio/portfolio/mock-feeds` ..."}` (HTTP 200).
-  Payload backtest không có `mock`/`mock_note`.
-- Feed giả lập do job `mock_feeds` (`POST /api/studio/portfolio/mock-feeds`) sinh, tất định, trên dữ liệu mới nhất, vị thế cuối dữ liệu **không bị đóng ép**:
-  `testnet` = sổ đã chốt (`book.json`) trên 8 perp, 60 ngày, vốn 10.000 USDT; `live` = alpha `trend_long_perp__SOL` (chỉ SOL, `order_size_pct` × hệ số vốn
-  "extreme" tối đa trong `portfolio_*__SOL.json`) + sổ, 120 ngày, vốn 25.000 USDT. File: `{"mock": true, "generated_at", "source_desc", "kind", "positions", ...kết quả dạng book_backtest}`.
+`source` chỉ nhận `backtest` (mặc định); mọi giá trị khác (`live`, `testnet`, `paper`, ...) → 422.
 Payload khi có dữ liệu:
 ```json
 {
@@ -93,8 +85,7 @@ Payload khi có dữ liệu:
   "mock": true, "mock_note": "Dữ liệu giả lập — chưa kết nối tài khoản Live"
 }
 ```
-(`mock`/`mock_note` chỉ có ở feed giả lập.)
-- Không có `job_id` (với `source=backtest`): dùng backtest xong gần nhất; chưa có backtest nào thì `available:false` kèm `reason`.
+- Không có `job_id` : dùng backtest xong gần nhất; chưa có backtest nào thì `available:false` kèm `reason`.
 - `bench`: mua giữ `BTC@perp`, quy về cùng NAV đầu kỳ. `drawdown_pct` ≤ 0, tính trên NAV theo ngày (nên `mdd_pct` KPI khác MDD intrabar của `result.mdd_pct`). Mọi chuỗi trong `series` cùng độ dài với `dates`.
 - `period` cắt chuỗi ngày theo cuối kỳ của dữ liệu; KPI kỳ tính trên phần đã cắt, còn `mdd`/Sharpe theo kỳ.
 - `risk.win_days_pct` = tỉ lệ ngày lãi **trong các ngày có P&L khác 0** (`risk.active_days` = số ngày đó, `null` nếu 0): ngày đứng ngoài thị trường không tính là ngày lỗ. UI ghi nhãn "Tỉ lệ ngày lãi (ngày có giao dịch)".

@@ -407,3 +407,26 @@ def test_okx_permission_error_maps_to_not_permitted(monkeypatch):
     monkeypatch.setattr(okx.urllib.request, "urlopen", deny)
     with pytest.raises(NotPermitted):
         a._req("POST", "/api/v5/trade/order", body={}, signed=True)
+
+
+def test_live_trades_equity_series_from_events(tmp_path, monkeypatch):
+    """Đường vốn trên trang Live: sự kiện "step" khử trùng theo nến (giữ bản cuối), sắp theo thời gian, tối đa 2000 điểm; started = "start" đầu tiên."""
+    from backend.api.routers import live as live_router
+    d = tmp_path / "_cache" / "live" / "okx_demo"
+    d.mkdir(parents=True)
+    H = 3_600_000
+    evs = [{"t": 5, "kind": "start", "venue": "okx"}, {"t": 99, "kind": "start", "venue": "okx"},
+           {"t": 10, "kind": "step", "bar": 2 * H, "equity": 101.0},
+           {"t": 11, "kind": "step", "bar": 1 * H, "equity": 100.0},
+           {"t": 12, "kind": "step", "bar": 2 * H, "equity": 102.5},       # cùng nến -> giữ bản cuối
+           {"t": 13, "kind": "order", "bar": 3 * H, "equity": 999.0},       # không phải step
+           {"t": 14, "kind": "step", "bar": 3 * H}]                         # thiếu equity
+    (d / "events.jsonl").write_text("\n".join(json.dumps(e) for e in evs) + "\n{hỏng\n", encoding="utf-8")
+    monkeypatch.setenv("NORA_LOCAL_DATA_ROOT", str(tmp_path))
+    r = live_router.bot_trades(mode="demo", venue="okx", limit=10)
+    assert r["equity_series"] == [{"t": H, "equity": 100.0}, {"t": 2 * H, "equity": 102.5}] and r["started"] == 5
+    series, _ = live_router._equity_series(str(d), cap=1)
+    assert series == [{"t": 2 * H, "equity": 102.5}]
+    monkeypatch.setenv("NORA_LOCAL_DATA_ROOT", str(tmp_path / "none"))
+    r = live_router.bot_trades(mode="demo", venue="okx", limit=10)
+    assert r["equity_series"] == [] and r["started"] is None

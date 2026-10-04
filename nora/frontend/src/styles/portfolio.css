@@ -41,7 +41,5 @@
 }
 .pf-gap { margin-top: 12px; }
 
-.pf-src { flex-wrap: wrap; row-gap: 6px; }
 .pf-blocks .n-tbl th, .pf-blocks .n-tbl td { padding: 8px 6px; }
 .pf-blocks .n-tbl td:first-child { white-space: normal; word-break: break-word; }
-@media (max-width: 600px) { .pf-src .upd { display: none; } .pf-src .sp { display: none; } }

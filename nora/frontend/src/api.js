@@ -90,16 +90,8 @@ async function mockRequest(path, method, body) {
   if (p === '/api/studio/book/publish' && method === 'POST') return { published: true, job_id: (body || {}).job_id, status: 'HOLDOUT_FAILED', holdout_pass: false, strategies: [], written: [], testnet_removed: false }
   if (p === '/api/studio/book/mc' && method === 'POST') return mockFile('mc')
   if (p === '/api/studio/portfolio/dashboard') {
-    const src = url.searchParams.get('source')
     const d = await mockFile('dashboard')
     const base = { ...d, period: url.searchParams.get('period') || d.period }
-    if (src === 'live' || src === 'testnet') { // feed giả lập: backend trả cùng dạng (mock + mock_note + positions)
-      const name = src === 'live' ? 'Live' : 'Testnet'
-      return { ...base, mock: true, mock_note: `Dữ liệu giả lập — chưa kết nối tài khoản ${name}`,
-        source: { ...base.source, kind: src, job_id: null, label: `Giả lập ${name} (dữ liệu mẫu)`, mock: true },
-        positions: [{ symbol: 'SOL@perp', strategy: 'breakout_4h_long', side: 'LONG', qty: 59.71, entry_price: 119.12, mark_price: 120.48, notional: 7193.89,
-          unrealized_pnl: 77.42, opened: Date.now() - 86400000 * 2, margin_usd: 719.39 }] }
-    }
     return { ...base, positions: base.positions || [] }
   }
   throw new ApiError(`mock: chưa có ${method} ${path}`, 404)
@@ -188,19 +180,17 @@ export function getStrategies(force = false) {
 /** Kiểm tham số một chiến lược (không chạy job): { ok, errors: [{field, message}], resolved }. field có dạng "params.sig.ema_fast". */
 export const postValidateStrategy = (id, params) => request('/api/studio/strategies/validate', { method: 'POST', body: { id, params } })
 
-export function getDashboard({ source, jobId, period }) {
-  const q = new URLSearchParams({ source })
+export function getDashboard({ jobId, period }) {
+  const q = new URLSearchParams()
   if (jobId) q.set('job_id', jobId)
   if (period) q.set('period', period)
   return request(`/api/studio/portfolio/dashboard?${q}`)
 }
 
 const _qs = (o) => new URLSearchParams(Object.entries(o).filter(([, v]) => v !== undefined && v !== null && v !== '')).toString()
-/** Danh sách lệnh đã đóng của nguồn Tổng quan: {items, total, strategies, families, symbols}. */
+/** Danh sách lệnh đã đóng của một job backtest: {items, total, strategies, families, symbols}. */
 export const getPortfolioTrades = (o) => request(`/api/studio/portfolio/trades?${_qs(o)}`)
 export const portfolioTradesCsvUrl = (o) => `/api/studio/portfolio/trades?${_qs({ ...o, format: 'csv' })}`
-/** Tín hiệu thị trường tại nến 1m đã đóng cuối (core/signals/snapshot): {symbols: [{symbol, close, as_of, strategies: [...]}]}. */
-export const getMarketSignals = (o = {}) => request(`/api/studio/market/signals?${_qs(o)}`)
 /** Regime hiện tại + lịch sử từng tài sản (nến 15m đã đóng) + chiến lược đang bật theo bảng regime của sổ. */
 export const getMarketRegime = (o = {}) => request(`/api/studio/market/regime?${_qs(o)}`)
 

@@ -132,38 +132,6 @@ def test_trade_list_has_notional_and_daily_nav(market, tmp_path):
     assert nav[-1]["equity"] == out["equity_curve"][-1]["equity"]                          # ngày cuối = mẫu vốn cuối
 
 
-# ─── Feed giả lập (feeds.make_feed, job mock_feeds): vị thế cuối dữ liệu không bị đóng ép ─────────────────────────────────────
-def _mock_plan():
-    return {"days": 25, "capital": 5_000.0, "alpha": False}
-
-
-def _feed(end_ms):
-    from backend.core.analytics import feeds as mmf
-    return mmf.make_feed("testnet", symbols=[f"{s}@perp" for s in SYMS], end_ms=end_ms, plan=_mock_plan(),
-                         book_args=type("A", (), {"strategies": STRATS, "book": ""})())
-
-
-def test_make_mock_feed_keeps_open_positions_and_is_deterministic(market):
-    end0 = T0 + 69 * 86_400_000
-    feeds = [(e, _feed(e)) for e in (end0 - k * 7_200_000 for k in range(0, 40, 10))]
-    with_open = [(e, f) for e, f in feeds if f["positions"]]
-    assert with_open, "cần ít nhất một mốc cuối dữ liệu còn vị thế mở"
-    end, f = with_open[0]
-    assert f["mock"] is True and f["kind"] == "testnet" and f["config"]["initial_capital"] == 5_000.0
-    assert all(t["close_reason"] != "End of Backtest" for t in f["trade_list"])          # không đóng ép
-    for p in f["positions"]:
-        assert set(p) >= {"symbol", "strategy", "side", "qty", "entry_price", "mark_price", "notional", "unrealized_pnl", "opened", "margin_usd"}
-        assert p["qty"] > 0 and p["notional"] == pytest.approx(p["qty"] * p["mark_price"], rel=1e-9) and p["opened"] <= end
-    again = _feed(end)
-    for x in (f, again):
-        x.pop("source_desc", None)
-    assert json.dumps(f, sort_keys=True, default=str) == json.dumps(again, sort_keys=True, default=str)
-    # vốn cuối (MTM) = vốn ban đầu + lãi đã chốt + lãi/lỗ chưa chốt, lệch tối đa bằng funding của vị thế đang mở (<= 1% vốn ở đây)
-    realised = sum(t["pnl"] for t in f["trade_list"])
-    unreal = sum(p["unrealized_pnl"] for p in f["positions"])
-    assert f["final_equity"] == pytest.approx(5_000.0 + realised + unreal, abs=50.0)
-
-
 def test_strategy_symbols_filter_restricts_markets(market):
     """Khoá "symbols" của chiến lược dựng sẵn (alpha trong kho) -> chỉ chạy trên các tài sản đó; mặc định vẫn là mọi tài sản."""
     from backend.core.strategy import book as sb
@@ -178,16 +146,3 @@ def test_strategy_symbols_filter_restricts_markets(market):
     assert only["trade_list"] and {t["symbol"] for t in only["trade_list"]} == {"AAA@perp"}
     assert len({t["symbol"] for t in allm["trade_list"]}) > 1
     assert [s["id"] for s in only["config"]["strategies"]] == ["only_aaa"]
-
-
-def test_alpha_strategy_scales_order_size_by_max_scale(tmp_path, monkeypatch):
-    from backend.core.analytics import feeds as mmf
-    ast = {"type": "LONG", "match": [{"condition": [[["x"]]]}], "stop": []}
-    reg = {"alphas": [{"alpha_id": "a__SOL", "side": "LONG", "symbol": "SOL", "data_symbol": "SOL@perp",
-                       "position": {"market": "perp", "leverage": 1, "order_size_pct": 50}, "flows": [{"ast": ast}]}]}
-    (tmp_path / "registry.json").write_text(json.dumps(reg))
-    st, scale = mmf.alpha_strategy("a__SOL", str(tmp_path))
-    assert scale is None and st["position"]["order_size_pct"] == 50 and st["symbols"] == ["SOL@perp"] and st["tree"] == ast["match"][0]["condition"]
-    (tmp_path / "portfolio_a__SOL__SOL.json").write_text(json.dumps({"modes": {"extreme": {"max_scale_within_budget": 0.5}}}))
-    st, scale = mmf.alpha_strategy("a__SOL", str(tmp_path))
-    assert scale == 0.5 and st["position"]["order_size_pct"] == 25.0

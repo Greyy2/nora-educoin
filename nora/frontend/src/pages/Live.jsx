@@ -6,7 +6,8 @@ import TradeChartDrawer from '../components/chart/TradeChartDrawer'
 import { fmtTs, fmtVal } from '../components/chart/chartUtil'
 import useAsync from '../hooks/useAsync'
 import { getLiveTrades, explainChart } from '../api'
-import { fmtNum, fmtMoney, signClass, isNum } from '../lib/format'
+import AreaLine from '../components/charts/AreaLine'
+import { fmtNum, fmtMoney, fmtSPct, fmtPct, signClass, isNum } from '../lib/format'
 
 const MODES = [{ value: 'paper', label: 'Paper' }, { value: 'demo', label: 'Demo OKX' }]
 const BOOK = { main: 'sổ chính (đã kiểm định)', explore: 'sổ thử nghiệm (9 chiến lược)' }
@@ -25,6 +26,48 @@ function mergePositions(d) {
   const ex = (d.exec?.positions || []).map((p) => ({ src: 'exec', symbol: p.symbol, strategy: p.strategy, side: p.side, qty: p.qty, enter_ms: p.entry_time, enter_price: p.avg ?? p.entry_price, pnl: null, layers: null }))
   const pa = (d.paper?.positions || []).map((p) => ({ src: 'paper', symbol: p.symbol, strategy: p.strategy, side: p.side, qty: p.qty, enter_ms: p.entry_time, enter_price: p.avg, pnl: p.unrealized, layers: p.layers }))
   return [...ex, ...pa].filter((t) => isNum(t.enter_ms))
+}
+
+// MDD (%) của đường vốn: sụt giảm lớn nhất từ đỉnh
+function maxDrawdownPct(vals) {
+  let peak = -Infinity
+  let mdd = 0
+  vals.forEach((v) => { peak = Math.max(peak, v); if (peak > 0) mdd = Math.max(mdd, (peak - v) / peak * 100) })
+  return mdd
+}
+
+// Tổng quan của bot live: KPI + đường vốn, toàn bộ số liệu lấy từ bot đang chạy (OKX paper/demo), không lẫn backtest
+function LiveOverview({ d, trades, positions }) {
+  const main = d.mode === 'paper' ? 'paper' : 'exec'   // demo/live: số liệu chính là lệnh sàn; paper bóng chỉ để đối chiếu
+  const eq = d.equity_series || []
+  const first = eq[0]?.equity
+  const last = isNum(d.equity) ? d.equity : eq[eq.length - 1]?.equity
+  const pnlPct = isNum(first) && isNum(last) && first > 0 ? (last / first - 1) * 100 : null
+  const mdd = eq.length > 1 ? maxDrawdownPct(eq.map((p) => p.equity)) : null
+  const dates = useMemo(() => eq.map((p) => new Date(p.t).toISOString()), [eq])
+  const tiles = [
+    isNum(last) && { k: 'cap', l: 'Vốn hiện tại', v: <>{fmtMoney(last)}<small> USDT</small></>, sub: eq.length ? `từ ${fmtMoney(first)} USDT` : null },
+    isNum(pnlPct) && { k: 'pnl', l: 'Lãi/lỗ từ đầu', v: <span className={signClass(pnlPct)}>{fmtSPct(pnlPct)}</span>, sub: isNum(first) && isNum(last) ? `${fmtMoney(last - first, true)} USDT` : null },
+    { k: 'pos', l: 'Vị thế đang mở', v: positions.filter((p) => p.src === main).length },
+    { k: 'trd', l: 'Lệnh đã đóng', v: trades.filter((t) => t.src === main && isNum(t.close_ms)).length },
+    main === 'exec' && { k: 'shadow', l: 'Paper bóng (đối chiếu)', v: trades.filter((t) => t.src === 'paper' && isNum(t.close_ms)).length, sub: 'lệnh mô phỏng cùng nến' },
+    isNum(mdd) && { k: 'mdd', l: 'MDD', v: <span className={mdd > 0 ? 'neg' : ''}>{fmtPct(mdd)}</span>, sub: `${eq.length} nến` },
+  ].filter(Boolean)
+  return (
+    <Panel title="Tổng quan bot" meta={<span>Dữ liệu bot live ({String(d.venue).toUpperCase()} {d.mode})</span>}>
+      <div className="n-lv-kpis">
+        {tiles.map((t) => (
+          <div key={t.k} className="n-tile"><div className="l">{t.l}</div><div className="v">{t.v}</div>{t.sub && <div className="l">{t.sub}</div>}</div>
+        ))}
+      </div>
+      {eq.length > 1 ? (
+        <div style={{ marginTop: 12 }}>
+          <AreaLine dates={dates} height={200} label="Đường vốn của bot live" valueFormat={(v) => fmtMoney(v)}
+            series={[{ key: 'eq', label: 'Vốn (USDT)', values: eq.map((p) => p.equity), color: 'var(--n-accent)', area: true }]} />
+        </div>
+      ) : <p className="n-note" style={{ marginTop: 10 }}>Chưa đủ điểm để vẽ đường vốn (bot cần chạy thêm ít nhất hai nến).</p>}
+    </Panel>
+  )
 }
 
 function Explorer({ d, trades }) {
@@ -86,6 +129,8 @@ export default function Live() {
       {!q.error && !d && <Loading what="dữ liệu bot live" />}
       {d && (
         <div className="n-lv" style={{ opacity: q.loading ? 0.7 : 1 }}>
+          <LiveOverview d={d} trades={trades} positions={positions} />
+
           <Panel title="Tóm tắt" meta={<button type="button" className="n-btn sm" onClick={q.reload} disabled={q.loading}>Làm mới</button>}>
             <dl className="n-ex-kv n-lv-sum">
               <div><dt>Trạng thái</dt><dd>{d.running?.length ? <Status tone="ok">đang chạy <span className="mono">{d.running.join(', ')}</span></Status> : <Status tone="warn">không chạy</Status>}</dd></div>

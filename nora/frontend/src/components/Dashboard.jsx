@@ -1,8 +1,8 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Panel, Status, Empty, Spinner, Loading, ErrorState } from './ui'
+import { Panel, Status, Empty, Loading, ErrorState } from './ui'
 import Term from './Term'
-import { FamilyStatsPanel, TradesPanel, RegimePanel, LiveBotCard } from './OverviewExtras'
+import { FamilyStatsPanel, TradesPanel, RegimePanel } from './OverviewExtras'
 import DetailSection from './portfolio/DetailSection'
 import AreaLine from './charts/AreaLine'
 import UnderwaterStrip from './charts/UnderwaterStrip'
@@ -14,7 +14,6 @@ import ProgressBar from './charts/ProgressBar'
 import { getDashboard } from '../api'
 import { fmtNum, fmtMoney, fmtPct, fmtSPct, fmtSigned, signClass, arrow, fmtDateTime, isNum } from '../lib/format'
 
-const fmtClock = (ms) => { const d = new Date(ms); const p = (n) => String(n).padStart(2, '0'); return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}` }
 
 export const PERIODS = [
   { value: '1M', label: '1T', long: '1 tháng' },
@@ -212,25 +211,6 @@ function Events({ rows = [] }) {
   )
 }
 
-function SourceLine({ source, mock, mockNote, refresh, wrap = false }) {
-  if (!source.kind || source.kind === 'backtest') return null
-  return (
-    <div className={`n-srcline ${wrap ? 'pf-src' : ''}`}>
-      <span className="muted">Nguồn</span> <b>{source.label || source.kind}</b>
-      {mock && <span className="n-chip" title={mockNote}>MOCK</span>}
-      {refresh && (
-        <>
-          <span className="sp" />
-          <span className="upd muted" aria-live="off">{refresh.updatedAt ? `Cập nhật lúc ${fmtClock(refresh.updatedAt)}` : 'Chưa cập nhật'}{refresh.everyMs ? ` · tự làm mới mỗi ${Math.round(refresh.everyMs / 1000)} giây` : ''}</span>
-          <button type="button" className="n-btn sm" onClick={refresh.onRefresh} disabled={refresh.refreshing} aria-label="Làm mới dữ liệu">
-            {refresh.refreshing ? <Spinner /> : <span aria-hidden="true">↻</span>} Làm mới
-          </button>
-        </>
-      )}
-    </div>
-  )
-}
-
 /** Biểu đồ phụ (lãi/lỗ ngày, phân phối, theo tháng, Sharpe cuốn chiếu); khối nào thiếu dữ liệu thì ẩn hẳn. */
 function ExtraCharts({ s, dist, monthly, risk }) {
   const dates = s.dates || []
@@ -281,7 +261,7 @@ function ExtraCharts({ s, dist, monthly, risk }) {
 const unrealizedOf = (positions) => positions.reduce((a, p) => a + (isNum(p.unrealized_pnl) ? p.unrealized_pnl : 0), 0)
 
 /** Tổng quan ngắn gọn: hàng KPI, một biểu đồ NAV, vài khối tóm tắt; mọi thứ chi tiết nằm trong các mục thu gọn. */
-function OverviewView({ data, refresh, ctx }) {
+function OverviewView({ data, ctx }) {
   const { kpis: k = {}, series: s = {}, risk = {}, strategies = [], events = [], positions = [], source = {}, period } = data
   const st = data.stats || {}
   const t = st.trades || {}
@@ -325,7 +305,6 @@ function OverviewView({ data, refresh, ctx }) {
   const hasRisk = isNum(risk.margin_used_pct) || isNum(risk.exposure_gross_pct) || positions.length > 0
   return (
     <>
-      <SourceLine wrap source={source} mock={data.mock} mockNote={data.mock_note} refresh={refresh} />
       {kpis.length > 0 && <div className="pf-kpis">{kpis}</div>}
 
       {dates.length > 1 && (
@@ -394,7 +373,6 @@ function OverviewView({ data, refresh, ctx }) {
             )}
           </Panel>
         )}
-        {ctx?.source !== 'backtest' && <LiveBotCard />}
       </div>
 
       <h2 className="pf-details-h">Chi tiết</h2>
@@ -429,7 +407,7 @@ function OverviewView({ data, refresh, ctx }) {
       </DetailSection>
       {ctx && (
         <DetailSection title="Danh sách lệnh" hint="lọc, sắp xếp, tải CSV">
-          <TradesPanel source={ctx.source} jobId={ctx.jobId} period={period} bare />
+          <TradesPanel jobId={ctx.jobId} period={period} bare />
         </DetailSection>
       )}
     </>
@@ -441,7 +419,7 @@ export function DashboardView({ compact = false, ...props }) {
 }
 
 /** Bản đầy đủ (dùng ở trang Backtest). */
-function FullView({ data, refresh, ctx }) {
+function FullView({ data, ctx }) {
   const { kpis: k = {}, series: s = {}, distribution: dist, monthly, risk = {}, strategies = [], events = [], positions = [], source = {}, period } = data
   const [hi, setHi] = useState(null)
   const dates = s.dates || []
@@ -450,7 +428,6 @@ function FullView({ data, refresh, ctx }) {
   const net = unrealizedOf(positions)
   return (
     <>
-      <SourceLine source={source} mock={data.mock} mockNote={data.mock_note} refresh={refresh} />
       <KpiRow k={k} period={period} bench={bench.replace('@perp', '')} />
       <div className="n-grid g-main-side">
         <Panel title={<><Term k="nav">NAV</Term> so với {bench.replace('@perp', '')}</>} meta={
@@ -495,7 +472,7 @@ function FullView({ data, refresh, ctx }) {
         </Panel>
       )}
 
-      {ctx && <TradesPanel source={ctx.source} jobId={ctx.jobId} period={period} />}
+      {ctx && <TradesPanel jobId={ctx.jobId} period={period} />}
     </>
   )
 }
@@ -565,60 +542,34 @@ function StatsPanel({ stats, mdd, bare = false }) {
   )
 }
 
-/**
- * Tải payload Danh mục theo nguồn và hiển thị: rỗng (kèm lý do) / lỗi / dashboard.
- * `refreshMs` (Live/Testnet): tự tải lại theo chu kỳ khi tab đang hiện, hiện "Cập nhật lúc …" và nút làm mới thủ công.
- */
-export default function DashboardLoader({ source, jobId, period, onLoaded, openLink, refreshMs = 0, compact = false }) {
-  const [st, setSt] = useState({ loading: true, data: null, error: null, updatedAt: null })
+/** Tải payload Danh mục của một job backtest và hiển thị: rỗng (kèm lý do) / lỗi / dashboard. */
+export default function DashboardLoader({ jobId, period, onLoaded, openLink, compact = false }) {
+  const [st, setSt] = useState({ loading: true, data: null, error: null })
   const [tick, setTick] = useState(0)      // đổi để buộc tải lại
-  const silent = useRef(false)             // true: tải lại nền, giữ nguyên dữ liệu đang hiện
-  const last = useRef(0)
-  const key = `${source}|${jobId || ''}|${period || ''}`
-  const prevKey = useRef(key)
 
   useEffect(() => {
-    if (source === 'backtest' && !jobId) { setSt({ loading: false, data: null, error: null, updatedAt: null }); return undefined }
+    if (!jobId) { setSt({ loading: false, data: null, error: null }); return undefined }
     let dead = false
-    const quiet = silent.current && prevKey.current === key
-    silent.current = false
-    prevKey.current = key
-    setSt((s) => ({ ...s, loading: !quiet, refreshing: quiet, error: quiet ? s.error : null, data: quiet ? s.data : s.data }))
-    getDashboard({ source, jobId, period }).then(
-      (data) => { if (!dead) { last.current = Date.now(); setSt({ loading: false, refreshing: false, data, error: null, updatedAt: Date.now() }); onLoaded && data.available && onLoaded(data) } },
-      (e) => { if (!dead) setSt((s) => ({ loading: false, refreshing: false, data: quiet ? s.data : null, error: e.message, updatedAt: s.updatedAt })) },
+    setSt((s) => ({ ...s, loading: true, error: null }))
+    getDashboard({ jobId, period }).then(
+      (data) => { if (!dead) { setSt({ loading: false, data, error: null }); onLoaded && data.available && onLoaded(data) } },
+      (e) => { if (!dead) setSt({ loading: false, data: null, error: e.message }) },
     )
     return () => { dead = true }
-  }, [source, jobId, period, tick]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [jobId, period, tick]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const refresh = useCallback(() => { silent.current = true; setTick((n) => n + 1) }, [])
+  const retry = useCallback(() => setTick((n) => n + 1), [])
 
-  // tự làm mới: mỗi refreshMs, tạm dừng khi tab ẩn, tải lại ngay khi tab hiện lại nếu đã quá hạn
-  useEffect(() => {
-    if (!refreshMs) return undefined
-    const t = setInterval(() => { if (!document.hidden) refresh() }, refreshMs)
-    const vis = () => { if (!document.hidden && Date.now() - last.current >= refreshMs) refresh() }
-    document.addEventListener('visibilitychange', vis)
-    return () => { clearInterval(t); document.removeEventListener('visibilitychange', vis) }
-  }, [refreshMs, refresh])
-
-  if (st.error && !st.data) return <ErrorState title="Không tải được dữ liệu danh mục" error={st.error} onRetry={refresh} />
+  if (st.error && !st.data) return <ErrorState title="Không tải được dữ liệu danh mục" error={st.error} onRetry={retry} />
   if (st.loading && !st.data) return <Loading what="danh mục" />
-  if (source === 'backtest' && !jobId) return <Empty title="Chưa chọn lần backtest">Chọn một backtest đã chạy xong ở trên, hoặc chạy mới tại <Link to="/backtest">Backtest</Link>.</Empty>
+  if (!jobId) return <Empty title="Chưa chọn lần backtest">Chọn một backtest đã chạy xong ở trên, hoặc chạy mới tại <Link to="/backtest">Backtest</Link>.</Empty>
   if (!st.data?.available) {
-    return <Empty title="Chưa có dữ liệu cho nguồn này">{st.data?.reason || 'Nguồn dữ liệu chưa khả dụng.'}</Empty>
+    return <Empty title="Chưa có dữ liệu backtest">{st.data?.reason || 'Backtest chưa khả dụng.'}</Empty>
   }
-  const rf = refreshMs ? { updatedAt: st.updatedAt, refreshing: !!st.refreshing || st.loading, onRefresh: refresh, everyMs: refreshMs } : null
   return (
     <div style={{ opacity: st.loading ? 0.6 : 1, transition: 'opacity .15s' }}>
       {openLink}
-      {st.error && <ErrorState title="Không làm mới được" error={st.error} onRetry={refresh} />}
-      {st.data.mock && (
-        <div className="n-banner" role="status">
-          <span>Dữ liệu giả lập · {st.data.mock_note?.replace(/^Dữ liệu giả lập\s*—\s*/, '') || 'chưa kết nối tài khoản'}. Các lệnh và vị thế bên dưới là mô phỏng, không phải giao dịch thật.</span>
-        </div>
-      )}
-      <DashboardView data={st.data} refresh={rf} ctx={{ source, jobId }} compact={compact} />
+      <DashboardView data={st.data} ctx={{ jobId }} compact={compact} />
     </div>
   )
 }

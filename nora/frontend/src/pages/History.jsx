@@ -24,7 +24,7 @@ export default function History() {
   const now = Date.now()
 
   const openOnPortfolio = (j) => {
-    try { localStorage.setItem('nora-v2-portfolio', JSON.stringify({ source: 'backtest', jobId: j.job_id, period: 'ALL' })) } catch (e) { /* bỏ qua */ }
+    try { localStorage.setItem('nora-v2-portfolio', JSON.stringify({ jobId: j.job_id, period: 'ALL' })) } catch (e) { /* bỏ qua */ }
     nav('/portfolio')
   }
 

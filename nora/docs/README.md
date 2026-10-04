@@ -18,7 +18,7 @@ nora/
 │   │   ├── execute/          # tracker (vào/ra, SL/TP/trailing, DCA, thanh lý, funding), ledger (vốn chung), models
 │   │   ├── metrics/          # trades (PnL, win rate, PF), returns (lợi suất ngày, Sharpe, Sortino, MDD), portfolio
 │   │   ├── backtest/         # engine (một tài sản), portfolio (nhiều tài sản/chiến lược), run (job backtest)
-│   │   └── analytics/        # dashboard (payload trang Danh mục), feeds (Backtest/Live/Testnet + feed giả lập)
+│   │   └── analytics/        # dashboard (payload trang Danh mục), feeds (nguồn backtest)
 │   ├── db/                   # data_layout (đường dẫn), local_pkl (đọc/ghi nến), tick_storage
 │   ├── optimize/             # book (dựng sổ A–D), store (kho kết quả SQLite + streaming), registry (kho alpha, sổ, xuất bản), shared (làm nóng/dọn kho dùng chung)
 │   │   └── funnel/           # phễu S0–FINAL: gates, generate, evaluate, antiluck, sizing, stats, storage, orchestrator, run
@@ -45,7 +45,6 @@ UI, terminal (curl) hay script đều gọi **cùng endpoint**; không có lện
 | Dựng sổ chiến lược | `POST /api/studio/book/build` | `book_build` → `optimize/book.py` |
 | Phễu alpha | `POST /api/studio/funnel/runs` | `funnel_run` → `optimize/funnel/run.py` |
 | Dựng preset | `POST /api/studio/strategies/presets` | `presets_build` → `core/params/presets.py` |
-| Feed giả lập Live/Testnet | `POST /api/studio/portfolio/mock-feeds` | `mock_feeds` → `core/analytics/feeds.py` |
 | Tải dữ liệu Binance | `POST /api/data/crawl` | `data_crawl` → `core/data/crawler.py` |
 | Đưa dữ liệu vào kho | `POST /api/data/promote` | `data_promote` → `core/data/promote.py` |
 

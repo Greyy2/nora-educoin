@@ -7,7 +7,7 @@ const STEPS = [
   { to: '/backtest', title: 'Backtest', text: 'Chạy danh mục với bộ tham số đã chọn trên khoảng ngày và các tài sản bạn muốn.' },
   { to: '/backtest', title: 'Walk-forward (WFA)', text: 'Bước 2 trong trang Backtest: kiểm tra out-of-sample cuốn chiếu để biết có bị khớp quá mức không.' },
   { to: '/backtest', title: 'Monte Carlo', text: 'Bước 3: mô phỏng hàng nghìn kịch bản để đo xác suất sụt giảm vượt ngưỡng phá sản.' },
-  { to: '/portfolio', title: 'Danh mục', text: 'Theo dõi NAV, rủi ro, hiệu suất từng chiến thuật và vị thế (Live, Testnet hoặc một lần Backtest).' },
+  { to: '/portfolio', title: 'Danh mục', text: 'Xem kết quả một lần Backtest: NAV, rủi ro, hiệu suất từng chiến thuật và danh sách lệnh.' },
 ]
 
 /** Nội dung hướng dẫn: vòng Alpha → Backtest → WFA → Monte Carlo → Danh mục. */
@@ -23,8 +23,7 @@ export function GuideSteps({ onNavigate }) {
         ))}
       </ol>
       <p className="n-note n-guide-note">
-        Live và Testnet hiện là <b>dữ liệu giả lập (mock)</b>: lệnh được mô phỏng bằng engine thật trên dữ liệu mới nhất, chưa nối tài khoản sàn.
-        Khi nối tài khoản thật, giao diện giữ nguyên.
+        Danh mục và Backtest chỉ là <b>kết quả mô phỏng</b> trên dữ liệu lịch sử. Bot đang chạy thật (OKX paper/demo) xem ở trang <b>Live</b>.
       </p>
     </>
   )

@@ -12,7 +12,7 @@ Quy ước:
   - Exposure/vị thế mở: tại điểm cuối dữ liệu, từ trade_list (danh nghĩa / NAV cuối); vị thế "mở" = đóng bởi "End of Backtest"
     hoặc close_time > mẫu vốn cuối. Danh nghĩa = `notional` (qty × giá vào TB) nếu có, không thì qty × enter_price.
   - Số liệu theo chiến lược dùng PnL ĐÃ CHỐT (theo ngày đóng lệnh): không có MTM riêng từng chiến lược.
-  - `result["positions"]` (feed live/testnet/giả lập; xem feeds.py) = vị thế còn mở cuối dữ liệu, KHÔNG nằm trong trade_list: tính vào exposure/ký quỹ
+  - `result["positions"]` (tuỳ chọn) = vị thế còn mở cuối dữ liệu, KHÔNG nằm trong trade_list: tính vào exposure/ký quỹ
     (danh nghĩa theo giá mark) và trả lại ở payload["positions"]; backtest đã đóng hết nên rỗng.
 """
 import math
@@ -401,14 +401,10 @@ def snapshot_benchmark(result: Dict[str, Any], benchmark: str = "BTC@perp") -> O
 
 
 def build_from_snapshot(snap, period: str = "ALL", bench_closes: Optional[pd.Series] = None, benchmark: str = "BTC@perp") -> Dict[str, Any]:
-    """Payload dashboard từ FeedSnapshot (feeds.py). Feed giả lập gắn `mock`/`mock_note` ở cấp ngoài và trong `source`."""
+    """Payload dashboard từ FeedSnapshot (feeds.py)."""
     src = snap.source or {}
-    p = build_dashboard(snap.result, bench_closes, period, job_id=src.get("job_id"), label=src.get("label"), benchmark=benchmark,
-                        source_kind=snap.kind)
-    if snap.mock and p.get("available"):
-        p["source"]["mock"] = True
-        p["mock"], p["mock_note"] = True, snap.mock_note
-    return p
+    return build_dashboard(snap.result, bench_closes, period, job_id=src.get("job_id"), label=src.get("label"), benchmark=benchmark,
+                           source_kind=snap.kind)
 
 
 # ─── Bộ nhớ đệm LRU trong tiến trình ────────────────────────────────────────

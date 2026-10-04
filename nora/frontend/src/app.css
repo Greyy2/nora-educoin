@@ -701,3 +701,5 @@ td .n-resolved-b { min-width: 320px; }
 .n-lv-sel .n-field { min-width: 180px; flex: 1 1 180px; max-width: 320px; }
 .n-lv-sum { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
 .pf-trades-scroll { max-height: 560px; overflow: auto; }   /* danh sách lệnh: 50 lệnh/trang, cuộn trong khung */
+.n-lv-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+.n-lv-kpis .v small { font-size: 12px; color: var(--n-ink-2); }

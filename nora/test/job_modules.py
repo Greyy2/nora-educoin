@@ -6,7 +6,6 @@ JOB_FILES = {
     "validate_book": "wfa/run.py",
     "run_book_backtest": "core/backtest/run.py",
     "run_funnel": "optimize/funnel/run.py",
-    "make_mock_feeds": "core/analytics/feeds.py",
     "promote_staging": "core/data/promote.py",
 }
 

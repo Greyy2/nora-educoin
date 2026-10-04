@@ -1,16 +1,13 @@
-"""API trang Danh mục (docs/ui_contract.md §3): GET /api/studio/portfolio/dashboard.
+"""API trang Danh mục (docs/ui_contract.md §3): GET /api/studio/portfolio/dashboard và /trades.
 
-Nguồn `backtest` đọc result.json của một job book_backtest đã xong (dựng bằng backend/core/analytics/dashboard.py).
-`live`/`testnet` đi qua feeds.get_snapshot: chưa có tài khoản thật -> dùng feed GIẢ LẬP (data/_cache/mock_feeds/<nguồn>.json, payload có
-"mock": true + "mock_note"); chưa có file giả lập -> {"available": false, "reason"} (HTTP 200). `paper` đã bỏ (422).
-Kết quả được đệm LRU theo (nguồn/job_id, period, mtime).
+CHỈ kết quả backtest: đọc result.json của một job book_backtest đã xong (dựng bằng backend/core/analytics/dashboard.py).
+Dữ liệu bot live (OKX paper/demo) ở /api/studio/live, không trộn vào đây. Kết quả được đệm LRU theo (job_id, period, mtime).
 """
 import os
 import threading
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel, Field
 
 from backend.core.analytics import feeds
 from backend.core.analytics import dashboard as pd_mod
@@ -29,28 +26,9 @@ def _latest_done_backtest() -> Optional[str]:
     return None
 
 
-def _mock_dashboard(source: str, period: str):
-    feed = feeds.MockFeed(source)
-    key = ("feed", source, period, feed.mtime())
-    with _LOCK:
-        hit = _CACHE.get(key)
-    if hit is not None:
-        return hit
-    try:
-        snap = feeds.get_snapshot(source)
-    except feeds.NotAvailable as e:
-        return {"available": False, "reason": str(e)}
-    payload = pd_mod.build_from_snapshot(snap, period, pd_mod.snapshot_benchmark(snap.result))
-    with _LOCK:
-        _CACHE.put(key, payload)
-    return payload
-
-
 @router.get("/dashboard")
-def get_dashboard(source: str = Query("backtest", pattern="^(backtest|live|testnet)$"), job_id: Optional[str] = None,
+def get_dashboard(source: str = Query("backtest", pattern="^backtest$"), job_id: Optional[str] = None,
                   period: str = Query("ALL", pattern="^(1M|3M|YTD|1Y|ALL)$")):
-    if source != "backtest":
-        return _mock_dashboard(source, period)
     if not job_id:   # không truyền job: lấy job backtest xong gần nhất (payload.source.job_id cho biết đã dùng job nào)
         job_id = _latest_done_backtest()
         if not job_id:
@@ -83,13 +61,8 @@ def get_dashboard(source: str = Query("backtest", pattern="^(backtest|live|testn
     return payload
 
 
-def _result_for(source: str, job_id: Optional[str]):
-    """Kết quả dạng book_backtest của nguồn: (result, job_id). Live/Testnet = feed (giả lập tới khi nối sàn)."""
-    if source != "backtest":
-        try:
-            return feeds.get_snapshot(source).result, None
-        except feeds.NotAvailable as e:
-            raise HTTPException(404, str(e))
+def _result_for(job_id: Optional[str]):
+    """Kết quả book_backtest của job: (result, job_id)."""
     job_id = job_id or _latest_done_backtest()
     if not job_id:
         raise HTTPException(404, "Chưa có job backtest nào hoàn tất — chạy Backtest trước.")
@@ -108,15 +81,15 @@ TRADE_SORT = {"close_time", "enter_time", "pnl", "pnl_pct", "mae_pct", "notional
 
 
 @router.get("/trades")
-def get_trades(source: str = Query("backtest", pattern="^(backtest|live|testnet)$"), job_id: Optional[str] = None,
+def get_trades(source: str = Query("backtest", pattern="^backtest$"), job_id: Optional[str] = None,
                period: str = Query("ALL", pattern="^(1M|3M|YTD|1Y|ALL)$"), strategy: Optional[str] = None, symbol: Optional[str] = None,
                side: Optional[str] = Query(None, pattern="^(LONG|SHORT)$"), outcome: Optional[str] = Query(None, pattern="^(win|loss|breakeven)$"),
                sort: str = "-close_time", offset: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=2000),
                format: str = Query("json", pattern="^(json|csv)$")):
-    """Danh sách lệnh đã đóng của nguồn (lọc: kỳ / chiến lược — id hoặc HỌ chiến lược / tài sản / chiều / kết quả), sắp xếp, phân trang;
+    """Danh sách lệnh đã đóng của job backtest (lọc: kỳ / chiến lược — id hoặc HỌ chiến lược / tài sản / chiều / kết quả), sắp xếp, phân trang;
     format=csv trả toàn bộ hàng đã lọc (không phân trang)."""
     from backend.core.metrics.trades import strategy_family
-    res, jid = _result_for(source, job_id)
+    res, jid = _result_for(job_id)
     rows = [t for t in res.get("trade_list") or [] if t.get("close_time") is not None]
     if period != "ALL":
         nav = pd_mod.daily_nav_series(res)
@@ -149,19 +122,9 @@ def get_trades(source: str = Query("backtest", pattern="^(backtest|live|testnet)
         w.writeheader()
         w.writerows(rows)
         return Response(buf.getvalue(), media_type="text/csv",
-                        headers={"Content-Disposition": f'attachment; filename="trades_{source}_{jid or "feed"}.csv"'})
+                        headers={"Content-Disposition": f'attachment; filename="trades_backtest_{jid}.csv"'})
     total = len(rows)
     return {"items": rows[offset:offset + limit], "total": total, "offset": offset, "limit": limit, "job_id": jid,
             "strategies": sorted({t.get("strategy") for t in res.get("trade_list") or [] if t.get("strategy")}),
             "families": sorted({strategy_family(t.get("strategy")) for t in res.get("trade_list") or [] if t.get("strategy")}),
             "symbols": sorted({t.get("symbol") for t in res.get("trade_list") or [] if t.get("symbol")})}
-
-
-class MockFeedsRequest(BaseModel):
-    only: str = Field("", pattern="^(|live|testnet)$")
-
-
-@router.post("/mock-feeds")
-def post_mock_feeds(req: MockFeedsRequest):
-    """Dựng lại feed giả lập Live/Testnet (job nền mock_feeds: engine thật trên dữ liệu mới nhất)."""
-    return batch_jobs.http_launch("mock_feeds", {"only": req.only} if req.only else {})

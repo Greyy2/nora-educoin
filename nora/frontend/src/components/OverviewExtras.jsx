@@ -69,12 +69,12 @@ function Pager({ total, offset, onPage }) {
   )
 }
 
-export function TradesPanel({ source, jobId, period, bare = false }) {
+export function TradesPanel({ jobId, period, bare = false }) {
   const [f, setF] = useState({ strategy: '', symbol: '', side: '', outcome: '', sort: '-close_time', offset: 0 })
   const [st, setSt] = useState({ loading: true, data: null, error: null })
-  const q = { source, job_id: jobId || undefined, period, ...Object.fromEntries(Object.entries(f).filter(([, v]) => v !== '')), limit: PAGE }
+  const q = { job_id: jobId || undefined, period, ...Object.fromEntries(Object.entries(f).filter(([, v]) => v !== '')), limit: PAGE }
 
-  useEffect(() => { setF((x) => ({ ...x, offset: 0 })) }, [source, jobId, period])
+  useEffect(() => { setF((x) => ({ ...x, offset: 0 })) }, [jobId, period])
   useEffect(() => {
     let dead = false
     setSt((s) => ({ ...s, loading: true }))

@@ -45,7 +45,6 @@ export const JOB_KIND = {
   funnel_run: { text: 'Phễu kiểm duyệt', short: 'Phễu' },
   funnel_recompute: { text: 'Phễu · tính lại lệnh', short: 'Phễu' },
   presets_build: { text: 'Dựng preset', short: 'Preset' },
-  mock_feeds: { text: 'Feed giả lập', short: 'Feed' },
   data_crawl: { text: 'Tải dữ liệu', short: 'Dữ liệu' },
   data_promote: { text: 'Đưa dữ liệu vào kho', short: 'Dữ liệu' },
 }

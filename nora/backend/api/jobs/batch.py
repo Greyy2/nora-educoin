@@ -49,7 +49,6 @@ KINDS: Dict[str, Dict[str, Any]] = {
     "funnel_book": {"module": "backend.optimize.funnel.publish",
                     "params": {"run_id", "alpha_ids", "risk_per_trade_pct", "wfa_job_id", "dry_run", "explore"}},
     "presets_build": {"module": "backend.core.params.presets", "params": set()},
-    "mock_feeds": {"module": "backend.core.analytics.feeds", "params": {"only"}},
     "data_crawl": {"module": "backend.core.data.crawler", "params": {"symbols", "market", "years", "output_dir"}},   # output_dir do router đặt
     "data_crawl_okx": {"module": "backend.core.data.okx_crawler", "params": {"symbols", "years", "output_dir"}},
     "data_promote": {"module": "backend.core.data.promote", "params": {"apply", "archive_legacy"}},
@@ -545,8 +544,6 @@ def job_label(kind: str, params: Optional[Dict[str, Any]]) -> str:
                 f"rủi ro {p.get('risk_per_trade_pct')}%")
     if kind == "presets_build":
         return "Dựng presets.json"
-    if kind == "mock_feeds":
-        return f"Feed giả lập · {p.get('only') or 'live + testnet'}"
     if kind == "data_crawl":
         return f"Tải dữ liệu · {_names(p.get('symbols'))} · {p.get('market', 'spot')} · {p.get('years', 3)} năm"
     if kind == "data_crawl_okx":

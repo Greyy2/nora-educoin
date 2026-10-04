@@ -317,11 +317,11 @@ function StepBacktest({ cat, strats, form, setForm, btId, bt, onLaunched, onNext
             <div className="n-ctrls">
               <Segmented label="Kỳ xem" value={period} onChange={setPeriod} options={PERIODS} />
             </div>
-            <Link className="n-btn" to="/portfolio" onClick={() => { try { localStorage.setItem('nora-v2-portfolio', JSON.stringify({ source: 'backtest', jobId: btId, period })) } catch (e) { /* bỏ qua */ } }}>
+            <Link className="n-btn" to="/portfolio" onClick={() => { try { localStorage.setItem('nora-v2-portfolio', JSON.stringify({ jobId: btId, period })) } catch (e) { /* bỏ qua */ } }}>
               Mở trên Danh mục ↗
             </Link>
           </div>
-          <DashboardLoader source="backtest" jobId={btId} period={period} compact />
+          <DashboardLoader jobId={btId} period={period} compact />
         </div>
       )}
     </>

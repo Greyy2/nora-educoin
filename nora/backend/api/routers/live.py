@@ -62,6 +62,26 @@ def bot_status(mode: str = Query("paper", pattern="^(paper|demo|live)$"), venue:
     return {"venue": venue, "mode": mode, "running": [j.get("id") for j in _running(venue, mode)], "state": state, "events": evs}
 
 
+def _equity_series(d: str, cap: int = 2000):
+    """Đường vốn của bot từ events.jsonl (sự kiện "step": bar + equity), mỗi nến một điểm (giữ bản cuối), tối đa `cap` điểm cuối.
+    -> (equity_series [{t, equity}], started = thời điểm "start" đầu tiên của sổ hiện tại hoặc None)."""
+    by_bar, started = {}, None
+    try:
+        with open(os.path.join(d, "events.jsonl"), encoding="utf-8") as fh:
+            for line in fh:
+                try:
+                    e = json.loads(line)
+                except ValueError:
+                    continue
+                if e.get("kind") == "start" and started is None:
+                    started = e.get("t")
+                elif e.get("kind") == "step" and isinstance(e.get("bar"), (int, float)) and isinstance(e.get("equity"), (int, float)):
+                    by_bar[int(e["bar"])] = float(e["equity"])
+    except OSError:
+        pass
+    return [{"t": t, "equity": v} for t, v in sorted(by_bar.items())][-cap:], started
+
+
 @router.get("/trades")
 def bot_trades(mode: str = Query("paper", pattern="^(paper|demo|live)$"), venue: str = Query("okx", pattern="^(okx|binance)$"),
                limit: int = Query(200, ge=1, le=2000)) -> Dict[str, Any]:
@@ -101,6 +121,7 @@ def bot_trades(mode: str = Query("paper", pattern="^(paper|demo|live)$"), venue:
         symbols, tf = [u.split("@")[0] for u in b["universe"]], b.get("timeframe")
     except (SystemExit, OSError, ValueError):
         pass
+    series, started = _equity_series(d)
     return {"venue": venue, "mode": mode, "book_kind": kind, "strategies": strategies, "symbols": symbols, "timeframe": tf, "running": [j.get("id") for j in _running(venue, mode)],
-            "equity": state.get("equity"), "exec": {"trades": (state.get("trades") or [])[-limit:], "positions": exec_pos},
+            "equity": state.get("equity"), "equity_series": series, "started": started, "exec": {"trades": (state.get("trades") or [])[-limit:], "positions": exec_pos},
             "paper": {"trades": paper_trades, "positions": paper_pos, "summary": state.get("paper")}}

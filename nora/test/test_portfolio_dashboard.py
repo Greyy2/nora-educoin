@@ -329,16 +329,9 @@ def _job(result, kind="book_backtest", name=None, args=None, log="[run_limited] 
     return os.path.basename(d)
 
 
-def test_paper_source_is_removed_and_unknown_sources_rejected(client):
-    for src in ("paper", "real"):
+def test_only_backtest_source_is_accepted(client):
+    for src in ("paper", "real", "live", "testnet"):
         assert client.get(f"/api/studio/portfolio/dashboard?source={src}").status_code == 422
-
-
-@pytest.mark.parametrize("source", ["live", "testnet"])
-def test_live_testnet_without_mock_file_is_unavailable_with_hint(client, source):
-    r = client.get(f"/api/studio/portfolio/dashboard?source={source}")
-    assert r.status_code == 200 and r.json()["available"] is False
-    assert "POST /api/studio/portfolio/mock-feeds" in r.json()["reason"] and source.capitalize() in r.json()["reason"]
 
 
 def test_dashboard_endpoint_caches_and_rebases_benchmark(client, monkeypatch):
@@ -415,7 +408,7 @@ def test_backtest_feed_payload_identical_to_pre_feed_output(period):
     assert hashlib.sha256(json.dumps(p, sort_keys=True).encode()).hexdigest() == PRE_FEED_HASH[period]
 
 
-def _write_mock(kind, with_positions=True):
+def test_open_positions_in_result_count_toward_exposure_and_margin():
     res, _ = make_result(_rng_returns(60, seed=3))
     res["config"]["initial_capital"] = INIT
     res["positions"] = [
@@ -423,53 +416,11 @@ def _write_mock(kind, with_positions=True):
          "notional": 5100.0, "unrealized_pnl": 95.0, "opened": _ms("2025-02-20"), "margin_usd": 5000.0},
         {"symbol": "ETH@perp", "strategy": "trend_short", "side": "SHORT", "qty": 1.0, "entry_price": 2000.0, "mark_price": 1990.0,
          "notional": 1990.0, "unrealized_pnl": 9.0, "opened": _ms("2025-02-21"), "margin_usd": 199.0},
-    ] if with_positions else []
-    res.update({"mock": True, "kind": kind, "source_desc": f"Giả lập {kind} (test)", "generated_at": "2025-03-01T00:00:00Z"})
-    with open(feeds.mock_path(kind), "w", encoding="utf-8") as fh:
-        json.dump(res, fh)
-    return res
-
-
-@pytest.mark.parametrize("source,name", [("live", "Live"), ("testnet", "Testnet")])
-def test_mock_source_has_flag_note_and_positions(client, monkeypatch, source, name):
-    _write_mock(source)
-    monkeypatch.setattr(portfolio_router.pd_mod, "benchmark_daily_closes", lambda *a: _bench())
-    r = client.get(f"/api/studio/portfolio/dashboard?source={source}&period=ALL")
-    assert r.status_code == 200, r.text
-    p = r.json()
-    assert p["available"] is True and p["mock"] is True and p["mock_note"] == f"Dữ liệu giả lập — chưa kết nối tài khoản {name}"
-    assert p["source"]["kind"] == source and p["source"]["mock"] is True and p["source"]["label"] == f"Giả lập {source} (test)"
-    assert p["source"]["job_id"] is None and set(p) == TOP_KEYS | {"mock", "mock_note"}
-    pos = p["positions"]
-    assert [x["symbol"] for x in pos] == ["SOL@perp", "ETH@perp"]                # lớn nhất trước
-    assert set(pos[0]) == {"symbol", "strategy", "side", "qty", "entry_price", "mark_price", "notional", "unrealized_pnl", "opened", "margin_usd"}
+    ]
+    p = pdash.build_dashboard(res, _bench(), "ALL")
+    assert [x["symbol"] for x in p["positions"]] == ["SOL@perp", "ETH@perp"]                # lớn nhất trước
     assert p["risk"]["open_positions"] == 2 and p["risk"]["margin_used_pct"] is not None
     nav = p["kpis"]["nav"]
     assert p["risk"]["exposure_gross_pct"] == pytest.approx((5100 + 1990) / nav * 100, abs=0.06)
     assert p["risk"]["exposure_net_pct"] == pytest.approx((5100 - 1990) / nav * 100, abs=0.06)
-    assert {s["id"]: s["side"] for s in p["strategies"]} == {"trend_long": "LONG", "trend_short": "SHORT"}
     json.dumps(p, allow_nan=False)
-    assert client.get(f"/api/studio/portfolio/dashboard?source={source}&period=ALL").json() == p       # đệm
-
-
-def test_mock_source_without_positions_and_stale_cache_refreshes(client):
-    _write_mock("live", with_positions=False)
-    p = client.get("/api/studio/portfolio/dashboard?source=live").json()
-    assert p["available"] and p["mock"] and p["positions"] == [] and p["risk"]["open_positions"] == 0
-    _write_mock("live", with_positions=True)
-    os.utime(feeds.mock_path("live"), (time.time() + 5, time.time() + 5))       # mtime đổi -> bộ đệm không dùng lại
-    assert len(client.get("/api/studio/portfolio/dashboard?source=live").json()["positions"]) == 2
-
-
-def test_mock_feed_corrupt_file_is_unavailable(client):
-    open(feeds.mock_path("testnet"), "w").write("{not json")
-    r = client.get("/api/studio/portfolio/dashboard?source=testnet").json()
-    assert r["available"] is False and "mock-feeds" in r["reason"]
-
-
-def test_real_feeds_are_stubs_that_raise_not_available():
-    for cls in (feeds.LiveFeed, feeds.TestnetFeed):
-        with pytest.raises(feeds.NotAvailable):
-            cls().fetch()
-    with pytest.raises(ValueError):
-        feeds.get_snapshot("backtest")

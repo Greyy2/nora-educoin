@@ -94,9 +94,6 @@ def test_every_entry_point_refuses_bad_data(market, monkeypatch, tmp_path, kind)
     rbb = _load_script("run_book_backtest")
     with pytest.raises(SystemExit, match="CCC@perp"):
         rbb.run_job({"strategies": [{"id": "t_long"}], "start": "2023-11-20", "end": "2023-11-25"})
-    mf = _load_script("make_mock_feeds")
-    with pytest.raises(SystemExit, match="CCC@perp"):
-        mf.run_job({"only": "testnet"})
     _restore_cache()
 
 
