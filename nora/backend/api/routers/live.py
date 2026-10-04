@@ -92,6 +92,15 @@ def bot_trades(mode: str = Query("paper", pattern="^(paper|demo|live)$"), venue:
                 kind = "explore" if json.load(fh).get("generated_at") == state.get("book") else "main"
         except (OSError, ValueError):
             kind = "main"
-    return {"venue": venue, "mode": mode, "book_kind": kind, "running": [j.get("id") for j in _running(venue, mode)],
+    strategies, symbols, tf = [], [], None
+    try:
+        from backend.live.bot import load_book
+        b = load_book(kind=kind, mode="paper")
+        strategies = [{"id": x["id"], "side": x["side"], "family": x.get("family"), "unvalidated": x["id"] in (b.get("unvalidated") or [])}
+                      for x in b["strategies"]]
+        symbols, tf = [u.split("@")[0] for u in b["universe"]], b.get("timeframe")
+    except (SystemExit, OSError, ValueError):
+        pass
+    return {"venue": venue, "mode": mode, "book_kind": kind, "strategies": strategies, "symbols": symbols, "timeframe": tf, "running": [j.get("id") for j in _running(venue, mode)],
             "equity": state.get("equity"), "exec": {"trades": (state.get("trades") or [])[-limit:], "positions": exec_pos},
             "paper": {"trades": paper_trades, "positions": paper_pos, "summary": state.get("paper")}}
