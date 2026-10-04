@@ -158,6 +158,8 @@ class RefPositionTracker:
         ast = params.extra.get("ast", {}) if isinstance(params.extra, dict) else {}
         self.match_tree = self._combine_conditions(ast.get("match", []))
         self.stop_tree = self._combine_conditions(ast.get("stop", []))
+        self.dca_tree = self._combine_conditions(ast.get("dca", []))
+        self.dca_ok = True
 
         self.position: Optional[PositionModel] = None
         self.orders: List[OrderModel] = []
@@ -374,7 +376,7 @@ class RefPositionTracker:
     # ─── Một nến ────────────────────────────────────────────────────────────
     def on_bar(self, t: int, o: float, h: float, l: float, c: float,
                entry_signal: bool, stop_signal: bool, can_open: bool = True,
-               vol: float = float("nan")) -> Optional[PositionModel]:
+               vol: float = float("nan"), dca_gate: bool = True) -> Optional[PositionModel]:
         """Xử lý một nến 1m có giao dịch. Trả vị thế vừa đóng (nếu có).
         vol = ATR% (natr) của khung atr_frame đã đóng tại cuối nến này — dùng khi lệnh vào chờ được đặt ở nến này."""
         closed: Optional[PositionModel] = None
@@ -408,6 +410,7 @@ class RefPositionTracker:
                 not self.cooldown_ms or self.last_close_time is None or t - self.last_close_time >= self.cooldown_ms):
             self.pending_entry = True
             self.pending_vol = vol
+        self.dca_ok = bool(dca_gate)
         return closed
 
     def _intrabar(self, t: int, o: float, h: float, l: float) -> Optional[PositionModel]:
@@ -419,7 +422,7 @@ class RefPositionTracker:
         while True:
             events: List[Tuple[float, int, str]] = []  # (mức, ưu tiên khi hoà: thoát trước, loại)
             k = self.layer_count - 1
-            if k < len(self.dca_steps):
+            if k < len(self.dca_steps) and self.dca_ok:
                 level = self.last_fill * (1 - sign * self.dca_steps[k] / 100.0)
                 events.append((level, 1, "dca"))
             if self.sl_pct:
@@ -539,7 +542,8 @@ class RefBacktestEngine:
     def _refs_by_frame(self) -> Dict[str, Set[Tuple[str, int]]]:
         by_frame: Dict[str, Set[Tuple[str, int]]] = {}
         for tracker in self.trackers:
-            for frame, column, lag in collect_field_refs(tracker.match_tree) | collect_field_refs(tracker.stop_tree):
+            for frame, column, lag in (collect_field_refs(tracker.match_tree) | collect_field_refs(tracker.stop_tree)
+                                       | collect_field_refs(tracker.dca_tree)):
                 by_frame.setdefault(frame, set()).add((column, lag))
             if tracker.exit_unit == "atr":  # ATR% cho SL/TP/trailing theo biến động
                 by_frame.setdefault(tracker.atr_frame, set()).add((f"natr_{tracker.atr_period}", 0))
@@ -581,7 +585,7 @@ class RefBacktestEngine:
             return cols.get(f"{frame}|{lag_key(column, lag)}", np.full(n, np.nan))
 
         vec = VectorEvaluator(n, get)
-        signals = [(vec.tree(tr.match_tree), vec.tree(tr.stop_tree)) for tr in self.trackers]
+        signals = [(vec.tree(tr.match_tree), vec.tree(tr.stop_tree), vec.tree(tr.dca_tree) if tr.dca_tree else None) for tr in self.trackers]
         vols = [cols.get(self.vol_column(tr)) if self.vol_column(tr) else None for tr in self.trackers]
 
         t_arr = df1["open_time"].to_numpy(dtype="int64")
@@ -603,7 +607,7 @@ class RefBacktestEngine:
         if skip:
             # Nến có tín hiệu vào của BẤT KỲ flow nào, từ trade_start_ts (trước đó on_bar không làm gì khi phẳng)
             sig_any = np.zeros(n, dtype=bool)
-            for match, _ in signals:
+            for match, _stop, _gate in signals:
                 sig_any |= match
             cand = np.flatnonzero(sig_any[real_pos] & (rt >= self.trade_start_ts))
         busy = False  # nến trước còn flow mở / lệnh chờ?
@@ -637,12 +641,13 @@ class RefBacktestEngine:
             closed_any = False
             busy = False
             for k, tracker in enumerate(self.trackers):
-                match, stop = signals[k]
+                match, stop, gate = signals[k]
                 pos = tracker.on_bar(t, o_arr[i], h_arr[i], l_arr[i], c_arr[i],
                                      entry_signal=bool(match[i]) and can_trade,
                                      stop_signal=bool(stop[i]),
                                      can_open=can_trade and open_now < max_open[k],
-                                     vol=float(vols[k][i]) if vols[k] is not None else float("nan"))
+                                     vol=float(vols[k][i]) if vols[k] is not None else float("nan"),
+                                     dca_gate=bool(gate[i]) if gate is not None else True)
                 if tracker.is_open or tracker.pending_entry:
                     busy = True
                 if pos is not None:
@@ -809,6 +814,7 @@ class RefPortfolioEngine:
                     "strategy": st["id"], "tracker": tr,
                     "match": vec.tree(tr.match_tree), "stop": vec.tree(tr.stop_tree),
                     "vol": cols.get(vcol) if vcol else None,
+                    "dca": vec.tree(tr.dca_tree) if tr.dca_tree else None,
                 })
             self.books.append({"symbol": sym, "data": data, "entries": entries, "f_idx": 0})
 
@@ -906,7 +912,8 @@ class RefPortfolioEngine:
                             e["blk_g"] = g
                     pos = tr.on_bar(t, o, h, l, c, entry_signal=sig and can_trade, stop_signal=bool(e["stop"][i]),
                                     can_open=can_open,
-                                    vol=float(e["vol"][i]) if e["vol"] is not None else float("nan"))
+                                    vol=float(e["vol"][i]) if e["vol"] is not None else float("nan"),
+                                    dca_gate=bool(e["dca"][i]) if e.get("dca") is not None else True)
                     tr.max_new_notional = float("inf")
                     if tr.is_open or tr.pending_entry:
                         busy = True

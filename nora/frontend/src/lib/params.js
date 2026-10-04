@@ -45,6 +45,15 @@ export const PARAMS = {
   'sig.bb_k': { label: 'Độ rộng Bollinger', unit: 'σ', hint: 'Số độ lệch chuẩn của dải Bollinger' },
   'sig.er_n': { label: 'Chu kỳ ER', unit: 'nến', hint: 'Chu kỳ tính Efficiency Ratio' },
   'sig.roc_n': { label: 'Chu kỳ ROC', unit: 'nến', hint: 'Chu kỳ tính tốc độ tăng giá (ROC)' },
+  // Keltner (KEMA) và DCA
+  'sig.atr_n': { label: 'Chu kỳ ATR của kênh', unit: 'nến', hint: 'ATR (Wilder) đo độ rộng kênh Keltner' },
+  'sig.k_up': { label: 'Hệ số dải trên', unit: '× ATR', hint: 'Dải trên = EMA + hệ số × ATR' },
+  'sig.k_dn': { label: 'Hệ số dải dưới', unit: '× ATR', hint: 'Dải dưới = EMA − hệ số × ATR' },
+  'sig.gate_er_max': { label: 'Chỉ dồn khi ER dưới', unit: '', hint: 'Tầng DCA chỉ khớp khi Efficiency Ratio còn thấp (thị trường vẫn đi ngang)' },
+  'sig.gate_adx_max': { label: 'Chỉ dồn khi ADX dưới', unit: '', hint: 'Tầng DCA chỉ khớp khi chưa có xu hướng mạnh (ADX thấp hơn mức này)' },
+  dca_step_pct: { label: 'Bước dồn lệnh', unit: '× ATR', hint: 'Giá đi ngược bấy nhiêu × ATR so với lần khớp trước thì dồn thêm một tầng' },
+  dca_max_layers: { label: 'Số tầng dồn tối đa', unit: 'tầng', hint: 'Số lần dồn thêm sau lệnh đầu' },
+  dca_size_multiplier: { label: 'Hệ số khối lượng tầng sau', unit: '×', hint: 'Mỗi tầng sau lớn gấp bấy nhiêu lần tầng trước' },
   // walk-forward / Monte Carlo
   step_days: { label: 'Bước trượt fold', unit: 'ngày', hint: 'Mỗi fold trượt bấy nhiêu ngày (mặc định bằng số ngày test)' },
   sims: { label: 'Số kịch bản MC của WFA', unit: 'kịch bản', hint: 'Số mô phỏng Monte Carlo của cổng WFA; dưới 10.000 thì không xuất bản được' },
@@ -118,6 +127,7 @@ export function sameParams(a, b) {
 /** Nhóm tham số của lược đồ chiến lược (`params_schema[k].group`). */
 export const PARAM_GROUPS = [
   { key: 'signal', label: 'Tín hiệu vào lệnh' },
+  { key: 'dca', label: 'Dồn lệnh (DCA)' },
   { key: 'exit', label: 'Thoát lệnh' },
   { key: 'risk', label: 'Rủi ro và vốn' },
 ]

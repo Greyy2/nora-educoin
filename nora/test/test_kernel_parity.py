@@ -309,6 +309,14 @@ def _stop_tree(rng, side):
     return [{"condition": [[[_f(frame, "rsi_14"), cmp, thr]]]}]
 
 
+def _dca_gate(rng):
+    """Điều kiện dồn tầng DCA (hoặc rỗng = luôn được dồn): bật/tắt thường xuyên để kernel và bản tham chiếu đi qua mọi nhánh."""
+    if rng.random() < 0.5:
+        return []
+    frame = rng.choice(["5m", "15m"])
+    return [{"condition": [[[_f(frame, "rsi_14"), rng.choice(["<", ">"]), rng.randint(40, 60)]]]}]
+
+
 def rand_strategies(rng, symbols):
     """1-3 chiến lược: ứng viên của sổ (7) hoặc bot DCA kiểu OKX; id khác nhau."""
     n = rng.choice([1, 1, 2, 3])
@@ -323,7 +331,7 @@ def rand_strategies(rng, symbols):
             stop = _stop_tree(rng, side)
             pos = {**sb.BASE_POSITION, **rand_position(rng, side)}
             _fit_dca_budget(rng, pos)
-            st = {"id": f"bot{i}_{side.lower()}", "side": side, "tree": tree, "stop": stop, "position": pos}
+            st = {"id": f"bot{i}_{side.lower()}", "side": side, "tree": tree, "stop": stop, "position": pos, "dca": _dca_gate(rng)}
         else:
             params = rand_signal_params(rng, cand)
             pos = rand_position(rng, cand["side"], force_perp=cand["id"].startswith(("breakout",)) and False)
@@ -415,7 +423,7 @@ def _single_flows(rng, symbol, venue):
         elif pos["market"] == "perp" and rng.random() < 0.2:
             pos["sizing"], pos["stop_loss_rate"] = "margin_pct", pos["stop_loss_rate"]
         _fit_dca_budget(rng, pos)
-        flows.append((f"{side}_f{i}", {"match": [{"condition": tree}], "stop": stop}, side, pos))
+        flows.append((f"{side}_f{i}", {"match": [{"condition": tree}], "stop": stop, "dca": _dca_gate(rng)}, side, pos))
     return flows
 
 

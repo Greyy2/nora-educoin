@@ -305,6 +305,7 @@ def test_explore_book_only_paper_or_demo(tmp_path):
 
 # ── paper = engine (từng nến), gồm cả DCA ───────────────────────────────────
 DCA = {"id": "dca_long", "side": "LONG", "tree": [[[F("1h", "rsi_14"), "<", 40]]],
+       "dca": [{"condition": [[[F("1h", "rsi_14"), "<", 32]]]}],   # dồn có điều kiện: chỉ dồn khi RSI còn thấp
        "position": {"market": "perp", "leverage": 5, "exit_unit": "pct", "sizing": "margin_pct", "order_size_pct": 8.0,
                     "take_profit_rate": 2.5, "stop_loss_rate": 6.0, "timeout": 2880, "cooldown": 60,
                     "dca_steps": [0.4, 0.8, 1.2], "dca_multipliers": [1.5, 2.0, 2.0]}}
@@ -345,7 +346,8 @@ def test_paper_book_replays_engine_trades_exactly(market, risk):
             if i is None:
                 continue
             bars[s] = (d["o"][i], d["h"][i], d["l"][i], d["c"][i])
-            sig[s] = [{"match": e["match"][i], "stop": e["stop"][i], "vol": e["vol"][i] if e["vol"] is not None else None} for e in bk["entries"]]
+            sig[s] = [{"match": e["match"][i], "stop": e["stop"][i], "vol": e["vol"][i] if e["vol"] is not None else None,
+                       "dca": bool(e["dca"][i]) if e.get("dca") is not None else True} for e in bk["entries"]]
             fl = []
             while fptr[s] < len(d["f_t"]) and d["f_t"][fptr[s]] <= t:
                 fl.append((int(d["f_t"][fptr[s]]), float(d["f_r"][fptr[s]])))

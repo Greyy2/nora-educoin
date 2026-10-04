@@ -134,7 +134,8 @@ class BacktestEngine:
         for frame, refs in (getattr(self, "extra_refs", None) or {}).items():   # vd. đặc trưng regime (core/regime)
             by_frame.setdefault(frame, set()).update(refs)
         for tracker in self.trackers:
-            for frame, column, lag in collect_field_refs(tracker.match_tree) | collect_field_refs(tracker.stop_tree):
+            for frame, column, lag in (collect_field_refs(tracker.match_tree) | collect_field_refs(tracker.stop_tree)
+                                       | collect_field_refs(tracker.dca_tree)):
                 by_frame.setdefault(frame, set()).add((column, lag))
             if tracker.exit_unit == "atr":  # ATR% cho SL/TP/trailing theo biến động
                 by_frame.setdefault(tracker.atr_frame, set()).add((f"natr_{tracker.atr_period}", 0))

@@ -161,7 +161,11 @@ Ngưỡng tham số hoá `{"param": tên, "default": x}` thay bằng `params_tem
 | `SIGNALS` (`strategy_library.py`) | 8 | kiểm tra tín hiệu, mẫu `/samples` |
 | `KERNEL_STRATEGIES` | 8 | scan Studio |
 | `OPTIMIZATION_SPACES` | 5 (`dca_reversion_long_perp`, `dca_reversion_short_perp`, `trend_long_perp`, `trend_short_perp`, `dex_dip_reversion_spot`) | `optimize_alphas` |
-| `CANDIDATES` (`strategy_book.py`) | 7 (`trend_long`, `trend_short`, `breakout_4h_long`, `breakout_4h_short`, `momentum_long`, `reversion_long`, `reversion_short`) | `build_strategy_book`, `validate_book` |
+| `CANDIDATES` (`core/strategy/book.py`) | 6 chân của 3 chiến lược: KEMA (`kema_long`, `kema_short`), Sideway (`sideway_long`, `sideway_short`), DCA (`dca_long`, `dca_short`) | phễu, backtest, sổ |
+| `LEGACY_CANDIDATES` | 9 định nghĩa cũ (`trend_*`, `breakout_4h_*`, `keltner_trend_*`, `momentum_long`, `reversion_*`) | chỉ đọc lại sổ / lượt phễu cũ, bot đang chạy, golden test |
+
+Chiến lược (`STRATEGIES`, `GET /api/studio/strategies/catalog`) = logic đánh; mỗi chiến lược có chân LONG / SHORT; "Cả hai" = chạy cả hai chân.
+Một chân + một bộ tham số = một **alpha**. `BY_ID` tra cả chân mới và định nghĩa cũ.
 
 `strategy_book.materialize(candidate, params)` ghép `BASE_POSITION` (perp, đòn bẩy 10, `exit_unit="atr"`, `atr_frame="1h"`, `atr_period=14`,
 `sizing="risk"`, `risk_per_trade_pct=0.5`, `max_notional_pct=300`, `stop_fill="level"`, `cooldown=60`) với tham số ứng viên.
@@ -220,6 +224,10 @@ thì bỏ tín hiệu (`skipped_no_vol`, `test_atr_entry_skipped_during_warmup`)
   `need_pct > max_capital_usage×100` thì `build_params` ném `ValueError` kèm `order_size_pct` lớn nhất còn vừa (ví dụ 20% × 5 tầng không vừa, 19% vừa).
   Chỉ áp cho `sizing="margin_pct"`. Tầng bị từ chối lúc chạy do hết vốn đếm ở `dca_layers_rejected`.
 - WFA/optimize bỏ qua tổ hợp vi phạm thay vì làm hỏng job: `_optimize_is` đếm `invalid_combos`; `optimize_alphas.sample_configs` loại trước khi lấy mẫu (`configs_invalid`).
+- **DCA có điều kiện** (`dca_gate` của ứng viên -> khoá `dca` của flow -> `tracker.dca_tree`): điều kiện đánh giá ở nến đã đóng t quyết định
+  các mức DCA trong nến t+1 có được khớp không (`tracker.dca_ok`, kernel `I_DCAOK`); không có điều kiện = luôn được dồn (giữ nguyên kết quả cũ).
+  Kernel: tua nhanh dừng ở nến điều kiện đổi giá trị. Bot sàn: điều kiện tắt -> rút các tầng chờ (giữ SL/TP), bật lại -> đặt lại.
+  Chân DCA: dồn khi ER và ADX của khung chế độ còn thấp (đi ngang), cắt lỗ / chốt lời cả rổ từ giá trung bình theo bội số ATR.
 - `cooldown` (phút): sau mọi lần đóng vị thế (kể cả `force_close`, timeout), tín hiệu vào lệnh trong N phút bị bỏ. Mặc định 0 (không đổi hành vi); sổ dùng 60.
 
 ### 5.6 CapitalLedger

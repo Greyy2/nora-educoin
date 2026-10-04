@@ -101,7 +101,7 @@ class PaperBook:
                         self.rejected_for_risk += 1
                 vol = s.get("vol")
                 pos = tr.on_bar(t, o, h, l, c, entry_signal=m and can_trade, stop_signal=bool(s["stop"]), can_open=can_open,
-                                vol=float(vol) if vol is not None else float("nan"))
+                                vol=float(vol) if vol is not None else float("nan"), dca_gate=bool(s.get("dca", True)))
                 tr.max_new_notional = float("inf")
                 if pos is not None:
                     self._collect(sym, e, pos)

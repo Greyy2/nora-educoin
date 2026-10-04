@@ -75,7 +75,8 @@ def evaluate(symbol: str, strategies: List[Dict[str, Any]], frames: Dict[str, pd
                 stop = stop | fuse
         vcol = eng.vol_column(tr)
         out["entries"].append({"strategy": st["id"], "side": st["side"], "match": match, "stop": stop,
-                               "vol": cols.get(vcol) if vcol else None, "tracker": tr})
+                               "vol": cols.get(vcol) if vcol else None, "tracker": tr,
+                               "dca": vec.tree(tr.dca_tree) if tr.dca_tree else None})
     if with_vec:
         out["vec"] = vec
     return out

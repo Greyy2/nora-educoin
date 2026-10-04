@@ -136,6 +136,9 @@ class PositionTracker:
         ast = params.extra.get("ast", {}) if isinstance(params.extra, dict) else {}
         self.match_tree = self._combine_conditions(ast.get("match", []))
         self.stop_tree = self._combine_conditions(ast.get("stop", []))
+        # Điều kiện cho phép DCA (dồn có điều kiện): rỗng = luôn được dồn. Giá trị ở nến đã đóng t áp cho các mức DCA trong nến t+1.
+        self.dca_tree = self._combine_conditions(ast.get("dca", []))
+        self.dca_ok = True
 
         self.position: Optional[PositionModel] = None
         self.orders: List[OrderModel] = []
@@ -352,9 +355,10 @@ class PositionTracker:
     # ─── Một nến ────────────────────────────────────────────────────────────
     def on_bar(self, t: int, o: float, h: float, l: float, c: float,
                entry_signal: bool, stop_signal: bool, can_open: bool = True,
-               vol: float = float("nan")) -> Optional[PositionModel]:
+               vol: float = float("nan"), dca_gate: bool = True) -> Optional[PositionModel]:
         """Xử lý một nến 1m có giao dịch. Trả vị thế vừa đóng (nếu có).
-        vol = ATR% (natr) của khung atr_frame đã đóng tại cuối nến này — dùng khi lệnh vào chờ được đặt ở nến này."""
+        vol = ATR% (natr) của khung atr_frame đã đóng tại cuối nến này — dùng khi lệnh vào chờ được đặt ở nến này.
+        dca_gate = điều kiện DCA tại cuối nến này (True khi chiến lược không có điều kiện) — quyết định nến SAU có được dồn tầng không."""
         closed: Optional[PositionModel] = None
 
         # 1. Đầu nến
@@ -386,6 +390,7 @@ class PositionTracker:
                 not self.cooldown_ms or self.last_close_time is None or t - self.last_close_time >= self.cooldown_ms):
             self.pending_entry = True
             self.pending_vol = vol
+        self.dca_ok = bool(dca_gate)
         return closed
 
     def _intrabar(self, t: int, o: float, h: float, l: float) -> Optional[PositionModel]:
@@ -397,7 +402,7 @@ class PositionTracker:
         while True:
             events: List[Tuple[float, int, str]] = []  # (mức, ưu tiên khi hoà: thoát trước, loại)
             k = self.layer_count - 1
-            if k < len(self.dca_steps):
+            if k < len(self.dca_steps) and self.dca_ok:
                 level = self.last_fill * (1 - sign * self.dca_steps[k] / 100.0)
                 events.append((level, 1, "dca"))
             if self.sl_pct:

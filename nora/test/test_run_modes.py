@@ -45,7 +45,11 @@ OLD_TREES = {
 }
 
 OLD_TREES.update({"kema_long": OLD_TREES["keltner_trend_long"], "kema_short": OLD_TREES["keltner_trend_short"],
-                  "sideway_long": OLD_TREES["reversion_long"], "sideway_short": OLD_TREES["reversion_short"]})
+                  "sideway_long": OLD_TREES["reversion_long"], "sideway_short": OLD_TREES["reversion_short"],
+                  "dca_long": cond((f("1h", "rsi_14"), "<", p("rsi_lo", 30)), (f("1h", "close"), "<", f("1h", "bbl_20_2")),
+                                   (f("4h", "er_20"), "<", p("er_max", 0.35))),
+                  "dca_short": cond((f("1h", "rsi_14"), ">", p("rsi_hi", 70)), (f("1h", "close"), ">", f("1h", "bbu_20_2")),
+                                    (f("4h", "er_20"), "<", p("er_max", 0.35)))})
 REAL_CATALOG_TESTS = ("test_real_catalog_", "test_default_resolution_equals_old_literal_tree", "test_default_position_and_signal_params_unchanged",
                       "test_schema_is_well_formed")
 
@@ -86,14 +90,14 @@ def test_schema_is_well_formed(cid):
     schema = c["params_schema"]
     assert schema and set(c["space"]) <= set(schema)                                # mọi khoá của không gian tối ưu có trong schema
     groups = [v["group"] for v in schema.values()]
-    assert groups == sorted(groups, key={"signal": 0, "exit": 1, "risk": 2}.get)    # có thứ tự: tín hiệu, thoát lệnh, rủi ro
+    assert groups == sorted(groups, key={"signal": 0, "dca": 1, "exit": 2, "risk": 3}.get)   # thứ tự: tín hiệu, dồn lệnh, thoát lệnh, rủi ro
     mid = {k: v[len(v) // 2] for k, v in c["space"].items()}
     for key, spec in schema.items():
         assert {"group", "type", "default", "label_vi", "unit", "help_vi"} <= set(spec) and spec["type"] in ("int", "float", "choice")
         if spec["group"] == "signal":
             assert key.startswith("sig.")
         else:
-            assert key in POSITION_KEYS and spec["group"] in ("exit", "risk")
+            assert key in POSITION_KEYS and spec["group"] in ("dca", "exit", "risk")
         if spec["type"] == "choice":
             assert spec["default"] in spec["choices"] and set(spec["choices"]) <= set(FRAMES)
         else:
@@ -102,8 +106,8 @@ def test_schema_is_well_formed(cid):
             assert spec["default"] == mid[key], key                                 # mặc định thoát lệnh = mức giữa của space
         _, err = rm.check_value(key, spec, spec["default"])
         assert err is None
-    # mọi {tên} và node {"param"} trong cây vào + cây thoát đều có tham số signal tương ứng, mặc định node khớp schema
-    trees = [c["tree"], c.get("stop") or []]
+    # mọi {tên} và node {"param"} trong cây vào + cây thoát + điều kiện DCA đều có tham số signal tương ứng, mặc định node khớp schema
+    trees = [c["tree"], c.get("stop") or [], c.get("dca_gate") or []]
     names = set().union(*(collect_string_placeholders(t) | set(collect_placeholders(t)) for t in trees))
     assert {"sig." + n for n in names} == {k for k, v in schema.items() if v["group"] == "signal"}
     for n, d in {k: v for t in trees for k, v in collect_placeholders(t).items()}.items():
@@ -355,10 +359,11 @@ def _job(client, jid):
 
 def test_real_catalog_three_strategies_with_legs(client):
     rows = client.get("/api/studio/strategies").json()
-    assert [x["id"] for x in rows] == ["kema_long", "kema_short", "sideway_long", "sideway_short"]
-    assert {x["strategy"] for x in rows} == {"kema", "sideway"} and all("sova" not in (x["description"] + x["family"]).lower() for x in rows)
+    assert [x["id"] for x in rows] == ["kema_long", "kema_short", "sideway_long", "sideway_short", "dca_long", "dca_short"]
+    assert {x["strategy"] for x in rows} == {"kema", "sideway", "dca"} and all("sova" not in (x["description"] + x["family"]).lower() for x in rows)
     cat = client.get("/api/studio/strategies/catalog").json()
-    assert [c["id"] for c in cat] == ["kema", "sideway", "dca"] and cat[0]["legs"] == {"LONG": "kema_long", "SHORT": "kema_short"} and cat[2]["coming"]
+    assert [c["id"] for c in cat] == ["kema", "sideway", "dca"] and cat[0]["legs"] == {"LONG": "kema_long", "SHORT": "kema_short"} \
+        and cat[2]["legs"] == {"LONG": "dca_long", "SHORT": "dca_short"}
     assert client.post(URL, json={**BT, "strategies": [{"id": "kema_long"}, {"id": "kema_short"}]}).status_code == 200
     assert client.post(URL, json={**BT, "strategies": [{"id": "trend_long"}]}).status_code == 200      # id cũ vẫn chạy được (sổ đã xuất bản)
 

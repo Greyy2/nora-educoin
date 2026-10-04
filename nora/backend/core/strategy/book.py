@@ -151,6 +151,55 @@ def _reversion_schema(side_key, side_default, side_lo, side_hi, side_label):
     }
 
 
+def _dca_schema(side_key, side_default, side_lo, side_hi, side_label):
+    """DCA = bắt hồi ở vùng quá bán/quá mua khi thị trường đi ngang, dồn thêm tầng khi giá đi ngược NHƯNG chỉ khi điều kiện còn đúng
+    (ER thấp + ADX thấp = chưa thành xu hướng ngược); cắt lỗ cứng cho cả rổ, tính từ giá trung bình."""
+    return {
+        "sig.entry_tf": _choice("signal", "Khung điểm vào", "1h", _TF_FAST, "Khung nến tính RSI và dải Bollinger."),
+        "sig.rsi_n": _int("signal", "Chu kỳ RSI", 14, 2, 50, "nến", "Chu kỳ RSI (Wilder)."),
+        side_key: _flt("signal", side_label, side_default, side_lo, side_hi, 1.0, "", "Ngưỡng RSI kích hoạt lệnh đầu."),
+        "sig.bb_n": _int("signal", "Chu kỳ Bollinger", 20, 5, 100, "nến", "Chu kỳ đường giữa của dải Bollinger."),
+        "sig.bb_k": _flt("signal", "Độ rộng Bollinger (k)", 2.0, 1.0, 4.0, 0.1, "σ", "Dải cách đường giữa k độ lệch chuẩn."),
+        "sig.regime_tf": _choice("signal", "Khung chế độ thị trường", "4h", _TF_SLOW, "Khung đo đi ngang (ER) và độ mạnh xu hướng (ADX)."),
+        "sig.er_n": _int("signal", "Chu kỳ ER", 20, 5, 100, "nến", "Chu kỳ Efficiency Ratio (1 = xu hướng, 0 = đi ngang)."),
+        "sig.er_max": _flt("signal", "Vào lệnh khi ER dưới", 0.35, 0.1, 0.7, 0.05, "", "Chỉ mở lệnh đầu khi thị trường đi ngang."),
+        "sig.adx_n": _int("signal", "Chu kỳ ADX", 14, 5, 50, "nến", "Chu kỳ ADX đo độ mạnh xu hướng."),
+        "sig.gate_er_max": _flt("signal", "Chỉ dồn khi ER dưới", 0.4, 0.1, 0.8, 0.05, "",
+                                "Tầng DCA chỉ khớp khi ER còn thấp; ER tăng (bắt đầu có xu hướng) thì ngừng dồn."),
+        "sig.gate_adx_max": _flt("signal", "Chỉ dồn khi ADX dưới", 25.0, 10.0, 50.0, 1.0, "",
+                                 "Tầng DCA chỉ khớp khi chưa có xu hướng mạnh."),
+        "dca_step_pct": _flt("dca", "Bước dồn lệnh", 1.0, 0.25, 4.0, 0.25, "× ATR",
+                             "Giá đi ngược bấy nhiêu × ATR so với lần khớp trước thì dồn thêm một tầng."),
+        "dca_max_layers": _int("dca", "Số tầng dồn tối đa", 3, 1, 6, "tầng", "Số lần dồn thêm sau lệnh đầu."),
+        "dca_size_multiplier": _flt("dca", "Hệ số khối lượng tầng sau", 1.5, 1.0, 2.5, 0.1, "×", "Mỗi tầng sau lớn gấp bấy nhiêu lần tầng trước."),
+        **_exit_risk_schema(6.0, 1.5, 0.0, 0.0, 4320, "1h"),
+    }
+
+
+def _dca_leg(side: str) -> Dict[str, Any]:
+    long_ = side == "LONG"
+    rsi = (f("{entry_tf}", "rsi_{rsi_n}"), "<", p("rsi_lo", 30)) if long_ else (f("{entry_tf}", "rsi_{rsi_n}"), ">", p("rsi_hi", 70))
+    band = ((f("{entry_tf}", "close"), "<", f("{entry_tf}", "bbl_{bb_n}_{bb_k}")) if long_
+            else (f("{entry_tf}", "close"), ">", f("{entry_tf}", "bbu_{bb_n}_{bb_k}")))
+    schema = _dca_schema("sig.rsi_lo", 30.0, 10.0, 45.0, "RSI quá bán") if long_ else _dca_schema("sig.rsi_hi", 70.0, 55.0, 90.0, "RSI quá mua")
+    return {
+        "id": "dca_long" if long_ else "dca_short", "strategy": "dca", "family": "DCA (bắt hồi + dồn có điều kiện)", "side": side,
+        "legacy": False,
+        "description": (("RSI quá bán và giá dưới dải Bollinger dưới khi thị trường đi ngang → mua; giá giảm tiếp thì dồn thêm tầng theo bước ATR "
+                         if long_ else
+                         "RSI quá mua và giá trên dải Bollinger trên khi thị trường đi ngang → bán; giá tăng tiếp thì dồn thêm tầng theo bước ATR ")
+                        + "CHỈ khi vẫn đi ngang (ER, ADX thấp). Chốt lời và cắt lỗ cả rổ tính từ giá trung bình."),
+        "tree": cond(rsi, band, (f("{regime_tf}", "er_{er_n}"), "<", p("er_max", 0.35))),
+        "dca_gate": cond((f("{regime_tf}", "er_{er_n}"), "<", p("gate_er_max", 0.4)),
+                         (f("{regime_tf}", "adx_{adx_n}"), "<", p("gate_adx_max", 25.0))),
+        "position": {"exit_unit": "atr"},
+        "space": {("sig.rsi_lo" if long_ else "sig.rsi_hi"): [25, 30, 35] if long_ else [65, 70, 75],
+                  "dca_step_pct": [0.5, 1.0, 1.5], "dca_max_layers": [2, 3, 4], "dca_size_multiplier": [1.0, 1.5, 2.0],
+                  "stop_loss_rate": [4.0, 6.0, 8.0], "take_profit_rate": [1.0, 1.5, 2.5], "sig.gate_er_max": [0.3, 0.4, 0.5]},
+        "params_schema": schema,
+    }
+
+
 # Danh mục chiến lược cũ (9 biến thể trước khi gom về 3 chiến lược). CHỈ để đọc lại sổ đã xuất bản / lượt phễu cũ / bot đang chạy
 # và golden test; không hiện ở giao diện, không sinh alpha mới. Xoá khi sổ mới (KEMA / Sideway / DCA) thay thế sổ đang chạy.
 LEGACY_CANDIDATES: List[Dict[str, Any]] = [
@@ -275,6 +324,8 @@ CANDIDATES: List[Dict[str, Any]] = [
          "Chỉ đánh khi thị trường đi ngang (ER thấp): RSI quá bán và giá dưới dải Bollinger dưới → mua. Chốt lời / cắt lỗ theo ATR."),
     _leg("reversion_short", "sideway_short", "sideway", "Sideway (đi ngang)",
          "Chỉ đánh khi thị trường đi ngang (ER thấp): RSI quá mua và giá trên dải Bollinger trên → bán. Chốt lời / cắt lỗ theo ATR."),
+    _dca_leg("LONG"),
+    _dca_leg("SHORT"),
 ]
 def all_candidates() -> List[Dict[str, Any]]:
     """Chiến lược đang dùng + cũ (đọc tại lúc gọi: test thay CANDIDATES vẫn có hiệu lực)."""
@@ -303,8 +354,9 @@ STRATEGIES: List[Dict[str, Any]] = [
      "description": "Theo xu hướng bằng kênh Keltner: vào khi giá phá kênh, thoát khi giá cắt ngược kênh. Cả hai chiều = đảo chiều liên tục."},
     {"id": "sideway", "name": "Sideway", "kind": "Đi ngang", "legs": {"LONG": "sideway_long", "SHORT": "sideway_short"},
      "description": "Đánh biên khi thị trường đi ngang: mua vùng quá bán, bán vùng quá mua; đứng ngoài khi có xu hướng."},
-    {"id": "dca", "name": "DCA", "kind": "Bắt hồi + dồn lệnh có điều kiện", "legs": {}, "coming": True,
-     "description": "Bắt hồi và chỉ dồn lệnh khi điều kiện còn đúng (không có xu hướng ngược), SL cứng cho cả rổ. Đang xây dựng."},
+    {"id": "dca", "name": "DCA", "kind": "Bắt hồi + dồn lệnh có điều kiện", "legs": {"LONG": "dca_long", "SHORT": "dca_short"},
+     "description": "Bắt hồi ở vùng quá bán/quá mua khi đi ngang; chỉ dồn thêm tầng khi thị trường vẫn đi ngang (ER, ADX thấp), "
+                    "ngừng dồn khi bắt đầu có xu hướng. Cắt lỗ cứng cho cả rổ."},
 ]
 
 
@@ -344,6 +396,8 @@ def materialize(candidate: Dict[str, Any], params: Dict[str, Any], regime: Any =
         extra = {"regime": REGIME_MAP[candidate["id"]]} if regime and candidate["id"] in REGIME_MAP else {}
     if candidate.get("stop"):   # tín hiệu thoát (vd. cắt ngược kênh) -> đóng ở open nến 1m kế tiếp
         extra["stop"] = [{"condition": resolve_placeholders(candidate["stop"], signal, signal_defaults(candidate))}]
+    if candidate.get("dca_gate"):   # điều kiện cho phép dồn tầng DCA (dồn có điều kiện)
+        extra["dca"] = [{"condition": resolve_placeholders(candidate["dca_gate"], signal, signal_defaults(candidate))}]
     return {**extra,
         "id": candidate["id"], "side": candidate["side"],
         "tree": resolve_placeholders(candidate["tree"], signal, signal_defaults(candidate)),

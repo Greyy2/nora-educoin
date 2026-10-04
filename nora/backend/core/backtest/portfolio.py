@@ -56,7 +56,8 @@ def data_cache_clear() -> None:
 
 
 def _strategy_flow(strategy: Dict[str, Any]) -> Dict[str, Any]:
-    return {"type": strategy["side"], "match": [{"condition": strategy["tree"]}], "stop": strategy.get("stop") or []}
+    return {"type": strategy["side"], "match": [{"condition": strategy["tree"]}], "stop": strategy.get("stop") or [],
+            "dca": strategy.get("dca") or []}
 
 
 class PortfolioEngine:
@@ -211,6 +212,7 @@ class PortfolioEngine:
                 entries.append({
                     "strategy": st["id"], "tracker": tr, "match": match, "stop": stop,
                     "vol": cols.get(vcol) if vcol else None, "regime": labels,
+                    "dca": vec.tree(tr.dca_tree) if tr.dca_tree else None,   # điều kiện dồn tầng (None = luôn được dồn)
                 })
             self.books.append({"symbol": sym, "data": data, "entries": entries, "f_idx": 0})
 

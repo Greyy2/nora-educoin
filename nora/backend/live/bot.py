@@ -96,7 +96,8 @@ class State:
 
 
 def _bar_sig(v: Dict[str, Any], i: int) -> List[Dict[str, Any]]:
-    return [{"match": bool(e["match"][i]), "stop": bool(e["stop"][i]), "vol": (float(e["vol"][i]) if e["vol"] is not None else None)}
+    return [{"match": bool(e["match"][i]), "stop": bool(e["stop"][i]), "vol": (float(e["vol"][i]) if e["vol"] is not None else None),
+             "dca": bool(e["dca"][i]) if e.get("dca") is not None else True}
             for e in v["entries"]]
 
 
@@ -151,7 +152,7 @@ class Bot:
 
     # ── sàn (demo / live) ──
     def _protect(self, sym: str, p: Dict[str, Any]) -> None:
-        """(Đặt lại) SL / TP từ giá trung bình hiện tại + các tầng DCA chưa khớp."""
+        """(Đặt lại) SL / TP từ giá trung bình hiện tại + các tầng DCA chưa khớp (chỉ khi điều kiện dồn đang cho phép: p["dca_ok"])."""
         f = self.filters.get(sym)
         rnd = f.price if f is not None else (lambda x: x)
         rq = f.qty if f is not None else (lambda x: x)
@@ -161,7 +162,8 @@ class Bot:
             self.client.place_sl(sym, p["side"], rq(p["qty"]), rnd(p["avg"] * (1 - sign * p["sl_pct"] / 100.0)))
         if p["tp_pct"]:
             self.client.place_tp(sym, p["side"], rq(p["qty"]), rnd(p["avg"] * (1 + sign * p["tp_pct"] / 100.0)))
-        for lay in p["ladder"][p["filled_layers"]:]:
+        p["ladder_live"] = bool(p.get("dca_ok", True))
+        for lay in (p["ladder"][p["filled_layers"]:] if p["ladder_live"] else []):
             try:
                 self.client.place_post_only(sym, p["side"], lay["qty"], lay["price"])
             except Exception as e:             # GTX bị từ chối (sẽ khớp ngay = taker): bỏ tầng, KHÔNG đổi sang market (E9-S2 AC2)
@@ -202,7 +204,8 @@ class Bot:
             ladder.append({"price": f.price(level) if f is not None else level, "qty": q})
         p = {"strategy": e["strategy"], "side": e["side"], "qty": qty, "avg": fill, "entry_price": fill, "entry_time": now, "leverage": int(lev),
              "sl_pct": tr.sl_pct, "tp_pct": tr.tp_pct, "trail_pct": tr.trail_pct, "trail_act_pct": tr.trail_activation_pct, "peak": fill,
-             "timeout_ms": tr.timeout_ms, "ladder": ladder, "filled_layers": 0}
+             "timeout_ms": tr.timeout_ms, "ladder": ladder, "filled_layers": 0,
+             "dca_ok": bool(e["dca"][i]) if e.get("dca") is not None else True}
         self.state.d["positions"][sym] = p
         self._protect(sym, p)
         self.event("open", symbol=sym, strategy=e["strategy"], side=e["side"], qty=qty, price=fill, leverage=int(lev),
@@ -252,6 +255,11 @@ class Bot:
             p, v, i = d["positions"][sym], sig[sym], last[sym]
             sign = 1 if p["side"] == "LONG" else -1
             e = next(x for x in v["entries"] if x["strategy"] == p["strategy"])
+            ok = bool(e["dca"][i]) if e.get("dca") is not None else True
+            if p["ladder"][p["filled_layers"]:] and ok != p.get("ladder_live", True):   # điều kiện dồn đổi: rút / đặt lại các tầng chờ
+                p["dca_ok"] = ok
+                self._protect(sym, p)
+                self.event("dca_gate", symbol=sym, strategy=p["strategy"], allowed=ok)
             hi, lo = float(v["high"][i]), float(v["low"][i])
             if p["trail_pct"]:
                 gain = sign * (p["peak"] - p["avg"]) / p["avg"] * 100.0
