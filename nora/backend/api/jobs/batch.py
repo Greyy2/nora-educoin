@@ -45,8 +45,9 @@ KINDS: Dict[str, Dict[str, Any]] = {
                    "params": {"strategies", "n_per_strategy", "full_grid", "seed", "symbols", "windows", "run_id", "resume", "force_large",
                               "train_days", "test_days", "space", "timeframe", "regime"}},
     "funnel_recompute": {"module": "backend.optimize.funnel.recompute", "params": {"run_id", "alpha_id"}},
-    "live_bot": {"module": "backend.live.bot", "params": {"mode", "venue", "once", "max_steps", "capital", "confirm_live"}},
-    "funnel_book": {"module": "backend.optimize.funnel.publish", "params": {"run_id", "alpha_ids", "risk_per_trade_pct", "wfa_job_id", "dry_run"}},
+    "live_bot": {"module": "backend.live.bot", "params": {"mode", "venue", "once", "max_steps", "capital", "confirm_live", "book"}},
+    "funnel_book": {"module": "backend.optimize.funnel.publish",
+                    "params": {"run_id", "alpha_ids", "risk_per_trade_pct", "wfa_job_id", "dry_run", "explore"}},
     "presets_build": {"module": "backend.core.params.presets", "params": set()},
     "mock_feeds": {"module": "backend.core.analytics.feeds", "params": {"only"}},
     "data_crawl": {"module": "backend.core.data.crawler", "params": {"symbols", "market", "years", "output_dir"}},   # output_dir do router đặt
@@ -537,9 +538,11 @@ def job_label(kind: str, params: Optional[Dict[str, Any]]) -> str:
     if kind == "funnel_recompute":
         return f"Phễu · tính lại lệnh {p.get('alpha_id')}"
     if kind == "live_bot":
-        return f"Bot sổ · {p.get('venue', 'okx')} {p.get('mode')}" + (" · một bước" if p.get("once") else "")
+        return (f"Bot sổ · {p.get('venue', 'okx')} {p.get('mode')}" + (" · sổ thử nghiệm" if p.get("book") == "explore" else "")
+                + (" · một bước" if p.get("once") else ""))
     if kind == "funnel_book":
-        return f"Phễu · xuất bản sổ từ {p.get('run_id')} ({p.get('alpha_ids')}) rủi ro {p.get('risk_per_trade_pct')}%"
+        return (f"Phễu · xuất bản sổ {'thử nghiệm ' if p.get('explore') else ''}từ {p.get('run_id')} ({p.get('alpha_ids')}) "
+                f"rủi ro {p.get('risk_per_trade_pct')}%")
     if kind == "presets_build":
         return "Dựng presets.json"
     if kind == "mock_feeds":

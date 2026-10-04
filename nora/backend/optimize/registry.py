@@ -213,6 +213,21 @@ def write_book(report: Dict[str, Any], out_dir: str, source: str, repo_dir: str 
     return paths
 
 
+EXPLORE_STATUS = "EXPLORE_DEMO"
+
+
+def write_explore_book(report: Dict[str, Any], out_dir: str, source: str, repo_dir: str = None) -> List[str]:
+    """Sổ THỬ NGHIỆM (alpha chưa chắc qua đủ cổng) -> out_dir/book.json, status EXPLORE_DEMO: chỉ chạy paper/demo, không có testnet/live."""
+    book = build_book(report, source, repo_dir)
+    book["status"] = EXPLORE_STATUS
+    book["unvalidated"] = sorted(k for k, v in report["candidates"].items() if not v.get("validated"))
+    os.makedirs(out_dir, exist_ok=True)
+    path = os.path.join(out_dir, "book.json")
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(book, fh, ensure_ascii=False, indent=2, default=json_default)
+    return [path]
+
+
 def publish_book(src_dir: str, dest_dir: str) -> Dict[str, Any]:
     """Xuất bản một sổ đã dựng (src_dir/book.json [+ testnet/book.json]) sang dest_dir (thư mục data/alphas/ đang dùng).
 

@@ -292,6 +292,17 @@ def test_book_must_be_ready_for_testnet(tmp_path):
         lb.load_book(str(tmp_path))
 
 
+def test_explore_book_only_paper_or_demo(tmp_path):
+    (tmp_path / "explore").mkdir()
+    (tmp_path / "explore" / "book.json").write_text(json.dumps({**BOOK, "status": "EXPLORE_DEMO"}))
+    assert lb.load_book(str(tmp_path), kind="explore", mode="demo")["status"] == "EXPLORE_DEMO"
+    with pytest.raises(SystemExit):
+        lb.load_book(str(tmp_path), kind="explore", mode="live")              # sổ chưa kiểm định không bao giờ chạy vốn thật
+    (tmp_path / "book.json").write_text(json.dumps({**BOOK, "status": "EXPLORE_DEMO"}))
+    with pytest.raises(SystemExit):
+        lb.load_book(str(tmp_path))                                            # sổ chính không nhận trạng thái thử nghiệm
+
+
 # ── paper = engine (từng nến), gồm cả DCA ───────────────────────────────────
 DCA = {"id": "dca_long", "side": "LONG", "tree": [[[F("1h", "rsi_14"), "<", 40]]],
        "position": {"market": "perp", "leverage": 5, "exit_unit": "pct", "sizing": "margin_pct", "order_size_pct": 8.0,

@@ -19,6 +19,8 @@ class BotRequest(BaseModel):
     once: bool = Field(False, description="chỉ chạy một bước (kiểm tra)")
     capital: float = Field(10000.0, gt=0, le=1e9, description="vốn ban đầu của chế độ paper")
     confirm_live: bool = Field(False, description="bắt buộc true với mode live (vốn thật)")
+    book: str = Field("main", pattern="^(main|explore)$",
+                      description="main = sổ đã kiểm định; explore = sổ thử nghiệm data/alphas/explore (chỉ paper/demo)")
 
 
 def _running(venue: str, mode: str):
@@ -31,10 +33,12 @@ def _running(venue: str, mode: str):
 def start_bot(req: BotRequest) -> Dict[str, Any]:
     if req.mode == "live" and not req.confirm_live:
         raise HTTPException(422, "mode live đặt lệnh bằng vốn thật — cần confirm_live=true")
+    if req.mode == "live" and req.book == "explore":
+        raise HTTPException(422, "sổ thử nghiệm không chạy live")
     if _running(req.venue, req.mode):
         raise HTTPException(409, f"bot {req.venue} {req.mode} đang chạy (job {_running(req.venue, req.mode)[0].get('id')})")
     return batch_jobs.http_launch("live_bot", {"mode": req.mode, "venue": req.venue, "once": req.once, "capital": req.capital,
-                                               "confirm_live": req.confirm_live})
+                                               "confirm_live": req.confirm_live, "book": req.book})
 
 
 @router.get("/bot")

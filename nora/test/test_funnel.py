@@ -6,6 +6,7 @@ CHỈ TRONG TEST (để alpha ngẫu nhiên đi hết các tầng) — phần ng
 import json
 import math
 import os
+import sqlite3
 
 import numpy as np
 import pandas as pd
@@ -757,3 +758,31 @@ def test_funnel_book_publish_checks_wfa_and_scores_holdout(full_run, tmp_path):
             publish.build_report(full_run["run_dir"], [aid], 0.5, bad)
     with pytest.raises(ValueError):
         publish.build_report(full_run["run_dir"], [aid, aid], 0.5, wfa)                 # mỗi chiến lược một alpha
+
+
+def test_funnel_explore_book_accepts_unvalidated_alpha(full_run, tmp_path):
+    """Sổ thử nghiệm (explore): alpha qua S1 nhưng chưa FINAL được nhận, không cần WFA; ghi explore/book.json status EXPLORE_DEMO +
+    danh sách unvalidated; sổ chính vẫn từ chối alpha đó."""
+    from backend.optimize.funnel import publish
+    from backend.optimize.registry import EXPLORE_STATUS, write_explore_book
+    import shutil
+    run_dir = str(tmp_path / "run")
+    shutil.copytree(full_run["run_dir"], run_dir)
+    con = sqlite3.connect(os.path.join(run_dir, "results.sqlite"))
+    aid = con.execute("select alpha_id from alphas where stage_reached = 'FINAL' limit 1").fetchone()[0]
+    con.execute("update alphas set stage_reached='S3_wfa', stage_idx=3, rejected_stage='S3_wfa', reject_code='S3.fold_t' where alpha_id=?",
+                (aid,))                                                              # giả lập alpha dừng ở S3
+    low = con.execute("select alpha_id from alphas where stage_idx < 2 limit 1").fetchone()
+    con.commit()
+    con.close()
+    row = (aid,)
+    with pytest.raises(ValueError):
+        publish.build_report(run_dir, [row[0]], 0.5, {"gate": {"passed": True}})
+    if low is not None:
+        with pytest.raises(ValueError):
+            publish.build_report(run_dir, [low[0]], 0.5, {}, explore=True)
+    rep = publish.build_report(run_dir, [row[0]], 0.5, {}, explore=True)
+    assert rep["book"]["explore"] is True and rep["gates"]["wfa_gate"] is None
+    paths = write_explore_book(rep, str(tmp_path / "explore"), source="test")
+    book = json.load(open(paths[0], encoding="utf-8"))
+    assert book["status"] == EXPLORE_STATUS and book["unvalidated"] == [book["strategies"][0]["id"]]

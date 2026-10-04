@@ -491,10 +491,12 @@ def get_trades(run_id: str, alpha_id: str, stage: Optional[str] = None, fold: Op
 
 # ─── Xuất bản sổ chung vốn từ alpha FINAL ──────────────────────────────────
 class FunnelBookRequest(BaseModel):
-    alpha_ids: List[str] = Field(..., min_length=1, max_length=9, description="alpha FINAL, mỗi chiến lược một alpha")
+    alpha_ids: List[str] = Field(..., min_length=1, max_length=9, description="alpha FINAL (explore: đã qua S1), mỗi chiến lược một alpha")
     risk_per_trade_pct: float = Field(..., gt=0.0, le=5.0)
-    wfa_job_id: str = Field(..., description="job book_wfa (advanced) đã chạy ĐÚNG các cấu hình này ở cùng rủi ro; gate phải qua")
+    wfa_job_id: str = Field("", description="job book_wfa (advanced) đã chạy ĐÚNG các cấu hình này ở cùng rủi ro; gate phải qua "
+                                            "(explore: tuỳ chọn, không bắt qua)")
     dry_run: bool = False
+    explore: bool = Field(False, description="sổ thử nghiệm cho demo -> data/alphas/explore/book.json (EXPLORE_DEMO), không bao giờ live")
 
 
 @router.post("/runs/{run_id}/book")
@@ -505,7 +507,9 @@ def post_funnel_book(run_id: str, req: FunnelBookRequest):
     for a in req.alpha_ids:
         _alpha_id(a)
     params = {"run_id": run_id, "alpha_ids": ",".join(req.alpha_ids), "risk_per_trade_pct": req.risk_per_trade_pct,
-              "wfa_job_id": req.wfa_job_id, "dry_run": req.dry_run}
+              "wfa_job_id": req.wfa_job_id, "dry_run": req.dry_run, "explore": req.explore}
+    if not req.explore and not req.wfa_job_id:
+        raise HTTPException(422, "sổ chính cần wfa_job_id (gate WFA danh mục phải qua)")
     try:
         return {"job_id": batch_jobs.launch("funnel_book", params)}
     except batch_jobs.JobError as e:

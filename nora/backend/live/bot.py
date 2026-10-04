@@ -21,7 +21,9 @@ from typing import Any, Dict, List, Optional
 
 from backend.utils.jobs import options, write_job_result
 
-DEFAULTS = {"mode": "paper", "venue": "okx", "once": False, "max_steps": 0, "capital": 10000.0, "state_dir": "", "confirm_live": False}
+DEFAULTS = {"mode": "paper", "venue": "okx", "once": False, "max_steps": 0, "capital": 10000.0, "state_dir": "", "confirm_live": False,
+            "book": "main"}
+BOOKS = ("main", "explore")     # main = data/alphas/book.json (READY_FOR_TESTNET); explore = data/alphas/explore/book.json (EXPLORE_DEMO)
 EXEC_MODES = ("demo", "live")   # đặt lệnh thật trên sàn: demo = OKX Demo Trading (vốn ảo), live = tài khoản thật
 KLINE_LIMIT = 1500
 EPS = 1e-12
@@ -31,13 +33,22 @@ def _now_ms() -> int:
     return int(time.time() * 1000)
 
 
-def load_book(alphas: Optional[str] = None) -> Dict[str, Any]:
+def load_book(alphas: Optional[str] = None, kind: str = "main", mode: str = "paper") -> Dict[str, Any]:
+    """main: sổ đã kiểm định (READY_FOR_TESTNET). explore: sổ thử nghiệm (EXPLORE_DEMO) — chỉ paper/demo, không bao giờ live."""
     from backend.core.params.presets import alphas_dir
+    from backend.optimize.registry import EXPLORE_STATUS
+    if kind not in BOOKS:
+        raise SystemExit(f"book phải là một trong {BOOKS}")
     base = alphas or alphas_dir()
+    if kind == "explore":
+        base = os.path.join(base, "explore")
     with open(os.path.join(base, "book.json"), encoding="utf-8") as fh:
         book = json.load(fh)
-    if book.get("status") != "READY_FOR_TESTNET":
-        raise SystemExit(f"book.json trạng thái {book.get('status')} — chỉ chạy sổ READY_FOR_TESTNET")
+    want = EXPLORE_STATUS if kind == "explore" else "READY_FOR_TESTNET"
+    if book.get("status") != want:
+        raise SystemExit(f"{base}/book.json trạng thái {book.get('status')} — sổ {kind} cần {want}")
+    if kind == "explore" and mode == "live":
+        raise SystemExit("sổ thử nghiệm (chưa kiểm định đủ) không bao giờ chạy live — chỉ paper/demo")
     return book
 
 
@@ -346,7 +357,7 @@ def run_job(params=None) -> Dict[str, Any]:
         raise SystemExit("mode phải là paper | demo | live")
     if a.mode == "live" and not a.confirm_live:
         raise SystemExit("mode live đặt lệnh bằng VỐN THẬT — cần confirm_live=true")
-    book = load_book()
+    book = load_book(kind=a.book, mode=a.mode)
     client, keys = make_adapter(a.venue, a.mode)
     sdir = a.state_dir or cache_dir(None, "live", f"{a.venue}_{a.mode}")
     os.makedirs(sdir, exist_ok=True)
@@ -374,7 +385,8 @@ def run_job(params=None) -> Dict[str, Any]:
     signal.signal(signal.SIGTERM, lambda *_: stop.update(flag=True))
     step_ms = {"15m": 900_000, "1h": 3_600_000, "4h": 14_400_000}[bot.tf]
     data_ex = book.get("data_exchange", "binance")
-    log({"t": _now_ms(), "kind": "start", "venue": a.venue, "mode": a.mode, "book": book.get("source"), "timeframe": bot.tf,
+    log({"t": _now_ms(), "kind": "start", "venue": a.venue, "mode": a.mode, "book": book.get("source"), "book_kind": a.book,
+         "strategies": [x["id"] for x in book["strategies"]], "unvalidated": book.get("unvalidated", []), "timeframe": bot.tf,
          "symbols": bot.symbols, "data_exchange": data_ex})
     if data_ex != a.venue:
         log({"t": _now_ms(), "kind": "warn", "msg": f"sổ được kiểm định trên dữ liệu {data_ex}, bot chạy trên {a.venue} — tín hiệu có thể lệch"})
