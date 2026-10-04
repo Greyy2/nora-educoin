@@ -99,6 +99,7 @@ class Bot:
         self.symbols = [s.split("@")[0] for s in book["universe"]]
         self.limits = book["risk"]
         self.filters = filters or {}
+        self.blocked: Dict[str, str] = {}      # mã khoá API không được giao dịch (sàn báo thiếu quyền): bỏ qua tới lần khởi động sau
         self.paper = paper or PaperBook(self.strategies, self.symbols, self.tf, capital, self.limits)
 
     # ── dữ liệu ──
@@ -174,8 +175,14 @@ class Bot:
         if why:
             return self.event("skip", symbol=sym, strategy=e["strategy"], reason=why)
         sign = 1 if e["side"] == "LONG" else -1
-        self.client.prepare(sym, int(lev))
-        fill = float(self.client.market_open(sym, e["side"], qty) or price)
+        from backend.live.exchange import NotPermitted
+        try:
+            self.client.prepare(sym, int(lev))
+            fill = float(self.client.market_open(sym, e["side"], qty) or price)
+        except NotPermitted as ex:
+            self.blocked[sym] = str(ex)[-160:]
+            return self.event("warn", symbol=sym, strategy=e["strategy"],
+                              reason="khoá API không có quyền giao dịch mã này — bỏ qua mã (paper vẫn theo dõi); thêm quyền rồi khởi động lại bot")
         ladder, level, m = [], fill, notional / lev
         for step, mult in zip(tr.dca_steps, tr.dca_mults):
             level = level * (1 - sign * step / 100.0)
@@ -256,7 +263,7 @@ class Bot:
             self.event("crit", reason=f"kill switch: vốn {eq:.2f} <= {100 - kill:.0f}% đỉnh {d['peak_equity']:.2f}")
         if not d["halted"]:
             for sym in self.symbols:
-                if sym in d["positions"] or sym in d["external"]:
+                if sym in d["positions"] or sym in d["external"] or sym in self.blocked:
                     continue
                 if len(d["positions"]) >= int(self.limits["max_positions"]):
                     break
@@ -273,6 +280,7 @@ class Bot:
                         self._open_exec(sym, e, i, marks[sym], eq, room, now)
                     break
         d["equity"] = eq
+        d["blocked"] = sorted(self.blocked)
 
     # ── một bước ──
     def step(self, now: int, data: Optional[Dict[str, Dict[str, Any]]] = None, funding: Optional[Dict[str, List]] = None) -> Dict[str, Any]:

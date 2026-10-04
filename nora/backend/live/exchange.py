@@ -23,6 +23,10 @@ class ExchangeError(RuntimeError):
     pass
 
 
+class NotPermitted(ExchangeError):
+    """Khoá API không có quyền giao dịch mã / thị trường này (vd. OKX 50123: mã không nằm trong danh sách Crypto của khoá)."""
+
+
 class BinanceFutures:
     def __init__(self, base_url: str = TESTNET_URL, keys: Optional[Tuple[str, str]] = None, timeout: float = 15.0):
         self.base, self.keys, self.timeout = base_url.rstrip("/"), keys, timeout

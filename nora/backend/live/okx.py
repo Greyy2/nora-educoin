@@ -18,10 +18,11 @@ import urllib.request
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
-from backend.live.exchange import ExchangeError, Filters
+from backend.live.exchange import ExchangeError, Filters, NotPermitted
 from backend.live.secrets import redact
 
 OKX_URL = "https://www.okx.com"
+NOT_PERMITTED = {"50120", "50123", "50124"}   # khoá thiếu quyền: chung / theo mã Crypto / theo thị trường
 BAR = {"15m": "15m", "1h": "1H", "4h": "4H", "24h": "1Dutc"}
 FRAME_MS = {"15m": 900_000, "1h": 3_600_000, "4h": 14_400_000, "24h": 86_400_000}
 
@@ -58,11 +59,17 @@ class OkxAdapter:
             with urllib.request.urlopen(req, timeout=self.timeout) as r:
                 out = json.loads(r.read().decode())
         except urllib.error.HTTPError as e:
-            raise ExchangeError(redact(f"OKX {method} {path} -> {e.code}: {e.read().decode()[:300]}", self.keys)) from None
+            body = e.read().decode()[:300]
+            try:
+                code = str(json.loads(body).get("code"))
+            except ValueError:
+                code = ""
+            err = NotPermitted if code in NOT_PERMITTED else ExchangeError
+            raise err(redact(f"OKX {method} {path} -> {e.code}: {body}", self.keys)) from None
         except urllib.error.URLError as e:
             raise ExchangeError(redact(f"OKX {method} {path} -> {e.reason}", self.keys)) from None
         if str(out.get("code")) != "0":
-            raise ExchangeError(redact(f"OKX {method} {path} -> {out.get('code')}: {out.get('msg')} {json.dumps(out.get('data'))[:300]}", self.keys))
+            raise (NotPermitted if str(out.get("code")) in NOT_PERMITTED else ExchangeError)(redact(f"OKX {method} {path} -> {out.get('code')}: {out.get('msg')} {json.dumps(out.get('data'))[:300]}", self.keys))
         for d in out.get("data") or []:              # lỗi từng lệnh nằm trong data[].sCode
             if isinstance(d, dict) and str(d.get("sCode", "0")) not in ("0", ""):
                 raise ExchangeError(redact(f"OKX {path} -> sCode {d.get('sCode')}: {d.get('sMsg')}", self.keys))

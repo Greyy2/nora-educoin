@@ -360,3 +360,39 @@ def test_stale_state_of_other_book_is_archived(tmp_path):
     lb._archive_stale_state(sdir, spath, {"generated_at": 2})          # sổ mới: cất trạng thái cũ
     left = os.listdir(sdir)
     assert len(left) == 1 and left[0].startswith("archive_") and sorted(os.listdir(tmp_path / left[0])) == ["paper.pkl", "state.json"]
+
+
+def test_symbol_without_api_permission_is_skipped(tmp_path):
+    """Khoá API không được giao dịch AAA (OKX 50123) -> cảnh báo, không vị thế, các nến sau không thử lại AAA; mã khác vẫn đánh."""
+    from backend.live.exchange import NotPermitted
+
+    class Denied(FakeAdapter):
+        def market_open(self, sym, side, qty):
+            if sym == "AAA":
+                self.calls.append(("denied", sym))
+                raise NotPermitted('OKX POST /api/v5/trade/order -> 401: {"code":"50123"}')
+            return super().market_open(sym, side, qty)
+    fake = Denied()
+    flt = {s: Filters(0.01, 0.001, 0.001, 5.0) for s in ("AAA", "BBB")}
+    b, ev = _bot(tmp_path, "demo", fake, flt, BOOK)
+    t0 = 50 * HOUR
+    sig = lambda: {"AAA": _sig(b, "AAA", [t0], match={t0}), "BBB": _sig(b, "BBB", [t0], match={t0})}  # noqa: E731
+    b.step(t0 + HOUR, sig(), {})
+    assert "AAA" not in b.state.d["positions"] and "BBB" in b.state.d["positions"] and b.state.d["blocked"] == ["AAA"]
+    assert any(e["kind"] == "warn" and e.get("symbol") == "AAA" for e in ev)
+    b.step(t0 + 2 * HOUR, sig(), {})
+    assert [c[0] for c in fake.calls].count("denied") == 1
+
+
+def test_okx_permission_error_maps_to_not_permitted(monkeypatch):
+    import io
+    import urllib.error
+    from backend.live import okx
+    from backend.live.exchange import NotPermitted
+    a = okx.OkxAdapter(("K", "S", "P"), demo=True, pause=0)
+
+    def deny(req, timeout=0):
+        raise urllib.error.HTTPError(req.full_url, 401, "x", {}, io.BytesIO(b'{"msg":"no permission for the Crypto","code":"50123"}'))
+    monkeypatch.setattr(okx.urllib.request, "urlopen", deny)
+    with pytest.raises(NotPermitted):
+        a._req("POST", "/api/v5/trade/order", body={}, signed=True)
