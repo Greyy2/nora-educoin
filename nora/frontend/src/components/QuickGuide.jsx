@@ -1,7 +1,6 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 
-export const GUIDE_KEY = 'nora-v2-guide-dismissed'
 
 const STEPS = [
   { to: '/alpha', title: 'Alpha', text: 'Chọn một chiến lược, thử nhiều bộ tham số trên vùng dev1 và xếp hạng theo điểm.' },
@@ -28,21 +27,5 @@ export function GuideSteps({ onNavigate }) {
         Khi nối tài khoản thật, giao diện giữ nguyên.
       </p>
     </>
-  )
-}
-
-/** Thẻ "Hướng dẫn nhanh" trên Danh mục: hiện ở lần đầu, đóng được; nút "?" ở thanh trên mở lại. */
-export default function QuickGuide({ onDismiss }) {
-  return (
-    <section className="n-panel n-guide" aria-label="Hướng dẫn nhanh">
-      <div className="n-panel-h">
-        <h2>Hướng dẫn nhanh</h2>
-        <div className="meta"><button type="button" className="n-btn sm" onClick={onDismiss}>Đã hiểu, ẩn đi</button></div>
-      </div>
-      <div className="n-panel-b">
-        <p className="n-note" style={{ marginBottom: 8 }}>Một vòng kiểm chứng chiến lược gồm 5 bước:</p>
-        <GuideSteps />
-      </div>
-    </section>
   )
 }

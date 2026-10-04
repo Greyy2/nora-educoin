@@ -700,3 +700,4 @@ td .n-resolved-b { min-width: 320px; }
 .n-lv-sel { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; }
 .n-lv-sel .n-field { min-width: 180px; flex: 1 1 180px; max-width: 320px; }
 .n-lv-sum { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+.pf-trades-scroll { max-height: 560px; overflow: auto; }   /* danh sách lệnh: 50 lệnh/trang, cuộn trong khung */

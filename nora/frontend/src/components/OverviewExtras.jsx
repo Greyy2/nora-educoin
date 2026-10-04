@@ -53,11 +53,21 @@ export function FamilyStatsPanel({ rows = [], period, bare = false }) {
 }
 
 /* ─── Danh sách lệnh (lọc / sắp / phân trang / CSV) ──────────────────────────────────────────────────────────── */
-const PAGE = 50
+const PAGE = 50   // lệnh mỗi trang
 const COLS = [
   ['close_time', 'Đóng'], ['enter_time', 'Mở'], ['symbol', 'Tài sản'], ['strategy', 'Chiến lược'], [null, 'Chiều'],
   [null, 'Giá vào → ra'], ['notional', 'Danh nghĩa'], [null, 'Tầng'], ['mae_pct', 'Lỗ treo'], ['pnl', 'Lãi/lỗ'], ['pnl_pct', '% vốn'], [null, 'Lý do đóng'],
 ]
+
+function Pager({ total, offset, onPage }) {
+  return (
+    <div className="n-pager">
+      <button type="button" className="n-btn sm" disabled={offset === 0} onClick={() => onPage(Math.max(0, offset - PAGE))}>‹ Trước</button>
+      <span className="mono">{offset + 1}–{Math.min(total, offset + PAGE)} / {total}</span>
+      <button type="button" className="n-btn sm" disabled={offset + PAGE >= total} onClick={() => onPage(offset + PAGE)}>Sau ›</button>
+    </div>
+  )
+}
 
 export function TradesPanel({ source, jobId, period, bare = false }) {
   const [f, setF] = useState({ strategy: '', symbol: '', side: '', outcome: '', sort: '-close_time', offset: 0 })
@@ -99,8 +109,9 @@ export function TradesPanel({ source, jobId, period, bare = false }) {
         </select>
       </div>
       {st.error && <Empty title="Không tải được danh sách lệnh">{st.error}</Empty>}
+      {total > PAGE && <Pager total={total} offset={f.offset} onPage={(o) => set({ offset: o })} />}
       {d && (
-        <div className="n-tblwrap n-sticky">
+        <div className="n-tblwrap n-sticky pf-trades-scroll">
           <table className="n-tbl">
             <thead>
               <tr>{COLS.map(([k, label]) => (
@@ -132,13 +143,7 @@ export function TradesPanel({ source, jobId, period, bare = false }) {
           </table>
         </div>
       )}
-      {total > PAGE && (
-        <div className="n-pager">
-          <button type="button" className="n-btn sm" disabled={f.offset === 0} onClick={() => set({ offset: Math.max(0, f.offset - PAGE) })}>‹ Trước</button>
-          <span className="mono">{f.offset + 1}–{Math.min(total, f.offset + PAGE)} / {total}</span>
-          <button type="button" className="n-btn sm" disabled={f.offset + PAGE >= total} onClick={() => set({ offset: f.offset + PAGE })}>Sau ›</button>
-        </div>
-      )}
+      {total > PAGE && <Pager total={total} offset={f.offset} onPage={(o) => set({ offset: o })} />}
     </Panel>
   )
 }
