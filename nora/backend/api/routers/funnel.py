@@ -489,6 +489,31 @@ def get_trades(run_id: str, alpha_id: str, stage: Optional[str] = None, fold: Op
         store.close()
 
 
+# ─── Xuất bản sổ chung vốn từ alpha FINAL ──────────────────────────────────
+class FunnelBookRequest(BaseModel):
+    alpha_ids: List[str] = Field(..., min_length=1, max_length=9, description="alpha FINAL, mỗi chiến lược một alpha")
+    risk_per_trade_pct: float = Field(..., gt=0.0, le=5.0)
+    wfa_job_id: str = Field(..., description="job book_wfa (advanced) đã chạy ĐÚNG các cấu hình này ở cùng rủi ro; gate phải qua")
+    dry_run: bool = False
+
+
+@router.post("/runs/{run_id}/book")
+def post_funnel_book(run_id: str, req: FunnelBookRequest):
+    """Job nền funnel_book (optimize/funnel/publish.py): kiểm WFA sổ, chấm holdout MỘT lần, ghi data/alphas/book.json
+    (+ testnet/book.json khi holdout đạt). dry_run: chỉ báo cáo, không ghi."""
+    _open(run_id).close()
+    for a in req.alpha_ids:
+        _alpha_id(a)
+    params = {"run_id": run_id, "alpha_ids": ",".join(req.alpha_ids), "risk_per_trade_pct": req.risk_per_trade_pct,
+              "wfa_job_id": req.wfa_job_id, "dry_run": req.dry_run}
+    try:
+        return {"job_id": batch_jobs.launch("funnel_book", params)}
+    except batch_jobs.JobError as e:
+        raise HTTPException(422, str(e))
+    except batch_jobs.JobBusy as e:
+        raise HTTPException(429, str(e))
+
+
 # ─── Đưa vào kho alpha ──────────────────────────────────────────────────────
 class PromoteRequest(BaseModel):
     confirm: bool = Field(False, description="UI phải xác nhận rõ (true) — không có thì từ chối")

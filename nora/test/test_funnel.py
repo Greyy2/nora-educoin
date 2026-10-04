@@ -727,3 +727,33 @@ def test_effective_trials_clusters_correlated_trials():
     indep = rng.normal(0, 0.01, (300, 20))
     assert antiluck.effective_trials(indep, 20) == 20
     assert antiluck.effective_trials(np.zeros((0, 0)), 50) == 50               # không có mẫu: giữ N (bảo thủ)
+
+
+def test_funnel_book_publish_checks_wfa_and_scores_holdout(full_run, tmp_path):
+    """Xuất bản sổ từ alpha FINAL (optimize/funnel/publish.py): job WFA phải đúng cấu hình + rủi ro + gate qua; holdout chấm một lần;
+    registry.write_book ghi book.json (+ testnet/book.json chỉ khi holdout đạt)."""
+    from backend.optimize.funnel import publish
+    from backend.optimize.registry import write_book
+    store = RunStore(full_run["run_dir"], read_only=True)
+    try:
+        aid = next(a for a, _, _, _ in store.iter_stage_metrics("FINAL"))
+        params = {k: v for k, v in store.get_alpha(aid)["params"].items() if k != "regime"}
+    finally:
+        store.close()
+    wfa = {"candidates": [{"id": "t_long", "configs": [params]}], "risk_per_trade_pct": 0.5, "gate": {"passed": True}, "summary": {"n_folds": 5}}
+    rep = publish.build_report(full_run["run_dir"], [aid], 0.5, wfa)
+    assert [s["id"] for s in rep["book"]["strategies"]] == ["t_long"] and rep["book"]["risk_per_trade_pct"] == 0.5
+    h = rep["book"]["final"]["holdout"]
+    assert set(h) == {"level", "extreme"} and isinstance(rep["book"]["holdout_pass"], bool)
+    assert rep["book"]["holdout_pass"] == (h["level"]["ret_pct"] > 0 and h["extreme"]["ret_pct"] > 0
+                                           and h["level"]["mdd_pct"] <= gates.S6_MAX_MDD_PCT and h["extreme"]["mdd_pct"] <= gates.S6_MAX_MDD_PCT)
+    paths = write_book(rep, str(tmp_path / "alphas"), source="test")
+    book = json.load(open(paths[0], encoding="utf-8"))
+    assert book["status"] == ("READY_FOR_TESTNET" if rep["book"]["holdout_pass"] else "HOLDOUT_FAILED")
+    assert (len(paths) == 2) == rep["book"]["holdout_pass"]
+    for bad in ({**wfa, "risk_per_trade_pct": 1.0}, {**wfa, "gate": {"passed": False}},
+                {**wfa, "candidates": [{"id": "t_long", "configs": [{**params, "sig.lo": -1}]}]}):
+        with pytest.raises(ValueError):
+            publish.build_report(full_run["run_dir"], [aid], 0.5, bad)
+    with pytest.raises(ValueError):
+        publish.build_report(full_run["run_dir"], [aid, aid], 0.5, wfa)                 # mỗi chiến lược một alpha

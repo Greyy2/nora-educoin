@@ -46,7 +46,7 @@ def test_validated_with_lenient_gates_gets_scale_and_keeps_testnet(market, monke
                      S4_STRESS_MAX_MDD_PCT=1000.0, S4_MIN_DAYS=5, S6_MIN_RET_PCT=-1000.0, S6_MAX_MDD_PCT=1000.0).items():
         monkeypatch.setattr(gates, k, v)
     rep = rv.revalidate(rv.load_alpha("rsi_long__AAA", base), WIN)
-    assert rep["status"] == "validated" and rep["final_scale"] == 1.0 and rep["holdout"]["passed"] is True
+    assert rep["status"] == "validated" and rep["final_scale"] == gates.S5_S_MAX and rep["holdout"]["passed"] is True
     assert rep["wfa"]["metrics"]["trades"] > 0
     rv.apply_result(rep, base)
     assert json.load(open(os.path.join(base, "registry.json")))["alphas"][0]["status"] == "validated"

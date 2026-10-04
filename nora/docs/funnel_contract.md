@@ -135,3 +135,10 @@ S5 thêm `final_scale, search_s, search_steps, confirm_attempts`; S6 thêm `extr
 `expectancy_pct`, `max_consec_losses`, `top5_share_pct`, `mae_worst_pct`, `liq_proximity_max_pct`, `liquidations`, `fee_drag_pct`,
 `mdd_daily_pct`, `mdd_intrabar_pct` (S1/S6), `mdd_basis` ("intrabar" ở S1/S6, "daily" ở S3–S5). `GET /alphas?sort=` nhận thêm các khoá này
 (đọc bằng json_extract; thêm "-" để giảm dần). Bảng lệnh có thêm `strategy`, `margin_usd`, `leverage`, `entry_equity`.
+
+## 8. Xuất bản sổ từ alpha FINAL (04/10/2026)
+
+`POST /api/studio/funnel/runs/{run_id}/book` `{alpha_ids: [...], risk_per_trade_pct, wfa_job_id, dry_run}` → job `funnel_book`
+(`backend/optimize/funnel/publish.py`): mỗi chiến lược một alpha FINAL (bỏ khoá regime); `wfa_job_id` phải là job `book_wfa` advanced chạy ĐÚNG các
+cấu hình đó ở cùng rủi ro và gate QUA; holdout (dev2_end → end, khung của lượt) chấm một lần bằng `evaluate_s6` → `registry.write_book` ghi `book.json`
+(READY_FOR_TESTNET + `testnet/book.json` khi đạt, HOLDOUT_FAILED khi trượt). S5 tìm s ∈ [0,2; 3,0] (rủi ro/lệnh tối đa 1,5%).
