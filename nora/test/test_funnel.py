@@ -294,7 +294,7 @@ def test_full_pipeline_stage_transitions_and_storage(full_run):
     store = RunStore(res["run_dir"], read_only=True)
     try:
         for fa in res["final_alphas"]:
-            assert fa["stage_reached"] == "FINAL" and fa["rejected_stage"] is None and 0.2 <= fa["final_scale"] <= 1.0
+            assert fa["stage_reached"] == "FINAL" and fa["rejected_stage"] is None and gates.S5_S_MIN <= fa["final_scale"] <= gates.S5_S_MAX
             a = fa["alpha_id"]
             sm = store.alpha_metrics(a)
             assert set(sm) == set(gates.STAGES[1:])     # có số đo ở mọi tầng S1..FINAL
