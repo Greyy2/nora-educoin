@@ -377,6 +377,7 @@ def run_job(params=None) -> Dict[str, Any]:
             paper = pickle.load(fh)
     state = State(spath, float(a.capital))
     state.d["book"] = book.get("generated_at")
+    state.d["book_kind"] = a.book
     bot = Bot(book, a.mode, client, state, log, filters, paper, float(a.capital))
     if a.mode in EXEC_MODES:
         client.check_account()

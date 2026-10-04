@@ -60,3 +60,38 @@ def bot_status(mode: str = Query("paper", pattern="^(paper|demo|live)$"), venue:
     if state:
         state = {**state, "trades": (state.get("trades") or [])[-100:]}
     return {"venue": venue, "mode": mode, "running": [j.get("id") for j in _running(venue, mode)], "state": state, "events": evs}
+
+
+@router.get("/trades")
+def bot_trades(mode: str = Query("paper", pattern="^(paper|demo|live)$"), venue: str = Query("okx", pattern="^(okx|binance)$"),
+               limit: int = Query(200, ge=1, le=2000)) -> Dict[str, Any]:
+    """Lệnh của bot để xem biểu đồ tín hiệu: lệnh sàn (demo/live: state.json) + lệnh paper (paper.pkl, cùng engine backtest), vị thế đang mở.
+    Thời gian theo ms. book_kind cho biết sổ (main | explore) để gọi POST /api/studio/chart/explain (book + strategy_id)."""
+    import pickle
+    from backend.db.data_layout import cache_dir
+    d = cache_dir(None, "live", f"{venue}_{mode}")
+    state: Dict[str, Any] = {}
+    try:
+        with open(os.path.join(d, "state.json"), encoding="utf-8") as fh:
+            state = json.load(fh)
+    except (OSError, ValueError):
+        pass
+    paper_trades, paper_pos = [], []
+    try:
+        with open(os.path.join(d, "paper.pkl"), "rb") as fh:
+            pb = pickle.load(fh)
+        paper_trades, paper_pos = list(pb.trades)[-limit:], pb.positions()
+    except (OSError, EOFError, pickle.UnpicklingError, AttributeError):
+        pass
+    exec_pos = [{"symbol": s, **p} for s, p in (state.get("positions") or {}).items()]
+    kind = state.get("book_kind")
+    if kind is None:                                   # trạng thái cũ chưa ghi book_kind: nhận theo generated_at của sổ thử nghiệm
+        try:
+            from backend.core.params.presets import alphas_dir
+            with open(os.path.join(alphas_dir(), "explore", "book.json"), encoding="utf-8") as fh:
+                kind = "explore" if json.load(fh).get("generated_at") == state.get("book") else "main"
+        except (OSError, ValueError):
+            kind = "main"
+    return {"venue": venue, "mode": mode, "book_kind": kind, "running": [j.get("id") for j in _running(venue, mode)],
+            "equity": state.get("equity"), "exec": {"trades": (state.get("trades") or [])[-limit:], "positions": exec_pos},
+            "paper": {"trades": paper_trades, "positions": paper_pos, "summary": state.get("paper")}}

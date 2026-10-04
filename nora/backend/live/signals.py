@@ -43,9 +43,11 @@ def _engine(symbol: str, strategies: List[Dict[str, Any]], base_frame: str, star
     return pe._make_trackers(symbol, pe.ledger)
 
 
-def evaluate(symbol: str, strategies: List[Dict[str, Any]], frames: Dict[str, pd.DataFrame], base_frame: str) -> Dict[str, Any]:
+def evaluate(symbol: str, strategies: List[Dict[str, Any]], frames: Dict[str, pd.DataFrame], base_frame: str,
+             with_vec: bool = False) -> Dict[str, Any]:
     """frames = {khung: DataFrame nến đã đóng từ đầu dữ liệu}. -> {"t": open_time nến chạy, "close", "high", "low",
-    "entries": [{"strategy", "side", "match": bool[], "stop": bool[], "vol": float[] | None, "tracker"}]} (mảng theo nến chạy)."""
+    "entries": [{"strategy", "side", "match": bool[], "stop": bool[], "vol": float[] | None, "tracker"}]} (mảng theo nến chạy).
+    with_vec: thêm "vec" (VectorEvaluator trên cùng ma trận) để giải thích từng điều kiện (core/analytics/signal_explain.py)."""
     base = frames[base_frame]
     eng, pairs = _engine(symbol, strategies, base_frame, int(base["open_time"].iloc[0]), int(base["open_time"].iloc[-1]))
     base = eng._prepare_candles(base)
@@ -74,4 +76,6 @@ def evaluate(symbol: str, strategies: List[Dict[str, Any]], frames: Dict[str, pd
         vcol = eng.vol_column(tr)
         out["entries"].append({"strategy": st["id"], "side": st["side"], "match": match, "stop": stop,
                                "vol": cols.get(vcol) if vcol else None, "tracker": tr})
+    if with_vec:
+        out["vec"] = vec
     return out
