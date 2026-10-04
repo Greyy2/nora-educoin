@@ -153,9 +153,9 @@ def test_learn_map_blocks_only_losing_regimes_with_enough_trades():
 
 
 def test_regime_map_is_opposite_trend_deny_list_without_fuse():
-    from backend.core.strategy.book import REGIME_DENY, REGIME_MAP, all_candidates
-    assert set(REGIME_MAP) == {c["id"] for c in all_candidates()}
-    for c in all_candidates():
+    from backend.core.strategy.book import CANDIDATES, REGIME_DENY, REGIME_MAP
+    assert set(REGIME_MAP) == {c["id"] for c in CANDIDATES}
+    for c in CANDIDATES:
         cfg = REGIME_MAP[c["id"]]
         assert cfg["fuse"] is False and set(cfg["allowed"]) == set(rg.NAMES) - set(REGIME_DENY[c["side"]])
 

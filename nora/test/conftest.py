@@ -24,3 +24,11 @@ def _restore_data_root():
     """Một số test gán thẳng os.environ[...]; luôn khôi phục để test sau không dùng thư mục đã bị xoá."""
     yield
     os.environ["NORA_LOCAL_DATA_ROOT"] = _BASE_DATA_ROOT
+
+
+@pytest.fixture(autouse=True)
+def _legacy_candidates(monkeypatch):
+    """Golden / parity / test cơ chế dùng 9 chiến lược cũ: đăng ký vào book.EXTRA_CANDIDATES (BY_ID tra được, danh mục API không đổi)."""
+    from backend.core.strategy import book as sb
+    from legacy_candidates import LEGACY
+    monkeypatch.setattr(sb, "EXTRA_CANDIDATES", list(LEGACY))

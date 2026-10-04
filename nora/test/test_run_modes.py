@@ -20,7 +20,8 @@ from backend.core.params import presets as pr
 from backend.core.params import modes as rm
 from backend.core.params.template import FRAMES, collect_placeholders, collect_string_placeholders, resolve_placeholders
 from backend.core.strategy import book as sb
-from backend.core.strategy.book import BASE_POSITION, BY_ID, CANDIDATES, LEGACY_CANDIDATES, all_candidates, materialize, schema_defaults
+from backend.core.strategy.book import BASE_POSITION, BY_ID, CANDIDATES, materialize, schema_defaults
+from legacy_candidates import LEGACY
 from backend.core.strategy.library import calc, cond, cross_over, cross_under, f, p
 
 
@@ -58,12 +59,12 @@ REAL_CATALOG_TESTS = ("test_real_catalog_", "test_default_resolution_equals_old_
 def _legacy_catalog(request, monkeypatch):
     """Phần lớn test cơ chế (preset, chế độ chạy, kiểm tham số) viết trên 9 chiến lược cũ: chạy chúng trên danh mục cũ; test danh mục thật thì không."""
     if not request.node.name.startswith(REAL_CATALOG_TESTS):
-        monkeypatch.setattr(sb, "CANDIDATES", list(LEGACY_CANDIDATES))
-        monkeypatch.setattr(sb, "LEGACY_CANDIDATES", [])
+        monkeypatch.setattr(sb, "CANDIDATES", list(LEGACY))
+        monkeypatch.setattr(sb, "EXTRA_CANDIDATES", [])
 
 
 # ─── 1. Mẫu tham số hoá ──────────────────────────────────────────────────────
-@pytest.mark.parametrize("cid", [c["id"] for c in all_candidates()])
+@pytest.mark.parametrize("cid", [c["id"] for c in CANDIDATES + LEGACY])
 def test_default_resolution_equals_old_literal_tree(cid):
     c = BY_ID[cid]
     old = resolve_placeholders(OLD_TREES[cid], {})
@@ -75,7 +76,7 @@ def test_default_resolution_equals_old_literal_tree(cid):
     assert json.dumps(materialize(c, {})["tree"]) == json.dumps(old)               # giống từng ký tự (kể cả 20.0 vs 20)
 
 
-@pytest.mark.parametrize("cid", [c["id"] for c in all_candidates()])
+@pytest.mark.parametrize("cid", [c["id"] for c in CANDIDATES + LEGACY])
 def test_default_position_and_signal_params_unchanged(cid):
     c = BY_ID[cid]
     st = materialize(c, {})
@@ -84,7 +85,7 @@ def test_default_position_and_signal_params_unchanged(cid):
     assert st2["signal_params"] == {"adx_min": 25} and st2["position"]["stop_loss_rate"] == 2 and st2["position"]["risk_per_trade_pct"] == 0.75
 
 
-@pytest.mark.parametrize("cid", [c["id"] for c in all_candidates()])
+@pytest.mark.parametrize("cid", [c["id"] for c in CANDIDATES + LEGACY])
 def test_schema_is_well_formed(cid):
     c = BY_ID[cid]
     schema = c["params_schema"]

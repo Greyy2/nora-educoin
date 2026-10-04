@@ -162,10 +162,10 @@ Ngưỡng tham số hoá `{"param": tên, "default": x}` thay bằng `params_tem
 | `KERNEL_STRATEGIES` | 8 | scan Studio |
 | `OPTIMIZATION_SPACES` | 5 (`dca_reversion_long_perp`, `dca_reversion_short_perp`, `trend_long_perp`, `trend_short_perp`, `dex_dip_reversion_spot`) | `optimize_alphas` |
 | `CANDIDATES` (`core/strategy/book.py`) | 6 chân của 3 chiến lược: KEMA (`kema_long`, `kema_short`), Sideway (`sideway_long`, `sideway_short`), DCA (`dca_long`, `dca_short`) | phễu, backtest, sổ |
-| `LEGACY_CANDIDATES` | 9 định nghĩa cũ (`trend_*`, `breakout_4h_*`, `keltner_trend_*`, `momentum_long`, `reversion_*`) | chỉ đọc lại sổ / lượt phễu cũ, bot đang chạy, golden test |
+| `test/legacy_candidates.py` | 9 định nghĩa cũ (`trend_*`, `breakout_4h_*`, `keltner_trend_*`, `momentum_long`, `reversion_*`) | chỉ cho test (golden, parity); conftest đăng ký vào `EXTRA_CANDIDATES` |
 
 Chiến lược (`STRATEGIES`, `GET /api/studio/strategies/catalog`) = logic đánh; mỗi chiến lược có chân LONG / SHORT; "Cả hai" = chạy cả hai chân.
-Một chân + một bộ tham số = một **alpha**. `BY_ID` tra cả chân mới và định nghĩa cũ.
+Một chân + một bộ tham số = một **alpha**. `BY_ID` tra `CANDIDATES` + `EXTRA_CANDIDATES`. Lượt phễu cũ chạy trên id cũ vẫn xem được số liệu/lệnh đã lưu, nhưng không tính lại / vẽ tín hiệu được.
 
 `strategy_book.materialize(candidate, params)` ghép `BASE_POSITION` (perp, đòn bẩy 10, `exit_unit="atr"`, `atr_frame="1h"`, `atr_period=14`,
 `sizing="risk"`, `risk_per_trade_pct=0.5`, `max_notional_pct=300`, `stop_fill="level"`, `cooldown=60`) với tham số ứng viên.
