@@ -7,6 +7,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -14,6 +15,7 @@ from backend.api.routers import book, chart, data, funnel, live, market, portfol
 
 app = FastAPI(title="Nora API", version="3.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(GZipMiddleware, minimum_size=1024)   # JSON thống kê/biểu đồ lớn (vài trăm KB) nén còn ~1/8
 
 app.include_router(book.router)
 app.include_router(book.alphas_router)

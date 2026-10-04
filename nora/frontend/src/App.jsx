@@ -1,14 +1,17 @@
-import React from 'react'
+import React, { Suspense, lazy } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom'
 import Shell from './layout/Shell'
 import { CatalogProvider } from './context/Catalog'
-import Portfolio from './pages/Portfolio'
-import Backtest from './pages/Backtest'
-import AlphaV2 from './pages/Alpha'
-import History from './pages/History'
-import Live from './pages/Live'
-import Funnel from './pages/Funnel'
+import { Loading } from './components/ui'
 import AlphaTabs from './components/AlphaTabs'
+
+// Mỗi trang một chunk: lần đầu chỉ tải trang đang mở (biểu đồ nến chỉ tải khi vào trang có biểu đồ)
+const Portfolio = lazy(() => import('./pages/Portfolio'))
+const Backtest = lazy(() => import('./pages/Backtest'))
+const AlphaV2 = lazy(() => import('./pages/Alpha'))
+const History = lazy(() => import('./pages/History'))
+const Live = lazy(() => import('./pages/Live'))
+const Funnel = lazy(() => import('./pages/Funnel'))
 
 function FunnelRedirect() {
   const { runId } = useParams()
@@ -18,6 +21,7 @@ function FunnelRedirect() {
 function AppRoutes() {
   return (
     <Shell>
+      <Suspense fallback={<Loading what="trang" />}>
       <Routes>
         <Route path="/" element={<Navigate to="/portfolio" replace />} />
         <Route path="/portfolio" element={<Portfolio />} />
@@ -31,6 +35,7 @@ function AppRoutes() {
         <Route path="/history" element={<History />} />
         <Route path="*" element={<Navigate to="/portfolio" replace />} />
       </Routes>
+      </Suspense>
     </Shell>
   )
 }
