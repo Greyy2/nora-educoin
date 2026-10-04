@@ -686,3 +686,33 @@ td .n-resolved-b { min-width: 320px; }
 .n-rg-SURGE { background: var(--n-teal); }
 .n-rg-CRASH { background: var(--n-accent); }
 .n-btn.sm.on { border-color: var(--n-accent); color: var(--n-accent); }
+
+/* ---- biểu đồ giải thích tín hiệu + trang Live ---- */
+.n-sc { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.n-sc-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; font-size: 12px; color: var(--n-ink-2); }
+.n-sc-legend .it, .n-sc-osc-t { display: inline-flex; align-items: center; gap: 6px; }
+.n-sc-legend i, .n-sc-osc-t i { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+.n-sc-main, .n-sc-osc > div:last-child { width: 100%; min-width: 0; border: 1px solid var(--n-line); border-radius: 8px; overflow: hidden; }
+.n-sc-osc { margin-top: 4px; }
+.n-sc-osc-t { font-size: 11.5px; color: var(--n-ink-2); margin-bottom: 2px; }
+.n-sc-sigs { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; max-height: 96px; overflow-y: auto; margin-top: 4px; }
+@media (max-width: 700px) { .n-sc-main { height: 320px !important; } }
+
+.n-ex { display: grid; gap: 12px; min-width: 0; }
+.n-ex-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.n-ex-tree { margin-bottom: 10px; font-size: 12.5px; }
+.n-ex-tree .blk { margin: 4px 0 4px 2px; padding: 6px 10px; list-style: none; border-left: 3px solid var(--n-accent); background: var(--n-surface-2); border-radius: 0 6px 6px 0; display: grid; gap: 3px; }
+.n-ex-tree .or { font-size: 11px; font-weight: 600; color: var(--n-ink-3); margin-left: 4px; }
+.n-ex-tree .and { color: var(--n-ink-3); font-size: 11px; }
+.n-ex-kv { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px 16px; margin: 4px 0 0; }
+.n-ex-kv dt { font-size: 11.5px; color: var(--n-ink-2); }
+.n-ex-kv dd { margin: 0; font-size: 12.5px; overflow-wrap: anywhere; }
+.n-ex-sel { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; margin-bottom: 8px; font-size: 12.5px; }
+.n-ex-tbl td.wrap { white-space: normal; min-width: 180px; }
+.n-ex-tbl .c, .n-tbl th.c { text-align: center; }
+.n-ex-tbl tr.grp td { background: var(--n-surface-2); }
+
+.n-lv { display: grid; gap: 14px; min-width: 0; transition: opacity .15s; }
+.n-lv-sel { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; }
+.n-lv-sel .n-field { min-width: 180px; flex: 1 1 180px; max-width: 320px; }
+.n-lv-sum { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }

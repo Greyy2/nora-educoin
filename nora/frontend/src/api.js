@@ -224,3 +224,9 @@ export const postFunnelPromote = (id, alphaId, note) => request(`${FR}/${enc(id)
 /** Ước tính thời gian S1 trước khi chạy: { per_strategy, total_alphas, sec_per_backtest, workers, s1_eta_s }. */
 export const getFunnelEstimate = ({ strategies, nPerStrategy, fullGrid, workers, timeframe, regime }) =>
   request(`/api/studio/funnel/estimate${qs({ strategies: strategies.join(','), n_per_strategy: fullGrid ? '' : nPerStrategy, full_grid: fullGrid ? 'true' : '', workers, timeframe, regime })}`)
+
+// ---- biểu đồ giải thích tín hiệu + bot live ----
+/** Nến + đường chỉ báo + tín hiệu vào/thoát kèm giá trị từng điều kiện (POST /api/studio/chart/explain). */
+export const explainChart = (body) => request('/api/studio/chart/explain', { method: 'POST', body })
+/** Lệnh + vị thế của bot live theo chế độ (paper/demo/live): sàn + paper, sổ đang chạy, danh sách chiến lược/cặp. */
+export const getLiveTrades = (mode = 'paper', venue = 'okx', limit = 200) => request(`/api/studio/live/trades${qs({ mode, venue, limit })}`)

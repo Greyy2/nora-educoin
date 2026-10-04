@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { Loading, ErrorState, Empty, Status, Spinner } from '../ui'
 import Pager from './Pager'
+import TradeChartDrawer from '../chart/TradeChartDrawer'
 import useAsync from '../../hooks/useAsync'
 import { getFunnelTrades } from '../../api'
 import { stageName, shortId } from '../../lib/funnel'
@@ -8,12 +9,14 @@ import { fmtNum, fmtMoney, fmtSPct, signClass, fullDate, isNum } from '../../lib
 
 const EXIT = { TP: 'Chốt lời', SL: 'Cắt lỗ', TRAIL: 'Trailing', TIMEOUT: 'Hết hạn', CLOSED: 'Đã đóng', OPEN: 'Đang mở' }
 const ts = (iso) => (typeof iso === 'string' && iso.length >= 16 ? `${fullDate(iso.slice(0, 10))} ${iso.slice(11, 16)}` : '—')
+const iso = (v) => { const m = typeof v === 'string' ? Date.parse(v) : NaN; return Number.isNaN(m) ? null : m }
 const price = (v) => (isNum(v) ? fmtNum(v, Math.abs(v) >= 100 ? 2 : 4) : '—')
 
 /** Danh sách lệnh của một alpha ở một tầng. Tầng walk-forward gom theo fold. Lệnh chưa lưu (alpha bị loại ở S1) thì có nút "Tính lại". */
 export default function TradesView({ runId, alphaId, stage, compact = false }) {
   const [fold, setFold] = useState('')
   const [recompute, setRecompute] = useState(false)
+  const [chart, setChart] = useState(null) // lệnh đang mở biểu đồ
   const [pg, setPg] = useState({ offset: 0, limit: compact ? 25 : 50 })
   const q = useAsync(() => getFunnelTrades(runId, alphaId, { stage, fold, offset: pg.offset, limit: pg.limit, recompute: recompute ? 'true' : '' }),
     [runId, alphaId, stage, fold, pg.offset, pg.limit, recompute])
@@ -53,7 +56,7 @@ export default function TradesView({ runId, alphaId, stage, compact = false }) {
     }
     rows.push({ key: `t${i}`, t })
   })
-  const colSpan = 13 + (grouped ? 0 : folds.length ? 1 : 0)
+  const colSpan = 14 + (grouped ? 0 : folds.length ? 1 : 0)
   return (
     <div>
       <div className="n-fn-tools" style={{ marginBottom: 8 }}>
@@ -72,7 +75,7 @@ export default function TradesView({ runId, alphaId, stage, compact = false }) {
         <table className="n-tbl n-fn-tbl">
           <thead>
             <tr><th>Vào lúc</th><th>Đóng lúc</th><th>Cặp</th><th>Hướng</th><th className="r">Giá vào</th><th className="r">Giá ra</th><th className="r">Khối lượng</th>
-              <th className="r">Lãi/lỗ (USD)</th><th className="r">Lãi/lỗ (%)</th><th className="r">Phí</th><th className="r">Funding</th><th>Thoát</th><th className="r">Lớp</th><th className="r">MAE %</th></tr>
+              <th className="r">Lãi/lỗ (USD)</th><th className="r">Lãi/lỗ (%)</th><th className="r">Phí</th><th className="r">Funding</th><th>Thoát</th><th className="r">Lớp</th><th className="r">MAE %</th><th>Biểu đồ</th></tr>
           </thead>
           <tbody>
             {rows.map((r) => r.head ? (
@@ -87,13 +90,19 @@ export default function TradesView({ runId, alphaId, stage, compact = false }) {
                 <td className={`r ${signClass(r.t.pnl_pct)}`}>{fmtSPct(r.t.pnl_pct, 2)}</td>
                 <td className="r">{fmtNum(r.t.fees_usd, 2)}</td><td className={`r ${signClass(-(r.t.funding_usd || 0))}`}>{fmtNum(r.t.funding_usd, 2)}</td>
                 <td title={r.t.status}>{EXIT[r.t.status] || r.t.status || '—'}</td><td className="r">{r.t.layers ?? '—'}</td><td className="r">{isNum(r.t.mae_pct) ? fmtSPct(r.t.mae_pct, 2) : '—'}</td>
+                <td>{iso(r.t.enter_time) != null && <button type="button" className="n-btn sm" onClick={() => setChart(r.t)}>Biểu đồ</button>}</td>
               </tr>
             ))}
-            {!rows.length && <tr><td colSpan={14}><Empty title="Không có lệnh nào" /></td></tr>}
+            {!rows.length && <tr><td colSpan={15}><Empty title="Không có lệnh nào" /></td></tr>}
           </tbody>
         </table>
       </div>
       <Pager total={d.total} offset={pg.offset} limit={pg.limit} onChange={setPg} />
+      {chart && (
+        <TradeChartDrawer open onClose={() => setChart(null)} title={`${String(chart.symbol || '').replace('@perp', '')} ${chart.side} · ${ts(chart.enter_time)}`}
+          request={{ run_id: runId, alpha_id: alphaId, symbol: String(chart.symbol || '').replace('@perp', ''), source: 'data' }}
+          trade={{ enter_ms: iso(chart.enter_time), close_ms: iso(chart.close_time), enter_price: chart.enter_price, close_price: chart.close_price, side: chart.side, reason: EXIT[chart.status] || chart.status, pnl: chart.pnl_usd }} />
+      )}
     </div>
   )
 }
