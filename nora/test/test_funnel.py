@@ -111,7 +111,7 @@ def test_gate_constants_match_existing_gates():
     assert gates.S4_MIN_SIMULATIONS == mc.MC_MIN_SIMULATIONS == 10_000 and gates.S4_MAX_RUIN_PCT == mc.MC_MAX_RUIN_PCT == 5.0
     assert gates.S4_STRESS_MAX_MDD_PCT == mc.STRESS_MAX_MDD_PCT == 50.0 and gates.S4_RUIN_THRESHOLD_PCT == mc.MC_RUIN_THRESHOLD_PCT
     assert (gates.S2_DSR_TOP_FRAC, gates.S2_DSR_TOP_MIN, gates.S2_NEIGHBOUR_MIN_PROFIT_RATIO, gates.S2_PBO_MAX, gates.S2_PBO_BLOCKS) == (0.05, 3, 0.60, 0.5, 16)
-    assert (gates.S5_S_MIN, gates.S5_S_MAX, gates.S5_TOLERANCE) == (0.2, 1.0, 0.01)
+    assert (gates.S5_S_MIN, gates.S5_S_MAX, gates.S5_TOLERANCE) == (0.2, 3.0, 0.01)
     assert gates.STAGES[0] == "S0_generate" and gates.STAGES[-1] == "FINAL" and len(gates.STAGES) == 8
 
 
@@ -221,16 +221,19 @@ def test_sizing_binary_search_and_confirmation():
     def check(s):
         calls.append(s)
         return {"passed": s <= 0.63, "p_mdd_ge_30": 100 * s, "stress_max_mdd": 70 * s}
-    s, steps = sizing.search_scale(check)
+    s, steps = sizing.search_scale(check, hi=1.0)
     assert s == 0.62 and steps[0]["s"] == 1.0 and not steps[0]["passed"] and steps[1]["s"] == 0.2
     assert all(0.2 <= x <= 1.0 for x in calls) and abs(max(x["s"] for x in steps if x["passed"]) - 0.63) <= 0.01
-    assert sizing.search_scale(lambda s: {"passed": True})[0] == 1.0
+    assert sizing.search_scale(lambda s: {"passed": True})[0] == 3.0                # trần mặc định S5_S_MAX
+    assert 1.69 <= sizing.search_scale(lambda s: {"passed": s <= 1.7})[0] <= 1.7
     assert sizing.search_scale(lambda s: {"passed": False})[0] is None            # s < 0,2 -> loại
     assert sizing.search_scale(lambda s: {"passed": s <= 0.2})[0] == 0.2
     # xác nhận thật trượt ở s đầu -> hạ từng bước 0,05 tới khi qua
     s2, att = sizing.confirm_with_stepdown(0.62, lambda s: {"passed": s <= 0.52})
     assert s2 == 0.52 and [round(a["s"], 2) for a in att] == [0.62, 0.57, 0.52]
     assert sizing.confirm_with_stepdown(0.3, lambda s: {"passed": False})[0] is None
+    s3, att3 = sizing.confirm_with_stepdown(3.0, lambda s: {"passed": s <= 1.5})   # s > 1: hạ 15% mỗi bước, không dưới 1 trước khi trừ 0,05
+    assert [a["s"] for a in att3] == [3.0, 2.55, 2.17, 1.84, 1.56, 1.33] and s3 == 1.33
     assert sizing.confirm_with_stepdown(0.21, lambda s: {"passed": s < 0.2})[0] is None   # s < S_MIN: dừng
     pos = {"sizing": "risk", "risk_per_trade_pct": 0.5}
     assert sizing.scale_position(pos, 0.4)["risk_per_trade_pct"] == 0.2

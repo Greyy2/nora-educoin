@@ -75,10 +75,11 @@ S4_SEED = 1
 
 # ── S5: khối lượng sống sót ─────────────────────────────────────────────────
 S5_S_MIN = 0.2                      # s < 0,2 -> loại
-S5_S_MAX = 1.0
+S5_S_MAX = 3.0                      # rủi ro/lệnh tối đa 1,5% (= 0,5% × 3); trước 04/10/2026 là 1,0 (alpha FINAL đều chạm trần, MC còn dư nhiều)
 S5_TOLERANCE = 0.01                 # dung sai tìm nhị phân
-S5_CONFIRM_STEP = 0.05              # xác nhận trượt (backtest/WFA/MC thật ở s) -> hạ s thêm từng bước này rồi xác nhận lại
-S5_CONFIRM_MAX_TRIES = 4
+S5_CONFIRM_STEP = 0.05              # xác nhận trượt (backtest/WFA/MC thật ở s) -> hạ s thêm từng bước này rồi xác nhận lại (khi s <= 1)
+S5_CONFIRM_REL_STEP = 0.15          # s > 1: hạ 15% mỗi bước (bước tuyệt đối 0,05 quá chậm khi tìm trên [0,2; 3])
+S5_CONFIRM_MAX_TRIES = 8
 
 # ── S6: holdout (20% cuối), chấm MỘT lần ở hệ số s ──────────────────────────
 S6_MIN_RET_PCT = 0.0                # lãi > 0 ở cả khớp "level" và "extreme"

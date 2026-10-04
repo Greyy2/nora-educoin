@@ -63,7 +63,8 @@ def search_scale(check: Check, lo: Optional[float] = None, hi: Optional[float] =
 
 def confirm_with_stepdown(s0: float, confirm: Callable[[float], Dict[str, Any]], step: Optional[float] = None,
                           max_tries: Optional[int] = None, s_min: Optional[float] = None) -> Tuple[Optional[float], List[Dict[str, Any]]]:
-    """Xác nhận ở s0; trượt thì s -= step (tối đa max_tries lần thử, s không xuống dưới s_min). confirm(s) -> {"passed": bool, ...}.
+    """Xác nhận ở s0; trượt thì hạ s (s <= 1: trừ step; s > 1: nhân (1 − S5_CONFIRM_REL_STEP)), tối đa max_tries lần thử, s không xuống
+    dưới s_min. confirm(s) -> {"passed": bool, ...}.
     -> (s đã xác nhận hoặc None, các lần thử [{s, passed, ...}]). Hết lượt/ s < s_min -> None."""
     step = gates.S5_CONFIRM_STEP if step is None else step
     max_tries = gates.S5_CONFIRM_MAX_TRIES if max_tries is None else max_tries
@@ -77,5 +78,5 @@ def confirm_with_stepdown(s0: float, confirm: Callable[[float], Dict[str, Any]],
         attempts.append({"s": s, **r})
         if r["passed"]:
             return s, attempts
-        s = round(s - step, 4)
+        s = round(s - step, 4) if s <= 1.0 + 1e-9 else max(1.0, round(s * (1.0 - gates.S5_CONFIRM_REL_STEP), 2))
     return None, attempts
