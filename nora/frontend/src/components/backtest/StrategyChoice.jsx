@@ -23,9 +23,10 @@ export default function StrategyChoice({ strategies, sel, multi = false, onPick,
                   <input type={multi ? 'checkbox' : 'radio'} name="bt-strategy" checked={on} onChange={() => onPick(c)} />
                   <span className="n-sc-body">
                     <span className="n-sc-top">
-                      <span className="id">{c.id}</span>
+                      <span className="id">{c.variant || c.id}</span>
                       <span className={`n-badge ${String(c.side).toLowerCase()}`}>{c.side}</span>
                     </span>
+                    {c.variant && <span className="muted mono" style={{ fontSize: 11 }}>{c.id}</span>}
                     <span className="ds">{c.description}</span>
                   </span>
                 </label>

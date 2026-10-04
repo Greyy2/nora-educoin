@@ -152,7 +152,7 @@ def _reversion_schema(side_key, side_default, side_lo, side_hi, side_label):
 
 CANDIDATES: List[Dict[str, Any]] = [
     {
-        "id": "trend_long", "family": "Theo xu hướng", "side": "LONG",
+        "id": "trend_long", "family": "Theo xu hướng (trend following)", "variant": "EMA + ADX + phá đỉnh Donchian", "side": "LONG",
         "description": "1h EMA50 > EMA200, ADX14 > ngưỡng, 15m close CẮT LÊN đỉnh 20 nến trước (sự kiện phá đỉnh). Thoát: SL + trailing theo ATR.",
         "tree": cond((f("{trend_tf}", "ema_{ema_fast}"), ">", f("{trend_tf}", "ema_{ema_slow}")),
                      (f("{trend_tf}", "adx_{adx_n}"), ">", p("adx_min", 20)),
@@ -163,7 +163,7 @@ CANDIDATES: List[Dict[str, Any]] = [
         "params_schema": _trend_schema(2.5, 3.0, 1.0, 4320),
     },
     {
-        "id": "trend_short", "family": "Theo xu hướng", "side": "SHORT",
+        "id": "trend_short", "family": "Theo xu hướng (trend following)", "variant": "EMA + ADX + phá đáy Donchian", "side": "SHORT",
         "description": "Đối xứng trend_long.",
         "tree": cond((f("{trend_tf}", "ema_{ema_fast}"), "<", f("{trend_tf}", "ema_{ema_slow}")),
                      (f("{trend_tf}", "adx_{adx_n}"), ">", p("adx_min", 20)),
@@ -174,7 +174,7 @@ CANDIDATES: List[Dict[str, Any]] = [
         "params_schema": _trend_schema(2.5, 3.0, 1.0, 4320),
     },
     {
-        "id": "breakout_4h_long", "family": "Theo xu hướng (Turtle)", "side": "LONG",
+        "id": "breakout_4h_long", "family": "Theo xu hướng (trend following)", "variant": "Phá kênh Donchian kiểu Turtle", "side": "LONG",
         "description": "4h EMA50 > EMA200 và close 4h CẮT LÊN đỉnh 20 nến 4h trước. ATR khung 4h.",
         "tree": cond((f("{signal_tf}", "ema_{ema_fast}"), ">", f("{signal_tf}", "ema_{ema_slow}")),
                      *cross_over(f("{signal_tf}", "close"), f("{signal_tf}", "dch_{dch_n}"))),
@@ -184,7 +184,7 @@ CANDIDATES: List[Dict[str, Any]] = [
         "params_schema": _breakout_schema(),
     },
     {
-        "id": "breakout_4h_short", "family": "Theo xu hướng (Turtle)", "side": "SHORT",
+        "id": "breakout_4h_short", "family": "Theo xu hướng (trend following)", "variant": "Phá kênh Donchian kiểu Turtle", "side": "SHORT",
         "description": "Đối xứng breakout_4h_long.",
         "tree": cond((f("{signal_tf}", "ema_{ema_fast}"), "<", f("{signal_tf}", "ema_{ema_slow}")),
                      *cross_under(f("{signal_tf}", "close"), f("{signal_tf}", "dcl_{dch_n}"))),
@@ -194,7 +194,7 @@ CANDIDATES: List[Dict[str, Any]] = [
         "params_schema": _breakout_schema(),
     },
     {
-        "id": "keltner_trend_long", "family": "Theo xu hướng (Keltner)", "side": "LONG",
+        "id": "keltner_trend_long", "family": "Theo xu hướng (trend following)", "variant": "Kênh Keltner – KEMA (sova)", "side": "LONG",
         "description": "Close cắt LÊN dải trên Keltner (EMA + k×ATR) -> mua; thoát khi close cắt XUỐNG dải dưới (đảo chiều xu hướng) "
                        "hoặc chạm SL theo ATR. Lối đánh trend-following của KEMA (sova).",
         "tree": cond(*cross_over(_KC_CLOSE, _KC_UP)),
@@ -205,7 +205,7 @@ CANDIDATES: List[Dict[str, Any]] = [
         "params_schema": _keltner_schema(),
     },
     {
-        "id": "keltner_trend_short", "family": "Theo xu hướng (Keltner)", "side": "SHORT",
+        "id": "keltner_trend_short", "family": "Theo xu hướng (trend following)", "variant": "Kênh Keltner – KEMA (sova)", "side": "SHORT",
         "description": "Đối xứng keltner_trend_long: close cắt XUỐNG dải dưới -> bán; thoát khi close cắt LÊN dải trên hoặc chạm SL.",
         "tree": cond(*cross_under(_KC_CLOSE, _KC_DN)),
         "stop": cond(*cross_over(_KC_CLOSE, _KC_UP)),

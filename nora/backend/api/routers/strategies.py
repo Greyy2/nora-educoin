@@ -26,7 +26,7 @@ class ValidateRequest(BaseModel):
 @router.get("/")
 def get_strategies() -> List[Dict[str, Any]]:
     presets = presets_mod.load_presets()
-    return [{"id": c["id"], "family": c["family"], "side": c["side"], "description": c["description"],
+    return [{"id": c["id"], "family": c["family"], "variant": c.get("variant"), "side": c["side"], "description": c["description"],
              "params_schema": c["params_schema"], "preset": presets[c["id"]], "frames_allowed": list(FRAMES)}
             for c in CANDIDATES]
 

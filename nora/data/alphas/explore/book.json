@@ -159,7 +159,7 @@
   "strategies": [
     {
       "id": "breakout_4h_long",
-      "family": "Theo xu hướng (Turtle)",
+      "family": "Theo xu hướng (trend following)",
       "side": "LONG",
       "description": "4h EMA50 > EMA200 và close 4h CẮT LÊN đỉnh 20 nến 4h trước. ATR khung 4h.",
       "params": {
@@ -783,11 +783,12 @@
             "halted": false
           }
         }
-      }
+      },
+      "variant": "Phá kênh Donchian kiểu Turtle"
     },
     {
       "id": "breakout_4h_short",
-      "family": "Theo xu hướng (Turtle)",
+      "family": "Theo xu hướng (trend following)",
       "side": "SHORT",
       "description": "Đối xứng breakout_4h_long.",
       "params": {
@@ -1411,11 +1412,12 @@
             "halted": false
           }
         }
-      }
+      },
+      "variant": "Phá kênh Donchian kiểu Turtle"
     },
     {
       "id": "keltner_trend_long",
-      "family": "Theo xu hướng (Keltner)",
+      "family": "Theo xu hướng (trend following)",
       "side": "LONG",
       "description": "Close cắt LÊN dải trên Keltner (EMA + k×ATR) -> mua; thoát khi close cắt XUỐNG dải dưới (đảo chiều xu hướng) hoặc chạm SL theo ATR. Lối đánh trend-following của KEMA (sova).",
       "params": {
@@ -2048,7 +2050,8 @@
             "halted": false
           }
         }
-      }
+      },
+      "variant": "Kênh Keltner – KEMA (sova)"
     },
     {
       "id": "momentum_long",
@@ -2674,7 +2677,7 @@
     },
     {
       "id": "trend_long",
-      "family": "Theo xu hướng",
+      "family": "Theo xu hướng (trend following)",
       "side": "LONG",
       "description": "1h EMA50 > EMA200, ADX14 > ngưỡng, 15m close CẮT LÊN đỉnh 20 nến trước (sự kiện phá đỉnh). Thoát: SL + trailing theo ATR.",
       "params": {
@@ -3313,11 +3316,12 @@
             "halted": false
           }
         }
-      }
+      },
+      "variant": "EMA + ADX + phá đỉnh Donchian"
     },
     {
       "id": "trend_short",
-      "family": "Theo xu hướng",
+      "family": "Theo xu hướng (trend following)",
       "side": "SHORT",
       "description": "Đối xứng trend_long.",
       "params": {
@@ -3941,11 +3945,12 @@
             "halted": false
           }
         }
-      }
+      },
+      "variant": "EMA + ADX + phá đáy Donchian"
     },
     {
       "id": "keltner_trend_short",
-      "family": "Theo xu hướng (Keltner)",
+      "family": "Theo xu hướng (trend following)",
       "side": "SHORT",
       "description": "Đối xứng keltner_trend_long: close cắt XUỐNG dải dưới -> bán; thoát khi close cắt LÊN dải trên hoặc chạm SL.",
       "params": {
@@ -4560,7 +4565,8 @@
             "halted": false
           }
         }
-      }
+      },
+      "variant": "Kênh Keltner – KEMA (sova)"
     },
     {
       "id": "reversion_long",
