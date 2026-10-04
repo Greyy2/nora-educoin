@@ -50,6 +50,7 @@ KINDS: Dict[str, Dict[str, Any]] = {
     "presets_build": {"module": "backend.core.params.presets", "params": set()},
     "mock_feeds": {"module": "backend.core.analytics.feeds", "params": {"only"}},
     "data_crawl": {"module": "backend.core.data.crawler", "params": {"symbols", "market", "years", "output_dir"}},   # output_dir do router đặt
+    "data_crawl_okx": {"module": "backend.core.data.okx_crawler", "params": {"symbols", "years", "output_dir"}},
     "data_promote": {"module": "backend.core.data.promote", "params": {"apply", "archive_legacy"}},
     "alpha_revalidate": {"module": "backend.optimize.revalidate", "params": {"alpha_id", "apply"}},
     "regime_report": {"module": "backend.core.regime.report", "params": {"symbols", "start", "end", "event_pct", "backtest", "timeframe"}},
@@ -545,6 +546,8 @@ def job_label(kind: str, params: Optional[Dict[str, Any]]) -> str:
         return f"Feed giả lập · {p.get('only') or 'live + testnet'}"
     if kind == "data_crawl":
         return f"Tải dữ liệu · {_names(p.get('symbols'))} · {p.get('market', 'spot')} · {p.get('years', 3)} năm"
+    if kind == "data_crawl_okx":
+        return f"Tải dữ liệu OKX · {_names(p.get('symbols'))} · perp · {p.get('years', 3)} năm"
     if kind == "data_promote":
         return f"Đưa dữ liệu staging vào kho · {'thực hiện' if p.get('apply') else 'xem trước'}"
     return f"Dựng sổ · {_names(p.get('only')) or 'mọi chiến lược'} · n={p.get('n') or 24}"

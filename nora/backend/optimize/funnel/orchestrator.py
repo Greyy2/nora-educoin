@@ -610,7 +610,8 @@ def run_funnel(cfg: FunnelConfig, run_id: Optional[str] = None, workers: int = 0
     store = RunStore(run_dir)
     progress = Progress(run_dir)
     job_dir = os.environ.get("NORA_JOB_DIR")
-    cfg_out = {**cfg.to_dict(), "windows": windows_iso(windows), **git_info(),
+    from backend.db.data_layout import exchange
+    cfg_out = {**cfg.to_dict(), "windows": windows_iso(windows), **git_info(), "data_exchange": exchange(),
                "data_sha256": hashlib.sha256(json.dumps(data_fingerprint(cfg.symbols), sort_keys=True).encode()).hexdigest(),
                "thresholds": gates.thresholds_snapshot()}
     store.update_run({"run_id": run_id, "job_id": os.path.basename(job_dir) if job_dir else old.get("job_id"), "status": "running",

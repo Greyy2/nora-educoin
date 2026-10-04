@@ -344,8 +344,11 @@ def run_job(params=None) -> Dict[str, Any]:
     stop = {"flag": False}
     signal.signal(signal.SIGTERM, lambda *_: stop.update(flag=True))
     step_ms = {"15m": 900_000, "1h": 3_600_000, "4h": 14_400_000}[bot.tf]
+    data_ex = book.get("data_exchange", "binance")
     log({"t": _now_ms(), "kind": "start", "venue": a.venue, "mode": a.mode, "book": book.get("source"), "timeframe": bot.tf,
-         "symbols": bot.symbols})
+         "symbols": bot.symbols, "data_exchange": data_ex})
+    if data_ex != a.venue:
+        log({"t": _now_ms(), "kind": "warn", "msg": f"sổ được kiểm định trên dữ liệu {data_ex}, bot chạy trên {a.venue} — tín hiệu có thể lệch"})
     n, res = 0, {}
     while not stop["flag"]:
         now = _now_ms() // step_ms * step_ms

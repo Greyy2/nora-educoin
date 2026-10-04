@@ -1,6 +1,10 @@
 """Kiến trúc thư mục dữ liệu thị trường (market data) — một nơi duy nhất quyết định đường dẫn.
 
-    nora/data/
+Từ 04/10/2026 dữ liệu tách theo SÀN: nora/data/<sàn>/{cex,dex}/... — okx (sàn triển khai, mặc định) và binance (tham khảo).
+Chọn sàn: biến môi trường NORA_EXCHANGE (okx | binance). NORA_LOCAL_DATA_ROOT (test) ghi đè cả gốc.
+Cache tính toán (_cache) và kho alpha (alphas) dùng chung, nằm ở nora/data/ (không theo sàn).
+
+    nora/data/<okx|binance>/
     ├── cex/                    # sàn tập trung — nguồn gốc là NẾN (kline) chính thức của sàn
     │   └── <SYM>/              #   vd. BTC/  = spot (exchange, market_symbol ghi trong manifest.json)
     │       └── perp/           #   BTC@perp = USDT-M perpetual: nến 1m... + funding.pkl + manifest.json
@@ -13,8 +17,12 @@
     │       ├── ticks.parquet   #   swap thật (nếu có; khai báo trong manifest["ticks"])
     │       ├── dex_pool.json   #   metadata pool
     │       └── manifest.json   #   venue="dex"
-    ├── _meta/                  # danh sách target crawl, cấu hình nguồn (không phải tài sản)
-    └── _cache/                 # cache tính toán (research ...), xoá được bất kỳ lúc nào
+    nora/data/_meta/            # danh sách target crawl, cấu hình nguồn (không phải tài sản)
+    nora/data/_cache/           # cache tính toán (research, funnel, job ...), xoá được bất kỳ lúc nào
+    nora/data/alphas/           # kho alpha / sổ (book.json ghi data_exchange)
+
+okx/cex/<SYM>/perp: OKX USDT-SWAP (core/data/okx_crawler.py) — nến 1m từ file ngày chính thức + REST; funding OKX, khoảng trống lấp bằng
+proxy Binance (manifest.funding.sources / proxy_ranges). binance/cex: Binance USDT-M (core/data/crawler.py), binance/dex: DEX (lịch sử).
 
 Quy ước:
 - Thư mục bắt đầu bằng '.' hoặc '_' không phải tài sản.
@@ -36,14 +44,40 @@ class AmbiguousSymbolError(ValueError):
     """Cùng một ký hiệu tồn tại ở cả cex/ và dex/ mà không chỉ rõ venue."""
 
 
-def default_data_root() -> str:
-    """Thư mục gốc dữ liệu thị trường. NORA_LOCAL_DATA_ROOT (NORA_DATA_ROOT giữ để tương thích)."""
+DATA_HOME = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data"))
+EXCHANGES = ("okx", "binance")
+DEFAULT_EXCHANGE = "okx"
+
+
+def exchange() -> str:
+    """Sàn của dữ liệu thị trường đang dùng (NORA_EXCHANGE, mặc định okx)."""
+    ex = (os.environ.get("NORA_EXCHANGE") or DEFAULT_EXCHANGE).strip().lower()
+    if ex not in EXCHANGES:
+        raise ValueError(f"NORA_EXCHANGE phải là một trong {EXCHANGES}, nhận {ex!r}")
+    return ex
+
+
+def exchange_root(ex: Optional[str] = None) -> str:
+    """Gốc dữ liệu của một sàn: nora/data/<ex> (mặc định sàn đang dùng). NORA_LOCAL_DATA_ROOT (NORA_DATA_ROOT giữ để tương thích) ghi đè."""
     env = os.environ.get("NORA_LOCAL_DATA_ROOT") or os.environ.get("NORA_DATA_ROOT")
-    return env or os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data"))
+    return env or os.path.join(DATA_HOME, ex or exchange())
+
+
+def default_data_root() -> str:
+    """Thư mục gốc dữ liệu thị trường của sàn đang dùng."""
+    return exchange_root()
+
+
+def exchange_of(manifest: Optional[dict]) -> str:
+    """Sàn của một tài sản theo manifest ("okx_swap" -> okx, "binance_usdm" -> binance); không rõ (DEX...) -> sàn đang dùng."""
+    ex = str((manifest or {}).get("exchange") or "").lower()
+    return next((e for e in EXCHANGES if ex.startswith(e)), exchange())
 
 
 def cache_dir(data_root: Optional[str] = None, *parts: str) -> str:
-    path = os.path.join(data_root or default_data_root(), "_cache", *parts)
+    """Cache tính toán: nora/data/_cache (dùng chung mọi sàn); khi NORA_LOCAL_DATA_ROOT đặt (test) thì nằm dưới gốc đó."""
+    env = os.environ.get("NORA_LOCAL_DATA_ROOT") or os.environ.get("NORA_DATA_ROOT")
+    path = os.path.join(data_root or env or DATA_HOME, "_cache", *parts)
     os.makedirs(path, exist_ok=True)
     return path
 
@@ -97,12 +131,15 @@ def list_assets(data_root: Optional[str] = None) -> List[Dict[str, str]]:
         if is_asset_dir(path):
             found.append({"symbol": name.upper(), "venue": "legacy", "path": path})
 
-    for item in list(found):  # instrument lồng bên trong: cex/<SYM>/perp
-        for inst in INSTRUMENTS:
-            sub = os.path.join(item["path"], inst)
-            if item["venue"] in VENUES and os.path.isdir(sub) and "manifest.json" in os.listdir(sub):
-                found.append({"symbol": f"{item['symbol']}@{inst}", "venue": item["venue"], "path": sub,
-                              "instrument": inst})
+    for venue in VENUES:  # instrument lồng bên trong: cex/<SYM>/perp (thư mục <SYM> có thể không có manifest riêng)
+        vdir = os.path.join(root, venue)
+        for name in sorted(os.listdir(vdir)) if os.path.isdir(vdir) else []:
+            if name.startswith((".", "_")):
+                continue
+            for inst in INSTRUMENTS:
+                sub = os.path.join(vdir, name, inst)
+                if os.path.isdir(sub) and "manifest.json" in os.listdir(sub):
+                    found.append({"symbol": f"{name.upper()}@{inst}", "venue": venue, "path": sub, "instrument": inst})
 
     counts: Dict[str, int] = {}
     for item in found:

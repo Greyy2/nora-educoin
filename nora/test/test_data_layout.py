@@ -106,8 +106,8 @@ def test_promote_job_places_assets_by_venue(tmp_path):
     os.rename(staging / "cex" / "ETH", staging / "ETH")  # staging là phẳng, venue lấy từ manifest
     from backend.core.data import promote
     promote.run_job({"staging": str(staging), "data": str(data), "apply": True})
-    assert os.path.isfile(data / "cex" / "ETH" / "manifest.json")
-    assert json.load(open(data / "cex" / "ETH" / "manifest.json"))["venue"] == "cex"
+    assert os.path.isfile(data / "binance" / "cex" / "ETH" / "manifest.json")
+    assert json.load(open(data / "binance" / "cex" / "ETH" / "manifest.json"))["venue"] == "cex"
 
 
 def test_instrument_symbol_never_falls_back_to_spot(layout):

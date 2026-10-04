@@ -48,6 +48,10 @@ def build_report(run_dir: str, alpha_ids: List[str], rpt: float, wfa: Dict[str, 
         st.close()
     cfg, w = run_info["config"], run_info["windows_ms"]
     tf = cfg.get("timeframe", "1m")
+    from backend.db.data_layout import exchange
+    data_ex = cfg.get("data_exchange", "binance")           # run trước khi tách dữ liệu theo sàn = dữ liệu Binance
+    if data_ex != exchange():
+        raise ValueError(f"run phễu chạy trên dữ liệu {data_ex}, đang dùng {exchange()} (NORA_EXCHANGE) — holdout phải cùng dữ liệu")
     wfa_items = sorted((s["id"], s["configs"][0]) for s in wfa.get("candidates") or [] if s.get("configs"))
     want = sorted((i["id"], {k: v for k, v in i["params"].items()}) for i in items)
     if [x[0] for x in wfa_items] != [x[0] for x in want] or any(
@@ -64,6 +68,7 @@ def build_report(run_dir: str, alpha_ids: List[str], rpt: float, wfa: Dict[str, 
     ok, code, msg = gates.evaluate_s6(hold["level"], hold["extreme"])
     return {
         "timeframe": tf,
+        "data_exchange": data_ex,
         "windows": gates.windows_iso(w),
         "gates": {"funnel_thresholds": cfg.get("thresholds"), "wfa_gate": wfa["gate"], "holdout": {"min_ret_pct": gates.S6_MIN_RET_PCT,
                                                                                                       "max_mdd_pct": gates.S6_MAX_MDD_PCT}},

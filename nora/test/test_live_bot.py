@@ -225,12 +225,13 @@ def test_okx_adapter_signing_contracts_and_candle_paging(monkeypatch):
     def req(method, path, params=None, body=None, signed=False):
         calls.append((path, dict(params or {})))
         if path.endswith("/candles"):
-            return [[str(1000 * H - k * H), "1", "2", "0.5", "1.5", "10"] for k in range(300)]
+            return [[str(1000 * H - k * H), "1", "2", "0.5", "1.5", "10", "0.1", "15", "1"] for k in range(300)]
         after = int(params["after"])
-        return [[str(after - (k + 1) * H), "1", "2", "0.5", "1.5", "10"] for k in range(100)]
+        return [[str(after - (k + 1) * H), "1", "2", "0.5", "1.5", "10", "0.1", "15", "1"] for k in range(100)]
     a._req = req
     rows = a.klines("BTC", "1h", 450, now=1001 * H)
     assert len(rows) == 450 and rows[-1][0] == 1000 * H and rows[0][0] == 1000 * H - 449 * H and rows[0][6] == rows[0][0] + H - 1
+    assert rows[0][5] == "15"                       # volume = volCcyQuote (USDT) như dữ liệu backtest, không phải số hợp đồng
     assert [c[1]["bar"] for c in calls] == ["1H"] * 3 and calls[1][1]["after"] == 1000 * H - 299 * H
     assert a.klines("BTC", "24h", 10, now=1001 * H) and calls[-1][1]["bar"] == "1Dutc"
 

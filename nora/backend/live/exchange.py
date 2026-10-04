@@ -142,7 +142,8 @@ class BinanceAdapter:
         return self._f[sym]
 
     def klines(self, sym: str, frame: str, limit: int, now: int) -> List[List[Any]]:
-        return self.c.klines(f"{sym}USDT", frame, limit)
+        """-> [[open_time, o, h, l, c, quote_volume, close_time]]: volume theo USDT như dữ liệu backtest (r[5] của Binance là base)."""
+        return [[r[0], r[1], r[2], r[3], r[4], r[7], r[6]] for r in self.c.klines(f"{sym}USDT", frame, limit)]
 
     def funding(self, sym: str, since: int) -> List[Tuple[int, float]]:
         return [(int(r["fundingTime"]), float(r["fundingRate"])) for r in self.c.funding(f"{sym}USDT", since)]

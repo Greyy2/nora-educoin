@@ -91,7 +91,7 @@ class OkxAdapter:
 
     # ── dữ liệu thị trường ──
     def klines(self, sym: str, frame: str, limit: int, now: int) -> List[List[Any]]:
-        """-> [[open_time, o, h, l, c, vol, close_time]] tăng dần, tối đa `limit` nến (gồm cả nến đang chạy — signals.klines_frame bỏ)."""
+        """-> [[open_time, o, h, l, c, quote_volume, close_time]] tăng dần (volume = volCcyQuote, USDT như dữ liệu backtest), tối đa `limit` nến (gồm cả nến đang chạy — signals.klines_frame bỏ)."""
         key = (sym, frame)
         cache = self._candles.setdefault(key, {})
         step = FRAME_MS[frame]
@@ -99,7 +99,7 @@ class OkxAdapter:
         def add(rows):
             for r in rows:
                 t = int(r[0])
-                cache[t] = [t, r[1], r[2], r[3], r[4], r[5], t + step - 1]
+                cache[t] = [t, r[1], r[2], r[3], r[4], r[7], t + step - 1]
         add(self._req("GET", "/api/v5/market/candles", {"instId": inst(sym), "bar": BAR[frame], "limit": 300}))
         after = min(cache) if cache else now
         while len(cache) < limit:

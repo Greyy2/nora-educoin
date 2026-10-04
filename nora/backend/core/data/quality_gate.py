@@ -248,14 +248,15 @@ def _evaluate_data_quality_uncached(
         }
 
     # 7. Bước nhảy giá > 50% trong 1 phút.
-    #    - Dữ liệu CEX chính thức đã kiểm checksum (vd. Binance data.binance.vision): đây là
+    #    - Dữ liệu CEX chính thức (Binance data.binance.vision đã kiểm checksum, hoặc API chính thức của sàn — OKX history-candles): đây là
     #      sự kiện thị trường THẬT (vd. cú sập thanh lý 2025-10-10) -> WARNING + liệt kê thời điểm,
     #      KHÔNG chặn (loại sự kiện rủi ro thật khỏi backtest làm Monte Carlo lạc quan sai).
     #    - Nguồn khác (DEX / chưa kiểm chứng): có thể là lỗi dữ liệu -> chặn.
     pct_1m = df_1m["close"].pct_change().abs()
     jump_mask = pct_1m > 0.50
     if jump_mask.any():
-        verified_cex = str(manifest.get("venue", "")).lower() == "cex" and manifest.get("checksums_verified") is True
+        verified_cex = str(manifest.get("venue", "")).lower() == "cex" and (manifest.get("checksums_verified") is True
+                                                                           or manifest.get("official_api") is True)
         if not verified_cex:
             return {
                 "symbol": symbol,
@@ -267,7 +268,7 @@ def _evaluate_data_quality_uncached(
         jump_times = pd.to_datetime(df_1m.loc[jump_mask, "open_time"], unit="ms", utc=True)
         extreme_moves = [f"{t:%Y-%m-%d %H:%M}Z" for t in jump_times]
         verified_warnings.append(
-            f"Cảnh báo: {len(extreme_moves)} phút có biến động > 50% (dữ liệu CEX đã kiểm checksum, "
+            f"Cảnh báo: {len(extreme_moves)} phút có biến động > 50% (dữ liệu CEX chính thức, "
             f"giữ lại như sự kiện thật): {', '.join(extreme_moves[:5])}{' …' if len(extreme_moves) > 5 else ''}"
         )
 

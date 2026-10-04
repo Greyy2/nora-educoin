@@ -13,7 +13,7 @@ Lưu ý định dạng:
 - volume ghi vào pkl là quote_asset_volume (USDT) để cùng đơn vị USD với dữ liệu DEX.
 
 Job API `data_crawl` (POST /api/data/crawl -> api/jobs/runner.py -> run_job): params symbols ("BTC,ETH" hoặc list), market (spot|um),
-years, quote, end_ts; mặc định ghi vào <data_root>/cex.
+years, quote, end_ts; mặc định ghi vào data/binance/cex (Binance = dữ liệu tham khảo; sàn triển khai OKX: core/data/okx_crawler.py).
 """
 import hashlib
 import io
@@ -288,8 +288,8 @@ def crawl_symbol(
 
 def crawl(args) -> List[Dict]:
     if not args.output_dir:
-        from backend.db.data_layout import default_data_root
-        args.output_dir = os.path.join(default_data_root(), "cex")
+        from backend.db.data_layout import exchange_root
+        args.output_dir = os.path.join(exchange_root("binance"), "cex")
     end_ms = int(time.time() * 1000) // MINUTE_MS * MINUTE_MS if not args.end_ts else int(args.end_ts)
     start_ms = end_ms - int(args.years * 365.25 * 86_400_000)
     start_ms = start_ms // MINUTE_MS * MINUTE_MS

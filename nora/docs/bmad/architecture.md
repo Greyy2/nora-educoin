@@ -16,7 +16,7 @@ flowchart LR
   end
   BV --> CR[crawler + promote_staging]
   GT --> CR
-  CR --> D[(data/cex, data/dex<br/>1m.pkl + manifest + funding)]
+  CR --> D[(data/okx/cex, data/binance/cex<br/>1m.pkl + manifest + funding)]
   D --> QG{quality gate}
   D --> K[kernels causal<br/>+ căn khung avail_time]
   K --> S[tín hiệu AST<br/>strategy/library, strategy/book]
@@ -73,17 +73,23 @@ Nguồn: `backend/db/data_layout.py` (đường dẫn), `backend/core/data/*`.
 ### 3.1 Bố cục và ký hiệu
 
 ```
-data/cex/<SYM>/{1m,5m,15m,1h,4h,24h}.pkl + manifest.json            # spot
-data/cex/<SYM>/perp/{1m,...,24h}.pkl + funding.pkl + manifest.json    # BTC@perp
-data/dex/<SYM>/{...}.pkl + manifest.json [+ ticks.parquet, dex_pool.json]
-data/_meta/  data/_cache/    # _ và . đầu tên không phải tài sản
+data/<sàn>/cex/<SYM>/{1m,5m,15m,1h,4h,24h}.pkl + manifest.json            # spot
+data/<sàn>/cex/<SYM>/perp/{1m,...,24h}.pkl + funding.pkl + manifest.json    # BTC@perp
+data/<sàn>/dex/<SYM>/{...}.pkl + manifest.json [+ ticks.parquet, dex_pool.json]
+data/_meta/  data/_cache/  data/alphas/    # dùng chung mọi sàn; _ và . đầu tên không phải tài sản
 ```
+
+- `<sàn>` = `NORA_EXCHANGE` (mặc định `okx` — sàn triển khai; `binance` = tham khảo). `NORA_LOCAL_DATA_ROOT` (test) ghi đè cả gốc.
+- OKX (`core/data/okx_crawler.py`, job `data_crawl_okx`): nến 1m từ file ngày chính thức static.okx.com + REST history-candles,
+  volume = vol_quote (USDT); funding = file ngày OKX (tới ~09/2025) + REST (~3 tháng), khoảng trống giữa hai nguồn lấp bằng funding
+  Binance làm proxy (`manifest.funding.sources`, `proxy_ranges`). `official_api = true` (không có checksum như data.binance.vision).
+- Run phễu ghi `config.data_exchange`; xuất bản sổ từ chối nếu khác sàn dữ liệu đang dùng; `book.json` mang `data_exchange`.
 
 - `BTC@perp` luôn là `cex/BTC/perp`; ký hiệu perp không bao giờ rơi về spot (`test_instrument_symbol_never_falls_back_to_spot`).
   Chiến lược `market="perp"` mà không có dữ liệu perp thì dùng giá spot với `price_source="spot_proxy"`, `funding_modeled=false`.
 - Tên trùng giữa hai venue bắt buộc có tiền tố (`cex:UNI`, `dex:UNI`); không tiền tố thì lỗi (`test_ambiguous_symbol_requires_venue`).
 - Vũ trụ sổ chiến lược: `UNIVERSE = [BTC, ETH, SOL, BNB, XRP, DOGE, ADA, AVAX]` → `<SYM>@perp` (`strategy_book.perp_symbols()`).
-- Đo thực tế (SOL perp, `data/cex/SOL/perp/manifest.json`): 1.577.881 nến 1m, độ phủ 1095,75 ngày (2023-09-30 đến 2026-09-30),
+- Đo thực tế (SOL perp Binance, `data/binance/cex/SOL/perp/manifest.json`): 1.577.881 nến 1m, độ phủ 1095,75 ngày (2023-09-30 đến 2026-09-30),
   `filled_ratio_1m = 0`, `checksums_verified = true`, 36 file tháng + 29 file ngày + 1029 dòng REST.
 
 ### 3.2 Manifest

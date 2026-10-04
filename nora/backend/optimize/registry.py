@@ -149,6 +149,7 @@ def build_book(report: Dict[str, Any], source: str, repo_dir: str = None) -> Dic
     return {
         "generated_at": int(time.time() * 1000),
         "timeframe": report.get("timeframe", "1m"),
+        "data_exchange": report.get("data_exchange", "binance"),
         "source": source,
         "code": _git_revision(repo_dir) if repo_dir else None,
         "universe": [f"{s}@perp" for s in UNIVERSE],
