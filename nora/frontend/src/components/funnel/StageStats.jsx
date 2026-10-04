@@ -32,7 +32,7 @@ function Distributions({ s }) {
   const nIn = first.in?.n ?? first.in?.bins.reduce((a, b) => a + b.count, 0)
   const nOut = first.out?.n ?? first.out?.bins.reduce((a, b) => a + b.count, 0)
   return (
-    <Collapsible title="Phân phối chỉ số: nhóm vào so với nhóm qua" sub={<span>{keys.length} chỉ số · vào {fmtCount(nIn)} → qua {fmtCount(nOut)}</span>}>
+    <Panel title="Phân phối chỉ số: nhóm vào so với nhóm qua" meta={<span>{keys.length} chỉ số · vào {fmtCount(nIn)} → qua {fmtCount(nOut)}</span>}>
       <div className="n-fn-tools" style={{ marginBottom: 6 }}>
         <span className="n-legend">
           <span><i className="sq" style={{ background: 'var(--n-bench)', opacity: 0.6 }} />Nhóm vào ({fmtCount(nIn)})</span>
@@ -70,16 +70,16 @@ function Distributions({ s }) {
           </table>
         </div>
       </details>
-    </Collapsible>
+    </Panel>
   )
 }
 
 function RejectReasons({ s }) {
   const max = Math.max(1, ...s.reject_reasons.map((r) => r.count))
   const total = s.reject_reasons.reduce((a, r) => a + r.count, 0)
+  if (!s.reject_reasons.length) return null   // tầng không loại alpha nào: ẩn hẳn
   return (
     <Panel title="Lý do loại" meta={<span className="mono">{fmtCount(total)} alpha bị loại</span>}>
-      {!s.reject_reasons.length && <p className="n-note">Không có alpha nào bị loại ở tầng này.</p>}
       <ul className="n-rr">
         {s.reject_reasons.map((r) => (
           <li key={r.code}>
@@ -237,15 +237,14 @@ export default function StageStats({ stats, stage, onOpen, catalog }) {
     <div style={{ display: 'grid', gap: 12 }}>
       <div className="n-banner" style={{ marginBottom: 0 }}><span><b>{meta?.name}</b>{meta?.data ? ` · dữ liệu ${meta.data}` : ''}. Điều kiện qua: {meta?.rule}.</span></div>
       <Kpis s={stats} />
-      <div className="n-grid g-2" style={{ marginBottom: 0 }}>
-        <RejectReasons s={stats} />
-        <ByStrategy s={stats} catalog={catalog} />
-      </div>
-      <ParamSurvival s={stats} />
-      <TopAlphas s={stats} stage={stage} onOpen={onOpen} catalog={catalog} />
       {noDist
         ? <Empty title="Chưa có phân phối cho tầng này">{stage === 'S0_generate' ? 'Tầng sinh alpha chỉ có số lượng và phân bổ theo chiến lược.' : 'Backend chưa trả phân phối chỉ số cho tầng này.'}</Empty>
         : <Distributions s={stats} />}
+      {stats.reject_reasons.length > 0
+        ? <div className="n-grid g-2" style={{ marginBottom: 0 }}><RejectReasons s={stats} /><ByStrategy s={stats} catalog={catalog} /></div>
+        : <ByStrategy s={stats} catalog={catalog} />}
+      <ParamSurvival s={stats} />
+      <TopAlphas s={stats} stage={stage} onOpen={onOpen} catalog={catalog} />
     </div>
   )
 }
