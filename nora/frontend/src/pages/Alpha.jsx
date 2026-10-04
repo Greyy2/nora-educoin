@@ -10,6 +10,7 @@ import useJob from '../hooks/useJob'
 import { useCatalog } from '../context/Catalog'
 import { postBuild, postPublish, getAlphas } from '../api'
 import { fmtNum, fmtPct, fmtSPct, signClass, fmtDateTime, isNum, fullDate } from '../lib/format'
+import { legLabel } from '../lib/strategyLabel'
 
 function StrategyCards({ catalog, value, onPick }) {
   return (
@@ -17,8 +18,7 @@ function StrategyCards({ catalog, value, onPick }) {
       {catalog.map((c) => (
         <button key={c.id} type="button" role="radio" aria-checked={value === c.id} className={`n-card-sel ${value === c.id ? 'on' : ''}`} onClick={() => onPick(c.id)}>
           <span style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <span className="id">{c.id}</span>
-            <span className={`n-badge ${String(c.side).toLowerCase()}`}>{c.side}</span>
+            <span className="id" title={c.id}>{legLabel(c.id)}</span>
           </span>
           <span className="muted" style={{ fontSize: 11.5 }}>{c.family}</span>
           <span className="ds">{c.description}</span>
@@ -180,7 +180,7 @@ function AlphaVault() {
                 <thead><tr><th>Chiến lược</th><th>Tham số</th></tr></thead>
                 <tbody>
                   {(book.strategies || []).map((s) => (
-                    <tr key={s.id}><td className="mono"><b>{s.id}</b></td>
+                    <tr key={s.id}><td title={s.id}><b>{legLabel(s.id)}</b></td>
                       <td style={{ whiteSpace: 'normal', fontSize: 11.5 }}>
                         <span className="n-plist">{Object.entries(s.params || {}).map(([k, v]) => <span key={k} title={k}><b>{paramLabel(k)}</b>{fmtParamFull(k, v)}</span>)}</span>
                       </td></tr>
@@ -255,7 +255,7 @@ export default function Alpha() {
           <Panel title="Tiến trình tối ưu" meta={<span className="mono">{jobId}</span>}><JobPanel job={job.job} status={job.status} error={job.error} /></Panel>
           {job.status === 'done' && (rows.length ? (
             <>
-              <Panel title={`Xếp hạng cấu hình · ${sid}`} meta={<span>{counts?.tried > rows.length ? `Top ${rows.length}/${counts.tried.toLocaleString('vi-VN')} cấu hình` : `${rows.length} cấu hình`} · xếp theo điểm</span>}>
+              <Panel title={`Xếp hạng cấu hình · ${legLabel(sid)}`} meta={<span>{counts?.tried > rows.length ? `Top ${rows.length}/${counts.tried.toLocaleString('vi-VN')} cấu hình` : `${rows.length} cấu hình`} · xếp theo điểm</span>}>
                 <RankTable id={sid} rows={rows} space={cat?.catalog.find((c) => c.id === sid)?.space} onSend={send} />
               </Panel>
               {cand && <CandidateSummary cand={cand} book={result?.book} />}

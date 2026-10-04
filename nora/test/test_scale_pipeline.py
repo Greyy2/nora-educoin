@@ -72,7 +72,7 @@ def test_require_data_ok_needs_more_data_and_warning(market, monkeypatch, caplog
 def test_portfolio_engine_refuses_bad_data(market, monkeypatch, kind):
     from backend.core.backtest.portfolio import PortfolioEngine
     sb = _small_book(monkeypatch)
-    cands = {c["id"]: c for c in sb.CANDIDATES}
+    cands = sb.BY_ID
     st = sb.materialize(cands["t_long"], {"sig.lo": 40, "stop_loss_rate": 2.0, "take_profit_rate": 2.0, "timeout": 720})
     _tamper(market, "BBB", **BAD[kind])
     eng = PortfolioEngine(sb.perp_symbols(), [st], T0, T0 + 30 * DAY, trade_start_ts=T0 + 3 * DAY, use_cache=False)

@@ -71,7 +71,7 @@ def git_info() -> Dict[str, Any]:
 
 def _candidates(strategies: List[str]) -> Dict[str, Dict[str, Any]]:
     from backend.core.strategy import book as sb
-    by_id = {c["id"]: c for c in sb.CANDIDATES}
+    by_id = sb.BY_ID
     bad = [s for s in strategies if s not in by_id]
     if bad:
         raise ValueError(f"không có chiến lược {bad}; có: {sorted(by_id)}")

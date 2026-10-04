@@ -1,4 +1,5 @@
 import { toMs, fmtDateTime } from './format'
+import { legLabel } from './strategyLabel'
 
 // params của job (job.json): dict tham số mà API đã kiểm, cùng tên khoá với run_job(params) của backend.
 export function parseJobParams(p) {
@@ -23,7 +24,7 @@ export function parseJobParams(p) {
 
 export function jobLabel(j) {
   const a = parseJobParams(j.params)
-  const ids = a.strategies ? a.strategies.map((s) => s.id).join(' + ') : 'sổ hiện tại'
+  const ids = a.strategies ? a.strategies.map((s) => legLabel(s.id)).join(' + ') : 'sổ hiện tại'
   const win = a.start && a.end ? ` · ${a.start} → ${a.end}` : ''
   return `${ids}${win}`
 }

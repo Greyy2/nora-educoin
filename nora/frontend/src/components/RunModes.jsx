@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Segmented } from './ui'
 import Term from './Term'
 import useAsync from '../hooks/useAsync'
-import { getStrategies, postValidateStrategy } from '../api'
+import { getStrategies, getStrategyCatalog, postValidateStrategy } from '../api'
 import { PARAM_GROUPS, paramLabel, paramHint, paramUnit, fmtParamFull } from '../lib/params'
 import { MODES, modeText, CUSTOM_BADGE, CUSTOM_REASON, presetInfo, validateStrategy, coerceParams, sameValue, changedKeys, WFA_PENDING_NOTE } from '../lib/modes'
 import { fmtSPct, fmtPct, fmtNum } from '../lib/format'
@@ -20,6 +20,12 @@ export function useStrategies() {
   const q = useAsync(() => getStrategies(), [])
   const byId = useMemo(() => Object.fromEntries((q.data || []).map((s) => [s.id, s])), [q.data])
   return { list: q.data || [], byId, loading: q.loading, error: q.error, reload: () => { getStrategies(true); q.reload() } }
+}
+
+/** Danh mục 3 chiến lược (KEMA / Sideway / DCA) kèm id chân lệnh theo chiều, từ GET /api/studio/strategies/catalog. */
+export function useStrategyCatalog() {
+  const q = useAsync(() => getStrategyCatalog(), [])
+  return { list: q.data || [], loading: q.loading, error: q.error, reload: () => { getStrategyCatalog(true); q.reload() } }
 }
 
 /** Kiểm tham số qua POST /strategies/validate (debounce); chỉ gọi cho chiến lược đã qua kiểm tra phía client. -> { [id]: { [khoá]: msg } } khớp bản tham số hiện tại. */
@@ -225,7 +231,7 @@ export function PresetNote({ preset }) {
  * Thẻ một chiến lược. mode=basic: preset chỉ đọc. mode=advanced: mọi tham số của lược đồ sửa được, trừ khoá không có trong `editableKeys` (khi truyền).
  * riskShared: { value, onChange } — rủi ro mỗi lệnh dùng chung cả danh mục (backend yêu cầu cùng mức giữa các chiến lược).
  */
-export function StrategyCard({ strat, mode, params, onChange, onReset, errors = {}, editableKeys = null, lockedNote = WFA_PENDING_NOTE, riskShared = null, toggle = null, locked = {} }) {
+export function StrategyCard({ strat, name = null, sideText = null, mode, params, onChange, onReset, errors = {}, editableKeys = null, lockedNote = WFA_PENDING_NOTE, riskShared = null, toggle = null, locked = {} }) {
   const schema = strat.params_schema
   const preset = strat.preset?.params || {}
   const on = toggle ? toggle.on : true
@@ -238,8 +244,8 @@ export function StrategyCard({ strat, mode, params, onChange, onReset, errors = 
       <div className="n-strat-h">
         {toggle && <input type="checkbox" id={`s-${strat.id}`} checked={toggle.on} onChange={toggle.onToggle} />}
         <label htmlFor={toggle ? `s-${strat.id}` : undefined} style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', cursor: toggle ? 'pointer' : 'default' }}>
-          <span className="id">{strat.id}</span>
-          <span className={`n-badge ${String(strat.side).toLowerCase()}`}>{strat.side}</span>
+          <span className="id">{name || strat.id}</span>
+          <span className={`n-badge ${String(strat.side).toLowerCase()}`}>{sideText || strat.side}</span>
           <span className="ds">{strat.description}</span>
         </label>
         {on && mode === 'advanced' && (
@@ -277,38 +283,6 @@ export function StrategyCard({ strat, mode, params, onChange, onReset, errors = 
           ))}
         </div>
       )}
-    </div>
-  )
-}
-
-/** Chọn chiến lược theo họ (mọi chiến lược lõi), mỗi chiến lược mở thẻ theo chế độ. sel = { [id]: params đầy đủ }. */
-export default function StrategyRunPicker({ strategies, mode, sel, setSel, errors = {}, riskShared }) {
-  const families = useMemo(() => {
-    const m = new Map()
-    strategies.forEach((c) => { const f = c.family || 'Khác'; if (!m.has(f)) m.set(f, []); m.get(f).push(c) })
-    return [...m.entries()]
-  }, [strategies])
-  const toggle = (c) => {
-    const next = { ...sel }
-    if (next[c.id]) delete next[c.id]
-    else next[c.id] = { ...(c.preset?.params || {}) }
-    setSel(next)
-  }
-  return (
-    <div>
-      {families.map(([fam, items]) => (
-        <div className="n-fam" key={fam}>
-          <h4>{fam}</h4>
-          {items.map((c) => (
-            <StrategyCard key={c.id} strat={c} mode={mode} params={sel[c.id]} errors={errors[c.id] || {}}
-              toggle={{ on: !!sel[c.id], onToggle: () => toggle(c) }}
-              onChange={(p) => setSel({ ...sel, [c.id]: p })}
-              onReset={() => { setSel({ ...sel, [c.id]: { ...(c.preset?.params || {}) } }); if (riskShared && c.preset?.params?.risk_per_trade_pct != null) riskShared.onChange(c.preset.params.risk_per_trade_pct) }}
-              riskShared={riskShared} />
-          ))}
-        </div>
-      ))}
-      {!strategies.length && <p className="n-note">Chưa có danh sách chiến lược.</p>}
     </div>
   )
 }

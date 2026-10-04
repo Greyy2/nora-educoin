@@ -4,6 +4,7 @@ import { Panel, Empty, Spinner } from './ui'
 import Term from './Term'
 import { getPortfolioTrades, portfolioTradesCsvUrl, getMarketRegime } from '../api'
 import { fmtNum, fmtMoney, fmtPct, fmtSPct, signClass, arrow, fmtDateTime, isNum } from '../lib/format'
+import { legLabel } from '../lib/strategyLabel'
 
 /* ─── Thống kê theo HỌ chiến lược (gộp mọi bộ tham số / alpha cùng chiến lược) ─────────────────────────────── */
 export function FamilyStatsPanel({ rows = [], period, bare = false }) {
@@ -95,7 +96,7 @@ export function TradesPanel({ jobId, period, bare = false }) {
         <select className="n-sel" aria-label="Chiến lược" value={f.strategy} onChange={(e) => set({ strategy: e.target.value })}>
           <option value="">Mọi chiến lược</option>
           {(d?.families || []).map((x) => <option key={`f-${x}`} value={x}>{x} (cả họ)</option>)}
-          {(d?.strategies || []).filter((x) => !(d?.families || []).includes(x)).map((x) => <option key={x} value={x}>{x}</option>)}
+          {(d?.strategies || []).filter((x) => !(d?.families || []).includes(x)).map((x) => <option key={x} value={x}>{legLabel(x)}</option>)}
         </select>
         <select className="n-sel" aria-label="Tài sản" value={f.symbol} onChange={(e) => set({ symbol: e.target.value })}>
           <option value="">Mọi tài sản</option>
@@ -127,7 +128,7 @@ export function TradesPanel({ jobId, period, bare = false }) {
                   <td className="mono">{fmtDateTime(t.close_time)}</td>
                   <td className="mono muted">{fmtDateTime(t.enter_time)}</td>
                   <td>{String(t.symbol).replace('@perp', '')}</td>
-                  <td className="mono">{t.strategy}</td>
+                  <td title={t.strategy}>{legLabel(t.strategy)}</td>
                   <td><span className={`n-badge ${String(t.side).toLowerCase()}`}>{t.side}</span></td>
                   <td className="mono">{fmtNum(t.avg_price ?? t.enter_price, 4)} → {fmtNum(t.close_price, 4)}</td>
                   <td className="mono r">{fmtMoney(t.notional)}</td>
@@ -196,7 +197,7 @@ export function RegimePanel({ bare = false }) {
                     <td><span className={`n-rgchip n-rg-${r.current.state}`}>{r.current.label}</span></td>
                     <td className="mono">{r.current.since ? fmtDateTime(r.current.since) : '—'}</td>
                     <td style={{ minWidth: 220 }}><RegimeBar segs={r.segments} from={from} to={to} labels={labels} /></td>
-                    <td>{r.strategies_on.length ? r.strategies_on.map((id) => <span key={id} className="n-badge" style={{ marginRight: 4 }}>{id}</span>) : <span className="muted">không chiến lược nào</span>}</td>
+                    <td>{r.strategies_on.length ? r.strategies_on.map((id) => <span key={id} className="n-badge" style={{ marginRight: 4 }} title={id}>{legLabel(id)}</span>) : <span className="muted">không chiến lược nào</span>}</td>
                   </tr>
                 ))}
               </tbody>

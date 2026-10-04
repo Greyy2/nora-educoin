@@ -50,8 +50,8 @@ def _mid_params(candidate, params):
 
 def load_items(a):
     """-> (items [(id, params)], rủi ro/lệnh mặc định, dict RiskConfig)."""
-    from backend.core.strategy.book import BASE_RISK_PER_TRADE_PCT, CANDIDATES, RISK
-    by_id = {c["id"]: c for c in CANDIDATES}
+    from backend.core.strategy.book import BASE_RISK_PER_TRADE_PCT, RISK, BY_ID
+    by_id = BY_ID
     if a.strategies:
         raw = a.strategies
         if not isinstance(raw, list) or not raw:
@@ -109,8 +109,8 @@ def make_engine(job: BacktestJob):
     """PortfolioEngine của job (chưa nạp dữ liệu) + mốc bắt đầu đo. Khung tín hiệu nhỏ hơn khung chạy được nâng lên (params.modes.lift_frames)."""
     from backend.core.backtest.portfolio import PortfolioEngine, RiskConfig
     from backend.core.params.modes import lift_frames
-    from backend.core.strategy.book import CANDIDATES, materialize, perp_symbols
-    by_id = {c["id"]: c for c in CANDIDATES}
+    from backend.core.strategy.book import materialize, perp_symbols, BY_ID
+    by_id = BY_ID
     regime = job.regime or {}
     strategies = [materialize(by_id[cid], lift_frames(by_id[cid], prm, job.base_frame), regime=regime.get(cid) or False,
                               stop_fill=job.stop_fill, risk_per_trade_pct=job.rpt) for cid, prm in job.items]
@@ -123,10 +123,10 @@ def run(items, symbols, start, end, rpt, stop_fill, risk, extra_strategies=None,
         warmup=WARMUP, regime=False, base_frame="1m"):
     """extra_strategies: chiến lược dựng sẵn (dict của PortfolioEngine, có thể có khoá "symbols") chạy cùng sổ — dùng cho feed
     giả lập. close_at_end=False: giữ vị thế còn mở cuối dữ liệu (kết quả thêm `open_positions`); mặc định như backtest thường."""
-    from backend.core.strategy.book import CANDIDATES, materialize
+    from backend.core.strategy.book import materialize, BY_ID
     from backend.core.backtest.portfolio import PortfolioEngine, RiskConfig
     from backend.utils.memwatch import peak_rss_mb
-    by_id = {c["id"]: c for c in CANDIDATES}
+    by_id = BY_ID
     from backend.core.params.modes import lift_frames
     strategies = [materialize(by_id[cid], lift_frames(by_id[cid], prm, base_frame), regime=regime, stop_fill=stop_fill,
                               risk_per_trade_pct=rpt) for cid, prm in items]

@@ -113,7 +113,7 @@ def _planned(strategies: List[str], n: Optional[int], full_grid: bool, space: st
              regime: str = "off") -> Dict[str, int]:
     from backend.core.strategy import book as sb
     from backend.optimize.funnel.generate import incompatible, space_for
-    by_id = {c["id"]: c for c in sb.CANDIDATES}
+    by_id = sb.BY_ID
     bad = incompatible([by_id[s] for s in strategies], space, timeframe)
     if bad:
         raise HTTPException(422, f"chiến lược không chạy được ở khung {timeframe} (khung tín hiệu tối đa nhỏ hơn khung chạy): "

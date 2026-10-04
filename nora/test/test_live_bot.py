@@ -46,8 +46,8 @@ def test_klines_frame_drops_unclosed_bar():
 
 # ── bot trên dữ liệu dựng tay ───────────────────────────────────────────────
 def _defaults(cid):
-    from backend.core.strategy.book import CANDIDATES, schema_defaults
-    return schema_defaults(next(c for c in CANDIDATES if c["id"] == cid))
+    from backend.core.strategy.book import BY_ID, schema_defaults
+    return schema_defaults(BY_ID[cid])
 
 
 BOOK = {"status": "READY_FOR_TESTNET", "timeframe": "1h", "universe": ["AAA@perp", "BBB@perp"], "risk_per_trade_pct": 1.0,

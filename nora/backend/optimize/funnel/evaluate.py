@@ -89,7 +89,7 @@ def signal_key(job: Dict[str, Any]) -> str:
     kill/stop_fill -> dữ liệu và tín hiệu dùng chung; chỉ tham số vị thế/thoát lệnh khác nhau."""
     import json
     from backend.core.strategy import book as sb
-    by_id = {c["id"]: c for c in sb.CANDIDATES}
+    by_id = sb.BY_ID
     st = sb.materialize(by_id[job["strategy"]], job["params"], stop_fill=job["stop_fill"], risk_per_trade_pct=job["rpt"])
     pos = st["position"]
     return json.dumps([job["strategy"], st["tree"], st.get("stop"), pos.get("exit_unit"), pos.get("atr_frame"), pos.get("atr_period"),
@@ -103,7 +103,7 @@ def run_backtest_many(jobs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     from backend.core.strategy import book as sb
     if jobs[0].get("regime_mode"):   # bảng regime học riêng từng alpha -> tín hiệu vào khác nhau, chạy riêng
         return [run_backtest(j, bool(j.get("trades"))) for j in jobs]
-    by_id = {c["id"]: c for c in sb.CANDIDATES}
+    by_id = sb.BY_ID
     eng, start = make_engine(jobs[0])
     with contextlib.redirect_stdout(io.StringIO()):
         eng.load_data()

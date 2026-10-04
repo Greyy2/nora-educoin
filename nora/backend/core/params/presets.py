@@ -267,12 +267,12 @@ def write_presets(doc: Dict[str, Any], path: Optional[str] = None) -> str:
 def load_presets(path: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
     """{id: {params, timeframe, source, source_kind, evidence}} cho MỌI chiến lược lõi. Đọc presets.json; chiến lược thiếu/hỏng -> mặc định schema
     (không ghi file). File được kiểm lại theo schema hiện hành (khoá lạ bỏ, thiếu thì điền mặc định)."""
-    from backend.core.strategy.book import CANDIDATES, schema_defaults
+    from backend.core.strategy.book import all_candidates, schema_defaults
     doc = _read_json(path or presets_path())
     stored = (doc or {}).get("presets") if isinstance(doc, dict) else None
     stored = stored if isinstance(stored, dict) else {}
     out: Dict[str, Dict[str, Any]] = {}
-    for c in CANDIDATES:
+    for c in all_candidates():      # cả chiến lược cũ: sổ / lượt phễu đã có vẫn đọc được
         p = stored.get(c["id"])
         if isinstance(p, dict) and isinstance(p.get("params"), dict):
             out[c["id"]] = {"params": _clean_params(c, p["params"]), "timeframe": p.get("timeframe"),

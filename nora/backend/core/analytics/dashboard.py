@@ -144,10 +144,9 @@ def _open_trades(trades: List[Dict[str, Any]], t_ref: int) -> List[Dict[str, Any
 
 def _side_of(sid: str, fallback: Optional[Dict[str, str]] = None) -> Optional[str]:
     try:
-        from backend.core.strategy.book import CANDIDATES
-        for c in CANDIDATES:
-            if c["id"] == sid:
-                return c["side"]
+        from backend.core.strategy.book import BY_ID
+        if sid in BY_ID:
+            return BY_ID[sid]["side"]
     except Exception:   # noqa: BLE001  (thiếu thư viện chiến lược: suy từ tên)
         pass
     by_name = "LONG" if sid.endswith("_long") else "SHORT" if sid.endswith("_short") else None

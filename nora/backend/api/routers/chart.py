@@ -30,8 +30,8 @@ class ExplainRequest(BaseModel):
 def _strategy(req: ExplainRequest):
     """-> (chiến lược đã materialize, khung chạy, thông tin hiển thị)."""
     from backend.core.params.modes import lift_frames
-    from backend.core.strategy.book import CANDIDATES, materialize
-    by = {c["id"]: c for c in CANDIDATES}
+    from backend.core.strategy.book import materialize, BY_ID
+    by = BY_ID
     if req.run_id and req.alpha_id:
         from backend.api.routers.funnel import _open
         from backend.optimize.funnel.generate import split_regime

@@ -4,7 +4,7 @@ import Term from '../Term'
 import McResult from '../McResult'
 import AreaLine from '../charts/AreaLine'
 import TradesView from './TradesView'
-import { ParamList, AlphaStatus } from './parts'
+import { ParamList, AlphaStatus, StrategyName } from './parts'
 import useAsync from '../../hooks/useAsync'
 import { getFunnelAlpha, postFunnelPromote } from '../../api'
 import { STAGE_META, STAGES, METRICS, stageName, stageShort, stageHasTrades, fmtMetric, metricLabel } from '../../lib/funnel'
@@ -169,7 +169,7 @@ function PromoteBar({ runId, d, onDone }) {
   )
 }
 
-export default function AlphaDrawer({ runId, alphaId, catalog, onClose, onTrades }) {
+export default function AlphaDrawer({ runId, alphaId, onClose, onTrades }) {
   const q = useAsync(() => getFunnelAlpha(runId, alphaId), [runId, alphaId])
   const d = q.data
   const [tradeStage, setTradeStage] = useState('')
@@ -190,7 +190,6 @@ export default function AlphaDrawer({ runId, alphaId, catalog, onClose, onTrades
     return d.stages.filter((s) => s.status !== 'none' && stageHasTrades(s.stage) && (!st || s.stage in st)).map((s) => s.stage)
   }, [d])
   const ts = tradeStage || tStages.find((s) => d?.stored_trades?.[s]) || tStages[0] || ''
-  const side = catalog?.find((c) => c.id === d?.strategy)?.side
   const mc = d?.mc
   const mcFits = mc && mc.fan?.p50?.length > 1 && mc.summary
   return (
@@ -210,7 +209,7 @@ export default function AlphaDrawer({ runId, alphaId, catalog, onClose, onTrades
           {d && (
             <div style={{ display: 'grid', gap: 12 }}>
               <div className="n-drawer-id">
-                <span className="mono">{d.strategy}</span>{side && <span className={`n-badge ${String(side).toLowerCase()}`}>{side}</span>}
+                <StrategyName id={d.strategy} />
                 <AlphaStatus a={d} />
                 {isNum(d.final_scale) && <span>s = <b className="mono">{fmtNum(d.final_scale, 2)}</b></span>}
                 <div className="params"><ParamList params={d.params} /></div>

@@ -8,6 +8,7 @@ import { summarizeParams } from './paramSummary'
 import { DIST_KEYS, DIST_UNIT, METRICS, STAGE_META, fmtCount, fmtMetric } from '../../lib/funnel'
 import { paramHeader, fmtParamFull } from '../../lib/params'
 import { fmtNum, fmtPct, fmtSPct, signClass, isNum } from '../../lib/format'
+import { legLabel } from '../../lib/strategyLabel'
 
 const DIST_FMT = {
   ret_pct: (v) => fmtNum(v, 0), mdd_pct: (v) => fmtNum(v, 0), sharpe: (v) => fmtNum(v, 1), trades: (v) => fmtNum(v, 0), win_rate: (v) => fmtNum(v, 0), profit_factor: (v) => fmtNum(v, 1),
@@ -93,7 +94,7 @@ function RejectReasons({ s }) {
   )
 }
 
-function ByStrategy({ s, catalog }) {
+function ByStrategy({ s }) {
   if (!s.by_strategy.length) return null
   return (
     <Panel title="Theo chiến lược">
@@ -103,7 +104,7 @@ function ByStrategy({ s, catalog }) {
           <tbody>
             {s.by_strategy.map((r) => (
               <tr key={r.strategy}>
-                <td><StrategyName id={r.strategy} catalog={catalog} /></td>
+                <td><StrategyName id={r.strategy} /></td>
                 <td className="r">{fmtCount(r.input)}</td><td className="r">{fmtCount(r.passed)}</td>
                 <td className="r"><span className="n-wbar"><span className="tr"><i style={{ width: `${Math.min(100, r.pass_rate || 0)}%` }} /></span><b>{fmtPct(r.pass_rate, 1)}</b></span></td>
                 <td className={`r ${signClass(r.median_ret_pct)}`}>{fmtSPct(r.median_ret_pct, 1)}</td>
@@ -168,7 +169,7 @@ function ParamSurvival({ s }) {
       <div className="n-fs-strats">
         {sums.map((c) => (
           <div className="n-fs-card" key={c.strategy}>
-            <h4><span className="mono">{c.strategy}</span><span className="rt mono">qua {fmtPct(c.rate, c.rate < 10 ? 1 : 0)} · {fmtCount(c.passed)}/{fmtCount(c.input)}</span></h4>
+            <h4><span>{legLabel(c.strategy)}</span><span className="rt mono">qua {fmtPct(c.rate, c.rate < 10 ? 1 : 0)} · {fmtCount(c.passed)}/{fmtCount(c.input)}</span></h4>
             {!c.rows.length && <div className="none">Không tham số nào làm đổi rõ tỉ lệ qua.</div>}
             {c.rows.map((r) => (
               <div className="n-fs-prm" key={r.param}>
@@ -186,7 +187,7 @@ function ParamSurvival({ s }) {
   )
 }
 
-function TopTable({ rows, withS, onOpen, catalog }) {
+function TopTable({ rows, withS, onOpen }) {
   return (
     <div className="n-tblwrap">
       <table className="n-tbl">
@@ -195,7 +196,7 @@ function TopTable({ rows, withS, onOpen, catalog }) {
           {rows.map((a) => (
             <tr key={a.alpha_id}>
               <td><AlphaLink id={a.alpha_id} onOpen={onOpen} /></td>
-              <td><StrategyName id={a.strategy} catalog={catalog} /></td>
+              <td><StrategyName id={a.strategy} /></td>
               <td className="wrap"><ParamList params={a.params} /></td>
               <td className={`r ${signClass(a.metrics?.ret_pct)}`}>{fmtSPct(a.metrics?.ret_pct, 1)}</td>
               <td className="r">{fmtMetric('mdd_pct', a.metrics?.mdd_pct)}</td>
@@ -212,24 +213,24 @@ function TopTable({ rows, withS, onOpen, catalog }) {
 
 const TOP_SHOWN = 5
 
-function TopAlphas({ s, stage, onOpen, catalog }) {
+function TopAlphas({ s, stage, onOpen }) {
   if (!s.top.length) return null
   const withS = ['S5_sizing', 'S6_holdout', 'FINAL'].includes(stage)
   const head = s.top.slice(0, TOP_SHOWN)
   const rest = s.top.slice(TOP_SHOWN)
   return (
     <Panel title="Alpha nổi bật" meta={<span>top {head.length} theo Sharpe</span>}>
-      <TopTable rows={head} withS={withS} onOpen={onOpen} catalog={catalog} />
+      <TopTable rows={head} withS={withS} onOpen={onOpen} />
       {rest.length > 0 && (
         <div style={{ marginTop: 10 }}>
-          <Collapsible title={`Chi tiết: ${rest.length} alpha tiếp theo`}>{() => <TopTable rows={rest} withS={withS} onOpen={onOpen} catalog={catalog} />}</Collapsible>
+          <Collapsible title={`Chi tiết: ${rest.length} alpha tiếp theo`}>{() => <TopTable rows={rest} withS={withS} onOpen={onOpen} />}</Collapsible>
         </div>
       )}
     </Panel>
   )
 }
 
-export default function StageStats({ stats, stage, onOpen, catalog }) {
+export default function StageStats({ stats, stage, onOpen }) {
   if (!stats) return null
   const meta = STAGE_META[stage]
   const noDist = !Object.keys(stats.distributions).length
@@ -241,10 +242,10 @@ export default function StageStats({ stats, stage, onOpen, catalog }) {
         ? <Empty title="Chưa có phân phối cho tầng này">{stage === 'S0_generate' ? 'Tầng sinh alpha chỉ có số lượng và phân bổ theo chiến lược.' : 'Backend chưa trả phân phối chỉ số cho tầng này.'}</Empty>
         : <Distributions s={stats} />}
       {stats.reject_reasons.length > 0
-        ? <div className="n-grid g-2" style={{ marginBottom: 0 }}><RejectReasons s={stats} /><ByStrategy s={stats} catalog={catalog} /></div>
-        : <ByStrategy s={stats} catalog={catalog} />}
+        ? <div className="n-grid g-2" style={{ marginBottom: 0 }}><RejectReasons s={stats} /><ByStrategy s={stats} /></div>
+        : <ByStrategy s={stats} />}
       <ParamSurvival s={stats} />
-      <TopAlphas s={stats} stage={stage} onOpen={onOpen} catalog={catalog} />
+      <TopAlphas s={stats} stage={stage} onOpen={onOpen} />
     </div>
   )
 }

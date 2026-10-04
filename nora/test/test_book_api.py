@@ -275,7 +275,7 @@ def test_too_many_active_jobs_is_429(client, monkeypatch):
 def test_get_book_summary(client, tmp_path):
     r = client.get("/api/studio/book/")
     assert r.status_code == 200 and r.json()["book"] is None and r.json()["wfa"] is None
-    assert {c["id"] for c in r.json()["candidates"]} >= {"trend_long", "breakout_4h_short"}
+    assert {c["id"] for c in r.json()["candidates"]} == {"kema_long", "kema_short", "sideway_long", "sideway_short"}
     _write_book(tmp_path)
     wfa = tmp_path / "data" / "_cache" / "book_wfa" / "20260101_000000"
     wfa.mkdir(parents=True)

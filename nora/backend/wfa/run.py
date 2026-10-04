@@ -69,8 +69,8 @@ def candidates_from_report(stage_a, report, n, include_rejected, only=None):
 
 
 def candidates_from_ids(ids, n, seed):
-    from backend.core.strategy.book import CANDIDATES
-    by_id = {c["id"]: c for c in CANDIDATES}
+    from backend.core.strategy.book import BY_ID
+    by_id = BY_ID
     missing = [i for i in ids if i not in by_id]
     if missing:
         raise SystemExit(f"Không có chiến lược: {missing}; có: {sorted(by_id)}")
@@ -79,8 +79,8 @@ def candidates_from_ids(ids, n, seed):
 
 def candidates_from_list(raw):
     """Cấu hình do người dùng chọn: [{"id", "configs": [{tham số}]}] -> đúng như vậy (kiểm id/khoá tham số theo `space` + `params_schema`)."""
-    from backend.core.strategy.book import CANDIDATES
-    by_id = {c["id"]: c for c in CANDIDATES}
+    from backend.core.strategy.book import BY_ID
+    by_id = BY_ID
     if not isinstance(raw, list) or not raw:
         raise SystemExit("strategies phải là danh sách không rỗng")
     out, seen = [], set()

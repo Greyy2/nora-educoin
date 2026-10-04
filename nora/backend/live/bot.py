@@ -54,8 +54,8 @@ def load_book(alphas: Optional[str] = None, kind: str = "main", mode: str = "pap
 
 def book_strategies(book: Dict[str, Any]) -> List[Dict[str, Any]]:
     from backend.core.params.modes import lift_frames
-    from backend.core.strategy.book import CANDIDATES, materialize
-    by = {c["id"]: c for c in CANDIDATES}
+    from backend.core.strategy.book import materialize, BY_ID
+    by = BY_ID
     tf = book.get("timeframe", "1m")
     return [materialize(by[s["id"]], lift_frames(by[s["id"]], s["params"], tf), risk_per_trade_pct=book["risk_per_trade_pct"],
                         stop_fill="level") for s in book["strategies"]]

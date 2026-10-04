@@ -12,7 +12,7 @@ from backend.api.jobs import batch as batch_jobs
 from backend.core.params import presets as presets_mod
 from backend.core.params import modes as rm
 from backend.core.params.template import FRAMES
-from backend.core.strategy.book import CANDIDATES
+from backend.core.strategy import book as sb
 
 router = APIRouter(prefix="/api/studio/strategies", tags=["strategies"])
 
@@ -26,16 +26,23 @@ class ValidateRequest(BaseModel):
 @router.get("/")
 def get_strategies() -> List[Dict[str, Any]]:
     presets = presets_mod.load_presets()
-    return [{"id": c["id"], "family": c["family"], "variant": c.get("variant"), "side": c["side"], "description": c["description"],
+    return [{"id": c["id"], "strategy": c.get("strategy"), "family": c["family"], "side": c["side"], "description": c["description"],
              "params_schema": c["params_schema"], "preset": presets[c["id"]], "frames_allowed": list(FRAMES)}
-            for c in CANDIDATES]
+            for c in sb.CANDIDATES]
+
+
+@router.get("/catalog")
+def get_catalog() -> List[Dict[str, Any]]:
+    """3 chiến lược (KEMA / Sideway / DCA) và các chân theo chiều: legs = {LONG: id, SHORT: id}. Mỗi bộ tham số của một chân = một alpha;
+    "Cả hai" = chạy cả hai chân. coming = chưa có chân nào (đang xây dựng)."""
+    return sb.STRATEGIES
 
 
 @router.post("/validate")
 def post_validate(req: ValidateRequest):
-    cand = next((c for c in CANDIDATES if c["id"] == req.id), None)
+    cand = sb.BY_ID.get(req.id)
     if cand is None:
-        raise HTTPException(404, f"Không có chiến lược '{req.id}'; có: {[c['id'] for c in CANDIDATES]}")
+        raise HTTPException(404, f"Không có chiến lược '{req.id}'; có: {[c['id'] for c in sb.CANDIDATES]}")
     full, errors = rm.validate_params(cand, req.params, presets_mod.load_presets()[req.id]["params"], "params")
     return {"ok": not errors, "errors": [{"field": f, "message": m} for f, m in errors], "resolved": None if errors else full}
 

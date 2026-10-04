@@ -19,6 +19,7 @@ import { listFunnelRuns, getFunnelRun, getFunnelStats, getFunnelAlphas } from '.
 import { STAGES, STAGE_META, RUN_STATUS, shortId, fmtCount, stageShort } from '../lib/funnel'
 import { isNum } from '../lib/format'
 import { fmtDateTime, fullDate } from '../lib/format'
+import { legLabel } from '../lib/strategyLabel'
 
 const isLive = (s) => s === 'running' || s === 'queued'
 
@@ -68,7 +69,7 @@ function RunMeta({ run }) {
     <div className="n-srcline" style={{ flexWrap: 'wrap' }}>
       <Status tone={st.cls}>{isLive(run.status) && <Spinner />}{st.text}</Status>
       <span>Tạo lúc <b className="mono">{fmtDateTime(run.created)}</b></span>
-      <span>Chiến lược <b>{run.strategies.join(', ') || '—'}</b></span>
+      <span>Chiến lược <b>{run.strategies.map(legLabel).join(', ') || '—'}</b></span>
       <span>{run.full_grid ? 'Toàn bộ lưới' : <><b className="mono">{fmtCount(run.n_per_strategy)}</b>/chiến lược</>} · tổng <b className="mono">{fmtCount(run.total_alphas)}</b> alpha</span>
       {run.seed != null && <span>seed <b className="mono">{run.seed}</b></span>}
       <details className="n-details" style={{ marginLeft: 'auto' }}>
@@ -88,8 +89,6 @@ function RunMeta({ run }) {
 function RunView({ runId }) {
   const nav = useNavigate()
   const [sp, setSp] = useSearchParams()
-  const { data: cat } = useCatalog()
-  const catalog = cat?.catalog || []
   const runQ = useAsync(() => getFunnelRun(runId), [runId], { poll: (r) => (isLive(r.status) ? 4000 : 0) })
   const run = runQ.data
   const live = !!run && isLive(run.status)
@@ -205,7 +204,7 @@ function RunView({ runId }) {
       </Panel>
 
       <div style={{ marginTop: 12 }}>
-        <FinalSummary run={run} finalPassed={finalPassed} q={finalQ} catalog={catalog} onOpen={openAlpha} onAll={openFinal} live={live} />
+        <FinalSummary run={run} finalPassed={finalPassed} q={finalQ} onOpen={openAlpha} onAll={openFinal} live={live} />
       </div>
 
       {detail && <>
@@ -228,9 +227,9 @@ function RunView({ runId }) {
           reasons={prevCount && prevCount.stage === deadAt?.stage ? deadReasons : []} />}
         {!stageEmpty && tab === 'stats' && (
           statsQ.error && !stats ? <ErrorState title="Không tải được thống kê tầng" error={statsQ.error} onRetry={statsQ.reload} />
-            : !stats ? <Loading what="thống kê tầng" /> : <StageStats stats={stats} stage={stage} onOpen={openAlpha} catalog={catalog} />
+            : !stats ? <Loading what="thống kê tầng" /> : <StageStats stats={stats} stage={stage} onOpen={openAlpha} />
         )}
-        {!stageEmpty && tab === 'alphas' && <AlphaTable runId={runId} stage={stage} strategies={strategies} catalog={catalog} selected={sel}
+        {!stageEmpty && tab === 'alphas' && <AlphaTable runId={runId} stage={stage} strategies={strategies} selected={sel}
           onSelect={(id) => setParams({ sel: id })} onOpen={openAlpha} onTrades={(id) => toTrades(id, stage)} />}
         {!stageEmpty && tab === 'trades' && (
           <Panel title="Lệnh của alpha đang chọn" meta={
@@ -240,7 +239,7 @@ function RunView({ runId }) {
               <label className="n-lbl" htmlFor="tr-alpha">Alpha</label>
               <select id="tr-alpha" className="n-sel n-fs-pick" value={tradeAlpha} onChange={(e) => setParams({ sel: e.target.value })}>
                 {!alphaOptions.length && <option value="">{pickQ.loading ? 'Đang tải…' : 'Chưa có alpha'}</option>}
-                {alphaOptions.map((a) => <option key={a.alpha_id} value={a.alpha_id}>{shortId(a.alpha_id)}{a.strategy ? ` · ${a.strategy}` : ''}</option>)}
+                {alphaOptions.map((a) => <option key={a.alpha_id} value={a.alpha_id}>{shortId(a.alpha_id)}{a.strategy ? ` · ${legLabel(a.strategy)}` : ''}</option>)}
               </select>
               {tradeAlpha && <button type="button" className="n-btn sm" onClick={() => openAlpha(tradeAlpha)}>Chi tiết alpha</button>}
             </>
@@ -253,7 +252,7 @@ function RunView({ runId }) {
       </div>
       </>}
 
-      {drawer && <AlphaDrawer key={drawer} runId={runId} alphaId={drawer} catalog={catalog} onClose={closeAlpha} onTrades={toTrades} />}
+      {drawer && <AlphaDrawer key={drawer} runId={runId} alphaId={drawer} onClose={closeAlpha} onTrades={toTrades} />}
     </>
   )
 }

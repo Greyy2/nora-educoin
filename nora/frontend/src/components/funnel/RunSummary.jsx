@@ -4,6 +4,7 @@ import Term from '../Term'
 import { AlphaLink, StrategyName } from './parts'
 import { fmtCount, fmtMetric, shortId } from '../../lib/funnel'
 import { fmtPct, fmtSPct, fmtDuration, signClass, isNum } from '../../lib/format'
+import { legLabel } from '../../lib/strategyLabel'
 
 const bySharpe = (top) => [...(top || [])].sort((a, b) => (b.metrics?.sharpe ?? -Infinity) - (a.metrics?.sharpe ?? -Infinity))
 const pct = (a, b) => (isNum(a) && isNum(b) && b > 0 ? fmtPct((a / b) * 100, (a / b) * 100 < 10 ? 2 : 1) : '—')
@@ -22,13 +23,13 @@ export function Headline({ run, finalPassed, fin }) {
       <div className="n-panel n-kpi"><div className="lbl">Đủ điều kiện testnet (FINAL)</div><div className={`val ${finalPassed > 0 ? 'pos' : ''}`}>{fmtCount(finalPassed)}</div>
         <div className="sub">{pct(finalPassed, c[0].passed)} số alpha hợp lệ</div></div>
       <div className="n-panel n-kpi"><div className="lbl">Sharpe cao nhất trong FINAL</div><div className="val">{best ? fmtMetric('sharpe', best.metrics?.sharpe) : '—'}</div>
-        <div className="sub">{best ? <>{best.strategy} · {shortId(best.alpha_id)}</> : 'chưa có'}</div></div>
+        <div className="sub">{best ? <>{legLabel(best.strategy)} · {shortId(best.alpha_id)}</> : 'chưa có'}</div></div>
     </div>
   )
 }
 
 /** Kết quả FINAL rút gọn: số FINAL theo chiến lược + vài alpha tốt nhất theo Sharpe. Chi tiết đầy đủ nằm ở tầng FINAL. */
-export function FinalSummary({ run, finalPassed, q, catalog, onOpen, onAll, live }) {
+export function FinalSummary({ run, finalPassed, q, onOpen, onAll, live }) {
   const fin = q.data
   const none = finalPassed === 0 && !live
   const strategies = fin?.by_strategy || []
@@ -51,7 +52,7 @@ export function FinalSummary({ run, finalPassed, q, catalog, onOpen, onAll, live
                   <tbody>
                     {strategies.map((r) => (
                       <tr key={r.strategy}>
-                        <td><StrategyName id={r.strategy} catalog={catalog} /></td>
+                        <td><StrategyName id={r.strategy} /></td>
                         <td className="r"><b>{fmtCount(r.passed)}</b></td>
                         <td className={`r ${signClass(r.median_ret_pct)}`}>{fmtSPct(r.median_ret_pct, 1)}</td>
                         <td className="r">{isNum(r.median_mdd_pct) ? fmtPct(r.median_mdd_pct, 1) : '—'}</td>
@@ -60,7 +61,7 @@ export function FinalSummary({ run, finalPassed, q, catalog, onOpen, onAll, live
                   </tbody>
                 </table>
               </div>
-              {empty.length > 0 && <p className="n-note" style={{ marginTop: 6 }}>Không có FINAL: <span className="mono">{empty.join(', ')}</span></p>}
+              {empty.length > 0 && <p className="n-note" style={{ marginTop: 6 }}>Không có FINAL: <span className="mono">{empty.map(legLabel).join(', ')}</span></p>}
             </div>
             <div>
               <h3>{top.length} alpha tốt nhất theo Sharpe</h3>
@@ -71,7 +72,7 @@ export function FinalSummary({ run, finalPassed, q, catalog, onOpen, onAll, live
                     {top.map((a) => (
                       <tr key={a.alpha_id}>
                         <td><AlphaLink id={a.alpha_id} onOpen={onOpen} /></td>
-                        <td><StrategyName id={a.strategy} catalog={catalog} /></td>
+                        <td><StrategyName id={a.strategy} /></td>
                         <td className={`r ${signClass(a.metrics?.ret_pct)}`}>{fmtSPct(a.metrics?.ret_pct, 1)}</td>
                         <td className="r">{fmtMetric('mdd_pct', a.metrics?.mdd_pct)}</td>
                         <td className="r">{fmtMetric('sharpe', a.metrics?.sharpe)}</td>

@@ -13,9 +13,8 @@ from fastapi import HTTPException
 from backend.api.jobs import batch as batch_jobs
 from backend.core.params import presets as presets_mod
 from backend.core.params import modes as rm
-from backend.core.strategy.book import BASE_RISK_PER_TRADE_PCT, CANDIDATES
+from backend.core.strategy.book import BASE_RISK_PER_TRADE_PCT, BY_ID
 
-BY_ID = {c["id"]: c for c in CANDIDATES}
 
 # WFA nhận tham số ngoài `space` (chu kỳ chỉ báo, khung thời gian...): validate_book.candidates_from_json và
 # batch.check_wfa_strategies chấp nhận khoá của params_schema.

@@ -4,6 +4,7 @@ import { paramText } from '../../lib/params'
 import { shortId, stageShort, stageName, STAGE_META, fmtMetric, metricLabel } from '../../lib/funnel'
 import { isNum, signClass } from '../../lib/format'
 import { mockNoticeStore } from '../../api'
+import { legLabel, legSide } from '../../lib/strategyLabel'
 
 /** Mã alpha rút gọn, bấm để mở chi tiết. */
 export function AlphaLink({ id, onOpen, active }) {
@@ -34,13 +35,13 @@ const METRIC_TONE_KEYS = new Set(['ret_pct', 'is_ret_avg'])
 
 export { stageName, stageShort, STAGE_META, metricLabel }
 
-/** Tên chiến lược kèm chiều LONG/SHORT suy ra từ catalog (nếu có). */
-export function StrategyName({ id, catalog }) {
-  const c = (catalog || []).find((x) => x.id === id)
+/** Tên chiến lược kèm chiều ("KEMA · Long"; id cũ có hậu tố "(cũ)"), id thô là chữ phụ. */
+export function StrategyName({ id }) {
+  const side = legSide(id)
   return (
-    <span className="n-strat-name">
-      <span className="mono">{id}</span>
-      {c?.side && <span className={`n-badge ${String(c.side).toLowerCase()}`}>{c.side}</span>}
+    <span className="n-strat-name" title={id}>
+      <span>{legLabel(id)}</span>
+      {side && <span className={`n-badge ${side.toLowerCase()}`}>{side}</span>}
     </span>
   )
 }

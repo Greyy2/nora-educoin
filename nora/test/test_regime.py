@@ -119,8 +119,8 @@ def test_regime_filters_entries_to_allowed_states(market):
 def test_keltner_trend_exits_on_opposite_band_cross(market):
     """keltner_trend_long (KEMA của sova): vào khi close cắt lên dải trên, thoát khi close cắt xuống dải dưới (cây stop)."""
     from backend.core.backtest.portfolio import PortfolioEngine, RiskConfig
-    from backend.core.strategy.book import CANDIDATES, materialize
-    cand = {c["id"]: c for c in CANDIDATES}["keltner_trend_long"]
+    from backend.core.strategy.book import BY_ID, materialize
+    cand = BY_ID["keltner_trend_long"]
     st = materialize(cand, {"sig.signal_tf": "1h", "sig.ema_n": 20, "sig.k_up": 1.0, "sig.k_dn": 1.0, "stop_loss_rate": 6.0})
     assert st["stop"] and st["stop"][0]["condition"]
     eng = PortfolioEngine(["AAA@perp", "BBB@perp", "CCC@perp"], [st], T0 + 2 * DAY, T0 + 68 * DAY, trade_start_ts=T0 + 35 * DAY,
@@ -153,9 +153,9 @@ def test_learn_map_blocks_only_losing_regimes_with_enough_trades():
 
 
 def test_regime_map_is_opposite_trend_deny_list_without_fuse():
-    from backend.core.strategy.book import CANDIDATES, REGIME_DENY, REGIME_MAP
-    assert set(REGIME_MAP) == {c["id"] for c in CANDIDATES}
-    for c in CANDIDATES:
+    from backend.core.strategy.book import REGIME_DENY, REGIME_MAP, all_candidates
+    assert set(REGIME_MAP) == {c["id"] for c in all_candidates()}
+    for c in all_candidates():
         cfg = REGIME_MAP[c["id"]]
         assert cfg["fuse"] is False and set(cfg["allowed"]) == set(rg.NAMES) - set(REGIME_DENY[c["side"]])
 

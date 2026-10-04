@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Panel, Status, Spinner, Loading, ErrorState, Empty } from '../ui'
 import { STAGES, STAGE_META, RUN_STATUS, fmtCount, fmtEta } from '../../lib/funnel'
 import { fmtDateTime, fmtPct, isNum } from '../../lib/format'
+import { legLabel } from '../../lib/strategyLabel'
 
 /** Phễu thu nhỏ: 8 cột (S0 → FINAL), chiều cao theo log số alpha còn lại. */
 export function MiniFunnel({ counts }) {
@@ -47,7 +48,7 @@ export default function RunsList({ q, onCreate }) {
                   <td className="mono"><a href={`/alpha/funnel/${encodeURIComponent(r.run_id)}`} onClick={(e) => { e.preventDefault(); e.stopPropagation(); nav(`/alpha/funnel/${encodeURIComponent(r.run_id)}`) }}>{r.run_id}</a></td>
                   <td><Status tone={st.cls}>{live && <Spinner />}{st.text}</Status></td>
                   <td className="num">{fmtDateTime(r.created)}</td>
-                  <td className="wrap"><span className="n-plist-inline">{r.strategies.join(', ') || '—'}</span>{r.n_per_strategy ? <span className="muted mono"> · {fmtCount(r.n_per_strategy)}/cl</span> : null}</td>
+                  <td className="wrap"><span className="n-plist-inline">{r.strategies.map(legLabel).join(', ') || '—'}</span>{r.n_per_strategy ? <span className="muted mono"> · {fmtCount(r.n_per_strategy)}/cl</span> : null}</td>
                   <td className="r">{fmtCount(r.total_alphas)}</td>
                   <td><MiniFunnel counts={r.counts} /></td>
                   <td className="r">{fin && isNum(fin.passed) ? <b className={fin.passed ? 'pos' : ''}>{fmtCount(fin.passed)}</b> : <span className="muted">—</span>}</td>

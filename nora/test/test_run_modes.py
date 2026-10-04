@@ -19,10 +19,10 @@ from backend.core.params.builder import POSITION_KEYS
 from backend.core.params import presets as pr
 from backend.core.params import modes as rm
 from backend.core.params.template import FRAMES, collect_placeholders, collect_string_placeholders, resolve_placeholders
-from backend.core.strategy.book import BASE_POSITION, CANDIDATES, materialize, schema_defaults
+from backend.core.strategy import book as sb
+from backend.core.strategy.book import BASE_POSITION, BY_ID, CANDIDATES, LEGACY_CANDIDATES, all_candidates, materialize, schema_defaults
 from backend.core.strategy.library import calc, cond, cross_over, cross_under, f, p
 
-BY_ID = {c["id"]: c for c in CANDIDATES}
 
 # ─── Cây CŨ (literal, trước khi tham số hoá chu kỳ/khung) — bằng chứng bit-identical của mặc định ──────────
 _UP_1H = (f("1h", "ema_50"), ">", f("1h", "ema_200"))
@@ -44,9 +44,22 @@ OLD_TREES = {
                             (f("1h", "er_20"), "<", p("er_max", 0.3))),
 }
 
+OLD_TREES.update({"kema_long": OLD_TREES["keltner_trend_long"], "kema_short": OLD_TREES["keltner_trend_short"],
+                  "sideway_long": OLD_TREES["reversion_long"], "sideway_short": OLD_TREES["reversion_short"]})
+REAL_CATALOG_TESTS = ("test_real_catalog_", "test_default_resolution_equals_old_literal_tree", "test_default_position_and_signal_params_unchanged",
+                      "test_schema_is_well_formed")
+
+
+@pytest.fixture(autouse=True)
+def _legacy_catalog(request, monkeypatch):
+    """Phần lớn test cơ chế (preset, chế độ chạy, kiểm tham số) viết trên 9 chiến lược cũ: chạy chúng trên danh mục cũ; test danh mục thật thì không."""
+    if not request.node.name.startswith(REAL_CATALOG_TESTS):
+        monkeypatch.setattr(sb, "CANDIDATES", list(LEGACY_CANDIDATES))
+        monkeypatch.setattr(sb, "LEGACY_CANDIDATES", [])
+
 
 # ─── 1. Mẫu tham số hoá ──────────────────────────────────────────────────────
-@pytest.mark.parametrize("cid", [c["id"] for c in CANDIDATES])
+@pytest.mark.parametrize("cid", [c["id"] for c in all_candidates()])
 def test_default_resolution_equals_old_literal_tree(cid):
     c = BY_ID[cid]
     old = resolve_placeholders(OLD_TREES[cid], {})
@@ -58,7 +71,7 @@ def test_default_resolution_equals_old_literal_tree(cid):
     assert json.dumps(materialize(c, {})["tree"]) == json.dumps(old)               # giống từng ký tự (kể cả 20.0 vs 20)
 
 
-@pytest.mark.parametrize("cid", [c["id"] for c in CANDIDATES])
+@pytest.mark.parametrize("cid", [c["id"] for c in all_candidates()])
 def test_default_position_and_signal_params_unchanged(cid):
     c = BY_ID[cid]
     st = materialize(c, {})
@@ -67,7 +80,7 @@ def test_default_position_and_signal_params_unchanged(cid):
     assert st2["signal_params"] == {"adx_min": 25} and st2["position"]["stop_loss_rate"] == 2 and st2["position"]["risk_per_trade_pct"] == 0.75
 
 
-@pytest.mark.parametrize("cid", [c["id"] for c in CANDIDATES])
+@pytest.mark.parametrize("cid", [c["id"] for c in all_candidates()])
 def test_schema_is_well_formed(cid):
     c = BY_ID[cid]
     schema = c["params_schema"]
@@ -340,13 +353,23 @@ def _job(client, jid):
     return r.json()
 
 
+def test_real_catalog_three_strategies_with_legs(client):
+    rows = client.get("/api/studio/strategies").json()
+    assert [x["id"] for x in rows] == ["kema_long", "kema_short", "sideway_long", "sideway_short"]
+    assert {x["strategy"] for x in rows} == {"kema", "sideway"} and all("sova" not in (x["description"] + x["family"]).lower() for x in rows)
+    cat = client.get("/api/studio/strategies/catalog").json()
+    assert [c["id"] for c in cat] == ["kema", "sideway", "dca"] and cat[0]["legs"] == {"LONG": "kema_long", "SHORT": "kema_short"} and cat[2]["coming"]
+    assert client.post(URL, json={**BT, "strategies": [{"id": "kema_long"}, {"id": "kema_short"}]}).status_code == 200
+    assert client.post(URL, json={**BT, "strategies": [{"id": "trend_long"}]}).status_code == 200      # id cũ vẫn chạy được (sổ đã xuất bản)
+
+
 def test_get_strategies_shape(client):
     r = client.get("/api/studio/strategies")
     assert r.status_code == 200
     rows = r.json()
-    assert [x["id"] for x in rows] == [c["id"] for c in CANDIDATES] and len(rows) == 9
+    assert [x["id"] for x in rows] == [c["id"] for c in sb.CANDIDATES] and len(rows) == 9
     x = {r["id"]: r for r in rows}["trend_long"]
-    assert set(x) == {"id", "family", "side", "description", "params_schema", "preset", "frames_allowed"}
+    assert set(x) == {"id", "strategy", "family", "side", "description", "params_schema", "preset", "frames_allowed"}
     assert x["frames_allowed"] == list(FRAMES) and list(x["params_schema"]) == list(BY_ID["trend_long"]["params_schema"])   # thứ tự giữ nguyên
     spec = x["params_schema"]["sig.ema_fast"]
     assert spec == {"group": "signal", "type": "int", "min": 5, "max": 100, "step": 1, "default": 50, "label_vi": "EMA nhanh", "unit": "nến",
@@ -391,7 +414,7 @@ def test_basic_mode_ignores_client_params_and_uses_presets(client):
 
 
 def test_basic_mode_limits_strategy_count_and_ids(client):
-    ids = [c["id"] for c in CANDIDATES]
+    ids = [c["id"] for c in sb.CANDIDATES]
     assert client.post(URL, json={**BT, "strategies": [{"id": i} for i in ids]}).status_code == 200      # đúng 9 (cả sổ)
     n = len(FakePopen.calls)
     r = client.post(URL, json={**BT, "strategies": [{"id": i} for i in ids] + [{"id": "trend_long"}]})
@@ -669,11 +692,11 @@ def test_wfa_job_candidates_from_list_accepts_schema_keys():
 def test_presets_evidence_bools_are_real_bools(tmp_path):
     run = tmp_path / "20260101_000000"
     run.mkdir()
-    cand = next(c for c in CANDIDATES if c["id"] == "trend_long")
+    cand = BY_ID["trend_long"]
     params = {k: v[0] for k, v in cand["space"].items()}
     (run / "stage_a.json").write_text(json.dumps({"trend_long": [{"score": 1.0, "params": params, "dev1": {}}]}))
     (run / "report.json").write_text(json.dumps({"candidates": {"trend_long": {"accepted": "False", "dev1_top": [{"params": params, "dev2_pass": "True"}]}}}))
-    ev = pr.from_build_runs(str(tmp_path), CANDIDATES)["trend_long"]["evidence"]
+    ev = pr.from_build_runs(str(tmp_path), [cand])["trend_long"]["evidence"]
     assert ev["accepted"] is False and ev["dev2_pass"] is True
     out = tmp_path / "p.json"
     pr.write_presets({"x": np.bool_(True)}, str(out))
@@ -682,9 +705,8 @@ def test_presets_evidence_bools_are_real_bools(tmp_path):
 
 def test_timeframe_lifts_frames_and_blocks_incompatible_strategies():
     """Khung chạy: lựa chọn khung < khung chạy được nâng lên (nếu là lựa chọn hợp lệ) hoặc bỏ; chiến lược không còn khung hợp lệ bị báo."""
-    from backend.core.strategy.book import CANDIDATES
     from backend.optimize.funnel import generate as gen
-    by = {c["id"]: c for c in CANDIDATES}
+    by = BY_ID
     sp = gen.space_for(by["trend_long"], "schema", "1h")
     assert set(sp["sig.entry_tf"]) == {"1h"} and set(sp["sig.trend_tf"]) == {"1h", "4h", "24h"}
     grid = gen.space_for(by["reversion_long"], "grid", "15m")

@@ -7,6 +7,7 @@ import useAsync from '../../hooks/useAsync'
 import { getFunnelAlphas } from '../../api'
 import { stageShort, fmtMetric } from '../../lib/funnel'
 import { signClass, fmtSPct } from '../../lib/format'
+import { legLabel } from '../../lib/strategyLabel'
 
 const COLS = [
   { k: 'ret_pct', label: 'Lãi' }, { k: 'mdd_pct', label: 'MDD', term: 'mdd' }, { k: 'sharpe', label: 'Sharpe', term: 'sharpe' },
@@ -14,7 +15,7 @@ const COLS = [
 ]
 
 /** Bảng alpha của một tầng: lọc qua/loại + chiến lược, sắp xếp theo chỉ số, phân trang; tiêu đề bảng dính. */
-export default function AlphaTable({ runId, stage, strategies, catalog, selected, onSelect, onOpen, onTrades }) {
+export default function AlphaTable({ runId, stage, strategies, selected, onSelect, onOpen, onTrades }) {
   const [status, setStatus] = useState('all')
   const [strategy, setStrategy] = useState('')
   const [sort, setSort] = useState({ k: 'sharpe', desc: true })
@@ -32,7 +33,7 @@ export default function AlphaTable({ runId, stage, strategies, catalog, selected
         <Segmented label="Lọc theo kết quả" value={status} onChange={reset(setStatus)} options={[{ value: 'all', label: 'Tất cả' }, { value: 'passed', label: '✓ Qua' }, { value: 'rejected', label: '✗ Bị loại' }]} />
         <select className="n-sel" style={{ width: 200 }} aria-label="Lọc theo chiến lược" value={strategy} onChange={(e) => reset(setStrategy)(e.target.value)}>
           <option value="">Mọi chiến lược</option>
-          {strategies.map((s) => <option key={s} value={s}>{s}</option>)}
+          {strategies.map((s) => <option key={s} value={s}>{legLabel(s)}</option>)}
         </select>
       </>
     }>
@@ -61,7 +62,7 @@ export default function AlphaTable({ runId, stage, strategies, catalog, selected
                 {d.items.map((a) => (
                   <tr key={a.alpha_id} className={selected === a.alpha_id ? 'sel' : ''} onClick={() => onSelect(a.alpha_id)}>
                     <td><AlphaLink id={a.alpha_id} onOpen={onOpen} active={selected === a.alpha_id} /></td>
-                    <td><StrategyName id={a.strategy} catalog={catalog} /></td>
+                    <td><StrategyName id={a.strategy} /></td>
                     <td className="wrap"><ParamList params={a.params} /></td>
                     <td><AlphaStatus a={a} /></td>
                     {COLS.map((c) => <td key={c.k} className={`r ${c.k === 'ret_pct' ? signClass(a.metrics?.[c.k]) : ''}`}>{c.k === 'ret_pct' ? fmtSPct(a.metrics?.ret_pct, 1) : fmtMetric(c.k, a.metrics?.[c.k])}</td>)}

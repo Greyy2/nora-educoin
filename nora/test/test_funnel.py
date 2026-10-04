@@ -614,7 +614,7 @@ def test_schema_space_factored_sampling_deterministic_unique_grouped():
     spec = importlib.util.spec_from_file_location("book_fresh_for_test", path)
     fresh = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(fresh)
-    cand = next(c for c in fresh.CANDIDATES if c["id"] == "trend_long")
+    cand = fresh.BY_ID["trend_long"]
     sp = schema_space(cand)
     assert "risk_per_trade_pct" not in sp and sp["sig.trend_tf"] == cand["params_schema"]["sig.trend_tf"]["choices"]
     assert gen.grid_size(sp) > 10 ** 20

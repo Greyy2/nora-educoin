@@ -3,7 +3,7 @@ import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { PageHead, Panel, Segmented, Field, ErrorBox, Empty, Spinner, Loading, ErrorState } from '../components/ui'
 import Term from '../components/Term'
 import { DateInput, DatePresets } from '../components/DateField'
-import { StrategyCard, PresetNote, ModeSwitch, ModeStamp, PublishBlocked, ParamField, LockIcon, useStrategies, useServerValidation } from '../components/RunModes'
+import { StrategyCard, PresetNote, ModeSwitch, ModeStamp, PublishBlocked, ParamField, LockIcon, useStrategies, useStrategyCatalog, useServerValidation } from '../components/RunModes'
 import StrategyChoice from '../components/backtest/StrategyChoice'
 import PresetSummary from '../components/backtest/PresetSummary'
 import JobPanel from '../components/JobPanel'
@@ -18,7 +18,7 @@ import { daysInclusive } from '../lib/dates'
 import { fullDate } from '../lib/format'
 import { STOP_FILL, stopFillOptions } from '../lib/stopfill'
 import { paramLabel } from '../lib/params'
-import '../styles/backtest.css'
+import { SIDE_TEXT, legLabel, legsFor, picksFromLegs, strategyName } from '../lib/strategyLabel'
 import {
   MC_STD, STRESS, STRESS_ALL, WFA_STD, WFA_SCHEMA_KEYS_SUPPORTED, WFA_PENDING_NOTE, mcIsCustom, presetParams,
   validateStrategy, coerceParams, splitServerErrors, flatServerErrors, CUSTOM_BADGE, timeframeMismatch,
@@ -44,6 +44,38 @@ function selFromList(list, strategies) {
   })
   return out
 }
+
+/** Chỉ giữ các khoá thuộc lược đồ của chân lệnh (hai chân của một chiến lược có thể lệch vài khoá, vd Sideway: rsi_lo / rsi_hi). */
+const pickSchema = (leg, p) => Object.fromEntries(Object.entries(p).filter(([k]) => k in leg.params_schema))
+
+/** Bộ tham số dùng chung của các chân lệnh đã chọn (chân đầu = Long thắng khi trùng khoá). */
+const sharedParams = (legIds, sel) => Object.assign({}, ...[...legIds].reverse().map((id) => sel[id]))
+
+/** Thẻ gộp của một chiến lược theo chiều đã chọn: lược đồ = hợp các chân, preset = preset chân Long (Short-only: chân Short). */
+function mergedStrat(entry, side, legIds, byId) {
+  const legs = legIds.map((id) => byId[id]).filter(Boolean)
+  if (!legs.length) return null
+  const rev = [...legs].reverse()
+  return {
+    ...legs[0], id: entry.id, name: entry.name, side,
+    params_schema: Object.assign({}, ...rev.map((l) => l.params_schema)),
+    preset: { ...legs[0].preset, params: Object.assign({}, ...rev.map((l) => l.preset?.params || {})) },
+  }
+}
+
+/** sel mới khi đặt chiều cho một chiến lược: giữ tham số đã chỉnh của chân còn lại, chân mới lấy preset + phần dùng chung. */
+function applySide(sel, entry, side, byId) {
+  const all = Object.values(entry.legs || {})
+  const have = all.filter((id) => sel[id])
+  const next = { ...sel }
+  all.forEach((id) => delete next[id])
+  const shared = sharedParams(have, sel)
+  legsFor(entry, side).filter((id) => byId[id]).forEach((id) => {
+    next[id] = have.includes(id) ? sel[id] : pickSchema(byId[id], { ...presetParams(byId[id]), ...shared })
+  })
+  return next
+}
+const dropStrategy = (sel, entry) => Object.fromEntries(Object.entries(sel).filter(([id]) => !Object.values(entry.legs || {}).includes(id)))
 
 const isNumStr = (v) => v !== '' && v != null && Number.isFinite(Number(v))
 const RISK_MIN = 0.05
@@ -88,7 +120,7 @@ function PresetBlock({ strat }) {
   )
 }
 
-function StepBacktest({ cat, strats, form, setForm, btId, bt, onLaunched, onNext }) {
+function StepBacktest({ cat, strats, sc, form, setForm, btId, bt, onLaunched, onNext }) {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(null)
   const [runErr, setRunErr] = useState(null) // { per, general } từ 422 của lần chạy gần nhất
@@ -99,6 +131,13 @@ function StepBacktest({ cat, strats, form, setForm, btId, bt, onLaunched, onNext
   const multi = !!form.multi
   const ids = Object.keys(form.sel)
   const nSel = ids.length
+  // mỗi chiến lược đã chọn (kèm chiều) = một nhóm chân lệnh dùng chung một bộ tham số
+  const picks = picksFromLegs(ids, sc.list)
+  const groups = sc.list.filter((c) => picks[c.id]).map((c) => {
+    const legIds = legsFor(c, picks[c.id]).filter((id) => form.sel[id])
+    return { entry: c, side: picks[c.id], legIds, strat: mergedStrat(c, picks[c.id], legIds, strats.byId) }
+  }).filter((g) => g.strat)
+  const nStrat = groups.length
   const risk = adv ? form.risk : basicRisk(form.sel, strats.byId)
   const fill = adv ? form.stopFill : 'level'
   const tfMismatch = adv ? [] : timeframeMismatch(ids, strats.byId, form.timeframe || '1h')
@@ -142,39 +181,51 @@ function StepBacktest({ cat, strats, form, setForm, btId, bt, onLaunched, onNext
     } finally { setBusy(false) }
   }
 
-  // một chiến lược: bấm thẻ là thay luôn bằng preset của nó; danh mục: bật/tắt từng thẻ
+  // một chiến lược: bấm thẻ là thay luôn bằng preset của nó (mặc định Cả hai chiều); danh mục: bật/tắt từng thẻ
   const pickStrategy = (c) => {
-    if (!multi) return setForm({ sel: { [c.id]: presetParams(c) }, risk: basicRisk({ [c.id]: 1 }, strats.byId) })
-    const next = { ...form.sel }
-    if (next[c.id]) delete next[c.id]; else next[c.id] = presetParams(c)
-    setForm({ sel: next })
+    if (!multi) {
+      const sel = applySide({}, c, 'BOTH', strats.byId)
+      return setForm({ sel, risk: basicRisk(sel, strats.byId) })
+    }
+    setForm({ sel: picks[c.id] ? dropStrategy(form.sel, c) : applySide(form.sel, c, 'BOTH', strats.byId) })
+  }
+  const pickSide = (c, side) => {
+    const sel = applySide(form.sel, c, side, strats.byId)
+    setForm(multi ? { sel } : { sel, risk: basicRisk(sel, strats.byId) })
+  }
+  // tham số dùng chung của một chiến lược: ghi cho mọi chân đã chọn (mỗi chân chỉ nhận khoá thuộc lược đồ của nó)
+  const setStratParams = (g, p) => setForm({ sel: { ...form.sel, ...Object.fromEntries(g.legIds.map((id) => [id, pickSchema(strats.byId[id], p)])) } })
+  const resetStrat = (g) => {
+    setStratParams(g, presetParams(g.strat))
+    if (g.strat.preset?.params?.risk_per_trade_pct != null) setForm({ risk: g.strat.preset.params.risk_per_trade_pct })
   }
   const setMulti = (on) => {
     if (on) return setForm({ multi: true })
-    const first = ids[0]
-    setForm({ multi: false, sel: first ? { [first]: form.sel[first] } : {}, symbols: form.symbols.length > 1 ? defaultSymbols(universe.filter((s) => form.symbols.includes(s))) : form.symbols })
+    const g = groups[0]
+    setForm({ multi: false, sel: g ? Object.fromEntries(g.legIds.map((id) => [id, form.sel[id]])) : {}, symbols: form.symbols.length > 1 ? defaultSymbols(universe.filter((s) => form.symbols.includes(s))) : form.symbols })
   }
   const toggleSym = (s) => setForm({ symbols: form.symbols.includes(s) ? form.symbols.filter((x) => x !== s) : [...form.symbols, s] })
-  const applyBook = () => setForm({ multi: true, sel: selFromList(cat.book?.strategies, strats.byId) })
+  const bookOk = (cat.book?.strategies || []).some((x) => strats.byId[x.id]) // sổ cũ dùng id cũ: không nạp được vào lựa chọn mới
+  const applyBook = () => { const sel = selFromList(cat.book?.strategies, strats.byId); setForm({ multi: Object.keys(picksFromLegs(Object.keys(sel), sc.list)).length > 1, sel }) }
   const symOpts = form.symbols[0] && !universe.includes(form.symbols[0]) ? [form.symbols[0], ...universe] : universe
 
   return (
     <>
       <Panel title="Chọn chiến lược" meta={multi ? (
         <>
-          <button type="button" className="n-btn sm" onClick={applyBook} disabled={!cat.book?.strategies?.length}>Dùng sổ hiện tại</button>
+          <button type="button" className="n-btn sm" onClick={applyBook} disabled={!bookOk} title={bookOk ? undefined : 'Sổ hiện tại dùng chiến lược cũ, không nạp được'}>Dùng sổ hiện tại</button>
           <button type="button" className="n-btn sm" onClick={() => setForm({ sel: {} })} disabled={!nSel}>Bỏ chọn</button>
-          <span className="mono">{nSel} đã chọn</span>
+          <span className="mono">{nStrat} đã chọn</span>
         </>
       ) : null}>
-        <StrategyChoice strategies={strats.list} sel={form.sel} multi={multi} onPick={pickStrategy} />
+        <StrategyChoice catalog={sc.list} picks={picks} multi={multi} onPick={pickStrategy} onSide={pickSide} />
       </Panel>
 
       {!nSel && <p className="n-note" style={{ marginTop: 12 }}>Chọn một chiến lược để xem tham số và thiết lập phạm vi chạy.</p>}
 
       {nSel > 0 && (
         <div className="n-grid g-main-side" style={{ marginTop: 12 }}>
-          <Panel title={multi ? 'Tham số các chiến lược' : <>Tham số của <span className="mono">{ids[0]}</span></>}>
+          <Panel title={multi ? 'Tham số các chiến lược' : <>Tham số của <span className="mono">{groups[0]?.entry.name} · {SIDE_TEXT[groups[0]?.side]}</span></>}>
             <label className={`n-bt-adv ${adv ? 'on' : ''}`}>
               <input type="checkbox" checked={adv} onChange={(e) => setForm({ mode: e.target.checked ? 'advanced' : 'basic' })} />
               <span>
@@ -189,12 +240,13 @@ function StepBacktest({ cat, strats, form, setForm, btId, bt, onLaunched, onNext
 
             {!adv && (
               <div style={{ marginTop: 10, display: 'grid', gap: 10 }}>
-                {multi ? ids.map((id) => strats.byId[id] && (
-                  <details key={id} className="n-details">
-                    <summary><b className="mono">{id}</b> <span className={`n-badge ${String(strats.byId[id].side).toLowerCase()}`}>{strats.byId[id].side}</span></summary>
-                    <PresetBlock strat={strats.byId[id]} />
+                {multi ? groups.map((g) => (
+                  <details key={g.entry.id} className="n-details">
+                    <summary><b className="mono">{g.entry.name}</b> <span className={`n-badge ${g.side.toLowerCase()}`}>{SIDE_TEXT[g.side]}</span></summary>
+                    <PresetBlock strat={g.strat} />
                   </details>
-                )) : strats.byId[ids[0]] && <PresetBlock strat={strats.byId[ids[0]]} />}
+                )) : groups[0] && <PresetBlock strat={groups[0].strat} />}
+                {groups.some((g) => g.side === 'BOTH') && <p className="n-note">Cả hai chiều dùng chung một bộ tham số; khoá chỉ có ở một chiều (vd. ngưỡng RSI mua / bán) áp cho đúng chiều đó.</p>}
               </div>
             )}
 
@@ -207,10 +259,10 @@ function StepBacktest({ cat, strats, form, setForm, btId, bt, onLaunched, onNext
                     </select>
                   </Field>
                 </div>
-                {ids.map((id) => strats.byId[id] && (
-                  <StrategyCard key={id} strat={strats.byId[id]} mode="advanced" params={form.sel[id]} errors={errors[id] || {}}
-                    onChange={(p) => setForm({ sel: { ...form.sel, [id]: p } })}
-                    onReset={() => setForm({ sel: { ...form.sel, [id]: presetParams(strats.byId[id]) }, risk: strats.byId[id].preset?.params?.risk_per_trade_pct ?? form.risk })}
+                {groups.map((g) => (
+                  <StrategyCard key={g.entry.id} strat={g.strat} name={g.entry.name} sideText={SIDE_TEXT[g.side]} mode="advanced"
+                    params={sharedParams(g.legIds, form.sel)} errors={Object.assign({}, ...g.legIds.map((id) => errors[id] || {}))}
+                    onChange={(p) => setStratParams(g, p)} onReset={() => resetStrat(g)}
                     riskShared={{ value: form.risk, onChange: (v) => setForm({ risk: v }) }} />
                 ))}
               </div>
@@ -238,7 +290,7 @@ function StepBacktest({ cat, strats, form, setForm, btId, bt, onLaunched, onNext
                   </select>
                   {tfMismatch.length > 0 && (
                     <span className="n-pf-note" role="status">
-                      Preset tối ưu ở khung khác: {tfMismatch.map((x) => `${x.id} (${x.timeframe})`).join(', ')} — kết quả có thể kém hơn bằng chứng.
+                      Preset tối ưu ở khung khác: {tfMismatch.map((x) => `${legLabel(x.id)} (${x.timeframe})`).join(', ')} — kết quả có thể kém hơn bằng chứng.
                     </span>
                   )}
                 </Field>
@@ -284,7 +336,7 @@ function StepBacktest({ cat, strats, form, setForm, btId, bt, onLaunched, onNext
         <div className="n-runbar" role="region" aria-label="Chạy backtest">
           <div className="sum">
             <span className={`n-mode-badge ${mode}`}>{adv ? 'Nâng cao' : 'Cơ bản'}</span>{' '}
-            {nSel} chiến lược · {nSym} tài sản · {days != null && days > 0 ? `${days} ngày` : '— ngày'} · rủi ro {isNumStr(risk) ? String(+Number(risk).toFixed(2)) : '—'}%/lệnh · Khớp cắt lỗ: {STOP_FILL[fill]?.text || fill}
+            {groups.map((g) => `${g.entry.name} · ${SIDE_TEXT[g.side]}`).join(', ')} · {nSym} tài sản · {days != null && days > 0 ? `${days} ngày` : '— ngày'} · rủi ro {isNumStr(risk) ? String(+Number(risk).toFixed(2)) : '—'}%/lệnh · Khớp cắt lỗ: {STOP_FILL[fill]?.text || fill}
             {reason && <div className="why" role="status">Chưa chạy được: {reason}.</div>}
           </div>
           <ErrorBox>{err && err !== reason ? err : null}</ErrorBox>
@@ -468,7 +520,7 @@ function StepWfa({ cat, strats, form, setForm, wfaId, wfa, onLaunched, onNext })
               : f.kind === 'fixed'
                 ? <>Dùng đúng tham số đã chỉnh; WFA chỉ kiểm tra <Term k="oos">out-of-sample</Term> cuốn chiếu.</>
                 : <>Mỗi <Term k="fold">fold</Term> lấy mẫu n cấu hình, chọn cấu hình tốt nhất trên IS rồi chạy OOS.</>}
-            <div style={{ marginTop: 4 }}>Chiến lược: {ids.map((i) => <span key={i} className="n-badge" style={{ marginRight: 4 }}>{i}</span>)}</div>
+            <div style={{ marginTop: 4 }}>Chiến lược: {ids.map((i) => <span key={i} className="n-badge" style={{ marginRight: 4 }} title={i}>{legLabel(i)}</span>)}</div>
           </div>
         </div>
 
@@ -480,7 +532,7 @@ function StepWfa({ cat, strats, form, setForm, wfaId, wfa, onLaunched, onNext })
         {adv && f.kind === 'fixed' && (
           <div style={{ marginTop: 12 }}>
             {ids.map((id) => strats.byId[id] && (
-              <StrategyCard key={id} strat={strats.byId[id]} mode="advanced" params={wfaParams(id)} errors={errors[id] || {}}
+              <StrategyCard key={id} strat={strats.byId[id]} name={strategyName(strats.byId[id].strategy)} mode="advanced" params={wfaParams(id)} errors={errors[id] || {}}
                 editableKeys={WFA_SCHEMA_KEYS_SUPPORTED ? null : spaceOf(id)}
                 locked={pend ? { risk_per_trade_pct: `lấy từ bước 1 (${form.risk}%)` } : {}}
                 onChange={(p) => setWp((x) => ({ ...x, [id]: p }))}
@@ -629,6 +681,7 @@ function StepMc({ wfaId, wfa, form, setForm }) {
 export default function Backtest() {
   const { data: cat, loading, error, reload } = useCatalog()
   const strats = useStrategies()
+  const sc = useStrategyCatalog()
   const [sp, setSp] = useSearchParams()
   const location = useLocation()
   const btId = sp.get('job') || ''
@@ -648,7 +701,7 @@ export default function Backtest() {
 
   // khởi tạo form từ danh mục + preset + dữ liệu truyền từ trang Alpha (có tham số riêng -> chế độ Nâng cao)
   useEffect(() => {
-    if (!cat || !strats.list.length || form) return
+    if (!cat || !strats.list.length || !sc.list.length || form) return
     const pre = readPrefill(location, sp)
     const w = cat.windows || {}
     const sel = selFromList(pre?.strategies, strats.byId)
@@ -656,12 +709,12 @@ export default function Backtest() {
     const customPre = !!pre?.strategies?.some((s) => s.params && Object.keys(s.params).length)
     const symbols = pre?.symbols || defaultSymbols(cat.universe || [])
     setFormRaw({
-      mode: pre?.mode || (customPre ? 'advanced' : 'basic'), sel, multi: Object.keys(sel).length > 1 || symbols.length > 1,
+      mode: pre?.mode || (customPre ? 'advanced' : 'basic'), sel, multi: Object.keys(picksFromLegs(Object.keys(sel), sc.list)).length > 1 || symbols.length > 1,
       symbols, start: pre?.start || w.dev2_end || '', end: pre?.end || w.end || '',
       risk: pre?.risk_per_trade_pct ?? cat.book?.risk_per_trade_pct ?? 0.5, stopFill: pre?.stop_fill || 'level',
       timeframe: pre?.timeframe || '1h',
     })
-  }, [cat, strats.list]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [cat, strats.list, sc.list]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // vào bằng link ?job=… (không có prefill): đồng bộ form theo `resolved` (đầy đủ) hoặc args của job đã chạy
   useEffect(() => {
@@ -675,12 +728,12 @@ export default function Backtest() {
     setFormRaw((f) => ({
       ...f,
       mode: bt.job.mode || f.mode,
-      sel, symbols, multi: Object.keys(sel).length > 1 || symbols.length > 1,
+      sel, symbols, multi: Object.keys(picksFromLegs(Object.keys(sel), sc.list)).length > 1 || symbols.length > 1,
       start: rs?.start || a.start || f.start, end: rs?.end || a.end || f.end,
       risk: rs?.risk_per_trade_pct ?? a.risk_per_trade_pct ?? f.risk, stopFill: rs?.stop_fill || a.stop_fill || f.stopFill,
       timeframe: rs?.timeframe || a.timeframe || f.timeframe,
     }))
-  }, [bt.job, form, cat]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [bt.job, form, cat, sc.list]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const btDone = bt.status === 'done'
   const wfaDone = wfa.status === 'done'
@@ -692,7 +745,7 @@ export default function Backtest() {
     { n: 3, title: 'Monte Carlo', st: !wfaDone ? 'Mở khoá sau WFA' : 'Sẵn sàng', locked: !wfaDone, done: false },
   ], [bt.status, wfa.status, btDone, wfaDone, wfaId])
 
-  const ready = cat && form && strats.list.length > 0
+  const ready = cat && form && strats.list.length > 0 && sc.list.length > 0
   return (
     <>
       <PageHead kicker="Một vòng kiểm chứng" title="Backtest · WFA · Monte Carlo"
@@ -710,9 +763,10 @@ export default function Backtest() {
 
       {error && <ErrorState title="Không tải được danh mục chiến lược" error={error} onRetry={reload} />}
       {strats.error && <ErrorState title="Không tải được lược đồ tham số và preset" error={strats.error} onRetry={strats.reload} />}
-      {(loading || strats.loading) && !ready && !error && !strats.error && <Loading what="danh mục chiến lược" />}
+      {sc.error && <ErrorState title="Không tải được danh mục chiến lược" error={sc.error} onRetry={sc.reload} />}
+      {(loading || strats.loading || sc.loading) && !ready && !error && !strats.error && !sc.error && <Loading what="danh mục chiến lược" />}
       {ready && step === 1 && (
-        <StepBacktest cat={cat} strats={strats} form={form} setForm={setForm} btId={btId} bt={bt}
+        <StepBacktest cat={cat} strats={strats} sc={sc} form={form} setForm={setForm} btId={btId} bt={bt}
           onLaunched={(id) => patch({ job: id, wfa: null, step: 1 })} onNext={() => patch({ step: 2 })} />
       )}
       {ready && step === 2 && (

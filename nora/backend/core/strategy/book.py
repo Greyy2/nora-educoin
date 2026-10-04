@@ -11,6 +11,7 @@ Nguyên tắc:
 Chọn chiến lược (backend/optimize/book.py) chạy trên CẢ vũ trụ cùng lúc (backtest danh mục), nên một
 cấu hình chỉ thắng nhờ một tài sản sẽ bị loại bởi điều kiện độ phủ (đa số tài sản phải có lãi).
 """
+from collections.abc import Mapping
 from typing import Any, Dict, List
 
 from backend.core.strategy.library import calc, cond, cross_over, cross_under, f, p
@@ -150,7 +151,9 @@ def _reversion_schema(side_key, side_default, side_lo, side_hi, side_label):
     }
 
 
-CANDIDATES: List[Dict[str, Any]] = [
+# Danh mục chiến lược cũ (9 biến thể trước khi gom về 3 chiến lược). CHỈ để đọc lại sổ đã xuất bản / lượt phễu cũ / bot đang chạy
+# và golden test; không hiện ở giao diện, không sinh alpha mới. Xoá khi sổ mới (KEMA / Sideway / DCA) thay thế sổ đang chạy.
+LEGACY_CANDIDATES: List[Dict[str, Any]] = [
     {
         "id": "trend_long", "family": "Theo xu hướng (trend following)", "variant": "EMA + ADX + phá đỉnh Donchian", "side": "LONG",
         "description": "1h EMA50 > EMA200, ADX14 > ngưỡng, 15m close CẮT LÊN đỉnh 20 nến trước (sự kiện phá đỉnh). Thoát: SL + trailing theo ATR.",
@@ -251,6 +254,58 @@ CANDIDATES: List[Dict[str, Any]] = [
         "params_schema": _reversion_schema("sig.rsi_hi", 75.0, 55.0, 90.0, "Ngưỡng RSI quá mua"),
     },
 ]
+for _c in LEGACY_CANDIDATES:
+    _c["legacy"] = True
+    _c.pop("variant", None)
+
+
+def _leg(src_id: str, new_id: str, strategy: str, family: str, description: str) -> Dict[str, Any]:
+    """Chân (một chiều) của một chiến lược: dùng lại tín hiệu + không gian tham số của định nghĩa gốc."""
+    src = next(c for c in LEGACY_CANDIDATES if c["id"] == src_id)
+    return {**src, "id": new_id, "strategy": strategy, "family": family, "description": description, "legacy": False}
+
+
+# ─── 3 chiến lược; mỗi chiến lược có chân LONG / SHORT (mỗi bộ tham số của một chân = một alpha; "Cả hai" = chạy cả hai chân) ───
+CANDIDATES: List[Dict[str, Any]] = [
+    _leg("keltner_trend_long", "kema_long", "kema", "KEMA (theo xu hướng)",
+         "Giá đóng cửa cắt LÊN dải trên kênh Keltner (EMA + k × ATR) → mua. Thoát khi giá cắt XUỐNG dải dưới (đảo chiều) hoặc chạm SL."),
+    _leg("keltner_trend_short", "kema_short", "kema", "KEMA (theo xu hướng)",
+         "Giá đóng cửa cắt XUỐNG dải dưới kênh Keltner (EMA − k × ATR) → bán. Thoát khi giá cắt LÊN dải trên (đảo chiều) hoặc chạm SL."),
+    _leg("reversion_long", "sideway_long", "sideway", "Sideway (đi ngang)",
+         "Chỉ đánh khi thị trường đi ngang (ER thấp): RSI quá bán và giá dưới dải Bollinger dưới → mua. Chốt lời / cắt lỗ theo ATR."),
+    _leg("reversion_short", "sideway_short", "sideway", "Sideway (đi ngang)",
+         "Chỉ đánh khi thị trường đi ngang (ER thấp): RSI quá mua và giá trên dải Bollinger trên → bán. Chốt lời / cắt lỗ theo ATR."),
+]
+def all_candidates() -> List[Dict[str, Any]]:
+    """Chiến lược đang dùng + cũ (đọc tại lúc gọi: test thay CANDIDATES vẫn có hiệu lực)."""
+    return CANDIDATES + LEGACY_CANDIDATES
+
+
+class _ById(Mapping):
+    """{id: định nghĩa} của mọi chiến lược (đang dùng + cũ), tính tại lúc tra."""
+    def _m(self) -> Dict[str, Dict[str, Any]]:
+        return {c["id"]: c for c in all_candidates()}
+
+    def __getitem__(self, key: str) -> Dict[str, Any]:
+        return self._m()[key]
+
+    def __iter__(self):
+        return iter(self._m())
+
+    def __len__(self) -> int:
+        return len(self._m())
+
+
+BY_ID: Mapping = _ById()
+
+STRATEGIES: List[Dict[str, Any]] = [
+    {"id": "kema", "name": "KEMA", "kind": "Theo xu hướng", "legs": {"LONG": "kema_long", "SHORT": "kema_short"},
+     "description": "Theo xu hướng bằng kênh Keltner: vào khi giá phá kênh, thoát khi giá cắt ngược kênh. Cả hai chiều = đảo chiều liên tục."},
+    {"id": "sideway", "name": "Sideway", "kind": "Đi ngang", "legs": {"LONG": "sideway_long", "SHORT": "sideway_short"},
+     "description": "Đánh biên khi thị trường đi ngang: mua vùng quá bán, bán vùng quá mua; đứng ngoài khi có xu hướng."},
+    {"id": "dca", "name": "DCA", "kind": "Bắt hồi + dồn lệnh có điều kiện", "legs": {}, "coming": True,
+     "description": "Bắt hồi và chỉ dồn lệnh khi điều kiện còn đúng (không có xu hướng ngược), SL cứng cho cả rổ. Đang xây dựng."},
+]
 
 
 # Regime cho phép vào lệnh (core/regime/classifier.py). Chỉ áp khi bật regime (materialize(..., regime=True)); tắt -> chiến lược y như cũ
@@ -261,7 +316,7 @@ CANDIDATES: List[Dict[str, Any]] = [
 REGIME_DENY: Dict[str, List[str]] = {"LONG": ["TREND_DOWN", "CRASH"], "SHORT": ["TREND_UP", "SURGE"]}
 _REGIME_NAMES = ("UNKNOWN", "RANGE", "TREND_UP", "TREND_DOWN", "VOL_EXPANSION", "SURGE", "CRASH")   # = classifier.NAMES
 REGIME_MAP: Dict[str, Dict[str, Any]] = {
-    c["id"]: {"allowed": [r for r in _REGIME_NAMES if r not in REGIME_DENY[c["side"]]], "fuse": False} for c in CANDIDATES
+    c["id"]: {"allowed": [r for r in _REGIME_NAMES if r not in REGIME_DENY[c["side"]]], "fuse": False} for c in all_candidates()
 }
 
 

@@ -1,5 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Panel, Segmented, Field, ErrorBox, Spinner } from '../ui'
+import StrategyChoice from '../backtest/StrategyChoice'
+import { useStrategyCatalog } from '../RunModes'
+import { legsFor, legLabel } from '../../lib/strategyLabel'
 import Term from '../Term'
 import { DateInput } from '../DateField'
 import { postFunnelRun, getFunnelEstimate } from '../../api'
@@ -24,7 +27,12 @@ export function estimate(total, runs) {
 export default function NewRunForm({ cat, runs, onLaunched, onCancel }) {
   const catalog = cat?.catalog || []
   const universe = cat?.universe || []
-  const [sel, setSel] = useState(() => catalog.map((c) => c.id))
+  const sc = useStrategyCatalog()
+  // chọn theo chiến lược + chiều ({ kema: 'BOTH', ... }); chưa chạm thì mặc định mọi chiến lược đã có, cả hai chiều
+  const [picksRaw, setPicks] = useState(null)
+  const picks = picksRaw || Object.fromEntries(sc.list.filter((c) => !c.coming && Object.keys(c.legs || {}).length).map((c) => [c.id, 'BOTH']))
+  const legIds = new Set(catalog.map((c) => c.id))
+  const sel = sc.list.flatMap((c) => (picks[c.id] ? legsFor(c, picks[c.id]) : [])).filter((id) => legIds.has(id)) // id chân lệnh gửi cho phễu
   const [mode, setMode] = useState('n')
   const [n, setN] = useState(1000)
   const [seed, setSeed] = useState(42)
@@ -59,13 +67,15 @@ export default function NewRunForm({ cat, runs, onLaunched, onCancel }) {
   const srv = srvEst.state === 'ok' ? srvEst.data : null
   const totalShown = srv ? srv.total_alphas : total
   const winOk = winMode === 'default' || (win.start && win.dev1_end && win.dev2_end && win.end && win.start < win.dev1_end && win.dev1_end < win.dev2_end && win.dev2_end < win.end)
-  const reason = !chosen.length ? 'Chọn ít nhất một chiến lược'
-    : mode === 'n' && !(Number(n) >= 1) ? 'Số alpha mỗi chiến lược phải ≥ 1'
+  const reason = !chosen.length ? 'Chọn ít nhất một chiến lược (và chiều giao dịch)'
+    : mode === 'n' && !(Number(n) >= 1) ? 'Số alpha mỗi chiều phải ≥ 1'
       : totalShown > MAX_TOTAL ? `Tổng ${fmtCount(totalShown)} vượt giới hạn ${fmtCount(MAX_TOTAL)} alpha`
         : !symbols.length ? 'Chọn ít nhất một cặp giao dịch'
           : !Number.isInteger(Number(seed)) ? 'Seed phải là số nguyên'
             : !winOk ? 'Các mốc ngày phải hợp lệ và tăng dần: bắt đầu < hết dev1 < hết dev2 < kết thúc' : null
-  const toggle = (id) => setSel((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]))
+  const pickStrategy = (c) => setPicks((p) => { const n = { ...(p || picks) }; if (n[c.id]) delete n[c.id]; else n[c.id] = 'BOTH'; return n })
+  const pickSide = (c, side) => setPicks((p) => ({ ...(p || picks), [c.id]: side }))
+  const gridOf = (c) => legsFor(c, picks[c.id]).reduce((t, id) => t + gridSize(catalog.find((x) => x.id === id) || {}), 0)
   const toggleSym = (s) => setSymbols((x) => (x.includes(s) ? x.filter((y) => y !== s) : [...x, s]))
 
   async function submit() {
@@ -89,27 +99,14 @@ export default function NewRunForm({ cat, runs, onLaunched, onCancel }) {
         <div style={{ display: 'grid', gap: 14, alignContent: 'start' }}>
           <div>
             <div className="n-fn-sub">
-              <b>Chiến lược</b><span className="muted mono">{chosen.length}/{catalog.length} đã chọn</span>
+              <b>Chiến lược</b><span className="muted mono">{Object.keys(picks).length}/{sc.list.filter((c) => !c.coming).length} đã chọn · {sel.length} chân lệnh</span>
               <span className="sp" />
-              <button type="button" className="n-btn sm" onClick={() => setSel(catalog.map((c) => c.id))}>Chọn tất cả</button>
-              <button type="button" className="n-btn sm" onClick={() => setSel([])} disabled={!sel.length}>Bỏ chọn</button>
+              <button type="button" className="n-btn sm" onClick={() => setPicks(Object.fromEntries(sc.list.filter((c) => !c.coming && Object.keys(c.legs || {}).length).map((c) => [c.id, 'BOTH'])))}>Chọn tất cả</button>
+              <button type="button" className="n-btn sm" onClick={() => setPicks({})} disabled={!sel.length}>Bỏ chọn</button>
             </div>
-            <div className="n-tilegrid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }} role="group" aria-label="Chiến lược">
-              {catalog.map((c) => {
-                const on = sel.includes(c.id)
-                return (
-                  <label key={c.id} className={`n-card-sel ${on ? 'on' : ''}`}>
-                    <span style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                      <input type="checkbox" checked={on} onChange={() => toggle(c.id)} style={{ accentColor: 'var(--n-accent)' }} />
-                      <span className="id">{c.id}</span><span className={`n-badge ${String(c.side).toLowerCase()}`}>{c.side}</span>
-                    </span>
-                    <span className="muted" style={{ fontSize: 11.5 }}>{c.family} · lưới {fmtCount(gridSize(c))} tổ hợp</span>
-                    <span className="ds">{c.description}</span>
-                  </label>
-                )
-              })}
-              {!catalog.length && <span className="n-note">Chưa có danh mục chiến lược.</span>}
-            </div>
+            <StrategyChoice catalog={sc.list} picks={picks} multi onPick={pickStrategy} onSide={pickSide}
+              extra={(c) => picks[c.id] && <span className="muted" style={{ fontSize: 11.5 }}>lưới {fmtCount(gridOf(c))} tổ hợp theo chiều đã chọn</span>} />
+            {sc.error && <ErrorBox>{`Không tải được danh mục chiến lược: ${sc.error}`}</ErrorBox>}
           </div>
           <div>
             <div className="n-fn-sub"><b>Cặp giao dịch</b>
@@ -126,13 +123,13 @@ export default function NewRunForm({ cat, runs, onLaunched, onCancel }) {
         </div>
         <div style={{ display: 'grid', gap: 12, alignContent: 'start' }}>
           <Panel title="Quy mô">
-            <Segmented label="Cách chọn số alpha" value={mode} onChange={setMode} options={[{ value: 'n', label: 'Số alpha mỗi chiến lược' }, { value: 'full', label: 'Toàn bộ lưới' }]} />
+            <Segmented label="Cách chọn số alpha" value={mode} onChange={setMode} options={[{ value: 'n', label: 'Số alpha mỗi chiều' }, { value: 'full', label: 'Toàn bộ lưới' }]} />
             {mode === 'n' ? (
               <div style={{ marginTop: 10 }}>
-                <Field id="fr-n" label="Số alpha mỗi chiến lược"><input id="fr-n" type="number" min="1" step="1" className="n-in" value={n} onChange={(e) => setN(e.target.value)} /></Field>
+                <Field id="fr-n" label="Số alpha mỗi chiều (mỗi chiến lược · chiều)"><input id="fr-n" type="number" min="1" step="1" className="n-in" value={n} onChange={(e) => setN(e.target.value)} /></Field>
                 <div className="n-presets">{N_PRESETS.map((p) => <button key={p} type="button" className={`n-chip-btn ${Number(n) === p ? 'on' : ''}`} onClick={() => setN(p)}>{fmtCount(p)}</button>)}</div>
               </div>
-            ) : <p className="n-note" style={{ marginTop: 8 }}>Chạy mọi tổ hợp tham số của từng chiến lược đã chọn (lưới hiện có trong danh mục).</p>}
+            ) : <p className="n-note" style={{ marginTop: 8 }}>Chạy mọi tổ hợp tham số của từng chiều đã chọn (lưới hiện có trong danh mục).</p>}
             <div className="n-form-row" style={{ gridTemplateColumns: '1fr auto', marginTop: 10, alignItems: 'end' }}>
               <Field id="fr-seed" label="Seed (lấy mẫu lặp lại được)"><input id="fr-seed" type="number" step="1" className="n-in" value={seed} onChange={(e) => setSeed(e.target.value)} /></Field>
               <button type="button" className="n-btn" onClick={() => setSeed(Math.floor(Math.random() * 100000))}>Ngẫu nhiên</button>
@@ -169,7 +166,7 @@ export default function NewRunForm({ cat, runs, onLaunched, onCancel }) {
       </div>
       <div className="n-runbar n-runbar-inline" role="region" aria-label="Ước tính và chạy">
         <div className="sum">
-          <b>{fmtCount(totalShown)} alpha</b> · {chosen.length} chiến lược · {mode === 'full' ? 'toàn bộ lưới' : `${fmtCount(Number(n) || 0)}/chiến lược`} · {symbols.length} cặp · seed {seed}
+          <b>{fmtCount(totalShown)} alpha</b> · {Object.keys(picks).length} chiến lược · {chosen.length} chiều · {mode === 'full' ? 'toàn bộ lưới' : `${fmtCount(Number(n) || 0)}/chiều`} · {symbols.length} cặp · seed {seed}
           <div className="est" role="status">
             {srv
               ? <>Ước tính S1 khoảng <b>{fmtEta(srv.s1_eta_s)}</b> <span className="muted">({fmtCount(srv.total_alphas)} alpha × {fmtNum(srv.sec_per_backtest, 0)} giây / {srv.workers} worker; các tầng sau chỉ chạy trên alpha còn sống nên thường ngắn hơn)</span></>
@@ -184,7 +181,7 @@ export default function NewRunForm({ cat, runs, onLaunched, onCancel }) {
         <div className="n-confirm" role="alertdialog" aria-label="Xác nhận chạy phễu" style={{ marginTop: 12 }}>
           <p><b>Xác nhận chạy phễu {fmtCount(totalShown)} alpha?</b></p>
           <div className="n-estimate">
-            <span>Chiến lược: <span className="mono">{chosen.map((c) => `${c.id} ${fmtCount(srv?.per_strategy?.[c.id] ?? (mode === 'full' ? gridSize(c) : Number(n)))}`).join(' · ')}</span></span>
+            <span>Chiến lược: <span className="mono">{chosen.map((c) => `${legLabel(c.id)} ${fmtCount(srv?.per_strategy?.[c.id] ?? (mode === 'full' ? gridSize(c) : Number(n)))}`).join(' · ')}</span></span>
             <span>Cửa sổ: <span className="mono">{winMode === 'default' ? 'mặc định' : `${win.start} → ${win.end}`}</span> · {symbols.length} cặp · seed {seed} · khung chạy {timeframe}</span>
             <span>Ước tính S1: <b className="mono">{srv ? fmtEta(srv.s1_eta_s) : fmtEta(est.seconds)}</b>{srv ? <span className="muted"> ({fmtNum(srv.sec_per_backtest, 0)} giây/backtest, {srv.workers} worker)</span> : <span className="muted"> ({est.basis})</span>}</span>
             <span className="muted">Job chạy nền trong hàng đợi, dùng nhiều CPU/RAM; có thể huỷ và chạy tiếp (resume).</span>

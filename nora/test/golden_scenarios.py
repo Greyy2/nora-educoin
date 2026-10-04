@@ -250,7 +250,7 @@ def scenario_portfolio_real(data_root, end: Optional[str] = None, shared_dir: Op
     """shared_dir: nếu có, export dữ liệu mmap vào đó rồi chạy bằng PortfolioEngine(shared_dir=...) (kết quả phải y hệt)."""
     from backend.core.strategy import book as sb
     from backend.core.backtest.portfolio import PortfolioEngine, RiskConfig
-    cand = {c["id"]: c for c in sb.CANDIDATES}
+    cand = sb.BY_ID
     # cooldown=0: snapshot này sinh trước khi BASE_POSITION có cooldown=60; ghim 0 để golden vẫn đo đúng ngữ nghĩa cũ
     strategies = [
         sb.materialize(cand["trend_long"], {"sig.adx_min": 25, "stop_loss_rate": 2.5, "trailing_stop": 3.0,

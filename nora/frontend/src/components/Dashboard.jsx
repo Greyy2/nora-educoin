@@ -13,6 +13,7 @@ import Sparkline from './charts/Sparkline'
 import ProgressBar from './charts/ProgressBar'
 import { getDashboard } from '../api'
 import { fmtNum, fmtMoney, fmtPct, fmtSPct, fmtSigned, signClass, arrow, fmtDateTime, isNum } from '../lib/format'
+import { legLabel } from '../lib/strategyLabel'
 
 
 export const PERIODS = [
@@ -146,7 +147,7 @@ function StrategiesTable({ rows = [] }) {
             const [txt, tone] = STATUS_VI[s.status] || [s.status || '—', '']
             return (
               <tr key={s.id}>
-                <td><b className="mono">{s.id}</b> {s.side && <span className={`n-badge ${String(s.side).toLowerCase()}`}>{s.side}</span>}</td>
+                <td><b title={s.id}>{legLabel(s.id)}</b> {s.side && legLabel(s.id) === s.id && <span className={`n-badge ${String(s.side).toLowerCase()}`}>{s.side}</span>}</td>
                 <td><Status tone={tone}>{txt}</Status></td>
                 <td><span className="n-wbar"><span className="tr"><i style={{ width: `${Math.min(100, s.weight_pct || 0)}%` }} /></span><span className="mono">{fmtNum(s.weight_pct, 0)}%</span></span></td>
                 <td className={`r ${signClass(s.pnl)}`}>{arrow(s.pnl)} {fmtMoney(s.pnl, true)}</td>
@@ -176,7 +177,7 @@ function PositionsTable({ rows = [] }) {
           {rows.map((p) => (
             <tr key={`${p.symbol}|${p.strategy}|${p.opened}`}>
               <td><b className="mono">{String(p.symbol).replace('@perp', '')}</b></td>
-              <td className="mono">{p.strategy}</td>
+              <td title={p.strategy}>{legLabel(p.strategy)}</td>
               <td><span className={`n-badge ${String(p.side).toLowerCase()}`}>{p.side}</span></td>
               <td className="r">{fmtNum(p.qty, p.qty >= 100 ? 1 : 4)}</td>
               <td className="r">{fmtNum(p.entry_price, p.entry_price >= 100 ? 2 : 4)}</td>
@@ -337,7 +338,7 @@ function OverviewView({ data, ctx }) {
                 <tbody>
                   {strategies.slice(0, TOP).map((x) => (
                     <tr key={x.id}>
-                      <td><b className="mono">{x.id}</b> {x.side && <span className={`n-badge ${String(x.side).toLowerCase()}`}>{x.side}</span>}</td>
+                      <td><b title={x.id}>{legLabel(x.id)}</b> {x.side && legLabel(x.id) === x.id && <span className={`n-badge ${String(x.side).toLowerCase()}`}>{x.side}</span>}</td>
                       <td className={`r ${signClass(x.pnl)}`}>{arrow(x.pnl)} {fmtMoney(x.pnl, true)}</td>
                       <td className={`r ${signClass(x.contribution_pct)}`}>{fmtSPct(x.contribution_pct)}</td>
                     </tr>

@@ -47,7 +47,7 @@ def promote_alpha(run_dir: str, alpha_id: str, alphas_dir: str, note: Optional[s
         raise ValueError(f"alpha chưa đạt FINAL (dừng ở {alpha['stage_reached']}, loại: {alpha['reject_code']})")
     s = float(alpha["final_scale"])
     rpt = sizing.risk_for_scale(s)
-    cand = {c["id"]: c for c in sb.CANDIDATES}[alpha["strategy"]]
+    cand = sb.BY_ID[alpha["strategy"]]
     from backend.optimize.funnel.generate import split_regime
     params, rmode = split_regime(alpha["params"])
     regime = False

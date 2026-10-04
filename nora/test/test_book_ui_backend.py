@@ -33,8 +33,8 @@ def test_catalog_default_params_universe_windows(client, tmp_path):
     body = client.get("/api/studio/book/").json()
     cat = {c["id"]: c for c in body["catalog"]}
     assert body["candidates"] == body["catalog"] and body["latest_wfa"] == body["wfa"]
-    c = cat["breakout_4h_long"]
-    assert c["default_params"] == {"stop_loss_rate": 2.0, "trailing_stop": 3.0, "trailing_activation_pct": 1.0, "timeout": 10080}
+    c = cat["kema_long"]
+    assert c["default_params"] == {"sig.ema_n": 30, "sig.k_up": 2.0, "sig.k_dn": 2.0, "stop_loss_rate": 3.0}
     for cand in cat.values():       # đúng quy tắc run_book_backtest: phần tử giữa của mỗi khoá
         assert set(cand["default_params"]) == set(cand["space"]) and all(cand["default_params"][k] in v for k, v in cand["space"].items())
         assert cand["default_params"] == {k: v[len(v) // 2] for k, v in cand["space"].items()}

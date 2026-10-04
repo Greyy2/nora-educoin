@@ -116,8 +116,8 @@ def check_symbols(symbols: List[str]) -> List[str]:
 
 
 def check_candidate_ids(ids: List[str]) -> List[str]:
-    from backend.core.strategy.book import CANDIDATES
-    known = {c["id"] for c in CANDIDATES}
+    from backend.core.strategy.book import BY_ID
+    known = set(BY_ID)
     bad = [i for i in ids if i not in known]
     if bad:
         raise JobError(f"không có chiến lược {bad}; có: {sorted(known)}")
@@ -150,8 +150,8 @@ def check_report_dir(report_dir: str) -> str:
 def check_wfa_strategies(items: Any) -> List[Dict[str, Any]]:
     """[{"id", "configs": [{tham số: giá trị}]}] do người dùng chọn: id thuộc thư viện; khoá thuộc `space` hoặc `params_schema` của ứng viên;
     giá trị là số hữu hạn, riêng khoá kiểu "choice" (khung thời gian) là chuỗi nằm trong danh sách lựa chọn."""
-    from backend.core.strategy.book import CANDIDATES
-    by_id = {c["id"]: c for c in CANDIDATES}
+    from backend.core.strategy.book import BY_ID
+    by_id = BY_ID
     if not isinstance(items, list) or not items or len(items) > MAX_WFA_STRATEGIES:
         raise JobError(f"strategies phải là danh sách 1..{MAX_WFA_STRATEGIES} chiến lược")
     ids = check_candidate_ids([s.get("id") if isinstance(s, dict) else None for s in items])

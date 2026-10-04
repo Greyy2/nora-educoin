@@ -177,6 +177,12 @@ export function getStrategies(force = false) {
   if (!strategiesP || force) strategiesP = request('/api/studio/strategies').catch((e) => { strategiesP = null; throw e })
   return strategiesP
 }
+let strategyCatalogP = null
+/** Danh mục 3 chiến lược cho lựa chọn mới: [{ id, name, kind, description, legs: { LONG, SHORT }, coming? }]. Có đệm theo phiên trang. */
+export function getStrategyCatalog(force = false) {
+  if (!strategyCatalogP || force) strategyCatalogP = request('/api/studio/strategies/catalog').catch((e) => { strategyCatalogP = null; throw e })
+  return strategyCatalogP
+}
 /** Kiểm tham số một chiến lược (không chạy job): { ok, errors: [{field, message}], resolved }. field có dạng "params.sig.ema_fast". */
 export const postValidateStrategy = (id, params) => request('/api/studio/strategies/validate', { method: 'POST', body: { id, params } })
 

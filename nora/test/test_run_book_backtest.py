@@ -136,7 +136,7 @@ def test_strategy_symbols_filter_restricts_markets(market):
     """Khoá "symbols" của chiến lược dựng sẵn (alpha trong kho) -> chỉ chạy trên các tài sản đó; mặc định vẫn là mọi tài sản."""
     from backend.core.strategy import book as sb
     mod = _load_script()
-    cand = next(c for c in sb.CANDIDATES if c["id"] == "t_long")
+    cand = sb.BY_ID["t_long"]
     base = sb.materialize(cand, {"sig.lo": 45, "stop_loss_rate": 2.0, "take_profit_rate": 2.0, "timeout": 720})
     syms = [f"{s}@perp" for s in SYMS]
     kw = dict(items=[], symbols=syms, start=mod._ts("2023-12-10"), end=mod._ts("2024-01-15") + 86_400_000, rpt=0.5, stop_fill="level",

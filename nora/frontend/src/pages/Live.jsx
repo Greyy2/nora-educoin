@@ -8,6 +8,7 @@ import useAsync from '../hooks/useAsync'
 import { getLiveTrades, explainChart } from '../api'
 import AreaLine from '../components/charts/AreaLine'
 import { fmtNum, fmtMoney, fmtSPct, fmtPct, signClass, isNum } from '../lib/format'
+import { legLabel } from '../lib/strategyLabel'
 
 const MODES = [{ value: 'paper', label: 'Paper' }, { value: 'demo', label: 'Demo OKX' }]
 const BOOK = { main: 'sổ chính (đã kiểm định)', explore: 'sổ thử nghiệm (9 chiến lược)' }
@@ -89,7 +90,7 @@ function Explorer({ d, trades }) {
       <div className="n-lv-sel">
         <div className="n-field"><label htmlFor="lv-strat">Chiến lược</label>
           <select id="lv-strat" className="n-sel" value={curS} onChange={(e) => setSid(e.target.value)}>
-            {strategies.map((s) => <option key={s.id} value={s.id}>{s.id} · {s.side}{s.unvalidated ? ' · chưa kiểm định' : ''}</option>)}
+            {strategies.map((s) => <option key={s.id} value={s.id}>{legLabel(s.id)}{s.unvalidated ? ' · chưa kiểm định' : ''}</option>)}
           </select></div>
         <div className="n-field"><label htmlFor="lv-sym">Cặp</label>
           <select id="lv-sym" className="n-sel" value={curY} onChange={(e) => setSym(e.target.value)}>
@@ -116,7 +117,7 @@ export default function Live() {
   const d = q.data
   const trades = useMemo(() => (d ? mergeTrades(d) : []), [d])
   const positions = useMemo(() => (d ? mergePositions(d) : []), [d])
-  const open = (t, open_) => setSel({ strategy: t.strategy, symbol: base(t.symbol), title: `${base(t.symbol)} ${t.side} · ${t.strategy} · ${fmtTs(t.enter_ms)}`,
+  const open = (t, open_) => setSel({ strategy: t.strategy, symbol: base(t.symbol), title: `${base(t.symbol)} ${t.side} · ${legLabel(t.strategy)} · ${fmtTs(t.enter_ms)}`,
     trade: { enter_ms: t.enter_ms, close_ms: open_ ? null : t.close_ms, enter_price: t.enter_price, close_price: t.close_price, side: t.side, reason: REASON[t.reason] || t.reason, pnl: t.pnl } })
 
   return (
@@ -149,7 +150,7 @@ export default function Live() {
                   <tbody>
                     {positions.map((p, i) => (
                       <tr key={`${p.src}${i}`}>
-                        <td><span className="n-badge">{SRC[p.src]}</span></td><td>{base(p.symbol)}</td><td className="mono">{p.strategy}</td>
+                        <td><span className="n-badge">{SRC[p.src]}</span></td><td>{base(p.symbol)}</td><td title={p.strategy}>{legLabel(p.strategy)}</td>
                         <td><span className={`n-badge ${String(p.side).toLowerCase()}`}>{p.side}</span></td>
                         <td className="r">{fmtNum(p.qty, 4)}</td><td className="r">{fmtVal(p.enter_price)}</td><td className="num">{fmtTs(p.enter_ms)}</td>
                         <td className={`r ${signClass(p.pnl)}`}>{isNum(p.pnl) ? fmtMoney(p.pnl, true) : '—'}</td>
@@ -171,7 +172,7 @@ export default function Live() {
                     {trades.map((t, i) => (
                       <tr key={`${t.src}${i}`}>
                         <td><span className="n-badge">{SRC[t.src]}</span></td><td className="num">{fmtTs(t.enter_ms)}</td><td className="num">{fmtTs(t.close_ms)}</td>
-                        <td>{base(t.symbol)}</td><td className="mono">{t.strategy}</td>
+                        <td>{base(t.symbol)}</td><td title={t.strategy}>{legLabel(t.strategy)}</td>
                         <td><span className={`n-badge ${String(t.side).toLowerCase()}`}>{t.side}</span></td>
                         <td className="r">{fmtVal(t.enter_price)}</td><td className="r">{fmtVal(t.close_price)}</td><td className="r">{fmtNum(t.qty, 4)}</td>
                         <td className={`r ${signClass(t.pnl)}`}>{isNum(t.pnl) ? fmtMoney(t.pnl, true) : '—'}</td>

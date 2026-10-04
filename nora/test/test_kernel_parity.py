@@ -494,7 +494,7 @@ def test_capacity_overflow_retry_is_transparent(market_root, monkeypatch):
 def test_run_many_equals_independent_runs(market_root):
     overrides = [{"stop_loss_rate": 1.5, "leverage": 5}, {"take_profit_rate": 2.0, "cooldown": 0, "stop_fill": "extreme"},
                  {"trailing_stop": 2.0, "dca_max_layers": 2, "dca_step_pct": 0.8, "order_size_pct": 10.0, "sizing": "margin_pct"}]
-    cand = {c["id"]: c for c in sb.CANDIDATES}["trend_long"]
+    cand = sb.BY_ID["trend_long"]
     st = sb.materialize(cand, {"sig.adx_min": 10, "sig.ema_fast": 5, "sig.ema_slow": 20, "sig.trend_tf": "1h", "sig.entry_tf": "15m",
                                "sig.dch_n": 8}, stop_loss_rate=2.0, take_profit_rate=1.0, trailing_stop=1.0)
     syms = ["AAA@perp", "BBB@perp", "CCC@perp"]
@@ -513,7 +513,7 @@ def test_run_many_equals_independent_runs(market_root):
 
 def test_empty_after_halt_and_no_signal_paths(market_root):
     """Không có nến sau trade_start / không tín hiệu: chỉ có mẫu vốn; kết quả y hệt bản Python."""
-    cand = {c["id"]: c for c in sb.CANDIDATES}["reversion_long"]
+    cand = sb.BY_ID["reversion_long"]
     st = sb.materialize(cand, {"sig.rsi_lo": 1, "sig.entry_tf": "5m"}, stop_loss_rate=1.5)
     with gs.data_root_env(market_root):
         cfg = {"symbols": ["AAA@perp", "BBB@perp"], "strategies": [st], "start": T0, "end": T0 + DAYS * DAY,

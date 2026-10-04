@@ -2,6 +2,7 @@ import React from 'react'
 import { Panel, Status } from '../ui'
 import { isNum, fmtNum } from '../../lib/format'
 import { fmtTs, fmtVal } from './chartUtil'
+import { legLabel } from '../../lib/strategyLabel'
 
 const OP = { '<': '<', '>': '>', '<=': '≤', '>=': '≥', '==': '=', '!=': '≠' }
 
@@ -85,8 +86,8 @@ export default function SignalExplainPanel({ data, selected }) {
     <div className="n-ex">
       <Panel title="Chiến lược">
         <div className="n-ex-head">
-          <span className="mono"><b>{s.id}</b></span>
-          {s.side && <span className={`n-badge ${String(s.side).toLowerCase()}`}>{s.side}</span>}
+          <span title={s.id}><b>{legLabel(s.id)}</b></span>
+          {s.side && legLabel(s.id) === s.id && <span className={`n-badge ${String(s.side).toLowerCase()}`}>{s.side}</span>}
           {s.family && <span className="n-note">{s.family}</span>}
           {s.unvalidated && <Status tone="warn">⚠ chưa kiểm định</Status>}
           {s.regime && <span className="n-badge">regime {s.regime}</span>}
