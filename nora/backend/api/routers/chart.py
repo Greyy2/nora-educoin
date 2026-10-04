@@ -67,23 +67,41 @@ def _strategy(req: ExplainRequest):
     return st, tf, meta
 
 
+_OKX = None             # một adapter dùng chung: bộ đệm nến theo (mã, khung) -> lần sau chỉ 1 request /candles mỗi khung
+
+
+def _okx():
+    global _OKX
+    if _OKX is None:
+        from backend.live.okx import OkxAdapter
+        _OKX = OkxAdapter(None, demo=False)
+    return _OKX
+
+
 def _frames(symbol: str, st: Dict[str, Any], tf: str, source: str) -> Dict[str, Any]:
+    """data: kho nến của sàn đang dùng (toàn bộ lịch sử). okx: kho nến + nến OKX mới nhất nối vào sau (lệnh live gần đây)."""
+    import time
     import pandas as pd
+    from backend.db.data_layout import default_data_root
     from backend.live import signals as ls
     need = ls.required_frames(symbol, [st], tf)
-    if source == "okx":
-        import time
-        from backend.live.okx import OkxAdapter
-        ad, now = OkxAdapter(None, demo=False), int(time.time() * 1000)
-        return {fr: ls.klines_frame(ad.klines(symbol, fr, OKX_LIMIT, now), now) for fr in need}
-    from backend.db.data_layout import default_data_root
     root = os.path.join(default_data_root(), "cex", symbol, "perp")
+    now = int(time.time() * 1000)
     out = {}
     for fr in need:
         path = os.path.join(root, f"{fr}.pkl")
-        if not os.path.isfile(path):
+        hist = pd.read_pickle(path) if os.path.isfile(path) else None
+        if source == "okx":
+            last = int(hist["open_time"].iloc[-1]) if hist is not None and len(hist) else 0
+            gap = (now - last) // FRAME_MS[fr] + 3 if last else OKX_LIMIT
+            live = ls.klines_frame(_okx().klines(symbol, fr, int(min(max(gap, 10), OKX_LIMIT)), now), now)
+            if hist is not None:
+                live = pd.concat([hist[[c for c in live.columns if c in hist.columns]], live], ignore_index=True)
+                live = live.drop_duplicates("open_time", keep="last").sort_values("open_time").reset_index(drop=True)
+            hist = live
+        if hist is None:
             raise HTTPException(404, f"chưa có dữ liệu {symbol} khung {fr} ({path})")
-        out[fr] = pd.read_pickle(path)
+        out[fr] = hist
     return out
 
 
