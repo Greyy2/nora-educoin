@@ -287,3 +287,11 @@ Nhãn trên nến 15m đã đóng qua `classifier.series` (cùng đường với
 tham số đã lưu của alpha bằng engine hiện hành: WFA dev2 (cổng S3) → hệ số s qua MC (S5, có trend thẳng đứng) → holdout ở s (S6). Kết quả:
 `{status: "validated"|"retired", final_scale, reject_code, reason, wfa, sizing, holdout, shock, windows}`. `apply=true`: ghi `status` + `revalidation`
 vào `registry.json`; `retired` → `testnet/<id>.json` chuyển sang `testnet/_retired/`. Feed live bỏ qua alpha `retired`.
+
+## 9. Bot theo sổ (E9, 04/10/2026)
+
+`POST /api/studio/live/bot` `{mode: "paper" | "testnet", once: false, capital: 10000}` → `{job_id}` (job `live_bot`, chạy lâu, không giữ khoá hàng đợi;
+409 nếu bot cùng chế độ đang chạy). Dừng: `POST /api/studio/book/jobs/{job_id}/cancel`. `GET /api/studio/live/bot?mode=paper&events=50` →
+`{mode, running: [job_id], state: {positions, cash, equity, peak_equity, halted, last_bar, trades[-100:]}, events: [...]}`.
+Chỉ chạy sổ `book.json` trạng thái READY_FOR_TESTNET. paper: dữ liệu mainnet công khai, khớp mô phỏng; testnet: lệnh thật, khoá ở
+`~/.config/nora/binance_testnet.env` (NORA_BINANCE_TESTNET_KEY / NORA_BINANCE_TESTNET_SECRET, quyền 600). Trạng thái: `data/_cache/live/<mode>/`.

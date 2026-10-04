@@ -1,7 +1,7 @@
 # E9-S5: Kill switch và giới hạn rủi ro trên tài khoản thật
 
 - **Epic:** E9 Testnet & Live
-- **Trạng thái:** backlog
+- **Trạng thái:** review
 - **Cập nhật:** 2026-10-01
 
 ## Story
@@ -29,6 +29,11 @@ Là người vận hành, tôi muốn kill switch 30% và các giới hạn danh
 
 ## Evidence
 
+**04/10/2026.** Bot: vốn MTM sụt >= kill_switch_dd_pct (30%) từ đỉnh -> đóng hết MARKET, huỷ lệnh, cờ `halted` tới khi người vận hành
+xoá; sự kiện `crit` (`test_kill_switch_closes_all_and_halts`). Giới hạn danh mục: 1 vị thế/tài sản, tối đa max_positions, tổng danh nghĩa <= 3× vốn.
+Chưa: AC3 (hiển thị trên trang Danh mục — cần E9-S3) và AC4 (đo độ trễ trên testnet thật).
+
+
 - Chưa áp dụng: story chưa làm.
 
 ## Change Log
@@ -36,3 +41,4 @@ Là người vận hành, tôi muốn kill switch 30% và các giới hạn danh
 | Ngày | Thay đổi |
 |---|---|
 | 2026-10-01 | Tạo story, trạng thái `backlog`. |
+| 2026-10-04 | Bot sổ paper/testnet (backend/live) | (commit E9) |

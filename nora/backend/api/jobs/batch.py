@@ -45,6 +45,7 @@ KINDS: Dict[str, Dict[str, Any]] = {
                    "params": {"strategies", "n_per_strategy", "full_grid", "seed", "symbols", "windows", "run_id", "resume", "force_large",
                               "train_days", "test_days", "space", "timeframe", "regime"}},
     "funnel_recompute": {"module": "backend.optimize.funnel.recompute", "params": {"run_id", "alpha_id"}},
+    "live_bot": {"module": "backend.live.bot", "params": {"mode", "once", "max_steps", "capital"}},
     "funnel_book": {"module": "backend.optimize.funnel.publish", "params": {"run_id", "alpha_ids", "risk_per_trade_pct", "wfa_job_id", "dry_run"}},
     "presets_build": {"module": "backend.core.params.presets", "params": set()},
     "mock_feeds": {"module": "backend.core.analytics.feeds", "params": {"only"}},
@@ -53,6 +54,7 @@ KINDS: Dict[str, Dict[str, Any]] = {
     "alpha_revalidate": {"module": "backend.optimize.revalidate", "params": {"alpha_id", "apply"}},
     "regime_report": {"module": "backend.core.regime.report", "params": {"symbols", "start", "end", "event_pct", "backtest", "timeframe"}},
 }
+NO_LOCK_KINDS = {"live_bot"}
 MAX_BUILD_CONFIGS = 1_000_000   # trần cứng của API cho --n (mỗi chiến lược); CLI còn có --max-configs (mặc định 200000) + --force-large
 MAX_ACTIVE = 8          # số job đang chạy/chờ tối đa cùng lúc (mỗi job chờ là một tiến trình bash nhỏ)
 LOG_TAIL_LINES = 40
@@ -358,7 +360,8 @@ def launch(kind: str, params: Dict[str, Any]) -> str:
     with open(os.path.join(job_dir, "params.json"), "w", encoding="utf-8") as fh:   # đầu vào của runner (ghi TRƯỚC khi chạy)
         json.dump({"kind": kind, "params": params}, fh, ensure_ascii=False)
     env = dict(_env(), NORA_JOB_DIR=job_dir)
-    cmd = [RUN_LIMITED, "--", "-m", RUNNER, job_dir]
+    # bot chạy lâu (live_bot): không giữ khoá hàng đợi job nặng, vẫn trong nora.slice
+    cmd = [RUN_LIMITED] + (["--no-lock"] if kind in NO_LOCK_KINDS else []) + ["--", "-m", RUNNER, job_dir]
     log = open(os.path.join(job_dir, "out.log"), "ab")
     try:
         proc = subprocess.Popen(cmd, cwd=NORA_DIR, env=env, stdin=subprocess.DEVNULL, stdout=log,
@@ -532,6 +535,8 @@ def job_label(kind: str, params: Optional[Dict[str, Any]]) -> str:
         return f"Phễu · {_names(p.get('strategies')) or '?'} · {n} · {syms}"
     if kind == "funnel_recompute":
         return f"Phễu · tính lại lệnh {p.get('alpha_id')}"
+    if kind == "live_bot":
+        return f"Bot sổ · {p.get('mode')}" + (" · một bước" if p.get("once") else "")
     if kind == "funnel_book":
         return f"Phễu · xuất bản sổ từ {p.get('run_id')} ({p.get('alpha_ids')}) rủi ro {p.get('risk_per_trade_pct')}%"
     if kind == "presets_build":

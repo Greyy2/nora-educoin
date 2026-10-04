@@ -58,6 +58,7 @@ flowchart LR
 | `backend/optimize/` | `book.py` (job `book_build`, giai đoạn A–D), `store.py` (ResultsStore SQLite + `stream_stage`), `registry.py` (kho alpha, cấu hình testnet, ghi/xuất bản sổ), `shared.py` (`SharedExporter`: làm nóng / dọn kho dùng chung cho mọi lối chạy nhiều alpha) | |
 | `backend/optimize/funnel/` | `gates`, `generate`, `evaluate`, `antiluck` (DSR, PBO), `sizing`, `stats`, `storage`, `orchestrator`, `promote`, `recompute` (job), `run` (job `funnel_run`) | |
 | `backend/wfa/` | `walk_forward.py` (fold + WFA danh mục, gate), `run.py` (job `book_wfa`) | |
+| `backend/live/` | `signals.py` (tín hiệu nến đóng qua đúng engine), `exchange.py` (REST Binance Futures + bộ lọc), `bot.py` (job `live_bot`: paper / testnet), `secrets.py` | E9, 04/10/2026 |
 | `backend/carlo/` | `monte_carlo.py` (bootstrap ngày, kịch bản cực xấu, gate, `bootstrap_daily`) | |
 | `backend/utils/` | `parallel.py`, `memwatch.py`, `lru.py`, `jsonsafe.py`, `jobs.py` (options, Progress, SIGTERM, result.json) | |
 | `backend/utils/ops/` | `run_limited.sh`, `install_user_units.sh`, `systemd/` | |
@@ -280,7 +281,7 @@ Cấu hình của `optimize_alphas`: train/test 120/30 ngày (30/10 cho DEX), `m
 
 ### 7.2 WFA danh mục
 
-`backend/wfa/portfolio_wfa.py`. Hằng số gate (đầu file): `MIN_FOLDS = 5`, `MIN_AVG_IS_RET_PCT = 0`, `MIN_POSITIVE_FOLD_RATIO = 0.60`,
+`backend/wfa/portfolio_wfa.py`. Hằng số gate (đầu file): `MIN_FOLDS = 5`, `MIN_AVG_IS_RET_PCT = 0`, `MIN_TRADED_FOLDS = 3`, `MIN_FOLD_T = 1.0`, `MIN_EX_BEST_FOLD_PCT = -2.0` (thay `MIN_POSITIVE_FOLD_RATIO` từ 03/10/2026),
 `MAX_FOLD_MDD_PCT = 30`, `MIN_COMPOUNDED_OOS_PCT = 0`, `MAX_MC_RUIN_PCT = 5`, `MC_RUIN_THRESHOLD_PCT = 30`, `MIN_MC_DAYS = 20`.
 `PortfolioWfaConfig`: train 120 ngày, test 30 ngày, `min_is_trades = 10`, MC 10.000 mô phỏng, block 5 ngày, horizon 365 ngày, `seed = 1`.
 

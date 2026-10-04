@@ -1,7 +1,7 @@
 # E9-S7: Quản lý khoá API sàn
 
 - **Epic:** E9 Testnet & Live
-- **Trạng thái:** backlog
+- **Trạng thái:** review
 - **Cập nhật:** 2026-10-01
 
 ## Story
@@ -28,6 +28,11 @@ Là người vận hành, tôi muốn khoá API được lưu và nạp an toàn
 
 ## Evidence
 
+**04/10/2026.** `live.secrets`: khoá từ biến môi trường hoặc `~/.config/nora/binance_testnet.env` (từ chối nếu quyền lỏng hơn 600);
+`redact` trên mọi dòng log / lỗi sàn (`test_secrets_file_permissions_and_redaction`). Khoá testnet Binance Futures không có quyền rút tiền nên AC3
+không kiểm được qua API testnet; nạp qua EnvironmentFile chưa làm (bot chạy như job API).
+
+
 - Chưa áp dụng: story chưa làm.
 
 ## Change Log
@@ -35,3 +40,4 @@ Là người vận hành, tôi muốn khoá API được lưu và nạp an toàn
 | Ngày | Thay đổi |
 |---|---|
 | 2026-10-01 | Tạo story, trạng thái `backlog`. |
+| 2026-10-04 | Bot sổ paper/testnet (backend/live) | (commit E9) |

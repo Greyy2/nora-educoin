@@ -16,7 +16,7 @@ Trạng thái: `backlog` (chưa làm) · `ready` (đủ điều kiện làm) · 
 | E6 | Hạ tầng vận hành & bộ nhớ | done | 6 / 6 | - |
 | E7 | Studio API | done | 7 / 7 | Chưa có xác thực (E11). |
 | E8 | UI v2 | in-progress | 6 / 7 | Còn E8-S7 (test tự động frontend). |
-| E9 | Testnet & Live | backlog | 0 / 7 | Chưa có bot, chưa có tài khoản. |
+| E9 | Testnet & Live | in-progress | 0 / 7 | Bot paper/testnet xong (4 story review); chờ khoá testnet để chạy thật. |
 | E10 | Nghiên cứu chiến lược mới & phương pháp | backlog | 0 / 6 | Giải quyết R-1 đến R-4. |
 | E11 | Bảo mật & phát hành | backlog | 0 / 7 | Giải quyết R-5, R-7, R-9. |
 | E12 | Tốc độ (500k alpha ≤ 4 h) | done | 3 / 3 | 15m: 80 alpha/s (500k ≈ 1,7 h); 1h: 103 alpha/s. |
@@ -24,7 +24,7 @@ Trạng thái: `backlog` (chưa làm) · `ready` (đủ điều kiện làm) · 
 | E14 | Phễu kiểm duyệt alpha | done | 3 / 3 | Lượt thật 36.000 alpha → 0 FINAL; alpha SOL bị loại khi kiểm lại. |
 | E15 | Regime và điều phối chiến lược | done | 6 / 6 | Bảng tĩnh không khớp dữ liệu; học trên train cải thiện nhưng WFA chưa qua. |
 
-Tổng: 15 epic (11 done, 1 in-progress, 3 backlog); 84 story (63 done, 0 in-progress, 0 review, 0 ready, 21 backlog).
+Tổng: 15 epic (11 done, 2 in-progress, 2 backlog); 84 story (63 done, 0 in-progress, 4 review, 0 ready, 17 backlog).
 
 Epic E5 mang trạng thái `done` về mặt tính năng. Kết quả nghiên cứu là: alpha `trend_long_perp__SOL` từng hợp lệ nhưng bị loại khi kiểm lại bằng engine hiện hành (E14-S3, 03/10/2026); sổ `breakout_4h_long + breakout_4h_short` ở trạng thái `HOLDOUT_FAILED`, không có cấu hình testnet cho sổ. Việc tìm sổ qua holdout nằm ở E10.
 
@@ -160,7 +160,7 @@ Ghi chú: E8-S6 đã xong (commit 8a96b4e); còn E8-S7.
 | [E8-S6](stories/E8-S6-ux-improvements.md) | Cải thiện trải nghiệm UI v2 | done |
 | [E8-S7](stories/E8-S7-frontend-automated-tests.md) | Kiểm thử tự động cho frontend | backlog |
 
-## E9: Testnet & Live [backlog]
+## E9: Testnet & Live [in-progress]
 
 Bot Binance Futures testnet, feed tài khoản thật thay giả lập, kill switch live, đối soát.
 
@@ -170,13 +170,13 @@ Ghi chú: Chưa có bot, chưa có tài khoản.
 
 | Story | Tiêu đề | Trạng thái |
 |---|---|---|
-| [E9-S1](stories/E9-S1-testnet-bot-executor.md) | Bot Binance Futures testnet chạy đúng quy tắc đã mô phỏng | backlog |
-| [E9-S2](stories/E9-S2-exchange-filters-order-rules.md) | Bộ lọc sàn: tickSize, stepSize, minNotional và quy tắc lệnh | backlog |
+| [E9-S1](stories/E9-S1-testnet-bot-executor.md) | Bot Binance Futures testnet chạy đúng quy tắc đã mô phỏng | review |
+| [E9-S2](stories/E9-S2-exchange-filters-order-rules.md) | Bộ lọc sàn: tickSize, stepSize, minNotional và quy tắc lệnh | review |
 | [E9-S3](stories/E9-S3-testnet-feed.md) | TestnetFeed thật thay feed giả lập | backlog |
 | [E9-S4](stories/E9-S4-live-feed.md) | LiveFeed thật cho tài khoản Binance Futures | backlog |
-| [E9-S5](stories/E9-S5-live-kill-switch-risk-limits.md) | Kill switch và giới hạn rủi ro trên tài khoản thật | backlog |
+| [E9-S5](stories/E9-S5-live-kill-switch-risk-limits.md) | Kill switch và giới hạn rủi ro trên tài khoản thật | review |
 | [E9-S6](stories/E9-S6-live-backtest-reconciliation.md) | Đối soát live/testnet với backtest | backlog |
-| [E9-S7](stories/E9-S7-exchange-secrets-management.md) | Quản lý khoá API sàn | backlog |
+| [E9-S7](stories/E9-S7-exchange-secrets-management.md) | Quản lý khoá API sàn | review |
 
 ## E10: Nghiên cứu chiến lược mới & phương pháp [backlog]
 

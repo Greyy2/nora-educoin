@@ -2,13 +2,13 @@
 # Giá trị hợp lệ: backlog | ready | in-progress | review | done.
 # Nguồn sự thật cho từng story là file stories/<id>-<slug>.md; file này phải khớp (xem README.md, mục Kiểm tra nhất quán).
 project: nora
-last_updated: 2026-10-03
+last_updated: 2026-10-04
 baseline_commit: dc08366
 branch: fix/pipeline-audit
 status_values: [backlog, ready, in-progress, review, done]
 summary:
-  epics: {done: 11, in-progress: 1, backlog: 3}
-  stories: {done: 63, review: 0, in-progress: 0, ready: 0, backlog: 21, total: 84}
+  epics: {done: 11, in-progress: 2, backlog: 2}
+  stories: {done: 63, review: 4, in-progress: 0, ready: 0, backlog: 17, total: 84}
 epics:
   E1:
     title: "Dữ liệu thị trường"
@@ -94,15 +94,15 @@ epics:
       E8-S7-frontend-automated-tests: backlog
   E9:
     title: "Testnet & Live"
-    status: backlog
+    status: in-progress
     stories:
-      E9-S1-testnet-bot-executor: backlog
-      E9-S2-exchange-filters-order-rules: backlog
+      E9-S1-testnet-bot-executor: review
+      E9-S2-exchange-filters-order-rules: review
       E9-S3-testnet-feed: backlog
       E9-S4-live-feed: backlog
-      E9-S5-live-kill-switch-risk-limits: backlog
+      E9-S5-live-kill-switch-risk-limits: review
       E9-S6-live-backtest-reconciliation: backlog
-      E9-S7-exchange-secrets-management: backlog
+      E9-S7-exchange-secrets-management: review
   E10:
     title: "Nghiên cứu chiến lược mới & phương pháp"
     status: backlog

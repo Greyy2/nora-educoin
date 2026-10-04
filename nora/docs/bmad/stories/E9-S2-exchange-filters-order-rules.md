@@ -1,7 +1,7 @@
 # E9-S2: Bộ lọc sàn: tickSize, stepSize, minNotional và quy tắc lệnh
 
 - **Epic:** E9 Testnet & Live
-- **Trạng thái:** backlog
+- **Trạng thái:** review
 - **Cập nhật:** 2026-10-01
 
 ## Story
@@ -27,6 +27,10 @@ Là người vận hành, tôi muốn bot làm tròn giá/khối lượng theo b
 
 ## Evidence
 
+**04/10/2026.** `live.exchange.Filters`: làm tròn xuống theo stepSize/tickSize, bỏ lệnh dưới minQty/minNotional và ghi sự kiện `skip`
+(`test_filters_round_down_and_reject_small`). DCA GTX chưa áp dụng (bot chưa hỗ trợ DCA). Sai khác khối lượng so với mô phỏng ghi trong events.jsonl.
+
+
 - Chưa áp dụng: story chưa làm.
 
 ## Change Log
@@ -34,3 +38,4 @@ Là người vận hành, tôi muốn bot làm tròn giá/khối lượng theo b
 | Ngày | Thay đổi |
 |---|---|
 | 2026-10-01 | Tạo story, trạng thái `backlog`. |
+| 2026-10-04 | Bot sổ paper/testnet (backend/live) | (commit E9) |

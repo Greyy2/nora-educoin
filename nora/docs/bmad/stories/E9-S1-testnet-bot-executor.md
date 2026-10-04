@@ -1,7 +1,7 @@
 # E9-S1: Bot Binance Futures testnet chạy đúng quy tắc đã mô phỏng
 
 - **Epic:** E9 Testnet & Live
-- **Trạng thái:** backlog
+- **Trạng thái:** review
 - **Cập nhật:** 2026-10-01
 
 ## Story
@@ -32,6 +32,14 @@ Là người vận hành, tôi muốn một bot đọc cấu hình trong `data/a
 
 ## Evidence
 
+**03-04/10/2026.** `backend/live/` (exchange, signals, bot, secrets), job `live_bot` (paper | testnet), API `/api/studio/live/bot`.
+Đã đạt: AC1 (exchangeInfo, ISOLATED + đòn bẩy theo `_risk_margin` trước mỗi lệnh; từ chối tài khoản hedge mode), AC2 theo khung của sổ (1h: tín hiệu nến
+đóng -> MARKET đầu nến kế), AC3 (SL STOP_MARKET closePosition, TP LIMIT reduce-only; trailing / timeout / tín hiệu thoát MARKET reduce-only ở nến kế),
+AC4 (tín hiệu bot = engine từng bit — `test_live_signals_equal_engine_signals`; 1.500 nến sàn so với toàn lịch sử: 0 lệch trên 500 nến cuối × 4 tài sản
+× 4 chiến lược), AC5 (đối soát vị thế mỗi bước, vị thế ngoài bot -> không mở trên tài sản đó). Chưa: DCA (sổ có DCA -> từ chối chạy); chạy thật trên
+testnet cần khoá API của người vận hành. Paper đã chạy một bước thật trên dữ liệu mainnet (job 20261004_012621_b1fdb6).
+
+
 - Chưa áp dụng: story chưa làm.
 
 ## Change Log
@@ -39,3 +47,4 @@ Là người vận hành, tôi muốn một bot đọc cấu hình trong `data/a
 | Ngày | Thay đổi |
 |---|---|
 | 2026-10-01 | Tạo story, trạng thái `backlog`. |
+| 2026-10-04 | Bot sổ paper/testnet (backend/live) | (commit E9) |
