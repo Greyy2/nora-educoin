@@ -288,10 +288,13 @@ tham số đã lưu của alpha bằng engine hiện hành: WFA dev2 (cổng S3)
 `{status: "validated"|"retired", final_scale, reject_code, reason, wfa, sizing, holdout, shock, windows}`. `apply=true`: ghi `status` + `revalidation`
 vào `registry.json`; `retired` → `testnet/<id>.json` chuyển sang `testnet/_retired/`. Feed live bỏ qua alpha `retired`.
 
-## 9. Bot theo sổ (E9, 04/10/2026)
+## 9. Bot theo sổ (E9, 04/10/2026) — sàn triển khai: OKX
 
-`POST /api/studio/live/bot` `{mode: "paper" | "testnet", once: false, capital: 10000}` → `{job_id}` (job `live_bot`, chạy lâu, không giữ khoá hàng đợi;
-409 nếu bot cùng chế độ đang chạy). Dừng: `POST /api/studio/book/jobs/{job_id}/cancel`. `GET /api/studio/live/bot?mode=paper&events=50` →
-`{mode, running: [job_id], state: {positions, cash, equity, peak_equity, halted, last_bar, trades[-100:]}, events: [...]}`.
-Chỉ chạy sổ `book.json` trạng thái READY_FOR_TESTNET. paper: dữ liệu mainnet công khai, khớp mô phỏng; testnet: lệnh thật, khoá ở
-`~/.config/nora/binance_testnet.env` (NORA_BINANCE_TESTNET_KEY / NORA_BINANCE_TESTNET_SECRET, quyền 600). Trạng thái: `data/_cache/live/<mode>/`.
+`POST /api/studio/live/bot` `{mode: "paper" | "demo" | "live", venue: "okx" | "binance", once: false, capital: 10000, confirm_live: false}` → `{job_id}`
+(job `live_bot`, chạy lâu, không giữ khoá hàng đợi; 409 nếu bot cùng sàn + chế độ đang chạy; live cần `confirm_live: true`). Dừng:
+`POST /api/studio/book/jobs/{job_id}/cancel`. `GET /api/studio/live/bot?venue=okx&mode=paper&events=50` → `{venue, mode, running, state, events}`.
+- paper: nến thật của sàn (REST công khai), khớp bằng PaperBook (= engine từng nến).
+- demo: OKX Demo Trading (khoá demo, header x-simulated-trading) — vốn ảo; live: OKX tài khoản thật — CÙNG mã, khác khoá (NORA_OKX_DEMO=0).
+- Khoá OKX: `~/.config/nora/okx.env` (quyền 600): NORA_OKX_KEY, NORA_OKX_SECRET, NORA_OKX_PASSPHRASE, NORA_OKX_DEMO (1 = demo, mặc định).
+- Tài khoản OKX phải ở `net_mode` (bot kiểm). Binance (`venue: binance`) chỉ để tham khảo: paper / testnet, không live.
+Trạng thái: `data/_cache/live/<venue>_<mode>/` (state.json, events.jsonl, paper.pkl).

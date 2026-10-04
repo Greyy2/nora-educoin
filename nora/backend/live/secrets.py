@@ -36,6 +36,27 @@ def load_keys(path: Optional[str] = None) -> Optional[Tuple[str, str]]:
     return (key, sec) if key and sec else None
 
 
+OKX_FILE = os.path.expanduser("~/.config/nora/okx.env")
+OKX_ENV = ("NORA_OKX_KEY", "NORA_OKX_SECRET", "NORA_OKX_PASSPHRASE")
+
+
+def load_okx(path: Optional[str] = None) -> Optional[Tuple[Tuple[str, str, str], bool]]:
+    """((key, secret, passphrase), demo) hoặc None. Biến môi trường hoặc ~/.config/nora/okx.env (quyền 600). NORA_OKX_DEMO=1 (mặc định):
+    khoá Demo Trading; =0: khoá tài khoản thật."""
+    vals = {k: os.environ.get(k) for k in OKX_ENV + ("NORA_OKX_DEMO",)}
+    if not all(vals[k] for k in OKX_ENV):
+        path = path or os.environ.get("NORA_OKX_KEYS_FILE") or OKX_FILE
+        if not os.path.isfile(path):
+            return None
+        mode = stat.S_IMODE(os.stat(path).st_mode)
+        if mode & 0o077:
+            raise PermissionError(f"{path}: quyền {oct(mode)} quá lỏng — chmod 600")
+        vals.update({k: v for k, v in _parse(path).items() if k in vals})
+    if not all(vals.get(k) for k in OKX_ENV):
+        return None
+    return tuple(vals[k] for k in OKX_ENV), str(vals.get("NORA_OKX_DEMO") or "1").strip() != "0"
+
+
 _HEX = re.compile(r"[A-Za-z0-9]{32,}")
 
 

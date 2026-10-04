@@ -29,7 +29,7 @@ class BinanceFutures:
 
     def _req(self, method: str, path: str, params: Optional[Dict[str, Any]] = None, signed: bool = False) -> Any:
         q = dict(params or {})
-        headers = {}
+        headers = {"User-Agent": "nora-bot/1.0"}
         if signed:
             if not self.keys:
                 raise ExchangeError("cần khoá API cho endpoint riêng")
@@ -120,3 +120,67 @@ class Filters:
         if qty * price < self.min_notional:
             return f"danh nghĩa {qty * price:.2f} < minNotional {self.min_notional}"
         return None
+
+
+class BinanceAdapter:
+    """Binance USD-M (chỉ để THAM KHẢO / đối chiếu; sàn triển khai là OKX) — cùng giao diện với live.okx.OkxAdapter."""
+    venue = "binance"
+
+    def __init__(self, keys: Optional[Tuple[str, str]] = None, base_url: str = TESTNET_URL):
+        self.c = BinanceFutures(base_url, keys)
+        self._f: Dict[str, Filters] = {}
+
+    def filters(self, sym: str) -> Filters:
+        if not self._f:
+            info = self.c.exchange_info()
+            for s in info["symbols"]:
+                if s["symbol"].endswith("USDT"):
+                    try:
+                        self._f[s["symbol"][:-4]] = Filters.from_info(info, s["symbol"])
+                    except (KeyError, ExchangeError):
+                        pass
+        return self._f[sym]
+
+    def klines(self, sym: str, frame: str, limit: int, now: int) -> List[List[Any]]:
+        return self.c.klines(f"{sym}USDT", frame, limit)
+
+    def funding(self, sym: str, since: int) -> List[Tuple[int, float]]:
+        return [(int(r["fundingTime"]), float(r["fundingRate"])) for r in self.c.funding(f"{sym}USDT", since)]
+
+    def check_account(self) -> None:
+        if self.c._req("GET", "/fapi/v1/positionSide/dual", signed=True).get("dualSidePosition"):
+            raise SystemExit("Binance: tài khoản đang ở hedge mode — bot cần one-way")
+
+    def equity(self) -> float:
+        return float(self.c.account()["totalMarginBalance"])
+
+    def positions(self) -> Dict[str, Tuple[float, float]]:
+        return {p["symbol"][:-4]: (float(p["positionAmt"]), float(p.get("entryPrice") or 0)) for p in self.c.positions()
+                if float(p["positionAmt"]) != 0.0}
+
+    def prepare(self, sym: str, leverage: int) -> None:
+        self.c.set_margin_isolated(f"{sym}USDT")
+        self.c.set_leverage(f"{sym}USDT", int(leverage))
+
+    def market_open(self, sym: str, side: str, qty: float) -> float:
+        r = self.c.order(symbol=f"{sym}USDT", side="BUY" if side == "LONG" else "SELL", type="MARKET", quantity=qty, newOrderRespType="RESULT")
+        return float(r.get("avgPrice") or 0)
+
+    def place_sl(self, sym: str, side: str, qty: float, trigger: float) -> None:
+        self.c.order(symbol=f"{sym}USDT", side="SELL" if side == "LONG" else "BUY", type="STOP_MARKET", stopPrice=trigger, closePosition="true",
+                     workingType="MARK_PRICE")
+
+    def place_tp(self, sym: str, side: str, qty: float, px: float) -> None:
+        self.c.order(symbol=f"{sym}USDT", side="SELL" if side == "LONG" else "BUY", type="LIMIT", timeInForce="GTC", quantity=qty,
+                     reduceOnly="true", price=px)
+
+    def place_post_only(self, sym: str, side: str, qty: float, px: float) -> None:
+        self.c.order(symbol=f"{sym}USDT", side="BUY" if side == "LONG" else "SELL", type="LIMIT", timeInForce="GTX", quantity=qty, price=px)
+
+    def cancel_all(self, sym: str) -> None:
+        self.c.cancel_all(f"{sym}USDT")
+
+    def close_market(self, sym: str) -> None:
+        amt = self.positions().get(sym, (0.0, 0.0))[0]
+        if amt:
+            self.c.order(symbol=f"{sym}USDT", side="SELL" if amt > 0 else "BUY", type="MARKET", quantity=abs(amt), reduceOnly="true")

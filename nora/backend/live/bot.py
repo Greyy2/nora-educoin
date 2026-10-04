@@ -1,13 +1,14 @@
-"""Bot giao dịch theo sổ đã xuất bản (E9-S1/S2/S5) — job API `live_bot`. Mọi chiến lược của sổ: theo xu hướng lẫn DCA.
+"""Bot giao dịch theo sổ đã xuất bản (E9-S1/S2/S5) — job API `live_bot`. Sàn triển khai: OKX (Binance chỉ để tham khảo / đối chiếu).
+Mọi chiến lược của sổ: theo xu hướng lẫn DCA.
 
 Chế độ:
-  paper    dữ liệu thị trường THẬT (REST công khai, mặc định mainnet); khớp lệnh bằng PaperBook = đúng PositionTracker + vòng danh mục của
-           engine (test: cùng nến + tín hiệu -> cùng lệnh với PortfolioEngine, gồm DCA, trailing, kill switch). Bot nghỉ bao lâu thì nến bỏ lỡ
-           được chạy bù theo đúng thứ tự.
-  testnet  Binance Futures testnet, lệnh thật (khoá: secrets.py). Vào lệnh MARKET đầu nến kế tín hiệu; tầng DCA = LIMIT GTX (post-only, khớp
-           maker như engine) đặt sẵn cả thang theo đúng bước/hệ số; SL = STOP_MARKET closePosition và TP = LIMIT reduce-only tính từ GIÁ TRUNG
-           BÌNH, đặt lại mỗi khi một tầng DCA khớp; trailing / timeout / tín hiệu thoát = MARKET reduce-only ở nến kế. Đối soát vị thế mỗi bước.
-           Chạy kèm một PaperBook "bóng" trên cùng nến để đối chiếu thật / mô phỏng (events + state).
+  paper  dữ liệu thị trường THẬT của sàn (REST công khai); khớp lệnh bằng PaperBook = đúng PositionTracker + vòng danh mục của engine
+         (test: cùng nến + tín hiệu -> cùng lệnh với PortfolioEngine, gồm DCA, trailing, kill switch). Nến bỏ lỡ được chạy bù theo thứ tự.
+  demo   OKX Demo Trading (khoá demo, vốn ảo) — "testnet / live mô phỏng".
+  live   OKX tài khoản thật: CÙNG mã với demo, chỉ khác khoá (NORA_OKX_DEMO=0) và cần confirm_live=true.
+demo/live: vào lệnh MARKET đầu nến kế tín hiệu; tầng DCA = lệnh post-only (khớp maker như engine) đặt sẵn cả thang theo đúng bước/hệ số;
+SL = lệnh điều kiện reduce-only và TP = limit reduce-only tính từ GIÁ TRUNG BÌNH, đặt lại mỗi khi một tầng DCA khớp; trailing / timeout /
+tín hiệu thoát = đóng market ở nến kế. Đối soát vị thế với sàn mỗi bước; chạy kèm PaperBook "bóng" trên cùng nến để đối chiếu thật / mô phỏng.
 Khối lượng = PositionTracker._risk_margin / order_size_pct (cùng mã engine); giới hạn danh mục và kill switch như PortfolioEngine.
 """
 import json
@@ -20,7 +21,8 @@ from typing import Any, Dict, List, Optional
 
 from backend.utils.jobs import options, write_job_result
 
-DEFAULTS = {"mode": "paper", "once": False, "max_steps": 0, "data_url": "", "capital": 10000.0, "state_dir": ""}
+DEFAULTS = {"mode": "paper", "venue": "okx", "once": False, "max_steps": 0, "capital": 10000.0, "state_dir": "", "confirm_live": False}
+EXEC_MODES = ("demo", "live")   # đặt lệnh thật trên sàn: demo = OKX Demo Trading (vốn ảo), live = tài khoản thật
 KLINE_LIMIT = 1500
 EPS = 1e-12
 
@@ -84,15 +86,14 @@ class Bot:
     # ── dữ liệu ──
     def frames(self, sym: str, now: int) -> Dict[str, Any]:
         from backend.live import signals as ls
-        return {fr: ls.klines_frame(self.client.klines(f"{sym}USDT", fr, KLINE_LIMIT), now)
+        return {fr: ls.klines_frame(self.client.klines(sym, fr, KLINE_LIMIT, now), now)
                 for fr in ls.required_frames(f"{sym}@perp", self.strategies, self.tf)}
 
     def funding(self, sym: str, since: int) -> List:
         try:
-            rows = self.client.funding(f"{sym}USDT", since)
+            return self.client.funding(sym, since)
         except Exception:                      # funding không lấy được: bỏ qua bước này (không chặn giao dịch)
             return []
-        return [(int(r["fundingTime"]), float(r["fundingRate"])) for r in rows]
 
     def event(self, kind: str, **kw) -> None:
         self.log({"t": _now_ms(), "kind": kind, **kw})
@@ -118,28 +119,25 @@ class Bot:
             closed += pb.step_bar(t, bars, s_at, fund)
         return closed
 
-    # ── testnet ──
+    # ── sàn (demo / live) ──
     def _protect(self, sym: str, p: Dict[str, Any]) -> None:
         """(Đặt lại) SL / TP từ giá trung bình hiện tại + các tầng DCA chưa khớp."""
-        s, f = f"{sym}USDT", self.filters.get(sym)
+        f = self.filters.get(sym)
         rnd = f.price if f is not None else (lambda x: x)
         rq = f.qty if f is not None else (lambda x: x)
         sign = 1 if p["side"] == "LONG" else -1
-        exit_side, entry_side = ("SELL", "BUY") if sign > 0 else ("BUY", "SELL")
-        self.client.cancel_all(s)
+        self.client.cancel_all(sym)
         if p["sl_pct"]:
-            self.client.order(symbol=s, side=exit_side, type="STOP_MARKET", stopPrice=rnd(p["avg"] * (1 - sign * p["sl_pct"] / 100.0)),
-                              closePosition="true", workingType="MARK_PRICE")
+            self.client.place_sl(sym, p["side"], rq(p["qty"]), rnd(p["avg"] * (1 - sign * p["sl_pct"] / 100.0)))
         if p["tp_pct"]:
-            self.client.order(symbol=s, side=exit_side, type="LIMIT", timeInForce="GTC", quantity=rq(p["qty"]), reduceOnly="true",
-                              price=rnd(p["avg"] * (1 + sign * p["tp_pct"] / 100.0)))
+            self.client.place_tp(sym, p["side"], rq(p["qty"]), rnd(p["avg"] * (1 + sign * p["tp_pct"] / 100.0)))
         for lay in p["ladder"][p["filled_layers"]:]:
             try:
-                self.client.order(symbol=s, side=entry_side, type="LIMIT", timeInForce="GTX", quantity=lay["qty"], price=lay["price"])
+                self.client.place_post_only(sym, p["side"], lay["qty"], lay["price"])
             except Exception as e:             # GTX bị từ chối (sẽ khớp ngay = taker): bỏ tầng, KHÔNG đổi sang market (E9-S2 AC2)
                 self.event("skip", symbol=sym, reason=f"tầng DCA {lay['price']} bị từ chối: {e}")
 
-    def _open_testnet(self, sym: str, e: Dict[str, Any], i: int, price: float, equity: float, room: float, now: int) -> None:
+    def _open_exec(self, sym: str, e: Dict[str, Any], i: int, price: float, equity: float, room: float, now: int) -> None:
         from backend.core.execute.ledger import CapitalLedger
         tr = e["tracker"]
         vol = float(e["vol"][i]) if e["vol"] is not None else float("nan")
@@ -158,11 +156,8 @@ class Bot:
         if why:
             return self.event("skip", symbol=sym, strategy=e["strategy"], reason=why)
         sign = 1 if e["side"] == "LONG" else -1
-        s = f"{sym}USDT"
-        self.client.set_margin_isolated(s)
-        self.client.set_leverage(s, int(lev))
-        r = self.client.order(symbol=s, side="BUY" if sign > 0 else "SELL", type="MARKET", quantity=qty, newOrderRespType="RESULT")
-        fill = float(r.get("avgPrice") or price)
+        self.client.prepare(sym, int(lev))
+        fill = float(self.client.market_open(sym, e["side"], qty) or price)
         ladder, level, m = [], fill, notional / lev
         for step, mult in zip(tr.dca_steps, tr.dca_mults):
             level = level * (1 - sign * step / 100.0)
@@ -177,13 +172,10 @@ class Bot:
         self.event("open", symbol=sym, strategy=e["strategy"], side=e["side"], qty=qty, price=fill, leverage=int(lev),
                    sl_pct=round(tr.sl_pct, 4), tp_pct=round(tr.tp_pct, 4), dca_layers=len(ladder))
 
-    def _close_testnet(self, sym: str, reason: str, now: int) -> None:
+    def _close_exec(self, sym: str, reason: str, now: int) -> None:
         p = self.state.d["positions"].pop(sym)
-        s = f"{sym}USDT"
-        self.client.cancel_all(s)
-        amt = next((float(x["positionAmt"]) for x in self.client.positions() if x["symbol"] == s), 0.0)
-        if abs(amt) > EPS:
-            self.client.order(symbol=s, side="SELL" if amt > 0 else "BUY", type="MARKET", quantity=abs(amt), reduceOnly="true")
+        self.client.cancel_all(sym)
+        self.client.close_market(sym)
         self.state.d["last_close"][f"{p['strategy']}|{sym}"] = now
         self.state.d["trades"].append({**{k: p[k] for k in ("strategy", "side", "qty", "avg", "entry_time")}, "symbol": sym, "close_time": now,
                                        "reason": reason, "layers": 1 + p["filled_layers"]})
@@ -193,14 +185,13 @@ class Bot:
         """Vị thế sàn là sự thật: sàn đã đóng (SL/TP) -> ghi nhận; khối lượng tăng (tầng DCA khớp) -> cập nhật giá TB, đặt lại SL/TP;
         vị thế không do bot mở -> không mở thêm trên tài sản đó (E9-S1 AC5)."""
         d = self.state.d
-        live = {x["symbol"][:-4]: (float(x["positionAmt"]), float(x.get("entryPrice") or 0)) for x in self.client.positions()
-                if abs(float(x["positionAmt"])) > EPS}
+        live = {s: v for s, v in self.client.positions().items() if abs(v[0]) > EPS}
         d["external"] = sorted(s for s in live if s not in d["positions"])
         for sym in list(d["positions"]):
             p = d["positions"][sym]
             if sym not in live:
                 d["positions"].pop(sym)
-                self.client.cancel_all(f"{sym}USDT")
+                self.client.cancel_all(sym)
                 d["last_close"][f"{p['strategy']}|{sym}"] = now
                 d["trades"].append({**{k: p[k] for k in ("strategy", "side", "qty", "avg", "entry_time")}, "symbol": sym, "close_time": now,
                                     "reason": "Sàn đã đóng (SL/TP)", "layers": 1 + p["filled_layers"]})
@@ -216,7 +207,7 @@ class Bot:
                 self._protect(sym, p)
                 self.event("dca", symbol=sym, strategy=p["strategy"], layers=1 + filled, avg=p["avg"], qty=p["qty"])
 
-    def step_testnet(self, now: int, sig: Dict[str, Dict[str, Any]]) -> None:
+    def step_exec(self, now: int, sig: Dict[str, Dict[str, Any]]) -> None:
         d = self.state.d
         self.reconcile(now)
         last = {s: len(v["t"]) - 1 for s, v in sig.items()}
@@ -230,20 +221,20 @@ class Bot:
                 gain = sign * (p["peak"] - p["avg"]) / p["avg"] * 100.0
                 level = p["peak"] * (1 - sign * p["trail_pct"] / 100.0)
                 if gain >= p["trail_act_pct"] and (lo <= level if sign > 0 else hi >= level):
-                    self._close_testnet(sym, "Trailing stop", now)
+                    self._close_exec(sym, "Trailing stop", now)
                     continue
             p["peak"] = max(p["peak"], hi) if sign > 0 else min(p["peak"], lo)
             if bool(e["stop"][i]):
-                self._close_testnet(sym, "Tín hiệu thoát", now)
+                self._close_exec(sym, "Tín hiệu thoát", now)
             elif p["timeout_ms"] and now - p["entry_time"] >= p["timeout_ms"]:
-                self._close_testnet(sym, "Hết thời gian giữ lệnh", now)
-        eq = float(self.client.account()["totalMarginBalance"])
+                self._close_exec(sym, "Hết thời gian giữ lệnh", now)
+        eq = float(self.client.equity())
         d["peak_equity"] = max(d["peak_equity"], eq)
         kill = float(self.limits.get("kill_switch_dd_pct") or 0)
         if kill and not d["halted"] and eq <= d["peak_equity"] * (1 - kill / 100.0):
             d["halted"] = True
             for sym in list(d["positions"]):
-                self._close_testnet(sym, "Kill switch", now)
+                self._close_exec(sym, "Kill switch", now)
             self.event("crit", reason=f"kill switch: vốn {eq:.2f} <= {100 - kill:.0f}% đỉnh {d['peak_equity']:.2f}")
         if not d["halted"]:
             for sym in self.symbols:
@@ -261,7 +252,7 @@ class Bot:
                     gross = sum(p["qty"] * marks.get(s, p["avg"]) for s, p in d["positions"].items())
                     room = float(self.limits["max_gross_exposure"]) * eq - gross
                     if room > 0:
-                        self._open_testnet(sym, e, i, marks[sym], eq, room, now)
+                        self._open_exec(sym, e, i, marks[sym], eq, room, now)
                     break
         d["equity"] = eq
 
@@ -275,14 +266,14 @@ class Bot:
             since = (self.paper.last_t or now) - 2 * 86_400_000
             funding = {s: self.funding(s, since) for s in self.symbols}
         closed = self.advance_paper(sig, funding)
-        if self.mode == "testnet":
-            self.step_testnet(now, sig)
+        if self.mode in EXEC_MODES:
+            self.step_exec(now, sig)
         else:
             mtm, worst = self.paper.mtm()
             d.update(equity=round(mtm, 4), equity_worst=round(worst, 4), halted=self.paper.halted_at is not None,
                      positions={p["symbol"]: p for p in self.paper.positions()}, trades=self.paper.trades[-200:])
         for tr in closed:
-            self.event("paper_close" if self.mode == "testnet" else "close", **tr)
+            self.event("paper_close" if self.mode in EXEC_MODES else "close", **tr)
         d["last_bar"] = now
         d["paper"] = {"equity": round(self.paper.mtm()[0], 4), "positions": len(self.paper.positions()), "trades": len(self.paper.trades),
                       "halted_at": self.paper.halted_at}
@@ -290,25 +281,48 @@ class Bot:
         return {"equity": d.get("equity"), "positions": len(d["positions"]), "halted": d["halted"]}
 
 
-def check_testnet_account(client) -> None:
-    if client._req("GET", "/fapi/v1/positionSide/dual", signed=True).get("dualSidePosition"):
-        raise SystemExit("tài khoản đang ở chế độ hedge — bot cần one-way (khớp max_per_symbol = 1)")
+def make_adapter(venue: str, mode: str):
+    """Sàn + khoá theo chế độ. paper: chỉ dữ liệu công khai. demo/live: khoá bắt buộc; live cần NORA_OKX_DEMO=0 (khoá thật)."""
+    from backend.live.secrets import load_keys, load_okx
+    if venue == "okx":
+        from backend.live.okx import OkxAdapter
+        if mode == "paper":
+            return OkxAdapter(None, demo=False), None
+        got = load_okx()
+        if not got:
+            raise SystemExit("OKX cần khoá: NORA_OKX_KEY / NORA_OKX_SECRET / NORA_OKX_PASSPHRASE (+ NORA_OKX_DEMO) trong môi trường hoặc "
+                             "~/.config/nora/okx.env (quyền 600)")
+        keys, demo = got
+        if mode == "demo" and not demo:
+            raise SystemExit("mode demo nhưng khoá là tài khoản thật (NORA_OKX_DEMO=0) — dùng khoá Demo Trading")
+        if mode == "live" and demo:
+            raise SystemExit("mode live cần khoá tài khoản thật (NORA_OKX_DEMO=0)")
+        return OkxAdapter(keys, demo=demo), keys
+    if venue == "binance":
+        from backend.live.exchange import MAINNET_URL, TESTNET_URL, BinanceAdapter
+        if mode == "paper":
+            return BinanceAdapter(None, MAINNET_URL), None
+        if mode == "live":
+            raise SystemExit("Binance chỉ để tham khảo: không chạy live")
+        keys = load_keys()
+        if not keys:
+            raise SystemExit("Binance testnet cần khoá (NORA_BINANCE_TESTNET_KEY/SECRET)")
+        return BinanceAdapter(keys, TESTNET_URL), keys
+    raise SystemExit(f"sàn không hỗ trợ: {venue}")
 
 
 def run_job(params=None) -> Dict[str, Any]:
     warnings.filterwarnings("ignore")
     a = options(DEFAULTS, params)
-    from backend.live.exchange import MAINNET_URL, TESTNET_URL, BinanceFutures, Filters
-    from backend.live.secrets import load_keys, redact
+    from backend.live.secrets import redact
     from backend.db.data_layout import cache_dir
-    if a.mode not in ("paper", "testnet"):
-        raise SystemExit("mode phải là paper | testnet")
+    if a.mode not in ("paper",) + EXEC_MODES:
+        raise SystemExit("mode phải là paper | demo | live")
+    if a.mode == "live" and not a.confirm_live:
+        raise SystemExit("mode live đặt lệnh bằng VỐN THẬT — cần confirm_live=true")
     book = load_book()
-    keys = load_keys() if a.mode == "testnet" else None
-    if a.mode == "testnet" and not keys:
-        raise SystemExit("testnet cần khoá: NORA_BINANCE_TESTNET_KEY/SECRET hoặc ~/.config/nora/binance_testnet.env (quyền 600)")
-    client = BinanceFutures(a.data_url or (TESTNET_URL if a.mode == "testnet" else MAINNET_URL), keys)
-    sdir = a.state_dir or cache_dir(None, "live", a.mode)
+    client, keys = make_adapter(a.venue, a.mode)
+    sdir = a.state_dir or cache_dir(None, "live", f"{a.venue}_{a.mode}")
     os.makedirs(sdir, exist_ok=True)
     events, pkl = os.path.join(sdir, "events.jsonl"), os.path.join(sdir, "paper.pkl")
 
@@ -317,20 +331,21 @@ def run_job(params=None) -> Dict[str, Any]:
         with open(events, "a", encoding="utf-8") as fh:
             fh.write(line + "\n")
         print(line, flush=True)
-    info = client.exchange_info()
-    filters = {s.split("@")[0]: Filters.from_info(info, s.split("@")[0] + "USDT") for s in book["universe"]}
+    symbols = [s.split("@")[0] for s in book["universe"]]
+    filters = {sym: client.filters(sym) for sym in symbols}
     paper = None
     if os.path.isfile(pkl):
         with open(pkl, "rb") as fh:
             paper = pickle.load(fh)
     bot = Bot(book, a.mode, client, State(os.path.join(sdir, "state.json"), float(a.capital)), log, filters, paper, float(a.capital))
-    if a.mode == "testnet":
-        check_testnet_account(client)
+    if a.mode in EXEC_MODES:
+        client.check_account()
         bot.reconcile(_now_ms())
     stop = {"flag": False}
     signal.signal(signal.SIGTERM, lambda *_: stop.update(flag=True))
     step_ms = {"15m": 900_000, "1h": 3_600_000, "4h": 14_400_000}[bot.tf]
-    log({"t": _now_ms(), "kind": "start", "mode": a.mode, "book": book.get("source"), "timeframe": bot.tf, "symbols": bot.symbols})
+    log({"t": _now_ms(), "kind": "start", "venue": a.venue, "mode": a.mode, "book": book.get("source"), "timeframe": bot.tf,
+         "symbols": bot.symbols})
     n, res = 0, {}
     while not stop["flag"]:
         now = _now_ms() // step_ms * step_ms
@@ -347,6 +362,6 @@ def run_job(params=None) -> Dict[str, Any]:
             if a.once or (a.max_steps and n >= a.max_steps):
                 break
         time.sleep(min(30.0, max(1.0, (now + step_ms + 10_000 - _now_ms()) / 1000.0)))
-    out = {"mode": a.mode, "steps": n, "last": res, "state": os.path.join(sdir, "state.json"), "events": events}
+    out = {"venue": a.venue, "mode": a.mode, "steps": n, "last": res, "state": os.path.join(sdir, "state.json"), "events": events}
     write_job_result(out)
     return out

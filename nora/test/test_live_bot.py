@@ -92,34 +92,40 @@ def test_paper_bot_catches_up_missed_bars_with_engine_tracker(tmp_path):
     assert any(e["kind"] == "close" for e in ev)
 
 
-# ── testnet với sàn giả ─────────────────────────────────────────────────────
-class FakeClient:
+# ── sàn (demo) với adapter giả — cùng giao diện OkxAdapter / BinanceAdapter ─────────────────
+class FakeAdapter:
     def __init__(self, live=None):
         self.calls, self.live = [], {k: [q, 100.0] for k, q in (live or {}).items()}
 
-    def set_margin_isolated(self, s):
-        self.calls.append(("margin", s))
+    def prepare(self, sym, lev):
+        self.calls.append(("prepare", sym, lev))
 
-    def set_leverage(self, s, lev):
-        self.calls.append(("leverage", s, lev))
+    def market_open(self, sym, side, qty):
+        self.calls.append(("market", sym, side, qty))
+        self.live[sym] = [qty if side == "LONG" else -qty, 100.5]
+        return 100.5
 
-    def order(self, **p):
-        self.calls.append(("order", p))
-        if p.get("type") == "MARKET" and not p.get("reduceOnly"):
-            self.live[p["symbol"]] = [p["quantity"], 100.5]
-            return {"avgPrice": "100.5"}
-        if p.get("type") == "MARKET" and p.get("reduceOnly"):
-            self.live.pop(p["symbol"], None)
-        return {}
+    def place_sl(self, sym, side, qty, trigger):
+        self.calls.append(("sl", sym, side, qty, trigger))
 
-    def cancel_all(self, s):
-        self.calls.append(("cancel_all", s))
+    def place_tp(self, sym, side, qty, px):
+        self.calls.append(("tp", sym, side, qty, px))
+
+    def place_post_only(self, sym, side, qty, px):
+        self.calls.append(("post_only", sym, side, qty, px))
+
+    def cancel_all(self, sym):
+        self.calls.append(("cancel_all", sym))
+
+    def close_market(self, sym):
+        self.calls.append(("close", sym))
+        self.live.pop(sym, None)
 
     def positions(self):
-        return [{"symbol": s, "positionAmt": str(q), "entryPrice": str(px)} for s, (q, px) in self.live.items()]
+        return {s: (q, px) for s, (q, px) in self.live.items()}
 
-    def account(self):
-        return {"totalMarginBalance": "10000"}
+    def equity(self):
+        return 10000.0
 
 
 DCA_BOOK_PARAMS = {**_defaults("trend_long"), "take_profit_rate": 2.0}
@@ -131,8 +137,8 @@ def _dca_book():
     return book
 
 
-def test_testnet_orders_dca_ladder_protection_and_reconcile(tmp_path, monkeypatch):
-    fake = FakeClient(live={"BBBUSDT": 0.5})                                   # vị thế BBB không do bot mở
+def test_demo_orders_dca_ladder_protection_and_reconcile(tmp_path, monkeypatch):
+    fake = FakeAdapter(live={"BBB": 0.5})                                       # vị thế BBB không do bot mở
     flt = {s: Filters(0.01, 0.001, 0.001, 5.0) for s in ("AAA", "BBB")}
     orig = lb.book_strategies
 
@@ -142,41 +148,113 @@ def test_testnet_orders_dca_ladder_protection_and_reconcile(tmp_path, monkeypatc
             st["position"] = {**st["position"], "dca_steps": [1.0, 2.0, 3.0], "dca_multipliers": [1.5, 2.0, 2.0]}
         return sts
     monkeypatch.setattr(lb, "book_strategies", with_dca)
-    b, ev = _bot(tmp_path, "testnet", fake, flt, _dca_book())
+    b, ev = _bot(tmp_path, "demo", fake, flt, _dca_book())
     t0 = 50 * HOUR
     sig = lambda **kw: {"AAA": _sig(b, "AAA", [t0], **kw), "BBB": _sig(b, "BBB", [t0], match={t0})}  # noqa: E731
     b.step(t0 + HOUR, sig(match={t0}), {})
     p = b.state.d["positions"]["AAA"]
     assert "BBB" not in b.state.d["positions"] and b.state.d["external"] == ["BBB"]
-    orders = [c[1] for c in fake.calls if c[0] == "order"]
-    assert ("margin", "AAAUSDT") in fake.calls and any(c[0] == "leverage" for c in fake.calls)
-    assert orders[0]["type"] == "MARKET" and orders[0]["side"] == "BUY" and p["avg"] == 100.5
-    sl = next(o for o in orders if o["type"] == "STOP_MARKET")
-    assert sl["closePosition"] == "true" and sl["stopPrice"] == flt["AAA"].price(100.5 * (1 - p["sl_pct"] / 100))
-    tp = next(o for o in orders if o["type"] == "LIMIT" and o.get("reduceOnly"))
-    assert tp["price"] == flt["AAA"].price(100.5 * (1 + p["tp_pct"] / 100))
-    ladder = [o for o in orders if o.get("timeInForce") == "GTX"]
-    assert len(ladder) == 3 and [o["price"] for o in ladder] == [lay["price"] for lay in p["ladder"]]
+    kinds = [c[0] for c in fake.calls]
+    assert kinds[:3] == ["prepare", "market", "cancel_all"] and fake.calls[1][2] == "LONG" and p["avg"] == 100.5
+    assert fake.calls[1][3] == flt["AAA"].qty(fake.calls[1][3])
+    sl = next(c for c in fake.calls if c[0] == "sl")
+    assert sl[4] == flt["AAA"].price(100.5 * (1 - p["sl_pct"] / 100))
+    tp = next(c for c in fake.calls if c[0] == "tp")
+    assert tp[4] == flt["AAA"].price(100.5 * (1 + p["tp_pct"] / 100))
+    ladder = [c for c in fake.calls if c[0] == "post_only"]
+    assert len(ladder) == 3 and [c[4] for c in ladder] == [lay["price"] for lay in p["ladder"]]
     # exit_unit "atr": bước DCA tính theo ATR% như engine (vol = 2 -> bước 2%, 4%, 6%)
-    assert ladder[0]["price"] == flt["AAA"].price(100.5 * 0.98) and ladder[1]["price"] == flt["AAA"].price(100.5 * 0.98 * 0.96)
-    assert ladder[1]["quantity"] > ladder[0]["quantity"] > 0
-    # tầng 1 khớp trên sàn -> bước sau: cập nhật giá TB + khối lượng, đặt lại SL/TP từ giá TB mới, còn 2 tầng
+    assert ladder[0][4] == flt["AAA"].price(100.5 * 0.98) and ladder[1][4] == flt["AAA"].price(100.5 * 0.98 * 0.96)
+    assert ladder[1][3] > ladder[0][3] > 0
+    # tầng 1 khớp trên sàn -> cập nhật giá TB + khối lượng, đặt lại SL/TP từ giá TB mới, còn 2 tầng
     q1 = p["qty"] + p["ladder"][0]["qty"]
-    fake.live["AAAUSDT"] = [q1, 100.0]
+    fake.live["AAA"] = [q1, 100.0]
     n_before = len(fake.calls)
     b.step(t0 + 2 * HOUR, sig(), {})
     p = b.state.d["positions"]["AAA"]
     assert p["filled_layers"] == 1 and p["avg"] == 100.0 and p["qty"] == pytest.approx(q1)
-    new = [c[1] for c in fake.calls[n_before:] if c[0] == "order"]
-    assert next(o for o in new if o["type"] == "STOP_MARKET")["stopPrice"] == flt["AAA"].price(100.0 * (1 - p["sl_pct"] / 100))
-    assert len([o for o in new if o.get("timeInForce") == "GTX"]) == 2 and any(e["kind"] == "dca" for e in ev)
+    new = fake.calls[n_before:]
+    assert next(c for c in new if c[0] == "sl")[4] == flt["AAA"].price(100.0 * (1 - p["sl_pct"] / 100))
+    assert len([c for c in new if c[0] == "post_only"]) == 2 and any(e["kind"] == "dca" for e in ev)
     # sàn đã đóng AAA (SL) -> đối soát: bỏ vị thế, huỷ lệnh treo, không mở trùng
-    fake.live.pop("AAAUSDT")
-    n_orders = len([c for c in fake.calls if c[0] == "order"])
+    fake.live.pop("AAA")
+    n_market = kinds.count("market")
     b.step(t0 + 3 * HOUR, sig(), {})
     assert "AAA" not in b.state.d["positions"] and b.state.d["trades"][-1]["layers"] == 2
-    assert len([c for c in fake.calls if c[0] == "order"]) == n_orders
+    assert [c[0] for c in fake.calls].count("market") == n_market
     assert "paper" in json.load(open(tmp_path / "state.json"))                    # bóng paper chạy cùng nến để đối chiếu
+
+
+def test_okx_adapter_signing_contracts_and_candle_paging(monkeypatch):
+    import base64, hashlib, hmac  # noqa: E401
+    from backend.live import okx
+    a = okx.OkxAdapter(("K", "S", "P"), demo=True, pause=0)
+    a._inst["BTC"] = {"ctVal": "0.01", "lotSz": "0.01", "minSz": "0.01", "tickSz": "0.1"}
+    assert a.contracts("BTC", 0.0567) == "5.67" and a.contracts("BTC", 0.05679) == "5.67"   # coin -> hợp đồng, làm tròn xuống lotSz
+    f = a.filters("BTC")
+    assert f.step == pytest.approx(0.0001) and f.min_qty == pytest.approx(0.0001) and f.tick == 0.1
+    seen = {}
+
+    class R:
+        def __init__(self, body):
+            self.body = body
+
+        def read(self):
+            return self.body
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    def fake_urlopen(req, timeout=0):
+        seen["h"] = dict(req.headers)
+        seen["url"] = req.full_url
+        return R(b'{"code":"0","data":[{"posMode":"net_mode"}]}')
+    monkeypatch.setattr(okx.urllib.request, "urlopen", fake_urlopen)
+    a.check_account()
+    h = {k.lower(): v for k, v in seen["h"].items()}
+    assert h["x-simulated-trading"] == "1" and h["ok-access-key"] == "K" and h["ok-access-passphrase"] == "P"
+    msg = h["ok-access-timestamp"] + "GET" + "/api/v5/account/config"
+    assert h["ok-access-sign"] == base64.b64encode(hmac.new(b"S", msg.encode(), hashlib.sha256).digest()).decode()
+    # nến: 300 mới + phân trang history 100/lần tới đủ limit, tăng dần, có close_time
+    H = 3_600_000
+    calls = []
+
+    def req(method, path, params=None, body=None, signed=False):
+        calls.append((path, dict(params or {})))
+        if path.endswith("/candles"):
+            return [[str(1000 * H - k * H), "1", "2", "0.5", "1.5", "10"] for k in range(300)]
+        after = int(params["after"])
+        return [[str(after - (k + 1) * H), "1", "2", "0.5", "1.5", "10"] for k in range(100)]
+    a._req = req
+    rows = a.klines("BTC", "1h", 450, now=1001 * H)
+    assert len(rows) == 450 and rows[-1][0] == 1000 * H and rows[0][0] == 1000 * H - 449 * H and rows[0][6] == rows[0][0] + H - 1
+    assert [c[1]["bar"] for c in calls] == ["1H"] * 3 and calls[1][1]["after"] == 1000 * H - 299 * H
+    assert a.klines("BTC", "24h", 10, now=1001 * H) and calls[-1][1]["bar"] == "1Dutc"
+
+
+def test_okx_keys_file_and_mode_guards(tmp_path, monkeypatch):
+    from backend.live.secrets import load_okx
+    for k in ("NORA_OKX_KEY", "NORA_OKX_SECRET", "NORA_OKX_PASSPHRASE", "NORA_OKX_DEMO"):
+        monkeypatch.delenv(k, raising=False)
+    p = tmp_path / "okx.env"
+    p.write_text("NORA_OKX_KEY=k1\nNORA_OKX_SECRET=s1\nNORA_OKX_PASSPHRASE=p1\n")
+    os.chmod(p, 0o600)
+    assert load_okx(str(p)) == (("k1", "s1", "p1"), True)                         # mặc định: khoá demo
+    p.write_text("NORA_OKX_KEY=k1\nNORA_OKX_SECRET=s1\nNORA_OKX_PASSPHRASE=p1\nNORA_OKX_DEMO=0\n")
+    assert load_okx(str(p))[1] is False
+    os.chmod(p, 0o644)
+    with pytest.raises(PermissionError):
+        load_okx(str(p))
+    monkeypatch.setenv("NORA_OKX_KEYS_FILE", str(tmp_path / "none.env"))
+    with pytest.raises(SystemExit):
+        lb.make_adapter("okx", "demo")                                            # thiếu khoá
+    adapter, keys = lb.make_adapter("okx", "paper")
+    assert adapter.venue == "okx" and keys is None and adapter.demo is False
+    with pytest.raises(SystemExit):
+        lb.run_job({"mode": "live"})                                              # live cần confirm_live
 
 
 def test_filters_round_down_and_reject_small():
@@ -204,7 +282,7 @@ def test_secrets_file_permissions_and_redaction(tmp_path, monkeypatch):
 def test_live_bot_job_registered_no_lock():
     from backend.api.jobs import batch
     assert "live_bot" in batch.KINDS and "live_bot" in batch.NO_LOCK_KINDS
-    assert batch.job_label("live_bot", {"mode": "paper", "once": True}) == "Bot sổ · paper · một bước"
+    assert batch.job_label("live_bot", {"mode": "demo", "venue": "okx", "once": True}) == "Bot sổ · okx demo · một bước"
 
 
 def test_book_must_be_ready_for_testnet(tmp_path):

@@ -1,4 +1,4 @@
-"""Bot giao dịch theo sổ (/api/studio/live): khởi chạy job nền `live_bot` (paper | testnet) và xem trạng thái (state.json + sự kiện cuối).
+"""Bot giao dịch theo sổ (/api/studio/live): khởi chạy job nền `live_bot` (OKX: paper | demo | live) và xem trạng thái (state.json + sự kiện).
 Dừng bot: POST /api/studio/book/jobs/{job_id}/cancel (SIGTERM -> bot thoát sau bước hiện tại, trạng thái đã lưu)."""
 import json
 import os
@@ -13,27 +13,35 @@ router = APIRouter(prefix="/api/studio/live", tags=["live"])
 
 
 class BotRequest(BaseModel):
-    mode: str = Field("paper", pattern="^(paper|testnet)$", description="paper: dữ liệu thật, khớp mô phỏng; testnet: lệnh thật trên testnet (cần khoá)")
+    mode: str = Field("paper", pattern="^(paper|demo|live)$",
+                      description="paper: dữ liệu thật, khớp mô phỏng; demo: OKX Demo Trading (vốn ảo); live: OKX tài khoản thật")
+    venue: str = Field("okx", pattern="^(okx|binance)$", description="okx = sàn triển khai; binance chỉ để tham khảo (paper / testnet)")
     once: bool = Field(False, description="chỉ chạy một bước (kiểm tra)")
     capital: float = Field(10000.0, gt=0, le=1e9, description="vốn ban đầu của chế độ paper")
+    confirm_live: bool = Field(False, description="bắt buộc true với mode live (vốn thật)")
 
 
-def _running(mode: str):
+def _running(venue: str, mode: str):
     return [j for j in batch_jobs.list_jobs(limit=50, kind="live_bot")
-            if j.get("status") in ("running", "queued") and (j.get("params") or {}).get("mode") == mode]
+            if j.get("status") in ("running", "queued") and (j.get("params") or {}).get("mode") == mode
+            and (j.get("params") or {}).get("venue", "okx") == venue]
 
 
 @router.post("/bot")
 def start_bot(req: BotRequest) -> Dict[str, Any]:
-    if _running(req.mode):
-        raise HTTPException(409, f"bot {req.mode} đang chạy (job {_running(req.mode)[0].get('id')})")
-    return batch_jobs.http_launch("live_bot", {"mode": req.mode, "once": req.once, "capital": req.capital})
+    if req.mode == "live" and not req.confirm_live:
+        raise HTTPException(422, "mode live đặt lệnh bằng vốn thật — cần confirm_live=true")
+    if _running(req.venue, req.mode):
+        raise HTTPException(409, f"bot {req.venue} {req.mode} đang chạy (job {_running(req.venue, req.mode)[0].get('id')})")
+    return batch_jobs.http_launch("live_bot", {"mode": req.mode, "venue": req.venue, "once": req.once, "capital": req.capital,
+                                               "confirm_live": req.confirm_live})
 
 
 @router.get("/bot")
-def bot_status(mode: str = Query("paper", pattern="^(paper|testnet)$"), events: int = Query(50, ge=0, le=500)) -> Dict[str, Any]:
+def bot_status(mode: str = Query("paper", pattern="^(paper|demo|live)$"), venue: str = Query("okx", pattern="^(okx|binance)$"),
+               events: int = Query(50, ge=0, le=500)) -> Dict[str, Any]:
     from backend.db.data_layout import cache_dir
-    d = cache_dir(None, "live", mode)
+    d = cache_dir(None, "live", f"{venue}_{mode}")
     state, evs = None, []
     try:
         with open(os.path.join(d, "state.json"), encoding="utf-8") as fh:
@@ -47,4 +55,4 @@ def bot_status(mode: str = Query("paper", pattern="^(paper|testnet)$"), events: 
         pass
     if state:
         state = {**state, "trades": (state.get("trades") or [])[-100:]}
-    return {"mode": mode, "running": [j.get("id") for j in _running(mode)], "state": state, "events": evs}
+    return {"venue": venue, "mode": mode, "running": [j.get("id") for j in _running(venue, mode)], "state": state, "events": evs}

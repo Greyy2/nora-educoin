@@ -48,6 +48,11 @@ gồm DCA nhiều tầng, tín hiệu thoát, trailing, giới hạn danh mục,
 (bước theo ATR% khi exit_unit = atr, như engine), tầng khớp -> giá TB từ sàn, đặt lại SL/TP từ giá TB; GTX bị từ chối -> bỏ tầng, không chuyển
 market. Sửa lỗi engine: `dca_steps` / `dca_multipliers` bị build_params bỏ qua (chỉ dca_budget_check tính) — nay truyền vào tracker.
 
+**04/10/2026 (OKX).** Sàn triển khai đổi sang OKX (`live/okx.py` OkxAdapter: SWAP USDT, hợp đồng ctVal/lotSz, nến 1Dutc, phân trang
+history-candles, ký HMAC base64 + passphrase, Demo Trading qua header x-simulated-trading); Binance còn lại làm tham khảo (`BinanceAdapter`).
+Chế độ paper / demo / live (live = cùng mã, khoá thật + confirm_live). Đo trên dữ liệu thật: giá đóng OKX lệch Binance ~0,01%; 500 nến 1h ×
+3 tài sản × 4 chiến lược: 5/105 tín hiệu khác (chạm ngưỡng) — dữ liệu backtest là Binance.
+
 ## Change Log
 
 | Ngày | Thay đổi |
