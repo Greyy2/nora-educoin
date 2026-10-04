@@ -125,7 +125,7 @@ def _keltner_schema():
 
 
 def _keltner_bands():
-    """(dải trên, dải dưới) của kênh Keltner trên khung tín hiệu: EMA(ema_n) ± k × ATR(atr_n) — như KEMA của sova."""
+    """(dải trên, dải dưới) của kênh Keltner trên khung tín hiệu: EMA(ema_n) ± k × ATR(atr_n) — kiểu KEMA."""
     atr = f("{signal_tf}", "atr_{atr_n}")
     up = {**f("{signal_tf}", "ema_{ema_n}"), "add": calc(atr, "*", p("k_up", 2.0))}
     dn = {**f("{signal_tf}", "ema_{ema_n}"), "subtract": calc(atr, "*", p("k_dn", 2.0))}
@@ -194,9 +194,9 @@ CANDIDATES: List[Dict[str, Any]] = [
         "params_schema": _breakout_schema(),
     },
     {
-        "id": "keltner_trend_long", "family": "Theo xu hướng (trend following)", "variant": "Kênh Keltner – KEMA (sova)", "side": "LONG",
+        "id": "keltner_trend_long", "family": "Theo xu hướng (trend following)", "variant": "Kênh Keltner (KEMA)", "side": "LONG",
         "description": "Close cắt LÊN dải trên Keltner (EMA + k×ATR) -> mua; thoát khi close cắt XUỐNG dải dưới (đảo chiều xu hướng) "
-                       "hoặc chạm SL theo ATR. Lối đánh trend-following của KEMA (sova).",
+                       "hoặc chạm SL theo ATR. Lối đánh trend-following KEMA.",
         "tree": cond(*cross_over(_KC_CLOSE, _KC_UP)),
         "stop": cond(*cross_under(_KC_CLOSE, _KC_DN)),
         "position": {"atr_frame": "4h"},
@@ -205,7 +205,7 @@ CANDIDATES: List[Dict[str, Any]] = [
         "params_schema": _keltner_schema(),
     },
     {
-        "id": "keltner_trend_short", "family": "Theo xu hướng (trend following)", "variant": "Kênh Keltner – KEMA (sova)", "side": "SHORT",
+        "id": "keltner_trend_short", "family": "Theo xu hướng (trend following)", "variant": "Kênh Keltner (KEMA)", "side": "SHORT",
         "description": "Đối xứng keltner_trend_long: close cắt XUỐNG dải dưới -> bán; thoát khi close cắt LÊN dải trên hoặc chạm SL.",
         "tree": cond(*cross_under(_KC_CLOSE, _KC_DN)),
         "stop": cond(*cross_over(_KC_CLOSE, _KC_UP)),

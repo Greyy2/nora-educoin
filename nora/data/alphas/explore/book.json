@@ -1419,7 +1419,7 @@
       "id": "keltner_trend_long",
       "family": "Theo xu hướng (trend following)",
       "side": "LONG",
-      "description": "Close cắt LÊN dải trên Keltner (EMA + k×ATR) -> mua; thoát khi close cắt XUỐNG dải dưới (đảo chiều xu hướng) hoặc chạm SL theo ATR. Lối đánh trend-following của KEMA (sova).",
+      "description": "Close cắt LÊN dải trên Keltner (EMA + k×ATR) -> mua; thoát khi close cắt XUỐNG dải dưới (đảo chiều xu hướng) hoặc chạm SL theo ATR. Lối đánh trend-following KEMA.",
       "params": {
         "atr_frame": "24h",
         "atr_period": 25,
@@ -2051,7 +2051,7 @@
           }
         }
       },
-      "variant": "Kênh Keltner – KEMA (sova)"
+      "variant": "Kênh Keltner (KEMA)"
     },
     {
       "id": "momentum_long",
@@ -4566,7 +4566,7 @@
           }
         }
       },
-      "variant": "Kênh Keltner – KEMA (sova)"
+      "variant": "Kênh Keltner (KEMA)"
     },
     {
       "id": "reversion_long",
