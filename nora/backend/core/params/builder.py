@@ -17,7 +17,7 @@ POSITION_KEYS = (
     "trailing_activation_pct", "timeout", "order_size_pct", "dca_step_pct", "dca_max_layers",
     "dca_size_multiplier", "maintenance_margin_rate", "fee_rate", "maker_fee_rate", "slippage_rate",
     "using_match_price", "stop_fill", "exit_unit", "atr_frame", "atr_period", "sizing", "risk_per_trade_pct",
-    "max_notional_pct", "cooldown",
+    "max_notional_pct", "cooldown", "dca_steps", "dca_multipliers",
 )
 
 VENUE_COSTS = {  # (taker, maker, trượt giá)
@@ -153,6 +153,9 @@ def build_params(flow_name: str, flow_ast: Dict[str, Any], flow_type: str, posit
         dca_step_pct=float(position.get("dca_step_pct") or 0.0),
         dca_max_layers=int(position.get("dca_max_layers") or 0),
         dca_size_multiplier=float(position.get("dca_size_multiplier") or 1.0),
+        # bước / hệ số riêng từng tầng (ghi đè dca_step_pct / dca_size_multiplier) — trước 04/10/2026 bị bỏ qua dù dca_budget_check có tính
+        dca_steps=[float(x) for x in (position.get("dca_steps") or [])],
+        dca_multipliers=[float(x) for x in (position.get("dca_multipliers") or [])],
         maintenance_margin_rate=float(position.get("maintenance_margin_rate") or 0.005),
         extra={"ast": {**flow_ast, "type": flow_type}, "type": flow_type},
     )

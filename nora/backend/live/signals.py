@@ -56,7 +56,7 @@ def evaluate(symbol: str, strategies: List[Dict[str, Any]], frames: Dict[str, pd
     df1, cols = eng._build_matrix()
     n = len(df1)
     vec = VectorEvaluator(n, lambda fr, c, lag: cols.get(f"{fr}|{lag_key(c, lag)}", np.full(n, np.nan)))
-    out = {"t": df1["open_time"].to_numpy(dtype="int64"), "close": df1["close"].to_numpy(dtype=float),
+    out = {"t": df1["open_time"].to_numpy(dtype="int64"), "open": df1["open"].to_numpy(dtype=float), "close": df1["close"].to_numpy(dtype=float),
            "high": df1["high"].to_numpy(dtype=float), "low": df1["low"].to_numpy(dtype=float), "entries": []}
     labels = None
     if any(st.get("regime") for st, _ in pairs):

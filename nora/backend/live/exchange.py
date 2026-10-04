@@ -55,6 +55,9 @@ class BinanceFutures:
     def klines(self, symbol: str, frame: str, limit: int = 1000) -> List[List[Any]]:
         return self._req("GET", "/fapi/v1/klines", {"symbol": symbol, "interval": INTERVAL[frame], "limit": limit})
 
+    def funding(self, symbol: str, since: int) -> List[Dict[str, Any]]:
+        return self._req("GET", "/fapi/v1/fundingRate", {"symbol": symbol, "startTime": int(since), "limit": 100})
+
     # ── riêng ──
     def account(self) -> Dict[str, Any]:
         return self._req("GET", "/fapi/v2/account", signed=True)

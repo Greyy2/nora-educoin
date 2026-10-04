@@ -42,6 +42,12 @@ testnet cần khoá API của người vận hành. Paper đã chạy một bư�
 
 - Chưa áp dụng: story chưa làm.
 
+**04/10/2026 (bổ sung).** Paper = `live/paper.py` PaperBook: đúng PositionTracker + vòng danh mục của engine, từng nến; test
+`test_paper_book_replays_engine_trades_exactly`: cùng nến + tín hiệu -> CÙNG lệnh (giờ vào/ra, giá, lãi/lỗ, số tầng) với PortfolioEngine/kernel,
+gồm DCA nhiều tầng, tín hiệu thoát, trailing, giới hạn danh mục, kill switch. Testnet hỗ trợ DCA: thang LIMIT GTX đặt sẵn đúng bước/hệ số
+(bước theo ATR% khi exit_unit = atr, như engine), tầng khớp -> giá TB từ sàn, đặt lại SL/TP từ giá TB; GTX bị từ chối -> bỏ tầng, không chuyển
+market. Sửa lỗi engine: `dca_steps` / `dca_multipliers` bị build_params bỏ qua (chỉ dca_budget_check tính) — nay truyền vào tracker.
+
 ## Change Log
 
 | Ngày | Thay đổi |
