@@ -1,10 +1,10 @@
 {
-  "generated_at": 1791130954861,
+  "generated_at": 1791151477907,
   "timeframe": "1h",
   "data_exchange": "okx",
-  "source": "funnel fr-20261004-4a6a4b (wfa 20261004_162033_2dd7c5) 2026-10-04",
+  "source": "funnel fr-20261004-9fd96b (wfa 20261004_220216_c6731f) 2026-10-04",
   "code": {
-    "commit": "8c506abe4465f4b5a1df21f7cfdc908976beb180",
+    "commit": "ec01be20dfc21e1ebbd7411a9a2daa38ede9a923",
     "dirty_backend": false
   },
   "universe": [
@@ -83,7 +83,7 @@
         "avg_is_return": {
           "label": "Lãi IS trung bình các fold",
           "required": ">= 0.0%",
-          "actual": 1.83,
+          "actual": 7.01,
           "passed": true
         },
         "active_folds": {
@@ -95,25 +95,25 @@
         "fold_t": {
           "label": "t-stat lãi theo fold OOS (extreme)",
           "required": ">= 1.0",
-          "actual": 2.1683,
+          "actual": 8.3969,
           "passed": true
         },
         "ex_best_fold": {
           "label": "Lãi kép OOS khi bỏ fold tốt nhất (extreme)",
           "required": ">= -2.0%",
-          "actual": 8.7803,
+          "actual": 23.5666,
           "passed": true
         },
         "worst_fold_mdd": {
           "label": "MDD tệ nhất một fold OOS (extreme)",
           "required": "<= 30.0%",
-          "actual": 2.9,
+          "actual": 0.74,
           "passed": true
         },
         "compounded_oos": {
           "label": "Lãi kép OOS (extreme)",
           "required": ">= 0.0%",
-          "actual": 14.81,
+          "actual": 28.6,
           "passed": true
         },
         "mc_ruin": {
@@ -131,7 +131,7 @@
         "mc_stress_mdd": {
           "label": "MDD tệ nhất trong các kịch bản cực xấu",
           "required": "< 50%",
-          "actual": 46.51,
+          "actual": 43.64,
           "passed": true,
           "detail": "vertical_chain"
         },
@@ -158,48 +158,68 @@
   "risk_scale_bootstrap": null,
   "strategies": [
     {
-      "id": "breakout_4h_long",
-      "family": "Theo xu hướng (trend following)",
+      "id": "dca_long",
+      "family": "DCA (bắt hồi + dồn có điều kiện)",
       "side": "LONG",
-      "description": "4h EMA50 > EMA200 và close 4h CẮT LÊN đỉnh 20 nến 4h trước. ATR khung 4h.",
+      "description": "RSI quá bán và giá dưới dải Bollinger dưới khi thị trường đi ngang → mua; giá giảm tiếp thì dồn thêm tầng theo bước ATR CHỈ khi vẫn đi ngang (ER, ADX thấp). Chốt lời và cắt lỗ cả rổ tính từ giá trung bình.",
       "params": {
-        "atr_frame": "24h",
-        "atr_period": 48,
-        "sig.dch_n": 87,
-        "sig.ema_fast": 41,
-        "sig.ema_slow": 160,
-        "sig.signal_tf": "4h",
-        "cooldown": 1350,
-        "leverage": 9,
-        "max_notional_pct": 110.0,
-        "stop_loss_rate": 10.0,
-        "take_profit_rate": 4.0,
-        "timeout": 1680,
-        "trailing_activation_pct": 2.2,
-        "trailing_stop": 9.1
+        "atr_frame": "1h",
+        "atr_period": 47,
+        "sig.adx_n": 19,
+        "sig.bb_k": 1.2,
+        "sig.bb_n": 15,
+        "sig.entry_tf": "1h",
+        "sig.er_max": 0.4,
+        "sig.er_n": 23,
+        "sig.gate_adx_max": 49.0,
+        "sig.gate_er_max": 0.75,
+        "sig.regime_tf": "24h",
+        "sig.rsi_lo": 28.0,
+        "sig.rsi_n": 7,
+        "cooldown": 375,
+        "dca_max_layers": 4,
+        "dca_size_multiplier": 1.6,
+        "dca_step_pct": 3.75,
+        "leverage": 7,
+        "max_notional_pct": 490.0,
+        "stop_loss_rate": 4.1,
+        "take_profit_rate": 5.85,
+        "timeout": 16860,
+        "trailing_activation_pct": 2.4,
+        "trailing_stop": 1.0
       },
       "signal_params": {
-        "dch_n": 87,
-        "ema_fast": 41,
-        "ema_slow": 160,
-        "signal_tf": "4h"
+        "adx_n": 19,
+        "bb_k": 1.2,
+        "bb_n": 15,
+        "entry_tf": "1h",
+        "er_max": 0.4,
+        "er_n": 23,
+        "gate_adx_max": 49.0,
+        "gate_er_max": 0.75,
+        "regime_tf": "24h",
+        "rsi_lo": 28.0,
+        "rsi_n": 7
       },
       "position": {
         "market": "perp",
-        "leverage": 9,
+        "leverage": 7,
         "exit_unit": "atr",
-        "atr_frame": "24h",
-        "atr_period": 48,
+        "atr_frame": "1h",
+        "atr_period": 47,
         "sizing": "risk",
         "risk_per_trade_pct": 1.0,
-        "max_notional_pct": 110.0,
+        "max_notional_pct": 490.0,
         "stop_fill": "level",
-        "cooldown": 1350,
-        "stop_loss_rate": 10.0,
-        "take_profit_rate": 4.0,
-        "timeout": 1680,
-        "trailing_activation_pct": 2.2,
-        "trailing_stop": 9.1
+        "cooldown": 375,
+        "dca_max_layers": 4,
+        "dca_size_multiplier": 1.6,
+        "dca_step_pct": 3.75,
+        "stop_loss_rate": 4.1,
+        "take_profit_rate": 5.85,
+        "timeout": 16860,
+        "trailing_activation_pct": 2.4,
+        "trailing_stop": 1.0
       },
       "flow": {
         "type": "LONG",
@@ -209,42 +229,34 @@
               [
                 [
                   {
-                    "frame": "4h",
-                    "column": "ema_41",
+                    "frame": "1h",
+                    "column": "rsi_7",
                     "index": 0
                   },
-                  ">",
+                  "<",
+                  28.0
+                ],
+                [
                   {
-                    "frame": "4h",
-                    "column": "ema_160",
+                    "frame": "1h",
+                    "column": "close",
+                    "index": 0
+                  },
+                  "<",
+                  {
+                    "frame": "1h",
+                    "column": "bbl_15_1.2",
                     "index": 0
                   }
                 ],
                 [
                   {
-                    "frame": "4h",
-                    "column": "close",
+                    "frame": "24h",
+                    "column": "er_23",
                     "index": 0
                   },
-                  ">",
-                  {
-                    "frame": "4h",
-                    "column": "dch_87",
-                    "index": 0
-                  }
-                ],
-                [
-                  {
-                    "frame": "4h",
-                    "column": "close",
-                    "index": 1
-                  },
-                  "<=",
-                  {
-                    "frame": "4h",
-                    "column": "dch_87",
-                    "index": 1
-                  }
+                  "<",
+                  0.4
                 ]
               ]
             ]
@@ -254,116 +266,119 @@
       },
       "evidence": {
         "accepted": true,
-        "funnel_alpha_id": "cb5446ca2ec4a24a",
+        "funnel_alpha_id": "84a31114287b08bd",
         "final_scale": 3.0,
+        "validated": true,
+        "stage_reached": "FINAL",
+        "reject_code": null,
         "stage_metrics": {
           "FINAL": {
-            "ret_pct": 1.28,
-            "mdd_pct": 1.89,
-            "sharpe": 1.0,
-            "sortino": 2.64,
-            "trades": 69,
-            "win_rate": 43.5,
-            "profit_factor": 1.408,
-            "symbols_positive": 6,
+            "ret_pct": 14.66,
+            "mdd_pct": 1.11,
+            "sharpe": 6.32,
+            "sortino": 13.11,
+            "trades": 505,
+            "win_rate": 76.8,
+            "profit_factor": 3.118,
+            "symbols_positive": 8,
             "final_scale": 3.0,
-            "extreme_ret_pct": 1.28,
-            "extreme_mdd_pct": 1.89,
-            "extreme_trades": 69,
+            "extreme_ret_pct": 12.4,
+            "extreme_mdd_pct": 1.18,
+            "extreme_trades": 505,
             "halted": false
           },
           "S1_backtest": {
-            "ret_pct": 2.7,
-            "mdd_pct": 0.65,
-            "sharpe": 2.37,
-            "sortino": 4.64,
-            "trades": 181,
+            "ret_pct": 9.94,
+            "mdd_pct": 0.34,
+            "sharpe": 7.52,
+            "sortino": 16.52,
+            "trades": 950,
             "symbols_positive": 8,
-            "win_rate": 51.4,
-            "profit_factor": 1.959,
-            "sr_daily": 0.123873,
-            "skew": 2.552,
-            "kurt": 31.4471,
+            "win_rate": 75.9,
+            "profit_factor": 3.512,
+            "sr_daily": 0.39372,
+            "skew": 0.7012,
+            "kurt": 6.3247,
             "n_days": 432,
-            "fees_usd": 20.39,
-            "funding_usd": 16.49,
+            "fees_usd": 108.95,
+            "funding_usd": 17.45,
             "halted": false,
             "by_symbol": {
-              "BTC": 7.47,
-              "ETH": 11.1,
-              "SOL": 30.07,
-              "DOGE": 65.74,
-              "ADA": 18.71,
-              "AVAX": 3.52,
-              "XRP": 74.06,
-              "BNB": 59.61
+              "XRP": 112.08,
+              "ADA": 134.94,
+              "AVAX": 119.33,
+              "BNB": 166.99,
+              "DOGE": 131.04,
+              "ETH": 124.14,
+              "SOL": 104.42,
+              "BTC": 100.74
             },
-            "mdd_intrabar_pct": 0.65,
-            "mdd_daily_pct": 0.58,
+            "mdd_intrabar_pct": 0.34,
+            "mdd_daily_pct": 0.26,
             "mdd_basis": "intrabar",
-            "cagr_pct": 2.28,
-            "calmar": 3.92,
-            "cvar95_pct": 0.085,
-            "max_dd_days": 241,
-            "payoff": 1.854,
-            "expectancy_pct": 0.0148,
-            "max_consec_losses": 6,
-            "top5_share_pct": 18.3,
-            "mae_worst_pct": -0.24,
-            "liq_proximity_max_pct": 28.1,
+            "cagr_pct": 8.33,
+            "calmar": 31.73,
+            "cvar95_pct": 0.094,
+            "max_dd_days": 12,
+            "payoff": 1.115,
+            "expectancy_pct": 0.01,
+            "max_consec_losses": 7,
+            "top5_share_pct": 2.1,
+            "mae_worst_pct": -0.08,
+            "liq_proximity_max_pct": 61.2,
             "liquidations": 0,
-            "fee_drag_pct": 7.0
+            "fee_drag_pct": 9.9
           },
           "S2_antiluck": {
-            "ret_pct": 2.7,
-            "mdd_pct": 0.65,
-            "sharpe": 2.37,
-            "sortino": 4.64,
-            "trades": 181,
-            "win_rate": 51.4,
-            "profit_factor": 1.959,
+            "ret_pct": 9.94,
+            "mdd_pct": 0.34,
+            "sharpe": 7.52,
+            "sortino": 16.52,
+            "trades": 950,
+            "win_rate": 75.9,
+            "profit_factor": 3.512,
             "symbols_positive": 8,
-            "dsr": 0.5042,
-            "dsr_sr0": 0.123415,
+            "dsr": 1.0,
+            "dsr_sr0": 0.180312,
             "neighbor_ratio": 1.0,
-            "neighbor_n": 26,
-            "pbo_strategy": 0.5619269619269619,
-            "pbo_flag": true,
-            "n_trials": 196,
-            "dsr_cut": 0.4366,
-            "n_trials_raw": 3560
+            "neighbor_n": 44,
+            "pbo_strategy": 0.0,
+            "pbo_flag": false,
+            "n_trials": 853,
+            "dsr_cut": 0.221,
+            "n_trials_raw": 4000
           },
           "S3_wfa": {
-            "ret_pct": 1.09,
-            "mdd_pct": 0.29,
-            "sharpe": 1.89,
-            "sortino": 3.62,
-            "trades": 96,
-            "win_rate": 53.1,
-            "profit_factor": 1.956,
+            "ret_pct": 6.67,
+            "mdd_pct": 0.28,
+            "sharpe": 6.63,
+            "sortino": 13.87,
+            "trades": 771,
+            "win_rate": 73.5,
+            "profit_factor": 3.002,
             "oos_days": 310,
-            "mdd_daily_pct": 0.29,
+            "mdd_daily_pct": 0.28,
             "mdd_basis": "daily",
-            "cagr_pct": 1.28,
-            "calmar": 4.4,
-            "cvar95_pct": 0.068,
-            "max_dd_days": 69,
-            "payoff": 1.726,
-            "expectancy_pct": 0.0113,
-            "max_consec_losses": 7,
-            "top5_share_pct": 31.1,
-            "mae_worst_pct": -0.11,
-            "liq_proximity_max_pct": 14.2,
+            "cagr_pct": 7.9,
+            "calmar": 28.1,
+            "cvar95_pct": 0.102,
+            "max_dd_days": 19,
+            "payoff": 1.08,
+            "expectancy_pct": 0.0084,
+            "max_consec_losses": 6,
+            "top5_share_pct": 2.7,
+            "mae_worst_pct": -0.07,
+            "liq_proximity_max_pct": 40.4,
             "liquidations": 0,
-            "fee_drag_pct": 9.6,
+            "fee_drag_pct": 12.3,
             "folds": 10,
-            "folds_profitable": 5,
-            "positive_ratio": 0.7143,
-            "traded_folds": 7,
-            "fold_t": 2.2977,
-            "oos_ex_best_pct": 0.7215,
-            "worst_fold_mdd": 0.29,
-            "is_ret_avg": 0.38,
+            "folds_profitable": 10,
+            "positive_ratio": 1.0,
+            "traded_folds": 10,
+            "fold_t": 9.2454,
+            "oos_ex_best_pct": 5.6975,
+            "worst_fold_mdd": 0.39,
+            "is_ret_avg": 3.24,
             "fold_detail": [
               {
                 "fold": 1,
@@ -375,10 +390,10 @@
                   "2025-04-27",
                   "2025-05-27"
                 ],
-                "is_ret_pct": -0.19,
-                "oos_ret_pct": 0.25,
-                "oos_mdd_pct": 0.22,
-                "trades": 20,
+                "is_ret_pct": 2.95,
+                "oos_ret_pct": 0.59,
+                "oos_mdd_pct": 0.18,
+                "trades": 67,
                 "halted": false
               },
               {
@@ -391,10 +406,10 @@
                   "2025-05-27",
                   "2025-06-26"
                 ],
-                "is_ret_pct": 0.21,
-                "oos_ret_pct": -0.07,
-                "oos_mdd_pct": 0.08,
-                "trades": 2,
+                "is_ret_pct": 2.87,
+                "oos_ret_pct": 0.65,
+                "oos_mdd_pct": 0.17,
+                "trades": 94,
                 "halted": false
               },
               {
@@ -407,10 +422,10 @@
                   "2025-06-26",
                   "2025-07-26"
                 ],
-                "is_ret_pct": 0.15,
-                "oos_ret_pct": 0.36,
-                "oos_mdd_pct": 0.27,
-                "trades": 26,
+                "is_ret_pct": 3.06,
+                "oos_ret_pct": 0.79,
+                "oos_mdd_pct": 0.17,
+                "trades": 48,
                 "halted": false
               },
               {
@@ -423,10 +438,10 @@
                   "2025-07-26",
                   "2025-08-25"
                 ],
-                "is_ret_pct": 0.51,
-                "oos_ret_pct": -0.08,
-                "oos_mdd_pct": 0.29,
-                "trades": 15,
+                "is_ret_pct": 3.27,
+                "oos_ret_pct": 0.93,
+                "oos_mdd_pct": 0.19,
+                "trades": 81,
                 "halted": false
               },
               {
@@ -439,10 +454,10 @@
                   "2025-08-25",
                   "2025-09-24"
                 ],
-                "is_ret_pct": 0.46,
-                "oos_ret_pct": 0.31,
-                "oos_mdd_pct": 0.14,
-                "trades": 17,
+                "is_ret_pct": 3.37,
+                "oos_ret_pct": 0.49,
+                "oos_mdd_pct": 0.18,
+                "trades": 79,
                 "halted": false
               },
               {
@@ -455,10 +470,10 @@
                   "2025-09-24",
                   "2025-10-24"
                 ],
-                "is_ret_pct": 0.53,
-                "oos_ret_pct": 0.22,
-                "oos_mdd_pct": 0.11,
-                "trades": 6,
+                "is_ret_pct": 3.19,
+                "oos_ret_pct": 0.9,
+                "oos_mdd_pct": 0.27,
+                "trades": 93,
                 "halted": false
               },
               {
@@ -471,10 +486,10 @@
                   "2025-10-24",
                   "2025-11-23"
                 ],
-                "is_ret_pct": 0.82,
-                "oos_ret_pct": 0.0,
-                "oos_mdd_pct": 0.0,
-                "trades": 0,
+                "is_ret_pct": 3.55,
+                "oos_ret_pct": 0.78,
+                "oos_mdd_pct": 0.24,
+                "trades": 81,
                 "halted": false
               },
               {
@@ -487,10 +502,10 @@
                   "2025-11-23",
                   "2025-12-23"
                 ],
-                "is_ret_pct": 0.45,
-                "oos_ret_pct": 0.0,
-                "oos_mdd_pct": 0.0,
-                "trades": 0,
+                "is_ret_pct": 3.65,
+                "oos_ret_pct": 0.37,
+                "oos_mdd_pct": 0.39,
+                "trades": 85,
                 "halted": false
               },
               {
@@ -503,10 +518,10 @@
                   "2025-12-23",
                   "2026-01-22"
                 ],
-                "is_ret_pct": 0.53,
-                "oos_ret_pct": 0.09,
-                "oos_mdd_pct": 0.1,
-                "trades": 10,
+                "is_ret_pct": 3.14,
+                "oos_ret_pct": 0.73,
+                "oos_mdd_pct": 0.19,
+                "trades": 84,
                 "halted": false
               },
               {
@@ -519,76 +534,76 @@
                   "2026-01-22",
                   "2026-02-21"
                 ],
-                "is_ret_pct": 0.31,
-                "oos_ret_pct": 0.0,
-                "oos_mdd_pct": 0.0,
-                "trades": 0,
+                "is_ret_pct": 3.34,
+                "oos_ret_pct": 0.26,
+                "oos_mdd_pct": 0.18,
+                "trades": 59,
                 "halted": false
               }
             ],
             "shock": {
-              "crash_loss": 0.020309,
-              "max_long_exposure": 0.0677,
+              "crash_loss": 0.065467,
+              "max_long_exposure": 0.2332,
               "surge_loss": 0.0,
               "max_short_exposure": 0.0
             }
           },
           "S4_montecarlo": {
-            "ret_pct": 1.09,
-            "mdd_pct": 0.29,
-            "sharpe": 1.89,
-            "sortino": 3.62,
-            "trades": 96,
-            "win_rate": 53.1,
-            "profit_factor": 1.956,
+            "ret_pct": 6.67,
+            "mdd_pct": 0.28,
+            "sharpe": 6.63,
+            "sortino": 13.87,
+            "trades": 771,
+            "win_rate": 73.5,
+            "profit_factor": 3.002,
             "oos_days": 310,
             "folds": 10,
-            "positive_ratio": 0.7143,
-            "traded_folds": 7,
-            "fold_t": 2.2977,
-            "oos_ex_best_pct": 0.7215,
-            "worst_fold_mdd": 0.29,
-            "is_ret_avg": 0.38,
+            "positive_ratio": 1.0,
+            "traded_folds": 10,
+            "fold_t": 9.2454,
+            "oos_ex_best_pct": 5.6975,
+            "worst_fold_mdd": 0.39,
+            "is_ret_avg": 3.24,
             "p_mdd_ge_30": 0.0,
-            "stress_max_mdd": 4.55,
+            "stress_max_mdd": 12.66,
             "simulations": 10000,
-            "mdd_p95": 0.5,
+            "mdd_p95": 0.4,
             "passes_full_size": true,
             "min_size_s": 0.2,
             "min_size_p_mdd_ge_30": 0.0,
-            "min_size_stress_max_mdd": 5.38
+            "min_size_stress_max_mdd": 16.03
           },
           "S5_sizing": {
-            "ret_pct": 3.28,
-            "mdd_pct": 0.87,
-            "sharpe": 1.89,
-            "sortino": 3.62,
-            "trades": 96,
-            "win_rate": 53.1,
-            "profit_factor": 1.952,
+            "ret_pct": 21.34,
+            "mdd_pct": 0.84,
+            "sharpe": 6.63,
+            "sortino": 13.88,
+            "trades": 771,
+            "win_rate": 73.5,
+            "profit_factor": 3.0,
             "oos_days": 310,
-            "mdd_daily_pct": 0.87,
+            "mdd_daily_pct": 0.84,
             "mdd_basis": "daily",
-            "cagr_pct": 3.88,
-            "calmar": 4.45,
-            "cvar95_pct": 0.203,
-            "max_dd_days": 69,
-            "payoff": 1.723,
-            "expectancy_pct": 0.0338,
-            "max_consec_losses": 7,
-            "top5_share_pct": 31.1,
-            "mae_worst_pct": -0.33,
-            "liq_proximity_max_pct": 14.2,
+            "cagr_pct": 25.57,
+            "calmar": 30.35,
+            "cvar95_pct": 0.305,
+            "max_dd_days": 19,
+            "payoff": 1.079,
+            "expectancy_pct": 0.0251,
+            "max_consec_losses": 6,
+            "top5_share_pct": 2.7,
+            "mae_worst_pct": -0.21,
+            "liq_proximity_max_pct": 40.4,
             "liquidations": 0,
-            "fee_drag_pct": 9.6,
+            "fee_drag_pct": 12.3,
             "folds": 10,
-            "folds_profitable": 5,
-            "positive_ratio": 0.7143,
-            "traded_folds": 7,
-            "fold_t": 2.3042,
-            "oos_ex_best_pct": 2.1732,
-            "worst_fold_mdd": 0.88,
-            "is_ret_avg": 1.13,
+            "folds_profitable": 10,
+            "positive_ratio": 1.0,
+            "traded_folds": 10,
+            "fold_t": 9.1755,
+            "oos_ex_best_pct": 17.9994,
+            "worst_fold_mdd": 1.17,
+            "is_ret_avg": 10.02,
             "fold_detail": [
               {
                 "fold": 1,
@@ -600,10 +615,10 @@
                   "2025-04-27",
                   "2025-05-27"
                 ],
-                "is_ret_pct": -0.59,
-                "oos_ret_pct": 0.74,
-                "oos_mdd_pct": 0.66,
-                "trades": 20,
+                "is_ret_pct": 9.09,
+                "oos_ret_pct": 1.77,
+                "oos_mdd_pct": 0.53,
+                "trades": 67,
                 "halted": false
               },
               {
@@ -616,10 +631,10 @@
                   "2025-05-27",
                   "2025-06-26"
                 ],
-                "is_ret_pct": 0.64,
-                "oos_ret_pct": -0.21,
-                "oos_mdd_pct": 0.23,
-                "trades": 2,
+                "is_ret_pct": 8.83,
+                "oos_ret_pct": 1.97,
+                "oos_mdd_pct": 0.52,
+                "trades": 94,
                 "halted": false
               },
               {
@@ -632,10 +647,10 @@
                   "2025-06-26",
                   "2025-07-26"
                 ],
-                "is_ret_pct": 0.43,
-                "oos_ret_pct": 1.09,
-                "oos_mdd_pct": 0.8,
-                "trades": 26,
+                "is_ret_pct": 9.44,
+                "oos_ret_pct": 2.37,
+                "oos_mdd_pct": 0.51,
+                "trades": 48,
                 "halted": false
               },
               {
@@ -648,10 +663,10 @@
                   "2025-07-26",
                   "2025-08-25"
                 ],
-                "is_ret_pct": 1.52,
-                "oos_ret_pct": -0.23,
-                "oos_mdd_pct": 0.88,
-                "trades": 15,
+                "is_ret_pct": 10.13,
+                "oos_ret_pct": 2.82,
+                "oos_mdd_pct": 0.56,
+                "trades": 81,
                 "halted": false
               },
               {
@@ -664,10 +679,10 @@
                   "2025-08-25",
                   "2025-09-24"
                 ],
-                "is_ret_pct": 1.39,
-                "oos_ret_pct": 0.93,
-                "oos_mdd_pct": 0.43,
-                "trades": 17,
+                "is_ret_pct": 10.43,
+                "oos_ret_pct": 1.46,
+                "oos_mdd_pct": 0.54,
+                "trades": 79,
                 "halted": false
               },
               {
@@ -680,10 +695,10 @@
                   "2025-09-24",
                   "2025-10-24"
                 ],
-                "is_ret_pct": 1.58,
-                "oos_ret_pct": 0.67,
-                "oos_mdd_pct": 0.33,
-                "trades": 6,
+                "is_ret_pct": 9.85,
+                "oos_ret_pct": 2.72,
+                "oos_mdd_pct": 0.82,
+                "trades": 93,
                 "halted": false
               },
               {
@@ -696,10 +711,10 @@
                   "2025-10-24",
                   "2025-11-23"
                 ],
-                "is_ret_pct": 2.47,
-                "oos_ret_pct": 0.0,
-                "oos_mdd_pct": 0.0,
-                "trades": 0,
+                "is_ret_pct": 11.02,
+                "oos_ret_pct": 2.34,
+                "oos_mdd_pct": 0.72,
+                "trades": 81,
                 "halted": false
               },
               {
@@ -712,10 +727,10 @@
                   "2025-11-23",
                   "2025-12-23"
                 ],
-                "is_ret_pct": 1.37,
-                "oos_ret_pct": 0.0,
-                "oos_mdd_pct": 0.0,
-                "trades": 0,
+                "is_ret_pct": 11.34,
+                "oos_ret_pct": 1.1,
+                "oos_mdd_pct": 1.17,
+                "trades": 85,
                 "halted": false
               },
               {
@@ -728,10 +743,10 @@
                   "2025-12-23",
                   "2026-01-22"
                 ],
-                "is_ret_pct": 1.61,
-                "oos_ret_pct": 0.26,
-                "oos_mdd_pct": 0.31,
-                "trades": 10,
+                "is_ret_pct": 9.69,
+                "oos_ret_pct": 2.2,
+                "oos_mdd_pct": 0.57,
+                "trades": 84,
                 "halted": false
               },
               {
@@ -744,16 +759,16 @@
                   "2026-01-22",
                   "2026-02-21"
                 ],
-                "is_ret_pct": 0.93,
-                "oos_ret_pct": 0.0,
-                "oos_mdd_pct": 0.0,
-                "trades": 0,
+                "is_ret_pct": 10.34,
+                "oos_ret_pct": 0.79,
+                "oos_mdd_pct": 0.54,
+                "trades": 59,
                 "halted": false
               }
             ],
             "shock": {
-              "crash_loss": 0.060927,
-              "max_long_exposure": 0.2031,
+              "crash_loss": 0.1964,
+              "max_long_exposure": 0.6995,
               "surge_loss": 0.0,
               "max_short_exposure": 0.0
             },
@@ -761,71 +776,90 @@
             "search_s": 3.0,
             "search_steps": 1,
             "confirm_attempts": 1,
-            "backtest_ret_pct": 8.3,
-            "backtest_mdd_pct": 1.95
+            "backtest_ret_pct": 32.83,
+            "backtest_mdd_pct": 1.01
           },
           "S6_holdout": {
-            "ret_pct": 1.28,
-            "mdd_pct": 1.89,
-            "sharpe": 1.0,
-            "sortino": 2.64,
-            "trades": 69,
-            "win_rate": 43.5,
-            "profit_factor": 1.408,
-            "symbols_positive": 6,
+            "ret_pct": 14.66,
+            "mdd_pct": 1.11,
+            "sharpe": 6.32,
+            "sortino": 13.11,
+            "trades": 505,
+            "win_rate": 76.8,
+            "profit_factor": 3.118,
+            "symbols_positive": 8,
             "final_scale": 3.0,
-            "extreme_ret_pct": 1.28,
-            "extreme_mdd_pct": 1.89,
-            "extreme_trades": 69,
+            "extreme_ret_pct": 12.4,
+            "extreme_mdd_pct": 1.18,
+            "extreme_trades": 505,
             "halted": false
           }
         }
-      },
-      "variant": "Phá kênh Donchian kiểu Turtle"
+      }
     },
     {
-      "id": "breakout_4h_short",
-      "family": "Theo xu hướng (trend following)",
+      "id": "dca_short",
+      "family": "DCA (bắt hồi + dồn có điều kiện)",
       "side": "SHORT",
-      "description": "Đối xứng breakout_4h_long.",
+      "description": "RSI quá mua và giá trên dải Bollinger trên khi thị trường đi ngang → bán; giá tăng tiếp thì dồn thêm tầng theo bước ATR CHỈ khi vẫn đi ngang (ER, ADX thấp). Chốt lời và cắt lỗ cả rổ tính từ giá trung bình.",
       "params": {
-        "atr_frame": "4h",
-        "atr_period": 22,
-        "sig.dch_n": 89,
-        "sig.ema_fast": 72,
-        "sig.ema_slow": 295,
-        "sig.signal_tf": "4h",
-        "cooldown": 435,
-        "leverage": 7,
-        "max_notional_pct": 350.0,
-        "stop_loss_rate": 7.6,
-        "take_profit_rate": 0.45,
-        "timeout": 11160,
-        "trailing_activation_pct": 0.7,
-        "trailing_stop": 2.3
+        "atr_frame": "1h",
+        "atr_period": 12,
+        "sig.adx_n": 46,
+        "sig.bb_k": 2.1,
+        "sig.bb_n": 73,
+        "sig.entry_tf": "1h",
+        "sig.er_max": 0.6,
+        "sig.er_n": 96,
+        "sig.gate_adx_max": 43.0,
+        "sig.gate_er_max": 0.4,
+        "sig.regime_tf": "24h",
+        "sig.rsi_hi": 55.0,
+        "sig.rsi_n": 44,
+        "cooldown": 690,
+        "dca_max_layers": 2,
+        "dca_size_multiplier": 2.1,
+        "dca_step_pct": 2.25,
+        "leverage": 3,
+        "max_notional_pct": 320.0,
+        "stop_loss_rate": 2.6,
+        "take_profit_rate": 9.4,
+        "timeout": 11040,
+        "trailing_activation_pct": 1.2,
+        "trailing_stop": 1.3
       },
       "signal_params": {
-        "dch_n": 89,
-        "ema_fast": 72,
-        "ema_slow": 295,
-        "signal_tf": "4h"
+        "adx_n": 46,
+        "bb_k": 2.1,
+        "bb_n": 73,
+        "entry_tf": "1h",
+        "er_max": 0.6,
+        "er_n": 96,
+        "gate_adx_max": 43.0,
+        "gate_er_max": 0.4,
+        "regime_tf": "24h",
+        "rsi_hi": 55.0,
+        "rsi_n": 44
       },
       "position": {
         "market": "perp",
-        "leverage": 7,
+        "leverage": 3,
         "exit_unit": "atr",
-        "atr_frame": "4h",
-        "atr_period": 22,
+        "atr_frame": "1h",
+        "atr_period": 12,
         "sizing": "risk",
         "risk_per_trade_pct": 1.0,
-        "max_notional_pct": 350.0,
+        "max_notional_pct": 320.0,
         "stop_fill": "level",
-        "cooldown": 435,
-        "stop_loss_rate": 7.6,
-        "take_profit_rate": 0.45,
-        "timeout": 11160,
-        "trailing_activation_pct": 0.7,
-        "trailing_stop": 2.3
+        "cooldown": 690,
+        "dca_max_layers": 2,
+        "dca_size_multiplier": 2.1,
+        "dca_step_pct": 2.25,
+        "stop_loss_rate": 2.6,
+        "take_profit_rate": 9.4,
+        "timeout": 11040,
+        "trailing_activation_pct": 1.2,
+        "trailing_stop": 1.3
       },
       "flow": {
         "type": "SHORT",
@@ -835,42 +869,34 @@
               [
                 [
                   {
-                    "frame": "4h",
-                    "column": "ema_72",
+                    "frame": "1h",
+                    "column": "rsi_44",
                     "index": 0
                   },
-                  "<",
+                  ">",
+                  55.0
+                ],
+                [
                   {
-                    "frame": "4h",
-                    "column": "ema_295",
+                    "frame": "1h",
+                    "column": "close",
+                    "index": 0
+                  },
+                  ">",
+                  {
+                    "frame": "1h",
+                    "column": "bbu_73_2.1",
                     "index": 0
                   }
                 ],
                 [
                   {
-                    "frame": "4h",
-                    "column": "close",
+                    "frame": "24h",
+                    "column": "er_96",
                     "index": 0
                   },
                   "<",
-                  {
-                    "frame": "4h",
-                    "column": "dcl_89",
-                    "index": 0
-                  }
-                ],
-                [
-                  {
-                    "frame": "4h",
-                    "column": "close",
-                    "index": 1
-                  },
-                  ">=",
-                  {
-                    "frame": "4h",
-                    "column": "dcl_89",
-                    "index": 1
-                  }
+                  0.6
                 ]
               ]
             ]
@@ -880,116 +906,119 @@
       },
       "evidence": {
         "accepted": true,
-        "funnel_alpha_id": "2b9afc0c258a601f",
+        "funnel_alpha_id": "9bcacfff79ce0720",
         "final_scale": 3.0,
+        "validated": true,
+        "stage_reached": "FINAL",
+        "reject_code": null,
         "stage_metrics": {
           "FINAL": {
-            "ret_pct": 0.37,
-            "mdd_pct": 3.42,
-            "sharpe": 0.17,
-            "sortino": 0.22,
-            "trades": 70,
-            "win_rate": 92.9,
-            "profit_factor": 1.075,
-            "symbols_positive": 6,
+            "ret_pct": 26.29,
+            "mdd_pct": 0.97,
+            "sharpe": 9.5,
+            "sortino": 42.22,
+            "trades": 365,
+            "win_rate": 75.6,
+            "profit_factor": 7.319,
+            "symbols_positive": 8,
             "final_scale": 3.0,
-            "extreme_ret_pct": 0.37,
-            "extreme_mdd_pct": 3.42,
-            "extreme_trades": 70,
+            "extreme_ret_pct": 18.95,
+            "extreme_mdd_pct": 1.03,
+            "extreme_trades": 365,
             "halted": false
           },
           "S1_backtest": {
-            "ret_pct": 1.46,
-            "mdd_pct": 0.74,
-            "sharpe": 1.35,
-            "sortino": 2.13,
-            "trades": 76,
-            "symbols_positive": 7,
-            "win_rate": 97.4,
-            "profit_factor": 3.573,
-            "sr_daily": 0.070679,
-            "skew": -0.2096,
-            "kurt": 45.311,
+            "ret_pct": 10.11,
+            "mdd_pct": 0.3,
+            "sharpe": 7.52,
+            "sortino": 23.48,
+            "trades": 624,
+            "symbols_positive": 8,
+            "win_rate": 75.6,
+            "profit_factor": 4.492,
+            "sr_daily": 0.393728,
+            "skew": 2.0857,
+            "kurt": 11.6847,
             "n_days": 432,
-            "fees_usd": 15.51,
-            "funding_usd": -0.46,
+            "fees_usd": 240.84,
+            "funding_usd": -18.46,
             "halted": false,
             "by_symbol": {
-              "XRP": 9.42,
-              "ADA": 35.9,
-              "AVAX": 38.84,
-              "DOGE": -19.44,
-              "BTC": 23.8,
-              "SOL": 16.74,
-              "BNB": 18.87,
-              "ETH": 22.14
+              "BTC": 153.17,
+              "ETH": 120.93,
+              "SOL": 172.21,
+              "AVAX": 140.81,
+              "ADA": 82.85,
+              "XRP": 89.63,
+              "DOGE": 121.46,
+              "BNB": 129.61
             },
-            "mdd_intrabar_pct": 0.74,
-            "mdd_daily_pct": 0.49,
+            "mdd_intrabar_pct": 0.3,
+            "mdd_daily_pct": 0.17,
             "mdd_basis": "intrabar",
-            "cagr_pct": 1.23,
-            "calmar": 2.52,
-            "cvar95_pct": 0.005,
-            "max_dd_days": 53,
-            "payoff": 0.097,
-            "expectancy_pct": 0.0191,
-            "max_consec_losses": 1,
-            "top5_share_pct": 7.0,
-            "mae_worst_pct": -0.49,
-            "liq_proximity_max_pct": 55.9,
+            "cagr_pct": 8.47,
+            "calmar": 50.72,
+            "cvar95_pct": 0.069,
+            "max_dd_days": 13,
+            "payoff": 1.447,
+            "expectancy_pct": 0.0154,
+            "max_consec_losses": 3,
+            "top5_share_pct": 4.5,
+            "mae_worst_pct": -0.06,
+            "liq_proximity_max_pct": 21.2,
             "liquidations": 0,
-            "fee_drag_pct": 9.6
+            "fee_drag_pct": 19.2
           },
           "S2_antiluck": {
-            "ret_pct": 1.46,
-            "mdd_pct": 0.74,
-            "sharpe": 1.35,
-            "sortino": 2.13,
-            "trades": 76,
-            "win_rate": 97.4,
-            "profit_factor": 3.573,
-            "symbols_positive": 7,
-            "dsr": 0.3497,
-            "dsr_sr0": 0.089914,
-            "neighbor_ratio": 0.9285714285714286,
-            "neighbor_n": 28,
-            "pbo_strategy": 0.6464646464646465,
-            "pbo_flag": true,
-            "n_trials": 309,
-            "dsr_cut": 0.2114,
-            "n_trials_raw": 3560
+            "ret_pct": 10.11,
+            "mdd_pct": 0.3,
+            "sharpe": 7.52,
+            "sortino": 23.48,
+            "trades": 624,
+            "win_rate": 75.6,
+            "profit_factor": 4.492,
+            "symbols_positive": 8,
+            "dsr": 1.0,
+            "dsr_sr0": 0.180819,
+            "neighbor_ratio": 1.0,
+            "neighbor_n": 43,
+            "pbo_strategy": 0.0,
+            "pbo_flag": false,
+            "n_trials": 1370,
+            "dsr_cut": 1.0,
+            "n_trials_raw": 4000
           },
           "S3_wfa": {
-            "ret_pct": 2.27,
-            "mdd_pct": 1.44,
-            "sharpe": 1.4,
-            "sortino": 2.6,
-            "trades": 120,
-            "win_rate": 95.8,
-            "profit_factor": 3.458,
+            "ret_pct": 6.63,
+            "mdd_pct": 0.3,
+            "sharpe": 5.85,
+            "sortino": 13.58,
+            "trades": 475,
+            "win_rate": 67.2,
+            "profit_factor": 3.073,
             "oos_days": 310,
-            "mdd_daily_pct": 1.44,
+            "mdd_daily_pct": 0.3,
             "mdd_basis": "daily",
-            "cagr_pct": 2.68,
-            "calmar": 1.86,
-            "cvar95_pct": 0.168,
-            "max_dd_days": 45,
-            "payoff": 0.15,
-            "expectancy_pct": 0.0188,
-            "max_consec_losses": 4,
-            "top5_share_pct": 4.6,
-            "mae_worst_pct": -0.32,
-            "liq_proximity_max_pct": 38.2,
+            "cagr_pct": 7.85,
+            "calmar": 26.23,
+            "cvar95_pct": 0.101,
+            "max_dd_days": 19,
+            "payoff": 1.503,
+            "expectancy_pct": 0.0135,
+            "max_consec_losses": 6,
+            "top5_share_pct": 8.1,
+            "mae_worst_pct": -0.06,
+            "liq_proximity_max_pct": 11.1,
             "liquidations": 0,
-            "fee_drag_pct": 9.3,
+            "fee_drag_pct": 25.4,
             "folds": 10,
-            "folds_profitable": 6,
-            "positive_ratio": 0.8571,
-            "traded_folds": 7,
-            "fold_t": 1.5829,
-            "oos_ex_best_pct": 1.1404,
-            "worst_fold_mdd": 1.1,
-            "is_ret_avg": 0.27,
+            "folds_profitable": 10,
+            "positive_ratio": 1.0,
+            "traded_folds": 10,
+            "fold_t": 5.481,
+            "oos_ex_best_pct": 5.432,
+            "worst_fold_mdd": 0.45,
+            "is_ret_avg": 3.92,
             "fold_detail": [
               {
                 "fold": 1,
@@ -1001,10 +1030,10 @@
                   "2025-04-27",
                   "2025-05-27"
                 ],
-                "is_ret_pct": -0.42,
-                "oos_ret_pct": 0.0,
-                "oos_mdd_pct": 0.0,
-                "trades": 0,
+                "is_ret_pct": 4.27,
+                "oos_ret_pct": 0.28,
+                "oos_mdd_pct": 0.45,
+                "trades": 54,
                 "halted": false
               },
               {
@@ -1017,10 +1046,10 @@
                   "2025-05-27",
                   "2025-06-26"
                 ],
-                "is_ret_pct": -0.5,
-                "oos_ret_pct": 0.52,
-                "oos_mdd_pct": 0.19,
-                "trades": 19,
+                "is_ret_pct": 3.25,
+                "oos_ret_pct": 0.61,
+                "oos_mdd_pct": 0.18,
+                "trades": 37,
                 "halted": false
               },
               {
@@ -1033,10 +1062,10 @@
                   "2025-06-26",
                   "2025-07-26"
                 ],
-                "is_ret_pct": -0.3,
-                "oos_ret_pct": 0.0,
-                "oos_mdd_pct": 0.0,
-                "trades": 0,
+                "is_ret_pct": 3.06,
+                "oos_ret_pct": 0.87,
+                "oos_mdd_pct": 0.24,
+                "trades": 91,
                 "halted": false
               },
               {
@@ -1049,10 +1078,10 @@
                   "2025-07-26",
                   "2025-08-25"
                 ],
-                "is_ret_pct": -0.25,
-                "oos_ret_pct": 0.0,
-                "oos_mdd_pct": 0.0,
-                "trades": 0,
+                "is_ret_pct": 3.83,
+                "oos_ret_pct": 0.88,
+                "oos_mdd_pct": 0.29,
+                "trades": 64,
                 "halted": false
               },
               {
@@ -1065,10 +1094,10 @@
                   "2025-08-25",
                   "2025-09-24"
                 ],
-                "is_ret_pct": 0.52,
-                "oos_ret_pct": 0.05,
-                "oos_mdd_pct": 0.03,
-                "trades": 2,
+                "is_ret_pct": 4.1,
+                "oos_ret_pct": 0.79,
+                "oos_mdd_pct": 0.2,
+                "trades": 54,
                 "halted": false
               },
               {
@@ -1081,10 +1110,10 @@
                   "2025-09-24",
                   "2025-10-24"
                 ],
-                "is_ret_pct": 0.58,
-                "oos_ret_pct": 0.06,
-                "oos_mdd_pct": 0.08,
-                "trades": 2,
+                "is_ret_pct": 4.58,
+                "oos_ret_pct": 1.15,
+                "oos_mdd_pct": 0.25,
+                "trades": 45,
                 "halted": false
               },
               {
@@ -1097,10 +1126,10 @@
                   "2025-10-24",
                   "2025-11-23"
                 ],
-                "is_ret_pct": 0.11,
-                "oos_ret_pct": 1.12,
-                "oos_mdd_pct": 1.0,
-                "trades": 40,
+                "is_ret_pct": 5.03,
+                "oos_ret_pct": 0.06,
+                "oos_mdd_pct": 0.18,
+                "trades": 21,
                 "halted": false
               },
               {
@@ -1113,10 +1142,10 @@
                   "2025-11-23",
                   "2025-12-23"
                 ],
-                "is_ret_pct": 1.23,
-                "oos_ret_pct": -0.47,
-                "oos_mdd_pct": 1.04,
-                "trades": 17,
+                "is_ret_pct": 3.92,
+                "oos_ret_pct": 0.53,
+                "oos_mdd_pct": 0.18,
+                "trades": 35,
                 "halted": false
               },
               {
@@ -1129,10 +1158,10 @@
                   "2025-12-23",
                   "2026-01-22"
                 ],
-                "is_ret_pct": 0.75,
-                "oos_ret_pct": 0.14,
-                "oos_mdd_pct": 0.32,
-                "trades": 5,
+                "is_ret_pct": 3.43,
+                "oos_ret_pct": 1.08,
+                "oos_mdd_pct": 0.17,
+                "trades": 54,
                 "halted": false
               },
               {
@@ -1145,76 +1174,76 @@
                   "2026-01-22",
                   "2026-02-21"
                 ],
-                "is_ret_pct": 0.99,
-                "oos_ret_pct": 0.84,
-                "oos_mdd_pct": 1.1,
-                "trades": 35,
+                "is_ret_pct": 3.71,
+                "oos_ret_pct": 0.21,
+                "oos_mdd_pct": 0.31,
+                "trades": 20,
                 "halted": false
               }
             ],
             "shock": {
               "crash_loss": 0.0,
               "max_long_exposure": 0.0,
-              "surge_loss": 0.07,
-              "max_short_exposure": 0.232
+              "surge_loss": 0.075804,
+              "max_short_exposure": 0.5891
             }
           },
           "S4_montecarlo": {
-            "ret_pct": 2.27,
-            "mdd_pct": 1.44,
-            "sharpe": 1.4,
-            "sortino": 2.6,
-            "trades": 120,
-            "win_rate": 95.8,
-            "profit_factor": 3.458,
+            "ret_pct": 6.63,
+            "mdd_pct": 0.3,
+            "sharpe": 5.85,
+            "sortino": 13.58,
+            "trades": 475,
+            "win_rate": 67.2,
+            "profit_factor": 3.073,
             "oos_days": 310,
             "folds": 10,
-            "positive_ratio": 0.8571,
-            "traded_folds": 7,
-            "fold_t": 1.5829,
-            "oos_ex_best_pct": 1.1404,
-            "worst_fold_mdd": 1.1,
-            "is_ret_avg": 0.27,
+            "positive_ratio": 1.0,
+            "traded_folds": 10,
+            "fold_t": 5.481,
+            "oos_ex_best_pct": 5.432,
+            "worst_fold_mdd": 0.45,
+            "is_ret_avg": 3.92,
             "p_mdd_ge_30": 0.0,
-            "stress_max_mdd": 13.51,
+            "stress_max_mdd": 14.69,
             "simulations": 10000,
-            "mdd_p95": 2.2,
+            "mdd_p95": 0.4,
             "passes_full_size": true,
             "min_size_s": 0.2,
             "min_size_p_mdd_ge_30": 0.0,
-            "min_size_stress_max_mdd": 3.61
+            "min_size_stress_max_mdd": 9.7
           },
           "S5_sizing": {
-            "ret_pct": 6.94,
-            "mdd_pct": 4.31,
-            "sharpe": 1.4,
-            "sortino": 2.62,
-            "trades": 120,
-            "win_rate": 95.8,
-            "profit_factor": 3.454,
+            "ret_pct": 21.19,
+            "mdd_pct": 0.9,
+            "sharpe": 5.86,
+            "sortino": 13.59,
+            "trades": 475,
+            "win_rate": 67.2,
+            "profit_factor": 3.071,
             "oos_days": 310,
-            "mdd_daily_pct": 4.31,
+            "mdd_daily_pct": 0.9,
             "mdd_basis": "daily",
-            "cagr_pct": 8.23,
-            "calmar": 1.91,
-            "cvar95_pct": 0.506,
-            "max_dd_days": 45,
-            "payoff": 0.15,
-            "expectancy_pct": 0.0563,
-            "max_consec_losses": 4,
-            "top5_share_pct": 4.6,
-            "mae_worst_pct": -0.97,
-            "liq_proximity_max_pct": 38.2,
+            "cagr_pct": 25.4,
+            "calmar": 28.28,
+            "cvar95_pct": 0.303,
+            "max_dd_days": 19,
+            "payoff": 1.502,
+            "expectancy_pct": 0.0406,
+            "max_consec_losses": 6,
+            "top5_share_pct": 8.1,
+            "mae_worst_pct": -0.17,
+            "liq_proximity_max_pct": 11.1,
             "liquidations": 0,
-            "fee_drag_pct": 9.3,
+            "fee_drag_pct": 25.4,
             "folds": 10,
-            "folds_profitable": 6,
-            "positive_ratio": 0.8571,
-            "traded_folds": 7,
-            "fold_t": 1.583,
-            "oos_ex_best_pct": 3.4529,
-            "worst_fold_mdd": 3.3,
-            "is_ret_avg": 0.8,
+            "folds_profitable": 10,
+            "positive_ratio": 1.0,
+            "traded_folds": 10,
+            "fold_t": 5.427,
+            "oos_ex_best_pct": 17.0898,
+            "worst_fold_mdd": 1.35,
+            "is_ret_avg": 12.21,
             "fold_detail": [
               {
                 "fold": 1,
@@ -1226,10 +1255,10 @@
                   "2025-04-27",
                   "2025-05-27"
                 ],
-                "is_ret_pct": -1.32,
-                "oos_ret_pct": 0.0,
-                "oos_mdd_pct": 0.0,
-                "trades": 0,
+                "is_ret_pct": 13.34,
+                "oos_ret_pct": 0.83,
+                "oos_mdd_pct": 1.35,
+                "trades": 54,
                 "halted": false
               },
               {
@@ -1242,10 +1271,10 @@
                   "2025-05-27",
                   "2025-06-26"
                 ],
-                "is_ret_pct": -1.56,
-                "oos_ret_pct": 1.58,
-                "oos_mdd_pct": 0.56,
-                "trades": 19,
+                "is_ret_pct": 10.07,
+                "oos_ret_pct": 1.84,
+                "oos_mdd_pct": 0.55,
+                "trades": 37,
                 "halted": false
               },
               {
@@ -1258,10 +1287,10 @@
                   "2025-06-26",
                   "2025-07-26"
                 ],
-                "is_ret_pct": -0.95,
-                "oos_ret_pct": 0.0,
-                "oos_mdd_pct": 0.0,
-                "trades": 0,
+                "is_ret_pct": 9.44,
+                "oos_ret_pct": 2.63,
+                "oos_mdd_pct": 0.71,
+                "trades": 91,
                 "halted": false
               },
               {
@@ -1274,10 +1303,10 @@
                   "2025-07-26",
                   "2025-08-25"
                 ],
-                "is_ret_pct": -0.79,
-                "oos_ret_pct": 0.0,
-                "oos_mdd_pct": 0.0,
-                "trades": 0,
+                "is_ret_pct": 11.91,
+                "oos_ret_pct": 2.64,
+                "oos_mdd_pct": 0.86,
+                "trades": 64,
                 "halted": false
               },
               {
@@ -1290,10 +1319,10 @@
                   "2025-08-25",
                   "2025-09-24"
                 ],
-                "is_ret_pct": 1.58,
-                "oos_ret_pct": 0.16,
-                "oos_mdd_pct": 0.09,
-                "trades": 2,
+                "is_ret_pct": 12.79,
+                "oos_ret_pct": 2.39,
+                "oos_mdd_pct": 0.6,
+                "trades": 54,
                 "halted": false
               },
               {
@@ -1306,10 +1335,10 @@
                   "2025-09-24",
                   "2025-10-24"
                 ],
-                "is_ret_pct": 1.74,
-                "oos_ret_pct": 0.17,
-                "oos_mdd_pct": 0.25,
-                "trades": 2,
+                "is_ret_pct": 14.34,
+                "oos_ret_pct": 3.49,
+                "oos_mdd_pct": 0.76,
+                "trades": 45,
                 "halted": false
               },
               {
@@ -1322,10 +1351,10 @@
                   "2025-10-24",
                   "2025-11-23"
                 ],
-                "is_ret_pct": 0.32,
-                "oos_ret_pct": 3.39,
-                "oos_mdd_pct": 3.0,
-                "trades": 40,
+                "is_ret_pct": 15.84,
+                "oos_ret_pct": 0.17,
+                "oos_mdd_pct": 0.55,
+                "trades": 21,
                 "halted": false
               },
               {
@@ -1338,10 +1367,10 @@
                   "2025-11-23",
                   "2025-12-23"
                 ],
-                "is_ret_pct": 3.72,
-                "oos_ret_pct": -1.42,
-                "oos_mdd_pct": 3.12,
-                "trades": 17,
+                "is_ret_pct": 12.22,
+                "oos_ret_pct": 1.58,
+                "oos_mdd_pct": 0.54,
+                "trades": 35,
                 "halted": false
               },
               {
@@ -1354,10 +1383,10 @@
                   "2025-12-23",
                   "2026-01-22"
                 ],
-                "is_ret_pct": 2.25,
-                "oos_ret_pct": 0.42,
-                "oos_mdd_pct": 0.96,
-                "trades": 5,
+                "is_ret_pct": 10.62,
+                "oos_ret_pct": 3.26,
+                "oos_mdd_pct": 0.51,
+                "trades": 54,
                 "halted": false
               },
               {
@@ -1370,50 +1399,49 @@
                   "2026-01-22",
                   "2026-02-21"
                 ],
-                "is_ret_pct": 2.97,
-                "oos_ret_pct": 2.54,
-                "oos_mdd_pct": 3.3,
-                "trades": 35,
+                "is_ret_pct": 11.52,
+                "oos_ret_pct": 0.62,
+                "oos_mdd_pct": 0.93,
+                "trades": 20,
                 "halted": false
               }
             ],
             "shock": {
               "crash_loss": 0.0,
               "max_long_exposure": 0.0,
-              "surge_loss": 0.21,
-              "max_short_exposure": 0.696
+              "surge_loss": 0.227413,
+              "max_short_exposure": 1.7673
             },
             "final_scale": 3.0,
             "search_s": 3.0,
             "search_steps": 1,
             "confirm_attempts": 1,
-            "backtest_ret_pct": 4.44,
-            "backtest_mdd_pct": 2.22
+            "backtest_ret_pct": 33.44,
+            "backtest_mdd_pct": 0.9
           },
           "S6_holdout": {
-            "ret_pct": 0.37,
-            "mdd_pct": 3.42,
-            "sharpe": 0.17,
-            "sortino": 0.22,
-            "trades": 70,
-            "win_rate": 92.9,
-            "profit_factor": 1.075,
-            "symbols_positive": 6,
+            "ret_pct": 26.29,
+            "mdd_pct": 0.97,
+            "sharpe": 9.5,
+            "sortino": 42.22,
+            "trades": 365,
+            "win_rate": 75.6,
+            "profit_factor": 7.319,
+            "symbols_positive": 8,
             "final_scale": 3.0,
-            "extreme_ret_pct": 0.37,
-            "extreme_mdd_pct": 3.42,
-            "extreme_trades": 70,
+            "extreme_ret_pct": 18.95,
+            "extreme_mdd_pct": 1.03,
+            "extreme_trades": 365,
             "halted": false
           }
         }
-      },
-      "variant": "Phá kênh Donchian kiểu Turtle"
+      }
     },
     {
-      "id": "keltner_trend_long",
-      "family": "Theo xu hướng (trend following)",
+      "id": "kema_long",
+      "family": "KEMA (theo xu hướng)",
       "side": "LONG",
-      "description": "Close cắt LÊN dải trên Keltner (EMA + k×ATR) -> mua; thoát khi close cắt XUỐNG dải dưới (đảo chiều xu hướng) hoặc chạm SL theo ATR. Lối đánh trend-following KEMA.",
+      "description": "Giá đóng cửa cắt LÊN dải trên kênh Keltner (EMA + k × ATR) → mua. Thoát khi giá cắt XUỐNG dải dưới (đảo chiều) hoặc chạm SL.",
       "params": {
         "atr_frame": "24h",
         "atr_period": 25,
@@ -1515,8 +1543,11 @@
       },
       "evidence": {
         "accepted": true,
-        "funnel_alpha_id": "7a2ce5858e5c60ca",
+        "funnel_alpha_id": "e238ef6bb30cd91c",
         "final_scale": 3.0,
+        "validated": true,
+        "stage_reached": "FINAL",
+        "reject_code": null,
         "stage_metrics": {
           "FINAL": {
             "ret_pct": 0.36,
@@ -2041,1268 +2072,7 @@
             "halted": false
           }
         }
-      },
-      "variant": "Kênh Keltner (KEMA)"
-    },
-    {
-      "id": "momentum_long",
-      "family": "Theo đà",
-      "side": "LONG",
-      "description": "1h ROC24 CẮT LÊN ngưỡng % và 15m close > EMA20 15m.",
-      "params": {
-        "atr_frame": "24h",
-        "atr_period": 12,
-        "sig.ema_n": 179,
-        "sig.entry_tf": "1h",
-        "sig.roc_min": 10.0,
-        "sig.roc_n": 196,
-        "sig.roc_tf": "1h",
-        "cooldown": 1410,
-        "leverage": 2,
-        "max_notional_pct": 500.0,
-        "stop_loss_rate": 8.9,
-        "take_profit_rate": 4.6,
-        "timeout": 6000,
-        "trailing_activation_pct": 4.8,
-        "trailing_stop": 9.6
-      },
-      "signal_params": {
-        "ema_n": 179,
-        "entry_tf": "1h",
-        "roc_min": 10.0,
-        "roc_n": 196,
-        "roc_tf": "1h"
-      },
-      "position": {
-        "market": "perp",
-        "leverage": 2,
-        "exit_unit": "atr",
-        "atr_frame": "24h",
-        "atr_period": 12,
-        "sizing": "risk",
-        "risk_per_trade_pct": 1.0,
-        "max_notional_pct": 500.0,
-        "stop_fill": "level",
-        "cooldown": 1410,
-        "stop_loss_rate": 8.9,
-        "take_profit_rate": 4.6,
-        "timeout": 6000,
-        "trailing_activation_pct": 4.8,
-        "trailing_stop": 9.6
-      },
-      "flow": {
-        "type": "LONG",
-        "match": [
-          {
-            "condition": [
-              [
-                [
-                  {
-                    "frame": "1h",
-                    "column": "roc_196",
-                    "index": 0
-                  },
-                  ">",
-                  10.0
-                ],
-                [
-                  {
-                    "frame": "1h",
-                    "column": "roc_196",
-                    "index": 1
-                  },
-                  "<=",
-                  10.0
-                ],
-                [
-                  {
-                    "frame": "1h",
-                    "column": "close",
-                    "index": 0
-                  },
-                  ">",
-                  {
-                    "frame": "1h",
-                    "column": "ema_179",
-                    "index": 0
-                  }
-                ]
-              ]
-            ]
-          }
-        ],
-        "stop": []
-      },
-      "evidence": {
-        "accepted": true,
-        "funnel_alpha_id": "1b74ee7ab1e06337",
-        "final_scale": 3.0,
-        "stage_metrics": {
-          "FINAL": {
-            "ret_pct": 1.99,
-            "mdd_pct": 4.3,
-            "sharpe": 0.64,
-            "sortino": 1.26,
-            "trades": 69,
-            "win_rate": 37.7,
-            "profit_factor": 1.301,
-            "symbols_positive": 7,
-            "final_scale": 3.0,
-            "extreme_ret_pct": 1.99,
-            "extreme_mdd_pct": 4.3,
-            "extreme_trades": 69,
-            "halted": false
-          },
-          "S1_backtest": {
-            "ret_pct": 5.52,
-            "mdd_pct": 1.01,
-            "sharpe": 2.61,
-            "sortino": 5.25,
-            "trades": 204,
-            "symbols_positive": 8,
-            "win_rate": 54.4,
-            "profit_factor": 2.169,
-            "sr_daily": 0.136796,
-            "skew": 1.994,
-            "kurt": 12.9354,
-            "n_days": 432,
-            "fees_usd": 21.77,
-            "funding_usd": 41.59,
-            "halted": false,
-            "by_symbol": {
-              "AVAX": 102.53,
-              "DOGE": 123.73,
-              "SOL": 136.04,
-              "ETH": 63.94,
-              "XRP": 8.5,
-              "ADA": 56.15,
-              "BNB": 39.36,
-              "BTC": 21.51
-            },
-            "mdd_intrabar_pct": 1.01,
-            "mdd_daily_pct": 0.86,
-            "mdd_basis": "intrabar",
-            "cagr_pct": 4.64,
-            "calmar": 5.37,
-            "cvar95_pct": 0.164,
-            "max_dd_days": 129,
-            "payoff": 1.817,
-            "expectancy_pct": 0.0265,
-            "max_consec_losses": 17,
-            "top5_share_pct": 13.0,
-            "mae_worst_pct": -0.31,
-            "liq_proximity_max_pct": 37.8,
-            "liquidations": 0,
-            "fee_drag_pct": 3.8
-          },
-          "S2_antiluck": {
-            "ret_pct": 5.52,
-            "mdd_pct": 1.01,
-            "sharpe": 2.61,
-            "sortino": 5.25,
-            "trades": 204,
-            "win_rate": 54.4,
-            "profit_factor": 2.169,
-            "symbols_positive": 8,
-            "dsr": 0.3606,
-            "dsr_sr0": 0.15201,
-            "neighbor_ratio": 1.0,
-            "neighbor_n": 25,
-            "pbo_strategy": 0.5254856254856255,
-            "pbo_flag": true,
-            "n_trials": 407,
-            "dsr_cut": 0.2286,
-            "n_trials_raw": 4000
-          },
-          "S3_wfa": {
-            "ret_pct": 1.69,
-            "mdd_pct": 1.0,
-            "sharpe": 1.19,
-            "sortino": 2.14,
-            "trades": 114,
-            "win_rate": 49.1,
-            "profit_factor": 1.676,
-            "oos_days": 310,
-            "mdd_daily_pct": 1.0,
-            "mdd_basis": "daily",
-            "cagr_pct": 2.0,
-            "calmar": 1.99,
-            "cvar95_pct": 0.179,
-            "max_dd_days": 142,
-            "payoff": 1.735,
-            "expectancy_pct": 0.0148,
-            "max_consec_losses": 9,
-            "top5_share_pct": 30.5,
-            "mae_worst_pct": -0.38,
-            "liq_proximity_max_pct": 37.7,
-            "liquidations": 0,
-            "fee_drag_pct": 6.7,
-            "folds": 10,
-            "folds_profitable": 6,
-            "positive_ratio": 0.6,
-            "traded_folds": 10,
-            "fold_t": 1.0865,
-            "oos_ex_best_pct": 0.5257,
-            "worst_fold_mdd": 0.95,
-            "is_ret_avg": 0.64,
-            "fold_detail": [
-              {
-                "fold": 1,
-                "train": [
-                  "2024-12-28",
-                  "2025-04-27"
-                ],
-                "test": [
-                  "2025-04-27",
-                  "2025-05-27"
-                ],
-                "is_ret_pct": -0.15,
-                "oos_ret_pct": 0.7,
-                "oos_mdd_pct": 0.42,
-                "trades": 15,
-                "halted": false
-              },
-              {
-                "fold": 2,
-                "train": [
-                  "2025-01-27",
-                  "2025-05-27"
-                ],
-                "test": [
-                  "2025-05-27",
-                  "2025-06-26"
-                ],
-                "is_ret_pct": 0.34,
-                "oos_ret_pct": -0.35,
-                "oos_mdd_pct": 0.45,
-                "trades": 4,
-                "halted": false
-              },
-              {
-                "fold": 3,
-                "train": [
-                  "2025-02-26",
-                  "2025-06-26"
-                ],
-                "test": [
-                  "2025-06-26",
-                  "2025-07-26"
-                ],
-                "is_ret_pct": -0.02,
-                "oos_ret_pct": 1.18,
-                "oos_mdd_pct": 0.43,
-                "trades": 19,
-                "halted": false
-              },
-              {
-                "fold": 4,
-                "train": [
-                  "2025-03-28",
-                  "2025-07-26"
-                ],
-                "test": [
-                  "2025-07-26",
-                  "2025-08-25"
-                ],
-                "is_ret_pct": 1.38,
-                "oos_ret_pct": 0.11,
-                "oos_mdd_pct": 0.56,
-                "trades": 16,
-                "halted": false
-              },
-              {
-                "fold": 5,
-                "train": [
-                  "2025-04-27",
-                  "2025-08-25"
-                ],
-                "test": [
-                  "2025-08-25",
-                  "2025-09-24"
-                ],
-                "is_ret_pct": 2.02,
-                "oos_ret_pct": 0.46,
-                "oos_mdd_pct": 0.29,
-                "trades": 15,
-                "halted": false
-              },
-              {
-                "fold": 6,
-                "train": [
-                  "2025-05-27",
-                  "2025-09-24"
-                ],
-                "test": [
-                  "2025-09-24",
-                  "2025-10-24"
-                ],
-                "is_ret_pct": 1.8,
-                "oos_ret_pct": -0.26,
-                "oos_mdd_pct": 0.95,
-                "trades": 13,
-                "halted": false
-              },
-              {
-                "fold": 7,
-                "train": [
-                  "2025-06-26",
-                  "2025-10-24"
-                ],
-                "test": [
-                  "2025-10-24",
-                  "2025-11-23"
-                ],
-                "is_ret_pct": 1.77,
-                "oos_ret_pct": -0.18,
-                "oos_mdd_pct": 0.4,
-                "trades": 6,
-                "halted": false
-              },
-              {
-                "fold": 8,
-                "train": [
-                  "2025-07-26",
-                  "2025-11-23"
-                ],
-                "test": [
-                  "2025-11-23",
-                  "2025-12-23"
-                ],
-                "is_ret_pct": 0.04,
-                "oos_ret_pct": -0.3,
-                "oos_mdd_pct": 0.65,
-                "trades": 12,
-                "halted": false
-              },
-              {
-                "fold": 9,
-                "train": [
-                  "2025-08-25",
-                  "2025-12-23"
-                ],
-                "test": [
-                  "2025-12-23",
-                  "2026-01-22"
-                ],
-                "is_ret_pct": -0.4,
-                "oos_ret_pct": 0.32,
-                "oos_mdd_pct": 0.34,
-                "trades": 8,
-                "halted": false
-              },
-              {
-                "fold": 10,
-                "train": [
-                  "2025-09-24",
-                  "2026-01-22"
-                ],
-                "test": [
-                  "2026-01-22",
-                  "2026-02-21"
-                ],
-                "is_ret_pct": -0.41,
-                "oos_ret_pct": 0.03,
-                "oos_mdd_pct": 0.39,
-                "trades": 6,
-                "halted": false
-              }
-            ],
-            "shock": {
-              "crash_loss": 0.029705,
-              "max_long_exposure": 0.099,
-              "surge_loss": 0.0,
-              "max_short_exposure": 0.0
-            }
-          },
-          "S4_montecarlo": {
-            "ret_pct": 1.69,
-            "mdd_pct": 1.0,
-            "sharpe": 1.19,
-            "sortino": 2.14,
-            "trades": 114,
-            "win_rate": 49.1,
-            "profit_factor": 1.676,
-            "oos_days": 310,
-            "folds": 10,
-            "positive_ratio": 0.6,
-            "traded_folds": 10,
-            "fold_t": 1.0865,
-            "oos_ex_best_pct": 0.5257,
-            "worst_fold_mdd": 0.95,
-            "is_ret_avg": 0.64,
-            "p_mdd_ge_30": 0.0,
-            "stress_max_mdd": 9.94,
-            "simulations": 10000,
-            "mdd_p95": 2.1,
-            "passes_full_size": true,
-            "min_size_s": 0.2,
-            "min_size_p_mdd_ge_30": 0.0,
-            "min_size_stress_max_mdd": 10.98
-          },
-          "S5_sizing": {
-            "ret_pct": 5.09,
-            "mdd_pct": 2.99,
-            "sharpe": 1.19,
-            "sortino": 2.15,
-            "trades": 114,
-            "win_rate": 49.1,
-            "profit_factor": 1.675,
-            "oos_days": 310,
-            "mdd_daily_pct": 2.99,
-            "mdd_basis": "daily",
-            "cagr_pct": 6.02,
-            "calmar": 2.02,
-            "cvar95_pct": 0.536,
-            "max_dd_days": 142,
-            "payoff": 1.735,
-            "expectancy_pct": 0.0445,
-            "max_consec_losses": 9,
-            "top5_share_pct": 30.5,
-            "mae_worst_pct": -1.15,
-            "liq_proximity_max_pct": 37.7,
-            "liquidations": 0,
-            "fee_drag_pct": 6.8,
-            "folds": 10,
-            "folds_profitable": 6,
-            "positive_ratio": 0.6,
-            "traded_folds": 10,
-            "fold_t": 1.0733,
-            "oos_ex_best_pct": 1.4906,
-            "worst_fold_mdd": 2.84,
-            "is_ret_avg": 1.91,
-            "fold_detail": [
-              {
-                "fold": 1,
-                "train": [
-                  "2024-12-28",
-                  "2025-04-27"
-                ],
-                "test": [
-                  "2025-04-27",
-                  "2025-05-27"
-                ],
-                "is_ret_pct": -0.45,
-                "oos_ret_pct": 2.1,
-                "oos_mdd_pct": 1.23,
-                "trades": 15,
-                "halted": false
-              },
-              {
-                "fold": 2,
-                "train": [
-                  "2025-01-27",
-                  "2025-05-27"
-                ],
-                "test": [
-                  "2025-05-27",
-                  "2025-06-26"
-                ],
-                "is_ret_pct": 1.0,
-                "oos_ret_pct": -1.06,
-                "oos_mdd_pct": 1.34,
-                "trades": 4,
-                "halted": false
-              },
-              {
-                "fold": 3,
-                "train": [
-                  "2025-02-26",
-                  "2025-06-26"
-                ],
-                "test": [
-                  "2025-06-26",
-                  "2025-07-26"
-                ],
-                "is_ret_pct": -0.09,
-                "oos_ret_pct": 3.55,
-                "oos_mdd_pct": 1.29,
-                "trades": 19,
-                "halted": false
-              },
-              {
-                "fold": 4,
-                "train": [
-                  "2025-03-28",
-                  "2025-07-26"
-                ],
-                "test": [
-                  "2025-07-26",
-                  "2025-08-25"
-                ],
-                "is_ret_pct": 4.14,
-                "oos_ret_pct": 0.31,
-                "oos_mdd_pct": 1.66,
-                "trades": 16,
-                "halted": false
-              },
-              {
-                "fold": 5,
-                "train": [
-                  "2025-04-27",
-                  "2025-08-25"
-                ],
-                "test": [
-                  "2025-08-25",
-                  "2025-09-24"
-                ],
-                "is_ret_pct": 6.12,
-                "oos_ret_pct": 1.37,
-                "oos_mdd_pct": 0.87,
-                "trades": 15,
-                "halted": false
-              },
-              {
-                "fold": 6,
-                "train": [
-                  "2025-05-27",
-                  "2025-09-24"
-                ],
-                "test": [
-                  "2025-09-24",
-                  "2025-10-24"
-                ],
-                "is_ret_pct": 5.44,
-                "oos_ret_pct": -0.77,
-                "oos_mdd_pct": 2.84,
-                "trades": 13,
-                "halted": false
-              },
-              {
-                "fold": 7,
-                "train": [
-                  "2025-06-26",
-                  "2025-10-24"
-                ],
-                "test": [
-                  "2025-10-24",
-                  "2025-11-23"
-                ],
-                "is_ret_pct": 5.36,
-                "oos_ret_pct": -0.55,
-                "oos_mdd_pct": 1.2,
-                "trades": 6,
-                "halted": false
-              },
-              {
-                "fold": 8,
-                "train": [
-                  "2025-07-26",
-                  "2025-11-23"
-                ],
-                "test": [
-                  "2025-11-23",
-                  "2025-12-23"
-                ],
-                "is_ret_pct": 0.08,
-                "oos_ret_pct": -0.91,
-                "oos_mdd_pct": 1.93,
-                "trades": 12,
-                "halted": false
-              },
-              {
-                "fold": 9,
-                "train": [
-                  "2025-08-25",
-                  "2025-12-23"
-                ],
-                "test": [
-                  "2025-12-23",
-                  "2026-01-22"
-                ],
-                "is_ret_pct": -1.2,
-                "oos_ret_pct": 0.95,
-                "oos_mdd_pct": 1.02,
-                "trades": 8,
-                "halted": false
-              },
-              {
-                "fold": 10,
-                "train": [
-                  "2025-09-24",
-                  "2026-01-22"
-                ],
-                "test": [
-                  "2026-01-22",
-                  "2026-02-21"
-                ],
-                "is_ret_pct": -1.25,
-                "oos_ret_pct": 0.09,
-                "oos_mdd_pct": 1.16,
-                "trades": 6,
-                "halted": false
-              }
-            ],
-            "shock": {
-              "crash_loss": 0.089116,
-              "max_long_exposure": 0.2971,
-              "surge_loss": 0.0,
-              "max_short_exposure": 0.0
-            },
-            "final_scale": 3.0,
-            "search_s": 3.0,
-            "search_steps": 1,
-            "confirm_attempts": 1,
-            "backtest_ret_pct": 17.27,
-            "backtest_mdd_pct": 3.0
-          },
-          "S6_holdout": {
-            "ret_pct": 1.99,
-            "mdd_pct": 4.3,
-            "sharpe": 0.64,
-            "sortino": 1.26,
-            "trades": 69,
-            "win_rate": 37.7,
-            "profit_factor": 1.301,
-            "symbols_positive": 7,
-            "final_scale": 3.0,
-            "extreme_ret_pct": 1.99,
-            "extreme_mdd_pct": 4.3,
-            "extreme_trades": 69,
-            "halted": false
-          }
-        }
       }
-    },
-    {
-      "id": "trend_long",
-      "family": "Theo xu hướng (trend following)",
-      "side": "LONG",
-      "description": "1h EMA50 > EMA200, ADX14 > ngưỡng, 15m close CẮT LÊN đỉnh 20 nến trước (sự kiện phá đỉnh). Thoát: SL + trailing theo ATR.",
-      "params": {
-        "atr_frame": "4h",
-        "atr_period": 12,
-        "sig.adx_min": 14.0,
-        "sig.adx_n": 6,
-        "sig.dch_n": 162,
-        "sig.ema_fast": 46,
-        "sig.ema_slow": 432,
-        "sig.entry_tf": "1h",
-        "sig.trend_tf": "4h",
-        "cooldown": 1395,
-        "leverage": 2,
-        "max_notional_pct": 140.0,
-        "stop_loss_rate": 7.5,
-        "take_profit_rate": 7.05,
-        "timeout": 2700,
-        "trailing_activation_pct": 4.9,
-        "trailing_stop": 1.9
-      },
-      "signal_params": {
-        "adx_min": 14.0,
-        "adx_n": 6,
-        "dch_n": 162,
-        "ema_fast": 46,
-        "ema_slow": 432,
-        "entry_tf": "1h",
-        "trend_tf": "4h"
-      },
-      "position": {
-        "market": "perp",
-        "leverage": 2,
-        "exit_unit": "atr",
-        "atr_frame": "4h",
-        "atr_period": 12,
-        "sizing": "risk",
-        "risk_per_trade_pct": 1.0,
-        "max_notional_pct": 140.0,
-        "stop_fill": "level",
-        "cooldown": 1395,
-        "stop_loss_rate": 7.5,
-        "take_profit_rate": 7.05,
-        "timeout": 2700,
-        "trailing_activation_pct": 4.9,
-        "trailing_stop": 1.9
-      },
-      "flow": {
-        "type": "LONG",
-        "match": [
-          {
-            "condition": [
-              [
-                [
-                  {
-                    "frame": "4h",
-                    "column": "ema_46",
-                    "index": 0
-                  },
-                  ">",
-                  {
-                    "frame": "4h",
-                    "column": "ema_432",
-                    "index": 0
-                  }
-                ],
-                [
-                  {
-                    "frame": "4h",
-                    "column": "adx_6",
-                    "index": 0
-                  },
-                  ">",
-                  14.0
-                ],
-                [
-                  {
-                    "frame": "1h",
-                    "column": "close",
-                    "index": 0
-                  },
-                  ">",
-                  {
-                    "frame": "1h",
-                    "column": "dch_162",
-                    "index": 0
-                  }
-                ],
-                [
-                  {
-                    "frame": "1h",
-                    "column": "close",
-                    "index": 1
-                  },
-                  "<=",
-                  {
-                    "frame": "1h",
-                    "column": "dch_162",
-                    "index": 1
-                  }
-                ]
-              ]
-            ]
-          }
-        ],
-        "stop": []
-      },
-      "evidence": {
-        "accepted": true,
-        "funnel_alpha_id": "ef04fb4358fd6c41",
-        "final_scale": 3.0,
-        "stage_metrics": {
-          "FINAL": {
-            "ret_pct": 1.7,
-            "mdd_pct": 4.87,
-            "sharpe": 0.46,
-            "sortino": 0.81,
-            "trades": 52,
-            "win_rate": 46.2,
-            "profit_factor": 1.17,
-            "symbols_positive": 3,
-            "final_scale": 3.0,
-            "extreme_ret_pct": 1.58,
-            "extreme_mdd_pct": 4.94,
-            "extreme_trades": 52,
-            "halted": false
-          },
-          "S1_backtest": {
-            "ret_pct": 8.21,
-            "mdd_pct": 2.59,
-            "sharpe": 2.21,
-            "sortino": 3.96,
-            "trades": 183,
-            "symbols_positive": 7,
-            "win_rate": 57.9,
-            "profit_factor": 1.893,
-            "sr_daily": 0.115578,
-            "skew": 0.9151,
-            "kurt": 15.9075,
-            "n_days": 432,
-            "fees_usd": 62.38,
-            "funding_usd": 58.65,
-            "halted": false,
-            "by_symbol": {
-              "AVAX": 71.39,
-              "BNB": 126.79,
-              "SOL": 193.32,
-              "BTC": 229.24,
-              "ETH": 77.41,
-              "XRP": -35.74,
-              "ADA": 43.0,
-              "DOGE": 116.06
-            },
-            "mdd_intrabar_pct": 2.59,
-            "mdd_daily_pct": 1.83,
-            "mdd_basis": "intrabar",
-            "cagr_pct": 6.9,
-            "calmar": 3.77,
-            "cvar95_pct": 0.298,
-            "max_dd_days": 229,
-            "payoff": 1.375,
-            "expectancy_pct": 0.0435,
-            "max_consec_losses": 7,
-            "top5_share_pct": 14.0,
-            "mae_worst_pct": -0.5,
-            "liq_proximity_max_pct": 53.9,
-            "liquidations": 0,
-            "fee_drag_pct": 7.1
-          },
-          "S2_antiluck": {
-            "ret_pct": 8.21,
-            "mdd_pct": 2.59,
-            "sharpe": 2.21,
-            "sortino": 3.96,
-            "trades": 183,
-            "win_rate": 57.9,
-            "profit_factor": 1.893,
-            "symbols_positive": 7,
-            "dsr": 0.2572,
-            "dsr_sr0": 0.146098,
-            "neighbor_ratio": 0.96875,
-            "neighbor_n": 32,
-            "pbo_strategy": 0.6586635586635586,
-            "pbo_flag": true,
-            "n_trials": 405,
-            "dsr_cut": 0.2572,
-            "n_trials_raw": 3800
-          },
-          "S3_wfa": {
-            "ret_pct": 6.12,
-            "mdd_pct": 2.11,
-            "sharpe": 2.22,
-            "sortino": 3.79,
-            "trades": 106,
-            "win_rate": 59.4,
-            "profit_factor": 2.111,
-            "oos_days": 310,
-            "mdd_daily_pct": 2.11,
-            "mdd_basis": "daily",
-            "cagr_pct": 7.24,
-            "calmar": 3.43,
-            "cvar95_pct": 0.307,
-            "max_dd_days": 136,
-            "payoff": 1.441,
-            "expectancy_pct": 0.0565,
-            "max_consec_losses": 8,
-            "top5_share_pct": 20.3,
-            "mae_worst_pct": -0.38,
-            "liq_proximity_max_pct": 32.9,
-            "liquidations": 0,
-            "fee_drag_pct": 7.1,
-            "folds": 10,
-            "folds_profitable": 5,
-            "positive_ratio": 0.625,
-            "traded_folds": 8,
-            "fold_t": 1.8767,
-            "oos_ex_best_pct": 3.606,
-            "worst_fold_mdd": 1.67,
-            "is_ret_avg": 2.33,
-            "fold_detail": [
-              {
-                "fold": 1,
-                "train": [
-                  "2024-12-28",
-                  "2025-04-27"
-                ],
-                "test": [
-                  "2025-04-27",
-                  "2025-05-27"
-                ],
-                "is_ret_pct": -0.95,
-                "oos_ret_pct": -0.48,
-                "oos_mdd_pct": 1.67,
-                "trades": 20,
-                "halted": false
-              },
-              {
-                "fold": 2,
-                "train": [
-                  "2025-01-27",
-                  "2025-05-27"
-                ],
-                "test": [
-                  "2025-05-27",
-                  "2025-06-26"
-                ],
-                "is_ret_pct": -0.81,
-                "oos_ret_pct": 0.09,
-                "oos_mdd_pct": 0.33,
-                "trades": 4,
-                "halted": false
-              },
-              {
-                "fold": 3,
-                "train": [
-                  "2025-02-26",
-                  "2025-06-26"
-                ],
-                "test": [
-                  "2025-06-26",
-                  "2025-07-26"
-                ],
-                "is_ret_pct": -0.47,
-                "oos_ret_pct": 2.43,
-                "oos_mdd_pct": 0.77,
-                "trades": 24,
-                "halted": false
-              },
-              {
-                "fold": 4,
-                "train": [
-                  "2025-03-28",
-                  "2025-07-26"
-                ],
-                "test": [
-                  "2025-07-26",
-                  "2025-08-25"
-                ],
-                "is_ret_pct": 1.9,
-                "oos_ret_pct": 1.19,
-                "oos_mdd_pct": 1.15,
-                "trades": 25,
-                "halted": false
-              },
-              {
-                "fold": 5,
-                "train": [
-                  "2025-04-27",
-                  "2025-08-25"
-                ],
-                "test": [
-                  "2025-08-25",
-                  "2025-09-24"
-                ],
-                "is_ret_pct": 3.22,
-                "oos_ret_pct": 2.2,
-                "oos_mdd_pct": 0.67,
-                "trades": 20,
-                "halted": false
-              },
-              {
-                "fold": 6,
-                "train": [
-                  "2025-05-27",
-                  "2025-09-24"
-                ],
-                "test": [
-                  "2025-09-24",
-                  "2025-10-24"
-                ],
-                "is_ret_pct": 5.83,
-                "oos_ret_pct": 1.0,
-                "oos_mdd_pct": 0.41,
-                "trades": 11,
-                "halted": false
-              },
-              {
-                "fold": 7,
-                "train": [
-                  "2025-06-26",
-                  "2025-10-24"
-                ],
-                "test": [
-                  "2025-10-24",
-                  "2025-11-23"
-                ],
-                "is_ret_pct": 6.85,
-                "oos_ret_pct": -0.23,
-                "oos_mdd_pct": 0.38,
-                "trades": 1,
-                "halted": false
-              },
-              {
-                "fold": 8,
-                "train": [
-                  "2025-07-26",
-                  "2025-11-23"
-                ],
-                "test": [
-                  "2025-11-23",
-                  "2025-12-23"
-                ],
-                "is_ret_pct": 4.07,
-                "oos_ret_pct": 0.0,
-                "oos_mdd_pct": 0.0,
-                "trades": 0,
-                "halted": false
-              },
-              {
-                "fold": 9,
-                "train": [
-                  "2025-08-25",
-                  "2025-12-23"
-                ],
-                "test": [
-                  "2025-12-23",
-                  "2026-01-22"
-                ],
-                "is_ret_pct": 3.02,
-                "oos_ret_pct": -0.19,
-                "oos_mdd_pct": 0.36,
-                "trades": 1,
-                "halted": false
-              },
-              {
-                "fold": 10,
-                "train": [
-                  "2025-09-24",
-                  "2026-01-22"
-                ],
-                "test": [
-                  "2026-01-22",
-                  "2026-02-21"
-                ],
-                "is_ret_pct": 0.59,
-                "oos_ret_pct": 0.0,
-                "oos_mdd_pct": 0.0,
-                "trades": 0,
-                "halted": false
-              }
-            ],
-            "shock": {
-              "crash_loss": 0.074178,
-              "max_long_exposure": 0.3015,
-              "surge_loss": 0.0,
-              "max_short_exposure": 0.0
-            }
-          },
-          "S4_montecarlo": {
-            "ret_pct": 6.12,
-            "mdd_pct": 2.11,
-            "sharpe": 2.22,
-            "sortino": 3.79,
-            "trades": 106,
-            "win_rate": 59.4,
-            "profit_factor": 2.111,
-            "oos_days": 310,
-            "folds": 10,
-            "positive_ratio": 0.625,
-            "traded_folds": 8,
-            "fold_t": 1.8767,
-            "oos_ex_best_pct": 3.606,
-            "worst_fold_mdd": 1.67,
-            "is_ret_avg": 2.33,
-            "p_mdd_ge_30": 0.0,
-            "stress_max_mdd": 15.22,
-            "simulations": 10000,
-            "mdd_p95": 3.0,
-            "passes_full_size": true,
-            "min_size_s": 0.2,
-            "min_size_p_mdd_ge_30": 0.0,
-            "min_size_stress_max_mdd": 5.64
-          },
-          "S5_sizing": {
-            "ret_pct": 19.1,
-            "mdd_pct": 6.23,
-            "sharpe": 2.22,
-            "sortino": 3.8,
-            "trades": 106,
-            "win_rate": 59.4,
-            "profit_factor": 2.102,
-            "oos_days": 310,
-            "mdd_daily_pct": 6.23,
-            "mdd_basis": "daily",
-            "cagr_pct": 22.86,
-            "calmar": 3.67,
-            "cvar95_pct": 0.916,
-            "max_dd_days": 136,
-            "payoff": 1.435,
-            "expectancy_pct": 0.1696,
-            "max_consec_losses": 8,
-            "top5_share_pct": 20.2,
-            "mae_worst_pct": -1.13,
-            "liq_proximity_max_pct": 32.9,
-            "liquidations": 0,
-            "fee_drag_pct": 7.1,
-            "folds": 10,
-            "folds_profitable": 5,
-            "positive_ratio": 0.625,
-            "traded_folds": 8,
-            "fold_t": 1.8679,
-            "oos_ex_best_pct": 10.9882,
-            "worst_fold_mdd": 4.94,
-            "is_ret_avg": 7.18,
-            "fold_detail": [
-              {
-                "fold": 1,
-                "train": [
-                  "2024-12-28",
-                  "2025-04-27"
-                ],
-                "test": [
-                  "2025-04-27",
-                  "2025-05-27"
-                ],
-                "is_ret_pct": -3.02,
-                "oos_ret_pct": -1.49,
-                "oos_mdd_pct": 4.94,
-                "trades": 20,
-                "halted": false
-              },
-              {
-                "fold": 2,
-                "train": [
-                  "2025-01-27",
-                  "2025-05-27"
-                ],
-                "test": [
-                  "2025-05-27",
-                  "2025-06-26"
-                ],
-                "is_ret_pct": -2.44,
-                "oos_ret_pct": 0.28,
-                "oos_mdd_pct": 0.99,
-                "trades": 4,
-                "halted": false
-              },
-              {
-                "fold": 3,
-                "train": [
-                  "2025-02-26",
-                  "2025-06-26"
-                ],
-                "test": [
-                  "2025-06-26",
-                  "2025-07-26"
-                ],
-                "is_ret_pct": -1.46,
-                "oos_ret_pct": 7.31,
-                "oos_mdd_pct": 2.28,
-                "trades": 24,
-                "halted": false
-              },
-              {
-                "fold": 4,
-                "train": [
-                  "2025-03-28",
-                  "2025-07-26"
-                ],
-                "test": [
-                  "2025-07-26",
-                  "2025-08-25"
-                ],
-                "is_ret_pct": 5.62,
-                "oos_ret_pct": 3.56,
-                "oos_mdd_pct": 3.39,
-                "trades": 25,
-                "halted": false
-              },
-              {
-                "fold": 5,
-                "train": [
-                  "2025-04-27",
-                  "2025-08-25"
-                ],
-                "test": [
-                  "2025-08-25",
-                  "2025-09-24"
-                ],
-                "is_ret_pct": 9.7,
-                "oos_ret_pct": 6.68,
-                "oos_mdd_pct": 1.96,
-                "trades": 20,
-                "halted": false
-              },
-              {
-                "fold": 6,
-                "train": [
-                  "2025-05-27",
-                  "2025-09-24"
-                ],
-                "test": [
-                  "2025-09-24",
-                  "2025-10-24"
-                ],
-                "is_ret_pct": 18.21,
-                "oos_ret_pct": 2.98,
-                "oos_mdd_pct": 1.23,
-                "trades": 11,
-                "halted": false
-              },
-              {
-                "fold": 7,
-                "train": [
-                  "2025-06-26",
-                  "2025-10-24"
-                ],
-                "test": [
-                  "2025-10-24",
-                  "2025-11-23"
-                ],
-                "is_ret_pct": 21.64,
-                "oos_ret_pct": -0.69,
-                "oos_mdd_pct": 1.13,
-                "trades": 1,
-                "halted": false
-              },
-              {
-                "fold": 8,
-                "train": [
-                  "2025-07-26",
-                  "2025-11-23"
-                ],
-                "test": [
-                  "2025-11-23",
-                  "2025-12-23"
-                ],
-                "is_ret_pct": 12.53,
-                "oos_ret_pct": 0.0,
-                "oos_mdd_pct": 0.0,
-                "trades": 0,
-                "halted": false
-              },
-              {
-                "fold": 9,
-                "train": [
-                  "2025-08-25",
-                  "2025-12-23"
-                ],
-                "test": [
-                  "2025-12-23",
-                  "2026-01-22"
-                ],
-                "is_ret_pct": 9.23,
-                "oos_ret_pct": -0.56,
-                "oos_mdd_pct": 1.08,
-                "trades": 1,
-                "halted": false
-              },
-              {
-                "fold": 10,
-                "train": [
-                  "2025-09-24",
-                  "2026-01-22"
-                ],
-                "test": [
-                  "2026-01-22",
-                  "2026-02-21"
-                ],
-                "is_ret_pct": 1.75,
-                "oos_ret_pct": 0.0,
-                "oos_mdd_pct": 0.0,
-                "trades": 0,
-                "halted": false
-              }
-            ],
-            "shock": {
-              "crash_loss": 0.222535,
-              "max_long_exposure": 0.9045,
-              "surge_loss": 0.0,
-              "max_short_exposure": 0.0
-            },
-            "final_scale": 3.0,
-            "search_s": 3.0,
-            "search_steps": 1,
-            "confirm_attempts": 1,
-            "backtest_ret_pct": 26.23,
-            "backtest_mdd_pct": 7.67
-          },
-          "S6_holdout": {
-            "ret_pct": 1.7,
-            "mdd_pct": 4.87,
-            "sharpe": 0.46,
-            "sortino": 0.81,
-            "trades": 52,
-            "win_rate": 46.2,
-            "profit_factor": 1.17,
-            "symbols_positive": 3,
-            "final_scale": 3.0,
-            "extreme_ret_pct": 1.58,
-            "extreme_mdd_pct": 4.94,
-            "extreme_trades": 52,
-            "halted": false
-          }
-        }
-      },
-      "variant": "EMA + ADX + phá đỉnh Donchian"
     }
   ],
   "evidence": {
@@ -3310,57 +2080,47 @@
       "wfa_summary": {
         "n_folds": 10,
         "n_traded_folds": 10,
-        "positive_folds": 8,
-        "positive_ratio_pct": 80.0,
-        "fold_t": 2.1683,
-        "oos_ex_best_pct": 8.7803,
+        "positive_folds": 10,
+        "positive_ratio_pct": 100.0,
+        "fold_t": 8.3969,
+        "oos_ex_best_pct": 23.5666,
         "n_active_folds": 10,
-        "avg_is_ret_pct": 1.83,
+        "avg_is_ret_pct": 7.01,
         "compounded_oos_ret_pct": {
-          "level": 14.95,
-          "extreme": 14.81
+          "level": 37.46,
+          "extreme": 28.6
         },
         "worst_fold_mdd_pct": {
-          "level": 2.9,
-          "extreme": 2.9
+          "level": 0.66,
+          "extreme": 0.74
         },
         "oos_days": 310,
         "oos_trades": {
-          "level": 291,
-          "extreme": 291
+          "level": 1202,
+          "extreme": 1202
         },
         "param_stability": {
-          "breakout_4h_long": {
+          "dca_long": {
             "share": 1.0,
             "folds_chosen": 10,
             "distinct": 1
           },
-          "breakout_4h_short": {
+          "dca_short": {
             "share": 1.0,
-            "folds_chosen": 9,
+            "folds_chosen": 10,
             "distinct": 1
           },
-          "keltner_trend_long": {
+          "kema_long": {
             "share": 1.0,
             "folds_chosen": 1,
-            "distinct": 1
-          },
-          "momentum_long": {
-            "share": 1.0,
-            "folds_chosen": 10,
-            "distinct": 1
-          },
-          "trend_long": {
-            "share": 1.0,
-            "folds_chosen": 10,
             "distinct": 1
           }
         },
         "mc": {
-          "median_ret_pct": 17.4,
-          "p05_ret_pct": 3.8,
-          "mdd_p50_pct": 3.8,
-          "mdd_p95_pct": 6.8,
+          "median_ret_pct": 34.4,
+          "p05_ret_pct": 28.5,
+          "mdd_p50_pct": 0.5,
+          "mdd_p95_pct": 0.7,
           "p_mdd_ge_ruin_pct": 0.0,
           "simulations": 10000,
           "block_days": 5,
@@ -3370,10 +2130,10 @@
             {
               "name": "worst_days_first",
               "label_vi": "Ngày lỗ tệ nhất đến trước",
-              "mdd_pct": 20.84,
-              "terminal_ret_pct": 14.81,
-              "worst_day_pct": -2.18,
-              "days_underwater": 299,
+              "mdd_pct": 6.42,
+              "terminal_ret_pct": 28.6,
+              "worst_day_pct": -0.52,
+              "days_underwater": 214,
               "ruin": false,
               "days": 310,
               "passed": true
@@ -3381,10 +2141,10 @@
             {
               "name": "reversed_order",
               "label_vi": "Đảo ngược thứ tự lịch sử",
-              "mdd_pct": 4.57,
-              "terminal_ret_pct": 14.81,
-              "worst_day_pct": -2.18,
-              "days_underwater": 263,
+              "mdd_pct": 0.52,
+              "terminal_ret_pct": 28.6,
+              "worst_day_pct": -0.52,
+              "days_underwater": 129,
               "ruin": false,
               "days": 310,
               "passed": true
@@ -3392,10 +2152,10 @@
             {
               "name": "crash_day",
               "label_vi": "Ngày sập (2x ngày xấu nhất) ở đầu",
-              "mdd_pct": 4.62,
-              "terminal_ret_pct": 9.81,
-              "worst_day_pct": -4.35,
-              "days_underwater": 291,
+              "mdd_pct": 1.15,
+              "terminal_ret_pct": 27.26,
+              "worst_day_pct": -1.04,
+              "days_underwater": 145,
               "ruin": false,
               "days": 311,
               "passed": true
@@ -3403,10 +2163,10 @@
             {
               "name": "cost_x2",
               "label_vi": "Chi phí giao dịch gấp đôi",
-              "mdd_pct": 9.46,
-              "terminal_ret_pct": -2.19,
-              "worst_day_pct": -2.25,
-              "days_underwater": 296,
+              "mdd_pct": 1.57,
+              "terminal_ret_pct": 4.4,
+              "worst_day_pct": -0.59,
+              "days_underwater": 274,
               "ruin": false,
               "days": 310,
               "passed": true,
@@ -3415,57 +2175,57 @@
             {
               "name": "longest_losing_streak_x2",
               "label_vi": "Chuỗi thua dài nhất lặp 2 lần ở đầu",
-              "mdd_pct": 4.57,
-              "terminal_ret_pct": 13.84,
-              "worst_day_pct": -2.18,
-              "days_underwater": 296,
+              "mdd_pct": 0.52,
+              "terminal_ret_pct": 28.1,
+              "worst_day_pct": -0.52,
+              "days_underwater": 143,
               "ruin": false,
-              "days": 320,
+              "days": 316,
               "passed": true
             },
             {
               "name": "vertical_surge",
               "label_vi": "Tăng thẳng đứng +40%/3 ngày ngược vị thế SHORT lớn nhất",
-              "mdd_pct": 14.24,
-              "terminal_ret_pct": -1.27,
-              "worst_day_pct": -4.9,
-              "days_underwater": 313,
+              "mdd_pct": 13.67,
+              "terminal_ret_pct": 11.15,
+              "worst_day_pct": -4.74,
+              "days_underwater": 235,
               "ruin": false,
               "days": 313,
               "passed": true,
-              "note_vi": "Lỗ LONG khi sập 14.8% vốn, lỗ SHORT khi tăng dựng 14.0% vốn (vị thế ngược chiều lớn nhất từng mở)"
+              "note_vi": "Lỗ LONG khi sập 13.1% vốn, lỗ SHORT khi tăng dựng 13.6% vốn (vị thế ngược chiều lớn nhất từng mở)"
             },
             {
               "name": "vertical_crash",
               "label_vi": "Sập −30%/1 ngày ngược vị thế LONG lớn nhất",
-              "mdd_pct": 15.07,
-              "terminal_ret_pct": -2.23,
-              "worst_day_pct": -14.84,
-              "days_underwater": 311,
+              "mdd_pct": 13.19,
+              "terminal_ret_pct": 11.76,
+              "worst_day_pct": -13.09,
+              "days_underwater": 232,
               "ruin": false,
               "days": 311,
               "passed": true,
-              "note_vi": "Lỗ LONG khi sập 14.8% vốn, lỗ SHORT khi tăng dựng 14.0% vốn (vị thế ngược chiều lớn nhất từng mở)"
+              "note_vi": "Lỗ LONG khi sập 13.1% vốn, lỗ SHORT khi tăng dựng 13.6% vốn (vị thế ngược chiều lớn nhất từng mở)"
             },
             {
               "name": "vertical_chain",
               "label_vi": "Chuỗi liên tiếp: tăng +40%/3 ngày rồi sập −30%, lặp 2 lần",
-              "mdd_pct": 46.51,
-              "terminal_ret_pct": -38.41,
-              "worst_day_pct": -14.84,
+              "mdd_pct": 43.64,
+              "terminal_ret_pct": -27.44,
+              "worst_day_pct": -13.09,
               "days_underwater": 318,
               "ruin": false,
               "days": 318,
               "passed": true,
-              "note_vi": "Lỗ LONG khi sập 14.8% vốn, lỗ SHORT khi tăng dựng 14.0% vốn (vị thế ngược chiều lớn nhất từng mở)"
+              "note_vi": "Lỗ LONG khi sập 13.1% vốn, lỗ SHORT khi tăng dựng 13.6% vốn (vị thế ngược chiều lớn nhất từng mở)"
             },
             {
               "name": "worst_bootstrap",
               "label_vi": "Đường bootstrap tệ nhất (MDD lớn nhất)",
-              "mdd_pct": 14.64,
-              "terminal_ret_pct": -0.13,
-              "worst_day_pct": -2.18,
-              "days_underwater": 357,
+              "mdd_pct": 1.3,
+              "terminal_ret_pct": 26.76,
+              "worst_day_pct": -0.52,
+              "days_underwater": 197,
               "ruin": false,
               "days": 365,
               "passed": true
@@ -3491,7 +2251,7 @@
               "stress_mdd": {
                 "label": "MDD tệ nhất trong các kịch bản cực xấu",
                 "required": "< 50%",
-                "actual": 46.51,
+                "actual": 43.64,
                 "passed": true,
                 "detail": "vertical_chain"
               },
@@ -3508,29 +2268,29 @@
           }
         },
         "shock": {
-          "crash_loss": 0.148357,
-          "max_long_exposure": 0.603,
-          "surge_loss": 0.14,
-          "max_short_exposure": 0.464
+          "crash_loss": 0.130933,
+          "max_long_exposure": 0.4663,
+          "surge_loss": 0.135695,
+          "max_short_exposure": 1.1176
         }
       }
     },
     "final": {
       "holdout": {
         "level": {
-          "ret_pct": 3.3,
-          "mdd_pct": 4.3,
-          "sharpe": 0.87,
-          "trades": 201,
+          "ret_pct": 26.54,
+          "mdd_pct": 2.12,
+          "sharpe": 8.7,
+          "trades": 832,
           "win_rate": null,
           "profit_factor": null,
           "halted_at": null
         },
         "extreme": {
-          "ret_pct": 3.25,
-          "mdd_pct": 4.3,
-          "sharpe": 0.86,
-          "trades": 201,
+          "ret_pct": 20.37,
+          "mdd_pct": 2.12,
+          "sharpe": 7.05,
+          "trades": 832,
           "win_rate": null,
           "profit_factor": null,
           "halted_at": null
