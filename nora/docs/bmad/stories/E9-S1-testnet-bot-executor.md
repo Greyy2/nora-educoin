@@ -47,4 +47,4 @@ testnet cần khoá API của người vận hành. Paper đã chạy một bư�
 | Ngày | Thay đổi |
 |---|---|
 | 2026-10-01 | Tạo story, trạng thái `backlog`. |
-| 2026-10-04 | Bot sổ paper/testnet (backend/live) | (commit E9) |
+| 2026-10-04 | Bot sổ paper/testnet (backend/live) | 015f06c |

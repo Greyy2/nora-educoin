@@ -41,4 +41,4 @@ Chưa: AC3 (hiển thị trên trang Danh mục — cần E9-S3) và AC4 (đo đ
 | Ngày | Thay đổi |
 |---|---|
 | 2026-10-01 | Tạo story, trạng thái `backlog`. |
-| 2026-10-04 | Bot sổ paper/testnet (backend/live) | (commit E9) |
+| 2026-10-04 | Bot sổ paper/testnet (backend/live) | 015f06c |
