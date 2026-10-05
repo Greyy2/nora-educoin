@@ -23,10 +23,16 @@ class BotRequest(BaseModel):
                       description="main = sổ đã kiểm định; explore = sổ thử nghiệm data/alphas/explore (chỉ paper/demo)")
 
 
-def _running(venue: str, mode: str):
+def _running(venue: str, mode: str, book: str = "main"):
     return [j for j in batch_jobs.list_jobs(limit=50, kind="live_bot")
             if j.get("status") in ("running", "queued") and (j.get("params") or {}).get("mode") == mode
-            and (j.get("params") or {}).get("venue", "okx") == venue]
+            and (j.get("params") or {}).get("venue", "okx") == venue and (j.get("params") or {}).get("book", "main") == book]
+
+
+def _sdir(venue: str, mode: str, book: str) -> str:
+    from backend.db.data_layout import cache_dir
+    from backend.live.bot import state_key
+    return cache_dir(None, "live", state_key(venue, mode, book))
 
 
 @router.post("/bot")
@@ -35,17 +41,16 @@ def start_bot(req: BotRequest) -> Dict[str, Any]:
         raise HTTPException(422, "mode live đặt lệnh bằng vốn thật — cần confirm_live=true")
     if req.mode == "live" and req.book == "explore":
         raise HTTPException(422, "sổ thử nghiệm không chạy live")
-    if _running(req.venue, req.mode):
-        raise HTTPException(409, f"bot {req.venue} {req.mode} đang chạy (job {_running(req.venue, req.mode)[0].get('id')})")
+    if _running(req.venue, req.mode, req.book):
+        raise HTTPException(409, f"bot {req.venue} {req.mode} ({req.book}) đang chạy (job {_running(req.venue, req.mode, req.book)[0].get('id')})")
     return batch_jobs.http_launch("live_bot", {"mode": req.mode, "venue": req.venue, "once": req.once, "capital": req.capital,
                                                "confirm_live": req.confirm_live, "book": req.book})
 
 
 @router.get("/bot")
 def bot_status(mode: str = Query("paper", pattern="^(paper|demo|live)$"), venue: str = Query("okx", pattern="^(okx|binance)$"),
-               events: int = Query(50, ge=0, le=500)) -> Dict[str, Any]:
-    from backend.db.data_layout import cache_dir
-    d = cache_dir(None, "live", f"{venue}_{mode}")
+               events: int = Query(50, ge=0, le=500), book: str = Query("main", pattern="^(main|explore)$")) -> Dict[str, Any]:
+    d = _sdir(venue, mode, book)
     state, evs = None, []
     try:
         with open(os.path.join(d, "state.json"), encoding="utf-8") as fh:
@@ -59,7 +64,8 @@ def bot_status(mode: str = Query("paper", pattern="^(paper|demo|live)$"), venue:
         pass
     if state:
         state = {**state, "trades": (state.get("trades") or [])[-100:]}
-    return {"venue": venue, "mode": mode, "running": [j.get("id") for j in _running(venue, mode)], "state": state, "events": evs}
+    return {"venue": venue, "mode": mode, "running": [j.get("id") for j in _running(venue, mode, book)], "state": state,
+            "events": evs, "book": book}
 
 
 def _equity_series(d: str, cap: int = 2000):
@@ -84,12 +90,11 @@ def _equity_series(d: str, cap: int = 2000):
 
 @router.get("/trades")
 def bot_trades(mode: str = Query("paper", pattern="^(paper|demo|live)$"), venue: str = Query("okx", pattern="^(okx|binance)$"),
-               limit: int = Query(200, ge=1, le=2000)) -> Dict[str, Any]:
+               limit: int = Query(200, ge=1, le=2000), book: str = Query("main", pattern="^(main|explore)$")) -> Dict[str, Any]:
     """Lệnh của bot để xem biểu đồ tín hiệu: lệnh sàn (demo/live: state.json) + lệnh paper (paper.pkl, cùng engine backtest), vị thế đang mở.
     Thời gian theo ms. book_kind cho biết sổ (main | explore) để gọi POST /api/studio/chart/explain (book + strategy_id)."""
     import pickle
-    from backend.db.data_layout import cache_dir
-    d = cache_dir(None, "live", f"{venue}_{mode}")
+    d = _sdir(venue, mode, book)
     state: Dict[str, Any] = {}
     try:
         with open(os.path.join(d, "state.json"), encoding="utf-8") as fh:
@@ -104,7 +109,7 @@ def bot_trades(mode: str = Query("paper", pattern="^(paper|demo|live)$"), venue:
     except (OSError, EOFError, pickle.UnpicklingError, AttributeError):
         pass
     exec_pos = [{"symbol": s, **p} for s, p in (state.get("positions") or {}).items()]
-    kind = state.get("book_kind")
+    kind = state.get("book_kind") or (book if book == "explore" else None)
     if kind is None:                                   # trạng thái cũ chưa ghi book_kind: nhận theo generated_at của sổ thử nghiệm
         try:
             from backend.core.params.presets import alphas_dir
@@ -122,6 +127,33 @@ def bot_trades(mode: str = Query("paper", pattern="^(paper|demo|live)$"), venue:
     except (SystemExit, OSError, ValueError):
         pass
     series, started = _equity_series(d)
-    return {"venue": venue, "mode": mode, "book_kind": kind, "strategies": strategies, "symbols": symbols, "timeframe": tf, "running": [j.get("id") for j in _running(venue, mode)],
+    return {"venue": venue, "mode": mode, "book_kind": kind, "strategies": strategies, "symbols": symbols, "timeframe": tf,
+            "running": [j.get("id") for j in _running(venue, mode, book)],
             "equity": state.get("equity"), "equity_series": series, "started": started, "exec": {"trades": (state.get("trades") or [])[-limit:], "positions": exec_pos},
             "paper": {"trades": paper_trades, "positions": paper_pos, "summary": state.get("paper")}}
+
+
+@router.get("/compare")
+def bot_compare(mode: str = Query("demo", pattern="^(demo|live)$"), venue: str = Query("okx", pattern="^(okx|binance)$"),
+                book: str = Query("main", pattern="^(main|explore)$")) -> Dict[str, Any]:
+    """Lệnh sàn (khớp thật) ghép với lệnh paper bóng cùng nến (engine): chênh giá vào/đóng (bps), % lãi lỗ, số tầng DCA, lệnh lệch."""
+    import pickle
+    from backend.live.compare import compare_trades
+    d = _sdir(venue, mode, book)
+    try:
+        with open(os.path.join(d, "state.json"), encoding="utf-8") as fh:
+            state = json.load(fh)
+    except (OSError, ValueError):
+        raise HTTPException(404, f"chưa có trạng thái bot {venue} {mode} ({book})")
+    try:
+        with open(os.path.join(d, "paper.pkl"), "rb") as fh:
+            paper = list(pickle.load(fh).trades)
+    except (OSError, EOFError, pickle.UnpicklingError, AttributeError):
+        paper = []
+    tf = None
+    try:
+        from backend.live.bot import load_book
+        tf = load_book(kind=state.get("book_kind") or book, mode="paper").get("timeframe")
+    except (SystemExit, OSError, ValueError):
+        pass
+    return {"venue": venue, "mode": mode, "book": book, "timeframe": tf, **compare_trades(state.get("trades") or [], paper, tf or "1h")}

@@ -133,7 +133,16 @@ class OkxAdapter:
             raise SystemExit("OKX: tài khoản đang ở long_short_mode — bot cần net_mode (một vị thế mỗi mã, khớp max_per_symbol = 1)")
 
     def equity(self) -> float:
-        return float(self._req("GET", "/api/v5/account/balance", {"ccy": "USDT"}, signed=True)[0]["totalEq"])
+        """Vốn dùng được cho hợp đồng USDT. Chế độ ký quỹ đơn tiền (acctLv 1/2, mặc định của Futures mode): CHỈ số dư USDT (coin khác như
+        BTC/OKB trong ví không làm ký quỹ được — lấy totalEq sẽ tính khối lượng quá vốn, lệnh bị từ chối 51008). Đa tiền / danh mục
+        (acctLv 3/4): adjEq (vốn điều chỉnh dùng làm ký quỹ)."""
+        if getattr(self, "_acct_lv", None) is None:
+            self._acct_lv = int(self._req("GET", "/api/v5/account/config", signed=True)[0].get("acctLv") or 2)
+        b = self._req("GET", "/api/v5/account/balance", {"ccy": "USDT"}, signed=True)[0]
+        if self._acct_lv >= 3 and b.get("adjEq"):
+            return float(b["adjEq"])
+        usdt = next((d for d in b.get("details") or [] if d.get("ccy") == "USDT"), None)
+        return float(usdt["eq"]) if usdt else 0.0
 
     def positions(self) -> Dict[str, Tuple[float, float]]:
         out = {}
@@ -143,6 +152,17 @@ class OkxAdapter:
             sym = p["instId"].split("-")[0]
             out[sym] = (float(p["pos"]) * float(self.instrument(sym)["ctVal"]), float(p.get("avgPx") or 0))
         return out
+
+    def closed_since(self, sym: str, since: int) -> Dict[str, Any]:
+        """Vị thế vừa đóng của mã (lịch sử vị thế sàn, mới nhất có thời điểm mở >= since - 1 phút): giá đóng TB, lãi lỗ, phí thật."""
+        rows = self._req("GET", "/api/v5/account/positions-history", {"instType": "SWAP", "instId": inst(sym), "limit": 20}, signed=True)
+        rows = [r for r in rows if int(r.get("cTime") or 0) >= since - 60_000]
+        if not rows:
+            return {}
+        r = max(rows, key=lambda x: int(x.get("uTime") or 0))
+        return {"close_price": float(r.get("closeAvgPx") or 0) or None, "open_price": float(r.get("openAvgPx") or 0) or None,
+                "pnl": float(r.get("realizedPnl") or 0), "fee": float(r.get("fee") or 0), "funding": float(r.get("fundingFee") or 0),
+                "exchange_close_time": int(r.get("uTime") or 0)}
 
     # ── lệnh ──
     def prepare(self, sym: str, leverage: int) -> None:

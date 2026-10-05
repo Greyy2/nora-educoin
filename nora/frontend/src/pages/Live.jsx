@@ -5,13 +5,15 @@ import SignalExplainPanel from '../components/chart/SignalExplainPanel'
 import TradeChartDrawer from '../components/chart/TradeChartDrawer'
 import { fmtTs, fmtVal } from '../components/chart/chartUtil'
 import useAsync from '../hooks/useAsync'
-import { getLiveTrades, explainChart } from '../api'
+import { getLiveTrades, getLiveCompare, explainChart } from '../api'
 import AreaLine from '../components/charts/AreaLine'
 import { fmtNum, fmtMoney, fmtSPct, fmtPct, signClass, isNum } from '../lib/format'
 import { legLabel } from '../lib/strategyLabel'
 
-const MODES = [{ value: 'paper', label: 'Paper' }, { value: 'demo', label: 'Demo OKX' }]
-const BOOK = { main: 'sổ chính (đã kiểm định)', explore: 'sổ thử nghiệm (9 chiến lược)' }
+// Bot đang chạy: chế độ + sổ. Sổ thử nghiệm (khung 15m) chỉ chạy paper, song song sổ chính.
+const TABS = [{ value: 'paper', label: 'Paper · sổ chính' }, { value: 'demo', label: 'Demo OKX · sổ chính' }, { value: 'paper_explore', label: 'Paper · thử nghiệm 15m' }]
+const TAB = { paper: ['paper', 'main'], demo: ['demo', 'main'], paper_explore: ['paper', 'explore'] }
+const BOOK = { main: 'sổ chính (đã kiểm định)', explore: 'sổ thử nghiệm (chỉ paper)' }
 const SRC = { exec: 'Sàn', paper: 'Paper' }
 const REASON = { TP: 'Chốt lời', SL: 'Cắt lỗ', TRAIL: 'Trailing', TIMEOUT: 'Hết hạn', SIGNAL: 'Tín hiệu thoát' }
 const DAY = 86400e3
@@ -19,7 +21,7 @@ const base = (s) => String(s || '').split(/[@\-/_:]/)[0].toUpperCase() // "BTC@p
 
 // Gộp lệnh đã đóng của sàn (exec) và paper về một dạng
 function mergeTrades(d) {
-  const ex = (d.exec?.trades || []).map((t) => ({ src: 'exec', symbol: t.symbol, strategy: t.strategy, side: t.side, qty: t.qty, enter_ms: t.entry_time, close_ms: t.close_time, enter_price: t.avg, close_price: null, pnl: null, reason: t.reason, layers: t.layers }))
+  const ex = (d.exec?.trades || []).map((t) => ({ src: 'exec', symbol: t.symbol, strategy: t.strategy, side: t.side, qty: t.qty, enter_ms: t.entry_time, close_ms: t.close_time, enter_price: t.open_price ?? t.avg, close_price: t.close_price ?? null, pnl: t.pnl ?? null, reason: t.reason, layers: t.layers }))
   const pa = (d.paper?.trades || []).map((t) => ({ src: 'paper', symbol: t.symbol, strategy: t.strategy, side: t.side, qty: t.qty, enter_ms: t.enter_time, close_ms: t.close_time, enter_price: t.enter_price ?? t.avg_price, close_price: t.close_price, pnl: t.pnl, reason: t.reason, layers: t.layers }))
   return [...ex, ...pa].filter((t) => isNum(t.enter_ms)).sort((a, b) => (b.close_ms || b.enter_ms) - (a.close_ms || a.enter_ms))
 }
@@ -110,10 +112,57 @@ function Explorer({ d, trades }) {
   )
 }
 
+// Sàn vs paper: lệnh khớp thật trên OKX ghép với lệnh mô phỏng cùng nến -> đo độ lệch của giả lập (giá vào/đóng, tầng DCA, lệnh lệch)
+function CompareFills({ book }) {
+  const q = useAsync(() => getLiveCompare('demo', 'okx', book), [book], { poll: () => 120000 })
+  const c = q.data
+  const s = c?.summary
+  const bps = (v) => (isNum(v) ? `${v > 0 ? '+' : ''}${fmtNum(v, 1)} bps` : '—')
+  return (
+    <Panel title="Sàn thật so với paper" meta={<span>dương = sàn khớp kém hơn giả lập</span>}>
+      {q.error && <ErrorState title="Chưa so được" error={q.error} onRetry={q.reload} />}
+      {s && (s.matched + s.only_exec + s.only_paper === 0
+        ? <Empty title="Chưa có lệnh để so">Khi bot demo có lệnh đóng, mỗi lệnh sàn được ghép với lệnh paper cùng nến để đo chênh lệch khớp lệnh.</Empty>
+        : (
+          <>
+            <div className="n-lv-kpis">
+              <div className="n-tile"><div className="l">Cặp ghép được</div><div className="v">{s.matched}</div></div>
+              <div className="n-tile"><div className="l">Chỉ paper khớp</div><div className="v">{s.only_paper}</div><div className="l">giả lập lạc quan nếu nhiều</div></div>
+              <div className="n-tile"><div className="l">Chỉ sàn khớp</div><div className="v">{s.only_exec}</div></div>
+              <div className="n-tile"><div className="l">Chênh giá vào TB</div><div className="v">{bps(s.entry_bps_mean)}</div></div>
+              <div className="n-tile"><div className="l">Chênh giá đóng TB</div><div className="v">{bps(s.close_bps_mean)}</div></div>
+              <div className="n-tile"><div className="l">Lệch số tầng DCA</div><div className="v">{s.layers_diff}</div></div>
+              <div className="n-tile"><div className="l">Lãi/lỗ (% danh nghĩa)</div><div className="v"><span className={signClass(s.ret_pct_exec)}>{fmtSPct(s.ret_pct_exec, 2)}</span> sàn · <span className={signClass(s.ret_pct_paper)}>{fmtSPct(s.ret_pct_paper, 2)}</span> paper</div></div>
+            </div>
+            {c.pairs.length > 0 && (
+              <div className="n-tblwrap" style={{ marginTop: 10 }}>
+                <table className="n-tbl">
+                  <thead><tr><th>Vào lúc (UTC)</th><th>Cặp</th><th>Chiến lược</th><th className="r">Chênh giá vào</th><th className="r">Chênh giá đóng</th><th className="r">Tầng (sàn / paper)</th><th className="r">Lãi % (sàn / paper)</th><th>Thoát (sàn / paper)</th></tr></thead>
+                  <tbody>
+                    {c.pairs.map((p, i) => (
+                      <tr key={i}>
+                        <td className="num">{fmtTs(p.entry_time)}</td><td>{base(p.symbol)}</td><td>{legLabel(p.strategy)}</td>
+                        <td className="r">{bps(p.entry_bps)}</td><td className="r">{bps(p.close_bps)}</td>
+                        <td className="r">{p.layers[0] ?? '—'} / {p.layers[1] ?? '—'}</td>
+                        <td className="r">{fmtSPct(p.ret_pct[0], 2)} / {fmtSPct(p.ret_pct[1], 2)}</td>
+                        <td>{REASON[p.reason[0]] || p.reason[0] || '—'} / {REASON[p.reason[1]] || p.reason[1] || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        ))}
+    </Panel>
+  )
+}
+
 export default function Live() {
-  const [mode, setMode] = useState('paper')
+  const [tab, setTab] = useState('paper')
+  const [mode, book] = TAB[tab]
   const [sel, setSel] = useState(null) // { trade, title, strategy, symbol }
-  const q = useAsync(() => getLiveTrades(mode, 'okx', 200), [mode], { poll: () => 60000 })
+  const q = useAsync(() => getLiveTrades(mode, 'okx', 200, book), [mode, book], { poll: () => 60000 })
   const d = q.data
   const trades = useMemo(() => (d ? mergeTrades(d) : []), [d])
   const positions = useMemo(() => (d ? mergePositions(d) : []), [d])
@@ -123,7 +172,7 @@ export default function Live() {
   return (
     <>
       <PageHead kicker="Giao dịch tự động" title="Bot live · paper / demo" subtitle="Lệnh và vị thế của bot trên OKX (paper hoặc demo), kèm biểu đồ giải thích vì sao chiến lược vào lệnh. Danh sách tự làm mới mỗi 60 giây.">
-        <Segmented label="Chế độ" value={mode} onChange={setMode} options={MODES} />
+        <Segmented label="Bot" value={tab} onChange={setTab} options={TABS} />
       </PageHead>
 
       {q.error && <ErrorState title="Không tải được dữ liệu bot live" error={q.error} onRetry={q.reload} />}
@@ -131,6 +180,7 @@ export default function Live() {
       {d && (
         <div className="n-lv" style={{ opacity: q.loading ? 0.7 : 1 }}>
           <LiveOverview d={d} trades={trades} positions={positions} />
+          {mode === 'demo' && <CompareFills book={book} />}
 
           <Panel title="Tóm tắt" meta={<button type="button" className="n-btn sm" onClick={q.reload} disabled={q.loading}>Làm mới</button>}>
             <dl className="n-ex-kv n-lv-sum">

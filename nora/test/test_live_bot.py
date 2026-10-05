@@ -433,3 +433,48 @@ def test_live_trades_equity_series_from_events(tmp_path, monkeypatch):
     monkeypatch.setenv("NORA_LOCAL_DATA_ROOT", str(tmp_path / "none"))
     r = live_router.bot_trades(mode="demo", venue="okx", limit=10)
     assert r["equity_series"] == [] and r["started"] is None
+
+
+def test_compare_exec_with_paper_and_state_dirs_per_book():
+    from backend.live.compare import compare_trades
+    H = 3_600_000
+    ex = [{"symbol": "BTC", "strategy": "dca_long", "side": "LONG", "qty": 0.1, "avg": 101.0, "entry_time": 10 * H + 5_000,
+           "open_price": 101.0, "close_price": 103.0, "pnl": 0.19, "layers": 2, "reason": "Sàn đã đóng (SL/TP)"},
+          {"symbol": "ETH", "strategy": "dca_long", "side": "LONG", "qty": 1.0, "avg": 10.0, "entry_time": 30 * H, "layers": 1}]
+    pa = [{"symbol": "BTC@perp", "strategy": "dca_long", "enter_time": 10 * H, "enter_price": 100.0, "avg_price": 100.5, "close_price": 103.5,
+           "qty": 0.2, "pnl": 0.6, "layers": 2, "reason": "TP"},
+          {"symbol": "SOL@perp", "strategy": "dca_long", "enter_time": 12 * H, "enter_price": 5.0, "avg_price": 5.0, "close_price": 5.1,
+           "qty": 1, "pnl": 0.1, "layers": 1, "reason": "TP"}]
+    out = compare_trades(ex, pa, "1h")
+    s = out["summary"]
+    assert s["matched"] == 1 and s["only_exec"] == 1 and s["only_paper"] == 1
+    q = out["pairs"][0]
+    assert q["entry_bps"] == 100.0 and q["close_bps"] == round((103.5 - 103.0) / 103.5 * 10_000, 2)     # sàn mua đắt hơn, bán rẻ hơn: dương
+    assert q["ret_pct"][0] == round(0.19 / (0.1 * 101.0) * 100, 4)
+    assert lb.state_key("okx", "paper") == "okx_paper" and lb.state_key("okx", "paper", "explore") == "okx_paper_explore"
+
+
+def test_okx_closed_since_parses_positions_history(monkeypatch):
+    from backend.live import okx
+    a = okx.OkxAdapter(("K", "S", "P"), demo=True, pause=0)
+    rows = [{"cTime": "1000000", "uTime": "2000000", "closeAvgPx": "103.2", "openAvgPx": "101", "realizedPnl": "0.21", "fee": "-0.01",
+             "fundingFee": "0"},
+            {"cTime": "1", "uTime": "5", "closeAvgPx": "1", "openAvgPx": "1", "realizedPnl": "9", "fee": "0", "fundingFee": "0"}]
+    monkeypatch.setattr(a, "_req", lambda *x, **k: rows)
+    got = a.closed_since("BTC", 1_000_000)
+    assert got["close_price"] == 103.2 and got["open_price"] == 101.0 and got["pnl"] == 0.21 and got["exchange_close_time"] == 2_000_000
+
+
+def test_okx_equity_is_usdt_in_single_currency_margin(monkeypatch):
+    """Lỗi đã gặp trên demo: totalEq gồm cả BTC/OKB trong ví -> khối lượng gấp 20 lần số USDT ký quỹ được, tầng DCA bị từ chối 51008."""
+    from backend.live import okx
+    a = okx.OkxAdapter(("K", "S", "P"), demo=True, pause=0)
+    bal = [{"totalEq": "106651.4", "adjEq": "", "details": [{"ccy": "BTC", "eq": "1"}, {"ccy": "USDT", "eq": "4865.7"}]}]
+
+    def req(method, path, params=None, body=None, signed=False):
+        return [{"acctLv": "2"}] if path.endswith("/config") else bal
+    monkeypatch.setattr(a, "_req", req)
+    assert a.equity() == 4865.7
+    a._acct_lv = 3
+    bal[0]["adjEq"] = "100000"
+    assert a.equity() == 100000.0

@@ -225,4 +225,6 @@ export const getFunnelEstimate = ({ strategies, nPerStrategy, fullGrid, workers,
 /** Nến + đường chỉ báo + tín hiệu vào/thoát kèm giá trị từng điều kiện (POST /api/studio/chart/explain). */
 export const explainChart = (body) => request('/api/studio/chart/explain', { method: 'POST', body })
 /** Lệnh + vị thế của bot live theo chế độ (paper/demo/live): sàn + paper, sổ đang chạy, danh sách chiến lược/cặp. */
-export const getLiveTrades = (mode = 'paper', venue = 'okx', limit = 200) => request(`/api/studio/live/trades${qs({ mode, venue, limit })}`)
+export const getLiveTrades = (mode = 'paper', venue = 'okx', limit = 200, book = 'main') => request(`/api/studio/live/trades${qs({ mode, venue, limit, book })}`)
+/** Lệnh sàn (khớp thật) ghép với lệnh paper bóng cùng nến: {summary, pairs, only_exec, only_paper}. */
+export const getLiveCompare = (mode = 'demo', venue = 'okx', book = 'main') => request(`/api/studio/live/compare${qs({ mode, venue, book })}`)

@@ -61,6 +61,11 @@ def book_strategies(book: Dict[str, Any]) -> List[Dict[str, Any]]:
                         stop_fill="level") for s in book["strategies"]]
 
 
+def state_key(venue: str, mode: str, book: str = "main") -> str:
+    """Thư mục trạng thái của một bot: mỗi (sàn, chế độ, sổ) một thư mục — sổ thử nghiệm chạy song song sổ chính không giẫm trạng thái."""
+    return f"{venue}_{mode}" + ("_explore" if book == "explore" else "")
+
+
 def _archive_stale_state(sdir: str, spath: str, book: Dict[str, Any]) -> None:
     """Trạng thái của sổ KHÁC (book.generated_at khác) -> cất state.json / paper.pkl / events.jsonl vào sdir/archive_<giờ>/ (không xoá)."""
     names = [n for n in ("state.json", "paper.pkl", "events.jsonl") if os.path.isfile(os.path.join(sdir, n))]
@@ -211,14 +216,25 @@ class Bot:
         self.event("open", symbol=sym, strategy=e["strategy"], side=e["side"], qty=qty, price=fill, leverage=int(lev),
                    sl_pct=round(tr.sl_pct, 4), tp_pct=round(tr.tp_pct, 4), dca_layers=len(ladder))
 
+    def _record_close(self, sym: str, p: Dict[str, Any], reason: str, now: int) -> None:
+        """Ghi lệnh đã đóng; giá đóng / lãi lỗ / phí THẬT lấy từ lịch sử vị thế của sàn (nếu sàn hỗ trợ) để so với paper."""
+        rec = {**{k: p[k] for k in ("strategy", "side", "qty", "avg", "entry_time")}, "symbol": sym, "close_time": now,
+               "reason": reason, "layers": 1 + p["filled_layers"], "entry_price": p.get("entry_price")}
+        fetch = getattr(self.client, "closed_since", None)
+        if fetch is not None:
+            try:
+                rec.update(fetch(sym, int(p["entry_time"])) or {})
+            except Exception as e:                     # không lấy được: vẫn ghi lệnh, thiếu giá đóng thật
+                self.event("warn", symbol=sym, reason=f"không đọc được lịch sử vị thế: {e}")
+        self.state.d["last_close"][f"{p['strategy']}|{sym}"] = now
+        self.state.d["trades"].append(rec)
+        self.event("close", symbol=sym, strategy=p["strategy"], reason=reason, close_price=rec.get("close_price"), pnl=rec.get("pnl"))
+
     def _close_exec(self, sym: str, reason: str, now: int) -> None:
         p = self.state.d["positions"].pop(sym)
         self.client.cancel_all(sym)
         self.client.close_market(sym)
-        self.state.d["last_close"][f"{p['strategy']}|{sym}"] = now
-        self.state.d["trades"].append({**{k: p[k] for k in ("strategy", "side", "qty", "avg", "entry_time")}, "symbol": sym, "close_time": now,
-                                       "reason": reason, "layers": 1 + p["filled_layers"]})
-        self.event("close", symbol=sym, strategy=p["strategy"], reason=reason)
+        self._record_close(sym, p, reason, now)
 
     def reconcile(self, now: int) -> None:
         """Vị thế sàn là sự thật: sàn đã đóng (SL/TP) -> ghi nhận; khối lượng tăng (tầng DCA khớp) -> cập nhật giá TB, đặt lại SL/TP;
@@ -231,10 +247,7 @@ class Bot:
             if sym not in live:
                 d["positions"].pop(sym)
                 self.client.cancel_all(sym)
-                d["last_close"][f"{p['strategy']}|{sym}"] = now
-                d["trades"].append({**{k: p[k] for k in ("strategy", "side", "qty", "avg", "entry_time")}, "symbol": sym, "close_time": now,
-                                    "reason": "Sàn đã đóng (SL/TP)", "layers": 1 + p["filled_layers"]})
-                self.event("close", symbol=sym, strategy=p["strategy"], reason="Sàn đã đóng (SL/TP)")
+                self._record_close(sym, p, "Sàn đã đóng (SL/TP)", now)
                 continue
             amt, entry = live[sym]
             if abs(amt) > p["qty"] * (1 + 1e-6):
@@ -367,7 +380,7 @@ def run_job(params=None) -> Dict[str, Any]:
         raise SystemExit("mode live đặt lệnh bằng VỐN THẬT — cần confirm_live=true")
     book = load_book(kind=a.book, mode=a.mode)
     client, keys = make_adapter(a.venue, a.mode)
-    sdir = a.state_dir or cache_dir(None, "live", f"{a.venue}_{a.mode}")
+    sdir = a.state_dir or cache_dir(None, "live", state_key(a.venue, a.mode, a.book))
     os.makedirs(sdir, exist_ok=True)
     events, pkl, spath = os.path.join(sdir, "events.jsonl"), os.path.join(sdir, "paper.pkl"), os.path.join(sdir, "state.json")
     _archive_stale_state(sdir, spath, book)
