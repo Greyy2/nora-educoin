@@ -39,7 +39,7 @@ def compare_trades(exec_trades: List[Dict[str, Any]], paper_trades: List[Dict[st
             continue
         used.add(best)
         p = paper_trades[best]
-        real_in = x.get("open_price") or x.get("entry_price")
+        real_in = x.get("entry_price") or x.get("open_price")   # giá khớp lệnh ĐẦU (openAvgPx của sàn là giá TB gồm các tầng DCA)
         pairs.append({
             "symbol": x["symbol"], "strategy": x["strategy"], "side": x["side"], "entry_time": x["entry_time"],
             "entry_bps": _bps(real_in, p.get("enter_price"), x["side"], True),
