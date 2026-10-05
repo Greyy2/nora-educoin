@@ -32,9 +32,9 @@ F_QTY, F_AVG, F_MU, F_FP, F_LAST_FILL, F_NEXT, F_PEAK, F_MAE, F_RES_HERE, F_FUND
 F_DS0 = 19                    # F[:, F_DS0 + j] = bước DCA hiện tại (đã quy đổi theo unit)
 F_FIXED = 19
 # ── Tham số float P ─────────────────────────────────────────────────────────
-P_FEE, P_MAKER, P_SLIP, P_MMR, P_MAXLEV, P_CAPUSE, P_BSL, P_BTP, P_BTR, P_BTA, P_RISK, P_MAXNOT, P_OSP = range(13)
-P_BS0 = 13                    # P[:, P_BS0 + j] = bước DCA gốc; P[:, P_BS0 + ml + j] = hệ số khối lượng tầng j (ml = số cột tối đa)
-P_FIXED = 13
+P_FEE, P_MAKER, P_SLIP, P_MMR, P_MAXLEV, P_CAPUSE, P_BSL, P_BTP, P_BTR, P_BTA, P_RISK, P_MAXNOT, P_OSP, P_LTHRU = range(14)
+P_BS0 = 14                    # P[:, P_BS0 + j] = bước DCA gốc; P[:, P_BS0 + ml + j] = hệ số khối lượng tầng j (ml = số cột tối đa)
+P_FIXED = 14                  # P_LTHRU: lệnh limit (DCA, TP) chỉ khớp khi giá đi qua mức bấy nhiêu (tỉ lệ); 0 = chạm là khớp
 # ── Tham số int PI ──────────────────────────────────────────────────────────
 PI_LONG, PI_PERP, PI_TIMEOUT, PI_COOL, PI_EXTREME, PI_ATR, PI_RISKSZ, PI_NBASE, PI_MAXOPEN = range(9)
 NPI = 9
@@ -367,8 +367,10 @@ def _intrabar(k, t, o, h, l, ML, MH, ja, jb, P, PI, F, I, LG, G, outF, outI, ord
         best_prio = 0
         best_kind = 0                      # 0 dca, 1 sl, 2 trail, 3 liq
         kk = I[k, I_LAYERS] - 1
+        dca_level = 0.0
         if kk < I[k, I_NST] and I[k, I_DCAOK] == 1:
-            level = F[k, F_LAST_FILL] * (1.0 - sign * F[k, F_DS0 + kk] / 100.0)
+            dca_level = F[k, F_LAST_FILL] * (1.0 - sign * F[k, F_DS0 + kk] / 100.0)
+            level = dca_level * (1.0 - sign * P[k, P_LTHRU]) if P[k, P_LTHRU] != 0.0 else dca_level
             if (adverse <= level) if long_ else (adverse >= level):
                 have = True
                 best_level = level
@@ -415,6 +417,10 @@ def _intrabar(k, t, o, h, l, ML, MH, ja, jb, P, PI, F, I, LG, G, outF, outI, ord
         else:
             price = o if o > level else level                 # max(level, open)
         if best_kind == 0:
+            if long_:
+                price = o if o < dca_level else dca_level     # lệnh limit khớp ở giá đặt (hoặc giá mở nếu gap qua mức)
+            else:
+                price = o if o > dca_level else dca_level
             margin = F[k, F_NEXT] * P[k, P_BS0 + ml + kk]
             if _add_layer(k, t, price, margin, False, R_DCA, P, PI, F, I, LG, G, outF, outI, ordF, ordI):
                 F[k, F_NEXT] = margin
@@ -449,7 +455,8 @@ def _intrabar(k, t, o, h, l, ML, MH, ja, jb, P, PI, F, I, LG, G, outF, outI, ord
         return True
     if F[k, F_TP] != 0.0 and not dca_filled:
         tp_level = F[k, F_AVG] * (1.0 + sign * F[k, F_TP] / 100.0)
-        if (favorable >= tp_level) if long_ else (favorable <= tp_level):
+        need = tp_level * (1.0 + sign * P[k, P_LTHRU]) if P[k, P_LTHRU] != 0.0 else tp_level
+        if (favorable >= need) if long_ else (favorable <= need):
             if long_:
                 price = o if o > tp_level else tp_level       # max(tp_level, open)
             else:
@@ -518,6 +525,8 @@ def _quiet_bar(k, t, o, h, l, peak, P, PI, F, I):
     kk = I[k, I_LAYERS] - 1
     if kk < I[k, I_NST] and I[k, I_DCAOK] == 1:
         level = F[k, F_LAST_FILL] * (1.0 - sign * F[k, F_DS0 + kk] / 100.0)
+        if P[k, P_LTHRU] != 0.0:
+            level = level * (1.0 - sign * P[k, P_LTHRU])
         if (adverse <= level) if long_ else (adverse >= level):
             return False
     if F[k, F_SL] != 0.0:
@@ -543,6 +552,8 @@ def _quiet_bar(k, t, o, h, l, peak, P, PI, F, I):
                 return False
     if F[k, F_TP] != 0.0:
         tp_level = F[k, F_AVG] * (1.0 + sign * F[k, F_TP] / 100.0)
+        if P[k, P_LTHRU] != 0.0:
+            tp_level = tp_level * (1.0 + sign * P[k, P_LTHRU])
         if (favorable >= tp_level) if long_ else (favorable <= tp_level):
             return False
     return True
@@ -1103,6 +1114,7 @@ def pack_trackers(trackers: List[Any]) -> Tuple[np.ndarray, np.ndarray, np.ndarr
         P[k, P_MAXLEV], P[k, P_CAPUSE] = tr.max_leverage, tr.capital_usage
         P[k, P_BSL], P[k, P_BTP], P[k, P_BTR], P[k, P_BTA] = tr.base_sl, tr.base_tp, tr.base_trail, tr.base_trail_act
         P[k, P_RISK], P[k, P_MAXNOT], P[k, P_OSP] = tr.risk_pct, tr.max_notional_pct, tr.order_size_pct
+        P[k, P_LTHRU] = tr.limit_through
         for j, s in enumerate(tr.base_dca_steps):
             P[k, P_BS0 + j] = s
         for j, m in enumerate(tr.dca_mults):

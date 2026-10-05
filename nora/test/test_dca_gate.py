@@ -48,3 +48,18 @@ def test_dca_legs_materialize_gate_and_validate():
         assert gen.validate_alpha(c, prm, "schema", "1h") is None
     cat = {s["id"]: s for s in sb.STRATEGIES}
     assert cat["dca"]["legs"] == {"LONG": "dca_long", "SHORT": "dca_short"} and not cat["dca"].get("coming")
+
+
+def test_limit_through_requires_price_beyond_level_and_fills_at_limit():
+    """limit_through_pct: tầng DCA / chốt lời chỉ khớp khi giá đi QUA mức; khớp ở đúng giá đặt (không lấy giá tốt hơn)."""
+    def run(through, low):
+        pos = {**POS, "limit_through_pct": through}
+        flow = {"type": "LONG", "match": [{"condition": [[[1, ">", 0]]]}], "stop": []}
+        tr = PositionTracker(0, 0, "X", "LONG_t", build_params("LONG_t", flow, "LONG", pos, "cex"), PositionType.LONG, 10000.0)
+        tr.on_bar(0, 100, 100, 100, 100, entry_signal=True, stop_signal=False)
+        tr.on_bar(60_000, 100, 100, low, low, entry_signal=False, stop_signal=False)   # mức DCA đầu = 99
+        return tr
+    assert run(0.0, 99.0).layer_count == 2                     # chạm là khớp
+    assert run(0.2, 99.0).layer_count == 1                     # chỉ chạm: chưa khớp
+    tr = run(0.2, 98.7)                                        # đi qua 99 × (1 − 0,2%) = 98,80 -> khớp ở 99
+    assert tr.layer_count == 2 and abs(tr.last_fill - 99.0 * (1 + tr.slippage_rate)) < 1e-9     # giá đặt 99 (+ trượt giá như mọi lệnh)

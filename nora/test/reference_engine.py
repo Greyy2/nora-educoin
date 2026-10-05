@@ -119,6 +119,8 @@ class RefPositionTracker:
         self.last_close_time: Optional[int] = None   # thời điểm đóng vị thế gần nhất (cho cooldown)
         self.dca_rejected = 0       # số tầng DCA bị từ chối vì hết ngân sách vốn (không đổi logic khớp lệnh)
         self.stop_fill = str(getattr(params, "stop_fill", "level") or "level").lower()
+        # lệnh limit (tầng DCA, chốt lời) chỉ khớp khi giá đi QUA mức bấy nhiêu % (hàng đợi sổ lệnh); 0 = chạm là khớp
+        self.limit_through = max(0.0, float(getattr(params, "limit_through_pct", 0.0) or 0.0)) / 100.0
         if self.stop_fill not in ("level", "extreme"):
             raise ValueError(f"stop_fill phải là 'level' hoặc 'extreme', nhận '{self.stop_fill}'")
         self.exit_unit = str(getattr(params, "exit_unit", "pct") or "pct").lower()
@@ -422,9 +424,11 @@ class RefPositionTracker:
         while True:
             events: List[Tuple[float, int, str]] = []  # (mức, ưu tiên khi hoà: thoát trước, loại)
             k = self.layer_count - 1
+            dca_level = None
             if k < len(self.dca_steps) and self.dca_ok:
-                level = self.last_fill * (1 - sign * self.dca_steps[k] / 100.0)
-                events.append((level, 1, "dca"))
+                dca_level = self.last_fill * (1 - sign * self.dca_steps[k] / 100.0)
+                trigger = dca_level * (1 - sign * self.limit_through) if self.limit_through else dca_level
+                events.append((trigger, 1, "dca"))
             if self.sl_pct:
                 events.append((self.avg * (1 - sign * self.sl_pct / 100.0), 0, "sl"))
             if self.trail_pct:
@@ -442,6 +446,7 @@ class RefPositionTracker:
                               else min(reached, key=lambda e: (e[0], e[1])))
             price = self._gap_fill(level, o)
             if kind == "dca":
+                price = self._gap_fill(dca_level, o)        # lệnh limit khớp ở giá đặt (hoặc giá mở nếu gap qua mức)
                 margin = self.next_margin * self.dca_mults[k]
                 if self._add_layer(t, price, margin, market_order=False, reason="DCA"):
                     self.next_margin = margin
@@ -461,7 +466,8 @@ class RefPositionTracker:
 
         if self.tp_pct and not dca_filled:
             tp_level = self.avg * (1 + sign * self.tp_pct / 100.0)
-            if (favorable >= tp_level) if self.is_long else (favorable <= tp_level):
+            need = tp_level * (1 + sign * self.limit_through) if self.limit_through else tp_level
+            if (favorable >= need) if self.is_long else (favorable <= need):
                 price = max(tp_level, o) if self.is_long else min(tp_level, o)
                 return self._close(t, price, PositionStatus.TP, "Take-profit (từ giá TB)", market_order=False)
         return None
@@ -682,8 +688,8 @@ class RefBacktestEngine:
         worst = sum(tr.unrealized_pnl_usd(low if tr.is_long else high) for tr in self.trackers)
         self.equity_curve.append({
             "time": t,
-            "equity": round(self.ledger.equity + mtm, 4),
-            "equity_worst": round(self.ledger.equity + worst, 4),
+            "equity": round(float(self.ledger.equity + mtm), 4),
+            "equity_worst": round(float(self.ledger.equity + worst), 4),
         })
 
     def get_results(self):
@@ -999,7 +1005,7 @@ class RefPortfolioEngine:
                     self._collect(book["symbol"], e, pos)
 
     def _sample(self, t: int, mtm: float, worst: float) -> None:
-        self.equity_curve.append({"time": t, "equity": round(mtm, 4), "equity_worst": round(worst, 4)})
+        self.equity_curve.append({"time": t, "equity": round(float(mtm), 4), "equity_worst": round(float(worst), 4)})   # round của Python, không phải np.round
 
     def _collect(self, symbol: str, entry: Dict[str, Any], pos) -> None:
         pos.symbol = symbol

@@ -18,7 +18,8 @@ from backend.core.strategy.library import calc, cond, cross_over, cross_under, f
 
 UNIVERSE = ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA", "AVAX"]
 MAX_LEVERAGE = 10
-BASE_RISK_PER_TRADE_PCT = 0.5   # mức chuẩn khi chọn chiến lược; mức cuối do bootstrap ngân sách MDD quyết định
+BASE_RISK_PER_TRADE_PCT = 0.5
+PESSIMISTIC_LIMIT_THROUGH_PCT = 0.15   # kịch bản bi quan (stop_fill="extreme"): lệnh limit phải đi qua mức 0,15% mới khớp   # mức chuẩn khi chọn chiến lược; mức cuối do bootstrap ngân sách MDD quyết định
 
 RISK = {
     "max_positions": 8,          # tối đa số vị thế mở đồng thời (toàn danh mục)
@@ -38,6 +39,7 @@ BASE_POSITION = {
     "market": "perp", "leverage": MAX_LEVERAGE, "exit_unit": "atr", "atr_frame": "1h", "atr_period": 14,
     "sizing": "risk", "risk_per_trade_pct": BASE_RISK_PER_TRADE_PCT, "max_notional_pct": 300.0,
     "stop_fill": "level",
+    "limit_through_pct": 0.05,   # lệnh limit (tầng DCA, chốt lời) chỉ khớp khi giá đi QUA mức 0,05% (hàng đợi sổ lệnh), không phải chạm là khớp
     "cooldown": 60,   # phút: một nến 1h — tránh vào lại ngay trên cùng trạng thái tín hiệu cũ sau khi vừa thoát (SL/trailing)
 }
 
@@ -284,10 +286,13 @@ def materialize(candidate: Dict[str, Any], params: Dict[str, Any], regime: Any =
         extra["stop"] = [{"condition": resolve_placeholders(candidate["stop"], signal, signal_defaults(candidate))}]
     if candidate.get("dca_gate"):   # điều kiện cho phép dồn tầng DCA (dồn có điều kiện)
         extra["dca"] = [{"condition": resolve_placeholders(candidate["dca_gate"], signal, signal_defaults(candidate))}]
+    pos = {**BASE_POSITION, **candidate.get("position", {}), **position, **position_overrides}
+    if pos.get("stop_fill") == "extreme" and "limit_through_pct" not in position and "limit_through_pct" not in position_overrides:
+        pos["limit_through_pct"] = PESSIMISTIC_LIMIT_THROUGH_PCT   # bi quan cả cắt lỗ (giá xấu nhất) lẫn lệnh limit (phải đi qua mức)
     return {**extra,
         "id": candidate["id"], "side": candidate["side"],
         "tree": resolve_placeholders(candidate["tree"], signal, signal_defaults(candidate)),
-        "position": {**BASE_POSITION, **candidate.get("position", {}), **position, **position_overrides},
+        "position": pos,
         "signal_params": signal,
     }
 

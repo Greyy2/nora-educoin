@@ -272,6 +272,7 @@ def rand_position(rng, side, force_perp=False):
     p["timeout"] = rng.choice([0, 0, 45, 240, 1440, 4000])
     p["cooldown"] = rng.choice([0, 0, 15, 60, 600])
     p["stop_fill"] = rng.choice(["level", "extreme"])
+    p["limit_through_pct"] = rng.choice([0.0, 0.0, _rf(rng, 0.02, 0.3)])   # lệnh limit phải đi qua mức (DCA / chốt lời)
     p["max_open_trades"] = rng.choice([1, 2, 45])
     p["sizing"] = "risk" if rng.random() < 0.55 else "margin_pct"
     if p["sizing"] == "risk" and p["stop_loss_rate"] <= 0:
