@@ -143,9 +143,6 @@ def _dca_schema(side_key, side_default, side_lo, side_hi, side_label):
         "sig.er_n": _int("signal", "Chu kỳ ER", 20, 5, 100, "nến", "Chu kỳ Efficiency Ratio (1 = xu hướng, 0 = đi ngang)."),
         "sig.er_max": _flt("signal", "Vào lệnh khi ER dưới", 0.35, 0.1, 0.7, 0.05, "", "Chỉ mở lệnh đầu khi thị trường đi ngang."),
         "sig.adx_n": _int("signal", "Chu kỳ ADX", 14, 5, 50, "nến", "Chu kỳ ADX đo độ mạnh xu hướng."),
-        "sig.trend_n": _int("signal", "Chu kỳ EMA lọc xu hướng", 200, 50, 300, "nến", "EMA (khung điểm vào) dùng khi bật lọc xu hướng."),
-        "sig.trend_on": _int("signal", "Lọc theo xu hướng", 0, 0, 1, "", "1 = Long chỉ khi giá trên EMA, Short chỉ khi giá dưới EMA; 0 = tắt. "
-                             "(Tham khảo bot OKX: lệnh Long của họ hay vào khi giá trên EMA200.)"),
         "sig.gate_er_max": _flt("signal", "Chỉ dồn khi ER dưới", 0.4, 0.1, 0.8, 0.05, "",
                                 "Tầng DCA chỉ khớp khi ER còn thấp; ER tăng (bắt đầu có xu hướng) thì ngừng dồn."),
         "sig.gate_adx_max": _flt("signal", "Chỉ dồn khi ADX dưới", 25.0, 10.0, 50.0, 1.0, "",
@@ -161,9 +158,6 @@ def _dca_schema(side_key, side_default, side_lo, side_hi, side_label):
 def _dca_leg(side: str) -> Dict[str, Any]:
     long_ = side == "LONG"
     rsi = (f("{entry_tf}", "rsi_{rsi_n}"), "<", p("rsi_lo", 30)) if long_ else (f("{entry_tf}", "rsi_{rsi_n}"), ">", p("rsi_hi", 70))
-    ema = f("{entry_tf}", "ema_{trend_n}")      # lọc xu hướng tuỳ chọn: trend_on = 0 -> so với 0 (luôn đúng), 1 -> so với EMA
-    trend = ((f("{entry_tf}", "close"), ">", calc(ema, "*", p("trend_on", 0))) if long_
-             else (calc(f("{entry_tf}", "close"), "*", p("trend_on", 0)), "<", ema))
     band = ((f("{entry_tf}", "close"), "<", f("{entry_tf}", "bbl_{bb_n}_{bb_k}")) if long_
             else (f("{entry_tf}", "close"), ">", f("{entry_tf}", "bbu_{bb_n}_{bb_k}")))
     schema = _dca_schema("sig.rsi_lo", 30.0, 10.0, 45.0, "RSI quá bán") if long_ else _dca_schema("sig.rsi_hi", 70.0, 55.0, 90.0, "RSI quá mua")
@@ -174,7 +168,7 @@ def _dca_leg(side: str) -> Dict[str, Any]:
                          if long_ else
                          "RSI quá mua và giá trên dải Bollinger trên khi thị trường đi ngang → bán; giá tăng tiếp thì dồn thêm tầng theo bước ATR ")
                         + "CHỈ khi vẫn đi ngang (ER, ADX thấp). Chốt lời và cắt lỗ cả rổ tính từ giá trung bình."),
-        "tree": cond(rsi, band, (f("{regime_tf}", "er_{er_n}"), "<", p("er_max", 0.35)), trend),
+        "tree": cond(rsi, band, (f("{regime_tf}", "er_{er_n}"), "<", p("er_max", 0.35))),
         "dca_gate": cond((f("{regime_tf}", "er_{er_n}"), "<", p("gate_er_max", 0.4)),
                          (f("{regime_tf}", "adx_{adx_n}"), "<", p("gate_adx_max", 25.0))),
         "position": {"exit_unit": "atr"},
