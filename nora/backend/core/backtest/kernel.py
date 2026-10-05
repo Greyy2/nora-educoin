@@ -44,7 +44,7 @@ NI = 13                       # I_DCAOK: 1 = nến này được dồn tầng DC
 # ── Bộ đếm G ────────────────────────────────────────────────────────────────
 G_REJ, G_NPOS, G_NORD, G_NCL, G_OVF, G_RISKMIN, G_ATT, G_HALT, G_RUIN, G_NSMP = range(10)
 NG = 10
-LG_EQ, LG_RES = 0, 1
+LG_EQ, LG_RES, LG_PEAK = 0, 1, 2      # LG_PEAK: đỉnh vốn đã chốt (giảm rủi ro theo mức sụt)
 # ── Đầu ra vị thế (outF / outI) và lệnh (ordF / ordI) ───────────────────────
 (O_ENTER_PRICE, O_CLOSE_PRICE, O_PNL, O_PCT, O_QTY, O_AVG, O_ENTRY_EQ, O_ENTRY_MARGIN, O_ENTRY_NOTIONAL, O_ENTRY_FEE, O_EXIT_FEE,
  O_TOTAL_MARGIN, O_FEES, O_FUNDING, O_MAE, O_MAXP, O_MINP, O_UNIT, O_LEVUSED, O_RISK) = range(20)
@@ -100,6 +100,8 @@ def _apply_funding(k, rate, price, PI, F, I, LG):
     payment = F[k, F_QTY] * price * rate * (1.0 if PI[k, PI_LONG] == 1 else -1.0)
     F[k, F_FUND] += payment
     LG[LG_EQ] = LG[LG_EQ] + (-payment)
+    if LG[LG_EQ] > LG[LG_PEAK]:
+        LG[LG_PEAK] = LG[LG_EQ]
 
 
 @njit(**_JIT)
@@ -240,6 +242,8 @@ def _close(k, t, raw_price, status, reason, market, P, PI, F, I, LG, G, outF, ou
     r = LG[LG_RES] - F[k, F_RES_HERE]
     LG[LG_RES] = r if r > 0.0 else 0.0                    # max(0.0, reserved - amount)
     LG[LG_EQ] = LG[LG_EQ] + trade_cash
+    if LG[LG_EQ] > LG[LG_PEAK]:
+        LG[LG_PEAK] = LG[LG_EQ]
     net = trade_cash - F[k, F_FUND]
     ee = F[k, F_ENTRY_EQ]
     pidx = I[k, I_POS]
@@ -301,7 +305,7 @@ def _status_by_pnl(k, price, PI, F):
 
 
 @njit(**_JIT)
-def _open(k, t, open_price, max_new, P, PI, F, I, LG, G, outF, outI, ordF, ordI):
+def _open(k, t, open_price, max_new, max_risk, rscale, P, PI, F, I, LG, G, outF, outI, ordF, ordI):
     if LG[LG_EQ] <= 0.0:
         return
     unit = 1.0
@@ -324,6 +328,9 @@ def _open(k, t, open_price, max_new, P, PI, F, I, LG, G, outF, outI, ordF, ordI)
     else:
         margin = eq * P[k, P_OSP] / 100.0
     lev = F[k, F_POS_LEV]
+    if rscale != 1.0:                                     # danh mục đang sụt vốn: thu nhỏ lệnh mới
+        margin = margin * rscale
+        F[k, F_PLANNED] = F[k, F_PLANNED] * rscale
     m = margin
     x = budget / (1.0 + lev * P[k, P_FEE])
     if x < m:
@@ -335,6 +342,12 @@ def _open(k, t, open_price, max_new, P, PI, F, I, LG, G, outF, outI, ordF, ordI)
     if PI[k, PI_RISKSZ] == 1 and margin > 0.0:
         v = margin * lev * (F[k, F_SL] / 100.0 + 2.0 * (P[k, P_FEE] + P[k, P_SLIP])) * _layer_mult_total(k, I[k, I_NST], P)
         F[k, F_PLANNED] = _pmin(F[k, F_PLANNED], v)
+    if max_risk != np.inf and F[k, F_PLANNED] > max_risk:   # vượt trần rủi ro đang mở của danh mục
+        if max_risk <= 0.0:
+            margin = 0.0
+        else:
+            margin = margin * (max_risk / F[k, F_PLANNED])
+            F[k, F_PLANNED] = max_risk
     if margin <= 0.0:
         G[G_REJ] += 1
         return
@@ -467,8 +480,8 @@ def _intrabar(k, t, o, h, l, ML, MH, ja, jb, P, PI, F, I, LG, G, outF, outI, ord
 
 
 @njit(**_JIT)
-def _on_bar(k, t, o, h, l, c, ML, MH, ja, jb, entry_signal, stop_signal, can_open, max_new, vol, dca_gate, P, PI, F, I, LG, G, outF, outI, ordF, ordI,
-            closeSeq):
+def _on_bar(k, t, o, h, l, c, ML, MH, ja, jb, entry_signal, stop_signal, can_open, max_new, vol, dca_gate, max_risk, rscale, P, PI, F, I, LG, G,
+            outF, outI, ordF, ordI, closeSeq):
     """Một nến có giao dịch cho tracker k. Trả True nếu vị thế vừa đóng."""
     closed = False
     long_ = PI[k, PI_LONG] == 1
@@ -482,7 +495,7 @@ def _on_bar(k, t, o, h, l, c, ML, MH, ja, jb, entry_signal, stop_signal, can_ope
     if (not closed) and I[k, I_OPEN] == 0 and I[k, I_PE] == 1:
         I[k, I_PE] = 0
         if can_open:
-            _open(k, t, o, max_new, P, PI, F, I, LG, G, outF, outI, ordF, ordI)
+            _open(k, t, o, max_new, max_risk, rscale, P, PI, F, I, LG, G, outF, outI, ordF, ordI)
     if I[k, I_OPEN] == 1 and not closed:
         pidx = I[k, I_POS]
         if h > outF[pidx, O_MAXP]:
@@ -626,6 +639,9 @@ def portfolio_kernel(PB, BL, PE, tr_book, book_off, P, PI, F, I, cfg_i, cfg_f,
     init_cap = cfg_f[0]
     cap = cfg_f[1]
     kill = cfg_f[2]
+    risk_cap = cfg_f[3]                          # trần Σ rủi ro tới SL của vị thế mở (tỉ lệ vốn); 0 = tắt
+    thr = cfg_f[4]                               # giảm rủi ro theo mức sụt vốn đã chốt (tỉ lệ); 0 = tắt
+    thr_floor = cfg_f[5]
     ffwd = kill == 0.0                           # tua nhanh phút yên tĩnh chỉ khi không có kill switch (cần MTM từng phút)
 
     # view mảng (không sao chép)
@@ -864,6 +880,8 @@ def portfolio_kernel(PB, BL, PE, tr_book, book_off, P, PI, F, I, cfg_i, cfg_f,
                     continue
                 can_open = False
                 max_new = np.inf
+                max_risk = np.inf
+                rscale = 1.0
                 if can_trade and I[k, I_PE] == 1 and I[k, I_OPEN] == 0:
                     n_open = 0
                     per_b = 0
@@ -891,6 +909,19 @@ def portfolio_kernel(PB, BL, PE, tr_book, book_off, P, PI, F, I, cfg_i, cfg_f,
                         room = cap * LG[LG_EQ] - total
                         max_new = _pmax(0.0, room)
                         can_open = room > 0.0
+                        if can_open and risk_cap != 0.0:
+                            open_risk = 0.0
+                            for kk in range(nt):
+                                if I[kk, I_OPEN] == 1:
+                                    open_risk += F[kk, F_PLANNED]
+                            max_risk = risk_cap * LG[LG_EQ] - open_risk
+                            can_open = max_risk > 0.0
+                        if can_open and thr != 0.0 and LG[LG_PEAK] > 0.0:
+                            rscale = 1.0 - (1.0 - LG[LG_EQ] / LG[LG_PEAK]) / thr
+                            if rscale < thr_floor:
+                                rscale = thr_floor
+                            if rscale > 1.0:
+                                rscale = 1.0
                         blocked = not can_open
                     if blocked:
                         G[G_RISKMIN] += 1
@@ -900,7 +931,7 @@ def portfolio_kernel(PB, BL, PE, tr_book, book_off, P, PI, F, I, cfg_i, cfg_f,
                 vol = Vs[k][i] if PE[k, 3] == 1 else np.nan
                 gate = Gs[k][i] if PE[k, 5] == 1 else True
                 closed = _on_bar(k, t, o, h, l, c, MLs[b], MHs[b], ja, jb, sig and can_trade, Ss[k][i], can_open, max_new, vol, gate,
-                                 P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq)
+                                 max_risk, rscale, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq)
                 if I[k, I_OPEN] == 1 or I[k, I_PE] == 1:
                     busy = True
                 if closed and LG[LG_EQ] <= 0.0 and ruined_at == NONE_I:
@@ -1049,7 +1080,7 @@ def single_kernel(PB, BL, PE, P, PI, F, I, cfg_i, cfg_f,
             vol = Vs[k][i] if PE[k, 3] == 1 else np.nan
             gate = Gs[k][i] if PE[k, 5] == 1 else True
             closed = _on_bar(k, t, Oo[i], Hh[i], Ll[i], Cc[i], ML, MH, MA[i] if hm else 0, MB[i] if hm else 0, sig and can_trade, Ss[k][i],
-                             can_trade and open_now < PI[k, PI_MAXOPEN], np.inf, vol, gate,
+                             can_trade and open_now < PI[k, PI_MAXOPEN], np.inf, vol, gate, np.inf, 1.0,
                              P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq)
             if I[k, I_OPEN] == 1 or I[k, I_PE] == 1:
                 busy = True
@@ -1352,7 +1383,8 @@ def run_portfolio(eng: Any) -> None:
         tab.entry(k, e["match"], e["stop"], e["vol"], e.get("dca"))
     cfg_i = np.array([eng.trade_start_ts, risk.max_positions, risk.max_per_symbol, 1 if eng.close_at_end else 0,
                       eng.MTM_SAMPLE_MINUTES * 60_000, tab.addr(grid), n], dtype=np.int64)
-    cfg_f = np.array([eng.initial_capital, risk.max_gross_exposure, kill])
+    cfg_f = np.array([eng.initial_capital, risk.max_gross_exposure, kill, float(risk.max_open_risk_pct or 0.0) / 100.0,
+                      float(risk.dd_throttle_pct or 0.0) / 100.0, float(risk.dd_throttle_floor)])
     tr_book_a, book_off_a = np.asarray(tr_book, dtype=np.int64), np.asarray(book_off, dtype=np.int64)
     span_samples = int((int(grid[-1]) - int(grid[0])) // int(cfg_i[4])) + 8
 
@@ -1361,7 +1393,7 @@ def run_portfolio(eng: Any) -> None:
         outs = _alloc(cap_pos, cap_ord, min(n, span_samples) + 8)
         P2, PI2, F2, I2 = P.copy(), PI, F.copy(), I.copy()
         G = np.zeros(NG, dtype=np.int64)
-        LG = np.array([eng.ledger.equity, eng.ledger.reserved])
+        LG = np.array([eng.ledger.equity, eng.ledger.reserved, eng.ledger.peak])
         last_px = np.zeros((nb, 4))
         portfolio_kernel(tab.PB, tab.BL, tab.PE, tr_book_a, book_off_a, P2, PI2, F2, I2, cfg_i, cfg_f,
                            outs[0], outs[1], outs[2], outs[3], outs[4], outs[5], outs[6], outs[7], G, LG, last_px)
@@ -1375,7 +1407,7 @@ def run_portfolio(eng: Any) -> None:
     eng.closed_positions, eng.orders = _build_objects(trackers, meta, F2, I2, outs, G)
     eng.equity_curve = _round_curve(outs[5], outs[6], outs[7], int(G[G_NSMP]))
     _writeback(trackers, P2, F2, I2)
-    eng.ledger.equity, eng.ledger.reserved = float(LG[LG_EQ]), float(LG[LG_RES])
+    eng.ledger.equity, eng.ledger.reserved, eng.ledger.peak = float(LG[LG_EQ]), float(LG[LG_RES]), float(LG[LG_PEAK])
     eng.ledger.rejected += int(G[G_REJ])
     eng.rejected_for_risk += int(G[G_RISKMIN])
     eng.risk_blocked_attempts += int(G[G_ATT])
@@ -1462,7 +1494,7 @@ def run_single(eng: Any, t, o, h, l, c, signals: List[Tuple[np.ndarray, ...]], v
         outs = _alloc(cap_pos, cap_ord, min(n, span_samples + 2 * cap_pos) + 8)
         P2, PI2, F2, I2 = P.copy(), PI, F.copy(), I.copy()
         G = np.zeros(NG, dtype=np.int64)
-        LG = np.array([eng.ledger.equity, eng.ledger.reserved])
+        LG = np.array([eng.ledger.equity, eng.ledger.reserved, eng.ledger.peak])
         single_kernel(tab.PB, tab.BL, tab.PE, P2, PI2, F2, I2, cfg_i, cfg_f,
                         outs[0], outs[1], outs[2], outs[3], outs[4], outs[5], outs[6], outs[7], G, LG)
         if G[G_OVF] == 0:
@@ -1474,6 +1506,6 @@ def run_single(eng: Any, t, o, h, l, c, signals: List[Tuple[np.ndarray, ...]], v
     eng.closed_positions, eng.orders = _build_objects(trackers, meta, F2, I2, outs, G)
     eng.equity_curve = _round_curve(outs[5], outs[6], outs[7], int(G[G_NSMP]))
     _writeback(trackers, P2, F2, I2)
-    eng.ledger.equity, eng.ledger.reserved = float(LG[LG_EQ]), float(LG[LG_RES])
+    eng.ledger.equity, eng.ledger.reserved, eng.ledger.peak = float(LG[LG_EQ]), float(LG[LG_RES]), float(LG[LG_PEAK])
     eng.ledger.rejected += int(G[G_REJ])
     eng.ruined_at = None if G[G_RUIN] == NONE_I else int(G[G_RUIN])

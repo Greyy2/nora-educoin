@@ -51,6 +51,7 @@ class RefCapitalLedger:
         self.reserved = 0.0
         self.usage = max(0.0, min(float(usage), 1.0))
         self.rejected = 0  # số lần vào lệnh/tầng bị từ chối vì không đủ vốn
+        self.peak = float(capital)   # đỉnh vốn ĐÃ CHỐT (cho giảm rủi ro theo mức sụt — dd_throttle_pct)
 
     def free(self) -> float:
         return self.equity * self.usage - self.reserved
@@ -67,6 +68,8 @@ class RefCapitalLedger:
 
     def settle(self, cash_delta: float) -> None:
         self.equity += cash_delta
+        if self.equity > self.peak:
+            self.peak = self.equity
 
 
 class RefPositionTracker:
@@ -151,6 +154,8 @@ class RefPositionTracker:
         self.pos_leverage = self.leverage
         self.planned_risk = 0.0
         self.max_new_notional = float("inf")  # trần danh nghĩa cho lệnh sắp mở (do danh mục đặt theo max_gross_exposure)
+        self.max_new_risk = float("inf")      # trần rủi ro (tới SL, cả rổ DCA) cho lệnh sắp mở (danh mục: max_open_risk_pct)
+        self.risk_scale = 1.0                 # hệ số rủi ro do danh mục đặt (giảm theo mức sụt vốn: dd_throttle_pct)
         self.unit_pct = 0.0
         self.pending_vol = float("nan")
         self.skipped_no_vol = 0     # tín hiệu vào lệnh nhưng chưa có ATR (giai đoạn khởi động)
@@ -291,11 +296,20 @@ class RefPositionTracker:
             margin = self._risk_margin()
         else:
             margin = self.equity * self.order_size_pct / 100.0
+        if self.risk_scale != 1.0:                            # danh mục đang sụt vốn: thu nhỏ lệnh mới
+            margin = margin * self.risk_scale
+            self.planned_risk = self.planned_risk * self.risk_scale
         margin = min(margin, budget / (1.0 + self.pos_leverage * self.fee_rate),
                      self.max_new_notional / self.pos_leverage)
         if self.sizing == "risk" and margin > 0:
             self.planned_risk = min(self.planned_risk, margin * self.pos_leverage * (self.sl_pct / 100.0 + 2.0 * (
                 self.fee_rate + self.slippage_rate)) * self._layer_mult_total())
+        if self.max_new_risk != float("inf") and self.planned_risk > self.max_new_risk:   # vượt trần rủi ro đang mở của danh mục
+            if self.max_new_risk <= 0:
+                margin = 0.0
+            else:
+                margin = margin * (self.max_new_risk / self.planned_risk)
+                self.planned_risk = self.max_new_risk
         if margin <= 0:
             self.ledger.rejected += 1  # tín hiệu vào lệnh nhưng không còn vốn trống
             return
@@ -910,6 +924,20 @@ class RefPortfolioEngine:
                             room = cap * self.ledger.equity - self._gross_notional(last_close)
                             tr.max_new_notional = max(0.0, room)
                             can_open = room > 0
+                            risk_cap = float(self.risk.max_open_risk_pct or 0.0) / 100.0
+                            if can_open and risk_cap != 0.0:
+                                open_risk = 0.0
+                                for bk in self.books:
+                                    for ee in bk["entries"]:
+                                        if ee["tracker"].is_open:
+                                            open_risk += ee["tracker"].planned_risk
+                                tr.max_new_risk = risk_cap * self.ledger.equity - open_risk
+                                can_open = tr.max_new_risk > 0.0
+                            thr = float(self.risk.dd_throttle_pct or 0.0) / 100.0
+                            if can_open and thr != 0.0 and self.ledger.peak > 0.0:
+                                rs = 1.0 - (1.0 - self.ledger.equity / self.ledger.peak) / thr
+                                rs = self.risk.dd_throttle_floor if rs < self.risk.dd_throttle_floor else rs
+                                tr.risk_scale = 1.0 if rs > 1.0 else rs
                             blocked = not can_open
                         if blocked:
                             self.rejected_for_risk += 1
@@ -921,6 +949,8 @@ class RefPortfolioEngine:
                                     vol=float(e["vol"][i]) if e["vol"] is not None else float("nan"),
                                     dca_gate=bool(e["dca"][i]) if e.get("dca") is not None else True)
                     tr.max_new_notional = float("inf")
+                    tr.max_new_risk = float("inf")
+                    tr.risk_scale = 1.0
                     if tr.is_open or tr.pending_entry:
                         busy = True
                     if pos is not None:

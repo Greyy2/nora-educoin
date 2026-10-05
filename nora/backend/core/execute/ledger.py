@@ -16,6 +16,7 @@ class CapitalLedger:
         self.reserved = 0.0
         self.usage = max(0.0, min(float(usage), 1.0))
         self.rejected = 0  # số lần vào lệnh/tầng bị từ chối vì không đủ vốn
+        self.peak = float(capital)   # đỉnh vốn ĐÃ CHỐT (cho giảm rủi ro theo mức sụt — dd_throttle_pct)
 
     def free(self) -> float:
         return self.equity * self.usage - self.reserved
@@ -32,3 +33,5 @@ class CapitalLedger:
 
     def settle(self, cash_delta: float) -> None:
         self.equity += cash_delta
+        if self.equity > self.peak:
+            self.peak = self.equity

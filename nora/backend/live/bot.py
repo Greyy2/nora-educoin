@@ -17,7 +17,7 @@ import pickle
 import signal
 import time
 import warnings
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from backend.utils.jobs import options, write_job_result
 
@@ -179,6 +179,21 @@ class Bot:
             except Exception as e:             # GTX bị từ chối (sẽ khớp ngay = taker): bỏ tầng, KHÔNG đổi sang market (E9-S2 AC2)
                 self.event("skip", symbol=sym, reason=f"tầng DCA {lay['price']} bị từ chối: {e}")
 
+    def _risk_controls(self, equity: float) -> Tuple[float, float]:
+        """(trần rủi ro cho lệnh mới, hệ số rủi ro) như danh mục engine: max_open_risk_pct (Σ rủi ro tới SL của vị thế mở) và
+        dd_throttle_pct (sụt so với đỉnh vốn -> thu nhỏ lệnh mới). Sàn: đỉnh = đỉnh vốn sàn (gồm lãi lỗ chưa chốt)."""
+        d = self.state.d
+        room, scale = float("inf"), 1.0
+        cap = float(self.limits.get("max_open_risk_pct") or 0.0) / 100.0
+        if cap:
+            room = cap * equity - sum(float(p.get("risk_usd") or 0.0) for p in d["positions"].values())
+        thr = float(self.limits.get("dd_throttle_pct") or 0.0) / 100.0
+        peak = float(d.get("peak_equity") or 0.0)
+        if thr and peak > 0:
+            floor = float(self.limits.get("dd_throttle_floor", 0.25))
+            scale = min(1.0, max(floor, 1.0 - (1.0 - equity / peak) / thr))
+        return room, scale
+
     def _open_exec(self, sym: str, e: Dict[str, Any], i: int, price: float, equity: float, room: float, now: int) -> None:
         from backend.core.execute.ledger import CapitalLedger
         tr = e["tracker"]
@@ -189,7 +204,15 @@ class Bot:
         tr._apply_exit_unit(vol if tr.exit_unit == "atr" else 1.0)
         tr.max_leverage = tr.leverage
         tr.pos_leverage = tr.leverage
+        tr.planned_risk = 0.0
         margin = tr._risk_margin() if tr.sizing == "risk" else equity * tr.order_size_pct / 100.0
+        risk_room, scale = self._risk_controls(equity)
+        if scale != 1.0:                               # đang sụt vốn: lệnh mới nhỏ lại
+            margin, tr.planned_risk = margin * scale, tr.planned_risk * scale
+        if risk_room != float("inf") and tr.planned_risk > risk_room:   # vượt trần rủi ro đang mở
+            if risk_room <= 0:
+                return self.event("skip", symbol=sym, strategy=e["strategy"], reason="đủ trần rủi ro đang mở của danh mục")
+            margin, tr.planned_risk = margin * risk_room / tr.planned_risk, risk_room
         lev = float(tr.pos_leverage)
         notional = min(margin * lev, room)
         f = self.filters.get(sym)
@@ -215,7 +238,7 @@ class Bot:
         p = {"strategy": e["strategy"], "side": e["side"], "qty": qty, "avg": fill, "entry_price": fill, "entry_time": now, "leverage": int(lev),
              "sl_pct": tr.sl_pct, "tp_pct": tr.tp_pct, "trail_pct": tr.trail_pct, "trail_act_pct": tr.trail_activation_pct, "peak": fill,
              "timeout_ms": tr.timeout_ms, "ladder": ladder, "filled_layers": 0,
-             "dca_ok": bool(e["dca"][i]) if e.get("dca") is not None else True}
+             "dca_ok": bool(e["dca"][i]) if e.get("dca") is not None else True, "risk_usd": tr.planned_risk}
         self.state.d["positions"][sym] = p
         self._protect(sym, p)
         self.event("open", symbol=sym, strategy=e["strategy"], side=e["side"], qty=qty, price=fill, leverage=int(lev),

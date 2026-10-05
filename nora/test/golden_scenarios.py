@@ -259,7 +259,7 @@ def scenario_portfolio_real(data_root, end: Optional[str] = None, shared_dir: Op
         sb.materialize(cand["reversion_long"], {"sig.rsi_lo": 25, "sig.er_max": 0.3, "stop_loss_rate": 1.5,
                                                 "take_profit_rate": 1.0, "timeout": 1440}, cooldown=0, limit_through_pct=0.0),
     ]
-    risk = RiskConfig.from_dict({**sb.RISK, "kill_switch_dd_pct": 0})
+    risk = RiskConfig.from_dict({**sb.RISK, "kill_switch_dd_pct": 0, "max_open_risk_pct": 0.0, "dd_throttle_pct": 0.0})   # golden: ngữ nghĩa cũ
     end_ms = int(pd.Timestamp(end or REAL_END, tz="UTC").timestamp() * 1000)
     with data_root_env(str(data_root)):
         eng = PortfolioEngine(REAL_SYMBOLS, strategies, REAL_START_MS - REAL_WARMUP_DAYS * DAY, end_ms,

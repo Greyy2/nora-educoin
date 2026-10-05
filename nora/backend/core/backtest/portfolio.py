@@ -37,6 +37,9 @@ class RiskConfig:
     max_per_symbol: int = 1
     max_gross_exposure: float = 3.0
     kill_switch_dd_pct: float = 30.0   # 0 = tắt
+    max_open_risk_pct: float = 0.0     # trần Σ rủi ro tới SL (cả rổ DCA) của mọi vị thế đang mở, % vốn; lệnh mới bị thu nhỏ / chặn. 0 = tắt
+    dd_throttle_pct: float = 0.0       # vốn đã chốt sụt d% so với đỉnh -> rủi ro lệnh mới × max(sàn, 1 − d / mức này). 0 = tắt
+    dd_throttle_floor: float = 0.25    # hệ số rủi ro tối thiểu khi đang giảm theo mức sụt
 
     @classmethod
     def from_dict(cls, d: Optional[Dict[str, Any]]) -> "RiskConfig":

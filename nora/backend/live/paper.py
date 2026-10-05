@@ -96,6 +96,21 @@ class PaperBook:
                         room = cap * self.ledger.equity - self._gross()
                         tr.max_new_notional = max(0.0, room)
                         can_open = room > 0
+                        risk_cap = float(self.risk.get("max_open_risk_pct") or 0.0) / 100.0
+                        if can_open and risk_cap != 0.0:          # trần Σ rủi ro tới SL của vị thế mở (như kernel)
+                            open_risk = 0.0
+                            for bk2 in self.books:
+                                for e2 in bk2["entries"]:
+                                    if e2["tracker"].is_open:
+                                        open_risk += e2["tracker"].planned_risk
+                            tr.max_new_risk = risk_cap * self.ledger.equity - open_risk
+                            can_open = tr.max_new_risk > 0.0
+                        thr = float(self.risk.get("dd_throttle_pct") or 0.0) / 100.0
+                        if can_open and thr != 0.0 and self.ledger.peak > 0.0:   # giảm rủi ro theo mức sụt vốn đã chốt
+                            floor = float(self.risk.get("dd_throttle_floor", 0.25))
+                            rs = 1.0 - (1.0 - self.ledger.equity / self.ledger.peak) / thr
+                            rs = floor if rs < floor else rs
+                            tr.risk_scale = 1.0 if rs > 1.0 else rs
                         blocked = not can_open
                     if blocked:
                         self.rejected_for_risk += 1
@@ -103,6 +118,8 @@ class PaperBook:
                 pos = tr.on_bar(t, o, h, l, c, entry_signal=m and can_trade, stop_signal=bool(s["stop"]), can_open=can_open,
                                 vol=float(vol) if vol is not None else float("nan"), dca_gate=bool(s.get("dca", True)))
                 tr.max_new_notional = float("inf")
+                tr.max_new_risk = float("inf")
+                tr.risk_scale = 1.0
                 if pos is not None:
                     self._collect(sym, e, pos)
             self.last_close[b], self.last_low[b], self.last_high[b], self.last_open[b] = float(c), float(l), float(h), float(o)

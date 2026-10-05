@@ -20,14 +20,17 @@
   "margin_type": "ISOLATED",
   "sizing": {
     "mode": "risk",
-    "risk_per_trade_pct_of_equity": 1.0,
+    "risk_per_trade_pct_of_equity": 1.5,
     "formula": "notional = equity × risk% / (SL% + 2 × (taker + slippage)); leverage = min(max, floor(1 / (1.5 × SL + mmr)))"
   },
   "portfolio_limits": {
     "max_positions": 8,
     "max_per_symbol": 1,
     "max_gross_exposure": 3.0,
-    "kill_switch_dd_pct": 30.0
+    "kill_switch_dd_pct": 30.0,
+    "max_open_risk_pct": 6.0,
+    "dd_throttle_pct": 5.0,
+    "dd_throttle_floor": 0.25
   },
   "strategies": [
     {
@@ -257,22 +260,22 @@
         "n_traded_folds": 10,
         "positive_folds": 10,
         "positive_ratio_pct": 100.0,
-        "fold_t": 8.3969,
-        "oos_ex_best_pct": 23.5666,
+        "fold_t": 7.1176,
+        "oos_ex_best_pct": 18.4656,
         "n_active_folds": 10,
-        "avg_is_ret_pct": 7.01,
+        "avg_is_ret_pct": 8.08,
         "compounded_oos_ret_pct": {
-          "level": 37.46,
-          "extreme": 28.6
+          "level": 39.75,
+          "extreme": 22.78
         },
         "worst_fold_mdd_pct": {
-          "level": 0.66,
-          "extreme": 0.74
+          "level": 1.05,
+          "extreme": 1.11
         },
         "oos_days": 310,
         "oos_trades": {
-          "level": 1202,
-          "extreme": 1202
+          "level": 1126,
+          "extreme": 1115
         },
         "param_stability": {
           "dca_long": {
@@ -292,10 +295,10 @@
           }
         },
         "mc": {
-          "median_ret_pct": 34.4,
-          "p05_ret_pct": 28.5,
-          "mdd_p50_pct": 0.5,
-          "mdd_p95_pct": 0.7,
+          "median_ret_pct": 27.3,
+          "p05_ret_pct": 20.5,
+          "mdd_p50_pct": 0.9,
+          "mdd_p95_pct": 1.4,
           "p_mdd_ge_ruin_pct": 0.0,
           "simulations": 10000,
           "block_days": 5,
@@ -305,10 +308,10 @@
             {
               "name": "worst_days_first",
               "label_vi": "Ngày lỗ tệ nhất đến trước",
-              "mdd_pct": 6.42,
-              "terminal_ret_pct": 28.6,
-              "worst_day_pct": -0.52,
-              "days_underwater": 214,
+              "mdd_pct": 11.76,
+              "terminal_ret_pct": 22.78,
+              "worst_day_pct": -0.81,
+              "days_underwater": 254,
               "ruin": false,
               "days": 310,
               "passed": true
@@ -316,10 +319,10 @@
             {
               "name": "reversed_order",
               "label_vi": "Đảo ngược thứ tự lịch sử",
-              "mdd_pct": 0.52,
-              "terminal_ret_pct": 28.6,
-              "worst_day_pct": -0.52,
-              "days_underwater": 129,
+              "mdd_pct": 0.81,
+              "terminal_ret_pct": 22.78,
+              "worst_day_pct": -0.81,
+              "days_underwater": 182,
               "ruin": false,
               "days": 310,
               "passed": true
@@ -327,10 +330,10 @@
             {
               "name": "crash_day",
               "label_vi": "Ngày sập (2x ngày xấu nhất) ở đầu",
-              "mdd_pct": 1.15,
-              "terminal_ret_pct": 27.26,
-              "worst_day_pct": -1.04,
-              "days_underwater": 145,
+              "mdd_pct": 1.8,
+              "terminal_ret_pct": 20.78,
+              "worst_day_pct": -1.63,
+              "days_underwater": 189,
               "ruin": false,
               "days": 311,
               "passed": true
@@ -338,10 +341,10 @@
             {
               "name": "cost_x2",
               "label_vi": "Chi phí giao dịch gấp đôi",
-              "mdd_pct": 1.57,
-              "terminal_ret_pct": 4.4,
-              "worst_day_pct": -0.59,
-              "days_underwater": 274,
+              "mdd_pct": 2.99,
+              "terminal_ret_pct": -0.47,
+              "worst_day_pct": -0.88,
+              "days_underwater": 296,
               "ruin": false,
               "days": 310,
               "passed": true,
@@ -350,57 +353,57 @@
             {
               "name": "longest_losing_streak_x2",
               "label_vi": "Chuỗi thua dài nhất lặp 2 lần ở đầu",
-              "mdd_pct": 0.52,
-              "terminal_ret_pct": 28.1,
-              "worst_day_pct": -0.52,
-              "days_underwater": 143,
+              "mdd_pct": 0.81,
+              "terminal_ret_pct": 22.29,
+              "worst_day_pct": -0.81,
+              "days_underwater": 188,
               "ruin": false,
-              "days": 316,
+              "days": 318,
               "passed": true
             },
             {
               "name": "vertical_surge",
               "label_vi": "Tăng thẳng đứng +40%/3 ngày ngược vị thế SHORT lớn nhất",
-              "mdd_pct": 13.67,
-              "terminal_ret_pct": 11.15,
-              "worst_day_pct": -4.74,
-              "days_underwater": 235,
+              "mdd_pct": 15.06,
+              "terminal_ret_pct": 4.46,
+              "worst_day_pct": -5.24,
+              "days_underwater": 276,
               "ruin": false,
               "days": 313,
               "passed": true,
-              "note_vi": "Lỗ LONG khi sập 13.1% vốn, lỗ SHORT khi tăng dựng 13.6% vốn (vị thế ngược chiều lớn nhất từng mở)"
+              "note_vi": "Lỗ LONG khi sập 9.9% vốn, lỗ SHORT khi tăng dựng 14.9% vốn (vị thế ngược chiều lớn nhất từng mở)"
             },
             {
               "name": "vertical_crash",
               "label_vi": "Sập −30%/1 ngày ngược vị thế LONG lớn nhất",
-              "mdd_pct": 13.19,
-              "terminal_ret_pct": 11.76,
-              "worst_day_pct": -13.09,
-              "days_underwater": 232,
+              "mdd_pct": 10.06,
+              "terminal_ret_pct": 10.61,
+              "worst_day_pct": -9.91,
+              "days_underwater": 235,
               "ruin": false,
               "days": 311,
               "passed": true,
-              "note_vi": "Lỗ LONG khi sập 13.1% vốn, lỗ SHORT khi tăng dựng 13.6% vốn (vị thế ngược chiều lớn nhất từng mở)"
+              "note_vi": "Lỗ LONG khi sập 9.9% vốn, lỗ SHORT khi tăng dựng 14.9% vốn (vị thế ngược chiều lớn nhất từng mở)"
             },
             {
               "name": "vertical_chain",
               "label_vi": "Chuỗi liên tiếp: tăng +40%/3 ngày rồi sập −30%, lặp 2 lần",
-              "mdd_pct": 43.64,
-              "terminal_ret_pct": -27.44,
-              "worst_day_pct": -13.09,
+              "mdd_pct": 41.35,
+              "terminal_ret_pct": -27.87,
+              "worst_day_pct": -9.91,
               "days_underwater": 318,
               "ruin": false,
               "days": 318,
               "passed": true,
-              "note_vi": "Lỗ LONG khi sập 13.1% vốn, lỗ SHORT khi tăng dựng 13.6% vốn (vị thế ngược chiều lớn nhất từng mở)"
+              "note_vi": "Lỗ LONG khi sập 9.9% vốn, lỗ SHORT khi tăng dựng 14.9% vốn (vị thế ngược chiều lớn nhất từng mở)"
             },
             {
               "name": "worst_bootstrap",
               "label_vi": "Đường bootstrap tệ nhất (MDD lớn nhất)",
-              "mdd_pct": 1.3,
-              "terminal_ret_pct": 26.76,
-              "worst_day_pct": -0.52,
-              "days_underwater": 197,
+              "mdd_pct": 2.61,
+              "terminal_ret_pct": 22.38,
+              "worst_day_pct": -0.81,
+              "days_underwater": 229,
               "ruin": false,
               "days": 365,
               "passed": true
@@ -426,7 +429,7 @@
               "stress_mdd": {
                 "label": "MDD tệ nhất trong các kịch bản cực xấu",
                 "required": "< 50%",
-                "actual": 43.64,
+                "actual": 41.35,
                 "passed": true,
                 "detail": "vertical_chain"
               },
@@ -443,29 +446,29 @@
           }
         },
         "shock": {
-          "crash_loss": 0.130933,
-          "max_long_exposure": 0.4663,
-          "surge_loss": 0.135695,
-          "max_short_exposure": 1.1176
+          "crash_loss": 0.099099,
+          "max_long_exposure": 0.3752,
+          "surge_loss": 0.149181,
+          "max_short_exposure": 1.0149
         }
       }
     },
     "final": {
       "holdout": {
         "level": {
-          "ret_pct": 26.54,
-          "mdd_pct": 2.12,
-          "sharpe": 8.7,
-          "trades": 832,
+          "ret_pct": 27.69,
+          "mdd_pct": 3.72,
+          "sharpe": 7.83,
+          "trades": 774,
           "win_rate": null,
           "profit_factor": null,
           "halted_at": null
         },
         "extreme": {
-          "ret_pct": 20.37,
-          "mdd_pct": 2.12,
-          "sharpe": 7.05,
-          "trades": 832,
+          "ret_pct": 16.6,
+          "mdd_pct": 2.51,
+          "sharpe": 5.32,
+          "trades": 763,
           "win_rate": null,
           "profit_factor": null,
           "halted_at": null

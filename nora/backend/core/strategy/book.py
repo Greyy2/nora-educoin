@@ -26,6 +26,9 @@ RISK = {
     "max_per_symbol": 1,         # mỗi tài sản tối đa 1 vị thế (mọi chiến lược cộng lại) -> không cộng dồn rủi ro
     "max_gross_exposure": 3.0,   # Σ danh nghĩa / vốn <= 3
     "kill_switch_dd_pct": 30.0,  # sụt 30% từ đỉnh (MTM, điểm xấu nhất) -> đóng hết, dừng
+    "max_open_risk_pct": 6.0,    # Σ rủi ro tới SL (cả rổ DCA) của mọi vị thế mở <= 6% vốn: nhiều rổ cùng chạm SL cũng chỉ mất tối đa ~6%
+    "dd_throttle_pct": 5.0,      # vốn đã chốt sụt d% so với đỉnh -> lệnh mới rủi ro × max(0,25; 1 − d/5)
+    "dd_throttle_floor": 0.25,
 }
 
 GATES = {
@@ -130,7 +133,7 @@ def _reversion_schema(side_key, side_default, side_lo, side_hi, side_label):
     }
 
 
-def _dca_schema(side_key, side_default, side_lo, side_hi, side_label):
+def _dca_schema(side_key, side_default, side_lo, side_hi, side_label, gate_rsi):
     """DCA = bắt hồi ở vùng quá bán/quá mua khi thị trường đi ngang, dồn thêm tầng khi giá đi ngược NHƯNG chỉ khi điều kiện còn đúng
     (ER thấp + ADX thấp = chưa thành xu hướng ngược); cắt lỗ cứng cho cả rổ, tính từ giá trung bình."""
     return {
@@ -147,6 +150,7 @@ def _dca_schema(side_key, side_default, side_lo, side_hi, side_label):
                                 "Tầng DCA chỉ khớp khi ER còn thấp; ER tăng (bắt đầu có xu hướng) thì ngừng dồn."),
         "sig.gate_adx_max": _flt("signal", "Chỉ dồn khi ADX dưới", 25.0, 10.0, 50.0, 1.0, "",
                                  "Tầng DCA chỉ khớp khi chưa có xu hướng mạnh."),
+        "sig.gate_rsi": _flt("signal", gate_rsi[0], gate_rsi[1], gate_rsi[2], gate_rsi[3], 1.0, "", gate_rsi[4]),
         "dca_step_pct": _flt("dca", "Bước dồn lệnh", 1.0, 0.25, 4.0, 0.25, "× ATR",
                              "Giá đi ngược bấy nhiêu × ATR so với lần khớp trước thì dồn thêm một tầng."),
         "dca_max_layers": _int("dca", "Số tầng dồn tối đa", 3, 1, 6, "tầng", "Số lần dồn thêm sau lệnh đầu."),
@@ -160,7 +164,12 @@ def _dca_leg(side: str) -> Dict[str, Any]:
     rsi = (f("{entry_tf}", "rsi_{rsi_n}"), "<", p("rsi_lo", 30)) if long_ else (f("{entry_tf}", "rsi_{rsi_n}"), ">", p("rsi_hi", 70))
     band = ((f("{entry_tf}", "close"), "<", f("{entry_tf}", "bbl_{bb_n}_{bb_k}")) if long_
             else (f("{entry_tf}", "close"), ">", f("{entry_tf}", "bbu_{bb_n}_{bb_k}")))
-    schema = _dca_schema("sig.rsi_lo", 30.0, 10.0, 45.0, "RSI quá bán") if long_ else _dca_schema("sig.rsi_hi", 70.0, 55.0, 90.0, "RSI quá mua")
+    schema = (_dca_schema("sig.rsi_lo", 30.0, 10.0, 45.0, "RSI quá bán",
+                          ("Chỉ dồn khi RSI còn dưới", 101.0, 10.0, 101.0, "Tầng DCA chỉ khớp khi RSI vẫn quá bán (giá còn bị bán quá đà, chưa đảo "
+                           "chiều thành xu hướng giảm); 101 = không lọc.")) if long_ else
+              _dca_schema("sig.rsi_hi", 70.0, 55.0, 90.0, "RSI quá mua",
+                          ("Chỉ dồn khi RSI còn trên", -1.0, -1.0, 90.0, "Tầng DCA chỉ khớp khi RSI vẫn quá mua; −1 = không lọc.")))
+    gate_rsi = (f("{entry_tf}", "rsi_{rsi_n}"), "<", p("gate_rsi", 101.0)) if long_ else (f("{entry_tf}", "rsi_{rsi_n}"), ">", p("gate_rsi", -1.0))
     return {
         "id": "dca_long" if long_ else "dca_short", "strategy": "dca", "family": "DCA (bắt hồi + dồn có điều kiện)", "side": side,
         "legacy": False,
@@ -170,7 +179,7 @@ def _dca_leg(side: str) -> Dict[str, Any]:
                         + "CHỈ khi vẫn đi ngang (ER, ADX thấp). Chốt lời và cắt lỗ cả rổ tính từ giá trung bình."),
         "tree": cond(rsi, band, (f("{regime_tf}", "er_{er_n}"), "<", p("er_max", 0.35))),
         "dca_gate": cond((f("{regime_tf}", "er_{er_n}"), "<", p("gate_er_max", 0.4)),
-                         (f("{regime_tf}", "adx_{adx_n}"), "<", p("gate_adx_max", 25.0))),
+                         (f("{regime_tf}", "adx_{adx_n}"), "<", p("gate_adx_max", 25.0)), gate_rsi),
         "position": {"exit_unit": "atr"},
         "space": {("sig.rsi_lo" if long_ else "sig.rsi_hi"): [25, 30, 35] if long_ else [65, 70, 75],
                   "dca_step_pct": [0.5, 1.0, 1.5], "dca_max_layers": [2, 3, 4], "dca_size_multiplier": [1.0, 1.5, 2.0],

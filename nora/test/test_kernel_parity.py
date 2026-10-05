@@ -359,7 +359,9 @@ def rand_portfolio_config(seed, market_root):
         "trade_start": start + rng.choice([2, 4, 7]) * DAY,
         "capital": rng.choice([1_000.0, 10_000.0, 123_456.78]),
         "risk": RiskConfig(max_positions=rng.choice([1, 2, 3, 8]), max_per_symbol=rng.choice([1, 2]),
-                           max_gross_exposure=rng.choice([0.3, 1.0, 3.0, 10.0]), kill_switch_dd_pct=rng.choice([0, 0, 3.0, 10.0, 30.0])),
+                           max_gross_exposure=rng.choice([0.3, 1.0, 3.0, 10.0]), kill_switch_dd_pct=rng.choice([0, 0, 3.0, 10.0, 30.0]),
+                           max_open_risk_pct=rng.choice([0.0, 0.0, 0.5, 2.0]), dd_throttle_pct=rng.choice([0.0, 0.0, 2.0, 10.0]),
+                           dd_throttle_floor=rng.choice([0.25, 0.5])),
         "close_at_end": rng.random() < 0.8,
     }
     return cfg

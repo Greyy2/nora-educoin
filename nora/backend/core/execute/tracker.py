@@ -129,6 +129,8 @@ class PositionTracker:
         self.pos_leverage = self.leverage
         self.planned_risk = 0.0
         self.max_new_notional = float("inf")  # trần danh nghĩa cho lệnh sắp mở (do danh mục đặt theo max_gross_exposure)
+        self.max_new_risk = float("inf")      # trần rủi ro (tới SL, cả rổ DCA) cho lệnh sắp mở (danh mục: max_open_risk_pct)
+        self.risk_scale = 1.0                 # hệ số rủi ro do danh mục đặt (giảm theo mức sụt vốn: dd_throttle_pct)
         self.unit_pct = 0.0
         self.pending_vol = float("nan")
         self.skipped_no_vol = 0     # tín hiệu vào lệnh nhưng chưa có ATR (giai đoạn khởi động)
@@ -270,11 +272,20 @@ class PositionTracker:
             margin = self._risk_margin()
         else:
             margin = self.equity * self.order_size_pct / 100.0
+        if self.risk_scale != 1.0:                            # danh mục đang sụt vốn: thu nhỏ lệnh mới
+            margin = margin * self.risk_scale
+            self.planned_risk = self.planned_risk * self.risk_scale
         margin = min(margin, budget / (1.0 + self.pos_leverage * self.fee_rate),
                      self.max_new_notional / self.pos_leverage)
         if self.sizing == "risk" and margin > 0:
             self.planned_risk = min(self.planned_risk, margin * self.pos_leverage * (self.sl_pct / 100.0 + 2.0 * (
                 self.fee_rate + self.slippage_rate)) * self._layer_mult_total())
+        if self.max_new_risk != float("inf") and self.planned_risk > self.max_new_risk:   # vượt trần rủi ro đang mở của danh mục
+            if self.max_new_risk <= 0:
+                margin = 0.0
+            else:
+                margin = margin * (self.max_new_risk / self.planned_risk)
+                self.planned_risk = self.max_new_risk
         if margin <= 0:
             self.ledger.rejected += 1  # tín hiệu vào lệnh nhưng không còn vốn trống
             return
