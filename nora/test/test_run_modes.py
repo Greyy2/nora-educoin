@@ -48,9 +48,9 @@ OLD_TREES = {
 OLD_TREES.update({"kema_long": OLD_TREES["keltner_trend_long"], "kema_short": OLD_TREES["keltner_trend_short"],
                   "sideway_long": OLD_TREES["reversion_long"], "sideway_short": OLD_TREES["reversion_short"],
                   "dca_long": cond((f("1h", "rsi_14"), "<", p("rsi_lo", 30)), (f("1h", "close"), "<", f("1h", "bbl_20_2")),
-                                   (f("4h", "er_20"), "<", p("er_max", 0.35))),
+                                   (f("4h", "er_20"), "<", p("er_max", 0.35)), (f("1h", "close"), ">", calc(f("1h", "ema_200"), "*", p("trend_on", 0)))),
                   "dca_short": cond((f("1h", "rsi_14"), ">", p("rsi_hi", 70)), (f("1h", "close"), ">", f("1h", "bbu_20_2")),
-                                    (f("4h", "er_20"), "<", p("er_max", 0.35)))})
+                                    (f("4h", "er_20"), "<", p("er_max", 0.35)), (calc(f("1h", "close"), "*", p("trend_on", 0)), "<", f("1h", "ema_200")))})
 REAL_CATALOG_TESTS = ("test_real_catalog_", "test_default_resolution_equals_old_literal_tree", "test_default_position_and_signal_params_unchanged",
                       "test_schema_is_well_formed")
 
