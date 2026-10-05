@@ -26,6 +26,7 @@ DEFAULTS = {"mode": "paper", "venue": "okx", "once": False, "max_steps": 0, "cap
 BOOKS = ("main", "explore")     # main = data/alphas/book.json (READY_FOR_TESTNET); explore = data/alphas/explore/book.json (EXPLORE_DEMO)
 EXEC_MODES = ("demo", "live")   # đặt lệnh thật trên sàn: demo = OKX Demo Trading (vốn ảo), live = tài khoản thật
 KLINE_LIMIT = 1500
+WATCH_S = 10.0     # giây giữa hai lần đối soát nhanh của bot sàn (tầng DCA khớp -> SL/TP mới; sàn đóng lệnh -> ghi nhận)
 EPS = 1e-12
 
 
@@ -160,13 +161,17 @@ class Bot:
         """(Đặt lại) SL / TP từ giá trung bình hiện tại + các tầng DCA chưa khớp (chỉ khi điều kiện dồn đang cho phép: p["dca_ok"])."""
         f = self.filters.get(sym)
         rnd = f.price if f is not None else (lambda x: x)
-        rq = f.qty if f is not None else (lambda x: x)
+        rq = f.qty_close if f is not None else (lambda x: x)
         sign = 1 if p["side"] == "LONG" else -1
         self.client.cancel_all(sym)
         if p["sl_pct"]:
             self.client.place_sl(sym, p["side"], rq(p["qty"]), rnd(p["avg"] * (1 - sign * p["sl_pct"] / 100.0)))
         if p["tp_pct"]:
             self.client.place_tp(sym, p["side"], rq(p["qty"]), rnd(p["avg"] * (1 + sign * p["tp_pct"] / 100.0)))
+        native = getattr(self.client, "place_trailing", None)
+        p["native_trail"] = bool(p.get("trail_pct")) and native is not None
+        if p["native_trail"]:                          # trailing do SÀN giữ: bám đỉnh và khớp ngay trong nến như engine
+            native(sym, p["side"], rq(p["qty"]), p["trail_pct"], rnd(p["avg"] * (1 + sign * p["trail_act_pct"] / 100.0)))
         p["ladder_live"] = bool(p.get("dca_ok", True))
         for lay in (p["ladder"][p["filled_layers"]:] if p["ladder_live"] else []):
             try:
@@ -259,6 +264,17 @@ class Bot:
                 self._protect(sym, p)
                 self.event("dca", symbol=sym, strategy=p["strategy"], layers=1 + filled, avg=p["avg"], qty=p["qty"])
 
+    def watch(self, now: int) -> None:
+        """Đối soát nhanh giữa hai nến (chỉ khi có vị thế): engine cập nhật SL/TP từ giá TB ngay khi tầng DCA khớp, nên bot cũng phải đặt lại
+        ngay — để SL cũ (tính từ giá vào đầu tiên) không cắt cả rổ khi giá đi tiếp xuống."""
+        if self.state.d["positions"]:
+            n = len(self.state.d["trades"])
+            before = {s: (p["qty"], p["filled_layers"]) for s, p in self.state.d["positions"].items()}
+            self.reconcile(now)
+            after = {s: (p["qty"], p["filled_layers"]) for s, p in self.state.d["positions"].items()}
+            if before != after or len(self.state.d["trades"]) != n:
+                self.state.save()
+
     def step_exec(self, now: int, sig: Dict[str, Dict[str, Any]]) -> None:
         d = self.state.d
         self.reconcile(now)
@@ -274,7 +290,7 @@ class Bot:
                 self._protect(sym, p)
                 self.event("dca_gate", symbol=sym, strategy=p["strategy"], allowed=ok)
             hi, lo = float(v["high"][i]), float(v["low"][i])
-            if p["trail_pct"]:
+            if p["trail_pct"] and not p.get("native_trail"):   # sàn không có trailing gốc: kiểm ở cuối nến (kém chính xác hơn)
                 gain = sign * (p["peak"] - p["avg"]) / p["avg"] * 100.0
                 level = p["peak"] * (1 - sign * p["trail_pct"] / 100.0)
                 if gain >= p["trail_act_pct"] and (lo <= level if sign > 0 else hi >= level):
@@ -427,7 +443,12 @@ def run_job(params=None) -> Dict[str, Any]:
             n += 1
             if a.once or (a.max_steps and n >= a.max_steps):
                 break
-        time.sleep(min(30.0, max(1.0, (now + step_ms + 10_000 - _now_ms()) / 1000.0)))
+        if a.mode in EXEC_MODES and not stop["flag"]:
+            try:                                       # giữa các nến: đối soát nhanh — tầng DCA vừa khớp thì đặt lại SL/TP/trailing ngay
+                bot.watch(_now_ms())
+            except Exception as e:
+                log({"t": _now_ms(), "kind": "error", "error": redact(f"watch {type(e).__name__}: {e}", keys)})
+        time.sleep(min(WATCH_S, max(1.0, (now + step_ms + 10_000 - _now_ms()) / 1000.0)))
     out = {"venue": a.venue, "mode": a.mode, "steps": n, "last": res, "state": os.path.join(sdir, "state.json"), "events": events}
     write_job_result(out)
     return out

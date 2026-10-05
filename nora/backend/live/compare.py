@@ -1,6 +1,6 @@
 """So lệnh bot sàn (demo/live, khớp THẬT) với bóng paper cùng nến (khớp mô phỏng bằng engine) — đo khoảng cách giả lập ↔ thực tế.
 
-Ghép cặp: cùng mã + cùng chiến lược, giờ vào lệnh lệch không quá 2 nến khung chạy (bot đặt lệnh vài giây sau khi nến mở; paper ghi
+Ghép cặp: cùng mã + cùng chiến lược, giờ vào lệnh lệch không quá 1 nến khung chạy (bot đặt lệnh vài giây sau khi nến mở; paper ghi
 open_time nến). Mỗi cặp: chênh giá vào / giá đóng (bps, dấu + = sàn KÉM hơn paper), lãi lỗ theo % danh nghĩa (hai bên khác vốn), số tầng DCA, lý do đóng.
 Lệnh chỉ có ở một bên (paper khớp mà sàn không, hoặc ngược lại) là dấu hiệu giả lập lạc quan / bi quan về khớp lệnh.
 """
@@ -24,7 +24,7 @@ def _ret(pnl, qty, px) -> Optional[float]:
 
 
 def compare_trades(exec_trades: List[Dict[str, Any]], paper_trades: List[Dict[str, Any]], timeframe: str) -> Dict[str, Any]:
-    tol = 2 * FRAME_MS.get(timeframe, 3_600_000)
+    tol = FRAME_MS.get(timeframe, 3_600_000)          # bot vào lệnh ở open nến (như paper); lệch tối đa 1 nến
     used, pairs, only_exec = set(), [], []
     for x in sorted(exec_trades, key=lambda t: t.get("entry_time") or 0):
         best, gap = None, None

@@ -114,6 +114,11 @@ class Filters:
     def qty(self, q: float) -> float:
         return self._floor(q, self.step)
 
+    def qty_close(self, q: float) -> float:
+        """Khối lượng cho lệnh ĐÓNG (reduce-only: SL/TP/trailing): làm tròn tới bước GẦN NHẤT — làm tròn xuống có thể để lại một bước lẻ
+        (sai số dấu phẩy động), vị thế còn sót không bao giờ đóng hết; sàn tự giới hạn lệnh reduce-only theo vị thế thật."""
+        return self._floor(q + self.step / 2.0, self.step)
+
     def price(self, p: float) -> float:
         return self._floor(p, self.tick)
 

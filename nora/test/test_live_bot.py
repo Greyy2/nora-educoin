@@ -478,3 +478,37 @@ def test_okx_equity_is_usdt_in_single_currency_margin(monkeypatch):
     a._acct_lv = 3
     bal[0]["adjEq"] = "100000"
     assert a.equity() == 100000.0
+
+
+def test_close_qty_rounding_and_okx_contracts_no_dust():
+    """Lỗi tìm ra bằng phát lại: làm tròn XUỐNG khối lượng lệnh đóng để lại một bước lẻ -> vị thế sót không bao giờ đóng hết."""
+    f = Filters(0.01, 0.01, 0.01, 0.0)
+    assert f.qty(5.67 * (1 - 1e-8)) == 5.66 and f.qty_close(5.67 * (1 - 1e-8)) == 5.67
+    from backend.live import okx
+    a = okx.OkxAdapter(None, demo=True, pause=0)
+    a._inst["BTC"] = {"ctVal": "0.01", "lotSz": "0.01", "minSz": "0.01", "tickSz": "0.1"}
+    assert a.contracts("BTC", 0.0567 * (1 - 1e-12)) == "5.67" and a.contracts("BTC", 0.05669) == "5.66"
+
+
+def test_watch_reprotects_immediately_after_dca_fill(tmp_path, monkeypatch):
+    """Giữa hai nến: tầng DCA khớp trên sàn -> bot.watch đặt lại SL/TP từ giá TB mới ngay (không đợi nến sau)."""
+    fake = FakeAdapter()
+    flt = {s: Filters(0.01, 0.001, 0.001, 5.0) for s in ("AAA", "BBB")}
+    orig = lb.book_strategies
+
+    def with_dca(book):
+        sts = orig(book)
+        for st in sts:
+            st["position"] = {**st["position"], "dca_steps": [1.0, 2.0], "dca_multipliers": [1.5, 2.0]}
+        return sts
+    monkeypatch.setattr(lb, "book_strategies", with_dca)
+    b, ev = _bot(tmp_path, "demo", fake, flt, _dca_book())
+    t0 = 50 * HOUR
+    b.step(t0 + HOUR, {"AAA": _sig(b, "AAA", [t0], match={t0}), "BBB": _sig(b, "BBB", [t0])}, {})
+    p = b.state.d["positions"]["AAA"]
+    fake.live["AAA"] = [p["qty"] + p["ladder"][0]["qty"], 99.0]                 # tầng 1 khớp giữa nến
+    n = len(fake.calls)
+    b.watch(t0 + HOUR + 60_000)
+    new = fake.calls[n:]
+    assert b.state.d["positions"]["AAA"]["filled_layers"] == 1
+    assert any(c[0] == "sl" and c[4] == flt["AAA"].price(99.0 * (1 - p["sl_pct"] / 100)) for c in new)

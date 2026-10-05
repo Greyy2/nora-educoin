@@ -92,7 +92,7 @@ class OkxAdapter:
     def contracts(self, sym: str, qty_coin: float) -> str:
         i = self.instrument(sym)
         lot = float(i["lotSz"])
-        n = int(qty_coin / float(i["ctVal"]) / lot + 1e-9) * lot
+        n = int(round(qty_coin / float(i["ctVal"]) / lot, 6)) * lot   # làm tròn 6 số lẻ trước khi lấy phần nguyên: 566.99999 -> 567
         dec = max(0, len(i["lotSz"].rstrip("0").split(".")[1]) if "." in i["lotSz"] else 0)
         return f"{n:.{dec}f}"
 
@@ -182,7 +182,16 @@ class OkxAdapter:
     def place_sl(self, sym: str, side: str, qty: float, trigger: float) -> None:
         self._req("POST", "/api/v5/trade/order-algo", body={
             "instId": inst(sym), "tdMode": "isolated", "side": "sell" if side == "LONG" else "buy", "ordType": "conditional",
-            "sz": self.contracts(sym, qty), "slTriggerPx": str(trigger), "slOrdPx": "-1", "slTriggerPxType": "mark", "reduceOnly": "true"}, signed=True)
+            "sz": self.contracts(sym, qty), "slTriggerPx": str(trigger), "slOrdPx": "-1", "slTriggerPxType": "last", "reduceOnly": "true"},
+                  signed=True)                         # kích hoạt theo giá giao dịch (như engine dùng nến giá giao dịch)
+
+    def place_trailing(self, sym: str, side: str, qty: float, callback_pct: float, active_px: float) -> None:
+        """Trailing stop GỐC của sàn (move_order_stop): sàn tự bám đỉnh/đáy từ lúc giá chạm active_px, đóng market khi giá lùi callback_pct%.
+        Khớp ngay trong nến như engine, không phụ thuộc bot đang chạy."""
+        self._req("POST", "/api/v5/trade/order-algo", body={
+            "instId": inst(sym), "tdMode": "isolated", "side": "sell" if side == "LONG" else "buy", "ordType": "move_order_stop",
+            "sz": self.contracts(sym, qty), "callbackRatio": f"{min(max(callback_pct / 100.0, 0.001), 0.3):.4f}",
+            "activePx": str(active_px), "reduceOnly": "true"}, signed=True)
 
     def place_tp(self, sym: str, side: str, qty: float, px: float) -> None:
         self._req("POST", "/api/v5/trade/order", body={"instId": inst(sym), "tdMode": "isolated", "side": "sell" if side == "LONG" else "buy",
@@ -198,9 +207,10 @@ class OkxAdapter:
         for k in range(0, len(pend), 20):
             self._req("POST", "/api/v5/trade/cancel-batch-orders", body=[{"instId": inst(sym), "ordId": o["ordId"]} for o in pend[k:k + 20]],
                       signed=True)
-        algos = self._req("GET", "/api/v5/trade/orders-algo-pending", {"instId": inst(sym), "ordType": "conditional"}, signed=True)
-        if algos:
-            self._req("POST", "/api/v5/trade/cancel-algos", body=[{"instId": inst(sym), "algoId": a["algoId"]} for a in algos], signed=True)
+        for kind in ("conditional", "move_order_stop"):
+            algos = self._req("GET", "/api/v5/trade/orders-algo-pending", {"instId": inst(sym), "ordType": kind}, signed=True)
+            if algos:
+                self._req("POST", "/api/v5/trade/cancel-algos", body=[{"instId": inst(sym), "algoId": a["algoId"]} for a in algos], signed=True)
 
     def close_market(self, sym: str) -> None:
         try:
