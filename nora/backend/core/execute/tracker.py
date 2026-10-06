@@ -40,6 +40,7 @@ import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from backend.core.params.schema import StrategyParams
+from backend.core.execute import policy
 from backend.core.execute.ledger import CapitalLedger
 from backend.core.execute.models import OrderModel, OrderType, PositionModel, PositionStatus, PositionType
 
@@ -163,11 +164,9 @@ class PositionTracker:
     def _apply_exit_unit(self, unit: float) -> None:
         """Quy đổi tham số thoát lệnh sang % cho vị thế sắp mở (unit = 1 với exit_unit='pct', = ATR% với 'atr').
         Đặt lại từ giá trị gốc mỗi vị thế: các tầng DCA bị bỏ vì hết vốn ở vị thế trước không ảnh hưởng vị thế sau."""
-        self.sl_pct = self.base_sl * unit
-        self.tp_pct = self.base_tp * unit
-        self.trail_pct = self.base_trail * unit
-        self.trail_activation_pct = self.base_trail_act * unit
-        self.dca_steps = [x * unit for x in self.base_dca_steps]
+        (self.sl_pct, self.tp_pct, self.trail_pct, self.trail_activation_pct,
+         self.dca_steps) = policy.exit_params_scaled(unit, self.base_sl, self.base_tp, self.base_trail,
+                                                     self.base_trail_act, self.base_dca_steps)
 
     # ─── Trạng thái ─────────────────────────────────────────────────────────
     def _reset_state(self) -> None:
@@ -197,14 +196,13 @@ class PositionTracker:
     def unrealized_pnl_usd(self, price: float) -> float:
         if not self.is_open or self.qty <= 0:
             return 0.0
-        move = (price - self.avg) if self.is_long else (self.avg - price)
-        return self.qty * move - self.fees_paid  # funding đã nằm trong ledger.equity
+        return policy.unrealized_pnl(self.qty, self.avg, price, self.fees_paid, self.is_long)  # funding đã nằm trong ledger.equity
 
     def apply_funding(self, rate: float, price: float) -> float:
         """Funding perp: long trả qty·giá·rate khi rate > 0 (short nhận), và ngược lại. Hạch toán ngay."""
         if not self.is_open or self.market != "perp" or self.qty <= 0:
             return 0.0
-        payment = self.qty * price * rate * (1.0 if self.is_long else -1.0)
+        payment = policy.funding_payment(self.qty, price, rate, self.is_long)
         self.funding_paid += payment
         self.ledger.settle(-payment)
         return payment
@@ -212,36 +210,30 @@ class PositionTracker:
     def _liq_price(self) -> Optional[float]:
         if self.market != "perp" or self.qty <= 0:
             return None
-        if self.is_long:
-            return self.avg * (1.0 - 1.0 / self.pos_leverage + self.mmr)
-        return self.avg * (1.0 + 1.0 / self.pos_leverage - self.mmr)
+        return policy.liq_price(self.avg, self.pos_leverage, self.mmr, self.is_long)
 
     def _reached(self, level: float, extreme: float) -> bool:
-        return extreme <= level if self.is_long else extreme >= level
+        return policy.reached(level, extreme, self.is_long)
 
     def _gap_fill(self, level: float, open_price: float) -> float:
         """Giá khớp khi chạm mức: nếu open đã vượt qua mức (gap) thì khớp ở open."""
-        if self.is_long:
-            return min(level, open_price)
-        return max(level, open_price)
+        return policy.gap_fill(level, open_price, self.is_long)
 
     def _slip(self, notional: float, is_buy: bool) -> float:
         """Tỉ lệ trượt giá của một lệnh taker: impact_fn theo khối lượng (AMM) hoặc slippage_rate cố định."""
-        return self.slippage_rate if self.impact_fn is None else float(self.impact_fn(float(notional), bool(is_buy)))
+        return policy.slip_rate(self.slippage_rate, self.impact_fn, notional, is_buy)
 
     def _cost(self, notional: float) -> float:
         """Chi phí KHỨ HỒI (phí taker + trượt giá) tính trên danh nghĩa `notional` — dùng chia rủi ro / khối lượng."""
-        if self.impact_fn is None:
-            return 2.0 * (self.fee_rate + self.slippage_rate)
-        return 2.0 * self.fee_rate + self._slip(notional, True) + self._slip(notional, False)
+        return policy.round_trip_cost(self.fee_rate, self.slippage_rate, self.impact_fn, notional)
 
     # ─── Hành động ──────────────────────────────────────────────────────────
     def _add_layer(self, t: int, price: float, margin: float, market_order: bool, reason: str) -> bool:
         notional = margin * self.pos_leverage
         taker = market_order or self.limit_taker
         slip = self._slip(notional, self.is_long) if taker else 0.0
-        fill = price * (1 + slip if self.is_long else 1 - slip) if taker else price
-        fee = notional * (self.fee_rate if taker else self.maker_fee_rate)
+        fill = policy.entry_fill_price(price, slip, self.is_long) if taker else price
+        fee = policy.entry_fee(notional, self.fee_rate if taker else self.maker_fee_rate)
         if margin <= 0 or fill <= 0 or self.margin_used + margin + self.fees_paid + fee > self.max_capital + 1e-9:
             return False
         if not self.ledger.reserve(margin + fee):
@@ -292,21 +284,18 @@ class PositionTracker:
         if self.sizing == "risk":
             margin = self._risk_margin()
         else:
-            margin = self.equity * self.order_size_pct / 100.0
+            margin = policy.flat_margin(self.equity, self.order_size_pct)
         if self.risk_scale != 1.0:                            # danh mục đang sụt vốn: thu nhỏ lệnh mới
             margin = margin * self.risk_scale
             self.planned_risk = self.planned_risk * self.risk_scale
-        margin = min(margin, budget / (1.0 + self.pos_leverage * self.fee_rate),
-                     self.max_new_notional / self.pos_leverage)
+        margin = policy.clamp_margin(margin, budget, self.pos_leverage, self.fee_rate, self.max_new_notional)
         if self.sizing == "risk" and margin > 0:
-            self.planned_risk = min(self.planned_risk, margin * self.pos_leverage * (self.sl_pct / 100.0 + self._cost(
-                margin * self.pos_leverage * self._layer_mult_total())) * self._layer_mult_total())
-        if self.max_new_risk != float("inf") and self.planned_risk > self.max_new_risk:   # vượt trần rủi ro đang mở của danh mục
-            if self.max_new_risk <= 0:
-                margin = 0.0
-            else:
-                margin = margin * (self.max_new_risk / self.planned_risk)
-                self.planned_risk = self.max_new_risk
+            total_mult = self._layer_mult_total()
+            self.planned_risk = min(self.planned_risk, policy.planned_risk_cap(
+                margin, self.pos_leverage, self.sl_pct,
+                self._cost(margin * self.pos_leverage * total_mult), total_mult))
+        # vượt trần rủi ro đang mở của danh mục
+        margin, self.planned_risk = policy.apply_risk_ceiling(margin, self.planned_risk, self.max_new_risk)
         if margin <= 0:
             self.ledger.rejected += 1  # tín hiệu vào lệnh nhưng không còn vốn trống
             return
@@ -318,43 +307,28 @@ class PositionTracker:
 
     def _layer_mult_total(self) -> float:
         """Tổng khối lượng các tầng (lệnh đầu = 1) theo hệ số DCA."""
-        total, m = 1.0, 1.0
-        for k in self.dca_mults[: len(self.dca_steps)]:
-            m *= k
-            total += m
-        return total
+        return policy.layer_mult_total(self.dca_mults, len(self.dca_steps))
 
     def _risk_margin(self) -> float:
         """Khối lượng theo rủi ro: nếu chạm SL (tính cả mọi tầng DCA dự kiến và phí khứ hồi taker + trượt)
         thì mất ~risk_per_trade_pct% vốn. Danh nghĩa bị chặn bởi max_notional_pct% vốn.
         Perp: đòn bẩy thực = min(đòn bẩy tham số, mức để giá thanh lý cách giá vào >= 1,5 × khoảng SL)."""
-        sl = self.sl_pct / 100.0
-        total_mult = self._layer_mult_total()
-        cap = self.equity * self.max_notional_pct / 100.0
-        if self.impact_fn is None:
-            cost = self._cost(0.0)
-            notional = self.equity * self.risk_pct / 100.0 / (sl + cost)
-            notional = min(notional, cap)
-        else:   # trượt giá phụ thuộc khối lượng: lần 1 chưa tính trượt (chỉ phí), lần 2 tính trượt theo khối lượng dự kiến của lần 1
-            notional = min(self.equity * self.risk_pct / 100.0 / (sl + 2.0 * self.fee_rate), cap)
-            cost = self._cost(notional)
-            notional = min(self.equity * self.risk_pct / 100.0 / (sl + cost), cap)
-        if self.market == "perp":
-            safe = int(1.0 / (1.5 * sl + self.mmr)) if sl > 0 else int(self.max_leverage)
-            self.pos_leverage = float(max(1, min(int(self.max_leverage), safe)))
-        self.planned_risk = notional * (sl + cost)
-        return notional / total_mult / self.pos_leverage
+        margin, self.pos_leverage, self.planned_risk = policy.risk_margin(
+            self.equity, self.risk_pct, self.max_notional_pct, self.sl_pct, self.fee_rate, self.slippage_rate,
+            self.impact_fn, self.market == "perp", self.max_leverage, self.mmr, self.pos_leverage,
+            self._layer_mult_total())
+        return margin
 
     def _close(self, t: int, raw_price: float, status: PositionStatus, reason: str, market_order: bool) -> PositionModel:
         taker = market_order or self.limit_taker
         slip = 0.0
         if taker and status != PositionStatus.LIQ:
             slip = self._slip(self.qty * raw_price, not self.is_long)
-            price = raw_price * (1 - slip if self.is_long else 1 + slip)
+            price = policy.exit_fill_price(raw_price, slip, self.is_long)
         else:
             price = raw_price
-        gross = self.qty * ((price - self.avg) if self.is_long else (self.avg - price))
-        exit_fee = self.qty * price * (self.fee_rate if taker or status == PositionStatus.LIQ else self.maker_fee_rate)
+        gross = policy.gross_pnl(self.qty, self.avg, price, self.is_long)
+        exit_fee = policy.exit_fee(self.qty, price, self.fee_rate if taker or status == PositionStatus.LIQ else self.maker_fee_rate)
         trade_cash = gross - self.fees_paid - exit_fee          # phần chưa vào ledger (funding đã vào)
         if status == PositionStatus.LIQ:                         # isolated: mất tối đa ký quỹ + phí đã trả
             trade_cash = max(trade_cash, -(self.margin_used + self.fees_paid + exit_fee))
@@ -392,8 +366,7 @@ class PositionTracker:
         return pos
 
     def _status_by_pnl(self, price: float) -> PositionStatus:
-        move = (price - self.avg) if self.is_long else (self.avg - price)
-        return PositionStatus.TP if move > 0 else PositionStatus.SL
+        return PositionStatus.TP if policy.in_profit(price, self.avg, self.is_long) else PositionStatus.SL
 
     # ─── Một nến ────────────────────────────────────────────────────────────
     def on_bar(self, t: int, o: float, h: float, l: float, c: float,
@@ -447,15 +420,14 @@ class PositionTracker:
             k = self.layer_count - 1
             dca_level = None
             if k < len(self.dca_steps) and self.dca_ok:
-                dca_level = self.last_fill * (1 - sign * self.dca_steps[k] / 100.0)
-                trigger = dca_level * (1 - sign * self.limit_through) if self.limit_through else dca_level
+                dca_level = policy.dca_level(self.last_fill, self.dca_steps[k], sign)
+                trigger = policy.dca_trigger(dca_level, self.limit_through, sign)
                 events.append((trigger, 1, "dca"))
             if self.sl_pct:
-                events.append((self.avg * (1 - sign * self.sl_pct / 100.0), 0, "sl"))
+                events.append((policy.sl_level(self.avg, self.sl_pct, sign), 0, "sl"))
             if self.trail_pct:
-                gain_pct = sign * (self.peak - self.avg) / self.avg * 100.0 if self.avg else 0.0
-                if gain_pct >= self.trail_activation_pct:
-                    events.append((self.peak * (1 - sign * self.trail_pct / 100.0), 0, "trail"))
+                if policy.trail_active(self.peak, self.avg, self.trail_activation_pct, sign):
+                    events.append((policy.trail_level(self.peak, self.trail_pct, sign), 0, "trail"))
             liq = self._liq_price()
             if liq is not None and liq > 0:
                 events.append((liq, 0, "liq"))
@@ -463,8 +435,7 @@ class PositionTracker:
             if not reached:
                 break
             # long: mức cao nhất bị chạm trước khi giá rơi xuống; short: mức thấp nhất
-            level, _, kind = (max(reached, key=lambda e: (e[0], -e[1])) if self.is_long
-                              else min(reached, key=lambda e: (e[0], e[1])))
+            level, _, kind = policy.pick_first_touched(reached, self.is_long)
             price = self._gap_fill(level, o)
             if kind == "dca":
                 price = self._gap_fill(dca_level, o)        # lệnh limit khớp ở giá đặt (hoặc giá mở nếu gap qua mức)
@@ -480,16 +451,16 @@ class PositionTracker:
                 return self._close(t, price, PositionStatus.LIQ, "Thanh lý (perp)", market_order=False)
             if self.stop_fill == "extreme":
                 # Bi quan: lệnh stop-market khớp ở giá xấu nhất của nến (cú giật xuyên mức trong nến).
-                price = min(price, adverse) if self.is_long else max(price, adverse)
+                price = policy.stop_extreme_fill(price, adverse, self.is_long)
             if kind == "sl":
                 return self._close(t, price, PositionStatus.SL, "Stop-loss (từ giá TB)", market_order=True)
             return self._close(t, price, self._status_by_pnl(price), "Trailing stop", market_order=True)
 
         if self.tp_pct and not dca_filled:
-            tp_level = self.avg * (1 + sign * self.tp_pct / 100.0)
-            need = tp_level * (1 + sign * self.limit_through) if self.limit_through else tp_level
-            if (favorable >= need) if self.is_long else (favorable <= need):
-                price = max(tp_level, o) if self.is_long else min(tp_level, o)
+            tp_level = policy.tp_level(self.avg, self.tp_pct, sign)
+            need = policy.tp_need(tp_level, self.limit_through, sign)
+            if policy.tp_hit(favorable, need, self.is_long):
+                price = policy.tp_fill_price(tp_level, o, self.is_long)
                 return self._close(t, price, PositionStatus.TP, "Take-profit (từ giá TB)", market_order=False)
         return None
 
