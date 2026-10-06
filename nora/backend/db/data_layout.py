@@ -22,7 +22,7 @@ Cache tính toán (_cache) và kho alpha (alphas) dùng chung, nằm ở nora/da
     nora/data/alphas/           # kho alpha / sổ (book.json ghi data_exchange)
 
 okx/cex/<SYM>/perp: OKX USDT-SWAP (core/data/okx_crawler.py) — nến 1m từ file ngày chính thức + REST; funding OKX, khoảng trống lấp bằng
-proxy Binance (manifest.funding.sources / proxy_ranges). binance/cex: Binance USDT-M (core/data/crawler.py), binance/dex: DEX (lịch sử).
+proxy Binance (manifest.funding.sources / proxy_ranges). okx/dex: pool DEX (GeckoTerminal; không thuộc sàn nào, nằm cùng gốc sàn đang dùng). binance/cex: Binance USDT-M (core/data/crawler.py), chỉ tham khảo.
 
 Quy ước:
 - Thư mục bắt đầu bằng '.' hoặc '_' không phải tài sản.
