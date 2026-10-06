@@ -174,7 +174,7 @@ Một chân + một bộ tham số = một **alpha**. `BY_ID` tra `CANDIDATES` +
 
 ## 5. Engine thực thi (một flow)
 
-Nguồn: `backend/core/backtest/execution.py` (`PositionTracker`), `engine.py`, `params_builder.py`.
+Nguồn: `backend/core/execute/tracker.py` (`PositionTracker`), `backend/core/backtest/{engine,kernel}.py`, `backend/core/params/builder.py`. Từ P6 (ADR-P6): kiến trúc đích là Venue + PositionManager + risk.py dùng chung sim và sàn (xem `adr-p6-unified-execution.md`).
 
 ### 5.1 Vòng đời một nến 1m có giao dịch
 
@@ -222,7 +222,7 @@ thì bỏ tín hiệu (`skipped_no_vol`, `test_atr_entry_skipped_during_warmup`)
 
 ### 5.5 Ngân sách DCA và cooldown
 
-- `params_builder.dca_budget_check`: `need_pct = order_size_pct × (1×(1 + L×taker) + Σ m_k×(1 + L×maker))`, `m_k` là tích luỹ hệ số.
+- `core/params/builder.py::dca_budget_check`: `need_pct = order_size_pct × (1×(1 + L×taker) + Σ m_k×(1 + L×maker))`, `m_k` là tích luỹ hệ số.
   `need_pct > max_capital_usage×100` thì `build_params` ném `ValueError` kèm `order_size_pct` lớn nhất còn vừa (ví dụ 20% × 5 tầng không vừa, 19% vừa).
   Chỉ áp cho `sizing="margin_pct"`. Tầng bị từ chối lúc chạy do hết vốn đếm ở `dca_layers_rejected`.
 - WFA/optimize bỏ qua tổ hợp vi phạm thay vì làm hỏng job: `_optimize_is` đếm `invalid_combos`; `optimize_alphas.sample_configs` loại trước khi lấy mẫu (`configs_invalid`).

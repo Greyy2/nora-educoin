@@ -2,13 +2,13 @@
 # Giá trị hợp lệ: backlog | ready | in-progress | review | done.
 # Nguồn sự thật cho từng story là file stories/<id>-<slug>.md; file này phải khớp (xem README.md, mục Kiểm tra nhất quán).
 project: nora
-last_updated: 2026-10-04
+last_updated: 2026-10-06
 baseline_commit: dc08366
 branch: fix/pipeline-audit
 status_values: [backlog, ready, in-progress, review, done]
 summary:
-  epics: {done: 11, in-progress: 2, backlog: 2}
-  stories: {done: 63, review: 4, in-progress: 0, ready: 0, backlog: 17, total: 84}
+  epics: {done: 11, in-progress: 3, backlog: 2}
+  stories: {done: 63, review: 5, in-progress: 0, ready: 0, backlog: 17, total: 85}
 epics:
   E1:
     title: "Dữ liệu thị trường"
@@ -154,3 +154,8 @@ epics:
       E15-S4-vertical-trend-stress: done
       E15-S5-regime-trials-dsr-pbo: done
       E15-S6-regime-ui: done
+  E16:
+    title: "Kiến trúc thực thi thống nhất"
+    status: in-progress
+    stories:
+      E16-S1-adr-unified-execution: review

@@ -1,6 +1,6 @@
 # Nora — Kế hoạch triển khai (nguồn duy nhất)
 
-Cập nhật: 2026-10-02 · Nhánh: `fix/pipeline-audit` · Cách làm từng việc P1–P5: [`playbook_p1_p5.md`](playbook_p1_p5.md)
+Cập nhật: 2026-10-06 · Nhánh: `fix/pipeline-audit` · Cách làm từng việc P1–P5: [`playbook_p1_p5.md`](playbook_p1_p5.md)
 
 ## 1. Bản chất hệ thống (đã thống nhất)
 
@@ -164,6 +164,23 @@ Mỗi dòng chỉ chuyển `done` khi đạt đúng cột "Xong khi".
 |---|---|---|---|---|---|---|
 | P5.1 | Cập nhật BMAD: E12 tốc độ, E13 hai chế độ, E14 phễu, E15 regime; `sprint-status.yaml` | `docs/bmad/` | S | từng phase | Story khớp code | done — thêm E12–E15 (14 story), sprint-status 84 story, kiểm tra nhất quán OK |
 | P5.2 | Báo cáo chốt | — | O | P0–P4 | Gửi user | done — báo cáo chốt dưới đây |
+
+### P6 — Kiến trúc thực thi thống nhất (backtest → testnet → live)
+
+ADR: [`adr-p6-unified-execution.md`](adr-p6-unified-execution.md) · Epic E16. Mỗi ID một commit; golden + `test_kernel_parity` + `test_live_bot` xanh trước khi sang ID sau. Kernel và `Bot` không bị đụng tới trước P6.8. Parity: sim bit-identical; sim ↔ sàn trong dung sai.
+
+| ID | Việc | Nơi sửa | Người | Cần trước | Xong khi | Trạng thái |
+|---|---|---|---|---|---|---|
+| P6.0 | ADR: mức parity, quyết định đã chốt, kế hoạch nghỉ hưu tracker; sửa doc lệch (`architecture.md` mục 5 trỏ `execution.py`) | `docs/bmad/` | O | — | User duyệt các mục D1–D6 của ADR | doing |
+| P6.1 | `risk.py`: hàm thuần `admit_entry` (số vị thế, per-symbol, room gross, trần rủi ro mở, dd_throttle) và `kill_check`; cơ sở vốn truyền vào; `PaperBook` gọi nó thay code nội tuyến; `filters=None` tuỳ chọn trong PaperBook | `core/execute/risk.py`, `live/paper.py` | S | P6.0 (không phụ thuộc D1–D6) | Test replay hiện có xanh; PaperBook bằng kernel trên ~100 cấu hình ngẫu nhiên có trần rủi ro; `risk.py` bằng số lệnh bị chặn của `reference_engine` | todo |
+| P6.2 | `policy.py`: hàm cấp mức giá và khối lượng (`dca_level`, `sl`, `trail`, `tp`, `liq`, `layer_margin`, `gap_fill`); tracker uỷ quyền | `core/execute/policy.py`, `tracker.py` | S | P6.1 | Golden, parity, `pack_trackers` bit-identical; tên thuộc tính tracker không đổi | todo |
+| P6.3 | `events.py` tối thiểu + `account.py`: `Account` + `PositionBook` theo sự kiện thay `CapitalLedger` và kế toán trong `_add_layer`, giữ thứ tự phép toán float | `core/execute/{events,account}.py`, `ledger.py` | S | P6.2 | Phát lại `tracker.orders` qua Account cho ledger và PnL vị thế bit-identical trên golden và cấu hình ngẫu nhiên | todo |
+| P6.4 | `venue.py` (Protocol), `sim_venue.py`, `manager.py` + harness theo tầng: (a) market vào/ra/timeout/funding, (b) SL, (c) vòng DCA settle, (d) TP + bỏ qua nến có DCA, (e) trailing, (f) thanh lý, (g) `limit_through`/`stop_fill`/gap | `core/execute/*`, `test/` | O thiết kế, S từng tầng | P6.3 | Mỗi tầng bằng `RefPositionTracker` từng bit trên cấu hình ngẫu nhiên chỉ bật tính năng đó | todo |
+| P6.5 | `runner.py` `step_bar` cho một Venue; `PaperBook` thành lớp mỏng, bit-identical với bản cũ | `core/execute/runner.py`, `live/paper.py` | S | P6.4 | `test_paper_book_replays_engine_trades_exactly` xanh trên đường mới; parity danh mục đầy đủ với kernel | todo |
+| P6.6 | Bộ test conformance Venue chạy trên SimVenue (A hợp đồng, B kịch bản giá) | `test/venue_conformance.py` | S | P6.4 | Xanh trên SimVenue | todo |
+| P6.7 | `okx_venue.py` bọc `okx.py` (poll fill, reconcile → cùng sự kiện) | `live/okx_venue.py` | S | P6.6 | Contract test xanh trên response OKX đã ghi; chạy demo do người dùng kích hoạt, xanh | todo |
+| P6.8 | Bot chạy trên runner + OkxVenue sau cờ `engine=unified`; đường cũ chạy song song N ngày trên demo; `compare.py` chuyển sang mức sự kiện | `live/bot.py`, `live/compare.py` | O review, S cài | P6.7 + user duyệt | `compare.py` trong dung sai; vốn rủi ro là sổ ảo, vốn sàn chỉ cảnh báo lệch | todo |
+| P6.9 | Nghỉ hưu `tracker.on_bar`; `pack_trackers` dùng `StrategyParams`; giữ `reference_engine` làm oracle | `tracker.py`, `engine.py` | O | P6.8 | `PositionTracker` gỡ bỏ; golden, parity, full suite xanh; docs khớp code | todo |
 
 ### Ngoài phạm vi (giữ nguyên theo quyết định user)
 

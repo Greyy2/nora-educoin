@@ -23,8 +23,9 @@ Trạng thái: `backlog` (chưa làm) · `ready` (đủ điều kiện làm) · 
 | E13 | Hai chế độ chạy Cơ bản / Nâng cao | done | 2 / 2 | 5/7 preset stage A chưa qua dev2 (ghi nhãn). |
 | E14 | Phễu kiểm duyệt alpha | done | 3 / 3 | Lượt thật 36.000 alpha → 0 FINAL; alpha SOL bị loại khi kiểm lại. |
 | E15 | Regime và điều phối chiến lược | done | 6 / 6 | Bảng tĩnh không khớp dữ liệu; học trên train cải thiện nhưng WFA chưa qua. |
+| E16 | Kiến trúc thực thi thống nhất (backtest → testnet → live) | in-progress | 0 / 1 | ADR-P6 chờ duyệt D1–D6; P6.1–P6.9 chưa bắt đầu. |
 
-Tổng: 15 epic (11 done, 2 in-progress, 2 backlog); 84 story (67 done, 0 in-progress, 2 review, 0 ready, 15 backlog).
+Tổng: 16 epic (11 done, 3 in-progress, 2 backlog); 85 story (67 done, 0 in-progress, 3 review, 0 ready, 15 backlog).
 
 Epic E5 mang trạng thái `done` về mặt tính năng. Kết quả nghiên cứu là: alpha `trend_long_perp__SOL` từng hợp lệ nhưng bị loại khi kiểm lại bằng engine hiện hành (E14-S3, 03/10/2026); sổ `breakout_4h_long + breakout_4h_short` ở trạng thái `HOLDOUT_FAILED`, không có cấu hình testnet cho sổ. Việc tìm sổ qua holdout nằm ở E10.
 
@@ -262,3 +263,11 @@ Ghi chú: Kết quả trung thực: regime chưa tạo được sổ qua WFA (E1
 | [E15-S4](stories/E15-S4-vertical-trend-stress.md) | Monte Carlo: kịch bản trend thẳng đứng | done |
 | [E15-S5](stories/E15-S5-regime-trials-dsr-pbo.md) | Biến thể regime là lần thử trong DSR/PBO | done |
 | [E15-S6](stories/E15-S6-regime-ui.md) | Hiển thị regime hiện tại, lịch sử, chiến lược đang bật | done |
+
+## E16: Kiến trúc thực thi thống nhất [in-progress]
+
+Một giao diện sàn (`Venue`) cho sim và OKX, một risk engine, kế toán vị thế theo sự kiện, policy vị thế viết một lần (roadmap P6, ADR-P6). Sim bit-identical với kernel; sim ↔ sàn trong dung sai.
+
+| Story | Tiêu đề | Trạng thái |
+|---|---|---|
+| [E16-S1](stories/E16-S1-adr-unified-execution.md) | ADR kiến trúc thực thi thống nhất (P6.0) | review |
