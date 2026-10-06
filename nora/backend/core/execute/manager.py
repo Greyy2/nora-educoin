@@ -56,6 +56,7 @@ class PositionManager:
         self.base_sl, self.base_tp, self.base_trail, self.base_trail_act = tr.base_sl, tr.base_tp, tr.base_trail, tr.base_trail_act
         self.timeout_ms, self.cooldown_ms = tr.timeout_ms, tr.cooldown_ms
         self.stop_fill, self.limit_through = tr.stop_fill, tr.limit_through
+        self.intrabar_path = tr.intrabar_path
         self.exit_unit, self.sizing = tr.exit_unit, tr.sizing
         self.risk_pct, self.max_notional_pct = tr.risk_pct, tr.max_notional_pct
         self.base_dca_steps, self.dca_mults = list(tr.base_dca_steps), list(tr.dca_mults)
@@ -85,7 +86,7 @@ class PositionManager:
         add_slot = getattr(venue, "add_slot", None)
         if add_slot is not None:    # SimVenue cần chi phí khớp và cổng kiểm tra trước giao dịch của slot
             add_slot(slot, fee_rate=self.fee_rate, maker_fee_rate=self.maker_fee_rate, slippage_rate=self.slippage_rate,
-                     stop_fill=self.stop_fill, gate=self._gate)
+                     stop_fill=self.stop_fill, gate=self._gate, intrabar_path=self.intrabar_path)
 
     # ─── Trạng thái (cửa sổ vào book; cũng là PositionView của SimVenue) ────────
     qty = _book_attr("qty")
@@ -182,11 +183,13 @@ class PositionManager:
                 notional=margin * self.pos_leverage, margin=margin, reason="DCA", post_only=True)
         if self.sl_pct:
             add(OrderKind.SL, not self.is_long, level=policy.sl_level(self.avg, self.sl_pct, sign), reason=_SL_REASON, reduce_only=True)
-        if self.trail_pct and (native or policy.trail_active(self.peak, self.avg, self.trail_activation_pct, sign)):
-            # level = mức stop tĩnh từ đỉnh các nến trước (SimVenue); activation / callback_pct cho trailing gốc của sàn (OkxVenue)
+        path_mode = self.intrabar_path != "adverse_first"
+        if self.trail_pct and (native or path_mode or policy.trail_active(self.peak, self.avg, self.trail_activation_pct, sign)):
+            # level = mức stop tĩnh từ đỉnh các nến trước (SimVenue đường cũ); activation / callback_pct cho trailing gốc của sàn (OkxVenue);
+            # peak / activation_pct: SimVenue đường ohlc/adaptive tự chạy đỉnh theo từng chặng và tự kiểm kích hoạt
             add(OrderKind.TRAIL, not self.is_long, level=policy.trail_level(self.peak, self.trail_pct, sign),
                 activation=policy.tp_level(self.avg, self.trail_activation_pct, sign), callback_pct=self.trail_pct,
-                reason=_TRAIL_REASON, reduce_only=True)
+                reason=_TRAIL_REASON, reduce_only=True, peak=self.peak, activation_pct=self.trail_activation_pct)
         if self.tp_pct:
             level = policy.tp_level(self.avg, self.tp_pct, sign)
             add(OrderKind.TP, not self.is_long, level=level, trigger=policy.tp_need(level, self.limit_through, sign),

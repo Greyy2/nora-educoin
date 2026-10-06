@@ -36,8 +36,8 @@ P_FEE, P_MAKER, P_SLIP, P_MMR, P_MAXLEV, P_CAPUSE, P_BSL, P_BTP, P_BTR, P_BTA, P
 P_BS0 = 14                    # P[:, P_BS0 + j] = bước DCA gốc; P[:, P_BS0 + ml + j] = hệ số khối lượng tầng j (ml = số cột tối đa)
 P_FIXED = 14                  # P_LTHRU: lệnh limit (DCA, TP) chỉ khớp khi giá đi qua mức bấy nhiêu (tỉ lệ); 0 = chạm là khớp
 # ── Tham số int PI ──────────────────────────────────────────────────────────
-PI_LONG, PI_PERP, PI_TIMEOUT, PI_COOL, PI_EXTREME, PI_ATR, PI_RISKSZ, PI_NBASE, PI_MAXOPEN = range(9)
-NPI = 9
+PI_LONG, PI_PERP, PI_TIMEOUT, PI_COOL, PI_EXTREME, PI_ATR, PI_RISKSZ, PI_NBASE, PI_MAXOPEN, PI_PATH = range(10)
+NPI = 10                      # PI_PATH: đường giá trong nến — 0 adverse_first (cũ), 1 ohlc (mặc định), 2 adaptive
 # ── Trạng thái int I ────────────────────────────────────────────────────────
 I_OPEN, I_PE, I_PX, I_LAYERS, I_ENTRY_T, I_LASTCLOSE, I_HASLC, I_DCAREJ, I_SKIP, I_POS, I_NST, I_BLK, I_DCAOK = range(13)
 NI = 13                       # I_DCAOK: 1 = nến này được dồn tầng DCA (điều kiện DCA tại cuối nến trước; không có điều kiện -> luôn 1)
@@ -367,7 +367,152 @@ def _better(long_, level, prio, best_level, best_prio):
 
 
 @njit(**_JIT)
-def _intrabar(k, t, o, h, l, ML, MH, ja, jb, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq):
+def _intrabar(k, t, o, h, l, c, ML, MH, ja, jb, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq):
+    if PI[k, PI_PATH] == 0:
+        return _intrabar_adverse(k, t, o, h, l, ML, MH, ja, jb, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq)
+    return _intrabar_path(k, t, o, h, l, c, ML, MH, ja, jb, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq)
+
+
+@njit(**_JIT)
+def _extreme_price(long_, level, price, adverse, ML, MH, ja, jb):
+    """stop_fill='extreme': khớp ở giá xấu nhất của NẾN 1m đầu tiên chạm mức (ML/MH[ja:jb] = nến 1m trong nến chạy). Khung chạy 1m
+    (ja == jb): chính nến đó -> giá xấu nhất của nến. Không tìm thấy (thiếu 1m) -> giá xấu nhất của nến chạy."""
+    worst = adverse
+    for j in range(ja, jb):
+        if long_:
+            if ML[j] <= level:
+                worst = ML[j]
+                break
+        elif MH[j] >= level:
+            worst = MH[j]
+            break
+    if long_:
+        return worst if worst < price else price
+    return worst if worst > price else price
+
+
+@njit(**_JIT)
+def _intrabar_path(k, t, o, h, l, c, ML, MH, ja, jb, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq):
+    """Đường ohlc / adaptive (bản dịch tracker._intrabar_path): mỗi chặng là một tick; trong tick (a) mọi tầng DCA bị xuyên qua,
+    (b) chốt lời, (c) stop (SL / trailing / thanh lý). SL / TP cố định cả nến (lệnh đã nằm trên sàn từ cuối nến trước)."""
+    long_ = PI[k, PI_LONG] == 1
+    adverse = l if long_ else h
+    sign = 1.0 if long_ else -1.0
+    ml = (P.shape[1] - P_FIXED) // 2
+    has_sl = F[k, F_SL] != 0.0
+    sl_lv = 0.0
+    if has_sl:
+        sl_lv = F[k, F_AVG] * (1.0 - sign * F[k, F_SL] / 100.0)
+    has_tp = F[k, F_TP] != 0.0
+    tp_lv = 0.0
+    need = 0.0
+    if has_tp:
+        tp_lv = F[k, F_AVG] * (1.0 + sign * F[k, F_TP] / 100.0)
+        need = tp_lv * (1.0 + sign * P[k, P_LTHRU]) if P[k, P_LTHRU] != 0.0 else tp_lv
+    peak = F[k, F_PEAK]
+    dca_filled = False
+    prev = o
+    high_first = PI[k, PI_PATH] == 1 or (h - o < o - l)
+    for i in range(4):
+        if i == 0:
+            p = o
+        elif i == 1:
+            p = h if high_first else l
+        elif i == 2:
+            p = l if high_first else h
+        else:
+            p = c
+        if i > 0 and p == prev:
+            continue
+        # (a) nhóm DCA
+        while True:
+            kk = I[k, I_LAYERS] - 1
+            if not (kk < I[k, I_NST] and I[k, I_DCAOK] == 1):
+                break
+            dca_level = F[k, F_LAST_FILL] * (1.0 - sign * F[k, F_DS0 + kk] / 100.0)
+            trig = dca_level * (1.0 - sign * P[k, P_LTHRU]) if P[k, P_LTHRU] != 0.0 else dca_level
+            if not ((p <= trig) if long_ else (p >= trig)):
+                break
+            margin = F[k, F_NEXT] * P[k, P_BS0 + ml + kk]
+            if _add_layer(k, t, dca_level, margin, False, R_DCA, P, PI, F, I, LG, G, outF, outI, ordF, ordI):
+                F[k, F_NEXT] = margin
+                dca_filled = True
+                continue
+            I[k, I_DCAREJ] += 1
+            I[k, I_NST] = kk
+        # (b) chốt lời
+        if has_tp and ((p >= need) if long_ else (p <= need)):
+            _close(k, t, tp_lv, S_TP, R_TP, False, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq)
+            return True
+        # (c) nhóm stop: SL, trailing, thanh lý (hoà mức -> cái đứng trước)
+        have = False
+        best_level = 0.0
+        best_kind = 0                      # 1 sl, 2 trail, 3 liq
+        if has_sl:
+            if (p <= sl_lv) if long_ else (p >= sl_lv):
+                have = True
+                best_level = sl_lv
+                best_kind = 1
+        if F[k, F_TRAIL] != 0.0:
+            if F[k, F_AVG] != 0.0:
+                gain_pct = sign * (peak - F[k, F_AVG]) / F[k, F_AVG] * 100.0
+            else:
+                gain_pct = 0.0
+            if gain_pct >= F[k, F_TACT]:
+                level = peak * (1.0 - sign * F[k, F_TRAIL] / 100.0)
+                if (p <= level) if long_ else (p >= level):
+                    if (not have) or _better(long_, level, 0, best_level, 0):
+                        have = True
+                        best_level = level
+                        best_kind = 2
+        if PI[k, PI_PERP] == 1 and F[k, F_QTY] > 0.0:
+            if long_:
+                liq = F[k, F_AVG] * (1.0 - 1.0 / F[k, F_POS_LEV] + P[k, P_MMR])
+            else:
+                liq = F[k, F_AVG] * (1.0 + 1.0 / F[k, F_POS_LEV] - P[k, P_MMR])
+            if liq > 0.0:
+                if (p <= liq) if long_ else (p >= liq):
+                    if (not have) or _better(long_, liq, 0, best_level, 0):
+                        have = True
+                        best_level = liq
+                        best_kind = 3
+        if have:
+            level = best_level
+            if i == 0:
+                if long_:
+                    price = o if o < level else level          # chặng mở cửa: min(level, open) (gap)
+                else:
+                    price = o if o > level else level
+            else:
+                price = level                                  # trong nến: stop khớp ở mức kích hoạt
+            if best_kind == 3:
+                _close(k, t, price, S_LIQ, R_LIQ, False, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq)
+                return True
+            if PI[k, PI_EXTREME] == 1:
+                price = _extreme_price(long_, level, price, adverse, ML, MH, ja, jb)
+            if best_kind == 1:
+                _close(k, t, price, S_SL, R_SL, True, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq)
+                return True
+            _close(k, t, price, _status_by_pnl(k, price, PI, F), R_TRAIL, True, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq)
+            return True
+        if long_:
+            if p > peak:
+                peak = p
+        else:
+            if p < peak:
+                peak = p
+        prev = p
+    # cuối nến: TP đặt lại từ avg mới (sau fill DCA) đã "trong giá" ở close -> khớp ngay ở close (taker)
+    if dca_filled and has_tp:
+        tp_new = F[k, F_AVG] * (1.0 + sign * F[k, F_TP] / 100.0)
+        if (c >= tp_new) if long_ else (c <= tp_new):
+            _close(k, t, c, S_TP, R_TP, True, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq)
+            return True
+    return False
+
+
+@njit(**_JIT)
+def _intrabar_adverse(k, t, o, h, l, ML, MH, ja, jb, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq):
     long_ = PI[k, PI_LONG] == 1
     adverse = l if long_ else h
     favorable = h if long_ else l
@@ -505,7 +650,7 @@ def _on_bar(k, t, o, h, l, c, ML, MH, ja, jb, entry_signal, stop_signal, can_ope
             outF[pidx, O_MAXP] = h
         if l < outF[pidx, O_MINP]:
             outF[pidx, O_MINP] = l
-        closed = _intrabar(k, t, o, h, l, ML, MH, ja, jb, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq)
+        closed = _intrabar(k, t, o, h, l, c, ML, MH, ja, jb, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq)
     if I[k, I_OPEN] == 1:
         adverse = l if long_ else h
         u = _unreal(k, adverse, PI, F, I)
@@ -550,12 +695,19 @@ def _quiet_bar(k, t, o, h, l, peak, P, PI, F, I):
         if (adverse <= level) if long_ else (adverse >= level):
             return False
     if F[k, F_TRAIL] != 0.0:
+        pk = peak
+        if PI[k, PI_PATH] != 0:
+            # đường ohlc / adaptive: đỉnh chạy theo từng chặng -> dùng đỉnh CẢ nến (bao trùm mọi chặng; nến "không yên tĩnh" thừa chỉ chạy chậm hơn, không sai)
+            if long_:
+                pk = h if h > peak else peak
+            else:
+                pk = l if l < peak else peak
         if F[k, F_AVG] != 0.0:
-            gain_pct = sign * (peak - F[k, F_AVG]) / F[k, F_AVG] * 100.0
+            gain_pct = sign * (pk - F[k, F_AVG]) / F[k, F_AVG] * 100.0
         else:
             gain_pct = 0.0
         if gain_pct >= F[k, F_TACT]:
-            level = peak * (1.0 - sign * F[k, F_TRAIL] / 100.0)
+            level = pk * (1.0 - sign * F[k, F_TRAIL] / 100.0)
             if (adverse <= level) if long_ else (adverse >= level):
                 return False
     if PI[k, PI_PERP] == 1 and F[k, F_QTY] > 0.0:
@@ -1159,6 +1311,7 @@ def pack_trackers(trackers: List[Any]) -> Tuple[np.ndarray, np.ndarray, np.ndarr
         PI[k, PI_PERP] = 1 if tr.market == "perp" else 0
         PI[k, PI_TIMEOUT], PI[k, PI_COOL] = tr.timeout_ms, tr.cooldown_ms
         PI[k, PI_EXTREME] = 1 if tr.stop_fill == "extreme" else 0
+        PI[k, PI_PATH] = {"adverse_first": 0, "ohlc": 1, "adaptive": 2}[tr.intrabar_path]
         PI[k, PI_ATR] = 1 if tr.exit_unit == "atr" else 0
         PI[k, PI_RISKSZ] = 1 if tr.sizing == "risk" else 0
         PI[k, PI_NBASE] = len(tr.base_dca_steps)

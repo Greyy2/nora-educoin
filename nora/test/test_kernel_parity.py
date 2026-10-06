@@ -287,6 +287,7 @@ def rand_position(rng, side, force_perp=False):
     p["fee_rate"] = rng.choice([None, None, 0.0, 0.0003, 0.001])
     p["maker_fee_rate"] = rng.choice([None, None, 0.0, 0.0001])
     p["slippage_rate"] = rng.choice([None, None, 0.0, 0.0005, 0.002])
+    p["intrabar_path"] = rng.choice(["ohlc", "ohlc", "adaptive", "adverse_first"])   # đường giá trong nến: cả ba chính sách đều phải bit-identical
     return p
 
 

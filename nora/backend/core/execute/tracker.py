@@ -5,14 +5,21 @@ Vòng đời một nến 1m CÓ GIAO DỊCH (nến điền is_filled=1 bị bỏ
 1. Đầu nến (giá open):
    - lệnh thoát chờ (tín hiệu stop ở nến trước) hoặc hết thời gian giữ lệnh -> đóng ở open;
    - lệnh vào chờ (tín hiệu match ở nến trước) -> mở tầng đầu ở open (+ trượt giá).
-2. Trong nến — phía BẤT LỢI được xử lý theo đúng thứ tự giá chạm (long: từ trên xuống):
-   tầng DCA (lệnh limit), stop-loss, trailing stop, giá thanh lý (perp). Sau mỗi tầng DCA,
-   giá trung bình và giá thanh lý được tính lại ngay (sàn tự tính giá thanh lý). Hoà mức -> ưu tiên THOÁT (bi quan).
-   SL CŨ (quy tắc bảo thủ, 2026-10-06): lệnh SL đang nằm trên sàn không dời được ngay sau fill DCA, nên trong
-   phần còn lại của nến mức SL dùng là mức SL lúc tầng DCA ĐẦU TIÊN của nến khớp; SL tính từ avg mới có hiệu lực từ nến sau.
-   Giá open đã vượt mức stop-market (SL/trailing/thanh lý) -> khớp ở open (gap). Lệnh LIMIT đang chờ (tầng DCA)
-   khớp đúng ở mức đặt: phần giá tốt hơn khi gap thuộc về bên khớp lệnh (sàn thật / NautilusTrader).
-3. Phía CÓ LỢI: chốt lời (limit, từ giá TB) chỉ được xét nếu trong nến KHÔNG có tầng DCA nào
+2. Trong nến — đường giá `intrabar_path` (policy.bar_points):
+   - "ohlc" (MẶC ĐỊNH, = NautilusTrader): Open -> High -> Low -> Close. "adaptive" (= `bar_adaptive_high_low_ordering`): cực gần open ghé trước.
+     Mỗi chặng là MỘT tick: mọi lệnh bị chặng đó xuyên qua khớp ngay trong tick, theo thứ tự nhóm của sàn Nautilus: (a) các tầng DCA
+     (lệnh limit nhồi, từ gần ra xa; avg và giá thanh lý tính lại ngay), (b) chốt lời (limit), (c) các lệnh stop — SL, trailing, thanh lý —
+     mức bị xuyên cao nhất trước (long). Lệnh bảo vệ SL / TP là lệnh ĐÃ NẰM TRÊN SÀN từ cuối nến trước: mức của chúng cố định cả nến,
+     đặt lại từ avg mới (sau fill DCA) chỉ có hiệu lực từ nến sau; riêng nếu TP mới đã nằm "trong giá" tại close thì nó khớp ngay ở close
+     như lệnh taker (đúng hành vi Nautilus: lệnh đặt lại thấy sổ lệnh lúc close). Stop-market khớp ở mức kích hoạt; tick mở cửa (gap) thì ở open.
+     Lệnh limit (DCA, TP) luôn khớp ở mức đặt. Trailing: đỉnh/đáy chạy theo từng chặng, mức trailing dùng ở một chặng là mức tính sau chặng trước.
+   - "adverse_first" (cũ, giữ nguyên từng bit cho kiểm bền): phía BẤT LỢI trước, theo đúng thứ tự giá chạm (long: từ trên xuống):
+     tầng DCA (lệnh limit), stop-loss, trailing stop, giá thanh lý (perp). Sau mỗi tầng DCA, giá trung bình và giá thanh lý được tính lại ngay
+     (sàn tự tính giá thanh lý). Hoà mức -> ưu tiên THOÁT (bi quan). SL CŨ (quy tắc bảo thủ, 2026-10-06): lệnh SL đang nằm trên sàn không dời
+     được ngay sau fill DCA, nên trong phần còn lại của nến mức SL dùng là mức SL lúc tầng DCA ĐẦU TIÊN của nến khớp; SL tính từ avg mới có
+     hiệu lực từ nến sau. Giá open đã vượt mức stop-market (SL/trailing/thanh lý) -> khớp ở open (gap). Lệnh LIMIT đang chờ (tầng DCA)
+     khớp đúng ở mức đặt: phần giá tốt hơn khi gap thuộc về bên khớp lệnh (sàn thật / NautilusTrader).
+3. (chỉ "adverse_first") Phía CÓ LỢI: chốt lời (limit, từ giá TB) chỉ được xét nếu trong nến KHÔNG có tầng DCA nào
    khớp — không giả định "vừa nhồi ở đáy vừa chốt ở đỉnh" trong cùng một nến. Chốt lời khớp đúng ở mức TP
    (kể cả khi open đã vượt mức).
 4. Cuối nến: cập nhật đỉnh/đáy có lợi (cho trailing), lỗ treo tối đa (MAE), rồi đặt lệnh chờ
@@ -124,6 +131,9 @@ class PositionTracker:
         self.limit_through = max(0.0, float(getattr(params, "limit_through_pct", 0.0) or 0.0)) / 100.0
         if self.stop_fill not in ("level", "extreme"):
             raise ValueError(f"stop_fill phải là 'level' hoặc 'extreme', nhận '{self.stop_fill}'")
+        self.intrabar_path = str(getattr(params, "intrabar_path", "ohlc") or "ohlc").lower()
+        if self.intrabar_path not in policy.INTRABAR_PATHS:
+            raise ValueError(f"intrabar_path phải là một trong {policy.INTRABAR_PATHS}, nhận '{self.intrabar_path}'")
         self.exit_unit = str(getattr(params, "exit_unit", "pct") or "pct").lower()
         if self.exit_unit not in ("pct", "atr"):
             raise ValueError(f"exit_unit phải là 'pct' hoặc 'atr', nhận '{self.exit_unit}'")
@@ -371,7 +381,7 @@ class PositionTracker:
         # 2-3. Trong nến
         if self.is_open and closed is None:
             self.book.mark(h, l)
-            closed = self._intrabar(t, o, h, l)
+            closed = self._intrabar(t, o, h, l, c)
 
         # 4. Cuối nến
         if self.is_open:
@@ -387,7 +397,78 @@ class PositionTracker:
         self.dca_ok = bool(dca_gate)
         return closed
 
-    def _intrabar(self, t: int, o: float, h: float, l: float) -> Optional[PositionModel]:
+    def _intrabar(self, t: int, o: float, h: float, l: float, c: float) -> Optional[PositionModel]:
+        if self.intrabar_path == "adverse_first":
+            return self._intrabar_adverse_first(t, o, h, l)
+        return self._intrabar_path(t, o, h, l, c)
+
+    def _intrabar_path(self, t: int, o: float, h: float, l: float, c: float) -> Optional[PositionModel]:
+        """Đường ohlc / adaptive (xem docstring module): mỗi chặng là một tick; SL / TP cố định cả nến."""
+        is_long = self.is_long
+        sign = 1.0 if is_long else -1.0
+        adverse = l if is_long else h
+        sl_lv = policy.sl_level(self.avg, self.sl_pct, sign) if self.sl_pct else None     # lệnh bảo vệ đã nằm trên sàn từ cuối nến trước
+        tp_lv = tp_need = 0.0
+        if self.tp_pct:
+            tp_lv = policy.tp_level(self.avg, self.tp_pct, sign)
+            tp_need = policy.tp_need(tp_lv, self.limit_through, sign)
+        peak = self.peak                    # đỉnh/đáy có lợi chạy dọc đường giá (cho trailing)
+        dca_filled = False
+        prev = o
+        for i, p in enumerate(policy.bar_points(self.intrabar_path, o, h, l, c)):
+            if i and p == prev:
+                continue                    # chặng không đổi giá: không có tick (Nautilus bỏ qua)
+            at_open = i == 0
+            # (a) nhóm DCA: mọi tầng bị tick xuyên qua, tầng kế tính từ giá khớp gần nhất
+            while True:
+                k = self.layer_count - 1
+                if not (k < len(self.dca_steps) and self.dca_ok):
+                    break
+                dca_level = policy.dca_level(self.last_fill, self.dca_steps[k], sign)
+                if not policy.reached(policy.dca_trigger(dca_level, self.limit_through, sign), p, is_long):
+                    break
+                price = self._gap_fill(dca_level, o) if self.limit_taker else dca_level   # limit khớp ở mức; AMM (swap) khớp ở open
+                margin = self.next_margin * self.dca_mults[k]
+                if self._add_layer(t, price, margin, market_order=False, reason="DCA"):
+                    self.next_margin = margin
+                    dca_filled = True
+                    continue
+                self.dca_rejected += 1
+                self.dca_steps = self.dca_steps[: k]  # hết vốn: không nhồi thêm tầng nào nữa
+            # (b) chốt lời (limit chờ sẵn từ avg đầu nến)
+            if self.tp_pct and policy.tp_hit(p, tp_need, is_long):
+                price = policy.tp_fill_price(tp_lv, o, is_long) if self.limit_taker else tp_lv
+                return self._close(t, price, PositionStatus.TP, "Take-profit (từ giá TB)", market_order=False, kind="tp")
+            # (c) nhóm stop: SL (mức cố định), trailing (từ đỉnh sau chặng trước), thanh lý (tính từ avg hiện tại)
+            events: List[Tuple[float, int, str]] = []
+            if sl_lv is not None:
+                events.append((sl_lv, 0, "sl"))
+            if self.trail_pct and policy.trail_active(peak, self.avg, self.trail_activation_pct, sign):
+                events.append((policy.trail_level(peak, self.trail_pct, sign), 0, "trail"))
+            liq = self._liq_price()
+            if liq is not None and liq > 0:
+                events.append((liq, 0, "liq"))
+            reached = [e for e in events if policy.reached(e[0], p, is_long)]
+            if reached:
+                level, _, kind = policy.pick_first_touched(reached, is_long)
+                price = policy.tick_stop_price(level, o, is_long, at_open)
+                if kind == "liq":
+                    return self._close(t, price, PositionStatus.LIQ, "Thanh lý (perp)", market_order=False, kind="liq")
+                if self.stop_fill == "extreme":
+                    price = policy.stop_extreme_fill(price, adverse, is_long)
+                if kind == "sl":
+                    return self._close(t, price, PositionStatus.SL, "Stop-loss (từ giá TB)", market_order=True, kind="sl")
+                return self._close(t, price, self._status_by_pnl(price), "Trailing stop", market_order=True, kind="trail")
+            peak = policy.peak_step(peak, p, is_long)
+            prev = p
+        # Cuối nến: SL / TP đặt lại từ avg mới (sau fill DCA) thấy sổ lệnh ở close; TP mới đã "trong giá" -> khớp ngay ở close (taker)
+        if dca_filled and self.tp_pct:
+            tp_new = policy.tp_level(self.avg, self.tp_pct, sign)
+            if policy.tp_hit(c, tp_new, is_long):
+                return self._close(t, c, PositionStatus.TP, "Take-profit (từ giá TB)", market_order=True, kind="tp")
+        return None
+
+    def _intrabar_adverse_first(self, t: int, o: float, h: float, l: float) -> Optional[PositionModel]:
         adverse = l if self.is_long else h
         favorable = h if self.is_long else l
         sign = 1.0 if self.is_long else -1.0

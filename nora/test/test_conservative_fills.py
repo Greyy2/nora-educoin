@@ -1,4 +1,5 @@
-"""Quy tắc khớp BẢO THỤ có chủ đích (2026-10-06, duyệt sau test chéo engine với NautilusTrader — xem adr-p6-unified-execution.md):
+"""(Từ 2026-10-06 lần 2 các quy tắc này chỉ còn áp cho `intrabar_path="adverse_first"`; mặc định mới "ohlc" khớp NautilusTrader.)
+Quy tắc khớp BẢO THỦ có chủ đích (2026-10-06, duyệt sau test chéo engine với NautilusTrader — xem adr-p6-unified-execution.md):
 
 1. SL CŨ sau fill DCA: lệnh SL đang nằm trên sàn không dời được ngay, nên trong phần còn lại của nến mức SL dùng là mức lúc tầng DCA đầu
    tiên của nến khớp; SL tính từ avg mới chỉ có hiệu lực từ nến sau.
@@ -27,7 +28,8 @@ IMPLS = ("tracker", "event", "reference", "kernel")
 
 def _pos(side, **kw):
     p = {"order_size_pct": 20.0, "dca_step_pct": 1.0, "dca_max_layers": 1, "fee_rate": 0.0, "maker_fee_rate": 0.0, "slippage_rate": 0.0,
-         "market": "spot" if side == "LONG" else "perp", "leverage": 1}
+         "market": "spot" if side == "LONG" else "perp", "leverage": 1,
+         "intrabar_path": "adverse_first"}      # quy tắc bảo thủ 2026-10-06 gắn với đường cũ (mặc định mới là "ohlc": test_intrabar_path.py)
     p.update(kw)
     return p
 

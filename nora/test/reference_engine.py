@@ -6,6 +6,8 @@ KHÔNG sửa logic ở đây — nếu ngữ nghĩa engine đổi có chủ đí
 Cập nhật có chủ đích 2026-10-06 (quy tắc bảo thủ, khớp NautilusTrader / sàn thật; xem adr-p6-unified-execution.md): (1) SL cũ còn hiệu lực
 trong phần còn lại của nến sau fill DCA đầu tiên (SL tính từ avg mới chỉ có hiệu lực từ nến sau); (2) lệnh limit chờ sẵn (DCA, TP) khớp
 đúng ở mức đặt kể cả khi open gap qua mức (stop-market SL/trailing/thanh lý vẫn khớp ở open).
+Cập nhật có chủ đích 2026-10-06 (lần 2, người dùng quyết: Nora khớp ĐÚNG như NautilusTrader, không bảo thủ hơn): thêm `intrabar_path`
+("ohlc" mặc định / "adaptive" / "adverse_first" = hành vi cũ giữ nguyên) — `_intrabar_path` là bản viết lại độc lập, không dùng policy.py.
 Sinh ra bằng cách chép nguyên văn execution.py / engine.py:BacktestEngine / portfolio.py:PortfolioEngine rồi đổi tên lớp (Ref*).
 """
 import contextlib
@@ -129,6 +131,9 @@ class RefPositionTracker:
         self.limit_through = max(0.0, float(getattr(params, "limit_through_pct", 0.0) or 0.0)) / 100.0
         if self.stop_fill not in ("level", "extreme"):
             raise ValueError(f"stop_fill phải là 'level' hoặc 'extreme', nhận '{self.stop_fill}'")
+        self.intrabar_path = str(getattr(params, "intrabar_path", "ohlc") or "ohlc").lower()
+        if self.intrabar_path not in ("ohlc", "adaptive", "adverse_first"):
+            raise ValueError(f"intrabar_path không hợp lệ: '{self.intrabar_path}'")
         self.exit_unit = str(getattr(params, "exit_unit", "pct") or "pct").lower()
         if self.exit_unit not in ("pct", "atr"):
             raise ValueError(f"exit_unit phải là 'pct' hoặc 'atr', nhận '{self.exit_unit}'")
@@ -416,7 +421,7 @@ class RefPositionTracker:
             if self.position is not None:
                 self.position.max_price = max(self.position.max_price, h)
                 self.position.min_price = min(self.position.min_price, l)
-            closed = self._intrabar(t, o, h, l)
+            closed = self._intrabar(t, o, h, l, c)
 
         # 4. Cuối nến
         if self.is_open:
@@ -432,7 +437,78 @@ class RefPositionTracker:
         self.dca_ok = bool(dca_gate)
         return closed
 
-    def _intrabar(self, t: int, o: float, h: float, l: float) -> Optional[PositionModel]:
+    def _intrabar(self, t: int, o: float, h: float, l: float, c: float) -> Optional[PositionModel]:
+        if self.intrabar_path == "adverse_first":
+            return self._intrabar_adverse_first(t, o, h, l)
+        return self._intrabar_path(t, o, h, l, c)
+
+    def _intrabar_path(self, t: int, o: float, h: float, l: float, c: float) -> Optional[PositionModel]:
+        """Đường ohlc / adaptive: mỗi chặng (o -> h -> l -> c, hoặc o -> l -> h -> c) là một tick. Trong tick: (a) mọi tầng DCA bị xuyên qua,
+        (b) chốt lời, (c) stop (SL / trailing / thanh lý, mức bị xuyên cao nhất trước với long). SL / TP là lệnh đã nằm trên sàn từ cuối nến
+        trước: mức cố định cả nến; TP mới (từ avg sau DCA) mà đã trong giá ở close thì khớp ngay ở close (taker)."""
+        L = self.is_long
+        sign = 1.0 if L else -1.0
+        adverse = l if L else h
+        sl_lv = self.avg * (1 - sign * self.sl_pct / 100.0) if self.sl_pct else None
+        tp_lv = need = 0.0
+        if self.tp_pct:
+            tp_lv = self.avg * (1 + sign * self.tp_pct / 100.0)
+            need = tp_lv * (1 + sign * self.limit_through) if self.limit_through else tp_lv
+        high_first = self.intrabar_path == "ohlc" or h - o < o - l
+        pts = (o, h, l, c) if high_first else (o, l, h, c)
+        peak = self.peak
+        dca_filled = False
+        prev = o
+        for i, p in enumerate(pts):
+            if i and p == prev:
+                continue
+            while True:
+                k = self.layer_count - 1
+                if not (k < len(self.dca_steps) and self.dca_ok):
+                    break
+                dca_level = self.last_fill * (1 - sign * self.dca_steps[k] / 100.0)
+                trigger = dca_level * (1 - sign * self.limit_through) if self.limit_through else dca_level
+                if not self._reached(trigger, p):
+                    break
+                margin = self.next_margin * self.dca_mults[k]
+                if self._add_layer(t, dca_level, margin, market_order=False, reason="DCA"):
+                    self.next_margin = margin
+                    dca_filled = True
+                    continue
+                self.dca_rejected += 1
+                self.dca_steps = self.dca_steps[: k]
+            if self.tp_pct and ((p >= need) if L else (p <= need)):
+                return self._close(t, tp_lv, PositionStatus.TP, "Take-profit (từ giá TB)", market_order=False)
+            events: List[Tuple[float, int, str]] = []
+            if sl_lv is not None:
+                events.append((sl_lv, 0, "sl"))
+            if self.trail_pct:
+                gain_pct = sign * (peak - self.avg) / self.avg * 100.0 if self.avg else 0.0
+                if gain_pct >= self.trail_activation_pct:
+                    events.append((peak * (1 - sign * self.trail_pct / 100.0), 0, "trail"))
+            liq = self._liq_price()
+            if liq is not None and liq > 0:
+                events.append((liq, 0, "liq"))
+            reached = [e for e in events if self._reached(e[0], p)]
+            if reached:
+                level, _, kind = (max(reached, key=lambda e: (e[0], -e[1])) if L else min(reached, key=lambda e: (e[0], e[1])))
+                price = self._gap_fill(level, o) if i == 0 else level
+                if kind == "liq":
+                    return self._close(t, price, PositionStatus.LIQ, "Thanh lý (perp)", market_order=False)
+                if self.stop_fill == "extreme":
+                    price = min(price, adverse) if L else max(price, adverse)
+                if kind == "sl":
+                    return self._close(t, price, PositionStatus.SL, "Stop-loss (từ giá TB)", market_order=True)
+                return self._close(t, price, self._status_by_pnl(price), "Trailing stop", market_order=True)
+            peak = (p if p > peak else peak) if L else (p if p < peak else peak)
+            prev = p
+        if dca_filled and self.tp_pct:
+            tp_new = self.avg * (1 + sign * self.tp_pct / 100.0)
+            if (c >= tp_new) if L else (c <= tp_new):
+                return self._close(t, c, PositionStatus.TP, "Take-profit (từ giá TB)", market_order=True)
+        return None
+
+    def _intrabar_adverse_first(self, t: int, o: float, h: float, l: float) -> Optional[PositionModel]:
         adverse = l if self.is_long else h
         favorable = h if self.is_long else l
         sign = 1.0 if self.is_long else -1.0

@@ -16,7 +16,7 @@ POSITION_KEYS = (
     "market", "leverage", "max_open_trades", "stop_loss_rate", "take_profit_rate", "trailing_stop",
     "trailing_activation_pct", "timeout", "order_size_pct", "dca_step_pct", "dca_max_layers",
     "dca_size_multiplier", "maintenance_margin_rate", "fee_rate", "maker_fee_rate", "slippage_rate",
-    "using_match_price", "stop_fill", "exit_unit", "atr_frame", "atr_period", "sizing", "risk_per_trade_pct",
+    "using_match_price", "stop_fill", "intrabar_path", "exit_unit", "atr_frame", "atr_period", "sizing", "risk_per_trade_pct",
     "max_notional_pct", "cooldown", "dca_steps", "dca_multipliers", "limit_through_pct",
 )
 
@@ -141,6 +141,7 @@ def build_params(flow_name: str, flow_ast: Dict[str, Any], flow_type: str, posit
         trailing_activation_pct=float(position.get("trailing_activation_pct") or 0.0),
         timeout=int(position.get("timeout") or 0),
         stop_fill=str(position.get("stop_fill") or "level"),
+        intrabar_path=str(position.get("intrabar_path") or "ohlc"),
         cooldown=int(position.get("cooldown") or 0),
         limit_through_pct=max(0.0, float(position.get("limit_through_pct") or 0.0)),
         exit_unit=str(position.get("exit_unit") or "pct"),

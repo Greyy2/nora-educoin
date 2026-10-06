@@ -356,7 +356,7 @@ def test_b_gap_through_sl_fills_at_open():
 def test_b_dca_fill_then_tp_skipped_in_same_bar():
     """Nến có DCA khớp: TP (tính từ avg mới) KHÔNG được xét dù high vượt; nến kế tiếp mới chốt. Đối chứng: không DCA thì TP khớp ngay."""
     bars = [FLAT, FLAT, (100.0, 100.9, 99.4, 100.8), (100.8, 100.8, 100.8, 100.8)]
-    mgr, ev = _manager(order_size_pct=20.0, dca_step_pct=0.5, dca_max_layers=1, take_profit_rate=0.3)
+    mgr, ev = _manager(order_size_pct=20.0, dca_step_pct=0.5, dca_max_layers=1, take_profit_rate=0.3, intrabar_path="adverse_first")
     closed = _drive(mgr, bars)
     assert [i for i, _ in closed] == [3]                       # đóng ở nến 3, không phải nến 2 (nến DCA)
     pos = closed[0][1]
@@ -365,21 +365,45 @@ def test_b_dca_fill_then_tp_skipped_in_same_bar():
     assert _fills(ev, "dca")[0].price == pytest.approx(99.5) and _fills(ev, "dca")[0].liquidity == "maker"
     avg = 2 / (1 / 100.0 + 1 / 99.5)                           # hai tầng cùng ký quỹ -> giá TB điều hoà
     assert pos.close_price == pytest.approx(avg * 1.003)       # open nến 3 (100.8) đã vượt mức TP (~100.05) -> limit chờ sẵn khớp ĐÚNG ở mức TP (quy tắc bảo thủ 2026-10-06)
-    mgr2, ev2 = _manager(order_size_pct=20.0, take_profit_rate=0.3)
+    mgr2, ev2 = _manager(order_size_pct=20.0, take_profit_rate=0.3, intrabar_path="adverse_first")
     closed2 = _drive(mgr2, bars)
     assert [i for i, _ in closed2] == [2] and closed2[0][1].layers == 1 and _fills(ev2, "tp")[0].price == pytest.approx(100.3)
 
 
+def test_b_ohlc_dca_then_replaced_tp_in_the_money_at_close_fills_taker_at_close():
+    """Đường "ohlc": nến (100, 100.2, 99.4, 100.2): DCA @99.5 ở chặng L; TP mới (avg x 1.003 ~ 100.05) đã trong giá ở close 100.2 -> khớp
+    ngay ở close như lệnh taker (Nautilus: lệnh đặt lại thấy sổ lệnh lúc close); TP cũ 100.3 chưa chạm."""
+    mgr, ev = _manager(order_size_pct=20.0, dca_step_pct=0.5, dca_max_layers=1, take_profit_rate=0.3)
+    closed = _drive(mgr, [FLAT, FLAT, (100.0, 100.2, 99.4, 100.2)])
+    assert [i for i, _ in closed] == [2] and closed[0][1].layers == 2 and closed[0][1].status == PositionStatus.TP
+    assert [f.kind for f in _fills(ev)] == ["entry", "dca", "tp"]
+    (tp,) = _fills(ev, "tp")
+    assert tp.raw_price == pytest.approx(100.2) and tp.liquidity == "taker"
+    mgr2, ev2 = _manager(order_size_pct=20.0, dca_step_pct=0.5, dca_max_layers=1, take_profit_rate=0.3)
+    closed2 = _drive(mgr2, [FLAT, FLAT, (100.0, 100.9, 99.4, 100.8)])     # H trước: TP cũ 100.3 khớp ở chặng H, chưa có DCA
+    assert [i for i, _ in closed2] == [2] and closed2[0][1].layers == 1 and _fills(ev2, "tp")[0].price == pytest.approx(100.3)
+    assert _fills(ev2, "tp")[0].liquidity == "maker"
+
+
 def test_b_tie_sl_vs_dca_exits_first():
     """SL và DCA cùng mức trong một nến (hoà) -> thoát trước: không nhồi tầng. Đối chứng: DCA cao hơn SL thì nhồi trước rồi vẫn sống."""
-    mgr, ev = _manager(order_size_pct=20.0, stop_loss_rate=1.0, dca_step_pct=1.0, dca_max_layers=1)     # DCA 99.0 == SL 99.0
+    mgr, ev = _manager(order_size_pct=20.0, stop_loss_rate=1.0, dca_step_pct=1.0, dca_max_layers=1, intrabar_path="adverse_first")     # DCA 99.0 == SL 99.0
     closed = _drive(mgr, [FLAT, FLAT, (100.0, 100.0, 98.5, 99.0)])
     assert [i for i, _ in closed] == [2]
     assert [f.kind for f in _fills(ev)] == ["entry", "sl"] and closed[0][1].layers == 1
     assert _fills(ev, "sl")[0].price == pytest.approx(99.0)
-    mgr2, ev2 = _manager(order_size_pct=20.0, stop_loss_rate=2.0, dca_step_pct=1.0, dca_max_layers=1)  # DCA 99.0 trước, SL ~97.6 chưa chạm
+    mgr2, ev2 = _manager(order_size_pct=20.0, stop_loss_rate=2.0, dca_step_pct=1.0, dca_max_layers=1, intrabar_path="adverse_first")  # DCA 99.0 trước, SL ~97.6 chưa chạm
     assert _drive(mgr2, [FLAT, FLAT, (100.0, 100.0, 98.5, 99.0)]) == [] and mgr2.is_open and mgr2.layer_count == 2
     assert [f.kind for f in _fills(ev2)] == ["entry", "dca"]
+
+
+def test_b_ohlc_tie_sl_and_dca_same_level_dca_first_then_sl():
+    """Đường "ohlc" (Nautilus): trong một tick nhóm DCA khớp TRƯỚC stop — hoà mức 99.0 thì nhồi tầng rồi SL cố định 99.0 đóng cả vị thế."""
+    mgr, ev = _manager(order_size_pct=20.0, stop_loss_rate=1.0, dca_step_pct=1.0, dca_max_layers=1)
+    closed = _drive(mgr, [FLAT, FLAT, (100.0, 100.0, 98.5, 99.0)])
+    assert [i for i, _ in closed] == [2] and closed[0][1].layers == 2
+    assert [f.kind for f in _fills(ev)] == ["entry", "dca", "sl"]
+    assert _fills(ev, "sl")[0].price == pytest.approx(99.0) and _fills(ev, "dca")[0].price == pytest.approx(99.0)
 
 
 @pytest.mark.parametrize("spike_bar", [False, True], ids=["pinned_path", "same_bar_spike"])
@@ -388,13 +412,25 @@ def test_b_trailing_uses_previous_bars_peak(spike_bar):
     (nếu dùng đỉnh nến hiện tại mức sẽ là 108,9 -> khớp ở 105)."""
     path = [FLAT, FLAT, (100, 101, 100, 101), (101, 103, 101, 103), (103, 105, 103, 105)]
     path += [(105.0, 110.0, 103.5, 104.0)] if spike_bar else [(105, 105, 104, 104), (104, 104, 103.9, 103.9)]
-    mgr, ev = _manager(trailing_stop=1.0)
+    mgr, ev = _manager(trailing_stop=1.0, intrabar_path="adverse_first")
     closed = _drive(mgr, path)
     assert [i for i, _ in closed] == [len(path) - 1]
     pos = closed[0][1]
     assert pos.close_price == pytest.approx(105 * 0.99) and pos.status == PositionStatus.TP
     (tr,) = _fills(ev, "trail")
     assert tr.raw_price == pytest.approx(103.95) and tr.liquidity == "taker"
+
+
+def test_b_ohlc_trailing_peak_runs_per_leg():
+    """Đường "ohlc": đỉnh chạy theo chặng. Đỉnh trước nến = 105; nến (105, 110, 103.5, 104): H lên 110 rồi L 103.5 xuyên mức 110 x 0.99 = 108.9
+    -> khớp ở 108.9 NGAY trong nến (đường cũ khớp ở 103.95). Kích hoạt kiểm theo từng chặng."""
+    path = [FLAT, FLAT, (100, 101, 100, 101), (105, 105, 104.5, 105), (105.0, 110.0, 103.5, 104.0)]
+    mgr, ev = _manager(trailing_stop=1.0)
+    closed = _drive(mgr, path)
+    (tr,) = _fills(ev, "trail")
+    assert closed[-1][0] == len(path) - 1 and tr.raw_price == pytest.approx(110 * 0.99) and tr.liquidity == "taker"
+    mgr2, ev2 = _manager(trailing_stop=1.0, trailing_activation_pct=12.0)    # lãi tại đỉnh 110 là 10% < 12%: chưa bật -> không khớp
+    assert _drive(mgr2, path) == [] and not _fills(ev2, "trail")
 
 
 def test_b_liquidation_fill_on_perp_only():

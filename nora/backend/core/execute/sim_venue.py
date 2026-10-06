@@ -1,6 +1,17 @@
 """SimVenue (P6.4) — sàn mô phỏng theo nến, cài `Venue` (venue.py) cho backtest-py / paper.
 
-Khớp lệnh theo nến 1m với chính sách trong nến `intrabar_path="adverse_first"` — tái hiện NGUYÊN VĂN `PositionTracker._intrabar`:
+Khớp lệnh theo nến với chính sách đường giá trong nến `intrabar_path` (mỗi slot một giá trị, do manager truyền qua `add_slot`) — tái hiện
+NGUYÊN VĂN `PositionTracker._intrabar`:
+
+**"ohlc" (mặc định, = NautilusTrader) / "adaptive"** (`_match_path`): nến là đường O -> H -> L -> C (adaptive: cực gần open trước; `policy.bar_points`).
+Mỗi chặng là MỘT tick: venue trả lần lượt (a) các fill DCA mà chặng xuyên qua (từ gần ra xa; sau mỗi fill manager đặt lại lệnh, tầng kế tính từ
+giá khớp), (b) chốt lời (limit, khớp ở mức TP), (c) lệnh stop: SL, TRAIL, thanh lý — mức bị xuyên cao nhất trước (long). SL / TP là lệnh đã nằm
+trên sàn từ cuối nến trước: venue ĐÓNG BĂNG mức của chúng ở lần `next_event` đầu của nến (manager đặt lại từ avg mới sau fill DCA chỉ có hiệu lực
+từ nến sau). Stop-market khớp ở mức kích hoạt; tick mở cửa (gap) thì ở open. TRAIL: venue giữ đỉnh/đáy chạy theo từng chặng (khởi tạo từ `Order.peak`),
+kích hoạt theo `activation_pct` và avg hiện tại, mức = `callback_pct`% khỏi đỉnh sau chặng trước (không có `peak` -> dùng `level` tĩnh như cũ).
+Cuối nến (`end_adverse` -> `_match_favorable`): nếu nến có fill DCA và TP đặt lại từ avg mới đã "trong giá" ở close -> khớp ngay ở close (taker).
+
+**"adverse_first"** (cũ, giữ nguyên từng bit — slot cũ trong paper.pkl mặc định như vậy):
 
 1. Lệnh market ENTRY / EXIT khớp ở giá open (đã gồm trượt giá taker), theo thứ tự đặt.
 2. Phía BẤT LỢI: trong các lệnh chờ DCA (limit), SL, TRAIL và giá thanh lý (sinh từ `position_view`, chỉ perp), lệnh nào ĐÃ CHẠM
@@ -69,6 +80,18 @@ class _Slot:
     quoted: bool = False
     dca_filled: bool = False
     stale_sl: Optional[float] = None    # mức SL cũ còn hiệu lực sau fill DCA đầu tiên của nến (None = chưa có DCA khớp / không có SL)
+    # ── đường ohlc / adaptive ──
+    intrabar_path: str = "ohlc"
+    pts: tuple = ()                     # bốn điểm giá của nến theo thứ tự đi qua
+    tick_i: int = 0                     # chặng đang xử lý (0 = tick mở cửa)
+    prev: float = float("nan")          # giá chặng trước (chặng không đổi giá bị bỏ qua)
+    frozen: bool = False                # đã đóng băng SL / TP của nến chưa
+    sl_lv: Optional[float] = None       # mức SL cố định cả nến (None = không có SL)
+    sl_reason: str = ""
+    tp_lv: Optional[float] = None       # mức TP cố định cả nến (None = không có TP)
+    tp_need: float = float("nan")
+    tp_reason: str = ""
+    peak: float = float("nan")          # đỉnh/đáy có lợi chạy theo chặng (trailing); nan = không có TRAIL
     rejects: Deque[OrderRejected] = field(default_factory=deque)   # lệnh bị từ chối ngay lúc đặt (hợp đồng venue.py): trả ở next_event trước mọi khớp
 
     def __setstate__(self, state) -> None:
@@ -76,24 +99,29 @@ class _Slot:
         self.__dict__.update(state)
         self.__dict__.setdefault("rejects", deque())
         self.__dict__.setdefault("stale_sl", None)
+        for k, v in (("intrabar_path", "adverse_first"), ("pts", ()), ("tick_i", 0), ("prev", float("nan")), ("frozen", False),
+                     ("sl_lv", None), ("sl_reason", ""), ("tp_lv", None), ("tp_need", float("nan")), ("tp_reason", ""), ("peak", float("nan"))):
+            self.__dict__.setdefault(k, v)     # slot cũ (trước intrabar_path) giữ chính sách cũ để vị thế đang mở không đổi ngữ nghĩa giữa chừng
 
 
 class SimVenue:
     caps = VenueCaps(generates_liquidation=True, native_trailing=False, post_only=False, rounds_qty=False)
-    intrabar_path = "adverse_first"
 
     def __init__(self) -> None:
         self._slots: Dict[int, _Slot] = {}
 
     # ─── cấu hình ───────────────────────────────────────────────────────────
     def add_slot(self, slot: int, *, fee_rate: float, maker_fee_rate: float, slippage_rate: float, stop_fill: str = "level",
-                 gate: Optional[Gate] = None, limit_taker: bool = False, impact_fn=None) -> None:
-        """Đăng ký slot với chi phí khớp của nó. gate = kiểm tra trước giao dịch cho lệnh vào / DCA (None = luôn chấp nhận)."""
+                 gate: Optional[Gate] = None, limit_taker: bool = False, impact_fn=None, intrabar_path: str = "ohlc") -> None:
+        """Đăng ký slot với chi phí khớp của nó. gate = kiểm tra trước giao dịch cho lệnh vào / DCA (None = luôn chấp nhận).
+        intrabar_path = "ohlc" | "adaptive" | "adverse_first" (xem docstring module)."""
         if limit_taker or impact_fn is not None:
             raise NotImplementedError("SimVenue chưa hỗ trợ limit_taker / impact_fn (AMM/DEX nằm ngoài P6)")
         if stop_fill not in ("level", "extreme"):
             raise ValueError(f"stop_fill phải là 'level' hoặc 'extreme', nhận '{stop_fill}'")
-        self._slots[slot] = _Slot(float(fee_rate), float(maker_fee_rate), float(slippage_rate), stop_fill, gate)
+        if intrabar_path not in policy.INTRABAR_PATHS:
+            raise ValueError(f"intrabar_path phải là một trong {policy.INTRABAR_PATHS}, nhận '{intrabar_path}'")
+        self._slots[slot] = _Slot(float(fee_rate), float(maker_fee_rate), float(slippage_rate), stop_fill, gate, intrabar_path=intrabar_path)
 
     # ─── Venue ──────────────────────────────────────────────────────────────
     def submit(self, order: Order) -> None:
@@ -154,6 +182,11 @@ class SimVenue:
         st.phase = "adverse"
         st.dca_filled = False
         st.stale_sl = None
+        st.frozen = False
+        st.tick_i = 0
+        st.prev = o
+        st.peak = float("nan")
+        st.pts = () if st.intrabar_path == "adverse_first" else policy.bar_points(st.intrabar_path, o, h, l, c)
 
     def end_adverse(self, slot: int) -> None:
         """Chuyển sang phía CÓ LỢI của nến (TP)."""
@@ -195,7 +228,83 @@ class SimVenue:
                 return o
         return None
 
+    def _match_path(self, slot: int, st: _Slot) -> Optional[Union[Fill, OrderRejected]]:
+        """Đường ohlc / adaptive: kéo fill kế tiếp của tick hiện tại; hết tick thì sang chặng sau (xem docstring module)."""
+        view = st.view
+        is_long = view.is_long
+        if not st.frozen:                   # SL / TP đã nằm trên sàn từ cuối nến trước (manager vừa đặt): mức cố định cả nến
+            st.frozen = True
+            sl, tp, tr = self._first(st, OrderKind.SL), self._first(st, OrderKind.TP), self._first(st, OrderKind.TRAIL)
+            if sl is not None:
+                st.sl_lv, st.sl_reason = sl.level, sl.reason
+            else:
+                st.sl_lv = None
+            if tp is not None:
+                st.tp_lv, st.tp_need, st.tp_reason = tp.level, _trigger(tp), tp.reason
+            else:
+                st.tp_lv = None
+            st.peak = tr.peak if tr is not None else float("nan")
+        while st.tick_i < 4:
+            p = st.pts[st.tick_i]
+            if st.tick_i and p == st.prev:
+                st.tick_i += 1
+                continue
+            ev = self._match_tick(slot, st, p, st.tick_i == 0)
+            if ev is not None:
+                return ev
+            st.peak = policy.peak_step(st.peak, p, is_long)
+            st.prev = p
+            st.tick_i += 1
+        return None
+
+    def _match_tick(self, slot: int, st: _Slot, p: float, at_open: bool) -> Optional[Union[Fill, OrderRejected]]:
+        """Fill kế tiếp mà tick giá `p` kích hoạt: (a) DCA, (b) TP, (c) stop (SL / TRAIL / thanh lý). None = tick hết việc."""
+        view = st.view
+        is_long = view.is_long
+        sign = policy.sign_of(is_long)
+        od = self._first(st, OrderKind.DCA)
+        if od is not None and policy.reached(_trigger(od), p, is_long):
+            price = od.level        # limit chờ sẵn khớp ĐÚNG ở giá đặt, kể cả khi gap qua mức
+            fee = policy.entry_fee(od.notional, st.maker_fee_rate)
+            st.orders.remove(od)
+            reason = st.gate("dca", od.margin, fee, price) if st.gate is not None else None
+            if reason is not None:
+                return OrderRejected(slot, od.id, "dca", reason)
+            st.dca_filled = True
+            return Fill(slot=slot, order_id=_next_id(), kind="dca", t=st.t, price=price, raw_price=price, notional=od.notional,
+                        margin=od.margin, fee=fee, slip=0.0, liquidity="maker", reason=od.reason)
+        if st.tp_lv is not None and policy.tp_hit(p, st.tp_need, is_long):
+            return self._close_fill(slot, st, "tp", st.tp_lv, st.tp_reason, taker=False)     # limit khớp ĐÚNG ở mức TP
+        events = []     # (mức, ưu tiên, loại) — thứ tự SL, TRAIL, LIQ như tracker
+        reasons = {"sl": st.sl_reason}
+        if st.sl_lv is not None:
+            events.append((st.sl_lv, 0, "sl"))
+        tr = self._first(st, OrderKind.TRAIL)
+        if tr is not None:
+            if isnan(tr.peak):              # lệnh TRAIL không kèm đỉnh: mức tĩnh như đường cũ
+                events.append((tr.level, 0, "trail"))
+                reasons["trail"] = tr.reason
+            elif policy.trail_active(st.peak, view.avg, tr.activation_pct, sign):
+                events.append((policy.trail_level(st.peak, tr.callback_pct, sign), 0, "trail"))
+                reasons["trail"] = tr.reason
+        if view.market == "perp" and view.qty > 0:
+            liq = policy.liq_price(view.avg, view.pos_leverage, view.mmr, is_long)
+            if liq > 0:
+                events.append((liq, 0, "liq"))
+        reached = [e for e in events if policy.reached(e[0], p, is_long)]
+        if not reached:
+            return None
+        level, _, kind = policy.pick_first_touched(reached, is_long)
+        price = policy.tick_stop_price(level, st.o, is_long, at_open)
+        if kind == "liq":
+            return self._close_fill(slot, st, "liq", price, "Thanh lý (perp)", taker=False, liq=True)
+        if st.stop_fill == "extreme":
+            price = policy.stop_extreme_fill(price, st.l if is_long else st.h, is_long)
+        return self._close_fill(slot, st, kind, price, reasons[kind], taker=True)
+
     def _match_adverse(self, slot: int, st: _Slot) -> Optional[Union[Fill, OrderRejected]]:
+        if st.intrabar_path != "adverse_first":
+            return self._match_path(slot, st)
         view = st.view
         is_long = view.is_long
         adverse = st.l if is_long else st.h
@@ -239,6 +348,11 @@ class SimVenue:
 
     def _match_favorable(self, slot: int, st: _Slot) -> Optional[Fill]:
         tp = self._first(st, OrderKind.TP)
+        if st.intrabar_path != "adverse_first":
+            # TP đặt lại từ avg mới (sau fill DCA trong nến) thấy sổ lệnh ở close: đã "trong giá" -> khớp ngay ở close như lệnh taker
+            if tp is None or not st.dca_filled or not policy.tp_hit(st.c, tp.level, st.view.is_long):
+                return None
+            return self._close_fill(slot, st, "tp", st.c, tp.reason, taker=True)
         if tp is None or st.dca_filled:     # không giả định "vừa nhồi ở đáy vừa chốt ở đỉnh" trong cùng một nến
             return None
         is_long = st.view.is_long

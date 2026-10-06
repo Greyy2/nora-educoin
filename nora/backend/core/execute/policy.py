@@ -13,8 +13,34 @@ from typing import Callable, List, Optional, Sequence, Tuple
 ImpactFn = Optional[Callable[[float, bool], float]]
 
 
+INTRABAR_PATHS = ("ohlc", "adaptive", "adverse_first")
+
+
 def sign_of(is_long: bool) -> float:
     return 1.0 if is_long else -1.0
+
+
+# ─── Đường giá trong nến (intrabar_path) ────────────────────────────────────
+def bar_points(path: str, o: float, h: float, l: float, c: float) -> Tuple[float, float, float, float]:
+    """Bốn điểm giá nến đi qua theo thứ tự (chỉ cho "ohlc" / "adaptive"; "adverse_first" xử lý riêng, không theo điểm).
+    "ohlc" (mặc định, = NautilusTrader): Open -> High -> Low -> Close. "adaptive" (= `bar_adaptive_high_low_ordering=True`): cực gần open
+    ghé trước — Nautilus `bar_high_first = high - open < open - low` (HOÀ khoảng cách -> Low trước)."""
+    if path == "ohlc" or h - o < o - l:
+        return (o, h, l, c)
+    return (o, l, h, c)
+
+
+def peak_step(peak: float, price: float, is_long: bool) -> float:
+    """Đỉnh (long) / đáy (short) có lợi chạy dọc đường giá: cập nhật sau mỗi chặng (max/min kiểu Python)."""
+    if is_long:
+        return price if price > peak else peak
+    return price if price < peak else peak
+
+
+def tick_stop_price(level: float, open_price: float, is_long: bool, at_open: bool) -> float:
+    """Giá khớp lệnh STOP-market / thanh lý khi bị một chặng đường giá xuyên qua (đường ohlc/adaptive): chặng mở cửa (gap) -> open
+    (`gap_fill`); chặng trong nến -> đúng mức kích hoạt (NautilusTrader `fill_at_market=False`: stop khớp ở trigger)."""
+    return gap_fill(level, open_price, is_long) if at_open else level
 
 
 # ─── Mức giá ────────────────────────────────────────────────────────────────

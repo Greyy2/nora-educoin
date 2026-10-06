@@ -48,9 +48,23 @@ class CountingVenue(SimVenue):
 
     def next_event(self, slot):
         st = self._slots[slot]
-        if not st.market and st.view is not None and st.phase == "adverse":
+        legacy = st.intrabar_path == "adverse_first"
+        if legacy and not st.market and st.view is not None and st.phase == "adverse":
             self._count_tie(st)
         ev = super().next_event(slot)
+        if not legacy and isinstance(ev, Fill):     # đường ohlc / adaptive: các nhánh riêng của nó
+            if ev.kind == "tp" and ev.liquidity == "taker":
+                self.cov["r3_close_tp"] += 1
+            if ev.kind == "tp" and ev.liquidity == "maker":
+                self.cov["tp_maker_path"] += 1
+                if st.dca_filled:
+                    self.cov["tp_after_dca_same_bar"] += 1
+                if st.tp_need != st.tp_lv:
+                    self.cov["limit_through_tp"] += 1
+            if ev.kind in ("sl", "trail", "liq") and st.dca_filled:
+                self.cov["stop_after_dca_same_bar"] += 1
+            if ev.kind == "trail" and ev.raw_price != st.o:
+                self.cov["trail_path"] += 1
         if isinstance(ev, Fill) and ev.kind in ("dca", "sl", "trail", "liq") and ev.raw_price == st.o:
             self.cov["gap_fill"] += 1
         if isinstance(ev, Fill) and ev.kind in ("sl", "trail") and st.stop_fill == "extreme" and ev.raw_price != st.o \
@@ -73,6 +87,8 @@ class CountingVenue(SimVenue):
                 self.cov["tie_exit_over_dca"] += 1
 
     def _match_favorable(self, slot, st):
+        if st.intrabar_path != "adverse_first":
+            return super()._match_favorable(slot, st)
         tp = self._first(st, OrderKind.TP)
         if tp is not None and st.dca_filled:
             need = tp.level if math.isnan(tp.trigger) else tp.trigger
@@ -335,9 +351,9 @@ _NEED = {
     "a": ["reason.Tín hiệu thoát (AST stop)", "reason.Hết thời gian giữ lệnh", "reason.End of Backtest", "reason.Kill switch danh mục",
           "funding", "skipped_no_vol", "side.SHORT", "spot", "multi_slot", "liquidity.taker", "rejected.entry.no_margin"],
     "b": ["reason.Stop-loss (từ giá TB)", "status.SL", "mae"],
-    "c": ["dca_filled", "liquidity.maker", "dca_rejected", "rejected.dca.budget", "rejected.dca.capital", "ledger_rejected"],
-    "d": ["reason.Take-profit (từ giá TB)", "status.TP", "tp_skipped_on_dca_bar"],
-    "e": ["reason.Trailing stop", "trail_gain", "trail_loss"],
+    "c": ["dca_filled", "liquidity.maker", "dca_rejected", "rejected.dca.budget", "rejected.dca.capital", "ledger_rejected", "stop_after_dca_same_bar"],
+    "d": ["reason.Take-profit (từ giá TB)", "status.TP", "tp_skipped_on_dca_bar", "tp_maker_path", "tp_after_dca_same_bar", "r3_close_tp"],
+    "e": ["reason.Trailing stop", "trail_gain", "trail_loss", "trail_path"],
     "f": ["status.LIQ", "liquidity.liquidation", "reason.Thanh lý (perp)"],
     "g": ["gap_fill", "extreme_fill", "limit_through_cfg", "limit_through_tp", "tie_exit_over_dca"],
 }

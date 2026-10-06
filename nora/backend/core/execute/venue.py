@@ -49,6 +49,10 @@ class Order:
     # `activation` (giá kích hoạt) và `callback_pct` (% lùi khỏi đỉnh, vd 1.5 = 1.5%); thiếu (nan) thì rơi về level / trigger như quy ước cũ.
     activation: float = NAN
     callback_pct: float = NAN
+    # TRAIL cho SimVenue đường ohlc/adaptive: `peak` = đỉnh/đáy có lợi các nến TRƯỚC (venue tự chạy tiếp theo từng chặng của nến) và
+    # `activation_pct` = ngưỡng lãi % để bật trailing (so với avg hiện tại); thiếu (nan) thì venue dùng `level` tĩnh như đường cũ.
+    peak: float = NAN
+    activation_pct: float = NAN
 
 
 @dataclass(frozen=True)

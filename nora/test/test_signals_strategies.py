@@ -223,13 +223,34 @@ def test_dca_layers_average_price_and_tp_from_average():
 
 
 def test_no_take_profit_in_same_bar_as_dca_fill():
+    # đường cũ "adverse_first" (bảo thủ): nến có DCA khớp thì TP không được xét
     df = _path([100] * 5 + [100, 99.4, 100.8, 100.8])
     df.loc[6, "high"] = 100.9  # nến 6: vừa chạm tầng DCA (99.5) vừa vượt TP của giá TB
+    eng = _engine(df, _signal_at(df, 4), order_size_pct=20, dca_step_pct=0.5, dca_max_layers=1,
+                  take_profit_rate=0.3, fee_rate=0.0, slippage_rate=0.0, intrabar_path="adverse_first")
+    eng.run()
+    pos = eng.closed_positions[0]
+    assert pos.layers == 2 and pos.close_time >= int(df.open_time[7])
+
+
+def test_take_profit_in_same_bar_as_dca_fill_ohlc():
+    # đường mặc định "ohlc" (= Nautilus): TP không bị bỏ qua. Nến 6 (100, 100.9, 99.4, 99.4): H trước -> TP (100.3) khớp ở chặng H, trước cả tầng DCA
+    df = _path([100] * 5 + [100, 99.4, 100.8, 100.8])
+    df.loc[6, "high"] = 100.9
     eng = _engine(df, _signal_at(df, 4), order_size_pct=20, dca_step_pct=0.5, dca_max_layers=1,
                   take_profit_rate=0.3, fee_rate=0.0, slippage_rate=0.0)
     eng.run()
     pos = eng.closed_positions[0]
-    assert pos.layers == 2 and pos.close_time >= int(df.open_time[7])
+    assert pos.layers == 1 and pos.close_time == int(df.open_time[6]) and pos.close_price == pytest.approx(100.3)
+    # nến có DCA @99.5 rồi close 100.2 đã vượt TP mới (avg x 1.003 ~ 100.05, chưa vượt TP cũ 100.3): TP đặt lại khớp ngay ở close (taker)
+    df = _path([100] * 5 + [100, 99.4, 100.2, 100.2])
+    df.loc[6, ["high", "close"]] = [100.2, 100.2]
+    df.loc[7, ["open", "high", "low", "close"]] = 100.2
+    eng = _engine(df, _signal_at(df, 4), order_size_pct=20, dca_step_pct=0.5, dca_max_layers=1,
+                  take_profit_rate=0.3, fee_rate=0.0, slippage_rate=0.0)
+    eng.run()
+    pos = eng.closed_positions[0]
+    assert pos.layers == 2 and pos.close_time == int(df.open_time[6]) and pos.close_price == pytest.approx(100.2)
 
 
 def test_stale_stop_loss_after_dca_and_ordering():
@@ -269,11 +290,21 @@ def test_stop_fill_rejects_unknown_mode():
 
 
 def test_trailing_stop_uses_previous_peak():
+    # đường cũ "adverse_first": trailing dùng đỉnh các nến TRƯỚC
+    df = _path([100] * 5 + [100, 101, 103, 105, 104, 103.9, 103.0])
+    eng = _engine(df, _signal_at(df, 4), trailing_stop=1.0, fee_rate=0.0, slippage_rate=0.0, intrabar_path="adverse_first")
+    eng.run()
+    pos = eng.closed_positions[0]
+    assert pos.close_price == pytest.approx(105 * 0.99) and pos.status.name == "TP"
+
+
+def test_trailing_stop_peak_runs_per_leg_ohlc():
+    # đường mặc định "ohlc": đỉnh chạy theo chặng -> nến 7 (101, 103, 101, 103): H lên 103 rồi L 101 xuyên mức 103 x 0.99 = 101.97 ngay trong nến
     df = _path([100] * 5 + [100, 101, 103, 105, 104, 103.9, 103.0])
     eng = _engine(df, _signal_at(df, 4), trailing_stop=1.0, fee_rate=0.0, slippage_rate=0.0)
     eng.run()
     pos = eng.closed_positions[0]
-    assert pos.close_price == pytest.approx(105 * 0.99) and pos.status.name == "TP"
+    assert pos.close_price == pytest.approx(103 * 0.99) and pos.status.name == "TP" and pos.close_time == int(df.open_time[7])
 
 
 def test_timeout_closes_at_open():
