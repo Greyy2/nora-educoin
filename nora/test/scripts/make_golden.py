@@ -17,6 +17,11 @@ sys.path.insert(0, os.path.join(NORA, "test"))
 GOLDEN_DIR = os.path.join(NORA, "test", "golden")
 
 import golden_scenarios as gs  # noqa: E402
+from backend.core.strategy import book as _sb  # noqa: E402
+from legacy_candidates import LEGACY  # noqa: E402
+
+# Golden dùng 9 chiến lược cũ (như test/conftest.py::_legacy_candidates); thiếu bước này kịch bản thật lỗi KeyError 'trend_long'
+_sb.EXTRA_CANDIDATES = list(LEGACY)
 
 
 def _write(name: str, canon: dict, seconds: float) -> None:
