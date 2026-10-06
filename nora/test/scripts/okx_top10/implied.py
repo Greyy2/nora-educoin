@@ -80,6 +80,13 @@ for _tf in (15, 60, 240):
     SIGS_DEF.append((f"đóng cửa cắt thuận BB-mid(20) khung {_tf}m", "bb_mr", _tf, 20))
     for _n in (10, 20, 50):
         SIGS_DEF.append((f"phá đáy/đỉnh {_n} nến ngược chiều khung {_tf}m", "don_tr", _tf, _n))
+for _tf in (5, 30, 120):   # thêm khung (nối cuối để giữ nguyên chỉ số bit của luật cũ)
+    SIGS_DEF.append((f"RSI{_tf}m cắt lên 70", "rsi_mr", _tf, 70))
+    SIGS_DEF.append((f"RSI{_tf}m cắt xuống 50", "rsi_tr", _tf, 50))
+    SIGS_DEF.append((f"đóng cửa cắt ngược EMA20 khung {_tf}m", "ema_tr", _tf, 20))
+    SIGS_DEF.append((f"đóng cửa cắt thuận EMA20 khung {_tf}m (hồi về trung bình)", "ema_mr", _tf, 20))
+    SIGS_DEF.append((f"đóng cửa cắt ngược BB-mid(20) khung {_tf}m", "bb_tr", _tf, 20))
+    SIGS_DEF.append((f"phá đáy/đỉnh 20 nến ngược chiều khung {_tf}m", "don_tr", _tf, 20))
 FEAT_NAMES = ["động lượng 15 nến 1m", "động lượng 60 nến 1m", "động lượng 240 nến 1m", "ATR1m/ATR1h (biến động)", "phiên giờ VN"]
 _SIGC = {}
 
@@ -1659,7 +1666,41 @@ def top_alternatives(S, best_cfg, k=5):
 
 
 # ===================================================================== pipeline cho 1 bot
-def fit_bot(name, out_dir="out", verbose=True):
+def cfg_from_params(p, G):
+    """Dựng lại cfg từ best_rule.params của JSON (khởi động nóng)."""
+    inf_ = lambda v: INF if v is None else float(v)
+    c = dict(anchor=ANCHORS.index(p["anchor"]))
+    if "tp_mult" in p:
+        c["tp"] = np.array([inf_(v) for v in p["tp_mult"]])
+    if p.get("tp_mae_coupling_k"):
+        c["tpk"] = float(p["tp_mae_coupling_k"])
+    if "sl_mult" in p:
+        c["sl"] = np.array([inf_(v) for v in p["sl_mult"]])
+    if "trail_giveback_mult" in p:
+        c["tr"] = dict(gb=np.array([inf_(v) for v in p["trail_giveback_mult"]]), act=np.array([float(v) for v in p["trail_activation_mult"]]))
+    if p.get("tp_then_trail"):
+        c["tpt"] = True
+    if p.get("tp_switch"):
+        w = p["tp_switch"]; c["tpsw"] = dict(kind=FEAT_NAMES.index(w["feature"]), dir=1 if w["direction"] == ">=" else -1, thr=float(w["threshold"]))
+    if p.get("be_stop"):
+        c["bes"] = dict(m=float(p["be_stop"]["trigger_mult_atr_or_fit"]), off=float(p["be_stop"]["offset_bps"]))
+    if p.get("be_recover"):
+        c["brd"] = dict(m=float(p["be_recover"]["depth_mult_atr_or_fit"]), off=float(p["be_recover"]["offset_bps"]))
+    if p.get("time_cap"):
+        t = p["time_cap"]; c["tc"] = dict(min=float(t["minutes"]), ref=1 if "cuối" in t["from_"] else 0, loss=int(bool(t["only_if_loss"])))
+    ie = p.get("indicator_exit")
+    if ie:
+        names = [x[0] for x in SIGS_DEF]
+        if isinstance(ie, dict):
+            ie = [dict(group=g, names=[ie["name"]], min_return_at_open=ie["min_return_at_open"]) for g in range(G)]
+        mask = np.zeros(G, np.int64); gate = np.full(G, -INF)
+        for e in ie:
+            g = int(e["group"]); mask[g] = sum(1 << names.index(nm) for nm in e["names"]); gate[g] = inf_(e["min_return_at_open"])
+        c["sig"] = dict(mask=mask, gate=gate)
+    return c
+
+
+def fit_bot(name, out_dir="out", verbose=True, warm=None):
     import time, json, copy, os
     t_start = time.time()
     P = (lambda *a: print(f"[{name}]", *a, flush=True)) if verbose else (lambda *a: None)
@@ -1688,90 +1729,132 @@ def fit_bot(name, out_dir="out", verbose=True):
     P(f"loại bot={bot_type} (SL class {100*sl_share:.1f}%); phần tử cho phép={sorted(S.allowed)}")
     P("fit công thức xong; scale_bps=%.1f" % S.scale_bps)
 
-    # ---- đường ablation chuẩn ở từng neo
-    per_anchor = {}
     B_ = float(_os.environ.get("IMPLIED_BUDGET_SEC", "840"))
-    for ai, an in enumerate(ANCHORS):
-        S.deadline = _time.time() + 0.13 * B_
-        cfg, steps, drops = canonical(S, ai)
-        per_anchor[an] = dict(cfg=cfg, steps=steps, drops=drops, obj=S.score(cfg)["obj"], tp_only=([s for s in steps if s["step"] == "chỉ TP"] or [dict(obj=0.0)])[0]["obj"])
-        P(f"neo {an}: TP-only={per_anchor[an]['tp_only']:.4f} final={per_anchor[an]['obj']:.4f} cấu trúc={structure(cfg)} evals={S.n_eval}")
-    best_an = max(per_anchor, key=lambda a: per_anchor[a]["obj"])
-    ai = ANCHORS.index(best_an); cfg = per_anchor[best_an]["cfg"]; steps = per_anchor[best_an]["steps"]; drops = per_anchor[best_an]["drops"]
-
-    # ---- kiểm tra dạng công thức TP/SL bằng engine (ngoài CV): thử từng dạng ở neo tốt nhất
-    form_check = {}
-    S.deadline = _time.time() + 0.04 * B_
-    for elem in ("tp", "sl"):
-        if cfg.get(elem) is None:
-            continue
-        orig = dict(fits[best_an][elem]["chosen"]); rows = []
-        tab = fits[best_an][elem]["table"]
-        if not tab:
-            continue
-        bestf = (S.score(cfg)["obj"], orig["form"], orig)
-        for cand in tab:
-            set_form(S, best_an, elem, cand)
-            c2 = _cp(cfg); o = S.tune(c2, passes=1)
-            rows.append(dict(form=cand["form"], rcv=cand["rcv"], obj=round(o, 4)))
-            if o > bestf[0] + 1e-9:
-                bestf = (o, cand["form"], cand)
-        set_form(S, best_an, elem, orig)
-        adopt = bestf[0] - S.score(cfg)["obj"] >= 0.005 and bestf[1] != orig["form"]
-        form_check[elem] = dict(cv_chosen=orig["form"], engine_best=bestf[1], rows=rows, adopted=bool(adopt))
-        if adopt:
-            set_form(S, best_an, elem, bestf[2]); S.tune(cfg, passes=2)
-            P(f"dạng {elem} đổi theo engine: {orig['form']} -> {bestf[1]}")
-    obj_main = S.score(cfg)["obj"]
-    P(f"luật tốt nhất: neo={best_an} cấu trúc={structure(cfg)} obj={obj_main:.4f}")
-    base_cfg = _cp(cfg)
-
-    # ---- ablation phần tử đơn lẻ (ở neo tốt nhất)
-    S.deadline = float("inf")
-    singles = []   # bỏ qua ở chế độ có ngân sách thời gian
-
-    # ---- tách theo lớp mã / chế độ
-    splits = {}
-    sp_defs = [("lớp mã", group_class(D)), ("từng mã", group_sym(D)), ("tuần lịch", group_week(D)), ("tuần mịn", group_week(D, min_n=6, max_groups=30)), ("tuần cực mịn", group_week(D, min_n=3, max_groups=40)), ("mã x phiên giờ", group_sym_hour(D)), ("điểm đổi chế độ", group_cp(D, df))]
-    best_split = None
-    for key, (grp, info) in sp_defs:
-        pass
-    for key, (grp, info) in sp_defs:
-        G = int(grp.max()) + 1
-        if G < 2:
-            splits[key] = dict(skipped=True, **{k: v for k, v in info.items() if k != "n_groups"}, n_groups=G); continue
-        S.deadline = _time.time() + 0.05 * B_
-        c2, o2 = split_tune(S, base_cfg, grp, G)
-        n_par = (G - 1) * sum(1 for k in ("tp", "sl", "tr") if base_cfg.get(k) is not None)
-        oos = None
-        info = dict(info); info["group_labels"] = label_groups(key, info, D, grp)
-        splits[key] = dict(**{k: v for k, v in info.items() if k != "n_groups"}, n_groups=G, obj=round(o2, 4), gain=round(o2 - obj_main, 4), extra_params=n_par,
-                           gain_per_param=round((o2 - obj_main) / max(1, n_par), 5), params=cfg_params(c2),
-                           group_sizes=[int((grp == g).sum()) for g in range(G)], oos=oos,
-                           oos_gain_heldout=None)
-        splits[key]["_cfg"] = c2; splits[key]["_grp"] = grp; splits[key]["_G"] = G
-        P(f"tách {key}: G={G} obj={o2:.4f} (+{o2 - obj_main:.4f}) ")
-    S.grp = np.zeros(D.n, np.int64); S.G = 1
-    # chọn tách: chỉ nhận nếu gain >= 0.01 VÀ cải thiện trên nửa giữ lại > 0
-    chosen_split = None
-    for key, v in splits.items():
-        if v.get("skipped"):
-            continue
-        # Phase 4c: tiêu chí khớp là IN-SAMPLE -> nhận tách khi tăng mục tiêu (tổng vi phạm giảm); OOS chỉ để báo cáo mức quá khớp
-        if v["gain"] >= MIN_GAIN and (chosen_split is None or v["obj"] > splits[chosen_split]["obj"]):
-            chosen_split = key
-    ablation = list(steps)
-    for key, v in splits.items():
-        if v.get("skipped"):
-            continue
-        ablation.append(dict(step="+ tách tham số theo " + key, structure=list(structure(base_cfg)), obj=v["obj"], gain=v["gain"], extra_params=v["extra_params"],
-                             oos_gain_heldout=v["oos_gain_heldout"], accepted=bool(key == chosen_split)))
-    if chosen_split:
-        final_cfg = clean(splits[chosen_split]["_cfg"]); S.grp = splits[chosen_split]["_grp"]; S.G = splits[chosen_split]["_G"]
+    if warm:
+        wj = json.load(open(warm)); br = wj["best_rule"]; best_an = br["anchor"]
+        for elem, v in (wj["formulas"].get("kiểm_tra_dạng_bằng_engine") or {}).items():
+            if v.get("adopted"):
+                cand = [c for c in fits[best_an][elem]["table"] if c["form"] == v["engine_best"]][0]; set_form(S, best_an, elem, cand)
+        spk = br.get("split"); sp_all = dict([("lớp mã", group_class(D)), ("từng mã", group_sym(D)), ("tuần lịch", group_week(D)), ("tuần mịn", group_week(D, min_n=6, max_groups=30)),
+                                              ("tuần cực mịn", group_week(D, min_n=3, max_groups=40)), ("mã x phiên giờ", group_sym_hour(D)), ("điểm đổi chế độ", group_cp(D, df))])
+        if spk:
+            wgrp, winfo = sp_all[spk]
+        else:
+            wgrp, winfo = np.zeros(D.n, np.int64), dict(method="không tách")
+        S.grp = wgrp; S.G = int(wgrp.max()) + 1
+        cfg = cfg_from_params(br["params"], S.G)
+        o_w = S.score(cfg)
+        P(f"khởi động nóng từ {warm}: viol={o_w['viol']:.4f} (JSON: {wj['metrics']['viol_total']}) obj={o_w['obj']:.3f}")
+        steps = []; drops = []; form_check = wj["formulas"].get("kiểm_tra_dạng_bằng_engine") or {}
+        per_anchor = {best_an: dict(cfg=cfg, steps=[], drops=[], obj=o_w["obj"], tp_only=0.0)}
+        obj_main = o_w["obj"]; base_cfg = _cp(cfg); singles = []; ai = ANCHORS.index(best_an)
+        chosen_split = spk; splits = {}
+        if spk:
+            winfo = dict(winfo); winfo["group_labels"] = label_groups(spk, winfo, D, wgrp)
+            splits[spk] = dict(**{k: v for k, v in winfo.items() if k != "n_groups"}, n_groups=S.G, obj=round(o_w["obj"], 4), gain=0.0, extra_params=0, gain_per_param=0.0, params=cfg_params(cfg),
+                               group_sizes=[int((wgrp == g).sum()) for g in range(S.G)], oos=None, oos_gain_heldout=None, _cfg=cfg, _grp=wgrp, _G=S.G)
+        ablation = []
+        final_cfg = clean(cfg)
     else:
-        final_cfg = clean(base_cfg)
-    S.deadline = _time.time() + 0.15 * B_
-    final_cfg = clean(polish(S, final_cfg, n=20000, seed=77))
+        # ---- đường ablation chuẩn ở từng neo
+        per_anchor = {}
+        B_ = float(_os.environ.get("IMPLIED_BUDGET_SEC", "840"))
+        for ai, an in enumerate(ANCHORS):
+            S.deadline = _time.time() + 0.13 * B_
+            cfg, steps, drops = canonical(S, ai)
+            per_anchor[an] = dict(cfg=cfg, steps=steps, drops=drops, obj=S.score(cfg)["obj"], tp_only=([s for s in steps if s["step"] == "chỉ TP"] or [dict(obj=0.0)])[0]["obj"])
+            P(f"neo {an}: TP-only={per_anchor[an]['tp_only']:.4f} final={per_anchor[an]['obj']:.4f} cấu trúc={structure(cfg)} evals={S.n_eval}")
+        best_an = max(per_anchor, key=lambda a: per_anchor[a]["obj"])
+        ai = ANCHORS.index(best_an); cfg = per_anchor[best_an]["cfg"]; steps = per_anchor[best_an]["steps"]; drops = per_anchor[best_an]["drops"]
+
+        # ---- kiểm tra dạng công thức TP/SL bằng engine (ngoài CV): thử từng dạng ở neo tốt nhất
+        form_check = {}
+        S.deadline = _time.time() + 0.04 * B_
+        for elem in ("tp", "sl"):
+            if cfg.get(elem) is None:
+                continue
+            orig = dict(fits[best_an][elem]["chosen"]); rows = []
+            tab = fits[best_an][elem]["table"]
+            if not tab:
+                continue
+            bestf = (S.score(cfg)["obj"], orig["form"], orig)
+            for cand in tab:
+                set_form(S, best_an, elem, cand)
+                c2 = _cp(cfg); o = S.tune(c2, passes=1)
+                rows.append(dict(form=cand["form"], rcv=cand["rcv"], obj=round(o, 4)))
+                if o > bestf[0] + 1e-9:
+                    bestf = (o, cand["form"], cand)
+            set_form(S, best_an, elem, orig)
+            adopt = bestf[0] - S.score(cfg)["obj"] >= 0.005 and bestf[1] != orig["form"]
+            form_check[elem] = dict(cv_chosen=orig["form"], engine_best=bestf[1], rows=rows, adopted=bool(adopt))
+            if adopt:
+                set_form(S, best_an, elem, bestf[2]); S.tune(cfg, passes=2)
+                P(f"dạng {elem} đổi theo engine: {orig['form']} -> {bestf[1]}")
+        obj_main = S.score(cfg)["obj"]
+        P(f"luật tốt nhất: neo={best_an} cấu trúc={structure(cfg)} obj={obj_main:.4f}")
+        base_cfg = _cp(cfg)
+
+        # ---- ablation phần tử đơn lẻ (ở neo tốt nhất)
+        S.deadline = float("inf")
+        singles = []   # bỏ qua ở chế độ có ngân sách thời gian
+
+        # ---- tách theo lớp mã / chế độ
+        splits = {}
+        sp_defs = [("lớp mã", group_class(D)), ("từng mã", group_sym(D)), ("tuần lịch", group_week(D)), ("tuần mịn", group_week(D, min_n=6, max_groups=30)), ("tuần cực mịn", group_week(D, min_n=3, max_groups=40)), ("mã x phiên giờ", group_sym_hour(D)), ("điểm đổi chế độ", group_cp(D, df))]
+        best_split = None
+        for key, (grp, info) in sp_defs:
+            pass
+        for key, (grp, info) in sp_defs:
+            G = int(grp.max()) + 1
+            if G < 2:
+                splits[key] = dict(skipped=True, **{k: v for k, v in info.items() if k != "n_groups"}, n_groups=G); continue
+            S.deadline = _time.time() + 0.05 * B_
+            c2, o2 = split_tune(S, base_cfg, grp, G)
+            n_par = (G - 1) * sum(1 for k in ("tp", "sl", "tr") if base_cfg.get(k) is not None)
+            oos = None
+            info = dict(info); info["group_labels"] = label_groups(key, info, D, grp)
+            splits[key] = dict(**{k: v for k, v in info.items() if k != "n_groups"}, n_groups=G, obj=round(o2, 4), gain=round(o2 - obj_main, 4), extra_params=n_par,
+                               gain_per_param=round((o2 - obj_main) / max(1, n_par), 5), params=cfg_params(c2),
+                               group_sizes=[int((grp == g).sum()) for g in range(G)], oos=oos,
+                               oos_gain_heldout=None)
+            splits[key]["_cfg"] = c2; splits[key]["_grp"] = grp; splits[key]["_G"] = G
+            P(f"tách {key}: G={G} obj={o2:.4f} (+{o2 - obj_main:.4f}) ")
+        S.grp = np.zeros(D.n, np.int64); S.G = 1
+        # chọn tách: chỉ nhận nếu gain >= 0.01 VÀ cải thiện trên nửa giữ lại > 0
+        chosen_split = None
+        for key, v in splits.items():
+            if v.get("skipped"):
+                continue
+            # Phase 4c: tiêu chí khớp là IN-SAMPLE -> nhận tách khi tăng mục tiêu (tổng vi phạm giảm); OOS chỉ để báo cáo mức quá khớp
+            if v["gain"] >= MIN_GAIN and (chosen_split is None or v["obj"] > splits[chosen_split]["obj"]):
+                chosen_split = key
+        ablation = list(steps)
+        for key, v in splits.items():
+            if v.get("skipped"):
+                continue
+            ablation.append(dict(step="+ tách tham số theo " + key, structure=list(structure(base_cfg)), obj=v["obj"], gain=v["gain"], extra_params=v["extra_params"],
+                                 oos_gain_heldout=v["oos_gain_heldout"], accepted=bool(key == chosen_split)))
+        if chosen_split:
+            final_cfg = clean(splits[chosen_split]["_cfg"]); S.grp = splits[chosen_split]["_grp"]; S.G = splits[chosen_split]["_G"]
+        else:
+            final_cfg = clean(base_cfg)
+    if warm:
+        # tìm kiếm cục bộ từ nghiệm tốt nhất: luân phiên leo đồi ngẫu nhiên và coordinate descent tới hết ngân sách
+        S.deadline = _time.time() + 0.95 * B_
+        best_c = _cp(final_cfg); best_o = S.score(best_c)["obj"]; rd = 0
+        while not S.over():
+            c = polish(S, best_c, n=3000, seed=100 + rd + SEED * 7); rd += 1
+            if S.score(c)["obj"] > best_o + 1e-9:
+                best_c = c; best_o = S.score(c)["obj"]
+            if rd % 3 == 0 and not S.over():
+                c = _cp(best_c); S.tune(c, passes=1)
+                if S.score(c)["obj"] > best_o + 1e-9:
+                    best_c = c; best_o = S.score(c)["obj"]
+            P(f"vòng {rd}: obj={best_o:.3f}")
+        final_cfg = clean(best_c)
+    else:
+        S.deadline = _time.time() + 0.15 * B_
+        final_cfg = clean(polish(S, final_cfg, n=20000, seed=77))
     S.deadline = float("inf")
     m_final, o_final = S.score(final_cfg, keep=True)
     P(f"cuối cùng: obj={m_final['obj']:.4f} m15={100*m_final['m15']:.1f}% corr_usdt={m_final['corr_usdt']:.3f} chọn tách={chosen_split}")

@@ -13,7 +13,8 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--bot", nargs="*", help="tên bot (mặc định: tất cả)")
     ap.add_argument("--out", default=os.path.join(HERE, "out"))
+    ap.add_argument("--warm", default=None, help="JSON implied_<slug>.json để khởi động nóng")
     a = ap.parse_args()
     names = a.bot or [b["name"] for b in load.load_bots()]
     for n in names:
-        implied.fit_bot(n, a.out)
+        implied.fit_bot(n, a.out, warm=a.warm)
