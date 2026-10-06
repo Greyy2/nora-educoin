@@ -11,6 +11,8 @@ from typing import Dict, Any, Tuple, Optional
 import pandas as pd
 import numpy as np
 
+from backend.db.local_pkl import _frame_ms
+
 PKL_COLUMNS = ["open_time", "open", "high", "low", "close", "volume"]
 TIMEFRAME_MAP = {
     "5m": "5min",
@@ -96,6 +98,45 @@ def fill_missing_1m_candles(df_1m: pd.DataFrame) -> pd.DataFrame:
     return filled_df
 
 
+
+
+def ticks_to_bars(ticks_df: pd.DataFrame, frame: str = "1m", price_col: str = "price") -> pd.DataFrame:
+    """Tick -> nến khung `frame` ("1m", "5m", "15m", "1h", "4h", "1d"...; mốc thẳng epoch UTC): open_time ms, OHLC theo `price_col`, volume = tổng volume_usd,
+    n_trades = số swap, n_fallback = số swap phải dùng `price` (giá khớp) vì `price_col` NaN, vwap = Σvolume_usd/Σamount của giá KHỚP, is_filled.
+    Mặc định OHLC theo giá KHỚP `price` (gồm phí pool): đây chính là cơ sở nến của GeckoTerminal (đo: nến GT tính theo token quote trùng close giá khớp cuối phút, chênh
+    median 0 bps trên 161 phút; còn mid_price lệch đúng mức phí pool ~30 bps). price_col="mid_price" -> OHLC theo giá biên sau swap (giá swap không bị phí làm lệch, dùng
+    cho phân tích giá pool; swap thiếu mid dùng price và được đếm ở n_fallback).
+    Lưới đủ từ nến tick đầu tới nến tick cuối: nến không có swap -> is_filled=1, n_trades=0, volume 0, O=H=L=C=vwap=close trước (không bịa lệnh).
+    Chỉ để đối chiếu/phân tích — KHÔNG ghi vào kho nến."""
+    cols = PKL_COLUMNS + ["n_trades", "n_fallback", "vwap", "is_filled"]
+    step = _frame_ms(frame)
+    if step <= 0:
+        raise ValueError(f"khung không hợp lệ: {frame!r} (vd. 1m, 15m, 1h, 1d)")
+    if ticks_df.empty:
+        return pd.DataFrame(columns=cols)
+    t = ticks_df.sort_values("timestamp_ms", kind="stable")
+    px = t[price_col] if price_col in t.columns else pd.Series(np.nan, index=t.index)
+    t = t.assign(_px=px.fillna(t["price"]), _fb=px.isna().astype(int))
+    grp = t.groupby((t["timestamp_ms"] // step * step).astype(np.int64).rename("open_time"))
+    bars = pd.DataFrame({"open": grp["_px"].first(), "high": grp["_px"].max(), "low": grp["_px"].min(), "close": grp["_px"].last(),
+                         "volume": grp["volume_usd"].sum(), "n_trades": grp["_px"].size(), "n_fallback": grp["_fb"].sum(),
+                         "vwap": grp["volume_usd"].sum() / grp["amount"].sum()})
+    grid = np.arange(bars.index.min(), bars.index.max() + step, step, dtype=np.int64)
+    out = bars.reindex(pd.Index(grid, name="open_time"))
+    filled = out["close"].isna()
+    out["close"] = out["close"].ffill()
+    for c in ("open", "high", "low", "vwap"):
+        out.loc[filled, c] = out.loc[filled, "close"]
+    out["volume"] = out["volume"].fillna(0.0)
+    for c in ("n_trades", "n_fallback"):
+        out[c] = out[c].fillna(0).astype(np.int64)
+    out["is_filled"] = filled.astype(int)
+    return out.reset_index()[cols]
+
+
+def ticks_to_1m(ticks_df: pd.DataFrame, price_col: str = "price") -> pd.DataFrame:
+    """Tick -> nến 1m (xem ticks_to_bars): open_time thẳng phút UTC + n_trades, n_fallback, vwap, is_filled."""
+    return ticks_to_bars(ticks_df, "1m", price_col)
 
 
 def resample_from_1m(df_1m: pd.DataFrame, timeframe: str) -> pd.DataFrame:

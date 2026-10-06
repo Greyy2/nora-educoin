@@ -177,13 +177,3 @@ def resolve_asset_dir(symbol: str, data_root: Optional[str] = None) -> Optional[
     flat = os.path.join(root, name)
     return flat if os.path.isdir(flat) else None
 
-
-def asset_dir_for_write(venue: str, symbol: str, data_root: Optional[str] = None) -> str:
-    """Thư mục để GHI dữ liệu mới: <root>/<venue>/<SYM> (tạo nếu chưa có)."""
-    venue = str(venue or "").lower()
-    if venue not in VENUES:
-        raise ValueError(f"venue phải là một trong {VENUES}, nhận '{venue}'")
-    path = os.path.join(data_root or default_data_root(), venue, clean_name(symbol))
-    os.makedirs(path, exist_ok=True)
-    return path
-

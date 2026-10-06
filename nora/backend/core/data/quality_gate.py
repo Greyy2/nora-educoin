@@ -442,8 +442,8 @@ def _evaluate_data_quality_uncached(
 
         # Buy / Sell imbalance
         if "side" in df_ticks.columns:
-            buys = float(np.sum(df_ticks["side"] == 1))
-            sells = float(np.sum(df_ticks["side"] == -1))
+            buys = float(np.sum(df_ticks["side"] == "buy"))
+            sells = float(np.sum(df_ticks["side"] == "sell"))
             buy_sell_imbalance = float(abs(buys - sells) / max(1.0, buys + sells))
             if buy_sell_imbalance > 0.65:
                 penalties += 10.0

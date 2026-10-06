@@ -9,6 +9,7 @@ test_data_layout.py — kiến trúc thư mục dữ liệu thị trường data
 """
 import json
 import os
+import time
 
 import numpy as np
 import pandas as pd
@@ -85,12 +86,15 @@ def test_reading_never_creates_directories(layout):
 
 
 def test_tick_writer_goes_to_dex_folder(layout):
-    from backend.db.tick_storage import save_ticks_and_sync_candles
-    ticks = pd.DataFrame({"timestamp_ms": T0 + np.arange(10) * 1000, "price": np.linspace(1, 2, 10),
-                          "amount": 1.0, "volume_usd": 1.0, "side": 1, "block_number": 1,
-                          "tx_hash": [f"0x{i:064x}" for i in range(10)]})
-    save_ticks_and_sync_candles(ticks, "NEWPOOL", data_root=layout)
-    assert os.path.isfile(os.path.join(layout, "dex", "NEWPOOL", "ticks.parquet"))
+    from backend.db.tick_storage import save_ticks
+    now = int(time.time() * 1000)
+    ticks = pd.DataFrame({"timestamp_ms": now - np.arange(10) * 1000, "price": np.linspace(1, 2, 10), "amount": 1.0, "volume_usd": 1.0,
+                          "side": "buy", "block_number": 1, "tx_hash": [f"0x{i:064x}:0" for i in range(10)]})
+    save_ticks(ticks, "AERO", retention_days=3, source="evm_swaps", data_root=layout)
+    assert os.path.isfile(os.path.join(layout, "dex", "AERO", "ticks.parquet"))
+    with pytest.raises(FileNotFoundError):                      # chưa có tài sản (nến) -> không tự tạo thư mục
+        save_ticks(ticks, "NEWPOOL", retention_days=3, source="evm_swaps", data_root=layout)
+    assert not os.path.exists(os.path.join(layout, "dex", "NEWPOOL"))
 
 
 def test_data_root_env_is_single_source(monkeypatch, tmp_path):

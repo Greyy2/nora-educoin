@@ -18,7 +18,7 @@ import pytest
 
 from backend.core.data.resampler import save_resampled_dataset
 from backend.core.data.quality_gate import evaluate_data_quality, DataQualityStatus
-from backend.db.tick_storage import save_ticks_and_sync_candles
+from backend.db.tick_storage import save_ticks
 from backend.db.local_pkl import has_ticks
 
 
@@ -100,21 +100,21 @@ def test_gate_sha256_mismatch_blocked():
         assert any("sha256" in str(iss).lower() for iss in res["issues"])
 
 
-# ─── 2.5: save_ticks_and_sync_candles does NOT modify pkl and sets ticks manifest ─
+# ─── 2.5: save_ticks does NOT modify pkl and sets ticks manifest ─
 
 def test_save_ticks_does_not_modify_pkl():
-    """save_ticks_and_sync_candles không được ghi đè hay thay đổi bất kỳ file .pkl nào."""
+    """save_ticks không được ghi đè hay thay đổi bất kỳ file .pkl nào."""
     with tempfile.TemporaryDirectory() as tmp:
         asset = "TESTTICKS"
         df = _create_sample_1m_data(n=1440 * 35)
         save_resampled_dataset(
             symbol=asset,
-            output_dir=tmp,
+            output_dir=os.path.join(tmp, "dex"),
             df_1m_raw=df,
             pool_address="0xpool",
             crawl_ok=True,
         )
-        asset_dir = os.path.join(tmp, asset)
+        asset_dir = os.path.join(tmp, "dex", asset)
         pkl_1m = os.path.join(asset_dir, "1m.pkl")
         pkl_4h = os.path.join(asset_dir, "4h.pkl")
         mtime_1m_before = os.path.getmtime(pkl_1m)
@@ -127,10 +127,12 @@ def test_save_ticks_does_not_modify_pkl():
         ticks_df = pd.DataFrame({
             "timestamp_ms": [now_ms + i * 1000 for i in range(10)],
             "price": [100.0] * 10,
+            "volume_usd": [100.0] * 10,
             "amount": [1.0] * 10,
             "side": ["buy"] * 10,
+            "tx_hash": [f"0x{i:064x}:0" for i in range(10)],
         })
-        save_ticks_and_sync_candles(ticks_df, asset, data_root=tmp, sync_all_timeframes=False)
+        save_ticks(ticks_df, asset, retention_days=3, source="evm_swaps", data_root=tmp)
 
         assert os.path.getmtime(pkl_1m) == mtime_1m_before, "1m.pkl không được bị thay đổi"
         assert os.path.getmtime(pkl_4h) == mtime_4h_before, "4h.pkl không được bị thay đổi"
@@ -144,11 +146,3 @@ def test_save_ticks_does_not_modify_pkl():
 
         # has_ticks phải trả True
         assert has_ticks(asset, data_root=tmp) is True
-
-
-def test_save_ticks_sync_all_timeframes_true_raises():
-    """Gọi save_ticks_and_sync_candles với sync_all_timeframes=True phải raise lỗi."""
-    with tempfile.TemporaryDirectory() as tmp:
-        ticks_df = pd.DataFrame({"timestamp_ms": [1700000000000], "price": [100.0], "amount": [1.0], "side": ["buy"]})
-        with pytest.raises(ValueError, match="sync_all_timeframes"):
-            save_ticks_and_sync_candles(ticks_df, "TEST", data_root=tmp, sync_all_timeframes=True)
