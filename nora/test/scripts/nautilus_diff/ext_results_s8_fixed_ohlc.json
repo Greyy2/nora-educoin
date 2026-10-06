@@ -1,0 +1,1342 @@
+[
+ {
+  "dataset": "aligned",
+  "signal": "ema20_50",
+  "stage": "S8a",
+  "path": "ohlc",
+  "trades_nora": 128,
+  "trades_naut": 128,
+  "matched_pairs": 128,
+  "exact_matches": 128,
+  "classes": {
+   "match": 128
+  },
+  "final_equity_nora": 11140.66388690572,
+  "final_equity_naut": 11140.6639123,
+  "final_equity_diff_pct": 2.279422428586031e-07,
+  "bit_identical": true,
+  "funding_nora": 0.0,
+  "funding_naut": 0,
+  "rejected_for_risk": 0,
+  "variant": "",
+  "entry_equity_differs": 56,
+  "entry_equity_max_rel": 2.6391917413581617e-09,
+  "sizing_lookahead_trades": 5,
+  "sizing_lookahead_max_qty_rel": 2.557236925036098e-09,
+  "non_exact_examples": []
+ },
+ {
+  "dataset": "aligned",
+  "signal": "ema20_50",
+  "stage": "S8a [sync adm]",
+  "path": "ohlc",
+  "trades_nora": 128,
+  "trades_naut": 128,
+  "matched_pairs": 128,
+  "exact_matches": 128,
+  "classes": {
+   "match": 128
+  },
+  "final_equity_nora": 11140.66388690572,
+  "final_equity_naut": 11140.6639123,
+  "final_equity_diff_pct": 2.279422428586031e-07,
+  "bit_identical": null,
+  "funding_nora": 0.0,
+  "funding_naut": 0,
+  "rejected_for_risk": 0,
+  "variant": "_sync",
+  "entry_equity_differs": 56,
+  "entry_equity_max_rel": 2.6391917413581617e-09,
+  "sizing_lookahead_trades": 5,
+  "sizing_lookahead_max_qty_rel": 2.557236925036098e-09,
+  "non_exact_examples": []
+ },
+ {
+  "dataset": "aligned",
+  "signal": "ema20_50",
+  "stage": "S8b",
+  "path": "ohlc",
+  "trades_nora": 111,
+  "trades_naut": 111,
+  "matched_pairs": 111,
+  "exact_matches": 111,
+  "classes": {
+   "match": 111
+  },
+  "final_equity_nora": 10330.36897761996,
+  "final_equity_naut": 10330.368995249999,
+  "final_equity_diff_pct": 1.7066223989559148e-07,
+  "bit_identical": true,
+  "funding_nora": 0.0,
+  "funding_naut": 0,
+  "rejected_for_risk": 20,
+  "variant": "",
+  "entry_equity_differs": 77,
+  "entry_equity_max_rel": 3.1955117433811063e-09,
+  "sizing_lookahead_trades": 4,
+  "sizing_lookahead_max_qty_rel": 2.1339824474495814e-09,
+  "non_exact_examples": []
+ },
+ {
+  "dataset": "aligned",
+  "signal": "ema20_50",
+  "stage": "S8b [sync adm]",
+  "path": "ohlc",
+  "trades_nora": 111,
+  "trades_naut": 111,
+  "matched_pairs": 111,
+  "exact_matches": 111,
+  "classes": {
+   "match": 111
+  },
+  "final_equity_nora": 10330.36897761996,
+  "final_equity_naut": 10330.368995249999,
+  "final_equity_diff_pct": 1.7066223989559148e-07,
+  "bit_identical": null,
+  "funding_nora": 0.0,
+  "funding_naut": 0,
+  "rejected_for_risk": 20,
+  "variant": "_sync",
+  "entry_equity_differs": 77,
+  "entry_equity_max_rel": 3.1955117433811063e-09,
+  "sizing_lookahead_trades": 4,
+  "sizing_lookahead_max_qty_rel": 2.1339824474495814e-09,
+  "non_exact_examples": []
+ },
+ {
+  "dataset": "aligned",
+  "signal": "ema20_50",
+  "stage": "S8c",
+  "path": "ohlc",
+  "trades_nora": 116,
+  "trades_naut": 117,
+  "matched_pairs": 116,
+  "exact_matches": 115,
+  "classes": {
+   "match": 115,
+   "c": 1,
+   "p": 1
+  },
+  "final_equity_nora": 10351.21393614259,
+  "final_equity_naut": 10351.21393229,
+  "final_equity_diff_pct": -3.721872809947513e-08,
+  "bit_identical": true,
+  "funding_nora": 0.0,
+  "funding_naut": 0,
+  "rejected_for_risk": 15,
+  "variant": "",
+  "entry_equity_differs": 33,
+  "entry_equity_max_rel": 1.641704121866581e-09,
+  "sizing_lookahead_trades": 4,
+  "sizing_lookahead_max_qty_rel": 9.803629624603011e-08,
+  "non_exact_examples": [
+   {
+    "sym": "SOL",
+    "enter_time": 1776114000000,
+    "cls": "c",
+    "note": "dust entry from a knife-edge: the cap leaves room 7.67e-06 USDT (earlier entries sized to exactly fill max_gross_exposure); Nora's float arithmetic gives room <= 0 (rejected), Nautilus' 8-decimal qty rounding leaves a positive notional 7.55e-06 USDT",
+    "nora": null,
+    "naut": null,
+    "fund_nora": null,
+    "fund_naut": null
+   },
+   {
+    "sym": "SOL",
+    "enter_time": 1784055600000,
+    "cls": "p",
+    "note": "gross-exposure room differs: Nora notional 13.08 (room 13.08, gross 10118.91, eq 10131.99) vs Nautilus 13.08 (room 13.08, gross 10118.91, eq 10131.99); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
+    "nora": [
+     77.25,
+     1784120400000,
+     78.795,
+     "TP"
+    ],
+    "naut": [
+     77.25,
+     1784120400000,
+     78.795,
+     "TP"
+    ],
+    "fund_nora": 0.0,
+    "fund_naut": 0
+   }
+  ]
+ },
+ {
+  "dataset": "aligned",
+  "signal": "ema20_50",
+  "stage": "S8c [sync adm]",
+  "path": "ohlc",
+  "trades_nora": 116,
+  "trades_naut": 117,
+  "matched_pairs": 116,
+  "exact_matches": 115,
+  "classes": {
+   "match": 115,
+   "c": 1,
+   "p": 1
+  },
+  "final_equity_nora": 10351.21393614259,
+  "final_equity_naut": 10351.21393229,
+  "final_equity_diff_pct": -3.721872809947513e-08,
+  "bit_identical": null,
+  "funding_nora": 0.0,
+  "funding_naut": 0,
+  "rejected_for_risk": 15,
+  "variant": "_sync",
+  "entry_equity_differs": 33,
+  "entry_equity_max_rel": 1.641704121866581e-09,
+  "sizing_lookahead_trades": 4,
+  "sizing_lookahead_max_qty_rel": 9.803629624603011e-08,
+  "non_exact_examples": [
+   {
+    "sym": "SOL",
+    "enter_time": 1776114000000,
+    "cls": "c",
+    "note": "dust entry from a knife-edge: the cap leaves room 7.67e-06 USDT (earlier entries sized to exactly fill max_gross_exposure); Nora's float arithmetic gives room <= 0 (rejected), Nautilus' 8-decimal qty rounding leaves a positive notional 7.55e-06 USDT",
+    "nora": null,
+    "naut": null,
+    "fund_nora": null,
+    "fund_naut": null
+   },
+   {
+    "sym": "SOL",
+    "enter_time": 1784055600000,
+    "cls": "p",
+    "note": "gross-exposure room differs: Nora notional 13.08 (room 13.08, gross 10118.91, eq 10131.99) vs Nautilus 13.08 (room 13.08, gross 10118.91, eq 10131.99); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
+    "nora": [
+     77.25,
+     1784120400000,
+     78.795,
+     "TP"
+    ],
+    "naut": [
+     77.25,
+     1784120400000,
+     78.795,
+     "TP"
+    ],
+    "fund_nora": 0.0,
+    "fund_naut": 0
+   }
+  ]
+ },
+ {
+  "dataset": "aligned",
+  "signal": "ema20_50",
+  "stage": "S8d",
+  "path": "ohlc",
+  "trades_nora": 111,
+  "trades_naut": 111,
+  "matched_pairs": 111,
+  "exact_matches": 111,
+  "classes": {
+   "match": 111
+  },
+  "final_equity_nora": 10372.443180359664,
+  "final_equity_naut": 10372.44318237,
+  "final_equity_diff_pct": 1.9381518612249238e-08,
+  "bit_identical": true,
+  "funding_nora": 0.0,
+  "funding_naut": 0,
+  "rejected_for_risk": 20,
+  "variant": "",
+  "entry_equity_differs": 38,
+  "entry_equity_max_rel": 1.4245672493978009e-09,
+  "sizing_lookahead_trades": 4,
+  "sizing_lookahead_max_qty_rel": 4.079844707122836e-08,
+  "non_exact_examples": []
+ },
+ {
+  "dataset": "aligned",
+  "signal": "ema20_50",
+  "stage": "S8d [sync adm]",
+  "path": "ohlc",
+  "trades_nora": 111,
+  "trades_naut": 111,
+  "matched_pairs": 111,
+  "exact_matches": 111,
+  "classes": {
+   "match": 111
+  },
+  "final_equity_nora": 10372.443180359664,
+  "final_equity_naut": 10372.44318237,
+  "final_equity_diff_pct": 1.9381518612249238e-08,
+  "bit_identical": null,
+  "funding_nora": 0.0,
+  "funding_naut": 0,
+  "rejected_for_risk": 20,
+  "variant": "_sync",
+  "entry_equity_differs": 38,
+  "entry_equity_max_rel": 1.4245672493978009e-09,
+  "sizing_lookahead_trades": 4,
+  "sizing_lookahead_max_qty_rel": 4.079844707122836e-08,
+  "non_exact_examples": []
+ },
+ {
+  "dataset": "aligned",
+  "signal": "ema5_13",
+  "stage": "S8a",
+  "path": "ohlc",
+  "trades_nora": 451,
+  "trades_naut": 451,
+  "matched_pairs": 451,
+  "exact_matches": 451,
+  "classes": {
+   "match": 451
+  },
+  "final_equity_nora": 8029.985953937605,
+  "final_equity_naut": 8029.876049279999,
+  "final_equity_diff_pct": -0.001368678080337915,
+  "bit_identical": true,
+  "funding_nora": 0.0,
+  "funding_naut": 0,
+  "rejected_for_risk": 0,
+  "variant": "",
+  "entry_equity_differs": 417,
+  "entry_equity_max_rel": 0.0024210709898524196,
+  "sizing_lookahead_trades": 7,
+  "sizing_lookahead_max_qty_rel": 1.368656695314985e-05,
+  "non_exact_examples": []
+ },
+ {
+  "dataset": "aligned",
+  "signal": "ema5_13",
+  "stage": "S8a [sync adm]",
+  "path": "ohlc",
+  "trades_nora": 451,
+  "trades_naut": 451,
+  "matched_pairs": 451,
+  "exact_matches": 451,
+  "classes": {
+   "match": 451
+  },
+  "final_equity_nora": 8029.985953937605,
+  "final_equity_naut": 8029.876049279999,
+  "final_equity_diff_pct": -0.001368678080337915,
+  "bit_identical": null,
+  "funding_nora": 0.0,
+  "funding_naut": 0,
+  "rejected_for_risk": 0,
+  "variant": "_sync",
+  "entry_equity_differs": 417,
+  "entry_equity_max_rel": 0.0024210709898524196,
+  "sizing_lookahead_trades": 7,
+  "sizing_lookahead_max_qty_rel": 1.368656695314985e-05,
+  "non_exact_examples": []
+ },
+ {
+  "dataset": "aligned",
+  "signal": "ema5_13",
+  "stage": "S8b",
+  "path": "ohlc",
+  "trades_nora": 357,
+  "trades_naut": 357,
+  "matched_pairs": 357,
+  "exact_matches": 357,
+  "classes": {
+   "match": 357
+  },
+  "final_equity_nora": 8947.218736951065,
+  "final_equity_naut": 8947.0962846,
+  "final_equity_diff_pct": -0.0013686079961217068,
+  "bit_identical": true,
+  "funding_nora": 0.0,
+  "funding_naut": 0,
+  "rejected_for_risk": 101,
+  "variant": "",
+  "entry_equity_differs": 334,
+  "entry_equity_max_rel": 0.002421070810989829,
+  "sizing_lookahead_trades": 3,
+  "sizing_lookahead_max_qty_rel": 1.3685673214574324e-05,
+  "non_exact_examples": []
+ },
+ {
+  "dataset": "aligned",
+  "signal": "ema5_13",
+  "stage": "S8b [sync adm]",
+  "path": "ohlc",
+  "trades_nora": 357,
+  "trades_naut": 357,
+  "matched_pairs": 357,
+  "exact_matches": 357,
+  "classes": {
+   "match": 357
+  },
+  "final_equity_nora": 8947.218736951065,
+  "final_equity_naut": 8947.0962846,
+  "final_equity_diff_pct": -0.0013686079961217068,
+  "bit_identical": null,
+  "funding_nora": 0.0,
+  "funding_naut": 0,
+  "rejected_for_risk": 101,
+  "variant": "_sync",
+  "entry_equity_differs": 334,
+  "entry_equity_max_rel": 0.002421070810989829,
+  "sizing_lookahead_trades": 3,
+  "sizing_lookahead_max_qty_rel": 1.3685673214574324e-05,
+  "non_exact_examples": []
+ },
+ {
+  "dataset": "aligned",
+  "signal": "ema5_13",
+  "stage": "S8c",
+  "path": "ohlc",
+  "trades_nora": 374,
+  "trades_naut": 397,
+  "matched_pairs": 373,
+  "exact_matches": 371,
+  "classes": {
+   "match": 371,
+   "c": 24,
+   "p": 2,
+   "x": 1
+  },
+  "final_equity_nora": 9198.44418522586,
+  "final_equity_naut": 9198.31741584,
+  "final_equity_diff_pct": -0.0013781611684304806,
+  "bit_identical": true,
+  "funding_nora": 0.0,
+  "funding_naut": 0,
+  "rejected_for_risk": 83,
+  "variant": "",
+  "entry_equity_differs": 270,
+  "entry_equity_max_rel": 0.0024210686607353737,
+  "sizing_lookahead_trades": 3,
+  "sizing_lookahead_max_qty_rel": 1.368517647165494e-05,
+  "non_exact_examples": [
+   {
+    "sym": "SOL",
+    "enter_time": 1775750400000,
+    "cls": "c",
+    "note": "dust entry from a knife-edge: the cap leaves room 7.8e-06 USDT (earlier entries sized to exactly fill max_gross_exposure); Nora's float arithmetic gives room <= 0 (rejected), Nautilus' 8-decimal qty rounding leaves a positive notional 7.53e-06 USDT",
+    "nora": null,
+    "naut": null,
+    "fund_nora": null,
+    "fund_naut": null
+   },
+   {
+    "sym": "SOL",
+    "enter_time": 1775822400000,
+    "cls": "c",
+    "note": "dust entry from a knife-edge: the cap leaves room 3.05e-06 USDT (earlier entries sized to exactly fill max_gross_exposure); Nora's float arithmetic gives room <= 0 (rejected), Nautilus' 8-decimal qty rounding leaves a positive notional 3.34e-06 USDT",
+    "nora": null,
+    "naut": null,
+    "fund_nora": null,
+    "fund_naut": null
+   },
+   {
+    "sym": "SOL",
+    "enter_time": 1777032000000,
+    "cls": "c",
+    "note": "dust entry from a knife-edge: the cap leaves room 2.33e-06 USDT (earlier entries sized to exactly fill max_gross_exposure); Nora's float arithmetic gives room <= 0 (rejected), Nautilus' 8-decimal qty rounding leaves a positive notional 2.58e-06 USDT",
+    "nora": null,
+    "naut": null,
+    "fund_nora": null,
+    "fund_naut": null
+   },
+   {
+    "sym": "SOL",
+    "enter_time": 1777600800000,
+    "cls": "c",
+    "note": "dust entry from a knife-edge: the cap leaves room 1.04e-05 USDT (earlier entries sized to exactly fill max_gross_exposure); Nora's float arithmetic gives room <= 0 (rejected), Nautilus' 8-decimal qty rounding leaves a positive notional 1e-05 USDT",
+    "nora": null,
+    "naut": null,
+    "fund_nora": null,
+    "fund_naut": null
+   },
+   {
+    "sym": "SOL",
+    "enter_time": 1784995200000,
+    "cls": "p",
+    "note": "gross-exposure room differs: Nora notional 4.39 (room 4.39, gross 9992.81, eq 9997.20) vs Nautilus 4.38 (room 4.38, gross 9992.67, eq 9997.06); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
+    "nora": [
+     74.13,
+     1785081600000,
+     75.6126,
+     "TP"
+    ],
+    "naut": [
+     74.13,
+     1785081600000,
+     75.6126,
+     "TP"
+    ],
+    "fund_nora": 0.0,
+    "fund_naut": 0
+   },
+   {
+    "sym": "SOL",
+    "enter_time": 1786939200000,
+    "cls": "p",
+    "note": "gross-exposure room differs: Nora notional 2.86 (room 2.86, gross 9051.03, eq 9053.89) vs Nautilus 2.86 (room 2.86, gross 9050.90, eq 9053.77); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
+    "nora": [
+     75.46,
+     1787022000000,
+     75.25,
+     "SIG"
+    ],
+    "naut": [
+     75.46,
+     1787022000000,
+     75.25,
+     "SIG"
+    ],
+    "fund_nora": 0.0,
+    "fund_naut": 0
+   },
+   {
+    "sym": "SOL",
+    "enter_time": 1790895600000,
+    "cls": "x",
+    "note": "nora-only trade inside cascade window of an earlier classified divergence",
+    "nora": null,
+    "naut": null,
+    "fund_nora": null,
+    "fund_naut": null
+   }
+  ]
+ },
+ {
+  "dataset": "aligned",
+  "signal": "ema5_13",
+  "stage": "S8c [sync adm]",
+  "path": "ohlc",
+  "trades_nora": 374,
+  "trades_naut": 397,
+  "matched_pairs": 373,
+  "exact_matches": 371,
+  "classes": {
+   "match": 371,
+   "c": 24,
+   "p": 2,
+   "x": 1
+  },
+  "final_equity_nora": 9198.44418522586,
+  "final_equity_naut": 9198.31741584,
+  "final_equity_diff_pct": -0.0013781611684304806,
+  "bit_identical": null,
+  "funding_nora": 0.0,
+  "funding_naut": 0,
+  "rejected_for_risk": 83,
+  "variant": "_sync",
+  "entry_equity_differs": 270,
+  "entry_equity_max_rel": 0.0024210686607353737,
+  "sizing_lookahead_trades": 3,
+  "sizing_lookahead_max_qty_rel": 1.368517647165494e-05,
+  "non_exact_examples": [
+   {
+    "sym": "SOL",
+    "enter_time": 1775750400000,
+    "cls": "c",
+    "note": "dust entry from a knife-edge: the cap leaves room 7.8e-06 USDT (earlier entries sized to exactly fill max_gross_exposure); Nora's float arithmetic gives room <= 0 (rejected), Nautilus' 8-decimal qty rounding leaves a positive notional 7.53e-06 USDT",
+    "nora": null,
+    "naut": null,
+    "fund_nora": null,
+    "fund_naut": null
+   },
+   {
+    "sym": "SOL",
+    "enter_time": 1775822400000,
+    "cls": "c",
+    "note": "dust entry from a knife-edge: the cap leaves room 3.05e-06 USDT (earlier entries sized to exactly fill max_gross_exposure); Nora's float arithmetic gives room <= 0 (rejected), Nautilus' 8-decimal qty rounding leaves a positive notional 3.34e-06 USDT",
+    "nora": null,
+    "naut": null,
+    "fund_nora": null,
+    "fund_naut": null
+   },
+   {
+    "sym": "SOL",
+    "enter_time": 1777032000000,
+    "cls": "c",
+    "note": "dust entry from a knife-edge: the cap leaves room 2.33e-06 USDT (earlier entries sized to exactly fill max_gross_exposure); Nora's float arithmetic gives room <= 0 (rejected), Nautilus' 8-decimal qty rounding leaves a positive notional 2.58e-06 USDT",
+    "nora": null,
+    "naut": null,
+    "fund_nora": null,
+    "fund_naut": null
+   },
+   {
+    "sym": "SOL",
+    "enter_time": 1777600800000,
+    "cls": "c",
+    "note": "dust entry from a knife-edge: the cap leaves room 1.04e-05 USDT (earlier entries sized to exactly fill max_gross_exposure); Nora's float arithmetic gives room <= 0 (rejected), Nautilus' 8-decimal qty rounding leaves a positive notional 1e-05 USDT",
+    "nora": null,
+    "naut": null,
+    "fund_nora": null,
+    "fund_naut": null
+   },
+   {
+    "sym": "SOL",
+    "enter_time": 1784995200000,
+    "cls": "p",
+    "note": "gross-exposure room differs: Nora notional 4.39 (room 4.39, gross 9992.81, eq 9997.20) vs Nautilus 4.38 (room 4.38, gross 9992.67, eq 9997.06); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
+    "nora": [
+     74.13,
+     1785081600000,
+     75.6126,
+     "TP"
+    ],
+    "naut": [
+     74.13,
+     1785081600000,
+     75.6126,
+     "TP"
+    ],
+    "fund_nora": 0.0,
+    "fund_naut": 0
+   },
+   {
+    "sym": "SOL",
+    "enter_time": 1786939200000,
+    "cls": "p",
+    "note": "gross-exposure room differs: Nora notional 2.86 (room 2.86, gross 9051.03, eq 9053.89) vs Nautilus 2.86 (room 2.86, gross 9050.90, eq 9053.77); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
+    "nora": [
+     75.46,
+     1787022000000,
+     75.25,
+     "SIG"
+    ],
+    "naut": [
+     75.46,
+     1787022000000,
+     75.25,
+     "SIG"
+    ],
+    "fund_nora": 0.0,
+    "fund_naut": 0
+   },
+   {
+    "sym": "SOL",
+    "enter_time": 1790895600000,
+    "cls": "x",
+    "note": "nora-only trade inside cascade window of an earlier classified divergence",
+    "nora": null,
+    "naut": null,
+    "fund_nora": null,
+    "fund_naut": null
+   }
+  ]
+ },
+ {
+  "dataset": "aligned",
+  "signal": "ema5_13",
+  "stage": "S8d",
+  "path": "ohlc",
+  "trades_nora": 357,
+  "trades_naut": 357,
+  "matched_pairs": 357,
+  "exact_matches": 356,
+  "classes": {
+   "match": 356,
+   "p": 1
+  },
+  "final_equity_nora": 9275.107975814615,
+  "final_equity_naut": 9274.98102946,
+  "final_equity_diff_pct": -0.0013686779167132457,
+  "bit_identical": true,
+  "funding_nora": 0.0,
+  "funding_naut": 0,
+  "rejected_for_risk": 101,
+  "variant": "",
+  "entry_equity_differs": 294,
+  "entry_equity_max_rel": 0.0024210681589639303,
+  "sizing_lookahead_trades": 3,
+  "sizing_lookahead_max_qty_rel": 1.3685600495744794e-05,
+  "non_exact_examples": [
+   {
+    "sym": "ETH",
+    "enter_time": 1789560000000,
+    "cls": "p",
+    "note": "gross-exposure room differs: Nora notional 1802.71 (room 1802.71, gross 5408.14, eq 9013.57) vs Nautilus 1802.69 (room 1802.69, gross 5408.07, eq 9013.45); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
+    "nora": [
+     2421.07,
+     1789567200000,
+     2393.15,
+     "SIG"
+    ],
+    "naut": [
+     2421.07,
+     1789567200000,
+     2393.15,
+     "SIG"
+    ],
+    "fund_nora": 0.0,
+    "fund_naut": 0
+   }
+  ]
+ },
+ {
+  "dataset": "aligned",
+  "signal": "ema5_13",
+  "stage": "S8d [sync adm]",
+  "path": "ohlc",
+  "trades_nora": 357,
+  "trades_naut": 357,
+  "matched_pairs": 357,
+  "exact_matches": 356,
+  "classes": {
+   "match": 356,
+   "p": 1
+  },
+  "final_equity_nora": 9275.107975814615,
+  "final_equity_naut": 9274.98102946,
+  "final_equity_diff_pct": -0.0013686779167132457,
+  "bit_identical": null,
+  "funding_nora": 0.0,
+  "funding_naut": 0,
+  "rejected_for_risk": 101,
+  "variant": "_sync",
+  "entry_equity_differs": 294,
+  "entry_equity_max_rel": 0.0024210681589639303,
+  "sizing_lookahead_trades": 3,
+  "sizing_lookahead_max_qty_rel": 1.3685600495744794e-05,
+  "non_exact_examples": [
+   {
+    "sym": "ETH",
+    "enter_time": 1789560000000,
+    "cls": "p",
+    "note": "gross-exposure room differs: Nora notional 1802.71 (room 1802.71, gross 5408.14, eq 9013.57) vs Nautilus 1802.69 (room 1802.69, gross 5408.07, eq 9013.45); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
+    "nora": [
+     2421.07,
+     1789567200000,
+     2393.15,
+     "SIG"
+    ],
+    "naut": [
+     2421.07,
+     1789567200000,
+     2393.15,
+     "SIG"
+    ],
+    "fund_nora": 0.0,
+    "fund_naut": 0
+   }
+  ]
+ },
+ {
+  "dataset": "gapped",
+  "signal": "ema20_50",
+  "stage": "S8a",
+  "path": "ohlc",
+  "trades_nora": 129,
+  "trades_naut": 129,
+  "matched_pairs": 129,
+  "exact_matches": 129,
+  "classes": {
+   "match": 129
+  },
+  "final_equity_nora": 11069.088265258202,
+  "final_equity_naut": 11069.088250329998,
+  "final_equity_diff_pct": -1.3486389782713104e-07,
+  "bit_identical": true,
+  "funding_nora": 0.0,
+  "funding_naut": 0,
+  "rejected_for_risk": 0,
+  "variant": "",
+  "entry_equity_differs": 101,
+  "entry_equity_max_rel": 2.7714434853800297e-09,
+  "sizing_lookahead_trades": 5,
+  "sizing_lookahead_max_qty_rel": 2.514638617026271e-09,
+  "non_exact_examples": []
+ },
+ {
+  "dataset": "gapped",
+  "signal": "ema20_50",
+  "stage": "S8a [sync adm]",
+  "path": "ohlc",
+  "trades_nora": 129,
+  "trades_naut": 129,
+  "matched_pairs": 129,
+  "exact_matches": 129,
+  "classes": {
+   "match": 129
+  },
+  "final_equity_nora": 11069.088265258202,
+  "final_equity_naut": 11069.088250329998,
+  "final_equity_diff_pct": -1.3486389782713104e-07,
+  "bit_identical": null,
+  "funding_nora": 0.0,
+  "funding_naut": 0,
+  "rejected_for_risk": 0,
+  "variant": "_sync",
+  "entry_equity_differs": 101,
+  "entry_equity_max_rel": 2.7714434853800297e-09,
+  "sizing_lookahead_trades": 5,
+  "sizing_lookahead_max_qty_rel": 2.514638617026271e-09,
+  "non_exact_examples": []
+ },
+ {
+  "dataset": "gapped",
+  "signal": "ema20_50",
+  "stage": "S8b",
+  "path": "ohlc",
+  "trades_nora": 114,
+  "trades_naut": 114,
+  "matched_pairs": 114,
+  "exact_matches": 114,
+  "classes": {
+   "match": 114
+  },
+  "final_equity_nora": 10397.885921642399,
+  "final_equity_naut": 10397.88591886,
+  "final_equity_diff_pct": -2.6759272575560544e-08,
+  "bit_identical": true,
+  "funding_nora": 0.0,
+  "funding_naut": 0,
+  "rejected_for_risk": 16,
+  "variant": "",
+  "entry_equity_differs": 0,
+  "entry_equity_max_rel": 9.910441763315656e-10,
+  "sizing_lookahead_trades": 4,
+  "sizing_lookahead_max_qty_rel": 4.704810465896902e-10,
+  "non_exact_examples": []
+ },
+ {
+  "dataset": "gapped",
+  "signal": "ema20_50",
+  "stage": "S8b [sync adm]",
+  "path": "ohlc",
+  "trades_nora": 114,
+  "trades_naut": 114,
+  "matched_pairs": 114,
+  "exact_matches": 114,
+  "classes": {
+   "match": 114
+  },
+  "final_equity_nora": 10397.885921642399,
+  "final_equity_naut": 10397.88591886,
+  "final_equity_diff_pct": -2.6759272575560544e-08,
+  "bit_identical": null,
+  "funding_nora": 0.0,
+  "funding_naut": 0,
+  "rejected_for_risk": 16,
+  "variant": "_sync",
+  "entry_equity_differs": 0,
+  "entry_equity_max_rel": 9.910441763315656e-10,
+  "sizing_lookahead_trades": 4,
+  "sizing_lookahead_max_qty_rel": 4.704810465896902e-10,
+  "non_exact_examples": []
+ },
+ {
+  "dataset": "gapped",
+  "signal": "ema20_50",
+  "stage": "S8c",
+  "path": "ohlc",
+  "trades_nora": 118,
+  "trades_naut": 118,
+  "matched_pairs": 118,
+  "exact_matches": 117,
+  "classes": {
+   "match": 117,
+   "p": 1
+  },
+  "final_equity_nora": 10575.26780039071,
+  "final_equity_naut": 10575.267784100002,
+  "final_equity_diff_pct": -1.5404534314811258e-07,
+  "bit_identical": true,
+  "funding_nora": 0.0,
+  "funding_naut": 0,
+  "rejected_for_risk": 12,
+  "variant": "",
+  "entry_equity_differs": 55,
+  "entry_equity_max_rel": 2.0055198539001775e-09,
+  "sizing_lookahead_trades": 4,
+  "sizing_lookahead_max_qty_rel": 4.134229247142864e-08,
+  "non_exact_examples": [
+   {
+    "sym": "ETH",
+    "enter_time": 1777197600000,
+    "cls": "p",
+    "note": "gross-exposure room differs: Nora notional 13.30 (room 13.30, gross 10118.01, eq 10131.31) vs Nautilus 13.30 (room 13.30, gross 10118.01, eq 10131.31); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
+    "nora": [
+     2223.64,
+     1777226400000,
+     2268.1128,
+     "TP"
+    ],
+    "naut": [
+     2223.64,
+     1777226400000,
+     2268.1128,
+     "TP"
+    ],
+    "fund_nora": 0.0,
+    "fund_naut": 0
+   }
+  ]
+ },
+ {
+  "dataset": "gapped",
+  "signal": "ema20_50",
+  "stage": "S8c [sync adm]",
+  "path": "ohlc",
+  "trades_nora": 118,
+  "trades_naut": 118,
+  "matched_pairs": 118,
+  "exact_matches": 117,
+  "classes": {
+   "match": 117,
+   "p": 1
+  },
+  "final_equity_nora": 10575.26780039071,
+  "final_equity_naut": 10575.267784100002,
+  "final_equity_diff_pct": -1.5404534314811258e-07,
+  "bit_identical": null,
+  "funding_nora": 0.0,
+  "funding_naut": 0,
+  "rejected_for_risk": 12,
+  "variant": "_sync",
+  "entry_equity_differs": 55,
+  "entry_equity_max_rel": 2.0055198539001775e-09,
+  "sizing_lookahead_trades": 4,
+  "sizing_lookahead_max_qty_rel": 4.134229247142864e-08,
+  "non_exact_examples": [
+   {
+    "sym": "ETH",
+    "enter_time": 1777197600000,
+    "cls": "p",
+    "note": "gross-exposure room differs: Nora notional 13.30 (room 13.30, gross 10118.01, eq 10131.31) vs Nautilus 13.30 (room 13.30, gross 10118.01, eq 10131.31); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
+    "nora": [
+     2223.64,
+     1777226400000,
+     2268.1128,
+     "TP"
+    ],
+    "naut": [
+     2223.64,
+     1777226400000,
+     2268.1128,
+     "TP"
+    ],
+    "fund_nora": 0.0,
+    "fund_naut": 0
+   }
+  ]
+ },
+ {
+  "dataset": "gapped",
+  "signal": "ema20_50",
+  "stage": "S8d",
+  "path": "ohlc",
+  "trades_nora": 114,
+  "trades_naut": 114,
+  "matched_pairs": 114,
+  "exact_matches": 114,
+  "classes": {
+   "match": 114
+  },
+  "final_equity_nora": 10750.691890274631,
+  "final_equity_naut": 10750.69187977,
+  "final_equity_diff_pct": -9.771120579316062e-08,
+  "bit_identical": true,
+  "funding_nora": 0.0,
+  "funding_naut": 0,
+  "rejected_for_risk": 16,
+  "variant": "",
+  "entry_equity_differs": 41,
+  "entry_equity_max_rel": 2.0207584667766603e-09,
+  "sizing_lookahead_trades": 4,
+  "sizing_lookahead_max_qty_rel": 1.1168575427036053e-07,
+  "non_exact_examples": []
+ },
+ {
+  "dataset": "gapped",
+  "signal": "ema20_50",
+  "stage": "S8d [sync adm]",
+  "path": "ohlc",
+  "trades_nora": 114,
+  "trades_naut": 114,
+  "matched_pairs": 114,
+  "exact_matches": 114,
+  "classes": {
+   "match": 114
+  },
+  "final_equity_nora": 10750.691890274631,
+  "final_equity_naut": 10750.69187977,
+  "final_equity_diff_pct": -9.771120579316062e-08,
+  "bit_identical": null,
+  "funding_nora": 0.0,
+  "funding_naut": 0,
+  "rejected_for_risk": 16,
+  "variant": "_sync",
+  "entry_equity_differs": 41,
+  "entry_equity_max_rel": 2.0207584667766603e-09,
+  "sizing_lookahead_trades": 4,
+  "sizing_lookahead_max_qty_rel": 1.1168575427036053e-07,
+  "non_exact_examples": []
+ },
+ {
+  "dataset": "gapped",
+  "signal": "ema5_13",
+  "stage": "S8a",
+  "path": "ohlc",
+  "trades_nora": 456,
+  "trades_naut": 456,
+  "matched_pairs": 456,
+  "exact_matches": 456,
+  "classes": {
+   "match": 456
+  },
+  "final_equity_nora": 8463.226336019017,
+  "final_equity_naut": 8463.11041223,
+  "final_equity_diff_pct": -0.0013697351862518303,
+  "bit_identical": true,
+  "funding_nora": 0.0,
+  "funding_naut": 0,
+  "rejected_for_risk": 0,
+  "variant": "",
+  "entry_equity_differs": 431,
+  "entry_equity_max_rel": 0.00242137884262549,
+  "sizing_lookahead_trades": 7,
+  "sizing_lookahead_max_qty_rel": 1.3698454854245008e-05,
+  "non_exact_examples": []
+ },
+ {
+  "dataset": "gapped",
+  "signal": "ema5_13",
+  "stage": "S8a [sync adm]",
+  "path": "ohlc",
+  "trades_nora": 456,
+  "trades_naut": 456,
+  "matched_pairs": 456,
+  "exact_matches": 456,
+  "classes": {
+   "match": 456
+  },
+  "final_equity_nora": 8463.226336019017,
+  "final_equity_naut": 8463.11041223,
+  "final_equity_diff_pct": -0.0013697351862518303,
+  "bit_identical": null,
+  "funding_nora": 0.0,
+  "funding_naut": 0,
+  "rejected_for_risk": 0,
+  "variant": "_sync",
+  "entry_equity_differs": 431,
+  "entry_equity_max_rel": 0.00242137884262549,
+  "sizing_lookahead_trades": 7,
+  "sizing_lookahead_max_qty_rel": 1.3698454854245008e-05,
+  "non_exact_examples": []
+ },
+ {
+  "dataset": "gapped",
+  "signal": "ema5_13",
+  "stage": "S8b",
+  "path": "ohlc",
+  "trades_nora": 361,
+  "trades_naut": 361,
+  "matched_pairs": 361,
+  "exact_matches": 361,
+  "classes": {
+   "match": 361
+  },
+  "final_equity_nora": 8885.459567074393,
+  "final_equity_naut": 8885.33791446,
+  "final_equity_diff_pct": -0.0013691201166787792,
+  "bit_identical": true,
+  "funding_nora": 0.0,
+  "funding_naut": 0,
+  "rejected_for_risk": 99,
+  "variant": "",
+  "entry_equity_differs": 253,
+  "entry_equity_max_rel": 0.0024213813682844457,
+  "sizing_lookahead_trades": 3,
+  "sizing_lookahead_max_qty_rel": 1.369290149019968e-05,
+  "non_exact_examples": []
+ },
+ {
+  "dataset": "gapped",
+  "signal": "ema5_13",
+  "stage": "S8b [sync adm]",
+  "path": "ohlc",
+  "trades_nora": 361,
+  "trades_naut": 361,
+  "matched_pairs": 361,
+  "exact_matches": 361,
+  "classes": {
+   "match": 361
+  },
+  "final_equity_nora": 8885.459567074393,
+  "final_equity_naut": 8885.33791446,
+  "final_equity_diff_pct": -0.0013691201166787792,
+  "bit_identical": null,
+  "funding_nora": 0.0,
+  "funding_naut": 0,
+  "rejected_for_risk": 99,
+  "variant": "_sync",
+  "entry_equity_differs": 253,
+  "entry_equity_max_rel": 0.0024213813682844457,
+  "sizing_lookahead_trades": 3,
+  "sizing_lookahead_max_qty_rel": 1.369290149019968e-05,
+  "non_exact_examples": []
+ },
+ {
+  "dataset": "gapped",
+  "signal": "ema5_13",
+  "stage": "S8c",
+  "path": "ohlc",
+  "trades_nora": 379,
+  "trades_naut": 393,
+  "matched_pairs": 379,
+  "exact_matches": 377,
+  "classes": {
+   "match": 377,
+   "c": 14,
+   "p": 2
+  },
+  "final_equity_nora": 9006.070991194387,
+  "final_equity_naut": 9005.94766651,
+  "final_equity_diff_pct": -0.0013693505692802255,
+  "bit_identical": true,
+  "funding_nora": 0.0,
+  "funding_naut": 0,
+  "rejected_for_risk": 81,
+  "variant": "",
+  "entry_equity_differs": 285,
+  "entry_equity_max_rel": 0.0024213811529234237,
+  "sizing_lookahead_trades": 3,
+  "sizing_lookahead_max_qty_rel": 1.3736904703101648e-05,
+  "non_exact_examples": [
+   {
+    "sym": "SOL",
+    "enter_time": 1775750400000,
+    "cls": "c",
+    "note": "dust entry from a knife-edge: the cap leaves room 5.42e-06 USDT (earlier entries sized to exactly fill max_gross_exposure); Nora's float arithmetic gives room <= 0 (rejected), Nautilus' 8-decimal qty rounding leaves a positive notional 5.83e-06 USDT",
+    "nora": null,
+    "naut": null,
+    "fund_nora": null,
+    "fund_naut": null
+   },
+   {
+    "sym": "SOL",
+    "enter_time": 1775822400000,
+    "cls": "c",
+    "note": "dust entry from a knife-edge: the cap leaves room 2.36e-06 USDT (earlier entries sized to exactly fill max_gross_exposure); Nora's float arithmetic gives room <= 0 (rejected), Nautilus' 8-decimal qty rounding leaves a positive notional 2.52e-06 USDT",
+    "nora": null,
+    "naut": null,
+    "fund_nora": null,
+    "fund_naut": null
+   },
+   {
+    "sym": "SOL",
+    "enter_time": 1776816000000,
+    "cls": "c",
+    "note": "dust entry from a knife-edge: the cap leaves room 5.08e-07 USDT (earlier entries sized to exactly fill max_gross_exposure); Nora's float arithmetic gives room <= 0 (rejected), Nautilus' 8-decimal qty rounding leaves a positive notional 8.45e-07 USDT",
+    "nora": null,
+    "naut": null,
+    "fund_nora": null,
+    "fund_naut": null
+   },
+   {
+    "sym": "SOL",
+    "enter_time": 1777730400000,
+    "cls": "c",
+    "note": "dust entry from a knife-edge: the cap leaves room 0.000323 USDT (earlier entries sized to exactly fill max_gross_exposure); Nora's float arithmetic gives room <= 0 (rejected), Nautilus' 8-decimal qty rounding leaves a positive notional 0.000323 USDT",
+    "nora": null,
+    "naut": null,
+    "fund_nora": null,
+    "fund_naut": null
+   },
+   {
+    "sym": "ETH",
+    "enter_time": 1778421600000,
+    "cls": "p",
+    "note": "gross-exposure room differs: Nora notional 67.70 (room 67.70, gross 10574.21, eq 10641.91) vs Nautilus 67.70 (room 67.70, gross 10574.21, eq 10641.91); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
+    "nora": [
+     2278.82,
+     1778450400000,
+     2324.3964,
+     "TP"
+    ],
+    "naut": [
+     2278.82,
+     1778450400000,
+     2324.3964,
+     "TP"
+    ],
+    "fund_nora": 0.0,
+    "fund_naut": 0
+   },
+   {
+    "sym": "SOL",
+    "enter_time": 1789113600000,
+    "cls": "p",
+    "note": "gross-exposure room differs: Nora notional 2.63 (room 2.63, gross 8496.40, eq 8499.03) vs Nautilus 2.63 (room 2.63, gross 8496.29, eq 8498.92); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
+    "nora": [
+     95.317,
+     1789120800000,
+     94.992,
+     "SIG"
+    ],
+    "naut": [
+     95.317,
+     1789120800000,
+     94.992,
+     "SIG"
+    ],
+    "fund_nora": 0.0,
+    "fund_naut": 0
+   }
+  ]
+ },
+ {
+  "dataset": "gapped",
+  "signal": "ema5_13",
+  "stage": "S8c [sync adm]",
+  "path": "ohlc",
+  "trades_nora": 379,
+  "trades_naut": 393,
+  "matched_pairs": 379,
+  "exact_matches": 377,
+  "classes": {
+   "match": 377,
+   "c": 14,
+   "p": 2
+  },
+  "final_equity_nora": 9006.070991194387,
+  "final_equity_naut": 9005.94766651,
+  "final_equity_diff_pct": -0.0013693505692802255,
+  "bit_identical": null,
+  "funding_nora": 0.0,
+  "funding_naut": 0,
+  "rejected_for_risk": 81,
+  "variant": "_sync",
+  "entry_equity_differs": 285,
+  "entry_equity_max_rel": 0.0024213811529234237,
+  "sizing_lookahead_trades": 3,
+  "sizing_lookahead_max_qty_rel": 1.3736904703101648e-05,
+  "non_exact_examples": [
+   {
+    "sym": "SOL",
+    "enter_time": 1775750400000,
+    "cls": "c",
+    "note": "dust entry from a knife-edge: the cap leaves room 5.42e-06 USDT (earlier entries sized to exactly fill max_gross_exposure); Nora's float arithmetic gives room <= 0 (rejected), Nautilus' 8-decimal qty rounding leaves a positive notional 5.83e-06 USDT",
+    "nora": null,
+    "naut": null,
+    "fund_nora": null,
+    "fund_naut": null
+   },
+   {
+    "sym": "SOL",
+    "enter_time": 1775822400000,
+    "cls": "c",
+    "note": "dust entry from a knife-edge: the cap leaves room 2.36e-06 USDT (earlier entries sized to exactly fill max_gross_exposure); Nora's float arithmetic gives room <= 0 (rejected), Nautilus' 8-decimal qty rounding leaves a positive notional 2.52e-06 USDT",
+    "nora": null,
+    "naut": null,
+    "fund_nora": null,
+    "fund_naut": null
+   },
+   {
+    "sym": "SOL",
+    "enter_time": 1776816000000,
+    "cls": "c",
+    "note": "dust entry from a knife-edge: the cap leaves room 5.08e-07 USDT (earlier entries sized to exactly fill max_gross_exposure); Nora's float arithmetic gives room <= 0 (rejected), Nautilus' 8-decimal qty rounding leaves a positive notional 8.45e-07 USDT",
+    "nora": null,
+    "naut": null,
+    "fund_nora": null,
+    "fund_naut": null
+   },
+   {
+    "sym": "SOL",
+    "enter_time": 1777730400000,
+    "cls": "c",
+    "note": "dust entry from a knife-edge: the cap leaves room 0.000323 USDT (earlier entries sized to exactly fill max_gross_exposure); Nora's float arithmetic gives room <= 0 (rejected), Nautilus' 8-decimal qty rounding leaves a positive notional 0.000323 USDT",
+    "nora": null,
+    "naut": null,
+    "fund_nora": null,
+    "fund_naut": null
+   },
+   {
+    "sym": "ETH",
+    "enter_time": 1778421600000,
+    "cls": "p",
+    "note": "gross-exposure room differs: Nora notional 67.70 (room 67.70, gross 10574.21, eq 10641.91) vs Nautilus 67.70 (room 67.70, gross 10574.21, eq 10641.91); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
+    "nora": [
+     2278.82,
+     1778450400000,
+     2324.3964,
+     "TP"
+    ],
+    "naut": [
+     2278.82,
+     1778450400000,
+     2324.3964,
+     "TP"
+    ],
+    "fund_nora": 0.0,
+    "fund_naut": 0
+   },
+   {
+    "sym": "SOL",
+    "enter_time": 1789113600000,
+    "cls": "p",
+    "note": "gross-exposure room differs: Nora notional 2.63 (room 2.63, gross 8496.40, eq 8499.03) vs Nautilus 2.63 (room 2.63, gross 8496.29, eq 8498.92); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
+    "nora": [
+     95.317,
+     1789120800000,
+     94.992,
+     "SIG"
+    ],
+    "naut": [
+     95.317,
+     1789120800000,
+     94.992,
+     "SIG"
+    ],
+    "fund_nora": 0.0,
+    "fund_naut": 0
+   }
+  ]
+ },
+ {
+  "dataset": "gapped",
+  "signal": "ema5_13",
+  "stage": "S8d",
+  "path": "ohlc",
+  "trades_nora": 361,
+  "trades_naut": 361,
+  "matched_pairs": 361,
+  "exact_matches": 361,
+  "classes": {
+   "match": 361
+  },
+  "final_equity_nora": 9119.214439449515,
+  "final_equity_naut": 9119.089571,
+  "final_equity_diff_pct": -0.0013692895407202421,
+  "bit_identical": true,
+  "funding_nora": 0.0,
+  "funding_naut": 0,
+  "rejected_for_risk": 99,
+  "variant": "",
+  "entry_equity_differs": 248,
+  "entry_equity_max_rel": 0.0024213819072830462,
+  "sizing_lookahead_trades": 3,
+  "sizing_lookahead_max_qty_rel": 1.369418461766832e-05,
+  "non_exact_examples": []
+ },
+ {
+  "dataset": "gapped",
+  "signal": "ema5_13",
+  "stage": "S8d [sync adm]",
+  "path": "ohlc",
+  "trades_nora": 361,
+  "trades_naut": 361,
+  "matched_pairs": 361,
+  "exact_matches": 361,
+  "classes": {
+   "match": 361
+  },
+  "final_equity_nora": 9119.214439449515,
+  "final_equity_naut": 9119.089571,
+  "final_equity_diff_pct": -0.0013692895407202421,
+  "bit_identical": null,
+  "funding_nora": 0.0,
+  "funding_naut": 0,
+  "rejected_for_risk": 99,
+  "variant": "_sync",
+  "entry_equity_differs": 248,
+  "entry_equity_max_rel": 0.0024213819072830462,
+  "sizing_lookahead_trades": 3,
+  "sizing_lookahead_max_qty_rel": 1.369418461766832e-05,
+  "non_exact_examples": []
+ }
+]

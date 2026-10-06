@@ -128,3 +128,19 @@ systemd-run --user --scope --slice=nora.slice -p MemoryMax=4G ~/.venvs/nautilus/
 ~/.venvs/nora/bin/python test/scripts/nautilus_diff/ext_compare.py ohlc|adaptive [stage-prefix|all]
 ```
 Outputs in `out/ext/` (not committed); summaries `ext_results_ohlc.json`, `ext_results_adaptive.json`.
+
+
+## S8 after fix: two-phase portfolio bar (P6.12, ADR P6 section 10)
+Nora HEAD with `fix(engine): two-phase portfolio bar`: per bar, phase 1 (open: funding, exits at open, admission + entries from the open-of-bar state: marks `close[t-1]`, ledger equity without any intrabar PnL) for all symbols, then phase 2 (intrabar SL/TP/DCA/trailing + end-of-bar bookkeeping). Same definition as the "sync adm" counterfactual above, implemented in `portfolio_kernel`, `Runner` (PaperBook event + tracker, bot) and the oracle. Harness unchanged: `ext_run_nora.py` S8a-d, both paths, 16 runs each; Nautilus side not re-run (same bars/signals). Tracker == manager bit-identical in all 32 runs. Summaries: `ext_results_s8_fixed_ohlc.json`, `ext_results_s8_fixed_adaptive.json` (the S4-S7 and pre-fix S8 rows of `ext_results_{ohlc,adaptive}.json` are kept as they were).
+
+| | before (production) | after fix |
+|---|---|---|
+| exact pairs / Nora trades / Nautilus trades (16 runs, ohlc) | 3,399 / 4,117 / 4,075 | 4,029 / 4,037 / 4,075 |
+| unexplained (class e) | 0 | 0 |
+| admission decisions where prod view != sync view (can_open / gross room / sizing equity) | 1-48 / 25-204 / 5-8 per run | 0 / 0 / 0 in every run |
+| max final-equity diff vs Nautilus | 2.66% | 0.0014% (ema5_13 rounding); ema20_50 <= 3e-7 % |
+| sizing look-ahead max qty rel diff | up to 2.2 (cap-clamped) | 0.0000 |
+
+Final equity, ohlc path (the adaptive path gives the same exact / class counts, `ext_results_s8_fixed_adaptive.json`): aligned ema20_50 S8a/b/c/d = 11140.66 / 10330.37 / 10351.21 / 10372.44, equal to Nautilus to the cent (before the fix: 11144.86 / 10451.20 / 10518.16 / 10586.62); gapped ema20_50 = 11069.09 / 10397.89 / 10575.27 / 10750.69, again equal to Nautilus. ema5_13 stays 0.0014% above Nautilus (8029.99 vs 8029.88 etc.), the same residual the sync counterfactual had (Nautilus 8-decimal qty rounding). Trade counts per stage: Nora = Nautilus except S8c (knife-edge dust positions, class c, 39 in 16 runs; 7 p and 1 x are their size/cascade consequences).
+
+Conclusion: S8 now matches Nautilus like the sync counterfactual, and the remaining sizing-equity residual of that counterfactual (0.025% in S8b) is gone because the tracker now sizes from the open-of-bar ledger. Kernel speed (`bench_engine.py compare`, kema_long on 8 perps, shared loaded machine so +-5% is noise): kernel + object build 0.404 -> 0.374 s per alpha, batch of 100 208 -> 213 ms per alpha; kernel == oracle bit-identical on the 3 real configurations.
