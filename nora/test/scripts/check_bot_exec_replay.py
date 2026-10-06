@@ -159,7 +159,7 @@ def main():
     t0 = t_end - a.days * 86_400_000
     sim = SimExchange(10_000.0)
     logs = []
-    state = lb.State(os.path.join(os.environ.get("TMPDIR", "/tmp"), "nora_replay_state.json"), 10_000.0)
+    state = lb.State(os.path.join(os.environ.get("TMPDIR", "/tmp"), "nora_replay_state.json"))
     state.d = {"positions": {}, "last_close": {}, "peak_equity": 10_000.0, "halted": False, "last_bar": None, "trades": [], "external": []}
     bot = lb.Bot(book, "demo", sim, state, logs.append, {s: Filters(1e-9, 1e-9, 0.0, 0.0) for s in syms}, None, 10_000.0)
     sim.on_fill = bot.watch

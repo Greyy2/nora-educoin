@@ -86,9 +86,10 @@ def _archive_stale_state(sdir: str, spath: str, book: Dict[str, Any]) -> None:
 
 
 class State:
-    def __init__(self, path: str, capital: float):
+    def __init__(self, path: str):
         self.path = path
-        self.d: Dict[str, Any] = {"positions": {}, "last_close": {}, "peak_equity": capital, "halted": False, "last_bar": None,
+        # đỉnh vốn chỉ lấy từ vốn sàn ĐO ĐƯỢC (0 = chưa đo): vốn danh nghĩa `capital` có thể khác số dư tài khoản -> kill switch giả
+        self.d: Dict[str, Any] = {"positions": {}, "last_close": {}, "peak_equity": 0.0, "halted": False, "last_bar": None,
                                   "trades": [], "external": []}
         if os.path.isfile(path):
             with open(path, encoding="utf-8") as fh:
@@ -435,7 +436,7 @@ def run_job(params=None) -> Dict[str, Any]:
     if os.path.isfile(pkl):
         with open(pkl, "rb") as fh:
             paper = pickle.load(fh)
-    state = State(spath, float(a.capital))
+    state = State(spath)
     state.d["book"] = book.get("generated_at")
     state.d["book_kind"] = a.book
     bot = Bot(book, a.mode, client, state, log, filters, paper, float(a.capital))

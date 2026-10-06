@@ -58,7 +58,7 @@ BOOK = {"status": "READY_FOR_TESTNET", "timeframe": "1h", "universe": ["AAA@perp
 
 def _bot(tmp_path, mode="paper", client=None, filters=None, book=None):
     events = []
-    b = lb.Bot(book or BOOK, mode, client, lb.State(str(tmp_path / "state.json"), 10_000.0), events.append, filters)
+    b = lb.Bot(book or BOOK, mode, client, lb.State(str(tmp_path / "state.json")), events.append, filters)
     return b, events
 
 
@@ -512,3 +512,16 @@ def test_watch_reprotects_immediately_after_dca_fill(tmp_path, monkeypatch):
     new = fake.calls[n:]
     assert b.state.d["positions"]["AAA"]["filled_layers"] == 1
     assert any(c[0] == "sl" and c[4] == flt["AAA"].price(99.0 * (1 - p["sl_pct"] / 100)) for c in new)
+
+
+def test_fresh_state_peak_comes_from_measured_equity_not_nominal_capital(tmp_path):
+    """Tài khoản sàn nhỏ hơn vốn danh nghĩa (demo 4.8k vs capital 10k): state mới KHÔNG được coi 10k là đỉnh -> không kill switch giả."""
+    fake = FakeAdapter()
+    fake.equity = lambda: 4865.69
+    flt = {s: Filters(0.01, 0.001, 0.001, 5.0) for s in ("AAA", "BBB")}
+    b, ev = _bot(tmp_path, "demo", fake, flt)
+    t0 = 50 * HOUR
+    b.step(t0 + HOUR, {"AAA": _sig(b, "AAA", [t0]), "BBB": _sig(b, "BBB", [t0])}, {})
+    assert not b.state.d["halted"] and b.state.d["peak_equity"] == 4865.69
+    assert not any(e["kind"] == "crit" for e in ev)
+    assert b._risk_controls(4865.69)[1] == 1.0                                   # không bị throttle theo đỉnh giả
