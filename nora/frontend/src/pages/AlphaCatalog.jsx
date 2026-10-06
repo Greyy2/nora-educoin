@@ -27,17 +27,20 @@ function Results({ stats }) {
   return (
     <div className="n-tblwrap">
       <table className="n-tbl n-ad-res">
-        <thead><tr><th>Alpha</th><th className="r">Lợi nhuận</th><th className="r">MDD</th><th className="r">Sharpe</th><th className="r">PF</th><th className="r">Thắng</th><th className="r">Lệnh</th></tr></thead>
+        <thead><tr><th>Alpha</th><th className="r">Lợi nhuận</th><th className="r">Bi quan</th><th className="r">MDD</th><th className="r">Thắng</th><th className="r">PF</th><th className="r">Sharpe</th><th className="r">Sortino</th><th className="r">Lệnh</th><th className="r">TS có lãi</th></tr></thead>
         <tbody>
           {stats.map((a) => (
             <tr key={`${a.book}:${a.leg}`}>
               <td title={aTitle(a)}><b>{aHead(a)}</b> <span className="mono muted">{(a.alpha_id || a.leg).slice(0, 8)}</span> <span className="n-badge">{BOOK[a.book] || a.book}</span></td>
               <td className={`r ${signClass(a.ret_pct)}`}>{fmtSPct(a.ret_pct, 1)}</td>
+              <td className={`r ${signClass(a.extreme_ret_pct)}`}>{fmtSPct(a.extreme_ret_pct, 1)}</td>
               <td className="r">{fmtPct(a.mdd_pct, 2)}</td>
-              <td className="r">{fmtNum(a.sharpe, 2)}</td>
-              <td className="r">{fmtNum(a.profit_factor, 2)}</td>
               <td className="r">{fmtPct(a.win_rate, 1)}</td>
+              <td className="r">{fmtNum(a.profit_factor, 2)}</td>
+              <td className="r">{fmtNum(a.sharpe, 2)}</td>
+              <td className="r">{fmtNum(a.sortino, 2)}</td>
               <td className="r">{fmtNum(a.trades, 0)}</td>
+              <td className="r">{a.symbols_positive != null ? `${a.symbols_positive}/${a.universe || '?'}` : '—'}</td>
             </tr>
           ))}
         </tbody>
@@ -46,41 +49,23 @@ function Results({ stats }) {
   )
 }
 
-function ParamTable({ s }) {
-  const cols = 4 + s.stats.length
+function Tile({ label, value, cls = '', sub }) {
+  return <div className="n-tile"><div className="l">{label}</div><div className={`v ${cls}`}>{value}</div>{sub && <div className="s muted">{sub}</div>}</div>
+}
+
+function Summary({ m }) {
+  const avg = m.n > 1 ? `TB ${m.n} alpha` : null
   return (
-    <div className="n-tblwrap">
-      <table className="n-tbl n-ad-params">
-        <thead>
-          <tr>
-            <th>Ký hiệu</th><th>Tham số</th><th>Miền chỉnh</th><th className="r">Mặc định</th>
-            {s.stats.map((a) => <th key={`${a.book}:${a.leg}`} className="r" title={aTitle(a)}>{aHead(a)}</th>)}
-          </tr>
-        </thead>
-        <tbody>
-          {(s.groups || []).map((g) => {
-            const rows = s.params.filter((p) => p.group === g.key)
-            if (!rows.length) return null
-            return (
-              <React.Fragment key={g.key}>
-                <tr className="grp"><td colSpan={cols}>{g.label}</td></tr>
-                {rows.map((p) => (
-                  <tr key={p.key} title={p.help}>
-                    <td className="sym"><MathBlock latex={p.symbol} label={p.label} inline /></td>
-                    <td>{p.label}{p.unit && <span className="muted"> ({p.unit})</span>}</td>
-                    <td className="mono rng">{p.range}{p.grid && <div className="muted grid" title="Lưới phễu tìm kiếm">lưới: {p.grid}</div>}</td>
-                    <td className="r mono muted">{p.default}</td>
-                    {s.stats.map((a) => {
-                      const v = a.params?.[p.key]
-                      return <td key={`${a.book}:${a.leg}`} className={`r mono ${v === 'tắt' ? 'muted' : 'val'}`}>{v ?? '—'}</td>
-                    })}
-                  </tr>
-                ))}
-              </React.Fragment>
-            )
-          })}
-        </tbody>
-      </table>
+    <div className="n-ad-sum">
+      <Tile label="Lợi nhuận" value={fmtSPct(m.ret_pct, 1)} cls={signClass(m.ret_pct)} sub={avg} />
+      <Tile label="Lợi nhuận (bi quan)" value={fmtSPct(m.extreme_ret_pct, 1)} cls={signClass(m.extreme_ret_pct)} sub="SL khớp giá xấu nhất nến" />
+      <Tile label="MDD" value={fmtPct(m.mdd_pct, 2)} sub={m.n > 1 ? 'xấu nhất' : null} />
+      <Tile label="MDD (bi quan)" value={fmtPct(m.extreme_mdd_pct, 2)} />
+      <Tile label="Tỉ lệ thắng" value={fmtPct(m.win_rate, 1)} sub={avg} />
+      <Tile label="Profit factor" value={fmtNum(m.profit_factor, 2)} sub={avg} />
+      <Tile label="Sharpe" value={fmtNum(m.sharpe, 2)} sub={avg} />
+      <Tile label="Sortino" value={fmtNum(m.sortino, 2)} sub={avg} />
+      <Tile label="Số lệnh" value={fmtNum(m.trades, 0)} sub={m.n > 1 ? 'tổng' : null} />
     </div>
   )
 }
@@ -120,8 +105,13 @@ function StrategyDoc({ s, onClose }) {
             </section>
             <section className="n-ad-sec">
               <h3>Thống kê</h3>
-              {!s.stats.length ? <p className="n-note">Chưa có alpha nào của chiến lược này qua kiểm định — bảng tham số bên dưới là miền tổng quát.</p> : <Results stats={s.stats} />}
-              <ParamTable s={s} />
+              {!s.stats.length ? <p className="n-note">Chưa có alpha nào của chiến lược này qua kiểm định.</p> : (
+                <>
+                  <Summary m={s.summary} />
+                  <Results stats={s.stats} />
+                  <p className="n-note">Số liệu giai đoạn kiểm định cuối (FINAL) của phễu, 8 tài sản; "bi quan" = cắt lỗ khớp ở giá xấu nhất của nến.</p>
+                </>
+              )}
             </section>
           </div>
         </div>

@@ -60,22 +60,12 @@ def test_catalog_router():
     assert alphas.get_catalog()["sources"][0]["label"] == "Nora"
 
 
-def test_param_table_symbols_match_formulas_and_alpha_values(tmp_path):
-    """Bảng tham số tổng quát: ký hiệu trùng ký hiệu trong công thức; giá trị alpha thiếu -> mặc định; ngưỡng ngoài miền -> "tắt"; r = mức của sổ."""
-    from backend.core.strategy.book import BY_ID
-    st = {s["key"]: s for s in sd.catalog(str(tmp_path))["sources"][0]["strategies"]}
-    dca = st["dca_long"]
-    tex = " ".join(m["latex"] for m in dca["math"])
-    rows = {r["key"]: r for r in dca["params"]}
-    assert [r["group"] for r in dca["params"]] == sorted((r["group"] for r in dca["params"]), key=["signal", "dca", "exit", "risk"].index)
-    for key in ("dca_step_pct", "dca_max_layers", "dca_size_multiplier", "stop_loss_rate", "take_profit_rate", "trailing_stop", "trailing_activation_pct",
-                "sig.rsi_lo", "sig.gate_er_max", "sig.gate_adx_max"):
-        assert rows[key]["symbol"] in tex, key
-    assert rows["sig.rsi_lo"]["grid"] == "25 · 30 · 35" and rows["sig.entry_tf"]["range"] == "1m · 5m · 15m · 1h"
-    vals = sd.alpha_params({"id": "dca_long", "params": {"sig.rsi_lo": 28.0}}, {"risk_per_trade_pct": 1.5})
-    assert vals["sig.rsi_lo"] == "28" and vals["sig.gate_rsi"] == "tắt" and vals["risk_per_trade_pct"] == "1,5"
-    assert vals["sig.rsi_n"] == sd._fmt(BY_ID["dca_long"]["params_schema"]["sig.rsi_n"]["default"])
-    assert not sd._off("sig.er_n", 23) and sd._off("sig.gate_rsi", 101) and not sd._off("sig.er_max", 0.4)
+def test_summary_is_performance_not_parameters():
+    rows = [{"ret_pct": 10.0, "mdd_pct": 1.0, "win_rate": 80.0, "trades": 100, "sharpe": 5.0},
+            {"ret_pct": 30.0, "mdd_pct": 3.0, "win_rate": 60.0, "trades": 50, "sharpe": 7.0}]
+    m = sd.summarize(rows)
+    assert m == {"n": 2, "ret_pct": 20.0, "mdd_pct": 3.0, "win_rate": 70.0, "trades": 150, "sharpe": 6.0}
+    assert sd.summarize([]) == {"n": 0}
 
 
 def test_combined_sides_use_pm_and_valid_commands(tmp_path):

@@ -4,7 +4,7 @@ Công thức dựng từ CÂY KHUÔN của chiến lược (strategy/book.py CAN
 đúng cấu trúc engine đang chạy; nhãn tham số lấy từ params_schema. Thống kê = các alpha đã qua kiểm định của chiến lược đó trong sổ chính + sổ thử nghiệm
 (mọi khung giờ gộp chung). Danh mục: STRATEGIES; chiến lược có "doc": "combined" (Sideway) là MỘT mục gồm cả hai chiều.
 
-    catalog() -> {"sources": [{"key": "nora", "label": "Nora", "strategies": [{key, name, kind, side, idea, plain, math, params, groups, stats}, ...]}]}
+    catalog() -> {"sources": [{"key": "nora", "label": "Nora", "strategies": [{key, name, kind, side, idea, plain, math, summary, stats}, ...]}]}
     plain: câu tiếng Việt, ký hiệu toán nằm trong $…$ (UI hiện bằng KaTeX nội dòng).
 """
 import json
@@ -20,14 +20,13 @@ CMP_VI = {"<": "<", ">": ">", "<=": "≤", ">=": "≥"}
 PRICE = {"close": ("C", "giá đóng cửa"), "open": ("O", "giá mở cửa"), "high": ("H", "giá cao"), "low": ("L", "giá thấp")}
 BAND = {"bbl": ("BB", "lo", "dải dưới Bollinger"), "bbu": ("BB", "up", "dải trên Bollinger"), "bbm": ("BB", "mid", "đường giữa Bollinger"),
         "kcl": ("KC", "lo", "dải dưới Keltner"), "kcu": ("KC", "up", "dải trên Keltner"), "kcm": ("KC", "mid", "đường giữa Keltner")}
-STAT_KEYS = ("ret_pct", "mdd_pct", "sharpe", "profit_factor", "win_rate", "trades")
+STAT_KEYS = ("ret_pct", "extreme_ret_pct", "mdd_pct", "extreme_mdd_pct", "sharpe", "sortino", "profit_factor", "win_rate", "trades", "symbols_positive")
+# Tổng hợp cấp chiến lược trên các alpha đã đạt: lợi nhuận / tỷ số = trung bình; MDD = xấu nhất; số lệnh = tổng
+SUMMARY = {"ret_pct": "mean", "extreme_ret_pct": "mean", "mdd_pct": "max", "extreme_mdd_pct": "max", "sharpe": "mean", "sortino": "mean",
+           "profit_factor": "mean", "win_rate": "mean", "trades": "sum"}
 STAGES = ("FINAL", "S6_holdout", "S5_sizing", "S4_montecarlo", "S3_wfa", "S2_antiluck", "S1_backtest")
 _PH = re.compile(r"\{(\w+)\}")
-# Ký hiệu tham số vị thế — CÙNG ký hiệu dùng trong công thức thoát lệnh / dồn lệnh / khối lượng bên dưới
-POSITION_SYM = {"dca_step_pct": "s", "dca_max_layers": "K", "dca_size_multiplier": "m", "stop_loss_rate": "s_L", "take_profit_rate": "s_T",
-                "trailing_stop": "s_R", "trailing_activation_pct": "a", "timeout": r"T_{\max}", "cooldown": r"T_{\mathrm{cd}}",
-                "atr_frame": r"\tau_{\nu}", "atr_period": r"n_{\nu}", "risk_per_trade_pct": "r", "max_notional_pct": "c", "leverage": r"\lambda_{\max}"}
-GROUPS = (("signal", "Tín hiệu"), ("dca", "Dồn lệnh"), ("exit", "Thoát lệnh"), ("risk", "Rủi ro & khối lượng"))
+
 
 
 def vn(x: Any) -> str:
@@ -48,39 +47,6 @@ def psym(name: str) -> str:
     if len(t) > 1 and t[-1] in ("n", "k", "m"):
         return t[-1]
     return rf"{t[0]}_{{\mathrm{{{rest}}}}}" if len(t) > 1 else t[0]
-
-
-def param_symbol(key: str) -> str:
-    """Khoá tham số (params_schema) -> ký hiệu LaTeX trong công thức: sig.rsi_lo -> θ^{RSI}_{lo}; sig.rsi_n -> RSI_n; sig.entry_tf -> τ_entry; stop_loss_rate -> s_L."""
-    if key in POSITION_SYM:
-        return POSITION_SYM[key]
-    name = key[4:] if key.startswith("sig.") else key
-    t = name.split("_")
-    if t[-1] == "tf":
-        return fsym("{" + name + "}")
-    if len(t) == 2 and t[-1] in ("n", "k", "m"):
-        return rf"\mathrm{{{t[0].upper()}}}_{{{t[-1]}}}"
-    return psym(name)
-
-
-def _fmt(v: Any) -> str:
-    return vn(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else str(v)
-
-
-def param_table(cands: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Tham số TỔNG QUÁT của chiến lược (hợp các chân): ký hiệu, nhãn, đơn vị, miền chỉnh, mặc định, lưới phễu — theo nhóm tín hiệu → dồn → thoát → rủi ro."""
-    rows: Dict[str, Dict[str, Any]] = {}
-    for c in cands:
-        space = c.get("space") or {}
-        for key, sc in (c.get("params_schema") or {}).items():
-            if key in rows:
-                continue
-            rng = " · ".join(map(str, sc["choices"])) if sc.get("type") == "choice" else f"{_fmt(sc.get('min'))} – {_fmt(sc.get('max'))}"
-            rows[key] = {"key": key, "symbol": param_symbol(key), "label": sc.get("label_vi") or key, "unit": sc.get("unit") or "",
-                         "group": sc.get("group") or "", "range": rng, "default": _fmt(sc.get("default")),
-                         "grid": " · ".join(_fmt(v) for v in space[key]) if key in space else "", "help": sc.get("help_vi") or ""}
-    order = {g: i for i, (g, _) in enumerate(GROUPS)}
-    return sorted(rows.values(), key=lambda r: order.get(r["group"], len(order)))
 
 
 def fsym(frame: str) -> str:
@@ -253,33 +219,6 @@ def leg_doc(cand: Dict[str, Any], label: str = "") -> Dict[str, Any]:
     return {"plain": plain, "math": math, "side": side}
 
 
-def _off(key: str, value: Any) -> bool:
-    """NGƯỠNG (…_lo/_hi/_max/_min, gate_…) nằm ngoài miền chỉ báo (vd sig.gate_rsi = 101 với RSI 0..100) = điều kiện đang TẮT."""
-    t = (key[4:] if key.startswith("sig.") else key).split("_")
-    if t[0] == "gate" and len(t) > 1:
-        kernel = t[1]
-    elif t[-1] in ("lo", "hi", "max", "min"):
-        kernel = t[0]
-    else:
-        return False
-    spec = REGISTRY.get(kernel)
-    if spec is None or ".." not in spec.unit or not isinstance(value, (int, float)) or isinstance(value, bool):
-        return False
-    lo, hi = (float(x) for x in spec.unit.split(".."))
-    return not lo <= float(value) <= hi
-
-
-def alpha_params(it: Dict[str, Any], book: Dict[str, Any]) -> Dict[str, str]:
-    """Giá trị tham số của một alpha cho bảng tham số: khoá thiếu lấy mặc định của schema (rủi ro mỗi lệnh = mức của sổ); ngưỡng ngoài miền = "tắt"."""
-    from backend.core.strategy.book import BY_ID
-    sch = (BY_ID.get(it.get("id")) or {}).get("params_schema") or {}
-    vals = {k: sc.get("default") for k, sc in sch.items()}
-    vals.update(it.get("params") or {})
-    if "risk_per_trade_pct" not in (it.get("params") or {}) and book.get("risk_per_trade_pct") is not None:
-        vals["risk_per_trade_pct"] = book["risk_per_trade_pct"]
-    return {k: ("tắt" if _off(k, v) else _fmt(v)) for k, v in vals.items()}
-
-
 def _alphas_of(leg_ids: List[str], books: List[Tuple[str, Dict[str, Any]]]) -> List[Dict[str, Any]]:
     out = []
     for kind, book in books:
@@ -291,8 +230,18 @@ def _alphas_of(leg_ids: List[str], books: List[Tuple[str, Dict[str, Any]]]) -> L
             m = sm.get(stage) or {}
             out.append({"leg": it["id"], "side": it.get("side"), "timeframe": book.get("timeframe"), "book": kind,
                         "alpha_id": (it.get("evidence") or {}).get("funnel_alpha_id"), "stage": stage,
-                        "params": alpha_params(it, book),
+                        "universe": len(book.get("universe") or []),
                         **{k: m.get(k) for k in STAT_KEYS}})
+    return out
+
+
+def summarize(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Chỉ số tổng hợp của chiến lược trên các alpha đã đạt (quy tắc SUMMARY); không có alpha -> {"n": 0}."""
+    out: Dict[str, Any] = {"n": len(rows)}
+    for key, how in SUMMARY.items():
+        v = [float(r[key]) for r in rows if isinstance(r.get(key), (int, float)) and not isinstance(r.get(key), bool)]
+        if v:
+            out[key] = round(sum(v) / len(v), 4) if how == "mean" else (max(v) if how == "max" else int(sum(v)))
     return out
 
 
@@ -332,7 +281,7 @@ def catalog(alphas_dir: Optional[str] = None) -> Dict[str, Any]:
                 "math": [m for d in docs for m in d["math"]] + [{"title": "Dồn lệnh & thoát lệnh" if "dca_step_pct" in (cands[0].get("params_schema") or {})
                                                                         else "Thoát lệnh", "latex": r" \\ ".join(ex_tex)},
                                                                {"title": "Khối lượng", "latex": sizing_tex}],
-                "params": param_table(cands), "groups": [{"key": g, "label": lbl} for g, lbl in GROUPS],
-                "stats": _alphas_of([cid for _, cid in group], books),
             })
+            items[-1]["stats"] = _alphas_of([cid for _, cid in group], books)
+            items[-1]["summary"] = summarize(items[-1]["stats"])
     return {"sources": [{"key": "nora", "label": "Nora", "strategies": items}]}
