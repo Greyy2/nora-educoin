@@ -1,0 +1,5814 @@
+[
+ {
+  "inst": "okx",
+  "dataset": "aligned",
+  "signal": "ema20_50",
+  "stage": "S1",
+  "trades_nora": 35,
+  "trades_naut": 35,
+  "matched_pairs": 35,
+  "exact_matches": 35,
+  "classes": {
+   "match": 35
+  },
+  "final_equity_nora": 10441.270731155964,
+  "final_equity_naut": 10440.92399237,
+  "final_equity_diff": -0.34673878596368013,
+  "final_equity_diff_pct": -0.0033208485335944893,
+  "nora_engine_paths_bit_identical": true,
+  "unexplained": [],
+  "non_exact": []
+ },
+ {
+  "inst": "okx",
+  "dataset": "aligned",
+  "signal": "ema20_50",
+  "stage": "S2",
+  "trades_nora": 37,
+  "trades_naut": 37,
+  "matched_pairs": 37,
+  "exact_matches": 37,
+  "classes": {
+   "match": 37
+  },
+  "final_equity_nora": 9966.344007615464,
+  "final_equity_naut": 9966.303723739999,
+  "final_equity_diff": -0.04028387546532031,
+  "final_equity_diff_pct": -0.0004041991269243539,
+  "nora_engine_paths_bit_identical": true,
+  "unexplained": [],
+  "non_exact": []
+ },
+ {
+  "inst": "okx",
+  "dataset": "aligned",
+  "signal": "ema20_50",
+  "stage": "S3",
+  "trades_nora": 37,
+  "trades_naut": 38,
+  "matched_pairs": 37,
+  "exact_matches": 33,
+  "classes": {
+   "match": 33,
+   "a": 4,
+   "x": 1
+  },
+  "final_equity_nora": 10298.514376938308,
+  "final_equity_naut": 10160.22076024,
+  "final_equity_diff": -138.29361669830905,
+  "final_equity_diff_pct": -1.3428501591257969,
+  "nora_engine_paths_bit_identical": true,
+  "unexplained": [],
+  "non_exact": [
+   {
+    "enter_time": 1778781600000,
+    "cls": "a",
+    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 79824.2000 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
+    "nora": [
+     81633.0,
+     1778850000000,
+     79332.9012871172,
+     "SL"
+    ],
+    "naut": [
+     81633.0,
+     1778850000000,
+     79824.2,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1781161200000,
+    "cls": "a",
+    "note": "DCA & TP reachable in same bar: Nora=TP, Nautilus=TP",
+    "nora": [
+     62728.2,
+     1781200800000,
+     63616.1,
+     "TP"
+    ],
+    "naut": [
+     62728.19999999999,
+     1781197200000,
+     63355.5,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1781200800000,
+    "cls": "x",
+    "note": "nautilus-only trade inside cascade window of an earlier classified divergence",
+    "nora": null,
+    "naut": null
+   },
+   {
+    "enter_time": 1788105600000,
+    "cls": "a",
+    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 77370.9000 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
+    "nora": [
+     78786.4,
+     1788141600000,
+     77605.8,
+     "SIG"
+    ],
+    "naut": [
+     78786.4,
+     1788130800000,
+     77370.9,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1790773200000,
+    "cls": "a",
+    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 83364.5000 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
+    "nora": [
+     85254.3,
+     1790874000000,
+     84955.01409787805,
+     "TP"
+    ],
+    "naut": [
+     85254.3,
+     1790776800000,
+     83364.5,
+     "SL"
+    ]
+   }
+  ]
+ },
+ {
+  "inst": "okx",
+  "dataset": "aligned",
+  "signal": "ema5_13",
+  "stage": "S1",
+  "trades_nora": 147,
+  "trades_naut": 147,
+  "matched_pairs": 147,
+  "exact_matches": 147,
+  "classes": {
+   "match": 147
+  },
+  "final_equity_nora": 10158.098067461744,
+  "final_equity_naut": 10158.987743149999,
+  "final_equity_diff": 0.8896756882550108,
+  "final_equity_diff_pct": 0.008758290010058012,
+  "nora_engine_paths_bit_identical": true,
+  "unexplained": [],
+  "non_exact": []
+ },
+ {
+  "inst": "okx",
+  "dataset": "aligned",
+  "signal": "ema5_13",
+  "stage": "S2",
+  "trades_nora": 153,
+  "trades_naut": 153,
+  "matched_pairs": 153,
+  "exact_matches": 152,
+  "classes": {
+   "match": 152,
+   "a": 1
+  },
+  "final_equity_nora": 9800.948082347371,
+  "final_equity_naut": 9836.642952479999,
+  "final_equity_diff": 35.69487013262733,
+  "final_equity_diff_pct": 0.36419813504489085,
+  "nora_engine_paths_bit_identical": true,
+  "unexplained": [],
+  "non_exact": [
+   {
+    "enter_time": 1789131600000,
+    "cls": "a",
+    "note": "both SL&TP reachable in bar 2026-09-11 13:00:00: Nora=SL@1789131600000, Nautilus=TP@1789131600000",
+    "nora": [
+     77990.1,
+     1789131600000,
+     77366.1792,
+     "SL"
+    ],
+    "naut": [
+     77990.09999999999,
+     1789131600000,
+     78770.0,
+     "TP"
+    ]
+   }
+  ]
+ },
+ {
+  "inst": "okx",
+  "dataset": "aligned",
+  "signal": "ema5_13",
+  "stage": "S3",
+  "trades_nora": 151,
+  "trades_naut": 152,
+  "matched_pairs": 151,
+  "exact_matches": 146,
+  "classes": {
+   "match": 146,
+   "a": 5,
+   "x": 1
+  },
+  "final_equity_nora": 10026.458061432086,
+  "final_equity_naut": 10024.19609948,
+  "final_equity_diff": -2.2619619520864944,
+  "final_equity_diff_pct": -0.022559930318633015,
+  "nora_engine_paths_bit_identical": true,
+  "unexplained": [],
+  "non_exact": [
+   {
+    "enter_time": 1776960000000,
+    "cls": "a",
+    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 77156.3000 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
+    "nora": [
+     78331.3,
+     1776967200000,
+     77717.9,
+     "SIG"
+    ],
+    "naut": [
+     78331.3,
+     1776963600000,
+     77156.3,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1778454000000,
+    "cls": "a",
+    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 80542.3000 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
+    "nora": [
+     82016.0,
+     1778472000000,
+     80700.7,
+     "SIG"
+    ],
+    "naut": [
+     82016.0,
+     1778468400000,
+     80542.30000000002,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1781715600000,
+    "cls": "a",
+    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 64847.6000 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
+    "nora": [
+     65835.1,
+     1781726400000,
+     64278.2,
+     "SIG"
+    ],
+    "naut": [
+     65835.1,
+     1781719200000,
+     64847.6,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1785351600000,
+    "cls": "a",
+    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 63514.6000 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
+    "nora": [
+     64481.8,
+     1785355200000,
+     63554.3,
+     "SIG"
+    ],
+    "naut": [
+     64481.799999999996,
+     1785351600000,
+     63514.599999999984,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1789131600000,
+    "cls": "a",
+    "note": "DCA & TP reachable in same bar: Nora=TP, Nautilus=TP",
+    "nora": [
+     77990.1,
+     1789135200000,
+     79202.9,
+     "TP"
+    ],
+    "naut": [
+     77990.09999999999,
+     1789131600000,
+     78770.0,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1789135200000,
+    "cls": "x",
+    "note": "nautilus-only trade inside cascade window of an earlier classified divergence",
+    "nora": null,
+    "naut": null
+   }
+  ]
+ },
+ {
+  "inst": "okx",
+  "dataset": "raw",
+  "signal": "ema20_50",
+  "stage": "S1",
+  "trades_nora": 35,
+  "trades_naut": 35,
+  "matched_pairs": 35,
+  "exact_matches": 24,
+  "classes": {
+   "match": 24,
+   "d": 11
+  },
+  "final_equity_nora": 10441.27605924685,
+  "final_equity_naut": 10440.92399237,
+  "final_equity_diff": -0.3520668768487667,
+  "final_equity_diff_pct": -0.0033718759551160105,
+  "nora_engine_paths_bit_identical": true,
+  "unexplained": [],
+  "non_exact": [
+   {
+    "enter_time": 1776715200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=76247.9 vs close[t]=76248.0",
+    "nora": [
+     76247.9,
+     1777075200000,
+     77386.7,
+     "SIG"
+    ],
+    "naut": [
+     76248.0,
+     1777075200000,
+     77386.8,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1780185600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=73850.1 vs close[t]=73850.0",
+    "nora": [
+     73850.1,
+     1780246800000,
+     73494.4,
+     "SIG"
+    ],
+    "naut": [
+     73850.0,
+     1780246800000,
+     73494.4,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1781161200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=62728.1 vs close[t]=62728.19999999999",
+    "nora": [
+     62728.1,
+     1781686800000,
+     64886.7,
+     "SIG"
+    ],
+    "naut": [
+     62728.19999999999,
+     1781686800000,
+     64886.700000000004,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1781971200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=64129.8 vs close[t]=64129.7",
+    "nora": [
+     64129.8,
+     1782194400000,
+     63366.0,
+     "SIG"
+    ],
+    "naut": [
+     64129.7,
+     1782194400000,
+     63366.0,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1784372400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=63983.9 vs close[t]=63983.80000000001",
+    "nora": [
+     63983.9,
+     1784797200000,
+     65597.4,
+     "SIG"
+    ],
+    "naut": [
+     63983.80000000001,
+     1784797200000,
+     65597.40000000001,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1785085200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=64703.6 vs close[t]=64703.7",
+    "nora": [
+     64703.6,
+     1785196800000,
+     63727.4,
+     "SIG"
+    ],
+    "naut": [
+     64703.7,
+     1785196800000,
+     63727.399999999994,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1785711600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=63390.0 vs close[t]=63390.1",
+    "nora": [
+     63390.0,
+     1785729600000,
+     62838.5,
+     "SIG"
+    ],
+    "naut": [
+     63390.1,
+     1785729600000,
+     62838.59999999999,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1788195600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=78595.9 vs close[t]=78596.0",
+    "nora": [
+     78595.9,
+     1788264000000,
+     78060.0,
+     "SIG"
+    ],
+    "naut": [
+     78596.0,
+     1788264000000,
+     78060.0,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1788962400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=79113.5 vs close[t]=79113.6",
+    "nora": [
+     79113.5,
+     1788969600000,
+     78569.3,
+     "SIG"
+    ],
+    "naut": [
+     79113.6,
+     1788969600000,
+     78569.3,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1789369200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=77555.0 vs close[t]=77555.1",
+    "nora": [
+     77555.0,
+     1789466400000,
+     76950.9,
+     "SIG"
+    ],
+    "naut": [
+     77555.1,
+     1789466400000,
+     76950.8,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1790690400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=84168.2 vs close[t]=84168.3",
+    "nora": [
+     84168.2,
+     1790697600000,
+     83049.8,
+     "SIG"
+    ],
+    "naut": [
+     84168.3,
+     1790697600000,
+     83049.79999999999,
+     "SIG"
+    ]
+   }
+  ]
+ },
+ {
+  "inst": "okx",
+  "dataset": "raw",
+  "signal": "ema20_50",
+  "stage": "S2",
+  "trades_nora": 37,
+  "trades_naut": 37,
+  "matched_pairs": 37,
+  "exact_matches": 25,
+  "classes": {
+   "match": 25,
+   "d": 12
+  },
+  "final_equity_nora": 9966.341319756279,
+  "final_equity_naut": 9966.303723739999,
+  "final_equity_diff": -0.03759601628007658,
+  "final_equity_diff_pct": -0.00037722986875321496,
+  "nora_engine_paths_bit_identical": true,
+  "unexplained": [],
+  "non_exact": [
+   {
+    "enter_time": 1776715200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=76247.9 vs close[t]=76248.0",
+    "nora": [
+     76247.9,
+     1776726000000,
+     75637.91679999999,
+     "SL"
+    ],
+    "naut": [
+     76248.0,
+     1776726000000,
+     75638.0,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1779793200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=77397.7 vs close[t]=77397.79999999999",
+    "nora": [
+     77397.7,
+     1779800400000,
+     76778.5184,
+     "SL"
+    ],
+    "naut": [
+     77397.79999999999,
+     1779800400000,
+     76778.59999999999,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1780185600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=73850.1 vs close[t]=73850.0",
+    "nora": [
+     73850.1,
+     1780246800000,
+     73494.4,
+     "SIG"
+    ],
+    "naut": [
+     73850.0,
+     1780246800000,
+     73494.4,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1781161200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=62728.1 vs close[t]=62728.19999999999",
+    "nora": [
+     62728.1,
+     1781197200000,
+     63355.381,
+     "TP"
+    ],
+    "naut": [
+     62728.19999999999,
+     1781197200000,
+     63355.5,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1781971200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=64129.8 vs close[t]=64129.7",
+    "nora": [
+     64129.8,
+     1782075600000,
+     63616.761600000005,
+     "SL"
+    ],
+    "naut": [
+     64129.7,
+     1782075600000,
+     63616.700000000004,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1784372400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=63983.9 vs close[t]=63983.80000000001",
+    "nora": [
+     63983.9,
+     1784397600000,
+     64623.739,
+     "TP"
+    ],
+    "naut": [
+     63983.80000000001,
+     1784397600000,
+     64623.6,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1785085200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=64703.6 vs close[t]=64703.7",
+    "nora": [
+     64703.6,
+     1785103200000,
+     65350.636,
+     "TP"
+    ],
+    "naut": [
+     64703.7,
+     1785103200000,
+     65350.700000000004,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1785711600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=63390.0 vs close[t]=63390.1",
+    "nora": [
+     63390.0,
+     1785726000000,
+     62882.88,
+     "SL"
+    ],
+    "naut": [
+     63390.1,
+     1785726000000,
+     62883.00000000001,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1788195600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=78595.9 vs close[t]=78596.0",
+    "nora": [
+     78595.9,
+     1788249600000,
+     77967.13279999999,
+     "SL"
+    ],
+    "naut": [
+     78596.0,
+     1788249600000,
+     77967.2,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1788962400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=79113.5 vs close[t]=79113.6",
+    "nora": [
+     79113.5,
+     1788966000000,
+     78480.592,
+     "SL"
+    ],
+    "naut": [
+     79113.6,
+     1788966000000,
+     78480.7,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1789369200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=77555.0 vs close[t]=77555.1",
+    "nora": [
+     77555.0,
+     1789376400000,
+     78330.55,
+     "TP"
+    ],
+    "naut": [
+     77555.1,
+     1789376400000,
+     78330.7,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1790690400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=84168.2 vs close[t]=84168.3",
+    "nora": [
+     84168.2,
+     1790694000000,
+     83494.8544,
+     "SL"
+    ],
+    "naut": [
+     84168.3,
+     1790694000000,
+     83495.0,
+     "SL"
+    ]
+   }
+  ]
+ },
+ {
+  "inst": "okx",
+  "dataset": "raw",
+  "signal": "ema20_50",
+  "stage": "S3",
+  "trades_nora": 37,
+  "trades_naut": 38,
+  "matched_pairs": 37,
+  "exact_matches": 22,
+  "classes": {
+   "match": 22,
+   "d": 12,
+   "a": 3,
+   "x": 1
+  },
+  "final_equity_nora": 10298.528427647721,
+  "final_equity_naut": 10160.22076024,
+  "final_equity_diff": -138.30766740772196,
+  "final_equity_diff_pct": -1.3429847611666323,
+  "nora_engine_paths_bit_identical": true,
+  "unexplained": [],
+  "non_exact": [
+   {
+    "enter_time": 1776715200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=76247.9 vs close[t]=76248.0",
+    "nora": [
+     76247.9,
+     1776758400000,
+     76778.8848747495,
+     "TP"
+    ],
+    "naut": [
+     76248.0,
+     1776758400000,
+     76778.8,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1778781600000,
+    "cls": "a",
+    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 79824.2000 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
+    "nora": [
+     81633.0,
+     1778850000000,
+     79332.9012871172,
+     "SL"
+    ],
+    "naut": [
+     81633.0,
+     1778850000000,
+     79824.2,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1779793200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=77397.7 vs close[t]=77397.79999999999",
+    "nora": [
+     77397.7,
+     1779804000000,
+     77936.69199899798,
+     "TP"
+    ],
+    "naut": [
+     77397.79999999999,
+     1779804000000,
+     77936.5,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1780185600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=73850.1 vs close[t]=73850.0",
+    "nora": [
+     73850.1,
+     1780246800000,
+     73494.4,
+     "SIG"
+    ],
+    "naut": [
+     73850.0,
+     1780246800000,
+     73494.4,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1781161200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=62728.1 vs close[t]=62728.19999999999",
+    "nora": [
+     62728.1,
+     1781200800000,
+     63616.2,
+     "TP"
+    ],
+    "naut": [
+     62728.19999999999,
+     1781197200000,
+     63355.5,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1781200800000,
+    "cls": "x",
+    "note": "nautilus-only trade inside cascade window of an earlier classified divergence",
+    "nora": null,
+    "naut": null
+   },
+   {
+    "enter_time": 1781971200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=64129.8 vs close[t]=64129.7",
+    "nora": [
+     64129.8,
+     1782090000000,
+     64300.21800135643,
+     "TP"
+    ],
+    "naut": [
+     64129.7,
+     1782090000000,
+     64300.4,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1784372400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=63983.9 vs close[t]=63983.80000000001",
+    "nora": [
+     63983.9,
+     1784397600000,
+     64623.739,
+     "TP"
+    ],
+    "naut": [
+     63983.80000000001,
+     1784397600000,
+     64623.59999999999,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1785085200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=64703.6 vs close[t]=64703.7",
+    "nora": [
+     64703.6,
+     1785103200000,
+     65350.636,
+     "TP"
+    ],
+    "naut": [
+     64703.7,
+     1785103200000,
+     65350.7,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1785711600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=63390.0 vs close[t]=63390.1",
+    "nora": [
+     63390.0,
+     1785729600000,
+     62838.5,
+     "SIG"
+    ],
+    "naut": [
+     63390.1,
+     1785729600000,
+     62838.59999999999,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1788105600000,
+    "cls": "a",
+    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 77370.9000 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
+    "nora": [
+     78786.4,
+     1788141600000,
+     77605.7,
+     "SIG"
+    ],
+    "naut": [
+     78786.4,
+     1788130800000,
+     77370.9,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1788195600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=78595.9 vs close[t]=78596.0",
+    "nora": [
+     78595.9,
+     1788238800000,
+     79143.2361773547,
+     "TP"
+    ],
+    "naut": [
+     78596.0,
+     1788238800000,
+     79143.3,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1788962400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=79113.5 vs close[t]=79113.6",
+    "nora": [
+     79113.5,
+     1788969600000,
+     78569.3,
+     "SIG"
+    ],
+    "naut": [
+     79113.6,
+     1788969600000,
+     78569.3,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1789369200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=77555.0 vs close[t]=77555.1",
+    "nora": [
+     77555.0,
+     1789376400000,
+     78330.55,
+     "TP"
+    ],
+    "naut": [
+     77555.1,
+     1789376400000,
+     78330.7,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1790690400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=84168.2 vs close[t]=84168.3",
+    "nora": [
+     84168.2,
+     1790697600000,
+     83049.8,
+     "SIG"
+    ],
+    "naut": [
+     84168.3,
+     1790697600000,
+     83049.79999999999,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1790773200000,
+    "cls": "a",
+    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 83364.5000 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
+    "nora": [
+     85254.3,
+     1790874000000,
+     84955.01409787805,
+     "TP"
+    ],
+    "naut": [
+     85254.3,
+     1790776800000,
+     83364.5,
+     "SL"
+    ]
+   }
+  ]
+ },
+ {
+  "inst": "okx",
+  "dataset": "raw",
+  "signal": "ema5_13",
+  "stage": "S1",
+  "trades_nora": 147,
+  "trades_naut": 147,
+  "matched_pairs": 147,
+  "exact_matches": 74,
+  "classes": {
+   "match": 74,
+   "d": 73
+  },
+  "final_equity_nora": 10158.08715932114,
+  "final_equity_naut": 10158.987743149999,
+  "final_equity_diff": 0.9005838288594532,
+  "final_equity_diff_pct": 0.008865683221004339,
+  "nora_engine_paths_bit_identical": true,
+  "unexplained": [],
+  "non_exact": [
+   {
+    "enter_time": 1775685600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=71520.0 vs close[t]=71519.90000000001",
+    "nora": [
+     71520.0,
+     1775689200000,
+     71027.7,
+     "SIG"
+    ],
+    "naut": [
+     71519.90000000001,
+     1775689200000,
+     71027.8,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1775728800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=71502.6 vs close[t]=71502.5",
+    "nora": [
+     71502.6,
+     1775743200000,
+     70779.8,
+     "SIG"
+    ],
+    "naut": [
+     71502.5,
+     1775743200000,
+     70779.8,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1775750400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=72105.6 vs close[t]=72105.7",
+    "nora": [
+     72105.6,
+     1775808000000,
+     71463.5,
+     "SIG"
+    ],
+    "naut": [
+     72105.7,
+     1775808000000,
+     71463.5,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1775822400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=72084.7 vs close[t]=72084.8",
+    "nora": [
+     72084.7,
+     1775890800000,
+     72739.0,
+     "SIG"
+    ],
+    "naut": [
+     72084.8,
+     1775890800000,
+     72738.9,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1776409200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=74896.8 vs close[t]=74896.7",
+    "nora": [
+     74896.8,
+     1776502800000,
+     76700.0,
+     "SIG"
+    ],
+    "naut": [
+     74896.7,
+     1776502800000,
+     76700.0,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1776607200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=75884.9 vs close[t]=75884.8",
+    "nora": [
+     75884.9,
+     1776621600000,
+     74751.0,
+     "SIG"
+    ],
+    "naut": [
+     75884.8,
+     1776621600000,
+     74750.9,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1776675600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=74692.5 vs close[t]=74692.6",
+    "nora": [
+     74692.5,
+     1776783600000,
+     75631.3,
+     "SIG"
+    ],
+    "naut": [
+     74692.6,
+     1776783600000,
+     75631.3,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1776816000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=76302.2 vs close[t]=76302.09999999999",
+    "nora": [
+     76302.2,
+     1776909600000,
+     78314.4,
+     "SIG"
+    ],
+    "naut": [
+     76302.09999999999,
+     1776909600000,
+     78314.3,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1776960000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=78331.2 vs close[t]=78331.3",
+    "nora": [
+     78331.2,
+     1776967200000,
+     77717.9,
+     "SIG"
+    ],
+    "naut": [
+     78331.3,
+     1776967200000,
+     77717.90000000001,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1777111200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=77666.9 vs close[t]=77666.8",
+    "nora": [
+     77666.9,
+     1777132800000,
+     77289.9,
+     "SIG"
+    ],
+    "naut": [
+     77666.8,
+     1777132800000,
+     77290.0,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1777161600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=77588.0 vs close[t]=77587.90000000001",
+    "nora": [
+     77588.0,
+     1777168800000,
+     77416.8,
+     "SIG"
+    ],
+    "naut": [
+     77587.90000000001,
+     1777168800000,
+     77416.8,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1777179600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=77740.0 vs close[t]=77740.09999999999",
+    "nora": [
+     77740.0,
+     1777273200000,
+     77663.9,
+     "SIG"
+    ],
+    "naut": [
+     77740.09999999999,
+     1777273200000,
+     77663.90000000001,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1777424400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=76477.2 vs close[t]=76477.1",
+    "nora": [
+     76477.2,
+     1777474800000,
+     76540.0,
+     "SIG"
+    ],
+    "naut": [
+     76477.1,
+     1777474800000,
+     76540.0,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1777543200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=76066.0 vs close[t]=76066.09999999999",
+    "nora": [
+     76066.0,
+     1777726800000,
+     78174.3,
+     "SIG"
+    ],
+    "naut": [
+     76066.09999999999,
+     1777726800000,
+     78174.3,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1777802400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=78500.8 vs close[t]=78500.7",
+    "nora": [
+     78500.8,
+     1777896000000,
+     78756.8,
+     "SIG"
+    ],
+    "naut": [
+     78500.7,
+     1777896000000,
+     78756.9,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1778140800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=81482.2 vs close[t]=81482.09999999999",
+    "nora": [
+     81482.2,
+     1778144400000,
+     81188.4,
+     "SIG"
+    ],
+    "naut": [
+     81482.09999999999,
+     1778144400000,
+     81188.3,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1778238000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=80177.7 vs close[t]=80177.6",
+    "nora": [
+     80177.7,
+     1778450400000,
+     80671.1,
+     "SIG"
+    ],
+    "naut": [
+     80177.6,
+     1778450400000,
+     80671.2,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1778508000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=81030.9 vs close[t]=81030.8",
+    "nora": [
+     81030.9,
+     1778511600000,
+     80910.1,
+     "SIG"
+    ],
+    "naut": [
+     81030.8,
+     1778511600000,
+     80910.09999999999,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1779048000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=78369.0 vs close[t]=78369.1",
+    "nora": [
+     78369.0,
+     1779058800000,
+     77964.9,
+     "SIG"
+    ],
+    "naut": [
+     78369.1,
+     1779058800000,
+     77964.9,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1779256800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=77160.3 vs close[t]=77160.4",
+    "nora": [
+     77160.3,
+     1779361200000,
+     77176.2,
+     "SIG"
+    ],
+    "naut": [
+     77160.4,
+     1779361200000,
+     77176.09999999999,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1779667200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=77030.0 vs close[t]=77029.90000000001",
+    "nora": [
+     77030.0,
+     1779746400000,
+     77342.8,
+     "SIG"
+    ],
+    "naut": [
+     77029.90000000001,
+     1779746400000,
+     77341.7,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1779793200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=77397.7 vs close[t]=77397.79999999999",
+    "nora": [
+     77397.7,
+     1779811200000,
+     76474.5,
+     "SIG"
+    ],
+    "naut": [
+     77397.79999999999,
+     1779811200000,
+     76474.5,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1780034400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=73664.0 vs close[t]=73664.09999999999",
+    "nora": [
+     73664.0,
+     1780059600000,
+     73264.8,
+     "SIG"
+    ],
+    "naut": [
+     73664.09999999999,
+     1780059600000,
+     73264.8,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1780074000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=74006.6 vs close[t]=74006.5",
+    "nora": [
+     74006.6,
+     1780092000000,
+     73385.3,
+     "SIG"
+    ],
+    "naut": [
+     74006.5,
+     1780092000000,
+     73385.2,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1780268400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=73909.8 vs close[t]=73909.7",
+    "nora": [
+     73909.8,
+     1780272000000,
+     73649.2,
+     "SIG"
+    ],
+    "naut": [
+     73909.7,
+     1780272000000,
+     73649.1,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1780873200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=62832.6 vs close[t]=62832.700000000004",
+    "nora": [
+     62832.6,
+     1780963200000,
+     63061.8,
+     "SIG"
+    ],
+    "naut": [
+     62832.700000000004,
+     1780963200000,
+     63061.9,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1781100000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=62112.2 vs close[t]=62112.3",
+    "nora": [
+     62112.2,
+     1781128800000,
+     61321.4,
+     "SIG"
+    ],
+    "naut": [
+     62112.3,
+     1781128800000,
+     61321.40000000001,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1781143200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=62176.5 vs close[t]=62176.4",
+    "nora": [
+     62176.5,
+     1781247600000,
+     62960.2,
+     "SIG"
+    ],
+    "naut": [
+     62176.4,
+     1781247600000,
+     62960.19999999999,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1781258400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=63719.9 vs close[t]=63720.0",
+    "nora": [
+     63719.9,
+     1781301600000,
+     63447.8,
+     "SIG"
+    ],
+    "naut": [
+     63720.0,
+     1781301600000,
+     63447.80000000001,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1781474400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=65276.9 vs close[t]=65276.8",
+    "nora": [
+     65276.9,
+     1781571600000,
+     66212.6,
+     "SIG"
+    ],
+    "naut": [
+     65276.8,
+     1781571600000,
+     66212.7,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1781600400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=66872.0 vs close[t]=66872.09999999999",
+    "nora": [
+     66872.0,
+     1781618400000,
+     66014.4,
+     "SIG"
+    ],
+    "naut": [
+     66872.09999999999,
+     1781618400000,
+     66014.0,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1782262800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=62990.1 vs close[t]=62990.0",
+    "nora": [
+     62990.1,
+     1782298800000,
+     62418.9,
+     "SIG"
+    ],
+    "naut": [
+     62990.0,
+     1782298800000,
+     62418.899999999994,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1782640800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=60228.5 vs close[t]=60228.4",
+    "nora": [
+     60228.5,
+     1782644400000,
+     60140.3,
+     "SIG"
+    ],
+    "naut": [
+     60228.4,
+     1782644400000,
+     60140.4,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1782705600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=60023.7 vs close[t]=60023.80000000001",
+    "nora": [
+     60023.7,
+     1782741600000,
+     59550.7,
+     "SIG"
+    ],
+    "naut": [
+     60023.80000000001,
+     1782741600000,
+     59550.700000000004,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1782874800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=59054.9 vs close[t]=59054.8",
+    "nora": [
+     59054.9,
+     1782903600000,
+     58628.1,
+     "SIG"
+    ],
+    "naut": [
+     59054.8,
+     1782903600000,
+     58628.1,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1783357200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=63711.4 vs close[t]=63711.5",
+    "nora": [
+     63711.4,
+     1783396800000,
+     63166.4,
+     "SIG"
+    ],
+    "naut": [
+     63711.5,
+     1783396800000,
+     63166.5,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1783998000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=62515.1 vs close[t]=62515.00000000001",
+    "nora": [
+     62515.1,
+     1784152800000,
+     64808.4,
+     "SIG"
+    ],
+    "naut": [
+     62515.00000000001,
+     1784152800000,
+     64808.3,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1784217600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=64679.1 vs close[t]=64679.00000000001",
+    "nora": [
+     64679.1,
+     1784224800000,
+     64054.6,
+     "SIG"
+    ],
+    "naut": [
+     64679.00000000001,
+     1784224800000,
+     64054.5,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1784307600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=63560.7 vs close[t]=63560.600000000006",
+    "nora": [
+     63560.7,
+     1784458800000,
+     64561.2,
+     "SIG"
+    ],
+    "naut": [
+     63560.600000000006,
+     1784458800000,
+     64561.2,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1784548800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=64970.9 vs close[t]=64970.8",
+    "nora": [
+     64970.9,
+     1784692800000,
+     66180.0,
+     "SIG"
+    ],
+    "naut": [
+     64970.8,
+     1784692800000,
+     66180.09999999999,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1784761200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=66017.8 vs close[t]=66017.7",
+    "nora": [
+     66017.8,
+     1784772000000,
+     65795.4,
+     "SIG"
+    ],
+    "naut": [
+     66017.7,
+     1784772000000,
+     65795.4,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1784991600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=64180.0 vs close[t]=64180.1",
+    "nora": [
+     64180.0,
+     1785164400000,
+     64660.0,
+     "SIG"
+    ],
+    "naut": [
+     64180.1,
+     1785164400000,
+     64660.1,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1785258000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=64013.5 vs close[t]=64013.40000000001",
+    "nora": [
+     64013.5,
+     1785340800000,
+     63942.9,
+     "SIG"
+    ],
+    "naut": [
+     64013.40000000001,
+     1785340800000,
+     63942.899999999994,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1785351600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=64481.7 vs close[t]=64481.799999999996",
+    "nora": [
+     64481.7,
+     1785355200000,
+     63554.2,
+     "SIG"
+    ],
+    "naut": [
+     64481.799999999996,
+     1785355200000,
+     63554.3,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1785596400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=63099.9 vs close[t]=63099.80000000001",
+    "nora": [
+     63099.9,
+     1785600000000,
+     62974.6,
+     "SIG"
+    ],
+    "naut": [
+     63099.80000000001,
+     1785600000000,
+     62974.59999999999,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1785693600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=63277.2 vs close[t]=63277.299999999996",
+    "nora": [
+     63277.2,
+     1785726000000,
+     63110.7,
+     "SIG"
+    ],
+    "naut": [
+     63277.299999999996,
+     1785726000000,
+     63110.8,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1786035600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=64727.3 vs close[t]=64727.399999999994",
+    "nora": [
+     64727.3,
+     1786039200000,
+     64588.7,
+     "SIG"
+    ],
+    "naut": [
+     64727.399999999994,
+     1786039200000,
+     64588.8,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1786327200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=65172.2 vs close[t]=65172.1",
+    "nora": [
+     65172.2,
+     1786334400000,
+     64950.5,
+     "SIG"
+    ],
+    "naut": [
+     65172.1,
+     1786334400000,
+     64950.5,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1786629600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=63695.3 vs close[t]=63695.2",
+    "nora": [
+     63695.3,
+     1786636800000,
+     63384.0,
+     "SIG"
+    ],
+    "naut": [
+     63695.2,
+     1786636800000,
+     63383.9,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1786672800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=63545.9 vs close[t]=63545.799999999996",
+    "nora": [
+     63545.9,
+     1786676400000,
+     63430.4,
+     "SIG"
+    ],
+    "naut": [
+     63545.799999999996,
+     1786676400000,
+     63430.4,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1786798800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=63025.1 vs close[t]=63024.99999999999",
+    "nora": [
+     63025.1,
+     1786860000000,
+     63029.8,
+     "SIG"
+    ],
+    "naut": [
+     63024.99999999999,
+     1786860000000,
+     63029.799999999996,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1787565600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=77536.8 vs close[t]=77536.7",
+    "nora": [
+     77536.8,
+     1787655600000,
+     79278.0,
+     "SIG"
+    ],
+    "naut": [
+     77536.7,
+     1787655600000,
+     79278.0,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1787724000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=79049.7 vs close[t]=79049.79999999999",
+    "nora": [
+     79049.7,
+     1787731200000,
+     78884.8,
+     "SIG"
+    ],
+    "naut": [
+     79049.79999999999,
+     1787731200000,
+     78884.7,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1787781600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=78683.8 vs close[t]=78683.7",
+    "nora": [
+     78683.8,
+     1787893200000,
+     79607.6,
+     "SIG"
+    ],
+    "naut": [
+     78683.7,
+     1787893200000,
+     79607.6,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1788166800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=78436.9 vs close[t]=78436.8",
+    "nora": [
+     78436.9,
+     1788184800000,
+     77830.0,
+     "SIG"
+    ],
+    "naut": [
+     78436.8,
+     1788184800000,
+     77830.0,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1788238800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=78698.8 vs close[t]=78698.7",
+    "nora": [
+     78698.8,
+     1788253200000,
+     77849.0,
+     "SIG"
+    ],
+    "naut": [
+     78698.7,
+     1788253200000,
+     77849.0,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1788372000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=77349.8 vs close[t]=77349.90000000001",
+    "nora": [
+     77349.8,
+     1788390000000,
+     76995.8,
+     "SIG"
+    ],
+    "naut": [
+     77349.90000000001,
+     1788390000000,
+     76995.90000000001,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1788620400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=79674.1 vs close[t]=79674.0",
+    "nora": [
+     79674.1,
+     1788681600000,
+     79772.0,
+     "SIG"
+    ],
+    "naut": [
+     79674.0,
+     1788681600000,
+     79772.09999999999,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1788728400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=79876.3 vs close[t]=79876.2",
+    "nora": [
+     79876.3,
+     1788753600000,
+     79557.5,
+     "SIG"
+    ],
+    "naut": [
+     79876.2,
+     1788753600000,
+     79557.40000000001,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1788832800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=79402.3 vs close[t]=79402.4",
+    "nora": [
+     79402.3,
+     1788836400000,
+     78894.0,
+     "SIG"
+    ],
+    "naut": [
+     79402.4,
+     1788836400000,
+     78893.90000000001,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1789214400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=77321.7 vs close[t]=77321.6",
+    "nora": [
+     77321.7,
+     1789236000000,
+     77185.4,
+     "SIG"
+    ],
+    "naut": [
+     77321.6,
+     1789236000000,
+     77185.3,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1789264800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=77283.2 vs close[t]=77283.3",
+    "nora": [
+     77283.2,
+     1789272000000,
+     77172.0,
+     "SIG"
+    ],
+    "naut": [
+     77283.3,
+     1789272000000,
+     77172.0,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1789279200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=77278.7 vs close[t]=77278.8",
+    "nora": [
+     77278.7,
+     1789282800000,
+     77089.2,
+     "SIG"
+    ],
+    "naut": [
+     77278.8,
+     1789282800000,
+     77089.2,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1789354800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=77573.8 vs close[t]=77573.7",
+    "nora": [
+     77573.8,
+     1789434000000,
+     77928.8,
+     "SIG"
+    ],
+    "naut": [
+     77573.7,
+     1789434000000,
+     77928.8,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1789560000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=76205.2 vs close[t]=76205.3",
+    "nora": [
+     76205.2,
+     1789567200000,
+     75622.1,
+     "SIG"
+    ],
+    "naut": [
+     76205.3,
+     1789567200000,
+     75622.20000000001,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1789696800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=76703.1 vs close[t]=76703.0",
+    "nora": [
+     76703.1,
+     1789855200000,
+     81070.0,
+     "SIG"
+    ],
+    "naut": [
+     76703.0,
+     1789855200000,
+     81070.09999999999,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1789920000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=80872.4 vs close[t]=80872.5",
+    "nora": [
+     80872.4,
+     1790056800000,
+     85381.4,
+     "SIG"
+    ],
+    "naut": [
+     80872.5,
+     1790056800000,
+     85381.5,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1790067600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=86168.2 vs close[t]=86168.09999999999",
+    "nora": [
+     86168.2,
+     1790154000000,
+     85881.9,
+     "SIG"
+    ],
+    "naut": [
+     86168.09999999999,
+     1790154000000,
+     85882.0,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1790265600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=84383.2 vs close[t]=84383.3",
+    "nora": [
+     84383.2,
+     1790316000000,
+     84160.9,
+     "SIG"
+    ],
+    "naut": [
+     84383.3,
+     1790316000000,
+     84160.9,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1790409600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=84078.5 vs close[t]=84078.4",
+    "nora": [
+     84078.5,
+     1790434800000,
+     83975.0,
+     "SIG"
+    ],
+    "naut": [
+     84078.4,
+     1790434800000,
+     83974.9,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1790766000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=83873.3 vs close[t]=83873.40000000001",
+    "nora": [
+     83873.3,
+     1790798400000,
+     83564.7,
+     "SIG"
+    ],
+    "naut": [
+     83873.40000000001,
+     1790798400000,
+     83564.6,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1790852400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=83939.3 vs close[t]=83939.2",
+    "nora": [
+     83939.3,
+     1790960400000,
+     85135.3,
+     "SIG"
+    ],
+    "naut": [
+     83939.2,
+     1790960400000,
+     85135.4,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1791032400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=84842.2 vs close[t]=84842.3",
+    "nora": [
+     84842.2,
+     1791064800000,
+     84675.4,
+     "SIG"
+    ],
+    "naut": [
+     84842.3,
+     1791064800000,
+     84675.4,
+     "SIG"
+    ]
+   }
+  ]
+ },
+ {
+  "inst": "okx",
+  "dataset": "raw",
+  "signal": "ema5_13",
+  "stage": "S2",
+  "trades_nora": 153,
+  "trades_naut": 153,
+  "matched_pairs": 153,
+  "exact_matches": 75,
+  "classes": {
+   "match": 75,
+   "d": 77,
+   "a": 1
+  },
+  "final_equity_nora": 9800.922266669628,
+  "final_equity_naut": 9836.642952479999,
+  "final_equity_diff": 35.720685810370924,
+  "final_equity_diff_pct": 0.3644624948393682,
+  "nora_engine_paths_bit_identical": true,
+  "unexplained": [],
+  "non_exact": [
+   {
+    "enter_time": 1775685600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=71520.0 vs close[t]=71519.90000000001",
+    "nora": [
+     71520.0,
+     1775689200000,
+     71027.7,
+     "SIG"
+    ],
+    "naut": [
+     71519.90000000001,
+     1775689200000,
+     71027.8,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1775728800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=71502.6 vs close[t]=71502.5",
+    "nora": [
+     71502.6,
+     1775739600000,
+     70930.57920000001,
+     "SL"
+    ],
+    "naut": [
+     71502.5,
+     1775739600000,
+     70930.5,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1775750400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=72105.6 vs close[t]=72105.7",
+    "nora": [
+     72105.6,
+     1775772000000,
+     72826.656,
+     "TP"
+    ],
+    "naut": [
+     72105.7,
+     1775772000000,
+     72826.8,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1775822400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=72084.7 vs close[t]=72084.8",
+    "nora": [
+     72084.7,
+     1775829600000,
+     72805.54699999999,
+     "TP"
+    ],
+    "naut": [
+     72084.8,
+     1775829600000,
+     72805.6,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1776409200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=74896.8 vs close[t]=74896.7",
+    "nora": [
+     74896.8,
+     1776412800000,
+     75645.768,
+     "TP"
+    ],
+    "naut": [
+     74896.7,
+     1776412800000,
+     75645.7,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1776607200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=75884.9 vs close[t]=75884.8",
+    "nora": [
+     75884.9,
+     1776614400000,
+     75277.82079999999,
+     "SL"
+    ],
+    "naut": [
+     75884.8,
+     1776614400000,
+     75277.7,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1776675600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=74692.5 vs close[t]=74692.6",
+    "nora": [
+     74692.5,
+     1776686400000,
+     75439.425,
+     "TP"
+    ],
+    "naut": [
+     74692.6,
+     1776686400000,
+     75439.5,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1776816000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=76302.2 vs close[t]=76302.09999999999",
+    "nora": [
+     76302.2,
+     1776823200000,
+     77065.222,
+     "TP"
+    ],
+    "naut": [
+     76302.09999999999,
+     1776823200000,
+     77065.1,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1776960000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=78331.2 vs close[t]=78331.3",
+    "nora": [
+     78331.2,
+     1776963600000,
+     77704.5504,
+     "SL"
+    ],
+    "naut": [
+     78331.3,
+     1776963600000,
+     77704.6,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1777111200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=77666.9 vs close[t]=77666.8",
+    "nora": [
+     77666.9,
+     1777132800000,
+     77289.9,
+     "SIG"
+    ],
+    "naut": [
+     77666.8,
+     1777132800000,
+     77290.0,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1777161600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=77588.0 vs close[t]=77587.90000000001",
+    "nora": [
+     77588.0,
+     1777168800000,
+     77416.8,
+     "SIG"
+    ],
+    "naut": [
+     77587.90000000001,
+     1777168800000,
+     77416.8,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1777179600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=77740.0 vs close[t]=77740.09999999999",
+    "nora": [
+     77740.0,
+     1777237200000,
+     78517.4,
+     "TP"
+    ],
+    "naut": [
+     77740.09999999999,
+     1777237200000,
+     78517.5,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1777424400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=76477.2 vs close[t]=76477.1",
+    "nora": [
+     76477.2,
+     1777435200000,
+     77241.972,
+     "TP"
+    ],
+    "naut": [
+     76477.1,
+     1777435200000,
+     77241.90000000001,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1777543200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=76066.0 vs close[t]=76066.09999999999",
+    "nora": [
+     76066.0,
+     1777604400000,
+     76826.66,
+     "TP"
+    ],
+    "naut": [
+     76066.09999999999,
+     1777604400000,
+     76826.8,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1777802400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=78500.8 vs close[t]=78500.7",
+    "nora": [
+     78500.8,
+     1777845600000,
+     79285.808,
+     "TP"
+    ],
+    "naut": [
+     78500.7,
+     1777845600000,
+     79285.7,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1778140800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=81482.2 vs close[t]=81482.09999999999",
+    "nora": [
+     81482.2,
+     1778144400000,
+     81188.4,
+     "SIG"
+    ],
+    "naut": [
+     81482.09999999999,
+     1778144400000,
+     81188.3,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1778238000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=80177.7 vs close[t]=80177.6",
+    "nora": [
+     80177.7,
+     1778245200000,
+     79536.2784,
+     "SL"
+    ],
+    "naut": [
+     80177.6,
+     1778245200000,
+     79536.2,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1778454000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=82015.9 vs close[t]=82016.0",
+    "nora": [
+     82015.9,
+     1778457600000,
+     81359.77279999999,
+     "SL"
+    ],
+    "naut": [
+     82016.0,
+     1778457600000,
+     81359.90000000001,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1778508000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=81030.9 vs close[t]=81030.8",
+    "nora": [
+     81030.9,
+     1778511600000,
+     80910.1,
+     "SIG"
+    ],
+    "naut": [
+     81030.8,
+     1778511600000,
+     80910.09999999999,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1779048000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=78369.0 vs close[t]=78369.1",
+    "nora": [
+     78369.0,
+     1779058800000,
+     77964.9,
+     "SIG"
+    ],
+    "naut": [
+     78369.1,
+     1779058800000,
+     77964.9,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1779256800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=77160.3 vs close[t]=77160.4",
+    "nora": [
+     77160.3,
+     1779321600000,
+     77931.903,
+     "TP"
+    ],
+    "naut": [
+     77160.4,
+     1779321600000,
+     77932.0,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1779667200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=77030.0 vs close[t]=77029.90000000001",
+    "nora": [
+     77030.0,
+     1779721200000,
+     77800.3,
+     "TP"
+    ],
+    "naut": [
+     77029.90000000001,
+     1779721200000,
+     77800.2,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1779793200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=77397.7 vs close[t]=77397.79999999999",
+    "nora": [
+     77397.7,
+     1779800400000,
+     76778.5184,
+     "SL"
+    ],
+    "naut": [
+     77397.79999999999,
+     1779800400000,
+     76778.59999999999,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1780034400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=73664.0 vs close[t]=73664.09999999999",
+    "nora": [
+     73664.0,
+     1780059600000,
+     73264.8,
+     "SIG"
+    ],
+    "naut": [
+     73664.09999999999,
+     1780059600000,
+     73264.8,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1780074000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=74006.6 vs close[t]=74006.5",
+    "nora": [
+     74006.6,
+     1780077600000,
+     73414.5472,
+     "SL"
+    ],
+    "naut": [
+     74006.5,
+     1780077600000,
+     73414.4,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1780268400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=73909.8 vs close[t]=73909.7",
+    "nora": [
+     73909.8,
+     1780272000000,
+     73649.2,
+     "SIG"
+    ],
+    "naut": [
+     73909.7,
+     1780272000000,
+     73649.1,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1780873200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=62832.6 vs close[t]=62832.700000000004",
+    "nora": [
+     62832.6,
+     1780876800000,
+     63460.926,
+     "TP"
+    ],
+    "naut": [
+     62832.700000000004,
+     1780876800000,
+     63460.99999999999,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1781100000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=62112.2 vs close[t]=62112.3",
+    "nora": [
+     62112.2,
+     1781103600000,
+     62733.322,
+     "TP"
+    ],
+    "naut": [
+     62112.3,
+     1781103600000,
+     62733.40000000001,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1781143200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=62176.5 vs close[t]=62176.4",
+    "nora": [
+     62176.5,
+     1781146800000,
+     62798.265,
+     "TP"
+    ],
+    "naut": [
+     62176.4,
+     1781146800000,
+     62798.200000000004,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1781258400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=63719.9 vs close[t]=63720.0",
+    "nora": [
+     63719.9,
+     1781269200000,
+     63210.1408,
+     "SL"
+    ],
+    "naut": [
+     63720.0,
+     1781269200000,
+     63210.200000000004,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1781474400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=65276.9 vs close[t]=65276.8",
+    "nora": [
+     65276.9,
+     1781481600000,
+     65929.66900000001,
+     "TP"
+    ],
+    "naut": [
+     65276.8,
+     1781481600000,
+     65929.6,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1781600400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=66872.0 vs close[t]=66872.09999999999",
+    "nora": [
+     66872.0,
+     1781607600000,
+     66337.024,
+     "SL"
+    ],
+    "naut": [
+     66872.09999999999,
+     1781607600000,
+     66337.1,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1782057600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=64191.7 vs close[t]=64191.6",
+    "nora": [
+     64191.7,
+     1782061200000,
+     64111.2,
+     "SIG"
+    ],
+    "naut": [
+     64191.6,
+     1782061200000,
+     64111.2,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1782262800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=62990.1 vs close[t]=62990.0",
+    "nora": [
+     62990.1,
+     1782270000000,
+     62486.1792,
+     "SL"
+    ],
+    "naut": [
+     62990.0,
+     1782270000000,
+     62486.1,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1782302400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=62887.4 vs close[t]=62887.5",
+    "nora": [
+     62887.4,
+     1782306000000,
+     62587.4,
+     "SIG"
+    ],
+    "naut": [
+     62887.5,
+     1782306000000,
+     62587.5,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1782640800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=60228.5 vs close[t]=60228.4",
+    "nora": [
+     60228.5,
+     1782644400000,
+     60140.3,
+     "SIG"
+    ],
+    "naut": [
+     60228.4,
+     1782644400000,
+     60140.4,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1782705600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=60023.7 vs close[t]=60023.80000000001",
+    "nora": [
+     60023.7,
+     1782709200000,
+     59543.5104,
+     "SL"
+    ],
+    "naut": [
+     60023.80000000001,
+     1782709200000,
+     59543.6,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1782874800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=59054.9 vs close[t]=59054.8",
+    "nora": [
+     59054.9,
+     1782885600000,
+     58582.4608,
+     "SL"
+    ],
+    "naut": [
+     59054.8,
+     1782885600000,
+     58582.4,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1783357200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=63711.4 vs close[t]=63711.5",
+    "nora": [
+     63711.4,
+     1783371600000,
+     64348.514,
+     "TP"
+    ],
+    "naut": [
+     63711.5,
+     1783371600000,
+     64348.600000000006,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1783998000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=62515.1 vs close[t]=62515.00000000001",
+    "nora": [
+     62515.1,
+     1784030400000,
+     63140.251,
+     "TP"
+    ],
+    "naut": [
+     62515.00000000001,
+     1784030400000,
+     63140.19999999999,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1784217600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=64679.1 vs close[t]=64679.00000000001",
+    "nora": [
+     64679.1,
+     1784221200000,
+     64161.667199999996,
+     "SL"
+    ],
+    "naut": [
+     64679.00000000001,
+     1784221200000,
+     64161.6,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1784307600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=63560.7 vs close[t]=63560.600000000006",
+    "nora": [
+     63560.7,
+     1784307600000,
+     64196.307,
+     "TP"
+    ],
+    "naut": [
+     63560.600000000006,
+     1784307600000,
+     64196.19999999999,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1784548800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=64970.9 vs close[t]=64970.8",
+    "nora": [
+     64970.9,
+     1784552400000,
+     64451.1328,
+     "SL"
+    ],
+    "naut": [
+     64970.8,
+     1784552400000,
+     64451.00000000001,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1784761200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=66017.8 vs close[t]=66017.7",
+    "nora": [
+     66017.8,
+     1784772000000,
+     65795.4,
+     "SIG"
+    ],
+    "naut": [
+     66017.7,
+     1784772000000,
+     65795.4,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1784991600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=64180.0 vs close[t]=64180.1",
+    "nora": [
+     64180.0,
+     1785081600000,
+     64821.8,
+     "TP"
+    ],
+    "naut": [
+     64180.1,
+     1785081600000,
+     64821.9,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1785258000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=64013.5 vs close[t]=64013.40000000001",
+    "nora": [
+     64013.5,
+     1785258000000,
+     63501.392,
+     "SL"
+    ],
+    "naut": [
+     64013.40000000001,
+     1785258000000,
+     63501.299999999996,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1785351600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=64481.7 vs close[t]=64481.799999999996",
+    "nora": [
+     64481.7,
+     1785351600000,
+     63965.846399999995,
+     "SL"
+    ],
+    "naut": [
+     64481.799999999996,
+     1785351600000,
+     63965.9,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1785596400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=63099.9 vs close[t]=63099.80000000001",
+    "nora": [
+     63099.9,
+     1785600000000,
+     62974.6,
+     "SIG"
+    ],
+    "naut": [
+     63099.80000000001,
+     1785600000000,
+     62974.59999999999,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1785693600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=63277.2 vs close[t]=63277.299999999996",
+    "nora": [
+     63277.2,
+     1785726000000,
+     63110.7,
+     "SIG"
+    ],
+    "naut": [
+     63277.299999999996,
+     1785726000000,
+     63110.8,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1786035600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=64727.3 vs close[t]=64727.399999999994",
+    "nora": [
+     64727.3,
+     1786039200000,
+     64588.7,
+     "SIG"
+    ],
+    "naut": [
+     64727.399999999994,
+     1786039200000,
+     64588.8,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1786327200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=65172.2 vs close[t]=65172.1",
+    "nora": [
+     65172.2,
+     1786334400000,
+     64950.5,
+     "SIG"
+    ],
+    "naut": [
+     65172.1,
+     1786334400000,
+     64950.5,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1786629600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=63695.3 vs close[t]=63695.2",
+    "nora": [
+     63695.3,
+     1786636800000,
+     63384.0,
+     "SIG"
+    ],
+    "naut": [
+     63695.2,
+     1786636800000,
+     63383.9,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1786672800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=63545.9 vs close[t]=63545.799999999996",
+    "nora": [
+     63545.9,
+     1786676400000,
+     63430.4,
+     "SIG"
+    ],
+    "naut": [
+     63545.799999999996,
+     1786676400000,
+     63430.4,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1786798800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=63025.1 vs close[t]=63024.99999999999",
+    "nora": [
+     63025.1,
+     1786860000000,
+     63029.8,
+     "SIG"
+    ],
+    "naut": [
+     63024.99999999999,
+     1786860000000,
+     63029.799999999996,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1787565600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=77536.8 vs close[t]=77536.7",
+    "nora": [
+     77536.8,
+     1787569200000,
+     78312.168,
+     "TP"
+    ],
+    "naut": [
+     77536.7,
+     1787569200000,
+     78312.09999999999,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1787724000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=79049.7 vs close[t]=79049.79999999999",
+    "nora": [
+     79049.7,
+     1787731200000,
+     78884.8,
+     "SIG"
+    ],
+    "naut": [
+     79049.79999999999,
+     1787731200000,
+     78884.7,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1787781600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=78683.8 vs close[t]=78683.7",
+    "nora": [
+     78683.8,
+     1787817600000,
+     79470.638,
+     "TP"
+    ],
+    "naut": [
+     78683.7,
+     1787817600000,
+     79470.5,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1788166800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=78436.9 vs close[t]=78436.8",
+    "nora": [
+     78436.9,
+     1788177600000,
+     77809.40479999999,
+     "SL"
+    ],
+    "naut": [
+     78436.8,
+     1788177600000,
+     77809.3,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1788188400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=78571.1 vs close[t]=78570.8",
+    "nora": [
+     78571.1,
+     1788228000000,
+     78372.1,
+     "SIG"
+    ],
+    "naut": [
+     78570.8,
+     1788228000000,
+     78372.0,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1788238800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=78698.8 vs close[t]=78698.7",
+    "nora": [
+     78698.8,
+     1788249600000,
+     78069.2096,
+     "SL"
+    ],
+    "naut": [
+     78698.7,
+     1788249600000,
+     78069.1,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1788372000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=77349.8 vs close[t]=77349.90000000001",
+    "nora": [
+     77349.8,
+     1788390000000,
+     76995.8,
+     "SIG"
+    ],
+    "naut": [
+     77349.90000000001,
+     1788390000000,
+     76995.90000000001,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1788620400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=79674.1 vs close[t]=79674.0",
+    "nora": [
+     79674.1,
+     1788681600000,
+     79772.0,
+     "SIG"
+    ],
+    "naut": [
+     79674.0,
+     1788681600000,
+     79772.09999999999,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1788728400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=79876.3 vs close[t]=79876.2",
+    "nora": [
+     79876.3,
+     1788753600000,
+     79557.5,
+     "SIG"
+    ],
+    "naut": [
+     79876.2,
+     1788753600000,
+     79557.40000000001,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1788832800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=79402.3 vs close[t]=79402.4",
+    "nora": [
+     79402.3,
+     1788836400000,
+     78894.0,
+     "SIG"
+    ],
+    "naut": [
+     79402.4,
+     1788836400000,
+     78893.90000000001,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1789131600000,
+    "cls": "a",
+    "note": "both SL&TP reachable in bar 2026-09-11 13:00:00: Nora=SL@1789131600000, Nautilus=TP@1789131600000",
+    "nora": [
+     77990.1,
+     1789131600000,
+     77366.1792,
+     "SL"
+    ],
+    "naut": [
+     77990.09999999999,
+     1789131600000,
+     78770.0,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1789214400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=77321.7 vs close[t]=77321.6",
+    "nora": [
+     77321.7,
+     1789236000000,
+     77185.4,
+     "SIG"
+    ],
+    "naut": [
+     77321.6,
+     1789236000000,
+     77185.3,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1789264800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=77283.2 vs close[t]=77283.3",
+    "nora": [
+     77283.2,
+     1789272000000,
+     77172.0,
+     "SIG"
+    ],
+    "naut": [
+     77283.3,
+     1789272000000,
+     77172.0,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1789279200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=77278.7 vs close[t]=77278.8",
+    "nora": [
+     77278.7,
+     1789282800000,
+     77089.2,
+     "SIG"
+    ],
+    "naut": [
+     77278.8,
+     1789282800000,
+     77089.2,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1789354800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=77573.8 vs close[t]=77573.7",
+    "nora": [
+     77573.8,
+     1789390800000,
+     78349.538,
+     "TP"
+    ],
+    "naut": [
+     77573.7,
+     1789390800000,
+     78349.40000000001,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1789560000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=76205.2 vs close[t]=76205.3",
+    "nora": [
+     76205.2,
+     1789563600000,
+     75595.5584,
+     "SL"
+    ],
+    "naut": [
+     76205.3,
+     1789563600000,
+     75595.7,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1789696800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=76703.1 vs close[t]=76703.0",
+    "nora": [
+     76703.1,
+     1789700400000,
+     77470.13100000001,
+     "TP"
+    ],
+    "naut": [
+     76703.0,
+     1789700400000,
+     77470.0,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1789920000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=80872.4 vs close[t]=80872.5",
+    "nora": [
+     80872.4,
+     1789948800000,
+     81681.124,
+     "TP"
+    ],
+    "naut": [
+     80872.5,
+     1789948800000,
+     81681.2,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1790067600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=86168.2 vs close[t]=86168.09999999999",
+    "nora": [
+     86168.2,
+     1790085600000,
+     85478.8544,
+     "SL"
+    ],
+    "naut": [
+     86168.09999999999,
+     1790085600000,
+     85478.8,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1790265600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=84383.2 vs close[t]=84383.3",
+    "nora": [
+     84383.2,
+     1790316000000,
+     84160.9,
+     "SIG"
+    ],
+    "naut": [
+     84383.3,
+     1790316000000,
+     84160.9,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1790409600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=84078.5 vs close[t]=84078.4",
+    "nora": [
+     84078.5,
+     1790434800000,
+     83975.0,
+     "SIG"
+    ],
+    "naut": [
+     84078.4,
+     1790434800000,
+     83974.9,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1790766000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=83873.3 vs close[t]=83873.40000000001",
+    "nora": [
+     83873.3,
+     1790769600000,
+     84712.03300000001,
+     "TP"
+    ],
+    "naut": [
+     83873.40000000001,
+     1790769600000,
+     84712.09999999999,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1790852400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=83939.3 vs close[t]=83939.2",
+    "nora": [
+     83939.3,
+     1790874000000,
+     84778.693,
+     "TP"
+    ],
+    "naut": [
+     83939.2,
+     1790874000000,
+     84778.59999999999,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1791032400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=84842.2 vs close[t]=84842.3",
+    "nora": [
+     84842.2,
+     1791064800000,
+     84675.4,
+     "SIG"
+    ],
+    "naut": [
+     84842.3,
+     1791064800000,
+     84675.4,
+     "SIG"
+    ]
+   }
+  ]
+ },
+ {
+  "inst": "okx",
+  "dataset": "raw",
+  "signal": "ema5_13",
+  "stage": "S3",
+  "trades_nora": 151,
+  "trades_naut": 152,
+  "matched_pairs": 151,
+  "exact_matches": 74,
+  "classes": {
+   "match": 74,
+   "d": 75,
+   "a": 2,
+   "x": 1
+  },
+  "final_equity_nora": 10026.478294470427,
+  "final_equity_naut": 10024.19609948,
+  "final_equity_diff": -2.282194990428252,
+  "final_equity_diff_pct": -0.02276168085545427,
+  "nora_engine_paths_bit_identical": true,
+  "unexplained": [],
+  "non_exact": [
+   {
+    "enter_time": 1775685600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=71520.0 vs close[t]=71519.90000000001",
+    "nora": [
+     71520.0,
+     1775689200000,
+     71027.7,
+     "SIG"
+    ],
+    "naut": [
+     71519.90000000001,
+     1775689200000,
+     71027.8,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1775728800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=71502.6 vs close[t]=71502.5",
+    "nora": [
+     71502.6,
+     1775743200000,
+     70779.8,
+     "SIG"
+    ],
+    "naut": [
+     71502.5,
+     1775743200000,
+     70779.8,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1775750400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=72105.6 vs close[t]=72105.7",
+    "nora": [
+     72105.6,
+     1775768400000,
+     72607.73819639278,
+     "TP"
+    ],
+    "naut": [
+     72105.7,
+     1775768400000,
+     72607.5,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1775822400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=72084.7 vs close[t]=72084.8",
+    "nora": [
+     72084.7,
+     1775829600000,
+     72805.54699999999,
+     "TP"
+    ],
+    "naut": [
+     72084.8,
+     1775829600000,
+     72805.6,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1776409200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=74896.8 vs close[t]=74896.7",
+    "nora": [
+     74896.8,
+     1776412800000,
+     75645.768,
+     "TP"
+    ],
+    "naut": [
+     74896.7,
+     1776412800000,
+     75645.7,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1776607200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=75884.9 vs close[t]=75884.8",
+    "nora": [
+     75884.9,
+     1776621600000,
+     74751.0,
+     "SIG"
+    ],
+    "naut": [
+     75884.8,
+     1776621600000,
+     74750.9,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1776675600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=74692.5 vs close[t]=74692.6",
+    "nora": [
+     74692.5,
+     1776686400000,
+     75439.425,
+     "TP"
+    ],
+    "naut": [
+     74692.6,
+     1776686400000,
+     75439.5,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1776816000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=76302.2 vs close[t]=76302.09999999999",
+    "nora": [
+     76302.2,
+     1776823200000,
+     77065.222,
+     "TP"
+    ],
+    "naut": [
+     76302.09999999999,
+     1776823200000,
+     77065.1,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1776960000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=78331.2 vs close[t]=78331.3",
+    "nora": [
+     78331.2,
+     1776967200000,
+     77717.9,
+     "SIG"
+    ],
+    "naut": [
+     78331.3,
+     1776963600000,
+     77156.3,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1777111200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=77666.9 vs close[t]=77666.8",
+    "nora": [
+     77666.9,
+     1777132800000,
+     77289.9,
+     "SIG"
+    ],
+    "naut": [
+     77666.8,
+     1777132800000,
+     77290.0,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1777161600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=77588.0 vs close[t]=77587.90000000001",
+    "nora": [
+     77588.0,
+     1777168800000,
+     77416.8,
+     "SIG"
+    ],
+    "naut": [
+     77587.90000000001,
+     1777168800000,
+     77416.8,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1777179600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=77740.0 vs close[t]=77740.09999999999",
+    "nora": [
+     77740.0,
+     1777237200000,
+     78517.4,
+     "TP"
+    ],
+    "naut": [
+     77740.09999999999,
+     1777237200000,
+     78517.5,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1777424400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=76477.2 vs close[t]=76477.1",
+    "nora": [
+     76477.2,
+     1777435200000,
+     77241.972,
+     "TP"
+    ],
+    "naut": [
+     76477.1,
+     1777435200000,
+     77241.90000000001,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1777543200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=76066.0 vs close[t]=76066.09999999999",
+    "nora": [
+     76066.0,
+     1777604400000,
+     76826.66,
+     "TP"
+    ],
+    "naut": [
+     76066.09999999999,
+     1777604400000,
+     76826.8,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1777802400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=78500.8 vs close[t]=78500.7",
+    "nora": [
+     78500.8,
+     1777845600000,
+     79285.808,
+     "TP"
+    ],
+    "naut": [
+     78500.7,
+     1777845600000,
+     79285.7,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1778140800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=81482.2 vs close[t]=81482.09999999999",
+    "nora": [
+     81482.2,
+     1778144400000,
+     81188.4,
+     "SIG"
+    ],
+    "naut": [
+     81482.09999999999,
+     1778144400000,
+     81188.3,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1778238000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=80177.7 vs close[t]=80177.6",
+    "nora": [
+     80177.7,
+     1778342400000,
+     80736.05171843687,
+     "TP"
+    ],
+    "naut": [
+     80177.6,
+     1778342400000,
+     80736.2,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1778454000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=82015.9 vs close[t]=82016.0",
+    "nora": [
+     82015.9,
+     1778472000000,
+     80700.8,
+     "SIG"
+    ],
+    "naut": [
+     82016.0,
+     1778468400000,
+     80542.30000000002,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1778508000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=81030.9 vs close[t]=81030.8",
+    "nora": [
+     81030.9,
+     1778511600000,
+     80910.1,
+     "SIG"
+    ],
+    "naut": [
+     81030.8,
+     1778511600000,
+     80910.09999999999,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1779048000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=78369.0 vs close[t]=78369.1",
+    "nora": [
+     78369.0,
+     1779058800000,
+     77964.9,
+     "SIG"
+    ],
+    "naut": [
+     78369.1,
+     1779058800000,
+     77964.9,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1779256800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=77160.3 vs close[t]=77160.4",
+    "nora": [
+     77160.3,
+     1779321600000,
+     77931.903,
+     "TP"
+    ],
+    "naut": [
+     77160.4,
+     1779321600000,
+     77932.0,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1779667200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=77030.0 vs close[t]=77029.90000000001",
+    "nora": [
+     77030.0,
+     1779721200000,
+     77800.3,
+     "TP"
+    ],
+    "naut": [
+     77029.90000000001,
+     1779721200000,
+     77800.2,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1779793200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=77397.7 vs close[t]=77397.79999999999",
+    "nora": [
+     77397.7,
+     1779804000000,
+     77936.691998998,
+     "TP"
+    ],
+    "naut": [
+     77397.79999999999,
+     1779804000000,
+     77937.0,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1780034400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=73664.0 vs close[t]=73664.09999999999",
+    "nora": [
+     73664.0,
+     1780059600000,
+     73264.8,
+     "SIG"
+    ],
+    "naut": [
+     73664.09999999999,
+     1780059600000,
+     73264.8,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1780074000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=74006.6 vs close[t]=74006.5",
+    "nora": [
+     74006.6,
+     1780092000000,
+     73385.3,
+     "SIG"
+    ],
+    "naut": [
+     74006.5,
+     1780092000000,
+     73385.2,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1780268400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=73909.8 vs close[t]=73909.7",
+    "nora": [
+     73909.8,
+     1780272000000,
+     73649.2,
+     "SIG"
+    ],
+    "naut": [
+     73909.7,
+     1780272000000,
+     73649.1,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1780873200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=62832.6 vs close[t]=62832.700000000004",
+    "nora": [
+     62832.6,
+     1780876800000,
+     63460.926,
+     "TP"
+    ],
+    "naut": [
+     62832.700000000004,
+     1780876800000,
+     63460.99999999999,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1781100000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=62112.2 vs close[t]=62112.3",
+    "nora": [
+     62112.2,
+     1781103600000,
+     62544.74487975951,
+     "TP"
+    ],
+    "naut": [
+     62112.3,
+     1781103600000,
+     62544.99999999999,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1781143200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=62176.5 vs close[t]=62176.4",
+    "nora": [
+     62176.5,
+     1781146800000,
+     62798.265,
+     "TP"
+    ],
+    "naut": [
+     62176.4,
+     1781146800000,
+     62798.200000000004,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1781258400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=63719.9 vs close[t]=63720.0",
+    "nora": [
+     63719.9,
+     1781276400000,
+     64163.64078657316,
+     "TP"
+    ],
+    "naut": [
+     63720.0,
+     1781276400000,
+     64163.6,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1781474400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=65276.9 vs close[t]=65276.8",
+    "nora": [
+     65276.9,
+     1781478000000,
+     65731.48362224449,
+     "TP"
+    ],
+    "naut": [
+     65276.8,
+     1781478000000,
+     65731.4,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1781600400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=66872.0 vs close[t]=66872.09999999999",
+    "nora": [
+     66872.0,
+     1781618400000,
+     66014.4,
+     "SIG"
+    ],
+    "naut": [
+     66872.09999999999,
+     1781618400000,
+     66014.0,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1781715600000,
+    "cls": "a",
+    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 64847.6000 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
+    "nora": [
+     65835.1,
+     1781726400000,
+     64278.2,
+     "SIG"
+    ],
+    "naut": [
+     65835.1,
+     1781719200000,
+     64847.6,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1782057600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=64191.7 vs close[t]=64191.6",
+    "nora": [
+     64191.7,
+     1782061200000,
+     64111.2,
+     "SIG"
+    ],
+    "naut": [
+     64191.6,
+     1782061200000,
+     64111.2,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1782262800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=62990.1 vs close[t]=62990.0",
+    "nora": [
+     62990.1,
+     1782298800000,
+     62418.9,
+     "SIG"
+    ],
+    "naut": [
+     62990.0,
+     1782298800000,
+     62418.899999999994,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1782640800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=60228.5 vs close[t]=60228.4",
+    "nora": [
+     60228.5,
+     1782644400000,
+     60140.3,
+     "SIG"
+    ],
+    "naut": [
+     60228.4,
+     1782644400000,
+     60140.4,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1782705600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=60023.7 vs close[t]=60023.80000000001",
+    "nora": [
+     60023.7,
+     1782734400000,
+     60441.70071643286,
+     "TP"
+    ],
+    "naut": [
+     60023.80000000001,
+     1782734400000,
+     60441.90000000001,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1782874800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=59054.9 vs close[t]=59054.8",
+    "nora": [
+     59054.9,
+     1782903600000,
+     58628.1,
+     "SIG"
+    ],
+    "naut": [
+     59054.8,
+     1782903600000,
+     58628.1,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1783357200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=63711.4 vs close[t]=63711.5",
+    "nora": [
+     63711.4,
+     1783371600000,
+     64348.514,
+     "TP"
+    ],
+    "naut": [
+     63711.5,
+     1783371600000,
+     64348.600000000006,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1783998000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=62515.1 vs close[t]=62515.00000000001",
+    "nora": [
+     62515.1,
+     1784030400000,
+     63140.251,
+     "TP"
+    ],
+    "naut": [
+     62515.00000000001,
+     1784030400000,
+     63140.19999999999,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1784217600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=64679.1 vs close[t]=64679.00000000001",
+    "nora": [
+     64679.1,
+     1784224800000,
+     64054.6,
+     "SIG"
+    ],
+    "naut": [
+     64679.00000000001,
+     1784224800000,
+     64054.5,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1784307600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=63560.7 vs close[t]=63560.600000000006",
+    "nora": [
+     63560.7,
+     1784307600000,
+     64196.307,
+     "TP"
+    ],
+    "naut": [
+     63560.600000000006,
+     1784307600000,
+     64196.19999999999,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1784548800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=64970.9 vs close[t]=64970.8",
+    "nora": [
+     64970.9,
+     1784559600000,
+     65143.55313355612,
+     "TP"
+    ],
+    "naut": [
+     64970.8,
+     1784559600000,
+     65143.700000000004,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1784761200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=66017.8 vs close[t]=66017.7",
+    "nora": [
+     66017.8,
+     1784772000000,
+     65795.4,
+     "SIG"
+    ],
+    "naut": [
+     66017.7,
+     1784772000000,
+     65795.4,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1784991600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=64180.0 vs close[t]=64180.1",
+    "nora": [
+     64180.0,
+     1785081600000,
+     64821.8,
+     "TP"
+    ],
+    "naut": [
+     64180.1,
+     1785081600000,
+     64821.9,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1785258000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=64013.5 vs close[t]=64013.40000000001",
+    "nora": [
+     64013.5,
+     1785308400000,
+     64459.285395791594,
+     "TP"
+    ],
+    "naut": [
+     64013.40000000001,
+     1785308400000,
+     64458.899999999994,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1785351600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=64481.7 vs close[t]=64481.799999999996",
+    "nora": [
+     64481.7,
+     1785355200000,
+     63554.2,
+     "SIG"
+    ],
+    "naut": [
+     64481.799999999996,
+     1785351600000,
+     63514.599999999984,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1785596400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=63099.9 vs close[t]=63099.80000000001",
+    "nora": [
+     63099.9,
+     1785600000000,
+     62974.6,
+     "SIG"
+    ],
+    "naut": [
+     63099.80000000001,
+     1785600000000,
+     62974.59999999999,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1785693600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=63277.2 vs close[t]=63277.299999999996",
+    "nora": [
+     63277.2,
+     1785726000000,
+     63110.7,
+     "SIG"
+    ],
+    "naut": [
+     63277.299999999996,
+     1785726000000,
+     63110.8,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1786035600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=64727.3 vs close[t]=64727.399999999994",
+    "nora": [
+     64727.3,
+     1786039200000,
+     64588.7,
+     "SIG"
+    ],
+    "naut": [
+     64727.399999999994,
+     1786039200000,
+     64588.8,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1786327200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=65172.2 vs close[t]=65172.1",
+    "nora": [
+     65172.2,
+     1786334400000,
+     64950.5,
+     "SIG"
+    ],
+    "naut": [
+     65172.1,
+     1786334400000,
+     64950.5,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1786629600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=63695.3 vs close[t]=63695.2",
+    "nora": [
+     63695.3,
+     1786636800000,
+     63384.0,
+     "SIG"
+    ],
+    "naut": [
+     63695.2,
+     1786636800000,
+     63383.9,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1786672800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=63545.9 vs close[t]=63545.799999999996",
+    "nora": [
+     63545.9,
+     1786676400000,
+     63430.4,
+     "SIG"
+    ],
+    "naut": [
+     63545.799999999996,
+     1786676400000,
+     63430.4,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1786798800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=63025.1 vs close[t]=63024.99999999999",
+    "nora": [
+     63025.1,
+     1786860000000,
+     63029.8,
+     "SIG"
+    ],
+    "naut": [
+     63024.99999999999,
+     1786860000000,
+     63029.799999999996,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1787565600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=77536.8 vs close[t]=77536.7",
+    "nora": [
+     77536.8,
+     1787569200000,
+     78312.168,
+     "TP"
+    ],
+    "naut": [
+     77536.7,
+     1787569200000,
+     78312.09999999999,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1787724000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=79049.7 vs close[t]=79049.79999999999",
+    "nora": [
+     79049.7,
+     1787731200000,
+     78884.8,
+     "SIG"
+    ],
+    "naut": [
+     79049.79999999999,
+     1787731200000,
+     78884.7,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1787781600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=78683.8 vs close[t]=78683.7",
+    "nora": [
+     78683.8,
+     1787817600000,
+     79470.638,
+     "TP"
+    ],
+    "naut": [
+     78683.7,
+     1787817600000,
+     79470.5,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1788166800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=78436.9 vs close[t]=78436.8",
+    "nora": [
+     78436.9,
+     1788184800000,
+     77830.0,
+     "SIG"
+    ],
+    "naut": [
+     78436.8,
+     1788184800000,
+     77830.0,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1788238800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=78698.8 vs close[t]=78698.7",
+    "nora": [
+     78698.8,
+     1788253200000,
+     77849.0,
+     "SIG"
+    ],
+    "naut": [
+     78698.7,
+     1788253200000,
+     77849.0,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1788372000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=77349.8 vs close[t]=77349.90000000001",
+    "nora": [
+     77349.8,
+     1788390000000,
+     76995.8,
+     "SIG"
+    ],
+    "naut": [
+     77349.90000000001,
+     1788390000000,
+     76995.90000000001,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1788620400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=79674.1 vs close[t]=79674.0",
+    "nora": [
+     79674.1,
+     1788681600000,
+     79772.0,
+     "SIG"
+    ],
+    "naut": [
+     79674.0,
+     1788681600000,
+     79772.09999999999,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1788728400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=79876.3 vs close[t]=79876.2",
+    "nora": [
+     79876.3,
+     1788753600000,
+     79557.5,
+     "SIG"
+    ],
+    "naut": [
+     79876.2,
+     1788753600000,
+     79557.40000000001,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1788832800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=79402.3 vs close[t]=79402.4",
+    "nora": [
+     79402.3,
+     1788836400000,
+     78894.0,
+     "SIG"
+    ],
+    "naut": [
+     79402.4,
+     1788836400000,
+     78893.90000000001,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1789131600000,
+    "cls": "a",
+    "note": "DCA & TP reachable in same bar: Nora=TP, Nautilus=TP",
+    "nora": [
+     77990.1,
+     1789135200000,
+     79203.0,
+     "TP"
+    ],
+    "naut": [
+     77990.09999999999,
+     1789131600000,
+     78770.0,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1789135200000,
+    "cls": "x",
+    "note": "nautilus-only trade inside cascade window of an earlier classified divergence",
+    "nora": null,
+    "naut": null
+   },
+   {
+    "enter_time": 1789214400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=77321.7 vs close[t]=77321.6",
+    "nora": [
+     77321.7,
+     1789236000000,
+     77185.4,
+     "SIG"
+    ],
+    "naut": [
+     77321.6,
+     1789236000000,
+     77185.3,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1789264800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=77283.2 vs close[t]=77283.3",
+    "nora": [
+     77283.2,
+     1789272000000,
+     77172.0,
+     "SIG"
+    ],
+    "naut": [
+     77283.3,
+     1789272000000,
+     77172.0,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1789279200000,
+    "cls": "d",
+    "note": "entry price open[t+1]=77278.7 vs close[t]=77278.8",
+    "nora": [
+     77278.7,
+     1789282800000,
+     77089.2,
+     "SIG"
+    ],
+    "naut": [
+     77278.8,
+     1789282800000,
+     77089.2,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1789354800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=77573.8 vs close[t]=77573.7",
+    "nora": [
+     77573.8,
+     1789390800000,
+     78349.538,
+     "TP"
+    ],
+    "naut": [
+     77573.7,
+     1789390800000,
+     78349.40000000001,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1789560000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=76205.2 vs close[t]=76205.3",
+    "nora": [
+     76205.2,
+     1789567200000,
+     75622.1,
+     "SIG"
+    ],
+    "naut": [
+     76205.3,
+     1789567200000,
+     75622.20000000001,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1789696800000,
+    "cls": "d",
+    "note": "entry price open[t+1]=76703.1 vs close[t]=76703.0",
+    "nora": [
+     76703.1,
+     1789700400000,
+     77470.13100000001,
+     "TP"
+    ],
+    "naut": [
+     76703.0,
+     1789700400000,
+     77470.0,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1789920000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=80872.4 vs close[t]=80872.5",
+    "nora": [
+     80872.4,
+     1789948800000,
+     81681.124,
+     "TP"
+    ],
+    "naut": [
+     80872.5,
+     1789948800000,
+     81681.2,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1790067600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=86168.2 vs close[t]=86168.09999999999",
+    "nora": [
+     86168.2,
+     1790125200000,
+     86768.2691282565,
+     "TP"
+    ],
+    "naut": [
+     86168.09999999999,
+     1790125200000,
+     86768.09999999999,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1790265600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=84383.2 vs close[t]=84383.3",
+    "nora": [
+     84383.2,
+     1790316000000,
+     84160.9,
+     "SIG"
+    ],
+    "naut": [
+     84383.3,
+     1790316000000,
+     84160.9,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1790409600000,
+    "cls": "d",
+    "note": "entry price open[t+1]=84078.5 vs close[t]=84078.4",
+    "nora": [
+     84078.5,
+     1790434800000,
+     83975.0,
+     "SIG"
+    ],
+    "naut": [
+     84078.4,
+     1790434800000,
+     83974.9,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1790766000000,
+    "cls": "d",
+    "note": "entry price open[t+1]=83873.3 vs close[t]=83873.40000000001",
+    "nora": [
+     83873.3,
+     1790769600000,
+     84712.03300000001,
+     "TP"
+    ],
+    "naut": [
+     83873.40000000001,
+     1790769600000,
+     84712.09999999999,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1790852400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=83939.3 vs close[t]=83939.2",
+    "nora": [
+     83939.3,
+     1790870400000,
+     84523.84722945892,
+     "TP"
+    ],
+    "naut": [
+     83939.2,
+     1790870400000,
+     84523.4,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1791032400000,
+    "cls": "d",
+    "note": "entry price open[t+1]=84842.2 vs close[t]=84842.3",
+    "nora": [
+     84842.2,
+     1791064800000,
+     84675.4,
+     "SIG"
+    ],
+    "naut": [
+     84842.3,
+     1791064800000,
+     84675.4,
+     "SIG"
+    ]
+   }
+  ]
+ },
+ {
+  "inst": "okx",
+  "dataset": "gapped",
+  "signal": "ema20_50",
+  "stage": "S1",
+  "trades_nora": 35,
+  "trades_naut": 35,
+  "matched_pairs": 35,
+  "exact_matches": 35,
+  "classes": {
+   "match": 35
+  },
+  "final_equity_nora": 10345.5006168573,
+  "final_equity_naut": 10345.340083789999,
+  "final_equity_diff": -0.16053306730100303,
+  "final_equity_diff_pct": -0.0015517186963354135,
+  "nora_engine_paths_bit_identical": true,
+  "unexplained": [],
+  "non_exact": []
+ },
+ {
+  "inst": "okx",
+  "dataset": "gapped",
+  "signal": "ema20_50",
+  "stage": "S2",
+  "trades_nora": 38,
+  "trades_naut": 38,
+  "matched_pairs": 38,
+  "exact_matches": 36,
+  "classes": {
+   "match": 36,
+   "b": 2
+  },
+  "final_equity_nora": 9940.07465942555,
+  "final_equity_naut": 9935.5853397,
+  "final_equity_diff": -4.489319725551468,
+  "final_equity_diff_pct": -0.04516384312359678,
+  "nora_engine_paths_bit_identical": true,
+  "unexplained": [],
+  "non_exact": [
+   {
+    "enter_time": 1783620000000,
+    "cls": "b",
+    "note": "gap at open through exit level",
+    "nora": [
+     53430.2,
+     1783638000000,
+     54040.4,
+     "TP"
+    ],
+    "naut": [
+     53430.2,
+     1783638000000,
+     53964.5,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1786939200000,
+    "cls": "b",
+    "note": "gap at open through exit level",
+    "nora": [
+     48356.8,
+     1786950000000,
+     48878.6,
+     "TP"
+    ],
+    "naut": [
+     48356.8,
+     1786950000000,
+     48840.4,
+     "TP"
+    ]
+   }
+  ]
+ },
+ {
+  "inst": "okx",
+  "dataset": "gapped",
+  "signal": "ema20_50",
+  "stage": "S3",
+  "trades_nora": 38,
+  "trades_naut": 39,
+  "matched_pairs": 38,
+  "exact_matches": 27,
+  "classes": {
+   "match": 27,
+   "a": 7,
+   "b": 4,
+   "x": 1
+  },
+  "final_equity_nora": 10171.73937327569,
+  "final_equity_naut": 10060.38384278,
+  "final_equity_diff": -111.35553049568989,
+  "final_equity_diff_pct": -1.0947540672174072,
+  "nora_engine_paths_bit_identical": true,
+  "unexplained": [],
+  "non_exact": [
+   {
+    "enter_time": 1776715200000,
+    "cls": "a",
+    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 69629.8000 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
+    "nora": [
+     70690.2,
+     1776758400000,
+     70613.11667173925,
+     "TP"
+    ],
+    "naut": [
+     70690.20000000001,
+     1776718800000,
+     69629.79999999999,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1778346000000,
+    "cls": "b",
+    "note": "DCA limit gapped through at bar open: Nora fills the layer at open (75316.6), Nautilus at its limit price (75378.20000000001); qty/avg/TP/SL levels then differ",
+    "nora": [
+     75757.0,
+     1778450400000,
+     76247.06556399743,
+     "TP"
+    ],
+    "naut": [
+     75757.0,
+     1778450400000,
+     76284.6,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1778781600000,
+    "cls": "a",
+    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 73160.9000 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
+    "nora": [
+     74499.0,
+     1778835600000,
+     72394.0,
+     "SL"
+    ],
+    "naut": [
+     74499.0,
+     1778796000000,
+     73160.9,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1779602400000,
+    "cls": "b",
+    "note": "gap at open through exit level",
+    "nora": [
+     65811.6,
+     1779649200000,
+     66655.0,
+     "TP"
+    ],
+    "naut": [
+     65811.6,
+     1779649200000,
+     66270.3,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1781161200000,
+    "cls": "a",
+    "note": "DCA & TP reachable in same bar: Nora=TP, Nautilus=TP",
+    "nora": [
+     54068.1,
+     1781200800000,
+     54833.4,
+     "TP"
+    ],
+    "naut": [
+     54068.1,
+     1781197200000,
+     54608.8,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1781200800000,
+    "cls": "x",
+    "note": "nautilus-only trade inside cascade window of an earlier classified divergence",
+    "nora": null,
+    "naut": null
+   },
+   {
+    "enter_time": 1781971200000,
+    "cls": "a",
+    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 52380.0000 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
+    "nora": [
+     53338.0,
+     1782075600000,
+     52076.80900173414,
+     "SL"
+    ],
+    "naut": [
+     53338.0,
+     1782064800000,
+     52379.99999999999,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1783620000000,
+    "cls": "b",
+    "note": "gap at open through exit level",
+    "nora": [
+     53430.2,
+     1783638000000,
+     54040.4,
+     "TP"
+    ],
+    "naut": [
+     53430.2,
+     1783638000000,
+     53964.5,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1784044800000,
+    "cls": "a",
+    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 53940.2000 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
+    "nora": [
+     54761.6,
+     1784116800000,
+     54495.09450136313,
+     "TP"
+    ],
+    "naut": [
+     54761.6,
+     1784048400000,
+     53940.2,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1786939200000,
+    "cls": "b",
+    "note": "gap at open through exit level",
+    "nora": [
+     48356.8,
+     1786950000000,
+     48878.6,
+     "TP"
+    ],
+    "naut": [
+     48356.8,
+     1786950000000,
+     48840.4,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1788105600000,
+    "cls": "a",
+    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 57809.6000 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
+    "nora": [
+     58867.1,
+     1788141600000,
+     57984.9,
+     "SIG"
+    ],
+    "naut": [
+     58867.100000000006,
+     1788130800000,
+     57809.6,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1790773200000,
+    "cls": "a",
+    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 63637.0000 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
+    "nora": [
+     65078.7,
+     1790812800000,
+     63245.03672526937,
+     "SL"
+    ],
+    "naut": [
+     65078.700000000004,
+     1790776800000,
+     63636.99999999999,
+     "SL"
+    ]
+   }
+  ]
+ },
+ {
+  "inst": "okx",
+  "dataset": "gapped",
+  "signal": "ema5_13",
+  "stage": "S1",
+  "trades_nora": 147,
+  "trades_naut": 147,
+  "matched_pairs": 147,
+  "exact_matches": 147,
+  "classes": {
+   "match": 147
+  },
+  "final_equity_nora": 10053.97681112931,
+  "final_equity_naut": 10054.366570229999,
+  "final_equity_diff": 0.3897591006880248,
+  "final_equity_diff_pct": 0.0038766660000355557,
+  "nora_engine_paths_bit_identical": true,
+  "unexplained": [],
+  "non_exact": []
+ },
+ {
+  "inst": "okx",
+  "dataset": "gapped",
+  "signal": "ema5_13",
+  "stage": "S2",
+  "trades_nora": 153,
+  "trades_naut": 153,
+  "matched_pairs": 153,
+  "exact_matches": 146,
+  "classes": {
+   "match": 146,
+   "b": 6,
+   "a": 1
+  },
+  "final_equity_nora": 9775.94979484374,
+  "final_equity_naut": 9759.48407649,
+  "final_equity_diff": -16.465718353740158,
+  "final_equity_diff_pct": -0.16843088087895586,
+  "nora_engine_paths_bit_identical": true,
+  "unexplained": [],
+  "non_exact": [
+   {
+    "enter_time": 1777179600000,
+    "cls": "b",
+    "note": "gap at open through exit level",
+    "nora": [
+     73184.9,
+     1777208400000,
+     74008.8,
+     "TP"
+    ],
+    "naut": [
+     73184.9,
+     1777208400000,
+     73916.7,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1777730400000,
+    "cls": "b",
+    "note": "gap at open through exit level",
+    "nora": [
+     72217.8,
+     1777741200000,
+     73306.3,
+     "TP"
+    ],
+    "naut": [
+     72217.79999999999,
+     1777741200000,
+     72940.0,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1779667200000,
+    "cls": "b",
+    "note": "gap at open through exit level",
+    "nora": [
+     67003.2,
+     1779685200000,
+     68065.2,
+     "TP"
+    ],
+    "naut": [
+     67003.2,
+     1779685200000,
+     67673.2,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1781334000000,
+    "cls": "b",
+    "note": "gap at open through exit level",
+    "nora": [
+     54315.4,
+     1781359200000,
+     55338.0,
+     "TP"
+    ],
+    "naut": [
+     54315.4,
+     1781359200000,
+     54858.6,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1783724400000,
+    "cls": "b",
+    "note": "gap at open through exit level",
+    "nora": [
+     54452.4,
+     1783731600000,
+     55245.3,
+     "TP"
+    ],
+    "naut": [
+     54452.4,
+     1783731600000,
+     54996.899999999994,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1786935600000,
+    "cls": "b",
+    "note": "gap at open through exit level",
+    "nora": [
+     48336.2,
+     1786950000000,
+     48878.6,
+     "TP"
+    ],
+    "naut": [
+     48336.2,
+     1786950000000,
+     48819.6,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1789131600000,
+    "cls": "a",
+    "note": "both SL&TP reachable in bar 2026-09-11 13:00:00: Nora=SL@1789131600000, Nautilus=TP@1789131600000",
+    "nora": [
+     57281.3,
+     1789131600000,
+     56823.049600000006,
+     "SL"
+    ],
+    "naut": [
+     57281.299999999996,
+     1789131600000,
+     57854.1,
+     "TP"
+    ]
+   }
+  ]
+ },
+ {
+  "inst": "okx",
+  "dataset": "gapped",
+  "signal": "ema5_13",
+  "stage": "S3",
+  "trades_nora": 151,
+  "trades_naut": 152,
+  "matched_pairs": 151,
+  "exact_matches": 131,
+  "classes": {
+   "match": 131,
+   "a": 7,
+   "b": 13,
+   "x": 1
+  },
+  "final_equity_nora": 9985.299610938833,
+  "final_equity_naut": 9877.52855548,
+  "final_equity_diff": -107.77105545883387,
+  "final_equity_diff_pct": -1.0792971634098092,
+  "nora_engine_paths_bit_identical": true,
+  "unexplained": [],
+  "non_exact": [
+   {
+    "enter_time": 1776960000000,
+    "cls": "a",
+    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 72959.8000 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
+    "nora": [
+     74070.9,
+     1776967200000,
+     73490.9,
+     "SIG"
+    ],
+    "naut": [
+     74070.9,
+     1776963600000,
+     72959.8,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1777179600000,
+    "cls": "b",
+    "note": "gap at open through exit level",
+    "nora": [
+     73184.9,
+     1777208400000,
+     74008.8,
+     "TP"
+    ],
+    "naut": [
+     73184.9,
+     1777208400000,
+     73916.7,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1777730400000,
+    "cls": "b",
+    "note": "gap at open through exit level",
+    "nora": [
+     72217.8,
+     1777741200000,
+     73306.3,
+     "TP"
+    ],
+    "naut": [
+     72217.79999999999,
+     1777741200000,
+     72940.0,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1778454000000,
+    "cls": "a",
+    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 75228.0000 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
+    "nora": [
+     76603.4,
+     1778472000000,
+     75374.9,
+     "SIG"
+    ],
+    "naut": [
+     76603.4,
+     1778468400000,
+     75228.0,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1778742000000,
+    "cls": "b",
+    "note": "DCA limit gapped through at bar open: Nora fills the layer at open (73516.0), Nautilus at its limit price (73822.20000000001); qty/avg/TP/SL levels then differ",
+    "nora": [
+     74193.2,
+     1778760000000,
+     73002.3,
+     "SIG"
+    ],
+    "naut": [
+     74193.2,
+     1778760000000,
+     73002.3,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1779667200000,
+    "cls": "b",
+    "note": "gap at open through exit level",
+    "nora": [
+     67003.2,
+     1779685200000,
+     68065.2,
+     "TP"
+    ],
+    "naut": [
+     67003.2,
+     1779685200000,
+     67673.2,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1780106400000,
+    "cls": "b",
+    "note": "DCA limit gapped through at bar open: Nora fills the layer at open (62378.3), Nautilus at its limit price (62699.2); qty/avg/TP/SL levels then differ",
+    "nora": [
+     63014.3,
+     1780117200000,
+     62049.6,
+     "SIG"
+    ],
+    "naut": [
+     63014.3,
+     1780117200000,
+     62049.59999999999,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1781334000000,
+    "cls": "b",
+    "note": "gap at open through exit level",
+    "nora": [
+     54315.4,
+     1781359200000,
+     55338.0,
+     "TP"
+    ],
+    "naut": [
+     54315.4,
+     1781359200000,
+     54858.6,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1781715600000,
+    "cls": "a",
+    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 56138.3000 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
+    "nora": [
+     56993.2,
+     1781722800000,
+     55387.35449679574,
+     "SL"
+    ],
+    "naut": [
+     56993.2,
+     1781719200000,
+     56138.3,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1783724400000,
+    "cls": "b",
+    "note": "gap at open through exit level",
+    "nora": [
+     54452.4,
+     1783731600000,
+     55245.3,
+     "TP"
+    ],
+    "naut": [
+     54452.4,
+     1783731600000,
+     54996.899999999994,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1785258000000,
+    "cls": "b",
+    "note": "gap at open through exit level",
+    "nora": [
+     50564.5,
+     1785272400000,
+     51202.4,
+     "TP"
+    ],
+    "naut": [
+     50564.5,
+     1785272400000,
+     50916.700000000004,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1785351600000,
+    "cls": "a",
+    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 50902.4000 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
+    "nora": [
+     51677.6,
+     1785355200000,
+     50934.2,
+     "SIG"
+    ],
+    "naut": [
+     51677.6,
+     1785351600000,
+     50902.4,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1786276800000,
+    "cls": "b",
+    "note": "DCA limit gapped through at bar open: Nora fills the layer at open (53056.3), Nautilus at its limit price (53315.6); qty/avg/TP/SL levels then differ",
+    "nora": [
+     53583.5,
+     1786320000000,
+     52755.9,
+     "SIG"
+    ],
+    "naut": [
+     53583.5,
+     1786320000000,
+     52755.9,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1786892400000,
+    "cls": "b",
+    "note": "DCA limit gapped through at bar open: Nora fills the layer at open (48082.3), Nautilus at its limit price (48161.4); qty/avg/TP/SL levels then differ",
+    "nora": [
+     48403.4,
+     1786917600000,
+     47971.7,
+     "SIG"
+    ],
+    "naut": [
+     48403.4,
+     1786917600000,
+     47971.700000000004,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1786935600000,
+    "cls": "b",
+    "note": "gap at open through exit level",
+    "nora": [
+     48336.2,
+     1786950000000,
+     48878.6,
+     "TP"
+    ],
+    "naut": [
+     48336.2,
+     1786950000000,
+     48819.6,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1788915600000,
+    "cls": "a",
+    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 57383.9000 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
+    "nora": [
+     58684.4,
+     1788969600000,
+     57706.7,
+     "SIG"
+    ],
+    "naut": [
+     58684.4,
+     1788966000000,
+     57383.9,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1789131600000,
+    "cls": "a",
+    "note": "DCA & TP reachable in same bar: Nora=TP, Nautilus=TP",
+    "nora": [
+     57281.3,
+     1789135200000,
+     58172.1,
+     "TP"
+    ],
+    "naut": [
+     57281.299999999996,
+     1789131600000,
+     57854.1,
+     "TP"
+    ]
+   },
+   {
+    "enter_time": 1789135200000,
+    "cls": "x",
+    "note": "nautilus-only trade inside cascade window of an earlier classified divergence",
+    "nora": null,
+    "naut": null
+   },
+   {
+    "enter_time": 1790330400000,
+    "cls": "a",
+    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 63398.9000 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
+    "nora": [
+     64364.4,
+     1790344800000,
+     63215.0,
+     "SIG"
+    ],
+    "naut": [
+     64364.4,
+     1790337600000,
+     63398.899999999994,
+     "SL"
+    ]
+   },
+   {
+    "enter_time": 1790535600000,
+    "cls": "b",
+    "note": "DCA limit gapped through at bar open: Nora fills the layer at open (63947.5), Nautilus at its limit price (64143.399999999994); qty/avg/TP/SL levels then differ",
+    "nora": [
+     64465.7,
+     1790550000000,
+     63580.4,
+     "SIG"
+    ],
+    "naut": [
+     64465.7,
+     1790550000000,
+     63580.399999999994,
+     "SIG"
+    ]
+   },
+   {
+    "enter_time": 1790852400000,
+    "cls": "b",
+    "note": "gap at open through exit level",
+    "nora": [
+     63649.0,
+     1790863200000,
+     64130.7,
+     "TP"
+    ],
+    "naut": [
+     63648.99999999999,
+     1790863200000,
+     64092.5,
+     "TP"
+    ]
+   }
+  ]
+ }
+]
