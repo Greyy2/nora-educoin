@@ -20,9 +20,13 @@ Quy ước chung:
                "default_params": {"stop_loss_rate": 2.5}}],
   "candidates": [... cùng nội dung với catalog ...],
   "universe": ["BTC@perp", "..."],
-  "windows": {"start": "2023-10-20", "dev1_end": "2024-12-24", "dev2_end": "2026-02-27", "end": "2026-09-30"}
+  "windows": {"start": "2023-10-20", "dev1_end": "2024-12-24", "dev2_end": "2026-02-27", "end": "2026-09-30"},
+  "assets": [{"symbol": "BTC@perp", "venue": "cex", "market": "perp", "candles": {"start_ts": 0, "end_ts": 0}, "ticks": null},
+             {"symbol": "AERO", "venue": "dex", "market": "spot", "candles": {"start_ts": 0, "end_ts": 0},
+              "ticks": {"start_ts": 0, "end_ts": 0, "rows": 16967, "window_days": 3}, "network": "base", "fee_rate": 0.003}]
 }
 ```
+`assets` = mọi tài sản có dữ liệu (ms UTC). `ticks` chỉ có ở DEX đã crawl tick (null nếu chưa); `fee_rate` = phí pool đã xác minh on-chain (null nếu chưa có).
 `catalog` và `candidates` là cùng một danh sách (giữ cả hai để tương thích); `wfa` và `latest_wfa` cũng vậy. `default_params` = giá trị giữa của mỗi khoá trong `space`
 (giống `run_book_backtest`). UI đọc `catalog || candidates`, `latest_wfa || wfa`.
 
@@ -36,6 +40,10 @@ Quy ước chung:
  "risk_per_trade_pct": 0.5, "stop_fill": "level"}
 ```
 → `{"job_id": "..."}`. Bỏ `strategies` → dùng `data/alphas/book.json`.
+Tài sản DEX (`symbols: ["AERO"]` hoặc `"dex:AERO"`): spot, chỉ chân LONG (SHORT / "Cả hai chiều" → 422), bắt buộc chọn `strategies`, không trộn với perp; WFA / phễu chưa hỗ trợ DEX.
+`data`: `"candle"` (mặc định) | `"tick"` (chỉ DEX đã crawl tick: mỗi swap on-chain là một bước khớp lệnh, chi phí AMM đúng theo dự trữ pool; cửa sổ cắt theo độ phủ tick,
+tối thiểu một nến cơ sở). Chỉ `data="tick"`: `latency_ms` (mặc định = thời gian một block của mạng), `gas_usd` (mặc định theo mạng). Kết quả tick: cùng lược đồ + `config.data="tick"`,
+`config.tick_window`, `config.latency_ms`, `config.cost_model`, `tick_stats` (xem `backend/core/backtest/tick_run.py`).
 
 Chỉ `POST` trả khoá `job_id`. Các hàng job (GET) dùng khoá **`id`** (kèm `state`, bằng `status`); UI chuẩn hoá `job_id = job_id || id`.
 `GET /api/studio/book/jobs/{id}` → `{"id","kind","args","pid","status","state","waiting_in_queue","created","started","finished","exit_code","log_tail":[...],"result":{...}|null}`

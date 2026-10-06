@@ -53,7 +53,7 @@ def portfolio_metrics(res, start_ts):
     mdd = curve_mdd_pct(res["equity_curve"], start_ts, init)
     daily = pd.Series(daily_returns_from_curve(res["equity_curve"], start_ts, init), dtype=float)
     sharpe = float(daily.mean() / daily.std() * np.sqrt(365)) if daily.std() > 0 else 0.0
-    by_sym = {k.split("@")[0]: round(v["pnl_usd"], 2) for k, v in res["by_symbol"].items()}
+    by_sym = {k.split("@")[0].split(":")[-1]: round(v["pnl_usd"], 2) for k, v in res["by_symbol"].items()}
     rows = trade_rows(res["positions"])
     times = [c["time"] for c in res["equity_curve"] if c["time"] >= start_ts]
     end_ts = int(times[-1]) if times else int(start_ts)

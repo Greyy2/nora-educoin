@@ -101,7 +101,7 @@ def _timeframe_errors(fulls: List[Tuple[str, Dict[str, Any]]], timeframe: str, f
 def launch_backtest(req) -> Dict[str, Any]:
     mode = req.mode
     presets = presets_mod.load_presets()
-    resolved: Dict[str, Any] = {"symbols": req.symbols, "start": req.start, "end": req.end, "timeframe": req.timeframe}
+    resolved: Dict[str, Any] = {"symbols": req.symbols, "start": req.start, "end": req.end, "timeframe": req.timeframe, "data": req.data}
     ignored = False
     if not req.strategies:   # không chọn chiến lược: dùng nguyên sổ data/alphas/book.json (như trước)
         book_tf = presets_mod.book_timeframe()
@@ -109,7 +109,7 @@ def launch_backtest(req) -> Dict[str, Any]:
             resolved["timeframe_mismatch"] = f"Khung chạy ({req.timeframe}) khác khung của sổ ({book_tf})"
         payload = {"symbols": req.symbols, "start": req.start, "end": req.end, "risk_per_trade_pct": req.risk_per_trade_pct if mode == "advanced" else None,
                    "stop_fill": req.stop_fill if mode == "advanced" else "level", "regime": req.regime,
-                   "timeframe": req.timeframe}
+                   "timeframe": req.timeframe, "data": req.data, "latency_ms": req.latency_ms, "gas_usd": req.gas_usd}
         resolved.update(regime=req.regime, source="book.json", strategies=_book_strategies(), risk_per_trade_pct=payload["risk_per_trade_pct"],
                         stop_fill=payload["stop_fill"])
         return launch("book_backtest", _build("book_backtest", payload), _stamp(mode, False, resolved, ignored_client_params=False))
@@ -146,7 +146,8 @@ def launch_backtest(req) -> Dict[str, Any]:
     fulls = [(cid, {**full, "risk_per_trade_pct": rpt}) for cid, full in fulls]
     items = [{"id": cid, "params": rm.job_params(BY_ID[cid], full)} for cid, full in fulls]
     payload = {"symbols": req.symbols, "start": req.start, "end": req.end, "risk_per_trade_pct": rpt, "stop_fill": stop_fill,
-               "regime": req.regime, "timeframe": req.timeframe}
+               "regime": req.regime, "timeframe": req.timeframe, "data": req.data, "latency_ms": req.latency_ms, "gas_usd": req.gas_usd,
+               "strategies": [{"id": cid} for cid, _ in fulls]}   # chỉ để build_job kiểm id (+ chân LONG khi chạy DEX); tham số đầy đủ gắn lại ngay dưới
     params = {**_build("book_backtest", payload), "strategies": items}
     resolved.update(regime=req.regime, source="presets" if mode == "basic" else "client+presets", risk_per_trade_pct=rpt, stop_fill=stop_fill,
                     strategies=[{"id": cid, "params": full,

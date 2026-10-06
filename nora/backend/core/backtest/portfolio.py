@@ -58,6 +58,21 @@ def data_cache_clear() -> None:
     _DATA_CACHE.clear()
 
 
+def aggregate_positions(positions) -> Tuple[Dict[str, Dict[str, float]], Dict[str, Dict[str, float]]]:
+    """Lệnh đã đóng -> (by_strategy, by_symbol): {pnl_usd, trades, wins, fees_usd, funding_usd} — dùng chung cho engine danh mục và backtest tick."""
+    by_strategy: Dict[str, Dict[str, float]] = {}
+    by_symbol: Dict[str, Dict[str, float]] = {}
+    for p in positions:
+        for key, bucket in ((p.strategy_id, by_strategy), (p.symbol, by_symbol)):
+            agg = bucket.setdefault(key, {"pnl_usd": 0.0, "trades": 0, "wins": 0, "fees_usd": 0.0, "funding_usd": 0.0})
+            agg["pnl_usd"] += p.real_pnl
+            agg["trades"] += 1
+            agg["wins"] += int(p.real_pnl > 0)
+            agg["fees_usd"] += p.fees_usd or 0.0
+            agg["funding_usd"] += p.funding_usd or 0.0
+    return by_strategy, by_symbol
+
+
 def _strategy_flow(strategy: Dict[str, Any]) -> Dict[str, Any]:
     return {"type": strategy["side"], "match": [{"condition": strategy["tree"]}], "stop": strategy.get("stop") or [],
             "dca": strategy.get("dca") or []}
@@ -250,16 +265,7 @@ class PortfolioEngine:
         return out
 
     def get_results(self) -> Dict[str, Any]:
-        by_strategy: Dict[str, Dict[str, float]] = {}
-        by_symbol: Dict[str, Dict[str, float]] = {}
-        for p in self.closed_positions:
-            for key, bucket in ((p.strategy_id, by_strategy), (p.symbol, by_symbol)):
-                agg = bucket.setdefault(key, {"pnl_usd": 0.0, "trades": 0, "wins": 0, "fees_usd": 0.0, "funding_usd": 0.0})
-                agg["pnl_usd"] += p.real_pnl
-                agg["trades"] += 1
-                agg["wins"] += int(p.real_pnl > 0)
-                agg["fees_usd"] += p.fees_usd or 0.0
-                agg["funding_usd"] += p.funding_usd or 0.0
+        by_strategy, by_symbol = aggregate_positions(self.closed_positions)
         skipped = sum(e["tracker"].skipped_no_vol for b in self.books for e in b["entries"])
         dca_rejected = sum(e["tracker"].dca_rejected for b in self.books for e in b["entries"])
         return {

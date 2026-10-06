@@ -44,7 +44,8 @@ class _DateRange(BaseModel):
 
 class BacktestRequest(_DateRange):
     strategies: Optional[List[StrategyIn]] = Field(None, max_length=16, description="Bỏ trống = dùng data/alphas/book.json")
-    symbols: Optional[List[str]] = Field(None, max_length=16, description="Mặc định cả vũ trụ (perp)")
+    symbols: Optional[List[str]] = Field(None, max_length=16, description="Mặc định cả vũ trụ (perp). Hoặc tài sản DEX (\"AERO\" / \"dex:AERO\": spot, chỉ chân LONG; "
+                                                                          "bắt buộc chọn strategies) — không trộn perp với DEX; WFA / phễu chưa hỗ trợ DEX")
     start: str
     end: str
     risk_per_trade_pct: Optional[float] = Field(None, gt=0.0, le=5.0)
@@ -52,6 +53,10 @@ class BacktestRequest(_DateRange):
     regime: bool = Field(False, description="Bật lọc regime + cầu chì (core/regime, strategy.book.REGIME_MAP)")
     timeframe: str = Field("15m", pattern="^(15m|1h|4h)$", description="Khung chạy (nến mô phỏng); khung tín hiệu nhỏ hơn được nâng lên")
     mode: str = Field("basic", **MODE_FIELD)
+    data: str = Field("candle", pattern="^(candle|tick)$", description="candle: engine nến; tick: mỗi swap on-chain là một bước khớp lệnh (chỉ DEX có tick đã crawl; "
+                                                                      "cửa sổ cắt theo độ phủ tick) — chi phí AMM đúng theo dự trữ pool")
+    latency_ms: Optional[int] = Field(None, ge=0, le=3_600_000, description="Chỉ data=tick: trễ từ lúc nến đóng tới lúc bot hành động; bỏ trống = thời gian một block của mạng")
+    gas_usd: Optional[float] = Field(None, ge=0.0, le=1000.0, description="Chỉ data=tick: gas mỗi swap (USD); bỏ trống = cấu hình của mạng")
 
 
 class WfaStrategyIn(BaseModel):
@@ -190,6 +195,30 @@ def default_params(space: Dict[str, List[Any]]) -> Dict[str, Any]:
     return {k: v[len(v) // 2] for k, v in space.items()}
 
 
+def _assets() -> List[Dict[str, Any]]:
+    """Tài sản có dữ liệu: [{symbol, venue cex|dex, market perp|spot, candles{start_ts,end_ts}, ticks{start_ts,end_ts,rows,window_days}|null, network?, fee_rate?}]
+    — để UI chọn tài sản + chế độ (nến / tick). Chỉ DEX có tick; network / fee_rate (phí pool) của DEX lấy từ manifest / dex_pool.json."""
+    from backend.core.backtest import dex
+    from backend.db.data_layout import list_assets
+    from backend.db.tick_storage import tick_coverage
+    ticks = {c["symbol"]: {k: c[k] for k in ("start_ts", "end_ts", "rows", "window_days")} for c in tick_coverage()}
+    out = []
+    for it in list_assets():
+        if it["venue"] not in ("cex", "dex"):
+            continue
+        manifest = _read_json(os.path.join(it["path"], "manifest.json")) or {}
+        row = {"symbol": it["symbol"], "venue": it["venue"], "market": "perp" if it["instrument"] == "perp" else "spot",
+               "candles": {"start_ts": manifest.get("start_ts"), "end_ts": manifest.get("end_ts")}, "ticks": ticks.get(it["symbol"]) if it["venue"] == "dex" else None}
+        if it["venue"] == "dex":
+            row["network"] = manifest.get("network")
+            try:
+                row["fee_rate"] = dex.pool_info(it["symbol"])["fee_rate"]
+            except ValueError:
+                row["fee_rate"] = None
+        out.append(row)
+    return out
+
+
 def _catalog() -> List[Dict[str, Any]]:
     from backend.core.strategy.book import CANDIDATES
     return [{"id": c["id"], "family": c["family"], "side": c["side"], "description": c["description"],
@@ -234,7 +263,7 @@ def get_book():
     # "wfa" giữ cho client cũ; "latest_wfa" + "catalog" theo docs/ui_contract.md §1 ("candidates" cũng giữ nguyên)
     catalog = _catalog()
     return {"book": book, "wfa": wfa, "latest_wfa": wfa, "candidates": catalog, "catalog": catalog,
-            "universe": universe, "windows": windows}
+            "universe": universe, "windows": windows, "assets": _assets()}
 
 
 def _read_json(path: str):

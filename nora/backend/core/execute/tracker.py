@@ -29,10 +29,15 @@ Khối lượng: ký quỹ tầng đầu = VỐN HIỆN TẠI (vốn ban đầu 
 × order_size_pct%; tầng k = tầng k-1 × hệ số. Ngân sách một vị thế = vốn hiện tại lúc mở × max_capital_usage;
 tầng nào vượt ngân sách thì bị bỏ qua. Vốn <= 0 -> không mở lệnh mới (cháy tài khoản).
 PnL % của lệnh tính trên vốn lúc mở lệnh (để ghép lãi kép đúng trong WFA/Monte Carlo).
+
+Hai móc TUỲ CHỌN cho thị trường không có sổ lệnh (AMM / DEX, chạy bằng tick — core/backtest/tick_run.py); mặc định tắt = hành vi cũ đúng từng bit:
+- limit_taker=True: tầng DCA và chốt lời không phải lệnh limit chờ sẵn mà là swap thực hiện khi giá đi qua mức -> tính như lệnh market (phí taker + trượt giá).
+- impact_fn(notional_usd, is_buy) -> tỉ lệ trượt giá, thay slippage_rate cho MỌI lệnh khớp kiểu taker và cho chi phí khứ hồi khi tính khối lượng (_risk_margin).
+Kernel numba (core/backtest/kernel.py) KHÔNG hỗ trợ hai móc này: chỉ đường Python (PaperBook / tracker) dùng được; kernel từ chối tracker có móc.
 """
 import itertools
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from backend.core.params.schema import StrategyParams
 from backend.core.execute.ledger import CapitalLedger
@@ -60,6 +65,8 @@ class PositionTracker:
         pos_type: PositionType,
         initial_capital: float = 10000.0,
         ledger: Optional[CapitalLedger] = None,
+        limit_taker: bool = False,
+        impact_fn: Optional[Callable[[float, bool], float]] = None,
     ):
         self.account_id = account_id
         self.campaign_id = campaign_id
@@ -82,6 +89,8 @@ class PositionTracker:
         maker = getattr(params, "maker_fee_rate", None)
         self.maker_fee_rate = self.fee_rate if maker is None else max(0.0, float(maker))
         self.slippage_rate = max(0.0, float(params.slippage_rate or 0.0))
+        self.limit_taker = bool(limit_taker)    # AMM: DCA / chốt lời khớp như lệnh taker (phí taker + trượt giá)
+        self.impact_fn = impact_fn              # (notional_usd, is_buy) -> trượt giá; None = slippage_rate cố định
         self.capital = float(initial_capital)
         self.capital_usage = max(0.0, min(float(params.max_capital_usage or 1.0), 1.0))
         self.ledger = ledger if ledger is not None else CapitalLedger(self.capital, self.capital_usage)
@@ -216,11 +225,23 @@ class PositionTracker:
             return min(level, open_price)
         return max(level, open_price)
 
+    def _slip(self, notional: float, is_buy: bool) -> float:
+        """Tỉ lệ trượt giá của một lệnh taker: impact_fn theo khối lượng (AMM) hoặc slippage_rate cố định."""
+        return self.slippage_rate if self.impact_fn is None else float(self.impact_fn(float(notional), bool(is_buy)))
+
+    def _cost(self, notional: float) -> float:
+        """Chi phí KHỨ HỒI (phí taker + trượt giá) tính trên danh nghĩa `notional` — dùng chia rủi ro / khối lượng."""
+        if self.impact_fn is None:
+            return 2.0 * (self.fee_rate + self.slippage_rate)
+        return 2.0 * self.fee_rate + self._slip(notional, True) + self._slip(notional, False)
+
     # ─── Hành động ──────────────────────────────────────────────────────────
     def _add_layer(self, t: int, price: float, margin: float, market_order: bool, reason: str) -> bool:
-        fill = price * (1 + self.slippage_rate if self.is_long else 1 - self.slippage_rate) if market_order else price
         notional = margin * self.pos_leverage
-        fee = notional * (self.fee_rate if market_order else self.maker_fee_rate)
+        taker = market_order or self.limit_taker
+        slip = self._slip(notional, self.is_long) if taker else 0.0
+        fill = price * (1 + slip if self.is_long else 1 - slip) if taker else price
+        fee = notional * (self.fee_rate if taker else self.maker_fee_rate)
         if margin <= 0 or fill <= 0 or self.margin_used + margin + self.fees_paid + fee > self.max_capital + 1e-9:
             return False
         if not self.ledger.reserve(margin + fee):
@@ -247,7 +268,7 @@ class PositionTracker:
         self.orders.append(OrderModel(
             order_id=oid, account_id=self.account_id, position_id=self.position.result_id, order_time=t,
             order_type=OrderType.BUY if self.is_long else OrderType.SELL, order_price=fill, qty=qty,
-            phase=self.layer_count - 1, fee_usd=fee, liquidity="taker" if market_order else "maker",
+            phase=self.layer_count - 1, fee_usd=fee, liquidity="taker" if taker else "maker", slippage=slip,
         ))
         self.is_open = True
         return True
@@ -278,8 +299,8 @@ class PositionTracker:
         margin = min(margin, budget / (1.0 + self.pos_leverage * self.fee_rate),
                      self.max_new_notional / self.pos_leverage)
         if self.sizing == "risk" and margin > 0:
-            self.planned_risk = min(self.planned_risk, margin * self.pos_leverage * (self.sl_pct / 100.0 + 2.0 * (
-                self.fee_rate + self.slippage_rate)) * self._layer_mult_total())
+            self.planned_risk = min(self.planned_risk, margin * self.pos_leverage * (self.sl_pct / 100.0 + self._cost(
+                margin * self.pos_leverage * self._layer_mult_total())) * self._layer_mult_total())
         if self.max_new_risk != float("inf") and self.planned_risk > self.max_new_risk:   # vượt trần rủi ro đang mở của danh mục
             if self.max_new_risk <= 0:
                 margin = 0.0
@@ -308,10 +329,16 @@ class PositionTracker:
         thì mất ~risk_per_trade_pct% vốn. Danh nghĩa bị chặn bởi max_notional_pct% vốn.
         Perp: đòn bẩy thực = min(đòn bẩy tham số, mức để giá thanh lý cách giá vào >= 1,5 × khoảng SL)."""
         sl = self.sl_pct / 100.0
-        cost = 2.0 * (self.fee_rate + self.slippage_rate)
         total_mult = self._layer_mult_total()
-        notional = self.equity * self.risk_pct / 100.0 / (sl + cost)
-        notional = min(notional, self.equity * self.max_notional_pct / 100.0)
+        cap = self.equity * self.max_notional_pct / 100.0
+        if self.impact_fn is None:
+            cost = self._cost(0.0)
+            notional = self.equity * self.risk_pct / 100.0 / (sl + cost)
+            notional = min(notional, cap)
+        else:   # trượt giá phụ thuộc khối lượng: lần 1 chưa tính trượt (chỉ phí), lần 2 tính trượt theo khối lượng dự kiến của lần 1
+            notional = min(self.equity * self.risk_pct / 100.0 / (sl + 2.0 * self.fee_rate), cap)
+            cost = self._cost(notional)
+            notional = min(self.equity * self.risk_pct / 100.0 / (sl + cost), cap)
         if self.market == "perp":
             safe = int(1.0 / (1.5 * sl + self.mmr)) if sl > 0 else int(self.max_leverage)
             self.pos_leverage = float(max(1, min(int(self.max_leverage), safe)))
@@ -319,12 +346,15 @@ class PositionTracker:
         return notional / total_mult / self.pos_leverage
 
     def _close(self, t: int, raw_price: float, status: PositionStatus, reason: str, market_order: bool) -> PositionModel:
-        if market_order and status != PositionStatus.LIQ:
-            price = raw_price * (1 - self.slippage_rate if self.is_long else 1 + self.slippage_rate)
+        taker = market_order or self.limit_taker
+        slip = 0.0
+        if taker and status != PositionStatus.LIQ:
+            slip = self._slip(self.qty * raw_price, not self.is_long)
+            price = raw_price * (1 - slip if self.is_long else 1 + slip)
         else:
             price = raw_price
         gross = self.qty * ((price - self.avg) if self.is_long else (self.avg - price))
-        exit_fee = self.qty * price * (self.fee_rate if market_order or status == PositionStatus.LIQ else self.maker_fee_rate)
+        exit_fee = self.qty * price * (self.fee_rate if taker or status == PositionStatus.LIQ else self.maker_fee_rate)
         trade_cash = gross - self.fees_paid - exit_fee          # phần chưa vào ledger (funding đã vào)
         if status == PositionStatus.LIQ:                         # isolated: mất tối đa ký quỹ + phí đã trả
             trade_cash = max(trade_cash, -(self.margin_used + self.fees_paid + exit_fee))
@@ -352,7 +382,7 @@ class PositionTracker:
             order_id=_next_id(), account_id=self.account_id, position_id=pos.result_id, order_time=t,
             order_type=OrderType.SELL if self.is_long else OrderType.BUY, order_price=price, qty=self.qty,
             phase=self.layer_count, fee_usd=exit_fee,
-            liquidity="liquidation" if status == PositionStatus.LIQ else ("taker" if market_order else "maker"),
+            liquidity="liquidation" if status == PositionStatus.LIQ else ("taker" if taker else "maker"), slippage=slip,
         ))
         self.is_open = False
         self.pending_exit = False

@@ -104,6 +104,7 @@ class OrderModel:
     phase: int = 0
     fee_usd: float = 0.0          # phí của riêng lệnh này
     liquidity: str = ""           # "maker" (limit) | "taker" (market) | "liquidation"
+    slippage: float = 0.0         # tỉ lệ trượt giá đã áp lên giá khớp (lệnh taker; không gồm phí)
 
     @classmethod
     def from_row(cls, row: Dict[str, Any]) -> "OrderModel":

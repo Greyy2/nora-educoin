@@ -1141,6 +1141,8 @@ def pack_trackers(trackers: List[Any]) -> Tuple[np.ndarray, np.ndarray, np.ndarr
     for k, tr in enumerate(trackers):
         if tr.is_open or tr.pending_entry or tr.pending_exit:
             raise ValueError("kernel chỉ chạy được từ trạng thái ban đầu của tracker (không mở, không lệnh chờ)")
+        if tr.limit_taker or tr.impact_fn is not None:
+            raise ValueError("kernel không hỗ trợ limit_taker / impact_fn (AMM) — chạy bằng core/backtest/tick_run.py")
         P[k, P_FEE], P[k, P_MAKER], P[k, P_SLIP], P[k, P_MMR] = tr.fee_rate, tr.maker_fee_rate, tr.slippage_rate, tr.mmr
         P[k, P_MAXLEV], P[k, P_CAPUSE] = tr.max_leverage, tr.capital_usage
         P[k, P_BSL], P[k, P_BTP], P[k, P_BTR], P[k, P_BTA] = tr.base_sl, tr.base_tp, tr.base_trail, tr.base_trail_act

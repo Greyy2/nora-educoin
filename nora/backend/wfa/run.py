@@ -131,6 +131,8 @@ def run_job(params=None):
     """Chạy job WFA với `params` (xem docstring module) -> báo cáo (cũng ghi report.json + $NORA_JOB_DIR/result.json)."""
     warnings.filterwarnings("ignore")
     a = options(DEFAULTS, params)
+    from backend.core.backtest.dex import require_perp
+    require_perp(as_list(a.symbols), "WFA")
     if sum(map(bool, (a.report, a.candidates, a.strategies))) != 1:
         raise ValueError("chọn đúng một: report, candidates hoặc strategies")
 

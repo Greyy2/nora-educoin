@@ -62,8 +62,10 @@ def run_job(params=None):
     if total > cap:
         raise SystemExit(f"Từ chối: {total:,} alpha ({planned}) vượt max_alphas {cap:,}. Giảm n_per_strategy / số chiến lược hoặc đặt force_large (trần cứng 1.000.000).")
 
+    from backend.core.backtest.dex import require_perp
     from backend.core.strategy.book import perp_symbols
     from backend.core.data.quality_gate import require_data_ok_or_exit
+    require_perp(cfg.symbols or [], "Phễu")
     require_data_ok_or_exit(cfg.symbols or perp_symbols())   # cổng chất lượng dữ liệu BẮT BUỘC, trước mọi việc khác và trước khi fork pool
 
     per_worker_mb = a.per_worker_mb or orch.PER_WORKER_MB

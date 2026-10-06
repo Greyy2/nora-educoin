@@ -15,6 +15,7 @@ Mỗi job có thư mục <data>/_cache/api_jobs/<job_id>/:
 Trạng thái trả ra: queued (đang chờ hàng đợi run_limited) | running | done | failed | cancelled. Trạng thái bền (job.json) chỉ có running/done/failed/cancelled;
 queued suy ra từ out.log. Huỷ: cancel(job_id) gửi SIGTERM cho CẢ nhóm tiến trình (job flush kho kết quả rồi thoát -> chạy lại bằng resume). Không dùng shell.
 """
+import calendar
 import json
 import math
 import os
@@ -25,7 +26,7 @@ import threading
 import time
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 NORA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 RUN_LIMITED = os.path.join(NORA_DIR, "backend", "utils", "ops", "run_limited.sh")
@@ -34,7 +35,7 @@ RUN_LIMITED = os.path.join(NORA_DIR, "backend", "utils", "ops", "run_limited.sh"
 RUNNER = "backend.api.jobs.runner"
 KINDS: Dict[str, Dict[str, Any]] = {
     "book_backtest": {"module": "backend.core.backtest.run",
-                      "params": {"book", "strategies", "symbols", "start", "end", "risk_per_trade", "stop_fill", "regime", "timeframe"}},
+                      "params": {"book", "strategies", "symbols", "start", "end", "risk_per_trade", "stop_fill", "regime", "timeframe", "data", "latency_ms", "gas_usd"}},
     "book_wfa": {"module": "backend.wfa.run",
                  "params": {"report", "include_rejected", "candidates", "strategies", "symbols", "n", "start", "end", "train_days",
                             "test_days", "step_days", "sims", "mc_seed", "risk_per_trade", "workers", "resume", "max_configs", "force_large",
@@ -104,8 +105,13 @@ def check_date(value: str) -> str:
 
 
 def check_symbols(symbols: List[str]) -> List[str]:
-    """Chuẩn hoá 'BTC' / 'BTC@perp' -> 'BTC@perp'; chỉ nhận tài sản trong vũ trụ của sổ chiến lược."""
+    """Chuẩn hoá 'BTC' / 'BTC@perp' -> 'BTC@perp'; chỉ nhận tài sản trong vũ trụ của sổ chiến lược (WFA, phễu: chưa hỗ trợ DEX)."""
+    from backend.core.backtest import dex
     from backend.core.strategy.book import UNIVERSE
+    try:
+        dex.require_perp(symbols, "WFA / phễu")
+    except ValueError as e:
+        raise JobError(str(e))
     out = []
     for s in symbols:
         base = str(s).split("@")[0].upper()
@@ -114,6 +120,46 @@ def check_symbols(symbols: List[str]) -> List[str]:
         if f"{base}@perp" not in out:
             out.append(f"{base}@perp")
     return out
+
+
+def check_backtest_symbols(symbols: List[str]) -> Tuple[List[str], str]:
+    """Ký hiệu backtest -> (ký hiệu engine, venue): toàn perp -> check_symbols ('cex'); toàn DEX -> 'dex:AERO' có trong kho ('dex'); trộn hai loại bị từ chối."""
+    from backend.core.backtest import dex
+    flags = [dex.is_dex_symbol(str(s)) for s in symbols]
+    if not any(flags):
+        return check_symbols(symbols), "cex"
+    if not all(flags):
+        raise JobError("không chạy chung tài sản perp (CEX) với tài sản DEX trong một lần backtest — chọn một loại")
+    from backend.db.data_layout import clean_name, parse_symbol, resolve_asset_dir
+    out = []
+    for s in symbols:
+        name = clean_name(parse_symbol(str(s))[1])
+        if not name or not resolve_asset_dir(f"dex:{name}"):
+            raise JobError(f"không có tài sản DEX {s!r} trong kho dữ liệu")
+        if f"dex:{name}" not in out:
+            out.append(f"dex:{name}")
+    return out, "dex"
+
+
+def _day_ms(day: str, plus_days: int = 0) -> int:
+    return (calendar.timegm(time.strptime(day, "%Y-%m-%d")) + plus_days * 86_400) * 1000
+
+
+def check_dex_backtest(p: Dict[str, Any], out: Dict[str, Any], symbols: List[str]) -> None:
+    """Điều kiện riêng của backtest DEX: có chiến lược LONG được chọn; data=tick cần tick đã crawl, pool mô hình hoá được, cửa sổ >= một nến cơ sở."""
+    from backend.core.backtest import dex
+    if not p.get("strategies"):
+        raise JobError("backtest DEX cần chọn chiến lược (chân LONG): sổ data/alphas/book.json là sổ perp")
+    try:
+        dex.require_long_legs([s["id"] for s in p["strategies"]])
+        if p.get("data") == "tick":
+            from backend.db.local_pkl import _frame_ms
+            infos = [dex.pool_info(s) for s in symbols]
+            for i in infos:
+                dex.check_amm_pool(i)
+            dex.tick_window(infos, _day_ms(p["start"]), _day_ms(p["end"], 1), _frame_ms(out.get("timeframe") or "1m"))
+    except ValueError as e:
+        raise JobError(str(e))
 
 
 def check_candidate_ids(ids: List[str]) -> List[str]:
@@ -209,8 +255,9 @@ def build_job(kind: str, p: Dict[str, Any]) -> Dict[str, Any]:
                     raise JobError("params phải là {tên: số}")
                 items.append({"id": s["id"], "params": prm})
             out["strategies"] = items
+        venue = "cex"
         if p.get("symbols"):
-            out["symbols"] = check_symbols(p["symbols"])
+            out["symbols"], venue = check_backtest_symbols(p["symbols"])
         out["start"], out["end"] = check_date(p["start"]), check_date(p["end"])
         if p["start"] >= p["end"]:
             raise JobError("start phải trước end")
@@ -224,6 +271,19 @@ def build_job(kind: str, p: Dict[str, Any]) -> Dict[str, Any]:
             out["regime"] = True
         if p.get("timeframe"):
             out["timeframe"] = check_timeframe(p["timeframe"])
+        data = p.get("data") or "candle"
+        if data not in ("candle", "tick"):
+            raise JobError("data phải là candle|tick")
+        if data == "tick":
+            if venue != "dex":
+                raise JobError("data=tick chỉ dành cho tài sản DEX (chỉ DEX có tick swap on-chain)")
+            out["data"] = "tick"
+            if p.get("latency_ms") is not None:
+                out["latency_ms"] = check_number(p["latency_ms"], "latency_ms", 0, 3_600_000, integer=True)
+            if p.get("gas_usd") is not None:
+                out["gas_usd"] = check_number(p["gas_usd"], "gas_usd", 0.0, 1000.0)
+        if venue == "dex":
+            check_dex_backtest({**p, "data": data}, out, out["symbols"])
     elif kind == "book_wfa":
         if p.get("timeframe"):
             out["timeframe"] = check_timeframe(p["timeframe"])
@@ -517,11 +577,11 @@ def _names(v: Any) -> str:
 def job_label(kind: str, params: Optional[Dict[str, Any]]) -> str:
     """Nhãn ngắn cho người đọc, vd "Backtest · breakout_4h_long, breakout_4h_short · BTC,SOL · 2025-03-01→2025-04-30"."""
     p = params if isinstance(params, dict) else {}
-    syms = ",".join(str(x).split("@")[0] for x in p["symbols"]) if p.get("symbols") else "cả vũ trụ"
+    syms = ",".join(str(x).split("@")[0].split(":")[-1] for x in p["symbols"]) if p.get("symbols") else "cả vũ trụ"
     rng = f"{p.get('start') or '…'}→{p.get('end') or '…'}"
     if kind == "book_backtest":
         ids = ", ".join(s["id"] for s in p["strategies"]) if p.get("strategies") else "sổ alphas/book.json"
-        return f"Backtest · {ids} · {syms} · {rng}"
+        return f"Backtest{' tick' if p.get('data') == 'tick' else ''} · {ids} · {syms} · {rng}"
     if kind == "book_wfa":
         if p.get("candidates"):
             src = f"{_names(p['candidates'])} (n={p.get('n') or 3})"

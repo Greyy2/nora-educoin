@@ -9,7 +9,7 @@ Mỗi dòng = một swap: timestamp_ms, block_number, log_index, tx_hash (= "<tx
 amount (token gốc), volume_usd, side (taker "buy" khi token gốc RA khỏi pool), mid_price (giá biên của pool SAU swap theo dự trữ x quote_usd; NaN nếu không có Sync), reserve_base / reserve_quote (dự trữ pool SAU swap, đơn vị token, lấy từ
 log Sync cùng tx ngay trước log Swap; NaN nếu không ghép được, vd. pool v3 không có Sync), quote_usd (USD / 1 token quote lúc đó).
 
-Mọi tham số mạng nằm ở NETWORKS (ghi đè theo mạng bằng data/_meta/dex_networks.json): rpc_url, chain_id (kiểm tra bằng eth_chainId), log_span (kích thước ban đầu của đoạn
+Mọi tham số mạng nằm ở NETWORKS (ghi đè theo mạng bằng data/_meta/dex_networks.json): rpc_url, chain_id (kiểm tra bằng eth_chainId), block_ms + swap_gas_usd (backtest tick), log_span (kích thước ban đầu của đoạn
 eth_getLogs — tự co đôi khi nút báo vượt giới hạn, nhớ cho phần còn lại), max_rps, batch_size (số lời gọi/JSON-RPC batch, tự co theo giới hạn của nút), eth_usd (nguồn giá ETH/USD cho quote WETH),
 uniswap_v2_factories (factory đã biết là Uniswap v2 -> phí 0,3%).
 
@@ -50,6 +50,8 @@ TS_SAMPLES = 3                                  # điểm lấy mẫu giữa đ�
 NETWORKS: Dict[str, Dict[str, Any]] = {
     "base": {
         "rpc_url": "https://mainnet.base.org", "chain_id": 8453, "log_span": 2000, "max_rps": 8, "batch_size": 10,
+        "block_ms": 2000,        # thời gian một block (Base: 2 giây) — độ trễ mặc định của backtest tick (core/backtest/tick_run.py)
+        "swap_gas_usd": 0.02,    # gas ước tính của MỘT swap (USD, gồm phí dữ liệu L1) — backtest tick cộng vào chi phí mỗi lệnh; ghi đè bằng dex_networks.json
         "eth_usd": {"source": "okx_candles", "symbol": "ETH"},
         "uniswap_v2_factories": ["0x8909dc15e40173ff4699343b6eb8132c65e18ec6"],
     },
