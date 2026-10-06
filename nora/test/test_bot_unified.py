@@ -514,3 +514,12 @@ def test_sim_venue_old_pickle_without_rejects_loads_and_rejects_like_new():
     v2.submit(Order(1, 0, OrderKind.SL, False, level=99.0))
     ev = v2.next_event(0)
     assert isinstance(ev, OrderRejected) and (ev.reason, ev.kind) == ("no_position", "sl") and v2.open_orders(0) == []
+
+
+def test_live_bot_job_accepts_engine_params():
+    """Lỗi thật 2026-10-06: whitelist job live_bot thiếu engine -> API trả 400 và bot unified không bật được qua API."""
+    from backend.api.jobs.batch import KINDS
+    allowed = KINDS["live_bot"]["params"]
+    assert {"engine", "equity_drift_halt_pct"} <= allowed
+    from backend.live.bot import DEFAULTS
+    assert set(DEFAULTS) <= allowed | {"state_dir"}
