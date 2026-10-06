@@ -3,6 +3,9 @@ BacktestEngine.run + PortfolioEngine.run) trước khi thay bằng kernel numba 
 
 Dùng duy nhất để đối chiếu BIT-IDENTICAL: test/test_kernel_parity.py so kernel với bản này (cùng golden snapshot).
 KHÔNG sửa logic ở đây — nếu ngữ nghĩa engine đổi có chủ đích thì cập nhật bản này cùng lúc với snapshot golden.
+Cập nhật có chủ đích 2026-10-06 (quy tắc bảo thủ, khớp NautilusTrader / sàn thật; xem adr-p6-unified-execution.md): (1) SL cũ còn hiệu lực
+trong phần còn lại của nến sau fill DCA đầu tiên (SL tính từ avg mới chỉ có hiệu lực từ nến sau); (2) lệnh limit chờ sẵn (DCA, TP) khớp
+đúng ở mức đặt kể cả khi open gap qua mức (stop-market SL/trailing/thanh lý vẫn khớp ở open).
 Sinh ra bằng cách chép nguyên văn execution.py / engine.py:BacktestEngine / portfolio.py:PortfolioEngine rồi đổi tên lớp (Ref*).
 """
 import contextlib
@@ -434,6 +437,7 @@ class RefPositionTracker:
         favorable = h if self.is_long else l
         sign = 1.0 if self.is_long else -1.0
         dca_filled = False
+        sl_stale: Optional[float] = None
 
         while True:
             events: List[Tuple[float, int, str]] = []  # (mức, ưu tiên khi hoà: thoát trước, loại)
@@ -444,7 +448,7 @@ class RefPositionTracker:
                 trigger = dca_level * (1 - sign * self.limit_through) if self.limit_through else dca_level
                 events.append((trigger, 1, "dca"))
             if self.sl_pct:
-                events.append((self.avg * (1 - sign * self.sl_pct / 100.0), 0, "sl"))
+                events.append((sl_stale if sl_stale is not None else self.avg * (1 - sign * self.sl_pct / 100.0), 0, "sl"))
             if self.trail_pct:
                 gain_pct = sign * (self.peak - self.avg) / self.avg * 100.0 if self.avg else 0.0
                 if gain_pct >= self.trail_activation_pct:
@@ -460,10 +464,13 @@ class RefPositionTracker:
                               else min(reached, key=lambda e: (e[0], e[1])))
             price = self._gap_fill(level, o)
             if kind == "dca":
-                price = self._gap_fill(dca_level, o)        # lệnh limit khớp ở giá đặt (hoặc giá mở nếu gap qua mức)
+                price = dca_level                           # lệnh limit chờ sẵn khớp ĐÚNG ở giá đặt, kể cả khi gap qua mức
                 margin = self.next_margin * self.dca_mults[k]
+                sl_before = self.avg * (1 - sign * self.sl_pct / 100.0) if self.sl_pct else None
                 if self._add_layer(t, price, margin, market_order=False, reason="DCA"):
                     self.next_margin = margin
+                    if not dca_filled:
+                        sl_stale = sl_before            # SL cũ chưa dời kịp trong phần còn lại của nến
                     dca_filled = True
                     continue
                 self.dca_rejected += 1
@@ -482,7 +489,7 @@ class RefPositionTracker:
             tp_level = self.avg * (1 + sign * self.tp_pct / 100.0)
             need = tp_level * (1 + sign * self.limit_through) if self.limit_through else tp_level
             if (favorable >= need) if self.is_long else (favorable <= need):
-                price = max(tp_level, o) if self.is_long else min(tp_level, o)
+                price = tp_level                            # limit chờ sẵn khớp ĐÚNG ở mức TP
                 return self._close(t, price, PositionStatus.TP, "Take-profit (từ giá TB)", market_order=False)
         return None
 

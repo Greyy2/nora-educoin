@@ -232,16 +232,16 @@ def test_no_take_profit_in_same_bar_as_dca_fill():
     assert pos.layers == 2 and pos.close_time >= int(df.open_time[7])
 
 
-def test_stop_loss_from_average_after_dca_and_ordering():
-    # giá rơi thẳng 100 -> 96 trong một nến: tầng DCA @99 khớp trước, rồi SL tính từ giá TB mới
+def test_stale_stop_loss_after_dca_and_ordering():
+    # giá rơi thẳng 100 -> 96 trong một nến: tầng DCA @99 khớp trước, rồi SL CŨ (100 x 0.98 = 98) — quy tắc bảo thủ 2026-10-06:
+    # SL tính từ giá TB mới (avg x 0.98 = 97.51) chỉ có hiệu lực từ nến sau (test_conservative_fills.py)
     df = _path([100] * 5 + [100, 96, 96])
     eng = _engine(df, _signal_at(df, 4), order_size_pct=50, dca_step_pct=1.0, dca_max_layers=1,
                   stop_loss_rate=2.0, fee_rate=0.0, slippage_rate=0.0)
     eng.run()
     pos = eng.closed_positions[0]
-    avg = 2 / (1 / 100 + 1 / 99)  # giá TB theo khối lượng
     assert pos.layers == 2 and pos.status.name == "SL"
-    assert pos.close_price == pytest.approx(avg * 0.98)
+    assert pos.close_price == pytest.approx(98.0)
 
 
 @pytest.mark.parametrize("side", ["LONG", "SHORT"])

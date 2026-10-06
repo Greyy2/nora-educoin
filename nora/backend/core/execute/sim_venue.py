@@ -5,10 +5,14 @@ Khớp lệnh theo nến 1m với chính sách trong nến `intrabar_path="adver
 1. Lệnh market ENTRY / EXIT khớp ở giá open (đã gồm trượt giá taker), theo thứ tự đặt.
 2. Phía BẤT LỢI: trong các lệnh chờ DCA (limit), SL, TRAIL và giá thanh lý (sinh từ `position_view`, chỉ perp), lệnh nào ĐÃ CHẠM
    (long: low <= mức; short: high >= mức) thì chọn mức chạm TRƯỚC: long = mức cao nhất, short = thấp nhất; hoà mức -> thoát
-   (SL/TRAIL/LIQ, ưu tiên 0) trước DCA (ưu tiên 1); hoà tiếp -> theo thứ tự DCA, SL, TRAIL, LIQ. Giá open đã vượt mức -> khớp ở open (gap).
-   `stop_fill="extreme"`: SL/TRAIL khớp ở giá xấu nhất của nến. DCA có `trigger` (limit_through): phải đi QUA mức mới khớp, nhưng
-   khớp ở giá đặt (level). Sau mỗi fill vị thế đổi (DCA) người đặt lệnh tính lại lệnh chờ rồi gọi `next_event` tiếp.
-3. `end_adverse(slot)` chuyển sang phía CÓ LỢI: TP (limit từ giá TB) chỉ xét nếu trong nến KHÔNG có DCA khớp; khớp ở max(level, open) (long).
+   (SL/TRAIL/LIQ, ưu tiên 0) trước DCA (ưu tiên 1); hoà tiếp -> theo thứ tự DCA, SL, TRAIL, LIQ. Giá open đã vượt mức stop-market
+   (SL/TRAIL/LIQ) -> khớp ở open (gap).
+   `stop_fill="extreme"`: SL/TRAIL khớp ở giá xấu nhất của nến. DCA có `trigger` (limit_through): phải đi QUA mức mới khớp, và luôn
+   khớp ở giá đặt (level), kể cả khi open đã gap qua mức (quy tắc bảo thủ 2026-10-06: phần giá tốt hơn thuộc về bên khớp lệnh).
+   Sau mỗi fill vị thế đổi (DCA) người đặt lệnh tính lại lệnh chờ rồi gọi `next_event` tiếp, NHƯNG lệnh SL cũ vẫn nằm trên sàn:
+   từ sau fill DCA đầu tiên của nến, mức SL dùng trong phần còn lại của nến là mức SL cũ (`_Slot.stale_sl`); SL mới có hiệu lực từ nến sau.
+   Giá thanh lý vẫn tính lại ngay từ avg mới.
+3. `end_adverse(slot)` chuyển sang phía CÓ LỢI: TP (limit từ giá TB) chỉ xét nếu trong nến KHÔNG có DCA khớp; khớp ở mức TP (level), kể cả khi open đã vượt mức.
 4. Peak của trailing do người đặt lệnh giữ và chỉ đổi cuối nến (trailing dùng đỉnh các nến TRƯỚC) — venue chỉ nhận mức TRAIL tĩnh.
 
 Venue không đụng vào sổ vốn: kiểm tra trước giao dịch (ngân sách vị thế, giữ chỗ vốn) là `gate` do người đặt lệnh cấp cho từng slot;
@@ -64,12 +68,14 @@ class _Slot:
     c: float = float("nan")
     quoted: bool = False
     dca_filled: bool = False
+    stale_sl: Optional[float] = None    # mức SL cũ còn hiệu lực sau fill DCA đầu tiên của nến (None = chưa có DCA khớp / không có SL)
     rejects: Deque[OrderRejected] = field(default_factory=deque)   # lệnh bị từ chối ngay lúc đặt (hợp đồng venue.py): trả ở next_event trước mọi khớp
 
     def __setstate__(self, state) -> None:
         """Pickle cũ (paper.pkl của bot đang chạy, trước P6.8b) chưa có `rejects`."""
         self.__dict__.update(state)
         self.__dict__.setdefault("rejects", deque())
+        self.__dict__.setdefault("stale_sl", None)
 
 
 class SimVenue:
@@ -147,6 +153,7 @@ class SimVenue:
         st.view = position_view
         st.phase = "adverse"
         st.dca_filled = False
+        st.stale_sl = None
 
     def end_adverse(self, slot: int) -> None:
         """Chuyển sang phía CÓ LỢI của nến (TP)."""
@@ -198,7 +205,8 @@ class SimVenue:
             od = self._first(st, kind)
             if od is not None:
                 by_kind[name] = od
-                events.append((_trigger(od), prio, name))
+                lv = st.stale_sl if (name == "sl" and st.stale_sl is not None) else _trigger(od)   # SL cũ chưa dời kịp sau fill DCA
+                events.append((lv, prio, name))
         liq = None
         if view.market == "perp" and view.qty > 0:
             liq = policy.liq_price(view.avg, view.pos_leverage, view.mmr, is_long)
@@ -210,12 +218,15 @@ class SimVenue:
         level, _, kind = policy.pick_first_touched(reached, is_long)
         if kind == "dca":
             od = by_kind["dca"]
-            price = policy.gap_fill(od.level, st.o, is_long)        # limit khớp ở giá đặt (hoặc open nếu gap qua mức)
+            price = od.level        # limit chờ sẵn khớp ĐÚNG ở giá đặt, kể cả khi gap qua mức
             fee = policy.entry_fee(od.notional, st.maker_fee_rate)
             st.orders.remove(od)
             reason = st.gate("dca", od.margin, fee, price) if st.gate is not None else None
             if reason is not None:
                 return OrderRejected(slot, od.id, "dca", reason)
+            if not st.dca_filled:
+                sl_od = self._first(st, OrderKind.SL)
+                st.stale_sl = sl_od.level if sl_od is not None else None   # SL đang nằm trên sàn trước fill (manager sắp đặt lại từ avg mới)
             st.dca_filled = True
             return Fill(slot=slot, order_id=_next_id(), kind="dca", t=st.t, price=price, raw_price=price, notional=od.notional,
                         margin=od.margin, fee=fee, slip=0.0, liquidity="maker", reason=od.reason)
@@ -235,5 +246,5 @@ class SimVenue:
         favorable = st.h if is_long else st.l
         if not policy.tp_hit(favorable, need, is_long):
             return None
-        raw = policy.tp_fill_price(tp.level, st.o, is_long)
+        raw = tp.level      # limit chờ sẵn khớp ĐÚNG ở mức TP, kể cả khi open đã vượt mức
         return self._close_fill(slot, st, "tp", raw, tp.reason, taker=False)

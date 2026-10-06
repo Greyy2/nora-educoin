@@ -374,6 +374,8 @@ def _intrabar(k, t, o, h, l, ML, MH, ja, jb, P, PI, F, I, LG, G, outF, outI, ord
     sign = 1.0 if long_ else -1.0
     ml = (P.shape[1] - P_FIXED) // 2
     dca_filled = False
+    has_stale = False                      # đã có SL CŨ còn hiệu lực (sau tầng DCA đầu tiên của nến, sl_pct > 0)
+    sl_stale = 0.0
     while True:
         have = False
         best_level = 0.0
@@ -390,7 +392,10 @@ def _intrabar(k, t, o, h, l, ML, MH, ja, jb, P, PI, F, I, LG, G, outF, outI, ord
                 best_prio = 1
                 best_kind = 0
         if F[k, F_SL] != 0.0:
-            level = F[k, F_AVG] * (1.0 - sign * F[k, F_SL] / 100.0)
+            if has_stale:
+                level = sl_stale
+            else:
+                level = F[k, F_AVG] * (1.0 - sign * F[k, F_SL] / 100.0)
             if (adverse <= level) if long_ else (adverse >= level):
                 if (not have) or _better(long_, level, 0, best_level, best_prio):
                     have = True
@@ -430,13 +435,14 @@ def _intrabar(k, t, o, h, l, ML, MH, ja, jb, P, PI, F, I, LG, G, outF, outI, ord
         else:
             price = o if o > level else level                 # max(level, open)
         if best_kind == 0:
-            if long_:
-                price = o if o < dca_level else dca_level     # lệnh limit khớp ở giá đặt (hoặc giá mở nếu gap qua mức)
-            else:
-                price = o if o > dca_level else dca_level
+            price = dca_level                                     # lệnh limit chờ sẵn khớp ĐÚNG ở giá đặt, kể cả khi gap qua mức
             margin = F[k, F_NEXT] * P[k, P_BS0 + ml + kk]
+            sl_before = F[k, F_AVG] * (1.0 - sign * F[k, F_SL] / 100.0)   # SL đang nằm trên sàn trước fill (chỉ dùng khi sl_pct > 0)
             if _add_layer(k, t, price, margin, False, R_DCA, P, PI, F, I, LG, G, outF, outI, ordF, ordI):
                 F[k, F_NEXT] = margin
+                if (not dca_filled) and F[k, F_SL] != 0.0:
+                    has_stale = True                          # SL cũ chưa dời kịp trong phần còn lại của nến
+                    sl_stale = sl_before
                 dca_filled = True
                 continue
             I[k, I_DCAREJ] += 1
@@ -470,10 +476,7 @@ def _intrabar(k, t, o, h, l, ML, MH, ja, jb, P, PI, F, I, LG, G, outF, outI, ord
         tp_level = F[k, F_AVG] * (1.0 + sign * F[k, F_TP] / 100.0)
         need = tp_level * (1.0 + sign * P[k, P_LTHRU]) if P[k, P_LTHRU] != 0.0 else tp_level
         if (favorable >= need) if long_ else (favorable <= need):
-            if long_:
-                price = o if o > tp_level else tp_level       # max(tp_level, open)
-            else:
-                price = o if o < tp_level else tp_level       # min(tp_level, open)
+            price = tp_level                                  # limit khớp ĐÚNG ở mức TP, kể cả khi open đã vượt mức
             _close(k, t, price, S_TP, R_TP, False, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq)
             return True
     return False

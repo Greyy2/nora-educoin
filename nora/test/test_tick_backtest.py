@@ -171,7 +171,7 @@ def _tracker(**kw):
 
 
 def _drive(tr):
-    """vào ở open 100 (market), DCA khi giá nhảy xuống 99 (qua mức DCA: khớp ở 99), rồi giá nhảy lên 5% trên giá TB (qua mức TP 4%)."""
+    """vào ở open 100 (market), DCA khi giá nhảy xuống 99 (gap qua mức DCA 99.099: limit chờ sẵn khớp ở MỨC; limit_taker/AMM khớp ở 99), rồi giá nhảy lên 5% trên giá TB (gap qua mức TP 4%: limit khớp ở mức TP)."""
     tr.on_bar(0, 100, 100, 100, 100, entry_signal=True, stop_signal=False)
     tr.on_bar(1, 100, 100, 100, 100, entry_signal=False, stop_signal=False)
     tr.on_bar(2, 99, 99, 99, 99, entry_signal=False, stop_signal=False)
@@ -183,9 +183,9 @@ def _drive(tr):
 def test_tracker_defaults_keep_maker_limit_fills():
     pos, orders, avg = _drive(_tracker())
     assert [o.liquidity for o in orders] == ["taker", "maker", "maker"]                 # vào market; DCA + TP là limit (maker)
-    assert orders[0].order_price == pytest.approx(100 * 1.001) and orders[1].order_price == 99.0 and pos.close_price == pytest.approx(avg * 1.05)
+    assert orders[0].order_price == pytest.approx(100 * 1.001) and orders[1].order_price == pytest.approx(100.1 * 0.99) and pos.close_price == pytest.approx(avg * 1.04)   # TP limit khớp ở MỨC (4%), không ở open gap 5%
     assert [o.slippage for o in orders] == [0.001, 0.0, 0.0]
-    assert orders[1].fee_usd == pytest.approx(orders[1].qty * 99.0 * 0.001)
+    assert orders[1].fee_usd == pytest.approx(orders[1].qty * 100.1 * 0.99 * 0.001)
 
 
 def test_tracker_limit_taker_and_impact_fn_charge_taker_fee_and_impact():

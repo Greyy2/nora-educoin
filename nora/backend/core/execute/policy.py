@@ -59,7 +59,8 @@ def tp_hit(favorable: float, need: float, is_long: bool) -> bool:
 
 
 def tp_fill_price(level: float, open_price: float, is_long: bool) -> float:
-    """Giá khớp chốt lời: open đã vượt mức (gap có lợi) thì khớp ở open."""
+    """Giá khớp chốt lời kiểu SWAP (AMM, `limit_taker`): open đã vượt mức (gap có lợi) thì khớp ở open.
+    Lệnh limit chờ sẵn (sàn thật / SimVenue) KHÔNG dùng hàm này: khớp đúng ở mức (quy tắc bảo thủ 2026-10-06)."""
     return max(level, open_price) if is_long else min(level, open_price)
 
 
@@ -76,7 +77,8 @@ def reached(level: float, extreme: float, is_long: bool) -> bool:
 
 
 def gap_fill(level: float, open_price: float, is_long: bool) -> float:
-    """Giá khớp khi chạm mức bất lợi: nếu open đã vượt qua mức (gap) thì khớp ở open."""
+    """Giá khớp lệnh STOP-market / thanh lý khi chạm mức bất lợi: nếu open đã vượt qua mức (gap) thì khớp ở open.
+    Không dùng cho lệnh limit chờ sẵn (tầng DCA, chốt lời): chúng khớp ở mức đặt."""
     if is_long:
         return min(level, open_price)
     return max(level, open_price)

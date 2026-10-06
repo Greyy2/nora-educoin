@@ -363,7 +363,8 @@ def test_b_dca_fill_then_tp_skipped_in_same_bar():
     assert pos.layers == 2 and pos.status == PositionStatus.TP
     assert [f.kind for f in _fills(ev)] == ["entry", "dca", "tp"]
     assert _fills(ev, "dca")[0].price == pytest.approx(99.5) and _fills(ev, "dca")[0].liquidity == "maker"
-    assert pos.close_price == pytest.approx(100.8)             # open nến 3 đã vượt mức TP (~100.05) -> khớp ở open (gap có lợi)
+    avg = 2 / (1 / 100.0 + 1 / 99.5)                           # hai tầng cùng ký quỹ -> giá TB điều hoà
+    assert pos.close_price == pytest.approx(avg * 1.003)       # open nến 3 (100.8) đã vượt mức TP (~100.05) -> limit chờ sẵn khớp ĐÚNG ở mức TP (quy tắc bảo thủ 2026-10-06)
     mgr2, ev2 = _manager(order_size_pct=20.0, take_profit_rate=0.3)
     closed2 = _drive(mgr2, bars)
     assert [i for i, _ in closed2] == [2] and closed2[0][1].layers == 1 and _fills(ev2, "tp")[0].price == pytest.approx(100.3)

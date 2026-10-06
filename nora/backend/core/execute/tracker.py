@@ -7,10 +7,14 @@ Vòng đời một nến 1m CÓ GIAO DỊCH (nến điền is_filled=1 bị bỏ
    - lệnh vào chờ (tín hiệu match ở nến trước) -> mở tầng đầu ở open (+ trượt giá).
 2. Trong nến — phía BẤT LỢI được xử lý theo đúng thứ tự giá chạm (long: từ trên xuống):
    tầng DCA (lệnh limit), stop-loss, trailing stop, giá thanh lý (perp). Sau mỗi tầng DCA,
-   giá trung bình, SL và giá thanh lý được tính lại. Hoà mức -> ưu tiên THOÁT (bi quan).
-   Giá open đã vượt mức -> khớp ở open (gap).
+   giá trung bình và giá thanh lý được tính lại ngay (sàn tự tính giá thanh lý). Hoà mức -> ưu tiên THOÁT (bi quan).
+   SL CŨ (quy tắc bảo thủ, 2026-10-06): lệnh SL đang nằm trên sàn không dời được ngay sau fill DCA, nên trong
+   phần còn lại của nến mức SL dùng là mức SL lúc tầng DCA ĐẦU TIÊN của nến khớp; SL tính từ avg mới có hiệu lực từ nến sau.
+   Giá open đã vượt mức stop-market (SL/trailing/thanh lý) -> khớp ở open (gap). Lệnh LIMIT đang chờ (tầng DCA)
+   khớp đúng ở mức đặt: phần giá tốt hơn khi gap thuộc về bên khớp lệnh (sàn thật / NautilusTrader).
 3. Phía CÓ LỢI: chốt lời (limit, từ giá TB) chỉ được xét nếu trong nến KHÔNG có tầng DCA nào
-   khớp — không giả định "vừa nhồi ở đáy vừa chốt ở đỉnh" trong cùng một nến.
+   khớp — không giả định "vừa nhồi ở đáy vừa chốt ở đỉnh" trong cùng một nến. Chốt lời khớp đúng ở mức TP
+   (kể cả khi open đã vượt mức).
 4. Cuối nến: cập nhật đỉnh/đáy có lợi (cho trailing), lỗ treo tối đa (MAE), rồi đặt lệnh chờ
    cho nến sau theo tín hiệu match/stop (tính trên nến đã đóng).
 
@@ -388,6 +392,7 @@ class PositionTracker:
         favorable = h if self.is_long else l
         sign = 1.0 if self.is_long else -1.0
         dca_filled = False
+        sl_stale: Optional[float] = None    # mức SL CŨ còn hiệu lực sau tầng DCA đầu tiên của nến (sl_pct > 0)
 
         while True:
             events: List[Tuple[float, int, str]] = []  # (mức, ưu tiên khi hoà: thoát trước, loại)
@@ -398,7 +403,7 @@ class PositionTracker:
                 trigger = policy.dca_trigger(dca_level, self.limit_through, sign)
                 events.append((trigger, 1, "dca"))
             if self.sl_pct:
-                events.append((policy.sl_level(self.avg, self.sl_pct, sign), 0, "sl"))
+                events.append((sl_stale if sl_stale is not None else policy.sl_level(self.avg, self.sl_pct, sign), 0, "sl"))
             if self.trail_pct:
                 if policy.trail_active(self.peak, self.avg, self.trail_activation_pct, sign):
                     events.append((policy.trail_level(self.peak, self.trail_pct, sign), 0, "trail"))
@@ -412,10 +417,14 @@ class PositionTracker:
             level, _, kind = policy.pick_first_touched(reached, self.is_long)
             price = self._gap_fill(level, o)
             if kind == "dca":
-                price = self._gap_fill(dca_level, o)        # lệnh limit khớp ở giá đặt (hoặc giá mở nếu gap qua mức)
+                # lệnh limit chờ sẵn khớp đúng ở giá đặt kể cả khi gap qua mức; AMM (limit_taker) là swap -> khớp ở open
+                price = self._gap_fill(dca_level, o) if self.limit_taker else dca_level
                 margin = self.next_margin * self.dca_mults[k]
+                sl_before = policy.sl_level(self.avg, self.sl_pct, sign) if self.sl_pct else None   # SL đang nằm trên sàn trước fill
                 if self._add_layer(t, price, margin, market_order=False, reason="DCA"):
                     self.next_margin = margin
+                    if not dca_filled:
+                        sl_stale = sl_before            # SL cũ chưa dời kịp trong phần còn lại của nến
                     dca_filled = True
                     continue
                 self.dca_rejected += 1
@@ -434,7 +443,7 @@ class PositionTracker:
             tp_level = policy.tp_level(self.avg, self.tp_pct, sign)
             need = policy.tp_need(tp_level, self.limit_through, sign)
             if policy.tp_hit(favorable, need, self.is_long):
-                price = policy.tp_fill_price(tp_level, o, self.is_long)
+                price = policy.tp_fill_price(tp_level, o, self.is_long) if self.limit_taker else tp_level   # limit khớp ở mức TP
                 return self._close(t, price, PositionStatus.TP, "Take-profit (từ giá TB)", market_order=False, kind="tp")
         return None
 

@@ -46,7 +46,7 @@ def test_tp_level_need_hit_fill():
     assert P.tp_need(103.0, 0.0, L) == 103.0
     assert P.tp_hit(103.0, 103.0, True) and not P.tp_hit(102.9, 103.0, True)
     assert P.tp_hit(97.0, 97.0, False) and not P.tp_hit(97.1, 97.0, False)
-    # gap có lợi: open vượt mức -> khớp ở open
+    # kiểu SWAP (AMM, limit_taker): gap có lợi, open vượt mức -> khớp ở open. Lệnh limit chờ sẵn KHÔNG dùng hàm này (khớp ở mức, test_conservative_fills.py)
     assert P.tp_fill_price(103.0, 105.0, True) == 105.0
     assert P.tp_fill_price(103.0, 100.0, True) == 103.0
     assert P.tp_fill_price(97.0, 95.0, False) == 95.0
