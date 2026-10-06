@@ -25,6 +25,7 @@ H1 = 3600_000
 DAY = 86400_000
 FEE = 3.5e-4            # mỗi chiều (cùng match.py)
 HORIZON_MIN = 60
+PNL_LO, PNL_HI = 0.75, 1.25   # ràng buộc cứng: PnL thực hiện sim / thật
 
 STOCK = {"AAOI", "AAPL", "AMD", "AMZN", "CBRS", "CRCL", "GOOGL", "INTC", "LITE", "META", "MRVL", "MSFT", "MSTR", "MU", "NBIS", "NVDA",
          "PLTR", "QCOM", "SAMSUNG", "SKHY", "SKHYNIX", "SNDK", "SOXL", "SPCX", "TSLA", "DRAM"}
@@ -446,8 +447,9 @@ def engine(T, O, H, L, C, off, FPX, FNOT, FACT, foff, S, tp, tpl, sl, sll, gb, a
         nu = nf if layer else 1
         ua = np.zeros(nu); upk = np.zeros(nu); utr = np.zeros(nu); un = np.zeros(nu)
         ual = np.zeros(nu, np.int8); utref = np.zeros(nu, np.int64)
-        nextf = 0; nact = 0; sum_n = 0.0; sum_q = 0.0; first_px = 0.0; last_px = 0.0
+        nextf = 0; nact = 0; sum_n = 0.0; sum_q = 0.0; first_px = 0.0; last_px = 0.0; jstart = j0
         ncl = 0
+        tpmode = int(fl2[1])
         for j in range(j0, j1):
             f_ct[j] = -1; f_cp[j] = 0.0; f_why[j] = 0
         for i in range(i_start, i_end):
@@ -495,15 +497,22 @@ def engine(T, O, H, L, C, off, FPX, FNOT, FACT, foff, S, tp, tpl, sl, sll, gb, a
                     v = -slp
                     if v > stop_r:
                         stop_r = v; why = 2
-                if gb[b] < INF and rpk >= act[b]:
-                    v = s * (upk[u] * (1.0 - s * gb[b]) / a - 1.0)
-                    if v > stop_r:
-                        stop_r = v; why = 3
+                tp_lim = tpp + fl2[0] * (-rtr if rtr < 0.0 else 0.0)
+                if tpmode == 0:
+                    if gb[b] < INF and rpk >= act[b]:
+                        v = s * (upk[u] * (1.0 - s * gb[b]) / a - 1.0)
+                        if v > stop_r:
+                            stop_r = v; why = 3
+                else:   # TP chuyển thành trailing: sau khi đỉnh (các nến đã đóng) chạm mức TP thì stop dưới đỉnh
+                    if gb[b] < INF and tp_lim < INF and rpk >= tp_lim:
+                        v = s * (upk[u] * (1.0 - s * gb[b]) / a - 1.0)
+                        if v > stop_r:
+                            stop_r = v; why = 3
                 if bes[b] < INF and rpk >= bes[b]:
                     v = bes_off[b]
                     if v > stop_r:
                         stop_r = v; why = 4
-                tp_r = tpp + fl2[0] * (-rtr if rtr < 0.0 else 0.0); tw = 1
+                tp_r = tp_lim if tpmode == 0 else INF; tw = 1
                 if brd[b] < INF and rtr <= -brd[b]:
                     v = brd_off[b]
                     if v < tp_r:
@@ -532,8 +541,9 @@ def engine(T, O, H, L, C, off, FPX, FNOT, FACT, foff, S, tp, tpl, sl, sll, gb, a
                         j = j0 + u
                         f_ct[j] = ct; f_cp[j] = xp; f_why[j] = hit
                     else:
-                        for j in range(j0, j0 + nact):
+                        for j in range(jstart, jstart + nact):
                             f_ct[j] = ct; f_cp[j] = xp; f_why[j] = hit
+                        jstart = jstart + nact; nact = 0; sum_n = 0.0; sum_q = 0.0
                     ual[u] = 0; ncl += 1
                 else:
                     if s > 0:
@@ -550,7 +560,7 @@ def engine(T, O, H, L, C, off, FPX, FNOT, FACT, foff, S, tp, tpl, sl, sll, gb, a
                 if nextf == nf and ncl == nf:
                     break
             else:
-                if ncl == 1:
+                if nextf == nf and ual[0] != 1:
                     break
         # tổng hợp basket
         pnl = 0.0; mtm = 0.0; nt_sum = 0.0; lastc = -1; lastp = 0.0; lastw = 0; nused = 0; allc = 1
@@ -605,8 +615,12 @@ def metrics(D, o, scale_bps, idx=None):
     sign = float(np.mean(np.sign(sr) == np.sign(ar)))
     cr = _corr(ar, sr); cu = _corr(D.real_pnl[sel], o.pnl[sel])
     pxs = max(0.0, 1.0 - min(1.0, med_pe / scale_bps))
-    obj = float(np.mean([m15, pxs, sign, max(0.0, cu)]))
-    return dict(obj=obj, m5=m5, m15=m15, m60=m60, px_med=med_pe, px_score=pxs, sign=sign, corr_ret=cr, corr_usdt=cu)
+    base = float((3.0 * m15 + pxs + sign + max(0.0, cu)) / 6.0)   # ưu tiên khớp thời điểm thoát (trọng số 3) trong vùng thoả ràng buộc PnL
+    rs = float(D.real_pnl[sel].sum()); ratio = float(o.pnl[sel].sum() / rs) if rs != 0 else 0.0
+    nmae = float(np.mean(np.abs(o.pnl[sel] - D.real_pnl[sel])) / max(1e-9, np.mean(np.abs(D.real_pnl[sel]))))
+    viol = max(0.0, PNL_LO - ratio, ratio - PNL_HI)
+    obj = base - 0.1 * abs(ratio - 1.0) - 0.03 * min(nmae, 3.0) - (1.0 + 3.0 * viol if viol > 0 else 0.0)
+    return dict(obj=obj, base=base, ratio=ratio, nmae=nmae, m5=m5, m15=m15, m60=m60, px_med=med_pe, px_score=pxs, sign=sign, corr_ret=cr, corr_usdt=cu)
 
 
 def _corr(a, b):
@@ -616,7 +630,7 @@ def _corr(a, b):
 
 
 # ===================================================================== tìm kiếm luật (coordinate descent có ablation)
-G_TP = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.35, 1.5, 1.7, 2.0, 2.4, 3.0, 4.0, 6.0, INF]
+G_TP = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.35, 1.5, 1.7, 2.0, 2.4, 3.0, 4.0, 6.0, 8.0, 12.0, INF]
 G_SL = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0, 4.0, 6.0, 8.0, 12.0, 20.0, INF]
 G_GB = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.15, 1.3, 1.5, 1.75, 2.0, 2.5, 3.0, 4.0, 6.0, INF]
 G_TPK = [0.0, 0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.75, 1.0]
@@ -639,6 +653,8 @@ class Searcher:
         for an in fits:
             self._base[an] = self._bases(an)
         self.grp = np.zeros(D.n, np.int64); self.G = 1
+        self.allowed = {"tp", "tpk", "tpt", "sl", "tr", "bes", "brd", "tc"}
+        self.tc_grid = list(G_TCMIN)
 
     # ---- mảng mức nền (phân số giá) cho từng anchor
     def _bases(self, an):
@@ -663,7 +679,7 @@ class Searcher:
         inf = np.full(n, INF); z = np.zeros(n)
         tp = inf; tpl = z; sl = inf; sll = z; gb = inf; act = z; bes = inf; bo = z; brd = inf; do = z; tcap = inf
         flags = np.zeros(5, np.int64); flags[0] = cfg["anchor"]
-        fl2 = np.array([float(cfg.get("tpk") or 0.0)])
+        fl2 = np.array([float(cfg.get("tpk") or 0.0), 1.0 if (cfg.get("tpt") and cfg.get("tr") is not None) else 0.0])
         if cfg.get("tp") is not None:
             base, lay, unit = B["tp"]; m = np.asarray(cfg["tp"])[g]
             tp = base * m; tpl = np.where(np.isinf(m), 0.0, lay * m); flags[3] = 1 if unit == "usd" else 0
@@ -690,7 +706,7 @@ class Searcher:
         m = metrics(self.D, o, self.scale_bps, idx)
         self.n_eval += 1
         if idx is None:
-            self.log.append((m["obj"], _cfg_key(cfg), m["m15"], m["corr_usdt"], m["sign"], m["px_med"], _cp(cfg), self.G))
+            self.log.append((m["obj"], _cfg_key(cfg), m["m15"], m["corr_usdt"], m["sign"], m["px_med"], _cp(cfg), self.G, m["ratio"], m["base"]))
         return (m, o) if keep else m
 
     # ---- tối ưu 1 tham số trên lưới + tinh chỉnh cục bộ
@@ -726,7 +742,7 @@ class Searcher:
                     def gs(c, v, gi=gi):
                         c2 = _cp(c); c2["tr"]["gb"][gi] = v; return c2
                     v, o = self._best_scalar(cfg, gs, G_GB, cfg["tr"]["gb"][gi], idx); cfg["tr"]["gb"][gi] = v
-                    if np.isfinite(cfg["tr"]["gb"][gi]):
+                    if np.isfinite(cfg["tr"]["gb"][gi]) and not cfg.get("tpt"):
                         def gs(c, v, gi=gi):
                             c2 = _cp(c); c2["tr"]["act"][gi] = v; return c2
                         v, o = self._best_scalar(cfg, gs, G_ACT, cfg["tr"]["act"][gi], idx, refine=False); cfg["tr"]["act"][gi] = v
@@ -747,7 +763,7 @@ class Searcher:
             if cfg.get("tc") is not None:
                 for ref in (0, 1):
                     for loss in (0, 1):
-                        for mn in G_TCMIN:
+                        for mn in self.tc_grid:
                             c2 = _cp(cfg); c2["tc"] = dict(min=mn, ref=ref, loss=loss)
                             oo = self.score(c2, idx)["obj"]
                             if oo > o + 1e-9:
@@ -767,6 +783,10 @@ class Searcher:
             cfg["tr"] = dict(gb=np.ones(G), act=np.ones(G))
         elif name == "tpk":
             cfg["tpk"] = 0.1
+        elif name == "tpt":
+            cfg["tpt"] = True
+            if cfg.get("tr") is None:
+                cfg["tr"] = dict(gb=np.ones(G), act=np.zeros(G))
         elif name == "bes":
             cfg["bes"] = dict(m=1.0, off=5.0)
         elif name == "brd":
@@ -795,7 +815,7 @@ def _cfg_key(c):
             (r(c["tr"]["gb"]), r(c["tr"]["act"])) if c.get("tr") is not None else None, round(float(c.get("tpk") or 0), 3),
             (round(c["bes"]["m"], 3), c["bes"]["off"]) if c.get("bes") is not None else None,
             (round(c["brd"]["m"], 3), c["brd"]["off"]) if c.get("brd") is not None else None,
-            (c["tc"]["min"], c["tc"]["ref"], c["tc"]["loss"]) if c.get("tc") is not None else None)
+            (c["tc"]["min"], c["tc"]["ref"], c["tc"]["loss"]) if c.get("tc") is not None else None, bool(c.get("tpt")))
 
 
 # ===================================================================== phân đoạn chế độ (regime) + nhóm lớp mã
@@ -911,6 +931,8 @@ def clean(cfg):
             c[k] = None
     if "tp" not in st:
         c["tpk"] = None
+    if "tr" not in st or "tp" not in st:
+        c["tpt"] = None
     return c
 
 
@@ -931,6 +953,8 @@ def structure(cfg):
         out.append(k)
         if k == "tp" and (cfg.get("tpk") or 0) > 0:
             out.append("tpk")
+        if k == "tr" and cfg.get("tpt"):
+            out.append("tpt")
     return tuple(out)
 
 
@@ -940,6 +964,8 @@ def cfg_params(cfg):
         p["tp_mult"] = [None if not np.isfinite(v) else round(float(v), 4) for v in cfg["tp"]]
     if cfg.get("tpk"):
         p["tp_mae_coupling_k"] = round(float(cfg["tpk"]), 3)
+    if cfg.get("tpt") and cfg.get("tr") is not None:
+        p["tp_then_trail"] = True
     if cfg.get("sl") is not None:
         p["sl_mult"] = [None if not np.isfinite(v) else round(float(v), 4) for v in cfg["sl"]]
     if cfg.get("tr") is not None:
@@ -996,8 +1022,8 @@ def text_vi(S, cfg, fits_a, lv, anchor_name, groups_info=None):
         parts.append(t + ".")
     if cfg.get("tr") is not None:
         g = fits_a["gb"]["chosen"]; a = fits_a["act"]["chosen"]; nm = lv.get("trail_giveback", {}); na = lv.get("trail_activation", {})
-        t = (f"Trailing: sau khi lãi tối đa đạt {mult_txt(cfg['tr']['act'])} × [{formula_text(a, 'kích hoạt')}]"
-             + (f" (trung vị {na['px_pct_med']:.2f}% giá)" if "px_pct_med" in na else "")
+        t = ((f"Sau khi đỉnh giá chạm mức TP ở trên thì KHÔNG chốt ngay mà chuyển sang trailing (để lãi chạy)" if cfg.get("tpt") else
+              f"Trailing: sau khi lãi tối đa đạt {mult_txt(cfg['tr']['act'])} × [{formula_text(a, 'kích hoạt')}]" + (f" (trung vị {na['px_pct_med']:.2f}% giá)" if "px_pct_med" in na else ""))
              + f", đặt stop dưới đỉnh {mult_txt(cfg['tr']['gb'])} × [{formula_text(g, 'giveback')}]"
              + (f" (trung vị {nm['px_pct_med']:.2f}% giá)" if "px_pct_med" in nm else ""))
         parts.append(t + ".")
@@ -1033,8 +1059,8 @@ def label_groups(key, info, D, grp):
     return out
 
 
-def verdict(m15, corr_min, beats_shuffle):
-    if m15 >= 60 and corr_min >= 0.7:
+def verdict(m15, corr_min, beats_shuffle, ratio=1.0):
+    if m15 >= 60 and corr_min >= 0.7 and ratio >= PNL_LO:
         v = "tiệm cận tốt"
     elif (m15 >= 35 or (m15 >= 20 and corr_min >= 0.5)) and beats_shuffle:
         v = "tiệm cận một phần"
@@ -1044,7 +1070,7 @@ def verdict(m15, corr_min, beats_shuffle):
 
 
 # ===================================================================== đường ablation chuẩn + lựa chọn luật
-ELEM_ORDER = [("tp", "chỉ TP"), ("tpk", "+ TP gắn với độ sâu lỗ đã qua"), ("sl", "+ SL"), ("tr", "+ trailing"), ("bes", "+ hoà vốn (kéo stop)"), ("brd", "+ hoà vốn (hồi về)"), ("tc", "+ giới hạn thời gian")]
+ELEM_ORDER = [("tp", "chỉ TP"), ("tpt", "+ TP chuyển thành trailing (để lãi chạy)"), ("tpk", "+ TP gắn với độ sâu lỗ đã qua"), ("sl", "+ SL"), ("tr", "+ trailing"), ("bes", "+ hoà vốn (kéo stop)"), ("brd", "+ hoà vốn (hồi về)"), ("tc", "+ giới hạn thời gian")]
 ELEM_NAME = dict(ELEM_ORDER)
 
 
@@ -1052,6 +1078,7 @@ def _row(S, cfg, step, prev_obj=None, accepted=None):
     m = S.score(cfg)
     r = dict(step=step, structure=list(structure(cfg)), obj=round(m["obj"], 4), m5=round(100 * m["m5"], 1), m15=round(100 * m["m15"], 1), m60=round(100 * m["m60"], 1),
              px_med_bps=round(m["px_med"], 1), sign=round(100 * m["sign"], 1), corr_ret=round(m["corr_ret"], 3), corr_usdt=round(m["corr_usdt"], 3))
+    r["pnl_ratio"] = round(m["ratio"], 3)
     if prev_obj is not None:
         r["gain"] = round(m["obj"] - prev_obj, 4)
     if accepted is not None:
@@ -1067,7 +1094,9 @@ def canonical(S, ai, verbose=False):
     steps = [_row(S, cfg, "không luật (đóng cưỡng bức cuối horizon)")]
     prev = steps[0]["obj"]
     for name, label in ELEM_ORDER:
-        if name == "tpk" and cfg.get("tp") is None:
+        if name not in S.allowed:
+            continue
+        if name in ("tpk", "tpt") and cfg.get("tp") is None:
             continue
         trial = _cp(cfg); S.init_elem(trial, name)
         S.tune(trial)
@@ -1086,7 +1115,9 @@ def canonical(S, ai, verbose=False):
                 break
             trial = _cp(cfg); trial[name] = None
             if name == "tp":
-                trial["tpk"] = None
+                trial["tpk"] = None; trial["tpt"] = None
+            if name == "tr":
+                trial["tpt"] = None
             S.tune(trial)
             o = S.score(trial)["obj"]; o_full = S.score(cfg)["obj"]
             drops.append(dict(bỏ=ELEM_NAME[name].replace("+ ", ""), obj_sau_khi_bỏ=round(o, 4), mất=round(o_full - o, 4), giữ=bool(o_full - o >= MIN_GAIN)))
@@ -1107,17 +1138,25 @@ def canonical(S, ai, verbose=False):
                     break
                 trial = _cp(cfg); trial[name] = None
                 if name == "tp":
-                    trial["tpk"] = None
+                    trial["tpk"] = None; trial["tpt"] = None
+                if name == "tr":
+                    trial["tpt"] = None
                 S.tune(trial)
                 o = S.score(trial)["obj"]; o_full = S.score(cfg)["obj"]
                 drops.append(dict(bỏ=ELEM_NAME[name].replace("+ ", ""), obj_sau_khi_bỏ=round(o, 4), mất=round(o_full - o, 4), giữ=bool(o_full - o >= MIN_GAIN)))
                 if o_full - o < MIN_GAIN:
                     cfg = trial; changed = True; break
         S.tune(cfg)
+    cfg = polish(S, cfg, seed=ai)
     return clean(cfg), steps, drops
 
 
-def joint_random(S, ai, n=3000, seed=0, top=4):
+import os as _os
+SEED = int(_os.environ.get("IMPLIED_SEED", "0"))
+
+
+def joint_random(S, ai, n=5000, seed=None, top=6):
+    seed = SEED * 1000 if seed is None else seed
     """Tìm kiếm ngẫu nhiên CẢ cấu trúc lẫn tham số (thoát khỏi cực trị cục bộ của đường tham lam), rồi tinh chỉnh `top` ứng viên tốt nhất."""
     S.grp = np.zeros(S.D.n, np.int64); S.G = 1
     rng = np.random.default_rng(seed + ai); cands = []
@@ -1125,19 +1164,21 @@ def joint_random(S, ai, n=3000, seed=0, top=4):
     for _ in range(n):
         c = dict(anchor=ai)
         if rng.random() < 0.85:
-            c["tp"] = np.array([lu(0.3, 3.0)])
-        if rng.random() < 0.4:
+            c["tp"] = np.array([lu(0.3, 6.0)])
+        if "sl" in S.allowed and rng.random() < 0.4:
             c["sl"] = np.array([lu(0.3, 6.0)])
-        if rng.random() < 0.55:
+        if "tr" in S.allowed and rng.random() < 0.55:
             c["tr"] = dict(gb=np.array([lu(0.3, 3.0)]), act=np.array([float(rng.choice(G_ACT))]))
+            if "tp" in c and "tpt" in S.allowed and rng.random() < 0.6:
+                c["tpt"] = True
         if "tp" in c and rng.random() < 0.3:
             c["tpk"] = float(rng.choice(G_TPK))
-        if rng.random() < 0.3:
+        if "bes" in S.allowed and rng.random() < 0.3:
             c["bes"] = dict(m=lu(0.3, 4.0), off=float(rng.choice(G_OFF)))
-        if rng.random() < 0.3:
+        if "brd" in S.allowed and rng.random() < 0.3:
             c["brd"] = dict(m=lu(0.3, 5.0), off=float(rng.choice(G_OFF)))
-        if rng.random() < 0.3:
-            c["tc"] = dict(min=float(rng.choice(G_TCMIN)), ref=int(rng.integers(0, 2)), loss=int(rng.integers(0, 2)))
+        if "tc" in S.allowed and rng.random() < 0.3:
+            c["tc"] = dict(min=float(rng.choice(S.tc_grid)), ref=int(rng.integers(0, 2)), loss=int(rng.integers(0, 2)))
         if not structure(c):
             continue
         cands.append((S.score(c)["obj"], c))
@@ -1147,6 +1188,38 @@ def joint_random(S, ai, n=3000, seed=0, top=4):
         c2 = _cp(c); o2 = S.tune(c2, passes=3)
         if best is None or o2 > best[0]:
             best = (o2, c2)
+    return best
+
+
+def polish(S, cfg, n=4000, seed=0):
+    seed = seed + SEED * 1000
+    """Leo đồi ngẫu nhiên (nhiễu log-chuẩn đồng thời nhiều tham số) từ nghiệm hiện tại; chỉ nhận khi mục tiêu (đã gồm ràng buộc PnL) tăng."""
+    rng = np.random.default_rng(seed + 11)
+    best = _cp(cfg); bo = S.score(best)["obj"]
+    for it in range(n):
+        c = _cp(best); sc = 0.08 if it < n // 2 else 0.03
+        keys = [k for k in ("tp", "sl", "tr", "bes", "brd", "tc", "tpk") if c.get(k) is not None]
+        if not keys:
+            break
+        for k in rng.choice(keys, size=min(len(keys), int(rng.integers(1, 3))), replace=False):
+            f = float(np.exp(rng.normal(0, sc * 2)))
+            if k in ("tp", "sl"):
+                v = np.asarray(c[k], float); fin = np.isfinite(v); v[fin] = v[fin] * f; c[k] = v
+            elif k == "tr":
+                v = np.asarray(c["tr"]["gb"], float); fin = np.isfinite(v); v[fin] = v[fin] * f; c["tr"]["gb"] = v
+                if rng.random() < 0.3 and not c.get("tpt"):
+                    c["tr"]["act"] = np.asarray(c["tr"]["act"], float) * float(np.exp(rng.normal(0, sc * 2)))
+            elif k in ("bes", "brd"):
+                if np.isfinite(c[k]["m"]):
+                    c[k]["m"] = c[k]["m"] * f
+            elif k == "tc":
+                if np.isfinite(c["tc"]["min"]):
+                    c["tc"]["min"] = max(2.0, c["tc"]["min"] * f)
+            elif k == "tpk":
+                c["tpk"] = max(0.0, float(c["tpk"]) * f)
+        o = S.score(c)["obj"]
+        if o > bo + 1e-9:
+            best, bo = c, o
     return best
 
 
@@ -1166,11 +1239,13 @@ def split_tune(S, cfg, grp, G):
     c2 = _cp(cfg)
     for k in ("tp", "sl"):
         if c2.get(k) is None:
-            c2[k] = np.full(G, INF)
+            if k in S.allowed:
+                c2[k] = np.full(G, INF)
         else:
             c2[k] = np.full(G, float(c2[k][0]))
     if c2.get("tr") is None:
-        c2["tr"] = dict(gb=np.full(G, INF), act=np.ones(G))
+        if "tr" in S.allowed:
+            c2["tr"] = dict(gb=np.full(G, INF), act=np.ones(G))
     else:
         c2["tr"] = dict(gb=np.full(G, float(c2["tr"]["gb"][0])), act=np.full(G, float(c2["tr"]["act"][0])))
     o = S.tune(c2, passes=3)
@@ -1197,9 +1272,9 @@ def oos_check(S, cfg, grp, G, seeds=4):
         S.grp = grp; S.G = G
         c2 = _cp(cfg)
         for k in ("tp", "sl"):
-            c2[k] = np.full(G, float(c[k][0])) if c.get(k) is not None else np.full(G, INF)
-        c2["tr"] = dict(gb=np.full(G, float(c["tr"]["gb"][0])), act=np.full(G, float(c["tr"]["act"][0]))) if c.get("tr") is not None else dict(gb=np.full(G, INF), act=np.ones(G))
-        c2["tpk"] = c.get("tpk")
+            c2[k] = np.full(G, float(c[k][0])) if c.get(k) is not None else (np.full(G, INF) if k in S.allowed else None)
+        c2["tr"] = dict(gb=np.full(G, float(c["tr"]["gb"][0])), act=np.full(G, float(c["tr"]["act"][0]))) if c.get("tr") is not None else (dict(gb=np.full(G, INF), act=np.ones(G)) if "tr" in S.allowed else None)
+        c2["tpk"] = c.get("tpk"); c2["tpt"] = c.get("tpt")
         S.tune(c2, passes=2, idx=msk)
         res["s_tr"].append(S.score(c2, msk)["obj"]); res["s_te"].append(S.score(c2, ~msk)["obj"])
     S.grp = np.zeros(n, np.int64); S.G = 1
@@ -1283,6 +1358,18 @@ def fit_bot(name, out_dir="out", verbose=True):
     fits = {an: fit_elements(df, cl, an) for an in ("avg", "first", "last")}
     fits["layer"] = fit_elements(ld, lcl, "layer")
     S = Searcher(D, df, fits)
+    # loại bot: 'cutter' (cắt lỗ thật: SL >= 12% basket) hay 'hold' (giữ lỗ chờ hồi)
+    sl_share = mix["SL"] / D.n
+    bot_type = "cutter" if sl_share >= 0.12 else "hold"
+    lo_h = df.hold_min.values[df.ret.values < 0]
+    if bot_type == "hold":
+        S.allowed = {"tp", "tpk", "tpt", "sl", "tr", "brd"}
+    elif len(lo_h) >= 5:
+        S.tc_grid = sorted(set(G_TCMIN) | {float(round(x)) for x in np.percentile(lo_h, [25, 50, 75]) if x > 2})
+    loser_stats = dict(n_losers=int((df.ret.values < 0).sum()), loser_hold_min_p25_50_75=[round(float(x), 1) for x in np.percentile(lo_h, [25, 50, 75])] if len(lo_h) else None,
+                       loser_ret_med=round(float(df.ret.values[df.ret.values < 0].mean()), 3) if len(lo_h) else None,
+                       loser_mae_med=round(float(np.median(df.mae.values[df.ret.values < 0])), 3) if len(lo_h) else None, sl_class_share=round(sl_share, 3))
+    P(f"loại bot={bot_type} (SL class {100*sl_share:.1f}%); phần tử cho phép={sorted(S.allowed)}")
     P("fit công thức xong; scale_bps=%.1f" % S.scale_bps)
 
     # ---- đường ablation chuẩn ở từng neo
@@ -1397,7 +1484,10 @@ def fit_bot(name, out_dir="out", verbose=True):
     why_cnt = {WHY[int(w)]: int((o_final.why == w).sum()) for w in np.unique(o_final.why)}
     corr_min = min(la.get("pnl_corr") or 0, la.get("pnl_corr_usdt") or 0)
     beats = bool(m_final["obj"] > shuf["obj"]["p95"] and m_final["obj"] > null_m["obj"])
-    vd = verdict(la["close_match_15"], corr_min, beats)
+    ratio_f = float(o_final.pnl.sum() / D.real_pnl.sum())
+    vd = verdict(la["close_match_15"], corr_min, beats, ratio_f)
+    gd = gap_decomp(D, o_final)
+    pareto = pareto_front(S)
 
     # ---- basket tiêu biểu
     dt = np.where((o_final.closed == 1) & (o_final.nused > 0), np.abs(o_final.ct - D.t1) / MIN, np.inf)
@@ -1432,7 +1522,7 @@ def fit_bot(name, out_dir="out", verbose=True):
                        sub_position_level=dict(counts=layer_mix, n=int(len(ld)))),
         formulas=formulas,
         best_rule=dict(text_vi=txt, params=cfg_params(final_cfg), split_labels=(splits[chosen_split]["group_labels"] if chosen_split else None), anchor=best_an, structure=list(structure(final_cfg)), levels=lv, split=chosen_split,
-                       exit_reasons=why_cnt, objective=round(m_final["obj"], 4), objective_def="trung bình(exit±15, 1-median sai số giá/scale, đồng dấu PnL, max(0,corr PnL USDT)); scale=%.0f bps" % S.scale_bps),
+                       exit_reasons=why_cnt, objective=round(m_final["obj"], 4), objective_def="bình quân có trọng số (3×exit±15 + 1-median sai số giá/scale + đồng dấu PnL + max(0,corr PnL USDT))/6 - 0.1|ratio-1| - 0.03*min(nMAE,3) - ràng buộc cứng ratio PnL thực hiện sim/thật trong [0.75,1.25] (vi phạm: -1 -3*khoảng vượt); scale=%.0f bps" % S.scale_bps, bot_type=bot_type, loser_stats=loser_stats, allowed_elements=sorted(S.allowed)),
         top5_alternatives=top_alternatives(S, base_cfg),
         anchors={an: dict(final_obj=round(v["obj"], 4), tp_only_obj=round(v["tp_only"], 4), structure=list(structure(v["cfg"])), params=cfg_params(v["cfg"])) for an, v in per_anchor.items()},
         ablation=ablation, ablation_drop_one=drops, ablation_single_element=singles,
@@ -1444,16 +1534,18 @@ def fit_bot(name, out_dir="out", verbose=True):
             layer_close_match5=la.get("layer_close_match5"), layer_close_n=la.get("layer_close_n"),
             pnl_sign_agree=la.get("pnl_sign_agree"), pnl_corr=la.get("pnl_corr"), pnl_corr_usdt=la.get("pnl_corr_usdt"), pnl_med_abs_err_pp=la.get("pnl_med_abs_err_pp"),
             real_pnl_sum=la.get("act_pnl_sum"), sim_pnl_sum=la.get("sim_pnl_sum"), real_win_pct=la.get("act_win_pct"), sim_win_pct=la.get("sim_win_pct"),
+            pnl_ratio=round(ratio_f, 4), pnl_ratio_target_met=bool(ratio_f >= PNL_LO), gap_decomposition=gd["table"], both_win_median_ret_pct=gd["both_win"],
+            n_sim_trades=len(sim_T), n_real_trades=len(real_T), nmae=round(float(m_final["nmae"]), 3),
             level_a=la, cum_curve=match.cum_curve(rows),
             report_stats=dict(real=_stats_light(st_real), sim=_stats_light(st_sim), compare=cmp, daily=dc),
             unclosed=dict(n=int((o_final.closed == 0).sum()), mtm_pnl_at_horizon=round(float(o_final.mtm[o_final.closed == 0].sum()), 1),
                           real_pnl_of_those=round(float(D.real_pnl[o_final.closed == 0].sum()), 1),
                           note="basket sim chưa đóng trước t1 thật + 60 phút: tính là KHÔNG khớp, PnL đã thực hiện = 0 (mtm chỉ để tham khảo, tránh rò rỉ thời điểm thoát thật)"),
             note_fees="PnL sim = gộp - phí 3.5 bps/chiều (funding bỏ qua); PnL thật = số liệu OKX (đã gồm phí+funding)"),
-        baselines=baselines, representative_baskets=reps,
-        verdict=dict(label=vd, exit15=la["close_match_15"], corr_min=round(corr_min, 3), beats_baselines=beats,
+        pareto=pareto, baselines=baselines, representative_baskets=reps,
+        verdict=dict(label=vd, exit15=la["close_match_15"], corr_min=round(corr_min, 3), beats_baselines=beats, pnl_ratio=round(ratio_f, 3),
                      text_vi=(f"{vd}: thoát ±15 phút {la['close_match_15']:.1f}% (±5: {la['close_match_5']:.1f}%, ±60: {la['close_match_60']:.1f}%), tương quan PnL {la.get('pnl_corr')} (%), {la.get('pnl_corr_usdt')} (USDT), "
-                              f"đồng dấu PnL {la.get('pnl_sign_agree'):.1f}%, sai số giá thoát trung vị {la.get('close_px_err_bps_med')} bps; null time-stop ±15 = {100*null_m['m15']:.1f}%, "
+                              f"đồng dấu PnL {la.get('pnl_sign_agree'):.1f}%, PnL thực hiện sim/thật = {100*ratio_f:.0f}% ({'ĐẠT' if ratio_f >= PNL_LO else 'CHƯA đạt'} mục tiêu ≥75%), sai số giá thoát trung vị {la.get('close_px_err_bps_med')} bps; null time-stop ±15 = {100*null_m['m15']:.1f}%, "
                               f"hoán vị mức ±15 = {100*shuf['m15']['mean']:.1f}%. Đây là khớp IN-SAMPLE (tham số chỉnh trên chính dữ liệu), không phải dự báo." + (f" CẢNH BÁO mẫu nhỏ: chỉ {D.n} basket, tham số dễ quá khớp." if D.n < 30 else ""))),
         sim_trades=sim_trades_json(sim_T),
         runtime_sec=round(time.time() - t_start, 1), n_engine_evals=S.n_eval)
@@ -1462,6 +1554,38 @@ def fit_bot(name, out_dir="out", verbose=True):
     json.dump(_jr(res), open(path, "w"), ensure_ascii=False)
     P(f"xong {res['runtime_sec']}s -> {path}; verdict={vd}")
     return res
+
+
+def gap_decomp(D, o):
+    """Phân rã chênh lệch PnL theo basket thật: (thật thắng/thua) x (sim thắng/thua; sim chưa đóng = PnL 0 tính là không thắng)."""
+    rp = D.real_pnl; sp = o.pnl; rw = rp > 0; sw = sp > 0
+    tab = []
+    for rn, rm in (("thật thắng", rw), ("thật thua", ~rw)):
+        for sn, sm in (("sim thắng", sw), ("sim thua/chưa đóng", ~sw)):
+            m = rm & sm
+            tab.append(dict(nhóm=f"{rn} / {sn}", n=int(m.sum()), pnl_thật=round(float(rp[m].sum()), 1), pnl_sim=round(float(sp[m].sum()), 1), chênh=round(float(sp[m].sum() - rp[m].sum()), 1)))
+    sret = np.where(o.notional > 0, sp / np.where(o.notional > 0, o.notional, 1) * 100, 0.0)
+    both = rw & sw
+    bw = dict(n=int(both.sum()), real=round(float(np.median(D.real_ret[both])), 3) if both.any() else None, sim=round(float(np.median(sret[both])), 3) if both.any() else None)
+    return dict(table=tab, both_win=bw)
+
+
+def pareto_front(S, kmax=14):
+    """Mặt Pareto (khớp thoát ±15 cao, |PnL ratio-1| thấp) trên toàn bộ cấu hình đã đánh giá (không ràng buộc), chỉ giữ ratio trong [0.5,1.6]."""
+    pts = [(x[2], x[8], x) for x in S.log if 0.5 <= x[8] <= 1.6]
+    if not pts:
+        return []
+    pts.sort(key=lambda t: (-t[0], abs(t[1] - 1)))
+    front = []; best_dev = 9.0
+    for m15, ratio, x in pts:
+        dev = abs(ratio - 1)
+        if dev < best_dev - 1e-9:
+            front.append((m15, ratio, x)); best_dev = dev
+    if len(front) > kmax:
+        idx = np.linspace(0, len(front) - 1, kmax).round().astype(int)
+        front = [front[i] for i in sorted(set(idx))]
+    return [dict(exit15=round(100 * m15, 1), pnl_ratio=round(r, 3), feasible=bool(PNL_LO <= r <= PNL_HI), obj=round(x[0], 4), base_obj=round(x[9], 4), corr_usdt=round(x[3], 3), G=x[7],
+                 structure=list(structure(x[6])), params=cfg_params(x[6])) for m15, r, x in front]
 
 
 def facts_summary(df):
