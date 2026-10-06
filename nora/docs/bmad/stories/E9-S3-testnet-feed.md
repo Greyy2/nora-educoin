@@ -1,8 +1,8 @@
 # E9-S3: TestnetFeed thật thay feed giả lập
 
 - **Epic:** E9 Testnet & Live
-- **Trạng thái:** backlog
-- **Cập nhật:** 2026-10-01
+- **Trạng thái:** done
+- **Cập nhật:** 2026-10-06
 
 ## Story
 
@@ -29,10 +29,14 @@ Là người theo dõi danh mục, tôi muốn nguồn Testnet đọc từ tài 
 
 ## Evidence
 
-- Chưa áp dụng: story chưa làm.
+**06/10/2026 — thay thế.** Feed giả lập đã bỏ; trang Danh mục chỉ còn kết quả backtest. Tài khoản demo xem ở trang **Live**
+(`/api/studio/live/trades`): vốn sàn mỗi bước, lệnh khớp thật (giá đóng, lãi lỗ, phí, funding từ lịch sử vị thế OKX), vị thế mở, bóng paper.
+Hợp đồng `FeedSnapshot` không còn dùng.
+
 
 ## Change Log
 
 | Ngày | Thay đổi |
 |---|---|
 | 2026-10-01 | Tạo story, trạng thái `backlog`. |
+| 2026-10-06 | OKX demo: trạng thái `done`. |

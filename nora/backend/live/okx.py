@@ -129,6 +129,8 @@ class OkxAdapter:
     # ── tài khoản ──
     def check_account(self) -> None:
         cfg = self._req("GET", "/api/v5/account/config", signed=True)[0]
+        if "withdraw" in str(cfg.get("perm") or ""):
+            raise SystemExit("OKX: khoá API có quyền RÚT TIỀN — tạo khoá chỉ đọc + giao dịch rồi chạy lại (E9-S7)")
         if cfg.get("posMode") != "net_mode":
             raise SystemExit("OKX: tài khoản đang ở long_short_mode — bot cần net_mode (một vị thế mỗi mã, khớp max_per_symbol = 1)")
 

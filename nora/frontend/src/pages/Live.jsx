@@ -16,6 +16,7 @@ const TAB = { paper: ['paper', 'main'], demo: ['demo', 'main'], paper_explore: [
 const BOOK = { main: 'sổ chính (đã kiểm định)', explore: 'sổ thử nghiệm (chỉ paper)' }
 const SRC = { exec: 'Sàn', paper: 'Paper' }
 const REASON = { TP: 'Chốt lời', SL: 'Cắt lỗ', TRAIL: 'Trailing', TIMEOUT: 'Hết hạn', SIGNAL: 'Tín hiệu thoát' }
+const SLC = { better: 'tốt hơn mức SL', between: 'giữa SL và đáy/đỉnh nến', worse: 'xấu hơn bi quan' }
 const DAY = 86400e3
 const base = (s) => String(s || '').split(/[@\-/_:]/)[0].toUpperCase() // "BTC@perp" / "BTC-USDT-SWAP" -> "BTC"
 
@@ -118,6 +119,8 @@ function CompareFills({ book }) {
   const c = q.data
   const s = c?.summary
   const bps = (v) => (isNum(v) ? `${v > 0 ? '+' : ''}${fmtNum(v, 1)} bps` : '—')
+  const pct2 = (v) => (isNum(v) ? `${fmtNum(v, 3)}%` : '—')
+  const sl = s?.sl
   return (
     <Panel title="Sàn thật so với paper" meta={<span>dương = sàn khớp kém hơn giả lập</span>}>
       {q.error && <ErrorState title="Chưa so được" error={q.error} onRetry={q.reload} />}
@@ -125,6 +128,14 @@ function CompareFills({ book }) {
         ? <Empty title="Chưa có lệnh để so">Khi bot demo có lệnh đóng, mỗi lệnh sàn được ghép với lệnh paper cùng nến để đo chênh lệch khớp lệnh.</Empty>
         : (
           <>
+            <p className="n-note" style={{ marginBottom: 8 }}>
+              Mẫu: <b>{s.matched} / {s.min_pairs} cặp</b>{s.enough ? ' — đủ để đọc số trung bình.' : ' — chưa đủ mẫu, các số trung bình và cảnh báo chỉ để tham khảo.'}
+            </p>
+            {s.flags?.length > 0 && (
+              <div style={{ display: 'grid', gap: 6, marginBottom: 10 }}>
+                {s.flags.map((f) => <div key={f.key}><Status tone="warn">{f.msg}</Status> <span className="mono">{fmtNum(f.value, 2)} &gt; {f.limit}</span></div>)}
+              </div>
+            )}
             <div className="n-lv-kpis">
               <div className="n-tile"><div className="l">Cặp ghép được</div><div className="v">{s.matched}</div></div>
               <div className="n-tile"><div className="l">Chỉ paper khớp</div><div className="v">{s.only_paper}</div><div className="l">giả lập lạc quan nếu nhiều</div></div>
@@ -132,17 +143,21 @@ function CompareFills({ book }) {
               <div className="n-tile"><div className="l">Chênh giá vào TB</div><div className="v">{bps(s.entry_bps_mean)}</div></div>
               <div className="n-tile"><div className="l">Chênh giá đóng TB</div><div className="v">{bps(s.close_bps_mean)}</div></div>
               <div className="n-tile"><div className="l">Lệch số tầng DCA</div><div className="v">{s.layers_diff}</div></div>
+              <div className="n-tile"><div className="l">Phí TB (% danh nghĩa)</div><div className="v">{pct2(s.fee_pct_mean?.[0])} sàn · {pct2(s.fee_pct_mean?.[1])} paper</div></div>
+              <div className="n-tile"><div className="l">Funding cộng dồn (% danh nghĩa)</div><div className="v">{pct2(s.funding_pct_sum?.[0])} sàn · {pct2(s.funding_pct_sum?.[1])} paper</div><div className="l">dương = trả phí</div></div>
+              {sl?.n > 0 && <div className="n-tile"><div className="l">Lệnh cắt lỗ trên sàn ({sl.n})</div><div className="v">{sl.better} · {sl.between} · {sl.worse}</div><div className="l">tốt hơn mức SL · giữa mức SL–đáy/đỉnh nến · xấu hơn kịch bản bi quan</div></div>}
               <div className="n-tile"><div className="l">Lãi/lỗ (% danh nghĩa)</div><div className="v"><span className={signClass(s.ret_pct_exec)}>{fmtSPct(s.ret_pct_exec, 2)}</span> sàn · <span className={signClass(s.ret_pct_paper)}>{fmtSPct(s.ret_pct_paper, 2)}</span> paper</div></div>
             </div>
             {c.pairs.length > 0 && (
               <div className="n-tblwrap" style={{ marginTop: 10 }}>
                 <table className="n-tbl">
-                  <thead><tr><th>Vào lúc (UTC)</th><th>Cặp</th><th>Chiến lược</th><th className="r">Chênh giá vào</th><th className="r">Chênh giá đóng</th><th className="r">Tầng (sàn / paper)</th><th className="r">Lãi % (sàn / paper)</th><th>Thoát (sàn / paper)</th></tr></thead>
+                  <thead><tr><th>Vào lúc (UTC)</th><th>Cặp</th><th>Chiến lược</th><th className="r">Chênh giá vào</th><th className="r">Chênh giá đóng</th><th>SL</th><th className="r">Phí % (sàn / paper)</th><th className="r">Tầng (sàn / paper)</th><th className="r">Lãi % (sàn / paper)</th><th>Thoát (sàn / paper)</th></tr></thead>
                   <tbody>
                     {c.pairs.map((p, i) => (
                       <tr key={i}>
                         <td className="num">{fmtTs(p.entry_time)}</td><td>{base(p.symbol)}</td><td>{legLabel(p.strategy)}</td>
                         <td className="r">{bps(p.entry_bps)}</td><td className="r">{bps(p.close_bps)}</td>
+                        <td>{SLC[p.sl] || '—'}</td><td className="r">{pct2(p.fee_pct?.[0])} / {pct2(p.fee_pct?.[1])}</td>
                         <td className="r">{p.layers[0] ?? '—'} / {p.layers[1] ?? '—'}</td>
                         <td className="r">{fmtSPct(p.ret_pct[0], 2)} / {fmtSPct(p.ret_pct[1], 2)}</td>
                         <td>{REASON[p.reason[0]] || p.reason[0] || '—'} / {REASON[p.reason[1]] || p.reason[1] || '—'}</td>
@@ -179,12 +194,24 @@ export default function Live() {
       {!q.error && !d && <Loading what="dữ liệu bot live" />}
       {d && (
         <div className="n-lv" style={{ opacity: q.loading ? 0.7 : 1 }}>
+          {d.alerts?.length > 0 && (
+            <Panel title="Cảnh báo của lần chạy hiện tại" meta={<span>{d.alerts.length} sự kiện</span>}>
+              <ul className="n-lv-alerts">
+                {d.alerts.map((a, i) => (
+                  <li key={i}><Status tone={a.kind === 'crit' ? 'bad' : 'warn'}>{a.kind === 'crit' ? 'nghiêm trọng' : 'cảnh báo'}</Status>{' '}
+                    <span className="mono">{fmtTs(a.t)}</span>{a.symbol ? ` · ${a.symbol}` : ''} · {a.reason || a.msg || '—'}</li>
+                ))}
+              </ul>
+            </Panel>
+          )}
           <LiveOverview d={d} trades={trades} positions={positions} />
           {mode === 'demo' && <CompareFills book={book} />}
 
           <Panel title="Tóm tắt" meta={<button type="button" className="n-btn sm" onClick={q.reload} disabled={q.loading}>Làm mới</button>}>
             <dl className="n-ex-kv n-lv-sum">
-              <div><dt>Trạng thái</dt><dd>{d.running?.length ? <Status tone="ok">đang chạy <span className="mono">{d.running.join(', ')}</span></Status> : <Status tone="warn">không chạy</Status>}</dd></div>
+              <div><dt>Trạng thái</dt><dd>{d.halted
+                ? <Status tone="bad">đã dừng mở lệnh (kill switch){isNum(d.peak_equity) && d.peak_equity > 0 ? ` · đỉnh vốn ${fmtMoney(d.peak_equity)}` : ''}</Status>
+                : d.running?.length ? <Status tone="ok">đang chạy <span className="mono">{d.running.join(', ')}</span></Status> : <Status tone="warn">không chạy</Status>}</dd></div>
               <div><dt>Vốn</dt><dd className="mono">{isNum(d.equity) ? `${fmtMoney(d.equity)} USDT` : '—'}</dd></div>
               <div><dt>Sổ chiến lược</dt><dd>{BOOK[d.book_kind] || d.book_kind}</dd></div>
               <div><dt>Khung · Cặp</dt><dd className="mono">{d.timeframe} · {d.symbols?.length || 0} cặp</dd></div>

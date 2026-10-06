@@ -359,6 +359,9 @@ def test_paper_book_replays_engine_trades_exactly(market, risk):
                  for x in pb.trades)
     assert got == want
     assert (pb.halted_at is not None) == (res.get("halted_at") is not None)
+    assert all({"fees", "funding", "bar_low", "bar_high"} <= set(x) and x["bar_low"] <= x["bar_high"] and x["fees"] > 0 for x in pb.trades)   # E9-S6
+    by = {(p.symbol, p.strategy_id, int(p.enter_time)): p for p in res["positions"]}
+    assert all(abs(x["fees"] - by[(x["symbol"], x["strategy"], x["enter_time"])].fees_usd) < 1e-5 for x in pb.trades)
 
 
 def test_stale_state_of_other_book_is_archived(tmp_path):
@@ -428,7 +431,8 @@ def test_live_trades_equity_series_from_events(tmp_path, monkeypatch):
     monkeypatch.setenv("NORA_LOCAL_DATA_ROOT", str(tmp_path))
     r = live_router.bot_trades(mode="demo", venue="okx", limit=10)
     assert r["equity_series"] == [{"t": H, "equity": 100.0}, {"t": 2 * H, "equity": 102.5}] and r["started"] == 5
-    series, _ = live_router._equity_series(str(d), cap=1)
+    assert r["halted"] is False and r["alerts"] == []
+    series, _, _ = live_router._equity_series(str(d), cap=1)
     assert series == [{"t": 2 * H, "equity": 102.5}]
     monkeypatch.setenv("NORA_LOCAL_DATA_ROOT", str(tmp_path / "none"))
     r = live_router.bot_trades(mode="demo", venue="okx", limit=10)
@@ -452,6 +456,77 @@ def test_compare_exec_with_paper_and_state_dirs_per_book():
     assert q["entry_bps"] == 100.0 and q["close_bps"] == round((103.5 - 103.0) / 103.5 * 10_000, 2)     # sàn mua đắt hơn, bán rẻ hơn: dương
     assert q["ret_pct"][0] == round(0.19 / (0.1 * 101.0) * 100, 4)
     assert lb.state_key("okx", "paper") == "okx_paper" and lb.state_key("okx", "paper", "explore") == "okx_paper_explore"
+
+
+def _cmp_pair(side, close, reason="Stop-loss (từ giá TB)", **extra):
+    """Một cặp sàn/paper: vào 100, paper đóng ở mức SL 95 (LONG) hoặc 105 (SHORT), nến có đáy 90 / đỉnh 110."""
+    H = 3_600_000
+    ex = {"symbol": "BTC", "strategy": "s", "side": side, "qty": 1.0, "avg": 100.0, "entry_time": H, "open_price": 100.0, "close_price": close}
+    pa = {"symbol": "BTC@perp", "strategy": "s", "side": side, "enter_time": H, "enter_price": 100.0, "avg_price": 100.0, "qty": 1.0,
+          "close_price": 95.0 if side == "LONG" else 105.0, "reason": reason, "layers": 1, "pnl": -5.0, "bar_low": 90.0, "bar_high": 110.0}
+    ex.update(extra.get("ex", {}))
+    pa.update(extra.get("pa", {}))
+    return ex, pa
+
+
+def test_compare_sl_classification_long_short():
+    from backend.live.compare import compare_trades
+    for side, cases in (("LONG", {96.0: "better", 95.0: "better", 93.0: "between", 90.0: "between", 88.0: "worse"}),
+                        ("SHORT", {104.0: "better", 105.0: "better", 107.0: "between", 110.0: "between", 112.0: "worse"})):
+        for close, want in cases.items():
+            ex, pa = _cmp_pair(side, close)
+            q = compare_trades([ex], [pa], "1h")["pairs"][0]
+            assert q["sl"] == want, (side, close)
+    ex, pa = _cmp_pair("LONG", 88.0)
+    assert compare_trades([ex], [pa], "1h")["pairs"][0]["sl_extreme_bps"] == round((90.0 - 88.0) / 90.0 * 10_000, 2)
+    ex, pa = _cmp_pair("LONG", 93.0, reason="TP")                                  # không phải SL của paper: không phân loại
+    q = compare_trades([ex], [pa], "1h")["pairs"][0]
+    assert q["sl"] is None and q["sl_extreme_bps"] is None
+    ex, pa = _cmp_pair("LONG", 93.0, pa={"bar_low": None})                         # thiếu đáy nến -> None
+    assert compare_trades([ex], [pa], "1h")["pairs"][0]["sl"] is None
+    ex, pa = _cmp_pair("LONG", None)
+    assert compare_trades([ex], [pa], "1h")["pairs"][0]["sl"] is None
+
+
+def test_compare_fee_funding_pct_and_old_paper_trades():
+    from backend.live.compare import compare_trades
+    ex, pa = _cmp_pair("LONG", 95.0, ex={"qty": 2.0, "fee": -0.4, "funding": -0.2}, pa={"qty": 2.0, "fees": 0.1, "funding": -0.05})
+    q = compare_trades([ex], [pa], "1h")["pairs"][0]
+    assert q["fee_pct"] == [0.2, 0.05] and q["funding_pct"] == [0.1, -0.025]      # chi phí / (qty*avg) %, dương = trả
+    s = compare_trades([ex], [pa], "1h")["summary"]
+    assert s["fee_pct_mean"] == [0.2, 0.05] and s["funding_pct_sum"] == [0.1, -0.025]
+    ex, pa = _cmp_pair("LONG", 93.0)                                                # paper cũ (pickle chưa có trường mới) + sàn thiếu fee
+    for k in ("bar_low", "bar_high"):
+        pa.pop(k)
+    out = compare_trades([ex], [pa], "1h")
+    q = out["pairs"][0]
+    assert q["fee_pct"] == [None, None] and q["funding_pct"] == [None, None] and q["sl"] is None
+    assert out["summary"]["fee_pct_mean"] == [None, None] and out["summary"]["funding_pct_sum"] == [None, None]
+    assert out["summary"]["sl"] == {"n": 0, "better": 0, "between": 0, "worse": 0}
+    ex2, pa2 = _cmp_pair("LONG", 95.0, ex={"fee": -0.1})                            # chỉ một phía có phí: không vào trung bình
+    assert compare_trades([ex2], [pa2], "1h")["summary"]["fee_pct_mean"] == [None, None]
+
+
+def test_compare_flags_and_min_pairs():
+    from backend.live.compare import compare_trades, MIN_PAIRS
+    H = 3_600_000
+    ok = compare_trades(*[[x] for x in _cmp_pair("LONG", 95.0, reason="TP", ex={"fee": -0.05}, pa={"fees": 0.05, "close_price": 95.0})], "1h")
+    assert ok["summary"]["flags"] == [] and ok["summary"]["enough"] is False and ok["summary"]["min_pairs"] == MIN_PAIRS == 30
+    exs, pas = [], []
+    for i in range(MIN_PAIRS):                                                      # sàn kém 20 bps ở mọi chặng, SL xấu hơn đáy nến, phí gấp đôi
+        ex, pa = _cmp_pair("LONG", 88.0, ex={"entry_time": (i + 1) * 10 * H, "entry_price": 100.2, "open_price": 100.2, "fee": -0.2},
+                           pa={"enter_time": (i + 1) * 10 * H, "fees": 0.05})
+        exs.append(ex)
+        pas.append(pa)
+    pas.extend(_cmp_pair("LONG", 95.0, pa={"enter_time": (100 + i) * H, "symbol": "ETH@perp"})[1] for i in range(40))    # paper khớp mà sàn không
+    s = compare_trades(exs, pas, "1h")["summary"]
+    keys = {f["key"] for f in s["flags"]}
+    assert s["enough"] is True and s["matched"] == MIN_PAIRS and s["sl"]["worse"] == MIN_PAIRS
+    assert keys == {"entry_bps_mean", "close_bps_mean", "avg_bps_mean", "fee_gap_pct", "only_paper_share", "sl_worse_share"}
+    f = {f["key"]: f for f in s["flags"]}
+    assert f["entry_bps_mean"]["limit"] == 5.0 and f["entry_bps_mean"]["value"] == 20.0
+    assert f["only_paper_share"]["value"] == round(40 / 70, 5) and f["fee_gap_pct"]["value"] == round(0.15, 5)
+    assert all(x["msg"] for x in s["flags"])
 
 
 def test_okx_closed_since_parses_positions_history(monkeypatch):
@@ -525,3 +600,29 @@ def test_fresh_state_peak_comes_from_measured_equity_not_nominal_capital(tmp_pat
     assert not b.state.d["halted"] and b.state.d["peak_equity"] == 4865.69
     assert not any(e["kind"] == "crit" for e in ev)
     assert b._risk_controls(4865.69)[1] == 1.0                                   # không bị throttle theo đỉnh giả
+
+
+def test_live_trades_shows_halted_and_alerts_since_last_start(tmp_path, monkeypatch):
+    """Trang Live phải thấy bot đang dừng (kill switch) và cảnh báo của lần chạy hiện tại — cảnh báo trước lần khởi động gần nhất bỏ qua."""
+    from backend.api.routers import live as live_router
+    d = tmp_path / "_cache" / "live" / "okx_demo"
+    d.mkdir(parents=True)
+    evs = [{"t": 1, "kind": "start"}, {"t": 2, "kind": "crit", "reason": "cũ"}, {"t": 3, "kind": "start"},
+           {"t": 4, "kind": "warn", "reason": "w"}, {"t": 5, "kind": "crit", "reason": "kill switch"}]
+    (d / "events.jsonl").write_text("\n".join(json.dumps(e) for e in evs) + "\n", encoding="utf-8")
+    (d / "state.json").write_text(json.dumps({"halted": True, "peak_equity": 100.0}), encoding="utf-8")
+    monkeypatch.setenv("NORA_LOCAL_DATA_ROOT", str(tmp_path))
+    r = live_router.bot_trades(mode="demo", venue="okx", limit=10)
+    assert r["halted"] is True and r["peak_equity"] == 100.0
+    assert [a["reason"] for a in r["alerts"]] == ["w", "kill switch"]
+
+
+def test_okx_refuses_key_with_withdraw_permission(monkeypatch):
+    from backend.live.okx import OkxAdapter
+    a = OkxAdapter(("k", "s", "p"), demo=True)
+    cfg = {"posMode": "net_mode", "perm": "read_only,trade,withdraw"}
+    monkeypatch.setattr(a, "_req", lambda *args, **kw: [cfg])
+    with pytest.raises(SystemExit, match="RÚT TIỀN"):
+        a.check_account()
+    cfg["perm"] = "read_only,trade"
+    a.check_account()

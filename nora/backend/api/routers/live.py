@@ -70,8 +70,9 @@ def bot_status(mode: str = Query("paper", pattern="^(paper|demo|live)$"), venue:
 
 def _equity_series(d: str, cap: int = 2000):
     """Đường vốn của bot từ events.jsonl (sự kiện "step": bar + equity), mỗi nến một điểm (giữ bản cuối), tối đa `cap` điểm cuối.
-    -> (equity_series [{t, equity}], started = thời điểm "start" đầu tiên của sổ hiện tại hoặc None)."""
-    by_bar, started = {}, None
+    -> (equity_series [{t, equity}], started = thời điểm "start" đầu tiên của sổ hiện tại hoặc None,
+        alerts = sự kiện crit / warn từ lần khởi động gần nhất, tối đa 5 cái cuối)."""
+    by_bar, started, alerts = {}, None, []
     try:
         with open(os.path.join(d, "events.jsonl"), encoding="utf-8") as fh:
             for line in fh:
@@ -79,13 +80,16 @@ def _equity_series(d: str, cap: int = 2000):
                     e = json.loads(line)
                 except ValueError:
                     continue
-                if e.get("kind") == "start" and started is None:
-                    started = e.get("t")
+                if e.get("kind") == "start":
+                    started = e.get("t") if started is None else started
+                    alerts = []
+                elif e.get("kind") in ("crit", "warn"):
+                    alerts = (alerts + [e])[-5:]
                 elif e.get("kind") == "step" and isinstance(e.get("bar"), (int, float)) and isinstance(e.get("equity"), (int, float)):
                     by_bar[int(e["bar"])] = float(e["equity"])
     except OSError:
         pass
-    return [{"t": t, "equity": v} for t, v in sorted(by_bar.items())][-cap:], started
+    return [{"t": t, "equity": v} for t, v in sorted(by_bar.items())][-cap:], started, alerts
 
 
 @router.get("/trades")
@@ -126,10 +130,11 @@ def bot_trades(mode: str = Query("paper", pattern="^(paper|demo|live)$"), venue:
         symbols, tf = [u.split("@")[0] for u in b["universe"]], b.get("timeframe")
     except (SystemExit, OSError, ValueError):
         pass
-    series, started = _equity_series(d)
+    series, started, alerts = _equity_series(d)
     return {"venue": venue, "mode": mode, "book_kind": kind, "strategies": strategies, "symbols": symbols, "timeframe": tf,
             "running": [j.get("id") for j in _running(venue, mode, book)],
-            "equity": state.get("equity"), "equity_series": series, "started": started, "exec": {"trades": (state.get("trades") or [])[-limit:], "positions": exec_pos},
+            "equity": state.get("equity"), "equity_series": series, "started": started,
+            "halted": bool(state.get("halted")), "peak_equity": state.get("peak_equity"), "alerts": alerts, "exec": {"trades": (state.get("trades") or [])[-limit:], "positions": exec_pos},
             "paper": {"trades": paper_trades, "positions": paper_pos, "summary": state.get("paper")}}
 
 

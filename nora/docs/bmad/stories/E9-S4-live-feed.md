@@ -2,7 +2,7 @@
 
 - **Epic:** E9 Testnet & Live
 - **Trạng thái:** backlog
-- **Cập nhật:** 2026-10-01
+- **Cập nhật:** 2026-10-06
 
 ## Story
 
@@ -27,10 +27,13 @@ Là người theo dõi danh mục, tôi muốn nguồn Live đọc từ tài kho
 
 ## Evidence
 
-- Chưa áp dụng: story chưa làm.
+**06/10/2026.** Chưa chạy vốn thật. Khi bật live, trang Live dùng cùng đường với demo (`mode=live`, bắt buộc `confirm_live`);
+yêu cầu khoá không có quyền rút do E9-S7 AC3 đảm nhận.
+
 
 ## Change Log
 
 | Ngày | Thay đổi |
 |---|---|
 | 2026-10-01 | Tạo story, trạng thái `backlog`. |
+| 2026-10-06 | OKX demo: ghi chú. |

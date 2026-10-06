@@ -29,11 +29,12 @@ flowchart LR
   E --> API
   API <--> JOBS[[run_limited.sh -> api/jobs/runner.py -> run_job(params)<br/>nora.slice 12G]]
   API --> UI[UI: Danh mục, Backtest, Phễu, Alpha, Lịch sử]
-  REG -. chưa có bot .-> TN[Binance Futures testnet / live]
-  TN -. feed thật, chưa có .-> API
+  REG --> BOT[[live_bot: paper / demo / live<br/>+ bóng paper cùng engine]]
+  BOT --> OKX[OKX Demo Trading / live]
+  BOT --> API
 ```
 
-Đường nét đứt là phần chưa làm (epic E9). Hiện tại Live/Testnet của trang Danh mục đọc feed giả lập từ `data/_cache/mock_feeds/`.
+Bot sàn (epic E9) chạy như job API; trang Live đọc `data/_cache/live/<sàn>_<chế độ>[_explore]/` (state.json, events.jsonl, paper.pkl). Vốn thật cần `confirm_live`.
 
 ## 2. Bản đồ package
 
@@ -53,12 +54,12 @@ flowchart LR
 | `backend/core/execute/` | `tracker.py` (`PositionTracker`: vào/ra, SL/TP/trailing, DCA, thanh lý, funding, cooldown), `ledger.py` (`CapitalLedger`), `models.py` | |
 | `backend/core/metrics/` | `trades.py` (`MetricsCalculator`, bảng lệnh, win rate/PF), `returns.py` (lợi suất ngày, NAV, Sharpe, Sortino, MDD, thống kê chuỗi), `portfolio.py` (`portfolio_metrics`, `series_metrics`) | |
 | `backend/core/backtest/` | `engine.py` (`BacktestEngine`), `portfolio.py` (`PortfolioEngine`, `RiskConfig`), `run.py` (job `book_backtest`; `BacktestJob` + `make_engine` — đặc tả job dùng chung cho sổ / WFA / phễu) | |
-| `backend/core/analytics/` | `dashboard.py` (payload Danh mục), `feeds.py` (Backtest/Live/Testnet + job `mock_feeds`) | |
+| `backend/core/analytics/` | `dashboard.py` (payload Danh mục), `feeds.py` (`BacktestFeed`) | |
 | `backend/db/` | `data_layout.py` (đường dẫn), `local_pkl.py`, `tick_storage.py` | |
 | `backend/optimize/` | `book.py` (job `book_build`, giai đoạn A–D), `store.py` (ResultsStore SQLite + `stream_stage`), `registry.py` (kho alpha, cấu hình testnet, ghi/xuất bản sổ), `shared.py` (`SharedExporter`: làm nóng / dọn kho dùng chung cho mọi lối chạy nhiều alpha) | |
 | `backend/optimize/funnel/` | `gates`, `generate`, `evaluate`, `antiluck` (DSR, PBO), `sizing`, `stats`, `storage`, `orchestrator`, `promote`, `recompute` (job), `run` (job `funnel_run`) | |
 | `backend/wfa/` | `walk_forward.py` (fold + WFA danh mục, gate), `run.py` (job `book_wfa`) | |
-| `backend/live/` | `signals.py` (tín hiệu nến đóng qua đúng engine), `exchange.py` (REST Binance Futures + bộ lọc), `bot.py` (job `live_bot`: paper / testnet), `secrets.py` | E9, 04/10/2026 |
+| `backend/live/` | `signals.py` (tín hiệu nến đóng qua đúng engine), `okx.py` (REST OKX, sàn triển khai), `exchange.py` (bộ lọc + Binance tham khảo), `bot.py` (job `live_bot`: paper / demo / live), `paper.py` (bóng paper), `compare.py` (đối soát sàn ↔ paper), `secrets.py` | E9, 04/10/2026 |
 | `backend/carlo/` | `monte_carlo.py` (bootstrap ngày, kịch bản cực xấu, gate, `bootstrap_daily`) | |
 | `backend/utils/` | `parallel.py`, `memwatch.py`, `lru.py`, `jsonsafe.py`, `jobs.py` (options, Progress, SIGTERM, result.json) | |
 | `backend/utils/ops/` | `run_limited.sh`, `install_user_units.sh`, `systemd/` | |
@@ -117,7 +118,7 @@ Kết quả cache trong tiến trình, khoá theo `(mtime_ns, size)` của mọi
 `core/research/market_analyzer.py`, `market_health.py`, `core/data/promote_staging.py`.
 **Cổng bắt buộc cho đường sổ chiến lược (E12.1):** `require_data_ok(symbols)` (cũng `require_data_ok_or_exit` cho CLI) trong `quality_gate.py` ném
 `DataQualityError` (tiếng Việt, liệt kê từng tài sản) khi BLOCKED / NEEDS_MORE_DATA; WARNING chạy tiếp và ghi log. Được gọi ở: `PortfolioEngine.load_data`
-(mỗi tài sản, dùng cache của gate), đầu `main` của `build_strategy_book`, `validate_book`, `run_book_backtest`, `make_mock_feeds`, và `optimize_alphas`
+(mỗi tài sản, dùng cache của gate), đầu `main` của `build_strategy_book`, `validate_book`, `run_book_backtest` và `optimize_alphas`
 (trước khi fork pool + tường minh ở `_run_pair` cho giai đoạn sàng lọc). Tiến trình cha gọi trước khi fork nên worker thừa kế cache gate (tránh đọc lại 1m).
 
 ### 3.5 Cache nến
@@ -435,9 +436,7 @@ cần MySQL của hệ thống cũ, chỉ đọc. Các route này không nằm t
 
 `core/analytics/portfolio_dashboard.py` dựng payload từ kết quả `book_backtest` (hàm thuần, test được): NAV ngày MTM, lợi suất ngày, Sharpe/Sortino/Calmar quy năm bằng √365,
 VaR/CVaR lịch sử 95%, phân phối, bảng tháng, rolling Sharpe 63 ngày, exposure/margin, bảng chiến lược (realised), sự kiện rủi ro (MDD chạm 50%/80% hạn mức kill switch).
-`core/analytics/feeds.py`: `BacktestFeed`, `MockFeed` (đọc `data/_cache/mock_feeds/{live,testnet}.json` do `backend/core/analytics/make_mock_feeds.py` sinh, tất định),
-`LiveFeed`/`TestnetFeed` (stub, luôn `NotAvailable`). `get_snapshot(kind)`: feed thật nếu có, không thì feed giả lập (`mock: true`, `mock_note`), thiếu file giả lập thì `available: false`.
-Kết quả đệm LRU 32 mục theo `(nguồn/job_id, period, mtime)`. Khi nối tài khoản thật chỉ cần cài `LiveFeed.fetch()`/`TestnetFeed.fetch()`; router và UI không đổi.
+`core/analytics/feeds.py`: chỉ `BacktestFeed` (trang Danh mục = kết quả backtest). Feed giả lập Live/Testnet đã bỏ; số liệu tài khoản thật xem ở trang Live (§ bot).
 
 ## 11. UI
 

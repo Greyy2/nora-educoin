@@ -59,11 +59,14 @@ class PaperBook:
                     worst += tr.unrealized_pnl_usd(self.last_low[b] if tr.is_long else self.last_high[b])
         return mtm, worst
 
-    def _collect(self, sym: str, e: Dict[str, Any], pos) -> None:
+    def _collect(self, sym: str, e: Dict[str, Any], pos, low: float, high: float) -> None:
+        """Ghi lệnh đóng; fees/funding = chi phí cộng dồn (dương = trả), bar_low/bar_high = nến đóng (đối chiếu kịch bản SL bi quan)."""
         self.trades.append({"symbol": sym, "strategy": e["strategy"], "side": pos.pos_type.name, "enter_time": int(pos.enter_time),
                             "enter_price": float(pos.enter_price), "avg_price": float(pos.avg_price or pos.enter_price),
                             "close_time": int(pos.close_time), "close_price": float(pos.close_price), "qty": float(pos.qty),
-                            "layers": int(pos.layers or 1), "pnl": round(float(pos.real_pnl), 6), "reason": pos.close_reason})
+                            "layers": int(pos.layers or 1), "pnl": round(float(pos.real_pnl), 6), "reason": pos.close_reason,
+                            "fees": round(float(pos.fees_usd or 0), 6), "funding": round(float(pos.funding_usd or 0), 6),
+                            "bar_low": float(low), "bar_high": float(high)})
 
     def step_bar(self, t: int, bars: Dict[str, Tuple[float, float, float, float]], sig: Dict[str, List[Dict[str, Any]]],
                  funding: Optional[Dict[str, List[Tuple[int, float]]]] = None) -> List[Dict[str, Any]]:
@@ -121,7 +124,7 @@ class PaperBook:
                 tr.max_new_risk = float("inf")
                 tr.risk_scale = 1.0
                 if pos is not None:
-                    self._collect(sym, e, pos)
+                    self._collect(sym, e, pos, l, h)
             self.last_close[b], self.last_low[b], self.last_high[b], self.last_open[b] = float(c), float(l), float(h), float(o)
             touched = True
         self.last_t = t
@@ -136,7 +139,7 @@ class PaperBook:
                         tr.pending_entry = False
                         pos = tr.force_close(t, self.last_close[b], "Kill switch danh mục")
                         if pos is not None:
-                            self._collect(bk["symbol"], e, pos)
+                            self._collect(bk["symbol"], e, pos, self.last_low[b], self.last_high[b])
         return self.trades[n0:]
 
     def positions(self) -> List[Dict[str, Any]]:

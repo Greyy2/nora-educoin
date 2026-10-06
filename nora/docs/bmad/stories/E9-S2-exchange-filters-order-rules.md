@@ -1,8 +1,8 @@
 # E9-S2: Bộ lọc sàn: tickSize, stepSize, minNotional và quy tắc lệnh
 
 - **Epic:** E9 Testnet & Live
-- **Trạng thái:** review
-- **Cập nhật:** 2026-10-01
+- **Trạng thái:** done
+- **Cập nhật:** 2026-10-06
 
 ## Story
 
@@ -27,11 +27,14 @@ Là người vận hành, tôi muốn bot làm tròn giá/khối lượng theo b
 
 ## Evidence
 
+**06/10/2026 — OKX.** `Filters` từ instrument OKX (ctVal, lotSz, tickSz, minSz): khối lượng hợp đồng làm tròn xuống khi mở,
+làm tròn gần nhất khi đóng (`qty_close`, không để bụi vị thế); lỗi thiếu quyền mã -> `NotPermitted`, bỏ qua mã tới lần khởi động sau
+(`test_close_qty_rounding_and_okx_contracts_no_dust`, `test_symbol_without_api_permission_is_skipped`). DCA dùng lệnh post-only.
+
 **04/10/2026.** `live.exchange.Filters`: làm tròn xuống theo stepSize/tickSize, bỏ lệnh dưới minQty/minNotional và ghi sự kiện `skip`
 (`test_filters_round_down_and_reject_small`). DCA GTX chưa áp dụng (bot chưa hỗ trợ DCA). Sai khác khối lượng so với mô phỏng ghi trong events.jsonl.
 
 
-- Chưa áp dụng: story chưa làm.
 
 ## Change Log
 
@@ -39,3 +42,4 @@ Là người vận hành, tôi muốn bot làm tròn giá/khối lượng theo b
 |---|---|
 | 2026-10-01 | Tạo story, trạng thái `backlog`. |
 | 2026-10-04 | Bot sổ paper/testnet (backend/live) | 015f06c |
+| 2026-10-06 | OKX demo: trạng thái `done`. |

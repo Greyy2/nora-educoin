@@ -96,13 +96,13 @@ epics:
     title: "Testnet & Live"
     status: in-progress
     stories:
-      E9-S1-testnet-bot-executor: review
-      E9-S2-exchange-filters-order-rules: review
-      E9-S3-testnet-feed: backlog
+      E9-S1-testnet-bot-executor: done
+      E9-S2-exchange-filters-order-rules: done
+      E9-S3-testnet-feed: done
       E9-S4-live-feed: backlog
       E9-S5-live-kill-switch-risk-limits: review
-      E9-S6-live-backtest-reconciliation: backlog
-      E9-S7-exchange-secrets-management: review
+      E9-S6-live-backtest-reconciliation: review
+      E9-S7-exchange-secrets-management: done
   E10:
     title: "Nghiên cứu chiến lược mới & phương pháp"
     status: backlog

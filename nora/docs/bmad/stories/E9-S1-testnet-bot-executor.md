@@ -1,8 +1,8 @@
 # E9-S1: Bot Binance Futures testnet chạy đúng quy tắc đã mô phỏng
 
 - **Epic:** E9 Testnet & Live
-- **Trạng thái:** review
-- **Cập nhật:** 2026-10-01
+- **Trạng thái:** done
+- **Cập nhật:** 2026-10-06
 
 ## Story
 
@@ -32,6 +32,14 @@ Là người vận hành, tôi muốn một bot đọc cấu hình trong `data/a
 
 ## Evidence
 
+**06/10/2026 — OKX (sàn triển khai).** `backend/live/okx.py` (`OkxAdapter`), job `live_bot` chế độ `demo` chạy qua API runner
+(`POST /api/studio/live/bot {"mode":"demo"}`) trên OKX Demo Trading từ 04/10/2026; khoá ở `~/.config/nora/okx.env` (600).
+AC1: `check_account` (net_mode, từ chối khoá có quyền rút), ký quỹ isolated + `set-leverage` trước mỗi lệnh. AC2: nến đóng khung của sổ (1h / 15m)
+-> MARKET đầu nến kế. AC3: SL `conditional` reduce-only kích hoạt theo giá giao dịch từ giá TB, TP limit reduce-only, tầng DCA post-only (tương đương GTX),
+trailing gốc của sàn (`move_order_stop`), vòng `watch` 10 giây đặt lại bảo vệ ngay khi tầng DCA khớp. AC4: `test_live_signals_equal_engine_signals`,
+`test/scripts/check_sova_parity.py` và `check_signal_lookahead.py` 0 lệch. AC5: `reconcile` khi khởi động và mỗi bước.
+Phát lại lệnh trên sàn giả lập (`test/scripts/check_bot_exec_replay.py`): 389,5% so với 392,4% của engine cùng dữ liệu.
+
 **03-04/10/2026.** `backend/live/` (exchange, signals, bot, secrets), job `live_bot` (paper | testnet), API `/api/studio/live/bot`.
 Đã đạt: AC1 (exchangeInfo, ISOLATED + đòn bẩy theo `_risk_margin` trước mỗi lệnh; từ chối tài khoản hedge mode), AC2 theo khung của sổ (1h: tín hiệu nến
 đóng -> MARKET đầu nến kế), AC3 (SL STOP_MARKET closePosition, TP LIMIT reduce-only; trailing / timeout / tín hiệu thoát MARKET reduce-only ở nến kế),
@@ -40,7 +48,6 @@ AC4 (tín hiệu bot = engine từng bit — `test_live_signals_equal_engine_sig
 testnet cần khoá API của người vận hành. Paper đã chạy một bước thật trên dữ liệu mainnet (job 20261004_012621_b1fdb6).
 
 
-- Chưa áp dụng: story chưa làm.
 
 **04/10/2026 (bổ sung).** Paper = `live/paper.py` PaperBook: đúng PositionTracker + vòng danh mục của engine, từng nến; test
 `test_paper_book_replays_engine_trades_exactly`: cùng nến + tín hiệu -> CÙNG lệnh (giờ vào/ra, giá, lãi/lỗ, số tầng) với PortfolioEngine/kernel,
@@ -59,3 +66,4 @@ Chế độ paper / demo / live (live = cùng mã, khoá thật + confirm_live).
 |---|---|
 | 2026-10-01 | Tạo story, trạng thái `backlog`. |
 | 2026-10-04 | Bot sổ paper/testnet (backend/live) | 015f06c |
+| 2026-10-06 | OKX demo: trạng thái `done`. |

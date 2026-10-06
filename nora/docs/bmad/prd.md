@@ -68,7 +68,7 @@ Hiện chưa có người dùng trả tiền hay đa người dùng; hệ thốn
 
 ### 4.2 Ngoài phạm vi (hiện tại)
 
-- Giao dịch tự động thật (bot gửi lệnh), kể cả testnet: chưa có (epic E9).
+- Giao dịch bằng vốn thật: chưa bật (bot OKX demo chạy từ 04/10/2026; live cần `confirm_live`, epic E9).
 - Khung dưới 1 phút, sổ lệnh (order book), tick CEX; dữ liệu on-chain; đa sàn ngoài Binance.
 - Tối ưu danh mục toàn cục (mean-variance), phân bổ vốn động giữa alpha.
 - Đa người dùng, phân quyền, thanh toán.
@@ -179,10 +179,10 @@ Cột "TT": **Có** = đã có và có test; **Một phần** = có nhưng thi�
 
 | ID | Yêu cầu | TT | Epic |
 |---|---|---|---|
-| FR-57 | Bot Binance Futures testnet đọc `testnet/*.json` và chạy đúng quy tắc đã mô phỏng | Chưa | E9 |
-| FR-58 | `TestnetFeed` / `LiveFeed` thật (lịch sử lệnh, số dư, vị thế) thay feed giả lập, payload không đổi | Chưa (stub `NotAvailable`) | E9 |
-| FR-59 | Kill switch live (30% từ đỉnh) và giới hạn danh mục áp trên tài khoản thật | Chưa | E9 |
-| FR-60 | Đối soát live so với backtest (sai khác khớp lệnh, trượt giá, phí) | Chưa | E9 |
+| FR-57 | Bot sàn (OKX demo / live) đọc sổ `book.json` và chạy đúng quy tắc đã mô phỏng | Có (OKX demo; phát lại trên sàn giả lập ≈ engine) | E9 |
+| FR-58 | Số liệu tài khoản thật (lịch sử lệnh, số dư, vị thế) thay feed giả lập | Có: trang Live (`/api/studio/live/*`); feed giả lập đã bỏ | E9 |
+| FR-59 | Kill switch live (30% từ đỉnh) và giới hạn danh mục áp trên tài khoản thật | Có (demo); chưa đo độ trễ | E9 |
+| FR-60 | Đối soát live so với backtest (sai khác khớp lệnh, trượt giá, phí) | Có: sàn ↔ bóng paper (engine); chờ ≥ 30 cặp lệnh | E9 |
 
 ## 6. Yêu cầu phi chức năng (NFR)
 
@@ -217,9 +217,9 @@ Cột "TT": **Có** = đã có và có test; **Một phần** = có nhưng thi�
 | R-3 | **Edge SOL riêng lẻ.** Trend chung cho 8 tài sản thất bại; long trend chỉ có edge trên SOL, DOGE yếu (`alpha_pipeline.md` §7); SOL một mình tốt hơn SOL+DOGE | Rủi ro tập trung một tài sản; có thể là đặc thù giai đoạn | E10-S5 |
 | R-4 | **Sổ trượt holdout.** Dev2 +26,8% (level) rồi holdout −4,06%: dấu hiệu quá khớp giai đoạn dev hoặc đổi regime | Chưa có sổ nào được cấp testnet | E10-S4 |
 | R-5 | **API chưa xác thực.** Unit systemd nghe `0.0.0.0`, CORS `allow_origins=["*"]`, `POST /book/*` chạy được job nặng và `publish` ghi đè `data/alphas/` | Ai trong mạng cũng chạy được job hoặc đổi sổ | E11-S1, E11-S2, E11-S3 |
-| R-6 | **Chưa có live feed.** Live/Testnet là dữ liệu giả lập tất định từ engine thật; trang Danh mục dễ bị hiểu nhầm là số thật | Quyết định sai nếu bỏ qua banner MOCK | Banner + chip MOCK đã có; E9-S3, E9-S4 |
+| R-6 | **Live feed (đã xử lý).** Feed giả lập đã bỏ; trang Live đọc state bot + tài khoản OKX demo | — | Đóng 06/10/2026 (E9-S3) |
 | R-7 | **Gate dữ liệu không chặn đường danh mục.** Dữ liệu hỏng sau khi đã promote sẽ không bị `PortfolioEngine` phát hiện | Kết quả sổ sai âm thầm | E11-S6 |
-| R-8 | **Giả định khớp lệnh.** SL khớp "level" lạc quan; `extreme` bi quan; thực tế nằm giữa. Chưa đối soát với sàn thật | Lợi nhuận thật có thể thấp hơn cận trên | E9-S6 |
+| R-8 | **Giả định khớp lệnh.** SL khớp "level" lạc quan; `extreme` bi quan; thực tế nằm giữa. Đã có đối soát sàn OKX demo ↔ paper (phí, trượt, SL level/extreme); chờ đủ ≥ 30 cặp lệnh | Lợi nhuận thật có thể thấp hơn cận trên | E9-S6 |
 | R-9 | **Bundle UI một cục** (~583 KB JS chưa nén, `frontend/dist`); `main.py` 2261 dòng còn route MySQL cũ | Tải chậm, khó bảo trì | E11-S4, E11-S5 |
 | Q-1 | Có chấp nhận holdout "mới" bằng dữ liệu tích luỹ thêm (từ 01/10/2026 trở đi) làm cổng cuối cho SOL không? | Quyết định E10-S3 | Chờ chủ sở hữu |
 | Q-2 | Vốn thật tối đa cho testnet/live và ngân sách rủi ro (hiện 30% MDD, ≤ 5% xác suất) có giữ nguyên? | Quyết định E9-S5 | Chờ chủ sở hữu |
