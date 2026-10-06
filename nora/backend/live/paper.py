@@ -8,6 +8,7 @@ Thứ tự y như vòng lặp gốc (test/reference_engine.py::RefPortfolioEngin
 from typing import Any, Dict, List, Optional, Tuple
 
 from backend.core.execute.ledger import CapitalLedger
+from backend.core.execute.risk import admit_entry, kill_triggered
 
 
 class PaperBook:
@@ -45,6 +46,15 @@ class PaperBook:
             tot += sum(e["tracker"].qty * px for e in bk["entries"] if e["tracker"].is_open)
         return tot
 
+    def _open_risk(self) -> float:
+        """Σ rủi ro tới SL (planned_risk) của mọi vị thế đang mở."""
+        tot = 0.0
+        for bk in self.books:
+            for e in bk["entries"]:
+                if e["tracker"].is_open:
+                    tot += e["tracker"].planned_risk
+        return tot
+
     def _counts(self) -> Tuple[int, List[int]]:
         per = [sum(1 for e in bk["entries"] if e["tracker"].is_open) for bk in self.books]
         return sum(per), per
@@ -74,7 +84,7 @@ class PaperBook:
         theo thứ tự chiến lược; funding[sym] = [(funding_time, rate)] đến hạn <= t. -> các lệnh đóng ở nến này."""
         n0 = len(self.trades)
         cap = float(self.risk["max_gross_exposure"])
-        kill = float(self.risk.get("kill_switch_dd_pct") or 0) / 100.0
+        kill_pct = float(self.risk.get("kill_switch_dd_pct") or 0)
         can_trade = t >= self.trade_start and self.halted_at is None
         touched = False
         for b, bk in enumerate(self.books):
@@ -93,29 +103,18 @@ class PaperBook:
                 can_open = False
                 if can_trade and tr.pending_entry and not tr.is_open:
                     n_open, per = self._counts()
-                    blocked = n_open >= int(self.risk["max_positions"]) or per[b] >= int(self.risk["max_per_symbol"])
-                    if not blocked:
+                    gross = open_risk = 0.0
+                    if n_open < int(self.risk["max_positions"]) and per[b] < int(self.risk["max_per_symbol"]):
                         self.last_close[b] = float(o)
-                        room = cap * self.ledger.equity - self._gross()
-                        tr.max_new_notional = max(0.0, room)
-                        can_open = room > 0
-                        risk_cap = float(self.risk.get("max_open_risk_pct") or 0.0) / 100.0
-                        if can_open and risk_cap != 0.0:          # trần Σ rủi ro tới SL của vị thế mở (như kernel)
-                            open_risk = 0.0
-                            for bk2 in self.books:
-                                for e2 in bk2["entries"]:
-                                    if e2["tracker"].is_open:
-                                        open_risk += e2["tracker"].planned_risk
-                            tr.max_new_risk = risk_cap * self.ledger.equity - open_risk
-                            can_open = tr.max_new_risk > 0.0
-                        thr = float(self.risk.get("dd_throttle_pct") or 0.0) / 100.0
-                        if can_open and thr != 0.0 and self.ledger.peak > 0.0:   # giảm rủi ro theo mức sụt vốn đã chốt
-                            floor = float(self.risk.get("dd_throttle_floor", 0.25))
-                            rs = 1.0 - (1.0 - self.ledger.equity / self.ledger.peak) / thr
-                            rs = floor if rs < floor else rs
-                            tr.risk_scale = 1.0 if rs > 1.0 else rs
-                        blocked = not can_open
-                    if blocked:
+                        gross = self._gross()
+                        open_risk = self._open_risk()
+                    adm = admit_entry(n_open, per[b], self.ledger.equity, self.ledger.peak, gross, open_risk,
+                                      self.risk["max_positions"], self.risk["max_per_symbol"], cap,
+                                      self.risk.get("max_open_risk_pct") or 0.0, self.risk.get("dd_throttle_pct") or 0.0,
+                                      self.risk.get("dd_throttle_floor", 0.25))
+                    can_open = adm.can_open
+                    tr.max_new_notional, tr.max_new_risk, tr.risk_scale = adm.max_new_notional, adm.max_new_risk, adm.risk_scale
+                    if not can_open:
                         self.rejected_for_risk += 1
                 vol = s.get("vol")
                 pos = tr.on_bar(t, o, h, l, c, entry_signal=m and can_trade, stop_signal=bool(s["stop"]), can_open=can_open,
@@ -131,7 +130,7 @@ class PaperBook:
         if touched:
             mtm, worst = self.mtm()
             self.peak_mtm = max(self.peak_mtm, mtm)
-            if kill and self.halted_at is None and worst <= self.peak_mtm * (1.0 - kill):
+            if self.halted_at is None and kill_triggered(worst, self.peak_mtm, kill_pct):
                 self.halted_at = t
                 for b, bk in enumerate(self.books):
                     for e in bk["entries"]:
