@@ -37,12 +37,15 @@ Kernel numba (core/backtest/kernel.py) KHÔNG hỗ trợ hai móc này: chỉ đ
 """
 import itertools
 import time
+from operator import attrgetter
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from backend.core.params.schema import StrategyParams
 from backend.core.execute import policy
+from backend.core.execute.account import Account, PositionBook
+from backend.core.execute.events import Fill, FundingApplied
 from backend.core.execute.ledger import CapitalLedger
-from backend.core.execute.models import OrderModel, OrderType, PositionModel, PositionStatus, PositionType
+from backend.core.execute.models import PositionModel, PositionStatus, PositionType
 
 # Bộ đếm id toàn cục, tăng dần và không trùng (int(time.time()*1000) trùng khi
 # nhiều lệnh mở trong cùng 1 ms). Bắt đầu từ epoch-ms * 1000 để vẫn sắp xếp theo thời gian.
@@ -51,6 +54,11 @@ _ID_SEQ = itertools.count(int(time.time() * 1000) * 1000)
 
 def _next_id() -> int:
     return next(_ID_SEQ)
+
+
+def _book_attr(name: str, doc: str = "") -> property:
+    """Thuộc tính tracker uỷ quyền sang PositionBook (kế toán, P6.3) — kernel numba đọc/ghi qua đây nên cần setter."""
+    return property(attrgetter(f"book.{name}"), lambda self, v: setattr(self.book, name, v), doc=doc)
 
 
 class PositionTracker:
@@ -94,7 +102,8 @@ class PositionTracker:
         self.impact_fn = impact_fn              # (notional_usd, is_buy) -> trượt giá; None = slippage_rate cố định
         self.capital = float(initial_capital)
         self.capital_usage = max(0.0, min(float(params.max_capital_usage or 1.0), 1.0))
-        self.ledger = ledger if ledger is not None else CapitalLedger(self.capital, self.capital_usage)
+        account = ledger if ledger is not None else Account(self.capital, self.capital_usage)
+        self.book = PositionBook(account, account_id, campaign_id, symbol, flow_name, pos_type)  # kế toán vị thế (P6.3)
         self.max_capital = self.capital * self.capital_usage
 
         # Giá trị gốc của tham số thoát lệnh; mỗi vị thế quy đổi sang % lúc vào lệnh (_apply_exit_unit).
@@ -154,8 +163,6 @@ class PositionTracker:
         self.dca_tree = self._combine_conditions(ast.get("dca", []))
         self.dca_ok = True
 
-        self.position: Optional[PositionModel] = None
-        self.orders: List[OrderModel] = []
         self.is_open = False
         self.pending_entry = False
         self.pending_exit = False
@@ -169,20 +176,33 @@ class PositionTracker:
                                                      self.base_trail_act, self.base_dca_steps)
 
     # ─── Trạng thái ─────────────────────────────────────────────────────────
+    # Kế toán nằm ở PositionBook (account.py); các thuộc tính dưới đây là cửa sổ vào book (tracker/kernel đọc ghi như cũ).
+    qty = _book_attr("qty")
+    avg = _book_attr("avg")
+    margin_used = _book_attr("margin_used")
+    fees_paid = _book_attr("fees_paid")
+    layer_count = _book_attr("layer_count")
+    last_fill = _book_attr("last_fill")
+    entry_time = _book_attr("entry_time")
+    reserved_here = _book_attr("reserved_here", "tiền đã giữ chỗ trong sổ vốn cho vị thế này")
+    funding_paid = _book_attr("funding_paid", "funding đã trả (+) / nhận (−), đã hạch toán thẳng vào sổ vốn")
+    entry_equity = _book_attr("entry_equity")
+    position = _book_attr("position")
+    orders = _book_attr("orders")
+
+    @property
+    def ledger(self) -> Account:
+        return self.book.account
+
+    @ledger.setter
+    def ledger(self, account: Account) -> None:
+        self.book.account = account
+
     def _reset_state(self) -> None:
-        self.qty = 0.0
-        self.avg = 0.0
-        self.margin_used = 0.0
-        self.fees_paid = 0.0
-        self.layer_count = 0
-        self.last_fill = 0.0
+        self.book.reset()          # qty, avg, ký quỹ, phí, tầng, giữ chỗ, funding, entry_equity = vốn hiện tại
         self.next_margin = 0.0
-        self.entry_time = 0
         self.peak = 0.0
         self.mae_usd = 0.0
-        self.reserved_here = 0.0   # tiền đã giữ chỗ trong ledger cho vị thế này
-        self.funding_paid = 0.0    # funding đã trả (+) / nhận (−), đã hạch toán thẳng vào ledger
-        self.entry_equity = self.ledger.equity if hasattr(self, "ledger") else 0.0
 
     @property
     def equity(self) -> float:
@@ -196,16 +216,14 @@ class PositionTracker:
     def unrealized_pnl_usd(self, price: float) -> float:
         if not self.is_open or self.qty <= 0:
             return 0.0
-        return policy.unrealized_pnl(self.qty, self.avg, price, self.fees_paid, self.is_long)  # funding đã nằm trong ledger.equity
+        return self.book.unrealized_pnl(price)  # funding đã nằm trong ledger.equity
 
-    def apply_funding(self, rate: float, price: float) -> float:
+    def apply_funding(self, rate: float, price: float, t: int = 0) -> float:
         """Funding perp: long trả qty·giá·rate khi rate > 0 (short nhận), và ngược lại. Hạch toán ngay."""
         if not self.is_open or self.market != "perp" or self.qty <= 0:
             return 0.0
         payment = policy.funding_payment(self.qty, price, rate, self.is_long)
-        self.funding_paid += payment
-        self.ledger.settle(-payment)
-        return payment
+        return self.book.apply_funding(FundingApplied(self.book.slot, t, rate, price, payment))
 
     def _liq_price(self) -> Optional[float]:
         if self.market != "perp" or self.qty <= 0:
@@ -234,34 +252,20 @@ class PositionTracker:
         slip = self._slip(notional, self.is_long) if taker else 0.0
         fill = policy.entry_fill_price(price, slip, self.is_long) if taker else price
         fee = policy.entry_fee(notional, self.fee_rate if taker else self.maker_fee_rate)
-        if margin <= 0 or fill <= 0 or self.margin_used + margin + self.fees_paid + fee > self.max_capital + 1e-9:
+        first = self.book.position is None
+        kind = "entry" if first else "dca"
+        if margin <= 0 or fill <= 0 or not self.book.can_add(margin, fee, self.max_capital):
+            self.book.reject("budget", kind)       # vượt ngân sách vị thế: không đổi sổ vốn
             return False
-        if not self.ledger.reserve(margin + fee):
+        if not self.ledger.can_reserve(margin + fee):
+            self.book.reject("capital", kind)      # không giữ chỗ được từ vốn trống: ledger.rejected += 1
             return False
-        self.reserved_here += margin + fee
-        qty = notional / fill
-        new_qty = self.qty + qty
-        self.avg = (self.avg * self.qty + fill * qty) / new_qty
-        self.qty = new_qty
-        self.margin_used += margin
-        self.fees_paid += fee
-        self.layer_count += 1
-        self.last_fill = fill
-        oid = _next_id()
-        if self.position is None:
-            self.entry_time = t
+        self.book.apply_fill(Fill(
+            slot=self.book.slot, order_id=_next_id(), kind=kind, t=t, price=fill, raw_price=price, notional=notional,
+            margin=margin, fee=fee, slip=slip, liquidity="taker" if taker else "maker", reason=reason,
+            unit_pct=self.unit_pct, leverage_used=self.pos_leverage, risk_usd=self.planned_risk))
+        if first:
             self.peak = fill
-            self.position = PositionModel(
-                result_id=oid, account_id=self.account_id, campaign_id=self.campaign_id, symbol=self.symbol,
-                pos_type=self.pos_type, phase=0, enter_time=t, enter_price=fill, status=PositionStatus.OPEN,
-                flow=self.flow_name, start_reason=reason, max_price=fill, min_price=fill,
-                entry_equity=self.equity, entry_margin_usd=margin, entry_notional_usd=notional, entry_fee_usd=fee,
-            )
-        self.orders.append(OrderModel(
-            order_id=oid, account_id=self.account_id, position_id=self.position.result_id, order_time=t,
-            order_type=OrderType.BUY if self.is_long else OrderType.SELL, order_price=fill, qty=qty,
-            phase=self.layer_count - 1, fee_usd=fee, liquidity="taker" if taker else "maker", slippage=slip,
-        ))
         self.is_open = True
         return True
 
@@ -297,13 +301,10 @@ class PositionTracker:
         # vượt trần rủi ro đang mở của danh mục
         margin, self.planned_risk = policy.apply_risk_ceiling(margin, self.planned_risk, self.max_new_risk)
         if margin <= 0:
-            self.ledger.rejected += 1  # tín hiệu vào lệnh nhưng không còn vốn trống
+            self.book.reject("no_margin", "entry")  # tín hiệu vào lệnh nhưng không còn vốn trống: ledger.rejected += 1
             return
         if self._add_layer(t, open_price, margin, market_order=True, reason="Tín hiệu vào lệnh (AST match)"):
             self.next_margin = margin
-            self.position.unit_pct = self.unit_pct
-            self.position.leverage_used = self.pos_leverage
-            self.position.risk_usd = self.planned_risk
 
     def _layer_mult_total(self) -> float:
         """Tổng khối lượng các tầng (lệnh đầu = 1) theo hệ số DCA."""
@@ -319,7 +320,8 @@ class PositionTracker:
             self._layer_mult_total())
         return margin
 
-    def _close(self, t: int, raw_price: float, status: PositionStatus, reason: str, market_order: bool) -> PositionModel:
+    def _close(self, t: int, raw_price: float, status: PositionStatus, reason: str, market_order: bool,
+               kind: str = "exit") -> PositionModel:
         taker = market_order or self.limit_taker
         slip = 0.0
         if taker and status != PositionStatus.LIQ:
@@ -327,40 +329,14 @@ class PositionTracker:
             price = policy.exit_fill_price(raw_price, slip, self.is_long)
         else:
             price = raw_price
-        gross = policy.gross_pnl(self.qty, self.avg, price, self.is_long)
         exit_fee = policy.exit_fee(self.qty, price, self.fee_rate if taker or status == PositionStatus.LIQ else self.maker_fee_rate)
-        trade_cash = gross - self.fees_paid - exit_fee          # phần chưa vào ledger (funding đã vào)
-        if status == PositionStatus.LIQ:                         # isolated: mất tối đa ký quỹ + phí đã trả
-            trade_cash = max(trade_cash, -(self.margin_used + self.fees_paid + exit_fee))
-        # Nhả phần giữ chỗ (ký quỹ + phí vào lệnh), vốn thay đổi đúng bằng lãi/lỗ giao dịch sau phí.
-        self.ledger.release(self.reserved_here)
-        self.ledger.settle(trade_cash)
-        net = trade_cash - self.funding_paid
-        pos = self.position
-        pos.close_time = t
-        pos.close_price = price
-        pos.status = status
-        pos.close_reason = reason
-        pos.exit_fee_usd = exit_fee
-        pos.real_pnl = net
-        pos.entry_equity = self.entry_equity
-        pos.profit_pct = net / self.entry_equity * 100.0 if self.entry_equity > 0 else 0.0
-        pos.qty = self.qty
-        pos.layers = self.layer_count
-        pos.avg_price = self.avg
-        pos.total_margin_usd = self.margin_used
-        pos.fees_usd = self.fees_paid + exit_fee
-        pos.funding_usd = self.funding_paid
-        pos.mae_pct = min(0.0, self.mae_usd / self.entry_equity * 100.0) if self.entry_equity > 0 else 0.0
-        self.orders.append(OrderModel(
-            order_id=_next_id(), account_id=self.account_id, position_id=pos.result_id, order_time=t,
-            order_type=OrderType.SELL if self.is_long else OrderType.BUY, order_price=price, qty=self.qty,
-            phase=self.layer_count, fee_usd=exit_fee,
-            liquidity="liquidation" if status == PositionStatus.LIQ else ("taker" if taker else "maker"), slippage=slip,
-        ))
+        pos = self.book.apply_close(Fill(
+            slot=self.book.slot, order_id=_next_id(), kind=kind, t=t, price=price, raw_price=raw_price, notional=0.0,
+            margin=0.0, fee=exit_fee, slip=slip,
+            liquidity="liquidation" if status == PositionStatus.LIQ else ("taker" if taker else "maker"),
+            reason=reason, status=int(status), mae_usd=self.mae_usd))
         self.is_open = False
         self.pending_exit = False
-        self.position = None
         self.last_close_time = t
         self._reset_state()
         return pos
@@ -380,9 +356,9 @@ class PositionTracker:
         # 1. Đầu nến
         if self.is_open:
             if self.pending_exit:
-                closed = self._close(t, o, self._status_by_pnl(o), "Tín hiệu thoát (AST stop)", market_order=True)
+                closed = self._close(t, o, self._status_by_pnl(o), "Tín hiệu thoát (AST stop)", market_order=True, kind="exit")
             elif self.timeout_ms and t - self.entry_time >= self.timeout_ms:
-                closed = self._close(t, o, self._status_by_pnl(o), "Hết thời gian giữ lệnh", market_order=True)
+                closed = self._close(t, o, self._status_by_pnl(o), "Hết thời gian giữ lệnh", market_order=True, kind="timeout")
         if closed is None and not self.is_open and self.pending_entry:
             self.pending_entry = False
             if can_open:
@@ -390,9 +366,7 @@ class PositionTracker:
 
         # 2-3. Trong nến
         if self.is_open and closed is None:
-            if self.position is not None:
-                self.position.max_price = max(self.position.max_price, h)
-                self.position.min_price = min(self.position.min_price, l)
+            self.book.mark(h, l)
             closed = self._intrabar(t, o, h, l)
 
         # 4. Cuối nến
@@ -448,27 +422,28 @@ class PositionTracker:
                 self.dca_steps = self.dca_steps[: k]  # hết vốn: không nhồi thêm tầng nào nữa
                 continue
             if kind == "liq":
-                return self._close(t, price, PositionStatus.LIQ, "Thanh lý (perp)", market_order=False)
+                return self._close(t, price, PositionStatus.LIQ, "Thanh lý (perp)", market_order=False, kind="liq")
             if self.stop_fill == "extreme":
                 # Bi quan: lệnh stop-market khớp ở giá xấu nhất của nến (cú giật xuyên mức trong nến).
                 price = policy.stop_extreme_fill(price, adverse, self.is_long)
             if kind == "sl":
-                return self._close(t, price, PositionStatus.SL, "Stop-loss (từ giá TB)", market_order=True)
-            return self._close(t, price, self._status_by_pnl(price), "Trailing stop", market_order=True)
+                return self._close(t, price, PositionStatus.SL, "Stop-loss (từ giá TB)", market_order=True, kind="sl")
+            return self._close(t, price, self._status_by_pnl(price), "Trailing stop", market_order=True, kind="trail")
 
         if self.tp_pct and not dca_filled:
             tp_level = policy.tp_level(self.avg, self.tp_pct, sign)
             need = policy.tp_need(tp_level, self.limit_through, sign)
             if policy.tp_hit(favorable, need, self.is_long):
                 price = policy.tp_fill_price(tp_level, o, self.is_long)
-                return self._close(t, price, PositionStatus.TP, "Take-profit (từ giá TB)", market_order=False)
+                return self._close(t, price, PositionStatus.TP, "Take-profit (từ giá TB)", market_order=False, kind="tp")
         return None
 
     def force_close(self, t: int, raw_price: float, reason: str = "End of Backtest") -> Optional[PositionModel]:
         if not self.is_open:
             return None
         self.pending_entry = False
-        return self._close(t, raw_price, PositionStatus.CANCEL, reason, market_order=True)
+        return self._close(t, raw_price, PositionStatus.CANCEL, reason, market_order=True,
+                           kind="kill" if reason.startswith("Kill") else "end")
 
     @staticmethod
     def _combine_conditions(blocks: List[Dict[str, Any]]) -> List[Any]:
