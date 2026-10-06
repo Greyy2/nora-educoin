@@ -1,6 +1,7 @@
 """Run Nora's production execution (PositionTracker == kernel path, and PositionManager+SimVenue event path) bar by bar
 on the exported bars/signals. Writes out/nora_<dataset>_<signal>_<stage>.json.
-Run from nora/: PYTHONDONTWRITEBYTECODE=1 backend/utils/ops/run_limited.sh --no-lock -- test/scripts/nautilus_diff/run_nora.py
+Run from nora/: PYTHONDONTWRITEBYTECODE=1 backend/utils/ops/run_limited.sh --no-lock -- test/scripts/nautilus_diff/run_nora.py [ohlc|adaptive]
+(intrabar_path; "adaptive" writes out/nora_<...>_adaptive.json and is compared with Nautilus bar_adaptive_high_low_ordering=True)
 """
 import json
 import os
@@ -22,8 +23,8 @@ from backend.core.params.schema import StrategyParams                 # noqa: E4
 OUT = os.path.join(HERE, "out")
 
 
-def make_params(st):
-    return StrategyParams(
+def make_params(st, path="ohlc"):
+    return StrategyParams(intrabar_path=path, 
         market="perp", leverage=1, fee_rate=TAKER, maker_fee_rate=MAKER, slippage_rate=0.0,
         order_size_pct=st.get("osp", ORDER_SIZE_PCT), sizing="margin_pct", stop_loss_rate=st.get("sl", 0.0),
         take_profit_rate=st.get("tp", 0.0), dca_steps=list(st.get("dca_steps", [])),
@@ -39,8 +40,8 @@ def pos_row(p, orders=()):
             "status": int(p.status), "entry_equity": float(p.entry_equity), "layers": int(p.layers or 1)}
 
 
-def run(bars, sg, st, path):
-    p = make_params(st)
+def run(bars, sg, st, path, ipath="ohlc"):
+    p = make_params(st, ipath)
     if path == "tracker":
         tr = PositionTracker(0, 0, "BTC", "L", p, PositionType.LONG, CAPITAL)
         actor, acct = tr, tr.ledger
@@ -58,16 +59,18 @@ def run(bars, sg, st, path):
 
 
 def main():
+    ipath = sys.argv[1] if len(sys.argv) > 1 else "ohlc"
+    suffix = "" if ipath == "ohlc" else "_" + ipath
     sigdf = pd.read_csv(os.path.join(OUT, "signals.csv"))
     for ds in DATASETS:
         bars = pd.read_csv(os.path.join(OUT, f"bars_{ds}.csv"))
         for sname in SIGNALS:
             sg = {"entry": sigdf[sname + "_entry"].values, "exit": sigdf[sname + "_exit"].values}
             for stname, st in STAGES.items():
-                a, b = run(bars, sg, st, "tracker"), run(bars, sg, st, "manager")
+                a, b = run(bars, sg, st, "tracker", ipath), run(bars, sg, st, "manager", ipath)
                 ident = json.dumps(a, sort_keys=True) == json.dumps(b, sort_keys=True)
                 a["tracker_eq_manager_bit_identical"] = ident
-                json.dump(a, open(os.path.join(OUT, f"nora_{ds}_{sname}_{stname}.json"), "w"))
+                json.dump(a, open(os.path.join(OUT, f"nora_{ds}_{sname}_{stname}{suffix}.json"), "w"))
                 print(ds, sname, stname, "trades", len(a["trades"]), "final", round(a["final_equity"], 4),
                       "tracker==manager", ident)
 

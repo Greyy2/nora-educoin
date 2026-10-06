@@ -47,59 +47,24 @@
   "trades_nora": 37,
   "trades_naut": 38,
   "matched_pairs": 37,
-  "exact_matches": 35,
+  "exact_matches": 37,
   "classes": {
-   "match": 35,
-   "a": 2,
-   "x": 1
+   "match": 37,
+   "f": 1
   },
-  "final_equity_nora": 10135.469879019947,
+  "final_equity_nora": 10132.140756836925,
   "final_equity_naut": 10160.22076024,
-  "final_equity_diff": 24.75088122005218,
-  "final_equity_diff_pct": 0.2442006292306731,
+  "final_equity_diff": 28.080003403074443,
+  "final_equity_diff_pct": 0.2771379126778051,
   "nora_engine_paths_bit_identical": true,
   "unexplained": [],
   "non_exact": [
    {
-    "enter_time": 1781161200000,
-    "cls": "a",
-    "note": "DCA & TP reachable in same bar: Nora=TP, Nautilus=TP",
-    "nora": [
-     62728.2,
-     1781200800000,
-     63165.03465931863,
-     "TP"
-    ],
-    "naut": [
-     62728.19999999999,
-     1781197200000,
-     63355.5,
-     "TP"
-    ]
-   },
-   {
     "enter_time": 1781200800000,
-    "cls": "x",
-    "note": "nautilus-only trade inside cascade window of an earlier classified divergence",
+    "cls": "f",
+    "note": "orphan DCA layer 1 of the trade entered 1781161200000 filled after its exit in the same bar; Nautilus did not cancel the ladder in time (artifact, not replicated)",
     "nora": null,
     "naut": null
-   },
-   {
-    "enter_time": 1788105600000,
-    "cls": "a",
-    "note": "same L-tick DCA fill(s) + stale SL: both engines exit at the old SL level (placed from the pre-DCA avg) 77370.9000 (since 2026-10-06 Nora keeps the stale SL too); Nautilus also fills the lower layer(s) in the same tick before the SL (4 layers vs Nora 3), Nora stops first in the descending sweep",
-    "nora": [
-     78786.4,
-     1788130800000,
-     77371.3236272545,
-     "SL"
-    ],
-    "naut": [
-     78786.4,
-     1788130800000,
-     77370.9,
-     "SL"
-    ]
    }
   ]
  },
@@ -131,36 +96,17 @@
   "trades_nora": 153,
   "trades_naut": 153,
   "matched_pairs": 153,
-  "exact_matches": 152,
+  "exact_matches": 153,
   "classes": {
-   "match": 152,
-   "a": 1
+   "match": 153
   },
-  "final_equity_nora": 9800.948082347371,
+  "final_equity_nora": 9836.872426270651,
   "final_equity_naut": 9836.642952479999,
-  "final_equity_diff": 35.69487013262733,
-  "final_equity_diff_pct": 0.36419813504489085,
+  "final_equity_diff": -0.22947379065226414,
+  "final_equity_diff_pct": -0.00233279217934923,
   "nora_engine_paths_bit_identical": true,
   "unexplained": [],
-  "non_exact": [
-   {
-    "enter_time": 1789131600000,
-    "cls": "a",
-    "note": "both SL&TP reachable in bar 2026-09-11 13:00:00: Nora=SL@1789131600000, Nautilus=TP@1789131600000",
-    "nora": [
-     77990.1,
-     1789131600000,
-     77366.1792,
-     "SL"
-    ],
-    "naut": [
-     77990.09999999999,
-     1789131600000,
-     78770.0,
-     "TP"
-    ]
-   }
-  ]
+  "non_exact": []
  },
  {
   "inst": "okx",
@@ -170,40 +116,22 @@
   "trades_nora": 151,
   "trades_naut": 152,
   "matched_pairs": 151,
-  "exact_matches": 150,
+  "exact_matches": 151,
   "classes": {
-   "match": 150,
-   "a": 1,
-   "x": 1
+   "match": 151,
+   "f": 1
   },
-  "final_equity_nora": 10008.673338288132,
+  "final_equity_nora": 9994.297913851204,
   "final_equity_naut": 10024.19609948,
-  "final_equity_diff": 15.522761191867176,
-  "final_equity_diff_pct": 0.15509309443124675,
+  "final_equity_diff": 29.898185628795545,
+  "final_equity_diff_pct": 0.2991524355838937,
   "nora_engine_paths_bit_identical": true,
   "unexplained": [],
   "non_exact": [
    {
-    "enter_time": 1789131600000,
-    "cls": "a",
-    "note": "DCA & TP reachable in same bar: Nora=TP, Nautilus=TP",
-    "nora": [
-     77990.1,
-     1789135200000,
-     78533.21742985972,
-     "TP"
-    ],
-    "naut": [
-     77990.09999999999,
-     1789131600000,
-     78770.0,
-     "TP"
-    ]
-   },
-   {
     "enter_time": 1789135200000,
-    "cls": "x",
-    "note": "nautilus-only trade inside cascade window of an earlier classified divergence",
+    "cls": "f",
+    "note": "orphan DCA layer 1 of the trade entered 1789131600000 filled after its exit in the same bar; Nautilus did not cancel the ladder in time (artifact, not replicated)",
     "nora": null,
     "naut": null
    }
@@ -652,17 +580,16 @@
   "trades_nora": 37,
   "trades_naut": 38,
   "matched_pairs": 37,
-  "exact_matches": 24,
+  "exact_matches": 25,
   "classes": {
-   "match": 24,
+   "match": 25,
    "d": 12,
-   "x": 1,
-   "a": 1
+   "f": 1
   },
-  "final_equity_nora": 10135.486191437874,
+  "final_equity_nora": 10132.157063896831,
   "final_equity_naut": 10160.22076024,
-  "final_equity_diff": 24.734568802125068,
-  "final_equity_diff_pct": 0.24403929258982604,
+  "final_equity_diff": 28.063696343167976,
+  "final_equity_diff_pct": 0.27697652302651754,
   "nora_engine_paths_bit_identical": true,
   "unexplained": [],
   "non_exact": [
@@ -723,8 +650,8 @@
     "note": "entry price open[t+1]=62728.1 vs close[t]=62728.19999999999",
     "nora": [
      62728.1,
-     1781200800000,
-     63164.933962925854,
+     1781197200000,
+     63355.381,
      "TP"
     ],
     "naut": [
@@ -736,8 +663,8 @@
    },
    {
     "enter_time": 1781200800000,
-    "cls": "x",
-    "note": "nautilus-only trade inside cascade window of an earlier classified divergence",
+    "cls": "f",
+    "note": "orphan DCA layer 1 of the trade entered 1781161200000 filled after its exit in the same bar; Nautilus did not cancel the ladder in time (artifact, not replicated)",
     "nora": null,
     "naut": null
    },
@@ -748,7 +675,7 @@
     "nora": [
      64129.8,
      1782090000000,
-     64300.2180013564,
+     64300.21800135642,
      "TP"
     ],
     "naut": [
@@ -807,23 +734,6 @@
      1785729600000,
      62838.59999999999,
      "SIG"
-    ]
-   },
-   {
-    "enter_time": 1788105600000,
-    "cls": "a",
-    "note": "same L-tick DCA fill(s) + stale SL: both engines exit at the old SL level (placed from the pre-DCA avg) 77370.9000 (since 2026-10-06 Nora keeps the stale SL too); Nautilus also fills the lower layer(s) in the same tick before the SL (4 layers vs Nora 3), Nora stops first in the descending sweep",
-    "nora": [
-     78786.4,
-     1788130800000,
-     77371.32362725449,
-     "SL"
-    ],
-    "naut": [
-     78786.4,
-     1788130800000,
-     77370.9,
-     "SL"
     ]
    },
    {
@@ -2167,16 +2077,15 @@
   "trades_nora": 153,
   "trades_naut": 153,
   "matched_pairs": 153,
-  "exact_matches": 75,
+  "exact_matches": 76,
   "classes": {
-   "match": 75,
-   "d": 77,
-   "a": 1
+   "match": 76,
+   "d": 77
   },
-  "final_equity_nora": 9800.922266669628,
+  "final_equity_nora": 9836.846515968256,
   "final_equity_naut": 9836.642952479999,
-  "final_equity_diff": 35.720685810370924,
-  "final_equity_diff_pct": 0.3644624948393682,
+  "final_equity_diff": -0.2035634882577142,
+  "final_equity_diff_pct": -0.00206939782914084,
   "nora_engine_paths_bit_identical": true,
   "unexplained": [],
   "non_exact": [
@@ -3269,23 +3178,6 @@
     ]
    },
    {
-    "enter_time": 1789131600000,
-    "cls": "a",
-    "note": "both SL&TP reachable in bar 2026-09-11 13:00:00: Nora=SL@1789131600000, Nautilus=TP@1789131600000",
-    "nora": [
-     77990.1,
-     1789131600000,
-     77366.1792,
-     "SL"
-    ],
-    "naut": [
-     77990.09999999999,
-     1789131600000,
-     78770.0,
-     "TP"
-    ]
-   },
-   {
     "enter_time": 1789214400000,
     "cls": "d",
     "note": "entry price open[t+1]=77321.7 vs close[t]=77321.6",
@@ -3516,17 +3408,16 @@
   "trades_nora": 151,
   "trades_naut": 152,
   "matched_pairs": 151,
-  "exact_matches": 75,
+  "exact_matches": 76,
   "classes": {
-   "match": 75,
+   "match": 76,
    "d": 75,
-   "a": 1,
-   "x": 1
+   "f": 1
   },
-  "final_equity_nora": 10008.67274150613,
+  "final_equity_nora": 9994.297317926355,
   "final_equity_naut": 10024.19609948,
-  "final_equity_diff": 15.52335797386877,
-  "final_equity_diff_pct": 0.15509906632766857,
+  "final_equity_diff": 29.898781553643857,
+  "final_equity_diff_pct": 0.29915841607008886,
   "nora_engine_paths_bit_identical": true,
   "unexplained": [],
   "non_exact": [
@@ -4585,26 +4476,9 @@
     ]
    },
    {
-    "enter_time": 1789131600000,
-    "cls": "a",
-    "note": "DCA & TP reachable in same bar: Nora=TP, Nautilus=TP",
-    "nora": [
-     77990.1,
-     1789135200000,
-     78533.21742985974,
-     "TP"
-    ],
-    "naut": [
-     77990.09999999999,
-     1789131600000,
-     78770.0,
-     "TP"
-    ]
-   },
-   {
     "enter_time": 1789135200000,
-    "cls": "x",
-    "note": "nautilus-only trade inside cascade window of an earlier classified divergence",
+    "cls": "f",
+    "note": "orphan DCA layer 1 of the trade entered 1789131600000 filled after its exit in the same bar; Nautilus did not cancel the ladder in time (artifact, not replicated)",
     "nora": null,
     "naut": null
    },
@@ -4734,7 +4608,7 @@
     "nora": [
      86168.2,
      1790125200000,
-     86768.2691282565,
+     86768.26912825652,
      "TP"
     ],
     "naut": [
@@ -4879,59 +4753,24 @@
   "trades_nora": 38,
   "trades_naut": 39,
   "matched_pairs": 38,
-  "exact_matches": 36,
+  "exact_matches": 38,
   "classes": {
-   "match": 36,
-   "a": 2,
-   "x": 1
+   "match": 38,
+   "f": 1
   },
-  "final_equity_nora": 10035.653035330215,
+  "final_equity_nora": 10032.356699241234,
   "final_equity_naut": 10060.38384278,
-  "final_equity_diff": 24.73080744978506,
-  "final_equity_diff_pct": 0.24642947860713527,
+  "final_equity_diff": 28.027143538765813,
+  "final_equity_diff_pct": 0.2793674943882829,
   "nora_engine_paths_bit_identical": true,
   "unexplained": [],
   "non_exact": [
    {
-    "enter_time": 1781161200000,
-    "cls": "a",
-    "note": "DCA & TP reachable in same bar: Nora=TP, Nautilus=TP",
-    "nora": [
-     54068.1,
-     1781200800000,
-     54444.6263476954,
-     "TP"
-    ],
-    "naut": [
-     54068.1,
-     1781197200000,
-     54608.8,
-     "TP"
-    ]
-   },
-   {
     "enter_time": 1781200800000,
-    "cls": "x",
-    "note": "nautilus-only trade inside cascade window of an earlier classified divergence",
+    "cls": "f",
+    "note": "orphan DCA layer 1 of the trade entered 1781161200000 filled after its exit in the same bar; Nautilus did not cancel the ladder in time (artifact, not replicated)",
     "nora": null,
     "naut": null
-   },
-   {
-    "enter_time": 1788105600000,
-    "cls": "a",
-    "note": "same L-tick DCA fill(s) + stale SL: both engines exit at the old SL level (placed from the pre-DCA avg) 57809.6000 (since 2026-10-06 Nora keeps the stale SL too); Nautilus also fills the lower layer(s) in the same tick before the SL (4 layers vs Nora 3), Nora stops first in the descending sweep",
-    "nora": [
-     58867.1,
-     1788130800000,
-     57809.79261773547,
-     "SL"
-    ],
-    "naut": [
-     58867.100000000006,
-     1788130800000,
-     57809.6,
-     "SL"
-    ]
    }
   ]
  },
@@ -4963,36 +4802,17 @@
   "trades_nora": 153,
   "trades_naut": 153,
   "matched_pairs": 153,
-  "exact_matches": 152,
+  "exact_matches": 153,
   "classes": {
-   "match": 152,
-   "a": 1
+   "match": 153
   },
-  "final_equity_nora": 9723.804977250755,
+  "final_equity_nora": 9759.446561239432,
   "final_equity_naut": 9759.48407649,
-  "final_equity_diff": 35.67909923924526,
-  "final_equity_diff_pct": 0.36692528616850684,
+  "final_equity_diff": 0.037515250567594194,
+  "final_equity_diff_pct": 0.00038439936458356527,
   "nora_engine_paths_bit_identical": true,
   "unexplained": [],
-  "non_exact": [
-   {
-    "enter_time": 1789131600000,
-    "cls": "a",
-    "note": "both SL&TP reachable in bar 2026-09-11 13:00:00: Nora=SL@1789131600000, Nautilus=TP@1789131600000",
-    "nora": [
-     57281.3,
-     1789131600000,
-     56823.049600000006,
-     "SL"
-    ],
-    "naut": [
-     57281.299999999996,
-     1789131600000,
-     57854.1,
-     "TP"
-    ]
-   }
-  ]
+  "non_exact": []
  },
  {
   "inst": "okx",
@@ -5002,57 +4822,22 @@
   "trades_nora": 151,
   "trades_naut": 152,
   "matched_pairs": 151,
-  "exact_matches": 149,
+  "exact_matches": 151,
   "classes": {
-   "match": 149,
-   "a": 2,
-   "x": 1
+   "match": 151,
+   "f": 1
   },
-  "final_equity_nora": 9841.487839563035,
+  "final_equity_nora": 9848.315566980798,
   "final_equity_naut": 9877.52855548,
-  "final_equity_diff": 36.04071591696447,
-  "final_equity_diff_pct": 0.36621206574152243,
+  "final_equity_diff": 29.212988499200947,
+  "final_equity_diff_pct": 0.29662928955227486,
   "nora_engine_paths_bit_identical": true,
   "unexplained": [],
   "non_exact": [
    {
-    "enter_time": 1781715600000,
-    "cls": "a",
-    "note": "same L-tick DCA fill(s) + stale SL: both engines exit at the old SL level (placed from the pre-DCA avg) 56138.3000 (since 2026-10-06 Nora keeps the stale SL too); Nautilus also fills the lower layer(s) in the same tick before the SL (4 layers vs Nora 3), Nora stops first in the descending sweep",
-    "nora": [
-     56993.2,
-     1781719200000,
-     56138.301999999996,
-     "SL"
-    ],
-    "naut": [
-     56993.2,
-     1781719200000,
-     56138.3,
-     "SL"
-    ]
-   },
-   {
-    "enter_time": 1789131600000,
-    "cls": "a",
-    "note": "DCA & TP reachable in same bar: Nora=TP, Nautilus=TP",
-    "nora": [
-     57281.3,
-     1789135200000,
-     57680.20284068137,
-     "TP"
-    ],
-    "naut": [
-     57281.299999999996,
-     1789131600000,
-     57854.1,
-     "TP"
-    ]
-   },
-   {
     "enter_time": 1789135200000,
-    "cls": "x",
-    "note": "nautilus-only trade inside cascade window of an earlier classified divergence",
+    "cls": "f",
+    "note": "orphan DCA layer 1 of the trade entered 1789131600000 filled after its exit in the same bar; Nautilus did not cancel the ladder in time (artifact, not replicated)",
     "nora": null,
     "naut": null
    }

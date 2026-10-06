@@ -38,7 +38,7 @@ def rel(a, b):
 def compare(inst, ds, sname, stname, suffix, bars):
     st = STAGES[stname]
     tick, lot = PREC[inst]
-    nn = load(os.path.join(OUT, f"nora_{ds}_{sname}_{stname}.json"))
+    nn = load(os.path.join(OUT, f"nora_{ds}_{sname}_{stname}{suffix}.json"))
     na = load(os.path.join(OUT, f"nautilus_{inst}_{ds}_{sname}_{stname}{suffix}.json"))
     bar0 = int(bars.open_time.iloc[0])
     idx = {int(t): i for i, t in enumerate(bars.open_time)}
@@ -58,6 +58,21 @@ def compare(inst, ds, sname, stname, suffix, bars):
         row = {"enter_time": et, "cls": None, "note": ""}
         if n is None or a is None:
             who = "nautilus-only" if n is None else "nora-only"
+            orphan = None
+            if n is None:       # f: entry price = a DCA level of a trade that Nautilus closed in the bar that ends at this timestamp
+                for pe, pn in N.items():
+                    pa = A.get(pe)
+                    if pa is not None and pa["close_time"] + H == et or (pa is not None and pa.get("bar_exit") is not None and bar0 + (pa["bar_exit"] + 1) * H == et):
+                        px = pn["enter_price"]
+                        for k_, s_ in enumerate(st.get("dca_steps", [])):
+                            px *= 1 - s_ / 100
+                            if rel(a_enter := A[et]["enter_price"], px) < 1e-3:
+                                orphan = (pe, k_ + 1)
+                if orphan is not None:
+                    row.update(cls="f", note=f"orphan DCA layer {orphan[1]} of the trade entered {orphan[0]} filled after its exit in the same bar; Nautilus did not cancel the ladder in time (artifact, not replicated)")
+                    rows.append(row); cls["f"] += 1
+                    first_div_end = max(first_div_end or 0, A[et]["close_time"])
+                    continue
             if first_div_end is not None and et <= first_div_end + 3 * H:
                 row.update(cls="x", note=f"{who} trade inside cascade window of an earlier classified divergence")
             else:
@@ -197,12 +212,12 @@ def main():
         "non_exact": [{k: x.get(k) for k in ("enter_time", "cls", "note", "nora", "naut")} for x in r["rows"] if x["cls"] not in ("match",)]}
         for r in res]
     json.dump(slim, open(os.path.join(HERE, f"results_{inst}{suffix}.json"), "w"), indent=1, default=str)
-    print("| dataset | signal | stage | trades N/A | exact | a | b | c(rounding only) | d | x | e | final eq Nora | final eq Naut | diff % |")
-    print("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|")
+    print("| dataset | signal | stage | trades N/A | exact | a | b | c(rounding only) | d | f | x | e | final eq Nora | final eq Naut | diff % |")
+    print("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|")
     for r in res:
         c = r["classes"]
         print(f"| {r['dataset']} | {r['signal']} | {r['stage']} | {r['trades_nora']}/{r['trades_naut']} | {r['exact_matches']} | "
-              f"{c.get('a', 0)} | {c.get('b', 0)} | {sum(1 for x in r['rows'] if 'rounded' in x['note'])} | {c.get('d', 0)} | {c.get('x', 0)} | "
+              f"{c.get('a', 0)} | {c.get('b', 0)} | {sum(1 for x in r['rows'] if 'rounded' in x['note'])} | {c.get('d', 0)} | {c.get('f', 0)} | {c.get('x', 0)} | "
               f"{c.get('e', 0)} | {r['final_equity_nora']:.2f} | {r['final_equity_naut']:.2f} | {r['final_equity_diff_pct']:+.4f} |")
     for r in res:
         for e in r["unexplained"]:

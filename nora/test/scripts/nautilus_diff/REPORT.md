@@ -1,5 +1,122 @@
 # Nora vs NautilusTrader: cross-engine differential test
 
+> **Update 2026-10-06 (2): `intrabar_path="ohlc"` — Nora now executes bars exactly like Nautilus.** User decision: Nora must be as accurate as the reference, not more conservative. New rule `intrabar_path` (default **ohlc** = Nautilus default; **adaptive** = `bar_adaptive_high_low_ordering=True`; **adverse_first** = the old conservative behaviour, kept bit-identical for stress tests). Implemented identically in tracker, kernel, SimVenue/manager and the frozen oracle (`docs/bmad/adr-p6-unified-execution.md` section 9, commits 169ddd0 + golden 2704cb6). Everything below this box up to "Setup" is NEW (re-run of `run_nora.py` + `compare.py`, Nautilus output unchanged; Nautilus adaptive re-run for all datasets/stages, fine and okx). The tables further down ("Results, aligned data ..." and later) are the **previous adverse_first run (history)**.
+>
+> **What the Nautilus source/experiments showed (and where it differs from the first spec):** (1) bar high/low order: adaptive puts High first only when `high - open < open - low`, so a tie goes Low first; (2) within one tick (leg) Nautilus matches ALL crossed orders at once in the order bids -> asks, limits before stops, NOT in price-encounter order: for a long every crossed DCA layer (even below the SL level) fills before the SL; (3) strategy reactions (re-placing SL/TP after a DCA fill) only reach the venue AFTER the whole bar, not on the next leg: SL and TP are fixed for the entire bar (verified with a probe on 2.0.0rc6: old TP 101 filled the full 20.05 position in the same bar; the re-placed TP filled only after `on_bar`); (4) a re-placed TP that is already marketable at the bar close fills immediately at the close as a taker (probe: TP 100.747 re-placed, close 100.9 -> TAKER fill at 100.9); (5) stop-market fills at its trigger inside H/L/C ticks and at the open on a gap tick, limits at their limit price; (6) the open tick only exists when open != previous close, zero-length legs have no tick. Nora follows all six.
+>
+> **Result with ohlc vs Nautilus default (fine config): 0 class a, 0 class b, 0 class e in all 18 runs; S1 and S2 are 100% trade-for-trade identical on aligned and gapped data (153/153 and 37/37 where before 152/153 had one same-bar SL-vs-TP case); S3 is 37/37 and 151/151 identical for every trade both engines take.** The only remaining difference is new class **f** (one trade per S3 run, 6 of 18 runs `fine`, same in `okx`): Nautilus-only "orphan DCA" trade. Example (aligned ema20_50): bar 2026-06-11 17:00 goes O 62550 -> H 63670 (TP 63355.48 fills, position closed) -> L 62310, and the DCA layer-1 limit at 62414.559 of the already-closed position is still resting (the strategy only cancels the ladder when the TP event reaches it after the bar), so it fills and opens a new position that is closed at the close by the re-placed TP. A real exchange (and Nora) cancels the ladder at the exit, so Nora deliberately does not copy this; it explains the whole final-equity gap (Nautilus +0.28% / +0.30% in S3, 0.0000% in S1/S2 aligned). With adaptive ordering the orphan fill does not occur in this data.
+>
+> | dataset | signal | stage | exact trades before -> after | class a before -> after | class b before -> after | final equity diff % (Nautilus vs Nora) before -> after |
+> |---|---|---|---|---|---|---|
+> | aligned | ema20_50 | S2 | 37/37 -> 37/37 | 0 -> 0 | 0 -> 0 | +0.0000 -> +0.0000 |
+> | aligned | ema20_50 | S3 | 35/38 -> 37/38 (+1 orphan f) | 2 -> 0 | 0 -> 0 | +0.2449 -> +0.2779 |
+> | aligned | ema5_13 | S2 | 152/153 -> 153/153 | 1 -> 0 | 0 -> 0 | +0.3665 -> -0.0000 |
+> | aligned | ema5_13 | S3 | 150/152 -> 151/152 (+1 orphan f) | 1 -> 0 | 0 -> 0 | +0.1548 -> +0.2989 |
+> | gapped | ema20_50 | S3 | 36/39 -> 38/39 (+1 orphan f) | 2 -> 0 | 0 -> 0 | +0.2449 -> +0.2779 |
+> | gapped | ema5_13 | S2 | 152/153 -> 153/153 | 1 -> 0 | 0 -> 0 | +0.3665 -> -0.0000 |
+> | gapped | ema5_13 | S3 | 149/152 -> 151/152 (+1 orphan f) | 2 -> 0 | 0 -> 0 | +0.3685 -> +0.2989 |
+>
+> **Adaptive (Nora adaptive vs Nautilus `bar_adaptive_high_low_ordering=True`), fine: every one of the 18 runs is 100% identical (all S1/S2/S3, aligned/raw/gapped), 0 a/b/f/x/e**; `raw` differs only in class d (entry at next open vs previous close, 12-106 trades per run) and S3 final equity differs by at most 0.0002%. `okx` rounding config: also 0 a/b/e (adaptive 100% exact apart from lot rounding and d; ohlc has the same orphan f trade). Nora `tracker == manager` bit-identical in all 36 Nora runs (ohlc and adaptive).
+>
+> Speed (kernel batch, kema_long, 8 perp, 100 random position configs incl. trailing and stop_fill, same process, interleaved, machine under load ~15): adverse_first 200 ms/alpha, **ohlc 213 (+6.5%)**, adaptive 212. Bit-identical vs the frozen oracle on 3 real configs. (An un-interleaved run before/after the change gave 171 -> 234 ms/alpha but the oracle control run was 2.4x slower in the same session, i.e. load noise.)
+
+## Nora ohlc vs Nautilus default, fine config (all datasets)
+
+| dataset | signal | stage | trades N/A | exact | a | b | c(rounding only) | d | f | x | e | final eq Nora | final eq Naut | diff % |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| aligned | ema20_50 | S1 | 35/35 | 35 | 0 | 0 | 35 | 0 | 0 | 0 | 0 | 10441.27 | 10441.27 | +0.0000 |
+| aligned | ema20_50 | S2 | 37/37 | 37 | 0 | 0 | 37 | 0 | 0 | 0 | 0 | 9966.34 | 9966.34 | +0.0000 |
+| aligned | ema20_50 | S3 | 37/38 | 37 | 0 | 0 | 37 | 0 | 1 | 0 | 0 | 10132.14 | 10160.29 | +0.2779 |
+| aligned | ema5_13 | S1 | 147/147 | 147 | 0 | 0 | 147 | 0 | 0 | 0 | 0 | 10158.10 | 10158.10 | -0.0000 |
+| aligned | ema5_13 | S2 | 153/153 | 153 | 0 | 0 | 153 | 0 | 0 | 0 | 0 | 9836.87 | 9836.87 | -0.0000 |
+| aligned | ema5_13 | S3 | 151/152 | 151 | 0 | 0 | 151 | 0 | 1 | 0 | 0 | 9994.30 | 10024.17 | +0.2989 |
+| raw | ema20_50 | S1 | 35/35 | 14 | 0 | 0 | 14 | 21 | 0 | 0 | 0 | 10441.28 | 10441.27 | -0.0001 |
+| raw | ema20_50 | S2 | 37/37 | 25 | 0 | 0 | 25 | 12 | 0 | 0 | 0 | 9966.34 | 9966.34 | +0.0000 |
+| raw | ema20_50 | S3 | 37/38 | 24 | 0 | 0 | 24 | 13 | 1 | 0 | 0 | 10132.16 | 10160.29 | +0.2777 |
+| raw | ema5_13 | S1 | 147/147 | 41 | 0 | 0 | 41 | 106 | 0 | 0 | 0 | 10158.09 | 10158.10 | +0.0001 |
+| raw | ema5_13 | S2 | 153/153 | 64 | 0 | 0 | 64 | 89 | 0 | 0 | 0 | 9836.85 | 9836.87 | +0.0003 |
+| raw | ema5_13 | S3 | 151/152 | 58 | 0 | 0 | 58 | 93 | 1 | 0 | 0 | 9994.30 | 10024.17 | +0.2989 |
+| gapped | ema20_50 | S1 | 35/35 | 35 | 0 | 0 | 35 | 0 | 0 | 0 | 0 | 10345.50 | 10345.50 | -0.0000 |
+| gapped | ema20_50 | S2 | 38/38 | 38 | 0 | 0 | 38 | 0 | 0 | 0 | 0 | 9935.69 | 9935.69 | +0.0000 |
+| gapped | ema20_50 | S3 | 38/39 | 38 | 0 | 0 | 38 | 0 | 1 | 0 | 0 | 10032.36 | 10060.23 | +0.2779 |
+| gapped | ema5_13 | S1 | 147/147 | 147 | 0 | 0 | 147 | 0 | 0 | 0 | 0 | 10053.98 | 10053.98 | -0.0000 |
+| gapped | ema5_13 | S2 | 153/153 | 153 | 0 | 0 | 153 | 0 | 0 | 0 | 0 | 9759.45 | 9759.45 | -0.0000 |
+| gapped | ema5_13 | S3 | 151/152 | 151 | 0 | 0 | 151 | 0 | 1 | 0 | 0 | 9848.32 | 9877.75 | +0.2989 |
+
+## Nora adaptive vs Nautilus adaptive, fine config
+
+| dataset | signal | stage | trades N/A | exact | a | b | c(rounding only) | d | f | x | e | final eq Nora | final eq Naut | diff % |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| aligned | ema20_50 | S1 | 35/35 | 35 | 0 | 0 | 35 | 0 | 0 | 0 | 0 | 10441.27 | 10441.27 | +0.0000 |
+| aligned | ema20_50 | S2 | 37/37 | 37 | 0 | 0 | 37 | 0 | 0 | 0 | 0 | 9966.34 | 9966.34 | +0.0000 |
+| aligned | ema20_50 | S3 | 37/37 | 37 | 0 | 0 | 37 | 0 | 0 | 0 | 0 | 10154.42 | 10154.42 | -0.0000 |
+| aligned | ema5_13 | S1 | 147/147 | 147 | 0 | 0 | 147 | 0 | 0 | 0 | 0 | 10158.10 | 10158.10 | -0.0000 |
+| aligned | ema5_13 | S2 | 153/153 | 153 | 0 | 0 | 153 | 0 | 0 | 0 | 0 | 9800.95 | 9800.95 | -0.0000 |
+| aligned | ema5_13 | S3 | 151/151 | 151 | 0 | 0 | 151 | 0 | 0 | 0 | 0 | 10016.27 | 10016.27 | +0.0000 |
+| raw | ema20_50 | S1 | 35/35 | 14 | 0 | 0 | 14 | 21 | 0 | 0 | 0 | 10441.28 | 10441.27 | -0.0001 |
+| raw | ema20_50 | S2 | 37/37 | 25 | 0 | 0 | 25 | 12 | 0 | 0 | 0 | 9966.34 | 9966.34 | +0.0000 |
+| raw | ema20_50 | S3 | 37/37 | 24 | 0 | 0 | 24 | 13 | 0 | 0 | 0 | 10154.44 | 10154.42 | -0.0002 |
+| raw | ema5_13 | S1 | 147/147 | 41 | 0 | 0 | 41 | 106 | 0 | 0 | 0 | 10158.09 | 10158.10 | +0.0001 |
+| raw | ema5_13 | S2 | 153/153 | 64 | 0 | 0 | 64 | 89 | 0 | 0 | 0 | 9800.92 | 9800.95 | +0.0003 |
+| raw | ema5_13 | S3 | 151/151 | 58 | 0 | 0 | 58 | 93 | 0 | 0 | 0 | 10016.27 | 10016.27 | +0.0000 |
+| gapped | ema20_50 | S1 | 35/35 | 35 | 0 | 0 | 35 | 0 | 0 | 0 | 0 | 10345.50 | 10345.50 | -0.0000 |
+| gapped | ema20_50 | S2 | 38/38 | 38 | 0 | 0 | 38 | 0 | 0 | 0 | 0 | 9935.69 | 9935.69 | +0.0000 |
+| gapped | ema20_50 | S3 | 38/38 | 38 | 0 | 0 | 38 | 0 | 0 | 0 | 0 | 10054.42 | 10054.42 | +0.0000 |
+| gapped | ema5_13 | S1 | 147/147 | 147 | 0 | 0 | 147 | 0 | 0 | 0 | 0 | 10053.98 | 10053.98 | -0.0000 |
+| gapped | ema5_13 | S2 | 153/153 | 153 | 0 | 0 | 153 | 0 | 0 | 0 | 0 | 9723.80 | 9723.80 | -0.0000 |
+| gapped | ema5_13 | S3 | 151/151 | 151 | 0 | 0 | 151 | 0 | 0 | 0 | 0 | 9869.97 | 9869.97 | -0.0000 |
+
+## Rounding config okx (tick 0.1, lot 0.0001), ohlc
+
+| dataset | signal | stage | trades N/A | exact | a | b | c(rounding only) | d | f | x | e | final eq Nora | final eq Naut | diff % |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| aligned | ema20_50 | S1 | 35/35 | 35 | 0 | 0 | 35 | 0 | 0 | 0 | 0 | 10441.27 | 10440.92 | -0.0033 |
+| aligned | ema20_50 | S2 | 37/37 | 37 | 0 | 0 | 37 | 0 | 0 | 0 | 0 | 9966.34 | 9966.30 | -0.0004 |
+| aligned | ema20_50 | S3 | 37/38 | 37 | 0 | 0 | 37 | 0 | 1 | 0 | 0 | 10132.14 | 10160.22 | +0.2771 |
+| aligned | ema5_13 | S1 | 147/147 | 147 | 0 | 0 | 147 | 0 | 0 | 0 | 0 | 10158.10 | 10158.99 | +0.0088 |
+| aligned | ema5_13 | S2 | 153/153 | 153 | 0 | 0 | 153 | 0 | 0 | 0 | 0 | 9836.87 | 9836.64 | -0.0023 |
+| aligned | ema5_13 | S3 | 151/152 | 151 | 0 | 0 | 151 | 0 | 1 | 0 | 0 | 9994.30 | 10024.20 | +0.2992 |
+| raw | ema20_50 | S1 | 35/35 | 24 | 0 | 0 | 24 | 11 | 0 | 0 | 0 | 10441.28 | 10440.92 | -0.0034 |
+| raw | ema20_50 | S2 | 37/37 | 25 | 0 | 0 | 25 | 12 | 0 | 0 | 0 | 9966.34 | 9966.30 | -0.0004 |
+| raw | ema20_50 | S3 | 37/38 | 25 | 0 | 0 | 25 | 12 | 1 | 0 | 0 | 10132.16 | 10160.22 | +0.2770 |
+| raw | ema5_13 | S1 | 147/147 | 74 | 0 | 0 | 74 | 73 | 0 | 0 | 0 | 10158.09 | 10158.99 | +0.0089 |
+| raw | ema5_13 | S2 | 153/153 | 76 | 0 | 0 | 76 | 77 | 0 | 0 | 0 | 9836.85 | 9836.64 | -0.0021 |
+| raw | ema5_13 | S3 | 151/152 | 76 | 0 | 0 | 76 | 75 | 1 | 0 | 0 | 9994.30 | 10024.20 | +0.2992 |
+| gapped | ema20_50 | S1 | 35/35 | 35 | 0 | 0 | 35 | 0 | 0 | 0 | 0 | 10345.50 | 10345.34 | -0.0016 |
+| gapped | ema20_50 | S2 | 38/38 | 38 | 0 | 0 | 38 | 0 | 0 | 0 | 0 | 9935.69 | 9935.59 | -0.0010 |
+| gapped | ema20_50 | S3 | 38/39 | 38 | 0 | 0 | 38 | 0 | 1 | 0 | 0 | 10032.36 | 10060.38 | +0.2794 |
+| gapped | ema5_13 | S1 | 147/147 | 147 | 0 | 0 | 147 | 0 | 0 | 0 | 0 | 10053.98 | 10054.37 | +0.0039 |
+| gapped | ema5_13 | S2 | 153/153 | 153 | 0 | 0 | 153 | 0 | 0 | 0 | 0 | 9759.45 | 9759.48 | +0.0004 |
+| gapped | ema5_13 | S3 | 151/152 | 151 | 0 | 0 | 151 | 0 | 1 | 0 | 0 | 9848.32 | 9877.53 | +0.2966 |
+
+## Rounding config okx, adaptive
+
+| dataset | signal | stage | trades N/A | exact | a | b | c(rounding only) | d | f | x | e | final eq Nora | final eq Naut | diff % |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| aligned | ema20_50 | S1 | 35/35 | 35 | 0 | 0 | 35 | 0 | 0 | 0 | 0 | 10441.27 | 10440.92 | -0.0033 |
+| aligned | ema20_50 | S2 | 37/37 | 37 | 0 | 0 | 37 | 0 | 0 | 0 | 0 | 9966.34 | 9966.30 | -0.0004 |
+| aligned | ema20_50 | S3 | 37/37 | 37 | 0 | 0 | 37 | 0 | 0 | 0 | 0 | 10154.42 | 10154.17 | -0.0024 |
+| aligned | ema5_13 | S1 | 147/147 | 147 | 0 | 0 | 147 | 0 | 0 | 0 | 0 | 10158.10 | 10158.99 | +0.0088 |
+| aligned | ema5_13 | S2 | 153/153 | 153 | 0 | 0 | 153 | 0 | 0 | 0 | 0 | 9800.95 | 9800.71 | -0.0025 |
+| aligned | ema5_13 | S3 | 151/151 | 151 | 0 | 0 | 151 | 0 | 0 | 0 | 0 | 10016.27 | 10016.31 | +0.0004 |
+| raw | ema20_50 | S1 | 35/35 | 24 | 0 | 0 | 24 | 11 | 0 | 0 | 0 | 10441.28 | 10440.92 | -0.0034 |
+| raw | ema20_50 | S2 | 37/37 | 25 | 0 | 0 | 25 | 12 | 0 | 0 | 0 | 9966.34 | 9966.30 | -0.0004 |
+| raw | ema20_50 | S3 | 37/37 | 25 | 0 | 0 | 25 | 12 | 0 | 0 | 0 | 10154.44 | 10154.17 | -0.0026 |
+| raw | ema5_13 | S1 | 147/147 | 74 | 0 | 0 | 74 | 73 | 0 | 0 | 0 | 10158.09 | 10158.99 | +0.0089 |
+| raw | ema5_13 | S2 | 153/153 | 76 | 0 | 0 | 76 | 77 | 0 | 0 | 0 | 9800.92 | 9800.71 | -0.0022 |
+| raw | ema5_13 | S3 | 151/151 | 76 | 0 | 0 | 76 | 75 | 0 | 0 | 0 | 10016.27 | 10016.31 | +0.0004 |
+| gapped | ema20_50 | S1 | 35/35 | 35 | 0 | 0 | 35 | 0 | 0 | 0 | 0 | 10345.50 | 10345.34 | -0.0016 |
+| gapped | ema20_50 | S2 | 38/38 | 38 | 0 | 0 | 38 | 0 | 0 | 0 | 0 | 9935.69 | 9935.59 | -0.0010 |
+| gapped | ema20_50 | S3 | 38/38 | 38 | 0 | 0 | 38 | 0 | 0 | 0 | 0 | 10054.42 | 10054.56 | +0.0015 |
+| gapped | ema5_13 | S1 | 147/147 | 147 | 0 | 0 | 147 | 0 | 0 | 0 | 0 | 10053.98 | 10054.37 | +0.0039 |
+| gapped | ema5_13 | S2 | 153/153 | 153 | 0 | 0 | 153 | 0 | 0 | 0 | 0 | 9723.80 | 9723.73 | -0.0008 |
+| gapped | ema5_13 | S3 | 151/151 | 151 | 0 | 0 | 151 | 0 | 0 | 0 | 0 | 9869.97 | 9869.92 | -0.0005 |
+
+Columns: a same-bar/tick ambiguity | b gap at open | c lot-rounded qty | d raw entry open-vs-close | f orphan DCA (Nautilus artifact, not replicated) | x cascade | e unexplained.
+
+---
+# History: previous run (intrabar_path = adverse_first, the conservative rules of 2026-10-06 (1))
+
 > **Update 2026-10-06: conservative fill rules.** This test found Nora optimistic in exactly two rules. Both were changed on purpose (approved by the user, `docs/bmad/adr-p6-unified-execution.md` section 8, `docs/bmad/architecture.md` 5.1) in every implementation (tracker, kernel, SimVenue/manager, frozen oracle): (1) **stale SL**: after the first DCA fill of a bar the old SL level stays in effect for the rest of that bar, the SL from the new avg applies from the next bar; (2) **resting limits fill at their level**: DCA and TP limits fill at their own price on a gap (DCA qty = notional / level), stop-market keeps gap -> open. All tables below are the numbers AFTER the change (Nautilus output unchanged, Nora re-run, `compare.py` re-run); the table here gives before -> after for the main `fine` config. The "Setup" text, the verdict paragraph and the class descriptions were updated accordingly; the old gap/stale-SL class (b and part of a) is gone.
 >
 > | dataset | signal | stage | exact trades before -> after | class a before -> after | class b before -> after | final equity diff % (Nora vs Nautilus) before -> after |
