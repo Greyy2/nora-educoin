@@ -44,3 +44,23 @@ baselines {null time-stop, shuffled TP from the bot's own distribution (20 seeds
 median, worst match, biggest win, biggest loss: real vs sim fills/exits), sim_trades (bots.json schema)}.
 Verdict wording: "tiệm cận tốt" (exit +-15 >= 60% and PnL corr >= 0.7), "tiệm cận một phần", "không tiệm cận được",
 always with the numbers and the in-sample caveat.
+
+## Phase 4c — "khớp tốt" for every bot, no aggregate-only matches (owner, 2026-10-06)
+A bot counts as "khớp tốt" only if ALL hold (in-sample, real fills replayed):
+1. PnL ratio sim/real in [0.80, 1.20].
+2. Basket win rate sim within ±8 pp of real.
+3. Median return of baskets both win: sim/real in [0.75, 1.33]; same for median loss of baskets both lose.
+4. Per-basket PnL sign agreement >= 80%.
+5. Per-basket USDT correlation >= 0.75 AND Spearman >= 0.6 AND USDT correlation with the 3 largest |real PnL| baskets
+   removed >= 0.6 (anti "a few big baskets carry it").
+6. Gap decomposition: in each of the 4 quadrants (real W/L x sim W/L) the sim sum is within ±35% of the real sum or the
+   quadrant is < 5% of total |real PnL|.
+7. Exit timing ±60 min >= 50% (report ±5/15 too); hold-time median sim/real in [0.6, 1.6] for winners and losers.
+Unclosed convention changes: no "PnL = 0 at real t1 + 60 min". The sim holds until ITS rule closes; if still open at the
+end of the data window, mark to market at the last candle (no use of the real exit time anywhere).
+Richer, still observable exit logic allowed: indicator exits on closed bars (RSI level cross, EMA/VWAP cross, BB mid,
+N-bar opposite extreme), per-symbol / per-class levels, a state-dependent switch at TP touch (take TP vs trail, chosen by
+momentum / volatility / session features at that bar), loser handling by depth and hold, regime split by period.
+Objective: lexicographic — first satisfy the 7 criteria (penalty proportional to each violation), then maximise exit ±15.
+Report per bot a pass/fail table of the 7 criteria with values. If a bot cannot pass, say which criterion fails, why
+(numbers), and what was tried; never relax a criterion to make it pass.

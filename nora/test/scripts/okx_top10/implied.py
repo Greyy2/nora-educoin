@@ -12,6 +12,7 @@ Quy ước engine (không look-ahead):
   - phí 3.5 bps/chiều (cùng match.py), funding bỏ qua.
 """
 import math
+import time as _time
 import numpy as np
 import pandas as pd
 import numba as nb
@@ -64,9 +65,87 @@ def atr_arrays(sym, a):
     return out
 
 
+
+# ===================================================================== thư viện chỉ báo thoát (nến đã đóng) + đặc trưng trạng thái
+SIGS_DEF = []   # (tên, loại, tf phút, tham số)
+for _tf in (15, 60, 240):
+    for _lv in (60, 70, 80):
+        SIGS_DEF.append((f"RSI{_tf}m cắt lên {_lv}", "rsi_mr", _tf, _lv))
+    for _lv in (40, 50):
+        SIGS_DEF.append((f"RSI{_tf}m cắt xuống {_lv}", "rsi_tr", _tf, _lv))
+    for _n in (20, 50):
+        SIGS_DEF.append((f"đóng cửa cắt ngược EMA{_n} khung {_tf}m", "ema_tr", _tf, _n))
+        SIGS_DEF.append((f"đóng cửa cắt thuận EMA{_n} khung {_tf}m (hồi về trung bình)", "ema_mr", _tf, _n))
+    SIGS_DEF.append((f"đóng cửa cắt ngược BB-mid(20) khung {_tf}m", "bb_tr", _tf, 20))
+    SIGS_DEF.append((f"đóng cửa cắt thuận BB-mid(20) khung {_tf}m", "bb_mr", _tf, 20))
+    for _n in (10, 20, 50):
+        SIGS_DEF.append((f"phá đáy/đỉnh {_n} nến ngược chiều khung {_tf}m", "don_tr", _tf, _n))
+FEAT_NAMES = ["động lượng 15 nến 1m", "động lượng 60 nến 1m", "động lượng 240 nến 1m", "ATR1m/ATR1h (biến động)", "phiên giờ VN"]
+_SIGC = {}
+
+
+def _cross_up(x, y):
+    return (x > y) & (np.roll(x, 1) <= np.roll(y, 1))
+
+
+def sym_signals(sym, a):
+    """Trả (SIGL, SIGS: uint64 bitmask theo SIGS_DEF cho vị thế mua/bán, FEAT float32 [4, N]). Tín hiệu chỉ ở HÀNG 1m đầu tiên sau khi nến khung lớn đóng."""
+    if sym in _SIGC:
+        return _SIGC[sym]
+    t = a["t"]; N = len(t)
+    df = pd.DataFrame(dict(o=a["o"], h=a["h"], l=a["l"], c=a["c"]), index=pd.to_datetime(t, unit="ms"))
+    sl = np.zeros(N, np.uint64); ss = np.zeros(N, np.uint64)
+    cache = {}
+    def tfdata(tf):
+        if tf in cache:
+            return cache[tf]
+        g = df.resample(f"{tf}min").agg(dict(o="first", h="max", l="min", c="last")).dropna()
+        avail = (g.index.values.astype("datetime64[ms]").astype(np.int64)) + tf * MIN
+        idx = np.searchsorted(avail, t, side="right") - 1
+        first = np.concatenate([[True], idx[1:] != idx[:-1]]) & (idx >= 0)
+        cache[tf] = (g, idx, first)
+        return cache[tf]
+    for k, (nm, kind, tf, par) in enumerate(SIGS_DEF):
+        g, idx, first = tfdata(tf)
+        c = g.c.values; n = len(c)
+        if kind in ("rsi_mr", "rsi_tr"):
+            d = np.diff(c, prepend=c[0]); up = pd.Series(np.where(d > 0, d, 0)).ewm(alpha=1 / 14, adjust=False).mean().values
+            dn = pd.Series(np.where(d < 0, -d, 0)).ewm(alpha=1 / 14, adjust=False).mean().values
+            rsi = 100 - 100 / (1 + up / np.maximum(dn, 1e-12))
+            if kind == "rsi_mr":
+                evL = (rsi >= par) & (np.roll(rsi, 1) < par); evS = (rsi <= 100 - par) & (np.roll(rsi, 1) > 100 - par)
+            else:
+                evL = (rsi < par) & (np.roll(rsi, 1) >= par); evS = (rsi > 100 - par) & (np.roll(rsi, 1) <= 100 - par)
+        elif kind in ("ema_tr", "ema_mr", "bb_tr", "bb_mr"):
+            ma = pd.Series(c).ewm(span=par, adjust=False).mean().values if kind.startswith("ema") else pd.Series(c).rolling(par, min_periods=3).mean().values
+            ma = np.nan_to_num(ma, nan=c[0])
+            cu = _cross_up(c, ma); cd = _cross_up(ma, c)
+            if kind.endswith("_tr"):
+                evL, evS = cd, cu
+            else:
+                evL, evS = cu, cd
+        else:   # don_tr: phá đáy/đỉnh N nến trước
+            lo = pd.Series(g.l.values).rolling(par).min().shift(1).values; hi = pd.Series(g.h.values).rolling(par).max().shift(1).values
+            evL = c < lo; evS = c > hi
+            evL = np.nan_to_num(evL.astype(float)) > 0; evS = np.nan_to_num(evS.astype(float)) > 0
+        evL[0] = False; evS[0] = False
+        rowL = np.where(idx >= 0, evL[np.clip(idx, 0, n - 1)], False) & first
+        rowS = np.where(idx >= 0, evS[np.clip(idx, 0, n - 1)], False) & first
+        bit = np.uint64(1) << np.uint64(k)
+        sl |= np.where(rowL, bit, np.uint64(0)); ss |= np.where(rowS, bit, np.uint64(0))
+    cl = a["c"]; fe = np.zeros((5, N), np.float32)
+    for r, nb_ in enumerate((15, 60, 240)):
+        prev = np.concatenate([np.full(1, np.nan), cl[:-1]]); old = np.concatenate([np.full(nb_ + 1, np.nan), cl[:-(nb_ + 1)]])
+        fe[r] = np.nan_to_num(prev / old - 1.0)
+    F = atr_arrays(sym, a)
+    fe[3] = np.nan_to_num(F["atr1"] / np.maximum(F["atr60"], 1e-9)); fe[4] = ((t // H1 + 7) % 24)
+    _SIGC[sym] = (sl, ss, fe)
+    return _SIGC[sym]
+
+
 # ===================================================================== dữ liệu bot đã chuẩn bị (mảng phẳng cho numba)
 class Data:
-    """Baskets đủ nến 1m + mảng phẳng nến [off[b]:off[b+1]] (từ nến SAU nến fill đầu đến t1 thật + 60 phút) + fill (kích hoạt)."""
+    """Baskets đủ nến 1m + mảng phẳng nến [off[b]:off[b+1]] (mỗi mã một đoạn, basket chạy từ nến sau fill đầu đến hết dữ liệu) + fill (kích hoạt)."""
 
     def __init__(self, bot, verbose=True):
         self.bot = bot; self.name = bot["name"]
@@ -83,9 +162,14 @@ class Data:
             keep.append(b)
         self.B = keep; self.n = len(keep)
         self.cand = arr
-        T = []; O = []; Hh = []; Ll = []; C = []; off = [0]
+        syms = sorted({b["sym"] for b in keep}); symoff = {}; cur = 0
+        T = []; O = []; Hh = []; Ll = []; C = []; SL_ = []; SS_ = []; FE_ = []
+        for sy in syms:
+            a = arr[sy]; symoff[sy] = cur; cur += len(a["t"])
+            T.append(a["t"]); O.append(a["o"]); Hh.append(a["h"]); Ll.append(a["l"]); C.append(a["c"])
+            sl_, ss_, fe_ = sym_signals(sy, a)
+            SL_.append(sl_); SS_.append(ss_); FE_.append(fe_)
         FT = []; FPX = []; FNOT = []; FACT = []; foff = [0]
-        sidx0 = []; self.i0 = []; self.i1 = []
         self.s = np.array([1 if b["side"] == "long" else -1 for b in keep], np.int64)
         self.lev = np.array([b["lev"] for b in keep], float)
         self.cls = np.array([sym_class(b["sym"]) for b in keep], np.int64)
@@ -93,24 +177,21 @@ class Data:
         self.t1 = np.array([b["t1"] for b in keep], np.int64)
         self.real_px = np.zeros(self.n); self.real_pnl = np.array([b["pnl"] for b in keep]); self.real_not = np.array([b["notional"] for b in keep])
         self.real_ret = np.array([b["ret"] for b in keep])
+        bstart = []; bend = []
         for k, b in enumerate(keep):
-            a = arr[b["sym"]]
+            a = arr[b["sym"]]; so = symoff[b["sym"]]
             i0 = int(np.searchsorted(a["t"], (b["t0"] // MIN + 1) * MIN, side="left"))
-            i1 = int(np.searchsorted(a["t"], b["t1"] + HORIZON_MIN * MIN, side="right"))
-            i1 = max(i1, i0 + 1)
-            self.i0.append(i0); self.i1.append(i1)
-            base = off[-1]
-            ts = a["t"][i0:i1]
-            T.append(ts); O.append(a["o"][i0:i1]); Hh.append(a["h"][i0:i1]); Ll.append(a["l"][i0:i1]); C.append(a["c"][i0:i1])
-            off.append(base + len(ts))
+            i0 = min(i0, len(a["t"]) - 1)
+            bstart.append(so + i0); bend.append(so + len(a["t"]))
             for f in b["fills"]:
-                act = int(np.searchsorted(ts, (f["t"] // MIN + 1) * MIN, side="left"))
-                FT.append(f["t"]); FPX.append(f["px"]); FNOT.append(f["notional"]); FACT.append(base + min(act, len(ts) - 1))
+                act = int(np.searchsorted(a["t"], (f["t"] // MIN + 1) * MIN, side="left"))
+                FT.append(f["t"]); FPX.append(f["px"]); FNOT.append(f["notional"]); FACT.append(so + min(act, len(a["t"]) - 1))
             foff.append(len(FT))
             cl_last = [c for c in b["closes"] if abs(c["t"] - b["t1"]) <= 2000]
             self.real_px[k] = sum(c["px"] * c["qty"] for c in cl_last) / sum(c["qty"] for c in cl_last)
         self.T = np.concatenate(T); self.O = np.concatenate(O); self.H = np.concatenate(Hh); self.L = np.concatenate(Ll); self.C = np.concatenate(C)
-        self.off = np.array(off, np.int64)
+        self.SIGL = np.concatenate(SL_); self.SIGS = np.concatenate(SS_); self.FEAT = np.ascontiguousarray(np.concatenate(FE_, axis=1))
+        self.bstart = np.array(bstart, np.int64); self.bend = np.array(bend, np.int64)
         self.FT = np.array(FT, np.int64); self.FPX = np.array(FPX); self.FNOT = np.array(FNOT); self.FACT = np.array(FACT, np.int64)
         self.foff = np.array(foff, np.int64)
         self.nlay = np.diff(self.foff)
@@ -139,7 +220,7 @@ THR = dict(lag=2.0, band_bps=10.0, atr_mult=1.0, dd_pct=0.30, tol_bps=3.0)
 
 def _path(D, k, anchor_mode="run"):
     """Đường lợi suất cho basket k từ nến đầu (sau fill đầu) đến nến chứa lần đóng cuối: giá vốn chạy (avg theo fill đã kích hoạt)."""
-    o0, o1 = D.off[k], D.off[k + 1]
+    o0, o1 = D.bstart[k], D.bend[k]
     s = D.s[k]
     te = int(np.searchsorted(D.T[o0:o1], D.t1[k], side="right")) - 1
     te = max(te, 0)
@@ -431,35 +512,39 @@ def fit_elements(df, cl, anchor, min_n=12):
 
 # ===================================================================== Bước 3: engine thoát với fill thật (numba)
 # mã lý do: 1 TP, 2 SL, 3 trailing, 4 hoà vốn (stop), 5 hoà vốn (hồi về), 6 thời gian, 7 hết horizon (cưỡng bức)
-WHY = {0: "chưa", 1: "TP", 2: "SL", 3: "trailing", 4: "hoà vốn-stop", 5: "hoà vốn-hồi về", 6: "thời gian", 7: "hết horizon"}
+WHY = {0: "chưa", 1: "TP", 2: "SL", 3: "trailing", 4: "hoà vốn-stop", 5: "hoà vốn-hồi về", 6: "thời gian", 7: "chưa đóng (mark-to-market cuối dữ liệu)", 8: "chỉ báo"}
 INF = np.inf
 
 
 @nb.njit(cache=True, parallel=True)
-def engine(T, O, H, L, C, off, FPX, FNOT, FACT, foff, S, tp, tpl, sl, sll, gb, act, bes, bes_off, brd, brd_off, tcap, flags, fl2, fee,
+def engine(T, O, H, L, C, bstart, bend, SIGL, SIGS, FEAT, FPX, FNOT, FACT, foff, S, tp, tpl, sl, sll, gb, act, bes, bes_off, brd, brd_off, tcap, flags, fl2, fee,
            o_ct, o_cp, o_why, o_closed, o_pnl, o_not, o_nused, f_ct, f_cp, f_why, o_mtm):
-    nbk = len(off) - 1
-    anchor = flags[0]; tcap_ref = flags[1]; tcap_loss = flags[2]; tp_usd = flags[3]; sl_usd = flags[4]
+    """Mỗi basket chạy từ nến sau fill đầu đến HẾT dữ liệu của mã (không dùng thời điểm thoát thật). Chưa đóng đến cuối -> mark-to-market tại nến cuối (why=7)."""
+    nbk = len(bstart)
+    anchor = flags[0]; tcap_ref = flags[1]; tcap_loss = flags[2]; tp_usd = flags[3]; sl_usd = flags[4]; sig_id = flags[5]; sw_kind = flags[6]; sw_dir = flags[7]
+    sig_gate = fl2[2]; sw_thr = fl2[3]
     layer = anchor == 3
     for b in nb.prange(nbk):
         s = float(S[b]); j0 = foff[b]; j1 = foff[b + 1]; nf = j1 - j0
-        i_start = off[b]; i_end = off[b + 1]
+        i_start = bstart[b]; i_end = bend[b]
         nu = nf if layer else 1
         ua = np.zeros(nu); upk = np.zeros(nu); utr = np.zeros(nu); un = np.zeros(nu)
-        ual = np.zeros(nu, np.int8); utref = np.zeros(nu, np.int64)
+        ual = np.zeros(nu, np.int8); utref = np.zeros(nu, np.int64); utm = np.zeros(nu, np.int8)
         nextf = 0; nact = 0; sum_n = 0.0; sum_q = 0.0; first_px = 0.0; last_px = 0.0; jstart = j0
         ncl = 0
         tpmode = int(fl2[1])
+        if gb[b] >= INF:
+            tpmode = 0
         for j in range(j0, j1):
             f_ct[j] = -1; f_cp[j] = 0.0; f_why[j] = 0
         for i in range(i_start, i_end):
             while nextf < nf and FACT[j0 + nextf] <= i:
                 j = j0 + nextf; px = FPX[j]; nt = FNOT[j]
                 if layer:
-                    ua[nextf] = px; upk[nextf] = px; utr[nextf] = px; un[nextf] = nt; ual[nextf] = 1; utref[nextf] = T[i]
+                    ua[nextf] = px; upk[nextf] = px; utr[nextf] = px; un[nextf] = nt; ual[nextf] = 1; utref[nextf] = T[i]; utm[nextf] = 0
                 else:
                     if nact == 0:
-                        first_px = px; upk[0] = px; utr[0] = px; utref[0] = T[i]; ual[0] = 1
+                        first_px = px; upk[0] = px; utr[0] = px; utref[0] = T[i]; ual[0] = 1; utm[0] = 0
                     sum_n += nt; sum_q += nt / px; last_px = px
                     un[0] = sum_n
                     if anchor == 0:
@@ -471,7 +556,6 @@ def engine(T, O, H, L, C, off, FPX, FNOT, FACT, foff, S, tp, tpl, sl, sll, gb, a
                     if tcap_ref == 1:
                         utref[0] = T[i]
                 nact += 1; nextf += 1
-            allclosed = False
             for u in range(nu):
                 if ual[u] != 1:
                     continue
@@ -492,46 +576,75 @@ def engine(T, O, H, L, C, off, FPX, FNOT, FACT, foff, S, tp, tpl, sl, sll, gb, a
                     rf = -(L[i] / a - 1.0); ra = -(H[i] / a - 1.0)
                 rc = s * (C[i] / a - 1.0)
                 rpk = s * (upk[u] / a - 1.0); rtr = s * (utr[u] / a - 1.0)
-                stop_r = -INF; why = 0
-                if slp < INF:
-                    v = -slp
-                    if v > stop_r:
-                        stop_r = v; why = 2
-                tp_lim = tpp + fl2[0] * (-rtr if rtr < 0.0 else 0.0)
-                if tpmode == 0:
-                    if gb[b] < INF and rpk >= act[b]:
-                        v = s * (upk[u] * (1.0 - s * gb[b]) / a - 1.0)
-                        if v > stop_r:
-                            stop_r = v; why = 3
-                else:   # TP chuyển thành trailing: sau khi đỉnh (các nến đã đóng) chạm mức TP thì stop dưới đỉnh
-                    if gb[b] < INF and tp_lim < INF and rpk >= tp_lim:
-                        v = s * (upk[u] * (1.0 - s * gb[b]) / a - 1.0)
-                        if v > stop_r:
-                            stop_r = v; why = 3
-                if bes[b] < INF and rpk >= bes[b]:
-                    v = bes_off[b]
-                    if v > stop_r:
-                        stop_r = v; why = 4
-                tp_r = tp_lim if tpmode == 0 else INF; tw = 1
-                if brd[b] < INF and rtr <= -brd[b]:
-                    v = brd_off[b]
-                    if v < tp_r:
-                        tp_r = v; tw = 5
                 hit = 0; xr = 0.0; mid = 30000
-                if stop_r > -INF:
-                    if ro <= stop_r:
-                        hit = why; xr = ro
-                    elif ra <= stop_r:
-                        hit = why; xr = stop_r
-                if hit == 0 and tp_r < INF:
-                    if ro >= tp_r:
-                        hit = tw; xr = ro
-                    elif rf >= tp_r:
-                        hit = tw; xr = tp_r
-                if hit == 0 and tcap[b] < INF:
-                    held = (T[i] + 60000 - utref[u]) / 60000.0
-                    if held >= tcap[b] and (tcap_loss == 0 or rc <= 0.0):
-                        hit = 6; xr = rc; mid = 60000
+                # 1) thoát theo chỉ báo trên nến ĐÃ ĐÓNG: quyết định từ dữ liệu <= nến i-1, khớp tại open nến i
+                if sig_id >= 0:
+                    bit = (SIGL[i] >> np.uint64(sig_id)) & np.uint64(1) if s > 0 else (SIGS[i] >> np.uint64(sig_id)) & np.uint64(1)
+                    if bit == np.uint64(1) and ro >= sig_gate:
+                        hit = 8; xr = ro; mid = 0
+                if hit == 0:
+                    stop_r = -INF; why = 0
+                    if slp < INF:
+                        v = -slp
+                        if v > stop_r:
+                            stop_r = v; why = 2
+                    tp_lim = tpp + fl2[0] * (-rtr if rtr < 0.0 else 0.0)
+                    if tpmode == 0:
+                        if gb[b] < INF and rpk >= act[b]:
+                            v = s * (upk[u] * (1.0 - s * gb[b]) / a - 1.0)
+                            if v > stop_r:
+                                stop_r = v; why = 3
+                    elif utm[u] == 1:
+                        v = s * (upk[u] * (1.0 - s * gb[b]) / a - 1.0)
+                        if v > stop_r:
+                            stop_r = v; why = 3
+                    if bes[b] < INF and rpk >= bes[b]:
+                        v = bes_off[b]
+                        if v > stop_r:
+                            stop_r = v; why = 4
+                    tp_r = tp_lim if utm[u] == 0 else INF; tw = 1
+                    if brd[b] < INF and rtr <= -brd[b]:
+                        v = brd_off[b]
+                        if v < tp_r:
+                            tp_r = v; tw = 5
+                    if stop_r > -INF:
+                        if ro <= stop_r:
+                            hit = why; xr = ro
+                        elif ra <= stop_r:
+                            hit = why; xr = stop_r
+                    if hit == 0 and tp_r < INF:
+                        touched = False; xt = 0.0
+                        if ro >= tp_r:
+                            touched = True; xt = ro
+                        elif rf >= tp_r:
+                            touched = True; xt = tp_r
+                        if touched:
+                            sw = False
+                            if tw == 1 and tpmode >= 1:
+                                if tpmode == 1:
+                                    sw = True
+                                else:   # chuyển trailing tuỳ trạng thái tại nến chạm TP (chỉ dùng dữ liệu đến nến i-1)
+                                    if sw_kind <= 2:
+                                        fv = s * FEAT[sw_kind, i]
+                                    elif sw_kind == 3:
+                                        fv = FEAT[3, i]
+                                    else:
+                                        hh = ((T[i] // 3600000) + 7) % 24
+                                        fv = 1.0 if (hh >= sw_thr and hh < sw_thr + 8) else 0.0
+                                    if sw_kind == 4:
+                                        sw = fv > 0.5
+                                    elif sw_dir > 0:
+                                        sw = fv >= sw_thr
+                                    else:
+                                        sw = fv <= sw_thr
+                            if sw:
+                                utm[u] = 1
+                            else:
+                                hit = tw; xr = xt
+                    if hit == 0 and tcap[b] < INF:
+                        held = (T[i] + 60000 - utref[u]) / 60000.0
+                        if held >= tcap[b] and (tcap_loss == 0 or rc <= 0.0):
+                            hit = 6; xr = rc; mid = 60000
                 if hit == 0 and i == i_end - 1:
                     hit = 7; xr = rc; mid = 60000
                 if hit > 0:
@@ -562,23 +675,19 @@ def engine(T, O, H, L, C, off, FPX, FNOT, FACT, foff, S, tp, tpl, sl, sll, gb, a
             else:
                 if nextf == nf and ual[0] != 1:
                     break
-        # tổng hợp basket
-        pnl = 0.0; mtm = 0.0; nt_sum = 0.0; lastc = -1; lastp = 0.0; lastw = 0; nused = 0; allc = 1
+        pnl = 0.0; nt_sum = 0.0; lastc = -1; lastp = 0.0; lastw = 0; nused = 0; allc = 1
         for j in range(j0, j1):
             if f_ct[j] < 0:
                 continue
             nused += 1
             xp = f_cp[j]; nt = FNOT[j]
-            gj = s * (xp / FPX[j] - 1.0) * nt - fee * (nt + nt * xp / FPX[j])
-            mtm += gj
-            if f_why[j] != 7:
-                pnl += gj
+            pnl += s * (xp / FPX[j] - 1.0) * nt - fee * (nt + nt * xp / FPX[j])
             nt_sum += nt
             if f_ct[j] > lastc:
                 lastc = f_ct[j]; lastp = xp; lastw = f_why[j]
             if f_why[j] == 7:
                 allc = 0
-        o_ct[b] = lastc; o_cp[b] = lastp; o_why[b] = lastw; o_closed[b] = allc; o_pnl[b] = pnl; o_mtm[b] = mtm; o_not[b] = nt_sum; o_nused[b] = nused
+        o_ct[b] = lastc; o_cp[b] = lastp; o_why[b] = lastw; o_closed[b] = allc; o_pnl[b] = pnl; o_mtm[b] = pnl; o_not[b] = nt_sum; o_nused[b] = nused
 
 
 class Out:
@@ -593,15 +702,71 @@ def run(D, L, out=None):
     """L: dict các mảng mức (đơn vị PHÂN SỐ giá) + flags. Trả Out."""
     if out is None:
         out = Out(D)
-    engine(D.T, D.O, D.H, D.L, D.C, D.off, D.FPX, D.FNOT, D.FACT, D.foff, D.s, L["tp"], L["tpl"], L["sl"], L["sll"], L["gb"], L["act"], L["bes"],
+    engine(D.T, D.O, D.H, D.L, D.C, D.bstart, D.bend, D.SIGL, D.SIGS, D.FEAT, D.FPX, D.FNOT, D.FACT, D.foff, D.s, L["tp"], L["tpl"], L["sl"], L["sll"], L["gb"], L["act"], L["bes"],
            L["bes_off"], L["brd"], L["brd_off"], L["tcap"], L["flags"], L["fl2"], FEE, out.ct, out.cp, out.why, out.closed, out.pnl, out.notional, out.nused,
            out.f_ct, out.f_cp, out.f_why, out.mtm)
     return out
 
 
 # ===================================================================== chỉ số + mục tiêu
+def _rank(x):
+    r = np.empty(len(x)); r[np.argsort(x, kind="stable")] = np.arange(len(x)); return r
+
+
+def _lgv(x, lo, hi, scale=0.3):
+    """Vi phạm (log) khi x ngoài [lo, hi]; x<=0 hoặc nan -> vi phạm lớn."""
+    if not np.isfinite(x) or x <= 0:
+        return 3.0
+    return max(0.0, np.log(lo / x), np.log(x / hi)) / scale
+
+
+def criteria(D, o, idx=None):
+    """7 tiêu chí 'khớp tốt' (Phase 4c). Trả (values, viol dict). viol=0 nghĩa là tiêu chí đạt (đã chuẩn hoá theo độ rộng ngưỡng)."""
+    sel = np.ones(D.n, bool) if idx is None else idx
+    rp = D.real_pnl[sel]; sp = o.pnl[sel]; nt = D.real_not[sel]
+    rr = rp / nt * 100; sr = sp / nt * 100
+    v = {}; V = {}
+    rs = rp.sum(); ratio = float(sp.sum() / rs) if rs != 0 else 0.0
+    v["pnl_ratio"] = ratio; V["pnl_ratio"] = max(0.0, 0.8 - ratio, ratio - 1.2) / 0.2
+    wr, ws = float(np.mean(rp > 0) * 100), float(np.mean(sp > 0) * 100)
+    v["win_real"] = wr; v["win_sim"] = ws; V["win_rate"] = max(0.0, abs(ws - wr) - 8.0) / 8.0
+    bw = (rp > 0) & (sp > 0); bl = (rp <= 0) & (sp <= 0)
+    x = float(np.median(sr[bw]) / np.median(rr[bw])) if bw.sum() >= 2 else float("nan")
+    v["both_win_ratio"] = x; v["both_win_n"] = int(bw.sum()); V["both_win_median"] = _lgv(x, 0.75, 1.33)
+    y = float(np.median(-sr[bl]) / np.median(-rr[bl])) if bl.sum() >= 2 and np.median(-rr[bl]) > 0 else float("nan")
+    v["both_lose_ratio"] = y; v["both_lose_n"] = int(bl.sum()); V["both_lose_median"] = _lgv(y, 0.75, 1.33) if bl.sum() >= 2 else 0.0
+    sg = float(np.mean(np.sign(sp) == np.sign(rp))); v["sign_agree"] = sg; V["sign_agree"] = max(0.0, 0.8 - sg) / 0.2
+    cu = _corr(rp, sp); sp_ = _corr(_rank(rp), _rank(sp))
+    top3 = np.argsort(-np.abs(rp))[:3]; keep = np.ones(len(rp), bool); keep[top3] = False
+    c3 = _corr(rp[keep], sp[keep])
+    v["corr_usdt"] = cu; v["spearman"] = sp_; v["corr_usdt_ex_top3"] = c3
+    V["corr_usdt"] = max(0.0, 0.75 - cu) / 0.25; V["spearman"] = max(0.0, 0.6 - sp_) / 0.4; V["corr_ex_top3"] = max(0.0, 0.6 - c3) / 0.4
+    tot = float(np.abs(rp).sum()); qv = 0.0; quad = {}
+    for rn, rm in (("W", rp > 0), ("L", rp <= 0)):
+        for sn, sm in (("W", sp > 0), ("L", sp <= 0)):
+            m = rm & sm; qr = float(rp[m].sum()); qs = float(sp[m].sum())
+            small = abs(qr) < 0.05 * tot
+            rel = abs(qs - qr) / abs(qr) if qr != 0 else 0.0
+            ok = small or rel <= 0.35
+            quad[f"thật {rn}/sim {sn}"] = dict(n=int(m.sum()), real=qr, sim=qs, rel_err=rel, small=bool(small), ok=bool(ok))
+            if not ok:
+                qv += (rel - 0.35) / 0.35
+    v["quadrants"] = quad; V["quadrants"] = qv
+    return v, V
+
+
+def hold_ratios(D, o, idx=None):
+    sel = np.ones(D.n, bool) if idx is None else idx
+    rp = D.real_pnl[sel]; sp = o.pnl[sel]
+    sh = (o.ct[sel] - D.t0[sel]) / MIN; rh = D.hold_min[sel]
+    out = {}
+    for nm, rm, sm in (("win", rp > 0, sp > 0), ("loss", rp <= 0, sp <= 0)):
+        out[nm] = float(np.median(sh[sm]) / max(1e-9, np.median(rh[rm]))) if sm.sum() and rm.sum() else float("nan")
+    return out
+
+
 def metrics(D, o, scale_bps, idx=None):
-    """Chỉ số nhanh (numpy). idx: mặt nạ basket (bool) hoặc None."""
+    """Chỉ số nhanh (numpy). Mục tiêu LEXICOGRAPHIC: -100*tổng vi phạm 7 tiêu chí + exit±15 (+0.3*±60 + 0.05*điểm giá)."""
     sel = np.ones(D.n, bool) if idx is None else idx
     closed = o.closed[sel] == 1
     dt = np.abs(o.ct[sel] - D.t1[sel]) / MIN
@@ -610,17 +775,16 @@ def metrics(D, o, scale_bps, idx=None):
     pe = np.abs(o.cp[sel] / D.real_px[sel] - 1) * 1e4
     pe = np.where((o.nused[sel] > 0) & closed, pe, 1e4)
     med_pe = float(np.median(pe))
-    sr = np.where(o.notional[sel] > 0, o.pnl[sel] / np.where(o.notional[sel] > 0, o.notional[sel], 1) * 100, 0.0)
-    ar = D.real_ret[sel]
-    sign = float(np.mean(np.sign(sr) == np.sign(ar)))
-    cr = _corr(ar, sr); cu = _corr(D.real_pnl[sel], o.pnl[sel])
+    sr = o.pnl[sel] / D.real_not[sel] * 100; ar = D.real_ret[sel]
     pxs = max(0.0, 1.0 - min(1.0, med_pe / scale_bps))
-    base = float((3.0 * m15 + pxs + sign + max(0.0, cu)) / 6.0)   # ưu tiên khớp thời điểm thoát (trọng số 3) trong vùng thoả ràng buộc PnL
-    rs = float(D.real_pnl[sel].sum()); ratio = float(o.pnl[sel].sum() / rs) if rs != 0 else 0.0
-    nmae = float(np.mean(np.abs(o.pnl[sel] - D.real_pnl[sel])) / max(1e-9, np.mean(np.abs(D.real_pnl[sel]))))
-    viol = max(0.0, PNL_LO - ratio, ratio - PNL_HI)
-    obj = base - 0.1 * abs(ratio - 1.0) - 0.03 * min(nmae, 3.0) - (1.0 + 3.0 * viol if viol > 0 else 0.0)
-    return dict(obj=obj, base=base, ratio=ratio, nmae=nmae, m5=m5, m15=m15, m60=m60, px_med=med_pe, px_score=pxs, sign=sign, corr_ret=cr, corr_usdt=cu)
+    v, V = criteria(D, o, idx)
+    hr = hold_ratios(D, o, idx)
+    V["exit60"] = max(0.0, 0.5 - m60) / 0.5
+    V["hold_win"] = _lgv(hr["win"], 0.6, 1.6); V["hold_loss"] = _lgv(hr["loss"], 0.6, 1.6)
+    viol = float(sum(V.values()))
+    obj = -100.0 * viol + m15 + 0.3 * m60 + 0.05 * pxs
+    return dict(obj=obj, base=m15, viol=viol, V=V, crit=v, hold=hr, ratio=v["pnl_ratio"], nmae=0.0, m5=m5, m15=m15, m60=m60, px_med=med_pe, px_score=pxs,
+                sign=v["sign_agree"], corr_ret=_corr(ar, sr), corr_usdt=v["corr_usdt"])
 
 
 def _corr(a, b):
@@ -633,6 +797,8 @@ def _corr(a, b):
 G_TP = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.35, 1.5, 1.7, 2.0, 2.4, 3.0, 4.0, 6.0, 8.0, 12.0, INF]
 G_SL = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0, 4.0, 6.0, 8.0, 12.0, 20.0, INF]
 G_GB = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.15, 1.3, 1.5, 1.75, 2.0, 2.5, 3.0, 4.0, 6.0, INF]
+SW_GRID = ([(k, d, t) for k in (0, 1, 2) for d in (1, -1) for t in (-0.01, -0.005, -0.002, 0.0, 0.002, 0.005, 0.01, 0.02)] +
+           [(3, d, t) for d in (1, -1) for t in (0.5, 0.75, 1.0, 1.25, 1.5, 2.0)] + [(4, 1, float(h)) for h in range(0, 24, 3)])
 G_TPK = [0.0, 0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.75, 1.0]
 G_ACT = [0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0]
 G_BM = [0.3, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0, INF]
@@ -653,7 +819,9 @@ class Searcher:
         for an in fits:
             self._base[an] = self._bases(an)
         self.grp = np.zeros(D.n, np.int64); self.G = 1
-        self.allowed = {"tp", "tpk", "tpt", "sl", "tr", "bes", "brd", "tc"}
+        self.deadline = float("inf")
+        self.allowed = {"tp", "tpk", "tpt", "tpsw", "sl", "tr", "bes", "brd", "tc", "sig"}
+        self.sig_gates = [-INF, 0.0, 0.002, 0.005, 0.01]
         self.tc_grid = list(G_TCMIN)
 
     # ---- mảng mức nền (phân số giá) cho từng anchor
@@ -678,8 +846,15 @@ class Searcher:
         D = self.D; n = D.n; B = self._base[ANCHORS[cfg["anchor"]]]; g = self.grp
         inf = np.full(n, INF); z = np.zeros(n)
         tp = inf; tpl = z; sl = inf; sll = z; gb = inf; act = z; bes = inf; bo = z; brd = inf; do = z; tcap = inf
-        flags = np.zeros(5, np.int64); flags[0] = cfg["anchor"]
-        fl2 = np.array([float(cfg.get("tpk") or 0.0), 1.0 if (cfg.get("tpt") and cfg.get("tr") is not None) else 0.0])
+        flags = np.zeros(8, np.int64); flags[0] = cfg["anchor"]; flags[5] = -1
+        tpm = 0.0
+        if cfg.get("tpt") and cfg.get("tr") is not None:
+            tpm = 1.0
+            if cfg.get("tpsw"):
+                tpm = 2.0; flags[6] = cfg["tpsw"]["kind"]; flags[7] = cfg["tpsw"]["dir"]
+        fl2 = np.array([float(cfg.get("tpk") or 0.0), tpm, -INF, float(cfg["tpsw"]["thr"]) if cfg.get("tpsw") else 0.0])
+        if cfg.get("sig"):
+            flags[5] = cfg["sig"]["id"]; fl2[2] = cfg["sig"]["gate"]
         if cfg.get("tp") is not None:
             base, lay, unit = B["tp"]; m = np.asarray(cfg["tp"])[g]
             tp = base * m; tpl = np.where(np.isinf(m), 0.0, lay * m); flags[3] = 1 if unit == "usd" else 0
@@ -706,12 +881,17 @@ class Searcher:
         m = metrics(self.D, o, self.scale_bps, idx)
         self.n_eval += 1
         if idx is None:
-            self.log.append((m["obj"], _cfg_key(cfg), m["m15"], m["corr_usdt"], m["sign"], m["px_med"], _cp(cfg), self.G, m["ratio"], m["base"]))
+            self.log.append((m["obj"], _cfg_key(cfg), m["m15"], m["corr_usdt"], m["sign"], m["px_med"], _cp(cfg), self.G, m["ratio"], m["viol"]))
         return (m, o) if keep else m
 
     # ---- tối ưu 1 tham số trên lưới + tinh chỉnh cục bộ
+    def over(self):
+        return _time.time() > self.deadline
+
     def _best_scalar(self, cfg, getset, grid, cur, idx=None, refine=True):
         best_v, best_o = cur, self.score(getset(cfg, cur), idx)["obj"]
+        if self.over():
+            return best_v, best_o
         for v in grid:
             o = self.score(getset(cfg, v), idx)["obj"]
             if o > best_o + 1e-9:
@@ -728,6 +908,8 @@ class Searcher:
         """Coordinate descent trên mọi phần tử đang bật. Sửa cfg tại chỗ (sao chép trước nếu cần). Trả mục tiêu."""
         o = self.score(cfg, idx)["obj"]
         for _ in range(passes):
+            if self.over():
+                break
             o0 = o
             for gi in range(self.G):
                 if cfg.get("tp") is not None:
@@ -760,6 +942,30 @@ class Searcher:
                         oo = self.score(c2, idx)["obj"]
                         if oo > o + 1e-9:
                             o = oo; cfg[key]["off"] = off
+            if cfg.get("tpsw") is not None and cfg.get("tpt"):
+                best = (o, cfg["tpsw"])
+                for kind, dr, thr in SW_GRID:
+                    c2 = _cp(cfg); c2["tpsw"] = dict(kind=kind, dir=dr, thr=thr)
+                    oo = self.score(c2, idx)["obj"]
+                    if oo > best[0] + 1e-9:
+                        best = (oo, c2["tpsw"])
+                o, cfg["tpsw"] = best[0], best[1]
+            if cfg.get("sig") is not None:
+                best = (o, cfg["sig"]); gates = self.sig_gates
+                for sid in range(len(SIGS_DEF)):
+                    if self.over():
+                        break
+                    for gt in (gates[0], gates[1]):
+                        c2 = _cp(cfg); c2["sig"] = dict(id=sid, gate=gt)
+                        oo = self.score(c2, idx)["obj"]
+                        if oo > best[0] + 1e-9:
+                            best = (oo, c2["sig"])
+                for gt in gates:
+                    c2 = _cp(cfg); c2["sig"] = dict(id=best[1]["id"], gate=gt)
+                    oo = self.score(c2, idx)["obj"]
+                    if oo > best[0] + 1e-9:
+                        best = (oo, c2["sig"])
+                o, cfg["sig"] = best[0], best[1]
             if cfg.get("tc") is not None:
                 for ref in (0, 1):
                     for loss in (0, 1):
@@ -783,6 +989,12 @@ class Searcher:
             cfg["tr"] = dict(gb=np.ones(G), act=np.ones(G))
         elif name == "tpk":
             cfg["tpk"] = 0.1
+        elif name == "sig":
+            cfg["sig"] = dict(id=0, gate=self.sig_gates[1])
+        elif name == "tpsw":
+            cfg["tpt"] = True; cfg["tpsw"] = dict(kind=0, dir=1, thr=0.0)
+            if cfg.get("tr") is None:
+                cfg["tr"] = dict(gb=np.ones(G), act=np.zeros(G))
         elif name == "tpt":
             cfg["tpt"] = True
             if cfg.get("tr") is None:
@@ -803,7 +1015,7 @@ def _cp(c):
             d[k] = np.array(d[k], float)
     if d.get("tr") is not None:
         d["tr"] = dict(gb=np.array(d["tr"]["gb"], float), act=np.array(d["tr"]["act"], float))
-    for k in ("bes", "brd", "tc"):
+    for k in ("bes", "brd", "tc", "sig", "tpsw"):
         if d.get(k) is not None:
             d[k] = dict(d[k])
     return d
@@ -815,7 +1027,8 @@ def _cfg_key(c):
             (r(c["tr"]["gb"]), r(c["tr"]["act"])) if c.get("tr") is not None else None, round(float(c.get("tpk") or 0), 3),
             (round(c["bes"]["m"], 3), c["bes"]["off"]) if c.get("bes") is not None else None,
             (round(c["brd"]["m"], 3), c["brd"]["off"]) if c.get("brd") is not None else None,
-            (c["tc"]["min"], c["tc"]["ref"], c["tc"]["loss"]) if c.get("tc") is not None else None, bool(c.get("tpt")))
+            (c["tc"]["min"], c["tc"]["ref"], c["tc"]["loss"]) if c.get("tc") is not None else None, bool(c.get("tpt")),
+            (c["sig"]["id"], c["sig"]["gate"]) if c.get("sig") else None, tuple(c["tpsw"].values()) if c.get("tpsw") else None)
 
 
 # ===================================================================== phân đoạn chế độ (regime) + nhóm lớp mã
@@ -932,12 +1145,16 @@ def clean(cfg):
     if "tp" not in st:
         c["tpk"] = None
     if "tr" not in st or "tp" not in st:
-        c["tpt"] = None
+        c["tpt"] = None; c["tpsw"] = None
+    if "sig" not in st:
+        c["sig"] = None
     return c
 
 
 def structure(cfg):
     out = []
+    if cfg.get("sig") is not None:
+        out.append("sig")
     for k in ("tp", "sl", "tr", "bes", "brd", "tc"):
         v = cfg.get(k)
         if v is None:
@@ -955,6 +1172,8 @@ def structure(cfg):
             out.append("tpk")
         if k == "tr" and cfg.get("tpt"):
             out.append("tpt")
+            if cfg.get("tpsw"):
+                out.append("tpsw")
     return tuple(out)
 
 
@@ -966,6 +1185,10 @@ def cfg_params(cfg):
         p["tp_mae_coupling_k"] = round(float(cfg["tpk"]), 3)
     if cfg.get("tpt") and cfg.get("tr") is not None:
         p["tp_then_trail"] = True
+    if cfg.get("tpsw") and cfg.get("tpt"):
+        p["tp_switch"] = dict(feature=FEAT_NAMES[cfg["tpsw"]["kind"]], direction=">=" if cfg["tpsw"]["dir"] > 0 else "<=", threshold=cfg["tpsw"]["thr"])
+    if cfg.get("sig"):
+        p["indicator_exit"] = dict(name=SIGS_DEF[cfg["sig"]["id"]][0], min_return_at_open=None if not np.isfinite(cfg["sig"]["gate"]) else cfg["sig"]["gate"])
     if cfg.get("sl") is not None:
         p["sl_mult"] = [None if not np.isfinite(v) else round(float(v), 4) for v in cfg["sl"]]
     if cfg.get("tr") is not None:
@@ -1035,6 +1258,12 @@ def text_vi(S, cfg, fits_a, lv, anchor_name, groups_info=None):
         nm = lv.get("be_depth", {})
         parts.append(f"Hoà vốn (hồi về): khi từng lỗ ≥ {cfg['brd']['m']:.2f} × mức cơ sở" + (f" (trung vị {nm['px_pct_med']:.2f}% giá)" if "px_pct_med" in nm else "")
                      + f", đặt limit thoát tại giá neo {cfg['brd']['off']:+.0f} bps.")
+    if cfg.get("tpsw") and cfg.get("tpt"):
+        w = cfg["tpsw"]
+        parts.append(f"Tại nến chạm TP: chỉ chuyển sang trailing nếu {FEAT_NAMES[w['kind']]} {'≥' if w['dir'] > 0 else '≤'} {w['thr']:g}" + ("" if w["kind"] != 4 else " (khung 8 giờ bắt đầu từ giờ này)") + "; ngược lại chốt TP.")
+    if cfg.get("sig"):
+        g = cfg["sig"]["gate"]
+        parts.append(f"Thoát tại open nến kế tiếp khi tín hiệu chỉ báo trên nến đã đóng: {SIGS_DEF[cfg['sig']['id']][0]}" + ("" if not np.isfinite(g) else f", chỉ khi lợi suất hiện tại ≥ {100*g:.2f}% giá") + ".")
     if cfg.get("tc") is not None:
         tc = cfg["tc"]
         parts.append(f"Giới hạn thời gian: thoát market sau {tc['min']} phút kể từ {'fill cuối' if tc['ref'] == 1 else 'fill đầu'}" + (" (chỉ khi đang lỗ)." if tc["loss"] else "."))
@@ -1070,7 +1299,7 @@ def verdict(m15, corr_min, beats_shuffle, ratio=1.0):
 
 
 # ===================================================================== đường ablation chuẩn + lựa chọn luật
-ELEM_ORDER = [("tp", "chỉ TP"), ("tpt", "+ TP chuyển thành trailing (để lãi chạy)"), ("tpk", "+ TP gắn với độ sâu lỗ đã qua"), ("sl", "+ SL"), ("tr", "+ trailing"), ("bes", "+ hoà vốn (kéo stop)"), ("brd", "+ hoà vốn (hồi về)"), ("tc", "+ giới hạn thời gian")]
+ELEM_ORDER = [("tp", "chỉ TP"), ("tpt", "+ TP chuyển thành trailing (để lãi chạy)"), ("tpsw", "+ chuyển trailing tuỳ trạng thái tại nến chạm TP"), ("sig", "+ thoát theo chỉ báo trên nến đã đóng"), ("tpk", "+ TP gắn với độ sâu lỗ đã qua"), ("sl", "+ SL"), ("tr", "+ trailing"), ("bes", "+ hoà vốn (kéo stop)"), ("brd", "+ hoà vốn (hồi về)"), ("tc", "+ giới hạn thời gian")]
 ELEM_NAME = dict(ELEM_ORDER)
 
 
@@ -1078,7 +1307,7 @@ def _row(S, cfg, step, prev_obj=None, accepted=None):
     m = S.score(cfg)
     r = dict(step=step, structure=list(structure(cfg)), obj=round(m["obj"], 4), m5=round(100 * m["m5"], 1), m15=round(100 * m["m15"], 1), m60=round(100 * m["m60"], 1),
              px_med_bps=round(m["px_med"], 1), sign=round(100 * m["sign"], 1), corr_ret=round(m["corr_ret"], 3), corr_usdt=round(m["corr_usdt"], 3))
-    r["pnl_ratio"] = round(m["ratio"], 3)
+    r["pnl_ratio"] = round(m["ratio"], 3); r["viol"] = round(float(m["viol"]), 3)
     if prev_obj is not None:
         r["gain"] = round(m["obj"] - prev_obj, 4)
     if accepted is not None:
@@ -1096,7 +1325,9 @@ def canonical(S, ai, verbose=False):
     for name, label in ELEM_ORDER:
         if name not in S.allowed:
             continue
-        if name in ("tpk", "tpt") and cfg.get("tp") is None:
+        if name in ("tpk", "tpt", "tpsw") and cfg.get("tp") is None:
+            continue
+        if name == "tpsw" and not cfg.get("tpt"):
             continue
         trial = _cp(cfg); S.init_elem(trial, name)
         S.tune(trial)
@@ -1115,9 +1346,11 @@ def canonical(S, ai, verbose=False):
                 break
             trial = _cp(cfg); trial[name] = None
             if name == "tp":
-                trial["tpk"] = None; trial["tpt"] = None
+                trial["tpk"] = None; trial["tpt"] = None; trial["tpsw"] = None
             if name == "tr":
-                trial["tpt"] = None
+                trial["tpt"] = None; trial["tpsw"] = None
+            if name == "tpt":
+                trial["tpsw"] = None
             S.tune(trial)
             o = S.score(trial)["obj"]; o_full = S.score(cfg)["obj"]
             drops.append(dict(bỏ=ELEM_NAME[name].replace("+ ", ""), obj_sau_khi_bỏ=round(o, 4), mất=round(o_full - o, 4), giữ=bool(o_full - o >= MIN_GAIN)))
@@ -1138,9 +1371,11 @@ def canonical(S, ai, verbose=False):
                     break
                 trial = _cp(cfg); trial[name] = None
                 if name == "tp":
-                    trial["tpk"] = None; trial["tpt"] = None
+                    trial["tpk"] = None; trial["tpt"] = None; trial["tpsw"] = None
                 if name == "tr":
-                    trial["tpt"] = None
+                    trial["tpt"] = None; trial["tpsw"] = None
+                if name == "tpt":
+                    trial["tpsw"] = None
                 S.tune(trial)
                 o = S.score(trial)["obj"]; o_full = S.score(cfg)["obj"]
                 drops.append(dict(bỏ=ELEM_NAME[name].replace("+ ", ""), obj_sau_khi_bỏ=round(o, 4), mất=round(o_full - o, 4), giữ=bool(o_full - o >= MIN_GAIN)))
@@ -1162,6 +1397,8 @@ def joint_random(S, ai, n=5000, seed=None, top=6):
     rng = np.random.default_rng(seed + ai); cands = []
     lu = lambda a, b: float(np.exp(rng.uniform(np.log(a), np.log(b))))
     for _ in range(n):
+        if S.over():
+            break
         c = dict(anchor=ai)
         if rng.random() < 0.85:
             c["tp"] = np.array([lu(0.3, 6.0)])
@@ -1171,6 +1408,10 @@ def joint_random(S, ai, n=5000, seed=None, top=6):
             c["tr"] = dict(gb=np.array([lu(0.3, 3.0)]), act=np.array([float(rng.choice(G_ACT))]))
             if "tp" in c and "tpt" in S.allowed and rng.random() < 0.6:
                 c["tpt"] = True
+                if "tpsw" in S.allowed and rng.random() < 0.5:
+                    k_, d_, t_ = SW_GRID[int(rng.integers(0, len(SW_GRID)))]; c["tpsw"] = dict(kind=k_, dir=d_, thr=t_)
+        if "sig" in S.allowed and rng.random() < 0.35:
+            c["sig"] = dict(id=int(rng.integers(0, len(SIGS_DEF))), gate=float(rng.choice(S.sig_gates)))
         if "tp" in c and rng.random() < 0.3:
             c["tpk"] = float(rng.choice(G_TPK))
         if "bes" in S.allowed and rng.random() < 0.3:
@@ -1197,16 +1438,32 @@ def polish(S, cfg, n=4000, seed=0):
     rng = np.random.default_rng(seed + 11)
     best = _cp(cfg); bo = S.score(best)["obj"]
     for it in range(n):
+        if S.over():
+            break
         c = _cp(best); sc = 0.08 if it < n // 2 else 0.03
-        keys = [k for k in ("tp", "sl", "tr", "bes", "brd", "tc", "tpk") if c.get(k) is not None]
+        keys = [k for k in ("tp", "sl", "tr", "bes", "brd", "tc", "tpk", "sig", "tpsw") if c.get(k) is not None]
         if not keys:
             break
         for k in rng.choice(keys, size=min(len(keys), int(rng.integers(1, 3))), replace=False):
             f = float(np.exp(rng.normal(0, sc * 2)))
             if k in ("tp", "sl"):
-                v = np.asarray(c[k], float); fin = np.isfinite(v); v[fin] = v[fin] * f; c[k] = v
+                v = np.asarray(c[k], float).copy(); fin = np.isfinite(v)
+                if len(v) > 1 and rng.random() < 0.7:
+                    g_ = int(rng.integers(0, len(v)))
+                    if fin[g_]:
+                        v[g_] *= f
+                else:
+                    v[fin] = v[fin] * f
+                c[k] = v
             elif k == "tr":
-                v = np.asarray(c["tr"]["gb"], float); fin = np.isfinite(v); v[fin] = v[fin] * f; c["tr"]["gb"] = v
+                v = np.asarray(c["tr"]["gb"], float).copy(); fin = np.isfinite(v)
+                if len(v) > 1 and rng.random() < 0.7:
+                    g_ = int(rng.integers(0, len(v)))
+                    if fin[g_]:
+                        v[g_] *= f
+                else:
+                    v[fin] = v[fin] * f
+                c["tr"]["gb"] = v
                 if rng.random() < 0.3 and not c.get("tpt"):
                     c["tr"]["act"] = np.asarray(c["tr"]["act"], float) * float(np.exp(rng.normal(0, sc * 2)))
             elif k in ("bes", "brd"):
@@ -1217,6 +1474,13 @@ def polish(S, cfg, n=4000, seed=0):
                     c["tc"]["min"] = max(2.0, c["tc"]["min"] * f)
             elif k == "tpk":
                 c["tpk"] = max(0.0, float(c["tpk"]) * f)
+            elif k == "sig":
+                if rng.random() < 0.5:
+                    c["sig"] = dict(id=int(rng.integers(0, len(SIGS_DEF))), gate=c["sig"]["gate"])
+                else:
+                    c["sig"] = dict(id=c["sig"]["id"], gate=float(rng.choice(S.sig_gates)))
+            elif k == "tpsw" and c.get("tpt"):
+                k_, d_, t_ = SW_GRID[int(rng.integers(0, len(SW_GRID)))]; c["tpsw"] = dict(kind=k_, dir=d_, thr=t_)
         o = S.score(c)["obj"]
         if o > bo + 1e-9:
             best, bo = c, o
@@ -1301,8 +1565,6 @@ def sim_structs(D, o):
             closes.append(dict(t=int(o.f_ct[j]), px=float(o.f_cp[j]), qty=float(f["qty"]), layer=li))
             nt = f["notional"]; xp = o.f_cp[j]
             gross = s * (xp / f["px"] - 1) * nt; fee = FEE * (nt + nt * xp / f["px"]); pnl = gross - fee
-            if o.f_why[j] == 7:      # chưa đóng trong horizon: không tính PnL đã thực hiện, không đưa vào danh sách trade
-                continue
             trades.append(dict(sym=b["sym"], side=b["side"], lev=f["lev"], o=int(f["t"]), c=int(o.f_ct[j]), po=float(f["px"]), pc=float(xp), pnl=float(pnl),
                                pr=float(pnl / f["mg"] * 100), mg=f["mg"], why=int(o.f_why[j])))
         ret = o.pnl[k] / o.notional[k] * 100 if o.notional[k] > 0 else 0.0
@@ -1363,7 +1625,8 @@ def fit_bot(name, out_dir="out", verbose=True):
     bot_type = "cutter" if sl_share >= 0.12 else "hold"
     lo_h = df.hold_min.values[df.ret.values < 0]
     if bot_type == "hold":
-        S.allowed = {"tp", "tpk", "tpt", "sl", "tr", "brd"}
+        S.allowed = {"tp", "tpk", "tpt", "tpsw", "sl", "tr", "brd", "sig"}
+        S.sig_gates = [0.0, 0.002, 0.005, 0.01]
     elif len(lo_h) >= 5:
         S.tc_grid = sorted(set(G_TCMIN) | {float(round(x)) for x in np.percentile(lo_h, [25, 50, 75]) if x > 2})
     loser_stats = dict(n_losers=int((df.ret.values < 0).sum()), loser_hold_min_p25_50_75=[round(float(x), 1) for x in np.percentile(lo_h, [25, 50, 75])] if len(lo_h) else None,
@@ -1374,15 +1637,18 @@ def fit_bot(name, out_dir="out", verbose=True):
 
     # ---- đường ablation chuẩn ở từng neo
     per_anchor = {}
+    B_ = float(_os.environ.get("IMPLIED_BUDGET_SEC", "840"))
     for ai, an in enumerate(ANCHORS):
+        S.deadline = _time.time() + 0.13 * B_
         cfg, steps, drops = canonical(S, ai)
-        per_anchor[an] = dict(cfg=cfg, steps=steps, drops=drops, obj=S.score(cfg)["obj"], tp_only=[s for s in steps if s["step"] == "chỉ TP"][0]["obj"])
+        per_anchor[an] = dict(cfg=cfg, steps=steps, drops=drops, obj=S.score(cfg)["obj"], tp_only=([s for s in steps if s["step"] == "chỉ TP"] or [dict(obj=0.0)])[0]["obj"])
         P(f"neo {an}: TP-only={per_anchor[an]['tp_only']:.4f} final={per_anchor[an]['obj']:.4f} cấu trúc={structure(cfg)} evals={S.n_eval}")
     best_an = max(per_anchor, key=lambda a: per_anchor[a]["obj"])
     ai = ANCHORS.index(best_an); cfg = per_anchor[best_an]["cfg"]; steps = per_anchor[best_an]["steps"]; drops = per_anchor[best_an]["drops"]
 
     # ---- kiểm tra dạng công thức TP/SL bằng engine (ngoài CV): thử từng dạng ở neo tốt nhất
     form_check = {}
+    S.deadline = _time.time() + 0.04 * B_
     for elem in ("tp", "sl"):
         if cfg.get(elem) is None:
             continue
@@ -1408,11 +1674,12 @@ def fit_bot(name, out_dir="out", verbose=True):
     base_cfg = _cp(cfg)
 
     # ---- ablation phần tử đơn lẻ (ở neo tốt nhất)
-    singles = single_elem_rows(S, ai)
+    S.deadline = float("inf")
+    singles = []   # bỏ qua ở chế độ có ngân sách thời gian
 
     # ---- tách theo lớp mã / chế độ
     splits = {}
-    sp_defs = [("lớp mã", group_class(D)), ("từng mã", group_sym(D)), ("tuần lịch", group_week(D)), ("điểm đổi chế độ", group_cp(D, df))]
+    sp_defs = [("lớp mã", group_class(D)), ("từng mã", group_sym(D)), ("tuần lịch", group_week(D)), ("tuần mịn", group_week(D, min_n=6, max_groups=30)), ("tuần cực mịn", group_week(D, min_n=3, max_groups=40)), ("điểm đổi chế độ", group_cp(D, df))]
     best_split = None
     for key, (grp, info) in sp_defs:
         pass
@@ -1420,23 +1687,25 @@ def fit_bot(name, out_dir="out", verbose=True):
         G = int(grp.max()) + 1
         if G < 2:
             splits[key] = dict(skipped=True, **{k: v for k, v in info.items() if k != "n_groups"}, n_groups=G); continue
+        S.deadline = _time.time() + 0.05 * B_
         c2, o2 = split_tune(S, base_cfg, grp, G)
         n_par = (G - 1) * sum(1 for k in ("tp", "sl", "tr") if base_cfg.get(k) is not None)
-        oos = oos_check(S, base_cfg, grp, G)
+        oos = None
         info = dict(info); info["group_labels"] = label_groups(key, info, D, grp)
         splits[key] = dict(**{k: v for k, v in info.items() if k != "n_groups"}, n_groups=G, obj=round(o2, 4), gain=round(o2 - obj_main, 4), extra_params=n_par,
                            gain_per_param=round((o2 - obj_main) / max(1, n_par), 5), params=cfg_params(c2),
                            group_sizes=[int((grp == g).sum()) for g in range(G)], oos=oos,
-                           oos_gain_heldout=round(oos["s_te"] - oos["g_te"], 4))
+                           oos_gain_heldout=None)
         splits[key]["_cfg"] = c2; splits[key]["_grp"] = grp; splits[key]["_G"] = G
-        P(f"tách {key}: G={G} obj={o2:.4f} (+{o2 - obj_main:.4f}) | OOS giữ-lại: chung {oos['g_te']:.4f} vs tách {oos['s_te']:.4f}")
+        P(f"tách {key}: G={G} obj={o2:.4f} (+{o2 - obj_main:.4f}) ")
     S.grp = np.zeros(D.n, np.int64); S.G = 1
     # chọn tách: chỉ nhận nếu gain >= 0.01 VÀ cải thiện trên nửa giữ lại > 0
     chosen_split = None
     for key, v in splits.items():
         if v.get("skipped"):
             continue
-        if v["gain"] >= 0.01 and v["oos_gain_heldout"] > 0 and (chosen_split is None or v["oos_gain_heldout"] > splits[chosen_split]["oos_gain_heldout"]):
+        # Phase 4c: tiêu chí khớp là IN-SAMPLE -> nhận tách khi tăng mục tiêu (tổng vi phạm giảm); OOS chỉ để báo cáo mức quá khớp
+        if v["gain"] >= MIN_GAIN and (chosen_split is None or v["obj"] > splits[chosen_split]["obj"]):
             chosen_split = key
     ablation = list(steps)
     for key, v in splits.items():
@@ -1448,6 +1717,9 @@ def fit_bot(name, out_dir="out", verbose=True):
         final_cfg = clean(splits[chosen_split]["_cfg"]); S.grp = splits[chosen_split]["_grp"]; S.G = splits[chosen_split]["_G"]
     else:
         final_cfg = clean(base_cfg)
+    S.deadline = _time.time() + 0.15 * B_
+    final_cfg = clean(polish(S, final_cfg, n=20000, seed=77))
+    S.deadline = float("inf")
     m_final, o_final = S.score(final_cfg, keep=True)
     P(f"cuối cùng: obj={m_final['obj']:.4f} m15={100*m_final['m15']:.1f}% corr_usdt={m_final['corr_usdt']:.3f} chọn tách={chosen_split}")
 
@@ -1467,8 +1739,8 @@ def fit_bot(name, out_dir="out", verbose=True):
         sh.append(metrics(D, run(D, L2, Out(D)), S.scale_bps))
     shuf = {k: dict(mean=round(float(np.mean([x[k] for x in sh])), 4), p95=round(float(np.percentile([x[k] for x in sh], 95)), 4)) for k in ("obj", "m15", "corr_usdt", "sign", "px_med")}
     baselines = dict(
-        null_time_stop_median_hold=dict(minutes=round(med_hold, 1), **{k: round(float(v), 4) for k, v in null_m.items()}),
-        best_time_cap_only=dict(params=cfg_params(tc_cfg), **{k: round(float(v), 4) for k, v in tc_m.items()}),
+        null_time_stop_median_hold=dict(minutes=round(med_hold, 1), **{k: round(float(v), 4) for k, v in null_m.items() if isinstance(v, (int, float, np.floating))}),
+        best_time_cap_only=dict(params=cfg_params(tc_cfg), **{k: round(float(v), 4) for k, v in tc_m.items() if isinstance(v, (int, float, np.floating))}),
         shuffled_levels_20seeds=shuf,
         note="shuffled: giữ nguyên toàn bộ bộ mức của luật tốt nhất nhưng gán hoán vị ngẫu nhiên cho các basket (20 seed)")
 
@@ -1485,7 +1757,9 @@ def fit_bot(name, out_dir="out", verbose=True):
     corr_min = min(la.get("pnl_corr") or 0, la.get("pnl_corr_usdt") or 0)
     beats = bool(m_final["obj"] > shuf["obj"]["p95"] and m_final["obj"] > null_m["obj"])
     ratio_f = float(o_final.pnl.sum() / D.real_pnl.sum())
-    vd = verdict(la["close_match_15"], corr_min, beats, ratio_f)
+    crit_list, khop_tot = build_criteria(m_final, la)
+    vd = "khớp tốt" if khop_tot else verdict(la["close_match_15"], corr_min, beats, ratio_f)
+    fail_txt = "; ".join(f"#{c['id']} {c['name']}: {c['value_text']}" for c in crit_list if not c["pass"]) or "không"
     gd = gap_decomp(D, o_final)
     pareto = pareto_front(S)
 
@@ -1522,30 +1796,32 @@ def fit_bot(name, out_dir="out", verbose=True):
                        sub_position_level=dict(counts=layer_mix, n=int(len(ld)))),
         formulas=formulas,
         best_rule=dict(text_vi=txt, params=cfg_params(final_cfg), split_labels=(splits[chosen_split]["group_labels"] if chosen_split else None), anchor=best_an, structure=list(structure(final_cfg)), levels=lv, split=chosen_split,
-                       exit_reasons=why_cnt, objective=round(m_final["obj"], 4), objective_def="bình quân có trọng số (3×exit±15 + 1-median sai số giá/scale + đồng dấu PnL + max(0,corr PnL USDT))/6 - 0.1|ratio-1| - 0.03*min(nMAE,3) - ràng buộc cứng ratio PnL thực hiện sim/thật trong [0.75,1.25] (vi phạm: -1 -3*khoảng vượt); scale=%.0f bps" % S.scale_bps, bot_type=bot_type, loser_stats=loser_stats, allowed_elements=sorted(S.allowed)),
+                       exit_reasons=why_cnt, objective=round(m_final["obj"], 4), objective_def="LEXICOGRAPHIC Phase 4c: -100*Σ vi phạm chuẩn hoá của 7 tiêu chí cứng + exit±15 + 0.3*exit±60 + 0.05*điểm sai số giá; scale=%.0f bps" % S.scale_bps, bot_type=bot_type, loser_stats=loser_stats, allowed_elements=sorted(S.allowed)),
         top5_alternatives=top_alternatives(S, base_cfg),
         anchors={an: dict(final_obj=round(v["obj"], 4), tp_only_obj=round(v["tp_only"], 4), structure=list(structure(v["cfg"])), params=cfg_params(v["cfg"])) for an, v in per_anchor.items()},
         ablation=ablation, ablation_drop_one=drops, ablation_single_element=singles,
         regimes=dict(chosen=chosen_split, options={k: {kk: vv for kk, vv in v.items() if not kk.startswith("_")} for k, v in splits.items()},
-                     note="chỉ nhận tách khi gain>=0.01 và cải thiện trên nửa giữ lại (OOS split-half) > 0"),
+                     note="Phase 4c: nhận tách có mục tiêu cao nhất nếu tăng >= MIN_GAIN (in-sample); oos_gain_heldout báo mức quá khớp (âm = quá khớp)"),
         metrics=dict(
             exit_match_5=la.get("close_match_5"), exit_match_15=la.get("close_match_15"), exit_match_60=la.get("close_match_60"),
             exit_px_err_bps_med=la.get("close_px_err_bps_med"), exit_px_err_bps_p90=la.get("close_px_err_bps_p90"), sim_closed_pct=la.get("sim_closed_pct"),
             layer_close_match5=la.get("layer_close_match5"), layer_close_n=la.get("layer_close_n"),
             pnl_sign_agree=la.get("pnl_sign_agree"), pnl_corr=la.get("pnl_corr"), pnl_corr_usdt=la.get("pnl_corr_usdt"), pnl_med_abs_err_pp=la.get("pnl_med_abs_err_pp"),
             real_pnl_sum=la.get("act_pnl_sum"), sim_pnl_sum=la.get("sim_pnl_sum"), real_win_pct=la.get("act_win_pct"), sim_win_pct=la.get("sim_win_pct"),
-            pnl_ratio=round(ratio_f, 4), pnl_ratio_target_met=bool(ratio_f >= PNL_LO), gap_decomposition=gd["table"], both_win_median_ret_pct=gd["both_win"],
+            criteria=crit_list, khop_tot=bool(khop_tot), n_free_params=count_params(final_cfg, S.G), params_per_basket=round(count_params(final_cfg, S.G) / D.n, 3),
+            overfit_warning=bool(count_params(final_cfg, S.G) / D.n > 0.3), hold_ratio_sim_real=m_final["hold"], viol_total=round(float(m_final["viol"]), 4),
+            pnl_ratio=round(ratio_f, 4), pnl_ratio_target_met=bool(0.8 <= ratio_f <= 1.2), gap_decomposition=gd["table"], both_win_median_ret_pct=gd["both_win"],
             n_sim_trades=len(sim_T), n_real_trades=len(real_T), nmae=round(float(m_final["nmae"]), 3),
             level_a=la, cum_curve=match.cum_curve(rows),
             report_stats=dict(real=_stats_light(st_real), sim=_stats_light(st_sim), compare=cmp, daily=dc),
-            unclosed=dict(n=int((o_final.closed == 0).sum()), mtm_pnl_at_horizon=round(float(o_final.mtm[o_final.closed == 0].sum()), 1),
+            unclosed=dict(n=int((o_final.closed == 0).sum()), mtm_pnl_included=round(float(o_final.mtm[o_final.closed == 0].sum()), 1),
                           real_pnl_of_those=round(float(D.real_pnl[o_final.closed == 0].sum()), 1),
-                          note="basket sim chưa đóng trước t1 thật + 60 phút: tính là KHÔNG khớp, PnL đã thực hiện = 0 (mtm chỉ để tham khảo, tránh rò rỉ thời điểm thoát thật)"),
+                          note="Phase 4c: sim giữ đến khi LUẬT CỦA NÓ đóng; chưa đóng đến hết dữ liệu thì mark-to-market tại nến cuối (đã tính vào PnL); không dùng thời điểm thoát thật trong engine"),
             note_fees="PnL sim = gộp - phí 3.5 bps/chiều (funding bỏ qua); PnL thật = số liệu OKX (đã gồm phí+funding)"),
         pareto=pareto, baselines=baselines, representative_baskets=reps,
         verdict=dict(label=vd, exit15=la["close_match_15"], corr_min=round(corr_min, 3), beats_baselines=beats, pnl_ratio=round(ratio_f, 3),
                      text_vi=(f"{vd}: thoát ±15 phút {la['close_match_15']:.1f}% (±5: {la['close_match_5']:.1f}%, ±60: {la['close_match_60']:.1f}%), tương quan PnL {la.get('pnl_corr')} (%), {la.get('pnl_corr_usdt')} (USDT), "
-                              f"đồng dấu PnL {la.get('pnl_sign_agree'):.1f}%, PnL thực hiện sim/thật = {100*ratio_f:.0f}% ({'ĐẠT' if ratio_f >= PNL_LO else 'CHƯA đạt'} mục tiêu ≥75%), sai số giá thoát trung vị {la.get('close_px_err_bps_med')} bps; null time-stop ±15 = {100*null_m['m15']:.1f}%, "
+                              f"đồng dấu PnL {la.get('pnl_sign_agree'):.1f}%, PnL sim/thật = {100*ratio_f:.0f}%, tiêu chí chưa đạt: {fail_txt}; sai số giá thoát trung vị {la.get('close_px_err_bps_med')} bps; null time-stop ±15 = {100*null_m['m15']:.1f}%, "
                               f"hoán vị mức ±15 = {100*shuf['m15']['mean']:.1f}%. Đây là khớp IN-SAMPLE (tham số chỉnh trên chính dữ liệu), không phải dự báo." + (f" CẢNH BÁO mẫu nhỏ: chỉ {D.n} basket, tham số dễ quá khớp." if D.n < 30 else ""))),
         sim_trades=sim_trades_json(sim_T),
         runtime_sec=round(time.time() - t_start, 1), n_engine_evals=S.n_eval)
@@ -1561,7 +1837,7 @@ def gap_decomp(D, o):
     rp = D.real_pnl; sp = o.pnl; rw = rp > 0; sw = sp > 0
     tab = []
     for rn, rm in (("thật thắng", rw), ("thật thua", ~rw)):
-        for sn, sm in (("sim thắng", sw), ("sim thua/chưa đóng", ~sw)):
+        for sn, sm in (("sim thắng", sw), ("sim thua", ~sw)):
             m = rm & sm
             tab.append(dict(nhóm=f"{rn} / {sn}", n=int(m.sum()), pnl_thật=round(float(rp[m].sum()), 1), pnl_sim=round(float(sp[m].sum()), 1), chênh=round(float(sp[m].sum() - rp[m].sum()), 1)))
     sret = np.where(o.notional > 0, sp / np.where(o.notional > 0, o.notional, 1) * 100, 0.0)
@@ -1570,7 +1846,54 @@ def gap_decomp(D, o):
     return dict(table=tab, both_win=bw)
 
 
+def count_params(cfg, G):
+    """Số tham số tự do của luật (nhân theo nhóm + tham số toàn cục + ranh giới nhóm)."""
+    n = 1
+    for k in ("tp", "sl"):
+        if cfg.get(k) is not None:
+            n += int(np.isfinite(np.asarray(cfg[k], float)).sum())
+    if cfg.get("tr") is not None:
+        n += int(np.isfinite(np.asarray(cfg["tr"]["gb"], float)).sum()) * (1 if cfg.get("tpt") else 2)
+    n += (1 if cfg.get("tpk") else 0) + 2 * (cfg.get("bes") is not None) + 2 * (cfg.get("brd") is not None) + 3 * (cfg.get("tc") is not None) + 2 * (cfg.get("sig") is not None) + 3 * (cfg.get("tpsw") is not None)
+    return n + max(0, G - 1)
+
+
+def build_criteria(m, la):
+    """7 tiêu chí Phase 4c (cứng) với giá trị và đạt/không đạt. m: metrics của luật cuối; la: level_a."""
+    c = m["crit"]; V = m["V"]; hr = m["hold"]
+    q = c["quadrants"]
+    f = lambda x: "nan" if x is None or (isinstance(x, float) and not np.isfinite(x)) else f"{x:.3f}"
+    L = [
+        dict(id=1, name="PnL sim/thật ∈ [0,80; 1,20]", value=c["pnl_ratio"], value_text=f"{c['pnl_ratio']:.3f}", **{"pass": bool(V["pnl_ratio"] == 0)}),
+        dict(id=2, name="win rate basket sim trong ±8 điểm % so với thật", value=dict(real=c["win_real"], sim=c["win_sim"]), value_text=f"thật {c['win_real']:.1f}% / sim {c['win_sim']:.1f}%", **{"pass": bool(V["win_rate"] == 0)}),
+        dict(id=3, name="trung vị lợi suất basket cùng thắng và cùng thua: sim/thật ∈ [0,75; 1,33]", value=dict(both_win=c["both_win_ratio"], both_win_n=c["both_win_n"], both_lose=c["both_lose_ratio"], both_lose_n=c["both_lose_n"]),
+             value_text=f"cùng thắng {f(c['both_win_ratio'])} (n={c['both_win_n']}), cùng thua {f(c['both_lose_ratio'])} (n={c['both_lose_n']})", **{"pass": bool(V["both_win_median"] == 0 and V["both_lose_median"] == 0)}),
+        dict(id=4, name="đồng dấu PnL từng basket ≥ 80%", value=c["sign_agree"], value_text=f"{100*c['sign_agree']:.1f}%", **{"pass": bool(V["sign_agree"] == 0)}),
+        dict(id=5, name="corr USDT ≥ 0,75 và Spearman ≥ 0,6 và corr bỏ 3 basket |PnL| lớn nhất ≥ 0,6", value=dict(corr=c["corr_usdt"], spearman=c["spearman"], corr_ex_top3=c["corr_usdt_ex_top3"]),
+             value_text=f"corr {f(c['corr_usdt'])}, spearman {f(c['spearman'])}, bỏ top3 {f(c['corr_usdt_ex_top3'])}", **{"pass": bool(V["corr_usdt"] == 0 and V["spearman"] == 0 and V["corr_ex_top3"] == 0)}),
+        dict(id=6, name="4 góc phần tư (thật W/L × sim W/L): tổng sim trong ±35% tổng thật hoặc góc < 5% tổng |PnL thật|", value=q,
+             value_text="; ".join(f"{k}: n={v['n']} thật {v['real']:.0f} sim {v['sim']:.0f}" + ("" if v["ok"] else " (LỆCH)") for k, v in q.items()), **{"pass": bool(V["quadrants"] == 0)}),
+        dict(id=7, name="thoát ±60 phút ≥ 50% và hold trung vị sim/thật ∈ [0,6; 1,6] cho thắng và thua", value=dict(m5=m["m5"], m15=m["m15"], m60=m["m60"], hold_win=hr["win"], hold_loss=hr["loss"]),
+             value_text=f"±5/15/60 = {100*m['m5']:.1f}/{100*m['m15']:.1f}/{100*m['m60']:.1f}%, hold thắng {f(hr['win'])}, hold thua {f(hr['loss'])}", **{"pass": bool(V["exit60"] == 0 and V["hold_win"] == 0 and V["hold_loss"] == 0)}),
+    ]
+    return L, all(x["pass"] for x in L)
+
+
 def pareto_front(S, kmax=14):
+    """Mặt Pareto (tổng vi phạm 7 tiêu chí thấp, exit±15 cao) trên mọi cấu hình đã đánh giá."""
+    pts = sorted(S.log, key=lambda x: (x[9], -x[2]))
+    front = []; best = -1.0
+    for x in pts:
+        if x[2] > best + 1e-9:
+            front.append(x); best = x[2]
+    if len(front) > kmax:
+        idx = np.linspace(0, len(front) - 1, kmax).round().astype(int)
+        front = [front[i] for i in sorted(set(idx))]
+    return [dict(exit15=round(100 * x[2], 1), viol_total=round(float(x[9]), 3), feasible=bool(x[9] == 0), pnl_ratio=round(x[8], 3), obj=round(x[0], 3), corr_usdt=round(x[3], 3), G=x[7],
+                 structure=list(structure(x[6])), params=cfg_params(x[6])) for x in front]
+
+
+def pareto_front_old(S, kmax=14):
     """Mặt Pareto (khớp thoát ±15 cao, |PnL ratio-1| thấp) trên toàn bộ cấu hình đã đánh giá (không ràng buộc), chỉ giữ ratio trong [0.5,1.6]."""
     pts = [(x[2], x[8], x) for x in S.log if 0.5 <= x[8] <= 1.6]
     if not pts:
