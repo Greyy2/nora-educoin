@@ -9,7 +9,8 @@ và đổi trạng thái vị thế OKX <-> Fill / OrderRejected. Không tự HT
   DCA    place_post_only; qty = Filters.qty(notional / level) (lệnh dưới minQty -> OrderRejected("min_size")).
   TRAIL  place_trailing (sàn bám đỉnh) khi client có hàm này (caps.native_trailing); ngược lại giữ làm lệnh CỤC BỘ (như Bot cũ: không gửi sàn),
          poll(now, bars) kiểm high/low của nến: chạm `level` thì đóng market và phát Fill("trail").
-         Quy ước TRAIL gốc: Order.level = giá KÍCH HOẠT (activePx), Order.trigger = callback % (vd 1.5 = 1.5%). Thiếu callback -> OrderRejected.
+         Quy ước TRAIL gốc (P6.8b): Order.activation = giá KÍCH HOẠT (activePx), Order.callback_pct = callback % (vd 1.5 = 1.5%); Order.level là mức stop TĨNH
+         của sim, KHÔNG dùng. Thiếu hai trường mới (nan) -> rơi về quy ước cũ (level = kích hoạt, trigger = callback). Thiếu callback -> OrderRejected.
 
 Sự kiện (kéo): `submit` đẩy Fill/OrderRejected tức thì vào hàng đợi của slot (ENTRY/EXIT đồng bộ); `poll(now[, bars])` đọc positions() một lần cho mọi slot:
   - khối lượng tăng so với đã biết -> Fill("dca") cho từng tầng DCA chờ mà phần tăng phủ được (cùng suy luận Bot.reconcile; giá = mức tầng, maker);
@@ -209,9 +210,11 @@ class OkxVenue:
             elif o.kind == OrderKind.TRAIL:
                 if not self.caps.native_trailing:        # cục bộ: không gửi sàn, poll(bars) kiểm
                     return None
-                if not (o.trigger > 0 and math.isfinite(o.trigger)):
+                cb = o.callback_pct if math.isfinite(o.callback_pct) else o.trigger      # thiếu trường mới -> quy ước cũ (trigger = callback %)
+                act = o.activation if math.isfinite(o.activation) else o.level           # ... (level = giá kích hoạt)
+                if not (cb > 0 and math.isfinite(cb)) or not (act > 0 and math.isfinite(act)):
                     return "no_callback"
-                self.client.place_trailing(st.sym, side, f.qty_close(st.pos.qty), float(o.trigger), f.price(o.level))
+                self.client.place_trailing(st.sym, side, f.qty_close(st.pos.qty), float(cb), f.price(act))
             elif o.kind == OrderKind.DCA:
                 q = st.dca_qty.get(o.id)
                 if q is None:

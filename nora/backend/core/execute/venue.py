@@ -9,6 +9,8 @@ Quy ước:
 - `Order.id` là định danh lệnh CHỜ (để `cancel`), do người đặt cấp bằng `new_order_id()`; KHÔNG phải `Fill.order_id`
   (id ghi vào `OrderModel`: sim cấp bằng `tracker._next_id()` lúc khớp, OKX dùng id của sàn).
 - Lệnh ENTRY/EXIT là MARKET (level = nan). SL/TRAIL/TP là lệnh bảo vệ đóng hết vị thế; DCA là lệnh limit nhồi tầng.
+- Hợp đồng chung (P6.8b): ENTRY thứ hai trên slot đã có vị thế -> OrderRejected("position_exists"); SL/TP/TRAIL/DCA khi slot chưa có vị thế ->
+  OrderRejected("no_position") — cả SimVenue lẫn OkxVenue (manager không bao giờ làm vậy, nên đường event vẫn bit-identical).
 - `next_event` là kéo (pull): trả sự kiện kế tiếp của slot hoặc None khi hết (sim khớp theo nến hiện tại, OKX đọc hàng đợi poll).
 """
 import itertools
@@ -43,6 +45,10 @@ class Order:
     reason: str = ""            # nhãn close_reason / start_reason của tracker
     reduce_only: bool = False
     post_only: bool = False
+    # TRAIL (P6.8b): `level` luôn là mức stop TĨNH tính từ đỉnh các nến trước (SimVenue đọc mức này). Venue có trailing gốc (OKX) đọc thêm
+    # `activation` (giá kích hoạt) và `callback_pct` (% lùi khỏi đỉnh, vd 1.5 = 1.5%); thiếu (nan) thì rơi về level / trigger như quy ước cũ.
+    activation: float = NAN
+    callback_pct: float = NAN
 
 
 @dataclass(frozen=True)

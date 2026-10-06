@@ -158,7 +158,9 @@ class PositionManager:
             self._submit(OrderKind.SL, not self.is_long, level=policy.sl_level(self.avg, self.sl_pct, sign),
                          reason=_SL_REASON, reduce_only=True)
         if self.trail_pct and policy.trail_active(self.peak, self.avg, self.trail_activation_pct, sign):
+            # level = mức stop tĩnh từ đỉnh các nến trước (SimVenue); activation / callback_pct cho trailing gốc của sàn (OkxVenue)
             self._submit(OrderKind.TRAIL, not self.is_long, level=policy.trail_level(self.peak, self.trail_pct, sign),
+                         activation=self.avg * (1 + sign * self.trail_activation_pct / 100.0), callback_pct=self.trail_pct,
                          reason=_TRAIL_REASON, reduce_only=True)
         if self.tp_pct:
             level = policy.tp_level(self.avg, self.tp_pct, sign)

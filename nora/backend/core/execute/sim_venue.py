@@ -15,14 +15,17 @@ Venue không đụng vào sổ vốn: kiểm tra trước giao dịch (ngân sá
 gate từ chối -> `OrderRejected` và KHÔNG tiêu id (id `Fill.order_id` lấy từ `tracker._next_id()` lúc khớp, đúng thứ tự gọi của tracker).
 Chưa hỗ trợ móc fill-model của AMM (`limit_taker`, `impact_fn`): DEX nằm ngoài P6 -> raise.
 """
+from collections import deque
 from dataclasses import dataclass, field
 from math import isnan
-from typing import Callable, Dict, List, Optional, Protocol, Union
+from typing import Callable, Deque, Dict, List, Optional, Protocol, Union
 
 from backend.core.execute import policy
 from backend.core.execute.events import Fill, OrderRejected
 from backend.core.execute.tracker import _next_id
 from backend.core.execute.venue import Order, OrderKind, VenueCaps
+
+_KIND_NAME = {OrderKind.ENTRY: "entry", OrderKind.EXIT: "exit", OrderKind.DCA: "dca", OrderKind.SL: "sl", OrderKind.TRAIL: "trail", OrderKind.TP: "tp"}
 
 # gate(kind, margin, fee, fill_price) -> None (chấp nhận) | lý do từ chối ("budget" | "capital")
 Gate = Callable[[str, float, float, float], Optional[str]]
@@ -61,6 +64,7 @@ class _Slot:
     c: float = float("nan")
     quoted: bool = False
     dca_filled: bool = False
+    rejects: Deque[OrderRejected] = field(default_factory=deque)   # lệnh bị từ chối ngay lúc đặt (hợp đồng venue.py): trả ở next_event trước mọi khớp
 
 
 class SimVenue:
@@ -83,6 +87,13 @@ class SimVenue:
     # ─── Venue ──────────────────────────────────────────────────────────────
     def submit(self, order: Order) -> None:
         st = self._slots[order.slot]
+        has_pos = st.view is not None and st.view.qty > 0
+        if order.kind == OrderKind.ENTRY and (has_pos or any(o.kind == OrderKind.ENTRY for o in st.market)):
+            st.rejects.append(OrderRejected(order.slot, order.id, "entry", "position_exists"))     # như OkxVenue: tối đa một vị thế mỗi slot
+            return
+        if order.kind in (OrderKind.DCA, OrderKind.SL, OrderKind.TRAIL, OrderKind.TP) and not has_pos:
+            st.rejects.append(OrderRejected(order.slot, order.id, _KIND_NAME[order.kind], "no_position"))
+            return
         if order.kind in (OrderKind.ENTRY, OrderKind.EXIT):
             if not st.quoted:
                 raise RuntimeError("SimVenue: lệnh market cần giá quote (gọi begin_bar hoặc quote trước)")
@@ -106,6 +117,8 @@ class SimVenue:
 
     def next_event(self, slot: int) -> Optional[Union[Fill, OrderRejected]]:
         st = self._slots[slot]
+        if st.rejects:
+            return st.rejects.popleft()
         if st.market:
             return self._match_market(slot, st, st.market.pop(0))
         if st.view is None:

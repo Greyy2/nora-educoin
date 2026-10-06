@@ -458,3 +458,13 @@ class TestOkxDemoLive:
         finally:                                                                # luôn dọn: không để lại vị thế / lệnh trên demo
             client.cancel_all(sym)
             client.close_market(sym)
+
+
+def test_trail_uses_activation_and_callback_pct_fields(fake):
+    """P6.8b: TRAIL gốc đọc `activation` / `callback_pct` (level = mức stop tĩnh của sim, bị bỏ qua); thiếu thì rơi về level / trigger cũ."""
+    a, v = mk(fake)
+    open_long(fake, v)
+    v.submit(Order(new_order_id(), 0, OrderKind.TRAIL, False, level=49900.0, activation=50600.0, callback_pct=2.0, reduce_only=True))
+    assert events(v) == []
+    tr = posts(fake, "/trade/order-algo")[0]
+    assert tr["ordType"] == "move_order_stop" and tr["callbackRatio"] == "0.0200" and tr["activePx"] == "50600.0"

@@ -2,17 +2,14 @@
 
 Ba tầng (docs/bmad/p6_execution_design.md §3, roadmap P6.6):
   A  hợp đồng — CÙNG thân test chạy trên SimVenue và OkxVenue (sàn OKX v5 giả lập HTTP, tái dùng `FakeOkx` của test_okx_venue.py); chỉ phần
-     dựng (`Driver`) khác nhau. Khác biệt hành vi giữa hai venue chỉ được phép đi qua `venue.caps` (skip theo caps) hoặc `known_gaps` (xfail
-     strict, ghi rõ lý do) — KHÔNG kiểm tên venue trong thân test.
+     dựng (`Driver`) khác nhau. Khác biệt hành vi giữa hai venue chỉ được phép đi qua `venue.caps` (skip theo caps) — KHÔNG kiểm tên venue trong thân test.
   B  kịch bản giá — chỉ SimVenue, chạy qua PositionManager trên nến dựng tay (phản chiếu các test đã ghim:
      test_causal_engine::test_gap_through_sl_fills_at_open, test_signals_strategies::test_no_take_profit_in_same_bar_as_dca_fill,
      ::test_trailing_stop_uses_previous_peak, ::test_perp_liquidation_caps_loss_at_margin, ::test_stop_fill_extreme_*, test_dca_gate::limit_through).
   C  dung sai OKX Demo — bỏ qua trừ khi NORA_OKX_DEMO_LIVE=1 (người dùng chủ động; không có khoá thì không chạy).
 
-Khoảng hở thật giữa hai venue (phát hiện khi viết hợp đồng; KHÔNG sửa backend — đánh dấu xfail strict ở SimVenue để lộ khi sửa):
-  - `double_entry`: ENTRY thứ hai trên slot đang có vị thế -> OkxVenue từ chối "position_exists"; SimVenue không biết vị thế nên vẫn sinh Fill thứ hai
-    (chống nhân đôi vị thế chỉ nằm ở PositionManager: `pending_entry` chỉ bật khi chưa mở).
-  - `protective_without_position`: SL/TP/TRAIL/DCA khi slot chưa có vị thế -> OkxVenue từ chối "no_position"; SimVenue nhận và để lệnh chờ trong sổ.
+Khoảng hở thật giữa hai venue do P6.6 tìm ra đã đóng ở P6.8b (không còn xfail): TRAIL có `activation` / `callback_pct` riêng cho trailing gốc
+(`level` luôn là mức stop tĩnh của sim); SimVenue từ chối như OKX: ENTRY thứ hai -> "position_exists", SL/TP/TRAIL/DCA khi chưa có vị thế -> "no_position".
 """
 import math
 import os
@@ -52,7 +49,6 @@ class _View:
 class Driver:
     """Mặt chung cho thân test: mỗi venue cài `enter / events / position_qty / exchange_order_count / arm_post_only_cross`."""
     qty_step: Optional[float] = None          # bước khối lượng của sàn (None = venue không làm tròn)
-    known_gaps: frozenset = frozenset()
     venue: Venue
 
     @property
@@ -86,8 +82,6 @@ class Driver:
 
 
 class SimDriver(Driver):
-    known_gaps = frozenset({"double_entry", "protective_without_position"})
-
     def __init__(self):
         self.venue = SimVenue()
         self.venue.add_slot(SLOT, fee_rate=0.0005, maker_fee_rate=0.0002, slippage_rate=0.0002)
@@ -152,24 +146,19 @@ def venue(request, monkeypatch) -> Driver:
     return OkxFakeDriver(fake)
 
 
-def _xfail_if_gap(request, d: Driver, gap: str, why: str) -> None:
-    if gap in d.known_gaps:
-        request.applymarker(pytest.mark.xfail(strict=True, reason=why))
-
-
 def _fill_qty(f: Fill) -> float:
     return f.notional / f.price
 
 
 def _protective(d: Driver, is_long: bool) -> dict:
-    """Bộ lệnh bảo vệ + DCA cho vị thế long/short; TRAIL theo caps (gốc: cần callback % ở `trigger`; không: mức tĩnh)."""
+    """Bộ lệnh bảo vệ + DCA cho vị thế long/short. TRAIL giống nhau cho mọi venue (P6.8b): level = mức stop TĨNH (sim), activation / callback_pct
+    cho trailing gốc (OKX)."""
     sgn = 1.0 if is_long else -1.0
     out = {
         "sl": Order(new_order_id(), SLOT, OrderKind.SL, not is_long, level=REF * (1 - 0.02 * sgn), reduce_only=True),
         "tp": Order(new_order_id(), SLOT, OrderKind.TP, not is_long, level=REF * (1 + 0.02 * sgn), reduce_only=True),
-        # TRAIL gốc: level = giá KÍCH HOẠT (trên thị trường), trigger = callback %; TRAIL tĩnh (sim): level = mức stop DƯỚI thị trường
-        "trail": Order(new_order_id(), SLOT, OrderKind.TRAIL, not is_long, level=REF * (1 + 0.01 * sgn) if d.caps.native_trailing
-                       else REF * (1 - 0.005 * sgn), trigger=1.5 if d.caps.native_trailing else NAN, reduce_only=True),
+        "trail": Order(new_order_id(), SLOT, OrderKind.TRAIL, not is_long, level=REF * (1 - 0.005 * sgn), activation=REF * (1 + 0.01 * sgn),
+                       callback_pct=1.5, reduce_only=True),
     }
     lvl = REF * (1 - 0.01 * sgn)
     out["dca"] = Order(new_order_id(), SLOT, OrderKind.DCA, is_long, level=lvl, notional=lvl * 0.02, margin=lvl * 0.002,
@@ -303,10 +292,8 @@ def test_post_only_that_would_cross_is_rejected(venue):
     assert venue.venue.open_orders(SLOT) == [] and venue.exchange_order_count() == 0
 
 
-def test_second_entry_on_open_slot_does_not_double_position(request, venue):
+def test_second_entry_on_open_slot_does_not_double_position(venue):
     """Hợp đồng: một slot tối đa MỘT vị thế (venue.py). ENTRY thứ hai phải bị từ chối hoặc không tạo Fill/vị thế thứ hai."""
-    _xfail_if_gap(request, venue, "double_entry",
-                  "SimVenue không giữ vị thế nên không từ chối ENTRY thứ hai (OkxVenue: 'position_exists'); chống nhân đôi chỉ ở PositionManager")
     (f,) = venue.enter()
     qty0 = venue.position_qty()
     evs = venue.enter()
@@ -316,10 +303,8 @@ def test_second_entry_on_open_slot_does_not_double_position(request, venue):
         assert evs[0].reason == "position_exists" and evs[0].kind == "entry"
 
 
-def test_protective_order_without_position_is_not_left_resting(request, venue):
+def test_protective_order_without_position_is_not_left_resting(venue):
     """Hợp đồng: lệnh bảo vệ đóng hết vị thế -> không có vị thế thì bị từ chối (hoặc ít nhất không nằm lại sổ lệnh chờ)."""
-    _xfail_if_gap(request, venue, "protective_without_position",
-                  "SimVenue nhận SL khi chưa có vị thế và để lệnh chờ trong sổ (OkxVenue: OrderRejected('no_position'))")
     sl = Order(new_order_id(), SLOT, OrderKind.SL, False, level=REF * 0.98, reduce_only=True)
     venue.submit(sl)
     evs = venue.events()
