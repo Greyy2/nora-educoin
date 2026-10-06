@@ -117,3 +117,292 @@ def compare_trades(exec_trades: List[Dict[str, Any]], paper_trades: List[Dict[st
                     "fee_pct_mean": fee_mean, "funding_pct_sum": fund_sum, "sl": sl_sum,
                     "min_pairs": MIN_PAIRS, "enough": m >= MIN_PAIRS, "flags": flags},
     }
+
+
+# ═════════════════════════════════════════════════════════════════════════════════════════════
+# P6.8a — đối soát CẤP SỰ KIỆN (Fill của sàn / OkxVenue  ↔  Fill của bóng sim / SimVenue qua PositionManager).
+# compare_trades ở trên giữ nguyên (router /api/studio/live/compare dùng nó); đây là lớp mịn hơn: từng lệnh khớp theo loại.
+# ═════════════════════════════════════════════════════════════════════════════════════════════
+ENTER_KINDS = ("entry", "dca")                                              # lệnh mở / nhồi tầng
+CLOSE_KINDS = ("sl", "tp", "trail", "exit", "timeout", "kill", "liq", "end")    # lệnh đóng hết vị thế
+REPORT_KINDS = ("entry", "dca", "sl", "tp", "trail", "exit", "timeout", "kill")
+TAKER_KINDS = ("entry", "exit", "sl", "trail")                              # loại khớp taker -> có thể hiệu chỉnh slippage_rate (D4)
+# Ngân sách dung sai ĐỀ XUẤT: *_bps theo loại = chênh giá TB (+ = sàn kém hơn sim); only_sim_share 0..1; fee_gap_pct = điểm % danh nghĩa.
+# Muốn kiểm thêm: "<kind>" cho timeout/kill, hoặc "equity_drift_pct" (chỉ kiểm khi người gọi đặt).
+EVENT_BUDGETS = {"entry": 5.0, "dca": 5.0, "sl": 10.0, "tp": 3.0, "trail": 10.0, "exit": 5.0, "only_sim_share": 0.2, "fee_gap_pct": 0.02}
+
+
+def _g(o: Any, name: str, default: Any = None) -> Any:
+    """Đọc trường của Fill dạng dataclass hoặc dict (events.jsonl qua dataclasses.asdict)."""
+    return o.get(name, default) if isinstance(o, dict) else getattr(o, name, default)
+
+
+def _is_fill(o: Any) -> bool:
+    if isinstance(o, dict):
+        return "price" in o and "kind" in o
+    return type(o).__name__ == "Fill" or (hasattr(o, "price") and hasattr(o, "kind") and hasattr(o, "liquidity"))
+
+
+def _is_reject(o: Any) -> bool:
+    if isinstance(o, dict):
+        return "price" not in o and "kind" in o and "reason" in o and "order_id" in o
+    return type(o).__name__ == "OrderRejected"
+
+
+def _frame_ms(timeframe: str) -> int:
+    if timeframe in FRAME_MS:
+        return FRAME_MS[timeframe]
+    try:
+        return int(timeframe[:-1]) * {"m": 60_000, "h": 3_600_000, "d": 86_400_000}[timeframe[-1]]
+    except (KeyError, ValueError, IndexError, TypeError):
+        return 3_600_000
+
+
+def _pct(v: List[float], q: float) -> Optional[float]:
+    """Phân vị q (0..1) nội suy tuyến tính; rỗng -> None."""
+    if not v:
+        return None
+    s = sorted(v)
+    pos = (len(s) - 1) * q
+    lo = int(pos)
+    hi = min(lo + 1, len(s) - 1)
+    return s[lo] + (s[hi] - s[lo]) * (pos - lo)
+
+
+def _stats(v: List[float], nd: int = 2) -> Dict[str, Any]:
+    if not v:
+        return {"n": 0, "mean": None, "p50": None, "p90": None}
+    return {"n": len(v), "mean": round(sum(v) / len(v), nd), "p50": round(_pct(v, 0.5), nd), "p90": round(_pct(v, 0.9), nd)}
+
+
+def _split_positions(fills: List[Any]) -> Dict[Any, List[List[Any]]]:
+    """Gom fill theo khoá (symbol hoặc slot) rồi cắt thành các VỊ THẾ theo thứ tự thời gian: lệnh đóng kết thúc vị thế;
+    "entry" gặp khi vị thế đang mở và đã có entry (mất lệnh đóng) mở vị thế mới."""
+    by_key: Dict[Any, List[Any]] = {}
+    for f in fills:
+        k = _g(f, "symbol")
+        by_key.setdefault(_g(f, "slot") if k is None else k, []).append(f)
+    out: Dict[Any, List[List[Any]]] = {}
+    for k, fs in by_key.items():
+        fs.sort(key=lambda f: (int(_g(f, "t") or 0), int(_g(f, "order_id") or 0)))
+        poss: List[List[Any]] = []
+        cur: List[Any] = []
+        for f in fs:
+            kind = _g(f, "kind")
+            if kind == "entry" and any(_g(x, "kind") == "entry" for x in cur):
+                poss.append(cur)
+                cur = []
+            cur.append(f)
+            if kind in CLOSE_KINDS:
+                poss.append(cur)
+                cur = []
+        if cur:
+            poss.append(cur)
+        out[k] = poss
+    return out
+
+
+def _by_kind(pos: List[Any]) -> Dict[str, List[Any]]:
+    d: Dict[str, List[Any]] = {}
+    for f in pos:
+        d.setdefault(_g(f, "kind"), []).append(f)
+    return d
+
+
+def _closed(pos: List[Any]) -> bool:
+    return any(_g(f, "kind") in CLOSE_KINDS for f in pos)
+
+
+def _position_side(key: Any, ex: List[Any], sm: List[Any], sides: Optional[Dict[Any, str]]) -> Optional[str]:
+    """Hướng vị thế: trường `side` của fill > sides[key] > suy luận. Suy luận: SL thấp hơn giá vào = LONG, TP cao hơn = LONG;
+    hoặc fill vào của sim có trượt (giá > raw = LONG)."""
+    for f in sm + ex:
+        s = _g(f, "side")
+        if s:
+            return str(s).upper()
+    if sides and sides.get(key):
+        return str(sides[key]).upper()
+    for pos in (sm, ex):
+        ent = next((f for f in pos if _g(f, "kind") == "entry"), None)
+        if ent is None:
+            continue
+        for f in pos:
+            if _g(f, "kind") == "sl":
+                return "LONG" if float(_g(f, "price")) < float(_g(ent, "price")) else "SHORT"
+            if _g(f, "kind") == "tp":
+                return "LONG" if float(_g(f, "price")) > float(_g(ent, "price")) else "SHORT"
+    for f in sm:
+        if _g(f, "kind") == "entry" and _g(f, "raw_price") and float(_g(f, "price")) != float(_g(f, "raw_price")):
+            return "LONG" if float(_g(f, "price")) > float(_g(f, "raw_price")) else "SHORT"
+    return None
+
+
+def _fee_pct(pos: List[Any]) -> Optional[float]:
+    """Tổng phí của vị thế / tổng danh nghĩa vào lệnh (entry + dca), %. Chưa đóng hoặc không có danh nghĩa -> None."""
+    notional = sum(float(_g(f, "notional") or 0.0) for f in pos if _g(f, "kind") in ENTER_KINDS)
+    if not _closed(pos) or notional <= 0:
+        return None
+    return sum(abs(float(_g(f, "fee") or 0.0)) for f in pos) / notional * 100.0
+
+
+def _series(s: Any) -> Dict[Any, float]:
+    """Chuỗi vốn: list số (khoá = chỉ số), list [t, v], hoặc list dict {t, equity|value}."""
+    out: Dict[Any, float] = {}
+    for i, x in enumerate(s or []):
+        if isinstance(x, dict):
+            v = x.get("equity", x.get("value"))
+            out[x.get("t", i)] = float(v)
+        elif isinstance(x, (list, tuple)):
+            out[x[0]] = float(x[1])
+        else:
+            out[i] = float(x)
+    return out
+
+
+def compare_events(exec_events: List[Any], sim_events: List[Any], timeframe: str, budgets: Optional[Dict[str, float]] = None, *,
+                   sides: Optional[Dict[Any, str]] = None, exec_equity: Any = None, sim_equity: Any = None) -> Dict[str, Any]:
+    """Đối soát từng lệnh khớp của sàn (exec) với bóng sim. Hàm THUẦN, tất định, không I/O.
+
+    exec_events / sim_events: list Fill (có thể kèm OrderRejected) dạng dataclass hoặc dict (dataclasses.asdict); sự kiện khác bị bỏ qua.
+    Ghép: theo khoá (symbol nếu có, không thì slot) -> cặp VỊ THẾ có giờ bắt đầu lệch <= 1 nến `timeframe` (D5: sàn vào vài giây sau đóng nến,
+    sim vào ở open) -> trong vị thế ghép theo (kind, thứ tự thứ n của kind đó), giờ lệch <= 1 nến. Vị thế/fill không ghép được tính vào only_exec / only_sim.
+    Dấu bps: dương = sàn khớp KÉM hơn sim (mua đắt hơn / bán rẻ hơn); độ trễ = t_sàn − t_sim (ms). Hướng lấy từ `side` của fill,
+    `sides[key]` hoặc suy luận (_position_side); không biết hướng -> bỏ qua bps của vị thế đó (đếm ở `side_unknown`).
+    Fill SL của sim có thể mang thêm `level` / `extreme` (dict) để phân lớp dải SL; thiếu `level` dùng raw_price của sim, thiếu `extreme` thì chỉ biết better/not.
+    Trả: kinds{kind:{matched, only_exec, only_sim, bps{n,mean,p50,p90}, latency_ms{...}}}, positions, summary, fees, equity, rejected,
+    budgets, breaches, ok, enough (matched >= MIN_PAIRS), calibrated (slippage_rate đề xuất theo loại taker, None nếu < MIN_PAIRS mẫu), sl_band, pairs.
+    """
+    B = {**EVENT_BUDGETS, **(budgets or {})}
+    tol = _frame_ms(timeframe)
+    ex_fills = [e for e in exec_events or [] if _is_fill(e)]
+    sm_fills = [e for e in sim_events or [] if _is_fill(e)]
+    rej = {"exec": {}, "sim": {}}
+    for tag, evs in (("exec", exec_events or []), ("sim", sim_events or [])):
+        for e in evs:
+            if _is_reject(e):
+                r = str(_g(e, "reason"))
+                rej[tag][r] = rej[tag].get(r, 0) + 1
+    ex_pos, sm_pos = _split_positions(ex_fills), _split_positions(sm_fills)
+
+    kinds: Dict[str, Dict[str, Any]] = {k: {"matched": 0, "only_exec": 0, "only_sim": 0, "_bps": [], "_lat": []} for k in REPORT_KINDS}
+
+    def kd(kind: str) -> Dict[str, Any]:
+        return kinds.setdefault(kind, {"matched": 0, "only_exec": 0, "only_sim": 0, "_bps": [], "_lat": []})
+
+    pairs: List[Dict[str, Any]] = []
+    pos_m = pos_ex = pos_sm = side_unknown = 0
+    fee_rows: List[List[float]] = []
+    adverse = {k: [] for k in TAKER_KINDS}
+    sl_class = {"better": 0, "between": 0, "worse": 0, "no_extreme": 0}
+
+    def lone(pos: List[Any], tag: str) -> None:
+        for f in pos:
+            kd(_g(f, "kind"))["only_" + tag] += 1
+
+    for key in sorted(set(ex_pos) | set(sm_pos), key=lambda k: (isinstance(k, str), str(k))):
+        eps, sps = ex_pos.get(key, []), sm_pos.get(key, [])
+        used = set()
+        for ep in eps:
+            t0, best, gap = int(_g(ep[0], "t") or 0), None, None
+            for j, sp in enumerate(sps):
+                g = abs(int(_g(sp[0], "t") or 0) - t0)
+                if j not in used and g <= tol and (gap is None or g < gap):
+                    best, gap = j, g
+            if best is None:
+                pos_ex += 1
+                lone(ep, "exec")
+                continue
+            used.add(best)
+            sp = sps[best]
+            pos_m += 1
+            side = _position_side(key, ep, sp, sides)
+            if side is None:
+                side_unknown += 1
+            ek, sk = _by_kind(ep), _by_kind(sp)
+            for kind in set(ek) | set(sk):
+                el, sl_ = ek.get(kind, []), sk.get(kind, [])
+                for n in range(max(len(el), len(sl_))):
+                    x = el[n] if n < len(el) else None
+                    s = sl_[n] if n < len(sl_) else None
+                    if x is None or s is None or abs(int(_g(x, "t") or 0) - int(_g(s, "t") or 0)) > tol:
+                        if x is not None:
+                            kd(kind)["only_exec"] += 1
+                        if s is not None:
+                            kd(kind)["only_sim"] += 1
+                        continue
+                    entering = kind in ENTER_KINDS
+                    bps = _bps(float(_g(x, "price")), float(_g(s, "price")), side, entering) if side else None
+                    lat = int(_g(x, "t") or 0) - int(_g(s, "t") or 0)
+                    d = kd(kind)
+                    d["matched"] += 1
+                    d["_lat"].append(float(lat))
+                    if bps is not None:
+                        d["_bps"].append(bps)
+                        if kind in adverse:
+                            adverse[kind].append(bps)
+                    row = {"key": key, "kind": kind, "seq": n, "t_exec": _g(x, "t"), "t_sim": _g(s, "t"), "bps": bps, "latency_ms": lat}
+                    if kind == "sl" and side:
+                        level = _g(s, "level") if _g(s, "level") is not None else _g(s, "raw_price")
+                        extreme = _g(s, "extreme")
+                        lb = _bps(float(_g(x, "price")), float(level), side, False) if level else None
+                        eb = _bps(float(_g(x, "price")), float(extreme), side, False) if extreme else None
+                        cls = _sl_class(lb, eb)          # None khi thiếu extreme
+                        if lb is not None:
+                            sl_class[cls or "no_extreme"] += 1
+                        row["sl"], row["sl_extreme_bps"] = cls, eb
+                    pairs.append(row)
+            fe, fs = _fee_pct(ep), _fee_pct(sp)
+            if fe is not None and fs is not None:
+                fee_rows.append([fe, fs])
+        pos_sm += sum(1 for j in range(len(sps)) if j not in used)
+        for j, sp in enumerate(sps):
+            if j not in used:
+                lone(sp, "sim")
+
+    matched = sum(d["matched"] for d in kinds.values())
+    o_ex, o_sm = sum(d["only_exec"] for d in kinds.values()), sum(d["only_sim"] for d in kinds.values())
+    only_sim_share = o_sm / max(1, matched + o_sm)
+    out_kinds = {}
+    for k, d in kinds.items():
+        out_kinds[k] = {"matched": d["matched"], "only_exec": d["only_exec"], "only_sim": d["only_sim"],
+                        "bps": _stats(d["_bps"]), "latency_ms": _stats(d["_lat"], 1)}
+
+    fee_exec = sum(r[0] for r in fee_rows) / len(fee_rows) if fee_rows else None
+    fee_sim = sum(r[1] for r in fee_rows) / len(fee_rows) if fee_rows else None
+    fees = {"n": len(fee_rows), "exec_pct_mean": None if fee_exec is None else round(fee_exec, 5),
+            "sim_pct_mean": None if fee_sim is None else round(fee_sim, 5),
+            "gap_pct_mean": None if fee_exec is None else round(fee_exec - fee_sim, 5)}
+
+    equity = None
+    if exec_equity is not None and sim_equity is not None:
+        a, b = _series(exec_equity), _series(sim_equity)
+        keys = [k for k in a if k in b and b[k]]
+        drifts = [abs(a[k] - b[k]) / abs(b[k]) * 100.0 for k in keys]
+        equity = {"n": len(drifts), "max_abs_drift_pct": round(max(drifts), 4) if drifts else None}
+
+    breaches: List[Dict[str, Any]] = []
+
+    def breach(key: str, value: Optional[float], limit: Optional[float], msg: str) -> None:
+        if value is not None and limit is not None and value > limit:
+            breaches.append({"key": key, "value": round(value, 5), "limit": limit, "msg": msg})
+    for k, d in out_kinds.items():
+        breach(f"{k}_bps", d["bps"]["mean"], B.get(k), f"Giá khớp '{k}' của sàn kém sim quá ngưỡng (bps TB): xem lại trượt giá / mô hình khớp.")
+    breach("only_sim_share", only_sim_share, B.get("only_sim_share"), "Sim khớp nhiều lệnh mà sàn không khớp: mô phỏng đang lạc quan.")
+    breach("fee_gap_pct", fees["gap_pct_mean"], B.get("fee_gap_pct"), "Phí thực trên sàn cao hơn sim: xem lại giả định phí.")
+    breach("equity_drift_pct", equity["max_abs_drift_pct"] if equity else None, B.get("equity_drift_pct"), "Vốn sàn lệch khỏi sim quá ngưỡng.")
+
+    # Hiệu chỉnh (D4): slippage_rate đề xuất = trung vị bps bất lợi / 10000 (kẹp >= 0), chỉ khi đủ MIN_PAIRS mẫu cho loại đó.
+    calibrated = {k: (round(max(0.0, _pct(v, 0.5)) / 10_000, 8) if len(v) >= MIN_PAIRS else None) for k, v in adverse.items()}
+    n_sl = sum(sl_class.values())
+    n_ext = sl_class["better"] + sl_class["between"] + sl_class["worse"]
+    sl_band = {"n": n_sl, "n_with_extreme": n_ext, **sl_class,
+               "between_share": round(sl_class["between"] / n_ext, 4) if n_ext >= MIN_PAIRS else None,
+               "enough": n_sl >= MIN_PAIRS}
+    return {
+        "kinds": out_kinds, "pairs": pairs,
+        "positions": {"matched": pos_m, "only_exec": pos_ex, "only_sim": pos_sm, "side_unknown": side_unknown},
+        "summary": {"matched": matched, "only_exec": o_ex, "only_sim": o_sm, "only_sim_share": round(only_sim_share, 4),
+                    "min_pairs": MIN_PAIRS, "enough": matched >= MIN_PAIRS},
+        "fees": fees, "equity": equity, "rejected": rej, "budgets": B, "breaches": breaches, "ok": not breaches,
+        "enough": matched >= MIN_PAIRS, "calibrated": calibrated, "sl_band": sl_band,
+    }
