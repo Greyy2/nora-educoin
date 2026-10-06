@@ -70,7 +70,7 @@ Strategy slot (AST + params)  ->  Runner.step_bar(t, bars, signals, funding)
 
 1. Sổ vốn dùng chung tuần tự: runner giữ đúng thứ tự (symbol, entry), gọi venue + manager theo từng ô; test parity nhiều symbol × nhiều chiến lược.
 2. Vòng settle trong nến (tính lại avg/SL/liq sau mỗi tầng DCA, hoà thì thoát trước): venue trả fill kế tiếp rồi manager phản ứng; ưu tiên hoà là khoá sắp xếp tường minh.
-3. Mô hình lệnh không chỉ là limit: lệnh DCA có `trigger_px` và giá khớp khác nhau; SL/trailing có `stop_fill`; TP khớp `max(tp_level, open)`; đặt trong tham số fill-model của SimVenue.
+3. Mô hình lệnh không chỉ là limit: lệnh DCA có `trigger_px` và giá khớp khác nhau; SL/trailing có `stop_fill`; TP khớp ở mức TP (từ 2026-10-06; trước đó `max(tp_level, open)`, xem mục 8); đặt trong tham số fill-model của SimVenue.
 4. Quy tắc theo độ phân giải nến ("TP bỏ qua nến có DCA", "trailing dùng đỉnh các nến trước") là chính sách `intrabar_path="adverse_first"` của SimVenue, có test; sàn thật có thể khác và `compare.py` đo.
 5. Thứ tự phép toán float: công thức mức giá chỉ ở `policy.py`; avg/qty/phí cộng dồn trong một `PositionBook` giữ đúng thứ tự `_add_layer`.
 6. Thanh lý là fill do venue sinh (chỉ sim); OKX chỉ quan sát (cờ `generates_liquidation`).
@@ -87,3 +87,12 @@ Trần thanh khoản theo volume nến và hiệu chỉnh `limit_through_pct` t�
 ## 7. Tài liệu liên quan
 
 Lộ trình và tiêu chí "Xong khi" từng ID: `roadmap.md` mục P6. Nguồn của kiến trúc đích: NautilusTrader (`crates/system`, `crates/execution`, `crates/backtest`, `crates/live`, adapter `sandbox`).
+
+## 8. Ghi chú 2026-10-06: đổi quy tắc khớp có chủ đích (bảo thủ), người dùng duyệt
+
+Lý do: test chéo engine với NautilusTrader 2.0.0rc6 (`test/scripts/nautilus_diff/REPORT.md`, commit b4b437b) cho thấy Nora lạc quan đúng ở hai quy tắc; sàn thật cũng hành xử như Nautilus. Đổi ở MỌI cài đặt, bit-identical với nhau (`tracker.py`, `kernel.py`, `sim_venue.py` + `manager.py`, oracle `test/reference_engine.py`); `live/bot.py` và `okx_venue.py` không đổi (sàn tự hành xử như vậy).
+
+1. **SL cũ sau fill DCA.** Trong một nến, từ sau tầng DCA đầu tiên khớp, mức SL dùng cho phần còn lại của nến là mức SL lúc tầng đó khớp (tính từ avg cũ); SL tính từ avg mới có hiệu lực từ nến sau. Giá thanh lý vẫn tính lại ngay. Trước đây SL dời ngay sang mức mới (xa hơn) và nến tiếp tục quét với SL mới.
+2. **Gap xuyên lệnh limit chờ sẵn.** DCA và TP khớp đúng ở mức đặt (khối lượng DCA = danh nghĩa / mức đặt) kể cả khi open đã vượt mức; trước đây khớp ở `min(level, open)` (DCA, long) / `max(tp, open)` (TP, long). Stop-market (SL, trailing) vẫn gap -> khớp ở open; lệnh market và thanh lý không đổi; AMM (`limit_taker`, swap) vẫn khớp ở open.
+
+Golden snapshot được sinh lại có chủ đích (`test/scripts/make_golden.py`); test mới: `test/test_conservative_fills.py` (bốn cài đặt phải ra cùng kết quả). Còn lại lạc quan so với Nautilus là bảo thủ có chủ đích: SL thắng TP trong cùng nến, và nến có DCA khớp thì bỏ TP.

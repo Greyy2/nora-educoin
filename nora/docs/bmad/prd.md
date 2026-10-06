@@ -105,7 +105,7 @@ Cột "TT": **Có** = đã có và có test; **Một phần** = có nhưng thi�
 
 | ID | Yêu cầu | TT | Epic |
 |---|---|---|---|
-| FR-13 | Khớp lệnh trên nến 1m có giao dịch; vào ở open nến kế tiếp sau tín hiệu; phía bất lợi xử lý theo thứ tự giá chạm, hoà thì ưu tiên thoát; gap khớp ở open; không chốt lời trong nến vừa khớp tầng DCA | Có | E3 |
+| FR-13 | Khớp lệnh trên nến 1m có giao dịch; vào ở open nến kế tiếp sau tín hiệu; phía bất lợi xử lý theo thứ tự giá chạm, hoà thì ưu tiên thoát; gap xuyên stop-market khớp ở open, lệnh limit chờ sẵn khớp ở mức đặt; SL cũ còn hiệu lực trong nến vừa khớp DCA; không chốt lời trong nến vừa khớp tầng DCA | Có | E3 |
 | FR-14 | Phí taker cho lệnh market (vào, SL, trailing, timeout, thoát theo tín hiệu), maker cho tầng DCA và chốt lời; mặc định theo venue: CEX perp 0,05%/0,02% + trượt 0,02% | Có | E3 |
 | FR-15 | Perp: ký quỹ isolated, giá thanh lý, funding trả/nhận hạch toán vào vốn; spot không short, không đòn bẩy | Có | E3 |
 | FR-16 | Hai kiểu khối lượng: `margin_pct` (ký quỹ = % vốn hiện tại) và `risk` (lỗ tại SL = `risk_per_trade_pct`% vốn, gồm phí khứ hồi); `risk` cần `stop_loss_rate > 0` | Có | E3 |

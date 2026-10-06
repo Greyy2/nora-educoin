@@ -13,7 +13,7 @@ Là người nghiên cứu, tôi muốn thứ tự khớp lệnh trong một n�
 1. **Given** tín hiệu vào ở nến t, **When** mô phỏng, **Then** lệnh vào khớp ở open của nến 1m có giao dịch kế tiếp (`test_entry_at_next_candle_open`, `test_pending_entry_waits_for_next_real_minute`).
 2. **Given** open đã vượt mức SL, **When** nến mở, **Then** khớp ở open (gap) (`test_gap_through_sl_fills_at_open`).
 3. **Given** nến vừa khớp tầng DCA, **When** giá cũng chạm TP, **Then** không chốt lời trong nến đó (`test_no_take_profit_in_same_bar_as_dca_fill`).
-4. **Given** SL, trailing và DCA cùng nằm trong nến, **When** xử lý, **Then** theo đúng thứ tự giá chạm và SL tính từ giá TB sau DCA (`test_stop_loss_from_average_after_dca_and_ordering`).
+4. **Given** SL, trailing và DCA cùng nằm trong nến, **When** xử lý, **Then** theo đúng thứ tự giá chạm; sau fill DCA, SL CŨ còn hiệu lực đến hết nến, SL tính từ giá TB mới có hiệu lực từ nến sau (quy tắc bảo thủ 2026-10-06: `test_stale_stop_loss_after_dca_and_ordering`, `test_conservative_fills.py`).
 5. **Given** `stop_fill="extreme"`, **When** SL chạm, **Then** khớp ở giá xấu nhất của nến (`test_stop_fill_extreme_uses_worst_price_of_bar`); giá trị lạ bị từ chối (`test_stop_fill_rejects_unknown_mode`).
 6. **Given** trailing đang bật, **When** nến mới, **Then** dùng đỉnh/đáy của các nến trước (`test_trailing_stop_uses_previous_peak`); timeout đóng ở open (`test_timeout_closes_at_open`).
 

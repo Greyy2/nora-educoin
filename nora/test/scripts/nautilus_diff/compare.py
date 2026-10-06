@@ -142,8 +142,9 @@ def compare(inst, ds, sname, stname, suffix, bars):
             c, note = "d", "signal exit: Nora fills at next open, Nautilus at close"
         elif stale_sl:
             c = "a"
-            note = ("same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level "
-                    f"{a['close_price']:.4f} in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer")
+            note = ("same L-tick DCA fill(s) + stale SL: both engines exit at the old SL level (placed from the pre-DCA avg) "
+                    f"{a['close_price']:.4f} (since 2026-10-06 Nora keeps the stale SL too); Nautilus also fills the lower layer(s) in the same "
+                    f"tick before the SL ({a.get('layers', 1)} layers vs Nora {n.get('layers', 1)}), Nora stops first in the descending sweep")
         elif gap_layer:
             c = "b"
             note = (f"DCA limit gapped through at bar open: Nora fills the layer at open ({nf[1]}), Nautilus at its limit "

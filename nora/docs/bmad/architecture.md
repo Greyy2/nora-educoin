@@ -182,10 +182,15 @@ Nguồn: `backend/core/execute/tracker.py` (`PositionTracker`), `backend/core/ba
    Lệnh vào chờ (`pending_entry`, do AST `match` ở nến trước) → mở tầng đầu ở open + trượt giá, nếu `can_open` (danh mục cho phép).
 2. **Trong nến, phía bất lợi trước.** Sự kiện: tầng DCA kế tiếp (limit), SL, trailing, giá thanh lý (perp). Với long, xử lý mức cao nhất bị
    chạm trước (giá rơi từ trên xuống); với short, mức thấp nhất. Hai mức trùng nhau thì **ưu tiên thoát** (SL, trailing, thanh lý đứng trước DCA).
-   Sau mỗi tầng DCA khớp, giá trung bình, SL và giá thanh lý được tính lại rồi lặp lại trong cùng nến.
-3. **Gap.** Nếu open đã vượt mức, khớp ở open: `min(level, open)` cho long, `max(level, open)` cho short (`test_gap_through_sl_fills_at_open`).
+   Sau mỗi tầng DCA khớp, giá trung bình và giá thanh lý được tính lại ngay rồi lặp lại trong cùng nến (sàn tự tính giá thanh lý).
+   **SL cũ (quy tắc bảo thủ, duyệt 2026-10-06):** lệnh SL đang nằm trên sàn không dời được ngay sau fill DCA, nên trong phần còn lại của nến mức SL dùng là
+   mức SL **lúc tầng DCA đầu tiên của nến khớp** (không bị dời xa hơn trong nến); SL tính từ giá TB mới có hiệu lực từ nến sau
+   (`test_conservative_fills.py`, `test_stale_stop_loss_after_dca_and_ordering`). Trailing và mức DCA không đổi.
+3. **Gap.** Lệnh **stop-market** (SL, trailing) và thanh lý: nếu open đã vượt mức thì khớp ở open: `min(level, open)` cho long, `max(level, open)` cho short
+   (`test_gap_through_sl_fills_at_open`). Lệnh **limit chờ sẵn** (tầng DCA, chốt lời) khớp **đúng ở mức đặt** kể cả khi open đã vượt mức
+   (phần giá tốt hơn thuộc về bên khớp lệnh; khối lượng tầng DCA = danh nghĩa / mức đặt). Ngoại lệ: AMM (`limit_taker`) là swap, vẫn khớp ở open.
 4. **Phía có lợi.** Chốt lời (limit, từ giá TB) chỉ xét khi trong nến **không** có tầng DCA nào khớp (`test_no_take_profit_in_same_bar_as_dca_fill`);
-   khớp ở `max(tp_level, open)` (long) hoặc `min(tp_level, open)` (short), maker.
+   khớp đúng ở `tp_level` (kể cả khi open đã vượt mức), maker.
 5. **Cuối nến.** Cập nhật đỉnh/đáy có lợi (`peak`) cho trailing, lỗ treo tối đa (`mae_usd`), rồi đặt `pending_exit` nếu AST `stop` đúng, hoặc
    `pending_entry` nếu AST `match` đúng và hết `cooldown`. Trailing dùng `peak` của các nến trước (`test_trailing_stop_uses_previous_peak`).
 

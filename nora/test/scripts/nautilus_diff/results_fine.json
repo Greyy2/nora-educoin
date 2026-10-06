@@ -47,36 +47,19 @@
   "trades_nora": 37,
   "trades_naut": 38,
   "matched_pairs": 37,
-  "exact_matches": 33,
+  "exact_matches": 35,
   "classes": {
-   "match": 33,
-   "a": 4,
+   "match": 35,
+   "a": 2,
    "x": 1
   },
-  "final_equity_nora": 10298.514376938308,
+  "final_equity_nora": 10135.469879019947,
   "final_equity_naut": 10160.29408941,
-  "final_equity_diff": -138.2202875283092,
-  "final_equity_diff_pct": -1.3421381227357365,
+  "final_equity_diff": 24.82421039005203,
+  "final_equity_diff_pct": 0.24492411981251738,
   "nora_engine_paths_bit_identical": true,
   "unexplained": [],
   "non_exact": [
-   {
-    "enter_time": 1778781600000,
-    "cls": "a",
-    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 79823.9425 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
-    "nora": [
-     81633.0,
-     1778850000000,
-     79332.9012871172,
-     "SL"
-    ],
-    "naut": [
-     81633.0,
-     1778850000000,
-     79823.94245095999,
-     "SL"
-    ]
-   },
    {
     "enter_time": 1781161200000,
     "cls": "a",
@@ -84,7 +67,7 @@
     "nora": [
      62728.2,
      1781200800000,
-     63616.1,
+     63165.03465931863,
      "TP"
     ],
     "naut": [
@@ -104,34 +87,17 @@
    {
     "enter_time": 1788105600000,
     "cls": "a",
-    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 77371.3236 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
+    "note": "same L-tick DCA fill(s) + stale SL: both engines exit at the old SL level (placed from the pre-DCA avg) 77371.3236 (since 2026-10-06 Nora keeps the stale SL too); Nautilus also fills the lower layer(s) in the same tick before the SL (4 layers vs Nora 3), Nora stops first in the descending sweep",
     "nora": [
      78786.4,
-     1788141600000,
-     77605.8,
-     "SIG"
+     1788130800000,
+     77371.3236272545,
+     "SL"
     ],
     "naut": [
      78786.4,
      1788130800000,
      77371.32362939,
-     "SL"
-    ]
-   },
-   {
-    "enter_time": 1790773200000,
-    "cls": "a",
-    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 83364.9913 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
-    "nora": [
-     85254.3,
-     1790874000000,
-     84955.01409787805,
-     "TP"
-    ],
-    "naut": [
-     85254.3,
-     1790776800000,
-     83364.99131409002,
      "SL"
     ]
    }
@@ -204,87 +170,19 @@
   "trades_nora": 151,
   "trades_naut": 152,
   "matched_pairs": 151,
-  "exact_matches": 146,
+  "exact_matches": 150,
   "classes": {
-   "match": 146,
-   "a": 5,
+   "match": 150,
+   "a": 1,
    "x": 1
   },
-  "final_equity_nora": 10026.458061432086,
+  "final_equity_nora": 10008.673338288132,
   "final_equity_naut": 10024.16853752,
-  "final_equity_diff": -2.2895239120862243,
-  "final_equity_diff_pct": -0.022834822606931926,
+  "final_equity_diff": 15.495199231867446,
+  "final_equity_diff_pct": 0.15481771367831243,
   "nora_engine_paths_bit_identical": true,
   "unexplained": [],
   "non_exact": [
-   {
-    "enter_time": 1776960000000,
-    "cls": "a",
-    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 77156.3305 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
-    "nora": [
-     78331.3,
-     1776967200000,
-     77717.9,
-     "SIG"
-    ],
-    "naut": [
-     78331.3,
-     1776963600000,
-     77156.3305,
-     "SL"
-    ]
-   },
-   {
-    "enter_time": 1778454000000,
-    "cls": "a",
-    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 80542.9170 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
-    "nora": [
-     82016.0,
-     1778472000000,
-     80700.7,
-     "SIG"
-    ],
-    "naut": [
-     82016.0,
-     1778468400000,
-     80542.91698607,
-     "SL"
-    ]
-   },
-   {
-    "enter_time": 1781715600000,
-    "cls": "a",
-    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 64847.5735 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
-    "nora": [
-     65835.1,
-     1781726400000,
-     64278.2,
-     "SIG"
-    ],
-    "naut": [
-     65835.1,
-     1781719200000,
-     64847.5735,
-     "SL"
-    ]
-   },
-   {
-    "enter_time": 1785351600000,
-    "cls": "a",
-    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 63514.5730 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
-    "nora": [
-     64481.8,
-     1785355200000,
-     63554.3,
-     "SIG"
-    ],
-    "naut": [
-     64481.799999999996,
-     1785351600000,
-     63514.573,
-     "SL"
-    ]
-   },
    {
     "enter_time": 1789131600000,
     "cls": "a",
@@ -292,7 +190,7 @@
     "nora": [
      77990.1,
      1789135200000,
-     79202.9,
+     78533.21742985972,
      "TP"
     ],
     "naut": [
@@ -924,17 +822,16 @@
   "trades_nora": 37,
   "trades_naut": 38,
   "matched_pairs": 37,
-  "exact_matches": 21,
+  "exact_matches": 23,
   "classes": {
-   "match": 21,
-   "d": 13,
-   "a": 3,
+   "match": 23,
+   "d": 14,
    "x": 1
   },
-  "final_equity_nora": 10298.528427647721,
+  "final_equity_nora": 10135.486191437874,
   "final_equity_naut": 10160.29408941,
-  "final_equity_diff": -138.2343382377221,
-  "final_equity_diff_pct": -1.3422727257480283,
+  "final_equity_diff": 24.80789797212492,
+  "final_equity_diff_pct": 0.24476278200726842,
   "nora_engine_paths_bit_identical": true,
   "unexplained": [],
   "non_exact": [
@@ -956,30 +853,13 @@
     ]
    },
    {
-    "enter_time": 1778781600000,
-    "cls": "a",
-    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 79823.9425 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
-    "nora": [
-     81633.0,
-     1778850000000,
-     79332.9012871172,
-     "SL"
-    ],
-    "naut": [
-     81633.0,
-     1778850000000,
-     79823.94245095999,
-     "SL"
-    ]
-   },
-   {
     "enter_time": 1779793200000,
     "cls": "d",
     "note": "entry price open[t+1]=77397.7 vs close[t]=77397.79999999999",
     "nora": [
      77397.7,
      1779804000000,
-     77936.69199899798,
+     77936.691998998,
      "TP"
     ],
     "naut": [
@@ -1013,7 +893,7 @@
     "nora": [
      62728.1,
      1781200800000,
-     63616.2,
+     63164.933962925854,
      "TP"
     ],
     "naut": [
@@ -1037,7 +917,7 @@
     "nora": [
      64129.8,
      1782090000000,
-     64300.21800135643,
+     64300.2180013564,
      "TP"
     ],
     "naut": [
@@ -1117,13 +997,13 @@
    },
    {
     "enter_time": 1788105600000,
-    "cls": "a",
-    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 77371.3236 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
+    "cls": "d",
+    "note": "exit price shifted proportionally to the entry-price gap (levels derive from avg)",
     "nora": [
      78786.4,
-     1788141600000,
-     77605.7,
-     "SIG"
+     1788130800000,
+     77371.32362725449,
+     "SL"
     ],
     "naut": [
      78786.4,
@@ -1139,7 +1019,7 @@
     "nora": [
      78595.9,
      1788238800000,
-     79143.2361773547,
+     79143.23617735472,
      "TP"
     ],
     "naut": [
@@ -1198,23 +1078,6 @@
      1790697600000,
      83049.79999999999,
      "SIG"
-    ]
-   },
-   {
-    "enter_time": 1790773200000,
-    "cls": "a",
-    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 83364.9913 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
-    "nora": [
-     85254.3,
-     1790874000000,
-     84955.01409787805,
-     "TP"
-    ],
-    "naut": [
-     85254.3,
-     1790776800000,
-     83364.99131409002,
-     "SL"
     ]
    }
   ]
@@ -4604,17 +4467,17 @@
   "trades_nora": 151,
   "trades_naut": 152,
   "matched_pairs": 151,
-  "exact_matches": 56,
+  "exact_matches": 57,
   "classes": {
-   "match": 56,
+   "match": 57,
    "d": 93,
-   "a": 2,
+   "a": 1,
    "x": 1
   },
-  "final_equity_nora": 10026.478294470427,
+  "final_equity_nora": 10008.67274150613,
   "final_equity_naut": 10024.16853752,
-  "final_equity_diff": -2.309756950427982,
-  "final_equity_diff_pct": -0.023036572589019144,
+  "final_equity_diff": 15.49579601386904,
+  "final_equity_diff_pct": 0.15482368555830295,
   "nora_engine_paths_bit_identical": true,
   "unexplained": [],
   "non_exact": [
@@ -4794,9 +4657,9 @@
     "note": "entry price open[t+1]=78331.2 vs close[t]=78331.3",
     "nora": [
      78331.2,
-     1776967200000,
-     77717.9,
-     "SIG"
+     1776963600000,
+     77156.23199999999,
+     "SL"
     ],
     "naut": [
      78331.3,
@@ -4947,9 +4810,9 @@
     "note": "entry price open[t+1]=82015.9 vs close[t]=82016.0",
     "nora": [
      82015.9,
-     1778472000000,
-     80700.8,
-     "SIG"
+     1778468400000,
+     80542.81883016032,
+     "SL"
     ],
     "naut": [
      82016.0,
@@ -5084,7 +4947,7 @@
     "nora": [
      77397.7,
      1779804000000,
-     77936.691998998,
+     77936.69199899798,
      "TP"
     ],
     "naut": [
@@ -5203,7 +5066,7 @@
     "nora": [
      63719.9,
      1781276400000,
-     64163.64078657316,
+     64163.64078657315,
      "TP"
     ],
     "naut": [
@@ -5237,7 +5100,7 @@
     "nora": [
      65276.9,
      1781478000000,
-     65731.48362224449,
+     65731.4836222445,
      "TP"
     ],
     "naut": [
@@ -5262,23 +5125,6 @@
      1781618400000,
      66014.0,
      "SIG"
-    ]
-   },
-   {
-    "enter_time": 1781715600000,
-    "cls": "a",
-    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 64847.5735 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
-    "nora": [
-     65835.1,
-     1781726400000,
-     64278.2,
-     "SIG"
-    ],
-    "naut": [
-     65835.1,
-     1781719200000,
-     64847.5735,
-     "SL"
     ]
    },
    {
@@ -5356,7 +5202,7 @@
     "nora": [
      60023.7,
      1782734400000,
-     60441.70071643286,
+     60441.70071643287,
      "TP"
     ],
     "naut": [
@@ -5509,7 +5355,7 @@
     "nora": [
      64970.9,
      1784559600000,
-     65143.55313355612,
+     65143.55313355613,
      "TP"
     ],
     "naut": [
@@ -5560,7 +5406,7 @@
     "nora": [
      64013.5,
      1785308400000,
-     64459.285395791594,
+     64459.28539579158,
      "TP"
     ],
     "naut": [
@@ -5576,9 +5422,9 @@
     "note": "entry price open[t+1]=64481.7 vs close[t]=64481.799999999996",
     "nora": [
      64481.7,
-     1785355200000,
-     63554.2,
-     "SIG"
+     1785351600000,
+     63514.4745,
+     "SL"
     ],
     "naut": [
      64481.799999999996,
@@ -5951,7 +5797,7 @@
     "nora": [
      77990.1,
      1789135200000,
-     79203.0,
+     78533.21742985974,
      "TP"
     ],
     "naut": [
@@ -6270,53 +6116,17 @@
   "trades_nora": 38,
   "trades_naut": 38,
   "matched_pairs": 38,
-  "exact_matches": 36,
+  "exact_matches": 38,
   "classes": {
-   "match": 36,
-   "b": 2
+   "match": 38
   },
-  "final_equity_nora": 9940.07465942555,
+  "final_equity_nora": 9935.689426367837,
   "final_equity_naut": 9935.68944661,
-  "final_equity_diff": -4.385212815550403,
-  "final_equity_diff_pct": -0.044116497770896324,
+  "final_equity_diff": 2.0242163373040967e-05,
+  "final_equity_diff_pct": 2.0373185360966772e-07,
   "nora_engine_paths_bit_identical": true,
   "unexplained": [],
-  "non_exact": [
-   {
-    "enter_time": 1783620000000,
-    "cls": "b",
-    "note": "gap at open through exit level",
-    "nora": [
-     53430.2,
-     1783638000000,
-     54040.4,
-     "TP"
-    ],
-    "naut": [
-     53430.2,
-     1783638000000,
-     53964.502,
-     "TP"
-    ]
-   },
-   {
-    "enter_time": 1786939200000,
-    "cls": "b",
-    "note": "gap at open through exit level",
-    "nora": [
-     48356.8,
-     1786950000000,
-     48878.6,
-     "TP"
-    ],
-    "naut": [
-     48356.8,
-     1786950000000,
-     48840.368,
-     "TP"
-    ]
-   }
-  ]
+  "non_exact": []
  },
  {
   "inst": "fine",
@@ -6326,88 +6136,19 @@
   "trades_nora": 38,
   "trades_naut": 39,
   "matched_pairs": 38,
-  "exact_matches": 27,
+  "exact_matches": 36,
   "classes": {
-   "match": 27,
-   "a": 7,
-   "b": 4,
+   "match": 36,
+   "a": 2,
    "x": 1
   },
-  "final_equity_nora": 10171.73937327569,
+  "final_equity_nora": 10035.653035330215,
   "final_equity_naut": 10060.2322654,
-  "final_equity_diff": -111.50710787569005,
-  "final_equity_diff_pct": -1.0962442487334467,
+  "final_equity_diff": 24.5792300697849,
+  "final_equity_diff_pct": 0.2449190898016651,
   "nora_engine_paths_bit_identical": true,
   "unexplained": [],
   "non_exact": [
-   {
-    "enter_time": 1776715200000,
-    "cls": "a",
-    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 69629.8470 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
-    "nora": [
-     70690.2,
-     1776758400000,
-     70613.11667173925,
-     "TP"
-    ],
-    "naut": [
-     70690.20000000001,
-     1776718800000,
-     69629.847,
-     "SL"
-    ]
-   },
-   {
-    "enter_time": 1778346000000,
-    "cls": "b",
-    "note": "DCA limit gapped through at bar open: Nora fills the layer at open (75316.6), Nautilus at its limit price (75378.215); qty/avg/TP/SL levels then differ",
-    "nora": [
-     75757.0,
-     1778450400000,
-     76247.06556399743,
-     "TP"
-    ],
-    "naut": [
-     75757.0,
-     1778450400000,
-     76284.5662872,
-     "TP"
-    ]
-   },
-   {
-    "enter_time": 1778781600000,
-    "cls": "a",
-    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 73160.9293 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
-    "nora": [
-     74499.0,
-     1778835600000,
-     72394.0,
-     "SL"
-    ],
-    "naut": [
-     74499.0,
-     1778796000000,
-     73160.92928182,
-     "SL"
-    ]
-   },
-   {
-    "enter_time": 1779602400000,
-    "cls": "b",
-    "note": "gap at open through exit level",
-    "nora": [
-     65811.6,
-     1779649200000,
-     66655.0,
-     "TP"
-    ],
-    "naut": [
-     65811.6,
-     1779649200000,
-     66269.90723605,
-     "TP"
-    ]
-   },
    {
     "enter_time": 1781161200000,
     "cls": "a",
@@ -6415,7 +6156,7 @@
     "nora": [
      54068.1,
      1781200800000,
-     54833.4,
+     54444.6263476954,
      "TP"
     ],
     "naut": [
@@ -6433,104 +6174,19 @@
     "naut": null
    },
    {
-    "enter_time": 1781971200000,
-    "cls": "a",
-    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 52380.0003 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
-    "nora": [
-     53338.0,
-     1782075600000,
-     52076.80900173414,
-     "SL"
-    ],
-    "naut": [
-     53338.0,
-     1782064800000,
-     52380.00033872,
-     "SL"
-    ]
-   },
-   {
-    "enter_time": 1783620000000,
-    "cls": "b",
-    "note": "gap at open through exit level",
-    "nora": [
-     53430.2,
-     1783638000000,
-     54040.4,
-     "TP"
-    ],
-    "naut": [
-     53430.2,
-     1783638000000,
-     53964.502,
-     "TP"
-    ]
-   },
-   {
-    "enter_time": 1784044800000,
-    "cls": "a",
-    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 53940.1760 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
-    "nora": [
-     54761.6,
-     1784116800000,
-     54495.09450136313,
-     "TP"
-    ],
-    "naut": [
-     54761.6,
-     1784048400000,
-     53940.176,
-     "SL"
-    ]
-   },
-   {
-    "enter_time": 1786939200000,
-    "cls": "b",
-    "note": "gap at open through exit level",
-    "nora": [
-     48356.8,
-     1786950000000,
-     48878.6,
-     "TP"
-    ],
-    "naut": [
-     48356.8,
-     1786950000000,
-     48840.368,
-     "TP"
-    ]
-   },
-   {
     "enter_time": 1788105600000,
     "cls": "a",
-    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 57809.7926 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
+    "note": "same L-tick DCA fill(s) + stale SL: both engines exit at the old SL level (placed from the pre-DCA avg) 57809.7926 (since 2026-10-06 Nora keeps the stale SL too); Nautilus also fills the lower layer(s) in the same tick before the SL (4 layers vs Nora 3), Nora stops first in the descending sweep",
     "nora": [
      58867.1,
-     1788141600000,
-     57984.9,
-     "SIG"
+     1788130800000,
+     57809.79261773547,
+     "SL"
     ],
     "naut": [
      58867.100000000006,
      1788130800000,
      57809.792603329995,
-     "SL"
-    ]
-   },
-   {
-    "enter_time": 1790773200000,
-    "cls": "a",
-    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 63636.5000 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
-    "nora": [
-     65078.7,
-     1790812800000,
-     63245.03672526937,
-     "SL"
-    ],
-    "naut": [
-     65078.700000000004,
-     1790776800000,
-     63636.50001307,
      "SL"
     ]
    }
@@ -6564,121 +6220,18 @@
   "trades_nora": 153,
   "trades_naut": 153,
   "matched_pairs": 153,
-  "exact_matches": 145,
+  "exact_matches": 152,
   "classes": {
-   "match": 145,
-   "b": 7,
+   "match": 152,
    "a": 1
   },
-  "final_equity_nora": 9775.94979484374,
+  "final_equity_nora": 9723.804977250755,
   "final_equity_naut": 9759.44654951,
-  "final_equity_diff": -16.50324533374078,
-  "final_equity_diff_pct": -0.16881475130370305,
+  "final_equity_diff": 35.64157225924464,
+  "final_equity_diff_pct": 0.3665393572025444,
   "nora_engine_paths_bit_identical": true,
   "unexplained": [],
   "non_exact": [
-   {
-    "enter_time": 1777179600000,
-    "cls": "b",
-    "note": "gap at open through exit level",
-    "nora": [
-     73184.9,
-     1777208400000,
-     74008.8,
-     "TP"
-    ],
-    "naut": [
-     73184.9,
-     1777208400000,
-     73916.749,
-     "TP"
-    ]
-   },
-   {
-    "enter_time": 1777730400000,
-    "cls": "b",
-    "note": "gap at open through exit level",
-    "nora": [
-     72217.8,
-     1777741200000,
-     73306.3,
-     "TP"
-    ],
-    "naut": [
-     72217.79999999999,
-     1777741200000,
-     72939.978,
-     "TP"
-    ]
-   },
-   {
-    "enter_time": 1779667200000,
-    "cls": "b",
-    "note": "gap at open through exit level",
-    "nora": [
-     67003.2,
-     1779685200000,
-     68065.2,
-     "TP"
-    ],
-    "naut": [
-     67003.2,
-     1779685200000,
-     67673.232,
-     "TP"
-    ]
-   },
-   {
-    "enter_time": 1781334000000,
-    "cls": "b",
-    "note": "gap at open through exit level",
-    "nora": [
-     54315.4,
-     1781359200000,
-     55338.0,
-     "TP"
-    ],
-    "naut": [
-     54315.4,
-     1781359200000,
-     54858.554,
-     "TP"
-    ]
-   },
-   {
-    "enter_time": 1783724400000,
-    "cls": "b",
-    "note": "gap at open through exit level",
-    "nora": [
-     54452.4,
-     1783731600000,
-     55245.3,
-     "TP"
-    ],
-    "naut": [
-     54452.4,
-     1783731600000,
-     54996.924000000006,
-     "TP"
-    ]
-   },
-   {
-    "enter_time": 1786935600000,
-    "cls": "b",
-    "note": "gap at open through exit level",
-    "nora": [
-     48336.2,
-     1786950000000,
-     48878.6,
-     "TP"
-    ],
-    "naut": [
-     48336.2,
-     1786950000000,
-     48819.562,
-     "TP"
-    ]
-   },
    {
     "enter_time": 1789131600000,
     "cls": "a",
@@ -6695,23 +6248,6 @@
      57854.113000000005,
      "TP"
     ]
-   },
-   {
-    "enter_time": 1790460000000,
-    "cls": "b",
-    "note": "gap at open through exit level",
-    "nora": [
-     62958.4,
-     1790492400000,
-     63589.4,
-     "TP"
-    ],
-    "naut": [
-     62958.4,
-     1790492400000,
-     63587.984,
-     "TP"
-    ]
    }
   ]
  },
@@ -6723,181 +6259,27 @@
   "trades_nora": 151,
   "trades_naut": 152,
   "matched_pairs": 151,
-  "exact_matches": 129,
+  "exact_matches": 149,
   "classes": {
-   "match": 129,
-   "a": 7,
-   "b": 15,
+   "match": 149,
+   "a": 2,
    "x": 1
   },
-  "final_equity_nora": 9985.299610938833,
+  "final_equity_nora": 9841.487839563035,
   "final_equity_naut": 9877.75077495,
-  "final_equity_diff": -107.54883598883316,
-  "final_equity_diff_pct": -1.0770716971878702,
+  "final_equity_diff": 36.26293538696518,
+  "final_equity_diff_pct": 0.36847005227387264,
   "nora_engine_paths_bit_identical": true,
   "unexplained": [],
   "non_exact": [
    {
-    "enter_time": 1776960000000,
-    "cls": "a",
-    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 72959.8365 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
-    "nora": [
-     74070.9,
-     1776967200000,
-     73490.9,
-     "SIG"
-    ],
-    "naut": [
-     74070.9,
-     1776963600000,
-     72959.83649999999,
-     "SL"
-    ]
-   },
-   {
-    "enter_time": 1777179600000,
-    "cls": "b",
-    "note": "gap at open through exit level",
-    "nora": [
-     73184.9,
-     1777208400000,
-     74008.8,
-     "TP"
-    ],
-    "naut": [
-     73184.9,
-     1777208400000,
-     73916.749,
-     "TP"
-    ]
-   },
-   {
-    "enter_time": 1777730400000,
-    "cls": "b",
-    "note": "gap at open through exit level",
-    "nora": [
-     72217.8,
-     1777741200000,
-     73306.3,
-     "TP"
-    ],
-    "naut": [
-     72217.79999999999,
-     1777741200000,
-     72939.978,
-     "TP"
-    ]
-   },
-   {
-    "enter_time": 1778238000000,
-    "cls": "b",
-    "note": "DCA limit gapped through at bar open: Nora fills the layer at open (75368.4), Nautilus at its limit price (75373.830831); qty/avg/TP/SL levels then differ",
-    "nora": [
-     76286.6,
-     1778353200000,
-     76486.70030651496,
-     "TP"
-    ],
-    "naut": [
-     76286.59999999999,
-     1778353200000,
-     76489.32338205,
-     "TP"
-    ]
-   },
-   {
-    "enter_time": 1778454000000,
-    "cls": "a",
-    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 75227.5323 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
-    "nora": [
-     76603.4,
-     1778472000000,
-     75374.9,
-     "SIG"
-    ],
-    "naut": [
-     76603.4,
-     1778468400000,
-     75227.53234210999,
-     "SL"
-    ]
-   },
-   {
-    "enter_time": 1778742000000,
-    "cls": "b",
-    "note": "DCA limit gapped through at bar open: Nora fills the layer at open (73516.0), Nautilus at its limit price (73822.234); qty/avg/TP/SL levels then differ",
-    "nora": [
-     74193.2,
-     1778760000000,
-     73002.3,
-     "SIG"
-    ],
-    "naut": [
-     74193.2,
-     1778760000000,
-     73002.3,
-     "SIG"
-    ]
-   },
-   {
-    "enter_time": 1779667200000,
-    "cls": "b",
-    "note": "gap at open through exit level",
-    "nora": [
-     67003.2,
-     1779685200000,
-     68065.2,
-     "TP"
-    ],
-    "naut": [
-     67003.2,
-     1779685200000,
-     67673.232,
-     "TP"
-    ]
-   },
-   {
-    "enter_time": 1780106400000,
-    "cls": "b",
-    "note": "DCA limit gapped through at bar open: Nora fills the layer at open (62378.3), Nautilus at its limit price (62699.2285); qty/avg/TP/SL levels then differ",
-    "nora": [
-     63014.3,
-     1780117200000,
-     62049.6,
-     "SIG"
-    ],
-    "naut": [
-     63014.3,
-     1780117200000,
-     62049.6,
-     "SIG"
-    ]
-   },
-   {
-    "enter_time": 1781334000000,
-    "cls": "b",
-    "note": "gap at open through exit level",
-    "nora": [
-     54315.4,
-     1781359200000,
-     55338.0,
-     "TP"
-    ],
-    "naut": [
-     54315.4,
-     1781359200000,
-     54858.554,
-     "TP"
-    ]
-   },
-   {
     "enter_time": 1781715600000,
     "cls": "a",
-    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 56138.3020 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
+    "note": "same L-tick DCA fill(s) + stale SL: both engines exit at the old SL level (placed from the pre-DCA avg) 56138.3020 (since 2026-10-06 Nora keeps the stale SL too); Nautilus also fills the lower layer(s) in the same tick before the SL (4 layers vs Nora 3), Nora stops first in the descending sweep",
     "nora": [
      56993.2,
-     1781722800000,
-     55387.35449679574,
+     1781719200000,
+     56138.301999999996,
      "SL"
     ],
     "naut": [
@@ -6908,132 +6290,13 @@
     ]
    },
    {
-    "enter_time": 1783724400000,
-    "cls": "b",
-    "note": "gap at open through exit level",
-    "nora": [
-     54452.4,
-     1783731600000,
-     55245.3,
-     "TP"
-    ],
-    "naut": [
-     54452.4,
-     1783731600000,
-     54996.924000000006,
-     "TP"
-    ]
-   },
-   {
-    "enter_time": 1785258000000,
-    "cls": "b",
-    "note": "gap at open through exit level",
-    "nora": [
-     50564.5,
-     1785272400000,
-     51202.4,
-     "TP"
-    ],
-    "naut": [
-     50564.5,
-     1785272400000,
-     50916.62751149,
-     "TP"
-    ]
-   },
-   {
-    "enter_time": 1785351600000,
-    "cls": "a",
-    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 50902.4360 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
-    "nora": [
-     51677.6,
-     1785355200000,
-     50934.2,
-     "SIG"
-    ],
-    "naut": [
-     51677.6,
-     1785351600000,
-     50902.435999999994,
-     "SL"
-    ]
-   },
-   {
-    "enter_time": 1786276800000,
-    "cls": "b",
-    "note": "DCA limit gapped through at bar open: Nora fills the layer at open (53056.3), Nautilus at its limit price (53315.5825); qty/avg/TP/SL levels then differ",
-    "nora": [
-     53583.5,
-     1786320000000,
-     52755.9,
-     "SIG"
-    ],
-    "naut": [
-     53583.5,
-     1786320000000,
-     52755.9,
-     "SIG"
-    ]
-   },
-   {
-    "enter_time": 1786892400000,
-    "cls": "b",
-    "note": "DCA limit gapped through at bar open: Nora fills the layer at open (48082.3), Nautilus at its limit price (48161.382999999994); qty/avg/TP/SL levels then differ",
-    "nora": [
-     48403.4,
-     1786917600000,
-     47971.7,
-     "SIG"
-    ],
-    "naut": [
-     48403.4,
-     1786917600000,
-     47971.700000000004,
-     "SIG"
-    ]
-   },
-   {
-    "enter_time": 1786935600000,
-    "cls": "b",
-    "note": "gap at open through exit level",
-    "nora": [
-     48336.2,
-     1786950000000,
-     48878.6,
-     "TP"
-    ],
-    "naut": [
-     48336.2,
-     1786950000000,
-     48819.562,
-     "TP"
-    ]
-   },
-   {
-    "enter_time": 1788915600000,
-    "cls": "a",
-    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 57383.9032 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
-    "nora": [
-     58684.4,
-     1788969600000,
-     57706.7,
-     "SIG"
-    ],
-    "naut": [
-     58684.4,
-     1788966000000,
-     57383.90316868,
-     "SL"
-    ]
-   },
-   {
     "enter_time": 1789131600000,
     "cls": "a",
     "note": "DCA & TP reachable in same bar: Nora=TP, Nautilus=TP",
     "nora": [
      57281.3,
      1789135200000,
-     58172.1,
+     57680.20284068137,
      "TP"
     ],
     "naut": [
@@ -7049,74 +6312,6 @@
     "note": "nautilus-only trade inside cascade window of an earlier classified divergence",
     "nora": null,
     "naut": null
-   },
-   {
-    "enter_time": 1790330400000,
-    "cls": "a",
-    "note": "same-tick DCA fill + stale SL: Nautilus SL (placed from the pre-DCA avg) fired at its old level 63398.9340 in the same L-tick as the DCA fill; Nora recomputes avg/SL after each layer",
-    "nora": [
-     64364.4,
-     1790344800000,
-     63215.0,
-     "SIG"
-    ],
-    "naut": [
-     64364.4,
-     1790337600000,
-     63398.933999999994,
-     "SL"
-    ]
-   },
-   {
-    "enter_time": 1790460000000,
-    "cls": "b",
-    "note": "gap at open through exit level",
-    "nora": [
-     62958.4,
-     1790492400000,
-     63589.4,
-     "TP"
-    ],
-    "naut": [
-     62958.4,
-     1790492400000,
-     63587.984,
-     "TP"
-    ]
-   },
-   {
-    "enter_time": 1790535600000,
-    "cls": "b",
-    "note": "DCA limit gapped through at bar open: Nora fills the layer at open (63947.5), Nautilus at its limit price (64143.3715); qty/avg/TP/SL levels then differ",
-    "nora": [
-     64465.7,
-     1790550000000,
-     63580.4,
-     "SIG"
-    ],
-    "naut": [
-     64465.7,
-     1790550000000,
-     63580.4,
-     "SIG"
-    ]
-   },
-   {
-    "enter_time": 1790852400000,
-    "cls": "b",
-    "note": "gap at open through exit level",
-    "nora": [
-     63649.0,
-     1790863200000,
-     64130.7,
-     "TP"
-    ],
-    "naut": [
-     63648.99999999999,
-     1790863200000,
-     64092.24703810999,
-     "TP"
-    ]
    }
   ]
  }
