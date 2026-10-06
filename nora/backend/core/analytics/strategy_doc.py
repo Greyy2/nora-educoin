@@ -4,7 +4,8 @@ Công thức dựng từ CÂY KHUÔN của chiến lược (strategy/book.py CAN
 đúng cấu trúc engine đang chạy; nhãn tham số lấy từ params_schema. Thống kê = các alpha đã qua kiểm định của chiến lược đó trong sổ chính + sổ thử nghiệm
 (mọi khung giờ gộp chung). Danh mục: STRATEGIES; chiến lược có "doc": "combined" (Sideway) là MỘT mục gồm cả hai chiều.
 
-    catalog() -> {"sources": [{"key": "nora", "label": "Nora", "strategies": [{key, name, kind, side, idea, plain, math, stats}, ...]}]}
+    catalog() -> {"sources": [{"key": "nora", "label": "Nora", "strategies": [{key, name, kind, side, idea, plain, math, params, groups, stats}, ...]}]}
+    plain: câu tiếng Việt, ký hiệu toán nằm trong $…$ (UI hiện bằng KaTeX nội dòng).
 """
 import json
 import os
@@ -22,6 +23,11 @@ BAND = {"bbl": ("BB", "lo", "dải dưới Bollinger"), "bbu": ("BB", "up", "d�
 STAT_KEYS = ("ret_pct", "mdd_pct", "sharpe", "profit_factor", "win_rate", "trades")
 STAGES = ("FINAL", "S6_holdout", "S5_sizing", "S4_montecarlo", "S3_wfa", "S2_antiluck", "S1_backtest")
 _PH = re.compile(r"\{(\w+)\}")
+# Ký hiệu tham số vị thế — CÙNG ký hiệu dùng trong công thức thoát lệnh / dồn lệnh / khối lượng bên dưới
+POSITION_SYM = {"dca_step_pct": "s", "dca_max_layers": "K", "dca_size_multiplier": "m", "stop_loss_rate": "s_L", "take_profit_rate": "s_T",
+                "trailing_stop": "s_R", "trailing_activation_pct": "a", "timeout": r"T_{\max}", "cooldown": r"T_{\mathrm{cd}}",
+                "atr_frame": r"\tau_{\nu}", "atr_period": r"n_{\nu}", "risk_per_trade_pct": "r", "max_notional_pct": "c", "leverage": r"\lambda_{\max}"}
+GROUPS = (("signal", "Tín hiệu"), ("dca", "Dồn lệnh"), ("exit", "Thoát lệnh"), ("risk", "Rủi ro & khối lượng"))
 
 
 def vn(x: Any) -> str:
@@ -42,6 +48,39 @@ def psym(name: str) -> str:
     if len(t) > 1 and t[-1] in ("n", "k", "m"):
         return t[-1]
     return rf"{t[0]}_{{\mathrm{{{rest}}}}}" if len(t) > 1 else t[0]
+
+
+def param_symbol(key: str) -> str:
+    """Khoá tham số (params_schema) -> ký hiệu LaTeX trong công thức: sig.rsi_lo -> θ^{RSI}_{lo}; sig.rsi_n -> RSI_n; sig.entry_tf -> τ_entry; stop_loss_rate -> s_L."""
+    if key in POSITION_SYM:
+        return POSITION_SYM[key]
+    name = key[4:] if key.startswith("sig.") else key
+    t = name.split("_")
+    if t[-1] == "tf":
+        return fsym("{" + name + "}")
+    if len(t) == 2 and t[-1] in ("n", "k", "m"):
+        return rf"\mathrm{{{t[0].upper()}}}_{{{t[-1]}}}"
+    return psym(name)
+
+
+def _fmt(v: Any) -> str:
+    return vn(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else str(v)
+
+
+def param_table(cands: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Tham số TỔNG QUÁT của chiến lược (hợp các chân): ký hiệu, nhãn, đơn vị, miền chỉnh, mặc định, lưới phễu — theo nhóm tín hiệu → dồn → thoát → rủi ro."""
+    rows: Dict[str, Dict[str, Any]] = {}
+    for c in cands:
+        space = c.get("space") or {}
+        for key, sc in (c.get("params_schema") or {}).items():
+            if key in rows:
+                continue
+            rng = " · ".join(map(str, sc["choices"])) if sc.get("type") == "choice" else f"{_fmt(sc.get('min'))} – {_fmt(sc.get('max'))}"
+            rows[key] = {"key": key, "symbol": param_symbol(key), "label": sc.get("label_vi") or key, "unit": sc.get("unit") or "",
+                         "group": sc.get("group") or "", "range": rng, "default": _fmt(sc.get("default")),
+                         "grid": " · ".join(_fmt(v) for v in space[key]) if key in space else "", "help": sc.get("help_vi") or ""}
+    order = {g: i for i, (g, _) in enumerate(GROUPS)}
+    return sorted(rows.values(), key=lambda r: order.get(r["group"], len(order)))
 
 
 def fsym(frame: str) -> str:
@@ -161,27 +200,27 @@ def conditions(tree: Any, schema: Dict[str, Any]) -> Tuple[List[str], List[str]]
 # ─── Một mục chiến lược ─────────────────────────────────────────────────────
 def _exits(cand: Dict[str, Any], side: str) -> Tuple[List[str], List[str]]:
     sch = cand.get("params_schema") or {}
-    adv, fav = ("-", "+") if side == "LONG" else ("+", "-")
+    adv, fav = {"LONG": ("-", "+"), "SHORT": ("+", "-")}.get(side, (r"\mp ", r"\pm "))   # hai chiều: dấu trên = Long, dấu dưới = Short
     tex = [r"\nu=\mathrm{ATR\%}(t_0)"]
     words = []
     if "dca_step_pct" in sch:
         cmp_ = r"\le" if side == "LONG" else r"\ge"
         tex.append(rf"P_k=P_{{k-1}}(1{adv}s\,\nu),\quad q_k=q_0\,m^{{k}},\quad k\le K,\quad \mathrm{{Gate}}_t=1")
-        words.append("Giá đi ngược thì dồn tầng k cách tầng trước s × ATR%, khối lượng ×m mỗi tầng, tối đa K tầng — chỉ khi điều kiện dồn còn đúng.")
+        words.append("Giá đi ngược thì dồn tầng $k$ cách tầng trước $s\\nu$ ($\\nu$ = ATR%), khối lượng ×$m$ mỗi tầng, tối đa $K$ tầng — chỉ khi điều kiện dồn còn đúng.")
     pbar = r"\bar P" if "dca_step_pct" in sch else r"P_0"
     ref = "giá trung bình" if "dca_step_pct" in sch else "giá vào"
     tex.append(rf"\mathrm{{SL}}={pbar}(1{adv}s_L\nu),\quad \mathrm{{TP}}={pbar}(1{fav}s_T\nu)")
-    words.append(f"Cắt lỗ s_L × ATR%, chốt lời s_T × ATR% tính từ {ref}.")
+    words.append(f"Cắt lỗ $s_L\\nu$, chốt lời $s_T\\nu$ tính từ {ref}.")
     if "trailing_stop" in sch:
-        ext = r"\max H" if side == "LONG" else r"\min L"
+        ext = {"LONG": r"\max H", "SHORT": r"\min L"}.get(side, r"\max H\ /\ \min L")
         tex.append(rf"\mathrm{{Trail}}=P^*(1{adv}s_R\nu),\quad P^*={ext},\quad \frac{{|P^*-{pbar}|}}{{{pbar}}}\ge a\,\nu")
-        words.append("Trailing: lãi đạt a × ATR% thì bật, dừng cách đỉnh lãi s_R × ATR%.")
+        words.append("Trailing: lãi đạt $a\\nu$ thì bật, dừng cách đỉnh lãi $s_R\\nu$.")
     return tex, words
 
 
 def _sizing() -> Tuple[str, str]:
     return (r"N=\min\!\left(\frac{E\,r}{s_L\nu+2(f+\epsilon)},\ E\,c\right),\quad \lambda\le\left\lfloor\frac{1}{1.5\,s_L\nu+\mathrm{mmr}}\right\rfloor",
-            "Khối lượng tính ngược từ rủi ro: chạm cắt lỗ (gồm mọi tầng, phí, trượt) chỉ mất r% vốn; đòn bẩy tự hạ để luôn cắt lỗ trước khi thanh lý.")
+            "Khối lượng tính ngược từ rủi ro: chạm cắt lỗ (gồm mọi tầng, phí, trượt) chỉ mất $r$% vốn; đòn bẩy tự hạ để luôn cắt lỗ trước khi thanh lý.")
 
 
 def _main_frame(tree: Any) -> Optional[str]:
@@ -214,6 +253,33 @@ def leg_doc(cand: Dict[str, Any], label: str = "") -> Dict[str, Any]:
     return {"plain": plain, "math": math, "side": side}
 
 
+def _off(key: str, value: Any) -> bool:
+    """NGƯỠNG (…_lo/_hi/_max/_min, gate_…) nằm ngoài miền chỉ báo (vd sig.gate_rsi = 101 với RSI 0..100) = điều kiện đang TẮT."""
+    t = (key[4:] if key.startswith("sig.") else key).split("_")
+    if t[0] == "gate" and len(t) > 1:
+        kernel = t[1]
+    elif t[-1] in ("lo", "hi", "max", "min"):
+        kernel = t[0]
+    else:
+        return False
+    spec = REGISTRY.get(kernel)
+    if spec is None or ".." not in spec.unit or not isinstance(value, (int, float)) or isinstance(value, bool):
+        return False
+    lo, hi = (float(x) for x in spec.unit.split(".."))
+    return not lo <= float(value) <= hi
+
+
+def alpha_params(it: Dict[str, Any], book: Dict[str, Any]) -> Dict[str, str]:
+    """Giá trị tham số của một alpha cho bảng tham số: khoá thiếu lấy mặc định của schema (rủi ro mỗi lệnh = mức của sổ); ngưỡng ngoài miền = "tắt"."""
+    from backend.core.strategy.book import BY_ID
+    sch = (BY_ID.get(it.get("id")) or {}).get("params_schema") or {}
+    vals = {k: sc.get("default") for k, sc in sch.items()}
+    vals.update(it.get("params") or {})
+    if "risk_per_trade_pct" not in (it.get("params") or {}) and book.get("risk_per_trade_pct") is not None:
+        vals["risk_per_trade_pct"] = book["risk_per_trade_pct"]
+    return {k: ("tắt" if _off(k, v) else _fmt(v)) for k, v in vals.items()}
+
+
 def _alphas_of(leg_ids: List[str], books: List[Tuple[str, Dict[str, Any]]]) -> List[Dict[str, Any]]:
     out = []
     for kind, book in books:
@@ -225,6 +291,7 @@ def _alphas_of(leg_ids: List[str], books: List[Tuple[str, Dict[str, Any]]]) -> L
             m = sm.get(stage) or {}
             out.append({"leg": it["id"], "side": it.get("side"), "timeframe": book.get("timeframe"), "book": kind,
                         "alpha_id": (it.get("evidence") or {}).get("funnel_alpha_id"), "stage": stage,
+                        "params": alpha_params(it, book),
                         **{k: m.get(k) for k in STAT_KEYS}})
     return out
 
@@ -253,7 +320,9 @@ def catalog(alphas_dir: Optional[str] = None) -> Dict[str, Any]:
             cands = [BY_ID[cid] for _, cid in group]
             label = len(group) > 1
             docs = [leg_doc(c, ("Long:" if c["side"] == "LONG" else "Short:") if label else "") for c in cands]
-            ex_tex, ex_w = _exits(cands[0], cands[0]["side"])
+            ex_tex, ex_w = _exits(cands[0], "BOTH" if label else cands[0]["side"])
+            if label:
+                ex_w.append("Hai chiều đối xứng: dấu trên cho Long, dấu dưới cho Short.")
             items.append({
                 "key": "_".join([st["id"]] + ([] if label else [group[0][0].lower()])),
                 "strategy": st["id"], "name": st["name"], "kind": st["kind"],
@@ -263,7 +332,7 @@ def catalog(alphas_dir: Optional[str] = None) -> Dict[str, Any]:
                 "math": [m for d in docs for m in d["math"]] + [{"title": "Dồn lệnh & thoát lệnh" if "dca_step_pct" in (cands[0].get("params_schema") or {})
                                                                         else "Thoát lệnh", "latex": r" \\ ".join(ex_tex)},
                                                                {"title": "Khối lượng", "latex": sizing_tex}],
-                "params": sorted({k for c in cands for k in (c.get("params_schema") or {})}),
+                "params": param_table(cands), "groups": [{"key": g, "label": lbl} for g, lbl in GROUPS],
                 "stats": _alphas_of([cid for _, cid in group], books),
             })
     return {"sources": [{"key": "nora", "label": "Nora", "strategies": items}]}

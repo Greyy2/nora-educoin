@@ -14,6 +14,77 @@ function best(stats) {
   return (stats || []).reduce((b, x) => (b == null || (x.ret_pct ?? -1e9) > (b.ret_pct ?? -1e9) ? x : b), null)
 }
 
+/** Câu có ký hiệu toán trong $…$ -> chữ + KaTeX nội dòng. */
+function Rich({ text }) {
+  return String(text).split(/(\$[^$]+\$)/).map((x, i) => (x.startsWith('$') && x.endsWith('$') && x.length > 2
+    ? <MathBlock key={i} latex={x.slice(1, -1)} inline /> : <React.Fragment key={i}>{x}</React.Fragment>))
+}
+
+const aHead = (a) => `${a.timeframe} · ${a.side === 'LONG' ? 'L' : 'S'}`
+const aTitle = (a) => `${a.alpha_id || a.leg} · ${BOOK[a.book] || a.book}`
+
+function Results({ stats }) {
+  return (
+    <div className="n-tblwrap">
+      <table className="n-tbl n-ad-res">
+        <thead><tr><th>Alpha</th><th className="r">Lợi nhuận</th><th className="r">MDD</th><th className="r">Sharpe</th><th className="r">PF</th><th className="r">Thắng</th><th className="r">Lệnh</th></tr></thead>
+        <tbody>
+          {stats.map((a) => (
+            <tr key={`${a.book}:${a.leg}`}>
+              <td title={aTitle(a)}><b>{aHead(a)}</b> <span className="mono muted">{(a.alpha_id || a.leg).slice(0, 8)}</span> <span className="n-badge">{BOOK[a.book] || a.book}</span></td>
+              <td className={`r ${signClass(a.ret_pct)}`}>{fmtSPct(a.ret_pct, 1)}</td>
+              <td className="r">{fmtPct(a.mdd_pct, 2)}</td>
+              <td className="r">{fmtNum(a.sharpe, 2)}</td>
+              <td className="r">{fmtNum(a.profit_factor, 2)}</td>
+              <td className="r">{fmtPct(a.win_rate, 1)}</td>
+              <td className="r">{fmtNum(a.trades, 0)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function ParamTable({ s }) {
+  const cols = 4 + s.stats.length
+  return (
+    <div className="n-tblwrap">
+      <table className="n-tbl n-ad-params">
+        <thead>
+          <tr>
+            <th>Ký hiệu</th><th>Tham số</th><th>Miền chỉnh</th><th className="r">Mặc định</th>
+            {s.stats.map((a) => <th key={`${a.book}:${a.leg}`} className="r" title={aTitle(a)}>{aHead(a)}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {(s.groups || []).map((g) => {
+            const rows = s.params.filter((p) => p.group === g.key)
+            if (!rows.length) return null
+            return (
+              <React.Fragment key={g.key}>
+                <tr className="grp"><td colSpan={cols}>{g.label}</td></tr>
+                {rows.map((p) => (
+                  <tr key={p.key} title={p.help}>
+                    <td className="sym"><MathBlock latex={p.symbol} label={p.label} inline /></td>
+                    <td>{p.label}{p.unit && <span className="muted"> ({p.unit})</span>}</td>
+                    <td className="mono rng">{p.range}{p.grid && <div className="muted grid" title="Lưới phễu tìm kiếm">lưới: {p.grid}</div>}</td>
+                    <td className="r mono muted">{p.default}</td>
+                    {s.stats.map((a) => {
+                      const v = a.params?.[p.key]
+                      return <td key={`${a.book}:${a.leg}`} className={`r mono ${v === 'tắt' ? 'muted' : 'val'}`}>{v ?? '—'}</td>
+                    })}
+                  </tr>
+                ))}
+              </React.Fragment>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 function StrategyDoc({ s, onClose }) {
   const box = useRef(null)
   useEffect(() => {
@@ -39,7 +110,7 @@ function StrategyDoc({ s, onClose }) {
             <section className="n-ad-sec"><h3>Ý tưởng</h3><p className="n-ad-idea">{s.idea}</p></section>
             <section className="n-ad-sec">
               <h3>Công thức</h3>
-              <ul className="n-ad-plain">{s.plain.map((x, i) => <li key={i}>{x}</li>)}</ul>
+              <ul className="n-ad-plain">{s.plain.map((x, i) => <li key={i}><Rich text={x} /></li>)}</ul>
             </section>
             <section className="n-ad-sec">
               <h3>Công thức toán học</h3>
@@ -49,27 +120,8 @@ function StrategyDoc({ s, onClose }) {
             </section>
             <section className="n-ad-sec">
               <h3>Thống kê</h3>
-              {!s.stats.length ? <p className="n-note">Chưa có alpha nào của chiến lược này qua kiểm định.</p> : (
-                <div className="n-tblwrap">
-                  <table className="n-tbl">
-                    <thead><tr><th>Alpha</th><th>Khung</th><th className="r">Lợi nhuận</th><th className="r">MDD</th><th className="r">Sharpe</th><th className="r">PF</th><th className="r">Thắng</th><th className="r">Lệnh</th></tr></thead>
-                    <tbody>
-                      {s.stats.map((a) => (
-                        <tr key={`${a.book}:${a.leg}`}>
-                          <td><span className="mono">{(a.alpha_id || a.leg).slice(0, 8)}</span> <span className="muted">· {a.side === 'LONG' ? 'Long' : 'Short'} · {BOOK[a.book] || a.book}</span></td>
-                          <td className="mono">{a.timeframe}</td>
-                          <td className={`r ${signClass(a.ret_pct)}`}>{fmtSPct(a.ret_pct, 1)}</td>
-                          <td className="r">{fmtPct(a.mdd_pct, 2)}</td>
-                          <td className="r">{fmtNum(a.sharpe, 2)}</td>
-                          <td className="r">{fmtNum(a.profit_factor, 2)}</td>
-                          <td className="r">{fmtPct(a.win_rate, 1)}</td>
-                          <td className="r">{fmtNum(a.trades, 0)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+              {!s.stats.length ? <p className="n-note">Chưa có alpha nào của chiến lược này qua kiểm định — bảng tham số bên dưới là miền tổng quát.</p> : <Results stats={s.stats} />}
+              <ParamTable s={s} />
             </section>
           </div>
         </div>
