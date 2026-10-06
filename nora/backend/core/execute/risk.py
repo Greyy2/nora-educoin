@@ -25,8 +25,8 @@ def admit_entry(n_open: int, per_symbol_open: int, equity: float, peak: float, g
                 max_positions, max_per_symbol, max_gross_exposure: float, max_open_risk_pct: float = 0.0,
                 dd_throttle_pct: float = 0.0, dd_throttle_floor: float = 0.25) -> Admission:
     """Xét một lệnh vào mới ở giá mở nến.
-    n_open / per_symbol_open: số vị thế đang mở toàn danh mục / của tài sản này. equity / peak: vốn đã chốt và đỉnh của nó.
-    gross: tổng danh nghĩa đang mở (người gọi tính SAU khi đặt giá mở nến hiện tại). open_risk: Σ planned_risk của vị thế mở.
+    n_open / per_symbol_open: số vị thế đang mở toàn danh mục / của tài sản này. equity / peak: vốn đã chốt LÚC MỞ NẾN (chưa gồm lệnh thoát trong nến) và đỉnh của nó.
+    gross: tổng danh nghĩa đang mở, định giá theo đóng nến TRƯỚC (người gọi tính ở pha mở nến, P6.12: không nhìn giá nến hiện tại). open_risk: Σ planned_risk của vị thế mở.
     max_open_risk_pct / dd_throttle_pct = 0 -> tắt quy tắc; peak <= 0 -> bỏ qua dd_throttle."""
     max_new_notional, max_new_risk, risk_scale = INF, INF, 1.0
     blocked = n_open >= int(max_positions) or per_symbol_open >= int(max_per_symbol)

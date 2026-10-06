@@ -293,7 +293,12 @@ class PositionManager:
     def on_bar(self, t: int, o: float, h: float, l: float, c: float,
                entry_signal: bool, stop_signal: bool, can_open: bool = True,
                vol: float = float("nan"), dca_gate: bool = True) -> Optional[PositionModel]:
-        """Một nến 1m có giao dịch — cùng chữ ký và kết quả với `PositionTracker.on_bar` (trả vị thế vừa đóng)."""
+        """Một nến 1m có giao dịch — cùng chữ ký và kết quả với `PositionTracker.on_bar` (= `on_bar_open` + `on_bar_rest`; trả vị thế vừa đóng)."""
+        closed = self.on_bar_open(t, o, h, l, c, can_open)
+        return self.on_bar_rest(t, o, h, l, c, entry_signal, stop_signal, closed, vol, dca_gate)
+
+    def on_bar_open(self, t: int, o: float, h: float, l: float, c: float, can_open: bool = True) -> Optional[PositionModel]:
+        """Pha MỞ nến (như `PositionTracker.on_bar_open`): báo nến cho venue, thoát chờ / hết thời gian giữ ở open, vào lệnh chờ ở open."""
         closed: Optional[PositionModel] = None
         begin_bar = getattr(self.venue, "begin_bar", None)
         if begin_bar is not None:
@@ -309,7 +314,11 @@ class PositionManager:
             self.pending_entry = False
             if can_open:
                 self._open(t, o)
+        return closed
 
+    def on_bar_rest(self, t: int, o: float, h: float, l: float, c: float, entry_signal: bool, stop_signal: bool,
+                    closed: Optional[PositionModel] = None, vol: float = float("nan"), dca_gate: bool = True) -> Optional[PositionModel]:
+        """Pha TRONG nến + cuối nến (như `PositionTracker.on_bar_rest`); `closed` = kết quả `on_bar_open` cùng nến."""
         # 2-3. Trong nến
         if self.is_open and closed is None:
             self.book.mark(h, l)

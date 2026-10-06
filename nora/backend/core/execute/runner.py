@@ -1,12 +1,14 @@
 """Runner (P6.5) — chạy MỘT nến của cả danh mục qua một Venue: nguồn duy nhất của vòng danh mục cho paper / bot (docs/bmad/p6_execution_design.md §5).
 
-Thứ tự y hệt vòng lặp gốc (test/reference_engine.py::RefPortfolioEngine.run, trước đây là `PaperBook.step_bar`): tài sản theo thứ tự sổ ->
-funding (áp cho MỌI slot của tài sản, ở giá open) -> từng slot theo thứ tự sổ: luật bỏ qua, `risk.admit_entry` (gross tính SAU khi gán
-`last_close[b] = open`, chỉ khi qua trần số vị thế) -> đặt trần (max_new_notional / max_new_risk / risk_scale) -> `on_bar` -> xả trần ->
-thu lệnh đóng -> cập nhật last_close/low/high/open -> MTM (mtm, worst) -> `peak_mtm` -> `risk.kill_triggered` -> đóng hết ("Kill switch danh mục").
+Thứ tự y hệt vòng lặp gốc (test/reference_engine.py::RefPortfolioEngine.run), HAI PHA mỗi nến (ADR P6 §10, P6.12):
+pha 1 (mở nến, tài sản theo thứ tự sổ) funding -> từng slot: luật bỏ qua, `risk.admit_entry` (trạng thái LÚC MỞ NẾN, gross theo `last_close` = đóng nến
+trước, chỉ khi qua trần số vị thế) -> đặt trần (max_new_notional / max_new_risk / risk_scale) -> `on_bar_open` -> xả trần -> thu lệnh đóng ở open;
+pha 2 (trong nến, tài sản theo thứ tự sổ) `on_bar_rest` -> thu lệnh đóng -> cập nhật last_close/low/high/open;
+pha 3: MTM (mtm, worst) -> `peak_mtm` -> `risk.kill_triggered` -> đóng hết ("Kill switch danh mục").
+Trước P6.12 mỗi tài sản chạy TRỌN nến rồi mới tới tài sản kế -> lệnh vào của B ở open thấy SL/TP trong nến của A (nhìn trước); nay thì không.
 
 Runner KHÔNG biết slot khớp lệnh thế nào: mỗi slot ("tracker" trong `books`) là một "actor" có giao diện chung của `PositionManager` (đường event,
-điều khiển Venue) và `PositionTracker` (đường cũ): is_open, pending_entry, qty, planned_risk, max_new_*, risk_scale, on_bar, apply_funding,
+điều khiển Venue) và `PositionTracker` (đường cũ): is_open, pending_entry, qty, planned_risk, max_new_*, risk_scale, on_bar_open, on_bar_rest, apply_funding,
 force_close, unrealized_pnl_usd. Nên cùng một vòng danh mục chạy được cho cả hai — test_runner_parity.py dựa vào đó để khoá bit-identical.
 `venue` chỉ được giữ để chủ sở hữu (PaperBook / bot) truy cập; Runner không gọi nó (venue None = đường tracker cũ, không có sàn).
 """
@@ -101,13 +103,22 @@ class Runner:
     # ── một nến ──
     def step_bar(self, t: int, bars: Dict[str, Tuple[float, float, float, float]], sig: Dict[str, List[Dict[str, Any]]],
                  funding: Optional[Dict[str, List[Tuple[int, float]]]] = None) -> List[Dict[str, Any]]:
-        """Một nến chạy ở thời điểm t (open_time). bars[sym] = (o, h, l, c) (tài sản không có nến: bỏ qua); sig[sym] = [{match, stop, vol}]
-        theo thứ tự chiến lược; funding[sym] = [(funding_time, rate)] đến hạn <= t. -> các lệnh đóng ở nến này."""
+        """Một nến chạy ở thời điểm t (open_time), HAI PHA (ADR P6 §10). bars[sym] = (o, h, l, c) (tài sản không có nến: bỏ qua);
+        sig[sym] = [{match, stop, vol}] theo thứ tự chiến lược; funding[sym] = [(funding_time, rate)] đến hạn <= t. -> các lệnh đóng ở nến này.
+
+        Pha 1 — MỞ NẾN, mọi tài sản theo thứ tự sổ: funding -> từng slot: luật bỏ qua, `admit_entry` (trạng thái LÚC MỞ NẾN: vị thế mở
+        sau các lệnh thoát/vào ở open của tài sản đứng trước; chưa tài sản nào chạy trong nến; gross định giá theo `last_close` = đóng nến
+        TRƯỚC; vốn = sổ vốn sau funding + lệnh thoát ở open) -> đặt trần -> `on_bar_open` (thoát chờ / hết hạn, vào lệnh ở open) -> xả trần.
+        Pha 2 — TRONG NẾN, mọi tài sản theo thứ tự sổ: `on_bar_rest` (SL / TP / DCA / trailing / thanh lý theo đường giá + sổ sách cuối nến),
+        rồi cập nhật last_close/low/high/open. Pha 3: MTM -> peak_mtm -> kill switch.
+        Nhờ vậy lệnh vào của tài sản B ở open t KHÔNG thấy lệnh thoát trong nến (SL/TP) hay giá đóng nến của tài sản A đứng trước (không nhìn trước)."""
         n0 = len(self.trades)
         cap = float(self.risk["max_gross_exposure"])
         kill_pct = float(self.risk.get("kill_switch_dd_pct") or 0)
         can_trade = t >= self.trade_start and self.halted_at is None
         touched = False
+        todo: List[Tuple[int, str, Tuple[float, float, float, float], List[Tuple[Dict[str, Any], Dict[str, Any], bool, Any]]]] = []
+        # ── Pha 1: mở nến ──
         for b, bk in enumerate(self.books):
             sym = bk["symbol"]
             if sym not in bars:
@@ -116,6 +127,7 @@ class Runner:
             for ft, rate in (funding or {}).get(sym, []):
                 for e in bk["entries"]:
                     e["tracker"].apply_funding(float(rate), float(o))
+            acts: List[Tuple[Dict[str, Any], Dict[str, Any], bool, Any]] = []
             for e, s in zip(bk["entries"], sig[sym]):
                 tr = e["tracker"]
                 m = bool(s["match"])
@@ -126,7 +138,6 @@ class Runner:
                     n_open, per = self._counts()
                     gross = open_risk = 0.0
                     if n_open < int(self.risk["max_positions"]) and per[b] < int(self.risk["max_per_symbol"]):
-                        self.last_close[b] = float(o)
                         gross = self._gross()
                         open_risk = self._open_risk()
                     adm = admit_entry(n_open, per[b], self.account.equity, self.account.peak, gross, open_risk,
@@ -137,13 +148,22 @@ class Runner:
                     tr.max_new_notional, tr.max_new_risk, tr.risk_scale = adm.max_new_notional, adm.max_new_risk, adm.risk_scale
                     if not can_open:
                         self.rejected_for_risk += 1
-                vol = s.get("vol")
-                pos = tr.on_bar(t, o, h, l, c, entry_signal=m and can_trade, stop_signal=bool(s["stop"]), can_open=can_open,
-                                vol=float(vol) if vol is not None else float("nan"), dca_gate=bool(s.get("dca", True)))
+                closed_open = tr.on_bar_open(t, o, h, l, c, can_open=can_open)
                 tr.max_new_notional = float("inf")
                 tr.max_new_risk = float("inf")
                 tr.risk_scale = 1.0
-                if pos is not None:
+                if closed_open is not None:
+                    self._collect(sym, e, closed_open, l, h)
+                acts.append((e, s, m, closed_open))
+            todo.append((b, sym, (o, h, l, c), acts))
+        # ── Pha 2: trong nến ──
+        for b, sym, (o, h, l, c), acts in todo:
+            for e, s, m, closed_open in acts:
+                tr = e["tracker"]
+                vol = s.get("vol")
+                pos = tr.on_bar_rest(t, o, h, l, c, entry_signal=m and can_trade, stop_signal=bool(s["stop"]), closed=closed_open,
+                                     vol=float(vol) if vol is not None else float("nan"), dca_gate=bool(s.get("dca", True)))
+                if pos is not None and pos is not closed_open:
                     self._collect(sym, e, pos, l, h)
             self.last_close[b], self.last_low[b], self.last_high[b], self.last_open[b] = float(c), float(l), float(h), float(o)
             touched = True

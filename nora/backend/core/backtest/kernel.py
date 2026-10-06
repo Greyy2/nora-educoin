@@ -628,11 +628,10 @@ def _intrabar_adverse(k, t, o, h, l, ML, MH, ja, jb, P, PI, F, I, LG, G, outF, o
 
 
 @njit(**_JIT)
-def _on_bar(k, t, o, h, l, c, ML, MH, ja, jb, entry_signal, stop_signal, can_open, max_new, vol, dca_gate, max_risk, rscale, P, PI, F, I, LG, G,
-            outF, outI, ordF, ordI, closeSeq):
-    """Một nến có giao dịch cho tracker k. Trả True nếu vị thế vừa đóng."""
+def _on_bar_open(k, t, o, can_open, max_new, max_risk, rscale, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq):
+    """Pha MỞ nến của tracker k (ADR P6 §10): thoát chờ / hết thời gian giữ ở open, rồi vào lệnh chờ ở open nếu can_open. Trả True nếu vị thế
+    vừa đóng ở open (truyền cho _on_bar_rest)."""
     closed = False
-    long_ = PI[k, PI_LONG] == 1
     if I[k, I_OPEN] == 1:
         if I[k, I_PX] == 1:
             closed = True
@@ -644,6 +643,16 @@ def _on_bar(k, t, o, h, l, c, ML, MH, ja, jb, entry_signal, stop_signal, can_ope
         I[k, I_PE] = 0
         if can_open:
             _open(k, t, o, max_new, max_risk, rscale, P, PI, F, I, LG, G, outF, outI, ordF, ordI)
+    return closed
+
+
+@njit(**_JIT)
+def _on_bar_rest(k, t, o, h, l, c, ML, MH, ja, jb, entry_signal, stop_signal, closed_open, vol, dca_gate, P, PI, F, I, LG, G,
+                 outF, outI, ordF, ordI, closeSeq):
+    """Pha TRONG nến + cuối nến của tracker k: SL / TP / DCA / trailing / thanh lý theo đường giá, sổ sách cuối nến (đỉnh, MAE, cờ vào / thoát
+    chờ). closed_open = kết quả _on_bar_open cùng nến. Trả True nếu vị thế đóng trong nến NÀY (cả đóng ở open thì trả closed_open)."""
+    closed = closed_open
+    long_ = PI[k, PI_LONG] == 1
     if I[k, I_OPEN] == 1 and not closed:
         pidx = I[k, I_POS]
         if h > outF[pidx, O_MAXP]:
@@ -670,6 +679,15 @@ def _on_bar(k, t, o, h, l, c, ML, MH, ja, jb, entry_signal, stop_signal, can_ope
         F[k, F_PVOL] = vol
     I[k, I_DCAOK] = 1 if dca_gate else 0
     return closed
+
+
+@njit(**_JIT)
+def _on_bar(k, t, o, h, l, c, ML, MH, ja, jb, entry_signal, stop_signal, can_open, max_new, vol, dca_gate, max_risk, rscale, P, PI, F, I, LG, G,
+            outF, outI, ordF, ordI, closeSeq):
+    """Một nến có giao dịch cho tracker k (đường đơn tài sản) = _on_bar_open + _on_bar_rest. Trả True nếu vị thế vừa đóng."""
+    closed = _on_bar_open(k, t, o, can_open, max_new, max_risk, rscale, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq)
+    return _on_bar_rest(k, t, o, h, l, c, ML, MH, ja, jb, entry_signal, stop_signal, closed, vol, dca_gate, P, PI, F, I, LG, G,
+                        outF, outI, ordF, ordI, closeSeq)
 
 
 @njit(**_JIT)
@@ -845,6 +863,8 @@ def portfolio_kernel(PB, BL, PE, tr_book, book_off, P, PI, F, I, cfg_i, cfg_f,
     halted_at = NONE_I
     ruined_at = NONE_I
     busy = False
+    act = np.zeros(nt, dtype=np.bool_)         # slot có chạy ở nến này (pha 1 quyết định, pha 2 dùng)
+    cl_open = np.zeros(nt, dtype=np.bool_)     # slot đã đóng ở open nến này (pha 1)
     g = 0
     while g < n:
         if G[G_OVF] != 0:
@@ -1005,6 +1025,8 @@ def portfolio_kernel(PB, BL, PE, tr_book, book_off, P, PI, F, I, cfg_i, cfg_f,
         can_trade = t >= trade_start and not halted
         touched = False
         busy = False
+        # Pha 1 — MỞ NẾN (mọi sổ theo thứ tự): funding, rồi từng slot: luật bỏ qua, xét hạn mức (trạng thái LÚC MỞ NẾN: lg/lg_i còn là nến
+        # TRƯỚC nên gross theo đóng nến trước, vốn = sổ vốn sau funding + lệnh thoát ở open) và thoát / vào ở open. Chưa sổ nào chạy trong nến.
         for b in range(nb):
             if BL[b, 2] == 0:
                 i = g
@@ -1013,26 +1035,17 @@ def portfolio_kernel(PB, BL, PE, tr_book, book_off, P, PI, F, I, cfg_i, cfg_f,
                 if i < 0:
                     continue
             o = Os[b][i]
-            h = Hs[b][i]
-            l = Ls[b][i]
-            c = Cs[b][i]
-            if BL[b, 4] > 0:
-                ja = MAs[b][i]
-                jb = MBs[b][i]
-            else:
-                ja = 0
-                jb = 0
             fe = BL[b, 1]
             while f_ptr[b] < fe and Fts[b][f_ptr[b]] <= t:
                 rate = Frs[b][f_ptr[b]]
                 for k in range(book_off[b], book_off[b + 1]):
                     _apply_funding(k, rate, o, PI, F, I, LG)
                 f_ptr[b] += 1
-            o_set = False
             for k in range(book_off[b], book_off[b + 1]):
-                sig = Ms[k][i]
-                if I[k, I_OPEN] == 0 and I[k, I_PE] == 0 and not sig:
+                if I[k, I_OPEN] == 0 and I[k, I_PE] == 0 and not Ms[k][i]:
+                    act[k] = False
                     continue
+                act[k] = True
                 can_open = False
                 max_new = np.inf
                 max_risk = np.inf
@@ -1047,12 +1060,9 @@ def portfolio_kernel(PB, BL, PE, tr_book, book_off, P, PI, F, I, cfg_i, cfg_f,
                                 per_b += 1
                     blocked = n_open >= max_pos or per_b >= max_per
                     if not blocked:
-                        o_set = True
                         total = 0.0
                         for bb in range(nb):
-                            if bb == b and o_set:
-                                px = o
-                            elif lg[bb] >= 0:
+                            if lg[bb] >= 0:
                                 px = Cs[bb][lg_i[bb]]
                             else:
                                 continue
@@ -1083,13 +1093,39 @@ def portfolio_kernel(PB, BL, PE, tr_book, book_off, P, PI, F, I, cfg_i, cfg_f,
                         if I[k, I_BLK] != g - 1:
                             G[G_ATT] += 1
                         I[k, I_BLK] = g
+                closed = _on_bar_open(k, t, o, can_open, max_new, max_risk, rscale, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq)
+                cl_open[k] = closed
+                if closed and LG[LG_EQ] <= 0.0 and ruined_at == NONE_I:
+                    ruined_at = t
+        # Pha 2 — TRONG NẾN (mọi sổ theo thứ tự): SL / TP / DCA / trailing / thanh lý + sổ sách cuối nến, rồi lg/lg_i (= nến này).
+        for b in range(nb):
+            if BL[b, 2] == 0:
+                i = g
+            else:
+                i = Ims[b][g]
+                if i < 0:
+                    continue
+            o = Os[b][i]
+            h = Hs[b][i]
+            l = Ls[b][i]
+            c = Cs[b][i]
+            if BL[b, 4] > 0:
+                ja = MAs[b][i]
+                jb = MBs[b][i]
+            else:
+                ja = 0
+                jb = 0
+            for k in range(book_off[b], book_off[b + 1]):
+                if not act[k]:
+                    continue
+                sig = Ms[k][i]
                 vol = Vs[k][i] if PE[k, 3] == 1 else np.nan
                 gate = Gs[k][i] if PE[k, 5] == 1 else True
-                closed = _on_bar(k, t, o, h, l, c, MLs[b], MHs[b], ja, jb, sig and can_trade, Ss[k][i], can_open, max_new, vol, gate,
-                                 max_risk, rscale, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq)
+                closed = _on_bar_rest(k, t, o, h, l, c, MLs[b], MHs[b], ja, jb, sig and can_trade, Ss[k][i], cl_open[k], vol, gate,
+                                      P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq)
                 if I[k, I_OPEN] == 1 or I[k, I_PE] == 1:
                     busy = True
-                if closed and LG[LG_EQ] <= 0.0 and ruined_at == NONE_I:
+                if closed and (not cl_open[k]) and LG[LG_EQ] <= 0.0 and ruined_at == NONE_I:
                     ruined_at = t
             lg[b] = g
             lg_i[b] = i

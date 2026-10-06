@@ -401,8 +401,13 @@ class RefPositionTracker:
     def on_bar(self, t: int, o: float, h: float, l: float, c: float,
                entry_signal: bool, stop_signal: bool, can_open: bool = True,
                vol: float = float("nan"), dca_gate: bool = True) -> Optional[PositionModel]:
-        """Xử lý một nến 1m có giao dịch. Trả vị thế vừa đóng (nếu có).
+        """Xử lý một nến 1m có giao dịch = on_bar_open + on_bar_rest. Trả vị thế vừa đóng (nếu có).
         vol = ATR% (natr) của khung atr_frame đã đóng tại cuối nến này — dùng khi lệnh vào chờ được đặt ở nến này."""
+        closed = self.on_bar_open(t, o, h, l, c, can_open)
+        return self.on_bar_rest(t, o, h, l, c, entry_signal, stop_signal, closed, vol, dca_gate)
+
+    def on_bar_open(self, t: int, o: float, h: float, l: float, c: float, can_open: bool = True) -> Optional[PositionModel]:
+        """Pha MỞ nến: thoát chờ / hết thời gian giữ ở open, rồi vào lệnh chờ ở open (nếu can_open). Trả vị thế vừa đóng ở open."""
         closed: Optional[PositionModel] = None
 
         # 1. Đầu nến
@@ -415,7 +420,11 @@ class RefPositionTracker:
             self.pending_entry = False
             if can_open:
                 self._open(t, o)
+        return closed
 
+    def on_bar_rest(self, t: int, o: float, h: float, l: float, c: float, entry_signal: bool, stop_signal: bool,
+                    closed: Optional[PositionModel] = None, vol: float = float("nan"), dca_gate: bool = True) -> Optional[PositionModel]:
+        """Pha TRONG nến + cuối nến; closed = kết quả on_bar_open cùng nến."""
         # 2-3. Trong nến
         if self.is_open and closed is None:
             if self.position is not None:
@@ -983,6 +992,9 @@ class RefPortfolioEngine:
             can_trade = t >= self.trade_start_ts and self.halted_at is None
             touched = False
             busy = False
+            # Pha 1 — MỞ NẾN (mọi tài sản theo thứ tự sổ): funding, rồi từng tracker: xét hạn mức (trạng thái lúc mở nến: gross theo
+            # last_close = đóng nến TRƯỚC, vốn sau funding + lệnh thoát ở open) và vào / thoát ở open. Chưa tài sản nào chạy trong nến.
+            todo = []
             for b, book in enumerate(self.books):
                 i = idx_maps[b][g]
                 if i < 0:
@@ -993,6 +1005,7 @@ class RefPortfolioEngine:
                     for e in book["entries"]:
                         e["tracker"].apply_funding(float(d["f_r"][book["f_idx"]]), float(o))
                     book["f_idx"] += 1
+                acts = []
                 for e in book["entries"]:
                     tr = e["tracker"]
                     sig = bool(e["match"][i])
@@ -1003,7 +1016,6 @@ class RefPortfolioEngine:
                         n_open, per = self._open_counts()
                         blocked = n_open >= self.risk.max_positions or per[b] >= self.risk.max_per_symbol
                         if not blocked:
-                            last_close[b] = float(o)  # giá tại thời điểm vào lệnh
                             room = cap * self.ledger.equity - self._gross_notional(last_close)
                             tr.max_new_notional = max(0.0, room)
                             can_open = room > 0
@@ -1027,16 +1039,26 @@ class RefPortfolioEngine:
                             if e.get("blk_g") != g - 1:   # phút trước tracker này không bị chặn -> một lần vào lệnh mới bị chặn
                                 self.risk_blocked_attempts += 1
                             e["blk_g"] = g
-                    pos = tr.on_bar(t, o, h, l, c, entry_signal=sig and can_trade, stop_signal=bool(e["stop"][i]),
-                                    can_open=can_open,
-                                    vol=float(e["vol"][i]) if e["vol"] is not None else float("nan"),
-                                    dca_gate=bool(e["dca"][i]) if e.get("dca") is not None else True)
+                    closed_open = tr.on_bar_open(t, o, h, l, c, can_open=can_open)
                     tr.max_new_notional = float("inf")
                     tr.max_new_risk = float("inf")
                     tr.risk_scale = 1.0
+                    if closed_open is not None:
+                        self._collect(book["symbol"], e, closed_open)
+                        if self.ledger.equity <= 0 and self.ruined_at is None:
+                            self.ruined_at = t
+                    acts.append((e, i, sig, closed_open))
+                todo.append((b, book, i, (o, h, l, c), acts))
+            # Pha 2 — TRONG NẾN (mọi tài sản theo thứ tự sổ): SL / TP / DCA / trailing / thanh lý + sổ sách cuối nến, rồi last_*.
+            for b, book, i, (o, h, l, c), acts in todo:
+                for e, _i, sig, closed_open in acts:
+                    tr = e["tracker"]
+                    pos = tr.on_bar_rest(t, o, h, l, c, entry_signal=sig and can_trade, stop_signal=bool(e["stop"][i]), closed=closed_open,
+                                         vol=float(e["vol"][i]) if e["vol"] is not None else float("nan"),
+                                         dca_gate=bool(e["dca"][i]) if e.get("dca") is not None else True)
                     if tr.is_open or tr.pending_entry:
                         busy = True
-                    if pos is not None:
+                    if pos is not None and pos is not closed_open:
                         self._collect(book["symbol"], e, pos)
                         if self.ledger.equity <= 0 and self.ruined_at is None:
                             self.ruined_at = t

@@ -90,7 +90,7 @@ Quy tắc theo độ phân giải nến (chính sách `intrabar_path="adverse_fi
 
 ## 5. Runner (`core/execute/runner.py`, P6.5)
 
-`Runner(venue, account, slots, risk_cfg)`; `step_bar(t, bars, signals, funding)` giữ đúng thứ tự `PaperBook.step_bar`: funding theo symbol → từng slot theo thứ tự sổ (`risk.admit_entry` với `_gross()` tính sau khi gán `last_close[b] = open`) → MTM, `risk.kill_triggered` → đóng hết ("Kill switch danh mục"). `PaperBook` giữ API cũ, bên trong là `Runner(SimVenue(...))`.
+`Runner(venue, account, slots, risk_cfg)`; `step_bar(t, bars, signals, funding)` chạy HAI PHA mỗi nến (P6.12, ADR mục 10): pha 1 (mở nến) funding theo symbol → từng slot theo thứ tự sổ: `risk.admit_entry` theo trạng thái lúc mở nến (`_gross()` định giá theo `last_close` = đóng nến trước) → `on_bar_open`; pha 2 (trong nến) từng slot `on_bar_rest` rồi cập nhật `last_*`; pha 3 MTM, `risk.kill_triggered` → đóng hết ("Kill switch danh mục"). Lệnh của tài sản đứng sau không thấy SL/TP trong nến hay giá đóng nến của tài sản đứng trước. `PaperBook` giữ API cũ, bên trong là `Runner(SimVenue(...))`.
 
 ## 6. OKX (`live/okx_venue.py`, P6.7) và Bot (P6.8)
 

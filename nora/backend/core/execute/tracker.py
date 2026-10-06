@@ -362,11 +362,17 @@ class PositionTracker:
     def on_bar(self, t: int, o: float, h: float, l: float, c: float,
                entry_signal: bool, stop_signal: bool, can_open: bool = True,
                vol: float = float("nan"), dca_gate: bool = True) -> Optional[PositionModel]:
-        """Xử lý một nến 1m có giao dịch. Trả vị thế vừa đóng (nếu có).
+        """Xử lý một nến 1m có giao dịch = `on_bar_open` + `on_bar_rest` liền nhau (đường đơn tài sản). Trả vị thế vừa đóng (nếu có).
         vol = ATR% (natr) của khung atr_frame đã đóng tại cuối nến này — dùng khi lệnh vào chờ được đặt ở nến này.
         dca_gate = điều kiện DCA tại cuối nến này (True khi chiến lược không có điều kiện) — quyết định nến SAU có được dồn tầng không."""
-        closed: Optional[PositionModel] = None
+        closed = self.on_bar_open(t, o, h, l, c, can_open)
+        return self.on_bar_rest(t, o, h, l, c, entry_signal, stop_signal, closed, vol, dca_gate)
 
+    def on_bar_open(self, t: int, o: float, h: float, l: float, c: float, can_open: bool = True) -> Optional[PositionModel]:
+        """Pha MỞ nến (chỉ thấy giá open): thoát chờ / hết thời gian giữ ở open, rồi vào lệnh chờ ở open (nếu `can_open`). Trả vị thế vừa đóng ở
+        open (None nếu không) — truyền lại cho `on_bar_rest`. Danh mục gọi pha này cho MỌI tài sản (xét hạn mức dựa trên trạng thái lúc mở nến)
+        TRƯỚC khi bất kỳ tài sản nào chạy pha trong nến."""
+        closed: Optional[PositionModel] = None
         # 1. Đầu nến
         if self.is_open:
             if self.pending_exit:
@@ -377,7 +383,12 @@ class PositionTracker:
             self.pending_entry = False
             if can_open:
                 self._open(t, o)
+        return closed
 
+    def on_bar_rest(self, t: int, o: float, h: float, l: float, c: float, entry_signal: bool, stop_signal: bool,
+                    closed: Optional[PositionModel] = None, vol: float = float("nan"), dca_gate: bool = True) -> Optional[PositionModel]:
+        """Pha TRONG nến + cuối nến: SL / TP / DCA / trailing / thanh lý theo đường giá, rồi sổ sách cuối nến (đỉnh, MAE, cờ vào / thoát chờ).
+        `closed` = kết quả của `on_bar_open` cùng nến (đã đóng ở open thì bỏ qua pha trong nến, và nến đó không đặt lệnh vào chờ)."""
         # 2-3. Trong nến
         if self.is_open and closed is None:
             self.book.mark(h, l)
