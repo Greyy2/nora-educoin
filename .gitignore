@@ -62,3 +62,6 @@ _bmad/custom/config.user.toml
 
 # Untracked subprojects
 sova/
+
+# Kết quả nghiên cứu mô phỏng bot top OKX (sinh lại bằng run_*.py)
+nora/test/scripts/okx_top10/out/
