@@ -126,6 +126,13 @@ class OkxAdapter:
         rows = self._req("GET", "/api/v5/public/funding-rate-history", {"instId": inst(sym), "limit": 100})
         return sorted((int(r["fundingTime"]), float(r["realizedRate"] or r["fundingRate"])) for r in rows if int(r["fundingTime"]) >= since)
 
+    def last_price(self, sym: str) -> float:
+        """Giá giao dịch gần nhất (ticker công khai) — bot sàn lấy mẫu giá giữa hai nến (kill switch D3, giá tham chiếu lệnh vào)."""
+        d = self._req("GET", "/api/v5/market/ticker", {"instId": inst(sym)})
+        if not d or not float(d[0].get("last") or 0):
+            raise ExchangeError(f"OKX không có giá last của {inst(sym)}")
+        return float(d[0]["last"])
+
     # ── tài khoản ──
     def check_account(self) -> None:
         cfg = self._req("GET", "/api/v5/account/config", signed=True)[0]

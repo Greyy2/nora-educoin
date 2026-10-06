@@ -66,6 +66,11 @@ class _Slot:
     dca_filled: bool = False
     rejects: Deque[OrderRejected] = field(default_factory=deque)   # lệnh bị từ chối ngay lúc đặt (hợp đồng venue.py): trả ở next_event trước mọi khớp
 
+    def __setstate__(self, state) -> None:
+        """Pickle cũ (paper.pkl của bot đang chạy, trước P6.8b) chưa có `rejects`."""
+        self.__dict__.update(state)
+        self.__dict__.setdefault("rejects", deque())
+
 
 class SimVenue:
     caps = VenueCaps(generates_liquidation=True, native_trailing=False, post_only=False, rounds_qty=False)

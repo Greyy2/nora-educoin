@@ -2,7 +2,7 @@
 Dừng bot: POST /api/studio/book/jobs/{job_id}/cancel (SIGTERM -> bot thoát sau bước hiện tại, trạng thái đã lưu)."""
 import json
 import os
-from typing import Any, Dict
+from typing import Any, Dict, Literal
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -21,6 +21,9 @@ class BotRequest(BaseModel):
     confirm_live: bool = Field(False, description="bắt buộc true với mode live (vốn thật)")
     book: str = Field("main", pattern="^(main|explore)$",
                       description="main = sổ đã kiểm định; explore = sổ thử nghiệm data/alphas/explore (chỉ paper/demo)")
+    engine: Literal["legacy", "unified"] = Field("legacy", description="legacy = bot tự đặt lệnh (mặc định); unified = Runner + PositionManager + OkxVenue (ADR-P6, chỉ demo/live; "
+                                                                      "paper dùng PaperBook event như nhau). Trạng thái unified ở thư mục riêng")
+    equity_drift_halt_pct: float = Field(5.0, ge=0, le=100, description="engine=unified: vốn sàn lệch vốn ảo quá % này -> crit + dừng vào lệnh mới (0 = tắt)")
 
 
 def _running(venue: str, mode: str, book: str = "main"):
@@ -29,10 +32,10 @@ def _running(venue: str, mode: str, book: str = "main"):
             and (j.get("params") or {}).get("venue", "okx") == venue and (j.get("params") or {}).get("book", "main") == book]
 
 
-def _sdir(venue: str, mode: str, book: str) -> str:
+def _sdir(venue: str, mode: str, book: str, engine: str = "legacy") -> str:
     from backend.db.data_layout import cache_dir
     from backend.live.bot import state_key
-    return cache_dir(None, "live", state_key(venue, mode, book))
+    return cache_dir(None, "live", state_key(venue, mode, book, engine))
 
 
 @router.post("/bot")
@@ -44,13 +47,15 @@ def start_bot(req: BotRequest) -> Dict[str, Any]:
     if _running(req.venue, req.mode, req.book):
         raise HTTPException(409, f"bot {req.venue} {req.mode} ({req.book}) đang chạy (job {_running(req.venue, req.mode, req.book)[0].get('id')})")
     return batch_jobs.http_launch("live_bot", {"mode": req.mode, "venue": req.venue, "once": req.once, "capital": req.capital,
-                                               "confirm_live": req.confirm_live, "book": req.book})
+                                               "confirm_live": req.confirm_live, "book": req.book, "engine": req.engine,
+                                               "equity_drift_halt_pct": req.equity_drift_halt_pct})
 
 
 @router.get("/bot")
 def bot_status(mode: str = Query("paper", pattern="^(paper|demo|live)$"), venue: str = Query("okx", pattern="^(okx|binance)$"),
-               events: int = Query(50, ge=0, le=500), book: str = Query("main", pattern="^(main|explore)$")) -> Dict[str, Any]:
-    d = _sdir(venue, mode, book)
+               events: int = Query(50, ge=0, le=500), book: str = Query("main", pattern="^(main|explore)$"),
+               engine: str = Query("legacy", pattern="^(legacy|unified)$")) -> Dict[str, Any]:
+    d = _sdir(venue, mode, book, engine)
     state, evs = None, []
     try:
         with open(os.path.join(d, "state.json"), encoding="utf-8") as fh:
@@ -65,7 +70,7 @@ def bot_status(mode: str = Query("paper", pattern="^(paper|demo|live)$"), venue:
     if state:
         state = {**state, "trades": (state.get("trades") or [])[-100:]}
     return {"venue": venue, "mode": mode, "running": [j.get("id") for j in _running(venue, mode, book)], "state": state,
-            "events": evs, "book": book}
+            "events": evs, "book": book, "engine": engine}
 
 
 def _equity_series(d: str, cap: int = 2000):
@@ -94,11 +99,12 @@ def _equity_series(d: str, cap: int = 2000):
 
 @router.get("/trades")
 def bot_trades(mode: str = Query("paper", pattern="^(paper|demo|live)$"), venue: str = Query("okx", pattern="^(okx|binance)$"),
-               limit: int = Query(200, ge=1, le=2000), book: str = Query("main", pattern="^(main|explore)$")) -> Dict[str, Any]:
+               limit: int = Query(200, ge=1, le=2000), book: str = Query("main", pattern="^(main|explore)$"),
+               engine: str = Query("legacy", pattern="^(legacy|unified)$")) -> Dict[str, Any]:
     """Lệnh của bot để xem biểu đồ tín hiệu: lệnh sàn (demo/live: state.json) + lệnh paper (paper.pkl, cùng engine backtest), vị thế đang mở.
     Thời gian theo ms. book_kind cho biết sổ (main | explore) để gọi POST /api/studio/chart/explain (book + strategy_id)."""
     import pickle
-    d = _sdir(venue, mode, book)
+    d = _sdir(venue, mode, book, engine)
     state: Dict[str, Any] = {}
     try:
         with open(os.path.join(d, "state.json"), encoding="utf-8") as fh:
@@ -140,11 +146,11 @@ def bot_trades(mode: str = Query("paper", pattern="^(paper|demo|live)$"), venue:
 
 @router.get("/compare")
 def bot_compare(mode: str = Query("demo", pattern="^(demo|live)$"), venue: str = Query("okx", pattern="^(okx|binance)$"),
-                book: str = Query("main", pattern="^(main|explore)$")) -> Dict[str, Any]:
+                book: str = Query("main", pattern="^(main|explore)$"), engine: str = Query("legacy", pattern="^(legacy|unified)$")) -> Dict[str, Any]:
     """Lệnh sàn (khớp thật) ghép với lệnh paper bóng cùng nến (engine): chênh giá vào/đóng (bps), % lãi lỗ, số tầng DCA, lệnh lệch."""
     import pickle
     from backend.live.compare import compare_trades
-    d = _sdir(venue, mode, book)
+    d = _sdir(venue, mode, book, engine)
     try:
         with open(os.path.join(d, "state.json"), encoding="utf-8") as fh:
             state = json.load(fh)
@@ -162,3 +168,43 @@ def bot_compare(mode: str = Query("demo", pattern="^(demo|live)$"), venue: str =
     except (SystemExit, OSError, ValueError):
         pass
     return {"venue": venue, "mode": mode, "book": book, "timeframe": tf, **compare_trades(state.get("trades") or [], paper, tf or "1h")}
+
+
+def read_event_rows(path: str):
+    """events.jsonl của bot unified -> (Fill / từ chối của sàn, Fill / từ chối của bóng sim, chuỗi vốn sàn, chuỗi vốn sim). Dòng hỏng bị bỏ qua."""
+    ex, sm, eq_ex, eq_sm = [], [], [], []
+    with open(path, encoding="utf-8") as fh:
+        for line in fh:
+            try:
+                e = json.loads(line)
+            except ValueError:
+                continue
+            if e.get("evt") in ("fill", "reject") and e.get("src") in ("exec", "sim"):
+                (ex if e["src"] == "exec" else sm).append(e)
+            elif e.get("kind") == "step" and isinstance(e.get("bar"), (int, float)):
+                if isinstance(e.get("exchange_equity"), (int, float)) and isinstance(e.get("sim_equity"), (int, float)):
+                    eq_ex.append({"t": int(e["bar"]), "equity": float(e["exchange_equity"])})
+                    eq_sm.append({"t": int(e["bar"]), "equity": float(e["sim_equity"])})
+    return ex, sm, eq_ex, eq_sm
+
+
+@router.get("/compare_events")
+def bot_compare_events(mode: str = Query("demo", pattern="^(demo|live)$"), venue: str = Query("okx", pattern="^(okx|binance)$"),
+                       book: str = Query("main", pattern="^(main|explore)$"), engine: str = Query("unified", pattern="^(legacy|unified)$")) -> Dict[str, Any]:
+    """Đối soát CẤP SỰ KIỆN (P6.8): Fill của sàn (OkxVenue qua manager) ↔ Fill của bóng sim cùng nến, đọc từ events.jsonl của bot unified (dòng evt=fill, src=exec|sim).
+    Trả compare_events: chênh bps theo loại lệnh, độ trễ, dải SL (level / extreme), slippage hiệu chỉnh, ngân sách dung sai, lệch vốn sàn ↔ sim (chuỗi step)."""
+    from backend.live.compare import compare_events
+    d = _sdir(venue, mode, book, engine)
+    path = os.path.join(d, "events.jsonl")
+    try:
+        ex, sm, eq_ex, eq_sm = read_event_rows(path)
+    except OSError:
+        raise HTTPException(404, f"chưa có events.jsonl của bot {venue} {mode} ({book}, engine {engine})")
+    tf = None
+    try:
+        from backend.live.bot import load_book
+        tf = load_book(kind=book, mode="paper").get("timeframe")
+    except (SystemExit, OSError, ValueError):
+        pass
+    return {"venue": venue, "mode": mode, "book": book, "engine": engine, "timeframe": tf, "n_exec": len(ex), "n_sim": len(sm),
+            **compare_events(ex, sm, tf or "1h", exec_equity=eq_ex or None, sim_equity=eq_sm or None)}

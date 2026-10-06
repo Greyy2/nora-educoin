@@ -81,6 +81,13 @@ class OkxVenue:
         for s, sym in (slots or {}).items():
             self.bind(s, sym)
 
+    # ── pickle (unified.pkl của bot): bỏ client (giữ khoá API!) và đồng hồ; bot gắn lại sau khi nạp ──
+    def __getstate__(self) -> Dict[str, Any]:
+        d = dict(self.__dict__)
+        d["client"] = None
+        d["_clock"] = None
+        return d
+
     # ── slot <-> symbol ──
     def bind(self, slot: int, sym: str) -> None:
         for s, st in self._slots.items():

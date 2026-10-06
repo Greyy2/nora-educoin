@@ -10,6 +10,9 @@ demo/live: vào lệnh MARKET đầu nến kế tín hiệu; tầng DCA = lệnh
 SL = lệnh điều kiện reduce-only và TP = limit reduce-only tính từ GIÁ TRUNG BÌNH, đặt lại mỗi khi một tầng DCA khớp; trailing / timeout /
 tín hiệu thoát = đóng market ở nến kế. Đối soát vị thế với sàn mỗi bước; chạy kèm PaperBook "bóng" trên cùng nến để đối chiếu thật / mô phỏng.
 Khối lượng = PositionTracker._risk_margin / order_size_pct (cùng mã engine); giới hạn danh mục và kill switch như PortfolioEngine.
+
+engine (tham số job): "legacy" (mặc định) = mã ở file này, không đổi. "unified" (chỉ demo/live, OKX) = live/unified.py: Runner + PositionManager + OkxVenue + sổ vốn ảo
+(ADR-P6 P6.8b, D1–D5) — trạng thái ở thư mục riêng `<sàn>_<chế độ>_unified`. Paper + unified = chạy đường Bot thường (PaperBook đã là đường event).
 """
 import json
 import os
@@ -22,7 +25,8 @@ from typing import Any, Dict, List, Optional, Tuple
 from backend.utils.jobs import options, write_job_result
 
 DEFAULTS = {"mode": "paper", "venue": "okx", "once": False, "max_steps": 0, "capital": 10000.0, "state_dir": "", "confirm_live": False,
-            "book": "main"}
+            "book": "main", "engine": "legacy", "equity_drift_halt_pct": 5.0}
+ENGINES = ("legacy", "unified")   # legacy = Bot tự đặt lệnh (code cũ); unified = Runner + PositionManager + OkxVenue (live/unified.py, ADR-P6 P6.8b)
 BOOKS = ("main", "explore")     # main = data/alphas/book.json (READY_FOR_TESTNET); explore = data/alphas/explore/book.json (EXPLORE_DEMO)
 EXEC_MODES = ("demo", "live")   # đặt lệnh thật trên sàn: demo = OKX Demo Trading (vốn ảo), live = tài khoản thật
 KLINE_LIMIT = 1500
@@ -62,14 +66,16 @@ def book_strategies(book: Dict[str, Any]) -> List[Dict[str, Any]]:
                         stop_fill="level") for s in book["strategies"]]
 
 
-def state_key(venue: str, mode: str, book: str = "main") -> str:
-    """Thư mục trạng thái của một bot: mỗi (sàn, chế độ, sổ) một thư mục — sổ thử nghiệm chạy song song sổ chính không giẫm trạng thái."""
-    return f"{venue}_{mode}" + ("_explore" if book == "explore" else "")
+def state_key(venue: str, mode: str, book: str = "main", engine: str = "legacy") -> str:
+    """Thư mục trạng thái của một bot: mỗi (sàn, chế độ, sổ) một thư mục — sổ thử nghiệm chạy song song sổ chính không giẫm trạng thái.
+    engine="unified" ở demo/live có thư mục RIÊNG (hậu tố _unified): state.json của hai engine khác hình dạng, đổi engine không làm hỏng trạng thái cũ.
+    Paper: unified = legacy (cùng PaperBook event) nên dùng chung thư mục."""
+    return f"{venue}_{mode}" + ("_explore" if book == "explore" else "") + ("_unified" if engine == "unified" and mode in EXEC_MODES else "")
 
 
 def _archive_stale_state(sdir: str, spath: str, book: Dict[str, Any]) -> None:
     """Trạng thái của sổ KHÁC (book.generated_at khác) -> cất state.json / paper.pkl / events.jsonl vào sdir/archive_<giờ>/ (không xoá)."""
-    names = [n for n in ("state.json", "paper.pkl", "events.jsonl") if os.path.isfile(os.path.join(sdir, n))]
+    names = [n for n in ("state.json", "paper.pkl", "unified.pkl", "events.jsonl") if os.path.isfile(os.path.join(sdir, n))]
     if not names:
         return
     old = None
@@ -83,6 +89,20 @@ def _archive_stale_state(sdir: str, spath: str, book: Dict[str, Any]) -> None:
     for n in names:
         os.replace(os.path.join(sdir, n), os.path.join(dst, n))
     print(f"trạng thái của sổ cũ ({old}) -> {dst}", flush=True)
+
+
+def load_pickle(path: str, log, what: str) -> Any:
+    """Nạp pickle trạng thái; file hỏng / không đọc được -> cất sang <path>.corrupt_<giờ>, ghi sự kiện warn, trả None (bắt đầu lại)."""
+    if not os.path.isfile(path):
+        return None
+    try:
+        with open(path, "rb") as fh:
+            return pickle.load(fh)
+    except Exception as e:                    # EOFError, UnpicklingError, AttributeError (class đổi tên), ImportError ...
+        dst = f"{path}.corrupt_{time.strftime('%Y%m%d_%H%M%S')}"
+        os.replace(path, dst)
+        log({"t": _now_ms(), "kind": "warn", "msg": f"{what} hỏng ({type(e).__name__}: {e}) — đã cất sang {dst}, bắt đầu lại từ trạng thái mới"})
+        return None
 
 
 class State:
@@ -155,7 +175,11 @@ class Bot:
                 s_at[sym] = _bar_sig(v, i)
                 fund[sym] = [(ft, r) for ft, r in (funding or {}).get(sym, []) if prev < ft <= t]
             closed += pb.step_bar(t, bars, s_at, fund)
+            self._after_sim_bar(t, bars)
         return closed
+
+    def _after_sim_bar(self, t: int, bars: Dict[str, Tuple[float, float, float, float]]) -> None:
+        """Móc sau mỗi nến của bóng sim (UnifiedBot xả sự kiện sim ra events.jsonl). Legacy: không làm gì."""
 
     # ── sàn (demo / live) ──
     def _protect(self, sym: str, p: Dict[str, Any]) -> None:
@@ -416,13 +440,22 @@ def run_job(params=None) -> Dict[str, Any]:
     from backend.db.data_layout import cache_dir
     if a.mode not in ("paper",) + EXEC_MODES:
         raise SystemExit("mode phải là paper | demo | live")
+    if a.engine not in ENGINES:
+        raise SystemExit(f"engine phải là một trong {ENGINES}")
     if a.mode == "live" and not a.confirm_live:
         raise SystemExit("mode live đặt lệnh bằng VỐN THẬT — cần confirm_live=true")
+    unified = a.engine == "unified" and a.mode in EXEC_MODES      # paper + unified = PaperBook event (đã là mặc định): chạy đường Bot thường
+    if unified and a.venue != "okx":
+        raise SystemExit("engine=unified chỉ hỗ trợ sàn OKX (OkxVenue)")
     book = load_book(kind=a.book, mode=a.mode)
+    if unified:
+        from backend.live.unified import check_book_d1
+        check_book_d1(book)                                       # D1: từ chối sớm, trước khi chạm sàn
     client, keys = make_adapter(a.venue, a.mode)
-    sdir = a.state_dir or cache_dir(None, "live", state_key(a.venue, a.mode, a.book))
+    sdir = a.state_dir or cache_dir(None, "live", state_key(a.venue, a.mode, a.book, a.engine))
     os.makedirs(sdir, exist_ok=True)
     events, pkl, spath = os.path.join(sdir, "events.jsonl"), os.path.join(sdir, "paper.pkl"), os.path.join(sdir, "state.json")
+    upkl = os.path.join(sdir, "unified.pkl")
     _archive_stale_state(sdir, spath, book)
 
     def log(ev):
@@ -432,14 +465,28 @@ def run_job(params=None) -> Dict[str, Any]:
         print(line, flush=True)
     symbols = [s.split("@")[0] for s in book["universe"]]
     filters = {sym: client.filters(sym) for sym in symbols}
-    paper = None
-    if os.path.isfile(pkl):
-        with open(pkl, "rb") as fh:
-            paper = pickle.load(fh)
+    paper = load_pickle(pkl, log, "paper.pkl")
     state = State(spath)
     state.d["book"] = book.get("generated_at")
     state.d["book_kind"] = a.book
-    bot = Bot(book, a.mode, client, state, log, filters, paper, float(a.capital))
+    if unified:
+        from backend.live.unified import UnifiedBot
+        blob = load_pickle(upkl, log, "unified.pkl")
+        if blob is None:                                          # khởi động mới: vốn ảo = capital phải xấp xỉ vốn sàn (D3), không thì cảnh báo lệch bắn ngay
+            ex = float(client.equity())
+            drift = abs(ex - float(a.capital)) / float(a.capital) * 100.0
+            if a.equity_drift_halt_pct > 0 and drift > a.equity_drift_halt_pct:
+                raise SystemExit(f"capital={a.capital:g} lệch vốn sàn {ex:.2f} ({drift:.1f}% > equity_drift_halt_pct={a.equity_drift_halt_pct:g}%): "
+                                 f"vốn ảo của engine=unified khởi tạo bằng capital — đặt capital ≈ vốn sàn")
+        try:
+            bot = UnifiedBot(book, a.mode, client, state, log, filters, paper, float(a.capital), blob, float(a.equity_drift_halt_pct), upkl)
+        except ValueError as e:                                   # unified.pkl của sổ / chiến lược khác: cất đi, bắt đầu lại (vị thế sàn thành "external", có cảnh báo)
+            dst = f"{upkl}.corrupt_{time.strftime('%Y%m%d_%H%M%S')}"
+            os.replace(upkl, dst)
+            log({"t": _now_ms(), "kind": "warn", "msg": f"unified.pkl không khớp sổ ({e}) — đã cất sang {dst}, bắt đầu lại"})
+            bot = UnifiedBot(book, a.mode, client, state, log, filters, paper, float(a.capital), None, float(a.equity_drift_halt_pct), upkl)
+    else:
+        bot = Bot(book, a.mode, client, state, log, filters, paper, float(a.capital))
     if a.mode in EXEC_MODES:
         client.check_account()
         bot.reconcile(_now_ms())
@@ -448,7 +495,7 @@ def run_job(params=None) -> Dict[str, Any]:
     step_ms = {"15m": 900_000, "1h": 3_600_000, "4h": 14_400_000}[bot.tf]
     data_ex = book.get("data_exchange", "binance")
     log({"t": _now_ms(), "kind": "start", "venue": a.venue, "mode": a.mode, "book": book.get("source"), "book_kind": a.book,
-         "strategies": [x["id"] for x in book["strategies"]], "unvalidated": book.get("unvalidated", []), "timeframe": bot.tf,
+         "engine": a.engine, "strategies": [x["id"] for x in book["strategies"]], "unvalidated": book.get("unvalidated", []), "timeframe": bot.tf,
          "symbols": bot.symbols, "data_exchange": data_ex})
     if data_ex != a.venue:
         log({"t": _now_ms(), "kind": "warn", "msg": f"sổ được kiểm định trên dữ liệu {data_ex}, bot chạy trên {a.venue} — tín hiệu có thể lệch"})

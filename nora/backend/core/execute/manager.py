@@ -10,10 +10,16 @@ Một nến (`on_bar`, cùng chữ ký tracker):
            DCA bị từ chối (ngân sách / vốn): cắt các tầng còn lại, dca_rejected += 1; SL / TRAIL / thanh lý: áp, đóng, kết thúc nến.
   favorable: TP (venue bỏ qua nếu nến có DCA khớp). end: đỉnh, MAE, cờ pending, cổng DCA, cooldown.
 
+Bot sàn (P6.8b): venue không khớp theo nến mà báo sự kiện qua poll -> `sync_events()` kéo và áp ngay (DCA khớp: đặt lại SL/TP/... từ avg mới;
+SL/TP/trailing khớp: đóng). `sticky_orders=True` (bot sàn) giữ nguyên lệnh đang nằm trên sàn khi tập lệnh mong muốn không đổi (không huỷ/đặt lại mỗi nến —
+lệnh bảo vệ luôn nằm sẵn, ADR D2; trailing gốc không bị đặt lại làm mất đỉnh). Venue có trailing gốc (caps.native_trailing) nhận TRAIL ngay từ lúc vào
+lệnh (sàn tự kích hoạt tại `activation`); sim chỉ đặt TRAIL khi đã kích hoạt theo đỉnh các nến trước.
+
 Dựng từ một PositionTracker đã chuẩn hoá tham số (tracker còn là bộ chuẩn hoá tham số tới P6.9; manager chỉ sao chép trường, không dùng
 sổ/book của tracker). `id` của OrderModel / PositionModel lấy từ `tracker._next_id()` lúc khớp (venue cấp) nên trùng thứ tự gọi của tracker.
 """
 import dataclasses
+from collections import Counter
 from typing import Callable, List, Optional
 
 from backend.core.execute import policy
@@ -28,6 +34,7 @@ _TIMEOUT_REASON = "Hết thời gian giữ lệnh"
 _SL_REASON = "Stop-loss (từ giá TB)"
 _TRAIL_REASON = "Trailing stop"
 _TP_REASON = "Take-profit (từ giá TB)"
+_EXCHANGE_CLOSE_REASON = "Sàn đã đóng vị thế"
 
 
 class PositionManager:
@@ -144,28 +151,60 @@ class PositionManager:
     def _submit(self, kind: OrderKind, is_buy: bool, **kw) -> None:
         self.venue.submit(Order(new_order_id(), self.slot, kind, is_buy, **kw))
 
-    def _place_orders(self) -> None:
-        """Đặt lại DCA kế tiếp / SL / TRAIL / TP từ avg, last_fill và peak hiện tại (gọi sau mỗi fill)."""
-        self.venue.cancel_slot(self.slot)
+    # Bot sàn bật: giữ lệnh đang nằm trên sàn nếu tập lệnh mong muốn không đổi (xem docstring module). Mặc định tắt (sim: đặt lại mỗi nến như cũ).
+    sticky_orders = False
+    _placed_qty = -1.0
+
+    @staticmethod
+    def _nn(x: float) -> Optional[float]:
+        return None if x != x else x
+
+    def _order_key(self, o: Order, native: bool) -> tuple:
+        n = self._nn
+        if o.kind == OrderKind.TRAIL and native:       # trailing gốc: sàn tự bám đỉnh -> chỉ kích hoạt / callback quyết định lệnh có đổi không
+            return (int(o.kind), n(o.activation), n(o.callback_pct))
+        return (int(o.kind), n(o.level), n(o.trigger), o.notional, o.margin)
+
+    def _desired_orders(self) -> List[Order]:
+        """Tập lệnh chờ mong muốn từ avg, last_fill và peak hiện tại (DCA kế tiếp, SL, TRAIL, TP)."""
         sign = 1.0 if self.is_long else -1.0
         k = self.layer_count - 1
+        caps = getattr(self.venue, "caps", None)
+        native = bool(caps is not None and caps.native_trailing)
+        out: List[Order] = []
+
+        def add(kind: OrderKind, is_buy: bool, **kw) -> None:
+            out.append(Order(new_order_id(), self.slot, kind, is_buy, **kw))
         if k < len(self.dca_steps) and self.dca_ok:
             level = policy.dca_level(self.last_fill, self.dca_steps[k], sign)
             margin = self.next_margin * self.dca_mults[k]
-            self._submit(OrderKind.DCA, self.is_long, level=level, trigger=policy.dca_trigger(level, self.limit_through, sign),
-                         notional=margin * self.pos_leverage, margin=margin, reason="DCA", post_only=True)
+            add(OrderKind.DCA, self.is_long, level=level, trigger=policy.dca_trigger(level, self.limit_through, sign),
+                notional=margin * self.pos_leverage, margin=margin, reason="DCA", post_only=True)
         if self.sl_pct:
-            self._submit(OrderKind.SL, not self.is_long, level=policy.sl_level(self.avg, self.sl_pct, sign),
-                         reason=_SL_REASON, reduce_only=True)
-        if self.trail_pct and policy.trail_active(self.peak, self.avg, self.trail_activation_pct, sign):
+            add(OrderKind.SL, not self.is_long, level=policy.sl_level(self.avg, self.sl_pct, sign), reason=_SL_REASON, reduce_only=True)
+        if self.trail_pct and (native or policy.trail_active(self.peak, self.avg, self.trail_activation_pct, sign)):
             # level = mức stop tĩnh từ đỉnh các nến trước (SimVenue); activation / callback_pct cho trailing gốc của sàn (OkxVenue)
-            self._submit(OrderKind.TRAIL, not self.is_long, level=policy.trail_level(self.peak, self.trail_pct, sign),
-                         activation=self.avg * (1 + sign * self.trail_activation_pct / 100.0), callback_pct=self.trail_pct,
-                         reason=_TRAIL_REASON, reduce_only=True)
+            add(OrderKind.TRAIL, not self.is_long, level=policy.trail_level(self.peak, self.trail_pct, sign),
+                activation=policy.tp_level(self.avg, self.trail_activation_pct, sign), callback_pct=self.trail_pct,
+                reason=_TRAIL_REASON, reduce_only=True)
         if self.tp_pct:
             level = policy.tp_level(self.avg, self.tp_pct, sign)
-            self._submit(OrderKind.TP, not self.is_long, level=level, trigger=policy.tp_need(level, self.limit_through, sign),
-                         reason=_TP_REASON, reduce_only=True, post_only=True)
+            add(OrderKind.TP, not self.is_long, level=level, trigger=policy.tp_need(level, self.limit_through, sign),
+                reason=_TP_REASON, reduce_only=True, post_only=True)
+        return out
+
+    def _place_orders(self) -> None:
+        """Đặt lại DCA kế tiếp / SL / TRAIL / TP từ avg, last_fill và peak hiện tại (gọi sau mỗi fill)."""
+        want = self._desired_orders()
+        if self.sticky_orders and self._placed_qty == self.qty:
+            caps = getattr(self.venue, "caps", None)
+            native = bool(caps is not None and caps.native_trailing)
+            if Counter(self._order_key(o, native) for o in want) == Counter(self._order_key(o, native) for o in self.venue.open_orders(self.slot)):
+                return
+        self.venue.cancel_slot(self.slot)
+        for o in want:
+            self.venue.submit(o)
+        self._placed_qty = self.qty
 
     # ─── Hành động ──────────────────────────────────────────────────────────
     def _status_by_pnl(self, price: float) -> PositionStatus:
@@ -288,7 +327,7 @@ class PositionManager:
         return closed
 
     def _close_event(self, fill: Fill) -> PositionModel:
-        """Fill đóng do venue sinh (SL / TRAIL / LIQ / TP): gắn trạng thái + MAE rồi áp."""
+        """Fill đóng do venue sinh (SL / TRAIL / LIQ / TP / sàn đã đóng): gắn trạng thái + MAE rồi áp."""
         if fill.kind == "liq":
             status = PositionStatus.LIQ
         elif fill.kind == "tp":
@@ -297,7 +336,39 @@ class PositionManager:
             status = PositionStatus.SL
         else:
             status = self._status_by_pnl(fill.raw_price)   # trailing: lãi hay lỗ theo giá khớp (trước trượt)
-        return self._apply_close(self._enrich(fill, status=int(status), mae_usd=self.mae_usd))
+        extra = {}
+        if not fill.reason:                                # OKX suy kind từ vị thế biến mất: không có nhãn lệnh -> nhãn theo loại
+            extra["reason"] = {"sl": _SL_REASON, "tp": _TP_REASON, "trail": _TRAIL_REASON}.get(fill.kind, _EXCHANGE_CLOSE_REASON)
+        return self._apply_close(self._enrich(fill, status=int(status), mae_usd=self.mae_usd, **extra))
+
+    def _handle(self, ev) -> Optional[PositionModel]:
+        """Một sự kiện của venue khi vị thế đang mở. DCA bị từ chối (ngân sách / vốn / sàn): cắt các tầng còn lại; DCA khớp: áp, tính lại lệnh chờ
+        từ avg mới; lệnh bảo vệ bị từ chối: chỉ ghi sổ (bot cảnh báo; nến sau đặt lại); đóng: áp. Trả vị thế vừa đóng, None nếu vẫn mở."""
+        if isinstance(ev, OrderRejected):
+            self.book.reject(ev.reason, ev.kind, ev.order_id)
+            if ev.kind == "dca":
+                self.dca_rejected += 1
+                self.dca_steps = self.dca_steps[: self.layer_count - 1]   # không nhồi thêm tầng nào nữa
+            return None
+        if ev.kind == "dca":
+            self.book.apply_fill(self._enrich(ev, unit_pct=self.unit_pct, leverage_used=self.pos_leverage, risk_usd=self.planned_risk))
+            self.next_margin = ev.margin
+            self._place_orders()                            # avg / last_fill đổi: tính lại SL, TRAIL, DCA kế, TP
+            return None
+        return self._close_event(ev)
+
+    def sync_events(self) -> Optional[PositionModel]:
+        """Bot sàn: kéo và áp mọi sự kiện venue đã có (poll: DCA khớp, SL/TP/trailing khớp, sàn đóng vị thế) — DCA khớp thì SL/TP mới đặt ngay từ avg mới.
+        Trả vị thế vừa đóng (nếu có). Không làm gì khi slot chưa mở."""
+        if not self.is_open:
+            return None
+        while True:
+            ev = self.venue.next_event(self.slot)
+            if ev is None:
+                return None
+            closed = self._handle(ev)
+            if closed is not None:
+                return closed
 
     def _intrabar(self) -> Optional[PositionModel]:
         self._place_orders()
@@ -305,18 +376,9 @@ class PositionManager:
             ev = self.venue.next_event(self.slot)
             if ev is None:
                 break
-            if isinstance(ev, OrderRejected):               # tầng DCA hết ngân sách / vốn
-                self.book.reject(ev.reason, ev.kind, ev.order_id)
-                self.dca_rejected += 1
-                self.dca_steps = self.dca_steps[: self.layer_count - 1]   # không nhồi thêm tầng nào nữa
-                continue
-            if ev.kind == "dca":
-                self.book.apply_fill(self._enrich(ev, unit_pct=self.unit_pct, leverage_used=self.pos_leverage,
-                                                  risk_usd=self.planned_risk))
-                self.next_margin = ev.margin
-                self._place_orders()                        # avg / last_fill đổi: tính lại SL, TRAIL, DCA kế, TP
-                continue
-            return self._close_event(ev)
+            closed = self._handle(ev)
+            if closed is not None:
+                return closed
         end_adverse = getattr(self.venue, "end_adverse", None)
         if end_adverse is not None:
             end_adverse(self.slot)

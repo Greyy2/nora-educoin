@@ -152,12 +152,49 @@ class Runner:
             mtm, worst = self.mtm()
             self.peak_mtm = max(self.peak_mtm, mtm)
             if self.halted_at is None and kill_triggered(worst, self.peak_mtm, kill_pct):
-                self.halted_at = t
-                for b, bk in enumerate(self.books):
-                    for e in bk["entries"]:
-                        tr = e["tracker"]
-                        tr.pending_entry = False
-                        pos = tr.force_close(t, self.last_close[b], "Kill switch danh mục")
-                        if pos is not None:
-                            self._collect(bk["symbol"], e, pos, self.last_low[b], self.last_high[b])
+                self._kill(t)
         return self.trades[n0:]
+
+    def _kill(self, t: int) -> None:
+        """Kill switch: dừng giao dịch mới và đóng hết vị thế ở giá đóng nến gần nhất."""
+        self.halted_at = t
+        for b, bk in enumerate(self.books):
+            for e in bk["entries"]:
+                tr = e["tracker"]
+                tr.pending_entry = False
+                pos = tr.force_close(t, self.last_close[b], "Kill switch danh mục")
+                if pos is not None:
+                    self._collect(bk["symbol"], e, pos, self.last_low[b], self.last_high[b])
+
+    # ── bot sàn (P6.8b): sự kiện venue đến giữa hai nến ──
+    def sync_events(self) -> List[Dict[str, Any]]:
+        """Áp các sự kiện venue đã có (DCA khớp, sàn đóng vị thế...) của mọi slot đang mở -> lệnh đóng mới. Chỉ actor có `sync_events` (manager)."""
+        n0 = len(self.trades)
+        for b, bk in enumerate(self.books):
+            for e in bk["entries"]:
+                sync = getattr(e["tracker"], "sync_events", None)
+                if sync is None or not e["tracker"].is_open:
+                    continue
+                pos = sync()
+                if pos is not None:
+                    self._collect(bk["symbol"], e, pos, self.last_low[b], self.last_high[b])
+        return self.trades[n0:]
+
+    def sample(self, t: int, marks: Dict[str, float]) -> Tuple[float, bool]:
+        """Mẫu giá giữa hai nến (ADR D3): vốn MTM tại giá mẫu `marks[sym]` (thiếu -> giá đóng nến gần nhất) so với `peak_mtm` — cùng `risk.kill_triggered`
+        như cuối nến, chỉ khác điểm giá. KHÔNG nâng peak_mtm (peak chỉ theo MTM đóng nến như sim). -> (vốn MTM theo mẫu, kill có kích hoạt)."""
+        m = self.account.equity
+        for b, bk in enumerate(self.books):
+            px = marks.get(bk["symbol"])
+            if px is not None and px == px:
+                self.last_close[b] = float(px)
+            px = self.last_close[b]
+            if px != px:
+                continue
+            for e in bk["entries"]:
+                if e["tracker"].is_open:
+                    m += e["tracker"].unrealized_pnl_usd(px)
+        if self.halted_at is None and kill_triggered(m, self.peak_mtm, float(self.risk.get("kill_switch_dd_pct") or 0)):
+            self._kill(t)
+            return m, True
+        return m, False
