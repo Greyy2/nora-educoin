@@ -5,12 +5,13 @@ Không viết tay theo từng alpha: cây điều kiện AST, vị thế và tha
 
 Định dạng kết quả (payload có `sources` để sau này thêm nguồn ngoài):
     catalog() -> {"sources": [{"key": "nora", "label": "Nora", "books": {...}, "alphas": [render_alpha(...), ...]}]}
-    render_alpha(...)["formulas"] = [{"key", "title", "latex", "note"}, ...] theo thứ tự đọc.
+    render_alpha(...)["formulas"] = [{"key", "title", "plain", "latex", "note"}, ...] theo thứ tự đọc; "plain" = diễn giải bằng lời (alpha_plain).
 """
 import json
 import os
 from typing import Any, Dict, List, Optional, Tuple
 
+from backend.core.analytics import alpha_plain as plain
 from backend.core.signals.kernels import REGISTRY, parse_column
 
 STAGE_ORDER = ("FINAL", "S6_holdout", "S5_sizing", "S4_montecarlo", "S3_wfa", "S2_antiluck", "S1_backtest")
@@ -300,8 +301,41 @@ def _count_crosses(block: List[Any]) -> int:
 
 
 # ─── Các phần công thức ─────────────────────────────────────────────────────
-def _section(key: str, title: str, latex: str, note: str = "") -> Dict[str, str]:
-    return {"key": key, "title": title, "latex": latex, "note": note}
+def _section(key: str, title: str, latex: str, note: str = "", plain_: Optional[List[str]] = None) -> Dict[str, Any]:
+    return {"key": key, "title": title, "plain": list(plain_ or []), "latex": latex, "note": note}
+
+
+def plain_tree(tree: Any) -> Dict[str, Any]:
+    """Cây điều kiện -> câu: {"blocks": [[câu, ...], ...] (OR giữa các khối, AND trong khối), "always"}; bỏ điều kiện hằng đúng, gộp cặp cắt lên/xuống."""
+    blocks: List[List[str]] = []
+    for block in tree if isinstance(tree, list) else []:
+        if not isinstance(block, list) or not block:
+            continue
+        keep = [tr for tr in block if not is_tautology(tr)]
+        if not keep:
+            return {"blocks": [], "always": True}
+        pairs, used_idx = [], set()
+        for i, a in enumerate(keep):
+            for j, b in enumerate(keep):
+                if i == j or i in used_idx or j in used_idx or not (isinstance(a, list) and isinstance(b, list)):
+                    continue
+                if (a[1], b[1]) in ((">", "<="), ("<", ">=")) and b[0] == _lag(a[0]) and b[2] == _lag(a[2]):
+                    pairs.append((i, j))
+                    used_idx.update((i, j))
+        blocks.append(plain.conditions(keep, pairs))
+    return {"blocks": blocks, "always": not blocks}
+
+
+def _plain_lines(head: str, pt: Dict[str, Any]) -> List[str]:
+    """Câu dẫn + các điều kiện (một khối: liệt kê, nhiều khối: "trường hợp k")."""
+    if pt["always"]:
+        return [f"{head} luôn đúng (không có điều kiện)."]
+    if len(pt["blocks"]) == 1:
+        return [f"{head} TẤT CẢ điều kiện sau cùng đúng:"] + [f"• {c}" for c in pt["blocks"][0]]
+    out = [f"{head} MỘT trong các trường hợp sau đúng:"]
+    for k, b in enumerate(pt["blocks"], 1):
+        out.append(f"Trường hợp {k}: " + " VÀ ".join(b))
+    return out
 
 
 def _rows(lines: List[str]) -> str:
@@ -309,14 +343,18 @@ def _rows(lines: List[str]) -> str:
     return rf"\begin{{array}}{{l}} " + r" \\[6pt] ".join(rf"\displaystyle {x}" for x in lines) + r" \end{array}"
 
 
-def _indicators_section(cols: List[Tuple[str, str]]) -> Optional[Dict[str, str]]:
+def _indicators_section(cols: List[Tuple[str, str]]) -> Optional[Dict[str, Any]]:
     lines: List[str] = []
+    words: List[str] = []
     seen = set()
     for frame, column in cols:
         parsed = parse_column(column)
         if parsed is None:
             continue
         spec, p = parsed
+        w = plain.explain(spec.name, p, frame)
+        if w not in words:
+            words.append(w)
         for ln in definition(spec.name, p, frame):
             if ln not in seen:
                 seen.add(ln)
@@ -326,7 +364,7 @@ def _indicators_section(cols: List[Tuple[str, str]]) -> Optional[Dict[str, str]]
     note = ("C, H, L, V = giá đóng cửa, cao nhất, thấp nhất, khối lượng của nến thuộc khung ghi ở chỉ số trên; t = nến đã ĐÓNG gần nhất của khung đó. "
             "EMA/RMA khởi tạo bằng SMA n nến đầu (chuẩn TradingView); RMA là trung bình Wilder (α = 1/n); độ lệch chuẩn σ tính theo tổng thể (chia n). "
             "Chỉ báo chưa đủ nến khởi động = không xác định, điều kiện chứa nó coi là sai.")
-    return _section("indicators", "Định nghĩa chỉ báo", _rows(lines), note)
+    return _section("indicators", "Định nghĩa chỉ báo", _rows(lines), note, words)
 
 
 def _sign(side: str) -> Tuple[str, str]:
@@ -376,7 +414,8 @@ def render_formulas(st: Dict[str, Any], book: Dict[str, Any]) -> List[Dict[str, 
         sec.append(ind)
 
     # b) tín hiệu vào
-    notes = ["Tín hiệu tính trên nến đã đóng; lệnh market khớp ở giá mở của nến 1 phút kế tiếp (cộng trượt giá), mỗi nến chỉ đặt một lệnh chờ."]
+    tf = str(book.get("timeframe") or "1h")
+    notes = [f"Tín hiệu tính trên nến đã đóng; lệnh market khớp ở giá mở của nến {tf} kế tiếp (cộng trượt giá), mỗi nến chỉ đặt một lệnh chờ."]
     if entry["events"]:
         notes.append("Cặp điều kiện ở nến t và t−1 là sự kiện cắt (crossover): chỉ đúng đúng ở nến cắt, không đúng suốt đoạn giá nằm một phía.")
     if entry["dropped"]:
@@ -384,13 +423,16 @@ def render_formulas(st: Dict[str, Any], book: Dict[str, Any]) -> List[Dict[str, 
     cd = int(position.get("cooldown") or 0)
     if cd:
         notes.append(f"Sau khi đóng vị thế, bỏ qua tín hiệu mới trong {cd} phút (cooldown).")
+    side_vi = "Long (mua)" if side == "LONG" else "Short (bán)"
     sec.append(_section("entry", "Tín hiệu vào lệnh",
                         rf"\mathrm{{Entry}}^{{\mathrm{{{sd}}}}}_t=\mathbb{{1}}\left[{entry['latex']}\right]" if not entry["always"]
-                        else rf"\mathrm{{Entry}}^{{\mathrm{{{sd}}}}}_t=1", " ".join(notes)))
+                        else rf"\mathrm{{Entry}}^{{\mathrm{{{sd}}}}}_t=1", " ".join(notes),
+                        _plain_lines(f"Vào lệnh {side_vi} khi", plain_tree(st.get("tree"))) + plain.entry_exec(tf, cd, [f for f, _ in used])))
     if stop is not None:
         sec.append(_section("exit_signal", "Tín hiệu thoát (đảo chiều)",
                             rf"\mathrm{{Exit}}^{{\mathrm{{{sd}}}}}_t=\mathbb{{1}}\left[{stop['latex']}\right]" if not stop["always"] else rf"\mathrm{{Exit}}^{{\mathrm{{{sd}}}}}_t=1",
-                            "Có tín hiệu thoát thì đóng toàn bộ vị thế bằng lệnh market ở giá mở nến 1 phút kế tiếp (ngoài các lệnh thoát theo giá bên dưới)."))
+                            f"Có tín hiệu thoát thì đóng toàn bộ vị thế bằng lệnh market ở giá mở nến {tf} kế tiếp (ngoài các lệnh thoát theo giá bên dưới).",
+                            _plain_lines("Đóng toàn bộ vị thế (đảo chiều) khi", plain_tree((st.get("stop") or [{}])[0].get("condition")))))
 
     # c) cổng + thang DCA
     lad = _ladder_params(position)
@@ -398,7 +440,8 @@ def render_formulas(st: Dict[str, Any], book: Dict[str, Any]) -> List[Dict[str, 
         sec.append(_section("dca_gate", "Điều kiện dồn lệnh (cổng DCA)",
                             rf"\mathrm{{Gate}}_t=\mathbb{{1}}\left[{gate['latex']}\right]" if not gate["always"] else r"\mathrm{Gate}_t=1",
                             "Chỉ cho phép dồn tầng khi cổng còn đúng ở nến đã đóng gần nhất; cổng sai (thị trường bắt đầu có xu hướng) thì ngừng dồn, vị thế giữ nguyên các tầng đã có."
-                            + (f" Đã lược {gate['dropped']} điều kiện hằng đúng." if gate["dropped"] else "")))
+                            + (f" Đã lược {gate['dropped']} điều kiện hằng đúng." if gate["dropped"] else ""),
+                            _plain_lines("Được phép dồn thêm tầng khi", plain_tree((st.get("dca") or [{}])[0].get("condition")))))
     if lad:
         layers, step, m = lad
         adv, _ = _sign(side)
@@ -418,7 +461,8 @@ def render_formulas(st: Dict[str, Any], book: Dict[str, Any]) -> List[Dict[str, 
                 "P_{k-1} là giá khớp thực của tầng liền trước; ν₀ là ATR% đo MỘT LẦN ở nến tín hiệu nên các bước và mức cắt lỗ / chốt lời của cả rổ giữ nguyên theo ν₀ đó. "
                 + (f"Lệnh limit chỉ khớp khi giá đi qua mức thêm {num(through)}% (hàng đợi sổ lệnh). " if through else "")
                 + "Mức hoà (chạm cả tầng dồn lẫn cắt lỗ trong cùng nến) ưu tiên thoát.")
-        sec.append(_section("dca_ladder", "Thang dồn lệnh (DCA)", _rows(lines), note))
+        sec.append(_section("dca_ladder", "Thang dồn lệnh (DCA)", _rows(lines), note,
+                            plain.ladder(side, layers, step, m, through, gate is not None and not gate["always"], plain.atr_desc(position))))
 
     # d) quản lý vị thế
     sl, tp = float(position.get("stop_loss_rate") or 0.0), float(position.get("take_profit_rate") or 0.0)
@@ -445,7 +489,8 @@ def render_formulas(st: Dict[str, Any], book: Dict[str, Any]) -> List[Dict[str, 
         pl.append(rf"t-t_0\ge {timeout}\ \mathrm{{min}}\ \Rightarrow\ \mathrm{{close\ (market)}}")
         pnote.append(f"Hết thời gian giữ lệnh {timeout} phút (≈ {num(round(timeout / 1440.0, 1))} ngày) thì đóng bằng lệnh market.")
     pnote.append("Trong cùng một nến: các mức bất lợi xử lý theo đúng thứ tự giá chạm, hoà thì ưu tiên thoát; giá mở đã vượt mức (gap) thì khớp ở giá mở.")
-    sec.append(_section("position", "Quản lý vị thế", _rows(pl), " ".join(pnote)))
+    sec.append(_section("position", "Quản lý vị thế", _rows(pl), " ".join(pnote),
+                        plain.position(side, sl, tp, tr, act, timeout, unit_atr, plain.atr_desc(position), bool(lad))))
 
     # e) khối lượng + rủi ro
     taker, maker, slip = costs(book)
@@ -469,7 +514,7 @@ def render_formulas(st: Dict[str, Any], book: Dict[str, Any]) -> List[Dict[str, 
     snote = ("E = vốn hiện tại (vốn đã chốt lãi/lỗ). N = tổng giá trị danh nghĩa của cả rổ: chọn sao cho chạm cắt lỗ (tính cả mọi tầng dồn dự kiến, phí vào + ra và trượt giá) chỉ mất ≈ r% vốn, "
              "bị chặn trần c% vốn. Đòn bẩy λ tự hạ để giá thanh lý cách giá vào ít nhất 1.5 lần khoảng cắt lỗ, tối đa " f"{lev}x. "
              "Ký quỹ tầng k = N_k / λ. Phí/trượt giả định của backtest (CEX perp, taker cho lệnh market, maker cho lệnh limit).")
-    sec.append(_section("sizing", "Khối lượng & rủi ro mỗi lệnh", _rows(sz), snote))
+    sec.append(_section("sizing", "Khối lượng & rủi ro mỗi lệnh", _rows(sz), snote, plain.sizing(r, cap, lev, bool(lad))))
 
     # portfolio
     risk = book.get("risk") or {}
@@ -491,7 +536,7 @@ def render_formulas(st: Dict[str, Any], book: Dict[str, Any]) -> List[Dict[str, 
         pf.append(rf"\mathrm{{DD}}^{{\mathrm{{MTM}}}}\ge {num(risk['kill_switch_dd_pct'])}\%\ \Rightarrow\ \mathrm{{close\ all\ \&\ halt}}")
         pn.append("Công tắc ngắt: vốn theo giá thị trường sụt từ đỉnh tới ngưỡng thì đóng hết (market) và dừng giao dịch.")
     if pf:
-        sec.append(_section("portfolio", "Kiểm soát rủi ro danh mục", _rows(pf), " ".join(pn)))
+        sec.append(_section("portfolio", "Kiểm soát rủi ro danh mục", _rows(pf), " ".join(pn), plain.portfolio(risk)))
     return sec
 
 

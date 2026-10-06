@@ -105,8 +105,16 @@ function AlphaDoc({ a, book, onClose }) {
             {(a.formulas || []).map((f, i) => (
               <section className="n-ad-sec" key={f.key} aria-label={f.title}>
                 <h3>{i + 1}. {f.title}</h3>
-                <MathBlock latex={f.latex} label={f.title} />
-                {f.note && <p className="n-note">{f.note}</p>}
+                {f.plain?.length > 0 && (
+                  <ul className="n-ad-plain">
+                    {f.plain.map((x, j) => <li key={j} className={x.startsWith('•') ? 'sub' : ''}>{x.replace(/^•\s*/, '')}</li>)}
+                  </ul>
+                )}
+                <details className="n-ad-math" open={!f.plain?.length}>
+                  <summary>Công thức toán học</summary>
+                  <MathBlock latex={f.latex} label={f.title} />
+                  {f.note && <p className="n-note">{f.note}</p>}
+                </details>
               </section>
             ))}
             <p className="n-note">Công thức dựng tự động từ đúng cấu trúc và tham số mà engine đang chạy; mô phỏng lịch sử không bảo đảm kết quả tương lai.</p>

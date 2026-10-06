@@ -179,3 +179,24 @@ def test_catalog_with_no_books_returns_empty_source(tmp_path, monkeypatch):
     monkeypatch.setenv("NORA_BOOK_PATH", str(tmp_path / "book.json"))
     out = ad.catalog()
     assert out["sources"][0]["key"] == "nora" and out["sources"][0]["alphas"] == []
+
+
+def test_plain_language_for_every_section_with_real_params():
+    """Mỗi mục công thức có diễn giải bằng lời (số kiểu Việt, tham số thật); cặp t/t−1 của KEMA gộp thành "CẮT LÊN"; không DCA thì không nói "giá trung bình"."""
+    from backend.core.analytics import alpha_plain as P
+    from backend.core.analytics.alpha_doc import catalog
+    alphas = catalog()["sources"][0]["alphas"]
+    for a in alphas:
+        for f in a["formulas"]:
+            assert f["plain"], (a["id"], f["key"])
+    dca = next(a for a in alphas if a["id"] == "dca_long" and a["book"] == "main")
+    ind = next(f for f in dca["formulas"] if f["key"] == "indicators")["plain"]
+    assert any(x.startswith("RSI 7 (khung 1 giờ)") and "quá bán" in x for x in ind)
+    assert any("1,2 độ lệch chuẩn" in x for x in ind)
+    kema = next(a for a in alphas if a["id"] == "kema_long")
+    entry = next(f for f in kema["formulas"] if f["key"] == "entry")["plain"]
+    assert sum("CẮT LÊN" in x for x in entry) == 1 and not any("[của nến trước]" in x for x in entry)
+    assert any("4,6 × biên độ" in x for x in entry)
+    pos = next(f for f in kema["formulas"] if f["key"] == "position")["plain"]
+    assert "giá vào lệnh" in pos[0] and "TRUNG BÌNH" not in pos[0]
+    assert P.vn(1.2) == "1,2" and P.vn(4.0) == "4" and P.vn(0.05) == "0,05"
