@@ -517,12 +517,12 @@ INF = np.inf
 
 
 @nb.njit(cache=True, parallel=True)
-def engine(T, O, H, L, C, bstart, bend, SIGL, SIGS, FEAT, FPX, FNOT, FACT, foff, S, tp, tpl, sl, sll, gb, act, bes, bes_off, brd, brd_off, tcap, flags, fl2, fee,
+def engine(T, O, H, L, C, bstart, bend, SIGL, SIGS, FEAT, SIGM, SIGG, FPX, FNOT, FACT, foff, S, tp, tpl, sl, sll, gb, act, bes, bes_off, brd, brd_off, tcap, flags, fl2, fee,
            o_ct, o_cp, o_why, o_closed, o_pnl, o_not, o_nused, f_ct, f_cp, f_why, o_mtm):
     """Mỗi basket chạy từ nến sau fill đầu đến HẾT dữ liệu của mã (không dùng thời điểm thoát thật). Chưa đóng đến cuối -> mark-to-market tại nến cuối (why=7)."""
     nbk = len(bstart)
-    anchor = flags[0]; tcap_ref = flags[1]; tcap_loss = flags[2]; tp_usd = flags[3]; sl_usd = flags[4]; sig_id = flags[5]; sw_kind = flags[6]; sw_dir = flags[7]
-    sig_gate = fl2[2]; sw_thr = fl2[3]
+    anchor = flags[0]; tcap_ref = flags[1]; tcap_loss = flags[2]; tp_usd = flags[3]; sl_usd = flags[4]; sig_id0 = flags[5]; sw_kind = flags[6]; sw_dir = flags[7]
+    sw_thr = fl2[3]
     layer = anchor == 3
     for b in nb.prange(nbk):
         s = float(S[b]); j0 = foff[b]; j1 = foff[b + 1]; nf = j1 - j0
@@ -578,9 +578,9 @@ def engine(T, O, H, L, C, bstart, bend, SIGL, SIGS, FEAT, FPX, FNOT, FACT, foff,
                 rpk = s * (upk[u] / a - 1.0); rtr = s * (utr[u] / a - 1.0)
                 hit = 0; xr = 0.0; mid = 30000
                 # 1) thoát theo chỉ báo trên nến ĐÃ ĐÓNG: quyết định từ dữ liệu <= nến i-1, khớp tại open nến i
-                if sig_id >= 0:
-                    bit = (SIGL[i] >> np.uint64(sig_id)) & np.uint64(1) if s > 0 else (SIGS[i] >> np.uint64(sig_id)) & np.uint64(1)
-                    if bit == np.uint64(1) and ro >= sig_gate:
+                if SIGM[b] != 0:
+                    bits = SIGL[i] if s > 0 else SIGS[i]
+                    if (bits & np.uint64(SIGM[b])) != np.uint64(0) and ro >= SIGG[b]:
                         hit = 8; xr = ro; mid = 0
                 if hit == 0:
                     stop_r = -INF; why = 0
@@ -702,7 +702,7 @@ def run(D, L, out=None):
     """L: dict các mảng mức (đơn vị PHÂN SỐ giá) + flags. Trả Out."""
     if out is None:
         out = Out(D)
-    engine(D.T, D.O, D.H, D.L, D.C, D.bstart, D.bend, D.SIGL, D.SIGS, D.FEAT, D.FPX, D.FNOT, D.FACT, D.foff, D.s, L["tp"], L["tpl"], L["sl"], L["sll"], L["gb"], L["act"], L["bes"],
+    engine(D.T, D.O, D.H, D.L, D.C, D.bstart, D.bend, D.SIGL, D.SIGS, D.FEAT, L["sigm"], L["sigg"], D.FPX, D.FNOT, D.FACT, D.foff, D.s, L["tp"], L["tpl"], L["sl"], L["sll"], L["gb"], L["act"], L["bes"],
            L["bes_off"], L["brd"], L["brd_off"], L["tcap"], L["flags"], L["fl2"], FEE, out.ct, out.cp, out.why, out.closed, out.pnl, out.notional, out.nused,
            out.f_ct, out.f_cp, out.f_why, out.mtm)
     return out
@@ -853,8 +853,9 @@ class Searcher:
             if cfg.get("tpsw"):
                 tpm = 2.0; flags[6] = cfg["tpsw"]["kind"]; flags[7] = cfg["tpsw"]["dir"]
         fl2 = np.array([float(cfg.get("tpk") or 0.0), tpm, -INF, float(cfg["tpsw"]["thr"]) if cfg.get("tpsw") else 0.0])
+        sigm = np.zeros(n, np.int64); sigg = np.full(n, -INF)
         if cfg.get("sig"):
-            flags[5] = cfg["sig"]["id"]; fl2[2] = cfg["sig"]["gate"]
+            sigm = np.asarray(cfg["sig"]["mask"], np.int64)[g]; sigg = np.asarray(cfg["sig"]["gate"], float)[g]
         if cfg.get("tp") is not None:
             base, lay, unit = B["tp"]; m = np.asarray(cfg["tp"])[g]
             tp = base * m; tpl = np.where(np.isinf(m), 0.0, lay * m); flags[3] = 1 if unit == "usd" else 0
@@ -873,7 +874,7 @@ class Searcher:
             brd = B["brd"][0] * cfg["brd"]["m"]; do = np.full(n, cfg["brd"]["off"] * 1e-4)
         if cfg.get("tc") is not None:
             tcap = np.full(n, float(cfg["tc"]["min"])); flags[1] = cfg["tc"]["ref"]; flags[2] = cfg["tc"]["loss"]
-        return dict(tp=tp, tpl=tpl, sl=sl, sll=sll, gb=gb, act=act, bes=bes, bes_off=bo, brd=brd, brd_off=do, tcap=tcap, flags=flags, fl2=fl2)
+        return dict(tp=tp, tpl=tpl, sl=sl, sll=sll, gb=gb, act=act, bes=bes, bes_off=bo, brd=brd, brd_off=do, tcap=tcap, flags=flags, fl2=fl2, sigm=sigm, sigg=sigg)
 
     def score(self, cfg, idx=None, keep=False):
         L = self.levels(cfg)
@@ -951,21 +952,33 @@ class Searcher:
                         best = (oo, c2["tpsw"])
                 o, cfg["tpsw"] = best[0], best[1]
             if cfg.get("sig") is not None:
-                best = (o, cfg["sig"]); gates = self.sig_gates
-                for sid in range(len(SIGS_DEF)):
+                gates = self.sig_gates; nsig = len(SIGS_DEF)
+                for gi in range(self.G):
                     if self.over():
                         break
-                    for gt in (gates[0], gates[1]):
-                        c2 = _cp(cfg); c2["sig"] = dict(id=sid, gate=gt)
-                        oo = self.score(c2, idx)["obj"]
-                        if oo > best[0] + 1e-9:
-                            best = (oo, c2["sig"])
-                for gt in gates:
-                    c2 = _cp(cfg); c2["sig"] = dict(id=best[1]["id"], gate=gt)
-                    oo = self.score(c2, idx)["obj"]
-                    if oo > best[0] + 1e-9:
-                        best = (oo, c2["sig"])
-                o, cfg["sig"] = best[0], best[1]
+                    def setg(m, gt, gi=gi):
+                        c2 = _cp(cfg); c2["sig"]["mask"][gi] = m; c2["sig"]["gate"][gi] = gt; return c2
+                    bm = int(cfg["sig"]["mask"][gi]); bgt = float(cfg["sig"]["gate"][gi]); bo = o
+                    for m in [0] + [1 << k for k in range(nsig)]:
+                        if self.over():
+                            break
+                        for gt in ((gates[0],) if m == 0 else (gates[0], gates[1])):
+                            oo = self.score(setg(m, gt), idx)["obj"]
+                            if oo > bo + 1e-9:
+                                bm, bgt, bo = m, gt, oo
+                    if bm:
+                        for gt in gates:
+                            oo = self.score(setg(bm, gt), idx)["obj"]
+                            if oo > bo + 1e-9:
+                                bgt, bo = gt, oo
+                        for k in range(nsig):
+                            if self.over():
+                                break
+                            if not (bm >> k) & 1:
+                                oo = self.score(setg(bm | (1 << k), bgt), idx)["obj"]
+                                if oo > bo + 1e-9:
+                                    bm, bo = bm | (1 << k), oo
+                    cfg["sig"]["mask"][gi] = bm; cfg["sig"]["gate"][gi] = bgt; o = bo
             if cfg.get("tc") is not None:
                 for ref in (0, 1):
                     for loss in (0, 1):
@@ -990,7 +1003,7 @@ class Searcher:
         elif name == "tpk":
             cfg["tpk"] = 0.1
         elif name == "sig":
-            cfg["sig"] = dict(id=0, gate=self.sig_gates[1])
+            cfg["sig"] = dict(mask=np.full(G, 1, np.int64), gate=np.full(G, self.sig_gates[1]))
         elif name == "tpsw":
             cfg["tpt"] = True; cfg["tpsw"] = dict(kind=0, dir=1, thr=0.0)
             if cfg.get("tr") is None:
@@ -1015,9 +1028,11 @@ def _cp(c):
             d[k] = np.array(d[k], float)
     if d.get("tr") is not None:
         d["tr"] = dict(gb=np.array(d["tr"]["gb"], float), act=np.array(d["tr"]["act"], float))
-    for k in ("bes", "brd", "tc", "sig", "tpsw"):
+    for k in ("bes", "brd", "tc", "tpsw"):
         if d.get(k) is not None:
             d[k] = dict(d[k])
+    if d.get("sig") is not None:
+        d["sig"] = dict(mask=np.array(d["sig"]["mask"], np.int64), gate=np.array(d["sig"]["gate"], float))
     return d
 
 
@@ -1028,7 +1043,7 @@ def _cfg_key(c):
             (round(c["bes"]["m"], 3), c["bes"]["off"]) if c.get("bes") is not None else None,
             (round(c["brd"]["m"], 3), c["brd"]["off"]) if c.get("brd") is not None else None,
             (c["tc"]["min"], c["tc"]["ref"], c["tc"]["loss"]) if c.get("tc") is not None else None, bool(c.get("tpt")),
-            (c["sig"]["id"], c["sig"]["gate"]) if c.get("sig") else None, tuple(c["tpsw"].values()) if c.get("tpsw") else None)
+            (tuple(np.asarray(c["sig"]["mask"]).tolist()), tuple(np.asarray(c["sig"]["gate"], float).tolist())) if c.get("sig") else None, tuple(c["tpsw"].values()) if c.get("tpsw") else None)
 
 
 # ===================================================================== phân đoạn chế độ (regime) + nhóm lớp mã
@@ -1119,6 +1134,20 @@ def group_sym(D, min_n=25, max_groups=9):
     return g, dict(method="theo từng mã lớn + 'mã khác'", n_groups=int(g.max()) + 1, syms=["mã khác"] + big)
 
 
+def group_sym_hour(D, min_n=6):
+    """Nhóm theo (mã lớn) x (phiên giờ VN lúc vào lệnh: 0-8 / 8-16 / 16-24); nhóm < min_n basket gộp vào nhóm 0."""
+    g0, info = group_sym(D)
+    hb = np.digitize(D.vn_hour, [8, 16])
+    key = g0 * 3 + hb
+    u, cnt = np.unique(key, return_counts=True)
+    keep = [k for k, c in zip(u, cnt) if c >= min_n]
+    mp = {k: i + 1 for i, k in enumerate(keep)}
+    g = np.array([mp.get(k, 0) for k in key], np.int64)
+    if (g == 0).sum() == 0:
+        g = g - 1; g = g - g.min()
+    return g, dict(method="theo (mã lớn) x (phiên giờ VN lúc vào lệnh)", n_groups=int(g.max()) + 1, syms=info.get("syms"))
+
+
 # ===================================================================== diễn giải luật + xuất
 def _jr(x):
     if isinstance(x, dict):
@@ -1134,6 +1163,10 @@ def _jr(x):
     if isinstance(x, (np.bool_,)):
         return bool(x)
     return x
+
+
+def sig_names(mask):
+    return [SIGS_DEF[k][0] for k in range(len(SIGS_DEF)) if (mask >> k) & 1]
 
 
 def clean(cfg):
@@ -1153,7 +1186,7 @@ def clean(cfg):
 
 def structure(cfg):
     out = []
-    if cfg.get("sig") is not None:
+    if cfg.get("sig") is not None and np.any(np.asarray(cfg["sig"]["mask"]) != 0):
         out.append("sig")
     for k in ("tp", "sl", "tr", "bes", "brd", "tc"):
         v = cfg.get(k)
@@ -1188,7 +1221,8 @@ def cfg_params(cfg):
     if cfg.get("tpsw") and cfg.get("tpt"):
         p["tp_switch"] = dict(feature=FEAT_NAMES[cfg["tpsw"]["kind"]], direction=">=" if cfg["tpsw"]["dir"] > 0 else "<=", threshold=cfg["tpsw"]["thr"])
     if cfg.get("sig"):
-        p["indicator_exit"] = dict(name=SIGS_DEF[cfg["sig"]["id"]][0], min_return_at_open=None if not np.isfinite(cfg["sig"]["gate"]) else cfg["sig"]["gate"])
+        p["indicator_exit"] = [dict(group=gi, names=sig_names(int(m)), min_return_at_open=None if not np.isfinite(gt) else float(gt))
+                               for gi, (m, gt) in enumerate(zip(np.asarray(cfg["sig"]["mask"]), np.asarray(cfg["sig"]["gate"], float)))]
     if cfg.get("sl") is not None:
         p["sl_mult"] = [None if not np.isfinite(v) else round(float(v), 4) for v in cfg["sl"]]
     if cfg.get("tr") is not None:
@@ -1261,9 +1295,13 @@ def text_vi(S, cfg, fits_a, lv, anchor_name, groups_info=None):
     if cfg.get("tpsw") and cfg.get("tpt"):
         w = cfg["tpsw"]
         parts.append(f"Tại nến chạm TP: chỉ chuyển sang trailing nếu {FEAT_NAMES[w['kind']]} {'≥' if w['dir'] > 0 else '≤'} {w['thr']:g}" + ("" if w["kind"] != 4 else " (khung 8 giờ bắt đầu từ giờ này)") + "; ngược lại chốt TP.")
-    if cfg.get("sig"):
-        g = cfg["sig"]["gate"]
-        parts.append(f"Thoát tại open nến kế tiếp khi tín hiệu chỉ báo trên nến đã đóng: {SIGS_DEF[cfg['sig']['id']][0]}" + ("" if not np.isfinite(g) else f", chỉ khi lợi suất hiện tại ≥ {100*g:.2f}% giá") + ".")
+    if cfg.get("sig") is not None and np.any(np.asarray(cfg["sig"]["mask"]) != 0):
+        ms = np.asarray(cfg["sig"]["mask"]); gs_ = np.asarray(cfg["sig"]["gate"], float)
+        items = []
+        for gi in range(len(ms)):
+            if ms[gi]:
+                items.append((f"nhóm {gi}: " if len(ms) > 1 else "") + " HOẶC ".join(sig_names(int(ms[gi]))) + ("" if not np.isfinite(gs_[gi]) else f" (chỉ khi lợi suất ≥ {100*gs_[gi]:.2f}% giá)"))
+        parts.append("Thoát tại open nến kế tiếp khi tín hiệu chỉ báo trên nến đã đóng: " + "; ".join(items[:12]) + (" ..." if len(items) > 12 else "") + ".")
     if cfg.get("tc") is not None:
         tc = cfg["tc"]
         parts.append(f"Giới hạn thời gian: thoát market sau {tc['min']} phút kể từ {'fill cuối' if tc['ref'] == 1 else 'fill đầu'}" + (" (chỉ khi đang lỗ)." if tc["loss"] else "."))
@@ -1280,6 +1318,9 @@ def label_groups(key, info, D, grp):
         m = grp == g
         if key == "lớp mã":
             out.append(" + ".join(CLS_NAMES[int(c)] for c in sorted(set(D.cls[m].tolist()))))
+        elif key == "mã x phiên giờ":
+            ss = sorted({b_["sym"] for b_, mm in zip(D.B, m) if mm}); hh = sorted(set(np.digitize(D.vn_hour[m], [8, 16]).tolist()))
+            out.append("/".join(ss[:4]) + (",..." if len(ss) > 4 else "") + " | giờ VN vào lệnh " + ",".join(["0-8", "8-16", "16-24"][h] for h in hh))
         elif key == "từng mã":
             out.append(info["syms"][g] if g < len(info.get("syms", [])) else str(g))
         else:
@@ -1410,8 +1451,13 @@ def joint_random(S, ai, n=5000, seed=None, top=6):
                 c["tpt"] = True
                 if "tpsw" in S.allowed and rng.random() < 0.5:
                     k_, d_, t_ = SW_GRID[int(rng.integers(0, len(SW_GRID)))]; c["tpsw"] = dict(kind=k_, dir=d_, thr=t_)
-        if "sig" in S.allowed and rng.random() < 0.35:
-            c["sig"] = dict(id=int(rng.integers(0, len(SIGS_DEF))), gate=float(rng.choice(S.sig_gates)))
+        if "sig" in S.allowed and rng.random() < 0.5:
+            mk = 1 << int(rng.integers(0, len(SIGS_DEF)))
+            if rng.random() < 0.3:
+                mk |= 1 << int(rng.integers(0, len(SIGS_DEF)))
+            c["sig"] = dict(mask=np.array([mk], np.int64), gate=np.array([float(rng.choice(S.sig_gates))]))
+            if rng.random() < 0.3:
+                c.pop("tp", None); c.pop("tpk", None); c.pop("tpt", None); c.pop("tpsw", None)
         if "tp" in c and rng.random() < 0.3:
             c["tpk"] = float(rng.choice(G_TPK))
         if "bes" in S.allowed and rng.random() < 0.3:
@@ -1475,10 +1521,13 @@ def polish(S, cfg, n=4000, seed=0):
             elif k == "tpk":
                 c["tpk"] = max(0.0, float(c["tpk"]) * f)
             elif k == "sig":
-                if rng.random() < 0.5:
-                    c["sig"] = dict(id=int(rng.integers(0, len(SIGS_DEF))), gate=c["sig"]["gate"])
+                gi = int(rng.integers(0, len(c["sig"]["mask"]))); r_ = rng.random()
+                if r_ < 0.35:
+                    c["sig"]["mask"][gi] = 1 << int(rng.integers(0, len(SIGS_DEF)))
+                elif r_ < 0.6:
+                    c["sig"]["mask"][gi] = int(c["sig"]["mask"][gi]) ^ (1 << int(rng.integers(0, len(SIGS_DEF))))
                 else:
-                    c["sig"] = dict(id=c["sig"]["id"], gate=float(rng.choice(S.sig_gates)))
+                    c["sig"]["gate"][gi] = float(rng.choice(S.sig_gates))
             elif k == "tpsw" and c.get("tpt"):
                 k_, d_, t_ = SW_GRID[int(rng.integers(0, len(SW_GRID)))]; c["tpsw"] = dict(kind=k_, dir=d_, thr=t_)
         o = S.score(c)["obj"]
@@ -1512,6 +1561,10 @@ def split_tune(S, cfg, grp, G):
             c2["tr"] = dict(gb=np.full(G, INF), act=np.ones(G))
     else:
         c2["tr"] = dict(gb=np.full(G, float(c2["tr"]["gb"][0])), act=np.full(G, float(c2["tr"]["act"][0])))
+    if c2.get("sig") is not None:
+        c2["sig"] = dict(mask=np.full(G, int(np.asarray(c2["sig"]["mask"])[0]), np.int64), gate=np.full(G, float(np.asarray(c2["sig"]["gate"])[0])))
+    elif "sig" in S.allowed:
+        c2["sig"] = dict(mask=np.zeros(G, np.int64), gate=np.full(G, S.sig_gates[0]))
     o = S.tune(c2, passes=3)
     return c2, o
 
@@ -1679,7 +1732,7 @@ def fit_bot(name, out_dir="out", verbose=True):
 
     # ---- tách theo lớp mã / chế độ
     splits = {}
-    sp_defs = [("lớp mã", group_class(D)), ("từng mã", group_sym(D)), ("tuần lịch", group_week(D)), ("tuần mịn", group_week(D, min_n=6, max_groups=30)), ("tuần cực mịn", group_week(D, min_n=3, max_groups=40)), ("điểm đổi chế độ", group_cp(D, df))]
+    sp_defs = [("lớp mã", group_class(D)), ("từng mã", group_sym(D)), ("tuần lịch", group_week(D)), ("tuần mịn", group_week(D, min_n=6, max_groups=30)), ("tuần cực mịn", group_week(D, min_n=3, max_groups=40)), ("mã x phiên giờ", group_sym_hour(D)), ("điểm đổi chế độ", group_cp(D, df))]
     best_split = None
     for key, (grp, info) in sp_defs:
         pass
@@ -1854,7 +1907,7 @@ def count_params(cfg, G):
             n += int(np.isfinite(np.asarray(cfg[k], float)).sum())
     if cfg.get("tr") is not None:
         n += int(np.isfinite(np.asarray(cfg["tr"]["gb"], float)).sum()) * (1 if cfg.get("tpt") else 2)
-    n += (1 if cfg.get("tpk") else 0) + 2 * (cfg.get("bes") is not None) + 2 * (cfg.get("brd") is not None) + 3 * (cfg.get("tc") is not None) + 2 * (cfg.get("sig") is not None) + 3 * (cfg.get("tpsw") is not None)
+    n += (1 if cfg.get("tpk") else 0) + 2 * (cfg.get("bes") is not None) + 2 * (cfg.get("brd") is not None) + 3 * (cfg.get("tc") is not None) + 2 * (int(np.count_nonzero(np.asarray(cfg["sig"]["mask"]))) if cfg.get("sig") is not None else 0) + 3 * (cfg.get("tpsw") is not None)
     return n + max(0, G - 1)
 
 
