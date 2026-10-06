@@ -23,9 +23,9 @@ Trạng thái: `backlog` (chưa làm) · `ready` (đủ điều kiện làm) · 
 | E13 | Hai chế độ chạy Cơ bản / Nâng cao | done | 2 / 2 | 5/7 preset stage A chưa qua dev2 (ghi nhãn). |
 | E14 | Phễu kiểm duyệt alpha | done | 3 / 3 | Lượt thật 36.000 alpha → 0 FINAL; alpha SOL bị loại khi kiểm lại. |
 | E15 | Regime và điều phối chiến lược | done | 6 / 6 | Bảng tĩnh không khớp dữ liệu; học trên train cải thiện nhưng WFA chưa qua. |
-| E16 | Kiến trúc thực thi thống nhất (backtest → testnet → live) | in-progress | 0 / 1 | ADR-P6 chờ duyệt D1–D6; P6.1–P6.9 chưa bắt đầu. |
+| E16 | Kiến trúc thực thi thống nhất (backtest → testnet → live) | in-progress | 1 / 1 | ADR duyệt; P6.1–P6.4 xong; P6.5–P6.9 đang làm. |
 
-Tổng: 16 epic (11 done, 3 in-progress, 2 backlog); 85 story (67 done, 0 in-progress, 3 review, 0 ready, 15 backlog).
+Tổng: 16 epic (11 done, 3 in-progress, 2 backlog); 85 story (68 done, 0 in-progress, 2 review, 0 ready, 15 backlog).
 
 Epic E5 mang trạng thái `done` về mặt tính năng. Kết quả nghiên cứu là: alpha `trend_long_perp__SOL` từng hợp lệ nhưng bị loại khi kiểm lại bằng engine hiện hành (E14-S3, 03/10/2026); sổ `breakout_4h_long + breakout_4h_short` ở trạng thái `HOLDOUT_FAILED`, không có cấu hình testnet cho sổ. Việc tìm sổ qua holdout nằm ở E10.
 
@@ -270,4 +270,4 @@ Một giao diện sàn (`Venue`) cho sim và OKX, một risk engine, kế toán 
 
 | Story | Tiêu đề | Trạng thái |
 |---|---|---|
-| [E16-S1](stories/E16-S1-adr-unified-execution.md) | ADR kiến trúc thực thi thống nhất (P6.0) | review |
+| [E16-S1](stories/E16-S1-adr-unified-execution.md) | ADR kiến trúc thực thi thống nhất (P6.0) | done |

@@ -1,6 +1,6 @@
 # ADR-P6 — Kiến trúc thực thi thống nhất (backtest → testnet → live)
 
-Ngày: 2026-10-06 · Trạng thái: **chờ duyệt các mục "Mặc định chờ duyệt"** · Nhánh: `fix/pipeline-audit` · Roadmap: mục P6 · Epic: E16
+Ngày: 2026-10-06 · Trạng thái: **đã duyệt** (D1–D6 duyệt 2026-10-06) · Nhánh: `fix/pipeline-audit` · Roadmap: mục P6 · Epic: E16
 
 ## 1. Bối cảnh
 
@@ -48,7 +48,7 @@ Strategy slot (AST + params)  ->  Runner.step_bar(t, bars, signals, funding)
 2. `PositionTracker` nghỉ hưu ở P6.9 sau khi đường event bit-identical; `reference_engine` giữ làm oracle test.
 3. Vốn rủi ro ở live/demo: sổ vốn ảo đã chốt, event-sourced (cùng định nghĩa sim: vốn đã chốt + funding; kill switch theo MTM xấu nhất của nến). Vốn thật của sàn chỉ là cảnh báo lệch.
 
-### 2.4 Mặc định chờ duyệt (đề xuất của Opus, chưa được người dùng xác nhận riêng)
+### 2.4 Mặc định D1–D6 (người dùng duyệt 2026-10-06)
 
 | # | Nội dung | Mặc định |
 |---|---|---|

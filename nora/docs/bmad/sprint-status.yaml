@@ -8,7 +8,7 @@ branch: fix/pipeline-audit
 status_values: [backlog, ready, in-progress, review, done]
 summary:
   epics: {done: 11, in-progress: 3, backlog: 2}
-  stories: {done: 63, review: 5, in-progress: 0, ready: 0, backlog: 17, total: 85}
+  stories: {done: 64, review: 4, in-progress: 0, ready: 0, backlog: 17, total: 85}
 epics:
   E1:
     title: "Dữ liệu thị trường"
@@ -158,4 +158,4 @@ epics:
     title: "Kiến trúc thực thi thống nhất"
     status: in-progress
     stories:
-      E16-S1-adr-unified-execution: review
+      E16-S1-adr-unified-execution: done
