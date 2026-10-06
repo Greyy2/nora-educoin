@@ -25,7 +25,7 @@ const I = {
 const PAGES = [
   { to: '/portfolio', title: 'Kết quả backtest', short: 'Kết quả', icon: I.portfolio },
   { to: '/backtest', title: 'Backtest · WFA · Monte Carlo', short: 'Backtest', icon: I.backtest },
-  { to: '/alpha', title: 'Alpha · Tối ưu + Phễu kiểm duyệt', short: 'Alpha', icon: I.alpha },
+  { to: '/alpha', title: 'Alpha · Danh mục + Tối ưu + Phễu', short: 'Alpha', icon: I.alpha },
   { to: '/live', title: 'Bot live · paper / demo', short: 'Live', icon: I.live },
   { to: '/history', title: 'Lịch sử chạy', short: 'Lịch sử chạy', icon: I.history },
 ]

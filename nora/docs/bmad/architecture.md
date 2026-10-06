@@ -166,6 +166,7 @@ Ngưỡng tham số hoá `{"param": tên, "default": x}` thay bằng `params_tem
 | `test/legacy_candidates.py` | 9 định nghĩa cũ (`trend_*`, `breakout_4h_*`, `keltner_trend_*`, `momentum_long`, `reversion_*`) | chỉ cho test (golden, parity); conftest đăng ký vào `EXTRA_CANDIDATES` |
 
 Chiến lược (`STRATEGIES`, `GET /api/studio/strategies/catalog`) = logic đánh; mỗi chiến lược có chân LONG / SHORT; "Cả hai" = chạy cả hai chân.
+Mỗi chiến lược có thêm `idea` (luận điểm kinh tế, 2–3 câu). `GET /api/studio/alphas/catalog` (`core/analytics/alpha_doc.py`) dựng tài liệu alpha theo NGUỒN (`sources[0]` = "nora": sổ chính + sổ thử nghiệm): ý tưởng + công thức LaTeX sinh từ cấu trúc đã materialize + thống kê FINAL + nơi triển khai; UI: tab Alpha của `/alpha`.
 Một chân + một bộ tham số = một **alpha**. `BY_ID` tra `CANDIDATES` + `EXTRA_CANDIDATES`. Lượt phễu cũ chạy trên id cũ vẫn xem được số liệu/lệnh đã lưu, nhưng không tính lại / vẽ tín hiệu được.
 
 `strategy_book.materialize(candidate, params)` ghép `BASE_POSITION` (perp, đòn bẩy 10, `exit_unit="atr"`, `atr_frame="1h"`, `atr_period=14`,

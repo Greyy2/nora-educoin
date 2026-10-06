@@ -246,12 +246,21 @@ BY_ID: Mapping = _ById()
 
 STRATEGIES: List[Dict[str, Any]] = [
     {"id": "kema", "name": "KEMA", "kind": "Theo xu hướng", "legs": {"LONG": "kema_long", "SHORT": "kema_short"},
-     "description": "Theo xu hướng bằng kênh Keltner: vào khi giá phá kênh, thoát khi giá cắt ngược kênh. Cả hai chiều = đảo chiều liên tục."},
+     "description": "Theo xu hướng bằng kênh Keltner: vào khi giá phá kênh, thoát khi giá cắt ngược kênh. Cả hai chiều = đảo chiều liên tục.",
+     "idea": "Theo xu hướng (time-series momentum): giá đóng cửa vượt ra ngoài kênh EMA ± k·ATR — kênh co giãn theo biến động — báo hiệu thị trường chuyển "
+             "sang trạng thái có quán tính, giá có xu hướng đi tiếp cùng chiều. Vào lệnh theo hướng phá kênh, thoát khi giá cắt ngược dải đối diện hoặc chạm cắt lỗ. "
+             "Lợi thế đến từ độ lệch dương (positive skew): nhiều lệnh nhỏ thua, ít lệnh thắng lớn nhờ đuôi béo của phân phối lợi suất khi xu hướng chạy dài."},
     {"id": "sideway", "name": "Sideway", "kind": "Đi ngang", "legs": {"LONG": "sideway_long", "SHORT": "sideway_short"},
-     "description": "Đánh biên khi thị trường đi ngang: mua vùng quá bán, bán vùng quá mua; đứng ngoài khi có xu hướng."},
+     "description": "Đánh biên khi thị trường đi ngang: mua vùng quá bán, bán vùng quá mua; đứng ngoài khi có xu hướng.",
+     "idea": "Hồi quy về trung bình trong biên độ đi ngang: khi sức mạnh xu hướng thấp (ER thấp), giá chạm vùng cực trị của dải Bollinger thường là phản ứng thái quá "
+             "nhất thời hơn là thông tin mới. Mua vùng quá bán, bán vùng quá mua, kỳ vọng giá quay về đường giữa; đứng ngoài khi xuất hiện xu hướng. "
+             "Lợi thế là phần bù cho việc cung cấp thanh khoản ngược chiều đám đông ở các cực của biên độ."},
     {"id": "dca", "name": "DCA", "kind": "Bắt hồi + dồn lệnh có điều kiện", "legs": {"LONG": "dca_long", "SHORT": "dca_short"},
      "description": "Bắt hồi ở vùng quá bán/quá mua khi đi ngang; chỉ dồn thêm tầng khi thị trường vẫn đi ngang (ER, ADX thấp), "
-                    "ngừng dồn khi bắt đầu có xu hướng. Cắt lỗ cứng cho cả rổ."},
+                    "ngừng dồn khi bắt đầu có xu hướng. Cắt lỗ cứng cho cả rổ.",
+     "idea": "Hồi quy ngắn hạn: mua vùng quá bán (RSI thấp, giá dưới dải Bollinger dưới), bán vùng quá mua, nhưng chỉ khi thị trường không có xu hướng "
+             "(Efficiency Ratio thấp). Dồn lệnh (nhồi ngược chiều giá) ở các mức cách nhau theo ATR CHỈ khi chế độ vẫn đi ngang; rủi ro cố định cho cả rổ nhờ cắt lỗ tính từ giá trung bình. "
+             "Lợi thế = cung cấp thanh khoản / bắt phản ứng thái quá, đuôi lỗ bị chặn bởi cắt lỗ cứng và cổng chế độ."},
 ]
 
 

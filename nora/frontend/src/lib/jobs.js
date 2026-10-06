@@ -59,7 +59,7 @@ export function jobLink(j) {
     return rid ? `/alpha/funnel/${encodeURIComponent(rid)}` : '/alpha/funnel'
   }
   if (j.kind === 'book_wfa') return `/backtest?wfa=${id}&step=2`
-  if (j.kind === 'book_build') return `/alpha?build=${id}`
+  if (j.kind === 'book_build') return `/alpha/tune?build=${id}`
   return `/backtest?job=${id}`
 }
 

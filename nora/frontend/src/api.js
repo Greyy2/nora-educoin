@@ -148,6 +148,8 @@ export async function getCatalog() {
   }
 }
 export const getAlphas = () => request('/api/studio/alphas')
+/** Danh mục alpha dạng tài liệu: { sources: [{ key, label, books, alphas: [{ idea, formulas[{title, latex, note}], stats, deploy, ... }] }] }. */
+export const getAlphaCatalog = () => request('/api/studio/alphas/catalog')
 
 // ---- job ----
 export async function listJobs(kind, limit = 20) {
