@@ -4,7 +4,7 @@ export function Segmented({ value, onChange, options, label }) {
   return (
     <div className="n-seg" role="group" aria-label={label}>
       {options.map((o) => (
-        <button key={o.value} type="button" aria-pressed={value === o.value} onClick={() => onChange(o.value)}>{o.label}</button>
+        <button key={o.value} type="button" aria-pressed={value === o.value} disabled={o.disabled} title={o.title} onClick={() => onChange(o.value)}>{o.label}</button>
       ))}
     </div>
   )

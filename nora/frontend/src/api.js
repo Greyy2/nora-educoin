@@ -145,10 +145,11 @@ export async function getCatalog() {
     catalog,
     universe: raw.universe || book?.universe || [],
     windows: raw.windows || book?.windows || null,
+    assets: raw.assets || [],   // [{symbol, venue cex|dex, market, candles, ticks|null, network, fee_rate}] — DEX cho backtest
   }
 }
 export const getAlphas = () => request('/api/studio/alphas')
-/** Danh mục alpha dạng tài liệu: { sources: [{ key, label, books, alphas: [{ idea, formulas[{title, latex, note}], stats, deploy, ... }] }] }. */
+/** Thư viện chiến lược: { sources: [{ key, label, strategies: [{ key, name, side, idea, plain, math, summary, stats }] }] }. */
 export const getAlphaCatalog = () => request('/api/studio/alphas/catalog')
 
 // ---- job ----

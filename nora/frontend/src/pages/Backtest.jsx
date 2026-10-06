@@ -15,6 +15,7 @@ import { useCatalog } from '../context/Catalog'
 import { postBacktest, postWfa, postMc } from '../api'
 import { parseJobParams, JOB_STATUS } from '../lib/jobs'
 import { daysInclusive } from '../lib/dates'
+import { isDexSym, dexSym, dexAssets, tickChip, dexRange, msStamp } from '../lib/dex'
 import { fullDate } from '../lib/format'
 import { STOP_FILL, stopFillOptions } from '../lib/stopfill'
 import { paramLabel } from '../lib/params'
@@ -120,12 +121,64 @@ function PresetBlock({ strat }) {
   )
 }
 
+const VN_INT = new Intl.NumberFormat('vi-VN')
+
+/** Kết quả backtest tick: huy hiệu "Tick" + cửa sổ thực chạy + ghi chú mô hình chi phí (config.tick_window / cost_model, tick_stats). */
+function TickResultNote({ result }) {
+  const cfg = result?.config
+  if (cfg?.data !== 'tick') return null
+  const w = cfg.tick_window || {}
+  const cm = cfg.cost_model || {}
+  const st = result.tick_stats || {}
+  const pools = Object.entries(cm.pools || {})
+  return (
+    <div className="n-bt-tick" role="note">
+      <div>
+        <span className="n-badge">Tick</span>{' '}
+        <span className="mono">{msStamp(w.start)} → {msStamp(w.end)} (UTC)</span>
+        {w.ticks != null && <> · {VN_INT.format(w.ticks)} swap</>}
+        {cfg.latency_ms != null && <> · trễ {VN_INT.format(cfg.latency_ms)} ms</>}
+        {w.requested_start != null && (w.requested_start !== w.start || w.requested_end !== w.end) && <span className="n-pf-note"> (đã cắt theo độ phủ tick)</span>}
+      </div>
+      <details className="n-details">
+        <summary>Mô hình chi phí: swap thật trên AMM</summary>
+        <div style={{ display: 'grid', gap: 4, marginTop: 6 }}>
+          {cm.fills && <span>{cm.fills}</span>}
+          {cm.impact && <span>Trượt giá: {cm.impact}.</span>}
+          {pools.map(([sym, pl]) => (
+            <span key={sym}>
+              <b className="mono">{String(sym).replace(/^dex:/, '')}</b>
+              {pl.network ? ` · ${pl.network}` : ''}{pl.pool_type ? ` · pool ${pl.stable ? 'stable' : pl.pool_type}` : ''}
+              {pl.fee_rate != null ? ` · phí pool ${+(pl.fee_rate * 100).toFixed(4)}%` : ''}
+              {pl.gas_usd != null ? ` · gas ${pl.gas_usd} USD/swap` : ''}
+            </span>
+          ))}
+          {st.taker_fills != null && (
+            <span>{VN_INT.format(st.taker_fills)} lệnh khớp{st.avg_fill_slippage_bps != null ? `, trượt giá trung bình ${st.avg_fill_slippage_bps} bps` : ''}
+              {st.signal_bars != null ? ` · ${VN_INT.format(st.signal_bars)} nến tín hiệu` : ''}
+              {st.signal_bars_skipped ? `, bỏ ${VN_INT.format(st.signal_bars_skipped)} nến không có swap` : ''}.
+            </span>
+          )}
+        </div>
+      </details>
+    </div>
+  )
+}
+
 function StepBacktest({ cat, strats, sc, form, setForm, btId, bt, onLaunched, onNext }) {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(null)
   const [runErr, setRunErr] = useState(null) // { per, general } từ 422 của lần chạy gần nhất
   const [period, setPeriod] = useState('ALL')
   const universe = cat.universe || []
+  const dexList = useMemo(() => dexAssets(cat.assets), [cat.assets])
+  const dexByKey = useMemo(() => Object.fromEntries(dexList.map((a) => [a.key, a])), [dexList])
+  const selDex = form.symbols.find(isDexSym)
+  const isDex = !!selDex
+  const asset = isDex ? dexByKey[selDex] : null
+  const dataMode = isDex && form.data === 'tick' && asset?.ticks ? 'tick' : 'candle'
+  const tickOn = dataMode === 'tick'
+  const range = isDex ? dexRange(asset, tickOn) : null   // khoảng ngày cho phép của tài sản DEX (tick: độ phủ tick)
   const mode = form.mode
   const adv = mode === 'advanced'
   const multi = !!form.multi
@@ -155,10 +208,15 @@ function StepBacktest({ cat, strats, sc, form, setForm, btId, bt, onLaunched, on
 
   const nSym = form.symbols.length
   const days = daysInclusive(form.start, form.end)
+  const latBad = tickOn && String(form.latency ?? '').trim() !== '' && !(Number.isInteger(Number(form.latency)) && Number(form.latency) >= 0 && Number(form.latency) <= 3600000)
+  const gasBad = tickOn && String(form.gas ?? '').trim() !== '' && !(isNumStr(form.gas) && Number(form.gas) >= 0 && Number(form.gas) <= 1000)
   const reason = !nSel ? (multi ? 'Chọn ít nhất một chiến lược ở danh sách bên trên' : 'Chọn một chiến lược ở danh sách bên trên')
     : !nSym ? (multi ? 'Chọn ít nhất một cặp giao dịch' : 'Chọn cặp giao dịch')
       : !form.start || !form.end ? 'Nhập ngày bắt đầu và kết thúc hợp lệ (dd/mm/yyyy)'
         : form.start >= form.end ? 'Ngày bắt đầu phải trước ngày kết thúc'
+          : isDex && !asset ? 'Tài sản DEX không còn trong kho dữ liệu'
+            : latBad ? 'Độ trễ phải là số nguyên ms từ 0 đến 3.600.000'
+              : gasBad ? 'Gas phải từ 0 đến 1000 USD mỗi swap'
           : adv && !riskOk(form.risk) ? `Rủi ro mỗi lệnh phải từ ${RISK_MIN}% đến ${RISK_MAX}%`
             : adv && nErrStrats ? `Còn lỗi tham số ở ${nErrStrats} chiến lược (xem các ô báo đỏ)` : null
 
@@ -167,7 +225,11 @@ function StepBacktest({ cat, strats, sc, form, setForm, btId, bt, onLaunched, on
     if (reason) return setErr(reason)
     setBusy(true)
     try {
-      const body = { mode, symbols: form.symbols, start: form.start, end: form.end, timeframe: form.timeframe || '1h' }
+      const body = { mode, symbols: form.symbols, start: form.start, end: form.end, timeframe: form.timeframe || '1h', data: dataMode }
+      if (tickOn) {
+        if (String(form.latency ?? '').trim() !== '') body.latency_ms = Number(form.latency)
+        if (String(form.gas ?? '').trim() !== '') body.gas_usd = Number(form.gas)
+      }
       if (adv) {
         body.strategies = ids.map((id) => ({ id, params: coerceParams(strats.byId[id].params_schema, paramsFor(id)) }))
         body.risk_per_trade_pct = Number(form.risk)
@@ -182,12 +244,13 @@ function StepBacktest({ cat, strats, sc, form, setForm, btId, bt, onLaunched, on
   }
 
   // một chiến lược: bấm thẻ là thay luôn bằng preset của nó (mặc định Cả hai chiều); danh mục: bật/tắt từng thẻ
+  const defSide = isDex ? 'LONG' : 'BOTH'   // DEX là spot: chỉ chân Long
   const pickStrategy = (c) => {
     if (!multi) {
-      const sel = applySide({}, c, 'BOTH', strats.byId)
+      const sel = applySide({}, c, defSide, strats.byId)
       return setForm({ sel, risk: basicRisk(sel, strats.byId) })
     }
-    setForm({ sel: picks[c.id] ? dropStrategy(form.sel, c) : applySide(form.sel, c, 'BOTH', strats.byId) })
+    setForm({ sel: picks[c.id] ? dropStrategy(form.sel, c) : applySide(form.sel, c, defSide, strats.byId) })
   }
   const pickSide = (c, side) => {
     const sel = applySide(form.sel, c, side, strats.byId)
@@ -204,10 +267,31 @@ function StepBacktest({ cat, strats, sc, form, setForm, btId, bt, onLaunched, on
     const g = groups[0]
     setForm({ multi: false, sel: g ? Object.fromEntries(g.legIds.map((id) => [id, form.sel[id]])) : {}, symbols: form.symbols.length > 1 ? defaultSymbols(universe.filter((s) => form.symbols.includes(s))) : form.symbols })
   }
-  const toggleSym = (s) => setForm({ symbols: form.symbols.includes(s) ? form.symbols.filter((x) => x !== s) : [...form.symbols, s] })
+  const perpDates = () => form.perpRange || { start: cat.windows?.dev2_end || '', end: cat.windows?.end || '' }
+  // chọn perp (xoá DEX nếu đang chọn, trả ngày về khoảng perp); chọn DEX (xoá perp, ép Long, ngày theo dữ liệu của tài sản)
+  const setPerp = (symbols) => {
+    if (!isDex) return setForm({ symbols })
+    const d = perpDates()
+    setForm({ symbols, data: 'candle', start: d.start, end: d.end, perpRange: null })
+  }
+  const toggleSym = (s) => setPerp(isDex ? [s] : form.symbols.includes(s) ? form.symbols.filter((x) => x !== s) : [...form.symbols, s])
+  const chooseDex = (key) => {
+    const a = dexByKey[key]
+    const tick = form.data === 'tick' && !!a?.ticks
+    const r = dexRange(a, tick)
+    let sel = form.sel
+    groups.forEach((g) => { if (g.side !== 'LONG') sel = applySide(sel, g.entry, 'LONG', strats.byId) })
+    setForm({ symbols: [key], sel, data: tick ? 'tick' : 'candle', perpRange: isDex ? form.perpRange : { start: form.start, end: form.end }, ...(r ? { start: r.start, end: r.end } : {}) })
+  }
+  const pickSymbol = (v) => (isDexSym(v) ? chooseDex(v) : setPerp([v]))
+  const setDataMode = (m) => {
+    const tick = m === 'tick'
+    const r = dexRange(asset, tick)
+    setForm({ data: m, ...(r ? { start: r.start, end: r.end } : {}) })
+  }
   const bookOk = (cat.book?.strategies || []).some((x) => strats.byId[x.id]) // sổ cũ dùng id cũ: không nạp được vào lựa chọn mới
   const applyBook = () => { const sel = selFromList(cat.book?.strategies, strats.byId); setForm({ multi: Object.keys(picksFromLegs(Object.keys(sel), sc.list)).length > 1, sel }) }
-  const symOpts = form.symbols[0] && !universe.includes(form.symbols[0]) ? [form.symbols[0], ...universe] : universe
+  const symOpts = form.symbols[0] && !isDex && !universe.includes(form.symbols[0]) ? [form.symbols[0], ...universe] : universe
 
   return (
     <>
@@ -218,7 +302,7 @@ function StepBacktest({ cat, strats, sc, form, setForm, btId, bt, onLaunched, on
           <span className="mono">{nStrat} đã chọn</span>
         </>
       ) : null}>
-        <StrategyChoice catalog={sc.list} picks={picks} multi={multi} onPick={pickStrategy} onSide={pickSide} />
+        <StrategyChoice catalog={sc.list} picks={picks} multi={multi} onPick={pickStrategy} onSide={pickSide} longOnly={isDex} />
       </Panel>
 
       {!nSel && <p className="n-note" style={{ marginTop: 12 }}>Chọn một chiến lược để xem tham số và thiết lập phạm vi chạy.</p>}
@@ -281,8 +365,8 @@ function StepBacktest({ cat, strats, sc, form, setForm, btId, bt, onLaunched, on
 
           <Panel title="Phạm vi chạy">
             <div className="n-form-row" style={{ gridTemplateColumns: '1fr 1fr' }}>
-              <Field id="bt-start" label="Từ ngày"><DateInput id="bt-start" label="Từ ngày" value={form.start} onChange={(v) => setForm({ start: v })} /></Field>
-              <Field id="bt-end" label="Đến ngày"><DateInput id="bt-end" label="Đến ngày" value={form.end} onChange={(v) => setForm({ end: v })} /></Field>
+              <Field id="bt-start" label="Từ ngày"><DateInput id="bt-start" label="Từ ngày" value={form.start} min={range?.start} max={range?.end} onChange={(v) => setForm({ start: v })} /></Field>
+              <Field id="bt-end" label="Đến ngày"><DateInput id="bt-end" label="Đến ngày" value={form.end} min={range?.start} max={range?.end} onChange={(v) => setForm({ end: v })} /></Field>
               <div style={{ gridColumn: '1 / -1' }}>
                 <Field id="bt-tf" label="Khung chạy (nến mô phỏng, dùng cho cả Backtest và WFA)">
                   <select id="bt-tf" className="n-sel" value={form.timeframe || '1h'} onChange={(e) => setForm({ timeframe: e.target.value })}>
@@ -300,6 +384,7 @@ function StepBacktest({ cat, strats, sc, form, setForm, btId, bt, onLaunched, on
                   <div className="n-field">
                     <span className="n-lbl" id="bt-sym-l">Cặp giao dịch ({nSym} đã chọn)</span>
                     <div className="n-chips" role="group" aria-labelledby="bt-sym-l">
+                      <span className="n-pf-note" style={{ width: '100%' }}>Perp OKX (nến)</span>
                       {universe.map((s) => {
                         const on = form.symbols.includes(s)
                         return (
@@ -308,26 +393,85 @@ function StepBacktest({ cat, strats, sc, form, setForm, btId, bt, onLaunched, on
                           </label>
                         )
                       })}
+                      {dexList.length > 0 && <span className="n-pf-note" style={{ width: '100%', marginTop: 4 }}>DEX (on-chain): spot, chỉ Long, chọn một tài sản</span>}
+                      {dexList.map((a) => {
+                        const on = selDex === a.key
+                        return (
+                          <label key={a.key} className={`n-chip-lbl ${on ? 'on' : ''}`} title={`${a.name}${a.network ? ` · ${a.network}` : ''} · ${tickChip(a)}`}>
+                            <input type="radio" name="bt-dex" checked={on} onChange={() => chooseDex(a.key)} />{a.name}
+                            <span className="n-badge">{tickChip(a)}</span>{a.network && <span className="n-badge">{a.network}</span>}
+                          </label>
+                        )
+                      })}
                     </div>
                     <div className="n-bt-actions">
-                      <button type="button" className="n-btn sm" onClick={() => setForm({ symbols: universe })}>Tất cả</button>
-                      <button type="button" className="n-btn sm" onClick={() => setForm({ symbols: [] })}>Bỏ chọn</button>
+                      <button type="button" className="n-btn sm" onClick={() => setPerp(universe)}>Tất cả perp</button>
+                      <button type="button" className="n-btn sm" onClick={() => setPerp([])}>Bỏ chọn</button>
                     </div>
                   </div>
                 ) : (
                   <Field id="bt-sym" label="Cặp giao dịch">
-                    <select id="bt-sym" className="n-sel" value={form.symbols[0] ?? ''} onChange={(e) => setForm({ symbols: [e.target.value] })}>
-                      {symOpts.map((s) => <option key={s} value={s}>{symName(s)}</option>)}
+                    <select id="bt-sym" className="n-sel" value={form.symbols[0] ?? ''} onChange={(e) => pickSymbol(e.target.value)}>
+                      {dexList.length > 0 ? (
+                        <>
+                          <optgroup label="Perp OKX (nến)">{symOpts.map((s) => <option key={s} value={s}>{symName(s)}</option>)}</optgroup>
+                          <optgroup label="DEX (on-chain)">
+                            {dexList.map((a) => <option key={a.key} value={a.key}>{a.name} · {tickChip(a)}{a.network ? ` · ${a.network}` : ''}</option>)}
+                          </optgroup>
+                        </>
+                      ) : symOpts.map((s) => <option key={s} value={s}>{symName(s)}</option>)}
                     </select>
                   </Field>
                 )}
+                {isDex && (
+                  <div style={{ marginTop: 6, display: 'grid', gap: 4 }}>
+                    <div className="n-dex-chips">
+                      <span className="n-badge">DEX · spot</span>
+                      {asset?.network && <span className="n-badge">{asset.network}</span>}
+                      <span className="n-badge">{tickChip(asset)}</span>
+                      {asset?.fee_rate != null && <span className="n-badge">phí pool {+(asset.fee_rate * 100).toFixed(4)}%</span>}
+                    </div>
+                    <span className="n-pf-note">DEX là spot, chỉ mua (Long) và chạy riêng từng tài sản: không trộn với perp OKX. Chọn perp sẽ bỏ tài sản DEX này.</span>
+                  </div>
+                )}
               </div>
+              {isDex && (
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <div className="n-field">
+                    <span className="n-lbl" id="bt-data-l">Dữ liệu</span>
+                    <Segmented label="Dữ liệu" value={dataMode} onChange={setDataMode} options={[
+                      { value: 'candle', label: 'Nến' },
+                      { value: 'tick', label: 'Tick (từng swap)', disabled: !asset?.ticks, title: asset?.ticks ? undefined : 'Tài sản này chưa có dữ liệu tick' },
+                    ]} />
+                    {!asset?.ticks && <span className="n-pf-note">Chưa có tick cho {asset?.name || 'tài sản này'}: chỉ chạy được bằng nến.</span>}
+                  </div>
+                  {tickOn && (
+                    <div className="n-bt-tick">
+                      <span>Cửa sổ tick: <b className="mono">{msStamp(asset.ticks.start_ts)} → {msStamp(asset.ticks.end_ts)}</b> (UTC), {VN_INT.format(asset.ticks.rows)} swap. Ngày chạy bị giới hạn trong cửa sổ này; mỗi swap là một bước khớp lệnh với chi phí AMM đúng theo dự trữ pool.</span>
+                      <details className="n-details">
+                        <summary>Tuỳ chọn nâng cao (để trống = mặc định theo mạng)</summary>
+                        <div className="n-form-row" style={{ gridTemplateColumns: '1fr 1fr', marginTop: 6 }}>
+                          <Field id="bt-lat" label="Độ trễ (ms)">
+                            <input id="bt-lat" className="n-in" inputMode="numeric" placeholder="một block của mạng" value={form.latency ?? ''} aria-invalid={latBad || undefined}
+                              onChange={(e) => setForm({ latency: e.target.value })} />
+                          </Field>
+                          <Field id="bt-gas" label="Gas (USD/swap)">
+                            <input id="bt-gas" className="n-in" inputMode="decimal" placeholder="theo mạng" value={form.gas ?? ''} aria-invalid={gasBad || undefined}
+                              onChange={(e) => setForm({ gas: e.target.value })} />
+                          </Field>
+                        </div>
+                      </details>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             {!adv && (
               <p className="n-bt-line"><LockIcon /> Rủi ro {isNumStr(risk) ? String(+Number(risk).toFixed(2)) : '—'}% vốn mỗi lệnh (mức nhỏ nhất của các preset) · Khớp cắt lỗ: {STOP_FILL.level.text}. Cố định ở chế độ cơ bản.</p>
             )}
-            <DatePresets windows={cat.windows} start={form.start} end={form.end} onPick={(start, end) => setForm({ start, end })} />
-            {cat.windows && <p className="n-note" style={{ marginTop: 8 }}>Dữ liệu từ {fullDate(cat.windows.start)} đến {fullDate(cat.windows.end)}. Mặc định chạy từ hết <Term k="dev2">dev2</Term> đến hết dữ liệu, tức vùng <Term k="holdout">Holdout</Term> ({fullDate(cat.windows.dev2_end)} → {fullDate(cat.windows.end)}).</p>}
+            {!isDex && <DatePresets windows={cat.windows} start={form.start} end={form.end} onPick={(start, end) => setForm({ start, end })} />}
+            {isDex && range && <p className="n-note" style={{ marginTop: 8 }}>Dữ liệu {tickOn ? 'tick' : 'nến'} của {asset.name} từ {fullDate(range.start)} đến {fullDate(range.end)} (UTC).</p>}
+            {!isDex && cat.windows && <p className="n-note" style={{ marginTop: 8 }}>Dữ liệu từ {fullDate(cat.windows.start)} đến {fullDate(cat.windows.end)}. Mặc định chạy từ hết <Term k="dev2">dev2</Term> đến hết dữ liệu, tức vùng <Term k="holdout">Holdout</Term> ({fullDate(cat.windows.dev2_end)} → {fullDate(cat.windows.end)}).</p>}
           </Panel>
         </div>
       )}
@@ -336,7 +480,7 @@ function StepBacktest({ cat, strats, sc, form, setForm, btId, bt, onLaunched, on
         <div className="n-runbar" role="region" aria-label="Chạy backtest">
           <div className="sum">
             <span className={`n-mode-badge ${mode}`}>{adv ? 'Nâng cao' : 'Cơ bản'}</span>{' '}
-            {groups.map((g) => `${g.entry.name} · ${SIDE_TEXT[g.side]}`).join(', ')} · {nSym} tài sản · {days != null && days > 0 ? `${days} ngày` : '— ngày'} · rủi ro {isNumStr(risk) ? String(+Number(risk).toFixed(2)) : '—'}%/lệnh · Khớp cắt lỗ: {STOP_FILL[fill]?.text || fill}
+            {groups.map((g) => `${g.entry.name} · ${SIDE_TEXT[g.side]}`).join(', ')} · {nSym} tài sản{tickOn ? ' · tick' : ''} · {days != null && days > 0 ? `${days} ngày` : '— ngày'} · rủi ro {isNumStr(risk) ? String(+Number(risk).toFixed(2)) : '—'}%/lệnh · Khớp cắt lỗ: {STOP_FILL[fill]?.text || fill}
             {reason && <div className="why" role="status">Chưa chạy được: {reason}.</div>}
           </div>
           <ErrorBox>{err && err !== reason ? err : null}</ErrorBox>
@@ -357,7 +501,7 @@ function StepBacktest({ cat, strats, sc, form, setForm, btId, bt, onLaunched, on
           ) : <JobPanel job={bt.job} status={bt.status} error={bt.error} />}
           {bt.status === 'done' && (
             <div className="n-sticky-actions">
-              <button type="button" className="n-btn primary" onClick={onNext}>Tiếp tục: Walk-forward →</button>
+              <button type="button" className="n-btn primary" onClick={onNext} disabled={isDex} title={isDex ? 'Walk-forward chưa hỗ trợ tài sản DEX' : undefined}>Tiếp tục: Walk-forward →</button>
             </div>
           )}
         </Panel>
@@ -373,6 +517,7 @@ function StepBacktest({ cat, strats, sc, form, setForm, btId, bt, onLaunched, on
               Mở trên Danh mục ↗
             </Link>
           </div>
+          <TickResultNote result={bt.job?.result} />
           <DashboardLoader jobId={btId} period={period} compact />
         </div>
       )}
@@ -712,7 +857,7 @@ export default function Backtest() {
       mode: pre?.mode || (customPre ? 'advanced' : 'basic'), sel, multi: Object.keys(picksFromLegs(Object.keys(sel), sc.list)).length > 1 || symbols.length > 1,
       symbols, start: pre?.start || w.dev2_end || '', end: pre?.end || w.end || '',
       risk: pre?.risk_per_trade_pct ?? cat.book?.risk_per_trade_pct ?? 0.5, stopFill: pre?.stop_fill || 'level',
-      timeframe: pre?.timeframe || '1h',
+      timeframe: pre?.timeframe || '1h', data: pre?.data || 'candle', latency: pre?.latency_ms ?? '', gas: pre?.gas_usd ?? '',
     })
   }, [cat, strats.list, sc.list]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -724,7 +869,8 @@ export default function Backtest() {
     const rs = bt.job.resolved
     const list = rs?.strategies || a.strategies
     const sel = list ? selFromList(list.map((s) => ({ id: s.id, params: s.params })), strats.byId) : form.sel
-    const symbols = (rs?.symbols || a.symbols || form.symbols).map((s) => (cat.universe?.includes(s) || String(s).includes('@') ? s : `${s}@perp`))
+    const dexNames = new Set(dexAssets(cat.assets).map((x) => x.name))
+    const symbols = (rs?.symbols || a.symbols || form.symbols).map((s) => (cat.universe?.includes(s) || String(s).includes('@') || isDexSym(s) ? s : dexNames.has(s) ? dexSym(s) : `${s}@perp`))
     setFormRaw((f) => ({
       ...f,
       mode: bt.job.mode || f.mode,
@@ -732,18 +878,20 @@ export default function Backtest() {
       start: rs?.start || a.start || f.start, end: rs?.end || a.end || f.end,
       risk: rs?.risk_per_trade_pct ?? a.risk_per_trade_pct ?? f.risk, stopFill: rs?.stop_fill || a.stop_fill || f.stopFill,
       timeframe: rs?.timeframe || a.timeframe || f.timeframe,
+      data: rs?.data || a.data || f.data, latency: rs?.latency_ms ?? a.latency_ms ?? f.latency, gas: rs?.gas_usd ?? a.gas_usd ?? f.gas,
     }))
   }, [bt.job, form, cat, sc.list]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const btDone = bt.status === 'done'
+  const dexRun = !!form?.symbols?.some(isDexSym)
   const wfaDone = wfa.status === 'done'
   const step = stepQ >= 3 && wfaDone ? 3 : stepQ >= 2 && (btDone || !!wfaId) ? 2 : 1  // link ?wfa=…&step=2 mở thẳng bước 2
 
   const steps = useMemo(() => [
     { n: 1, title: 'Backtest', st: bt.status ? (JOB_STATUS[bt.status]?.text || 'Đang tải') : 'Chưa chạy', locked: false, done: btDone },
-    { n: 2, title: 'Walk-forward (WFA)', st: !btDone && !wfaId ? 'Mở khoá sau backtest' : wfa.status ? (JOB_STATUS[wfa.status]?.text || 'Đang tải') : 'Chưa chạy', locked: !btDone && !wfaId, done: wfaDone },
+    { n: 2, title: 'Walk-forward (WFA)', st: dexRun && !wfaId ? 'Chưa hỗ trợ DEX' : !btDone && !wfaId ? 'Mở khoá sau backtest' : wfa.status ? (JOB_STATUS[wfa.status]?.text || 'Đang tải') : 'Chưa chạy', locked: (!btDone && !wfaId) || (dexRun && !wfaId), done: wfaDone },
     { n: 3, title: 'Monte Carlo', st: !wfaDone ? 'Mở khoá sau WFA' : 'Sẵn sàng', locked: !wfaDone, done: false },
-  ], [bt.status, wfa.status, btDone, wfaDone, wfaId])
+  ], [bt.status, wfa.status, btDone, wfaDone, wfaId, dexRun])
 
   const ready = cat && form && strats.list.length > 0 && sc.list.length > 0
   return (

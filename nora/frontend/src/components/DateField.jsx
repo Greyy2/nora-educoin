@@ -2,10 +2,11 @@ import React, { useEffect, useId, useState } from 'react'
 import { isoToVn, vnToIso, datePresets } from '../lib/dates'
 
 /** Ô ngày dạng dd/mm/yyyy (chữ, kiểm tra hợp lệ; không phụ thuộc locale trình duyệt). `value` / `onChange` là 'YYYY-MM-DD' ('' khi sai). */
-export function DateInput({ id, value, onChange, label, invalidMsg = 'Ngày không hợp lệ (dd/mm/yyyy)' }) {
+export function DateInput({ id, value, onChange, label, min, max, invalidMsg = 'Ngày không hợp lệ (dd/mm/yyyy)' }) {
   const [text, setText] = useState(isoToVn(value))
   const [bad, setBad] = useState(false)
   const errId = useId()
+  const clamp = (iso) => (min && iso < min ? min : max && iso > max ? max : iso) // min / max tuỳ chọn ('YYYY-MM-DD'): kẹp ngày vào khoảng
 
   // giá trị đổi từ ngoài (chọn nhanh, đồng bộ theo job) -> cập nhật chữ, trừ khi chữ đang nhập vẫn mang cùng giá trị
   useEffect(() => {
@@ -18,13 +19,13 @@ export function DateInput({ id, value, onChange, label, invalidMsg = 'Ngày khô
     if (/^\d{8}$/.test(t)) t = `${t.slice(0, 2)}/${t.slice(2, 4)}/${t.slice(4)}`
     setText(t)
     const iso = vnToIso(t)
-    if (iso) { setBad(false); onChange(iso) } else { onChange('') }
+    if (iso) { setBad(false); onChange(clamp(iso)) } else { onChange('') }
   }
   function commit() {
     if (!text.trim()) { setBad(true); return }
     const iso = vnToIso(text)
     setBad(!iso)
-    if (iso) setText(isoToVn(iso))
+    if (iso) { setText(isoToVn(clamp(iso))); onChange(clamp(iso)) }
   }
   return (
     <>

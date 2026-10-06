@@ -6,9 +6,10 @@ import '../../styles/backtest.css'
 /**
  * Ba chiến lược (KEMA, Sideway, DCA) dạng thẻ: tên, loại, mô tả; thẻ đang chọn hiện thêm ô chọn chiều Long / Short / Cả hai.
  * picks = { [mã chiến lược]: 'LONG' | 'SHORT' | 'BOTH' }. Mặc định chọn một (radio); multi=true cho phép chọn nhiều (danh mục).
+ * longOnly=true (tài sản DEX là spot): Short / Cả hai bị khoá, chỉ mua.
  * Chiến lược có coming=true (DCA) chỉ hiển thị, không chọn được. extra(c) chèn thêm một dòng ghi chú dưới mô tả.
  */
-export default function StrategyChoice({ catalog, picks, multi = false, onPick, onSide, extra = null, label = 'Chiến lược' }) {
+export default function StrategyChoice({ catalog, picks, multi = false, onPick, onSide, extra = null, label = 'Chiến lược', longOnly = false }) {
   return (
     <div className="n-sc-list" role={multi ? 'group' : 'radiogroup'} aria-label={label}>
       <div className="n-sc-grid">
@@ -33,7 +34,7 @@ export default function StrategyChoice({ catalog, picks, multi = false, onPick, 
               {on && (
                 <div className="n-sc-side">
                   <span className="muted">Chiều giao dịch</span>
-                  <Segmented label={`Chiều giao dịch của ${c.name}`} value={side} onChange={(v) => onSide(c, v)} options={SIDE_OPTIONS} />
+                  <Segmented label={`Chiều giao dịch của ${c.name}`} value={side} onChange={(v) => onSide(c, v)} options={longOnly ? SIDE_OPTIONS.map((o) => (o.value === 'LONG' ? o : { ...o, disabled: true, title: 'DEX là spot: chỉ mua' })) : SIDE_OPTIONS} />
                 </div>
               )}
             </div>

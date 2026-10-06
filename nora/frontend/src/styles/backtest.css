@@ -33,3 +33,9 @@
 @media (max-width: 700px) {
   .n-sc-grid { grid-template-columns: minmax(0, 1fr); }
 }
+
+.n-seg button:disabled { opacity: .45; cursor: not-allowed; }
+.n-dex-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.n-dex-chips .n-badge { font-size: 11px; }
+.n-chip-btn .sub { color: var(--n-ink-3); font-size: 11px; margin-left: 4px; }
+.n-bt-tick { display: grid; gap: 6px; margin-top: 10px; padding: 8px 10px; border: 1px solid var(--n-line); border-radius: 8px; background: var(--n-surface-2); font-size: 12px; }
