@@ -1,0 +1,163 @@
+"""Runner (P6.5) — chạy MỘT nến của cả danh mục qua một Venue: nguồn duy nhất của vòng danh mục cho paper / bot (docs/bmad/p6_execution_design.md §5).
+
+Thứ tự y hệt vòng lặp gốc (test/reference_engine.py::RefPortfolioEngine.run, trước đây là `PaperBook.step_bar`): tài sản theo thứ tự sổ ->
+funding (áp cho MỌI slot của tài sản, ở giá open) -> từng slot theo thứ tự sổ: luật bỏ qua, `risk.admit_entry` (gross tính SAU khi gán
+`last_close[b] = open`, chỉ khi qua trần số vị thế) -> đặt trần (max_new_notional / max_new_risk / risk_scale) -> `on_bar` -> xả trần ->
+thu lệnh đóng -> cập nhật last_close/low/high/open -> MTM (mtm, worst) -> `peak_mtm` -> `risk.kill_triggered` -> đóng hết ("Kill switch danh mục").
+
+Runner KHÔNG biết slot khớp lệnh thế nào: mỗi slot ("tracker" trong `books`) là một "actor" có giao diện chung của `PositionManager` (đường event,
+điều khiển Venue) và `PositionTracker` (đường cũ): is_open, pending_entry, qty, planned_risk, max_new_*, risk_scale, on_bar, apply_funding,
+force_close, unrealized_pnl_usd. Nên cùng một vòng danh mục chạy được cho cả hai — test_runner_parity.py dựa vào đó để khoá bit-identical.
+`venue` chỉ được giữ để chủ sở hữu (PaperBook / bot) truy cập; Runner không gọi nó (venue None = đường tracker cũ, không có sàn).
+"""
+from typing import Any, Callable, Dict, List, Optional, Tuple
+
+from backend.core.execute.risk import admit_entry, kill_triggered
+
+
+class Runner:
+    def __init__(self, venue, account, books: List[Dict[str, Any]], risk: Dict[str, Any], trade_start: int = 0,
+                 collect: Optional[Callable[..., None]] = None, initial_capital: Optional[float] = None):
+        """books = [{"symbol", "entries": [{"strategy", "side", "tracker": actor}]}] theo thứ tự sổ (tài sản, rồi chiến lược).
+        collect(sym, e, pos, low, high) thay `record` nếu chủ sở hữu muốn móc thêm khi ghi lệnh đóng (TickBook)."""
+        self.venue = venue
+        self.account = account
+        self.books = books
+        self.risk = dict(risk)
+        self.trade_start = int(trade_start)
+        self.collect = collect
+        n = len(books)
+        nan = float("nan")
+        self.last_close, self.last_low, self.last_high, self.last_open = [nan] * n, [nan] * n, [nan] * n, [nan] * n
+        self.peak_mtm = float(account.initial if initial_capital is None else initial_capital)
+        self.halted_at: Optional[int] = None
+        self.last_t: Optional[int] = None
+        self.trades: List[Dict[str, Any]] = []
+        self.rejected_for_risk = 0
+
+    def __getstate__(self) -> Dict[str, Any]:
+        """Pickle (paper.pkl của bot): bỏ móc `collect` (hàm gắn của chủ sở hữu) — PaperBook.__setstate__ gắn lại sau khi nạp."""
+        d = dict(self.__dict__)
+        d["collect"] = None
+        return d
+
+    # ── danh mục ──
+    def _gross(self) -> float:
+        tot = 0.0
+        for b, bk in enumerate(self.books):
+            px = self.last_close[b]
+            if px != px:
+                continue
+            tot += sum(e["tracker"].qty * px for e in bk["entries"] if e["tracker"].is_open)
+        return tot
+
+    def _open_risk(self) -> float:
+        """Σ rủi ro tới SL (planned_risk) của mọi vị thế đang mở."""
+        tot = 0.0
+        for bk in self.books:
+            for e in bk["entries"]:
+                if e["tracker"].is_open:
+                    tot += e["tracker"].planned_risk
+        return tot
+
+    def _counts(self) -> Tuple[int, List[int]]:
+        per = [sum(1 for e in bk["entries"] if e["tracker"].is_open) for bk in self.books]
+        return sum(per), per
+
+    def mtm(self) -> Tuple[float, float]:
+        """(vốn theo giá đóng nến, vốn theo giá xấu nhất của nến) = vốn đã chốt + lãi/lỗ chưa chốt của mọi vị thế mở."""
+        mtm = worst = self.account.equity
+        for b, bk in enumerate(self.books):
+            for e in bk["entries"]:
+                tr = e["tracker"]
+                if tr.is_open:
+                    mtm += tr.unrealized_pnl_usd(self.last_close[b])
+                    worst += tr.unrealized_pnl_usd(self.last_low[b] if tr.is_long else self.last_high[b])
+        return mtm, worst
+
+    def positions(self) -> List[Dict[str, Any]]:
+        out = []
+        for b, bk in enumerate(self.books):
+            for e in bk["entries"]:
+                tr = e["tracker"]
+                if tr.is_open:
+                    out.append({"symbol": bk["symbol"], "strategy": e["strategy"], "side": e["side"], "qty": tr.qty, "avg": tr.avg,
+                                "layers": tr.layer_count, "entry_time": tr.entry_time, "unrealized": tr.unrealized_pnl_usd(self.last_close[b])})
+        return out
+
+    # ── lệnh đóng ──
+    def record(self, sym: str, e: Dict[str, Any], pos, low: float, high: float) -> None:
+        """Ghi lệnh đóng; fees/funding = chi phí cộng dồn (dương = trả), bar_low/bar_high = nến đóng (đối chiếu kịch bản SL bi quan)."""
+        self.trades.append({"symbol": sym, "strategy": e["strategy"], "side": pos.pos_type.name, "enter_time": int(pos.enter_time),
+                            "enter_price": float(pos.enter_price), "avg_price": float(pos.avg_price or pos.enter_price),
+                            "close_time": int(pos.close_time), "close_price": float(pos.close_price), "qty": float(pos.qty),
+                            "layers": int(pos.layers or 1), "pnl": round(float(pos.real_pnl), 6), "reason": pos.close_reason,
+                            "fees": round(float(pos.fees_usd or 0), 6), "funding": round(float(pos.funding_usd or 0), 6),
+                            "bar_low": float(low), "bar_high": float(high)})
+
+    def _collect(self, sym: str, e: Dict[str, Any], pos, low: float, high: float) -> None:
+        (self.collect or self.record)(sym, e, pos, low, high)
+
+    # ── một nến ──
+    def step_bar(self, t: int, bars: Dict[str, Tuple[float, float, float, float]], sig: Dict[str, List[Dict[str, Any]]],
+                 funding: Optional[Dict[str, List[Tuple[int, float]]]] = None) -> List[Dict[str, Any]]:
+        """Một nến chạy ở thời điểm t (open_time). bars[sym] = (o, h, l, c) (tài sản không có nến: bỏ qua); sig[sym] = [{match, stop, vol}]
+        theo thứ tự chiến lược; funding[sym] = [(funding_time, rate)] đến hạn <= t. -> các lệnh đóng ở nến này."""
+        n0 = len(self.trades)
+        cap = float(self.risk["max_gross_exposure"])
+        kill_pct = float(self.risk.get("kill_switch_dd_pct") or 0)
+        can_trade = t >= self.trade_start and self.halted_at is None
+        touched = False
+        for b, bk in enumerate(self.books):
+            sym = bk["symbol"]
+            if sym not in bars:
+                continue
+            o, h, l, c = bars[sym]
+            for ft, rate in (funding or {}).get(sym, []):
+                for e in bk["entries"]:
+                    e["tracker"].apply_funding(float(rate), float(o))
+            for e, s in zip(bk["entries"], sig[sym]):
+                tr = e["tracker"]
+                m = bool(s["match"])
+                if not tr.is_open and not tr.pending_entry and not m:
+                    continue
+                can_open = False
+                if can_trade and tr.pending_entry and not tr.is_open:
+                    n_open, per = self._counts()
+                    gross = open_risk = 0.0
+                    if n_open < int(self.risk["max_positions"]) and per[b] < int(self.risk["max_per_symbol"]):
+                        self.last_close[b] = float(o)
+                        gross = self._gross()
+                        open_risk = self._open_risk()
+                    adm = admit_entry(n_open, per[b], self.account.equity, self.account.peak, gross, open_risk,
+                                      self.risk["max_positions"], self.risk["max_per_symbol"], cap,
+                                      self.risk.get("max_open_risk_pct") or 0.0, self.risk.get("dd_throttle_pct") or 0.0,
+                                      self.risk.get("dd_throttle_floor", 0.25))
+                    can_open = adm.can_open
+                    tr.max_new_notional, tr.max_new_risk, tr.risk_scale = adm.max_new_notional, adm.max_new_risk, adm.risk_scale
+                    if not can_open:
+                        self.rejected_for_risk += 1
+                vol = s.get("vol")
+                pos = tr.on_bar(t, o, h, l, c, entry_signal=m and can_trade, stop_signal=bool(s["stop"]), can_open=can_open,
+                                vol=float(vol) if vol is not None else float("nan"), dca_gate=bool(s.get("dca", True)))
+                tr.max_new_notional = float("inf")
+                tr.max_new_risk = float("inf")
+                tr.risk_scale = 1.0
+                if pos is not None:
+                    self._collect(sym, e, pos, l, h)
+            self.last_close[b], self.last_low[b], self.last_high[b], self.last_open[b] = float(c), float(l), float(h), float(o)
+            touched = True
+        self.last_t = t
+        if touched:
+            mtm, worst = self.mtm()
+            self.peak_mtm = max(self.peak_mtm, mtm)
+            if self.halted_at is None and kill_triggered(worst, self.peak_mtm, kill_pct):
+                self.halted_at = t
+                for b, bk in enumerate(self.books):
+                    for e in bk["entries"]:
+                        tr = e["tracker"]
+                        tr.pending_entry = False
+                        pos = tr.force_close(t, self.last_close[b], "Kill switch danh mục")
+                        if pos is not None:
+                            self._collect(bk["symbol"], e, pos, self.last_low[b], self.last_high[b])
+        return self.trades[n0:]

@@ -41,7 +41,7 @@ class TickBook(PaperBook):
     """PaperBook của backtest tick: gắn móc AMM vào mọi tracker (theo pool của tài sản) và giữ PositionModel đã đóng (symbol, strategy_id) cho metrics."""
 
     def __init__(self, strategies, symbols, base_frame, capital, risk, trade_start, models: List[AmmImpact]):
-        super().__init__(strategies, symbols, base_frame, capital, risk, trade_start)
+        super().__init__(strategies, symbols, base_frame, capital, risk, trade_start, engine="tracker")   # móc AMM chưa có ở SimVenue (tạm, ngoài P6)
         self.closed: List[Any] = []
         for bk, model in zip(self.books, models):
             for e in bk["entries"]:
