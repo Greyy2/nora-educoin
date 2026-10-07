@@ -27,6 +27,7 @@ import pandas as pd
 #
 # Từ 04/10/2026 dữ liệu tách theo SÀN: nora/data/<sàn>/{cex,dex}/... — okx (sàn triển khai, mặc định) và binance (tham khảo).
 # Chọn sàn: biến môi trường NORA_EXCHANGE (okx | binance). NORA_LOCAL_DATA_ROOT (test) ghi đè cả gốc.
+# P9.3a: cây đích (market/, alpha/, cache/...) và helper đường dẫn có fallback cũ->mới nằm ở mục "P9.3a" bên dưới; mô tả dưới đây là cây HIỆN TẠI (v1).
 # Cache tính toán (_cache) và kho alpha (alphas) dùng chung, nằm ở nora/data/ (không theo sàn).
 #
 #     nora/data/<okx|binance>/
@@ -80,9 +81,8 @@ def exchange() -> str:
 
 
 def exchange_root(ex: Optional[str] = None) -> str:
-    """Gốc dữ liệu của một sàn: nora/data/<ex> (mặc định sàn đang dùng). NORA_LOCAL_DATA_ROOT (NORA_DATA_ROOT giữ để tương thích) ghi đè."""
-    env = os.environ.get("NORA_LOCAL_DATA_ROOT") or os.environ.get("NORA_DATA_ROOT")
-    return env or os.path.join(DATA_HOME, ex or exchange())
+    """Gốc dữ liệu của một sàn (mặc định sàn đang dùng) = market_root(ex): market/<ex> (cũ: <home>/<ex>); NORA_LOCAL_DATA_ROOT ghi đè (chế độ phẳng)."""
+    return market_root(ex)
 
 
 def default_data_root() -> str:
@@ -96,10 +96,292 @@ def exchange_of(manifest: Optional[dict]) -> str:
     return next((e for e in EXCHANGES if ex.startswith(e)), exchange())
 
 
+# ----------------------------------------------------------------------------------------------------
+# P9.3a — API đường dẫn dữ liệu (ADR-P9 §4). MỘT nơi quyết định mọi đường dẫn dưới nora/data.
+#
+# Luật chung:
+# - Mọi helper tính ở THỜI ĐIỂM GỌI từ env (NORA_LOCAL_DATA_ROOT > NORA_DATA_ROOT > nora/data; NORA_EXCHANGE): không cache lúc import.
+# - Helper CHỈ trả đường dẫn (không tạo thư mục, trừ cache_dir() giữ hành vi cũ là makedirs).
+# - FALLBACK trong lúc chuyển cây: trả đường MỚI nếu tồn tại, rồi đường CŨ nếu tồn tại; không cái nào tồn tại thì chọn theo gốc
+#   (gốc mới tồn tại -> mới; gốc cũ tồn tại -> cũ; không có gì và <home>/market chưa có -> cũ, đã có -> mới). Sau khi chuyển, symlink ở đường cũ
+#   trỏ về đường mới nên cả hai cách gọi đều đúng.
+# - Chế độ PHẲNG (NORA_LOCAL_DATA_ROOT đặt = test; hoặc NORA_DATA_ROOT có cex/ hay dex/ ngay dưới = bí danh cũ của gốc sàn):
+#   thư mục đó vừa là home vừa là gốc sàn (market_root() == home), giữ nguyên hành vi trước P9.3.
+# ----------------------------------------------------------------------------------------------------
+from collections import namedtuple
+
+_NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+
+
+class Source(namedtuple("Source", "exchange root cex_dir alias")):
+    """Nguồn dữ liệu nến: cex_path = root/cex_dir là thư mục chứa <SYM>/; alias = tên bí danh cũ (vd. binance_hist) hoặc None."""
+    __slots__ = ()
+
+    @property
+    def cex_path(self) -> str:
+        return os.path.join(self.root, self.cex_dir)
+
+
+_current_exchange = exchange   # tham số `exchange` của helper che tên hàm
+HISTORICAL_ALIASES = {"binance_hist": "binance"}   # bí danh nguồn cũ -> sàn; nơi ở: market/binance/cex_ref (cũ: <home>/binance_hist/cex)
+
+
+def data_home() -> str:
+    """Gốc cây dữ liệu, theo env tại thời điểm gọi: NORA_LOCAL_DATA_ROOT (test) > NORA_DATA_ROOT > nora/data."""
+    return os.environ.get("NORA_LOCAL_DATA_ROOT") or os.environ.get("NORA_DATA_ROOT") or DATA_HOME
+
+
+def _flat() -> bool:
+    if os.environ.get("NORA_LOCAL_DATA_ROOT"):
+        return True
+    nd = os.environ.get("NORA_DATA_ROOT")
+    return bool(nd) and any(os.path.isdir(os.path.join(nd, v)) for v in VENUES)
+
+
+def _migrated(home: str) -> bool:
+    return os.path.isdir(os.path.join(home, "market"))
+
+
+def layout_version(home: Optional[str] = None) -> int:
+    """2 nếu cây đã chuyển (có <home>/market), ngược lại 1. Chỉ để báo cáo/log."""
+    return 2 if _migrated(home or data_home()) else 1
+
+
+def _pick(home: str, new: str, old: str, new_base: Optional[str] = None, old_base: Optional[str] = None) -> str:
+    if os.path.exists(new):
+        return new
+    if os.path.exists(old):
+        return old
+    if new_base and os.path.isdir(new_base):
+        return new
+    if old_base and os.path.isdir(old_base):
+        return old
+    return new if _migrated(home) else old
+
+
+# kind -> (đường mới, đường cũ) tính từ home. Một bảng duy nhất cho helper, cache_dir() và allowed_roots().
+def _kind_paths(home: str, kind: str) -> Tuple[str, str]:
+    j = os.path.join
+    table = {
+        "alpha": (j(home, "alpha"), j(home, "alphas")),
+        "funnel": (j(home, "alpha", "funnel"), j(home, "_cache", "funnel")),
+        "book": (j(home, "alpha", "book"), j(home, "_cache", "book")),
+        "backtest": (j(home, "backtest"), j(home, "_cache", "backtest")),
+        "wfa": (j(home, "wfa"), j(home, "_cache", "book_wfa")),
+        "carlo": (j(home, "carlo"), j(home, "_cache", "carlo")),
+        "live": (j(home, "live"), j(home, "_cache", "live")),
+        "process": (j(home, "cache", "process"), j(home, "_cache", "api_jobs")),
+        "mem": (j(home, "cache", "process", "_mem"), j(home, "_cache", "runs")),
+        "shared": (j(home, "cache", "shared"), j(home, "_cache", "shared")),
+        "quality_gate": (j(home, "cache", "quality_gate"), j(home, "_cache", "quality_gate")),
+        "staging": (j(home, "cache", "staging"), j(_NORA_ROOT, "data_staging")),
+        "cache": (j(home, "cache"), j(home, "_cache")),
+        "education_results": (j(home, "backtest", "education"), j(home, "education", "results")),
+        "meta": (j(home, "market", "_meta"), j(home, "_meta")),
+    }
+    return table[kind]
+
+
+def _under(home: str, kind: str, *parts: str) -> str:
+    """Đường dưới gốc của `kind` với fallback mới -> cũ (xem đầu mục)."""
+    nb, ob = _kind_paths(home, kind)
+    return _pick(home, os.path.join(nb, *parts), os.path.join(ob, *parts), nb, ob)
+
+
+# Tên thư mục cache cũ (cache_dir(None, "<tên>", ...)) -> kind mới.
+# Tên khác (research, reports, smoke, optimize...) -> cache/<tên> (cũ: _cache/<tên>); D1/D2 của P9.3 chưa quyết nên chưa đặt tên riêng.
+LEGACY_CACHE_NAMES = {"api_jobs": "process", "book": "book", "funnel": "funnel", "book_wfa": "wfa", "live": "live",
+                      "quality_gate": "quality_gate", "runs": "mem"}
+
+
+def resolve_source(name: Optional[str] = None) -> Source:
+    """Nguồn dữ liệu nến theo tên: None = sàn đang dùng (NORA_EXCHANGE); 'okx'|'binance'; bí danh 'binance_hist' -> market/binance/cex_ref
+    (cũ: <home>/binance_hist/cex); hoặc tên thư mục <home>/<tên>/cex có sẵn. Trả Source(exchange, root, cex_dir, alias); cex_path = root/cex_dir."""
+    key = (name or "").strip().lower()
+    home = data_home()
+    if key in HISTORICAL_ALIASES:
+        ex = HISTORICAL_ALIASES[key]
+        new_root, old_root = os.path.join(home, "market", ex), os.path.join(home, key)
+        new_cex, old_cex = os.path.join(new_root, "cex_ref"), os.path.join(old_root, "cex")
+        if _pick(home, new_cex, old_cex, os.path.join(home, "market"), old_root) == new_cex:
+            return Source(ex, new_root, "cex_ref", key)
+        return Source(ex, old_root, "cex", key)
+    if not key or key in EXCHANGES:
+        ex = key or exchange()
+        return Source(ex, market_root(ex), "cex", None)
+    path = os.path.join(home, key)
+    if os.path.isdir(os.path.join(path, "cex")):
+        return Source(key, path, "cex", None)
+    raise ValueError(f"nguồn dữ liệu không rõ: {name!r} (okx | binance | binance_hist | thư mục có cex/)")
+
+
+def market_root(exchange: Optional[str] = None) -> str:
+    """Gốc dữ liệu thị trường của một sàn (mặc định sàn đang dùng): market/<sàn> (cũ: <home>/<sàn>). Chế độ phẳng -> chính home."""
+    if _flat():
+        return data_home()
+    ex = (exchange or _current_exchange()).lower()
+    if ex not in EXCHANGES:
+        raise ValueError(f"sàn phải là một trong {EXCHANGES}, nhận {ex!r}")
+    home = data_home()
+    return _pick(home, os.path.join(home, "market", ex), os.path.join(home, ex), os.path.join(home, "market"))
+
+
+def market_dir(exchange: Optional[str] = None, venue: str = "cex", symbol: Optional[str] = None, instrument: Optional[str] = None) -> str:
+    """market_root(sàn)/<venue>[/<SYM>[/<instrument>]]; venue: cex | dex | cex_ref (chỉ binance: market/binance/cex_ref, cũ <home>/binance_hist/cex).
+    symbol nhận 'BTC' hoặc 'BTC@perp' (instrument rút từ hậu tố nếu không truyền). Không kiểm tra tồn tại."""
+    venue = (venue or "cex").lower()
+    if venue not in VENUES + ("cex_ref",):
+        raise ValueError(f"venue phải là một trong {VENUES + ('cex_ref',)}, nhận {venue!r}")
+    sym, inst = split_instrument(symbol or "")
+    inst = (instrument or inst or "").lower() or None
+    if inst and inst not in INSTRUMENTS:
+        raise ValueError(f"instrument phải là một trong {INSTRUMENTS}, nhận {inst!r}")
+    if inst and not sym:
+        raise ValueError("instrument cần symbol")
+    if venue == "cex_ref":
+        ex = (exchange or "binance").lower()
+        if ex != "binance":
+            raise ValueError("cex_ref chỉ có ở binance")
+        base = resolve_source("binance_hist").cex_path
+    else:
+        base = os.path.join(market_root(exchange), venue)
+    parts = [clean_name(sym)] if sym else []
+    return os.path.join(base, *parts, *([inst] if inst else []))
+
+
+def meta_dir() -> str:
+    """market/_meta (cũ: <home>/_meta): danh sách target crawl, cấu hình nguồn."""
+    return _under(data_home(), "meta")
+
+
+def alpha_dir(*parts: str) -> str:
+    """Kho alpha: alpha/ (cũ: alphas/). NORA_ALPHAS_DIR (nếu đặt) ghi đè gốc — một chỗ thay các bản sao alphas_dir()."""
+    env = os.environ.get("NORA_ALPHAS_DIR")
+    return os.path.join(env, *parts) if env else _under(data_home(), "alpha", *parts)
+
+
+def alpha_file(name: str) -> str:
+    """File tên cố định trong kho alpha ('book' | 'registry' | 'presets' hoặc 'x.json'). NORA_BOOK_PATH / NORA_PRESETS_PATH ghi đè book/presets."""
+    fname = name if "." in name else f"{name}.json"
+    override = {"book.json": "NORA_BOOK_PATH", "presets.json": "NORA_PRESETS_PATH"}.get(fname)
+    if override and os.environ.get(override):
+        return os.environ[override]
+    return alpha_dir(fname)
+
+
+def alpha_user_dir() -> str:
+    """alpha/user (cũ: alphas/user): alpha người dùng."""
+    return alpha_dir("user")
+
+
+def alpha_education_samples() -> str:
+    """alpha/education/samples.json (cũ: education/samples.json)."""
+    home = data_home()
+    return _pick(home, os.path.join(home, "alpha", "education", "samples.json"), os.path.join(home, "education", "samples.json"),
+                 os.path.join(home, "alpha"), os.path.join(home, "education"))
+
+
+def education_results_dir() -> str:
+    """backtest/education (cũ: education/results): kết quả Education sinh lại được."""
+    return _under(data_home(), "education_results")
+
+
+def alpha_run_dir(kind: str, run_id: Optional[str] = None) -> str:
+    """Thư mục lượt chạy phễu/sổ: alpha/<kind>[/<id>] (cũ: _cache/<kind>); kind ∈ {funnel, book}."""
+    if kind not in ("funnel", "book"):
+        raise ValueError(f"kind phải là funnel|book, nhận {kind!r}")
+    return _under(data_home(), kind, *([run_id] if run_id else []))
+
+
+def run_dir(kind: str, run_id: Optional[str] = None) -> str:
+    """Kết quả lâu dài: <kind>[/<id>]; kind ∈ {backtest, wfa, carlo} (cũ: _cache/<kind>; wfa cũ: _cache/book_wfa)."""
+    if kind not in ("backtest", "wfa", "carlo"):
+        raise ValueError(f"kind phải là backtest|wfa|carlo, nhận {kind!r}")
+    return _under(data_home(), kind, *([run_id] if run_id else []))
+
+
+def live_state_key(venue: str, mode: str, book: str = "main", engine: str = "legacy") -> str:
+    """Bản sao NGUYÊN VĂN live.bot.state_key (crawl không được import live; gỡ bản sao khi live/ dùng helper này)."""
+    return f"{venue}_{mode}" + ("_explore" if book == "explore" else "") + ("_unified" if engine == "unified" and mode in ("demo", "live") else "")
+
+
+def live_dir(venue: str, mode: str, book: str = "main", engine: str = "legacy") -> str:
+    """Trạng thái bot: live/<state_key> (cũ: _cache/live/<state_key>); lâu dài, không phải cache."""
+    return _under(data_home(), "live", live_state_key(venue, mode, book, engine))
+
+
+def cache_process_dir(job_id: Optional[str] = None) -> str:
+    """Thư mục job đang chạy: cache/process[/<id>] (cũ: _cache/api_jobs)."""
+    return _under(data_home(), "process", *([job_id] if job_id else []))
+
+
+def cache_shared_dir(name: Optional[str] = None) -> str:
+    """mmap chỉ báo dùng chung: cache/shared[/<name>] (cũ: _cache/shared; hiện mỗi run còn dùng <run_dir>/_shared)."""
+    return _under(data_home(), "shared", *([name] if name else []))
+
+
+def cache_quality_gate_dir() -> str:
+    """Cache kết quả quality gate: cache/quality_gate (cũ: _cache/quality_gate)."""
+    return _under(data_home(), "quality_gate")
+
+
+def cache_runs_dir() -> str:
+    """Log RAM của run_limited.sh: cache/process/_mem (cũ: _cache/runs)."""
+    return _under(data_home(), "mem")
+
+
+def cache_staging_dir() -> str:
+    """Vùng đệm crawl -> promote: cache/staging (cũ: nora/data_staging)."""
+    return _under(data_home(), "staging")
+
+
+def cache_crawl_dir(exchange: Optional[str] = None) -> str:
+    """Zip thô của crawler: cache/crawl/<sàn> (cũ: <repo>/data/cache/<sàn>, ngoài nora/data). Env NORA_OKX_CACHE_DIR vẫn do crawl/cex.py xử lý."""
+    ex = (exchange or _current_exchange()).lower()
+    if ex not in EXCHANGES:
+        raise ValueError(f"sàn phải là một trong {EXCHANGES}, nhận {ex!r}")
+    home = data_home()
+    new, old = os.path.join(home, "cache", "crawl", ex), os.path.join(os.path.dirname(_NORA_ROOT), "data", "cache", ex)
+    return _pick(home, new, old, os.path.join(home, "cache"), os.path.dirname(old))
+
+
+# Nhóm kind cho allowed_roots(): "runs" = mọi nơi chứa thư mục lượt chạy mà API cho phép đọc file (thay cache_dir(None) làm gốc chống path traversal).
+_ROOT_GROUPS = {"runs": ("book", "funnel", "wfa", "backtest", "carlo", "process")}
+
+
+def allowed_roots(kind: str) -> List[str]:
+    """realpath của CẢ đường mới lẫn cũ cho `kind` (loại trừ trùng khi symlink cũ -> mới). Dùng làm gốc chặn path traversal:
+    os.path.realpath(path) phải nằm trong một gốc (xem is_within). kind: một trong alpha|funnel|book|backtest|wfa|carlo|live|process|mem|shared|
+    quality_gate|staging|cache|education_results|meta, hoặc nhóm 'runs' (book+funnel+wfa+backtest+carlo+process)."""
+    home = data_home()
+    kinds = _ROOT_GROUPS.get(kind) or (kind,)
+    out: List[str] = []
+    for k in kinds:
+        try:
+            pair = _kind_paths(home, k)
+        except KeyError:
+            raise ValueError(f"allowed_roots: kind không rõ {kind!r}") from None
+        for p in pair:
+            real = os.path.realpath(p)
+            if real not in out:
+                out.append(real)
+    return out
+
+
+def is_within(path: str, kind: str) -> bool:
+    """True nếu realpath(path) nằm trong (hoặc bằng) một gốc của allowed_roots(kind)."""
+    real = os.path.realpath(path)
+    return any(real == r or real.startswith(r.rstrip(os.sep) + os.sep) for r in allowed_roots(kind))
+
+
 def cache_dir(data_root: Optional[str] = None, *parts: str) -> str:
-    """Cache tính toán: nora/data/_cache (dùng chung mọi sàn); khi NORA_LOCAL_DATA_ROOT đặt (test) thì nằm dưới gốc đó."""
-    env = os.environ.get("NORA_LOCAL_DATA_ROOT") or os.environ.get("NORA_DATA_ROOT")
-    path = os.path.join(data_root or env or DATA_HOME, "_cache", *parts)
+    """Cache tính toán / kho lượt chạy theo TÊN CŨ, định tuyến sang vị trí mới có fallback (xem LEGACY_CACHE_NAMES, P9.3a):
+    api_jobs -> cache/process; book -> alpha/book; funnel -> alpha/funnel; book_wfa -> wfa; live -> live; quality_gate -> cache/quality_gate;
+    runs -> cache/process/_mem; tên khác và không tên -> cache/<tên> (cũ: _cache/<tên>). Đường tồn tại (mới trước, rồi cũ) được dùng; chưa có gì
+    và cây chưa chuyển -> đường cũ như trước P9.3. `data_root` tường minh được coi là home (vd. root test). Tạo thư mục (makedirs) như cũ."""
+    home = data_root or data_home()
+    kind = LEGACY_CACHE_NAMES.get(parts[0]) if parts else None
+    path = _under(home, kind, *parts[1:]) if kind else _under(home, "cache", *parts)
     os.makedirs(path, exist_ok=True)
     return path
 

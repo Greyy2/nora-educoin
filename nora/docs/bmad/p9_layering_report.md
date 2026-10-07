@@ -107,7 +107,7 @@ Bật bắt buộc (P9.10): `NORA_LAYERING_STRICT=1`. Luật: ADR-P9 §2; ánh x
 
 - `backend/crawl/cex.py:19` -> `utils/jobs`
 - `backend/crawl/dex.py:17` -> `utils/jobs`
-- `backend/crawl/store.py:1487` -> `utils/jobs`
+- `backend/crawl/store.py:1769` -> `utils/jobs`
 
 ### core -> optimize (2)
 
