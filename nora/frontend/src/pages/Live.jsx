@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { PageHead, Panel, Segmented, Status, Empty, Loading, ErrorState } from '../components/ui'
+import { PageHead, Panel, Segmented, Status, Empty, Loading, ErrorState, NA } from '../components/ui'
 import SignalChart from '../components/chart/SignalChart'
 import SignalExplainPanel from '../components/chart/SignalExplainPanel'
 import TradeChartDrawer from '../components/chart/TradeChartDrawer'
@@ -32,30 +32,23 @@ function mergePositions(d) {
   return [...ex, ...pa].filter((t) => isNum(t.enter_ms))
 }
 
-// MDD (%) của đường vốn: sụt giảm lớn nhất từ đỉnh
-function maxDrawdownPct(vals) {
-  let peak = -Infinity
-  let mdd = 0
-  vals.forEach((v) => { peak = Math.max(peak, v); if (peak > 0) mdd = Math.max(mdd, (peak - v) / peak * 100) })
-  return mdd
-}
-
 // Tổng quan của bot live: KPI + đường vốn, toàn bộ số liệu lấy từ bot đang chạy (OKX paper/demo), không lẫn backtest
 function LiveOverview({ d, trades, positions }) {
   const main = d.mode === 'paper' ? 'paper' : 'exec'   // demo/live: số liệu chính là lệnh sàn; paper bóng chỉ để đối chiếu
   const eq = d.equity_series || []
-  const first = eq[0]?.equity
-  const last = isNum(d.equity) ? d.equity : eq[eq.length - 1]?.equity
-  const pnlPct = isNum(first) && isNum(last) && first > 0 ? (last / first - 1) * 100 : null
-  const mdd = eq.length > 1 ? maxDrawdownPct(eq.map((p) => p.equity)) : null
+  const st = d.equity_stats || {}          // MDD + lãi/lỗ từ đầu: backend tính trên toàn đường vốn (live router), không tính ở trình duyệt
+  const last = st.equity
+  const first = st.start
+  const pnlPct = st.pnl_pct
+  const mdd = st.mdd_pct
   const dates = useMemo(() => eq.map((p) => new Date(p.t).toISOString()), [eq])
   const tiles = [
-    isNum(last) && { k: 'cap', l: 'Vốn hiện tại', v: <>{fmtMoney(last)}<small> USDT</small></>, sub: eq.length ? `từ ${fmtMoney(first)} USDT` : null },
-    isNum(pnlPct) && { k: 'pnl', l: 'Lãi/lỗ từ đầu', v: <span className={signClass(pnlPct)}>{fmtSPct(pnlPct)}</span>, sub: isNum(first) && isNum(last) ? `${fmtMoney(last - first, true)} USDT` : null },
+    isNum(last) && { k: 'cap', l: 'Vốn hiện tại', v: <>{fmtMoney(last)}<small> USDT</small></>, sub: isNum(first) ? `từ ${fmtMoney(first)} USDT` : null },
+    { k: 'pnl', l: 'Lãi/lỗ từ đầu', v: isNum(pnlPct) ? <span className={signClass(pnlPct)}>{fmtSPct(pnlPct)}</span> : <NA note={st.pnl_note} />, sub: isNum(st.pnl_usd) ? `${fmtMoney(st.pnl_usd, true)} USDT` : null },
     { k: 'pos', l: 'Vị thế đang mở', v: positions.filter((p) => p.src === main).length },
     { k: 'trd', l: 'Lệnh đã đóng', v: trades.filter((t) => t.src === main && isNum(t.close_ms)).length },
     main === 'exec' && { k: 'shadow', l: 'Paper bóng (đối chiếu)', v: trades.filter((t) => t.src === 'paper' && isNum(t.close_ms)).length, sub: 'lệnh mô phỏng cùng nến' },
-    isNum(mdd) && { k: 'mdd', l: 'MDD', v: <span className={mdd > 0 ? 'neg' : ''}>{fmtPct(mdd)}</span>, sub: `${eq.length} nến` },
+    { k: 'mdd', l: 'MDD', v: isNum(mdd) ? <span className={mdd > 0 ? 'neg' : ''}>{fmtPct(mdd)}</span> : <NA note={st.mdd_note} />, sub: isNum(st.bars) ? `${st.bars} nến` : null },
   ].filter(Boolean)
   return (
     <Panel title="Tổng quan bot" meta={<span>Dữ liệu bot live ({String(d.venue).toUpperCase()} {d.mode})</span>}>

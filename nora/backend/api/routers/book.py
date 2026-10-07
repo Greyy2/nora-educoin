@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from backend.api import modes
 from backend.api.jobs import batch as batch_jobs
 from backend.core.params.modes import STRESS_VERTICAL
-from backend.carlo.monte_carlo import (MC_MAX_RUIN_PCT as MC_RUIN_MAX_PCT, MC_MAX_SIMULATIONS, MC_MIN_SIMULATIONS,
+from backend.carlo.monte_carlo import (with_gate_thresholds, MC_MAX_RUIN_PCT as MC_RUIN_MAX_PCT, MC_MAX_SIMULATIONS, MC_MIN_SIMULATIONS,
                                        STRESS_MAX_MDD_PCT)
 
 router = APIRouter(prefix="/api/studio/book", tags=["book"])
@@ -276,11 +276,46 @@ def _read_json(path: str):
         raise HTTPException(500, f"{os.path.basename(path)} hỏng: {e}")
 
 
+_STATUS_LABEL = {"validated": "đã kiểm lại, đạt", "retired": "đã nghỉ hưu (kiểm lại không đạt cổng)"}
+
+
+def registry_provenance(reg: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Mỗi alpha của registry: trạng thái (retired / validated / None = chưa từng kiểm lại bằng engine hiện hành) + lý do + ghi chú NGUỒN GỐC
+    (commit/sàn dữ liệu/lượt tối ưu lúc dựng, và registry có engine_version hay không). Giao diện chỉ hiển thị — không tự suy ra gì (P9.14)."""
+    from backend.utils.engine_version import book_engine_status
+    if not reg:
+        return []
+    eng = book_engine_status(reg)
+    code = reg.get("code") or {}
+    out = []
+    for a in (x for x in reg.get("alphas") or [] if isinstance(x, dict)):
+        rv = a.get("revalidation") or {}
+        status = a.get("status")
+        data = a.get("data") or {}
+        bits = [f"registry dựng {'ở commit ' + str(code['commit'])[:7] if code.get('commit') else 'không rõ commit'}"
+                + (" (có sửa đổi backend chưa commit)" if code.get("dirty_backend") else ""),
+                f"dữ liệu sàn {data['exchange']}" if data.get("exchange") else "không ghi sàn dữ liệu"]
+        if reg.get("source_optimization"):
+            bits.append(f"từ lượt tối ưu {os.path.basename(str(reg['source_optimization']))}")
+        if eng["needs_rebuild"]:
+            bits.append(eng["reason"])
+        out.append({"alpha_id": a.get("alpha_id"), "status": status, "status_label": _STATUS_LABEL.get(status) if status else None,
+                    "status_note": (rv.get("reason") or None) if status else "chưa kiểm lại bằng engine hiện hành",
+                    "checked_at": rv.get("checked_at"), "provenance": "; ".join(bits), "needs_rebuild": eng["needs_rebuild"]})
+    return out
+
+
 @alphas_router.get("/alphas")
 def get_alphas():
     """Kho alpha: registry.json + book.json (null nếu chưa có)."""
-    return {"registry": _read_json(os.path.join(alphas_dir(), "registry.json")),
-            "book": _read_json(book_path())}
+    from backend.utils.engine_version import book_engine_status, engine_version
+    book = _read_json(book_path())
+    explore = _read_json(os.path.join(alphas_dir(), "explore", "book.json"))
+    # P9.15: sổ dựng bằng engine khác engine hiện hành -> needs_rebuild (giao diện cảnh báo "cần dựng lại")
+    registry = _read_json(os.path.join(alphas_dir(), "registry.json"))
+    return {"registry": registry, "registry_status": registry_provenance(registry),
+            "book": book,
+            "engine": {"current": engine_version(), "main": book_engine_status(book), "explore": book_engine_status(explore)}}
 
 
 @alphas_router.post("/alphas/{alpha_id}/revalidate")
@@ -429,7 +464,7 @@ def post_mc(req: McRequest):
     + `stress` (kịch bản cực xấu tất định + worst_bootstrap) + `worst_path` + `gate` (checks thực tế/yêu cầu, gate_eligible).
     mode=basic: bỏ qua mọi tham số MC của client (10.000 kịch bản, đủ 6 kịch bản cực xấu, gate chuẩn).
     mode=advanced: dùng tham số client; ngưỡng gate khác chuẩn / < 10.000 kịch bản / thiếu kịch bản cực xấu -> params.custom_gates=true (không promote được)."""
-    from backend.carlo.monte_carlo import evaluate_mc_gate, run_monte_carlo_daily_detail
+    from backend.carlo.monte_carlo import evaluate_mc_gate, extra_cost_from_turnover, run_monte_carlo_daily_detail
     cfg = modes.resolve_mc(req)
     custom = cfg["custom_gates"]
     if req.wfa_job_id:
@@ -447,9 +482,10 @@ def post_mc(req: McRequest):
         summary = job["result"].get("summary") or {}
         daily = (summary.get("oos_daily") or {}).get(req.basis) or []
         shock = summary.get("shock")   # WFA ghi vị thế ngược chiều lớn nhất -> thêm kịch bản trend thẳng đứng
+        turnover = summary.get("turnover_daily")   # WFA ghi vòng quay vốn đo từ lệnh OOS -> kịch bản cost_x2 (job cũ không có -> không đo được)
         source = {"kind": "wfa", "job_id": req.wfa_job_id, "basis": req.basis}
     else:
-        daily, source, shock = req.daily_returns, {"kind": "daily_returns"}, None
+        daily, source, shock, turnover = req.daily_returns, {"kind": "daily_returns"}, None, None   # chỉ chuỗi ngày: không biết vòng quay
         # kiểm ở đây (không trong validator pydantic): lỗi validator kèm đầu vào NaN làm FastAPI không dựng được phản hồi 422
         if not all(math.isfinite(x) and x > -1.0 for x in daily):
             raise HTTPException(422, "daily_returns phải hữu hạn và > -1 (-100%)")
@@ -457,11 +493,12 @@ def post_mc(req: McRequest):
         raise HTTPException(422, f"cần >= {MC_MIN_DAYS} lợi suất ngày (có {len(daily)})")
     if shock and cfg["stress"] is not None and not set(STRESS_VERTICAL) <= set(cfg["stress"]):
         custom = True   # nguồn biết vị thế mà bỏ kịch bản trend thẳng đứng -> gate không chuẩn
-    extra = cfg["extra_cost_daily_pct"]
+    extra = cfg["extra_cost_daily_pct"]            # người dùng nhập (advanced) ưu tiên; không thì vòng quay đo từ lệnh; không có -> cost_x2 "không đo được"
+    extra_daily = extra / 100.0 if extra is not None else extra_cost_from_turnover(turnover)
     out = run_monte_carlo_daily_detail(daily, simulations=cfg["simulations"], block_days=cfg["block_days"], horizon_days=cfg["horizon_days"],
                                        ruin_threshold_pct=cfg["ruin_threshold_pct"], seed=cfg["seed"], scale=cfg["scale"],
                                        max_ruin_pct=MC_RUIN_MAX_PCT, stress_max_mdd_pct=cfg["stress_max_mdd_pct"],
-                                       extra_cost_daily=None if extra is None else extra / 100.0, shock=shock)
+                                       extra_cost_daily=extra_daily, shock=shock)
     if cfg["stress"] is not None:   # tập con kịch bản cực xấu: lọc + tính lại gate trên đúng tập đó
         keep = set(cfg["stress"])
         out["stress"] = [r for r in out["stress"] if r["name"] in keep]
@@ -470,6 +507,7 @@ def post_mc(req: McRequest):
     out["gate"]["custom_gates"] = custom
     if custom:
         out["gate"]["gate_eligible"] = False   # kết quả dùng ngưỡng tuỳ chỉnh không bao giờ là gate
-    out["params"].update(source=source, basis=req.basis, mode=cfg["mode"], custom_gates=custom, promotable=not custom,
+    out = with_gate_thresholds(out)
+    out["params"].update(turnover_daily=turnover, source=source, basis=req.basis, mode=cfg["mode"], custom_gates=custom, promotable=not custom,
                          ignored_client_params=cfg["ignored_client_params"])
     return out

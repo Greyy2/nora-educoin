@@ -7,17 +7,23 @@ Job nặng chạy ở tiến trình riêng (backend.optimize.funnel.run qua back
 import json
 import os
 import re
+import threading
 import time
+from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from backend.api.jobs import batch as batch_jobs
 from backend.optimize.funnel import gates
 from backend.optimize.funnel.generate import count_params
 from backend.optimize.funnel.recompute import read_cached
+from backend.carlo.monte_carlo import with_gate_thresholds
 from backend.optimize.funnel.stats import scalar_metrics, stage_stats
 from backend.optimize.funnel.storage import RunStore, atomic_write_json
 
@@ -28,8 +34,6 @@ assert KIND in batch_jobs.KINDS
 
 MAX_ALPHAS = 1_000_000
 LARGE_ALPHAS = 200_000
-SEC_PER_S1_BACKTEST = 0.5       # đo 02/10/2026 sau kernel numba: dev1 (~14 tháng, 8 perp), lô cùng tín hiệu ~0,46 s + số đo; 1 worker
-DEFAULT_WORKERS = 14            # CPU 0-13 của nora.slice
 _RUN_RE = re.compile(r"^fr-[0-9A-Za-z_-]{1,40}$|^[0-9A-Za-z_-]{3,48}$")
 _ALPHA_RE = re.compile(r"^[0-9a-f]{8,64}$")
 SORT_COLS = {"ret_pct": "m.ret_pct", "mdd_pct": "m.mdd_pct", "sharpe": "m.sharpe", "trades": "m.trades", "win_rate": "m.win_rate",
@@ -73,6 +77,61 @@ def _alpha_id(alpha_id: str) -> str:
     if not _ALPHA_RE.match(alpha_id):
         raise HTTPException(422, "alpha_id không hợp lệ")
     return alpha_id
+
+
+# ─── Đệm kết quả nặng (tính lại trong request ăn GIL của mọi request khác) ──────────────────────────────────
+LIVE_MIN_INTERVAL_S = 15.0      # lượt đang chạy: kho đổi liên tục nhưng không tính lại thống kê/đếm tầng thường hơn mức này
+
+
+class _Lru:
+    """LRU nhỏ, an toàn đa luồng (khoá chỉ giữ lúc get/put, KHÔNG giữ khi tính)."""
+
+    def __init__(self, size: int):
+        self.size, self._d, self._lock = size, OrderedDict(), threading.Lock()
+
+    def get(self, key):
+        with self._lock:
+            if key in self._d:
+                self._d.move_to_end(key)
+                return self._d[key]
+        return None
+
+    def put(self, key, value) -> None:
+        with self._lock:
+            self._d[key] = value
+            self._d.move_to_end(key)
+            while len(self._d) > self.size:
+                self._d.popitem(last=False)
+
+    def clear(self) -> None:
+        with self._lock:
+            self._d.clear()
+
+
+_STATS_CACHE = _Lru(32)         # (run_id, stage, top, chữ ký kho) -> kết quả stage_stats
+_STATS_LAST = _Lru(128)         # (run_id, stage, top) -> (monotonic lúc tính, kết quả): cho nhịp tính tối thiểu của lượt đang chạy
+_COUNTS_CACHE = _Lru(256)       # (run_id, chữ ký kho) -> counts (stage_counts + top_reject) của _run_summary
+_COUNTS_LAST = _Lru(256)        # run_id -> (monotonic, counts)
+_FLIGHT: Dict[Any, threading.Lock] = {}
+_FLIGHT_LOCK = threading.Lock()
+
+
+def _flight(key) -> threading.Lock:
+    """Khoá theo khoá đệm: nhiều request cùng hỏi một thứ -> một cái tính, số còn lại chờ rồi đọc đệm."""
+    with _FLIGHT_LOCK:
+        return _FLIGHT.setdefault(key, threading.Lock())
+
+
+def _store_sig(d: str):
+    """Chữ ký kho: (mtime_ns, size) của results.sqlite + -wal (WAL: ghi mới nằm ở -wal, file chính chỉ đổi khi checkpoint)."""
+    out = []
+    for n in ("results.sqlite", "results.sqlite-wal"):
+        try:
+            st = os.stat(os.path.join(d, n))
+            out.append((st.st_mtime_ns, st.st_size))
+        except OSError:
+            out.append(None)
+    return tuple(out)
 
 
 # ─── Mô hình yêu cầu ────────────────────────────────────────────────────────
@@ -172,11 +231,13 @@ def post_run(req: FunnelRunRequest):
 
 @router.get("/estimate")
 def get_estimate(strategies: str = Query(..., description="id phân tách bằng dấu phẩy"), n_per_strategy: Optional[int] = Query(None, ge=1, le=MAX_ALPHAS),
-                 full_grid: bool = False, workers: int = Query(DEFAULT_WORKERS, ge=1, le=64),
+                 full_grid: bool = False, workers: Optional[int] = Query(None, ge=1, le=64, description="bỏ trống = số worker mặc định của máy chủ"),
                  space: str = Query("grid", pattern="^(grid|schema)$"),
                  timeframe: str = Query("15m", pattern="^(15m|1h|4h)$"),
                  regime: str = Query("off", pattern="^(off|learn|both)$")):
-    """Ước tính thời gian S1 (tầng chiếm gần hết thời gian) TRƯỚC khi chạy: alpha × giây/backtest đo thực / số worker. Các tầng sau chỉ chạy cho alpha còn sống."""
+    """Ước tính thời gian S1 (tầng chiếm gần hết thời gian) TRƯỚC khi chạy: alpha × giây/backtest / số worker, giây/backtest = TRUNG VỊ số đo của các lượt
+    đã xong cùng khung + regime (optimize/funnel/estimate.py). Chưa có lượt khớp -> sec_per_backtest = null, s1_eta_s = null, measure.reason nêu lý do.
+    workers bỏ trống = số worker mặc định của máy chủ (utils/parallel.default_workers, cùng số `--workers auto`). Các tầng sau chỉ chạy cho alpha còn sống."""
     try:
         ids = batch_jobs.check_candidate_ids([s for s in strategies.split(",") if s])
     except batch_jobs.JobError as e:
@@ -185,8 +246,15 @@ def get_estimate(strategies: str = Query(..., description="id phân tách bằng
         raise HTTPException(422, "chọn đúng một: n_per_strategy hoặc full_grid")
     planned = _planned(ids, n_per_strategy, full_grid, space, timeframe, regime)
     total = sum(planned.values())
-    return {"space": space, "per_strategy": planned, "total_alphas": total, "sec_per_backtest": SEC_PER_S1_BACKTEST, "workers": workers,
-            "s1_eta_s": round(total * SEC_PER_S1_BACKTEST / workers, 1)}
+    from backend.optimize.funnel.estimate import measured_s1_rate
+    from backend.optimize.funnel.orchestrator import PER_WORKER_MB
+    from backend.utils.parallel import default_workers
+    w = workers if workers is not None else default_workers(PER_WORKER_MB)
+    m = measured_s1_rate(funnel_root(), timeframe, regime, jobs_root=batch_jobs.jobs_root())
+    spb = m["sec_per_backtest"]
+    return {"space": space, "per_strategy": planned, "total_alphas": total, "sec_per_backtest": spb, "workers": w,
+            "workers_source": "client" if workers is not None else "server_default",
+            "s1_eta_s": round(total * spb / w, 1) if spb is not None else None, "measure": m}
 
 
 # ─── Danh sách / chi tiết lượt ──────────────────────────────────────────────
@@ -227,15 +295,22 @@ def _progress(d: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-def _run_summary(run_id: str, detail: bool) -> Optional[Dict[str, Any]]:
-    d = os.path.join(funnel_root(), run_id)
-    run = _read_run_json(d)
-    if not run and not os.path.isfile(os.path.join(d, "results.sqlite")):
-        return None
-    st = _job_status(run, d)
-    cfg = run.get("config") or {}
-    counts: List[Dict[str, Any]] = []
-    if os.path.isfile(os.path.join(d, "results.sqlite")):
+def _stage_counts(run_id: str, d: str, live: bool) -> List[Dict[str, Any]]:
+    """Đếm theo tầng + lý do loại nhiều nhất của một lượt. Đệm theo chữ ký kho (mtime/size results.sqlite + -wal); lượt đang chạy:
+    kho đổi mà lần tính trước < LIVE_MIN_INTERVAL_S thì dùng lại kết quả trước (danh sách lượt được poll liên tục)."""
+    sig = _store_sig(d)
+    key = (run_id, sig)
+    hit = _COUNTS_CACHE.get(key)
+    if hit is not None:
+        return hit
+    if live:
+        last = _COUNTS_LAST.get(run_id)
+        if last is not None and time.monotonic() - last[0] < LIVE_MIN_INTERVAL_S:
+            return last[1]
+    with _flight(("counts", run_id)):
+        hit = _COUNTS_CACHE.get(key)
+        if hit is not None:
+            return hit
         store = RunStore(d, read_only=True)
         try:
             counts = store.stage_counts()
@@ -246,6 +321,21 @@ def _run_summary(run_id: str, detail: bool) -> Optional[Dict[str, Any]]:
             t = tops.get(c["stage"])
             c["top_reject"] = {"code": t["code"], "label": gates.reason_label(t["code"]), "count": t["count"]} if t else None
         counts = [c for c in counts if c["input"] > 0 or c["done"] > 0]   # bỏ các tầng chưa có alpha nào
+        _COUNTS_CACHE.put(key, counts)
+        _COUNTS_LAST.put(run_id, (time.monotonic(), counts))
+        return counts
+
+
+def _run_summary(run_id: str, detail: bool) -> Optional[Dict[str, Any]]:
+    d = os.path.join(funnel_root(), run_id)
+    run = _read_run_json(d)
+    if not run and not os.path.isfile(os.path.join(d, "results.sqlite")):
+        return None
+    st = _job_status(run, d)
+    cfg = run.get("config") or {}
+    counts: List[Dict[str, Any]] = []
+    if os.path.isfile(os.path.join(d, "results.sqlite")):
+        counts = _stage_counts(run_id, d, st["status"] in ("queued", "running"))
     prog = _progress(d) if st["status"] in ("running", "queued") else None
     out = {"run_id": run_id, "job_id": st["job_id"], "status": st["status"], "created": run.get("created"), "started": run.get("started"),
            "finished": run.get("finished"), "strategies": cfg.get("strategies"), "n_per_strategy": cfg.get("n_per_strategy"),
@@ -294,27 +384,51 @@ def cancel_run(run_id: str):
 # ─── Thống kê tầng ──────────────────────────────────────────────────────────
 @router.get("/runs/{run_id}/stages/{stage}/stats")
 def get_stage_stats(run_id: str, stage: str, top: int = Query(20, ge=1, le=100)):
+    # đệm GIÁ TRỊ là body JSON đã render (bytes): jsonable_encoder + dumps ~0,2 s CPU cho 450 KB, mỗi lần poll sẽ ăn GIL nếu chỉ đệm dict
+    return Response(_stage_stats_body(run_id, stage, top), media_type="application/json")
+
+
+def _stage_stats_body(run_id: str, stage: str, top: int) -> bytes:
     stage = _stage(stage)
-    store = _open(run_id)
-    try:
-        run = store.read_run()
-        done = (run.get("stages", {}).get(stage, {}) or {}).get("status") == "done"
-        cache = os.path.join(store.run_dir, "stats", f"{stage}.json")
-        if done and top == 20:
-            try:
-                with open(cache, encoding="utf-8") as fh:
-                    return json.load(fh)
-            except (OSError, ValueError):
-                pass
-        out = stage_stats(store, stage, top)
-        if done and top == 20:
-            try:
-                atomic_write_json(cache, out)
-            except OSError:
-                pass
-        return out
-    finally:
-        store.close()
+    d = _run_dir(run_id)
+    key = (run_id, stage, top, _store_sig(d))
+    hit = _STATS_CACHE.get(key)
+    if hit is not None:
+        return hit
+    with _flight(("stats", run_id, stage, top)):
+        hit = _STATS_CACHE.get(key)     # request khác vừa tính xong trong lúc chờ khoá
+        if hit is not None:
+            return hit
+        store = _open(run_id)
+        try:
+            run = store.read_run()
+            done = (run.get("stages", {}).get(stage, {}) or {}).get("status") == "done"
+            lk = (run_id, stage, top)
+            if not done:   # lượt đang chạy: kho đổi liên tục -> không tính lại thường hơn LIVE_MIN_INTERVAL_S, trả kết quả trước
+                last = _STATS_LAST.get(lk)
+                if last is not None and time.monotonic() - last[0] < LIVE_MIN_INTERVAL_S:
+                    return last[1]
+            cache = os.path.join(store.run_dir, "stats", f"{stage}.json")
+            out = None
+            if done and top == 20:
+                try:
+                    with open(cache, encoding="utf-8") as fh:
+                        out = json.load(fh)
+                except (OSError, ValueError):
+                    pass
+            if out is None:
+                out = stage_stats(store, stage, top)
+                if done and top == 20:
+                    try:
+                        atomic_write_json(cache, out)
+                    except OSError:
+                        pass
+            body = JSONResponse(jsonable_encoder(out)).body   # đúng đường FastAPI sẽ render dict trả về
+            _STATS_CACHE.put(key, body)
+            _STATS_LAST.put(lk, (time.monotonic(), body))
+            return body
+        finally:
+            store.close()
 
 
 # ─── Bảng alpha ─────────────────────────────────────────────────────────────
@@ -416,8 +530,8 @@ def get_alpha(run_id: str, alpha_id: str):
         mcfile = store.read_mc(alpha_id) or {}
         a.pop("ord", None)
         a.pop("stage_idx", None)
-        return {**a, "stage_metrics": sm, "metrics": sm.get(a["stage_reached"]) or {}, "nav": nav, "mc": mcfile.get("mc"),
-                "mc_full_size": mcfile.get("mc_full_size"), "scale_search": mcfile.get("scale_search") or [], "verified": mcfile.get("verified"),
+        return {**a, "stage_metrics": sm, "metrics": sm.get(a["stage_reached"]) or {}, "nav": nav, "mc": with_gate_thresholds(mcfile.get("mc")),
+                "mc_full_size": with_gate_thresholds(mcfile.get("mc_full_size")), "scale_search": mcfile.get("scale_search") or [], "verified": mcfile.get("verified"),
                 "confirm_attempts": mcfile.get("attempts") or [], "min_size": mcfile.get("min_size"),
                 "stored_trades": {st: store.has_trades(alpha_id, st) for st in ("S1_backtest", "S3_wfa", "S5_sizing", "S6_holdout")}}
     finally:
@@ -445,6 +559,37 @@ def _run_recompute_subprocess(run_id: str, alpha_id: str) -> None:
         raise HTTPException(504, "tính lại lệnh quá thời gian (30 phút)")
     except RuntimeError as e:
         raise HTTPException(500, f"tính lại lệnh thất bại: {e}")
+
+
+RECOMPUTE_WAIT_S = 85.0         # request chờ tối đa ngần này (< 100 s của Cloudflare); tính tiếp ở nền, client gọi lại sẽ thấy đệm
+_RECOMPUTE_POOL = ThreadPoolExecutor(2, thread_name_prefix="funnel-recompute")
+_RECOMPUTE_INFLIGHT: Dict[Any, Any] = {}
+_RECOMPUTE_LOCK = threading.RLock()   # RLock: add_done_callback chạy ngay trong luồng gọi nếu việc đã xong
+
+
+def _recompute_done(k) -> None:
+    with _RECOMPUTE_LOCK:
+        _RECOMPUTE_INFLIGHT.pop(k, None)
+
+
+def _recompute_bounded(run_id: str, alpha_id: str) -> Optional[JSONResponse]:
+    """Chạy _run_recompute_subprocess (vẫn timeout 1800 s) ở luồng nền và chờ <= RECOMPUTE_WAIT_S. Hết hạn mà chưa xong -> 202 (việc vẫn chạy;
+    gọi lại cùng URL: đang chạy thì lại chờ, xong thì đọc đệm). Xong -> None. Lỗi của việc tính (504/500) ném lại như cũ."""
+    k = (run_id, alpha_id)
+    with _RECOMPUTE_LOCK:
+        fut = _RECOMPUTE_INFLIGHT.get(k)
+        if fut is None:
+            if len(_RECOMPUTE_INFLIGHT) >= 4:
+                raise HTTPException(429, "đang tính lại lệnh cho nhiều alpha khác; thử lại sau")
+            fut = _RECOMPUTE_INFLIGHT[k] = _RECOMPUTE_POOL.submit(_run_recompute_subprocess, run_id, alpha_id)
+            fut.add_done_callback(lambda _f, k=k: _recompute_done(k))
+    try:
+        fut.result(timeout=RECOMPUTE_WAIT_S)
+    except FutureTimeout:
+        return JSONResponse({"status": "computing", "recompute": True, "retry_after_s": 30,
+                             "message": "đang tính lại lệnh (có thể mất vài phút); gọi lại cùng URL sau ít phút"},
+                            status_code=202, headers={"Retry-After": "30"})
+    return None
 
 
 @router.get("/runs/{run_id}/alphas/{alpha_id}/trades")
@@ -477,7 +622,9 @@ def get_trades(run_id: str, alpha_id: str, stage: Optional[str] = None, fold: Op
             raise HTTPException(409, "alpha đã qua S1 — lệnh phải có trong kho")
         cached = read_cached(store.run_dir, alpha_id)
         if cached is None:
-            _run_recompute_subprocess(run_id, alpha_id)
+            pending = _recompute_bounded(run_id, alpha_id)
+            if pending is not None:
+                return pending
             cached = read_cached(store.run_dir, alpha_id)
             if cached is None:
                 raise HTTPException(500, "tính lại lệnh không tạo ra kết quả")

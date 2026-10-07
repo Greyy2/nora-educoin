@@ -139,21 +139,23 @@ def _gate_of(simulations: int, ruin: float, stress) -> Dict[str, Any]:
                             ruin_threshold_pct=gates.S4_RUIN_THRESHOLD_PCT, stress_max_mdd_pct=gates.S4_STRESS_MAX_MDD_PCT)
 
 
-def mc_check(series, scale: float, shock: Optional[Dict[str, float]] = None) -> Dict[str, Any]:
+def mc_check(series, scale: float, shock: Optional[Dict[str, float]] = None, turnover: Optional[float] = None) -> Dict[str, Any]:
     """MC dạng gate (không điểm vẽ) trên chuỗi ngày × scale -> {"passed", "p_mdd_ge_30", "stress_max_mdd", "gate", "summary"}.
-    shock (metrics["shock"] của S3): thêm kịch bản trend thẳng đứng (lỗ nhân scale)."""
-    from backend.carlo.monte_carlo import run_monte_carlo_daily_gate
-    r = run_monte_carlo_daily_gate(series, **_mc_kwargs(scale), shock=shock)
+    shock (metrics["shock"] của S3): thêm kịch bản trend thẳng đứng (lỗ nhân scale).
+    turnover (metrics["turnover_daily"] của S3, lần vốn/ngày ĐO TỪ LỆNH): cho kịch bản cost_x2; None -> cost_x2 "không đo được", cổng không đạt."""
+    from backend.carlo.monte_carlo import extra_cost_from_turnover, run_monte_carlo_daily_gate
+    r = run_monte_carlo_daily_gate(series, **_mc_kwargs(scale), shock=shock, extra_cost_daily=extra_cost_from_turnover(turnover))
     gate = _gate_of(r["simulations"], r["p_mdd_ge_ruin_pct"], r["stress"])
     return {"passed": bool(gate["passed"]), "p_mdd_ge_30": r["p_mdd_ge_ruin_pct"],
-            "stress_max_mdd": max((x["mdd_pct"] for x in r["stress"]), default=None), "gate": gate,
+            "stress_max_mdd": max((x["mdd_pct"] for x in r["stress"] if x["mdd_pct"] is not None), default=None), "gate": gate,
             "summary": {k: r[k] for k in ("median_ret_pct", "p05_ret_pct", "mdd_p50_pct", "mdd_p95_pct", "p_mdd_ge_ruin_pct", "simulations")}}
 
 
-def mc_detail(series, scale: float, basis: str = "extreme", shock: Optional[Dict[str, float]] = None) -> Dict[str, Any]:
+def mc_detail(series, scale: float, basis: str = "extreme", shock: Optional[Dict[str, float]] = None,
+              turnover: Optional[float] = None) -> Dict[str, Any]:
     """MC chi tiết (quạt, histogram, kịch bản cực xấu có đường vẽ) + gate theo ngưỡng của phễu. Ghi vào mc/<alpha_id>.json."""
-    from backend.carlo.monte_carlo import run_monte_carlo_daily_detail
-    out = run_monte_carlo_daily_detail(series, **_mc_kwargs(scale), shock=shock)
+    from backend.carlo.monte_carlo import extra_cost_from_turnover, run_monte_carlo_daily_detail
+    out = run_monte_carlo_daily_detail(series, **_mc_kwargs(scale), shock=shock, extra_cost_daily=extra_cost_from_turnover(turnover))
     out["gate"] = _gate_of(out["summary"]["simulations"], out["summary"]["p_mdd_ge_ruin_pct"], out["stress"])
     out["params"] = {**out["params"], "basis": basis}
     return out
@@ -202,6 +204,9 @@ def aggregate_wfa(folds: List[Dict[str, Any]], rpt: Optional[float] = None) -> D
                "fold_detail": [{"fold": f["fold"], "train": f["train"], "test": f["test"], "is_ret_pct": f["is_ret_pct"],
                                 "oos_ret_pct": f["oos"]["ret_pct"], "oos_mdd_pct": f["oos"]["mdd_pct"], "trades": f["oos"]["trades"],
                                 "halted": f["oos"]["halted"]} for f in folds]}
+    from backend.carlo.monte_carlo import measure_turnover
+    tv = measure_turnover(None if any(f["trades"] is None for f in folds) else trades, len(series))   # vòng quay vốn đo từ lệnh OOS -> cost_x2 của MC
+    metrics["turnover_daily"], metrics["turnover_note"] = tv["turnover_daily"], tv["note"]
     if rpt is not None:
         from backend.carlo.monte_carlo import vertical_exposure
         metrics["shock"] = vertical_exposure(trades, rpt)
@@ -255,8 +260,8 @@ def w_mc(job: Dict[str, Any]) -> Dict[str, Any]:
     series = job["series"]
     if len(series) < gates.S4_MIN_DAYS:
         return {"days": len(series), "detail": None, "min_size": None}
-    detail = mc_detail(series, 1.0, shock=job.get("shock"))
-    mn = mc_check(series, gates.S5_S_MIN, job.get("shock"))
+    detail = mc_detail(series, 1.0, shock=job.get("shock"), turnover=job.get("turnover"))
+    mn = mc_check(series, gates.S5_S_MIN, job.get("shock"), job.get("turnover"))
     return {"days": len(series), "detail": detail, "min_size": {"s": gates.S5_S_MIN, **{k: mn[k] for k in ("passed", "p_mdd_ge_30", "stress_max_mdd", "gate")}}}
 
 
@@ -264,7 +269,7 @@ def w_sizing(job: Dict[str, Any]) -> Dict[str, Any]:
     """S5: tìm nhị phân s trên chuỗi ngày nhân s; xác nhận bằng S1 + WFA + MC thật ở s (hạ s từng bước nếu trượt).
     job = {strategy, params, series, shock?, windows {start, dev1_end}, folds, symbols, shared_dir}."""
     series = np.asarray(job["series"], dtype=float)
-    s_star, steps = sizing.search_scale(lambda s: mc_check(series, s, job.get("shock")))
+    s_star, steps = sizing.search_scale(lambda s: mc_check(series, s, job.get("shock"), job.get("turnover")))
     if s_star is None:
         return {"s": None, "search": steps, "attempts": [], "reason": "scale_low"}
     keep: Dict[str, Any] = {}
@@ -289,7 +294,7 @@ def w_sizing(job: Dict[str, Any]) -> Dict[str, Any]:
         if len(wfa["series"]) < gates.S4_MIN_DAYS:
             att["mc"], att["reason"] = False, "quá ít ngày OOS"
             return att
-        mcr = mc_check(wfa["series"], 1.0, wfa["metrics"].get("shock"))
+        mcr = mc_check(wfa["series"], 1.0, wfa["metrics"].get("shock"), wfa["metrics"].get("turnover_daily"))
         att["mc"], att["p_mdd_ge_30"], att["stress_max_mdd"] = mcr["passed"], mcr["p_mdd_ge_30"], mcr["stress_max_mdd"]
         att["passed"] = bool(mcr["passed"])
         if not att["passed"]:
@@ -305,7 +310,8 @@ def w_sizing(job: Dict[str, Any]) -> Dict[str, Any]:
         return out
     wfa = keep["wfa"]
     out.update({"wfa": wfa, "backtest": {"metrics": keep["backtest"]["metrics"]}, "mc_detail": mc_detail(wfa["series"], 1.0, basis="confirmed_wfa_at_s",
-                                                                                                      shock=wfa["metrics"].get("shock"))})
+                                                                                                      shock=wfa["metrics"].get("shock"),
+                                                                                                      turnover=wfa["metrics"].get("turnover_daily"))})
     return out
 
 

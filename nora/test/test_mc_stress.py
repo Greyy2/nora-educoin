@@ -18,7 +18,7 @@ from fastapi.testclient import TestClient
 
 from backend.api.routers import book as book_router
 from backend.carlo import monte_carlo as mcm
-from backend.carlo.monte_carlo import (MC_MIN_SIMULATIONS, STRESS_COST_FALLBACK_DAILY, STRESS_MAX_MDD_PCT, evaluate_mc_gate,
+from backend.carlo.monte_carlo import (MC_MIN_SIMULATIONS, STRESS_MAX_MDD_PCT, evaluate_mc_gate,
                                        longest_losing_run, run_monte_carlo, run_monte_carlo_daily, run_monte_carlo_daily_detail,
                                        stress_scenarios)
 
@@ -34,7 +34,7 @@ def by_name(rows):
 def test_constants_and_scenario_names():
     assert MC_MIN_SIMULATIONS == 10_000 and STRESS_MAX_MDD_PCT == 50.0
     assert [r["name"] for r in stress_scenarios([0.1, -0.1])] == NAMES
-    assert STRESS_COST_FALLBACK_DAILY == pytest.approx(0.0007)
+    assert not hasattr(mcm, "STRESS_COST_FALLBACK_DAILY")          # P9.13: không còn vòng quay giả định 0,5x/ngày
 
 
 def test_worst_days_first_and_reversed_exact():
@@ -64,9 +64,45 @@ def test_cost_x2_penalises_only_active_days_and_uses_given_cost():
     assert s["terminal_ret_pct"] == round((1.09 * 0.89 - 1) * 100, 2) == -2.99
     assert s["mdd_pct"] == round((1 - 0.89) * 100, 2) == 11.0
     assert s["worst_day_pct"] == -11.0 and "0.010%" not in s["note_vi"] and "1.000%" in s["note_vi"]
-    fb = by_name(stress_scenarios([0.1, 0.0, -0.1]))["cost_x2"]                         # không có số liệu -> hằng số bảo thủ 0,07%
-    assert fb["worst_day_pct"] == pytest.approx(-10.07, abs=0.005) and "hằng số bảo thủ" in fb["note_vi"]
     assert mcm.estimate_extra_daily_cost(78, 434, 0.5) == pytest.approx((0.0005 + 0.0002) * 2 * 78 * 0.5 / 434)
+    assert mcm.estimate_extra_daily_cost(78, 0, 0.5) is None
+
+
+def test_cost_x2_without_measured_turnover_is_marked_not_measured_and_fails_the_gate():
+    """P9.13: không có vòng quay đo được -> dòng cost_x2 "không đo được" (không số giả), bị loại khỏi hai check stress, check stress_measured trượt."""
+    row = by_name(stress_scenarios([0.1, 0.0, -0.1]))["cost_x2"]
+    assert row["measured"] is False and row["mdd_pct"] is None and row["terminal_ret_pct"] is None and "không đo được vòng quay" in row["note_vi"]
+    assert "path" not in row and json.dumps(row, allow_nan=False)
+    stress = stress_scenarios([0.1, 0.0, -0.1])
+    g = evaluate_mc_gate(10_000, 1.0, stress + [{"name": "worst_bootstrap", "mdd_pct": 20.0, "ruin": False}])
+    assert g["unmeasured_stress"] == ["cost_x2"] and g["checks"]["stress_measured"]["passed"] is False and g["passed"] is False
+    assert g["checks"]["stress_mdd"]["passed"] and g["checks"]["stress_ruin"]["passed"]       # chỉ check "đo được" trượt
+    ok = evaluate_mc_gate(10_000, 1.0, stress_scenarios([0.1, 0.0, -0.1], extra_cost_daily=0.001) + [{"name": "wb", "mdd_pct": 20.0, "ruin": False}])
+    assert ok["unmeasured_stress"] == [] and ok["checks"]["stress_measured"]["passed"] and ok["passed"]
+
+
+def _tr(notional, eq, **kw):
+    return {"notional": notional, "entry_equity": eq, **kw}
+
+
+def test_measure_turnover_from_trades_and_merge():
+    m = mcm.measure_turnover([_tr(500.0, 1000.0), _tr(250.0, 1000.0)], 10)           # (0,5 + 0,25) / 10 ngày
+    assert m["turnover_daily"] == pytest.approx(0.075) and m["note"] is None and m["sum"] == pytest.approx(0.75)
+    assert mcm.extra_cost_from_turnover(0.075) == pytest.approx((0.0005 + 0.0002) * 2 * 0.075)
+    # margin x leverage (dạng trade_rows)
+    assert mcm.measure_turnover([{"margin_usd": 100.0, "leverage": 5.0, "entry_equity": 1000.0}], 5)["turnover_daily"] == pytest.approx(0.1)
+    z = mcm.measure_turnover([], 7)
+    assert z["turnover_daily"] == 0.0 and z["note"] is None                           # không lệnh = vòng quay 0 (đo được)
+    # thiếu vốn lúc vào lệnh / không có danh sách lệnh / không có ngày -> None + lý do, KHÔNG bỏ qua lệnh rồi coi là đo được
+    bad = mcm.measure_turnover([_tr(500.0, 1000.0), _tr(100.0, 0.0)], 10)
+    assert bad["turnover_daily"] is None and "1/2 lệnh" in bad["note"]
+    assert mcm.measure_turnover(None, 10)["turnover_daily"] is None and mcm.measure_turnover([_tr(1, 1)], 0)["turnover_daily"] is None
+    assert mcm.extra_cost_from_turnover(None) is None
+    # gộp cửa sổ: Σ danh nghĩa/vốn chia Σ ngày; một cửa sổ không đo được -> không đo được
+    a, b = mcm.measure_turnover([_tr(500.0, 1000.0)], 10), mcm.measure_turnover([_tr(300.0, 1000.0)], 30)
+    assert mcm.merge_turnover([a, b])["turnover_daily"] == pytest.approx((0.5 + 0.3) / 40)
+    assert mcm.merge_turnover([a, bad])["turnover_daily"] is None and mcm.merge_turnover([a, None])["turnover_daily"] is None
+    assert mcm.merge_turnover([])["turnover_daily"] is None
 
 
 def test_longest_losing_streak_x2_exact():
@@ -93,7 +129,7 @@ def test_ruin_when_equity_hits_zero_and_scale():
 
 def test_stress_paths_are_sampled_and_end_at_terminal():
     d = list(np.random.default_rng(1).normal(0.001, 0.02, 400))
-    for r in stress_scenarios(d):
+    for r in stress_scenarios(d, extra_cost_daily=0.0007):
         p = r["path"]
         assert p["days"][0] == 0 and p["days"][-1] == r["days"] and len(p["days"]) <= 75
         assert p["ret_pct"][0] == 0.0 and p["ret_pct"][-1] == r["terminal_ret_pct"]
@@ -111,7 +147,7 @@ def _stress(**over):
 
 def test_gate_each_check_flips_independently():
     ok = evaluate_mc_gate(10_000, 5.0, _stress())
-    assert ok["passed"] and ok["gate_eligible"] and set(ok["checks"]) == {"simulations", "ruin", "stress_mdd", "stress_ruin"}
+    assert ok["passed"] and ok["gate_eligible"] and set(ok["checks"]) == {"simulations", "ruin", "stress_mdd", "stress_ruin", "stress_measured"}
     assert ok["checks"]["simulations"] == {"label": "Số kịch bản bootstrap", "required": ">= 10000", "actual": 10_000, "passed": True}
     assert ok["checks"]["ruin"]["required"] == "<= 5.0%" and ok["checks"]["stress_mdd"]["required"] == "< 50%"
     cases = {
@@ -254,10 +290,14 @@ def test_api_defaults_stress_table_and_gate(client):
     assert out["params"]["simulations"] == 10_000 and out["gate"]["gate_eligible"] is True
     assert [r["name"] for r in out["stress"]] == NAMES + ["worst_bootstrap"]
     for r in out["stress"]:
+        if r["name"] == "cost_x2":      # chỉ có chuỗi ngày -> không biết vòng quay -> không dựng kịch bản (P9.13)
+            assert r["measured"] is False and r["mdd_pct"] is None and r["note_vi"]
+            continue
         assert {"name", "label_vi", "mdd_pct", "terminal_ret_pct", "worst_day_pct", "days_underwater", "ruin", "passed", "path"} <= set(r)
+    assert out["gate"]["unmeasured_stress"] == ["cost_x2"] and out["gate"]["passed"] is False and out["gate"]["checks"]["stress_measured"]["passed"] is False
     assert out["worst_path"] == out["stress"][-1]["path"] and out["worst_path"]["days"][-1] == 365
     g = out["gate"]
-    assert set(g["checks"]) == {"simulations", "ruin", "stress_mdd", "stress_ruin"} and g["stress_max_mdd_pct"] == 50.0
+    assert set(g["checks"]) == {"simulations", "ruin", "stress_mdd", "stress_ruin", "stress_measured"} and g["stress_max_mdd_pct"] == 50.0
     assert g["passed"] == all(c["passed"] for c in g["checks"].values())
     assert out["stress"][0]["mdd_pct"] == by_name(stress_scenarios(DAILY))["worst_days_first"]["mdd_pct"]
 
@@ -306,11 +346,11 @@ def test_vertical_exposure_sums_only_overlapping_positions():
 
 def test_vertical_scenarios_fail_okx_style_dca_bot_but_not_stopped_trend_book():
     daily = [0.002, -0.001, 0.003, 0.001, -0.002] * 30            # lịch sử êm: 6 kịch bản cũ đều qua
-    old = stress_scenarios(daily, with_path=False)
+    old = stress_scenarios(daily, with_path=False, extra_cost_daily=0.0007)
     assert [r["name"] for r in old] == NAMES and all(r["passed"] for r in old)
     # bot DCA kiểu OKX: LONG không cắt lỗ, danh nghĩa 3 × vốn (đòn bẩy 3, ký quỹ = vốn) -> sập −30% mất 90% vốn
     okx = mcm.vertical_exposure([_trade("LONG", 0, 100 * DAY_MS, 30_000, lev=3.0)], None)
-    rows = by_name(stress_scenarios(daily, with_path=False, shock=okx))
+    rows = by_name(stress_scenarios(daily, with_path=False, extra_cost_daily=0.0007, shock=okx))
     assert set(rows) == set(NAMES) | set(mcm.VERTICAL_NAMES)
     assert rows["vertical_crash"]["worst_day_pct"] == -90.0 and not rows["vertical_crash"]["passed"]
     assert not rows["vertical_chain"]["passed"]
@@ -318,11 +358,11 @@ def test_vertical_scenarios_fail_okx_style_dca_bot_but_not_stopped_trend_book():
     assert gate["passed"] is False
     # sổ trend có cắt lỗ theo rủi ro (0,5%/lệnh), 8 lệnh LONG + 8 SHORT mở cùng lúc, mỗi lệnh 0,2 × vốn -> lỗ tối đa 8 × 1% = 8%
     book = [_trade(s, 0, 10 * DAY_MS, 2000) for s in ("LONG", "SHORT") for _ in range(8)]
-    rows = by_name(stress_scenarios(daily, with_path=False, shock=mcm.vertical_exposure(book, 0.5)))
+    rows = by_name(stress_scenarios(daily, with_path=False, extra_cost_daily=0.0007, shock=mcm.vertical_exposure(book, 0.5)))
     assert all(rows[n]["passed"] for n in mcm.VERTICAL_NAMES)
     assert rows["vertical_crash"]["worst_day_pct"] == -8.0
     # hệ số khối lượng nhân lỗ
-    up = by_name(stress_scenarios(daily, scale=2.0, with_path=False, shock=mcm.vertical_exposure(book, 0.5)))
+    up = by_name(stress_scenarios(daily, scale=2.0, with_path=False, extra_cost_daily=0.0007, shock=mcm.vertical_exposure(book, 0.5)))
     assert up["vertical_crash"]["worst_day_pct"] == -16.0
 
 
@@ -335,3 +375,15 @@ def test_daily_gate_and_detail_without_shock_unchanged():
     assert len(c["stress"]) == 9 and c["gate"]["passed"] is False and c["p_mdd_ge_ruin_pct"] == a["p_mdd_ge_ruin_pct"]
     det = run_monte_carlo_daily_detail(d, simulations=500, shock={"crash_loss": 0.1, "surge_loss": 0.1})
     assert det["params"]["shock"] == {"crash_loss": 0.1, "surge_loss": 0.1} and "shock" not in run_monte_carlo_daily_detail(d, simulations=500)["params"]
+
+
+def test_gate_carries_all_thresholds_and_old_results_get_none_not_constants():
+    """P9.12: giao diện không còn hằng số `?? 30/50/10000`: gate luôn mang ngưỡng; kết quả cũ thiếu -> None + ghi chú."""
+    g = mcm.evaluate_mc_gate(10000, 1.0, [], ruin_threshold_pct=25.0, stress_max_mdd_pct=40.0, min_simulations=5000, max_ruin_pct=7.0)
+    assert (g["min_simulations"], g["ruin_max_pct"], g["stress_max_mdd_pct"], g["ruin_threshold_pct"]) == (5000, 7.0, 40.0, 25.0)
+    fresh = mcm.with_gate_thresholds({"gate": g, "params": {}})
+    assert fresh["gate"]["thresholds_missing"] == [] and fresh["gate"]["thresholds_note"] is None
+    old = mcm.with_gate_thresholds({"gate": {"passed": True, "ruin_max_pct": 5.0}, "params": {"ruin_threshold_pct": 30.0}})
+    assert old["gate"]["ruin_threshold_pct"] == 30.0 and old["gate"]["min_simulations"] is None and old["gate"]["stress_max_mdd_pct"] is None
+    assert set(old["gate"]["thresholds_missing"]) == {"min_simulations", "stress_max_mdd_pct"} and "kết quả cũ" in old["gate"]["thresholds_note"]
+    assert mcm.with_gate_thresholds(None) is None and mcm.with_gate_thresholds({"x": 1}) == {"x": 1}

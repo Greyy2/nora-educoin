@@ -30,7 +30,8 @@ from backend.optimize.shared import SharedExporter
 from backend.utils.parallel import pool_map_safe
 
 from ..carlo.monte_carlo import (MC_MAX_RUIN_PCT, MC_MIN_SIMULATIONS, MC_RUIN_THRESHOLD_PCT, STRESS_MAX_MDD_PCT,
-                                 evaluate_mc_gate, merge_exposure, run_monte_carlo_daily_gate, vertical_exposure)
+                                 evaluate_mc_gate, extra_cost_from_turnover, measure_turnover, merge_exposure, merge_turnover,
+                                 run_monte_carlo_daily_gate, vertical_exposure)
 
 DAY = 86_400_000
 
@@ -81,7 +82,9 @@ def run_job(job):
     res = eng.get_results()
     result = portfolio_metrics(res, start)
     from backend.core.metrics.trades import trade_rows
-    result["shock"] = vertical_exposure(trade_rows(res["positions"]), job.rpt)   # MC: kịch bản trend thẳng đứng
+    rows = trade_rows(res["positions"])
+    result["shock"] = vertical_exposure(rows, job.rpt)   # MC: kịch bản trend thẳng đứng
+    result["turnover"] = measure_turnover(rows, len(result["daily"]))   # MC: kịch bản cost_x2 dùng vòng quay ĐO TỪ LỆNH
     if job.regime:   # lãi/lỗ theo (chiến lược, regime lúc vào lệnh) -> học bảng regime (regime="learn")
         from backend.core.regime.learn import engine_by_regime
         result["by_regime"] = engine_by_regime(eng, res["positions"])
@@ -148,7 +151,7 @@ def _pool_shared(jobs, workers, label, shared_dir, store=None, stage=None, progr
 
 
 def _strip(m):
-    return {k: v for k, v in m.items() if k not in ("daily", "_peak_rss_mb", "_rss_anon_mb", "_daily_start", "by_regime", "shock")}
+    return {k: v for k, v in m.items() if k not in ("daily", "_peak_rss_mb", "_rss_anon_mb", "_daily_start", "by_regime", "shock", "turnover")}
 
 
 def _date(ts) -> str:
@@ -241,11 +244,13 @@ def aggregate_folds(folds: List[Dict[str, Any]], cfg: PortfolioWfaConfig) -> Dic
     if all(f.get(f"oos_daily_dates_{sf}") is not None for f in folds for sf in ("level", "extreme")):
         dates = {sf: [d for f in folds for d in f[f"oos_daily_dates_{sf}"]] for sf in ("level", "extreme")}
     mc = None
+    turnover = merge_turnover([f.get("turnover") for f in folds])           # vòng quay đo từ lệnh của mọi fold OOS (extreme)
     shock = merge_exposure([f.get("shock") for f in folds])   # vị thế ngược chiều lớn nhất của mọi fold OOS (extreme)
     if len(daily["extreme"]) >= MIN_MC_DAYS:
         mc = run_monte_carlo_daily_gate(daily["extreme"], simulations=cfg.mc_simulations, block_days=cfg.mc_block_days,
                                         horizon_days=cfg.mc_horizon_days, ruin_threshold_pct=MC_RUIN_THRESHOLD_PCT,
-                                        seed=cfg.mc_seed, max_ruin_pct=MAX_MC_RUIN_PCT, stress_max_mdd_pct=STRESS_MAX_MDD_PCT, shock=shock)
+                                        seed=cfg.mc_seed, max_ruin_pct=MAX_MC_RUIN_PCT, stress_max_mdd_pct=STRESS_MAX_MDD_PCT, shock=shock,
+                                        extra_cost_daily=extra_cost_from_turnover(turnover["turnover_daily"]))
     from backend.core.metrics.returns import fold_stats
     fs = fold_stats([f["oos_extreme"]["ret_pct"] if f["oos_extreme"] else 0.0 for f in folds],
                     [f["status"] == "TRADED" and (f["oos_extreme"] or {}).get("trades", 0) > 0 for f in folds])
@@ -256,6 +261,7 @@ def aggregate_folds(folds: List[Dict[str, Any]], cfg: PortfolioWfaConfig) -> Dic
         "avg_is_ret_pct": avg_is, "compounded_oos_ret_pct": compounded, "worst_fold_mdd_pct": worst_mdd,
         "oos_days": len(daily["extreme"]), "oos_trades": {sf: sum(f["trades"][sf] for f in folds) for sf in ("level", "extreme")},
         "param_stability": stability, "oos_daily": daily, "mc": mc, "shock": shock,
+        "turnover_daily": turnover["turnover_daily"], "turnover_note": turnover["note"],
         **({"oos_daily_dates": dates} if dates is not None else {}),   # song song với oos_daily (UI vẽ đường vốn OOS)
     }
 
@@ -285,6 +291,7 @@ def evaluate_gate(summary: Dict[str, Any]) -> Dict[str, Any]:
         "mc_simulations": mg["simulations"],
         "mc_stress_mdd": mg["stress_mdd"],
         "mc_stress_ruin": mg["stress_ruin"],
+        "mc_stress_measured": mg["stress_measured"],
     }
     return {"passed": all(c["passed"] for c in checks.values()), "checks": checks}
 
@@ -380,6 +387,12 @@ def run_portfolio_wfa(candidates, symbols, start_ts, end_ts, cfg, risk, risk_per
             first = (m or {}).get("_daily_start") or _date(fold["test_start_ts"])
             rec[f"oos_daily_dates_{sf}"] = [f"{d:%Y-%m-%d}" for d in pd.date_range(first, periods=len(rec[f"oos_daily_{sf}"]), freq="D")]
         rec["shock"] = (oos_by.get((fi, "extreme")) or {}).get("shock")
+        m_ext = oos_by.get((fi, "extreme"))
+        if m_ext is None:                                           # fold NO_TRADE: không có lệnh nào -> vòng quay 0 (đo được)
+            rec["turnover"] = measure_turnover([], len(rec["oos_daily_extreme"]))
+        else:                                                       # kết quả job cũ trong kho (resume) không lưu vòng quay -> không đo được
+            rec["turnover"] = m_ext.get("turnover") or {"turnover_daily": None, "note": "kết quả fold cũ không lưu vòng quay", "sum": 0.0,
+                                                        "days": len(rec["oos_daily_extreme"]), "trades": 0, "measurable": 0}
         if regime_maps is not None:
             rec["regime_map"] = regime_maps[fi]
             rec["train_by_regime"] = train_regime.get(fi, {})

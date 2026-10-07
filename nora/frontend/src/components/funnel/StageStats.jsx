@@ -14,6 +14,9 @@ const DIST_FMT = {
   ret_pct: (v) => fmtNum(v, 0), mdd_pct: (v) => fmtNum(v, 0), sharpe: (v) => fmtNum(v, 1), trades: (v) => fmtNum(v, 0), win_rate: (v) => fmtNum(v, 0), profit_factor: (v) => fmtNum(v, 1),
 }
 
+// Lý do một alpha không có số đo (backend trả None + ghi chú theo từng alpha; ở đây chỉ chú thích chung cho histogram).
+const MISSING_WHY = { win_rate: 'Alpha không có lệnh nào', profit_factor: 'Không có lệnh thua (Σ lỗ = 0) hoặc không có lệnh: PF không xác định, không vẽ vào biểu đồ' }
+
 function Kpis({ s }) {
   const rate = s.input > 0 ? (s.passed / s.input) * 100 : null
   return (
@@ -48,7 +51,8 @@ function Distributions({ s }) {
           return (
             <figure key={k} className="n-fn-dist">
               <figcaption>{m.term ? <Term k={m.term}>{m.label}</Term> : m.label}
-                <span className="muted mono"> · trung vị {fmtMetric(k, d.in?.p50)} → {fmtMetric(k, d.out?.p50)}</span></figcaption>
+                <span className="muted mono"> · trung vị {fmtMetric(k, d.in?.p50)} → {fmtMetric(k, d.out?.p50)}</span>
+                {d.in?.n_missing > 0 && <span className="muted n-na" title={MISSING_WHY[k] || 'không đo được'}> · {fmtCount(d.in.n_missing)} alpha không xác định</span>}</figcaption>
               <OverlayHist a={d.in} b={d.out} unit={DIST_UNIT[k] || ''} xFormat={DIST_FMT[k]} label={`Phân phối ${m.label}`} height={140} />
             </figure>
           )

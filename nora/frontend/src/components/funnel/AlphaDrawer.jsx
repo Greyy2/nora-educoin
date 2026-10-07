@@ -101,7 +101,7 @@ function ScalePanel({ d }) {
               <tbody>
                 {[...d.scale_search].sort((a, b) => b.s - a.s).map((r) => (
                   <tr key={r.s}><td className="r">{fmtNum(r.s, 2)}</td><td className="r">{fmtPct(r.p_mdd_ge_30, 1)}</td><td className="r">{fmtPct(r.stress_max_mdd, 1)}</td>
-                    <td>{r.passed ? <Status tone="ok">✓ Đạt</Status> : <Status tone="bad">✗ Không đạt</Status>}</td></tr>
+                    <td>{r.measured === false ? <span title={r.note_vi}><Status tone="warn">Không đo được</Status></span> : r.passed ? <Status tone="ok">✓ Đạt</Status> : <Status tone="bad">✗ Không đạt</Status>}</td></tr>
                 ))}
               </tbody>
             </table>

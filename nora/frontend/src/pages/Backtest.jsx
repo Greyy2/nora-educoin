@@ -815,7 +815,7 @@ function StepMc({ wfaId, wfa, form, setForm }) {
         <div style={{ marginTop: 12, display: 'grid', gap: 8 }}>
           <ModeStamp mode={res.params?.mode || mode} customGates={res.params?.custom_gates ?? res.gate?.custom_gates} promotable={res.params?.promotable} ignored={res.params?.ignored_client_params} />
           <PublishBlocked customGates={res.params?.custom_gates ?? res.gate?.custom_gates} promotable={res.params?.promotable} />
-          <McResult mc={res} ruinPct={Number(res.params?.ruin_threshold_pct ?? f.ruin_threshold_pct)} />
+          <McResult mc={res} />
         </div>
       )}
     </>

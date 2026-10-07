@@ -353,6 +353,8 @@ def build_dashboard(result: Dict[str, Any], bench_closes: Optional[pd.Series] = 
     pct = lambda x: _num(x / nav_last * 100.0, 1) if nav_last > 0 else None
     ids = [s["id"] for s in cfg.get("strategies") or []] or sorted({t["strategy"] for t in trades})
     halted = bool(result.get("halted_at"))
+    from backend.core.metrics.trades import profit_factor_of
+    pf_period, pf_note = profit_factor_of(wins, losses, len(p_trades))
     active = np.abs(pnl_p) > 1e-9   # ngày có P&L khác 0 (ngày đứng ngoài thị trường không tính là ngày lỗ)
     risk = {
         "margin_used_pct": pct(sum(margins)) if open_t and all(m is not None for m in margins) else None,
@@ -363,7 +365,7 @@ def build_dashboard(result: Dict[str, Any], bench_closes: Optional[pd.Series] = 
         "cagr_pct": _num(cagr), "vol_annual_pct": _num(float(np.std(ret_p, ddof=1)) * math.sqrt(ANN) * 100.0) if n >= 2 else None,
         "win_days_pct": _num(float(np.mean(pnl_p[active] > 0)) * 100.0, 1) if active.any() else None,
         "active_days": int(active.sum()),
-        "profit_factor": _num(wins / losses) if losses > 0 else None,
+        "profit_factor": _num(pf_period),
         "open_positions": len(open_t), "strategies_running": 0 if halted else len(ids),
     }
 
@@ -378,6 +380,9 @@ def build_dashboard(result: Dict[str, Any], bench_closes: Optional[pd.Series] = 
         "available": True, "source": source, "period": period, "kpis": kpis, "series": series,
         "distribution": distribution(ret_p * 100.0, -var_pct if var_pct is not None else None),
         "monthly": monthly_table(nav, init), "risk": risk,
+        # lý do một số đo của `risk` là None (giao diện hiện "—" + lý do): khoá riêng để payload `risk` cũ giữ nguyên từng bit
+        "risk_notes": {"profit_factor": pf_note,
+                       "win_days_pct": None if risk["win_days_pct"] is not None else "không có ngày nào có giao dịch trong kỳ"},
         "strategies": _strategy_rows(ids, p_trades, dates, init, base_nav, halted,
                                      {x["strategy"]: x["side"] for x in list(trades) + pos_rows if x.get("side")}),
         "events": _events(result, p_start), "positions": pos_rows,

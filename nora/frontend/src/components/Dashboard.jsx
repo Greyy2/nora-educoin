@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Panel, Status, Empty, Loading, ErrorState } from './ui'
+import { Panel, Status, Empty, Loading, ErrorState, NA } from './ui'
 import Term from './Term'
 import { FamilyStatsPanel, TradesPanel, RegimePanel } from './OverviewExtras'
 import DetailSection from './portfolio/DetailSection'
@@ -83,7 +83,7 @@ function KpiRow({ k, period, bench = 'BTC' }) {
   )
 }
 
-function RiskPanel({ r }) {
+function RiskPanel({ r, notes }) {
   const marginNull = !isNum(r.margin_used_pct)
   const mk = (r.by_market || [])
   const mx = Math.max(1, ...mk.flatMap((m) => [m.long_pct || 0, m.short_pct || 0])) * 1.4
@@ -126,10 +126,10 @@ function RiskPanel({ r }) {
           [<Term k="cagr">CAGR</Term>, r.cagr_pct, fmtSPct(r.cagr_pct), signClass(r.cagr_pct)],
           [<Term k="vol_annual">Biến động năm</Term>, r.vol_annual_pct, fmtPct(r.vol_annual_pct)],
           [<><Term k="win_days">Tỉ lệ ngày lãi</Term> (ngày có giao dịch)</>, r.win_days_pct, fmtPct(r.win_days_pct)],
-          [<Term k="profit_factor">Profit factor</Term>, r.profit_factor, fmtNum(r.profit_factor)],
+          [<Term k="profit_factor">Profit factor</Term>, r.profit_factor ?? (notes?.profit_factor ? 'na' : null), isNum(r.profit_factor) ? fmtNum(r.profit_factor) : <NA note={notes?.profit_factor} />],
           ['Vị thế mở', r.open_positions, r.open_positions],
           ['Chiến thuật đang chạy', r.strategies_running, r.strategies_running],
-        ].filter(([, raw]) => isNum(raw)).map(([k, , v, cls], i) => <div key={i}><span className="k">{k}</span><span className={`v ${cls || ''}`}>{v}</span></div>)}
+        ].filter(([, raw]) => isNum(raw) || raw === 'na').map(([k, , v, cls], i) => <div key={i}><span className="k">{k}</span><span className={`v ${cls || ''}`}>{v}</span></div>)}
       </div>
     </Panel>
   )
@@ -213,10 +213,9 @@ function Events({ rows = [] }) {
 }
 
 /** Biểu đồ phụ (lãi/lỗ ngày, phân phối, theo tháng, Sharpe cuốn chiếu); khối nào thiếu dữ liệu thì ẩn hẳn. */
-function ExtraCharts({ s, dist, monthly, risk }) {
+function ExtraCharts({ s, dist, monthly, risk, notes }) {
   const dates = s.dates || []
   const pl = (s.daily_pnl || []).filter(isNum)
-  const winDays = pl.length ? (pl.filter((x) => x > 0).length / (pl.filter((x) => x !== 0).length || 1)) * 100 : null
   const varPct = dist?.var95_pct
   const hasRoll = (s.rolling_sharpe_63 || []).filter(isNum).length >= 2
   const years = monthly?.years || []
@@ -225,7 +224,7 @@ function ExtraCharts({ s, dist, monthly, risk }) {
       {(pl.length > 0 || (dist?.bins || []).length > 0) && (
         <div className="n-grid g-main-side">
           {pl.length > 0 && (
-            <Panel title="Lãi/lỗ theo ngày" meta={<><span><Term k="win_days">Ngày lãi</Term> (ngày có giao dịch) <b className="mono">{fmtPct(risk.win_days_pct ?? winDays)}</b>{isNum(risk.active_days) ? <span className="muted"> · {risk.active_days} ngày</span> : null}</span>{isNum(risk.profit_factor) && <span><Term k="profit_factor">Profit factor</Term> <b className="mono">{fmtNum(risk.profit_factor)}</b></span>}</>}>
+            <Panel title="Lãi/lỗ theo ngày" meta={<><span><Term k="win_days">Ngày lãi</Term> (ngày có giao dịch) <b className="mono">{isNum(risk.win_days_pct) ? fmtPct(risk.win_days_pct) : <NA note={notes?.win_days_pct} />}</b>{isNum(risk.active_days) ? <span className="muted"> · {risk.active_days} ngày</span> : null}</span><span><Term k="profit_factor">Profit factor</Term> <b className="mono">{isNum(risk.profit_factor) ? fmtNum(risk.profit_factor) : <NA note={notes?.profit_factor} />}</b></span></>}>
               <BarsPosNeg dates={dates} values={s.daily_pnl || []} height={200} />
             </Panel>
           )}
@@ -297,8 +296,8 @@ function OverviewView({ data, ctx }) {
     isNum(t.trades) && (
       <Kpi key="trades" label="Số lệnh" sub={<>toàn kỳ chạy{t.long?.trades >= 0 && t.short?.trades >= 0 ? ` · Long ${t.long.trades} · Short ${t.short.trades}` : ''}</>}>{t.trades}</Kpi>
     ),
-    isNum(t.win_rate) && (
-      <Kpi key="win" label="Tỉ lệ thắng" sub={isNum(t.profit_factor) ? <><Term k="profit_factor">Profit factor</Term> {fmtNum(t.profit_factor)}</> : null}>{fmtPct(t.win_rate, 1)}</Kpi>
+    (isNum(t.win_rate) || t.win_rate_note) && (
+      <Kpi key="win" label="Tỉ lệ thắng" sub={<><Term k="profit_factor">Profit factor</Term> {isNum(t.profit_factor) ? fmtNum(t.profit_factor) : <NA note={t.profit_factor_note} />}</>}>{isNum(t.win_rate) ? fmtPct(t.win_rate, 1) : <NA note={t.win_rate_note} />}</Kpi>
     ),
   ].filter(Boolean)
 
@@ -396,7 +395,7 @@ function OverviewView({ data, ctx }) {
         </DetailSection>
       )}
       <DetailSection title="Biểu đồ phụ" hint="lãi/lỗ ngày, phân phối, theo tháng, Sharpe cuốn chiếu">
-        <ExtraCharts s={s} dist={data.distribution} monthly={data.monthly} risk={risk} />
+        <ExtraCharts s={s} dist={data.distribution} monthly={data.monthly} risk={risk} notes={data.risk_notes} />
       </DetailSection>
       {data.stats && (
         <DetailSection title="Số đo chi tiết" hint="toàn kỳ chạy">
@@ -449,10 +448,10 @@ function FullView({ data, ctx }) {
           <div className="n-uw-h"><Term k="underwater">Underwater</Term> (sụt giảm từ đỉnh)</div>
           <UnderwaterStrip dates={dates} values={s.drawdown_pct || []} hover={hi} onHover={setHi} />
         </Panel>
-        <RiskPanel r={risk} />
+        <RiskPanel r={risk} notes={data.risk_notes} />
       </div>
 
-      <ExtraCharts s={s} dist={dist} monthly={monthly} risk={risk} />
+      <ExtraCharts s={s} dist={dist} monthly={monthly} risk={risk} notes={data.risk_notes} />
 
       <div className="n-grid g-table-ev">
         <Panel title="Hiệu suất chiến thuật" meta={<span>{strategies.length} chiến thuật · kỳ {periodLong(period)}</span>}>
@@ -513,14 +512,14 @@ function StatsPanel({ stats, mdd, bare = false }) {
     <Panel className={bare ? 'pf-bare' : ''} title={bare ? null : 'Số đo chi tiết'}
       meta={<span>toàn kỳ chạy{isNum(mdd?.intrabar_pct) && <> · <Term k="mdd_intrabar">MDD trong nến</Term> <b className="mono">{fmtPct(mdd.intrabar_pct)}</b></>}{isNum(mdd?.daily_pct) && <> · <Term k="mdd_daily">theo ngày</Term> <b className="mono">{fmtPct(mdd.daily_pct)}</b></>}</span>}>
       <div className="n-mx">
-        {STAT_GROUPS.map(([title, src, all]) => [title, src, all.filter(([k]) => isNum((stats[src] || {})[k]))]).filter(([, , items]) => items.length > 0).map(([title, src, items]) => (
+        {STAT_GROUPS.map(([title, src, all]) => [title, src, all.filter(([k]) => isNum((stats[src] || {})[k]) || (stats[src] || {})[`${k}_note`])]).filter(([, , items]) => items.length > 0).map(([title, src, items]) => (
           <div key={title} className="n-mx-group">
             <h4>{title}</h4>
             <dl>
               {items.map(([k, label, kind, term]) => (
                 <React.Fragment key={k}>
                   <dt>{term ? <Term k={term}>{label}</Term> : label}</dt>
-                  <dd className="mono">{fmtStat((stats[src] || {})[k], kind)}</dd>
+                  <dd className="mono">{isNum((stats[src] || {})[k]) ? fmtStat((stats[src] || {})[k], kind) : <NA note={(stats[src] || {})[`${k}_note`]} />}</dd>
                 </React.Fragment>
               ))}
               {title === 'Theo lệnh' && ['long', 'short'].map((side) => t[side] && t[side].trades > 0 && (

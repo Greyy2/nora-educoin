@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Panel, Empty, Spinner } from './ui'
+import { Panel, Empty, Spinner, NA } from './ui'
 import Term from './Term'
 import { getPortfolioTrades, portfolioTradesCsvUrl, getMarketRegime } from '../api'
 import { fmtNum, fmtMoney, fmtPct, fmtSPct, signClass, arrow, fmtDateTime, isNum } from '../lib/format'
@@ -32,8 +32,8 @@ export function FamilyStatsPanel({ rows = [], period, bare = false }) {
                     <div className="muted" style={{ fontSize: 11.5 }}>{f.ids.length > 1 ? `${f.ids.length} bộ tham số · ` : ''}{f.symbols.map((s) => s.replace('@perp', '')).join(', ')}</div>
                   </td>
                   <td className="r">{t.trades}</td>
-                  <td className="r">{fmtPct(t.win_rate, 1)}{t.breakeven ? <span className="muted"> · {t.breakeven} hoà</span> : null}</td>
-                  <td className="r">{fmtNum(t.profit_factor)}</td>
+                  <td className="r">{isNum(t.win_rate) ? fmtPct(t.win_rate, 1) : <NA note={t.win_rate_note} />}{t.breakeven ? <span className="muted"> · {t.breakeven} hoà</span> : null}</td>
+                  <td className="r">{isNum(t.profit_factor) ? fmtNum(t.profit_factor) : <NA note={t.profit_factor_note} />}</td>
                   <td className="r">{fmtNum(t.payoff)}</td>
                   <td className={`r ${signClass(t.expectancy_usd)}`}>{fmtMoney(t.expectancy_usd, true)}</td>
                   <td className={`r ${signClass(f.pnl)}`}>{arrow(f.pnl)} {fmtMoney(f.pnl, true)}</td>

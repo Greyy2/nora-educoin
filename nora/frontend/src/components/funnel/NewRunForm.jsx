@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Panel, Segmented, Field, ErrorBox, Spinner } from '../ui'
 import StrategyChoice from '../backtest/StrategyChoice'
 import { useStrategyCatalog } from '../RunModes'
@@ -8,23 +8,14 @@ import { DateInput } from '../DateField'
 import { postFunnelRun, getFunnelEstimate } from '../../api'
 import { fmtEta, fmtCount } from '../../lib/funnel'
 import { daysInclusive } from '../../lib/dates'
-import { fullDate, fmtNum, toMs } from '../../lib/format'
+import { fullDate, fmtNum } from '../../lib/format'
 
 const MAX_TOTAL = 1000000
 const LARGE_TOTAL = 200000
 const N_PRESETS = [100, 1000, 10000, 100000]
 const gridSize = (c) => Object.values(c.space || {}).reduce((p, a) => p * Math.max(1, a.length), 1)
-const median = (a) => { const s = [...a].sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : null }
 
-/** Ước tính thời gian: lấy giây/alpha trung vị của các lượt đã xong; chưa có thì dùng mặc định thô. */
-export function estimate(total, runs) {
-  const rates = (runs || []).filter((r) => r.status === 'done' && r.total_alphas > 0 && r.finished && r.started).map((r) => (toMs(r.finished) - toMs(r.started)) / 1000 / r.total_alphas)
-  const ref = rates.length ? median(rates) : null
-  const rate = ref ?? 0.08
-  return { seconds: total * rate, basis: ref != null ? `trung vị ${rates.length} lượt đã chạy (${fmtNum(ref, 3)} giây/alpha)` : 'mặc định 0,08 giây/alpha, chưa có lượt tham chiếu' }
-}
-
-export default function NewRunForm({ cat, runs, onLaunched, onCancel }) {
+export default function NewRunForm({ cat, onLaunched, onCancel }) {
   const catalog = cat?.catalog || []
   const universe = cat?.universe || []
   const sc = useStrategyCatalog()
@@ -50,7 +41,6 @@ export default function NewRunForm({ cat, runs, onLaunched, onCancel }) {
 
   const chosen = catalog.filter((c) => sel.includes(c.id))
   const total = mode === 'full' ? chosen.reduce((s, c) => s + gridSize(c), 0) : chosen.length * (Number(n) || 0)
-  const est = useMemo(() => estimate(total, runs), [total, runs])
   const selKey = sel.join(',')
   useEffect(() => { setConfirming(false) }, [selKey, mode, n, seed, timeframe, regime, symbols, winMode, win])
   // ước tính do máy chủ (đo thực): gọi lại sau 400 ms kể từ lần chỉnh cuối
@@ -59,7 +49,7 @@ export default function NewRunForm({ cat, runs, onLaunched, onCancel }) {
     setSrvEst((x) => ({ ...x, state: 'loading' }))
     let dead = false
     const t = setTimeout(() => {
-      getFunnelEstimate({ strategies: sel, nPerStrategy: Number(n), fullGrid: mode === 'full', workers: 6, timeframe, regime })
+      getFunnelEstimate({ strategies: sel, nPerStrategy: Number(n), fullGrid: mode === 'full', timeframe, regime })   // workers bỏ trống: máy chủ dùng số worker mặc định của nó
         .then((d) => { if (!dead) setSrvEst({ state: 'ok', data: d, error: null }) }, (e) => { if (!dead) setSrvEst({ state: 'error', data: null, error: e.message }) })
     }, 400)
     return () => { dead = true; clearTimeout(t) }
@@ -169,9 +159,11 @@ export default function NewRunForm({ cat, runs, onLaunched, onCancel }) {
           <b>{fmtCount(totalShown)} alpha</b> · {Object.keys(picks).length} chiến lược · {chosen.length} chiều · {mode === 'full' ? 'toàn bộ lưới' : `${fmtCount(Number(n) || 0)}/chiều`} · {symbols.length} cặp · seed {seed}
           <div className="est" role="status">
             {srv
-              ? <>Ước tính S1 khoảng <b>{fmtEta(srv.s1_eta_s)}</b> <span className="muted">({fmtCount(srv.total_alphas)} alpha × {fmtNum(srv.sec_per_backtest, 0)} giây / {srv.workers} worker; các tầng sau chỉ chạy trên alpha còn sống nên thường ngắn hơn)</span></>
+              ? (srv.s1_eta_s != null
+                ? <>Ước tính S1 khoảng <b>{fmtEta(srv.s1_eta_s)}</b> <span className="muted">({fmtCount(srv.total_alphas)} alpha × {fmtNum(srv.sec_per_backtest, 3)} giây/backtest / {srv.workers} worker, trung vị {srv.measure?.n_runs} lượt đã chạy; các tầng sau chỉ chạy trên alpha còn sống nên thường ngắn hơn)</span></>
+                : <>Ước tính S1: <b className="n-na" title={srv.measure?.reason || undefined}>chưa có số đo</b> <span className="muted">({srv.measure?.reason || 'chưa có lượt tham chiếu'}; {srv.workers} worker)</span></>)
               : srvEst.state === 'loading' ? <><Spinner /> Đang ước tính…</>
-                : <>Ước tính chạy khoảng <b>{fmtEta(est.seconds)}</b> <span className="muted">({est.basis}; chỉ để tham khảo{srvEst.state === 'error' ? `; máy chủ không ước tính được: ${srvEst.error}` : ''})</span></>}
+                : <>Ước tính S1: <b>chưa có số đo</b> <span className="muted">{srvEst.state === 'error' ? `(máy chủ không ước tính được: ${srvEst.error})` : '(chọn chiến lược và số alpha)'}</span></>}
           </div>
           {reason && <div className="why" role="status">Chưa chạy được: {reason}.</div>}
         </div>
@@ -183,7 +175,7 @@ export default function NewRunForm({ cat, runs, onLaunched, onCancel }) {
           <div className="n-estimate">
             <span>Chiến lược: <span className="mono">{chosen.map((c) => `${legLabel(c.id)} ${fmtCount(srv?.per_strategy?.[c.id] ?? (mode === 'full' ? gridSize(c) : Number(n)))}`).join(' · ')}</span></span>
             <span>Cửa sổ: <span className="mono">{winMode === 'default' ? 'mặc định' : `${win.start} → ${win.end}`}</span> · {symbols.length} cặp · seed {seed} · khung chạy {timeframe}</span>
-            <span>Ước tính S1: <b className="mono">{srv ? fmtEta(srv.s1_eta_s) : fmtEta(est.seconds)}</b>{srv ? <span className="muted"> ({fmtNum(srv.sec_per_backtest, 0)} giây/backtest, {srv.workers} worker)</span> : <span className="muted"> ({est.basis})</span>}</span>
+            <span>Ước tính S1: {srv?.s1_eta_s != null ? <><b className="mono">{fmtEta(srv.s1_eta_s)}</b><span className="muted"> ({fmtNum(srv.sec_per_backtest, 3)} giây/backtest, {srv.workers} worker)</span></> : <b className="n-na" title={srv?.measure?.reason || undefined}>chưa có số đo</b>}</span>
             <span className="muted">Job chạy nền trong hàng đợi, dùng nhiều CPU/RAM; có thể huỷ và chạy tiếp (resume).</span>
           </div>
           {totalShown > LARGE_TOTAL && (

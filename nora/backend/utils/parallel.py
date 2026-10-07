@@ -155,6 +155,12 @@ def auto_workers(per_worker_mb: float, max_workers: Optional[int] = None) -> int
     return n
 
 
+def default_workers(per_worker_mb: float) -> int:
+    """Số worker mặc định của phễu/WFA khi người dùng không chọn: CHÍNH là số `--workers auto` sẽ dùng (auto_workers). Nguồn duy nhất —
+    giao diện / API ước tính đọc từ đây, không giữ hằng số riêng (trước đây 14 ở router và 6 ở NewRunForm)."""
+    return auto_workers(per_worker_mb)
+
+
 def resolve_workers(arg, per_worker_mb: float, label: str = "") -> int:
     """`--workers`: "auto" -> auto_workers(per_worker_mb) (in dòng [auto]); chuỗi/số nguyên -> int (tối thiểu 1)."""
     if str(arg).strip().lower() != "auto":

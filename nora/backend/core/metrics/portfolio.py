@@ -63,7 +63,7 @@ def portfolio_metrics(res, start_ts):
     return {
         "ret_pct": round((res["final_equity"] / init - 1) * 100, 2), "mdd_pct": round(mdd, 2), "sharpe": round(sharpe, 2),
         "trades": len(res["positions"]), "win_pct": round(float(np.mean([p.real_pnl > 0 for p in res["positions"]]) * 100), 1)
-        if res["positions"] else 0.0,
+        if res["positions"] else None,   # 0 lệnh -> None (không phải 0% giả)
         "symbols_positive": sum(v > 0 for v in by_sym.values()), "by_symbol": by_sym,
         "by_strategy": {k: {"pnl_usd": round(v["pnl_usd"], 2), "trades": v["trades"]} for k, v in res["by_strategy"].items()},
         "fees_usd": round(sum(p.fees_usd or 0 for p in res["positions"]), 2),

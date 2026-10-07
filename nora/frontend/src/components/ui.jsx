@@ -28,6 +28,11 @@ export function Status({ tone = '', children }) {
   return <span className={`n-status ${tone}`}>{children}</span>
 }
 
+/** Số đo thiếu: "—" + lý do backend trả về (tooltip). Người dùng không bao giờ thấy số giả thay cho "không đo được". */
+export function NA({ note }) {
+  return <span className={note ? 'n-na' : undefined} title={note || undefined}>—</span>
+}
+
 export function Empty({ title, children }) {
   return <div className="n-empty"><h3>{title}</h3>{children && <div>{children}</div>}</div>
 }

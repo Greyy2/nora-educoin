@@ -6,7 +6,7 @@ import pytest
 
 from backend.core.metrics import returns as rt
 from backend.core.metrics.portfolio import curve_mdd_pct, series_metrics
-from backend.core.metrics.trades import PF_CAP, exposure_metrics, strategy_correlation, trade_metrics, trade_stats
+from backend.core.metrics.trades import NOTE_NO_LOSSES, NOTE_NO_PNL, NOTE_NO_TRADES, exposure_metrics, strategy_correlation, trade_metrics, trade_stats
 
 H = 3_600_000
 D = 24 * H
@@ -76,16 +76,31 @@ def test_trade_metrics_win_loss_breakeven_payoff_expectancy():
     assert m["expectancy_usd"] == pytest.approx(30 / 5) and m["pnl_usd"] == 30
     assert m["best_trade_usd"] == 30 and m["worst_trade_usd"] == -10
     assert m["top5_share_pct"] == pytest.approx(100.0)
-    assert trade_stats(rows) == {"win_rate": 40.0, "profit_factor": 2.5}
+    assert trade_stats(rows) == {"win_rate": 40.0, "win_rate_note": None, "profit_factor": 2.5, "profit_factor_note": None}
 
 
-def test_consecutive_losses_in_close_order_and_pf_cap():
+def test_consecutive_losses_in_close_order_and_pf_undefined_without_losses():
     rows = [_t(-1, close=5 * H), _t(-1, close=1 * H), _t(5, close=3 * H), _t(-1, close=4 * H), _t(-1, close=2 * H)]
     m = trade_metrics(rows)                     # theo thời gian đóng: L L W L L
     assert m["max_consec_losses"] == 2 and m["max_consec_wins"] == 1
     only_wins = trade_metrics([_t(1), _t(2)])
-    assert only_wins["profit_factor"] == PF_CAP and only_wins["losses"] == 0 and only_wins["payoff"] is None
-    assert trade_metrics([])["trades"] == 0
+    # P9.11: không có lệnh thua -> PF không xác định (None) + lý do, KHÔNG phải số chặn 99
+    assert only_wins["profit_factor"] is None and only_wins["profit_factor_note"] == NOTE_NO_LOSSES
+    assert only_wins["win_rate"] == 100.0 and only_wins["losses"] == 0 and only_wins["payoff"] is None
+    assert trade_stats([_t(1), _t(2)]) == {"win_rate": 100.0, "win_rate_note": None, "profit_factor": None, "profit_factor_note": NOTE_NO_LOSSES}
+    assert trade_stats([_t(0), _t(0)])["profit_factor_note"] == NOTE_NO_PNL and trade_stats([_t(0)])["win_rate"] == 0.0   # chỉ lệnh hoà
+    assert trade_metrics([_t(-1), _t(1)])["profit_factor"] == 1.0 and trade_metrics([_t(-1), _t(1)])["profit_factor_note"] is None
+
+
+def test_zero_trades_give_none_not_zero():
+    m = trade_metrics([])
+    assert m["trades"] == 0 and m["win_rate"] is None and m["loss_rate"] is None and m["profit_factor"] is None
+    assert m["win_rate_note"] == NOTE_NO_TRADES and m["profit_factor_note"] == NOTE_NO_TRADES
+    assert trade_stats([]) == {"win_rate": None, "win_rate_note": NOTE_NO_TRADES, "profit_factor": None, "profit_factor_note": NOTE_NO_TRADES}
+    # đường phễu: series_metrics không lệnh -> None (không 0 giả), cổng S1 vẫn quyết định theo số lệnh
+    from backend.core.metrics.portfolio import series_metrics
+    sm = series_metrics([0.001, -0.002], [])
+    assert sm["trades"] == 0 and sm["win_rate"] is None and sm["profit_factor"] is None and sm["profit_factor_note"] == NOTE_NO_TRADES
 
 
 def test_fee_drag_hold_time_long_short():
@@ -146,3 +161,24 @@ def test_series_metrics_keeps_old_values_and_adds_extras():
     assert m["mdd_pct"] == m["mdd_daily_pct"] == round(rt.equity_mdd_pct(d), 2) and m["mdd_basis"] == "daily"
     assert m["win_rate"] == 50.0 and m["payoff"] == 2.5 and m["max_consec_losses"] == 1
     assert m["cagr_pct"] == round(rt.cagr_pct(d), 2) and m["calmar"] == round(rt.return_metrics(d)["calmar"], 2)
+
+
+def test_funnel_gates_do_not_read_win_rate_or_profit_factor():
+    """P9.11: win_rate/PF thành None khi không xác định — an toàn vì không cổng phễu nào đọc chúng. Nếu sau này có cổng đọc PF,
+    "không có lệnh thua" (profit_factor_note == NOTE_NO_LOSSES) phải được coi là ĐẠT (hành vi cũ PF = 99) — test này sẽ nhắc."""
+    import inspect
+
+    from backend.optimize.funnel import gates
+    src = inspect.getsource(gates)
+    assert "profit_factor" not in src and "win_rate" not in src
+    base = {"ret_pct": 5.0, "mdd_pct": 5.0, "trades": 500, "symbols_positive": 8}
+    assert gates.evaluate_s1({**base, "profit_factor": None, "win_rate": None}) == gates.evaluate_s1({**base, "profit_factor": 99.0, "win_rate": 100.0})
+
+
+def test_equity_series_summary_and_pnl_since_start():
+    s = rt.equity_series_summary([100.0, 120.0, 90.0, 110.0])
+    assert s["bars"] == 4 and s["start"] == 100.0 and s["last"] == 110.0 and s["mdd_pct"] == pytest.approx(25.0) and s["mdd_note"] is None
+    one = rt.equity_series_summary([100.0])
+    assert one["mdd_pct"] is None and one["mdd_note"] and rt.equity_series_summary([])["start"] is None
+    assert rt.pnl_since_start(100.0, 110.0) == {"pnl_usd": 10.0, "pnl_pct": pytest.approx(10.0), "pnl_note": None}
+    assert rt.pnl_since_start(None, 5.0)["pnl_pct"] is None and rt.pnl_since_start(0.0, 5.0)["pnl_note"]

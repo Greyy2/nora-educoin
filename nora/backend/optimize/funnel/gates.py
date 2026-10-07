@@ -110,6 +110,8 @@ REASON_LABELS: Dict[str, str] = {
     "S4.p_mdd": "P(MDD ≥ 30%) > 5% (kể cả ở khối lượng tối thiểu)",
     "S4.stress_mdd": "Kịch bản cực xấu MDD ≥ 50%",
     "S4.stress_ruin": "Kịch bản cực xấu chạm vốn 0",
+    "S4.stress_measured": "Có kịch bản cực xấu không đo được (thiếu vòng quay đo từ lệnh)",
+    "S5.stress_measured": "Có kịch bản cực xấu không đo được (thiếu vòng quay đo từ lệnh)",
     "S5.scale_low": "Hệ số s < 0,2",
     "S5.confirm": "Xác nhận backtest + WFA + MC thật ở s không đạt",
     "S6.holdout_ret": "Holdout lãi ≤ 0",
@@ -198,10 +200,10 @@ def evaluate_s3(s: Dict[str, Any]) -> Verdict:
 
 # ── S4 ──────────────────────────────────────────────────────────────────────
 def evaluate_mc_checks(gate: Dict[str, Any], prefix: str = "S4") -> Verdict:
-    """gate = evaluate_mc_gate(...) của backend.carlo.monte_carlo (4 check). Trả lý do của check trượt đầu tiên."""
+    """gate = evaluate_mc_gate(...) của backend.carlo.monte_carlo (5 check). Trả lý do của check trượt đầu tiên."""
     ch = gate["checks"]
     order = (("simulations", f"{prefix}.simulations"), ("ruin", f"{prefix}.p_mdd"), ("stress_mdd", f"{prefix}.stress_mdd"),
-             ("stress_ruin", f"{prefix}.stress_ruin"))
+             ("stress_ruin", f"{prefix}.stress_ruin"), ("stress_measured", f"{prefix}.stress_measured"))
     for key, code in order:
         c = ch[key]
         if not c["passed"]:

@@ -63,8 +63,8 @@ def run_asset(symbol: str) -> dict:
             "return_pct": round((final / 10000.0 - 1) * 100, 4),
             "mdd_mtm_pct": round(curve_mdd_pct(engine.equity_curve, start, 10000.0), 4),
             "mdd_closed_trades_pct": round(equity_mdd_pct([p.profit_pct / 100.0 for p in pos]), 4),
-            "win_rate": round(tm["win_rate"], 2),
-            "profit_factor": round(tm["profit_factor"], 2),
+            "win_rate": round(tm["win_rate"], 2) if tm["win_rate"] is not None else None,
+            "profit_factor": round(tm["profit_factor"], 2) if tm["profit_factor"] is not None else None,   # None = không có lệnh thua / không lệnh
             "avg_layers": round(sum(p.layers for p in pos) / len(pos), 2) if pos else 0,
             "worst_mae_pct": round(min((p.mae_pct for p in pos), default=0.0), 2),
             "liquidations": sum(1 for p in pos if int(p.status) == 5),
@@ -72,6 +72,10 @@ def run_asset(symbol: str) -> dict:
             "seconds": round(time.time() - t0, 1),
         }
     return out
+
+
+def _f(v, w, d):
+    return f"{v:{w}.{d}f}" if v is not None else "—".rjust(w)
 
 
 def main(argv=None):
@@ -116,8 +120,8 @@ def main(argv=None):
             if "skipped" in s:
                 continue
             print(f"{r['venue']}/{r['symbol']:5s} {sid:30s} lệnh={s['trades']:5d} lãi={s['return_pct']:8.2f}% "
-                  f"MDD={s['mdd_mtm_pct']:6.2f}% (đóng lệnh {s['mdd_closed_trades_pct']:6.2f}%) WR={s['win_rate']:5.1f}% "
-                  f"PF={s['profit_factor']:5.2f} tầng={s['avg_layers']} MAE={s['worst_mae_pct']}% "
+                  f"MDD={s['mdd_mtm_pct']:6.2f}% (đóng lệnh {s['mdd_closed_trades_pct']:6.2f}%) WR={_f(s['win_rate'], 5, 1)}% "
+                  f"PF={_f(s['profit_factor'], 5, 2)} tầng={s['avg_layers']} MAE={s['worst_mae_pct']}% "
                   f"liq={s['liquidations']} phí={s['fees_pct_of_capital']}%")
 
 

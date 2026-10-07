@@ -432,11 +432,15 @@ def test_live_trades_equity_series_from_events(tmp_path, monkeypatch):
     r = live_router.bot_trades(mode="demo", venue="okx", limit=10)
     assert r["equity_series"] == [{"t": H, "equity": 100.0}, {"t": 2 * H, "equity": 102.5}] and r["started"] == 5
     assert r["halted"] is False and r["alerts"] == []
-    series, _, _ = live_router._equity_series(str(d), cap=1)
+    # P9.12: MDD + lãi/lỗ từ đầu do backend tính (state không có equity -> điểm cuối đường vốn)
+    es = r["equity_stats"]
+    assert es["start"] == 100.0 and es["equity"] == 102.5 and es["pnl_usd"] == 2.5 and es["pnl_pct"] == pytest.approx(2.5) and es["mdd_pct"] == 0.0 and es["bars"] == 2
+    series, _, _, _ = live_router._equity_series(str(d), cap=1)
     assert series == [{"t": 2 * H, "equity": 102.5}]
     monkeypatch.setenv("NORA_LOCAL_DATA_ROOT", str(tmp_path / "none"))
     r = live_router.bot_trades(mode="demo", venue="okx", limit=10)
     assert r["equity_series"] == [] and r["started"] is None
+    assert r["equity_stats"]["pnl_pct"] is None and r["equity_stats"]["pnl_note"] and r["equity_stats"]["mdd_pct"] is None and r["equity_stats"]["mdd_note"]
 
 
 def test_compare_exec_with_paper_and_state_dirs_per_book():

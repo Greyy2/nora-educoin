@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from backend.api.jobs import batch as batch_jobs
+from backend.core.metrics.returns import pnl_since_start
 
 router = APIRouter(prefix="/api/studio/live", tags=["live"])
 
@@ -76,7 +77,8 @@ def bot_status(mode: str = Query("paper", pattern="^(paper|demo|live)$"), venue:
 def _equity_series(d: str, cap: int = 2000):
     """Đường vốn của bot từ events.jsonl (sự kiện "step": bar + equity), mỗi nến một điểm (giữ bản cuối), tối đa `cap` điểm cuối.
     -> (equity_series [{t, equity}], started = thời điểm "start" đầu tiên của sổ hiện tại hoặc None,
-        alerts = sự kiện crit / warn từ lần khởi động gần nhất, tối đa 5 cái cuối)."""
+        alerts = sự kiện crit / warn từ lần khởi động gần nhất, tối đa 5 cái cuối,
+        summary = core/metrics/returns.equity_series_summary của TOÀN BỘ đường vốn (không bị cắt `cap`): bars, start, last, mdd_pct))."""
     by_bar, started, alerts = {}, None, []
     try:
         with open(os.path.join(d, "events.jsonl"), encoding="utf-8") as fh:
@@ -94,7 +96,9 @@ def _equity_series(d: str, cap: int = 2000):
                     by_bar[int(e["bar"])] = float(e["equity"])
     except OSError:
         pass
-    return [{"t": t, "equity": v} for t, v in sorted(by_bar.items())][-cap:], started, alerts
+    from backend.core.metrics.returns import equity_series_summary
+    ordered = sorted(by_bar.items())
+    return [{"t": t, "equity": v} for t, v in ordered][-cap:], started, alerts, equity_series_summary([v for _, v in ordered])
 
 
 @router.get("/trades")
@@ -136,10 +140,15 @@ def bot_trades(mode: str = Query("paper", pattern="^(paper|demo|live)$"), venue:
         symbols, tf = [u.split("@")[0] for u in b["universe"]], b.get("timeframe")
     except (SystemExit, OSError, ValueError):
         pass
-    series, started, alerts = _equity_series(d)
+    series, started, alerts, summ = _equity_series(d)
+    # MDD + lãi/lỗ từ đầu tính Ở ĐÂY (toàn đường vốn, không phải 2000 điểm cuối); vốn hiện tại = vốn sàn/ảo trong state, thiếu thì điểm cuối đường vốn
+    cur = state.get("equity")
+    cur = float(cur) if isinstance(cur, (int, float)) and not isinstance(cur, bool) else summ["last"]
+    equity_stats = {"bars": summ["bars"], "start": summ["start"], "equity": cur, "mdd_pct": summ["mdd_pct"], "mdd_note": summ["mdd_note"],
+                    **pnl_since_start(summ["start"], cur)}
     return {"venue": venue, "mode": mode, "book_kind": kind, "strategies": strategies, "symbols": symbols, "timeframe": tf,
             "running": [j.get("id") for j in _running(venue, mode, book)],
-            "equity": state.get("equity"), "equity_series": series, "started": started,
+            "equity": state.get("equity"), "equity_series": series, "equity_stats": equity_stats, "started": started,
             "halted": bool(state.get("halted")), "peak_equity": state.get("peak_equity"), "alerts": alerts, "exec": {"trades": (state.get("trades") or [])[-limit:], "positions": exec_pos},
             "paper": {"trades": paper_trades, "positions": paper_pos, "summary": state.get("paper")}}
 

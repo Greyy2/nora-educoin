@@ -252,7 +252,7 @@ def test_stats_histogram_bins_and_in_out():
     assert len(hin["bins"]) == 30 == len(hout["bins"]) and sum(b["count"] for b in hin["bins"]) == len(vals) == hin["n"]
     assert [b["lo"] for b in hin["bins"]] == [b["lo"] for b in hout["bins"]]       # cùng bin cho in và out
     assert sum(b["count"] for b in hout["bins"]) == int((vals > 0).sum())
-    assert set(hin) == {"bins", "n", "p5", "p50", "p95"}
+    assert set(hin) == {"bins", "n", "n_missing", "p5", "p50", "p95"} and hin["n_missing"] == 0
     assert fstats.histogram(np.array([]), None)["bins"] == []
 
 
@@ -566,7 +566,28 @@ def test_api_post_run_launches_job_and_writes_queued_stub(small_book, client, mo
     assert client.post(f"{base}/runs", json={"strategies": ["t_long"], "n_per_strategy": 3, "force_large": True}).status_code == 422   # trần cứng
     assert client.post(f"{base}/runs", json={"strategies": ["t_long"], "n_per_strategy": 2, "windows": {"foo": "2025-01-01"}}).status_code == 422
     est = client.get(f"{base}/estimate", params={"strategies": "t_long", "n_per_strategy": 100, "workers": 4}).json()
-    assert est["total_alphas"] == 3 and est["s1_eta_s"] == pytest.approx(3 * est["sec_per_backtest"] / 4, abs=0.1)
+    # P9.13: chưa có lượt đo thật nào cùng khung -> KHÔNG có hằng số "đo sẵn": null + lý do (giao diện hiện "chưa có số đo")
+    assert est["total_alphas"] == 3 and est["workers"] == 4 and est["workers_source"] == "client"
+    assert est["sec_per_backtest"] is None and est["s1_eta_s"] is None and est["measure"]["n_runs"] == 0 and "chưa có lượt" in est["measure"]["reason"]
+    # có lượt đã xong cùng khung 15m: giây/backtest = wall_s × workers / input (trung vị), ETA = alpha × giây / workers
+    root = fr.funnel_root()
+    for rid, wall, n, w, fin in (("fr-ref-a", 100.0, 1000, 4, 2.0), ("fr-ref-b", 300.0, 1000, 4, 3.0), ("fr-ref-c", 50.0, 500, 2, 1.0)):
+        os.makedirs(os.path.join(root, rid), exist_ok=True)
+        with open(os.path.join(root, rid, "run.json"), "w") as fh:
+            json.dump({"run_id": rid, "status": "done", "finished": fin, "workers": w, "config": {"timeframe": "15m", "regime": "off"},
+                       "stages": {"S1_backtest": {"status": "done", "wall_s": wall, "input": n}}}, fh)
+    os.makedirs(os.path.join(root, "fr-ref-1h"), exist_ok=True)         # khung khác: không dùng
+    with open(os.path.join(root, "fr-ref-1h", "run.json"), "w") as fh:
+        json.dump({"run_id": "fr-ref-1h", "status": "done", "finished": 9.0, "workers": 1, "config": {"timeframe": "1h", "regime": "off"},
+                   "stages": {"S1_backtest": {"status": "done", "wall_s": 9999.0, "input": 10}}}, fh)
+    est = client.get(f"{base}/estimate", params={"strategies": "t_long", "n_per_strategy": 100, "workers": 4}).json()
+    assert est["measure"]["n_runs"] == 3 and est["sec_per_backtest"] == pytest.approx(0.4)        # trung vị của 0,4 / 1,2 / 0,2
+    assert est["s1_eta_s"] == pytest.approx(3 * 0.4 / 4, abs=0.1)
+    assert client.get(f"{base}/estimate", params={"strategies": "t_long", "n_per_strategy": 100, "regime": "both"}).json()["sec_per_backtest"] is None
+    dflt = client.get(f"{base}/estimate", params={"strategies": "t_long", "n_per_strategy": 100}).json()
+    from backend.utils.parallel import default_workers
+    from backend.optimize.funnel.orchestrator import PER_WORKER_MB
+    assert dflt["workers_source"] == "server_default" and dflt["workers"] == default_workers(PER_WORKER_MB) >= 1
 
 
 def test_pool_mode_matches_serial_with_shared_data(small_book, lenient):
@@ -788,3 +809,24 @@ def test_funnel_explore_book_accepts_unvalidated_alpha(full_run, tmp_path):
     paths = write_explore_book(rep, str(tmp_path / "explore"), source="test")
     book = json.load(open(paths[0], encoding="utf-8"))
     assert book["status"] == EXPLORE_STATUS and book["unvalidated"] == [book["strategies"][0]["id"]]
+
+
+def test_aggregate_wfa_measures_turnover_from_oos_trades():
+    """P9.13: S3 ghi vòng quay vốn/ngày đo từ lệnh OOS (danh nghĩa mở / vốn lúc vào lệnh / số ngày) để MC dựng cost_x2; thiếu lệnh -> None + lý do."""
+    from backend.optimize.funnel import evaluate as ev
+    H = 3_600_000
+
+    def tr(pnl, notional_margin, lev, eq, t):
+        return {"symbol": "BTC@perp", "strategy": "s", "side": "LONG", "enter_time": t, "close_time": t + H, "pnl_usd": pnl, "pnl_pct": pnl / eq * 100 if eq else 0.0,
+                "fees_usd": 0.0, "funding_usd": 0.0, "status": "TP", "layers": 1, "mae_pct": 0.0, "margin_usd": notional_margin, "leverage": lev, "entry_equity": eq}
+
+    def fold(i, trades):
+        return {"fold": i, "train": ["a", "b"], "test": ["c", "d"], "is_ret_pct": 1.0, "is_trades": 3, "daily": [0.001] * 10, "daily_start": "2025-01-01",
+                "oos": {"ret_pct": 1.0, "trades": len(trades or []), "mdd_pct": 1.0, "halted": False}, "trades": trades}
+    folds = [fold(1, [tr(5.0, 100.0, 5.0, 1000.0, 0), tr(-2.0, 200.0, 5.0, 1000.0, 10 * H)]), fold(2, [tr(1.0, 100.0, 1.0, 1000.0, 0)])]
+    m = ev.aggregate_wfa(folds)["metrics"]
+    assert m["turnover_daily"] == pytest.approx((0.5 + 1.0 + 0.1) / 20) and m["turnover_note"] is None
+    m2 = ev.aggregate_wfa([fold(1, [tr(5.0, 100.0, 5.0, 1000.0, 0)]), fold(2, None)])["metrics"]       # một fold không có danh sách lệnh
+    assert m2["turnover_daily"] is None and "không có danh sách lệnh" in m2["turnover_note"]
+    m3 = ev.aggregate_wfa([fold(1, [tr(5.0, 100.0, 5.0, 0.0, 0)])])["metrics"]                          # thiếu vốn lúc vào lệnh
+    assert m3["turnover_daily"] is None and "thiếu danh nghĩa hoặc vốn" in m3["turnover_note"]

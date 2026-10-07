@@ -3,7 +3,10 @@
 
 Quy ước:
   - thắng = PnL > 0, thua = PnL < 0, hoà (= 0) đếm riêng; win_rate = thắng / tổng lệnh (hoà làm giảm win_rate, không tính là thua);
-  - profit_factor = Σ lãi / Σ lỗ, chặn ở PF_CAP khi không có lệnh lỗ (xem `losses` để biết có phải "không lỗ" không);
+  - profit_factor = Σ lãi / Σ lỗ. KHÔNG có lệnh lỗ (Σ lỗ = 0) thì PF không xác định -> None + `profit_factor_note` nêu lý do (không còn số chặn 99);
+    0 lệnh -> win_rate = None, profit_factor = None (+ ghi chú), không phải 0 giả. Giao diện hiện "—" + lý do;
+  - cổng phễu (optimize/funnel/gates.py) KHÔNG đọc win_rate / profit_factor nên đổi này không đổi quyết định cổng nào; nếu sau này cổng đọc PF,
+    "không có lệnh thua" (profit_factor_note == NOTE_NO_LOSSES) phải được coi là ĐẠT tiêu chí PF (hành vi cũ: PF = 99 ≥ mọi ngưỡng), đừng so None với số;
   - payoff = TB lệnh thắng / |TB lệnh thua|; expectancy = PnL trung bình mỗi lệnh (USD và % vốn lúc mở lệnh);
   - fee_drag_pct = phí / lãi trước phí (phần lãi gộp bị phí ăn mất); None khi lãi trước phí <= 0;
   - liq_proximity_pct = |lỗ treo tối đa của lệnh| / ký quỹ của lệnh × 100 (100 = mất hết ký quỹ = thanh lý, isolated);
@@ -14,8 +17,19 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-PF_CAP = 99.0   # profit factor khi không có lệnh lỗ (tránh inf trong JSON/biểu đồ)
 LIQ_STATUS = "LIQ"
+NOTE_NO_TRADES = "không có lệnh nào"
+NOTE_NO_LOSSES = "không có lệnh thua"
+NOTE_NO_PNL = "không có lệnh lãi hay lỗ (chỉ lệnh hoà)"
+
+
+def profit_factor_of(gross_profit: float, gross_loss: float, n_trades: int):
+    """(profit_factor | None, lý do | None). Σ lỗ = 0 -> PF không xác định (None), KHÔNG chặn ở một hằng số."""
+    if n_trades == 0:
+        return None, NOTE_NO_TRADES
+    if gross_loss > 0:
+        return gross_profit / gross_loss, None
+    return None, (NOTE_NO_LOSSES if gross_profit > 0 else NOTE_NO_PNL)
 
 
 def trade_rows(positions) -> List[Dict[str, Any]]:
@@ -53,14 +67,14 @@ def rows_from_trade_list(trade_list: List[Dict[str, Any]]) -> List[Dict[str, Any
     return out
 
 
-def trade_stats(rows: List[Dict[str, Any]]) -> Dict[str, float]:
-    """win_rate (1 chữ số) + profit_factor (3 chữ số) — giữ nguyên định dạng cũ cho gate/bảng của phễu."""
+def trade_stats(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """win_rate (1 chữ số) + profit_factor (3 chữ số) cho bảng của phễu. Không xác định -> None + `*_note` (lý do), không dùng 0/99 giả."""
     pnl = np.asarray([r["pnl_usd"] for r in rows], dtype=float)
-    if pnl.size == 0:
-        return {"win_rate": 0.0, "profit_factor": 0.0}
     gp, gl = float(pnl[pnl > 0].sum()), float(-pnl[pnl < 0].sum())
-    pf = gp / gl if gl > 0 else (PF_CAP if gp > 0 else 0.0)
-    return {"win_rate": round(float((pnl > 0).mean() * 100), 1), "profit_factor": round(min(pf, PF_CAP), 3)}
+    pf, note = profit_factor_of(gp, gl, int(pnl.size))
+    return {"win_rate": round(float((pnl > 0).mean() * 100), 1) if pnl.size else None,
+            "win_rate_note": None if pnl.size else NOTE_NO_TRADES,
+            "profit_factor": round(pf, 3) if pf is not None else None, "profit_factor_note": note}
 
 
 def _side_block(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -94,12 +108,14 @@ def trade_metrics(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     hold_h = np.asarray([(r["close_time"] - r["enter_time"]) / 3_600_000 for r in rows], dtype=float)
     mae = np.asarray([r.get("mae_pct", 0.0) for r in rows], dtype=float)
     layers = np.asarray([r.get("layers", 1) for r in rows], dtype=float)
+    pf, pf_note = profit_factor_of(gp, gl, n)
     prox = [abs(r["mae_pct"]) / 100.0 * r["entry_equity"] / r["margin_usd"] * 100.0
             for r in rows if r.get("margin_usd") and r.get("entry_equity")]
     return {
         "trades": n, "wins": int(wins.size), "losses": int(losses.size), "breakeven": int(n - wins.size - losses.size),
-        "win_rate": float(wins.size / n * 100.0) if n else 0.0, "loss_rate": float(losses.size / n * 100.0) if n else 0.0,
-        "profit_factor": min(gp / gl, PF_CAP) if gl > 0 else (PF_CAP if gp > 0 else 0.0),
+        "win_rate": float(wins.size / n * 100.0) if n else None, "loss_rate": float(losses.size / n * 100.0) if n else None,
+        "win_rate_note": None if n else NOTE_NO_TRADES,
+        "profit_factor": pf, "profit_factor_note": pf_note,
         "gross_profit_usd": gp, "gross_loss_usd": gl, "pnl_usd": float(pnl.sum()),
         "avg_win_usd": avg_win, "avg_loss_usd": avg_loss,
         "payoff": (avg_win / abs(avg_loss)) if avg_win is not None and avg_loss else None,

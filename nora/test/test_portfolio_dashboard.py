@@ -55,7 +55,7 @@ def _trade(strategy, side, notional, pnl, enter, close, reason="Stop Loss"):
 
 
 TOP_KEYS = {"available", "source", "period", "kpis", "series", "distribution", "monthly", "risk", "strategies", "events", "positions", "stats", "mdd",
-            "strategy_stats"}
+            "strategy_stats", "risk_notes"}
 KPI_KEYS = {"nav", "nav_change_day", "nav_change_day_pct", "pnl_today", "pnl_month", "pnl_year", "ret_period_pct", "bench_ret_period_pct",
             "excess_pct", "sharpe", "sortino", "calmar", "mdd_pct", "dd_now_pct", "var95_1d", "var95_pct", "cvar95_1d",
             "spark_nav", "spark_ret", "spark_dd"}
@@ -275,8 +275,11 @@ def test_exposure_without_notional_falls_back_to_qty_or_null():
     res2, _ = make_result(_rng_returns(10), trades=[t_none])
     k2 = pdash.build_dashboard(res2, None, "ALL")["risk"]
     assert k2["exposure_gross_pct"] is None and k2["open_positions"] == 1
-    k3 = pdash.build_dashboard(make_result(_rng_returns(10))[0], None, "ALL")["risk"]
+    p3 = pdash.build_dashboard(make_result(_rng_returns(10))[0], None, "ALL")
+    k3 = p3["risk"]
     assert k3["exposure_gross_pct"] == 0.0 and k3["open_positions"] == 0 and k3["profit_factor"] is None
+    assert p3["risk_notes"]["profit_factor"] == "không có lệnh nào"              # P9.11: None luôn kèm lý do
+    assert k3["win_days_pct"] is not None or p3["risk_notes"]["win_days_pct"]    # P9.12: win_days_pct luôn có trong payload (None + lý do nếu không tính được)
 
 
 # ─── Sự kiện ────────────────────────────────────────────────────────────────
@@ -403,7 +406,7 @@ def test_backtest_feed_payload_identical_to_pre_feed_output(period):
     p = pdash.build_from_snapshot(snap, period, _bench())
     assert p["positions"] == [] and "mock" not in p and "mock_note" not in p and "mock" not in p["source"]
     assert p == pdash.build_dashboard(res, _bench(), period, job_id="j1", label="L")
-    for k in ("positions", "stats", "mdd", "strategy_stats"):                   # khoá được thêm sau (feed, bộ số đo chuẩn, theo chiến lược)
+    for k in ("positions", "stats", "mdd", "strategy_stats", "risk_notes"):     # khoá được thêm sau (feed, bộ số đo chuẩn, theo chiến lược, lý do số đo thiếu)
         p.pop(k)
     assert hashlib.sha256(json.dumps(p, sort_keys=True).encode()).hexdigest() == PRE_FEED_HASH[period]
 

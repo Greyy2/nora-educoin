@@ -11,6 +11,7 @@ import { useCatalog } from '../context/Catalog'
 import { postBuild, postPublish, getAlphas } from '../api'
 import { fmtNum, fmtPct, fmtSPct, signClass, fmtDateTime, isNum, fullDate } from '../lib/format'
 import { legLabel } from '../lib/strategyLabel'
+import EngineWarning, { EngineStamp } from '../components/EngineWarning'
 
 function StrategyCards({ catalog, value, onPick }) {
   return (
@@ -140,7 +141,8 @@ function AlphaVault() {
   }, [tryN])
   if (st.loading) return <Loading what="kho alpha" />
   if (st.error) return <ErrorState title="Không tải được kho alpha" error={st.error} onRetry={() => setTry((n) => n + 1)} />
-  const { registry, book } = st.data || {}
+  const { registry, book, engine, registry_status: regStatus } = st.data || {}
+  const statusOf = Object.fromEntries((regStatus || []).map((r) => [r.alpha_id, r]))   // trạng thái + nguồn gốc do backend tính (registry_provenance)
   const alphas = registry?.alphas || []
   const bookTone = book?.status === 'READY_FOR_TESTNET' ? 'ok' : book?.status === 'HOLDOUT_FAILED' ? 'bad' : 'warn'
   return (
@@ -157,7 +159,21 @@ function AlphaVault() {
                   <span className="id">{a.alpha_id}</span>
                   <span className={`n-badge ${String(a.side).toLowerCase()}`}>{a.side}</span>
                   <span className="muted">{a.family} · {a.market}</span>
+                  {(() => {
+                    const rs = statusOf[a.alpha_id] || {}
+                    return rs.status
+                      ? <Status tone={rs.status === 'retired' ? 'bad' : 'ok'}>{rs.status === 'retired' ? '✗ ' : '✓ '}{rs.status}</Status>
+                      : <span className="n-na muted" title={rs.status_note || undefined}>trạng thái —</span>
+                  })()}
                 </div>
+                {statusOf[a.alpha_id] && (
+                  <p className="n-note" style={{ marginTop: 4 }}>
+                    {statusOf[a.alpha_id].status_label ? <b>{statusOf[a.alpha_id].status_label}</b> : null}
+                    {statusOf[a.alpha_id].status_note ? <>{statusOf[a.alpha_id].status_label ? ': ' : ''}{statusOf[a.alpha_id].status_note}</> : null}
+                    {statusOf[a.alpha_id].checked_at ? <span className="muted"> · kiểm lại {fmtDateTime(statusOf[a.alpha_id].checked_at)}</span> : null}
+                    <br /><span className="muted">Nguồn gốc: {statusOf[a.alpha_id].provenance}</span>
+                  </p>
+                )}
                 <div className="n-stats" style={{ marginTop: 6 }}>
                   {Object.entries({ ...(a.position || {}), ...(a.signal_params || {}) }).slice(0, 8).map(([k, v]) => (
                     <div key={k} title={k}><span className="k">{paramLabel(k)}</span><span className="v">{fmtParamFull(k, v)}</span></div>
@@ -172,8 +188,11 @@ function AlphaVault() {
       </Panel>
       <Panel title="Sổ chiến lược (book)" meta={book ? <Status tone={bookTone}>{book.status === 'READY_FOR_TESTNET' ? '✓ ' : '✗ '}{book.status}</Status> : null}>
         {!book && <p className="n-note">Chưa có alphas/book.json.</p>}
+        <EngineWarning status={engine?.main} label="chính (book.json)" />
+        <EngineWarning status={engine?.explore} label="thử nghiệm (explore/book.json)" />
         {book && (
           <>
+            <EngineStamp book={book} />
             <p className="n-note">Tạo lúc {fmtDateTime(book.generated_at)}{book.windows ? ` · dữ liệu ${fullDate(book.windows.start)} → ${fullDate(book.windows.end)}` : ''}</p>
             <div className="n-tblwrap">
               <table className="n-tbl">

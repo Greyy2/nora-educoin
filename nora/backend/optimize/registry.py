@@ -30,6 +30,7 @@ import subprocess
 import time
 from typing import Any, Dict, List, Optional
 
+from backend.utils.engine_version import engine_version
 from backend.utils.jsonsafe import json_default
 
 TESTNET = {"exchange": "binance_futures_testnet", "rest": "https://testnet.binancefuture.com",
@@ -85,6 +86,7 @@ def build_registry(results: List[Dict[str, Any]], spaces: List[Dict[str, Any]], 
         "generated_at": int(time.time() * 1000),
         "source_optimization": source,
         "code": _git_revision(repo_dir) if repo_dir else None,
+        "engine_version": engine_version(),   # P9.15: hash mã engine lúc dựng -> API so với engine hiện hành (needs_rebuild)
         "gates": {"wfa": "acceptance_gate_passed", "mc_ruin_max_pct": 5.0, "mc_basis": "daily", "holdout_mdd_max_pct": 30.0,
                   "leverage_max": 10},
         "pairs_evaluated": len(results),
@@ -152,6 +154,7 @@ def build_book(report: Dict[str, Any], source: str, repo_dir: str = None) -> Dic
         "data_exchange": report.get("data_exchange", "binance"),
         "source": source,
         "code": _git_revision(repo_dir) if repo_dir else None,
+        "engine_version": engine_version(),   # P9.15: hash mã engine lúc dựng sổ -> API so với engine hiện hành (needs_rebuild)
         "universe": [f"{s}@perp" for s in UNIVERSE],
         "windows": report["windows"],
         "gates": report["gates"],
@@ -256,5 +259,7 @@ def publish_book(src_dir: str, dest_dir: str) -> Dict[str, Any]:
     elif os.path.exists(dst_testnet):
         os.remove(dst_testnet)
         removed = True
+    from backend.utils.engine_version import book_engine_status
     return {"status": book.get("status"), "holdout_pass": book.get("holdout_pass"), "generated_at": book.get("generated_at"),
+            "engine": book_engine_status(book),   # sổ xuất bản giữ engine_version lúc DỰNG (xuất bản không dựng lại)
             "strategies": [s.get("id") for s in book.get("strategies", [])], "written": written, "testnet_removed": removed}

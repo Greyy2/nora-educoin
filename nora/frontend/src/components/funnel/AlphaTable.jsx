@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Panel, Segmented, Loading, ErrorState, Empty } from '../ui'
+import { Panel, Segmented, Loading, ErrorState, Empty, NA } from '../ui'
 import Term from '../Term'
 import Pager from './Pager'
 import { AlphaLink, ParamList, AlphaStatus, StrategyName } from './parts'
@@ -65,7 +65,7 @@ export default function AlphaTable({ runId, stage, strategies, selected, onSelec
                     <td><StrategyName id={a.strategy} /></td>
                     <td className="wrap"><ParamList params={a.params} /></td>
                     <td><AlphaStatus a={a} /></td>
-                    {COLS.map((c) => <td key={c.k} className={`r ${c.k === 'ret_pct' ? signClass(a.metrics?.[c.k]) : ''}`}>{c.k === 'ret_pct' ? fmtSPct(a.metrics?.ret_pct, 1) : fmtMetric(c.k, a.metrics?.[c.k])}</td>)}
+                    {COLS.map((c) => <td key={c.k} className={`r ${c.k === 'ret_pct' ? signClass(a.metrics?.[c.k]) : ''}`}>{c.k === 'ret_pct' ? fmtSPct(a.metrics?.ret_pct, 1) : (a.metrics?.[c.k] == null && a.metrics?.[`${c.k}_note`]) ? <NA note={a.metrics[`${c.k}_note`]} /> : fmtMetric(c.k, a.metrics?.[c.k])}</td>)}
                     {showS && <td className="r">{fmtMetric('final_scale', a.final_scale)}</td>}
                     <td className="wrap why">{a.rejected_stage ? <span title={a.reject_msg}>{stageShort(a.rejected_stage)} · {a.reject_msg || a.reject_code}</span> : <span className="muted">—</span>}</td>
                     <td><button type="button" className="n-btn sm" onClick={(e) => { e.stopPropagation(); onTrades(a.alpha_id) }}>Lệnh →</button></td>

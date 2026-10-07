@@ -107,6 +107,33 @@ def equity_mdd_pct(daily) -> float:
     return float(((peak - eq) / peak).max() * 100.0)
 
 
+def equity_series_summary(values: Sequence[float]) -> Dict[str, Any]:
+    """Số đo của một đường vốn theo NẾN (bot live): {bars, start, last, mdd_pct, mdd_note}. MDD = sụt giảm lớn nhất từ đỉnh vốn (đóng nến);
+    < 2 điểm hoặc đỉnh <= 0 -> mdd_pct None + lý do (không phải 0 giả)."""
+    v = np.asarray([x for x in values if x is not None and math.isfinite(x)], dtype=float)
+    out: Dict[str, Any] = {"bars": int(v.size), "start": float(v[0]) if v.size else None, "last": float(v[-1]) if v.size else None,
+                           "mdd_pct": None, "mdd_note": None}
+    if v.size < 2:
+        out["mdd_note"] = "cần ít nhất hai nến để đo MDD"
+        return out
+    peak = np.maximum.accumulate(v)
+    if not peak.max() > 0:
+        out["mdd_note"] = "vốn không dương, không tính được MDD"
+        return out
+    ok = peak > 0
+    out["mdd_pct"] = float(((peak[ok] - v[ok]) / peak[ok]).max() * 100.0)
+    return out
+
+
+def pnl_since_start(start: Optional[float], last: Optional[float]) -> Dict[str, Any]:
+    """Lãi/lỗ từ đầu: USD và % so với vốn đầu đường vốn. Thiếu đầu/cuối hoặc vốn đầu <= 0 -> None + lý do."""
+    if start is None or last is None:
+        return {"pnl_usd": None, "pnl_pct": None, "pnl_note": "chưa có điểm vốn nào từ bot"}
+    if not start > 0:
+        return {"pnl_usd": float(last - start), "pnl_pct": None, "pnl_note": "vốn đầu kỳ <= 0, không tính được %"}
+    return {"pnl_usd": float(last - start), "pnl_pct": float((last / start - 1.0) * 100.0), "pnl_note": None}
+
+
 def drawdown_stats(daily) -> Dict[str, Any]:
     """MDD theo ngày + thời gian: `max_dd_days` = đợt nằm dưới đỉnh dài nhất (ngày), `recovery_days` = số ngày từ đáy của đợt MDD
     tới khi lấy lại đỉnh (None nếu chưa hồi phục), `ulcer_index` = √mean(dd%²) (độ sâu × độ dài sụt giảm)."""

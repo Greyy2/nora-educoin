@@ -48,7 +48,7 @@ function RunsPage() {
           </div>
         </Panel>
       )}
-      {open && <NewRunForm cat={cat} runs={runs.data || []} onLaunched={onLaunched} onCancel={() => setOpen(false)} />}
+      {open && <NewRunForm cat={cat} onLaunched={onLaunched} onCancel={() => setOpen(false)} />}
       <div style={{ marginTop: open || launched ? 12 : 0 }}>
         <RunsList q={runs} onCreate={() => setOpen(true)} />
       </div>

@@ -46,10 +46,11 @@ def make_edges(vals: np.ndarray) -> Optional[np.ndarray]:
 
 def histogram(vals: np.ndarray, edges: Optional[np.ndarray]) -> Dict[str, Any]:
     v = vals[np.isfinite(vals)]
+    missing = int(vals.size - v.size)   # không xác định (None): PF khi không có lệnh thua, win rate khi 0 lệnh... — không vào histogram
     if edges is None:
-        return {"bins": [], "n": int(v.size), "p5": None, "p50": None, "p95": None}
+        return {"bins": [], "n": int(v.size), "n_missing": missing, "p5": None, "p50": None, "p95": None}
     counts, _ = np.histogram(np.clip(v, edges[0], edges[-1]), bins=edges)
-    out = {"bins": [{"lo": r3(edges[i]), "hi": r3(edges[i + 1]), "count": int(counts[i])} for i in range(N_BINS)], "n": int(v.size)}
+    out = {"bins": [{"lo": r3(edges[i]), "hi": r3(edges[i + 1]), "count": int(counts[i])} for i in range(N_BINS)], "n": int(v.size), "n_missing": missing}
     for name, q in (("p5", 5), ("p50", 50), ("p95", 95)):
         out[name] = r3(np.percentile(v, q)) if v.size else None
     return out

@@ -90,10 +90,11 @@ def revalidate(al: Dict[str, Any], windows: Optional[Dict[str, int]] = None) -> 
         return verdict(False, code3, msg3)
     if len(agg["series"]) < gates.S4_MIN_DAYS:
         return verdict(False, "S4.days", f"S4.days: {gates.reason_label('S4.days')} ({len(agg['series'])} < {gates.S4_MIN_DAYS})")
-    s_star, steps = sizing.search_scale(lambda s: bt.mc_check(agg["series"], s, agg["shock"]))
+    turnover = agg["metrics"].get("turnover_daily")   # đo từ lệnh OOS (None -> cost_x2 không đo được -> cổng không đạt)
+    s_star, steps = sizing.search_scale(lambda s: bt.mc_check(agg["series"], s, agg["shock"], turnover))
     rep["sizing"] = {"s": s_star, "search": steps}
     if s_star is None:
-        last = bt.mc_check(agg["series"], gates.S5_S_MIN, agg["shock"])
+        last = bt.mc_check(agg["series"], gates.S5_S_MIN, agg["shock"], turnover)
         _, code, msg = gates.evaluate_mc_checks(last["gate"], "S5")
         return verdict(False, code, msg)
     hold = (w["dev2_end"], w["end"])

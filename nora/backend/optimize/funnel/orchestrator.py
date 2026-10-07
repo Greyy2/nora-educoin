@@ -454,6 +454,11 @@ def _with_series(ctx: Ctx, prev_idx: int, from_stage: str, size: int = 64) -> It
             yield {**r, "series": _series_of(daily.get(r["alpha_id"], []))}
 
 
+def _turnover_of(store: RunStore, alpha_id: str):
+    """Vòng quay vốn/ngày đo từ lệnh OOS của S3 (metrics["turnover_daily"]) -> kịch bản cost_x2 của MC (S4/S5). None = không đo được."""
+    return store.metrics_of([alpha_id], "S3_wfa").get(alpha_id, {}).get("turnover_daily")
+
+
 def _shock_of(store: RunStore, alpha_id: str):
     """Vị thế ngược chiều lớn nhất ở OOS của S3 (metrics["shock"]) -> kịch bản trend thẳng đứng của MC (S4/S5)."""
     return store.metrics_of([alpha_id], "S3_wfa").get(alpha_id, {}).get("shock")
@@ -474,7 +479,7 @@ def stage_s4(ctx: Ctx) -> None:
             return StageResult(a, "S4_montecarlo", {**base, "days": res["days"]}, False, code,
                                f"{code}: {gates.reason_label(code)} ({res['days']} < {gates.S4_MIN_DAYS})")
         d, mn = res["detail"], res["min_size"]
-        stress_max = max((x["mdd_pct"] for x in d["stress"]), default=None)
+        stress_max = max((x["mdd_pct"] for x in d["stress"] if x["mdd_pct"] is not None), default=None)
         m = {**base, "p_mdd_ge_30": d["summary"]["p_mdd_ge_ruin_pct"], "stress_max_mdd": stress_max, "simulations": d["summary"]["simulations"],
              "mdd_p95": d["summary"]["mdd_p95_pct"], "passes_full_size": bool(d["gate"]["passed"]), "min_size_s": mn["s"],
              "min_size_p_mdd_ge_30": mn["p_mdd_ge_30"], "min_size_stress_max_mdd": mn["stress_max_mdd"]}
@@ -482,7 +487,8 @@ def stage_s4(ctx: Ctx) -> None:
         store.write_mc(a, {"mc": d, "min_size": {k: mn[k] for k in ("s", "passed", "p_mdd_ge_30", "stress_max_mdd")}, "scale_search": [], "verified": None})
         return StageResult(a, "S4_montecarlo", m, ok, code, msg)
 
-    _stream(ctx, "S4_montecarlo", _with_series(ctx, 3, "S3_wfa"), lambda r: {"series": r["series"], "shock": _shock_of(store, r["alpha_id"])},
+    _stream(ctx, "S4_montecarlo", _with_series(ctx, 3, "S3_wfa"), lambda r: {"series": r["series"], "shock": _shock_of(store, r["alpha_id"]),
+                                                              "turnover": _turnover_of(store, r["alpha_id"])},
             bt.w_mc, on_result)
 
 
@@ -493,7 +499,7 @@ def stage_s5(ctx: Ctx) -> None:
     def make_job(row):
         _export_wfa_windows(ctx, row["strategy"], row["params"], dev1=True)
         return {"strategy": row["strategy"], "params": row["params"], "series": row["series"], "shock": _shock_of(store, row["alpha_id"]),
-                "windows": ctx.windows, "folds": ctx.folds,
+                "turnover": _turnover_of(store, row["alpha_id"]), "windows": ctx.windows, "folds": ctx.folds,
                 "symbols": ctx.symbols, "shared_dir": ctx.shared_dir, "base_frame": ctx.base_frame}
 
     def on_result(row, res):
@@ -617,7 +623,7 @@ def run_funnel(cfg: FunnelConfig, run_id: Optional[str] = None, workers: int = 0
     store.update_run({"run_id": run_id, "job_id": os.path.basename(job_dir) if job_dir else old.get("job_id"), "status": "running",
                       "created": old.get("created") or time.time(), "started": time.time(), "finished": None,
                       "config": {**(old.get("config") or {}), **cfg_out} if resuming else cfg_out, "windows_ms": windows,
-                      "planned": planned, "total_alphas": sum(planned.values()), "until": until,
+                      "planned": planned, "total_alphas": sum(planned.values()), "until": until, "workers": workers,   # workers: số đo giây/backtest (estimate.py)
                       "stages": old.get("stages") or {s: {"status": "pending"} for s in gates.STAGES}})
     ctx = Ctx(store, cfg, windows, workers, progress, log)
     if resuming:

@@ -120,7 +120,7 @@ def test_folds_do_not_overlap_and_oos_daily_only_from_test_windows(market, monke
     assert s["oos_days"] == len(s["oos_daily"]["extreme"]) == sum(len(f["oos_daily_extreme"]) for f in folds)
     assert s["mc"] is not None and s["mc"]["simulations"] == CFG.mc_simulations
     assert set(res["gate"]["checks"]) == {"folds", "avg_is_return", "active_folds", "fold_t", "ex_best_fold", "worst_fold_mdd", "compounded_oos",
-                                          "mc_ruin", "mc_simulations", "mc_stress_mdd", "mc_stress_ruin"}
+                                          "mc_ruin", "mc_simulations", "mc_stress_mdd", "mc_stress_ruin", "mc_stress_measured"}
     assert res["gate"]["checks"]["mc_simulations"]["passed"] is False       # 300 < 10.000 kịch bản
     assert res["gate"]["checks"]["folds"]["passed"] is False                # 3 fold < 5 -> gate trượt
 

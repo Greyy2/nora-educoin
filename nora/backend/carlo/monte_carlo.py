@@ -20,13 +20,12 @@ MC_MAX_SIMULATIONS = 50_000        # trần cho API Studio (RAM/thời gian)
 MC_RUIN_THRESHOLD_PCT = 30.0       # "cháy" = MDD của một đường mô phỏng >= 30%
 MC_MAX_RUIN_PCT = 5.0              # P(MDD >= 30%) tối đa 5%
 STRESS_MAX_MDD_PCT = 50.0          # MDD của MỌI kịch bản cực xấu phải < 50% (cấu hình được: tham số stress_max_mdd_pct)
-# Phí khứ hồi bổ sung cho kịch bản cost_x2 khi nguồn KHÔNG cho biết vòng quay vốn (sổ danh mục / API chỉ có chuỗi lợi suất ngày):
-# (taker 0,05% + trượt giá 0,02% của CEX perp) x 2 chiều x vòng quay giả định 0,5 lần vốn mỗi ngày = 0,07% vốn/ngày hoạt động.
-# Giả định 0,5x/ngày CAO hơn nhiều so với alpha thật (~0,1x) nên thiên về bảo thủ.
+# Kịch bản cost_x2 = trừ thêm một lần phí khứ hồi: (taker 0,05% + trượt giá 0,02% của CEX perp) x 2 chiều x VÒNG QUAY ĐO TỪ LỆNH của chính lượt
+# chạy đang được stress (danh nghĩa mở / vốn lúc vào lệnh, mỗi ngày — measure_turnover). Nguồn không có lệnh (chỉ chuỗi lợi suất ngày) và
+# không có phí do người dùng nhập -> KHÔNG giả định vòng quay: dòng cost_x2 ghi "không đo được vòng quay" và cổng không đạt (check stress_measured).
 STRESS_COST_TAKER = 0.0005
 STRESS_COST_SLIPPAGE = 0.0002
-STRESS_COST_FALLBACK_TURNOVER = 0.5
-STRESS_COST_FALLBACK_DAILY = (STRESS_COST_TAKER + STRESS_COST_SLIPPAGE) * 2 * STRESS_COST_FALLBACK_TURNOVER
+NOTE_COST_UNMEASURED = "không đo được vòng quay vốn (thiếu lệnh của lượt chạy này) nên không dựng kịch bản chi phí gấp đôi; không dùng vòng quay giả định"
 CRASH_CAP = 0.95                   # ngày sập tối đa -95%
 MC_CHUNK_ELEMS = 2_000_000         # xử lý theo lô: mỗi mảng (lô x bước) <= 16 MB float64 -> đỉnh RAM vài chục MB dù 50.000 mô phỏng
 STRESS_PATH_POINTS = 72            # số điểm tối đa mỗi đường vẽ trả về cho UI
@@ -162,32 +161,36 @@ def stress_scenarios(daily, scale: float = 1.0, extra_cost_daily: Optional[float
       reversed_order            chuỗi lịch sử đảo ngược.
       crash_day                 một ngày sập = 2 x ngày tệ nhất lịch sử (chặn -95%; không có ngày lỗ thì không sập) ở ĐẦU, rồi lịch sử.
       cost_x2                   mọi ngày có hoạt động (lợi suất != 0) trừ thêm `extra_cost_daily` (phí khứ hồi bổ sung = chi phí gấp đôi).
-                                `extra_cost_daily` = (taker+trượt giá) x 2 x vòng quay vốn/ngày nếu nguồn biết; None -> STRESS_COST_FALLBACK_DAILY.
+                                `extra_cost_daily` = (taker+trượt giá) x 2 x vòng quay vốn/ngày ĐO TỪ LỆNH (extra_cost_from_turnover); None = không đo được
+                                -> dòng `measured=False` (mdd_pct None, note_vi nêu lý do), KHÔNG dùng hằng số.
       longest_losing_streak_x2  chuỗi lỗ liên tiếp dài nhất lặp 2 lần liền nhau ở ĐẦU, rồi toàn bộ lịch sử (không có ngày lỗ thì giữ nguyên).
     shock (vertical_exposure, tuỳ chọn) -> thêm vertical_surge / vertical_crash / vertical_chain (vertical_sequences) ở ĐẦU, rồi lịch sử.
     Độ dài = số ngày lịch sử (cộng phần chèn thêm), KHÔNG cắt/kéo theo horizon của bootstrap."""
     d = scale * np.asarray(daily, dtype=float)
     if d.size == 0:
         raise ValueError("Cần ít nhất một lợi suất ngày để dựng kịch bản cực xấu")
-    c = STRESS_COST_FALLBACK_DAILY if extra_cost_daily is None else float(extra_cost_daily)
+    c = None if extra_cost_daily is None else float(extra_cost_daily)
     crash = max(-CRASH_CAP, 2.0 * float(d.min())) if d.min() < 0 else 0.0
     streak = longest_losing_run(d)
     seqs = {
         "worst_days_first": np.sort(d),
         "reversed_order": d[::-1],
         "crash_day": np.r_[crash, d],
-        "cost_x2": np.where(d != 0.0, d - c, d),
+        "cost_x2": None if c is None else np.where(d != 0.0, d - c, d),
         "longest_losing_streak_x2": np.r_[streak, streak, d],
     }
     if shock:
         seqs.update({k: np.r_[v, d] for k, v in vertical_sequences(shock, scale).items()})
     rows = []
     for name, seq in seqs.items():
+        if seq is None:   # cost_x2 không đo được vòng quay: không có số giả
+            rows.append({"name": name, "label_vi": STRESS_LABELS_VI[name], "measured": False, "mdd_pct": None, "terminal_ret_pct": None,
+                         "worst_day_pct": None, "days_underwater": None, "ruin": False, "days": None, "passed": None,
+                         "note_vi": NOTE_COST_UNMEASURED})
+            continue
         row = _path_row(name, seq, max_mdd_pct=max_mdd_pct, with_path=with_path)
         if name == "cost_x2":
-            row["note_vi"] = (f"Trừ thêm {c * 100:.3f}%/ngày hoạt động "
-                              + ("(ước lượng từ vòng quay vốn của nguồn)" if extra_cost_daily is not None
-                                 else "(hằng số bảo thủ: (taker 0,05% + trượt giá 0,02%) x 2 x vòng quay 0,5x/ngày)"))
+            row["note_vi"] = f"Trừ thêm {c * 100:.3f}%/ngày hoạt động (đo từ vòng quay vốn của lệnh trong lượt chạy)"
         elif name in VERTICAL_NAMES:
             row["note_vi"] = (f"Lỗ LONG khi sập {shock['crash_loss'] * scale * 100:.1f}% vốn, lỗ SHORT khi tăng dựng "
                               f"{shock['surge_loss'] * scale * 100:.1f}% vốn (vị thế ngược chiều lớn nhất từng mở)")
@@ -196,12 +199,60 @@ def stress_scenarios(daily, scale: float = 1.0, extra_cost_daily: Optional[float
 
 
 def estimate_extra_daily_cost(n_trades: int, n_days: int, notional_fraction: float,
-                              taker: float = STRESS_COST_TAKER, slippage: float = STRESS_COST_SLIPPAGE) -> float:
-    """Phí/ngày bổ sung cho cost_x2 từ dữ liệu thật của alpha: (taker+trượt giá) x 2 x vòng quay vốn trung bình mỗi ngày,
-    vòng quay/ngày = số lệnh x tỉ trọng vị thế (order_size x đòn bẩy, phần vốn) / số ngày."""
+                              taker: float = STRESS_COST_TAKER, slippage: float = STRESS_COST_SLIPPAGE) -> Optional[float]:
+    """Phí/ngày bổ sung cho cost_x2 khi chỉ biết số lệnh và tỉ trọng TB: (taker+trượt giá) x 2 x (số lệnh x tỉ trọng / số ngày). n_days <= 0 -> None."""
     if n_days <= 0:
-        return STRESS_COST_FALLBACK_DAILY
+        return None
     return (taker + slippage) * 2.0 * (n_trades * notional_fraction / n_days)
+
+
+def extra_cost_from_turnover(turnover_daily: Optional[float], taker: float = STRESS_COST_TAKER,
+                             slippage: float = STRESS_COST_SLIPPAGE) -> Optional[float]:
+    """Phí bổ sung/ngày hoạt động cho cost_x2 từ vòng quay ĐO ĐƯỢC (lần vốn/ngày); None (không đo được) -> None."""
+    return None if turnover_daily is None else (taker + slippage) * 2.0 * float(turnover_daily)
+
+
+def measure_turnover(trades: Optional[List[Dict[str, Any]]], n_days: int) -> Dict[str, Any]:
+    """Vòng quay vốn đo từ lệnh của lượt chạy: Σ (danh nghĩa mở / vốn lúc vào lệnh) / số ngày. trades: dạng trade_rows / trade_list
+    (notional | margin_usd x leverage | qty x giá; entry_equity). Mọi lệnh phải có đủ danh nghĩa và vốn lúc vào, nếu không -> turnover_daily None +
+    note (không bỏ lệnh thiếu rồi coi như đo được). trades=None (nguồn không có lệnh) hoặc n_days <= 0 -> None + note. 0 lệnh -> 0.0 (đo được).
+    Trả cả `sum`/`days` để gộp nhiều cửa sổ (merge_turnover)."""
+    out = {"turnover_daily": None, "note": None, "sum": 0.0, "days": int(n_days), "trades": 0, "measurable": 0}
+    if trades is None:
+        out["note"] = "không có danh sách lệnh của lượt chạy"
+        return out
+    if n_days <= 0:
+        out["note"] = "không có ngày nào để quy vòng quay theo ngày"
+        return out
+    total = 0.0
+    ok = 0
+    for t in trades:
+        eq = float(t.get("entry_equity") or 0.0)
+        notional = _notional(t)
+        if eq > 0 and notional > 0:
+            total += notional / eq
+            ok += 1
+    out.update(sum=total, trades=len(trades), measurable=ok)
+    if ok < len(trades):
+        out["note"] = f"{len(trades) - ok}/{len(trades)} lệnh thiếu danh nghĩa hoặc vốn lúc vào lệnh"
+        return out
+    out["turnover_daily"] = total / n_days
+    return out
+
+
+def merge_turnover(parts: List[Optional[Dict[str, Any]]]) -> Dict[str, Any]:
+    """Gộp vòng quay của nhiều cửa sổ (fold OOS): Σ danh nghĩa/vốn chia Σ ngày; bất kỳ cửa sổ nào không đo được -> không đo được."""
+    parts = [p if p is not None else {"turnover_daily": None, "note": "cửa sổ không có số đo vòng quay", "sum": 0.0, "days": 0,
+                                      "trades": 0, "measurable": 0} for p in parts]
+    if not parts:
+        return {"turnover_daily": None, "note": "không có cửa sổ nào để đo vòng quay", "sum": 0.0, "days": 0, "trades": 0, "measurable": 0}
+    bad = next((p for p in parts if p["turnover_daily"] is None), None)
+    days = sum(p["days"] for p in parts)
+    base = {"sum": sum(p["sum"] for p in parts), "days": days, "trades": sum(p["trades"] for p in parts),
+            "measurable": sum(p["measurable"] for p in parts)}
+    if bad is not None or days <= 0:
+        return {**base, "turnover_daily": None, "note": (bad or {}).get("note") or "không có ngày nào để quy vòng quay theo ngày"}
+    return {**base, "turnover_daily": base["sum"] / days, "note": None}
 
 
 def evaluate_mc_gate(simulations: int, p_mdd_ge_ruin_pct: Optional[float], stress: Optional[List[Dict[str, Any]]], *,
@@ -213,6 +264,7 @@ def evaluate_mc_gate(simulations: int, p_mdd_ge_ruin_pct: Optional[float], stres
       ruin          P(MDD >= ruin_threshold) <= max_ruin_pct
       stress_mdd    MDD của mọi kịch bản cực xấu (gồm worst_bootstrap) < stress_max_mdd_pct
       stress_ruin   không kịch bản cực xấu nào chạm vốn 0
+      stress_measured  không kịch bản nào "không đo được" (cost_x2 thiếu vòng quay) — kịch bản đó bị loại khỏi hai check trên và check này trượt
     Thiếu stress / thiếu P(MDD) -> check tương ứng trượt."""
     def chk(label, required, actual, passed, detail=None):
         c = {"label": label, "required": required, "actual": actual, "passed": bool(passed)}
@@ -220,7 +272,9 @@ def evaluate_mc_gate(simulations: int, p_mdd_ge_ruin_pct: Optional[float], stres
             c["detail"] = detail
         return c
 
-    rows = list(stress or [])
+    all_rows = list(stress or [])
+    unmeasured = [x["name"] for x in all_rows if x.get("measured") is False]       # kịch bản không dựng được (cost_x2 thiếu vòng quay)
+    rows = [x for x in all_rows if x.get("measured") is not False]
     worst = max(rows, key=lambda x: x["mdd_pct"]) if rows else None
     ruined = [x["name"] for x in rows if x["ruin"]]
     over = [x["name"] for x in rows if x["mdd_pct"] >= stress_max_mdd_pct]
@@ -232,10 +286,32 @@ def evaluate_mc_gate(simulations: int, p_mdd_ge_ruin_pct: Optional[float], stres
         "stress_mdd": chk("MDD tệ nhất trong các kịch bản cực xấu", f"< {stress_max_mdd_pct:g}%", worst["mdd_pct"] if worst else None,
                           bool(worst) and not over, f"{worst['name']}" if worst else "thiếu kịch bản cực xấu"),
         "stress_ruin": chk("Kịch bản cực xấu chạm vốn 0", "không có", len(ruined), bool(rows) and not ruined, ", ".join(ruined) or None),
+        "stress_measured": chk("Mọi kịch bản cực xấu đều dựng được từ số đo thật", "đủ", len(unmeasured), not unmeasured,
+                               ("không đo được: " + ", ".join(unmeasured)) if unmeasured else None),
     }
-    return {"passed": all(c["passed"] for c in checks.values()), "gate_eligible": eligible, "checks": checks,
+    return {"passed": all(c["passed"] for c in checks.values()), "gate_eligible": eligible, "checks": checks, "unmeasured_stress": unmeasured,
             "min_simulations": int(min_simulations), "ruin_max_pct": float(max_ruin_pct),
-            "stress_max_mdd_pct": float(stress_max_mdd_pct)}
+            "stress_max_mdd_pct": float(stress_max_mdd_pct), "ruin_threshold_pct": float(ruin_threshold_pct)}
+
+
+GATE_THRESHOLD_KEYS = ("min_simulations", "ruin_max_pct", "stress_max_mdd_pct", "ruin_threshold_pct")
+
+
+def with_gate_thresholds(mc: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Bảo đảm kết quả MC có ĐỦ ngưỡng cổng trong `gate` (giao diện không giữ hằng số dự phòng). Kết quả mới luôn có sẵn (evaluate_mc_gate);
+    kết quả cũ thiếu thì lấy từ nơi lưu cùng kết quả (params.ruin_threshold_pct) — không suy đoán: ngưỡng không có nguồn -> None và
+    `gate.thresholds_missing` liệt kê khoá + `thresholds_note` nêu lý do (giao diện hiện "—" + lý do)."""
+    if not isinstance(mc, dict) or not isinstance(mc.get("gate"), dict):
+        return mc
+    gate = dict(mc["gate"])
+    if gate.get("ruin_threshold_pct") is None:
+        gate["ruin_threshold_pct"] = (mc.get("params") or {}).get("ruin_threshold_pct")
+    missing = [k for k in GATE_THRESHOLD_KEYS if gate.get(k) is None]
+    for k in missing:
+        gate[k] = None
+    gate["thresholds_missing"] = missing
+    gate["thresholds_note"] = ("kết quả cũ không lưu ngưỡng cổng: " + ", ".join(missing)) if missing else None
+    return {**mc, "gate": gate}
 
 
 def strip_paths(rows: Optional[List[Dict[str, Any]]]) -> Optional[List[Dict[str, Any]]]:
@@ -551,7 +627,7 @@ def run_monte_carlo_daily_detail(
         "stress": stress, "worst_path": worst["path"], "gate": gate,
         "params": {"simulations": n, "block_days": int(block_days), "horizon_days": int(horizon_days),
                    "ruin_threshold_pct": float(ruin_threshold_pct), "seed": seed, "scale": float(scale), "n_days": int(len(d)),
-                   "extra_cost_daily": extra_cost_daily if extra_cost_daily is not None else STRESS_COST_FALLBACK_DAILY,
+                   "extra_cost_daily": extra_cost_daily,
                    **({"shock": shock} if shock else {})},
     }
 
