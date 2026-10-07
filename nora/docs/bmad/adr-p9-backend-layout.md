@@ -19,6 +19,10 @@ Luật bất biến khi chuyển:
 
 **Phân vai (người dùng chốt 2026-10-07):** norabt-99 chỉ làm kiến trúc (di chuyển file/module, cây thư mục, shim, luật phụ thuộc, chuyển cây data); MỌI thay đổi logic do norabt-e2 triển khai. Review chéo trước mỗi commit.
 
+**Chuẩn đúng của engine (người dùng + sếp chốt 2026-10-07):** một logic engine duy nhất của Nora; chuẩn đối chiếu là ngữ nghĩa backtest của
+NautilusTrader (`test/scripts/nautilus_diff` S1–S8). Không còn chế độ / profile / bộ chỉ số / fixture xnoquant (phiên logic gỡ). Ưu tiên: xong kiến trúc
+nhanh và đúng, sau đó gỡ xno + quét lỗi (sửa lỗi + đơn giản hoá, không thêm tính năng).
+
 ## 2. Cây backend đích
 
 ```
@@ -32,7 +36,7 @@ backend/
     position_size.py         # sizing, mức SL/TP/DCA/trailing, rủi ro danh mục
     backtest.py              # ENGINE THỰC THI DUY NHẤT (numba): nến/tick, CEX/DEX, khớp lệnh, danh mục; chạy cả lô (backtest) hoặc từng nến (paper/live)
   metrics/
-    metrics.py               # bộ chỉ số đầy đủ, một công thức (khớp xnoquant + Nautilus), tham số periods_per_year
+    metrics.py               # bộ chỉ số đầy đủ, một công thức chuẩn Nora (đúng theo NautilusTrader), năm = 365 ngày
     trades.py                # bảng lệnh, thống kê theo lệnh/chiến lược, đối soát sàn ↔ sim
     charts.py                # chuỗi cho biểu đồ: vốn, sụt giảm, NAV ngày, dashboard
   regime/regime.py           # nhận diện trạng thái thị trường + học bảng regime
@@ -76,7 +80,7 @@ backend/
 | core/signal.py | core/signals/{evaluator,snapshot,diagnostics}, core/strategy/pydsl/{spec,parser,program,errors,explain} |
 | core/position_size.py | core/execute/{policy,risk} |
 | core/backtest.py | core/backtest/{engine,portfolio,dex,kernel}, core/execute/{venue,amm} (bước P9.4a chuyển nguyên; P9.4b gỡ tracker/manager/sim_venue/runner), live/paper, core/strategy/pydsl/profiles (build_plan; tỉ trọng rổ nhận qua tham số, không đọc file) |
-| metrics/metrics.py | core/metrics/{returns,portfolio,xno} — xno gộp vào một công thức, xoá file |
+| metrics/metrics.py | core/metrics/{returns,portfolio} — `xno.py` XOÁ (không gộp; người dùng + sếp chốt 2026-10-07: không còn chế độ xno) |
 | metrics/trades.py | core/metrics/trades, live/compare |
 | metrics/charts.py | core/analytics/{dashboard,signal_explain}; analytics/feeds.py (không ai dùng) → xoá |
 | regime/regime.py | core/regime/{classifier,learn} |
@@ -99,7 +103,7 @@ backend/
 | live/okx.py | live/{okx,okx_venue,exchange,secrets} |
 | routes/*.py | api/routers/*; routes/modes.py ← api/modes + core/params/modes; routes/jobs.py ← phần kiểm tham số của api/jobs/batch |
 | data/alpha/strategies/*.json | định nghĩa cứng trong core/strategy/{library,book}.py (SIGNALS, KERNEL_STRATEGIES, CANDIDATES) |
-| data/alpha/universes/top10_cap.json | core/strategy/pydsl/weights.py (nạp ở optimize, không nạp trong core) |
+| (xoá) | core/strategy/pydsl/weights.py — tỉ trọng TOP10 xnoquant, bỏ cùng chế độ xno |
 | data/alpha/education/samples.json | mẫu Education đang nằm ở frontend JS + data/education/samples.json — thành nguồn gốc ở backend, phục vụ qua API |
 | test/scripts/ | core/analytics/top_agents (nghiên cứu) |
 
@@ -117,7 +121,7 @@ data/
     _meta/
   alpha/
     strategies/  định nghĩa chiến lược hệ thống        user/<id>.json  alpha người dùng (code + program_hash + config + kết quả + bằng chứng)
-    universes/   education/samples.json  presets.json  registry.json  book.json  explore/  testnet/
+    education/samples.json  presets.json  registry.json  book.json  explore/  testnet/
     funnel/<run>/  (← _cache/funnel)                  book/<run>/ (← _cache/book)
   backtest/<id>/   params + kết quả                  backtest/education/  (← data/education/results, sinh lại được)
   wfa/<id>/        (← _cache/book_wfa)               carlo/<id>/
@@ -160,7 +164,7 @@ Hiện 79 manifest `okx/cex/*/perp` đang lưu băm BYTE file (đợt gộp data
 | P9.3 | `data/` theo cây mới (script chuyển + kiểm sha256, symlink tạm ở đường cũ) | S | P9.2 | Mọi job đọc/ghi đúng chỗ mới; không mất file (đếm + băm) |
 | P9.4 | `core/` (models, params, indicator, signal, position_size, backtest) + shim | S | P9.2 | Golden + mọi parity + nautilus_diff không đổi |
 | P9.4b | Một engine: paper/live gọi kernel từng nến (trạng thái mảng), gỡ tracker/manager/sim_venue/runner; OkxVenue chỉ I/O | norabt-e2 (logic) | P9.4 | Paper = backtest bit-identical bằng chính engine; test bot unified + OKX xanh; nautilus_diff không đổi |
-| P9.5 | `metrics/` (gộp xno vào metrics.py, periods_per_year) + `regime/`, `wfa/`, `carlo/`, `verdict/` | S | P9.4 + phiên alpha commit xong | test_xno_parity khớp < 1e-9; khoá `metrics.{…}.{xno,nora}` giữ nguyên hoặc có bảng đổi tên cho frontend |
+| P9.5 | `metrics/` (returns+portfolio → metrics.py; xno đã bị phiên logic xoá) + `regime/`, `wfa/`, `carlo/`, `verdict/` | S | P9.4 + phiên logic xoá xno xong | Số liệu metrics không đổi (test so cũ/mới); nautilus_diff không đổi |
 | P9.6 | `optimize/` (search, funnel, book, process) + vòng đời `data/cache/process` + dọn cache | S | P9.4 | Huỷ/khôi phục/resume chạy đúng; job cũ đọc được qua shim |
 | P9.7 | `live/` (bot, okx) — chỉ unified; khởi động lại bot demo | S, user duyệt bật lại bot | P9.4, P9.6 | test_live_bot, test_bot_unified, test_okx_venue xanh; bot chạy engine mới |
 | P9.8 | `routes/` (← api) + modes + kiểm tham số job | S | P9.6 | Mọi route `/api/studio/*` giữ nguyên; frontend chạy |
