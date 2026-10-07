@@ -27,7 +27,7 @@ backend/
     indicator.py             # mọi chỉ báo, tham số mở (numba + DSL features/ops)
     signal.py                # bộ dịch tín hiệu mở: AST + DSL Python, snapshot, giải thích
     position_size.py         # sizing, mức SL/TP/DCA/trailing, rủi ro danh mục
-    backtest.py              # "broker" duy nhất: nến/tick, CEX/DEX, khớp lệnh, venue mô phỏng, runner, kernel numba
+    backtest.py              # ENGINE THỰC THI DUY NHẤT (numba): nến/tick, CEX/DEX, khớp lệnh, danh mục; chạy cả lô (backtest) hoặc từng nến (paper/live)
   metrics/
     metrics.py               # bộ chỉ số đầy đủ, một công thức (khớp xnoquant + Nautilus), tham số periods_per_year
     trades.py                # bảng lệnh, thống kê theo lệnh/chiến lược, đối soát sàn ↔ sim
@@ -51,6 +51,13 @@ backend/
   routes/                    # (← api/) router + kiểm tham số job + chế độ Cơ bản/Nâng cao
 ```
 
+**Một engine thực thi duy nhất (người dùng chốt 2026-10-07).** Không có hai bản (kernel numba + bản Python sự kiện) giữ khớp bằng parity.
+`core/backtest.py` là engine duy nhất cho backtest, paper và live; tốc độ là thuộc tính của engine, tối ưu thêm thuộc `optimize/`.
+- Backtest: chạy cả lô nến như hiện nay.
+- Paper/live: gọi cùng engine TỪNG NẾN với trạng thái giữ trong mảng (cơ chế pack/writeback đã có). Engine sinh lệnh (vào/ra/SL/TP/DCA/trailing);
+  paper khớp ngay trong engine; live gửi lệnh qua `live/okx.py` (OkxVenue chỉ còn là cổng I/O) và nạp fill của sàn ngược vào trạng thái engine.
+- Gỡ bản Python thứ hai: `core/execute/{tracker,manager,sim_venue,runner}` (P9.4b). `test/reference_engine.py` giữ trong test làm oracle.
+
 **Luật phụ thuộc** (test tự động chặn vi phạm, ban đầu báo cáo, sau bắt buộc):
 `core ← {metrics, regime, wfa, carlo, verdict} ← optimize ← {live, routes}`; `crawl` chỉ được gọi từ `optimize`, `live`, `routes`;
 `core` không import gì ngoài `core`; trong core theo thứ tự `models ← params ← indicator ← signal ← position_size ← backtest`
@@ -65,7 +72,7 @@ backend/
 | core/indicator.py | core/signals/kernels, core/strategy/pydsl/{features,ops} |
 | core/signal.py | core/signals/{evaluator,snapshot,diagnostics}, core/strategy/pydsl/{spec,parser,program,errors,explain} |
 | core/position_size.py | core/execute/{policy,risk} |
-| core/backtest.py | core/backtest/{engine,portfolio,dex,kernel}, core/execute/{sim_venue,manager,runner,venue,amm,tracker*}, live/paper, core/strategy/pydsl/profiles (build_plan; tỉ trọng rổ nhận qua tham số, không đọc file) |
+| core/backtest.py | core/backtest/{engine,portfolio,dex,kernel}, core/execute/{venue,amm} (bước P9.4a chuyển nguyên; P9.4b gỡ tracker/manager/sim_venue/runner), live/paper, core/strategy/pydsl/profiles (build_plan; tỉ trọng rổ nhận qua tham số, không đọc file) |
 | metrics/metrics.py | core/metrics/{returns,portfolio,xno} — xno gộp vào một công thức, xoá file |
 | metrics/trades.py | core/metrics/trades, live/compare |
 | metrics/charts.py | core/analytics/{dashboard,signal_explain}; analytics/feeds.py (không ai dùng) → xoá |
@@ -145,6 +152,7 @@ Hiện 79 manifest `okx/cex/*/perp` đang lưu băm BYTE file (đợt gộp data
 | P9.2 | `crawl/` (cex, dex, store) + chọn gốc dữ liệu một chỗ | S | P9.0 | Khoá cache mmap không đổi; crawl/quality gate test xanh |
 | P9.3 | `data/` theo cây mới (script chuyển + kiểm sha256, symlink tạm ở đường cũ) | S | P9.2 | Mọi job đọc/ghi đúng chỗ mới; không mất file (đếm + băm) |
 | P9.4 | `core/` (models, params, indicator, signal, position_size, backtest) + shim | S | P9.2 | Golden + mọi parity + nautilus_diff không đổi |
+| P9.4b | Một engine: paper/live gọi kernel từng nến (trạng thái mảng), gỡ tracker/manager/sim_venue/runner; OkxVenue chỉ I/O | O thiết kế, S cài | P9.4 | Paper = backtest bit-identical bằng chính engine; test bot unified + OKX xanh; nautilus_diff không đổi |
 | P9.5 | `metrics/` (gộp xno vào metrics.py, periods_per_year) + `regime/`, `wfa/`, `carlo/`, `verdict/` | S | P9.4 + phiên alpha commit xong | test_xno_parity khớp < 1e-9; khoá `metrics.{…}.{xno,nora}` giữ nguyên hoặc có bảng đổi tên cho frontend |
 | P9.6 | `optimize/` (search, funnel, book, process) + vòng đời `data/cache/process` + dọn cache | S | P9.4 | Huỷ/khôi phục/resume chạy đúng; job cũ đọc được qua shim |
 | P9.7 | `live/` (bot, okx) — chỉ unified; khởi động lại bot demo | S, user duyệt bật lại bot | P9.4, P9.6 | test_live_bot, test_bot_unified, test_okx_venue xanh; bot chạy engine mới |
