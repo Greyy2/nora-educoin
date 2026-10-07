@@ -816,31 +816,213 @@ def _sample(t, mtm, worst, eqT, eqM, eqW, G):
 
 
 # ─── Vòng lặp DANH MỤC (PortfolioEngine.run) ────────────────────────────────
+# Chỉ số mảng trạng thái danh mục (P9.4b T1): PS float64, PSI int64, LPX[nb,4] = (close, low, high, open) của nến cuối đã xử lý (NaN = chưa có).
+PS_PEAK_MTM, PS_MTM, PS_WORST = 0, 1, 2
+PS_N = 3
+(PSI_G, PSI_HALTED, PSI_HALT_AT, PSI_RUIN_AT, PSI_HAS_SMP, PSI_LAST_SMP, PSI_BUSY, PSI_LAST_T) = range(8)
+PSI_N = 8
+# BAR[nb,4] = (o,h,l,c); BARI[nb,3] = (có nến, ja, jb)
+# BARI[nb,8] = (có nến, ja, jb, FR_lo, FR_hi, địa chỉ 1m low, địa chỉ 1m high, độ dài 1m); SIG[nt,5] = (match, stop, dca_gate, slot chạy ở nến này, đã đóng ở open nến này)
+
+
+def new_portfolio_state(nb, init_cap):
+    """(PS, PSI, LPX) khởi tạo cho PortfolioEngine / từng nến."""
+    PS = np.zeros(PS_N, dtype=np.float64)
+    PS[PS_PEAK_MTM] = init_cap
+    PSI = np.zeros(PSI_N, dtype=np.int64)
+    PSI[PSI_HALT_AT] = NONE_I
+    PSI[PSI_RUIN_AT] = NONE_I
+    LPX = np.full((nb, 4), np.nan, dtype=np.float64)
+    return PS, PSI, LPX
+
+
 @njit(**_JIT)
-def portfolio_kernel(PB, BL, PE, tr_book, book_off, P, PI, F, I, cfg_i, cfg_f,
-                     outF, outI, ordF, ordI, closeSeq, eqT, eqM, eqW, G, LG, last_px):
-    """PB[b] = (t,o,h,l,c,f_t,f_r,idxm,m_a,m_b,m_l,m_h) địa chỉ (m_*: nến 1m trong nến chạy cho khớp "extreme");
-    BL[b] = (n_bars, n_funding, mapped, last_t, n_1m); PE[e] = (match, stop, vol, có_vol) (địa chỉ).
-    cfg_i = (trade_start, max_positions, max_per_symbol, close_at_end, step_ms, địa chỉ lưới, độ dài lưới); cfg_f = (initial, gross_cap, kill_frac).
-    last_px[b] = (close, low, high, open) của nến cuối đã xử lý; G/LG/I/F/outputs cập nhật tại chỗ."""
-    n = cfg_i[6]
-    grid = carray(_ptr(cfg_i[5]), (n,), np.int64)
+def _admit(k, b, can_trade, g, tr_book, book_off, I, F, cfg_i, cfg_f, LPX, LG, G):
+    """Xét hạn mức mở lệnh cho slot k (sổ b) tại open nến g (trạng thái LÚC MỞ NẾN: LPX còn là nến TRƯỚC nên gross theo đóng nến trước,
+    vốn = sổ vốn sau funding + lệnh thoát ở open). Trả (can_open, max_new, max_risk, rscale); ghi G_RISKMIN / G_ATT / I_BLK."""
+    nt = tr_book.shape[0]
     nb = book_off.shape[0] - 1
-    nt = PE.shape[0]
-    trade_start = cfg_i[0]
     max_pos = cfg_i[1]
     max_per = cfg_i[2]
-    close_end = cfg_i[3]
-    step = cfg_i[4]
-    init_cap = cfg_f[0]
     cap = cfg_f[1]
-    kill = cfg_f[2]
     risk_cap = cfg_f[3]                          # trần Σ rủi ro tới SL của vị thế mở (tỉ lệ vốn); 0 = tắt
     thr = cfg_f[4]                               # giảm rủi ro theo mức sụt vốn đã chốt (tỉ lệ); 0 = tắt
     thr_floor = cfg_f[5]
-    ffwd = kill == 0.0                           # tua nhanh phút yên tĩnh chỉ khi không có kill switch (cần MTM từng phút)
+    can_open = False
+    max_new = np.inf
+    max_risk = np.inf
+    rscale = 1.0
+    if can_trade and I[k, I_PE] == 1 and I[k, I_OPEN] == 0:
+        n_open = 0
+        per_b = 0
+        for kk in range(nt):
+            if I[kk, I_OPEN] == 1:
+                n_open += 1
+                if tr_book[kk] == b:
+                    per_b += 1
+        blocked = n_open >= max_pos or per_b >= max_per
+        if not blocked:
+            total = 0.0
+            for bb in range(nb):
+                px = LPX[bb, 0]
+                if px != px:
+                    continue
+                for kk in range(book_off[bb], book_off[bb + 1]):
+                    if I[kk, I_OPEN] == 1:
+                        total += F[kk, F_QTY] * px
+            room = cap * LG[LG_EQ] - total
+            max_new = _pmax(0.0, room)
+            can_open = room > 0.0
+            if can_open and risk_cap != 0.0:
+                open_risk = 0.0
+                for kk in range(nt):
+                    if I[kk, I_OPEN] == 1:
+                        open_risk += F[kk, F_PLANNED]
+                max_risk = risk_cap * LG[LG_EQ] - open_risk
+                can_open = max_risk > 0.0
+            if can_open and thr != 0.0 and LG[LG_PEAK] > 0.0:
+                rscale = 1.0 - (1.0 - LG[LG_EQ] / LG[LG_PEAK]) / thr
+                if rscale < thr_floor:
+                    rscale = thr_floor
+                if rscale > 1.0:
+                    rscale = 1.0
+            blocked = not can_open
+        if blocked:
+            G[G_RISKMIN] += 1
+            if I[k, I_BLK] != g - 1:
+                G[G_ATT] += 1
+            I[k, I_BLK] = g
+    return can_open, max_new, max_risk, rscale
 
-    # view mảng (không sao chép)
+
+@njit(**_JIT)
+def _portfolio_mtm(book_off, PI, F, I, LPX, LG, PS):
+    """MTM + MTM xấu nhất (low cho long / high cho short) của các vị thế mở theo LPX -> PS[PS_MTM], PS[PS_WORST]."""
+    nb = book_off.shape[0] - 1
+    mtm = LG[LG_EQ]
+    worst = LG[LG_EQ]
+    for b in range(nb):
+        for k in range(book_off[b], book_off[b + 1]):
+            if I[k, I_OPEN] == 1:
+                mtm += _unreal(k, LPX[b, 0], PI, F, I)
+                worst += _unreal(k, LPX[b, 1] if PI[k, PI_LONG] == 1 else LPX[b, 2], PI, F, I)
+    PS[PS_MTM] = mtm
+    PS[PS_WORST] = worst
+
+
+@njit(**_JIT)
+def _portfolio_bar(t, BAR, BARI, FR, SIG, SIGV, tr_book, book_off, P, PI, F, I, cfg_i, cfg_f, PS, PSI, LPX,
+                   outF, outI, ordF, ordI, closeSeq, eqT, eqM, eqW, G, LG, ffwd):
+    """Thân MỘT nến lưới của danh mục (mọi sổ có nến ở t): pha 1 (funding, luật bỏ qua, _admit, _on_bar_open mọi slot), pha 2 (_on_bar_rest
+    từng slot rồi LPX[b]), pha 3 (MTM, đỉnh, kill switch, mẫu vốn; bỏ qua khi ffwd và chưa đến hạn mẫu), rồi PSI[PSI_G] += 1.
+    BAR[b] = (o,h,l,c); BARI[b] = (có nến, ja, jb, FR_lo, FR_hi, địa chỉ 1m low, địa chỉ 1m high, độ dài 1m); FR[FR_lo:FR_hi] = funding đến hạn (<= t) của sổ b; SIG[k] = (match, stop, dca_gate, act, closed_open); SIGV[k] = vol."""
+    nb = book_off.shape[0] - 1
+    nt = tr_book.shape[0]
+    trade_start = cfg_i[0]
+    step = cfg_i[4]
+    kill = cfg_f[2]
+    g = PSI[PSI_G]
+    can_trade = t >= trade_start and PSI[PSI_HALTED] == 0
+    touched = False
+    busy = False
+    PSI[PSI_LAST_T] = t
+    # Pha 1 — MỞ NẾN (mọi sổ theo thứ tự): funding, rồi từng slot: luật bỏ qua, xét hạn mức và thoát / vào ở open. Chưa sổ nào chạy trong nến.
+    for b in range(nb):
+        if BARI[b, 0] == 0:
+            continue
+        o = BAR[b, 0]
+        for f in range(BARI[b, 3], BARI[b, 4]):
+            rate = FR[f]
+            for k in range(book_off[b], book_off[b + 1]):
+                _apply_funding(k, rate, o, PI, F, I, LG)
+        for k in range(book_off[b], book_off[b + 1]):
+            if I[k, I_OPEN] == 0 and I[k, I_PE] == 0 and not SIG[k, 0]:
+                SIG[k, 3] = False
+                continue
+            SIG[k, 3] = True
+            if can_trade and I[k, I_PE] == 1 and I[k, I_OPEN] == 0:
+                can_open, max_new, max_risk, rscale = _admit(k, b, can_trade, g, tr_book, book_off, I, F, cfg_i, cfg_f, LPX, LG, G)
+            else:
+                can_open = False
+                max_new = np.inf
+                max_risk = np.inf
+                rscale = 1.0
+            closed = _on_bar_open(k, t, o, can_open, max_new, max_risk, rscale, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq)
+            SIG[k, 4] = closed
+            if closed and LG[LG_EQ] <= 0.0 and PSI[PSI_RUIN_AT] == NONE_I:
+                PSI[PSI_RUIN_AT] = t
+    # Pha 2 — TRONG NẾN (mọi sổ theo thứ tự): SL / TP / DCA / trailing / thanh lý + sổ sách cuối nến, rồi LPX[b] (= nến này).
+    for b in range(nb):
+        if BARI[b, 0] == 0:
+            continue
+        o = BAR[b, 0]
+        h = BAR[b, 1]
+        l = BAR[b, 2]
+        c = BAR[b, 3]
+        ja = BARI[b, 1]
+        jb = BARI[b, 2]
+        ML = carray(_ptr(BARI[b, 5]), (BARI[b, 7],), np.float64)
+        MH = carray(_ptr(BARI[b, 6]), (BARI[b, 7],), np.float64)
+        for k in range(book_off[b], book_off[b + 1]):
+            if not SIG[k, 3]:
+                continue
+            closed = _on_bar_rest(k, t, o, h, l, c, ML, MH, ja, jb, SIG[k, 0] and can_trade, SIG[k, 1], SIG[k, 4], SIGV[k], SIG[k, 2],
+                                  P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq)
+            if I[k, I_OPEN] == 1 or I[k, I_PE] == 1:
+                busy = True
+            if closed and (not SIG[k, 4]) and LG[LG_EQ] <= 0.0 and PSI[PSI_RUIN_AT] == NONE_I:
+                PSI[PSI_RUIN_AT] = t
+        LPX[b, 0] = c
+        LPX[b, 1] = l
+        LPX[b, 2] = h
+        LPX[b, 3] = o
+        touched = True
+    PSI[PSI_G] = g + 1
+    PSI[PSI_BUSY] = 1 if busy else 0
+    if not touched:
+        return
+    if ffwd and PSI[PSI_HAS_SMP] != 0 and t - PSI[PSI_LAST_SMP] < step:
+        return                                   # không kill switch: MTM chỉ dùng cho mẫu vốn theo giờ
+    # Pha 3 — _mtm, đỉnh, kill, mẫu vốn
+    _portfolio_mtm(book_off, PI, F, I, LPX, LG, PS)
+    PS[PS_PEAK_MTM] = _pmax(PS[PS_PEAK_MTM], PS[PS_MTM])
+    if kill != 0.0 and PSI[PSI_HALTED] == 0 and PS[PS_WORST] <= PS[PS_PEAK_MTM] * (1.0 - kill):
+        PSI[PSI_HALTED] = 1
+        PSI[PSI_HALT_AT] = t
+        for b in range(nb):
+            for k in range(book_off[b], book_off[b + 1]):
+                I[k, I_PE] = 0
+                if I[k, I_OPEN] == 1:
+                    _close(k, t, LPX[b, 0], S_CANCEL, R_KILL, True, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq)
+        _portfolio_mtm(book_off, PI, F, I, LPX, LG, PS)
+    if PSI[PSI_HAS_SMP] == 0 or t - PSI[PSI_LAST_SMP] >= step:
+        _sample(t, PS[PS_MTM], PS[PS_WORST], eqT, eqM, eqW, G)
+        PSI[PSI_LAST_SMP] = t
+        PSI[PSI_HAS_SMP] = 1
+
+
+@njit(**_JIT)
+def _portfolio_end(t_end, close_end, close_col, tclose, book_off, P, PI, F, I, LPX, PS, PSI, LG, G, outF, outI, ordF, ordI, closeSeq, eqT, eqM, eqW):
+    """Cuối lượt: (close_end) đóng mọi vị thế mở tại LPX[b, close_col] (cột 3 = open cho batch; cột 0 = close cho tick close_all) ở thời điểm
+    tclose[b]; mẫu vốn cuối ở t_end theo LPX; ghi G_HALT / G_RUIN."""
+    nb = book_off.shape[0] - 1
+    if close_end == 1:
+        for b in range(nb):
+            for k in range(book_off[b], book_off[b + 1]):
+                if I[k, I_OPEN] == 1:
+                    I[k, I_PE] = 0
+                    _close(k, tclose[b], LPX[b, close_col], S_CANCEL, R_END, True, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq)
+    _portfolio_mtm(book_off, PI, F, I, LPX, LG, PS)
+    _sample(t_end, PS[PS_MTM], PS[PS_WORST], eqT, eqM, eqW, G)
+    G[G_HALT] = PSI[PSI_HALT_AT]
+    G[G_RUIN] = PSI[PSI_RUIN_AT]
+
+
+@njit(**_JIT)
+def _portfolio_views(PB, BL, PE, tr_book, n):
+    """View mảng (không sao chép) của dữ liệu từng sổ / từng slot."""
+    nb = BL.shape[0]
+    nt = PE.shape[0]
     Ts = [carray(_ptr(PB[b, 0]), (BL[b, 0],), np.int64) for b in range(nb)]
     Os = [carray(_ptr(PB[b, 1]), (BL[b, 0],), np.float64) for b in range(nb)]
     Hs = [carray(_ptr(PB[b, 2]), (BL[b, 0],), np.float64) for b in range(nb)]
@@ -857,6 +1039,39 @@ def portfolio_kernel(PB, BL, PE, tr_book, book_off, P, PI, F, I, cfg_i, cfg_f,
     Ss = [carray(_ptr(PE[e, 1]), (BL[tr_book[e], 0],), np.bool_) for e in range(nt)]
     Vs = [carray(_ptr(PE[e, 2]), (BL[tr_book[e], 0],), np.float64) for e in range(nt)]
     Gs = [carray(_ptr(PE[e, 4]), (BL[tr_book[e], 0] if PE[e, 5] == 1 else 1,), np.bool_) for e in range(nt)]
+
+    return Ts, Os, Hs, Ls, Cs, Fts, Frs, Ims, MAs, MBs, MLs, MHs, Ms, Ss, Vs, Gs
+
+
+@njit(**_JIT)
+def portfolio_kernel(PB, BL, PE, tr_book, book_off, P, PI, F, I, cfg_i, cfg_f,
+                     outF, outI, ordF, ordI, closeSeq, eqT, eqM, eqW, G, LG, last_px):
+    """PB[b] = (t,o,h,l,c,f_t,f_r,idxm,m_a,m_b,m_l,m_h) địa chỉ (m_*: nến 1m trong nến chạy cho khớp "extreme");
+    BL[b] = (n_bars, n_funding, mapped, last_t, n_1m); PE[e] = (match, stop, vol, có_vol) (địa chỉ).
+    cfg_i = (trade_start, max_positions, max_per_symbol, close_at_end, step_ms, địa chỉ lưới, độ dài lưới); cfg_f = (initial, gross_cap, kill_frac).
+    last_px[b] = (close, low, high, open) của nến cuối đã xử lý; G/LG/I/F/outputs cập nhật tại chỗ.
+    Vòng batch: tua nhanh / bỏ qua nến rảnh ở đây; mỗi nến thật nạp BAR/SIG/funding rồi gọi _portfolio_bar (thân dùng chung với paper/live)."""
+    n = cfg_i[6]
+    grid = carray(_ptr(cfg_i[5]), (n,), np.int64)
+    nb = book_off.shape[0] - 1
+    nt = PE.shape[0]
+    trade_start = cfg_i[0]
+    close_end = cfg_i[3]
+    step = cfg_i[4]
+    init_cap = cfg_f[0]
+    kill = cfg_f[2]
+    ffwd = kill == 0.0                           # tua nhanh phút yên tĩnh chỉ khi không có kill switch (cần MTM từng phút)
+
+    Ts, Os, Hs, Ls, Cs, Fts, Frs, Ims, MAs, MBs, MLs, MHs, Ms, Ss, Vs, Gs = _portfolio_views(PB, BL, PE, tr_book, n)
+
+    # funding phẳng: FR[foff[b] : foff[b+1]] = Frs[b]
+    foff = np.zeros(nb + 1, dtype=np.int64)
+    for b in range(nb):
+        foff[b + 1] = foff[b] + BL[b, 1]
+    FR = np.empty(foff[nb] if foff[nb] > 0 else 1, dtype=np.float64)
+    for b in range(nb):
+        for q in range(BL[b, 1]):
+            FR[foff[b] + q] = Frs[b][q]
 
     # phút có tín hiệu vào của BẤT KỲ chiến lược × tài sản nào
     sig_any = np.zeros(n, dtype=np.bool_)
@@ -876,31 +1091,34 @@ def portfolio_kernel(PB, BL, PE, tr_book, book_off, P, PI, F, I, cfg_i, cfg_f,
                     sig_any[g] = True
     ts_g = _lower(grid, trade_start, n)
 
-    lg = np.full(nb, -1, dtype=np.int64)         # chỉ số lưới của nến thật gần nhất của từng sổ
-    lg_i = np.full(nb, -1, dtype=np.int64)       # chỉ số trong mảng của sổ ứng với lg
+    PS = np.zeros(PS_N, dtype=np.float64)
+    PS[PS_PEAK_MTM] = init_cap
+    PSI = np.zeros(PSI_N, dtype=np.int64)
+    PSI[PSI_HALT_AT] = NONE_I
+    PSI[PSI_RUIN_AT] = NONE_I
+    LPX = np.full((nb, 4), np.nan, dtype=np.float64)
     f_ptr = np.zeros(nb, dtype=np.int64)
-    peak_mtm = init_cap
-    has_sample = False
-    last_sample = 0
-    halted = False
-    halted_at = NONE_I
-    ruined_at = NONE_I
-    busy = False
-    act = np.zeros(nt, dtype=np.bool_)         # slot có chạy ở nến này (pha 1 quyết định, pha 2 dùng)
-    cl_open = np.zeros(nt, dtype=np.bool_)     # slot đã đóng ở open nến này (pha 1)
+    BAR = np.zeros((nb, 4), dtype=np.float64)
+    BARI = np.zeros((nb, 8), dtype=np.int64)
+    for b in range(nb):
+        BARI[b, 5] = PB[b, 10]
+        BARI[b, 6] = PB[b, 11]
+        BARI[b, 7] = BL[b, 4] if BL[b, 4] > 0 else 1
+    SIG = np.zeros((nt, 5), dtype=np.bool_)
+    SIGV = np.zeros(nt, dtype=np.float64)
     g = 0
     while g < n:
         if G[G_OVF] != 0:
             break
-        if (not busy) and (not _any_active(I, nt)):
-            if halted:
+        if PSI[PSI_BUSY] == 0 and (not _any_active(I, nt)):
+            if PSI[PSI_HALTED] != 0:
                 land = n
             else:
                 land = ts_g if ts_g > g else g
                 while land < n and not sig_any[land]:
                     land += 1
             if land > g:
-                peak_mtm = _pmax(peak_mtm, LG[LG_EQ])
+                PS[PS_PEAK_MTM] = _pmax(PS[PS_PEAK_MTM], LG[LG_EQ])
                 # _skip_idle: mọi tracker phẳng
                 for b in range(nb):
                     j = land - 1                       # nến thật cuối của sổ b trong [g, land)
@@ -914,24 +1132,26 @@ def portfolio_kernel(PB, BL, PE, tr_book, book_off, P, PI, F, I, cfg_i, cfg_f,
                                 break
                             j -= 1
                     if ii >= 0:
-                        lg[b] = j
-                        lg_i[b] = ii
+                        LPX[b, 0] = Cs[b][ii]
+                        LPX[b, 1] = Ls[b][ii]
+                        LPX[b, 2] = Hs[b][ii]
+                        LPX[b, 3] = Os[b][ii]
                         fp = _upper_abs(Fts[b], Ts[b][ii], 0, BL[b, 1])
                         if fp > f_ptr[b]:
                             f_ptr[b] = fp
-                k = g if not has_sample else _lower(grid, last_sample + step, n)
+                k = g if PSI[PSI_HAS_SMP] == 0 else _lower(grid, PSI[PSI_LAST_SMP] + step, n)
                 while k < land:
-                    last_sample = grid[k]
-                    has_sample = True
-                    _sample(last_sample, LG[LG_EQ], LG[LG_EQ], eqT, eqM, eqW, G)
-                    k = _lower(grid, last_sample + step, n)
+                    PSI[PSI_LAST_SMP] = grid[k]
+                    PSI[PSI_HAS_SMP] = 1
+                    _sample(grid[k], LG[LG_EQ], LG[LG_EQ], eqT, eqM, eqW, G)
+                    k = _lower(grid, PSI[PSI_LAST_SMP] + step, n)
                 g = land
                 continue
-        if ffwd and busy:
+        if ffwd and PSI[PSI_BUSY] != 0:
             # Tua nhanh qua các phút YÊN TĨNH (không có kill switch nên MTM từng phút không ảnh hưởng gì ngoài mẫu vốn theo giờ):
             # dừng ở phút sớm nhất có việc — mẫu vốn đến hạn, funding của sổ đang có vị thế, tín hiệu vào của tracker phẳng, vị thế mở
             # chạm DCA/SL/trailing/thanh lý/TP/timeout hoặc có tín hiệu thoát. Phút đó xử lý như thường.
-            lim = _lower(grid, last_sample + step, n) if has_sample else g
+            lim = _lower(grid, PSI[PSI_LAST_SMP] + step, n) if PSI[PSI_HAS_SMP] != 0 else g
             for k in range(nt):
                 if I[k, I_PE] == 1 or I[k, I_PX] == 1:
                     lim = g
@@ -1013,8 +1233,10 @@ def portfolio_kernel(PB, BL, PE, tr_book, book_off, P, PI, F, I, cfg_i, cfg_f,
                                 break
                             j -= 1
                     if ii >= 0:
-                        lg[b] = j
-                        lg_i[b] = ii
+                        LPX[b, 0] = Cs[b][ii]
+                        LPX[b, 1] = Ls[b][ii]
+                        LPX[b, 2] = Hs[b][ii]
+                        LPX[b, 3] = Os[b][ii]
                     for k in range(book_off[b], book_off[b + 1]):
                         if I[k, I_OPEN] == 0:
                             continue
@@ -1045,175 +1267,47 @@ def portfolio_kernel(PB, BL, PE, tr_book, book_off, P, PI, F, I, cfg_i, cfg_f,
                 g = lim
                 continue
         t = grid[g]
-        can_trade = t >= trade_start and not halted
-        touched = False
-        busy = False
-        # Pha 1 — MỞ NẾN (mọi sổ theo thứ tự): funding, rồi từng slot: luật bỏ qua, xét hạn mức (trạng thái LÚC MỞ NẾN: lg/lg_i còn là nến
-        # TRƯỚC nên gross theo đóng nến trước, vốn = sổ vốn sau funding + lệnh thoát ở open) và thoát / vào ở open. Chưa sổ nào chạy trong nến.
+        # nạp nến / funding đến hạn / tín hiệu của từng sổ có nến ở phút g
         for b in range(nb):
             if BL[b, 2] == 0:
                 i = g
             else:
                 i = Ims[b][g]
                 if i < 0:
+                    BARI[b, 0] = 0
                     continue
-            o = Os[b][i]
-            fe = BL[b, 1]
-            while f_ptr[b] < fe and Fts[b][f_ptr[b]] <= t:
-                rate = Frs[b][f_ptr[b]]
-                for k in range(book_off[b], book_off[b + 1]):
-                    _apply_funding(k, rate, o, PI, F, I, LG)
-                f_ptr[b] += 1
-            for k in range(book_off[b], book_off[b + 1]):
-                if I[k, I_OPEN] == 0 and I[k, I_PE] == 0 and not Ms[k][i]:
-                    act[k] = False
-                    continue
-                act[k] = True
-                can_open = False
-                max_new = np.inf
-                max_risk = np.inf
-                rscale = 1.0
-                if can_trade and I[k, I_PE] == 1 and I[k, I_OPEN] == 0:
-                    n_open = 0
-                    per_b = 0
-                    for kk in range(nt):
-                        if I[kk, I_OPEN] == 1:
-                            n_open += 1
-                            if tr_book[kk] == b:
-                                per_b += 1
-                    blocked = n_open >= max_pos or per_b >= max_per
-                    if not blocked:
-                        total = 0.0
-                        for bb in range(nb):
-                            if lg[bb] >= 0:
-                                px = Cs[bb][lg_i[bb]]
-                            else:
-                                continue
-                            if px != px:
-                                continue
-                            for kk in range(book_off[bb], book_off[bb + 1]):
-                                if I[kk, I_OPEN] == 1:
-                                    total += F[kk, F_QTY] * px
-                        room = cap * LG[LG_EQ] - total
-                        max_new = _pmax(0.0, room)
-                        can_open = room > 0.0
-                        if can_open and risk_cap != 0.0:
-                            open_risk = 0.0
-                            for kk in range(nt):
-                                if I[kk, I_OPEN] == 1:
-                                    open_risk += F[kk, F_PLANNED]
-                            max_risk = risk_cap * LG[LG_EQ] - open_risk
-                            can_open = max_risk > 0.0
-                        if can_open and thr != 0.0 and LG[LG_PEAK] > 0.0:
-                            rscale = 1.0 - (1.0 - LG[LG_EQ] / LG[LG_PEAK]) / thr
-                            if rscale < thr_floor:
-                                rscale = thr_floor
-                            if rscale > 1.0:
-                                rscale = 1.0
-                        blocked = not can_open
-                    if blocked:
-                        G[G_RISKMIN] += 1
-                        if I[k, I_BLK] != g - 1:
-                            G[G_ATT] += 1
-                        I[k, I_BLK] = g
-                closed = _on_bar_open(k, t, o, can_open, max_new, max_risk, rscale, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq)
-                cl_open[k] = closed
-                if closed and LG[LG_EQ] <= 0.0 and ruined_at == NONE_I:
-                    ruined_at = t
-        # Pha 2 — TRONG NẾN (mọi sổ theo thứ tự): SL / TP / DCA / trailing / thanh lý + sổ sách cuối nến, rồi lg/lg_i (= nến này).
-        for b in range(nb):
-            if BL[b, 2] == 0:
-                i = g
-            else:
-                i = Ims[b][g]
-                if i < 0:
-                    continue
-            o = Os[b][i]
-            h = Hs[b][i]
-            l = Ls[b][i]
-            c = Cs[b][i]
+            BARI[b, 0] = 1
+            BAR[b, 0] = Os[b][i]
+            BAR[b, 1] = Hs[b][i]
+            BAR[b, 2] = Ls[b][i]
+            BAR[b, 3] = Cs[b][i]
             if BL[b, 4] > 0:
-                ja = MAs[b][i]
-                jb = MBs[b][i]
+                BARI[b, 1] = MAs[b][i]
+                BARI[b, 2] = MBs[b][i]
             else:
-                ja = 0
-                jb = 0
+                BARI[b, 1] = 0
+                BARI[b, 2] = 0
+            fe = BL[b, 1]
+            BARI[b, 3] = foff[b] + f_ptr[b]
+            while f_ptr[b] < fe and Fts[b][f_ptr[b]] <= t:
+                f_ptr[b] += 1
+            BARI[b, 4] = foff[b] + f_ptr[b]
             for k in range(book_off[b], book_off[b + 1]):
-                if not act[k]:
-                    continue
-                sig = Ms[k][i]
-                vol = Vs[k][i] if PE[k, 3] == 1 else np.nan
-                gate = Gs[k][i] if PE[k, 5] == 1 else True
-                closed = _on_bar_rest(k, t, o, h, l, c, MLs[b], MHs[b], ja, jb, sig and can_trade, Ss[k][i], cl_open[k], vol, gate,
-                                      P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq)
-                if I[k, I_OPEN] == 1 or I[k, I_PE] == 1:
-                    busy = True
-                if closed and (not cl_open[k]) and LG[LG_EQ] <= 0.0 and ruined_at == NONE_I:
-                    ruined_at = t
-            lg[b] = g
-            lg_i[b] = i
-            touched = True
-        g += 1
-        if not touched:
-            continue
-        if ffwd and has_sample and t - last_sample < step:
-            continue                               # không kill switch: MTM chỉ dùng cho mẫu vốn theo giờ
-        # _mtm
-        mtm = LG[LG_EQ]
-        worst = LG[LG_EQ]
-        for b in range(nb):
-            for k in range(book_off[b], book_off[b + 1]):
-                if I[k, I_OPEN] == 1:
-                    mtm += _unreal(k, Cs[b][lg_i[b]], PI, F, I)
-                    worst += _unreal(k, Ls[b][lg_i[b]] if PI[k, PI_LONG] == 1 else Hs[b][lg_i[b]], PI, F, I)
-        peak_mtm = _pmax(peak_mtm, mtm)
-        if kill != 0.0 and (not halted) and worst <= peak_mtm * (1.0 - kill):
-            halted = True
-            halted_at = t
-            for b in range(nb):
-                for k in range(book_off[b], book_off[b + 1]):
-                    I[k, I_PE] = 0
-                    if I[k, I_OPEN] == 1:
-                        _close(k, t, Cs[b][lg_i[b]], S_CANCEL, R_KILL, True, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq)
-            mtm = LG[LG_EQ]
-            worst = LG[LG_EQ]
-            for b in range(nb):
-                for k in range(book_off[b], book_off[b + 1]):
-                    if I[k, I_OPEN] == 1:
-                        mtm += _unreal(k, Cs[b][lg_i[b]], PI, F, I)
-                        worst += _unreal(k, Ls[b][lg_i[b]] if PI[k, PI_LONG] == 1 else Hs[b][lg_i[b]], PI, F, I)
-        if (not has_sample) or t - last_sample >= step:
-            _sample(t, mtm, worst, eqT, eqM, eqW, G)
-            last_sample = t
-            has_sample = True
+                m_k = Ms[k][i]
+                SIG[k, 0] = m_k
+                if m_k or I[k, I_OPEN] == 1 or I[k, I_PE] == 1:      # slot không chạy ở nến này thì _portfolio_bar không đọc SIG[k,1:] / SIGV[k]
+                    SIG[k, 1] = Ss[k][i]
+                    SIG[k, 2] = Gs[k][i] if PE[k, 5] == 1 else True
+                    SIGV[k] = Vs[k][i] if PE[k, 3] == 1 else np.nan
+        PSI[PSI_G] = g
+        _portfolio_bar(t, BAR, BARI, FR, SIG, SIGV, tr_book, book_off, P, PI, F, I, cfg_i, cfg_f, PS, PSI, LPX,
+                       outF, outI, ordF, ordI, closeSeq, eqT, eqM, eqW, G, LG, ffwd)
+        g = PSI[PSI_G]
 
-    t_end = grid[n - 1]
     for b in range(nb):
-        if lg[b] >= 0:
-            ii = lg_i[b]
-            last_px[b, 0] = Cs[b][ii]
-            last_px[b, 1] = Ls[b][ii]
-            last_px[b, 2] = Hs[b][ii]
-            last_px[b, 3] = Os[b][ii]
-        else:
-            for q in range(4):
-                last_px[b, q] = np.nan
-    if close_end == 1:
-        for b in range(nb):
-            for k in range(book_off[b], book_off[b + 1]):
-                if I[k, I_OPEN] == 1:
-                    I[k, I_PE] = 0
-                    _close(k, BL[b, 3], last_px[b, 3], S_CANCEL, R_END, True, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq)
-    mtm = LG[LG_EQ]
-    worst = LG[LG_EQ]
-    for b in range(nb):
-        for k in range(book_off[b], book_off[b + 1]):
-            if I[k, I_OPEN] == 1:
-                mtm += _unreal(k, last_px[b, 0], PI, F, I)
-                worst += _unreal(k, last_px[b, 1] if PI[k, PI_LONG] == 1 else last_px[b, 2], PI, F, I)
-    _sample(t_end, mtm, worst, eqT, eqM, eqW, G)
-    G[G_HALT] = halted_at
-    G[G_RUIN] = ruined_at
+        for q in range(4):
+            last_px[b, q] = LPX[b, q]
+    _portfolio_end(grid[n - 1], close_end, 3, BL[:, 3], book_off, P, PI, F, I, LPX, PS, PSI, LG, G, outF, outI, ordF, ordI, closeSeq, eqT, eqM, eqW)
 
 
 # ─── Vòng lặp ĐƠN TÀI SẢN (BacktestEngine.run) ──────────────────────────────

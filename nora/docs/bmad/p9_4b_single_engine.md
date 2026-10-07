@@ -52,3 +52,5 @@ Chi tiết thiết kế (API kernel từng nến, vòng live tại mỗi mốc n
 - Hiệu năng khi tách thân nến thành hàm (T1): đo bench mỗi bước.
 - `-0.0` và vệ sinh nhánh: mọi số hạng mới chỉ cộng trong nhánh live.
 - Trạng thái bot đang chạy: không bao giờ chạy hai bot trên một tài khoản; pickle cũ chỉ lưu trữ, không xoá.
+
+**T1 – ghi chú (2026-10-07).** Trạng thái danh mục thành mảng (PS/PSI/LPX), thân nến `_portfolio_bar` (28 tham số: numba gọi hàm ≥ 30 tham số theo đường chậm ~460 ns/lần so với ~28 ns — mọi hàm theo nến mới phải ≤ 28 tham số; `_on_bar` hiện 29). Kết quả trùng từng bit (cổng G*, nautilus 332/332). Tốc độ: kernel một alpha 0,344 s (+3% so với T0), chạy lô 100 alpha 0,167 s/alpha (+5%) — chấp nhận vì bước điền BAR/BARI/SIG theo nến là hợp đồng cần cho T3; theo dõi lại ở T3.
