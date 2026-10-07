@@ -2,6 +2,8 @@
 Dừng bot: POST /api/studio/book/jobs/{job_id}/cancel (SIGTERM -> bot thoát sau bước hiện tại, trạng thái đã lưu)."""
 import json
 import os
+import threading
+from collections import OrderedDict
 from typing import Any, Dict, Literal
 
 from fastapi import APIRouter, HTTPException, Query
@@ -74,7 +76,35 @@ def bot_status(mode: str = Query("paper", pattern="^(paper|demo|live)$"), venue:
             "events": evs, "book": book, "engine": engine}
 
 
+_EQ_CACHE: "OrderedDict[tuple, tuple]" = OrderedDict()   # (events.jsonl, mtime_ns, size, cap) -> kết quả _equity_series
+_EQ_CACHE_MAX = 16
+_EQ_LOCK = threading.Lock()
+
+
 def _equity_series(d: str, cap: int = 2000):
+    """Đệm theo (events.jsonl, mtime_ns, size, cap): file chỉ đổi khi bot ghi sự kiện (mỗi nến) nên poll liên tục không phải parse lại cả file."""
+    path = os.path.join(d, "events.jsonl")
+    try:
+        st = os.stat(path)
+        key = (path, st.st_mtime_ns, st.st_size, cap)
+    except OSError:
+        key = None
+    if key is not None:
+        with _EQ_LOCK:
+            hit = _EQ_CACHE.get(key)
+            if hit is not None:
+                _EQ_CACHE.move_to_end(key)
+                return hit
+    out = _equity_series_uncached(d, cap)
+    if key is not None:
+        with _EQ_LOCK:
+            _EQ_CACHE[key] = out
+            while len(_EQ_CACHE) > _EQ_CACHE_MAX:
+                _EQ_CACHE.popitem(last=False)
+    return out
+
+
+def _equity_series_uncached(d: str, cap: int = 2000):
     """Đường vốn của bot từ events.jsonl (sự kiện "step": bar + equity), mỗi nến một điểm (giữ bản cuối), tối đa `cap` điểm cuối.
     -> (equity_series [{t, equity}], started = thời điểm "start" đầu tiên của sổ hiện tại hoặc None,
         alerts = sự kiện crit / warn từ lần khởi động gần nhất, tối đa 5 cái cuối,

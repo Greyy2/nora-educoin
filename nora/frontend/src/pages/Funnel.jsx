@@ -89,10 +89,11 @@ function RunMeta({ run }) {
 function RunView({ runId }) {
   const nav = useNavigate()
   const [sp, setSp] = useSearchParams()
-  const runQ = useAsync(() => getFunnelRun(runId), [runId], { poll: (r) => (isLive(r.status) ? 4000 : 0) })
+  const runQ = useAsync(() => getFunnelRun(runId), [runId], { poll: (r) => (isLive(r.status) ? 5000 : 0) }) // một vòng poll duy nhất cho lượt đang chạy (tiến độ lấy từ run.progress); tab ẩn thì tạm dừng
   const run = runQ.data
   const live = !!run && isLive(run.status)
-  const jobQ = useJob(run?.job_id && (live || run?.status === 'failed') ? run.job_id : null)
+  // job chỉ hỏi khi lượt đã thất bại (lấy log lỗi, 1 lần); lúc đang chạy dùng run.progress để khỏi poll chồng 2 nguồn
+  const jobQ = useJob(run?.job_id && run?.status === 'failed' ? run.job_id : null)
 
   const stage = STAGES.includes(sp.get('stage')) ? sp.get('stage') : 'S1_backtest'
   const tab = TABS.some((t) => t.value === sp.get('tab')) ? sp.get('tab') : 'stats'
@@ -108,7 +109,7 @@ function RunView({ runId }) {
 
   // thống kê tầng (S1 ~450 KB): chỉ tải khi mở tab Thống kê của một tầng
   const wantStats = detail && tab === 'stats'
-  const statsQ = useAsync(wantStats ? () => getFunnelStats(runId, stage) : null, [runId, stage, run?.status, wantStats], { poll: () => (live ? 8000 : 0) })
+  const statsQ = useAsync(wantStats ? () => getFunnelStats(runId, stage) : null, [runId, stage, run?.status, wantStats], { poll: () => (live ? 20000 : 0) })
   const stats = statsQ.data
   // tóm tắt FINAL ở trang tổng quan (~45 KB), chỉ khi đã có alpha FINAL
   const finalCount = run?.counts?.[7]?.passed
@@ -123,16 +124,14 @@ function RunView({ runId }) {
   useEffect(() => {
     if (!needTops || live) return undefined
     let dead = false
-    ;(async () => {
-      for (const st of STAGES.slice(1)) {
+    // song song: các tầng độc lập nhau, tuần tự thì tốn 7 RTT
+    Promise.all(STAGES.slice(1).map((st) => getFunnelStats(runId, st).then((s) => [st, s.reject_reasons[0]], () => null))) // tầng chưa có số liệu -> bỏ qua
+      .then((rs) => {
         if (dead) return
-        try {
-          const s = await getFunnelStats(runId, st)
-          if (dead) return
-          if (s.reject_reasons[0]) setTops((t) => ({ ...t, [st]: s.reject_reasons[0] }))
-        } catch (e) { /* tầng chưa có số liệu */ }
-      }
-    })()
+        const next = {}
+        rs.forEach((r) => { if (r && r[1]) next[r[0]] = r[1] })
+        setTops((t) => ({ ...t, ...next }))
+      })
     return () => { dead = true }
   }, [runId, needTops, live])
   useEffect(() => { setTops({}) }, [runId])

@@ -66,6 +66,16 @@ def _result_for(job_id: Optional[str]):
     job_id = job_id or _latest_done_backtest()
     if not job_id:
         raise HTTPException(404, "Chưa có job backtest nào hoàn tất — chạy Backtest trước.")
+    try:   # trang/bộ lọc khác nhau của cùng job: không parse lại result.json (đệm theo job + mtime/size; chỉ nạp sau khi đã qua kiểm tra bên dưới)
+        st = os.stat(os.path.join(batch_jobs.job_dir(job_id), "result.json"))
+        rkey = ("result", job_id, st.st_mtime_ns, st.st_size)
+    except (OSError, batch_jobs.JobError):
+        rkey = None
+    if rkey is not None:
+        with _LOCK:
+            hit = _CACHE.get(rkey)
+        if hit is not None:
+            return hit, job_id
     try:
         job = batch_jobs.status(job_id)
     except batch_jobs.JobError as e:
@@ -74,6 +84,9 @@ def _result_for(job_id: Optional[str]):
         raise HTTPException(404, "không có job này")
     if job.get("kind") != "book_backtest" or job.get("status") != "done" or not job.get("result"):
         raise HTTPException(409, "job phải là book_backtest đã xong")
+    if rkey is not None:
+        with _LOCK:
+            _CACHE.put(rkey, job["result"])
     return job["result"], job_id
 
 

@@ -15,7 +15,7 @@ from backend.api.routers import alphas, book, chart, custom, data, education, fu
 
 app = FastAPI(title="Nora API", version="3.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
-app.add_middleware(GZipMiddleware, minimum_size=1024)   # JSON thống kê/biểu đồ lớn (vài trăm KB) nén còn ~1/8
+app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=5)   # JSON thống kê/biểu đồ lớn (vài trăm KB) nén còn ~1/8; mức 5 thay mặc định 9: ~100 ms -> ~10 ms CPU/450 KB (nén chạy trong event loop, giữ GIL), file to hơn ~10%
 
 app.include_router(alphas.router)
 app.include_router(book.router)

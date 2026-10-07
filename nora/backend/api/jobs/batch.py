@@ -25,6 +25,7 @@ import subprocess
 import threading
 import time
 import uuid
+from collections import OrderedDict
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -678,6 +679,25 @@ def status(job_id: str) -> Optional[Dict[str, Any]]:
     return out
 
 
+def status_etag(job_id: str, lite: bool = False) -> Optional[str]:
+    """ETag của GET job khi job ĐÃ kết thúc (job.json state done/failed/cancelled): job_id + mtime_ns của result.json + job.json + cờ lite.
+    None nếu job chưa kết thúc / không có (khi đó không đệm được). Chỉ stat, không đọc file lớn."""
+    job_dir = _job_dir(job_id)
+    meta = _read_meta(job_dir)
+    if not meta or meta.get("state") not in TERMINAL_STATES:
+        return None
+    r, m = _sig(os.path.join(job_dir, "result.json")), _sig(os.path.join(job_dir, "job.json"))
+    return f'"{job_id}-{r[0] if r else 0}-{r[1] if r else 0}-{m[0] if m else 0}-{int(bool(lite))}"'
+
+
+def status_lite(s: Dict[str, Any]) -> Dict[str, Any]:
+    """Bản nhẹ của status(): bỏ `result.trade_list` (UI phân trang lệnh qua /portfolio/trades). Không sửa bản gốc ở cấp trên."""
+    res = s.get("result")
+    if isinstance(res, dict) and "trade_list" in res:
+        s = {**s, "result": {k: v for k, v in res.items() if k != "trade_list"}}
+    return s
+
+
 def _names(v: Any) -> str:
     return ", ".join(v) if isinstance(v, (list, tuple)) else str(v or "").replace(",", ", ")
 
@@ -724,14 +744,80 @@ def job_label(kind: str, params: Optional[Dict[str, Any]]) -> str:
     return f"Dựng sổ · {_names(p.get('only')) or 'mọi chiến lược'} · n={p.get('n') or 24}"
 
 
+TERMINAL_STATES = ("done", "failed", "cancelled")
+_SUMMARY_CACHE: "OrderedDict[str, Tuple[Tuple, Dict[str, Any]]]" = OrderedDict()   # job_dir -> (chữ ký file, tóm tắt job đã kết thúc)
+_SUMMARY_CACHE_MAX = 1024
+_SUMMARY_LOCK = threading.Lock()
+
+
+def _sig(path: str) -> Optional[Tuple[int, int]]:
+    try:
+        st = os.stat(path)
+        return (st.st_mtime_ns, st.st_size)
+    except OSError:
+        return None
+
+
+def _clone(v: Any) -> Any:
+    """Sao chép dict/list lồng nhau (dữ liệu từ JSON) — nhanh hơn copy.deepcopy ~5 lần; người gọi list_jobs có thể sửa hàng trả ra."""
+    if isinstance(v, dict):
+        return {k: _clone(x) for k, x in v.items()}
+    if isinstance(v, list):
+        return [_clone(x) for x in v]
+    return v
+
+
+def _summary_cached(job_dir: str) -> Optional[Dict[str, Any]]:
+    """Như _summary nhưng job đã kết thúc (done/failed/cancelled) thì đệm theo (job.json, progress.json) mtime+size: khỏi đọc đuôi out.log 64KB
+    (với job kết thúc `waiting_in_queue` luôn False, `_lines` bị list_jobs bỏ) và parse lại JSON. Job còn chạy/queued: đi đường cũ."""
+    key = (_sig(os.path.join(job_dir, "job.json")), _sig(os.path.join(job_dir, "progress.json")))
+    with _SUMMARY_LOCK:
+        hit = _SUMMARY_CACHE.get(job_dir)
+        if hit is not None and key[0] is not None and hit[0] == key:
+            _SUMMARY_CACHE.move_to_end(job_dir)
+            return _clone(hit[1])
+    s = _summary(job_dir)
+    if s is not None and s.get("state") in TERMINAL_STATES and s.get("status") == s["state"]:
+        done = {k: v for k, v in s.items() if k != "_lines"}
+        key = (_sig(os.path.join(job_dir, "job.json")), _sig(os.path.join(job_dir, "progress.json")))   # _summary có thể vừa ghi job.json (_finish)
+        with _SUMMARY_LOCK:
+            _SUMMARY_CACHE[job_dir] = (key, _clone(done))
+            _SUMMARY_CACHE.move_to_end(job_dir)
+            while len(_SUMMARY_CACHE) > _SUMMARY_CACHE_MAX:
+                _SUMMARY_CACHE.popitem(last=False)
+    return s
+
+
+def _history_dirs() -> List[Tuple[str, str]]:
+    """(job_id, thư mục) cho Lịch sử/danh sách job: kết quả lâu dài (backtest|wfa|carlo/<id>) + job trong cache/process.
+    Cây đã chuyển (layout_version 2): job ĐÃ XONG trong cache/process KHÔNG phải lịch sử (ADR §4.5) — chỉ job đang chạy/chờ/lỗi/huỷ
+    (nhìn tiến độ, đọc log); bản đã xong phải có ở thư mục kết quả. Cây chưa chuyển (v1): giữ hành vi cũ (mọi job trong _cache/api_jobs)."""
+    from backend.crawl.store import layout_version
+    out: Dict[str, str] = {}
+    migrated = layout_version() >= 2
+    root = jobs_root()
+    for n in os.listdir(root):
+        if not _JOB_ID_RE.match(n):
+            continue
+        d = os.path.join(root, n)
+        if migrated and (_read_meta(d) or {}).get("state") == "done":
+            continue
+        out[n] = d
+    for base in _persisted_dirs():
+        for n in os.listdir(base):
+            if _JOB_ID_RE.match(n) and n not in out and os.path.isdir(os.path.join(base, n)):
+                out[n] = os.path.join(base, n)
+    return sorted(out.items(), reverse=True)
+
+
 def list_jobs(limit: int = 20, kind: Optional[str] = None) -> List[Dict[str, Any]]:
     """Job mới nhất trước (không kèm log/result), có `label`. `kind` lọc theo loại job (lọc TRƯỚC khi cắt limit)."""
     limit = max(1, min(int(limit), 100))
     if kind is not None and kind not in KINDS:
         raise JobError(f"loại job không có trong danh sách trắng: {kind!r}")
     rows = []
-    for n in sorted((n for n in os.listdir(jobs_root()) if _JOB_ID_RE.match(n)), reverse=True):
-        s = _summary(os.path.join(jobs_root(), n))
+    for n, d in _history_dirs():
+        s = _summary_cached(d)
         if not s or (kind and s.get("kind") != kind):
             continue
         s.pop("_lines", None)

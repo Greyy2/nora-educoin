@@ -67,6 +67,33 @@ def _strategy(req: ExplainRequest):
     return st, tf, meta
 
 
+_FRAME_CACHE = None     # ByteLRU nến thô đọc từ pkl, khoá (đường dẫn, mtime_ns, size); engine copy khi _prepare_candles nên dùng chung được
+
+
+def _read_frame(path: str):
+    """pd.read_pickle có đệm theo mtime/size (explain nào cũng nạp lại cả file nến). Không có file -> None. Ngân sách: NORA_CHART_CACHE_MB (256)."""
+    global _FRAME_CACHE
+    import pandas as pd
+    try:
+        st = os.stat(path)
+    except OSError:
+        return None
+    if _FRAME_CACHE is None:
+        from backend.utils.lru import ByteLRU, env_mb
+        _FRAME_CACHE = ByteLRU(env_mb("NORA_CHART_CACHE_MB", 256))
+    key = (path, st.st_mtime_ns, st.st_size)
+    hit = _FRAME_CACHE.get(key)
+    if hit is not None:
+        return hit
+    df = pd.read_pickle(path)
+    try:
+        nbytes = int(df.memory_usage(index=True, deep=False).sum())
+    except Exception:
+        nbytes = st.st_size * 4
+    _FRAME_CACHE.put(key, df, nbytes)
+    return df
+
+
 _OKX = None             # một adapter dùng chung: bộ đệm nến theo (mã, khung) -> lần sau chỉ 1 request /candles mỗi khung
 
 
@@ -90,7 +117,7 @@ def _frames(symbol: str, st: Dict[str, Any], tf: str, source: str) -> Dict[str, 
     out = {}
     for fr in need:
         path = os.path.join(root, f"{fr}.pkl")
-        hist = pd.read_pickle(path) if os.path.isfile(path) else None
+        hist = _read_frame(path)
         if source == "okx":
             last = int(hist["open_time"].iloc[-1]) if hist is not None and len(hist) else 0
             gap = (now - last) // FRAME_MS[fr] + 3 if last else OKX_LIMIT

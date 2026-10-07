@@ -8,7 +8,7 @@ import math
 import os
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from backend.api import modes
@@ -388,14 +388,33 @@ def get_jobs(limit: int = 20, kind: Optional[str] = None):
 
 
 @router.get("/jobs/{job_id}")
-def get_job(job_id: str):
+def get_job(job_id: str, request: Request, response: Response, lite: bool = False):
+    """lite=true: bỏ result.trade_list (UI phân trang lệnh qua /api/studio/portfolio/trades). Job done/failed/cancelled: ETag + Cache-Control
+    private, max-age=86400 và If-None-Match -> 304 (không đọc result.json); đang chạy/queued: no-store."""
+    try:
+        etag = batch_jobs.status_etag(job_id, lite)
+    except batch_jobs.JobError as e:
+        raise HTTPException(422, str(e))
+    cc = "private, max-age=86400"
+    if etag:
+        inm = {t.strip().removeprefix("W/") for t in request.headers.get("if-none-match", "").split(",")}
+        if etag in inm or "*" in inm:
+            return Response(status_code=304, headers={"ETag": etag, "Cache-Control": cc})
     try:
         s = batch_jobs.status(job_id)
     except batch_jobs.JobError as e:
         raise HTTPException(422, str(e))
     if s is None:
         raise HTTPException(404, "không có job này")
-    return modes.decorate(s)
+    if s.get("status") in batch_jobs.TERMINAL_STATES:
+        etag = batch_jobs.status_etag(job_id, lite) or etag   # tính lại sau status(): job vừa được _finish ghi job.json
+        response.headers["Cache-Control"] = cc
+        if etag:
+            response.headers["ETag"] = etag
+    else:
+        response.headers["Cache-Control"] = "no-store"
+    s = modes.decorate(s)
+    return batch_jobs.status_lite(s) if lite else s
 
 
 @router.post("/jobs/{job_id}/cancel")
@@ -411,8 +430,8 @@ def post_cancel(job_id: str):
 
 
 def _job_run_dir(job_id: str) -> str:
-    """Thư mục lần chạy (có results.sqlite) của một job build: progress.json (khi đang chạy) hoặc result.json (khi xong); phải nằm trong data/_cache/."""
-    from backend.db.data_layout import cache_dir
+    """Thư mục lần chạy (có results.sqlite) của một job build: progress.json (khi đang chạy) hoặc result.json (khi xong); phải nằm trong thư mục lượt chạy (crawl.store.is_within(…, "runs"); cũ: data/_cache/)."""
+    from backend.crawl.store import is_within
     jd = batch_jobs.job_dir(job_id)
     run_dir = None
     for name in ("progress.json", "result.json"):
@@ -424,7 +443,7 @@ def _job_run_dir(job_id: str) -> str:
         raise HTTPException(404, "job chưa có thư mục kết quả (chưa bắt đầu hoặc không phải job dựng sổ)")
     root = os.path.realpath(cache_dir(None))
     real = os.path.realpath(run_dir)
-    if not real.startswith(root + os.sep) or not os.path.isfile(os.path.join(real, "results.sqlite")):
+    if not is_within(real, "runs") or not os.path.isfile(os.path.join(real, "results.sqlite")):
         raise HTTPException(404, "không có kho kết quả của job này")
     return real
 
