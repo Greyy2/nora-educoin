@@ -33,7 +33,8 @@ def _proxy(name: str, settable: bool = True) -> property:
 
 class PaperBook:
     def __init__(self, strategies: List[Dict[str, Any]], symbols: List[str], base_frame: str, capital: float, risk: Dict[str, Any],
-                 trade_start: int = 0, engine: str = "event", record_events: bool = False):
+                 trade_start: int = 0, engine: str = "event", record_events: bool = False,
+                 post_only: bool = False, rounds_qty: bool = False):
         from backend.live import signals as ls
         if engine not in ("event", "tracker"):
             raise ValueError(f"engine phải là 'event' hoặc 'tracker', nhận '{engine}'")
@@ -45,7 +46,7 @@ class PaperBook:
         if engine == "event":
             from backend.core.execute.manager import PositionManager
             from backend.core.execute.sim_venue import SimVenue
-            venue = SimVenue()
+            venue = SimVenue(post_only=post_only, rounds_qty=rounds_qty)
         books: List[Dict[str, Any]] = []
         slot = 0
         for sym in self.symbols:

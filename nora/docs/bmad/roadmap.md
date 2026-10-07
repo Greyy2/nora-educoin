@@ -167,7 +167,7 @@ Mỗi dòng chỉ chuyển `done` khi đạt đúng cột "Xong khi".
 
 ### P6 — Kiến trúc thực thi thống nhất (backtest → testnet → live)
 
-ADR: [`adr-p6-unified-execution.md`](adr-p6-unified-execution.md) · Đặc tả: [`p6_execution_design.md`](p6_execution_design.md) · Epic E16. Mỗi ID một commit; golden + `test_kernel_parity` + `test_live_bot` xanh trước khi sang ID sau. Kernel và `Bot` không bị đụng tới trước P6.8. Parity: sim bit-identical; sim ↔ sàn trong dung sai.
+ADR: [`adr-p6-unified-execution.md`](adr-p6-unified-execution.md) · Đặc tả: [`p6_execution_design.md`](p6_execution_design.md) · Epic E16. Mỗi ID một commit; golden + `test_kernel_parity` + `test_live_bot` xanh trước khi sang ID sau. Kernel và `Bot` không bị đụng tới trước P6.8. "Một lõi" = cùng ngữ nghĩa thực thi (semantic parity) được khoá cứng bằng test parity; backtest sản xuất giữ Numba kernel riêng để tối ưu tốc độ (500k alpha ≤ 4 h); mô phỏng bóng chạy khung nến nhỏ (15m/1m) với `SimVenue(post_only=True, rounds_qty=True)` để đo đúng dung sai sàn.
 
 | ID | Việc | Nơi sửa | Người | Cần trước | Xong khi | Trạng thái |
 |---|---|---|---|---|---|---|

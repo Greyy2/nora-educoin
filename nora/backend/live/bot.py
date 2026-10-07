@@ -134,18 +134,22 @@ class Bot:
         from backend.live.paper import PaperBook
         self.book, self.mode, self.client, self.state, self.log = book, mode, client, state, log
         self.tf = book.get("timeframe", "1m")
+        self.sim_tf = book.get("sim_timeframe") or ("15m" if self.tf == "1h" else self.tf)
         self.strategies = book_strategies(book)
         self.symbols = [s.split("@")[0] for s in book["universe"]]
         self.limits = book["risk"]
         self.filters = filters or {}
         self.blocked: Dict[str, str] = {}      # mã khoá API không được giao dịch (sàn báo thiếu quyền): bỏ qua tới lần khởi động sau
-        self.paper = paper or PaperBook(self.strategies, self.symbols, self.tf, capital, self.limits)
+        self.paper = paper or PaperBook(self.strategies, self.symbols, self.sim_tf, capital, self.limits)
 
     # ── dữ liệu ──
     def frames(self, sym: str, now: int) -> Dict[str, Any]:
         from backend.live import signals as ls
+        req = set(ls.required_frames(f"{sym}@perp", self.strategies, self.tf))
+        if getattr(self, "sim_tf", None) and self.sim_tf != self.tf:
+            req.add(self.sim_tf)
         return {fr: ls.klines_frame(self.client.klines(sym, fr, KLINE_LIMIT, now), now)
-                for fr in ls.required_frames(f"{sym}@perp", self.strategies, self.tf)}
+                for fr in sorted(req)}
 
     def funding(self, sym: str, since: int) -> List:
         try:
@@ -157,15 +161,48 @@ class Bot:
         self.log({"t": _now_ms(), "kind": kind, **kw})
 
     # ── paper / bóng: chạy bù mọi nến chưa xử lý ──
-    def advance_paper(self, sig: Dict[str, Dict[str, Any]], funding: Optional[Dict[str, List]] = None) -> List[Dict[str, Any]]:
+    def advance_paper(self, sig: Dict[str, Dict[str, Any]], funding: Optional[Dict[str, List]] = None,
+                      sub_frames: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         pb = self.paper
         pos = {sym: {int(t): i for i, t in enumerate(v["t"])} for sym, v in sig.items()}
         times = sorted({t for p in pos.values() for t in p if pb.last_t is None or t > pb.last_t})
         if pb.last_t is None:
             times = times[-1:]                 # khởi động: chỉ nến đóng mới nhất (không giao dịch lùi lịch sử)
+        step_ms = {"1m": 60_000, "5m": 300_000, "15m": 900_000, "1h": 3_600_000, "4h": 14_400_000}.get(self.tf, 3_600_000)
         closed = []
         for t in times:
             prev = pb.last_t if pb.last_t is not None else t - 1
+            # Nếu có sub_frames (nến con khung 15m hoặc 1m): nạp từng nến con vào bóng sim
+            sub_avail = bool(sub_frames and any(sub_frames.get(s) is not None and len(sub_frames[s]) > 0 for s in self.symbols))
+            if sub_avail:
+                sub_ts = sorted({int(r["open_time"]) for s in self.symbols if sub_frames.get(s) is not None
+                                 for _, r in sub_frames[s][(sub_frames[s]["open_time"] >= t) & (sub_frames[s]["open_time"] < t + step_ms)].iterrows()})
+                if sub_ts:
+                    for sub_idx, st_t in enumerate(sub_ts):
+                        sub_prev = pb.last_t if pb.last_t is not None else st_t - 1
+                        bars, s_at, fund = {}, {}, {}
+                        for sym in self.symbols:
+                            sdf = sub_frames.get(sym)
+                            if sdf is None:
+                                continue
+                            crow = sdf[sdf["open_time"] == st_t]
+                            if crow.empty:
+                                continue
+                            r = crow.iloc[0]
+                            bars[sym] = (float(r["open"]), float(r["high"]), float(r["low"]), float(r["close"]))
+                            i = pos[sym].get(t)
+                            if sub_idx == 0 and i is not None:
+                                s_at[sym] = _bar_sig(sig[sym], i)
+                            else:
+                                v_sig = sig.get(sym)
+                                n_ent = len(v_sig["entries"]) if v_sig else len(self.strategies)
+                                s_at[sym] = [{"match": False, "stop": False, "vol": None, "dca": True} for _ in range(n_ent)]
+                            fund[sym] = [(ft, r_rate) for ft, r_rate in (funding or {}).get(sym, []) if sub_prev < ft <= st_t]
+                        if bars:
+                            closed += pb.step_bar(st_t, bars, s_at, fund)
+                            self._after_sim_bar(st_t, bars)
+                    continue
+
             bars, s_at, fund = {}, {}, {}
             for sym, v in sig.items():
                 i = pos[sym].get(t)

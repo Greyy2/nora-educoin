@@ -94,9 +94,9 @@ class UnifiedBot(lb.Bot):
         if mode not in lb.EXEC_MODES:
             raise SystemExit("UnifiedBot chỉ cho demo | live (paper: dùng Bot — PaperBook đã là đường event)")
         if paper is None:
-            tf = book.get("timeframe", "1m")
-            paper = PaperBook(lb.book_strategies(book), [s.split("@")[0] for s in book["universe"]], tf, float(capital), book["risk"],
-                              record_events=True)
+            sim_tf = book.get("sim_timeframe") or ("15m" if book.get("timeframe") == "1h" else book.get("timeframe", "1m"))
+            paper = PaperBook(lb.book_strategies(book), [s.split("@")[0] for s in book["universe"]], sim_tf, float(capital), book["risk"],
+                              record_events=True, post_only=True, rounds_qty=True)
         super().__init__(book, mode, client, state, log, filters, paper, capital)
         self.drift_halt_pct = float(equity_drift_halt_pct)
         self.exec_path = exec_path
@@ -384,12 +384,14 @@ class UnifiedBot(lb.Bot):
     def step(self, now: int, data: Optional[Dict[str, Dict[str, Any]]] = None, funding: Optional[Dict[str, List]] = None) -> Dict[str, Any]:
         """now = open của nến chạy mới; data (test) = {sym: kết quả signals.evaluate}."""
         d = self.state.d
-        sig = data or {s: ls.evaluate(f"{s}@perp", self.strategies, self.frames(s, now), self.tf) for s in self.symbols}
+        all_frames = {s: self.frames(s, now) for s in self.symbols} if data is None else None
+        sig = data or {s: ls.evaluate(f"{s}@perp", self.strategies, all_frames[s], self.tf) for s in self.symbols}
+        sub_frames = {s: all_frames[s].get(self.sim_tf) for s in self.symbols} if (all_frames and self.sim_tf != self.tf) else None
         if funding is None and data is None:
             since = (self.paper.last_t or now) - 2 * 86_400_000
             funding = {s: self.funding(s, since) for s in self.symbols}
         self.clock_t = now
-        closed_sim = self.advance_paper(sig, funding)          # bóng sim (xả sự kiện từng nến qua _after_sim_bar)
+        closed_sim = self.advance_paper(sig, funding, sub_frames=sub_frames)          # bóng sim (xả sự kiện từng nến qua _after_sim_bar)
         halted_before = self.runner.halted_at
         closed = self.step_exec(now, sig, funding)
         for tr in closed:

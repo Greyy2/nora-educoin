@@ -114,6 +114,19 @@ class SimDriver(Driver):
         raise NotImplementedError("SimVenue.caps.post_only = False")
 
 
+class SimStrictDriver(SimDriver):
+    qty_step = 0.01
+
+    def __init__(self):
+        self.venue = SimVenue(post_only=True, rounds_qty=True)
+        self.venue.add_slot(SLOT, fee_rate=0.0005, maker_fee_rate=0.0002, slippage_rate=0.0002, qty_step=self.qty_step)
+        self.view = _View()
+        self.venue.begin_bar(SLOT, T0, REF, REF, REF, REF, self.view)
+
+    def arm_post_only_cross(self) -> None:
+        pass
+
+
 class OkxFakeDriver(Driver):
     qty_step = 0.01        # INSTR: 1 hợp đồng = 0.01 BTC
 
@@ -137,10 +150,12 @@ class OkxFakeDriver(Driver):
         self.fake.fail[("/api/v5/trade/order", "post_only")] = ("1", [{"sCode": "51026", "sMsg": "Post-only order would take liquidity"}])
 
 
-@pytest.fixture(params=["sim", "okx_fake"])
+@pytest.fixture(params=["sim", "sim_strict", "okx_fake"])
 def venue(request, monkeypatch) -> Driver:
     if request.param == "sim":
         return SimDriver()
+    if request.param == "sim_strict":
+        return SimStrictDriver()
     fake = FakeOkx()
     monkeypatch.setattr(okx.urllib.request, "urlopen", fake)
     return OkxFakeDriver(fake)

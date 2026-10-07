@@ -22,8 +22,9 @@ Hậu quả: logic khớp lệnh và rủi ro có 4 bản; parity giữa sim và
 
 ### 2.1 Mức parity (cách nói chính xác)
 
+- **Ngữ nghĩa thống nhất ("Một lõi" - Semantic Parity):** "Một lõi" nghĩa là **cùng ngữ nghĩa thực thi, được chứng minh và khoá cứng bằng bộ test chéo parity**. Toàn bộ công thức tính giá (`policy.py`), hạn mức rủi ro (`risk.py`), kế toán vị thế (`account.py`), và vòng đời lệnh (`manager.py`) đều tuân thủ cùng một quy chuẩn bất biến. Backtest sản xuất vẫn là kernel Numba riêng biệt (`run_portfolio`) để duy trì tốc độ xử lý hàng trăm alpha/giây mà không đánh đổi tính chính xác, trong khi `Runner` điều khiển thực thi hướng sự kiện ở `PaperBook` và `UnifiedBot`.
 - **Bit-identical** (xác định, có test): kernel ↔ `reference_engine` ↔ đường event của sim (SimVenue + PositionManager).
-- **Trong dung sai** (không xác định, đo bằng `compare.py`): sim ↔ sàn thật. Sàn không deterministic nên không thể hứa trùng từng bit.
+- **Trong dung sai** (không xác định, đo bằng `compare.py`): sim ↔ sàn thật. Sàn không deterministic nên không thể hứa trùng từng bit. Profile chạy bóng (shadow paper) của bot demo/live chạy trên khung nến nhỏ (15m/1m) và bật `SimVenue(post_only=True, rounds_qty=True)` để đo đúng sai số trượt giá và độ trễ vật lý của sàn.
 
 ### 2.2 Kiến trúc đích
 

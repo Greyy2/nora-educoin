@@ -88,6 +88,11 @@ class PositionManager:
             add_slot(slot, fee_rate=self.fee_rate, maker_fee_rate=self.maker_fee_rate, slippage_rate=self.slippage_rate,
                      stop_fill=self.stop_fill, gate=self._gate, intrabar_path=self.intrabar_path)
 
+    def __setstate__(self, state: dict) -> None:
+        """Pickle cũ (unified.pkl / paper.pkl trước commit 169ddd0) chưa có intrabar_path."""
+        self.__dict__.update(state)
+        self.__dict__.setdefault("intrabar_path", "ohlc")
+
     # ─── Trạng thái (cửa sổ vào book; cũng là PositionView của SimVenue) ────────
     qty = _book_attr("qty")
     avg = _book_attr("avg")
