@@ -122,10 +122,14 @@ data/
   backtest/<id>/   params + kết quả                  backtest/education/  (← data/education/results, sinh lại được)
   wfa/<id>/        (← _cache/book_wfa)               carlo/<id>/
   live/<venue_mode>/  trạng thái bot, sự kiện (lưu lâu dài)  (← _cache/live)
-  cache/                                              # TẠM THỜI, xoá được
-    process/<id>/  params, trạng thái, tiến độ, log, checkpoint   (← _cache/api_jobs, _cache/runs)
-    shared/        mmap chỉ báo dùng chung            quality_gate/
+  cache/                                              # TẠM THỜI, chỉ 2 thư mục (người dùng chốt 2026-10-07)
+    process/<id>/  params, trạng thái, tiến độ, log (cả log RAM), checkpoint, file tạm crawl  (← _cache/api_jobs, _cache/runs, data_staging)
+    shared/        mmap chỉ báo dùng chung + cache quality gate   (← shared store, _cache/quality_gate)
 ```
+
+**Đã xoá 2026-10-07 (không thuộc kiến trúc, không code nào đọc; người dùng chốt):** `_cache/{optimize,research,reports,smoke}`, `_cache/studio_pipeline.db`,
+`alphas/custom_strategies.json`, `alphas/portfolio_trend_long_perp__SOL__*.json`, `test/data_staging/`, bản sao lưu manifest P9.1, log RAM cũ, zip crawler `<repo>/data/cache` (tải lại được) — 2,2 GB.
+Giữ: `alphas/research/okx_top10_agents.json` (panel Top Agents đọc) → `data/alpha/research/`.
 
 **Vòng đời một lần chạy** (backtest, WFA, carlo, phễu, custom backtest, education):
 1. Đang chạy: mọi thứ ở `data/cache/process/<id>/`; đứt quãng thì đọc checkpoint và chạy tiếp.
