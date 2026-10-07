@@ -3,8 +3,8 @@
 Không sửa tay. Sinh lại: `PYTHONDONTWRITEBYTECODE=1 backend/utils/ops/run_limited.sh --no-lock -- -m pytest -q test/test_layering.py`.
 Bật bắt buộc (P9.10): `NORA_LAYERING_STRICT=1`. Luật: ADR-P9 §2; ánh xạ đường dẫn hiện tại -> tầng đích: bảng `LAYER_RULES` trong test.
 
-- Module backend: 146 · shim (`# P9-SHIM`, bỏ qua): 25 · chưa ánh xạ: 0
-- **Vi phạm: 62**
+- Module backend: 148 · shim (`# P9-SHIM`, bỏ qua): 38 · chưa ánh xạ: 0
+- **Vi phạm: 57**
 
 ## Tóm tắt theo luật
 
@@ -15,10 +15,9 @@ Bật bắt buộc (P9.10): `NORA_LAYERING_STRICT=1`. Luật: ADR-P9 §2; ánh x
 | crawl -> core | 6 |
 | wfa -> optimize | 6 |
 | core -> regime | 4 |
-| core order indicator -> signal | 4 |
 | optimize -> live | 4 |
-| core order signal -> backtest | 3 |
 | crawl -> optimize | 3 |
+| core order signal -> backtest | 2 |
 | verdict -> crawl | 2 |
 | core -> optimize | 1 |
 | core order params -> indicator | 1 |
@@ -37,14 +36,14 @@ Bật bắt buộc (P9.10): `NORA_LAYERING_STRICT=1`. Luật: ADR-P9 §2; ánh x
 - `backend/core/backtest.py:1931` -> `db/local_pkl`
 - `backend/core/backtest.py:2235` -> `core/data/loader`
 - `backend/core/backtest.py:2272` -> `core/data/quality_gate`
+- `backend/core/backtest.py:2476` -> `crawl/store`
 - `backend/core/backtest/run_defaults.py:19` -> `crawl/store`
 - `backend/core/backtest/run_defaults.py:25` -> `crawl/store`
 - `backend/core/execute/amm.py:13` -> `core/data/tick_crawler`
 - `backend/core/params.py:320` -> `db/local_pkl`
 - `backend/core/params.py:343` -> `db/data_layout`
 - `backend/core/params.py:355` -> `db/local_pkl`
-- `backend/core/signals/diagnostics.py:105` -> `db/local_pkl`
-- `backend/core/strategy/pydsl/profiles.py:33` -> `crawl/store`
+- `backend/core/signal.py:1634` -> `db/local_pkl`
 
 ### optimize -> routes (10)
 
@@ -82,14 +81,7 @@ Bật bắt buộc (P9.10): `NORA_LAYERING_STRICT=1`. Luật: ADR-P9 §2; ánh x
 - `backend/core/backtest.py:2195` -> `core/regime/classifier`
 - `backend/core/backtest.py:2280` -> `core/regime/classifier`
 - `backend/core/backtest.py:2288` -> `core/regime/classifier`
-- `backend/core/signals/snapshot.py:87` -> `core/regime/classifier`
-
-### core order indicator -> signal (4)
-
-- `backend/core/strategy/pydsl/features.py:15` -> `core/strategy/pydsl/spec`
-- `backend/core/strategy/pydsl/features.py:336` -> `core/strategy/pydsl/spec`
-- `backend/core/strategy/pydsl/ops.py:10` -> `core/strategy/pydsl/spec`
-- `backend/core/strategy/pydsl/ops.py:244` -> `core/strategy/pydsl/spec`
+- `backend/core/signal.py:1475` -> `core/regime/classifier`
 
 ### optimize -> live (4)
 
@@ -98,17 +90,16 @@ Bật bắt buộc (P9.10): `NORA_LAYERING_STRICT=1`. Luật: ADR-P9 §2; ánh x
 - `backend/core/backtest/tick_run.py:89` -> `live/signals`
 - `backend/core/backtest/tick_run.py:103` -> `live/bot`
 
-### core order signal -> backtest (3)
-
-- `backend/core/signals/diagnostics.py:102` -> `core/backtest/engine`
-- `backend/core/signals/snapshot.py:80` -> `core/backtest/portfolio`
-- `backend/core/strategy/pydsl/explain.py:14` -> `core/strategy/pydsl/profiles`
-
 ### crawl -> optimize (3)
 
 - `backend/crawl/cex.py:19` -> `utils/jobs`
 - `backend/crawl/dex.py:17` -> `utils/jobs`
-- `backend/crawl/store.py:1797` -> `utils/jobs`
+- `backend/crawl/store.py:1776` -> `utils/jobs`
+
+### core order signal -> backtest (2)
+
+- `backend/core/signal.py:1468` -> `core/backtest`
+- `backend/core/signal.py:1632` -> `core/backtest`
 
 ### verdict -> crawl (2)
 
@@ -117,11 +108,11 @@ Bật bắt buộc (P9.10): `NORA_LAYERING_STRICT=1`. Luật: ADR-P9 §2; ánh x
 
 ### core -> optimize (1)
 
-- `backend/core/signals/snapshot.py:137` -> `core/params/presets`
+- `backend/core/signal.py:1525` -> `core/params/presets`
 
 ### core order params -> indicator (1)
 
-- `backend/core/params.py:244` -> `core/signals/kernels`
+- `backend/core/params.py:244` -> `core/indicator`
 
 ### live -> routes (1)
 
@@ -157,6 +148,19 @@ Bật bắt buộc (P9.10): `NORA_LAYERING_STRICT=1`. Luật: ADR-P9 §2; ánh x
 - `core/params/builder`
 - `core/params/schema`
 - `core/params/template`
+- `core/signals/diagnostics`
+- `core/signals/evaluator`
+- `core/signals/kernels`
+- `core/signals/snapshot`
+- `core/strategy/pydsl`
+- `core/strategy/pydsl/errors`
+- `core/strategy/pydsl/explain`
+- `core/strategy/pydsl/features`
+- `core/strategy/pydsl/ops`
+- `core/strategy/pydsl/parser`
+- `core/strategy/pydsl/profiles`
+- `core/strategy/pydsl/program`
+- `core/strategy/pydsl/spec`
 - `db/data_layout`
 - `db/local_pkl`
 - `db/tick_storage`

@@ -30,7 +30,7 @@ def test_exchange_root(monkeypatch):
     assert dl.default_data_root() == os.path.join(dl.DATA_HOME, "okx")
     monkeypatch.setenv("NORA_EXCHANGE", "binance")
     assert dl.default_data_root() == os.path.join(dl.DATA_HOME, "binance")
-    assert dl.cache_dir(None, "x").startswith(os.path.join(dl.DATA_HOME, "_cache"))
+    assert dl.cache_dir(None, "x").startswith((os.path.join(dl.DATA_HOME, "_cache"), os.path.join(dl.DATA_HOME, "cache", "process")))
     os.rmdir(dl.cache_dir(None, "x"))
     monkeypatch.setenv("NORA_EXCHANGE", "kraken")
     with pytest.raises(ValueError):

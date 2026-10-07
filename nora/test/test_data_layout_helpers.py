@@ -2,7 +2,7 @@
 test_data_layout_helpers.py — P9.3a: API đường dẫn dữ liệu của crawl/store.py (ADR-P9 §4).
 
 Mỗi helper được kiểm trên cây tạm ở 3 trạng thái: (1) chỉ layout cũ, (2) chỉ layout mới, (3) đã chuyển + symlink tương đối ở đường cũ.
-Cộng: env đọc ở thời điểm gọi, chế độ phẳng (NORA_LOCAL_DATA_ROOT), bí danh binance_hist, cache_dir() định tuyến mọi tên cũ, allowed_roots theo realpath.
+Cộng: env đọc ở thời điểm gọi, chế độ phẳng (NORA_LOCAL_DATA_ROOT), bí danh binance_hist đã gỡ, cache chỉ process/ + shared/, cache_dir() định tuyến mọi tên cũ, allowed_roots theo realpath.
 """
 import os
 
@@ -35,10 +35,9 @@ def _link(home, old_rel, new_rel):
 # (đường cũ, đường mới, là file?)
 PAIRS = [
     ("okx", "market/okx", 0), ("binance", "market/binance", 0), ("_meta", "market/_meta", 0),
-    ("binance_hist/cex", "market/binance/cex_ref", 0),
     ("alphas", "alpha", 0), ("education/samples.json", "alpha/education/samples.json", 1), ("education/results", "backtest/education", 0),
     ("_cache/funnel", "alpha/funnel", 0), ("_cache/book", "alpha/book", 0), ("_cache/book_wfa", "wfa", 0), ("_cache/live", "live", 0),
-    ("_cache/api_jobs", "cache/process", 0), ("_cache/runs", "cache/process/_mem", 0), ("_cache/quality_gate", "cache/quality_gate", 0),
+    ("_cache/api_jobs", "cache/process", 0), ("_cache/runs", "cache/process/_mem", 0), ("_cache/quality_gate", "cache/shared/quality_gate", 0),
     ("_cache/backtest", "backtest", 0), ("_cache/carlo", "carlo", 0), ("_cache/shared", "cache/shared", 0),
 ]
 
@@ -50,7 +49,6 @@ def build(home, state):
     for ex in ("okx", "binance"):
         _mk(home, real(ex, f"market/{ex}"), "cex", "BTC", "perp")
     _mk(home, real("okx", "market/okx"), "dex", "AERO")
-    _mk(home, real("binance_hist/cex", "market/binance/cex_ref"), "BTC")
     _mk(home, real("_meta", "market/_meta"))
     a = real("alphas", "alpha")
     _touch(home, a, "book.json"); _touch(home, a, "registry.json"); _touch(home, a, "presets.json")
@@ -59,14 +57,12 @@ def build(home, state):
     _touch(home, real("education/results", "backtest/education"), "r1.json")
     for old, new in (("_cache/funnel", "alpha/funnel"), ("_cache/book", "alpha/book"), ("_cache/book_wfa", "wfa"), ("_cache/live", "live"),
                      ("_cache/api_jobs", "cache/process"), ("_cache/runs", "cache/process/_mem"),
-                     ("_cache/quality_gate", "cache/quality_gate"), ("_cache/shared", "cache/shared")):
+                     ("_cache/quality_gate", "cache/shared/quality_gate"), ("_cache/shared", "cache/shared")):
         _mk(home, real(old, new), "RUN1")
     if state == "migrated":
         for old, new, _ in PAIRS:
             if old == "_cache/backtest" or old == "_cache/carlo":
                 continue
-            if old.startswith("binance_hist"):
-                _mk(home, "binance_hist")
             _link(home, old, new)
     return home
 
@@ -106,11 +102,10 @@ def test_market_root_and_dir(layout, monkeypatch):
     assert st.market_dir(symbol="BTC@perp") == st.market_dir(symbol="BTC", instrument="perp")
     assert st.market_dir("okx", "dex", "AERO") == os.path.join(st.market_root("okx"), "dex", "AERO")
     assert os.path.isdir(st.market_dir("okx", "cex", "BTC", "perp"))
-    assert st.market_dir("binance", "cex_ref", "BTC") == os.path.join(exp(state, home, "binance_hist/cex", "market/binance/cex_ref"), "BTC")
     monkeypatch.setenv("NORA_EXCHANGE", "binance")             # env đọc lúc gọi: đổi sàn có hiệu lực ngay
     assert st.market_root() == st.market_root("binance")
     with pytest.raises(ValueError):
-        st.market_dir("okx", "cex_ref")
+        st.market_dir("binance", "cex_ref")                    # venue cex_ref đã gỡ cùng binance_hist
     with pytest.raises(ValueError):
         st.market_dir("okx", "futures")
     with pytest.raises(ValueError):
@@ -120,16 +115,11 @@ def test_market_root_and_dir(layout, monkeypatch):
         st.market_root()
 
 
-def test_binance_hist_alias(layout):
+def test_binance_hist_alias_removed(layout):
     state, home = layout
-    src = st.resolve_source("binance_hist")
-    assert src.alias == "binance_hist" and src.exchange == "binance"
-    if state == "old":
-        assert (src.root, src.cex_dir) == (os.path.join(home, "binance_hist"), "cex")
-    else:
-        assert (src.root, src.cex_dir) == (os.path.join(home, "market", "binance"), "cex_ref")
-    assert os.path.isdir(os.path.join(src.cex_path, "BTC"))
-    assert st.resolve_source("BINANCE_HIST") == src
+    assert not hasattr(st, "HISTORICAL_ALIASES")
+    with pytest.raises(ValueError):
+        st.resolve_source("binance_hist")
     okx = st.resolve_source("okx")
     assert okx == st.resolve_source() and okx.root == st.market_root("okx") and okx.cex_dir == "cex" and okx.alias is None
     assert st.resolve_source("binance").root == st.market_root("binance")
@@ -185,10 +175,9 @@ def test_run_dirs(layout):
     assert new_id == os.path.join(st.alpha_run_dir("funnel"), "NEWRUN") and not os.path.exists(new_id)
     assert st.run_dir("wfa") == exp(state, home, "_cache/book_wfa", "wfa")
     assert st.run_dir("wfa", "RUN1") == os.path.join(st.run_dir("wfa"), "RUN1")
-    # backtest/carlo chưa từng có ở cây cũ: không có gì tồn tại -> old (state old), new (khi cây đã chuyển)
-    bt = st.run_dir("backtest", "b1")
-    assert bt == (os.path.join(home, "_cache", "backtest", "b1") if state == "old" else os.path.join(home, "backtest", "b1"))
-    assert st.run_dir("carlo") == (os.path.join(home, "_cache", "carlo") if state == "old" else os.path.join(home, "carlo"))
+    # backtest/carlo chưa từng có ở cây cũ: không có gì tồn tại -> LUÔN đường mới (không bao giờ tạo thư mục cũ chưa có)
+    assert st.run_dir("backtest", "b1") == os.path.join(home, "backtest", "b1")
+    assert st.run_dir("carlo") == os.path.join(home, "carlo")
     with pytest.raises(ValueError):
         st.alpha_run_dir("wfa")
     with pytest.raises(ValueError):
@@ -215,29 +204,18 @@ def test_cache_helpers(layout):
     assert st.cache_process_dir("RUN1") == os.path.join(st.cache_process_dir(), "RUN1") and os.path.isdir(st.cache_process_dir("RUN1"))
     assert st.cache_shared_dir() == exp(state, home, "_cache/shared", "cache/shared")
     assert st.cache_shared_dir("k") == os.path.join(st.cache_shared_dir(), "k")
-    assert st.cache_quality_gate_dir() == exp(state, home, "_cache/quality_gate", "cache/quality_gate")
+    assert st.cache_quality_gate_dir() == exp(state, home, "_cache/quality_gate", "cache/shared/quality_gate")
     assert st.cache_runs_dir() == exp(state, home, "_cache/runs", "cache/process/_mem")
 
 
-def test_staging_and_crawl_dirs(layout):
+def test_staging_dir_and_no_crawl_dir(layout):
     state, home = layout
-    nora = os.path.dirname(os.path.dirname(os.path.abspath(st.__file__)))
-    nora = os.path.dirname(nora)
+    nora = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(st.__file__))))
     old_staging = os.path.join(nora, "data_staging")
     if os.path.exists(old_staging):
         pytest.skip("nora/data_staging tồn tại trên máy này")
-    assert st.cache_staging_dir() == (old_staging if state == "old" else os.path.join(home, "cache", "staging"))
-    old_crawl = os.path.join(os.path.dirname(nora), "data", "cache", "okx")      # ngoài nora/data (cache thật có thể tồn tại)
-    new_crawl = os.path.join(home, "cache", "crawl", "okx")
-    if state == "old":
-        assert st.cache_crawl_dir("okx") == old_crawl
-    else:
-        if not os.path.exists(old_crawl):
-            assert st.cache_crawl_dir("okx") == new_crawl
-        _mk(home, "cache", "crawl", "okx")                          # mới tồn tại -> mới thắng cả khi cũ cũng tồn tại
-        assert st.cache_crawl_dir("okx") == new_crawl
-    with pytest.raises(ValueError):
-        st.cache_crawl_dir("kraken")
+    assert st.cache_staging_dir() == os.path.join(home, "cache", "process", "_staging")   # thư mục cũ chưa có -> không dùng (không tạo lại)
+    assert not hasattr(st, "cache_crawl_dir")                      # zip crawler không thuộc cây dữ liệu (ADR-P9 §4)
 
 
 def test_new_dir_preferred_when_both_exist(tmp_path, monkeypatch):
@@ -249,14 +227,14 @@ def test_new_dir_preferred_when_both_exist(tmp_path, monkeypatch):
     assert st.alpha_dir() == os.path.join(home, "alpha") and st.alpha_run_dir("funnel") == os.path.join(home, "alpha", "funnel")
 
 
-def test_fresh_tree_uses_old_until_market_exists(tmp_path, monkeypatch):
+def test_fresh_tree_uses_new_paths(tmp_path, monkeypatch):
+    """Cây trống (chưa có đường cũ nào) -> luôn đường MỚI; đường cũ chỉ được dùng khi nó đã tồn tại."""
     monkeypatch.delenv("NORA_LOCAL_DATA_ROOT", raising=False)
     monkeypatch.setenv("NORA_DATA_ROOT", str(tmp_path))
-    assert st.alpha_dir() == str(tmp_path / "alphas") and st.market_root("okx") == str(tmp_path / "okx")
-    assert st.cache_process_dir("j1") == str(tmp_path / "_cache" / "api_jobs" / "j1")
-    (tmp_path / "market").mkdir()                                  # cây mới được khởi tạo -> chọn đường mới
     assert st.alpha_dir() == str(tmp_path / "alpha") and st.market_root("okx") == str(tmp_path / "market" / "okx")
     assert st.cache_process_dir("j1") == str(tmp_path / "cache" / "process" / "j1")
+    (tmp_path / "alphas").mkdir()                                  # đường cũ có sẵn -> vẫn dùng (cây chưa chuyển)
+    assert st.alpha_dir() == str(tmp_path / "alphas")
 
 
 def test_env_resolved_at_call_time(tmp_path, monkeypatch):
@@ -283,7 +261,7 @@ def test_legacy_nora_data_root_as_flat_exchange_root(tmp_path, monkeypatch):
 
 CACHE_ROUTES = [   # tên cũ -> (đường cũ, đường mới)
     ("api_jobs", "_cache/api_jobs", "cache/process"), ("book", "_cache/book", "alpha/book"), ("funnel", "_cache/funnel", "alpha/funnel"),
-    ("book_wfa", "_cache/book_wfa", "wfa"), ("live", "_cache/live", "live"), ("quality_gate", "_cache/quality_gate", "cache/quality_gate"),
+    ("book_wfa", "_cache/book_wfa", "wfa"), ("live", "_cache/live", "live"), ("quality_gate", "_cache/quality_gate", "cache/shared/quality_gate"),
     ("runs", "_cache/runs", "cache/process/_mem"),
 ]
 
@@ -309,28 +287,44 @@ def test_cache_dir_routes_real_target(layout):
 
 def test_cache_dir_other_names_and_root(layout):
     state, home = layout
-    cache_root = exp(state, home, "_cache", "cache")
+    cache_root = exp(state, home, "_cache", "cache/process")     # tên lạ -> dưới cache/process (cũ: _cache), không sinh cache/<tên>
     assert st.cache_dir(None) == cache_root
     assert st.cache_dir(None, "research", "x") == os.path.join(cache_root, "research", "x")
     assert os.path.isdir(os.path.join(cache_root, "research", "x"))
 
 
+def test_cache_has_only_process_and_shared(layout):
+    """Mọi helper cache (kể cả tên lạ, quality gate, staging, log RAM) chỉ dùng cache/process và cache/shared."""
+    state, home = layout
+    for name in ("research", "reports", "x", "quality_gate", "runs", "api_jobs"):
+        st.cache_dir(None, name, "t")
+    st.cache_dir(None)
+    os.makedirs(st.cache_runs_dir(), exist_ok=True); os.makedirs(st.cache_staging_dir(), exist_ok=True)
+    os.makedirs(st.cache_quality_gate_dir(), exist_ok=True)
+    cache = os.path.join(home, "cache")
+    if os.path.isdir(cache):
+        assert set(os.listdir(cache)) <= {"process", "shared"}
+    if state != "old":
+        assert os.path.realpath(st.cache_quality_gate_dir()) == os.path.realpath(os.path.join(home, "cache", "shared", "quality_gate"))
+        assert os.path.realpath(st.cache_runs_dir()).startswith(os.path.realpath(os.path.join(home, "cache", "process")))
+
+
 def test_cache_dir_signature_and_explicit_root(tmp_path, monkeypatch):
-    """data_root tường minh = home cho định tuyến; chưa có gì -> _cache/<tên> như trước P9.3 (khoá cache quality gate không đổi)."""
+    """data_root tường minh = home cho định tuyến; chưa có gì -> đường MỚI (không tạo _cache/ cũ)."""
     monkeypatch.setenv("NORA_LOCAL_DATA_ROOT", str(tmp_path / "ignored"))
     root = str(tmp_path / "explicit")
     p = st.cache_dir(root, "quality_gate")
-    assert p == os.path.join(root, "_cache", "quality_gate") and os.path.isdir(p)
-    assert st.cache_dir(root) == os.path.join(root, "_cache")
+    assert p == os.path.join(root, "cache", "shared", "quality_gate") and os.path.isdir(p)
+    assert not os.path.exists(os.path.join(root, "_cache"))
     monkeypatch.delenv("NORA_LOCAL_DATA_ROOT")
     monkeypatch.setenv("NORA_DATA_ROOT", str(tmp_path / "envhome"))
-    assert st.cache_dir(None, "book") == str(tmp_path / "envhome" / "_cache" / "book")
+    assert st.cache_dir(None, "book") == str(tmp_path / "envhome" / "alpha" / "book")
 
 
 def test_quality_gate_disk_cache_path_still_under_cache(layout):
     state, home = layout
     path = st._disk_cache_path(("d", "1m", ()), None)             # data_root=None -> home từ env
-    assert os.path.dirname(path) == exp(state, home, "_cache/quality_gate", "cache/quality_gate")
+    assert os.path.dirname(path) == exp(state, home, "_cache/quality_gate", "cache/shared/quality_gate")
 
 
 def test_allowed_roots_realpath(layout, tmp_path):
@@ -348,7 +342,7 @@ def test_allowed_roots_realpath(layout, tmp_path):
     for kind in ("book", "funnel", "wfa", "process"):
         assert set(st.allowed_roots(kind)) <= set(runs)
     assert real(st.alpha_run_dir("book", "RUN1")) in [r + os.sep + "RUN1" for r in st.allowed_roots("book")]
-    for kind in ("alpha", "live", "mem", "shared", "quality_gate", "staging", "cache", "education_results", "meta", "backtest", "wfa", "carlo"):
+    for kind in ("alpha", "live", "mem", "shared", "quality_gate", "staging", "education_results", "meta", "backtest", "wfa", "carlo"):
         roots = st.allowed_roots(kind)
         assert roots and all(os.path.isabs(r) for r in roots) and len(set(roots)) == len(roots)
     with pytest.raises(ValueError):

@@ -241,7 +241,7 @@ def _resolve_string(text: str, field: str, values: Dict[str, Any], defaults: Dic
         if out not in FRAMES:
             raise ValueError(f"Khung thời gian {out!r} không hợp lệ; chọn một trong {list(FRAMES)}")
         return out
-    from backend.core.signals.kernels import BASE_COLUMNS, parse_column
+    from backend.core.indicator import BASE_COLUMNS, parse_column
     if out in BASE_COLUMNS:
         return out
     parsed = parse_column(out)
@@ -516,3 +516,16 @@ def materialize(candidate: Dict[str, Any], params: Dict[str, Any], regime: Any =
         "position": pos,
         "signal_params": signal,
     }
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# P9.4 part 2 — hằng số profile, nguyên văn từ core/strategy/pydsl/profiles.py (build_plan sang core/backtest.py)
+#
+# FRAMES của profiles giống hệt FRAMES ở khối template phía trên (cùng giá trị) -> dùng chung, không khai báo lại.
+# ══════════════════════════════════════════════════════════════════════════
+
+FRAME_ORDER = {f: i for i, f in enumerate(FRAMES)}
+RUN_FRAME = "1m"                # khung chạy (nến mô phỏng)
+
+# Mặc định = BASE_POSITION của sổ (rủi ro 0,5%/lệnh, đòn bẩy trần 10, cooldown 60) + SL 3×ATR; không TP/trailing/timeout.
+NORA_DEFAULTS = {"stop_loss_rate": 3.0, "take_profit_rate": 0.0, "trailing_stop": 0.0, "trailing_activation_pct": 0.0, "timeout": 0}

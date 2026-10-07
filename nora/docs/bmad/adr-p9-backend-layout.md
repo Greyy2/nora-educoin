@@ -76,8 +76,8 @@ backend/
 |---|---|
 | core/models.py | core/execute/{models,events,account,ledger} |
 | core/params.py | core/params/{schema,template,builder}, core/strategy/book.py (materialize, BASE_POSITION), hằng số profile của pydsl/profiles (XNO_FEE, NORA_DEFAULTS, XNO_POSITION) |
-| core/indicator.py | core/signals/kernels, core/strategy/pydsl/{features,ops} |
-| core/signal.py | core/signals/{evaluator,snapshot,diagnostics}, core/strategy/pydsl/{spec,parser,program,errors,explain} |
+| core/indicator.py | core/signals/kernels, core/strategy/pydsl/{spec,features,ops} (spec ở đây để indicator không import signal) |
+| core/signal.py | core/signals/{evaluator,snapshot,diagnostics}, core/strategy/pydsl/{parser,program,errors,explain} |
 | core/position_size.py | core/execute/{policy,risk} |
 | core/backtest.py | core/backtest/{engine,portfolio,dex,kernel}, core/execute/{venue,amm} (bước P9.4a chuyển nguyên; P9.4b gỡ tracker/manager/sim_venue/runner), live/paper, core/strategy/pydsl/profiles (build_plan; tỉ trọng rổ nhận qua tham số, không đọc file) |
 | metrics/metrics.py | core/metrics/{returns,portfolio} — `xno.py` XOÁ (không gộp; người dùng + sếp chốt 2026-10-07: không còn chế độ xno) |

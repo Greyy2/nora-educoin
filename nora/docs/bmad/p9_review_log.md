@@ -363,3 +363,249 @@ Bản SAO (không đụng file thật) của 6 file `data/_cache/live/*/{paper,u
 - **`utils/engine_version.py` `ENGINE_DIRS` và `optimize/store.py` `_CODE_FILES`** vẫn trỏ file cũ (nay là shim vài dòng) -> hash engine / `code_version` (khoá `--resume`) KHÔNG còn thấy thay đổi mã engine. Cần thêm `core/{backtest,models,params,position_size}.py`. Hash vốn đã đổi vì lần chuyển này (sổ sẽ báo "cần dựng lại" một lần). Chưa sửa vì thuộc làn alpha.
 - **Khởi động lại bot live** (okx_demo, okx_paper...) sau khi commit: tiến trình đang chạy giữ lớp cũ trong bộ nhớ; import lười sau này sẽ nạp lớp ở module mới (trộn hai bản Enum/lớp).
 - P9.4b (gỡ tracker/manager/sim_venue/runner + venue/amm vào backtest.py) và P9.10 (gỡ shim + stub gói).
+
+## P9.3c plan — chuyển cây `data/` theo quyết định CUỐI (CHỈ KẾ HOẠCH + dry-run; chưa áp dụng, chưa commit)
+
+Ngày: 2026-10-07 · Người làm: norabt-99 (kiến trúc) · Script: `test/scripts/migrate_data_tree.py` (viết lại theo quyết định cuối; chưa tracked). Không sửa file làn alpha.
+Thử trên cây giả (bản sao nhỏ của `_cache/{api_jobs,backtest,book,book_wfa,live,quality_gate,runs}`, `alphas`, `education`, stub market): `--apply --allow-live --remove-stale-registry`
+chạy được 29/29 bước, chạy lại idempotent, `persist_finished_jobs(apply=True)` gọi thật (95 job chép + 24 dọn trong cây giả), bot "live" cũ/mới cùng một thư mục, `out.log` cùng inode.
+
+### 1. Bản đồ cũ -> mới (thứ tự thực hiện)
+
+| # | Khoá | Cũ (dưới `nora/data/`) | Mới | Ghi chú |
+|---|---|---|---|---|
+| 1 | okx_cex / okx_dex | `okx/{cex,dex}` | `market/okx/{cex,dex}` | rename cùng ổ đĩa + symlink tương đối |
+| 2 | binance_cex | `binance/cex` | `market/binance/cex` | |
+| 3 | binance_hist | `binance_hist/cex` | `market/binance/cex_ref` | bí danh giữ bằng symlink `binance_hist/cex` |
+| 4 | meta | `_meta` | `market/_meta` | |
+| 5 | alpha_book/registry/presets | `alphas/{book,registry,presets}.json` | `alpha/…` | đang tracked -> `--git-stage` |
+| 6 | alpha_explore / testnet / user / research | `alphas/{explore,testnet,user,research}` | `alpha/…` | `research` = `okx_top10_agents.json` (đã tracked) |
+| 7 | edu_samples | `education/samples.json` | `alpha/education/samples.json` | sẽ tracked (hiện bị .gitignore chặn) |
+| 8 | **registry_fix** | `alpha/registry.json` | (sửa tại chỗ) | BƯỚC RIÊNG, cần `--remove-stale-registry`; sao lưu `registry.json.bak` vào thư mục báo cáo |
+| 9 | backtest_runs | `_cache/backtest` | `backtest` | MỚI so với P9.3 prep: bộ ghi kết quả của phiên alpha đã tạo 2 run ở đây (fallback `_cache/backtest`); đi TRƯỚC edu_results |
+| 10 | edu_results | `education/results` | `backtest/education` | |
+| 11 | wfa | `_cache/book_wfa` | `wfa` | |
+| 12 | funnel / book_runs | `_cache/funnel` , `_cache/book` | `alpha/funnel` , `alpha/book` | funnel 2,8 GB |
+| 13 | live | `_cache/live` | `live` | bot đang ghi: rename nguyên tử + symlink `_cache/live -> ../live` |
+| 14 | shared_mmap | `_cache/shared` | `cache/shared` | hiện KHÔNG tồn tại -> bỏ qua |
+| 15 | qg_* (4 nguồn) | `_cache/quality_gate` + `{okx,binance,binance_hist}/_cache/quality_gate` | `cache/shared/quality_gate` | gộp theo tên sha1; trùng khác nội dung giữ bản mới |
+| 16 | **persist_finished** | `_cache/api_jobs/<id>` (đã xong) | `backtest|wfa|alpha/{book,funnel}/<id>` | GỌI `batch.persist_finished_jobs(apply=True)`; xem §3 |
+| 17 | process | `_cache/api_jobs` (phần còn lại) | `cache/process` | + symlink `_cache/api_jobs -> ../cache/process` |
+| 18 | mem_csv | `_cache/runs` | `cache/process/_mem` | `_mem` không khớp `_JOB_ID_RE` -> prune/persist không đụng (không dùng thư mục theo job: `NORA_MEM_LOG_PATH` do run_limited.sh đặt, không tầm thường) |
+| 19 | staging | `nora/data_staging` | `cache/process/_staging` | hiện không tồn tại -> bỏ qua |
+
+Đã loại khỏi kế hoạch (đã xoá 2026-10-07, script không còn mục DECISION / `--include-decisions`): `_cache/{optimize,research,reports,smoke}`, `studio_pipeline.db`, `manifest_backup_*`, `alphas/custom_strategies.json`,
+`alphas/portfolio_*`, zip crawler `<repo>/data/cache` (thư mục `<repo>/data/` hiện rỗng). Nếu xuất hiện lại sẽ báo ở "CHƯA ÁNH XẠ". Symlink tương đối ở mọi đường cũ giữ tới P9.10.
+
+### 2. Kết quả `--dry-run --allow-live` (từ `nora/`, qua `run_limited.sh --no-lock`, 1 s, KHÔNG đổi gì)
+
+```
+[migrate_data_tree] DRY-RUN  data=/home/vmc03/norabt/nora/data
+  guard: live_bot đang chạy=3 ['20261007_185311_92e91d', '20261007_185311_e7db58', '20261007_185311_5387d0']  job khác=0  -> cho phép
+key                 state            files       size  src                                          -> dst
+okx_cex             todo                80     1.0 GB  nora/data/okx/cex                            -> nora/data/market/okx/cex
+okx_dex             todo                18    39.3 MB  nora/data/okx/dex                            -> nora/data/market/okx/dex
+binance_cex         todo               120     1.6 GB  nora/data/binance/cex                        -> nora/data/market/binance/cex
+binance_hist        todo                70     1.8 GB  nora/data/binance_hist/cex                   -> nora/data/market/binance/cex_ref
+meta                todo                 6   184.1 KB  nora/data/_meta                              -> nora/data/market/_meta
+alpha_book          todo                 1    65.6 KB  nora/data/alphas/book.json                   -> nora/data/alpha/book.json
+alpha_registry      todo                 1    12.7 KB  nora/data/alphas/registry.json               -> nora/data/alpha/registry.json
+alpha_presets       todo                 1     8.7 KB  nora/data/alphas/presets.json                -> nora/data/alpha/presets.json
+alpha_explore       todo                 1    39.1 KB  nora/data/alphas/explore                     -> nora/data/alpha/explore
+alpha_testnet       todo                 2    19.0 KB  nora/data/alphas/testnet                     -> nora/data/alpha/testnet
+alpha_user          todo                 0        0 B  nora/data/alphas/user                        -> nora/data/alpha/user
+alpha_research      todo                 1    52.2 KB  nora/data/alphas/research                    -> nora/data/alpha/research
+edu_samples         todo                 1    64.1 KB  nora/data/education/samples.json             -> nora/data/alpha/education/samples.json
+registry_fix        todo                 0        0 B                                               -> 
+    registry: nora/data/alphas/registry.json alphas ['trend_long_perp__SOL'] -> []; khoá giữ nguyên=['code', 'gates', 'generated_at', 'pairs_evaluated', 'source_optimization']; source_optimization tồn tại=False; giữ định dạng=True
+backtest_runs       todo                 8   112.6 KB  nora/data/_cache/backtest                    -> nora/data/backtest
+edu_results         todo                51     8.5 MB  nora/data/education/results                  -> nora/data/backtest/education
+wfa                 todo               182    19.9 MB  nora/data/_cache/book_wfa                    -> nora/data/wfa
+funnel              todo              4490     2.8 GB  nora/data/_cache/funnel                      -> nora/data/alpha/funnel
+book_runs           todo                59    10.5 MB  nora/data/_cache/book                        -> nora/data/alpha/book
+live                todo                36     1.0 MB  nora/data/_cache/live                        -> nora/data/live
+shared_mmap         src_missing          0        0 B  nora/data/_cache/shared                      -> nora/data/cache/shared
+qg_root             todo               110    49.0 KB  nora/data/_cache/quality_gate                -> nora/data/cache/shared/quality_gate
+qg_okx              merge_todo          21     9.8 KB  nora/data/okx/_cache/quality_gate            -> nora/data/cache/shared/quality_gate
+qg_binance          merge_todo           6     2.8 KB  nora/data/binance/_cache/quality_gate        -> nora/data/cache/shared/quality_gate
+qg_binance_hist     merge_todo          30    14.1 KB  nora/data/binance_hist/_cache/quality_gate   -> nora/data/cache/shared/quality_gate
+persist_finished    todo                 0        0 B                                               -> 
+    persist: root=_cache/api_jobs thư mục process=215 chạm=125
+      alpha_revalidate  {'would_clean': 1}  -> ['(dọn, không chép)']
+      book_backtest     {'would_persist': 29}  -> ['backtest']
+      book_build        {'would_persist': 2}  -> ['alpha/book']
+      book_wfa          {'would_persist': 45}  -> ['wfa']
+      data_crawl_okx    {'would_clean': 7}  -> ['(dọn, không chép)']
+      data_crawl_ticks  {'would_clean': 1}  -> ['(dọn, không chép)']
+      data_promote      {'would_clean': 4}  -> ['(dọn, không chép)']
+      edu_precompute    {'would_clean': 4}  -> ['(dọn, không chép)']
+      funnel_book       {'would_clean': 6}  -> ['(dọn, không chép)']
+      funnel_run        {'would_persist': 19}  -> ['alpha/funnel']
+      mock_feeds        {'would_clean': 2}  -> ['(dọn, không chép)']
+      presets_build     {'would_clean': 4}  -> ['(dọn, không chép)']
+      regime_report     {'would_clean': 1}  -> ['(dọn, không chép)']
+process             todo               875    25.5 MB  nora/data/_cache/api_jobs                    -> nora/data/cache/process
+mem_csv             todo               116     6.6 MB  nora/data/_cache/runs                        -> nora/data/cache/process/_mem
+staging             src_missing          0        0 B  nora/data_staging                            -> nora/data/cache/process/_staging
+  CHƯA ÁNH XẠ (0): không
+  TỔNG cần chuyển: 6286 file, 7.4 GB trong 29 bước; xung đột=0; 0.7s
+```
+Tổng: 6.286 file / 7,4 GB trong 29 bước, 0 xung đột, 0 chưa ánh xạ. Cùng ổ đĩa (`/dev/mapper/ubuntu--vg-ubuntu--lv`) -> mọi bước là rename nguyên tử. Va chạm tên quality_gate chỉ đo được khi chạy (đích chưa có; cây giả: 16 trùng ở qg_okx).
+
+### 3. `persist_finished_jobs(apply=False)` — 215 thư mục trong `_cache/api_jobs`, chạm 125
+
+| Loại | Hành động | Đích |
+|---|---|---|
+| book_backtest | persist 29 | `backtest/<id>` |
+| book_wfa | persist 45 | `wfa/<id>` |
+| funnel_run | persist 19 | `alpha/funnel/<id>` |
+| book_build | persist 2 | `alpha/book/<id>` |
+| alpha_revalidate 1, data_crawl_okx 7, data_crawl_ticks 1, data_promote 4, edu_precompute 4, funnel_book 6, mock_feeds 2, presets_build 4, regime_report 1 | dọn 30 (rmtree, KHÔNG chép: kết quả bền do chính job ghi) | — |
+
+Còn lại ở `cache/process` (~90): live_bot 31 (3 đang chạy; ADR/`KEEP_KINDS` không đụng), custom_backtest 46 (TTL 24 h riêng), job lỗi/huỷ (log 7 ngày), 1 thư mục không có job.json. Khi chạy thật con số "dọn" nhỏ hơn: `data_promote` gọi `clean_unstaged_crawl_jobs()` xoá trước 6/7 job crawl (cây giả: 119 chạm = 95 chép + 24 dọn). Việc dọn là KHÔNG hoàn tác (đúng luật vòng đời ADR §4.2-3).
+
+### 4. Bước `registry_fix` (tách riêng, cần `--remove-stale-registry`)
+
+`alpha/registry.json` hiện có đúng 1 mục: `alphas = [trend_long_perp__SOL]` -> `alphas = []`. Giữ nguyên khoá `code, gates, generated_at, pairs_evaluated, source_optimization`. Sao lưu byte-nguyên `registry.json.bak` (kèm sha256 trong báo cáo) vào `data/_migration/p9_3c_<UTC>/`. Ghi lại giữ định dạng (`indent=2`, kiểm `json.dumps(load) == nội dung cũ` trước khi ghi; sai định dạng thì dừng, không ghi). Ghi tạm + `os.replace`.
+Còn dư sau bước này (cần người quyết, script KHÔNG tự làm): `pairs_evaluated: 1` và `source_optimization` trỏ `…/_cache/optimize/20261001_1440` (đã xoá). `alpha/testnet/_retired/trend_long_perp__SOL.json` (tracked) không đụng. Không code nào đọc `alphas[0]` (chỉ `test_revalidate` trên cây tạm).
+
+### 5. `.gitignore` đề xuất (KHÔNG ghi; `migrate_data_tree.py --print-gitignore` in diff, `--write-gitignore` cùng `--apply` mới ghi)
+
+```diff
+--- a/.gitignore
++++ b/.gitignore
+@@ -2,10 +2,21 @@
+ coins/node_modules
+ .idea
+ data/
+-# Ngoại lệ: nora/data/alphas/ (sổ alpha, registry, testnet) được commit; phần còn lại của nora/data/ vẫn bị bỏ qua
++# Ngoại lệ: nora/data/ chỉ theo dõi phần định nghĩa/cấu hình của nora/data/alpha/ (ADR-P9 §4.7). Không commit: alpha/{user,funnel,book}/, market/, backtest/,
++# wfa/, carlo/, live/, cache/ và symlink tạm ở đường cũ (alphas, _cache, okx, binance, ... nằm dưới nora/data/* nên đã bị chặn)
+ !nora/data/
+ nora/data/*
+-!nora/data/alphas/
++!nora/data/alpha/
++nora/data/alpha/*
++!nora/data/alpha/strategies/
++!nora/data/alpha/education/
++!nora/data/alpha/universes/
++!nora/data/alpha/research/
++!nora/data/alpha/explore/
++!nora/data/alpha/testnet/
++!nora/data/alpha/presets.json
++!nora/data/alpha/registry.json
++!nora/data/alpha/book.json
+ # mã nguồn tên "data" (package Python) không phải dữ liệu: luôn theo dõi
+ !nora/backend/core/data/
+ # Dữ liệu thị trường Nora (hàng trăm MB): staging crawl và bộ dữ liệu cũ dùng làm tham chiếu test
+```
+Kiểm bằng repo git tạm (`git check-ignore`): TRACKED `alpha/{strategies,education,research,explore,testnet,universes}/…`, `alpha/{presets,registry,book}.json`; IGNORED `alpha/{user,funnel,book}/`, `market/`, `backtest/`, `wfa/`, `carlo/`, `live/`, `cache/`, symlink `alphas`/`_cache`, `_migration/`; `nora/backend/core/data/` vẫn tracked. `alpha/research/` giữ tracked (`top_agents.py` đọc, file hiện đã tracked) — CẦN người dùng xác nhận (dấu "?" trong yêu cầu). Ghi `.gitignore` + `--git-stage` (rm --cached `alphas/*` cũ, add -f `alpha/*`) là một bước sau chuyển, không commit.
+
+### 6. Tiến trình đang giữ file dưới `data/` (quét `/proc/<pid>/{fd,cwd,maps,cmdline,environ}`, chỉ đọc)
+
+| Ai | Giữ | Đường CŨ cần symlink phủ |
+|---|---|---|
+| 3 bot `live_bot` (`20261007_185311_92e91d` paper/explore/legacy; `…_5387d0` paper/main/legacy; `…_e7db58` demo/main/unified) — mỗi bot 5 pid (run_limited.sh, 2 `bash -c` giám sát RAM, `python -m backend.api.jobs.runner`, `sleep 1`) | fd mở `out.log` (inode giữ nguyên khi rename); `cmdline` + `NORA_JOB_DIR` = `_cache/api_jobs/<id>` | `_cache/api_jobs -> ../cache/process` |
+| cùng các pid trên + 1 pytest của phiên khác (pid 3164417, `test_bot_unified …`) | `NORA_MEM_LOG_PATH=_cache/runs/<ts>_mem.csv` (shell giám sát `>>` mỗi giây theo ĐƯỜNG DẪN) | `_cache/runs -> ../cache/process/_mem` |
+| bot (trong tiến trình) | `live_dir()` tính theo đường dẫn mỗi lần ghi: `_cache/live/okx_{paper,paper_explore,demo_unified}/{events.jsonl,state.json,paper.pkl,unified.pkl}` | `_cache/live -> ../live` |
+| API `uvicorn backend.main:app :18010` (pid 3149672) | không giữ fd/mmap dưới `data/` (đọc theo yêu cầu, cache theo mtime) | — |
+
+Chưa có tiến trình nào mmap file dưới `data/`. Cửa sổ hở của `link_swap` (tạo symlink tạm -> rename thư mục -> rename symlink vào đường cũ) chỉ vài µs; nếu bot gọi `makedirs`/`open` đúng lúc đó, tệ nhất là mất một mẫu RAM hoặc một lần ghi bị lỗi và thử lại ở nhịp sau — script dừng và báo nếu `os.replace` thất bại. Sau khi chuyển, script chụp ảnh trước/sau và kiểm từng bot: còn sống, đường cũ và mới cùng `realpath`, `out.log` cùng inode, có file nào đổi mtime trong `--verify-wait` (mặc định 90 s); mã thoát 1 nếu bot nào không ok. Lưu ý: guard của script chỉ thấy job API đang chạy, KHÔNG thấy pytest của phiên khác (có 1 cái đang chạy lúc dry-run) — chỉ chạy `--apply` khi không có pytest/công cụ nào đang đọc `data/`.
+
+### 7. Việc kiến trúc còn lại TRƯỚC khi chạy thật (store.py / người gọi) — chưa làm
+
+`crawl/store.py` (làn kiến trúc) còn ánh xạ theo kế hoạch cũ; cần đổi cho khớp "cache chỉ có `process/` và `shared/`":
+- `_kind_paths["quality_gate"]` -> mới `cache/shared/quality_gate` (đang `cache/quality_gate`); `"staging"` -> `cache/process/_staging` (đang `cache/staging`); `cache_dir(None, <tên lạ>)` / `"cache"` -> không còn `cache/<tên>` (chỉ `process`, `shared`); `cache_crawl_dir()` -> bỏ hoặc `cache/process/_crawl/<sàn>` (zip crawler không thuộc cây; `crawl/cex.py:57,412` vẫn ghi `<repo>/data/cache`); `allowed_roots("quality_gate"|"staging")`; cập nhật `test_data_layout_helpers.py` (74 test).
+- Trước khi bật: `book.py:444` dùng `store.is_within(..., "runs")` (bàn giao §3.1) và sửa `api/jobs/batch.py` docstring `data/alphas` (chỉ chữ) — làn alpha.
+- `run_limited.sh:18,66-69` ghi `_cache/runs` -> `cache_runs_dir()`/`cache/process/_mem` (symlink đủ dùng cho tới P9.10).
+- Dọn `cache/process/_mem` sau 7 ngày: P9.6 (hiện không ai dọn).
+- Khoá cache mmap + quality gate băm đường gốc -> đổi MỘT lần khi `market/<sàn>` thành đường chính (dựng lại, không đổi kết quả).
+
+Lệnh chạy thật (chờ duyệt): `PYTHONDONTWRITEBYTECODE=1 backend/utils/ops/run_limited.sh --no-lock -- test/scripts/migrate_data_tree.py --apply --allow-live --remove-stale-registry [--git-stage --write-gitignore]` từ `nora/`.
+
+
+## P9.3c store fix
+
+`backend/crawl/store.py` khớp ADR-P9 §4 (cache chỉ có `process/` và `shared/`); đã đối chiếu mục "7" của "P9.3c plan" ở trên.
+
+| Helper / kind | Trước | Sau (cũ giữ làm fallback) |
+|---|---|---|
+| `quality_gate` / `cache_quality_gate_dir()` | `cache/quality_gate` | `cache/shared/quality_gate` (cũ `_cache/quality_gate`) |
+| `staging` / `cache_staging_dir()` | `cache/staging` | `cache/process/_staging` (cũ `nora/data_staging`) |
+| `mem` / `cache_runs_dir()` | `cache/process/_mem` | không đổi |
+| kind `"cache"` | `cache/` | bỏ (`allowed_roots("cache")` -> ValueError) |
+| `cache_dir(None, <tên lạ>)`, `cache_dir(None)` | `cache/<tên>` | `cache/process[/<tên>]` (cũ `_cache[/<tên>]`); chữ ký không đổi |
+| `cache_crawl_dir()` | `cache/crawl/<sàn>` | BỎ HẲN |
+| `binance_hist` (`HISTORICAL_ALIASES`, venue `cex_ref`) | `market/binance/cex_ref` | BỎ (dữ liệu bị xoá, không còn dùng sau khi bỏ xno); `resolve_source("binance_hist")` -> ValueError; `Source.alias` luôn `None` (giữ trường) |
+
+Test: `test_data_layout_helpers.py` đổi đích, thêm `test_cache_has_only_process_and_shared`, `test_binance_hist_alias_removed`; `test_okx_data.py:33` chấp nhận `cache/process` (cây đã chuyển).
+
+**Người gọi `crawl/cex.py`:** KHÔNG dùng `cache_crawl_dir`; `DEFAULT_CACHE_DIR` (`:56`, env `NORA_BINANCE_CACHE_DIR`) và `OKX_DEFAULT_CACHE_DIR` (`:412`, env `NORA_OKX_CACHE_DIR`) vẫn trỏ `<repo>/data/cache/<sàn>` (ngoài `nora/data`) và `fetch_vision_zip`/`fetch_day_zip` makedirs ở đó mỗi lần crawl -> thư mục `data/cache` cấp repo sẽ mọc lại. Đề xuất (chưa làm): mặc định `os.path.join(cache_process_dir(<job_id>), "_crawl", <sàn>)` tính lúc gọi (hoặc `tempfile.mkdtemp`), vì zip tải lại được và job xong thì thư mục process bị dọn.
+
+**Còn lại (làn alpha / script, chưa sửa):** `api/routers/data.py:12` `STAGING` -> `cache_staging_dir()`; `core/backtest/custom_run.py:57,73,405` `XNO_DEFAULT_DATA="binance_hist"` + `DATA_HOME/<name>/cex` phải bỏ; docstring `api/jobs/batch.py` còn chữ `data/alphas`; `run_limited.sh:18,66-69` ghi `_cache/runs`; ADR §4 dòng `cex_ref (← binance_hist)` và đoạn "Bí danh nguồn dữ liệu cũ" cần xoá.
+
+**Script `test/scripts/migrate_data_tree.py` (chưa sửa được, xem tin nhắn bàn giao):** đích đã khớp (`qg_* -> cache/shared/quality_gate`, `staging -> cache/process/_staging`, `mem_csv -> cache/process/_mem`). Cần: bỏ Move `binance_hist` và `qg_binance_hist` + chữ `cex_ref` ở docstring; `registry_fix` xoá HẲN mục `trend_long_perp__SOL` kèm khoá cấp registry `source_optimization`, `pairs_evaluated` (giữ bản sao lưu); `.gitignore` đề xuất đã giữ `!nora/data/alpha/research/`.
+
+
+## P9.4 part 2 — `core/{indicator, signal}.py` + dựng kế hoạch -> `backtest.py`, hằng số profile -> `params.py` (gộp nguyên văn + shim)
+
+Ngày: 2026-10-07 · Người làm: norabt-99 (kiến trúc, chỉ di chuyển) · Trạng thái: **xong, CHƯA commit, chờ review chéo**. Không đổi logic.
+
+**Phương pháp** như part 1 (script nối nguyên văn thân module, gỡ import nội bộ nhóm kể cả import cục bộ, docstring -> banner). Kiểm AST từng hàm/lớp/hằng cấp module so với `git HEAD`: 238 định danh nguồn; 206 giống hệt, 29 khác đúng bằng dòng import/tên gọi bên dưới (đã xem diff từng cái), 3 không còn tên cũ (`features.evaluate`, `ops.evaluate` đổi tên; `__all__` ở shim). `backtest.py`/`params.py` cũ: chỉ `run_backtest` (một import cục bộ trỏ `signal`) và `_resolve_string` (một import cục bộ trỏ `indicator`) đổi, thêm 8 + 3 định danh mới.
+
+### Bảng ánh xạ cũ -> mới
+**core/indicator.py**
+
+- `core/signals/kernels.py`: `BASE_COLUMNS`, `KernelSpec`, `_ewm_sma_seed`, `_tv_ewm`, `_rma`, `_true_range`, `sma`, `ema`, `roc`, `er`, `adx`, `rsi`, `bbz`, `bbm`, `bbu`, `bbl`, `bbw`, `bbwp`, `atr`, `natr`, `rv`, `kcm`, `kcu`, `kcl`, `dch`, `dcl`, `vwap`, `vwapdev`, `volz`, `_w`, `REGISTRY`, `_NUM`, `_COLUMN_RE`, `MAX_PERIOD`, `parse_column`, `_PY_RE`, `PROGRAMS`, `register_program`, `is_program_column`, `_program_of`, `is_kernel_column`, `compute`, `warmup_bars`, `catalog`
+- `core/strategy/pydsl/spec.py`: `REQUIRED`, `KINDS`, `Param`, `S`, `B`, `A`, `I`, `F`, `MA`, `Spec`, `FEATURE_SPECS_DATA`, `OP_SPECS_DATA`
+- `core/strategy/pydsl/features.py`: `_arr`, `_clean`, `_frame`, `_roll`, `_shift`, `_wma`, `_meandev`, `_linreg`, `f_sma`, `f_ema`, `f_dema`, `f_tema`, `f_wma`, `f_rsi`, `f_atr`, `f_natr`, `f_adx`, `_di`, `f_plus_di`, `f_minus_di`, `f_macd`, `f_bbands`, `f_roc`, `f_rocp`, `f_momentum`, `f_stddev`, `f_var`, `f_cci`, `f_willr`, `f_mfi`, `f_obv`, `f_stoch`, `f_donchian_upper`, `f_donchian_lower`, `f_linearreg_slope`, `f_linearreg`, `f_rolling_mean`, `f_rolling_std`, `f_rolling_max`, `f_rolling_min`, `f_rolling_sum`, `f_zscore`, `f_returns`, `f_log_returns`, `f_trange`, `f_typprice`, `f_ohlc4`, `f_range_pct`, `f_volume_z`, `_TP`, `_HLC`, `_w`, `_sum_w`, `_spec`, `FEATURES`, `evaluate`
+- `core/strategy/pydsl/ops.py`: `_num`, `_bool`, `_shift_num`, `_shift_bool`, `_fin`, `_arange_last`, `_above`, `_below`, `o_crossed_above`, `o_crossed_below`, `o_crossed`, `o_crossed_above_value`, `o_crossed_below_value`, `o_current`, `o_shift`, `o_diff`, `o_pct_change`, `o_rising`, `o_falling`, `o_fillna`, `o_ffill`, `_arr_valid`, `o_abs`, `o_clip`, `o_isna`, `o_notna`, `o_isfinite`, `o_zero_ifna`, `o_sign`, `o_replace`, `o_between`, `o_where`, `o_value_when`, `o_bars_since`, `o_hold_for`, `_hold`, `o_and_`, `o_or_`, `o_not_`, `_ret_shift`, `_ret_where`, `_op`, `_PER`, `OPS`, `evaluate`
+
+**core/signal.py**
+
+- `core/strategy/pydsl/errors.py`: `DslError`, `at`, `suggest`
+- `core/strategy/pydsl/program.py`: `DATA_COLUMNS`, `TF_MS`, `KINDS`, `_CACHE_SIZE`, `Node`, `Ctx`, `Const`, `BoolConst`, `Data`, `_as_float`, `Bin`, `Neg`, `Cmp`, `Logic`, `Inv`, `Call`, `Pick`, `_in_ranges`, `Program`
+- `core/strategy/pydsl/parser.py`: `DSL_VERSION`, `MAX_CODE_CHARS`, `MAX_NODES`, `BASE_CLASS`, `DATA_ATTRS`, `TIMEFRAME_ALIASES`, `SPECIAL_ATTRS`, `_CMP`, `_ARITH`, `_METHODS`, `_NOT_SUPPORTED_STMT`, `_position_attr_names`, `_strip_docstrings`, `code_hash`, `TupleVal`, `_Compiler`, `compile_program`
+- `core/strategy/pydsl/explain.py`: `DATA_VI`, `_clean_num`, `_format_feat_call`, `expr_to_vi`, `_find_calls`, `_has_event_trigger`, `explain_program`
+- `core/signals/evaluator.py`: `lag_key`, `LogicEvaluator`, `VectorEvaluator`
+- `core/signals/snapshot.py`: `MINUTE`, `DEFAULT_LOOKBACK_MIN`, `_label`, `_num`, `_explain`, `_since`, `signal_snapshot`, `book_strategies`
+- `core/signals/diagnostics.py`: `HORIZONS_MIN`, `MIN_EVENTS`, `_thin`, `_forward_bps`, `_stats`, `_verdict`, `check_signals`
+- `core/strategy/pydsl/__init__.py`: `compile_code`, `compile_report`, `explain_report`
+
+**core/backtest.py (thêm ở cuối)**
+
+- `core/strategy/pydsl/profiles.py`: `Plan`, `base_name`, `_ref`, `_tree`, `_leg_signals`, `leg_level`, `build_plan`, `_check_position`
+
+**core/params.py (thêm ở cuối)**: `FRAME_ORDER`, `RUN_FRAME`, `NORA_DEFAULTS` từ `pydsl/profiles.py`. `FRAMES` của profiles trùng giá trị với `FRAMES` đã có ở khối template -> dùng chung, không khai báo lại.
+
+### Shim
+- Alias `sys.modules` (cùng một đối tượng module; `kernels.PROGRAMS`/`REGISTRY` chỉ một bản nên `register_program` / cột `py_` của làn alpha chạy y nguyên): `core/signals/kernels`, `core/strategy/pydsl/spec` -> `core.indicator`; `core/signals/{evaluator,snapshot,diagnostics}`, `core/strategy/pydsl/{errors,program,parser,explain}` -> `core.signal`.
+- Shim tái xuất (không alias được): `pydsl/features.py`, `pydsl/ops.py` (hai hàm `evaluate` trùng tên -> trong module gộp là `evaluate_feature` / `evaluate_op`; shim đặt `features.evaluate`/`ops.evaluate` đúng như cũ, mọi tên khác copy từ module gộp); `pydsl/profiles.py` (hằng số từ `params`; `Plan, build_plan, base_name, leg_level, _ref, _tree, _leg_signals, _check_position` nạp LƯỜI từ `core.backtest` qua `__getattr__` để import hằng số/FRAMES không kéo engine numba); `pydsl/__init__.py` (tái xuất `compile_code, compile_report, explain_program, explain_report, DslError, Program` từ `core.signal`).
+- Không cần stub gói: `core/signal.py` vs `core/signals/` và `core/indicator.py` không trùng tên; `core/signals/__init__.py` giữ nguyên (docstring), `core/strategy/pydsl/` vẫn là gói thật chứa các shim.
+- Importer cập nhật dòng import: `core/backtest.py` (evaluator, kernels -> `indicator as kernels`, `Program`), `core/params.py` (kernels cục bộ). Importer khác (alpha: custom_run, tick_run, edu_precompute, user_alphas, diagnose, strategy_doc, routers, batch; live/signals; data/shared; test) vẫn dùng đường cũ qua shim. `optimize/store.py` `_CODE_FILES`: `signals/{evaluator,kernels}.py` -> `core/{signal,indicator}.py` (khoá `--resume` đổi một lần). `utils/engine_version.py` không đổi (kernels trước đây không nằm trong hash engine).
+- `test_layering.py`: thêm 2 dòng `LAYER_RULES` (`core/indicator`, `core/signal`).
+
+### Đổi tên / chu trình đã xử lý (cơ học)
+1. Trùng tên trong module gộp: `kernels._w` -> `_kw` (cùng 23 chỗ gọi trong REGISTRY; `features._w` giữ); `features.evaluate` -> `evaluate_feature`, `ops.evaluate` -> `evaluate_op` (program.py gọi `evaluate_feature`); wrapper `pydsl.explain_program` (import lười tới `explain.explain_program`, cùng chữ ký) bỏ — dùng chính `explain_program`.
+2. `K.xxx` trong features (27 chỗ) -> tên trần `xxx` (kernels cùng file; đã kiểm không trùng tên cục bộ/cấp module).
+3. **indicator -> signal** (features/ops import `spec`; chỉ báo đứng TRƯỚC signal): `spec.py` đặt vào `indicator.py` (không vào `signal.py` như bảng ADR §3) — `signal` import ngược từ `indicator` (`FEATURES, OPS, REQUIRED, Spec, evaluate_feature, register_program`). Vi phạm `indicator -> signal` 4 -> 0. **Cần ADR sửa dòng bảng: `spec` thuộc indicator.**
+4. **profiles -> params/backtest** như đã thoả thuận với phiên alpha: `signal.py` không import `backtest.py` ở đầu file; `explain` lấy `NORA_DEFAULTS` từ `params`.
+5. Còn lại (có từ trước, KHÔNG sửa được cơ học — cần quyết định): `signal.py` import CỤC BỘ trong hàm `backtest` (`snapshot.signal_snapshot` -> `PortfolioEngine`, `diagnostics.check_signals` -> `BacktestEngine`: 2 vi phạm "signal -> backtest"), `core.params.presets` (snapshot, optimize), `regime.classifier` (snapshot), `db.local_pkl` (diagnostics đọc manifest, core đọc file); `params.py:244` -> `indicator` (template kiểm cột sig.*; 1 vi phạm "params -> indicator"). Hướng sửa gợi ý (không làm ở bước này): chuyển `snapshot`/`diagnostics` lên tầng trên backtest (verdict/live) hoặc truyền engine/manifest qua tham số.
+
+### Numba cache
+`cache=True` giữ nguyên. Cache `kernels`/`features` nay ở `core/__pycache__/indicator.*.nbi`; `backtest.py` bị sửa (thêm cuối file) -> chỉ mục cache của `core/__pycache__/backtest.*.nbi` hết hiệu lực, lần chạy đầu biên dịch lại (~90 s). File `.nbi/.nbc` cũ ở `core/signals/__pycache__`, `core/strategy/pydsl/__pycache__` mồ côi.
+
+### Layering (`test_layering`, tính trực tiếp, không ghi báo cáo)
+Trước: 62 vi phạm (146 module, 25 shim). Sau: **57** (148 module, 38 shim): `indicator -> signal` 4 -> 0, `signal -> backtest` 3 -> 2; mọi cạnh khác giữ nguyên.
+
+### Cổng
+| | Kết quả |
+|---|---|
+| BASELINE (HEAD, trước khi sửa; 24 file, `NORA_GOLDEN_DATA_ROOT=data/binance`) | **389 passed**, 0 failed, 2 warnings (615 s) |
+| SAU | **389 passed**, 0 failed, 2 warnings (817 s; lần đầu biên dịch lại cache numba của backtest.py/indicator.py) — golden, kernel_parity, portfolio_engine, causal_engine, signals_strategies, signal_snapshot, signal_explain, regime, pydsl_*, custom_backtest, edu_*, user_alphas, strategy_doc, live_bot, bot_unified, layering, ops_units, shared_data, funnel đều xanh |
+| nautilus_diff S1-S3 aligned | `run_nora.py ohlc` + `adaptive` rồi `compare.py fine` / `fine _adaptive`: 36 file `out/nora_*.json` + `results_fine*.json` **giống từng byte** trước/sau (so với bản sao `out/` chụp trước khi chạy); tracker==manager 18/18 mỗi lượt; `results_fine*.json` đã commit không đổi. Lưu ý: một phiên khác chạy `ext_run_nora`/`ext_compare` cùng lúc trong `out/` nên có lần so lệch tạm thời; đo lại khi nó dừng. `ext_results_{ohlc,adaptive}.json` (S4-S8, đã commit) bị phiên kia ghi đè và khác bản commit (equity khớp Nautilus hơn) — không thuộc cổng này, không do bước này (không đổi logic; nhiều khả năng bản commit cũ hơn thay đổi sizing ở commit 58149ed) |
+| Tốc độ (`bench_engine.py compare --n 3 --batch 100 --old-batch 0`, cache nóng) | sau: 1,090 s/alpha riêng (load 0,721 + kernel 0,344), 158 ms/alpha lô 100; part 1 (trước): 1,097-1,113 s, 159-162 ms. Không chậm |
+| Pickle | 12 bản sao `paper.pkl`/`unified.pkl` (6 hiện hành + 6 archive) nạp được hết; không có tên nào thuộc `signals.*`/`pydsl.*` (bản lưu không chứa lớp DSL/kernel) nên shim không cần cho pickle trạng thái bot. `pickle.loads(pickle.dumps(f)) is f` cho `run_backtest`, `build_plan`, `compile_code`; hàm tên cũ phân giải qua alias |
+| test_layering | trước 62 (146 module, 25 shim) -> sau **57** (148 module, 38 shim): `indicator -> signal` 4 -> 0, `signal -> backtest` 3 -> 2 |
+
+**Vi phạm đã biết, CHỦ ĐỘNG để nguyên (quyết định điều phối 2026-10-07):** (a) `snapshot.signal_snapshot` / `diagnostics.check_signals` import cục bộ `backtest`, `params.presets`, `regime.classifier`, `db.local_pkl` — có I/O, sẽ ra khỏi core sang optimize ở P9.6; (b) `params.py:244` import cục bộ `indicator` (kiểm cột `sig.*` trong template) — để tới P9.10; (c) `spec.py` nằm trong `indicator.py` được chấp nhận, ADR §3 sẽ sửa dòng bảng.

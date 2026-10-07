@@ -1,5 +1,8 @@
 """Phần backend của docs/ui_contract.md: catalog (default_params/universe/windows), /alphas, nhãn + lọc job, WFA cấu hình chọn tay,
 stage_a trong result của build_strategy_book, oos_daily_dates của WFA."""
+import pathlib
+
+from backend.crawl.store import alpha_run_dir, run_dir
 import json
 import os
 
@@ -174,7 +177,7 @@ def test_validate_book_with_explicit_configs_on_synthetic_market(market, monkeyp
         assert (d[1:] - d[:-1] == pd.Timedelta(days=1)).all()
     json.dumps(res, default=str)
     # đã ghi report.json có đủ khoá theo hợp đồng
-    rep = json.loads(sorted((market / "_cache" / "book_wfa").glob("*/report.json"))[-1].read_text())
+    rep = json.loads(sorted(pathlib.Path(run_dir("wfa")).glob("*/report.json"))[-1].read_text())
     assert {"folds", "aggregate", "mc", "gate"} <= set(rep) and "oos_daily_dates" in rep["aggregate"]
 
 
@@ -217,7 +220,7 @@ def test_build_strategy_book_result_json_has_stage_a_for_every_config(market, mo
             assert set(r) == {"params", "dev1", "score", "passed"} and set(r["dev1"]) == {"ret_pct", "mdd_pct", "trades", "symbols_positive", "sharpe"}
             assert r["passed"] == (r["score"] is not None)
     # khớp stage_a.json (đầy đủ) về số cấu hình và tham số
-    full = json.loads(sorted((market / "_cache" / "book").glob("*/stage_a.json"))[-1].read_text())
+    full = json.loads(sorted(pathlib.Path(alpha_run_dir("book")).glob("*/stage_a.json"))[-1].read_text())
     for cid, rows in full.items():
         assert [r["params"] for r in rows] == [r["params"] for r in res["stage_a"][cid]]
 

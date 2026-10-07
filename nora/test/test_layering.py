@@ -82,6 +82,8 @@ LAYER_RULES: List[Tuple[str, str, Optional[int]]] = [
     ("core/strategy/library", "core", _r("params")),         # P9.9 thành dữ liệu
     ("core/strategy", "core", _r("params")),
     # --- core: indicator ---
+    ("core/indicator", "core", _r("indicator")),             # P9.4 part 2: file đích (kernels + pydsl/{spec,features,ops} hợp nhất)
+    ("core/signal", "core", _r("signal")),                   # P9.4 part 2: file đích (evaluator/snapshot/diagnostics + pydsl/{errors,program,parser,explain})
     ("core/signals/kernels", "core", _r("indicator")),
     ("core/strategy/pydsl/features", "core", _r("indicator")),
     ("core/strategy/pydsl/ops", "core", _r("indicator")),
