@@ -192,6 +192,24 @@ ADR: [`adr-p6-unified-execution.md`](adr-p6-unified-execution.md) · Đặc tả
 | E9 | Testnet/live: feed thật, bot Binance testnet | Làm sau P3 |
 | E11 | API bind `0.0.0.0:18010` không auth | User quyết định để nguyên (2026-10-02) |
 
+### P9 — Tinh gọn kiến trúc backend và dữ liệu
+
+ADR: [`adr-p9-backend-layout.md`](adr-p9-backend-layout.md). Mỗi ID một commit; review chéo norabt-99 ↔ norabt-e2 (alpha) ↔ backtest analyst trước khi commit; chỉ di chuyển/gộp, không viết lại logic.
+
+| ID | Việc | Người | Cần trước | Xong khi | Trạng thái |
+|---|---|---|---|---|---|
+| P9.0 | ADR này + test luật phụ thuộc (chế độ báo cáo) | O | — | Phiên alpha + backtest analyst OK; người dùng duyệt | todo |
+| P9.1 | Sửa 79 manifest OKX (`compute_df_sha256`), xác nhận nội dung nến trước khi ghi | S | P9.0 + user OK | Quality gate APPROVED/WARNING cho mọi tài sản; test_pydsl_parity xanh | todo |
+| P9.2 | `crawl/` (cex, dex, store) + chọn gốc dữ liệu một chỗ | S | P9.0 | Khoá cache mmap không đổi; crawl/quality gate test xanh | todo |
+| P9.3 | `data/` theo cây mới (script chuyển + kiểm sha256, symlink tạm ở đường cũ) | S | P9.2 | Mọi job đọc/ghi đúng chỗ mới; không mất file (đếm + băm) | todo |
+| P9.4 | `core/` (models, params, indicator, signal, position_size, backtest) + shim | S | P9.2 | Golden + mọi parity + nautilus_diff không đổi | todo |
+| P9.5 | `metrics/` (gộp xno vào metrics.py, periods_per_year) + `regime/`, `wfa/`, `carlo/`, `verdict/` | S | P9.4 + phiên alpha commit xong | test_xno_parity khớp < 1e-9; khoá `metrics.{…}.{xno,nora}` giữ nguyên hoặc có bảng đổi tên cho frontend | todo |
+| P9.6 | `optimize/` (search, funnel, book, process) + vòng đời `data/cache/process` + dọn cache | S | P9.4 | Huỷ/khôi phục/resume chạy đúng; job cũ đọc được qua shim | todo |
+| P9.7 | `live/` (bot, okx) — chỉ unified; khởi động lại bot demo | S, user duyệt bật lại bot | P9.4, P9.6 | test_live_bot, test_bot_unified, test_okx_venue xanh; bot chạy engine mới | todo |
+| P9.8 | `routes/` (← api) + modes + kiểm tham số job | S | P9.6 | Mọi route `/api/studio/*` giữ nguyên; frontend chạy | todo |
+| P9.9 | Chiến lược thành dữ liệu `data/alpha/strategies/` | S + phiên alpha | P9.4 | Danh mục chiến lược đọc từ file; golden không đổi | todo |
+| P9.10 | Gỡ shim, bật test luật phụ thuộc bắt buộc, full suite, cập nhật architecture.md + BMAD | O | tất cả | 0 vi phạm phụ thuộc; full suite xanh | todo |
+
 ## 5. Thứ tự và phụ thuộc
 
 ```
