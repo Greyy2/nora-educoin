@@ -1178,18 +1178,18 @@
   "classes": {
    "match": 128
   },
-  "final_equity_nora": 10916.810877988239,
+  "final_equity_nora": 10912.699343263306,
   "final_equity_naut": 10912.699348920001,
-  "final_equity_diff_pct": -0.03766236416651303,
+  "final_equity_diff_pct": 5.18358911349992e-08,
   "bit_identical": true,
   "funding_nora": 0.0,
   "funding_naut": 0,
   "rejected_for_risk": 0,
   "variant": "",
-  "entry_equity_differs": 111,
-  "entry_equity_max_rel": 0.011687947266651084,
+  "entry_equity_differs": 33,
+  "entry_equity_max_rel": 1.545572864387557e-09,
   "sizing_lookahead_trades": 5,
-  "sizing_lookahead_max_qty_rel": 0.011826170988620092,
+  "sizing_lookahead_max_qty_rel": 9.847260754996179e-10,
   "non_exact_examples": []
  },
  {
@@ -1204,18 +1204,18 @@
   "classes": {
    "match": 128
   },
-  "final_equity_nora": 10916.810877988239,
+  "final_equity_nora": 10912.699343263306,
   "final_equity_naut": 10912.699348920001,
-  "final_equity_diff_pct": -0.03766236416651303,
+  "final_equity_diff_pct": 5.18358911349992e-08,
   "bit_identical": null,
   "funding_nora": 0.0,
   "funding_naut": 0,
   "rejected_for_risk": 0,
   "variant": "_sync",
-  "entry_equity_differs": 111,
-  "entry_equity_max_rel": 0.011687947266651084,
+  "entry_equity_differs": 33,
+  "entry_equity_max_rel": 1.545572864387557e-09,
   "sizing_lookahead_trades": 5,
-  "sizing_lookahead_max_qty_rel": 0.011826170988620092,
+  "sizing_lookahead_max_qty_rel": 9.847260754996179e-10,
   "non_exact_examples": []
  },
  {
@@ -1223,38 +1223,26 @@
   "signal": "ema20_50",
   "stage": "S8b",
   "path": "adaptive",
-  "trades_nora": 112,
+  "trades_nora": 111,
   "trades_naut": 111,
   "matched_pairs": 111,
   "exact_matches": 111,
   "classes": {
-   "match": 111,
-   "p": 1
+   "match": 111
   },
-  "final_equity_nora": 10234.922957835814,
+  "final_equity_nora": 10116.593066203928,
   "final_equity_naut": 10116.593067020001,
-  "final_equity_diff_pct": -1.1561385591595474,
+  "final_equity_diff_pct": 8.066680656781955e-09,
   "bit_identical": true,
   "funding_nora": 0.0,
   "funding_naut": 0,
-  "rejected_for_risk": 19,
+  "rejected_for_risk": 20,
   "variant": "",
-  "entry_equity_differs": 96,
-  "entry_equity_max_rel": 0.02274614708434494,
+  "entry_equity_differs": 21,
+  "entry_equity_max_rel": 1.1701263222323296e-09,
   "sizing_lookahead_trades": 4,
-  "sizing_lookahead_max_qty_rel": 0.023275576718200006,
-  "non_exact_examples": [
-   {
-    "sym": "ETH",
-    "enter_time": 1777640400000,
-    "cls": "p",
-    "note": "Nora admitted at open 1777640400000: its view had n_open=1, gross=6028.94, eq=10127.15 (earlier symbol(s) already closed intrabar in this bar); the time-synchronous view has n_open=2, gross=0.00, eq=10011.25 -> blocked (Nautilus does not take the trade)",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   }
-  ]
+  "sizing_lookahead_max_qty_rel": 1.1754738368180449e-09,
+  "non_exact_examples": []
  },
  {
   "dataset": "aligned",
@@ -1268,18 +1256,18 @@
   "classes": {
    "match": 111
   },
-  "final_equity_nora": 10119.093812681856,
+  "final_equity_nora": 10116.593066203928,
   "final_equity_naut": 10116.593067020001,
-  "final_equity_diff_pct": -0.024713138430643156,
+  "final_equity_diff_pct": 8.066680656781955e-09,
   "bit_identical": null,
   "funding_nora": 0.0,
   "funding_naut": 0,
   "rejected_for_risk": 20,
   "variant": "_sync",
-  "entry_equity_differs": 80,
-  "entry_equity_max_rel": 0.011559920286074834,
+  "entry_equity_differs": 21,
+  "entry_equity_max_rel": 1.1701263222323296e-09,
   "sizing_lookahead_trades": 4,
-  "sizing_lookahead_max_qty_rel": 0.011695114823521117,
+  "sizing_lookahead_max_qty_rel": 1.1754738368180449e-09,
   "non_exact_examples": []
  },
  {
@@ -1287,185 +1275,25 @@
   "signal": "ema20_50",
   "stage": "S8c",
   "path": "adaptive",
-  "trades_nora": 122,
-  "trades_naut": 117,
-  "matched_pairs": 116,
-  "exact_matches": 86,
-  "classes": {
-   "match": 86,
-   "p": 32,
-   "c": 1,
-   "x": 4
-  },
-  "final_equity_nora": 10373.701554335705,
-  "final_equity_naut": 10209.15830841,
-  "final_equity_diff_pct": -1.5861575066899225,
-  "bit_identical": true,
-  "funding_nora": 0.0,
-  "funding_naut": 0,
-  "rejected_for_risk": 8,
-  "variant": "",
-  "entry_equity_differs": 112,
-  "entry_equity_max_rel": 0.023182353779060638,
-  "sizing_lookahead_trades": 4,
-  "sizing_lookahead_max_qty_rel": 0.566350612058535,
-  "non_exact_examples": [
-   {
-    "sym": "ETH",
-    "enter_time": 1776114000000,
-    "cls": "p",
-    "note": "gross-exposure room differs: Nora notional 4104.48 (room 4104.48, gross 6128.41, eq 10232.89) vs Nautilus 4107.01 (room 4107.01, gross 6125.89, eq 10232.89); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
-    "nora": [
-     2251.6,
-     1776117600000,
-     2296.632,
-     "TP"
-    ],
-    "naut": [
-     2251.6,
-     1776117600000,
-     2296.632,
-     "TP"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1776114000000,
-    "cls": "c",
-    "note": "dust entry from a knife-edge: the cap leaves room 7.67e-06 USDT (earlier entries sized to exactly fill max_gross_exposure); Nora's float arithmetic gives room <= 0 (rejected), Nautilus' 8-decimal qty rounding leaves a positive notional 7.55e-06 USDT",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1776769200000,
-    "cls": "p",
-    "note": "gross-exposure room differs: Nora notional 4119.29 (room 4119.29, gross 6211.19, eq 10330.48) vs Nautilus 4095.06 (room 4095.06, gross 6235.47, eq 10330.53); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
-    "nora": [
-     86.11,
-     1776790800000,
-     84.81835,
-     "SL"
-    ],
-    "naut": [
-     86.11,
-     1776790800000,
-     84.81835,
-     "SL"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
-    "sym": "ETH",
-    "enter_time": 1777197600000,
-    "cls": "p",
-    "note": "gross-exposure room differs: Nora notional 13.49 (room 13.49, gross 10247.46, eq 10260.95) vs Nautilus 13.50 (room 13.50, gross 10247.89, eq 10261.39); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
-    "nora": [
-     2333.36,
-     1777248000000,
-     2380.0272,
-     "TP"
-    ],
-    "naut": [
-     2333.36,
-     1777248000000,
-     2380.0272,
-     "TP"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1777629600000,
-    "cls": "p",
-    "note": "gross-exposure room differs: Nora notional 3980.45 (room 3980.45, gross 6019.93, eq 10000.38) vs Nautilus 3982.66 (room 3982.66, gross 6018.15, eq 10000.81); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
-    "nora": [
-     83.92,
-     1777867200000,
-     85.5984,
-     "TP"
-    ],
-    "naut": [
-     83.92,
-     1777867200000,
-     85.5984,
-     "TP"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
-    "sym": "ETH",
-    "enter_time": 1777640400000,
-    "cls": "x",
-    "note": "nora-only trade inside cascade window of an earlier classified divergence",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   },
-   {
-    "sym": "ETH",
-    "enter_time": 1779310800000,
-    "cls": "x",
-    "note": "nora-only trade inside cascade window of an earlier classified divergence",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1785423600000,
-    "cls": "x",
-    "note": "nora-only trade inside cascade window of an earlier classified divergence",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1789383600000,
-    "cls": "x",
-    "note": "nora-only trade inside cascade window of an earlier classified divergence",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   }
-  ]
- },
- {
-  "dataset": "aligned",
-  "signal": "ema20_50",
-  "stage": "S8c [sync adm]",
-  "path": "adaptive",
   "trades_nora": 116,
   "trades_naut": 117,
   "matched_pairs": 116,
-  "exact_matches": 111,
+  "exact_matches": 115,
   "classes": {
-   "match": 111,
+   "match": 115,
    "c": 1,
-   "p": 5
+   "p": 1
   },
   "final_equity_nora": 10209.158338653502,
   "final_equity_naut": 10209.15830841,
   "final_equity_diff_pct": -2.962389333838189e-07,
-  "bit_identical": null,
+  "bit_identical": true,
   "funding_nora": 0.0,
   "funding_naut": 0,
   "rejected_for_risk": 15,
-  "variant": "_sync",
-  "entry_equity_differs": 37,
-  "entry_equity_max_rel": 0.011445096935403881,
+  "variant": "",
+  "entry_equity_differs": 35,
+  "entry_equity_max_rel": 3.6923643378715883e-09,
   "sizing_lookahead_trades": 4,
   "sizing_lookahead_max_qty_rel": 6.178705531202373e-08,
   "non_exact_examples": [
@@ -1478,26 +1306,6 @@
     "naut": null,
     "fund_nora": null,
     "fund_naut": null
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1780876800000,
-    "cls": "p",
-    "note": "cap-clamped size follows the entry equity, which differs (Nora 9739.2154, Nautilus 9627.7492): Nora sizes with a ledger that already holds the intrabar PnL of earlier-order symbols' bar t",
-    "nora": [
-     66.46,
-     1780880400000,
-     65.4631,
-     "SL"
-    ],
-    "naut": [
-     66.46,
-     1780880400000,
-     65.4631,
-     "SL"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
    },
    {
     "sym": "SOL",
@@ -1518,43 +1326,62 @@
     ],
     "fund_nora": 0.0,
     "fund_naut": 0
+   }
+  ]
+ },
+ {
+  "dataset": "aligned",
+  "signal": "ema20_50",
+  "stage": "S8c [sync adm]",
+  "path": "adaptive",
+  "trades_nora": 116,
+  "trades_naut": 117,
+  "matched_pairs": 116,
+  "exact_matches": 115,
+  "classes": {
+   "match": 115,
+   "c": 1,
+   "p": 1
+  },
+  "final_equity_nora": 10209.158338653502,
+  "final_equity_naut": 10209.15830841,
+  "final_equity_diff_pct": -2.962389333838189e-07,
+  "bit_identical": null,
+  "funding_nora": 0.0,
+  "funding_naut": 0,
+  "rejected_for_risk": 15,
+  "variant": "_sync",
+  "entry_equity_differs": 35,
+  "entry_equity_max_rel": 3.6923643378715883e-09,
+  "sizing_lookahead_trades": 4,
+  "sizing_lookahead_max_qty_rel": 6.178705531202373e-08,
+  "non_exact_examples": [
+   {
+    "sym": "SOL",
+    "enter_time": 1776114000000,
+    "cls": "c",
+    "note": "dust entry from a knife-edge: the cap leaves room 7.67e-06 USDT (earlier entries sized to exactly fill max_gross_exposure); Nora's float arithmetic gives room <= 0 (rejected), Nautilus' 8-decimal qty rounding leaves a positive notional 7.55e-06 USDT",
+    "nora": null,
+    "naut": null,
+    "fund_nora": null,
+    "fund_naut": null
    },
    {
     "sym": "SOL",
-    "enter_time": 1785081600000,
+    "enter_time": 1784055600000,
     "cls": "p",
-    "note": "cap-clamped size follows the entry equity, which differs (Nora 10380.4011, Nautilus 10261.5965): Nora sizes with a ledger that already holds the intrabar PnL of earlier-order symbols' bar t",
+    "note": "gross-exposure room differs: Nora notional 12.90 (room 12.90, gross 9980.04, eq 9992.94) vs Nautilus 12.90 (room 12.90, gross 9980.04, eq 9992.94); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
     "nora": [
-     75.44,
-     1785106800000,
-     76.9488,
+     77.25,
+     1784120400000,
+     78.795,
      "TP"
     ],
     "naut": [
-     75.44,
-     1785106800000,
-     76.9488,
+     77.25,
+     1784120400000,
+     78.795,
      "TP"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1790776800000,
-    "cls": "p",
-    "note": "cap-clamped size follows the entry equity, which differs (Nora 10005.2675, Nautilus 10102.8334): Nora sizes with a ledger that already holds the intrabar PnL of earlier-order symbols' bar t",
-    "nora": [
-     120.97,
-     1790776800000,
-     119.15545,
-     "SL"
-    ],
-    "naut": [
-     120.97,
-     1790776800000,
-     119.15545,
-     "SL"
     ],
     "fund_nora": 0.0,
     "fund_naut": 0
@@ -1566,119 +1393,26 @@
   "signal": "ema20_50",
   "stage": "S8d",
   "path": "adaptive",
-  "trades_nora": 112,
+  "trades_nora": 111,
   "trades_naut": 111,
   "matched_pairs": 111,
-  "exact_matches": 85,
+  "exact_matches": 111,
   "classes": {
-   "match": 85,
-   "p": 26,
-   "x": 1
+   "match": 111
   },
-  "final_equity_nora": 10514.257467311252,
+  "final_equity_nora": 10301.64477420642,
   "final_equity_naut": 10301.64477106,
-  "final_equity_diff_pct": -2.0221370544925565,
+  "final_equity_diff_pct": -3.054287933679234e-08,
   "bit_identical": true,
   "funding_nora": 0.0,
   "funding_naut": 0,
-  "rejected_for_risk": 19,
+  "rejected_for_risk": 20,
   "variant": "",
-  "entry_equity_differs": 107,
-  "entry_equity_max_rel": 0.023813237423395587,
+  "entry_equity_differs": 14,
+  "entry_equity_max_rel": 1.2047222487197453e-09,
   "sizing_lookahead_trades": 4,
-  "sizing_lookahead_max_qty_rel": 2.2004430109655937,
-  "non_exact_examples": [
-   {
-    "sym": "ETH",
-    "enter_time": 1776114000000,
-    "cls": "p",
-    "note": "gross-exposure room differs: Nora notional 2057.90 (room 2057.90, gross 6128.41, eq 10232.89) vs Nautilus 2060.43 (room 2060.43, gross 6125.89, eq 10232.89); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
-    "nora": [
-     2251.6,
-     1776117600000,
-     2296.632,
-     "TP"
-    ],
-    "naut": [
-     2251.6,
-     1776117600000,
-     2296.632,
-     "TP"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1776769200000,
-    "cls": "p",
-    "note": "gross-exposure room differs: Nora notional 2045.42 (room 2045.42, gross 6187.67, eq 10291.37) vs Nautilus 2021.27 (room 2021.27, gross 6211.86, eq 10291.41); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
-    "nora": [
-     86.11,
-     1776790800000,
-     84.81835,
-     "SL"
-    ],
-    "naut": [
-     86.11,
-     1776790800000,
-     84.81835,
-     "SL"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1777629600000,
-    "cls": "p",
-    "note": "gross-exposure room differs: Nora notional 1978.15 (room 1978.15, gross 6013.18, eq 9989.16) vs Nautilus 1980.27 (room 1980.27, gross 6011.40, eq 9989.59); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
-    "nora": [
-     83.92,
-     1777867200000,
-     85.5984,
-     "TP"
-    ],
-    "naut": [
-     83.92,
-     1777867200000,
-     85.5984,
-     "TP"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
-    "sym": "ETH",
-    "enter_time": 1777640400000,
-    "cls": "x",
-    "note": "nora-only trade inside cascade window of an earlier classified divergence",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   },
-   {
-    "sym": "ETH",
-    "enter_time": 1778792400000,
-    "cls": "p",
-    "note": "gross-exposure room differs: Nora notional 2095.81 (room 2095.81, gross 6204.36, eq 10375.21) vs Nautilus 2069.95 (room 2069.95, gross 6135.96, eq 10257.38); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
-    "nora": [
-     2297.49,
-     1778810400000,
-     2263.0276499999995,
-     "SL"
-    ],
-    "naut": [
-     2297.49,
-     1778810400000,
-     2263.02765,
-     "SL"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   }
-  ]
+  "sizing_lookahead_max_qty_rel": 2.4962765125334626e-08,
+  "non_exact_examples": []
  },
  {
   "dataset": "aligned",
@@ -1688,10 +1422,9 @@
   "trades_nora": 111,
   "trades_naut": 111,
   "matched_pairs": 111,
-  "exact_matches": 107,
+  "exact_matches": 111,
   "classes": {
-   "match": 107,
-   "p": 4
+   "match": 111
   },
   "final_equity_nora": 10301.64477420642,
   "final_equity_naut": 10301.64477106,
@@ -1701,92 +1434,11 @@
   "funding_naut": 0,
   "rejected_for_risk": 20,
   "variant": "_sync",
-  "entry_equity_differs": 18,
-  "entry_equity_max_rel": 0.011445094111165852,
+  "entry_equity_differs": 14,
+  "entry_equity_max_rel": 1.2047222487197453e-09,
   "sizing_lookahead_trades": 4,
   "sizing_lookahead_max_qty_rel": 2.4962765125334626e-08,
-  "non_exact_examples": [
-   {
-    "sym": "SOL",
-    "enter_time": 1780876800000,
-    "cls": "p",
-    "note": "cap-clamped size follows the entry equity, which differs (Nora 9831.1037, Nautilus 9718.5858): Nora sizes with a ledger that already holds the intrabar PnL of earlier-order symbols' bar t",
-    "nora": [
-     66.46,
-     1780880400000,
-     65.4631,
-     "SL"
-    ],
-    "naut": [
-     66.46,
-     1780880400000,
-     65.4631,
-     "SL"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1785081600000,
-    "cls": "p",
-    "note": "cap-clamped size follows the entry equity, which differs (Nora 10493.7926, Nautilus 10373.6901): Nora sizes with a ledger that already holds the intrabar PnL of earlier-order symbols' bar t",
-    "nora": [
-     75.44,
-     1785106800000,
-     76.9488,
-     "TP"
-    ],
-    "naut": [
-     75.44,
-     1785106800000,
-     76.9488,
-     "TP"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1790776800000,
-    "cls": "p",
-    "note": "cap-clamped size follows the entry equity, which differs (Nora 10140.5933, Nautilus 10239.1584): Nora sizes with a ledger that already holds the intrabar PnL of earlier-order symbols' bar t",
-    "nora": [
-     120.97,
-     1790776800000,
-     119.15545,
-     "SL"
-    ],
-    "naut": [
-     120.97,
-     1790776800000,
-     119.15545,
-     "SL"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1790913600000,
-    "cls": "p",
-    "note": "cap-clamped size follows the entry equity, which differs (Nora 10224.4212, Nautilus 10107.4017): Nora sizes with a ledger that already holds the intrabar PnL of earlier-order symbols' bar t",
-    "nora": [
-     121.17,
-     1790913600000,
-     123.5934,
-     "TP"
-    ],
-    "naut": [
-     121.17,
-     1790913600000,
-     123.5934,
-     "TP"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   }
-  ]
+  "non_exact_examples": []
  },
  {
   "dataset": "aligned",
@@ -2935,18 +2587,18 @@
   "classes": {
    "match": 451
   },
-  "final_equity_nora": 8031.503614959028,
+  "final_equity_nora": 8029.985953937605,
   "final_equity_naut": 8029.876049279999,
-  "final_equity_diff_pct": -0.020264769301692187,
+  "final_equity_diff_pct": -0.001368678080337915,
   "bit_identical": true,
   "funding_nora": 0.0,
   "funding_naut": 0,
   "rejected_for_risk": 0,
   "variant": "",
   "entry_equity_differs": 417,
-  "entry_equity_max_rel": 0.019543618962704616,
+  "entry_equity_max_rel": 0.0024210709898524196,
   "sizing_lookahead_trades": 7,
-  "sizing_lookahead_max_qty_rel": 0.019168987587344016,
+  "sizing_lookahead_max_qty_rel": 1.368656695314985e-05,
   "non_exact_examples": []
  },
  {
@@ -2961,18 +2613,18 @@
   "classes": {
    "match": 451
   },
-  "final_equity_nora": 8031.503614959028,
+  "final_equity_nora": 8029.985953937605,
   "final_equity_naut": 8029.876049279999,
-  "final_equity_diff_pct": -0.020264769301692187,
+  "final_equity_diff_pct": -0.001368678080337915,
   "bit_identical": null,
   "funding_nora": 0.0,
   "funding_naut": 0,
   "rejected_for_risk": 0,
   "variant": "_sync",
   "entry_equity_differs": 417,
-  "entry_equity_max_rel": 0.019543618962704616,
+  "entry_equity_max_rel": 0.0024210709898524196,
   "sizing_lookahead_trades": 7,
-  "sizing_lookahead_max_qty_rel": 0.019168987587344016,
+  "sizing_lookahead_max_qty_rel": 1.368656695314985e-05,
   "non_exact_examples": []
  },
  {
@@ -2980,68 +2632,26 @@
   "signal": "ema5_13",
   "stage": "S8b",
   "path": "adaptive",
-  "trades_nora": 362,
+  "trades_nora": 357,
   "trades_naut": 357,
   "matched_pairs": 357,
   "exact_matches": 357,
   "classes": {
-   "match": 357,
-   "p": 5
+   "match": 357
   },
-  "final_equity_nora": 8818.299456770337,
+  "final_equity_nora": 8947.218736951065,
   "final_equity_naut": 8947.0962846,
-  "final_equity_diff_pct": 1.4605630990539575,
+  "final_equity_diff_pct": -0.0013686079961217068,
   "bit_identical": true,
   "funding_nora": 0.0,
   "funding_naut": 0,
-  "rejected_for_risk": 96,
+  "rejected_for_risk": 101,
   "variant": "",
   "entry_equity_differs": 334,
-  "entry_equity_max_rel": 0.026219413655643217,
+  "entry_equity_max_rel": 0.002421070810989829,
   "sizing_lookahead_trades": 3,
-  "sizing_lookahead_max_qty_rel": 0.022980193108637022,
-  "non_exact_examples": [
-   {
-    "sym": "SOL",
-    "enter_time": 1777860000000,
-    "cls": "p",
-    "note": "Nora admitted at open 1777860000000: its view had n_open=0, gross=0.00, eq=10842.99 (earlier symbol(s) already closed intrabar in this bar); the time-synchronous view has n_open=2, gross=0.00, eq=10597.60 -> blocked (Nautilus does not take the trade)",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1778770800000,
-    "cls": "p",
-    "note": "Nora admitted at open 1778770800000: its view had n_open=1, gross=6333.34, eq=10502.51 (earlier symbol(s) already closed intrabar in this bar); the time-synchronous view has n_open=2, gross=0.00, eq=10382.30 -> blocked (Nautilus does not take the trade)",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1785351600000,
-    "cls": "p",
-    "note": "Nora admitted at open 1785351600000: its view had n_open=0, gross=0.00, eq=9534.80 (earlier symbol(s) already closed intrabar in this bar); the time-synchronous view has n_open=2, gross=0.00, eq=9720.45 -> blocked (Nautilus does not take the trade)",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1785949200000,
-    "cls": "p",
-    "note": "Nora admitted at open 1785949200000: its view had n_open=1, gross=5409.79, eq=9059.22 (earlier symbol(s) already closed intrabar in this bar); the time-synchronous view has n_open=2, gross=0.00, eq=8955.54 -> blocked (Nautilus does not take the trade)",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   }
-  ]
+  "sizing_lookahead_max_qty_rel": 1.3685673214574324e-05,
+  "non_exact_examples": []
  },
  {
   "dataset": "aligned",
@@ -3055,18 +2665,18 @@
   "classes": {
    "match": 357
   },
-  "final_equity_nora": 8946.72175282926,
+  "final_equity_nora": 8947.218736951065,
   "final_equity_naut": 8947.0962846,
-  "final_equity_diff_pct": 0.004186245879633788,
+  "final_equity_diff_pct": -0.0013686079961217068,
   "bit_identical": null,
   "funding_nora": 0.0,
   "funding_naut": 0,
   "rejected_for_risk": 101,
   "variant": "_sync",
   "entry_equity_differs": 334,
-  "entry_equity_max_rel": 0.011445091381094067,
+  "entry_equity_max_rel": 0.002421070810989829,
   "sizing_lookahead_trades": 3,
-  "sizing_lookahead_max_qty_rel": 0.011577596933862521,
+  "sizing_lookahead_max_qty_rel": 1.3685673214574324e-05,
   "non_exact_examples": []
  },
  {
@@ -3074,218 +2684,28 @@
   "signal": "ema5_13",
   "stage": "S8c",
   "path": "adaptive",
-  "trades_nora": 398,
-  "trades_naut": 397,
-  "matched_pairs": 375,
-  "exact_matches": 239,
-  "classes": {
-   "match": 239,
-   "p": 144,
-   "c": 13,
-   "x": 24
-  },
-  "final_equity_nora": 8983.03767094446,
-  "final_equity_naut": 9198.31741584,
-  "final_equity_diff_pct": 2.3965138829580956,
-  "bit_identical": true,
-  "funding_nora": 0.0,
-  "funding_naut": 0,
-  "rejected_for_risk": 56,
-  "variant": "",
-  "entry_equity_differs": 373,
-  "entry_equity_max_rel": 0.03391338745038829,
-  "sizing_lookahead_trades": 6,
-  "sizing_lookahead_max_qty_rel": 0.5392607042840679,
-  "non_exact_examples": [
-   {
-    "sym": "ETH",
-    "enter_time": 1775592000000,
-    "cls": "p",
-    "note": "gross-exposure room differs: Nora notional 3973.48 (room 3973.48, gross 6026.52, eq 10000.00) vs Nautilus 4000.00 (room 4000.00, gross 6000.00, eq 10000.00); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
-    "nora": [
-     2112.59,
-     1775599200000,
-     2154.8418,
-     "TP"
-    ],
-    "naut": [
-     2112.59,
-     1775599200000,
-     2154.8418,
-     "TP"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
-    "sym": "ETH",
-    "enter_time": 1775750400000,
-    "cls": "p",
-    "note": "gross-exposure room differs: Nora notional 4035.56 (room 4035.56, gross 6041.14, eq 10076.70) vs Nautilus 4030.88 (room 4030.88, gross 6046.32, eq 10077.21); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
-    "nora": [
-     2217.13,
-     1775775600000,
-     2183.87305,
-     "SL"
-    ],
-    "naut": [
-     2217.13,
-     1775775600000,
-     2183.8730499999997,
-     "SL"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
-    "sym": "ETH",
-    "enter_time": 1775822400000,
-    "cls": "p",
-    "note": "gross-exposure room differs: Nora notional 3969.85 (room 3969.85, gross 5982.78, eq 9952.63) vs Nautilus 3981.15 (room 3981.15, gross 5971.72, eq 9952.87); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
-    "nora": [
-     2214.5,
-     1775890800000,
-     2234.99,
-     "SIG"
-    ],
-    "naut": [
-     2214.5,
-     1775890800000,
-     2234.99,
-     "SIG"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1775822400000,
-    "cls": "c",
-    "note": "dust entry from a knife-edge: the cap leaves room 3.05e-06 USDT (earlier entries sized to exactly fill max_gross_exposure); Nora's float arithmetic gives room <= 0 (rejected), Nautilus' 8-decimal qty rounding leaves a positive notional 3.34e-06 USDT",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1775923200000,
-    "cls": "p",
-    "note": "gross-exposure room differs: Nora notional 3959.08 (room 3959.08, gross 6060.35, eq 10019.43) vs Nautilus 3984.21 (room 3984.21, gross 6035.56, eq 10019.77); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
-    "nora": [
-     84.62,
-     1775955600000,
-     83.3507,
-     "SL"
-    ],
-    "naut": [
-     84.62,
-     1775955600000,
-     83.3507,
-     "SL"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1776816000000,
-    "cls": "x",
-    "note": "nora-only trade inside cascade window of an earlier classified divergence",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1777557600000,
-    "cls": "x",
-    "note": "nora-only trade inside cascade window of an earlier classified divergence",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1777730400000,
-    "cls": "x",
-    "note": "nora-only trade inside cascade window of an earlier classified divergence",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1777860000000,
-    "cls": "x",
-    "note": "nora-only trade inside cascade window of an earlier classified divergence",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1779555600000,
-    "cls": "c",
-    "note": "dust entry from a knife-edge: the cap leaves room 7.03e-06 USDT (earlier entries sized to exactly fill max_gross_exposure); Nora's float arithmetic gives room <= 0 (rejected), Nautilus' 8-decimal qty rounding leaves a positive notional 6.72e-06 USDT",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1779685200000,
-    "cls": "c",
-    "note": "dust entry from a knife-edge: the cap leaves room 9.93e-06 USDT (earlier entries sized to exactly fill max_gross_exposure); Nora's float arithmetic gives room <= 0 (rejected), Nautilus' 8-decimal qty rounding leaves a positive notional 1.03e-05 USDT",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1780034400000,
-    "cls": "c",
-    "note": "dust entry from a knife-edge: the cap leaves room 3.52e-06 USDT (earlier entries sized to exactly fill max_gross_exposure); Nora's float arithmetic gives room <= 0 (rejected), Nautilus' 8-decimal qty rounding leaves a positive notional 3.28e-06 USDT",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   }
-  ]
- },
- {
-  "dataset": "aligned",
-  "signal": "ema5_13",
-  "stage": "S8c [sync adm]",
-  "path": "adaptive",
   "trades_nora": 374,
   "trades_naut": 397,
   "matched_pairs": 373,
-  "exact_matches": 368,
+  "exact_matches": 371,
   "classes": {
-   "match": 368,
+   "match": 371,
    "c": 24,
-   "p": 5,
+   "p": 2,
    "x": 1
   },
-  "final_equity_nora": 9198.209575884206,
+  "final_equity_nora": 9198.44418522586,
   "final_equity_naut": 9198.31741584,
-  "final_equity_diff_pct": 0.0011724015951619648,
-  "bit_identical": null,
+  "final_equity_diff_pct": -0.0013781611684304806,
+  "bit_identical": true,
   "funding_nora": 0.0,
   "funding_naut": 0,
   "rejected_for_risk": 83,
-  "variant": "_sync",
-  "entry_equity_differs": 271,
-  "entry_equity_max_rel": 0.011445093187850868,
+  "variant": "",
+  "entry_equity_differs": 270,
+  "entry_equity_max_rel": 0.0024210686607353737,
   "sizing_lookahead_trades": 3,
-  "sizing_lookahead_max_qty_rel": 0.0026664710959784883,
+  "sizing_lookahead_max_qty_rel": 1.368517647165494e-05,
   "non_exact_examples": [
    {
     "sym": "SOL",
@@ -3328,26 +2748,6 @@
     "fund_naut": null
    },
    {
-    "sym": "ETH",
-    "enter_time": 1778770800000,
-    "cls": "p",
-    "note": "cap-clamped size follows the entry equity, which differs (Nora 10666.3843, Nautilus 10544.3065): Nora sizes with a ledger that already holds the intrabar PnL of earlier-order symbols' bar t",
-    "nora": [
-     2285.8,
-     1778810400000,
-     2274.88,
-     "SIG"
-    ],
-    "naut": [
-     2285.8,
-     1778810400000,
-     2274.88,
-     "SIG"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
     "sym": "SOL",
     "enter_time": 1784995200000,
     "cls": "p",
@@ -3368,21 +2768,121 @@
     "fund_naut": 0
    },
    {
-    "sym": "ETH",
-    "enter_time": 1785351600000,
+    "sym": "SOL",
+    "enter_time": 1786939200000,
     "cls": "p",
-    "note": "gross-exposure room differs: Nora notional 4012.51 (room 4012.51, gross 6018.76, eq 10031.27) vs Nautilus 4012.45 (room 4012.45, gross 6018.68, eq 10031.13); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
+    "note": "gross-exposure room differs: Nora notional 2.86 (room 2.86, gross 9051.03, eq 9053.89) vs Nautilus 2.86 (room 2.86, gross 9050.90, eq 9053.77); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
     "nora": [
-     1919.59,
-     1785351600000,
-     1890.79615,
-     "SL"
+     75.46,
+     1787022000000,
+     75.25,
+     "SIG"
     ],
     "naut": [
-     1919.59,
-     1785351600000,
-     1890.7961500000001,
-     "SL"
+     75.46,
+     1787022000000,
+     75.25,
+     "SIG"
+    ],
+    "fund_nora": 0.0,
+    "fund_naut": 0
+   },
+   {
+    "sym": "SOL",
+    "enter_time": 1790895600000,
+    "cls": "x",
+    "note": "nora-only trade inside cascade window of an earlier classified divergence",
+    "nora": null,
+    "naut": null,
+    "fund_nora": null,
+    "fund_naut": null
+   }
+  ]
+ },
+ {
+  "dataset": "aligned",
+  "signal": "ema5_13",
+  "stage": "S8c [sync adm]",
+  "path": "adaptive",
+  "trades_nora": 374,
+  "trades_naut": 397,
+  "matched_pairs": 373,
+  "exact_matches": 371,
+  "classes": {
+   "match": 371,
+   "c": 24,
+   "p": 2,
+   "x": 1
+  },
+  "final_equity_nora": 9198.44418522586,
+  "final_equity_naut": 9198.31741584,
+  "final_equity_diff_pct": -0.0013781611684304806,
+  "bit_identical": null,
+  "funding_nora": 0.0,
+  "funding_naut": 0,
+  "rejected_for_risk": 83,
+  "variant": "_sync",
+  "entry_equity_differs": 270,
+  "entry_equity_max_rel": 0.0024210686607353737,
+  "sizing_lookahead_trades": 3,
+  "sizing_lookahead_max_qty_rel": 1.368517647165494e-05,
+  "non_exact_examples": [
+   {
+    "sym": "SOL",
+    "enter_time": 1775750400000,
+    "cls": "c",
+    "note": "dust entry from a knife-edge: the cap leaves room 7.8e-06 USDT (earlier entries sized to exactly fill max_gross_exposure); Nora's float arithmetic gives room <= 0 (rejected), Nautilus' 8-decimal qty rounding leaves a positive notional 7.53e-06 USDT",
+    "nora": null,
+    "naut": null,
+    "fund_nora": null,
+    "fund_naut": null
+   },
+   {
+    "sym": "SOL",
+    "enter_time": 1775822400000,
+    "cls": "c",
+    "note": "dust entry from a knife-edge: the cap leaves room 3.05e-06 USDT (earlier entries sized to exactly fill max_gross_exposure); Nora's float arithmetic gives room <= 0 (rejected), Nautilus' 8-decimal qty rounding leaves a positive notional 3.34e-06 USDT",
+    "nora": null,
+    "naut": null,
+    "fund_nora": null,
+    "fund_naut": null
+   },
+   {
+    "sym": "SOL",
+    "enter_time": 1777032000000,
+    "cls": "c",
+    "note": "dust entry from a knife-edge: the cap leaves room 2.33e-06 USDT (earlier entries sized to exactly fill max_gross_exposure); Nora's float arithmetic gives room <= 0 (rejected), Nautilus' 8-decimal qty rounding leaves a positive notional 2.58e-06 USDT",
+    "nora": null,
+    "naut": null,
+    "fund_nora": null,
+    "fund_naut": null
+   },
+   {
+    "sym": "SOL",
+    "enter_time": 1777600800000,
+    "cls": "c",
+    "note": "dust entry from a knife-edge: the cap leaves room 1.04e-05 USDT (earlier entries sized to exactly fill max_gross_exposure); Nora's float arithmetic gives room <= 0 (rejected), Nautilus' 8-decimal qty rounding leaves a positive notional 1e-05 USDT",
+    "nora": null,
+    "naut": null,
+    "fund_nora": null,
+    "fund_naut": null
+   },
+   {
+    "sym": "SOL",
+    "enter_time": 1784995200000,
+    "cls": "p",
+    "note": "gross-exposure room differs: Nora notional 4.39 (room 4.39, gross 9992.81, eq 9997.20) vs Nautilus 4.38 (room 4.38, gross 9992.67, eq 9997.06); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
+    "nora": [
+     74.13,
+     1785081600000,
+     75.6126,
+     "TP"
+    ],
+    "naut": [
+     74.13,
+     1785081600000,
+     75.6126,
+     "TP"
     ],
     "fund_nora": 0.0,
     "fund_naut": 0
@@ -3424,147 +2924,46 @@
   "signal": "ema5_13",
   "stage": "S8d",
   "path": "adaptive",
-  "trades_nora": 362,
+  "trades_nora": 357,
   "trades_naut": 357,
   "matched_pairs": 357,
-  "exact_matches": 236,
+  "exact_matches": 356,
   "classes": {
-   "match": 236,
-   "p": 122,
-   "x": 4
+   "match": 356,
+   "p": 1
   },
-  "final_equity_nora": 9097.903151095854,
+  "final_equity_nora": 9275.107975814615,
   "final_equity_naut": 9274.98102946,
-  "final_equity_diff_pct": 1.9463592371041782,
+  "final_equity_diff_pct": -0.0013686779167132457,
   "bit_identical": true,
   "funding_nora": 0.0,
   "funding_naut": 0,
-  "rejected_for_risk": 96,
+  "rejected_for_risk": 101,
   "variant": "",
-  "entry_equity_differs": 355,
-  "entry_equity_max_rel": 0.03112317767375921,
+  "entry_equity_differs": 294,
+  "entry_equity_max_rel": 0.0024210681589639303,
   "sizing_lookahead_trades": 3,
-  "sizing_lookahead_max_qty_rel": 2.1552701139443786,
+  "sizing_lookahead_max_qty_rel": 1.3685600495744794e-05,
   "non_exact_examples": [
    {
     "sym": "ETH",
-    "enter_time": 1775592000000,
+    "enter_time": 1789560000000,
     "cls": "p",
-    "note": "gross-exposure room differs: Nora notional 1973.48 (room 1973.48, gross 6026.52, eq 10000.00) vs Nautilus 2000.00 (room 2000.00, gross 6000.00, eq 10000.00); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
+    "note": "gross-exposure room differs: Nora notional 1802.71 (room 1802.71, gross 5408.14, eq 9013.57) vs Nautilus 1802.69 (room 1802.69, gross 5408.07, eq 9013.45); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
     "nora": [
-     2112.59,
-     1775599200000,
-     2154.8418,
-     "TP"
-    ],
-    "naut": [
-     2112.59,
-     1775599200000,
-     2154.8418,
-     "TP"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
-    "sym": "ETH",
-    "enter_time": 1775750400000,
-    "cls": "p",
-    "note": "gross-exposure room differs: Nora notional 2012.57 (room 2012.57, gross 6018.27, eq 10038.55) vs Nautilus 2007.81 (room 2007.81, gross 6023.43, eq 10039.05); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
-    "nora": [
-     2217.13,
-     1775775600000,
-     2183.87305,
-     "SL"
-    ],
-    "naut": [
-     2217.13,
-     1775775600000,
-     2183.8730499999997,
-     "SL"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
-    "sym": "ETH",
-    "enter_time": 1775822400000,
-    "cls": "p",
-    "note": "gross-exposure room differs: Nora notional 1978.15 (room 1978.15, gross 5979.23, eq 9946.72) vs Nautilus 1989.46 (room 1989.46, gross 5968.38, eq 9947.30); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
-    "nora": [
-     2214.5,
-     1775890800000,
-     2234.99,
+     2421.07,
+     1789567200000,
+     2393.15,
      "SIG"
     ],
     "naut": [
-     2214.5,
-     1775890800000,
-     2234.99,
+     2421.07,
+     1789567200000,
+     2393.15,
      "SIG"
     ],
     "fund_nora": 0.0,
     "fund_naut": 0
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1775923200000,
-    "cls": "p",
-    "note": "gross-exposure room differs: Nora notional 1956.46 (room 1956.46, gross 6046.84, eq 10004.13) vs Nautilus 1981.53 (room 1981.53, gross 6022.31, eq 10004.80); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
-    "nora": [
-     84.62,
-     1775955600000,
-     83.3507,
-     "SL"
-    ],
-    "naut": [
-     84.62,
-     1775955600000,
-     83.3507,
-     "SL"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1777860000000,
-    "cls": "x",
-    "note": "nora-only trade inside cascade window of an earlier classified divergence",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1778770800000,
-    "cls": "x",
-    "note": "nora-only trade inside cascade window of an earlier classified divergence",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1785351600000,
-    "cls": "x",
-    "note": "nora-only trade inside cascade window of an earlier classified divergence",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1785949200000,
-    "cls": "x",
-    "note": "nora-only trade inside cascade window of an earlier classified divergence",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
    }
   ]
  },
@@ -3576,89 +2975,29 @@
   "trades_nora": 357,
   "trades_naut": 357,
   "matched_pairs": 357,
-  "exact_matches": 353,
+  "exact_matches": 356,
   "classes": {
-   "match": 353,
-   "p": 4
+   "match": 356,
+   "p": 1
   },
-  "final_equity_nora": 9274.875711203167,
+  "final_equity_nora": 9275.107975814615,
   "final_equity_naut": 9274.98102946,
-  "final_equity_diff_pct": 0.0011355220286723977,
+  "final_equity_diff_pct": -0.0013686779167132457,
   "bit_identical": null,
   "funding_nora": 0.0,
   "funding_naut": 0,
   "rejected_for_risk": 101,
   "variant": "_sync",
   "entry_equity_differs": 294,
-  "entry_equity_max_rel": 0.011445094720261529,
+  "entry_equity_max_rel": 0.0024210681589639303,
   "sizing_lookahead_trades": 3,
-  "sizing_lookahead_max_qty_rel": 0.0026082951461426913,
+  "sizing_lookahead_max_qty_rel": 1.3685600495744794e-05,
   "non_exact_examples": [
-   {
-    "sym": "ETH",
-    "enter_time": 1778770800000,
-    "cls": "p",
-    "note": "cap-clamped size follows the entry equity, which differs (Nora 10729.6389, Nautilus 10606.8372): Nora sizes with a ledger that already holds the intrabar PnL of earlier-order symbols' bar t",
-    "nora": [
-     2285.8,
-     1778810400000,
-     2274.88,
-     "SIG"
-    ],
-    "naut": [
-     2285.8,
-     1778810400000,
-     2274.88,
-     "SIG"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
-    "sym": "ETH",
-    "enter_time": 1785351600000,
-    "cls": "p",
-    "note": "gross-exposure room differs: Nora notional 2002.62 (room 2002.62, gross 6007.85, eq 10013.08) vs Nautilus 2002.59 (room 2002.59, gross 6007.77, eq 10012.94); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
-    "nora": [
-     1919.59,
-     1785351600000,
-     1890.79615,
-     "SL"
-    ],
-    "naut": [
-     1919.59,
-     1785351600000,
-     1890.7961500000001,
-     "SL"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1787572800000,
-    "cls": "p",
-    "note": "gross-exposure room differs: Nora notional 5701.90 (room 5701.90, gross 1880.96, eq 9478.57) vs Nautilus 5687.06 (room 5701.82, gross 1880.93, eq 9478.44); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
-    "nora": [
-     95.82,
-     1787572800000,
-     94.38269999999999,
-     "SL"
-    ],
-    "naut": [
-     95.82,
-     1787572800000,
-     94.3827,
-     "SL"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
    {
     "sym": "ETH",
     "enter_time": 1789560000000,
     "cls": "p",
-    "note": "gross-exposure room differs: Nora notional 1802.67 (room 1802.67, gross 5408.01, eq 9013.34) vs Nautilus 1802.69 (room 1802.69, gross 5408.07, eq 9013.45); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
+    "note": "gross-exposure room differs: Nora notional 1802.71 (room 1802.71, gross 5408.14, eq 9013.57) vs Nautilus 1802.69 (room 1802.69, gross 5408.07, eq 9013.45); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
     "nora": [
      2421.07,
      1789567200000,
@@ -5310,18 +4649,18 @@
   "classes": {
    "match": 129
   },
-  "final_equity_nora": 10846.687056941786,
+  "final_equity_nora": 10842.588329478516,
   "final_equity_naut": 10842.58831027,
-  "final_equity_diff_pct": -0.037788005224714816,
+  "final_equity_diff_pct": -1.7715802158591032e-07,
   "bit_identical": true,
   "funding_nora": 0.0,
   "funding_naut": 0,
   "rejected_for_risk": 0,
   "variant": "",
-  "entry_equity_differs": 112,
-  "entry_equity_max_rel": 0.011594264184939904,
+  "entry_equity_differs": 101,
+  "entry_equity_max_rel": 2.74980790654082e-09,
   "sizing_lookahead_trades": 5,
-  "sizing_lookahead_max_qty_rel": 0.011730268041033153,
+  "sizing_lookahead_max_qty_rel": 2.1710877883285133e-09,
   "non_exact_examples": []
  },
  {
@@ -5336,18 +4675,18 @@
   "classes": {
    "match": 129
   },
-  "final_equity_nora": 10846.687056941786,
+  "final_equity_nora": 10842.588329478516,
   "final_equity_naut": 10842.58831027,
-  "final_equity_diff_pct": -0.037788005224714816,
+  "final_equity_diff_pct": -1.7715802158591032e-07,
   "bit_identical": null,
   "funding_nora": 0.0,
   "funding_naut": 0,
   "rejected_for_risk": 0,
   "variant": "_sync",
-  "entry_equity_differs": 112,
-  "entry_equity_max_rel": 0.011594264184939904,
+  "entry_equity_differs": 101,
+  "entry_equity_max_rel": 2.74980790654082e-09,
   "sizing_lookahead_trades": 5,
-  "sizing_lookahead_max_qty_rel": 0.011730268041033153,
+  "sizing_lookahead_max_qty_rel": 2.1710877883285133e-09,
   "non_exact_examples": []
  },
  {
@@ -5355,38 +4694,26 @@
   "signal": "ema20_50",
   "stage": "S8b",
   "path": "adaptive",
-  "trades_nora": 115,
+  "trades_nora": 114,
   "trades_naut": 114,
   "matched_pairs": 114,
   "exact_matches": 114,
   "classes": {
-   "match": 114,
-   "p": 1
+   "match": 114
   },
-  "final_equity_nora": 10301.82901297646,
+  "final_equity_nora": 10182.71281945074,
   "final_equity_naut": 10182.71281065,
-  "final_equity_diff_pct": -1.1562626614790128,
+  "final_equity_diff_pct": -8.642824234073032e-08,
   "bit_identical": true,
   "funding_nora": 0.0,
   "funding_naut": 0,
-  "rejected_for_risk": 15,
+  "rejected_for_risk": 16,
   "variant": "",
-  "entry_equity_differs": 99,
-  "entry_equity_max_rel": 0.02265351111880246,
+  "entry_equity_differs": 62,
+  "entry_equity_max_rel": 1.923612483699896e-09,
   "sizing_lookahead_trades": 4,
-  "sizing_lookahead_max_qty_rel": 0.023178587559167397,
-  "non_exact_examples": [
-   {
-    "sym": "ETH",
-    "enter_time": 1777640400000,
-    "cls": "p",
-    "note": "Nora admitted at open 1777640400000: its view had n_open=1, gross=6183.46, eq=10386.61 (earlier symbol(s) already closed intrabar in this bar); the time-synchronous view has n_open=2, gross=0.00, eq=10267.73 -> blocked (Nautilus does not take the trade)",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   }
-  ]
+  "sizing_lookahead_max_qty_rel": 1.497623368160788e-09,
+  "non_exact_examples": []
  },
  {
   "dataset": "gapped",
@@ -5400,18 +4727,18 @@
   "classes": {
    "match": 114
   },
-  "final_equity_nora": 10185.24268858389,
+  "final_equity_nora": 10182.71281945074,
   "final_equity_naut": 10182.71281065,
-  "final_equity_diff_pct": -0.024838661298920428,
+  "final_equity_diff_pct": -8.642824234073032e-08,
   "bit_identical": null,
   "funding_nora": 0.0,
   "funding_naut": 0,
   "rejected_for_risk": 16,
   "variant": "_sync",
-  "entry_equity_differs": 81,
-  "entry_equity_max_rel": 0.011466223954367511,
+  "entry_equity_differs": 62,
+  "entry_equity_max_rel": 1.923612483699896e-09,
   "sizing_lookahead_trades": 4,
-  "sizing_lookahead_max_qty_rel": 0.011599223295748461,
+  "sizing_lookahead_max_qty_rel": 1.497623368160788e-09,
   "non_exact_examples": []
  },
  {
@@ -5419,173 +4746,24 @@
   "signal": "ema20_50",
   "stage": "S8c",
   "path": "adaptive",
-  "trades_nora": 122,
-  "trades_naut": 118,
-  "matched_pairs": 118,
-  "exact_matches": 88,
-  "classes": {
-   "match": 88,
-   "p": 30,
-   "x": 4
-  },
-  "final_equity_nora": 10632.348087533417,
-  "final_equity_naut": 10430.137479300001,
-  "final_equity_diff_pct": -1.9018433799257495,
-  "bit_identical": true,
-  "funding_nora": 0.0,
-  "funding_naut": 0,
-  "rejected_for_risk": 8,
-  "variant": "",
-  "entry_equity_differs": 114,
-  "entry_equity_max_rel": 0.02649834114560298,
-  "sizing_lookahead_trades": 4,
-  "sizing_lookahead_max_qty_rel": 0.5780701726926443,
-  "non_exact_examples": [
-   {
-    "sym": "ETH",
-    "enter_time": 1776114000000,
-    "cls": "p",
-    "note": "gross-exposure room differs: Nora notional 4104.48 (room 4104.48, gross 6128.41, eq 10232.89) vs Nautilus 4107.01 (room 4107.01, gross 6125.88, eq 10232.89); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
-    "nora": [
-     2221.72,
-     1776117600000,
-     2266.1544,
-     "TP"
-    ],
-    "naut": [
-     2221.72,
-     1776117600000,
-     2266.1544,
-     "TP"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
-    "sym": "ETH",
-    "enter_time": 1777197600000,
-    "cls": "p",
-    "note": "gross-exposure room differs: Nora notional 13.29 (room 13.29, gross 10117.97, eq 10131.26) vs Nautilus 13.30 (room 13.30, gross 10118.01, eq 10131.31); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
-    "nora": [
-     2223.64,
-     1777226400000,
-     2268.1128,
-     "TP"
-    ],
-    "naut": [
-     2223.64,
-     1777226400000,
-     2268.1128,
-     "TP"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1777629600000,
-    "cls": "p",
-    "note": "gross-exposure room differs: Nora notional 4070.94 (room 4070.94, gross 6156.79, eq 10227.73) vs Nautilus 4073.04 (room 4073.04, gross 6154.73, eq 10227.77); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
-    "nora": [
-     80.994,
-     1777654800000,
-     82.61388,
-     "TP"
-    ],
-    "naut": [
-     80.994,
-     1777654800000,
-     82.61388,
-     "TP"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
-    "sym": "ETH",
-    "enter_time": 1777640400000,
-    "cls": "x",
-    "note": "nora-only trade inside cascade window of an earlier classified divergence",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   },
-   {
-    "sym": "ETH",
-    "enter_time": 1778792400000,
-    "cls": "p",
-    "note": "gross-exposure room differs: Nora notional 4238.78 (room 4238.78, gross 6305.41, eq 10544.20) vs Nautilus 4188.57 (room 4188.57, gross 6235.93, eq 10424.50); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
-    "nora": [
-     2244.58,
-     1778810400000,
-     2210.9112999999998,
-     "SL"
-    ],
-    "naut": [
-     2244.58,
-     1778810400000,
-     2210.9113,
-     "SL"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
-    "sym": "ETH",
-    "enter_time": 1779310800000,
-    "cls": "x",
-    "note": "nora-only trade inside cascade window of an earlier classified divergence",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1785423600000,
-    "cls": "x",
-    "note": "nora-only trade inside cascade window of an earlier classified divergence",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1789383600000,
-    "cls": "x",
-    "note": "nora-only trade inside cascade window of an earlier classified divergence",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   }
-  ]
- },
- {
-  "dataset": "gapped",
-  "signal": "ema20_50",
-  "stage": "S8c [sync adm]",
-  "path": "adaptive",
   "trades_nora": 118,
   "trades_naut": 118,
   "matched_pairs": 118,
-  "exact_matches": 113,
+  "exact_matches": 117,
   "classes": {
-   "match": 113,
-   "p": 5
+   "match": 117,
+   "p": 1
   },
   "final_equity_nora": 10430.137469328334,
   "final_equity_naut": 10430.137479300001,
   "final_equity_diff_pct": 9.56043688660202e-08,
-  "bit_identical": null,
+  "bit_identical": true,
   "funding_nora": 0.0,
   "funding_naut": 0,
   "rejected_for_risk": 12,
-  "variant": "_sync",
-  "entry_equity_differs": 31,
-  "entry_equity_max_rel": 0.011445094195929104,
+  "variant": "",
+  "entry_equity_differs": 28,
+  "entry_equity_max_rel": 1.696705301470703e-09,
   "sizing_lookahead_trades": 4,
   "sizing_lookahead_max_qty_rel": 6.291404136767632e-08,
   "non_exact_examples": [
@@ -5608,62 +4786,50 @@
     ],
     "fund_nora": 0.0,
     "fund_naut": 0
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1780876800000,
-    "cls": "p",
-    "note": "cap-clamped size follows the entry equity, which differs (Nora 9809.6453, Nautilus 9697.3730): Nora sizes with a ledger that already holds the intrabar PnL of earlier-order symbols' bar t",
-    "nora": [
-     68.457,
-     1780880400000,
-     67.430145,
-     "SL"
-    ],
-    "naut": [
-     68.457,
-     1780880400000,
-     67.430145,
-     "SL"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
+   }
+  ]
+ },
+ {
+  "dataset": "gapped",
+  "signal": "ema20_50",
+  "stage": "S8c [sync adm]",
+  "path": "adaptive",
+  "trades_nora": 118,
+  "trades_naut": 118,
+  "matched_pairs": 118,
+  "exact_matches": 117,
+  "classes": {
+   "match": 117,
+   "p": 1
+  },
+  "final_equity_nora": 10430.137469328334,
+  "final_equity_naut": 10430.137479300001,
+  "final_equity_diff_pct": 9.56043688660202e-08,
+  "bit_identical": null,
+  "funding_nora": 0.0,
+  "funding_naut": 0,
+  "rejected_for_risk": 12,
+  "variant": "_sync",
+  "entry_equity_differs": 28,
+  "entry_equity_max_rel": 1.696705301470703e-09,
+  "sizing_lookahead_trades": 4,
+  "sizing_lookahead_max_qty_rel": 6.291404136767632e-08,
+  "non_exact_examples": [
    {
     "sym": "ETH",
-    "enter_time": 1783656000000,
+    "enter_time": 1777197600000,
     "cls": "p",
-    "note": "cap-clamped size follows the entry equity, which differs (Nora 10028.8131, Nautilus 9914.0324): Nora sizes with a ledger that already holds the intrabar PnL of earlier-order symbols' bar t",
+    "note": "gross-exposure room differs: Nora notional 13.30 (room 13.30, gross 10118.01, eq 10131.31) vs Nautilus 13.30 (room 13.30, gross 10118.01, eq 10131.31); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
     "nora": [
-     1845.85,
-     1783688400000,
-     1882.767,
+     2223.64,
+     1777226400000,
+     2268.1128,
      "TP"
     ],
     "naut": [
-     1845.85,
-     1783688400000,
-     1882.767,
-     "TP"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1785081600000,
-    "cls": "p",
-    "note": "cap-clamped size follows the entry equity, which differs (Nora 10448.6940, Nautilus 10329.1077): Nora sizes with a ledger that already holds the intrabar PnL of earlier-order symbols' bar t",
-    "nora": [
-     69.163,
-     1785106800000,
-     70.54626,
-     "TP"
-    ],
-    "naut": [
-     69.163,
-     1785106800000,
-     70.54626,
+     2223.64,
+     1777226400000,
+     2268.1128,
      "TP"
     ],
     "fund_nora": 0.0,
@@ -5676,119 +4842,26 @@
   "signal": "ema20_50",
   "stage": "S8d",
   "path": "adaptive",
-  "trades_nora": 115,
+  "trades_nora": 114,
   "trades_naut": 114,
   "matched_pairs": 114,
-  "exact_matches": 87,
+  "exact_matches": 114,
   "classes": {
-   "match": 87,
-   "p": 27,
-   "x": 1
+   "match": 114
   },
-  "final_equity_nora": 10968.43284641446,
+  "final_equity_nora": 10677.311783245532,
   "final_equity_naut": 10677.31176832,
-  "final_equity_diff_pct": -2.65417204235906,
+  "final_equity_diff_pct": -1.3978735946551524e-07,
   "bit_identical": true,
   "funding_nora": 0.0,
   "funding_naut": 0,
-  "rejected_for_risk": 15,
+  "rejected_for_risk": 16,
   "variant": "",
-  "entry_equity_differs": 110,
-  "entry_equity_max_rel": 0.03306887060931817,
+  "entry_equity_differs": 63,
+  "entry_equity_max_rel": 1.9654934743117045e-09,
   "sizing_lookahead_trades": 4,
-  "sizing_lookahead_max_qty_rel": 2.247028062631769,
-  "non_exact_examples": [
-   {
-    "sym": "ETH",
-    "enter_time": 1776114000000,
-    "cls": "p",
-    "note": "gross-exposure room differs: Nora notional 2057.90 (room 2057.90, gross 6128.41, eq 10232.89) vs Nautilus 2060.43 (room 2060.43, gross 6125.88, eq 10232.89); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
-    "nora": [
-     2221.72,
-     1776117600000,
-     2266.1544,
-     "TP"
-    ],
-    "naut": [
-     2221.72,
-     1776117600000,
-     2266.1544,
-     "TP"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1777629600000,
-    "cls": "p",
-    "note": "gross-exposure room differs: Nora notional 2017.08 (room 2017.08, gross 6131.53, eq 10185.77) vs Nautilus 2019.17 (room 2019.17, gross 6129.48, eq 10185.82); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
-    "nora": [
-     80.994,
-     1777654800000,
-     82.61388,
-     "TP"
-    ],
-    "naut": [
-     80.994,
-     1777654800000,
-     82.61388000000001,
-     "TP"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
-    "sym": "ETH",
-    "enter_time": 1777640400000,
-    "cls": "x",
-    "note": "nora-only trade inside cascade window of an earlier classified divergence",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   },
-   {
-    "sym": "ETH",
-    "enter_time": 1778792400000,
-    "cls": "p",
-    "note": "gross-exposure room differs: Nora notional 2121.13 (room 2121.13, gross 6279.32, eq 10500.55) vs Nautilus 2094.88 (room 2094.88, gross 6209.85, eq 10380.91); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
-    "nora": [
-     2244.58,
-     1778810400000,
-     2210.9112999999998,
-     "SL"
-    ],
-    "naut": [
-     2244.58,
-     1778810400000,
-     2210.9113,
-     "SL"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1779296400000,
-    "cls": "p",
-    "note": "gross-exposure room differs: Nora notional 2074.47 (room 2074.47, gross 6206.07, eq 10350.68) vs Nautilus 2068.90 (room 2068.90, gross 6117.33, eq 10232.78); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
-    "nora": [
-     83.676,
-     1779364800000,
-     82.42086,
-     "SL"
-    ],
-    "naut": [
-     83.676,
-     1779364800000,
-     82.42086,
-     "SL"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   }
-  ]
+  "sizing_lookahead_max_qty_rel": 6.616399327973002e-08,
+  "non_exact_examples": []
  },
  {
   "dataset": "gapped",
@@ -5798,10 +4871,9 @@
   "trades_nora": 114,
   "trades_naut": 114,
   "matched_pairs": 114,
-  "exact_matches": 110,
+  "exact_matches": 114,
   "classes": {
-   "match": 110,
-   "p": 4
+   "match": 114
   },
   "final_equity_nora": 10677.311783245532,
   "final_equity_naut": 10677.31176832,
@@ -5811,92 +4883,11 @@
   "funding_naut": 0,
   "rejected_for_risk": 16,
   "variant": "_sync",
-  "entry_equity_differs": 65,
-  "entry_equity_max_rel": 0.011445094442190865,
+  "entry_equity_differs": 63,
+  "entry_equity_max_rel": 1.9654934743117045e-09,
   "sizing_lookahead_trades": 4,
   "sizing_lookahead_max_qty_rel": 6.616399327973002e-08,
-  "non_exact_examples": [
-   {
-    "sym": "SOL",
-    "enter_time": 1780876800000,
-    "cls": "p",
-    "note": "cap-clamped size follows the entry equity, which differs (Nora 9946.4778, Nautilus 9832.6394): Nora sizes with a ledger that already holds the intrabar PnL of earlier-order symbols' bar t",
-    "nora": [
-     68.457,
-     1780880400000,
-     67.430145,
-     "SL"
-    ],
-    "naut": [
-     68.457,
-     1780880400000,
-     67.430145,
-     "SL"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
-    "sym": "ETH",
-    "enter_time": 1783656000000,
-    "cls": "p",
-    "note": "cap-clamped size follows the entry equity, which differs (Nora 10315.2282, Nautilus 10197.1695): Nora sizes with a ledger that already holds the intrabar PnL of earlier-order symbols' bar t",
-    "nora": [
-     1845.85,
-     1783688400000,
-     1882.767,
-     "TP"
-    ],
-    "naut": [
-     1845.85,
-     1783688400000,
-     1882.767,
-     "TP"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1785081600000,
-    "cls": "p",
-    "note": "cap-clamped size follows the entry equity, which differs (Nora 10659.2906, Nautilus 10537.2940): Nora sizes with a ledger that already holds the intrabar PnL of earlier-order symbols' bar t",
-    "nora": [
-     69.163,
-     1785106800000,
-     70.54626,
-     "TP"
-    ],
-    "naut": [
-     69.163,
-     1785106800000,
-     70.54626,
-     "TP"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1790776800000,
-    "cls": "p",
-    "note": "cap-clamped size follows the entry equity, which differs (Nora 10428.9777, Nautilus 10530.3459): Nora sizes with a ledger that already holds the intrabar PnL of earlier-order symbols' bar t",
-    "nora": [
-     113.984,
-     1790776800000,
-     112.27424,
-     "SL"
-    ],
-    "naut": [
-     113.984,
-     1790776800000,
-     112.27424,
-     "SL"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   }
-  ]
+  "non_exact_examples": []
  },
  {
   "dataset": "gapped",
@@ -7475,18 +6466,18 @@
   "classes": {
    "match": 456
   },
-  "final_equity_nora": 8463.710080473891,
+  "final_equity_nora": 8463.226336019017,
   "final_equity_naut": 8463.11041223,
-  "final_equity_diff_pct": -0.007085169957254944,
+  "final_equity_diff_pct": -0.0013697351862518303,
   "bit_identical": true,
   "funding_nora": 0.0,
   "funding_naut": 0,
   "rejected_for_risk": 0,
   "variant": "",
   "entry_equity_differs": 431,
-  "entry_equity_max_rel": 0.01959559324120695,
+  "entry_equity_max_rel": 0.00242137884262549,
   "sizing_lookahead_trades": 7,
-  "sizing_lookahead_max_qty_rel": 0.019218985852404565,
+  "sizing_lookahead_max_qty_rel": 1.3698454854245008e-05,
   "non_exact_examples": []
  },
  {
@@ -7501,18 +6492,18 @@
   "classes": {
    "match": 456
   },
-  "final_equity_nora": 8463.710080473891,
+  "final_equity_nora": 8463.226336019017,
   "final_equity_naut": 8463.11041223,
-  "final_equity_diff_pct": -0.007085169957254944,
+  "final_equity_diff_pct": -0.0013697351862518303,
   "bit_identical": null,
   "funding_nora": 0.0,
   "funding_naut": 0,
   "rejected_for_risk": 0,
   "variant": "_sync",
   "entry_equity_differs": 431,
-  "entry_equity_max_rel": 0.01959559324120695,
+  "entry_equity_max_rel": 0.00242137884262549,
   "sizing_lookahead_trades": 7,
-  "sizing_lookahead_max_qty_rel": 0.019218985852404565,
+  "sizing_lookahead_max_qty_rel": 1.3698454854245008e-05,
   "non_exact_examples": []
  },
  {
@@ -7520,68 +6511,26 @@
   "signal": "ema5_13",
   "stage": "S8b",
   "path": "adaptive",
-  "trades_nora": 365,
+  "trades_nora": 361,
   "trades_naut": 361,
   "matched_pairs": 361,
   "exact_matches": 361,
   "classes": {
-   "match": 361,
-   "p": 4
+   "match": 361
   },
-  "final_equity_nora": 8741.76008079897,
+  "final_equity_nora": 8885.459567074393,
   "final_equity_naut": 8885.33791446,
-  "final_equity_diff_pct": 1.6424362180380125,
+  "final_equity_diff_pct": -0.0013691201166787792,
   "bit_identical": true,
   "funding_nora": 0.0,
   "funding_naut": 0,
-  "rejected_for_risk": 95,
+  "rejected_for_risk": 99,
   "variant": "",
-  "entry_equity_differs": 288,
-  "entry_equity_max_rel": 0.028058961550496267,
+  "entry_equity_differs": 253,
+  "entry_equity_max_rel": 0.0024213813682844457,
   "sizing_lookahead_trades": 3,
-  "sizing_lookahead_max_qty_rel": 0.017857616400143415,
-  "non_exact_examples": [
-   {
-    "sym": "SOL",
-    "enter_time": 1778770800000,
-    "cls": "p",
-    "note": "Nora admitted at open 1778770800000: its view had n_open=1, gross=6161.46, eq=10217.49 (earlier symbol(s) already closed intrabar in this bar); the time-synchronous view has n_open=2, gross=0.00, eq=10100.55 -> blocked (Nautilus does not take the trade)",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1785351600000,
-    "cls": "p",
-    "note": "Nora admitted at open 1785351600000: its view had n_open=0, gross=0.00, eq=9189.06 (earlier symbol(s) already closed intrabar in this bar); the time-synchronous view has n_open=2, gross=0.00, eq=9367.97 -> blocked (Nautilus does not take the trade)",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1785949200000,
-    "cls": "p",
-    "note": "Nora admitted at open 1785949200000: its view had n_open=1, gross=5300.39, eq=8876.02 (earlier symbol(s) already closed intrabar in this bar); the time-synchronous view has n_open=2, gross=0.00, eq=8774.43 -> blocked (Nautilus does not take the trade)",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1789131600000,
-    "cls": "p",
-    "note": "Nora admitted at open 1789131600000: its view had n_open=1, gross=4912.40, eq=8155.58 (earlier symbol(s) already closed intrabar in this bar); the time-synchronous view has n_open=2, gross=0.00, eq=8061.96 -> blocked (Nautilus does not take the trade)",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   }
-  ]
+  "sizing_lookahead_max_qty_rel": 1.369290149019968e-05,
+  "non_exact_examples": []
  },
  {
   "dataset": "gapped",
@@ -7595,18 +6544,18 @@
   "classes": {
    "match": 361
   },
-  "final_equity_nora": 8884.965972795204,
+  "final_equity_nora": 8885.459567074393,
   "final_equity_naut": 8885.33791446,
-  "final_equity_diff_pct": 0.004186191212607326,
+  "final_equity_diff_pct": -0.0013691201166787792,
   "bit_identical": null,
   "funding_nora": 0.0,
   "funding_naut": 0,
   "rejected_for_risk": 99,
   "variant": "_sync",
-  "entry_equity_differs": 288,
-  "entry_equity_max_rel": 0.01144509361885661,
+  "entry_equity_differs": 253,
+  "entry_equity_max_rel": 0.0024213813682844457,
   "sizing_lookahead_trades": 3,
-  "sizing_lookahead_max_qty_rel": 0.011577602194339977,
+  "sizing_lookahead_max_qty_rel": 1.369290149019968e-05,
   "non_exact_examples": []
  },
  {
@@ -7614,217 +6563,27 @@
   "signal": "ema5_13",
   "stage": "S8c",
   "path": "adaptive",
-  "trades_nora": 403,
-  "trades_naut": 393,
-  "matched_pairs": 378,
-  "exact_matches": 237,
-  "classes": {
-   "match": 237,
-   "p": 150,
-   "c": 7,
-   "x": 24
-  },
-  "final_equity_nora": 8801.51923668274,
-  "final_equity_naut": 9005.94766651,
-  "final_equity_diff_pct": 2.3226493555254413,
-  "bit_identical": true,
-  "funding_nora": 0.0,
-  "funding_naut": 0,
-  "rejected_for_risk": 55,
-  "variant": "",
-  "entry_equity_differs": 376,
-  "entry_equity_max_rel": 0.02701482343083308,
-  "sizing_lookahead_trades": 5,
-  "sizing_lookahead_max_qty_rel": 0.5543401150577545,
-  "non_exact_examples": [
-   {
-    "sym": "ETH",
-    "enter_time": 1775592000000,
-    "cls": "p",
-    "note": "gross-exposure room differs: Nora notional 3973.48 (room 3973.48, gross 6026.52, eq 10000.00) vs Nautilus 4000.00 (room 4000.00, gross 6000.00, eq 10000.00); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
-    "nora": [
-     2112.59,
-     1775599200000,
-     2154.8418,
-     "TP"
-    ],
-    "naut": [
-     2112.59,
-     1775599200000,
-     2154.8418,
-     "TP"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
-    "sym": "ETH",
-    "enter_time": 1775750400000,
-    "cls": "p",
-    "note": "gross-exposure room differs: Nora notional 4035.56 (room 4035.56, gross 6041.14, eq 10076.70) vs Nautilus 4030.88 (room 4030.88, gross 6046.32, eq 10077.20); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
-    "nora": [
-     2168.14,
-     1775775600000,
-     2135.6178999999997,
-     "SL"
-    ],
-    "naut": [
-     2168.14,
-     1775775600000,
-     2135.6179,
-     "SL"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
-    "sym": "ETH",
-    "enter_time": 1775822400000,
-    "cls": "p",
-    "note": "gross-exposure room differs: Nora notional 3986.28 (room 3986.28, gross 6007.53, eq 9993.81) vs Nautilus 3997.62 (room 3997.62, gross 5996.43, eq 9994.06); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
-    "nora": [
-     2165.57,
-     1775890800000,
-     2185.6,
-     "SIG"
-    ],
-    "naut": [
-     2165.57,
-     1775890800000,
-     2185.6,
-     "SIG"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1775822400000,
-    "cls": "c",
-    "note": "dust entry from a knife-edge: the cap leaves room 2.36e-06 USDT (earlier entries sized to exactly fill max_gross_exposure); Nora's float arithmetic gives room <= 0 (rejected), Nautilus' 8-decimal qty rounding leaves a positive notional 2.52e-06 USDT",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1775923200000,
-    "cls": "p",
-    "note": "gross-exposure room differs: Nora notional 3975.48 (room 3975.48, gross 6085.39, eq 10060.87) vs Nautilus 4000.70 (room 4000.70, gross 6060.51, eq 10061.21); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
-    "nora": [
-     82.454,
-     1775955600000,
-     81.21718999999999,
-     "SL"
-    ],
-    "naut": [
-     82.454,
-     1775955600000,
-     81.21719,
-     "SL"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1777032000000,
-    "cls": "x",
-    "note": "nora-only trade inside cascade window of an earlier classified divergence",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1777557600000,
-    "cls": "x",
-    "note": "nora-only trade inside cascade window of an earlier classified divergence",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1777600800000,
-    "cls": "x",
-    "note": "nora-only trade inside cascade window of an earlier classified divergence",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1777917600000,
-    "cls": "x",
-    "note": "nora-only trade inside cascade window of an earlier classified divergence",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1779685200000,
-    "cls": "c",
-    "note": "dust entry from a knife-edge: the cap leaves room 4.48e-06 USDT (earlier entries sized to exactly fill max_gross_exposure); Nora's float arithmetic gives room <= 0 (rejected), Nautilus' 8-decimal qty rounding leaves a positive notional 4.24e-06 USDT",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1780034400000,
-    "cls": "c",
-    "note": "dust entry from a knife-edge: the cap leaves room 5.76e-06 USDT (earlier entries sized to exactly fill max_gross_exposure); Nora's float arithmetic gives room <= 0 (rejected), Nautilus' 8-decimal qty rounding leaves a positive notional 5.93e-06 USDT",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   },
-   {
-    "sym": "ETH",
-    "enter_time": 1783576800000,
-    "cls": "c",
-    "note": "dust entry from a knife-edge: the cap leaves room 0.000118 USDT (earlier entries sized to exactly fill max_gross_exposure); Nora's float arithmetic gives room <= 0 (rejected), Nautilus' 8-decimal qty rounding leaves a positive notional 0.000127 USDT",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   }
-  ]
- },
- {
-  "dataset": "gapped",
-  "signal": "ema5_13",
-  "stage": "S8c [sync adm]",
-  "path": "adaptive",
   "trades_nora": 379,
   "trades_naut": 393,
   "matched_pairs": 379,
-  "exact_matches": 374,
+  "exact_matches": 377,
   "classes": {
-   "match": 374,
+   "match": 377,
    "c": 14,
-   "p": 5
+   "p": 2
   },
-  "final_equity_nora": 9005.841264852,
+  "final_equity_nora": 9006.070991194387,
   "final_equity_naut": 9005.94766651,
-  "final_equity_diff_pct": 0.0011814738331450414,
-  "bit_identical": null,
+  "final_equity_diff_pct": -0.0013693505692802255,
+  "bit_identical": true,
   "funding_nora": 0.0,
   "funding_naut": 0,
   "rejected_for_risk": 81,
-  "variant": "_sync",
-  "entry_equity_differs": 286,
-  "entry_equity_max_rel": 0.01144509410867729,
+  "variant": "",
+  "entry_equity_differs": 285,
+  "entry_equity_max_rel": 0.0024213811529234237,
   "sizing_lookahead_trades": 3,
-  "sizing_lookahead_max_qty_rel": 0.0026667494627931067,
+  "sizing_lookahead_max_qty_rel": 1.3736904703101648e-05,
   "non_exact_examples": [
    {
     "sym": "SOL",
@@ -7887,61 +6646,130 @@
     "fund_naut": 0
    },
    {
-    "sym": "ETH",
-    "enter_time": 1778770800000,
+    "sym": "SOL",
+    "enter_time": 1789113600000,
     "cls": "p",
-    "note": "cap-clamped size follows the entry equity, which differs (Nora 10301.2836, Nautilus 10183.3844): Nora sizes with a ledger that already holds the intrabar PnL of earlier-order symbols' bar t",
+    "note": "gross-exposure room differs: Nora notional 2.63 (room 2.63, gross 8496.40, eq 8499.03) vs Nautilus 2.63 (room 2.63, gross 8496.29, eq 8498.92); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
     "nora": [
-     2233.16,
-     1778810400000,
-     2222.49,
+     95.317,
+     1789120800000,
+     94.992,
      "SIG"
     ],
     "naut": [
-     2233.16,
-     1778810400000,
-     2222.49,
+     95.317,
+     1789120800000,
+     94.992,
      "SIG"
     ],
     "fund_nora": 0.0,
     "fund_naut": 0
+   }
+  ]
+ },
+ {
+  "dataset": "gapped",
+  "signal": "ema5_13",
+  "stage": "S8c [sync adm]",
+  "path": "adaptive",
+  "trades_nora": 379,
+  "trades_naut": 393,
+  "matched_pairs": 379,
+  "exact_matches": 377,
+  "classes": {
+   "match": 377,
+   "c": 14,
+   "p": 2
+  },
+  "final_equity_nora": 9006.070991194387,
+  "final_equity_naut": 9005.94766651,
+  "final_equity_diff_pct": -0.0013693505692802255,
+  "bit_identical": null,
+  "funding_nora": 0.0,
+  "funding_naut": 0,
+  "rejected_for_risk": 81,
+  "variant": "_sync",
+  "entry_equity_differs": 285,
+  "entry_equity_max_rel": 0.0024213811529234237,
+  "sizing_lookahead_trades": 3,
+  "sizing_lookahead_max_qty_rel": 1.3736904703101648e-05,
+  "non_exact_examples": [
+   {
+    "sym": "SOL",
+    "enter_time": 1775750400000,
+    "cls": "c",
+    "note": "dust entry from a knife-edge: the cap leaves room 5.42e-06 USDT (earlier entries sized to exactly fill max_gross_exposure); Nora's float arithmetic gives room <= 0 (rejected), Nautilus' 8-decimal qty rounding leaves a positive notional 5.83e-06 USDT",
+    "nora": null,
+    "naut": null,
+    "fund_nora": null,
+    "fund_naut": null
+   },
+   {
+    "sym": "SOL",
+    "enter_time": 1775822400000,
+    "cls": "c",
+    "note": "dust entry from a knife-edge: the cap leaves room 2.36e-06 USDT (earlier entries sized to exactly fill max_gross_exposure); Nora's float arithmetic gives room <= 0 (rejected), Nautilus' 8-decimal qty rounding leaves a positive notional 2.52e-06 USDT",
+    "nora": null,
+    "naut": null,
+    "fund_nora": null,
+    "fund_naut": null
+   },
+   {
+    "sym": "SOL",
+    "enter_time": 1776816000000,
+    "cls": "c",
+    "note": "dust entry from a knife-edge: the cap leaves room 5.08e-07 USDT (earlier entries sized to exactly fill max_gross_exposure); Nora's float arithmetic gives room <= 0 (rejected), Nautilus' 8-decimal qty rounding leaves a positive notional 8.45e-07 USDT",
+    "nora": null,
+    "naut": null,
+    "fund_nora": null,
+    "fund_naut": null
+   },
+   {
+    "sym": "SOL",
+    "enter_time": 1777730400000,
+    "cls": "c",
+    "note": "dust entry from a knife-edge: the cap leaves room 0.000323 USDT (earlier entries sized to exactly fill max_gross_exposure); Nora's float arithmetic gives room <= 0 (rejected), Nautilus' 8-decimal qty rounding leaves a positive notional 0.000323 USDT",
+    "nora": null,
+    "naut": null,
+    "fund_nora": null,
+    "fund_naut": null
    },
    {
     "sym": "ETH",
-    "enter_time": 1785351600000,
+    "enter_time": 1778421600000,
     "cls": "p",
-    "note": "gross-exposure room differs: Nora notional 3831.36 (room 3831.36, gross 5747.04, eq 9578.40) vs Nautilus 3831.31 (room 3831.31, gross 5746.96, eq 9578.27); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
+    "note": "gross-exposure room differs: Nora notional 67.70 (room 67.70, gross 10574.21, eq 10641.91) vs Nautilus 67.70 (room 67.70, gross 10574.21, eq 10641.91); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
     "nora": [
-     2045.66,
-     1785351600000,
-     2014.9751,
-     "SL"
+     2278.82,
+     1778450400000,
+     2324.3964,
+     "TP"
     ],
     "naut": [
-     2045.66,
-     1785351600000,
-     2014.9751,
-     "SL"
+     2278.82,
+     1778450400000,
+     2324.3964,
+     "TP"
     ],
     "fund_nora": 0.0,
     "fund_naut": 0
    },
    {
     "sym": "SOL",
-    "enter_time": 1787572800000,
+    "enter_time": 1789113600000,
     "cls": "p",
-    "note": "gross-exposure room differs: Nora notional 5345.10 (room 5345.10, gross 3539.83, eq 8884.93) vs Nautilus 5330.89 (room 5345.03, gross 3539.78, eq 8884.81); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
+    "note": "gross-exposure room differs: Nora notional 2.63 (room 2.63, gross 8496.40, eq 8499.03) vs Nautilus 2.63 (room 2.63, gross 8496.29, eq 8498.92); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
     "nora": [
-     86.65,
-     1787572800000,
-     85.35025,
-     "SL"
+     95.317,
+     1789120800000,
+     94.992,
+     "SIG"
     ],
     "naut": [
-     86.65,
-     1787572800000,
-     85.35025,
-     "SL"
+     95.317,
+     1789120800000,
+     94.992,
+     "SIG"
     ],
     "fund_nora": 0.0,
     "fund_naut": 0
@@ -7953,139 +6781,26 @@
   "signal": "ema5_13",
   "stage": "S8d",
   "path": "adaptive",
-  "trades_nora": 365,
+  "trades_nora": 361,
   "trades_naut": 361,
   "matched_pairs": 361,
-  "exact_matches": 234,
+  "exact_matches": 361,
   "classes": {
-   "match": 234,
-   "p": 128,
-   "x": 3
+   "match": 361
   },
-  "final_equity_nora": 8998.341561294754,
+  "final_equity_nora": 9119.214439449515,
   "final_equity_naut": 9119.089571,
-  "final_equity_diff_pct": 1.3418918239848754,
+  "final_equity_diff_pct": -0.0013692895407202421,
   "bit_identical": true,
   "funding_nora": 0.0,
   "funding_naut": 0,
-  "rejected_for_risk": 95,
+  "rejected_for_risk": 99,
   "variant": "",
-  "entry_equity_differs": 359,
-  "entry_equity_max_rel": 0.024921421507518658,
+  "entry_equity_differs": 248,
+  "entry_equity_max_rel": 0.0024213819072830462,
   "sizing_lookahead_trades": 3,
-  "sizing_lookahead_max_qty_rel": 2.18614957035942,
-  "non_exact_examples": [
-   {
-    "sym": "ETH",
-    "enter_time": 1775592000000,
-    "cls": "p",
-    "note": "gross-exposure room differs: Nora notional 1973.48 (room 1973.48, gross 6026.52, eq 10000.00) vs Nautilus 2000.00 (room 2000.00, gross 6000.00, eq 10000.00); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
-    "nora": [
-     2112.59,
-     1775599200000,
-     2154.8418,
-     "TP"
-    ],
-    "naut": [
-     2112.59,
-     1775599200000,
-     2154.8418,
-     "TP"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
-    "sym": "ETH",
-    "enter_time": 1775750400000,
-    "cls": "p",
-    "note": "gross-exposure room differs: Nora notional 2012.57 (room 2012.57, gross 6018.26, eq 10038.55) vs Nautilus 2007.81 (room 2007.81, gross 6023.43, eq 10039.05); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
-    "nora": [
-     2168.14,
-     1775775600000,
-     2135.6178999999997,
-     "SL"
-    ],
-    "naut": [
-     2168.14,
-     1775775600000,
-     2135.6179,
-     "SL"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
-    "sym": "ETH",
-    "enter_time": 1775822400000,
-    "cls": "p",
-    "note": "gross-exposure room differs: Nora notional 1986.31 (room 1986.31, gross 6003.89, eq 9987.75) vs Nautilus 1997.67 (room 1997.67, gross 5993.00, eq 9988.33); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
-    "nora": [
-     2165.57,
-     1775890800000,
-     2185.6,
-     "SIG"
-    ],
-    "naut": [
-     2165.57,
-     1775890800000,
-     2185.6,
-     "SIG"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1775923200000,
-    "cls": "p",
-    "note": "gross-exposure room differs: Nora notional 1964.56 (room 1964.56, gross 6071.75, eq 10045.38) vs Nautilus 1989.72 (room 1989.72, gross 6047.13, eq 10046.06); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
-    "nora": [
-     82.454,
-     1775955600000,
-     81.21718999999999,
-     "SL"
-    ],
-    "naut": [
-     82.454,
-     1775955600000,
-     81.21719,
-     "SL"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1778770800000,
-    "cls": "x",
-    "note": "nora-only trade inside cascade window of an earlier classified divergence",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1785351600000,
-    "cls": "x",
-    "note": "nora-only trade inside cascade window of an earlier classified divergence",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1785949200000,
-    "cls": "x",
-    "note": "nora-only trade inside cascade window of an earlier classified divergence",
-    "nora": null,
-    "naut": null,
-    "fund_nora": null,
-    "fund_naut": null
-   }
-  ]
+  "sizing_lookahead_max_qty_rel": 1.369418461766832e-05,
+  "non_exact_examples": []
  },
  {
   "dataset": "gapped",
@@ -8095,84 +6810,22 @@
   "trades_nora": 361,
   "trades_naut": 361,
   "matched_pairs": 361,
-  "exact_matches": 358,
+  "exact_matches": 361,
   "classes": {
-   "match": 358,
-   "p": 3
+   "match": 361
   },
-  "final_equity_nora": 9118.986051709724,
+  "final_equity_nora": 9119.214439449515,
   "final_equity_naut": 9119.089571,
-  "final_equity_diff_pct": 0.0011352061477953868,
+  "final_equity_diff_pct": -0.0013692895407202421,
   "bit_identical": null,
   "funding_nora": 0.0,
   "funding_naut": 0,
   "rejected_for_risk": 99,
   "variant": "_sync",
-  "entry_equity_differs": 249,
-  "entry_equity_max_rel": 0.011445093212376896,
+  "entry_equity_differs": 248,
+  "entry_equity_max_rel": 0.0024213819072830462,
   "sizing_lookahead_trades": 3,
-  "sizing_lookahead_max_qty_rel": 0.0026086101707474586,
-  "non_exact_examples": [
-   {
-    "sym": "ETH",
-    "enter_time": 1778770800000,
-    "cls": "p",
-    "note": "cap-clamped size follows the entry equity, which differs (Nora 10385.9902, Nautilus 10267.1215): Nora sizes with a ledger that already holds the intrabar PnL of earlier-order symbols' bar t",
-    "nora": [
-     2233.16,
-     1778810400000,
-     2222.49,
-     "SIG"
-    ],
-    "naut": [
-     2233.16,
-     1778810400000,
-     2222.49,
-     "SIG"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
-    "sym": "ETH",
-    "enter_time": 1785351600000,
-    "cls": "p",
-    "note": "gross-exposure room differs: Nora notional 1939.94 (room 1939.94, gross 5819.82, eq 9699.70) vs Nautilus 1939.91 (room 1939.91, gross 5819.74, eq 9699.57); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
-    "nora": [
-     2045.66,
-     1785351600000,
-     2014.9751,
-     "SL"
-    ],
-    "naut": [
-     2045.66,
-     1785351600000,
-     2014.9750999999999,
-     "SL"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   },
-   {
-    "sym": "SOL",
-    "enter_time": 1787572800000,
-    "cls": "p",
-    "note": "gross-exposure room differs: Nora notional 5481.55 (room 5481.55, gross 1808.27, eq 9112.27) vs Nautilus 5467.29 (room 5481.48, gross 1808.24, eq 9112.15); Nora marks earlier-order symbols at close[t] and counts their intrabar closes, Nautilus has only the state at the open",
-    "nora": [
-     86.65,
-     1787572800000,
-     85.35025,
-     "SL"
-    ],
-    "naut": [
-     86.65,
-     1787572800000,
-     85.35025,
-     "SL"
-    ],
-    "fund_nora": 0.0,
-    "fund_naut": 0
-   }
-  ]
+  "sizing_lookahead_max_qty_rel": 1.369418461766832e-05,
+  "non_exact_examples": []
  }
 ]

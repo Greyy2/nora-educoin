@@ -1,0 +1,1797 @@
+{
+"config": {
+"capital": "0x1.3880000000000p+12",
+"gas_usd": "0x0.0p+0",
+"latency_ms": null,
+"pools": [
+{
+"fee": "0x1.89374bc6a7efap-9",
+"n": 455,
+"name": "XYZ",
+"rb": "0x1.86a0000000000p+17",
+"seed": 921951934,
+"stable": false,
+"step_ms": 300000,
+"vol": "0x1.0624dd2f1a9fcp-9"
+}
+],
+"position": {
+"cooldown": 0,
+"dca_multipliers": [
+"0x1.8000000000000p+0",
+"0x1.0000000000000p+1"
+],
+"dca_steps": [
+"0x1.0000000000000p+0",
+"0x1.4cccccccccccdp+0"
+],
+"exit_unit": "pct",
+"max_notional_pct": "0x1.9000000000000p+6",
+"order_size_pct": "0x1.8000000000000p+3",
+"risk_per_trade_pct": "0x1.0000000000000p-1",
+"sizing": "risk",
+"stop_loss_rate": "0x1.0000000000000p+2",
+"take_profit_rate": "0x1.0000000000000p+0"
+},
+"rpt": "0x1.0000000000000p+0",
+"seed": 5,
+"signal": "up"
+},
+"result": {
+"by_strategy": {
+"t_rand": {
+"pnl_usd": "-0x1.350a3d70a3d71p+5",
+"trades": 35
+}
+},
+"by_symbol": {
+"XYZ": "-0x1.350a3d70a3d71p+5"
+},
+"cagr_pct": "-0x1.2ee147ae147aep+6",
+"calmar": "-0x1.80e147ae147aep+6",
+"config": {
+"cost_model": {
+"fills": "m\u1ecdi l\u1ec7nh = swap taker (kh\u00f4ng c\u00f3 l\u1ec7nh limit ch\u1edd): ph\u00ed pool + tr\u01b0\u1ee3t gi\u00e1 theo d\u1ef1 tr\u1eef pool t\u1ea1i tick + gas",
+"impact": "constant-product x*y=k (volatile) ho\u1eb7c x\u00b3y+xy\u00b3=k gi\u1ea3i s\u1ed1 (stable), kh\u00f4ng g\u1ed3m ph\u00ed pool",
+"model": "amm_exact",
+"pools": {
+"XYZ": {
+"fee_rate": "0x1.89374bc6a7efap-9",
+"fee_source": "manifest.ticks.fee_rate",
+"gas_usd": "0x0.0p+0",
+"network": "base",
+"pool_type": "aerodrome_v2",
+"stable": false
+}
+},
+"price_basis": {
+"execution": "mid_price (gi\u00e1 bi\u00ean sau swap)",
+"signals": "price (gi\u00e1 kh\u1edbp g\u1ed3m ph\u00ed)"
+}
+},
+"data": "tick",
+"end": 1705326600000,
+"initial_capital": "0x1.3880000000000p+12",
+"latency_ms": 2000,
+"risk": {
+"dd_throttle_floor": "0x1.0000000000000p-2",
+"dd_throttle_pct": "0x1.4000000000000p+2",
+"kill_switch_dd_pct": "0x1.e000000000000p+4",
+"max_gross_exposure": "0x1.8000000000000p+1",
+"max_open_risk_pct": "0x1.8000000000000p+2",
+"max_per_symbol": 1,
+"max_positions": 8
+},
+"risk_per_trade_pct": "0x1.0000000000000p+0",
+"start": 1705190400000,
+"stop_fill": "level",
+"strategies": [
+{
+"id": "t_rand",
+"params": {}
+}
+],
+"symbols": [
+"XYZ"
+],
+"tick_window": {
+"bars": 151,
+"end": 1705326600000,
+"requested_end": null,
+"requested_start": null,
+"start": 1705190400000,
+"ticks": 455
+},
+"timeframe": "15m",
+"venue": "dex"
+},
+"daily": [
+"-0x1.816aceaaf35e3p-8",
+"-0x1.e68a0d349be90p-10"
+],
+"daily_nav": [
+{
+"date": "2024-01-14",
+"equity": "0x1.36a999999999ap+12"
+},
+{
+"date": "2024-01-15",
+"equity": "0x1.3615eb851eb85p+12"
+}
+],
+"equity_curve": [
+{
+"equity": "0x1.3880000000000p+12",
+"equity_worst": "0x1.3880000000000p+12",
+"time": 1705190400000
+},
+{
+"equity": "0x1.3880000000000p+12",
+"equity_worst": "0x1.3880000000000p+12",
+"time": 1705191300000
+},
+{
+"equity": "0x1.3880000000000p+12",
+"equity_worst": "0x1.3880000000000p+12",
+"time": 1705192200000
+},
+{
+"equity": "0x1.3880000000000p+12",
+"equity_worst": "0x1.3880000000000p+12",
+"time": 1705193100000
+},
+{
+"equity": "0x1.3880000000000p+12",
+"equity_worst": "0x1.3880000000000p+12",
+"time": 1705194000000
+},
+{
+"equity": "0x1.38763d70a3d71p+12",
+"equity_worst": "0x1.38763d70a3d71p+12",
+"time": 1705194900000
+},
+{
+"equity": "0x1.387c000000000p+12",
+"equity_worst": "0x1.38751eb851eb8p+12",
+"time": 1705195800000
+},
+{
+"equity": "0x1.387d47ae147aep+12",
+"equity_worst": "0x1.3879c28f5c28fp+12",
+"time": 1705196700000
+},
+{
+"equity": "0x1.3884ccccccccdp+12",
+"equity_worst": "0x1.3874ccccccccdp+12",
+"time": 1705197600000
+},
+{
+"equity": "0x1.38735c28f5c29p+12",
+"equity_worst": "0x1.38735c28f5c29p+12",
+"time": 1705198500000
+},
+{
+"equity": "0x1.386bd70a3d70ap+12",
+"equity_worst": "0x1.386bd70a3d70ap+12",
+"time": 1705199400000
+},
+{
+"equity": "0x1.38623d70a3d71p+12",
+"equity_worst": "0x1.38623d70a3d71p+12",
+"time": 1705200300000
+},
+{
+"equity": "0x1.3859c28f5c28fp+12",
+"equity_worst": "0x1.3859c28f5c28fp+12",
+"time": 1705201200000
+},
+{
+"equity": "0x1.384b5c28f5c29p+12",
+"equity_worst": "0x1.384b5c28f5c29p+12",
+"time": 1705202100000
+},
+{
+"equity": "0x1.384b5c28f5c29p+12",
+"equity_worst": "0x1.384b5c28f5c29p+12",
+"time": 1705203000000
+},
+{
+"equity": "0x1.384b5c28f5c29p+12",
+"equity_worst": "0x1.384b5c28f5c29p+12",
+"time": 1705203900000
+},
+{
+"equity": "0x1.384b5c28f5c29p+12",
+"equity_worst": "0x1.384b5c28f5c29p+12",
+"time": 1705204800000
+},
+{
+"equity": "0x1.384b5c28f5c29p+12",
+"equity_worst": "0x1.384b5c28f5c29p+12",
+"time": 1705205700000
+},
+{
+"equity": "0x1.3841c28f5c28fp+12",
+"equity_worst": "0x1.3841c28f5c28fp+12",
+"time": 1705206600000
+},
+{
+"equity": "0x1.3827d70a3d70ap+12",
+"equity_worst": "0x1.3827d70a3d70ap+12",
+"time": 1705207500000
+},
+{
+"equity": "0x1.3827d70a3d70ap+12",
+"equity_worst": "0x1.3827d70a3d70ap+12",
+"time": 1705208400000
+},
+{
+"equity": "0x1.3827d70a3d70ap+12",
+"equity_worst": "0x1.3827d70a3d70ap+12",
+"time": 1705209300000
+},
+{
+"equity": "0x1.3827d70a3d70ap+12",
+"equity_worst": "0x1.3827d70a3d70ap+12",
+"time": 1705210200000
+},
+{
+"equity": "0x1.3827d70a3d70ap+12",
+"equity_worst": "0x1.3827d70a3d70ap+12",
+"time": 1705211100000
+},
+{
+"equity": "0x1.381e666666666p+12",
+"equity_worst": "0x1.381e666666666p+12",
+"time": 1705212000000
+},
+{
+"equity": "0x1.38168f5c28f5cp+12",
+"equity_worst": "0x1.38168f5c28f5cp+12",
+"time": 1705212900000
+},
+{
+"equity": "0x1.380d1eb851eb8p+12",
+"equity_worst": "0x1.380d1eb851eb8p+12",
+"time": 1705213800000
+},
+{
+"equity": "0x1.380d70a3d70a4p+12",
+"equity_worst": "0x1.380599999999ap+12",
+"time": 1705214700000
+},
+{
+"equity": "0x1.381599999999ap+12",
+"equity_worst": "0x1.3810f5c28f5c3p+12",
+"time": 1705215600000
+},
+{
+"equity": "0x1.381170a3d70a4p+12",
+"equity_worst": "0x1.381170a3d70a4p+12",
+"time": 1705216500000
+},
+{
+"equity": "0x1.3806147ae147bp+12",
+"equity_worst": "0x1.3806147ae147bp+12",
+"time": 1705217400000
+},
+{
+"equity": "0x1.3806147ae147bp+12",
+"equity_worst": "0x1.3806147ae147bp+12",
+"time": 1705218300000
+},
+{
+"equity": "0x1.37fcccccccccdp+12",
+"equity_worst": "0x1.37fcccccccccdp+12",
+"time": 1705219200000
+},
+{
+"equity": "0x1.37e87ae147ae1p+12",
+"equity_worst": "0x1.37e87ae147ae1p+12",
+"time": 1705220100000
+},
+{
+"equity": "0x1.37e6e147ae148p+12",
+"equity_worst": "0x1.37e6e147ae148p+12",
+"time": 1705221000000
+},
+{
+"equity": "0x1.37dd99999999ap+12",
+"equity_worst": "0x1.37dd99999999ap+12",
+"time": 1705221900000
+},
+{
+"equity": "0x1.37dd99999999ap+12",
+"equity_worst": "0x1.37d68f5c28f5cp+12",
+"time": 1705222800000
+},
+{
+"equity": "0x1.37e5c28f5c28fp+12",
+"equity_worst": "0x1.37df851eb851fp+12",
+"time": 1705223700000
+},
+{
+"equity": "0x1.37dc7ae147ae1p+12",
+"equity_worst": "0x1.37dc7ae147ae1p+12",
+"time": 1705224600000
+},
+{
+"equity": "0x1.37d599999999ap+12",
+"equity_worst": "0x1.37d599999999ap+12",
+"time": 1705225500000
+},
+{
+"equity": "0x1.37cc51eb851ecp+12",
+"equity_worst": "0x1.37cc51eb851ecp+12",
+"time": 1705226400000
+},
+{
+"equity": "0x1.37bf851eb851fp+12",
+"equity_worst": "0x1.37bf851eb851fp+12",
+"time": 1705227300000
+},
+{
+"equity": "0x1.37bf851eb851fp+12",
+"equity_worst": "0x1.37bf851eb851fp+12",
+"time": 1705228200000
+},
+{
+"equity": "0x1.37b6666666666p+12",
+"equity_worst": "0x1.37b6666666666p+12",
+"time": 1705229100000
+},
+{
+"equity": "0x1.37b75c28f5c29p+12",
+"equity_worst": "0x1.37b75c28f5c29p+12",
+"time": 1705230000000
+},
+{
+"equity": "0x1.37ae3d70a3d71p+12",
+"equity_worst": "0x1.37ae3d70a3d71p+12",
+"time": 1705230900000
+},
+{
+"equity": "0x1.37a9eb851eb85p+12",
+"equity_worst": "0x1.37a851eb851ecp+12",
+"time": 1705231800000
+},
+{
+"equity": "0x1.3793ae147ae14p+12",
+"equity_worst": "0x1.3793ae147ae14p+12",
+"time": 1705232700000
+},
+{
+"equity": "0x1.3793ae147ae14p+12",
+"equity_worst": "0x1.3793ae147ae14p+12",
+"time": 1705233600000
+},
+{
+"equity": "0x1.378ab851eb852p+12",
+"equity_worst": "0x1.378ab851eb852p+12",
+"time": 1705234500000
+},
+{
+"equity": "0x1.37875c28f5c29p+12",
+"equity_worst": "0x1.37868f5c28f5cp+12",
+"time": 1705235400000
+},
+{
+"equity": "0x1.3781c28f5c28fp+12",
+"equity_worst": "0x1.3781c28f5c28fp+12",
+"time": 1705236300000
+},
+{
+"equity": "0x1.3778ccccccccdp+12",
+"equity_worst": "0x1.3778ccccccccdp+12",
+"time": 1705237200000
+},
+{
+"equity": "0x1.377051eb851ecp+12",
+"equity_worst": "0x1.377051eb851ecp+12",
+"time": 1705238100000
+},
+{
+"equity": "0x1.37675c28f5c29p+12",
+"equity_worst": "0x1.37675c28f5c29p+12",
+"time": 1705239000000
+},
+{
+"equity": "0x1.37575c28f5c29p+12",
+"equity_worst": "0x1.37575c28f5c29p+12",
+"time": 1705239900000
+},
+{
+"equity": "0x1.37575c28f5c29p+12",
+"equity_worst": "0x1.37575c28f5c29p+12",
+"time": 1705240800000
+},
+{
+"equity": "0x1.37575c28f5c29p+12",
+"equity_worst": "0x1.37575c28f5c29p+12",
+"time": 1705241700000
+},
+{
+"equity": "0x1.37575c28f5c29p+12",
+"equity_worst": "0x1.37575c28f5c29p+12",
+"time": 1705242600000
+},
+{
+"equity": "0x1.37575c28f5c29p+12",
+"equity_worst": "0x1.37575c28f5c29p+12",
+"time": 1705243500000
+},
+{
+"equity": "0x1.374e8f5c28f5cp+12",
+"equity_worst": "0x1.374e8f5c28f5cp+12",
+"time": 1705244400000
+},
+{
+"equity": "0x1.373fd70a3d70ap+12",
+"equity_worst": "0x1.373fd70a3d70ap+12",
+"time": 1705245300000
+},
+{
+"equity": "0x1.373fd70a3d70ap+12",
+"equity_worst": "0x1.373fd70a3d70ap+12",
+"time": 1705246200000
+},
+{
+"equity": "0x1.37370a3d70a3dp+12",
+"equity_worst": "0x1.37370a3d70a3dp+12",
+"time": 1705247100000
+},
+{
+"equity": "0x1.373851eb851ecp+12",
+"equity_worst": "0x1.373570a3d70a4p+12",
+"time": 1705248000000
+},
+{
+"equity": "0x1.373f0a3d70a3dp+12",
+"equity_worst": "0x1.3737333333333p+12",
+"time": 1705248900000
+},
+{
+"equity": "0x1.372f5c28f5c29p+12",
+"equity_worst": "0x1.372f5c28f5c29p+12",
+"time": 1705249800000
+},
+{
+"equity": "0x1.373147ae147aep+12",
+"equity_worst": "0x1.373051eb851ecp+12",
+"time": 1705250700000
+},
+{
+"equity": "0x1.37287ae147ae1p+12",
+"equity_worst": "0x1.37287ae147ae1p+12",
+"time": 1705251600000
+},
+{
+"equity": "0x1.3716666666666p+12",
+"equity_worst": "0x1.3716666666666p+12",
+"time": 1705252500000
+},
+{
+"equity": "0x1.3716666666666p+12",
+"equity_worst": "0x1.3716666666666p+12",
+"time": 1705253400000
+},
+{
+"equity": "0x1.3716666666666p+12",
+"equity_worst": "0x1.3716666666666p+12",
+"time": 1705254300000
+},
+{
+"equity": "0x1.370dc28f5c28fp+12",
+"equity_worst": "0x1.370dc28f5c28fp+12",
+"time": 1705255200000
+},
+{
+"equity": "0x1.3706147ae147bp+12",
+"equity_worst": "0x1.3703ae147ae14p+12",
+"time": 1705256100000
+},
+{
+"equity": "0x1.370a147ae147bp+12",
+"equity_worst": "0x1.37047ae147ae1p+12",
+"time": 1705257000000
+},
+{
+"equity": "0x1.370170a3d70a4p+12",
+"equity_worst": "0x1.370170a3d70a4p+12",
+"time": 1705257900000
+},
+{
+"equity": "0x1.36fe147ae147bp+12",
+"equity_worst": "0x1.36fe147ae147bp+12",
+"time": 1705258800000
+},
+{
+"equity": "0x1.36f570a3d70a4p+12",
+"equity_worst": "0x1.36f570a3d70a4p+12",
+"time": 1705259700000
+},
+{
+"equity": "0x1.36f28f5c28f5cp+12",
+"equity_worst": "0x1.36f199999999ap+12",
+"time": 1705260600000
+},
+{
+"equity": "0x1.36f0000000000p+12",
+"equity_worst": "0x1.36f0000000000p+12",
+"time": 1705261500000
+},
+{
+"equity": "0x1.36e7851eb851fp+12",
+"equity_worst": "0x1.36e7851eb851fp+12",
+"time": 1705262400000
+},
+{
+"equity": "0x1.36de3d70a3d71p+12",
+"equity_worst": "0x1.36de3d70a3d71p+12",
+"time": 1705263300000
+},
+{
+"equity": "0x1.36cf0a3d70a3dp+12",
+"equity_worst": "0x1.36cf0a3d70a3dp+12",
+"time": 1705264200000
+},
+{
+"equity": "0x1.36cf0a3d70a3dp+12",
+"equity_worst": "0x1.36cf0a3d70a3dp+12",
+"time": 1705265100000
+},
+{
+"equity": "0x1.36c68f5c28f5cp+12",
+"equity_worst": "0x1.36c68f5c28f5cp+12",
+"time": 1705266000000
+},
+{
+"equity": "0x1.36c5c28f5c28fp+12",
+"equity_worst": "0x1.36c30a3d70a3dp+12",
+"time": 1705266900000
+},
+{
+"equity": "0x1.36b2e147ae148p+12",
+"equity_worst": "0x1.36b2e147ae148p+12",
+"time": 1705267800000
+},
+{
+"equity": "0x1.36b2e147ae148p+12",
+"equity_worst": "0x1.36b2e147ae148p+12",
+"time": 1705268700000
+},
+{
+"equity": "0x1.36b2e147ae148p+12",
+"equity_worst": "0x1.36b2e147ae148p+12",
+"time": 1705269600000
+},
+{
+"equity": "0x1.36b2e147ae148p+12",
+"equity_worst": "0x1.36b2e147ae148p+12",
+"time": 1705270500000
+},
+{
+"equity": "0x1.36aa8f5c28f5cp+12",
+"equity_worst": "0x1.36aa8f5c28f5cp+12",
+"time": 1705271400000
+},
+{
+"equity": "0x1.36b2147ae147bp+12",
+"equity_worst": "0x1.36aa666666666p+12",
+"time": 1705272300000
+},
+{
+"equity": "0x1.36bcccccccccdp+12",
+"equity_worst": "0x1.36b6666666666p+12",
+"time": 1705273200000
+},
+{
+"equity": "0x1.36b828f5c28f6p+12",
+"equity_worst": "0x1.36b828f5c28f6p+12",
+"time": 1705274100000
+},
+{
+"equity": "0x1.36a999999999ap+12",
+"equity_worst": "0x1.36a999999999ap+12",
+"time": 1705275000000
+},
+{
+"equity": "0x1.36a999999999ap+12",
+"equity_worst": "0x1.36a999999999ap+12",
+"time": 1705275900000
+},
+{
+"equity": "0x1.36a999999999ap+12",
+"equity_worst": "0x1.36a999999999ap+12",
+"time": 1705276800000
+},
+{
+"equity": "0x1.36a999999999ap+12",
+"equity_worst": "0x1.36a999999999ap+12",
+"time": 1705277700000
+},
+{
+"equity": "0x1.36a999999999ap+12",
+"equity_worst": "0x1.36a999999999ap+12",
+"time": 1705278600000
+},
+{
+"equity": "0x1.36a11eb851eb8p+12",
+"equity_worst": "0x1.36a11eb851eb8p+12",
+"time": 1705279500000
+},
+{
+"equity": "0x1.36a87ae147ae1p+12",
+"equity_worst": "0x1.36a451eb851ecp+12",
+"time": 1705280400000
+},
+{
+"equity": "0x1.36b428f5c28f6p+12",
+"equity_worst": "0x1.36ab333333333p+12",
+"time": 1705281300000
+},
+{
+"equity": "0x1.36b147ae147aep+12",
+"equity_worst": "0x1.36b11eb851eb8p+12",
+"time": 1705282200000
+},
+{
+"equity": "0x1.36ac7ae147ae1p+12",
+"equity_worst": "0x1.36ac7ae147ae1p+12",
+"time": 1705283100000
+},
+{
+"equity": "0x1.36a428f5c28f6p+12",
+"equity_worst": "0x1.36a428f5c28f6p+12",
+"time": 1705284000000
+},
+{
+"equity": "0x1.36a999999999ap+12",
+"equity_worst": "0x1.36a999999999ap+12",
+"time": 1705284900000
+},
+{
+"equity": "0x1.36a4000000000p+12",
+"equity_worst": "0x1.36a4000000000p+12",
+"time": 1705285800000
+},
+{
+"equity": "0x1.36963d70a3d71p+12",
+"equity_worst": "0x1.36963d70a3d71p+12",
+"time": 1705286700000
+},
+{
+"equity": "0x1.36963d70a3d71p+12",
+"equity_worst": "0x1.36963d70a3d71p+12",
+"time": 1705287600000
+},
+{
+"equity": "0x1.36963d70a3d71p+12",
+"equity_worst": "0x1.36963d70a3d71p+12",
+"time": 1705288500000
+},
+{
+"equity": "0x1.368deb851eb85p+12",
+"equity_worst": "0x1.368deb851eb85p+12",
+"time": 1705289400000
+},
+{
+"equity": "0x1.3694000000000p+12",
+"equity_worst": "0x1.368f851eb851fp+12",
+"time": 1705290300000
+},
+{
+"equity": "0x1.36970a3d70a3dp+12",
+"equity_worst": "0x1.3693d70a3d70ap+12",
+"time": 1705291200000
+},
+{
+"equity": "0x1.3699c28f5c28fp+12",
+"equity_worst": "0x1.36923d70a3d71p+12",
+"time": 1705292100000
+},
+{
+"equity": "0x1.3694a3d70a3d7p+12",
+"equity_worst": "0x1.3694a3d70a3d7p+12",
+"time": 1705293000000
+},
+{
+"equity": "0x1.368f851eb851fp+12",
+"equity_worst": "0x1.368f851eb851fp+12",
+"time": 1705293900000
+},
+{
+"equity": "0x1.36875c28f5c29p+12",
+"equity_worst": "0x1.36875c28f5c29p+12",
+"time": 1705294800000
+},
+{
+"equity": "0x1.3682b851eb852p+12",
+"equity_worst": "0x1.3682b851eb852p+12",
+"time": 1705295700000
+},
+{
+"equity": "0x1.3676b851eb852p+12",
+"equity_worst": "0x1.3676b851eb852p+12",
+"time": 1705296600000
+},
+{
+"equity": "0x1.3676b851eb852p+12",
+"equity_worst": "0x1.3676b851eb852p+12",
+"time": 1705297500000
+},
+{
+"equity": "0x1.3676b851eb852p+12",
+"equity_worst": "0x1.3676b851eb852p+12",
+"time": 1705298400000
+},
+{
+"equity": "0x1.3676b851eb852p+12",
+"equity_worst": "0x1.3676b851eb852p+12",
+"time": 1705299300000
+},
+{
+"equity": "0x1.3676b851eb852p+12",
+"equity_worst": "0x1.3676b851eb852p+12",
+"time": 1705300200000
+},
+{
+"equity": "0x1.366e8f5c28f5cp+12",
+"equity_worst": "0x1.366e8f5c28f5cp+12",
+"time": 1705301100000
+},
+{
+"equity": "0x1.3663851eb851fp+12",
+"equity_worst": "0x1.3663851eb851fp+12",
+"time": 1705302000000
+},
+{
+"equity": "0x1.3663851eb851fp+12",
+"equity_worst": "0x1.3663851eb851fp+12",
+"time": 1705302900000
+},
+{
+"equity": "0x1.365b5c28f5c29p+12",
+"equity_worst": "0x1.365b5c28f5c29p+12",
+"time": 1705303800000
+},
+{
+"equity": "0x1.36570a3d70a3dp+12",
+"equity_worst": "0x1.36523d70a3d71p+12",
+"time": 1705304700000
+},
+{
+"equity": "0x1.365f851eb851fp+12",
+"equity_worst": "0x1.365ab851eb852p+12",
+"time": 1705305600000
+},
+{
+"equity": "0x1.36575c28f5c29p+12",
+"equity_worst": "0x1.36575c28f5c29p+12",
+"time": 1705306500000
+},
+{
+"equity": "0x1.3650000000000p+12",
+"equity_worst": "0x1.3650000000000p+12",
+"time": 1705307400000
+},
+{
+"equity": "0x1.3648000000000p+12",
+"equity_worst": "0x1.3648000000000p+12",
+"time": 1705308300000
+},
+{
+"equity": "0x1.365147ae147aep+12",
+"equity_worst": "0x1.364a147ae147bp+12",
+"time": 1705309200000
+},
+{
+"equity": "0x1.365051eb851ecp+12",
+"equity_worst": "0x1.364c7ae147ae1p+12",
+"time": 1705310100000
+},
+{
+"equity": "0x1.3646147ae147bp+12",
+"equity_worst": "0x1.3646147ae147bp+12",
+"time": 1705311000000
+},
+{
+"equity": "0x1.3646147ae147bp+12",
+"equity_worst": "0x1.3646147ae147bp+12",
+"time": 1705311900000
+},
+{
+"equity": "0x1.363e147ae147bp+12",
+"equity_worst": "0x1.363e147ae147bp+12",
+"time": 1705312800000
+},
+{
+"equity": "0x1.363547ae147aep+12",
+"equity_worst": "0x1.363547ae147aep+12",
+"time": 1705313700000
+},
+{
+"equity": "0x1.363547ae147aep+12",
+"equity_worst": "0x1.363547ae147aep+12",
+"time": 1705314600000
+},
+{
+"equity": "0x1.363547ae147aep+12",
+"equity_worst": "0x1.363547ae147aep+12",
+"time": 1705315500000
+},
+{
+"equity": "0x1.363547ae147aep+12",
+"equity_worst": "0x1.363547ae147aep+12",
+"time": 1705316400000
+},
+{
+"equity": "0x1.362d47ae147aep+12",
+"equity_worst": "0x1.362d47ae147aep+12",
+"time": 1705317300000
+},
+{
+"equity": "0x1.362b851eb851fp+12",
+"equity_worst": "0x1.362b851eb851fp+12",
+"time": 1705318200000
+},
+{
+"equity": "0x1.3623ae147ae14p+12",
+"equity_worst": "0x1.3623ae147ae14p+12",
+"time": 1705319100000
+},
+{
+"equity": "0x1.362f5c28f5c29p+12",
+"equity_worst": "0x1.362970a3d70a4p+12",
+"time": 1705320000000
+},
+{
+"equity": "0x1.361ae147ae148p+12",
+"equity_worst": "0x1.361ae147ae148p+12",
+"time": 1705320900000
+},
+{
+"equity": "0x1.36170a3d70a3dp+12",
+"equity_worst": "0x1.36151eb851eb8p+12",
+"time": 1705321800000
+},
+{
+"equity": "0x1.360f333333333p+12",
+"equity_worst": "0x1.360f333333333p+12",
+"time": 1705322700000
+},
+{
+"equity": "0x1.36130a3d70a3dp+12",
+"equity_worst": "0x1.36130a3d70a3dp+12",
+"time": 1705323600000
+},
+{
+"equity": "0x1.361cf5c28f5c3p+12",
+"equity_worst": "0x1.3615eb851eb85p+12",
+"time": 1705324500000
+},
+{
+"equity": "0x1.36223d70a3d71p+12",
+"equity_worst": "0x1.361b333333333p+12",
+"time": 1705325400000
+},
+{
+"equity": "0x1.3615eb851eb85p+12",
+"equity_worst": "0x1.3615eb851eb85p+12",
+"time": 1705326300000
+}
+],
+"fees_usd": "0x1.eab851eb851ecp+4",
+"final_equity": "0x1.3615eb851eb85p+12",
+"funding_usd": 0,
+"halted_at": null,
+"mdd_basis": "intrabar",
+"mdd_daily_pct": "0x1.8a3d70a3d70a4p-1",
+"mdd_intrabar_pct": "0x1.947ae147ae148p-1",
+"mdd_pct": "0x1.947ae147ae148p-1",
+"rejected_for_capital": 0,
+"rejected_for_risk": 0,
+"ret_pct": "-0x1.8a3d70a3d70a4p-1",
+"risk_blocked_attempts": 0,
+"sharpe": "-0x1.9f5c28f5c28f6p+4",
+"stats": {
+"correlation": null,
+"exposure": {
+"exposure_gross_avg_pct": "0x1.6f7ced916872bp+0",
+"exposure_gross_max_pct": "0x1.9a7525460aa65p+1",
+"exposure_net_avg_pct": "0x1.6f7ced916872bp+0",
+"exposure_net_max_pct": "0x1.9a7525460aa65p+1",
+"max_concurrent": 1,
+"peak_margin_pct": "0x1.9a7525460aa65p+1",
+"time_in_market_pct": "0x1.89d1b71758e22p+5"
+},
+"returns": {
+"best_day_pct": "-0x1.7c1bda5119ce0p-3",
+"cagr_pct": "-0x1.2ede69ad42c3dp+6",
+"calmar": "-0x1.8807fcb923a2ap+6",
+"cvar95_pct": "0x1.2d1b71758e219p-1",
+"days": 2,
+"kurt": "0x1.8000000000000p+1",
+"max_dd_days": 2,
+"mdd_daily_pct": "0x1.8b923a29c779ap-1",
+"recovery_days": null,
+"ret_pct": "-0x1.8b923a29c779ap-1",
+"sharpe": "-0x1.9f6ae7d566cf4p+4",
+"skew": "0x0.0p+0",
+"sortino": "-0x1.0f2b6ae7d566dp+4",
+"ulcer_index": "0x1.5f8a0902de00dp-1",
+"var95_pct": "0x1.22d0e56041893p-1",
+"vol_ann_pct": "0x1.5c09d495182aap+2",
+"win_days_pct": "0x0.0p+0",
+"worst_day_pct": "-0x1.2d1b71758e219p-1"
+},
+"trades": {
+"avg_hold_h": "0x1.110cb295e9e1bp-1",
+"avg_loss_usd": "-0x1.243fe5c91d14ep+0",
+"avg_win_usd": "0x1.8068db8bac711p-3",
+"best_trade_pct": "0x1.f212d77318fc5p-9",
+"best_trade_usd": "0x1.8068db8bac711p-3",
+"breakeven": 0,
+"expectancy_pct": "-0x1.6bb98c7e28241p-6",
+"expectancy_usd": "-0x1.1a8c154c985f0p+0",
+"fee_drag_pct": null,
+"fees_usd": "0x1.eac84b5dcc63fp+4",
+"funding_usd": "0x0.0p+0",
+"gross_loss_usd": "0x1.3686c226809d5p+5",
+"gross_profit_usd": "0x1.8068db8bac711p-3",
+"layers_avg": "0x1.0000000000000p+0",
+"layers_max": 1,
+"liq_proximity_max_pct": "0x1.32fec56d5cfabp+0",
+"liquidations": 0,
+"long": {
+"pnl_usd": "-0x1.3506594af4f0ep+5",
+"trades": 35,
+"win_rate": "0x1.6db573eab367ap+1"
+},
+"loss_rate": "0x1.84925460aa64cp+6",
+"losses": 34,
+"mae_avg_pct": "-0x1.2bd3c36113405p-6",
+"mae_worst_pct": "-0x1.30be0ded288cep-5",
+"max_consec_losses": 23,
+"max_consec_wins": 1,
+"max_hold_h": "0x1.4000000000000p+0",
+"payoff": "0x1.50b0f27bb2fecp-3",
+"pnl_usd": "-0x1.3506594af4f0ep+5",
+"profit_factor": "0x1.3a92a30553261p-8",
+"profit_factor_note": null,
+"short": {
+"pnl_usd": "0x0.0p+0",
+"trades": 0,
+"win_rate": null
+},
+"top5_share_pct": "0x1.9000000000000p+6",
+"trades": 35,
+"win_rate": "0x1.6db573eab367ap+1",
+"win_rate_note": null,
+"wins": 1,
+"worst_trade_pct": "-0x1.6e2eb1c432ca5p-5",
+"worst_trade_usd": "-0x1.1d14e3bcd35a8p+1"
+}
+},
+"symbols_positive": 0,
+"tick_stats": {
+"avg_fill_slippage_bps": "0x1.ceecbfb15b574p+2",
+"entries_ignored_no_trade_bar": 0,
+"signal_bars": 151,
+"signal_bars_skipped": 0,
+"taker_fills": 70,
+"ticks_mid_fallback": 0,
+"ticks_reserve_filled": 0
+},
+"trade_list": [
+{
+"avg_price": "0x1.02cd52d996b4bp+0",
+"close_price": "0x1.025245195fbb6p+0",
+"close_reason": "T\u00edn hi\u1ec7u tho\u00e1t (AST stop)",
+"close_time": 1705200000000,
+"enter_price": "0x1.02cd52dba91c6p+0",
+"enter_time": 1705195500000,
+"entry_equity": "0x1.3880000000000p+12",
+"fees_usd": "0x1.ec154c985f06fp-1",
+"funding_usd": "0x0.0p+0",
+"layers": 1,
+"leverage": "0x1.0000000000000p+0",
+"mae_pct": "-0x1.02de00d1b7176p-6",
+"margin_usd": "0x1.40a8f5c28f5c3p+7",
+"notional": "0x1.40a8f5c28f5c3p+7",
+"pnl": "-0x1.42474538ef34dp+0",
+"pnl_pct": "-0x1.9ce075f6fd220p-6",
+"qty": "0x1.3d32b01aba6b7p+7",
+"side": "LONG",
+"status": "SL",
+"strategy": "t_rand",
+"symbol": "XYZ"
+},
+{
+"avg_price": "0x1.02bd205c6be6bp+0",
+"close_price": "0x1.00fcca3f40bdep+0",
+"close_reason": "T\u00edn hi\u1ec7u tho\u00e1t (AST stop)",
+"close_time": 1705202700000,
+"enter_price": "0x1.02bd2064b3a71p+0",
+"enter_time": 1705200900000,
+"entry_equity": "0x1.386bd70a3d70ap+12",
+"fees_usd": "0x1.e84b5dcc63f14p-1",
+"funding_usd": "0x0.0p+0",
+"layers": 1,
+"leverage": "0x1.0000000000000p+0",
+"mae_pct": "-0x1.999999999999ap-6",
+"margin_usd": "0x1.3efae147ae148p+7",
+"notional": "0x1.3efae147ae148p+7",
+"pnl": "-0x1.043fe5c91d14ep+1",
+"pnl_pct": "-0x1.4d6a161e4f766p-5",
+"qty": "0x1.3b995c8ff8dbfp+7",
+"side": "LONG",
+"status": "SL",
+"strategy": "t_rand",
+"symbol": "XYZ"
+},
+{
+"avg_price": "0x1.00015ffc69f36p+0",
+"close_price": "0x1.fbe32f784f718p-1",
+"close_reason": "T\u00edn hi\u1ec7u tho\u00e1t (AST stop)",
+"close_time": 1705208100000,
+"enter_price": "0x1.00015ff7fa88cp+0",
+"enter_time": 1705207200000,
+"entry_equity": "0x1.384b5c28f5c29p+12",
+"fees_usd": "0x1.e2de00d1b7176p-1",
+"funding_usd": "0x0.0p+0",
+"layers": 1,
+"leverage": "0x1.0000000000000p+0",
+"mae_pct": "-0x1.94af4f0d844d0p-6",
+"margin_usd": "0x1.3b9eb851eb852p+7",
+"notional": "0x1.3b9eb851eb852p+7",
+"pnl": "-0x1.1b645a1cac083p+1",
+"pnl_pct": "-0x1.6ae7d566cf41fp-5",
+"qty": "0x1.3b9f7fb3946c9p+7",
+"side": "LONG",
+"status": "SL",
+"strategy": "t_rand",
+"symbol": "XYZ"
+},
+{
+"avg_price": "0x1.f7517da1158eep-1",
+"close_price": "0x1.f6d6a9b63cb70p-1",
+"close_reason": "T\u00edn hi\u1ec7u tho\u00e1t (AST stop)",
+"close_time": 1705213500000,
+"enter_price": "0x1.f7517d7c27475p-1",
+"enter_time": 1705212600000,
+"entry_equity": "0x1.3827d70a3d70ap+12",
+"fees_usd": "0x1.de76c8b439581p-1",
+"funding_usd": "0x0.0p+0",
+"layers": 1,
+"leverage": "0x1.0000000000000p+0",
+"mae_pct": "-0x1.2bd3c36113405p-6",
+"margin_usd": "0x1.37a8f5c28f5c3p+7",
+"notional": "0x1.37a8f5c28f5c3p+7",
+"pnl": "-0x1.15460aa64c2f8p+0",
+"pnl_pct": "-0x1.63886594af4f1p-6",
+"qty": "0x1.3d0a1fd96434ep+7",
+"side": "LONG",
+"status": "SL",
+"strategy": "t_rand",
+"symbol": "XYZ"
+},
+{
+"avg_price": "0x1.f7de746a0a34ep-1",
+"close_price": "0x1.f78ed7d5e16efp-1",
+"close_reason": "T\u00edn hi\u1ec7u tho\u00e1t (AST stop)",
+"close_time": 1705218000000,
+"enter_price": "0x1.f7de74564d21fp-1",
+"enter_time": 1705214400000,
+"entry_equity": "0x1.38168f5c28f5cp+12",
+"fees_usd": "0x1.dc779a6b50b0fp-1",
+"funding_usd": "0x0.0p+0",
+"layers": 1,
+"leverage": "0x1.0000000000000p+0",
+"mae_pct": "-0x1.5b573eab367a1p-6",
+"margin_usd": "0x1.364cccccccccdp+7",
+"notional": "0x1.364cccccccccdp+7",
+"pnl": "-0x1.06c226809d495p+0",
+"pnl_pct": "-0x1.5182a9930be0ep-6",
+"qty": "0x1.3b4d2b1ae0d6fp+7",
+"side": "LONG",
+"status": "TP",
+"strategy": "t_rand",
+"symbol": "XYZ"
+},
+{
+"avg_price": "0x1.fbe061542dd4ap-1",
+"close_price": "0x1.f87c587e9c5aap-1",
+"close_reason": "T\u00edn hi\u1ec7u tho\u00e1t (AST stop)",
+"close_time": 1705221600000,
+"enter_price": "0x1.fbe06174c9d5fp-1",
+"enter_time": 1705219800000,
+"entry_equity": "0x1.3806147ae147bp+12",
+"fees_usd": "0x1.d9a6b50b0f27cp-1",
+"funding_usd": "0x0.0p+0",
+"layers": 1,
+"leverage": "0x1.0000000000000p+0",
+"mae_pct": "-0x1.30be0ded288cep-5",
+"margin_usd": "0x1.3566666666666p+7",
+"notional": "0x1.3566666666666p+7",
+"pnl": "-0x1.f53f7ced91687p+0",
+"pnl_pct": "-0x1.41205bc01a36ep-5",
+"qty": "0x1.37ea815d37be9p+7",
+"side": "LONG",
+"status": "SL",
+"strategy": "t_rand",
+"symbol": "XYZ"
+},
+{
+"avg_price": "0x1.f961ad9a019e6p-1",
+"close_price": "0x1.fc30cd9dfafb1p-1",
+"close_reason": "T\u00edn hi\u1ec7u tho\u00e1t (AST stop)",
+"close_time": 1705224300000,
+"enter_price": "0x1.f961adb2db161p-1",
+"enter_time": 1705222500000,
+"entry_equity": "0x1.37e6e147ae148p+12",
+"fees_usd": "0x1.d81d7dbf487fdp-1",
+"funding_usd": "0x0.0p+0",
+"layers": 1,
+"leverage": "0x1.0000000000000p+0",
+"mae_pct": "-0x1.4c985f06f6944p-6",
+"margin_usd": "0x1.32851eb851eb8p+7",
+"notional": "0x1.32851eb851eb8p+7",
+"pnl": "-0x1.1f8a0902de00dp-4",
+"pnl_pct": "-0x1.6f0068db8bac7p-10",
+"qty": "0x1.3688688854a2cp+7",
+"side": "LONG",
+"status": "TP",
+"strategy": "t_rand",
+"symbol": "XYZ"
+},
+{
+"avg_price": "0x1.fbec476670f84p-1",
+"close_price": "0x1.fba308aec9085p-1",
+"close_reason": "T\u00edn hi\u1ec7u tho\u00e1t (AST stop)",
+"close_time": 1705226100000,
+"enter_price": "0x1.fbec475b638d6p-1",
+"enter_time": 1705225200000,
+"entry_equity": "0x1.37e5c28f5c28fp+12",
+"fees_usd": "0x1.d6fd21ff2e48fp-1",
+"funding_usd": "0x0.0p+0",
+"layers": 1,
+"leverage": "0x1.0000000000000p+0",
+"mae_pct": "-0x1.7c1bda5119ce0p-7",
+"margin_usd": "0x1.32b851eb851ecp+7",
+"notional": "0x1.32b851eb851ecp+7",
+"pnl": "-0x1.019ce075f6fd2p+0",
+"pnl_pct": "-0x1.4af4f0d844d01p-6",
+"qty": "0x1.352e8cf0bec47p+7",
+"side": "LONG",
+"status": "TP",
+"strategy": "t_rand",
+"symbol": "XYZ"
+},
+{
+"avg_price": "0x1.fbb8673a20e32p-1",
+"close_price": "0x1.fa2f7d636fee0p-1",
+"close_reason": "T\u00edn hi\u1ec7u tho\u00e1t (AST stop)",
+"close_time": 1705227900000,
+"enter_price": "0x1.fbb8671140023p-1",
+"enter_time": 1705227000000,
+"entry_equity": "0x1.37d599999999ap+12",
+"fees_usd": "0x1.d4538ef34d6a1p-1",
+"funding_usd": "0x0.0p+0",
+"layers": 1,
+"leverage": "0x1.0000000000000p+0",
+"mae_pct": "-0x1.2d77318fc5048p-6",
+"margin_usd": "0x1.315c28f5c28f6p+7",
+"notional": "0x1.315c28f5c28f6p+7",
+"pnl": "-0x1.605532617c1bep+0",
+"pnl_pct": "-0x1.c432ca57a786cp-6",
+"qty": "0x1.33efcfa066bd5p+7",
+"side": "LONG",
+"status": "SL",
+"strategy": "t_rand",
+"symbol": "XYZ"
+},
+{
+"avg_price": "0x1.fdb5aef8fc55ap-1",
+"close_price": "0x1.ff0c3de714cbap-1",
+"close_reason": "T\u00edn hi\u1ec7u tho\u00e1t (AST stop)",
+"close_time": 1705230600000,
+"enter_price": "0x1.fdb5af18f33e0p-1",
+"enter_time": 1705229700000,
+"entry_equity": "0x1.37bf851eb851fp+12",
+"fees_usd": "0x1.d333333333333p-1",
+"funding_usd": "0x0.0p+0",
+"layers": 1,
+"leverage": "0x1.0000000000000p+0",
+"mae_pct": "-0x1.78d4fdf3b645ap-7",
+"margin_usd": "0x1.2fc28f5c28f5cp+7",
+"notional": "0x1.2fc28f5c28f5cp+7",
+"pnl": "-0x1.0710cb295e9e2p-1",
+"pnl_pct": "-0x1.5182a9930be0ep-7",
+"qty": "0x1.3121763ff83d9p+7",
+"side": "LONG",
+"status": "TP",
+"strategy": "t_rand",
+"symbol": "XYZ"
+},
+{
+"avg_price": "0x1.01b338d203986p+0",
+"close_price": "0x1.feeba10f3f940p-1",
+"close_reason": "T\u00edn hi\u1ec7u tho\u00e1t (AST stop)",
+"close_time": 1705233300000,
+"enter_price": "0x1.01b338c1463a3p+0",
+"enter_time": 1705231500000,
+"entry_equity": "0x1.37b75c28f5c29p+12",
+"fees_usd": "0x1.d07c84b5dcc64p-1",
+"funding_usd": "0x0.0p+0",
+"layers": 1,
+"leverage": "0x1.0000000000000p+0",
+"mae_pct": "-0x1.e00d1b71758e2p-6",
+"margin_usd": "0x1.2fb851eb851ecp+7",
+"notional": "0x1.2fb851eb851ecp+7",
+"pnl": "-0x1.1d14e3bcd35a8p+1",
+"pnl_pct": "-0x1.6e2eb1c432ca5p-5",
+"qty": "0x1.2db81bc32a0bcp+7",
+"side": "LONG",
+"status": "SL",
+"strategy": "t_rand",
+"symbol": "XYZ"
+},
+{
+"avg_price": "0x1.02ab0cb3979c9p+0",
+"close_price": "0x1.0248e6e1f212ep+0",
+"close_reason": "T\u00edn hi\u1ec7u tho\u00e1t (AST stop)",
+"close_time": 1705236900000,
+"enter_price": "0x1.02ab0ca13314cp+0",
+"enter_time": 1705235100000,
+"entry_equity": "0x1.3793ae147ae14p+12",
+"fees_usd": "0x1.cdfa43fe5c91dp-1",
+"funding_usd": "0x0.0p+0",
+"layers": 1,
+"leverage": "0x1.0000000000000p+0",
+"mae_pct": "-0x1.41205bc01a36ep-6",
+"margin_usd": "0x1.2cfae147ae148p+7",
+"notional": "0x1.2cfae147ae148p+7",
+"pnl": "-0x1.2013a92a30553p+0",
+"pnl_pct": "-0x1.72474538ef34dp-6",
+"qty": "0x1.29df94dc9b76fp+7",
+"side": "LONG",
+"status": "SL",
+"strategy": "t_rand",
+"symbol": "XYZ"
+},
+{
+"avg_price": "0x1.027d0335ea72ap+0",
+"close_price": "0x1.0228502106227p+0",
+"close_reason": "T\u00edn hi\u1ec7u tho\u00e1t (AST stop)",
+"close_time": 1705238700000,
+"enter_price": "0x1.027d0346d3bfbp+0",
+"enter_time": 1705237800000,
+"entry_equity": "0x1.3781c28f5c28fp+12",
+"fees_usd": "0x1.cbac710cb295fp-1",
+"funding_usd": "0x0.0p+0",
+"layers": 1,
+"leverage": "0x1.0000000000000p+0",
+"mae_pct": "-0x1.d7dbf487fcb92p-7",
+"margin_usd": "0x1.2b70a3d70a3d7p+7",
+"notional": "0x1.2b70a3d70a3d7p+7",
+"pnl": "-0x1.16e2eb1c432cap+0",
+"pnl_pct": "-0x1.66cf41f212d77p-6",
+"qty": "0x1.288fca196932ap+7",
+"side": "LONG",
+"status": "SL",
+"strategy": "t_rand",
+"symbol": "XYZ"
+},
+{
+"avg_price": "0x1.021f41b9b3c06p+0",
+"close_price": "0x1.00f8935815ed3p+0",
+"close_reason": "T\u00edn hi\u1ec7u tho\u00e1t (AST stop)",
+"close_time": 1705240500000,
+"enter_price": "0x1.021f41ad84671p+0",
+"enter_time": 1705239600000,
+"entry_equity": "0x1.377051eb851ecp+12",
+"fees_usd": "0x1.c89a027525461p-1",
+"funding_usd": "0x0.0p+0",
+"layers": 1,
+"leverage": "0x1.0000000000000p+0",
+"mae_pct": "-0x1.4fdf3b645a1cbp-6",
+"margin_usd": "0x1.29eb851eb851fp+7",
+"notional": "0x1.29eb851eb851fp+7",
+"pnl": "-0x1.8e5604189374cp+0",
+"pnl_pct": "-0x1.ff2e48e8a71dep-6",
+"qty": "0x1.27782a256d77dp+7",
+"side": "LONG",
+"status": "SL",
+"strategy": "t_rand",
+"symbol": "XYZ"
+},
+{
+"avg_price": "0x1.fad7838a0db57p-1",
+"close_price": "0x1.f8d06c820db3ep-1",
+"close_reason": "T\u00edn hi\u1ec7u tho\u00e1t (AST stop)",
+"close_time": 1705245900000,
+"enter_price": "0x1.fad783642ae11p-1",
+"enter_time": 1705245000000,
+"entry_equity": "0x1.37575c28f5c29p+12",
+"fees_usd": "0x1.c3f141205bc02p-1",
+"funding_usd": "0x0.0p+0",
+"layers": 1,
+"leverage": "0x1.0000000000000p+0",
+"mae_pct": "-0x1.77318fc504817p-6",
+"margin_usd": "0x1.26d1eb851eb85p+7",
+"notional": "0x1.26d1eb851eb85p+7",
+"pnl": "-0x1.78f5c28f5c28fp+0",
+"pnl_pct": "-0x1.e4f765fd8adacp-6",
+"qty": "0x1.29d3731d031b1p+7",
+"side": "LONG",
+"status": "SL",
+"strategy": "t_rand",
+"symbol": "XYZ"
+},
+{
+"avg_price": "0x1.fecea5eae0b41p-1",
+"close_price": "0x1.feb00ea0e2af0p-1",
+"close_reason": "T\u00edn hi\u1ec7u tho\u00e1t (AST stop)",
+"close_time": 1705251300000,
+"enter_price": "0x1.fecea5e0fa9f3p-1",
+"enter_time": 1705247700000,
+"entry_equity": "0x1.373fd70a3d70ap+12",
+"fees_usd": "0x1.c27525460aa65p-1",
+"funding_usd": "0x0.0p+0",
+"layers": 1,
+"leverage": "0x1.0000000000000p+0",
+"mae_pct": "-0x1.5182a9930be0ep-6",
+"margin_usd": "0x1.2551eb851eb85p+7",
+"notional": "0x1.2551eb851eb85p+7",
+"pnl": "-0x1.d404ea4a8c155p-1",
+"pnl_pct": "-0x1.2d77318fc5048p-6",
+"qty": "0x1.25fff25dab00fp+7",
+"side": "LONG",
+"status": "TP",
+"strategy": "t_rand",
+"symbol": "XYZ"
+},
+{
+"avg_price": "0x1.ff1b1b8f5298dp-1",
+"close_price": "0x1.fc49ddb1aa5d4p-1",
+"close_reason": "T\u00edn hi\u1ec7u tho\u00e1t (AST stop)",
+"close_time": 1705253100000,
+"enter_price": "0x1.ff1b1ba0b64fbp-1",
+"enter_time": 1705252200000,
+"entry_equity": "0x1.373147ae147aep+12",
+"fees_usd": "0x1.bf7ced916872bp-1",
+"funding_usd": "0x0.0p+0",
+"layers": 1,
+"leverage": "0x1.0000000000000p+0",
+"mae_pct": "-0x1.8e219652bd3c3p-6",
+"margin_usd": "0x1.2423d70a3d70ap+7",
+"notional": "0x1.2423d70a3d70ap+7",
+"pnl": "-0x1.ade00d1b71759p+0",
+"pnl_pct": "-0x1.141205bc01a37p-5",
+"qty": "0x1.24a62fb27532bp+7",
+"side": "LONG",
+"status": "SL",
+"strategy": "t_rand",
+"symbol": "XYZ"
+},
+{
+"avg_price": "0x1.ff6eea4380327p-1",
+"close_price": "0x1.ffcad4c0c7d49p-1",
+"close_reason": "T\u00edn hi\u1ec7u tho\u00e1t (AST stop)",
+"close_time": 1705257600000,
+"enter_price": "0x1.ff6eea6539a27p-1",
+"enter_time": 1705255800000,
+"entry_equity": "0x1.3716666666666p+12",
+"fees_usd": "0x1.bd8adab9f559bp-1",
+"funding_usd": "0x0.0p+0",
+"layers": 1,
+"leverage": "0x1.0000000000000p+0",
+"mae_pct": "-0x1.810624dd2f1aap-6",
+"margin_usd": "0x1.21f5c28f5c28fp+7",
+"notional": "0x1.21f5c28f5c28fp+7",
+"pnl": "-0x1.896bb98c7e282p-1",
+"pnl_pct": "-0x1.f8a0902de00d2p-7",
+"qty": "0x1.2246317974b61p+7",
+"side": "LONG",
+"status": "TP",
+"strategy": "t_rand",
+"symbol": "XYZ"
+},
+{
+"avg_price": "0x1.fef4d6563870ep-1",
+"close_price": "0x1.ff5d22297f1f1p-1",
+"close_reason": "T\u00edn hi\u1ec7u tho\u00e1t (AST stop)",
+"close_time": 1705259400000,
+"enter_price": "0x1.fef4d64588d8ap-1",
+"enter_time": 1705258500000,
+"entry_equity": "0x1.370a147ae147bp+12",
+"fees_usd": "0x1.bbe76c8b43958p-1",
+"funding_usd": "0x0.0p+0",
+"layers": 1,
+"leverage": "0x1.0000000000000p+0",
+"mae_pct": "-0x1.61e4f765fd8aep-7",
+"margin_usd": "0x1.20e147ae147aep+7",
+"notional": "0x1.20e147ae147aep+7",
+"pnl": "-0x1.80ebedfa43fe6p-1",
+"pnl_pct": "-0x1.eecbfb15b573fp-7",
+"qty": "0x1.2179df0dc20a8p+7",
+"side": "LONG",
+"status": "TP",
+"strategy": "t_rand",
+"symbol": "XYZ"
+},
+{
+"avg_price": "0x1.007aa7660af6dp+0",
+"close_price": "0x1.0074c438bf53fp+0",
+"close_reason": "T\u00edn hi\u1ec7u tho\u00e1t (AST stop)",
+"close_time": 1705262100000,
+"enter_price": "0x1.007aa776b8d02p+0",
+"enter_time": 1705260300000,
+"entry_equity": "0x1.36fe147ae147bp+12",
+"fees_usd": "0x1.ba858793dd97fp-1",
+"funding_usd": "0x0.0p+0",
+"layers": 1,
+"leverage": "0x1.0000000000000p+0",
+"mae_pct": "-0x1.fbe76c8b43958p-7",
+"margin_usd": "0x1.201999999999ap+7",
+"notional": "0x1.201999999999ap+7",
+"pnl": "-0x1.c1205bc01a36ep-1",
+"pnl_pct": "-0x1.205bc01a36e2fp-6",
+"qty": "0x1.1f91433b93ffdp+7",
+"side": "LONG",
+"status": "TP",
+"strategy": "t_rand",
+"symbol": "XYZ"
+},
+{
+"avg_price": "0x1.0260a0d4a1578p+0",
+"close_price": "0x1.00382a1bc14d6p+0",
+"close_reason": "T\u00edn hi\u1ec7u tho\u00e1t (AST stop)",
+"close_time": 1705264800000,
+"enter_price": "0x1.0260a0de30d38p+0",
+"enter_time": 1705263000000,
+"entry_equity": "0x1.36f0000000000p+12",
+"fees_usd": "0x1.b780346dc5d64p-1",
+"funding_usd": "0x0.0p+0",
+"layers": 1,
+"leverage": "0x1.0000000000000p+0",
+"mae_pct": "-0x1.0068db8bac711p-5",
+"margin_usd": "0x1.1f570a3d70a3dp+7",
+"notional": "0x1.1f570a3d70a3dp+7",
+"pnl": "-0x1.0779a6b50b0f2p+1",
+"pnl_pct": "-0x1.532617c1bda51p-5",
+"qty": "0x1.1cb361a185a14p+7",
+"side": "LONG",
+"status": "SL",
+"strategy": "t_rand",
+"symbol": "XYZ"
+},
+{
+"avg_price": "0x1.0143c07423e94p+0",
+"close_price": "0x1.ff3cf27c5da64p-1",
+"close_reason": "T\u00edn hi\u1ec7u tho\u00e1t (AST stop)",
+"close_time": 1705268400000,
+"enter_price": "0x1.0143c07b7f07fp+0",
+"enter_time": 1705266600000,
+"entry_equity": "0x1.36cf0a3d70a3dp+12",
+"fees_usd": "0x1.b367a0f9096bcp-1",
+"funding_usd": "0x0.0p+0",
+"layers": 1,
+"leverage": "0x1.0000000000000p+0",
+"mae_pct": "-0x1.07c84b5dcc63fp-6",
+"margin_usd": "0x1.1c6147ae147aep+7",
+"notional": "0x1.1c6147ae147aep+7",
+"pnl": "-0x1.c28f5c28f5c29p+0",
+"pnl_pct": "-0x1.21ff2e48e8a72p-5",
+"qty": "0x1.1afddb425b6f4p+7",
+"side": "LONG",
+"status": "SL",
+"strategy": "t_rand",
+"symbol": "XYZ"
+},
+{
+"avg_price": "0x1.0137bad756e97p+0",
+"close_price": "0x1.01b1e2131e775p+0",
+"close_reason": "T\u00edn hi\u1ec7u tho\u00e1t (AST stop)",
+"close_time": 1705275600000,
+"enter_price": "0x1.0137bad23e6e4p+0",
+"enter_time": 1705272000000,
+"entry_equity": "0x1.36b2e147ae148p+12",
+"fees_usd": "0x1.b19ce075f6fd2p-1",
+"funding_usd": "0x0.0p+0",
+"layers": 1,
+"leverage": "0x1.0000000000000p+0",
+"mae_pct": "-0x1.5b573eab367a1p-7",
+"margin_usd": "0x1.1a0f5c28f5c29p+7",
+"notional": "0x1.1a0f5c28f5c29p+7",
+"pnl": "-0x1.2bac710cb295fp-1",
+"pnl_pct": "-0x1.82a9930be0dedp-7",
+"qty": "0x1.18b8024326456p+7",
+"side": "LONG",
+"status": "TP",
+"strategy": "t_rand",
+"symbol": "XYZ"
+},
+{
+"avg_price": "0x1.02a594a492461p+0",
+"close_price": "0x1.048c9b150d791p+0",
+"close_reason": "T\u00edn hi\u1ec7u tho\u00e1t (AST stop)",
+"close_time": 1705283700000,
+"enter_price": "0x1.02a594b473db5p+0",
+"enter_time": 1705280100000,
+"entry_equity": "0x1.36a999999999ap+12",
+"fees_usd": "0x1.b212d77318fc5p-1",
+"funding_usd": "0x0.0p+0",
+"layers": 1,
+"leverage": "0x1.0000000000000p+0",
+"mae_pct": "-0x1.5810624dd2f1bp-7",
+"margin_usd": "0x1.19947ae147ae1p+7",
+"notional": "0x1.19947ae147ae1p+7",
+"pnl": "0x1.8068db8bac711p-3",
+"pnl_pct": "0x1.f212d77318fc5p-9",
+"qty": "0x1.16b1436eea996p+7",
+"side": "LONG",
+"status": "TP",
+"strategy": "t_rand",
+"symbol": "XYZ"
+},
+{
+"avg_price": "0x1.05e026f1b15dbp+0",
+"close_price": "0x1.04dd36f27bc0dp+0",
+"close_reason": "T\u00edn hi\u1ec7u tho\u00e1t (AST stop)",
+"close_time": 1705287300000,
+"enter_price": "0x1.05e026e0e684dp+0",
+"enter_time": 1705284600000,
+"entry_equity": "0x1.36ac7ae147ae1p+12",
+"fees_usd": "0x1.b10cb295e9e1bp-1",
+"funding_usd": "0x0.0p+0",
+"layers": 1,
+"leverage": "0x1.0000000000000p+0",
+"mae_pct": "-0x1.ce075f6fd21ffp-7",
+"margin_usd": "0x1.1a7ae147ae148p+7",
+"notional": "0x1.1a7ae147ae148p+7",
+"pnl": "-0x1.642c3c9eecbfbp+0",
+"pnl_pct": "-0x1.cac083126e979p-6",
+"qty": "0x1.1423278d8d9cbp+7",
+"side": "LONG",
+"status": "SL",
+"strategy": "t_rand",
+"symbol": "XYZ"
+},
+{
+"avg_price": "0x1.0558882c5ed8bp+0",
+"close_price": "0x1.0623e4b798bffp+0",
+"close_reason": "T\u00edn hi\u1ec7u tho\u00e1t (AST stop)",
+"close_time": 1705294500000,
+"enter_price": "0x1.0558883309040p+0",
+"enter_time": 1705290000000,
+"entry_equity": "0x1.36963d70a3d71p+12",
+"fees_usd": "0x1.af9096bb98c7ep-1",
+"funding_usd": "0x0.0p+0",
+"layers": 1,
+"leverage": "0x1.0000000000000p+0",
+"mae_pct": "-0x1.54c985f06f694p-7",
+"margin_usd": "0x1.18851eb851eb8p+7",
+"notional": "0x1.18851eb851eb8p+7",
+"pnl": "-0x1.aa7ef9db22d0ep-2",
+"pnl_pct": "-0x1.13404ea4a8c15p-7",
+"qty": "0x1.12c99efa00b79p+7",
+"side": "LONG",
+"status": "TP",
+"strategy": "t_rand",
+"symbol": "XYZ"
+},
+{
+"avg_price": "0x1.0863a13a21e4dp+0",
+"close_price": "0x1.070cbba417ebap+0",
+"close_reason": "T\u00edn hi\u1ec7u tho\u00e1t (AST stop)",
+"close_time": 1705297200000,
+"enter_price": "0x1.0863a140201fbp+0",
+"enter_time": 1705295400000,
+"entry_equity": "0x1.368f851eb851fp+12",
+"fees_usd": "0x1.ade00d1b71759p-1",
+"funding_usd": "0x0.0p+0",
+"layers": 1,
+"leverage": "0x1.0000000000000p+0",
+"mae_pct": "-0x1.532617c1bda51p-6",
+"margin_usd": "0x1.18947ae147ae1p+7",
+"notional": "0x1.18947ae147ae1p+7",
+"pnl": "-0x1.8ce075f6fd220p+0",
+"pnl_pct": "-0x1.ff2e48e8a71dep-6",
+"qty": "0x1.0fabf4163cd85p+7",
+"side": "LONG",
+"status": "SL",
+"strategy": "t_rand",
+"symbol": "XYZ"
+},
+{
+"avg_price": "0x1.05be9e60d3aa6p+0",
+"close_price": "0x1.050ac3550c3a6p+0",
+"close_reason": "T\u00edn hi\u1ec7u tho\u00e1t (AST stop)",
+"close_time": 1705302600000,
+"enter_price": "0x1.05be9e704e523p+0",
+"enter_time": 1705301700000,
+"entry_equity": "0x1.3676b851eb852p+12",
+"fees_usd": "0x1.aa71de69ad42cp-1",
+"funding_usd": "0x0.0p+0",
+"layers": 1,
+"leverage": "0x1.0000000000000p+0",
+"mae_pct": "-0x1.6bb98c7e28241p-7",
+"margin_usd": "0x1.1600000000000p+7",
+"notional": "0x1.1600000000000p+7",
+"pnl": "-0x1.34bc6a7ef9db2p+0",
+"pnl_pct": "-0x1.8e219652bd3c3p-6",
+"qty": "0x1.0fe61eb272ae7p+7",
+"side": "LONG",
+"status": "SL",
+"strategy": "t_rand",
+"symbol": "XYZ"
+},
+{
+"avg_price": "0x1.06c791a482abcp+0",
+"close_price": "0x1.07e23df68c252p+0",
+"close_reason": "T\u00edn hi\u1ec7u tho\u00e1t (AST stop)",
+"close_time": 1705306200000,
+"enter_price": "0x1.06c7918fe46b9p+0",
+"enter_time": 1705304400000,
+"entry_equity": "0x1.3663851eb851fp+12",
+"fees_usd": "0x1.a9c779a6b50b1p-1",
+"funding_usd": "0x0.0p+0",
+"layers": 1,
+"leverage": "0x1.0000000000000p+0",
+"mae_pct": "-0x1.63886594af4f1p-6",
+"margin_usd": "0x1.149999999999ap+7",
+"notional": "0x1.149999999999ap+7",
+"pnl": "-0x1.0068db8bac711p-2",
+"pnl_pct": "-0x1.47ae147ae147bp-8",
+"qty": "0x1.0d783ef736adcp+7",
+"side": "LONG",
+"status": "TP",
+"strategy": "t_rand",
+"symbol": "XYZ"
+},
+{
+"avg_price": "0x1.075110e9b235cp+0",
+"close_price": "0x1.070dc8b3ed5aep+0",
+"close_reason": "T\u00edn hi\u1ec7u tho\u00e1t (AST stop)",
+"close_time": 1705308000000,
+"enter_price": "0x1.075110db87615p+0",
+"enter_time": 1705307100000,
+"entry_equity": "0x1.365f851eb851fp+12",
+"fees_usd": "0x1.a84b5dcc63f14p-1",
+"funding_usd": "0x0.0p+0",
+"layers": 1,
+"leverage": "0x1.0000000000000p+0",
+"mae_pct": "-0x1.38ef34d6a161ep-6",
+"margin_usd": "0x1.146147ae147aep+7",
+"notional": "0x1.146147ae147aep+7",
+"pnl": "-0x1.eef34d6a161e5p-1",
+"pnl_pct": "-0x1.3f7ced916872bp-6",
+"qty": "0x1.0cb2f05ac6752p+7",
+"side": "LONG",
+"status": "SL",
+"strategy": "t_rand",
+"symbol": "XYZ"
+},
+{
+"avg_price": "0x1.079f1b38c090dp+0",
+"close_price": "0x1.0804d0e24b760p+0",
+"close_reason": "T\u00edn hi\u1ec7u tho\u00e1t (AST stop)",
+"close_time": 1705311600000,
+"enter_price": "0x1.079f1b4c4ccb2p+0",
+"enter_time": 1705308900000,
+"entry_equity": "0x1.3650000000000p+12",
+"fees_usd": "0x1.a6f694467381dp-1",
+"funding_usd": "0x0.0p+0",
+"layers": 1,
+"leverage": "0x1.0000000000000p+0",
+"mae_pct": "-0x1.4e3bcd35a8588p-7",
+"margin_usd": "0x1.1328f5c28f5c3p+7",
+"notional": "0x1.1328f5c28f5c3p+7",
+"pnl": "-0x1.3cc63f141205cp-1",
+"pnl_pct": "-0x1.999999999999ap-7",
+"qty": "0x1.0b33a748aec58p+7",
+"side": "LONG",
+"status": "TP",
+"strategy": "t_rand",
+"symbol": "XYZ"
+},
+{
+"avg_price": "0x1.08198bed339f9p+0",
+"close_price": "0x1.07a5a1a966b74p+0",
+"close_reason": "T\u00edn hi\u1ec7u tho\u00e1t (AST stop)",
+"close_time": 1705314300000,
+"enter_price": "0x1.08198bdd5cd80p+0",
+"enter_time": 1705313400000,
+"entry_equity": "0x1.3646147ae147bp+12",
+"fees_usd": "0x1.a52bd3c361134p-1",
+"funding_usd": "0x0.0p+0",
+"layers": 1,
+"leverage": "0x1.0000000000000p+0",
+"mae_pct": "-0x1.6f0068db8bac7p-7",
+"margin_usd": "0x1.126b851eb851fp+7",
+"notional": "0x1.126b851eb851fp+7",
+"pnl": "-0x1.0ecbfb15b573fp+0",
+"pnl_pct": "-0x1.5cfaacd9e83e4p-6",
+"qty": "0x1.0a031fb1a1225p+7",
+"side": "LONG",
+"status": "SL",
+"strategy": "t_rand",
+"symbol": "XYZ"
+},
+{
+"avg_price": "0x1.055b92220106cp+0",
+"close_price": "0x1.05c66ef5082c8p+0",
+"close_reason": "T\u00edn hi\u1ec7u tho\u00e1t (AST stop)",
+"close_time": 1705318800000,
+"enter_price": "0x1.055b920d72f59p+0",
+"enter_time": 1705317900000,
+"entry_equity": "0x1.363547ae147aep+12",
+"fees_usd": "0x1.a2eb1c432ca58p-1",
+"funding_usd": "0x0.0p+0",
+"layers": 1,
+"leverage": "0x1.0000000000000p+0",
+"mae_pct": "-0x1.5810624dd2f1bp-7",
+"margin_usd": "0x1.1080000000000p+7",
+"notional": "0x1.1080000000000p+7",
+"pnl": "-0x1.3374bc6a7ef9ep-1",
+"pnl_pct": "-0x1.8c7e28240b780p-7",
+"qty": "0x1.0aea31aeceb50p+7",
+"side": "LONG",
+"status": "TP",
+"strategy": "t_rand",
+"symbol": "XYZ"
+},
+{
+"avg_price": "0x1.06c50989ec7d7p+0",
+"close_price": "0x1.05de471c66afep+0",
+"close_reason": "T\u00edn hi\u1ec7u tho\u00e1t (AST stop)",
+"close_time": 1705322400000,
+"enter_price": "0x1.06c5097b0cbc4p+0",
+"enter_time": 1705319700000,
+"entry_equity": "0x1.362b851eb851fp+12",
+"fees_usd": "0x1.a10624dd2f1aap-1",
+"funding_usd": "0x0.0p+0",
+"layers": 1,
+"leverage": "0x1.0000000000000p+0",
+"mae_pct": "-0x1.cfaacd9e83e42p-6",
+"margin_usd": "0x1.0ffae147ae148p+7",
+"notional": "0x1.0ffae147ae148p+7",
+"pnl": "-0x1.47ef9db22d0e5p+0",
+"pnl_pct": "-0x1.a6b50b0f27bb3p-6",
+"qty": "0x1.08f8b911840bfp+7",
+"side": "LONG",
+"status": "SL",
+"strategy": "t_rand",
+"symbol": "XYZ"
+},
+{
+"avg_price": "0x1.06f4a228df475p+0",
+"close_price": "0x1.0865fdb497924p+0",
+"close_reason": "End of Backtest",
+"close_time": 1705326600000,
+"enter_price": "0x1.06f4a22649991p+0",
+"enter_time": 1705323300000,
+"entry_equity": "0x1.36170a3d70a3dp+12",
+"fees_usd": "0x1.a05bc01a36e2fp-1",
+"funding_usd": "0x0.0p+0",
+"layers": 1,
+"leverage": "0x1.0000000000000p+0",
+"mae_pct": "-0x1.47ae147ae147bp-7",
+"margin_usd": "0x1.0e51eb851eb85p+7",
+"notional": "0x1.0e51eb851eb85p+7",
+"pnl": "-0x1.25460aa64c2f8p-4",
+"pnl_pct": "-0x1.6f0068db8bac7p-10",
+"qty": "0x1.072b3c6911e76p+7",
+"side": "LONG",
+"status": "CANCEL",
+"strategy": "t_rand",
+"symbol": "XYZ"
+}
+],
+"trades": 35,
+"win_pct": "0x1.7333333333333p+1"
+},
+"scenario": "rand05"
+}
