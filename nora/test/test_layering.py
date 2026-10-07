@@ -65,6 +65,8 @@ LAYER_RULES: List[Tuple[str, str, Optional[int]]] = [
     ("utils/lru", "crawl", None),
     ("utils/jsonsafe", "crawl", None),
     # --- core: models ---
+    ("core/models", "core", _r("models")),                   # P9.4: file đích (execute/{models,events,account,ledger} hợp nhất)
+    ("core/position_size", "core", _r("position_size")),     # P9.4: file đích (execute/{policy,risk} hợp nhất)
     ("core/execute/models", "core", _r("models")),
     ("core/execute/events", "core", _r("models")),
     ("core/execute/account", "core", _r("models")),
@@ -101,7 +103,7 @@ LAYER_RULES: List[Tuple[str, str, Optional[int]]] = [
     # --- metrics ---
     ("core/metrics/diagnose", "verdict", None),
     ("core/metrics/diagnose_inputs", "verdict", None),       # phần nạp dữ liệu -> optimize/process/tasks.py (khi tách)
-    ("core/metrics", "metrics", None),                       # returns, portfolio, xno, trades
+    ("core/metrics", "metrics", None),                       # returns, portfolio, trades
     ("core/analytics/insights", "verdict", None),
     ("core/analytics/user_alphas", "optimize", None),
     ("core/analytics/strategy_doc", "optimize", None),
@@ -151,7 +153,10 @@ def _all_modules() -> Dict[str, Path]:
     for p in sorted(BACKEND.rglob("*.py")):
         if "__pycache__" in p.parts:
             continue
-        out[_modname(p)] = p
+        k = _modname(p)
+        if k in out and _is_shim(p):   # P9.4: core/backtest.py + stub core/backtest/__init__.py cùng tên module -> lấy file thật, không lấy stub
+            continue
+        out[k] = p
     return out
 
 

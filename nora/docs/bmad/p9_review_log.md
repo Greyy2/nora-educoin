@@ -291,3 +291,75 @@ Ngày: 2026-10-07 · Người làm: norabt-99 (kiến trúc) · Trạng thái: *
 **File chạm:** `backend/crawl/store.py` (thay `exchange_root`, `cache_dir`; thêm khối P9.3a + ghi chú đầu mục layout), `test/test_data_layout_helpers.py` (mới, 74 test: 3 trạng thái old/new/migrated cho từng helper, env tại lúc gọi, chế độ phẳng, alias binance_hist, định tuyến `cache_dir` cho cả 7 tên cũ, allowed_roots/is_within với symlink thoát gốc, khớp `live.bot.state_key`), `docs/bmad/p9_review_log.md`. `docs/bmad/p9_layering_report.md` tự sinh lại bởi test_layering. Không sửa file làn alpha.
 
 **Cổng** (`run_limited.sh --no-lock`, `PYTHONDONTWRITEBYTECODE=1`): baseline (9 file, trước khi sửa) **87 passed, 2 skipped**; sau: +test mới = **161 passed, 2 skipped** (101 s) — test_data_layout_helpers, test_data_layout, test_data_quality_gate, test_okx_data, test_crawler_and_gate, test_shared_data, test_live_bot, test_bot_unified, test_golden_results, test_layering. Không test nào đỏ trước hay sau. Chưa commit.
+
+
+## P9.4 part 1 — `core/{models, position_size, params, backtest}.py` (gộp nguyên văn + shim)
+
+Ngày: 2026-10-07 · Người làm: norabt-99 (kiến trúc, chỉ di chuyển) · Trạng thái: **xong, CHƯA commit, chờ review chéo**. Không đổi logic.
+
+**Phương pháp.** Script tái tạo (nối nguyên văn thân module theo thứ tự; chỉ gỡ import nội bộ nhóm — kể cả import cục bộ trong hàm — và trỏ import ngoài nhóm sang module mới; docstring module -> comment banner). Kiểm AST từng hàm/lớp/hằng cấp module so với `git HEAD`: **280 giống hệt + 3 hàm chuyển chỗ giống hệt (policy -> models) + 7 khác đúng bằng dòng import/gọi bên dưới + 26 định danh dữ liệu ở lại book.py** (tổng 316). Thứ tự trong file backtest.py: kernel, engine, portfolio, dex (engine/portfolio dùng kernel qua tên cấp module thay vì import cục bộ).
+
+### Bảng ánh xạ cũ -> mới (mọi hàm/lớp/hằng cấp module)
+
+**core/models.py**
+
+- `core/execute/models.py`: `PositionType`, `OrderType`, `PositionStatus`, `PositionModel`, `OrderModel`
+- `core/execute/events.py`: `Fill`, `FundingApplied`, `OrderRejected`, `PositionMarked`
+- `core/execute/account.py`: `Event`, `Account`, `PositionBook`
+- `core/execute/ledger.py`: `CapitalLedger`
+
+**core/position_size.py**
+
+- `core/execute/policy.py`: `ImpactFn`, `INTRABAR_PATHS`, `sign_of`, `bar_points`, `peak_step`, `tick_stop_price`, `dca_level`, `dca_trigger`, `sl_level`, `trail_active`, `trail_level`, `tp_level`, `tp_need`, `tp_hit`, `tp_fill_price`, `liq_price`, `reached`, `gap_fill`, `stop_extreme_fill`, `pick_first_touched`, `slip_rate`, `round_trip_cost`, `entry_fill_price`, `exit_fill_price`, `entry_fee`, `exit_fee`, `in_profit`, `funding_payment`, `layer_mult_total`, `exit_params_scaled`, `flat_margin`, `risk_margin`, `clamp_margin`, `planned_risk_cap`, `apply_risk_ceiling`; `pnl_move`, `gross_pnl`, `unrealized_pnl` -> `core/models.py` (position_size import lại)
+- `core/execute/risk.py`: `INF`, `Admission`, `admit_entry`, `kill_triggered`
+
+**core/params.py**
+
+- `core/params/schema.py`: `StrategyParams`
+- `core/params/template.py`: `SIG_PREFIX`, `FRAMES`, `FRAME_MINUTES`, `MIN_PERIOD`, `MAX_PERIOD`, `_STR_PLACEHOLDER`, `_STR_FIELDS`, `collect_placeholders`, `collect_string_placeholders`, `_fmt_number`, `_placeholder_text`, `_resolve_string`, `resolve_placeholders`, `split_params`
+- `core/params/builder.py`: `POSITION_KEYS`, `VENUE_COSTS`, `venue_of_symbol`, `resolve_costs`, `data_symbol`, `pool_fee_rate`, `dca_budget_check`, `build_params`
+- `core/strategy/book.py` (phần materialize/BASE_POSITION): `MAX_LEVERAGE`, `BASE_RISK_PER_TRADE_PCT`, `PESSIMISTIC_LIMIT_THROUGH_PCT`, `BASE_POSITION`, `REGIME_DENY`, `_REGIME_NAMES`, `regime_for`, `REGIME_MAP`, `schema_defaults`, `signal_defaults`, `materialize` (REGIME_MAP: xem bên dưới; còn lại ở book.py)
+
+**core/backtest.py**
+
+- `core/backtest/kernel.py`: `NONE_I`, `F_QTY`, `F_AVG`, `F_MU`, `F_FP`, `F_LAST_FILL`, `F_NEXT`, `F_PEAK`, `F_MAE`, `F_RES_HERE`, `F_FUND`, `F_ENTRY_EQ`, `F_MAXCAP`, `F_POS_LEV`, `F_PLANNED`, `F_PVOL`, `F_SL`, `F_TP`, `F_TRAIL`, `F_TACT`, `F_DS0`, `F_FIXED`, `P_FEE`, `P_MAKER`, `P_SLIP`, `P_MMR`, `P_MAXLEV`, `P_CAPUSE`, `P_BSL`, `P_BTP`, `P_BTR`, `P_BTA`, `P_RISK`, `P_MAXNOT`, `P_OSP`, `P_LTHRU`, `P_BS0`, `P_FIXED`, `PI_LONG`, `PI_PERP`, `PI_TIMEOUT`, `PI_COOL`, `PI_EXTREME`, `PI_ATR`, `PI_RISKSZ`, `PI_NBASE`, `PI_MAXOPEN`, `PI_PATH`, `NPI`, `I_OPEN`, `I_PE`, `I_PX`, `I_LAYERS`, `I_ENTRY_T`, `I_LASTCLOSE`, `I_HASLC`, `I_DCAREJ`, `I_SKIP`, `I_POS`, `I_NST`, `I_BLK`, `I_DCAOK`, `NI`, `G_REJ`, `G_NPOS`, `G_NORD`, `G_NCL`, `G_OVF`, `G_RISKMIN`, `G_ATT`, `G_HALT`, `G_RUIN`, `G_NSMP`, `NG`, `LG_EQ`, `LG_RES`, `LG_PEAK`, `O_ENTER_PRICE`, `O_CLOSE_PRICE`, `O_PNL`, `O_PCT`, `O_QTY`, `O_AVG`, `O_ENTRY_EQ`, `O_ENTRY_MARGIN`, `O_ENTRY_NOTIONAL`, `O_ENTRY_FEE`, `O_EXIT_FEE`, `O_TOTAL_MARGIN`, `O_FEES`, `O_FUNDING`, `O_MAE`, `O_MAXP`, `O_MINP`, `O_UNIT`, `O_LEVUSED`, `O_RISK`, `NOF`, `OI_TR`, `OI_ENTER_T`, `OI_CLOSE_T`, `OI_STATUS`, `OI_LAYERS`, `OI_REASON`, `OI_FIRST_ORD`, `OI_START`, `NOI`, `OR_PRICE`, `OR_QTY`, `OR_FEE`, `ORI_POS`, `ORI_TIME`, `ORI_PHASE`, `ORI_EXIT`, `ORI_LIQ`, `R_ENTRY`, `R_STOP`, `R_TIMEOUT`, `R_LIQ`, `R_SL`, `R_TRAIL`, `R_TP`, `R_END`, `R_KILL`, `R_DCA`, `S_TP`, `S_SL`, `S_CANCEL`, `S_LIQ`, `_JIT`, `_ptr`, `_pmax`, `_pmin`, `_unreal`, `_apply_funding`, `_log_order`, `_add_layer`, `_apply_exit_unit`, `_layer_mult_total`, `_risk_margin`, `_close`, `_status_by_pnl`, `_open`, `_better`, `_intrabar`, `_extreme_price`, `_intrabar_path`, `_intrabar_adverse`, `_on_bar_open`, `_on_bar_rest`, `_on_bar`, `_quiet_bar`, `_lower`, `_upper_abs`, `_any_active`, `_sample`, `portfolio_kernel`, `single_kernel`, `REASONS`, `LIQUIDITY`, `_RETRY_FACTOR`, `_INIT_CAP_POS`, `_INIT_CAP_ORD`, `_MAX_TRIES`, `_CAP_HINT`, `pack_trackers`, `_Tables`, `_alloc`, `_build_objects`, `_writeback`, `_round_curve`, `run_portfolio`, `run_many`, `run_backtest`, `run_single`
+- `core/backtest/engine.py`: `FRAME_MS`, `LEGACY_4H_COLUMNS`, `BASE_COLS`, `KEY`, `collect_field_refs`, `frame_features`, `HISTORY_START`, `BacktestEngine`, `needs_minute_path`
+- `core/backtest/portfolio.py`: `RiskConfig`, `_DATA_CACHE`, `data_cache_clear`, `aggregate_positions`, `_strategy_flow`, `PortfolioEngine`
+- `core/backtest/dex.py`: `SPOT_POSITION`, `POOL_TYPES`, `is_dex_symbol`, `classify_symbols`, `require_perp`, `display_name`, `require_long_legs`, `_read_json`, `pool_info`, `check_amm_pool`, `tick_window`
+
+
+### Shim (13 alias `sys.modules` + 2 stub gói)
+
+Alias (cùng một đối tượng module — cache/trạng thái module-level chỉ có một bản, monkeypatch qua đường cũ có hiệu lực, pickle tên lớp/hàm cũ vẫn nạp được): `core/execute/{models,events,account,ledger}` -> `core.models`; `core/execute/{policy,risk}` -> `core.position_size`; `core/params/{schema,template,builder}` -> `core.params`; `core/backtest/{engine,portfolio,dex,kernel}` -> `core.backtest`. `CapitalLedger` (tên cũ trong `execute/ledger`) là một tên trong `core.models`.
+Stub gói: `core/params/__init__.py` và `core/backtest/__init__.py` (đánh dấu `# P9-SHIM`). **Lý do:** `core/backtest.py` và thư mục gói `core/backtest/` (còn `run, custom_run, tick_run, edu_precompute`; cùng `run_defaults` của phiên kia) cùng tên module — Python luôn chọn gói trước, file bị che. Stub nạp `core/backtest.py` bằng `spec_from_file_location(..., submodule_search_locations=[thư mục gói])` và đặt vào `sys.modules`: module `backend.core.backtest` là FILE (đúng cây đích ADR), có `__path__` nên `backend.core.backtest.run` / `python -m backend.core.backtest.run` / `batch.KINDS` vẫn chạy. Tương tự `core/params.py` với `presets, modes`. Xoá stub + thư mục gói khi các module còn lại chuyển (P9.10). `__module__` của mọi lớp/hàm engine nay là `backend.core.backtest` / `backend.core.models` (đúng tên cuối).
+Importer trong `core/execute` còn giữ (chỉ sửa dòng import, không đụng thân): `tracker`, `manager`, `sim_venue`, `runner`, `venue` -> import từ `core.models`, `core.params`, `core.position_size` (`from backend.core import position_size as policy` nên thân `policy.xxx` không đổi). `amm` không import module nào của nhóm.
+
+### Đổi tên
+**Không có.** Không định danh nào trùng tên trong 4 nhóm (kiểm bằng AST); chỉ các tên module `engine/portfolio/dex/kernel/schema/template/builder/...` bị gán làm thuộc tính tự trỏ lên module gộp khi nhập đường cũ — đã kiểm không có biến cấp module trùng các tên đó.
+
+### Chu trình / vi phạm thứ tự đã xử lý (cách nhẹ nhất, cơ học)
+1. **models -> position_size** (`account.py` gọi `policy.gross_pnl`, `policy.unrealized_pnl`; models đứng TRƯỚC position_size): chuyển 3 hàm nhỏ `pnl_move`, `gross_pnl`, `unrealized_pnl` từ policy sang `core/models.py` (một bản duy nhất, có banner); `position_size` import lại đúng ba tên đó từ models nên `position_size.gross_pnl is models.gross_pnl`; hai chỗ gọi trong PositionBook đổi `policy.gross_pnl(...)` -> `gross_pnl(...)`, `policy.unrealized_pnl(...)` -> `unrealized_pnl(...)`. (Vi phạm `core order models -> position_size` 1 -> 0.)
+2. **params <- book (dữ liệu)**: `materialize` tra `REGIME_MAP` build từ `CANDIDATES` (ở lại book.py). `core/params.py` giữ `REGIME_MAP: dict = {}`; `book.py` điền `REGIME_MAP.update({id: regime_for(side) ...})` ngay sau `CANDIDATES` và re-export (`book.REGIME_MAP is params.REGIME_MAP`, 6 mục). Thiếu mục -> `materialize` vẫn rơi về `regime_for(side)` (cùng giá trị). `book.py` import ngược `BASE_POSITION, MAX_LEVERAGE, BASE_RISK_PER_TRADE_PCT, PESSIMISTIC_LIMIT_THROUGH_PCT, REGIME_DENY, _REGIME_NAMES, regime_for, schema_defaults, signal_defaults, materialize` từ params (mọi `book.X` cũ vẫn dùng được).
+3. **engine <-> kernel <-> portfolio** (import cục bộ vòng `engine.run -> kernel.run_backtest`, `kernel.run_many -> engine.BacktestEngine`, `portfolio.run -> kernel.run_*`) và `book -> params.template`: gỡ import cục bộ, dùng tên cấp module cùng file. Một import cục bộ `portfolio -> params.builder.build_params` thành `from backend.core.params import build_params` (backtest -> params hợp lệ).
+4. **Hệ quả monkeypatch**: vì engine/portfolio/kernel nay chung một namespace, `monkeypatch.setattr(engine_mod, "BacktestEngine", Ref...)` cũng đổi tên đó cho `PortfolioEngine` thật trong cùng module (trước đây `portfolio` giữ bản import riêng). Các test dùng cách này (test_skip_idle, test_dca_cooldown, test_portfolio_engine, test_capital_ledger) đều xanh.
+**Còn lại, có từ trước (không thuộc bước này):** `core order params -> indicator` (import cục bộ `signals.kernels` trong `template`) hết khi indicator chuyển; `core -> crawl/regime` (loader, data_layout, local_pkl, shared, quality_gate, classifier) của engine/builder/dex hết ở các bước core-không-đọc-file / P9.7.
+
+### Numba cache
+`cache=True` giữ nguyên. Cache nằm cạnh file nguồn: trước `core/backtest/__pycache__/kernel.*.nbi`, nay `core/__pycache__/backtest.*.nbi` (65 file). Lần chạy đầu biên dịch lại một lần (warm-up bench 92 s khi cache cũ nguội; về sau 3,7 s nạp từ cache mới). File `.nbi/.nbc` cũ ở `core/backtest/__pycache__` mồ côi (an toàn xoá).
+
+### Pickle
+Bản SAO (không đụng file thật) của 6 file `data/_cache/live/*/{paper,unified}.pkl` (okx_demo, okx_demo_unified paper+unified, okx_paper, okx_paper_explore, paper) nạp bằng Unpickler có ghi `find_class`: **TRƯỚC 6/6 nạp được, SAU 6/6 nạp được**, cùng tập tên cũ được tra (`core.execute.ledger.CapitalLedger`, `...account.{Account,PositionBook}`, `...models.*`, `...params.schema.StrategyParams`, `...tracker/manager/runner/sim_venue/venue.*`). Sau nạp, `Account` có `__module__ = backend.core.models`. Pickle MỚI sẽ ghi tên mới -> không quay lui code sau khi bot đã ghi pickle mới. Worker pool pickle tên hàm: `pickle.loads(pickle.dumps(run_backtest)) is run_backtest` (module `backend.core.backtest`); `batch.KINDS` 16/16 module resolve được.
+
+### Cổng (`NORA_GOLDEN_DATA_ROOT=data/binance`, `run_limited.sh --no-lock`, 24 file)
+| | Kết quả |
+|---|---|
+| BASELINE (trước, đo lúc 17:38) | 397 passed, 9 failed, 5 skipped (968 s). 9 đỏ KHÔNG do bước này: 8 ở test_custom_backtest (`ModuleNotFoundError backend.core.metrics.xno` — phiên alpha đang gộp xno giữa chừng) + test_layering (`IndentationError` ở file alpha đang sửa dở). Chạy lại test_layering lúc đó đã xanh. |
+| SAU | **404 passed, 5 skipped, 0 failed** (1034 s). Số test khác baseline vì phiên alpha đổi test/mã song song. test_golden_results, test_kernel_parity, test_portfolio_engine, test_event_path_parity, test_runner_parity, test_account_replay, test_venue_conformance, test_live_bot, test_bot_unified, test_tick_backtest... đều xanh. |
+| nautilus_diff S1-S3 aligned | `run_nora.py ohlc` + `adaptive` rồi `compare.py fine` / `fine _adaptive`: 36 file `out/nora_*.json` + `results_fine.json` + `results_fine_adaptive.json` **giống từng byte** trước/sau; bảng markdown giống hệt; JSON đã commit không đổi (`git status` sạch); tracker==manager bit-identical 18/18 mỗi lượt. |
+| Tốc độ (`bench_engine.py compare --n 3 --batch 100 --old-batch 0`, cache nóng) | trước 1,077-1,137 s/alpha riêng, 159-162 ms/alpha lô; sau 1,097-1,113 s, 159-162 ms. Không chậm. |
+| test_layering | trước 61 vi phạm (143 module, 12 shim); sau **62** (146 module, 25 shim). Phần của bước này: **-1** (`models -> position_size`); +2 `core -> crawl` là file mới `core/backtest/run_defaults.py` của phiên alpha; mọi cạnh của 4 module gộp giống hệt trước (so theo từng cạnh). Bảng `LAYER_RULES` thêm `core/models`, `core/position_size`; `_all_modules` ưu tiên file thật khi trùng tên với stub. |
+
+### Việc phải làm tiếp (ngoài làn kiến trúc — phiên alpha)
+- **`utils/engine_version.py` `ENGINE_DIRS` và `optimize/store.py` `_CODE_FILES`** vẫn trỏ file cũ (nay là shim vài dòng) -> hash engine / `code_version` (khoá `--resume`) KHÔNG còn thấy thay đổi mã engine. Cần thêm `core/{backtest,models,params,position_size}.py`. Hash vốn đã đổi vì lần chuyển này (sổ sẽ báo "cần dựng lại" một lần). Chưa sửa vì thuộc làn alpha.
+- **Khởi động lại bot live** (okx_demo, okx_paper...) sau khi commit: tiến trình đang chạy giữ lớp cũ trong bộ nhớ; import lười sau này sẽ nạp lớp ở module mới (trộn hai bản Enum/lớp).
+- P9.4b (gỡ tracker/manager/sim_venue/runner + venue/amm vào backtest.py) và P9.10 (gỡ shim + stub gói).

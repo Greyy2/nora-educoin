@@ -14,7 +14,7 @@ force_close, unrealized_pnl_usd. Nên cùng một vòng danh mục chạy đư�
 """
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from backend.core.execute.risk import admit_entry, kill_triggered
+from backend.core.position_size import admit_entry, kill_triggered
 
 
 class Runner:

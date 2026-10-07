@@ -36,8 +36,8 @@ from dataclasses import dataclass, field
 from math import isnan
 from typing import Callable, Deque, Dict, List, Optional, Protocol, Union
 
-from backend.core.execute import policy
-from backend.core.execute.events import Fill, OrderRejected
+from backend.core import position_size as policy
+from backend.core.models import Fill, OrderRejected
 from backend.core.execute.tracker import _next_id
 from backend.core.execute.venue import Order, OrderKind, VenueCaps
 

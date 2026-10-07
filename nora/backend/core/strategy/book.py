@@ -15,11 +15,12 @@ from collections.abc import Mapping
 from typing import Any, Dict, List
 
 from backend.core.strategy.library import calc, cond, cross_over, cross_under, f, p
+from backend.core.params import (  # noqa: F401  (P9.4: phần tham số vị thế chuyển sang core/params.py; re-export để `book.X` vẫn dùng được)
+    BASE_POSITION, BASE_RISK_PER_TRADE_PCT, MAX_LEVERAGE, PESSIMISTIC_LIMIT_THROUGH_PCT, REGIME_DENY, REGIME_MAP, _REGIME_NAMES,
+    materialize, regime_for, schema_defaults, signal_defaults,
+)
 
 UNIVERSE = ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA", "AVAX"]
-MAX_LEVERAGE = 10
-BASE_RISK_PER_TRADE_PCT = 0.5
-PESSIMISTIC_LIMIT_THROUGH_PCT = 0.15   # kịch bản bi quan (stop_fill="extreme"): lệnh limit phải đi qua mức 0,15% mới khớp   # mức chuẩn khi chọn chiến lược; mức cuối do bootstrap ngân sách MDD quyết định
 
 RISK = {
     "max_positions": 8,          # tối đa số vị thế mở đồng thời (toàn danh mục)
@@ -36,14 +37,6 @@ GATES = {
     "min_symbols_positive": 5,    # dev1: >= 5/8 tài sản có lãi (độ phủ)
     "min_symbols_positive_dev2": 4,
     "max_mdd_pct": 30.0,
-}
-
-BASE_POSITION = {
-    "market": "perp", "leverage": MAX_LEVERAGE, "exit_unit": "atr", "atr_frame": "1h", "atr_period": 14,
-    "sizing": "risk", "risk_per_trade_pct": BASE_RISK_PER_TRADE_PCT, "max_notional_pct": 300.0,
-    "stop_fill": "level",
-    "limit_through_pct": 0.05,   # lệnh limit (tầng DCA, chốt lời) chỉ khớp khi giá đi QUA mức 0,05% (hàng đợi sổ lệnh), không phải chạm là khớp
-    "cooldown": 60,   # phút: một nến 1h — tránh vào lại ngay trên cùng trạng thái tín hiệu cũ sau khi vừa thoát (SL/trailing)
 }
 
 # ─── Lược đồ tham số (params_schema): mọi tham số người dùng chỉnh được ở chế độ Nâng cao ─────────────────────
@@ -258,55 +251,8 @@ STRATEGIES: List[Dict[str, Any]] = [
 ]
 
 
-# Regime cho phép vào lệnh (core/regime/classifier.py). Chỉ áp khi bật regime (materialize(..., regime=True)); tắt -> chiến lược y như cũ
-# (golden bất biến). Dạng "CHẶN NGƯỢC CHIỀU": LONG không vào khi TREND_DOWN / CRASH, SHORT không vào khi TREND_UP / SURGE; mọi regime khác được vào.
-# Cầu chì TẮT: chiến lược lõi đều có cắt lỗ theo rủi ro (MC trend thẳng đứng: lỗ tối đa ~6% vốn); sau CRASH giá thường hồi nên cầu chì cắt LONG ở
-# đáy. Bảng "chỉ cho vào ở regime X" cũ (+ cầu chì) bị dữ liệu thật bác bỏ: sổ +29,6% -> −26,0%; bảng tĩnh chỉ cho vào 8–12% lệnh lãi của chiến
-# lược xu hướng vì nhãn xu hướng 4h đến muộn hơn điểm phá vỡ (test/scripts/research_regime_diagnosis.py, roadmap P2.4).
-REGIME_DENY: Dict[str, List[str]] = {"LONG": ["TREND_DOWN", "CRASH"], "SHORT": ["TREND_UP", "SURGE"]}
-_REGIME_NAMES = ("UNKNOWN", "RANGE", "TREND_UP", "TREND_DOWN", "VOL_EXPANSION", "SURGE", "CRASH")   # = classifier.NAMES
-def regime_for(side: str) -> Dict[str, Any]:
-    return {"allowed": [r for r in _REGIME_NAMES if r not in REGIME_DENY[side]], "fuse": False}
 
-
-REGIME_MAP: Dict[str, Dict[str, Any]] = {c["id"]: regime_for(c["side"]) for c in CANDIDATES}
-
-
-def schema_defaults(candidate: Dict[str, Any], group: str = None) -> Dict[str, Any]:
-    """{khoá: mặc định} của params_schema (lọc theo nhóm nếu có)."""
-    return {k: v["default"] for k, v in (candidate.get("params_schema") or {}).items() if group is None or v["group"] == group}
-
-
-def signal_defaults(candidate: Dict[str, Any]) -> Dict[str, Any]:
-    """Mặc định tham số tín hiệu KHÔNG tiền tố "sig." (dùng thay các `{tên}` trong cây khi thiếu giá trị)."""
-    from backend.core.params.template import SIG_PREFIX
-    return {k[len(SIG_PREFIX):]: v for k, v in schema_defaults(candidate, "signal").items()}
-
-
-def materialize(candidate: Dict[str, Any], params: Dict[str, Any], regime: Any = False, **position_overrides) -> Dict[str, Any]:
-    """Chiến lược cụ thể cho PortfolioEngine: thay ngưỡng/chu kỳ/khung tín hiệu, ghép tham số vị thế.
-    `signal_params` trả về chỉ gồm tham số tín hiệu được truyền vào (không gồm mặc định) — như trước.
-    regime=True: gắn khoá "regime" theo REGIME_MAP (lọc tín hiệu vào + cầu chì trong PortfolioEngine.load_data);
-    regime=dict: cấu hình regime riêng của chiến lược này ({"allowed", "fuse"}, vd. bảng học từ train — core/regime/learn.py)."""
-    from backend.core.params.template import resolve_placeholders, split_params
-    signal, position = split_params(dict(params))
-    if isinstance(regime, dict):
-        extra = {"regime": regime}
-    else:
-        extra = {"regime": REGIME_MAP.get(candidate["id"]) or regime_for(candidate["side"])} if regime else {}
-    if candidate.get("stop"):   # tín hiệu thoát (vd. cắt ngược kênh) -> đóng ở open nến 1m kế tiếp
-        extra["stop"] = [{"condition": resolve_placeholders(candidate["stop"], signal, signal_defaults(candidate))}]
-    if candidate.get("dca_gate"):   # điều kiện cho phép dồn tầng DCA (dồn có điều kiện)
-        extra["dca"] = [{"condition": resolve_placeholders(candidate["dca_gate"], signal, signal_defaults(candidate))}]
-    pos = {**BASE_POSITION, **candidate.get("position", {}), **position, **position_overrides}
-    if pos.get("stop_fill") == "extreme" and "limit_through_pct" not in position and "limit_through_pct" not in position_overrides:
-        pos["limit_through_pct"] = PESSIMISTIC_LIMIT_THROUGH_PCT   # bi quan cả cắt lỗ (giá xấu nhất) lẫn lệnh limit (phải đi qua mức)
-    return {**extra,
-        "id": candidate["id"], "side": candidate["side"],
-        "tree": resolve_placeholders(candidate["tree"], signal, signal_defaults(candidate)),
-        "position": pos,
-        "signal_params": signal,
-    }
+REGIME_MAP.update({c["id"]: regime_for(c["side"]) for c in CANDIDATES})   # P9.4: REGIME_MAP (dict) do core/params.py giữ; điền ở đây
 
 
 def perp_symbols(universe: List[str] = None) -> List[str]:

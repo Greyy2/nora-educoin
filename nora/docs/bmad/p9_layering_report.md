@@ -3,14 +3,14 @@
 Không sửa tay. Sinh lại: `PYTHONDONTWRITEBYTECODE=1 backend/utils/ops/run_limited.sh --no-lock -- -m pytest -q test/test_layering.py`.
 Bật bắt buộc (P9.10): `NORA_LAYERING_STRICT=1`. Luật: ADR-P9 §2; ánh xạ đường dẫn hiện tại -> tầng đích: bảng `LAYER_RULES` trong test.
 
-- Module backend: 145 · shim (`# P9-SHIM`, bỏ qua): 12 · chưa ánh xạ: 0
+- Module backend: 146 · shim (`# P9-SHIM`, bỏ qua): 25 · chưa ánh xạ: 0
 - **Vi phạm: 62**
 
 ## Tóm tắt theo luật
 
 | Luật | Số vi phạm |
 |---|---:|
-| core -> crawl | 13 |
+| core -> crawl | 15 |
 | optimize -> routes | 10 |
 | crawl -> core | 6 |
 | wfa -> optimize | 6 |
@@ -19,9 +19,8 @@ Bật bắt buộc (P9.10): `NORA_LAYERING_STRICT=1`. Luật: ADR-P9 §2; ánh x
 | optimize -> live | 4 |
 | core order signal -> backtest | 3 |
 | crawl -> optimize | 3 |
-| core -> optimize | 2 |
 | verdict -> crawl | 2 |
-| core order models -> position_size | 1 |
+| core -> optimize | 1 |
 | core order params -> indicator | 1 |
 | live -> routes | 1 |
 | metrics -> crawl | 1 |
@@ -29,26 +28,28 @@ Bật bắt buộc (P9.10): `NORA_LAYERING_STRICT=1`. Luật: ADR-P9 §2; ánh x
 
 ## Chi tiết
 
-### core -> crawl (13)
+### core -> crawl (15)
 
-- `backend/core/backtest/dex.py:10` -> `db/data_layout`
-- `backend/core/backtest/engine.py:21` -> `core/data/loader`
-- `backend/core/backtest/engine.py:211` -> `db/local_pkl`
-- `backend/core/backtest/portfolio.py:26` -> `core/data/shared`
-- `backend/core/backtest/portfolio.py:31` -> `utils/lru`
-- `backend/core/backtest/portfolio.py:172` -> `core/data/loader`
-- `backend/core/backtest/portfolio.py:209` -> `core/data/quality_gate`
+- `backend/core/backtest.py:22` -> `core/data/loader`
+- `backend/core/backtest.py:25` -> `core/data/shared`
+- `backend/core/backtest.py:26` -> `utils/lru`
+- `backend/core/backtest.py:27` -> `db/data_layout`
+- `backend/core/backtest.py:1931` -> `db/local_pkl`
+- `backend/core/backtest.py:2235` -> `core/data/loader`
+- `backend/core/backtest.py:2272` -> `core/data/quality_gate`
+- `backend/core/backtest/run_defaults.py:19` -> `crawl/store`
+- `backend/core/backtest/run_defaults.py:25` -> `crawl/store`
 - `backend/core/execute/amm.py:13` -> `core/data/tick_crawler`
-- `backend/core/params/builder.py:31` -> `db/local_pkl`
-- `backend/core/params/builder.py:54` -> `db/data_layout`
-- `backend/core/params/builder.py:66` -> `db/local_pkl`
+- `backend/core/params.py:320` -> `db/local_pkl`
+- `backend/core/params.py:343` -> `db/data_layout`
+- `backend/core/params.py:355` -> `db/local_pkl`
 - `backend/core/signals/diagnostics.py:105` -> `db/local_pkl`
-- `backend/core/strategy/pydsl/profiles.py:40` -> `db/data_layout`
+- `backend/core/strategy/pydsl/profiles.py:33` -> `crawl/store`
 
 ### optimize -> routes (10)
 
-- `backend/core/analytics/user_alphas.py:161` -> `api/jobs/batch`
-- `backend/core/analytics/user_alphas.py:347` -> `api/jobs/batch`
+- `backend/core/analytics/user_alphas.py:152` -> `api/jobs/batch`
+- `backend/core/analytics/user_alphas.py:337` -> `api/jobs/batch`
 - `backend/core/backtest/run.py:141` -> `core/params/modes`
 - `backend/core/backtest/run.py:161` -> `core/params/modes`
 - `backend/core/backtest/tick_run.py:144` -> `core/params/modes`
@@ -78,9 +79,9 @@ Bật bắt buộc (P9.10): `NORA_LAYERING_STRICT=1`. Luật: ADR-P9 §2; ánh x
 
 ### core -> regime (4)
 
-- `backend/core/backtest/portfolio.py:132` -> `core/regime/classifier`
-- `backend/core/backtest/portfolio.py:217` -> `core/regime/classifier`
-- `backend/core/backtest/portfolio.py:225` -> `core/regime/classifier`
+- `backend/core/backtest.py:2195` -> `core/regime/classifier`
+- `backend/core/backtest.py:2280` -> `core/regime/classifier`
+- `backend/core/backtest.py:2288` -> `core/regime/classifier`
 - `backend/core/signals/snapshot.py:87` -> `core/regime/classifier`
 
 ### core order indicator -> signal (4)
@@ -101,31 +102,26 @@ Bật bắt buộc (P9.10): `NORA_LAYERING_STRICT=1`. Luật: ADR-P9 §2; ánh x
 
 - `backend/core/signals/diagnostics.py:102` -> `core/backtest/engine`
 - `backend/core/signals/snapshot.py:80` -> `core/backtest/portfolio`
-- `backend/core/strategy/pydsl/explain.py:16` -> `core/strategy/pydsl/profiles`
+- `backend/core/strategy/pydsl/explain.py:14` -> `core/strategy/pydsl/profiles`
 
 ### crawl -> optimize (3)
 
 - `backend/crawl/cex.py:19` -> `utils/jobs`
 - `backend/crawl/dex.py:17` -> `utils/jobs`
-- `backend/crawl/store.py:1769` -> `utils/jobs`
-
-### core -> optimize (2)
-
-- `backend/core/signals/snapshot.py:137` -> `core/params/presets`
-- `backend/core/strategy/pydsl/profiles.py:13` -> `core/strategy/pydsl/weights`
+- `backend/crawl/store.py:1797` -> `utils/jobs`
 
 ### verdict -> crawl (2)
 
 - `backend/core/metrics/diagnose_inputs.py:25` -> `core/data/loader`
 - `backend/core/metrics/diagnose_inputs.py:76` -> `core/data/loader`
 
-### core order models -> position_size (1)
+### core -> optimize (1)
 
-- `backend/core/execute/account.py:10` -> `core/execute/policy`
+- `backend/core/signals/snapshot.py:137` -> `core/params/presets`
 
 ### core order params -> indicator (1)
 
-- `backend/core/params/template.py:101` -> `core/signals/kernels`
+- `backend/core/params.py:244` -> `core/signals/kernels`
 
 ### live -> routes (1)
 
@@ -141,6 +137,10 @@ Bật bắt buộc (P9.10): `NORA_LAYERING_STRICT=1`. Luật: ADR-P9 §2; ánh x
 
 ## Shim (tương thích ngược, gỡ ở P9.10)
 
+- `core/backtest/dex`
+- `core/backtest/engine`
+- `core/backtest/kernel`
+- `core/backtest/portfolio`
 - `core/data/crawler`
 - `core/data/loader`
 - `core/data/okx_crawler`
@@ -148,6 +148,15 @@ Bật bắt buộc (P9.10): `NORA_LAYERING_STRICT=1`. Luật: ADR-P9 §2; ánh x
 - `core/data/quality_gate`
 - `core/data/resampler`
 - `core/data/tick_crawler`
+- `core/execute/account`
+- `core/execute/events`
+- `core/execute/ledger`
+- `core/execute/models`
+- `core/execute/policy`
+- `core/execute/risk`
+- `core/params/builder`
+- `core/params/schema`
+- `core/params/template`
 - `db/data_layout`
 - `db/local_pkl`
 - `db/tick_storage`

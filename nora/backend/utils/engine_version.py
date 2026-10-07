@@ -15,6 +15,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 NORA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 ENGINE_DIRS = ("backend/core/backtest", "backend/core/execute")
+# P9.4: engine đã gộp vào các file core/*.py (thư mục cũ chỉ còn shim) — băm cả các file này
+ENGINE_FILES = ("backend/core/backtest.py", "backend/core/models.py", "backend/core/params.py", "backend/core/position_size.py")
 ENGINE_EXCLUDE = frozenset({"custom_run.py", "edu_precompute.py"})
 REASON_NO_VERSION = "sổ dựng trước khi có phiên bản engine"
 
@@ -31,6 +33,10 @@ def _engine_files() -> List[Tuple[str, str]]:
         for name in sorted(os.listdir(base)):
             if name.endswith(".py") and name not in ENGINE_EXCLUDE:
                 out.append((f"{d}/{name}", os.path.join(base, name)))
+    for rel in ENGINE_FILES:
+        path = os.path.join(NORA_DIR, rel)
+        if os.path.isfile(path):
+            out.append((rel, path))
     return out
 
 
