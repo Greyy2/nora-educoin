@@ -51,9 +51,9 @@ NONE_I = -(1 << 62)          # None của mốc thời gian (halted_at / ruined_
 
 # ── Cột trạng thái float F ──────────────────────────────────────────────────
 F_QTY, F_AVG, F_MU, F_FP, F_LAST_FILL, F_NEXT, F_PEAK, F_MAE, F_RES_HERE, F_FUND, F_ENTRY_EQ, F_MAXCAP, F_POS_LEV, \
-    F_PLANNED, F_PVOL, F_SL, F_TP, F_TRAIL, F_TACT = range(19)
-F_DS0 = 19                    # F[:, F_DS0 + j] = bước DCA hiện tại (đã quy đổi theo unit)
-F_FIXED = 19
+    F_PLANNED, F_PVOL, F_SL, F_TP, F_TRAIL, F_TACT, F_UNIT = range(20)   # F_UNIT: tracker.unit_pct (đặt ở mỗi lần _open qua được kiểm ATR, kể cả khi lệnh bị từ chối)
+F_DS0 = 20                    # F[:, F_DS0 + j] = bước DCA hiện tại (đã quy đổi theo unit)
+F_FIXED = 20
 # ── Tham số float P ─────────────────────────────────────────────────────────
 P_FEE, P_MAKER, P_SLIP, P_MMR, P_MAXLEV, P_CAPUSE, P_BSL, P_BTP, P_BTR, P_BTA, P_RISK, P_MAXNOT, P_OSP, P_LTHRU = range(14)
 P_BS0 = 14                    # P[:, P_BS0 + j] = bước DCA gốc; P[:, P_BS0 + ml + j] = hệ số khối lượng tầng j (ml = số cột tối đa)
@@ -65,8 +65,14 @@ NPI = 10                      # PI_PATH: đường giá trong nến — 0 advers
 I_OPEN, I_PE, I_PX, I_LAYERS, I_ENTRY_T, I_LASTCLOSE, I_HASLC, I_DCAREJ, I_SKIP, I_POS, I_NST, I_BLK, I_DCAOK = range(13)
 NI = 13                       # I_DCAOK: 1 = nến này được dồn tầng DCA (điều kiện DCA tại cuối nến trước; không có điều kiện -> luôn 1)
 # ── Bộ đếm G ────────────────────────────────────────────────────────────────
-G_REJ, G_NPOS, G_NORD, G_NCL, G_OVF, G_RISKMIN, G_ATT, G_HALT, G_RUIN, G_NSMP = range(10)
-NG = 10
+G_REJ, G_NPOS, G_NORD, G_NCL, G_OVF, G_RISKMIN, G_ATT, G_HALT, G_RUIN, G_NSMP, G_NADM = range(11)
+NG = 11                       # G_NADM: số lần xét hạn mức đã ghi vào vết ADM (không bao giờ đặt G_OVF; chỉ ghi khi cfg_i[CI_ADM_ON] != 0)
+# cfg_i: (trade_start, max_positions, max_per_symbol, close_at_end, step_ms, địa chỉ lưới, độ dài lưới, địa chỉ ADM, sức chứa ADM, bật ADM)
+CI_ADM_PTR, CI_ADM_CAP, CI_ADM_ON = 7, 8, 9
+NCI = 10
+# ADM[cap, 8] = (t, k, n_open, per_book, equity, gross, can_open, max_new) — mỗi lần một slot đang chờ vào lệnh được xét hạn mức ở open
+(AD_T, AD_K, AD_NOPEN, AD_PERB, AD_EQ, AD_GROSS, AD_CAN, AD_MAXNEW) = range(8)
+NAD = 8
 LG_EQ, LG_RES, LG_PEAK = 0, 1, 2      # LG_PEAK: đỉnh vốn đã chốt (giảm rủi ro theo mức sụt)
 # ── Đầu ra vị thế (outF / outI) và lệnh (ordF / ordI) ───────────────────────
 (O_ENTER_PRICE, O_CLOSE_PRICE, O_PNL, O_PCT, O_QTY, O_AVG, O_ENTRY_EQ, O_ENTRY_MARGIN, O_ENTRY_NOTIONAL, O_ENTRY_FEE, O_EXIT_FEE,
@@ -374,6 +380,7 @@ def _open(k, t, open_price, max_new, max_risk, rscale, P, PI, F, I, LG, G, outF,
             return
     _apply_exit_unit(k, unit, P, PI, F, I)
     unit_pct = unit if PI[k, PI_ATR] == 1 else 0.0
+    F[k, F_UNIT] = unit_pct
     eq = LG[LG_EQ]
     F[k, F_ENTRY_EQ] = eq
     F[k, F_MAXCAP] = eq * P[k, P_CAPUSE]
@@ -872,7 +879,7 @@ def new_portfolio_state(nb, init_cap):
 
 
 @njit(**_JIT)
-def _admit(k, b, can_trade, g, tr_book, book_off, I, F, cfg_i, cfg_f, LPX, LG, G):
+def _admit(k, t, b, can_trade, g, tr_book, book_off, I, F, cfg_i, cfg_f, LPX, LG, G):
     """Xét hạn mức mở lệnh cho slot k (sổ b) tại open nến g (trạng thái LÚC MỞ NẾN: LPX còn là nến TRƯỚC nên gross theo đóng nến trước,
     vốn = sổ vốn sau funding + lệnh thoát ở open). Trả (can_open, max_new, max_risk, rscale); ghi G_RISKMIN / G_ATT / I_BLK."""
     nt = tr_book.shape[0]
@@ -890,6 +897,7 @@ def _admit(k, b, can_trade, g, tr_book, book_off, I, F, cfg_i, cfg_f, LPX, LG, G
     if can_trade and I[k, I_PE] == 1 and I[k, I_OPEN] == 0:
         n_open = 0
         per_b = 0
+        total = 0.0
         for kk in range(nt):
             if I[kk, I_OPEN] == 1:
                 n_open += 1
@@ -922,6 +930,19 @@ def _admit(k, b, can_trade, g, tr_book, book_off, I, F, cfg_i, cfg_f, LPX, LG, G
                 if rscale > 1.0:
                     rscale = 1.0
             blocked = not can_open
+        if cfg_i[CI_ADM_ON] != 0:                # vết admission (nautilus harness): chỉ ghi, không đổi quyết định; tràn -> bỏ bản ghi, không G_OVF
+            j = G[G_NADM]
+            G[G_NADM] = j + 1
+            if j < cfg_i[CI_ADM_CAP]:
+                ADM = carray(_ptr(cfg_i[CI_ADM_PTR]), (cfg_i[CI_ADM_CAP], NAD), np.float64)
+                ADM[j, AD_T] = t
+                ADM[j, AD_K] = k
+                ADM[j, AD_NOPEN] = n_open
+                ADM[j, AD_PERB] = per_b
+                ADM[j, AD_EQ] = LG[LG_EQ]
+                ADM[j, AD_GROSS] = total
+                ADM[j, AD_CAN] = 1.0 if can_open else 0.0
+                ADM[j, AD_MAXNEW] = max_new
         if blocked:
             G[G_RISKMIN] += 1
             if I[k, I_BLK] != g - 1:
@@ -976,7 +997,7 @@ def _portfolio_bar(t, BAR, BARI, FR, SIG, SIGV, tr_book, book_off, P, PI, F, I, 
                 continue
             SIG[k, 3] = True
             if can_trade and I[k, I_PE] == 1 and I[k, I_OPEN] == 0:
-                can_open, max_new, max_risk, rscale = _admit(k, b, can_trade, g, tr_book, book_off, I, F, cfg_i, cfg_f, LPX, LG, G)
+                can_open, max_new, max_risk, rscale = _admit(k, t, b, can_trade, g, tr_book, book_off, I, F, cfg_i, cfg_f, LPX, LG, G)
             else:
                 can_open = False
                 max_new = np.inf
@@ -1345,6 +1366,70 @@ def portfolio_kernel(PB, BL, PE, tr_book, book_off, P, PI, F, I, cfg_i, cfg_f,
     _portfolio_end(grid[n - 1], close_end, 3, BL[:, 3], book_off, P, PI, F, I, LPX, PS, PSI, LG, G, outF, outI, ordF, ordI, closeSeq, eqT, eqM, eqW)
 
 
+# ─── P9.4b T3 — các điểm vào Python-gọi-được: cùng thân nến `_portfolio_bar` chạy TỪNG NẾN / TỪNG KHÚC (paper, SlotDriver, test) ───
+# Hợp đồng bit-identical với portfolio_kernel: cùng thứ tự pha, cùng con trỏ funding (do bên gọi nạp BARI[.., 3:5] / FR), cùng bộ đếm lưới PSI_G.
+# PSI_G tăng 1 sau MỖI nến được bước (portfolio_kernel đặt PSI_G = chỉ số lưới trước khi gọi thân nến; nó bỏ qua phút rảnh / tua nhanh phút yên tĩnh
+# thì PSI_G nhảy cóc). I_BLK so `g - 1` để đếm các phút chặn LIÊN TIẾP là MỘT lần chặn (risk_blocked_attempts), nên paper PHẢI bước mọi điểm lưới có nến
+# (kể cả phút rảnh) để PSI_G liền mạch — khi đó kết quả trùng batch (phút rảnh không đổi trạng thái nào ngoài LPX / đỉnh MTM / mẫu vốn, mà thân nến vẫn làm đúng các việc đó).
+# `ffwd` chỉ nên True khi giống batch muốn bỏ MTM từng phút (không kill switch); paper truyền False (peak_mtm theo từng nến như Runner).
+@njit(**_JIT)
+def step_bars(T, BAR, BARI, FR, SIG, SIGV, tr_book, book_off, P, PI, F, I, cfg_i, cfg_f, PS, PSI, LPX,
+              outF, outI, ordF, ordI, closeSeq, eqT, eqM, eqW, G, LG, ffwd):
+    """Chạy len(T) nến liên tiếp (catch-up) bằng `_portfolio_bar`. T[q] = open_time; BAR[q,b,4] = (o,h,l,c); BARI[q,b,8] (xem _portfolio_bar:
+    FR_lo/FR_hi chỉ vào FR phẳng, địa chỉ 1m low/high + độ dài 1m: bộ đệm giả khi không có đường 1m); SIG[q,k,5] = (match, stop, dca_gate, -, -); SIGV[q,k] = vol.
+    Dừng sớm khi G_OVF != 0. -> số nến đã chạy."""
+    n = T.shape[0]
+    for q in range(n):
+        if G[G_OVF] != 0:
+            return q
+        _portfolio_bar(T[q], BAR[q], BARI[q], FR, SIG[q], SIGV[q], tr_book, book_off, P, PI, F, I, cfg_i, cfg_f, PS, PSI, LPX,
+                       outF, outI, ordF, ordI, closeSeq, eqT, eqM, eqW, G, LG, ffwd)
+    return n
+
+
+@njit(**_JIT)
+def slot_bar(k, t, X, FL, ML, MH, ja, jb, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq):
+    """MỘT nến của MỘT slot (= PositionTracker.on_bar, hay `_on_bar` cũ): X = (o, h, l, c, max_new, max_risk, risk_scale, vol),
+    FL = (entry_signal, stop_signal, can_open, dca_gate). ML/MH/ja/jb: nến 1m trong nến chạy (cho stop_fill='extreme'; ja == jb = không có). -> True nếu vị thế đóng."""
+    closed = _on_bar_open(k, t, X[0], FL[2] != 0, X[4], X[5], X[6], P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq)
+    return _on_bar_rest(k, t, X[0], X[1], X[2], X[3], ML, MH, ja, jb, FL[0] != 0, FL[1] != 0, closed, X[7], FL[3] != 0,
+                        P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq)
+
+
+@njit(**_JIT)
+def slot_funding(k, rate, price, PI, F, I, LG):
+    """Funding của slot k (= PositionTracker.apply_funding): áp vào vốn và trả khoản thanh toán (0.0 nếu không áp dụng)."""
+    if I[k, I_OPEN] == 0 or PI[k, PI_PERP] == 0 or F[k, F_QTY] <= 0.0:
+        return 0.0
+    payment = F[k, F_QTY] * price * rate * (1.0 if PI[k, PI_LONG] == 1 else -1.0)
+    _apply_funding(k, rate, price, PI, F, I, LG)
+    return payment
+
+
+@njit(**_JIT)
+def slot_force_close(k, t, price, reason, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq):
+    """PositionTracker.force_close: bỏ lệnh chờ vào, đóng market (S_CANCEL) nếu đang mở. reason = R_KILL / R_END. -> True nếu đã đóng."""
+    if I[k, I_OPEN] == 0:
+        return False
+    I[k, I_PE] = 0
+    _close(k, t, price, S_CANCEL, reason, True, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq)
+    return True
+
+
+@njit(**_JIT)
+def mtm(book_off, PI, F, I, LPX, LG, PS):
+    """(vốn theo đóng nến, vốn theo giá xấu nhất) của danh mục theo LPX; cũng ghi PS[PS_MTM], PS[PS_WORST]."""
+    _portfolio_mtm(book_off, PI, F, I, LPX, LG, PS)
+    return PS[PS_MTM], PS[PS_WORST]
+
+
+@njit(**_JIT)
+def close_all(t, col, tclose, book_off, P, PI, F, I, LPX, PS, PSI, LG, G, outF, outI, ordF, ordI, closeSeq, eqT, eqM, eqW):
+    """Đóng mọi vị thế mở (lý do R_END) ở LPX[b, col] (cột 0 = close cho tick close_all, cột 3 = open cho batch) tại thời điểm tclose[b],
+    rồi mẫu vốn cuối ở t — đúng `_portfolio_end(close_end=1)`."""
+    _portfolio_end(t, 1, col, tclose, book_off, P, PI, F, I, LPX, PS, PSI, LG, G, outF, outI, ordF, ordI, closeSeq, eqT, eqM, eqW)
+
+
 # ─── Vòng lặp ĐƠN TÀI SẢN (BacktestEngine.run) ──────────────────────────────
 @njit(**_JIT)
 def single_kernel(PB, BL, PE, P, PI, F, I, cfg_i, cfg_f,
@@ -1507,6 +1592,7 @@ def pack_trackers(trackers: List[Any]) -> Tuple[np.ndarray, np.ndarray, np.ndarr
         F[k, F_ENTRY_EQ], F[k, F_MAXCAP], F[k, F_POS_LEV] = tr.entry_equity, tr.max_capital, tr.pos_leverage
         F[k, F_PLANNED], F[k, F_PVOL] = tr.planned_risk, np.nan
         F[k, F_SL], F[k, F_TP], F[k, F_TRAIL], F[k, F_TACT] = tr.sl_pct, tr.tp_pct, tr.trail_pct, tr.trail_activation_pct
+        F[k, F_UNIT] = tr.unit_pct
         for j, s in enumerate(tr.dca_steps):
             F[k, F_DS0 + j] = s
         I[k, I_NST] = len(tr.dca_steps)
@@ -1582,12 +1668,15 @@ def _alloc(cap_pos: int, cap_ord: int, cap_smp: int):
 
 
 # ─── Dựng lại đối tượng ─────────────────────────────────────────────────────
-def _build_objects(trackers: List[Any], meta: List[Tuple[str, str]], F: np.ndarray, I: np.ndarray, outs, G: np.ndarray) -> Tuple[list, list]:
-    """-> (positions đã đóng theo thứ tự đóng, orders gom theo vị thế đã đóng); đồng thời ghi lại vị thế/lệnh còn mở vào tracker."""
+def _build_objects(trackers: List[Any], meta: List[Tuple[str, str]], F: np.ndarray, I: np.ndarray, outs, G: np.ndarray,
+                   ids: Optional[List[int]] = None, closed_range: Optional[Tuple[int, int]] = None) -> Tuple[list, list]:
+    """-> (positions đã đóng theo thứ tự đóng, orders gom theo vị thế đã đóng); đồng thời ghi lại vị thế/lệnh còn mở vào tracker.
+    ids: id của từng lệnh theo chỉ số toàn cục (mặc định rút mới từ dãy toàn cục); closed_range: chỉ dựng các vị thế đóng closeSeq[c0:c1] (SlotDriver)."""
     outF, outI, ordF, ordI, closeSeq = outs[:5]
     npos, nord, ncl = int(G[G_NPOS]), int(G[G_NORD]), int(G[G_NCL])
-    seq = _execution._ID_SEQ
-    ids = [next(seq) for _ in range(nord)]
+    if ids is None:
+        seq = _execution._ID_SEQ
+        ids = [next(seq) for _ in range(nord)]
     opos = ordI[:nord, ORI_POS]
     perm = np.argsort(opos, kind="stable")
     start = np.concatenate(([0], np.cumsum(np.bincount(opos, minlength=npos)))).tolist() if nord else [0] * (npos + 1)
@@ -1637,7 +1726,8 @@ def _build_objects(trackers: List[Any], meta: List[Tuple[str, str]], F: np.ndarr
         return PositionModel(status=PositionStatus.OPEN, entry_equity=float(F[p_tr[p], F_ENTRY_EQ]), **kw)
 
     closed_pos, orders = [], []
-    for p in closeSeq[:ncl].tolist():
+    c0, c1 = (0, ncl) if closed_range is None else closed_range
+    for p in closeSeq[c0:c1].tolist():
         closed_pos.append(mk_position(p, True))
         orders.extend(mk_orders(p))
     # vị thế còn mở (close_at_end=False): ghi vào tracker như vòng lặp cũ để open_positions() dùng được
@@ -1729,9 +1819,13 @@ def run_portfolio(eng: Any) -> None:
         e = books[tr_book[k]]["entries"][k - book_off[tr_book[k]]]
         tab.entry(k, e["match"], e["stop"], e["vol"], e.get("dca"))
     cfg_i = np.array([eng.trade_start_ts, risk.max_positions, risk.max_per_symbol, 1 if eng.close_at_end else 0,
-                      eng.MTM_SAMPLE_MINUTES * 60_000, tab.addr(grid), n], dtype=np.int64)
+                      eng.MTM_SAMPLE_MINUTES * 60_000, tab.addr(grid), n, 0, 0, 0], dtype=np.int64)
     cfg_f = np.array([eng.initial_capital, risk.max_gross_exposure, kill, float(risk.max_open_risk_pct or 0.0) / 100.0,
                       float(risk.dd_throttle_pct or 0.0) / 100.0, float(risk.dd_throttle_floor)])
+    adm_cap = int(getattr(eng, "adm_capacity", 0) or 0)      # vết admission (T3): eng.adm_capacity > 0 -> eng.adm = ADM[:n] sau khi chạy
+    ADM = np.zeros((max(adm_cap, 1), NAD))
+    if adm_cap:
+        cfg_i[CI_ADM_PTR], cfg_i[CI_ADM_CAP], cfg_i[CI_ADM_ON] = ADM.ctypes.data, adm_cap, 1
     tr_book_a, book_off_a = np.asarray(tr_book, dtype=np.int64), np.asarray(book_off, dtype=np.int64)
     span_samples = int((int(grid[-1]) - int(grid[0])) // int(cfg_i[4])) + 8
 
@@ -1751,6 +1845,8 @@ def run_portfolio(eng: Any) -> None:
     else:
         raise RuntimeError("kernel: tràn bộ nhớ đệm kết quả sau nhiều lần mở rộng")
 
+    if adm_cap:
+        eng.adm = ADM[:min(int(G[G_NADM]), adm_cap)].copy()
     eng.closed_positions, eng.orders = _build_objects(trackers, meta, F2, I2, outs, G)
     eng.equity_curve = _round_curve(outs[5], outs[6], outs[7], int(G[G_NSMP]))
     _writeback(trackers, P2, F2, I2)
@@ -1787,6 +1883,554 @@ def run_many(eng: Any, position_overrides: List[Dict[str, Any]]) -> List[Dict[st
         run_portfolio(sub)
         out.append(sub.get_results())
     return out
+
+
+# ═══ P9.4b T3 — KernelBook (sổ paper trên kernel) và SlotDriver (một / vài slot, giao diện đọc của PositionTracker) ═══
+# Cùng mảng trạng thái, cùng thân nến `_portfolio_bar` với backtest; không pickle lớp: save/load = paper_state.npz + paper.json.
+_ONE_F = np.zeros(1)                       # ML/MH giả (không có đường 1m): carray độ dài 1 và ja == jb nên không bao giờ được đọc
+_DAY_MS = 86_400_000
+KB_SCHEMA = 1
+_EXIT_KIND = {R_SL: "sl", R_TP: "tp", R_TRAIL: "trail", R_STOP: "exit", R_TIMEOUT: "timeout", R_LIQ: "liq", R_KILL: "kill", R_END: "end"}
+_CHUNK = 64                                # số nến tối đa mỗi lần gọi step_bars (chặn kích thước bộ đệm dự phòng)
+
+
+class _LedgerView:
+    """Giao diện đọc của Account trên mảng LG / G (initial, equity, reserved, peak, rejected, usage, free)."""
+
+    def __init__(self, owner):
+        self._o = owner
+
+    initial = property(lambda s: float(s._o.cfg_f[0]))
+    equity = property(lambda s: float(s._o.LG[LG_EQ]))
+    reserved = property(lambda s: float(s._o.LG[LG_RES]))
+    peak = property(lambda s: float(s._o.LG[LG_PEAK]))
+    rejected = property(lambda s: int(s._o.G[G_REJ]))
+    usage = property(lambda s: 1.0)
+
+    def free(self) -> float:
+        return self.equity * 1.0 - self.reserved
+
+
+def _make_slots(symbol: str, strategies: List[Dict[str, Any]], base_frame: str):
+    """Bộ tracker khởi đầu của một tài sản (đúng live/signals._engine: chuẩn hoá tham số do PositionTracker làm) -> [(strategy, tracker)]."""
+    pe = PortfolioEngine([symbol], strategies, 0, _DAY_MS, trade_start_ts=0, use_cache=False, base_frame=base_frame)
+    return pe._make_trackers(symbol, pe.ledger)[1]
+
+
+def _cfg_arrays(capital: float, risk: Dict[str, Any], trade_start: int, step_ms: int) -> Tuple[np.ndarray, np.ndarray]:
+    r = RiskConfig.from_dict(risk)
+    kill = r.kill_switch_dd_pct / 100.0 if r.kill_switch_dd_pct else 0.0
+    cfg_i = np.array([int(trade_start), r.max_positions, r.max_per_symbol, 0, step_ms, 0, 0, 0, 0, 0], dtype=np.int64)
+    cfg_f = np.array([float(capital), r.max_gross_exposure, kill, float(r.max_open_risk_pct or 0.0) / 100.0,
+                      float(r.dd_throttle_pct or 0.0) / 100.0, float(r.dd_throttle_floor)])
+    return cfg_i, cfg_f
+
+
+class KernelBook:
+    """Sổ PAPER chạy đúng kernel của backtest TỪNG NẾN / TỪNG KHÚC (P9.4b T3): trạng thái nằm trọn trong mảng, kết quả trùng từng bit với
+    PortfolioEngine(close_at_end=False) cùng chuỗi nến, và trùng PaperBook (Runner) cùng nguồn. API phản chiếu live/paper.py::PaperBook:
+    step_bar / step_bars, mtm(), positions(), trades, ledger, last_t, halted_at, peak_mtm, rejected_for_risk, last_close/low/high/open.
+
+    Hợp đồng bước: mỗi nến có nến ở ít nhất một tài sản PHẢI được bước theo đúng thứ tự thời gian, KHÔNG bỏ điểm lưới nào (kể cả phút rảnh) — bộ đếm lưới
+    PSI_G cho phép đếm các phút bị chặn liên tiếp là một lần (xem chú thích trên `step_bars`). Bộ đệm được nới TRƯỚC mỗi khúc nên không bao giờ tràn;
+    khi cạn chỗ thì nén trước (bỏ hàng của vị thế đã đóng — lệnh đóng đã thành dict trong `trades`), sau đó mới nới. save() luôn nén.
+
+    record_full=True (test): giữ nguyên mọi hàng + tracker khởi đầu, không nén -> full_objects() dựng PositionModel/OrderModel y hệt batch."""
+
+    MTM_SAMPLE_MINUTES = 60
+
+    def __init__(self, strategies: List[Dict[str, Any]], symbols: List[str], base_frame: str, capital: float, risk: Dict[str, Any],
+                 trade_start: int = 0, record_full: bool = False, record_events: bool = True, adm_capacity: int = 0):
+        slots, trackers = [], []
+        for b, sym in enumerate(symbols):
+            for st, tr in _make_slots(sym, strategies, base_frame):
+                slots.append({"book": b, "symbol": sym, "strategy": st["id"], "side": st["side"]})
+                trackers.append(tr)
+        if not trackers:
+            raise ValueError("Cần ít nhất một tài sản và một chiến lược")
+        self._setup(list(symbols), slots, base_frame, float(capital), dict(risk), int(trade_start), record_events, adm_capacity)
+        P, PI, F, I = pack_trackers(trackers)
+        F[:, F_ENTRY_EQ] = float(capital)
+        for k, tr in enumerate(trackers):
+            F[k, F_MAXCAP] = float(capital) * tr.capital_usage
+        self.P, self.PI, self.F, self.I = P, PI, F, I
+        self.cfg_i, self.cfg_f = _cfg_arrays(capital, risk, trade_start, self.MTM_SAMPLE_MINUTES * 60_000)
+        self.PS, self.PSI, self.LPX = new_portfolio_state(len(symbols), float(capital))
+        self.LG = np.array([float(capital), 0.0, float(capital)])
+        self.G = np.zeros(NG, dtype=np.int64)
+        self._alloc_buffers(max(64, 8 * len(trackers)), max(256, 32 * len(trackers)), 256)
+        self.record_full = bool(record_full)
+        self._trackers = trackers if record_full else None
+        self._arm_adm(adm_capacity)
+
+    # ── dựng / nạp ──
+    def _setup(self, symbols, slots, base_frame, capital, risk, trade_start, record_events, adm_capacity):
+        self.symbols, self.slots, self.base_frame = symbols, slots, base_frame
+        self.capital, self.risk, self.trade_start = capital, dict(risk), trade_start
+        nb, nt = len(symbols), len(slots)
+        self.nb, self.nt = nb, nt
+        self.tr_book = np.array([s["book"] for s in slots], dtype=np.int64)
+        off = [0]
+        for b in range(nb):
+            off.append(off[-1] + sum(1 for s in slots if s["book"] == b))
+        self.book_off = np.array(off, dtype=np.int64)
+        self.entries = [[k for k in range(nt) if slots[k]["book"] == b] for b in range(nb)]
+        self.trades: List[Dict[str, Any]] = []
+        self.events: List[Dict[str, Any]] = []
+        self.record_events = bool(record_events)
+        self._last_t: Optional[int] = None
+        self.ledger = _LedgerView(self)
+        self.record_full = False
+        self._trackers = None
+        self.adm_capacity = 0
+        self._adm = None
+
+    def _alloc_buffers(self, cap_pos: int, cap_ord: int, cap_smp: int) -> None:
+        (self.outF, self.outI, self.ordF, self.ordI, self.closeSeq, self.eqT, self.eqM, self.eqW) = _alloc(cap_pos, cap_ord, cap_smp)
+
+    def _arm_adm(self, capacity: int) -> None:
+        """Vết admission (cfg_i[CI_ADM_*]): ADM[cap, NAD]; tràn thì bỏ bản ghi, không bao giờ G_OVF. Con trỏ làm mới sau mỗi lần nạp / cấp lại."""
+        capacity = int(capacity or 0)
+        self.adm_capacity = capacity
+        self._adm = np.zeros((max(capacity, 1), NAD))
+        self.cfg_i[CI_ADM_PTR], self.cfg_i[CI_ADM_CAP], self.cfg_i[CI_ADM_ON] = (self._adm.ctypes.data, capacity, 1) if capacity else (0, 0, 0)
+
+    @property
+    def adm(self) -> np.ndarray:
+        """Vết admission đã ghi (bản sao): hàng (t, k, n_open, per_book, equity, gross, can_open, max_new)."""
+        return self._adm[:min(int(self.G[G_NADM]), self.adm_capacity)].copy()
+
+    # ── thuộc tính trạng thái (đối ứng PaperBook) ──
+    last_t = property(lambda s: s._last_t)
+    peak_mtm = property(lambda s: float(s.PS[PS_PEAK_MTM]))
+    halted_at = property(lambda s: None if s.PSI[PSI_HALTED] == 0 else int(s.PSI[PSI_HALT_AT]))
+    ruined_at = property(lambda s: None if s.PSI[PSI_RUIN_AT] == NONE_I else int(s.PSI[PSI_RUIN_AT]))
+    rejected_for_risk = property(lambda s: int(s.G[G_RISKMIN]))
+    risk_blocked_attempts = property(lambda s: int(s.G[G_ATT]))
+    dca_layers_rejected = property(lambda s: int(s.I[:, I_DCAREJ].sum()))
+    skipped_no_vol = property(lambda s: int(s.I[:, I_SKIP].sum()))
+    last_close = property(lambda s: s.LPX[:, 0].tolist())
+    last_low = property(lambda s: s.LPX[:, 1].tolist())
+    last_high = property(lambda s: s.LPX[:, 2].tolist())
+    last_open = property(lambda s: s.LPX[:, 3].tolist())
+
+    def mtm(self) -> Tuple[float, float]:
+        m, w = mtm(self.book_off, self.PI, self.F, self.I, self.LPX, self.LG, self.PS)
+        return float(m), float(w)
+
+    def positions(self) -> List[Dict[str, Any]]:
+        out = []
+        for k in range(self.nt):
+            if self.I[k, I_OPEN] == 1:
+                sl = self.slots[k]
+                out.append({"symbol": sl["symbol"], "strategy": sl["strategy"], "side": sl["side"], "qty": float(self.F[k, F_QTY]),
+                            "avg": float(self.F[k, F_AVG]), "layers": int(self.I[k, I_LAYERS]), "entry_time": int(self.I[k, I_ENTRY_T]),
+                            "unrealized": float(_unreal(k, self.LPX[sl["book"], 0], self.PI, self.F, self.I))})
+        return out
+
+    def equity_curve(self) -> List[Dict[str, float]]:
+        """Đường vốn theo giờ + mẫu cuối ở last_t (như PortfolioEngine.equity_curve khi không đóng cuối dữ liệu); không đổi trạng thái."""
+        out = _round_curve(self.eqT, self.eqM, self.eqW, int(self.G[G_NSMP]))
+        if self._last_t is not None:
+            m, w = self.mtm()
+            out.append({"time": int(self._last_t), "equity": round(m, 4), "equity_worst": round(w, 4)})
+        return out
+
+    def drain_events(self) -> List[Dict[str, Any]]:
+        ev, self.events = self.events, []
+        return ev
+
+    # ── bộ đệm ──
+    def _compact(self) -> None:
+        """Bỏ hàng của vị thế đã đóng khỏi outF/outI/ordF/ordI (đã thành dict trong `trades`); giữ vị thế đang mở + lệnh của chúng, đánh số lại."""
+        if self.record_full:
+            return
+        G, I = self.G, self.I
+        opens = sorted((int(I[k, I_POS]), k) for k in range(self.nt) if I[k, I_OPEN] == 1 and I[k, I_POS] >= 0)
+        old_p = np.array([p for p, _ in opens], dtype=np.int64)
+        nord = int(G[G_NORD])
+        keep = np.flatnonzero(np.isin(self.ordI[:nord, ORI_POS], old_p)) if len(old_p) else np.zeros(0, dtype=np.int64)
+        new_of = {int(p): i for i, p in enumerate(old_p.tolist())}
+        outF, outI = self.outF[old_p].copy(), self.outI[old_p].copy()
+        ordF, ordI = self.ordF[keep].copy(), self.ordI[keep].copy()
+        ordI[:, ORI_POS] = [new_of[int(p)] for p in ordI[:, ORI_POS].tolist()]
+        first = {}
+        for j, p in enumerate(ordI[:, ORI_POS].tolist()):
+            first.setdefault(p, j)
+        for i in range(len(old_p)):
+            outI[i, OI_FIRST_ORD] = first[i]
+        for (p, k) in opens:
+            I[k, I_POS] = new_of[p]
+        self.outF[:] = 0.0
+        self.outI[:] = 0
+        self.ordF[:] = 0.0
+        self.ordI[:] = 0
+        self.outF[:len(old_p)], self.outI[:len(old_p)] = outF, outI
+        self.ordF[:len(keep)], self.ordI[:len(keep)] = ordF, ordI
+        G[G_NPOS], G[G_NORD], G[G_NCL] = len(old_p), len(keep), 0
+
+    def _reserve(self, nbars: int) -> None:
+        """Nới bộ đệm TRƯỚC khi chạy nbars nến: mỗi slot tối đa một vị thế mới mỗi nến, mỗi vị thế tối đa (tầng DCA tối đa + 2) lệnh, mỗi mẫu vốn một hàng."""
+        G, nt = self.G, self.nt
+        ml = (self.P.shape[1] - P_FIXED) // 2
+        need_pos, need_ord, need_smp = nt * nbars, nt * nbars * (ml + 2) * 2, nbars + 4
+        if G[G_NPOS] + need_pos > self.outF.shape[0] or G[G_NORD] + need_ord > self.ordF.shape[0]:
+            self._compact()
+        if G[G_NPOS] + need_pos > self.outF.shape[0] or G[G_NORD] + need_ord > self.ordF.shape[0]:
+            cp = max(self.outF.shape[0] * 2, int(G[G_NPOS]) + need_pos)
+            co = max(self.ordF.shape[0] * 2, int(G[G_NORD]) + need_ord)
+            self.outF, self.outI = (np.vstack([a, np.zeros((cp - a.shape[0], a.shape[1]), dtype=a.dtype)]) for a in (self.outF, self.outI))
+            self.ordF, self.ordI = (np.vstack([a, np.zeros((co - a.shape[0], a.shape[1]), dtype=a.dtype)]) for a in (self.ordF, self.ordI))
+        if self.closeSeq.shape[0] < self.outF.shape[0]:
+            self.closeSeq = np.concatenate([self.closeSeq, np.zeros(self.outF.shape[0] - self.closeSeq.shape[0], dtype=np.int64)])
+        if G[G_NSMP] + need_smp > self.eqT.shape[0]:
+            cs = max(self.eqT.shape[0] * 2, int(G[G_NSMP]) + need_smp)
+            self.eqT, self.eqM, self.eqW = (np.concatenate([a, np.zeros(cs - a.shape[0], dtype=a.dtype)]) for a in (self.eqT, self.eqM, self.eqW))
+        # closeSeq ghi theo G_NCL (tăng sau mỗi lần đóng): phải đủ chỗ cho vị thế đóng trong khúc (<= số vị thế hiện có + mới)
+        if G[G_NCL] + need_pos + nt > self.closeSeq.shape[0]:
+            self.closeSeq = np.concatenate([self.closeSeq, np.zeros(int(G[G_NCL]) + need_pos + nt - self.closeSeq.shape[0], dtype=np.int64)])
+
+    # ── chạy ──
+    def step_bar(self, t: int, bars: Dict[str, Tuple[float, float, float, float]], sig: Dict[str, List[Dict[str, Any]]],
+                 funding: Optional[Dict[str, List[Tuple[int, float]]]] = None) -> List[Dict[str, Any]]:
+        """Một nến ở open_time t (y hệt PaperBook.step_bar): bars[sym] = (o,h,l,c); sig[sym] = [{match, stop, vol, dca}] theo thứ tự chiến lược;
+        funding[sym] = [(funding_time, rate)] đến hạn <= t. -> các lệnh đóng ở nến này (dict như Runner.record)."""
+        return self.step_bars([(t, bars, sig, funding)])
+
+    def step_bars(self, feed: List[Tuple[int, Dict, Dict, Optional[Dict]]]) -> List[Dict[str, Any]]:
+        """Catch-up: nhiều nến liên tiếp (t, bars, sig, funding), cùng kết quả bước từng nến. -> các lệnh đóng của cả khúc."""
+        out: List[Dict[str, Any]] = []
+        for i in range(0, len(feed), _CHUNK):
+            out.extend(self._run_chunk(feed[i:i + _CHUNK]))
+        return out
+
+    def _run_chunk(self, feed) -> List[Dict[str, Any]]:
+        n, nb, nt = len(feed), self.nb, self.nt
+        T = np.zeros(n, dtype=np.int64)
+        BAR = np.zeros((n, nb, 4))
+        BARI = np.zeros((n, nb, 8), dtype=np.int64)
+        SIG = np.zeros((n, nt, 5), dtype=np.bool_)
+        SIGV = np.full((n, nt), np.nan)
+        FRl: List[float] = []
+        dummy = int(_ONE_F.ctypes.data)
+        for q, (t, bars, sig, funding) in enumerate(feed):
+            if q and t <= int(T[q - 1]) or (self._last_t is not None and q == 0 and t <= self._last_t):
+                raise ValueError(f"KernelBook: nến phải tăng ngặt theo thời gian (t={t})")
+            T[q] = t
+            for b, sym in enumerate(self.symbols):
+                if sym not in bars:
+                    continue
+                BAR[q, b] = bars[sym]
+                lo = len(FRl)
+                for _ft, rate in (funding or {}).get(sym, []):
+                    FRl.append(float(rate))
+                BARI[q, b] = (1, 0, 0, lo, len(FRl), dummy, dummy, 1)
+                for k, s in zip(self.entries[b], sig[sym]):
+                    SIG[q, k, 0], SIG[q, k, 1], SIG[q, k, 2] = bool(s["match"]), bool(s["stop"]), bool(s.get("dca", True))
+                    v = s.get("vol")
+                    SIGV[q, k] = float(v) if v is not None else np.nan
+        FR = np.array(FRl if FRl else [0.0])
+        # đáy / đỉnh nến của từng sổ tại mỗi nến (điền tiếp từ nến trước) -> bar_low / bar_high của lệnh đóng như Runner.record
+        LL, HH = np.empty((n, nb)), np.empty((n, nb))
+        cur_l, cur_h = self.LPX[:, 1].copy(), self.LPX[:, 2].copy()
+        for q in range(n):
+            for b in range(nb):
+                if BARI[q, b, 0]:
+                    cur_l[b], cur_h[b] = BAR[q, b, 2], BAR[q, b, 1]
+            LL[q], HH[q] = cur_l, cur_h
+        self._reserve(n)
+        G = self.G
+        ncl0, nord0, rej0, risk0 = int(G[G_NCL]), int(G[G_NORD]), int(G[G_REJ]), int(G[G_RISKMIN])
+        ran = step_bars(T, BAR, BARI, FR, SIG, SIGV, self.tr_book, self.book_off, self.P, self.PI, self.F, self.I, self.cfg_i, self.cfg_f,
+                        self.PS, self.PSI, self.LPX, self.outF, self.outI, self.ordF, self.ordI, self.closeSeq, self.eqT, self.eqM, self.eqW,
+                        G, self.LG, False)
+        if G[G_OVF] != 0 or ran != n:
+            raise RuntimeError("KernelBook: tràn bộ đệm kết quả (lỗi dự phòng — _reserve phải ngăn được)")
+        self._last_t = int(T[-1])
+        closed = self._collect_closed(ncl0, int(G[G_NCL]), T, LL, HH)
+        self.trades.extend(closed)
+        if self.record_events:
+            self._collect_events(nord0, int(G[G_NORD]), int(G[G_REJ]) - rej0, int(G[G_RISKMIN]) - risk0, self._last_t)
+        return closed
+
+    def _collect_closed(self, c0: int, c1: int, T, LL, HH) -> List[Dict[str, Any]]:
+        if c1 <= c0:
+            return []
+        ps = self.closeSeq[c0:c1].tolist()
+        outF, outI = self.outF, self.outI
+        col = lambda idx: outF[ps, idx].tolist()   # noqa: E731
+        icol = lambda idx: outI[ps, idx].tolist()  # noqa: E731
+        enter_price, close_price, pnl, qty, avg = col(O_ENTER_PRICE), col(O_CLOSE_PRICE), col(O_PNL), col(O_QTY), col(O_AVG)
+        fees, fund = col(O_FEES), col(O_FUNDING)
+        trs, e_t, c_t, lay, rea = icol(OI_TR), icol(OI_ENTER_T), icol(OI_CLOSE_T), icol(OI_LAYERS), icol(OI_REASON)
+        out = []
+        for i in range(len(ps)):
+            k = trs[i]
+            sl = self.slots[k]
+            q = int(np.searchsorted(T, c_t[i]))
+            out.append({"symbol": sl["symbol"], "strategy": sl["strategy"], "side": "LONG" if self.PI[k, PI_LONG] == 1 else "SHORT",
+                        "enter_time": int(e_t[i]), "enter_price": float(enter_price[i]), "avg_price": float(avg[i] or enter_price[i]),
+                        "close_time": int(c_t[i]), "close_price": float(close_price[i]), "qty": float(qty[i]), "layers": int(lay[i] or 1),
+                        "pnl": round(float(pnl[i]), 6), "reason": REASONS[rea[i]], "fees": round(float(fees[i] or 0), 6),
+                        "funding": round(float(fund[i] or 0), 6), "bar_low": float(LL[q, sl["book"]]), "bar_high": float(HH[q, sl["book"]])})
+        return out
+
+    def _collect_events(self, o0: int, o1: int, d_rej: int, d_risk: int, t_last: int) -> None:
+        if o1 > o0:
+            ps = self.ordI[o0:o1, ORI_POS].tolist()
+            ks = self.outI[ps, OI_TR].tolist()
+            reasons = self.outI[ps, OI_REASON].tolist()
+            price, raw, qty, fee, slip = (self.ordF[o0:o1, c].tolist() for c in (OR_PRICE, OR_RAW, OR_QTY, OR_FEE, OR_SLIP))
+            tm, ph, ex, lq = (self.ordI[o0:o1, c].tolist() for c in (ORI_TIME, ORI_PHASE, ORI_EXIT, ORI_LIQ))
+            for i in range(o1 - o0):
+                sl = self.slots[ks[i]]
+                kind = _EXIT_KIND[reasons[i]] if ex[i] == 1 else ("entry" if ph[i] == 0 else "dca")
+                self.events.append({"kind": kind, "t": int(tm[i]), "slot": ks[i], "symbol": sl["symbol"], "strategy": sl["strategy"],
+                                    "side": sl["side"], "price": price[i], "raw_price": raw[i], "qty": qty[i], "fee": fee[i], "slip": slip[i],
+                                    "liquidity": LIQUIDITY[lq[i]], "layer": int(ph[i])})
+        if d_rej:
+            self.events.append({"kind": "reject", "reason": "capital", "n": d_rej, "t": t_last})
+        if d_risk:
+            self.events.append({"kind": "reject", "reason": "risk", "n": d_risk, "t": t_last})
+        if len(self.events) > 50_000:
+            del self.events[:len(self.events) - 50_000]
+
+    def close_all(self, t: int, col: int = 0) -> List[Dict[str, Any]]:
+        """Đóng mọi vị thế mở (lý do "End of Backtest") ở LPX[:, col] (0 = close, 3 = open) tại t, rồi mẫu vốn cuối (chạy `close_all` của kernel)."""
+        self._reserve(1)
+        G = self.G
+        ncl0, nord0 = int(G[G_NCL]), int(G[G_NORD])
+        tclose = np.full(self.nb, int(t), dtype=np.int64)
+        close_all(int(t), int(col), tclose, self.book_off, self.P, self.PI, self.F, self.I, self.LPX, self.PS, self.PSI, self.LG, G,
+                  self.outF, self.outI, self.ordF, self.ordI, self.closeSeq, self.eqT, self.eqM, self.eqW)
+        T = np.array([int(t)], dtype=np.int64)
+        LL, HH = self.LPX[:, 1][None, :], self.LPX[:, 2][None, :]
+        closed = self._collect_closed(ncl0, int(G[G_NCL]), T, LL, HH)
+        self.trades.extend(closed)
+        if self.record_events:
+            self._collect_events(nord0, int(G[G_NORD]), 0, 0, int(t))
+        return closed
+
+    # ── test: dựng PositionModel / OrderModel đầy đủ ──
+    def full_objects(self) -> Tuple[list, list]:
+        if not self.record_full:
+            raise ValueError("full_objects cần record_full=True")
+        meta = [(s["symbol"], s["strategy"]) for s in self.slots]
+        return _build_objects(self._trackers, meta, self.F, self.I, (self.outF, self.outI, self.ordF, self.ordI, self.closeSeq), self.G)
+
+    # ── lưu / nạp ──
+    def params_hash(self) -> str:
+        import hashlib
+        h = hashlib.sha256()
+        for a in (self.P, self.PI, self.cfg_f, self.cfg_i[:5], self.tr_book, self.book_off):
+            h.update(np.ascontiguousarray(a).tobytes())
+        return h.hexdigest()
+
+    def save(self, dirpath: str) -> None:
+        """paper_state.npz (mọi mảng, đã nén) + paper.json (phiên bản, tài sản, chiến lược, băm tham số, lệnh đã đóng, vị thế); không pickle lớp."""
+        os.makedirs(dirpath, exist_ok=True)
+        self._compact()
+        G = self.G
+        npos, nord, nsmp = int(G[G_NPOS]), int(G[G_NORD]), int(G[G_NSMP])
+        cfg_i = self.cfg_i.copy()
+        cfg_i[CI_ADM_PTR], cfg_i[CI_ADM_CAP], cfg_i[CI_ADM_ON] = 0, 0, 0
+        arrays = dict(P=self.P, PI=self.PI, F=self.F, I=self.I, cfg_i=cfg_i, cfg_f=self.cfg_f, PS=self.PS, PSI=self.PSI, LPX=self.LPX, LG=self.LG,
+                      G=G, outF=self.outF[:npos], outI=self.outI[:npos], ordF=self.ordF[:nord], ordI=self.ordI[:nord],
+                      eqT=self.eqT[:nsmp], eqM=self.eqM[:nsmp], eqW=self.eqW[:nsmp], tr_book=self.tr_book, book_off=self.book_off)
+        meta = {"schema": KB_SCHEMA, "kind": "kernel_book", "symbols": self.symbols, "slots": self.slots, "base_frame": self.base_frame,
+                "capital": self.capital, "risk": self.risk, "trade_start": self.trade_start, "params_hash": self.params_hash(),
+                "last_t": self._last_t, "adm_capacity": self.adm_capacity, "record_events": self.record_events,
+                "trades": self.trades, "positions": self.positions()}
+        tmp = os.path.join(dirpath, "paper_state.tmp.npz")
+        np.savez_compressed(tmp, **arrays)
+        os.replace(tmp, os.path.join(dirpath, "paper_state.npz"))
+        tmpj = os.path.join(dirpath, "paper.json.tmp")
+        with open(tmpj, "w", encoding="utf-8") as fh:
+            json.dump(meta, fh)
+        os.replace(tmpj, os.path.join(dirpath, "paper.json"))
+
+    @classmethod
+    def load(cls, dirpath: str, strategies: Optional[List[Dict[str, Any]]] = None) -> "KernelBook":
+        """Nạp sổ đã lưu. strategies (tuỳ chọn): dựng lại tham số từ chiến lược hiện tại và so băm — lệch thì ValueError (sổ cũ không khớp cấu hình mới)."""
+        with open(os.path.join(dirpath, "paper.json"), encoding="utf-8") as fh:
+            meta = json.load(fh)
+        if meta.get("schema") != KB_SCHEMA or meta.get("kind") != "kernel_book":
+            raise ValueError(f"paper.json: phiên bản / loại không hỗ trợ ({meta.get('schema')}, {meta.get('kind')})")
+        z = np.load(os.path.join(dirpath, "paper_state.npz"), allow_pickle=False)
+        kb = cls.__new__(cls)
+        kb._setup(list(meta["symbols"]), meta["slots"], meta["base_frame"], float(meta["capital"]), meta["risk"], int(meta["trade_start"]),
+                  bool(meta.get("record_events", True)), 0)
+        for name in ("P", "PI", "F", "I", "cfg_i", "cfg_f", "PS", "PSI", "LPX", "LG", "G", "tr_book", "book_off"):
+            setattr(kb, name, z[name].copy())
+        kb.tr_book, kb.book_off = kb.tr_book.astype(np.int64), kb.book_off.astype(np.int64)
+        if kb.params_hash() != meta["params_hash"]:
+            raise ValueError("paper_state.npz: băm tham số không khớp paper.json (tệp hỏng hoặc không cùng lần lưu)")
+        npos, nord, nsmp = len(z["outF"]), len(z["ordF"]), len(z["eqT"])
+        kb._alloc_buffers(max(64, 8 * kb.nt, npos * 2), max(256, 32 * kb.nt, nord * 2), max(256, nsmp * 2))
+        kb.outF[:npos], kb.outI[:npos], kb.ordF[:nord], kb.ordI[:nord] = z["outF"], z["outI"], z["ordF"], z["ordI"]
+        kb.eqT[:nsmp], kb.eqM[:nsmp], kb.eqW[:nsmp] = z["eqT"], z["eqM"], z["eqW"]
+        kb.trades = list(meta["trades"])
+        kb._last_t = meta["last_t"]
+        kb._arm_adm(int(meta.get("adm_capacity", 0)))
+        if strategies is not None:
+            fresh = cls(strategies, kb.symbols, kb.base_frame, kb.capital, kb.risk, kb.trade_start)
+            if fresh.params_hash() != kb.params_hash():
+                raise ValueError("sổ paper đã lưu không khớp chiến lược / rủi ro hiện tại (băm tham số khác)")
+        return kb
+
+
+class _Ns:
+    def __init__(self, **kw):
+        self.__dict__.update(kw)
+
+
+class SlotDriver:
+    """Một hay vài slot dùng chung MỘT sổ vốn, chạy bằng slot_bar / slot_funding / slot_force_close — thay PositionTracker trong test và harness (T5).
+    `driver[k]` là SlotView có giao diện đọc + on_bar / apply_funding / force_close / unrealized_pnl_usd / orders / position của PositionTracker.
+    Id lệnh rút từ dãy toàn cục theo thứ tự tạo (như tracker)."""
+
+    def __init__(self, trackers: List[Any], meta: Optional[List[Tuple[str, str]]] = None):
+        self.nt = len(trackers)
+        self.P, self.PI, self.F, self.I = pack_trackers(trackers)
+        led = trackers[0].ledger
+        self.LG = np.array([float(led.equity), float(led.reserved), float(led.peak)])
+        self.cfg_f = np.array([float(led.initial)])
+        self.G = np.zeros(NG, dtype=np.int64)
+        self._alloc(64, 256)
+        self.ids: List[int] = []
+        self._ns = [_Ns(is_long=tr.is_long, account_id=tr.account_id, campaign_id=tr.campaign_id, pos_type=tr.pos_type,
+                                          flow_name=tr.flow_name, position=None, orders=[]) for tr in trackers]
+        self._meta = meta if meta is not None else [(tr.symbol, "") for tr in trackers]
+        self.ledger = _LedgerView(self)
+        self.views = [SlotView(self, k) for k in range(self.nt)]
+        self._ml = (self.P.shape[1] - P_FIXED) // 2
+
+    def __getitem__(self, k: int) -> "SlotView":
+        return self.views[k]
+
+    def _alloc(self, cp: int, co: int) -> None:
+        self.outF, self.outI, self.ordF, self.ordI, self.closeSeq = _alloc(cp, co, 1)[:5]
+
+    def _grow(self) -> None:
+        G = self.G
+        if G[G_NPOS] + 2 > self.outF.shape[0] or G[G_NORD] + self._ml + 4 > self.ordF.shape[0]:
+            cp, co = self.outF.shape[0] * 2, self.ordF.shape[0] * 2
+            self.outF, self.outI = (np.vstack([a, np.zeros((cp - a.shape[0], a.shape[1]), dtype=a.dtype)]) for a in (self.outF, self.outI))
+            self.ordF, self.ordI = (np.vstack([a, np.zeros((co - a.shape[0], a.shape[1]), dtype=a.dtype)]) for a in (self.ordF, self.ordI))
+            self.closeSeq = np.concatenate([self.closeSeq, np.zeros(cp - self.closeSeq.shape[0], dtype=np.int64)])
+
+    def _draw_ids(self) -> None:
+        while len(self.ids) < int(self.G[G_NORD]):
+            self.ids.append(_execution._next_id())
+
+    def _outs(self):
+        return (self.outF, self.outI, self.ordF, self.ordI, self.closeSeq)
+
+    def _closed_since(self, c0: int) -> Optional[PositionModel]:
+        c1 = int(self.G[G_NCL])
+        if c1 <= c0:
+            return None
+        self._draw_ids()
+        pos, _ = _build_objects(self._ns, self._meta, self.F, self.I, self._outs(), self.G, ids=self.ids, closed_range=(c0, c1))
+        return pos[-1]
+
+    def refresh_open(self) -> None:
+        """Dựng lại `position` (vị thế đang mở) và `orders` (LỊCH SỬ lệnh của slot: các vị thế đã đóng theo thứ tự đóng, rồi vị thế đang mở — như
+        PositionTracker.orders) của từng slot."""
+        self._draw_ids()
+        closed, orders = _build_objects(self._ns, self._meta, self.F, self.I, self._outs(), self.G, ids=self.ids)
+        by_pos: Dict[int, list] = {}
+        for o in orders:
+            by_pos.setdefault(o.position_id, []).append(o)
+        hist: List[list] = [[] for _ in range(self.nt)]
+        ncl = int(self.G[G_NCL])
+        for p, pos in zip(self.closeSeq[:ncl].tolist(), closed):
+            hist[int(self.outI[p, OI_TR])].extend(by_pos.get(pos.result_id, []))
+        for k, ns in enumerate(self._ns):
+            ns.orders = hist[k] + ns.orders
+
+
+class SlotView:
+    """Slot k của SlotDriver — bề mặt PositionTracker (đọc trạng thái từ mảng)."""
+
+    def __init__(self, drv: SlotDriver, k: int):
+        self._d, self._k = drv, k
+        self.max_new_notional = self.max_new_risk = float("inf")
+        self.risk_scale = 1.0
+
+    def _f(col):   # noqa: N805
+        return property(lambda s: float(s._d.F[s._k, col]))
+
+    def _i(col):   # noqa: N805
+        return property(lambda s: int(s._d.I[s._k, col]))
+
+    def _b(col):   # noqa: N805
+        return property(lambda s: bool(s._d.I[s._k, col]))
+
+    qty, avg, margin_used, fees_paid = _f(F_QTY), _f(F_AVG), _f(F_MU), _f(F_FP)
+    last_fill, next_margin, peak, mae_usd = _f(F_LAST_FILL), _f(F_NEXT), _f(F_PEAK), _f(F_MAE)
+    reserved_here, funding_paid, entry_equity = _f(F_RES_HERE), _f(F_FUND), _f(F_ENTRY_EQ)
+    max_capital, pos_leverage, planned_risk, pending_vol = _f(F_MAXCAP), _f(F_POS_LEV), _f(F_PLANNED), _f(F_PVOL)
+    sl_pct, tp_pct, trail_pct, trail_activation_pct, unit_pct = _f(F_SL), _f(F_TP), _f(F_TRAIL), _f(F_TACT), _f(F_UNIT)
+    layer_count, entry_time, dca_rejected, skipped_no_vol = _i(I_LAYERS), _i(I_ENTRY_T), _i(I_DCAREJ), _i(I_SKIP)
+    is_open, pending_exit, dca_ok = _b(I_OPEN), _b(I_PX), _b(I_DCAOK)
+    del _f, _i, _b
+
+    @property
+    def pending_entry(self) -> bool:
+        return bool(self._d.I[self._k, I_PE])
+
+    @pending_entry.setter
+    def pending_entry(self, v: bool) -> None:
+        self._d.I[self._k, I_PE] = 1 if v else 0
+
+    @property
+    def dca_steps(self) -> List[float]:
+        n = int(self._d.I[self._k, I_NST])
+        return [float(x) for x in self._d.F[self._k, F_DS0:F_DS0 + n]]
+
+    @property
+    def last_close_time(self) -> Optional[int]:
+        return int(self._d.I[self._k, I_LASTCLOSE]) if self._d.I[self._k, I_HASLC] else None
+
+    @property
+    def position(self) -> Optional[PositionModel]:
+        self._d.refresh_open()
+        return self._d._ns[self._k].position
+
+    @property
+    def orders(self) -> List[OrderModel]:
+        self._d.refresh_open()
+        return self._d._ns[self._k].orders
+
+    def unrealized_pnl_usd(self, price: float) -> float:
+        return float(_unreal(self._k, float(price), self._d.PI, self._d.F, self._d.I))
+
+    def apply_funding(self, rate: float, price: float, t: int = 0) -> float:
+        d = self._d
+        return float(slot_funding(self._k, float(rate), float(price), d.PI, d.F, d.I, d.LG))
+
+    def on_bar(self, t: int, o: float, h: float, l: float, c: float, entry_signal: bool = False, stop_signal: bool = False,
+               can_open: bool = True, vol: float = float("nan"), dca_gate: bool = True,
+               minute: Optional[Tuple[np.ndarray, np.ndarray, int, int]] = None) -> Optional[PositionModel]:
+        d = self._d
+        d._grow()
+        ML, MH, ja, jb = minute if minute is not None else (_ONE_F, _ONE_F, 0, 0)
+        X = np.array([o, h, l, c, self.max_new_notional, self.max_new_risk, self.risk_scale, vol if vol is not None else np.nan])
+        FL = np.array([bool(entry_signal), bool(stop_signal), bool(can_open), bool(dca_gate)], dtype=np.int64)
+        c0 = int(d.G[G_NCL])
+        slot_bar(self._k, int(t), X, FL, ML, MH, int(ja), int(jb), d.P, d.PI, d.F, d.I, d.LG, d.G, d.outF, d.outI, d.ordF, d.ordI, d.closeSeq)
+        if d.G[G_OVF] != 0:
+            raise RuntimeError("SlotDriver: tràn bộ đệm kết quả")
+        return d._closed_since(c0)
+
+    def force_close(self, t: int, raw_price: float, reason: str = "End of Backtest") -> Optional[PositionModel]:
+        d = self._d
+        d._grow()
+        c0 = int(d.G[G_NCL])
+        slot_force_close(self._k, int(t), float(raw_price), R_KILL if reason.startswith("Kill") else R_END, d.P, d.PI, d.F, d.I, d.LG, d.G,
+                         d.outF, d.outI, d.ordF, d.ordI, d.closeSeq)
+        return d._closed_since(c0)
 
 
 # ─── Đơn tài sản ────────────────────────────────────────────────────────────
