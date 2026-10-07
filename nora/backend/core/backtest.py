@@ -74,7 +74,8 @@ LG_EQ, LG_RES, LG_PEAK = 0, 1, 2      # LG_PEAK: đỉnh vốn đã chốt (gi�
 NOF = 20
 OI_TR, OI_ENTER_T, OI_CLOSE_T, OI_STATUS, OI_LAYERS, OI_REASON, OI_FIRST_ORD, OI_START = range(8)
 NOI = 8
-OR_PRICE, OR_QTY, OR_FEE = range(3)
+OR_PRICE, OR_QTY, OR_FEE, OR_RAW, OR_SLIP = range(5)   # OR_RAW: giá tham chiếu trước trượt giá; OR_SLIP: tỉ lệ trượt (như OrderModel.slippage; 0 cho maker/thanh lý)
+NOR = 5
 ORI_POS, ORI_TIME, ORI_PHASE, ORI_EXIT, ORI_LIQ = range(5)   # ORI_LIQ: 1 maker, 2 taker, 3 liquidation
 # mã lý do (đối ứng chuỗi trong _kernel_io.REASONS)
 R_ENTRY, R_STOP, R_TIMEOUT, R_LIQ, R_SL, R_TRAIL, R_TP, R_END, R_KILL, R_DCA = range(10)
@@ -128,7 +129,7 @@ def _apply_funding(k, rate, price, PI, F, I, LG):
 
 
 @njit(**_JIT)
-def _log_order(pidx, t, price, qty, phase, fee, is_exit, liq, ordF, ordI, G):
+def _log_order(pidx, t, price, qty, phase, fee, is_exit, liq, raw, slip, ordF, ordI, G):
     j = G[G_NORD]
     if j >= ordF.shape[0]:
         G[G_OVF] = 1
@@ -136,6 +137,8 @@ def _log_order(pidx, t, price, qty, phase, fee, is_exit, liq, ordF, ordI, G):
     ordF[j, OR_PRICE] = price
     ordF[j, OR_QTY] = qty
     ordF[j, OR_FEE] = fee
+    ordF[j, OR_RAW] = raw
+    ordF[j, OR_SLIP] = slip
     ordI[j, ORI_POS] = pidx
     ordI[j, ORI_TIME] = t
     ordI[j, ORI_PHASE] = phase
@@ -145,11 +148,10 @@ def _log_order(pidx, t, price, qty, phase, fee, is_exit, liq, ordF, ordI, G):
 
 
 @njit(**_JIT)
-def _add_layer(k, t, price, margin, market, reason, P, PI, F, I, LG, G, outF, outI, ordF, ordI):
-    if G[G_NPOS] >= outF.shape[0] or G[G_NORD] >= ordF.shape[0]:
-        G[G_OVF] = 1
-        return False
+def _layer_cost(k, price, margin, market, PI, P, F, LG, G):
+    """Chi phí một lớp vào lệnh (chưa áp dụng): -> (ok_code, fill, fee, notional, slip). ok_code 0 ok, 1 vượt ngân sách, 2 thiếu vốn (G_REJ += 1)."""
     long_ = PI[k, PI_LONG] == 1
+    slip = P[k, P_SLIP] if market else 0.0
     if market:
         fill = price * ((1.0 + P[k, P_SLIP]) if long_ else (1.0 - P[k, P_SLIP]))
     else:
@@ -158,14 +160,20 @@ def _add_layer(k, t, price, margin, market, reason, P, PI, F, I, LG, G, outF, ou
     notional = margin * lev
     fee = notional * (P[k, P_FEE] if market else P[k, P_MAKER])
     if margin <= 0.0 or fill <= 0.0 or F[k, F_MU] + margin + F[k, F_FP] + fee > F[k, F_MAXCAP] + 1e-9:
-        return False
+        return 1, fill, fee, notional, slip
     amount = margin + fee
     if amount <= 0.0 or amount > (LG[LG_EQ] - LG[LG_RES]) + 1e-9:   # CapitalLedger.reserve (usage = 1,0)
         G[G_REJ] += 1
-        return False
+        return 2, fill, fee, notional, slip
+    return 0, fill, fee, notional, slip
+
+
+@njit(**_JIT)
+def _layer_apply(k, t, fill, qty, notional, margin, fee, liq, reason, slip, raw, P, PI, F, I, LG, G, outF, outI, ordF, ordI):
+    """Áp một fill vào lớp: giữ chỗ vốn, giá vốn bình quân, vị thế mới, nhật ký lệnh."""
+    amount = margin + fee
     LG[LG_RES] += amount
     F[k, F_RES_HERE] += margin + fee
-    qty = notional / fill
     new_qty = F[k, F_QTY] + qty
     F[k, F_AVG] = (F[k, F_AVG] * F[k, F_QTY] + fill * qty) / new_qty
     F[k, F_QTY] = new_qty
@@ -193,8 +201,20 @@ def _add_layer(k, t, price, margin, market, reason, P, PI, F, I, LG, G, outF, ou
         outI[pidx, OI_FIRST_ORD] = G[G_NORD]
         outI[pidx, OI_START] = reason
     pidx = I[k, I_POS]
-    _log_order(pidx, t, fill, qty, I[k, I_LAYERS] - 1, fee, 0, 2 if market else 1, ordF, ordI, G)
+    _log_order(pidx, t, fill, qty, I[k, I_LAYERS] - 1, fee, 0, liq, raw, slip, ordF, ordI, G)
     I[k, I_OPEN] = 1
+
+
+@njit(**_JIT)
+def _add_layer(k, t, price, margin, market, reason, P, PI, F, I, LG, G, outF, outI, ordF, ordI):
+    if G[G_NPOS] >= outF.shape[0] or G[G_NORD] >= ordF.shape[0]:
+        G[G_OVF] = 1
+        return False
+    ok, fill, fee, notional, slip = _layer_cost(k, price, margin, market, PI, P, F, LG, G)
+    if ok != 0:
+        return False
+    qty = notional / fill
+    _layer_apply(k, t, fill, qty, notional, margin, fee, 2 if market else 1, reason, slip, price, P, PI, F, I, LG, G, outF, outI, ordF, ordI)
     return True
 
 
@@ -248,16 +268,25 @@ def _risk_margin(k, P, PI, F, I, LG):
 
 
 @njit(**_JIT)
-def _close(k, t, raw_price, status, reason, market, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq):
+def _close_cost(k, raw_price, status, market, PI, P, F):
+    """Giá/phí/trượt giá đóng hết vị thế (chưa áp dụng): -> (price, exit_fee, slip)."""
     long_ = PI[k, PI_LONG] == 1
+    slip = 0.0
     if market and status != S_LIQ:
+        slip = P[k, P_SLIP]
         price = raw_price * ((1.0 - P[k, P_SLIP]) if long_ else (1.0 + P[k, P_SLIP]))
     else:
         price = raw_price
+    exit_fee = F[k, F_QTY] * price * (P[k, P_FEE] if (market or status == S_LIQ) else P[k, P_MAKER])
+    return price, exit_fee, slip
+
+
+@njit(**_JIT)
+def _close_apply(k, t, price, exit_fee, status, reason, liq, slip, raw, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq):
+    long_ = PI[k, PI_LONG] == 1
     qty = F[k, F_QTY]
     avg = F[k, F_AVG]
     gross = qty * ((price - avg) if long_ else (avg - price))
-    exit_fee = qty * price * (P[k, P_FEE] if (market or status == S_LIQ) else P[k, P_MAKER])
     trade_cash = gross - F[k, F_FP] - exit_fee
     if status == S_LIQ:
         lim = -(F[k, F_MU] + F[k, F_FP] + exit_fee)
@@ -289,13 +318,7 @@ def _close(k, t, raw_price, status, reason, market, P, PI, F, I, LG, G, outF, ou
     outI[pidx, OI_STATUS] = status
     outI[pidx, OI_LAYERS] = I[k, I_LAYERS]
     outI[pidx, OI_REASON] = reason
-    if status == S_LIQ:
-        liq = 3
-    elif market:
-        liq = 2
-    else:
-        liq = 1
-    _log_order(pidx, t, price, qty, I[k, I_LAYERS], exit_fee, 1, liq, ordF, ordI, G)
+    _log_order(pidx, t, price, qty, I[k, I_LAYERS], exit_fee, 1, liq, raw, slip, ordF, ordI, G)
     ncl = G[G_NCL]
     if ncl < closeSeq.shape[0]:
         closeSeq[ncl] = pidx
@@ -319,6 +342,18 @@ def _close(k, t, raw_price, status, reason, market, P, PI, F, I, LG, G, outF, ou
     F[k, F_RES_HERE] = 0.0
     F[k, F_FUND] = 0.0
     F[k, F_ENTRY_EQ] = LG[LG_EQ]
+
+
+@njit(**_JIT)
+def _close(k, t, raw_price, status, reason, market, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq):
+    price, exit_fee, slip = _close_cost(k, raw_price, status, market, PI, P, F)
+    if status == S_LIQ:
+        liq = 3
+    elif market:
+        liq = 2
+    else:
+        liq = 1
+    _close_apply(k, t, price, exit_fee, status, reason, liq, slip, raw_price, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq)
 
 
 @njit(**_JIT)
@@ -1542,7 +1577,7 @@ class _Tables:
 
 def _alloc(cap_pos: int, cap_ord: int, cap_smp: int):
     return (np.zeros((cap_pos, NOF)), np.zeros((cap_pos, NOI), dtype=np.int64),
-            np.zeros((cap_ord, 3)), np.zeros((cap_ord, 5), dtype=np.int64), np.zeros(cap_pos, dtype=np.int64),
+            np.zeros((cap_ord, NOR)), np.zeros((cap_ord, 5), dtype=np.int64), np.zeros(cap_pos, dtype=np.int64),
             np.zeros(cap_smp, dtype=np.int64), np.zeros(cap_smp), np.zeros(cap_smp))
 
 
@@ -1558,6 +1593,7 @@ def _build_objects(trackers: List[Any], meta: List[Tuple[str, str]], F: np.ndarr
     start = np.concatenate(([0], np.cumsum(np.bincount(opos, minlength=npos)))).tolist() if nord else [0] * (npos + 1)
     perm_l = perm.tolist()
     o_price, o_qty, o_fee = ordF[:nord, OR_PRICE].tolist(), ordF[:nord, OR_QTY].tolist(), ordF[:nord, OR_FEE].tolist()
+    o_slip = ordF[:nord, OR_SLIP].tolist()
     o_time, o_phase = ordI[:nord, ORI_TIME].tolist(), ordI[:nord, ORI_PHASE].tolist()
     o_exit, o_liq = ordI[:nord, ORI_EXIT].tolist(), ordI[:nord, ORI_LIQ].tolist()
     p_tr = outI[:npos, OI_TR].tolist()
@@ -1581,7 +1617,7 @@ def _build_objects(trackers: List[Any], meta: List[Tuple[str, str]], F: np.ndarr
             out.append(OrderModel(
                 order_id=ids[j], account_id=tr.account_id, position_id=ids[first_ord[p]], order_time=o_time[j],
                 order_type=OrderType.BUY if long_ != exit_ else OrderType.SELL, order_price=o_price[j], qty=o_qty[j],
-                phase=o_phase[j], fee_usd=o_fee[j], liquidity=LIQUIDITY[o_liq[j]]))
+                phase=o_phase[j], fee_usd=o_fee[j], liquidity=LIQUIDITY[o_liq[j]], slippage=o_slip[j]))
         return out
 
     def mk_position(p: int, closed: bool) -> PositionModel:

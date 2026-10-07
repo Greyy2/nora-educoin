@@ -61,7 +61,7 @@ def hexify(v):
     return v
 
 
-def full_canon(res):
+def full_canon(res):  # `slippage` của lệnh kernel được test_kernel_slippage kiểm riêng (engine python đóng băng không ghi trường này)
     """Mọi thứ get_results() trả về, theo ĐÚNG thứ tự, trừ id (đã thay bằng chỉ số vị thế của lệnh)."""
     pos_index = {p.result_id: i for i, p in enumerate(res["positions"])}
     out = {}
@@ -69,7 +69,7 @@ def full_canon(res):
         if key == "positions":
             out[key] = [hexify(p) for p in val]
         elif key == "orders":
-            out[key] = [{**hexify(o), "pos": pos_index.get(o.position_id, "?")} for o in val]
+            out[key] = [{**{f: v for f, v in hexify(o).items() if f != "slippage"}, "pos": pos_index.get(o.position_id, "?")} for o in val]
         else:
             out[key] = hexify(val)
     return out
