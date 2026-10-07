@@ -1,0 +1,1883 @@
+{
+ "provenance": {
+  "frozen_at": "2026-10-07T16:56:03.274223+00:00",
+  "git_commit": "d67c646cfe90a954d2601be4a7e0f13b76ad81f5",
+  "source": "test/scripts/okx_top10 (implied exit fit + OOS)",
+  "note": "Dong bang tu out/ cua nghien cuu OKX top-10 (da xoa sau khi dong bang). oos_summary.json la ban gop cua oos_<slug>.json (da kiem tra bang nhau) nen mtime cua oos_<slug>.json moi la thoi diem tinh OOS.",
+  "oos_summary": {
+   "file": "test/scripts/okx_top10/out/oos_summary.json",
+   "mtime": "2026-10-07T07:34:08.453841+00:00",
+   "size": 12073,
+   "sha256": "2d0c774288f8135482d93fe62bc0799ef97d1663933d58f3faf5d709954b8a12"
+  },
+  "per_bot_sources": {
+   "01pp": {
+    "implied": {
+     "file": "test/scripts/okx_top10/out/implied_01pp.json",
+     "mtime": "2026-10-07T06:49:10.287014+00:00",
+     "size": 145287,
+     "sha256": "d7685ba352e7f3934a10b0c0545f88d46d5f42835e5a9e0118cf139a75353a8f"
+    },
+    "oos": {
+     "file": "test/scripts/okx_top10/out/oos_01pp.json",
+     "mtime": "2026-10-07T02:30:26.574074+00:00",
+     "size": 1105,
+     "sha256": "e17c14b838a412dcb964e80c797ea1c72d8c765687fc0562a50b123934c65cbd"
+    },
+    "mixed_runs": true
+   },
+   "auroraxwt": {
+    "implied": {
+     "file": "test/scripts/okx_top10/out/implied_auroraxwt.json",
+     "mtime": "2026-10-06T18:19:31.618065+00:00",
+     "size": 494806,
+     "sha256": "f2b8b6c6e0061549b0375b3d77a8dcb3f1bfffce4aa1f2f6be11913a6ac9ee81"
+    },
+    "oos": {
+     "file": "test/scripts/okx_top10/out/oos_auroraxwt.json",
+     "mtime": "2026-10-07T07:28:46.078435+00:00",
+     "size": 1088,
+     "sha256": "76e9f459853aa424366e9f98a348497422d1753bb522ce3f6235e5843a56b1f0"
+    },
+    "mixed_runs": false
+   },
+   "dark_wood_dahlia": {
+    "implied": {
+     "file": "test/scripts/okx_top10/out/implied_dark_wood_dahlia.json",
+     "mtime": "2026-10-07T07:13:03.153786+00:00",
+     "size": 165329,
+     "sha256": "db75560e0552bcce074bf81f98fa69920f6cf2a0b4179eadd34206fd53b656a5"
+    },
+    "oos": {
+     "file": "test/scripts/okx_top10/out/oos_dark_wood_dahlia.json",
+     "mtime": "2026-10-07T02:34:21.944683+00:00",
+     "size": 1134,
+     "sha256": "2b885286a058226b2978e43a16874af7650ad0306b87b823ba07ee901dd46e6c"
+    },
+    "mixed_runs": true
+   },
+   "faithful_punk_fuse": {
+    "implied": {
+     "file": "test/scripts/okx_top10/out/implied_faithful_punk_fuse.json",
+     "mtime": "2026-10-06T18:19:31.674067+00:00",
+     "size": 45259,
+     "sha256": "911edecf9ed9fc25a86d44840a78cfe1455b8ad290fdd31314928a23df59a5fd"
+    },
+    "oos": {
+     "file": "test/scripts/okx_top10/out/oos_faithful_punk_fuse.json",
+     "mtime": "2026-10-07T02:36:39.454585+00:00",
+     "size": 1088,
+     "sha256": "f7d261b80a62b12478e148c43bd7326d953ff8381f084dfa2182242689e8996e"
+    },
+    "mixed_runs": false
+   },
+   "firsthand_atl_pansy": {
+    "implied": {
+     "file": "test/scripts/okx_top10/out/implied_firsthand_atl_pansy.json",
+     "mtime": "2026-10-06T18:19:31.694067+00:00",
+     "size": 37181,
+     "sha256": "18b71a5ad3667e3d85203ab3341e195ec0ca23d5b0a929cb4256ed8e7a256c9c"
+    },
+    "oos": {
+     "file": "test/scripts/okx_top10/out/oos_firsthand_atl_pansy.json",
+     "mtime": "2026-10-07T02:37:50.135814+00:00",
+     "size": 1093,
+     "sha256": "e7dae0d7e1cfc43a555c098960d84b23367605230b1e24651b103be560d432e4"
+    },
+    "mixed_runs": false
+   },
+   "m_power7": {
+    "implied": {
+     "file": "test/scripts/okx_top10/out/implied_m_power7.json",
+     "mtime": "2026-10-06T18:19:31.726068+00:00",
+     "size": 63580,
+     "sha256": "f971cdda9564846d750adce11625a763d7e316cf6a71956dbfd7d220051a9517"
+    },
+    "oos": {
+     "file": "test/scripts/okx_top10/out/oos_m_power7.json",
+     "mtime": "2026-10-07T02:46:29.304179+00:00",
+     "size": 1081,
+     "sha256": "1f8c8a07dbb226e30d8c01b30342e6883c4e3f46a8e7e6528c6f6c3feeaf8bdb"
+    },
+    "mixed_runs": false
+   },
+   "physical_epoch_fuel": {
+    "implied": {
+     "file": "test/scripts/okx_top10/out/implied_physical_epoch_fuel.json",
+     "mtime": "2026-10-07T07:18:16.464432+00:00",
+     "size": 56569,
+     "sha256": "de64b4b8d2884628532393c0b3b2869e3b677b29409abde4ffcf4bbccc475c89"
+    },
+    "oos": {
+     "file": "test/scripts/okx_top10/out/oos_physical_epoch_fuel.json",
+     "mtime": "2026-10-07T02:26:01.751917+00:00",
+     "size": 1111,
+     "sha256": "2c9b88cb59aacb5f38b847242c4e059a7256459be3fc9aaa8d822ae03419ce55"
+    },
+    "mixed_runs": true
+   },
+   "professor_wang": {
+    "implied": {
+     "file": "test/scripts/okx_top10/out/implied_professor_wang.json",
+     "mtime": "2026-10-06T18:19:31.710068+00:00",
+     "size": 51153,
+     "sha256": "e74925e25147fac0e30a2e8ed0efa657096df94fcdb540d4794d1a7e89a78975"
+    },
+    "oos": {
+     "file": "test/scripts/okx_top10/out/oos_professor_wang.json",
+     "mtime": "2026-10-07T02:44:33.649053+00:00",
+     "size": 1055,
+     "sha256": "7e7db1532f0ccf10102b21908331ef27b2fc1da3a95b05b54190ea5852e2dd9b"
+    },
+    "mixed_runs": false
+   },
+   "scary_merge_llama": {
+    "implied": {
+     "file": "test/scripts/okx_top10/out/implied_scary_merge_llama.json",
+     "mtime": "2026-10-06T18:19:31.626065+00:00",
+     "size": 63586,
+     "sha256": "2c19e9008f5e1c9cb5dff6029b0b8d50cd0e85f0ad83798c83f0d340343dce5f"
+    },
+    "oos": {
+     "file": "test/scripts/okx_top10/out/oos_scary_merge_llama.json",
+     "mtime": "2026-10-07T02:43:06.558811+00:00",
+     "size": 1134,
+     "sha256": "2bd85cf079712ceefe73181063ad2cac21ee4d730d0e62d3f0fcac068db28a8e"
+    },
+    "mixed_runs": false
+   },
+   "sugary_poh_gascap": {
+    "implied": {
+     "file": "test/scripts/okx_top10/out/implied_sugary_poh_gascap.json",
+     "mtime": "2026-10-06T18:19:31.706068+00:00",
+     "size": 76824,
+     "sha256": "92fa2fa08e9a20784697e9ecc369bae4cf5750e6e2fbf7f485e190c829548aae"
+    },
+    "oos": {
+     "file": "test/scripts/okx_top10/out/oos_sugary_poh_gascap.json",
+     "mtime": "2026-10-07T02:41:40.264704+00:00",
+     "size": 1086,
+     "sha256": "4dbd27166a5720a8414a49fe9f042c4055101d8a32b1d8100e76fedd4255760d"
+    },
+    "mixed_runs": false
+   }
+  }
+ },
+ "bots": [
+  {
+   "slug": "01pp",
+   "name": "01pp",
+   "bot_type": "cutter",
+   "n_baskets": 181,
+   "in_sample": true,
+   "caveat": "IN-SAMPLE: tham số khớp trên toàn bộ dữ liệu bot, mô tả tiệm cận luật thoát, KHÔNG phải kiểm định ngoài mẫu",
+   "exit_structure": [
+    "sig",
+    "tp",
+    "tpk",
+    "sl",
+    "tr",
+    "tpt",
+    "tpsw",
+    "bes"
+   ],
+   "formula_summary": {
+    "tp": "TP = 0.931% giá",
+    "sl": "SL = (46.15 + 1.009·ATR1h%·đòn bẩy)% ROI/ký quỹ",
+    "gb": "giveback = 0.996% + 1.010·ATR15m%",
+    "act": "kích hoạt trailing = 3.652% + 0.253·ATR1h% + lớp[cổ phiếu +0.165, hàng hóa +0.000, crypto lớn -1.549]",
+    "bes": "kích hoạt hoà vốn = 2.969% giá",
+    "brd": "độ sâu hoà vốn = 3.275% giá"
+   },
+   "class_mix_pct": {
+    "TP-limit": 1.1,
+    "trailing/pullback": 67.4,
+    "SL": 18.2,
+    "hoà vốn (hồi về)": 1.1,
+    "hoà vốn (stop)": 0.6,
+    "khác": 11.6
+   },
+   "in_sample_metrics": {
+    "pnl_ratio": 0.8018,
+    "pnl_corr_usdt": 0.751,
+    "pnl_sign_agree": 81.77,
+    "real_win_pct": 70.72,
+    "sim_win_pct": 66.85,
+    "real_pnl_sum": 202567.0,
+    "sim_pnl_sum": 162425.0,
+    "exit_match_5": 16.02,
+    "exit_match_15": 21.55,
+    "exit_match_60": 35.36,
+    "exit_px_err_bps_med": 52.07,
+    "sim_closed_pct": 96.69,
+    "n_free_params": 77,
+    "overfit_warning": true,
+    "khop_tot": false,
+    "viol_total": 2.5781
+   },
+   "criteria_is": [
+    {
+     "id": 1,
+     "name": "PnL sim/thật ∈ [0,80; 1,20]",
+     "pass": true,
+     "value_text": "0.802"
+    },
+    {
+     "id": 2,
+     "name": "win rate basket sim trong ±8 điểm % so với thật",
+     "pass": true,
+     "value_text": "thật 70.7% / sim 66.9%"
+    },
+    {
+     "id": 3,
+     "name": "trung vị lợi suất basket cùng thắng và cùng thua: sim/thật ∈ [0,75; 1,33]",
+     "pass": true,
+     "value_text": "cùng thắng 1.185 (n=108), cùng thua 0.912 (n=40)"
+    },
+    {
+     "id": 4,
+     "name": "đồng dấu PnL từng basket ≥ 80%",
+     "pass": true,
+     "value_text": "81.8%"
+    },
+    {
+     "id": 5,
+     "name": "corr USDT ≥ 0,75 và Spearman ≥ 0,6 và corr bỏ 3 basket |PnL| lớn nhất ≥ 0,6",
+     "pass": true,
+     "value_text": "corr 0.751, spearman 0.673, bỏ top3 0.766"
+    },
+    {
+     "id": 6,
+     "name": "4 góc phần tư (thật W/L × sim W/L): tổng sim trong ±35% tổng thật hoặc góc < 5% tổng |PnL thật|",
+     "pass": false,
+     "value_text": "thật W/sim W: n=108 thật 377412 sim 322960; thật W/sim L: n=20 thật 87668 sim -13137 (LỆCH); thật L/sim W: n=13 thật -33158 sim 5861; thật L/sim L: n=40 thật -229356 sim -153259"
+    },
+    {
+     "id": 7,
+     "name": "thoát ±60 phút ≥ 50% và hold trung vị sim/thật ∈ [0,6; 1,6] cho thắng và thua",
+     "pass": false,
+     "value_text": "±5/15/60 = 16.0/21.5/35.4%, hold thắng 0.658, hold thua 0.774"
+    }
+   ],
+   "report_stats": {
+    "real": {
+     "n": 393,
+     "perDay": 4.295174,
+     "win": 63.867684,
+     "realized": 202566.53,
+     "pf": 1.738454,
+     "payoff": 0.983508,
+     "longPct": 50.381679,
+     "levMed": 15.0,
+     "holdMed": 19.15102,
+     "holdWin": 22.114229,
+     "holdLoss": 18.471808,
+     "maxLoss": -16320.76,
+     "maxWin": 45305.07,
+     "top5Share": 23.600729,
+     "addPct": 53.94402,
+     "addDownPct": 33.333333,
+     "stepMed": 0.760524,
+     "maxLayers": 23,
+     "baskets": 181,
+     "winMaeMed": -1.207465,
+     "momPct": 31.182796
+    },
+    "sim": {
+     "n": 393,
+     "perDay": 4.252019,
+     "win": 67.175573,
+     "realized": 162425.419949,
+     "pf": 1.909896,
+     "payoff": 0.933245,
+     "longPct": 50.381679,
+     "levMed": 15.0,
+     "holdMed": 6.107688,
+     "holdWin": 6.215359,
+     "holdLoss": 6.091536,
+     "maxLoss": -16976.162454,
+     "maxWin": 20691.81351,
+     "top5Share": 23.186069,
+     "addPct": 42.239186,
+     "addDownPct": 22.900763,
+     "stepMed": 0.530073,
+     "maxLayers": 9,
+     "baskets": 227,
+     "winMaeMed": -0.944833,
+     "momPct": 31.182796
+    }
+   },
+   "oos": {
+    "n_train": 109,
+    "n_test": 72,
+    "split": "tuần lịch",
+    "train_pnl_ratio": 0.871,
+    "train_corr_usdt": 0.764,
+    "pnl_ratio": 1.104,
+    "corr_usdt": 0.081,
+    "spearman": 0.472,
+    "sign_agree": 79.2,
+    "win_real": 77.8,
+    "win_sim": 73.6,
+    "exit5": 1.4,
+    "exit15": 2.8,
+    "exit60": 8.3,
+    "criteria_pass": {
+     "c1_pnl_ratio": true,
+     "c2_win_rate": true,
+     "c3_median_ret": false,
+     "c4_sign_agree": false,
+     "c5_correlation": false,
+     "c6_quadrants": false,
+     "c7_exit_timing": false
+    },
+    "criteria_passed_count": 2,
+    "khop_tot_oos": false,
+    "viol": 17.337
+   },
+   "mixed_runs": true,
+   "mixed_runs_note": "implied_01pp.json (2026-10-07T06:49:10.287014+00:00) moi hon oos_01pp.json (2026-10-07T02:30:26.574074+00:00): so lieu OOS tinh tren ban fit cu hon ban fit in-sample hien tai; giu nguyen gia tri."
+  },
+  {
+   "slug": "auroraxwt",
+   "name": "Auroraxwt",
+   "bot_type": "hold",
+   "n_baskets": 975,
+   "in_sample": true,
+   "caveat": "IN-SAMPLE: tham số khớp trên toàn bộ dữ liệu bot, mô tả tiệm cận luật thoát, KHÔNG phải kiểm định ngoài mẫu",
+   "exit_structure": [
+    "sig",
+    "tp",
+    "sl",
+    "tr"
+   ],
+   "formula_summary": {
+    "tp": "TP = (3.65 + 0.115·ATR1h%·đòn bẩy)% ROI/ký quỹ",
+    "sl": "SL = 0.218% giá",
+    "gb": "giveback = 0.120% + 0.238·ATR1h%",
+    "act": "kích hoạt trailing = 0.352% + 0.551·ATR1h%",
+    "bes": "kích hoạt hoà vốn = 0.554% giá",
+    "brd": "độ sâu hoà vốn = 0.638% + 0.449·ATR1h% + -0.0078·đòn bẩy + 0.113·(số tầng-1)"
+   },
+   "class_mix_pct": {
+    "TP-limit": 49.6,
+    "trailing/pullback": 27.7,
+    "SL": 0.9,
+    "hoà vốn (hồi về)": 4.9,
+    "hoà vốn (stop)": 0.6,
+    "khác": 16.2
+   },
+   "in_sample_metrics": {
+    "pnl_ratio": 0.848,
+    "pnl_corr_usdt": 0.802,
+    "pnl_sign_agree": 88.41,
+    "real_win_pct": 93.23,
+    "sim_win_pct": 90.87,
+    "real_pnl_sum": 251256.0,
+    "sim_pnl_sum": 213068.0,
+    "exit_match_5": 43.59,
+    "exit_match_15": 57.85,
+    "exit_match_60": 72.0,
+    "exit_px_err_bps_med": 19.29,
+    "sim_closed_pct": 99.38,
+    "n_free_params": 66,
+    "overfit_warning": false,
+    "khop_tot": true,
+    "viol_total": 0.0
+   },
+   "criteria_is": [
+    {
+     "id": 1,
+     "name": "PnL sim/thật ∈ [0,80; 1,20]",
+     "pass": true,
+     "value_text": "0.848"
+    },
+    {
+     "id": 2,
+     "name": "win rate basket sim trong ±8 điểm % so với thật",
+     "pass": true,
+     "value_text": "thật 93.2% / sim 90.9%"
+    },
+    {
+     "id": 3,
+     "name": "trung vị lợi suất basket cùng thắng và cùng thua: sim/thật ∈ [0,75; 1,33]",
+     "pass": true,
+     "value_text": "cùng thắng 1.089 (n=841), cùng thua 0.832 (n=21)"
+    },
+    {
+     "id": 4,
+     "name": "đồng dấu PnL từng basket ≥ 80%",
+     "pass": true,
+     "value_text": "88.4%"
+    },
+    {
+     "id": 5,
+     "name": "corr USDT ≥ 0,75 và Spearman ≥ 0,6 và corr bỏ 3 basket |PnL| lớn nhất ≥ 0,6",
+     "pass": true,
+     "value_text": "corr 0.802, spearman 0.600, bỏ top3 0.600"
+    },
+    {
+     "id": 6,
+     "name": "4 góc phần tư (thật W/L × sim W/L): tổng sim trong ±35% tổng thật hoặc góc < 5% tổng |PnL thật|",
+     "pass": true,
+     "value_text": "thật W/sim W: n=841 thật 341992 sim 322908; thật W/sim L: n=68 thật 21744 sim -29800; thật L/sim W: n=45 thật -20765 sim 14906; thật L/sim L: n=21 thật -91715 sim -94946"
+    },
+    {
+     "id": 7,
+     "name": "thoát ±60 phút ≥ 50% và hold trung vị sim/thật ∈ [0,6; 1,6] cho thắng và thua",
+     "pass": true,
+     "value_text": "±5/15/60 = 43.6/57.8/72.0%, hold thắng 0.909, hold thua 0.630"
+    }
+   ],
+   "report_stats": {
+    "real": {
+     "n": 1867,
+     "perDay": 20.258976,
+     "win": 75.254419,
+     "realized": 251256.11,
+     "pf": 1.761138,
+     "payoff": 0.579107,
+     "longPct": 51.847884,
+     "levMed": 20.0,
+     "holdMed": 1.504954,
+     "holdWin": 0.957274,
+     "holdLoss": 15.895926,
+     "maxLoss": -16787.27,
+     "maxWin": 20072.3,
+     "top5Share": 9.783392,
+     "addPct": 47.777183,
+     "addDownPct": 40.974826,
+     "stepMed": 0.464166,
+     "maxLayers": 16,
+     "baskets": 975,
+     "winMaeMed": -0.819177,
+     "momPct": 46.529412
+    },
+    "sim": {
+     "n": 1867,
+     "perDay": 20.223886,
+     "win": 74.611676,
+     "realized": 213068.302893,
+     "pf": 1.844124,
+     "payoff": 0.627505,
+     "longPct": 51.847884,
+     "levMed": 20.0,
+     "holdMed": 0.751916,
+     "holdWin": 0.606061,
+     "holdLoss": 2.251017,
+     "maxLoss": -13533.059085,
+     "maxWin": 20617.370354,
+     "top5Share": 10.278915,
+     "addPct": 49.812533,
+     "addDownPct": 37.65399,
+     "stepMed": 0.415059,
+     "maxLayers": 44,
+     "baskets": 937,
+     "winMaeMed": -0.788279,
+     "momPct": 46.529412
+    }
+   },
+   "oos": {
+    "n_train": 585,
+    "n_test": 390,
+    "split": "tuần lịch",
+    "train_pnl_ratio": 0.919,
+    "train_corr_usdt": 0.769,
+    "pnl_ratio": -1.359,
+    "corr_usdt": 0.362,
+    "spearman": 0.502,
+    "sign_agree": 89.2,
+    "win_real": 93.3,
+    "win_sim": 93.8,
+    "exit5": 47.7,
+    "exit15": 59.5,
+    "exit60": 71.8,
+    "criteria_pass": {
+     "c1_pnl_ratio": false,
+     "c2_win_rate": true,
+     "c3_median_ret": false,
+     "c4_sign_agree": true,
+     "c5_correlation": false,
+     "c6_quadrants": false,
+     "c7_exit_timing": false
+    },
+    "criteria_passed_count": 2,
+    "khop_tot_oos": false,
+    "viol": 77.911
+   },
+   "mixed_runs": false,
+   "mixed_runs_note": null
+  },
+  {
+   "slug": "dark_wood_dahlia",
+   "name": "Dark-Wood-Dahlia",
+   "bot_type": "cutter",
+   "n_baskets": 192,
+   "in_sample": true,
+   "caveat": "IN-SAMPLE: tham số khớp trên toàn bộ dữ liệu bot, mô tả tiệm cận luật thoát, KHÔNG phải kiểm định ngoài mẫu",
+   "exit_structure": [
+    "sig",
+    "tp",
+    "sl",
+    "tr",
+    "tpt",
+    "tpsw"
+   ],
+   "formula_summary": {
+    "tp": "TP = 3.159% giá",
+    "sl": "SL = 343.7 USDT PnL",
+    "gb": "giveback = 0.508% + 1.372·ATR1h%",
+    "act": "kích hoạt trailing = 3.171% + 1.699·ATR1h% + -0.0465·đòn bẩy + 0.864·(số tầng-1)",
+    "bes": "kích hoạt hoà vốn = 5.308% giá",
+    "brd": "độ sâu hoà vốn = 9.63% ROI/ký quỹ (= 9.63/đòn bẩy % giá)"
+   },
+   "class_mix_pct": {
+    "TP-limit": 2.1,
+    "trailing/pullback": 46.4,
+    "SL": 15.6,
+    "hoà vốn (hồi về)": 6.8,
+    "hoà vốn (stop)": 1.0,
+    "khác": 28.1
+   },
+   "in_sample_metrics": {
+    "pnl_ratio": 0.8001,
+    "pnl_corr_usdt": 0.729,
+    "pnl_sign_agree": 76.04,
+    "real_win_pct": 50.52,
+    "sim_win_pct": 43.23,
+    "real_pnl_sum": 43869.0,
+    "sim_pnl_sum": 35098.0,
+    "exit_match_5": 2.6,
+    "exit_match_15": 7.29,
+    "exit_match_60": 17.19,
+    "exit_px_err_bps_med": 142.45,
+    "sim_closed_pct": 100.0,
+    "n_free_params": 21,
+    "overfit_warning": false,
+    "khop_tot": false,
+    "viol_total": 3.5027
+   },
+   "criteria_is": [
+    {
+     "id": 1,
+     "name": "PnL sim/thật ∈ [0,80; 1,20]",
+     "pass": true,
+     "value_text": "0.800"
+    },
+    {
+     "id": 2,
+     "name": "win rate basket sim trong ±8 điểm % so với thật",
+     "pass": true,
+     "value_text": "thật 50.5% / sim 43.2%"
+    },
+    {
+     "id": 3,
+     "name": "trung vị lợi suất basket cùng thắng và cùng thua: sim/thật ∈ [0,75; 1,33]",
+     "pass": true,
+     "value_text": "cùng thắng 0.986 (n=67), cùng thua 1.279 (n=79)"
+    },
+    {
+     "id": 4,
+     "name": "đồng dấu PnL từng basket ≥ 80%",
+     "pass": false,
+     "value_text": "76.0%"
+    },
+    {
+     "id": 5,
+     "name": "corr USDT ≥ 0,75 và Spearman ≥ 0,6 và corr bỏ 3 basket |PnL| lớn nhất ≥ 0,6",
+     "pass": false,
+     "value_text": "corr 0.729, spearman 0.632, bỏ top3 0.610"
+    },
+    {
+     "id": 6,
+     "name": "4 góc phần tư (thật W/L × sim W/L): tổng sim trong ±35% tổng thật hoặc góc < 5% tổng |PnL thật|",
+     "pass": false,
+     "value_text": "thật W/sim W: n=67 thật 67107 sim 75208; thật W/sim L: n=30 thật 20890 sim -5186 (LỆCH); thật L/sim W: n=16 thật -2693 sim 3425; thật L/sim L: n=79 thật -41435 sim -38349"
+    },
+    {
+     "id": 7,
+     "name": "thoát ±60 phút ≥ 50% và hold trung vị sim/thật ∈ [0,6; 1,6] cho thắng và thua",
+     "pass": false,
+     "value_text": "±5/15/60 = 2.6/7.3/17.2%, hold thắng 0.631, hold thua 0.637"
+    }
+   ],
+   "report_stats": {
+    "real": {
+     "n": 449,
+     "perDay": 7.554959,
+     "win": 47.438753,
+     "realized": 43869.27,
+     "pf": 1.604344,
+     "payoff": 1.777583,
+     "longPct": 59.688196,
+     "levMed": 10.0,
+     "holdMed": 18.014885,
+     "holdWin": 25.032218,
+     "holdLoss": 8.260835,
+     "maxLoss": -4306.99,
+     "maxWin": 8809.35,
+     "top5Share": 20.075458,
+     "addPct": 57.238307,
+     "addDownPct": 35.18931,
+     "stepMed": 1.064185,
+     "maxLayers": 114,
+     "baskets": 192,
+     "winMaeMed": -1.445952,
+     "momPct": 44.724771
+    },
+    "sim": {
+     "n": 449,
+     "perDay": 7.558268,
+     "win": 36.525612,
+     "realized": 35098.190241,
+     "pf": 1.555506,
+     "payoff": 2.703166,
+     "longPct": 59.688196,
+     "levMed": 10.0,
+     "holdMed": 4.168808,
+     "holdWin": 9.298386,
+     "holdLoss": 2.713851,
+     "maxLoss": -2661.154558,
+     "maxWin": 20369.614171,
+     "top5Share": 44.709861,
+     "addPct": 32.739421,
+     "addDownPct": 18.262806,
+     "stepMed": 0.691006,
+     "maxLayers": 9,
+     "baskets": 302,
+     "winMaeMed": -0.918629,
+     "momPct": 44.724771
+    }
+   },
+   "oos": {
+    "n_train": 115,
+    "n_test": 77,
+    "split": "tuần lịch",
+    "train_pnl_ratio": 0.801,
+    "train_corr_usdt": 0.639,
+    "pnl_ratio": -0.014,
+    "corr_usdt": 0.607,
+    "spearman": 0.571,
+    "sign_agree": 70.1,
+    "win_real": 51.9,
+    "win_sim": 48.1,
+    "exit5": 5.2,
+    "exit15": 7.8,
+    "exit60": 13.0,
+    "criteria_pass": {
+     "c1_pnl_ratio": false,
+     "c2_win_rate": true,
+     "c3_median_ret": false,
+     "c4_sign_agree": false,
+     "c5_correlation": false,
+     "c6_quadrants": false,
+     "c7_exit_timing": false
+    },
+    "criteria_passed_count": 1,
+    "khop_tot_oos": false,
+    "viol": 18.864
+   },
+   "mixed_runs": true,
+   "mixed_runs_note": "implied_dark_wood_dahlia.json (2026-10-07T07:13:03.153786+00:00) moi hon oos_dark_wood_dahlia.json (2026-10-07T02:34:21.944683+00:00): so lieu OOS tinh tren ban fit cu hon ban fit in-sample hien tai; giu nguyen gia tri."
+  },
+  {
+   "slug": "faithful_punk_fuse",
+   "name": "Faithful-Punk-Fuse",
+   "bot_type": "cutter",
+   "n_baskets": 10,
+   "in_sample": true,
+   "caveat": "IN-SAMPLE: tham số khớp trên toàn bộ dữ liệu bot, mô tả tiệm cận luật thoát, KHÔNG phải kiểm định ngoài mẫu",
+   "exit_structure": [
+    "tp",
+    "sl",
+    "tr",
+    "tpt",
+    "tpsw"
+   ],
+   "formula_summary": {
+    "tp": "TP = 7.065% giá",
+    "sl": "SL = 1.297% giá",
+    "gb": "giveback = 4.273% giá",
+    "act": "kích hoạt trailing = 9.849% giá",
+    "bes": "kích hoạt hoà vốn = 9.849% giá",
+    "brd": "độ sâu hoà vốn = 1.381% giá"
+   },
+   "class_mix_pct": {
+    "TP-limit": 0.0,
+    "trailing/pullback": 60.0,
+    "SL": 40.0,
+    "hoà vốn (hồi về)": 0.0,
+    "hoà vốn (stop)": 0.0,
+    "khác": 0.0
+   },
+   "in_sample_metrics": {
+    "pnl_ratio": 0.834,
+    "pnl_corr_usdt": 0.901,
+    "pnl_sign_agree": 100.0,
+    "real_win_pct": 60.0,
+    "sim_win_pct": 60.0,
+    "real_pnl_sum": 153786.0,
+    "sim_pnl_sum": 128262.0,
+    "exit_match_5": 30.0,
+    "exit_match_15": 40.0,
+    "exit_match_60": 50.0,
+    "exit_px_err_bps_med": 22.67,
+    "sim_closed_pct": 70.0,
+    "n_free_params": 15,
+    "overfit_warning": true,
+    "khop_tot": true,
+    "viol_total": 0.0
+   },
+   "criteria_is": [
+    {
+     "id": 1,
+     "name": "PnL sim/thật ∈ [0,80; 1,20]",
+     "pass": true,
+     "value_text": "0.834"
+    },
+    {
+     "id": 2,
+     "name": "win rate basket sim trong ±8 điểm % so với thật",
+     "pass": true,
+     "value_text": "thật 60.0% / sim 60.0%"
+    },
+    {
+     "id": 3,
+     "name": "trung vị lợi suất basket cùng thắng và cùng thua: sim/thật ∈ [0,75; 1,33]",
+     "pass": true,
+     "value_text": "cùng thắng 0.866 (n=6), cùng thua 0.753 (n=4)"
+    },
+    {
+     "id": 4,
+     "name": "đồng dấu PnL từng basket ≥ 80%",
+     "pass": true,
+     "value_text": "100.0%"
+    },
+    {
+     "id": 5,
+     "name": "corr USDT ≥ 0,75 và Spearman ≥ 0,6 và corr bỏ 3 basket |PnL| lớn nhất ≥ 0,6",
+     "pass": true,
+     "value_text": "corr 0.901, spearman 0.952, bỏ top3 0.900"
+    },
+    {
+     "id": 6,
+     "name": "4 góc phần tư (thật W/L × sim W/L): tổng sim trong ±35% tổng thật hoặc góc < 5% tổng |PnL thật|",
+     "pass": true,
+     "value_text": "thật W/sim W: n=6 thật 174656 sim 141828; thật W/sim L: n=0 thật 0 sim 0; thật L/sim W: n=0 thật 0 sim 0; thật L/sim L: n=4 thật -20870 sim -13566"
+    },
+    {
+     "id": 7,
+     "name": "thoát ±60 phút ≥ 50% và hold trung vị sim/thật ∈ [0,6; 1,6] cho thắng và thua",
+     "pass": true,
+     "value_text": "±5/15/60 = 30.0/40.0/50.0%, hold thắng 1.154, hold thua 1.000"
+    }
+   ],
+   "report_stats": {
+    "real": {
+     "n": 27,
+     "perDay": 0.36951,
+     "win": 55.555556,
+     "realized": 153785.98,
+     "pf": 4.700056,
+     "payoff": 3.760045,
+     "longPct": 100.0,
+     "levMed": 50.0,
+     "holdMed": 80.528944,
+     "holdWin": 184.037494,
+     "holdLoss": 29.496398,
+     "maxLoss": -7505.63,
+     "maxWin": 45494.61,
+     "top5Share": 70.754126,
+     "addPct": 62.962963,
+     "addDownPct": 33.333333,
+     "stepMed": 1.316366,
+     "maxLayers": 13,
+     "baskets": 10,
+     "winMaeMed": -1.219949,
+     "momPct": 28.0
+    },
+    "sim": {
+     "n": 27,
+     "perDay": 0.366733,
+     "win": 51.851852,
+     "realized": 128261.614458,
+     "pf": 5.619699,
+     "payoff": 5.218292,
+     "longPct": 100.0,
+     "levMed": 50.0,
+     "holdMed": 327.957996,
+     "holdWin": 396.704889,
+     "holdLoss": 52.607127,
+     "maxLoss": -3819.424438,
+     "maxWin": 38655.104955,
+     "top5Share": 86.615685,
+     "addPct": 66.666667,
+     "addDownPct": 29.62963,
+     "stepMed": 1.356021,
+     "maxLayers": 10,
+     "baskets": 9,
+     "winMaeMed": -1.1931,
+     "momPct": 28.0
+    }
+   },
+   "oos": {
+    "n_train": 6,
+    "n_test": 4,
+    "split": null,
+    "train_pnl_ratio": 0.877,
+    "train_corr_usdt": 0.85,
+    "pnl_ratio": 0.955,
+    "corr_usdt": 0.997,
+    "spearman": 0.8,
+    "sign_agree": 100.0,
+    "win_real": 75.0,
+    "win_sim": 75.0,
+    "exit5": 0.0,
+    "exit15": 0.0,
+    "exit60": 0.0,
+    "criteria_pass": {
+     "c1_pnl_ratio": true,
+     "c2_win_rate": true,
+     "c3_median_ret": false,
+     "c4_sign_agree": true,
+     "c5_correlation": false,
+     "c6_quadrants": true,
+     "c7_exit_timing": false
+    },
+    "criteria_passed_count": 4,
+    "khop_tot_oos": false,
+    "viol": 2.82
+   },
+   "mixed_runs": false,
+   "mixed_runs_note": null
+  },
+  {
+   "slug": "firsthand_atl_pansy",
+   "name": "Firsthand-ATL-Pansy",
+   "bot_type": "cutter",
+   "n_baskets": 15,
+   "in_sample": true,
+   "caveat": "IN-SAMPLE: tham số khớp trên toàn bộ dữ liệu bot, mô tả tiệm cận luật thoát, KHÔNG phải kiểm định ngoài mẫu",
+   "exit_structure": [
+    "sig",
+    "tp",
+    "sl",
+    "bes"
+   ],
+   "formula_summary": {
+    "tp": "TP = 0.979% giá",
+    "sl": "SL = 0.616% giá",
+    "gb": "giveback = 1.107% giá",
+    "act": "kích hoạt trailing = 2.785% giá",
+    "bes": "kích hoạt hoà vốn = 2.785% giá",
+    "brd": "độ sâu hoà vốn = 0.639% giá"
+   },
+   "class_mix_pct": {
+    "TP-limit": 0.0,
+    "trailing/pullback": 66.7,
+    "SL": 20.0,
+    "hoà vốn (hồi về)": 6.7,
+    "hoà vốn (stop)": 0.0,
+    "khác": 6.7
+   },
+   "in_sample_metrics": {
+    "pnl_ratio": 0.8325,
+    "pnl_corr_usdt": 0.978,
+    "pnl_sign_agree": 93.33,
+    "real_win_pct": 66.67,
+    "sim_win_pct": 73.33,
+    "real_pnl_sum": 156499.0,
+    "sim_pnl_sum": 130280.0,
+    "exit_match_5": 0.0,
+    "exit_match_15": 20.0,
+    "exit_match_60": 20.0,
+    "exit_px_err_bps_med": 52.8,
+    "sim_closed_pct": 100.0,
+    "n_free_params": 13,
+    "overfit_warning": true,
+    "khop_tot": false,
+    "viol_total": 0.6
+   },
+   "criteria_is": [
+    {
+     "id": 1,
+     "name": "PnL sim/thật ∈ [0,80; 1,20]",
+     "pass": true,
+     "value_text": "0.832"
+    },
+    {
+     "id": 2,
+     "name": "win rate basket sim trong ±8 điểm % so với thật",
+     "pass": true,
+     "value_text": "thật 66.7% / sim 73.3%"
+    },
+    {
+     "id": 3,
+     "name": "trung vị lợi suất basket cùng thắng và cùng thua: sim/thật ∈ [0,75; 1,33]",
+     "pass": true,
+     "value_text": "cùng thắng 1.226 (n=10), cùng thua 0.993 (n=4)"
+    },
+    {
+     "id": 4,
+     "name": "đồng dấu PnL từng basket ≥ 80%",
+     "pass": true,
+     "value_text": "93.3%"
+    },
+    {
+     "id": 5,
+     "name": "corr USDT ≥ 0,75 và Spearman ≥ 0,6 và corr bỏ 3 basket |PnL| lớn nhất ≥ 0,6",
+     "pass": true,
+     "value_text": "corr 0.978, spearman 0.875, bỏ top3 0.723"
+    },
+    {
+     "id": 6,
+     "name": "4 góc phần tư (thật W/L × sim W/L): tổng sim trong ±35% tổng thật hoặc góc < 5% tổng |PnL thật|",
+     "pass": true,
+     "value_text": "thật W/sim W: n=10 thật 172490 sim 141543; thật W/sim L: n=0 thật 0 sim 0; thật L/sim W: n=1 thật -89 sim 750; thật L/sim L: n=4 thật -15902 sim -12013"
+    },
+    {
+     "id": 7,
+     "name": "thoát ±60 phút ≥ 50% và hold trung vị sim/thật ∈ [0,6; 1,6] cho thắng và thua",
+     "pass": false,
+     "value_text": "±5/15/60 = 0.0/20.0/20.0%, hold thắng 1.461, hold thua 0.656"
+    }
+   ],
+   "report_stats": {
+    "real": {
+     "n": 23,
+     "perDay": 0.264163,
+     "win": 73.913043,
+     "realized": 156499.47,
+     "pf": 10.787212,
+     "payoff": 3.807251,
+     "longPct": 56.521739,
+     "levMed": 100.0,
+     "holdMed": 29.799803,
+     "holdWin": 38.965346,
+     "holdLoss": 19.871336,
+     "maxLoss": -7870.11,
+     "maxWin": 76551.97,
+     "top5Share": 88.960319,
+     "addPct": 34.782609,
+     "addDownPct": 13.043478,
+     "stepMed": 0.021529,
+     "maxLayers": 3,
+     "baskets": 15,
+     "winMaeMed": -0.633045,
+     "momPct": 21.428571
+    },
+    "sim": {
+     "n": 23,
+     "perDay": 0.262584,
+     "win": 73.913043,
+     "realized": 130279.83645,
+     "pf": 11.733355,
+     "payoff": 4.141184,
+     "longPct": 56.521739,
+     "levMed": 100.0,
+     "holdMed": 41.440631,
+     "holdWin": 53.807608,
+     "holdLoss": 18.946105,
+     "maxLoss": -5349.114282,
+     "maxWin": 69564.538228,
+     "top5Share": 87.092897,
+     "addPct": 30.434783,
+     "addDownPct": 13.043478,
+     "stepMed": 0.021529,
+     "maxLayers": 3,
+     "baskets": 16,
+     "winMaeMed": -0.633045,
+     "momPct": 21.428571
+    }
+   },
+   "oos": {
+    "n_train": 9,
+    "n_test": 6,
+    "split": null,
+    "train_pnl_ratio": 0.82,
+    "train_corr_usdt": 0.98,
+    "pnl_ratio": 0.593,
+    "corr_usdt": 0.973,
+    "spearman": 0.143,
+    "sign_agree": 50.0,
+    "win_real": 50.0,
+    "win_sim": 33.3,
+    "exit5": 0.0,
+    "exit15": 0.0,
+    "exit60": 0.0,
+    "criteria_pass": {
+     "c1_pnl_ratio": false,
+     "c2_win_rate": false,
+     "c3_median_ret": false,
+     "c4_sign_agree": false,
+     "c5_correlation": false,
+     "c6_quadrants": false,
+     "c7_exit_timing": false
+    },
+    "criteria_passed_count": 0,
+    "khop_tot_oos": false,
+    "viol": 40.28
+   },
+   "mixed_runs": false,
+   "mixed_runs_note": null
+  },
+  {
+   "slug": "m_power7",
+   "name": "M Power7",
+   "bot_type": "cutter",
+   "n_baskets": 85,
+   "in_sample": true,
+   "caveat": "IN-SAMPLE: tham số khớp trên toàn bộ dữ liệu bot, mô tả tiệm cận luật thoát, KHÔNG phải kiểm định ngoài mẫu",
+   "exit_structure": [
+    "sig",
+    "tp",
+    "sl",
+    "tr",
+    "tpt",
+    "tpsw"
+   ],
+   "formula_summary": {
+    "tp": "TP = 36.34% ROI/ký quỹ (= 36.34/đòn bẩy % giá)",
+    "sl": "SL = 32.69% ROI/ký quỹ (= 32.69/đòn bẩy % giá)",
+    "gb": "giveback = (9.14 + 0.101·ATR1h%·đòn bẩy)% ROI/ký quỹ",
+    "act": "kích hoạt trailing = 2.520% giá",
+    "bes": "kích hoạt hoà vốn = 2.162% giá",
+    "brd": "độ sâu hoà vốn = 2.381% giá"
+   },
+   "class_mix_pct": {
+    "TP-limit": 14.1,
+    "trailing/pullback": 42.4,
+    "SL": 36.5,
+    "hoà vốn (hồi về)": 1.2,
+    "hoà vốn (stop)": 5.9,
+    "khác": 0.0
+   },
+   "in_sample_metrics": {
+    "pnl_ratio": 0.919,
+    "pnl_corr_usdt": 0.806,
+    "pnl_sign_agree": 85.88,
+    "real_win_pct": 57.65,
+    "sim_win_pct": 60.0,
+    "real_pnl_sum": 12531.0,
+    "sim_pnl_sum": 11516.0,
+    "exit_match_5": 29.41,
+    "exit_match_15": 44.71,
+    "exit_match_60": 58.82,
+    "exit_px_err_bps_med": 69.36,
+    "sim_closed_pct": 100.0,
+    "n_free_params": 33,
+    "overfit_warning": true,
+    "khop_tot": true,
+    "viol_total": 0.0
+   },
+   "criteria_is": [
+    {
+     "id": 1,
+     "name": "PnL sim/thật ∈ [0,80; 1,20]",
+     "pass": true,
+     "value_text": "0.919"
+    },
+    {
+     "id": 2,
+     "name": "win rate basket sim trong ±8 điểm % so với thật",
+     "pass": true,
+     "value_text": "thật 57.6% / sim 60.0%"
+    },
+    {
+     "id": 3,
+     "name": "trung vị lợi suất basket cùng thắng và cùng thua: sim/thật ∈ [0,75; 1,33]",
+     "pass": true,
+     "value_text": "cùng thắng 0.810 (n=44), cùng thua 0.762 (n=29)"
+    },
+    {
+     "id": 4,
+     "name": "đồng dấu PnL từng basket ≥ 80%",
+     "pass": true,
+     "value_text": "85.9%"
+    },
+    {
+     "id": 5,
+     "name": "corr USDT ≥ 0,75 và Spearman ≥ 0,6 và corr bỏ 3 basket |PnL| lớn nhất ≥ 0,6",
+     "pass": true,
+     "value_text": "corr 0.806, spearman 0.766, bỏ top3 0.602"
+    },
+    {
+     "id": 6,
+     "name": "4 góc phần tư (thật W/L × sim W/L): tổng sim trong ±35% tổng thật hoặc góc < 5% tổng |PnL thật|",
+     "pass": true,
+     "value_text": "thật W/sim W: n=44 thật 30759 sim 20940; thật W/sim L: n=5 thật 425 sim -1229; thật L/sim W: n=7 thật -2041 sim 2710; thật L/sim L: n=29 thật -16613 sim -10905"
+    },
+    {
+     "id": 7,
+     "name": "thoát ±60 phút ≥ 50% và hold trung vị sim/thật ∈ [0,6; 1,6] cho thắng và thua",
+     "pass": true,
+     "value_text": "±5/15/60 = 29.4/44.7/58.8%, hold thắng 0.646, hold thua 1.240"
+    }
+   ],
+   "report_stats": {
+    "real": {
+     "n": 101,
+     "perDay": 1.175017,
+     "win": 59.405941,
+     "realized": 12531.14,
+     "pf": 1.64738,
+     "payoff": 1.12571,
+     "longPct": 82.178218,
+     "levMed": 20.0,
+     "holdMed": 2.552594,
+     "holdWin": 4.460399,
+     "holdLoss": 1.892824,
+     "maxLoss": -5065.66,
+     "maxWin": 4796.9,
+     "top5Share": 44.559602,
+     "addPct": 15.841584,
+     "addDownPct": 3.960396,
+     "stepMed": 0.866716,
+     "maxLayers": 3,
+     "baskets": 85,
+     "winMaeMed": -1.128323,
+     "momPct": 48.0
+    },
+    "sim": {
+     "n": 101,
+     "perDay": 1.182237,
+     "win": 61.386139,
+     "realized": 11515.698962,
+     "pf": 1.937896,
+     "payoff": 1.218999,
+     "longPct": 82.178218,
+     "levMed": 20.0,
+     "holdMed": 1.735883,
+     "holdWin": 1.730357,
+     "holdLoss": 1.762285,
+     "maxLoss": -1493.820331,
+     "maxWin": 3115.572855,
+     "top5Share": 49.282827,
+     "addPct": 18.811881,
+     "addDownPct": 5.940594,
+     "stepMed": 0.720139,
+     "maxLayers": 4,
+     "baskets": 82,
+     "winMaeMed": -0.924576,
+     "momPct": 48.0
+    }
+   },
+   "oos": {
+    "n_train": 51,
+    "n_test": 34,
+    "split": "tuần lịch",
+    "train_pnl_ratio": 0.979,
+    "train_corr_usdt": 0.692,
+    "pnl_ratio": 0.235,
+    "corr_usdt": 0.195,
+    "spearman": 0.316,
+    "sign_agree": 76.5,
+    "win_real": 61.8,
+    "win_sim": 67.6,
+    "exit5": 14.7,
+    "exit15": 23.5,
+    "exit60": 32.4,
+    "criteria_pass": {
+     "c1_pnl_ratio": false,
+     "c2_win_rate": true,
+     "c3_median_ret": false,
+     "c4_sign_agree": false,
+     "c5_correlation": false,
+     "c6_quadrants": false,
+     "c7_exit_timing": false
+    },
+    "criteria_passed_count": 1,
+    "khop_tot_oos": false,
+    "viol": 21.501
+   },
+   "mixed_runs": false,
+   "mixed_runs_note": null
+  },
+  {
+   "slug": "physical_epoch_fuel",
+   "name": "Physical-Epoch-Fuel",
+   "bot_type": "cutter",
+   "n_baskets": 39,
+   "in_sample": true,
+   "caveat": "IN-SAMPLE: tham số khớp trên toàn bộ dữ liệu bot, mô tả tiệm cận luật thoát, KHÔNG phải kiểm định ngoài mẫu",
+   "exit_structure": [
+    "sig",
+    "tp",
+    "tpk",
+    "sl",
+    "tr",
+    "tpt",
+    "tpsw"
+   ],
+   "formula_summary": {
+    "tp": "TP = 3.745% giá",
+    "sl": "SL = 3.080% giá",
+    "gb": "giveback = -0.317% + 1.409·ATR1h%",
+    "act": "kích hoạt trailing = -0.175% + 3.786·ATR1h%",
+    "bes": "kích hoạt hoà vốn = 5.097% giá",
+    "brd": "độ sâu hoà vốn = 4.552% giá"
+   },
+   "class_mix_pct": {
+    "TP-limit": 25.6,
+    "trailing/pullback": 51.3,
+    "SL": 12.8,
+    "hoà vốn (hồi về)": 0.0,
+    "hoà vốn (stop)": 0.0,
+    "khác": 10.3
+   },
+   "in_sample_metrics": {
+    "pnl_ratio": 1.0859,
+    "pnl_corr_usdt": 0.853,
+    "pnl_sign_agree": 84.62,
+    "real_win_pct": 79.49,
+    "sim_win_pct": 79.49,
+    "real_pnl_sum": 199522.0,
+    "sim_pnl_sum": 216656.0,
+    "exit_match_5": 5.13,
+    "exit_match_15": 10.26,
+    "exit_match_60": 17.95,
+    "exit_px_err_bps_med": 195.69,
+    "sim_closed_pct": 92.31,
+    "n_free_params": 16,
+    "overfit_warning": true,
+    "khop_tot": false,
+    "viol_total": 0.6922
+   },
+   "criteria_is": [
+    {
+     "id": 1,
+     "name": "PnL sim/thật ∈ [0,80; 1,20]",
+     "pass": true,
+     "value_text": "1.086"
+    },
+    {
+     "id": 2,
+     "name": "win rate basket sim trong ±8 điểm % so với thật",
+     "pass": true,
+     "value_text": "thật 79.5% / sim 79.5%"
+    },
+    {
+     "id": 3,
+     "name": "trung vị lợi suất basket cùng thắng và cùng thua: sim/thật ∈ [0,75; 1,33]",
+     "pass": true,
+     "value_text": "cùng thắng 0.850 (n=28), cùng thua 1.271 (n=5)"
+    },
+    {
+     "id": 4,
+     "name": "đồng dấu PnL từng basket ≥ 80%",
+     "pass": true,
+     "value_text": "84.6%"
+    },
+    {
+     "id": 5,
+     "name": "corr USDT ≥ 0,75 và Spearman ≥ 0,6 và corr bỏ 3 basket |PnL| lớn nhất ≥ 0,6",
+     "pass": false,
+     "value_text": "corr 0.853, spearman 0.653, bỏ top3 0.580"
+    },
+    {
+     "id": 6,
+     "name": "4 góc phần tư (thật W/L × sim W/L): tổng sim trong ±35% tổng thật hoặc góc < 5% tổng |PnL thật|",
+     "pass": true,
+     "value_text": "thật W/sim W: n=28 thật 213601 sim 240831; thật W/sim L: n=3 thật 9110 sim -4420; thật L/sim W: n=3 thật -10997 sim 11381; thật L/sim L: n=5 thật -12191 sim -31136"
+    },
+    {
+     "id": 7,
+     "name": "thoát ±60 phút ≥ 50% và hold trung vị sim/thật ∈ [0,6; 1,6] cho thắng và thua",
+     "pass": false,
+     "value_text": "±5/15/60 = 5.1/10.3/17.9%, hold thắng 1.130, hold thua 1.094"
+    }
+   ],
+   "report_stats": {
+    "real": {
+     "n": 73,
+     "perDay": 1.214275,
+     "win": 69.863014,
+     "realized": 199522.15,
+     "pf": 8.676371,
+     "payoff": 3.742748,
+     "longPct": 75.342466,
+     "levMed": 20.0,
+     "holdMed": 61.060022,
+     "holdWin": 72.441327,
+     "holdLoss": 24.94129,
+     "maxLoss": -3976.63,
+     "maxWin": 37839.89,
+     "top5Share": 45.499674,
+     "addPct": 46.575342,
+     "addDownPct": 38.356164,
+     "stepMed": 1.085707,
+     "maxLayers": 9,
+     "baskets": 39,
+     "winMaeMed": -1.770477,
+     "momPct": 32.857143
+    },
+    "sim": {
+     "n": 73,
+     "perDay": 1.191128,
+     "win": 82.191781,
+     "realized": 216656.075673,
+     "pf": 6.522083,
+     "payoff": 1.413118,
+     "longPct": 75.342466,
+     "levMed": 20.0,
+     "holdMed": 29.724445,
+     "holdWin": 23.62158,
+     "holdLoss": 37.574804,
+     "maxLoss": -9008.882193,
+     "maxWin": 75958.287632,
+     "top5Share": 64.191199,
+     "addPct": 36.986301,
+     "addDownPct": 27.39726,
+     "stepMed": 0.867392,
+     "maxLayers": 5,
+     "baskets": 46,
+     "winMaeMed": -1.50736,
+     "momPct": 32.857143
+    }
+   },
+   "oos": {
+    "n_train": 23,
+    "n_test": 16,
+    "split": "lớp mã",
+    "train_pnl_ratio": 0.807,
+    "train_corr_usdt": 0.878,
+    "pnl_ratio": 0.337,
+    "corr_usdt": -0.211,
+    "spearman": -0.268,
+    "sign_agree": 68.8,
+    "win_real": 81.2,
+    "win_sim": 87.5,
+    "exit5": 0.0,
+    "exit15": 0.0,
+    "exit60": 0.0,
+    "criteria_pass": {
+     "c1_pnl_ratio": false,
+     "c2_win_rate": true,
+     "c3_median_ret": true,
+     "c4_sign_agree": false,
+     "c5_correlation": false,
+     "c6_quadrants": false,
+     "c7_exit_timing": false
+    },
+    "criteria_passed_count": 2,
+    "khop_tot_oos": false,
+    "viol": 40.526
+   },
+   "mixed_runs": true,
+   "mixed_runs_note": "implied_physical_epoch_fuel.json (2026-10-07T07:18:16.464432+00:00) moi hon oos_physical_epoch_fuel.json (2026-10-07T02:26:01.751917+00:00): so lieu OOS tinh tren ban fit cu hon ban fit in-sample hien tai; giu nguyen gia tri."
+  },
+  {
+   "slug": "professor_wang",
+   "name": "Professor-Wang",
+   "bot_type": "cutter",
+   "n_baskets": 33,
+   "in_sample": true,
+   "caveat": "IN-SAMPLE: tham số khớp trên toàn bộ dữ liệu bot, mô tả tiệm cận luật thoát, KHÔNG phải kiểm định ngoài mẫu",
+   "exit_structure": [
+    "sig",
+    "tp",
+    "sl",
+    "tr",
+    "tpt"
+   ],
+   "formula_summary": {
+    "tp": "TP = 1.632% giá",
+    "sl": "SL = 1.654% giá",
+    "gb": "giveback = 0.287% giá",
+    "act": "kích hoạt trailing = 2.915% giá",
+    "bes": "kích hoạt hoà vốn = 2.010% giá",
+    "brd": "độ sâu hoà vốn = 2.027% giá"
+   },
+   "class_mix_pct": {
+    "TP-limit": 27.3,
+    "trailing/pullback": 30.3,
+    "SL": 24.2,
+    "hoà vốn (hồi về)": 0.0,
+    "hoà vốn (stop)": 0.0,
+    "khác": 18.2
+   },
+   "in_sample_metrics": {
+    "pnl_ratio": 0.8155,
+    "pnl_corr_usdt": 0.831,
+    "pnl_sign_agree": 87.88,
+    "real_win_pct": 66.67,
+    "sim_win_pct": 72.73,
+    "real_pnl_sum": 139203.0,
+    "sim_pnl_sum": 113516.0,
+    "exit_match_5": 27.27,
+    "exit_match_15": 51.52,
+    "exit_match_60": 57.58,
+    "exit_px_err_bps_med": 55.16,
+    "sim_closed_pct": 100.0,
+    "n_free_params": 18,
+    "overfit_warning": true,
+    "khop_tot": true,
+    "viol_total": 0.0
+   },
+   "criteria_is": [
+    {
+     "id": 1,
+     "name": "PnL sim/thật ∈ [0,80; 1,20]",
+     "pass": true,
+     "value_text": "0.815"
+    },
+    {
+     "id": 2,
+     "name": "win rate basket sim trong ±8 điểm % so với thật",
+     "pass": true,
+     "value_text": "thật 66.7% / sim 72.7%"
+    },
+    {
+     "id": 3,
+     "name": "trung vị lợi suất basket cùng thắng và cùng thua: sim/thật ∈ [0,75; 1,33]",
+     "pass": true,
+     "value_text": "cùng thắng 1.265 (n=21), cùng thua 0.820 (n=8)"
+    },
+    {
+     "id": 4,
+     "name": "đồng dấu PnL từng basket ≥ 80%",
+     "pass": true,
+     "value_text": "87.9%"
+    },
+    {
+     "id": 5,
+     "name": "corr USDT ≥ 0,75 và Spearman ≥ 0,6 và corr bỏ 3 basket |PnL| lớn nhất ≥ 0,6",
+     "pass": true,
+     "value_text": "corr 0.831, spearman 0.885, bỏ top3 0.834"
+    },
+    {
+     "id": 6,
+     "name": "4 góc phần tư (thật W/L × sim W/L): tổng sim trong ±35% tổng thật hoặc góc < 5% tổng |PnL thật|",
+     "pass": true,
+     "value_text": "thật W/sim W: n=21 thật 161226 sim 128411; thật W/sim L: n=1 thật 496 sim -723; thật L/sim W: n=3 thật -357 sim 533; thật L/sim L: n=8 thật -22162 sim -14705"
+    },
+    {
+     "id": 7,
+     "name": "thoát ±60 phút ≥ 50% và hold trung vị sim/thật ∈ [0,6; 1,6] cho thắng và thua",
+     "pass": true,
+     "value_text": "±5/15/60 = 27.3/51.5/57.6%, hold thắng 1.104, hold thua 0.937"
+    }
+   ],
+   "report_stats": {
+    "real": {
+     "n": 39,
+     "perDay": 1.750652,
+     "win": 69.230769,
+     "realized": 139203.29,
+     "pf": 7.1815,
+     "payoff": 3.191778,
+     "longPct": 51.282051,
+     "levMed": 20.0,
+     "holdMed": 12.720606,
+     "holdWin": 19.231667,
+     "holdLoss": 0.369845,
+     "maxLoss": -10339.23,
+     "maxWin": 22941.39,
+     "top5Share": 47.595689,
+     "addPct": 15.384615,
+     "addDownPct": 7.692308,
+     "stepMed": 2.401809,
+     "maxLayers": 3,
+     "baskets": 33,
+     "winMaeMed": -1.408123,
+     "momPct": 41.666667
+    },
+    "sim": {
+     "n": 39,
+     "perDay": 1.750718,
+     "win": 74.358974,
+     "realized": 113515.589565,
+     "pf": 6.72478,
+     "payoff": 2.31889,
+     "longPct": 51.282051,
+     "levMed": 20.0,
+     "holdMed": 9.137899,
+     "holdWin": 19.203306,
+     "holdLoss": 0.439898,
+     "maxLoss": -6104.087363,
+     "maxWin": 20514.01615,
+     "top5Share": 42.501059,
+     "addPct": 17.948718,
+     "addDownPct": 10.25641,
+     "stepMed": 1.952571,
+     "maxLayers": 3,
+     "baskets": 32,
+     "winMaeMed": -1.253662,
+     "momPct": 41.666667
+    }
+   },
+   "oos": {
+    "n_train": 20,
+    "n_test": 13,
+    "split": null,
+    "train_pnl_ratio": 1.199,
+    "train_corr_usdt": 0.559,
+    "pnl_ratio": 0.036,
+    "corr_usdt": -0.494,
+    "spearman": -0.434,
+    "sign_agree": 61.5,
+    "win_real": 100.0,
+    "win_sim": 61.5,
+    "exit5": 0.0,
+    "exit15": 0.0,
+    "exit60": 0.0,
+    "criteria_pass": {
+     "c1_pnl_ratio": false,
+     "c2_win_rate": false,
+     "c3_median_ret": false,
+     "c4_sign_agree": false,
+     "c5_correlation": false,
+     "c6_quadrants": false,
+     "c7_exit_timing": false
+    },
+    "criteria_passed_count": 0,
+    "khop_tot_oos": false,
+    "viol": 32.051
+   },
+   "mixed_runs": false,
+   "mixed_runs_note": null
+  },
+  {
+   "slug": "scary_merge_llama",
+   "name": "Scary-Merge-Llama",
+   "bot_type": "hold",
+   "n_baskets": 46,
+   "in_sample": true,
+   "caveat": "IN-SAMPLE: tham số khớp trên toàn bộ dữ liệu bot, mô tả tiệm cận luật thoát, KHÔNG phải kiểm định ngoài mẫu",
+   "exit_structure": [
+    "sig",
+    "tp",
+    "tpk",
+    "sl",
+    "tr",
+    "tpt"
+   ],
+   "formula_summary": {
+    "tp": "TP = 12.75% ROI/ký quỹ (= 12.75/đòn bẩy % giá)",
+    "sl": "SL = 0.700% giá",
+    "gb": "giveback = 10.17% ROI/ký quỹ (= 10.17/đòn bẩy % giá)",
+    "act": "kích hoạt trailing = 52.84% ROI/ký quỹ (= 52.84/đòn bẩy % giá)",
+    "bes": "kích hoạt hoà vốn = 0.852% giá",
+    "brd": "độ sâu hoà vốn = 1.585% giá"
+   },
+   "class_mix_pct": {
+    "TP-limit": 30.4,
+    "trailing/pullback": 47.8,
+    "SL": 8.7,
+    "hoà vốn (hồi về)": 2.2,
+    "hoà vốn (stop)": 0.0,
+    "khác": 10.9
+   },
+   "in_sample_metrics": {
+    "pnl_ratio": 1.0244,
+    "pnl_corr_usdt": 0.812,
+    "pnl_sign_agree": 93.48,
+    "real_win_pct": 84.78,
+    "sim_win_pct": 91.3,
+    "real_pnl_sum": 310059.0,
+    "sim_pnl_sum": 317631.0,
+    "exit_match_5": 19.57,
+    "exit_match_15": 28.26,
+    "exit_match_60": 52.17,
+    "exit_px_err_bps_med": 31.17,
+    "sim_closed_pct": 100.0,
+    "n_free_params": 23,
+    "overfit_warning": true,
+    "khop_tot": true,
+    "viol_total": 0.0
+   },
+   "criteria_is": [
+    {
+     "id": 1,
+     "name": "PnL sim/thật ∈ [0,80; 1,20]",
+     "pass": true,
+     "value_text": "1.024"
+    },
+    {
+     "id": 2,
+     "name": "win rate basket sim trong ±8 điểm % so với thật",
+     "pass": true,
+     "value_text": "thật 84.8% / sim 91.3%"
+    },
+    {
+     "id": 3,
+     "name": "trung vị lợi suất basket cùng thắng và cùng thua: sim/thật ∈ [0,75; 1,33]",
+     "pass": true,
+     "value_text": "cùng thắng 1.180 (n=39), cùng thua 0.851 (n=4)"
+    },
+    {
+     "id": 4,
+     "name": "đồng dấu PnL từng basket ≥ 80%",
+     "pass": true,
+     "value_text": "93.5%"
+    },
+    {
+     "id": 5,
+     "name": "corr USDT ≥ 0,75 và Spearman ≥ 0,6 và corr bỏ 3 basket |PnL| lớn nhất ≥ 0,6",
+     "pass": true,
+     "value_text": "corr 0.812, spearman 0.612, bỏ top3 0.663"
+    },
+    {
+     "id": 6,
+     "name": "4 góc phần tư (thật W/L × sim W/L): tổng sim trong ±35% tổng thật hoặc góc < 5% tổng |PnL thật|",
+     "pass": true,
+     "value_text": "thật W/sim W: n=39 thật 390924 sim 338716; thật W/sim L: n=0 thật 0 sim 0; thật L/sim W: n=3 thật -22890 sim 20044; thật L/sim L: n=4 thật -57975 sim -41129"
+    },
+    {
+     "id": 7,
+     "name": "thoát ±60 phút ≥ 50% và hold trung vị sim/thật ∈ [0,6; 1,6] cho thắng và thua",
+     "pass": true,
+     "value_text": "±5/15/60 = 19.6/28.3/52.2%, hold thắng 0.938, hold thua 1.119"
+    }
+   ],
+   "report_stats": {
+    "real": {
+     "n": 79,
+     "perDay": 1.809378,
+     "win": 81.012658,
+     "realized": 310058.66,
+     "pf": 4.713921,
+     "payoff": 1.104825,
+     "longPct": 86.075949,
+     "levMed": 50.0,
+     "holdMed": 14.348592,
+     "holdWin": 14.848279,
+     "holdLoss": 12.409254,
+     "maxLoss": -34685.47,
+     "maxWin": 46299.53,
+     "top5Share": 39.489364,
+     "addPct": 41.772152,
+     "addDownPct": 39.240506,
+     "stepMed": 0.506691,
+     "maxLayers": 6,
+     "baskets": 46,
+     "winMaeMed": -0.865063,
+     "momPct": 39.130435
+    },
+    "sim": {
+     "n": 79,
+     "perDay": 1.810241,
+     "win": 92.405063,
+     "realized": 317630.662839,
+     "pf": 8.722734,
+     "payoff": 0.716937,
+     "longPct": 86.075949,
+     "levMed": 50.0,
+     "holdMed": 7.98726,
+     "holdWin": 9.689574,
+     "holdLoss": 1.152199,
+     "maxLoss": -16390.83079,
+     "maxWin": 30991.333985,
+     "top5Share": 31.670719,
+     "addPct": 37.974684,
+     "addDownPct": 34.177215,
+     "stepMed": 0.506691,
+     "maxLayers": 7,
+     "baskets": 49,
+     "winMaeMed": -0.816927,
+     "momPct": 39.130435
+    }
+   },
+   "oos": {
+    "n_train": 28,
+    "n_test": 18,
+    "split": "tuần lịch",
+    "train_pnl_ratio": 0.673,
+    "train_corr_usdt": 0.856,
+    "pnl_ratio": 1.829,
+    "corr_usdt": 0.464,
+    "spearman": 0.397,
+    "sign_agree": 83.3,
+    "win_real": 88.9,
+    "win_sim": 83.3,
+    "exit5": 5.6,
+    "exit15": 11.1,
+    "exit60": 27.8,
+    "criteria_pass": {
+     "c1_pnl_ratio": false,
+     "c2_win_rate": true,
+     "c3_median_ret": false,
+     "c4_sign_agree": true,
+     "c5_correlation": false,
+     "c6_quadrants": false,
+     "c7_exit_timing": false
+    },
+    "criteria_passed_count": 2,
+    "khop_tot_oos": false,
+    "viol": 31.89
+   },
+   "mixed_runs": false,
+   "mixed_runs_note": null
+  },
+  {
+   "slug": "sugary_poh_gascap",
+   "name": "Sugary-PoH-GasCap",
+   "bot_type": "hold",
+   "n_baskets": 39,
+   "in_sample": true,
+   "caveat": "IN-SAMPLE: tham số khớp trên toàn bộ dữ liệu bot, mô tả tiệm cận luật thoát, KHÔNG phải kiểm định ngoài mẫu",
+   "exit_structure": [
+    "tp",
+    "tr",
+    "brd"
+   ],
+   "formula_summary": {
+    "tp": "TP = 0.915% giá",
+    "sl": "SL = 0.287% giá",
+    "gb": "giveback = 0.414% giá",
+    "act": "kích hoạt trailing = 31.76% ROI/ký quỹ (= 31.76/đòn bẩy % giá)",
+    "bes": "kích hoạt hoà vốn = 1.351% giá",
+    "brd": "độ sâu hoà vốn = 1.847% giá"
+   },
+   "class_mix_pct": {
+    "TP-limit": 41.0,
+    "trailing/pullback": 35.9,
+    "SL": 2.6,
+    "hoà vốn (hồi về)": 7.7,
+    "hoà vốn (stop)": 0.0,
+    "khác": 12.8
+   },
+   "in_sample_metrics": {
+    "pnl_ratio": 1.0066,
+    "pnl_corr_usdt": 0.799,
+    "pnl_sign_agree": 94.87,
+    "real_win_pct": 94.87,
+    "sim_win_pct": 89.74,
+    "real_pnl_sum": 159905.0,
+    "sim_pnl_sum": 160958.0,
+    "exit_match_5": 15.38,
+    "exit_match_15": 38.46,
+    "exit_match_60": 64.1,
+    "exit_px_err_bps_med": 39.7,
+    "sim_closed_pct": 100.0,
+    "n_free_params": 18,
+    "overfit_warning": true,
+    "khop_tot": true,
+    "viol_total": 0.0
+   },
+   "criteria_is": [
+    {
+     "id": 1,
+     "name": "PnL sim/thật ∈ [0,80; 1,20]",
+     "pass": true,
+     "value_text": "1.007"
+    },
+    {
+     "id": 2,
+     "name": "win rate basket sim trong ±8 điểm % so với thật",
+     "pass": true,
+     "value_text": "thật 94.9% / sim 89.7%"
+    },
+    {
+     "id": 3,
+     "name": "trung vị lợi suất basket cùng thắng và cùng thua: sim/thật ∈ [0,75; 1,33]",
+     "pass": true,
+     "value_text": "cùng thắng 1.158 (n=35), cùng thua 1.102 (n=2)"
+    },
+    {
+     "id": 4,
+     "name": "đồng dấu PnL từng basket ≥ 80%",
+     "pass": true,
+     "value_text": "94.9%"
+    },
+    {
+     "id": 5,
+     "name": "corr USDT ≥ 0,75 và Spearman ≥ 0,6 và corr bỏ 3 basket |PnL| lớn nhất ≥ 0,6",
+     "pass": true,
+     "value_text": "corr 0.799, spearman 0.770, bỏ top3 0.611"
+    },
+    {
+     "id": 6,
+     "name": "4 góc phần tư (thật W/L × sim W/L): tổng sim trong ±35% tổng thật hoặc góc < 5% tổng |PnL thật|",
+     "pass": true,
+     "value_text": "thật W/sim W: n=35 thật 162405 sim 188407; thật W/sim L: n=2 thật 1205 sim -13817; thật L/sim W: n=0 thật 0 sim 0; thật L/sim L: n=2 thật -3705 sim -13632"
+    },
+    {
+     "id": 7,
+     "name": "thoát ±60 phút ≥ 50% và hold trung vị sim/thật ∈ [0,6; 1,6] cho thắng và thua",
+     "pass": true,
+     "value_text": "±5/15/60 = 15.4/38.5/64.1%, hold thắng 1.104, hold thua 0.617"
+    }
+   ],
+   "report_stats": {
+    "real": {
+     "n": 148,
+     "perDay": 5.590227,
+     "win": 86.486486,
+     "realized": 159904.99,
+     "pf": 12.044863,
+     "payoff": 1.88201,
+     "longPct": 24.324324,
+     "levMed": 50.0,
+     "holdMed": 4.914178,
+     "holdWin": 4.914178,
+     "holdLoss": 4.923609,
+     "maxLoss": -2932.17,
+     "maxWin": 10390.91,
+     "top5Share": 20.596176,
+     "addPct": 73.648649,
+     "addDownPct": 59.459459,
+     "stepMed": 0.233708,
+     "maxLayers": 21,
+     "baskets": 39,
+     "winMaeMed": -0.77907,
+     "momPct": 30.215827
+    },
+    "sim": {
+     "n": 148,
+     "perDay": 5.577266,
+     "win": 86.486486,
+     "realized": 160957.770692,
+     "pf": 6.556748,
+     "payoff": 1.024492,
+     "longPct": 24.324324,
+     "levMed": 50.0,
+     "holdMed": 6.646301,
+     "holdWin": 6.646301,
+     "holdLoss": 6.170117,
+     "maxLoss": -5530.228204,
+     "maxWin": 9500.509328,
+     "top5Share": 18.763566,
+     "addPct": 70.27027,
+     "addDownPct": 56.756757,
+     "stepMed": 0.221979,
+     "maxLayers": 21,
+     "baskets": 44,
+     "winMaeMed": -0.77907,
+     "momPct": 30.215827
+    }
+   },
+   "oos": {
+    "n_train": 23,
+    "n_test": 16,
+    "split": null,
+    "train_pnl_ratio": 0.989,
+    "train_corr_usdt": 0.734,
+    "pnl_ratio": 0.29,
+    "corr_usdt": 0.425,
+    "spearman": 0.376,
+    "sign_agree": 100.0,
+    "win_real": 100.0,
+    "win_sim": 100.0,
+    "exit5": 0.0,
+    "exit15": 18.8,
+    "exit60": 43.8,
+    "criteria_pass": {
+     "c1_pnl_ratio": false,
+     "c2_win_rate": true,
+     "c3_median_ret": false,
+     "c4_sign_agree": true,
+     "c5_correlation": false,
+     "c6_quadrants": false,
+     "c7_exit_timing": false
+    },
+    "criteria_passed_count": 2,
+    "khop_tot_oos": false,
+    "viol": 13.94
+   },
+   "mixed_runs": false,
+   "mixed_runs_note": null
+  }
+ ],
+ "n_bots": 10
+}

@@ -1,17 +1,57 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { PageHead, Panel, Loading, ErrorState, Empty } from '../components/ui'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { PageHead, Panel, Loading, ErrorState, Empty, Segmented } from '../components/ui'
 import MathBlock from '../components/MathBlock'
+import { CatalogEngineWarning } from '../components/EngineWarning'
 import useAsync from '../hooks/useAsync'
-import { getAlphaCatalog } from '../api'
+import { getAlphaCatalog, getTopAgents, postArchiveUserAlpha, postUpdateUserAlphaStatus } from '../api'
 import { fmtNum, fmtPct, fmtSPct, signClass } from '../lib/format'
 import '../styles/alphadoc.css'
 
-// Thư viện chiến lược: mỗi CHIẾN LƯỢC (không phải mỗi alpha / khung giờ) = ý tưởng -> công thức bằng lời -> công thức toán -> thống kê alpha đã đạt.
-const SIDE_CLS = { Long: 'ok', Short: 'bad' }
+// Thư viện chiến lược: mỗi CHIẾN LƯỢC = ý tưởng -> công thức bằng lời -> công thức toán -> thống kê alpha đã đạt.
+const SIDE_CLS = { Long: 'ok', Short: 'bad', 'Long + Short': 'ok' }
 const BOOK = { main: 'sổ chính', explore: 'thử nghiệm' }
 
 function best(stats) {
   return (stats || []).reduce((b, x) => (b == null || (x.ret_pct ?? -1e9) > (b.ret_pct ?? -1e9) ? x : b), null)
+}
+
+/** Hook hỗ trợ co giãn drawer sang trái và lưu kích thước. */
+function useResizableDrawer(defaultWidth = 980) {
+  const [width, setWidth] = useState(() => {
+    try {
+      const saved = Number(localStorage.getItem('nora_alpha_drawer_w'))
+      if (saved && saved >= 420 && saved <= window.innerWidth) return saved
+    } catch (e) { /* bỏ qua */ }
+    return Math.min(defaultWidth, window.innerWidth - 20)
+  })
+
+  const onMouseDown = (e) => {
+    e.preventDefault()
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+
+    const onMouseMove = (moveEvt) => {
+      const newW = window.innerWidth - moveEvt.clientX
+      const clamped = Math.max(450, Math.min(window.innerWidth - 10, newW))
+      setWidth(clamped)
+      try {
+        localStorage.setItem('nora_alpha_drawer_w', String(clamped))
+      } catch (err) { /* bỏ qua */ }
+    }
+
+    const onMouseUp = () => {
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
+    }
+
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
+  }
+
+  return { width, onMouseDown }
 }
 
 /** Câu có ký hiệu toán trong $…$ -> chữ + KaTeX nội dòng. */
@@ -70,8 +110,86 @@ function Summary({ m }) {
   )
 }
 
-function StrategyDoc({ s, onClose }) {
+function TopAgentSummary({ m }) {
+  return (
+    <div className="n-ad-sum">
+      <Tile label="Lợi nhuận chốt" value={m.realized != null ? `${m.realized >= 0 ? '+' : ''}${fmtNum(m.realized, 0)} USDT` : '—'} cls={signClass(m.realized)} />
+      <Tile label="Tỉ lệ thắng" value={fmtPct(m.win_rate, 1)} />
+      <Tile label="Profit factor" value={fmtNum(m.profit_factor, 2)} />
+      <Tile label="Số lệnh" value={fmtNum(m.trades, 0)} sub="lệnh thực tế (báo cáo)" />
+      <Tile label="Số basket" value={fmtNum(m.baskets, 0)} sub="nhóm lệnh theo vị thế" />
+      <Tile label="Tần suất" value={m.per_day != null ? `${fmtNum(m.per_day, 1)} lệnh/ngày` : '—'} />
+      <Tile label="Đòn bẩy" value={m.leverage != null ? `${m.leverage}x` : '—'} />
+      <Tile label="Thời gian giữ" value={m.hold_med != null ? `${fmtNum(m.hold_med, 1)} giờ` : '—'} sub="trung vị" />
+      <Tile label="Tỉ lệ Long" value={m.long_pct != null ? fmtPct(m.long_pct, 1) : '—'} sub={m.long_pct != null ? `Short ${fmtPct(100 - m.long_pct, 1)}` : null} />
+      <Tile label="Lãi lớn nhất" value={m.max_win != null ? `+${fmtNum(m.max_win, 0)} $` : '—'} cls="ok" />
+      <Tile label="Lỗ lớn nhất" value={m.max_loss != null ? `${fmtNum(m.max_loss, 0)} $` : '—'} cls="bad" />
+      <Tile label="Tỉ lệ nhồi (DCA)" value={m.add_pct != null ? fmtPct(m.add_pct, 1) : '—'} />
+      <Tile label="Tầng DCA tối đa" value={m.max_layers != null ? `${m.max_layers} tầng` : '—'} />
+    </div>
+  )
+}
+
+function fmtFrozen(iso) {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime()) ? String(iso) : `${d.toISOString().slice(0, 16).replace('T', ' ')} UTC`
+}
+
+/** Dòng nguồn gốc số liệu Top Agent (file đã đóng băng) + cảnh báo OOS lệch bản fit. */
+function TopAgentProvenance({ prov, mixed, caveat }) {
+  return (
+    <div style={{ marginTop: 6 }}>
+      {prov && (
+        <div className="muted" style={{ fontSize: 12 }}>
+          Số liệu đóng băng lúc {fmtFrozen(prov.frozen_at)}{prov.git_commit ? ` · commit ${String(prov.git_commit).slice(0, 7)}` : ''}{prov.source ? ` · nguồn: ${prov.source}` : ''}
+        </div>
+      )}
+      {mixed && (
+        <div className="warn" style={{ fontSize: 12, marginTop: 4 }}>⚠ OOS tính trên bản fit cũ hơn</div>
+      )}
+      {caveat && <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>{caveat}</div>}
+    </div>
+  )
+}
+
+function TopAgentBreakdown({ rows }) {
+  if (!rows || rows.length === 0) return null
+  return (
+    <div style={{ marginTop: 14 }}>
+      <div className="muted" style={{ fontSize: 13, marginBottom: 6, fontWeight: 500 }}>
+        Cơ cấu phân bổ các loại lệnh thoát thực tế:
+      </div>
+      <div className="n-tblwrap">
+        <table className="n-tbl n-ad-res">
+          <thead>
+            <tr>
+              <th>Phương thức thoát lệnh</th>
+              <th className="r">Tỷ trọng lệnh</th>
+              <th>Mô tả xử lý</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, idx) => (
+              <tr key={idx}>
+                <td><b>{r.label}</b></td>
+                <td className="r"><b>{fmtPct(r.pct, 1)}</b></td>
+                <td className="muted" style={{ fontSize: 12.5 }}>{r.desc}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+function StrategyDoc({ s, onClose, onReload }) {
+  const navigate = useNavigate()
+  const [acting, setActing] = useState(false)
   const box = useRef(null)
+  const { width, onMouseDown } = useResizableDrawer(980)
+
   useEffect(() => {
     const opener = document.activeElement
     box.current?.focus()
@@ -79,33 +197,116 @@ function StrategyDoc({ s, onClose }) {
     document.addEventListener('keydown', key)
     return () => { document.removeEventListener('keydown', key); try { opener?.focus?.() } catch (e) { /* bỏ qua */ } }
   }, [onClose])
+
+  const handleArchive = async () => {
+    if (!window.confirm(`Bạn có chắc muốn lưu trữ Alpha "${s.name}"?`)) return
+    setActing(true)
+    try {
+      await postArchiveUserAlpha(s.alpha_id)
+      onClose()
+      if (onReload) onReload()
+    } catch (e) {
+      alert(e.message || 'Lỗi lưu trữ Alpha')
+    } finally {
+      setActing(false)
+    }
+  }
+
+  const handleToggleCandidate = async () => {
+    const current = s.stats?.[0]?.stage || 'SAVED'
+    const next = current === 'CANDIDATE' ? 'SAVED' : 'CANDIDATE'
+    setActing(true)
+    try {
+      await postUpdateUserAlphaStatus(s.alpha_id, next)
+      if (onReload) onReload()
+    } catch (e) {
+      alert(e.message || 'Lỗi cập nhật trạng thái')
+    } finally {
+      setActing(false)
+    }
+  }
+
+  const handleOpenEditor = () => {
+    navigate(`/alpha/create?job=${s.alpha_id || s.strategy}`)
+  }
+
   return (
     <div className="n-drawer-wrap">
       <div className="n-drawer-bg" onClick={onClose} aria-hidden="true" />
-      <aside className="n-drawer" role="dialog" aria-modal="true" aria-label={`Chiến lược ${s.name} ${s.side}`} tabIndex={-1} ref={box}>
+      <aside
+        className="n-drawer"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Chiến lược ${s.name} ${s.side}`}
+        style={{ width: `${width}px`, maxWidth: '100vw' }}
+        tabIndex={-1}
+        ref={box}
+      >
+        {/* Thanh kéo co giãn cạnh trái */}
+        <div
+          className="n-drawer-resize-handle"
+          onMouseDown={onMouseDown}
+          title="Kéo sang trái/phải để thay đổi kích thước ngăn chi tiết"
+        />
+
         <header className="n-drawer-h">
           <div style={{ minWidth: 0 }}>
-            <div className="kick muted">{s.kind}</div>
+            <div className="kick muted">{s.isTopAgent ? 'Top Agent Trade · OKX Copy-Trade' : s.kind}</div>
             <h2>{s.name} <span className={`n-badge ${SIDE_CLS[s.side] || ''}`}>{s.side}</span></h2>
+            {s.isTopAgent && <TopAgentProvenance prov={s.provenance} mixed={s.mixed_runs} caveat={s.caveat} />}
+            {s.is_user_alpha && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                <button type="button" className="n-btn sm brand" onClick={handleOpenEditor}>
+                  Mở trong Editor ➔
+                </button>
+                <button type="button" className="n-btn sm" onClick={handleToggleCandidate} disabled={acting}>
+                  {s.stats?.[0]?.stage === 'CANDIDATE' ? 'Bỏ đánh dấu ứng viên' : '★ Đánh dấu ứng viên'}
+                </button>
+                <button type="button" className="n-btn sm" style={{ color: '#ef4444' }} onClick={handleArchive} disabled={acting}>
+                  Lưu trữ (Archive)
+                </button>
+              </div>
+            )}
           </div>
           <button type="button" className="n-btn" onClick={onClose} aria-label="Đóng">Đóng ✕</button>
         </header>
+
         <div className="n-drawer-b">
           <div className="n-ad-body">
-            <section className="n-ad-sec"><h3>Ý tưởng</h3><p className="n-ad-idea">{s.idea}</p></section>
+            <section className="n-ad-sec">
+              <h3>Ý tưởng</h3>
+              <p className="n-ad-idea">{s.idea}</p>
+            </section>
+
             <section className="n-ad-sec">
               <h3>Công thức</h3>
-              <ul className="n-ad-plain">{s.plain.map((x, i) => <li key={i}><Rich text={x} /></li>)}</ul>
+              <ul className="n-ad-plain">
+                {s.plain.map((x, i) => <li key={i}><Rich text={x} /></li>)}
+              </ul>
             </section>
+
             <section className="n-ad-sec">
               <h3>Công thức toán học</h3>
+              {s.isTopAgent && <p className="n-note">Dạng tổng quát của loại bot (minh hoạ ký hiệu), không phải tham số đã fit của bot này; tham số cụ thể xem mục Công thức.</p>}
               {s.math.map((m, i) => (
-                <div key={i} className="n-ad-mathrow"><span className="t">{m.title}</span><MathBlock latex={m.latex} label={m.title} /></div>
+                <div key={i} className="n-ad-mathrow">
+                  <span className="t">{m.title}</span>
+                  <MathBlock latex={m.latex} label={m.title} />
+                </div>
               ))}
             </section>
+
             <section className="n-ad-sec">
               <h3>Thống kê</h3>
-              {!s.stats.length ? <p className="n-note">Chưa có alpha nào của chiến lược này qua kiểm định.</p> : (
+              {s.isTopAgent ? (
+                <>
+                  <TopAgentSummary m={s.summary} />
+                  <TopAgentBreakdown rows={s.breakdown} />
+                  <p className="n-note">Số liệu giao dịch thực tế trên sàn OKX từ tài khoản copy-trade gốc.</p>
+                </>
+              ) : !s.stats.length ? (
+                <p className="n-note">Chưa có alpha nào của chiến lược này qua kiểm định.</p>
+              ) : (
                 <>
                   <Summary m={s.summary} />
                   <Results stats={s.stats} />
@@ -121,6 +322,60 @@ function StrategyDoc({ s, onClose }) {
 }
 
 function Card({ s, onOpen }) {
+  if (s.is_user_alpha) {
+    const st0 = s.stats?.[0] || {}
+    const isCandidate = st0.stage === 'CANDIDATE'
+    return (
+      <button type="button" className="n-ad-card" onClick={onOpen}>
+        <div className="h">
+          <b>{s.name}</b>
+          <span className={`n-badge ${SIDE_CLS[s.side] || ''}`}>{s.side}</span>
+        </div>
+        <div className="k muted" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <span className="n-badge" style={{ background: 'rgba(99,102,241,0.15)', color: '#818cf8', fontWeight: 700 }}>
+            Alpha người dùng
+          </span>
+          {isCandidate ? (
+            <span className="n-badge" style={{ background: 'rgba(234,179,8,0.15)', color: '#facc15', fontWeight: 700 }}>
+              ★ Ứng viên
+            </span>
+          ) : (
+            <span className="n-badge">Đã lưu</span>
+          )}
+        </div>
+        <p className="idea">{s.idea}</p>
+        <div className="st">
+          <span><span className="muted">Lợi nhuận</span> <b className={signClass(st0.ret_pct)}>{fmtSPct(st0.ret_pct, 1)}</b></span>
+          <span><span className="muted">MDD</span> <b className="neg">{fmtPct(st0.mdd_pct, 1)}</b></span>
+          <span><span className="muted">Sharpe</span> <b>{fmtNum(st0.sharpe, 2)}</b></span>
+          <span><span className="muted">Lệnh</span> <b>{fmtNum(st0.trades, 0)}</b></span>
+        </div>
+      </button>
+    )
+  }
+
+  if (s.isTopAgent) {
+    const sum = s.summary || {}
+    return (
+      <button type="button" className="n-ad-card" onClick={onOpen}>
+        <div className="h">
+          <b>{s.name}</b>
+          <span className={`n-badge ${SIDE_CLS[s.side] || ''}`}>{s.side}</span>
+        </div>
+        <div className="k muted">{s.kind} · {sum.leverage ? `${sum.leverage}x` : 'OKX'}</div>
+        <p className="idea">{s.idea}</p>
+        <div className="st">
+          <span><span className="muted">Lãi chốt</span> <b className={signClass(sum.realized)}>{sum.realized != null ? `${sum.realized >= 0 ? '+' : ''}${fmtNum(sum.realized, 0)} USDT` : '—'}</b></span>
+          <span><span className="muted">Thắng</span> <b>{fmtPct(sum.win_rate, 1)}</b></span>
+          <span><span className="muted">PF</span> <b>{fmtNum(sum.profit_factor, 2)}</b></span>
+          <span><span className="muted">Lệnh</span> <b>{fmtNum(sum.trades, 0)}</b></span>
+          <span><span className="muted">Basket</span> <b>{fmtNum(sum.baskets, 0)}</b></span>
+        </div>
+        {s.mixed_runs && <div className="warn" style={{ fontSize: 12, marginTop: 6 }}>⚠ OOS tính trên bản fit cũ hơn</div>}
+      </button>
+    )
+  }
+
   const b = best(s.stats)
   return (
     <button type="button" className="n-ad-card" onClick={onOpen}>
@@ -135,24 +390,199 @@ function Card({ s, onOpen }) {
   )
 }
 
+const BOT_TYPE_GENERAL = {
+  cutter: { kind: 'Loại bot: cutter', text: 'Mô tả chung của loại bot "cutter" (không phải tham số riêng của bot này): thoát vị thế bằng các luật chốt/cắt như TP, SL, trailing, hoà vốn. Tham số đã fit xem mục Công thức.' },
+  hold: { kind: 'Loại bot: hold', text: 'Mô tả chung của loại bot "hold" (không phải tham số riêng của bot này): giữ vị thế và thoát theo các luật trong mục Công thức. Tham số đã fit xem mục Công thức.' },
+  runner: { kind: 'Loại bot: runner', text: 'Mô tả chung của loại bot "runner" (không phải tham số riêng của bot này): thoát vị thế theo các luật trong mục Công thức. Tham số đã fit xem mục Công thức.' },
+}
+const FORMULA_LABELS = [
+  ['tp', 'Chốt lời (TP)'],
+  ['sl', 'Cắt lỗ (SL)'],
+  ['act', 'Kích hoạt trailing'],
+  ['gb', 'Giveback trailing'],
+  ['bes', 'Kích hoạt hoà vốn'],
+  ['brd', 'Độ sâu hoà vốn'],
+]
+
+function mapTopAgentBot(b, prov) {
+  const r = b.report_stats?.real || {}
+  const realized = r.realized ?? b.in_sample_metrics?.real_pnl_sum
+  const win = r.win
+  const general = BOT_TYPE_GENERAL[b.bot_type] || { kind: b.bot_type ? `Loại bot: ${b.bot_type}` : 'OKX copy-trade', text: 'Bot copy-trade OKX; các luật thoát đã fit xem mục Công thức.' }
+
+  // Chiều giao dịch: chỉ từ longPct của payload; thiếu thì hiện "—"
+  const longPct = r.longPct
+  const side = longPct == null ? '—' : longPct >= 70 ? 'Long' : longPct <= 30 ? 'Short' : 'Long + Short'
+  const kind = general.kind
+  const idea = general.text
+
+  // Công thức: chỉ từ payload.formula_summary / exit_structure / report_stats (văn bản thuần, không KaTeX)
+  const plain = []
+  for (const [key, label] of FORMULA_LABELS) {
+    if (b.formula_summary?.[key]) plain.push(`${label}: ${b.formula_summary[key]}`)
+  }
+  if (r.addPct != null && r.stepMed != null) {
+    plain.push(`Nhồi lệnh (số liệu thực tế): ${fmtNum(r.addPct, 1)}% lệnh có nhồi, bước nhồi trung vị ${fmtNum(r.stepMed, 2)}%${r.maxLayers != null ? `, tối đa ${r.maxLayers} tầng` : ''}.`)
+  }
+  if (b.exit_structure && b.exit_structure.length > 0) {
+    plain.push(`Cấu trúc luật thoát (theo fit): ${b.exit_structure.join(' → ')}.`)
+  }
+  if (plain.length === 0) plain.push('Chưa có công thức thoát đã fit trong dữ liệu.')
+
+  // Công thức toán học định lượng
+  const math = [
+    {
+      title: 'Dạng tổng quát · Chốt lời & Cắt lỗ',
+      latex: String.raw`P_{\mathrm{TP}} = P_{\mathrm{avg}} \cdot (1 \pm k_{\mathrm{TP}}) \quad \Big| \quad \mathrm{ROI}_{\mathrm{SL}} = \alpha + \beta \cdot \mathrm{ATR}_{1\mathrm{h}} \cdot L`,
+    },
+    {
+      title: 'Dạng tổng quát · Cơ chế Trailing Stop',
+      latex: String.raw`P_{\mathrm{exit}} \le P_{\max} \cdot (1 - \delta_{\mathrm{giveback}}) \quad \text{khi} \quad \frac{P_{\max} - P_{\mathrm{avg}}}{P_{\mathrm{avg}}} \ge \Delta_{\mathrm{act}}`,
+    },
+    {
+      title: 'Dạng tổng quát · Hoà vốn & Quản trị DCA',
+      latex: String.raw`P_{\mathrm{BE}} = P_{\mathrm{avg}} \pm \Delta_{\mathrm{lock}} \quad \Big| \quad P_{\mathrm{add}, i} = P_{i-1} \cdot (1 - d_{\mathrm{step}}), \; i \le N_{\max}`,
+    },
+  ]
+
+  // Thống kê
+  const summary = {
+    realized,
+    win_rate: win,
+    profit_factor: r.pf,
+    trades: r.n,
+    baskets: b.n_baskets,
+    per_day: r.perDay,
+    leverage: r.levMed,
+    hold_med: r.holdMed,
+    long_pct: r.longPct,
+    max_win: r.maxWin,
+    max_loss: r.maxLoss,
+    add_pct: r.addPct,
+    max_layers: r.maxLayers,
+  }
+
+  // Cơ cấu phân bổ lệnh thoát
+  const breakdownDesc = {
+    'TP-limit': 'Khớp giá chốt lời giới hạn đặt sẵn tại sàn',
+    'trailing/pullback': 'Chốt lời động khi giá tạo đỉnh và quay đầu hồi',
+    SL: 'Cắt lỗ bảo vệ tài khoản khi chạm ngưỡng rủi ro',
+    'hoà vốn (hồi về)': 'Thoát lệnh tại giá hoà vốn khi đà tăng suy yếu',
+    'hoà vốn (stop)': 'Stop bảo toàn vốn kích hoạt',
+    'khác': 'Đóng vị thế theo điều kiện cấu trúc khác',
+  }
+  const breakdown = Object.entries(b.class_mix_pct || {}).map(([cls, pct]) => ({
+    label: cls,
+    pct,
+    desc: breakdownDesc[cls] || 'Điều kiện thoát vị thế',
+  }))
+
+  return {
+    key: `topagent_${b.slug}`,
+    name: b.name,
+    kind,
+    side,
+    idea,
+    plain,
+    math,
+    summary,
+    breakdown,
+    isTopAgent: true,
+    provenance: prov,
+    mixed_runs: !!b.mixed_runs,
+    caveat: b.caveat,
+  }
+}
+
 export default function AlphaCatalog() {
+  const [sp, setSp] = useSearchParams()
+  const filter = sp.get('filter') || 'all'
+  const setFilter = (f) => setSp({ filter: f })
+
   const q = useAsync(() => getAlphaCatalog(), [])
+  const qAgents = useAsync(() => getTopAgents(), [])
   const [open, setOpen] = useState(null)
+
   const sources = q.data?.sources || []
-  const picked = open && sources.flatMap((x) => x.strategies || []).find((x) => x.key === open)
+  const noraStrategies = sources.flatMap((x) => x.strategies || [])
+  const topAgentStrategies = (qAgents.data?.bots || []).map((b) => mapTopAgentBot(b, qAgents.data?.provenance))
+  const allStrategies = [...noraStrategies, ...topAgentStrategies]
+  const picked = open && allStrategies.find((x) => x.key === open)
+
   return (
     <>
-      <PageHead kicker="Thư viện chiến lược" title="Alpha" subtitle="Mỗi chiến lược: ý tưởng → công thức → công thức toán → thống kê các alpha đã đạt. Bấm một thẻ để xem." />
+      <PageHead
+        kicker="Thư viện chiến lược"
+        title="Alpha"
+        subtitle="Mỗi chiến lược: ý tưởng → công thức → công thức toán → thống kê các alpha đã đạt. Bấm một thẻ để xem."
+      />
+      <CatalogEngineWarning />
       {q.error && <ErrorState title="Không tải được thư viện chiến lược" error={q.error} onRetry={q.reload} />}
       {q.loading && !q.data && <Loading what="thư viện chiến lược" />}
-      {sources.map((src) => (
-        <Panel key={src.key} title={src.label} meta={<span>{(src.strategies || []).length} chiến lược</span>}>
-          {!(src.strategies || []).length ? <Empty title="Chưa có chiến lược" /> : (
-            <div className="n-ad-grid">{src.strategies.map((s) => <Card key={s.key} s={s} onOpen={() => setOpen(s.key)} />)}</div>
-          )}
-        </Panel>
-      ))}
-      {picked && <StrategyDoc s={picked} onClose={() => setOpen(null)} />}
+
+      {/* Chiến lược của Nora */}
+      {sources.map((src) => {
+        const rawList = src.strategies || []
+        const filteredList = rawList.filter((s) => {
+          if (filter === 'user') return !!s.is_user_alpha
+          if (filter === 'core') return !s.is_user_alpha
+          return true
+        })
+        const nUser = rawList.filter((s) => s.is_user_alpha).length
+        const nCore = rawList.length - nUser
+
+        return (
+          <Panel
+            key={src.key}
+            title={src.label}
+            meta={
+              <Segmented
+                label="Lọc nhóm"
+                value={filter}
+                onChange={setFilter}
+                options={[
+                  { value: 'all', label: `Tất cả (${rawList.length})` },
+                  { value: 'core', label: `Chiến lược lõi (${nCore})` },
+                  { value: 'user', label: `Alpha người dùng (${nUser})` },
+                ]}
+              />
+            }
+          >
+            {!filteredList.length ? (
+              <Empty title={filter === 'user' ? 'Chưa có Alpha người dùng nào được lưu' : 'Chưa có chiến lược'} />
+            ) : (
+              <div className="n-ad-grid">
+                {filteredList.map((s) => (
+                  <Card key={s.key} s={s} onOpen={() => setOpen(s.key)} />
+                ))}
+              </div>
+            )}
+          </Panel>
+        )
+      })}
+
+      {/* Mục bên dưới: Top agent trade (Chiến lược bot copy-trade bên ngoài OKX) */}
+      <Panel
+        title="Top agent trade"
+        meta={<span>{topAgentStrategies.length} chiến lược bot OKX</span>}
+      >
+        <p className="muted" style={{ margin: '0 0 12px 0', fontSize: '13px', lineHeight: '1.5' }}>
+          Chiến lược giao dịch của các bot copy-trade hàng đầu trên sàn OKX. Bao gồm quy tắc quản trị vị thế, công thức thoát lệnh (TP, SL, Trailing, Hoà vốn) và thống kê hiệu suất thực tế.
+        </p>
+        {qAgents.loading && !qAgents.data && <Loading what="danh sách Top agent trade" />}
+        {qAgents.error && <ErrorState title="Không tải được dữ liệu Top agent" error={qAgents.error} onRetry={qAgents.reload} />}
+        {!qAgents.loading && topAgentStrategies.length === 0 && <Empty title={qAgents.data?.reason || 'Chưa có dữ liệu bot'} />}
+        {topAgentStrategies.length > 0 && <TopAgentProvenance prov={qAgents.data?.provenance} />}
+        {topAgentStrategies.length > 0 && (
+          <div className="n-ad-grid">
+            {topAgentStrategies.map((s) => (
+              <Card key={s.key} s={s} onOpen={() => setOpen(s.key)} />
+            ))}
+          </div>
+        )}
+      </Panel>
+
+      {picked && <StrategyDoc s={picked} onClose={() => setOpen(null)} onReload={q.reload} />}
     </>
   )
 }
