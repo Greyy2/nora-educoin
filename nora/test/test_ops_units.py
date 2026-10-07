@@ -26,7 +26,10 @@ def test_job_launcher_points_at_existing_run_limited_and_modules():
 def test_backend_has_only_planned_packages():
     root = os.path.join(os.path.dirname(__file__), "..", "backend")
     pkgs = {d for d in os.listdir(root) if os.path.isdir(os.path.join(root, d)) and not d.startswith(("_", "."))}
-    assert pkgs == {"api", "carlo", "core", "db", "live", "optimize", "utils", "wfa"}   # live: bot theo sổ (E9)
+    # ADR-P9: package đích + package cũ còn trong giai đoạn chuyển (api -> routes, db/utils -> crawl/optimize; gỡ ở P9.10)
+    target = {"core", "metrics", "regime", "wfa", "carlo", "verdict", "optimize", "crawl", "live", "routes"}
+    legacy = {"api", "db", "utils"}
+    assert pkgs <= target | legacy, sorted(pkgs - target - legacy)
 
 
 def test_resume_code_fingerprint_files_exist():
