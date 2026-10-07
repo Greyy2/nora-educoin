@@ -27,7 +27,6 @@ def _make_mock_job(tmp_path, code, job_id="job_test_123", finish=True):
     result = {
         "program_hash": prog.code_hash,
         "config": {
-            "profile": "xno",
             "symbols": ["BTC"],
             "start": "2020-01-02",
             "end": "2024-12-31",
@@ -37,8 +36,8 @@ def _make_mock_job(tmp_path, code, job_id="job_test_123", finish=True):
             "program": {"name": prog.name, "legs": ["LONG"]},
         },
         "metrics": {
-            "simulate": {"nora": {"sharpe": 1.5, "ret_pct": 120.0, "mdd_pct": 25.0, "trades": 35}},
-            "test": {"nora": {"sharpe": 1.2, "ret_pct": 40.0, "mdd_pct": 18.0}},
+            "simulate": {"sharpe": 1.5, "ret_pct": 120.0, "mdd_pct": 25.0, "trades": 35},
+            "test": {"sharpe": 1.2, "ret_pct": 40.0, "mdd_pct": 18.0},
         },
         "series": {
             "times": [1000, 2000, 3000],
@@ -180,7 +179,7 @@ def test_beta_driven_id_is_single_source_in_backend_and_ui_has_no_checklist_logi
     from backend.core.analytics import insights
     assert insights.BETA_DRIVEN_ID == "beta_driven" and insights.BETA_DRIVEN_ID in {r.id for r in insights.RULES}
     ins = [{"id": insights.BETA_DRIVEN_ID, "severity": "warning", "message_vi": "x", "evidence": {"beta": 1}}]
-    res = {"trades": [{}] * 30, "metrics": {"simulate": {"nora": {"trades": 30, "mdd_pct": 10.0}}, "test": {"xno": {"sharpe": 1.0}}}, "insights": ins}
+    res = {"trades": [{}] * 30, "metrics": {"simulate": {"trades": 30, "mdd_pct": 10.0}, "test": {"sharpe": 1.0}}, "insights": ins}
     items = {i["id"]: i for i in user_alphas.evaluate_checklist(res)["items"]}
     assert items["not_pure_beta"]["state"] == "fail" and items["not_pure_beta"]["passed"] is False and insights.BETA_DRIVEN_ID in items["not_pure_beta"]["required"]
     # giao diện chỉ hiển thị checklist của backend: không còn chuỗi id insight / phép tính tiêu chí trong modal lưu
@@ -193,7 +192,7 @@ def test_beta_driven_id_is_single_source_in_backend_and_ui_has_no_checklist_logi
 # ─── checklist: thiếu dữ liệu ≠ đạt / trượt ──────────────────────────────────
 
 def test_checklist_missing_metrics_are_missing_not_passed_or_failed():
-    cl = user_alphas.evaluate_checklist({"metrics": {"simulate": {}, "test": {"nora": {"sharpe": None}, "xno": {}}}})
+    cl = user_alphas.evaluate_checklist({"metrics": {"simulate": {}, "test": {"sharpe": None}}})
     st = {i["id"]: i for i in cl["items"]}
     for k in ("trades_ge_20", "test_sharpe_positive", "mdd_under_50", "not_pure_beta"):
         assert st[k]["state"] == "missing" and st[k]["passed"] is None and st[k]["value"] == "không có dữ liệu", k
@@ -204,14 +203,14 @@ def test_checklist_missing_metrics_are_missing_not_passed_or_failed():
 
 
 def test_checklist_units_come_from_explicit_fields_and_zero_is_a_real_value():
-    nora = user_alphas.evaluate_checklist({"trades": [{}] * 20, "insights": [], "metrics": {"simulate": {"nora": {"mdd_pct": 49.9}}, "test": {"nora": {"sharpe": 0.0}}}})
+    nora = user_alphas.evaluate_checklist({"trades": [{}] * 20, "insights": [], "metrics": {"simulate": {"mdd_pct": 49.9}, "test": {"sharpe": 0.0}}})
     st = {i["id"]: i for i in nora["items"]}
     assert st["trades_ge_20"]["state"] == "pass" and st["mdd_under_50"]["state"] == "pass" and st["mdd_under_50"]["value"] == "49.9%"
     assert st["test_sharpe_positive"]["state"] == "fail" and st["test_sharpe_positive"]["value"] == "0.00"      # 0 thật không bị thay bằng fallback
-    xno = user_alphas.evaluate_checklist({"trades": [], "insights": [], "metrics": {"simulate": {"nora": {}, "xno": {"max_drawdown": -0.55}}, "test": {"xno": {"sharpe": 0.4}}}})
-    sx = {i["id"]: i for i in xno["items"]}
-    assert sx["mdd_under_50"]["state"] == "fail" and sx["mdd_under_50"]["value"] == "55.0%"                      # xno: phân số × 100
-    assert sx["trades_ge_20"]["state"] == "fail" and sx["test_sharpe_positive"]["state"] == "pass"             # Sharpe test lùi về khối xno khi nora không có
+    bad = user_alphas.evaluate_checklist({"trades": [], "insights": [], "metrics": {"simulate": {"mdd_pct": -55.0}, "test": {"sharpe": 0.4}}})
+    sb = {i["id"]: i for i in bad["items"]}
+    assert sb["mdd_under_50"]["state"] == "fail" and sb["mdd_under_50"]["value"] == "55.0%"                      # mdd_pct đã là %, lấy trị tuyệt đối
+    assert sb["trades_ge_20"]["state"] == "fail" and sb["test_sharpe_positive"]["state"] == "pass"
 
 
 # ─── Lưu: chỉ từ kết quả job, ảnh chụp đầy đủ, lưu lại = cập nhật ───────────
@@ -230,7 +229,7 @@ SNAPSHOT_KEYS = ("config", "data", "metrics", "yearly", "series", "trades", "pos
 def _full_result(tmp_path, code, job_id):
     job_id, res = _make_mock_job(tmp_path, code, job_id)
     res.update({
-        "data": {"source": "binance_hist", "sha256_1m": {"BTC": "abc123"}},
+        "data": {"source": "okx", "sha256_1m": {"BTC@perp": "abc123"}},
         "yearly": [{"year": 2021, "stage": "train", "cagr": 0.5}],
         "series": {"times": [1, 2, 3], "equity": [1.0, 2.0, 3.0], "benchmark": {"times": [1, 2, 3], "equity": [1.0, 1.5, 2.0], "label": "Luôn long"},
                    "stages": {"all": {"times": [1, 2, 3], "equity": [1.0, 2.0, 3.0], "benchmark": {"equity": [1.0, 1.5, 2.0]}}, "train": None, "test": None}},
@@ -251,13 +250,13 @@ def test_save_stores_full_snapshot_independent_of_job_dir_and_resave_updates(tmp
     shutil.rmtree(tmp_path / "_cache")                                   # thư mục job biến mất: bản ghi vẫn đủ
     monkeypatch.setattr(batch, "status", lambda jid: None)
     got = user_alphas.get_user_alpha(rec["id"], base_dir=base)
-    assert got["code"] == CODE_SAVE and got["program_hash"] == res["program_hash"] and got["config"]["profile"] == "xno"
+    assert got["code"] == CODE_SAVE and got["program_hash"] == res["program_hash"] and "profile" not in got["config"] and "profile" not in got
     for k in SNAPSHOT_KEYS:
         assert k in got["result"], k
     assert got["result"]["series"]["benchmark"]["equity"] == [1.0, 1.5, 2.0] and got["result"]["series"]["stages"]["all"]["benchmark"]["equity"] == [1.0, 1.5, 2.0]
     assert len(got["result"]["trades"]) == 35 and got["result"]["insights"][0]["evidence"] == {"win_rate": 55.0}
     ev = got["evidence"]
-    assert ev["job_id"] == job_id and ev["program_hash"] == res["program_hash"] and ev["data_sha256_1m"] == {"BTC": "abc123"} and ev["data_source"] == "binance_hist"
+    assert ev["job_id"] == job_id and ev["program_hash"] == res["program_hash"] and ev["data_sha256_1m"] == {"BTC@perp": "abc123"} and ev["data_source"] == "okx"
     assert "git_commit" in ev and ev["job_finished"] == 222.0
     assert got["checklist"]["items"] and got["result"]["checklist"] == got["checklist"] and got["explain"] and got["explain"].get("rules")
     # danh sách gọn: không kèm ảnh chụp; chi tiết có đủ
@@ -291,7 +290,7 @@ def test_api_ignores_client_supplied_result_and_serves_stored_detail(tmp_path, m
     app = FastAPI()
     app.include_router(alphas_router.router)
     client = TestClient(app)
-    fake = {**res, "metrics": {"simulate": {"nora": {"sharpe": 99.0}}}}
+    fake = {**res, "metrics": {"simulate": {"sharpe": 99.0}}}
     r = client.post("/api/studio/alphas/user", json={"job_id": job_id, "code": CODE_SAVE, "name": "A", "result": fake, "metrics": fake["metrics"]})
     assert r.status_code == 200 and r.json()["record"]["metrics"] == res["metrics"] and r.json()["checklist"]["items"]
     aid = r.json()["alpha_id"]
@@ -308,13 +307,13 @@ def test_sort_cagr_uses_cagr_pct_not_ret_pct_and_missing_goes_last(tmp_path):
         rec = {"id": i, "name": i, "created_at": "2026-01-0%dT00:00:00" % int(i[-1]), "updated_at": "2026-01-0%dT00:00:00" % int(i[-1]),
                "metrics": {"simulate": sim, **({"test": test} if test else {})}}
         (tmp_path / "alphas" / "user" / f"{i}.json").write_text(json.dumps(rec), encoding="utf-8")
-    put("a1", {"nora": {"ret_pct": 500.0, "cagr_pct": 10.0}})        # lợi nhuận tổng lớn nhưng CAGR thấp
-    put("a2", {"nora": {"ret_pct": 50.0, "cagr_pct": 40.0}})
-    put("a3", {"nora": {"ret_pct": 900.0}})                           # thiếu CAGR -> cuối
-    put("a4", {"nora": {"ret_pct": 1.0, "cagr_pct": 0.0}})            # CAGR = 0 thật, không bị coi là thiếu
+    put("a1", {"ret_pct": 500.0, "cagr_pct": 10.0})        # lợi nhuận tổng lớn nhưng CAGR thấp
+    put("a2", {"ret_pct": 50.0, "cagr_pct": 40.0})
+    put("a3", {"ret_pct": 900.0})                           # thiếu CAGR -> cuối
+    put("a4", {"ret_pct": 1.0, "cagr_pct": 0.0})            # CAGR = 0 thật, không bị coi là thiếu
     assert [x["id"] for x in user_alphas.list_user_alphas(sort="cagr", base_dir=base)] == ["a2", "a1", "a4", "a3"]
-    put("a1", {"nora": {}}, {"nora": {"sharpe": 0.3}})
-    put("a2", {"nora": {}}, {"nora": {"sharpe": 1.1}})
+    put("a1", {}, {"sharpe": 0.3})
+    put("a2", {}, {"sharpe": 1.1})
     assert [x["id"] for x in user_alphas.list_user_alphas(sort="sharpe", base_dir=base)][:2] == ["a2", "a1"]
 
 
@@ -322,7 +321,7 @@ def test_catalog_user_card_has_none_not_zero_for_missing_metrics(tmp_path):
     base = str(tmp_path / "alphas")
     os.makedirs(os.path.join(base, "user"))
     rec = {"id": "m1", "name": "M", "code": "x", "status": "SAVED", "config": {"symbols": ["BTC"], "program": {"legs": ["LONG"]}}, "created_at": "a", "updated_at": "a",
-           "metrics": {"simulate": {"nora": {"ret_pct": 0.0, "mdd_pct": None, "sharpe": 0.0, "trades": 0}}}}
+           "metrics": {"simulate": {"ret_pct": 0.0, "mdd_pct": None, "sharpe": 0.0, "trades": 0}}}
     (tmp_path / "alphas" / "user" / "m1.json").write_text(json.dumps(rec), encoding="utf-8")
     card = next(s for s in strategy_doc.catalog(alphas_dir=base)["sources"][0]["strategies"] if s.get("alpha_id") == "m1")
     st = card["stats"][0]

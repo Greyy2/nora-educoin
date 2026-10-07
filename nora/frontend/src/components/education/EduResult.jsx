@@ -57,24 +57,21 @@ export default function EduResult({ result, jobLine }) {
             <b>Ý nghĩa & Cách tính toán:</b>
             <ul>
               <li>
-                <b>Sharpe</b> (<code>trung bình(r) / độ lệch chuẩn(r) × √252</code>, r = lợi suất NGÀY của vốn mark-to-market đóng ngày UTC, độ lệch chuẩn mẫu ddof=1,
-                KHÔNG trừ lãi suất phi rủi ro): lợi suất trung bình ngày trên mỗi đơn vị biến động ngày, quy năm theo 252 kỳ. Công thức Sharpe của xnoquant chưa được đối chiếu
-                chính xác nên đây là công thức chuẩn.
+                <b>Sharpe</b> (<code>trung bình(r) / độ lệch chuẩn(r) × √365</code>, r = lợi suất NGÀY của vốn mark-to-market đóng ngày UTC, độ lệch chuẩn mẫu ddof=1,
+                KHÔNG trừ lãi suất phi rủi ro): lợi suất trung bình ngày trên mỗi đơn vị biến động ngày, quy năm theo 365 ngày (crypto giao dịch cả tuần). Sortino dùng độ lệch xuống so với 0.
               </li>
               <li>
-                <b>CAGR (365 ngày)</b> (ô tổng hợp: <code>(Π(1 + r))^(365 / N) − 1</code>, N = số ngày lợi suất, không tính mốc vốn đầu): tăng trưởng vốn kép quy năm theo 365 ngày.
-                Bảng theo năm / giai đoạn hiển thị <b>CAGR xno (252 kỳ)</b> theo quy ước xnoquant <code>(Π(1 + r))^(252 / n) − 1</code> nên số có thể lệch nhẹ so với ô tổng hợp.
+                <b>CAGR</b> (<code>(Π(1 + r))^(365 / N) − 1</code>, N = số ngày lợi suất, không tính mốc vốn đầu): tăng trưởng vốn kép quy năm theo 365 ngày. Cùng định nghĩa ở ô tổng hợp, bảng theo năm và Chẩn đoán.
               </li>
               <li>
                 <b>Max Drawdown</b> (<code>min(vốn / đỉnh vốn trước đó − 1)</code> trên vốn ĐÓNG NGÀY): mức sụt giảm sâu nhất từ một đỉnh. Đây là MDD theo ngày; MDD trong nến
                 (tính cả giá xấu nhất trong nến, khắt khe hơn) của engine không được dùng ở trang này.
               </li>
               <li>
-                <b>Profit Factor</b>: hai cách tính khác nhau. <i>Theo ngày</i> (ô &quot;Profit factor (ngày)&quot;, bảng theo năm): <code>Σ r ngày dương / |Σ r ngày âm|</code>.
-                <i> Theo lệnh</i> (ô &quot;Profit factor (lệnh)&quot;): <code>Σ PnL các lệnh lãi / |Σ PnL các lệnh lỗ|</code> trên lệnh đã đóng (tối đa 99 khi không có lệnh lỗ). &gt; 1 nghĩa là tổng lãi lớn hơn tổng lỗ.
+                <b>Profit Factor</b> (<code>Σ PnL các lệnh lãi / |Σ PnL các lệnh lỗ|</code> trên lệnh đã đóng, tối đa 99 khi không có lệnh lỗ): &gt; 1 nghĩa là tổng lãi lớn hơn tổng lỗ.
               </li>
               <li>
-                <b>Calmar</b> (<code>lợi suất năm / |MDD|</code>, lợi suất năm theo quy ước xnoquant <code>(Π(1 + r))^(252 / n) − 1</code>, MDD theo ngày): lợi suất năm trên mỗi đơn vị sụt giảm sâu nhất.
+                <b>Calmar</b> (<code>CAGR / |MDD|</code>, MDD theo ngày): lợi suất năm trên mỗi đơn vị sụt giảm sâu nhất.
               </li>
             </ul>
             <p className="n-note" style={{ marginTop: 6 }}>
@@ -85,8 +82,8 @@ export default function EduResult({ result, jobLine }) {
           <div className="edu-tour-verdict">
             <b>Số liệu thực tế của lần chạy này:</b>
             <p>
-              CAGR (365 ngày) <b>{fmtSPct(m.cagr)}</b>/năm, Sharpe <b>{fmtNum(m.sharpe)}</b>, Max Drawdown theo ngày <b>{fmtSPct(m.mdd)}</b>, Profit Factor theo ngày <b>{fmtNum(m.pfDays)}</b>
-              {isNum(m.pfTrades) ? <> (theo lệnh <b>{fmtNum(m.pfTrades)}</b>)</> : null}, Calmar <b>{fmtNum(m.calmar)}</b>.{' '}
+              CAGR <b>{fmtSPct(m.cagr)}</b>/năm, Sharpe <b>{fmtNum(m.sharpe)}</b>, Max Drawdown theo ngày <b>{fmtSPct(m.mdd)}</b>, Profit Factor <b>{fmtNum(m.pfTrades)}</b>,
+              Calmar <b>{fmtNum(m.calmar)}</b>.{' '}
               {isNum(m.sharpe) && m.sharpe >= 1.0
                 ? 'Sharpe từ 1 trở lên (mức khá theo quy tắc kinh nghiệm) nhưng đây vẫn là kết quả trong dữ liệu quá khứ; kiểm tra Train / Test trước khi kết luận.'
                 : 'Sharpe dưới 1: lợi suất chưa bù tương xứng cho mức biến động trong dữ liệu này.'}
@@ -197,7 +194,7 @@ export default function EduResult({ result, jobLine }) {
               </ul>
             ) : <p>Không có nhận xét tự động nào được kích hoạt (hoặc bản ghi này không kèm chẩn đoán).</p>}
             <p className="n-note" style={{ marginTop: 6 }}>
-              Các nhận xét trên được sinh bằng quy tắc cố định từ số đo thật (không dùng LLM). Backtest chỉ mô phỏng dữ liệu quá khứ với giả định phí / khớp lệnh của hồ sơ đã chọn, không đảm bảo kết quả tương lai.
+              Các nhận xét trên được sinh bằng quy tắc cố định từ số đo thật (không dùng LLM). Backtest chỉ mô phỏng dữ liệu quá khứ với giả định phí / khớp lệnh của engine, không đảm bảo kết quả tương lai.
             </p>
           </div>
         </div>

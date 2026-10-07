@@ -34,9 +34,9 @@ def _with(sample, **kw):
 
 
 def test_lint_flags_false_claims(samples):
-    base = samples["trend_dual_ema"]   # xno, EMA 20/50, chỉ long
+    base = samples["trend_dual_ema"]   # EMA 20/50, chỉ long, không khai báo position
     assert not _errs(base)
-    assert "RISK" in _errs(_with(base, summary=base["summary"] + " Cắt lỗ 2×ATR."))             # SL ở hồ sơ xno
+    assert "RISK" in _errs(_with(base, summary=base["summary"] + " Cắt lỗ 2×ATR."))             # SL chưa khai báo
     assert "RISK" in _errs(_with(base, summary=base["summary"] + " Có trailing stop."))
     assert "NUMBA" in _errs(_with(base, summary=base["summary"] + " Tính bằng Numba."))
     assert "SHORT" in _errs(_with(base, summary=base["summary"] + " Bán khống khi cắt xuống."))
@@ -44,7 +44,7 @@ def test_lint_flags_false_claims(samples):
     assert "NUMBER" in _errs(_with(base, summary="Mua khi EMA 21 cắt lên EMA 50."))               # sai chu kỳ
     assert "NUMBER" in _errs(_with(base, summary="Mua khi EMA 20 cắt lên EMA 55."))
     assert "BOILER" in _errs(_with(base, code=base["code"].replace('"""\n', '"""\n    Trading Rules:\n', 1)))
-    assert "SCHEMA" in _errs(_with(base, profile="xno", position={"stop_loss_rate": 2.0}))       # xno bỏ qua position
+    assert "SCHEMA" in _errs(_with(base, position={"nope": 2.0}))                                 # khoá position không hợp lệ
     assert "SCHEMA" in _errs(_with(base, category="Khác"))
     assert "EXEC" in _errs(_with(base, summary=base["summary"] + " Dùng đòn bẩy."))
 
@@ -56,9 +56,9 @@ def test_lint_threshold_and_direction(samples):
     assert "NUMBER" in _errs(_with(base, summary="Mua khi ADX < 25."))                           # sai hướng
 
 
-def test_lint_nora_risk_params_must_match(samples):
-    base = samples["risk_atr_fixed_multiple_stop"]   # nora, stop_loss_rate 2.0
-    assert base["profile"] == "nora" and not _errs(base)
+def test_lint_risk_params_must_match(samples):
+    base = samples["risk_atr_fixed_multiple_stop"]   # position: stop_loss_rate 2.0
+    assert base["position"]["stop_loss_rate"] == 2.0 and not _errs(base)
     assert "RISKNUM" in _errs(_with(base, summary="Mua khi giá đóng cửa cắt lên SMA 20; cắt lỗ 5×ATR."))
     assert "RISK" in _errs(_with(base, summary=base["summary"] + " Chốt lời 4×ATR."))            # take_profit_rate chưa khai báo
     assert "RISK" in _errs(_with(base, position={"atr_frame": "24h"}))                           # bỏ SL khỏi position nhưng văn bản vẫn nói

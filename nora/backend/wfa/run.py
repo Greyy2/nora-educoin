@@ -11,7 +11,7 @@ Nguồn ứng viên (chọn một tham số):
 Cửa sổ mặc định: dev1_end -> dev2_end; start/end (YYYY-MM-DD) ghi đè. Rủi ro/lệnh: report["book"] hoặc 0,5% (risk_per_trade ghi đè).
 regime "learn": mỗi fold học bảng regime ↔ chiến lược trên dữ liệu trước test (mở rộng từ đầu dev1 tới hết train của fold;
 core/regime/learn.py) rồi áp lên OOS; "off" (mặc định): không lọc.
-Kết quả: <data>/_cache/book_wfa/<thời điểm>/report.json + $NORA_JOB_DIR/result.json.
+Kết quả: <data>/wfa/<thời điểm> (cũ _cache/book_wfa)/report.json + $NORA_JOB_DIR/result.json.
 """
 # ── Đặt TRƯỚC mọi import numpy/backend: tiến trình con kế thừa qua fork ──────
 import os
@@ -139,7 +139,7 @@ def run_job(params=None):
     from backend.utils.memwatch import check_memory_gate, require_memory_limit
     require_memory_limit("validate_book")
     from backend.core.strategy.book import BASE_RISK_PER_TRADE_PCT, RISK, perp_symbols
-    from backend.db.data_layout import cache_dir
+    from backend.crawl.store import run_dir as run_dir_of
     from backend.wfa.walk_forward import PortfolioWfaConfig, run_portfolio_wfa
     from backend.utils.parallel import resolve_workers
 
@@ -182,15 +182,16 @@ def run_job(params=None):
                          f"Giảm n / số chiến lược hoặc đặt force_large.")
     if a.resume:
         run_dir = os.path.abspath(a.resume if os.path.isabs(a.resume) or os.path.isdir(a.resume)
-                                  else os.path.join(cache_dir(None, "book_wfa"), a.resume))
+                                  else os.path.join(run_dir_of("wfa"), a.resume))
         if not os.path.isfile(os.path.join(run_dir, "results.sqlite")):
             raise SystemExit(f"resume: {run_dir} không có results.sqlite")
     else:
         base = time.strftime("%Y%m%d_%H%M%S")
         for k in itertools.count(1):
-            run_dir = cache_dir(None, "book_wfa", base if k == 1 else f"{base}_{k}")
+            run_dir = run_dir_of("wfa", base if k == 1 else f"{base}_{k}")
             if not os.path.exists(os.path.join(run_dir, "results.sqlite")):
                 break
+        os.makedirs(run_dir, exist_ok=True)
     shared_dir = os.path.join(run_dir, "_shared")
     cfg = PortfolioWfaConfig(train_days=a.train_days, test_days=a.test_days, step_days=a.step_days,
                              min_is_trades=a.min_is_trades, mc_simulations=a.sims, mc_seed=a.mc_seed)

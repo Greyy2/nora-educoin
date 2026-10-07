@@ -27,17 +27,22 @@ def _read_json(path: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-def _workers_of(run: Dict[str, Any], jobs_root: Optional[str]) -> Optional[int]:
+def _workers_of(run: Dict[str, Any], jobs_root: Optional[str], funnel_root: Optional[str] = None) -> Optional[int]:
     w = run.get("workers")
     if isinstance(w, int) and not isinstance(w, bool) and w > 0:
         return w
     job_id = run.get("job_id")
     if not job_id or not jobs_root or not re.fullmatch(r"[0-9A-Za-z_-]{3,64}", str(job_id)):
         return None
-    try:
-        with open(os.path.join(jobs_root, str(job_id), "out.log"), encoding="utf-8", errors="replace") as fh:
-            head = fh.read(20000)
-    except OSError:
+    head = None
+    for root in (jobs_root, funnel_root):   # job xong: log đã được lưu cạnh kết quả (alpha/funnel/<job_id>/out.log, ADR §4.2)
+        try:
+            with open(os.path.join(root, str(job_id), "out.log"), encoding="utf-8", errors="replace") as fh:
+                head = fh.read(20000)
+            break
+        except (OSError, TypeError):
+            continue
+    if head is None:
         return None
     m = _WORKERS_RE.search(head)
     return int(m.group(1)) if m else None
@@ -64,7 +69,7 @@ def measured_s1_rate(funnel_root: str, timeframe: str, regime: str = "off", jobs
         wall, n = s1.get("wall_s"), s1.get("input")
         if s1.get("status") != "done" or not isinstance(wall, (int, float)) or not isinstance(n, (int, float)) or wall <= 0 or n <= 0:
             continue
-        workers = _workers_of(run, jobs_root)
+        workers = _workers_of(run, jobs_root, funnel_root)
         if workers is None:
             skipped_workers += 1
             continue

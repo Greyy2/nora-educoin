@@ -73,7 +73,7 @@ export default function History() {
                       <td className="r">{el != null ? fmtDuration(el) : '—'}</td>
                       <td className="mono muted">{j.job_id}</td>
                       <td><div className="acts">
-                        <Link className="n-btn sm" to={jobLink(j)}>Mở</Link>
+                        {jobLink(j) && <Link className="n-btn sm" to={jobLink(j)}>Mở</Link>}
                         {j.kind === 'book_backtest' && j.status === 'done' && <button type="button" className="n-btn sm" onClick={() => openOnPortfolio(j)}>Danh mục ↗</button>}
                       </div></td>
                     </tr>

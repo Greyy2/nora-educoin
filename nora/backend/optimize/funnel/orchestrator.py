@@ -55,8 +55,10 @@ def new_run_id() -> str:
 
 
 def funnel_root() -> str:
-    from backend.db.data_layout import cache_dir
-    return cache_dir(None, "funnel")
+    from backend.crawl.store import alpha_run_dir
+    path = alpha_run_dir("funnel")
+    os.makedirs(path, exist_ok=True)
+    return path
 
 
 def git_info() -> Dict[str, Any]:

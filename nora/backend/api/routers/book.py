@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from backend.api import modes
 from backend.api.jobs import batch as batch_jobs
+from backend.crawl.store import alpha_dir, alpha_file
 from backend.core.params.modes import STRESS_VERTICAL
 from backend.carlo.monte_carlo import (with_gate_thresholds, MC_MAX_RUIN_PCT as MC_RUIN_MAX_PCT, MC_MAX_SIMULATIONS, MC_MIN_SIMULATIONS,
                                        STRESS_MAX_MDD_PCT)
@@ -133,13 +134,9 @@ class BuildRequest(BaseModel):
 
 
 # ─── Đọc sổ / báo cáo ───────────────────────────────────────────────────────
-def alphas_dir() -> str:
-    """Thư mục data/alphas/ đang dùng. Ghi đè bằng NORA_ALPHAS_DIR (dùng cho test); mặc định nora/data/alphas."""
-    return os.environ.get("NORA_ALPHAS_DIR") or os.path.join(batch_jobs.NORA_DIR, "data", "alphas")
-
-
 def book_path() -> str:
-    return os.environ.get("NORA_BOOK_PATH") or os.path.join(alphas_dir(), "book.json")
+    """Sổ đang dùng (crawl.store.alpha_file: alpha/book.json, cũ alphas/book.json; NORA_BOOK_PATH / NORA_ALPHAS_DIR ghi đè)."""
+    return alpha_file("book")
 
 
 def _metrics(m: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
@@ -168,9 +165,9 @@ def _book_summary(book: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def latest_wfa_summary() -> Optional[Dict[str, Any]]:
-    from backend.db.data_layout import cache_dir
-    base = cache_dir(None, "book_wfa")
-    for name in sorted(os.listdir(base), reverse=True):
+    from backend.crawl.store import run_dir
+    base = run_dir("wfa")
+    for name in sorted(os.listdir(base) if os.path.isdir(base) else (), reverse=True):
         path = os.path.join(base, name, "report.json")
         if not os.path.isfile(path):
             continue
@@ -310,9 +307,9 @@ def get_alphas():
     """Kho alpha: registry.json + book.json (null nếu chưa có)."""
     from backend.utils.engine_version import book_engine_status, engine_version
     book = _read_json(book_path())
-    explore = _read_json(os.path.join(alphas_dir(), "explore", "book.json"))
+    explore = _read_json(alpha_dir("explore", "book.json"))
     # P9.15: sổ dựng bằng engine khác engine hiện hành -> needs_rebuild (giao diện cảnh báo "cần dựng lại")
-    registry = _read_json(os.path.join(alphas_dir(), "registry.json"))
+    registry = _read_json(alpha_file("registry"))
     return {"registry": registry, "registry_status": registry_provenance(registry),
             "book": book,
             "engine": {"current": engine_version(), "main": book_engine_status(book), "explore": book_engine_status(explore)}}
@@ -322,7 +319,7 @@ def get_alphas():
 def post_alpha_revalidate(alpha_id: str, apply: bool = False):
     """Kiểm lại alpha trong kho bằng engine hiện hành theo cổng phễu (WFA dev2 -> hệ số s qua MC -> holdout) — job nền alpha_revalidate.
     apply=true: ghi status (validated / retired) vào registry; retired -> cấu hình testnet chuyển sang testnet/_retired/."""
-    reg = _read_json(os.path.join(alphas_dir(), "registry.json")) or {}
+    reg = _read_json(alpha_file("registry")) or {}
     if not any(a.get("alpha_id") == alpha_id for a in reg.get("alphas") or []):
         raise HTTPException(404, f"không có alpha {alpha_id} trong registry.json")
     return batch_jobs.http_launch("alpha_revalidate", {"alpha_id": alpha_id, "apply": bool(apply)})
@@ -441,7 +438,6 @@ def _job_run_dir(job_id: str) -> str:
             break
     if not run_dir:
         raise HTTPException(404, "job chưa có thư mục kết quả (chưa bắt đầu hoặc không phải job dựng sổ)")
-    root = os.path.realpath(cache_dir(None))
     real = os.path.realpath(run_dir)
     if not is_within(real, "runs") or not os.path.isfile(os.path.join(real, "results.sqlite")):
         raise HTTPException(404, "không có kho kết quả của job này")

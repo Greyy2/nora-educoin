@@ -47,7 +47,12 @@ export const JOB_KIND = {
   funnel_run: { text: 'Phễu kiểm duyệt', short: 'Phễu' },
   funnel_recompute: { text: 'Phễu · tính lại lệnh', short: 'Phễu' },
   presets_build: { text: 'Dựng preset', short: 'Preset' },
+  funnel_book: { text: 'Phễu · dựng sổ', short: 'Phễu' },
+  live_bot: { text: 'Bot live', short: 'Live' },
   data_crawl: { text: 'Tải dữ liệu', short: 'Dữ liệu' },
+  data_crawl_okx: { text: 'Tải dữ liệu OKX', short: 'Dữ liệu' },
+  data_crawl_ticks: { text: 'Tải dữ liệu tick', short: 'Dữ liệu' },
+  edu_precompute: { text: 'Dựng mẫu Education', short: 'Education' },
   data_promote: { text: 'Đưa dữ liệu vào kho', short: 'Dữ liệu' },
 }
 export const jobKindText = (k) => JOB_KIND[k]?.text || String(k || '—')
@@ -62,7 +67,9 @@ export function jobLink(j) {
   if (j.kind === 'custom_backtest') return `/alpha/create?job=${id}`
   if (j.kind === 'book_wfa') return `/backtest?wfa=${id}&step=2`
   if (j.kind === 'book_build') return `/alpha/tune?build=${id}`
-  return `/backtest?job=${id}`
+  if (j.kind === 'live_bot') return '/live'
+  if (j.kind === 'book_backtest') return `/backtest?job=${id}`
+  return null // job dữ liệu / Education: không có trang kết quả riêng
 }
 
 export const isActiveJob = (j) => j.status === 'running' || j.status === 'queued'

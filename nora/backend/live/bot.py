@@ -40,7 +40,7 @@ def _now_ms() -> int:
 
 def load_book(alphas: Optional[str] = None, kind: str = "main", mode: str = "paper") -> Dict[str, Any]:
     """main: sổ đã kiểm định (READY_FOR_TESTNET). explore: sổ thử nghiệm (EXPLORE_DEMO) — chỉ paper/demo, không bao giờ live."""
-    from backend.core.params.presets import alphas_dir
+    from backend.crawl.store import alpha_dir as alphas_dir
     from backend.optimize.registry import EXPLORE_STATUS
     if kind not in BOOKS:
         raise SystemExit(f"book phải là một trong {BOOKS}")
@@ -474,7 +474,7 @@ def run_job(params=None) -> Dict[str, Any]:
     warnings.filterwarnings("ignore")
     a = options(DEFAULTS, params)
     from backend.live.secrets import redact
-    from backend.db.data_layout import cache_dir
+    from backend.crawl.store import live_dir
     if a.mode not in ("paper",) + EXEC_MODES:
         raise SystemExit("mode phải là paper | demo | live")
     if a.engine not in ENGINES:
@@ -489,7 +489,7 @@ def run_job(params=None) -> Dict[str, Any]:
         from backend.live.unified import check_book_d1
         check_book_d1(book)                                       # D1: từ chối sớm, trước khi chạm sàn
     client, keys = make_adapter(a.venue, a.mode)
-    sdir = a.state_dir or cache_dir(None, "live", state_key(a.venue, a.mode, a.book, a.engine))
+    sdir = a.state_dir or live_dir(a.venue, a.mode, a.book, a.engine)
     os.makedirs(sdir, exist_ok=True)
     events, pkl, spath = os.path.join(sdir, "events.jsonl"), os.path.join(sdir, "paper.pkl"), os.path.join(sdir, "state.json")
     upkl = os.path.join(sdir, "unified.pkl")

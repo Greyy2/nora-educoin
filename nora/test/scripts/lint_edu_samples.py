@@ -1,25 +1,25 @@
 """Lint NGHIÊM NGẶT 50 mẫu chiến lược giáo dục (frontend/src/components/education/educationSamples.js).
 
-Nguyên tắc: không dùng LLM; mọi câu giải thích phải ĐÚNG với code VÀ hồ sơ thực thi (xno | nora) mà mẫu chạy.
+Nguyên tắc: không dùng LLM; mọi câu giải thích phải ĐÚNG với code VÀ cấu hình thực thi mặc định của Nora (kèm `position` mà mẫu khai báo).
 Phần viết tay chỉ là lý thuyết ("Khái niệm tài chính"); quy tắc / chỉ báo / thực thi do explain.py sinh lúc chạy nên KHÔNG lặp lại trong docstring.
 
 Mã thoát khác 0 nếu có bất kỳ lỗi nào. Chạy:  backend/utils/ops/run_limited.sh --no-lock -- test/scripts/lint_edu_samples.py [đường_dẫn_samples.js]
 
 Quy tắc (mã lỗi ở đầu mỗi dòng báo cáo):
-  SCHEMA    đủ key/name/category/difficulty/summary/code/profile; category thuộc 5 nhóm (mỗi nhóm 10 mẫu); difficulty hợp lệ; key & name duy nhất;
-            summary, docstring bằng tiếng Việt; xno không có `position`; nora: `position` chỉ gồm khoá hợp lệ (params.builder.POSITION_KEYS).
-  COMPILE   compile_code() thành công; feature / operator tồn tại; build_plan() của hồ sơ khai báo dựng được.
+  SCHEMA    đủ key/name/category/difficulty/summary/code; category thuộc 5 nhóm (mỗi nhóm 10 mẫu); difficulty hợp lệ; key & name duy nhất;
+            summary, docstring bằng tiếng Việt; `position` (nếu có) chỉ gồm khoá hợp lệ (params.builder.POSITION_KEYS).
+  COMPILE   compile_code() thành công; feature / operator tồn tại; build_plan() dựng được.
   BOILER    docstring không còn khung "Trading Rules" / "STEP n" / "Financial Concept:"; chỉ là đoạn lý thuyết ngắn.
   NUMBA     không nhắc "Numba" (DSL là numpy/pandas) ở bất kỳ đâu trong mẫu.
-  RISK      nhắc stop-loss / cắt lỗ / take-profit / chốt lời / trailing / timeout (thời gian giữ tối đa) chỉ khi (a) hồ sơ nora VÀ tham số vị thế
+  RISK      nhắc stop-loss / cắt lỗ / take-profit / chốt lời / trailing / timeout (thời gian giữ tối đa) chỉ khi (a) tham số vị thế
             tương ứng được khai báo trong `position`, hoặc (b) câu đó nói rõ là thoát THEO TÍN HIỆU và code có luật thoát, hoặc (c) câu phủ định
-            ("không ...") mà tham số đó thực sự bằng 0 ở hồ sơ hiệu lực.
-  RISKNUM   hồ sơ nora: số "N×ATR" gần từ khoá SL/TP/trailing phải bằng tham số vị thế khai báo.
+            ("không ...") mà tham số đó thực sự bằng 0 ở cấu hình hiệu lực.
+  RISKNUM   số "N×ATR" gần từ khoá SL/TP/trailing phải bằng tham số vị thế khai báo.
   SHORT     nhắc short / bán khống khi chương trình không có chân SHORT.
-  EXEC      câu về thực thi (spot, perp, đòn bẩy, phí, trượt giá, funding, next open, rổ TOP10, cooldown...) thuộc explain.py, không viết tay.
+  EXEC      câu về thực thi (spot, perp, đòn bẩy, phí, trượt giá, funding, next open, cooldown...) thuộc explain.py, không viết tay.
   INDIC     nhắc chỉ báo (EMA, RSI, ATR, MACD, Bollinger, ADX, Donchian, VWAP, ...) mà chương trình không dùng.
   NUMBER    mọi số trong tên / tóm tắt / docstring / chú thích phải là hằng số có thật trong chương trình (tham số chỉ báo, ngưỡng, bội số)
-            hoặc tham số vị thế của hồ sơ; kèm kiểm tra riêng "EMA 20", "RSI < 30", "2×ATR" so với đúng chỉ báo / ngưỡng / hướng so sánh.
+            hoặc tham số vị thế; kèm kiểm tra riêng "EMA 20", "RSI < 30", "2×ATR" so với đúng chỉ báo / ngưỡng / hướng so sánh.
 """
 import json
 import os
@@ -41,7 +41,6 @@ from backend.core.params.builder import POSITION_KEYS  # noqa: E402
 SAMPLES_PATH = os.path.join(_NORA, "frontend", "src", "components", "education", "educationSamples.js")
 CATEGORIES = ["Trend Following", "Mean Reversion", "Breakout & Momentum", "Multi-Indicator Confluence", "Risk-Managed & Exits"]
 DIFFICULTIES = {"Beginner", "Intermediate", "Advanced"}
-PROFILES = {"xno", "nora"}
 PER_CATEGORY = 10
 MAX_DOC_CHARS = 700
 
@@ -60,7 +59,7 @@ NEGATION = re.compile(r"\b(không|chưa|chẳng|thay\s+vì)\b", re.IGNORECASE)
 # ─── nhắc thực thi (explain.py sinh) ────────────────────────────────────────────────
 EXEC_TERMS = re.compile(
     r"\bspot\b|\bperp\b|perpetual|đòn\s+bẩy|leverage|phí\s+(giao\s+dịch|khớp|sàn)|trượt\s+giá|slippage|funding|next[\s-]open|"
-    r"mở\s+cửa\s+nến\s+(tiếp|kế)|\bTOP\s?10\b|cooldown|ký\s+quỹ|giá\s+thanh\s+lý|bị\s+thanh\s+lý", re.IGNORECASE)
+    r"mở\s+cửa\s+nến\s+(tiếp|kế)|cooldown|ký\s+quỹ|giá\s+thanh\s+lý|bị\s+thanh\s+lý", re.IGNORECASE)
 
 # ─── chỉ báo: (regex nhận diện trong văn bản, tập feature/cột đủ điều kiện) ─────────────────
 _ANY = None  # luôn không hợp lệ (không có trong DSL)
@@ -253,17 +252,13 @@ def sentences(text: str):
     return [s.strip() for s in re.split(r"(?<=[.!?;])\s+|\n+", text) if s.strip()]
 
 
-def effective_position(profile: str, sample_pos: dict, program) -> dict:
-    """Tham số vị thế hiệu lực: xno = không SL/TP/trailing/timeout; nora = mặc định Nora + code + `position` của mẫu."""
-    if profile == "xno":
-        return dict(profiles.XNO_POSITION)
+def effective_position(sample_pos: dict, program) -> dict:
+    """Tham số vị thế hiệu lực = mặc định Nora + code + `position` của mẫu."""
     return {**profiles.NORA_DEFAULTS, **program.position_overrides, **(sample_pos or {})}
 
 
-def declared_position(profile: str, sample_pos: dict, program) -> dict:
-    """Chỉ phần KHAI BÁO tường minh (code hoặc `position`): mặc định ngầm của nora không tính là "đã đặt"."""
-    if profile == "xno":
-        return {}
+def declared_position(sample_pos: dict, program) -> dict:
+    """Chỉ phần KHAI BÁO tường minh (code hoặc `position`): mặc định ngầm không tính là "đã đặt"."""
     return {**program.position_overrides, **(sample_pos or {})}
 
 
@@ -276,7 +271,7 @@ def lint_sample(s: dict, valid_feats: set, valid_ops: set):
         errs.append(f"[{key}] {code}: {msg}")
 
     # ── SCHEMA ──
-    for f in ("key", "name", "category", "difficulty", "summary", "code", "profile"):
+    for f in ("key", "name", "category", "difficulty", "summary", "code"):
         if not s.get(f):
             err("SCHEMA", f"thiếu trường `{f}`")
     if errs:
@@ -285,16 +280,10 @@ def lint_sample(s: dict, valid_feats: set, valid_ops: set):
         err("SCHEMA", f"category {s['category']!r} không thuộc {CATEGORIES}")
     if s["difficulty"] not in DIFFICULTIES:
         err("SCHEMA", f"difficulty {s['difficulty']!r} không thuộc {sorted(DIFFICULTIES)}")
-    profile = s["profile"]
-    if profile not in PROFILES:
-        err("SCHEMA", f"profile {profile!r} không thuộc {sorted(PROFILES)}")
-        return errs
     pos = s.get("position") or {}
     if not isinstance(pos, dict):
         err("SCHEMA", "`position` phải là dict")
         return errs
-    if profile == "xno" and pos:
-        err("SCHEMA", "hồ sơ xno không có `position` (xnoquant chỉ thoát theo tín hiệu; tham số vị thế bị bỏ qua)")
     bad = sorted(set(pos) - set(POSITION_KEYS))
     if bad:
         err("SCHEMA", f"`position` có khoá không hợp lệ: {bad}")
@@ -330,11 +319,11 @@ def lint_sample(s: dict, valid_feats: set, valid_ops: set):
         if o not in valid_ops:
             err("COMPILE", f"operator không tồn tại: self.op.{o}")
     try:
-        profiles.build_plan(program, profile, ["BTC"] if profile == "xno" else ["BTC@perp"], position=pos or None)
+        profiles.build_plan(program, ["BTC@perp"], position=pos or None)
     except Exception as e:   # noqa: BLE001
-        err("COMPILE", f"build_plan({profile}) lỗi: {e}")
+        err("COMPILE", f"build_plan lỗi: {e}")
     try:
-        ex = explain_program(program, profile)
+        ex = explain_program(program)
         if not ex["rules"]:
             err("COMPILE", "explain_program không trả quy tắc nào")
     except Exception as e:   # noqa: BLE001
@@ -342,8 +331,8 @@ def lint_sample(s: dict, valid_feats: set, valid_ops: set):
         return errs
 
     facts = Facts(program)
-    declared = declared_position(profile, pos, program)
-    eff = effective_position(profile, pos, program)
+    declared = declared_position(pos, program)
+    eff = effective_position(pos, program)
     for k in ("stop_loss_rate", "take_profit_rate", "trailing_stop", "timeout"):
         if k in pos and not isinstance(pos[k], (int, float)):
             err("SCHEMA", f"position.{k} phải là số")
@@ -358,7 +347,7 @@ def lint_sample(s: dict, valid_feats: set, valid_ops: set):
             pos_numbers.add(v)
 
     feats_used = set(program.features) | set(program.columns) | {f"{c}" for c in program.columns}
-    uses_atr_position = profile == "nora" and any(_num(declared.get(k)) for k in ("stop_loss_rate", "take_profit_rate", "trailing_stop"))
+    uses_atr_position = any(_num(declared.get(k)) for k in ("stop_loss_rate", "take_profit_rate", "trailing_stop"))
     allowed_nums = facts.numbers | pos_numbers | {0.0, 1.0, 100.0}
 
     # văn bản cần kiểm: tên, tóm tắt, docstring, chú thích code (không gồm code)
@@ -366,27 +355,27 @@ def lint_sample(s: dict, valid_feats: set, valid_ops: set):
 
     for where, text in texts:
         for sent in sentences(text):
-            _check_sentence(err, where, sent, program, profile, pos, declared, eff, facts, feats_used, uses_atr_position, allowed_nums)
+            _check_sentence(err, where, sent, program, declared, eff, facts, feats_used, uses_atr_position, allowed_nums)
     return errs
 
 
-def _check_sentence(err, where, sent, program, profile, pos, declared, eff, facts, feats_used, uses_atr_position, allowed_nums):
+def _check_sentence(err, where, sent, program, declared, eff, facts, feats_used, uses_atr_position, allowed_nums):
     tag = f"({where}) “{sent[:90]}”"
     # RISK
     for param, rx in RISK_TERMS.items():
         if not re.search(rx, sent, re.IGNORECASE):
             continue
         ok = False
-        if profile == "nora" and _num(declared.get(param)):
+        if _num(declared.get(param)):
             ok = True
         elif SIGNAL_EXIT.search(sent) and facts.exit_rules > 0:
             ok = True
         elif NEGATION.search(sent) and not _num(eff.get(param)):
             ok = True
         if not ok:
-            err("RISK", f"{tag} nhắc {param} nhưng hồ sơ {profile} không đặt tham số này; "
+            err("RISK", f"{tag} nhắc {param} nhưng mẫu không đặt tham số này; "
                         "hãy nêu rõ là thoát theo tín hiệu hoặc khai báo `position`")
-        elif profile == "nora" and _num(declared.get(param)) and param != "timeout":
+        elif _num(declared.get(param)) and param != "timeout":
             # RISKNUM: số N×ATR trong câu phải bằng tham số đã khai báo
             for m in re.finditer(r"(\d+(?:[.,]\d+)?)\s*[×x*]\s*ATR|ATR\s*[×x*]\s*(\d+(?:[.,]\d+)?)", sent):
                 v = float((m.group(1) or m.group(2)).replace(",", "."))
@@ -403,8 +392,8 @@ def _check_sentence(err, where, sent, program, profile, pos, declared, eff, fact
     for name, rx, ok_set in INDICATORS:
         if not re.search(rx, sent):
             continue
-        if name == "Chandelier":   # đỉnh n nến − k×ATR (code) HOẶC trailing stop theo ATR khai báo ở hồ sơ nora
-            good = ({"donchian_upper", "atr"} <= feats_used) or (profile == "nora" and bool(_num(declared.get("trailing_stop"))))
+        if name == "Chandelier":   # đỉnh n nến − k×ATR (code) HOẶC trailing stop theo ATR khai báo ở position
+            good = ({"donchian_upper", "atr"} <= feats_used) or bool(_num(declared.get("trailing_stop")))
         elif name == "Keltner":
             good = {"ema", "atr"} <= feats_used
         elif name == "ATR":
@@ -447,7 +436,7 @@ def _check_sentence(err, where, sent, program, profile, pos, declared, eff, fact
         have = set()
         for f in fs:
             have |= facts.mults.get(f, set())
-        if what == "ATR" and profile == "nora":
+        if what == "ATR":
             have |= {_num(declared.get(k)) for k in ("stop_loss_rate", "take_profit_rate", "trailing_stop") if _num(declared.get(k))}
         # nhân thêm hằng ngoài (vd stddev nbdev 1.0 × 2.0)
         if have and v not in have and not any(abs(v - a * b) < 1e-9 for a in have for b in have):
@@ -457,11 +446,9 @@ def _check_sentence(err, where, sent, program, profile, pos, declared, eff, fact
 
 
 # ═══ tổng hợp ═════════════════════════════════════════════════════════════════════════
-def lint_all(samples_path: str = SAMPLES_PATH, verbose: bool = True, legacy: bool = False):
-    """Trả về (danh sách lỗi, số mẫu). Không in nếu verbose=False. legacy=True: mẫu thiếu `profile` coi là xno (để đếm lỗi của bản cũ)."""
+def lint_all(samples_path: str = SAMPLES_PATH, verbose: bool = True):
+    """Trả về (danh sách lỗi, số mẫu). Không in nếu verbose=False."""
     samples = load_samples(samples_path)
-    if legacy:
-        samples = [{"profile": "xno", **s} for s in samples]
     valid_feats, valid_ops = set(FEATURE_SPECS_DATA), set(OP_SPECS_DATA)
     errors = []
     keys, names = set(), set()
@@ -497,5 +484,5 @@ def lint_all(samples_path: str = SAMPLES_PATH, verbose: bool = True, legacy: boo
 
 if __name__ == "__main__":
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
-    errs, _ = lint_all(args[0] if args else SAMPLES_PATH, legacy="--legacy" in sys.argv)
+    errs, _ = lint_all(args[0] if args else SAMPLES_PATH)
     sys.exit(1 if errs else 0)

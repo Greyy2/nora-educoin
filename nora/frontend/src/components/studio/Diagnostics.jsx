@@ -113,8 +113,8 @@ function Benchmark({ mc }) {
       <div className="n-tilegrid">
         <Tile label="Beta" sub="độ nhạy với benchmark" title="Hệ số hồi quy lợi suất ngày chiến lược theo lợi suất ngày benchmark luôn long">{fmtNum(mc.beta, 2)}</Tile>
         <Tile label="Tương quan" sub="với lợi suất ngày benchmark">{fmtNum(mc.correlation, 2)}</Tile>
-        <Tile label="CAGR chiến lược (365 ngày)" cls={signClass(mc.strategy_cagr)} sub={isNum(mc.strategy_total_return_pct) ? `tổng ${fmtSPct(mc.strategy_total_return_pct, 0)}` : null}>{fmtSPct(mc.strategy_cagr, 1)}</Tile>
-        <Tile label="CAGR benchmark (365 ngày)" cls={signClass(mc.market_cagr)} sub={isNum(mc.market_total_return_pct) ? `tổng ${fmtSPct(mc.market_total_return_pct, 0)}` : null}>{fmtSPct(mc.market_cagr, 1)}</Tile>
+        <Tile label="CAGR chiến lược" cls={signClass(mc.strategy_cagr)} sub={isNum(mc.strategy_total_return_pct) ? `tổng ${fmtSPct(mc.strategy_total_return_pct, 0)}` : null}>{fmtSPct(mc.strategy_cagr, 1)}</Tile>
+        <Tile label="CAGR benchmark" cls={signClass(mc.market_cagr)} sub={isNum(mc.market_total_return_pct) ? `tổng ${fmtSPct(mc.market_total_return_pct, 0)}` : null}>{fmtSPct(mc.market_cagr, 1)}</Tile>
         <Tile label="Chênh CAGR" cls={signClass(ex)} sub="chiến lược − benchmark (điểm %/năm)">{isNum(ex) ? fmtSigned(ex, 1) : '—'}</Tile>
         <Tile label="MDD chiến lược" cls="neg">{isNum(mc.strategy_mdd) ? fmtSPct(-Math.abs(mc.strategy_mdd), 1) : '—'}</Tile>
         <Tile label="MDD benchmark" cls="neg">{isNum(mc.market_mdd) ? fmtSPct(-Math.abs(mc.market_mdd), 1) : '—'}</Tile>
@@ -293,8 +293,8 @@ function TrainTest({ tv }) {
         <table className="n-tbl">
           <thead><tr><th>Chỉ số</th><th className="r">Train</th><th className="r">Test</th></tr></thead>
           <tbody>
-            <tr><td title="Sharpe khối Nora, quy năm 365 ngày">Sharpe (365 ngày)</td><td className="r">{fmtNum(tv.train_sharpe, 2)}</td><td className="r">{fmtNum(tv.test_sharpe, 2)}</td></tr>
-            <tr><td title="CAGR 365 ngày (khối Nora)">CAGR (365 ngày)</td><td className={`r ${signClass(tv.train_cagr)}`}>{fmtSPct(tv.train_cagr, 1)}</td><td className={`r ${signClass(tv.test_cagr)}`}>{fmtSPct(tv.test_cagr, 1)}</td></tr>
+            <tr><td>Sharpe</td><td className="r">{fmtNum(tv.train_sharpe, 2)}</td><td className="r">{fmtNum(tv.test_sharpe, 2)}</td></tr>
+            <tr><td>CAGR</td><td className={`r ${signClass(tv.train_cagr)}`}>{fmtSPct(tv.train_cagr, 1)}</td><td className={`r ${signClass(tv.test_cagr)}`}>{fmtSPct(tv.test_cagr, 1)}</td></tr>
             <tr><td>Max drawdown</td><td className="r neg">{mdd(tv.train_mdd)}</td><td className="r neg">{mdd(tv.test_mdd)}</td></tr>
           </tbody>
         </table>

@@ -1,10 +1,21 @@
 """top_agents: doc file dong bang data/alphas/research/okx_top10_agents.json (khong dung test/scripts)."""
 from __future__ import annotations
 
-import json
 import os
 
+import pytest
+
 from backend.core.analytics import top_agents as ta
+from backend.crawl import store
+
+FROZEN = next((os.path.join(store.DATA_HOME, *sub, "research", "okx_top10_agents.json") for sub in (("alpha",), ("alphas",))
+               if os.path.isfile(os.path.join(store.DATA_HOME, *sub, "research", "okx_top10_agents.json"))), "")
+
+
+@pytest.fixture(autouse=True)
+def _real_frozen_file(monkeypatch):
+    """conftest trỏ kho dữ liệu vào thư mục tạm: file đóng băng (git-tracked) lấy từ cây dữ liệu thật."""
+    monkeypatch.setattr(ta, "_frozen_path", lambda: FROZEN)
 
 _BOT_KEYS = {
     "slug", "name", "bot_type", "n_baskets", "in_sample", "caveat", "exit_structure",
@@ -41,7 +52,7 @@ def test_mixed_runs_flags_match_mtimes():
 
 
 def test_missing_file_returns_empty_with_reason(monkeypatch, tmp_path):
-    monkeypatch.setattr(ta, "_FROZEN_PATH", str(tmp_path / "nope.json"))
+    monkeypatch.setattr(ta, "_frozen_path", lambda: str(tmp_path / "nope.json"))
     d = ta.top_agents()
     assert d["bots"] == [] and d["n_bots"] == 0 and d["reason"]
 
@@ -49,7 +60,7 @@ def test_missing_file_returns_empty_with_reason(monkeypatch, tmp_path):
 def test_corrupt_file_returns_empty_with_reason(monkeypatch, tmp_path):
     p = tmp_path / "bad.json"
     p.write_text("{not json", encoding="utf-8")
-    monkeypatch.setattr(ta, "_FROZEN_PATH", str(p))
+    monkeypatch.setattr(ta, "_frozen_path", lambda: str(p))
     d = ta.top_agents()
     assert d["bots"] == [] and d["n_bots"] == 0 and d["reason"]
 
@@ -57,4 +68,4 @@ def test_corrupt_file_returns_empty_with_reason(monkeypatch, tmp_path):
 def test_no_reference_to_research_scripts():
     src = open(ta.__file__, encoding="utf-8").read()
     assert "test/scripts" not in src and "okx_top10/out" not in src
-    assert os.path.basename(ta._FROZEN_PATH) == "okx_top10_agents.json"
+    assert "okx_top10_agents.json" in src

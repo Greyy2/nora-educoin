@@ -1,6 +1,6 @@
 """Xuất 50 mẫu giáo dục (frontend/src/components/education/educationSamples.js) ra data/education/samples.json để job backend đọc.
 
-Cùng trường với bản JS: key, name, category, difficulty, profile, position (chỉ nora), summary, code.
+Cùng trường với bản JS: key, name, category, difficulty, position (tuỳ chọn), summary, code.
 Chạy:  backend/utils/ops/run_limited.sh --no-lock -- test/scripts/export_edu_samples.py [--check]
   --check  không ghi, thoát mã 1 nếu samples.json đã cũ so với file JS (dùng trong CI).
 """
@@ -13,15 +13,17 @@ sys.path.insert(0, _HERE)
 
 import lint_edu_samples as L  # noqa: E402
 
-OUT = os.path.join(L._NORA, "data", "education", "samples.json")
-FIELDS = ("key", "name", "category", "difficulty", "profile", "position", "summary", "code")
+sys.path.insert(0, L._NORA)
+from backend.crawl.store import alpha_education_samples  # noqa: E402
+
+OUT = alpha_education_samples()
+FIELDS = ("key", "name", "category", "difficulty", "position", "summary", "code")
 
 
 def build():
     out = []
     for s in L.load_samples():
         row = {k: s[k] for k in FIELDS if k in s}
-        row.setdefault("profile", "xno")
         out.append(row)
     return out
 

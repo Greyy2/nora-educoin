@@ -1,7 +1,7 @@
-"""`self.op.<tên>(...)` — 30 operator chuỗi thời gian của xnoquant, ngữ nghĩa CAUSAL (không shift âm, không bfill).
+"""`self.op.<tên>(...)` — 30 operator chuỗi thời gian, ngữ nghĩa CAUSAL (không shift âm, không bfill).
 
 Quy ước: so sánh có NaN -> False (không có tín hiệu từ dữ liệu thiếu); chuỗi bool không có NaN; vô cực -> NaN.
-Không có xnoquant để đối chiếu từng hàm: ngữ nghĩa lấy theo tên + TA-Lib/pandas; điểm chưa chắc ghi ở docs/bmad/p7_python_strategies.md §3.
+Ngữ nghĩa lấy theo tên + TA-Lib/pandas; điểm chưa chắc ghi ở docs/bmad/p7_python_strategies.md §3.
 """
 from typing import Dict
 

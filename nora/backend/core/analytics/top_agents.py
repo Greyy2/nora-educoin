@@ -1,6 +1,6 @@
 """Top agent trade: doc ket qua da dong bang (implied exit fit + OOS) cua 10 bot copy-trade top OKX.
 
-Nguon duy nhat: data/alphas/research/okx_top10_agents.json (git-tracked, co provenance).
+Nguon duy nhat: crawl/store.alpha_dir('research', 'okx_top10_agents.json') (git-tracked, co provenance).
 Khong doc scripts nghien cuu; ket qua nghien cuu da duoc dong bang mot lan.
 
 GET /api/studio/alphas/top_agents
@@ -18,13 +18,12 @@ Neu file khong co: {"bots": [], "n_bots": 0, "reason": "..."}.
 from __future__ import annotations
 
 import json
-import os
 from typing import Any, Dict
 
-_FROZEN_PATH = os.path.normpath(os.path.join(
-    os.path.dirname(__file__),
-    "..", "..", "..", "data", "alphas", "research", "okx_top10_agents.json",
-))
+
+def _frozen_path() -> str:
+    from backend.crawl.store import alpha_dir
+    return alpha_dir("research", "okx_top10_agents.json")
 
 
 def _empty(reason: str) -> Dict[str, Any]:
@@ -33,7 +32,7 @@ def _empty(reason: str) -> Dict[str, Any]:
 
 def top_agents() -> Dict[str, Any]:
     try:
-        with open(_FROZEN_PATH, encoding="utf-8") as fh:
+        with open(_frozen_path(), encoding="utf-8") as fh:
             d = json.load(fh)
     except FileNotFoundError:
         return _empty("Chua co file dong bang data/alphas/research/okx_top10_agents.json")

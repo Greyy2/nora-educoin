@@ -46,12 +46,15 @@ SORT_COLS = {"ret_pct": "m.ret_pct", "mdd_pct": "m.mdd_pct", "sharpe": "m.sharpe
 
 # ─── Đường dẫn / mở kho ─────────────────────────────────────────────────────
 def funnel_root() -> str:
-    from backend.db.data_layout import cache_dir
-    return cache_dir(None, "funnel")
+    from backend.crawl.store import alpha_run_dir
+    path = alpha_run_dir("funnel")
+    os.makedirs(path, exist_ok=True)
+    return path
 
 
 def alphas_dir() -> str:
-    return os.environ.get("NORA_ALPHAS_DIR") or os.path.join(batch_jobs.NORA_DIR, "data", "alphas")
+    from backend.crawl.store import alpha_dir
+    return alpha_dir()
 
 
 def _run_dir(run_id: str) -> str:

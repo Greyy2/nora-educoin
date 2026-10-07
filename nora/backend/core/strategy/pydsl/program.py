@@ -5,8 +5,8 @@
 Cột tín hiệu cho engine (kernels.compute qua `py_<hash12>_<le|lx|se|sx>`):
     le = explicit > 0   (SỰ KIỆN vào long: quy tắc đặt mức > 0 ở nến này)     lx = target <= 0   (TRẠNG THÁI thoát long)
     se = explicit < 0   (vào short)                                            sx = target >= 0   (thoát short)
-Vào lệnh theo sự kiện (không theo trạng thái target) để vị thế đã đóng bởi SL/TP/timeout/thanh lý (hồ sơ nora) KHÔNG tự vào lại ngay trên cùng
-mức target cũ — giống cách chiến lược lõi dùng sự kiện cắt (cross_over). Hồ sơ xno không có SL/TP nên hai cách như nhau.
+Vào lệnh theo sự kiện (không theo trạng thái target) để vị thế đã đóng bởi SL/TP/timeout/thanh lý KHÔNG tự vào lại ngay trên cùng
+mức target cũ — giống cách chiến lược lõi dùng sự kiện cắt (cross_over).
 """
 import hashlib
 from collections import OrderedDict
@@ -251,7 +251,7 @@ class Program:
     def _minutes(self, df, n: int) -> np.ndarray:
         if "open_time" not in df.columns:
             raise DslError("position_open_times / *_ranges cần cột open_time của nến")
-        label = np.asarray(df["open_time"], dtype="int64") + TF_MS[self.timeframe]    # nhãn = giờ ĐÓNG nến (như xnoquant)
+        label = np.asarray(df["open_time"], dtype="int64") + TF_MS[self.timeframe]    # nhãn = giờ ĐÓNG nến
         return ((label // 60_000) % 1440).astype("int64")
 
     def explicit(self, df) -> np.ndarray:

@@ -22,8 +22,8 @@ TIMEFRAME = "15m"   # khung chạy (khung tín hiệu của alpha phải >= khun
 
 
 def alphas_dir() -> str:
-    from backend.core.params.presets import alphas_dir as _dir
-    return _dir()
+    from backend.crawl.store import alpha_dir
+    return alpha_dir()
 
 
 def load_alpha(alpha_id: str, base: Optional[str] = None) -> Dict[str, Any]:

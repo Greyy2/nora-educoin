@@ -2,13 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import useAsync from '../../hooks/useAsync'
 import { getEducationResults, getEducationResult, postCompileStrategy } from '../../api'
 
-// Kết quả backtest tính trước của mẫu Education (data/education/results). Khớp theo program_hash của code đang mở:
-//   fresh  = hash của code (biên dịch qua /strategies/compile) trùng hash bản ghi chạy sẵn và cùng hồ sơ -> dùng ngay, không cần chạy lại;
+// Kết quả backtest tính trước của mẫu Education (crawl/store.education_results_dir). Khớp theo program_hash của code đang mở:
+//   fresh  = hash của code (biên dịch qua /strategies/compile) trùng hash bản ghi chạy sẵn -> dùng ngay, không cần chạy lại;
 //   stale  = code xuất phát từ một mẫu có bản ghi nhưng hash đã khác (người dùng sửa code) -> bản ghi chạy sẵn không còn khớp;
 //   none   = không có bản ghi cho code này; loading = đang tra cứu.
 const hashCache = new Map()
 
-export default function usePrecomputed({ code, profile, sampleKey }) {
+export default function usePrecomputed({ code, sampleKey }) {
   const idx = useAsync(getEducationResults, [])
   const items = Array.isArray(idx.data?.items) ? idx.data.items : []
   const [hash, setHash] = useState(null) // { code, hash } | { code, error }
@@ -29,7 +29,7 @@ export default function usePrecomputed({ code, profile, sampleKey }) {
 
   const hashReady = hash && hash.code === trimmed
   const cur = hashReady ? hash.hash : null
-  const item = useMemo(() => (cur ? items.find((i) => i.status === 'ok' && i.program_hash === cur && (!i.profile || i.profile === profile)) : null), [items, cur, profile])
+  const item = useMemo(() => (cur ? items.find((i) => i.status === 'ok' && i.program_hash === cur ) : null), [items, cur])
   const origin = useMemo(() => (sampleKey ? items.find((i) => i.key === sampleKey) : null), [items, sampleKey])
   const rec = useAsync(item ? () => getEducationResult(item.key) : null, [item?.key])
 

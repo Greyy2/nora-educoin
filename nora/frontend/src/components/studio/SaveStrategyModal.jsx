@@ -90,8 +90,8 @@ export default function SaveStrategyModal({ isOpen, onClose, jobId, code, defaul
                 placeholder="Ý tưởng, điều kiện thị trường áp dụng…" />
             </div>
             <div className="push-alpha-metrics-grid">
-              <div className="metric-box"><span className="lbl">Sharpe Test (365 ngày)</span><span className={`val ${signClass(test?.sharpeNora)}`} title="Sharpe khối Nora ngoài mẫu — cùng nguồn với dòng checklist">{fmtNum(test?.sharpeNora, 2)}</span></div>
-              <div className="metric-box" title="CAGR 365 ngày, toàn kỳ"><span className="lbl">CAGR (365 ngày)</span><span className={`val ${signClass(sim?.cagr)}`}>{fmtSPct(sim?.cagr, 1)}</span></div>
+              <div className="metric-box"><span className="lbl">Sharpe Test</span><span className={`val ${signClass(test?.sharpe)}`} title="Sharpe ngoài mẫu — cùng nguồn với dòng checklist">{fmtNum(test?.sharpe, 2)}</span></div>
+              <div className="metric-box" title="CAGR toàn kỳ"><span className="lbl">CAGR</span><span className={`val ${signClass(sim?.cagr)}`}>{fmtSPct(sim?.cagr, 1)}</span></div>
               <div className="metric-box"><span className="lbl">Max Drawdown</span><span className="val neg">{fmtPct(sim?.mdd == null ? null : Math.abs(sim.mdd), 1)}</span></div>
               <div className="metric-box"><span className="lbl">Thắng (lệnh)</span><span className="val">{fmtPct(sim?.winTrades, 1)}</span></div>
               <div className="metric-box"><span className="lbl">Số lệnh</span><span className="val">{fmtNum(sim?.trades, 0)}</span></div>

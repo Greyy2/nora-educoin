@@ -1,17 +1,11 @@
-"""P7 — DSL chiến lược Python: ngữ nghĩa, lỗi có dòng/cột, mẫu xnoquant, đăng ký cột py_ vào kernels, hồ sơ thực thi. Không cần dữ liệu thị trường."""
-import glob
-import json
-import os
-
+"""P7 — DSL chiến lược Python: ngữ nghĩa, lỗi có dòng/cột, đăng ký cột py_ vào kernels, cấu hình thực thi. Không cần dữ liệu thị trường."""
 import numpy as np
 import pandas as pd
 import pytest
 
 from backend.core.signals import kernels
 from backend.core.strategy.pydsl import DslError, compile_code, compile_report, profiles
-from backend.core.strategy.pydsl.weights import TOP10, TOP10_WEIGHTS
 
-FIX = os.path.join(os.path.dirname(__file__), "fixtures", "xno")
 HEAD = "class S(SimpleAlgorithm):\n    def __algorithm__(self):\n"
 
 
@@ -30,28 +24,13 @@ def _explicit(code, df=None):
     return compile_code(code, register=False).explicit(_df() if df is None else df)
 
 
-# ─── mẫu xnoquant ───────────────────────────────────────────────────────────
+# ─── mức vị thế ─────────────────────────────────────────────────────────────
 
-def _fixture_codes():
-    return [(os.path.basename(f), json.load(open(f))["strategy"]["code"]) for f in sorted(glob.glob(os.path.join(FIX, "*.json")))
-            if "weights" not in f]
-
-
-@pytest.mark.parametrize("name,code", _fixture_codes())
-def test_every_xno_fixture_compiles_or_reports_unsupported_feature(name, code):
-    try:
-        prog = compile_code(code, register=False)
-    except DslError as e:
-        assert e.line is not None and "chưa được hỗ trợ" in e.message and "Gần đúng" in e.message or "chưa được hỗ trợ" in e.message, str(e)
-        return
-    assert (prog.has_long or prog.has_short) and prog.timeframe == "24h"
-    cols = prog.columns_for(_df())
-    assert set(cols) == {"le", "lx", "se", "sx"}
-
-
-def test_fixture_levels():
-    levels = {n: compile_code(c, register=False).levels for n, c in _fixture_codes()}
-    assert levels["E1_long_all.json"] == [1.0] and levels["E2_half_all.json"] == [0.5] and levels["KEMA_long.json"] == [0.0, 1.0]
+def test_position_levels_are_collected_from_set_positions():
+    assert compile_code(_body("c = self.data.pv_close", "self.set_positions(c > 0, position=1)"), register=False).levels == [1.0]
+    assert compile_code(_body("c = self.data.pv_close", "self.set_positions(c > 0, position=0.5)"), register=False).levels == [0.5]
+    both = _body("c = self.data.pv_close", "self.set_positions(c < 0, position=0)", "self.set_positions(c > 1, position=1)")
+    assert compile_code(both, register=False).levels == [0.0, 1.0]
 
 
 # ─── ngữ nghĩa ──────────────────────────────────────────────────────────────
@@ -221,10 +200,10 @@ def test_shared_store_skips_py_columns(tmp_path):
     from backend.core.data import shared
     gs.write_synthetic_market(tmp_path / "data")
     prog = compile_code(_body("c = self.data.pv_close", "self.set_positions(c > c.shift(1), position=1)", attrs='    timeframe = "1h"\n'))
-    plan = profiles.build_plan(prog, "nora", ["AAA"], market="spot", position={"atr_frame": "1h"})
+    plan = profiles.build_plan(prog, ["AAA"], position={"atr_frame": "1h"})
     with gs.data_root_env(str(tmp_path / "data")):
         eng = PortfolioEngine(plan.symbols, plan.strategies, gs.T0, gs.T0 + 5 * gs.DAY, base_frame="1m")
-        e, _ = eng._make_trackers("AAA", eng.ledger)
+        e, _ = eng._make_trackers(plan.symbols[0], eng.ledger)
         assert shared.plan(e) is None
 
 
@@ -233,45 +212,16 @@ def test_shared_store_skips_py_columns(tmp_path):
 LONG_HALF = _body("c = self.data.pv_close", "self.set_positions(c > 0, position=0.5)")
 
 
-def test_xno_profile_sizing_weights_and_affordability():
-    prog = compile_code(LONG_HALF, register=False)
-    plan = profiles.build_plan(prog, "xno", list(TOP10))
-    assert plan.base_frame == "24h" and len(plan.strategies) == 10 and plan.symbols == list(TOP10)
-    total = sum(s["position"]["order_size_pct"] for s in plan.strategies)
-    assert total * (1 + profiles.XNO_FEE) <= 50.0 + 1e-6                            # Σ ký quỹ × (1 + phí) <= 100 × 0,5 % vốn
-    fix = json.load(open(os.path.join(FIX, "top10_weights.json")))["TOP10_weights"]
-    assert fix == TOP10_WEIGHTS                                                      # hằng số backend = fixture đo được
-    assert abs(sum(plan.echo["weights"].values()) - 1.0) < 1e-12
-    s0 = plan.strategies[0]
-    assert s0["symbols"] == ["BTC"] and s0["position"]["market"] == "spot" and s0["position"]["stop_loss_rate"] == 0.0
-    assert s0["position"]["cooldown"] == 0 and s0["position"]["fee_rate"] == s0["position"]["maker_fee_rate"] == 0.001
-    assert s0["tree"][0][0][0]["column"] == prog.column("le") and s0["stop"][0]["condition"][0][0][0]["column"] == prog.column("lx")
-    assert plan.risk["kill_switch_dd_pct"] == 0 and plan.risk["max_open_risk_pct"] == 0
-
-
-def test_xno_profile_warnings_multi_level_subset_and_short():
-    code = _body("c = self.data.pv_close", "self.set_positions(c > 1, position=0.5)", "self.set_positions(c > 2, position=1)",
-                 "self.set_positions(c < 0, position=-1)")
-    plan = profiles.build_plan(compile_code(code, register=False), "xno", ["BTC", "ETH"])
-    text = " ".join(plan.warnings)
-    assert "mức lớn nhất" in text and "tập con của TOP10" in text and "SHORT" in text
-    assert plan.symbols == ["BTC", "ETH", "BTC@perp", "ETH@perp"] and len(plan.strategies) == 4
-    assert abs(sum(s["position"]["order_size_pct"] for s in plan.strategies if s["side"] == "LONG") * 1.001 - 100.0) < 1e-3
-
-
-def test_nora_profile_defaults_overrides_and_validation():
+def test_plan_defaults_overrides_and_validation():
     prog = compile_code(_body("c = self.data.pv_close", "self.set_positions(c > 1, position=1)", attrs="    stop_loss_rate = 2.5\n"), register=False)
-    plan = profiles.build_plan(prog, "nora", ["BTC", "ETH"], position={"risk_per_trade_pct": 1.0})
+    plan = profiles.build_plan(prog, ["BTC", "ETH"], position={"risk_per_trade_pct": 1.0})
     st = plan.strategies[0]
     assert plan.symbols == ["BTC@perp", "ETH@perp"] and plan.base_frame == "1m" and "symbols" not in st
     assert st["position"]["stop_loss_rate"] == 2.5 and st["position"]["risk_per_trade_pct"] == 1.0 and st["position"]["cooldown"] == 60
     assert any("mặc định" in w for w in plan.warnings)
     with pytest.raises(ValueError, match="khoá vị thế"):
-        profiles.build_plan(prog, "nora", ["BTC"], position={"nope": 1})
+        profiles.build_plan(prog, ["BTC"], position={"nope": 1})
     with pytest.raises(ValueError, match="khung chạy"):
-        profiles.build_plan(prog, "nora", ["BTC"], position={"atr_frame": "15m"}, run_frame="1h")
-    short = compile_code(_body("c = self.data.pv_close", "self.set_positions(c > 1, position=-1)"), register=False)
-    with pytest.raises(ValueError, match="Spot không short"):
-        profiles.build_plan(short, "nora", ["BTC"], market="spot")
+        profiles.build_plan(prog, ["BTC"], position={"atr_frame": "15m"}, run_frame="1h")
     both = compile_code(_body("c = self.data.pv_close", "self.set_positions(c > 1, position=1)", "self.set_positions(c < 0, position=-1)"), register=False)
-    assert [s["side"] for s in profiles.build_plan(both, "nora", ["BTC"]).strategies] == ["LONG", "SHORT"]
+    assert [s["side"] for s in profiles.build_plan(both, ["BTC"]).strategies] == ["LONG", "SHORT"]

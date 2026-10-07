@@ -51,7 +51,7 @@ export const SAMPLES = [
   {
     key: 'ema_cross_ls',
     name: 'EMA cắt nhau long/short',
-    note: 'Long khi EMA 20 cắt lên EMA 50, short khi cắt xuống. Chân short cần hồ sơ nora.',
+    note: 'Long khi EMA 20 cắt lên EMA 50, short khi cắt xuống.',
     code: `class EmaCrossLongShort(SimpleAlgorithm):
     """EMA nhanh cắt EMA chậm: long khi cắt lên, short khi cắt xuống."""
     timeframe = "24h"

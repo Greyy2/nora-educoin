@@ -170,7 +170,6 @@ def _exits(cand: Dict[str, Any], side: str) -> Tuple[List[str], List[str]]:
     tex = [r"\nu=\mathrm{ATR\%}(t_0)"]
     words = []
     if "dca_step_pct" in sch:
-        cmp_ = r"\le" if side == "LONG" else r"\ge"
         tex.append(rf"P_k=P_{{k-1}}(1{adv}s\,\nu),\quad q_k=q_0\,m^{{k}},\quad k\le K,\quad \mathrm{{Gate}}_t=1")
         words.append("Giá đi ngược thì dồn tầng $k$ cách tầng trước $s\\nu$ ($\\nu$ = ATR%), khối lượng ×$m$ mỗi tầng, tối đa $K$ tầng — chỉ khi điều kiện dồn còn đúng.")
     pbar = r"\bar P" if "dca_step_pct" in sch else r"P_0"
@@ -254,23 +253,19 @@ def _read(path: str) -> Optional[Dict[str, Any]]:
 
 
 def _user_card_metrics(sim: Any) -> Dict[str, Any]:
-    """Số đo thẻ alpha người dùng từ metrics.simulate của kết quả đã lưu: khoá và đơn vị CHỈ lấy từ trường tường minh (khối nora: ret_pct, mdd_pct, sharpe, sortino, win_rate_trades %,
-    profit_factor_trades; thiếu khối nora thì khối xno: cumulative_return/max_drawdown là phân số ×100). Thiếu -> None (giao diện hiện "—"), không bao giờ 0 giả; số 0 thật được giữ."""
+    """Số đo thẻ alpha người dùng từ metrics.simulate của kết quả đã lưu (bộ chỉ số phẳng: ret_pct, mdd_pct, sharpe, sortino, win_rate_trades %, profit_factor_trades, trades).
+    Thiếu -> None (giao diện hiện "—"), không bao giờ 0 giả; số 0 thật được giữ."""
     from backend.core.analytics.user_alphas import _first_num
-    nora, xno = (sim or {}).get("nora") or {}, (sim or {}).get("xno") or {}
-
-    def pct(v):
-        return None if v is None else v * 100.0
-    mdd = _first_num(nora, "mdd_pct")
-    xmdd = _first_num(xno, "max_drawdown")
-    trades = _first_num(nora, "trades")
+    sim = sim or {}
+    mdd = _first_num(sim, "mdd_pct")
+    trades = _first_num(sim, "trades")
     return {
-        "ret_pct": _first_num(nora, "ret_pct") if _first_num(nora, "ret_pct") is not None else pct(_first_num(xno, "cumulative_return")),
-        "mdd_pct": abs(mdd) if mdd is not None else (abs(xmdd) * 100.0 if xmdd is not None else None),
-        "sharpe": _first_num(nora, "sharpe") if _first_num(nora, "sharpe") is not None else _first_num(xno, "sharpe"),
-        "sortino": _first_num(nora, "sortino") if _first_num(nora, "sortino") is not None else _first_num(xno, "sortino"),
-        "profit_factor": _first_num(nora, "profit_factor_trades"),
-        "win_rate": _first_num(nora, "win_rate_trades"),
+        "ret_pct": _first_num(sim, "ret_pct"),
+        "mdd_pct": abs(mdd) if mdd is not None else None,
+        "sharpe": _first_num(sim, "sharpe"),
+        "sortino": _first_num(sim, "sortino"),
+        "profit_factor": _first_num(sim, "profit_factor_trades"),
+        "win_rate": _first_num(sim, "win_rate_trades"),
         "trades": int(trades) if trades is not None else None,
     }
 
@@ -319,7 +314,7 @@ def catalog(alphas_dir: Optional[str] = None) -> Dict[str, Any]:
             from backend.core.strategy.pydsl import compile_code
             from backend.core.strategy.pydsl.explain import explain_program
             prog = compile_code(code, register=False)
-            exp = explain_program(prog, profile=ua.get("profile", "xno"), position=(ua.get("config") or {}).get("position"))
+            exp = explain_program(prog, position=(ua.get("config") or {}).get("position"))
             plain_lines = [r["action_vi"] for r in exp.get("rules", [])] + [e["desc"] for e in exp.get("execution", [])[:2]]
         except Exception:
             plain_lines = [ua.get("note") or "Chiến lược người dùng đã xác minh"]
@@ -342,7 +337,7 @@ def catalog(alphas_dir: Optional[str] = None) -> Dict[str, Any]:
             "side": "Long" if (ua.get("config", {}).get("program", {}) or {}).get("legs") == ["LONG"] else "Long + Short",
             "idea": ua.get("note") or f"Alpha người dùng từ nguồn {ua.get('source', 'alpha-create')}",
             "plain": plain_lines,
-            "math": [{"title": "Cấu hình thực thi", "latex": rf"\mathrm{{{ua.get('profile', 'xno')}}}"}],
+            "math": [],
             "stats": [stat_item],
             "summary": {
                 "n": 1,

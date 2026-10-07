@@ -1,19 +1,9 @@
 import React from 'react'
-import { Segmented, Field } from '../ui'
-import { DateInput, DatePresets } from '../DateField'
+import { Field } from '../ui'
+import { DateInput } from '../DateField'
 import { paramLabel, paramUnit, paramHint } from '../../lib/params'
 
-export const PROFILES = [
-  { value: 'xno', label: 'xno', title: 'Giống xnoquant' },
-  { value: 'nora', label: 'nora', title: 'Quản lý vị thế của Nora' },
-]
-const PROFILE_NOTE = {
-  xno: 'Giống xnoquant: giữ vị thế theo tín hiệu, không cắt lỗ / chốt lời, phí 0,1 %, vốn chia cho rổ TOP10 theo tỉ trọng vốn hoá cố định.',
-  nora: 'Quản lý vị thế của Nora: cắt lỗ / chốt lời theo ATR, rủi ro mỗi lệnh theo vốn, phí và trượt giá theo sàn.',
-}
-const TOP10 = ['BTC', 'ETH', 'BNB', 'XRP', 'ADA', 'SOL', 'DOGE', 'TRX', 'LINK', 'BCH']
-
-/** Các tham số quản lý vị thế của hồ sơ nora (khoá = tên khoá `position` của API). Để trống = dùng giá trị trong code / mặc định hồ sơ. */
+/** Các tham số quản lý vị thế (khoá = tên khoá `position` của API). Để trống = dùng giá trị trong code / mặc định của engine. */
 export const POSITION_FIELDS = [
   { key: 'stop_loss_rate', min: 0, max: 50, step: 0.1 },
   { key: 'take_profit_rate', min: 0, max: 50, step: 0.1 },
@@ -26,8 +16,7 @@ export const POSITION_FIELDS = [
 
 const symName = (s) => String(s).replace('@perp', '')
 
-export default function RunSettings({ form, setForm, universe, catalogLoading, catalogError, windows, problems }) {
-  const nora = form.profile === 'nora'
+export default function RunSettings({ form, setForm, universe, defaultsError, problems }) {
   const toggleSym = (s) => setForm({ symbols: form.symbols.includes(s) ? form.symbols.filter((x) => x !== s) : [...form.symbols, s] })
   const setPos = (k, v) => setForm({ pos: { ...form.pos, [k]: v } })
   const nPos = Object.values(form.pos || {}).filter((v) => v !== '' && v != null).length
@@ -35,38 +24,21 @@ export default function RunSettings({ form, setForm, universe, catalogLoading, c
   return (
     <div className="se-set">
       <div className="n-field">
-        <span className="n-lbl" id="se-prof-l">Hồ sơ thực thi</span>
-        <Segmented label="Hồ sơ thực thi" value={form.profile} onChange={(v) => setForm({ profile: v })} options={PROFILES} />
-        <span className="n-note">{PROFILE_NOTE[form.profile]}</span>
-      </div>
-
-      <div className="n-field">
-        <span className="n-lbl" id="se-uni-l">{nora ? `Tài sản (${form.symbols.length} đã chọn)` : 'Rổ tài sản'}</span>
-        {nora ? (
-          <>
-            <div className="n-chips" role="group" aria-labelledby="se-uni-l">
-              {universe.map((s) => {
-                const on = form.symbols.includes(s)
-                return <label key={s} className={`n-chip-lbl ${on ? 'on' : ''}`}><input type="checkbox" checked={on} onChange={() => toggleSym(s)} />{symName(s)}</label>
-              })}
-            </div>
-            {universe.length === 0 && <span className="n-note">{catalogLoading ? 'Đang tải danh sách tài sản…' : `Chưa có danh sách tài sản${catalogError ? `: ${catalogError}` : ''}.`}</span>}
-            {universe.length > 0 && (
-              <div className="se-row">
-                <button type="button" className="n-btn sm" onClick={() => setForm({ symbols: universe })}>Chọn tất cả</button>
-                <button type="button" className="n-btn sm" onClick={() => setForm({ symbols: [] })}>Bỏ chọn</button>
-              </div>
-            )}
-          </>
-        ) : (
-          <>
-            <div className="n-chips" role="group" aria-labelledby="se-uni-l">
-              <span className="n-badge">TOP10</span>
-              {TOP10.map((s) => <span key={s} className="n-badge">{s}</span>)}
-            </div>
-            <span className="n-note">Rổ cố định như xnoquant (spot USDT, nến ngày). Muốn chọn tài sản khác, dùng hồ sơ nora.</span>
-          </>
+        <span className="n-lbl" id="se-uni-l">{`Tài sản (${form.symbols.length} đã chọn)`}</span>
+        <div className="n-chips" role="group" aria-labelledby="se-uni-l">
+          {universe.map((s) => {
+            const on = form.symbols.includes(s)
+            return <label key={s} className={`n-chip-lbl ${on ? 'on' : ''}`}><input type="checkbox" checked={on} onChange={() => toggleSym(s)} />{symName(s)}</label>
+          })}
+        </div>
+        {universe.length === 0 && <span className="n-note">{defaultsError ? `Không tải được mặc định từ kho dữ liệu: ${defaultsError}` : 'Đang tải danh sách tài sản…'}</span>}
+        {universe.length > 0 && (
+          <div className="se-row">
+            <button type="button" className="n-btn sm" onClick={() => setForm({ symbols: universe })}>Chọn tất cả</button>
+            <button type="button" className="n-btn sm" onClick={() => setForm({ symbols: [] })}>Bỏ chọn</button>
+          </div>
         )}
+        <span className="n-note">Hợp đồng vĩnh cửu OKX (perp); khối lượng theo rủi ro mỗi lệnh, cắt lỗ mặc định 3×ATR, phí và trượt giá theo sàn.</span>
       </div>
 
       <div className="n-form-row">
@@ -80,12 +52,10 @@ export default function RunSettings({ form, setForm, universe, catalogLoading, c
           <input id="se-cap" type="number" className="n-in" inputMode="decimal" min="1" step="any" value={form.capital} onChange={(e) => setForm({ capital: e.target.value })} />
         </Field>
       </div>
-      {windows?.start && windows?.end && <DatePresets windows={windows} start={form.start} end={form.end} onPick={(s, e) => setForm({ start: s, end: e })} />}
 
-      {nora && (
-        <details className="n-details se-pos">
+      <details className="n-details se-pos">
           <summary>Quản lý vị thế{nPos ? ` (đã đặt ${nPos})` : ''}</summary>
-          <p className="n-note" style={{ margin: '8px 0' }}>Để trống = dùng giá trị khai báo trong code, hoặc mặc định của hồ sơ nora. Cắt lỗ / chốt lời / trailing tính theo bội số ATR; timeout và cooldown tính bằng phút.</p>
+          <p className="n-note" style={{ margin: '8px 0' }}>Để trống = dùng giá trị khai báo trong code, hoặc mặc định của engine. Cắt lỗ / chốt lời / trailing tính theo bội số ATR; timeout và cooldown tính bằng phút.</p>
           <div className="n-params">
             {POSITION_FIELDS.map((f) => {
               const unit = paramUnit(f.key)
@@ -101,8 +71,7 @@ export default function RunSettings({ form, setForm, universe, catalogLoading, c
               )
             })}
           </div>
-        </details>
-      )}
+      </details>
 
       {problems.length > 0 && (
         <ul className="se-problems" role="status">

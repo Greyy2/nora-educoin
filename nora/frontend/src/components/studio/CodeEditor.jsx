@@ -1,9 +1,26 @@
 import React, { useEffect, useMemo, useRef } from 'react'
 
 // Ô soạn code Python nhẹ: textarea trong suốt đặt lên lớp tô màu cú pháp; số dòng bên trái; dòng lỗi được tô đỏ.
+// MỘT khung cuộn duy nhất (.se-ed) chứa số dòng (dính trái), lớp tô màu (nằm trong dòng chảy, quyết định kích thước) và textarea phủ đúng lên lớp đó (overflow: hidden,
+// không tự cuộn). Trước đây textarea và lớp tô màu cuộn RIÊNG, đồng bộ bằng JS: thanh cuộn ngang/dọc của textarea (15px) làm vùng cuộn tối đa của nó lớn hơn lớp tô màu,
+// nên ở cuối file chữ hiển thị lệch ~1 dòng so với con trỏ ("gõ dòng dưới nhảy lên dòng trên"). Một khung cuộn thì không thể lệch.
 // Phím: Tab = thụt 4 dấu cách (Shift+Tab = bớt thụt; Esc rồi Tab để rời ô), Enter giữ thụt lề, Ctrl/⌘+Enter = chạy.
 
-const LINE_H = 19
+const LINE_H = 19          // phải khớp .se-gut/.se-hl/.se-ta trong strategyEditor.css
+const PAD_T = 10           // padding-top của lớp tô màu và textarea
+const PAD_X = 14           // padding ngang của dòng code
+const GUTTER_W = 52        // bề rộng cột số dòng
+const BOTTOM_COVER = 44    // chiều cao đáy bị thanh trạng thái biên dịch phủ
+
+let CHAR_W = 0
+/** Bề rộng một ký tự của font code (đo một lần bằng canvas theo đúng font của textarea). */
+function charW(ta) {
+  if (CHAR_W) return CHAR_W
+  const ctx = document.createElement('canvas').getContext('2d')
+  ctx.font = getComputedStyle(ta).font
+  CHAR_W = ctx.measureText('0').width || 7.8
+  return CHAR_W
+}
 const KEYWORDS = new Set(['class', 'def', 'return', 'import', 'from', 'as', 'if', 'elif', 'else', 'for', 'while', 'in', 'not', 'and', 'or', 'is',
   'None', 'True', 'False', 'pass', 'lambda', 'with', 'try', 'except', 'finally', 'raise', 'yield', 'del', 'global'])
 
@@ -59,8 +76,7 @@ function insertText(ta, text) {
 
 export default function CodeEditor({ value, onChange, onRun, errorLine, errorKey, height = '100%', label = 'Code chiến lược Python' }) {
   const taRef = useRef(null)
-  const hlRef = useRef(null)
-  const gutRef = useRef(null)
+  const scrollRef = useRef(null)
   const escaped = useRef(false)
 
   const lines = useMemo(() => String(value).split('\n'), [value])
@@ -76,21 +92,31 @@ export default function CodeEditor({ value, onChange, onRun, errorLine, errorKey
     })
   }, [lines])
 
-  const sync = () => {
-    const ta = taRef.current
-    if (!ta) return
-    if (hlRef.current) { hlRef.current.scrollTop = ta.scrollTop; hlRef.current.scrollLeft = ta.scrollLeft }
-    if (gutRef.current) gutRef.current.scrollTop = ta.scrollTop
-  }
-  useEffect(sync, [value])
-
   // có lỗi mới -> cuộn tới dòng lỗi
   useEffect(() => {
-    const ta = taRef.current
-    if (!ta || !(errorLine >= 1)) return
-    ta.scrollTop = Math.max(0, (errorLine - 3) * LINE_H)
-    sync()
+    const sc = scrollRef.current
+    if (sc && errorLine >= 1) sc.scrollTop = Math.max(0, (errorLine - 3) * LINE_H)
   }, [errorKey]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Giữ con trỏ trong vùng nhìn thấy: textarea không tự cuộn nên khung cuộn phải làm việc đó; chừa chỗ cho thanh trạng thái biên dịch phủ ở đáy.
+  const reveal = () => {
+    const ta = taRef.current
+    const sc = scrollRef.current
+    if (!ta || !sc) return
+    const before = ta.value.slice(0, ta.selectionStart)
+    const row = before.split('\n').length - 1
+    const col = before.length - before.lastIndexOf('\n') - 1
+    const top = PAD_T + row * LINE_H
+    const bottom = top + LINE_H
+    const viewH = sc.clientHeight - BOTTOM_COVER
+    if (top < sc.scrollTop) sc.scrollTop = top - PAD_T
+    else if (bottom > sc.scrollTop + viewH) sc.scrollTop = bottom - viewH
+    const x = GUTTER_W + PAD_X + col * charW(ta)
+    const viewW = sc.clientWidth
+    if (x < sc.scrollLeft + GUTTER_W + 8) sc.scrollLeft = Math.max(0, x - GUTTER_W - 8)
+    else if (x + 8 > sc.scrollLeft + viewW) sc.scrollLeft = x + 8 - viewW
+  }
+  useEffect(reveal, [value]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function onKeyDown(e) {
     const ta = e.currentTarget
@@ -125,23 +151,24 @@ export default function CodeEditor({ value, onChange, onRun, errorLine, errorKey
   }
 
   return (
-    <div className="se-ed" style={{ height }}>
-      <div className="se-gut" ref={gutRef} aria-hidden="true">
-        {lines.map((_, i) => <div key={i} className={`se-gn ${errorLine === i + 1 ? 'err' : ''}`}>{i + 1}</div>)}
-      </div>
-      <div className="se-stack">
-        <div className="se-hl" ref={hlRef} aria-hidden="true">
-          <div className="se-hl-in">
+    <div className="se-ed" ref={scrollRef} style={{ height }}>
+      <div className="se-sheet">
+        <div className="se-gut" aria-hidden="true">
+          {lines.map((_, i) => <div key={i} className={`se-gn ${errorLine === i + 1 ? 'err' : ''}`}>{i + 1}</div>)}
+        </div>
+        <div className="se-stack">
+          <div className="se-hl" aria-hidden="true">
             {rendered.map((parts, i) => (
               <div key={i} className={`se-ln ${errorLine === i + 1 ? 'err' : ''}`}>
-                {parts.length ? parts.map(([cls, t], j) => (cls === 'ig' ? <span key={j} className="se-ig">{t}</span> : cls ? <span key={j} className={`tk-${cls}`}>{t}</span> : t)) : '​'}
+                {parts.length ? parts.map(([cls, t], j) => (cls === 'ig' ? <span key={j} className="se-ig">{t}</span> : cls ? <span key={j} className={`tk-${cls}`}>{t}</span> : t)) : '\u200b'}
               </div>
             ))}
           </div>
+          <textarea ref={taRef} className="se-ta" value={value} spellCheck={false} wrap="off" autoCapitalize="off" autoCorrect="off"
+            aria-label={label} onChange={(e) => onChange(e.target.value)} onKeyDown={onKeyDown} onKeyUp={reveal} onClick={reveal}
+            onScroll={(e) => { e.currentTarget.scrollTop = 0; e.currentTarget.scrollLeft = 0 }}
+            onBlur={() => { escaped.current = false }} />
         </div>
-        <textarea ref={taRef} className="se-ta" value={value} spellCheck={false} wrap="off" autoCapitalize="off" autoCorrect="off"
-          aria-label={label} onChange={(e) => onChange(e.target.value)} onScroll={sync} onKeyDown={onKeyDown}
-          onBlur={() => { escaped.current = false }} />
       </div>
     </div>
   )

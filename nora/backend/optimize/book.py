@@ -58,6 +58,7 @@ import pandas as pd
 NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from backend.carlo.monte_carlo import bootstrap_daily
+from backend.crawl.store import alpha_dir, alpha_run_dir
 from backend.core.metrics.portfolio import portfolio_metrics
 from backend.utils.parallel import auto_workers, pool_map_safe
 from backend.optimize.store import ResultsStore, data_fingerprint, make_job_key
@@ -259,19 +260,20 @@ _pool_map_safe = pool_map_safe
 _auto_workers = auto_workers
 
 
-def _new_run_dir(cache_dir):
+def _new_run_dir():
     """Thư mục lần chạy MỚI: <thời điểm>; trùng giây (hoặc đã có kho kết quả) thì thêm hậu tố để không bao giờ trộn hai lần chạy."""
     base = time.strftime("%Y%m%d_%H%M%S")
     for n in itertools.count(1):
         name = base if n == 1 else f"{base}_{n}"
-        path = cache_dir(None, "book", name)
+        path = alpha_run_dir("book", name)
         if not os.path.exists(os.path.join(path, "results.sqlite")):
+            os.makedirs(path, exist_ok=True)
             return path
 
 
-def _resume_dir(path, cache_dir):
-    """--resume: thư mục lần chạy (đường dẫn hoặc tên thư mục trong data/_cache/book/) phải có results.sqlite."""
-    cand = path if os.path.isabs(path) or os.path.isdir(path) else os.path.join(cache_dir(None, "book"), path)
+def _resume_dir(path):
+    """--resume: thư mục lần chạy (đường dẫn hoặc tên thư mục trong alpha_run_dir("book"), cũ data/_cache/book/) phải có results.sqlite."""
+    cand = path if os.path.isabs(path) or os.path.isdir(path) else os.path.join(alpha_run_dir("book"), path)
     cand = os.path.abspath(cand)
     if not os.path.isfile(os.path.join(cand, "results.sqlite")):
         raise SystemExit(f"--resume: {cand} không có results.sqlite (không phải lần chạy build_strategy_book có kho kết quả)")
@@ -289,7 +291,7 @@ def _fmt_duration(sec):
     return f"{sec / 86400:.1f} ngày"
 
 
-DEFAULTS = {"workers": "auto", "per_worker_mb": None, "n": 24, "seed": 7, "only": "", "out": os.path.join(NORA_ROOT, "data", "alphas"),
+DEFAULTS = {"workers": "auto", "per_worker_mb": None, "n": 24, "seed": 7, "only": "", "out": None,   # None = alpha_dir() tại lúc chạy
             "keep_top": 50, "resume": "", "max_configs": 200_000, "force_large": False, "timeframe": "1m"}
 
 
@@ -300,7 +302,6 @@ def run_job(params=None):
     from backend.utils.memwatch import require_memory_limit
     require_memory_limit("build_strategy_book")
     from backend.core.strategy.book import BASE_RISK_PER_TRADE_PCT, CANDIDATES, GATES, RISK, perp_symbols
-    from backend.db.data_layout import cache_dir
     from backend.utils.memwatch import check_memory_gate, planning_budget_mb
     from backend.core.data.quality_gate import require_data_ok_or_exit
     from backend.utils.jobs import Progress, graceful_sigterm
@@ -333,7 +334,7 @@ def run_job(params=None):
           f"| NORA_DATA_CACHE_MB={os.environ['NORA_DATA_CACHE_MB']} | trần mỗi worker {per_worker_mb:.0f} MB", flush=True)
     eval_risk = {**RISK, "kill_switch_dd_pct": 0}
     resuming = bool(a.resume)
-    run_dir = _resume_dir(a.resume, cache_dir) if resuming else _new_run_dir(cache_dir)
+    run_dir = _resume_dir(a.resume) if resuming else _new_run_dir()
     store = ResultsStore(run_dir)
     progress = Progress(run_dir)
     fingerprint = data_fingerprint(perp_symbols())
@@ -550,7 +551,7 @@ def _run(a, cands, keep, counts_per_cand, total_configs, w, fmt, eval_risk, run_
     paths = []
     if report.get("book"):
         from backend.optimize.registry import write_book
-        paths = write_book(report, a.out, source=run_dir, repo_dir=os.path.dirname(NORA_ROOT))
+        paths = write_book(report, a.out or alpha_dir(), source=run_dir, repo_dir=os.path.dirname(NORA_ROOT))
         for path in paths:
             print("ghi:", path)
         if len(paths) == 1:  # holdout không đạt: chỉ có book.json (HOLDOUT_FAILED), không có cấu hình testnet

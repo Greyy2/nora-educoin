@@ -1,4 +1,4 @@
-/* Trang Tạo chiến lược: không gian làm việc kín chiều cao như xnoquant (trái = code, phải = tab Mẫu / Kết quả / Dữ liệu / Features / Operators). Tiền tố se-. */
+/* Trang Tạo chiến lược: không gian làm việc kín chiều cao (trái = code, phải = tab Mẫu / Kết quả / Dữ liệu / Features / Operators). Tiền tố se-. */
 .n-content.flush { padding: 0; overflow: hidden; display: flex; flex-direction: column; }
 .n-content.flush > .n-tabs { margin: 0; padding: 0 16px; flex: none; }
 .se-ws { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
@@ -33,13 +33,13 @@
 button.se-chip:hover { background: var(--n-surface-3); color: var(--n-ink); }
 .se-chip .d { width: 6px; height: 6px; border-radius: 50%; background: var(--n-ink-3); }
 .se-chip .d.ok { background: var(--n-pos); }
-.se-btns { display: flex; align-items: center; gap: 4px; position: relative; }
+.se-btns { display: flex; align-items: center; gap: 4px; }
 .se-btns .n-icon-btn { width: 34px; height: 34px; border: 1px solid var(--n-line); border-radius: 8px; background: var(--n-surface); }
 .se-btns .n-icon-btn.warn { color: var(--n-warn); }
 .se-run { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 18px; border-radius: 999px; border: 0; cursor: pointer; background: var(--n-accent); color: var(--n-accent-ink); font-weight: 600; font-size: 13.5px; white-space: nowrap; }
 .se-run:hover:not(:disabled) { filter: brightness(1.08); }
 .se-run:disabled { opacity: .6; cursor: not-allowed; }
-.se-setp { position: absolute; top: 40px; right: 0; width: 480px; max-width: 80vw; max-height: calc(100vh - 220px); overflow: auto; z-index: 30; padding-bottom: 12px; }
+.se-setp { position: absolute; top: calc(100% + 4px); right: 12px; width: 480px; max-width: calc(100% - 24px); max-height: calc(100vh - 220px); overflow: auto; z-index: 30; padding-bottom: 12px; }
 .se-setb { padding: 8px 14px 0; }
 
 /* vùng code lấp đầy chiều cao còn lại */
@@ -79,20 +79,21 @@ button.se-chip:hover { background: var(--n-surface-3); color: var(--n-ink); }
 .se-sig { font: 12.5px/1.5 var(--n-mono); color: var(--n-teal); margin-right: 8px; overflow-wrap: anywhere; }
 .se-ref-d { color: var(--n-ink-2); font-size: 12.5px; margin-top: 2px; }
 
-/* ô soạn code: textarea trong suốt đặt lên lớp tô màu; hai lớp phải cùng font, cỡ chữ, thụt lề */
-.se-ed { display: grid; grid-template-columns: 52px minmax(0, 1fr); background: var(--n-surface-2); }
+/* ô soạn code: MỘT khung cuộn (.se-ed) chứa số dòng dính trái + lớp tô màu (quyết định kích thước) + textarea trong suốt phủ đúng lên lớp tô màu (không tự cuộn).
+   Ba lớp cùng font / cỡ chữ / chiều cao dòng / padding để chữ trùng khít từng pixel. */
+.se-ed { position: relative; overflow: auto; background: var(--n-surface-2); }
+.se-sheet { display: grid; grid-template-columns: 52px minmax(max-content, 1fr); width: max-content; min-width: 100%; min-height: 100%; }
 .se-gut, .se-hl, .se-ta { font: 13px/19px var(--n-mono); font-variant-ligatures: none; tab-size: 4; letter-spacing: 0; }
-.se-gut { overflow: hidden; padding: 10px 0 44px; text-align: right; color: var(--n-ink-3); background: var(--n-surface-3); border-right: 1px solid var(--n-line); user-select: none; }
+.se-gut { position: sticky; left: 0; z-index: 2; padding: 10px 0 44px; text-align: right; color: var(--n-ink-3); background: var(--n-surface-3); border-right: 1px solid var(--n-line); user-select: none; }
 .se-gn { padding: 0 12px 0 0; }
 .se-gn.err { color: var(--n-neg); font-weight: 600; }
 .se-stack { position: relative; min-width: 0; }
-.se-hl { position: absolute; inset: 0; overflow: hidden; padding: 10px 0 44px; pointer-events: none; color: var(--n-ink); }
-.se-hl-in { min-width: 100%; width: max-content; padding-right: 28px; }
+.se-hl { padding: 10px 28px 44px 0; pointer-events: none; color: var(--n-ink); }
 .se-ln { white-space: pre; padding: 0 14px; }
 .se-ln.err { background: var(--n-neg-wash); box-shadow: inset 3px 0 var(--n-neg); }
 .se-ta {
-  position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; resize: none; border: 0; outline: 0; overflow: auto; white-space: pre;
-  padding: 10px 14px 44px; background: transparent; color: transparent; caret-color: var(--n-ink);
+  position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; resize: none; border: 0; outline: 0; overflow: hidden; white-space: pre;
+  padding: 10px 14px 40px; background: transparent; color: transparent; caret-color: var(--n-ink);
 }
 .se-ta::selection { background: var(--n-accent-wash); color: transparent; }
 .se-ta:focus-visible { outline: 2px solid var(--n-accent); outline-offset: -2px; border-radius: 0; }

@@ -36,9 +36,11 @@ def _running(venue: str, mode: str, book: str = "main"):
 
 
 def _sdir(venue: str, mode: str, book: str, engine: str = "legacy") -> str:
-    from backend.db.data_layout import cache_dir
+    from backend.crawl.store import live_dir
     from backend.live.bot import state_key
-    return cache_dir(None, "live", state_key(venue, mode, book, engine))
+    path = live_dir(venue, mode, book, engine)   # live_state_key == state_key (có test so khớp)
+    os.makedirs(path, exist_ok=True)
+    return path
 
 
 @router.post("/bot")
@@ -156,8 +158,8 @@ def bot_trades(mode: str = Query("paper", pattern="^(paper|demo|live)$"), venue:
     kind = state.get("book_kind") or (book if book == "explore" else None)
     if kind is None:                                   # trạng thái cũ chưa ghi book_kind: nhận theo generated_at của sổ thử nghiệm
         try:
-            from backend.core.params.presets import alphas_dir
-            with open(os.path.join(alphas_dir(), "explore", "book.json"), encoding="utf-8") as fh:
+            from backend.crawl.store import alpha_dir
+            with open(os.path.join(alpha_dir(), "explore", "book.json"), encoding="utf-8") as fh:
                 kind = "explore" if json.load(fh).get("generated_at") == state.get("book") else "main"
         except (OSError, ValueError):
             kind = "main"

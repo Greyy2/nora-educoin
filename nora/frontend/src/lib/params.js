@@ -17,8 +17,8 @@ export function fmtTimeout(v) {
 
 export const PARAMS = {
   stop_loss_rate: { label: 'Cắt lỗ', unit: '× ATR', hint: 'Khoảng cách cắt lỗ, tính bằng bội số ATR' },
-  take_profit_rate: { label: 'Chốt lời', unit: '× ATR', hint: 'Khoảng cách chốt lời, tính bằng bội số ATR' },
-  trailing_stop: { label: 'Trailing', unit: '× ATR', hint: 'Khoảng bám đuôi của lệnh cắt lỗ động' },
+  take_profit_rate: { label: 'Chốt lời', unit: '× ATR', zero: 'Tắt', hint: 'Khoảng cách chốt lời, tính bằng bội số ATR' },
+  trailing_stop: { label: 'Trailing', unit: '× ATR', zero: 'Tắt', hint: 'Khoảng bám đuôi của lệnh cắt lỗ động' },
   trailing_activation_pct: { label: 'Kích hoạt trailing', unit: '× ATR', zero: 'Ngay', hint: 'Lãi tối thiểu (bội số ATR) trước khi trailing bắt đầu bám; 0 = ngay' },
   timeout: { label: 'Giữ tối đa', unit: '', fmt: fmtTimeout, hint: 'Thời gian giữ lệnh tối đa; 0 = không giới hạn' },
   'sig.adx_min': { label: 'ADX tối thiểu', unit: '', hint: 'Chỉ vào lệnh khi ADX lớn hơn mức này (xu hướng đủ rõ)' },

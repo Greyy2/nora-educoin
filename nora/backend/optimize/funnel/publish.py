@@ -93,7 +93,7 @@ def run_job(params=None) -> Dict[str, Any]:
     from backend.utils.memwatch import require_memory_limit
     require_memory_limit("funnel_book")
     from backend.api.jobs import batch as batch_jobs
-    from backend.core.params.presets import alphas_dir
+    from backend.crawl.store import alpha_dir as alphas_dir
     from backend.optimize.funnel.orchestrator import funnel_root
     from backend.optimize.registry import write_book
     from backend.utils.jobs import as_list

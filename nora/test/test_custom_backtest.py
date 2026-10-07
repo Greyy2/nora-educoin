@@ -47,40 +47,36 @@ def _params(**kw):
     return {"start": "2023-11-22", "end": "2023-12-18", "symbols": ["AAA", "BBB"], **kw}
 
 
-def test_xno_profile_allocates_all_capital_and_reports_everything(market, monkeypatch):
+def test_run_reports_everything_with_one_flat_metric_set(market, monkeypatch):
     from backend.core.backtest import custom_run
     monkeypatch.setenv("NORA_JOB_DIR", str(market / "job"))
-    out = custom_run.run_job(_params(code=CODE_DAILY, profile="xno", initial_capital=100_000))
+    out = custom_run.run_job(_params(code=CODE_DAILY, initial_capital=100_000))
     assert os.path.isfile(market / "job" / "result.json")
     json.dumps(out, allow_nan=False)                                        # JSON hợp lệ, không NaN
     for key in ("config", "program_hash", "data", "metrics", "yearly", "series", "trades", "positions_open", "by_symbol", "warnings"):
         assert key in out
-    assert out["config"]["run_frame"] == "24h" and out["config"]["symbols"] == ["AAA", "BBB"]
-    assert any("ngoài TOP10" in w for w in out["warnings"])
-    assert len(out["positions_open"]) == 2 and out["trades"] == []
-    notional = sum(p["qty"] * p["entry_price"] for p in out["positions_open"])
-    assert notional == pytest.approx(100_000 / 1.001, rel=1e-6)           # chia đều, đủ tiền cả phí 0,1%
-    fees = 100_000 - notional
-    assert fees == pytest.approx(100_000 * 0.001 / 1.001, rel=1e-3)
+    assert "profile" not in out["config"] and out["config"]["run_frame"] == "1m" and out["config"]["symbols"] == ["AAA", "BBB"]
     s = out["series"]
     assert len(s["times"]) == len(s["equity"]) == len(s["drawdown"]) == len(s["pnl"]) and s["times"][0] == 1700611200   # 2023-11-22
     assert all(t2 - t1 == 86400 for t1, t2 in zip(s["times"], s["times"][1:]))
     sim = out["metrics"]["simulate"]
-    assert set(sim) >= {"xno", "nora"} and "annual_return" in sim["xno"] and "sortino" in sim["xno"] and "cagr_pct" in sim["nora"]
-    assert s["times"][0] < s["stage_split"] < s["times"][-1] and out["metrics"]["notes"]["unverified"] == ["xno.sharpe"]
-    assert {b["symbol"] for b in out["by_symbol"]} == {"AAA", "BBB"}
+    assert {"ret_pct", "mdd_pct", "sharpe", "sortino", "cagr_pct", "calmar", "trades", "fees_usd"} <= set(sim)
+    assert not any(isinstance(v, dict) for v in sim.values()) and set(out["metrics"]) == {"simulate", "train", "test", "notes"}
+    assert out["metrics"]["notes"]["annualization_days"] == 365
+    assert s["times"][0] < s["stage_split"] < s["times"][-1]
+    assert {b["symbol"] for b in out["by_symbol"]} == {"AAA@perp", "BBB@perp"}
     assert out["final_equity"] == pytest.approx(s["equity"][-1], abs=0.01)
 
 
-def test_nora_profile_runs_on_1m_with_perp_and_echoes_position(market):
+def test_runs_on_1m_with_perp_and_echoes_position(market):
     from backend.core.backtest import custom_run
-    out = custom_run.run_job(_params(code=CODE_1H, profile="nora", symbols=["AAA", "BBB", "CCC"], initial_capital=10_000,
+    out = custom_run.run_job(_params(code=CODE_1H, symbols=["AAA", "BBB", "CCC"], initial_capital=10_000,
                                      position={"risk_per_trade_pct": 0.25}))
     assert out["config"]["run_frame"] == "1m" and out["config"]["data_symbols"] == ["AAA@perp", "BBB@perp", "CCC@perp"]
-    assert out["config"]["position"]["risk_per_trade_pct"] == 0.25 and out["config"]["market"] == "perp"
+    assert out["config"]["position"]["risk_per_trade_pct"] == 0.25
     assert any("mặc định" in w for w in out["warnings"])
     assert len(out["trades"]) + len(out["positions_open"]) > 0
-    assert out["metrics"]["simulate"]["nora"]["trades"] == len(out["trades"])
+    assert out["metrics"]["simulate"]["trades"] == len(out["trades"])
 
 
 def test_job_rejects_bad_input_clearly(market):
@@ -89,35 +85,20 @@ def test_job_rejects_bad_input_clearly(market):
         custom_run.run_job(_params(code="class S(SimpleAlgorithm):\n    def __algorithm__(self):\n        x = self.data.pv_close\n        y = x and x\n"))
     with pytest.raises(ValueError, match="Không có dữ liệu"):
         custom_run.run_job(_params(code=CODE_DAILY, symbols=["ZZZ"]))
-    with pytest.raises(ValueError, match="profile"):
-        custom_run.run_job(_params(code=CODE_DAILY, profile="x"))
+    for gone in ("profile", "exchange", "universe", "market"):             # tham số đã gỡ: không còn chế độ / nguồn / rổ cố định
+        with pytest.raises(ValueError, match="tham số lạ"):
+            custom_run.run_job(_params(code=CODE_DAILY, **{gone: "x"}))
     with pytest.raises(ValueError, match="tham số lạ"):
         custom_run.run_job(_params(code=CODE_DAILY, bogus=1))
 
 
-def test_exchange_param_sets_env_before_loading(market, monkeypatch):
-    from backend.core.backtest import custom_run
-    monkeypatch.setenv("NORA_EXCHANGE", "okx")                              # teardown khôi phục
-    custom_run.run_job(_params(code=CODE_DAILY, exchange="binance", symbols=["AAA"]))
-    assert os.environ["NORA_EXCHANGE"] == "binance"
-    with pytest.raises(ValueError, match="NORA_EXCHANGE"):
-        custom_run.run_job(_params(code=CODE_DAILY, exchange="khong_co"))
-    monkeypatch.setenv("NORA_EXCHANGE", "okx")
-    custom_run.run_job(_params(code=CODE_DAILY, symbols=["AAA"]))          # bỏ trống = giữ nguyên hành vi hiện tại
-    assert os.environ["NORA_EXCHANGE"] == "okx"
-
-
-def test_data_source_directory_selects_local_data_root(tmp_path, monkeypatch):
-    """exchange = tên thư mục data/<tên>/cex (vd. binance_hist) -> NORA_LOCAL_DATA_ROOT trỏ vào đó; tên sàn thật -> NORA_EXCHANGE."""
-    from backend.core.backtest import custom_run
-    from backend.db import data_layout
-    (tmp_path / "myhist" / "cex").mkdir(parents=True)
-    monkeypatch.setattr(data_layout, "DATA_HOME", str(tmp_path))
-    monkeypatch.setenv("NORA_LOCAL_DATA_ROOT", "/nonexistent")
-    assert custom_run.apply_data_source("myhist") == "myhist"
-    assert os.environ["NORA_LOCAL_DATA_ROOT"] == str(tmp_path / "myhist") and data_layout.default_data_root() == str(tmp_path / "myhist")
-    with pytest.raises(ValueError, match="NORA_EXCHANGE"):
-        custom_run.apply_data_source("khong_co")
+def test_default_universe_and_window_come_from_the_store(market):
+    from backend.core.backtest import custom_run, run_defaults
+    uni = run_defaults.default_universe()
+    assert {"AAA", "BBB", "CCC"} <= set(uni) and uni == sorted(uni)
+    assert custom_run.resolve_symbols(["BBB@perp", "AAA"]) == ["BBB", "AAA"] and custom_run.resolve_symbols(None) == uni
+    d = run_defaults.run_defaults()
+    assert d["symbols"] == [f"{n}@perp" for n in uni] and d["start"] < d["end"] and d["initial_capital"] == 10_000.0 and d["train_ratio"] == 0.7
 
 
 def test_daily_series_labels_and_returns():
@@ -161,6 +142,11 @@ def client(monkeypatch, tmp_path):
     return TestClient(app)
 
 
+def test_api_defaults_endpoint_reads_the_store(client, market):
+    d = client.get("/api/studio/custom/defaults").json()
+    assert {"AAA@perp", "BBB@perp", "CCC@perp"} <= set(d["symbols"]) and d["start"] < d["end"] and set(d) == {"symbols", "start", "end", "train_ratio", "initial_capital"}
+
+
 def test_api_compile_ok_and_error_shape(client):
     ok = client.post("/api/studio/strategies/compile", json={"code": CODE_1H}).json()
     assert ok["ok"] and len(ok["program_hash"]) == 12 and ok["meta"]["timeframe"] == "1h" and ok["meta"]["legs"] == ["LONG"]
@@ -177,38 +163,34 @@ def test_custom_storage_endpoints_are_retired(client):
 
 
 def test_api_custom_backtest_launches_job_with_validated_params(client):
-    body = {"code": CODE_DAILY, "profile": "xno", "universe": "TOP10", "start": "2020-01-02", "end": "2024-12-31", "train_ratio": 0.7,
-            "initial_capital": 100000}
+    body = {"code": CODE_DAILY, "start": "2020-01-02", "end": "2024-12-31", "train_ratio": 0.7, "initial_capital": 100000}
     r = client.post("/api/studio/custom/backtest", json=body)
     assert r.status_code == 200 and "job_id" in r.json()
     kind, params = launched(FakePopen.calls[0])
-    assert kind == "custom_backtest" and params["profile"] == "xno" and params["universe"] == "TOP10" and params["initial_capital"] == 100000
+    assert kind == "custom_backtest" and "profile" not in params and params["initial_capital"] == 100000
     assert set(params) <= batch_jobs.KINDS["custom_backtest"]["params"]
     bad = client.post("/api/studio/custom/backtest", json={**body, "code": "class S(SimpleAlgorithm):\n  def __algorithm__(self):\n    x = y\n"})
     assert bad.status_code == 422 and "dòng 3" in bad.json()["detail"]
     assert client.post("/api/studio/custom/backtest", json={**body, "start": "2025-01-01"}).status_code == 422
     assert client.post("/api/studio/custom/backtest", json={**body, "start": "2000-01-01"}).status_code == 422       # > 4000 ngày
-    assert client.post("/api/studio/custom/backtest", json={**body, "profile": "zzz"}).status_code == 422
     assert client.post("/api/studio/custom/backtest", json={**body, "position": {"nope": 1}}).status_code == 422
     assert client.post("/api/studio/custom/backtest", json={**body, "symbols": ["B" * 40]}).status_code == 422
-    assert client.post("/api/studio/custom/backtest", json={**body, "exchange": "Bad-Ex"}).status_code == 422
     assert client.post("/api/studio/custom/backtest", json={**body, "initial_capital": -5}).status_code == 422
     assert len(FakePopen.calls) == 1 and CLEANUPS == [1]         # mỗi lần chạy mới kích hoạt dọn job tạm quá hạn
 
 
-@pytest.mark.parametrize("profile", ["xno", "nora"])
-def test_diagnostics_use_real_benchmark_and_market(market, monkeypatch, profile):
-    """Chẩn đoán lấy từ chính lần chạy: benchmark luôn long chạy qua cùng engine (cả hai hồ sơ), series.benchmark, chế độ thị trường (chuỗi ngắn -> unknown), lý do thoát thật."""
+def test_diagnostics_use_real_benchmark_and_market(market, monkeypatch):
+    """Chẩn đoán lấy từ chính lần chạy: benchmark luôn long chạy qua cùng engine , series.benchmark, chế độ thị trường (chuỗi ngắn -> unknown), lý do thoát thật."""
     from backend.core.backtest import custom_run
     monkeypatch.setenv("NORA_JOB_DIR", str(market / "job"))
-    out = custom_run.run_job(_params(code=CODE_1H, profile=profile, initial_capital=100_000))
+    out = custom_run.run_job(_params(code=CODE_1H, initial_capital=100_000))
     d = out["diagnostics"]
     mc = d["market_comparison"]
     assert mc["available"], out["warnings"]
     assert "benchmark" in out["series"] and len(out["series"]["benchmark"]["equity"]) == len(out["series"]["equity"])
     assert out["series"]["benchmark"]["equity"][0] == out["series"]["equity"][0] == 100_000
     assert -1.0 <= mc["correlation"] <= 1.0 and mc["beta"] is not None
-    nora_cagr = out["metrics"]["simulate"]["nora"]["cagr_pct"]                            # cùng định nghĩa/số ngày với metrics: 365/(số mẫu - 1)
+    nora_cagr = out["metrics"]["simulate"]["cagr_pct"]                            # cùng định nghĩa/số ngày với metrics: 365/(số mẫu - 1)
     assert mc["strategy_cagr"] == pytest.approx(nora_cagr, abs=0.011)
     assert (mc["market_cagr"], mc["market_mdd"]) != (40.0, 75.0) and (mc["beta"], mc["correlation"]) != (0.95, 0.85)
     sig = d["signal_activity"]
@@ -219,16 +201,15 @@ def test_diagnostics_use_real_benchmark_and_market(market, monkeypatch, profile)
     json.dumps(out, allow_nan=False)
 
 
-def test_benchmark_aligned_with_strategy_start_and_always_long_is_itself(market, monkeypatch):
-    """Cả hai đường vốn bắt đầu cùng ngày ở đúng vốn đầu; nhãn ngày 1 (= giờ đóng nến 12-31/đầu kỳ) chưa có lãi/lỗ vì lệnh vào ở open kế tiếp. Chiến lược luôn long = benchmark từng điểm."""
+def test_benchmark_aligned_with_strategy_start_and_holds_without_risk_sizing(market, monkeypatch):
+    """Cả hai đường vốn cùng lưới ngày và bắt đầu ở đúng vốn đầu; benchmark nắm giữ chia đều (không định cỡ theo rủi ro, không SL) nên khác chiến lược."""
     from backend.core.backtest import custom_run
     monkeypatch.setenv("NORA_JOB_DIR", str(market / "job"))
-    out = custom_run.run_job(_params(code=CODE_DAILY, profile="xno", initial_capital=100_000))
+    out = custom_run.run_job(_params(code=CODE_DAILY, initial_capital=100_000))
     s = out["series"]
     b = s["benchmark"]
     assert b["times"] == s["times"] and b["equity"][0] == s["equity"][0] == 100_000
-    assert b["equity"][1] == s["equity"][1] == 100_000                                    # chưa có điểm nào mang lợi suất của nến vào lệnh
-    assert b["equity"] == s["equity"] and b["final_equity"] == pytest.approx(out["final_equity"], abs=0.01)
+    assert b["final_equity"] == b["equity"][-1] and "Luôn long" in b["label"] and b["equity"] != s["equity"]
 
 
 def test_yearly_table_drops_years_with_fewer_than_two_return_days():
@@ -239,7 +220,7 @@ def test_yearly_table_drops_years_with_fewer_than_two_return_days():
     eq = np.array([100.0, 100.0, 101.0, 102.0, 101.0, 103.0])
     ret = np.zeros(6)
     ret[1:] = eq[1:] / eq[:-1] - 1.0
-    rows = yearly_table({"times": times, "equity": eq, "returns": ret}, split=times[-1] + DAY)
+    rows = yearly_table({"times": times, "equity": eq, "returns": ret}, times[-1] + DAY, [])
     assert [r["year"] for r in rows] == [2020]               # 2019 chỉ có 1 ngày lợi suất (nhãn 01-01 thuộc nến 12-31) -> bỏ
     assert rows[0]["days"] == 4 and rows[0]["sharpe"] is not None
 
@@ -249,7 +230,7 @@ def test_stage_series_are_computed_in_backend_with_benchmark_per_stage(market, m
     + benchmark chạy lại cùng cửa sổ (series.test.benchmark), KHÔNG co dãn; giao diện không phải tính lại."""
     from backend.core.backtest import custom_run
     monkeypatch.setenv("NORA_JOB_DIR", str(market / "job"))
-    out = custom_run.run_job(_params(code=CODE_1H, profile="xno", initial_capital=100_000))
+    out = custom_run.run_job(_params(code=CODE_1H, initial_capital=100_000))
     s = out["series"]
     st = s["stages"]
     assert set(st) == {"all", "train", "test"} and all(st[k] for k in st)

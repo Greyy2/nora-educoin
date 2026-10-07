@@ -62,8 +62,8 @@ def test_alphas_endpoint(client, tmp_path, monkeypatch):
     r = client.get("/api/studio/alphas")
     assert r.status_code == 200 and r.json()["registry"] is None and r.json()["book"] is None and r.json()["registry_status"] == []
     assert r.json()["engine"]["main"]["needs_rebuild"] is None and r.json()["engine"]["explore"]["needs_rebuild"] is None   # chưa có sổ
-    os.makedirs(tmp_path / "nora" / "data" / "alphas")
-    (tmp_path / "nora" / "data" / "alphas" / "registry.json").write_text(json.dumps({"alphas": [1]}))
+    os.makedirs(tmp_path / "data" / "alphas")
+    (tmp_path / "data" / "alphas" / "registry.json").write_text(json.dumps({"alphas": [1]}))
     (tmp_path / "book.json").write_text(json.dumps({"status": "READY"}))
     j = client.get("/api/studio/alphas").json()
     assert j["registry"] == {"alphas": [1]} and j["book"] == {"status": "READY"}
@@ -264,7 +264,7 @@ def test_build_book_stamps_engine_version_and_api_reports_needs_rebuild(client, 
     from backend.optimize import registry as reg
     from backend.utils.engine_version import REASON_NO_VERSION, engine_version
     monkeypatch.setattr(batch_jobs, "NORA_DIR", str(tmp_path / "nora"))
-    adir = tmp_path / "nora" / "data" / "alphas"
+    adir = tmp_path / "data" / "alphas"
     os.makedirs(adir / "explore")
     # sổ cũ (không có engine_version) -> cần dựng lại, lý do rõ ràng
     (tmp_path / "book.json").write_text(json.dumps({"status": "READY_FOR_TESTNET"}))

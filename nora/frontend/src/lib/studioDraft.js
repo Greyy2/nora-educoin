@@ -23,17 +23,15 @@ export function isDraftDirty(d) {
 /** Cấu hình đã lưu (config của kết quả) -> các trường form chạy. Tham số vị thế chỉ lấy các khoá có ô nhập. */
 export function configToForm(config, positionKeys = []) {
   const c = config || {}
-  const f = { profile: c.profile === 'nora' ? 'nora' : 'xno' }
+  const f = {}
   if (c.start) f.start = c.start
   if (c.end) f.end = c.end
   if (c.train_ratio != null) f.train_ratio = String(c.train_ratio)
   if (c.initial_capital != null) f.capital = String(c.initial_capital)
-  if (f.profile === 'nora') {
-    const syms = Array.isArray(c.data_symbols) && c.data_symbols.length ? c.data_symbols : c.symbols
-    if (Array.isArray(syms) && syms.length) f.symbols = syms
-    const pos = {}
-    positionKeys.forEach((k) => { if (c.position && c.position[k] != null) pos[k] = String(c.position[k]) })
-    f.pos = pos
-  }
+  const syms = Array.isArray(c.data_symbols) && c.data_symbols.length ? c.data_symbols : c.symbols
+  if (Array.isArray(syms) && syms.length) f.symbols = syms
+  const pos = {}
+  positionKeys.forEach((k) => { if (c.position && c.position[k] != null) pos[k] = String(c.position[k]) })
+  f.pos = pos
   return f
 }

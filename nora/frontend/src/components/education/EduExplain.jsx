@@ -5,7 +5,7 @@ import { fmtNum, fmtPct, fmtSigned, signClass, isNum } from '../../lib/format'
 import { EDU_SAMPLES } from './educationSamples'
 import '../../styles/education.css'
 
-export default function EduExplain({ draft, result, profile = 'xno', position = null, note = null, staleNote = false, precomputedExplain = null }) {
+export default function EduExplain({ draft, result, position = null, note = null, staleNote = false, precomputedExplain = null }) {
   const posKey = JSON.stringify(position || {})
   const code = draft?.code || ''
   const [explainData, setExplainData] = useState(null)
@@ -17,7 +17,7 @@ export default function EduExplain({ draft, result, profile = 'xno', position = 
     return EDU_SAMPLES.find((s) => s.name === draft?.name || s.code.trim() === code.trim())
   }, [draft, code])
 
-  // Gọi API /explain khi code hoặc profile thay đổi
+  // Gọi API /explain khi code hoặc tham số vị thế thay đổi
   useEffect(() => {
     if (!code) {
       setExplainData(null)
@@ -25,7 +25,7 @@ export default function EduExplain({ draft, result, profile = 'xno', position = 
     }
     // Bản chạy sẵn (hash khớp) đã kèm khối explain: dùng luôn, không gọi API
     if (precomputedExplain) {
-      setExplainData({ ok: true, profile, ...precomputedExplain })
+      setExplainData({ ok: true, ...precomputedExplain })
       setExplainErr(null)
       setLoading(false)
       return
@@ -34,7 +34,7 @@ export default function EduExplain({ draft, result, profile = 'xno', position = 
     setLoading(true)
     setExplainErr(null)
 
-    postExplainStrategy(code, profile, position)
+    postExplainStrategy(code, position)
       .then((res) => {
         if (cancelled) return
         if (res.ok) {
@@ -55,7 +55,7 @@ export default function EduExplain({ draft, result, profile = 'xno', position = 
     return () => {
       cancelled = true
     }
-  }, [code, profile, posKey, precomputedExplain])
+  }, [code, posKey, precomputedExplain])
 
   const diag = result?.diagnostics || {}
   const sigAct = diag.signal_activity || {}
@@ -75,7 +75,7 @@ export default function EduExplain({ draft, result, profile = 'xno', position = 
           <h2 className="edu-explain-title">{draft?.name || sampleMeta?.name || 'Chiến lược định lượng'}</h2>
           <div className="edu-explain-meta">
             <span className="n-badge">Khung nến: {result?.config?.timeframe || explainData?.indicators?.[0]?.timeframe || 'không có dữ liệu'}</span>
-            <span className="n-badge brand">Hồ sơ: {profile === 'xno' ? 'XNO (Chuẩn xnoquant)' : 'Nora Portfolio Engine'}</span>
+            <span className="n-badge brand">Engine mặc định</span>
           </div>
         </div>
 
@@ -144,16 +144,16 @@ export default function EduExplain({ draft, result, profile = 'xno', position = 
                   <ul className="edu-explain-rules" style={{ marginTop: 6 }}>
                     {explainData.rules.map((r, i) => (
                       <li key={i} style={{ marginBottom: 4 }}>
-                        <b>Quy tắc #{i + 1}:</b> {r.action_vi} khi <i>{r.condition_vi}</i>
+                        <b>Quy tắc #{i + 1}:</b> {r.action_vi}
                       </li>
                     ))}
                   </ul>
                 )}
               </div>
 
-              {/* Cơ chế thực thi theo hồ sơ */}
+              {/* Cơ chế thực thi của engine */}
               <div>
-                <b style={{ fontSize: 13, color: 'var(--n-ink)' }}>Cơ chế thực thi & Khớp lệnh ({explainData.profile?.toUpperCase()}):</b>
+                <b style={{ fontSize: 13, color: 'var(--n-ink)' }}>Cơ chế thực thi & Khớp lệnh:</b>
                 <div className="edu-explain-tips" style={{ marginTop: 6 }}>
                   {(explainData.execution || []).map((ex, i) => (
                     <div key={i} className="edu-tip-item">

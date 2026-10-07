@@ -55,6 +55,18 @@ export const METRICS = {
   simulations: { label: 'Số mô phỏng', fmt: (v) => fmtNum(v, 0) },
   final_scale: { label: 'Hệ số s', term: 'scale_s', fmt: (v) => fmtNum(v, 2) },
   search_steps: { label: 'Bước tìm s', fmt: (v) => fmtNum(v, 0) },
+  cagr_pct: { label: 'CAGR', fmt: (v) => fmtSPct(v, 1), tone: true },
+  calmar: { label: 'Calmar', fmt: (v) => fmtNum(v, 2) },
+  cvar95_pct: { label: 'CVaR 95%', fmt: (v) => fmtPct(v, 2) },
+  max_dd_days: { label: 'Ngày sụt giảm dài nhất', fmt: (v) => fmtNum(v, 0) },
+  payoff: { label: 'Payoff', fmt: (v) => fmtNum(v, 2) },
+  mdd_intrabar_pct: { label: 'MDD trong nến', fmt: (v) => fmtPct(v, 2) },
+  mdd_daily_pct: { label: 'MDD theo ngày', fmt: (v) => fmtPct(v, 2) },
+  mdd_basis: { label: 'Cơ sở MDD', fmt: (v) => ({ intrabar: 'trong nến', daily: 'theo ngày' }[v] || String(v)) },
+  fees_usd: { label: 'Phí (USDT)', fmt: (v) => fmtNum(v, 2) },
+  funding_usd: { label: 'Funding (USDT)', fmt: (v) => fmtNum(v, 2) },
+  n_days: { label: 'Số ngày', fmt: (v) => fmtNum(v, 0) },
+  halted: { label: 'Bị dừng khẩn', fmt: (v) => (v ? 'Có' : 'Không') },
 }
 export const metricLabel = (k) => METRICS[k]?.label || k
 export function fmtMetric(k, v) {

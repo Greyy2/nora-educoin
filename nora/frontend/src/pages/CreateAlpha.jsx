@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Status, Spinner, ErrorBox, Empty } from '../components/ui'
+import { Spinner, ErrorBox, Empty } from '../components/ui'
 import JobPanel from '../components/JobPanel'
 import CodeEditor from '../components/studio/CodeEditor'
-import RunSettings, { POSITION_FIELDS } from '../components/studio/RunSettings'
+import RunSettings from '../components/studio/RunSettings'
+import { ICON, JobLine, StoredLine, CompileOutput } from '../components/studio/RunParts'
 import CustomResult from '../components/studio/CustomResult'
 import SaveStrategyModal from '../components/studio/SaveStrategyModal'
 import SavedAlphaList from '../components/studio/SavedAlphaList'
@@ -14,124 +15,21 @@ import useJob from '../hooks/useJob'
 import useAsync from '../hooks/useAsync'
 import useMemState from '../hooks/useMemState'
 import useUnsavedGuard from '../hooks/useUnsavedGuard'
-import { useRunDefaults, resolveForm } from '../lib/eduDefaults'
+import { useRunDefaults, resolveForm } from '../lib/runDefaults'
+import { POSITION_KEYS, validateRun, buildRunBody } from '../lib/runForm'
 import { newDraft, isDraftDirty, configToForm } from '../lib/studioDraft'
-import { useCatalog } from '../context/Catalog'
 import { postCompileStrategy, postCustomBacktest, postSaveUserAlpha, getUserAlphas, getUserAlphaDetail } from '../api'
-import { parseCompileError, normWarnings } from '../lib/customResult'
-import { isNum, toMs, fmtDuration } from '../lib/format'
+import { parseCompileError } from '../lib/customResult'
 import '../styles/strategyEditor.css'
 
 // Trạng thái trang CHỈ trong bộ nhớ (mất khi đóng / tải lại trang): bản nháp, form chạy, lần chạy. Chỉ "Lưu chiến lược" mới ghi vào kho alpha người dùng.
-// Mặc định cửa sổ/train/vốn = cấu hình kết quả Education tính trước (lib/eduDefaults.js; dự phòng 2019-12-31 → 2024-12-31 = cửa sổ khớp xnoquant, train 70 %, vốn 100.000).
-const DEFAULT_FORM = { profile: 'xno', symbols: ['BTC@perp'], pos: {} } // start/end/train/vốn lấy từ useRunDefaults (cấu hình kết quả tính trước)
+const DEFAULT_FORM = { pos: {} } // rổ / ngày / train / vốn lấy từ backend (lib/runDefaults.js)
 const makeInitial = () => ({ drafts: [newDraft('Chiến lược 1', SAMPLES[0].code)], active: '', form: {} })
-const POSITION_KEYS = POSITION_FIELDS.map((f) => f.key)
-
-const num = (v) => (v === '' || v == null ? NaN : Number(v))
-const label = (x) => (typeof x === 'string' ? x : x?.side || x?.name || x?.id || JSON.stringify(x))
-
-function validate(form, code) {
-  const out = []
-  if (!code.trim()) out.push('Chưa có code chiến lược.')
-  if (!form.start || !form.end) out.push('Ngày bắt đầu / kết thúc chưa hợp lệ (dd/mm/yyyy).')
-  else if (form.start >= form.end) out.push('Ngày kết thúc phải sau ngày bắt đầu.')
-  const r = num(form.train_ratio)
-  if (!(r > 0 && r < 1)) out.push('Tỉ lệ train phải nằm trong khoảng (0, 1), ví dụ 0.7.')
-  if (!(num(form.capital) > 0)) out.push('Vốn ban đầu phải lớn hơn 0.')
-  if (form.profile === 'nora') {
-    if (!form.symbols.length) out.push('Chọn ít nhất một tài sản.')
-    POSITION_FIELDS.forEach((f) => {
-      const v = form.pos?.[f.key]
-      if (v !== '' && v != null && !(num(v) >= 0)) out.push(`Tham số quản lý vị thế "${f.key}" phải là số không âm.`)
-    })
-  }
-  return out
-}
-
-function buildBody(form, code) {
-  const body = { code, profile: form.profile, start: form.start, end: form.end, train_ratio: num(form.train_ratio), initial_capital: num(form.capital) }
-  if (form.profile === 'xno') body.universe = 'TOP10'
-  else {
-    body.symbols = form.symbols
-    const position = {}
-    POSITION_FIELDS.forEach((f) => { const v = form.pos?.[f.key]; if (v !== '' && v != null) position[f.key] = Number(v) })
-    if (Object.keys(position).length) body.position = position
-  }
-  return body
-}
-
-const ICON = {
-  gear: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h0a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v0a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z" /></svg>,
-  check: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>,
-  save: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M5 4h11l3 3v13H5z" /><path d="M8 4v5h7V4M8 20v-6h8v6" /></svg>,
-  copy: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" /></svg>,
-  play: <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"><path d="M7 5l12 7-12 7z" /></svg>,
-}
-
-function JobLine({ job, onClear, savedId }) {
-  const t0 = toMs(job?.started) || toMs(job?.created)
-  const t1 = toMs(job?.finished)
-  const lines = job?.log_tail || []
-  return (
-    <span className="se-jobline">
-      <Status tone="ok">Hoàn tất</Status>
-      <span className="mono muted" title="Mã job (chạy tạm, tự xoá sau 24 giờ nếu không lưu)">{job?.job_id || job?.id}</span>
-      {t0 && t1 && <span className="muted">{fmtDuration((t1 - t0) / 1000)}</span>}
-      {lines.length > 0 && <details className="se-logd"><summary>Log</summary><pre className="mono">{lines.join('\n')}</pre></details>}
-      {savedId && <Status tone="ok">Đã lưu {savedId}</Status>}
-      <button type="button" className="se-link" onClick={onClear}>Bỏ kết quả</button>
-    </span>
-  )
-}
-
-function StoredLine({ rec }) {
-  return (
-    <span className="se-jobline">
-      <Status tone="ok">Đã lưu</Status>
-      <span className="mono muted" title="Mã alpha">{rec.id}</span>
-      <span className="muted" title="Kết quả đã lưu cùng bản ghi, không chạy lại">{rec.updated_at ? String(rec.updated_at).slice(0, 10) : ''}</span>
-    </span>
-  )
-}
-
-function CompileOutput({ c, stale }) {
-  if (!c) return <p className="n-note se-out">Bấm “Kiểm tra” để biên dịch code và xem tóm tắt (khung thời gian, chỉ báo, chân lệnh, cảnh báo) mà không chạy backtest.</p>
-  const warns = normWarnings(c.warnings)
-  const m = c.meta || {}
-  const list = (v) => (Array.isArray(v) ? v : []).map(label)
-  return (
-    <div className="se-out" aria-live="polite">
-      {stale && <p className="n-note">Code đã sửa sau lần kiểm tra này.</p>}
-      {c.ok ? (
-        <>
-          <div className="se-meta">
-            <Status tone="ok">Hợp lệ</Status>
-            {m.timeframe && <span>Khung <b className="mono">{m.timeframe}</b></span>}
-            {isNum(m.warmup_bars) && <span>Khởi động <b className="mono">{m.warmup_bars}</b> nến</span>}
-            {isNum(m.position_levels) && <span>Mức vị thế <b className="mono">{m.position_levels}</b></span>}
-            {c.hash && <span className="mono muted" title="Mã băm chương trình">{String(c.hash).slice(0, 12)}</span>}
-          </div>
-          {list(m.legs).length > 0 && <div className="se-meta"><span className="n-lbl">Chân lệnh</span>{list(m.legs).map((l) => <span key={l} className={`n-badge ${l.toLowerCase()}`}>{l}</span>)}</div>}
-          {list(m.features).length > 0 && <div className="se-meta"><span className="n-lbl">Chỉ báo</span>{list(m.features).map((f) => <span key={f} className="n-badge">{f}</span>)}</div>}
-        </>
-      ) : (
-        <div className="n-err" role="alert">
-          <b>Lỗi biên dịch{c.error?.line ? ` · dòng ${c.error.line}${c.error.col ? `, cột ${c.error.col}` : ''}` : ''}</b>
-          <div className="mono se-errmsg">{c.error?.message || 'Không rõ nguyên nhân.'}</div>
-        </div>
-      )}
-      {warns.length > 0 && (
-        <ul className="n-events">{warns.map((w, i) => <li key={i}><span className="ic warn" role="img" aria-label="Cảnh báo">▲</span><span className="tx">{w}</span></li>)}</ul>
-      )}
-    </div>
-  )
-}
 
 export default function CreateAlpha() {
   const [st, set] = useMemState(makeInitial)
-  const runDefaults = useRunDefaults()
-  const form = resolveForm(DEFAULT_FORM, st.form, runDefaults)
+  const { defaults, universe, error: defaultsError } = useRunDefaults()
+  const form = resolveForm(DEFAULT_FORM, st.form, defaults)
   const drafts = st.drafts
   const draft = drafts.find((d) => d.id === st.active) || drafts[0]
   const setForm = (patch) => set((p) => ({ form: { ...p.form, ...patch } }))
@@ -139,9 +37,6 @@ export default function CreateAlpha() {
   const patchById = (id, patch) => set((p) => ({ drafts: p.drafts.map((d) => (d.id === id ? { ...d, ...patch } : d)) }))
   const patchDraft = (patch) => patchById(draft.id, patch)
 
-  const { data: cat, loading: catLoading, error: catError } = useCatalog()
-  const universe = cat?.universe || []
-  const windows = cat?.windows?.start && cat?.windows?.end ? { start: cat.windows.start, end: cat.windows.end } : null
   const saved = useAsync(getUserAlphas, [])
 
   const [compiled, setCompiled] = useState(null) // { code, ok, hash, meta, warnings, error, nonce }
@@ -173,7 +68,7 @@ export default function CreateAlpha() {
   // alpha_id (backend tính) của lần chạy đã xong: so với bản đã lưu để biết còn thay đổi chưa lưu hay không
   useEffect(() => { if (jobResult?.alpha_id && draft.runAlpha !== jobResult.alpha_id) patchById(draft.id, { runAlpha: jobResult.alpha_id }) }, [jobResult?.alpha_id, draft.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const problems = useMemo(() => validate(form, draft.code), [form, draft.code]) // eslint-disable-line react-hooks/exhaustive-deps
+  const problems = useMemo(() => validateRun(form, draft.code), [form, draft.code])
   const stale = compiled && compiled.code !== draft.code
   const errLine = compiled && !stale && !compiled.ok ? compiled.error?.line : null
 
@@ -197,7 +92,7 @@ export default function CreateAlpha() {
     const id0 = draft.id
     const code0 = draft.code
     try {
-      const r = await postCustomBacktest(buildBody(form, code0))
+      const r = await postCustomBacktest(buildRunBody(form, code0))
       const id = r?.job_id || r?.id
       if (!id) throw new Error('Máy chủ không trả mã job.')
       patchById(id0, { jobId: id, runCode: code0, runAlpha: '', stored: null }); setTab('results')
@@ -251,7 +146,7 @@ export default function CreateAlpha() {
   const result = draft.jobId ? jobResult : draft.stored?.result || null
 
   const tm = compiled?.meta?.timeframe
-  const uniText = form.profile === 'xno' ? 'TOP10' : `${form.symbols.length} tài sản`
+  const uniText = `${form.symbols.length} tài sản`
   const issue = compiled && !stale && !compiled.ok
   const TABS = [['samples', 'Mẫu'], ['results', 'Kết quả'], ['data', 'Dữ liệu'], ['features', 'Features'], ['operators', 'Operators']]
   const useSample = (name, code) => { addDraft(name, code); setCompiled(null) }
@@ -274,7 +169,6 @@ export default function CreateAlpha() {
           <input className="se-name" aria-label="Tên chiến lược" placeholder="Tên chiến lược" value={draft.name} onChange={(e) => patchDraft({ name: e.target.value })} />
           <div className="se-chips">
             <button type="button" className="se-chip" onClick={() => setSetOpen(true)} title={draft.saved ? `Alpha ${draft.saved.alpha_id}` : 'Chưa lưu: bản nháp và kết quả chạy chỉ tồn tại trong phiên này'}><i className={`d ${draft.saved && !dirty ? 'ok' : ''}`} />{chip}</button>
-            <button type="button" className="se-chip" onClick={() => setSetOpen(true)} title="Hồ sơ thực thi"><i className="d" />{form.profile}</button>
             <button type="button" className="se-chip" onClick={() => setSetOpen(true)} title="Rổ tài sản"><i className="d" />{uniText}</button>
             {tm && <span className="se-chip"><i className="d" />{tm}</span>}
           </div>
@@ -287,7 +181,7 @@ export default function CreateAlpha() {
               <div className="n-pop se-setp" role="dialog" aria-label="Cài đặt chạy">
                 <div className="n-pop-h"><b>Cài đặt chạy</b><button type="button" className="n-btn sm" onClick={() => setSetOpen(false)}>Đóng</button></div>
                 <div className="se-setb">
-                  <RunSettings form={form} setForm={setForm} universe={universe} catalogLoading={catLoading} catalogError={catError} windows={windows} problems={problems} />
+                  <RunSettings form={form} setForm={setForm} universe={universe} defaultsError={defaultsError} problems={problems} />
                 </div>
               </div>
             )}
@@ -346,7 +240,7 @@ export default function CreateAlpha() {
                 />
               )}
               {!draft.jobId && draft.stored?.result && <CustomResult key={`s-${draft.stored.id}`} result={draft.stored.result} jobLine={<StoredLine rec={draft.stored} />} />}
-              {!draft.jobId && !draft.stored?.result && <Empty title="Chưa có kết quả">Chọn hồ sơ và khoảng ngày ở biểu tượng cài đặt, rồi bấm “Chạy backtest”. Kết quả (Train / Test / Toàn kỳ, đường lãi lỗ, drawdown, lệnh) hiện ở đây và chỉ là tạm thời cho tới khi bấm “Lưu chiến lược”.</Empty>}
+              {!draft.jobId && !draft.stored?.result && <Empty title="Chưa có kết quả">Chọn rổ tài sản và khoảng ngày ở biểu tượng cài đặt, rồi bấm “Chạy backtest”. Kết quả (Train / Test / Toàn kỳ, đường lãi lỗ, drawdown, lệnh) hiện ở đây và chỉ là tạm thời cho tới khi bấm “Lưu chiến lược”.</Empty>}
             </div>
           )}
           {tab === 'data' && <Reference kind="data" />}

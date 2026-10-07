@@ -3,7 +3,8 @@ export const isNum = (v) => typeof v === 'number' && Number.isFinite(v)
 
 export function fmtNum(v, d = 2) {
   if (!isNum(v)) return '—'
-  return v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })
+  const out = v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })
+  return /^-0(\.0+)?$/.test(out) ? out.slice(1) : out // không hiện "-0.00"
 }
 
 export function fmtSigned(v, d = 2, suffix = '') {

@@ -234,7 +234,7 @@ export const postValidateStrategy = (id, params) => request('/api/studio/strateg
 /** Kiểm code (không chạy, không lưu): { ok, program_hash, meta: { timeframe, features, legs, position_levels, warmup_bars }, warnings, error?: { line, col, message } }. */
 export const getDslReference = () => request("/api/studio/strategies/dsl")
 export const postCompileStrategy = (code) => request('/api/studio/strategies/compile', { method: 'POST', body: { code } })
-export const postExplainStrategy = (code, profile = 'xno', position = null) => request('/api/studio/strategies/explain', { method: 'POST', body: { code, profile, ...(profile === 'nora' && position ? { position } : {}) } })
+export const postExplainStrategy = (code, position = null) => request('/api/studio/strategies/explain', { method: 'POST', body: { code, ...(position && Object.keys(position).length ? { position } : {}) } })
 /** Alpha người dùng: POST = lưu DUY NHẤT (server đọc kết quả từ job_id, kiểm program_hash); GET danh sách gọn; GET {id} = bản ghi đầy đủ gồm result đã lưu. **/
 export const postSaveUserAlpha = ({ job_id, code, name, note = '', source = 'alpha-create' }) => request('/api/studio/alphas/user', { method: 'POST', body: { job_id, code, name, note, source } })
 export const getUserAlphas = (params = {}) => {
@@ -249,8 +249,10 @@ export const postArchiveUserAlpha = (alphaId) => request(`/api/studio/alphas/use
 export const postUpdateUserAlphaStatus = (alphaId, status) => request(`/api/studio/alphas/user/${encodeURIComponent(alphaId)}/status`, { method: 'POST', body: { status } })
 
 /** Chạy backtest bằng code Python: job loại custom_backtest, theo dõi bằng getJob như mọi job; result = result.json. */
+/** Mặc định form chạy từ kho dữ liệu OKX: { symbols, start, end, train_ratio, initial_capital }. */
+export const getRunDefaults = () => request('/api/studio/custom/defaults')
 export const postCustomBacktest = (body) => request('/api/studio/custom/backtest', { method: 'POST', body })
-/** Kết quả backtest tính trước của 50 mẫu Education: chỉ mục (items[].{key, program_hash, fallback, ...}) và bản ghi đầy đủ theo key. */
+/** Kết quả backtest tính trước của 50 mẫu Education: chỉ mục (items[].{key, program_hash, ...}) và bản ghi đầy đủ theo key. */
 export const getEducationResults = () => request('/api/studio/education/results')
 export const getEducationResult = (key) => request(`/api/studio/education/results/${encodeURIComponent(key)}`)
 

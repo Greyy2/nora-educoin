@@ -109,10 +109,10 @@ def _frames(symbol: str, st: Dict[str, Any], tf: str, source: str) -> Dict[str, 
     """data: kho nến của sàn đang dùng (toàn bộ lịch sử). okx: kho nến + nến OKX mới nhất nối vào sau (lệnh live gần đây)."""
     import time
     import pandas as pd
-    from backend.db.data_layout import default_data_root
+    from backend.crawl.store import market_dir
     from backend.live import signals as ls
     need = ls.required_frames(symbol, [st], tf)
-    root = os.path.join(default_data_root(), "cex", symbol, "perp")
+    root = market_dir(venue="cex", symbol=symbol, instrument="perp")
     now = int(time.time() * 1000)
     out = {}
     for fr in need:

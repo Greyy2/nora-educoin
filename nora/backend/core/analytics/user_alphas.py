@@ -1,6 +1,6 @@
 """Quản lý Alpha người dùng (C1 — lưu trữ, xác minh, checklist, catalog).
 
-Kho lưu trữ: data/alphas/user/<alpha_id>.json (đường dẫn đặt MỘT chỗ: get_user_alphas_dir; thư mục job: batch.jobs_root())
+Kho lưu trữ: crawl/store.alpha_user_dir()/<alpha_id>.json (đường dẫn đặt MỘT chỗ: get_user_alphas_dir; thư mục job: batch.jobs_root())
 alpha_id = sha1(program_hash + cấu hình chạy)[:12]
 Bản ghi = code + program_hash + config + ảnh chụp đầy đủ kết quả (`result`) + `evidence`, đã xác minh trực tiếp từ job_id (chống giả mạo từ client).
 Chạy ở /alpha/create và /education chỉ là TẠM THỜI (job_ttl dọn sau 24 h nếu không được lưu); chỉ lệnh Lưu mới ghi vào đây.
@@ -21,14 +21,13 @@ from backend.core.analytics.insights import BETA_DRIVEN_ID
 def get_user_alphas_dir(base_dir: Optional[str] = None) -> str:
     if base_dir:
         return os.path.join(base_dir, "user")
-    from backend.db.data_layout import DATA_HOME
-    return os.path.join(DATA_HOME, "alphas", "user")
+    from backend.crawl.store import alpha_user_dir
+    return alpha_user_dir()
 
 
 def generate_alpha_id(program_hash: str, config: Dict[str, Any]) -> str:
     """Tạo mã alpha_id bất biến: sha1(program_hash + canonical config)[:12]."""
     canon = {
-        "profile": config.get("profile"),
         "symbols": sorted(config.get("symbols") or []),
         "start": config.get("start"),
         "end": config.get("end"),
@@ -69,8 +68,8 @@ def evaluate_checklist(result: Dict[str, Any]) -> Dict[str, Any]:
     """Kiểm tra 5 tiêu chí trước khi lưu (chỉ cảnh báo, không chặn). Nguồn DUY NHẤT của checklist: giao diện chỉ hiển thị.
     - >= 20 lệnh đóng
     - có giai đoạn test
-    - Sharpe test > 0 (khối nora; không có thì khối xno)
-    - MDD < 50% (khối nora: mdd_pct đã là %; khối xno: max_drawdown là phân số -> nhân 100)
+    - Sharpe test > 0 (metrics.test.sharpe, năm = 365 ngày)
+    - MDD < 50% (metrics.simulate.mdd_pct, đã là %)
     - không phải thuần beta (insight beta_driven)
     Đầu vào thiếu -> state "missing" (không đạt cũng không trượt), không bao giờ ngầm coi là 0."""
     metrics = result.get("metrics") or {}
@@ -78,18 +77,10 @@ def evaluate_checklist(result: Dict[str, Any]) -> Dict[str, Any]:
     n_trades = len(trades) if isinstance(trades, list) else None
 
     has_test = bool(metrics.get("test"))
-    test_blocks = metrics.get("test") or {}
-    test_sharpe = _first_num(test_blocks.get("nora"), "sharpe")
-    if test_sharpe is None:
-        test_sharpe = _first_num(test_blocks.get("xno"), "sharpe")
-
-    sim = metrics.get("simulate") or {}
-    mdd_pct = _first_num(sim.get("nora"), "mdd_pct")
+    test_sharpe = _first_num(metrics.get("test"), "sharpe")
+    mdd_pct = _first_num(metrics.get("simulate"), "mdd_pct")
     if mdd_pct is not None:
         mdd_pct = abs(mdd_pct)
-    else:
-        f = _first_num(sim.get("xno"), "max_drawdown")
-        mdd_pct = abs(f) * 100.0 if f is not None else None
 
     insights = result.get("insights")
     has_beta_driven = any(isinstance(i, dict) and i.get("id") == BETA_DRIVEN_ID for i in insights) if isinstance(insights, list) else None
@@ -201,7 +192,7 @@ def save_user_alpha(job_id: str, code: str, name: str, note: str = "", source: s
     explain = None
     try:
         from backend.core.strategy.pydsl import explain_program
-        explain = explain_program(prog, profile=config.get("profile", "xno"), position=config.get("position"))
+        explain = explain_program(prog, position=config.get("position"))
     except Exception:      # noqa: BLE001 — giải thích là phần phụ; thiếu thì null
         explain = None
 
@@ -217,7 +208,6 @@ def save_user_alpha(job_id: str, code: str, name: str, note: str = "", source: s
         "updated_at": now_iso,
         "code": code,
         "program_hash": prog.code_hash,
-        "profile": config.get("profile", "xno"),
         "config": config,
         "metrics": result.get("metrics", {}),
         "checklist": checklist,
@@ -244,10 +234,10 @@ def _summary(rec: Dict[str, Any]) -> Dict[str, Any]:
 
 def _sort_value(rec: Dict[str, Any], key: str) -> Optional[float]:
     m = rec.get("metrics") or {}
-    if key == "sharpe":      # Sharpe test, khối nora (365)
-        return _first_num((m.get("test") or {}).get("nora"), "sharpe")
-    if key == "cagr":        # CAGR (365 ngày) toàn kỳ, khối nora — không phải ret_pct
-        return _first_num((m.get("simulate") or {}).get("nora"), "cagr_pct")
+    if key == "sharpe":      # Sharpe giai đoạn test
+        return _first_num(m.get("test"), "sharpe")
+    if key == "cagr":        # CAGR toàn kỳ — không phải ret_pct
+        return _first_num(m.get("simulate"), "cagr_pct")
     return None
 
 

@@ -1,4 +1,4 @@
-"""`self.feat.<tên>(...)` — chỉ báo kỹ thuật, tên và chữ ký theo TA-Lib / xnoquant.
+"""`self.feat.<tên>(...)` — chỉ báo kỹ thuật, tên và chữ ký theo TA-Lib.
 
 Chỉ báo trùng với kernel Nora (sma ema rsi atr natr adx roc bbands donchian volume_z zscore trange) GỌI THẲNG hàm trong
 backend/core/signals/kernels.py trên một DataFrame dựng từ các chuỗi đầu vào: đầu vào là cột giá gốc thì ra đúng từng bit giá trị kernel Nora,

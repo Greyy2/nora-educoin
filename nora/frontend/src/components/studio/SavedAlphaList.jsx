@@ -24,9 +24,9 @@ export default function SavedAlphaList({ list, onOpen, openingId = '', activeId 
             <div key={s.id} className={`n-card-sel se-saved ${activeId === s.id ? 'on' : ''}`} role="button" tabIndex={0} aria-busy={openingId === s.id}
               onClick={() => onOpen(s.id)} onKeyDown={(e) => { if (e.key === 'Enter') onOpen(s.id) }}>
               <b>{s.name || s.id}</b>
-              <span className="n-note mono">{s.id}{s.profile ? ` · ${s.profile}` : ''}{s.updated_at ? ` · ${String(s.updated_at).slice(0, 10)}` : ''}</span>
+              <span className="n-note mono">{s.id}{s.updated_at ? ` · ${String(s.updated_at).slice(0, 10)}` : ''}</span>
               <span className="n-note">{cfg.start && cfg.end ? `${cfg.start} → ${cfg.end}` : 'không có dữ liệu cấu hình'}</span>
-              <span className="n-note">Sharpe Test (365 ngày) {fmtNum(test?.sharpeNora, 2)} · CAGR (365 ngày) {fmtSPct(sim?.cagr, 1)}</span>
+              <span className="n-note">Sharpe Test {fmtNum(test?.sharpe, 2)} · CAGR {fmtSPct(sim?.cagr, 1)}</span>
               {s.has_result === false && <span className="n-note neg" title="Bản ghi lưu từ phiên bản cũ, không kèm ảnh chụp kết quả; mở lên chỉ có code và cấu hình, cần chạy lại">Bản cũ: không có kết quả đã lưu</span>}
               {openingId === s.id && <Spinner />}
             </div>

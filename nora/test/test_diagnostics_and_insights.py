@@ -70,6 +70,17 @@ def _market(n=700, seed=3):
     return {"label_times": lab, "close": 100.0 * np.cumprod(1.0 + drift + rng.normal(0, 0.003, n)), "source": "BTC"}
 
 
+def test_regime_counts_trade_entered_at_the_last_boundary():
+    """Lệnh vào đúng mốc cuối chuỗi (nến đóng ngày cuối) không được làm IndexError; nó thuộc ngày cuối và vẫn được đếm."""
+    mk = _market()
+    n_days = 300
+    times = T0 + 200 * DAY + np.arange(0, n_days + 1) * DAY
+    eq = 1000.0 + np.arange(n_days + 1) * 0.5
+    trades = [_closed("BTC", 200 + n_days, 200 + n_days + 2, 1.0, "Tín hiệu thoát (AST stop)")]       # vào đúng times[-1]
+    reg = diagnose.compute_regime_analysis({"times": times, "equity": eq}, trades, None, mk, None, 1000.0)
+    assert reg["available"] and sum(reg[k]["trades_entered"] for k in ("bull", "bear", "unknown")) == 1
+
+
 def test_regime_days_sum_and_split_by_sma200():
     mk = _market()
     n_days = 400
@@ -141,9 +152,9 @@ def test_diagnose_calculations():
     times = T0 + np.arange(4) * DAY
     series = {"equity": eq, "times": times}
     metrics = {
-        "simulate": {"nora": {"sharpe": 1.5, "cagr_pct": 25.0, "mdd_pct": 10.0}},
-        "train": {"nora": {"sharpe": 1.8, "cagr_pct": 30.0, "mdd_pct": 8.0}},
-        "test": {"nora": {"sharpe": 0.9, "cagr_pct": 15.0, "mdd_pct": 12.0}},
+        "simulate": {"sharpe": 1.5, "cagr_pct": 25.0, "mdd_pct": 10.0},
+        "train": {"sharpe": 1.8, "cagr_pct": 30.0, "mdd_pct": 8.0},
+        "test": {"sharpe": 0.9, "cagr_pct": 15.0, "mdd_pct": 12.0},
     }
     diag = diagnose.diagnose_run(program=None, series=series, trades=trades, metrics=metrics, initial_capital=10000.0, start=int(times[0]), end=int(times[-1]), fees_total=50.0)
 
@@ -174,7 +185,7 @@ def test_diagnose_calculations():
 
 
 def test_train_vs_test_without_train_sharpe_has_no_fake_decay():
-    out = diagnose.compute_train_vs_test({"train": {"nora": {"sharpe": 0.0}}, "test": {"nora": {"sharpe": 1.0}}})
+    out = diagnose.compute_train_vs_test({"train": {"sharpe": 0.0}, "test": {"sharpe": 1.0}})
     assert out["sharpe_decay"] is None
 
 

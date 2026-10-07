@@ -1759,7 +1759,35 @@ def require_data_ok_or_exit(symbols, data_root: Optional[str] = None) -> Dict[st
 #
 
 NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-DEFAULTS = {"staging": os.path.join(NORA_ROOT, "data_staging"), "data": DATA_HOME, "apply": False, "archive_legacy": False}
+# staging=None: quét `<cache/process>/<job>/staging/` của các job crawl (+ vùng đệm cũ cache/staging nếu còn); data=None: gốc market/<sàn> của helper.
+DEFAULTS = {"staging": None, "data": None, "apply": False, "archive_legacy": False}
+STAGING_SUBDIR = "staging"      # khớp api/jobs/batch.STAGING_SUBDIR
+
+
+def _staging_roots() -> List[str]:
+    """Các gốc staging mặc định: cache/process/<job>/staging (crawl ghi thẳng vào thư mục process của job) + cache_staging_dir() nếu tồn tại."""
+    roots = []
+    base = cache_process_dir()
+    if os.path.isdir(base):
+        roots += [p for p in (os.path.join(base, n, STAGING_SUBDIR) for n in sorted(os.listdir(base))) if os.path.isdir(p)]
+    legacy = cache_staging_dir()
+    if os.path.isdir(legacy):
+        roots.append(legacy)
+    return roots
+
+
+def _move_atomic(src: str, dst: str) -> None:
+    """Chuyển thư mục tài sản: os.replace sang tên tạm cạnh đích rồi đổi tên (cùng filesystem = nguyên tử); khác filesystem thì chép vào tên tạm trước."""
+    parent = os.path.dirname(dst)
+    os.makedirs(parent, exist_ok=True)
+    tmp = os.path.join(parent, f".promote_{os.getpid()}_{os.path.basename(dst)}")
+    shutil.rmtree(tmp, ignore_errors=True)
+    try:
+        os.rename(src, tmp)
+    except OSError:
+        shutil.copytree(src, tmp)
+        shutil.rmtree(src, ignore_errors=True)
+    os.rename(tmp, dst)
 
 BLOCKING = (DataQualityStatus.BLOCKED, DataQualityStatus.NEEDS_MORE_DATA)
 
@@ -1770,34 +1798,40 @@ def run_job(params=None):
     args = options(DEFAULTS, params)
 
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    archive_root = os.path.join(args.data, "_archive_invalid", f"legacy_{stamp}")
+    archive_home = args.data or os.path.join(data_home(), "market")
+    archive_root = os.path.join(archive_home, "_archive_invalid", f"legacy_{stamp}")
     actions = []
+    staging_roots = [args.staging] if args.staging else _staging_roots()
 
-    for item in list_assets(args.staging):
-        sym = item["qualified"]
-        dq = evaluate_data_quality(sym, timeframe="1m", data_root=args.staging)
-        m = read_manifest(sym, data_root=args.staging) or {}
-        venue = str(m.get("venue") or "").lower()
-        if venue not in VENUES:
-            print(f"[skip]    {sym:6s} manifest thiếu venue hợp lệ ('{venue}')")
-            continue
-        info = (f"venue={m.get('venue')} days={m.get('coverage_days')} filled={m.get('filled_ratio_1m')} "
-                f"crawl_ok={m.get('crawl_ok')} gate={dq['status']}")
-        if dq["status"] in BLOCKING:
-            print(f"[skip]    {sym:6s} {info} issues={dq['issues']}")
-            continue
-        ex = exchange_of(m)
-        print(f"[promote] {sym:6s} {ex} {info}")
-        rel = os.path.join(*item["symbol"].split("@", 1))          # BTC@perp -> BTC/perp
-        dst = os.path.join(args.data, ex, venue, rel)
-        if os.path.exists(dst):
-            actions.append(("archive", dst, os.path.join(archive_root, ex, venue, rel)))
-        actions.append(("move", item["path"], dst))
+    def _market(ex: str) -> str:   # data tường minh = gốc cũ <data>/<sàn>; mặc định = market_root(sàn) (mới, fallback cũ)
+        return os.path.join(args.data, ex) if args.data else market_root(ex)
+
+    for staging in staging_roots:
+        for item in list_assets(staging):
+            sym = item["qualified"]
+            dq = evaluate_data_quality(sym, timeframe="1m", data_root=staging)
+            m = read_manifest(sym, data_root=staging) or {}
+            venue = str(m.get("venue") or "").lower()
+            if venue not in VENUES:
+                print(f"[skip]    {sym:6s} manifest thiếu venue hợp lệ ('{venue}')")
+                continue
+            info = (f"venue={m.get('venue')} days={m.get('coverage_days')} filled={m.get('filled_ratio_1m')} "
+                    f"crawl_ok={m.get('crawl_ok')} gate={dq['status']}")
+            if dq["status"] in BLOCKING:
+                print(f"[skip]    {sym:6s} {info} issues={dq['issues']}")
+                continue
+            ex = exchange_of(m)
+            print(f"[promote] {sym:6s} {ex} {info}")
+            rel = os.path.join(*item["symbol"].split("@", 1))          # BTC@perp -> BTC/perp
+            dst = os.path.join(_market(ex), venue, rel)
+            if os.path.exists(dst):
+                actions.append(("archive", dst, os.path.join(archive_root, ex, venue, rel)))
+            actions.append(("move", item["path"], dst))
 
     if args.archive_legacy:
         promoted = {a[2] for a in actions if a[0] == "move"}
         for ex in EXCHANGES:
-            for item in list_assets(os.path.join(args.data, ex)):
+            for item in list_assets(_market(ex)):
                 sym, path = item["symbol"], item["path"]
                 if item["venue"] == "legacy" or not os.path.isfile(os.path.join(path, "manifest.json")):
                     if path in promoted:
@@ -1808,8 +1842,11 @@ def run_job(params=None):
     for kind, src, dst in actions:
         print(f"  {kind:7s} {src} -> {dst}")
         if args.apply:
-            os.makedirs(os.path.dirname(dst), exist_ok=True)
-            shutil.move(src, dst)
+            _move_atomic(src, dst)
+    if args.apply and not args.staging:   # tài sản đã chuyển hết khỏi staging của job -> xoá staging (file tạm crawl); tài sản bị gate chặn thì giữ lại
+        for staging in staging_roots:
+            if os.path.basename(staging) == STAGING_SUBDIR and not list_assets(staging):
+                shutil.rmtree(staging, ignore_errors=True)
     if not args.apply:
         print("\n(dry-run) Đặt apply=True để thực hiện.")
     out = {"actions": [{"kind": k, "src": a, "dst": b} for k, a, b in actions], "applied": bool(args.apply)}

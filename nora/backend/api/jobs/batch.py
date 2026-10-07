@@ -5,7 +5,7 @@ Vì sao: API có trần RAM riêng (3G) nên không được chạy việc nặn
 tuần tự (flock) và tự chia worker theo RAM còn trống. runner đọc job.json {kind, params} rồi gọi run_job(params) của module trong KINDS.
 API chỉ khởi chạy, theo dõi và đọc kết quả. UI, terminal (curl) và script đều đi qua cùng endpoint -> cùng job.
 
-Mỗi job có thư mục <data>/_cache/api_jobs/<job_id>/:
+Mỗi job có thư mục <data>/cache/process/<job_id>/ (cũ _cache/api_jobs; kết quả lâu dài: backtest|wfa|carlo/<job_id>):
   params.json đầu vào của runner {kind, params}
   job.json    siêu dữ liệu (id, kind, params, pid, created/started/finished, state, exit_code)
   out.log     stdout+stderr của job
@@ -58,8 +58,7 @@ KINDS: Dict[str, Dict[str, Any]] = {
     "data_promote": {"module": "backend.core.data.promote", "params": {"apply", "archive_legacy"}},
     "alpha_revalidate": {"module": "backend.optimize.revalidate", "params": {"alpha_id", "apply"}},
     "custom_backtest": {"module": "backend.core.backtest.custom_run",
-                        "params": {"code", "profile", "universe", "symbols", "start", "end", "train_ratio", "initial_capital", "position", "exchange",
-                                   "run_frame", "market"}},
+                        "params": {"code", "symbols", "start", "end", "train_ratio", "initial_capital", "position", "run_frame"}},
     "edu_precompute": {"module": "backend.core.backtest.edu_precompute", "params": {"only", "start", "end", "train_ratio", "initial_capital"}},
     "regime_report": {"module": "backend.core.regime.report", "params": {"symbols", "start", "end", "event_pct", "backtest", "timeframe"}},
 }
@@ -85,8 +84,22 @@ class JobBusy(RuntimeError):
 
 # ─── Đường dẫn ──────────────────────────────────────────────────────────────
 def jobs_root() -> str:
-    from backend.db.data_layout import cache_dir
-    return cache_dir(None, "api_jobs")
+    """Job ĐANG chạy (và job lỗi còn giữ log): cache/process (cũ: _cache/api_jobs). Tạo thư mục nếu chưa có."""
+    from backend.crawl.store import cache_process_dir
+    path = cache_process_dir()
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
+# Kết quả lâu dài của job đã xong (ADR-P9 §4): backtest|wfa|carlo/<id>. Cùng tệp như thư mục job (job.json, params.json, result.json, ...).
+RESULT_KINDS = ("backtest", "wfa", "carlo")
+
+
+def _persisted_dirs() -> List[str]:
+    """Các gốc kết quả lâu dài đang tồn tại (qua helper, đã có fallback cũ->mới); 'education' (kết quả Education) không phải job nên bị loại ở _JOB_ID_RE."""
+    from backend.crawl.store import alpha_run_dir as _ard, run_dir as _rd
+    dirs = [_rd(k) for k in RESULT_KINDS] + [_ard("book"), _ard("funnel")]   # book_build -> alpha/book/<id>; funnel_run (chỉ bản ghi job) -> alpha/funnel/<id>
+    return [d for d in dirs if os.path.isdir(d)]
 
 
 def job_dir(job_id: str) -> str:
@@ -94,9 +107,18 @@ def job_dir(job_id: str) -> str:
 
 
 def _job_dir(job_id: str) -> str:
+    """Thư mục của một job: bản kết quả lâu dài (nếu có) rồi tới thư mục đang chạy ở cache/process. Job chưa có ở đâu -> đường trong process
+    (người gọi tự kiểm tra tồn tại / ghi mới)."""
     if not _JOB_ID_RE.match(str(job_id)):
         raise JobError(f"job_id không hợp lệ: {job_id!r}")
-    return os.path.join(jobs_root(), job_id)
+    live = os.path.join(jobs_root(), job_id)
+    if os.path.isdir(live):
+        return live
+    for base in _persisted_dirs():
+        cand = os.path.join(base, job_id)
+        if os.path.isdir(cand):
+            return cand
+    return live
 
 
 # ─── Kiểm đối số ────────────────────────────────────────────────────────────
@@ -188,12 +210,12 @@ def check_number(value: Any, name: str, lo: float, hi: float, integer: bool = Fa
 
 
 def check_report_dir(report_dir: str) -> str:
-    """Thư mục lần chạy build_strategy_book: tên thư mục hoặc đường dẫn nằm TRONG <data>/_cache/book/, có stage_a.json + report.json."""
-    from backend.db.data_layout import cache_dir
-    base = os.path.realpath(cache_dir(None, "book"))
+    """Thư mục lần chạy build_strategy_book: tên thư mục hoặc đường dẫn nằm TRONG alpha_run_dir("book") (cũ <data>/_cache/book/), có stage_a.json + report.json."""
+    from backend.crawl.store import alpha_run_dir
+    base = os.path.realpath(alpha_run_dir("book"))
     path = os.path.realpath(report_dir if os.path.isabs(report_dir) else os.path.join(base, report_dir))
     if os.path.dirname(path) != base:
-        raise JobError("report_dir phải là một lần chạy trong data/_cache/book/")
+        raise JobError("report_dir phải là một lần chạy trong thư mục sổ (data/alpha/book/)")
     for name in ("stage_a.json", "report.json"):
         if not os.path.isfile(os.path.join(path, name)):
             raise JobError(f"report_dir thiếu {name}")
@@ -343,11 +365,10 @@ def build_job(kind: str, p: Dict[str, Any]) -> Dict[str, Any]:
 MAX_CUSTOM_DAYS = 4000
 MAX_CUSTOM_SYMBOLS = 16
 _BASE_RE = re.compile(r"^[A-Z0-9]{2,12}$")
-_EXCHANGE_RE = re.compile(r"^[a-z0-9_]{2,24}$")
 
 
 def build_custom_backtest(p: Dict[str, Any]) -> Dict[str, Any]:
-    """Tham số job custom_backtest (chiến lược Python): kiểm code bằng chính trình biên dịch (lỗi -> JobError kèm dòng/cột), hồ sơ, rổ, ngày, vốn, vị thế."""
+    """Tham số job custom_backtest (chiến lược Python): kiểm code bằng chính trình biên dịch (lỗi -> JobError kèm dòng/cột), rổ, ngày, vốn, vị thế."""
     from backend.core.params.builder import POSITION_KEYS
     from backend.core.strategy.pydsl import DslError, compile_code
     from backend.core.strategy.pydsl.parser import MAX_CODE_CHARS
@@ -361,14 +382,6 @@ def build_custom_backtest(p: Dict[str, Any]) -> Dict[str, Any]:
     except DslError as e:
         raise JobError(f"Lỗi biên dịch chiến lược: {e}")
     out["code"] = code
-    profile = p.get("profile") or "xno"
-    if profile not in ("xno", "nora"):
-        raise JobError("profile phải là xno|nora")
-    out["profile"] = profile
-    if p.get("universe"):
-        if str(p["universe"]).upper() != "TOP10":
-            raise JobError("universe chỉ hỗ trợ TOP10")
-        out["universe"] = "TOP10"
     if p.get("symbols"):
         if not isinstance(p["symbols"], list) or len(p["symbols"]) > MAX_CUSTOM_SYMBOLS:
             raise JobError(f"symbols phải là danh sách tối đa {MAX_CUSTOM_SYMBOLS} tài sản")
@@ -397,18 +410,10 @@ def build_custom_backtest(p: Dict[str, Any]) -> Dict[str, Any]:
             if isinstance(v, bool) or not (isinstance(v, str) or (isinstance(v, (int, float)) and math.isfinite(v))):
                 raise JobError(f"position.{k} phải là số hữu hạn hoặc chuỗi")
         out["position"] = pos
-    if p.get("exchange"):
-        if not _EXCHANGE_RE.match(str(p["exchange"])):
-            raise JobError("exchange phải dạng chữ thường/số/gạch dưới (vd. okx, binance)")
-        out["exchange"] = str(p["exchange"])
     if p.get("run_frame"):
         if p["run_frame"] not in FRAMES:
             raise JobError(f"run_frame phải thuộc {list(FRAMES)}")
         out["run_frame"] = p["run_frame"]
-    if p.get("market"):
-        if p["market"] not in ("perp", "spot"):
-            raise JobError("market phải là perp|spot")
-        out["market"] = p["market"]
     return out
 
 
@@ -471,6 +476,9 @@ def _write_meta(job_dir: str, meta: Dict[str, Any]) -> None:
 
 def _finish(job_dir: str, exit_code: Optional[int]) -> Dict[str, Any]:
     """Ghi kết thúc một lần (waiter thread hoặc status() phát hiện): done nếu thoát 0 / có result.json khi không rõ mã thoát."""
+    if not os.path.isdir(job_dir):   # job đã được lưu lâu dài (lifecycle) bởi waiter/status khác: trả bản ghi ở nơi mới
+        moved = _job_dir(os.path.basename(job_dir.rstrip(os.sep)))
+        return (_read_meta(moved) or {}) if moved != job_dir else {}
     with _LOCK:
         meta = _read_meta(job_dir) or {}
         if meta.get("state") in ("done", "failed"):
@@ -486,7 +494,9 @@ def _finish(job_dir: str, exit_code: Optional[int]) -> Dict[str, Any]:
         if exit_code is None and state != "cancelled":
             meta["error"] = "tiến trình kết thúc không rõ mã thoát và không có result.json"
         _write_meta(job_dir, meta)
-        return meta
+    if meta.get("state") == "done":
+        _persist_quietly(job_dir)   # ngoài _LOCK: sao chép có thể lâu; bước cuối của nó tự lấy _LOCK
+    return meta
 
 
 def _waiter(proc: "subprocess.Popen", job_dir: str) -> None:
@@ -517,6 +527,168 @@ def _env() -> Dict[str, str]:
     return env
 
 
+CRAWL_KINDS = ("data_crawl", "data_crawl_okx")
+STAGING_SUBDIR = "staging"      # <job_dir>/staging/cex/<SYM>/...: file tạm crawl, chờ promote
+FAILED_LOG_KEEP_DAYS = 7        # ADR §4.3: job lỗi/huỷ giữ log 7 ngày rồi tự xoá
+
+
+def _prune_failed(kinds, days: float, now: Optional[float]) -> List[str]:
+    """Xoá thư mục job LỖI/HUỶ quá `days` ngày (mtime job.json) trong cache/process; `kinds` None = mọi loại trừ KEEP_KINDS. Trả job_id đã xoá."""
+    import shutil
+    root, now, gone = jobs_root(), (time.time() if now is None else now), []
+    for name in os.listdir(root):
+        path = os.path.join(root, name)
+        meta = _read_meta(path) if _JOB_ID_RE.match(name) else None
+        if not meta or meta.get("state") not in ("failed", "cancelled"):
+            continue
+        kind = meta.get("kind")
+        if (kinds is not None and kind not in kinds) or (kinds is None and kind in KEEP_KINDS):
+            continue
+        sig = _sig(os.path.join(path, "job.json"))
+        if sig and now - sig[0] / 1e9 > days * 86400:
+            shutil.rmtree(path, ignore_errors=True)
+            gone.append(name)
+    return gone
+
+
+def prune_failed_crawl_jobs(days: float = FAILED_LOG_KEEP_DAYS, now: Optional[float] = None) -> List[str]:
+    """Xoá thư mục job crawl LỖI/HUỶ quá `days` ngày (theo mtime job.json) trong cache/process. Trả danh sách job_id đã xoá."""
+    return _prune_failed(CRAWL_KINDS, days, now)
+
+
+def prune_failed_jobs(days: float = FAILED_LOG_KEEP_DAYS, now: Optional[float] = None) -> List[str]:
+    """ADR §4.3: job LỖI/HUỶ (mọi loại, trừ live_bot và chạy tạm custom_backtest — loại này có hạn 24 h riêng) giữ log 7 ngày rồi xoá."""
+    return _prune_failed(None, days, now)
+
+
+# ─── Vòng đời kết quả (ADR-P9 §4 bước 2–3) ──────────────────────────────────
+KEEP_KINDS = ("live_bot", "custom_backtest")          # không bao giờ lưu/xoá ở đây: bot đang chạy (trạng thái ở live_dir); chạy tạm TTL 24 h
+# Loại khác (edu_precompute, presets_build, alpha_revalidate, regime_report, funnel_book, funnel_recompute, data_promote): kết quả bền do chính job ghi
+# -> xong là dọn thư mục process (không chép). Crawl: giữ tới khi staging/ hết tài sản chưa promote (xem _crawl_staged).
+PERSIST_AREAS = {"book_backtest": ("run", "backtest"), "book_wfa": ("run", "wfa"),
+                 "book_build": ("alpha", "book"), "funnel_run": ("alpha", "funnel")}
+PERSIST_FILES = ("job.json", "params.json", "result.json", "out.log", "progress.json")   # + alphas/ (book_build); không chép checkpoint/_shared/staging
+
+
+def persist_dest_base(kind: str) -> Optional[str]:
+    """Thư mục kết quả lâu dài của một loại job; None nếu loại này không lưu (xem PERSIST_AREAS)."""
+    from backend.crawl.store import alpha_run_dir, run_dir
+    area = PERSIST_AREAS.get(kind)
+    if not area:
+        return None
+    return (run_dir if area[0] == "run" else alpha_run_dir)(area[1])
+
+
+def _same_result(a: str, b: str) -> bool:
+    """Hai thư mục job cùng một kết quả: job.json bên đích đã done và result.json cùng kích thước."""
+    ma = _read_meta(b) or {}
+    sa, sb = _sig(os.path.join(a, "result.json")), _sig(os.path.join(b, "result.json"))
+    return ma.get("state") == "done" and (sa is None or (sb is not None and sa[1] == sb[1]))
+
+
+def persist_job(job_dir: str, dry_run: bool = False) -> Dict[str, Any]:
+    """Áp luật vòng đời cho MỘT job trong cache/process. Trả {id, kind, action, dest}: action ∈ persisted | cleaned | exists (đích đã khớp, chỉ dọn process) |
+    skip (chưa xong/loại không lưu/không ở process) | would_* (dry_run). Nguyên tử: ghi vào thư mục tạm cạnh đích rồi rename; chỉ xoá thư mục process
+    SAU khi đích đã đủ -> chết giữa chừng không mất kết quả, chạy lại là idempotent."""
+    import shutil
+    meta = _read_meta(job_dir) or {}
+    jid, kind = meta.get("id") or os.path.basename(job_dir), meta.get("kind")
+    out = {"id": jid, "kind": kind, "action": "skip", "dest": None}
+    if (meta.get("state") != "done" or kind in KEEP_KINDS or os.path.realpath(os.path.dirname(os.path.realpath(job_dir))) != os.path.realpath(jobs_root())
+            or not _JOB_ID_RE.match(str(jid))):
+        return out
+    base = persist_dest_base(kind)
+    if not base:
+        if kind in CRAWL_KINDS and _crawl_staged(job_dir):
+            return out   # còn tài sản chờ promote
+        out["action"] = "would_clean" if dry_run else "cleaned"
+        if not dry_run:
+            shutil.rmtree(job_dir, ignore_errors=True)
+            if kind == "data_promote":   # promote vừa dọn staging -> job crawl đã xong không còn gì chờ
+                clean_unstaged_crawl_jobs()
+        return out
+    dest = os.path.join(base, jid)
+    out["dest"] = dest
+    if not os.path.isfile(os.path.join(job_dir, "result.json")) and kind != "funnel_run":
+        return out   # job xong không có kết quả: giữ nguyên ở process
+    if dry_run:
+        out["action"] = "would_exists" if os.path.isdir(dest) and _same_result(job_dir, dest) else "would_persist"
+        return out
+    os.makedirs(base, exist_ok=True)
+    if os.path.isdir(dest) and _same_result(job_dir, dest):
+        out["action"] = "exists"
+        shutil.rmtree(job_dir, ignore_errors=True)
+        return out
+    tmp = os.path.join(base, f".{jid}.tmp-{os.getpid()}")
+    shutil.rmtree(tmp, ignore_errors=True)
+    os.makedirs(tmp)
+    try:
+        for name in PERSIST_FILES:
+            if name != "job.json" and os.path.isfile(os.path.join(job_dir, name)):
+                shutil.copy2(os.path.join(job_dir, name), os.path.join(tmp, name))
+        if os.path.isdir(os.path.join(job_dir, "alphas")):
+            shutil.copytree(os.path.join(job_dir, "alphas"), os.path.join(tmp, "alphas"))
+        with _LOCK:   # job.json đọc LẠI sau khi chép (stamp_job có thể vừa ghi nhãn); giữ khoá tới khi đích có đủ
+            meta = _read_meta(job_dir) or meta
+            meta["persisted"] = {"at": time.time(), "from": job_dir}
+            rp = None
+            try:
+                with open(os.path.join(tmp, "result.json"), encoding="utf-8") as fh:
+                    res = json.load(fh)
+                rp = res.get("report_path") or res.get("run_dir") if isinstance(res, dict) else None
+            except (OSError, ValueError):
+                pass
+            if kind == "book_wfa" and rp:
+                meta["report_dir"] = os.path.dirname(rp) if str(rp).endswith(".json") else rp   # báo cáo WFA sống ở wfa/<thời điểm>/, không chép
+            _write_meta(tmp, meta)
+            if os.path.isdir(dest):   # đích dở dang/khác: thay (nguồn còn nguyên tới lúc này)
+                shutil.rmtree(dest)
+            os.rename(tmp, dest)
+    except BaseException:
+        shutil.rmtree(tmp, ignore_errors=True)
+        raise
+    shutil.rmtree(job_dir, ignore_errors=True)
+    out["action"] = "persisted"
+    return out
+
+
+def _crawl_staged(job_dir: str) -> bool:
+    from backend.crawl.store import list_assets
+    return bool(list_assets(os.path.join(job_dir, STAGING_SUBDIR)))
+
+
+def clean_unstaged_crawl_jobs() -> List[str]:
+    """Xoá thư mục job crawl ĐÃ XONG mà staging/ không còn tài sản chưa promote. Trả job_id đã xoá."""
+    import shutil
+    root, gone = jobs_root(), []
+    for name in os.listdir(root):
+        d = os.path.join(root, name)
+        meta = _read_meta(d) if _JOB_ID_RE.match(name) else None
+        if meta and meta.get("kind") in CRAWL_KINDS and meta.get("state") == "done" and not _crawl_staged(d):
+            shutil.rmtree(d, ignore_errors=True)
+            gone.append(name)
+    return gone
+
+
+def _persist_quietly(job_dir: str) -> None:
+    """Gọi khi job vừa xong: lỗi lưu không làm hỏng job (kết quả vẫn ở process; persist_finished_jobs thử lại sau)."""
+    try:
+        persist_job(job_dir)
+    except Exception as e:   # noqa: BLE001
+        print(f"[jobs] không lưu được job {os.path.basename(job_dir)} sang thư mục kết quả: {e}", flush=True)
+
+
+def persist_finished_jobs(apply: bool = False) -> List[Dict[str, Any]]:
+    """MỘT LẦN (cho script chuyển cây): áp luật 2 cho mọi job ĐÃ XONG còn trong cache/process. Mặc định dry-run (chỉ báo). Trả danh sách persist_job()."""
+    root, rows = jobs_root(), []
+    for name in sorted(os.listdir(root)):
+        if _JOB_ID_RE.match(name) and os.path.isdir(os.path.join(root, name)):
+            r = persist_job(os.path.join(root, name), dry_run=not apply)
+            if r["action"] != "skip":
+                rows.append(r)
+    return rows
+
+
 def launch(kind: str, params: Dict[str, Any]) -> str:
     """Khởi chạy job nền, trả job_id ngay (không chờ). params đã qua build_job / router."""
     params = dict(params)
@@ -526,6 +698,9 @@ def launch(kind: str, params: Dict[str, Any]) -> str:
     job_id = f"{time.strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
     job_dir = os.path.join(jobs_root(), job_id)
     os.makedirs(job_dir)
+    prune_failed_jobs()   # job lỗi/huỷ quá 7 ngày (ADR §4.3)
+    if kind in CRAWL_KINDS:   # crawl ghi vào thư mục process của CHÍNH job (ADR §4); promote chuyển tài sản đạt gate sang market/ rồi xoá staging
+        params["output_dir"] = os.path.join(job_dir, STAGING_SUBDIR, "cex")
     if kind == "book_build":   # sổ dựng xong nằm trong thư mục job; alphas/ chỉ đổi khi người dùng xuất bản (book_export.publish_book)
         params["out"] = os.path.join(job_dir, "alphas")
     with open(os.path.join(job_dir, "params.json"), "w", encoding="utf-8") as fh:   # đầu vào của runner (ghi TRƯỚC khi chạy)
@@ -601,6 +776,8 @@ def _summary(job_dir: str) -> Optional[Dict[str, Any]]:
         return None
     if meta.get("state") == "running" and not _alive(meta.get("pid")):
         meta = _finish(job_dir, None)   # waiter không còn (API khởi động lại) hoặc đã ghi xong
+        if meta.get("id") and not os.path.isdir(job_dir):
+            job_dir = _job_dir(meta["id"])   # vừa được lưu sang thư mục kết quả lâu dài
     tail = _tail_text(os.path.join(job_dir, "out.log"), 65536)
     lines = [ln for ln in tail.splitlines() if ln.strip()]
     waiting = (meta.get("state") == "running" and bool(lines)
@@ -668,6 +845,7 @@ def status(job_id: str) -> Optional[Dict[str, Any]]:
     out = _summary(job_dir)
     if out is None:
         return None
+    job_dir = _job_dir(job_id)   # _summary có thể vừa kết thúc + lưu job sang thư mục lâu dài
     out["log_tail"] = out.pop("_lines")[-LOG_TAIL_LINES:]
     out["result"] = None
     if out["status"] == "done":

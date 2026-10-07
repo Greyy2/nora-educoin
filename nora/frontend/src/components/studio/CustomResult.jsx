@@ -15,10 +15,8 @@ const STAGES = [
   { value: 'all', label: 'Toàn kỳ', block: 'simulate' },
 ]
 const BENCH_LABEL = 'Luôn long (benchmark)'
-// Hai quy ước quy năm cùng tồn tại (docs/bmad/p8_education_user_alpha.md §8): ô tổng hợp = khối Nora (365 ngày), bảng theo năm = khối xno (252 kỳ).
-const CAGR_TIP = 'CAGR quy năm theo 365 ngày: (vốn cuối / vốn đầu)^(365 / số ngày lợi suất) − 1 (khối Nora). Bảng theo năm bên dưới dùng quy ước xno 252 kỳ nên số có thể lệch nhẹ.'
-const SHARPE_TIP = 'Sharpe khối xno: mean(r) / std(r, ddof=1) × √252 trên lợi suất ngày. Khối Nora quy năm theo 365 ngày nên số khác (xem Chẩn đoán → Train so với Test).'
-const CAGR_XNO_TIP = 'CAGR xno: (Π(1 + r))^(252 / số kỳ) − 1, quy ước xnoquant (252 kỳ/năm). Ô tổng hợp ở trên dùng CAGR 365 ngày.'
+// MỘT định nghĩa cho mỗi chỉ số; cơ sở nêu một lần (BASIS_NOTE): năm = 365 ngày, lợi suất ngày = vốn mark-to-market cuối ngày UTC, win rate / profit factor theo lệnh đã đóng.
+const BASIS_NOTE = 'Cơ sở: năm = 365 ngày; Sharpe, Sortino, CAGR, Calmar, Max drawdown tính trên lợi suất ngày (vốn cuối ngày UTC); tỉ lệ thắng và Profit factor tính theo từng lệnh đã đóng.'
 const STAGE_VI = { train: 'Train', test: 'Test', simulate: 'Toàn kỳ' }
 
 const p2 = (n) => String(n).padStart(2, '0')
@@ -36,17 +34,15 @@ function Tile({ label, title, children, cls = '' }) {
 function MetricTiles({ m }) {
   const win = (v) => (isNum(v) ? fmtPct(v, 1) : '—')
   return (
-    <div className="n-tilegrid se-tiles">
+    <div className="n-tilegrid se-tiles" title={BASIS_NOTE}>
       <Tile label="Lợi nhuận" cls={signClass(m.ret)}>{fmtSPct(m.ret)}</Tile>
-      <Tile label={<><Term k="cagr">CAGR</Term> <span className="muted">(365 ngày)</span></>} title={CAGR_TIP} cls={signClass(m.cagr)}>{fmtSPct(m.cagr)}</Tile>
-      <Tile label={<><Term k="sharpe">Sharpe</Term> <span className="muted">(252 kỳ)</span></>} title={SHARPE_TIP}>{fmtNum(m.sharpe)}</Tile>
+      <Tile label={<Term k="cagr">CAGR</Term>} cls={signClass(m.cagr)}>{fmtSPct(m.cagr)}</Tile>
+      <Tile label={<Term k="sharpe">Sharpe</Term>}>{fmtNum(m.sharpe)}</Tile>
       <Tile label={<Term k="sortino">Sortino</Term>}>{fmtNum(m.sortino)}</Tile>
       <Tile label={<Term k="mdd">Max drawdown</Term>} cls={isNum(m.mdd) && m.mdd !== 0 ? 'neg' : ''}>{fmtSPct(m.mdd)}</Tile>
       <Tile label={<Term k="calmar">Calmar</Term>}>{fmtNum(m.calmar)}</Tile>
-      <Tile label="Thắng theo ngày" title="Số ngày lãi chia số ngày có biến động (cơ sở: lợi suất ngày)">{win(m.winDays)}</Tile>
-      <Tile label="Thắng theo lệnh" title="Số lệnh lãi chia tổng số lệnh đã đóng (cơ sở: từng lệnh)">{win(m.winTrades)}</Tile>
-      <Tile label="Profit factor (ngày)" title="Cơ sở: lợi suất ngày">{fmtNum(m.pfDays)}</Tile>
-      <Tile label="Profit factor (lệnh)" title="Cơ sở: từng lệnh">{fmtNum(m.pfTrades)}</Tile>
+      <Tile label="Tỉ lệ thắng" title="Số lệnh lãi chia tổng số lệnh đã đóng">{win(m.winTrades)}</Tile>
+      <Tile label="Profit factor" title="Tổng lãi chia tổng lỗ của các lệnh đã đóng">{fmtNum(m.pfTrades)}</Tile>
       <Tile label="Số lệnh">{isNum(m.trades) ? fmtNum(m.trades, 0) : '—'}</Tile>
       <Tile label="Phí (USDT)">{isNum(m.fees) ? fmtMoney(m.fees) : '—'}</Tile>
     </div>
@@ -116,10 +112,10 @@ function Agg({ m }) {
   return (
     <div className="se-agg">
       <div className="se-agg-t">Dữ liệu tổng hợp</div>
-      <div className="se-agg-c"><span className="l">Sharpe (252 kỳ)</span><b>{fmtNum(m?.sharpe)}</b></div>
-      <div className="se-agg-c" title={CAGR_TIP}><span className="l">CAGR (365 ngày)</span><b className={c(m?.cagr)}>{fmtSPct(m?.cagr)}</b></div>
+      <div className="se-agg-c"><span className="l">Sharpe</span><b>{fmtNum(m?.sharpe)}</b></div>
+      <div className="se-agg-c"><span className="l">CAGR</span><b className={c(m?.cagr)}>{fmtSPct(m?.cagr)}</b></div>
       <div className="se-agg-c"><span className="l">Drawdown</span><b className={isNum(m?.mdd) && m.mdd !== 0 ? 'neg' : ''}>{fmtSPct(m?.mdd)}</b></div>
-      <div className="se-agg-c"><span className="l">Profit Factor</span><b>{fmtNum(m?.pfDays)}</b></div>
+      <div className="se-agg-c"><span className="l">Profit Factor</span><b>{fmtNum(m?.pfTrades)}</b></div>
       <div className="se-agg-c"><span className="l">Calmar</span><b>{fmtNum(m?.calmar)}</b></div>
     </div>
   )
@@ -130,7 +126,7 @@ function YearlyTable({ rows }) {
   return (
     <div className="se-yr n-tblwrap">
       <table className="n-tbl">
-        <thead><tr><th>Năm</th><th>Sharpe</th><th title={CAGR_XNO_TIP}>CAGR xno (252 kỳ)</th><th>Max Drawdown</th><th>Profit Factor</th><th>Calmar</th></tr></thead>
+        <thead><tr><th>Năm</th><th>Sharpe</th><th>CAGR</th><th>Max Drawdown</th><th>Profit Factor</th><th>Calmar</th></tr></thead>
         <tbody>
           {rows.map((r, i) => (
             <tr key={`${r.year}-${r.stage}-${i}`}>
@@ -204,7 +200,6 @@ export default function CustomResult({ result, jobLine }) {
         <Segmented label="Giai đoạn" value={stage} onChange={setStage} options={opts} />
         <span className="se-sp" />
         {jobLine}
-        {cfg.profile && <span className="n-badge">{cfg.profile}</span>}
         {result.program_hash && <span className="mono muted" title="Mã băm chương trình đã biên dịch">{String(result.program_hash).slice(0, 12)}</span>}
       </div>
       <div className="se-row2">
@@ -243,7 +238,7 @@ export default function CustomResult({ result, jobLine }) {
             </section>
           )}
           <YearlyTable rows={yearly} />
-          {yearly.length > 0 && <p className="n-note se-pad">Ô tổng hợp: CAGR 365 ngày (khối Nora). Bảng theo năm: CAGR xno 252 kỳ (quy ước xnoquant) nên hai giá trị có thể lệch nhau.</p>}
+          {yearly.length > 0 && <p className="n-note se-pad">{BASIS_NOTE}</p>}
           {!ser && <p className="n-note se-pad">Không có chuỗi vốn cho giai đoạn này.</p>}
           {ser && bench && (shown.equity || shown.pnl) && <p className="n-note se-pad">Đường nét đứt: benchmark luôn long (cùng rổ, vốn và khoảng ngày){stage === 'test' ? ', được backend chạy lại trên chính cửa sổ Test từ vốn đầu' : ''}.</p>}
           {ser && !bench && (shown.equity || shown.pnl) && <p className="n-note se-pad">Không có benchmark cho giai đoạn này.</p>}
@@ -262,7 +257,7 @@ export default function CustomResult({ result, jobLine }) {
       {sub === 'perf' && (
         <>
           {m ? <section className="se-cc"><div className="se-cc-h"><b>Chỉ số</b></div><div className="se-cc-b"><MetricTiles m={m} />
-            <p className="n-note" style={{ marginTop: 8 }}>Sharpe, Sortino, Calmar, thắng theo ngày: cơ sở lợi suất ngày; thắng theo lệnh, số lệnh, phí: cơ sở từng lệnh.</p></div></section>
+            <p className="n-note" style={{ marginTop: 8 }}>{BASIS_NOTE}</p></div></section>
             : <p className="n-note se-pad">Không có số liệu cho giai đoạn này.</p>}
           {bySym.length > 0 && <section className="se-cc"><div className="se-cc-h"><b>Theo tài sản</b><span className="sp" /><span className="muted">{bySym.length} tài sản</span></div><div className="se-cc-b"><Rows rows={bySym} spec={SYMBOL_COLS} empty="" /></div></section>}
         </>
@@ -272,7 +267,7 @@ export default function CustomResult({ result, jobLine }) {
         <>
           <Diagnostics result={result} />
           {Array.isArray(result?.trades) ? <section className="se-cc"><div className="se-cc-h"><b>Danh sách lệnh</b><span className="sp" /><span className="muted">{fmtNum(trades.length, 0)} lệnh</span></div><div className="se-cc-b"><TradesTable trades={trades} /></div></section>
-            : <p className="n-note se-pad">Kết quả chạy sẵn không kèm danh sách lệnh; bấm “Chạy thử nghiệm” để xem từng lệnh.</p>}
+            : <p className="n-note se-pad">Kết quả không kèm danh sách lệnh.</p>}
           {open.length > 0 && <section className="se-cc"><div className="se-cc-h"><b>Vị thế còn mở cuối kỳ</b><span className="sp" /><span className="muted">{open.length}</span></div><div className="se-cc-b"><Rows rows={open} spec={POSITION_COLS} empty="" /></div></section>}
           {warnings.length > 0 && (
             <section className="se-cc"><div className="se-cc-h"><b>Cảnh báo</b><span className="sp" /><span className="muted">{warnings.length}</span></div><div className="se-cc-b">

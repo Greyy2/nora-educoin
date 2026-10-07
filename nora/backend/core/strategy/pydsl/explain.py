@@ -3,17 +3,15 @@
 Dịch cây biểu thức AST sang tiếng Việt tự nhiên và trích xuất:
 - indicators[]: danh sách chỉ báo kỹ thuật với tham số thực tế, khung nến, warmup
 - rules[]: quy tắc vào/thoát lệnh theo thứ tự set_positions
-- execution[]: cơ chế thực thi theo hồ sơ (xno / nora) từ profiles.py
+- execution[]: cơ chế thực thi của engine Nora (profiles.py)
 - warnings[]: cảnh báo cấu trúc (dạng sự kiện/trạng thái, thiếu chân thoát, warmup...)
 """
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set
 
-import backend.core.strategy.pydsl.features as feat_mod
-import backend.core.strategy.pydsl.ops as ops_mod
 from backend.core.strategy.pydsl.program import (
     Bin, BoolConst, Call, Cmp, Const, Data, Inv, Logic, Neg, Node, Pick, Program,
 )
-from backend.core.strategy.pydsl.profiles import NORA_DEFAULTS, XNO_FEE, XNO_POSITION
+from backend.core.strategy.pydsl.profiles import NORA_DEFAULTS
 
 DATA_VI = {
     "open": "giá mở cửa",
@@ -176,11 +174,8 @@ def _has_event_trigger(node: Node) -> bool:
     return any(c.spec.name in event_ops for c in calls if not c.is_feature)
 
 
-def explain_program(program: Program, profile: str = "xno", position: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def explain_program(program: Program, position: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Phân tích chương trình đã biên dịch và trả về bộ giải thích có cấu trúc."""
-    profile = (profile or "xno").lower().strip()
-    if profile not in ("xno", "nora"):
-        profile = "xno"
 
     # 1. Chỉ báo sử dụng
     all_calls: List[Call] = []
@@ -214,12 +209,10 @@ def explain_program(program: Program, profile: str = "xno", position: Optional[D
     for idx, (mask, level, line) in enumerate(program.calls, start=1):
         cond_str = expr_to_vi(mask)
         if level > 0:
-            target_str = "LONG" if level == 1.0 else f"LONG (tỷ trọng {_clean_num(level * 100)}%)"
-            action_vi = f"Vào {target_str} khi {cond_str}"
+            action_vi = f"Vào LONG khi {cond_str}"
             rule_type = "entry_long"
         elif level < 0:
-            target_str = "SHORT" if level == -1.0 else f"SHORT (tỷ trọng {_clean_num(abs(level) * 100)}%)"
-            action_vi = f"Vào {target_str} khi {cond_str}"
+            action_vi = f"Vào SHORT khi {cond_str}"
             rule_type = "entry_short"
         else:
             action_vi = f"Thoát vị thế (đưa về 0) khi {cond_str}"
@@ -236,40 +229,31 @@ def explain_program(program: Program, profile: str = "xno", position: Optional[D
             "is_event": _has_event_trigger(mask),
         })
 
-    # 3. Cơ chế thực thi theo hồ sơ
+    # 3. Cơ chế thực thi (engine Nora)
     execution: List[Dict[str, str]] = []
-    if profile == "xno":
-        execution = [
-            {"title": "Khớp lệnh", "desc": "Khớp ở giá mở cửa nến tiếp theo (Next Open) sau khi nến tín hiệu đóng."},
-            {"title": "Thị trường & Đòn bẩy", "desc": "Giao ngay (Spot), đòn bẩy cố định 1x, không có bán khống (Short)."},
-            {"title": "Phân bổ vốn", "desc": "Chia vốn theo tỷ trọng vốn hóa rổ TOP10 × mức vị thế chỉ định."},
-            {"title": "Quản trị rủi ro", "desc": "Không sử dụng Stop-Loss / Take-Profit; vị thế giữ cho tới khi có tín hiệu thoát hoặc kết thúc kỳ."},
-            {"title": "Chi phí giao dịch", "desc": f"Phí khớp lệnh {_clean_num(XNO_FEE * 100)}% mỗi chiều, giả định trượt giá bằng 0."},
-        ]
-    else:  # nora
-        pos_cfg = {**NORA_DEFAULTS, "cooldown": 60, **(program.position_overrides or {}), **(position or {})}
-        risk_parts = []   # chỉ nhắc cơ chế thực sự bật (giá trị > 0) — đúng như build_plan sẽ chạy
-        if float(pos_cfg.get("stop_loss_rate") or 0) > 0:
-            risk_parts.append(f"Stop-Loss {_clean_num(pos_cfg['stop_loss_rate'])}×ATR tính từ giá trung bình")
-        if float(pos_cfg.get("take_profit_rate") or 0) > 0:
-            risk_parts.append(f"Take-Profit {_clean_num(pos_cfg['take_profit_rate'])}×ATR")
-        if float(pos_cfg.get("trailing_stop") or 0) > 0:
-            act = float(pos_cfg.get("trailing_activation_pct") or 0)
-            risk_parts.append(f"trailing stop {_clean_num(pos_cfg['trailing_stop'])}×ATR" + (f" (bật khi lãi ≥ {_clean_num(act)}×ATR)" if act > 0 else ""))
-        if int(pos_cfg.get("timeout") or 0) > 0:
-            risk_parts.append(f"giữ tối đa {int(pos_cfg['timeout'])} phút")
-        if int(pos_cfg.get("cooldown") or 0) > 0:
-            risk_parts.append(f"nghỉ {int(pos_cfg['cooldown'])} phút sau khi thoát")
-        risk_desc = ("Ngoài tín hiệu thoát: " + ", ".join(risk_parts) + ".") if risk_parts else "Chỉ thoát theo tín hiệu; không có Stop-Loss / Take-Profit."
-        if pos_cfg.get("atr_frame"):
-            risk_desc += f" ATR đo trên khung {pos_cfg['atr_frame']}."
-        execution = [
-            {"title": "Khớp lệnh", "desc": "Khớp ở giá mở cửa nến tiếp theo (Next Open) theo quy chuẩn Nora Engine."},
-            {"title": "Thị trường & Đòn bẩy", "desc": "Hợp đồng phái sinh vĩnh cửu (Perpetual), hỗ trợ đòn bẩy và cả hai chiều Long/Short."},
-            {"title": "Phân bổ vốn", "desc": "Chia khối lượng theo ngân sách rủi ro (Risk-based sizing) từng lệnh."},
-            {"title": "Quản trị rủi ro", "desc": risk_desc},
-            {"title": "Chi phí giao dịch", "desc": "Tính phí sàn theo mô hình Maker/Taker thực tế kèm mô phỏng trượt giá bảo thủ."},
-        ]
+    pos_cfg = {**NORA_DEFAULTS, "cooldown": 60, **(program.position_overrides or {}), **(position or {})}
+    risk_parts = []   # chỉ nhắc cơ chế thực sự bật (giá trị > 0) — đúng như build_plan sẽ chạy
+    if float(pos_cfg.get("stop_loss_rate") or 0) > 0:
+        risk_parts.append(f"Stop-Loss {_clean_num(pos_cfg['stop_loss_rate'])}×ATR tính từ giá trung bình")
+    if float(pos_cfg.get("take_profit_rate") or 0) > 0:
+        risk_parts.append(f"Take-Profit {_clean_num(pos_cfg['take_profit_rate'])}×ATR")
+    if float(pos_cfg.get("trailing_stop") or 0) > 0:
+        act = float(pos_cfg.get("trailing_activation_pct") or 0)
+        risk_parts.append(f"trailing stop {_clean_num(pos_cfg['trailing_stop'])}×ATR" + (f" (bật khi lãi ≥ {_clean_num(act)}×ATR)" if act > 0 else ""))
+    if int(pos_cfg.get("timeout") or 0) > 0:
+        risk_parts.append(f"giữ tối đa {int(pos_cfg['timeout'])} phút")
+    if int(pos_cfg.get("cooldown") or 0) > 0:
+        risk_parts.append(f"nghỉ {int(pos_cfg['cooldown'])} phút sau khi thoát")
+    risk_desc = ("Ngoài tín hiệu thoát: " + ", ".join(risk_parts) + ".") if risk_parts else "Chỉ thoát theo tín hiệu; không có Stop-Loss / Take-Profit."
+    if pos_cfg.get("atr_frame"):
+        risk_desc += f" ATR đo trên khung {pos_cfg['atr_frame']}."
+    execution = [
+        {"title": "Khớp lệnh", "desc": "Khớp ở giá mở cửa nến tiếp theo (Next Open) theo quy chuẩn của engine."},
+        {"title": "Thị trường & Đòn bẩy", "desc": "Hợp đồng phái sinh vĩnh cửu (Perpetual), hỗ trợ đòn bẩy và cả hai chiều Long/Short."},
+        {"title": "Phân bổ vốn", "desc": "Chia khối lượng theo ngân sách rủi ro (Risk-based sizing) từng lệnh."},
+        {"title": "Quản trị rủi ro", "desc": risk_desc},
+        {"title": "Chi phí giao dịch", "desc": "Tính phí sàn theo mô hình Maker/Taker thực tế kèm mô phỏng trượt giá bảo thủ."},
+    ]
 
     # 4. Cảnh báo cấu trúc
     warnings: List[str] = list(program.warnings)
@@ -287,6 +271,9 @@ def explain_program(program: Program, profile: str = "xno", position: Optional[D
 
     if program.has_long and not program.has_short:
         warnings.append("Chiến lược chỉ kích hoạt vị thế LONG (mua/nắm giữ), không tham gia chiều SHORT khi thị trường giảm.")
+
+    if any(abs(r["level"]) not in (0.0, 1.0) for r in rules):
+        warnings.append("Độ lớn của mức position (khác 1) không đổi khối lượng lệnh: engine định cỡ theo rủi ro; mức chỉ phân biệt vào / thoát và chiều.")
 
     if program.warmup_bars >= 60:
         warnings.append(f"Số nến khởi động khá lớn ({program.warmup_bars} nến); chiến lược cần đủ dữ liệu lịch sử trước khi bắt đầu sinh tín hiệu.")

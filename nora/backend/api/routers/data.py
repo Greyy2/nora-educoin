@@ -9,7 +9,7 @@ from backend.api.jobs import batch as batch_jobs
 from backend.db.tick_storage import DEFAULT_TICK_DAYS, MAX_TICK_DAYS, tick_coverage
 
 router = APIRouter(prefix="/api/data", tags=["data"])
-STAGING = os.path.join(batch_jobs.NORA_DIR, "data_staging")   # crawl ghi vào staging; chỉ promote (qua quality gate) mới đưa vào data/
+# Crawl ghi vào <cache/process>/<job>/staging/cex (batch.launch đặt output_dir); chỉ promote (qua quality gate) mới đưa vào market/<sàn>/ rồi xoá staging.
 
 
 class CrawlRequest(BaseModel):
@@ -31,12 +31,11 @@ class PromoteRequest(BaseModel):
 
 @router.post("/crawl")
 def post_crawl(req: CrawlRequest):
-    """Tải nến 1m (+ funding với perp) vào data_staging/cex; sau đó POST /promote đưa tài sản qua quality gate vào data/<sàn>/cex."""
+    """Tải nến 1m (+ funding với perp) vào thư mục process của job (staging/cex); sau đó POST /promote đưa tài sản qua quality gate vào data/<sàn>/cex."""
     syms = [s.strip().upper() for s in req.symbols if s.strip().isalnum()]
-    out = os.path.join(STAGING, "cex")
     if req.exchange == "okx":
-        return batch_jobs.http_launch("data_crawl_okx", {"symbols": syms, "years": req.years, "output_dir": out})
-    return batch_jobs.http_launch("data_crawl", {"symbols": syms, "market": req.market, "years": req.years, "output_dir": out})
+        return batch_jobs.http_launch("data_crawl_okx", {"symbols": syms, "years": req.years})
+    return batch_jobs.http_launch("data_crawl", {"symbols": syms, "market": req.market, "years": req.years})
 
 
 @router.post("/ticks/crawl")
@@ -53,5 +52,5 @@ def get_ticks_coverage():
 
 @router.post("/promote")
 def post_promote(req: PromoteRequest):
-    """Đưa tài sản đã qua quality gate từ data_staging/ vào data/<sàn>/ (apply=False: chỉ xem kế hoạch)."""
+    """Đưa tài sản đã qua quality gate từ staging của các job crawl vào market/<sàn>/ (apply=False: chỉ xem kế hoạch)."""
     return batch_jobs.http_launch("data_promote", {"apply": req.apply, "archive_legacy": req.archive_legacy})

@@ -1,8 +1,8 @@
-"""DSL chiến lược Python (dạng xnoquant `SimpleAlgorithm`) chạy trên engine Nora — docs/bmad/p7_python_strategies.md.
+"""DSL chiến lược Python (cú pháp dạng `SimpleAlgorithm`) chạy trên engine Nora — docs/bmad/p7_python_strategies.md.
 
     from backend.core.strategy.pydsl import compile_code
     prog = compile_code(code)          # DslError (có dòng/cột) nếu sai; đăng ký chương trình vào signals.kernels để engine đọc cột py_<hash>_<le|lx|se|sx>
-    plan = profiles.build_plan(prog, "xno", symbols, ...)
+    plan = profiles.build_plan(prog, symbols, ...)
 """
 from typing import Any, Dict, Optional
 
@@ -31,17 +31,17 @@ def compile_report(code: str) -> Dict[str, Any]:
     return {"ok": True, "program_hash": prog.code_hash, "meta": prog.meta(), "warnings": prog.warnings, "error": None}
 
 
-def explain_program(prog: Program, profile: str = "xno", position: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def explain_program(prog: Program, position: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     from backend.core.strategy.pydsl.explain import explain_program as _ep
-    return _ep(prog, profile=profile, position=position)
+    return _ep(prog, position=position)
 
 
-def explain_report(code: str, profile: str = "xno", position: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def explain_report(code: str, position: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Dạng trả về của POST /api/studio/strategies/explain: {ok, indicators[], rules[], execution[], warnings[], error}."""
     try:
         prog = compile_code(code, register=False)
     except DslError as e:
         return {"ok": False, "indicators": [], "rules": [], "execution": [], "warnings": [], "error": e.to_dict()}
-    return {"ok": True, "error": None, **explain_program(prog, profile=profile, position=position)}
+    return {"ok": True, "error": None, **explain_program(prog, position=position)}
 
 

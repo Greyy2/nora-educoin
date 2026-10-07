@@ -42,7 +42,7 @@ def _run(strategies, symbols, start_ms, end_ms, trade_start, root):
 def _parity(root, symbols, start_ms, end_ms, trade_start):
     core = _core_strategy()
     prog = compile_code(KEMA_CODE)
-    plan = profiles.build_plan(prog, "nora", symbols, position=core["position"], strategy_id="kema_long", exact_id=True)
+    plan = profiles.build_plan(prog, symbols, position=core["position"], strategy_id="kema_long", exact_id=True)
     assert len(plan.strategies) == 1
     assert {k: plan.strategies[0]["position"][k] for k in core["position"]} == core["position"]
     a = _run([core], symbols, start_ms, end_ms, trade_start, root)

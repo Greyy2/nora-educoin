@@ -243,7 +243,7 @@ def compute_pnl_structure(trades: List[Dict[str, Any]], fees_total: float, initi
 # ─── 3. So sánh thị trường (benchmark luôn long qua cùng engine) ────────────
 
 def _cagr_mdd(times: np.ndarray, eq: np.ndarray) -> Tuple[Optional[float], Optional[float]]:
-    """(CAGR %, MDD %) từ đường vốn ngày — CÙNG định nghĩa với metrics.simulate.nora (metrics/returns.cagr_pct): CAGR = (vốn cuối/vốn đầu)^(365/số ngày lợi suất) − 1 với
+    """(CAGR %, MDD %) từ đường vốn ngày — CÙNG định nghĩa với metrics.simulate (metrics/returns.cagr_pct): CAGR = (vốn cuối/vốn đầu)^(365/số ngày lợi suất) − 1 với
     số ngày lợi suất = số mẫu − 1 (mẫu đầu = vốn đầu, không phải một ngày giao dịch); MDD dương theo vốn đóng ngày."""
     from backend.core.metrics.returns import cagr_pct
     if eq.shape[0] < 2 or eq[0] <= 0:
@@ -288,20 +288,10 @@ def compute_market_comparison(strat_equity: np.ndarray, strat_times: np.ndarray,
 # ─── 4. Train vs test ───────────────────────────────────────────────────────
 
 def _stage_numbers(block: Dict[str, Any]) -> Dict[str, Optional[float]]:
-    """(sharpe, CAGR %, MDD %) của một giai đoạn: khối `nora` ({cagr_pct, mdd_pct, sharpe}) hoặc `xno` ({annual_return, max_drawdown} dạng phân số)."""
-    nora, xno = block.get("nora") or {}, block.get("xno") or {}
-    sharpe = nora.get("sharpe", xno.get("sharpe"))
-    if nora.get("cagr_pct") is not None:
-        cagr = _safe_float(nora["cagr_pct"])
-    else:
-        a = nora.get("annual_return", xno.get("annual_return"))
-        cagr = _safe_float(a) * 100.0 if a is not None else None
-    if nora.get("mdd_pct") is not None:
-        mdd = abs(_safe_float(nora["mdd_pct"]))
-    else:
-        m = nora.get("max_drawdown", xno.get("max_drawdown"))
-        mdd = abs(_safe_float(m)) * 100.0 if m is not None else None
-    return {"sharpe": _num(sharpe) if sharpe is not None else None, "cagr": _num(cagr) if cagr is not None else None, "mdd": _num(mdd) if mdd is not None else None}
+    """(sharpe, CAGR %, MDD %) của một giai đoạn từ bộ chỉ số phẳng {sharpe, cagr_pct, mdd_pct} (năm = 365 ngày)."""
+    sharpe, cagr, mdd = block.get("sharpe"), block.get("cagr_pct"), block.get("mdd_pct")
+    return {"sharpe": _num(sharpe) if sharpe is not None else None, "cagr": _num(_safe_float(cagr)) if cagr is not None else None,
+            "mdd": _num(abs(_safe_float(mdd))) if mdd is not None else None}
 
 
 def compute_train_vs_test(metrics: Dict[str, Any]) -> Dict[str, Any]:
@@ -338,7 +328,8 @@ def compute_regime_analysis(series: Dict[str, np.ndarray], trades: List[Dict[str
     daily_pnl = np.diff(eq)
     norm = normalize_trades(trades, open_positions, int(times[-1]))
     count, _, _ = daily_positions(times, norm)
-    enter_day = np.asarray([max(int(np.searchsorted(times, t["enter"], side="right")) - 1, 0) for t in norm], dtype="int64")
+    # ngày của lệnh = ngày chứa thời điểm vào; vào đúng mốc cuối (times[-1]) hoặc trước mốc đầu thì tính vào ngày cuối / ngày đầu để không mất lệnh và không vượt chỉ số
+    enter_day = np.asarray([min(max(int(np.searchsorted(times, t["enter"], side="right")) - 1, 0), n_days - 1) for t in norm], dtype="int64")
     bench_pnl = None
     if benchmark:
         _, ia, ib = np.intersect1d(times, np.asarray(benchmark["times"], dtype="int64"), return_indices=True)

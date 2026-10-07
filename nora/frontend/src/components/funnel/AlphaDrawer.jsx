@@ -33,7 +33,9 @@ function Journey({ d }) {
 function MetricMatrix({ d }) {
   const cols = d.stages.filter((s) => s.metrics)
   const order = Object.keys(METRICS)
-  const keys = [...new Set(cols.flatMap((s) => Object.keys(s.metrics)))].sort((a, b) => {
+  // chỉ hiện chỉ số đã có nhãn và là giá trị đơn (bỏ khoá thô/đối tượng lồng như by_symbol, fold_detail, sr_daily, skew, kurt)
+  const scalar = (v) => v == null || ['number', 'string', 'boolean'].includes(typeof v)
+  const keys = [...new Set(cols.flatMap((s) => Object.keys(s.metrics)))].filter((k) => METRICS[k] && cols.every((s) => scalar(s.metrics[k]))).sort((a, b) => {
     const ia = order.indexOf(a); const ib = order.indexOf(b)
     return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib)
   })

@@ -2,9 +2,8 @@
 
 GET  /api/studio/strategies           các chiến lược lõi: params_schema (mọi tham số chỉnh được), preset {params, source, evidence}, frames_allowed.
 POST /api/studio/strategies/validate  Kiểm thử tham số một chiến lược theo params_schema (không chạy job): {ok, errors[{field, message}], resolved}.
-POST /api/studio/strategies/compile   Biên dịch code Python (DSL xnoquant, core/strategy/pydsl; KHÔNG exec): {ok, program_hash, meta, warnings, error{line, col, message}}.
+POST /api/studio/strategies/compile   Biên dịch code Python (DSL SimpleAlgorithm, core/strategy/pydsl; KHÔNG exec): {ok, program_hash, meta, warnings, error{line, col, message}}.
 GET  /api/studio/strategies/dsl        Tham chiếu DSL chỉ đọc: {data[{name, doc}], features[{name, signature, doc, returns, outputs}], operators[...]} dựng từ pydsl/spec.py.
-(Đã gỡ /strategies/custom: lưu chỉ code không còn; chiến lược người dùng = POST /api/studio/alphas/user kèm kết quả chạy. data/alphas/custom_strategies.json bỏ không dùng.)
 """
 from typing import Any, Dict, List, Optional
 
@@ -70,14 +69,13 @@ def post_compile(req: CompileRequest) -> Dict[str, Any]:
 
 class ExplainRequest(BaseModel):
     code: str = Field(..., min_length=1, max_length=50_000, description="Mã Python class X(SimpleAlgorithm)")
-    profile: str = Field("xno", description="Hồ sơ thực thi (xno | nora)")
-    position: Optional[Dict[str, Any]] = Field(None, description="Tham số vị thế (hồ sơ nora), như khi chạy backtest")
+    position: Optional[Dict[str, Any]] = Field(None, description="Tham số vị thế như khi chạy backtest")
 
 
 @router.post("/explain")
 def post_explain(req: ExplainRequest) -> Dict[str, Any]:
     """Giải thích cấu trúc chiến lược từ cây biểu thức đã biên dịch (B2): {ok, indicators[], rules[], execution[], warnings[], error}."""
-    return pydsl.explain_report(req.code, profile=req.profile, position=req.position)
+    return pydsl.explain_report(req.code, position=req.position)
 
 
 

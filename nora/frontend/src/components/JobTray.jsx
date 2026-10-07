@@ -53,7 +53,7 @@ export default function JobTray() {
               const el = jobElapsed(j, now)
               return (
                 <li key={j.job_id}>
-                  <Link to={jobLink(j)} title={`Mở ${j.job_id}`}>
+                  <Link to={jobLink(j) || '/history'} title={`Mở ${j.job_id}`}>
                     <span className="k">{jobKindText(j.kind)}</span>
                     <span className="lb">{jobDetail(j)}</span>
                     <Status tone={meta.cls}>{isActiveJob(j) && <Spinner />}{meta.text}</Status>

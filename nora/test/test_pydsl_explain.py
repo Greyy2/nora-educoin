@@ -27,7 +27,7 @@ class EmaCross(SimpleAlgorithm):
         self.set_positions(crossunder, 0.0)
 """
     prog = compile_code(code, register=False)
-    exp = explain_program(prog, profile="xno")
+    exp = explain_program(prog)
 
     assert len(exp["indicators"]) == 1
     assert exp["indicators"][0]["name"] == "ema"
@@ -41,7 +41,7 @@ class EmaCross(SimpleAlgorithm):
     assert "cắt xuống" in r2["action_vi"]
 
     assert any("Khớp ở giá mở cửa" in e["desc"] for e in exp["execution"])
-    assert any("Giao ngay (Spot)" in e["desc"] for e in exp["execution"])
+    assert any("Perpetual" in e["desc"] for e in exp["execution"])
 
 
 def test_explain_form_2_threshold():
@@ -57,14 +57,14 @@ class RsiReversal(SimpleAlgorithm):
         self.set_positions(sell_sig, 0.0)
 """
     prog = compile_code(code, register=False)
-    exp = explain_program(prog, profile="nora")
+    exp = explain_program(prog)
 
     assert any(ind["name"] == "rsi" for ind in exp["indicators"])
     r1, r2 = exp["rules"][0], exp["rules"][1]
     assert "cắt lên mức 30" in r1["action_vi"]
     assert "cắt xuống mức 70" in r2["action_vi"]
 
-    # Profile nora có mô tả SL động theo ATR và đòn bẩy
+    # mô tả SL động theo ATR và đòn bẩy
     assert any("Stop-Loss" in e["desc"] for e in exp["execution"])
 
 
@@ -82,7 +82,7 @@ class TrendFilter(SimpleAlgorithm):
         self.set_positions(cond_in, 1.0)
 """
     prog = compile_code(code, register=False)
-    exp = explain_program(prog, profile="xno")
+    exp = explain_program(prog)
 
     assert len(exp["indicators"]) == 2
     names = {ind["name"] for ind in exp["indicators"]}
@@ -109,7 +109,7 @@ class BreakoutHold(SimpleAlgorithm):
         self.set_positions(held, 1.0)
 """
     prog = compile_code(code, register=False)
-    exp = explain_program(prog, profile="xno")
+    exp = explain_program(prog)
 
     assert any(ind["name"] == "donchian_upper" for ind in exp["indicators"])
     r1 = exp["rules"][0]
@@ -132,11 +132,11 @@ class MultiScale(SimpleAlgorithm):
         self.set_positions(c_exit, 0.0)
 """
     prog = compile_code(code, register=False)
-    exp = explain_program(prog, profile="xno")
+    exp = explain_program(prog)
 
     assert len(exp["rules"]) == 3
     assert exp["rules"][0]["level"] == 0.5
-    assert "50%" in exp["rules"][0]["action_vi"]
+    assert any("không đổi khối lượng lệnh" in w for w in exp["warnings"])
     assert exp["rules"][1]["level"] == 1.0
     assert "LONG khi" in exp["rules"][1]["action_vi"]
     assert exp["rules"][2]["level"] == 0.0
@@ -157,7 +157,7 @@ class Demo(SimpleAlgorithm):
         self.set_positions(self.op.crossed_above(self.data.pv_close, ema), 1.0)
         self.set_positions(self.op.crossed_below(self.data.pv_close, ema), 0.0)
 """
-    r = client.post("/api/studio/strategies/explain", json={"code": code, "profile": "xno"})
+    r = client.post("/api/studio/strategies/explain", json={"code": code})
     assert r.status_code == 200
     j = r.json()
     assert j["ok"] is True
@@ -166,7 +166,7 @@ class Demo(SimpleAlgorithm):
     assert len(j["execution"]) >= 4
 
     # Test mã sai trả về ok=False
-    r_bad = client.post("/api/studio/strategies/explain", json={"code": "broken code", "profile": "xno"})
+    r_bad = client.post("/api/studio/strategies/explain", json={"code": "broken code"})
     assert r_bad.status_code == 200
     assert r_bad.json()["ok"] is False
     assert r_bad.json()["error"] is not None
@@ -180,7 +180,7 @@ def test_nora_risk_text_follows_actual_position():
             "        c = self.data.pv_close\n        self.set_positions(c < self.feat.sma(c, 20), position=0)\n"
             "        self.set_positions(c > self.feat.sma(c, 20), position=1)\n")
     prog = compile_code(code, register=False)
-    risk = lambda pos: next(e["desc"] for e in explain_program(prog, profile="nora", position=pos)["execution"] if e["title"] == "Quản trị rủi ro")
+    risk = lambda pos: next(e["desc"] for e in explain_program(prog, position=pos)["execution"] if e["title"] == "Quản trị rủi ro")
     plain = risk({"stop_loss_rate": 2.0, "atr_frame": "24h"})
     assert "Stop-Loss 2×ATR" in plain and "trailing" not in plain and "Take-Profit" not in plain and "khung 24h" in plain
     trail = risk({"stop_loss_rate": 3.0, "trailing_stop": 3.0})

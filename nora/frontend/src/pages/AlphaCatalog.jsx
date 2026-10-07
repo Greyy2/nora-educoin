@@ -285,16 +285,18 @@ function StrategyDoc({ s, onClose, onReload }) {
               </ul>
             </section>
 
-            <section className="n-ad-sec">
-              <h3>Công thức toán học</h3>
-              {s.isTopAgent && <p className="n-note">Dạng tổng quát của loại bot (minh hoạ ký hiệu), không phải tham số đã fit của bot này; tham số cụ thể xem mục Công thức.</p>}
-              {s.math.map((m, i) => (
-                <div key={i} className="n-ad-mathrow">
-                  <span className="t">{m.title}</span>
-                  <MathBlock latex={m.latex} label={m.title} />
-                </div>
-              ))}
-            </section>
+            {s.math.length > 0 && (
+              <section className="n-ad-sec">
+                <h3>Công thức toán học</h3>
+                {s.isTopAgent && <p className="n-note">Dạng tổng quát của loại bot (minh hoạ ký hiệu), không phải tham số đã fit của bot này; tham số cụ thể xem mục Công thức.</p>}
+                {s.math.map((m, i) => (
+                  <div key={i} className="n-ad-mathrow">
+                    <span className="t">{m.title}</span>
+                    <MathBlock latex={m.latex} label={m.title} />
+                  </div>
+                ))}
+              </section>
+            )}
 
             <section className="n-ad-sec">
               <h3>Thống kê</h3>
