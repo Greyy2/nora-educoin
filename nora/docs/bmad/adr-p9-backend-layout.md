@@ -16,6 +16,9 @@ Luật bất biến khi chuyển:
    lưu tên lớp; worker pool pickle tên hàm). Gỡ shim ở bước cuối.
 4. Mọi số hiển thị đều do module logic tính từ dữ liệu thật (không số tĩnh/giả trong frontend hay file dữ liệu).
 
+
+**Phân vai (người dùng chốt 2026-10-07):** norabt-99 chỉ làm kiến trúc (di chuyển file/module, cây thư mục, shim, luật phụ thuộc, chuyển cây data); MỌI thay đổi logic do norabt-e2 triển khai. Review chéo trước mỗi commit.
+
 ## 2. Cây backend đích
 
 ```
@@ -148,11 +151,11 @@ Hiện 79 manifest `okx/cex/*/perp` đang lưu băm BYTE file (đợt gộp data
 | ID | Việc | Người | Cần trước | Xong khi |
 |---|---|---|---|---|
 | P9.0 | ADR này + test luật phụ thuộc (chế độ báo cáo) | O | — | Phiên alpha + backtest analyst OK; người dùng duyệt |
-| P9.1 | Sửa 79 manifest OKX (`compute_df_sha256`), xác nhận nội dung nến trước khi ghi | S | P9.0 + user OK | Quality gate APPROVED/WARNING cho mọi tài sản; test_pydsl_parity xanh |
+| P9.1 | Sửa 79 manifest OKX (`compute_df_sha256`), xác nhận nội dung nến trước khi ghi | norabt-e2 (logic) | P9.0 + user OK | Quality gate APPROVED/WARNING cho mọi tài sản; test_pydsl_parity xanh |
 | P9.2 | `crawl/` (cex, dex, store) + chọn gốc dữ liệu một chỗ | S | P9.0 | Khoá cache mmap không đổi; crawl/quality gate test xanh |
 | P9.3 | `data/` theo cây mới (script chuyển + kiểm sha256, symlink tạm ở đường cũ) | S | P9.2 | Mọi job đọc/ghi đúng chỗ mới; không mất file (đếm + băm) |
 | P9.4 | `core/` (models, params, indicator, signal, position_size, backtest) + shim | S | P9.2 | Golden + mọi parity + nautilus_diff không đổi |
-| P9.4b | Một engine: paper/live gọi kernel từng nến (trạng thái mảng), gỡ tracker/manager/sim_venue/runner; OkxVenue chỉ I/O | O thiết kế, S cài | P9.4 | Paper = backtest bit-identical bằng chính engine; test bot unified + OKX xanh; nautilus_diff không đổi |
+| P9.4b | Một engine: paper/live gọi kernel từng nến (trạng thái mảng), gỡ tracker/manager/sim_venue/runner; OkxVenue chỉ I/O | norabt-e2 (logic) | P9.4 | Paper = backtest bit-identical bằng chính engine; test bot unified + OKX xanh; nautilus_diff không đổi |
 | P9.5 | `metrics/` (gộp xno vào metrics.py, periods_per_year) + `regime/`, `wfa/`, `carlo/`, `verdict/` | S | P9.4 + phiên alpha commit xong | test_xno_parity khớp < 1e-9; khoá `metrics.{…}.{xno,nora}` giữ nguyên hoặc có bảng đổi tên cho frontend |
 | P9.6 | `optimize/` (search, funnel, book, process) + vòng đời `data/cache/process` + dọn cache | S | P9.4 | Huỷ/khôi phục/resume chạy đúng; job cũ đọc được qua shim |
 | P9.7 | `live/` (bot, okx) — chỉ unified; khởi động lại bot demo | S, user duyệt bật lại bot | P9.4, P9.6 | test_live_bot, test_bot_unified, test_okx_venue xanh; bot chạy engine mới |

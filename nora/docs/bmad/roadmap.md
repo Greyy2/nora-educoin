@@ -198,28 +198,30 @@ ADR: [`adr-p6-unified-execution.md`](adr-p6-unified-execution.md) · Đặc tả
 
 ### P9 — Tinh gọn kiến trúc backend và dữ liệu
 
+**Phân vai (người dùng chốt 2026-10-07):** norabt-99 chỉ làm kiến trúc (di chuyển file/module, cây thư mục, shim, luật phụ thuộc, chuyển cây data); MỌI thay đổi logic do norabt-e2 triển khai. Review chéo trước mỗi commit.
+
 ADR: [`adr-p9-backend-layout.md`](adr-p9-backend-layout.md). Mỗi ID một commit; review chéo norabt-99 ↔ norabt-e2 (alpha) ↔ backtest analyst trước khi commit; chỉ di chuyển/gộp, không viết lại logic.
 
 | ID | Việc | Người | Cần trước | Xong khi | Trạng thái |
 |---|---|---|---|---|---|
 | P9.0 | ADR này + test luật phụ thuộc (chế độ báo cáo) | O | — | Phiên alpha + backtest analyst OK; người dùng duyệt | done — alpha ký, người dùng duyệt 2026-10-07 |
-| P9.1 | Sửa 79 manifest OKX (`compute_df_sha256`), xác nhận nội dung nến trước khi ghi | S | P9.0 + user OK | Quality gate APPROVED/WARNING cho mọi tài sản; test_pydsl_parity xanh | todo |
+| P9.1 | Sửa 79 manifest OKX (`compute_df_sha256`), xác nhận nội dung nến trước khi ghi | norabt-e2 (logic) | P9.0 + user OK | Quality gate APPROVED/WARNING cho mọi tài sản; test_pydsl_parity xanh | todo |
 | P9.2 | `crawl/` (cex, dex, store) + chọn gốc dữ liệu một chỗ | S | P9.0 | Khoá cache mmap không đổi; crawl/quality gate test xanh | todo |
 | P9.3 | `data/` theo cây mới (script chuyển + kiểm sha256, symlink tạm ở đường cũ) | S | P9.2 | Mọi job đọc/ghi đúng chỗ mới; không mất file (đếm + băm) | todo |
 | P9.4 | `core/` (models, params, indicator, signal, position_size, backtest) + shim | S | P9.2 | Golden + mọi parity + nautilus_diff không đổi | todo |
-| P9.4b | Một engine: paper/live gọi kernel từng nến (trạng thái mảng), gỡ tracker/manager/sim_venue/runner; OkxVenue chỉ I/O | O thiết kế, S cài | P9.4 | Paper = backtest bit-identical bằng chính engine; test bot unified + OKX xanh; nautilus_diff không đổi | todo |
+| P9.4b | Một engine: paper/live gọi kernel từng nến (trạng thái mảng), gỡ tracker/manager/sim_venue/runner; OkxVenue chỉ I/O | norabt-e2 (logic) | P9.4 | Paper = backtest bit-identical bằng chính engine; test bot unified + OKX xanh; nautilus_diff không đổi | todo |
 | P9.5 | `metrics/` (gộp xno vào metrics.py, periods_per_year) + `regime/`, `wfa/`, `carlo/`, `verdict/` | S | P9.4 + phiên alpha commit xong | test_xno_parity khớp < 1e-9; khoá `metrics.{…}.{xno,nora}` giữ nguyên hoặc có bảng đổi tên cho frontend | todo |
 | P9.6 | `optimize/` (search, funnel, book, process) + vòng đời `data/cache/process` + dọn cache | S | P9.4 | Huỷ/khôi phục/resume chạy đúng; job cũ đọc được qua shim | todo |
 | P9.7 | `live/` (bot, okx) — chỉ unified; khởi động lại bot demo | S, user duyệt bật lại bot | P9.4, P9.6 | test_live_bot, test_bot_unified, test_okx_venue xanh; bot chạy engine mới | todo |
 | P9.8 | `routes/` (← api) + modes + kiểm tham số job | S | P9.6 | Mọi route `/api/studio/*` giữ nguyên; frontend chạy | todo |
 | P9.9 | Chiến lược thành dữ liệu `data/alpha/strategies/` | S + phiên alpha | P9.4 | Danh mục chiến lược đọc từ file; golden không đổi | todo |
 | P9.10 | Gỡ shim, bật test luật phụ thuộc bắt buộc, full suite, cập nhật architecture.md + BMAD | O | tất cả | 0 vi phạm phụ thuộc; full suite xanh | todo |
-| P9.11 | Số giả trong metrics lệnh: PF_CAP=99 khi không có lệnh thua, 0 lệnh → win_rate/PF = 0 → trả None + cờ rõ ràng (`core/metrics/trades.py`) | S | P9.5 | Không còn giá trị chặn/0 hiển thị như số đo; bảng phễu, catalog, education hiện "—" + lý do | todo |
-| P9.12 | Số tính ở trình duyệt chuyển về backend: Live MDD + lãi/lỗ từ đầu (`Live.jsx`), winDays (`Dashboard.jsx`), ngưỡng cổng MC `?? 30/50/10000` (`McResult.jsx`) | S | P9.7 | Payload backend có đủ trường; frontend không tự tính/không hằng số dự phòng |
-| P9.13 | Hằng số "đo sẵn" thay bằng số đo thật: `SEC_PER_S1_BACKTEST=0.5` (`routes/funnel`), fallback 0,08 s/alpha + workers 6 (`NewRunForm.jsx`), vòng quay giả định 0,5×/ngày cho stress cost_x2 (`carlo`) | S | P9.6 | ETA từ tốc độ đo của các lượt gần nhất; workers lấy từ cấu hình backend; turnover đo từ lệnh |
-| P9.14 | Dữ liệu cũ/mồ côi: `registry.json` còn alpha engine trước P1 (`trend_long_perp__SOL`, retired nhưng không hiện trạng thái); `portfolio_trend_long_perp__SOL__SOL*.json` không ai đọc/ghi | S | P9.3 | Xoá file mồ côi khi chuyển data; UI hiện trạng thái retired |
-| P9.15 | Sổ cũ so với engine: `book.json`/`explore/book.json` dựng ở 2899150/13b0a62, sau đó 14 commit engine → lưu phiên bản engine trong sổ, UI cảnh báo "cần dựng lại" khi core/backtest đổi | S | P9.4 | Sổ có `engine_version`; UI hiện cảnh báo khi lệch |
-| P9.16 | Mock `?mock=1`: trang ngoài phễu không có banner mock (`api.js`) | S | — | Mọi trang hiện banner khi dùng mock |
+| P9.11 | Số giả trong metrics lệnh: PF_CAP=99 khi không có lệnh thua, 0 lệnh → win_rate/PF = 0 → trả None + cờ rõ ràng (`core/metrics/trades.py`) | norabt-e2 (logic) | P9.5 | Không còn giá trị chặn/0 hiển thị như số đo; bảng phễu, catalog, education hiện "—" + lý do | todo |
+| P9.12 | Số tính ở trình duyệt chuyển về backend: Live MDD + lãi/lỗ từ đầu (`Live.jsx`), winDays (`Dashboard.jsx`), ngưỡng cổng MC `?? 30/50/10000` (`McResult.jsx`) | norabt-e2 (logic) | P9.7 | Payload backend có đủ trường; frontend không tự tính/không hằng số dự phòng |
+| P9.13 | Hằng số "đo sẵn" thay bằng số đo thật: `SEC_PER_S1_BACKTEST=0.5` (`routes/funnel`), fallback 0,08 s/alpha + workers 6 (`NewRunForm.jsx`), vòng quay giả định 0,5×/ngày cho stress cost_x2 (`carlo`) | norabt-e2 (logic) | P9.6 | ETA từ tốc độ đo của các lượt gần nhất; workers lấy từ cấu hình backend; turnover đo từ lệnh |
+| P9.14 | Dữ liệu cũ/mồ côi: `registry.json` còn alpha engine trước P1 (`trend_long_perp__SOL`, retired nhưng không hiện trạng thái); `portfolio_trend_long_perp__SOL__SOL*.json` không ai đọc/ghi | norabt-e2 (logic) | P9.3 | Xoá file mồ côi khi chuyển data; UI hiện trạng thái retired |
+| P9.15 | Sổ cũ so với engine: `book.json`/`explore/book.json` dựng ở 2899150/13b0a62, sau đó 14 commit engine → lưu phiên bản engine trong sổ, UI cảnh báo "cần dựng lại" khi core/backtest đổi | norabt-e2 (logic) | P9.4 | Sổ có `engine_version`; UI hiện cảnh báo khi lệch |
+| P9.16 | Mock `?mock=1`: trang ngoài phễu không có banner mock (`api.js`) | norabt-e2 (logic) | — | Mọi trang hiện banner khi dùng mock |
 
 ## 5. Thứ tự và phụ thuộc
 
