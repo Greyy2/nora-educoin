@@ -1,11 +1,12 @@
 // Lớp gọi API v2 theo docs/ui_contract.md.
 // Khi mất kết nối (lỗi mạng / 502-504) và đang chạy `npm run dev` với `?mock=1` trên URL, trả dữ liệu mẫu trong ./mock
-// (ưu tiên *.sample.json do backend sinh, nếu chưa có thì dùng *.mock.json viết tay). Ngoại lệ duy nhất ở bản production:
-// API phễu không kết nối được -> dữ liệu mẫu phễu, và trang Phễu BẮT BUỘC hiện biểu ngữ "dữ liệu mẫu" (mockNoticeStore).
+// (ưu tiên *.sample.json do backend sinh, nếu chưa có thì dùng *.mock.json viết tay). Bản dev: API phễu không kết nối được -> dữ liệu mẫu
+// phễu kèm biểu ngữ "dữ liệu mẫu" (mockNoticeStore). Bản production KHÔNG có dữ liệu mẫu: lỗi mạng/502-504 -> ApiError (thử lại 1 lần với GET).
 import { parseJobParams, jobLabel } from './lib/jobs'
 import { normRun, normRuns, normStats, normAlphaPage, normAlphaDetail, normTrades } from './lib/funnel'
 
-const mockModules = import.meta.glob('./mock/*.json') // nạp lười: không vào bundle chính
+// nạp lười; bản production không có (không đóng gói ~500 KB dữ liệu mẫu)
+const mockModules = import.meta.env.DEV ? import.meta.glob('./mock/*.json') : {}
 
 export class ApiError extends Error {
   // fields: lỗi theo trường của 422 kiểu FastAPI ([{ field, msg }]); [] nếu không có
@@ -63,6 +64,7 @@ function mockJobStatus(id) {
 }
 
 async function mockRequest(path, method, body) {
+  if (!import.meta.env.DEV) throw new ApiError('Không kết nối được máy chủ API.', 0) // production: không có dữ liệu mẫu (cũng để bundler bỏ chunk mẫu)
   const url = new URL(path, 'http://x')
   const p = url.pathname.replace(/\/$/, '')
   if (p.startsWith('/api/studio/funnel/')) { setMockNotice(mockEnabled() ? 'mock' : 'unreachable'); return (await import('./lib/funnelMock')).funnelMock(p, url, method, body) }
@@ -98,22 +100,58 @@ async function mockRequest(path, method, body) {
 }
 
 const FUNNEL_PREFIX = '/api/studio/funnel/'
+const TIMEOUT_MS = 95000 // ngay dưới giới hạn 100 giây của Cloudflare (524)
+const RETRY_MS = 1500 // API khởi động lại sau proxy: 502/503/504 thoáng qua
+const inflight = new Map() // GET đang bay theo đường dẫn: nhiều nơi mount cùng lúc dùng chung 1 request
+
+// production: không bao giờ rơi về dữ liệu mẫu; chỉ dev (?mock=1 hoặc phễu mất kết nối) mới dùng
+const mockAllowed = (path) => import.meta.env.DEV && (mockEnabled() || path.startsWith(FUNNEL_PREFIX))
+
+async function fetchOnce(path, method, body) {
+  const ctl = new AbortController()
+  let timedOut = false
+  const t = setTimeout(() => { timedOut = true; ctl.abort() }, TIMEOUT_MS)
+  try {
+    return await fetch(path, { method, headers: body ? { 'Content-Type': 'application/json' } : undefined, body: body ? JSON.stringify(body) : undefined, signal: ctl.signal })
+  } catch (e) {
+    if (timedOut) throw new ApiError(`Máy chủ không phản hồi sau ${TIMEOUT_MS / 1000} giây (quá thời gian chờ). Thử lại sau ít phút.`, 408)
+    throw e
+  } finally { clearTimeout(t) }
+}
 
 async function request(path, { method = 'GET', body } = {}) {
+  if (method !== 'GET') return requestImpl(path, method, body)
+  let p = inflight.get(path)
+  if (!p) { p = requestImpl(path, method, body).finally(() => inflight.delete(path)); inflight.set(path, p) }
+  return p
+}
+
+async function requestImpl(path, method, body) {
   let res
+  // production + GET: một lần thử lại sau ~1.5 giây khi 502/503/504 hoặc đứt kết nối (không thử lại POST: có thể đã chạy)
+  const retry = import.meta.env.PROD && method === 'GET'
   try {
-    res = await fetch(path, { method, headers: body ? { 'Content-Type': 'application/json' } : undefined, body: body ? JSON.stringify(body) : undefined })
+    res = await fetchOnce(path, method, body)
+    if (retry && [502, 503, 504].includes(res.status)) { await new Promise((r) => setTimeout(r, RETRY_MS)); res = await fetchOnce(path, method, body) }
   } catch (e) {
-    if (mockEnabled() || path.startsWith(FUNNEL_PREFIX)) return mockRequest(path, method, body) // phễu: không kết nối được -> dữ liệu mẫu CÓ biểu ngữ
-    throw new ApiError('Không kết nối được máy chủ API.', 0)
+    if (e instanceof ApiError) throw e
+    if (retry) {
+      try { await new Promise((r) => setTimeout(r, RETRY_MS)); res = await fetchOnce(path, method, body) } catch (e2) { e = e2 }
+    }
+    if (!res) {
+      if (e instanceof ApiError) throw e
+      if (mockAllowed(path)) return mockRequest(path, method, body) // dev: phễu không kết nối được -> dữ liệu mẫu CÓ biểu ngữ
+      throw new ApiError('Không kết nối được máy chủ API.', 0)
+    }
   }
   if (res.status >= 500 && mockEnabled()) return mockRequest(path, method, body)
-  // proxy báo cổng API không có (502/503/504): với phễu coi như không kết nối được
-  if ([502, 503, 504].includes(res.status) && path.startsWith(FUNNEL_PREFIX)) return mockRequest(path, method, body)
+  // proxy báo cổng API không có (502/503/504): với phễu coi như không kết nối được (chỉ dev)
+  if ([502, 503, 504].includes(res.status) && import.meta.env.DEV && path.startsWith(FUNNEL_PREFIX)) return mockRequest(path, method, body)
   // backend chưa có API phễu (route chưa đăng ký): dùng dữ liệu mẫu; khi API thật có mặt sẽ tự dùng API thật
   if ((res.status === 404 || res.status === 405) && mockEnabled() && path.startsWith('/api/studio/funnel/') && await res.clone().text().then((t) => /"detail"\s*:\s*"(Not Found|API endpoint not found|Method Not Allowed)"/.test(t), () => false)) return mockRequest(path, method, body)
+  if (res.status === 204) return null
   if (!res.ok) {
-    let msg = `Lỗi ${res.status}`
+    let msg = [502, 503, 504].includes(res.status) ? `Máy chủ API tạm thời không phản hồi (${res.status}). Thử lại sau giây lát.` : `Lỗi ${res.status}`
     let fields = []
     try {
       const j = await res.json()
@@ -151,6 +189,8 @@ export async function getCatalog() {
 export const getAlphas = () => request('/api/studio/alphas')
 /** Thư viện chiến lược: { sources: [{ key, label, strategies: [{ key, name, side, idea, plain, math, summary, stats }] }] }. */
 export const getAlphaCatalog = () => request('/api/studio/alphas/catalog')
+/** Top agent trade (10 bot copy-trade OKX implied fit + OOS). */
+export const getTopAgents = () => request('/api/studio/alphas/top_agents')
 
 // ---- job ----
 export async function listJobs(kind, limit = 20) {
@@ -165,7 +205,8 @@ export async function listAllJobs(limit = 20) {
 }
 // backend hiện trả khoá `id`; hợp đồng ghi `job_id` — chấp nhận cả hai
 const normJob = (j) => ({ ...j, job_id: j.job_id || j.id })
-export const getJob = (id) => request(`/api/studio/book/jobs/${encodeURIComponent(id)}`).then(normJob)
+// ?lite=1: bỏ trade_list khỏi kết quả (lệnh phân trang qua /portfolio/trades); mọi nơi đọc job đều qua đây, không ai đọc trade_list
+export const getJob = (id) => request(`/api/studio/book/jobs/${encodeURIComponent(id)}?lite=1`).then(normJob)
 export const postCancel = (id) => request(`/api/studio/book/jobs/${encodeURIComponent(id)}/cancel`, { method: 'POST' }).then(normJob)
 export const postBacktest = (body) => request('/api/studio/book/backtest', { method: 'POST', body })
 export const postWfa = (body) => request('/api/studio/book/wfa', { method: 'POST', body })
@@ -188,6 +229,30 @@ export function getStrategyCatalog(force = false) {
 }
 /** Kiểm tham số một chiến lược (không chạy job): { ok, errors: [{field, message}], resolved }. field có dạng "params.sig.ema_fast". */
 export const postValidateStrategy = (id, params) => request('/api/studio/strategies/validate', { method: 'POST', body: { id, params } })
+
+// ---- chiến lược Python tự viết (docs/bmad/p7_python_strategies.md §6) ----
+/** Kiểm code (không chạy, không lưu): { ok, program_hash, meta: { timeframe, features, legs, position_levels, warmup_bars }, warnings, error?: { line, col, message } }. */
+export const getDslReference = () => request("/api/studio/strategies/dsl")
+export const postCompileStrategy = (code) => request('/api/studio/strategies/compile', { method: 'POST', body: { code } })
+export const postExplainStrategy = (code, profile = 'xno', position = null) => request('/api/studio/strategies/explain', { method: 'POST', body: { code, profile, ...(profile === 'nora' && position ? { position } : {}) } })
+/** Alpha người dùng: POST = lưu DUY NHẤT (server đọc kết quả từ job_id, kiểm program_hash); GET danh sách gọn; GET {id} = bản ghi đầy đủ gồm result đã lưu. **/
+export const postSaveUserAlpha = ({ job_id, code, name, note = '', source = 'alpha-create' }) => request('/api/studio/alphas/user', { method: 'POST', body: { job_id, code, name, note, source } })
+export const getUserAlphas = (params = {}) => {
+  const q = new URLSearchParams()
+  if (params.sort) q.set('sort', params.sort)
+  if (params.status) q.set('status', params.status)
+  const qs = q.toString()
+  return request(`/api/studio/alphas/user${qs ? `?${qs}` : ''}`)
+}
+export const getUserAlphaDetail = (alphaId) => request(`/api/studio/alphas/user/${encodeURIComponent(alphaId)}`)
+export const postArchiveUserAlpha = (alphaId) => request(`/api/studio/alphas/user/${encodeURIComponent(alphaId)}/archive`, { method: 'POST' })
+export const postUpdateUserAlphaStatus = (alphaId, status) => request(`/api/studio/alphas/user/${encodeURIComponent(alphaId)}/status`, { method: 'POST', body: { status } })
+
+/** Chạy backtest bằng code Python: job loại custom_backtest, theo dõi bằng getJob như mọi job; result = result.json. */
+export const postCustomBacktest = (body) => request('/api/studio/custom/backtest', { method: 'POST', body })
+/** Kết quả backtest tính trước của 50 mẫu Education: chỉ mục (items[].{key, program_hash, fallback, ...}) và bản ghi đầy đủ theo key. */
+export const getEducationResults = () => request('/api/studio/education/results')
+export const getEducationResult = (key) => request(`/api/studio/education/results/${encodeURIComponent(key)}`)
 
 export function getDashboard({ jobId, period }) {
   const q = new URLSearchParams()

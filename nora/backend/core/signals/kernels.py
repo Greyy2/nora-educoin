@@ -289,12 +289,41 @@ def parse_column(column: str) -> Optional[Tuple[KernelSpec, Tuple[float, ...]]]:
     return spec, params
 
 
+# ─── Cột chương trình Python (P7, core/strategy/pydsl) ────────────────────────
+# `py_<hash12>_<le|lx|se|sx>`: tín hiệu vào/thoát long/short của MỘT chương trình DSL đã biên dịch. Chương trình được đăng ký TRONG tiến trình chạy
+# engine (register_program) rồi đi qua đúng đường kernel như mọi cột khác (engine.frame_features không đổi). Cột py_ không bao giờ được ghi vào kho
+# dùng chung (core/data/shared.py bỏ qua) — tính trong tiến trình, tất định theo mã.
+_PY_RE = re.compile(r"^py_([0-9a-f]{12})_(le|lx|se|sx)$")
+PROGRAMS: Dict[str, object] = {}
+
+
+def register_program(code_hash: str, program) -> None:
+    """program cần: compute_column(df, kind) -> Series 0/1 và warmup_bars (int)."""
+    PROGRAMS[str(code_hash)] = program
+
+
+def is_program_column(column: str) -> bool:
+    return _PY_RE.match(str(column or "")) is not None
+
+
+def _program_of(column: str):
+    m = _PY_RE.match(str(column or ""))
+    if m is None:
+        return None, None
+    return PROGRAMS.get(m.group(1)), m.group(2)
+
+
 def is_kernel_column(column: str) -> bool:
-    return parse_column(column) is not None
+    return parse_column(column) is not None or is_program_column(column)
 
 
 def compute(df: pd.DataFrame, column: str) -> pd.Series:
     """Tính một cột kernel trên DataFrame OHLCV (đã sắp theo thời gian)."""
+    if is_program_column(column):
+        prog, kind = _program_of(column)
+        if prog is None:
+            raise ValueError(f"Cột {column!r}: chương trình Python chưa được đăng ký trong tiến trình này (gọi pydsl.compile_code trước khi dựng engine)")
+        return prog.compute_column(df, kind).astype("float64")
     parsed = parse_column(column)
     if parsed is None:
         raise ValueError(f"Cột kernel không hợp lệ: {column!r}")
@@ -304,6 +333,9 @@ def compute(df: pd.DataFrame, column: str) -> pd.Series:
 
 
 def warmup_bars(column: str) -> int:
+    if is_program_column(column):
+        prog, _ = _program_of(column)
+        return int(prog.warmup_bars) if prog is not None else 0
     parsed = parse_column(column)
     if parsed is None:
         return 0

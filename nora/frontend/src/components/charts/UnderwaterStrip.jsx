@@ -3,7 +3,7 @@ import { PAD, useWidth, xTicks, linePath, areaPath, tipPos } from './chartUtils'
 import { isNum, fmtNum, dmy, my, fullDate } from '../../lib/format'
 
 /** Dải drawdown (≤ 0) dùng chung trục x với biểu đồ NAV phía trên. */
-export default function UnderwaterStrip({ dates = [], values = [], height = 110, hover, onHover }) {
+export default function UnderwaterStrip({ dates = [], values = [], height = 110, hover, onHover, marks = [] }) {
   const ref = useRef(null)
   const w = useWidth(ref)
   const [local, setLocal] = useState(null)
@@ -37,6 +37,9 @@ export default function UnderwaterStrip({ dates = [], values = [], height = 110,
             ))}
             {xTicks(n, plotW).map((i) => (
               <text key={i} x={X(i)} y={height - 8} textAnchor={i === 0 ? 'start' : 'middle'}>{labelFn(dates[i])}</text>
+            ))}
+            {marks.filter((m) => m.i >= 0 && m.i < n).map((m) => (
+              <line key={`m${m.i}`} x1={xs[m.i]} x2={xs[m.i]} y1={PAD.t} y2={PAD.t + plotH} stroke="var(--n-ink-3)" strokeWidth="1" strokeDasharray="4 4" />
             ))}
             <path d={areaPath(xs, ys, Y(0))} fill="var(--n-neg)" opacity="0.14" />
             <path d={linePath(xs, ys)} fill="none" stroke="var(--n-neg)" strokeWidth="1.5" strokeLinejoin="round" />

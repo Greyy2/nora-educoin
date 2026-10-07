@@ -62,6 +62,8 @@ def plan(eng: "BacktestEngine") -> Optional[Dict[str, Any]]:
     if fp1 is None:
         return None
     refs = eng._refs_by_frame()
+    if any(col.startswith("py_") for rs in refs.values() for col, _ in rs):
+        return None   # cột chương trình Python (P7) tính trong tiến trình, KHÔNG ghi vào kho dùng chung
     perp = any(tr.market == "perp" for tr in eng.trackers)
     sym_dir = resolve_symbol_dir(eng.symbol)
     base = _sha1({"v": FORMAT_VERSION, "sym": eng.symbol, "root": root, "start": int(eng.start_ts), "end": int(eng.end_ts),

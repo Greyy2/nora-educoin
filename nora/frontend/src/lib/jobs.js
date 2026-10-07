@@ -43,6 +43,7 @@ export const JOB_KIND = {
   book_backtest: { text: 'Backtest', short: 'Backtest' },
   book_wfa: { text: 'Walk-forward', short: 'WFA' },
   book_build: { text: 'Alpha · tối ưu', short: 'Alpha' },
+  custom_backtest: { text: 'Backtest Python', short: 'Python' },
   funnel_run: { text: 'Phễu kiểm duyệt', short: 'Phễu' },
   funnel_recompute: { text: 'Phễu · tính lại lệnh', short: 'Phễu' },
   presets_build: { text: 'Dựng preset', short: 'Preset' },
@@ -58,6 +59,7 @@ export function jobLink(j) {
     const rid = j.run_id || parseJobParams(j.params).run_id
     return rid ? `/alpha/funnel/${encodeURIComponent(rid)}` : '/alpha/funnel'
   }
+  if (j.kind === 'custom_backtest') return `/alpha/create?job=${id}`
   if (j.kind === 'book_wfa') return `/backtest?wfa=${id}&step=2`
   if (j.kind === 'book_build') return `/alpha/tune?build=${id}`
   return `/backtest?job=${id}`

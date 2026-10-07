@@ -31,7 +31,7 @@ export default function Portfolio() {
   const btJob = jobs.rows.some((j) => j.job_id === pref.jobId) ? pref.jobId : ''
   return (
     <>
-      <PageHead kicker="Tổng quan" title="Kết quả backtest"
+      <PageHead kicker="Tổng quan" title="Tổng quan danh mục"
         subtitle="Kết quả mô phỏng trên dữ liệu lịch sử, không phải giao dịch thật. Bot đang chạy xem ở trang Live. Số liệu chi tiết nằm trong các mục “Chi tiết” bên dưới (bấm để mở).">
         <Segmented label="Kỳ xem" value={pref.period} onChange={(v) => setPref({ period: v })} options={PERIODS} />
       </PageHead>

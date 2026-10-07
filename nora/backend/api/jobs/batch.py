@@ -56,6 +56,10 @@ KINDS: Dict[str, Dict[str, Any]] = {
     "data_crawl_ticks": {"module": "backend.core.data.tick_crawler", "params": {"symbols", "days"}},
     "data_promote": {"module": "backend.core.data.promote", "params": {"apply", "archive_legacy"}},
     "alpha_revalidate": {"module": "backend.optimize.revalidate", "params": {"alpha_id", "apply"}},
+    "custom_backtest": {"module": "backend.core.backtest.custom_run",
+                        "params": {"code", "profile", "universe", "symbols", "start", "end", "train_ratio", "initial_capital", "position", "exchange",
+                                   "run_frame", "market"}},
+    "edu_precompute": {"module": "backend.core.backtest.edu_precompute", "params": {"only", "start", "end", "train_ratio", "initial_capital"}},
     "regime_report": {"module": "backend.core.regime.report", "params": {"symbols", "start", "end", "event_pct", "backtest", "timeframe"}},
 }
 NO_LOCK_KINDS = {"live_bot"}
@@ -326,8 +330,111 @@ def build_job(kind: str, p: Dict[str, Any]) -> Dict[str, Any]:
             out["force_large"] = True
         if p.get("timeframe"):
             out["timeframe"] = check_timeframe(p["timeframe"])
+    elif kind == "custom_backtest":
+        out = build_custom_backtest(p)
+    elif kind == "edu_precompute":
+        out = build_edu_precompute(p)
     else:
         raise JobError(f"{kind}: dựng params ở router của nó")
+    return out
+
+
+MAX_CUSTOM_DAYS = 4000
+MAX_CUSTOM_SYMBOLS = 16
+_BASE_RE = re.compile(r"^[A-Z0-9]{2,12}$")
+_EXCHANGE_RE = re.compile(r"^[a-z0-9_]{2,24}$")
+
+
+def build_custom_backtest(p: Dict[str, Any]) -> Dict[str, Any]:
+    """Tham số job custom_backtest (chiến lược Python): kiểm code bằng chính trình biên dịch (lỗi -> JobError kèm dòng/cột), hồ sơ, rổ, ngày, vốn, vị thế."""
+    from backend.core.params.builder import POSITION_KEYS
+    from backend.core.strategy.pydsl import DslError, compile_code
+    from backend.core.strategy.pydsl.parser import MAX_CODE_CHARS
+    from backend.core.strategy.pydsl.profiles import FRAMES, base_name
+    out: Dict[str, Any] = {}
+    code = p.get("code")
+    if not isinstance(code, str) or not code.strip() or len(code) > MAX_CODE_CHARS:
+        raise JobError(f"code phải là chuỗi không rỗng, tối đa {MAX_CODE_CHARS} ký tự")
+    try:
+        compile_code(code, register=False)
+    except DslError as e:
+        raise JobError(f"Lỗi biên dịch chiến lược: {e}")
+    out["code"] = code
+    profile = p.get("profile") or "xno"
+    if profile not in ("xno", "nora"):
+        raise JobError("profile phải là xno|nora")
+    out["profile"] = profile
+    if p.get("universe"):
+        if str(p["universe"]).upper() != "TOP10":
+            raise JobError("universe chỉ hỗ trợ TOP10")
+        out["universe"] = "TOP10"
+    if p.get("symbols"):
+        if not isinstance(p["symbols"], list) or len(p["symbols"]) > MAX_CUSTOM_SYMBOLS:
+            raise JobError(f"symbols phải là danh sách tối đa {MAX_CUSTOM_SYMBOLS} tài sản")
+        names = list(dict.fromkeys(base_name(str(s)) for s in p["symbols"]))
+        bad = [n for n in names if not _BASE_RE.match(n)]
+        if bad:
+            raise JobError(f"tên tài sản không hợp lệ: {bad}")
+        out["symbols"] = names
+    out["start"], out["end"] = check_date(p["start"]), check_date(p["end"])
+    if p["start"] >= p["end"]:
+        raise JobError("start phải trước end")
+    if (_day_ms(p["end"], 1) - _day_ms(p["start"])) / 86_400_000 > MAX_CUSTOM_DAYS:
+        raise JobError(f"khoảng chạy tối đa {MAX_CUSTOM_DAYS} ngày")
+    if p.get("train_ratio") is not None:
+        out["train_ratio"] = check_number(p["train_ratio"], "train_ratio", 0.1, 0.95)
+    if p.get("initial_capital") is not None:
+        out["initial_capital"] = check_number(p["initial_capital"], "initial_capital", 100.0, 1e9)
+    if p.get("position"):
+        pos = p["position"]
+        if not isinstance(pos, dict):
+            raise JobError("position phải là {khoá: giá trị}")
+        bad = sorted(set(map(str, pos)) - set(POSITION_KEYS))
+        if bad:
+            raise JobError(f"khoá vị thế không hợp lệ: {bad}; có: {sorted(POSITION_KEYS)}")
+        for k, v in pos.items():
+            if isinstance(v, bool) or not (isinstance(v, str) or (isinstance(v, (int, float)) and math.isfinite(v))):
+                raise JobError(f"position.{k} phải là số hữu hạn hoặc chuỗi")
+        out["position"] = pos
+    if p.get("exchange"):
+        if not _EXCHANGE_RE.match(str(p["exchange"])):
+            raise JobError("exchange phải dạng chữ thường/số/gạch dưới (vd. okx, binance)")
+        out["exchange"] = str(p["exchange"])
+    if p.get("run_frame"):
+        if p["run_frame"] not in FRAMES:
+            raise JobError(f"run_frame phải thuộc {list(FRAMES)}")
+        out["run_frame"] = p["run_frame"]
+    if p.get("market"):
+        if p["market"] not in ("perp", "spot"):
+            raise JobError("market phải là perp|spot")
+        out["market"] = p["market"]
+    return out
+
+
+def build_edu_precompute(p: Dict[str, Any]) -> Dict[str, Any]:
+    """Tham số job edu_precompute: only (key mẫu có trong data/education/samples.json), start/end, train_ratio, initial_capital; trống = mặc định của job."""
+    out: Dict[str, Any] = {}
+    if p.get("only"):
+        from backend.core.backtest.edu_precompute import load_samples
+        if not isinstance(p["only"], list) or not all(isinstance(k, str) for k in p["only"]):
+            raise JobError("only phải là danh sách key mẫu")
+        known = {s["key"] for s in load_samples()}
+        bad = sorted(set(p["only"]) - known)
+        if bad:
+            raise JobError(f"mẫu không tồn tại: {bad}")
+        out["only"] = list(dict.fromkeys(p["only"]))
+    if p.get("start") or p.get("end"):
+        if not (p.get("start") and p.get("end")):
+            raise JobError("cần cả start và end")
+        out["start"], out["end"] = check_date(p["start"]), check_date(p["end"])
+        if p["start"] >= p["end"]:
+            raise JobError("start phải trước end")
+        if (_day_ms(p["end"], 1) - _day_ms(p["start"])) / 86_400_000 > MAX_CUSTOM_DAYS:
+            raise JobError(f"khoảng chạy tối đa {MAX_CUSTOM_DAYS} ngày")
+    if p.get("train_ratio") is not None:
+        out["train_ratio"] = check_number(p["train_ratio"], "train_ratio", 0.1, 0.95)
+    if p.get("initial_capital") is not None:
+        out["initial_capital"] = check_number(p["initial_capital"], "initial_capital", 100.0, 1e9)
     return out
 
 

@@ -9,7 +9,7 @@ import { JOB_STATUS, jobKindText, jobLink, jobElapsed, isActiveJob, jobDetail } 
 import { fmtDuration, fmtDateTime, toMs } from '../lib/format'
 
 const KINDS = [
-  { value: 'all', label: 'Tất cả' }, { value: 'book_backtest', label: 'Backtest' }, { value: 'book_wfa', label: 'WFA' }, { value: 'book_build', label: 'Alpha' },
+  { value: 'all', label: 'Tất cả' }, { value: 'book_backtest', label: 'Backtest' }, { value: 'book_wfa', label: 'WFA' }, { value: 'book_build', label: 'Alpha' }, { value: 'custom_backtest', label: 'Python' },
 ]
 const STATES = [
   { value: 'all', label: 'Tất cả' }, { value: 'running', label: 'Đang chạy' }, { value: 'queued', label: 'Đang chờ' }, { value: 'done', label: 'Hoàn tất' }, { value: 'failed', label: 'Thất bại' },

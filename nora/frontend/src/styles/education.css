@@ -1,0 +1,525 @@
+/* ═══════════════════════════════════════════════════════
+   Nora Education Module — Stylesheet
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Sample cards (tab "Bài học & Mẫu") ─────────────── */
+.edu-sample-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--n-line);
+  background: var(--n-surface);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .18s, box-shadow .18s, transform .15s;
+  width: 100%;
+}
+.edu-sample-card:hover {
+  border-color: #6366f1;
+  box-shadow: 0 4px 14px rgba(99,102,241,.14);
+  transform: translateY(-1px);
+}
+.edu-sample-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.edu-sample-lesson {
+  font-size: 11px;
+  font-weight: 700;
+  color: #6366f1;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.edu-sample-diff {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+.edu-sample-diff.beginner    { background: rgba(34,197,94,.15);  color: #15803d; }
+.edu-sample-diff.intermediate{ background: rgba(234,179,8,.15);  color: #a16207; }
+.edu-sample-diff.advanced    { background: rgba(239,68,68,.15);  color: #b91c1c; }
+.edu-sample-name {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--n-ink);
+}
+.edu-sample-summary {
+  font-size: 12px;
+  color: var(--n-ink-2);
+  line-height: 1.45;
+}
+
+/* ── Category Filters & Search ───────────────────────── */
+.edu-filters-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.edu-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.edu-pill {
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 14px;
+  background: var(--n-surface);
+  border: 1px solid var(--n-line);
+  color: var(--n-ink-2);
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.edu-pill:hover {
+  border-color: #6366f1;
+  color: var(--n-ink);
+}
+.edu-pill.active {
+  background: #6366f1;
+  border-color: #6366f1;
+  color: #fff;
+  font-weight: 600;
+}
+.edu-search-input {
+  width: 100%;
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--n-line);
+  background: var(--n-surface);
+  color: var(--n-ink);
+  outline: none;
+  transition: border-color .15s;
+}
+.edu-search-input:focus {
+  border-color: #6366f1;
+}
+
+/* ── Nút kích hoạt Tour trong hàng tiêu đề ───────────── */
+.edu-tour-btn-start {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  background: rgba(99,102,241,.12);
+  color: #6366f1;
+  border: 1px solid rgba(99,102,241,.3);
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all .16s ease;
+}
+
+.edu-tour-btn-start:hover {
+  background: #6366f1;
+  color: #fff;
+  border-color: #4f46e5;
+  box-shadow: 0 2px 8px rgba(99,102,241,.25);
+}
+
+/* ── Spotlight Portal & Highlight Box ─────────────────── */
+.edu-spotlight-portal {
+  position: fixed;
+  inset: 0;
+  z-index: 99990;
+  pointer-events: none;
+}
+
+/* Hộp khoanh đỏ nổi bật xung quanh element mục tiêu, phủ tối toàn bộ phần còn lại */
+.edu-spotlight-highlight-box {
+  position: fixed;
+  border: 3px solid #ef4444; /* Viền đỏ sắc nét như hình ảnh yêu cầu */
+  border-radius: 8px;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.72), 0 0 24px rgba(239, 68, 68, 0.5);
+  pointer-events: none;
+  transition: all .24s cubic-bezier(0.2, 0, 0, 1);
+  z-index: 99991;
+  animation: edu-border-pulse 2s infinite ease-in-out;
+}
+
+/* Lớp phủ tối toàn màn hình ở bước 4 (Tổng quan) */
+.edu-spotlight-full-dark {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(2px);
+  z-index: 99991;
+  pointer-events: auto;
+  animation: edu-fade-dark .2s ease-out;
+}
+
+@keyframes edu-fade-dark {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes edu-border-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.72), 0 0 16px rgba(239, 68, 68, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.72), 0 0 28px rgba(239, 68, 68, 0.65);
+  }
+}
+
+/* ── Hộp Popover Giải Thích (Tour Card) ───────────────── */
+.edu-tour-popover {
+  position: fixed;
+  pointer-events: all;
+  background: #1e293b; /* Nền tối đậm cao cấp */
+  color: #f8fafc;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  z-index: 99999;
+  overflow: hidden;
+  animation: edu-pop-fade .2s ease-out;
+  transition: top .2s ease, left .2s ease, bottom .2s ease, right .2s ease;
+}
+
+@keyframes edu-pop-fade {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.edu-tour-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  background: #0f172a;
+  border-bottom: 1px solid #334155;
+  flex-shrink: 0;
+}
+
+.edu-tour-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.edu-tour-step-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #334155;
+  color: #38bdf8;
+  font-family: var(--n-font-mono, monospace);
+}
+
+/* Nội dung có thanh cuộn riêng, không bao giờ làm tràn footer */
+.edu-tour-content-scroll {
+  padding: 14px 18px;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 60px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: #cbd5e1;
+}
+
+.edu-tour-content-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.edu-tour-content-scroll::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.5);
+}
+.edu-tour-content-scroll::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 3px;
+}
+.edu-tour-content-scroll::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+.edu-tour-lead {
+  margin: 0 0 10px 0;
+  font-size: 12.5px;
+  color: #e2e8f0;
+}
+
+.edu-tour-section {
+  margin-bottom: 12px;
+}
+
+.edu-tour-section b {
+  display: block;
+  color: #f1f5f9;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.edu-tour-section ul {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.edu-tour-section li b {
+  display: inline;
+  color: #fff;
+}
+
+.edu-tour-section code {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: var(--n-font-mono, monospace);
+}
+
+.edu-tour-verdict {
+  padding: 10px 14px;
+  background: rgba(15, 23, 42, 0.85);
+  border-left: 3px solid #38bdf8;
+  border-radius: 0 6px 6px 0;
+  margin-top: 10px;
+}
+
+.edu-tour-verdict b {
+  display: block;
+  font-size: 11.5px;
+  color: #38bdf8;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: .02em;
+}
+
+.edu-tour-verdict p {
+  margin: 0;
+  color: #e2e8f0;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.edu-tour-finbox {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.edu-tour-finbox .lbl {
+  display: block;
+  font-size: 10.5px;
+  color: #94a3b8;
+  text-transform: uppercase;
+}
+
+.edu-tour-finbox b {
+  font-size: 13.5px;
+  font-family: var(--n-font-mono, monospace);
+  color: #fff;
+}
+
+.edu-tour-finbox .arr {
+  color: #38bdf8;
+  font-weight: 800;
+  font-size: 15px;
+}
+
+.edu-tour-finbox b.pos { color: #4ade80; }
+.edu-tour-finbox b.neg { color: #f87171; }
+.edu-tour-finbox b.large { font-size: 14.5px; }
+
+/* ── Footer Nút Điều Hướng Tour (Cố Định Ở Đáy Không Bị Khuất) ──── */
+.edu-tour-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  background: #0f172a;
+  border-top: 1px solid #334155;
+  flex-shrink: 0; /* Cố định 100% */
+}
+
+.edu-tour-skip-btn {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 4px;
+  transition: all .15s ease;
+}
+
+.edu-tour-skip-btn:hover {
+  color: #f1f5f9;
+  text-decoration: underline;
+}
+
+.edu-tour-nav-btns {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.edu-tour-prev-btn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  background: #334155;
+  color: #cbd5e1;
+  border: 1px solid #475569;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+
+.edu-tour-prev-btn:hover {
+  background: #475569;
+  color: #fff;
+}
+
+.edu-tour-next-btn {
+  padding: 6px 18px;
+  border-radius: 6px;
+  background: #0d9488; /* Màu xanh ngọc chuẩn */
+  color: #fff;
+  border: none;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(13, 148, 136, 0.35);
+  transition: all .15s ease;
+}
+
+.edu-tour-next-btn:hover {
+  background: #0f766e;
+  box-shadow: 0 4px 12px rgba(13, 148, 136, 0.5);
+}
+
+.edu-tour-next-btn.finish {
+  background: #2563eb;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+}
+
+.edu-tour-next-btn.finish:hover {
+  background: #1d4ed8;
+}
+
+/* ── EduExplain (English Logic Breakdown) ─────────────── */
+.edu-explain-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: var(--n-surface);
+  border: 1px solid var(--n-line);
+  border-radius: 8px;
+  padding: 16px 18px;
+}
+.edu-explain-header {
+  border-bottom: 1px solid var(--n-line);
+  padding-bottom: 12px;
+}
+.edu-explain-title-badge {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #6366f1;
+  letter-spacing: .05em;
+  margin-bottom: 4px;
+}
+.edu-explain-title {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--n-ink);
+}
+.edu-explain-meta {
+  display: flex;
+  gap: 8px;
+}
+.edu-explain-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.edu-explain-sec-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--n-ink);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.edu-explain-p {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--n-ink-2);
+  margin: 0;
+}
+.edu-explain-rules {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--n-ink-2);
+}
+.edu-explain-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 8px;
+  margin-top: 4px;
+}
+.edu-explain-feat-box {
+  padding: 8px 10px;
+  background: rgba(99,102,241,.05);
+  border: 1px solid rgba(99,102,241,.18);
+  border-radius: 6px;
+}
+.edu-explain-feat-box.op {
+  background: rgba(13,148,136,.05);
+  border-color: rgba(13,148,136,.2);
+}
+.edu-feat-name {
+  font-family: monospace;
+  font-size: 12px;
+  font-weight: 700;
+  color: #4f46e5;
+  margin-bottom: 3px;
+}
+.edu-explain-feat-box.op .edu-feat-name {
+  color: #0d9488;
+}
+.edu-feat-desc {
+  font-size: 11.5px;
+  color: var(--n-ink-2);
+  line-height: 1.35;
+}
+.edu-explain-tips {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.edu-tip-item {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--n-ink-2);
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--n-bg);
+  border-left: 3px solid #6366f1;
+}

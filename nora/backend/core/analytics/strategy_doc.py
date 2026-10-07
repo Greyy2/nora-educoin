@@ -253,6 +253,28 @@ def _read(path: str) -> Optional[Dict[str, Any]]:
         return None
 
 
+def _user_card_metrics(sim: Any) -> Dict[str, Any]:
+    """Số đo thẻ alpha người dùng từ metrics.simulate của kết quả đã lưu: khoá và đơn vị CHỈ lấy từ trường tường minh (khối nora: ret_pct, mdd_pct, sharpe, sortino, win_rate_trades %,
+    profit_factor_trades; thiếu khối nora thì khối xno: cumulative_return/max_drawdown là phân số ×100). Thiếu -> None (giao diện hiện "—"), không bao giờ 0 giả; số 0 thật được giữ."""
+    from backend.core.analytics.user_alphas import _first_num
+    nora, xno = (sim or {}).get("nora") or {}, (sim or {}).get("xno") or {}
+
+    def pct(v):
+        return None if v is None else v * 100.0
+    mdd = _first_num(nora, "mdd_pct")
+    xmdd = _first_num(xno, "max_drawdown")
+    trades = _first_num(nora, "trades")
+    return {
+        "ret_pct": _first_num(nora, "ret_pct") if _first_num(nora, "ret_pct") is not None else pct(_first_num(xno, "cumulative_return")),
+        "mdd_pct": abs(mdd) if mdd is not None else (abs(xmdd) * 100.0 if xmdd is not None else None),
+        "sharpe": _first_num(nora, "sharpe") if _first_num(nora, "sharpe") is not None else _first_num(xno, "sharpe"),
+        "sortino": _first_num(nora, "sortino") if _first_num(nora, "sortino") is not None else _first_num(xno, "sortino"),
+        "profit_factor": _first_num(nora, "profit_factor_trades"),
+        "win_rate": _first_num(nora, "win_rate_trades"),
+        "trades": int(trades) if trades is not None else None,
+    }
+
+
 def catalog(alphas_dir: Optional[str] = None) -> Dict[str, Any]:
     from backend.core.strategy.book import BY_ID, STRATEGIES
     if alphas_dir is None:
@@ -284,4 +306,57 @@ def catalog(alphas_dir: Optional[str] = None) -> Dict[str, Any]:
             })
             items[-1]["stats"] = _alphas_of([cid for _, cid in group], books)
             items[-1]["summary"] = summarize(items[-1]["stats"])
+
+    # Nhóm Alpha người dùng (C1)
+    from backend.core.analytics import user_alphas
+    uas = user_alphas.list_user_alphas(base_dir=alphas_dir)
+    for ua in uas:
+        if ua.get("status") == "ARCHIVED":
+            continue
+        code = ua.get("code", "")
+        plain_lines = []
+        try:
+            from backend.core.strategy.pydsl import compile_code
+            from backend.core.strategy.pydsl.explain import explain_program
+            prog = compile_code(code, register=False)
+            exp = explain_program(prog, profile=ua.get("profile", "xno"), position=(ua.get("config") or {}).get("position"))
+            plain_lines = [r["action_vi"] for r in exp.get("rules", [])] + [e["desc"] for e in exp.get("execution", [])[:2]]
+        except Exception:
+            plain_lines = [ua.get("note") or "Chiến lược người dùng đã xác minh"]
+
+        stat_item = {
+            "leg": ua["id"],
+            "side": "LONG" if (ua.get("config", {}).get("program", {}) or {}).get("legs") == ["LONG"] else "BOTH",
+            "timeframe": (ua.get("config", {}) or {}).get("timeframe", "24h"),
+            "book": "user",
+            "alpha_id": ua["id"],
+            "stage": ua.get("status", "SAVED"),
+            "universe": len((ua.get("config", {}) or {}).get("symbols") or []),
+            **_user_card_metrics((ua.get("metrics") or {}).get("simulate")),
+        }
+        items.append({
+            "key": f"user_{ua['id']}",
+            "strategy": ua["id"],
+            "name": ua["name"],
+            "kind": "Alpha người dùng",
+            "side": "Long" if (ua.get("config", {}).get("program", {}) or {}).get("legs") == ["LONG"] else "Long + Short",
+            "idea": ua.get("note") or f"Alpha người dùng từ nguồn {ua.get('source', 'alpha-create')}",
+            "plain": plain_lines,
+            "math": [{"title": "Cấu hình thực thi", "latex": rf"\mathrm{{{ua.get('profile', 'xno')}}}"}],
+            "stats": [stat_item],
+            "summary": {
+                "n": 1,
+                "ret_pct": stat_item["ret_pct"],
+                "mdd_pct": stat_item["mdd_pct"],
+                "sharpe": stat_item["sharpe"],
+                "sortino": stat_item["sortino"],
+                "profit_factor": stat_item["profit_factor"],
+                "win_rate": stat_item["win_rate"],
+                "trades": stat_item["trades"],
+            },
+            "is_user_alpha": True,
+            "alpha_id": ua["id"],
+        })
+
     return {"sources": [{"key": "nora", "label": "Nora", "strategies": items}]}
+

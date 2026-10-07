@@ -2,8 +2,11 @@
 
 GET  /api/studio/strategies           các chiến lược lõi: params_schema (mọi tham số chỉnh được), preset {params, source, evidence}, frames_allowed.
 POST /api/studio/strategies/validate  Kiểm thử tham số một chiến lược theo params_schema (không chạy job): {ok, errors[{field, message}], resolved}.
+POST /api/studio/strategies/compile   Biên dịch code Python (DSL xnoquant, core/strategy/pydsl; KHÔNG exec): {ok, program_hash, meta, warnings, error{line, col, message}}.
+GET  /api/studio/strategies/dsl        Tham chiếu DSL chỉ đọc: {data[{name, doc}], features[{name, signature, doc, returns, outputs}], operators[...]} dựng từ pydsl/spec.py.
+(Đã gỡ /strategies/custom: lưu chỉ code không còn; chiến lược người dùng = POST /api/studio/alphas/user kèm kết quả chạy. data/alphas/custom_strategies.json bỏ không dùng.)
 """
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -13,6 +16,7 @@ from backend.core.params import presets as presets_mod
 from backend.core.params import modes as rm
 from backend.core.params.template import FRAMES
 from backend.core.strategy import book as sb
+from backend.core.strategy import pydsl
 
 router = APIRouter(prefix="/api/studio/strategies", tags=["strategies"])
 
@@ -51,3 +55,66 @@ def post_validate(req: ValidateRequest):
 def post_build_presets():
     """Dựng lại data/alphas/presets.json từ sổ đã chốt + lần dựng sổ mới nhất (job nền presets_build, không chạy backtest)."""
     return batch_jobs.http_launch("presets_build", {})
+
+
+class CompileRequest(BaseModel):
+    code: str = Field(..., min_length=1, max_length=50_000, description="Mã Python class X(SimpleAlgorithm)")
+
+
+@router.post("/compile")
+def post_compile(req: CompileRequest) -> Dict[str, Any]:
+    """Biên dịch thử (không chạy, không lưu): {ok, program_hash, meta{timeframe, features, legs, position_levels, warmup_bars, ...}, warnings[],
+    error{line, col, message} | null}. Lỗi code trả 200 với ok=false (UI tô đúng dòng/cột)."""
+    return pydsl.compile_report(req.code)
+
+
+class ExplainRequest(BaseModel):
+    code: str = Field(..., min_length=1, max_length=50_000, description="Mã Python class X(SimpleAlgorithm)")
+    profile: str = Field("xno", description="Hồ sơ thực thi (xno | nora)")
+    position: Optional[Dict[str, Any]] = Field(None, description="Tham số vị thế (hồ sơ nora), như khi chạy backtest")
+
+
+@router.post("/explain")
+def post_explain(req: ExplainRequest) -> Dict[str, Any]:
+    """Giải thích cấu trúc chiến lược từ cây biểu thức đã biên dịch (B2): {ok, indicators[], rules[], execution[], warnings[], error}."""
+    return pydsl.explain_report(req.code, profile=req.profile, position=req.position)
+
+
+
+_DATA_DOC = {"open": "Giá mở cửa", "high": "Giá cao nhất", "low": "Giá thấp nhất", "close": "Giá đóng cửa", "volume": "Khối lượng"}
+
+
+def _sig_param(p) -> str:
+    from backend.core.strategy.pydsl.spec import REQUIRED
+    return p.name if p.default is REQUIRED else f"{p.name}={p.default!r}"
+
+
+def _spec_rows(specs: Dict[str, Any], prefix: str) -> List[Dict[str, Any]]:
+    rows = []
+    for name in sorted(specs):
+        sp = specs[name]
+        ret = sp.ret if isinstance(sp.ret, str) else "num"
+        rows.append({
+            "name": name,
+            "signature": f"{prefix}.{name}({', '.join(_sig_param(p) for p in sp.params)})",
+            "doc": sp.doc or "",
+            "returns": ret,
+            "outputs": sp.nout,
+            "label_vi": sp.label_vi or "",
+            "formula": sp.formula or "",
+            "meaning_vi": sp.meaning_vi or "",
+            "read_vi": sp.read_vi or "",
+            "warmup": sp.warmup if isinstance(sp.warmup, (int, str)) else 0,
+            "category": sp.category or "",
+        })
+    return rows
+
+
+
+@router.get("/dsl")
+def get_dsl_reference() -> Dict[str, Any]:
+    """Danh sách những gì DSL hỗ trợ (chỉ đọc): cột dữ liệu self.data.pv_*, chỉ báo self.feat.*, operator self.op.*."""
+    from backend.core.strategy.pydsl import features as feat_mod, ops as ops_mod
+    from backend.core.strategy.pydsl.program import DATA_COLUMNS
+    return {"data": [{"name": f"pv_{c}", "signature": f"self.data.pv_{c}", "doc": _DATA_DOC.get(c, c)} for c in DATA_COLUMNS],
+            "features": _spec_rows(feat_mod.FEATURES, "self.feat"), "operators": _spec_rows(ops_mod.OPS, "self.op")}

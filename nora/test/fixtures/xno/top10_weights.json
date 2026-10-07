@@ -1,0 +1,15 @@
+{
+ "TOP10_weights": {
+  "BTC": 0.6916,
+  "ETH": 0.14653,
+  "XRP": 0.05158,
+  "BNB": 0.0472,
+  "SOL": 0.02932,
+  "TRX": 0.01041,
+  "DOGE": 0.00938,
+  "ADA": 0.00561,
+  "BCH": 0.00472,
+  "LINK": 0.00366
+ },
+ "note": "Implied from E1 (always long, position=1): q_i*close_i at entry / 100000; regression of daily equity on Binance closes, R2=1.0"
+}

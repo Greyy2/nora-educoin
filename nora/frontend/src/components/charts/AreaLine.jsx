@@ -5,11 +5,12 @@ import { isNum, fmtTick, dmy, my, fullDate } from '../../lib/format'
 /**
  * Đường / vùng theo thời gian, dependency-free.
  * series: [{ key, label, values, color, dashed?, area? }]  (đường đầu có thể có area)
+ * marks: [{ i, label }] vạch dọc đánh dấu một mốc (vd. ranh giới train / test).
  * hover/onHover: chỉ số đang trỏ, dùng chung giữa các biểu đồ cùng trục x (vd. NAV + Underwater).
  */
 export default function AreaLine({
   dates = [], series = [], height = 240, valueFormat, refLines = [], hover, onHover,
-  yDomain, xLabels = true, label = 'Biểu đồ đường',
+  yDomain, xLabels = true, label = 'Biểu đồ đường', marks = [],
 }) {
   const ref = useRef(null)
   const w = useWidth(ref)
@@ -62,6 +63,12 @@ export default function AreaLine({
               <g key={r.y}>
                 <line x1={PAD.l} x2={PAD.l + plotW} y1={Y(r.y)} y2={Y(r.y)} stroke="var(--n-ink-3)" strokeWidth="1" strokeDasharray="4 4" />
                 {r.label && <text x={PAD.l + plotW - 2} y={Y(r.y) - 4} textAnchor="end">{r.label}</text>}
+              </g>
+            ))}
+            {marks.filter((m) => m.i >= 0 && m.i < n).map((m) => (
+              <g key={`m${m.i}`}>
+                <line x1={xs[m.i]} x2={xs[m.i]} y1={PAD.t} y2={PAD.t + plotH} stroke="var(--n-ink-3)" strokeWidth="1" strokeDasharray="4 4" />
+                {m.label && <text x={xs[m.i] + 5} y={PAD.t + 11}>{m.label}</text>}
               </g>
             ))}
             {series.map((s, si) => {
