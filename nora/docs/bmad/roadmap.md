@@ -205,7 +205,7 @@ ADR: [`adr-p9-backend-layout.md`](adr-p9-backend-layout.md). Mỗi ID một comm
 | ID | Việc | Người | Cần trước | Xong khi | Trạng thái |
 |---|---|---|---|---|---|
 | P9.0 | ADR này + test luật phụ thuộc (chế độ báo cáo) | O | — | Phiên alpha + backtest analyst OK; người dùng duyệt | done — alpha ký, người dùng duyệt 2026-10-07 |
-| P9.1 | Sửa 79 manifest OKX (`compute_df_sha256`), xác nhận nội dung nến trước khi ghi | norabt-e2 (logic) | P9.0 + user OK | Quality gate APPROVED/WARNING cho mọi tài sản; test_pydsl_parity xanh | todo |
+| P9.1 | Sửa 79 manifest OKX (`compute_df_sha256`), xác nhận nội dung nến trước khi ghi | norabt-e2 (logic) | P9.0 + user OK | Quality gate APPROVED/WARNING cho mọi tài sản; test_pydsl_parity xanh | done (norabt-e2, 2026-10-07) — 79 manifest sha256_1m = compute_df_sha256; khung 5m–24h dựng lại từ 1m cho ADA BNB DOGE ETH LINK LTC UNI XRP; gate 75 APPROVED / 1 WARNING / 3 BLOCKED (OKB, PEPE, SKHY: crawl_ok=False thật, cần crawl lại); sao lưu data/_cache/manifest_backup_<ts>/ |
 | P9.2 | `crawl/` (cex, dex, store) + chọn gốc dữ liệu một chỗ | S | P9.0 | Khoá cache mmap không đổi; crawl/quality gate test xanh | todo |
 | P9.3 | `data/` theo cây mới (script chuyển + kiểm sha256, symlink tạm ở đường cũ) | S | P9.2 | Mọi job đọc/ghi đúng chỗ mới; không mất file (đếm + băm) | todo |
 | P9.4 | `core/` (models, params, indicator, signal, position_size, backtest) + shim | S | P9.2 | Golden + mọi parity + nautilus_diff không đổi | todo |
