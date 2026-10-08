@@ -788,7 +788,7 @@ def save_user_alpha(job_id: str, code: str, name: str, note: str = "", source: s
     - Đọc kết quả job thật từ máy chủ (job.status == 'done'), KHÔNG nhận kết quả từ client
     - Kiểm tra mã băm chương trình khớp với code gửi lên (chống giả mạo)
     - Ghi ảnh chụp ĐẦY ĐỦ kết quả (`result`) + `explain` + `evidence` nên bản ghi không còn phụ thuộc thư mục job
-    - Trả về (record, action: 'created' | 'updated' | 'versioned'); cùng code + cùng cấu hình -> cùng id -> cập nhật, không nhân bản
+    - Trả về (record, action: 'created' | 'updated' | 'versioned'); chương trình (program_hash) đã được lưu -> ValueError (API 409), không nhân bản
     - `alpha_id` (P10): lưu PHIÊN BẢN MỚI của alpha đã có (sửa code trong trình soạn tạm -> chạy lại -> Lưu): giữ id, bản ghi cũ nguyên vẹn được
       chuyển vào user/_versions/<id>.v<n>.json, bản ghi chính nhận code + kết quả + bằng chứng mới với version = n + 1
     """
@@ -824,6 +824,9 @@ def save_user_alpha(job_id: str, code: str, name: str, note: str = "", source: s
             raise LookupError(f"Không tìm thấy alpha {alpha_id} để lưu phiên bản mới")
     else:
         alpha_id = generate_alpha_id(prog.code_hash, config)
+    for ex in list_user_alphas(base_dir=base_dir):      # chương trình này (program_hash) đã được lưu rồi -> không lưu trùng (API trả 409)
+        if ex.get("program_hash") == prog.code_hash:
+            raise ValueError(f"Chiến lược này đã được lưu (alpha {ex.get('id')}: “{ex.get('name') or ex.get('id')}”). Hãy sửa code hoặc tham số rồi chạy lại để lưu bản khác.")
     checklist = evaluate_checklist(result)
     file_path = os.path.join(user_dir, f"{alpha_id}.json")
 

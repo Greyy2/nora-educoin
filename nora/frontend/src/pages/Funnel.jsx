@@ -1,22 +1,23 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { PageHead, Panel, Status, Spinner, Loading, ErrorState, Empty, Segmented } from '../components/ui'
-import JobPanel from '../components/JobPanel'
-import FunnelChart from '../components/funnel/FunnelChart'
-import StageStats from '../components/funnel/StageStats'
-import AlphaTable from '../components/funnel/AlphaTable'
-import TradesView from '../components/funnel/TradesView'
-import AlphaDrawer from '../components/funnel/AlphaDrawer'
-import NewRunForm from '../components/funnel/NewRunForm'
-import RunsList from '../components/funnel/RunsList'
-import { Headline, FinalSummary } from '../components/funnel/RunSummary'
-import '../styles/funnel.css'
-import { MockBanner, EmptyStage } from '../components/funnel/parts'
+import JobPanel from '../components/jobs/JobPanel'
+import FunnelChart from '../components/optimize/funnel/FunnelChart'
+import StageStats from '../components/optimize/funnel/StageStats'
+import AlphaTable from '../components/optimize/funnel/AlphaTable'
+import TradesView from '../components/optimize/funnel/TradesView'
+import AlphaDrawer from '../components/optimize/funnel/AlphaDrawer'
+import NewRunForm from '../components/optimize/funnel/NewRunForm'
+import RunsList from '../components/optimize/funnel/RunsList'
+import { Headline, FinalSummary } from '../components/optimize/funnel/RunSummary'
+import '../styles/optimize.css'
+import { EmptyStage } from '../components/optimize/funnel/parts'
 import useAsync from '../hooks/useAsync'
 import useJob from '../hooks/useJob'
 import { useCatalog } from '../context/Catalog'
+import { useMeta } from '../meta/MetaProvider'
 import { listFunnelRuns, getFunnelRun, getFunnelStats, getFunnelAlphas } from '../api'
-import { ALL_STAGES, STAGE_META, RUN_STATUS, shortId, fmtCount, stageShort } from '../lib/funnel'
+import { ALL_STAGES, STAGE_META, RUN_STATUS, shortId, fmtCount, stageShort, stageName, stageHasTrades } from '../lib/funnel'
 import { isNum } from '../lib/format'
 import { fmtDateTime, fullDate } from '../lib/format'
 import { legLabel } from '../lib/strategyLabel'
@@ -38,7 +39,7 @@ function RunsPage() {
         subtitle="Chạy mọi alpha đã sinh (chiến lược × tham số) qua các tầng ngày càng khắt khe để tìm alpha thắng thật và sống sót được, rồi đưa vào kho alpha cho testnet.">
         <button type="button" className="n-btn primary" onClick={() => setOpen((o) => !o)} aria-expanded={open}>{open ? 'Đóng biểu mẫu' : 'Tạo lượt mới'}</button>
       </PageHead>
-      <MockBanner />
+      
       {launched && (
         <Panel className="n-fn-launched" title="Lượt vừa tạo" meta={<span className="mono">{launched.run_id}</span>}>
           <JobPanel job={job.job} status={job.status} error={job.error} />
@@ -87,6 +88,7 @@ function RunMeta({ run }) {
 }
 
 function RunView({ runId }) {
+  const meta = useMeta()
   const nav = useNavigate()
   const [sp, setSp] = useSearchParams()
   const runQ = useAsync(() => getFunnelRun(runId), [runId], { poll: (r) => (isLive(r.status) ? 5000 : 0) }) // một vòng poll duy nhất cho lượt đang chạy (tiến độ lấy từ run.progress); tab ẩn thì tạm dừng
@@ -155,7 +157,7 @@ function RunView({ runId }) {
   const pickStage = (st) => (detail && st === stage ? closeDetail() : setParams({ stage: st, tab: st === 'S0_generate' && tab !== 'stats' ? 'stats' : tab }, false))
   const openFinal = () => setParams({ stage: 'FINAL', tab: 'alphas', sel: '' }, false)
 
-  if (runQ.error && !run) return <><PageHead kicker="Phễu kiểm duyệt" title={`Lượt ${runId}`} /><MockBanner /><ErrorState title="Không tải được lượt chạy" error={runQ.error} onRetry={runQ.reload} /><p><Link to="/alpha/funnel" className="n-btn" style={{ marginTop: 10 }}>← Danh sách lượt</Link></p></>
+  if (runQ.error && !run) return <><PageHead kicker="Phễu kiểm duyệt" title={`Lượt ${runId}`} /><ErrorState title="Không tải được lượt chạy" error={runQ.error} onRetry={runQ.reload} /><p><Link to="/alpha/funnel" className="n-btn" style={{ marginTop: 10 }}>← Danh sách lượt</Link></p></>
   if (!run) return <Loading what="lượt chạy" />
 
   const strategies = run.strategies
@@ -168,7 +170,7 @@ function RunView({ runId }) {
   const prevCount = run.counts.find((c) => c.stage === prevStage)
   const deadReasons = deadQ.data?.reject_reasons?.length ? deadQ.data.reject_reasons : (deadAt?.top_reject ? [deadAt.top_reject] : [])
   const finalPassed = isNum(run.counts[run.counts.length - 1].passed) ? run.counts[run.counts.length - 1].passed : (deadAt ? 0 : null)
-  const tradesOk = stage !== 'S0_generate'
+  const tradesOk = stageHasTrades(stage, meta)
   const topAlphas = pickQ.data?.items || []
   const tradeAlpha = sel || topAlphas[0]?.alpha_id || ''
   const alphaOptions = [...new Map([...(sel ? [[sel, { alpha_id: sel }]] : []), ...topAlphas.map((a) => [a.alpha_id, a])]).values()]
@@ -178,7 +180,7 @@ function RunView({ runId }) {
     <>
       <PageHead kicker={<Link to="/alpha/funnel" className="n-back">← Tất cả lượt chạy</Link>} title={`Phễu · ${run.run_id}`}
         subtitle="Tóm tắt một lượt kiểm duyệt: số alpha còn lại sau từng tầng, lý do loại chính và kết quả FINAL. Bấm một tầng để xem chi tiết." />
-      <MockBanner />
+      
       <RunMeta run={run} />
       {(live || run.status === 'failed' || run.status === 'cancelled') && (
         <Panel title="Tiến độ lượt chạy" className="n-fn-prog">
@@ -191,8 +193,8 @@ function RunView({ runId }) {
       <Panel title="Phễu kiểm duyệt" meta={<span className="mono">{fmtCount(run.counts[0].passed)} alpha → {fmtCount(finalPassed)} FINAL</span>}>
         {deadAt && (
           <div className="n-fn-dead" role="status">
-            <h3>{fmtCount(0)} alpha qua {stageShort(deadAt.stage)}</h3>
-            <span className="n-note">Cả {fmtCount(deadAt.input)} alpha vào {stageShort(deadAt.stage)} đều bị loại, nên các tầng sau ({stageShort(order[deadIdx + 1])} → FINAL) chưa có alpha nào và chưa chạy.</span>
+            <h3>{fmtCount(0)} alpha qua {stageShort(deadAt.stage, meta)}</h3>
+            <span className="n-note">Cả {fmtCount(deadAt.input)} alpha vào {stageShort(deadAt.stage, meta)} đều bị loại, nên các tầng sau ({stageShort(order[deadIdx + 1], meta)} → FINAL) chưa có alpha nào và chưa chạy.</span>
             {deadReasons.length > 0 && (
               <ul aria-label="Lý do loại chính">
                 {deadReasons.slice(0, 4).map((r) => <li key={r.code}>{r.label || r.code} <span className="mono muted">{r.code}</span> · <b className="mono">{fmtCount(r.count)}</b> alpha ({deadAt.input ? Math.round((r.count / deadAt.input) * 100) : 0}%)</li>)}
@@ -209,7 +211,7 @@ function RunView({ runId }) {
 
       {detail && <>
       <div className="n-fn-stagebar" ref={barRef} style={{ scrollMarginTop: 8 }}>
-        <h2><span className="code">{STAGE_META[stage].short}</span> {STAGE_META[stage].name}</h2>
+        <h2><span className="code">{stageShort(stage, meta)}</span> {stageName(stage, meta)}</h2>
         <div className="n-tabs" role="tablist" aria-label="Nội dung của tầng">
           {TABS.map((t) => {
             const dis = (t.value === 'trades' && !tradesOk) || (t.value === 'alphas' && stage === 'S0_generate')

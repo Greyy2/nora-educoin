@@ -160,9 +160,6 @@ function ChartCard({ title, children, tall = 1, tour }) {
 }
 
 /** Kết quả một lần chạy: result = result.json của job custom_backtest. Bố cục: hàng Giai đoạn, Tổng quan / Hiệu suất / Phân tích, Biểu đồ. */
-const METRIC_NOTE_LABEL = { ret_pct: 'Lợi nhuận', cagr_pct: 'CAGR', sharpe: 'Sharpe', sortino: 'Sortino', mdd_pct: 'Max drawdown', calmar: 'Calmar',
-  win_rate_trades: 'Tỉ lệ thắng', profit_factor_trades: 'Profit factor', trades: 'Số lệnh', fees_usd: 'Phí' }
-
 /** `explain` (chỉ /education): thêm khối "Chiến lược làm gì" và hướng dẫn từng bước (ResultTour) dùng ghi chú backend result.explain.notes; giao diện còn lại giống hệt /alpha/create. */
 export default function CustomResult({ result, jobLine, explain = false, tourKey = '' }) {
   const [stage, setStage] = useState('all')
@@ -183,46 +180,25 @@ export default function CustomResult({ result, jobLine, explain = false, tourKey
   const bySym = Array.isArray(result?.by_symbol) ? result.by_symbol : []
   const open = Array.isArray(result?.positions_open) ? result.positions_open : []
 
-  // ---- hướng dẫn từng bước (chỉ education): mỗi bước = một mục kết quả + ghi chú backend; bước thiếu dữ liệu / ghi chú thì bỏ qua ----
+  // ---- hướng dẫn từng bước (chỉ education): danh sách bước do backend quyết định (GET /api/studio/meta `explain_tour`); lời giải thích = result.explain.notes[notes_key]; thiếu ghi chú / dữ liệu thì bỏ bước ----
   const meta = useMeta()
   const [tour, setTour] = useState(null) // null | chỉ số bước
   const steps = useMemo(() => {
     if (!explain) return []
-    const nm = notes.metrics || {}
-    const body = (...parts) => parts.filter(([, t]) => t).map(([label, text]) => ({ label, text }))
-    
-    // Bản đồ cấu hình từng mục tour
-    const map = {
-      summary: { id: 'summary', sub: 'overview', sel: '[data-tour="summary"]', title: 'Chỉ số tổng hợp', body: Object.entries(nm).filter(([k]) => k !== 'mdd_pct').map(([k, t]) => ({ label: METRIC_NOTE_LABEL[k] || k, text: t })), ok: true },
-      equity: { id: 'equity', sub: 'overview', show: 'equity', sel: '[data-tour="equity"]', title: 'Đường vốn và sụt giảm', body: body([null, notes.equity], ['Benchmark', notes.benchmark]), ok: !!ser },
-      dd: { id: 'dd', sub: 'overview', show: 'dd', sel: '[data-tour="dd"]', title: 'Drawdown', body: body([null, nm.mdd_pct]), ok: !!ser },
-      yearly: { id: 'yearly', sub: 'overview', sel: '[data-tour="yearly"]', title: 'Theo năm', body: body([null, notes.yearly]), ok: yearlyAll.length > 0 },
-      by_symbol: { id: 'by_symbol', sub: 'perf', sel: '[data-tour="by_symbol"]', title: 'Theo tài sản', body: body([null, notes.by_symbol]), ok: bySym.length > 0 },
-      regime: { id: 'regime', sub: 'analysis', sel: '[data-tour="regime"]', title: 'Theo trạng thái thị trường', body: body([null, notes.regime]), ok: true },
-      exits: { id: 'exits', sub: 'analysis', sel: '[data-tour="exits"]', title: 'Lý do thoát lệnh', body: body([null, notes.exits]), ok: true },
-      trades: { id: 'trades', sub: 'analysis', sel: '[data-tour="trades"]', title: 'Danh sách lệnh', body: body([null, notes.trades]), ok: Array.isArray(result?.trades) },
-      train_test: { id: 'train_test', sub: 'analysis', sel: '[data-tour="train_test"]', title: 'Train và test', body: body([null, notes.train_test]), ok: true },
+    // Chỗ hiển thị của từng mục tour trên giao diện (tab con, bộ chọn DOM, điều kiện có dữ liệu); khoá khớp `explain_tour[].key`.
+    const place = {
+      summary: { sub: 'overview', sel: '[data-tour="summary"]', ok: true },
+      equity: { sub: 'overview', show: 'equity', sel: '[data-tour="equity"]', ok: !!ser },
+      yearly: { sub: 'overview', sel: '[data-tour="yearly"]', ok: yearlyAll.length > 0 },
+      by_symbol: { sub: 'perf', sel: '[data-tour="by_symbol"]', ok: bySym.length > 0 },
+      train_test: { sub: 'analysis', sel: '[data-tour="train_test"]', ok: true },
     }
-
-    const tourList = meta?.explain_tour || [
-      { key: 'summary', label_vi: 'Kết quả tổng', notes_key: 'summary' },
-      { key: 'equity', label_vi: 'Đường vốn và sụt giảm', notes_key: 'equity' },
-      { key: 'yearly', label_vi: 'Theo năm', notes_key: 'yearly' },
-      { key: 'by_symbol', label_vi: 'Theo tài sản', notes_key: 'by_symbol' },
-      { key: 'train_test', label_vi: 'Train và test', notes_key: 'train_test' },
-    ]
-
-    const defs = tourList.map((item) => {
-      const base = map[item.notes_key || item.key]
-      if (!base) return null
-      return {
-        ...base,
-        title: item.label_vi || base.title,
-      }
+    return (meta?.explain_tour || []).map((item) => {
+      const pl = place[item.key]
+      const text = notes[item.notes_key || item.key]
+      return pl && pl.ok && typeof text === 'string' && text ? { id: item.key, title: item.label_vi, sub: pl.sub, show: pl.show, sel: pl.sel, body: [{ text }] } : null
     }).filter(Boolean)
-
-    return defs.filter((d) => d.ok && d.body.length)
-  }, [explain, notes, ser, yearlyAll.length, bySym.length, result, meta?.explain_tour])
+  }, [explain, notes, ser, yearlyAll.length, bySym.length, meta?.explain_tour])
   const gotoStep = useCallback((i) => {
     const d = steps[i]
     if (!d) return

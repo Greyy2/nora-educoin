@@ -4,7 +4,6 @@ export const STOP_FILL = {
   extreme: { name: 'Giá xấu nhất của nến', tone: 'bi quan', text: 'Giá xấu nhất của nến (bi quan)' },
 }
 export const stopFillText = (k) => STOP_FILL[k]?.text || String(k)
-export const STOP_FILL_LABEL = 'Khớp cắt lỗ'
 export const stopFillOptions = [{ value: 'level', label: STOP_FILL.level.text }, { value: 'extreme', label: STOP_FILL.extreme.text }]
 
 /** Đổi "(extreme)" / "(level)" trong nhãn do backend trả về sang cách gọi dễ hiểu. */

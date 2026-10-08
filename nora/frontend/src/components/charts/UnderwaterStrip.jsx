@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react'
-import { PAD, useWidth, xTicks, linePath, areaPath, tipPos } from './chartUtils'
-import { isNum, fmtNum, dmy, my, fullDate } from '../../lib/format'
+import { PAD, useWidth, xTicks, linePath, areaPath, tipPos } from './geometry'
+import { isNum, fmtNum, fmtPct, dmy, my, fullDate } from '../../lib/format'
 
 /** Dải drawdown (≤ 0) dùng chung trục x với biểu đồ NAV phía trên. */
 export default function UnderwaterStrip({ dates = [], values = [], height = 110, hover, onHover, marks = [] }) {
@@ -32,7 +32,7 @@ export default function UnderwaterStrip({ dates = [], values = [], height = 110,
             {[0, lo].map((t) => (
               <g key={t}>
                 <line className="grid" x1={PAD.l} x2={PAD.l + plotW} y1={Y(t)} y2={Y(t)} />
-                <text x={PAD.l - 8} y={Y(t) + 3.5} textAnchor="end">{t === 0 ? '0.0%' : `${t.toFixed(1)}%`}</text>
+                <text x={PAD.l - 8} y={Y(t) + 3.5} textAnchor="end">{fmtPct(t, 1)}</text>
               </g>
             ))}
             {xTicks(n, plotW).map((i) => (

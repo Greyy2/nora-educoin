@@ -1,20 +1,18 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { PageHead, Panel, Segmented, Status, Empty, Loading, ErrorState, NA } from '../components/ui'
-import SignalChart from '../components/chart/SignalChart'
-import SignalExplainPanel from '../components/chart/SignalExplainPanel'
-import TradeChartDrawer from '../components/chart/TradeChartDrawer'
-import { fmtTs, fmtVal } from '../components/chart/chartUtil'
+import SignalChart from '../components/charts/SignalChart'
+import SignalExplainPanel from '../components/charts/SignalExplainPanel'
+import TradeChartDrawer from '../components/charts/TradeChartDrawer'
+import { fmtTs, fmtVal } from '../components/charts/chartFormat'
 import useAsync from '../hooks/useAsync'
-import { getLiveTrades, getLiveCompare, explainChart } from '../api'
+import { getLiveTrades, getLiveCompare, getLiveCompareEvents, explainChart } from '../api'
+import { useMeta } from '../meta/MetaProvider'
 import AreaLine from '../components/charts/AreaLine'
 import { fmtNum, fmtMoney, fmtSPct, fmtPct, signClass, isNum } from '../lib/format'
 import { legLabel } from '../lib/strategyLabel'
 
-// Bot đang chạy: chế độ + sổ. Sổ thử nghiệm (khung 15m) chỉ chạy paper, song song sổ chính.
-const TABS = [{ value: 'paper', label: 'Paper · sổ chính' }, { value: 'demo', label: 'Demo OKX · sổ chính' }, { value: 'paper_explore', label: 'Paper · thử nghiệm 15m' }]
-const TAB = { paper: ['paper', 'main'], demo: ['demo', 'main'], paper_explore: ['paper', 'explore'] }
 const BOOK = { main: 'sổ chính (đã kiểm định)', explore: 'sổ thử nghiệm (chỉ paper)' }
-const SRC = { exec: 'Sàn', paper: 'Paper' }
+const SRC = { exec: 'Sàn', paper: 'Paper', sim: 'Sim' }
 const REASON = { TP: 'Chốt lời', SL: 'Cắt lỗ', TRAIL: 'Trailing', TIMEOUT: 'Hết hạn', SIGNAL: 'Tín hiệu thoát' }
 const SLC = { better: 'tốt hơn mức SL', between: 'giữa SL và đáy/đỉnh nến', worse: 'xấu hơn bi quan' }
 const DAY = 86400e3
@@ -28,7 +26,7 @@ function mergeTrades(d) {
 }
 function mergePositions(d) {
   const ex = (d.exec?.positions || []).map((p) => ({ src: 'exec', symbol: p.symbol, strategy: p.strategy, side: p.side, qty: p.qty, enter_ms: p.entry_time, enter_price: p.avg ?? p.entry_price, pnl: null, layers: null }))
-  const pa = (d.paper?.positions || []).map((p) => ({ src: 'paper', symbol: p.symbol, strategy: p.strategy, side: p.side, qty: p.qty, enter_ms: p.entry_time, enter_price: p.avg, pnl: p.unrealized, layers: p.layers }))
+  const pa = (d.paper?.positions || []).map((p) => ({ src: 'paper', symbol: p.symbol, strategy: p.strategy, side: p.side, qty: p.qty, enter_ms: p.enter_time, enter_price: p.avg, pnl: p.unrealized, layers: p.layers }))
   return [...ex, ...pa].filter((t) => isNum(t.enter_ms))
 }
 
@@ -107,57 +105,83 @@ function Explorer({ d, trades }) {
 }
 
 // Sàn vs paper: lệnh khớp thật trên OKX ghép với lệnh mô phỏng cùng nến -> đo độ lệch của giả lập (giá vào/đóng, tầng DCA, lệnh lệch)
-function CompareFills({ book }) {
-  const q = useAsync(() => getLiveCompare('demo', 'okx', book), [book], { poll: () => 120000 })
+function CompareFills({ mode = 'demo', book = 'main', engine = 'unified' }) {
+  const isUnified = engine === 'unified'
+  const q = useAsync(() => (isUnified ? getLiveCompareEvents(mode, 'okx', book, engine) : getLiveCompare(mode, 'okx', book, engine)), [mode, book, engine, isUnified], { poll: () => 120000 })
   const c = q.data
   const s = c?.summary
+  const flags = s?.flags || c?.breaches || []
+  const sl = s?.sl || c?.sl_band
+  const pairs = c?.pairs || []
   const bps = (v) => (isNum(v) ? `${v > 0 ? '+' : ''}${fmtNum(v, 1)} bps` : '—')
   const pct2 = (v) => (isNum(v) ? `${fmtNum(v, 3)}%` : '—')
-  const sl = s?.sl
+
   return (
-    <Panel title="Sàn thật so với paper" meta={<span>dương = sàn khớp kém hơn giả lập</span>}>
+    <Panel title="Sàn thật so với paper" meta={<span>dương = sàn khớp kém hơn giả lập · engine {engine}</span>}>
       {q.error && <ErrorState title="Chưa so được" error={q.error} onRetry={q.reload} />}
-      {s && (s.matched + s.only_exec + s.only_paper === 0
-        ? <Empty title="Chưa có lệnh để so">Khi bot demo có lệnh đóng, mỗi lệnh sàn được ghép với lệnh paper cùng nến để đo chênh lệch khớp lệnh.</Empty>
+      {s && (s.matched + (s.only_exec || 0) + (s.only_paper || s.only_sim || 0) === 0
+        ? <Empty title="Chưa có lệnh để so">Khi bot có lệnh đóng, mỗi lệnh sàn được ghép với lệnh mô phỏng cùng nến để đo chênh lệch khớp lệnh.</Empty>
         : (
           <>
             <p className="n-note" style={{ marginBottom: 8 }}>
-              Mẫu: <b>{s.matched} / {s.min_pairs} cặp</b>{s.enough ? ' — đủ để đọc số trung bình.' : ' — chưa đủ mẫu, các số trung bình và cảnh báo chỉ để tham khảo.'}
+              Mẫu: <b>{s.matched} / {s.min_pairs || 30} cặp</b>{s.enough ? ' — đủ để đọc số trung bình.' : ' — chưa đủ mẫu, các số trung bình và cảnh báo chỉ để tham khảo.'}
             </p>
-            {s.flags?.length > 0 && (
+            {flags.length > 0 && (
               <div style={{ display: 'grid', gap: 6, marginBottom: 10 }}>
-                {s.flags.map((f) => <div key={f.key}><Status tone="warn">{f.msg}</Status> <span className="mono">{fmtNum(f.value, 2)} &gt; {f.limit}</span></div>)}
+                {flags.map((f) => <div key={f.key}><Status tone="warn">{f.msg}</Status> <span className="mono">{fmtNum(f.value, 2)} &gt; {f.limit}</span></div>)}
               </div>
             )}
             <div className="n-lv-kpis">
               <div className="n-tile"><div className="l">Cặp ghép được</div><div className="v">{s.matched}</div></div>
-              <div className="n-tile"><div className="l">Chỉ paper khớp</div><div className="v">{s.only_paper}</div><div className="l">giả lập lạc quan nếu nhiều</div></div>
-              <div className="n-tile"><div className="l">Chỉ sàn khớp</div><div className="v">{s.only_exec}</div></div>
-              <div className="n-tile"><div className="l">Chênh giá vào TB</div><div className="v">{bps(s.entry_bps_mean)}</div></div>
-              <div className="n-tile"><div className="l">Chênh giá đóng TB</div><div className="v">{bps(s.close_bps_mean)}</div></div>
-              <div className="n-tile"><div className="l">Lệch số tầng DCA</div><div className="v">{s.layers_diff}</div></div>
-              <div className="n-tile"><div className="l">Phí TB (% danh nghĩa)</div><div className="v">{pct2(s.fee_pct_mean?.[0])} sàn · {pct2(s.fee_pct_mean?.[1])} paper</div></div>
-              <div className="n-tile"><div className="l">Funding cộng dồn (% danh nghĩa)</div><div className="v">{pct2(s.funding_pct_sum?.[0])} sàn · {pct2(s.funding_pct_sum?.[1])} paper</div><div className="l">dương = trả phí</div></div>
-              {sl?.n > 0 && <div className="n-tile"><div className="l">Lệnh cắt lỗ trên sàn ({sl.n})</div><div className="v">{sl.better} · {sl.between} · {sl.worse}</div><div className="l">tốt hơn mức SL · giữa mức SL–đáy/đỉnh nến · xấu hơn kịch bản bi quan</div></div>}
-              <div className="n-tile"><div className="l">Lãi/lỗ (% danh nghĩa)</div><div className="v"><span className={signClass(s.ret_pct_exec)}>{fmtSPct(s.ret_pct_exec, 2)}</span> sàn · <span className={signClass(s.ret_pct_paper)}>{fmtSPct(s.ret_pct_paper, 2)}</span> paper</div></div>
+              <div className="n-tile"><div className="l">Chỉ mô phỏng khớp</div><div className="v">{s.only_sim ?? s.only_paper ?? 0}</div><div className="l">giả lập lạc quan nếu nhiều</div></div>
+              <div className="n-tile"><div className="l">Chỉ sàn khớp</div><div className="v">{s.only_exec ?? 0}</div></div>
+              <div className="n-tile"><div className="l">Chênh giá vào TB</div><div className="v">{bps(s.entry_bps_mean ?? c?.kinds?.entry?.bps?.mean)}</div></div>
+              <div className="n-tile"><div className="l">Chênh giá đóng TB</div><div className="v">{bps(s.close_bps_mean ?? (c?.kinds?.tp?.bps?.mean ?? c?.kinds?.sl?.bps?.mean))}</div></div>
+              {isNum(s.layers_diff) && <div className="n-tile"><div className="l">Lệch số tầng DCA</div><div className="v">{s.layers_diff}</div></div>}
+              {c?.fees ? (
+                <div className="n-tile"><div className="l">Phí TB (% danh nghĩa)</div><div className="v">{pct2(c.fees.exec_pct_mean)} sàn · {pct2(c.fees.sim_pct_mean)} sim</div></div>
+              ) : s.fee_pct_mean ? (
+                <div className="n-tile"><div className="l">Phí TB (% danh nghĩa)</div><div className="v">{pct2(s.fee_pct_mean?.[0])} sàn · {pct2(s.fee_pct_mean?.[1])} paper</div></div>
+              ) : null}
+              {s.funding_pct_sum && <div className="n-tile"><div className="l">Funding cộng dồn (% danh nghĩa)</div><div className="v">{pct2(s.funding_pct_sum?.[0])} sàn · {pct2(s.funding_pct_sum?.[1])} paper</div><div className="l">dương = trả phí</div></div>}
+              {sl?.n > 0 && <div className="n-tile"><div className="l">Lệnh cắt lỗ trên sàn ({sl.n})</div><div className="v">{sl.better ?? 0} · {sl.between ?? 0} · {sl.worse ?? 0}</div><div className="l">tốt hơn mức SL · giữa mức SL–đáy/đỉnh nến · xấu hơn kịch bản bi quan</div></div>}
+              {isNum(s.ret_pct_exec) && isNum(s.ret_pct_paper) && <div className="n-tile"><div className="l">Lãi/lỗ (% danh nghĩa)</div><div className="v"><span className={signClass(s.ret_pct_exec)}>{fmtSPct(s.ret_pct_exec, 2)}</span> sàn · <span className={signClass(s.ret_pct_paper)}>{fmtSPct(s.ret_pct_paper, 2)}</span> paper</div></div>}
             </div>
-            {c.pairs.length > 0 && (
+            {pairs.length > 0 && (
               <div className="n-tblwrap" style={{ marginTop: 10 }}>
-                <table className="n-tbl">
-                  <thead><tr><th>Vào lúc (UTC)</th><th>Cặp</th><th>Chiến lược</th><th className="r">Chênh giá vào</th><th className="r">Chênh giá đóng</th><th>SL</th><th className="r">Phí % (sàn / paper)</th><th className="r">Tầng (sàn / paper)</th><th className="r">Lãi % (sàn / paper)</th><th>Thoát (sàn / paper)</th></tr></thead>
-                  <tbody>
-                    {c.pairs.map((p, i) => (
-                      <tr key={i}>
-                        <td className="num">{fmtTs(p.entry_time)}</td><td>{base(p.symbol)}</td><td>{legLabel(p.strategy)}</td>
-                        <td className="r">{bps(p.entry_bps)}</td><td className="r">{bps(p.close_bps)}</td>
-                        <td>{SLC[p.sl] || '—'}</td><td className="r">{pct2(p.fee_pct?.[0])} / {pct2(p.fee_pct?.[1])}</td>
-                        <td className="r">{p.layers[0] ?? '—'} / {p.layers[1] ?? '—'}</td>
-                        <td className="r">{fmtSPct(p.ret_pct[0], 2)} / {fmtSPct(p.ret_pct[1], 2)}</td>
-                        <td>{REASON[p.reason[0]] || p.reason[0] || '—'} / {REASON[p.reason[1]] || p.reason[1] || '—'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                {isUnified ? (
+                  <table className="n-tbl">
+                    <thead><tr><th>Thời điểm (UTC)</th><th>Cặp</th><th>Loại lệnh</th><th className="r">Chênh giá</th><th className="r">Độ trễ</th><th>SL</th></tr></thead>
+                    <tbody>
+                      {pairs.map((p, i) => (
+                        <tr key={i}>
+                          <td className="num">{fmtTs(p.t_exec || p.t_sim)}</td>
+                          <td>{base(p.key)}</td>
+                          <td><span className="n-badge">{p.kind}</span></td>
+                          <td className="r">{bps(p.bps)}</td>
+                          <td className="r">{p.latency_ms != null ? `${fmtNum(p.latency_ms, 0)} ms` : '—'}</td>
+                          <td>{SLC[p.sl] || p.sl || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <table className="n-tbl">
+                    <thead><tr><th>Vào lúc (UTC)</th><th>Cặp</th><th>Chiến lược</th><th className="r">Chênh giá vào</th><th className="r">Chênh giá đóng</th><th>SL</th><th className="r">Phí % (sàn / paper)</th><th className="r">Tầng (sàn / paper)</th><th className="r">Lãi % (sàn / paper)</th><th>Thoát (sàn / paper)</th></tr></thead>
+                    <tbody>
+                      {pairs.map((p, i) => (
+                        <tr key={i}>
+                          <td className="num">{fmtTs(p.entry_time)}</td><td>{base(p.symbol)}</td><td>{legLabel(p.strategy)}</td>
+                          <td className="r">{bps(p.entry_bps)}</td><td className="r">{bps(p.close_bps)}</td>
+                          <td>{SLC[p.sl] || '—'}</td><td className="r">{pct2(p.fee_pct?.[0])} / {pct2(p.fee_pct?.[1])}</td>
+                          <td className="r">{p.layers?.[0] ?? '—'} / {p.layers?.[1] ?? '—'}</td>
+                          <td className="r">{fmtSPct(p.ret_pct?.[0], 2)} / {fmtSPct(p.ret_pct?.[1], 2)}</td>
+                          <td>{REASON[p.reason?.[0]] || p.reason?.[0] || '—'} / {REASON[p.reason?.[1]] || p.reason?.[1] || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
               </div>
             )}
           </>
@@ -167,10 +191,43 @@ function CompareFills({ book }) {
 }
 
 export default function Live() {
-  const [tab, setTab] = useState('paper')
-  const [mode, book] = TAB[tab]
+  const meta = useMeta()
+  const liveModes = meta?.live?.modes || []
+  const tabs = useMemo(() => {
+    if (!liveModes.length) {
+      return [
+        { value: 'paper:main', label: 'Paper · sổ chính', mode: 'paper', book: 'main', exec: false, engine: 'legacy', dir: 'live/paper' },
+        { value: 'demo:main', label: 'Demo OKX · sổ chính', mode: 'demo', book: 'main', exec: true, engine: 'unified', dir: 'live/testnet' },
+        { value: 'paper:explore', label: 'Paper · thử nghiệm 15m', mode: 'paper', book: 'explore', exec: false, engine: 'legacy', dir: 'live/paper' },
+      ]
+    }
+    const res = []
+    for (const m of liveModes) {
+      const modeTitle = m.mode === 'paper' ? 'Paper' : m.mode === 'demo' ? 'Demo OKX' : 'Live OKX'
+      for (const b of (m.books || [])) {
+        const bookTitle = b === 'main' ? 'sổ chính' : 'thử nghiệm 15m'
+        res.push({
+          value: `${m.mode}:${b}`,
+          label: `${modeTitle} · ${bookTitle}`,
+          mode: m.mode,
+          book: b,
+          exec: Boolean(m.exec),
+          engine: m.default_engine || 'legacy',
+          dir: m.dir,
+        })
+      }
+    }
+    return res
+  }, [liveModes])
+
+  const [tabKey, setTabKey] = useState('paper:main')
+  const curTab = useMemo(() => tabs.find((t) => t.value === tabKey) || tabs[0] || {}, [tabs, tabKey])
+  const mode = curTab.mode || 'paper'
+  const book = curTab.book || 'main'
+  const exec = Boolean(curTab.exec)
   const [sel, setSel] = useState(null) // { trade, title, strategy, symbol }
-  const q = useAsync(() => getLiveTrades(mode, 'okx', 200, book), [mode, book], { poll: () => 60000 })
+
+  const q = useAsync(() => getLiveTrades(mode, 'okx', 200, book, curTab.engine), [mode, book, curTab.engine], { poll: () => 60000 })
   const d = q.data
   const trades = useMemo(() => (d ? mergeTrades(d) : []), [d])
   const positions = useMemo(() => (d ? mergePositions(d) : []), [d])
@@ -180,7 +237,7 @@ export default function Live() {
   return (
     <>
       <PageHead kicker="Giao dịch tự động" title="Bot live · paper / demo" subtitle="Lệnh và vị thế của bot trên OKX (paper hoặc demo), kèm biểu đồ giải thích vì sao chiến lược vào lệnh. Danh sách tự làm mới mỗi 60 giây.">
-        <Segmented label="Bot" value={tab} onChange={setTab} options={TABS} />
+        <Segmented label="Bot" value={curTab.value || tabKey} onChange={setTabKey} options={tabs} />
       </PageHead>
 
       {q.error && <ErrorState title="Không tải được dữ liệu bot live" error={q.error} onRetry={q.reload} />}
@@ -198,7 +255,7 @@ export default function Live() {
             </Panel>
           )}
           <LiveOverview d={d} trades={trades} positions={positions} />
-          {mode === 'demo' && <CompareFills book={book} />}
+          {exec && <CompareFills mode={mode} book={book} engine={d.engine || curTab.engine} />}
 
           <Panel title="Tóm tắt" meta={<button type="button" className="n-btn sm" onClick={q.reload} disabled={q.loading}>Làm mới</button>}>
             <dl className="n-ex-kv n-lv-sum">
@@ -209,6 +266,8 @@ export default function Live() {
               <div><dt>Sổ chiến lược</dt><dd>{BOOK[d.book_kind] || d.book_kind}</dd></div>
               <div><dt>Khung · Cặp</dt><dd className="mono">{d.timeframe} · {d.symbols?.length || 0} cặp</dd></div>
               <div><dt>Sàn · Chế độ</dt><dd className="mono">{d.venue} · {d.mode}</dd></div>
+              <div><dt>Động cơ (Engine)</dt><dd className="mono">{d.engine || curTab.engine || '—'}</dd></div>
+              <div><dt>Thư mục runtime</dt><dd className="mono">{d.dir || curTab.dir || '—'}</dd></div>
             </dl>
           </Panel>
 
@@ -220,7 +279,7 @@ export default function Live() {
                   <tbody>
                     {positions.map((p, i) => (
                       <tr key={`${p.src}${i}`}>
-                        <td><span className="n-badge">{SRC[p.src]}</span></td><td>{base(p.symbol)}</td><td title={p.strategy}>{legLabel(p.strategy)}</td>
+                        <td><span className="n-badge">{SRC[p.src] || p.src}</span></td><td>{base(p.symbol)}</td><td title={p.strategy}>{legLabel(p.strategy)}</td>
                         <td><span className={`n-badge ${String(p.side).toLowerCase()}`}>{p.side}</span></td>
                         <td className="r">{fmtNum(p.qty, 4)}</td><td className="r">{fmtVal(p.enter_price)}</td><td className="num">{fmtTs(p.enter_ms)}</td>
                         <td className={`r ${signClass(p.pnl)}`}>{isNum(p.pnl) ? fmtMoney(p.pnl, true) : '—'}</td>
@@ -241,7 +300,7 @@ export default function Live() {
                   <tbody>
                     {trades.map((t, i) => (
                       <tr key={`${t.src}${i}`}>
-                        <td><span className="n-badge">{SRC[t.src]}</span></td><td className="num">{fmtTs(t.enter_ms)}</td><td className="num">{fmtTs(t.close_ms)}</td>
+                        <td><span className="n-badge">{SRC[t.src] || t.src}</span></td><td className="num">{fmtTs(t.enter_ms)}</td><td className="num">{fmtTs(t.close_ms)}</td>
                         <td>{base(t.symbol)}</td><td title={t.strategy}>{legLabel(t.strategy)}</td>
                         <td><span className={`n-badge ${String(t.side).toLowerCase()}`}>{t.side}</span></td>
                         <td className="r">{fmtVal(t.enter_price)}</td><td className="r">{fmtVal(t.close_price)}</td><td className="r">{fmtNum(t.qty, 4)}</td>

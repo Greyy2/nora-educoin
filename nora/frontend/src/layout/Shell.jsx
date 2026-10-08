@@ -1,11 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom'
-import '../app.css'
+import '../styles/shell.css'
 import { useCatalog } from '../context/Catalog'
-import { mockEnabled } from '../api'
 import { ErrorBoundary } from '../components/ui'
-import JobTray from '../components/JobTray'
-import { GuideSteps } from '../components/QuickGuide'
+import JobTray from '../components/jobs/JobTray'
+import { GuideSteps } from '../components/ui/QuickGuide'
 
 const KEY = 'nora-theme' // cùng khoá với ThemeToggle cũ
 
@@ -189,7 +188,6 @@ export default function Shell({ children }) {
             </>
           )}
           <span className="n-pill"><span className={`n-dot ${apiTone}`} />{apiText}</span>
-          {mockEnabled() && <span className="n-pill" title="Đang dùng dữ liệu mẫu khi mất kết nối"><span className="n-dot warn" />Mock</span>}
           <ThemeButton />
         </header>
         <div className={`n-content${loc.pathname.startsWith('/alpha/create') || loc.pathname.startsWith('/education') ? ' flush' : ''}`}>

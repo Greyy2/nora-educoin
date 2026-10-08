@@ -1,12 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { PageHead, Panel, Loading, ErrorState, Empty, Segmented } from '../components/ui'
-import MathBlock from '../components/MathBlock'
-import { CatalogEngineWarning } from '../components/EngineWarning'
-import useAsync from '../hooks/useAsync'
+import MathBlock from '../components/ui/MathBlock'
+import { CatalogEngineWarning } from '../components/optimize/EngineWarning'
+import useAsync, { useResource } from '../hooks/useAsync'
+import SystemStrategyEditor from '../components/alpha/studio/SystemStrategyEditor'
+import UserAlphaVersionHistory from '../components/alpha/studio/UserAlphaVersionHistory'
 import { getAlphaCatalog, getTopAgents, postArchiveUserAlpha, postUpdateUserAlphaStatus } from '../api'
 import { fmtNum, fmtPct, fmtSPct, signClass } from '../lib/format'
-import '../styles/alphadoc.css'
+import '../styles/alpha.css'
 
 // Thư viện chiến lược: mỗi CHIẾN LƯỢC = ý tưởng -> công thức bằng lời -> công thức toán -> thống kê alpha đã đạt.
 const SIDE_CLS = { Long: 'ok', Short: 'bad', 'Long + Short': 'ok' }
@@ -187,13 +189,14 @@ function TopAgentBreakdown({ rows }) {
 function StrategyDoc({ s, onClose, onReload }) {
   const navigate = useNavigate()
   const [acting, setActing] = useState(false)
+  const [editSrc, setEditSrc] = useState(false)
   const box = useRef(null)
   const { width, onMouseDown } = useResizableDrawer(980)
 
   useEffect(() => {
     const opener = document.activeElement
     box.current?.focus()
-    const key = (e) => { if (e.key === 'Escape') onClose() }
+    const key = (e) => { if (e.key === 'Escape' && !document.querySelector('.sse-box')) onClose() }
     document.addEventListener('keydown', key)
     return () => { document.removeEventListener('keydown', key); try { opener?.focus?.() } catch (e) { /* bỏ qua */ } }
   }, [onClose])
@@ -227,7 +230,7 @@ function StrategyDoc({ s, onClose, onReload }) {
   }
 
   const handleOpenEditor = () => {
-    navigate(`/alpha/create?job=${s.alpha_id || s.strategy}`)
+    navigate(`/alpha/create?alpha=${encodeURIComponent(s.alpha_id || s.strategy)}`)
   }
 
   return (
@@ -254,10 +257,15 @@ function StrategyDoc({ s, onClose, onReload }) {
             <div className="kick muted">{s.isTopAgent ? 'Top Agent Trade · OKX Copy-Trade' : s.kind}</div>
             <h2>{s.name} <span className={`n-badge ${SIDE_CLS[s.side] || ''}`}>{s.side}</span></h2>
             {s.isTopAgent && <TopAgentProvenance prov={s.provenance} mixed={s.mixed_runs} caveat={s.caveat} />}
+            {!s.is_user_alpha && !s.isTopAgent && s.strategy && (
+              <div style={{ marginTop: 8 }}>
+                <button type="button" className="n-btn sm" onClick={() => setEditSrc(true)} title="Xem / sửa file chiến lược hệ thống (data/alpha/strategies)">{'</>'} Mã nguồn</button>
+              </div>
+            )}
             {s.is_user_alpha && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
                 <button type="button" className="n-btn sm brand" onClick={handleOpenEditor}>
-                  Mở trong Editor ➔
+                  Mở để sửa ➔
                 </button>
                 <button type="button" className="n-btn sm" onClick={handleToggleCandidate} disabled={acting}>
                   {s.stats?.[0]?.stage === 'CANDIDATE' ? 'Bỏ đánh dấu ứng viên' : '★ Đánh dấu ứng viên'}
@@ -316,9 +324,21 @@ function StrategyDoc({ s, onClose, onReload }) {
                 </>
               )}
             </section>
+
+            {s.is_user_alpha && (
+              <section className="n-ad-sec">
+                <UserAlphaVersionHistory
+                  alphaId={s.alpha_id}
+                  currentVersion={s.version}
+                  onSelectVersion={(vRec) => navigate(`/studio?alpha=${encodeURIComponent(s.alpha_id)}&version=${vRec.version}`)}
+                  onRevalidateDone={() => onReload && onReload()}
+                />
+              </section>
+            )}
           </div>
         </div>
       </aside>
+      {editSrc && <SystemStrategyEditor id={s.strategy} name={s.name} onClose={() => setEditSrc(false)} onSaved={onReload} />}
     </div>
   )
 }
@@ -501,7 +521,7 @@ export default function AlphaCatalog() {
   const filter = sp.get('filter') || 'all'
   const setFilter = (f) => setSp({ filter: f })
 
-  const q = useAsync(() => getAlphaCatalog(), [])
+  const q = useResource('alphas', () => getAlphaCatalog())
   const qAgents = useAsync(() => getTopAgents(), [])
   const [open, setOpen] = useState(null)
 

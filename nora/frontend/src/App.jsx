@@ -1,25 +1,19 @@
 import React, { Suspense, lazy } from 'react'
-import { createBrowserRouter, RouterProvider, Routes, Route, Navigate, useParams } from 'react-router-dom'
+import { createBrowserRouter, RouterProvider, Routes, Route, Navigate } from 'react-router-dom'
 import Shell from './layout/Shell'
 import { CatalogProvider } from './context/Catalog'
 import { Loading } from './components/ui'
-import AlphaTabs from './components/AlphaTabs'
+import AlphaTabs from './components/alpha/AlphaTabs'
 
 // Mỗi trang một chunk: lần đầu chỉ tải trang đang mở (biểu đồ nến chỉ tải khi vào trang có biểu đồ)
 const Portfolio   = lazy(() => import('./pages/Portfolio'))
 const Backtest    = lazy(() => import('./pages/Backtest'))
 const AlphaCatalog = lazy(() => import('./pages/AlphaCatalog'))
-const CreateAlpha = lazy(() => import('./pages/CreateAlpha'))  // tạo chiến lược Python tùy chỉnh
-const AlphaV2     = lazy(() => import('./pages/Alpha'))        // tối ưu sổ chiến lược (/alpha/tune)
+const Studio       = lazy(() => import('./pages/Studio'))
+const Tune        = lazy(() => import('./pages/Tune'))         // tối ưu sổ chiến lược (/alpha/tune)
 const History     = lazy(() => import('./pages/History'))
 const Live        = lazy(() => import('./pages/Live'))
 const Funnel      = lazy(() => import('./pages/Funnel'))
-const Education   = lazy(() => import('./pages/Education'))
-
-function FunnelRedirect() {
-  const { runId } = useParams()
-  return <Navigate to={`/alpha/funnel/${encodeURIComponent(runId || '')}`} replace />
-}
 
 function AppRoutes() {
   return (
@@ -31,14 +25,12 @@ function AppRoutes() {
         <Route path="/backtest"            element={<Backtest />} />
         <Route path="/alpha/funnel"        element={<><AlphaTabs /><Funnel /></>} />
         <Route path="/alpha/funnel/:runId" element={<><AlphaTabs /><Funnel /></>} />
-        <Route path="/funnel"              element={<Navigate to="/alpha/funnel" replace />} />
-        <Route path="/funnel/:runId"       element={<FunnelRedirect />} />
         <Route path="/alpha"               element={<><AlphaTabs /><AlphaCatalog /></>} />
-        <Route path="/alpha/create"        element={<><AlphaTabs /><CreateAlpha /></>} />
-        <Route path="/alpha/tune"          element={<><AlphaTabs /><AlphaV2 /></>} />
+        <Route path="/alpha/create"        element={<><AlphaTabs /><Studio mode="create" /></>} />
+        <Route path="/alpha/tune"          element={<><AlphaTabs /><Tune /></>} />
         <Route path="/live"                element={<Live />} />
         <Route path="/history"             element={<History />} />
-        <Route path="/education"           element={<Education />} />
+        <Route path="/education"           element={<Studio mode="education" />} />
         <Route path="*"                    element={<Navigate to="/portfolio" replace />} />
       </Routes>
       </Suspense>

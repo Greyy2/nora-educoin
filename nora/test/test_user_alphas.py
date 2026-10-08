@@ -264,10 +264,10 @@ def test_save_stores_full_snapshot_independent_of_job_dir_and_resave_updates(tmp
     # danh sách gọn: không kèm ảnh chụp; chi tiết có đủ
     lst = user_alphas.list_user_alphas(base_dir=base)
     assert len(lst) == 1 and "result" not in lst[0] and "explain" not in lst[0] and lst[0]["has_result"] is True
-    # lưu lại cùng code + cấu hình -> cập nhật, không nhân bản
+    # lưu lại cùng chương trình -> bị từ chối (409 ở API), không nhân bản
     monkeypatch.setattr(batch, "status", lambda jid: {"status": "done", "result": res} if jid == "job_snap_02" else None)
-    rec2, act2 = user_alphas.save_user_alpha("job_snap_02", CODE_SAVE, "Snap v2", base_dir=base)
-    assert act2 == "updated" and rec2["id"] == rec["id"] and rec2["created_at"] == rec["created_at"] and rec2["name"] == "Snap v2"
+    with pytest.raises(ValueError, match="đã được lưu"):
+        user_alphas.save_user_alpha("job_snap_02", CODE_SAVE, "Snap v2", base_dir=base)
     assert len([f for f in os.listdir(os.path.join(base, "user")) if f.endswith(".json")]) == 1
 
 
@@ -299,6 +299,8 @@ def test_api_ignores_client_supplied_result_and_serves_stored_detail(tmp_path, m
     det = client.get(f"/api/studio/alphas/user/{aid}").json()
     assert det["result"]["metrics"] == res["metrics"] and det["result"]["series"]["benchmark"]["label"] == "Luôn long"
     assert "result" not in client.get("/api/studio/alphas/user").json()[0]
+    dup = client.post("/api/studio/alphas/user", json={"job_id": job_id, "code": CODE_SAVE, "name": "A lần 2"})      # cùng program_hash -> 409 tiếng Việt
+    assert dup.status_code == 409 and "đã được lưu" in dup.json()["detail"]
 
 
 def test_sort_cagr_uses_cagr_pct_not_ret_pct_and_missing_goes_last(tmp_path):

@@ -1,8 +1,10 @@
+import { fmtNum } from './format'
+
 // Nguồn duy nhất cho nhãn / đơn vị / cách hiển thị tham số chiến lược. Khoá thô vẫn được giữ làm tooltip cho người dùng chuyên sâu.
 const num = (v) => {
   const n = Number(v)
   if (!Number.isFinite(n)) return String(v ?? '—')
-  return String(+n.toFixed(2))
+  return fmtNum(n, 2)
 }
 
 // timeout tính bằng phút: 0 = không giới hạn; < 2 ngày hiện theo giờ, còn lại theo ngày
@@ -133,6 +135,3 @@ export const PARAM_GROUPS = [
 ]
 
 export const paramHint = (key) => meta(key)?.hint || ''
-
-/** Đơn vị hiển thị cạnh ô nhập: khớp `unit` của lược đồ nếu params.js chưa có. */
-export const paramUnitOr = (key, fallback) => paramUnit(key) || fallback || ''

@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react'
-import { PAD, useWidth, niceScale, xTicks, linePath, tipPos } from './chartUtils'
+import { PAD, useWidth, niceScale, xTicks, linePath, tipPos } from './geometry'
 import { isNum, fmtTick, fmtSigned } from '../../lib/format'
 
 /** Quạt Monte Carlo: dải p5–p95, dải p25–p75, đường p50. y là lợi nhuận % so với vốn đầu.

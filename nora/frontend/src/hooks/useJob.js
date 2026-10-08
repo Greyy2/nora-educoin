@@ -37,7 +37,7 @@ function makeStore(jobId) {
       if (st.dead) return
       st.fails += 1
       st.step += 1
-      if (st.fails >= 5 || e.status === 404 || e.status === 422) { st.state = { ...st.state, error: e.message }; emit(); stop = true }
+      if (st.fails >= 5 || e.status === 404 || e.status === 410 || e.status === 422) { st.state = { ...st.state, error: e.message, errorStatus: e.status }; emit(); stop = true }
     } finally { st.inflight = false }
     if (!stop) schedule()
   }
@@ -63,13 +63,13 @@ function subscribe(jobId, interval, cb) {
 /**
  * Theo dõi GET /api/studio/book/jobs/{id} cho tới khi done/failed/cancelled; dừng khi unmount hoặc đổi id.
  * Nhịp `interval` ms (mặc định 2s), giãn dần tới 10s nếu trạng thái/tiến độ không đổi; tab ẩn thì tạm dừng, hiện lại hỏi ngay.
- * Nhiều component cùng id dùng chung một vòng poll. Trả { job, error, status }.
+ * Nhiều component cùng id dùng chung một vòng poll. Trả { job, error, errorStatus, status } (errorStatus = mã HTTP của lỗi cuối, vd 404/410 = kết quả tạm đã mất).
  * status: 'loading' (chưa có phản hồi đầu) | queued | running | done | failed | cancelled | null (không có id).
  */
 export default function useJob(jobId, { interval = 2000 } = {}) {
-  const [state, setState] = useState({ job: null, error: null })
+  const [state, setState] = useState({ job: null, error: null, errorStatus: null })
   useEffect(() => {
-    setState({ job: null, error: null })
+    setState({ job: null, error: null, errorStatus: null })
     if (!jobId) return undefined
     return subscribe(jobId, interval, setState)
   }, [jobId, interval])

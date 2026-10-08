@@ -1,5 +1,6 @@
 // Chế độ chạy Cơ bản / Nâng cao (docs/ui_contract.md §7): hằng số, kiểm tham số phía client khớp lược đồ, ánh xạ lỗi 422 theo trường.
 import { paramLabel } from './params'
+import { fmtNum } from './format'
 
 export const MODES = [{ value: 'basic', label: 'Cơ bản' }, { value: 'advanced', label: 'Nâng cao' }]
 export const modeText = (m) => (m === 'advanced' ? 'Nâng cao' : 'Cơ bản')
@@ -14,6 +15,30 @@ export const WFA_PENDING_NOTE = 'chưa hỗ trợ ở WFA (đang làm)'
 
 export const WFA_STD = { train_days: 120, test_days: 30 }
 export const MC_STD = { simulations: 10000, block_days: 5, horizon_days: 365, ruin_threshold_pct: 30, seed: 7, scale: 1, stress_max_mdd_pct: 50 }
+
+export function getWfaStd(meta) {
+  const lim = meta?.limits?.book_wfa
+  return {
+    train_days: lim?.train_days?.default ?? WFA_STD.train_days,
+    test_days: lim?.test_days?.default ?? WFA_STD.test_days,
+  }
+}
+
+export function getMcStd(meta) {
+  const lim = meta?.limits?.book_mc
+  const gates = meta?.funnel?.gates || []
+  const findGate = (k) => gates.find((g) => g.key === k)?.value
+  return {
+    simulations: findGate('MC_MIN_SIMULATIONS') ?? lim?.simulations?.default ?? MC_STD.simulations,
+    block_days: lim?.block_days?.default ?? MC_STD.block_days,
+    horizon_days: lim?.horizon_days?.default ?? MC_STD.horizon_days,
+    ruin_threshold_pct: findGate('MC_RUIN_THRESHOLD_PCT') ?? lim?.ruin_threshold_pct?.default ?? MC_STD.ruin_threshold_pct,
+    seed: lim?.seed?.default ?? MC_STD.seed,
+    scale: lim?.scale?.default ?? MC_STD.scale,
+    stress_max_mdd_pct: findGate('STRESS_MAX_MDD_PCT') ?? MC_STD.stress_max_mdd_pct,
+  }
+}
+
 export const STRESS = [
   { name: 'worst_days_first', label: 'Ngày lỗ tệ nhất đến trước' },
   { name: 'reversed_order', label: 'Đảo ngược lịch sử' },
@@ -29,11 +54,13 @@ export const STRESS = [
 export const STRESS_ALL = STRESS.map((s) => s.name)
 
 /** MC có đổi cổng so với chuẩn không (khớp rm.mc_standard của backend). */
-export function mcIsCustom(f) {
+export function mcIsCustom(f, meta) {
+  const std = getMcStd(meta)
   const subset = f.stress || STRESS_ALL
-  return !(Number(f.simulations) >= MC_STD.simulations && Number(f.ruin_threshold_pct) === MC_STD.ruin_threshold_pct
-    && Number(f.stress_max_mdd_pct) === MC_STD.stress_max_mdd_pct && STRESS_ALL.every((n) => subset.includes(n)))
+  return !(Number(f.simulations) >= std.simulations && Number(f.ruin_threshold_pct) === std.ruin_threshold_pct
+    && Number(f.stress_max_mdd_pct) === std.stress_max_mdd_pct && STRESS_ALL.every((n) => subset.includes(n)))
 }
+
 
 // ---- preset ----
 const flag = (v) => (v === true ? true : v === false ? false : null)   // presets.json ghi bool thật (P0.9)
@@ -66,7 +93,7 @@ export function timeframeMismatch(ids, byId, timeframe) {
 
 // ---- kiểm tham số theo lược đồ (khớp backend/optimize/book/build.py::check_value: kiểu, khoảng, tập chọn) ----
 const isBlank = (v) => v === '' || v == null
-const fmtN = (n) => String(+Number(n).toFixed(4))
+const fmtN = (n) => fmtNum(Number(n), 4)
 
 /** Lỗi của một ô theo spec; null nếu hợp lệ. */
 export function validateValue(spec, v) {

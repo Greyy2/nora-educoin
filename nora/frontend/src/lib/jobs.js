@@ -1,4 +1,4 @@
-import { toMs, fmtDateTime } from './format'
+import { toMs, fmtDateTime, fmtNum } from './format'
 import { legLabel } from './strategyLabel'
 
 // params của job (job.json): dict tham số mà API đã kiểm, cùng tên khoá với run_job(params) của backend.
@@ -37,8 +37,6 @@ export const JOB_STATUS = {
   cancelled: { text: 'Đã huỷ', cls: 'warn' },
 }
 
-export const jobWhen = (j) => fmtDateTime(toMs(j.created))
-
 export const JOB_KIND = {
   book_backtest: { text: 'Backtest', short: 'Backtest' },
   book_wfa: { text: 'Walk-forward', short: 'WFA' },
@@ -52,10 +50,16 @@ export const JOB_KIND = {
   data_crawl: { text: 'Tải dữ liệu', short: 'Dữ liệu' },
   data_crawl_okx: { text: 'Tải dữ liệu OKX', short: 'Dữ liệu' },
   data_crawl_ticks: { text: 'Tải dữ liệu tick', short: 'Dữ liệu' },
-  edu_precompute: { text: 'Dựng mẫu Education', short: 'Education' },
   data_promote: { text: 'Đưa dữ liệu vào kho', short: 'Dữ liệu' },
 }
-export const jobKindText = (k) => JOB_KIND[k]?.text || String(k || '—')
+
+export const jobKindText = (k, meta) => {
+  if (meta?.jobs?.kinds) {
+    const found = meta.jobs.kinds.find((item) => item.kind === k)
+    if (found?.label) return found.label
+  }
+  return JOB_KIND[k]?.text || String(k || '—')
+}
 
 /** Đường dẫn mở đúng trang/bước của một job (deep link). */
 export function jobLink(j) {
@@ -103,5 +107,5 @@ export function jobProgress(j) {
 /** Tốc độ dễ đọc: >= 1/giây -> "x/giây", ngược lại "y/phút". */
 export function fmtRate(rate) {
   if (!(rate > 0)) return '—'
-  return rate >= 1 ? `${rate.toFixed(1)}/giây` : `${(rate * 60).toFixed(rate * 60 >= 10 ? 0 : 1)}/phút`
+  return rate >= 1 ? `${fmtNum(rate, 1)}/giây` : `${fmtNum(rate * 60, rate * 60 >= 10 ? 0 : 1)}/phút`
 }

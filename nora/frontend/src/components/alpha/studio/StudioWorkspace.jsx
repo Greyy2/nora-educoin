@@ -25,7 +25,7 @@ import '../../../styles/alpha.css'
 // Trạng thái trang CHỈ trong bộ nhớ (mất khi đóng / tải lại trang): bản nháp, form chạy, lần chạy. Chỉ "Lưu chiến lược" mới ghi vào kho alpha người dùng.
 // Tab mới luôn TRỐNG (không sao chép tab đang mở); mở mẫu = tab mới chứa code mẫu (education: kèm chú thích `# ▸`); "Nhân bản" là nút riêng.
 const DEFAULT_FORM = { pos: {} } // rổ / ngày / train / vốn lấy từ backend (lib/runDefaults.js)
-const makeInitial = () => ({ drafts: [newDraft('Chiến lược 1', '')], active: '', form: {} })
+const makeInitial = () => ({ drafts: [newDraft('Chiến lược 1', '')], active: '', form: {}, seeded: false }) // seeded: tab 1 đã được nạp mẫu đầu tiên (chỉ một lần mỗi phiên trang)
 
 /** View chung của /alpha/create và /education (mode = 'create' | 'education'). Khác biệt: ở 'education' CustomResult hiện ghi chú giải thích từng mục (result.explain.notes từ backend) và mẫu mở ra kèm chú thích `# ▸` từng dòng. */
 export default function StudioWorkspace({ mode = 'create' }) {
@@ -130,10 +130,18 @@ export default function StudioWorkspace({ mode = 'create' }) {
     } finally { setBusy('') }
   }
 
-  // Lưu được khi có lần chạy XONG của CHÍNH code đang soạn (cùng văn bản lúc chạy, hoặc cùng program_hash với bản biên dịch gần nhất); máy chủ vẫn kiểm lại program_hash.
-  const sameProgram = !!jobResult && (draft.runCode === draft.code || (!!compiled?.ok && compiled.code === draft.code && compiled.hash === jobResult.program_hash))
-  const canSave = sameProgram && !busy
-  const saveWhy = !draft.jobId ? 'Chạy backtest cho code hiện tại trước khi lưu' : !jobResult ? 'Chờ lần chạy hoàn tất' : !sameProgram ? 'Kết quả không thuộc code đang soạn: chạy lại trước khi lưu' : 'Lưu chiến lược (code + cấu hình + kết quả đầy đủ)'
+  // "Lưu chiến lược" chỉ bật khi: (1) lần chạy XONG của CHÍNH code đang soạn (runCode === code, máy chủ vẫn kiểm lại program_hash) VÀ
+  // (2) là chiến lược mới, hoặc mẫu / alpha đã lưu mà code đã khác bản gốc (baseCode) VÀ (3) chương trình này (program_hash) chưa có trong kho alpha người dùng.
+  const savedItems = Array.isArray(saved.data) ? saved.data : []
+  const isDup = !!jobResult && (savedItems.some((a) => a.program_hash && a.program_hash === jobResult.program_hash) || (!!draft.saved && draft.saved.code === draft.code))
+  const unchanged = draft.code === draft.baseCode && !!draft.baseCode.trim()
+  const canSave = !!jobResult && draft.runCode === draft.code && !unchanged && !isDup && !busy
+  const saveWhy = !draft.jobId ? 'Chạy backtest cho code hiện tại trước khi lưu'
+    : !jobResult ? 'Chờ lần chạy hoàn tất'
+      : draft.runCode !== draft.code ? 'Chạy lại sau khi sửa'
+        : unchanged ? (draft.sampleKey ? 'Mẫu chưa thay đổi: sửa code hoặc tham số rồi chạy lại' : 'Chưa sửa so với bản đã lưu: sửa code rồi chạy lại')
+          : isDup ? 'Đã lưu chiến lược này'
+            : 'Lưu chiến lược (code + cấu hình + kết quả đầy đủ)'
 
   function markSaved(res, name) {
     patchById(draft.id, { saved: { alpha_id: res.alpha_id, code: draft.code, name: name || draft.name }, runAlpha: res.alpha_id, name: name || draft.name, stored: null, ...(res.version ? { alphaId: res.alpha_id, alphaVersion: res.version } : {}) })
@@ -173,6 +181,23 @@ export default function StudioWorkspace({ mode = 'create' }) {
 
   const sampleRes = useAsync(getEducationSamples, [])
   const sampleList = Array.isArray(sampleRes.data) ? sampleRes.data : []
+  const sampleText = async (code) => { if (!educ) return code; try { return (await postAnnotate(code, { as_comments: true })).annotated_code || code } catch (e) { return code } }
+
+  // Mở trang: tab 1 nạp sẵn mẫu đầu tiên (education: bản có chú thích `# ▸`; create: nguyên bản). Không làm nếu đang mở job / alpha qua URL hoặc tab 1 đã có nội dung.
+  const seeding = useRef(false)
+  useEffect(() => {
+    if (st.seeded || seeding.current || !sampleList.length) return
+    if (qJob || qAlpha) { set({ seeded: true }); return }
+    seeding.current = true
+    const s0 = sampleList[0]
+    sampleText(s0.code).then((text) => {
+      set((p) => {
+        const d0 = p.drafts[0]
+        const pristine = p.drafts.length === 1 && d0 && !d0.code.trim() && !d0.jobId
+        return { seeded: true, ...(pristine ? { drafts: [newDraft(s0.name, text, { sampleKey: s0.key || s0.name })], active: '' } : {}) }
+      })
+    })
+  }, [sampleList.length, st.seeded]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Giải thích từng dòng (chỉ education) = chú thích `# ▸` trong chính code, do backend sinh (annotate as_comments, idempotent); không có widget nào trong editor.
   const [annBusy, setAnnBusy] = useState(false)
@@ -192,10 +217,10 @@ export default function StudioWorkspace({ mode = 'create' }) {
   const uniText = `${form.symbols.length} tài sản`
   const issue = compiled && !stale && !compiled.ok
   const TABS = [['samples', 'Mẫu'], ['results', 'Kết quả']]
-  async function useSample(name, code) {
-    let text = code
-    if (educ) { try { text = (await postAnnotate(code, { as_comments: true })).annotated_code || code } catch (e) { text = code } }
-    addDraft(name, text); setCompiled(null)
+  async function useSample(s) {
+    const text = await sampleText(s.code)
+    const d = newDraft(s.name, text, { sampleKey: s.key || s.name })
+    set((p) => ({ drafts: [...p.drafts, d], active: d.id })); setCompiled(null)
   }
   const expired = !!draft.jobId && !job && (jobErrStatus === 404 || jobErrStatus === 410)
   const chip = draft.saved ? (dirty ? 'Đã sửa, chưa lưu' : 'Đã lưu') : dirty ? 'Chưa lưu' : 'Nháp'
@@ -276,7 +301,7 @@ export default function StudioWorkspace({ mode = 'create' }) {
         <div className="se-code">
           {!draft.code.trim() && <div className="se-empty-code">Soạn chiến lược Python (lớp kế thừa SimpleAlgorithm) hoặc mở một mẫu ở tab “Mẫu”. Gõ để nhận gợi ý dữ liệu / chỉ báo / toán tử; Ctrl/⌘ + Enter để chạy.</div>}
           <CodeEditor ref={edRef} value={draft.code} onChange={(code) => patchDraft({ code })} onRun={run} errorLine={errLine} errorKey={compiled?.nonce} onAssist={setAssist} />
-          <div className="se-vfloat"><AssistChip a={assist} onToggle={() => setStrip(true)} onApply={(nc) => { patchDraft({ code: nc }); setCompiled(null) }} /></div>
+          <div className="se-vfloat"><AssistChip a={assist} onlyErrors onToggle={() => setStrip(true)} /></div>
           <div className={`se-strip ${strip || issue ? 'open' : ''} ${issue ? 'bad' : ''}`}>
             <button type="button" className="se-strip-h" aria-expanded={strip || issue} onClick={() => setStrip(!(strip || issue))}>
               <span className={`se-dot ${!compiled ? '' : compiled.ok && !stale ? 'ok' : issue ? 'bad' : 'warn'}`} />

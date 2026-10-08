@@ -1,25 +1,22 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { PageHead, Segmented, Field } from '../components/ui'
-import DashboardLoader, { PERIODS } from '../components/Dashboard'
-import { LiveBotCard } from '../components/OverviewExtras'
+import DashboardLoader, { PERIODS } from '../components/portfolio/Dashboard'
+import { LiveBotCard } from '../components/portfolio/OverviewExtras'
 import '../styles/portfolio.css'
 import useStored from '../hooks/useStored'
+import { useResource } from '../hooks/useAsync'
 import { listJobs } from '../api'
 import { fmtDateTime, toMs } from '../lib/format'
 
 export default function Portfolio() {
   const [pref, setPref] = useStored('nora-v2-portfolio', { jobId: '', period: 'ALL' }) // bản cũ còn `source`: bỏ qua
-  const [jobs, setJobs] = useState({ loading: true, rows: [], error: null })
-
-  useEffect(() => {
-    let dead = false
-    listJobs('book_backtest', 50).then(
-      (rows) => { if (!dead) setJobs({ loading: false, rows: rows.filter((j) => j.status === 'done'), error: null }) },
-      (e) => { if (!dead) setJobs({ loading: false, rows: [], error: e.message }) },
-    )
-    return () => { dead = true }
-  }, [])
+  const { data: jobList, loading, error } = useResource('jobs:book_backtest', () => listJobs('book_backtest', 50))
+  const jobs = useMemo(() => ({
+    loading,
+    error,
+    rows: (jobList || []).filter((j) => j.status === 'done'),
+  }), [jobList, loading, error])
 
   // chọn job đầu tiên khi chưa có lựa chọn hợp lệ
   useEffect(() => {

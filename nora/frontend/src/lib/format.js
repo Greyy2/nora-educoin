@@ -17,6 +17,21 @@ export function fmtSigned(v, d = 2, suffix = '') {
 export const fmtPct = (v, d = 2) => (isNum(v) ? `${fmtNum(v, d)}%` : '—')
 export const fmtSPct = (v, d = 2) => (isNum(v) ? fmtSigned(v, d, '%') : '—')
 
+export const FRAME_LABELS = {
+  '1m': '1 phút',
+  '3m': '3 phút',
+  '5m': '5 phút',
+  '15m': '15 phút',
+  '30m': '30 phút',
+  '1h': '1 giờ',
+  '2h': '2 giờ',
+  '4h': '4 giờ',
+  '6h': '6 giờ',
+  '12h': '12 giờ',
+  '1d': '1 ngày',
+}
+export const fmtFrame = (f) => FRAME_LABELS[f] || String(f)
+
 // Tiền USDT: ≥ 1M rút gọn thành M, còn lại hai chữ số thập phân.
 export function fmtMoney(v, signed = false) {
   if (!isNum(v)) return '—'
@@ -83,4 +98,44 @@ export function fmtDuration(sec) {
   return h ? `${h}:${p(m % 60)}:${p(s % 60)}` : `${m}:${p(s % 60)}`
 }
 
-export const finite = (a) => (Array.isArray(a) ? a.filter(isNum) : [])
+/**
+ * Định dạng chỉ số theo từ điển metadata backend (meta.metrics.defs).
+ * Hỗ trợ các định dạng: pct1, pct2, pct3, spct1, spct2, num1, num2, num3, num4, int, usd2, text, hours1...
+ */
+export function fmtMetric(key, value, defs = null) {
+  if (value == null || value === '' || Number.isNaN(value)) return '—'
+  const def = defs?.[key]
+  const fmt = def?.format
+
+  if (fmt === 'pct1') return fmtPct(value, 1)
+  if (fmt === 'pct2') return fmtPct(value, 2)
+  if (fmt === 'pct3') return fmtPct(value, 3)
+  if (fmt === 'spct1') return fmtSPct(value, 1)
+  if (fmt === 'spct2') return fmtSPct(value, 2)
+  if (fmt === 'num1') return fmtNum(value, 1)
+  if (fmt === 'num2') return fmtNum(value, 2)
+  if (fmt === 'num3') return fmtNum(value, 3)
+  if (fmt === 'num4') return fmtNum(value, 4)
+  if (fmt === 'int') return fmtNum(value, 0)
+  if (fmt === 'usd2') return fmtMoney(value)
+  if (fmt === 'text') return String(value)
+  if (fmt === 'hours1') return `${fmtNum(value, 1)}h`
+
+  if (typeof value === 'boolean') return value ? 'Có' : 'Không'
+  if (!isNum(value)) return String(value)
+  if (key && (key.endsWith('_pct') || key === 'ret_pct' || key === 'mdd_pct' || key === 'win_rate')) return fmtPct(value, 2)
+  if (key && (key.endsWith('_usd') || key === 'pnl_usd')) return fmtMoney(value)
+  if (key && (key.endsWith('_days') || key === 'trades' || key === 'simulations')) return fmtNum(value, 0)
+  return fmtNum(value, 2)
+}
+
+/** Màu tốt/xấu theo trường `better` của metadata ('higher' | 'lower'). */
+export function metricTone(key, value, defs = null) {
+  if (!isNum(value) || value === 0) return ''
+  const def = defs?.[key]
+  const better = def?.better
+  if (better === 'higher') return value > 0 ? 'pos' : 'neg'
+  if (better === 'lower') return value > 0 ? 'neg' : 'pos'
+  return signClass(value)
+}
+

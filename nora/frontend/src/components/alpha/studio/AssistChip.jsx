@@ -5,8 +5,10 @@ import { styleLabel } from '../../../lib/assist'
 // `a` = trạng thái từ CodeEditor.onAssist: { status: idle | checking | unavailable | done, verdict, style, diagnostics, normalized_code, meta }.
 const TONE = { RUN: 'ok', ADAPT: 'warn', REJECT: 'bad' }
 
-export default function AssistChip({ a, onApply, onToggle }) {
+// onlyErrors (trang soạn chiến lược): chỉ hiện khi REJECT (số lỗi màu đỏ); RUN / ADAPT / đang kiểm tra / chưa kết nối -> không hiện gì.
+export default function AssistChip({ a, onApply, onToggle, onlyErrors = false }) {
   if (!a || a.status === 'idle') return null
+  if (onlyErrors && !(a.status === 'done' && a.verdict === 'REJECT')) return null
   if (a.status === 'unavailable') return <span className="se-vchip" title="Máy chủ chưa có API trợ lý viết code: vẫn soạn và chạy bình thường"><i className="d" />Trợ lý: chưa kết nối</span>
   if (a.status === 'checking') return <span className="se-vchip"><i className="d" />Đang kiểm tra…</span>
   const diags = a.diagnostics || []

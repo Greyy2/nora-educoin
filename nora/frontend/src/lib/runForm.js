@@ -1,6 +1,6 @@
 // Form chạy backtest chiến lược Python dùng chung cho /alpha/create và /education: kiểm tra đầu vào và dựng thân POST /api/studio/custom/backtest.
 // Một cấu hình thực thi duy nhất (mặc định của engine Nora); form chỉ chọn rổ, ngày, vốn và ghi đè tham số vị thế.
-import { POSITION_FIELDS } from '../components/studio/RunSettings'
+import { POSITION_FIELDS } from '../components/alpha/studio/RunSettings'
 
 export const POSITION_KEYS = POSITION_FIELDS.map((f) => f.key)
 const num = (v) => (v === '' || v == null ? NaN : Number(v))

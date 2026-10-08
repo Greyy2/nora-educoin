@@ -1,22 +1,24 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import '../styles/optimize.css'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { PageHead, Panel, Segmented, Field, ErrorBox, Empty, Spinner, Loading, ErrorState } from '../components/ui'
-import Term from '../components/Term'
-import { DateInput, DatePresets } from '../components/DateField'
-import { StrategyCard, PresetNote, ModeSwitch, ModeStamp, PublishBlocked, ParamField, LockIcon, useStrategies, useStrategyCatalog, useServerValidation } from '../components/RunModes'
-import StrategyChoice from '../components/backtest/StrategyChoice'
-import PresetSummary from '../components/backtest/PresetSummary'
-import JobPanel from '../components/JobPanel'
-import DashboardLoader, { PERIODS } from '../components/Dashboard'
-import WfaResult from '../components/WfaResult'
-import McResult from '../components/McResult'
+import Term from '../components/ui/Term'
+import { DateInput, DatePresets } from '../components/ui/DateField'
+import { StrategyCard, PresetNote, ModeSwitch, ModeStamp, PublishBlocked, ParamField, LockIcon, useStrategies, useStrategyCatalog, useServerValidation } from '../components/optimize/RunModes'
+import StrategyChoice from '../components/optimize/backtest/StrategyChoice'
+import PresetSummary from '../components/optimize/backtest/PresetSummary'
+import JobPanel from '../components/jobs/JobPanel'
+import DashboardLoader, { PERIODS } from '../components/portfolio/Dashboard'
+import WfaResult from '../components/optimize/WfaResult'
+import McResult from '../components/optimize/McResult'
 import useJob from '../hooks/useJob'
 import { useCatalog } from '../context/Catalog'
+import { useMeta } from '../meta/MetaProvider'
 import { postBacktest, postWfa, postMc } from '../api'
 import { parseJobParams, JOB_STATUS } from '../lib/jobs'
 import { daysInclusive } from '../lib/dates'
 import { isDexSym, dexSym, dexAssets, tickChip, dexRange, msStamp } from '../lib/dex'
-import { fullDate } from '../lib/format'
+import { fullDate, fmtNum, fmtPct, fmtFrame } from '../lib/format'
 import { STOP_FILL, stopFillOptions } from '../lib/stopfill'
 import { paramLabel } from '../lib/params'
 import { SIDE_TEXT, legLabel, legsFor, picksFromLegs, strategyName } from '../lib/strategyLabel'
@@ -149,7 +151,7 @@ function TickResultNote({ result }) {
             <span key={sym}>
               <b className="mono">{String(sym).replace(/^dex:/, '')}</b>
               {pl.network ? ` · ${pl.network}` : ''}{pl.pool_type ? ` · pool ${pl.stable ? 'stable' : pl.pool_type}` : ''}
-              {pl.fee_rate != null ? ` · phí pool ${+(pl.fee_rate * 100).toFixed(4)}%` : ''}
+              {pl.fee_rate != null ? ` · phí pool ${fmtPct(pl.fee_rate * 100, 4)}` : ''}
               {pl.gas_usd != null ? ` · gas ${pl.gas_usd} USD/swap` : ''}
             </span>
           ))}
@@ -170,7 +172,11 @@ function StepBacktest({ cat, strats, sc, form, setForm, btId, bt, onLaunched, on
   const [err, setErr] = useState(null)
   const [runErr, setRunErr] = useState(null) // { per, general } từ 422 của lần chạy gần nhất
   const [period, setPeriod] = useState('ALL')
-  const universe = cat.universe || []
+  const meta = useMeta()
+  const dataUniverse = meta?.universe?.data?.assets || cat.universe || []
+  const bookUniverse = meta?.universe?.book || []
+  const [useBookUniverse, setUseBookUniverse] = useState(false)
+  const universe = useBookUniverse && bookUniverse.length ? bookUniverse : dataUniverse
   const dexList = useMemo(() => dexAssets(cat.assets), [cat.assets])
   const dexByKey = useMemo(() => Object.fromEntries(dexList.map((a) => [a.key, a])), [dexList])
   const selDex = form.symbols.find(isDexSym)
@@ -370,7 +376,9 @@ function StepBacktest({ cat, strats, sc, form, setForm, btId, bt, onLaunched, on
               <div style={{ gridColumn: '1 / -1' }}>
                 <Field id="bt-tf" label="Khung chạy (nến mô phỏng, dùng cho cả Backtest và WFA)">
                   <select id="bt-tf" className="n-sel" value={form.timeframe || '1h'} onChange={(e) => setForm({ timeframe: e.target.value })}>
-                    <option value="15m">15 phút</option><option value="1h">1 giờ</option><option value="4h">4 giờ</option>
+                    {(meta?.frames?.custom_backtest || meta?.frames?.all || ['15m', '1h', '4h']).map((f) => (
+                      <option key={f} value={f}>{fmtFrame(f)}</option>
+                    ))}
                   </select>
                   {tfMismatch.length > 0 && (
                     <span className="n-pf-note" role="status">
@@ -405,6 +413,15 @@ function StepBacktest({ cat, strats, sc, form, setForm, btId, bt, onLaunched, on
                       })}
                     </div>
                     <div className="n-bt-actions">
+                      <button type="button" className={`n-btn sm ${useBookUniverse ? 'primary' : ''}`}
+                        onClick={() => {
+                          const next = !useBookUniverse
+                          setUseBookUniverse(next)
+                          const nextUni = next && bookUniverse.length ? bookUniverse : dataUniverse
+                          setPerp(nextUni)
+                        }}>
+                        {useBookUniverse ? 'Đang theo sổ' : 'Theo sổ'}
+                      </button>
                       <button type="button" className="n-btn sm" onClick={() => setPerp(universe)}>Tất cả perp</button>
                       <button type="button" className="n-btn sm" onClick={() => setPerp([])}>Bỏ chọn</button>
                     </div>
@@ -429,7 +446,7 @@ function StepBacktest({ cat, strats, sc, form, setForm, btId, bt, onLaunched, on
                       <span className="n-badge">DEX · spot</span>
                       {asset?.network && <span className="n-badge">{asset.network}</span>}
                       <span className="n-badge">{tickChip(asset)}</span>
-                      {asset?.fee_rate != null && <span className="n-badge">phí pool {+(asset.fee_rate * 100).toFixed(4)}%</span>}
+                      {asset?.fee_rate != null && <span className="n-badge">phí pool {fmtPct(asset.fee_rate * 100, 4)}</span>}
                     </div>
                     <span className="n-pf-note">DEX là spot, chỉ mua (Long) và chạy riêng từng tài sản: không trộn với perp OKX. Chọn perp sẽ bỏ tài sản DEX này.</span>
                   </div>
@@ -467,7 +484,7 @@ function StepBacktest({ cat, strats, sc, form, setForm, btId, bt, onLaunched, on
               )}
             </div>
             {!adv && (
-              <p className="n-bt-line"><LockIcon /> Rủi ro {isNumStr(risk) ? String(+Number(risk).toFixed(2)) : '—'}% vốn mỗi lệnh (mức nhỏ nhất của các preset) · Khớp cắt lỗ: {STOP_FILL.level.text}. Cố định ở chế độ cơ bản.</p>
+              <p className="n-bt-line"><LockIcon /> Rủi ro {isNumStr(risk) ? fmtNum(Number(risk), 2) : '—'}% vốn mỗi lệnh (mức nhỏ nhất của các preset) · Khớp cắt lỗ: {STOP_FILL.level.text}. Cố định ở chế độ cơ bản.</p>
             )}
             {!isDex && <DatePresets windows={cat.windows} start={form.start} end={form.end} onPick={(start, end) => setForm({ start, end })} />}
             {isDex && range && <p className="n-note" style={{ marginTop: 8 }}>Dữ liệu {tickOn ? 'tick' : 'nến'} của {asset.name} từ {fullDate(range.start)} đến {fullDate(range.end)} (UTC).</p>}
@@ -480,7 +497,7 @@ function StepBacktest({ cat, strats, sc, form, setForm, btId, bt, onLaunched, on
         <div className="n-runbar" role="region" aria-label="Chạy backtest">
           <div className="sum">
             <span className={`n-mode-badge ${mode}`}>{adv ? 'Nâng cao' : 'Cơ bản'}</span>{' '}
-            {groups.map((g) => `${g.entry.name} · ${SIDE_TEXT[g.side]}`).join(', ')} · {nSym} tài sản{tickOn ? ' · tick' : ''} · {days != null && days > 0 ? `${days} ngày` : '— ngày'} · rủi ro {isNumStr(risk) ? String(+Number(risk).toFixed(2)) : '—'}%/lệnh · Khớp cắt lỗ: {STOP_FILL[fill]?.text || fill}
+            {groups.map((g) => `${g.entry.name} · ${SIDE_TEXT[g.side]}`).join(', ')} · {nSym} tài sản{tickOn ? ' · tick' : ''} · {days != null && days > 0 ? `${days} ngày` : '— ngày'} · rủi ro {isNumStr(risk) ? fmtNum(Number(risk), 2) : '—'}%/lệnh · Khớp cắt lỗ: {STOP_FILL[fill]?.text || fill}
             {reason && <div className="why" role="status">Chưa chạy được: {reason}.</div>}
           </div>
           <ErrorBox>{err && err !== reason ? err : null}</ErrorBox>
@@ -852,7 +869,7 @@ export default function Backtest() {
     const sel = selFromList(pre?.strategies, strats.byId)
     if (pre) seeded.current = true
     const customPre = !!pre?.strategies?.some((s) => s.params && Object.keys(s.params).length)
-    const symbols = pre?.symbols || defaultSymbols(cat.universe || [])
+    const symbols = pre?.symbols || defaultSymbols(dataUniverse.length ? dataUniverse : (cat.universe || []))
     setFormRaw({
       mode: pre?.mode || (customPre ? 'advanced' : 'basic'), sel, multi: Object.keys(picksFromLegs(Object.keys(sel), sc.list)).length > 1 || symbols.length > 1,
       symbols, start: pre?.start || w.dev2_end || '', end: pre?.end || w.end || '',

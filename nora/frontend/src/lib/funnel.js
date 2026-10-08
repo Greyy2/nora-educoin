@@ -19,11 +19,43 @@ export const STAGE_META = {
   S6_holdout: { short: 'S6', name: 'Holdout', data: '20% cuối', rule: 'Ở hệ số s: lãi > 0, MDD ≤ 30% (đúng mức và giá xấu nhất)' },
   FINAL: { short: 'FINAL', name: 'Đủ điều kiện testnet', data: '', rule: 'Qua mọi tầng; ghi vào kho alpha kèm s và bằng chứng' },
 }
-export const stageName = (s) => STAGE_META[s]?.name || String(s || '—')
-export const stageShort = (s) => STAGE_META[s]?.short || String(s || '—')
-export const stageIdx = (s) => ALL_STAGES.indexOf(s)
+export const stageName = (s, meta) => {
+  if (meta?.funnel?.stages) {
+    const st = meta.funnel.stages.find((x) => x.id === s)
+    if (st?.label) return st.label
+  }
+  return STAGE_META[s]?.name || String(s || '—')
+}
+
+export const stageShort = (s, meta) => {
+  if (meta?.funnel?.stages) {
+    const st = meta.funnel.stages.find((x) => x.id === s)
+    if (st?.short) return st.short
+  }
+  return STAGE_META[s]?.short || String(s || '—')
+}
+
+export const stageIdx = (s, meta) => {
+  const all = meta?.funnel?.stages ? meta.funnel.stages.map((x) => x.id) : ALL_STAGES
+  return all.indexOf(s)
+}
+
 /** Tầng có dữ liệu thống kê phân phối / lệnh (S0 chỉ có số lượng). */
-export const stageHasTrades = (s) => ['S1_backtest', 'S2_antiluck', 'S3_wfa', 'S4_montecarlo', 'S5_sizing', 'S6_holdout'].includes(s)
+export const stageHasTrades = (s, meta) => {
+  if (meta?.funnel?.stages) {
+    const st = meta.funnel.stages.find((x) => x.id === s)
+    if (st) return Boolean(st.has_trades)
+  }
+  return ['S1_backtest', 'S3_wfa', 'S5_sizing', 'S6_holdout'].includes(s)
+}
+
+export const getFunnelStages = (meta) =>
+  meta?.funnel?.stages ? meta.funnel.stages.filter((x) => !x.legacy).map((x) => x.id) : STAGES
+
+export const getAllFunnelStages = (meta) =>
+  meta?.funnel?.stages ? meta.funnel.stages.map((x) => x.id) : ALL_STAGES
+
+export const getFunnelGates = (meta) => meta?.funnel?.gates || []
 
 export const RUN_STATUS = {
   queued: { text: 'Đang chờ', cls: 'warn' }, running: { text: 'Đang chạy', cls: 'info' }, done: { text: 'Hoàn tất', cls: 'ok' },
@@ -72,9 +104,16 @@ export const METRICS = {
   n_days: { label: 'Số ngày', fmt: (v) => fmtNum(v, 0) },
   halted: { label: 'Bị dừng khẩn', fmt: (v) => (v ? 'Có' : 'Không') },
 }
-export const metricLabel = (k) => METRICS[k]?.label || k
-export function fmtMetric(k, v) {
+export const metricLabel = (k, meta) => meta?.metrics?.defs?.[k]?.label_vi || METRICS[k]?.label || k
+export const metricUnit = (k, meta) => meta?.metrics?.defs?.[k]?.unit || ''
+export const metricHelp = (k, meta) => meta?.metrics?.defs?.[k]?.help_vi || ''
+export const metricTone = (k, v, meta) => metricToneCore(k, v, meta?.metrics?.defs || meta)
+
+export function fmtMetric(k, v, defs) {
   if (v == null) return '—'
+  const metricDefs = defs?.metrics?.defs ? defs.metrics.defs : defs
+  const res = fmtMetricCore(k, v, metricDefs)
+  if (res !== '—') return res
   const m = METRICS[k]
   if (m) return m.fmt(v)
   return isNum(v) ? fmtNum(v, Math.abs(v) >= 100 ? 0 : 2) : String(v)

@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react'
-import { PAD, useWidth, niceScale, xTicks, barPath, tipPos } from './chartUtils'
+import { PAD, useWidth, niceScale, xTicks, barPath, tipPos } from './geometry'
 import { isNum, fmtTick, compact, dmy, my, fullDate, fmtSigned } from '../../lib/format'
 
 /** Cột lãi/lỗ theo ngày: xanh trên đường 0, đỏ dưới đường 0 (kèm dấu +/− trong tooltip). */

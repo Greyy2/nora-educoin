@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react'
-import { PAD, useWidth, niceScale, barPath, tipPos } from './chartUtils'
+import { PAD, useWidth, niceScale, barPath, tipPos } from './geometry'
 import { isNum, fmtTick } from '../../lib/format'
 
 /**
