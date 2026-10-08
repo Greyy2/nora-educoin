@@ -603,6 +603,11 @@ class RefBacktestEngine:
     MAX_STRATEGIES = 100
     KELTNER_CONFIGS = ((17, 0.5), (20, 1.5))
     MTM_SAMPLE_MINUTES = 60
+
+    @property
+    def slots(self):   # P9.4b T4: mã dùng chung của BacktestEngine (load_data, vol_column, ...) đọc eng.slots; oracle: chính các tracker của nó
+        return self.trackers
+
     # Bỏ qua nến "rảnh" (không vị thế mở, không lệnh chờ, không tín hiệu vào) — kết quả BIT-IDENTICAL (test golden + test bật/tắt).
     _SKIP_IDLE = True
 

@@ -15,11 +15,10 @@ from numba import carray, njit, types
 from numba.core import cgutils
 from numba.extending import intrinsic
 
-from backend.core.execute import tracker as _execution
-from backend.core.models import OrderModel, OrderType, PositionModel, PositionStatus, CapitalLedger, PositionType
-from backend.core.execute.tracker import PositionTracker
+from backend.core.models import OrderModel, OrderType, PositionModel, PositionStatus, CapitalLedger, PositionType, next_id
 from backend.core.signal import lag_key, VectorEvaluator, Program
 from backend.core.data.loader import CandleLoader
+from backend.core.position_size import SlotSpec
 from backend.core.params import FRAME_ORDER, FRAMES, NORA_DEFAULTS, RUN_FRAME, StrategyParams
 from backend.core import indicator as kernels
 from backend.core.data import shared as shared_data
@@ -1558,18 +1557,19 @@ _CAP_HINT = [_INIT_CAP_POS, _INIT_CAP_ORD]
 
 
 # ─── Đóng gói tracker ───────────────────────────────────────────────────────
-def pack_trackers(trackers: List[Any]) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """-> (P, PI, F, I) khởi tạo từ trạng thái BAN ĐẦU của các PositionTracker (mọi chuẩn hoá/kiểm tra tham số do PositionTracker làm)."""
-    nt = len(trackers)
-    ml = max([1] + [len(tr.base_dca_steps) for tr in trackers])
+def pack_slots(specs: List[Any]) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """-> (P, PI, F, I) khởi tạo từ các SlotSpec (core/params.py: mọi chuẩn hoá / kiểm tra tham số làm ở đó). Đọc theo tên thuộc tính nên
+    nhận được cả PositionTracker còn ở trạng thái ban đầu (đường Python cũ, tới T10)."""
+    nt = len(specs)
+    ml = max([1] + [len(tr.base_dca_steps) for tr in specs])
     P = np.zeros((nt, P_FIXED + 2 * ml))
     PI = np.zeros((nt, NPI), dtype=np.int64)
     F = np.zeros((nt, F_FIXED + ml))
     I = np.zeros((nt, NI), dtype=np.int64)
-    for k, tr in enumerate(trackers):
-        if tr.is_open or tr.pending_entry or tr.pending_exit:
+    for k, tr in enumerate(specs):
+        if getattr(tr, "is_open", False) or getattr(tr, "pending_entry", False) or getattr(tr, "pending_exit", False):
             raise ValueError("kernel chỉ chạy được từ trạng thái ban đầu của tracker (không mở, không lệnh chờ)")
-        if tr.limit_taker or tr.impact_fn is not None:
+        if getattr(tr, "limit_taker", False) or getattr(tr, "impact_fn", None) is not None:
             raise ValueError("kernel không hỗ trợ limit_taker / impact_fn (AMM) — chạy bằng core/backtest/tick_run.py")
         P[k, P_FEE], P[k, P_MAKER], P[k, P_SLIP], P[k, P_MMR] = tr.fee_rate, tr.maker_fee_rate, tr.slippage_rate, tr.mmr
         P[k, P_MAXLEV], P[k, P_CAPUSE] = tr.max_leverage, tr.capital_usage
@@ -1588,7 +1588,7 @@ def pack_trackers(trackers: List[Any]) -> Tuple[np.ndarray, np.ndarray, np.ndarr
         PI[k, PI_ATR] = 1 if tr.exit_unit == "atr" else 0
         PI[k, PI_RISKSZ] = 1 if tr.sizing == "risk" else 0
         PI[k, PI_NBASE] = len(tr.base_dca_steps)
-        PI[k, PI_MAXOPEN] = int(getattr(tr.params, "max_open_trades", 45) or 45)
+        PI[k, PI_MAXOPEN] = tr.max_open_trades
         F[k, F_ENTRY_EQ], F[k, F_MAXCAP], F[k, F_POS_LEV] = tr.entry_equity, tr.max_capital, tr.pos_leverage
         F[k, F_PLANNED], F[k, F_PVOL] = tr.planned_risk, np.nan
         F[k, F_SL], F[k, F_TP], F[k, F_TRAIL], F[k, F_TACT] = tr.sl_pct, tr.tp_pct, tr.trail_pct, tr.trail_activation_pct
@@ -1668,15 +1668,16 @@ def _alloc(cap_pos: int, cap_ord: int, cap_smp: int):
 
 
 # ─── Dựng lại đối tượng ─────────────────────────────────────────────────────
-def _build_objects(trackers: List[Any], meta: List[Tuple[str, str]], F: np.ndarray, I: np.ndarray, outs, G: np.ndarray,
-                   ids: Optional[List[int]] = None, closed_range: Optional[Tuple[int, int]] = None) -> Tuple[list, list]:
-    """-> (positions đã đóng theo thứ tự đóng, orders gom theo vị thế đã đóng); đồng thời ghi lại vị thế/lệnh còn mở vào tracker.
-    ids: id của từng lệnh theo chỉ số toàn cục (mặc định rút mới từ dãy toàn cục); closed_range: chỉ dựng các vị thế đóng closeSeq[c0:c1] (SlotDriver)."""
+def _build_objects(specs: List[Any], meta: List[Tuple[str, str]], F: np.ndarray, I: np.ndarray, outs, G: np.ndarray,
+                   ids: Optional[List[int]] = None, closed_range: Optional[Tuple[int, int]] = None,
+                   ns: Optional[List[Any]] = None) -> Tuple[list, list]:
+    """-> (positions đã đóng theo thứ tự đóng, orders gom theo vị thế đã đóng); nếu có `ns` (mỗi slot một đối tượng) thì ghi vào ns[k].position /
+    ns[k].orders vị thế + lệnh còn mở (SlotView đọc ra). ids: id của từng lệnh theo chỉ số toàn cục (mặc định rút mới từ dãy toàn cục theo
+    models.next_id); closed_range: chỉ dựng các vị thế đóng closeSeq[c0:c1] (SlotDriver)."""
     outF, outI, ordF, ordI, closeSeq = outs[:5]
     npos, nord, ncl = int(G[G_NPOS]), int(G[G_NORD]), int(G[G_NCL])
     if ids is None:
-        seq = _execution._ID_SEQ
-        ids = [next(seq) for _ in range(nord)]
+        ids = [next_id() for _ in range(nord)]
     opos = ordI[:nord, ORI_POS]
     perm = np.argsort(opos, kind="stable")
     start = np.concatenate(([0], np.cumsum(np.bincount(opos, minlength=npos)))).tolist() if nord else [0] * (npos + 1)
@@ -1697,8 +1698,8 @@ def _build_objects(trackers: List[Any], meta: List[Tuple[str, str]], F: np.ndarr
     reason, start_reason = outI[:npos, OI_REASON].tolist(), outI[:npos, OI_START].tolist()
 
     def mk_orders(p: int) -> List[OrderModel]:
-        long_ = trackers[p_tr[p]].is_long
-        tr = trackers[p_tr[p]]
+        tr = specs[p_tr[p]]
+        long_ = tr.is_long
         out = []
         for s in range(start[p], start[p + 1]):
             j = perm_l[s]
@@ -1710,7 +1711,7 @@ def _build_objects(trackers: List[Any], meta: List[Tuple[str, str]], F: np.ndarr
         return out
 
     def mk_position(p: int, closed: bool) -> PositionModel:
-        tr = trackers[p_tr[p]]
+        tr = specs[p_tr[p]]
         sym, strat = meta[p_tr[p]]
         kw = dict(result_id=ids[first_ord[p]], account_id=tr.account_id, campaign_id=tr.campaign_id, symbol=sym, pos_type=tr.pos_type,
                   phase=0, enter_time=e_time[p], enter_price=cols["enter_price"][p], flow=tr.flow_name,
@@ -1730,39 +1731,18 @@ def _build_objects(trackers: List[Any], meta: List[Tuple[str, str]], F: np.ndarr
     for p in closeSeq[c0:c1].tolist():
         closed_pos.append(mk_position(p, True))
         orders.extend(mk_orders(p))
-    # vị thế còn mở (close_at_end=False): ghi vào tracker như vòng lặp cũ để open_positions() dùng được
-    closed_set = set(closeSeq[:ncl].tolist())
-    for k, tr in enumerate(trackers):
-        p = int(I[k, I_POS])
-        if I[k, I_OPEN] == 1 and p >= 0 and p not in closed_set:
-            tr.position = mk_position(p, False)
-            tr.orders = mk_orders(p)
-            tr.unit_pct = cols["unit"][p]
-        else:
-            tr.position = None
-            tr.orders = []
+    # vị thế còn mở (close_at_end=False): ghi vào ns để SlotView.position / orders (open_positions) dùng được
+    if ns is not None:
+        closed_set = set(closeSeq[:ncl].tolist())
+        for k in range(len(specs)):
+            p = int(I[k, I_POS])
+            if I[k, I_OPEN] == 1 and p >= 0 and p not in closed_set:
+                ns[k].position = mk_position(p, False)
+                ns[k].orders = mk_orders(p)
+            else:
+                ns[k].position = None
+                ns[k].orders = []
     return closed_pos, orders
-
-
-def _writeback(trackers: List[Any], P: np.ndarray, F: np.ndarray, I: np.ndarray) -> None:
-    """Trạng thái cuối của kernel -> thuộc tính tracker (cùng giá trị vòng lặp Python để lại)."""
-    for k, tr in enumerate(trackers):
-        tr.qty, tr.avg, tr.margin_used, tr.fees_paid = (float(F[k, F_QTY]), float(F[k, F_AVG]), float(F[k, F_MU]),
-                                                       float(F[k, F_FP]))
-        tr.last_fill, tr.next_margin, tr.peak, tr.mae_usd = (float(F[k, F_LAST_FILL]), float(F[k, F_NEXT]),
-                                                            float(F[k, F_PEAK]), float(F[k, F_MAE]))
-        tr.reserved_here, tr.funding_paid, tr.entry_equity = float(F[k, F_RES_HERE]), float(F[k, F_FUND]), float(F[k, F_ENTRY_EQ])
-        tr.max_capital, tr.pos_leverage, tr.planned_risk = float(F[k, F_MAXCAP]), float(F[k, F_POS_LEV]), float(F[k, F_PLANNED])
-        tr.pending_vol = float(F[k, F_PVOL])
-        tr.sl_pct, tr.tp_pct, tr.trail_pct, tr.trail_activation_pct = (float(F[k, F_SL]), float(F[k, F_TP]),
-                                                                       float(F[k, F_TRAIL]), float(F[k, F_TACT]))
-        n = int(I[k, I_NST])
-        tr.dca_steps = [float(x) for x in F[k, F_DS0:F_DS0 + n]]
-        tr.is_open, tr.pending_entry, tr.pending_exit = bool(I[k, I_OPEN]), bool(I[k, I_PE]), bool(I[k, I_PX])
-        tr.layer_count, tr.entry_time = int(I[k, I_LAYERS]), int(I[k, I_ENTRY_T])
-        tr.last_close_time = int(I[k, I_LASTCLOSE]) if I[k, I_HASLC] else None
-        tr.dca_rejected, tr.skipped_no_vol = int(I[k, I_DCAREJ]), int(I[k, I_SKIP])
-        tr.max_new_notional = float("inf")
 
 
 def _round_curve(eqT: np.ndarray, eqM: np.ndarray, eqW: np.ndarray, ns: int) -> List[Dict[str, float]]:
@@ -1776,14 +1756,14 @@ def run_portfolio(eng: Any) -> None:
     """PortfolioEngine.run(): chạy kernel trên eng.books và ghi kết quả vào eng (closed_positions, orders, equity_curve, bộ đếm, tracker)."""
     books = eng.books
     nb = len(books)
-    trackers, tr_book, meta, book_off = [], [], [], [0]
+    specs, tr_book, meta, book_off = [], [], [], [0]
     for b, book in enumerate(books):
         for e in book["entries"]:
-            trackers.append(e["tracker"])
+            specs.append(e["slot"])
             tr_book.append(b)
             meta.append((book["symbol"], e["strategy"]))
-        book_off.append(len(trackers))
-    nt = len(trackers)
+        book_off.append(len(specs))
+    nt = len(specs)
 
     # lưới thời gian chung: mọi sổ cùng dòng thời gian (thường gặp) -> dùng thẳng t của sổ đầu, không dựng chỉ mục
     ts = [np.ascontiguousarray(bk["data"]["t"], dtype=np.int64) for bk in books]
@@ -1809,7 +1789,7 @@ def run_portfolio(eng: Any) -> None:
         eng.last_close = {bk["symbol"]: float("nan") for bk in books}
         return
 
-    P, PI, F, I = pack_trackers(trackers)
+    P, PI, F, I = pack_slots(specs)
     tab = _Tables(nb, nt)
     for b, bk in enumerate(books):
         d = bk["data"]
@@ -1847,9 +1827,14 @@ def run_portfolio(eng: Any) -> None:
 
     if adm_cap:
         eng.adm = ADM[:min(int(G[G_NADM]), adm_cap)].copy()
-    eng.closed_positions, eng.orders = _build_objects(trackers, meta, F2, I2, outs, G)
+    fin = _Final(specs, P2, PI2, F2, I2)
+    eng.closed_positions, eng.orders = _build_objects(specs, meta, F2, I2, outs, G, ns=fin._ns)
     eng.equity_curve = _round_curve(outs[5], outs[6], outs[7], int(G[G_NSMP]))
-    _writeback(trackers, P2, F2, I2)
+    k = 0
+    for book in books:   # trạng thái cuối của từng slot (đọc qua SlotView; "tracker" = tên cũ cho người đọc hiện có)
+        for e in book["entries"]:
+            e["view"] = e["tracker"] = fin.views[k]
+            k += 1
     eng.ledger.equity, eng.ledger.reserved, eng.ledger.peak = float(LG[LG_EQ]), float(LG[LG_RES]), float(LG[LG_PEAK])
     eng.ledger.rejected += int(G[G_REJ])
     eng.rejected_for_risk += int(G[G_RISKMIN])
@@ -1873,12 +1858,12 @@ def run_many(eng: Any, position_overrides: List[Dict[str, Any]]) -> List[Dict[st
                         initial_capital=eng.initial_capital, risk=eng.risk, venue=eng.venue, use_cache=False,
                         shared_dir=eng.shared_dir, close_at_end=eng.close_at_end, base_frame=eng.base_frame)
         for book in eng.books:
-            _, pairs = sub._make_trackers(book["symbol"], sub.ledger)
+            _, pairs = sub._make_slots(book["symbol"], sub.ledger)
             entries = []
-            for (_st, tr), e0 in zip(pairs, book["entries"]):
-                if BacktestEngine.vol_column(tr) != BacktestEngine.vol_column(e0["tracker"]):
+            for (_st, sp), e0 in zip(pairs, book["entries"]):
+                if BacktestEngine.vol_column(sp) != BacktestEngine.vol_column(e0["slot"]):
                     raise ValueError("run_many: ghi đè không được đổi exit_unit / atr_frame / atr_period (đổi cột tín hiệu ATR)")
-                entries.append({**e0, "tracker": tr})
+                entries.append({k_: v for k_, v in e0.items() if k_ not in ("view", "tracker")} | {"slot": sp})
             sub.books.append({**book, "entries": entries, "f_idx": 0})
         run_portfolio(sub)
         out.append(sub.get_results())
@@ -1911,12 +1896,6 @@ class _LedgerView:
         return self.equity * 1.0 - self.reserved
 
 
-def _make_slots(symbol: str, strategies: List[Dict[str, Any]], base_frame: str):
-    """Bộ tracker khởi đầu của một tài sản (đúng live/signals._engine: chuẩn hoá tham số do PositionTracker làm) -> [(strategy, tracker)]."""
-    pe = PortfolioEngine([symbol], strategies, 0, _DAY_MS, trade_start_ts=0, use_cache=False, base_frame=base_frame)
-    return pe._make_trackers(symbol, pe.ledger)[1]
-
-
 def _cfg_arrays(capital: float, risk: Dict[str, Any], trade_start: int, step_ms: int) -> Tuple[np.ndarray, np.ndarray]:
     r = RiskConfig.from_dict(risk)
     kill = r.kill_switch_dd_pct / 100.0 if r.kill_switch_dd_pct else 0.0
@@ -1941,26 +1920,27 @@ class KernelBook:
 
     def __init__(self, strategies: List[Dict[str, Any]], symbols: List[str], base_frame: str, capital: float, risk: Dict[str, Any],
                  trade_start: int = 0, record_full: bool = False, record_events: bool = True, adm_capacity: int = 0):
-        slots, trackers = [], []
+        slots, specs = [], []
+        pe = PortfolioEngine(list(symbols), strategies, 0, _DAY_MS, trade_start_ts=0, use_cache=False, base_frame=base_frame)
         for b, sym in enumerate(symbols):
-            for st, tr in _make_slots(sym, strategies, base_frame):
+            for st, sp in pe._make_slots(sym, pe.ledger)[1]:   # đúng live/signals._engine: chuẩn hoá tham số do SlotSpec làm
                 slots.append({"book": b, "symbol": sym, "strategy": st["id"], "side": st["side"]})
-                trackers.append(tr)
-        if not trackers:
+                specs.append(sp)
+        if not specs:
             raise ValueError("Cần ít nhất một tài sản và một chiến lược")
         self._setup(list(symbols), slots, base_frame, float(capital), dict(risk), int(trade_start), record_events, adm_capacity)
-        P, PI, F, I = pack_trackers(trackers)
+        P, PI, F, I = pack_slots(specs)
         F[:, F_ENTRY_EQ] = float(capital)
-        for k, tr in enumerate(trackers):
+        for k, tr in enumerate(specs):
             F[k, F_MAXCAP] = float(capital) * tr.capital_usage
         self.P, self.PI, self.F, self.I = P, PI, F, I
         self.cfg_i, self.cfg_f = _cfg_arrays(capital, risk, trade_start, self.MTM_SAMPLE_MINUTES * 60_000)
         self.PS, self.PSI, self.LPX = new_portfolio_state(len(symbols), float(capital))
         self.LG = np.array([float(capital), 0.0, float(capital)])
         self.G = np.zeros(NG, dtype=np.int64)
-        self._alloc_buffers(max(64, 8 * len(trackers)), max(256, 32 * len(trackers)), 256)
+        self._alloc_buffers(max(64, 8 * len(specs)), max(256, 32 * len(specs)), 256)
         self.record_full = bool(record_full)
-        self._trackers = trackers if record_full else None
+        self._specs = specs if record_full else None
         self._arm_adm(adm_capacity)
 
     # ── dựng / nạp ──
@@ -1981,7 +1961,7 @@ class KernelBook:
         self._last_t: Optional[int] = None
         self.ledger = _LedgerView(self)
         self.record_full = False
-        self._trackers = None
+        self._specs = None
         self.adm_capacity = 0
         self._adm = None
 
@@ -2216,7 +2196,9 @@ class KernelBook:
         if not self.record_full:
             raise ValueError("full_objects cần record_full=True")
         meta = [(s["symbol"], s["strategy"]) for s in self.slots]
-        return _build_objects(self._trackers, meta, self.F, self.I, (self.outF, self.outI, self.ordF, self.ordI, self.closeSeq), self.G)
+        fin = _Final(self._specs, self.P, self.PI, self.F, self.I)
+        self.full_views = fin.views   # vị thế / lệnh còn mở của từng slot (SlotView)
+        return _build_objects(self._specs, meta, self.F, self.I, (self.outF, self.outI, self.ordF, self.ordI, self.closeSeq), self.G, ns=fin._ns)
 
     # ── lưu / nạp ──
     def params_hash(self) -> str:
@@ -2280,8 +2262,23 @@ class KernelBook:
 
 
 class _Ns:
-    def __init__(self, **kw):
-        self.__dict__.update(kw)
+    """Vị thế + lệnh còn mở của một slot (do _build_objects ghi, SlotView đọc)."""
+
+    def __init__(self):
+        self.position = None
+        self.orders: list = []
+
+
+class _Final:
+    """Trạng thái CUỐI của một lần chạy batch (mảng P/PI/F/I + vị thế/lệnh còn mở) cho SlotView — thay việc ghi ngược vào PositionTracker."""
+
+    def __init__(self, specs: List[Any], P: np.ndarray, PI: np.ndarray, F: np.ndarray, I: np.ndarray):
+        self.specs, self.P, self.PI, self.F, self.I = specs, P, PI, F, I
+        self._ns = [_Ns() for _ in specs]
+        self.views = [SlotView(self, k) for k in range(len(specs))]
+
+    def refresh_open(self) -> None:
+        return None
 
 
 class SlotDriver:
@@ -2289,18 +2286,22 @@ class SlotDriver:
     `driver[k]` là SlotView có giao diện đọc + on_bar / apply_funding / force_close / unrealized_pnl_usd / orders / position của PositionTracker.
     Id lệnh rút từ dãy toàn cục theo thứ tự tạo (như tracker)."""
 
-    def __init__(self, trackers: List[Any], meta: Optional[List[Tuple[str, str]]] = None):
-        self.nt = len(trackers)
-        self.P, self.PI, self.F, self.I = pack_trackers(trackers)
-        led = trackers[0].ledger
-        self.LG = np.array([float(led.equity), float(led.reserved), float(led.peak)])
-        self.cfg_f = np.array([float(led.initial)])
+    def __init__(self, specs: List[Any], meta: Optional[List[Tuple[str, str]]] = None):
+        self.nt = len(specs)
+        self.specs = list(specs)
+        self.P, self.PI, self.F, self.I = pack_slots(specs)
+        led = getattr(specs[0], "ledger", None)   # SlotSpec: sổ vốn mới (vốn đầu = initial_capital); PositionTracker (đường cũ): sổ của nó
+        if led is not None:
+            self.LG = np.array([float(led.equity), float(led.reserved), float(led.peak)])
+            self.cfg_f = np.array([float(led.initial)])
+        else:
+            self.LG = np.array([specs[0].entry_equity, 0.0, specs[0].entry_equity])
+            self.cfg_f = np.array([specs[0].capital])
         self.G = np.zeros(NG, dtype=np.int64)
         self._alloc(64, 256)
         self.ids: List[int] = []
-        self._ns = [_Ns(is_long=tr.is_long, account_id=tr.account_id, campaign_id=tr.campaign_id, pos_type=tr.pos_type,
-                                          flow_name=tr.flow_name, position=None, orders=[]) for tr in trackers]
-        self._meta = meta if meta is not None else [(tr.symbol, "") for tr in trackers]
+        self._ns = [_Ns() for _ in specs]
+        self._meta = meta if meta is not None else [(tr.symbol, "") for tr in specs]
         self.ledger = _LedgerView(self)
         self.views = [SlotView(self, k) for k in range(self.nt)]
         self._ml = (self.P.shape[1] - P_FIXED) // 2
@@ -2321,7 +2322,7 @@ class SlotDriver:
 
     def _draw_ids(self) -> None:
         while len(self.ids) < int(self.G[G_NORD]):
-            self.ids.append(_execution._next_id())
+            self.ids.append(next_id())
 
     def _outs(self):
         return (self.outF, self.outI, self.ordF, self.ordI, self.closeSeq)
@@ -2331,14 +2332,14 @@ class SlotDriver:
         if c1 <= c0:
             return None
         self._draw_ids()
-        pos, _ = _build_objects(self._ns, self._meta, self.F, self.I, self._outs(), self.G, ids=self.ids, closed_range=(c0, c1))
+        pos, _ = _build_objects(self.specs, self._meta, self.F, self.I, self._outs(), self.G, ids=self.ids, closed_range=(c0, c1), ns=self._ns)
         return pos[-1]
 
     def refresh_open(self) -> None:
         """Dựng lại `position` (vị thế đang mở) và `orders` (LỊCH SỬ lệnh của slot: các vị thế đã đóng theo thứ tự đóng, rồi vị thế đang mở — như
         PositionTracker.orders) của từng slot."""
         self._draw_ids()
-        closed, orders = _build_objects(self._ns, self._meta, self.F, self.I, self._outs(), self.G, ids=self.ids)
+        closed, orders = _build_objects(self.specs, self._meta, self.F, self.I, self._outs(), self.G, ids=self.ids, ns=self._ns)
         by_pos: Dict[int, list] = {}
         for o in orders:
             by_pos.setdefault(o.position_id, []).append(o)
@@ -2351,12 +2352,17 @@ class SlotDriver:
 
 
 class SlotView:
-    """Slot k của SlotDriver — bề mặt PositionTracker (đọc trạng thái từ mảng)."""
+    """Slot k của SlotDriver / của một lần chạy batch — bề mặt đọc của PositionTracker (trạng thái từ mảng; tham số tĩnh từ SlotSpec)."""
 
     def __init__(self, drv: SlotDriver, k: int):
         self._d, self._k = drv, k
         self.max_new_notional = self.max_new_risk = float("inf")
         self.risk_scale = 1.0
+
+    def __getattr__(self, name: str):   # tham số tĩnh đã chuẩn hoá (market, is_long, match_tree, base_sl, ...) lấy từ SlotSpec của slot
+        if name.startswith("_"):
+            raise AttributeError(name)
+        return getattr(self._d.specs[self._k], name)
 
     def _f(col):   # noqa: N805
         return property(lambda s: float(s._d.F[s._k, col]))
@@ -2448,8 +2454,8 @@ def run_backtest(eng: Any) -> None:
         return cols.get(f"{frame}|{lag_key(column, lag)}", np.full(n, np.nan))
 
     vec = VectorEvaluator(n, get)
-    signals = [(vec.tree(tr.match_tree), vec.tree(tr.stop_tree), vec.tree(tr.dca_tree) if tr.dca_tree else None) for tr in eng.trackers]
-    vols = [cols.get(eng.vol_column(tr)) if eng.vol_column(tr) else None for tr in eng.trackers]
+    signals = [(vec.tree(tr.match_tree), vec.tree(tr.stop_tree), vec.tree(tr.dca_tree) if tr.dca_tree else None) for tr in eng.slots]
+    vols = [cols.get(eng.vol_column(tr)) if eng.vol_column(tr) else None for tr in eng.slots]
     real = np.flatnonzero(df1["is_filled"].to_numpy() == 0)   # chỉ nến có giao dịch (nến điền is_filled=1 bị bỏ qua hoàn toàn)
     eng.ruined_at = None
     f_t = eng.funding["funding_time"].to_numpy(dtype="int64") if eng.funding is not None else np.array([], "int64")
@@ -2466,11 +2472,11 @@ def run_backtest(eng: Any) -> None:
 def run_single(eng: Any, t, o, h, l, c, signals: List[Tuple[np.ndarray, ...]], vols: List[Optional[np.ndarray]],
                f_t: np.ndarray, f_r: np.ndarray, minute: Optional[Dict[str, np.ndarray]] = None) -> None:
     """BacktestEngine.run(): các mảng CHỈ gồm nến có giao dịch (đã lọc is_filled). Ghi kết quả vào eng."""
-    trackers = eng.trackers
-    nt, n = len(trackers), len(t)
+    specs = eng.slots
+    nt, n = len(specs), len(t)
     if n == 0:
         return
-    P, PI, F, I = pack_trackers(trackers)
+    P, PI, F, I = pack_slots(specs)
     tab = _Tables(1, nt)
     tab.book(0, t, o, h, l, c, f_t, f_r, int(t[-1]), None, minute)
     for k in range(nt):
@@ -2492,10 +2498,11 @@ def run_single(eng: Any, t, o, h, l, c, signals: List[Tuple[np.ndarray, ...]], v
         cap_pos, cap_ord = cap_pos * _RETRY_FACTOR, cap_ord * _RETRY_FACTOR
     else:
         raise RuntimeError("kernel: tràn bộ nhớ đệm kết quả sau nhiều lần mở rộng")
-    meta = [(eng.symbol, "") for _ in trackers]
-    eng.closed_positions, eng.orders = _build_objects(trackers, meta, F2, I2, outs, G)
+    meta = [(eng.symbol, "") for _ in specs]
+    fin = _Final(specs, P2, PI2, F2, I2)
+    eng.closed_positions, eng.orders = _build_objects(specs, meta, F2, I2, outs, G, ns=fin._ns)
     eng.equity_curve = _round_curve(outs[5], outs[6], outs[7], int(G[G_NSMP]))
-    _writeback(trackers, P2, F2, I2)
+    eng.slot_views = fin.views
     eng.ledger.equity, eng.ledger.reserved, eng.ledger.peak = float(LG[LG_EQ]), float(LG[LG_RES]), float(LG[LG_PEAK])
     eng.ledger.rejected += int(G[G_REJ])
     eng.ruined_at = None if G[G_RUIN] == NONE_I else int(G[G_RUIN])
@@ -2595,7 +2602,8 @@ class BacktestEngine:
                 f"Server chỉ cho phép tối đa {self.MAX_BACKTEST_DAYS} ngày để bảo vệ tài nguyên!"
             )
 
-        self.trackers: List[PositionTracker] = []
+        self.slots: List[SlotSpec] = []
+        self.slot_views: List[Any] = []   # trạng thái cuối của từng slot sau run() (SlotView)
         self.ledger = CapitalLedger(self.initial_capital)
         self.funding: Optional[pd.DataFrame] = None  # perp: funding_time, rate
         self.df_base: Optional[pd.DataFrame] = None        # nến khung chạy của cửa sổ (đã gồm warmup)
@@ -2608,7 +2616,7 @@ class BacktestEngine:
 
     # ─── Cấu hình ───────────────────────────────────────────────────────────
     def add_strategy_flow(self, flow_name: str, params: StrategyParams):
-        if len(self.trackers) >= self.MAX_STRATEGIES:
+        if len(self.slots) >= self.MAX_STRATEGIES:
             raise ValueError(f"Chỉ cho phép tối đa {self.MAX_STRATEGIES} strategy flows mỗi lần chạy.")
         ast = params.extra.get("ast", {}) if isinstance(params.extra, dict) else {}
         ast_type = str(ast.get("type", "") or params.extra.get("type", "")).upper()
@@ -2618,16 +2626,16 @@ class BacktestEngine:
             pos_type = PositionType.SHORT
         else:
             pos_type = PositionType.LONG if "LONG" in flow_name.upper() else PositionType.SHORT
-        self.trackers.append(PositionTracker(
+        self.slots.append(SlotSpec(
             account_id=self.account_id, campaign_id=self.campaign_id, symbol=self.symbol, flow_name=flow_name,
-            params=params, pos_type=pos_type, initial_capital=self.initial_capital, ledger=self.ledger,
+            params=params, pos_type=pos_type, initial_capital=self.initial_capital, entry_equity=self.ledger.equity,
         ))
 
     def _refs_by_frame(self) -> Dict[str, Set[Tuple[str, int]]]:
         by_frame: Dict[str, Set[Tuple[str, int]]] = {}
         for frame, refs in (getattr(self, "extra_refs", None) or {}).items():   # vd. đặc trưng regime (core/regime)
             by_frame.setdefault(frame, set()).update(refs)
-        for tracker in self.trackers:
+        for tracker in self.slots:
             for frame, column, lag in (collect_field_refs(tracker.match_tree) | collect_field_refs(tracker.stop_tree)
                                        | collect_field_refs(tracker.dca_tree)):
                 by_frame.setdefault(frame, set()).add((column, lag))
@@ -2636,7 +2644,7 @@ class BacktestEngine:
         return by_frame
 
     @staticmethod
-    def vol_column(tracker: PositionTracker) -> Optional[str]:
+    def vol_column(tracker: Any) -> Optional[str]:
         return f"{tracker.atr_frame}|natr_{tracker.atr_period}" if tracker.exit_unit == "atr" else None
 
     def _warmup_ms(self, frame: str, refs: Set[Tuple[str, int]]) -> int:
@@ -2665,7 +2673,7 @@ class BacktestEngine:
             self.trade_start_ts = self.start_ts
 
         self.load_frames(refs)
-        if any(tr.market == "perp" for tr in self.trackers):
+        if any(tr.market == "perp" for tr in self.slots):
             self.funding = self._load_funding()
 
     def minute_path(self, open_time: np.ndarray) -> Dict[str, np.ndarray]:
@@ -2793,7 +2801,7 @@ class BacktestEngine:
         return {"positions": self.closed_positions, "orders": self.orders, "equity_curve": self.equity_curve,
                 "ruined_at": getattr(self, "ruined_at", None), "final_equity": self.ledger.equity,
                 "rejected_for_capital": self.ledger.rejected,
-                "dca_layers_rejected": sum(tr.dca_rejected for tr in self.trackers),
+                "dca_layers_rejected": sum(v.dca_rejected for v in self.slot_views),
                 "funding_modeled": self.funding is not None,
                 "funding_events": 0 if self.funding is None else int(len(self.funding))}
 
@@ -2844,7 +2852,7 @@ class BacktestEngine:
 def needs_minute_path(eng) -> bool:
     """Có cần đường giá 1m trong nến chạy không: khung chạy > 1m và có chiến lược khớp SL "extreme". Hàm tự do để engine tham chiếu
     (test/reference_engine.py) đi qua cùng đường dữ liệu dùng chung."""
-    return getattr(eng, "base_frame", "1m") != "1m" and any(getattr(tr, "stop_fill", "level") == "extreme" for tr in getattr(eng, "trackers", []))
+    return getattr(eng, "base_frame", "1m") != "1m" and any(getattr(tr, "stop_fill", "level") == "extreme" for tr in getattr(eng, "slots", []))
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -2956,7 +2964,17 @@ class PortfolioEngine:
         self.last_close: Dict[str, float] = {}   # giá đóng cửa cuối của từng tài sản (đặt khi run() xong)
 
     # ─── Dữ liệu ────────────────────────────────────────────────────────────
-    def _make_trackers(self, symbol: str, ledger: CapitalLedger) -> Tuple[BacktestEngine, List[Tuple[Dict, PositionTracker]]]:
+    def _make_trackers(self, symbol: str, ledger: CapitalLedger) -> Tuple[BacktestEngine, List[Tuple[Dict, Any]]]:
+        """Đường Python cũ (PaperBook / Manager / tick_run, tới T10): mỗi SlotSpec thành một PositionTracker dựng từ chính spec đó."""
+        from backend.core.execute.tracker import PositionTracker
+        eng, pairs = self._make_slots(symbol, ledger)
+        out = []
+        for (st, sp) in pairs:
+            tr = PositionTracker(sp.account_id, sp.campaign_id, sp.symbol, sp.flow_name, sp.params, sp.pos_type, sp.capital, ledger)
+            out.append((st, tr))
+        return eng, out
+
+    def _make_slots(self, symbol: str, ledger: CapitalLedger) -> Tuple[BacktestEngine, List[Tuple[Dict, SlotSpec]]]:
         from backend.core.params import build_params
         eng = BacktestEngine(0, 0, symbol, self.start_ts, self.end_ts, trade_start_ts=self.trade_start_ts,
                              initial_capital=self.initial_capital, base_frame=self.base_frame)
@@ -2971,7 +2989,7 @@ class PortfolioEngine:
             name = f"{st['side']}_{st['id']}"
             eng.add_strategy_flow(name, build_params(name, _strategy_flow(st), st["side"], st["position"],
                                                      self.venue, symbol=symbol))
-            pairs.append((st, eng.trackers[-1]))
+            pairs.append((st, eng.slots[-1]))
         return eng, pairs
 
     @staticmethod
@@ -2979,7 +2997,7 @@ class PortfolioEngine:
         return tuple(sorted((f, tuple(sorted(r))) for f, r in eng._refs_by_frame().items()))
 
     def _cache_key(self, symbol: str, eng: BacktestEngine) -> tuple:
-        return (symbol, self.start_ts, self.end_ts, self._refs_signature(eng), any(tr.market == "perp" for tr in eng.trackers),
+        return (symbol, self.start_ts, self.end_ts, self._refs_signature(eng), any(tr.market == "perp" for tr in eng.slots),
                 self.base_frame, needs_minute_path(eng))
 
     def _build_symbol_data(self, eng: BacktestEngine, only: Optional[Set[str]] = None) -> Dict[str, Any]:
@@ -3038,7 +3056,7 @@ class PortfolioEngine:
     def load_data(self) -> None:
         self.books = []
         for sym in self.symbols:
-            eng, pairs = self._make_trackers(sym, self.ledger)
+            eng, pairs = self._make_slots(sym, self.ledger)
             if not pairs:   # không chiến lược nào chạy trên tài sản này (chỉ xảy ra khi dùng khoá "symbols")
                 continue
             # Cổng chất lượng dữ liệu BẮT BUỘC (synthetic / sai sha256 / thiếu dữ liệu -> từ chối); có cache theo file nên rẻ khi gọi lại.
@@ -3065,7 +3083,7 @@ class PortfolioEngine:
                     if fuse is not None:
                         stop = stop | fuse
                 entries.append({
-                    "strategy": st["id"], "tracker": tr, "match": match, "stop": stop,
+                    "strategy": st["id"], "slot": tr, "match": match, "stop": stop,
                     "vol": cols.get(vcol) if vcol else None, "regime": labels,
                     "dca": vec.tree(tr.dca_tree) if tr.dca_tree else None,   # điều kiện dồn tầng (None = luôn được dồn)
                 })
@@ -3090,8 +3108,8 @@ class PortfolioEngine:
         for book in self.books:
             mark = self.last_close.get(book["symbol"])
             for e in book["entries"]:
-                tr = e["tracker"]
-                if not tr.is_open or tr.qty <= 0 or tr.position is None or mark is None or mark != mark:
+                tr = e.get("view")
+                if tr is None or not tr.is_open or tr.qty <= 0 or tr.position is None or mark is None or mark != mark:
                     continue
                 out.append({"symbol": book["symbol"], "strategy": e["strategy"], "side": tr.pos_type.name, "qty": tr.qty,
                             "entry_price": tr.avg, "mark_price": float(mark), "notional": tr.qty * float(mark),
@@ -3101,8 +3119,8 @@ class PortfolioEngine:
 
     def get_results(self) -> Dict[str, Any]:
         by_strategy, by_symbol = aggregate_positions(self.closed_positions)
-        skipped = sum(e["tracker"].skipped_no_vol for b in self.books for e in b["entries"])
-        dca_rejected = sum(e["tracker"].dca_rejected for b in self.books for e in b["entries"])
+        skipped = sum(e["view"].skipped_no_vol for b in self.books for e in b["entries"] if "view" in e)
+        dca_rejected = sum(e["view"].dca_rejected for b in self.books for e in b["entries"] if "view" in e)
         return {
             "positions": self.closed_positions, "orders": self.orders, "equity_curve": self.equity_curve,
             "final_equity": self.ledger.equity, "initial_capital": self.initial_capital,

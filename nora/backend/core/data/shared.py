@@ -64,7 +64,7 @@ def plan(eng: "BacktestEngine") -> Optional[Dict[str, Any]]:
     refs = eng._refs_by_frame()
     if any(col.startswith("py_") for rs in refs.values() for col, _ in rs):
         return None   # cột chương trình Python (P7) tính trong tiến trình, KHÔNG ghi vào kho dùng chung
-    perp = any(tr.market == "perp" for tr in eng.trackers)
+    perp = any(tr.market == "perp" for tr in eng.slots)
     sym_dir = resolve_symbol_dir(eng.symbol)
     base = _sha1({"v": FORMAT_VERSION, "sym": eng.symbol, "root": root, "start": int(eng.start_ts), "end": int(eng.end_ts),
                   "base_frame": base_fr, "load_base": int(eng.start_ts - eng._warmup_ms(base_fr, refs.get(base_fr, set()))),
@@ -214,7 +214,7 @@ def export(pe: "PortfolioEngine", out_dir: str) -> Dict[str, Any]:
     os.makedirs(out_dir, exist_ok=True)
     out: Dict[str, Any] = {"paths": set(), "written": []}
     for sym in pe.symbols:
-        eng, _ = pe._make_trackers(sym, pe.ledger)
+        eng, _ = pe._make_slots(sym, pe.ledger)
         p = plan(eng)
         if p is None:
             raise RuntimeError(f"{sym}: không tạo được khoá dữ liệu dùng chung (thiếu 1m.pkl)")

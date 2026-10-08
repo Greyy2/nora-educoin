@@ -2,9 +2,19 @@
 
 Hợp nhất NGUYÊN VĂN từ core/execute/{models,events,account,ledger}.py (xem docs/bmad/p9_review_log.md, mục P9.4 part 1). Đường dẫn cũ là alias (shim).
 """
+import itertools
+import time
 from dataclasses import dataclass
 from enum import IntEnum
 from typing import Any, Dict, Optional, List, Union
+
+# Bộ đếm id toàn cục (lệnh / vị thế), tăng dần và không trùng (int(time.time()*1000) trùng khi nhiều lệnh mở trong cùng 1 ms).
+# Bắt đầu từ epoch-ms * 1000 để vẫn sắp xếp theo thời gian. Kernel, tracker và sim venue cùng rút từ MỘT dãy này.
+_ID_SEQ = itertools.count(int(time.time() * 1000) * 1000)
+
+
+def next_id() -> int:
+    return next(_ID_SEQ)
 
 
 # ══════════════════════════════════════════════════════════════════════════

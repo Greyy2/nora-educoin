@@ -91,7 +91,7 @@ def _scalars(pe_or_kb, curve, books=()):
 def _compare(label, pe, kb):
     kb_pos, kb_orders = kb.full_objects()
     a = {**_canon_batch(pe.closed_positions, pe.orders, [x["tracker"] for b in pe.books for x in b["entries"]]), **_scalars(pe, pe.equity_curve)}
-    b = {**_canon_batch(kb_pos, kb_orders, kb._trackers), **_scalars(kb, kb.equity_curve(), {bk["symbol"] for bk in pe.books})}
+    b = {**_canon_batch(kb_pos, kb_orders, kb.full_views), **_scalars(kb, kb.equity_curve(), {bk["symbol"] for bk in pe.books})}
     for key in a:
         if a[key] != b[key]:
             if isinstance(a[key], list) and isinstance(b[key], list):

@@ -480,7 +480,7 @@ def test_random_single_symbol_configs_bit_identical(market_root, chunk):
                 continue
             n = _run_single(BacktestEngine, *a)
             assert_bit_identical(r.get_results(), n.get_results(), f"single seed={seed} {symbol}")
-            for tr, tn in zip(r.trackers, n.trackers):
+            for tr, tn in zip(r.trackers, n.slot_views):
                 for attr in ("qty", "avg", "is_open", "dca_rejected", "skipped_no_vol", "layer_count"):
                     assert hexify(getattr(tr, attr)) == hexify(getattr(tn, attr)), f"single seed={seed}: tracker.{attr}"
             _tally({**n.get_results(), "positions": n.closed_positions, "orders": n.orders}, "single")

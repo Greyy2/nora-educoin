@@ -27,29 +27,39 @@ def klines_frame(rows: List[List[Any]], now_ms: int) -> pd.DataFrame:
 
 def required_frames(symbol: str, strategies: List[Dict[str, Any]], base_frame: str) -> List[str]:
     """Các khung engine cần cho sổ (gồm khung chạy và 4h — engine luôn nạp 4h)."""
-    eng, _ = _engine(symbol, strategies, base_frame, 0, DAY)
+    eng, _ = _engine_slots(symbol, strategies, base_frame, 0, DAY)
     return sorted(set(eng._refs_by_frame()) | {base_frame, "4h"})
 
 
 DAY = 86_400_000
 
 
-def _engine(symbol: str, strategies: List[Dict[str, Any]], base_frame: str, start: int, end: int):
-    """Engine của tài sản (chưa nạp dữ liệu). start/end chỉ để engine kiểm giới hạn độ dài — dữ liệu do evaluate gán trực tiếp."""
+def _portfolio(symbol: str, strategies: List[Dict[str, Any]], base_frame: str, start: int, end: int):
     from backend.core.backtest.portfolio import PortfolioEngine
     end = max(int(end), int(start) + DAY)
     start = max(int(start), end - 1000 * DAY)
-    pe = PortfolioEngine([symbol], strategies, start, end, trade_start_ts=start, use_cache=False, base_frame=base_frame)
+    return PortfolioEngine([symbol], strategies, start, end, trade_start_ts=start, use_cache=False, base_frame=base_frame)
+
+
+def _engine_slots(symbol: str, strategies: List[Dict[str, Any]], base_frame: str, start: int, end: int):
+    """Engine của tài sản (chưa nạp dữ liệu) + [(chiến lược, SlotSpec)]. start/end chỉ để engine kiểm giới hạn độ dài — dữ liệu do evaluate gán trực tiếp."""
+    pe = _portfolio(symbol, strategies, base_frame, start, end)
+    return pe._make_slots(symbol, pe.ledger)
+
+
+def _engine(symbol: str, strategies: List[Dict[str, Any]], base_frame: str, start: int, end: int):
+    """Như _engine_slots nhưng mỗi slot là một PositionTracker (đường Python cũ của PaperBook / unified, tới T10)."""
+    pe = _portfolio(symbol, strategies, base_frame, start, end)
     return pe._make_trackers(symbol, pe.ledger)
 
 
 def evaluate(symbol: str, strategies: List[Dict[str, Any]], frames: Dict[str, pd.DataFrame], base_frame: str,
              with_vec: bool = False) -> Dict[str, Any]:
     """frames = {khung: DataFrame nến đã đóng từ đầu dữ liệu}. -> {"t": open_time nến chạy, "close", "high", "low",
-    "entries": [{"strategy", "side", "match": bool[], "stop": bool[], "vol": float[] | None, "tracker"}]} (mảng theo nến chạy).
+    "entries": [{"strategy", "side", "match": bool[], "stop": bool[], "vol": float[] | None, "slot" (SlotSpec; "tracker" = tên cũ, cùng đối tượng)}]} (mảng theo nến chạy).
     with_vec: thêm "vec" (VectorEvaluator trên cùng ma trận) để giải thích từng điều kiện (core/analytics/signal_explain.py)."""
     base = frames[base_frame]
-    eng, pairs = _engine(symbol, strategies, base_frame, int(base["open_time"].iloc[0]), int(base["open_time"].iloc[-1]))
+    eng, pairs = _engine_slots(symbol, strategies, base_frame, int(base["open_time"].iloc[0]), int(base["open_time"].iloc[-1]))
     base = eng._prepare_candles(base)
     eng.df_base, eng.df_base_hist = base, base
     eng.frames = {fr: (eng._enrich_4h(eng._prepare_candles(df)) if fr == "4h" else eng._prepare_candles(df))
@@ -75,7 +85,7 @@ def evaluate(symbol: str, strategies: List[Dict[str, Any]], frames: Dict[str, pd
                 stop = stop | fuse
         vcol = eng.vol_column(tr)
         out["entries"].append({"strategy": st["id"], "side": st["side"], "match": match, "stop": stop,
-                               "vol": cols.get(vcol) if vcol else None, "tracker": tr,
+                               "vol": cols.get(vcol) if vcol else None, "slot": tr, "tracker": tr,
                                "dca": vec.tree(tr.dca_tree) if tr.dca_tree else None})
     if with_vec:
         out["vec"] = vec

@@ -4,6 +4,7 @@
 - build_params từ chối cấu hình không vừa; PositionTracker đếm tầng bị từ chối (dca_layers_rejected).
 - cooldown: chặn tín hiệu vào lại trong N phút sau khi đóng; cooldown=0 y hệt cũ; bật/tắt _SKIP_IDLE cho kết quả y hệt.
 """
+import types
 import importlib.util
 import sys
 
@@ -115,9 +116,12 @@ def test_get_results_exposes_dca_layers_rejected():
     assert eng.get_results()["dca_layers_rejected"] == 0
     # ép tracker tạo trực tiếp (vượt ngân sách) -> kết quả ghi nhận tầng bị bỏ
     eng2 = BacktestEngine(0, 0, "T", int(df.open_time.min()), int(df.open_time.max()))
-    eng2.trackers.append(_tracker(20.0))
-    eng2.trackers[0].dca_rejected = 3
-    assert eng2.get_results()["dca_layers_rejected"] == 3
+    from backend.core.backtest import SlotDriver
+    drv = SlotDriver([_tracker(20.0)])
+    drv[0].on_bar(0, 100, 100, 100, 100, entry_signal=True, stop_signal=False)
+    drv[0].on_bar(M, 100, 100, 90, 90, entry_signal=False, stop_signal=False)
+    eng2.slot_views = [drv[0]]
+    assert drv[0].dca_rejected == 1 and eng2.get_results()["dca_layers_rejected"] == 1
 
 
 def test_portfolio_get_results_has_dca_layers_rejected(tmp_path):
@@ -129,7 +133,7 @@ def test_portfolio_get_results_has_dca_layers_rejected(tmp_path):
                               trade_start_ts=gs.T0 + 3 * gs.DAY, use_cache=False, risk=RiskConfig())
         eng.run()
         assert eng.get_results()["dca_layers_rejected"] == 0
-        eng.books[0]["entries"][0]["tracker"].dca_rejected = 2
+        eng.books[0]["entries"][0]["view"] = types.SimpleNamespace(dca_rejected=2, skipped_no_vol=0)
         assert eng.get_results()["dca_layers_rejected"] == 2
 
 

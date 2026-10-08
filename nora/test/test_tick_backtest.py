@@ -219,10 +219,10 @@ def test_tracker_risk_sizing_uses_impact_on_planned_notional():
 
 
 def test_kernel_refuses_trackers_with_amm_hooks():
-    from backend.core.backtest.kernel import pack_trackers
+    from backend.core.backtest.kernel import pack_slots
     with pytest.raises(ValueError, match="limit_taker"):
-        pack_trackers([_tracker(limit_taker=True)])
-    pack_trackers([_tracker()])
+        pack_slots([_tracker(limit_taker=True)])
+    pack_slots([_tracker()])
 
 
 # ─── tín hiệu: thời điểm giao + cổng nến không có swap ─────────────────────

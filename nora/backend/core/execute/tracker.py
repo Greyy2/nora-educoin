@@ -46,22 +46,18 @@ Hai móc TUỲ CHỌN cho thị trường không có sổ lệnh (AMM / DEX, ch�
 - impact_fn(notional_usd, is_buy) -> tỉ lệ trượt giá, thay slippage_rate cho MỌI lệnh khớp kiểu taker và cho chi phí khứ hồi khi tính khối lượng (_risk_margin).
 Kernel numba (core/backtest/kernel.py) KHÔNG hỗ trợ hai móc này: chỉ đường Python (PaperBook / tracker) dùng được; kernel từ chối tracker có móc.
 """
-import itertools
-import time
 from operator import attrgetter
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from backend.core import models as _models
 from backend.core.params import StrategyParams
+from backend.core.position_size import SlotSpec
 from backend.core import position_size as policy
 from backend.core.models import Account, CapitalLedger, Fill, FundingApplied, PositionBook, PositionModel, PositionStatus, PositionType
 
-# Bộ đếm id toàn cục, tăng dần và không trùng (int(time.time()*1000) trùng khi
-# nhiều lệnh mở trong cùng 1 ms). Bắt đầu từ epoch-ms * 1000 để vẫn sắp xếp theo thời gian.
-_ID_SEQ = itertools.count(int(time.time() * 1000) * 1000)
-
-
-def _next_id() -> int:
-    return next(_ID_SEQ)
+# Bộ đếm id nằm ở core/models.py (next_id); tên cũ giữ làm alias cho sim_venue / test (cùng MỘT dãy).
+_ID_SEQ = _models._ID_SEQ
+_next_id = _models.next_id
 
 
 def _book_attr(name: str, doc: str = "") -> property:
@@ -85,78 +81,29 @@ class PositionTracker:
         limit_taker: bool = False,
         impact_fn: Optional[Callable[[float, bool], float]] = None,
     ):
-        self.account_id = account_id
-        self.campaign_id = campaign_id
-        self.symbol = symbol
-        self.flow_name = flow_name
-        self.params = params
-        self.pos_type = pos_type
-        self.is_long = pos_type == PositionType.LONG
-
-        self.market = str(getattr(params, "market", "spot") or "spot").lower()
-        if self.market not in ("spot", "perp"):
-            raise ValueError(f"market phải là 'spot' hoặc 'perp', nhận '{self.market}'")
-        if self.market == "spot" and not self.is_long:
-            raise ValueError(f"Flow '{flow_name}': thị trường spot không bán khống được — dùng market='perp' cho SHORT.")
-        self.leverage = 1.0 if self.market == "spot" else max(1.0, float(params.leverage or 1.0))
-        self.mmr = max(0.0, float(getattr(params, "maintenance_margin_rate", 0.005) or 0.0))
-        # Phí: taker cho lệnh market (vào ở open, SL, trailing, timeout, tín hiệu thoát);
-        #      maker cho lệnh limit (tầng DCA, chốt lời). fee_rate cũ = taker.
-        self.fee_rate = max(0.0, float(params.fee_rate or 0.0))
-        maker = getattr(params, "maker_fee_rate", None)
-        self.maker_fee_rate = self.fee_rate if maker is None else max(0.0, float(maker))
-        self.slippage_rate = max(0.0, float(params.slippage_rate or 0.0))
+        sp = SlotSpec(account_id, campaign_id, symbol, flow_name, params, pos_type, initial_capital,
+                      entry_equity=ledger.equity if ledger is not None else None)   # chuẩn hoá + kiểm tham số: một bản duy nhất (params.SlotSpec)
+        self.spec = sp
+        self.account_id, self.campaign_id, self.symbol, self.flow_name = account_id, campaign_id, symbol, flow_name
+        self.params, self.pos_type, self.is_long = params, pos_type, sp.is_long
+        self.market, self.leverage, self.mmr = sp.market, sp.leverage, sp.mmr
+        self.fee_rate, self.maker_fee_rate, self.slippage_rate = sp.fee_rate, sp.maker_fee_rate, sp.slippage_rate
         self.limit_taker = bool(limit_taker)    # AMM: DCA / chốt lời khớp như lệnh taker (phí taker + trượt giá)
         self.impact_fn = impact_fn              # (notional_usd, is_buy) -> trượt giá; None = slippage_rate cố định
-        self.capital = float(initial_capital)
-        self.capital_usage = max(0.0, min(float(params.max_capital_usage or 1.0), 1.0))
+        self.capital, self.capital_usage = sp.capital, sp.capital_usage
         account = ledger if ledger is not None else Account(self.capital, self.capital_usage)
         self.book = PositionBook(account, account_id, campaign_id, symbol, flow_name, pos_type)  # kế toán vị thế (P6.3)
-        self.max_capital = self.capital * self.capital_usage
+        self.max_capital = sp.max_capital
 
-        # Giá trị gốc của tham số thoát lệnh; mỗi vị thế quy đổi sang % lúc vào lệnh (_apply_exit_unit).
-        self.base_sl = max(0.0, float(params.stop_loss_rate or 0.0))
-        self.base_tp = max(0.0, float(params.take_profit_rate or 0.0))
-        self.base_trail = max(0.0, float(params.trailing_stop or 0.0))
-        self.base_trail_act = max(0.0, float(getattr(params, "trailing_activation_pct", 0.0) or 0.0))
-        self.timeout_ms = max(0, int(params.timeout or 0)) * 60_000
-        self.cooldown_ms = max(0, int(getattr(params, "cooldown", 0) or 0)) * 60_000
+        self.base_sl, self.base_tp, self.base_trail, self.base_trail_act = sp.base_sl, sp.base_tp, sp.base_trail, sp.base_trail_act
+        self.timeout_ms, self.cooldown_ms = sp.timeout_ms, sp.cooldown_ms
         self.last_close_time: Optional[int] = None   # thời điểm đóng vị thế gần nhất (cho cooldown)
         self.dca_rejected = 0       # số tầng DCA bị từ chối vì hết ngân sách vốn (không đổi logic khớp lệnh)
-        self.stop_fill = str(getattr(params, "stop_fill", "level") or "level").lower()
-        # lệnh limit (tầng DCA, chốt lời) chỉ khớp khi giá đi QUA mức bấy nhiêu % (hàng đợi sổ lệnh); 0 = chạm là khớp
-        self.limit_through = max(0.0, float(getattr(params, "limit_through_pct", 0.0) or 0.0)) / 100.0
-        if self.stop_fill not in ("level", "extreme"):
-            raise ValueError(f"stop_fill phải là 'level' hoặc 'extreme', nhận '{self.stop_fill}'")
-        self.intrabar_path = str(getattr(params, "intrabar_path", "ohlc") or "ohlc").lower()
-        if self.intrabar_path not in policy.INTRABAR_PATHS:
-            raise ValueError(f"intrabar_path phải là một trong {policy.INTRABAR_PATHS}, nhận '{self.intrabar_path}'")
-        self.exit_unit = str(getattr(params, "exit_unit", "pct") or "pct").lower()
-        if self.exit_unit not in ("pct", "atr"):
-            raise ValueError(f"exit_unit phải là 'pct' hoặc 'atr', nhận '{self.exit_unit}'")
-        self.atr_frame = str(getattr(params, "atr_frame", "1h") or "1h")
-        self.atr_period = int(getattr(params, "atr_period", 14) or 14)
-        self.sizing = str(getattr(params, "sizing", "margin_pct") or "margin_pct").lower()
-        if self.sizing not in ("margin_pct", "risk"):
-            raise ValueError(f"sizing phải là 'margin_pct' hoặc 'risk', nhận '{self.sizing}'")
-        self.risk_pct = max(0.0, float(getattr(params, "risk_per_trade_pct", 0.5) or 0.0))
-        self.max_notional_pct = max(0.0, float(getattr(params, "max_notional_pct", 100.0) or 0.0))
-        if self.sizing == "risk" and self.base_sl <= 0:
-            raise ValueError(f"Flow '{flow_name}': sizing='risk' cần stop_loss_rate > 0 (rủi ro đo tại SL).")
-
-        layers = max(0, int(getattr(params, "dca_max_layers", 0) or 0))
-        step = float(getattr(params, "dca_step_pct", 0.0) or 0.0)
-        mult = float(getattr(params, "dca_size_multiplier", 1.0) or 1.0)
-        steps = [float(x) for x in (params.dca_steps or [])] or ([step] * layers if step > 0 else [])
-        mults = [float(x) for x in (params.dca_multipliers or [])] or [mult] * len(steps)
-        if len(mults) < len(steps):
-            mults += [mults[-1] if mults else 1.0] * (len(steps) - len(mults))
-        if any(s <= 0 for s in steps) or any(m <= 0 for m in mults):
-            raise ValueError("Bước DCA và hệ số khối lượng phải > 0")
-        self.base_dca_steps = [abs(s) for s in steps]
-        self.dca_mults = mults[: len(steps)]
-        self.max_leverage = self.leverage
-        self.pos_leverage = self.leverage
+        self.stop_fill, self.limit_through, self.intrabar_path = sp.stop_fill, sp.limit_through, sp.intrabar_path
+        self.exit_unit, self.atr_frame, self.atr_period = sp.exit_unit, sp.atr_frame, sp.atr_period
+        self.sizing, self.risk_pct, self.max_notional_pct = sp.sizing, sp.risk_pct, sp.max_notional_pct
+        self.base_dca_steps, self.dca_mults = sp.base_dca_steps, sp.dca_mults
+        self.max_leverage, self.pos_leverage = sp.max_leverage, sp.pos_leverage
         self.planned_risk = 0.0
         self.max_new_notional = float("inf")  # trần danh nghĩa cho lệnh sắp mở (do danh mục đặt theo max_gross_exposure)
         self.max_new_risk = float("inf")      # trần rủi ro (tới SL, cả rổ DCA) cho lệnh sắp mở (danh mục: max_open_risk_pct)
@@ -165,14 +112,9 @@ class PositionTracker:
         self.pending_vol = float("nan")
         self.skipped_no_vol = 0     # tín hiệu vào lệnh nhưng chưa có ATR (giai đoạn khởi động)
         self._apply_exit_unit(1.0)
-        self.order_size_pct = max(0.0, float(params.order_size_pct or 0.0))
-
-        ast = params.extra.get("ast", {}) if isinstance(params.extra, dict) else {}
-        self.match_tree = self._combine_conditions(ast.get("match", []))
-        self.stop_tree = self._combine_conditions(ast.get("stop", []))
-        # Điều kiện cho phép DCA (dồn có điều kiện): rỗng = luôn được dồn. Giá trị ở nến đã đóng t áp cho các mức DCA trong nến t+1.
-        self.dca_tree = self._combine_conditions(ast.get("dca", []))
-        self.dca_ok = True
+        self.order_size_pct = sp.order_size_pct
+        self.max_open_trades = sp.max_open_trades
+        self.match_tree, self.stop_tree, self.dca_tree, self.dca_ok = sp.match_tree, sp.stop_tree, sp.dca_tree, True
 
         self.is_open = False
         self.pending_entry = False
@@ -543,12 +485,4 @@ class PositionTracker:
         return self._close(t, raw_price, PositionStatus.CANCEL, reason, market_order=True,
                            kind="kill" if reason.startswith("Kill") else "end")
 
-    @staticmethod
-    def _combine_conditions(blocks: List[Dict[str, Any]]) -> List[Any]:
-        combined: List[Any] = []
-        if not isinstance(blocks, list):
-            return combined
-        for block in blocks:
-            if isinstance(block, dict) and isinstance(block.get("condition", []), list):
-                combined.extend(block.get("condition", []))
-        return combined
+    _combine_conditions = staticmethod(SlotSpec._combine_conditions)

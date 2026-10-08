@@ -1468,7 +1468,7 @@ def signal_snapshot(symbol: str, strategies: List[Dict[str, Any]], end_ts: int, 
     from backend.core.backtest import PortfolioEngine
     start = int(end_ts) - int(lookback_minutes) * MINUTE
     pe = PortfolioEngine([symbol], strategies, start, int(end_ts), trade_start_ts=start, venue=venue, use_cache=True)
-    eng, pairs = pe._make_trackers(symbol, pe.ledger)
+    eng, pairs = pe._make_slots(symbol, pe.ledger)
     out: Dict[str, Any] = {"symbol": symbol, "bar_open_time": None, "as_of": None, "close": None, "regime": None, "strategies": []}
     if not pairs:
         return out
