@@ -165,7 +165,22 @@ FRAMES = ("1m", "5m", "15m", "1h", "4h", "24h")
 FRAME_MINUTES = {1: "1m", 5: "5m", 15: "15m", 60: "1h", 240: "4h", 1440: "24h"}
 FRAME_MS = {f: m * 60_000 for m, f in sorted(FRAME_MINUTES.items())}     # mili-giây mỗi nến theo khung (đúng thứ tự FRAMES)
 MINUTE_MS = 60_000
+HOUR_MS = 3_600_000
 DAY_MS = 86_400_000
+
+
+def iso_date(ts_ms) -> str:
+    """Ngày UTC YYYY-MM-DD của mốc thời gian mili-giây (MỘT định nghĩa cho crawl / metrics / funnel / tasks)."""
+    from datetime import datetime, timezone
+    return datetime.fromtimestamp(int(ts_ms) // 1000, timezone.utc).strftime("%Y-%m-%d")
+
+
+def date_ms(date_str: str) -> int:
+    """Mili-giây UTC của 00:00 ngày 'YYYY-MM-DD' (MỘT định nghĩa)."""
+    import pandas as pd
+    return int(pd.Timestamp(date_str, tz="UTC").value // 1_000_000)
+
+
 DATA_COLUMNS = ("open", "high", "low", "close", "volume")                 # cột nến OHLCV mà engine/DSL đọc
 MIN_PERIOD, MAX_PERIOD = 2, 500
 _STR_PLACEHOLDER = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
@@ -453,6 +468,7 @@ def build_params(flow_name: str, flow_ast: Dict[str, Any], flow_type: str, posit
 MAX_LEVERAGE = 10
 BASE_RISK_PER_TRADE_PCT = 0.5
 DEFAULT_CAPITAL = 10_000.0               # vốn ban đầu mặc định (PortfolioEngine / bot / job)
+DEFAULT_TRAIN_RATIO = 0.7                # tỉ lệ train mặc định của custom_backtest / edu_precompute / run_defaults
 PESSIMISTIC_LIMIT_THROUGH_PCT = 0.15   # kịch bản bi quan (stop_fill="extreme"): lệnh limit phải đi qua mức 0,15% mới khớp   # mức chuẩn khi chọn chiến lược; mức cuối do bootstrap ngân sách MDD quyết định
 
 BASE_POSITION = {

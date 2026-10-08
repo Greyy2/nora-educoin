@@ -17,6 +17,7 @@ import pandas as pd
 
 NORA = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, NORA)
+from backend.core.models import DATA_DIR  # noqa: E402
 from backend.crawl import store  # noqa: E402
 from migrate_pkl_meta import same_frame  # noqa: E402
 
@@ -82,9 +83,9 @@ def merge_symbol(sym: str, hist_cex: str, dst_cex: str, apply: bool, archive: st
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--apply", action="store_true")
-    ap.add_argument("--hist", default=os.path.join(store.DATA_HOME, "binance_hist"))
-    ap.add_argument("--dst", default=os.path.join(store.DATA_HOME, "binance"))
-    ap.add_argument("--archive", default=os.path.join(store.DATA_HOME, "_migration", "merge"), help="nơi cất manifest.json cũ của mã đã gộp")
+    ap.add_argument("--hist", default=os.path.join(DATA_DIR, "binance_hist"))
+    ap.add_argument("--dst", default=os.path.join(DATA_DIR, "binance"))
+    ap.add_argument("--archive", default=os.path.join(DATA_DIR, "_migration", "merge"), help="nơi cất manifest.json cũ của mã đã gộp")
     ap.add_argument("symbols", nargs="*")
     args = ap.parse_args()
     hist_cex, dst_cex = os.path.join(args.hist, "cex"), os.path.join(args.dst, "cex")

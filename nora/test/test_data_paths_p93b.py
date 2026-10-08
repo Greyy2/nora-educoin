@@ -14,7 +14,7 @@ import pytest
 from fastapi import HTTPException
 
 from backend.optimize.process import process as bj
-from backend.routes import book as book_router
+from backend.routes import optimize
 from backend.crawl import store as st
 from test_data_layout import _save
 
@@ -46,7 +46,7 @@ def test_job_run_dir_guard_accepts_runs_and_rejects_traversal_and_symlink_escape
     jobs, book = "cache/process", "alpha/book"
     ok = _run(home / book / "run1")
     _job_with_run(home, ok, jobs)
-    assert book_router._job_run_dir(JOB) == os.path.realpath(ok)
+    assert optimize._job_run_dir(JOB) == os.path.realpath(ok)
 
     outside = _run(tmp_path / "outside")
     for evil in (home / book / ".." / ".." / ".." / "outside",          # ../ thoát gốc
@@ -55,13 +55,13 @@ def test_job_run_dir_guard_accepts_runs_and_rejects_traversal_and_symlink_escape
             os.symlink(outside, evil)
         (home / jobs / JOB / "progress.json").write_text(json.dumps({"run_dir": str(evil)}))
         with pytest.raises(HTTPException) as e:
-            book_router._job_run_dir(JOB)
+            optimize._job_run_dir(JOB)
         assert e.value.status_code == 404
     # tên 'gần giống' gốc (tiền tố chuỗi) cũng bị chặn
     sib = _run(home / (book.split("/")[0] + "_evil") / "run")
     (home / jobs / JOB / "progress.json").write_text(json.dumps({"run_dir": str(sib)}))
     with pytest.raises(HTTPException):
-        book_router._job_run_dir(JOB)
+        optimize._job_run_dir(JOB)
 
 
 def test_promote_default_staging_in_job_process_dir(home):
@@ -110,11 +110,11 @@ def test_history_reads_persisted_dirs_and_hides_done_process_jobs_after_migratio
     assert bj.job_dir("20261007_100000_aaaaaa") == str(home / "cache" / "process" / "20261007_100000_aaaaaa")
 
 
-def test_prune_failed_crawl_jobs_after_7_days(home):
+def test_prune_failed_crawl_jobs_immediately(home):
     root = home / "cache" / "process"
     old_fail = root / "20261001_100000_aaaaaa"; _mkjob(old_fail, "failed", "data_crawl", age_days=8)
     new_fail = root / "20261006_100000_bbbbbb"; _mkjob(new_fail, "failed", "data_crawl_okx", age_days=2)
     old_bt = root / "20261001_100000_cccccc"; _mkjob(old_bt, "failed", "book_backtest", age_days=30)
     old_ok = root / "20261001_100000_dddddd"; _mkjob(old_ok, "done", "data_crawl", age_days=30)
-    assert bj.prune_failed_crawl_jobs() == ["20261001_100000_aaaaaa"]
-    assert not old_fail.exists() and new_fail.exists() and old_bt.exists() and old_ok.exists()
+    assert sorted(bj.prune_failed_crawl_jobs()) == ["20261001_100000_aaaaaa", "20261006_100000_bbbbbb"]   # crawl lỗi: xoá ngay (cache chỉ giữ tiến trình đang chạy)
+    assert not old_fail.exists() and not new_fail.exists() and old_bt.exists() and old_ok.exists()   # loại khác / job xong: không thuộc hàm này

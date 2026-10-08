@@ -14,11 +14,13 @@ Quy ước:
   - ký quỹ / exposure theo thời gian dựng lại từ [enter, close] của lệnh với ký quỹ CUỐI của lệnh (sau mọi tầng DCA) -> hơi cao hơn
     thực tế trước khi nhồi; tính theo % vốn ban đầu.
 """
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
+import pandas as pd
 
-from backend.core.params import DAY_MS as DAY, FRAME_MS as FRAME_MS_ALL
+from backend.core.params import DAY_MS as DAY, FRAME_MS as FRAME_MS_ALL, HOUR_MS as HOUR, MINUTE_MS as MINUTE, date_ms, iso_date
+from backend.regime import regime as rg
 
 LIQ_STATUS = "LIQ"
 NOTE_NO_TRADES = "không có lệnh nào"
@@ -625,9 +627,7 @@ def compare_events(exec_events: List[Any], sim_events: List[Any], timeframe: str
 # 5. pnl_structure: win rate, payoff, top 5 lệnh, chuỗi thua, fee drag, phân bổ coin & năm.
 # 6. regime_analysis: chế độ thị trường theo giá BTC (hoặc chỉ số rổ nếu không có BTC) trên/dưới SMA200 nhân quả: số ngày, lãi theo ngày, lệnh vào, thời gian có vị thế.
 # ══════════════════════════════════════════════════════════════════════════
-import pandas as pd
 from backend.core.signal import Program
-from typing import Tuple
 
 
 SMA_DAYS = 200
@@ -1088,3 +1088,332 @@ def market_series(prices: Dict[str, Tuple[np.ndarray, np.ndarray]], weights: Opt
     index = (1.0 + daily.fillna(0.0)).cumprod()
     return {"label_times": index.index.to_numpy(dtype="int64"), "close": index.to_numpy(dtype="float64"),
             "source": f"chỉ số rổ {len(by_base)} coin ({'theo trọng số' if weights else 'đều'})"}
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Chỉ số và kết quả cho Custom Backtest (P11 D2.2; gộp từ metrics/custom.py). Thuần tính toán: không I/O đĩa, không phụ thuộc FastAPI/routes.
+# ══════════════════════════════════════════════════════════════════════════
+
+MIN_YEAR_DAYS = 2                    # bảng yearly chỉ giữ năm có >= 2 ngày lợi suất (Sharpe/độ lệch cần >= 2)
+MAX_PLOT_POINTS = 1200               # trần số điểm mỗi chuỗi giai đoạn gửi cho biểu đồ (series.stages); chuỗi ngày đầy đủ vẫn ở series.times/equity/...
+MAX_POINTS = 400                     # trần số điểm mỗi chuỗi ngày trong kết quả edu_precompute (downsample_series)
+
+
+def stage_split(start: int, end: int, ratio: float) -> int:
+    """Mốc chia train/test (ms): đầu năm dương lịch gần nhất không sau start + ratio·(end - start) (ví dụ 2020-01-02 → 2025-01-01, 0,7 -> 2023-01-01);
+    nếu mốc đó không nằm sau start ít nhất 30 ngày thì lấy chính điểm ratio (làm tròn nửa đêm UTC)."""
+    point = start + ratio * (end - start)
+    year = pd.Timestamp(point, unit="ms").year
+    jan1 = date_ms(f"{year}-01-01")
+    if jan1 - start >= 30 * DAY:
+        return jan1
+    return int(point // DAY * DAY)
+
+
+def daily_series(curve: List[Dict[str, float]], start: int, end: int, base_ms: int, capital: float) -> Dict[str, np.ndarray]:
+    """Vốn MTM tại từng mốc nửa đêm UTC b_0 = start .. b_N = end (nhãn = giờ ĐÓNG nến): mẫu engine có nhãn = open + độ dài nến chạy (vốn là giá đóng cửa)."""
+    bounds = np.arange(start, end + 1, DAY, dtype="int64")
+    pts = [(int(c["time"]) + base_ms, float(c["equity"])) for c in curve if c["time"] >= start]
+    if not pts:
+        eq = np.full(bounds.shape[0], float(capital))
+    else:
+        t = np.asarray([p[0] for p in pts], dtype="int64")
+        v = np.asarray([p[1] for p in pts], dtype="float64")
+        order = np.argsort(t, kind="stable")
+        t, v = t[order], v[order]
+        idx = np.searchsorted(t, bounds, side="right") - 1
+        eq = np.where(idx >= 0, v[np.maximum(idx, 0)], float(capital))
+    ret = np.zeros(eq.shape[0])
+    ret[1:] = eq[1:] / eq[:-1] - 1.0
+    return {"times": bounds, "equity": eq, "returns": ret}
+
+
+def _segments(times: np.ndarray, split: int) -> Dict[str, np.ndarray]:
+    n = times.shape[0]
+    return {"simulate": np.ones(n, dtype=bool), "train": times <= split, "test": times > split}
+
+
+def _metric_block(ret: np.ndarray, rows: List[Dict[str, Any]], fees: float) -> Dict[str, Any]:
+    """Bộ chỉ số phẳng của Nora (metrics/metrics: năm = 365 ngày, Sharpe/Sortino/CAGR trên lợi suất ngày MTM; lệnh: win rate, profit factor theo lệnh đóng)."""
+    from backend.metrics.metrics import series_metrics
+    m = series_metrics(ret[1:] if ret.size else ret, rows)    # bỏ phần tử 0 đứng đầu (không phải ngày giao dịch)
+    return {"ret_pct": m["ret_pct"], "mdd_pct": m["mdd_pct"], "sharpe": m["sharpe"], "sortino": m["sortino"], "cagr_pct": m.get("cagr_pct"),
+            "calmar": m.get("calmar"), "trades": m["trades"], "win_rate_trades": m["win_rate"], "profit_factor_trades": m["profit_factor"],
+            "fees_usd": round(fees, 2)}
+
+
+def build_metrics(series: Dict[str, np.ndarray], split: int, trade_rows: List[Dict[str, Any]], orders: List[Any],
+                  test_run: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """metrics.{simulate,train,test}: MỘT bộ chỉ số phẳng mỗi giai đoạn. simulate/train cắt lát đường vốn của lần chạy đầy đủ; test lấy từ `test_run` =
+    {series, rows, orders} (lần chạy riêng bắt đầu lại từ vốn đầu tại mốc chia) nếu có, không thì cắt lát."""
+    from backend.metrics.metrics import ANN   # nhập muộn: metrics.metrics nhập metrics.trades (tránh vòng nhập)
+    times, ret = series["times"], series["returns"]
+    out: Dict[str, Any] = {}
+    for name, m in _segments(times, split).items():
+        if name == "test" and test_run is not None:
+            fees = sum(float(o.fee_usd or 0.0) for o in test_run["orders"])
+            out[name] = _metric_block(test_run["series"]["returns"], test_run["rows"], fees)
+            continue
+        lo = int(times[m][0]) if m.any() else 0
+        hi = int(times[m][-1]) if m.any() else 0
+        rows = [r for r in trade_rows if lo < r["close_time"] <= hi] if name != "simulate" else trade_rows
+        fees = sum(float(o.fee_usd or 0.0) for o in orders if lo < o.order_time <= hi + DAY) if name != "simulate" else sum(float(o.fee_usd or 0.0) for o in orders)
+        out[name] = _metric_block(ret[m], rows, fees)
+    basis = ("simulate/train cắt lát đường vốn của lần chạy đầy đủ (train bắt đầu tại start nên trùng); test và các năm giai đoạn test tính từ lần chạy lại "
+             "[mốc chia, end] bắt đầu từ vốn đầu" if test_run is not None else
+             "train/test/yearly cắt lát đường vốn liên tục")
+    out["notes"] = {"stage_basis": basis, "annualization_days": ANN, "test_fresh_capital": test_run is not None}
+    return out
+
+
+def _year_rows(series: Dict[str, np.ndarray], rows: List[Dict[str, Any]], stage: str, upto: Optional[int] = None) -> List[Dict[str, Any]]:
+    times, ret = series["times"], series["returns"]
+    years = np.asarray([pd.Timestamp(int(t) - 1, unit="ms").year for t in times])   # nến thuộc năm của giờ mở (nhãn - 1ms)
+    keep = np.arange(times.shape[0]) > 0
+    if upto is not None:
+        keep &= times <= upto
+    out = []
+    for y in sorted(set(years.tolist())):
+        m = (years == y) & keep
+        if int(m.sum()) >= MIN_YEAR_DAYS:      # năm chỉ có 1 ngày lợi suất (vd. năm trước start 1 ngày) không có chỉ số -> bỏ
+            lo, hi = int(times[m][0]) - DAY, int(times[m][-1])
+            blk = _metric_block(np.r_[0.0, ret[m]], [r for r in rows if lo < r["close_time"] <= hi], 0.0)
+            out.append({"year": int(y), "stage": stage, "days": int(m.sum()), **{k: blk[k] for k in ("cagr_pct", "sharpe", "mdd_pct", "profit_factor_trades", "calmar")}})
+    return out
+
+
+def yearly_table(series: Dict[str, np.ndarray], split: int, rows: List[Dict[str, Any]], test_series: Optional[Dict[str, np.ndarray]] = None,
+                 test_rows: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
+    """Bảng theo năm cùng bộ chỉ số phẳng: năm train từ đường vốn đầy đủ; năm test từ lần chạy lại từ vốn đầu (`test_series`) nếu có, không thì cắt lát."""
+    if test_series is None:
+        times = series["times"]
+        years = np.asarray([pd.Timestamp(int(t) - 1, unit="ms").year for t in times])
+        out = _year_rows(series, rows, "train")
+        for r in out:
+            m = (years == r["year"]) & (np.arange(times.shape[0]) > 0)
+            r["stage"] = "train" if times[m][-1] <= split else "test"
+        return out
+    return _year_rows(series, rows, "train", upto=split) + _year_rows(test_series, test_rows or [], "test")
+
+
+def _bench_on(bench: Optional[Dict[str, Any]], times: np.ndarray) -> Optional[np.ndarray]:
+    """Đường vốn benchmark nếu cùng lưới ngày với `times`, không thì None (không nội suy / co dãn)."""
+    if bench is None:
+        return None
+    bt = np.asarray(bench["times"], dtype="int64")
+    return np.asarray(bench["equity"], dtype="float64") if bt.shape == times.shape and np.array_equal(bt, times) else None
+
+
+def build_stages(series: Dict[str, np.ndarray], split: int, test_series: Optional[Dict[str, np.ndarray]], bench: Optional[Dict[str, Any]],
+                 test_bench: Optional[Dict[str, Any]], max_points: int = MAX_PLOT_POINTS) -> Dict[str, Any]:
+    """series.stages = {all, train, test}: mỗi giai đoạn tính trên dữ liệu ngày đầy đủ (equity, pnl, drawdown_pct, ret_pct, benchmark) rồi hạ mẫu CHỈ để vẽ
+    (metrics/charts.stage_block). Test = lần chạy lại từ vốn đầu tại mốc chia + benchmark chạy lại cùng cửa sổ (không co dãn); thiếu thì None."""
+    from backend.metrics.charts import downsample_stage, stage_block
+    times, eq = series["times"], series["equity"]
+    label = (bench or {}).get("label")
+    beq = _bench_on(bench, times)
+    m = times <= split
+    out: Dict[str, Any] = {
+        "all": stage_block(times, eq, beq, label),
+        "train": stage_block(times[m], eq[m], None if beq is None else beq[m], label) if m.any() else None,
+        "test": None,
+    }
+    if test_series is not None:
+        tb = _bench_on(test_bench, test_series["times"])
+        out["test"] = stage_block(test_series["times"], test_series["equity"], tb, (test_bench or {}).get("label"))
+    return {k: downsample_stage(v, max_points) for k, v in out.items()}
+
+
+def build_result(program, plan, res, eng, a, start: int, end: int, capital: float, data: Dict[str, Any], extra_warnings: List[str],
+                 test_res: Optional[Dict[str, Any]] = None, test_start: Optional[int] = None, bench: Optional[Dict[str, Any]] = None,
+                 inputs: Optional[Dict[str, Any]] = None, test_bench: Optional[Dict[str, Any]] = None,
+                 alpha_id: Optional[str] = None, checklist: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    from backend.core.backtest import FRAME_MS
+    from backend.metrics.metrics import result_payload
+    from backend.metrics.trades import rows_from_trade_list
+    payload = result_payload(res, start, end)
+    trades = payload["trade_list"]
+    rows = rows_from_trade_list(trades)
+    series = daily_series(res["equity_curve"], start, end, FRAME_MS[plan.base_frame], capital)
+    split = stage_split(start, end, float(a.train_ratio))
+    test_run = test_series = None
+    if test_res is not None:
+        test_series = daily_series(test_res["equity_curve"], test_start, end, FRAME_MS[plan.base_frame], capital)
+        test_run = {"series": test_series, "rows": rows_from_trade_list(result_payload(test_res, test_start, end)["trade_list"]), "orders": test_res["orders"]}
+    metrics = build_metrics(series, split, rows, res["orders"], test_run)
+    eq = series["equity"]
+    peak = np.maximum.accumulate(eq)
+    series_out = {"times": [int(t // 1000) for t in series["times"]], "equity": [round(float(x), 2) for x in eq],
+                  "pnl": [round(float(x - capital), 2) for x in eq], "drawdown": [round(float(x), 6) for x in eq / peak - 1.0],
+                  "stage_split": int(split // 1000)}
+    if test_series is not None:
+        teq = test_series["equity"]
+        series_out["test"] = {"times": [int(t // 1000) for t in test_series["times"]], "equity": [round(float(x), 2) for x in teq],
+                              "drawdown": [round(float(x), 6) for x in teq / np.maximum.accumulate(teq) - 1.0]}
+        if test_bench is not None:
+            tbe = test_bench["equity"]
+            series_out["test"]["benchmark"] = {"times": [int(t // 1000) for t in test_bench["times"]], "equity": [round(float(x), 2) for x in tbe],
+                                               "label": test_bench["label"], "final_equity": round(float(tbe[-1]), 2)}
+    opens = eng.open_positions()
+    by_symbol = []
+    for sym in plan.symbols:
+        agg = res["by_symbol"].get(sym, {})
+        by_symbol.append({"symbol": sym.split(":")[-1], "pnl_usd": round(agg.get("pnl_usd", 0.0), 2), "trades": int(agg.get("trades", 0)),
+                          "wins": int(agg.get("wins", 0)), "fees_usd": round(agg.get("fees_usd", 0.0), 2),
+                          "open_pnl_usd": round(sum(o["unrealized_pnl"] for o in opens if o["symbol"] == sym), 2)})
+    warns = list(dict.fromkeys(program.warnings + plan.warnings + extra_warnings))
+    from backend.metrics.trades import diagnose_run
+    from backend.metrics.charts import generate_insights
+    fees_total = sum(float(o.fee_usd or 0.0) for o in res["orders"])
+    inputs = inputs or {}
+    diagnostics = diagnose_run(program, series, trades, metrics, capital, start, end, fees_total=fees_total, open_positions=opens, benchmark=bench,
+                               market=inputs.get("market"), prices=inputs.get("prices"), frames=inputs.get("frames"))
+    insights = generate_insights(diagnostics, metrics)
+    if bench is not None:
+        beq = bench["equity"]
+        series_out["benchmark"] = {"times": [int(t // 1000) for t in bench["times"]], "equity": [round(float(x), 2) for x in beq], "label": bench["label"],
+                                   "final_equity": round(float(beq[-1]), 2)}
+    warns += [f"chẩn đoán thiếu dữ liệu: {e}" for e in inputs.get("errors", [])]
+    series_out["stages"] = build_stages(series, split, test_series, bench, test_bench)
+    if test_series is not None and test_bench is None:
+        warns.append("không có benchmark cho giai đoạn Test (chạy lại benchmark cửa sổ test không thành công)")
+    from backend.alpha.compile import explain_program
+    from backend.metrics.charts import build_notes
+    out = {
+        "config": {"symbols": [s.split("@")[0] for s in plan.symbols], "data_symbols": plan.symbols, "start": iso_date(start),
+                   "end": iso_date(end - DAY), "train_ratio": float(a.train_ratio), "initial_capital": capital, "timeframe": program.timeframe,
+                   "run_frame": plan.base_frame, "exchange": data["source"], "program": {"name": program.name, "legs": program.legs,
+                   "levels": program.levels, "features": program.features, "warmup_bars": program.warmup_bars},
+                   "risk": plan.risk, "strategies": [s["id"] for s in plan.strategies], **plan.echo},
+        "program_hash": program.code_hash, "data": data, "metrics": metrics, "yearly": yearly_table(series, split, rows, test_series, test_run["rows"] if test_run else None),
+        "series": series_out,
+        "trades": trades, "positions_open": opens, "by_symbol": by_symbol, "warnings": warns,
+        "diagnostics": diagnostics, "insights": insights,
+        "final_equity": round(float(eq[-1]), 2) if eq.size else capital,
+    }
+    logic = explain_program(program, position=a.position)
+    out["explain"] = {**logic, "notes": build_notes(logic, out)}
+    if alpha_id is not None:
+        out["alpha_id"] = alpha_id
+    if checklist is not None:
+        out["checklist"] = checklist
+    return out
+
+
+def downsample_series(series: Dict[str, Any], max_points: int = MAX_POINTS) -> Dict[str, Any]:
+    """Hạ mẫu các chuỗi ngày (cùng chỉ số cho times/equity/pnl/drawdown/benchmark) còn <= max_points điểm, luôn giữ điểm đầu và cuối."""
+    def pick(n: int) -> List[int]:
+        return list(range(n)) if n <= max_points else sorted(set(np.linspace(0, n - 1, max_points).round().astype(int).tolist()))
+
+    def cut(block: Dict[str, Any]) -> Dict[str, Any]:
+        n = len(block.get("times", []))
+        idx = pick(n)
+        out = dict(block)
+        for k, v in block.items():
+            if isinstance(v, list) and len(v) == n:
+                out[k] = [v[i] for i in idx]
+        return out
+
+    from backend.metrics.charts import downsample_stage
+    out = cut({k: v for k, v in series.items() if k not in ("test", "benchmark", "stages")})
+    for k in ("test", "benchmark"):
+        if k in series:
+            blk = dict(series[k])
+            nested = blk.pop("benchmark", None)       # series.test.benchmark (benchmark chạy lại trên cửa sổ test) cắt cùng lưới riêng
+            out[k] = cut(blk)
+            if nested is not None:
+                out[k]["benchmark"] = cut(nested)
+    if "stages" in series:      # chuỗi giai đoạn ĐÃ tính ở backend: chỉ gom nhóm để vẽ (series_stages.downsample_stage), không tính lại
+        out["stages"] = {k: downsample_stage(v, max_points) for k, v in series["stages"].items()}
+    out["downsampled_from"] = len(series.get("times", []))
+    return out
+
+
+def _episodes(mask: np.ndarray):
+    """[(đầu, cuối+1)] các đoạn True liên tiếp."""
+    if not mask.any():
+        return []
+    d = np.diff(np.r_[0, mask.astype(np.int8), 0])
+    return list(zip(np.flatnonzero(d == 1), np.flatnonzero(d == -1)))
+
+
+def label_stats(s: Dict[str, np.ndarray], start: int) -> Dict[str, Any]:
+    t, lab, close, real = s["t"], s["labels"], s["close"], s["real"]
+    keep = (t >= start) & real
+    t, lab, close = t[keep], lab[keep], close[keep]
+    n = len(t)
+    days = (t[-1] - t[0]) / DAY if n > 1 else 0.0
+    # mẫu mỗi giờ: lợi suất 24h tới (phút cuối cùng <= t + 24h)
+    hourly = np.flatnonzero((t % HOUR) == 0)
+    fwd_idx = np.searchsorted(t, t[hourly] + DAY, side="right") - 1
+    ok = (t[fwd_idx] >= t[hourly] + DAY - HOUR)
+    h, fi = hourly[ok], fwd_idx[ok]
+    fwd = (close[fi] / close[h] - 1.0) * 100.0
+    out: Dict[str, Any] = {"minutes": int(n), "days": round(days, 1), "states": {}}
+    switches = int((np.diff(lab.astype(np.int16)) != 0).sum())
+    out["switches_per_30d"] = round(switches / days * 30, 2) if days else None
+    for code, name in enumerate(rg.NAMES):
+        m = lab == code
+        if not m.any():
+            continue
+        eps = _episodes(m)
+        dur = [(t[e - 1] - t[b]) / HOUR + 1 / 60 for b, e in eps]
+        r = fwd[lab[h] == code]
+        out["states"][name] = {
+            "share_pct": round(100 * m.mean(), 2), "episodes": len(eps), "avg_hours": round(float(np.mean(dur)), 1),
+            "fwd24_n": int(r.size),
+            "fwd24_mean_pct": round(float(r.mean()), 3) if r.size else None,
+            "fwd24_median_pct": round(float(np.median(r)), 3) if r.size else None,
+            "fwd24_up_pct": round(float((r > 0).mean() * 100), 1) if r.size else None,
+            "fwd24_abs_pct": round(float(np.abs(r).mean()), 3) if r.size else None,
+        }
+    return out
+
+
+def shock_stats(s: Dict[str, np.ndarray], start: int, event_pct: float) -> Dict[str, Any]:
+    t, lab, close, real = s["t"], s["labels"], s["close"], s["real"]
+    keep = (t >= start) & real
+    t, lab, close = t[keep], lab[keep], close[keep]
+    hourly = np.flatnonzero((t % HOUR) == 0)
+    fwd_idx = np.searchsorted(t, t[hourly] + DAY, side="right") - 1
+    fwd = (close[fwd_idx] / close[hourly] - 1.0) * 100.0
+    out = {}
+    for name, code, sign in (("CRASH", rg.CRASH, -1), ("SURGE", rg.SURGE, 1)):
+        ev = sign * fwd >= event_pct
+        rows = []
+        for b, e in _episodes(ev):
+            i0 = hourly[b]
+            i1 = int(np.searchsorted(t, t[i0] + DAY, side="right"))
+            hit = np.flatnonzero(lab[i0:i1] == code)
+            already = None
+            # cực trị của đợt trong 24h sau đầu đợt (đáy với sập, đỉnh với tăng)
+            seg = close[i0:i1]
+            ext = int(np.argmin(seg) if sign < 0 else np.argmax(seg))
+            total = seg[ext] / close[i0] - 1.0
+            lag = None
+            if hit.size:
+                k = int(hit[0])
+                lag = int((t[i0 + k] - t[i0]) // MINUTE)
+                already = round(100 * (close[i0 + k] / close[i0] - 1.0) / total, 1) if total else None
+            rows.append({"start": int(t[i0]), "move_pct": round(100 * total, 2), "detected": bool(hit.size), "lag_min": lag,
+                         "move_done_pct": already})
+        det = [r for r in rows if r["detected"]]
+        alarms = []
+        for b, e in _episodes(lab == code):
+            j = int(np.searchsorted(t, t[b] + DAY, side="right")) - 1
+            if t[j] >= t[b] + DAY - HOUR:
+                alarms.append((close[j] / close[b] - 1.0) * 100.0)
+        alarms = np.asarray(alarms)
+        out[name] = {
+            "events": len(rows), "detected": len(det),
+            "recall_pct": round(100 * len(det) / len(rows), 1) if rows else None,
+            "median_lag_min": int(np.median([r["lag_min"] for r in det])) if det else None,
+            "median_move_done_pct": float(np.median([r["move_done_pct"] for r in det if r["move_done_pct"] is not None]))
+            if det else None,
+            "alarms": int(alarms.size),
+            # cầu chì đúng khi sau khi bật giá TIẾP TỤC cùng chiều sốc (vị thế ngược chiều bị cắt là tránh lỗ thêm)
+            "alarm_continuation_pct": round(float((sign * alarms > 0).mean() * 100), 1) if alarms.size else None,
+            "alarm_fwd24_mean_pct": round(float(alarms.mean()), 3) if alarms.size else None,
+            "worst_events": sorted(rows, key=lambda r: sign * -r["move_pct"])[:5],
+        }
+    return out

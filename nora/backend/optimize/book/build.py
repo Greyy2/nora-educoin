@@ -20,7 +20,7 @@ from backend.core.params import DAY_MS as DAY, BASE_RISK_PER_TRADE_PCT, REGIME_M
 from backend.alpha.compile import load_system_strategies
 from backend.crawl.store import alpha_dir, alpha_dir as alphas_dir, alpha_run_dir
 from backend.metrics.metrics import portfolio_metrics
-from backend.optimize.process.process import NORA_DIR
+from backend.core.models import NORA_DIR
 from backend.optimize.funnel.storage import atomic_write_json, data_fingerprint, make_job_key, normalize, ResultsStore, stream_stage
 from backend.optimize.process.workers import auto_workers, pool_map_safe
 from backend.optimize.search.evaluate import BacktestJob, make_engine, SharedExporter
@@ -227,6 +227,21 @@ STRATEGIES: List[Dict[str, Any]] = list(_LOADED["strategies"])
 SOURCES: Dict[str, Dict[str, str]] = dict(_LOADED["sources"])   # {id chân: {file, sha256, code_hash}} — nguồn gốc file của từng chiến lược
 
 REGIME_MAP.update({c["id"]: regime_for(c["side"]) for c in CANDIDATES})   # REGIME_MAP (dict) do core/params.py giữ; điền ở đây
+
+
+def reload_system_strategies() -> Dict[str, Any]:
+    """Nạp lại data/alpha/strategies/*.py (cache mtime+size tự vô hiệu) và làm mới CANDIDATES / STRATEGIES / SOURCES / REGIME_MAP TẠI CHỖ
+    (các nơi đã giữ tham chiếu tới danh sách vẫn thấy mã mới). Lượt backtest / sổ / phễu chạy SAU ĐÓ dùng mã mới. Lỗi biên dịch -> DslError, trạng thái cũ giữ nguyên."""
+    loaded = load_system_strategies()
+    old_ids = {c["id"] for c in CANDIDATES}
+    CANDIDATES[:] = list(loaded["candidates"])
+    STRATEGIES[:] = list(loaded["strategies"])
+    SOURCES.clear()
+    SOURCES.update(loaded["sources"])
+    for gone in old_ids - {c["id"] for c in CANDIDATES}:
+        REGIME_MAP.pop(gone, None)
+    REGIME_MAP.update({c["id"]: regime_for(c["side"]) for c in CANDIDATES})
+    return loaded
 
 
 def perp_symbols(universe: List[str] = None) -> List[str]:

@@ -4,7 +4,7 @@ import os
 
 import pytest
 
-from backend.crawl import store
+from backend.core.models import DATA_DIR  # noqa: E402
 
 SYMBOLS = ["BTC", "ETH"]
 
@@ -12,7 +12,7 @@ SYMBOLS = ["BTC", "ETH"]
 def _real_root():
     """Gốc dữ liệu OKX thật (conftest trỏ NORA_LOCAL_DATA_ROOT vào thư mục tạm): market/okx (mới) hoặc okx (cũ)."""
     for sub in (("market", "okx"), ("okx",)):
-        root = os.path.join(store.DATA_HOME, *sub)
+        root = os.path.join(DATA_DIR, *sub)
         if os.path.isdir(os.path.join(root, "cex")):
             return root
     return None
@@ -143,11 +143,14 @@ def test_three_conjunct_strategy_binding_condition_real_run():
 
 def test_benchmark_runs_once_per_config(monkeypatch):
     from backend.optimize.process import tasks as custom_run
-    custom_run._BENCH_CACHE.clear()
+    from backend.optimize.search import evaluate as ev
+    ev._BENCH_CACHE.clear()
     calls = []
-    real = custom_run.execute
-    monkeypatch.setattr(custom_run, "execute", lambda plan, *a, **k: (calls.append(plan.strategies[0]["id"]) or real(plan, *a, **k)))
+    real = ev.execute
+    wrapped = lambda plan, *a, **k: (calls.append(plan.strategies[0]["id"]) or real(plan, *a, **k))   # noqa: E731
+    monkeypatch.setattr(custom_run, "execute", wrapped)    # lần chạy chính + test (tasks)
+    monkeypatch.setattr(ev, "execute", wrapped)            # benchmark (evaluate.run_benchmark)
     _run(CODE_KEMA)
-    assert len(calls) == 4 and len(custom_run._BENCH_CACHE) == 2       # chính + test + benchmark toàn kỳ + benchmark test
+    assert len(calls) == 4 and len(ev._BENCH_CACHE) == 2       # chính + test + benchmark toàn kỳ + benchmark test
     _run(CODE_3)                                                       # chương trình khác, cùng cấu hình -> benchmark dùng lại; cache vẫn 2 mục (toàn kỳ + cửa sổ test)
-    assert len(calls) == 6 and len(custom_run._BENCH_CACHE) == 2
+    assert len(calls) == 6 and len(ev._BENCH_CACHE) == 2

@@ -27,6 +27,7 @@ import pandas as pd
 NORA = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, NORA)
 
+from backend.core.models import DATA_DIR  # noqa: E402
 from backend.crawl import store  # noqa: E402
 
 LEGACY_FILES = ("manifest.json", "dex_pool.json")
@@ -204,7 +205,7 @@ def main() -> int:
     ap.add_argument("--archive", help="thư mục cất manifest.json/dex_pool.json (mặc định <nora>/data/_migration/<stamp>)")
     ap.add_argument("--stamp", default=time.strftime("%Y%m%d_%H%M%S"))
     args = ap.parse_args()
-    archive = os.path.abspath(args.archive or os.path.join(store.DATA_HOME, "_migration", args.stamp))
+    archive = os.path.abspath(args.archive or os.path.join(DATA_DIR, "_migration", args.stamp))
     bad = 0
     for root in args.root:
         root = os.path.abspath(root)

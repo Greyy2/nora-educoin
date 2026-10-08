@@ -63,7 +63,9 @@ backend/
                              # cổng sàn OKX (REST, ký, lot/tick, OkxVenue, khoá) + hồ sơ tiền thật (confirm_live)
     testnet.py               # hồ sơ OKX demo (endpoint/cờ demo, khoá demo) — dùng runner của live.py
     paper.py                 # hồ sơ paper: nến thật, khớp lệnh mô phỏng trong core (KernelPaperBook ở core/backtest.py) — chỉ cấu hình + nối dây
-  routes/                    # (← api/) router + kiểm tham số job + chế độ Cơ bản/Nâng cao
+  routes/                    # router FastAPI (P11 gọn thành 5 file chuẩn theo package, URL giữ nguyên):
+                             # alpha.py (chiến lược), optimize.py (sổ + phễu + danh mục), data.py (dữ liệu + regime),
+                             # live.py (bot), process.py (kiểm tham số + chế độ Cơ bản/Nâng cao + metadata UI)
 ops/                         # NGOÀI backend (nora/ops, chuyển từ backend/utils/ops ở P9 kiến trúc cuối): run_limited.sh, install_user_units.sh, deploy_nginx.sh, systemd/, nginx/
 ```
 
@@ -152,7 +154,7 @@ Giữ: `alphas/research/okx_top10_agents.json` (panel Top Agents đọc) → `da
 **Vòng đời một lần chạy** (backtest, WFA, carlo, phễu, custom backtest, education):
 1. Đang chạy: mọi thứ ở `data/cache/process/<id>/`; đứt quãng thì đọc checkpoint và chạy tiếp.
 2. Xong: kết quả + params ghi vào nơi lưu lâu dài (`data/backtest|wfa|carlo|alpha/…`).
-3. Dọn ngay `data/cache/process/<id>/`. Job lỗi hoặc bị huỷ: giữ log 7 ngày rồi tự xoá. *(người dùng chốt 2026-10-07)*
+3. Dọn ngay `data/cache/process/<id>/`. Job lỗi hoặc bị huỷ: xoá ở lượt dọn kế tiếp (job mới / API khởi động); log RAM của run_limited xoá khi tiến trình kết thúc; cache gate chỉ giữ kết quả của mã gate hiện tại. Cache CHỈ chứa tiến trình đang chạy. *(người dùng chốt 2026-10-08, thay luật 7 ngày)*
 4. Bước sau (WFA, carlo) đọc từ kết quả lâu dài; chỉ việc đang chạy dở mới có checkpoint trong cache.
 5. Trang Lịch sử đọc từ các thư mục kết quả lâu dài, không đọc cache. *(người dùng chốt 2026-10-07)*
 6. **Ngoại lệ — chạy tạm của người dùng** (custom backtest ở /alpha/create, lượt chạy Education do người học bấm): KHÔNG ghi vào `data/backtest/`.

@@ -3,10 +3,14 @@
 Nguồn gộp: docs/bmad/p9_review_log.md (mục P9.4).
 """
 import itertools
+import os
 import time
 from dataclasses import dataclass
 from enum import IntEnum
 from typing import Any, Callable, Dict, Optional, List, Protocol, Union
+
+NORA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))   # gốc dự án nora/ — định nghĩa DUY NHẤT (hằng đường dẫn, không I/O)
+DATA_DIR = os.path.join(NORA_DIR, "data")   # cây dữ liệu mặc định (crawl/store, alpha/compile)
 
 # Bộ đếm id toàn cục (lệnh / vị thế), tăng dần và không trùng (int(time.time()*1000) trùng khi nhiều lệnh mở trong cùng 1 ms).
 # Bắt đầu từ epoch-ms * 1000 để vẫn sắp xếp theo thời gian. Kernel, tracker và sim venue cùng rút từ MỘT dãy này.

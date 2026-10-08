@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from backend.core.params import DAY_MS
+from backend.core.params import DAY_MS, iso_date
 from backend.metrics import metrics as rt
 from backend.metrics.metrics import ANN, daily_nav_series
 
@@ -59,11 +59,6 @@ def _num(x, nd=2):
 
 def _lst(arr, nd=2) -> List[Optional[float]]:
     return [_num(x, nd) for x in arr]
-
-
-def iso_date(ts_ms) -> str:
-    """Ngày UTC YYYY-MM-DD của mốc thời gian mili-giây (MỘT định nghĩa cho charts / funnel / tasks)."""
-    return f"{pd.Timestamp(int(ts_ms), unit='ms'):%Y-%m-%d}"
 
 
 def _cutoff(last: pd.Timestamp, period: str) -> Optional[pd.Timestamp]:
@@ -1038,3 +1033,129 @@ class BacktestFeed:
 
     def fetch(self) -> FeedSnapshot:
         return FeedSnapshot("backtest", self.result, {"job_id": self.job_id, "label": self.label})
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Ghi chú giải thích kết quả MỘT lần chạy (/education). Mỗi câu được TÍNH từ chính kết quả + logic mã đã biên dịch của lần chạy đó
+# (alpha/compile.explain_program): không câu mặc định, không định nghĩa chung chung, không ngưỡng tốt/xấu; thiếu số đo thì mục vắng.
+# Khoá: notes.summary / equity / yearly / by_symbol / train_test (= các bước EDUCATION_TOUR) + notes.metrics.<chỉ số>, notes.benchmark, notes.holding,
+# notes.pnl_structure, notes.exits, notes.regime (chỉ cho API; giao diện giáo dục ẩn: EDUCATION_HIDDEN_SECTIONS).
+# Tour = NOTE_TOUR (MỘT nơi): giao diện nhận qua GET /api/studio/meta (`explain_tour`, `education_hidden_sections`); test khoá NOTE_TOUR ⊆ khoá build_notes theo thứ tự.
+# ══════════════════════════════════════════════════════════════════════════
+def _n(v: Any, d: int = 2) -> Optional[str]:
+    return f"{v:,.{d}f}" if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+
+
+def _rule_text(logic: Dict[str, Any], kinds: tuple) -> str:
+    rs = [r["action_vi"] for r in logic.get("rules", []) if r.get("type") in kinds]
+    return "; ".join(r.replace("Thoát vị thế (đưa về 0) khi", "Thoát khi") for r in rs)
+
+
+def _exec(logic: Dict[str, Any], title: str) -> str:
+    return next((e["desc"] for e in logic.get("execution", []) if e.get("title") == title), "")
+
+
+def _day(ts: Any) -> Optional[str]:
+    return pd.Timestamp(int(ts), unit="s").strftime("%Y-%m-%d") if isinstance(ts, (int, float)) and not isinstance(ts, bool) else None
+
+
+_TOUR_SECTIONS = (("summary", "Kết quả tổng"), ("equity", "Đường vốn và sụt giảm"), ("yearly", "Theo năm"),
+                  ("by_symbol", "Theo tài sản"), ("train_test", "Train và test"))
+NOTE_TOUR: List[Dict[str, str]] = [{"key": k, "label_vi": lbl, "notes_key": k, "section": k} for k, lbl in _TOUR_SECTIONS]
+# Mục kết quả giao diện giáo dục KHÔNG hiện (quá khó cho người mới; ghi chú vẫn có trong API): so sánh benchmark, thời gian nắm giữ, cấu trúc lãi lỗ.
+EDUCATION_HIDDEN_SECTIONS: List[str] = ["benchmark", "holding", "pnl_structure"]
+
+
+def build_notes(logic: Dict[str, Any], result: Dict[str, Any]) -> Dict[str, Any]:
+    m = (result.get("metrics") or {}).get("simulate") or {}
+    d = result.get("diagnostics") or {}
+    sa, ps, mc = d.get("signal_activity") or {}, d.get("pnl_structure") or {}, d.get("market_comparison") or {}
+    tv, ra = d.get("train_vs_test") or {}, d.get("regime_analysis") or {}
+    cfg = result.get("config") or {}
+    ser = result.get("series") or {}
+    cap, fin = cfg.get("initial_capital"), result.get("final_equity")
+    entry, exit_ = _rule_text(logic, ("entry_long", "entry_short")), _rule_text(logic, ("exit",))
+    risk = _exec(logic, "Quản trị rủi ro")
+    mm: Dict[str, str] = {}
+
+    def put(key: str, *parts: Optional[str]) -> None:
+        txt = " ".join(p for p in parts if p)
+        if txt:
+            mm[key] = txt
+
+    days = mc.get("days")
+    ret_txt = (f"Vốn {_n(cap, 0)} → {_n(fin, 0)} USD ({_n(m.get('ret_pct'))}%) sau {m.get('trades')} lệnh" + (f" trong {days} ngày." if days else ".")
+               if _n(cap) and _n(fin) and _n(m.get("ret_pct")) else None)
+    put("ret_pct", ret_txt, f"Lãi gộp trước phí {_n(ps.get('gross_pnl_before_fees_usd'))}, phí {_n(ps.get('fees_usd'))} USD ({_n(ps.get('fee_drag_pct'))}% lãi gộp)." if _n(ps.get("fee_drag_pct")) else None,
+        f"Lệnh sinh ra từ quy tắc: {entry}." if entry else None)
+    put("cagr_pct", f"Lợi suất quy năm (365 ngày) {_n(m.get('cagr_pct'))}%/năm" + (f", benchmark luôn long {_n(mc.get('market_cagr'))}%/năm." if _n(mc.get("market_cagr")) else ".")
+        if _n(m.get("cagr_pct")) else None)
+    put("sharpe", f"Sharpe {_n(m.get('sharpe'))}" + (f", Sortino {_n(m.get('sortino'))}" if _n(m.get("sortino")) else "") + " trên đường vốn cuối ngày của lần chạy này." if _n(m.get("sharpe")) else None,
+        f"Vị thế có mặt {_n(sa.get('days_in_market_pct'), 1)}% số ngày, phơi nhiễm TB {_n(sa.get('avg_exposure_pct'), 1)}% vốn." if _n(sa.get("days_in_market_pct")) else None)
+    put("sortino", f"Sortino {_n(m.get('sortino'))} so với Sharpe {_n(m.get('sharpe'))} (cùng đường vốn, chỉ tính độ lệch của các ngày lỗ)." if _n(m.get("sortino")) and _n(m.get("sharpe")) else None)
+    put("mdd_pct", f"Đáy sụt giảm vốn sâu nhất {_n(m.get('mdd_pct'))}% (vốn cuối ngày)" + (f"; benchmark luôn long sụt {_n(mc.get('market_mdd'))}%." if _n(mc.get("market_mdd")) else ".")
+        if _n(m.get("mdd_pct")) else None,
+        f"Chuỗi thua dài nhất {ps.get('max_consecutive_losses')} lệnh." if ps.get("max_consecutive_losses") is not None else None, risk or None)
+    put("calmar", f"Calmar {_n(m.get('calmar'))}: CAGR {_n(m.get('cagr_pct'))}% trên MDD {_n(m.get('mdd_pct'))}%." if _n(m.get("calmar")) else None)
+    put("trades", f"{ps.get('closed_trades', m.get('trades'))} lệnh đã đóng, {sa.get('open_trades', 0)} đang mở; {sa.get('long_trades', 0)} long / {sa.get('short_trades', 0)} short."
+        if m.get("trades") is not None else None)
+    put("win_rate_trades", f"{ps.get('winning_trades')} thắng / {ps.get('losing_trades')} thua trên {ps.get('closed_trades')} lệnh đóng ({_n(m.get('win_rate_trades'), 1)}%)."
+        if ps.get("winning_trades") is not None and _n(m.get("win_rate_trades")) else None)
+    put("profit_factor_trades", f"Profit factor {_n(m.get('profit_factor_trades'), 3)}: lãi TB {_n(ps.get('avg_win'))} USD mỗi lệnh thắng, lỗ TB {_n(ps.get('avg_loss'))} USD mỗi lệnh thua (đã tính phí)."
+        if _n(m.get("profit_factor_trades")) and _n(ps.get("avg_win")) else None)
+    put("fees_usd", f"Phí {_n(m.get('fees_usd'))} USD = {_n(ps.get('fees_pct_of_capital'))}% vốn đầu." if _n(ps.get("fees_pct_of_capital")) and _n(m.get("fees_usd")) else None)
+
+    notes: Dict[str, Any] = {"metrics": mm}
+
+    def put_s(k: str, *p: Optional[str]) -> None:
+        txt = " ".join(x for x in p if x)
+        if txt:
+            notes[k] = txt
+
+    # 1. Kết quả tổng: lợi suất, sụt giảm, Sharpe, số lệnh, tỉ lệ thắng của CHÍNH lần chạy + quy tắc vào/thoát đã biên dịch
+    if _n(m.get("ret_pct")) and _n(m.get("mdd_pct")):
+        wr = f", thắng {_n(m.get('win_rate_trades'), 1)}% số lệnh" if _n(m.get("win_rate_trades")) else ""
+        put_s("summary", f"Vốn {_n(cap, 0)} → {_n(fin, 0)} USD ({_n(m.get('ret_pct'))}%), sụt giảm sâu nhất {_n(m.get('mdd_pct'))}%, Sharpe {_n(m.get('sharpe'))}, {m.get('trades')} lệnh{wr}.",
+              f"Quy tắc: {entry}." if entry else None, f"{exit_}." if exit_ else None, risk or None)
+    ser_eq, ser_t, ser_dd = ser.get("equity") or [], ser.get("times") or [], ser.get("drawdown") or []
+    if ser_eq and len(ser_eq) == len(ser_t) == len(ser_dd) and _n(m.get("mdd_pct")):
+        ip = int(np.argmax(ser_eq))
+        it = int(np.argmin(ser_dd))
+        put_s("equity", f"Vốn đạt đỉnh {_n(ser_eq[ip], 0)} USD ngày {_day(ser_t[ip])}; đáy sụt giảm {_n(m.get('mdd_pct'))}% ngày {_day(ser_t[it])}; "
+              f"cuối kỳ {_n(fin, 0)} USD, đang cách đỉnh {_n(abs(ser_dd[-1]) * 100)}%.")
+    ex = sa.get("exit_reasons") or {}
+    cnt = sa.get("exit_reason_counts") or {}
+    if ex:
+        parts = "; ".join(f"{k} {_n(v, 1)}% ({cnt.get(k)} lệnh)" for k, v in sorted(ex.items(), key=lambda kv: -kv[1]))
+        put_s("exits", f"Lý do thoát lệnh đo được: {parts}.", f"Quy tắc thoát: {exit_}." if exit_ else None, risk or None)
+    if _n(mc.get("strategy_total_return_pct")):
+        put_s("benchmark", f"Chiến lược {_n(mc.get('strategy_total_return_pct'))}% so với benchmark luôn long {_n(mc.get('market_total_return_pct'))}%;"
+              f" chênh CAGR {_n(mc.get('excess_cagr'))} điểm %/năm, beta {_n(mc.get('beta'), 3)}, tương quan {_n(mc.get('correlation'), 3)}.")
+    if _n(sa.get("avg_holding_days")):
+        put_s("holding", f"Giữ TB {_n(sa.get('avg_holding_days'))} ngày, trung vị {_n(sa.get('median_holding_days'))} ngày.")
+    if all(_n(ps.get(k)) for k in ("avg_win", "avg_loss", "payoff", "top5_profit_pct")):
+        put_s("pnl_structure", f"Lãi TB {_n(ps.get('avg_win'))} USD mỗi lệnh thắng, lỗ TB {_n(ps.get('avg_loss'))} USD mỗi lệnh thua (payoff {_n(ps.get('payoff'))}); "
+              f"5 lệnh lãi nhất chiếm {_n(ps.get('top5_profit_pct'), 1)}% tổng lãi gộp.")
+    yr = result.get("yearly") or []
+    ys = [r for r in yr if _n(r.get("cagr_pct")) and r.get("stage") in ("train", "test")]
+    if ys:
+        best, worst = max(ys, key=lambda r: r["cagr_pct"]), min(ys, key=lambda r: r["cagr_pct"])
+        npos = sum(1 for r in ys if r["cagr_pct"] > 0)
+        put_s("yearly", f"{npos}/{len(ys)} năm có lãi; năm tốt nhất {best['year']} ({best.get('stage')}): CAGR {_n(best['cagr_pct'])}%, MDD {_n(best.get('mdd_pct'))}%; "
+              f"năm kém nhất {worst['year']} ({worst.get('stage')}): CAGR {_n(worst['cagr_pct'])}%, MDD {_n(worst.get('mdd_pct'))}%.")
+    bs: List[Dict[str, Any]] = [r for r in (result.get("by_symbol") or []) if isinstance(r.get("pnl_usd"), (int, float))]
+    if bs:
+        hi, lo = max(bs, key=lambda r: r["pnl_usd"]), min(bs, key=lambda r: r["pnl_usd"])
+        pos = sum(1 for r in bs if r["pnl_usd"] > 0)
+        put_s("by_symbol", f"{pos}/{len(bs)} tài sản có lãi; tốt nhất {hi['symbol']} {_n(hi['pnl_usd'])} USD ({hi['trades']} lệnh), kém nhất {lo['symbol']} {_n(lo['pnl_usd'])} USD ({lo['trades']} lệnh).")
+    if ra.get("available"):
+        b, br = ra.get("bull") or {}, ra.get("bear") or {}
+        put_s("regime", f"Theo {ra.get('market')} so với SMA{ra.get('sma_days')}: pha bull {b.get('days')} ngày, PnL {_n(b.get('pnl_usd'))} USD ({b.get('trades_entered')} lệnh vào); "
+              f"pha bear {br.get('days')} ngày, PnL {_n(br.get('pnl_usd'))} USD ({br.get('trades_entered')} lệnh vào).")
+    if _n(tv.get("train_sharpe")):
+        split = _day(ser.get("stage_split"))
+        win = f"Train {cfg.get('start')} → {split}, test {split} → {cfg.get('end')}: " if split and cfg.get("start") and cfg.get("end") else ""
+        put_s("train_test", win + f"Sharpe train {_n(tv.get('train_sharpe'))} → test {_n(tv.get('test_sharpe'))}; CAGR train {_n(tv.get('train_cagr'))}% → test {_n(tv.get('test_cagr'))}%; "
+              f"MDD train {_n(tv.get('train_mdd'))}% → test {_n(tv.get('test_mdd'))}%.")
+    order = [t["notes_key"] for t in NOTE_TOUR]       # khoá tour đứng đầu theo thứ tự tour; khoá chỉ-API theo sau
+    return {k: notes[k] for k in ["metrics"] + order + [x for x in notes if x != "metrics" and x not in order] if k in notes}

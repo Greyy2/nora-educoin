@@ -14,7 +14,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from backend.routes import alphas as alphas_router
+from backend.routes import alpha
 from backend.optimize.book import registry as strategy_doc, registry as user_alphas
 from backend.alpha.compile import compile_code
 
@@ -149,7 +149,7 @@ class ApiAlgo(SimpleAlgorithm):
     monkeypatch.setattr(user_alphas, "get_user_alphas_dir", lambda base=None: str(tmp_path / "alphas" / "user"))
 
     app = FastAPI()
-    app.include_router(alphas_router.router)
+    app.include_router(alpha.alphas_router)
     client = TestClient(app)
 
     # Đẩy hợp lệ
@@ -183,7 +183,9 @@ def test_beta_driven_id_is_single_source_in_backend_and_ui_has_no_checklist_logi
     items = {i["id"]: i for i in user_alphas.evaluate_checklist(res)["items"]}
     assert items["not_pure_beta"]["state"] == "fail" and items["not_pure_beta"]["passed"] is False and insights.BETA_DRIVEN_ID in items["not_pure_beta"]["required"]
     # giao diện chỉ hiển thị checklist của backend: không còn chuỗi id insight / phép tính tiêu chí trong modal lưu
-    src = os.path.join(os.path.dirname(__file__), "..", "frontend", "src", "components", "studio")
+    src = os.path.join(os.path.dirname(__file__), "..", "frontend", "src", "components", "alpha", "studio")
+    if not os.path.exists(src):
+        src = os.path.join(os.path.dirname(__file__), "..", "frontend", "src", "components", "studio")
     assert not os.path.exists(os.path.join(src, "PushToAlphaModal.jsx"))
     jsx = open(os.path.join(src, "SaveStrategyModal.jsx"), encoding="utf-8").read()
     assert insights.BETA_DRIVEN_ID not in jsx and not re.search(r"hasBetaDriven|testSharpe\s*>|mddPct\s*<|nTrades\s*>=", jsx)
@@ -288,7 +290,7 @@ def test_api_ignores_client_supplied_result_and_serves_stored_detail(tmp_path, m
     monkeypatch.setattr(batch, "status", lambda jid: {"status": "done", "result": res} if jid == job_id else None)
     monkeypatch.setattr(user_alphas, "get_user_alphas_dir", lambda base=None: str(tmp_path / "alphas" / "user"))
     app = FastAPI()
-    app.include_router(alphas_router.router)
+    app.include_router(alpha.alphas_router)
     client = TestClient(app)
     fake = {**res, "metrics": {"simulate": {"sharpe": 99.0}}}
     r = client.post("/api/studio/alphas/user", json={"job_id": job_id, "code": CODE_SAVE, "name": "A", "result": fake, "metrics": fake["metrics"]})

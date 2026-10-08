@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from backend.optimize.process import process as batch_jobs
-from backend.routes import jobs as batch_jobs_routes
+from backend.routes import process as batch_jobs_routes
 from backend.metrics.metrics import pnl_since_start
 
 router = APIRouter(prefix="/api/studio/live", tags=["live"])
@@ -52,6 +52,12 @@ def _sdir(venue: str, mode: str, book: str, engine: Optional[str] = None) -> str
     """Thư mục trạng thái (CHỈ đọc, không tạo; thư mục do đường ghi của bot tạo)."""
     from backend.crawl.store import live_dir
     return live_dir(venue, mode, book, _engine_for(venue, mode, book, engine))
+
+
+def _rel_dir(d: str) -> str:
+    """Thư mục trạng thái tính từ gốc dữ liệu (vd. live/testnet/okx_main)."""
+    from backend.crawl.store import data_home
+    return os.path.relpath(d, data_home())
 
 
 @router.post("/bot")
@@ -189,7 +195,7 @@ def bot_trades(mode: str = Query("paper", pattern="^(paper|demo|live)$"), venue:
     cur = float(cur) if isinstance(cur, (int, float)) and not isinstance(cur, bool) else summ["last"]
     equity_stats = {"bars": summ["bars"], "start": summ["start"], "equity": cur, "mdd_pct": summ["mdd_pct"], "mdd_note": summ["mdd_note"],
                     **pnl_since_start(summ["start"], cur)}
-    return {"venue": venue, "mode": mode, "book_kind": kind, "strategies": strategies, "symbols": symbols, "timeframe": tf,
+    return {"venue": venue, "mode": mode, "engine": _engine_for(venue, mode, book, engine), "dir": _rel_dir(d), "book_kind": kind, "strategies": strategies, "symbols": symbols, "timeframe": tf,
             "running": [j.get("id") for j in _running(venue, mode, book)],
             "equity": state.get("equity"), "equity_series": series, "equity_stats": equity_stats, "started": started,
             "halted": bool(state.get("halted")), "peak_equity": state.get("peak_equity"), "alerts": alerts, "exec": {"trades": (state.get("trades") or [])[-limit:], "positions": exec_pos},
@@ -199,8 +205,11 @@ def bot_trades(mode: str = Query("paper", pattern="^(paper|demo|live)$"), venue:
 @router.get("/compare")
 def bot_compare(mode: str = Query("demo", pattern="^(demo|live)$"), venue: str = Query("okx", pattern="^(okx|binance)$"),
                 book: str = Query("main", pattern="^(main|explore)$"), engine: Optional[str] = Query(None, pattern="^(legacy|unified)$")) -> Dict[str, Any]:
-    """Lệnh sàn (khớp thật) ghép với lệnh paper bóng cùng nến (engine): chênh giá vào/đóng (bps), % lãi lỗ, số tầng DCA, lệnh lệch."""
+    """Lệnh sàn (khớp thật) ghép với lệnh paper bóng cùng nến (engine): chênh giá vào/đóng (bps), % lãi lỗ, số tầng DCA, lệnh lệch.
+    engine=unified: đối soát cấp sự kiện (cùng logic /compare_events), vì bot unified không có paper.pkl để ghép theo lệnh."""
     import pickle
+    if _engine_for(venue, mode, book, engine) == "unified":
+        return bot_compare_events(mode=mode, venue=venue, book=book, engine="unified")
     from backend.live.live import load_paper_state
     from backend.metrics.trades import compare_trades
     d = _sdir(venue, mode, book, engine)
@@ -219,7 +228,7 @@ def bot_compare(mode: str = Query("demo", pattern="^(demo|live)$"), venue: str =
         tf = load_book(kind=state.get("book_kind") or book, mode="paper").get("timeframe")
     except (SystemExit, OSError, ValueError):
         pass
-    return {"venue": venue, "mode": mode, "book": book, "timeframe": tf, **compare_trades(state.get("trades") or [], paper, tf or "1h")}
+    return {"venue": venue, "mode": mode, "book": book, "engine": _engine_for(venue, mode, book, engine), "dir": _rel_dir(d), "timeframe": tf, **compare_trades(state.get("trades") or [], paper, tf or "1h")}
 
 
 def read_event_rows(path: str):
@@ -258,5 +267,7 @@ def bot_compare_events(mode: str = Query("demo", pattern="^(demo|live)$"), venue
         tf = load_book(kind=book, mode="paper").get("timeframe")
     except (SystemExit, OSError, ValueError):
         pass
-    return {"venue": venue, "mode": mode, "book": book, "engine": _engine_for(venue, mode, book, engine), "timeframe": tf, "n_exec": len(ex), "n_sim": len(sm),
+    return {"venue": venue, "mode": mode, "book": book, "engine": _engine_for(venue, mode, book, engine), "dir": _rel_dir(d), "timeframe": tf, "n_exec": len(ex), "n_sim": len(sm),
             **compare_events(ex, sm, tf or "1h", exec_equity=eq_ex or None, sim_equity=eq_sm or None)}
+
+ROUTERS = [router]

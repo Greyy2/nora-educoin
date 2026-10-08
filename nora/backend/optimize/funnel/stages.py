@@ -21,13 +21,12 @@ import numpy as np
 from backend.optimize.funnel.storage import atomic_write_json, FLAT_KEYS as DIST_KEYS, RunStore, StageResult
 from backend.optimize.process.process import graceful_sigterm, Progress
 from backend.optimize.search import evaluate as bt
-from backend.optimize.search.evaluate import _ts as _ms, SharedExporter
+from backend.optimize.search.evaluate import SharedExporter
 from backend.optimize.search.generate import alpha_id_of, count_params, iter_params, iter_params_factored, regime_variants, space_for, validate_alpha
-from backend.metrics.charts import iso_date
 from backend.metrics.trades import num_or_none
 from backend.crawl.store import as_list, options, read_json, write_job_result
 from backend.carlo import carlo
-from backend.core.params import BASE_RISK_PER_TRADE_PCT, DAY_MS as DAY
+from backend.core.params import BASE_RISK_PER_TRADE_PCT, DAY_MS as DAY, date_ms, iso_date
 from backend.wfa import wfa as wfa_mod
 
 
@@ -56,6 +55,7 @@ STAGE_LABELS: Dict[str, str] = {
     "S3_wfa": "Walk-forward (dev2) + lân cận / PBO", "S4_montecarlo": "Monte Carlo + DSR (kết luận)", "S5_sizing": "Khối lượng sống sót",
     "S6_holdout": "Holdout (chấm một lần)", "FINAL": "Đủ điều kiện testnet",
 }
+TRADE_STAGES: Tuple[str, ...] = ("S1_backtest", "S3_wfa", "S5_sizing", "S6_holdout")   # tầng LƯU lệnh vào kho (storage.write_trades) — thứ tự tầng; route /trades + meta đọc từ đây
 NEIGHBOUR_STAGE = "S2_neighbour"   # kết quả backtest của điểm lân cận chưa có trong S1 (bảng stage_metrics, không phải tầng của phễu)
 
 # ── Dữ liệu / cửa sổ ────────────────────────────────────────────────────────
@@ -282,7 +282,7 @@ def compute_windows(symbols: List[str], override: Optional[Dict[str, str]] = Non
     for k, v in (override or {}).items():
         if k not in w:
             raise ValueError(f"windows: khoá lạ {k!r}; có: {sorted(w)}")
-        w[k] = _ms(v)
+        w[k] = date_ms(v)
     if not (w["start"] < w["dev1_end"] < w["dev2_end"] < w["end"]):
         raise ValueError("windows: phải có start < dev1_end < dev2_end < end")
     return w
@@ -1325,204 +1325,6 @@ def _log_stage(ctx: Ctx, stage: str, c: Dict[str, Any], wall: float) -> None:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Đưa alpha FINAL vào kho alpha (data/alpha/registry.json) kèm hệ số s và bằng chứng của phễu + cấu hình testnet.
-#
-# KHÔNG đổi định dạng registry: alpha ghi cùng các khoá như backend/optimize/book/registry.build_registry (alpha_id, strategy, family, side, symbol, market,
-# position, signal_params, flows, evidence, data ...) cộng MỘT khoá mới `funnel` chứa bằng chứng. Alpha của phễu chạy trên CẢ vũ trụ (danh mục) nên
-# `symbol` = "PORTFOLIO"; cấu hình testnet là cấu hình danh mục một chiến lược (cùng định dạng testnet/book.json: book_export.testnet_book_config).
-# Ghi lại cùng alpha_id (alpha đã đưa vào trước đó) = thay thế mục cũ (idempotent).
-# ══════════════════════════════════════════════════════════════════════════
-
-def registry_alpha_id(strategy: str, alpha_id: str) -> str:
-    return f"funnel__{strategy}__{alpha_id}"
-
-
-def promote_alpha(run_dir: str, alpha_id: str, alphas_dir: str, note: Optional[str] = None) -> Dict[str, Any]:
-    """-> {"registry_path", "alpha_id", "registry_alpha_id", "final_scale", "testnet_config"}. ValueError nếu alpha chưa FINAL."""
-    from backend.core.params import RISK, materialize
-    from backend.optimize.book.build import BY_ID, UNIVERSE
-    from backend.optimize.book.registry import testnet_book_config
-    from backend.optimize.book.registry import build_registry
-    store = RunStore(run_dir, read_only=True)
-    try:
-        alpha = store.get_alpha(alpha_id)
-        run = store.read_run()
-        stages = store.alpha_metrics(alpha_id)
-        mc = store.read_mc(alpha_id)
-    finally:
-        store.close()
-    if alpha is None:
-        raise KeyError(alpha_id)
-    if alpha["stage_reached"] != "FINAL" or alpha["rejected_stage"] or alpha["final_scale"] is None:
-        raise ValueError(f"alpha chưa đạt FINAL (dừng ở {alpha['stage_reached']}, loại: {alpha['reject_code']})")
-    s = float(alpha["final_scale"])
-    rpt = risk_for_scale(s)
-    cand = BY_ID[alpha["strategy"]]
-    from backend.optimize.search.generate import split_regime
-    params, rmode = split_regime(alpha["params"])
-    regime = False
-    if rmode == "learn":   # bảng regime của lần chạy holdout (học trên dữ liệu trước holdout)
-        from backend.regime.regime import NAMES
-        blocked = ((stages.get("S6_holdout") or {}).get("regime_blocked")) or []
-        regime = {"allowed": [r for r in NAMES if r not in blocked], "fuse": False, "blocked": blocked} if blocked else False
-    st = materialize(cand, params, regime=regime, risk_per_trade_pct=rpt, stop_fill="level")
-    cfg = run.get("config", {})
-    reg_id = registry_alpha_id(alpha["strategy"], alpha_id)
-    funnel = {
-        "run_id": run.get("run_id"), "alpha_id": alpha_id, "final_scale": s, "risk_per_trade_pct": rpt, "params": alpha["params"],
-        "universe": cfg.get("symbols"), "windows": cfg.get("windows"), "data_sha256": cfg.get("data_sha256"), "commit": cfg.get("commit"),
-        "thresholds": cfg.get("thresholds"), "stage_metrics": stages,
-        "monte_carlo": {"summary": ((mc or {}).get("mc") or {}).get("summary"), "gate": ((mc or {}).get("mc") or {}).get("gate"),
-                        "scale_search": (mc or {}).get("scale_search"), "verified": (mc or {}).get("verified")},
-        "promoted_at": int(time.time() * 1000), "note": note,
-    }
-    entry = {
-        "alpha_id": reg_id, "strategy": alpha["strategy"], "family": cand["family"], "side": cand["side"], "symbol": "PORTFOLIO",
-        "data_symbol": None, "price_source": None, "market": "perp", "position": st["position"], "signal_params": st["signal_params"],
-        **({"regime": st["regime"]} if st.get("regime") else {}),
-        "flows": [{"id": alpha["strategy"], "name": f"{cand['side']} {alpha['strategy']}", "type": cand["side"],
-                   "ast": {"type": cand["side"], "match": [{"condition": st["tree"]}], "stop": []}}],
-        "evidence": {"windows": cfg.get("windows"), "funnel": {k: stages.get(k) for k in ("S1_backtest", "S3_wfa", "S6_holdout")}},
-        "robustness": None, "data": {"sha256_1m": cfg.get("data_sha256"), "exchange": "binance_usdm"},
-        "funnel": funnel,
-    }
-    reg_path = os.path.join(alphas_dir, "registry.json")
-    try:
-        with open(reg_path, encoding="utf-8") as fh:
-            registry = json.load(fh)
-    except FileNotFoundError:
-        repo = os.path.dirname(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
-        registry = build_registry([], [], source=run_dir, repo_dir=repo)
-    alphas = [a for a in registry.get("alphas", []) if a.get("alpha_id") != reg_id]
-    alphas.append(entry)
-    registry["alphas"] = alphas
-    registry["generated_at"] = int(time.time() * 1000)
-    atomic_write_json(reg_path, registry, indent=2, clean=False, allow_nan=True)
-
-    book = {"universe": cfg.get("symbols") or [f"{u}@perp" for u in UNIVERSE], "risk_per_trade_pct": rpt, "risk": RISK,
-            "strategies": [{"id": cand["id"], "side": cand["side"], "flow": entry["flows"][0]["ast"], "position": st["position"]}],
-            "evidence": {"funnel": funnel}}
-    testnet_path = os.path.join(alphas_dir, "testnet", f"{reg_id}.json")
-    atomic_write_json(testnet_path, {**testnet_book_config(book), "funnel_alpha_id": alpha_id, "final_scale": s}, indent=2, clean=False, allow_nan=True)
-    return {"registry_path": reg_path, "alpha_id": alpha_id, "registry_alpha_id": reg_id, "final_scale": s, "testnet_config": testnet_path}
-
-
-# ══════════════════════════════════════════════════════════════════════════
-# Xuất bản SỔ chung vốn từ các alpha FINAL của một lượt phễu (job API `funnel_book`) -> data/alpha/book.json (+ testnet/book.json khi holdout đạt).
-#
-# Quy trình (bằng chứng do người dùng chạy trước, job chỉ đọc lại + chấm holdout MỘT lần):
-#   1. alpha_ids: alpha FINAL của lượt, MỖI chiến lược một alpha (sổ khoá theo id chiến lược). Khoá regime "learn" bị bỏ (bản off/learn trùng).
-#   2. wfa_job_id: job book_wfa (advanced, đúng các cấu hình này, cùng risk_per_trade_pct, cùng khung) — gate WFA danh mục phải QUA.
-#   3. Holdout (dev2_end -> end của lượt, khung của lượt, kill switch bật): khớp "level" và "extreme" -> gates.evaluate_s6.
-# Sổ ghi ra theo registry.write_book: status READY_FOR_TESTNET khi holdout đạt (kèm testnet/book.json), không thì HOLDOUT_FAILED.
-#
-# explore=True (sổ THỬ NGHIỆM cho demo, không phải sổ đã kiểm định): nhận alpha đã qua S1 (chưa cần FINAL), WFA tuỳ chọn và không bắt qua,
-# holdout chỉ để tham khảo -> data/alpha/explore/book.json, status EXPLORE_DEMO (bot chỉ chạy được ở paper/demo, không bao giờ live).
-# ══════════════════════════════════════════════════════════════════════════
-
-FUNNEL_BOOK_DEFAULTS = {"run_id": "", "alpha_ids": "", "risk_per_trade_pct": None, "wfa_job_id": "", "dry_run": False, "explore": False}
-EXPLORE_MIN_STAGE = 1      # sổ thử nghiệm: alpha phải qua S1 (stage_idx >= 1 và không bị loại ở S0/S1; lượt cũ: stage_idx 2 = đã qua S1)
-
-
-def _metrics(r: Dict[str, Any]) -> Dict[str, Any]:
-    return {k: r.get(k) for k in ("ret_pct", "mdd_pct", "sharpe", "trades", "win_rate", "profit_factor", "halted_at")}
-
-
-def build_report(run_dir: str, alpha_ids: List[str], rpt: float, wfa: Dict[str, Any], explore: bool = False) -> Dict[str, Any]:
-    from backend.optimize.search.evaluate import run
-    from backend.core.params import RISK
-    from backend.optimize.search.generate import split_regime
-    from backend.optimize.funnel.storage import RunStore
-    st = RunStore(run_dir, read_only=True)
-    try:
-        run_info = st.read_run()
-        items, cands, seen = [], {}, set()
-        for aid in alpha_ids:
-            al = st.get_alpha(aid)
-            if al is None:
-                raise ValueError(f"không có alpha {aid}")
-            final = al["stage_reached"] == "FINAL" and not al["rejected_stage"]
-            passed_s1 = int(al["stage_idx"]) >= EXPLORE_MIN_STAGE and not (al["rejected_stage"] in ("S0_generate", "S1_backtest"))
-            if not final and not (explore and passed_s1):
-                raise ValueError(f"{aid} chưa đạt {'S1' if explore else 'FINAL'} (dừng ở {al['stage_reached']})")
-            if al["strategy"] in seen:
-                raise ValueError(f"mỗi chiến lược một alpha: {al['strategy']} bị lặp")
-            seen.add(al["strategy"])
-            params, _ = split_regime(al["params"])
-            params = {k: v for k, v in params.items() if k != "risk_per_trade_pct"}
-            items.append({"id": al["strategy"], "params": params})
-            cands[al["strategy"]] = {"accepted": True, "funnel_alpha_id": aid, "final_scale": al["final_scale"], "validated": final,
-                                     "stage_reached": al["stage_reached"], "reject_code": al["reject_code"],
-                                     "stage_metrics": st.alpha_metrics(aid)}
-    finally:
-        st.close()
-    cfg, w = run_info["config"], run_info["windows_ms"]
-    tf = cfg.get("timeframe", "1m")
-    from backend.crawl.store import exchange
-    data_ex = cfg.get("data_exchange", "binance")           # run trước khi tách dữ liệu theo sàn = dữ liệu Binance
-    if data_ex != exchange():
-        raise ValueError(f"run phễu chạy trên dữ liệu {data_ex}, đang dùng {exchange()} (NORA_EXCHANGE) — holdout phải cùng dữ liệu")
-    if wfa or not explore:
-        wfa_items = sorted((s["id"], s["configs"][0]) for s in wfa.get("candidates") or [] if s.get("configs"))
-        want = sorted((i["id"], {k: v for k, v in i["params"].items()}) for i in items)
-        if [x[0] for x in wfa_items] != [x[0] for x in want] or any(
-                {k: b[1].get(k) for k in a[1]} != a[1] for a, b in zip(wfa_items, want)):   # WFA chỉ ghi khoá khác mặc định
-            raise ValueError("job WFA không chạy đúng các cấu hình của sổ")
-        if float(wfa.get("risk_per_trade_pct") or -1) != float(rpt):
-            raise ValueError(f"job WFA chạy rủi ro {wfa.get('risk_per_trade_pct')}% khác {rpt}%")
-        if not explore and not (wfa.get("gate") or {}).get("passed"):
-            raise ValueError("gate WFA danh mục của sổ chưa qua")
-    hold = {}
-    for sf in ("level", "extreme"):
-        r = run([(i["id"], i["params"]) for i in items], cfg["symbols"], int(w["dev2_end"]), int(w["end"]), rpt, sf, RISK, base_frame=tf)
-        hold[sf] = _metrics(r)
-    ok, code, msg = evaluate_s6(hold["level"], hold["extreme"])
-    return {
-        "timeframe": tf,
-        "data_exchange": data_ex,
-        "windows": windows_iso(w),
-        "gates": {"funnel_thresholds": cfg.get("thresholds"), "wfa_gate": wfa.get("gate"), "holdout": {"min_ret_pct": S6_MIN_RET_PCT,
-                                                                                                      "max_mdd_pct": S6_MAX_MDD_PCT}},
-        "book": {"strategies": items, "risk_per_trade_pct": float(rpt), "risk": RISK, "risk_scale_bootstrap": None,
-                 "dev2_base_risk": {"wfa_summary": {k: v for k, v in (wfa.get("summary") or {}).items() if k not in ("oos_daily", "oos_daily_dates")}},
-                 "explore": bool(explore),
-                 "final": {"holdout": hold, "holdout_reason": msg}, "holdout_pass": bool(ok)},
-        "candidates": cands,
-    }
-
-
-def run_funnel_book(params=None) -> Dict[str, Any]:
-    warnings.filterwarnings("ignore")
-    a = options(FUNNEL_BOOK_DEFAULTS, params)
-    from backend.optimize.process.workers import require_memory_limit
-    require_memory_limit("funnel_book")
-    from backend.optimize.process import process as batch_jobs
-    from backend.crawl.store import alpha_dir as alphas_dir
-    from backend.optimize.book.registry import write_book
-    from backend.optimize.book.registry import write_explore_book
-    run_dir = os.path.join(funnel_root(), a.run_id)
-    wfa = {}
-    if a.wfa_job_id or not a.explore:
-        job = batch_jobs.status(a.wfa_job_id)
-        if not job or job.get("kind") != "book_wfa" or job.get("status") != "done":
-            raise SystemExit(f"wfa_job_id {a.wfa_job_id} không phải job book_wfa đã xong")
-        wfa = job["result"]
-    rep = build_report(run_dir, as_list(a.alpha_ids), float(a.risk_per_trade_pct), wfa, explore=bool(a.explore))
-    h = rep["book"]["final"]["holdout"]
-    print(f"holdout level {h['level']['ret_pct']}% / extreme {h['extreme']['ret_pct']}% (MDD {h['extreme']['mdd_pct']}%) -> "
-          f"{'ĐẠT' if rep['book']['holdout_pass'] else 'TRƯỢT'}", flush=True)
-    out = {"report": rep, "written": []}
-    if not a.dry_run:
-        source = f"funnel {a.run_id} (wfa {a.wfa_job_id or '-'}) {time.strftime('%Y-%m-%d')}"
-        repo = os.path.abspath(os.path.join(alphas_dir(), "..", ".."))
-        out["written"] = (write_explore_book(rep, os.path.join(alphas_dir(), "explore"), source=source, repo_dir=repo) if a.explore
-                          else write_book(rep, alphas_dir(), source=source, repo_dir=repo))
-        print("ghi:", out["written"], flush=True)
-    write_job_result(out)
-    return out
-
-
-# ══════════════════════════════════════════════════════════════════════════
 # Tính lại danh sách lệnh S1 của một alpha (alpha bị loại ở S1 chỉ lưu thống kê). Tất định: cùng PortfolioEngine, cùng tham số/cửa sổ/dữ liệu
 # -> TRÙNG TỪNG BIT với lệnh một alpha qua S1 đã lưu (test_funnel kiểm). Kết quả được ghi đệm tại <run_dir>/recomputed/<alpha_id>.json.
 #
@@ -1557,9 +1359,8 @@ def recompute_s1(run_dir: str, alpha_id: str, shared_dir: Optional[str] = None) 
 
 def run_funnel_recompute(params=None) -> Dict[str, Any]:
     """Tính lại lệnh S1 của params["alpha_id"] trong lượt params["run_id"] -> ghi <run_dir>/recomputed/<alpha_id>.json."""
-    from backend.optimize.process.process import options
+    from backend.crawl.store import options, require_data_ok_or_exit
     from backend.optimize.process.workers import require_memory_limit
-    from backend.crawl.store import require_data_ok_or_exit
     a = options({"run_id": "", "alpha_id": ""}, params)
     if not a.run_id or not a.alpha_id:
         raise ValueError("cần run_id và alpha_id")

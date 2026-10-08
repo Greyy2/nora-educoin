@@ -4,17 +4,25 @@ hàm dựng cây điều kiện, và nạp file data/alpha/strategies/*.py (cach
 Chuyển từ core/signal.py + optimize/book/build.py (P9 alpha pass). Chỉ import core + alpha/contract; thư mục chiến lược tính từ vị trí mã (như NORA_DIR cũ).
 """
 import ast
+import copy
+import difflib
 import hashlib
+import io
+import json
 import os
 import re
-from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
+import time
+import tokenize
+from dataclasses import dataclass, field
+from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple
 
-from backend.alpha.contract import BASE_CLASS, MAX_CODE_CHARS, MAX_NODES, _position_attr_names, at, lifecycle_body, suggest
+from backend.alpha.contract import (BASE_CLASS, KIND_ALPHA, KIND_MODULE, MAX_CODE_CHARS, MAX_NODES, METHOD_OPS, _fmt_range, _is_doc, _position_attr_names, at, classify, has_lifecycle,
+                                    lifecycle_body, native_tree, split_suggest, suggest)
 from backend.core.indicator import FEATURES, OPS, REQUIRED, Spec, register_program
-from backend.core.params import DATA_COLUMNS, FRAME_MS, FRAMES as FRAME_TF, NORA_DEFAULTS
+from backend.core.params import BASE_POSITION, DATA_COLUMNS, FRAME_MS, FRAMES as FRAME_TF, NORA_DEFAULTS, VENUE_COSTS
 from backend.core.signal import (Bin, BoolConst, Call, Cmp, Const, Data, DslError, Inv, Logic, Neg, Node, Pick, Program, TupleVal, code_hash)
 
-NORA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))   # = optimize/process/process.NORA_DIR (alpha không import optimize)
+from backend.core.models import DATA_DIR  # noqa: E402  (DATA_DIR cố định theo mã, KHÔNG theo NORA_LOCAL_DATA_ROOT của test)
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -30,6 +38,14 @@ TIMEFRAME_ALIASES = {"1d": "24h", "d": "24h", "1day": "24h", "daily": "24h", "60
 _CMP = {ast.Gt: ">", ast.GtE: ">=", ast.Lt: "<", ast.LtE: "<=", ast.Eq: "==", ast.NotEq: "!="}
 _ARITH = {ast.Add: "+", ast.Sub: "-", ast.Mult: "*", ast.Div: "/", ast.Pow: "**"}
 _METHODS = {"fillna": "fillna", "shift": "shift", "abs": "abs"}
+_PANDAS_HINT = {      # phương thức kiểu pandas hay gặp -> chỉ báo/operator tương đương của DSL (gợi ý, không tự đổi)
+    "rolling": ("self.feat.rolling_mean", "self.feat.rolling_max", "self.feat.rolling_min", "self.feat.rolling_std", "self.feat.rolling_sum"),
+    "mean": ("self.feat.sma", "self.feat.rolling_mean"), "std": ("self.feat.rolling_std", "self.feat.stddev"),
+    "max": ("self.feat.rolling_max",), "min": ("self.feat.rolling_min",), "sum": ("self.feat.rolling_sum",),
+    "ewm": ("self.feat.ema",), "pct_change": ("self.op.pct_change", "self.feat.returns"), "diff": ("self.op.diff",),
+    "ffill": ("self.op.ffill",), "clip": ("self.op.clip",), "isna": ("self.op.isna",), "notna": ("self.op.notna",), "where": ("self.op.where",),
+}
+_LIB_NAMES = ("np", "pd", "numpy", "pandas", "math", "talib", "ta")
 _NOT_SUPPORTED_STMT = {
     ast.If: "`if` (DSL không có rẽ nhánh: dùng mặt nạ & | ~ hoặc self.op.where(cond, a, b))",
     ast.For: "vòng lặp `for` (DSL là biểu thức vector hoá trên cả chuỗi)",
@@ -58,7 +74,7 @@ def _const_literal(node, msg: str):
 class _Compiler:
     def __init__(self, code: str, tree: Optional[ast.Module] = None):
         self.code = code
-        self.tree = tree        # AST đã dựng sẵn (bộ chuyển đổi alpha/adapters); None = ast.parse(code)
+        self.tree = tree        # AST đã dựng sẵn (bộ chuyển đổi trong alpha/compile); None = ast.parse(code)
         self.consts: Dict[str, Any] = {}      # thuộc tính lớp hằng: tên -> số / chuỗi / list
         self.env: Dict[str, Any] = {}         # biến cục bộ: tên -> Node | TupleVal
         self.calls: List[Tuple[Node, float, int]] = []
@@ -84,6 +100,7 @@ class _Compiler:
             raise DslError(f"Lỗi cú pháp Python: {e.msg}", e.lineno, (e.offset or 1)) from None
         except (RecursionError, MemoryError, ValueError) as e:
             raise DslError(f"Không phân tích được mã: {type(e).__name__}") from None
+        tree = native_tree(tree)
         classes = []
         for node in tree.body:
             if isinstance(node, ast.ClassDef):
@@ -415,6 +432,10 @@ class _Compiler:
                          + (" (xem danh sách tại tài liệu P7 §3)" if label == "feat" else ""))
             return self._bind_call(spec, label == "feat", node, [self._expr(a) for a in node.args], list(node.args),
                                    [(k.arg, k.value, self._expr(k.value)) for k in node.keywords])
+        if isinstance(v, ast.Name) and v.id in _LIB_NAMES:
+            hint = _PANDAS_HINT.get(fn.attr) or tuple("self.feat." + n for n in difflib.get_close_matches(fn.attr.lower(), list(FEATURES), n=3, cutoff=0.6))
+            raise at(v, f"`{v.id}` không có sẵn trong DSL: dùng self.feat.* / self.op.* (không gọi {v.id}.{fn.attr}(...))."
+                     + (f" Gần đúng: {', '.join(hint)}." if hint else ""))
         if self._is_self(v) and fn.attr == "set_positions":
             raise at(node, "self.set_positions(...) là một câu lệnh, không dùng trong biểu thức")
         if self._is_self(v):
@@ -423,7 +444,9 @@ class _Compiler:
             base = self._expr(v)
             return self._bind_call(OPS[_METHODS[fn.attr]], False, node, [base] + [self._expr(a) for a in node.args],
                                    [v] + list(node.args), [(k.arg, k.value, self._expr(k.value)) for k in node.keywords])
-        raise at(fn, f"Phương thức .{fn.attr}() chưa được hỗ trợ (có: {', '.join('.' + m + '()' for m in _METHODS)})" + suggest(fn.attr, _METHODS))
+        hint = _PANDAS_HINT.get(fn.attr)
+        raise at(fn, f"Phương thức .{fn.attr}() chưa được hỗ trợ (có: {', '.join('.' + m + '()' for m in _METHODS)})"
+                 + (f" Gần đúng: {', '.join(hint)}." if hint else suggest(fn.attr, _METHODS)))
 
     def _bind_call(self, spec: Spec, is_feature: bool, node: ast.Call, args: List[Node], arg_nodes: list,
                    kwargs: List[Tuple[str, Any, Node]]):
@@ -497,7 +520,7 @@ class _Compiler:
 
 def compile_program(code: str, tree: Optional[ast.Module] = None) -> Program:
     """Biên dịch mã nguồn -> Program. DslError (có dòng/cột) nếu sai. Không đăng ký vào kernels (xem signal.compile_code).
-    `tree`: AST native đã dựng sẵn (bộ chuyển đổi alpha/adapters) thay cho ast.parse(code)."""
+    `tree`: AST native đã dựng sẵn (bộ chuyển đổi trong alpha/compile) thay cho ast.parse(code)."""
     if not isinstance(code, str):
         raise DslError("Mã chiến lược phải là chuỗi")
     try:
@@ -734,7 +757,7 @@ def explain_program(program: Program, position: Optional[Dict[str, Any]] = None)
 
     # 3. Cơ chế thực thi (engine Nora)
     execution: List[Dict[str, str]] = []
-    pos_cfg = {**NORA_DEFAULTS, "cooldown": 60, **(program.position_overrides or {}), **(position or {})}
+    pos_cfg = {**BASE_POSITION, **NORA_DEFAULTS, **(program.position_overrides or {}), **(position or {})}   # đúng như build_plan sẽ chạy
     risk_parts = []   # chỉ nhắc cơ chế thực sự bật (giá trị > 0) — đúng như build_plan sẽ chạy
     if float(pos_cfg.get("stop_loss_rate") or 0) > 0:
         risk_parts.append(f"Stop-Loss {_clean_num(pos_cfg['stop_loss_rate'])}×ATR tính từ giá trung bình")
@@ -749,13 +772,23 @@ def explain_program(program: Program, position: Optional[Dict[str, Any]] = None)
         risk_parts.append(f"nghỉ {int(pos_cfg['cooldown'])} phút sau khi thoát")
     risk_desc = ("Ngoài tín hiệu thoát: " + ", ".join(risk_parts) + ".") if risk_parts else "Chỉ thoát theo tín hiệu; không có Stop-Loss / Take-Profit."
     if pos_cfg.get("atr_frame"):
-        risk_desc += f" ATR đo trên khung {pos_cfg['atr_frame']}."
+        risk_desc += f" ATR đo trên khung {pos_cfg['atr_frame']}, chu kỳ {int(pos_cfg.get('atr_period') or 0)}."
+    taker, maker, slip = VENUE_COSTS[("cex", "perp" if pos_cfg.get("market") == "perp" else "spot")]
+    taker = float(pos_cfg["fee_rate"]) if pos_cfg.get("fee_rate") is not None else taker
+    maker = float(pos_cfg["maker_fee_rate"]) if pos_cfg.get("maker_fee_rate") is not None else maker
+    slip = float(pos_cfg["slippage_rate"]) if pos_cfg.get("slippage_rate") is not None else slip
+    sides = "Long" + (" và Short" if program.has_short else "") if program.has_long or program.has_short else "—"
+    if pos_cfg.get("sizing") == "risk":
+        size_desc = (f"Mỗi lệnh chịu rủi ro {_clean_num(pos_cfg.get('risk_per_trade_pct'))}% vốn tới mức cắt lỗ (định cỡ theo rủi ro), "
+                     f"danh nghĩa tối đa {_clean_num(pos_cfg.get('max_notional_pct'))}% vốn.")
+    else:
+        size_desc = f"Mỗi lệnh dùng {_clean_num(pos_cfg.get('order_size_pct'))}% vốn."
     execution = [
-        {"title": "Khớp lệnh", "desc": "Khớp ở giá mở cửa nến tiếp theo (Next Open) theo quy chuẩn của engine."},
-        {"title": "Thị trường & Đòn bẩy", "desc": "Hợp đồng phái sinh vĩnh cửu (Perpetual), hỗ trợ đòn bẩy và cả hai chiều Long/Short."},
-        {"title": "Phân bổ vốn", "desc": "Chia khối lượng theo ngân sách rủi ro (Risk-based sizing) từng lệnh."},
+        {"title": "Khớp lệnh", "desc": f"Khớp ở giá mở cửa nến tiếp theo sau khi nến tín hiệu {program.timeframe} đã đóng; lệnh dừng khớp theo '{pos_cfg.get('stop_fill')}'."},
+        {"title": "Thị trường & Đòn bẩy", "desc": f"{'Hợp đồng phái sinh vĩnh cửu (Perpetual)' if pos_cfg.get('market') == 'perp' else 'Thị trường spot'}, đòn bẩy trần {_clean_num(pos_cfg.get('leverage'))}x; chương trình này chỉ dùng chiều {sides}."},
+        {"title": "Phân bổ vốn", "desc": size_desc},
         {"title": "Quản trị rủi ro", "desc": risk_desc},
-        {"title": "Chi phí giao dịch", "desc": "Tính phí sàn theo mô hình Maker/Taker thực tế kèm mô phỏng trượt giá bảo thủ."},
+        {"title": "Chi phí giao dịch", "desc": f"Phí taker {_clean_num(taker * 100)}%, maker {_clean_num(maker * 100)}%, trượt giá {_clean_num(slip * 100)}% mỗi chiều."},
     ]
 
     # 4. Cảnh báo cấu trúc
@@ -799,7 +832,6 @@ def compile_code(code: str, register: bool = True) -> Program:
     try:
         prog = compile_program(code)
     except DslError as native_err:       # dạng ngoài hợp đồng native (hàm strategy(data) / JSON): bộ chuyển đổi -> cùng IR; không chuyển được -> lỗi gốc
-        from backend.alpha.adapters import program_via_adapter
         prog = program_via_adapter(code, native_err)
     if register:
         register_program(prog.code_hash, prog)
@@ -822,6 +854,411 @@ def explain_report(code: str, position: Optional[Dict[str, Any]] = None) -> Dict
     except DslError as e:
         return {"ok": False, "indicators": [], "rules": [], "execution": [], "warnings": [], "error": e.to_dict()}
     return {"ok": True, "error": None, **explain_program(prog, position=position)}
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# annotate_report — giải thích TỪNG DÒNG mã bằng tiếng Việt (trang /education; không AI). Nguồn duy nhất: AST + IR đã biên dịch (expr_to_vi)
+# + catalog của alpha/contract (doc_vi/read_vi/khoảng giá trị). Không có bảng câu chữ riêng: mọi mô tả chỉ ghép từ các nguồn trên.
+# ══════════════════════════════════════════════════════════════════════════
+
+class _TracedCompiler(_Compiler):
+    """_Compiler ghi lại, sau mỗi câu lệnh, bản chụp biến cục bộ và các lệnh set_positions vừa thêm (để chú thích dòng khớp IR)."""
+
+    def __init__(self, code: str, tree: Optional[ast.Module] = None):
+        super().__init__(code, tree)
+        self.trace: Dict[int, Tuple[Dict[str, Any], List[Tuple[Node, float, int]]]] = {}
+
+    def _stmt(self, st):
+        n0 = len(self.calls)
+        super()._stmt(st)
+        self.trace[id(st)] = (dict(self.env), list(self.calls[n0:]))
+
+
+def _src(node) -> str:
+    return ast.unparse(node)
+
+
+def _num(node) -> Optional[float]:
+    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)) and not isinstance(node.value, bool):
+        return float(node.value)
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd)):
+        v = _num(node.operand)
+        return None if v is None else (-v if isinstance(node.op, ast.USub) else v)
+    return None
+
+
+def _call_kind(call: ast.Call) -> Tuple[str, str]:
+    """('feat'|'op'|'method'|'p'|'frame'|'', tên) của một lời gọi."""
+    f = call.func
+    if isinstance(f, ast.Attribute):
+        if isinstance(f.value, ast.Attribute) and isinstance(f.value.value, ast.Name) and f.value.value.id == "self" and f.value.attr in ("feat", "op"):
+            return f.value.attr, f.attr
+        if isinstance(f.value, ast.Name) and f.value.id == "self" and f.attr == "frame":
+            return "frame", "frame"
+        if f.attr in METHOD_OPS:
+            return "method", f.attr
+    if isinstance(f, ast.Name) and f.id == "p":
+        return "p", "p"
+    return "", ""
+
+
+def _refs(node, local: Set[str]) -> List[str]:
+    out: List[str] = []
+    for n in ast.walk(node):
+        if isinstance(n, ast.Name) and n.id in local and n.id not in out:
+            out.append(n.id)
+    return out
+
+
+def _arg_text(row: dict, call: ast.Call) -> str:
+    """'timeperiod = 20 (hợp lệ [1, 5000], mặc định 30)' cho các đối số hằng số của lời gọi, theo thứ tự chữ ký catalog."""
+    parts: List[str] = []
+    args = row["args"]
+    bound = list(zip([a for a in args], call.args)) + [(next((a for a in args if a["name"] == kw.arg), None), kw.value) for kw in call.keywords]
+    for a, v in bound:
+        val = _num(v)
+        if a is None or val is None or a["type"] not in ("int", "float"):
+            continue
+        rng = _fmt_range(a)
+        parts.append(f"{a['name']} = {val:g}" + (f" (hợp lệ {rng}, mặc định {a['default']:g})" if rng and a["default"] is not None else (f" (hợp lệ {rng})" if rng else "")))
+    return "; ".join(parts)
+
+
+def _catalog_docs(value, idx: Dict[str, Any]) -> List[str]:
+    """Mô tả catalog (doc_vi + read_vi + tham số) của mọi self.feat.* / self.op.* / .shift… trong biểu thức, không lặp."""
+    out: List[str] = []
+    seen: Set[Tuple[str, str]] = set()
+    for n in ast.walk(value):
+        if not isinstance(n, ast.Call):
+            continue
+        k, name = _call_kind(n)
+        row = idx.get({"feat": "feat", "op": "op", "method": "method"}.get(k, ""), {}).get(name) if k in ("feat", "op", "method") else None
+        if row is None or (k, name) in seen:
+            continue
+        seen.add((k, name))
+        txt = row["doc_vi"].rstrip(".") + "."
+        if k != "method":
+            at_ = _arg_text(row, n)
+            if at_:
+                txt += f" Tham số: {at_}."
+            if row.get("read_vi"):
+                txt += f" Cách đọc: {row['read_vi']}"
+        out.append(txt)
+    return out
+
+
+def _vi(ir_node, ast_node) -> str:
+    return expr_to_vi(ir_node) if ir_node is not None else _plain(ast_node)
+
+
+def _bool_node(n) -> bool:
+    return isinstance(n, (Cmp, Logic, Inv, BoolConst)) or (isinstance(n, Call) and not n.is_feature and n.kind == "bool")
+
+
+def _p_text(name: str, call: ast.Call) -> str:
+    """Mô tả khai báo tham số p('tên', mặc_định, lo=, hi=, label=, help=…) từ chính các đối số literal."""
+    kw = {k.arg: k.value for k in call.keywords}
+    default = call.args[1] if len(call.args) > 1 else kw.get("default")
+    lit = lambda k: kw[k].value if k in kw and isinstance(kw[k], ast.Constant) else None   # noqa: E731
+    head = f"Tham số `{name}`" + (f" ({lit('label')})" if lit("label") else "") + (f", mặc định {_src(default)}" if default is not None else "")
+    if "lo" in kw and "hi" in kw:
+        head += f", khoảng tối ưu [{_src(kw['lo'])}, {_src(kw['hi'])}]" + (f" {lit('unit')}" if lit("unit") else "")
+    elif "choices" in kw:
+        head += f", lựa chọn {_src(kw['choices'])}"
+    return head + "." + (f" {lit('help')}" if lit("help") else "")
+
+
+class _Plain(ast.NodeTransformer):
+    """Bỏ tiền tố self./self.feat./self.op. và thay p('tên', …) bằng `tên` để câu mô tả (loại module) gọn, đọc được."""
+
+    def visit_Call(self, node):
+        k, _ = _call_kind(node)
+        if k == "p" and node.args and isinstance(node.args[0], ast.Constant):
+            return ast.copy_location(ast.Name(id=str(node.args[0].value), ctx=ast.Load()), node)
+        return self.generic_visit(node)
+
+    def visit_Attribute(self, node):
+        if isinstance(node.value, ast.Attribute) and isinstance(node.value.value, ast.Name) and node.value.value.id == "self" and node.value.attr in ("feat", "op"):
+            return ast.copy_location(ast.Name(id=node.attr, ctx=ast.Load()), node)
+        return self.generic_visit(node)
+
+
+def _plain(node) -> str:
+    import copy as _copy
+    return ast.unparse(_Plain().visit(_copy.deepcopy(node)))
+
+
+ANNOTATION_MARK = "# ▸ "      # tiền tố cố định của MỌI dòng chú thích tự sinh (để gỡ / sinh lại bất biến)
+_ANNOTATION_WIDTH = 76
+
+
+def strip_annotations(code: str) -> str:
+    """Gỡ mọi dòng chú thích tự sinh (`# ▸ …`); không đụng chú thích của tác giả."""
+    return "\n".join(ln for ln in code.split("\n") if not ln.lstrip().startswith(ANNOTATION_MARK.rstrip()))
+
+
+_SHORT_MAX = 70      # tối đa ký tự cho nội dung một dòng chú thích `# ▸` (chú thích dài nằm ở hover / trợ lý, không nằm trong code)
+_NUM_RE = re.compile(r"-?\d+(?:\.\d+)?")
+_CALL_RE = re.compile(r"\b([A-Z][A-Z0-9_]*)\(([^()]*)\)")
+
+
+def _cap(text: str) -> str:
+    text = " ".join(text.replace("`", "").split())
+    return text if len(text) <= _SHORT_MAX else text[: _SHORT_MAX - 1].rstrip(" ,;(+-*/") + "…"
+
+
+def _short_expr(text: str) -> str:
+    """Rút gọn câu mô tả biểu thức: `EMA(giá đóng cửa, 20)` -> `EMA 20`."""
+    for _ in range(3):
+        text = _CALL_RE.sub(lambda m: m.group(1) + next((f" {a}" for a in (x.strip() for x in m.group(2).split(",")) if _NUM_RE.fullmatch(a)), ""), text)
+    return text
+
+
+def _short_feat(what: str, label: str) -> str:
+    """`EMA(giá đóng cửa, 20)` + nhãn catalog -> `EMA 20 phiên của giá đóng cửa (đường trung bình động hàm mũ)`."""
+    m = re.fullmatch(r"([A-Z][A-Z0-9_]*)\((.*)\)", what)
+    if not m:
+        return _cap(_short_expr(what))
+    args = [a.strip() for a in m.group(2).split(", ")]
+    nums = [a for a in args if _NUM_RE.fullmatch(a)]
+    series = [a for a in args if not _NUM_RE.fullmatch(a)]
+    head = m.group(1) + (f" {nums[0]} phiên" if nums else "")
+    if len(series) == 1 and "(" not in series[0]:
+        head += f" của {series[0]}"
+    full = f"{head} ({label[:1].lower() + label[1:]})" if label else head
+    return _cap(full if len(full) <= _SHORT_MAX else head)
+
+
+def _comment_block(shorts: Dict[int, Tuple[str, str]], code: str) -> str:
+    """Chèn MỘT dòng chú thích ngắn `# ▸ …` (<= ~70 ký tự) NGAY TRÊN dòng được giải thích (cùng thụt lề). Khối lặp (tham số, vị thế / rủi ro) chỉ chú thích một lần.
+    Chỉ thêm dòng chú thích: IR không đổi. Giải thích đầy đủ (công thức, khoảng hợp lệ, cách đọc) nằm ở `lines[].text_vi` (hover), không nằm trong code."""
+    src = code.split("\n")
+    seen: Set[str] = set()
+    out: List[str] = []
+    for i, text in enumerate(src, 1):
+        sh = shorts.get(i)
+        if sh and text.strip() and not (sh[1] and sh[1] in seen):
+            if sh[1]:
+                seen.add(sh[1])
+            out.append(f"{text[: len(text) - len(text.lstrip())]}{ANNOTATION_MARK}{sh[0]}")
+        out.append(text)
+    return "\n".join(out)
+
+
+def annotate_report(code: str, as_comments: bool = False) -> Dict[str, Any]:
+    """POST /api/studio/strategies/annotate: {lines:[{line,end_line,kind,text_vi,refs}], verdict, style, kind, normalized_code, diagnostics}.
+    Với verdict ADAPT, `lines` đánh số theo `normalized_code` (dạng class tương đương), vì mã gốc không phải class.
+    as_comments=True: gỡ chú thích `# ▸` cũ rồi trả thêm `annotated_code` (cùng mã, thêm dòng `# ▸` NGẮN (<= ~70 ký tự, tiếng Việt thường) trên dòng đáng chú ý; None nếu ADAPT/lỗi cú pháp)
+    — `lines` khi đó đánh số theo mã đã gỡ chú thích cũ."""
+    if as_comments:
+        code = strip_annotations(code)
+    out = _annotate_lines(code)
+    shorts = out.pop("_short", {})
+    if as_comments:
+        out["annotated_code"] = None if out.get("normalized_code") or not out["lines"] else _comment_block(shorts, code)
+    return out
+
+
+def _annotate_lines(code: str) -> Dict[str, Any]:
+    from backend.alpha.contract import _index, catalog
+    res = analyze(code)
+    src = res["normalized_code"] if res.get("normalized_code") else code
+    out = {"verdict": res["verdict"], "style": res["style"], "kind": res["kind"], "normalized_code": res.get("normalized_code"),
+           "diagnostics": res["diagnostics"], "lines": []}
+    try:
+        tree = ast.parse(src)
+    except SyntaxError:
+        return out
+    idx, cat = _index(), catalog()
+    pos_rows = {r["name"]: r for r in cat["position_keys"]}
+    tc: Optional[_TracedCompiler] = None
+    if res["kind"] == KIND_ALPHA and res["verdict"] != "REJECT":
+        try:
+            tc = _TracedCompiler(src, tree)
+            tc.compile()
+        except DslError:
+            tc = None
+    attrs = idx["alpha" if res["kind"] == KIND_ALPHA else "module"]
+    shorts: Dict[int, Tuple[str, str]] = {}      # dòng -> (chú thích ngắn `# ▸`, khoá "một lần")
+    lines: List[Dict[str, Any]] = []
+    local: Set[str] = set()
+
+    def add(st, kind: str, text: str, refs: Optional[List[str]] = None, header_only: bool = False, short: str = "", once: str = ""):
+        end = st.lineno if header_only else (getattr(st, "end_lineno", None) or st.lineno)
+        if short:
+            shorts[st.lineno] = (_cap(short), once)
+        lines.append({"line": st.lineno, "end_line": end, "kind": kind, "text_vi": text, "refs": refs or []})
+
+    def one_value(name: str, value, ir_node) -> Tuple[str, str, List[str], str, str]:
+        """(kind, mô tả, tham chiếu, chú thích ngắn, khoá một-lần) cho `name = value`."""
+        refs = _refs(value, local)
+        if isinstance(value, ast.Attribute) and value.attr.startswith("pv_") and value.attr in idx["data"]:
+            row = idx["data"][value.attr]
+            return "data", f"`{name}` = {row['doc_vi'].lower()} của từng nến (cột {row['column']}).", refs, "", ""
+        if isinstance(value, ast.Call):
+            k, fn = _call_kind(value)
+            if k == "p":
+                return "param", _p_text(name, value), refs, "Tham số: đổi số này rồi chạy lại", "params"
+            if k == "frame":
+                return "data", f"`{name}` chọn khung nến ({_plain(value.args[0]) if value.args else ''}) để lấy dữ liệu và tính chỉ báo; các chuỗi dưới đây lấy từ khung này.", refs, "", ""
+        num = _num(value)
+        if num is not None:
+            return "param", f"Hằng số `{name}` = {num:g}: giá trị cố định dùng làm hệ số hoặc ngưỡng ở các dòng sau.", refs, "Hằng số: đổi số này rồi chạy lại", "consts"
+        docs = _catalog_docs(value, idx)
+        what = _vi(ir_node, value)
+        k0 = _call_kind(value)[0] if isinstance(value, ast.Call) else ""
+        short = ""
+        if k0 == "feat":
+            kind, head = "feature", f"`{name}` = {what}."
+            short = _short_feat(what, (idx["feat"].get(value.func.attr) or {}).get("label_vi", ""))
+        elif ir_node is not None and _bool_node(ir_node) or isinstance(value, (ast.Compare, ast.BoolOp)) or (
+                isinstance(value, ast.BinOp) and isinstance(value.op, (ast.BitAnd, ast.BitOr))):
+            kind, head = "op", f"Điều kiện `{name}` đúng khi {what}."
+        elif k0 == "op" or (isinstance(value, ast.Call) and k0):
+            kind, head = "op", f"`{name}` = {what}."
+        else:
+            kind, head = "feature", f"Đại lượng `{name}` = {what}."
+            if isinstance(value, ast.BinOp) and kind == "feature":
+                short = f"{name} = {_plain(value).replace('self.', '')}"
+        return kind, " ".join([head] + docs), refs, short, ""
+
+    def assign(st, env: Optional[Dict[str, Any]]):
+        target, value = (st.targets[0], st.value) if isinstance(st, ast.Assign) else (st.target, st.value)
+        env = env or {}
+        if isinstance(target, ast.Name):
+            kind, txt, refs, sh, once = one_value(target.id, value, env.get(target.id))
+            local.add(target.id)
+            return add(st, kind, txt, refs, short=sh, once=once)
+        names = [e.id for e in target.elts] if isinstance(target, (ast.Tuple, ast.List)) and all(isinstance(e, ast.Name) for e in target.elts) else []
+        if isinstance(value, (ast.Tuple, ast.List)) and len(value.elts) == len(names):
+            parts = [one_value(n, v, env.get(n)) for n, v in zip(names, value.elts)]
+            local.update(names)
+            return add(st, parts[0][0] if len({p[0] for p in parts}) == 1 else "other", " ".join(p[1] for p in parts), sorted({r for p in parts for r in p[2]}),
+                       short=parts[0][3], once=parts[0][4])
+        docs = _catalog_docs(value, idx)
+        outs = "; ".join(f"`{n}` = {_vi(env.get(n), value)}" for n in names)
+        local.update(names)
+        what = next((_vi(env.get(n), value) for n in names if env.get(n) is not None), "")
+        fn = value.func.attr if isinstance(value, ast.Call) and isinstance(value.func, ast.Attribute) else ""
+        return add(st, "feature", f"Giải nén nhiều đầu ra: {outs or _src(target)}. " + " ".join(docs), _refs(value, local),
+                   short=_short_feat(re.sub(r"^(Dải \w+|Đường \w+|Histogram) ", "", what), (idx["feat"].get(fn) or {}).get("label_vi", "")) if what else "")
+
+    def rule(st, call: ast.Call, ir_calls):
+        pos = call.keywords[0].value if call.keywords and call.keywords[0].arg == "position" else (call.args[1] if len(call.args) > 1 else None)
+        lvl = _num(pos) if pos is not None else None
+        if ir_calls:
+            mask_ir, lvl, _ = ir_calls[0]
+        else:
+            mask_ir = None
+        cond = _vi(mask_ir, call.args[0]) if call.args else "điều kiện"
+        refs = _refs(call, local)
+        ev = " (tín hiệu sự kiện: chỉ đúng ở nến xảy ra phép cắt)" if mask_ir is not None and _has_event_trigger(mask_ir) else ""
+        cs = re.sub(r"\s*\(tín hiệu sự kiện[^)]*\)", "", _short_expr(cond))
+        cs = re.sub(r"lớn hơn(?! hoặc)", "trên", re.sub(r"nhỏ hơn(?! hoặc)", "dưới", cs.replace("giá đóng cửa", "giá")))
+        arg0 = call.args[0] if call.args else None
+        by_name = f"{_src(arg0)} đúng" if isinstance(arg0, ast.Name) else "điều kiện đúng"
+
+        def sr(prefix: str) -> str:
+            t = f"{prefix} khi {cs}"
+            return t if len(t) <= _SHORT_MAX else f"{prefix} khi {by_name}"
+        later = " Nếu nhiều lệnh set_positions cùng đúng ở một nến, lệnh viết sau ghi đè lệnh trước."
+        if lvl is None:
+            return add(st, "rule_entry", f"Khi {cond}{ev} thì đặt vị thế theo `{_src(pos) if pos is not None else '?'}`." + later, refs, short=sr("Đặt vị thế"))
+        if lvl == 0:
+            return add(st, "rule_exit", f"Khi {cond}{ev} thì thoát vị thế (đưa về 0)." + later, refs, short=sr("Thoát vị thế"))
+        side = "LONG" if lvl > 0 else "SHORT"
+        size = "100% " if abs(lvl) == 1 else ""
+        note = "" if abs(lvl) == 1 else f" (mức {lvl:g}: engine chỉ dùng dấu để chọn chiều, độ lớn lệnh do quản trị rủi ro quyết định)"
+        return add(st, "rule_entry", f"Khi {cond}{ev} thì nắm giữ {size}vị thế {side}{note}." + later, refs,
+                   short=sr(f"{'Mua' if lvl > 0 else 'Bán'} ({side}{' 100%' if abs(lvl) == 1 else ''})"))
+
+    def stmt(st, trace):
+        env, ir_calls = trace.get(id(st), (None, [])) if trace else (None, [])
+        if isinstance(st, ast.Expr) and isinstance(st.value, ast.Constant) and isinstance(st.value.value, str):
+            return add(st, "comment", "Chú thích (docstring) của tác giả: không ảnh hưởng đến kết quả chạy.")
+        if isinstance(st, ast.Expr) and isinstance(st.value, ast.Call):
+            c = st.value
+            if isinstance(c.func, ast.Attribute) and isinstance(c.func.value, ast.Name) and c.func.value.id == "self":
+                if c.func.attr == "set_positions":
+                    return rule(st, c, ir_calls)
+                if c.func.attr == "set_dca_gate":
+                    return add(st, "rule_entry", f"Cổng dồn tầng DCA: chỉ cho phép dồn thêm khi {_vi(None, c.args[0]) if c.args else 'điều kiện'}. "
+                               + idx["life"]["set_dca_gate"]["doc_vi"], _refs(c, local))
+        if isinstance(st, ast.Expr) and isinstance(st.value, ast.Call) and _call_kind(st.value)[0] == "p" and st.value.args \
+                and isinstance(st.value.args[0], ast.Constant) and st.value.args[0].value in pos_rows:
+            pk, nm = pos_rows[st.value.args[0].value], st.value.args[0].value
+            rng = f" Khoảng hợp lệ [{pk['lo']:g}, {pk['hi']:g}]{(' ' + pk['unit']) if pk['unit'] else ''}." if pk["lo"] is not None and pk["hi"] is not None else ""
+            dflt = f", mặc định {_src(st.value.args[1])}" if len(st.value.args) > 1 else ""
+            return add(st, "position", f"Khoá vị thế `{nm}`{dflt}: {pk['label_vi']}.{(' ' + pk['doc_vi']) if pk['doc_vi'] else ''}{rng}",
+                       short="Vị thế và rủi ro: đổi số này rồi chạy lại", once="pos")
+        if isinstance(st, ast.Pass):
+            return add(st, "other", "Câu lệnh `pass`: không làm gì.")
+        if isinstance(st, (ast.Assign, ast.AnnAssign)) and (isinstance(st, ast.AnnAssign) or len(st.targets) == 1) and st.value is not None:
+            return assign(st, env)
+        return add(st, "other", f"Câu lệnh Python `{_src(st).splitlines()[0][:80]}`.")
+
+    def class_attr(st):
+        t = st.targets[0] if isinstance(st, ast.Assign) else st.target
+        if not isinstance(t, ast.Name):
+            return add(st, "attr", f"Thuộc tính lớp `{_src(t)}`.")
+        name, val = t.id, st.value
+        pk = pos_rows.get(name)
+        if name == "position" and isinstance(val, ast.Dict):
+            keys = [k.value for k in val.keys if isinstance(k, ast.Constant)]
+            det = "; ".join(f"{k}: {pos_rows[k]['label_vi']}" + (f" ({pos_rows[k]['doc_vi']})" if pos_rows[k]["doc_vi"] else "") for k in keys if k in pos_rows)
+            return add(st, "position", "Khoá vị thế mặc định của chân này" + (f": {det}." if det else "."), short="Vị thế và rủi ro của chiến lược", once="pos")
+        row = attrs.get(name)
+        if pk is not None:
+            extra = f" {pk['doc_vi']}" if pk["doc_vi"] else ""
+            rng = f" Khoảng hợp lệ [{pk['lo']:g}, {pk['hi']:g}]{(' ' + pk['unit']) if pk['unit'] else ''}." if pk["lo"] is not None and pk["hi"] is not None else ""
+            return add(st, "position", f"`{name} = {_src(val)}`: {pk['label_vi']}.{extra}{rng}", short="Vị thế và rủi ro: cắt lỗ, chốt lời, cỡ lệnh…", once="pos")
+        if row is not None:
+            return add(st, "attr", f"`{name} = {_src(val)}`: {row['doc_vi']}")
+        used = sorted({n.lineno for n in ast.walk(tree) if isinstance(n, ast.Attribute) and n.attr == name and isinstance(n.value, ast.Name) and n.value.id == "self"})
+        where = f"được dùng ở dòng {', '.join(map(str, used))} qua `self.{name}`" if used else "chưa được dòng nào dùng (self." + name + ")"
+        return add(st, "attr", f"Tham số của chiến lược `{name} = {_src(val)}`: {where}; đổi giá trị này rồi chạy lại để có kết quả mới.",
+                   short="Tham số: đổi số này rồi chạy lại", once="params")
+
+    def func(fn: ast.FunctionDef):
+        row = idx["life"].get(fn.name)
+        add(fn, "lifecycle", (f"`def {fn.name}(self)`: " + row["doc_vi"]) if row else f"Hàm `{fn.name}`.", header_only=True)
+        trace = tc.trace if tc is not None else None
+        for st in fn.body:
+            stmt(st, trace)
+
+    for node in tree.body:
+        if isinstance(node, ast.ClassDef):
+            add(node, "class", f"Khai báo chiến lược `{node.name}`: lớp kế thừa {BASE_CLASS}; engine đọc các thuộc tính và luật bên trong để chạy backtest.", header_only=True,
+                short="Chiến lược: engine đọc tham số và luật bên dưới để chạy")
+            for st in node.body:
+                if isinstance(st, ast.FunctionDef):
+                    func(st)
+                elif isinstance(st, (ast.Assign, ast.AnnAssign)):
+                    class_attr(st)
+                else:
+                    stmt(st, None)
+        elif isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "STRATEGY" for t in node.targets):
+            add(node, "attr", "Khai báo thông tin họ chiến lược `STRATEGY` (id, tên, loại, mô tả, ý tưởng); chỉ để hiển thị.")
+        elif isinstance(node, ast.FunctionDef):
+            func(node)
+        else:
+            stmt(node, None)
+    # chú thích `#` đứng riêng dòng
+    covered = {ln for r in lines for ln in range(r["line"], r["end_line"] + 1)}
+    try:
+        for tok in tokenize.generate_tokens(io.StringIO(src).readline):
+            if tok.type == tokenize.COMMENT and tok.start[0] not in covered:
+                lines.append({"line": tok.start[0], "end_line": tok.start[0], "kind": "comment",
+                              "text_vi": f"Ghi chú của tác giả: {tok.string.lstrip('#').strip()}", "refs": []})
+                covered.add(tok.start[0])
+    except (tokenize.TokenError, IndentationError):
+        pass
+    for i, text in enumerate(src.split("\n"), 1):      # dòng còn sót (đóng ngoặc, nối dòng…): phủ kín mọi dòng không trống
+        if text.strip() and i not in covered:
+            lines.append({"line": i, "end_line": i, "kind": "other", "text_vi": "Phần tiếp của câu lệnh phía trên.", "refs": []})
+    out["lines"] = sorted(lines, key=lambda r: (r["line"], r["end_line"]))
+    out["_short"] = shorts          # nội bộ: annotate_report lấy ra để dựng chú thích ngắn, KHÔNG nằm trong phản hồi
+    return out
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -950,6 +1387,7 @@ class _StrategyCompiler:
             tree = self.tree if self.tree is not None else ast.parse(self.code)
         except SyntaxError as e:
             raise DslError(f"Lỗi cú pháp Python: {e.msg}", e.lineno, (e.offset or 1)) from None
+        tree = native_tree(tree)
         meta: Optional[Dict[str, Any]] = None
         classes: List[ast.ClassDef] = []
         for node in tree.body:
@@ -1521,7 +1959,6 @@ def tree_p(name: str, default: float) -> dict:
 # biên dịch thuần; CANDIDATES / STRATEGIES / BY_ID (khối "Sổ chiến lược" bên dưới) chỉ là các góc nhìn trên kết quả nạp.
 # ══════════════════════════════════════════════════════════════════════════
 
-_DATA_HOME = os.path.join(NORA_DIR, "data")      # cố định theo mã (KHÔNG theo NORA_LOCAL_DATA_ROOT của test): định nghĩa chiến lược là một phần của mã
 _cache: Dict[str, Any] = {"sig": None, "value": None}
 
 
@@ -1530,7 +1967,7 @@ def strategies_dir() -> str:
     env = os.environ.get("NORA_STRATEGIES_DIR")
     if env:
         return env
-    return os.path.join(_DATA_HOME, "alpha", "strategies")
+    return os.path.join(DATA_DIR, "alpha", "strategies")
 
 
 def strategy_files(directory: Optional[str] = None) -> List[str]:
@@ -1574,3 +2011,706 @@ def load_system_strategies(directory: Optional[str] = None) -> Dict[str, Any]:
     value = {"candidates": candidates, "strategies": strategies, "sources": sources}
     _cache.update(sig=sig, value=value)
     return value
+
+
+# ═══ Bộ chuyển đổi đầu vào -> hợp đồng native (P10; gộp từ alpha/adapters) ═══
+
+CLASS_NAME = "CustomStrategy"
+IMPORT_WHITELIST = ("nora", "typing", "__future__")
+_BASE_ALIASES = ("Strategy", "Algorithm", "BaseStrategy", "SimpleStrategy")
+_COLS = ("open", "high", "low", "close", "volume")
+_RETURN_KEYS = {"entry": (1.0, "entry"), "long_entry": (1.0, "entry"), "exit": (0.0, "exit"), "long_exit": (0.0, "exit"),
+                "short_entry": (-1.0, "short_entry"), "short_exit": (0.0, "short_exit")}
+_RETURN_ORDER = ("exit", "short_exit", "entry", "short_entry")      # thoát trước, vào sau (lệnh sau ghi đè lệnh trước)
+_CONST_ATTRS = ("timeframe", "position_open_times", "position_open_ranges", "position_close_ranges")
+
+
+# ─── nguồn + ghi chú ─────────────────────────────────────────────────────────
+
+@dataclass
+class Source:
+    code: str                                   # văn bản gốc ("" nếu đầu vào là dict)
+    tree: Optional[ast.Module] = None
+    obj: Optional[dict] = None                  # JSON spec đã parse
+    notes: List[dict] = field(default_factory=list)
+    spans: List[Tuple[str, int, int, int]] = field(default_factory=list)     # json_spec: (đường dẫn trường, dòng, cột đầu, cột cuối) của từng biểu thức
+
+    def note(self, code: str, message: str, node=None, line: Optional[int] = None, col: Optional[int] = None, path: Optional[str] = None):
+        ln = getattr(node, "lineno", line)
+        cl = getattr(node, "col_offset", None)
+        cl = cl + 1 if cl is not None else col
+        self.notes.append({"line": ln, "col": cl, "end_line": getattr(node, "end_lineno", None),
+                           "end_col": (node.end_col_offset + 1) if getattr(node, "end_col_offset", None) is not None else None,
+                           "severity": "info", "code": code, "message_vi": message, "suggest": [], "path": path})
+
+
+@dataclass
+class Adapter:
+    style: str
+    native: bool                                # True = RUN, False = ADAPT
+    detect: Callable[[Source], bool]
+    convert: Callable[[Source], ast.Module]     # có thể ném DslError
+    kind: Optional[str] = None                  # None = suy từ cây (có STRATEGY -> module)
+
+
+REGISTRY: List[Adapter] = []
+
+
+def register(adapter: Adapter, first: bool = False) -> Adapter:
+    """Thêm adapter (mặc định cuối danh sách = ưu tiên thấp nhất; first=True = ưu tiên cao nhất)."""
+    REGISTRY.insert(0, adapter) if first else REGISTRY.append(adapter)
+    return adapter
+
+
+def _top_classes(tree) -> List[ast.ClassDef]:
+    return [n for n in tree.body if isinstance(n, ast.ClassDef)]
+
+
+def _has_strategy_dict(tree) -> bool:
+    return any(isinstance(n, ast.Assign) and len(n.targets) == 1 and isinstance(n.targets[0], ast.Name) and n.targets[0].id == "STRATEGY" for n in tree.body)
+
+
+# ─── biên dịch theo kind ─────────────────────────────────────────────────────
+
+def _compile(kind: str, code: str, tree: ast.Module):
+    ast.fix_missing_locations(tree)
+    return compile_program(code, tree) if kind == KIND_ALPHA else compile_strategy_module(code, tree)
+
+
+def _kind_of(ad: Adapter, tree: ast.Module) -> str:
+    return ad.kind or (KIND_MODULE if _has_strategy_dict(tree) else KIND_ALPHA)
+
+
+# ─── chẩn đoán ───────────────────────────────────────────────────────────────
+
+def _word_end(lines: List[str], line: int, col: int) -> int:
+    """Cột kết thúc (1-based, loại trừ) của từ bắt đầu tại (line, col); tối thiểu col+1."""
+    if line is None or col is None or not (1 <= line <= len(lines)):
+        return (col or 1) + 1
+    m = re.compile(r"[\w.]+").match(lines[line - 1], col - 1)
+    return col + (len(m.group(0)) if m else 1)
+
+
+def diag_from_error(e: DslError, lines: List[str], path: Optional[str] = None) -> dict:
+    msg, sug = split_suggest(e.message)
+    line, col = e.line or 1, e.col or 1
+    end_line = getattr(e, "end_line", None)
+    end_col = getattr(e, "end_col", None)
+    if end_line is None or end_col is None:
+        end_line, end_col = line, _word_end(lines, line, col)
+    return {"line": line, "col": col, "end_line": end_line, "end_col": end_col, "severity": "error", "code": classify(e.message),
+            "message_vi": msg, "suggest": sug, "path": path}
+
+
+def _reject(style: str, kind: Optional[str], diags: List[dict]) -> dict:
+    diags = [d for d in diags if not str(d.get("code", "")).startswith("ADAPTED_")]      # chưa chuyển được thì không báo "đã chuyển"
+    return {"verdict": "REJECT", "style": style, "kind": kind, "diagnostics": diags, "normalized_code": None, "ir": None}
+
+
+# ─── adapter: native (RUN) ───────────────────────────────────────────────────
+
+def _convert_identity(src: Source) -> ast.Module:
+    return src.tree
+
+
+register(Adapter("strategy_module", True, lambda s: s.tree is not None and _has_strategy_dict(s.tree), _convert_identity, KIND_MODULE))
+register(Adapter("lifecycle", True, lambda s: s.tree is not None and any(has_lifecycle(c) for c in _top_classes(s.tree)), _convert_identity))
+register(Adapter("simple_algorithm", True, lambda s: s.tree is not None and bool(_top_classes(s.tree)), _convert_identity))
+
+
+# ─── tên cột / namespace -> self.* ───────────────────────────────────────────
+
+def _self(attr: Optional[str] = None, ctx=None):
+    base = ast.Name(id="self", ctx=ast.Load())
+    return base if attr is None else ast.Attribute(value=base, attr=attr, ctx=ast.Load())
+
+
+def _data_col(name: str, node, src: Source, what: str):
+    low = name.lower()
+    if low.startswith("pv_"):
+        low = low[3:]
+    if low in _COLS:
+        n = ast.copy_location(ast.Attribute(value=_self("data"), attr=f"pv_{low}", ctx=ast.Load()), node)
+        return n
+    raise at(node, f"{what} không có cột `{name}`." + suggest(low, _COLS) + f" Cột: {', '.join(_COLS)}.")
+
+
+class _Names(ast.NodeTransformer):
+    """Dùng chung function/json: data.X | data["X"] -> self.data.pv_X; feat/op -> self.feat/self.op; hằng thế thẳng; biến cục bộ giữ nguyên."""
+
+    def __init__(self, src: Source, data_name: Optional[str], consts: Dict[str, Any], locals_: set, bare_cols: bool):
+        self.src, self.data_name, self.consts, self.locals, self.bare_cols = src, data_name, consts, locals_, bare_cols
+
+    def visit_Attribute(self, node):
+        if isinstance(node.value, ast.Name) and self.data_name and node.value.id == self.data_name and node.value.id not in self.locals:
+            self.src.note("NORMALIZED_NAME", f"`{self.data_name}.{node.attr}` -> `self.data.pv_{node.attr.lower().removeprefix('pv_')}`", node)
+            return _data_col(node.attr, node, self.src, f"`{self.data_name}`")
+        return self.generic_visit(node)
+
+    def visit_Subscript(self, node):
+        if isinstance(node.value, ast.Name) and self.data_name and node.value.id == self.data_name and node.value.id not in self.locals:
+            if isinstance(node.slice, ast.Constant) and isinstance(node.slice.value, str):
+                self.src.note("NORMALIZED_NAME", f"`{self.data_name}[{node.slice.value!r}]` -> `self.data.pv_{node.slice.value.lower()}`", node)
+                return _data_col(node.slice.value, node, self.src, f"`{self.data_name}[...]`")
+            raise at(node, f"`{self.data_name}[...]` chỉ nhận tên cột dạng chuỗi: {self.data_name}['close']")
+        return self.generic_visit(node)
+
+    def visit_Name(self, node):
+        if isinstance(node.ctx, ast.Load) and node.id not in self.locals:
+            if node.id == self.data_name:
+                raise at(node, f"`{node.id}` chỉ dùng dạng {node.id}.open|high|low|close|volume")
+            if node.id in ("feat", "op"):
+                return ast.copy_location(_self(node.id), node)
+            if node.id in self.consts:
+                return ast.copy_location(ast.Constant(value=self.consts[node.id]), node)
+            if self.bare_cols and node.id in _COLS:
+                return ast.copy_location(ast.Attribute(value=_self("data"), attr=f"pv_{node.id}", ctx=ast.Load()), node)
+        return node
+
+
+def _assigned_names(stmts) -> set:
+    out = set()
+    for st in stmts:
+        for n in ast.walk(st):
+            if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store):
+                out.add(n.id)
+    return out
+
+
+def _number(v) -> bool:
+    return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+
+def _build_class(attrs: List[ast.stmt], body: List[ast.stmt], returns: Dict[str, ast.expr], where_node) -> ast.Module:
+    """class CustomStrategy(SimpleAlgorithm): <attrs>; def __algorithm__(self): <body>; set_positions theo _RETURN_ORDER."""
+    stmts = list(body)
+    levels = {"exit": 0.0, "short_exit": 0.0, "entry": 1.0, "short_entry": -1.0}
+    for key in _RETURN_ORDER:
+        mask = returns.get(key)
+        if mask is None:
+            continue
+        call = ast.Call(func=ast.Attribute(value=_self(), attr="set_positions", ctx=ast.Load()), args=[mask],
+                        keywords=[ast.keyword(arg="position", value=ast.Constant(value=levels[key]))])
+        stmt = ast.Expr(value=call)
+        for n in ast.walk(stmt):
+            if "lineno" in n._attributes and not hasattr(n, "lineno"):
+                ast.copy_location(n, mask)
+        ast.copy_location(stmt, mask)
+        stmts.append(stmt)
+    algo = ast.FunctionDef(name="__algorithm__", args=ast.arguments(posonlyargs=[], args=[ast.arg(arg="self")], kwonlyargs=[], kw_defaults=[], defaults=[]),
+                           body=stmts or [ast.Pass()], decorator_list=[], returns=None, type_comment=None)
+    cls = ast.ClassDef(name=CLASS_NAME, bases=[ast.Name(id=BASE_CLASS, ctx=ast.Load())], keywords=[], body=attrs + [algo], decorator_list=[])
+    for n in (algo, cls):
+        ast.copy_location(n, where_node)
+    mod = ast.Module(body=[cls], type_ignores=[])
+    ast.fix_missing_locations(mod)
+    return mod
+
+
+# ─── adapter: function ───────────────────────────────────────────────────────
+
+def _module_consts(tree: ast.Module, src: Source) -> Tuple[Dict[str, Any], List[ast.stmt], ast.FunctionDef]:
+    consts: Dict[str, Any] = {}
+    attrs: List[ast.stmt] = []
+    fn: Optional[ast.FunctionDef] = None
+    for node in tree.body:
+        if _is_doc(node):
+            continue
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            mod = node.module if isinstance(node, ast.ImportFrom) else node.names[0].name
+            if (mod or "").split(".")[0] in IMPORT_WHITELIST:
+                src.note("NORMALIZED_IMPORT", f"Bỏ import `{mod}` (không cần: feat / op / data có sẵn)", node)
+                continue
+            raise at(node, f"Không dùng `import {mod}`: feat / op / data có sẵn. numpy/pandas/talib không dùng được (thay bằng feat.* / op.*)")
+        if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+            name = node.targets[0].id
+            val = _const_literal(node.value, "Hằng cấp module phải là số / chuỗi / danh sách hằng")
+            if name in _CONST_ATTRS or name in _position_names():
+                attrs.append(node)
+            elif _number(val):
+                consts[name] = val
+            else:
+                raise at(node, f"Hằng cấp module `{name}` chỉ nhận số (hoặc timeframe / position_*); nhận {type(val).__name__}")
+            continue
+        if isinstance(node, ast.FunctionDef):
+            if fn is not None:
+                raise at(node, "Chỉ được định nghĩa một hàm `strategy(data)`")
+            fn = node
+            continue
+        raise at(node, "Ở cấp ngoài chỉ được có docstring, hằng số, và đúng một hàm `def strategy(data):`")
+    if fn is None:
+        raise DslError("Thiếu `def strategy(data):`", 1, 1)
+    return consts, attrs, fn
+
+
+def _position_names() -> set:
+    return _position_attr_names()
+
+
+def _return_map(ret_value: ast.expr, src: Source) -> Dict[str, ast.expr]:
+    out: Dict[str, ast.expr] = {}
+    if isinstance(ret_value, ast.Dict):
+        for k, v in zip(ret_value.keys, ret_value.values):
+            if not (isinstance(k, ast.Constant) and isinstance(k.value, str)):
+                raise at(k or ret_value, "Khoá của dict trả về phải là chuỗi")
+            if k.value not in _RETURN_KEYS:
+                raise at(k, f"Khoá `{k.value}` không hợp lệ; có: {', '.join(_RETURN_KEYS)}." + suggest(k.value, _RETURN_KEYS))
+            if isinstance(v, ast.Constant) and v.value is None:
+                continue
+            canon = _RETURN_KEYS[k.value][1]
+            if canon in out:
+                raise at(k, f"Khoá `{k.value}` bị trùng (entry/long_entry, exit/long_exit là một)")
+            out[canon] = v
+    elif isinstance(ret_value, ast.Tuple) and 2 <= len(ret_value.elts) <= 4:
+        for key, v in zip(("entry", "exit", "short_entry", "short_exit"), ret_value.elts):
+            if not (isinstance(v, ast.Constant) and v.value is None):
+                out[key] = v
+    else:
+        raise at(ret_value, 'Trả về {"entry": ..., "exit": ...} hoặc tuple (entry, exit[, short_entry, short_exit])')
+    if not any(k in out for k in ("entry", "short_entry")):
+        raise at(ret_value, "Cần ít nhất điều kiện vào: entry (long) hoặc short_entry")
+    return out
+
+
+def _convert_function(src: Source) -> ast.Module:
+    consts, attrs, fn = _module_consts(src.tree, src)
+    a = fn.args
+    if (len(a.args) != 1 or a.vararg or a.kwarg or a.kwonlyargs or a.defaults or fn.decorator_list):
+        raise at(fn, f"Chữ ký phải đúng `def {fn.name}(data):` (một đối số dữ liệu nến)")
+    if fn.name != "strategy":
+        raise at(fn, f"Tên hàm phải là `strategy`, nhận `{fn.name}`" + suggest(fn.name, ("strategy",)))
+    data_name = a.args[0].arg
+    body = [s for s in fn.body if not _is_doc(s)]
+    if not body or not isinstance(body[-1], ast.Return) or body[-1].value is None:
+        raise at(fn, 'Hàm phải kết thúc bằng `return {"entry": ..., "exit": ...}`')
+    ret = body[-1]
+    pre = body[:-1]
+    locals_ = _assigned_names(pre)
+    tr = _Names(src, data_name, consts, locals_, bare_cols=False)
+    new_pre: List[ast.stmt] = []
+    for st in pre:
+        if isinstance(st, ast.Return):
+            raise at(st, "`return` chỉ được đặt ở cuối hàm")
+        new_pre.append(tr.visit(copy.deepcopy(st)))
+    returns = {k: tr.visit(copy.deepcopy(v)) for k, v in _return_map(ret.value, src).items()}
+    src.note("ADAPTED_FUNCTION", f"Hàm `{fn.name}({data_name})` được chuyển thành class {CLASS_NAME}(SimpleAlgorithm) với set_positions: thoát (0) rồi vào (1/-1)", fn)
+    return _build_class(attrs, new_pre, returns, ret)
+
+
+def _detect_function(s: Source) -> bool:
+    return s.tree is not None and not _top_classes(s.tree) and any(isinstance(n, ast.FunctionDef) for n in s.tree.body)
+
+
+# ─── adapter: JSON spec ──────────────────────────────────────────────────────
+
+_JSON_KEYS = ("timeframe", "params", "indicators", "entry", "exit", "short_entry", "short_exit", "name", "description")
+
+
+def _key_pos(raw: str, key: str) -> Tuple[Optional[int], Optional[int]]:
+    """(dòng, cột 1-based) của giá trị chuỗi sau `"key":` trong văn bản JSON, hoặc (None, None)."""
+    m = re.search(r'"%s"\s*:\s*' % re.escape(key), raw)
+    if not m:
+        return None, None
+    line = raw.count("\n", 0, m.end()) + 1
+    col = m.end() - (raw.rfind("\n", 0, m.end()) + 1) + 1
+    return line, col
+
+
+def _json_error(src: Source, path: str, key: str, message: str, line=None, col=None, end_col=None) -> DslError:
+    ln, cl = _key_pos(src.code, key) if src.code else (None, None)
+    e = DslError(message, ln if ln is not None else 1, (cl + 1 + (col - 1 if col else 0)) if cl is not None else (col or 1))
+    e.end_line = e.line
+    e.end_col = (e.col + (end_col - col if (end_col and col) else 1))
+    e.path = path
+    return e
+
+
+def _parse_expr(src: Source, path: str, key: str, text: Any, names: Dict[str, Any], locals_: set) -> ast.expr:
+    if not isinstance(text, str) or not text.strip():
+        raise _json_error(src, path, key, f"`{path}` phải là biểu thức (chuỗi), nhận {type(text).__name__}")
+    try:
+        node = ast.parse(text.strip(), mode="eval").body
+    except SyntaxError as e:
+        raise _json_error(src, path, key, f"Lỗi cú pháp trong `{path}`: {e.msg}", col=(e.offset or 1)) from None
+    ln, cl = _key_pos(src.code, key) if src.code else (None, None)
+    if ln is None:
+        ln = len(src.spans) + 1                  # đầu vào dict: dòng ảo theo thứ tự biểu thức
+    src.spans.append((path, ln, (cl or 0) + 1, (cl or 0) + 1 + len(text.strip())))
+    for n in ast.walk(node):
+        if hasattr(n, "lineno"):
+            n.lineno = n.end_lineno = ln
+            n.col_offset += (cl if cl is not None else 0)       # +1 dấu nháy mở
+            n.end_col_offset += (cl if cl is not None else 0)
+    tr = _Names(src, None, names, locals_, bare_cols=True)
+    try:
+        return tr.visit(node)
+    except DslError as e:
+        e.path = path
+        raise
+
+
+def _convert_json(src: Source) -> ast.Module:
+    obj = src.obj
+    unknown = [k for k in obj if k not in _JSON_KEYS]
+    if unknown:
+        raise _json_error(src, unknown[0], unknown[0], f"Khoá `{unknown[0]}` không hợp lệ; có: {', '.join(_JSON_KEYS)}." + suggest(unknown[0], _JSON_KEYS))
+    params = obj.get("params") or {}
+    if not isinstance(params, dict):
+        raise _json_error(src, "params", "params", "`params` phải là object {tên: số}")
+    consts: Dict[str, Any] = {}
+    for k, v in params.items():
+        if not re.fullmatch(r"[A-Za-z_]\w*", str(k)) or k in _COLS or k in ("feat", "op", "self"):
+            raise _json_error(src, f"params.{k}", k, f"Tên tham số {k!r} không hợp lệ (định danh, không trùng open/high/low/close/volume/feat/op)")
+        if not _number(v):
+            raise _json_error(src, f"params.{k}", k, f"Tham số `{k}` phải là số, nhận {v!r}")
+        consts[k] = v
+    inds = obj.get("indicators") or {}
+    if not isinstance(inds, dict):
+        raise _json_error(src, "indicators", "indicators", "`indicators` phải là object {tên: biểu thức}")
+    attrs: List[ast.stmt] = []
+    if "timeframe" in obj:
+        if not isinstance(obj["timeframe"], str):
+            raise _json_error(src, "timeframe", "timeframe", "`timeframe` phải là chuỗi, vd. \"4h\"")
+        attrs.append(ast.Assign(targets=[ast.Name(id="timeframe", ctx=ast.Store())], value=ast.Constant(value=obj["timeframe"]), lineno=1))
+    names = dict(consts)
+    declared: set = set()
+    body: List[ast.stmt] = []
+    for name, text in inds.items():
+        targets = [t.strip() for t in str(name).split(",")]
+        if not all(re.fullmatch(r"[A-Za-z_]\w*", t) for t in targets) or any(t in _COLS or t in ("feat", "op", "self") for t in targets):
+            raise _json_error(src, f"indicators.{name}", name, f"Tên chỉ báo {name!r} không hợp lệ (định danh; nhiều đầu ra: \"upper, mid, lower\")")
+        value = _parse_expr(src, f"indicators.{name}", name, text, names, declared)
+        tgt = ast.Name(id=targets[0], ctx=ast.Store()) if len(targets) == 1 else ast.Tuple(elts=[ast.Name(id=t, ctx=ast.Store()) for t in targets], ctx=ast.Store())
+        st = ast.Assign(targets=[tgt], value=value)
+        ast.copy_location(st, value)
+        body.append(st)
+        declared.update(targets)
+    returns: Dict[str, ast.expr] = {}
+    for key in ("exit", "short_exit", "entry", "short_entry"):
+        if obj.get(key) is not None:
+            returns[key] = _parse_expr(src, key, key, obj[key], names, declared)
+    if not any(k in returns for k in ("entry", "short_entry")):
+        raise _json_error(src, "entry", "entry", "Cần ít nhất điều kiện vào: `entry` (long) hoặc `short_entry`")
+    anchor = next(iter(returns.values()))
+    src.note("ADAPTED_JSON", "Bản mô tả JSON được chuyển thành class " + CLASS_NAME + "(SimpleAlgorithm): thoát (0) rồi vào (1/-1)", anchor)
+    return _build_class(attrs, body, returns, anchor)
+
+
+def _json_of(code) -> Optional[dict]:
+    if isinstance(code, dict):
+        return code
+    if isinstance(code, str) and code.lstrip().startswith("{"):
+        try:
+            v = json.loads(code)
+        except ValueError:
+            return None
+        return v if isinstance(v, dict) else None
+    return None
+
+
+register(Adapter("json_spec", False, lambda s: s.obj is not None, _convert_json, KIND_ALPHA), first=True)
+register(Adapter("function", False, _detect_function, _convert_function, KIND_ALPHA), first=True)
+
+
+# ─── adapter: ai_python (chuẩn hoá tất định mã class) ────────────────────────
+
+class _Normalise(ast.NodeTransformer):
+    def __init__(self, src: Source):
+        self.src = src
+
+    def _bin(self, op, values, node):
+        out = values[0]
+        for v in values[1:]:
+            out = ast.copy_location(ast.BinOp(left=out, op=op, right=v), node)
+        return out
+
+    def visit_BoolOp(self, node):
+        self.generic_visit(node)
+        word, sym, op = ("and", "&", ast.BitAnd()) if isinstance(node.op, ast.And) else ("or", "|", ast.BitOr())
+        self.src.note("NORMALIZED_BOOL_OP", f"`{word}` -> `{sym}` (mặt nạ bool vector hoá)", node)
+        return self._bin(op, node.values, node)
+
+    def visit_UnaryOp(self, node):
+        self.generic_visit(node)
+        if isinstance(node.op, ast.Not):
+            self.src.note("NORMALIZED_BOOL_OP", "`not` -> `~` (phủ định mặt nạ bool)", node)
+            return ast.copy_location(ast.UnaryOp(op=ast.Invert(), operand=node.operand), node)
+        return node
+
+    def visit_Compare(self, node):
+        self.generic_visit(node)
+        if len(node.ops) <= 1:
+            return node
+        parts = []
+        left = node.left
+        for op, right in zip(node.ops, node.comparators):
+            parts.append(ast.copy_location(ast.Compare(left=left, ops=[op], comparators=[right]), node))
+            left = right
+        self.src.note("NORMALIZED_CHAINED_COMPARE", "So sánh nối chuỗi -> các so sánh nối bằng `&`", node)
+        return self._bin(ast.BitAnd(), parts, node)
+
+    def visit_Attribute(self, node):
+        self.generic_visit(node)
+        v = node.value
+        if isinstance(v, ast.Attribute) and isinstance(v.value, ast.Name) and v.value.id == "self":
+            if v.attr == "data":
+                low = node.attr.lower()
+                canon = low if low.startswith("pv_") else f"pv_{low}"
+                if canon[3:] in _COLS and canon != node.attr:
+                    self.src.note("NORMALIZED_NAME", f"`self.data.{node.attr}` -> `self.data.{canon}`", node)
+                    return ast.copy_location(ast.Attribute(value=v, attr=canon, ctx=node.ctx), node)
+            elif v.attr in ("feat", "op"):
+                from backend.core.indicator import FEATURES, OPS
+                table = FEATURES if v.attr == "feat" else OPS
+                low = node.attr.lower()
+                if node.attr not in table and low in table:
+                    self.src.note("NORMALIZED_NAME", f"`self.{v.attr}.{node.attr}` -> `self.{v.attr}.{low}`", node)
+                    return ast.copy_location(ast.Attribute(value=v, attr=low, ctx=node.ctx), node)
+        return node
+
+    def visit_Subscript(self, node):
+        self.generic_visit(node)
+        v = node.value
+        if isinstance(v, ast.Attribute) and isinstance(v.value, ast.Name) and v.value.id == "self" and v.attr == "data" \
+                and isinstance(node.slice, ast.Constant) and isinstance(node.slice.value, str) and node.slice.value.lower().removeprefix("pv_") in _COLS:
+            col = node.slice.value.lower().removeprefix("pv_")
+            self.src.note("NORMALIZED_NAME", f"`self.data[{node.slice.value!r}]` -> `self.data.pv_{col}`", node)
+            return ast.copy_location(ast.Attribute(value=v, attr=f"pv_{col}", ctx=node.ctx), node)
+        return node
+
+    def visit_ClassDef(self, node):
+        for i, b in enumerate(node.bases):
+            if isinstance(b, ast.Name) and b.id in _BASE_ALIASES:
+                self.src.note("NORMALIZED_BASE", f"Lớp cơ sở `{b.id}` -> `{BASE_CLASS}`", b)
+                node.bases[i] = ast.copy_location(ast.Name(id=BASE_CLASS, ctx=ast.Load()), b)
+        self.generic_visit(node)
+        return node
+
+
+def _convert_ai(src: Source) -> ast.Module:
+    tree = copy.deepcopy(src.tree)
+    body = []
+    for node in tree.body:
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            mod = node.module if isinstance(node, ast.ImportFrom) else node.names[0].name
+            if (mod or "").split(".")[0] in IMPORT_WHITELIST:
+                src.note("NORMALIZED_IMPORT", f"Bỏ import `{mod}` (không cần: self.data / self.feat / self.op có sẵn)", node)
+                continue
+        body.append(node)
+    tree.body = body
+    return _Normalise(src).visit(tree)
+
+
+_AI = Adapter("ai_python", False, lambda s: s.tree is not None and bool(_top_classes(s.tree)), _convert_ai)
+
+
+# ─── điểm vào ────────────────────────────────────────────────────────────────
+
+def _strip_fences(code: str, notes: List[dict]) -> str:
+    """Bỏ hàng rào ```lang ... ``` (giữ số dòng: dòng hàng rào thành dòng trống)."""
+    lines = code.split("\n")
+    changed = False
+    for i, ln in enumerate(lines):
+        if ln.strip().startswith("```"):
+            lines[i] = ""
+            changed = True
+    if changed:
+        notes.append({"line": None, "col": None, "end_line": None, "end_col": None, "severity": "info", "code": "NORMALIZED_FENCE",
+                      "message_vi": "Bỏ hàng rào markdown ```", "suggest": [], "path": None})
+    return "\n".join(lines)
+
+
+def _prepare(code) -> Tuple[Optional[Source], Optional[dict]]:
+    """(Source, None) hoặc (None, kết quả REJECT)."""
+    notes: List[dict] = []
+    obj = _json_of(code)
+    if obj is not None:
+        return Source(code if isinstance(code, str) else "", obj=obj, notes=notes), None
+    if not isinstance(code, str):
+        return None, _reject("unknown", None, [{"line": 1, "col": 1, "end_line": 1, "end_col": 2, "severity": "error", "code": "BAD_STRUCTURE",
+                                                 "message_vi": "Mã chiến lược phải là chuỗi (hoặc object JSON)", "suggest": [], "path": None}])
+    if len(code) > MAX_CODE_CHARS:
+        return None, _reject("unknown", None, [{"line": 1, "col": 1, "end_line": 1, "end_col": 2, "severity": "error", "code": "TOO_LARGE",
+                                                 "message_vi": f"Mã quá dài ({len(code)} ký tự > {MAX_CODE_CHARS})", "suggest": [], "path": None}])
+    text = _strip_fences(code, notes) if "```" in code else code
+    try:
+        tree = ast.parse(text)
+    except SyntaxError as e:
+        ln, cl = e.lineno or 1, e.offset or 1
+        return None, _reject("unknown", None, [{"line": ln, "col": cl, "end_line": getattr(e, "end_lineno", None) or ln,
+                                                 "end_col": (getattr(e, "end_offset", None) or cl + 1), "severity": "error", "code": "SYNTAX",
+                                                 "message_vi": f"Lỗi cú pháp Python: {e.msg}", "suggest": [], "path": None}])
+    except (RecursionError, MemoryError, ValueError) as e:
+        return None, _reject("unknown", None, [{"line": 1, "col": 1, "end_line": 1, "end_col": 2, "severity": "error", "code": "SYNTAX",
+                                                 "message_vi": f"Không phân tích được mã: {type(e).__name__}", "suggest": [], "path": None}])
+    return Source(text, tree=tree, notes=notes), None
+
+
+def _meta(ir, kind: str) -> Optional[dict]:
+    if ir is None:
+        return None
+    if kind == KIND_ALPHA:
+        return ir.meta()
+    return {"strategy_id": ir["strategy"]["id"], "legs": [c["id"] for c in ir["candidates"]]}
+
+
+def analyze(code) -> dict:
+    """Thân của check_contract (alpha/contract): {verdict, style, kind, diagnostics, normalized_code, ir}."""
+    src, bad = _prepare(code)
+    if bad is not None:
+        return bad
+    lines = src.code.split("\n")
+    ad = next((a for a in REGISTRY if a.detect(src)), None)
+    if ad is None:
+        return _reject("unknown", None, [{"line": 1, "col": 1, "end_line": 1, "end_col": 2, "severity": "error", "code": "NO_STRATEGY",
+                                          "message_vi": "Không nhận ra dạng chiến lược. Dùng class X(SimpleAlgorithm) với on_start/on_bar, "
+                                                        "hoặc def strategy(data):, hoặc bản mô tả JSON.", "suggest": ["lifecycle", "function", "json_spec"], "path": None}])
+
+    def attempt(a: Adapter, s: Source):
+        tree = a.convert(s)
+        kind = _kind_of(a, tree)
+        return kind, tree, _compile(kind, s.code, tree)
+
+    try:
+        kind, tree, ir = attempt(ad, src)
+    except DslError as e:
+        err_path = getattr(e, "path", None)
+        if err_path is None and ad.style == "json_spec":
+            err_path = next((sp[0] for sp in src.spans if sp[1] == e.line and (e.col is None or sp[2] <= e.col <= sp[3])), None)
+        if ad.native:                         # dạng native hỏng: thử chuẩn hoá tất định (ai_python); không đổi được gì -> lỗi gốc
+            src2 = Source(src.code, tree=src.tree, notes=list(src.notes))
+            kind2 = KIND_MODULE if _has_strategy_dict(src.tree) else KIND_ALPHA
+            try:
+                tree2 = _AI.convert(src2)
+                if len(src2.notes) > len(src.notes):
+                    ir2 = _compile(kind2, src2.code, tree2)
+                    return _adapt("ai_python", kind2, tree2, ir2, src2)
+            except DslError as e2:
+                if len(src2.notes) > len(src.notes):
+                    return _reject(ad.style, kind2, src2.notes + [diag_from_error(e2, lines)])
+        return _reject(ad.style, ad.kind or (KIND_MODULE if src.tree is not None and _has_strategy_dict(src.tree) else KIND_ALPHA),
+                       src.notes + [diag_from_error(e, lines, err_path)])
+    if ad.native:
+        return {"verdict": "RUN", "style": ad.style, "kind": kind, "diagnostics": list(src.notes), "normalized_code": None, "ir": ir}
+    return _adapt(ad.style, kind, tree, ir, src)
+
+
+def _adapt(style: str, kind: str, tree: ast.Module, ir, src: Source) -> dict:
+    return {"verdict": "ADAPT", "style": style, "kind": kind, "diagnostics": list(src.notes), "normalized_code": ast.unparse(tree) + "\n", "ir": ir}
+
+
+def program_via_adapter(code, native_err: DslError):
+    """compile_code: mã ngoài hợp đồng class (hàm strategy(data) / JSON) -> Program qua adapter; mã khác -> ném lại lỗi native gốc."""
+    src, bad = _prepare(code)
+    if bad is not None:
+        raise native_err
+    ad = next((a for a in REGISTRY if a.detect(src)), None)
+    if ad is None or ad.native or ad.style == "ai_python":
+        raise native_err
+    tree = ad.convert(src)
+    return _compile(KIND_ALPHA, src.code, tree)
+
+
+# ═══ Sửa chiến lược hệ thống tại chỗ (P10; gộp từ optimize/book/strategy_files) ═══
+
+MAX_BACKUPS = 20
+BACKUP_DIRNAME = ".versions"
+
+
+class StrategyEditError(Exception):
+    def __init__(self, status: int, code: str, message: str, **extra: Any):
+        super().__init__(message)
+        self.status, self.code, self.message, self.extra = status, code, message, extra
+
+    def detail(self) -> Dict[str, Any]:
+        return {"code": self.code, "message": self.message, **self.extra}
+
+
+def _sha(raw: bytes) -> str:
+    return hashlib.sha256(raw).hexdigest()
+
+
+def resolve(strategy_or_leg_id: str) -> Dict[str, Any]:
+    """{id (chiến lược), file, legs[]} theo id chiến lược hoặc id chân."""
+    loaded = load_system_strategies()
+    srcs = loaded["sources"]
+    for st in loaded["strategies"]:
+        legs = [c["id"] for c in loaded["candidates"] if c["strategy"] == st["id"]]
+        if strategy_or_leg_id == st["id"] or strategy_or_leg_id in legs:
+            return {"id": st["id"], "file": srcs[legs[0]]["file"], "legs": legs}
+    raise StrategyEditError(404, "NOT_FOUND", f"Không có chiến lược '{strategy_or_leg_id}'",
+                            available=[s["id"] for s in loaded["strategies"]])
+
+
+def read_source(strategy_or_leg_id: str) -> Dict[str, Any]:
+    info = resolve(strategy_or_leg_id)
+    with open(os.path.join(strategies_dir(), info["file"]), "rb") as fh:
+        raw = fh.read()
+    return {"id": info["id"], "file": info["file"], "code": raw.decode("utf-8"), "sha256": _sha(raw), "legs": info["legs"]}
+
+
+def _prune_backups(directory: str, stem: str) -> None:
+    mine = sorted(n for n in os.listdir(directory) if n.startswith(stem + ".") and n.endswith(".py"))
+    for old in mine[:-MAX_BACKUPS]:
+        try:
+            os.remove(os.path.join(directory, old))
+        except OSError:
+            pass
+
+
+def write_source(strategy_or_leg_id: str, code: str, sha256: str, backup_root: Optional[str] = None,
+                 guard: Optional[Callable[[List[str]], None]] = None) -> Dict[str, Any]:
+    """Ghi file chiến lược (thuần alpha). `backup_root`: thư mục cha của BACKUP_DIRNAME (mặc định: strategies_dir). `guard(removed_ids)`: tầng gọi chèn kiểm tra
+    ngoài alpha (vd bot live) — ném StrategyEditError để chặn trước khi ghi. Nạp lại sổ ở tầng trên (optimize/book/build.reload_system_strategies)."""
+    info = resolve(strategy_or_leg_id)
+    path = os.path.join(strategies_dir(), info["file"])
+    with open(path, "rb") as fh:
+        old_raw = fh.read()
+    if sha256 != _sha(old_raw):
+        raise StrategyEditError(409, "SHA_CONFLICT", "File đã đổi từ lúc bạn mở (sha256 không khớp): tải lại rồi sửa tiếp.", current_sha256=_sha(old_raw))
+    res = analyze(code)
+    diags: List[Dict[str, Any]] = res["diagnostics"]
+    if res["verdict"] == "REJECT":
+        raise StrategyEditError(422, "CONTRACT_REJECTED", "Mã không đạt hợp đồng chiến lược", diagnostics=diags, style=res["style"])
+    if res["kind"] != KIND_MODULE:
+        raise StrategyEditError(422, "WRONG_KIND", "File chiến lược hệ thống phải có STRATEGY = {...} và class có id/family/description (loại module)",
+                                diagnostics=diags, style=res["style"])
+    new_code = res["normalized_code"] if res["verdict"] == "ADAPT" else code
+    ir = res["ir"]
+    new_legs = [c["id"] for c in ir["candidates"]]
+    new_ids = set(new_legs) | {ir["strategy"]["id"]}
+    srcs = load_system_strategies()["sources"]
+    for cid in new_legs:
+        if cid in srcs and srcs[cid]["file"] != info["file"]:
+            raise StrategyEditError(409, "DUPLICATE_ID", f"Id chân '{cid}' đã dùng ở file {srcs[cid]['file']}", diagnostics=diags)
+    clash = [s["id"] for s in load_system_strategies()["strategies"] if s["id"] == ir["strategy"]["id"] and ir["strategy"]["id"] != info["id"]]
+    if clash:
+        raise StrategyEditError(409, "DUPLICATE_ID", f"Id chiến lược '{clash[0]}' đã dùng ở file khác", diagnostics=diags)
+    removed = sorted(({info["id"]} | set(info["legs"])) - new_ids)
+    if guard is not None:
+        guard(removed)
+    # sao lưu -> ghi nguyên tử -> nạp lại
+    bdir = os.path.join(backup_root or strategies_dir(), BACKUP_DIRNAME)
+    os.makedirs(bdir, exist_ok=True)
+    stem = info["file"][:-3]
+    ns = time.time_ns()
+    ts = time.strftime("%Y%m%dT%H%M%S", time.gmtime(ns // 10**9)) + f"{ns % 10**9:09d}Z"      # tên sắp xếp được theo thời gian, không trùng
+    backup_path = os.path.join(bdir, f"{stem}.{ts}.py")
+    with open(backup_path, "wb") as fh:
+        fh.write(old_raw)
+    _prune_backups(bdir, stem)
+    new_raw = new_code.encode("utf-8")
+    tmp = f"{path}.tmp{os.getpid()}"
+    with open(tmp, "wb") as fh:
+        fh.write(new_raw)
+    os.replace(tmp, path)
+    try:
+        load_system_strategies()
+    except (DslError, FileNotFoundError) as e:      # không xảy ra nếu check đã qua; an toàn: khôi phục bản cũ
+        with open(tmp, "wb") as fh:
+            fh.write(old_raw)
+        os.replace(tmp, path)
+        load_system_strategies()
+        raise StrategyEditError(422, "RELOAD_FAILED", f"Nạp lại sổ chiến lược lỗi, đã khôi phục bản cũ: {e}") from None
+    return {"ok": True, "sha256": _sha(new_raw), "legs": new_legs, "normalized": res["verdict"] == "ADAPT", "diagnostics": diags,
+            "backup": backup_path, "reloaded": True}

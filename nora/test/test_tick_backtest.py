@@ -2,6 +2,7 @@
 cửa sổ tick, từ chối (chân SHORT, thiếu tick, trộn perp + DEX), get_book assets, và một lần chạy đầu-cuối qua run_job trên dữ liệu DEX giả lập.
 
 Tick giả: mỗi tick đặt dự trữ sao cho giá biên = mid mong muốn (reserve_base cố định, reserve_quote = mid × reserve_base) -> mọi lệnh có trượt giá tính được bằng tay."""
+import os
 import json
 
 import numpy as np
@@ -317,38 +318,38 @@ def test_short_leg_and_both_sides_are_rejected_with_vietnamese_message(market):
 
 def test_tick_mode_requires_ticks_and_dex_and_no_mixing(market):
     from backend.optimize.process import process as batch
-    from backend.routes import jobs as batch_routes
+    from backend.routes import process as process_routes
     base = {"start": "2023-12-10", "end": "2023-12-12", "timeframe": "15m", "strategies": [{"id": "t_long", "params": {}}]}
     _xyz(market, path_ticks([100.0, 100.0]))
-    ok = batch_routes.build_job("book_backtest", {**base, "symbols": ["XYZ"], "data": "candle"})
+    ok = process_routes.build_job("book_backtest", {**base, "symbols": ["XYZ"], "data": "candle"})
     assert ok["symbols"] == ["dex:XYZ"] and "data" not in ok
     with pytest.raises(batch.JobError, match="chưa có tick"):
-        batch_routes.build_job("book_backtest", {**base, "symbols": ["dex:NOTICK"], "data": "tick"})
+        process_routes.build_job("book_backtest", {**base, "symbols": ["dex:NOTICK"], "data": "tick"})
     with pytest.raises(batch.JobError, match="chạy chung"):
-        batch_routes.build_job("book_backtest", {**base, "symbols": ["BTC", "dex:XYZ"]})
+        process_routes.build_job("book_backtest", {**base, "symbols": ["BTC", "dex:XYZ"]})
     with pytest.raises(batch.JobError, match="chỉ dành cho tài sản DEX"):
-        batch_routes.build_job("book_backtest", {**base, "symbols": ["BTC"], "data": "tick"})
+        process_routes.build_job("book_backtest", {**base, "symbols": ["BTC"], "data": "tick"})
     with pytest.raises(batch.JobError, match="chân LONG"):
-        batch_routes.build_job("book_backtest", {**base, "symbols": ["XYZ"], "strategies": [{"id": "t_short", "params": {}}]})
+        process_routes.build_job("book_backtest", {**base, "symbols": ["XYZ"], "strategies": [{"id": "t_short", "params": {}}]})
     with pytest.raises(batch.JobError, match="chọn chiến lược"):
-        batch_routes.build_job("book_backtest", {k: v for k, v in base.items() if k != "strategies"} | {"symbols": ["XYZ"]})
+        process_routes.build_job("book_backtest", {k: v for k, v in base.items() if k != "strategies"} | {"symbols": ["XYZ"]})
     with pytest.raises(batch.JobError, match="không có tài sản DEX"):
-        batch_routes.build_job("book_backtest", {**base, "symbols": ["dex:ZZZ"]})
+        process_routes.build_job("book_backtest", {**base, "symbols": ["dex:ZZZ"]})
     day = "2023-11-14"                                          # trước đầu tick giả (W = đầu ngày thứ 60 sau T0 = 2024-01-13): cửa sổ ngoài độ phủ
     with pytest.raises(batch.JobError, match="ngắn hơn một nến cơ sở"):
-        batch_routes.build_job("book_backtest", {**base, "symbols": ["XYZ"], "data": "tick", "start": day, "end": "2023-11-15"})
-    t = batch_routes.build_job("book_backtest", {**base, "symbols": ["XYZ"], "data": "tick", "start": "2024-01-13", "end": "2024-01-14", "latency_ms": 500, "gas_usd": 0.1})
+        process_routes.build_job("book_backtest", {**base, "symbols": ["XYZ"], "data": "tick", "start": day, "end": "2023-11-15"})
+    t = process_routes.build_job("book_backtest", {**base, "symbols": ["XYZ"], "data": "tick", "start": "2024-01-13", "end": "2024-01-14", "latency_ms": 500, "gas_usd": 0.1})
     assert t["data"] == "tick" and t["latency_ms"] == 500 and t["gas_usd"] == 0.1
 
 
 def test_wfa_and_funnel_reject_dex_symbols(market):
     from backend.optimize.process import process as batch
-    from backend.routes import jobs as batch_routes
+    from backend.routes import process as process_routes
     _xyz(market, path_ticks([100.0, 100.0]))
     with pytest.raises(batch.JobError, match="WFA / phễu chưa hỗ trợ"):
-        batch_routes.check_symbols(["dex:XYZ"])
+        process_routes.check_symbols(["dex:XYZ"])
     with pytest.raises(batch.JobError, match="WFA / phễu chưa hỗ trợ"):
-        batch_routes.build_job("book_wfa", {"candidates": ["t_long"], "symbols": ["XYZ"]})
+        process_routes.build_job("book_wfa", {"candidates": ["t_long"], "symbols": ["XYZ"]})
     with pytest.raises(ValueError, match="WFA chưa hỗ trợ tài sản DEX"):
         from backend.optimize.process.tasks import run_book_wfa as wfa_job
         wfa_job({"candidates": "t_long", "symbols": "dex:XYZ"})
@@ -367,7 +368,7 @@ def test_run_job_rejects_mixing_and_tick_on_perp(market):
 
 # ─── API: danh sách tài sản ─────────────────────────────────────────────────
 def test_get_book_lists_assets_with_candle_and_tick_coverage(market):
-    from backend.routes.book import get_book
+    from backend.routes.optimize import get_book
     ticks = path_ticks([100.0, 100.0])
     _xyz(market, ticks)
     body = get_book()
@@ -394,6 +395,7 @@ def _cyc_ticks():
 
 def test_run_job_tick_end_to_end_schema_and_candle_mode_for_dex(market, tmp_path, monkeypatch):
     from backend.optimize.process.tasks import run_book_backtest as run_job
+    os.makedirs(tmp_path / "job", exist_ok=True)   # writer chỉ ghi khi thư mục job tồn tại (launch tạo sẵn)
     monkeypatch.setenv("NORA_JOB_DIR", str(tmp_path / "job"))
     _xyz(market, _cyc_ticks())
     out = run_job({"strategies": [{"id": "t_cyc"}], "symbols": "XYZ", "data": "tick", "timeframe": "15m", "out": str(tmp_path / "o.json")})

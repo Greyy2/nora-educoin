@@ -1,1 +1,1 @@
-"""Lớp API (ADR-P9 P9.8): router FastAPI (routes/*.py), chế độ Cơ bản/Nâng cao (modes.py), kiểm tham số job (jobs.py)."""
+"""Backend routes: 5 module (alpha, optimize, data, live, process); import trực tiếp từng module."""

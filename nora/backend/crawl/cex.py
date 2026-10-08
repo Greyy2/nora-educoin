@@ -13,7 +13,8 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 import requests
-from backend.crawl.store import NORA_ROOT, as_list, options, save_resampled_dataset, stamp_attrs, write_job_result, write_pickle_atomic
+from backend.core.models import DATA_DIR, NORA_DIR
+from backend.crawl.store import as_list, options, save_resampled_dataset, stamp_attrs, write_job_result, write_pickle_atomic
 
 
 # ── Crawl nến Binance Spot ────────────────────────────────────────────────────────────────────
@@ -45,7 +46,7 @@ MARKETS = {
 }
 MINUTE_MS = 60_000
 DEFAULT_CACHE_DIR = os.environ.get("NORA_BINANCE_CACHE_DIR") or os.path.join(
-    os.path.dirname(NORA_ROOT), "data", "cache", "binance")  # cha của thư mục nora/ = gốc repo
+    os.path.dirname(NORA_DIR), "data", "cache", "binance")  # cha của thư mục nora/ = gốc repo
 KLINE_COLUMNS = [
     "open_time", "open", "high", "low", "close", "volume_base", "close_time",
     "quote_volume", "trades", "taker_buy_base", "taker_buy_quote", "ignore",
@@ -397,7 +398,7 @@ REST = "https://www.okx.com"
 MINUTE_MS, HOUR_MS, DAY_MS = 60_000, 3_600_000, 86_400_000
 HK_OFFSET_MS = 8 * HOUR_MS                 # ngày của file CDN theo giờ Hồng Kông
 FUNDING_GAP_MS = 16 * HOUR_MS              # hai mốc funding OKX cách nhau hơn mức này -> khoảng trống (chu kỳ chuẩn 8h)
-OKX_DEFAULT_CACHE_DIR = os.environ.get("NORA_OKX_CACHE_DIR") or os.path.join(os.path.dirname(NORA_ROOT), "data", "cache", "okx")
+OKX_DEFAULT_CACHE_DIR = os.environ.get("NORA_OKX_CACHE_DIR") or os.path.join(os.path.dirname(NORA_DIR), "data", "cache", "okx")
 COLS = ["open_time", "open", "high", "low", "close", "volume"]
 
 
@@ -600,7 +601,6 @@ def okx_crawl(args) -> List[Dict]:
     if not args.output_dir:
         from backend.crawl.store import exchange_root
         args.output_dir = os.path.join(exchange_root("okx"), "cex")
-    from backend.crawl.store import DATA_HOME
     end_ms = int(time.time() * 1000) // MINUTE_MS * MINUTE_MS - MINUTE_MS if not args.end_ts else int(args.end_ts)
     start_ms = (end_ms - int(args.years * 365.25 * DAY_MS)) // MINUTE_MS * MINUTE_MS
     session = requests.Session()
@@ -613,7 +613,7 @@ def okx_crawl(args) -> List[Dict]:
         if df.empty:
             log(f"[skip] {base}: không có dữ liệu ({issues})")
             continue
-        bpath = os.path.join(DATA_HOME, "binance", "cex", base, "perp", "funding.pkl")
+        bpath = os.path.join(DATA_DIR, "binance", "cex", base, "perp", "funding.pkl")
         funding, fmeta, f_issues = okx_crawl_funding(session, base, start_ms, end_ms, args.cache_dir, args.workers, bpath)
         issues += f_issues
         extra = {

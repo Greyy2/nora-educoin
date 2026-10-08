@@ -64,7 +64,7 @@ if [ "$LOCK_MODE" != none ]; then
 fi
 
 # Log RAM mỗi giây: mặc định data/cache/process/_mem/<ts>_mem.csv (đặt sau khi qua hàng đợi để mốc thời gian đúng lúc chạy)
-# Cache chỉ giữ tiến trình đang chạy/dở dang: log mặc định bị xoá khi lệnh kết thúc với exit 0 (giữ lại khi lỗi để chẩn đoán).
+# Cache chỉ giữ tiến trình đang chạy: log mặc định bị xoá khi lệnh kết thúc (mọi exit code; đỉnh RAM đã in ra stderr ở trên).
 NORA_MEM_LOG_TEMP=0
 if [ -z "$LOG" ]; then
   mkdir -p "$NORA_DIR/data/cache/process/_mem"
@@ -101,9 +101,9 @@ echo "[run_limited] peak RAM $((peak / 1048576)) MB / limit $NORA_MEM_LIMIT_LABE
 if [ -r "$NORA_SLICE_CG/memory.current" ]; then
   echo "[run_limited] nora.slice đang dùng $(( $(cat "$NORA_SLICE_CG/memory.current") / 1048576 )) MB (tổng cả slice)" >&2
 fi
-if [ "$rc" -eq 0 ] && [ "$NORA_MEM_LOG_TEMP" = 1 ]; then
+if [ "$NORA_MEM_LOG_TEMP" = 1 ]; then
   rm -f "$NORA_MEM_LOG_PATH"
-  echo "[run_limited] log RAM: đã xoá (chạy xong, exit 0)" >&2
+  echo "[run_limited] log RAM: đã xoá (tiến trình kết thúc)" >&2
 else
   echo "[run_limited] log RAM: $NORA_MEM_LOG_PATH" >&2
 fi

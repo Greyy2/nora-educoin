@@ -250,8 +250,11 @@ def test_load_paper_state_reads_both_formats(tmp_path, monkeypatch):
         monkeypatch.setenv("NORA_LOCAL_DATA_ROOT", str(tmp_path / fmt))
         r = live_router.bot_trades(mode="demo", venue="okx", limit=2000, book="main", engine=None)
         assert _hx(r["paper"]["trades"]) == _hx(list(pb.trades)) and _hx(r["paper"]["positions"]) == _hx(pb.positions())
+        assert r["engine"] == "unified" and r["dir"] == "live/testnet/okx_main"
+        (dirs[fmt] / "events.jsonl").write_text("", encoding="utf-8")          # engine=unified -> /compare dùng đường sự kiện (như /compare_events)
         c = live_router.bot_compare(mode="demo", venue="okx", book="main", engine=None)
-        assert c["venue"] == "okx" and c["mode"] == "demo"
+        assert c["venue"] == "okx" and c["mode"] == "demo" and c["engine"] == "unified" and c["dir"] == "live/testnet/okx_main" and "n_exec" in c
+        assert c == live_router.bot_compare_events(mode="demo", venue="okx", book="main", engine=None)
 
 
 def test_covered_by_fixtures():

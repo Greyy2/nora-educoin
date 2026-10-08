@@ -1,6 +1,6 @@
 """Chạy hàng loạt (P9.6): thư viện backtest danh mục (BacktestJob, make_engine, run, result_payload), phía WORKER của phễu (w_*) và kho dữ liệu dùng chung (SharedExporter).
 
-Nguồn gộp: docs/bmad/p9_review_log.md (mục P9.6). Gồm backtest tick DEX (tick_run; ở đây để engine_version băm được — ENGINE_FILES có evaluate.py).
+Nguồn gộp: docs/bmad/p9_review_log.md (mục P9.6). Gồm backtest tick DEX (tick_run; ở đây để engine_version băm được — engine_inputs có evaluate.py).
 """
 import os
 for _blas_env in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS",
@@ -33,7 +33,7 @@ from backend.crawl.dex import pool_info
 from backend.crawl.store import _frame_ms
 from backend.metrics.metrics import daily_stats, flat_extras, portfolio_metrics, series_metrics, sortino
 from backend.metrics.trades import trade_rows, trade_stats
-from backend.optimize.process.process import NORA_DIR
+from backend.core.models import NORA_DIR
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -53,11 +53,52 @@ from backend.optimize.process.process import NORA_DIR
 
 
 WARMUP = 20 * DAY            # bằng build_strategy_book.WARMUP (chỉ số đo từ start trở đi)
-MAX_CURVE_POINTS = 2000
+MAX_DAYS = 4000
 
 
-def _ts(date_str: str) -> int:
-    return int(pd.Timestamp(date_str, tz="UTC").value // 1_000_000)
+def execute(plan, start: int, end: int, initial_capital: float, close_at_end: bool = False):
+    """PortfolioEngine cho một Plan (core/backtest.build_plan) -> (get_results(), engine). Chương trình phải đã được compile_code (đăng ký)."""
+    from backend.core.backtest import BacktestEngine, PortfolioEngine, RiskConfig
+    BacktestEngine.MAX_BACKTEST_DAYS = max(BacktestEngine.MAX_BACKTEST_DAYS, MAX_DAYS)
+    eng = PortfolioEngine(plan.symbols, plan.strategies, start - WARMUP, end, trade_start_ts=start, initial_capital=initial_capital,
+                          risk=RiskConfig.from_dict(plan.risk), venue=plan.venue, close_at_end=close_at_end, base_frame=plan.base_frame,
+                          shared_dir=None)
+    with contextlib.redirect_stdout(io.StringIO()):
+        eng.run()
+    return eng.get_results(), eng
+
+
+BENCH_CODE = ('class AlwaysLong(SimpleAlgorithm):\n    timeframe = "{tf}"\n    def __algorithm__(self):\n'
+              '        self.set_positions(self.data.pv_close > 0, position=1)\n')
+NO_EXIT_POSITION = {"stop_loss_rate": 0.0, "take_profit_rate": 0.0, "trailing_stop": 0.0, "trailing_activation_pct": 0.0, "timeout": 0}
+_BENCH_CACHE: Dict[str, Dict[str, Any]] = {}
+
+
+def run_benchmark(program, a, plan, names: List[str], start: int, end: int, capital: float, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Benchmark "luôn long" self.set_positions(self.data.pv_close > 0, position=1) chạy qua CÙNG đường engine."""
+    from backend.core.backtest import FRAME_MS
+    from backend.core.params import resolve_costs
+    from backend.alpha.compile import compile_code
+    from backend.core.backtest import build_plan
+    from backend.metrics.trades import daily_series
+    position = {**(program.position_overrides or {}), **(a.position or {})}
+    taker = resolve_costs(plan.venue, "perp", position.get("fee_rate"), position.get("slippage_rate"), position.get("maker_fee_rate"))[0]
+    position.update(NO_EXIT_POSITION)
+    position.update(sizing="margin_pct", leverage=1, order_size_pct=100.0 / len(names) / (1.0 + taker) * (1.0 - 1e-9))
+    key = json.dumps([plan.symbols, program.timeframe, plan.base_frame, start, end, capital, data.get("source"), data.get("sha256_1m"), sorted(position.items())],
+                     sort_keys=True, default=str)
+    hit = _BENCH_CACHE.get(key)
+    if hit is not None:
+        return hit
+    bench_prog = compile_code(BENCH_CODE.format(tf=program.timeframe))
+    bplan = build_plan(bench_prog, names, position=position, run_frame=plan.base_frame)
+    bplan.risk = {"max_positions": max(1, len(names)), "max_per_symbol": 1, "max_gross_exposure": 1e6, "kill_switch_dd_pct": 0.0, "max_open_risk_pct": 0.0, "dd_throttle_pct": 0.0}
+    res, _ = execute(bplan, start, end, capital)
+    ser = daily_series(res["equity_curve"], start, end, FRAME_MS[bplan.base_frame], capital)
+    out = {"times": ser["times"], "equity": ser["equity"], "program_hash": bench_prog.code_hash, "strategies": [s["id"] for s in bplan.strategies],
+           "label": "Luôn long (position=1) cùng rổ/ngày/vốn, chia đều, đòn bẩy 1, không SL/TP/trailing/timeout/kill-switch", "symbols": bplan.symbols}
+    _BENCH_CACHE[key] = out
+    return out
 
 
 def _mid_params(candidate, params):
@@ -93,46 +134,8 @@ def load_items(a):
     return items, book.get("risk_per_trade_pct") or BASE_RISK_PER_TRADE_PCT, book.get("risk") or RISK
 
 
-def downsample(curve, limit=MAX_CURVE_POINTS):
-    """<= limit điểm, cách đều theo chỉ số, luôn giữ điểm cuối (tất định)."""
-    n = len(curve)
-    if n <= limit:
-        return list(curve)
-    idx = sorted({round(i * (n - 1) / (limit - 1)) for i in range(limit)})
-    return [curve[i] for i in idx]
+from backend.metrics.metrics import result_payload
 
-
-def daily_nav(curve, end):
-    """Vốn MTM cuối mỗi ngày UTC (từ đường vốn ĐẦY ĐỦ, chưa downsample) -> [{date, equity}]; dashboard dùng khi dữ liệu dài.
-    Mẫu cuối đúng mốc `end` (loại trừ) tính vào ngày cuối thật (end - 1ms), không tạo thêm ngày 00:00."""
-    last = {}
-    for c in curve:
-        last[pd.Timestamp(min(c["time"], end - 1), unit="ms").strftime("%Y-%m-%d")] = float(c["equity"])
-    return [{"date": d, "equity": e} for d, e in last.items()]
-
-
-def result_payload(res, start, end):
-    """Kết quả chuẩn của một lần chạy từ PortfolioEngine.get_results() (hoặc dict cùng dạng của backtest tick): số đo danh mục + danh sách lệnh +
-    đường vốn (<= 2000 điểm) + vốn cuối mỗi ngày. Chưa có config / final_equity / meta (người gọi thêm)."""
-    out = portfolio_metrics(res, start)
-    out["risk_blocked_attempts"] = res["risk_blocked_attempts"]   # số lần vào lệnh bị chặn (rejected_for_risk đếm phút)
-    out["trade_list"] = [{
-        "symbol": p.symbol.split(":")[-1], "strategy": p.strategy_id, "side": p.pos_type.name,
-        "enter_time": p.enter_time, "enter_price": p.enter_price, "close_time": p.close_time, "close_price": p.close_price,
-        "pnl": round(p.real_pnl, 4), "status": p.status.name, "close_reason": p.close_reason,
-        # khối lượng + danh nghĩa (qty × giá vào trung bình sau DCA) + ký quỹ: để tính exposure/trọng số ở dashboard
-        "qty": round(p.qty, 8), "notional": round(p.qty * (p.avg_price or p.enter_price), 2),
-        "margin_usd": round(p.total_margin_usd or 0.0, 2),
-        # thêm cho bảng lệnh + số đo theo chiến lược (metrics/trades.rows_from_trade_list)
-        "avg_price": round(p.avg_price or p.enter_price, 8), "pnl_pct": round(p.profit_pct, 4), "fees_usd": round(p.fees_usd or 0.0, 4),
-        "funding_usd": round(p.funding_usd or 0.0, 4), "layers": int(p.layers or 0), "mae_pct": round(p.mae_pct or 0.0, 4),
-        "leverage": float(p.leverage_used or 1.0), "entry_equity": round(p.entry_equity or 0.0, 2),
-    } for p in res["positions"]]
-    curve = [{"time": c["time"], "equity": round(c["equity"], 2), "equity_worst": round(c["equity_worst"], 2)}
-             for c in res["equity_curve"] if c["time"] >= start]
-    out["equity_curve"] = downsample(curve)
-    out["daily_nav"] = daily_nav(curve, end)
-    return out
 
 
 class BacktestJob(NamedTuple):
@@ -449,9 +452,9 @@ def make_engine_from_dict(job: Dict[str, Any]):
 
 def _outputs(res: Dict[str, Any], start: int, want_trades: bool) -> Dict[str, Any]:
     """get_results() của một lần chạy -> {"metrics", "daily", "daily_start", "trades"} (số đo phẳng của phễu, không gồm chuỗi ngày)."""
-    from backend.metrics.metrics import portfolio_metrics
     pm = portfolio_metrics(res, start)
     daily = pm["daily"]
+
     first = next((c["time"] for c in res["equity_curve"] if c["time"] >= start), None)
     rows = trade_rows(res["positions"])
     ds = daily_stats(daily)
@@ -563,7 +566,7 @@ def mc_detail(series, scale: float, basis: str = "extreme", shock: Optional[Dict
 
 # ── WFA tham số cố định ─────────────────────────────────────────────────────
 def fold_job_plan(folds: List[Dict[str, int]]) -> List[Dict[str, Any]]:
-    from backend.metrics.charts import iso_date
+    from backend.core.params import iso_date
     return [{"fold": i + 1, "train": [f["train_start_ts"], f["train_end_ts"]], "test": [f["test_start_ts"], f["test_end_ts"]],
              "train_iso": [iso_date(f["train_start_ts"]), iso_date(f["train_end_ts"])],
              "test_iso": [iso_date(f["test_start_ts"]), iso_date(f["test_end_ts"])]} for i, f in enumerate(folds)]
@@ -612,6 +615,337 @@ def aggregate_wfa(folds: List[Dict[str, Any]], rpt: Optional[float] = None) -> D
         metrics["shock"] = vertical_exposure(trades, rpt)
     daily = [{"fold": f["fold"], "start": f["daily_start"], "rets": f["daily"]} for f in folds]
     return {"summary": summary, "metrics": metrics, "series": series, "trades": trades, "daily": daily}
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# WFA danh mục (Portfolio WFA + Monte Carlo trên lợi suất ngày MTM)
+# ══════════════════════════════════════════════════════════════════════════
+
+def candidates_from_report(stage_a, report, n, include_rejected, only=None):
+    """Top-n cấu hình (điểm dev1 cao nhất, bỏ điểm -inf) mỗi chiến lược; mặc định chỉ chiến lược ĐẠT."""
+    out = []
+    for cid, rows in stage_a.items():
+        if only and cid not in only:
+            continue
+        accepted = (report.get("candidates", {}).get(cid) or {}).get("accepted")
+        if not include_rejected and not (accepted is True or accepted == "True"):  # báo cáo cũ lưu chuỗi 'False' (default=str)
+            continue
+        ranked = sorted((r for r in rows if r["score"] is not None and r["score"] > float("-inf")), key=lambda r: -r["score"])
+        if ranked:
+            out.append({"id": cid, "configs": [r["params"] for r in ranked[:n]]})
+    return out
+
+
+def candidates_from_ids(ids, n, seed):
+    from backend.optimize.book.build import BY_ID, configs
+    by_id = BY_ID
+    missing = [i for i in ids if i not in by_id]
+    if missing:
+        raise SystemExit(f"Không có chiến lược: {missing}; có: {sorted(by_id)}")
+    return [{"id": i, "configs": configs(by_id[i], n, seed)} for i in ids]
+
+
+def candidates_from_list(raw):
+    """Cấu hình do người dùng chọn: [{"id", "configs": [{tham số}]}] -> đúng như vậy (kiểm id/khoá tham số theo `space` + `params_schema`)."""
+    from backend.optimize.book.build import BY_ID
+    by_id = BY_ID
+    if not isinstance(raw, list) or not raw:
+        raise SystemExit("strategies phải là danh sách không rỗng")
+    out, seen = [], set()
+    for s in raw:
+        cid, cfgs = s.get("id"), s.get("configs")
+        if cid not in by_id or cid in seen:
+            raise SystemExit(f"Chiến lược lạ hoặc bị lặp: {cid!r}; có: {sorted(by_id)}")
+        if not isinstance(cfgs, list) or not cfgs or not all(isinstance(c, dict) for c in cfgs):
+            raise SystemExit(f"{cid}: configs phải là danh sách không rỗng các dict tham số")
+        bad = sorted({k for c in cfgs for k in c} - set(by_id[cid]["space"]) - set(by_id[cid].get("params_schema") or {}))
+        if bad:
+            raise SystemExit(f"{cid}: khoá tham số không thuộc không gian tham số / lược đồ tham số: {bad}")
+        seen.add(cid)
+        out.append({"id": cid, "configs": cfgs})
+    return out
+
+
+from backend.optimize.process.workers import pool_map_safe
+_pool_map = pool_map_safe
+
+
+def run_wfa_job(job):
+    from backend.optimize.process.workers import peak_rss_mb, rss_anon_mb
+    from backend.carlo.carlo import measure_turnover, vertical_exposure
+    from backend.core.params import iso_date
+    eng, start = make_engine(job)
+    with contextlib.redirect_stdout(io.StringIO()):
+        eng.run()
+    res = eng.get_results()
+    result = portfolio_metrics(res, start)
+    from backend.metrics.trades import trade_rows
+    rows = trade_rows(res["positions"])
+    result["shock"] = vertical_exposure(rows, job.rpt)   # MC: kịch bản trend thẳng đứng
+    result["turnover"] = measure_turnover(rows, len(result["daily"]))   # MC: kịch bản cost_x2 dùng vòng quay ĐO TỪ LỆNH
+    if job.regime:   # lãi/lỗ theo (chiến lược, regime lúc vào lệnh) -> học bảng regime (regime="learn")
+        from backend.regime.regime import engine_by_regime
+        result["by_regime"] = engine_by_regime(eng, res["positions"])
+    # Ngày UTC đầu của chuỗi lợi suất ngày (mẫu vốn đầu tiên >= start) -> dựng nhãn ngày cho đường vốn OOS
+    first = next((c["time"] for c in res["equity_curve"] if c["time"] >= start), None)
+    result["_daily_start"] = iso_date(first) if first is not None else None
+    result["_peak_rss_mb"] = round(peak_rss_mb(), 1)
+    result["_rss_anon_mb"] = round(rss_anon_mb(), 1)
+    return result
+
+
+def _pool_shared(jobs, workers, label, shared_dir, store=None, stage=None, progress=None):
+    """Làm nóng kho dùng chung -> pool -> dọn kho (lỗi thì ngoại lệ bay lên, kho giữ nguyên để gỡ lỗi). jobs: [BacktestJob].
+    store (ResultsStore, tuỳ chọn): mỗi kết quả ghi ngay khi xong; job đã có trong kho (cùng job_key) bỏ qua -> `--resume`.
+    stage "wfa_is": bỏ chuỗi `daily` (chọn cấu hình IS không cần) để RAM/kho gọn. Kết quả luôn đúng thứ tự jobs."""
+    if store is None and progress is None:
+        exporter = SharedExporter(shared_dir, label)
+        exporter.ensure(jobs)
+        res = _pool_map(run_wfa_job, jobs, workers, label)
+        exporter.cleanup()
+        return res
+    from backend.optimize.funnel.storage import data_fingerprint, make_job_key
+    from backend.optimize.funnel.storage import normalize
+    stage = stage or "wfa"
+    results: List[Any] = [None] * len(jobs)
+    keys_of: List[Optional[str]] = [None] * len(jobs)
+    missing = []
+    fp = data_fingerprint(jobs[0].symbols) if (store is not None and jobs) else None
+    for i, job in enumerate(jobs):
+        if store is not None:
+            extra = {"rpt": job.rpt, "symbols": list(job.symbols)}
+            if job.base_frame != "1m":   # khung chạy khác -> khoá khác (resume không trộn kết quả hai khung)
+                extra["base_frame"] = job.base_frame
+            if job.regime:
+                extra["regime"] = job.regime
+            keys_of[i] = make_job_key(stage, "-", [[c, p] for c, p in job.items], list(job.window), job.stop_fill, job.risk, fp,
+                                      extra=extra)
+            row = store.get(keys_of[i])
+            if row is not None:
+                results[i] = row["metrics"]
+                if progress is not None:
+                    progress.tick(resumed=True)
+                continue
+        missing.append(i)
+    if missing:
+        sub = [jobs[i] for i in missing]
+        exporter = SharedExporter(shared_dir, label)
+        exporter.ensure(sub)
+
+        def _done(j, res):
+            i = missing[j]
+            m = normalize(res)
+            if stage == "wfa_is":
+                m.pop("daily", None)
+                m.pop("stats", None)
+            results[i] = m
+            if store is not None:
+                store.put(keys_of[i], stage, "-", [[c, p] for c, p in jobs[i].items], m, ord=i)
+            if progress is not None:
+                progress.tick(worker_peak_mb=m.get("_peak_rss_mb"))
+        _pool_map(run_wfa_job, sub, workers, label, on_done=_done)
+        exporter.cleanup()
+    return results
+
+
+def _strip(m):
+    from backend.optimize.book.build import strip_metrics
+    return strip_metrics(m, ("_daily_start", "by_regime", "shock", "turnover"))
+
+
+def plan_is_jobs(candidates, folds, symbols, risk, rpt, shared_dir, base_frame="1m"):
+    """Danh sách (khoá, job) IS: khoá = (fold, candidate_id, chỉ số cấu hình). Cửa sổ IS = [train_start, train_end]."""
+    is_risk = {**risk, "kill_switch_dd_pct": 0}
+    keys, jobs = [], []
+    for fi, fold in enumerate(folds):
+        for cand in candidates:
+            for ci, cfg_params in enumerate(cand["configs"]):
+                keys.append((fi, cand["id"], ci))
+                jobs.append(BacktestJob([(cand["id"], cfg_params)], (fold["train_start_ts"], fold["train_end_ts"]), "level", is_risk,
+                                        rpt, symbols, shared_dir, base_frame))
+    return keys, jobs
+
+
+def plan_oos_jobs(chosen, folds, symbols, risk, rpt, shared_dir, base_frame="1m", regime_maps=None):
+    """chosen[fold] = [(candidate_id, params)] (rỗng -> fold NO_TRADE, không chạy). Khoá = (fold, stop_fill).
+    regime_maps[fold] (tuỳ chọn): bảng regime học trên train của fold đó."""
+    keys, jobs = [], []
+    for fi, fold in enumerate(folds):
+        if not chosen[fi]:
+            continue
+        rmap = regime_maps[fi] if regime_maps else None
+        for sf in ("level", "extreme"):
+            keys.append((fi, sf))
+            jobs.append(BacktestJob(chosen[fi], (fold["test_start_ts"], fold["test_end_ts"]), sf, risk, rpt, symbols, shared_dir, base_frame,
+                                    rmap))
+    return keys, jobs
+
+
+def plan_regime_jobs(chosen, folds, symbols, risk, rpt, shared_dir, base_frame="1m", learn_from=None):
+    """regime="learn": mỗi fold chạy lại các cấu hình đã chọn trên cửa sổ HỌC (kill switch tắt như IS) ở chế độ quan sát regime
+    -> lãi/lỗ theo (chiến lược, regime). Cửa sổ học = [learn_from, train_end] (mở rộng: thêm mẫu, vẫn kết thúc trước test);
+    learn_from=None -> đúng cửa sổ train của fold. Khoá = fold."""
+    from backend.regime.regime import OBSERVE
+    is_risk = {**risk, "kill_switch_dd_pct": 0}
+    keys, jobs = [], []
+    for fi, fold in enumerate(folds):
+        if chosen[fi]:
+            keys.append(fi)
+            lo = fold["train_start_ts"] if learn_from is None else min(int(learn_from), fold["train_start_ts"])
+            jobs.append(BacktestJob(chosen[fi], (lo, fold["train_end_ts"]), "level", is_risk, rpt, symbols, shared_dir,
+                                    base_frame, {cid: OBSERVE for cid, _ in chosen[fi]}))
+    return keys, jobs
+
+
+def run_portfolio_wfa(candidates, symbols, start_ts, end_ts, cfg, risk, risk_per_trade_pct, workers, shared_root,
+                      store=None, progress=None, base_frame="1m", regime="off", regime_learn_from=None) -> Dict[str, Any]:
+    """candidates = [{"id": candidate_id, "configs": [params...]}]; cfg: PortfolioWfaConfig hoặc dict.
+    regime: "off" (mặc định, như trước) | "learn": mỗi fold học bảng regime ↔ chiến lược trên TRAIN (regime/regime.learn_map) rồi áp lên test;
+    regime_learn_from (ms, tuỳ chọn): học trên cửa sổ mở rộng [regime_learn_from, train_end] thay vì chỉ train của fold.
+    risk: dict RiskConfig dùng cho OOS (kill switch BẬT); IS tự tắt kill switch. Trả dict kết quả (xem aggregate_folds).
+    store/progress (tuỳ chọn, backend/optimize): ghi từng kết quả job vào kho + bỏ qua job đã có (--resume) + tiến độ."""
+    from dataclasses import asdict
+    from backend.core.params import iso_date
+    from backend.wfa.wfa import PortfolioWfaConfig, aggregate_folds, evaluate_gate, generate_folds, is_score, select_best
+    from backend.carlo.carlo import measure_turnover
+    cfg = cfg if isinstance(cfg, PortfolioWfaConfig) else PortfolioWfaConfig.from_dict(cfg)
+    symbols, rpt = list(symbols), float(risk_per_trade_pct)
+    folds = generate_folds(int(start_ts), int(end_ts), cfg.train_days, cfg.test_days, cfg.step_days)
+    if not folds:
+        raise ValueError("Khoảng thời gian không đủ để tạo ít nhất 1 fold")
+    os.makedirs(shared_root, exist_ok=True)
+    t0 = time.time()
+
+    # IS: MỌI fold × chiến lược × cấu hình trong MỘT pool
+    is_keys, is_jobs = plan_is_jobs(candidates, folds, symbols, risk, rpt, shared_root, base_frame)
+    if progress is not None:
+        progress.start_stage("WFA-IS", len(is_jobs))
+    is_res = _pool_shared(is_jobs, workers, f"[WFA-IS] {len(folds)} fold × {len(is_jobs) // len(folds)} job", shared_root,
+                          store, "wfa_is", progress)
+    is_by = {k: m for k, m in zip(is_keys, is_res)}
+    print(f"[WFA-IS] {len(is_jobs)} job IS xong ({time.time() - t0:.0f}s)", flush=True)
+
+    # Chọn cấu hình theo IS (chỉ dùng kết quả IS)
+    chosen: List[List[Tuple[str, Dict[str, Any]]]] = []
+    picks: List[Dict[str, Optional[int]]] = []
+    for fi in range(len(folds)):
+        pick, items = {}, []
+        for cand in candidates:
+            rows = [is_by[(fi, cand["id"], ci)] for ci in range(len(cand["configs"]))]
+            best = select_best(rows, cfg.min_is_trades)
+            pick[cand["id"]] = best
+            if best is not None:
+                items.append((cand["id"], cand["configs"][best]))
+        chosen.append(items)
+        picks.append(pick)
+
+    # regime="learn": bảng regime của mỗi fold chỉ học từ train
+    regime_maps, train_regime = None, {}
+    if regime == "learn":
+        from backend.regime.regime import learn_map
+        rg_keys, rg_jobs = plan_regime_jobs(chosen, folds, symbols, risk, rpt, shared_root, base_frame, regime_learn_from)
+        if progress is not None:
+            progress.start_stage("WFA-REGIME", len(rg_jobs))
+        rg_res = _pool_shared(rg_jobs, workers, f"[WFA-REGIME] {len(rg_jobs)} job", shared_root, store, "wfa_regime", progress) if rg_jobs else []
+        train_regime = {fi: m.get("by_regime") or {} for fi, m in zip(rg_keys, rg_res)}
+        regime_maps = [{cid: rc for cid, rc in learn_map(train_regime.get(fi, {}), [c for c, _ in chosen[fi]]).items() if rc}
+                       for fi in range(len(folds))]
+        print(f"[WFA-REGIME] {len(rg_jobs)} job học regime xong ({time.time() - t0:.0f}s)", flush=True)
+    elif regime != "off":
+        raise ValueError(f"regime phải là off|learn (nhận {regime!r})")
+
+    # OOS: MỌI fold × {level, extreme} trong MỘT pool
+    oos_keys, oos_jobs = plan_oos_jobs(chosen, folds, symbols, risk, rpt, shared_root, base_frame, regime_maps)
+    if progress is not None:
+        progress.start_stage("WFA-OOS", len(oos_jobs))
+    oos_res = _pool_shared(oos_jobs, workers, f"[WFA-OOS] {len(oos_jobs)} job", shared_root, store, "wfa_oos", progress) if oos_jobs else []
+    oos_by = {k: m for k, m in zip(oos_keys, oos_res)}
+    print(f"[WFA-OOS] {len(oos_jobs)} job OOS xong ({time.time() - t0:.0f}s)", flush=True)
+
+    fold_records = []
+    for fi, fold in enumerate(folds):
+        cids = [c["id"] for c in candidates]
+        is_sel = {cid: _strip(is_by[(fi, cid, picks[fi][cid])]) | {"score": round(is_score(is_by[(fi, cid, picks[fi][cid])],
+                                                                                          cfg.min_is_trades), 4)}
+                  for cid in cids if picks[fi][cid] is not None}
+        rec = {
+            "fold": fi + 1,
+            "train": [iso_date(fold["train_start_ts"]), iso_date(fold["train_end_ts"])],
+            "test": [iso_date(fold["test_start_ts"]), iso_date(fold["test_end_ts"])],
+            "train_ts": [fold["train_start_ts"], fold["train_end_ts"]], "test_ts": [fold["test_start_ts"], fold["test_end_ts"]],
+            "status": "TRADED" if chosen[fi] else "NO_TRADE",
+            "chosen_idx": picks[fi],
+            "chosen": {cid: (candidates[i]["configs"][picks[fi][cid]] if picks[fi][cid] is not None else None)
+                       for i, cid in enumerate(cids)},
+            "is": is_sel,
+            "is_ret_pct": round(sum(m["ret_pct"] for m in is_sel.values()) / len(is_sel), 2) if is_sel else 0.0,
+            "is_candidates": {cid: [{"ret_pct": m["ret_pct"], "mdd_pct": m["mdd_pct"], "trades": m["trades"],
+                                     "score": is_score(m, cfg.min_is_trades)}
+                                    for m in (is_by[(fi, cid, ci)] for ci in range(len(candidates[i]["configs"])))]
+                              for i, cid in enumerate(cids)},
+        }
+        for sf in ("level", "extreme"):
+            m = oos_by.get((fi, sf))
+            rec[f"oos_{sf}"] = _strip(m) if m else None
+            rec[f"oos_daily_{sf}"] = list(m["daily"]) if m else [0.0] * cfg.test_days   # NO_TRADE: vốn đứng yên
+            first = (m or {}).get("_daily_start") or iso_date(fold["test_start_ts"])
+            rec[f"oos_daily_dates_{sf}"] = [f"{d:%Y-%m-%d}" for d in pd.date_range(first, periods=len(rec[f"oos_daily_{sf}"]), freq="D")]
+        rec["shock"] = (oos_by.get((fi, "extreme")) or {}).get("shock")
+        m_ext = oos_by.get((fi, "extreme"))
+        if m_ext is None:                                           # fold NO_TRADE: không có lệnh nào -> vòng quay 0 (đo được)
+            rec["turnover"] = measure_turnover([], len(rec["oos_daily_extreme"]))
+        else:                                                       # kết quả job cũ trong kho (resume) không lưu vòng quay -> không đo được
+            rec["turnover"] = m_ext.get("turnover") or {"turnover_daily": None, "note": "kết quả fold cũ không lưu vòng quay", "sum": 0.0,
+                                                        "days": len(rec["oos_daily_extreme"]), "trades": 0, "measurable": 0}
+        if regime_maps is not None:
+            rec["regime_map"] = regime_maps[fi]
+            rec["train_by_regime"] = train_regime.get(fi, {})
+        rec["trades"] = {sf: (rec[f"oos_{sf}"]["trades"] if rec[f"oos_{sf}"] else 0) for sf in ("level", "extreme")}
+        rec["halted_at"] = {sf: (rec[f"oos_{sf}"]["halted_at"] if rec[f"oos_{sf}"] else None) for sf in ("level", "extreme")}
+        fold_records.append(rec)
+
+    summary = aggregate_folds(fold_records, cfg)
+    gate = evaluate_gate(summary)
+    all_res = [m for m in list(is_res) + list(oos_res) if m]
+    return {
+        "config": asdict(cfg), "risk": risk, "risk_per_trade_pct": rpt, "symbols": symbols,
+        **({"regime": regime} if regime != "off" else {}),
+        **({"regime_learn_from": iso_date(regime_learn_from)} if regime != "off" and regime_learn_from else {}),
+        "window": [iso_date(start_ts), iso_date(end_ts)], "candidates": [{"id": c["id"], "configs": c["configs"]} for c in candidates],
+        "folds": fold_records, "summary": summary, "gate": gate,
+        "aggregate": summary, "mc": summary["mc"],   # tên theo docs/ui_contract.md §4 (cùng đối tượng với summary / summary.mc)
+        "mem": {"peak_rss_mb": max([m["_peak_rss_mb"] for m in all_res], default=0.0),
+                "rss_anon_mb": max([m["_rss_anon_mb"] for m in all_res], default=0.0)},
+    }
+
+
+def print_summary(res):
+    s, g = res["summary"], res["gate"]
+    print(f"\ncửa sổ {res['window'][0]} → {res['window'][1]} | train {res['config']['train_days']}d test {res['config']['test_days']}d "
+          f"| rủi ro/lệnh {res['risk_per_trade_pct']}% | {s['n_folds']} fold")
+    print(f"{'#':>2} {'train':23s} {'test':23s} {'IS%':>7} {'OOSlv%':>7} {'OOSex%':>7} {'MDDex':>6} {'lệnh':>5} {'kill':>4}  chọn")
+    for f in res["folds"]:
+        ex, lv = f["oos_extreme"], f["oos_level"]
+        pick = ",".join(f"{cid}#{i}" for cid, i in f["chosen_idx"].items() if i is not None) or "-"
+        print(f"{f['fold']:>2} {f['train'][0]}→{f['train'][1]:10s} {f['test'][0]}→{f['test'][1]:10s} {f['is_ret_pct']:7.2f} "
+              f"{(lv['ret_pct'] if lv else 0.0):7.2f} {(ex['ret_pct'] if ex else 0.0):7.2f} {(ex['mdd_pct'] if ex else 0.0):6.2f} "
+              f"{f['trades']['extreme']:5d} {'có' if f['halted_at']['extreme'] else '-':>4}  {pick}")
+    print("ổn định tham số: " + "; ".join(f"{cid} {v['share'] * 100:.0f}% ({v['distinct']} cấu hình/{v['folds_chosen']} fold)"
+                                          for cid, v in s["param_stability"].items()))
+    c, w = s["compounded_oos_ret_pct"], s["worst_fold_mdd_pct"]
+    print(f"OOS lãi kép: level {c['level']}% | extreme {c['extreme']}% | MDD fold tệ nhất: level {w['level']}% | extreme {w['extreme']}% "
+          f"| {s['oos_days']} ngày, lệnh {s['oos_trades']['extreme']}")
+    mc = s["mc"]
+    if mc:
+        print(f"MC {mc['simulations']}×{mc['horizon_days']}d (block {mc['block_days']}, ngày MTM extreme): lãi trung vị {mc['median_ret_pct']}%, "
+              f"p05 {mc['p05_ret_pct']}%, MDD p50 {mc['mdd_p50_pct']}% / p95 {mc['mdd_p95_pct']}%, P(MDD>=30%) {mc['p_mdd_ge_ruin_pct']}%")
+    else:
+        print("MC: không đủ ngày OOS")
+    print("GATE: " + ("ĐẠT" if g["passed"] else "KHÔNG ĐẠT"))
+    for c in g["checks"].values():
+        print(f"  [{'ok' if c['passed'] else 'XX'}] {c['label']}: {c['actual']} (cần {c['required']})")
+    m = res["mem"]
+    print(f"đỉnh RAM/worker {m['peak_rss_mb']:.0f} MB (riêng {m['rss_anon_mb']:.0f} MB + mmap dùng chung)", flush=True)
 
 
 # ── Hàm worker (một job = một alpha) ────────────────────────────────────────

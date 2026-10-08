@@ -6,10 +6,10 @@ import os
 import pytest
 
 from backend.optimize.book import registry as ta
-from backend.crawl import store
+from backend.core.models import DATA_DIR  # noqa: E402
 
-FROZEN = next((os.path.join(store.DATA_HOME, *sub, "research", "okx_top10_agents.json") for sub in (("alpha",), ("alphas",))
-               if os.path.isfile(os.path.join(store.DATA_HOME, *sub, "research", "okx_top10_agents.json"))), "")
+FROZEN = next((os.path.join(DATA_DIR, *sub, "research", "okx_top10_agents.json") for sub in (("alpha",), ("alphas",))
+               if os.path.isfile(os.path.join(DATA_DIR, *sub, "research", "okx_top10_agents.json"))), "")
 
 
 @pytest.fixture(autouse=True)

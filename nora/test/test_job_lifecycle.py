@@ -94,15 +94,26 @@ def test_other_kinds_cleaned_on_done_and_crawl_kept_only_while_staged(home):
     assert not pm.exists() and not c2.exists()
 
 
-def test_failed_keeps_log_7_days_then_pruned(home):
+def test_failed_and_cancelled_pruned_at_next_cleanup(home):
     old = _job(home, A, "book_backtest", state="failed", age_days=8)
     new = _job(home, B, "book_wfa", state="failed", age_days=2)
     live = _job(home, C, "live_bot", state="failed", age_days=30)
     cust = _job(home, D, "custom_backtest", state="failed", age_days=30)
     bj._finish(str(new), 1)   # đã failed -> không lưu
-    assert sorted(bj.prune_failed_jobs()) == sorted([A, C, D])
-    assert not old.exists() and new.exists() and not live.exists() and not cust.exists()
-    assert [j["id"] for j in bj.list_jobs(10)] == [B]   # job lỗi còn hiện trong Lịch sử
+    assert sorted(bj.prune_failed_jobs()) == sorted([A, B, C, D])   # cache chỉ giữ tiến trình đang chạy (người dùng chốt 2026-10-08)
+    assert not old.exists() and not new.exists() and not live.exists() and not cust.exists()
+    assert bj.list_jobs(10) == []
+
+
+def test_cancelled_with_progress_kept_7_days_else_pruned(home):
+    paused = _job(home, A, "funnel_run", state="cancelled", age_days=3)        # huỷ giữa chừng, còn tiến độ -> chạy tiếp được
+    (paused / "progress.json").write_text("{}")
+    stale = _job(home, B, "funnel_run", state="cancelled", age_days=8)         # tạm dừng quá 7 ngày
+    (stale / "progress.json").write_text("{}")
+    empty = _job(home, C, "book_backtest", state="cancelled", age_days=0)      # huỷ mà không có gì -> xoá ngay
+    gone = sorted(bj.prune_failed_jobs())
+    assert gone == sorted([B, C])
+    assert paused.exists() and not stale.exists() and not empty.exists()
 
 
 def test_kill_mid_persist_then_rerun_idempotent(home, monkeypatch):
@@ -131,12 +142,12 @@ def test_persist_finished_jobs_dry_run_default_then_apply(home):
 
 
 def test_portfolio_dashboard_reads_persisted_book_backtest(home):
-    from backend.routes import portfolio
+    from backend.routes import optimize
     res = {"metrics": {}, "daily_returns": [], "trade_list": []}
     d = _job(home, A, "book_backtest", result=res)
     bj._finish(str(d), 0)
-    assert portfolio._latest_done_backtest() == A
-    r, jid = portfolio._result_for(A)
+    assert optimize._latest_done_backtest() == A
+    r, jid = optimize._result_for(A)
     assert jid == A and r == res
 
 
@@ -147,7 +158,21 @@ def test_ephemeral_lru_bounded_and_enforce_lifecycle_on_start(home, monkeypatch)
     for i in ids:
         bj._finish(str(_job(home, i, "custom_backtest", result={"i": i})), 0)
     assert bj.status(ids[0]) is None and bj.status(ids[2])["result"] == {"i": ids[2]} and list(bj._EPH) == ids[1:]
-    # API vừa khởi động: custom xong còn sót + bot đã dừng bị dọn, bot đang chạy / job lỗi mới giữ nguyên
+    # A5: job tạm bị đẩy khỏi LRU -> "đã hết hạn" (410), id chưa từng có -> không (404)
+    assert bj.ephemeral_gone(ids[0]) and not bj.ephemeral_gone(ids[2]) and not bj.ephemeral_gone("20261007_999999_ffffff")
+    from fastapi.testclient import TestClient
+    from backend.main import app
+    from backend.optimize.book import registry as reg
+    c = TestClient(app)
+    r = c.get(f"/api/studio/book/jobs/{ids[0]}")
+    assert r.status_code == 410 and r.json()["detail"]["code"] == "EPHEMERAL_GONE"
+    assert c.get("/api/studio/book/jobs/20261007_999999_ffffff").status_code == 404
+    assert c.get(f"/api/studio/book/jobs/{ids[2]}").status_code == 200
+    with pytest.raises(bj.EphemeralGone, match="hết hạn"):
+        reg.save_user_alpha(ids[0], "x", "n")
+    with pytest.raises(ValueError):
+        reg.save_user_alpha("20261007_999999_ffffff", "x", "n")
+    # API vừa khởi động: custom xong còn sót + bot đã dừng + job lỗi bị dọn; chỉ bot đang chạy giữ nguyên (cache chỉ giữ tiến trình đang chạy)
     stale = _job(home, "20261007_110000_bbbbbb", "custom_backtest", state="done", result={"r": 1})
     dead_bot = _job(home, "20261007_110001_bbbbbb", "live_bot", state="cancelled")
     run_bot = _job(home, "20261007_110002_bbbbbb", "live_bot", state="running", extra={})
@@ -157,13 +182,14 @@ def test_ephemeral_lru_bounded_and_enforce_lifecycle_on_start(home, monkeypatch)
     (run_bot / "job.json").write_text(json.dumps(meta))
     fresh_fail = _job(home, "20261007_110003_bbbbbb", "book_wfa", state="failed")
     bj.enforce_lifecycle()
-    assert not stale.exists() and not dead_bot.exists() and run_bot.exists() and fresh_fail.exists()
+    assert not stale.exists() and not dead_bot.exists() and run_bot.exists() and not fresh_fail.exists()
 
 
 def test_writer_does_not_recreate_removed_job_dir_and_orphans_are_pruned(home, monkeypatch):
     from backend.crawl.store import write_job_result
     root = home / "cache" / "process"
     d = _job(home, A, "live_bot", state="cancelled")
+    os.makedirs(d, exist_ok=True)   # writer chỉ ghi khi thư mục job tồn tại (launch tạo sẵn)
     monkeypatch.setenv("NORA_JOB_DIR", str(d))
     assert write_job_result({"ok": 1}) == str(d / "result.json") and (d / "result.json").exists()   # job còn: ghi bình thường
     import shutil

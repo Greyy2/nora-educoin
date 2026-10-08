@@ -56,8 +56,8 @@ def test_stats_gather_alphas_of_all_timeframes(tmp_path):
 
 
 def test_catalog_router():
-    from backend.routes import alphas
-    assert alphas.get_catalog()["sources"][0]["label"] == "Nora"
+    from backend.routes import alpha
+    assert alpha.get_alpha_catalog()["sources"][0]["label"] == "Nora"
 
 
 def test_summary_is_performance_not_parameters():

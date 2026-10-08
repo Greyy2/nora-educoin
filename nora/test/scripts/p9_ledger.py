@@ -79,20 +79,20 @@ OLD_HOME: dict[str, list[str]] = {
     "live/exchange": ["live/live.py"],
     "live/secrets": ["live/live.py"],
     "live/compare": ["metrics/trades.py"],
-    "api/jobs/batch": ["optimize/process/process.py", "routes/jobs.py"],
+    "api/jobs/batch": ["optimize/process/process.py", "routes/process.py"],   # P11: routes gộp còn 5 file (alpha, optimize, data, live, process)
     "api/jobs/runner": ["optimize/process/process.py"],
-    "api/modes": ["routes/modes.py"],
-    "api/routers/alphas": ["routes/alphas.py"],
-    "api/routers/book": ["routes/book.py", "optimize/book/build.py"],
-    "api/routers/chart": ["routes/chart.py"],
-    "api/routers/custom": ["routes/custom.py"],
+    "api/modes": ["routes/process.py"],
+    "api/routers/alphas": ["routes/alpha.py"],
+    "api/routers/book": ["routes/optimize.py", "optimize/book/build.py"],
+    "api/routers/chart": ["routes/alpha.py"],
+    "api/routers/custom": ["routes/alpha.py"],
     "api/routers/data": ["routes/data.py"],
-    "api/routers/education": ["routes/education.py"],
-    "api/routers/funnel": ["routes/funnel.py"],
+    "api/routers/education": ["routes/alpha.py"],
+    "api/routers/funnel": ["routes/optimize.py"],
     "api/routers/live": ["routes/live.py"],
-    "api/routers/market": ["routes/market.py"],
-    "api/routers/portfolio": ["routes/portfolio.py"],
-    "api/routers/strategies": ["routes/strategies.py"],
+    "api/routers/market": ["routes/data.py"],
+    "api/routers/portfolio": ["routes/optimize.py"],
+    "api/routers/strategies": ["routes/alpha.py"],
     "carlo/monte_carlo": ["carlo/carlo.py"],
     "core/analytics/dashboard": ["metrics/charts.py"],
     "core/analytics/feeds": ["metrics/charts.py"],
@@ -101,10 +101,10 @@ OLD_HOME: dict[str, list[str]] = {
     "core/analytics/strategy_doc": ["optimize/book/registry.py"],
     "core/analytics/top_agents": ["optimize/book/registry.py"],
     "core/analytics/user_alphas": ["optimize/book/registry.py"],
-    "core/backtest/custom_run": ["optimize/process/tasks.py"],
-    "core/backtest/edu_precompute": ["optimize/process/tasks.py"],
-    "core/backtest/run": ["optimize/search/evaluate.py", "optimize/process/tasks.py"],
-    "core/backtest/run_defaults": ["optimize/process/tasks.py"],
+    "core/backtest/custom_run": ["optimize/process/tasks.py", "metrics/trades.py", "crawl/store.py", "core/params.py"],   # P11: tính toán thuần -> metrics/trades.py; nạp dữ liệu/mặc định -> crawl/store.py
+    "core/backtest/edu_precompute": ["optimize/process/tasks.py", "metrics/trades.py", "crawl/store.py"],
+    "core/backtest/run": ["optimize/search/evaluate.py", "optimize/process/tasks.py", "core/params.py"],
+    "core/backtest/run_defaults": ["optimize/process/tasks.py", "crawl/store.py"],
     "core/backtest/tick_run": ["optimize/search/evaluate.py"],
     "core/data/crawler": ["crawl/cex.py"],
     "core/data/loader": ["crawl/store.py"],
@@ -115,16 +115,16 @@ OLD_HOME: dict[str, list[str]] = {
     "core/data/shared": ["crawl/store.py"],
     "core/data/tick_crawler": ["crawl/dex.py"],
     "core/metrics/diagnose": ["metrics/trades.py"],
-    "core/metrics/diagnose_inputs": ["metrics/trades.py", "optimize/process/tasks.py"],
+    "core/metrics/diagnose_inputs": ["metrics/trades.py", "crawl/store.py"],
     "core/metrics/portfolio": ["metrics/metrics.py"],
     "core/metrics/returns": ["metrics/metrics.py"],
     "core/metrics/series_stages": ["metrics/charts.py"],
     "core/metrics/trades": ["metrics/trades.py"],
-    "core/params/modes": ["routes/modes.py", "optimize/book/build.py"],
+    "core/params/modes": ["routes/process.py", "optimize/book/build.py"],
     "core/params/presets": ["optimize/book/build.py"],
     "core/regime/classifier": ["regime/regime.py"],
     "core/regime/learn": ["regime/regime.py"],
-    "core/regime/report": ["optimize/process/tasks.py"],
+    "core/regime/report": ["optimize/process/tasks.py", "optimize/search/evaluate.py", "metrics/trades.py", "core/params.py"],
     "core/signals/diagnostics": ["core/signal.py"],
     "core/signals/evaluator": ["core/signal.py"],
     "core/signals/kernels": ["core/indicator.py"],
@@ -145,11 +145,11 @@ OLD_HOME: dict[str, list[str]] = {
     "optimize/funnel/antiluck": ["carlo/carlo.py", "wfa/wfa.py"],
     "optimize/funnel/estimate": ["optimize/funnel/stages.py"],
     "optimize/funnel/evaluate": ["optimize/search/evaluate.py"],
-    "optimize/funnel/gates": ["optimize/funnel/stages.py"],
+    "optimize/funnel/gates": ["optimize/funnel/stages.py", "core/params.py"],   # iso_date / date_ms: MỘT định nghĩa ở core/params.py
     "optimize/funnel/generate": ["optimize/search/generate.py"],
     "optimize/funnel/orchestrator": ["optimize/funnel/stages.py"],
-    "optimize/funnel/promote": ["optimize/funnel/stages.py"],
-    "optimize/funnel/publish": ["optimize/funnel/stages.py"],
+    "optimize/funnel/promote": ["optimize/funnel/stages.py", "optimize/book/registry.py"],
+    "optimize/funnel/publish": ["optimize/funnel/stages.py", "optimize/book/registry.py", "optimize/process/tasks.py"],   # P11: build_report/book_source -> registry; run_job->run_funnel_book -> tasks
     "optimize/funnel/recompute": ["optimize/funnel/stages.py"],
     "optimize/funnel/run": ["optimize/funnel/stages.py"],
     "optimize/funnel/sizing": ["optimize/funnel/stages.py"],
@@ -164,8 +164,8 @@ OLD_HOME: dict[str, list[str]] = {
     "utils/lru": ["crawl/store.py"],
     "utils/memwatch": ["optimize/process/workers.py"],
     "utils/parallel": ["optimize/process/workers.py"],
-    "wfa/run": ["optimize/process/tasks.py"],
-    "wfa/walk_forward": ["wfa/wfa.py", "optimize/process/tasks.py"],   # P9.10b: phần chạy engine (run_portfolio_wfa, plan_*, _pool_shared, run_job->run_wfa_job) ở tasks.py
+    "wfa/run": ["optimize/process/tasks.py", "optimize/search/evaluate.py", "core/params.py"],
+    "wfa/walk_forward": ["wfa/wfa.py", "optimize/search/evaluate.py", "core/params.py"],   # P11: phần chạy engine (run_portfolio_wfa, plan_*, _pool_shared, run_job->run_wfa_job) ở search/evaluate.py; _date -> iso_date (core/params.py)
 }
 OLD_HOME.update({   # P9.10b: ba _read_json cũ -> MỘT crawl/store.read_json (thêm vào gợi ý, không thay gợi ý ADR)
     "core/backtest/dex": ["crawl/store.py"],          # engine-API pass: is_dex_symbol/classify_symbols/require_perp đọc đĩa -> crawl/store.py
@@ -222,6 +222,28 @@ RENAMES.update({
     "optimize/store._dumps": "_results_dumps",
     "wfa/run.DEFAULTS": "BOOK_WFA_DEFAULTS",
     "wfa/run.run_job": "run_book_wfa",
+    # P11: routes gộp còn 5 file -> tên handler có tiền tố miền (tránh va tên trong cùng file)
+    "api/routers/alphas.get_catalog": "get_alpha_catalog",
+    "api/routers/strategies.get_catalog": "get_strategy_catalog",
+    "api/routers/strategies.ExplainRequest": "StrategyExplainRequest",
+    "api/routers/strategies.post_explain": "post_strategy_explain",
+    "api/routers/chart.ExplainRequest": "ChartExplainRequest",
+    "api/routers/chart.post_explain": "post_chart_explain",
+    "api/routers/book.get_alphas": "get_book_alphas",
+    "api/routers/funnel.get_alphas": "get_funnel_alphas",
+    "api/routers/funnel.get_trades": "get_funnel_trades",
+    "api/routers/portfolio.get_trades": "get_portfolio_trades",
+    "core/strategy/pydsl/features._clean": "nan_nonfinite",          # core/indicator.py (thân giống hệt, chỉ thêm docstring)
+    "core/backtest/custom_run._ts": "date_ms",                         # core/params.py (MỘT định nghĩa)
+    "core/backtest/run._ts": "date_ms",
+    "core/regime/report._ts": "date_ms",
+    "wfa/run._ts": "date_ms",
+    "crawl/store.fetch_local_candles_df": "fetch_candles_df",          # bí danh cũ đã xoá: gọi thẳng tên thật
+    "crawl/store.has_local_frame": "has_frame",
+    "crawl/store.DATA_HOME": "DATA_DIR",                               # P11: MỘT định nghĩa ở core/models.py (crawl/store dùng thẳng DATA_DIR)
+})
+OLD_HOME.update({
+    "crawl/store": ["core/models.py"],
 })
 
 SHIM_MARK = "P9-SHIM"

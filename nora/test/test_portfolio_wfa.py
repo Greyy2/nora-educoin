@@ -11,7 +11,7 @@ import json
 import numpy as np
 import pytest
 
-from backend.optimize.process import tasks as pt
+from backend.optimize.search import evaluate as pt
 from backend.wfa import wfa as pw
 from backend.wfa.wfa import generate_folds
 from test_strategy_book import T0, _load_script, _small_book, market  # noqa: F401  (market là fixture)
@@ -236,24 +236,22 @@ def test_aggregate_folds_on_crafted_folds():
 
 # ── Bước 3: validate_book ───────────────────────────────────────────────────
 def test_candidates_from_report_picks_topk_of_accepted():
-    vb = _load_script("validate_book")
     neg = float("-inf")
     stage_a = {"a": [{"params": {"k": 1}, "score": 1.0}, {"params": {"k": 2}, "score": 3.0}, {"params": {"k": 3}, "score": 2.0},
                      {"params": {"k": 4}, "score": neg}],
                "b": [{"params": {"k": 9}, "score": 5.0}]}
     report = {"candidates": {"a": {"accepted": True}, "b": {"accepted": False}}}
-    assert vb.candidates_from_report(stage_a, report, 2, False) == [{"id": "a", "configs": [{"k": 2}, {"k": 3}]}]
-    both = vb.candidates_from_report(stage_a, report, 5, True)
+    assert pt.candidates_from_report(stage_a, report, 2, False) == [{"id": "a", "configs": [{"k": 2}, {"k": 3}]}]
+    both = pt.candidates_from_report(stage_a, report, 5, True)
     assert [c["id"] for c in both] == ["a", "b"] and both[0]["configs"] == [{"k": 2}, {"k": 3}, {"k": 1}]
 
 
 def test_candidates_from_report_old_report_with_string_bools():
     """Báo cáo cũ (json default=str) lưu 'False'/'True' dạng chuỗi: 'False' KHÔNG được coi là đạt."""
-    vb = _load_script("validate_book")
     stage_a = {"a": [{"params": {"k": 1}, "score": 1.0}], "b": [{"params": {"k": 2}, "score": 2.0}],
                "c": [{"params": {"k": 3}, "score": 3.0}], "d": [{"params": {"k": 4}, "score": 4.0}]}
     report = {"candidates": {"a": {"accepted": "True"}, "b": {"accepted": "False"}, "c": {"accepted": True}, "d": {}}}
-    assert [c["id"] for c in vb.candidates_from_report(stage_a, report, 1, False)] == ["a", "c"]
+    assert [c["id"] for c in pt.candidates_from_report(stage_a, report, 1, False)] == ["a", "c"]
 
 
 def test_wfa_job_rejects_unknown_params():
@@ -276,6 +274,27 @@ def test_validate_book_main_end_to_end(market, monkeypatch, tmp_path):
     assert rep["summary"]["mc"]["simulations"] == 200
     assert res["summary"]["compounded_oos_ret_pct"] == rep["summary"]["compounded_oos_ret_pct"]
     assert not (reports[-1].parent / "_shared").exists()                      # đã dọn dữ liệu dùng chung
+
+
+def test_validate_book_with_report_reads_stage_a_and_report(market, monkeypatch, tmp_path):
+    """--report: load_report trả (stage_a, report) từ stage_a.json + report.json; job chọn top-n cấu hình của chiến lược ĐẠT từ stage_a."""
+    from backend.crawl.store import load_report
+    _small_book(monkeypatch)
+    ts = lambda t: f"{__import__('pandas').Timestamp(t, unit='ms'):%Y-%m-%d}"   # noqa: E731
+    rep_dir = tmp_path / "book_run"
+    rep_dir.mkdir()
+    stage_a = {"t_long": [{"params": {"sig.lo": 40, "stop_loss_rate": 2.0, "take_profit_rate": 2.0, "timeout": 720}, "score": 2.0},
+                          {"params": {"sig.lo": 45, "stop_loss_rate": 2.0, "take_profit_rate": 2.0, "timeout": 720}, "score": 1.0}],
+               "t_short": [{"params": {"stop_loss_rate": 1.5, "trailing_stop": 2.0, "timeout": 720}, "score": 9.0}]}
+    report = {"candidates": {"t_long": {"accepted": True}, "t_short": {"accepted": False}},
+              "windows": {"start": ts(T0), "dev1_end": ts(START), "dev2_end": ts(T0 + 66 * DAY)}}
+    (rep_dir / "stage_a.json").write_text(json.dumps(stage_a))
+    (rep_dir / "report.json").write_text(json.dumps(report))
+    assert load_report(str(rep_dir)) == (stage_a, report)
+    vb = _load_script("validate_book")
+    res = vb.run_job({"report": str(rep_dir), "n": 1, "workers": 2, "per_worker_mb": 300, "train_days": 15, "test_days": 10, "sims": 200})
+    assert [c["id"] for c in res["candidates"]] == ["t_long"] and len(res["candidates"][0]["configs"]) == 1
+    assert res["source"]["report"] == str(rep_dir) and res["summary"]["n_folds"] == 3
 
 
 def test_bootstrap_daily_default_sims_is_mc_minimum():

@@ -12,9 +12,9 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from backend.crawl.store import alpha_run_dir, run_dir
-from backend.routes import book as book_router
+from backend.routes import optimize
 from backend.optimize.process import process as batch_jobs
-from backend.routes import jobs as batch_jobs_routes
+from backend.routes import process as process_routes
 from job_modules import launched
 
 
@@ -38,7 +38,7 @@ def client(monkeypatch, tmp_path):
     FakePopen.calls = []
     monkeypatch.setattr(batch_jobs.subprocess, "Popen", FakePopen)
     app = FastAPI()
-    app.include_router(book_router.router)
+    app.include_router(optimize.book_router)
     return TestClient(app)
 
 
@@ -158,7 +158,7 @@ def test_build_params_and_whitelist(client):
     with pytest.raises(batch_jobs.JobError):
         batch_jobs.launch("book_build", {"n": float("nan")})
     with pytest.raises(batch_jobs.JobError):
-        batch_jobs_routes.build_job("rm", {})
+        process_routes.build_job("rm", {})
 
 
 # ─── Xuất bản sổ đã dựng ────────────────────────────────────────────────────

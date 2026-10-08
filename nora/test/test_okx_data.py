@@ -16,6 +16,7 @@ import pandas as pd
 import pytest
 
 from backend.crawl import cex as oc
+from backend.core.models import DATA_DIR  # noqa: E402
 from backend.crawl import store as dl
 
 H = 3_600_000
@@ -26,10 +27,10 @@ def test_exchange_root(monkeypatch):
     monkeypatch.delenv("NORA_LOCAL_DATA_ROOT", raising=False)
     monkeypatch.delenv("NORA_DATA_ROOT", raising=False)
     monkeypatch.delenv("NORA_EXCHANGE", raising=False)
-    assert dl.default_data_root() == os.path.join(dl.DATA_HOME, "market", "okx")
+    assert dl.default_data_root() == os.path.join(DATA_DIR, "market", "okx")
     monkeypatch.setenv("NORA_EXCHANGE", "binance")
-    assert dl.default_data_root() == os.path.join(dl.DATA_HOME, "market", "binance")
-    assert dl.cache_dir(None, "x").startswith(os.path.join(dl.DATA_HOME, "cache", "process"))
+    assert dl.default_data_root() == os.path.join(DATA_DIR, "market", "binance")
+    assert dl.cache_dir(None, "x").startswith(os.path.join(DATA_DIR, "cache", "process"))
     os.rmdir(dl.cache_dir(None, "x"))
     monkeypatch.setenv("NORA_EXCHANGE", "kraken")
     with pytest.raises(ValueError):

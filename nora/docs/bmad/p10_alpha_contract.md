@@ -6,8 +6,8 @@ gợi ý đúng những gì engine hiểu (fintech thuần, tất định, KHÔN
 (IR `core/signal.Program`, hoặc cây khuôn của sổ chiến lược) và MỘT engine vector hoá. Mã người dùng **không bao giờ exec**:
 chỉ `ast.parse` rồi biên dịch theo danh sách trắng.
 
-Mã nguồn: `backend/alpha/contract.py` (hợp đồng, `check_contract`, catalog, gợi ý/hover), `backend/alpha/adapters.py`
-(registry style -> adapter), `backend/alpha/compile.py` (trình biên dịch: một định nghĩa duy nhất của IR).
+Mã nguồn: `backend/alpha/contract.py` (hợp đồng, `check_contract`, catalog, gợi ý/hover), 
+`backend/alpha/compile.py` (trình biên dịch: một định nghĩa duy nhất của IR + registry style -> adapter + đọc/ghi file chiến lược).
 Router: `backend/routes/strategies.py` (+ `alphas.py` cho phiên bản alpha người dùng).
 
 ## 1. Vòng đời & hai "loại" mã
@@ -99,7 +99,7 @@ không đụng trình biên dịch. Adapter chỉ biến AST/spec thành AST nat
    hàng rào ```` ```python ````, `import` trong whitelist (`nora`, `typing`, `__future__`), lớp cơ sở `Strategy/Algorithm` ->
    `SimpleAlgorithm`, `self.data.close|Close|["close"]` -> `self.data.pv_close`,
    `self.feat.EMA` -> `ema`, `and/or/not` -> `& | ~`, so sánh nối chuỗi `a<b<c` -> `(a<b)&(b<c)`. Tên hook lạ (`initialize`, `next`, `on_data`…) và `np./pd./talib.` KHÔNG đoán: REJECT kèm gợi ý.
-   Mã chuẩn hoá nằm ở `normalized_code`. **Biên dịch native `compile_code` vẫn nghiêm ngặt** với class (không tự chuẩn hoá);
+   Mã chuẩn hoá nằm ở `normalized_code` (sinh bằng `ast.unparse`: mất chú thích, giữ nguyên ngữ nghĩa). **Biên dịch native `compile_code` vẫn nghiêm ngặt** với class (không tự chuẩn hoá);
    hãy gửi `normalized_code` đi chạy/lưu. Riêng `function` và `json_spec` được `compile_code` nhận trực tiếp.
 
 ## 3. Danh mục (catalog) — một định nghĩa duy nhất
@@ -113,7 +113,7 @@ Sinh từ `core/indicator.FEATURES/OPS` (spec) + thuộc tính hợp đồng; v�
   "dsl_version": "…",
   "styles": [{"style": "simple_algorithm", "verdict": "RUN", "label_vi": "…", "example": "…"}, …],
   "lifecycle": [{"name": "on_start", "required": false, "doc_vi": "…", "insert": "def on_start(self):\n    ${1:pass}"}, …],
-  "features": [{
+  "features": [   /* 42 chỉ báo của core + `er` (cột kernel, chỉ loại module: modes = ["module"]) */ {
       "name": "ema", "kind": "feature", "category": "trend", "label_vi": "Đường trung bình động hàm mũ",
       "signature": "self.feat.ema(real, timeperiod=30)",
       "args": [{"name": "real", "type": "series_num", "required": true, "default": null, "lo": null, "hi": null},
@@ -183,8 +183,8 @@ Chiến lược hệ thống = file `data/alpha/strategies/<file>.py` (thư mụ
  "diagnostics": [], "backup": "data/cache/process/_strategy_backup/kema.20261008T101500Z.py", "reloaded": true}
 ```
 Quy trình: `sha256` khớp file hiện tại (khác -> **409** `SHA_CONFLICT`) -> `check_contract` phải ra `module` và RUN/ADAPT (REJECT -> **422**
-`CONTRACT_REJECTED` kèm `diagnostics`) -> không trùng id với file khác -> không đổi tên/bỏ id chân đang dùng khi có bot live đang chạy
-(**409** `LIVE_BOT_RUNNING`) -> sao lưu bản cũ vào `data/cache/process/_strategy_backup/<file>.<UTC ts>.py` (giữ tối đa 20 bản mỗi file)
+`CONTRACT_REJECTED` kèm `diagnostics`) -> không trùng id với file khác -> không đổi tên/bỏ id chiến lược hoặc id chân hiện có khi có BẤT KỲ job `live_bot` đang chạy/xếp hàng (kiểm bảo thủ)
+(**409** `LIVE_BOT_RUNNING`, `detail.removed`); trùng id với file khác -> **409** `DUPLICATE_ID`; file không phải loại `module` -> **422** `WRONG_KIND` -> sao lưu bản cũ vào `data/cache/process/_strategy_backup/<file>.<UTC ts>.py` (giữ tối đa 20 bản mỗi file)
 -> ghi nguyên tử -> nạp lại sổ (cache mtime vô hiệu, `build.CANDIDATES/STRATEGIES/SOURCES` làm mới tại chỗ) ->
 các lượt backtest / book / funnel SAU ĐÓ dùng mã mới. Lỗi: `{"detail": {"code": "...", "message": "...", "diagnostics": [...], "current_sha256": "..."}}`.
 Nếu ADAPT, file được ghi là `normalized_code`.
@@ -206,3 +206,11 @@ Không có `PUT …/code` và không có `result_stale`. Sửa alpha đã lưu =
 * `GET /api/studio/alphas/user/{id}/versions` → `[{version, saved_at, program_hash, job_id, name}]` (gồm bản hiện tại);
   `GET /api/studio/alphas/user/{id}/versions/{n}` → bản ghi đầy đủ của phiên bản n (so sánh kết quả).
 * Danh sách `GET /user` không liệt kê `_versions`.
+
+## 7. Ghi chú thực thi
+
+* `compile_code` (đường chạy thật của backtest/lưu) giữ NGHIÊM NGẶT với class: chỉ nhận native (kể cả on_start/on_bar). Riêng hàm
+  `strategy(data)` và JSON (vốn trước đây lỗi cú pháp) được nhận qua adapter và cho cùng IR. Biến thể kiểu AI (and/or/not, tên cột...) chỉ được
+  chuẩn hoá ở `check_contract` -> gửi `normalized_code` để chạy/lưu.
+* `returns` của op "giữ kiểu" (`shift`, `previous`, `current`, `where`) là `"num|bool"`.
+* Hợp đồng không thêm evaluator nào: các adapter (trong `compile.py`) chỉ dựng AST native rồi gọi `compile_program` / `compile_strategy_module`.

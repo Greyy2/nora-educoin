@@ -8,32 +8,30 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from backend.routes import alphas, book, chart, custom, data, education, funnel, live, market, portfolio, strategies
+from backend.optimize.process.process import EphemeralGone
+from backend.routes import alpha, data, live, optimize, process
 
 app = FastAPI(title="Nora API", version="3.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=5)   # JSON thống kê/biểu đồ lớn (vài trăm KB) nén còn ~1/8; mức 5 thay mặc định 9: ~100 ms -> ~10 ms CPU/450 KB (nén chạy trong event loop, giữ GIL), file to hơn ~10%
 
-app.include_router(alphas.router)
-app.include_router(book.router)
-app.include_router(book.alphas_router)
-app.include_router(portfolio.router)
-app.include_router(funnel.router)
-app.include_router(strategies.router)
-app.include_router(custom.router)
-app.include_router(education.router)
-app.include_router(data.router)
-app.include_router(market.router)
-app.include_router(live.router)
-app.include_router(chart.router)
+for m in (process, alpha, optimize, data, live):
+    for r in m.ROUTERS:
+        app.include_router(r)
+
+
+@app.exception_handler(EphemeralGone)
+def _ephemeral_gone(_request, exc: EphemeralGone):
+    """Kết quả job tạm đã hết hạn -> 410 (khác 404 = id chưa từng có); detail.code để giao diện nhận biết."""
+    return JSONResponse(status_code=410, content={"detail": {"code": exc.code, "message": str(exc), "job_id": exc.job_id}})
 
 
 @app.on_event("startup")
 def _enforce_job_lifecycle():
-    """Cache chỉ giữ tiến trình chưa xong: job xong -> lưu/xoá, bot đã dừng -> xoá, lỗi quá 7 ngày -> xoá (chạy nền, không chặn khởi động)."""
+    """Cache chỉ giữ tiến trình chưa xong: job xong -> lưu/xoá, bot đã dừng -> xoá, job lỗi -> xoá, job huỷ còn tiến độ chạy dở (resume được) -> giữ PAUSED_KEEP_DAYS ngày, huỷ không có gì -> xoá (chạy nền, không chặn khởi động)."""
     import threading
 
     from backend.optimize.process import process as batch_jobs

@@ -16,7 +16,7 @@ from fastapi.testclient import TestClient
 
 from backend.metrics import charts as feeds
 from backend.metrics import charts as pdash
-from backend.routes import portfolio as portfolio_router
+from backend.routes import optimize
 from backend.optimize.process import process as batch_jobs
 
 INIT = 10_000.0
@@ -315,9 +315,9 @@ def test_empty_curve_is_unavailable():
 @pytest.fixture
 def client(monkeypatch, tmp_path):
     monkeypatch.setenv("NORA_LOCAL_DATA_ROOT", str(tmp_path / "data"))
-    portfolio_router._CACHE.clear()
+    optimize._CACHE.clear()
     app = FastAPI()
-    app.include_router(portfolio_router.router)
+    app.include_router(optimize.portfolio_router)
     return TestClient(app)
 
 
@@ -341,7 +341,7 @@ def test_dashboard_endpoint_caches_and_rebases_benchmark(client, monkeypatch):
     res, _ = make_result(_rng_returns(100))
     jid = _job(res)
     calls = []
-    monkeypatch.setattr(portfolio_router, "benchmark_daily_closes",lambda *a: calls.append(a) or _bench())
+    monkeypatch.setattr(optimize, "benchmark_daily_closes",lambda *a: calls.append(a) or _bench())
     r = client.get(f"/api/studio/portfolio/dashboard?source=backtest&job_id={jid}&period=3M")
     assert r.status_code == 200, r.text
     p = r.json()

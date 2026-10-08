@@ -10,7 +10,7 @@
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from backend.routes import strategies as strategies_router
+from backend.routes import alpha
 from backend.alpha.compile import compile_code, explain_program, explain_report
 
 
@@ -146,7 +146,7 @@ class MultiScale(SimpleAlgorithm):
 def test_explain_api_endpoint():
     """Test router POST /api/studio/strategies/explain."""
     app = FastAPI()
-    app.include_router(strategies_router.router)
+    app.include_router(alpha.strategies_router)
     client = TestClient(app)
 
     code = """

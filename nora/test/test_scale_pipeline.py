@@ -376,6 +376,7 @@ def test_stage_a_keeps_only_topk_counts_and_full_rows_in_store(market, monkeypat
     sb.CANDIDATES[0]["space"] = {"sig.lo": [25, 30, 35, 40, 45, 50], "stop_loss_rate": [1.5, 2.0], "take_profit_rate": [2.0], "timeout": [720]}
     bsb = _load_script("build_strategy_book")
     job_dir = tmp_path / "job"
+    os.makedirs(job_dir, exist_ok=True)   # writer chỉ ghi khi thư mục job tồn tại (launch tạo sẵn)
     monkeypatch.setenv("NORA_JOB_DIR", str(job_dir))
     bsb.run_job({"workers": 2, "per_worker_mb": 300, "n": 12, "keep_top": 4, "only": "t_long", "out": str(tmp_path / "a")})
     run = _run_dirs(market)[-1]
@@ -611,7 +612,7 @@ def test_stage_a_endpoint_paginates_store(client, tmp_path, monkeypatch):
 
 
 def test_build_request_accepts_large_n_and_new_flags(client):
-    from test_book_api import FakePopen
+    from test_book_ui_backend import FakePopen
     r = client.post("/api/studio/book/build", json={"only": ["trend_long"], "n": 500_000, "keep_top": 100, "force_large": True})
     assert r.status_code == 200, r.text
     from job_modules import launched

@@ -6,8 +6,8 @@ Trạng thái sau lượt ARCHITECTURE cuối của P9 (ADR: `adr-p9-backend-lay
 
 `backend/main.py` là app FastAPI. Script vận hành ở `nora/ops/` (ngoài backend; `backend/utils/` đã xoá). Các `__init__.py` rỗng/gói bỏ qua.
 
-- `alpha/compile.py` — Bộ chuyển đổi alpha -> IR (P9 alpha): biên dịch DSL Python (compile_program/compile_code/explain_*), module chiến lược hệ thống (compile_strategy_module), hàm dựng cây (f, cond, lagged, cross_over, cross_under, calc, tree_p), nạp file data/alpha/strategies (load_system_strategies, strategies_dir, strategy_files; cache theo mtime+size).
-- `alpha/contract.py` — Strategy Contract (P9 alpha): giới hạn (MAX_CODE_CHARS, MAX_NODES, BASE_CLASS), at/suggest, _position_attr_names. `DslError` ở core/signal (Program ném nó); validate_alpha còn ở optimize/search/generate.py (cần optimize).
+- `alpha/compile.py` — Bộ chuyển đổi alpha -> IR (P9 alpha): biên dịch DSL Python (compile_program/compile_code/explain_*), module chiến lược hệ thống (compile_strategy_module), hàm dựng cây (f, cond, lagged, cross_over, cross_under, calc, tree_p), nạp file data/alpha/strategies (load_system_strategies, strategies_dir, strategy_files; cache theo mtime+size). P10: + bộ chuyển đổi đầu vào (registry style detector -> adapter; RUN native | ADAPT function/json_spec/ai_python | REJECT), sửa chiến lược hệ thống tại chỗ (đọc/ghi có khoá sha256, kiểm hợp đồng, sao lưu, ghi nguyên tử, nạp lại; StrategyEditError) — gộp từ alpha/adapters.py + optimize/book/strategy_files.py.
+- `alpha/contract.py` — Strategy Contract (P9 alpha): giới hạn (MAX_CODE_CHARS, MAX_NODES, BASE_CLASS), at/suggest, _position_attr_names. `DslError` ở core/signal (Program ném nó); validate_alpha còn ở optimize/search/generate.py (cần optimize). P10: + catalog primitive (một nguồn cho kiểm hợp đồng và gợi ý code), check_contract, trợ lý viết code tất định complete/hover (không AI) — gộp từ alpha/assist.py.
 - `carlo/carlo.py` — Monte Carlo: bootstrap theo khối + kịch bản cực xấu + gate (mọi cổng alpha/sổ đều đọc hằng số ở đây).
 - `core/backtest.py` — Engine duy nhất (P9.4): kernel numba (cache=True), BacktestEngine, PortfolioEngine, tài sản DEX.
 - `core/indicator.py` — Chỉ báo (P9.4 part 2): kernel numba causal + đặc tả chữ ký DSL (spec) + feature `self.feat.*` + operator `self.op.*`.
@@ -350,3 +350,10 @@ Unit systemd đã cài (`~/.config/systemd/user/nora-api.service`, `nora.slice`)
 8. Golden: `NORA_GOLDEN_DATA_ROOT=data/market/binance` pytest `test/test_golden_results.py` phải bit-identical; full suite một lần sau khi logic xong.
 9. Đã xoá khỏi data: `_meta`, `cex_ref`/`binance_hist` (gộp vào `binance/cex`); xác nhận không code nào còn đọc.
 10. `docs/bmad/*` còn nhắc cấu trúc rất cũ (`backend/utils/lru.py`, `backend/db/`) trong tài liệu lịch sử — không sửa, chỉ là lịch sử.
+
+
+## Chốt kiến trúc (2026-10-08, phiên kiến trúc)
+- Cây backend khớp ADR §2: alpha/ = compile + contract; optimize/book = build + registry; không file thừa/thiếu; 57 module import sạch; p9_ledger --dups: DUPS=0.
+- Hằng đường dẫn: `NORA_DIR`, `DATA_DIR` định nghĩa DUY NHẤT ở core/models.py; crawl/store (NORA_ROOT, DATA_HOME), alpha/compile (NORA_DIR, _DATA_HOME), optimize/process/process (NORA_DIR) chỉ import. (core/models nằm trong ENGINE_FILES -> hash engine đổi thêm một lần.)
+- Cây data: market/{okx/{cex,dex}, binance/cex}, alpha/, backtest/, wfa/, carlo/ (tạo khi cần), live/{paper,testnet,live} (live/ tạo khi cần), cache/{process,shared}; cache chỉ giữ tiến trình đang chạy/dở dang.
+- Kiểm tra sau chốt: test_data_layout_helpers, test_ops_units, test_golden_results (data/market/binance), test_strategy_dsl_parity, test_layering — 53 passed.

@@ -372,9 +372,9 @@ def test_trades_recompute_identical_to_stored_for_passer(full_run):
 
 @pytest.fixture
 def client(monkeypatch):
-    from backend.routes import funnel as fr
+    from backend.routes import optimize
     app = FastAPI()
-    app.include_router(fr.router)
+    app.include_router(optimize.funnel_router)
     return TestClient(app)
 
 
@@ -448,11 +448,11 @@ def test_s1_rejects_store_stats_only_and_recompute_endpoint(small_book, monkeypa
         assert al["reject_code"] == "S1.min_trades" and al["reject_msg"].startswith("S1.min_trades: ") and al["rejected_stage"] == "S1_backtest"
     finally:
         store.close()
-    from backend.routes import funnel as fr
+    from backend.routes import optimize
     from backend.optimize.funnel.stages import cache_path, recompute_s1
     from backend.optimize.funnel.storage import atomic_write_json
     calls = []
-    monkeypatch.setattr(fr, "_run_recompute_subprocess", lambda run_id, aid: (calls.append(aid), atomic_write_json(cache_path(res["run_dir"], aid), recompute_s1(res["run_dir"], aid))))
+    monkeypatch.setattr(optimize, "_run_recompute_subprocess", lambda run_id, aid: (calls.append(aid), atomic_write_json(cache_path(res["run_dir"], aid), recompute_s1(res["run_dir"], aid))))
     base = f"/api/studio/funnel/runs/{res['run_id']}/alphas/{a}/trades"
     j = client.get(base, params={"stage": "S1_backtest"}).json()
     assert j["stored"] is False and j["items"] == [] and j["can_recompute"] is True and not calls
@@ -556,19 +556,19 @@ def test_api_post_run_launches_job_and_writes_queued_stub(small_book, client, mo
     assert p["strategies"] == ["t_long"] and p["windows"] == {"start": "2025-01-01"}
     queued = [x for x in client.get(f"{base}/runs").json()["runs"] if x["run_id"] == j["run_id"]][0]
     assert queued["job_id"] == j["job_id"] and queued["strategies"] == ["t_long"] and queued["total_alphas"] == 3
-    from backend.routes import funnel as fr
-    stub = json.load(open(os.path.join(fr.funnel_root(), j["run_id"], "run.json"), encoding="utf-8"))
+    from backend.routes import optimize
+    stub = json.load(open(os.path.join(optimize.funnel_root(), j["run_id"], "run.json"), encoding="utf-8"))
     assert stub["status"] == "queued" and stub["config"]["seed"] == 3
     jobs = batch_jobs.list_jobs(5, "funnel_run")
     assert any(x["id"] == j["job_id"] for x in jobs)
     assert client.post(f"{base}/runs", json={"strategies": ["t_long"]}).status_code == 422                       # thiếu n_per_strategy / full_grid
     assert client.post(f"{base}/runs", json={"strategies": ["t_long"], "n_per_strategy": 2, "full_grid": True}).status_code == 422
     assert client.post(f"{base}/runs", json={"strategies": ["khong_co"], "n_per_strategy": 2}).status_code == 422
-    monkeypatch.setattr(fr, "LARGE_ALPHAS", 2)
+    monkeypatch.setattr(optimize, "LARGE_ALPHAS", 2)
     assert client.post(f"{base}/runs", json={"strategies": ["t_long"], "n_per_strategy": 3}).status_code == 422   # > ngưỡng lớn, không force_large
     assert client.post(f"{base}/runs", json={"strategies": ["t_long"], "n_per_strategy": 3, "force_large": True}).status_code == 200
     assert launched(FakePopen.calls[-1])[1]["force_large"] is True
-    monkeypatch.setattr(fr, "MAX_ALPHAS", 2)
+    monkeypatch.setattr(optimize, "MAX_ALPHAS", 2)
     assert client.post(f"{base}/runs", json={"strategies": ["t_long"], "n_per_strategy": 3, "force_large": True}).status_code == 422   # trần cứng
     assert client.post(f"{base}/runs", json={"strategies": ["t_long"], "n_per_strategy": 2, "windows": {"foo": "2025-01-01"}}).status_code == 422
     est = client.get(f"{base}/estimate", params={"strategies": "t_long", "n_per_strategy": 100, "workers": 4}).json()
@@ -576,7 +576,7 @@ def test_api_post_run_launches_job_and_writes_queued_stub(small_book, client, mo
     assert est["total_alphas"] == 3 and est["workers"] == 4 and est["workers_source"] == "client"
     assert est["sec_per_backtest"] is None and est["s1_eta_s"] is None and est["measure"]["n_runs"] == 0 and "chưa có lượt" in est["measure"]["reason"]
     # có lượt đã xong cùng khung 15m: giây/backtest = wall_s × workers / input (trung vị), ETA = alpha × giây / workers
-    root = fr.funnel_root()
+    root = optimize.funnel_root()
     for rid, wall, n, w, fin in (("fr-ref-a", 100.0, 1000, 4, 2.0), ("fr-ref-b", 300.0, 1000, 4, 3.0), ("fr-ref-c", 50.0, 500, 2, 1.0)):
         os.makedirs(os.path.join(root, rid), exist_ok=True)
         with open(os.path.join(root, rid, "run.json"), "w") as fh:
@@ -762,7 +762,7 @@ def test_effective_trials_clusters_correlated_trials():
 def test_funnel_book_publish_checks_wfa_and_scores_holdout(full_run, tmp_path):
     """Xuất bản sổ từ alpha FINAL (optimize/funnel/publish.py): job WFA phải đúng cấu hình + rủi ro + gate qua; holdout chấm một lần;
     registry.write_book ghi book.json (+ testnet/book.json chỉ khi holdout đạt)."""
-    from backend.optimize.funnel import stages as publish
+    from backend.optimize.book import registry as publish
     from backend.optimize.book.registry import write_book
     store = RunStore(full_run["run_dir"], read_only=True)
     try:
@@ -792,7 +792,7 @@ def test_funnel_book_publish_checks_wfa_and_scores_holdout(full_run, tmp_path):
 def test_funnel_explore_book_accepts_unvalidated_alpha(full_run, tmp_path):
     """Sổ thử nghiệm (explore): alpha qua S1 nhưng chưa FINAL được nhận, không cần WFA; ghi explore/book.json status EXPLORE_DEMO +
     danh sách unvalidated; sổ chính vẫn từ chối alpha đó."""
-    from backend.optimize.funnel import stages as publish
+    from backend.optimize.book import registry as publish
     from backend.optimize.book.registry import EXPLORE_STATUS, write_explore_book
     import shutil
     run_dir = str(tmp_path / "run")

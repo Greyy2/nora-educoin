@@ -81,8 +81,9 @@ Gate được gọi trước Studio `/simulate`, trước WFA và trước Resea
 thiếu manifest, `synthetic`, `crawl_ok=false`, sha256 lệch, trùng timestamp, `filled_ratio > 60%`,
 thiếu 4h, hoặc resample 1m không khớp với các khung đã lưu (sai số tương đối 1e-9).
 
-## Cập nhật dữ liệu
+## Cập nhật dữ liệu — API vận hành (curl/script)
 
+Các endpoint `/api/data/*` (`/api/data/crawl`, `/api/data/promote`, `/api/data/ticks/crawl`, `/api/data/ticks/coverage`) là **API vận hành (curl/script)** dành cho quản trị hệ thống và cập nhật kho dữ liệu (không có UI riêng).
 Chạy qua API (job nền, trong nora.slice):
 
 ```bash

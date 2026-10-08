@@ -19,24 +19,22 @@ from backend.crawl.store import options, write_job_result
 from backend.crawl.store import json_default, read_json
 from backend.metrics.charts import BETA_DRIVEN_ID
 from backend.optimize.funnel.storage import atomic_write_json
-from backend.optimize.process.process import NORA_DIR
+from backend.core.models import NORA_DIR
 
 
 # ══════════════════════════════════════════════════════════════════════════
 # Phiên bản ENGINE (một nguồn duy nhất) cho sổ chiến lược: sổ nào dựng bằng engine khác engine hiện hành thì kết quả (lãi/MDD/bằng chứng) trong sổ
 # có thể không còn tái lập được -> giao diện cảnh báo "cần dựng lại".
 #
-# engine_version() = {"hash": sha256 của MÃ NGUỒN engine, "commit": git HEAD ngắn, "dirty": có thay đổi chưa commit trong mã engine, "files": số file}.
-# Mã engine = các file ENGINE_FILES (theo tên file + nội dung, đúng thứ tự khai báo); custom_run / edu_precompute (sản phẩm của phiên alpha) không nằm trong đó. So sánh chỉ dùng `hash`; `commit` để người đọc
-# biết sổ dựng ở đâu. Cùng hàm cho mọi nơi ghi (optimize/book/registry.build_book: sổ chính + sổ explore + xuất bản phễu) và đọc (API).
-# Kết quả được nhớ theo (đường dẫn, mtime_ns, size) của các file -> gọi mỗi request không đọc lại file.
+# engine_version() = {"hash": sha256 của ĐẦU VÀO KẾT QUẢ, "commit": git HEAD ngắn, "dirty": có thay đổi chưa commit trong các đầu vào đó, "files": số đầu vào}.
+# Đầu vào kết quả (engine_inputs) = (a) file tính toán của engine: backend/core/*.py + optimize/search/evaluate.py (băm byte file), (b) MỖI chiến lược hệ thống: băm IR đã biên dịch
+# (cây tín hiệu/stop/position/space của từng chân qua alpha loader) — KHÔNG băm byte file .py nên sửa chú thích/docstring/khoảng trắng không đổi; sửa logic thì đổi.
+# Đánh đổi: alpha/compile.py vẫn là trình biên dịch nhưng không băm file; ta băm KẾT QUẢ biên dịch (IR) nên refactor compiler không đổi IR thì không bật cờ, còn sửa compiler làm IR đổi
+# thì bật cờ. alpha/contract.py (trợ giúp/gợi ý/sổ tay) không ảnh hưởng kết quả nên không nằm trong. So sánh chỉ dùng `hash`; `commit` để người đọc biết sổ dựng ở đâu.
+# Cùng hàm cho mọi nơi ghi (optimize/book/registry.build_book) và đọc (API). Nhớ theo (đường dẫn, mtime_ns, size) của file engine + file chiến lược -> không đọc lại mỗi request.
 # ══════════════════════════════════════════════════════════════════════════
 
-# P9.10a: thư mục core/backtest/ và core/execute/ đã xoá (engine gộp vào các file core/*.py) — mã engine = đúng các file dưới đây
-# (P9.10b: thêm core/indicator.py + core/signal.py — chúng tính cột/tín hiệu của engine nên đổi chúng là đổi kết quả backtest)
-ENGINE_FILES = ("backend/core/backtest.py", "backend/core/models.py", "backend/core/params.py", "backend/core/position_size.py",
-               "backend/core/indicator.py", "backend/core/signal.py", "backend/alpha/contract.py", "backend/alpha/compile.py",
-               "backend/optimize/search/evaluate.py")
+ENGINE_COMPUTE_FILES = ("backend/optimize/search/evaluate.py",)    # ngoài backend/core/*.py
 REASON_NO_VERSION = "sổ dựng trước khi có phiên bản engine"
 
 GIT_TTL_S = 60.0   # commit / dirty đổi mà không đổi file (git commit) -> làm tươi sau tối đa ngần này giây; hash không phụ thuộc git
@@ -44,12 +42,24 @@ _cache: Dict[str, Any] = {"sig": None, "value": None, "at": 0.0}
 
 
 def _engine_files() -> List[Tuple[str, str]]:
+    core = os.path.join(NORA_DIR, "backend", "core")
+    rels = [f"backend/core/{n}" for n in sorted(os.listdir(core)) if n.endswith(".py") and n != "__init__.py"] + list(ENGINE_COMPUTE_FILES)
+    return [(rel, os.path.join(NORA_DIR, rel)) for rel in rels if os.path.isfile(os.path.join(NORA_DIR, rel))]
+
+
+def _strategy_ir_hashes() -> List[Tuple[str, str]]:
+    """[(chân chiến lược, sha256 của IR biên dịch)] — chỉ phần ảnh hưởng kết quả (bỏ mô tả/nhãn/lược đồ tham số)."""
+    from backend.alpha.compile import load_system_strategies
     out = []
-    for rel in ENGINE_FILES:
-        path = os.path.join(NORA_DIR, rel)
-        if os.path.isfile(path):
-            out.append((rel, path))
+    for c in load_system_strategies()["candidates"]:
+        ir = {k: c.get(k) for k in ("id", "side", "tree", "stop", "position", "space")}
+        out.append((f"strategy:{c['id']}", hashlib.sha256(json.dumps(ir, sort_keys=True, default=repr).encode("utf-8")).hexdigest()))
     return out
+
+
+def engine_inputs() -> List[str]:
+    """Danh sách tên đầu vào được băm (dùng cho lời giải thích)."""
+    return [rel for rel, _ in _engine_files()] + [n for n, _ in _strategy_ir_hashes()]
 
 
 def _git(*args: str) -> Optional[str]:
@@ -61,19 +71,32 @@ def _git(*args: str) -> Optional[str]:
 
 
 def engine_version() -> Dict[str, Any]:
+    from backend.alpha.compile import strategy_files
     files = _engine_files()
-    sig = tuple((rel, os.stat(p).st_mtime_ns, os.stat(p).st_size) for rel, p in files)
+    sfiles = strategy_files()
+    sig = tuple((p, os.stat(p).st_mtime_ns, os.stat(p).st_size) for p in [p for _, p in files] + sfiles)
     if _cache["sig"] == sig and time.time() - _cache["at"] < GIT_TTL_S:
         return dict(_cache["value"])
     h = hashlib.sha256()
     for rel, p in files:
         with open(p, "rb") as fh:
             h.update(rel.encode("utf-8") + b"\0" + fh.read() + b"\0")
-    status = _git("status", "--porcelain", "--", *ENGINE_FILES)
+    irs = _strategy_ir_hashes()
+    for name, d in irs:
+        h.update(name.encode("utf-8") + b"\0" + d.encode("ascii") + b"\0")
+    status = _git("status", "--porcelain", "--", *[rel for rel, _ in files], *[os.path.relpath(p, NORA_DIR) for p in sfiles])
     value = {"hash": h.hexdigest(), "commit": _git("rev-parse", "--short", "HEAD"), "dirty": (bool(status) if status is not None else None),
-             "files": len(files)}
+             "files": len(files) + len(irs)}
     _cache.update(sig=sig, value=value, at=time.time())
     return dict(value)
+
+
+def _rebuild_reason(stored: Dict[str, Any], cur: Dict[str, Any]) -> str:
+    inputs = engine_inputs()
+    core = [i for i in inputs if not i.startswith("strategy:")]
+    strat = [i[len("strategy:"):] for i in inputs if i.startswith("strategy:")]
+    return (f"đầu vào kết quả của engine ({', '.join(core)}; IR chiến lược: {', '.join(strat)}) đã đổi từ khi dựng sổ: dựng ở commit {stored.get('commit') or '?'} "
+            f"(hash {stored['hash'][:8]}), hiện là commit {cur.get('commit') or '?'} (hash {cur['hash'][:8]})")
 
 
 def book_engine_status(book: Optional[Dict[str, Any]]) -> Dict[str, Any]:
@@ -86,9 +109,7 @@ def book_engine_status(book: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     if not isinstance(stored, dict) or not stored.get("hash"):
         return {"stored": None, "current": cur, "needs_rebuild": True, "reason": REASON_NO_VERSION}
     if stored["hash"] != cur["hash"]:
-        return {"stored": stored, "current": cur, "needs_rebuild": True,
-                "reason": (f"engine (core/backtest.py, models, params, position_size, search/evaluate.py) đã đổi từ khi dựng sổ: dựng ở commit {stored.get('commit') or '?'} "
-                           f"(hash {stored['hash'][:8]}), hiện là commit {cur.get('commit') or '?'} (hash {cur['hash'][:8]})")}
+        return {"stored": stored, "current": cur, "needs_rebuild": True, "reason": _rebuild_reason(stored, cur)}
     return {"stored": stored, "current": cur, "needs_rebuild": False, "reason": None}
 
 
@@ -352,6 +373,170 @@ def publish_book(src_dir: str, dest_dir: str) -> Dict[str, Any]:
 
 
 # ══════════════════════════════════════════════════════════════════════════
+# Xuất bản & Thăng hạng Alpha từ phễu (promote_alpha, build_report, book_source)
+# ══════════════════════════════════════════════════════════════════════════
+
+def registry_alpha_id(strategy: str, alpha_id: str) -> str:
+    return f"funnel__{strategy}__{alpha_id}"
+
+
+def promote_alpha(run_dir: str, alpha_id: str, alphas_dir: str, note: Optional[str] = None) -> Dict[str, Any]:
+    """-> {"registry_path", "alpha_id", "registry_alpha_id", "final_scale", "testnet_config"}. ValueError nếu alpha chưa FINAL."""
+    from backend.core.params import RISK, materialize
+    from backend.optimize.book.build import BY_ID, UNIVERSE
+    from backend.optimize.funnel.storage import RunStore
+    from backend.optimize.funnel.stages import risk_for_scale
+    from backend.optimize.search.generate import split_regime
+    store = RunStore(run_dir, read_only=True)
+    try:
+        alpha = store.get_alpha(alpha_id)
+        run = store.read_run()
+        stages = store.alpha_metrics(alpha_id)
+        mc = store.read_mc(alpha_id)
+    finally:
+        store.close()
+    if alpha is None:
+        raise KeyError(alpha_id)
+    if alpha["stage_reached"] != "FINAL" or alpha["rejected_stage"] or alpha["final_scale"] is None:
+        raise ValueError(f"alpha chưa đạt FINAL (dừng ở {alpha['stage_reached']}, loại: {alpha['reject_code']})")
+    s = float(alpha["final_scale"])
+    rpt = risk_for_scale(s)
+    cand = BY_ID[alpha["strategy"]]
+    params, rmode = split_regime(alpha["params"])
+    regime = False
+    if rmode == "learn":   # bảng regime của lần chạy holdout (học trên dữ liệu trước holdout)
+        from backend.regime.regime import NAMES
+        blocked = ((stages.get("S6_holdout") or {}).get("regime_blocked")) or []
+        regime = {"allowed": [r for r in NAMES if r not in blocked], "fuse": False, "blocked": blocked} if blocked else False
+    st = materialize(cand, params, regime=regime, risk_per_trade_pct=rpt, stop_fill="level")
+    cfg = run.get("config", {})
+    reg_id = registry_alpha_id(alpha["strategy"], alpha_id)
+    funnel = {
+        "run_id": run.get("run_id"), "alpha_id": alpha_id, "final_scale": s, "risk_per_trade_pct": rpt, "params": alpha["params"],
+        "universe": cfg.get("symbols"), "windows": cfg.get("windows"), "data_sha256": cfg.get("data_sha256"), "commit": cfg.get("commit"),
+        "thresholds": cfg.get("thresholds"), "stage_metrics": stages,
+        "monte_carlo": {"summary": ((mc or {}).get("mc") or {}).get("summary"), "gate": ((mc or {}).get("mc") or {}).get("gate"),
+                        "scale_search": (mc or {}).get("scale_search"), "verified": (mc or {}).get("verified")},
+        "promoted_at": int(time.time() * 1000), "note": note,
+    }
+    entry = {
+        "alpha_id": reg_id, "strategy": alpha["strategy"], "family": cand["family"], "side": cand["side"], "symbol": "PORTFOLIO",
+        "data_symbol": None, "price_source": None, "market": "perp", "position": st["position"], "signal_params": st["signal_params"],
+        **({"regime": st["regime"]} if st.get("regime") else {}),
+        "flows": [{"id": alpha["strategy"], "name": f"{cand['side']} {alpha['strategy']}", "type": cand["side"],
+                   "ast": {"type": cand["side"], "match": [{"condition": st["tree"]}], "stop": []}}],
+        "evidence": {"windows": cfg.get("windows"), "funnel": {k: stages.get(k) for k in ("S1_backtest", "S3_wfa", "S6_holdout")}},
+        "robustness": None, "data": {"sha256_1m": cfg.get("data_sha256"), "exchange": "binance_usdm"},
+        "funnel": funnel,
+    }
+    reg_path = os.path.join(alphas_dir, "registry.json")
+    try:
+        with open(reg_path, encoding="utf-8") as fh:
+            registry = json.load(fh)
+    except FileNotFoundError:
+        repo = os.path.dirname(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
+        registry = build_registry([], [], source=run_dir, repo_dir=repo)
+    alphas = [a for a in registry.get("alphas", []) if a.get("alpha_id") != reg_id]
+    alphas.append(entry)
+    registry["alphas"] = alphas
+    registry["generated_at"] = int(time.time() * 1000)
+    atomic_write_json(reg_path, registry, indent=2, clean=False, allow_nan=True)
+
+    book = {"universe": cfg.get("symbols") or [f"{u}@perp" for u in UNIVERSE], "risk_per_trade_pct": rpt, "risk": RISK,
+            "strategies": [{"id": cand["id"], "side": cand["side"], "flow": entry["flows"][0]["ast"], "position": st["position"]}],
+            "evidence": {"funnel": funnel}}
+    testnet_path = os.path.join(alphas_dir, "testnet", f"{reg_id}.json")
+    atomic_write_json(testnet_path, {**testnet_book_config(book), "funnel_alpha_id": alpha_id, "final_scale": s}, indent=2, clean=False, allow_nan=True)
+    return {"registry_path": reg_path, "alpha_id": alpha_id, "registry_alpha_id": reg_id, "final_scale": s, "testnet_config": testnet_path}
+
+
+def _metrics(r: Dict[str, Any]) -> Dict[str, Any]:
+    return {k: r.get(k) for k in ("ret_pct", "mdd_pct", "sharpe", "trades", "win_rate", "profit_factor", "halted_at")}
+
+
+EXPLORE_MIN_STAGE = 1      # sổ thử nghiệm: alpha phải qua S1 (stage_idx >= 1 và không bị loại ở S0/S1; lượt cũ: stage_idx 2 = đã qua S1)
+
+
+def build_report(run_dir: str, alpha_ids: List[str], rpt: float, wfa: Dict[str, Any], explore: bool = False) -> Dict[str, Any]:
+    from backend.optimize.search.evaluate import run
+    from backend.core.params import RISK
+    from backend.optimize.search.generate import split_regime
+    from backend.optimize.funnel.storage import RunStore
+    from backend.optimize.funnel.stages import evaluate_s6, S6_MIN_RET_PCT, S6_MAX_MDD_PCT, windows_iso
+    st = RunStore(run_dir, read_only=True)
+    try:
+        run_info = st.read_run()
+        items, cands, seen = [], {}, set()
+        for aid in alpha_ids:
+            al = st.get_alpha(aid)
+            if al is None:
+                raise ValueError(f"không có alpha {aid}")
+            final = al["stage_reached"] == "FINAL" and not al["rejected_stage"]
+            passed_s1 = int(al["stage_idx"]) >= EXPLORE_MIN_STAGE and not (al["rejected_stage"] in ("S0_generate", "S1_backtest"))
+            if not final and not (explore and passed_s1):
+                raise ValueError(f"{aid} chưa đạt {'S1' if explore else 'FINAL'} (dừng ở {al['stage_reached']})")
+            if al["strategy"] in seen:
+                raise ValueError(f"mỗi chiến lược một alpha: {al['strategy']} bị lặp")
+            seen.add(al["strategy"])
+            params, _ = split_regime(al["params"])
+            params = {k: v for k, v in params.items() if k != "risk_per_trade_pct"}
+            items.append({"id": al["strategy"], "params": params})
+            cands[al["strategy"]] = {"accepted": True, "funnel_alpha_id": aid, "final_scale": al["final_scale"], "validated": final,
+                                     "stage_reached": al["stage_reached"], "reject_code": al["reject_code"],
+                                     "stage_metrics": st.alpha_metrics(aid)}
+    finally:
+        st.close()
+    cfg, w = run_info["config"], run_info["windows_ms"]
+    tf = cfg.get("timeframe", "1m")
+    from backend.crawl.store import exchange
+    data_ex = cfg.get("data_exchange", "binance")           # run trước khi tách dữ liệu theo sàn = dữ liệu Binance
+    if data_ex != exchange():
+        raise ValueError(f"run phễu chạy trên dữ liệu {data_ex}, đang dùng {exchange()} (NORA_EXCHANGE) — holdout phải cùng dữ liệu")
+    if wfa or not explore:
+        wfa_items = sorted((s["id"], s["configs"][0]) for s in wfa.get("candidates") or [] if s.get("configs"))
+        want = sorted((i["id"], {k: v for k, v in i["params"].items()}) for i in items)
+        if [x[0] for x in wfa_items] != [x[0] for x in want] or any(
+                {k: b[1].get(k) for k in a[1]} != a[1] for a, b in zip(wfa_items, want)):   # WFA chỉ ghi khoá khác mặc định
+            raise ValueError("job WFA không chạy đúng các cấu hình của sổ")
+        if float(wfa.get("risk_per_trade_pct") or -1) != float(rpt):
+            raise ValueError(f"job WFA chạy rủi ro {wfa.get('risk_per_trade_pct')}% khác {rpt}%")
+        if not explore and not (wfa.get("gate") or {}).get("passed"):
+            raise ValueError("gate WFA danh mục của sổ chưa qua")
+    hold = {}
+    for sf in ("level", "extreme"):
+        r = run([(i["id"], i["params"]) for i in items], cfg["symbols"], int(w["dev2_end"]), int(w["end"]), rpt, sf, RISK, base_frame=tf)
+        hold[sf] = _metrics(r)
+    ok, code, msg = evaluate_s6(hold["level"], hold["extreme"])
+    return {
+        "timeframe": tf,
+        "data_exchange": data_ex,
+        "windows": windows_iso(w),
+        "gates": {"funnel_thresholds": cfg.get("thresholds"), "wfa_gate": wfa.get("gate"), "holdout": {"min_ret_pct": S6_MIN_RET_PCT,
+                                                                                                      "max_mdd_pct": S6_MAX_MDD_PCT}},
+        "book": {"strategies": items, "risk_per_trade_pct": float(rpt), "risk": RISK, "risk_scale_bootstrap": None,
+                 "dev2_base_risk": {"wfa_summary": {k: v for k, v in (wfa.get("summary") or {}).items() if k not in ("oos_daily", "oos_daily_dates")}},
+                 "explore": bool(explore),
+                 "final": {"holdout": hold, "holdout_reason": msg}, "holdout_pass": bool(ok)},
+        "candidates": cands,
+    }
+
+
+BOOK_SOURCE_FMT = "funnel {run_id} (wfa {wfa}) {date}"
+_BOOK_SOURCE_RE = re.compile(r"^funnel (?P<run_id>\S+) \(wfa (?P<wfa>\S+)\) (?P<date>\S+)$")
+
+
+def book_source(run_id: str, wfa_job_id: Optional[str], date: str) -> str:
+    """Chuỗi `source` ghi vào book.json (MỘT định dạng); parse_book_source đọc ngược."""
+    return BOOK_SOURCE_FMT.format(run_id=run_id, wfa=wfa_job_id or "-", date=date)
+
+
+def parse_book_source(source: Optional[str]) -> Optional[Dict[str, Any]]:
+    """{"run_id", "wfa_job_id" | None, "date"} từ book["source"]; None nếu sổ không dựng từ phễu."""
+    m = _BOOK_SOURCE_RE.match(source or "")
+    return {"run_id": m["run_id"], "wfa_job_id": None if m["wfa"] == "-" else m["wfa"], "date": m["date"]} if m else None
+
+
+# ══════════════════════════════════════════════════════════════════════════
 # Kiểm lại một alpha trong kho (data/alpha/registry.json) bằng ENGINE HIỆN HÀNH theo đúng các cổng của phễu (job API `alpha_revalidate`).
 #
 # Alpha cũ (vd. trend_long_perp__SOL) được dựng bằng đường tối ưu đơn tài sản đã xoá (P0.11a) và engine trước P1, nên bằng chứng trong kho
@@ -598,17 +783,21 @@ def build_evidence(result: Dict[str, Any], job_id: str, job: Dict[str, Any]) -> 
 
 
 def save_user_alpha(job_id: str, code: str, name: str, note: str = "", source: str = "alpha-create",
-                    base_dir: Optional[str] = None) -> Tuple[Dict[str, Any], str]:
+                    base_dir: Optional[str] = None, alpha_id: Optional[str] = None) -> Tuple[Dict[str, Any], str]:
     """Xác thực và lưu trữ bản ghi Alpha người dùng (lần lưu DUY NHẤT; chạy ở /alpha/create và /education chỉ là tạm thời):
     - Đọc kết quả job thật từ máy chủ (job.status == 'done'), KHÔNG nhận kết quả từ client
     - Kiểm tra mã băm chương trình khớp với code gửi lên (chống giả mạo)
     - Ghi ảnh chụp ĐẦY ĐỦ kết quả (`result`) + `explain` + `evidence` nên bản ghi không còn phụ thuộc thư mục job
-    - Trả về (record, action: 'created' | 'updated'); cùng code + cùng cấu hình -> cùng id -> cập nhật, không nhân bản
+    - Trả về (record, action: 'created' | 'updated' | 'versioned'); cùng code + cùng cấu hình -> cùng id -> cập nhật, không nhân bản
+    - `alpha_id` (P10): lưu PHIÊN BẢN MỚI của alpha đã có (sửa code trong trình soạn tạm -> chạy lại -> Lưu): giữ id, bản ghi cũ nguyên vẹn được
+      chuyển vào user/_versions/<id>.v<n>.json, bản ghi chính nhận code + kết quả + bằng chứng mới với version = n + 1
     """
     from backend.optimize.process import process as batch
 
     job = batch.status(job_id)
     if not job:
+        if batch.ephemeral_gone(job_id):
+            raise batch.EphemeralGone(job_id)
         raise ValueError(f"Không tìm thấy job_id {job_id}")
     if job.get("status") != "done":
         raise ValueError(f"Job {job_id} chưa hoàn tất (trạng thái: {job.get('status')})")
@@ -627,14 +816,18 @@ def save_user_alpha(job_id: str, code: str, name: str, note: str = "", source: s
         raise ValueError(f"Mã băm chương trình không khớp (kết quả job: {result.get('program_hash')}, code hiện tại: {prog.code_hash})")
 
     config = result.get("config", {})
-    alpha_id = generate_alpha_id(prog.code_hash, config)
-    checklist = evaluate_checklist(result)
-
     user_dir = get_user_alphas_dir(base_dir)
     os.makedirs(user_dir, exist_ok=True)
+    versioned = alpha_id is not None
+    if versioned:
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", alpha_id) or not os.path.isfile(os.path.join(user_dir, f"{alpha_id}.json")):
+            raise LookupError(f"Không tìm thấy alpha {alpha_id} để lưu phiên bản mới")
+    else:
+        alpha_id = generate_alpha_id(prog.code_hash, config)
+    checklist = evaluate_checklist(result)
     file_path = os.path.join(user_dir, f"{alpha_id}.json")
 
-    action = "updated" if os.path.isfile(file_path) else "created"
+    action = "versioned" if versioned else ("updated" if os.path.isfile(file_path) else "created")
     now_iso = datetime.now(timezone.utc).isoformat()
 
     old_record = {}
@@ -674,8 +867,43 @@ def save_user_alpha(job_id: str, code: str, name: str, note: str = "", source: s
         "explain": explain,
         "result": snapshot,       # ảnh chụp đầy đủ: metrics, yearly, series (stages + benchmark), trades, diagnostics, insights, by_symbol, warnings...
     }
+    if versioned:
+        prev_v = int(old_record.get("version") or 1)
+        history = list(old_record.get("versions") or [_version_row(old_record, prev_v)])
+        vdir = os.path.join(user_dir, "_versions")
+        os.makedirs(vdir, exist_ok=True)
+        atomic_write_json(os.path.join(vdir, f"{alpha_id}.v{prev_v}.json"), old_record, indent=1)     # bản cũ nguyên vẹn (kể cả kết quả) để so sánh
+        record["version"] = prev_v + 1
+        record["versions"] = history + [_version_row(record, prev_v + 1)]
+    else:
+        record["version"] = int(old_record.get("version") or 1)
+        if old_record.get("versions"):
+            record["versions"] = old_record["versions"]
     atomic_write_json(file_path, record, indent=1)
     return record, action
+
+
+def _version_row(rec: Dict[str, Any], version: int) -> Dict[str, Any]:
+    return {"version": version, "saved_at": rec.get("updated_at"), "program_hash": rec.get("program_hash"), "job_id": rec.get("job_id"), "name": rec.get("name")}
+
+
+def list_user_alpha_versions(alpha_id: str, base_dir: Optional[str] = None) -> Optional[List[Dict[str, Any]]]:
+    """[{version, saved_at, program_hash, job_id, name}] gồm bản hiện tại; None nếu không có alpha."""
+    rec = get_user_alpha(alpha_id, base_dir)
+    if not rec:
+        return None
+    return list(rec.get("versions") or [_version_row(rec, int(rec.get("version") or 1))])
+
+
+def get_user_alpha_version(alpha_id: str, version: int, base_dir: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Bản ghi đầy đủ của phiên bản `version` (bản hiện tại hoặc user/_versions/<id>.v<n>.json)."""
+    rec = get_user_alpha(alpha_id, base_dir)
+    if not rec:
+        return None
+    if int(rec.get("version") or 1) == version:
+        return rec
+    path = os.path.join(get_user_alphas_dir(base_dir), "_versions", f"{alpha_id}.v{int(version)}.json")
+    return read_json(path) if os.path.isfile(path) else None
 
 
 _HEAVY = ("result", "explain")

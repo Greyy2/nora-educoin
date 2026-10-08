@@ -61,7 +61,8 @@ class AmbiguousSymbolError(ValueError):
     """Cùng một ký hiệu tồn tại ở cả cex/ và dex/ mà không chỉ rõ venue."""
 
 
-DATA_HOME = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data"))
+from backend.core.models import DATA_DIR  # noqa: E402  (định nghĩa duy nhất ở core/models)
+from backend.core.params import DAY_MS, DEFAULT_CAPITAL, DEFAULT_TRAIN_RATIO, iso_date  # noqa: E402
 EXCHANGES = ("okx", "binance")
 DEFAULT_EXCHANGE = "okx"
 
@@ -99,7 +100,6 @@ def exchange_of(manifest: Optional[dict]) -> str:
 # - Chế độ PHẲNG (NORA_LOCAL_DATA_ROOT đặt = test; hoặc NORA_DATA_ROOT có cex/ hay dex/ ngay dưới = bí danh cũ của gốc sàn):
 #   thư mục đó vừa là home vừa là gốc sàn (market_root() == home), giữ nguyên hành vi trước P9.3.
 # ----------------------------------------------------------------------------------------------------
-NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 
 _current_exchange = exchange   # tham số `exchange` của helper che tên hàm
@@ -107,7 +107,7 @@ _current_exchange = exchange   # tham số `exchange` của helper che tên hàm
 
 def data_home() -> str:
     """Gốc cây dữ liệu, theo env tại thời điểm gọi: NORA_LOCAL_DATA_ROOT (test) > NORA_DATA_ROOT > nora/data."""
-    return os.environ.get("NORA_LOCAL_DATA_ROOT") or os.environ.get("NORA_DATA_ROOT") or DATA_HOME
+    return os.environ.get("NORA_LOCAL_DATA_ROOT") or os.environ.get("NORA_DATA_ROOT") or DATA_DIR
 
 
 def _flat() -> bool:
@@ -133,7 +133,6 @@ def _kind_path(home: str, kind: str) -> str:
         "shared": j(home, "cache", "shared"),
         "quality_gate": j(home, "cache", "shared", "quality_gate"),
         "staging": j(home, "cache", "process", "_staging"),
-        "education_results": j(home, "backtest", "education"),
     }
     return table[kind]
 
@@ -191,13 +190,17 @@ def alpha_dir(*parts: str) -> str:
     return os.path.join(env, *parts) if env else _under(data_home(), "alpha", *parts)
 
 
-def alpha_file(name: str) -> str:
+def alpha_file(*parts: str) -> str:
     """File tên cố định trong kho alpha ('book' | 'registry' | 'presets' hoặc 'x.json'). NORA_BOOK_PATH / NORA_PRESETS_PATH ghi đè book/presets."""
-    fname = name if "." in name else f"{name}.json"
-    override = {"book.json": "NORA_BOOK_PATH", "presets.json": "NORA_PRESETS_PATH"}.get(fname)
-    if override and os.environ.get(override):
-        return os.environ[override]
-    return alpha_dir(fname)
+    if len(parts) == 1:
+        name = parts[0]
+        fname = name if "." in name else f"{name}.json"
+        override = {"book.json": "NORA_BOOK_PATH", "presets.json": "NORA_PRESETS_PATH"}.get(fname)
+        if override and os.environ.get(override):
+            return os.environ[override]
+        return alpha_dir(fname)
+    return alpha_dir(*parts)
+
 
 
 def alpha_user_dir() -> str:
@@ -209,10 +212,6 @@ def alpha_education_samples() -> str:
     """alpha/education/samples.json."""
     return os.path.join(data_home(), "alpha", "education", "samples.json")
 
-
-def education_results_dir() -> str:
-    """backtest/education: kết quả Education sinh lại được."""
-    return _under(data_home(), "education_results")
 
 
 def alpha_run_dir(kind: str, run_id: Optional[str] = None) -> str:
@@ -277,7 +276,7 @@ _ROOT_GROUPS = {"runs": ("book", "funnel", "wfa", "backtest", "carlo", "process"
 def allowed_roots(kind: str) -> List[str]:
     """realpath của gốc cho `kind`. Dùng làm gốc chặn path traversal:
     os.path.realpath(path) phải nằm trong một gốc (xem is_within). kind: một trong alpha|funnel|book|backtest|wfa|carlo|live|process|mem|shared|
-    quality_gate|staging|education_results, hoặc nhóm 'runs' (book+funnel+wfa+backtest+carlo+process)."""
+    quality_gate|staging, hoặc nhóm 'runs' (book+funnel+wfa+backtest+carlo+process)."""
     home = data_home()
     kinds = _ROOT_GROUPS.get(kind) or (kind,)
     out: List[str] = []
@@ -859,9 +858,6 @@ def as_list(value) -> list:
 # - Mongo: KHÔNG cache, luôn nạp theo cửa sổ (không bao giờ kéo cả collection vào RAM).
 #
 
-fetch_local_candles_df = fetch_candles_df  # alias của import cũ: from backend.crawl.store import fetch_candles_df as fetch_local_candles_df
-has_local_frame = has_frame  # alias của import cũ: from backend.crawl.store import has_frame as has_local_frame
-
 _CANDLE_CACHE = ByteLRU(env_mb("NORA_CANDLE_CACHE_MB", 1024))
 
 
@@ -926,10 +922,10 @@ class CandleLoader:
 
     def _fetch_local(self, start_ts: Optional[int], end_ts: Optional[int]) -> pd.DataFrame:
         """Nến từ file local (đã sắp xếp; None/None = cả file), chỉ các cột engine cần."""
-        if not has_local_frame(self.symbol, self.frame, data_root=self.local_data_root):
+        if not has_frame(self.symbol, self.frame, data_root=self.local_data_root):
             raise FileNotFoundError(f"Không tìm thấy file nến local {self.frame}.pkl cho {self.symbol} tại {self.local_data_root}.")
-        df = fetch_local_candles_df(symbol=self.symbol, frame=self.frame, start_ts=start_ts, end_ts=end_ts,
-                                    data_root=self.local_data_root, compat=False)
+        df = fetch_candles_df(symbol=self.symbol, frame=self.frame, start_ts=start_ts, end_ts=end_ts,
+                                data_root=self.local_data_root, compat=False)
         if df.empty:
             raise FileNotFoundError(f"Dữ liệu local cho {self.symbol} ({self.frame}) rỗng.")
         return df
@@ -1310,10 +1306,31 @@ def _code_sig() -> str:
 def _disk_cache_path(key: tuple, data_root: Optional[str]) -> str:
     """Cache kết quả gate TRÊN ĐĨA — MỘT thư mục duy nhất cache/shared/quality_gate (không còn thư mục theo gốc dữ liệu): mỗi job là một tiến trình mới -> không phải kiểm lại ~10 s/tài sản.
     Khoá = (thư mục tuyệt đối, khung, (tên, mtime_ns, size) mọi file của tài sản, chữ ký mã gate) -> gốc dữ liệu khác nhau không đụng nhau."""
-    h = hashlib.sha1(json.dumps([list(key[:2]), [list(f) for f in key[2]], _code_sig()]).encode()).hexdigest()
+    sig = _code_sig()
+    h = hashlib.sha1(json.dumps([list(key[:2]), [list(f) for f in key[2]], sig]).encode()).hexdigest()
     d = cache_quality_gate_dir()
     os.makedirs(d, exist_ok=True)
-    return os.path.join(d, f"{h}.json")
+    return os.path.join(d, f"{sig}_{h}.json")
+
+
+_GATE_PRUNED: Dict[str, bool] = {}
+
+
+def _prune_gate_cache(d: str) -> None:
+    """Cache gate chỉ giữ kết quả của mã gate HIỆN TẠI: file của chữ ký mã khác (hoặc tên kiểu cũ không tiền tố) bị xoá, một lần mỗi tiến trình."""
+    if _GATE_PRUNED.get(d):
+        return
+    _GATE_PRUNED[d] = True
+    keep = _code_sig() + "_"
+    try:
+        for n in os.listdir(d):
+            if n.endswith(".json") and not n.startswith(keep):
+                try:
+                    os.remove(os.path.join(d, n))
+                except OSError:
+                    pass
+    except OSError:
+        pass
 
 
 def _disk_get(key: tuple, data_root: Optional[str]) -> Optional[Dict[str, Any]]:
@@ -1326,6 +1343,7 @@ def _disk_get(key: tuple, data_root: Optional[str]) -> Optional[Dict[str, Any]]:
 
 def _disk_put(key: tuple, data_root: Optional[str], result: Dict[str, Any]) -> None:
     path = _disk_cache_path(key, data_root)
+    _prune_gate_cache(os.path.dirname(path))
     try:
         write_json_atomic(path, result)
     except (OSError, TypeError, ValueError):
@@ -1808,7 +1826,7 @@ def require_data_ok_or_exit(symbols, data_root: Optional[str] = None) -> Dict[st
 
 
 # ── Promote staging -> data ───────────────────────────────────────────────────────────────────
-# Chuyển tài sản đã crawl từ data_staging/ sang data/<sàn>/<venue>/<SYM> — chỉ khi qua quality gate.
+# Chuyển tài sản đã crawl từ vùng đệm (cache_staging_dir) sang data/<sàn>/<venue>/<SYM> — chỉ khi qua quality gate.
 #
 # sàn (okx | binance) và venue ("cex" | "dex") lấy từ metadata (attrs) của pkl; xem backend/crawl/store.py.
 #
@@ -1972,3 +1990,129 @@ def require_perp(symbols: List[str], what: str) -> None:
     bad = [s for s in symbols if is_dex_symbol(str(s))]
     if bad:
         raise ValueError(f"{what} chưa hỗ trợ tài sản DEX {bad}: chỉ perp (CEX). Backtest đơn (book_backtest) có hỗ trợ DEX")
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Nạp dữ liệu và cấu hình phục vụ chạy pipeline (P11 D2.3: chuyển từ process/tasks)
+# ══════════════════════════════════════════════════════════════════════════
+
+def default_universe() -> List[str]:
+    """Rổ mặc định = mọi tài sản perp CEX có trong kho dữ liệu của sàn đang dùng (OKX), tên cơ sở đã sắp xếp."""
+    return sorted({a["symbol"].split("@")[0] for a in list_assets() if a["venue"] == "cex" and a.get("instrument") == "perp"})
+
+
+def default_window() -> Tuple[str, str]:
+    """(start, end) 'YYYY-MM-DD' = phần dữ liệu chung của cả rổ: sau nến đầu muộn nhất 1 ngày, trước nến cuối sớm nhất 1 ngày."""
+    firsts, lasts = [], []
+    for n in default_universe():
+        m = read_manifest(f"{n}@perp") or {}
+        if m.get("start_ts") and m.get("end_ts"):
+            firsts.append(int(m["start_ts"]))
+            lasts.append(int(m["end_ts"]))
+    if not firsts:
+        raise ValueError("Kho dữ liệu chưa có manifest (start_ts/end_ts) cho rổ mặc định")
+    return iso_date(max(firsts) + DAY_MS), iso_date(min(lasts) - DAY_MS)
+
+
+def run_defaults() -> Dict[str, object]:
+    start, end = default_window()
+    return {"symbols": [f"{n}@perp" for n in default_universe()], "start": start, "end": end,
+            "train_ratio": DEFAULT_TRAIN_RATIO, "initial_capital": DEFAULT_CAPITAL}
+
+
+
+def resolve_symbols(symbols: Optional[List[str]]) -> List[str]:
+    """Tên cơ sở (BTC, ETH, ...) của rổ: `symbols` nếu có, không thì default_universe()."""
+    if symbols:
+        return list(dict.fromkeys(base_name(s) for s in symbols))
+    names = default_universe()
+    if not names:
+        raise ValueError("Kho dữ liệu chưa có tài sản perp nào")
+    return names
+
+
+def check_data(data_symbols: List[str]) -> None:
+    missing = [s for s in data_symbols if not resolve_asset_dir(s)]
+    if missing:
+        have = sorted({a["symbol"] for a in list_assets()})
+        raise ValueError(f"Không có dữ liệu sàn {exchange()} cho {missing}; tài sản có: {have}")
+
+
+def data_info(data_symbols: List[str], start: int, end: int, source: str) -> Tuple[Dict[str, Any], List[str]]:
+    warns, sha = [], {}
+    for s in data_symbols:
+        m = read_manifest(s) or {}
+        sha[s] = m.get("sha256_1m")
+        if m.get("start_ts") and start < int(m["start_ts"]):
+            warns.append(f"{s}: dữ liệu bắt đầu {iso_date(int(m['start_ts']))}, sau start {iso_date(start)} — giữ tiền mặt tới nến đầu có dữ liệu")
+        if m.get("end_ts") and end - DAY_MS > int(m["end_ts"]):
+            warns.append(f"{s}: dữ liệu kết thúc {iso_date(int(m['end_ts']))}, trước end {iso_date(end - DAY_MS)}")
+    return {"source": source, "sha256_1m": sha}, warns
+
+
+def load_samples(path: Optional[str] = None) -> List[Dict[str, Any]]:
+    with open(path or alpha_education_samples(), encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+
+def load_report(report_dir):
+    """(stage_a, report) từ thư mục lần chạy build_strategy_book."""
+    with open(os.path.join(report_dir, "stage_a.json"), encoding="utf-8") as fh:
+        stage_a = json.load(fh)
+    with open(os.path.join(report_dir, "report.json"), encoding="utf-8") as fh:
+        report = json.load(fh)
+    return stage_a, report
+
+
+_FRAME_ORDER = ("24h", "4h", "1h", "15m", "5m", "1m")
+
+
+def _clean(df: pd.DataFrame, drop_filled: bool = True) -> pd.DataFrame:
+    from backend.core.backtest import BacktestEngine
+    out = BacktestEngine._prepare_candles(df)
+    if drop_filled and "is_filled" in out.columns:
+        out = out[pd.to_numeric(out["is_filled"], errors="coerce").fillna(0).astype(int) == 0].reset_index(drop=True)
+    return out
+
+
+def daily_close(symbol: str, end: int) -> Optional[Tuple[np.ndarray, np.ndarray]]:
+    """(nhãn đóng ngày ms, giá đóng cửa ngày) của tài sản từ đầu lịch sử tới `end`; khung 24h nếu có, không thì gộp từ khung nhỏ hơn. None nếu không có dữ liệu."""
+    for frame in _FRAME_ORDER:
+        try:
+            df = _clean(CandleLoader(symbol, frame=frame, use_cache=True).load_data(0, end))
+        except FileNotFoundError:
+            continue
+        if df.empty:
+            continue
+        t, c = df["open_time"].to_numpy(dtype="int64"), df["close"].to_numpy(dtype="float64")
+        if frame != "24h":
+            day = t // DAY_MS * DAY_MS
+            keep = np.r_[day[1:] != day[:-1], True]            # nến cuối của mỗi ngày
+            t, c = day[keep], c[keep]
+        return t + DAY_MS, c
+    return None
+
+
+def load_prices(symbols: List[str], end: int) -> Dict[str, Tuple[np.ndarray, np.ndarray]]:
+    """{ký hiệu dữ liệu (BTC, BTC@perp, ...): (nhãn ngày, giá đóng)} cho các tài sản đọc được."""
+    out = {}
+    for s in symbols:
+        r = daily_close(s, end)
+        if r is not None:
+            out[str(s).split(":")[-1]] = r
+    return out
+
+
+def strategy_frames(symbols: List[str], timeframe: str, end: int, drop_filled: bool = False) -> Dict[str, pd.DataFrame]:
+    """Nến khung chiến lược của từng tài sản từ đầu lịch sử tới `end` (chỉ báo như engine: gốc cố định); tài sản không đọc được bị bỏ qua.
+    drop_filled=True khi khung chiến lược = khung chạy (engine bỏ nến điền ở khung chạy)."""
+    out = {}
+    for s in symbols:
+        try:
+            df = _clean(CandleLoader(s, frame=timeframe, use_cache=True).load_data(0, end), drop_filled)
+        except FileNotFoundError:
+            continue
+        if not df.empty:
+            out[str(s).split(":")[-1]] = df
+    return out

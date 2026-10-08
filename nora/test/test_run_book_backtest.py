@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from backend.core.params import date_ms
 from backend.crawl.store import save_resampled_dataset
 
 T0 = 1_700_006_400_000
@@ -70,6 +71,7 @@ def _params(out):
 
 def test_main_writes_result_json_with_expected_keys(market, tmp_path, monkeypatch):
     job_dir = tmp_path / "job"
+    os.makedirs(job_dir, exist_ok=True)   # writer chỉ ghi khi thư mục job tồn tại (launch tạo sẵn)
     monkeypatch.setenv("NORA_JOB_DIR", str(job_dir))
     mod = _load_script()
     out = mod.run_job(_params(tmp_path / "out.json"))
@@ -85,7 +87,7 @@ def test_main_writes_result_json_with_expected_keys(market, tmp_path, monkeypatc
     assert t["side"] in ("LONG", "SHORT") and t["symbol"].endswith("@perp")
     cur = res["equity_curve"]
     assert 0 < len(cur) <= 2000 and set(cur[0]) == {"time", "equity", "equity_worst"}
-    assert cur[0]["time"] >= mod._ts("2023-12-10") and all(a["time"] < b["time"] for a, b in zip(cur, cur[1:]))
+    assert cur[0]["time"] >= date_ms("2023-12-10") and all(a["time"] < b["time"] for a, b in zip(cur, cur[1:]))
     cfg = res["config"]
     assert cfg["symbols"] == ["AAA@perp", "BBB@perp", "CCC@perp"] and cfg["strategies"][1]["params"]["stop_loss_rate"] == 2.5  # mức giữa
     assert out["final_equity"] == res["final_equity"]
@@ -103,7 +105,7 @@ def test_deterministic(market, tmp_path, monkeypatch):
 
 
 def test_downsample_keeps_ends_and_limit():
-    from backend.optimize.search.evaluate import downsample   # P9.6: run.py gộp vào optimize/search/evaluate.py
+    from backend.metrics.metrics import downsample
     curve = [{"time": i} for i in range(10_001)]
     d = downsample(curve)
     assert len(d) <= 2000 and d[0] == curve[0] and d[-1] == curve[-1]
@@ -141,7 +143,7 @@ def test_strategy_symbols_filter_restricts_markets(market):
     cand = sb.BY_ID["t_long"]
     base = materialize(cand, {"sig.lo": 45, "stop_loss_rate": 2.0, "take_profit_rate": 2.0, "timeout": 720})
     syms = [f"{s}@perp" for s in SYMS]
-    kw = dict(items=[], symbols=syms, start=mod._ts("2023-12-10"), end=mod._ts("2024-01-15") + 86_400_000, rpt=0.5, stop_fill="level",
+    kw = dict(items=[], symbols=syms, start=date_ms("2023-12-10"), end=date_ms("2024-01-15") + 86_400_000, rpt=0.5, stop_fill="level",
               risk={"max_positions": 8, "max_per_symbol": 1, "max_gross_exposure": 3.0, "kill_switch_dd_pct": 0})
     only = mod.run(extra_strategies=[{**base, "id": "only_aaa", "symbols": ["AAA@perp"]}], **kw)
     allm = mod.run(extra_strategies=[{**base, "id": "all_mkts"}], **kw)

@@ -5,13 +5,13 @@ label_vi, formula, meaning_vi, read_vi, warmup, category.
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from backend.routes import strategies as strategies_router
+from backend.routes import alpha
 from backend.core import indicator as feat_mod, indicator as ops_mod
 
 
 def test_dsl_reference():
     app = FastAPI()
-    app.include_router(strategies_router.router)
+    app.include_router(alpha.strategies_router)
     r = TestClient(app).get("/api/studio/strategies/dsl")
     assert r.status_code == 200
     j = r.json()

@@ -112,7 +112,6 @@ def test_education_paths(layout, monkeypatch):
     state, home = layout
     assert st.alpha_education_samples() == os.path.join(home, "alpha/education/samples.json")
     assert os.path.isfile(st.alpha_education_samples())
-    assert st.education_results_dir() == os.path.join(home, "backtest/education")
     monkeypatch.setenv("NORA_ALPHAS_DIR", "/elsewhere")          # samples không đi theo NORA_ALPHAS_DIR
     assert st.alpha_education_samples() == os.path.join(home, "alpha/education/samples.json")
 
@@ -266,7 +265,7 @@ def test_allowed_roots_realpath(layout, tmp_path):
     for kind in ("book", "funnel", "wfa", "process"):
         assert set(st.allowed_roots(kind)) <= set(runs)
     assert real(st.alpha_run_dir("book", "RUN1")) in [r + os.sep + "RUN1" for r in st.allowed_roots("book")]
-    for kind in ("alpha", "live", "mem", "shared", "quality_gate", "staging", "education_results", "backtest", "wfa", "carlo"):
+    for kind in ("alpha", "live", "mem", "shared", "quality_gate", "staging", "backtest", "wfa", "carlo"):
         roots = st.allowed_roots(kind)
         assert roots and all(os.path.isabs(r) for r in roots) and len(set(roots)) == len(roots)
     with pytest.raises(ValueError):

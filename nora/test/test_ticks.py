@@ -506,6 +506,7 @@ def test_run_job_dispatches_and_reports_failures(tmp_path, monkeypatch):
     root = str(tmp_path)
     monkeypatch.setenv("NORA_LOCAL_DATA_ROOT", root)
     jobdir = tmp_path / "job"
+    os.makedirs(jobdir, exist_ok=True)   # writer chỉ ghi khi thư mục job tồn tại (launch tạo sẵn)
     monkeypatch.setenv("NORA_JOB_DIR", str(jobdir))
     calls = []
     monkeypatch.setattr(tc, "crawl_dex_ticks", lambda s, d, r: calls.append((s, d, r)) or {"symbol": s, "rows": 2})
@@ -522,7 +523,7 @@ def test_run_job_dispatches_and_reports_failures(tmp_path, monkeypatch):
 def test_job_kind_registered_and_router(tmp_path, monkeypatch):
     import importlib
     from backend.optimize.process import process as batch
-    from backend.routes import data as router
+    from backend.routes import data as data_routes
     spec = batch.KINDS["data_crawl_ticks"]
     assert spec["module"] == "backend.crawl.dex" and spec["params"] == {"symbols", "days"}
     assert callable(importlib.import_module(spec["module"]).run_job)
@@ -531,22 +532,22 @@ def test_job_kind_registered_and_router(tmp_path, monkeypatch):
         batch._check_params("data_crawl_ticks", {"symbols": ["AERO"], "output_dir": "/x"})
     assert "Tải tick" in batch.job_label("data_crawl_ticks", {"symbols": ["AERO"], "days": 3})
 
-    paths = {(m, r.path) for r in router.router.routes for m in r.methods}
+    paths = {(m, r.path) for r in data_routes.data_router.routes for m in r.methods}
     assert ("POST", "/api/data/ticks/crawl") in paths and ("GET", "/api/data/ticks/coverage") in paths
-    assert router.TicksRequest(symbols=["dex:AERO", "VVV"]).days == 3
+    assert data_routes.TicksRequest(symbols=["dex:AERO", "VVV"]).days == 3
     for bad in ({"symbols": ["AERO"], "days": 15}, {"symbols": ["AERO"], "days": 0}, {"symbols": ["../x"]}, {"symbols": []},
                 {"symbols": ["BTC@perp"]}, {"symbols": ["cex:BTC"]}, {"symbols": ["A B"]}):
         with pytest.raises(Exception):
-            router.TicksRequest(**bad)
+            data_routes.TicksRequest(**bad)
 
     launched = []
     monkeypatch.setattr(batch, "launch", lambda kind, params: launched.append((kind, params)) or "20260101_000000_abcdef")
-    assert router.post_ticks_crawl(router.TicksRequest(symbols=["AERO"], days=7)) == {"job_id": "20260101_000000_abcdef"}
+    assert data_routes.post_ticks_crawl(data_routes.TicksRequest(symbols=["AERO"], days=7)) == {"job_id": "20260101_000000_abcdef"}
     assert launched == [("data_crawl_ticks", {"symbols": ["AERO"], "days": 7})]
 
     root = str(tmp_path)
     monkeypatch.setenv("NORA_LOCAL_DATA_ROOT", root)
     _asset(root, "dex", "AERO")
     ts.save_ticks(_ticks(4), "AERO", retention_days=3, source="evm_swaps", data_root=root)
-    cov = router.get_ticks_coverage()["assets"]
+    cov = data_routes.get_ticks_coverage()["assets"]
     assert len(cov) == 1 and cov[0]["symbol"] == "AERO" and cov[0]["rows"] == 4 and cov[0]["window_days"] == 3

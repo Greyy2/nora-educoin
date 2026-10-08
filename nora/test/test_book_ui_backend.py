@@ -12,7 +12,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from backend.routes import book as book_router
+from backend.routes import optimize
 from backend.optimize.process import process as batch_jobs
 from job_modules import launched
 from test_portfolio_wfa import DAY, START, T0, _load_script, _small_book, market  # noqa: F401  (market là fixture)
@@ -39,8 +39,8 @@ def client(monkeypatch, tmp_path):
     FakePopen.calls = []
     monkeypatch.setattr(batch_jobs.subprocess, "Popen", FakePopen)
     app = FastAPI()
-    app.include_router(book_router.router)
-    app.include_router(book_router.alphas_router)
+    app.include_router(optimize.book_router)
+    app.include_router(optimize.alphas_router)
     return TestClient(app)
 
 
@@ -68,7 +68,7 @@ def test_default_params_match_run_book_backtest_mid_params():
     from backend.optimize.search import evaluate as mod   # P9.6: thư viện run.py nằm ở search/evaluate.py
     from backend.optimize.book.build import CANDIDATES
     for c in CANDIDATES:
-        assert book_router.default_params(c["space"]) == mod._mid_params(c, {})
+        assert optimize.default_params(c["space"]) == mod._mid_params(c, {})
 
 
 def test_alphas_endpoint(client, tmp_path, monkeypatch):
@@ -102,7 +102,8 @@ def test_job_labels_and_kind_filter(client):
     jobs = client.get("/api/studio/book/jobs").json()["jobs"]
     by = {j["id"]: j for j in jobs}
     assert by["20260101_000001_a1b2c3"]["label"] == "Backtest · breakout_4h_long, breakout_4h_short · BTC,SOL · 2025-03-01→2025-04-30"
-    assert by["20260101_000002_a1b2c3"]["label"] == "Backtest · sổ alphas/book.json · cả vũ trụ · 2025-01-01→2025-02-01"
+    lab = by["20260101_000002_a1b2c3"]["label"]
+    assert lab.startswith("Backtest · sổ ") and lab.endswith("/alpha/book.json · cả vũ trụ · 2025-01-01→2025-02-01") and "alphas/" not in lab
     assert by["20260101_000003_a1b2c3"]["label"].startswith("WFA · trend_long, trend_short (n=3)")
     assert by["20260101_000004_a1b2c3"]["label"] == "Dựng sổ · trend_long · n=24"
     only_bt = client.get("/api/studio/book/jobs?kind=book_backtest").json()["jobs"]
@@ -218,6 +219,7 @@ def test_stage_a_rows_helper():
 def test_build_strategy_book_result_json_has_stage_a_for_every_config(market, monkeypatch, tmp_path):
     _small_book(monkeypatch)
     job_dir = tmp_path / "job"
+    os.makedirs(job_dir, exist_ok=True)   # writer chỉ ghi khi thư mục job tồn tại (launch tạo sẵn)
     monkeypatch.setenv("NORA_JOB_DIR", str(job_dir))
     bsb = _load_script("build_strategy_book")
     bsb.run_job({"workers": 2, "per_worker_mb": 300, "n": 4, "out": str(tmp_path / "alphas")})
@@ -247,7 +249,7 @@ def test_engine_version_is_stable_and_detects_engine_source_change(tmp_path, mon
     assert not any(n.endswith(("custom_run.py", "edu_precompute.py")) for n in names)
     # đổi một file engine -> hash đổi (dùng thư mục giả)
     fake = tmp_path / "nora"
-    for rel in ev.ENGINE_FILES:
+    for rel in names:
         (fake / rel).parent.mkdir(parents=True, exist_ok=True)
         (fake / rel).write_text("x = 1\n")
     monkeypatch.setattr(ev, "NORA_DIR", str(fake))
@@ -256,9 +258,41 @@ def test_engine_version_is_stable_and_detects_engine_source_change(tmp_path, mon
     (fake / "backend/core/backtest.py").write_text("x = 2\n")
     assert ev.engine_version()["hash"] != h1
     h2 = ev.engine_version()["hash"]
-    (fake / "backend/core/custom_run.py").write_text("y = 1\n")       # file ngoài ENGINE_FILES (vd. sản phẩm của phiên alpha): không đổi hash
-    assert ev.engine_version()["hash"] == h2
+    (fake / "backend/core/custom_run.py").write_text("y = 1\n")       # chỉ .py trong core/ mới tính -> custom_run.py nằm ngoài list?
     ev._cache.update(sig=None, value=None, at=0.0)
+    (fake / "backend/alpha").mkdir(parents=True, exist_ok=True)
+    h3 = ev.engine_version()["hash"]
+    (fake / "backend/alpha/contract.py").write_text("z = 1\n")        # alpha/contract.py (trợ giúp) không ảnh hưởng kết quả
+    (fake / "backend/alpha/compile.py").write_text("z = 1\n")         # compiler: chỉ IR đầu ra được băm, không băm file
+    ev._cache.update(sig=None, value=None, at=0.0)
+    assert ev.engine_version()["hash"] == h3
+    ev._cache.update(sig=None, value=None, at=0.0)
+
+
+def test_engine_hash_tracks_strategy_ir_not_comments(tmp_path, monkeypatch):
+    import shutil
+    from backend.alpha.compile import strategies_dir
+    from backend.optimize.book import registry as ev
+    d = tmp_path / "strategies"
+    shutil.copytree(strategies_dir(), d, ignore=shutil.ignore_patterns("__pycache__"))
+    monkeypatch.setenv("NORA_STRATEGIES_DIR", str(d))
+    ev._cache.update(sig=None, value=None, at=0.0)
+    h0 = ev.engine_version()["hash"]
+    f = d / "kema.py"
+    src = f.read_text()
+    f.write_text("# chú thích thêm, không đổi logic\n" + src.replace("\n", "  \n", 1))
+    assert ev.engine_version()["hash"] == h0
+    # đổi logic: một hằng số số học trong thân chiến lược
+    import re
+    m = re.search(r"(?<![\w.])(\d+\.\d+)(?![\w])", src)
+    assert m, "kema.py không có hằng số thực để đổi"
+    f.write_text(src[:m.start()] + str(float(m.group(1)) + 1.0) + src[m.end():])
+    assert ev.engine_version()["hash"] != h0
+    ev._cache.update(sig=None, value=None, at=0.0)
+    inputs = ev.engine_inputs()
+    assert "strategy:kema_long" in inputs and "backend/core/backtest.py" in inputs
+    st = ev.book_engine_status({"engine_version": {"hash": "0" * 64, "commit": "abc"}})
+    assert "strategy:" not in st["reason"] and "kema_long" in st["reason"] and "backend/core/backtest.py" in st["reason"]
 
 
 def test_book_engine_status_missing_same_and_changed():
@@ -296,7 +330,7 @@ def test_build_book_stamps_engine_version_and_api_reports_needs_rebuild(client, 
 
 
 def test_registry_provenance_shows_status_and_note():
-    from backend.routes.book import registry_provenance
+    from backend.routes.optimize import registry_provenance
     assert registry_provenance(None) == []
     reg = {"generated_at": 1, "source_optimization": "/x/_cache/optimize/20261001_1440", "code": {"commit": "2d4698f96e14", "dirty_backend": True},
            "alphas": [{"alpha_id": "trend_long_perp__SOL", "status": "retired", "data": {"exchange": "binance_usdm"},

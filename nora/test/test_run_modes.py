@@ -12,13 +12,13 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from backend.optimize.process import process as batch_jobs
-from backend.routes import jobs as batch_jobs_routes
+from backend.routes import process as process_routes
 from job_modules import launched
-from backend.routes import book as book_router
-from backend.routes import strategies as strategies_router
+from backend.routes import optimize
+from backend.routes import alpha
 from backend.core.params import POSITION_KEYS
 from backend.optimize.book import build as pr
-from backend.routes import modes as rm
+from backend.routes import process as process_routes
 from backend.core.params import FRAMES, collect_placeholders, collect_string_placeholders, resolve_placeholders
 from backend.core.params import BASE_POSITION, materialize, schema_defaults
 from backend.optimize.book.build import BY_ID, CANDIDATES
@@ -106,7 +106,7 @@ def test_schema_is_well_formed(cid):
             assert {"min", "max", "step"} <= set(spec) and spec["min"] <= spec["default"] <= spec["max"]
         if key in mid and not key.startswith("sig."):
             assert spec["default"] == mid[key], key                                 # mặc định thoát lệnh = mức giữa của space
-        _, err = rm.check_value(key, spec, spec["default"])
+        _, err = pr.check_value(key, spec, spec["default"])
         assert err is None
     # mọi {tên} và node {"param"} trong cây vào + cây thoát + điều kiện DCA đều có tham số signal tương ứng, mặc định node khớp schema
     trees = [c["tree"], c.get("stop") or [], c.get("dca_gate") or []]
@@ -175,24 +175,24 @@ def _preset_params(cid):
 def test_validate_params_messages_are_per_field_and_vietnamese():
     c = BY_ID["trend_long"]
     base = _preset_params("trend_long")
-    full, errs = rm.validate_params(c, {"sig.ema_fast": 20, "sig.trend_tf": "4h"}, base, "p")
+    full, errs = process_routes.validate_params(c, {"sig.ema_fast": 20, "sig.trend_tf": "4h"}, base, "p")
     assert not errs and full["sig.ema_fast"] == 20 and full["sig.trend_tf"] == "4h" and full["sig.ema_slow"] == 200   # thiếu -> từ base
     bad = {"sig.ema_fast": 3.5, "sig.trend_tf": "2h", "stop_loss_rate": 99, "nope": 1, "ema_slow": 100, "leverage": 11, "timeout": "x"}
-    _, errs = rm.validate_params(c, bad, base, "p")
+    _, errs = process_routes.validate_params(c, bad, base, "p")
     fields = dict(errs)
     assert set(fields) == {"p.sig.ema_fast", "p.sig.trend_tf", "p.stop_loss_rate", "p.nope", "p.ema_slow", "p.leverage", "p.timeout"}
     assert "số nguyên" in fields["p.sig.ema_fast"] and "một trong" in fields["p.sig.trend_tf"]
     assert "khoảng" in fields["p.stop_loss_rate"] and "'sig.ema_slow'" in fields["p.ema_slow"] and "phải là số" in fields["p.timeout"]
-    _, errs = rm.validate_params(c, {"sig.ema_fast": 100, "sig.ema_slow": 60}, base, "p")
+    _, errs = process_routes.validate_params(c, {"sig.ema_fast": 100, "sig.ema_slow": 60}, base, "p")
     assert errs == [("p.sig.ema_fast", "trend_long: EMA nhanh (100) phải nhỏ hơn EMA chậm (60)")]
-    _, errs = rm.validate_params(c, [1, 2], base, "p")
+    _, errs = process_routes.validate_params(c, [1, 2], base, "p")
     assert errs and errs[0][0] == "p"
 
 
 def test_job_params_minimal_and_keeps_space_keys():
     c = BY_ID["breakout_4h_long"]
     full = {**schema_defaults(c), "stop_loss_rate": 3.0, "sig.ema_fast": 20, "risk_per_trade_pct": 0.9}
-    jp = rm.job_params(c, full)
+    jp = process_routes.job_params(c, full)
     assert set(c["space"]) <= set(jp) and jp["stop_loss_rate"] == 3.0 and jp["sig.ema_fast"] == 20
     assert "risk_per_trade_pct" not in jp and "atr_period" not in jp and "sig.ema_slow" not in jp
 
@@ -200,9 +200,9 @@ def test_job_params_minimal_and_keeps_space_keys():
 def test_common_risk():
     a = {"risk_per_trade_pct": 0.5}
     b = {"risk_per_trade_pct": 1.0}
-    assert rm.common_risk([("x", a), ("y", dict(a))]) == (0.5, [])
-    assert rm.common_risk([("x", a), ("y", b)], 0.75) == (0.75, [])
-    val, errs = rm.common_risk([("x", a), ("y", b)])
+    assert process_routes.common_risk([("x", a), ("y", dict(a))]) == (0.5, [])
+    assert process_routes.common_risk([("x", a), ("y", b)], 0.75) == (0.75, [])
+    val, errs = process_routes.common_risk([("x", a), ("y", b)])
     assert val is None and errs[0][0] == "strategies[1].params.risk_per_trade_pct"
 
 
@@ -259,7 +259,7 @@ def test_presets_priority_book_then_latest_stage_a_then_defaults(tmp_path):
         assert P[cid]["timeframe"] is None
     for cid, preset in P.items():                       # params luôn đầy đủ và hợp lệ theo schema
         assert set(preset["params"]) == set(BY_ID[cid]["params_schema"])
-        _, errs = rm.validate_params(BY_ID[cid], preset["params"], preset["params"])
+        _, errs = process_routes.validate_params(BY_ID[cid], preset["params"], preset["params"])
         assert not errs, (cid, errs)
 
 
@@ -339,8 +339,8 @@ def client(monkeypatch, tmp_path):
                        "timeframe": "15m",
                        "source": "build X stage A top-1 dev1", "source_kind": "stage_a", "evidence": {"stage": "dev1"}}}})
     app = FastAPI()
-    app.include_router(book_router.router)
-    app.include_router(strategies_router.router)
+    app.include_router(optimize.book_router)
+    app.include_router(alpha.strategies_router)
     return TestClient(app)
 
 
@@ -682,16 +682,15 @@ def test_wfa_advanced_strategy_configs(client):
 
 
 def test_check_wfa_strategies_accepts_schema_keys_and_choices():
-    ok = batch_jobs_routes.check_wfa_strategies([{"id": "trend_long", "configs": [{"sig.ema_fast": 20, "sig.trend_tf": "4h", "stop_loss_rate": 2.0}]}])
+    ok = process_routes.check_wfa_strategies([{"id": "trend_long", "configs": [{"sig.ema_fast": 20, "sig.trend_tf": "4h", "stop_loss_rate": 2.0}]}])
     assert ok[0]["configs"][0]["sig.trend_tf"] == "4h"
     for bad in ({"sig.trend_tf": "3h"}, {"sig.ema_fast": "20"}, {"nope": 1}, {"stop_loss_rate": float("nan")}, {"stop_loss_rate": True}):
         with pytest.raises(batch_jobs.JobError):
-            batch_jobs_routes.check_wfa_strategies([{"id": "trend_long", "configs": [bad]}])
+            process_routes.check_wfa_strategies([{"id": "trend_long", "configs": [bad]}])
 
 
 def test_wfa_job_candidates_from_list_accepts_schema_keys():
-    import importlib
-    vb = importlib.import_module("backend.optimize.process.tasks")
+    from backend.optimize.search import evaluate as vb
     assert vb.candidates_from_list([{"id": "trend_long", "configs": [{"sig.ema_fast": 20, "sig.trend_tf": "4h"}]}])[0]["configs"][0]["sig.trend_tf"] == "4h"
     with pytest.raises(SystemExit):
         vb.candidates_from_list([{"id": "trend_long", "configs": [{"nope": 1}]}])
