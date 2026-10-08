@@ -14,9 +14,9 @@ Diễn giải của test này:
   - module có dòng đánh dấu `# P9-SHIM` trong 5 dòng đầu là shim tương thích (đường dẫn cũ tái xuất đường dẫn mới) -> không tính khi làm bên import.
 
 Chế độ:
-  - BÁO CÁO (mặc định): test luôn xanh, ghi danh sách vi phạm vào docs/bmad/p9_layering_report.md và in ra (pytest -s).
+  - BÁO CÁO (mặc định): test luôn xanh, in danh sách vi phạm (pytest -s); ghi docs/bmad/p9_layering_report.md khi NORA_LAYERING_WRITE=1.
   - NGHIÊM NGẶT (P9.10): NORA_LAYERING_STRICT=1 -> fail nếu còn vi phạm (hoặc module chưa có trong bảng ánh xạ).
-  - NORA_LAYERING_WRITE=0 tắt việc ghi file báo cáo.
+  - NORA_LAYERING_WRITE=1 mới ghi file báo cáo (mặc định: không ghi).
 """
 import ast
 import os
@@ -29,7 +29,7 @@ BACKEND = NORA / "backend"
 REPORT = NORA / "docs" / "bmad" / "p9_layering_report.md"
 
 STRICT = os.environ.get("NORA_LAYERING_STRICT", "0") not in ("", "0", "false", "False")
-WRITE = os.environ.get("NORA_LAYERING_WRITE", "1") not in ("", "0", "false", "False")
+WRITE = os.environ.get("NORA_LAYERING_WRITE", "0") not in ("", "0", "false", "False")   # chỉ ghi báo cáo khi đặt NORA_LAYERING_WRITE=1
 
 MID = {"metrics", "regime", "wfa", "carlo", "verdict"}
 ALLOWED: Dict[str, set] = {
@@ -103,6 +103,9 @@ LAYER_RULES: List[Tuple[str, str, Optional[int]]] = [
     ("core/backtest", "core", _r("backtest")),               # engine, portfolio, dex, kernel
     ("core/execute", "core", _r("backtest")),                # venue, amm, tracker, manager, sim_venue, runner (P9.4b gỡ)
     # --- metrics ---
+    ("metrics", "metrics", None),                            # P9.5: file đích metrics/{metrics,trades,charts}
+    ("regime", "regime", None),                              # P9.5: regime/regime.py
+    ("verdict", "verdict", None),                            # P9.5: verdict/verdict.py
     ("core/metrics/diagnose", "verdict", None),
     ("core/metrics/diagnose_inputs", "verdict", None),       # phần nạp dữ liệu -> optimize/process/tasks.py (khi tách)
     ("core/metrics", "metrics", None),                       # returns, portfolio, trades
@@ -247,7 +250,7 @@ def render(res: dict) -> str:
     L = [
         "# P9 — báo cáo luật phụ thuộc (tự sinh bởi nora/test/test_layering.py, chế độ BÁO CÁO)",
         "",
-        "Không sửa tay. Sinh lại: `PYTHONDONTWRITEBYTECODE=1 backend/utils/ops/run_limited.sh --no-lock -- -m pytest -q test/test_layering.py`.",
+        "Không sửa tay. Sinh lại: `NORA_LAYERING_WRITE=1 PYTHONDONTWRITEBYTECODE=1 backend/utils/ops/run_limited.sh --no-lock -- -m pytest -q test/test_layering.py`.",
         "Bật bắt buộc (P9.10): `NORA_LAYERING_STRICT=1`. Luật: ADR-P9 §2; ánh xạ đường dẫn hiện tại -> tầng đích: bảng `LAYER_RULES` trong test.",
         "",
         f"- Module backend: {res['modules']} · shim (`# P9-SHIM`, bỏ qua): {len(res['shims'])} · chưa ánh xạ: {len(res['unmapped'])}",

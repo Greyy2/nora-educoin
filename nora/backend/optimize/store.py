@@ -53,9 +53,9 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT);
 _CODE_FILES = (   # mọi file ảnh hưởng kết quả backtest: đổi một file -> khoá job đổi -> --resume không dùng lại kết quả cũ
     "backend/core/backtest.py", "backend/core/models.py", "backend/core/params.py", "backend/core/position_size.py",   # P9.4: engine gộp
     "backend/core/execute/tracker.py",
-    "backend/core/metrics/portfolio.py", "backend/core/metrics/returns.py", "backend/core/metrics/trades.py",
+    "backend/metrics/metrics.py", "backend/metrics/trades.py",   # P9.5: returns+portfolio gộp, trades chuyển
     "backend/core/data/shared.py", "backend/core/signal.py", "backend/core/indicator.py",   # P9.4 part 2: evaluator/kernels đã gộp
-    "backend/core/strategy/book.py", "backend/core/strategy/library.py", "backend/wfa/walk_forward.py",
+    "backend/core/strategy/book.py", "backend/core/strategy/library.py", "backend/wfa/wfa.py",   # P9.5
 )
 _CODE_VERSION: Optional[str] = None
 

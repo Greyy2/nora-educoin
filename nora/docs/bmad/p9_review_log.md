@@ -609,3 +609,161 @@ Trước: 62 vi phạm (146 module, 25 shim). Sau: **57** (148 module, 38 shim):
 | test_layering | trước 62 (146 module, 25 shim) -> sau **57** (148 module, 38 shim): `indicator -> signal` 4 -> 0, `signal -> backtest` 3 -> 2 |
 
 **Vi phạm đã biết, CHỦ ĐỘNG để nguyên (quyết định điều phối 2026-10-07):** (a) `snapshot.signal_snapshot` / `diagnostics.check_signals` import cục bộ `backtest`, `params.presets`, `regime.classifier`, `db.local_pkl` — có I/O, sẽ ra khỏi core sang optimize ở P9.6; (b) `params.py:244` import cục bộ `indicator` (kiểm cột `sig.*` trong template) — để tới P9.10; (c) `spec.py` nằm trong `indicator.py` được chấp nhận, ADR §3 sẽ sửa dòng bảng.
+
+---
+
+## P9.6 plan — `optimize/` (search, funnel, book, process) — norabt-99 (kiến trúc, chỉ di chuyển/gộp), 2026-10-08
+Trạng thái: **CHỈ KẾ HOẠCH, chưa sửa code**. Đọc: ADR §2–§5, optimize/**, api/jobs/{batch,runner}, utils/{jobs,parallel,memwatch,engine_version}, mọi module trong `batch.KINDS`, core/params/{presets,modes}, api/modes.
+
+### 0. Phát hiện quyết định thiết kế
+1. **Bản ghi job cũ KHÔNG lưu tên module.** `params.json` = `{kind, params}`, `job.json` có `kind`; runner tra `KINDS[kind]` lúc chạy. Không dữ liệu (`data/**`) nào chứa `backend.optimize.*`. => tương thích chỉ cần ở CODE (shim), không cần di trú bản ghi. Cách làm: `KINDS[kind] = {"module","func"(mặc định "run_job"),"params"}`; runner `getattr(import_module(module), func)`.
+2. **Đường dẫn tính từ `__file__` đổi độ sâu khi dời file** (sai là lặng lẽ): `batch.NORA_DIR/RUN_LIMITED` (3 cấp), `book.NORA_ROOT` (2), `store.code_version` root (2) **-> sai thì băm "missing" => khoá job đổi => `--resume` mất kết quả**, `engine_version.NORA_DIR` (2), `presets.NORA_DIR` (3), `orchestrator.funnel_root/git_info` + `promote` repo (3). Cổng: `code_version()` và `engine_version()` bằng nhau từng ký tự trước/sau.
+3. **Trùng tên khi gộp** (chỉ gộp hằng số khi AST giống hệt): `DEFAULTS` (book, run, funnel/run, publish, revalidate, wfa/run, regime/report, custom, edu) -> `<TASK>_DEFAULTS`; `run_job` x10 -> `run_<kind>`; `DB_NAME` (cùng "results.sqlite", gộp 1), `_SCHEMA`/`_dumps` (store vs funnel/storage) -> `_RESULTS_*` / `_RUN_*`; `make_engine` (core/backtest/run.py nhận `BacktestJob`) vs `funnel/evaluate.make_engine(dict)` -> hàm của phễu đổi `make_engine_from_dict`; `DAY/WARMUP/NORA_ROOT/NORA_DIR/_ts` trùng giá trị -> 1 bản; `alphas_dir` (presets: env NORA_ALPHAS_DIR) KHÁC `revalidate.alphas_dir` (alpha_dir) -> đặt ở hai file khác nhau, KHÔNG gộp; hàm `wfa` của revalidate -> `wfa_check` (tránh che package wfa).
+4. **Layering thật:** `core/params/modes` bị `optimize/funnel/generate`, `live/bot`, `core/backtest/run` (qua make_engine) import => nếu dời cả file sang `routes/modes.py` (ADR) thì tầng dưới import tầng trên. **Đề xuất tách:** nhóm dùng cho engine/phễu (`FieldError, check_value, validate_params, schema_space, SCHEMA_SPACE_EXCLUDE, frame_keys, lift_frame, lift_frames, _num, _unit`) -> `optimize/book/build.py` (P9.6b); nhóm chỉ routes dùng (`MODES, MAX_STRATEGIES, DEFAULT_TRAIN/TEST_DAYS, STANDARD_MC*, STRESS_*, job_params, common_risk, mc_standard`) ở lại `core/params/modes.py` -> `routes/modes.py` (P9.8) cùng `api/modes.py`. **Cần review ADR §3 dòng modes.**
+5. **`core/backtest/run.py` là hai thứ**: thư viện (BacktestJob, make_engine, run, result_payload, load_items, downsample, daily_nav, hằng số — wfa.py, shared, book, evaluate, regime/report, revalidate, publish, tick_run, router market import) + `run_job`. Thư viện -> `search/evaluate.py`; `run_job` -> `process/tasks.py`. `wfa/wfa.py -> optimize` là vi phạm đã có (qua shared/store/run), giữ qua shim tới P9.10.
+6. `data_promote`/crawl: `run_job` đã nằm ở `crawl/{cex,dex,store}.py` (P9.2). Dòng ADR "tasks.py <- core/data/promote" lỗi thời: **không dời**, KINDS giữ đường shim (đổi sang `crawl.*` ở P9.10).
+7. **ADR bỏ sót**: `optimize/funnel/estimate.py` -> stages.py; `utils/engine_version.py` -> book/registry.py (chỉ registry + routers/book dùng); `utils/{lru,jsonsafe}` đã sang crawl/store (P9.2).
+
+### 1. Bản đồ cũ -> mới (mỗi dòng: file cũ => đích; ký hiệu cấp module nêu khi tách/đổi tên; còn lại chuyển nguyên văn)
+**search/generate.py** (193) <= `funnel/generate.py` toàn bộ (canonical_params, alpha_id_of, grid_size, iter_params, SIGNAL_POSITION_KEYS, PER_SIGNAL, iter_params_factored, count_params, SPACE_MODES, space_for, incompatible, REGIME_KEY, REGIME_MODES, regime_variants, split_regime, validate_alpha).
+**search/evaluate.py** (~900) <= `funnel/evaluate.py` (DAY, risk_dict, to_job, learned_regime, make_engine->`make_engine_from_dict`, _outputs, run_backtest, signal_key, run_backtest_many, base_job, _mc_kwargs, _gate_of, mc_check, mc_detail, fold_job_plan, run_wfa, aggregate_wfa, w_backtest, w_backtest_group, w_backtest_group_rss, w_wfa, w_mc, w_sizing, w_holdout) + `optimize/shared.py` (STORE_DIRS, release_memory, export_job, SharedExporter) + thư viện của `core/backtest/run.py` (NORA_ROOT, DAY, WARMUP, MAX_CURVE_POINTS, DEFAULT_CAPITAL, _ts, _mid_params, load_items, downsample, daily_nav, result_payload, BacktestJob, make_engine, run). `DEFAULTS` + `run_job` của run.py => tasks.py.
+**funnel/stages.py** (~1660) <= `orchestrator` (PER_WORKER_MB, GEN_BATCH, PAGE, S2_CHUNK, FLUSH_*, MAX_ALPHAS_DEFAULT, FunnelConfig, new_run_id, funnel_root, git_info, _candidates, planned_alphas, Ctx, _stream, GROUP_*, _stream_grouped, _fmt_eta, _pages, _scalar_base, check_timeframe, stage_s0..s6/final, _s2_strategy_level, _neighbour_ratios, _series_of, _export_wfa_windows, _page_chunks, _with_series, _turnover_of, _shock_of, STAGE_FUNCS, run_funnel, _log_stage) + `gates` (STAGES..S6_*, REASON_LABELS, reason_label, _fmt, _msg, Verdict, _OK, evaluate_s1/s2/s3/s6, dsr_cut, evaluate_mc_checks, thresholds_snapshot, _ms, iso_date, compute_windows, windows_iso, wfa_folds) + `sizing` + `stats` + `estimate` + `promote` + `publish` (DEFAULTS->`FUNNEL_BOOK_DEFAULTS`, _metrics, build_report, run_job->`run_funnel_book`) + `recompute` (cache_path, read_cached, recompute_s1, run_job->`run_funnel_recompute`) + `run` (DEFAULTS->`FUNNEL_RUN_DEFAULTS`, run_job->`run_funnel_run`). Hằng `DAY` của gates dùng chung.
+**funnel/storage.py** (~830) <= `funnel/storage.py` (DB_NAME, TRADE_COLS/SCHEMA, DAILY_SCHEMA, FLAT_KEYS, StageResult, _clean, _num, flat_columns, atomic_write_json, RunStore; _SCHEMA->`_RUN_SCHEMA`, _dumps->`_run_dumps`) + `optimize/store.py` (COMMIT_*, SCHEMA_VERSION, _SCHEMA->`_RESULTS_SCHEMA`, _CODE_FILES, _CODE_VERSION, canonical, code_version, data_fingerprint, make_job_key, _dumps->`_results_dumps`, ResultsStore, normalize, stream_stage).
+**book/build.py** (~1250) <= `optimize/book.py` (toàn bộ; NORA_ROOT->dùng chung NORA_DIR; DEFAULTS->`BOOK_BUILD_DEFAULTS`; run_job->`run_book_build`; run_book, windows, config_count/iter_configs/configs, score, TopK, `_pool_map_safe`/`_auto_workers` alias GIỮ — test_memory_guards patch) + `core/params/presets.py` (toàn bộ; `run_job`->`run_presets_build`; import `antiluck.neighbours` -> `backend.verdict.verdict`) + nhóm modes mục 0.4.
+**book/registry.py** (~490, +2 file của làn alpha sau) <= `optimize/registry.py` (TESTNET, build_registry, testnet_config, build_book, testnet_book_config, write_book, EXPLORE_STATUS, write_explore_book, publish_book) + `optimize/revalidate.py` (alphas_dir, load_alpha, alpha_strategy, _run, _oos, wfa->`wfa_check`, revalidate, apply_result, run_job->`run_alpha_revalidate`) + `utils/engine_version.py` (cả file; NORA_DIR sâu +1). Sau khi phiên alpha OK: `core/analytics/{user_alphas,strategy_doc}`.
+**process/process.py** (~1200 tạm, ~700 sau P9.8) <= `api/jobs/batch.py` (mục 2) + `utils/jobs.py` (WRITE_EVERY_S, Progress, graceful_sigterm, write_job_result, options, as_list) + thân `runner.run` => `run_job_dir(job_dir)`.
+**process/workers.py** (~395) <= `utils/parallel.py` (_abort_pool, pool_map_safe, pool_imap_bounded, auto_workers, default_workers, resolve_workers) + `utils/memwatch.py` (toàn bộ). Bỏ import lười `from backend.utils.memwatch import ...` thành gọi trực tiếp (cùng module global => `monkeypatch.setattr(memwatch, ...)` vẫn có hiệu lực vì cả hai đường cũ là alias CÙNG module).
+**process/tasks.py** (~900) <= `core/backtest/run.py` (DEFAULTS->`BOOK_BACKTEST_DEFAULTS`, run_job->`run_book_backtest`) + `wfa/run.py` (toàn bộ; DEFAULTS->`BOOK_WFA_DEFAULTS`, run_job->`run_book_wfa`) + `core/regime/report.py` (toàn bộ, run_job->`run_regime_report`). Hoãn (xem mục 5): `custom_run`, `edu_precompute` (phiên alpha), `tick_run` (phiên logic T6; không có run_job, chỉ là thư viện tick).
+**Shim**: mọi đường cũ = ALIAS `sys.modules` (cùng đối tượng, giữ monkeypatch/trạng thái): `optimize.{book,registry,revalidate,shared,store}`, `optimize.funnel.{storage,stats,...}` -> đích; `utils.{jobs,parallel,memwatch,engine_version}`; `api.jobs.batch` -> process (xem mục 2); `core.params.presets`. **Re-export tường minh (không alias được)**: `funnel/evaluate` (đổi tên make_engine), `core/backtest/run` (module tách đôi: thư viện từ search.evaluate, `run_job` từ tasks), `core/params/modes` (giữ phần routes, re-export nhóm đã dời). Mỗi shim có dòng `# P9-SHIM`. `funnel/antiluck.py` (shim P9.5) giữ nguyên.
+Presets -> `book/build.py` (đúng ADR). Modes -> tách đôi như 0.4 (phần routes -> `routes/modes.py` ở P9.8).
+
+### 2. `api/jobs/batch.py`: logic tiến trình vs kiểm tham số
+**Logic tiến trình -> process.py:** `JobBusy`, `NORA_DIR, RUN_LIMITED, RUNNER, KINDS(module/func + whitelist khoá), NO_LOCK_KINDS, MAX_ACTIVE, LOG_TAIL_LINES, WAITING_MARK, _JOB_ID_RE, _EXIT_RE, _LOCK`; đường dẫn: `jobs_root, RESULT_KINDS, _persisted_dirs, job_dir, _job_dir`; `_check_params` (so whitelist KINDS; launch/run_sync gọi); meta: `_read_meta, _write_meta, _finish, _waiter, _active_count, _env, _alive, _tail_text, _read_progress`; dọn: `CRAWL_KINDS, STAGING_SUBDIR, FAILED_LOG_KEEP_DAYS, _prune_failed, prune_failed_crawl_jobs, prune_failed_jobs, KEEP_KINDS, clean_unstaged_crawl_jobs, _crawl_staged`; lưu kết quả: `PERSIST_AREAS, PERSIST_FILES, persist_dest_base, _same_result, persist_job, _persist_quietly, persist_finished_jobs`; chạy/huỷ/trạng thái: `launch, run_sync, cancel, status, status_etag, status_lite, _summary, TERMINAL_STATES, _SUMMARY_CACHE(+_MAX,_LOCK), _sig, _clone, _summary_cached, _history_dirs, list_jobs, job_label, _names`. (Khôi phục: `_finish` mất-dấu sau restart API + huỷ SIGTERM+flush; "resume" là tham số `resume` của run_job/ResultsStore -> nằm ở book/build + funnel/stages + wfa tasks, KHÔNG thuộc process.)
+**Kiểm tham số -> routes/jobs.py (P9.8):** `JobError` (dùng ở cả hai: đặt ở process, routes import), `http_launch` (HTTPException), `_DATE_RE, check_date, check_symbols, check_backtest_symbols, _day_ms, check_dex_backtest, check_candidate_ids, check_number, check_report_dir, check_wfa_strategies, RUN_TIMEFRAMES, check_timeframe, build_job, MAX_CUSTOM_DAYS, MAX_CUSTOM_SYMBOLS, _BASE_RE, build_custom_backtest, build_edu_precompute, MAX_BUILD_CONFIGS, MAX_WFA_STRATEGIES, MAX_WFA_CONFIGS`.
+**Thực hiện ở P9.6:** `batch.py` -> process.py **nguyên file** (khối kiểm tham số giữ nguyên, có banner `# --- P9.8 -> routes/jobs.py ---`), `api.jobs.batch` = alias. Lý do: test patch trạng thái nội bộ qua module batch (`batch.NORA_DIR`, `MAX_ACTIVE`, `_tail_text`, `subprocess.Popen`, `status`, `launch`) — tách ngay thì patch không tới hàm bên process => phải sửa test. P9.8 cắt khối kiểm tham số nguyên văn. `runner.py` GIỮ làm điểm vào `-m backend.api.jobs.runner` (tiền đề env OMP/NORA_*_CACHE_MB phải đứng trước import numpy, không thể gộp vào module mà API cũng import) — chỉ gọi `process.run_job_dir`; đổi `RUNNER` ở P9.10 (test/job_modules.launched khẳng định chuỗi cũ).
+
+### 3. KINDS sau khi dời (module:func) và tương thích
+| kind | sau P9.6 |
+|---|---|
+| book_backtest / book_wfa / regime_report | `backend.optimize.process.tasks:run_book_backtest / run_book_wfa / run_regime_report` |
+| book_build / presets_build | `backend.optimize.book.build:run_book_build / run_presets_build` |
+| funnel_run / funnel_book / funnel_recompute | `backend.optimize.funnel.stages:run_funnel_run / run_funnel_book / run_funnel_recompute` |
+| alpha_revalidate | `backend.optimize.book.registry:run_alpha_revalidate` |
+| custom_backtest, edu_precompute | GIỮ `core.backtest.{custom_run,edu_precompute}` tới khi phiên alpha OK (sau đó `tasks:run_custom_backtest/run_edu_precompute`) |
+| data_crawl, data_crawl_okx, data_crawl_ticks, data_promote | giữ đường shim P9.2 (`core.data.*` -> `crawl.*`), đổi ở P9.10 |
+| live_bot | `backend.live.bot` (P9.7) |
+Tương thích: (a) bản ghi cũ chạy lại/hiển thị không đổi vì chỉ có `kind`; (b) mỗi module cũ vẫn có `run_job` (shim trỏ hàm mới) cho ai còn tra `KINDS[k]["module"]` — 2 chỗ test khẳng định chuỗi cũ (`test_funnel.py:605`, `test_edu_precompute.py:44`) sửa cùng commit (edu giữ nguyên); (c) job ĐANG chạy lúc đổi mã giữ mã cũ trong bộ nhớ (tiến trình riêng) — chỉ job MỚI nạp đường mới; không cần hoãn deploy nhưng restart `nora-api` sau khi cổng xanh; (d) `ENGINE`/job-key: không file nào trong `_CODE_FILES` bị sửa nội dung => khoá resume không đổi (ngoài một lần do P9.5).
+
+### 4. Hàm worker pickle qua `pool_map_safe`/`pool_imap_bounded`
+Pickle theo `module.qualname` của hàm: `optimize.book.run_book` (-> `book.build.run_book`), `optimize.shared.export_job` (-> `search.evaluate`), `funnel.evaluate.w_backtest|w_backtest_group|w_backtest_group_rss|w_wfa|w_mc|w_sizing|w_holdout` (-> `search.evaluate`), `wfa.wfa.run_job` (worker của wfa, KHÔNG phải run_job của job; P9.5 đã dời, đổi tên không thuộc P9.6), initializer `memwatch.worker_init` (-> `process.workers`), tham số `BacktestJob` (NamedTuple, `core.backtest.run` -> `search.evaluate`).
+Rủi ro: (1) Python 3.11 + Linux = `fork`: worker thừa hưởng `sys.modules` nên import đường cũ/mới đều ổn; hàm định nghĩa ở file mới có `__module__` là đường MỚI (alias không đổi điều đó) -> pickle dùng đường mới. (2) Không có pickle lưu đĩa trong optimize/utils/api (ResultsStore = JSON/SQLite; `paper.pkl/unified.pkl` thuộc live, không đụng) => không có "pickle mồ côi". (3) Hỏng thật chỉ khi hàm bị đổi tên/hoặc đứng sau `if` mà module nạp riêng (test `job_path` nạp bản riêng từ file: đã tự gán `sys.modules[name]`) hoặc bối cảnh `spawn` (import module mới trong interpreter sạch, lộ phụ thuộc vòng). (4) Đổi tên chỉ ở `run_job` của job (không phải worker) nên không dính pickle.
+Giảm thiểu: thêm test mới (một lần) cho mọi worker ở trên: `pickle.loads(pickle.dumps(f)) is f`, `f.__module__` bắt đầu bằng đường mới, và một vòng `ProcessPoolExecutor(mp_context=spawn)` chạy hàm bình thường; giữ nguyên chữ ký/tên các `w_*`; `test_memory_guards` (worker bị kill, chạy lại phần còn thiếu) + `test_scale_pipeline` (SIGTERM cha giết worker) là cổng.
+
+### 5. File đang bị phiên khác sửa — loại trừ hoặc xếp thứ tự (`git status` 2026-10-08)
+- **Phiên logic (P9.4b T6)**: `core/backtest.py`, `core/backtest/tick_run.py`, `core/execute/{amm,tracker}.py`, `test/reference_engine.py`, `test/scripts/bench_engine.py`, `test/scripts/okx_top10/{implied,load,run_oos}.py`, `test/test_amm_*.py`, docs `p6_execution_design/p9_4b_single_engine/epics`; cấm đụng cả `core/params.py`, `core/execute/*`, `live/*`. P9.6 KHÔNG sửa các file này (tick_run ở nguyên chỗ; `run.py` thư viện vẫn export `result_payload` qua shim cho tick_run). Va chạm duy nhất: T6 xoá `core/execute/tracker.py` => phải sửa `_CODE_FILES` (`optimize/store.py`) và `ENGINE_DIRS` (`utils/engine_version.py`); xếp: T6 commit TRƯỚC P9.6a (store/engine_version dời), hoặc T6 gửi thay đổi dạng "xoá 1 dòng" để P9.6 áp vào file đích.
+- **P9.5 (đang chưa commit)**: `carlo/*, metrics/*, regime/*, verdict/*, wfa/{wfa,walk_forward}.py, core/{analytics/{dashboard,insights,signal_explain},metrics/*,regime/{classifier,learn}}.py, optimize/funnel/antiluck.py, optimize/store.py, test/test_layering.py, docs/bmad/p9_layering_report.md`.
+- **Không liên quan, không đụng, không `git add -A`**: `DATA_SYNC_SIGNAL.md` (x3), `none/`, `SETUP.md`/`fintech-guide.html`/`okx*.html` (xoá), `utils/ops/{deploy_nginx.sh,nginx/}`, `test/scripts/migrate_data_tree.py`, `nautilus_diff/out/`.
+- **Phiên alpha (ADR: chờ 4 commit + đồng ý)**: `core/backtest/{custom_run,edu_precompute}.py`, `core/analytics/{user_alphas,strategy_doc}.py`, pydsl, `diagnose*`, routers custom/education/strategies/alphas, `batch.build_custom_backtest/build_edu_precompute` (nằm trong khối kiểm tham số -> chuyển nguyên khối nên không sửa logic, nhưng báo trước).
+
+### 6. Xung đột với P9.5 và thứ tự
+P9.6 sửa/dời: `optimize/store.py` (P9.5 đã sửa `_CODE_FILES`), `test_layering.py` (thêm luật), `p9_layering_report.md`; các file P9.5 đã chạm chỉ qua import. **Bắt đầu P9.6a SAU khi P9.5 commit** (và T6 nếu đụng store/engine_version). Sau commit P9.5: `presets` import `antiluck.neighbours` -> `backend.verdict.verdict`; `wfa/wfa.py` đang import `optimize.shared/store` + `core.backtest.run` -> vẫn chạy qua alias (không sửa wfa.py ở P9.6). `funnel/antiluck.py` KHÔNG gộp vào stages (shim của verdict, gỡ ở P9.10). Phần "snapshot/diagnostics ra khỏi core sang optimize" nêu ở P9.4 part 2 cần sửa `core/signal.py` (phiên alpha) => **không làm ở P9.6**, để P9.10 hoặc khi phiên alpha OK.
+
+### 7. Các bước con và cổng
+Mọi bước: dời bằng script nối nguyên văn (như P9.4), kiểm AST từng định danh cũ vs đích (chỉ khác import/tên đổi ở mục 0.3), shim `# P9-SHIM`, bảng ánh xạ + kết quả cổng gửi phiên logic/alpha trước commit. Chạy qua `backend/utils/ops/run_limited.sh`, venv `~/.venvs/nora`.
+- **P9.6a** `funnel/storage.py` (trước, lá) -> `search/{generate,evaluate}.py` -> `funnel/stages.py`. Cổng: test_funnel, test_scale_pipeline, test_web_perf_cache, test_dca_gate, test_run_modes, test_metrics, test_revalidate, test_ops_units, test_strategy_book, test_optimization_plumbing, test_wfa_mc, test_portfolio_wfa, test_parallel, test_memory_guards; `code_version()` trước = sau; golden `NORA_GOLDEN_DATA_ROOT=data/binance` bit-identical; test pickle worker mới (mục 4).
+- **P9.6b** `book/{build,registry}.py` (+presets, nhóm modes, revalidate, engine_version). Cổng: test_book_api, test_book_mc_api, test_book_ui_backend, test_strategy_book, test_run_modes, test_revalidate, test_user_alphas, test_memory_guards (alias `_pool_map_safe`/`_auto_workers`), test_optimization_plumbing; `engine_version()` trước = sau; sổ dựng nhỏ (`book_build` n nhỏ) cho `results.sqlite` + `book.json` giống byte với HEAD; `--resume` sau SIGTERM ra cùng kết quả.
+- **P9.6c** `process/{process,workers}.py` (batch + jobs + parallel + memwatch + runner.run_job_dir + KINDS module:func). Cổng: test_job_lifecycle (persist/cleanup/idempotent/rename-chết giữa chừng), test_book_api (launch/cancel/FakePopen), test_funnel (launch + KINDS), test_scale_pipeline (Progress, graceful_sigterm), test_parallel, test_memory_guards, test_ticks, test_custom_backtest, test_edu_precompute, test_web_perf_cache, test_data_paths_p93b; kiểm tay: POST backtest -> queued -> running -> done -> kết quả sang `data/backtest/<id>` và `cache/process/<id>` bị dọn; huỷ 1 job funnel rồi resume; job lỗi giữ log. Thêm (logic MỚI duy nhất, ADR §4): dọn `cache/process/_mem` > 7 ngày (hiện không ai dọn) + test.
+- **P9.6d** `process/tasks.py` (run.py `run_job`, wfa/run, regime/report) + tách `core/backtest/run.py` thành shim re-export + cập nhật `LAYER_RULES` + `test/job_modules.py` (JOB_FILES trỏ file mới). Cổng: test_run_book_backtest, test_wfa_mc, test_portfolio_wfa, test_tick_backtest, test_golden_results (bit-identical), test_layering (số vi phạm không tăng so với baseline sau P9.5), nautilus_diff S1–S8 không đổi, test_pydsl_*/test_xno*/test_diagnostics_*/test_edu_*/lint_edu_samples (cổng alpha). Cuối P9.6 chạy MỘT full suite.
+- **P9.6e (hoãn, theo phiên khác)**: `custom_run`, `edu_precompute` -> tasks.py khi phiên alpha OK; `tick_run` sau commit T6.
+
+## P9.5 — `metrics/`, `regime/`, `wfa/`, `carlo/`, `verdict/` (gộp nguyên văn + shim)
+
+Ngày: 2026-10-08 · Người làm: kiến trúc (chỉ di chuyển) · Trạng thái: **xong, CHƯA commit, chờ review chéo**. Không đổi logic. Không đụng `core/backtest.py`, `core/params.py`, `live/*`, `core/execute/*`, `api/*`.
+
+**Phương pháp** như P9.4 (nối nguyên văn thân module, gỡ import nội bộ nhóm kể cả import cục bộ, docstring -> banner; import ngoài nhóm trỏ sang module mới). Kiểm AST từng hàm/lớp/hằng cấp module so với `git HEAD`: **250 định danh, 237 giống hệt, 13 khác đúng bằng dòng import (đã so lại sau khi bỏ import: 13/13 giống) / đổi tên `_num`**. `carlo.py`, `metrics/trades.py` là bản sao nguyên văn (thêm 1 dòng chú thích đầu file); `wfa.py` = `walk_forward.py` + 7 dòng import trỏ đường dẫn mới.
+
+### Bảng ánh xạ cũ -> mới
+**metrics/metrics.py**: `core/metrics/returns.py` (mọi hàm/hằng: `ANN`, `daily_returns_from_curve`, `return_metrics`, `curve_frame`, `daily_nav_series`, `cagr_pct`, `sharpe`, `fold_stats`, ...) + `core/metrics/portfolio.py` (`portfolio_metrics`, `series_metrics`, `curve_mdd_pct`, `flat_extras`, ...). Thứ tự: returns, portfolio.
+**metrics/trades.py**: `core/metrics/trades.py` (nguyên văn). *Chờ*: `live/compare.py` (đối soát sàn <-> sim) về đây sau P9.4b (phiên kia đang sửa `live/*`).
+**metrics/charts.py**: `core/analytics/dashboard.py` + `core/analytics/signal_explain.py` + `core/metrics/series_stages.py` (`stage_block`, `downsample_stage`, `RULE`; thuần chuỗi cho biểu đồ nên vào charts.py, KHÔNG vào metrics.py — ADR chưa liệt kê file này, cần thêm dòng vào bảng §3).
+**regime/regime.py**: `core/regime/classifier.py` + `core/regime/learn.py` (`NAMES`, `series`, `learn_map`, `engine_by_regime`, `OBSERVE`, ...). `core/regime/report.py` (job) ở lại, P9.6.
+**wfa/wfa.py**: `wfa/walk_forward.py` (nằm trong gói `backend/wfa` có sẵn; `wfa/run.py` job ở lại, P9.6).
+**carlo/carlo.py**: `carlo/monte_carlo.py`.
+**verdict/verdict.py**: `optimize/funnel/antiluck.py` + `core/metrics/diagnose.py` + `core/analytics/insights.py`. `core/metrics/diagnose_inputs.py` (có I/O) ở lại chỗ cũ cho phiên logic tách; verdict.py không import crawl.
+Gói mới: `metrics/__init__.py`, `regime/__init__.py`, `verdict/__init__.py` (docstring). `carlo/`, `wfa/` đã là gói.
+
+### Shim (13 alias `sys.modules`, cùng một đối tượng module; monkeypatch qua đường cũ có hiệu lực)
+`core/metrics/{returns,portfolio}` -> `metrics.metrics`; `core/metrics/trades` -> `metrics.trades`; `core/metrics/series_stages`, `core/analytics/{dashboard,signal_explain}` -> `metrics.charts`; `core/regime/{classifier,learn}` -> `regime.regime`; `wfa/walk_forward` -> `wfa.wfa`; `carlo/monte_carlo` -> `carlo.carlo`; `core/metrics/diagnose`, `core/analytics/insights`, `optimize/funnel/antiluck` -> `verdict.verdict`. Không cần stub gói (không trùng tên file/thư mục: `wfa/wfa.py` nằm trong gói `wfa`, `regime/regime.py` khác `core/regime/`). `__module__` của hàm/lớp nay là `backend.metrics.metrics`, `backend.wfa.wfa`, ... (đúng tên cuối); `pickle.loads(pickle.dumps(f)) is f` cho `run_job` (wfa), `bootstrap_daily`, `portfolio_metrics`; `wfa/run.py` và `core/regime/report.py` import được.
+
+### Đổi tên
+Một: `signal_explain._num` -> `_sx_num` (3 chỗ; trùng tên `dashboard._num`, hai hàm khác nghĩa trong cùng `charts.py`). Mọi định danh khác không trùng (kiểm AST).
+
+### Chu trình / vi phạm
+Không chu trình mới. `metrics.py -> trades.py` một chiều. Importer ngoài nhóm không sửa (đi qua shim): `core/backtest.py`, `core/backtest/{run,custom_run,edu_precompute}`, `live/signals.py`, `optimize/*`, `api/*`, `wfa/run.py`. Vi phạm có từ trước, chuyển theo module (không thêm, không bớt): `charts.py` -> `db.local_pkl` (benchmark_daily_closes, I/O), `charts.py` -> `live.signals` (signal_explain), `wfa.py` -> `optimize.shared/store`, `utils.parallel`, `utils.memwatch` (6), `core.regime -> backtest` (classifier import cục bộ PortfolioEngine, giờ `regime.regime -> core.backtest`, hợp lệ), `verdict/diagnose_inputs -> crawl` (2, chờ tách).
+
+### Đã sửa đường dẫn (chỉ path)
+`optimize/store.py` `_CODE_FILES`: `core/metrics/{portfolio,returns,trades}.py` -> `metrics/{metrics,trades}.py`; `wfa/walk_forward.py` -> `wfa/wfa.py` (khoá `--resume` đổi một lần). `utils/engine_version.py` không đổi (không liệt kê file đã chuyển). `test/test_layering.py`: thêm `LAYER_RULES` `metrics`, `regime`, `verdict`; **báo cáo `docs/bmad/p9_layering_report.md` chỉ ghi khi `NORA_LAYERING_WRITE=1`** (mặc định không ghi; chỉ đạo điều phối). `test_ops_units.py` không đổi.
+
+### Numba / pickle
+Không module nào trong nhóm dùng numba -> không có cache numba bị ảnh hưởng. Pickle: 6 `paper.pkl`/`unified.pkl` (bản sao) nạp 6/6 trước, và danh sách `find_class` không chứa module nào của nhóm -> không cần shim cho pickle.
+
+### Cổng (`NORA_GOLDEN_DATA_ROOT=data/binance`, `run_limited.sh --no-lock`, 23 file theo chỉ đạo; baseline trên cây làm việc tương đương HEAD fea526d vì commit đó chỉ gồm thay đổi đã nằm sẵn trong cây)
+| | Kết quả |
+|---|---|
+| BASELINE (trước) | 312 passed, **10 failed** (931 s) |
+| SAU | 312 passed, **10 failed** (1060 s) — đúng cùng 10 test |
+| 10 đỏ có từ trước (không do bước này) | `test_portfolio_wfa::test_validate_book_main_end_to_end` + 9 ca `test_scale_pipeline` (resume/straight-run, stage_a topk, estimate) — giống hệt trước/sau (chưa điều tra nguyên nhân; thuộc ngoài P9.5) |
+| `check_baseline.py` | 332/332 ok trước và sau (chỉ tính lại hash từ `out/`, không chạy lại Nautilus; nhóm này không nằm trên đường engine) |
+| test_layering | trước 55 vi phạm (148 module, 38 shim) -> sau **55** (158 module, 51 shim); mọi cạnh giống hệt, chỉ đổi tên module |
+
+### Việc còn lại
+`live/compare.py` -> `metrics/trades.py` (sau P9.4b); tách `diagnose_inputs.py` (phần tính thuần -> verdict, phần nạp -> optimize/process/tasks); ADR §3 thêm `series_stages` -> charts; P9.10 gỡ shim.
+
+## P9.5 — `metrics/{metrics,trades,charts}.py`, `regime/regime.py`, `wfa/wfa.py`, `carlo/carlo.py`, `verdict/verdict.py` (gộp nguyên văn + shim)
+
+Ngày: 2026-10-08 · Người làm: norabt-99 (kiến trúc, chỉ di chuyển) · Trạng thái: **xong, CHƯA commit (không stage), chờ review chéo**. Không đổi logic. Nền: HEAD fea526d (+ sửa dở của phiên logic ở core/backtest*, core/execute/{amm,tracker}, test/reference_engine — không đụng).
+
+**Phương pháp** như P9.4 (nối nguyên văn thân module từ `git HEAD`, gỡ import nội bộ nhóm kể cả import cục bộ, docstring -> banner; import ngoài nhóm chỉ đổi đường dẫn module). Kiểm AST từng hàm/lớp/hằng cấp module so với HEAD: **250 định danh nguồn, 237 giống hệt, 13 khác đúng bằng dòng import (+ đổi tên `_num`)** — đã kiểm lại bằng AST bỏ import/đổi tên: 13/13 trùng.
+
+### Bảng ánh xạ cũ -> mới
+**metrics/metrics.py** (thứ tự: returns, portfolio; import `metrics/trades`)
+- `core/metrics/returns.py` -> toàn bộ (`ANN`, `daily_nav_series`, `return_metrics`, `fold_stats`, `cagr_pct`, `curve_frame`, `sharpe`, ...)
+- `core/metrics/portfolio.py` -> toàn bộ (`portfolio_metrics`, `series_metrics`, `curve_mdd_pct`, `flat_extras`, ...)
+
+**metrics/trades.py** <- `core/metrics/trades.py` (chuyển nguyên file). **CÒN CHỜ:** `live/compare.py` (đối soát sàn <-> sim) về đây sau P9.4b (phiên logic đang sửa live/*).
+
+**metrics/charts.py** (thứ tự: dashboard, signal_explain, series_stages)
+- `core/analytics/dashboard.py` (`build_dashboard`, `benchmark_daily_closes`, ...); `core/analytics/signal_explain.py` (`explain`, ...); `core/metrics/series_stages.py` (`stage_block`, `downsample_stage`, `RULE`) — series_stages là hàm thuần dựng chuỗi vẽ biểu đồ (không phải số đo) nên vào charts.py chứ không vào metrics.py (ADR không liệt kê; quyết định của tôi, dễ đổi).
+
+**regime/regime.py** <- `core/regime/classifier.py` + `core/regime/learn.py`. `core/regime/report.py` là job -> ở lại P9.6 (`core/regime/__init__.py` giữ).
+
+**wfa/wfa.py** <- `wfa/walk_forward.py` (nguyên file; chỉ đổi dòng import: `core.metrics.{portfolio,trades,returns}` -> `metrics.{metrics,trades}`, `core.regime.learn` -> `regime.regime`, `..carlo.monte_carlo` -> `backend.carlo.carlo`). `wfa/run.py` (job) ở lại P9.6.
+
+**carlo/carlo.py** <- `carlo/monte_carlo.py` (nguyên file, không đổi dòng nào ngoài comment đầu).
+
+**verdict/verdict.py** (thứ tự: antiluck, diagnose, insights) <- `optimize/funnel/antiluck.py` + `core/metrics/diagnose.py` + `core/analytics/insights.py`. `core/metrics/diagnose_inputs.py` (I/O) **ở nguyên chỗ** (phiên logic sẽ tách); verdict.py không import crawl. `Program`, `Call`, `Logic`, `Ctx`, `expr_to_vi` nay import từ `core.signal`.
+
+### Shim (13 alias `sys.modules`, cùng một đối tượng module; không cần stub gói)
+`core/metrics/{returns,portfolio}` -> `metrics.metrics`; `core/metrics/trades` -> `metrics.trades`; `core/metrics/series_stages`, `core/analytics/{dashboard,signal_explain}` -> `metrics.charts`; `core/regime/{classifier,learn}` -> `regime.regime`; `wfa/walk_forward` -> `wfa.wfa`; `carlo/monte_carlo` -> `carlo.carlo`; `core/metrics/diagnose`, `core/analytics/insights`, `optimize/funnel/antiluck` -> `verdict.verdict`. Kiểm: 13/13 `old is new`; `from backend.wfa import walk_forward as pw` có `__name__ == "backend.wfa.wfa"`; `dashboard.rt is core.metrics.returns`; `pickle.loads(pickle.dumps(f)) is f` cho `run_job`, `bootstrap_daily`, `portfolio_metrics`; `wfa/run.py` và `core/regime/report.py` import được. Không cần stub gói: `backend/wfa/` đã là gói (thêm `wfa.py` bên trong), `metrics/`, `regime/`, `verdict/` là gói mới (`__init__.py` docstring) và không trùng tên file.
+
+### Đổi tên
+Một: `signal_explain._num` -> `_sx_num` (3 chỗ) vì trùng `dashboard._num` (hai hàm khác nghĩa, trong cùng charts.py). Không đổi tên nào khác (kiểm AST không trùng tên trong 4 nhóm gộp).
+
+### Chu trình / vi phạm
+Không tạo chu trình mới: `metrics.py -> trades.py`, `charts.py -> metrics.py`, `wfa.py -> {metrics, regime, carlo}`, `verdict.py -> core.signal`, `regime.py -> core.backtest` (cục bộ, có từ trước). Còn lại, có từ trước, để nguyên: `charts.py:90 -> db.local_pkl` (benchmark_daily_closes I/O), `charts.py:559 -> live.signals` (signal_explain), `wfa.py -> core/backtest/run, optimize/shared, utils/parallel` (6, P9.6), `core -> regime` (4, core gọi classifier/loader; P9.10).
+
+### Đường dẫn file mã
+`optimize/store.py` `_CODE_FILES`: `core/metrics/{portfolio,returns,trades}.py` -> `metrics/{metrics,trades}.py`; `wfa/walk_forward.py` -> `wfa/wfa.py` (chỉ đường dẫn; khoá `--resume` đổi một lần). `utils/engine_version.py` không liệt kê file đã chuyển (chỉ core/backtest*, models, params, position_size) -> không đổi. `test_ops_units.py` không cần sửa. `test_layering.py`: `LAYER_RULES` thêm `metrics`, `regime`, `verdict`; báo cáo `p9_layering_report.md` chỉ ghi khi `NORA_LAYERING_WRITE=1` (mặc định không ghi), đã sinh lại một lần với cờ.
+
+### Numba / pickle
+Không module nào trong nhóm dùng numba -> không có cache numba bị ảnh hưởng. Pickle: 6 bản sao `data/_cache/live/*/{paper,unified}.pkl` nạp 6/6 trước (không có tên nào thuộc metrics/regime/wfa/carlo/analytics/antiluck nên shim không cần cho pickle trạng thái bot).
+
+### Cổng (`NORA_GOLDEN_DATA_ROOT=data/binance`, `run_limited.sh --no-lock`, 23 file)
+| | Kết quả |
+|---|---|
+| BASELINE (trước) | 312 passed, **10 failed**, 4 warnings (932 s) |
+| SAU | 312 passed, **10 failed** (cùng 10), 4 warnings (1060 s) |
+| 10 đỏ (có từ trước, KHÔNG do bước này) | `test_portfolio_wfa::test_validate_book_main_end_to_end` + 9 ca `test_scale_pipeline` (build_strategy_book/validate_book resume, stage_a, estimate): thư mục run (`_run_dirs`) rỗng — dấu hiệu lệch layout data/ (P9.3/P9.6), chưa điều tra sâu |
+| golden, kernel_parity, metrics, mc_stress, daily_mc, wfa_mc, funnel, regime, diagnostics_*, portfolio_dashboard, book_*, overview_extras, signal_explain, custom_backtest, pydsl_parity, run_book_backtest, layering, ops_units | xanh trước và sau |
+| nautilus_diff `check_baseline.py` | 332/332 ok (không chạy lại nautilus: nhóm này không nằm trong đường engine) |
+| test_layering | trước 55 vi phạm (148 module, 38 shim) -> sau **55** (158 module, 51 shim); bảng theo luật giống hệt; 0 chưa ánh xạ |
