@@ -5,6 +5,9 @@ Dữ liệu giả lập 3 tài sản perp (không gọi mạng). Kiểm:
 - MỌI tài sản dùng cùng một bộ tham số của chiến lược (không có tham số theo tài sản);
 - sổ xuất ra mô tả đúng quy tắc khối lượng theo rủi ro + giới hạn danh mục đã mô phỏng.
 """
+import pathlib
+
+from backend.crawl.store import alpha_run_dir
 import importlib.util
 import json
 
@@ -90,7 +93,7 @@ def test_book_pipeline_runs_all_stages_with_shared_params(market, monkeypatch, t
     out = tmp_path / "alphas"
     # bộ dữ liệu giả lập rất nhỏ: số RAM/worker mặc định (cỡ production) không phù hợp, đặt thấp để qua cổng RAM
     mod.run_job({"workers": 2, "per_worker_mb": 300, "n": 4, "out": str(out)})
-    reports = sorted((market / "_cache" / "book").glob("*/report.json"))
+    reports = sorted(pathlib.Path(alpha_run_dir("book")).glob("*/report.json"))
     assert reports, "phải ghi báo cáo"
     rep = json.loads(reports[-1].read_text())
     assert set(rep["candidates"]) == {"t_long", "t_short"}

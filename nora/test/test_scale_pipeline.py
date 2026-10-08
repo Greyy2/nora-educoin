@@ -3,6 +3,9 @@ cổng dữ liệu bắt buộc, pool streaming có chặn, kho kết quả SQLi
 
 Dữ liệu giả lập 3 tài sản perp 70 ngày (fixture `market` của test_strategy_book; manifest synthetic=False).
 """
+import pathlib
+
+from backend.crawl.store import alpha_run_dir, run_dir
 import itertools
 import json
 import os
@@ -319,7 +322,7 @@ def _strip_rss(o):
 
 
 def _run_dirs(market):
-    base = market / "_cache" / "book"
+    base = pathlib.Path(alpha_run_dir("book"))
     return sorted(p for p in base.iterdir() if p.is_dir()) if base.exists() else []
 
 
@@ -440,7 +443,7 @@ def test_validate_book_resume_is_identical_to_straight_run(market, monkeypatch, 
     _small_book(monkeypatch)
     vb = _load_script("validate_book")
     args = _vb_args(market)
-    base = market / "_cache" / "book_wfa"
+    base = pathlib.Path(run_dir("wfa"))
     vb.run_job(args)
     straight = sorted(base.iterdir())[-1]
     monkeypatch.setenv("NORA_TEST_FAIL_AFTER_PUTS", str(fail_after))

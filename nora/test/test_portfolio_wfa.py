@@ -3,6 +3,9 @@
 Dữ liệu giả lập 3 tài sản perp 70 ngày (fixture `market` của test_strategy_book). Pool song song được thay bằng bản
 chạy tuần tự trong tiến trình (seam `_pool_map`) để ghi lại job; test cuối chạy validate_book.main với pool thật.
 """
+import pathlib
+
+from backend.crawl.store import alpha_run_dir, run_dir
 import json
 
 import numpy as np
@@ -264,7 +267,7 @@ def test_validate_book_main_end_to_end(market, monkeypatch, tmp_path):
     start, end = (f"{__import__('pandas').Timestamp(t, unit='ms'):%Y-%m-%d}" for t in (START, T0 + 66 * DAY))
     res = vb.run_job({"candidates": "t_long,t_short", "n": 2, "workers": 2, "per_worker_mb": 300,
                       "start": start, "end": end, "train_days": 15, "test_days": 10, "sims": 200})
-    reports = sorted((market / "_cache" / "book_wfa").glob("*/report.json"))
+    reports = sorted(pathlib.Path(run_dir("wfa")).glob("*/report.json"))
     assert reports
     rep = json.loads(reports[-1].read_text())
     assert len(rep["folds"]) == 3 and rep["summary"]["n_folds"] == 3 and rep["gate"]["passed"] is False
