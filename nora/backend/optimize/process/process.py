@@ -171,7 +171,7 @@ def graceful_sigterm(progress: Optional[Progress] = None) -> Iterator[None]:
 # queued suy ra từ out.log. Huỷ: cancel(job_id) gửi SIGTERM cho CẢ nhóm tiến trình (job flush kho kết quả rồi thoát -> chạy lại bằng resume). Không dùng shell.
 # ══════════════════════════════════════════════════════════════════════════
 
-NORA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+from backend.core.models import NORA_DIR  # noqa: E402  (định nghĩa duy nhất ở core/models)
 RUN_LIMITED = os.path.join(NORA_DIR, "ops", "run_limited.sh")
 
 # Danh sách trắng: loại job -> (module có run_job(params), các khoá tham số được phép)
@@ -191,7 +191,7 @@ KINDS: Dict[str, Dict[str, Any]] = {
     "funnel_recompute": {"module": "backend.optimize.funnel.stages", "func": "run_funnel_recompute", "params": {"run_id", "alpha_id"}},
     "live_bot": {"module": "backend.live.live", "params": {"mode", "venue", "once", "max_steps", "capital", "confirm_live", "book",
                                                                  "engine", "equity_drift_halt_pct"}},
-    "funnel_book": {"module": "backend.optimize.funnel.stages", "func": "run_funnel_book",
+    "funnel_book": {"module": "backend.optimize.process.tasks", "func": "run_funnel_book",
                     "params": {"run_id", "alpha_ids", "risk_per_trade_pct", "wfa_job_id", "dry_run", "explore"}},
     "presets_build": {"module": "backend.optimize.book.build", "func": "run_presets_build", "params": set()},
     "data_crawl": {"module": "backend.crawl.cex", "params": {"symbols", "market", "years", "output_dir"}},   # output_dir do router đặt
@@ -201,7 +201,6 @@ KINDS: Dict[str, Dict[str, Any]] = {
     "alpha_revalidate": {"module": "backend.optimize.book.registry", "func": "run_alpha_revalidate", "params": {"alpha_id", "apply"}},
     "custom_backtest": {"module": "backend.optimize.process.tasks", "func": "run_custom_backtest",
                         "params": {"code", "symbols", "start", "end", "train_ratio", "initial_capital", "position", "run_frame"}},
-    "edu_precompute": {"module": "backend.optimize.process.tasks", "func": "run_edu_precompute", "params": {"only", "start", "end", "train_ratio", "initial_capital"}},
     "regime_report": {"module": "backend.optimize.process.tasks", "func": "run_regime_report", "params": {"symbols", "start", "end", "event_pct", "backtest", "timeframe"}},
 }
 NO_LOCK_KINDS = {"live_bot"}
@@ -347,11 +346,13 @@ def _env() -> Dict[str, str]:
 
 CRAWL_KINDS = ("data_crawl", "data_crawl_okx")
 STAGING_SUBDIR = "staging"      # <job_dir>/staging/cex/<SYM>/...: file tạm crawl, chờ promote
-FAILED_LOG_KEEP_DAYS = 7        # ADR §4.3: job lỗi/huỷ giữ log 7 ngày rồi tự xoá
+FAILED_LOG_KEEP_DAYS = 0        # người dùng chốt 2026-10-08: job LỖI xoá ở lượt dọn kế tiếp (job mới / API khởi động)
+PAUSED_KEEP_DAYS = 7            # job đã HUỶ còn tiến độ chạy dở (progress.json, chạy tiếp bằng --resume) giữ 7 ngày; huỷ mà không có gì -> xoá như job lỗi
 
 
-def _prune_failed(kinds, days: float, now: Optional[float]) -> List[str]:
-    """Xoá thư mục job LỖI/HUỶ quá `days` ngày (mtime job.json) trong cache/process; `kinds` None = mọi loại. Trả job_id đã xoá."""
+def _prune_failed(kinds, days: float, now: Optional[float], paused_days: float = PAUSED_KEEP_DAYS) -> List[str]:
+    """Xoá thư mục job LỖI/HUỶ trong cache/process (`kinds` None = mọi loại). Job lỗi và job huỷ không còn tiến độ: quá `days` ngày;
+    job huỷ còn tiến độ chạy dở (progress.json -> chạy tiếp được): quá `paused_days` ngày (mtime job.json). Trả job_id đã xoá."""
     import shutil
     root, now, gone = jobs_root(), (time.time() if now is None else now), []
     for name in os.listdir(root):
@@ -362,8 +363,9 @@ def _prune_failed(kinds, days: float, now: Optional[float]) -> List[str]:
         kind = meta.get("kind")
         if kinds is not None and kind not in kinds:
             continue
+        keep = paused_days if meta.get("state") == "cancelled" and os.path.isfile(os.path.join(path, "progress.json")) else days
         sig = _sig(os.path.join(path, "job.json"))
-        if sig and now - sig[0] / 1e9 > days * 86400:
+        if sig and now - sig[0] / 1e9 > keep * 86400:
             shutil.rmtree(path, ignore_errors=True)
             gone.append(name)
     return gone
@@ -375,7 +377,7 @@ def prune_failed_crawl_jobs(days: float = FAILED_LOG_KEEP_DAYS, now: Optional[fl
 
 
 def prune_failed_jobs(days: float = FAILED_LOG_KEEP_DAYS, now: Optional[float] = None) -> List[str]:
-    """ADR §4.3: job LỖI/HUỶ (mọi loại) giữ log 7 ngày rồi xoá; kèm thư mục mồ côi (xem prune_orphan_dirs)."""
+    """ADR §4.3: job LỖI xoá ngay ở lượt dọn; job HUỶ còn tiến độ chạy dở giữ PAUSED_KEEP_DAYS (7) ngày, huỷ không có gì xoá ngay; kèm thư mục mồ côi."""
     return _prune_failed(None, days, now) + prune_orphan_dirs(now=now)
 
 
@@ -406,7 +408,7 @@ def prune_orphan_dirs(min_age: float = ORPHAN_MIN_AGE, now: Optional[float] = No
 EPHEMERAL_KINDS = ("custom_backtest",)   # /alpha/create, /education: chạy TẠM, không lưu ra data/; kết quả xong nằm trong bộ nhớ API (LRU) tới khi API khởi động lại
 EPHEMERAL_MAX = 64
 _EPH: "OrderedDict[str, Dict[str, Any]]" = OrderedDict()
-# Loại khác (edu_precompute, presets_build, alpha_revalidate, regime_report, funnel_book, funnel_recompute, data_promote): kết quả bền do chính job ghi
+# Loại khác (presets_build, alpha_revalidate, regime_report, funnel_book, funnel_recompute, data_promote): kết quả bền do chính job ghi
 # -> xong là dọn thư mục process (không chép). Crawl: giữ tới khi staging/ hết tài sản chưa promote (xem _crawl_staged).
 PERSIST_AREAS = {"book_backtest": ("run", "backtest"), "book_wfa": ("run", "wfa"),
                  "book_build": ("alpha", "book"), "funnel_run": ("alpha", "funnel")}
@@ -422,6 +424,53 @@ def persist_dest_base(kind: str) -> Optional[str]:
     return (run_dir if area[0] == "run" else alpha_run_dir)(area[1])
 
 
+EPHEMERAL_IDS_FILE = "_ephemeral_ids"    # trong cache/process: id các job tạm đã xong (bền qua khởi động lại) -> phân biệt "đã hết hạn" với "chưa từng có"
+EPHEMERAL_IDS_MAX = 2000
+
+
+class EphemeralGone(Exception):
+    """Job tạm (custom_backtest) đã xong nhưng kết quả không còn trong bộ nhớ API (bị đẩy khỏi LRU hoặc API đã khởi động lại). Route trả 410, code EPHEMERAL_GONE."""
+    code = "EPHEMERAL_GONE"
+
+    def __init__(self, job_id: str):
+        self.job_id = job_id
+        super().__init__(f"Kết quả chạy thử {job_id} đã hết hạn (kết quả tạm chỉ giữ trong bộ nhớ API) — hãy chạy lại backtest rồi lưu.")
+
+
+def _ephemeral_ids_path() -> str:
+    return os.path.join(jobs_root(), EPHEMERAL_IDS_FILE)
+
+
+def _note_ephemeral_id(job_id: str) -> None:
+    path = _ephemeral_ids_path()
+    try:
+        ids = _read_ephemeral_ids()
+        ids.append(job_id)
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write("\n".join(ids[-EPHEMERAL_IDS_MAX:]) + "\n")
+    except OSError:
+        pass
+
+
+def _read_ephemeral_ids() -> List[str]:
+    try:
+        with open(_ephemeral_ids_path(), encoding="utf-8") as fh:
+            return [ln.strip() for ln in fh if ln.strip()]
+    except OSError:
+        return []
+
+
+def ephemeral_gone(job_id: str) -> bool:
+    """Id từng là job tạm đã xong nhưng không còn trong bộ nhớ (xem EphemeralGone). Id chưa từng có -> False (404)."""
+    jid = str(job_id)
+    if not _JOB_ID_RE.match(jid):
+        return False
+    with _LOCK:
+        if jid in _EPH:
+            return False
+    return jid in _read_ephemeral_ids() and not os.path.isdir(os.path.join(jobs_root(), jid))
+
+
 def _remember_ephemeral(job_dir: str) -> bool:
     """Job tạm đã xong: nạp job.json + result.json + đuôi log vào bộ nhớ (LRU) rồi xoá thư mục process. Không đọc được result -> giữ thư mục."""
     import shutil
@@ -431,6 +480,7 @@ def _remember_ephemeral(job_dir: str) -> bool:
     tail = _tail_text(os.path.join(job_dir, "out.log"), 65536)
     snap = {**meta, "status": meta["state"], "waiting_in_queue": False, "progress": _read_progress(job_dir),
             "log_tail": [ln for ln in tail.splitlines() if ln.strip()][-LOG_TAIL_LINES:], "result": res}
+    _note_ephemeral_id(meta["id"])
     with _LOCK:
         _EPH[meta["id"]] = snap
         _EPH.move_to_end(meta["id"])
@@ -573,7 +623,7 @@ def persist_finished_jobs(apply: bool = False) -> List[Dict[str, Any]]:
 
 def enforce_lifecycle() -> Dict[str, Any]:
     """Luật "cache chỉ chứa tiến trình chưa xong" — gọi khi API khởi động: job mất tiến trình được chốt trạng thái; job xong -> lưu về nhà bền rồi xoá thư mục process
-    (live_bot xong/huỷ/lỗi và job tạm custom_backtest cũ: xoá); job lỗi/huỷ khác giữ FAILED_LOG_KEEP_DAYS ngày; đang chạy giữ nguyên."""
+    (live_bot xong/huỷ/lỗi và job tạm custom_backtest cũ: xoá); job lỗi: xoá; job huỷ còn tiến độ chạy dở: giữ 7 ngày (PAUSED_KEEP_DAYS), huỷ không có gì: xoá; đang chạy giữ nguyên."""
     root, rows = jobs_root(), []
     for name in sorted(os.listdir(root)):
         d = os.path.join(root, name)
@@ -604,7 +654,7 @@ def launch(kind: str, params: Dict[str, Any]) -> str:
     job_id = f"{time.strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
     job_dir = os.path.join(jobs_root(), job_id)
     os.makedirs(job_dir)
-    prune_failed_jobs()   # job lỗi/huỷ quá 7 ngày (ADR §4.3)
+    prune_failed_jobs()   # job lỗi/huỷ: xoá (cache chỉ giữ tiến trình đang chạy)
     if kind in CRAWL_KINDS:   # crawl ghi vào thư mục process của CHÍNH job (ADR §4); promote chuyển tài sản đạt gate sang market/ rồi xoá staging
         params["output_dir"] = os.path.join(job_dir, STAGING_SUBDIR, "cex")
     if kind == "book_build":   # sổ dựng xong nằm trong thư mục job; alphas/ chỉ đổi khi người dùng xuất bản (book_export.publish_book)
@@ -773,13 +823,20 @@ def _names(v: Any) -> str:
     return ", ".join(v) if isinstance(v, (list, tuple)) else str(v or "").replace(",", ", ")
 
 
+def _book_rel() -> str:
+    """Đường dẫn sổ hiện hành để hiển thị (sinh từ crawl/store, không viết cứng): <gốc dữ liệu>/alpha/book.json."""
+    from backend.crawl.store import alpha_dir, alpha_file
+    ad = alpha_dir()
+    return "/".join([os.path.basename(os.path.dirname(ad)), os.path.basename(ad), os.path.basename(alpha_file("book"))])
+
+
 def job_label(kind: str, params: Optional[Dict[str, Any]]) -> str:
     """Nhãn ngắn cho người đọc, vd "Backtest · breakout_4h_long, breakout_4h_short · BTC,SOL · 2025-03-01→2025-04-30"."""
     p = params if isinstance(params, dict) else {}
     syms = ",".join(str(x).split("@")[0].split(":")[-1] for x in p["symbols"]) if p.get("symbols") else "cả vũ trụ"
     rng = f"{p.get('start') or '…'}→{p.get('end') or '…'}"
     if kind == "book_backtest":
-        ids = ", ".join(s["id"] for s in p["strategies"]) if p.get("strategies") else "sổ alphas/book.json"
+        ids = ", ".join(s["id"] for s in p["strategies"]) if p.get("strategies") else f"sổ {_book_rel()}"
         return f"Backtest{' tick' if p.get('data') == 'tick' else ''} · {ids} · {syms} · {rng}"
     if kind == "book_wfa":
         if p.get("candidates"):

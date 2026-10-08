@@ -21,10 +21,10 @@ Quy tắc (mã lỗi ở đầu mỗi dòng báo cáo):
   NUMBER    mọi số trong tên / tóm tắt / docstring / chú thích phải là hằng số có thật trong chương trình (tham số chỉ báo, ngưỡng, bội số)
             hoặc tham số vị thế; kèm kiểm tra riêng "EMA 20", "RSI < 30", "2×ATR" so với đúng chỉ báo / ngưỡng / hướng so sánh.
 """
-import json
 import os
 import re
 import sys
+from typing import Optional
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _NORA = os.path.abspath(os.path.join(_HERE, "..", ".."))
@@ -37,8 +37,9 @@ from backend.alpha.compile import explain_program  # noqa: E402
 from backend.core.signal import Bin, BoolConst, Call, Cmp, Const, Data, Inv, Logic, Neg, Pick  # noqa: E402
 from backend.core.indicator import FEATURE_SPECS_DATA, OP_SPECS_DATA  # noqa: E402
 from backend.core.params import POSITION_KEYS
+from backend.core.models import DATA_DIR  # noqa: E402
+from backend.crawl.store import load_samples as _load_samples  # noqa: E402
 
-SAMPLES_PATH = os.path.join(_NORA, "frontend", "src", "components", "education", "educationSamples.js")
 CATEGORIES = ["Trend Following", "Mean Reversion", "Breakout & Momentum", "Multi-Indicator Confluence", "Risk-Managed & Exits"]
 DIFFICULTIES = {"Beginner", "Intermediate", "Advanced"}
 PER_CATEGORY = 10
@@ -115,14 +116,12 @@ LEVEL_NAMES = {   # tên trong văn bản → feature để so ngưỡng
 NUM_RE = re.compile(r"(?<![\w.])[-−+]?\d+(?:[.,]\d+)?")
 
 
-# ═══ nạp mẫu ═══════════════════════════════════════════════════════════════════════════
-def load_samples(path: str = SAMPLES_PATH):
-    with open(path, "r", encoding="utf-8") as fh:
-        content = fh.read()
-    m = re.search(r"export\s+const\s+EDU_SAMPLES\s*=\s*(\[[\s\S]*\]);?\s*$", content)
-    if not m:
-        raise ValueError(f"Không tìm thấy EDU_SAMPLES trong {path}")
-    return json.loads(re.sub(r",\s*([\]}])", r"\1", m.group(1)))
+# ═══ nạp mẫu: MỘT nguồn data/alpha/education/samples.json (crawl/store.load_samples); đường dẫn theo mã, không theo NORA_LOCAL_DATA_ROOT của test ═══
+SAMPLES_PATH = os.path.join(DATA_DIR, "alpha", "education", "samples.json")
+
+
+def load_samples(path: Optional[str] = None):
+    return _load_samples(path or SAMPLES_PATH)
 
 
 # ═══ phân tích chương trình ════════════════════════════════════════════════════════════
@@ -446,7 +445,7 @@ def _check_sentence(err, where, sent, program, declared, eff, facts, feats_used,
 
 
 # ═══ tổng hợp ═════════════════════════════════════════════════════════════════════════
-def lint_all(samples_path: str = SAMPLES_PATH, verbose: bool = True):
+def lint_all(samples_path: Optional[str] = None, verbose: bool = True):
     """Trả về (danh sách lỗi, số mẫu). Không in nếu verbose=False."""
     samples = load_samples(samples_path)
     valid_feats, valid_ops = set(FEATURE_SPECS_DATA), set(OP_SPECS_DATA)
@@ -484,5 +483,5 @@ def lint_all(samples_path: str = SAMPLES_PATH, verbose: bool = True):
 
 if __name__ == "__main__":
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
-    errs, _ = lint_all(args[0] if args else SAMPLES_PATH)
+    errs, _ = lint_all(args[0] if args else None)
     sys.exit(1 if errs else 0)
