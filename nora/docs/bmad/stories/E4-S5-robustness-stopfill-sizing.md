@@ -23,7 +23,7 @@ Là người nghiên cứu, tôi muốn biết alpha có nằm trên đỉnh nh�
 
 ## Dev Notes
 
-- Chạy: `backend/utils/ops/run_limited.sh -- -m backend.optimize.robustness_check data/_cache/optimize/<thời điểm>/results.json trend_long_perp SOL`.
+- Chạy: `ops/run_limited.sh -- -m backend.optimize.robustness_check data/_cache/optimize/<thời điểm>/results.json trend_long_perp SOL`.
 - Kết quả `portfolio_*.json` nằm ở `data/alphas/` (được commit).
 
 ## Evidence

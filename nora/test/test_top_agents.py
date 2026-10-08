@@ -1,11 +1,11 @@
-"""top_agents: doc file dong bang data/alphas/research/okx_top10_agents.json (khong dung test/scripts)."""
+"""top_agents: doc file dong bang data/alpha/research/okx_top10_agents.json (khong dung test/scripts)."""
 from __future__ import annotations
 
 import os
 
 import pytest
 
-from backend.core.analytics import top_agents as ta
+from backend.optimize.book import registry as ta
 from backend.crawl import store
 
 FROZEN = next((os.path.join(store.DATA_HOME, *sub, "research", "okx_top10_agents.json") for sub in (("alpha",), ("alphas",))

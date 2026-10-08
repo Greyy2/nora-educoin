@@ -4,14 +4,17 @@ Không bao giờ chạy job thật: Popen bị thay bằng bản giả ghi lại
 """
 import json
 import os
+import pathlib
 import time
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from backend.api.routers import book as book_router
-from backend.api.jobs import batch as batch_jobs
+from backend.crawl.store import alpha_run_dir, run_dir
+from backend.routes import book as book_router
+from backend.optimize.process import process as batch_jobs
+from backend.routes import jobs as batch_jobs_routes
 from job_modules import launched
 
 
@@ -63,7 +66,7 @@ def test_backtest_launches_via_run_limited_without_shell(client, tmp_path):
     job_id = r.json()["job_id"]
     cmd, kw = FakePopen.calls[0]
     kind, p = launched(FakePopen.calls[0])
-    assert cmd[0].endswith("backend/utils/ops/run_limited.sh") and kind == "book_backtest"
+    assert cmd[0].endswith("ops/run_limited.sh") and kind == "book_backtest"
     assert p["symbols"] == ["BTC@perp", "SOL@perp"]
     assert p["risk_per_trade"] == 0.75 and "strategies" not in p   # mặc định: alphas/book.json
     assert kw["start_new_session"] is True and not kw.get("shell")
@@ -123,7 +126,7 @@ def test_wfa_requires_exactly_one_source_and_valid_ids(client, tmp_path):
 
 
 def test_wfa_report_dir_must_be_a_book_run(client, tmp_path):
-    run = tmp_path / "data" / "_cache" / "book" / "20260101_000000"
+    run = pathlib.Path(alpha_run_dir("book")) / "20260101_000000"
     run.mkdir(parents=True)
     r = client.post("/api/studio/book/wfa", json={"report_dir": "20260101_000000", "mode": "advanced"})
     assert r.status_code == 422                                  # thiếu stage_a.json / report.json
@@ -155,7 +158,7 @@ def test_build_params_and_whitelist(client):
     with pytest.raises(batch_jobs.JobError):
         batch_jobs.launch("book_build", {"n": float("nan")})
     with pytest.raises(batch_jobs.JobError):
-        batch_jobs.build_job("rm", {})
+        batch_jobs_routes.build_job("rm", {})
 
 
 # ─── Xuất bản sổ đã dựng ────────────────────────────────────────────────────
@@ -277,7 +280,7 @@ def test_get_book_summary(client, tmp_path):
     assert r.status_code == 200 and r.json()["book"] is None and r.json()["wfa"] is None
     assert {c["id"] for c in r.json()["candidates"]} == {"kema_long", "kema_short", "sideway_long", "sideway_short", "dca_long", "dca_short"}
     _write_book(tmp_path)
-    wfa = tmp_path / "data" / "_cache" / "book_wfa" / "20260101_000000"
+    wfa = pathlib.Path(run_dir("wfa")) / "20260101_000000"
     wfa.mkdir(parents=True)
     (wfa / "report.json").write_text(json.dumps({
         "window": ["a", "b"], "gate": {"passed": True, "checks": {}}, "config": {"train_days": 90}, "candidates": [{"id": "x", "configs": [1, 2]}],

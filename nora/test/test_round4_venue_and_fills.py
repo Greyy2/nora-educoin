@@ -18,7 +18,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from backend.core.data.resampler import save_resampled_dataset
+from backend.crawl.store import save_resampled_dataset
 
 D = 86_400_000
 T0 = 1_700_006_400_000  # 2023-11-15 00:00 UTC
@@ -64,8 +64,8 @@ def clean_asset(tmp_path, monkeypatch):
 # ─── 1-2. Nến điền ──────────────────────────────────────────────────────────
 
 def _engine_with(df_1m: pd.DataFrame, match_time: int):
-    from backend.core.backtest.engine import BacktestEngine
-    from backend.core.params.schema import StrategyParams
+    from backend.core.backtest import BacktestEngine
+    from backend.core.params import StrategyParams
     df_4h = df_1m.assign(dt=pd.to_datetime(df_1m.open_time, unit="ms", utc=True)).set_index("dt").resample(
         "4h", closed="left", label="left").agg({"open_time": "first", "open": "first", "high": "max",
                                                 "low": "min", "close": "last", "volume": "sum"}).dropna().reset_index(drop=True)
@@ -104,7 +104,7 @@ def test_final_close_uses_last_real_minute():
 
 
 def test_fetch_candles_keeps_is_filled(clean_asset):
-    from backend.db.local_pkl import fetch_candles_df
+    from backend.crawl.store import fetch_candles_df
     sym, root = clean_asset
     assert "is_filled" in fetch_candles_df(sym, "1m", data_root=root).columns
 
@@ -113,7 +113,7 @@ def test_fetch_candles_keeps_is_filled(clean_asset):
 
 @pytest.mark.parametrize("empty_ratio,blocked", [(0.45, False), (0.70, True)])
 def test_gate_filled_ratio_threshold(tmp_path, empty_ratio, blocked):
-    from backend.core.data.quality_gate import evaluate_data_quality
+    from backend.crawl.store import evaluate_data_quality
     df = _rw_1m(35)
     keep = np.random.default_rng(0).random(len(df)) >= empty_ratio
     keep[0] = keep[-1] = True
@@ -129,19 +129,6 @@ def test_gate_filled_ratio_threshold(tmp_path, empty_ratio, blocked):
 
 # ─── 5. Monte Carlo robust verdict ──────────────────────────────────────────
 
-def _mc(trades, gate, sims=10_000):
-    from backend.api.jobs.store import complete_wfa_job, create_mc_job, create_wfa_job, get_mc_job
-    from backend.carlo.monte_carlo import execute_monte_carlo_pipeline
-    from backend.core.contracts import MonteCarloRunRequest
-    wfa_id = None
-    if gate is not None:
-        wfa_id = create_wfa_job("X", "S", 4)
-        complete_wfa_job(wfa_id, {"acceptance_gate_passed": gate, "aggregate_oos_trades": trades})
-    mc_id = create_mc_job("X", "S", sims, source_wfa_id=wfa_id or "")
-    execute_monte_carlo_pipeline(mc_id, MonteCarloRunRequest(source_wfa_id=wfa_id, simulations=sims, seed=5), trades)
-    return get_mc_job(mc_id)["result"]
-
-
 # ─── 6. Crawler Binance ─────────────────────────────────────────────────────
 
 def _kline_csv(rows):
@@ -149,7 +136,7 @@ def _kline_csv(rows):
 
 
 def test_parse_kline_csv_normalizes_microseconds_and_uses_quote_volume():
-    from backend.core.data.crawler import parse_kline_csv
+    from backend.crawl.cex import parse_kline_csv
     ms, us = 1717200000000, 1785542400000000
     raw = b"open_time,open,high,low,close,volume,close_time,quote_volume,count,tbb,tbq,ignore\n" + _kline_csv([
         [ms, 1, 2, 0.5, 1.5, 10, ms + 59999, 15.0, 3, 1, 1, 0],
@@ -173,7 +160,7 @@ def _zip_bytes(csv: bytes) -> bytes:
 
 
 def test_fetch_vision_zip_rejects_bad_checksum(tmp_path, monkeypatch):
-    import backend.core.data.crawler as cb
+    import backend.crawl.cex as cb
     payload = _zip_bytes(_kline_csv([[T0, 1, 1, 1, 1, 1, T0 + 59999, 1, 1, 1, 1, 0]]))
     monkeypatch.setattr(cb, "_http_get", lambda s, url, **k: _Resp(text="0" * 64 + "  f.zip") if url.endswith(".CHECKSUM") else _Resp(content=payload))
     with pytest.raises(cb.ChecksumMismatch):
@@ -182,7 +169,7 @@ def test_fetch_vision_zip_rejects_bad_checksum(tmp_path, monkeypatch):
 
 
 def test_fetch_vision_zip_ok_and_cached(tmp_path, monkeypatch):
-    import backend.core.data.crawler as cb
+    import backend.crawl.cex as cb
     csv = _kline_csv([[T0, 1, 1, 1, 1, 1, T0 + 59999, 1, 1, 1, 1, 0]])
     payload = _zip_bytes(csv)
     good = hashlib.sha256(payload).hexdigest()
@@ -199,8 +186,8 @@ def test_fetch_vision_zip_ok_and_cached(tmp_path, monkeypatch):
 
 
 def test_binance_missing_month_marks_crawl_not_ok(tmp_path, monkeypatch):
-    import backend.core.data.crawler as cb
-    from backend.core.data.quality_gate import evaluate_data_quality
+    import backend.crawl.cex as cb
+    from backend.crawl.store import evaluate_data_quality
 
     def fake_zip(session, url, cache_dir):
         if "2024-02" in url:
@@ -241,7 +228,7 @@ def test_binance_missing_month_marks_crawl_not_ok(tmp_path, monkeypatch):
     ({"venue": "cex"}, "BLOCKED"),                       # CEX nhưng chưa kiểm checksum
 ])
 def test_extreme_move_policy_by_source(tmp_path, meta, expected):
-    from backend.core.data.quality_gate import evaluate_data_quality
+    from backend.crawl.store import evaluate_data_quality
     df = _rw_1m(35)
     k = 20_000
     df.loc[k, ["open", "high", "low", "close"]] = df.loc[k, "close"] * 1.8   # +80% trong 1 phút
@@ -255,7 +242,7 @@ def test_extreme_move_policy_by_source(tmp_path, meta, expected):
 # ─── 10. Cache của gate: nhanh ở lần 2, hết hạn ngay khi bất kỳ file dữ liệu nào đổi ─
 
 def test_gate_cache_invalidates_on_file_change(tmp_path):
-    from backend.core.data import quality_gate as g
+    from backend.crawl import store as g
     df = _rw_1m(35)
     save_resampled_dataset(symbol="CACHE", output_dir=str(tmp_path), df_1m_raw=df, pool_address="0x", crawl_ok=True,
                            requested_start_ts=int(df.open_time.min()), requested_end_ts=int(df.open_time.max()))

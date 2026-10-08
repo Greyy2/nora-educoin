@@ -3,8 +3,10 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from backend.core.signals import kernels
-from backend.core.strategy.pydsl import DslError, compile_code, compile_report, profiles
+from backend.core import indicator as kernels
+from backend.core.signal import DslError
+from backend.alpha.compile import compile_code, compile_report
+from backend.core import backtest as profiles
 
 HEAD = "class S(SimpleAlgorithm):\n    def __algorithm__(self):\n"
 
@@ -196,8 +198,8 @@ def test_registry_makes_py_columns_visible_to_kernels():
 
 def test_shared_store_skips_py_columns(tmp_path):
     import golden_scenarios as gs
-    from backend.core.backtest.portfolio import PortfolioEngine
-    from backend.core.data import shared
+    from backend.core.backtest import PortfolioEngine
+    from backend.optimize.search import evaluate as shared
     gs.write_synthetic_market(tmp_path / "data")
     prog = compile_code(_body("c = self.data.pv_close", "self.set_positions(c > c.shift(1), position=1)", attrs='    timeframe = "1h"\n'))
     plan = profiles.build_plan(prog, ["AAA"], position={"atr_frame": "1h"})

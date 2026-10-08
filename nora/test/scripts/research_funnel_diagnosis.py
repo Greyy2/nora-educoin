@@ -4,7 +4,7 @@
 Thêm WFA kiểu sova (sova/backend/optimize/wfa/wfa_engine.py::_apply_window_pipeline) trên cùng mẫu: mỗi fold lọc alpha có lãi IS
 (train) -> lọc tương quan (đường vốn IS, |rho| <= 0.8, tối đa top_n theo lãi IS) -> danh mục chia đều -> lãi OOS của fold.
 
-Dùng (từ nora/): backend/utils/ops/run_limited.sh -- test/scripts/research_funnel_diagnosis.py --run fr-... [--per 30] [--workers 12]
+Dùng (từ nora/): ops/run_limited.sh -- test/scripts/research_funnel_diagnosis.py --run fr-... [--per 30] [--workers 12]
 """
 import argparse
 import json
@@ -25,7 +25,7 @@ CTX = {}
 
 
 def _one(row):
-    from backend.optimize.funnel import evaluate as bt
+    from backend.optimize.search import evaluate as bt
     c = CTX
     folds = []
     try:
@@ -50,8 +50,8 @@ def main():
     ap.add_argument("--workers", type=int, default=6)   # 12 worker từng lên ~10 GB RAM (mỗi worker đọc 1m.pkl cho khớp extreme)
     ap.add_argument("--seed", type=int, default=1)
     a = ap.parse_args()
-    from backend.optimize.funnel import evaluate as bt
-    from backend.optimize.funnel import gates
+    from backend.optimize.search import evaluate as bt
+    from backend.optimize.funnel import stages as gates
     from backend.optimize.funnel.storage import RunStore
     run_dir = os.path.join(NORA_ROOT, "data", "_cache", "funnel", a.run)
     st = RunStore(run_dir, read_only=True)
@@ -80,7 +80,7 @@ def main():
                rpt=gates.BASE_RISK_PER_TRADE_PCT, tf=cfg.get("timeframe", "1m"), shared=shared)
     print(f"{len(rows)} alpha (đã qua S1) × {len(CTX['folds'])} fold, khung {CTX['tf']}, {a.workers} worker", flush=True)
     t0 = time.time()
-    from backend.core.data.quality_gate import require_data_ok
+    from backend.crawl.store import require_data_ok
     require_data_ok(cfg["symbols"])
     from multiprocessing import get_context
     with get_context("fork").Pool(a.workers) as pool:

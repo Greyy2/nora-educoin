@@ -2,8 +2,8 @@
 import json
 import os
 
-from backend.optimize import revalidate as rv
-from backend.optimize.funnel import gates
+from backend.optimize.book import registry as rv
+from backend.optimize.funnel import stages as gates
 from test_strategy_book import T0, market  # noqa: F401  (market là fixture: 70 ngày, 3 tài sản)
 
 DAY = 86_400_000

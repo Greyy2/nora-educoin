@@ -7,7 +7,7 @@ export const modeText = (m) => (m === 'advanced' ? 'Nâng cao' : 'Cơ bản')
 export const CUSTOM_BADGE = 'Cấu hình tuỳ chỉnh — không xuất bản được'
 export const CUSTOM_REASON = 'Cổng khác chuẩn (ngưỡng, kịch bản cực xấu hoặc dưới 10.000 mô phỏng) nên kết quả chỉ để thử nghiệm: không xuất bản / promote được.'
 
-// Khớp backend/api/modes.py WFA_SCHEMA_KEYS_SUPPORTED (= True từ P0.3b): WFA nâng cao nhận mọi khoá của lược đồ (chu kỳ, khung)
+// Khớp backend/routes/modes.py (WFA_SCHEMA_KEYS_SUPPORTED = True từ P0.3b): WFA nâng cao nhận mọi khoá của lược đồ (chu kỳ, khung)
 // cùng step_days / sims / mc_seed. Trước đây cờ phía giao diện bị bỏ quên ở false nên các ô này bị khoá dù máy chủ đã hỗ trợ.
 export const WFA_SCHEMA_KEYS_SUPPORTED = true
 export const WFA_PENDING_NOTE = 'chưa hỗ trợ ở WFA (đang làm)'
@@ -64,7 +64,7 @@ export function timeframeMismatch(ids, byId, timeframe) {
     .filter((x) => x.timeframe && x.timeframe !== timeframe)
 }
 
-// ---- kiểm tham số theo lược đồ (khớp backend/core/strategy/run_modes.py: kiểu, khoảng, tập chọn) ----
+// ---- kiểm tham số theo lược đồ (khớp backend/optimize/book/build.py::check_value: kiểu, khoảng, tập chọn) ----
 const isBlank = (v) => v === '' || v == null
 const fmtN = (n) => String(+Number(n).toFixed(4))
 

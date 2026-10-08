@@ -1,4 +1,4 @@
-"""P6.8b: bot sàn trên kiến trúc thống nhất (backend/live/unified.py, engine="unified") — Runner + PositionManager + OkxVenue + sổ vốn ảo.
+"""P6.8b: bot sàn trên kiến trúc thống nhất (UnifiedBot trong backend/live/live.py, engine="unified") — Runner + PositionManager + OkxVenue + sổ vốn ảo.
 Sàn OKX GIẢ (FakeOkx của test_okx_venue.py) chạy qua OkxAdapter THẬT (tầng HTTP thay bằng sàn giả) — không mạng, không khoá.
 Tín hiệu dựng tay như test_live_bot (`_sig`); mốc thời gian: nến t0 đóng -> bước `now = t0 + HOUR` (bot vào lệnh ngay ở bước đó)."""
 import json
@@ -7,14 +7,13 @@ import pickle
 
 import pytest
 
-from backend.api.routers import live as live_router
-from backend.core.execute import policy
-from backend.live import bot as lb
-from backend.live import compare as C
-from backend.live import okx
-from backend.live import unified as ub
-from backend.live.exchange import Filters
-from backend.live import signals as ls
+from backend.routes import live as live_router
+from backend.core import backtest as bt
+from backend.core import position_size as policy
+from backend.live import live as lb
+from backend.metrics import trades as C
+from backend.crawl.store import live_state_key
+from backend.live.live import Filters
 from test_live_bot import BOOK, HOUR, _defaults, _sig
 from test_okx_venue import FakeOkx
 
@@ -47,7 +46,7 @@ class World:
 
     def __init__(self, tmp_path, monkeypatch, book=None, pos=None, keys=("K", "S", "P"), exec_blob=None, drift=5.0):
         self.fake = Fake()
-        monkeypatch.setattr(okx.urllib.request, "urlopen", self.fake)
+        monkeypatch.setattr(lb.urllib.request, "urlopen", self.fake)
         self.tmp, self.events = tmp_path, []
         if pos:
             orig = lb.book_strategies
@@ -58,12 +57,12 @@ class World:
                     st["position"] = {**st["position"], **pos}
                 return sts
             monkeypatch.setattr(lb, "book_strategies", patched)
-        self.client = okx.OkxAdapter(keys, demo=True, pause=0)
+        self.client = lb.OkxAdapter(keys, demo=True, pause=0)
         self.filters = {s: self.client.filters(s) for s in ("AAA", "BBB")}
         self.book = book or BOOK
         self.state = lb.State(str(tmp_path / "state.json"))
         self.exec_path = str(tmp_path / "unified.pkl")
-        self.b = ub.UnifiedBot(self.book, "demo", self.client, self.state, self.events.append, self.filters, None, 10000.0, exec_blob, drift,
+        self.b = lb.UnifiedBot(self.book, "demo", self.client, self.state, self.events.append, self.filters, None, 10000.0, exec_blob, drift,
                                self.exec_path)
         self.b.wall_ms = lambda: self.b.clock_t + 7_000      # sàn khớp 7 s sau mốc nến (độ trễ D5)
         self.fake.fill_px = "100.05"
@@ -114,10 +113,10 @@ def test_d1_refuses_max_per_symbol_not_one(tmp_path, monkeypatch):
     with pytest.raises(SystemExit, match="max_per_symbol"):
         World(tmp_path, monkeypatch, book=bad)
     with pytest.raises(SystemExit, match="max_per_symbol"):
-        ub.check_book_d1({**BOOK, "risk": {k: v for k, v in BOOK["risk"].items() if k != "max_per_symbol"}})
+        lb.check_book_d1({**BOOK, "risk": {k: v for k, v in BOOK["risk"].items() if k != "max_per_symbol"}})
     with pytest.raises(SystemExit, match="trùng"):
-        ub.check_book_d1({**BOOK, "universe": ["AAA@perp", "AAA@perp"]})
-    ub.check_book_d1(BOOK)                                         # sổ hợp lệ: không ném
+        lb.check_book_d1({**BOOK, "universe": ["AAA@perp", "AAA@perp"]})
+    lb.check_book_d1(BOOK)                                         # sổ hợp lệ: không ném
 
 
 def test_d1_refusal_in_run_job_before_touching_exchange(tmp_path, monkeypatch):
@@ -134,7 +133,7 @@ def test_d1_refusal_in_run_job_before_touching_exchange(tmp_path, monkeypatch):
 def test_unified_requires_exec_mode(tmp_path, monkeypatch):
     with pytest.raises(SystemExit):
         w = World(tmp_path, monkeypatch)
-        ub.UnifiedBot(BOOK, "paper", w.client, w.state, w.events.append)
+        lb.UnifiedBot(BOOK, "paper", w.client, w.state, w.events.append)
 
 
 # ── vào lệnh: sizing + lệnh bảo vệ ────────────────────────────────────────────
@@ -307,9 +306,9 @@ def test_drift_within_threshold_does_not_halt_and_zero_disables(tmp_path, monkey
 def test_run_job_refuses_fresh_start_when_capital_far_from_exchange_equity(tmp_path, monkeypatch):
     fake = Fake()
     fake.balance = "20000"
-    monkeypatch.setattr(okx.urllib.request, "urlopen", fake)
+    monkeypatch.setattr(lb.urllib.request, "urlopen", fake)
     monkeypatch.setattr(lb, "load_book", lambda *a, **k: BOOK)
-    monkeypatch.setattr(lb, "make_adapter", lambda *a, **k: (okx.OkxAdapter(("K", "S", "P"), demo=True, pause=0), ("K", "S", "P")))
+    monkeypatch.setattr(lb, "make_adapter", lambda *a, **k: (lb.OkxAdapter(("K", "S", "P"), demo=True, pause=0), ("K", "S", "P")))
     with pytest.raises(SystemExit, match="capital"):
         lb.run_job({"mode": "demo", "engine": "unified", "state_dir": str(tmp_path), "once": True, "capital": 10000.0})
 
@@ -354,7 +353,7 @@ def test_compare_events_endpoint_reads_unified_state_dir(world, tmp_path, monkey
     d.mkdir()
     (d / "events.jsonl").write_text("\n".join(json.dumps(e) for e in w.events) + "\n", encoding="utf-8")
     seen = {}
-    monkeypatch.setattr(live_router, "_sdir", lambda venue, mode, book, engine="legacy": (seen.update(engine=engine), str(d))[1])
+    monkeypatch.setattr(live_router, "_sdir", lambda venue, mode, book, engine=None: (seen.update(engine=engine), str(d))[1])
     monkeypatch.setattr(lb, "load_book", lambda *a, **k: BOOK)
     r = live_router.bot_compare_events(mode="demo", venue="okx", book="main", engine="unified")
     assert seen["engine"] == "unified" and r["n_exec"] == 1 and r["n_sim"] == 1 and r["timeframe"] == "1h"
@@ -376,7 +375,7 @@ def test_exec_state_survives_restart_and_never_pickles_api_keys(tmp_path, monkey
     w2 = World.__new__(World)
     w2.__dict__.update(w.__dict__)
     w2.events = []
-    w2.b = ub.UnifiedBot(w.book, "demo", w.client, w.state, w2.events.append, w.filters, None, 10000.0, blob, 5.0, w.exec_path)
+    w2.b = lb.UnifiedBot(w.book, "demo", w.client, w.state, w2.events.append, w.filters, None, 10000.0, blob, 5.0, w.exec_path)
     m2 = w2.b.runner.books[0]["entries"][0]["tracker"]
     assert m2.is_open and m2.qty == pytest.approx(mgr.qty) and w2.b.venue.client is w.client and w2.b.venue._clock is not None
     # sau khởi động lại vẫn xử lý được DCA khớp
@@ -386,7 +385,7 @@ def test_exec_state_survives_restart_and_never_pickles_api_keys(tmp_path, monkey
     w2.b.watch(T0B + HOUR + 20_000)
     assert m2.layer_count == 2 and len(w.fake.posts) > n_before
     with pytest.raises(ValueError, match="khác"):
-        ub.UnifiedBot({**w.book, "universe": ["AAA@perp"]}, "demo", w.client, w.state, [].append, {}, None, 10000.0, blob, 5.0, "")
+        lb.UnifiedBot({**w.book, "universe": ["AAA@perp"]}, "demo", w.client, w.state, [].append, {}, None, 10000.0, blob, 5.0, "")
 
 
 def test_external_position_blocks_symbol_and_warns(world):
@@ -412,7 +411,7 @@ BOOK2 = {**BOOK, "strategies": [{"id": "trend_long", "params": _defaults("trend_
 def _sig2(b, sym, ts, long_match=(), short_match=()):
     """Hai chiến lược (long, short) trên một symbol."""
     import numpy as np
-    _, pairs = ls._engine(f"{sym}@perp", b.strategies, "1h", 0, ls.DAY)
+    _, pairs = bt._engine(f"{sym}@perp", b.strategies, "1h", 0, bt.DAY)
     n = len(ts)
     arr = lambda x: np.full(n, x, dtype=float)  # noqa: E731
     ents = [{"strategy": st["id"], "side": st["side"], "match": np.array([t in m for t in ts]), "stop": np.zeros(n, dtype=bool), "vol": arr(2.0),
@@ -449,27 +448,28 @@ def test_two_strategies_share_one_symbol_slot_and_take_turns(tmp_path, monkeypat
 
 
 # ── legacy / paper không đổi ─────────────────────────────────────────────────────
-def test_state_key_legacy_unchanged_and_unified_separate():
-    assert lb.state_key("okx", "demo") == "okx_demo" and lb.state_key("okx", "demo", "explore") == "okx_demo_explore"
-    assert lb.state_key("okx", "demo", "main", "unified") == "okx_demo_unified"
-    assert lb.state_key("okx", "demo", "explore", "unified") == "okx_demo_explore_unified"
-    assert lb.state_key("okx", "paper", "main", "unified") == "okx_paper"          # paper + unified = PaperBook event, dùng chung thư mục
-    assert lb.DEFAULTS["engine"] == "legacy"
+def test_state_key_per_mode_dirs_and_engine_suffix_only_when_not_default():
+    assert live_state_key("okx", "demo") == "testnet/okx_main" and live_state_key("okx", "demo", "explore") == "testnet/okx_explore"
+    assert live_state_key("okx", "demo", "main", "unified") == "testnet/okx_main"                 # unified = mặc định của demo
+    assert live_state_key("okx", "demo", "main", "legacy") == "testnet/okx_main_legacy"
+    assert live_state_key("okx", "live", "main", "legacy") == "live/okx_main_legacy"
+    assert live_state_key("okx", "paper", "main", "unified") == "paper/okx_main"          # paper + unified = PaperBook event, dùng chung thư mục
+    assert lb.DEFAULTS["engine"] == ""                                                       # rỗng = mặc định theo chế độ
 
 
 def test_bot_request_engine_default_legacy_and_passed_to_job(monkeypatch):
     req = live_router.BotRequest()
-    assert req.engine == "legacy"
+    assert req.engine is None
     with pytest.raises(Exception):
         live_router.BotRequest(engine="bogus")
     seen = {}
-    monkeypatch.setattr(live_router.batch_jobs, "http_launch", lambda kind, params: seen.update(kind=kind, params=params) or {"id": "j1"})
+    monkeypatch.setattr(live_router.batch_jobs_routes, "http_launch", lambda kind, params: seen.update(kind=kind, params=params) or {"id": "j1"})
     monkeypatch.setattr(live_router.batch_jobs, "list_jobs", lambda **k: [])
     live_router.start_bot(live_router.BotRequest(mode="demo", engine="unified", equity_drift_halt_pct=2.5))
     assert seen["kind"] == "live_bot" and seen["params"]["engine"] == "unified" and seen["params"]["equity_drift_halt_pct"] == 2.5
     lb.options(lb.DEFAULTS, seen["params"])                                        # tham số hợp lệ với DEFAULTS của job
     live_router.start_bot(live_router.BotRequest(mode="demo"))
-    assert seen["params"]["engine"] == "legacy"
+    assert seen["params"]["engine"] == ""                                          # bot tự chọn engine mặc định của chế độ
 
 
 def test_corrupt_paper_pkl_archived_and_fresh_shadow_started(tmp_path, monkeypatch):
@@ -485,11 +485,13 @@ def test_corrupt_paper_pkl_archived_and_fresh_shadow_started(tmp_path, monkeypat
     monkeypatch.setattr(lb.Bot, "step", lambda self, now, data=None, funding=None: {"equity": 0})
     out = lb.run_job({"mode": "paper", "once": True, "state_dir": str(sdir), "capital": 5000.0})
     assert out["steps"] == 1
-    assert [n for n in os.listdir(sdir) if n.startswith("paper.pkl.corrupt_")]
+    # T7: bot thường (không unified) nạp paper.pkl qua state_migrate; pickle hỏng -> cất vào archive_p94b_*/ (không còn paper.pkl.corrupt_*), bắt đầu sạch, ghi cảnh báo
+    arch = [n for n in os.listdir(sdir) if n.startswith("archive_p94b_")]
+    assert arch and os.path.isfile(sdir / arch[0] / "paper.pkl") and not os.path.exists(sdir / "paper.pkl")
     ev = [json.loads(x) for x in open(sdir / "events.jsonl", encoding="utf-8")]
-    assert any(e["kind"] == "warn" and "paper.pkl hỏng" in e.get("msg", "") for e in ev)
-    pb = pickle.load(open(sdir / "paper.pkl", "rb"))                              # bóng mới đã được ghi lại hợp lệ
-    assert pb.ledger.initial == 5000.0 and pb.last_t is None
+    assert any(e["kind"] == "warn" and "paper.pkl cũ không chuyển được" in e.get("msg", "") for e in ev)
+    assert os.path.isfile(sdir / "paper.json") and os.path.isfile(sdir / "paper_state.npz")      # bóng KernelBook mới đã được ghi lại hợp lệ
+    assert json.load(open(sdir / "paper.json", encoding="utf-8"))["last_t"] is None
 
 
 def test_load_pickle_helper_handles_missing_and_corrupt(tmp_path):
@@ -504,9 +506,8 @@ def test_load_pickle_helper_handles_missing_and_corrupt(tmp_path):
 
 def test_sim_venue_old_pickle_without_rejects_loads_and_rejects_like_new():
     """paper.pkl của bot đang chạy (trước P6.8b) không có `_Slot.rejects`: nạp lại vẫn dùng được."""
-    from backend.core.execute.events import OrderRejected
-    from backend.core.execute.sim_venue import SimVenue
-    from backend.core.execute.venue import Order, OrderKind
+    from backend.core.models import OrderRejected
+    from backend.core.backtest import SimVenue, Order, OrderKind
     v = SimVenue()
     v.add_slot(0, fee_rate=0.0005, maker_fee_rate=0.0002, slippage_rate=0.0002)
     del v._slots[0].__dict__["rejects"]
@@ -518,8 +519,22 @@ def test_sim_venue_old_pickle_without_rejects_loads_and_rejects_like_new():
 
 def test_live_bot_job_accepts_engine_params():
     """Lỗi thật 2026-10-06: whitelist job live_bot thiếu engine -> API trả 400 và bot unified không bật được qua API."""
-    from backend.api.jobs.batch import KINDS
+    from backend.optimize.process.process import KINDS
     allowed = KINDS["live_bot"]["params"]
     assert {"engine", "equity_drift_halt_pct"} <= allowed
-    from backend.live.bot import DEFAULTS
+    from backend.live.live import DEFAULTS
     assert set(DEFAULTS) <= allowed | {"state_dir"}
+
+
+def test_route_engine_resolved_from_latest_job_else_mode_default_and_read_never_creates_dirs(tmp_path, monkeypatch):
+    monkeypatch.setenv("NORA_LOCAL_DATA_ROOT", str(tmp_path))
+    jobs = []
+    monkeypatch.setattr(live_router.batch_jobs, "list_jobs", lambda **k: jobs)
+    assert live_router._engine_for("okx", "demo", "main", None) == "unified" and live_router._engine_for("okx", "paper", "main", None) == "legacy"
+    jobs.append({"params": {"mode": "demo", "venue": "okx", "book": "main", "engine": "legacy"}})
+    assert live_router._engine_for("okx", "demo", "main", None) == "legacy" and live_router._engine_for("okx", "demo", "explore", None) == "unified"
+    assert live_router._engine_for("okx", "demo", "main", "unified") == "unified"                 # tham số tường minh thắng
+    d = live_router._sdir("okx", "demo", "main")
+    assert d.endswith(os.path.join("live", "testnet", "okx_main_legacy")) and not os.path.exists(os.path.join(str(tmp_path), "live"))
+    assert live_router.bot_status(mode="demo", venue="okx", events=0, book="main", engine=None)["engine"] == "legacy"
+    assert not os.path.exists(os.path.join(str(tmp_path), "live"))

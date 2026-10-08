@@ -5,8 +5,8 @@ label_vi, formula, meaning_vi, read_vi, warmup, category.
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from backend.api.routers import strategies as strategies_router
-from backend.core.strategy.pydsl import features as feat_mod, ops as ops_mod
+from backend.routes import strategies as strategies_router
+from backend.core import indicator as feat_mod, indicator as ops_mod
 
 
 def test_dsl_reference():

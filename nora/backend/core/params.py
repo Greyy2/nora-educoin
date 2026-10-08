@@ -1,6 +1,6 @@
 """Tham số chiến lược (P9.4): schema (StrategyParams), template (placeholder/sig.*), builder (build_params), materialize + BASE_POSITION của sổ.
 
-Hợp nhất NGUYÊN VĂN từ core/params/{schema,template,builder}.py + phần materialize/BASE_POSITION của core/strategy/book.py (xem docs/bmad/p9_review_log.md, mục P9.4 part 1). Đường dẫn cũ là alias (shim).
+Nguồn gộp: docs/bmad/p9_review_log.md (mục P9.4). Dữ liệu sổ (CANDIDATES/GATES/STRATEGIES) nằm ở optimize/book/build.py.
 """
 import math
 import re
@@ -8,9 +8,13 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 
+def config_from_dict(cls, d: Optional[Dict[str, Any]]):
+    """Dựng dataclass cấu hình từ dict: chỉ lấy khoá là trường của lớp (khoá lạ bị bỏ qua), thiếu -> mặc định của lớp."""
+    d = dict(d or {})
+    return cls(**{k: d[k] for k in cls.__dataclass_fields__ if k in d})
+
+
 # ══════════════════════════════════════════════════════════════════════════
-# P9.4 — nguyên văn từ core/params/schema.py
-#
 # Quản lý Tham số Chiến lược (Strategy Parameters).
 #
 # Module này đảm bảo mọi cấu hình tham số của chiến lược
@@ -142,8 +146,6 @@ class StrategyParams:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# P9.4 — nguyên văn từ core/params/template.py
-#
 # Tham số hoá tín hiệu: ngưỡng trong cây điều kiện AST có thể là tham số tối ưu được.
 #
 # Trong AST, thay một hằng số bằng node   {"param": "rsi_lo", "default": 30}
@@ -161,6 +163,10 @@ class StrategyParams:
 SIG_PREFIX = "sig."
 FRAMES = ("1m", "5m", "15m", "1h", "4h", "24h")
 FRAME_MINUTES = {1: "1m", 5: "5m", 15: "15m", 60: "1h", 240: "4h", 1440: "24h"}
+FRAME_MS = {f: m * 60_000 for m, f in sorted(FRAME_MINUTES.items())}     # mili-giây mỗi nến theo khung (đúng thứ tự FRAMES)
+MINUTE_MS = 60_000
+DAY_MS = 86_400_000
+DATA_COLUMNS = ("open", "high", "low", "close", "volume")                 # cột nến OHLCV mà engine/DSL đọc
 MIN_PERIOD, MAX_PERIOD = 2, 500
 _STR_PLACEHOLDER = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
 _STR_FIELDS = ("frame", "column")
@@ -233,6 +239,11 @@ def _placeholder_text(name: str, field: str, values: Dict[str, Any], defaults: D
     raise ValueError(f"Tham số tín hiệu '{name}' phải là số hoặc khung thời gian, nhận {value!r}")
 
 
+# Ngữ pháp tên cột chỉ báo {"base": BASE_COLUMNS, "parse": parse_column} — core/indicator.py đăng ký lúc import (params đứng DƯỚI indicator
+# trong thứ tự core nên không import nó; mọi đường gọi materialize/resolve_placeholders đều đã nạp engine -> indicator).
+COLUMN_GRAMMAR: Dict[str, Any] = {}
+
+
 def _resolve_string(text: str, field: str, values: Dict[str, Any], defaults: Dict[str, Any]) -> str:
     out = _STR_PLACEHOLDER.sub(lambda m: _placeholder_text(m.group(1), field, values, defaults), text)
     if "{" in out or "}" in out:
@@ -241,10 +252,11 @@ def _resolve_string(text: str, field: str, values: Dict[str, Any], defaults: Dic
         if out not in FRAMES:
             raise ValueError(f"Khung thời gian {out!r} không hợp lệ; chọn một trong {list(FRAMES)}")
         return out
-    from backend.core.indicator import BASE_COLUMNS, parse_column
-    if out in BASE_COLUMNS:
+    if not COLUMN_GRAMMAR:
+        raise RuntimeError("chưa nạp core/indicator (ngữ pháp tên cột chỉ báo) — import backend.core.indicator trước khi thay {tên} trong column")
+    if out in COLUMN_GRAMMAR["base"]:
         return out
-    parsed = parse_column(out)
+    parsed = COLUMN_GRAMMAR["parse"](out)
     if parsed is None:
         raise ValueError(f"Cột chỉ báo {out!r} (từ {text!r}) không hợp lệ: chu kỳ phải là số nguyên {MIN_PERIOD}..{MAX_PERIOD}, "
                          f"hệ số k trong (0, 10]")
@@ -288,8 +300,6 @@ def split_params(params: Dict[str, Any]):
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# P9.4 — nguyên văn từ core/params/builder.py
-#
 # Dựng StrategyParams cho mỗi flow từ tham số quản lý vị thế — dùng chung cho Studio và WFA.
 #
 # Phí/trượt giá mặc định theo loại sàn (manifest["venue"]) và thị trường — (taker, maker, trượt):
@@ -316,10 +326,9 @@ VENUE_COSTS = {  # (taker, maker, trượt giá)
 }
 
 
-def venue_of_symbol(symbol: str) -> str:
-    from backend.db.local_pkl import read_manifest
-    manifest = read_manifest(symbol) or {}
-    venue = str(manifest.get("venue") or "").lower()
+def manifest_venue(manifest: Optional[Dict[str, Any]]) -> str:
+    """Venue của tài sản theo manifest (DataSource.manifest): 'cex' | 'dex'."""
+    venue = str((manifest or {}).get("venue") or "").lower()
     return venue if venue in ("cex", "dex") else "dex"  # không rõ -> giả định bảo thủ (phí cao)
 
 
@@ -335,25 +344,9 @@ def resolve_costs(venue: str, market: str, fee_rate: Optional[float], slippage_r
             slip if slippage_rate is None else float(slippage_rate))
 
 
-def data_symbol(symbol: str, market: str) -> Tuple[str, str]:
-    """Ký hiệu dữ liệu thực dùng cho backtest: perp -> '<SYM>@perp' nếu có dữ liệu perp thật.
-
-    Trả (symbol_dữ_liệu, nguồn_giá): 'perp' | 'spot_proxy' | 'spot'.
-    """
-    from backend.db.data_layout import resolve_asset_dir, split_instrument
-    base, _ = split_instrument(symbol)
-    if market != "perp":
-        return base, "spot"
-    perp = f"{base}@perp"
-    return (perp, "perp") if resolve_asset_dir(perp) else (base, "spot_proxy")
-
-
-def pool_fee_rate(symbol: Optional[str]) -> Optional[float]:
+def manifest_pool_fee(manifest: Optional[Dict[str, Any]]) -> Optional[float]:
     """Phí pool DEX đã xác minh (manifest["pool_fee_rate"], đọc on-chain), nếu có."""
-    if not symbol:
-        return None
-    from backend.db.local_pkl import read_manifest
-    value = (read_manifest(symbol) or {}).get("pool_fee_rate")
+    value = (manifest or {}).get("pool_fee_rate")
     return float(value) if value is not None else None
 
 
@@ -394,12 +387,12 @@ def dca_budget_check(position: Dict[str, Any], venue_costs: Tuple[float, float, 
 
 
 def build_params(flow_name: str, flow_ast: Dict[str, Any], flow_type: str, position: Dict[str, Any],
-                 venue: str, symbol: Optional[str] = None) -> StrategyParams:
+                 venue: str, pool_fee: Optional[float] = None) -> StrategyParams:
+    """pool_fee: phí pool DEX đã xác minh của tài sản (manifest_pool_fee(DataSource.manifest(symbol))) — chỉ dùng khi venue='dex'."""
     market = str(position.get("market") or "spot").lower()
     fee_override = position.get("fee_rate")
     maker_override = position.get("maker_fee_rate")
     if venue == "dex" and fee_override is None:  # DEX: dùng phí pool thật nếu manifest có
-        pool_fee = pool_fee_rate(symbol)
         if pool_fee is not None:
             fee_override = pool_fee
             maker_override = pool_fee if maker_override is None else maker_override
@@ -453,14 +446,13 @@ def build_params(flow_name: str, flow_ast: Dict[str, Any], flow_type: str, posit
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# P9.4 — nguyên văn từ core/strategy/book.py
-#
 # Phần tham số vị thế của sổ chiến lược: hằng số mức rủi ro, BASE_POSITION, regime_for, schema_defaults, signal_defaults, materialize.
-# Dữ liệu CANDIDATES/GATES/RISK/STRATEGIES ở lại core/strategy/book.py (book import ngược các tên này từ đây).
+# Dữ liệu CANDIDATES/GATES/STRATEGIES nằm ở optimize/book/build.py (RISK ở dưới đây, vì core/backtest.build_plan cần).
 # ══════════════════════════════════════════════════════════════════════════
 
 MAX_LEVERAGE = 10
 BASE_RISK_PER_TRADE_PCT = 0.5
+DEFAULT_CAPITAL = 10_000.0               # vốn ban đầu mặc định (PortfolioEngine / bot / job)
 PESSIMISTIC_LIMIT_THROUGH_PCT = 0.15   # kịch bản bi quan (stop_fill="extreme"): lệnh limit phải đi qua mức 0,15% mới khớp   # mức chuẩn khi chọn chiến lược; mức cuối do bootstrap ngân sách MDD quyết định
 
 BASE_POSITION = {
@@ -471,16 +463,28 @@ BASE_POSITION = {
     "cooldown": 60,   # phút: một nến 1h — tránh vào lại ngay trên cùng trạng thái tín hiệu cũ sau khi vừa thoát (SL/trailing)
 }
 
+# Rủi ro danh mục (RiskConfig) của sổ chiến lược — chuyển từ book.py cũ; ở core vì build_plan (core/backtest.py) dựng Plan với bộ này
+# (core không import optimize); optimize/book/build.py import lại từ đây.
+RISK = {
+    "max_positions": 8,          # tối đa số vị thế mở đồng thời (toàn danh mục)
+    "max_per_symbol": 1,         # mỗi tài sản tối đa 1 vị thế (mọi chiến lược cộng lại) -> không cộng dồn rủi ro
+    "max_gross_exposure": 3.0,   # Σ danh nghĩa / vốn <= 3
+    "kill_switch_dd_pct": 30.0,  # sụt 30% từ đỉnh (MTM, điểm xấu nhất) -> đóng hết, dừng
+    "max_open_risk_pct": 6.0,    # Σ rủi ro tới SL (cả rổ DCA) của mọi vị thế mở <= 6% vốn: nhiều rổ cùng chạm SL cũng chỉ mất tối đa ~6%
+    "dd_throttle_pct": 5.0,      # vốn đã chốt sụt d% so với đỉnh -> lệnh mới rủi ro × max(0,25; 1 − d/5)
+    "dd_throttle_floor": 0.25,
+}
+
 # Regime cho phép vào lệnh (core/regime/classifier.py). Chỉ áp khi bật regime (materialize(..., regime=True)); tắt -> chiến lược y như cũ
 # (golden bất biến). Dạng "CHẶN NGƯỢC CHIỀU": LONG không vào khi TREND_DOWN / CRASH, SHORT không vào khi TREND_UP / SURGE; mọi regime khác được vào.
 # Cầu chì TẮT: chiến lược lõi đều có cắt lỗ theo rủi ro (MC trend thẳng đứng: lỗ tối đa ~6% vốn); sau CRASH giá thường hồi nên cầu chì cắt LONG ở
 # đáy. Bảng "chỉ cho vào ở regime X" cũ (+ cầu chì) bị dữ liệu thật bác bỏ: sổ +29,6% -> −26,0%; bảng tĩnh chỉ cho vào 8–12% lệnh lãi của chiến
 # lược xu hướng vì nhãn xu hướng 4h đến muộn hơn điểm phá vỡ (test/scripts/research_regime_diagnosis.py, roadmap P2.4).
 REGIME_DENY: Dict[str, List[str]] = {"LONG": ["TREND_DOWN", "CRASH"], "SHORT": ["TREND_UP", "SURGE"]}
-_REGIME_NAMES = ("UNKNOWN", "RANGE", "TREND_UP", "TREND_DOWN", "VOL_EXPANSION", "SURGE", "CRASH")   # = classifier.NAMES
+REGIME_NAMES = ("UNKNOWN", "RANGE", "TREND_UP", "TREND_DOWN", "VOL_EXPANSION", "SURGE", "CRASH")   # tên regime theo mã 0..6 (classifier trong core/signal.py dùng chung)
 def regime_for(side: str) -> Dict[str, Any]:
-    return {"allowed": [r for r in _REGIME_NAMES if r not in REGIME_DENY[side]], "fuse": False}
-REGIME_MAP: Dict[str, Dict[str, Any]] = {}   # P9.4: bảng {id: cấu hình regime}; core/strategy/book.py điền từ CANDIDATES (dữ liệu ở lại book); materialize tra bảng này (thiếu -> regime_for(side), cùng kết quả)
+    return {"allowed": [r for r in REGIME_NAMES if r not in REGIME_DENY[side]], "fuse": False}
+REGIME_MAP: Dict[str, Dict[str, Any]] = {}   # P9.4: bảng {id: cấu hình regime}; optimize/book/build.py điền từ CANDIDATES; materialize tra bảng này (thiếu -> regime_for(side), cùng kết quả)
 
 
 def schema_defaults(candidate: Dict[str, Any], group: str = None) -> Dict[str, Any]:
@@ -519,7 +523,7 @@ def materialize(candidate: Dict[str, Any], params: Dict[str, Any], regime: Any =
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# P9.4 part 2 — hằng số profile, nguyên văn từ core/strategy/pydsl/profiles.py (build_plan sang core/backtest.py)
+# Hằng số profile (build_plan nằm ở core/backtest.py)
 #
 # FRAMES của profiles giống hệt FRAMES ở khối template phía trên (cùng giá trị) -> dùng chung, không khai báo lại.
 # ══════════════════════════════════════════════════════════════════════════
@@ -529,3 +533,68 @@ RUN_FRAME = "1m"                # khung chạy (nến mô phỏng)
 
 # Mặc định = BASE_POSITION của sổ (rủi ro 0,5%/lệnh, đòn bẩy trần 10, cooldown 60) + SL 3×ATR; không TP/trailing/timeout.
 NORA_DEFAULTS = {"stop_loss_rate": 3.0, "take_profit_rate": 0.0, "trailing_stop": 0.0, "trailing_activation_pct": 0.0, "timeout": 0}
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# P9.9 — lược đồ tham số (params_schema) cho chiến lược viết bằng DSL (data/alpha/strategies/*.py)
+#
+# Hàm dựng từng mục lược đồ + bảng nhóm thoát lệnh/rủi ro CHUNG (nhãn, khoảng, bước, trợ giúp tiếng Việt)
+# (`_int/_flt/_choice/_exit_risk_schema`). File chiến lược chỉ khai báo `p('khoá', mặc_định, grid=...)` cho khoá vị thế; phần còn lại lấy ở bảng này.
+# ══════════════════════════════════════════════════════════════════════════
+
+def schema_int(group, label, default, lo, hi, unit="", help_vi="", step=1):
+    return {"group": group, "type": "int", "min": lo, "max": hi, "step": step, "default": default,
+            "label_vi": label, "unit": unit, "help_vi": help_vi}
+
+
+def schema_flt(group, label, default, lo, hi, step, unit="", help_vi=""):
+    return {"group": group, "type": "float", "min": lo, "max": hi, "step": step, "default": default,
+            "label_vi": label, "unit": unit, "help_vi": help_vi}
+
+
+def schema_choice(group, label, default, choices, help_vi="Khung nến dùng để tính chỉ báo (1m, 5m, 15m, 1h, 4h, 24h)."):
+    return {"group": group, "type": "choice", "choices": list(choices), "default": default,
+            "label_vi": label, "unit": "", "help_vi": help_vi}
+
+
+# khoá -> (kiểu, nhóm, nhãn, mặc định trung tính, min, max, bước, đơn vị, trợ giúp); thứ tự = thứ tự trong params_schema
+EXIT_RISK_SPEC: Dict[str, tuple] = {
+    "stop_loss_rate": ("float", "exit", "Cắt lỗ", 3.0, 0.5, 10.0, 0.1, "× ATR",
+                       "Cắt lỗ cách giá vào bằng số này × ATR% (khung ATR bên dưới). Càng nhỏ càng dễ bị quét."),
+    "take_profit_rate": ("float", "exit", "Chốt lời", 0.0, 0.0, 10.0, 0.05, "× ATR", "Chốt lời cố định; 0 = không đặt (thoát bằng trailing/timeout)."),
+    "trailing_stop": ("float", "exit", "Trailing stop", 0.0, 0.0, 10.0, 0.1, "× ATR",
+                      "Dời lệnh cắt theo đỉnh/đáy có lợi nhất, cách bấy nhiêu × ATR; 0 = tắt."),
+    "trailing_activation_pct": ("float", "exit", "Bật trailing khi lãi", 0.0, 0.0, 5.0, 0.1, "× ATR",
+                                "Chỉ bật trailing khi đã lãi tối thiểu bấy nhiêu × ATR; 0 = bật ngay."),
+    "timeout": ("int", "exit", "Giữ lệnh tối đa", 0, 0, 20160, 60, "phút", "Tự đóng lệnh sau bấy nhiêu phút; 0 = không giới hạn."),
+    "cooldown": ("int", "exit", "Nghỉ sau khi thoát", 60, 0, 1440, 15, "phút",
+                 "Chờ bấy nhiêu phút sau khi đóng lệnh mới nhận tín hiệu vào lại."),
+    "atr_frame": ("choice", "exit", "Khung tính ATR", "1h", ("5m", "15m", "1h", "4h", "24h"), None, None, "",
+                  "Khung nến đo ATR% để quy đổi cắt lỗ/chốt lời/trailing."),
+    "atr_period": ("int", "exit", "Chu kỳ ATR", 14, 5, 50, 1, "nến", "Số nến của ATR (Wilder)."),
+    "risk_per_trade_pct": ("float", "risk", "Rủi ro mỗi lệnh", BASE_RISK_PER_TRADE_PCT, 0.05, 5.0, 0.05, "% vốn",
+                           "Chạm cắt lỗ thì mất xấp xỉ bấy nhiêu % vốn; khối lượng lệnh tự tính theo đó. "
+                           "Chế độ Nâng cao: mọi chiến lược trong một lần chạy phải cùng mức này."),
+    "max_notional_pct": ("float", "risk", "Trần danh nghĩa mỗi lệnh", 300.0, 50.0, 500.0, 10.0, "% vốn",
+                         "Giá trị danh nghĩa tối đa của một lệnh so với vốn."),
+    "leverage": ("int", "risk", "Trần đòn bẩy", MAX_LEVERAGE, 1, MAX_LEVERAGE, 1, "x",
+                 "Đòn bẩy tối đa; đòn bẩy thực tự hạ để giá thanh lý xa hơn 1,5 × khoảng cắt lỗ."),
+}
+
+
+def exit_risk_entry(key: str, default: Any = None) -> Dict[str, Any]:
+    """Mục params_schema của một khoá thoát/rủi ro chung; `default` (nếu có) thay mặc định trung tính."""
+    kind, group, label, dflt, lo, hi, step, unit, help_vi = EXIT_RISK_SPEC[key]
+    dflt = dflt if default is None else default
+    if kind == "choice":
+        return schema_choice(group, label, dflt, lo, help_vi)
+    if kind == "int":
+        return schema_int(group, label, dflt, lo, hi, unit, help_vi, step=step)
+    return schema_flt(group, label, dflt, lo, hi, step, unit, help_vi)
+
+
+def exit_risk_schema(sl, tp, trail, act, timeout, atr_frame) -> Dict[str, Any]:
+    """Nhóm thoát lệnh + rủi ro dùng chung (mọi ứng viên có cùng khoá; chỉ mặc định khác nhau)."""
+    given = {"stop_loss_rate": sl, "take_profit_rate": tp, "trailing_stop": trail, "trailing_activation_pct": act,
+             "timeout": timeout, "atr_frame": atr_frame}
+    return {k: exit_risk_entry(k, given.get(k)) for k in EXIT_RISK_SPEC}

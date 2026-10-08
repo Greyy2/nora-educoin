@@ -5,10 +5,9 @@ test_okx_data.py — dữ liệu theo sàn (data/<okx|binance>/...) + crawler OK
 - exchange_of(manifest): okx_swap -> okx, binance_usdm -> binance.
 - Parse file ngày OKX (nến: volume = vol_quote USDT; funding: real_funding_rate).
 - Funding: mốc OKX ưu tiên, khoảng trống > 16h lấp bằng proxy Binance và ghi vào manifest.
-- promote: staging/cex/<SYM>/perp -> data/okx/cex/<SYM>/perp theo manifest; quality gate coi API chính thức OKX là nguồn đã kiểm chứng.
+- promote: staging/cex/<SYM>/perp -> data/market/okx/cex/<SYM>/perp theo manifest; quality gate coi API chính thức OKX là nguồn đã kiểm chứng.
 """
 import io
-import json
 import os
 import zipfile
 
@@ -16,8 +15,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from backend.core.data import okx_crawler as oc
-from backend.db import data_layout as dl
+from backend.crawl import cex as oc
+from backend.crawl import store as dl
 
 H = 3_600_000
 T0 = 1_704_067_200_000   # 2024-01-01 00:00Z
@@ -27,10 +26,10 @@ def test_exchange_root(monkeypatch):
     monkeypatch.delenv("NORA_LOCAL_DATA_ROOT", raising=False)
     monkeypatch.delenv("NORA_DATA_ROOT", raising=False)
     monkeypatch.delenv("NORA_EXCHANGE", raising=False)
-    assert dl.default_data_root() == os.path.join(dl.DATA_HOME, "okx")
+    assert dl.default_data_root() == os.path.join(dl.DATA_HOME, "market", "okx")
     monkeypatch.setenv("NORA_EXCHANGE", "binance")
-    assert dl.default_data_root() == os.path.join(dl.DATA_HOME, "binance")
-    assert dl.cache_dir(None, "x").startswith((os.path.join(dl.DATA_HOME, "_cache"), os.path.join(dl.DATA_HOME, "cache", "process")))
+    assert dl.default_data_root() == os.path.join(dl.DATA_HOME, "market", "binance")
+    assert dl.cache_dir(None, "x").startswith(os.path.join(dl.DATA_HOME, "cache", "process"))
     os.rmdir(dl.cache_dir(None, "x"))
     monkeypatch.setenv("NORA_EXCHANGE", "kraken")
     with pytest.raises(ValueError):
@@ -73,7 +72,7 @@ def test_funding_gaps_filled_by_binance_proxy(tmp_path, monkeypatch):
                         [{"fundingTime": str(t), "realizedRate": "0.0001", "fundingRate": "0.0002"} for t in okx_times])
     bpath = tmp_path / "funding.pkl"
     pd.DataFrame({"funding_time": [T0 + i * 8 * H + 1 for i in range(11)], "interval_h": np.nan, "rate": 0.0005}).to_pickle(bpath)
-    df, meta, issues = oc.crawl_funding(None, "BTC", T0, end, str(tmp_path), 1, str(bpath))
+    df, meta, issues = oc.okx_crawl_funding(None, "BTC", T0, end, str(tmp_path), 1, str(bpath))
     assert not issues
     assert meta["sources"] == {"okx_rest": 7, "binance_proxy": 4} and len(meta["proxy_ranges"]) == 1
     assert (df.set_index("funding_time")["rate"].loc[okx_times] == 0.0001).all()
@@ -88,7 +87,7 @@ def _zip(name, text):
 
 
 def test_crawl_writes_okx_layout_and_promotes(tmp_path, monkeypatch):
-    """Crawl giả (file ngày + REST) -> staging/cex/BTC/perp; promote -> data/okx/cex/BTC/perp; gate APPROVED dù có bước nhảy > 50%."""
+    """Crawl giả (file ngày + REST) -> staging/cex/BTC/perp; promote -> data/market/okx/cex/BTC/perp; gate APPROVED dù có bước nhảy > 50%."""
     monkeypatch.delenv("NORA_EXCHANGE", raising=False)
     start, n = T0, 31 * 1440
     end = start + (n - 1) * 60_000
@@ -115,19 +114,19 @@ def test_crawl_writes_okx_layout_and_promotes(tmp_path, monkeypatch):
     monkeypatch.setattr(oc, "fetch_day_zip", day_zip)
     monkeypatch.setattr(oc, "_okx_get", okx_get)
     staging = tmp_path / "staging"
-    out = oc.run_job({"symbols": "BTC", "years": (n - 1) / 1440 / 365.25, "end_ts": end, "output_dir": str(staging / "cex"),
+    out = oc.okx_run_job({"symbols": "BTC", "years": (n - 1) / 1440 / 365.25, "end_ts": end, "output_dir": str(staging / "cex"),
                       "cache_dir": str(tmp_path / "c"), "workers": 2})
     m = out[0]
     assert m["exchange"] == "okx_swap" and m["official_api"] is True and m["symbol"] == "BTC@perp"
     assert m["rows"]["1m"] == n and m["filled_ratio_1m"] == 0.0 and m["source_files"]["rest_rows"] > 0
     assert m["volume_unit"] == "quote_usdt" and m["funding"]["sources"] == {"okx_rest": 93}
 
-    from backend.core.data import promote
-    from backend.core.data.quality_gate import DataQualityStatus, evaluate_data_quality
+    from backend.crawl import store as promote
+    from backend.crawl.store import DataQualityStatus, evaluate_data_quality
     dq = evaluate_data_quality("BTC@perp", timeframe="1m", data_root=str(staging))
     assert dq["status"] not in (DataQualityStatus.BLOCKED, DataQualityStatus.NEEDS_MORE_DATA), dq["issues"]
     data = tmp_path / "data"
     res = promote.run_job({"staging": str(staging), "data": str(data), "apply": True})
     assert [a["dst"] for a in res["actions"]] == [str(data / "okx" / "cex" / "BTC" / "perp")]
-    man = json.load(open(data / "okx" / "cex" / "BTC" / "perp" / "manifest.json"))
+    man = promote.manifest_of_dir(str(data / "okx" / "cex" / "BTC" / "perp"))
     assert man["exchange"] == "okx_swap" and os.path.exists(data / "okx" / "cex" / "BTC" / "perp" / "funding.pkl")

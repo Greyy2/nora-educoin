@@ -1,12 +1,13 @@
 """Cổng chất lượng dữ liệu: thiếu manifest / synthetic / resample lệch -> BLOCKED; dữ liệu sạch -> APPROVED."""
-import json
 import os
 import tempfile
 
 import pandas as pd
 
-from backend.core.data.quality_gate import DataQualityStatus, evaluate_data_quality
-from backend.core.data.resampler import save_resampled_dataset
+from backend.crawl.store import DataQualityStatus, evaluate_data_quality
+from backend.crawl.store import save_resampled_dataset
+from backend.crawl import store
+from data_helpers import _tiny
 
 
 def test_data_quality_gate_checks():
@@ -26,12 +27,10 @@ def test_data_quality_gate_checks():
         # 1. No manifest -> BLOCKED
         res = evaluate_data_quality(sym, data_root=tmp_dir)
         assert res["status"] == DataQualityStatus.BLOCKED
-        assert "thiếu manifest.json" in res["issues"][0]
+        assert "thiếu metadata" in res["issues"][0]
 
         # 2. Manifest with synthetic=True -> BLOCKED
-        manifest_path = os.path.join(sym_dir, "manifest.json")
-        with open(manifest_path, "w", encoding="utf-8") as f:
-            json.dump({"synthetic": True, "source": "fake"}, f)
+        store.write_pickle_atomic(store.stamp_attrs(_tiny(), {"synthetic": True, "source": "fake"}), os.path.join(sym_dir, "1m.pkl"))
         res = evaluate_data_quality(sym, data_root=tmp_dir)
         assert res["status"] == DataQualityStatus.BLOCKED
         assert "synthetic=true" in res["issues"][0]
@@ -77,7 +76,7 @@ def test_data_quality_gate_checks():
 def test_gate_disk_cache_reused_across_processes_and_invalidated_on_change(tmp_path, monkeypatch):
     """Kết quả gate lưu trên đĩa: tiến trình mới (xoá cache trong RAM) đọc lại y hệt mà KHÔNG kiểm lại; file dữ liệu đổi -> kiểm lại."""
     import json as _json
-    from backend.core.data import quality_gate as qg
+    from backend.crawl import store as qg
     sym = "TESTSYM"
     t0 = 1700000000000
     n = 1440 * 35

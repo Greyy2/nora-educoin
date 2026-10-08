@@ -145,7 +145,7 @@ Cột "TT": **Có** = đã có và có test; **Một phần** = có nhưng thi�
 
 | ID | Yêu cầu | TT | Epic |
 |---|---|---|---|
-| FR-38 | Mọi job nặng chạy qua `backend/utils/ops/run_limited.sh` trong `nora.slice` (12 GB, không swap), xếp hàng tuần tự bằng `flock`, CPU 0-13, nice 10 | Có | E6 |
+| FR-38 | Mọi job nặng chạy qua `ops/run_limited.sh` trong `nora.slice` (12 GB, không swap), xếp hàng tuần tự bằng `flock`, CPU 0-13, nice 10 | Có | E6 |
 | FR-39 | Script nặng từ chối chạy khi không có trần RAM cgroup (trừ `NORA_ALLOW_UNLIMITED=1`) | Có | E6 |
 | FR-40 | Số worker tự chia: min(CPU dùng được, ngân sách RAM / RAM mỗi worker); ngân sách chừa dự phòng 8 GB cho máy dùng chung | Có | E6 |
 | FR-41 | Worker bị OOM-kill thì chạy lại riêng các job còn thiếu với nửa số worker; lỗi thật của job nổi lên ngay | Có | E6 |

@@ -1,6 +1,6 @@
 """Bộ chỉ số Nora (P9.5): số đo trên chuỗi lợi suất NGÀY (returns) + bộ số đo chuẩn của MỘT lần chạy (portfolio), một công thức chuẩn, năm = 365 ngày.
 
-Hợp nhất NGUYÊN VĂN từ core/metrics/returns.py + core/metrics/portfolio.py (xem docs/bmad/p9_review_log.md, mục P9.5). Đường dẫn cũ là shim.
+Nguồn gộp: docs/bmad/p9_review_log.md (mục P9.5).
 Thứ tự trong file: returns, portfolio. Chỉ import `metrics/trades.py` (cùng tầng) — không import ngoài core.
 """
 import math
@@ -13,8 +13,6 @@ from backend.metrics.trades import exposure_metrics, strategy_correlation, trade
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# P9.5 — nguyên văn từ core/metrics/returns.py
-#
 # Số đo trên chuỗi lợi suất NGÀY (vốn MTM cuối ngày UTC): lợi nhuận, quy năm, biến động, Sharpe/Sortino/Calmar, sụt giảm + thời gian
 # hồi phục, VaR/CVaR, thống kê chuỗi (cho DSR).
 #
@@ -222,26 +220,7 @@ def daily_nav_series(result: Dict[str, Any]) -> pd.Series:
     return s.reindex(pd.date_range(s.index[0], s.index[-1], freq="D")).ffill()
 
 
-
-def fold_stats(fold_rets_pct: Sequence[float], traded: Sequence[bool]) -> Dict[str, Any]:
-    """Thống kê lãi OOS theo fold cho cổng WFA (phễu S3 + WFA danh mục). Không dùng "tỉ lệ fold lãi" làm cổng vì lãi của chiến lược theo xu
-    hướng lệch phải (đa số tháng lỗ nhẹ, vài tháng lãi lớn): đo trên 360 alpha, 124/145 alpha có lãi OOS bị loại chỉ vì < 60% fold lãi
-    (test/scripts/research_funnel_diagnosis.py). Fold KHÔNG có lệnh là trung tính: không vào tỉ lệ / t-stat.
-    -> traded_folds, positive_ratio (trên fold có lệnh), fold_t (t-stat lãi TB/fold trên fold có lệnh; < 2 fold hoặc độ lệch 0 -> 0),
-       oos_ex_best_pct (lãi kép OOS sau khi bỏ fold tốt nhất — lãi không được dựa vào một fold may mắn)."""
-    x = np.asarray([float(r) for r, t in zip(fold_rets_pct, traded) if t], dtype=float)
-    allx = np.asarray([float(r) for r in fold_rets_pct], dtype=float)
-    n = len(x)
-    sd = float(x.std(ddof=1)) if n > 1 else 0.0
-    t = float(x.mean() / (sd / math.sqrt(n))) if n > 1 and sd > 0 else 0.0
-    ex = np.delete(allx, int(allx.argmax())) if len(allx) else allx
-    return {"traded_folds": n, "positive_ratio": float((x > 0).mean()) if n else 0.0, "fold_t": round(t, 4),
-            "oos_ex_best_pct": round(float((np.prod(1.0 + ex / 100.0) - 1.0) * 100.0), 4) if len(allx) else 0.0}
-
-
 # ══════════════════════════════════════════════════════════════════════════
-# P9.5 — nguyên văn từ core/metrics/portfolio.py
-#
 # Bộ số đo chuẩn của MỘT lần chạy — mọi tầng (backtest, dựng sổ, WFA, phễu, trang Danh mục) dùng chung.
 #
 # portfolio_metrics(res, start_ts)  từ PortfolioEngine.get_results() (bỏ phần warmup trước start_ts):

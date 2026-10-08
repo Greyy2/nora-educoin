@@ -10,16 +10,14 @@ Quy tắc: Viết test trước, chạy thấy FAIL, rồi sửa code để PASS
 2.5: save_ticks_and_sync_candles không sửa .pkl; ghi manifest["ticks"] riêng; has_ticks đọc ticks
 """
 import os
-import json
 import time
 import tempfile
 import pandas as pd
-import pytest
 
-from backend.core.data.resampler import save_resampled_dataset
-from backend.core.data.quality_gate import evaluate_data_quality, DataQualityStatus
-from backend.db.tick_storage import save_ticks
-from backend.db.local_pkl import has_ticks
+from backend.crawl.store import save_resampled_dataset
+from backend.crawl.store import evaluate_data_quality, DataQualityStatus
+from backend.crawl.dex import save_ticks
+from backend.crawl.store import has_ticks, manifest_of_dir
 
 
 def _create_sample_1m_data(n: int = 1440, t0: int = 1700000000000) -> pd.DataFrame:
@@ -78,7 +76,7 @@ def test_gate_coverage_days_low_needs_more_data():
 # ─── 2.4: sha256 mismatch → Gate BLOCKED ──────────────────────────────────────
 
 def test_gate_sha256_mismatch_blocked():
-    """Nếu 1m.pkl bị sửa sau khi lưu manifest, Gate phải trả BLOCKED vì sha256 không khớp."""
+    """Nếu 1m.pkl bị sửa sau khi lưu metadata (attrs), Gate phải trả BLOCKED vì digest_1m không khớp."""
     with tempfile.TemporaryDirectory() as tmp:
         asset = "TESTSHA"
         df = _create_sample_1m_data(n=1440 * 35)
@@ -97,7 +95,7 @@ def test_gate_sha256_mismatch_blocked():
 
         res = evaluate_data_quality(asset, data_root=tmp)
         assert res["status"] == DataQualityStatus.BLOCKED
-        assert any("sha256" in str(iss).lower() for iss in res["issues"])
+        assert any("digest_1m" in str(iss).lower() for iss in res["issues"])
 
 
 # ─── 2.5: save_ticks does NOT modify pkl and sets ticks manifest ─
@@ -137,9 +135,9 @@ def test_save_ticks_does_not_modify_pkl():
         assert os.path.getmtime(pkl_1m) == mtime_1m_before, "1m.pkl không được bị thay đổi"
         assert os.path.getmtime(pkl_4h) == mtime_4h_before, "4h.pkl không được bị thay đổi"
 
-        # Manifest phải có khối ticks
-        with open(os.path.join(asset_dir, "manifest.json")) as f:
-            manifest = json.load(f)
+        # Metadata (attrs ticks.parquet) phải có khối ticks; không còn manifest.json
+        assert not os.path.exists(os.path.join(asset_dir, "manifest.json"))
+        manifest = manifest_of_dir(asset_dir)
         assert "ticks" in manifest
         assert manifest["ticks"]["synthetic"] is False
         assert manifest["ticks"]["rows"] == 10

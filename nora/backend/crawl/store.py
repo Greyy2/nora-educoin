@@ -1,7 +1,6 @@
 """Kho dữ liệu thị trường: layout thư mục (một nơi chọn gốc dữ liệu), đọc/ghi pkl, loader nến, resample, quality gate, promote, LRU, json an toàn.
 
-P9.2 (ADR-P9): gộp NGUYÊN VĂN db/{data_layout,local_pkl}, utils/{lru,jsonsafe}, core/data/{loader,resampler,quality_gate,promote}.
-Shim (alias module) ở các đường dẫn cũ: mọi trạng thái module-level (cache, DATA_HOME...) chỉ có MỘT bản duy nhất ở đây.
+Nguồn gộp: docs/bmad/p9_review_log.md
 """
 import os
 import re
@@ -15,40 +14,35 @@ import time
 import copy
 import shutil
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from typing import Dict, List, Optional, Tuple, Any, Hashable
 import numpy as np
 import pandas as pd
 
 
-# ====================================================================================================
-# ↓ db/data_layout.py  (P9.2: chuyển nguyên văn; module cũ: backend.db.data_layout)
-# ====================================================================================================
+# ── Layout thư mục dữ liệu ────────────────────────────────────────────────────────────────────
 # Kiến trúc thư mục dữ liệu thị trường (market data) — một nơi duy nhất quyết định đường dẫn.
 #
-# Từ 04/10/2026 dữ liệu tách theo SÀN: nora/data/<sàn>/{cex,dex}/... — okx (sàn triển khai, mặc định) và binance (tham khảo).
+# Dữ liệu thị trường tách theo SÀN: nora/data/market/<sàn>/{cex,dex}/... — okx (sàn triển khai, mặc định) và binance (tham khảo).
 # Chọn sàn: biến môi trường NORA_EXCHANGE (okx | binance). NORA_LOCAL_DATA_ROOT (test) ghi đè cả gốc.
-# P9.3a: cây đích (market/, alpha/, cache/...) và helper đường dẫn có fallback cũ->mới nằm ở mục "P9.3a" bên dưới; mô tả dưới đây là cây HIỆN TẠI (v1).
-# Cache tính toán (_cache) và kho alpha (alphas) dùng chung, nằm ở nora/data/ (không theo sàn).
+# Cây đích (market/, alpha/, backtest/, wfa/, carlo/, live/, cache/{process,shared}) và helper đường dẫn: mục "P9.3a" bên dưới.
 #
-#     nora/data/<okx|binance>/
+#     nora/data/market/<okx|binance>/
 #     ├── cex/                    # sàn tập trung — nguồn gốc là NẾN (kline) chính thức của sàn
-#     │   └── <SYM>/              #   vd. BTC/  = spot (exchange, market_symbol ghi trong manifest.json)
-#     │       └── perp/           #   BTC@perp = USDT-M perpetual: nến 1m... + funding.pkl + manifest.json
+#     │   └── <SYM>/              #   vd. BTC/  = spot (exchange, market_symbol ghi trong attrs của pkl)
+#     │       └── perp/           #   BTC@perp = USDT-M perpetual: nến 1m... + funding.pkl
 #     │       ├── 1m.pkl          #   nguồn duy nhất; 5m/15m/1h/4h/24h resample từ 1m
 #     │       ├── 5m.pkl 15m.pkl 1h.pkl 4h.pkl 24h.pkl
-#     │       └── manifest.json   #   venue="cex", nguồn, checksum, độ phủ, sha256_1m ...
+#     │                           #   metadata (venue, nguồn, checksum, sha256_1m, digest_1m ...) = df.attrs["nora"] trong MỌI .pkl, xem asset_meta
 #     ├── dex/                    # sàn phi tập trung (AMM pool) — nguồn gốc là GIAO DỊCH (swap/tick)
-#     │   └── <SYM>/              #   vd. AERO/ (network, pool_address ghi trong manifest.json)
+#     │   └── <SYM>/              #   vd. AERO/ (network, pool_address ghi trong attrs của pkl)
 #     │       ├── 1m.pkl ...      #   nến 1m của pool (phút không có swap -> nến điền is_filled=1)
-#     │       ├── ticks.parquet   #   swap thật (nếu có; khai báo trong manifest["ticks"])
-#     │       ├── dex_pool.json   #   metadata pool
-#     │       └── manifest.json   #   venue="dex"
-#     nora/data/_meta/            # danh sách target crawl, cấu hình nguồn (không phải tài sản)
-#     nora/data/_cache/           # cache tính toán (research, funnel, job ...), xoá được bất kỳ lúc nào
-#     nora/data/alphas/           # kho alpha / sổ (book.json ghi data_exchange)
+#     │       ├── ticks.parquet   #   swap thật (nếu có; khai báo trong attrs của chính parquet: ticks + onchain)
+#     nora/data/cache/{process,shared}/   # cache tính toán, xoá được bất kỳ lúc nào
+#     nora/data/alpha/            # kho alpha / sổ (book.json ghi data_exchange)
 #
-# okx/cex/<SYM>/perp: OKX USDT-SWAP (core/data/okx_crawler.py) — nến 1m từ file ngày chính thức + REST; funding OKX, khoảng trống lấp bằng
-# proxy Binance (manifest.funding.sources / proxy_ranges). okx/dex: pool DEX (GeckoTerminal; không thuộc sàn nào, nằm cùng gốc sàn đang dùng). binance/cex: Binance USDT-M (core/data/crawler.py), chỉ tham khảo.
+# okx/cex/<SYM>/perp: OKX USDT-SWAP (crawl/cex.py) — nến 1m từ file ngày chính thức + REST; funding OKX, khoảng trống lấp bằng
+# proxy Binance (manifest.funding.sources / proxy_ranges). okx/dex: pool DEX (GeckoTerminal; không thuộc sàn nào, nằm cùng gốc sàn đang dùng). binance/cex: Binance USDT-M (crawl/cex.py), chỉ tham khảo.
 #
 # Quy ước:
 # - Thư mục bắt đầu bằng '.' hoặc '_' không phải tài sản.
@@ -81,7 +75,7 @@ def exchange() -> str:
 
 
 def exchange_root(ex: Optional[str] = None) -> str:
-    """Gốc dữ liệu của một sàn (mặc định sàn đang dùng) = market_root(ex): market/<ex> (cũ: <home>/<ex>); NORA_LOCAL_DATA_ROOT ghi đè (chế độ phẳng)."""
+    """Gốc dữ liệu của một sàn (mặc định sàn đang dùng) = market_root(ex): market/<ex>; NORA_LOCAL_DATA_ROOT ghi đè (chế độ phẳng)."""
     return market_root(ex)
 
 
@@ -102,24 +96,10 @@ def exchange_of(manifest: Optional[dict]) -> str:
 # Luật chung:
 # - Mọi helper tính ở THỜI ĐIỂM GỌI từ env (NORA_LOCAL_DATA_ROOT > NORA_DATA_ROOT > nora/data; NORA_EXCHANGE): không cache lúc import.
 # - Helper CHỈ trả đường dẫn (không tạo thư mục, trừ cache_dir() giữ hành vi cũ là makedirs).
-# - FALLBACK trong lúc chuyển cây: trả đường MỚI nếu tồn tại, rồi đường CŨ nếu tồn tại; không cái nào tồn tại thì chọn theo gốc
-#   (gốc mới tồn tại -> mới; gốc cũ tồn tại -> cũ; không có gì và <home>/market chưa có -> cũ, đã có -> mới). Sau khi chuyển, symlink ở đường cũ
-#   trỏ về đường mới nên cả hai cách gọi đều đúng.
 # - Chế độ PHẲNG (NORA_LOCAL_DATA_ROOT đặt = test; hoặc NORA_DATA_ROOT có cex/ hay dex/ ngay dưới = bí danh cũ của gốc sàn):
 #   thư mục đó vừa là home vừa là gốc sàn (market_root() == home), giữ nguyên hành vi trước P9.3.
 # ----------------------------------------------------------------------------------------------------
-from collections import namedtuple
-
-_NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-
-
-class Source(namedtuple("Source", "exchange root cex_dir alias")):
-    """Nguồn dữ liệu nến: cex_path = root/cex_dir là thư mục chứa <SYM>/; alias luôn None (bí danh binance_hist đã gỡ cùng dữ liệu của nó)."""
-    __slots__ = ()
-
-    @property
-    def cex_path(self) -> str:
-        return os.path.join(self.root, self.cex_dir)
+NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 
 _current_exchange = exchange   # tham số `exchange` của helper che tên hàm
@@ -137,84 +117,55 @@ def _flat() -> bool:
     return bool(nd) and any(os.path.isdir(os.path.join(nd, v)) for v in VENUES)
 
 
-def _migrated(home: str) -> bool:
-    return os.path.isdir(os.path.join(home, "market"))
-
-
-def layout_version(home: Optional[str] = None) -> int:
-    """2 nếu cây đã chuyển (có <home>/market), ngược lại 1. Chỉ để báo cáo/log."""
-    return 2 if _migrated(home or data_home()) else 1
-
-
-def _pick(home: str, new: str, old: str, new_base: Optional[str] = None, old_base: Optional[str] = None) -> str:
-    if os.path.exists(new):
-        return new
-    if os.path.exists(old):
-        return old
-    if new_base and os.path.isdir(new_base):
-        return new
-    if old_base and os.path.isdir(old_base):
-        return old
-    return new   # không bao giờ trả (rồi bị tạo) thư mục CŨ chưa tồn tại: chỉ dùng đường cũ khi nó đã có sẵn
-
-
-# kind -> (đường mới, đường cũ) tính từ home. Một bảng duy nhất cho helper, cache_dir() và allowed_roots().
-def _kind_paths(home: str, kind: str) -> Tuple[str, str]:
+# kind -> đường dẫn duy nhất tính từ home. Một bảng duy nhất cho helper, cache_dir() và allowed_roots().
+def _kind_path(home: str, kind: str) -> str:
     j = os.path.join
     table = {
-        "alpha": (j(home, "alpha"), j(home, "alphas")),
-        "funnel": (j(home, "alpha", "funnel"), j(home, "_cache", "funnel")),
-        "book": (j(home, "alpha", "book"), j(home, "_cache", "book")),
-        "backtest": (j(home, "backtest"), j(home, "_cache", "backtest")),
-        "wfa": (j(home, "wfa"), j(home, "_cache", "book_wfa")),
-        "carlo": (j(home, "carlo"), j(home, "_cache", "carlo")),
-        "live": (j(home, "live"), j(home, "_cache", "live")),
-        "process": (j(home, "cache", "process"), j(home, "_cache", "api_jobs")),
-        "mem": (j(home, "cache", "process", "_mem"), j(home, "_cache", "runs")),
-        "shared": (j(home, "cache", "shared"), j(home, "_cache", "shared")),
-        "quality_gate": (j(home, "cache", "shared", "quality_gate"), j(home, "_cache", "quality_gate")),
-        "staging": (j(home, "cache", "process", "_staging"), j(_NORA_ROOT, "data_staging")),
-        "education_results": (j(home, "backtest", "education"), j(home, "education", "results")),
-        "meta": (j(home, "market", "_meta"), j(home, "_meta")),
+        "alpha": j(home, "alpha"),
+        "funnel": j(home, "alpha", "funnel"),
+        "book": j(home, "alpha", "book"),
+        "backtest": j(home, "backtest"),
+        "wfa": j(home, "wfa"),
+        "carlo": j(home, "carlo"),
+        "live": j(home, "live"),
+        "process": j(home, "cache", "process"),
+        "mem": j(home, "cache", "process", "_mem"),
+        "shared": j(home, "cache", "shared"),
+        "quality_gate": j(home, "cache", "shared", "quality_gate"),
+        "staging": j(home, "cache", "process", "_staging"),
+        "education_results": j(home, "backtest", "education"),
     }
     return table[kind]
 
 
+_SHARED_CACHE_KINDS = ("shared", "quality_gate")
+
+
 def _under(home: str, kind: str, *parts: str) -> str:
-    """Đường dưới gốc của `kind` với fallback mới -> cũ (xem đầu mục)."""
-    nb, ob = _kind_paths(home, kind)
-    return _pick(home, os.path.join(nb, *parts), os.path.join(ob, *parts), nb, ob)
+    """Đường dưới gốc của `kind`. Cache dùng chung (shared, quality_gate) không bao giờ nằm trong market/: khi home là market/<sàn>
+    (chế độ phẳng trỏ vào cây thật, vd. golden NORA_DATA_ROOT=data/market/binance) thì dùng gốc cây data/ chứa nó."""
+    if kind in _SHARED_CACHE_KINDS:
+        parent = os.path.dirname(os.path.abspath(home))
+        if os.path.basename(parent) == "market":
+            home = os.path.dirname(parent)
+    return os.path.join(_kind_path(home, kind), *parts)
 
 
-# Tên thư mục cache cũ (cache_dir(None, "<tên>", ...)) -> kind mới.
-# Tên khác -> cache/process/<tên> (cũ: _cache/<tên>): ADR-P9 §4 chỉ có 2 thư mục cache (process/, shared/), không sinh thêm thư mục cache cấp 1.
+# Tên thư mục cache (cache_dir(None, "<tên>", ...)) -> kind.
+# Tên khác -> cache/process/<tên>: ADR-P9 §4 chỉ có 2 thư mục cache (process/, shared/), không sinh thêm thư mục cache cấp 1.
 LEGACY_CACHE_NAMES = {"api_jobs": "process", "book": "book", "funnel": "funnel", "book_wfa": "wfa", "live": "live",
                       "quality_gate": "quality_gate", "runs": "mem"}
 
 
-def resolve_source(name: Optional[str] = None) -> Source:
-    """Nguồn dữ liệu nến theo tên: None = sàn đang dùng (NORA_EXCHANGE); 'okx'|'binance'; hoặc tên thư mục <home>/<tên>/cex có sẵn.
-    Trả Source(exchange, root, cex_dir, alias); cex_path = root/cex_dir. (Bí danh 'binance_hist' đã gỡ: lỗi ValueError như mọi tên lạ.)"""
-    key = (name or "").strip().lower()
-    home = data_home()
-    if not key or key in EXCHANGES:
-        ex = key or exchange()
-        return Source(ex, market_root(ex), "cex", None)
-    path = os.path.join(home, key)
-    if os.path.isdir(os.path.join(path, "cex")):
-        return Source(key, path, "cex", None)
-    raise ValueError(f"nguồn dữ liệu không rõ: {name!r} (okx | binance | thư mục có cex/)")
-
-
 def market_root(exchange: Optional[str] = None) -> str:
-    """Gốc dữ liệu thị trường của một sàn (mặc định sàn đang dùng): market/<sàn> (cũ: <home>/<sàn>). Chế độ phẳng -> chính home."""
+    """Gốc dữ liệu thị trường của một sàn (mặc định sàn đang dùng): market/<sàn>. Chế độ phẳng -> chính home."""
     if _flat():
         return data_home()
     ex = (exchange or _current_exchange()).lower()
     if ex not in EXCHANGES:
         raise ValueError(f"sàn phải là một trong {EXCHANGES}, nhận {ex!r}")
     home = data_home()
-    return _pick(home, os.path.join(home, "market", ex), os.path.join(home, ex), os.path.join(home, "market"))
+    return os.path.join(home, "market", ex)
 
 
 def market_dir(exchange: Optional[str] = None, venue: str = "cex", symbol: Optional[str] = None, instrument: Optional[str] = None) -> str:
@@ -234,13 +185,8 @@ def market_dir(exchange: Optional[str] = None, venue: str = "cex", symbol: Optio
     return os.path.join(base, *parts, *([inst] if inst else []))
 
 
-def meta_dir() -> str:
-    """market/_meta (cũ: <home>/_meta): danh sách target crawl, cấu hình nguồn."""
-    return _under(data_home(), "meta")
-
-
 def alpha_dir(*parts: str) -> str:
-    """Kho alpha: alpha/ (cũ: alphas/). NORA_ALPHAS_DIR (nếu đặt) ghi đè gốc — một chỗ thay các bản sao alphas_dir()."""
+    """Kho alpha: alpha/. NORA_ALPHAS_DIR (nếu đặt) ghi đè gốc — một chỗ thay các bản sao alphas_dir()."""
     env = os.environ.get("NORA_ALPHAS_DIR")
     return os.path.join(env, *parts) if env else _under(data_home(), "alpha", *parts)
 
@@ -255,68 +201,72 @@ def alpha_file(name: str) -> str:
 
 
 def alpha_user_dir() -> str:
-    """alpha/user (cũ: alphas/user): alpha người dùng."""
+    """alpha/user: alpha người dùng."""
     return alpha_dir("user")
 
 
 def alpha_education_samples() -> str:
-    """alpha/education/samples.json (cũ: education/samples.json)."""
-    home = data_home()
-    return _pick(home, os.path.join(home, "alpha", "education", "samples.json"), os.path.join(home, "education", "samples.json"),
-                 os.path.join(home, "alpha"), os.path.join(home, "education"))
+    """alpha/education/samples.json."""
+    return os.path.join(data_home(), "alpha", "education", "samples.json")
 
 
 def education_results_dir() -> str:
-    """backtest/education (cũ: education/results): kết quả Education sinh lại được."""
+    """backtest/education: kết quả Education sinh lại được."""
     return _under(data_home(), "education_results")
 
 
 def alpha_run_dir(kind: str, run_id: Optional[str] = None) -> str:
-    """Thư mục lượt chạy phễu/sổ: alpha/<kind>[/<id>] (cũ: _cache/<kind>); kind ∈ {funnel, book}."""
+    """Thư mục lượt chạy phễu/sổ: alpha/<kind>[/<id>]; kind ∈ {funnel, book}."""
     if kind not in ("funnel", "book"):
         raise ValueError(f"kind phải là funnel|book, nhận {kind!r}")
     return _under(data_home(), kind, *([run_id] if run_id else []))
 
 
 def run_dir(kind: str, run_id: Optional[str] = None) -> str:
-    """Kết quả lâu dài: <kind>[/<id>]; kind ∈ {backtest, wfa, carlo} (cũ: _cache/<kind>; wfa cũ: _cache/book_wfa)."""
+    """Kết quả lâu dài: <kind>[/<id>]; kind ∈ {backtest, wfa, carlo}."""
     if kind not in ("backtest", "wfa", "carlo"):
         raise ValueError(f"kind phải là backtest|wfa|carlo, nhận {kind!r}")
     return _under(data_home(), kind, *([run_id] if run_id else []))
 
 
-def live_state_key(venue: str, mode: str, book: str = "main", engine: str = "legacy") -> str:
-    """Bản sao NGUYÊN VĂN live.bot.state_key (crawl không được import live; gỡ bản sao khi live/ dùng helper này)."""
-    return f"{venue}_{mode}" + ("_explore" if book == "explore" else "") + ("_unified" if engine == "unified" and mode in ("demo", "live") else "")
+LIVE_MODE_DIR = {"paper": "paper", "demo": "testnet", "live": "live"}   # chế độ bot -> thư mục con của data/live (chỉ 3 thư mục)
 
 
-def live_dir(venue: str, mode: str, book: str = "main", engine: str = "legacy") -> str:
-    """Trạng thái bot: live/<state_key> (cũ: _cache/live/<state_key>); lâu dài, không phải cache."""
-    return _under(data_home(), "live", live_state_key(venue, mode, book, engine))
+def default_engine(mode: str) -> str:
+    """Engine mặc định của chế độ: paper = legacy (PaperBook event); demo/live = unified (Runner + OkxVenue)."""
+    return "legacy" if mode == "paper" else "unified"
+
+
+def live_state_key(venue: str, mode: str, book: str = "main", engine: Optional[str] = None) -> str:
+    """Thư mục trạng thái của một bot, tương đối so với data/live (MỘT định nghĩa; live/live.py dùng lại qua live_dir):
+    <paper|testnet|live>/<sàn>_<sổ>[_<engine> chỉ khi engine khác mặc định của chế độ]. Paper luôn chung một thư mục (unified = PaperBook event như nhau)."""
+    eng = engine or default_engine(mode)
+    suffix = f"_{eng}" if mode != "paper" and eng != default_engine(mode) else ""
+    return f"{LIVE_MODE_DIR[mode]}/{venue}_{book}{suffix}"
+
+
+def live_dir(venue: str, mode: str, book: str = "main", engine: Optional[str] = None) -> str:
+    """Trạng thái bot: live/<paper|testnet|live>/<sàn>_<sổ>[_engine]; lâu dài, không phải cache. KHÔNG tạo thư mục (chỉ đường ghi của bot tạo)."""
+    return _under(data_home(), "live", *live_state_key(venue, mode, book, engine).split("/"))
 
 
 def cache_process_dir(job_id: Optional[str] = None) -> str:
-    """Thư mục job đang chạy: cache/process[/<id>] (cũ: _cache/api_jobs)."""
+    """Thư mục job đang chạy: cache/process[/<id>]."""
     return _under(data_home(), "process", *([job_id] if job_id else []))
 
 
-def cache_shared_dir(name: Optional[str] = None) -> str:
-    """mmap chỉ báo dùng chung: cache/shared[/<name>] (cũ: _cache/shared; hiện mỗi run còn dùng <run_dir>/_shared)."""
-    return _under(data_home(), "shared", *([name] if name else []))
-
-
 def cache_quality_gate_dir() -> str:
-    """Cache kết quả quality gate: cache/shared/quality_gate (cũ: _cache/quality_gate)."""
+    """Cache kết quả quality gate: cache/shared/quality_gate."""
     return _under(data_home(), "quality_gate")
 
 
 def cache_runs_dir() -> str:
-    """Log RAM của run_limited.sh: cache/process/_mem (cũ: _cache/runs)."""
+    """Log RAM của run_limited.sh: cache/process/_mem."""
     return _under(data_home(), "mem")
 
 
 def cache_staging_dir() -> str:
-    """Vùng đệm crawl -> promote: cache/process/_staging (cũ: nora/data_staging)."""
+    """Vùng đệm crawl -> promote: cache/process/_staging."""
     return _under(data_home(), "staging")
 
 
@@ -325,21 +275,19 @@ _ROOT_GROUPS = {"runs": ("book", "funnel", "wfa", "backtest", "carlo", "process"
 
 
 def allowed_roots(kind: str) -> List[str]:
-    """realpath của CẢ đường mới lẫn cũ cho `kind` (loại trừ trùng khi symlink cũ -> mới). Dùng làm gốc chặn path traversal:
+    """realpath của gốc cho `kind`. Dùng làm gốc chặn path traversal:
     os.path.realpath(path) phải nằm trong một gốc (xem is_within). kind: một trong alpha|funnel|book|backtest|wfa|carlo|live|process|mem|shared|
-    quality_gate|staging|education_results|meta, hoặc nhóm 'runs' (book+funnel+wfa+backtest+carlo+process)."""
+    quality_gate|staging|education_results, hoặc nhóm 'runs' (book+funnel+wfa+backtest+carlo+process)."""
     home = data_home()
     kinds = _ROOT_GROUPS.get(kind) or (kind,)
     out: List[str] = []
     for k in kinds:
         try:
-            pair = _kind_paths(home, k)
+            real = os.path.realpath(_kind_path(home, k))
         except KeyError:
             raise ValueError(f"allowed_roots: kind không rõ {kind!r}") from None
-        for p in pair:
-            real = os.path.realpath(p)
-            if real not in out:
-                out.append(real)
+        if real not in out:
+            out.append(real)
     return out
 
 
@@ -350,17 +298,16 @@ def is_within(path: str, kind: str) -> bool:
 
 
 def cache_dir(data_root: Optional[str] = None, *parts: str) -> str:
-    """Cache tính toán / kho lượt chạy theo TÊN CŨ, định tuyến sang vị trí mới có fallback (xem LEGACY_CACHE_NAMES, P9.3a):
+    """Cache tính toán / kho lượt chạy theo tên thư mục (xem LEGACY_CACHE_NAMES):
     api_jobs -> cache/process; book -> alpha/book; funnel -> alpha/funnel; book_wfa -> wfa; live -> live; quality_gate -> cache/shared/quality_gate;
-    runs -> cache/process/_mem; tên khác và không tên -> cache/process[/<tên>] (cũ: _cache[/<tên>]; không sinh thư mục cache cấp 1 khác). Đường tồn tại (mới trước, rồi cũ) được dùng; chưa có gì
-    và cây chưa chuyển -> đường cũ như trước P9.3. `data_root` tường minh được coi là home (vd. root test). Tạo thư mục (makedirs) như cũ."""
+    runs -> cache/process/_mem; tên khác và không tên -> cache/process[/<tên>] (không sinh thư mục cache cấp 1 khác).
+    `data_root` tường minh được coi là home (vd. root test). Tạo thư mục (makedirs)."""
     home = data_root or data_home()
     kind = LEGACY_CACHE_NAMES.get(parts[0]) if parts else None
     if kind:
         path = _under(home, kind, *parts[1:])
     else:
-        new_base, old_base = _kind_paths(home, "process")[0], os.path.join(home, "_cache")
-        path = _pick(home, os.path.join(new_base, *parts), os.path.join(old_base, *parts), new_base, old_base)
+        path = _under(home, "process", *parts)
     os.makedirs(path, exist_ok=True)
     return path
 
@@ -385,15 +332,18 @@ def parse_symbol(symbol: str) -> Tuple[Optional[str], str]:
 
 
 def is_asset_dir(path: str) -> bool:
-    """Thư mục tài sản = không bắt đầu bằng '.'/'_', không phải thư mục venue, và có manifest.json hoặc .pkl."""
+    """Thư mục tài sản = không bắt đầu bằng '.'/'_', không phải thư mục venue, và có ít nhất một .pkl (nến)."""
     name = os.path.basename(os.path.normpath(path))
     if not os.path.isdir(path) or name.startswith((".", "_")) or name.lower() in VENUES:
         return False
+    return _has_pkl(path)
+
+
+def _has_pkl(path: str) -> bool:
     try:
-        entries = os.listdir(path)
+        return any(e.endswith(".pkl") for e in os.listdir(path))
     except OSError:
         return False
-    return "manifest.json" in entries or any(e.endswith(".pkl") for e in entries)
 
 
 def list_assets(data_root: Optional[str] = None) -> List[Dict[str, str]]:
@@ -414,14 +364,14 @@ def list_assets(data_root: Optional[str] = None) -> List[Dict[str, str]]:
         if is_asset_dir(path):
             found.append({"symbol": name.upper(), "venue": "legacy", "path": path})
 
-    for venue in VENUES:  # instrument lồng bên trong: cex/<SYM>/perp (thư mục <SYM> có thể không có manifest riêng)
+    for venue in VENUES:  # instrument lồng bên trong: cex/<SYM>/perp (thư mục <SYM> có thể không có nến riêng)
         vdir = os.path.join(root, venue)
         for name in sorted(os.listdir(vdir)) if os.path.isdir(vdir) else []:
             if name.startswith((".", "_")):
                 continue
             for inst in INSTRUMENTS:
                 sub = os.path.join(vdir, name, inst)
-                if os.path.isdir(sub) and "manifest.json" in os.listdir(sub):
+                if os.path.isdir(sub) and _has_pkl(sub):
                     found.append({"symbol": f"{name.upper()}@{inst}", "venue": venue, "path": sub, "instrument": inst})
 
     counts: Dict[str, int] = {}
@@ -461,9 +411,7 @@ def resolve_asset_dir(symbol: str, data_root: Optional[str] = None) -> Optional[
     return flat if os.path.isdir(flat) else None
 
 
-# ====================================================================================================
-# ↓ db/local_pkl.py  (P9.2: chuyển nguyên văn; module cũ: backend.db.local_pkl)
-# ====================================================================================================
+# ── Đọc/ghi pkl cục bộ ────────────────────────────────────────────────────────────────────────
 # Local PKL data access for candle datasets.
 
 BASE_COLUMNS = ["open_time", "open", "high", "low", "close", "volume"]
@@ -524,35 +472,151 @@ def has_frame(symbol: str, frame: str = "4h", data_root: Optional[str] = None) -
     return os.path.isfile(pkl_path)
 
 
-def read_manifest(symbol: str, data_root: Optional[str] = None) -> Optional[dict]:
-    """Đọc manifest.json của asset; None nếu không có hoặc hỏng."""
-    s_dir = resolve_symbol_dir(symbol, data_root=data_root)
-    if not s_dir:
-        return None
-    path = os.path.join(s_dir, "manifest.json")
-    if not os.path.isfile(path):
-        return None
+# ─── Metadata tài sản = thuộc tính (attrs) nằm TRONG file dữ liệu (không còn manifest.json / dex_pool.json) ───────────────────────────────
+# Một nơi đọc/ghi duy nhất cho metadata của tài sản:
+#   nến     df.attrs["nora"]            trong MỌI <khung>.pkl (đọc từ khung nhỏ nhất, vd. 24h.pkl): source, exchange, venue, market, symbol, pool_address, network,
+#                                       pool_name, volume_unit, synthetic, crawl_ok, checksums_verified, official_api, crawl_issues, requested_*, crawled_at, source_files,
+#                                       pool_fee_rate (+ pool_fee_source), start_ts, end_ts, rows_1m, filled_ratio_1m, sha256_1m (sha CSV — định danh dữ liệu cho job_key,
+#                                       KHÔNG đổi thuật toán), digest_1m (blake2b trên byte numpy của 6 cột: kiểm toàn vẹn nhanh)
+#   tick    ticks.parquet attrs["nora"] = {"ticks": {...}, "onchain": {...}} (footer parquet, không đọc dữ liệu)
+#   funding funding.pkl attrs["nora"]   = {"funding": {...}}
+# Engine không thấy attrs: fetch_candles_df xoá df.attrs ở biên engine. attrs sống qua pickle/parquet; mất khi concat với frame không attrs hoặc fill_missing_1m_candles
+# -> writer luôn gán lại ngay trước khi ghi (stamp_attrs).
+ATTR_KEY = "nora"
+META_FRAMES = ("24h", "4h", "1h", "15m", "5m", "1m")      # khung nhỏ nhất đọc trước (đọc pickle 24h ~ ms)
+_META_CACHE: Dict[str, Tuple[Tuple[int, int], Any]] = {}
+_META_CACHE_MAX = 1024
+
+
+def plain(obj: Any) -> Any:
+    """Về kiểu JSON thuần (int/float/str/bool/None/list/dict): attrs ghi vào parquet phải JSON được."""
+    return json.loads(json.dumps(obj, default=json_default))
+
+
+def _meta_cached(path: str, reader) -> Any:
+    """reader(path) có đệm theo (mtime_ns, size) của file; file thiếu/lỗi -> None."""
     try:
-        import json
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        return data if isinstance(data, dict) else None
-    except Exception:
+        st = os.stat(path)
+    except OSError:
         return None
+    fp = (st.st_mtime_ns, st.st_size)
+    hit = _META_CACHE.get(path)
+    if hit is not None and hit[0] == fp:
+        return hit[1]
+    try:
+        value = reader(path)
+    except Exception:
+        value = None
+    if len(_META_CACHE) >= _META_CACHE_MAX:
+        _META_CACHE.clear()
+    _META_CACHE[path] = (fp, value)
+    return value
+
+
+def _read_pkl_attrs(path: str) -> Optional[dict]:
+    attrs = pd.read_pickle(path).attrs.get(ATTR_KEY)
+    return attrs if isinstance(attrs, dict) else None
+
+
+def _read_parquet_attrs(path: str) -> Optional[dict]:
+    """attrs["nora"] từ footer parquet (pandas metadata) — không đọc dữ liệu."""
+    import pyarrow.parquet as pq
+    raw = (pq.read_schema(path).metadata or {}).get(b"pandas")
+    doc = json.loads(raw) if raw else {}
+    attrs = (doc.get("attributes") or doc.get("attrs") or {}).get(ATTR_KEY)   # pandas 2.x ghi "attributes"
+    return attrs if isinstance(attrs, dict) else None
+
+
+def asset_meta(a_dir: str) -> Dict[str, Any]:
+    """Metadata của thư mục tài sản: {"dataset": dict|None, "ticks": dict|None, "onchain": dict|None, "funding": dict|None} (bản sao, sửa tự do).
+    dataset = attrs nến (khung nhỏ nhất có attrs); ticks/onchain = attrs ticks.parquet; funding = attrs funding.pkl."""
+    ds = None
+    for frame in META_FRAMES:
+        p = os.path.join(a_dir, f"{frame}.pkl")
+        if os.path.isfile(p):
+            ds = _meta_cached(p, _read_pkl_attrs)
+            break
+    pq_attrs = _meta_cached(os.path.join(a_dir, "ticks.parquet"), _read_parquet_attrs) or {}
+    fund = (_meta_cached(os.path.join(a_dir, "funding.pkl"), _read_pkl_attrs) or {}).get("funding")
+    ticks, onchain = pq_attrs.get("ticks"), pq_attrs.get("onchain")
+    if onchain is None:
+        onchain = (ds or {}).get("onchain")
+    return copy.deepcopy({"dataset": ds, "ticks": ticks if isinstance(ticks, dict) else None,
+                          "onchain": onchain if isinstance(onchain, dict) else None, "funding": fund if isinstance(fund, dict) else None})
+
+
+def manifest_of_dir(a_dir: str) -> Optional[dict]:
+    """Dạng "manifest" của một thư mục tài sản (khoá/giá trị như manifest.json cũ): dataset attrs + coverage_days/coverage_ratio/rows suy ra + ticks + funding. None nếu không có metadata."""
+    meta = asset_meta(a_dir)
+    out = meta["dataset"]
+    if out is None:
+        return None
+    out.setdefault("base_resolution", "1m")
+    start, end = int(out.get("start_ts") or 0), int(out.get("end_ts") or 0)
+    out.setdefault("coverage_days", round((end - start) / 86_400_000, 2) if end > start else 0.0)
+    rs, re_ = out.get("requested_start_ts"), out.get("requested_end_ts")
+    out.setdefault("coverage_ratio", round((end - start) / max(1, re_ - rs), 3) if rs is not None and re_ is not None and re_ > rs else 1.0)
+    if "rows" not in out and out.get("rows_1m") is not None:
+        out["rows"] = {"1m": int(out["rows_1m"])}
+    for key in ("ticks", "funding"):
+        if meta[key] is not None:
+            out[key] = meta[key]
+    return out
+
+
+def stamp_attrs(df: pd.DataFrame, meta: Dict[str, Any]) -> pd.DataFrame:
+    """Gán df.attrs["nora"] = meta (đã về kiểu JSON thuần) rồi trả lại chính df. Gọi NGAY TRƯỚC khi ghi (attrs bị mất qua concat / fill_missing_1m_candles)."""
+    df.attrs = {ATTR_KEY: plain(meta)}
+    return df
+
+
+def write_pickle_atomic(df: pd.DataFrame, path: str) -> None:
+    """to_pickle ra tên tạm rồi os.replace: người đọc không bao giờ thấy file dở."""
+    tmp = f"{path}.{os.getpid()}.tmp"
+    df.to_pickle(tmp)
+    os.replace(tmp, path)
+
+
+def write_json_atomic(path: str, obj: Any) -> None:
+    """json.dump (default=json_default) ra tên tạm rồi os.replace: người đọc không bao giờ thấy file dở. Lỗi -> xoá file tạm rồi ném lại."""
+    tmp = f"{path}.{os.getpid()}.tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(obj, fh, ensure_ascii=False, default=json_default)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def write_parquet_atomic(df: pd.DataFrame, path: str, meta: Optional[Dict[str, Any]] = None) -> None:
+    """to_parquet (snappy) kèm attrs["nora"]=meta, ghi nguyên tử."""
+    if meta is not None:
+        df.attrs = {ATTR_KEY: plain(meta)}
+    tmp = f"{path}.{os.getpid()}.tmp"
+    df.to_parquet(tmp, engine="pyarrow", compression="snappy", index=False)
+    os.replace(tmp, path)
+
+
+def read_manifest(symbol: str, data_root: Optional[str] = None) -> Optional[dict]:
+    """Metadata của asset (dạng manifest; xem manifest_of_dir); None nếu không có."""
+    s_dir = resolve_symbol_dir(symbol, data_root=data_root)
+    return manifest_of_dir(s_dir) if s_dir else None
 
 
 def has_ticks(symbol: str, data_root: Optional[str] = None, min_days: float = 0.0) -> bool:
-    """True chỉ khi có tick THẬT đã được khai báo trong manifest (fail-closed).
+    """True chỉ khi có tick THẬT đã được khai báo trong attrs của ticks.parquet (fail-closed).
 
-    Yêu cầu: manifest.json tồn tại, có khối manifest["ticks"] với synthetic=False,
-    file ticks.parquet tồn tại và độ phủ thời gian của tick >= min_days.
-    File ticks.parquet không có manifest khai báo -> KHÔNG được coi là tick thật.
+    Yêu cầu: ticks.parquet tồn tại, có khối ticks với synthetic=False và độ phủ thời gian của tick >= min_days.
+    File ticks.parquet không khai báo -> KHÔNG được coi là tick thật.
     """
     s_dir = resolve_symbol_dir(symbol, data_root=data_root)
     if not s_dir or not os.path.isfile(os.path.join(s_dir, "ticks.parquet")):
         return False
-    manifest = read_manifest(symbol, data_root=data_root)
-    ticks_meta = manifest.get("ticks") if manifest else None
+    ticks_meta = asset_meta(s_dir)["ticks"]
     if not isinstance(ticks_meta, dict) or ticks_meta.get("synthetic", True) is not False:
         return False
     if min_days > 0:
@@ -561,11 +625,6 @@ def has_ticks(symbol: str, data_root: Optional[str] = None, min_days: float = 0.
         if end_ts <= start_ts or (end_ts - start_ts) / 86_400_000 < min_days:
             return False
     return True
-
-
-def list_asset_dirs(data_root: Optional[str] = None) -> List[str]:
-    """Ký hiệu các tài sản đang có (có tiền tố venue nếu tên trùng giữa cex/dex)."""
-    return sorted(item["qualified"] for item in list_assets(data_root))
 
 
 def fetch_candles_df(
@@ -596,6 +655,7 @@ def fetch_candles_df(
         return pd.DataFrame()
 
     df = pd.read_pickle(path)
+    df.attrs = {}   # biên engine: metadata (attrs["nora"]) không đi vào engine -> khung y hệt trước khi có attrs
     if df.empty:
         return df
     if "open_time" not in df.columns:
@@ -647,12 +707,20 @@ def fetch_candles_df(
     return df.reset_index(drop=True)
 
 
-# ====================================================================================================
-# ↓ utils/lru.py  (P9.2: chuyển nguyên văn; module cũ: backend.utils.lru)
-# ====================================================================================================
+def benchmark_daily_closes(symbol: str, start_ms: int, end_ms: int) -> pd.Series:
+    """Giá đóng cửa ngày UTC (khung 24h của dữ liệu cục bộ) trong [start - 10 ngày, end]; Series rỗng nếu thiếu dữ liệu."""
+    df = fetch_candles_df(symbol, "24h", start_ts=int(start_ms) - 10 * 86_400_000, end_ts=int(end_ms), columns=["open_time", "close"],
+                          compat=False)
+    if df is None or df.empty:
+        return pd.Series(dtype=float)
+    idx = pd.to_datetime(df["open_time"].to_numpy(), unit="ms").normalize()
+    return pd.Series(df["close"].to_numpy(dtype=float), index=idx).groupby(level=0).last()
+
+
+# ── Bộ đệm LRU theo byte ──────────────────────────────────────────────────────────────────────
 # Bộ đệm LRU giới hạn theo BYTE (không theo số mục), an toàn đa luồng.
 #
-# Dùng chung cho core/loader.py (_CANDLE_CACHE) và backtest/portfolio.py (_DATA_CACHE).
+# Dùng chung cho crawl/store.py (_CANDLE_CACHE) và core/backtest.py (_DATA_CACHE).
 # - Mỗi tiến trình có bản riêng (multiprocessing); trong một tiến trình, API chạy job trên
 #   ThreadPoolExecutor nên mọi thao tác đều giữ khoá.
 # - Mục lớn hơn cả ngân sách thì không cache (và bản cũ cùng khoá bị bỏ).
@@ -714,9 +782,7 @@ class ByteLRU:
             return len(self._d)
 
 
-# ====================================================================================================
-# ↓ utils/jsonsafe.py  (P9.2: chuyển nguyên văn; module cũ: backend.utils.jsonsafe)
-# ====================================================================================================
+# ── JSON an toàn ──────────────────────────────────────────────────────────────────────────────
 # Chuyển kiểu numpy/pandas/datetime sang kiểu JSON thuần — dùng làm `default=` của json.dump.
 #
 # Lỗi gốc: `default=str` biến np.bool_ thành chuỗi 'False' (truthy!) và số numpy thành chuỗi.
@@ -740,9 +806,44 @@ def json_default(o):
     return str(o)
 
 
-# ====================================================================================================
-# ↓ core/data/loader.py  (P9.2: chuyển nguyên văn; module cũ: backend.core.data.loader)
-# ====================================================================================================
+def read_json(path: str, default: Any = None) -> Any:
+    """Nội dung JSON của file; `default` nếu file thiếu / không đọc được / không phải JSON hợp lệ (OSError, ValueError)."""
+    try:
+        with open(path, encoding="utf-8") as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return default
+
+
+# ─── Kết quả + tham số job (từ optimize/process/process.py; P9.10b: crawl nằm dưới optimize nên helper job ở đây) ──────────────────────────────────────────────────
+def write_job_result(result: Any) -> Optional[str]:
+    job_dir = os.environ.get("NORA_JOB_DIR")
+    if not job_dir or not os.path.isdir(job_dir):   # thư mục job đã bị API xoá (huỷ/xong): KHÔNG tạo lại làm thư mục mồ côi
+        return None
+    path = os.path.join(job_dir, "result.json")
+    write_json_atomic(path, result)  # ghi nguyên tử: API không bao giờ đọc file dở
+    return path
+
+
+def options(defaults: Dict[str, Any], params: Optional[Dict[str, Any]] = None) -> SimpleNamespace:
+    """Tham số của một job: `defaults` ghi đè bởi `params`. Khoá lạ -> ValueError (không âm thầm bỏ qua lỗi gõ tên)."""
+    params = dict(params or {})
+    unknown = sorted(set(params) - set(defaults))
+    if unknown:
+        raise ValueError(f"tham số lạ: {unknown}; có: {sorted(defaults)}")
+    return SimpleNamespace(**{**defaults, **params})
+
+
+def as_list(value) -> list:
+    """Danh sách từ tham số job: None/"" -> [], "a,b" -> ["a", "b"], list/tuple -> list."""
+    if not value:
+        return []
+    if isinstance(value, str):
+        return [x for x in value.split(",") if x]
+    return list(value)
+
+
+# ── Loader nến ────────────────────────────────────────────────────────────────────────────────
 # Dữ liệu Nến và Data Loader tốc độ cao.
 #
 # Cung cấp cơ chế nạp nến (Candle Loader) sử dụng bộ đệm (Memory Caching)
@@ -753,13 +854,13 @@ def json_default(o):
 #   Khoá: (data_root, symbol, frame, mtime_ns, size_bytes) -> file crawl lại thì tự hết hạn.
 # - Cửa sổ start_ts -> end_ts cắt bằng .loc trên index open_time đã sắp xếp (không sao chép).
 #   Kết quả là VIEW của bản trong cache: người gọi phải copy trước khi sửa (engine copy trong _prepare_candles).
-# - Tổng RAM giới hạn bằng ByteLRU (backend/utils/lru.py), NORA_CANDLE_CACHE_MB (mặc định 1024 MB).
+# - Tổng RAM giới hạn bằng ByteLRU (backend/crawl/store.py), NORA_CANDLE_CACHE_MB (mặc định 1024 MB).
 # - Chỉ giữ các cột engine cần (compat=False): không thêm cột symbol/timestamp/close_time/is_close.
 # - Mongo: KHÔNG cache, luôn nạp theo cửa sổ (không bao giờ kéo cả collection vào RAM).
 #
 
-fetch_local_candles_df = fetch_candles_df  # alias của import cũ: from backend.db.local_pkl import fetch_candles_df as fetch_local_candles_df
-has_local_frame = has_frame  # alias của import cũ: from backend.db.local_pkl import has_frame as has_local_frame
+fetch_local_candles_df = fetch_candles_df  # alias của import cũ: from backend.crawl.store import fetch_candles_df as fetch_local_candles_df
+has_local_frame = has_frame  # alias của import cũ: from backend.crawl.store import has_frame as has_local_frame
 
 _CANDLE_CACHE = ByteLRU(env_mb("NORA_CANDLE_CACHE_MB", 1024))
 
@@ -849,9 +950,7 @@ class CandleLoader:
         _CANDLE_CACHE.clear()
 
 
-# ====================================================================================================
-# ↓ core/data/resampler.py  (P9.2: chuyển nguyên văn; module cũ: backend.core.data.resampler)
-# ====================================================================================================
+# ── Resampler ─────────────────────────────────────────────────────────────────────────────────
 # Causal Candle Resampler and Manifest Generator.
 # Phase 1: Single source of truth. All frames (5m, 15m, 1h, 4h, 24h) are strictly
 # resampled from 1m candles. Missing minutes are filled with previous close, volume=0, is_filled=1.
@@ -979,11 +1078,6 @@ def ticks_to_bars(ticks_df: pd.DataFrame, frame: str = "1m", price_col: str = "p
     return out.reset_index()[cols]
 
 
-def ticks_to_1m(ticks_df: pd.DataFrame, price_col: str = "price") -> pd.DataFrame:
-    """Tick -> nến 1m (xem ticks_to_bars): open_time thẳng phút UTC + n_trades, n_fallback, vwap, is_filled."""
-    return ticks_to_bars(ticks_df, "1m", price_col)
-
-
 def resample_from_1m(df_1m: pd.DataFrame, timeframe: str) -> pd.DataFrame:
     """
     Resamples 1m candles into higher timeframe (e.g. 5m, 15m, 1h, 4h, 24h).
@@ -1027,6 +1121,14 @@ def compute_df_sha256(df: pd.DataFrame) -> str:
     return hashlib.sha256(data_bytes).hexdigest()
 
 
+def compute_df_digest(df: pd.DataFrame) -> str:
+    """blake2b trên byte numpy của 6 cột OHLCV+thời gian (digest_1m): kiểm toàn vẹn NHANH (~ms) thay cho sha256 CSV, đổi một bit là lệch."""
+    h = hashlib.blake2b()
+    for c in PKL_COLUMNS:
+        h.update(np.ascontiguousarray(df[c].to_numpy()).tobytes())
+    return h.hexdigest()
+
+
 def generate_manifest(
     symbol: str,
     pool_address: str,
@@ -1065,7 +1167,7 @@ def generate_manifest(
 
     manifest = {
         "source": source,
-        "symbol": symbol,
+        "symbol": (extra_meta or {}).get("symbol") or symbol,   # extra_meta["symbol"] đặt ký hiệu hiển thị (vd. "BTC@perp" khi thư mục là "perp")
         "pool_address": pool_address,
         "base_resolution": "1m",
         "synthetic": synthetic,
@@ -1080,6 +1182,7 @@ def generate_manifest(
         "rows": rows,
         "filled_ratio_1m": round(filled_ratio, 4),
         "sha256_1m": compute_df_sha256(df_1m) if not df_1m.empty else "",
+        "digest_1m": compute_df_digest(df_1m) if not df_1m.empty else "",
     }
     if ticks is not None:
         manifest["ticks"] = ticks
@@ -1103,32 +1206,20 @@ def save_resampled_dataset(
     extra_meta: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
-    Fills 1m gaps, resamples all target timeframes, writes pkl files and manifest.json.
+    Fills 1m gaps, resamples all target timeframes, writes pkl files (mọi khung kèm attrs["nora"] = metadata, xem stamp_attrs) và trả manifest (dict).
+    Ghi nguyên tử từng file; 24h.pkl (khung đọc metadata) ghi CUỐI.
     """
     target_dir = os.path.join(output_dir, symbol)
     os.makedirs(target_dir, exist_ok=True)
 
-    # Read existing manifest to preserve ticks metadata if present
-    existing_manifest_path = os.path.join(target_dir, "manifest.json")
-    existing_ticks = None
-    if os.path.isfile(existing_manifest_path):
-        try:
-            with open(existing_manifest_path, "r", encoding="utf-8") as f:
-                old_m = json.load(f)
-                existing_ticks = old_m.get("ticks")
-        except Exception:
-            pass
-
     df_1m, filled_ratio = _fill_missing_1m_candles_with_ratio(df_1m_raw)
-    
-    # Save 1m
-    df_1m.to_pickle(os.path.join(target_dir, "1m.pkl"))
 
+    frames = {"1m": df_1m}
     rows_dict = {"1m": len(df_1m)}
     df_4h = None
     for tf in timeframes:
         df_resampled = resample_from_1m(df_1m, tf)
-        df_resampled.to_pickle(os.path.join(target_dir, f"{tf}.pkl"))
+        frames[tf] = df_resampled
         rows_dict[tf] = len(df_resampled)
         if tf == "4h":
             df_4h = df_resampled
@@ -1148,20 +1239,20 @@ def save_resampled_dataset(
         crawl_ok=crawl_ok,
         requested_start_ts=requested_start_ts,
         requested_end_ts=requested_end_ts,
-        ticks=existing_ticks,
         extra_meta=extra_meta,
     )
-
-    manifest_path = os.path.join(target_dir, "manifest.json")
-    with open(manifest_path, "w", encoding="utf-8") as f:
-        json.dump(manifest, f, indent=2)
-
+    meta = {k: v for k, v in manifest.items() if k not in _DERIVED_META}
+    meta["rows_1m"] = rows_dict["1m"]
+    for tf in sorted(frames, key=lambda f: META_FRAMES.index(f) if f in META_FRAMES else len(META_FRAMES), reverse=True):   # khung đọc metadata (24h) ghi cuối
+        write_pickle_atomic(stamp_attrs(frames[tf], meta), os.path.join(target_dir, f"{tf}.pkl"))
     return manifest
 
 
-# ====================================================================================================
-# ↓ core/data/quality_gate.py  (P9.2: chuyển nguyên văn; module cũ: backend.core.data.quality_gate)
-# ====================================================================================================
+# Khoá của manifest suy ra được từ metadata khác (không lưu trong attrs): khung/độ phủ/ticks/funding.
+_DERIVED_META = ("rows", "coverage_days", "coverage_ratio", "base_resolution", "ticks", "funding")
+
+
+# ── Quality gate ──────────────────────────────────────────────────────────────────────────────
 # Data Quality Gate Module
 # Validates asset tick and candle data integrity, checks for missing bars, duplicate timestamps,
 # extreme outliers, and zero-volume periods.
@@ -1182,7 +1273,7 @@ class DataQualityStatus:
 
 
 # Cache kết quả gate trong process. Khoá gồm (mtime_ns, size) của MỌI file trong thư mục
-# tài sản -> bất kỳ file nào đổi (crawl lại, sửa pkl, manifest) thì cache tự hết hạn.
+# tài sản -> bất kỳ file nào đổi (crawl lại, sửa pkl) thì cache tự hết hạn.
 # Gate trên 3 năm dữ liệu 1m mất ~11s (sha256 + resample 1,58 triệu nến), cache tránh lặp lại
 # ở mỗi lần backtest/WFA.
 _GATE_CACHE: Dict[tuple, Dict[str, Any]] = {}
@@ -1217,16 +1308,15 @@ def _code_sig() -> str:
 
 
 def _disk_cache_path(key: tuple, data_root: Optional[str]) -> str:
-    """Cache kết quả gate TRÊN ĐĨA (data/cache/shared/quality_gate/; cũ data/_cache/quality_gate/): mỗi job là một tiến trình mới -> không phải kiểm lại ~10 s/tài sản.
-    Khoá = (thư mục, khung, (tên, mtime_ns, size) mọi file của tài sản, chữ ký mã gate)."""
-    import hashlib
-    import json
+    """Cache kết quả gate TRÊN ĐĨA — MỘT thư mục duy nhất cache/shared/quality_gate (không còn thư mục theo gốc dữ liệu): mỗi job là một tiến trình mới -> không phải kiểm lại ~10 s/tài sản.
+    Khoá = (thư mục tuyệt đối, khung, (tên, mtime_ns, size) mọi file của tài sản, chữ ký mã gate) -> gốc dữ liệu khác nhau không đụng nhau."""
     h = hashlib.sha1(json.dumps([list(key[:2]), [list(f) for f in key[2]], _code_sig()]).encode()).hexdigest()
-    return os.path.join(cache_dir(data_root, "quality_gate"), f"{h}.json")
+    d = cache_quality_gate_dir()
+    os.makedirs(d, exist_ok=True)
+    return os.path.join(d, f"{h}.json")
 
 
 def _disk_get(key: tuple, data_root: Optional[str]) -> Optional[Dict[str, Any]]:
-    import json
     try:
         with open(_disk_cache_path(key, data_root), encoding="utf-8") as fh:
             return json.load(fh)
@@ -1235,18 +1325,11 @@ def _disk_get(key: tuple, data_root: Optional[str]) -> Optional[Dict[str, Any]]:
 
 
 def _disk_put(key: tuple, data_root: Optional[str], result: Dict[str, Any]) -> None:
-    import json
     path = _disk_cache_path(key, data_root)
-    tmp = f"{path}.{os.getpid()}.tmp"
     try:
-        with open(tmp, "w", encoding="utf-8") as fh:
-            json.dump(result, fh, ensure_ascii=False, default=json_default)
-        os.replace(tmp, path)
+        write_json_atomic(path, result)
     except (OSError, TypeError, ValueError):
-        try:
-            os.remove(tmp)
-        except OSError:
-            pass
+        pass
 
 
 def evaluate_data_quality(
@@ -1302,23 +1385,15 @@ def _evaluate_data_quality_uncached(
 
     verified_warnings: List[str] = []  # cảnh báo không chặn, gộp vào kết quả cuối
 
-    # Phase 1 Gate Check: manifest.json phải tồn tại và synthetic == False
-    import json
-    manifest_path = os.path.join(s_dir, "manifest.json")
-    manifest = None
-    if os.path.isfile(manifest_path):
-        try:
-            with open(manifest_path, "r", encoding="utf-8") as f:
-                manifest = json.load(f)
-        except Exception:
-            manifest = None
+    # Phase 1 Gate Check: metadata nguồn gốc (attrs["nora"] của pkl) phải tồn tại và synthetic == False
+    manifest = manifest_of_dir(s_dir)
 
     if manifest is None:
         return {
             "symbol": symbol,
             "status": DataQualityStatus.BLOCKED,
             "quality_score": 0.0,
-            "issues": [f"Chặn chạy: {symbol} thiếu manifest.json kiểm định nguồn gốc dữ liệu"],
+            "issues": [f"Chặn chạy: {symbol} thiếu metadata (attrs) kiểm định nguồn gốc dữ liệu"],
             "metrics": {"total_bars": 0, "total_ticks": 0},
         }
 
@@ -1366,16 +1441,27 @@ def _evaluate_data_quality_uncached(
             "metrics": {"total_bars": 0},
         }
 
-    # 4. sha256 1m integrity check
-    manifest_sha = manifest.get("sha256_1m")
-    if manifest_sha:
+    # 4. Toàn vẹn 1m: digest_1m (blake2b byte numpy, nhanh); metadata cũ chưa có digest -> sha256 CSV như trước (chuyển tiếp)
+    manifest_digest = manifest.get("digest_1m")
+    if manifest_digest:
+        actual_digest = compute_df_digest(df_1m)
+        if actual_digest != manifest_digest:
+            return {
+                "symbol": symbol,
+                "status": DataQualityStatus.BLOCKED,
+                "quality_score": 0.0,
+                "issues": [f"Chặn chạy: digest_1m không khớp giữa 1m.pkl và metadata của {symbol}"],
+                "metrics": {"manifest_digest": manifest_digest, "actual_digest": actual_digest},
+            }
+    elif manifest.get("sha256_1m"):
+        manifest_sha = manifest["sha256_1m"]
         actual_sha = compute_df_sha256(df_1m)
         if actual_sha != manifest_sha:
             return {
                 "symbol": symbol,
                 "status": DataQualityStatus.BLOCKED,
                 "quality_score": 0.0,
-                "issues": [f"Chặn chạy: sha256 không khớp giữa 1m.pkl và manifest.json của {symbol}"],
+                "issues": [f"Chặn chạy: sha256 không khớp giữa 1m.pkl và metadata của {symbol}"],
                 "metrics": {"manifest_sha": manifest_sha, "actual_sha": actual_sha},
             }
 
@@ -1430,7 +1516,6 @@ def _evaluate_data_quality_uncached(
     # 8. So resample: mọi khung đang có (bắt buộc 4h), O/H/L/C sai số tương đối < 1e-9, volume < 1e-6
 
     for check_tf in ["4h", "15m", "1h", "5m"]:
-        from backend.crawl.dex import load_candle_df  # lazy: dex <-> store vòng import (dex nạp store ở đầu file)
         df_stored = load_candle_df(symbol, check_tf, data_root)
         if check_tf == "4h" and (df_stored is None or df_stored.empty):
             # Engine Studio/WFA dùng 1m + 4h -> thiếu 4h là không chạy được, phải chặn
@@ -1722,25 +1807,22 @@ def require_data_ok_or_exit(symbols, data_root: Optional[str] = None) -> Dict[st
         raise SystemExit(str(exc)) from None
 
 
-# ====================================================================================================
-# ↓ core/data/promote.py  (P9.2: chuyển nguyên văn; module cũ: backend.core.data.promote)
-# ====================================================================================================
+# ── Promote staging -> data ───────────────────────────────────────────────────────────────────
 # Chuyển tài sản đã crawl từ data_staging/ sang data/<sàn>/<venue>/<SYM> — chỉ khi qua quality gate.
 #
-# sàn (okx | binance) và venue ("cex" | "dex") lấy từ manifest.json; xem backend/db/data_layout.py.
+# sàn (okx | binance) và venue ("cex" | "dex") lấy từ metadata (attrs) của pkl; xem backend/crawl/store.py.
 #
-# Job API `data_promote` (POST /api/data/promote -> api/jobs/runner.py -> run_job). Mặc định chỉ lập kế hoạch (dry-run); apply=True để thực hiện.
+# Job API `data_promote` (POST /api/data/promote -> optimize/process/process.py -> run_job). Mặc định chỉ lập kế hoạch (dry-run); apply=True để thực hiện.
 #
 # - Tài sản trong staging qua gate (không BLOCKED / NEEDS_MORE_DATA) -> chuyển vào data/<sàn>/<venue>/<SYM>
 #   (thư mục cùng tên ở data/ được cất vào _archive_invalid trước).
-# - archive_legacy=True: cất mọi thư mục tài sản trong data/<sàn>/ KHÔNG có manifest.json
+# - archive_legacy=True: cất mọi thư mục tài sản trong data/<sàn>/ KHÔNG có metadata (attrs)
 #   vào data/_archive_invalid/legacy_<ngày>/ (không xoá).
 #
 
-NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 # staging=None: quét `<cache/process>/<job>/staging/` của các job crawl (+ vùng đệm chung cache/process/_staging nếu còn); data=None: gốc market/<sàn> của helper.
 DEFAULTS = {"staging": None, "data": None, "apply": False, "archive_legacy": False}
-STAGING_SUBDIR = "staging"      # khớp api/jobs/batch.STAGING_SUBDIR
+STAGING_SUBDIR = "staging"      # khớp optimize/process/process.STAGING_SUBDIR
 
 
 def _staging_roots() -> List[str]:
@@ -1773,7 +1855,6 @@ BLOCKING = (DataQualityStatus.BLOCKED, DataQualityStatus.NEEDS_MORE_DATA)
 
 def run_job(params=None):
     """Lập kế hoạch (và nếu apply=True thì thực hiện) chuyển tài sản đã qua gate từ staging sang data -> {"actions", "applied"}."""
-    from backend.utils.jobs import options, write_job_result  # lazy: utils.jobs -> jsonsafe (shim) -> store vòng import
     args = options(DEFAULTS, params)
 
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
@@ -1782,7 +1863,7 @@ def run_job(params=None):
     actions = []
     staging_roots = [args.staging] if args.staging else _staging_roots()
 
-    def _market(ex: str) -> str:   # data tường minh = gốc cũ <data>/<sàn>; mặc định = market_root(sàn) (mới, fallback cũ)
+    def _market(ex: str) -> str:   # data tường minh = gốc cũ <data>/<sàn>; mặc định = market_root(sàn)
         return os.path.join(args.data, ex) if args.data else market_root(ex)
 
     for staging in staging_roots:
@@ -1792,7 +1873,7 @@ def run_job(params=None):
             m = read_manifest(sym, data_root=staging) or {}
             venue = str(m.get("venue") or "").lower()
             if venue not in VENUES:
-                print(f"[skip]    {sym:6s} manifest thiếu venue hợp lệ ('{venue}')")
+                print(f"[skip]    {sym:6s} metadata thiếu venue hợp lệ ('{venue}')")
                 continue
             info = (f"venue={m.get('venue')} days={m.get('coverage_days')} filled={m.get('filled_ratio_1m')} "
                     f"crawl_ok={m.get('crawl_ok')} gate={dq['status']}")
@@ -1812,7 +1893,7 @@ def run_job(params=None):
         for ex in EXCHANGES:
             for item in list_assets(_market(ex)):
                 sym, path = item["symbol"], item["path"]
-                if item["venue"] == "legacy" or not os.path.isfile(os.path.join(path, "manifest.json")):
+                if item["venue"] == "legacy" or asset_meta(path)["dataset"] is None:
                     if path in promoted:
                         continue
                     if not any(a[0] == "archive" and a[1] == path for a in actions):
@@ -1831,3 +1912,63 @@ def run_job(params=None):
     out = {"actions": [{"kind": k, "src": a, "dst": b} for k, a, b in actions], "applied": bool(args.apply)}
     write_job_result(out)
     return out
+
+
+# Kho mmap dùng chung (core/data/shared.py cũ: plan/load/fill/export/remove/size_mb) đã chuyển sang backend/optimize/search/evaluate.py
+# (engine-API pass: bộ đệm TỐC ĐỘ của engine, không phải I/O dữ liệu gốc; cạnh SharedExporter).
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Nhận diện tài sản theo thư mục dữ liệu (engine-API pass: từ core/backtest.py khối dex và core/params.data_symbol — chúng đọc đĩa nên không thuộc core).
+# ══════════════════════════════════════════════════════════════════════════
+
+def base_name(symbol: str) -> str:
+    """Tên gốc (không venue / hậu tố @perp) của ký hiệu."""
+    return parse_symbol(split_instrument(symbol)[0])[1]
+
+
+def data_symbol(symbol: str, market: str) -> Tuple[str, str]:
+    """Ký hiệu dữ liệu thực dùng cho backtest: perp -> '<SYM>@perp' nếu có dữ liệu perp thật.
+
+    Trả (symbol_dữ_liệu, nguồn_giá): 'perp' | 'spot_proxy' | 'spot'.
+    """
+    base, _ = split_instrument(symbol)
+    if market != "perp":
+        return base, "spot"
+    perp = f"{base}@perp"
+    return (perp, "perp") if resolve_asset_dir(perp) else (base, "spot_proxy")
+
+
+def is_dex_symbol(symbol: str, data_root: Optional[str] = None) -> bool:
+    """'dex:AERO' -> DEX; 'BTC@perp' / 'cex:...' -> không; tên trần: perp có dữ liệu thì là perp (tương thích cũ), không thì DEX nếu có dex/<TÊN>."""
+    if split_instrument(symbol)[1]:
+        return False
+    venue, name = parse_symbol(symbol)
+    if venue:
+        return venue == "dex"
+    root = data_root or default_data_root()
+    if resolve_asset_dir(f"cex:{name}@perp", data_root=root):
+        return False
+    return os.path.isdir(os.path.join(root, "dex", name))
+
+
+def classify_symbols(symbols: List[str], data_root: Optional[str] = None) -> Tuple[List[str], str]:
+    """Ký hiệu người dùng -> (ký hiệu engine, venue): perp -> 'BTC@perp' (như cũ); DEX -> 'dex:AERO'. Trộn perp với DEX -> ValueError."""
+    dex = [is_dex_symbol(s, data_root) for s in symbols]
+    if any(dex) and not all(dex):
+        raise ValueError("không chạy chung tài sản perp (CEX) với tài sản DEX trong một lần backtest — chọn một loại")
+    if all(dex) and dex:
+        out = []
+        for s in symbols:
+            q = f"dex:{parse_symbol(s)[1]}"
+            if q not in out:
+                out.append(q)
+        return out, "dex"
+    return [s if "@" in s else f"{s}@perp" for s in symbols], "cex"
+
+
+def require_perp(symbols: List[str], what: str) -> None:
+    """WFA / phễu chỉ chạy perp: tài sản DEX (spot AMM, dữ liệu ngắn) chưa có quy trình kiểm định -> từ chối rõ ràng."""
+    bad = [s for s in symbols if is_dex_symbol(str(s))]
+    if bad:
+        raise ValueError(f"{what} chưa hỗ trợ tài sản DEX {bad}: chỉ perp (CEX). Backtest đơn (book_backtest) có hỗ trợ DEX")

@@ -1,0 +1,53 @@
+{
+ "BTC": {
+  "gaps": 227,
+  "funding_rows": 540,
+  "funding_exactly_on_hour": 402,
+  "start": "2026-04-07 16:00:00",
+  "end": "2026-10-04 15:00:00",
+  "signals": {
+   "ema20_50": {
+    "up": 38,
+    "dn": 38
+   },
+   "ema5_13": {
+    "up": 163,
+    "dn": 162
+   }
+  }
+ },
+ "ETH": {
+  "gaps": 208,
+  "funding_rows": 540,
+  "funding_exactly_on_hour": 402,
+  "start": "2026-04-07 16:00:00",
+  "end": "2026-10-04 15:00:00",
+  "signals": {
+   "ema20_50": {
+    "up": 51,
+    "dn": 50
+   },
+   "ema5_13": {
+    "up": 174,
+    "dn": 173
+   }
+  }
+ },
+ "SOL": {
+  "gaps": 201,
+  "funding_rows": 540,
+  "funding_exactly_on_hour": 402,
+  "start": "2026-04-07 16:00:00",
+  "end": "2026-10-04 15:00:00",
+  "signals": {
+   "ema20_50": {
+    "up": 43,
+    "dn": 42
+   },
+   "ema5_13": {
+    "up": 162,
+    "dn": 161
+   }
+  }
+ }
+}

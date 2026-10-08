@@ -51,7 +51,7 @@ export default function EduResult({ result, jobLine }) {
       content: (
         <div className="edu-tour-body">
           <p className="edu-tour-lead">
-            Các chỉ số này tóm tắt lợi nhuận và rủi ro của đường vốn trong lần chạy này. Công thức dưới đây khớp đúng với mã tính (backend/core/metrics):
+            Các chỉ số này tóm tắt lợi nhuận và rủi ro của đường vốn trong lần chạy này. Công thức dưới đây khớp đúng với mã tính (backend/metrics):
           </p>
           <div className="edu-tour-section">
             <b>Ý nghĩa & Cách tính toán:</b>

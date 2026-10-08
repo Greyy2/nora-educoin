@@ -1,11 +1,11 @@
-"""Biểu đồ tín hiệu (core/analytics/signal_explain.py + /api/studio/chart/explain): điểm tín hiệu = cạnh lên của tín hiệu engine, mỗi điều kiện
+"""Biểu đồ tín hiệu (metrics/charts.py::explain + /api/studio/chart/explain): điểm tín hiệu = cạnh lên của tín hiệu engine, mỗi điều kiện
 mang giá trị hai vế và đúng/sai khớp phép so sánh, đường chỉ báo tách đúng thang (giá vs dao động)."""
 import numpy as np
 import pytest
 
-from backend.core.analytics import signal_explain as se
-from backend.core.data.loader import CandleLoader
-from backend.live import signals as ls
+from backend.metrics import charts as se
+from backend.crawl.store import CandleLoader
+from backend.core import backtest as bt
 from test_strategy_book import T0, market  # noqa: F401  (market là fixture: 70 ngày, 3 tài sản)
 
 DAY = 86_400_000
@@ -19,8 +19,8 @@ ST = {"id": "x", "side": "LONG", "position": POS,
 
 def test_explain_signals_match_engine_and_conditions(market):
     sym, end = "BBB@perp", T0 + 68 * DAY
-    frames = {fr: CandleLoader(sym, frame=fr, use_cache=False).load_data(0, end) for fr in ls.required_frames(sym, [ST], "1h")}
-    ref = ls.evaluate(sym, [ST], frames, "1h")
+    frames = {fr: CandleLoader(sym, frame=fr, use_cache=False).load_data(0, end) for fr in bt.required_frames(sym, [ST], "1h")}
+    ref = bt.evaluate_signals(sym, [ST], frames, "1h")
     start = int(ref["t"][300])
     out = se.explain(sym, ST, "1h", frames, start, end)
     t = ref["t"]
@@ -46,7 +46,7 @@ def test_explain_signals_match_engine_and_conditions(market):
 
 def test_explain_window_outside_data_raises(market):
     sym = "BBB@perp"
-    frames = {fr: CandleLoader(sym, frame=fr, use_cache=False).load_data(0, T0 + 68 * DAY) for fr in ls.required_frames(sym, [ST], "1h")}
+    frames = {fr: CandleLoader(sym, frame=fr, use_cache=False).load_data(0, T0 + 68 * DAY) for fr in bt.required_frames(sym, [ST], "1h")}
     with pytest.raises(ValueError):
         se.explain(sym, ST, "1h", frames, T0 + 400 * DAY, T0 + 401 * DAY)
 

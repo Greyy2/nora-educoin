@@ -13,8 +13,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from backend.core.params.template import collect_placeholders, resolve_placeholders, split_params
-from backend.core.data.resampler import save_resampled_dataset
+from backend.core.params import collect_placeholders, resolve_placeholders, split_params
+from backend.crawl.store import save_resampled_dataset
 
 T0 = 1_700_006_400_000
 D = 86_400_000
@@ -61,14 +61,16 @@ def perp_root(tmp_path, monkeypatch):
 
 
 def test_dex_uses_verified_pool_fee(tmp_path, monkeypatch):
-    from backend.core.params.builder import build_params
+    from backend.core.params import build_params
     root = tmp_path / "data"
     monkeypatch.setenv("NORA_LOCAL_DATA_ROOT", str(root))
     df = _rw(35)
     save_resampled_dataset(symbol="POOL", output_dir=str(root / "dex"), df_1m_raw=df, pool_address="0x", crawl_ok=True,
                            requested_start_ts=int(df.open_time.min()), requested_end_ts=int(df.open_time.max()),
                            extra_meta={"venue": "dex", "pool_fee_rate": 0.0005})
-    params = build_params("LONG_x", {"match": [], "stop": []}, "LONG", {}, "dex", "POOL")
+    from backend.core.models import data_source
+    from backend.core.params import manifest_pool_fee
+    params = build_params("LONG_x", {"match": [], "stop": []}, "LONG", {}, "dex", manifest_pool_fee(data_source().manifest("POOL")))
     assert params.fee_rate == 0.0005 and params.maker_fee_rate == 0.0005
     assert build_params("LONG_x", {"match": [], "stop": []}, "LONG", {}, "dex", None).fee_rate == 0.003
 
@@ -80,17 +82,5 @@ def _load_script(name):
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
-
-
-def _wait_scan(job_id, timeout=120):
-    import time as _t
-    from backend.api.jobs.scan import get_scan_job
-    end = _t.time() + timeout
-    while _t.time() < end:
-        job = get_scan_job(job_id)
-        if job and job.get("status") in ("completed", "failed"):
-            return job
-        _t.sleep(0.2)
-    raise AssertionError("scan không kết thúc")
 
 

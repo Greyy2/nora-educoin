@@ -1,7 +1,7 @@
 #!/bin/bash
 # Nora Backtest — hệ thống backtest độc lập
 #   API + giao diện: http://localhost:18010
-#   Mọi việc nặng (backtest, WFA, phễu...) chạy thành job nền qua API (backend/api/jobs/runner.py)
+#   Mọi việc nặng (backtest, WFA, phễu...) chạy thành job nền qua API (backend/optimize/process/process.py)
 #   API chạy như systemd user service (nora-api) trong nora.slice — ngân sách RAM chung của Nora.
 set -e
 BASE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -19,7 +19,7 @@ fi
 
 if ! systemctl --user cat nora-api.service >/dev/null 2>&1 || ! systemctl --user cat nora.slice >/dev/null 2>&1; then
     echo "⚙️  Chưa cài systemd user unit — đang cài..."
-    "$BASE/backend/utils/ops/install_user_units.sh"
+    "$BASE/ops/install_user_units.sh"
 fi
 
 systemctl --user restart nora-api

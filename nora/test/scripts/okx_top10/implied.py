@@ -87,6 +87,9 @@ for _tf in (5, 30, 120):   # thêm khung (nối cuối để giữ nguyên chỉ
     SIGS_DEF.append((f"đóng cửa cắt thuận EMA20 khung {_tf}m (hồi về trung bình)", "ema_mr", _tf, 20))
     SIGS_DEF.append((f"đóng cửa cắt ngược BB-mid(20) khung {_tf}m", "bb_tr", _tf, 20))
     SIGS_DEF.append((f"phá đáy/đỉnh 20 nến ngược chiều khung {_tf}m", "don_tr", _tf, 20))
+# Thêm khung ngày (1440m) cho bot swing dài ngày như Physical (bits 60, 61 - an toàn với signed int64)
+SIGS_DEF.append(("đóng cửa cắt ngược EMA20 khung 1440m", "ema_tr", 1440, 20))
+SIGS_DEF.append(("đóng cửa cắt ngược BB-mid(20) khung 1440m", "bb_tr", 1440, 20))
 FEAT_NAMES = ["động lượng 15 nến 1m", "động lượng 60 nến 1m", "động lượng 240 nến 1m", "ATR1m/ATR1h (biến động)", "phiên giờ VN"]
 _SIGC = {}
 
@@ -529,14 +532,14 @@ def engine(T, O, H, L, C, bstart, bend, SIGL, SIGS, FEAT, SIGM, SIGG, FPX, FNOT,
     """Mỗi basket chạy từ nến sau fill đầu đến HẾT dữ liệu của mã (không dùng thời điểm thoát thật). Chưa đóng đến cuối -> mark-to-market tại nến cuối (why=7)."""
     nbk = len(bstart)
     anchor = flags[0]; tcap_ref = flags[1]; tcap_loss = flags[2]; tp_usd = flags[3]; sl_usd = flags[4]; sig_id0 = flags[5]; sw_kind = flags[6]; sw_dir = flags[7]
-    sw_thr = fl2[3]
+    sw_thr = fl2[3]; sig_tight = fl2[2]
     layer = anchor == 3
     for b in nb.prange(nbk):
         s = float(S[b]); j0 = foff[b]; j1 = foff[b + 1]; nf = j1 - j0
         i_start = bstart[b]; i_end = bend[b]
         nu = nf if layer else 1
         ua = np.zeros(nu); upk = np.zeros(nu); utr = np.zeros(nu); un = np.zeros(nu)
-        ual = np.zeros(nu, np.int8); utref = np.zeros(nu, np.int64); utm = np.zeros(nu, np.int8)
+        ual = np.zeros(nu, np.int8); utref = np.zeros(nu, np.int64); utm = np.zeros(nu, np.int8); usi = np.zeros(nu, np.int8)
         nextf = 0; nact = 0; sum_n = 0.0; sum_q = 0.0; first_px = 0.0; last_px = 0.0; jstart = j0
         ncl = 0
         tpmode = int(fl2[1])
@@ -548,10 +551,10 @@ def engine(T, O, H, L, C, bstart, bend, SIGL, SIGS, FEAT, SIGM, SIGG, FPX, FNOT,
             while nextf < nf and FACT[j0 + nextf] <= i:
                 j = j0 + nextf; px = FPX[j]; nt = FNOT[j]
                 if layer:
-                    ua[nextf] = px; upk[nextf] = px; utr[nextf] = px; un[nextf] = nt; ual[nextf] = 1; utref[nextf] = T[i]; utm[nextf] = 0
+                    ua[nextf] = px; upk[nextf] = px; utr[nextf] = px; un[nextf] = nt; ual[nextf] = 1; utref[nextf] = T[i]; utm[nextf] = 0; usi[nextf] = 0
                 else:
                     if nact == 0:
-                        first_px = px; upk[0] = px; utr[0] = px; utref[0] = T[i]; ual[0] = 1; utm[0] = 0
+                        first_px = px; upk[0] = px; utr[0] = px; utref[0] = T[i]; ual[0] = 1; utm[0] = 0; usi[0] = 0
                     sum_n += nt; sum_q += nt / px; last_px = px
                     un[0] = sum_n
                     if anchor == 0:
@@ -584,11 +587,14 @@ def engine(T, O, H, L, C, bstart, bend, SIGL, SIGS, FEAT, SIGM, SIGG, FPX, FNOT,
                 rc = s * (C[i] / a - 1.0)
                 rpk = s * (upk[u] / a - 1.0); rtr = s * (utr[u] / a - 1.0)
                 hit = 0; xr = 0.0; mid = 30000
-                # 1) thoát theo chỉ báo trên nến ĐÃ ĐÓNG: quyết định từ dữ liệu <= nến i-1, khớp tại open nến i
+                # 1) thoát theo chỉ báo trên nến ĐÃ ĐÓNG: quyết định từ dữ liệu <= nến i-1
                 if SIGM[b] != 0:
                     bits = SIGL[i] if s > 0 else SIGS[i]
                     if (bits & np.uint64(SIGM[b])) != np.uint64(0) and ro >= SIGG[b]:
-                        hit = 8; xr = ro; mid = 0
+                        if sig_tight > 0.0:
+                            usi[u] = 1   # kích hoạt tight trailing 2 bước
+                        else:
+                            hit = 8; xr = ro; mid = 0
                 if hit == 0:
                     stop_r = -INF; why = 0
                     if slp < INF:
@@ -605,6 +611,10 @@ def engine(T, O, H, L, C, bstart, bend, SIGL, SIGS, FEAT, SIGM, SIGG, FPX, FNOT,
                         v = s * (upk[u] * (1.0 - s * gb[b]) / a - 1.0)
                         if v > stop_r:
                             stop_r = v; why = 3
+                    if usi[u] == 1 and gb[b] < INF and sig_tight > 0.0:
+                        v = s * (upk[u] * (1.0 - s * (gb[b] * sig_tight)) / a - 1.0)
+                        if v > stop_r:
+                            stop_r = v; why = 8
                     if bes[b] < INF and rpk >= bes[b]:
                         v = bes_off[b]
                         if v > stop_r:
@@ -859,7 +869,8 @@ class Searcher:
             tpm = 1.0
             if cfg.get("tpsw"):
                 tpm = 2.0; flags[6] = cfg["tpsw"]["kind"]; flags[7] = cfg["tpsw"]["dir"]
-        fl2 = np.array([float(cfg.get("tpk") or 0.0), tpm, -INF, float(cfg["tpsw"]["thr"]) if cfg.get("tpsw") else 0.0])
+        sig_tight = float(cfg["sig"].get("tight", -INF)) if cfg.get("sig") and isinstance(cfg.get("sig"), dict) else -INF
+        fl2 = np.array([float(cfg.get("tpk") or 0.0), tpm, sig_tight, float(cfg["tpsw"]["thr"]) if cfg.get("tpsw") else 0.0])
         sigm = np.zeros(n, np.int64); sigg = np.full(n, -INF)
         if cfg.get("sig"):
             sigm = np.asarray(cfg["sig"]["mask"], np.int64)[g]; sigg = np.asarray(cfg["sig"]["gate"], float)[g]
@@ -986,6 +997,15 @@ class Searcher:
                                 if oo > bo + 1e-9:
                                     bm, bo = bm | (1 << k), oo
                     cfg["sig"]["mask"][gi] = bm; cfg["sig"]["gate"][gi] = bgt; o = bo
+                if getattr(self, "sig_tight_grid", None) and cfg.get("tr") is not None:
+                    cur_t = float(cfg["sig"].get("tight", 0.0))
+                    best_t = cur_t; bo = o
+                    for t_val in self.sig_tight_grid:
+                        c2 = _cp(cfg); c2["sig"]["tight"] = t_val
+                        oo = self.score(c2, idx)["obj"]
+                        if oo > bo + 1e-9:
+                            best_t, bo = t_val, oo
+                    cfg["sig"]["tight"] = best_t; o = bo
             if cfg.get("tc") is not None:
                 for ref in (0, 1):
                     for loss in (0, 1):
@@ -1039,7 +1059,7 @@ def _cp(c):
         if d.get(k) is not None:
             d[k] = dict(d[k])
     if d.get("sig") is not None:
-        d["sig"] = dict(mask=np.array(d["sig"]["mask"], np.int64), gate=np.array(d["sig"]["gate"], float))
+        d["sig"] = dict(mask=np.array(d["sig"]["mask"], np.int64), gate=np.array(d["sig"]["gate"], float), tight=float(d["sig"].get("tight", 0.0)))
     return d
 
 
@@ -1050,7 +1070,7 @@ def _cfg_key(c):
             (round(c["bes"]["m"], 3), c["bes"]["off"]) if c.get("bes") is not None else None,
             (round(c["brd"]["m"], 3), c["brd"]["off"]) if c.get("brd") is not None else None,
             (c["tc"]["min"], c["tc"]["ref"], c["tc"]["loss"]) if c.get("tc") is not None else None, bool(c.get("tpt")),
-            (tuple(np.asarray(c["sig"]["mask"]).tolist()), tuple(np.asarray(c["sig"]["gate"], float).tolist())) if c.get("sig") else None, tuple(c["tpsw"].values()) if c.get("tpsw") else None)
+            (tuple(np.asarray(c["sig"]["mask"]).tolist()), tuple(np.asarray(c["sig"]["gate"], float).tolist()), float(c["sig"].get("tight", 0.0))) if c.get("sig") else None, tuple(c["tpsw"].values()) if c.get("tpsw") else None)
 
 
 # ===================================================================== phân đoạn chế độ (regime) + nhóm lớp mã
@@ -1230,6 +1250,8 @@ def cfg_params(cfg):
     if cfg.get("sig"):
         p["indicator_exit"] = [dict(group=gi, names=sig_names(int(m)), min_return_at_open=None if not np.isfinite(gt) else float(gt))
                                for gi, (m, gt) in enumerate(zip(np.asarray(cfg["sig"]["mask"]), np.asarray(cfg["sig"]["gate"], float)))]
+        if cfg["sig"].get("tight", 0.0) > 0:
+            p["indicator_exit_tight_trail"] = round(float(cfg["sig"]["tight"]), 3)
     if cfg.get("sl") is not None:
         p["sl_mult"] = [None if not np.isfinite(v) else round(float(v), 4) for v in cfg["sl"]]
     if cfg.get("tr") is not None:
@@ -1485,11 +1507,11 @@ def joint_random(S, ai, n=5000, seed=None, top=6):
     return best
 
 
-def polish(S, cfg, n=4000, seed=0):
+def polish(S, cfg, n=4000, seed=0, idx=None):
     seed = seed + SEED * 1000
     """Leo đồi ngẫu nhiên (nhiễu log-chuẩn đồng thời nhiều tham số) từ nghiệm hiện tại; chỉ nhận khi mục tiêu (đã gồm ràng buộc PnL) tăng."""
     rng = np.random.default_rng(seed + 11)
-    best = _cp(cfg); bo = S.score(best)["obj"]
+    best = _cp(cfg); bo = S.score(best, idx)["obj"]
     for it in range(n):
         if S.over():
             break
@@ -1529,15 +1551,17 @@ def polish(S, cfg, n=4000, seed=0):
                 c["tpk"] = max(0.0, float(c["tpk"]) * f)
             elif k == "sig":
                 gi = int(rng.integers(0, len(c["sig"]["mask"]))); r_ = rng.random()
-                if r_ < 0.35:
+                if getattr(S, "sig_tight_grid", None) and r_ < 0.25:
+                    c["sig"]["tight"] = float(rng.choice(S.sig_tight_grid))
+                elif r_ < 0.5:
                     c["sig"]["mask"][gi] = 1 << int(rng.integers(0, len(SIGS_DEF)))
-                elif r_ < 0.6:
+                elif r_ < 0.75:
                     c["sig"]["mask"][gi] = int(c["sig"]["mask"][gi]) ^ (1 << int(rng.integers(0, len(SIGS_DEF))))
                 else:
                     c["sig"]["gate"][gi] = float(rng.choice(S.sig_gates))
             elif k == "tpsw" and c.get("tpt"):
                 k_, d_, t_ = SW_GRID[int(rng.integers(0, len(SW_GRID)))]; c["tpsw"] = dict(kind=k_, dir=d_, thr=t_)
-        o = S.score(c)["obj"]
+        o = S.score(c, idx)["obj"]
         if o > bo + 1e-9:
             best, bo = c, o
     return best
@@ -1553,7 +1577,7 @@ def single_elem_rows(S, ai):
     return rows
 
 
-def split_tune(S, cfg, grp, G):
+def split_tune(S, cfg, grp, G, idx=None):
     """Tách tham số theo nhóm: khởi tạo từ nghiệm chung rồi tune lại từng nhóm. Trả (cfg2, obj)."""
     S.grp = grp; S.G = G
     c2 = _cp(cfg)
@@ -1569,10 +1593,10 @@ def split_tune(S, cfg, grp, G):
     else:
         c2["tr"] = dict(gb=np.full(G, float(c2["tr"]["gb"][0])), act=np.full(G, float(c2["tr"]["act"][0])))
     if c2.get("sig") is not None:
-        c2["sig"] = dict(mask=np.full(G, int(np.asarray(c2["sig"]["mask"])[0]), np.int64), gate=np.full(G, float(np.asarray(c2["sig"]["gate"])[0])))
+        c2["sig"] = dict(mask=np.full(G, int(np.asarray(c2["sig"]["mask"])[0]), np.int64), gate=np.full(G, float(np.asarray(c2["sig"]["gate"])[0])), tight=float(c2["sig"].get("tight", 0.0)))
     elif "sig" in S.allowed:
-        c2["sig"] = dict(mask=np.zeros(G, np.int64), gate=np.full(G, S.sig_gates[0]))
-    o = S.tune(c2, passes=3)
+        c2["sig"] = dict(mask=np.zeros(G, np.int64), gate=np.full(G, S.sig_gates[0]), tight=0.0)
+    o = S.tune(c2, passes=3, idx=idx)
     return c2, o
 
 
@@ -1696,7 +1720,8 @@ def cfg_from_params(p, G):
         mask = np.zeros(G, np.int64); gate = np.full(G, -INF)
         for e in ie:
             g = int(e["group"]); mask[g] = sum(1 << names.index(nm) for nm in e["names"]); gate[g] = inf_(e["min_return_at_open"])
-        c["sig"] = dict(mask=mask, gate=gate)
+        tight = float(p.get("indicator_exit_tight_trail", 0.0))
+        c["sig"] = dict(mask=mask, gate=gate, tight=tight)
     return c
 
 
@@ -1723,6 +1748,24 @@ def fit_bot(name, out_dir="out", verbose=True, warm=None):
         S.sig_gates = [0.0, 0.002, 0.005, 0.01]
     elif len(lo_h) >= 5:
         S.tc_grid = sorted(set(G_TCMIN) | {float(round(x)) for x in np.percentile(lo_h, [25, 50, 75]) if x > 2})
+
+    bot_slug = load.slug(name)
+    # CÁC ĐIỀU CHỈNH CHÍNH XÁC:
+    # 1. Dark-Wood: cấm thoát theo giới hạn thời gian (tc), ép dùng trailing hoặc chỉ báo
+    if "dark_wood" in bot_slug:
+        S.allowed.discard("tc")
+        S.allowed.add("sig")
+        S.allowed.add("tr")
+        P("Dark-Wood: Cấm time-cap cứng (tc), ép dùng trailing và chỉ báo")
+
+    # 2. 01pp: kích hoạt cơ chế 2 bước (chỉ báo kích hoạt trailing sát)
+    if "01pp" in bot_slug:
+        S.sig_tight_grid = [0.0, 0.2, 0.35, 0.5]
+        P("01pp: Bật cơ chế 2-bước (chỉ báo kích hoạt tight trailing)")
+
+    # 3. Firsthand: mẫu quá nhỏ (15 rổ), không ép
+    if D.n <= 15:
+        P(f"{name}: Mẫu quá nhỏ (N={D.n}), giữ quy tắc đơn giản, không ép khớp gượng")
     loser_stats = dict(n_losers=int((df.ret.values < 0).sum()), loser_hold_min_p25_50_75=[round(float(x), 1) for x in np.percentile(lo_h, [25, 50, 75])] if len(lo_h) else None,
                        loser_ret_med=round(float(df.ret.values[df.ret.values < 0].mean()), 3) if len(lo_h) else None,
                        loser_mae_med=round(float(np.median(df.mae.values[df.ret.values < 0])), 3) if len(lo_h) else None, sl_class_share=round(sl_share, 3))
@@ -1743,6 +1786,10 @@ def fit_bot(name, out_dir="out", verbose=True, warm=None):
             wgrp, winfo = np.zeros(D.n, np.int64), dict(method="không tách")
         S.grp = wgrp; S.G = int(wgrp.max()) + 1
         cfg = cfg_from_params(br["params"], S.G)
+        for elem_k in ("tc", "bes", "brd", "tr", "sl", "tp", "sig"):
+            if elem_k not in S.allowed:
+                cfg[elem_k] = None
+        cfg = clean(cfg)
         o_w = S.score(cfg)
         P(f"khởi động nóng từ {warm}: viol={o_w['viol']:.4f} (JSON: {wj['metrics']['viol_total']}) obj={o_w['obj']:.3f}")
         steps = []; drops = []; form_check = wj["formulas"].get("kiểm_tra_dạng_bằng_engine") or {}
@@ -1800,7 +1847,13 @@ def fit_bot(name, out_dir="out", verbose=True, warm=None):
 
         # ---- tách theo lớp mã / chế độ
         splits = {}
-        sp_defs = [("lớp mã", group_class(D)), ("từng mã", group_sym(D)), ("tuần lịch", group_week(D)), ("tuần mịn", group_week(D, min_n=6, max_groups=30)), ("tuần cực mịn", group_week(D, min_n=3, max_groups=40)), ("mã x phiên giờ", group_sym_hour(D)), ("điểm đổi chế độ", group_cp(D, df))]
+        if "physical" in bot_slug:
+            # Giới hạn số nhóm tuần và số tham số trước (tránh 38 tham số cho 39 rổ)
+            sp_defs = [("lớp mã", group_class(D, min_n=15)), ("tuần lịch", group_week(D, min_n=15, max_groups=2)), ("điểm đổi chế độ", group_cp(D, df))]
+        elif D.n <= 20:
+            sp_defs = [("lớp mã", group_class(D, min_n=10)), ("tuần lịch", group_week(D, min_n=10, max_groups=2))]
+        else:
+            sp_defs = [("lớp mã", group_class(D)), ("từng mã", group_sym(D)), ("tuần lịch", group_week(D)), ("tuần mịn", group_week(D, min_n=6, max_groups=30)), ("tuần cực mịn", group_week(D, min_n=3, max_groups=40)), ("mã x phiên giờ", group_sym_hour(D)), ("điểm đổi chế độ", group_cp(D, df))]
         best_split = None
         for key, (grp, info) in sp_defs:
             pass
@@ -1841,7 +1894,10 @@ def fit_bot(name, out_dir="out", verbose=True, warm=None):
     if warm:
         # tìm kiếm cục bộ từ nghiệm tốt nhất: luân phiên leo đồi ngẫu nhiên và coordinate descent tới hết ngân sách
         S.deadline = _time.time() + 0.95 * B_
-        best_c = _cp(final_cfg); best_o = S.score(best_c)["obj"]; rd = 0
+        best_c = _cp(final_cfg)
+        S.tune(best_c, passes=1)
+        best_o = S.score(best_c)["obj"]
+        rd = 0
         while not S.over():
             c = polish(S, best_c, n=3000, seed=100 + rd + SEED * 7); rd += 1
             if S.score(c)["obj"] > best_o + 1e-9:

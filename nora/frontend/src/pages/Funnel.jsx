@@ -16,7 +16,7 @@ import useAsync from '../hooks/useAsync'
 import useJob from '../hooks/useJob'
 import { useCatalog } from '../context/Catalog'
 import { listFunnelRuns, getFunnelRun, getFunnelStats, getFunnelAlphas } from '../api'
-import { STAGES, STAGE_META, RUN_STATUS, shortId, fmtCount, stageShort } from '../lib/funnel'
+import { ALL_STAGES, STAGE_META, RUN_STATUS, shortId, fmtCount, stageShort } from '../lib/funnel'
 import { isNum } from '../lib/format'
 import { fmtDateTime, fullDate } from '../lib/format'
 import { legLabel } from '../lib/strategyLabel'
@@ -57,7 +57,7 @@ function RunsPage() {
 }
 
 /* ------------------------------- xem một lượt ------------------------------- */
-// tầng thật sự lưu lệnh; S2/S4 (chống ăn may, Monte Carlo) và FINAL xem lệnh qua tầng gần nhất có lệnh
+// tầng thật sự lưu lệnh; S4 (Monte Carlo + DSR), S2 cũ và FINAL xem lệnh qua tầng gần nhất có lệnh
 const TRADE_STAGES = ['S1_backtest', 'S3_wfa', 'S5_sizing', 'S6_holdout']
 const TRADE_STAGE_OF = { S2_antiluck: 'S1_backtest', S4_montecarlo: 'S3_wfa', FINAL: 'S6_holdout' }
 const tradeStageOf = (st) => (TRADE_STAGES.includes(st) ? st : TRADE_STAGE_OF[st] || null)
@@ -95,7 +95,7 @@ function RunView({ runId }) {
   // job chỉ hỏi khi lượt đã thất bại (lấy log lỗi, 1 lần); lúc đang chạy dùng run.progress để khỏi poll chồng 2 nguồn
   const jobQ = useJob(run?.job_id && run?.status === 'failed' ? run.job_id : null)
 
-  const stage = STAGES.includes(sp.get('stage')) ? sp.get('stage') : 'S1_backtest'
+  const stage = ALL_STAGES.includes(sp.get('stage')) ? sp.get('stage') : 'S1_backtest'
   const tab = TABS.some((t) => t.value === sp.get('tab')) ? sp.get('tab') : 'stats'
   const sel = sp.get('sel') || ''
   // mặc định chỉ hiện tóm tắt; phần chi tiết tầng (và dữ liệu nặng của nó) chỉ mở khi chọn tầng / tab / alpha
@@ -125,7 +125,7 @@ function RunView({ runId }) {
     if (!needTops || live) return undefined
     let dead = false
     // song song: các tầng độc lập nhau, tuần tự thì tốn 7 RTT
-    Promise.all(STAGES.slice(1).map((st) => getFunnelStats(runId, st).then((s) => [st, s.reject_reasons[0]], () => null))) // tầng chưa có số liệu -> bỏ qua
+    Promise.all(run.counts.slice(1).map((c) => c.stage).map((st) => getFunnelStats(runId, st).then((s) => [st, s.reject_reasons[0]], () => null))) // tầng chưa có số liệu -> bỏ qua
       .then((rs) => {
         if (dead) return
         const next = {}
@@ -159,14 +159,15 @@ function RunView({ runId }) {
   if (!run) return <Loading what="lượt chạy" />
 
   const strategies = run.strategies
-  const deadIdx = deadAt ? STAGES.indexOf(deadAt.stage) : -1
+  const order = run.counts.map((c) => c.stage)
+  const deadIdx = deadAt ? order.indexOf(deadAt.stage) : -1
   const stageCount = run.counts.find((c) => c.stage === stage)
-  const stageIn = stageCount?.input ?? (deadIdx >= 0 && STAGES.indexOf(stage) > deadIdx ? 0 : null)
+  const stageIn = stageCount?.input ?? (deadIdx >= 0 && order.indexOf(stage) > deadIdx ? 0 : null)
   const stageEmpty = stage !== 'S0_generate' && stageIn === 0
-  const prevStage = STAGES[STAGES.indexOf(stage) - 1]
+  const prevStage = order[order.indexOf(stage) - 1]
   const prevCount = run.counts.find((c) => c.stage === prevStage)
   const deadReasons = deadQ.data?.reject_reasons?.length ? deadQ.data.reject_reasons : (deadAt?.top_reject ? [deadAt.top_reject] : [])
-  const finalPassed = isNum(run.counts[7].passed) ? run.counts[7].passed : (deadAt ? 0 : null)
+  const finalPassed = isNum(run.counts[run.counts.length - 1].passed) ? run.counts[run.counts.length - 1].passed : (deadAt ? 0 : null)
   const tradesOk = stage !== 'S0_generate'
   const topAlphas = pickQ.data?.items || []
   const tradeAlpha = sel || topAlphas[0]?.alpha_id || ''
@@ -191,7 +192,7 @@ function RunView({ runId }) {
         {deadAt && (
           <div className="n-fn-dead" role="status">
             <h3>{fmtCount(0)} alpha qua {stageShort(deadAt.stage)}</h3>
-            <span className="n-note">Cả {fmtCount(deadAt.input)} alpha vào {stageShort(deadAt.stage)} đều bị loại, nên các tầng sau ({stageShort(STAGES[deadIdx + 1])} → FINAL) chưa có alpha nào và chưa chạy.</span>
+            <span className="n-note">Cả {fmtCount(deadAt.input)} alpha vào {stageShort(deadAt.stage)} đều bị loại, nên các tầng sau ({stageShort(order[deadIdx + 1])} → FINAL) chưa có alpha nào và chưa chạy.</span>
             {deadReasons.length > 0 && (
               <ul aria-label="Lý do loại chính">
                 {deadReasons.slice(0, 4).map((r) => <li key={r.code}>{r.label || r.code} <span className="mono muted">{r.code}</span> · <b className="mono">{fmtCount(r.count)}</b> alpha ({deadAt.input ? Math.round((r.count / deadAt.input) * 100) : 0}%)</li>)}

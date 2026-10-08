@@ -18,7 +18,7 @@ Là người vận hành, tôi muốn API mặc định chỉ nghe `127.0.0.1`, 
 ## Tasks / Subtasks
 
 - [ ] Đổi mặc định trong `nora-api.service.in`
-- [ ] Cập nhật `nora/start.sh` và tài liệu (`backend/utils/ops/README.md`)
+- [ ] Cập nhật `nora/start.sh` và tài liệu (`ops/README.md`)
 - [ ] Cập nhật `vite.config.js` nếu cần (dev đang `host: 0.0.0.0`)
 - [ ] Kiểm bằng `ss -ltn`
 

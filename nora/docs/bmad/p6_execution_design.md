@@ -66,7 +66,7 @@ class Venue(Protocol):
     def next_event(self, slot: int) -> Optional[Union[Fill, OrderRejected]]: ...   # kéo: sim khớp theo nến hiện tại; OKX đọc hàng đợi poll
 ```
 
-`SimVenue` thêm `begin_bar(slot, t, o, h, l, c, position_view)` (position_view = avg, qty, pos_leverage, mmr, is_long để tính giá thanh lý) và `end_adverse(slot)` (chuyển sang phía có lợi: TP).
+`SimVenue` thêm `begin_bar(slot, t, o, h, l, c, position_view)` (position_view = avg, qty, pos_leverage, mmr, is_long để tính giá thanh lý) và `end_adverse(slot)` (chuyển sang phía có lợi: TP). Mặc định `caps` giữ `post_only=False, rounds_qty=False` để giữ bit-identical với Numba kernel; profile chạy bóng (shadow paper) của bot khởi tạo `SimVenue(post_only=True, rounds_qty=True)` và nạp nến con (15m/1m) để mô hình hoá sát sàn thật.
 
 ## 4. Một nến của một slot (thay `on_bar`)
 

@@ -6,8 +6,10 @@ import pandas as pd
 import pytest
 
 import golden_scenarios as gs
-from backend.core.strategy import book as sb
-from backend.core.strategy.pydsl import compile_code, profiles
+from backend.optimize.book import build as sb
+from backend.core.params import RISK, materialize, schema_defaults
+from backend.alpha.compile import compile_code
+from backend.core import backtest as profiles
 
 KEMA_CODE = '''
 class KemaLong(SimpleAlgorithm):
@@ -27,13 +29,13 @@ class KemaLong(SimpleAlgorithm):
 
 def _core_strategy():
     cand = sb.BY_ID["kema_long"]
-    return sb.materialize(cand, sb.schema_defaults(cand))
+    return materialize(cand, schema_defaults(cand))
 
 
 def _run(strategies, symbols, start_ms, end_ms, trade_start, root):
-    from backend.core.backtest.portfolio import PortfolioEngine, RiskConfig
+    from backend.core.backtest import PortfolioEngine, RiskConfig
     with gs.data_root_env(str(root)):
-        eng = PortfolioEngine(symbols, strategies, start_ms, end_ms, trade_start_ts=trade_start, risk=RiskConfig.from_dict(sb.RISK),
+        eng = PortfolioEngine(symbols, strategies, start_ms, end_ms, trade_start_ts=trade_start, risk=RiskConfig.from_dict(RISK),
                               use_cache=False)
         eng.run()
         return gs.canonicalize(eng.get_results())

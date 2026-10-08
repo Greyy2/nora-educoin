@@ -5,7 +5,7 @@ import time
 
 import pytest
 
-from backend.api.jobs import batch as bj
+from backend.optimize.process import process as bj
 
 
 @pytest.fixture
@@ -66,13 +66,15 @@ def test_wfa_links_report_and_build_keeps_alphas_and_funnel_record(home):
     assert not any((home / "cache" / "process").iterdir())
 
 
-def test_temporary_and_live_kinds_untouched_edu_cleaned(home):
+def test_custom_goes_to_memory_live_bot_cleaned_edu_cleaned(home):
     c = _job(home, A, "custom_backtest", result={"r": 1})
     l = _job(home, B, "live_bot", result={"r": 1})
     e = _job(home, C, "edu_precompute", result={"r": 1})
     for d in (c, l, e):
         bj._finish(str(d), 0)
-    assert c.exists() and l.exists() and not e.exists()
+    assert not c.exists() and not l.exists() and not e.exists()                  # job tạm: vào bộ nhớ API; bot xong: chỉ còn log -> xoá
+    assert bj.status(A)["result"] == {"r": 1} and bj.status(A)["status"] == "done"    # đọc lại từ bộ nhớ
+    assert bj.status_etag(A) and bj.status(B) is None
     assert not (home / "backtest").exists() or not os.listdir(home / "backtest")
 
 
@@ -82,12 +84,12 @@ def test_other_kinds_cleaned_on_done_and_crawl_kept_only_while_staged(home):
     c2 = _job(home, C, "data_crawl", result={"r": 1})
     asset = c2 / "staging" / "cex" / "BTC"
     asset.mkdir(parents=True)
-    (asset / "manifest.json").write_text("{}")
+    (asset / "1m.pkl").write_bytes(b"")            # tài sản = thư mục có .pkl
     for d in (pr, c1, c2):
         bj._finish(str(d), 0)
     assert not pr.exists() and not c1.exists() and c2.exists()      # c2 còn tài sản chờ promote
     pm = _job(home, D, "data_promote", result={"r": 1})
-    (asset / "manifest.json").unlink(); asset.rmdir()               # promote đã chuyển hết
+    (asset / "1m.pkl").unlink(); asset.rmdir()               # promote đã chuyển hết
     bj._finish(str(pm), 0)
     assert not pm.exists() and not c2.exists()
 
@@ -98,9 +100,9 @@ def test_failed_keeps_log_7_days_then_pruned(home):
     live = _job(home, C, "live_bot", state="failed", age_days=30)
     cust = _job(home, D, "custom_backtest", state="failed", age_days=30)
     bj._finish(str(new), 1)   # đã failed -> không lưu
-    assert bj.prune_failed_jobs() == [A]
-    assert not old.exists() and new.exists() and live.exists() and cust.exists()
-    assert [j["id"] for j in bj.list_jobs(10)] == [D, C, B]   # job lỗi còn hiện trong Lịch sử
+    assert sorted(bj.prune_failed_jobs()) == sorted([A, C, D])
+    assert not old.exists() and new.exists() and not live.exists() and not cust.exists()
+    assert [j["id"] for j in bj.list_jobs(10)] == [B]   # job lỗi còn hiện trong Lịch sử
 
 
 def test_kill_mid_persist_then_rerun_idempotent(home, monkeypatch):
@@ -122,17 +124,67 @@ def test_persist_finished_jobs_dry_run_default_then_apply(home):
     _job(home, A, "book_backtest", state="done", result={"k": 1})
     _job(home, B, "custom_backtest", state="done", result={"k": 1})
     rows = bj.persist_finished_jobs()
-    assert [(r["id"], r["action"]) for r in rows] == [(A, "would_persist")]
+    assert [(r["id"], r["action"]) for r in rows] == [(A, "would_persist"), (B, "would_clean")]
     assert (home / "cache" / "process" / A).exists() and not (home / "backtest" / A).exists()
-    assert [r["action"] for r in bj.persist_finished_jobs(apply=True)] == ["persisted"]
-    assert (home / "backtest" / A / "result.json").is_file() and (home / "cache" / "process" / B).exists()
+    assert [r["action"] for r in bj.persist_finished_jobs(apply=True)] == ["persisted", "cleaned"]
+    assert (home / "backtest" / A / "result.json").is_file() and not (home / "cache" / "process" / B).exists() and bj.status(B)["result"] == {"k": 1}
 
 
 def test_portfolio_dashboard_reads_persisted_book_backtest(home):
-    from backend.api.routers import portfolio
+    from backend.routes import portfolio
     res = {"metrics": {}, "daily_returns": [], "trade_list": []}
     d = _job(home, A, "book_backtest", result=res)
     bj._finish(str(d), 0)
     assert portfolio._latest_done_backtest() == A
     r, jid = portfolio._result_for(A)
     assert jid == A and r == res
+
+
+def test_ephemeral_lru_bounded_and_enforce_lifecycle_on_start(home, monkeypatch):
+    bj._EPH.clear()
+    monkeypatch.setattr(bj, "EPHEMERAL_MAX", 2)
+    ids = ["20261007_100000_aaaaaa", "20261007_100001_aaaaaa", "20261007_100002_aaaaaa"]
+    for i in ids:
+        bj._finish(str(_job(home, i, "custom_backtest", result={"i": i})), 0)
+    assert bj.status(ids[0]) is None and bj.status(ids[2])["result"] == {"i": ids[2]} and list(bj._EPH) == ids[1:]
+    # API vừa khởi động: custom xong còn sót + bot đã dừng bị dọn, bot đang chạy / job lỗi mới giữ nguyên
+    stale = _job(home, "20261007_110000_bbbbbb", "custom_backtest", state="done", result={"r": 1})
+    dead_bot = _job(home, "20261007_110001_bbbbbb", "live_bot", state="cancelled")
+    run_bot = _job(home, "20261007_110002_bbbbbb", "live_bot", state="running", extra={})
+    bj_pid = os.getpid()
+    meta = json.loads((run_bot / "job.json").read_text())
+    meta["pid"] = bj_pid
+    (run_bot / "job.json").write_text(json.dumps(meta))
+    fresh_fail = _job(home, "20261007_110003_bbbbbb", "book_wfa", state="failed")
+    bj.enforce_lifecycle()
+    assert not stale.exists() and not dead_bot.exists() and run_bot.exists() and fresh_fail.exists()
+
+
+def test_writer_does_not_recreate_removed_job_dir_and_orphans_are_pruned(home, monkeypatch):
+    from backend.crawl.store import write_job_result
+    root = home / "cache" / "process"
+    d = _job(home, A, "live_bot", state="cancelled")
+    monkeypatch.setenv("NORA_JOB_DIR", str(d))
+    assert write_job_result({"ok": 1}) == str(d / "result.json") and (d / "result.json").exists()   # job còn: ghi bình thường
+    import shutil
+    shutil.rmtree(d)                                  # API xoá thư mục job, bot ghi result.json sau đó
+    assert write_job_result({"ok": 1}) is None and not d.exists()
+    old = time.time() - 3600
+    orphans = []
+    for name, fn in ((B, "result.json"), (C, "out.log")):   # mồ côi: không job.json
+        o = root / name
+        o.mkdir()
+        (o / fn).write_text("{}")
+        os.utime(o / fn, (old, old))
+        os.utime(o, (old, old))
+        orphans.append(o)
+    fresh = root / D
+    fresh.mkdir()
+    (fresh / "out.log").write_text("x")               # mồ côi nhưng mới (< 10 phút): giữ
+    for keep in ("_mem", "_staging"):
+        (root / keep).mkdir()
+        os.utime(root / keep, (old, old))
+    running = _job(home, "20261007_100004_eeeeee", "live_bot")
+    assert sorted(bj.enforce_lifecycle()["pruned"]) == sorted([B, C])
+    assert not any(o.exists() for o in orphans) and fresh.exists() and running.exists()
+    assert (root / "_mem").exists() and (root / "_staging").exists()

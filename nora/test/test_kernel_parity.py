@@ -18,13 +18,13 @@ import pytest
 
 import golden_scenarios as gs
 import reference_engine as ref
-from backend.core.backtest import kernel as _kernel_io
-from backend.core.backtest.engine import BacktestEngine
-from backend.core.params.builder import build_params, dca_budget_check, resolve_costs
-from backend.core.backtest.portfolio import PortfolioEngine, RiskConfig
-from backend.core.data.resampler import save_resampled_dataset
-from backend.core.strategy import book as sb
-from backend.core.params.schema import StrategyParams
+from backend.core import backtest as _kernel_io
+from backend.core.backtest import BacktestEngine, PortfolioEngine, RiskConfig
+from backend.core.params import build_params, dca_budget_check, resolve_costs
+from backend.crawl.store import save_resampled_dataset
+from backend.optimize.book import build as sb
+from backend.core.params import BASE_POSITION, materialize
+from backend.core.params import StrategyParams
 
 T0, M, DAY = gs.T0, gs.M, gs.DAY
 N_CONFIGS = int(os.environ.get("NORA_PARITY_CONFIGS", "330"))   # ~97% chạy được (còn lại bị từ chối ở cả hai engine): >= 300 thực chạy
@@ -331,16 +331,16 @@ def rand_strategies(rng, symbols):
             tf = rng.choice(["1m", "5m", "15m"])
             tree = [[[_f(tf, "rsi_14"), "<" if side == "LONG" else ">", thr]]]
             stop = _stop_tree(rng, side)
-            pos = {**sb.BASE_POSITION, **rand_position(rng, side)}
+            pos = {**BASE_POSITION, **rand_position(rng, side)}
             _fit_dca_budget(rng, pos)
             st = {"id": f"bot{i}_{side.lower()}", "side": side, "tree": tree, "stop": stop, "position": pos, "dca": _dca_gate(rng)}
         else:
             params = rand_signal_params(rng, cand)
             pos = rand_position(rng, cand["side"], force_perp=cand["id"].startswith(("breakout",)) and False)
             _fit_dca_budget(rng, {**pos})
-            full = {**sb.BASE_POSITION, **cand.get("position", {}), **pos}
+            full = {**BASE_POSITION, **cand.get("position", {}), **pos}
             _fit_dca_budget(rng, full)
-            st = sb.materialize(cand, params)
+            st = materialize(cand, params)
             st["position"] = full
             st.pop("signal_params", None)
         if len(symbols) > 1 and rng.random() < 0.15:
@@ -446,9 +446,12 @@ def _exotic_params(rng, name, side):
 
 
 def _run_single(cls, symbol, venue, flows, start, end, trade_start, capital, exotic):
+    from backend.core.models import data_source
+    from backend.core.params import manifest_pool_fee
     eng = cls(0, 0, symbol, start, end, trade_start_ts=trade_start, initial_capital=capital)
     for name, ast, side, pos in flows:
-        eng.add_strategy_flow(name, build_params(name, ast, side, pos, venue, symbol=symbol))
+        eng.add_strategy_flow(name, build_params(name, ast, side, pos, venue,
+                                                pool_fee=manifest_pool_fee(data_source().manifest(symbol)) if venue == "dex" else None))
     for name, params in exotic:
         eng.add_strategy_flow(name, params)
     eng.load_data()
@@ -507,7 +510,7 @@ def test_run_many_equals_independent_runs(market_root):
     overrides = [{"stop_loss_rate": 1.5, "leverage": 5}, {"take_profit_rate": 2.0, "cooldown": 0, "stop_fill": "extreme"},
                  {"trailing_stop": 2.0, "dca_max_layers": 2, "dca_step_pct": 0.8, "order_size_pct": 10.0, "sizing": "margin_pct"}]
     cand = sb.BY_ID["trend_long"]
-    st = sb.materialize(cand, {"sig.adx_min": 10, "sig.ema_fast": 5, "sig.ema_slow": 20, "sig.trend_tf": "1h", "sig.entry_tf": "15m",
+    st = materialize(cand, {"sig.adx_min": 10, "sig.ema_fast": 5, "sig.ema_slow": 20, "sig.trend_tf": "1h", "sig.entry_tf": "15m",
                                "sig.dch_n": 8}, stop_loss_rate=2.0, take_profit_rate=1.0, trailing_stop=1.0)
     syms = ["AAA@perp", "BBB@perp", "CCC@perp"]
     with gs.data_root_env(market_root):
@@ -526,7 +529,7 @@ def test_run_many_equals_independent_runs(market_root):
 def test_empty_after_halt_and_no_signal_paths(market_root):
     """Không có nến sau trade_start / không tín hiệu: chỉ có mẫu vốn; kết quả y hệt bản Python."""
     cand = sb.BY_ID["reversion_long"]
-    st = sb.materialize(cand, {"sig.rsi_lo": 1, "sig.entry_tf": "5m"}, stop_loss_rate=1.5)
+    st = materialize(cand, {"sig.rsi_lo": 1, "sig.entry_tf": "5m"}, stop_loss_rate=1.5)
     with gs.data_root_env(market_root):
         cfg = {"symbols": ["AAA@perp", "BBB@perp"], "strategies": [st], "start": T0, "end": T0 + DAYS * DAY,
                "trade_start": T0 + 30 * DAY, "capital": 10_000.0, "risk": RiskConfig(), "close_at_end": True}
@@ -537,7 +540,7 @@ def test_empty_after_halt_and_no_signal_paths(market_root):
 
 def test_account_ruin_path(market_root):
     """Cháy tài khoản: ký quỹ 100% vốn, đòn bẩy 125, phí cao -> lỗ thanh lý (ký quỹ + phí vào + phí thoát) > vốn => vốn <= 0, ruined_at, không mở lệnh mới."""
-    pos = {**sb.BASE_POSITION, "market": "perp", "leverage": 125, "sizing": "margin_pct", "order_size_pct": 100.0, "exit_unit": "pct",
+    pos = {**BASE_POSITION, "market": "perp", "leverage": 125, "sizing": "margin_pct", "order_size_pct": 100.0, "exit_unit": "pct",
            "stop_loss_rate": 0.0, "take_profit_rate": 0.0, "trailing_stop": 0.0, "timeout": 0, "cooldown": 0, "fee_rate": 0.003,
            "maker_fee_rate": 0.003, "slippage_rate": 0.0, "maintenance_margin_rate": 1e-9, "dca_max_layers": 0, "dca_step_pct": 0.0}   # mmr ~0: lỗ thanh lý = cả ký quỹ (+ 2 lần phí) > vốn
     strategies = [{"id": "yolo_long", "side": "LONG", "tree": [[[_f("1m", "rsi_14"), "<", 60]]], "stop": [], "position": pos},

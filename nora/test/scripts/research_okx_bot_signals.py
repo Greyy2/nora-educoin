@@ -8,7 +8,7 @@ ER20 và ADX14 khung 4h (đi ngang hay xu hướng), khoảng cách tới EMA200
 AUC = xác suất giá trị lúc vào > giá trị ở một nến ngẫu nhiên cùng mã: 0,5 = không có thông tin; < 0,35 hoặc > 0,65 = dấu hiệu rõ.
 Bước dồn được đo theo bội số ATR% lúc vào (để so trực tiếp với dca_step_pct của Nora).
 
-Chạy: backend/utils/ops/run_limited.sh --no-lock -- test/scripts/research_okx_bot_signals.py
+Chạy: ops/run_limited.sh --no-lock -- test/scripts/research_okx_bot_signals.py
 """
 import gzip
 import json
@@ -28,7 +28,7 @@ FMS = {"15m": 900_000, "1h": 3_600_000, "4h": 14_400_000}
 
 
 def features(root, sym):
-    from backend.core.signals.kernels import compute
+    from backend.core.indicator import compute
     fr = {f: pd.read_pickle(os.path.join(root, sym, "perp", f"{f}.pkl")) for f in ("15m", "1h", "4h")}
     h = fr["1h"]
     c = h["close"]
@@ -58,7 +58,7 @@ def auc(a, b):
 
 
 def main():
-    from backend.db.data_layout import default_data_root
+    from backend.crawl.store import default_data_root
     root = os.path.join(default_data_root(), "cex")
     have = {s for s in os.listdir(root) if os.path.isdir(os.path.join(root, s, "perp"))}
     raw = json.load(gzip.open(os.path.join(RAW, "okx_bots_raw.json.gz")))

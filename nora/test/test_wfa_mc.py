@@ -1,5 +1,4 @@
 import pytest
-import numpy as np
 
 
 def test_generate_folds_no_overlap():
@@ -9,7 +8,7 @@ def test_generate_folds_no_overlap():
     test_start[i+1] >= test_end[i]
     """
     # Import generate_folds from wfa
-    from backend.wfa.walk_forward import generate_folds
+    from backend.wfa.wfa import generate_folds
     
     start_ts = 1700000000000
     D = 86_400_000
@@ -30,32 +29,3 @@ def test_generate_folds_no_overlap():
         )
         assert folds[i]["test_end_ts"] - folds[i]["test_start_ts"] == 10 * D
         assert folds[i]["train_end_ts"] <= folds[i]["test_start_ts"]
-
-
-def test_mc_reproducible_and_mdd():
-    """
-    Test Phase 4:
-    - Hai lần chạy cùng seed cho kết quả giống hệt nhau
-    - Trade list có lệnh lỗ -> MDD > 0
-    - quantile_curves có trong kết quả
-    """
-    from backend.carlo.monte_carlo import run_monte_carlo_simulation
-    
-    # Mock trades list with 40 trades (some winning, some losing)
-    rng = np.random.default_rng(42)
-    mock_trades = []
-    for i in range(40):
-        pnl = float(rng.normal(-10.0, 50.0))  # has negative returns
-        mock_trades.append({
-            "trade_id": i + 1,
-            "pnl_usd": pnl,
-            "estimated_pnl_usd": pnl,
-            "profit_pct": pnl / 1000.0 * 100.0,
-        })
-        
-    res1 = run_monte_carlo_simulation(mock_trades, simulations=200, seed=12345)
-    res2 = run_monte_carlo_simulation(mock_trades, simulations=200, seed=12345)
-    
-    assert res1["percentile_mdd"]["p50"] > 0, "MDD phải lớn hơn 0 khi có lệnh lỗ"
-    assert res1["percentile_mdd"] == res2["percentile_mdd"], "Cùng seed phải cho kết quả giống hệt nhau"
-    assert "quantile_curves" in res1, "Phải có quantile_curves để vẽ fan chart"

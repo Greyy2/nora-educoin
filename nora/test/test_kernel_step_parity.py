@@ -18,11 +18,9 @@ import pytest
 
 import golden_scenarios as gs
 from backend.core import backtest as bt
-from backend.core.backtest import KernelBook, PortfolioEngine, SlotDriver
-from backend.core.execute.account import Account
-from backend.core.execute.models import PositionType
-from backend.core.execute.tracker import PositionTracker, _next_id
-from backend.live.paper import PaperBook
+from backend.core.backtest import KernelBook, PaperBook, PortfolioEngine, SlotDriver, PositionTracker
+from backend.core.models import Account, PositionType, next_id
+from backend.live.live import load_kernel_book, save_kernel_book
 from test_event_path_parity import STAGES, _ATTRS, _canon, _hx, _make_config, _snap
 from test_kernel_parity import hexify, market_root, rand_portfolio_config  # noqa: F401  (market_root là fixture)
 from test_risk_engine import _risk_cfg
@@ -159,8 +157,8 @@ def test_step_equals_batch(market_root, chunk, tmp_path):
             d = str(tmp_path / f"s{seed}")
             for part in _chunks(feed, rng):
                 three.step_bars(part)
-                three.save(d)
-                three = KernelBook.load(d)
+                save_kernel_book(three, d)
+                three = load_kernel_book(d, cls=KernelBook)
                 _COV["chunks_saved"] += 1
             assert hexify(three.trades) == hexify(one.trades) and one.trades is not None, f"{label}: trades save/load != 1 nến/lần"
             for name in ("P", "PI", "F", "I", "LG", "PS", "PSI", "LPX"):
@@ -221,7 +219,7 @@ def test_kernel_book_equals_paper_book_both_engines(market_root):
 
 # ── (c) SlotDriver == PositionTracker ──────────────────────────────────────────
 def _run_world_slot(cfg):
-    base = _next_id()
+    base = next_id()
     acct = Account(cfg["initial"])
     trackers = [PositionTracker(k, 7, f"S{k}", "f", params, PositionType.LONG if side == "LONG" else PositionType.SHORT,
                                 initial_capital=cfg["initial"], ledger=acct) for k, (side, params) in enumerate(cfg["slots"])]
@@ -301,24 +299,24 @@ def test_save_load_files_and_validation(market_root, tmp_path):
     with gs.data_root_env(market_root):
         cfg, pe, kb, feed = _small_book(market_root)
         kb.step_bars(feed[:3000])
-        kb.save(str(tmp_path))
+        save_kernel_book(kb, str(tmp_path))
         assert sorted(os.listdir(tmp_path)) == ["paper.json", "paper_state.npz"]
         meta = json.load(open(tmp_path / "paper.json", encoding="utf-8"))
         assert meta["schema"] == bt.KB_SCHEMA and meta["symbols"] == pe.symbols
         assert [s["strategy"] for s in meta["slots"]] == [s["strategy"] for s in kb.slots] and meta["params_hash"] == kb.params_hash()
         assert len(np.load(tmp_path / "paper_state.npz", allow_pickle=False)["F"]) == kb.nt           # không pickle lớp
-        KernelBook.load(str(tmp_path), strategies=cfg["strategies"])                                   # băm khớp
+        load_kernel_book(str(tmp_path), strategies=cfg["strategies"], cls=KernelBook)                                   # băm khớp
         other = [{**cfg["strategies"][0], "position": {**cfg["strategies"][0]["position"], "leverage": 3.7}}] + cfg["strategies"][1:]
         with pytest.raises(ValueError):
-            KernelBook.load(str(tmp_path), strategies=other)
+            load_kernel_book(str(tmp_path), strategies=other, cls=KernelBook)
         meta["params_hash"] = "0" * 64
         json.dump(meta, open(tmp_path / "paper.json", "w", encoding="utf-8"))
         with pytest.raises(ValueError):
-            KernelBook.load(str(tmp_path))
+            load_kernel_book(str(tmp_path), cls=KernelBook)
         meta["schema"] = 99
         json.dump(meta, open(tmp_path / "paper.json", "w", encoding="utf-8"))
         with pytest.raises(ValueError):
-            KernelBook.load(str(tmp_path))
+            load_kernel_book(str(tmp_path), cls=KernelBook)
 
 
 def test_time_must_increase_and_compaction_is_transparent(market_root):

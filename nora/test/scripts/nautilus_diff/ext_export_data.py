@@ -1,6 +1,6 @@
 """Export bars (aligned + gapped), EMA-cross signals and funding for BTC/ETH/SOL perp 1h (OKX) to out/ext/.
 Same construction as export_data.py (aligned: open[t+1]:=close[t]; gapped: synthetic gaps never right after a signal bar), per symbol.
-Run: PYTHONDONTWRITEBYTECODE=1 backend/utils/ops/run_limited.sh --no-lock -- test/scripts/nautilus_diff/ext_export_data.py
+Run: PYTHONDONTWRITEBYTECODE=1 ops/run_limited.sh --no-lock -- test/scripts/nautilus_diff/ext_export_data.py
 """
 import json
 import os
@@ -19,7 +19,7 @@ SIG = {"ema20_50": (20, 50), "ema5_13": (5, 13)}
 
 
 def export(sym, seed):
-    df = pd.read_pickle(os.path.join(NORA, f"data/okx/cex/{sym}/perp/1h.pkl")).reset_index(drop=True)
+    df = pd.read_pickle(os.path.join(NORA, f"data/market/okx/cex/{sym}/perp/1h.pkl")).reset_index(drop=True)
     sig = pd.DataFrame({"open_time": df.open_time})
     for name, (f, s) in SIG.items():
         ef, es = df.close.ewm(span=f, adjust=False).mean(), df.close.ewm(span=s, adjust=False).mean()
@@ -48,7 +48,7 @@ def export(sym, seed):
     al.to_csv(os.path.join(OUT, f"bars_{sym}_aligned.csv"), index=False)
     gp.to_csv(os.path.join(OUT, f"bars_{sym}_gapped.csv"), index=False)
     sg.to_csv(os.path.join(OUT, f"signals_{sym}.csv"), index=False)
-    fu = pd.read_pickle(os.path.join(NORA, f"data/okx/cex/{sym}/perp/funding.pkl"))
+    fu = pd.read_pickle(os.path.join(NORA, f"data/market/okx/cex/{sym}/perp/funding.pkl"))
     t0, t1 = int(raw.open_time.iloc[0]), int(raw.open_time.iloc[-1])
     fu = fu[(fu.funding_time >= t0) & (fu.funding_time <= t1)].sort_values("funding_time")[["funding_time", "rate"]]
     fu.to_csv(os.path.join(OUT, f"funding_{sym}.csv"), index=False)

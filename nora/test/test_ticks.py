@@ -2,7 +2,7 @@
 test_ticks.py — crawl tick swap on-chain EVM (chỉ DEX) + lưu cửa sổ trượt (không gọi mạng).
 
 - Giải mã log Swap Aerodrome/Uniswap v2 + v3 (hai chiều, price/amount/side), vai trò token trong pool, quy WETH -> USD, chia đôi đoạn getLogs.
-- days > 14 bị cắt về 14; tick cũ hơn cửa sổ bị cắt khi lưu; save/load dex; manifest["ticks"]; ticks_to_1m; job (từ chối CEX) + router.
+- days > 14 bị cắt về 14; tick cũ hơn cửa sổ bị cắt khi lưu; save/load dex; manifest["ticks"]; ticks_to_bars; job (từ chối CEX) + router.
 """
 import json
 import os
@@ -12,10 +12,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from backend.core.data import okx_crawler as oc
-from backend.core.data import tick_crawler as tc
-from backend.core.data.resampler import ticks_to_1m, ticks_to_bars
-from backend.db import tick_storage as ts
+from backend.crawl import cex as oc
+from backend.crawl import dex as tc
+from backend.crawl.store import asset_meta, manifest_of_dir, ticks_to_bars
+from data_helpers import write_asset
+from backend.crawl import dex as ts
 
 DAY = 86_400_000
 USDC, AERO_T = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913", "0x940181a94a35a4569e4529a3cdfb74e38fd98631"
@@ -24,11 +25,7 @@ POOL = "0x6cdcb1c4a4d1c3c6d054b27ac5b77e89eafb971d"
 
 
 def _asset(root, venue, sym, **manifest):
-    d = os.path.join(root, venue, sym)
-    os.makedirs(d, exist_ok=True)
-    with open(os.path.join(d, "manifest.json"), "w", encoding="utf-8") as fh:
-        json.dump({"venue": venue, "symbol": sym, **manifest}, fh)
-    return d
+    return write_asset(root, venue, sym, **manifest)
 
 
 def _ticks(n, end_ms=None, step_ms=1000, price=100.0, prefix="t"):
@@ -109,15 +106,11 @@ class _FakeRpc:
 CFG = {"uniswap_v2_factories": ["0x8909dc15e40173ff4699343b6eb8132c65e18ec6"]}
 
 
-def test_network_config_defaults_and_override(tmp_path, monkeypatch):
+def test_network_config_defaults():
     base = tc.network_config("base")
     assert base["chain_id"] == 8453 and base["rpc_url"].startswith("https://") and base["max_rps"] <= 8 and base["eth_usd"]["source"] == "okx_candles"
-    monkeypatch.setattr(tc, "DATA_HOME", str(tmp_path))
-    os.makedirs(tmp_path / "_meta")
-    (tmp_path / "_meta" / "dex_networks.json").write_text(json.dumps({"base": {"rpc_url": "https://x.example", "max_rps": 2}, "arb": {"rpc_url": "https://arb", "chain_id": 42161}}))
-    over = tc.network_config("base")
-    assert over["rpc_url"] == "https://x.example" and over["max_rps"] == 2 and over["chain_id"] == 8453      # chỉ ghi đè khoá được nêu
-    assert tc.network_config("arb")["chain_id"] == 42161 and tc.NETWORKS["base"]["rpc_url"] == base["rpc_url"]
+    base["rpc_url"] = "https://x.example"                                                                    # bản sao: không đổi NETWORKS
+    assert tc.network_config("base")["rpc_url"] == tc.NETWORKS["base"]["rpc_url"] != base["rpc_url"]
     with pytest.raises(ValueError):
         tc.network_config("khong_co")
 
@@ -147,14 +140,15 @@ def test_read_pool_onchain_roles_stable_volatile_fee():
         tc.read_pool_onchain(_FakeRpc(tokens=((USDC, "USDC", 6), (WETH, "WETH", 18))), POOL, "FOO / BAR", CFG)
 
 
-def test_pool_onchain_cached_in_dex_pool_json(tmp_path):
+def test_pool_onchain_cached_in_ticks_attrs(tmp_path):
     d = _asset(str(tmp_path), "dex", "AERO")
-    (tmp_path / "dex" / "AERO" / "dex_pool.json").write_text(json.dumps({"asset": "AERO", "name": "AERO / USDC"}))
     fake = _FakeRpc()
     first = tc.pool_onchain(fake, d, POOL, "AERO / USDC", CFG)
-    doc = json.load(open(os.path.join(d, "dex_pool.json")))
-    assert doc["asset"] == "AERO" and doc["onchain"]["pool_address"] == POOL and doc["onchain"]["base_index"] == 1 and doc["onchain"]["checked_at"] > 0
+    assert first["pool_address"] == POOL and first["base_index"] == 1 and first["checked_at"] > 0
     n = len(fake.calls)
+    assert n > 0 and not os.path.exists(os.path.join(d, "dex_pool.json"))                                          # không còn dex_pool.json
+    tc.save_ticks(_ticks(3), "AERO", retention_days=3, source="evm_swaps", data_root=str(tmp_path), onchain=first)   # cache = attrs ticks.parquet
+    assert asset_meta(d)["onchain"] == first
     assert tc.pool_onchain(fake, d, POOL, "AERO / USDC", CFG) == first and len(fake.calls) == n                 # lần 2 đọc cache, không gọi RPC
     tc.pool_onchain(fake, d, "0x" + "ab" * 20, "AERO / USDC", CFG)
     assert len(fake.calls) > n                                                                                    # đổi pool -> đọc lại
@@ -330,13 +324,14 @@ def test_crawl_dex_ticks_end_to_end(tmp_path, monkeypatch):
     assert df["timestamp_ms"].max() == (head_ts - 100 * 2) * 1000 and (df["reserve_base"] == 2000).all() and (df["reserve_quote"] == 1000).all()
     assert (df["mid_price"] == 0.5).all()                                      # dự trữ 1000/2000 sau swap
     assert df["tx_hash"].tolist() == [f"0x{i:02x}:{2 * i + 1}" for i in (4, 3, 2, 1, 0)] and df["block_number"].is_monotonic_increasing
-    man = json.load(open(os.path.join(root, "dex", "AERO", "manifest.json")))["ticks"]
+    man = asset_meta(os.path.join(root, "dex", "AERO"))["ticks"]
     assert man["source"] == "evm_swaps" and man["network"] == "base" and man["quote"] == "USDC" and man["rows"] == 5 and man["pool_type"] == "aerodrome_v2"
     assert man["price_basis"]["price"].startswith("fill") and man["price_basis"]["mid_price"].startswith("post-swap")
     assert man["ts_method"] == "linear_interpolation" and man["reserves_basis"] == "post_swap" and man["fee_rate"] == 0.003 and man["stable"] is False
     assert man["quote_usd_source"] == "stable_quote=1" and man["sync_matched_pct"] == 100.0 and man["log_span"] == 500 and man["chain_id"] == 8453
     assert man["reserve_dev_bps_median"] == pytest.approx(0.0, abs=1e-6)                                      # giá swap 0.5 = dự trữ 1000/2000
-    assert json.load(open(os.path.join(root, "dex", "AERO", "dex_pool.json")))["onchain"]["pool_type"] == "aerodrome_v2"
+    assert asset_meta(os.path.join(root, "dex", "AERO"))["onchain"]["pool_type"] == "aerodrome_v2"
+    assert not os.path.exists(os.path.join(root, "dex", "AERO", "dex_pool.json")) and not os.path.exists(os.path.join(root, "dex", "AERO", "manifest.json"))
 
     fake2 = _FakeRpc(logs, head=head, head_ts=head_ts)
     monkeypatch.setattr(tc, "Rpc", lambda *a, **k: fake2)
@@ -367,7 +362,7 @@ def test_crawl_dex_weth_quote_converts_with_eth_candles(tmp_path, monkeypatch):
     assert seen["base"] == "ETH" and res["rows"] == 1 and df["quote_usd"].iloc[0] == 3000.0
     assert df["price"].iloc[0] == pytest.approx(0.02 * 3000) and df["volume_usd"].iloc[0] == pytest.approx(2 * 3000)
     assert df["reserve_base"].iloc[0] == 10 and df["reserve_quote"].iloc[0] == 5                                 # dự trữ giữ theo đơn vị token, không đổi USD
-    man = json.load(open(os.path.join(root, "dex", "VVV", "manifest.json")))["ticks"]
+    man = asset_meta(os.path.join(root, "dex", "VVV"))["ticks"]
     assert man["quote"] == "WETH" and man["quote_usd_source"] == "okx_eth_usdt_swap_1m_open"
 
 
@@ -418,15 +413,15 @@ def test_save_prunes_old_dedups_and_roundtrips(tmp_path):
         df = ts.load_ticks_df(sym, data_root=root)
         assert len(df) == 25 and df["tx_hash"].is_unique and df["timestamp_ms"].is_monotonic_increasing and (df["price"] == 101.0).all()
         assert ts.resolve_tick_file(sym, root)
-    m = json.load(open(os.path.join(root, "dex", "AERO", "manifest.json")))
+    m = manifest_of_dir(os.path.join(root, "dex", "AERO"))
     assert m["ticks"]["source"] == "evm_swaps" and m["ticks"]["synthetic"] is False and m["ticks"]["rows"] == 25 and m["venue"] == "dex"
     assert m["ticks"]["window_days"] == 3 and m["ticks"]["start_ts"] == int(df["timestamp_ms"].min()) and m["ticks"]["end_ts"] == int(df["timestamp_ms"].max())
     assert m["ticks"]["crawled_at"] > 0 and "network" not in m["ticks"]                       # extra_meta của lần lưu gần nhất
     ts.save_ticks(_ticks(7, prefix="d"), "AERO", retention_days=14, source="evm_swaps", data_root=root, extra_meta={"network": "base"})
     assert len(ts.load_ticks_df("AERO", data_root=root)) == 32
     assert ts.resolve_tick_file("BTC", root) is None and ts.load_ticks_df("NOPE", data_root=root).empty
-    assert json.load(open(os.path.join(root, "dex", "AERO", "manifest.json")))["ticks"]["network"] == "base"
-    from backend.db.local_pkl import has_ticks
+    assert asset_meta(os.path.join(root, "dex", "AERO"))["ticks"]["network"] == "base"
+    from backend.crawl.store import has_ticks
     assert has_ticks("dex:AERO", data_root=root) and not has_ticks("BTC", data_root=root)
     cov = ts.tick_coverage(root)
     assert [c["symbol"] for c in cov] == ["AERO"] and cov[0]["venue"] == "dex" and cov[0]["rows"] == 32 and cov[0]["window_days"] == 14
@@ -448,11 +443,11 @@ def test_save_rejects_bad_input(tmp_path):
     assert not os.path.exists(os.path.join(root, "dex", "AERO", "ticks.parquet"))
 
 
-def test_ticks_to_1m_ohlcv_n_trades_vwap_and_fill():
+def test_ticks_to_bars_1m_ohlcv_n_trades_vwap_and_fill():
     m0 = 1_700_000_040_000
     t = pd.DataFrame({"timestamp_ms": [m0 + 50_000, m0 + 1000, m0 + 30_000, m0 + 3 * 60_000 + 7000], "price": [12.0, 10.0, 8.0, 11.0],
                       "volume_usd": [12.0, 20.0, 24.0, 11.0], "amount": [1.0, 2.0, 3.0, 1.0]})         # chưa sắp xếp: trong phút đầu theo thời gian là 10, 8, 12
-    c = ticks_to_1m(t)
+    c = ticks_to_bars(t)
     assert list(c.columns) == ["open_time", "open", "high", "low", "close", "volume", "n_trades", "n_fallback", "vwap", "is_filled"]
     assert c["open_time"].tolist() == [m0, m0 + 60_000, m0 + 120_000, m0 + 180_000] and (c["open_time"] % 60_000 == 0).all()
     r0 = c.iloc[0]
@@ -462,7 +457,7 @@ def test_ticks_to_1m_ohlcv_n_trades_vwap_and_fill():
         r = c.iloc[i]
         assert r[["open", "high", "low", "close", "vwap"]].tolist() == [12.0] * 5 and r.volume == 0 and r.n_trades == 0 and r.is_filled == 1
     assert c.iloc[3].is_filled == 0 and c.iloc[3].close == 11.0 and c.iloc[3].n_trades == 1 and c["n_trades"].dtype == np.int64
-    assert ticks_to_1m(t.iloc[:0]).empty and list(ticks_to_1m(t.iloc[:0]).columns) == list(c.columns)
+    assert ticks_to_bars(t.iloc[:0]).empty and list(ticks_to_bars(t.iloc[:0]).columns) == list(c.columns)
 
 
 def test_ticks_to_bars_price_col_fallback_and_n_fallback():
@@ -475,7 +470,6 @@ def test_ticks_to_bars_price_col_fallback_and_n_fallback():
     assert mid.iloc[0][["open", "high", "low", "close"]].tolist() == [10.5, 12.0, 10.5, 11.5]                # swap thứ 2 thiếu mid -> dùng price 12.0
     assert mid["n_fallback"].tolist() == [1, 1] and mid["n_trades"].tolist() == [3, 1] and mid.iloc[1].close == 20.0
     assert mid.iloc[0].vwap == pytest.approx(33.0 / 3) and mid.iloc[0].vwap == fill.iloc[0].vwap                 # vwap luôn theo giá khớp
-    assert ticks_to_1m(t, "mid_price").equals(mid) and ticks_to_1m(t).equals(fill)
     assert ticks_to_bars(t.drop(columns="mid_price"), "1m", "mid_price")["n_fallback"].tolist() == [3, 1]       # không có cột -> toàn bộ fallback
     gap = ticks_to_bars(t.iloc[[0, 3]].assign(timestamp_ms=[m0 + 1000, m0 + 181_000]), "1m", "mid_price")
     assert gap["n_fallback"].tolist() == [0, 0, 0, 1] and gap["n_trades"].tolist() == [1, 0, 0, 1]             # nến điền: không bịa lệnh, không tính fallback
@@ -527,10 +521,10 @@ def test_run_job_dispatches_and_reports_failures(tmp_path, monkeypatch):
 
 def test_job_kind_registered_and_router(tmp_path, monkeypatch):
     import importlib
-    from backend.api.jobs import batch
-    from backend.api.routers import data as router
+    from backend.optimize.process import process as batch
+    from backend.routes import data as router
     spec = batch.KINDS["data_crawl_ticks"]
-    assert spec["module"] == "backend.core.data.tick_crawler" and spec["params"] == {"symbols", "days"}
+    assert spec["module"] == "backend.crawl.dex" and spec["params"] == {"symbols", "days"}
     assert callable(importlib.import_module(spec["module"]).run_job)
     batch._check_params("data_crawl_ticks", {"symbols": ["AERO"], "days": 3})
     with pytest.raises(batch.JobError):

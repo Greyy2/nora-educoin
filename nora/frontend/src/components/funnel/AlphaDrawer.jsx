@@ -7,7 +7,7 @@ import TradesView from './TradesView'
 import { ParamList, AlphaStatus, StrategyName } from './parts'
 import useAsync from '../../hooks/useAsync'
 import { getFunnelAlpha, postFunnelPromote } from '../../api'
-import { STAGE_META, STAGES, METRICS, stageName, stageShort, stageHasTrades, fmtMetric, metricLabel } from '../../lib/funnel'
+import { STAGE_META, ALL_STAGES, METRICS, stageName, stageShort, stageHasTrades, fmtMetric, metricLabel } from '../../lib/funnel'
 import { fmtNum, fmtPct, fmtSPct, signClass, isNum } from '../../lib/format'
 
 const ICON = { pass: '✓', fail: '✗', none: '–' }
@@ -61,7 +61,7 @@ function MetricMatrix({ d }) {
 }
 
 function NavSection({ d }) {
-  const stages = STAGES.filter((s) => d.nav[s])
+  const stages = ALL_STAGES.filter((s) => d.nav[s])
   const [st, setSt] = useState(stages[0] || null)
   const cur = d.nav[st] ? st : stages[0]
   if (!cur) return <p className="n-note">Chưa có đường NAV cho alpha này.</p>
@@ -185,7 +185,7 @@ export default function AlphaDrawer({ runId, alphaId, onClose, onTrades }) {
     return () => { document.removeEventListener('keydown', key); try { opener.current?.focus?.() } catch (e) { /* bỏ qua */ } }
   }, [onClose])
   useEffect(() => { setTradeStage('') }, [alphaId])
-  // tầng có danh sách lệnh: theo `stored_trades` của backend nếu có (S2/S4 không sinh lệnh riêng); ưu tiên tầng đã lưu sẵn
+  // tầng có danh sách lệnh: theo `stored_trades` của backend nếu có (S4 không sinh lệnh riêng); ưu tiên tầng đã lưu sẵn
   const tStages = useMemo(() => {
     if (!d) return []
     const st = d.stored_trades

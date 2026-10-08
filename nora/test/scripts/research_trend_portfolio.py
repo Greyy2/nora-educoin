@@ -25,7 +25,7 @@ import pandas as pd
 NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if NORA_ROOT not in sys.path:
     sys.path.insert(0, NORA_ROOT)
-from backend.utils.jsonsafe import json_default  # noqa: E402
+from backend.crawl.store import json_default  # noqa: E402
 
 ASSETS = ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA", "AVAX"]
 DAY = 86_400_000
@@ -33,13 +33,13 @@ WARMUP = 20 * DAY
 
 
 def _families():
-    from backend.core.strategy.library import cond, f, p
+    from backend.alpha.compile import cond, f, tree_p
     return {
         # 1h xu hướng + phá đỉnh/đáy 15m (họ của alpha SOL)
         "ema1h_dch15m": {
-            "LONG": cond((f("1h", "ema_50"), ">", f("1h", "ema_200")), (f("1h", "adx_14"), ">", p("adx_min", 20)),
+            "LONG": cond((f("1h", "ema_50"), ">", f("1h", "ema_200")), (f("1h", "adx_14"), ">", tree_p("adx_min", 20)),
                          (f("15m", "close"), ">", f("15m", "dch_20"))),
-            "SHORT": cond((f("1h", "ema_50"), "<", f("1h", "ema_200")), (f("1h", "adx_14"), ">", p("adx_min", 20)),
+            "SHORT": cond((f("1h", "ema_50"), "<", f("1h", "ema_200")), (f("1h", "adx_14"), ">", tree_p("adx_min", 20)),
                           (f("15m", "close"), "<", f("15m", "dcl_20"))),
         },
         # 4h phá đỉnh/đáy N nến (Turtle) theo xu hướng 4h
@@ -66,9 +66,9 @@ def _run(args):
     """Một tài sản, một cấu hình, một khoảng: đường vốn MTM theo giờ (tỉ lệ so với vốn đầu) + thống kê lệnh."""
     import contextlib
     import io
-    from backend.core.params.template import resolve_placeholders, split_params
-    from backend.core.backtest.engine import BacktestEngine
-    from backend.core.params.builder import build_params
+    from backend.core.params import resolve_placeholders, split_params
+    from backend.core.backtest import BacktestEngine
+    from backend.core.params import build_params
     family, params, symbol, start, end, sides = args
     signal, position = split_params(dict(params))
     fam = _families()[family]
@@ -76,8 +76,7 @@ def _run(args):
     for side in sides:
         tree = resolve_placeholders(fam[side], signal)
         eng.add_strategy_flow(f"{side}_{family}", build_params(
-            f"{side}_{family}", {"type": side, "match": [{"condition": tree}], "stop": []}, side, position, "cex",
-            symbol=f"{symbol}@perp"))
+            f"{side}_{family}", {"type": side, "match": [{"condition": tree}], "stop": []}, side, position, "cex"))
     with contextlib.redirect_stdout(io.StringIO()):
         eng.load_data()
         eng.run()
@@ -127,9 +126,9 @@ def main(argv=None):
     ap.add_argument("--top", type=int, default=5)
     ap.add_argument("--out", default=os.path.join(NORA_ROOT, "data", "_cache", "reports"))
     a = ap.parse_args(argv)
-    from backend.db.local_pkl import read_manifest
-    from backend.utils.memwatch import require_memory_limit, worker_init
-    from backend.utils.parallel import resolve_workers
+    from backend.crawl.store import read_manifest
+    from backend.optimize.process.workers import require_memory_limit, worker_init
+    from backend.optimize.process.workers import resolve_workers
     require_memory_limit("research_trend_portfolio")
     # 900 MB/worker: mỗi job (_run) backtest MỘT tài sản × một cấu hình × một khoảng — danh mục 8 tài sản chỉ gộp đường vốn
     # ở tiến trình chính, không nạp 8 tài sản trong một worker (chưa đo thực)

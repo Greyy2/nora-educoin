@@ -60,13 +60,13 @@ class CustomStrategy(SimpleAlgorithm):
 
 
 def _run(code, **extra):
-    from backend.core.backtest import custom_run
-    from backend.core.backtest.portfolio import data_cache_clear
-    from backend.core.data.loader import CandleLoader
+    from backend.optimize.process import tasks as custom_run
+    from backend.core.backtest import data_cache_clear
+    from backend.crawl.store import CandleLoader
     CandleLoader.clear_cache()
     data_cache_clear()
     params = {"code": code, "symbols": SYMBOLS, "start": "2024-06-01", "end": "2025-05-31", "train_ratio": 0.7, "initial_capital": 100_000, **extra}
-    return custom_run.run_job(params)
+    return custom_run.run_custom_backtest(params)
 
 
 @pytest.fixture(autouse=True)
@@ -142,7 +142,7 @@ def test_three_conjunct_strategy_binding_condition_real_run():
 
 
 def test_benchmark_runs_once_per_config(monkeypatch):
-    from backend.core.backtest import custom_run
+    from backend.optimize.process import tasks as custom_run
     custom_run._BENCH_CACHE.clear()
     calls = []
     real = custom_run.execute

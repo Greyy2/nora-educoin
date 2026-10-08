@@ -15,7 +15,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from backend.core.data.resampler import save_resampled_dataset
+from backend.crawl.store import save_resampled_dataset
 
 T0 = 1_700_006_400_000
 SYMS = ("AAA", "BBB", "CCC")
@@ -61,14 +61,14 @@ def _load_script(name):
 
 
 def _small_book(monkeypatch):
-    from backend.core.strategy import book as sb
-    f = sb.f
+    from backend.optimize.book import build as sb
+    from backend.alpha.compile import cond, f, tree_p
     cands = [
         {"id": "t_long", "family": "x", "side": "LONG", "description": "test",
-         "tree": sb.cond((f("15m", "rsi_14"), "<", sb.p("lo", 40))), "position": {},
+         "tree": cond((f("15m", "rsi_14"), "<", tree_p("lo", 40))), "position": {},
          "space": {"sig.lo": [35, 40], "stop_loss_rate": [2.0], "take_profit_rate": [2.0], "timeout": [720]}},
         {"id": "t_short", "family": "x", "side": "SHORT", "description": "test",
-         "tree": sb.cond((f("15m", "rsi_14"), ">", 60)), "position": {"atr_frame": "4h"},
+         "tree": cond((f("15m", "rsi_14"), ">", 60)), "position": {"atr_frame": "4h"},
          "space": {"stop_loss_rate": [1.5, 2.5], "trailing_stop": [2.0], "timeout": [720]}},
     ]
     monkeypatch.setattr(sb, "UNIVERSE", list(SYMS))
@@ -85,7 +85,7 @@ def test_book_pipeline_runs_all_stages_with_shared_params(market, monkeypatch, t
     assert w["start"] < w["dev1_end"] < w["dev2_end"] < w["end"]
 
     # cùng một bộ tham số chạy trên cả 3 tài sản: mọi tài sản đều có lệnh từ cùng chiến lược
-    from backend.core.backtest.run import BacktestJob
+    from backend.optimize.search.evaluate import BacktestJob
     m = mod.run_book(BacktestJob([("t_long", {"sig.lo": 40, "stop_loss_rate": 2.0, "take_profit_rate": 2.0, "timeout": 720})],
                                  (w["start"], w["dev2_end"]), "level", {"max_positions": 3, "kill_switch_dd_pct": 0}, 0.5))
     assert m["trades"] > 0 and set(m["by_symbol"]) == set(SYMS)
@@ -112,7 +112,7 @@ def test_book_pipeline_runs_all_stages_with_shared_params(market, monkeypatch, t
 
 
 def test_book_export_describes_simulated_rules(tmp_path):
-    from backend.optimize.registry import build_book, testnet_book_config
+    from backend.optimize.book.registry import build_book, testnet_book_config
     report = {
         "windows": {"start": "a", "dev1_end": "b", "dev2_end": "c", "end": "d"}, "gates": {},
         "candidates": {"trend_long": {"accepted": True}, "trend_short": {"accepted": False}},
@@ -148,7 +148,7 @@ def _book_report(holdout_pass):
 
 
 def test_write_book_holdout_pass_writes_testnet(tmp_path):
-    from backend.optimize.registry import write_book
+    from backend.optimize.book.registry import write_book
     paths = write_book(_book_report(True), str(tmp_path), source="x")
     assert len(paths) == 2 and (tmp_path / "testnet" / "book.json").exists()
     book = json.loads((tmp_path / "book.json").read_text())
@@ -157,7 +157,7 @@ def test_write_book_holdout_pass_writes_testnet(tmp_path):
 
 @pytest.mark.parametrize("hp", [False, "False", None])
 def test_write_book_holdout_fail_no_testnet_and_removes_stale(tmp_path, capsys, hp):
-    from backend.optimize.registry import write_book
+    from backend.optimize.book.registry import write_book
     (tmp_path / "testnet").mkdir()
     (tmp_path / "testnet" / "book.json").write_text("{}")             # file cũ từ lần trước
     paths = write_book(_book_report(hp), str(tmp_path), source="x")
@@ -169,7 +169,7 @@ def test_write_book_holdout_fail_no_testnet_and_removes_stale(tmp_path, capsys, 
 
 
 def test_json_default_numpy_types():
-    from backend.utils.jsonsafe import json_default
+    from backend.crawl.store import json_default
     obj = {"b": np.bool_(False), "i": np.int64(3), "f": np.float64(1.5), "nan": np.float32("nan"),
            "inf": np.float32("inf"), "a": np.array([1, 2]), "t": pd.Timestamp("2026-01-02")}
     out = json.loads(json.dumps(obj, default=json_default))

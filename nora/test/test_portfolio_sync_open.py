@@ -7,17 +7,16 @@ Kịch bản dựng tay, hai tài sản AAA (đứng trước) / BBB, nến ph�
  (1) max_positions=1: BBB phải bị CHẶN (code cũ cho vào vì AAA đã đóng trong nến);
  (2) trần gross 0.6x vốn: AAA đang giữ 5000 -> chỉ còn 1000 danh nghĩa cho BBB (code cũ: AAA đã đóng, còn 5940 -> BBB 4950);
  (3) vốn tính khối lượng: AAA chốt lời +150 TRONG nến 10 -> BBB vẫn tính theo vốn lúc mở nến (10000) chứ không phải 10150.
-Mỗi kịch bản chạy qua BỐN cài đặt phải ra đúng như nhau: oracle (RefPortfolioEngine), kernel (PortfolioEngine), PaperBook event (Runner +
-PositionManager + SimVenue) và PaperBook tracker (Runner + PositionTracker)."""
+Mỗi kịch bản chạy qua BA cài đặt phải ra đúng như nhau: oracle (RefPortfolioEngine), kernel batch (PortfolioEngine) và sổ paper KernelBook từng nến
+(P9.4b T7: PaperBook event / tracker cũ chỉ còn trong test_runner_parity tới T10)."""
 import numpy as np
 import pandas as pd
 import pytest
 
 import golden_scenarios as gs
 import reference_engine as ref
-from backend.core.backtest.portfolio import PortfolioEngine, RiskConfig
-from backend.core.data.resampler import save_resampled_dataset
-from backend.live.paper import PaperBook
+from backend.core.backtest import KernelPaperBook, PortfolioEngine, RiskConfig
+from backend.crawl.store import save_resampled_dataset
 from test_runner_parity import _feed
 
 T0 = 1_700_006_400_000
@@ -70,20 +69,19 @@ def _run_all(tmp_path, special_a, pos_a, risk, pos_b=None):
             out[name] = ([(p.symbol, int(p.enter_time), float(p.qty)) for p in res["positions"]], res["rejected_for_risk"])
         risk_d = {"max_positions": rc.max_positions, "max_per_symbol": rc.max_per_symbol, "max_gross_exposure": rc.max_gross_exposure,
                   "kill_switch_dd_pct": 0.0}
-        for name in ("event", "tracker"):
-            pb = PaperBook(strategies, SYMS, "1m", 10_000.0, risk_d, trade_start=T0, engine=name)
-            for t, bars, sig, fund in _feed(engines["oracle"]):
-                pb.step_bar(t, bars, sig, fund)
-            # PaperBook không đóng nốt cuối dữ liệu: lệnh còn mở tính như lệnh (đóng ở cuối) của oracle / kernel
-            rows = [(x["symbol"], x["enter_time"], x["qty"]) for x in pb.trades]
-            rows += [(x["symbol"], x["entry_time"], x["qty"]) for x in pb.positions()]
-            out[name] = (rows, pb.rejected_for_risk)
+        pb = KernelPaperBook(strategies, SYMS, "1m", 10_000.0, risk_d, trade_start=T0)       # sổ paper = KernelBook từng nến (P9.4b T7)
+        for t, bars, sig, fund in _feed(engines["oracle"]):
+            pb.step_bar(t, bars, sig, fund)
+        # sổ paper không đóng nốt cuối dữ liệu: lệnh còn mở tính như lệnh (đóng ở cuối) của oracle / kernel
+        rows = [(x["symbol"], x["enter_time"], x["qty"]) for x in pb.trades]
+        rows += [(x["symbol"], x["entry_time"], x["qty"]) for x in pb.positions()]
+        out["paper"] = (rows, pb.rejected_for_risk)
     return out
 
 
 def _check_same(out):
     base = sorted(out["oracle"][0])
-    for impl in ("kernel", "event", "tracker"):
+    for impl in ("kernel", "paper"):
         assert sorted(out[impl][0]) == base, f"{impl} khác oracle"
     assert len({out[i][1] for i in out}) == 1, {i: out[i][1] for i in out}     # cùng rejected_for_risk
     return base

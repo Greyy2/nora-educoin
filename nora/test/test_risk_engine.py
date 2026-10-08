@@ -1,6 +1,6 @@
-"""P6.1: core/execute/risk.py — nguồn duy nhất của quy tắc rủi ro danh mục (hàm thuần).
+"""P6.1: core/position_size.py (admit_entry, kill_triggered) — nguồn duy nhất của quy tắc rủi ro danh mục (hàm thuần).
 (a) Unit từng quy tắc: trần số vị thế, per-symbol, room gross, trần rủi ro mở, dd_throttle (sàn + chặn 1.0), kill switch.
-(b) Parity: PaperBook (gọi risk.py) == PortfolioEngine/kernel trên ngẫu nhiên cấu hình có ĐỦ trần rủi ro: cùng lệnh đóng (mọi trường),
+(b) Parity: sổ paper KernelBook từng nến (live/paper.py::KernelPaperBook) == PortfolioEngine/kernel trên ngẫu nhiên cấu hình có ĐỦ trần rủi ro: cùng lệnh đóng (mọi trường),
     cùng rejected_for_risk, cùng halted_at. Lệch -> sửa risk.py, KHÔNG nới so sánh.
 Số cấu hình đổi bằng NORA_RISK_PARITY_CONFIGS (mặc định 100)."""
 import os
@@ -9,8 +9,8 @@ import random
 import pytest
 
 import golden_scenarios as gs
-from backend.core.backtest.portfolio import PortfolioEngine, RiskConfig
-from backend.core.execute.risk import Admission, admit_entry, kill_triggered
+from backend.core.backtest import PortfolioEngine, RiskConfig
+from backend.core.position_size import Admission, admit_entry, kill_triggered
 from test_kernel_parity import market_root, rand_portfolio_config  # noqa: F401  (market_root là fixture: thị trường 34 ngày, 4 + 2 tài sản)
 
 INF = float("inf")
@@ -116,7 +116,7 @@ def test_kill_switch_boundary():
     assert kill_triggered(500.0, 1000.0, 30.0) is True
 
 
-# ── (b) parity PaperBook == kernel ──────────────────────────────────────────
+# ── (b) parity paper (KernelBook từng nến, P9.4b T7) == kernel batch ──────────────────────────────────────────
 def _risk_cfg(seed, market_root_):
     """Cấu hình danh mục ngẫu nhiên (cùng bộ sinh của test_kernel_parity) nhưng MỌI trần rủi ro đều bật, không đóng ở cuối dữ liệu."""
     cfg = rand_portfolio_config(seed, market_root_)
@@ -141,9 +141,9 @@ def _pos_key(p):
 
 
 def _replay(pe, strategies, risk, trade_start):
-    """Phát lại đúng dữ liệu + tín hiệu của pe từng nến vào PaperBook (như test_live_bot::test_paper_book_replays_engine_trades_exactly)."""
-    from backend.live.paper import PaperBook
-    pb = PaperBook(strategies, pe.symbols, "1m", pe.initial_capital, risk, trade_start=trade_start)
+    """Phát lại đúng dữ liệu + tín hiệu của pe từng nến vào sổ paper KernelBook (như test_live_bot::test_paper_book_replays_engine_trades_exactly)."""
+    from backend.core.backtest import KernelPaperBook
+    pb = KernelPaperBook(strategies, pe.symbols, "1m", pe.initial_capital, risk, trade_start=trade_start)
     grid = sorted({int(t) for bk in pe.books for t in bk["data"]["t"]})
     pos = {bk["symbol"]: {int(t): i for i, t in enumerate(bk["data"]["t"])} for bk in pe.books}
     fptr = {bk["symbol"]: 0 for bk in pe.books}
@@ -183,7 +183,7 @@ def test_paper_book_equals_kernel_with_all_risk_caps(market_root, chunk):
                 continue
             res = pe.get_results()
             label = f"risk-parity seed={seed}"
-            if res.get("ruined_at"):                                 # cháy tài khoản: PaperBook không mô hình hoá (ngoài phạm vi risk.py)
+            if res.get("ruined_at"):                                 # cháy tài khoản: sổ paper không mô hình hoá (ngoài phạm vi risk.py)
                 skipped += 1
                 continue
             risk = {"max_positions": cfg["risk"].max_positions, "max_per_symbol": cfg["risk"].max_per_symbol,

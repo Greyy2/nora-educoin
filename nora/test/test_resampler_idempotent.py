@@ -14,7 +14,7 @@ import os
 import tempfile
 import pandas as pd
 
-from backend.core.data.resampler import fill_missing_1m_candles, save_resampled_dataset
+from backend.crawl.store import fill_missing_1m_candles, save_resampled_dataset
 
 
 def _make_1m_df(n: int = 100, gap_at: int = 50) -> pd.DataFrame:

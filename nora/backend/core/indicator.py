@@ -1,6 +1,6 @@
-"""Chỉ báo (P9.4 part 2): kernel numba causal (signals/kernels) + đặc tả chữ ký DSL (pydsl/spec) + feature `self.feat.*` (pydsl/features) + operator `self.op.*` (pydsl/ops).
+"""Chỉ báo (P9.4 part 2): kernel numba causal + đặc tả chữ ký DSL (spec) + feature `self.feat.*` + operator `self.op.*`.
 
-Hợp nhất NGUYÊN VĂN từ core/signals/kernels.py + core/strategy/pydsl/{spec,features,ops}.py (xem docs/bmad/p9_review_log.md, mục P9.4 part 2). Đường dẫn cũ là shim.
+Nguồn gộp: docs/bmad/p9_review_log.md (mục P9.4 part 2).
 Thứ tự trong file: kernels, spec, features, ops. Đăng ký chương trình DSL (`register_program`, cột `py_<hash12>_<le|lx|se|sx>`) nằm trong phần kernels.
 """
 import re
@@ -11,10 +11,10 @@ import numpy as np
 import pandas as pd
 from numba import njit
 
+from backend.core.params import COLUMN_GRAMMAR, DATA_COLUMNS
+
 
 # ══════════════════════════════════════════════════════════════════════════
-# P9.4 part 2 — nguyên văn từ core/signals/kernels.py
-#
 # Signal kernels — lõi chỉ báo của Nora.
 #
 # Mỗi kernel là một hàm THUẦN và CAUSAL: giá trị tại nến t chỉ dùng dữ liệu của các nến <= t
@@ -31,7 +31,6 @@ from numba import njit
 # được nhìn thấy ở nến 1m khi nến khung đó đã đóng (xem backtest/engine.py).
 # ══════════════════════════════════════════════════════════════════════════
 
-BASE_COLUMNS = ("open", "high", "low", "close", "volume")
 
 
 @dataclass(frozen=True)
@@ -299,10 +298,13 @@ def parse_column(column: str) -> Optional[Tuple[KernelSpec, Tuple[float, ...]]]:
     return spec, params
 
 
-# ─── Cột chương trình Python (P7, core/strategy/pydsl) ────────────────────────
+COLUMN_GRAMMAR.update(base=DATA_COLUMNS, parse=parse_column)   # params (đứng dưới) kiểm tên cột khi thay {tên} qua bảng này
+
+
+# ─── Cột chương trình Python (P7, DSL trong core/signal.py) ────────────────────────
 # `py_<hash12>_<le|lx|se|sx>`: tín hiệu vào/thoát long/short của MỘT chương trình DSL đã biên dịch. Chương trình được đăng ký TRONG tiến trình chạy
 # engine (register_program) rồi đi qua đúng đường kernel như mọi cột khác (engine.frame_features không đổi). Cột py_ không bao giờ được ghi vào kho
-# dùng chung (core/data/shared.py bỏ qua) — tính trong tiến trình, tất định theo mã.
+# dùng chung (kho dùng chung optimize/search/evaluate.py bỏ qua) — tính trong tiến trình, tất định theo mã.
 _PY_RE = re.compile(r"^py_([0-9a-f]{12})_(le|lx|se|sx)$")
 PROGRAMS: Dict[str, object] = {}
 
@@ -332,7 +334,7 @@ def compute(df: pd.DataFrame, column: str) -> pd.Series:
     if is_program_column(column):
         prog, kind = _program_of(column)
         if prog is None:
-            raise ValueError(f"Cột {column!r}: chương trình Python chưa được đăng ký trong tiến trình này (gọi pydsl.compile_code trước khi dựng engine)")
+            raise ValueError(f"Cột {column!r}: chương trình Python chưa được đăng ký trong tiến trình này (gọi signal.compile_code trước khi dựng engine)")
         return prog.compute_column(df, kind).astype("float64")
     parsed = parse_column(column)
     if parsed is None:
@@ -366,8 +368,6 @@ def catalog() -> List[Dict]:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# P9.4 part 2 — nguyên văn từ core/strategy/pydsl/spec.py
-#
 # Đặc tả chữ ký hàm của DSL (feature / operator): tên tham số, loại, mặc định — dùng chung cho trình biên dịch (kiểm đối số, báo lỗi
 # có gợi ý) và cho phần tính toán.
 #
@@ -1023,12 +1023,10 @@ OP_SPECS_DATA: Dict[str, Dict[str, Any]] = {
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# P9.4 part 2 — nguyên văn từ core/strategy/pydsl/features.py
-#
 # `self.feat.<tên>(...)` — chỉ báo kỹ thuật, tên và chữ ký theo TA-Lib.
 #
 # Chỉ báo trùng với kernel Nora (sma ema rsi atr natr adx roc bbands donchian volume_z zscore trange) GỌI THẲNG hàm trong
-# backend/core/signals/kernels.py trên một DataFrame dựng từ các chuỗi đầu vào: đầu vào là cột giá gốc thì ra đúng từng bit giá trị kernel Nora,
+# kernel ở đầu file này trên một DataFrame dựng từ các chuỗi đầu vào: đầu vào là cột giá gốc thì ra đúng từng bit giá trị kernel Nora,
 # đầu vào là chuỗi bất kỳ thì cùng công thức trên chuỗi đó. Mọi hàm CAUSAL: giá trị tại nến t chỉ dùng nến <= t (test_pydsl_causal.py).
 # Giai đoạn khởi động trả NaN; vô cực đổi thành NaN.
 # ══════════════════════════════════════════════════════════════════════════
@@ -1039,7 +1037,8 @@ def _arr(x, n: int) -> np.ndarray:
     return np.full(n, float(a)) if a.ndim == 0 else a
 
 
-def _clean(x) -> np.ndarray:
+def nan_nonfinite(x) -> np.ndarray:
+    """Mảng float64 với mọi giá trị không hữu hạn (NaN/±inf) -> NaN."""
     a = np.asarray(x, dtype="float64")
     return np.where(np.isfinite(a), a, np.nan)
 
@@ -1414,12 +1413,10 @@ FEATURES: Dict[str, Spec] = {s.name: s for s in [
 def evaluate_feature(spec: Spec, n: int, **kw):
     """Chạy một feature: mảng float64 (hoặc tuple mảng) dài n, vô cực -> NaN."""
     out = spec.fn(n, **kw)
-    return tuple(_clean(o) for o in out) if spec.nout > 1 else _clean(out)
+    return tuple(nan_nonfinite(o) for o in out) if spec.nout > 1 else nan_nonfinite(out)
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# P9.4 part 2 — nguyên văn từ core/strategy/pydsl/ops.py
-#
 # `self.op.<tên>(...)` — 30 operator chuỗi thời gian, ngữ nghĩa CAUSAL (không shift âm, không bfill).
 #
 # Quy ước: so sánh có NaN -> False (không có tín hiệu từ dữ liệu thiếu); chuỗi bool không có NaN; vô cực -> NaN.
@@ -1434,13 +1431,6 @@ def _num(x, n: int) -> np.ndarray:
 def _bool(x, n: int) -> np.ndarray:
     a = np.asarray(x, dtype=bool)
     return np.full(n, bool(a)) if a.ndim == 0 else a
-
-
-def _shift_num(x: np.ndarray, k: int) -> np.ndarray:
-    out = np.full(x.shape[0], np.nan)
-    if k < x.shape[0]:
-        out[k:] = x[:x.shape[0] - k]
-    return out
 
 
 def _shift_bool(x: np.ndarray, k: int) -> np.ndarray:
@@ -1462,11 +1452,11 @@ def _arange_last(mask: np.ndarray) -> np.ndarray:
 # ─── cắt / so sánh ──────────────────────────────────────────────────────────
 
 def _above(a, b):
-    return (a > b) & (_shift_num(a, 1) <= _shift_num(b, 1))
+    return (a > b) & (_shift(a, 1) <= _shift(b, 1))
 
 
 def _below(a, b):
-    return (a < b) & (_shift_num(a, 1) >= _shift_num(b, 1))
+    return (a < b) & (_shift(a, 1) >= _shift(b, 1))
 
 
 def o_crossed_above(n, a, b):
@@ -1502,18 +1492,18 @@ def o_current(n, x):
 def o_shift(n, x, periods):
     if np.asarray(x).dtype == bool:
         return _shift_bool(_bool(x, n), int(periods))
-    return _shift_num(_num(x, n), int(periods))
+    return _shift(_num(x, n), int(periods))
 
 
 def o_diff(n, x, periods):
     x = _num(x, n)
-    return x - _shift_num(x, int(periods))
+    return x - _shift(x, int(periods))
 
 
 def o_pct_change(n, x, periods):
     x = _num(x, n)
     with np.errstate(all="ignore"):
-        return _fin(x / _shift_num(x, int(periods)) - 1.0)
+        return _fin(x / _shift(x, int(periods)) - 1.0)
 
 
 def o_rising(n, x, periods):
@@ -1521,7 +1511,7 @@ def o_rising(n, x, periods):
     out = np.ones(n, dtype=bool)
     with np.errstate(invalid="ignore"):
         for i in range(int(periods)):
-            out &= _shift_num(x, i) > _shift_num(x, i + 1)
+            out &= _shift(x, i) > _shift(x, i + 1)
     return out
 
 
@@ -1530,7 +1520,7 @@ def o_falling(n, x, periods):
     out = np.ones(n, dtype=bool)
     with np.errstate(invalid="ignore"):
         for i in range(int(periods)):
-            out &= _shift_num(x, i) < _shift_num(x, i + 1)
+            out &= _shift(x, i) < _shift(x, i + 1)
     return out
 
 
@@ -1704,7 +1694,3 @@ OPS: Dict[str, Spec] = {s.name: s for s in [
 ]}
 
 assert len(OPS) == 30, len(OPS)
-
-
-def evaluate_op(spec: Spec, n: int, **kw):
-    return spec.fn(n, **kw)

@@ -1,10 +1,10 @@
 """Đo tốc độ engine backtest danh mục trên dữ liệu thật: profile phân rã thời gian + so sánh engine cũ (Python, đóng băng) và kernel.
 
-Một alpha thật (mặc định breakout_4h_long, tham số mặc định) chạy trên 8 tài sản perp, cửa sổ dev1 của phễu, dữ liệu mmap dùng chung.
+Một alpha thật (mặc định kema_long, tham số mặc định) chạy trên 8 tài sản perp, cửa sổ dev1 của phễu, dữ liệu mmap dùng chung.
 
-  backend/utils/ops/run_limited.sh -- test/scripts/bench_engine.py profile            # Bước 0: phân rã thời gian + hot-spot (engine cũ)
-  backend/utils/ops/run_limited.sh -- test/scripts/bench_engine.py compare --n 3 --batch 100   # cũ vs kernel (+ kiểm bằng nhau từng bit)
-  Tuỳ chọn chung: --strategy breakout_4h_long  --symbols BTC,ETH,...  --shared-dir DIR  --keep-shared
+  ops/run_limited.sh -- test/scripts/bench_engine.py profile            # Bước 0: phân rã thời gian + hot-spot (engine cũ)
+  ops/run_limited.sh -- test/scripts/bench_engine.py compare --n 3 --batch 100   # cũ vs kernel (+ kiểm bằng nhau từng bit)
+  Tuỳ chọn chung: --strategy kema_long  --symbols BTC,ETH,...  --shared-dir DIR  --keep-shared
 
 Engine cũ = test/reference_engine.py (bản chụp đóng băng của vòng lặp Python); engine mới = PortfolioEngine (kernel numba).
 """
@@ -38,32 +38,38 @@ def rss_mb() -> float:
 
 def build_setup(strategy_id, symbols, shared_dir, params=None):
     """-> (symbols, windows, start, strategy dict, shared_dir)."""
-    from backend.core.strategy import book as sb
-    from backend.optimize.funnel.gates import compute_windows
+    from backend.optimize.book import build as sb
+    from backend.core.params import BASE_RISK_PER_TRADE_PCT, materialize, schema_defaults
+    from backend.optimize.funnel.stages import compute_windows
     syms = [f"{s}@perp" for s in symbols] if symbols else sb.perp_symbols()
     w = compute_windows(syms)
     cand = {c["id"]: c for c in sb.CANDIDATES}[strategy_id]
-    p = dict(sb.schema_defaults(cand)) if params is None else dict(params)
-    st = sb.materialize(cand, p, stop_fill="level", risk_per_trade_pct=sb.BASE_RISK_PER_TRADE_PCT)
+    p = dict(schema_defaults(cand)) if params is None else dict(params)
+    st = materialize(cand, p, stop_fill="level", risk_per_trade_pct=BASE_RISK_PER_TRADE_PCT)
     return syms, w, st
 
 
-def make_engine(cls, syms, w, st, shared_dir, position=None, kill=False):
-    from backend.core.backtest.portfolio import RiskConfig
-    from backend.core.strategy import book as sb
-    risk = {**sb.RISK, "kill_switch_dd_pct": sb.RISK["kill_switch_dd_pct"] if kill else 0}
+def make_engine(cls, syms, w, st, shared_dir, position=None, kill=False, base_frame="1m"):
+    from backend.core.backtest import RiskConfig
+    from backend.optimize.book import build as sb
+    from backend.core.params import RISK
+    risk = {**RISK, "kill_switch_dd_pct": RISK["kill_switch_dd_pct"] if kill else 0}
     if position:
         st = {**st, "position": {**st["position"], **position}}
-    return cls(syms, [st], w["start"] - WARMUP_DAYS * DAY, w["dev1_end"], trade_start_ts=w["start"],
-               risk=RiskConfig.from_dict(risk), shared_dir=shared_dir)
+    kwargs = {"risk": RiskConfig.from_dict(risk), "shared_dir": shared_dir}
+    if cls.__name__ != "RefPortfolioEngine":
+        kwargs["base_frame"] = base_frame
+    return cls(syms, [st], w["start"] - WARMUP_DAYS * DAY, w["dev1_end"], trade_start_ts=w["start"], **kwargs)
 
 
-def export_shared(syms, w, st, shared_dir):
-    from backend.core.data import shared as shared_data
-    from backend.core.backtest.portfolio import PortfolioEngine
-    eng = make_engine(PortfolioEngine, syms, w, st, shared_dir)
+def export_shared(syms, w, st, shared_dir, base_frame="1m"):
+    from backend.optimize.search import evaluate as shared_data
+    from backend.core.backtest import PortfolioEngine
+    eng = make_engine(PortfolioEngine, syms, w, st, shared_dir, base_frame=base_frame)
     t0 = time.perf_counter()
     info = shared_data.export(eng, shared_dir)
+    info["mb"] = shared_data.size_mb(shared_dir, info.get("paths"))
+    info["skipped"] = [s for s in syms if s not in info.get("written", [])]
     return time.perf_counter() - t0, info
 
 
@@ -73,15 +79,16 @@ def _fmt(sec):
 
 def cmd_profile(a):
     """Phân rã thời gian của MỘT alpha trên engine cũ: nạp/xuất dữ liệu, tín hiệu, vòng lặp chính, lấy mẫu vốn, số đo."""
-    from backend.core.data import shared as shared_data
-    from backend.core.metrics.portfolio import portfolio_metrics
-    from backend.core.data import quality_gate
-    from backend.core.signals import evaluator
+    from backend.optimize.search import evaluate as shared_data
+    from backend.metrics.metrics import portfolio_metrics
+    from backend.crawl import store as quality_gate
+    from backend.core import signal as evaluator
     import reference_engine as ref
 
+    base_frame = getattr(a, "base_frame", "1m")
     syms, w, st = build_setup(a.strategy, a.symbols, a.shared_dir)
-    t_exp, info = export_shared(syms, w, st, a.shared_dir)
-    print(f"[export] dữ liệu mmap dùng chung: {_fmt(t_exp)}  ({info['bytes'] / 1e6:.0f} MB, ghi {len(info['written'])} / bỏ qua {len(info['skipped'])} tài sản)")
+    t_exp, info = export_shared(syms, w, st, a.shared_dir, base_frame=base_frame)
+    print(f"[export] dữ liệu mmap dùng chung: {_fmt(t_exp)}  ({info.get('mb', 0):.0f} MB, ghi {len(info['written'])} / bỏ qua {len(info['skipped'])} tài sản)")
 
     acc = {"signal": 0.0, "mmap_load": 0.0, "gate": 0.0}
 
@@ -159,7 +166,8 @@ def main(argv=None):
     sub = ap.add_subparsers(dest="cmd", required=True)
     for name in ("profile", "compare"):
         sp = sub.add_parser(name)
-        sp.add_argument("--strategy", default="breakout_4h_long")
+        sp.add_argument("--strategy", default="kema_long")
+        sp.add_argument("--base-frame", default="1m", choices=["1m", "15m", "1h", "4h"], help="khung nến chạy mô phỏng (mặc định 1m; hỗ trợ 1h, 15m)")
         sp.add_argument("--symbols", type=lambda s: [x for x in s.split(",") if x], default=None, help="vd BTC,ETH (mặc định 8 perp của sổ)")
         sp.add_argument("--shared-dir", default=os.path.join(NORA_ROOT, "data", "_cache", "bench_shared"))
         sp.add_argument("--keep-shared", action="store_true")
@@ -199,20 +207,21 @@ def _rand_override(rng):
 def cmd_compare(a):
     """Engine cũ (Python, đóng băng) vs kernel: 1 alpha, lô nhiều cấu hình dùng chung tín hiệu, kiểm bằng nhau từng bit, RAM, ngoại suy."""
     import contextlib
-    from backend.core.backtest import kernel as _kernel_io
-    from backend.core.backtest.portfolio import PortfolioEngine
-    from backend.core.metrics.portfolio import portfolio_metrics
+    from backend.core import backtest as _kernel_io
+    from backend.core.backtest import PortfolioEngine
+    from backend.metrics.metrics import portfolio_metrics
     import golden_scenarios as gs
     import reference_engine as ref
 
+    base_frame = getattr(a, "base_frame", "1m")
     syms, w, st = build_setup(a.strategy, a.symbols, a.shared_dir)
-    t_exp, info = export_shared(syms, w, st, a.shared_dir)
-    print(f"[export] dữ liệu mmap dùng chung: {_fmt(t_exp)} ({info['bytes'] / 1e6:.0f} MB)")
+    t_exp, info = export_shared(syms, w, st, a.shared_dir, base_frame=base_frame)
+    print(f"[export] dữ liệu mmap dùng chung: {_fmt(t_exp)} ({info.get('mb', 0):.0f} MB)")
     rng = random.Random(a.seed)
     overrides = [{}] + [_rand_override(rng) for _ in range(max(a.batch, a.old_batch) - 1)]
 
     def load(cls, ov):
-        eng = make_engine(cls, syms, w, st, a.shared_dir, position=ov or None)
+        eng = make_engine(cls, syms, w, st, a.shared_dir, position=ov or None, base_frame=base_frame)
         with contextlib.redirect_stdout(io.StringIO()):
             eng.load_data()
         return eng
@@ -224,15 +233,18 @@ def cmd_compare(a):
     print(f"[warm-up] lần đầu (numba nạp/biên dịch + page cache): {_fmt(time.perf_counter() - t0)}")
 
     # ── engine cũ: --old-batch cấu hình (mỗi cái ~20+ s) ──
+    old_batch = 0 if base_frame != "1m" else a.old_batch
+    if base_frame != "1m" and a.old_batch > 0:
+        print(f"[cũ] bỏ qua chạy engine cũ vì engine cũ (RefPortfolioEngine) chỉ hỗ trợ base_frame='1m' (đang chạy {base_frame})")
     old_res, old_t = [], []
-    for ov in overrides[:a.old_batch]:
+    for ov in overrides[:old_batch]:
         eng = load(ref.RefPortfolioEngine, ov)
         t0 = time.perf_counter()
         eng.run()
         res = eng.get_results()
         old_t.append(time.perf_counter() - t0)
         old_res.append(res)
-        print(f"[cũ] cấu hình {len(old_t)}/{a.old_batch}: run {old_t[-1]:.2f} s, {len(res['positions'])} lệnh")
+        print(f"[cũ] cấu hình {len(old_t)}/{old_batch}: run {old_t[-1]:.2f} s, {len(res['positions'])} lệnh")
 
     # ── kernel, 1 alpha: tách load_data / kernel / get_results / metrics ──
     best = None
@@ -254,13 +266,16 @@ def cmd_compare(a):
     print(f"[kernel · 1 alpha] tổng {best[0]:.3f} s = load_data(mmap+tín hiệu) {best[1]:.3f} + kernel+dựng đối tượng {best[2]:.3f} + get_results {best[3]:.3f} + metrics {best[4]:.3f}")
 
     # ── kiểm bằng nhau từng bit: kernel vs engine cũ ──
-    ok = True
-    for ov, r_old in zip(overrides[:a.old_batch], old_res):
-        eng = load(PortfolioEngine, ov)
-        _kernel_io.run_portfolio(eng)
-        same = gs.canonicalize(r_old) == gs.canonicalize(eng.get_results())
-        ok &= same
-    print(f"[bit-identical] kernel == engine cũ trên {a.old_batch} cấu hình thật: {'ĐÚNG' if ok else 'SAI !!!'}")
+    if old_batch > 0:
+        ok = True
+        for ov, r_old in zip(overrides[:old_batch], old_res):
+            eng = load(PortfolioEngine, ov)
+            _kernel_io.run_portfolio(eng)
+            same = gs.canonicalize(r_old) == gs.canonicalize(eng.get_results())
+            ok &= same
+        print(f"[bit-identical] kernel == engine cũ trên {old_batch} cấu hình thật: {'ĐÚNG' if ok else 'SAI !!!'}")
+    else:
+        print(f"[bit-identical] không kiểm tra đối chiếu bit-identical (old_batch={old_batch}, base_frame='{base_frame}')")
 
     # ── lô: dữ liệu + tín hiệu nạp/tính MỘT lần, B cấu hình vị thế ──
     base = load(PortfolioEngine, None)
@@ -278,16 +293,19 @@ def cmd_compare(a):
     mem = _status_mem()
     print(f"[RAM] RssAnon {mem.get('RssAnon', 0):.0f} MB (riêng worker) + RssFile {mem.get('RssFile', 0):.0f} MB (mmap chia sẻ qua page cache), đỉnh {mem.get('VmHWM', 0):.0f} MB")
 
-    t_old = sum(old_t) / len(old_t)
-    print("\n=== Bảng (1 alpha = 8 perp, dev1) ===")
-    print(f"  engine cũ (Python)          : {t_old:8.2f} s/alpha  (+ load_data ~0,3 s)")
+    t_old = sum(old_t) / len(old_t) if old_t else 0.0
+    print(f"\n=== Bảng (1 alpha = 8 perp, dev1, base_frame={base_frame}) ===")
+    if t_old > 0:
+        print(f"  engine cũ (Python)          : {t_old:8.2f} s/alpha  (+ load_data ~0,3 s)")
     print(f"  kernel, từng alpha riêng    : {best[0]:8.3f} s/alpha  (load_data {best[1]:.3f} + kernel {best[2]:.3f})")
     print(f"  kernel, lô {a.batch:<4} chung tín hiệu : {per_batch:8.3f} s/alpha  (+ metrics ~{best[4]:.3f})")
-    print(f"  tăng tốc: {t_old / best[0]:.0f}x (riêng) · {t_old / (per_batch + best[4]):.0f}x (lô)")
+    if t_old > 0:
+        print(f"  tăng tốc: {t_old / best[0]:.0f}x (riêng) · {t_old / (per_batch + best[4]):.0f}x (lô)")
     workers = 14
     print(f"\n=== Ngoại suy {workers} worker (lý tưởng, không tính điều phối) ===")
     for n in (10_000, 100_000, 500_000):
-        print(f"  {n:>7,} alpha: cũ {n * t_old / workers / 3600:7.1f} h · kernel riêng {n * best[0] / workers / 3600:6.2f} h · kernel lô {n * (per_batch + best[4]) / workers / 3600:6.2f} h")
+        old_str = f"cũ {n * t_old / workers / 3600:7.1f} h · " if t_old > 0 else ""
+        print(f"  {n:>7,} alpha: {old_str}kernel riêng {n * best[0] / workers / 3600:6.2f} h · kernel lô {n * (per_batch + best[4]) / workers / 3600:6.2f} h")
 
 
 if __name__ == "__main__":

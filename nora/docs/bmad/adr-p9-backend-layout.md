@@ -35,14 +35,19 @@ backend/
     signal.py                # bộ dịch tín hiệu mở: AST + DSL Python, snapshot, giải thích
     position_size.py         # sizing, mức SL/TP/DCA/trailing, rủi ro danh mục
     backtest.py              # ENGINE THỰC THI DUY NHẤT (numba): nến/tick, CEX/DEX, khớp lệnh, danh mục; chạy cả lô (backtest) hoặc từng nến (paper/live)
+  alpha/                     # chiến lược do người dùng/AI viết (người dùng chốt 2026-10-08, theo NautilusTrader): HỢP ĐỒNG cố định + bộ chuyển đổi -> MỘT mô hình chuẩn (IR ở core/signal) -> MỘT engine
+    contract.py              # Strategy Contract: vòng đời (on_start/on_bar/on_stop), danh mục primitive cho phép (chỉ báo/đặc trưng/thuộc tính vị thế — một nguồn cho kiểm tra + gợi ý code), lỗi/giới hạn mã; sai hợp đồng -> ADAPT hoặc REJECT, không đoán (validate_alpha của ứng viên tham số ở lại optimize/search/generate: phụ thuộc cấu hình phễu)
+    compile.py               # bộ chuyển đổi: Python DSL / chiến lược dạng hàm / JSON / mẫu / AI -> IR; biên dịch module chiến lược + cây điều kiện; diễn giải; nạp file chiến lược (sửa tại chỗ -> nạp lại theo mtime)
+    #  Tầng: alpha trên core, dưới optimize/live/routes. core/signal giữ IR (Node…Program) + bộ đánh giá: engine chỉ hiểu IR.
   metrics/
     metrics.py               # bộ chỉ số đầy đủ, một công thức chuẩn Nora (đúng theo NautilusTrader), năm = 365 ngày
-    trades.py                # bảng lệnh, thống kê theo lệnh/chiến lược, đối soát sàn ↔ sim
-    charts.py                # chuỗi cho biểu đồ: vốn, sụt giảm, NAV ngày, dashboard
+    trades.py                # bảng lệnh, thống kê theo lệnh/chiến lược, đối soát sàn ↔ sim, chẩn đoán từng lần chạy (diagnose_run)
+    charts.py                # chuỗi cho biểu đồ: vốn, sụt giảm, NAV ngày, dashboard, insight (quy tắc nhận xét), feeds
+    #  QUY TẮC metrics/: chỉ tính thuần (mảng/dict vào → số ra) + công thức tham số; KHÔNG I/O, KHÔNG stress/kiểm định/cổng (người dùng chốt 2026-10-08)
   regime/regime.py           # nhận diện trạng thái thị trường + học bảng regime
-  wfa/wfa.py                 # walk-forward
-  carlo/carlo.py             # Monte Carlo
-  verdict/verdict.py         # kết luận chống ăn may: DSR, PBO, lân cận, chẩn đoán, insight
+  wfa/wfa.py                 # walk-forward + kiểm chứng chéo / ổn định tham số (PBO-CSCV, lân cận, fold_stats)
+  carlo/carlo.py             # Monte Carlo + ý nghĩa thống kê dưới stress (DSR, N hiệu dụng); carlo cho kết luận cuối
+  # (gói verdict/ đã giải thể 2026-10-08: chia vào wfa/carlo/metrics)
   optimize/
     search/   generate.py, evaluate.py          # sinh alpha, chạy hàng loạt, dữ liệu dùng chung
     funnel/   stages.py, storage.py             # phễu S0 → FINAL
@@ -52,23 +57,29 @@ backend/
     cex.py                   # nến + funding OKX/Binance, chung một khung
     dex.py                   # tick swap on-chain + lưu tick
     store.py                 # layout dữ liệu, đọc/ghi, resample, quality gate, mmap dùng chung, LRU
-  live/
-    bot.py                   # vòng chạy thật: chỉ engine unified (bỏ legacy sau khi demo ổn định)
-    okx.py                   # cổng sàn OKX: REST, ký, bộ lọc lot/tick, OkxVenue, khoá
+  live/                      # chia theo MÔI TRƯỜNG chạy (người dùng chốt 2026-10-08): chỉ cấu hình chạy ở đâu, chạy thế nào theo thời gian thực;
+                             # logic tín hiệu + engine + pipeline đã có ở core/ và optimize/ (backtest chạy quá khứ, live chạy hiện tại)
+    live.py                  # vòng chạy thời gian thực dùng chung (nạp nến -> bước engine, lưu/nạp trạng thái + remap pickle, reconcile),
+                             # cổng sàn OKX (REST, ký, lot/tick, OkxVenue, khoá) + hồ sơ tiền thật (confirm_live)
+    testnet.py               # hồ sơ OKX demo (endpoint/cờ demo, khoá demo) — dùng runner của live.py
+    paper.py                 # hồ sơ paper: nến thật, khớp lệnh mô phỏng trong core (KernelPaperBook ở core/backtest.py) — chỉ cấu hình + nối dây
   routes/                    # (← api/) router + kiểm tham số job + chế độ Cơ bản/Nâng cao
+ops/                         # NGOÀI backend (nora/ops, chuyển từ backend/utils/ops ở P9 kiến trúc cuối): run_limited.sh, install_user_units.sh, deploy_nginx.sh, systemd/, nginx/
 ```
+
+Trạng thái cuối (P9 kiến trúc): `backend/utils/` không còn; `live/{live,testnet,paper}.py`; gói `verdict/` đã giải thể; không còn lớp fallback đường dẫn cũ trong `crawl/store.py` (chỉ cây mới).
 
 **Một engine thực thi duy nhất (người dùng chốt 2026-10-07).** Không có hai bản (kernel numba + bản Python sự kiện) giữ khớp bằng parity.
 `core/backtest.py` là engine duy nhất cho backtest, paper và live; tốc độ là thuộc tính của engine, tối ưu thêm thuộc `optimize/`.
 - Backtest: chạy cả lô nến như hiện nay.
 - Paper/live: gọi cùng engine TỪNG NẾN với trạng thái giữ trong mảng (cơ chế pack/writeback đã có). Engine sinh lệnh (vào/ra/SL/TP/DCA/trailing);
-  paper khớp ngay trong engine; live gửi lệnh qua `live/okx.py` (OkxVenue chỉ còn là cổng I/O) và nạp fill của sàn ngược vào trạng thái engine.
+  paper khớp ngay trong engine; live/testnet gửi lệnh qua cổng OKX trong `live/live.py` (OkxVenue chỉ còn là cổng I/O) và nạp fill của sàn ngược vào trạng thái engine.
 - Gỡ bản Python thứ hai: `core/execute/{tracker,manager,sim_venue,runner}` (P9.4b). `test/reference_engine.py` giữ trong test làm oracle.
 
 **Cổng bắt buộc khi chuyển file có đường dẫn theo `__file__`:** `store.code_version()` và `engine_version()` phải giống hệt trước/sau (sai độ sâu → khoá job đổi âm thầm, hỏng `--resume`).
 
 **Luật phụ thuộc** (test tự động chặn vi phạm, ban đầu báo cáo, sau bắt buộc):
-`core ← {metrics, regime, wfa, carlo, verdict} ← optimize ← {live, routes}`; `crawl` chỉ được gọi từ `optimize`, `live`, `routes`;
+`core ← {metrics, regime, wfa, carlo} ← optimize ← {live, routes}`; `crawl` chỉ được gọi từ `optimize`, `live`, `routes`;
 `core` không import gì ngoài `core`; trong core theo thứ tự `models ← params ← indicator ← signal ← position_size ← backtest`
 (file trước không import file sau; ví dụ `signal.py` không được import `backtest.py`). Core không đọc file: dữ liệu và cấu hình được nạp ở tầng trên rồi truyền vào.
 
@@ -83,32 +94,33 @@ backend/
 | core/position_size.py | core/execute/{policy,risk} |
 | core/backtest.py | core/backtest/{engine,portfolio,dex,kernel}, core/execute/{venue,amm} (bước P9.4a chuyển nguyên; P9.4b gỡ tracker/manager/sim_venue/runner), live/paper, core/strategy/pydsl/profiles (build_plan; tỉ trọng rổ nhận qua tham số, không đọc file) |
 | metrics/metrics.py | core/metrics/{returns,portfolio} — `xno.py` XOÁ (không gộp; người dùng + sếp chốt 2026-10-07: không còn chế độ xno) |
-| metrics/trades.py | core/metrics/trades, live/compare |
-| metrics/charts.py | core/analytics/{dashboard,signal_explain}; analytics/feeds.py (không ai dùng) → xoá |
+| metrics/trades.py | core/metrics/trades, live/compare, core/metrics/diagnose (chẩn đoán từng lần chạy), phần tính thuần của core/metrics/diagnose_inputs (`market_series`) |
+| metrics/charts.py | core/analytics/{dashboard,signal_explain,insights,feeds}, core/metrics/series_stages — `feeds.py` còn được routes/portfolio + test dùng nên CHUYỂN (không xoá) |
 | regime/regime.py | core/regime/{classifier,learn} |
-| wfa/wfa.py | wfa/walk_forward |
-| carlo/carlo.py | carlo/monte_carlo |
-| verdict/verdict.py | optimize/funnel/antiluck, core/metrics/diagnose, phần tính thuần của core/metrics/diagnose_inputs (benchmark, regime, exits, exposure, binding — nhận mảng), core/analytics/insights |
+| wfa/wfa.py | wfa/walk_forward, optimize/funnel/antiluck (`pbo_cscv`, `align_daily`, `neighbours`), core/metrics/returns.`fold_stats` |
+| carlo/carlo.py | carlo/monte_carlo, optimize/funnel/antiluck (`EULER_GAMMA`, `norm_cdf/ppf`, `expected_max_sr`, `deflated_sharpe`, `trial_sr_variance`, `effective_trials`) |
 | optimize/search/generate.py | optimize/funnel/generate |
 | optimize/search/evaluate.py | optimize/funnel/evaluate, optimize/shared |
 | optimize/funnel/stages.py | optimize/funnel/{orchestrator,gates,sizing,stats,publish,promote,recompute,run,estimate} |
 | optimize/funnel/storage.py | optimize/funnel/storage, optimize/store |
 | optimize/book/build.py | optimize/book, core/params/presets, phần engine dùng của core/params/modes (funnel/generate, live/bot, engine import) |
 | optimize/book/registry.py | optimize/{registry,revalidate}, core/analytics/{user_alphas,strategy_doc}, utils/engine_version |
-| optimize/process/process.py | api/jobs/runner, phần hàng đợi/chạy/trạng thái của api/jobs/batch, utils/jobs |
+| optimize/process/process.py | api/jobs/runner (P9.10a: điểm vào `-m backend.optimize.process.process <job_dir>`), phần hàng đợi/chạy/trạng thái của api/jobs/batch, utils/jobs |
 | optimize/search/evaluate.py (thêm) | phần thư viện của core/backtest/run (BacktestJob, make_engine, run, result_payload) |
-| optimize/process/tasks.py | mọi `run_job`: core/backtest/{run,custom_run,tick_run,edu_precompute}, wfa/run, core/regime/report (run_job của data_promote đã nằm ở crawl/store); phần NẠP dữ liệu của core/metrics/diagnose_inputs; nạp `data/alpha/universes/*.json` rồi truyền vào build_plan |
+| optimize/process/tasks.py | mọi `run_job`: core/backtest/{run (run_job),custom_run,edu_precompute}, wfa/run, core/regime/report (run_job của data_promote đã nằm ở crawl/store); phần NẠP dữ liệu của core/metrics/diagnose_inputs (`daily_close`, `load_prices`, `strategy_frames`, `_clean`); `tick_run` KHÔNG ở đây mà ở optimize/search/evaluate.py (mã backtest tick nằm trong dấu vân tay engine_version, ENGINE_FILES băm search/evaluate.py, còn tasks.py không băm); nạp `data/alpha/universes/*.json` rồi truyền vào build_plan |
 | optimize/process/workers.py | utils/{parallel,memwatch} |
 | crawl/cex.py | core/data/{crawler,okx_crawler} |
 | crawl/dex.py | core/data/tick_crawler, db/tick_storage |
-| crawl/store.py | db/{data_layout,local_pkl}, core/data/{loader,resampler,quality_gate,shared}, utils/{lru,jsonsafe} |
-| live/bot.py | live/{bot,unified,signals} |
-| live/okx.py | live/{okx,okx_venue,exchange,secrets} |
+| crawl/store.py | db/{data_layout,local_pkl}, core/data/{loader,resampler,quality_gate,shared}, utils/{lru,jsonsafe} (P9.10a: `shared` đã gộp, nối nguyên văn ở cuối file) |
+| live/live.py | live/{bot,unified,signals,okx,okx_venue,exchange,secrets,state_migrate} (phần dùng chung + hồ sơ tiền thật) |
+| live/testnet.py | phần riêng OKX demo của live/{bot,okx} |
+| live/paper.py | phần cấu hình/nối dây paper của live/{bot,paper}; adapter PaperBook (tính thuần) → core/backtest.py |
 | routes/*.py | api/routers/*; routes/modes.py ← api/modes + phần chỉ-API của core/params/modes (tách đôi, P9.6b/P9.8); routes/jobs.py ← phần kiểm tham số của api/jobs/batch |
 | data/alpha/strategies/*.json | định nghĩa cứng trong core/strategy/{library,book}.py (SIGNALS, KERNEL_STRATEGIES, CANDIDATES) |
 | (xoá) | core/strategy/pydsl/weights.py — tỉ trọng TOP10 xnoquant, bỏ cùng chế độ xno |
 | data/alpha/education/samples.json | mẫu Education đang nằm ở frontend JS + data/education/samples.json — thành nguồn gốc ở backend, phục vụ qua API |
 | test/scripts/ | core/analytics/top_agents (nghiên cứu) |
+| ops/ (nora/ops) | backend/utils/ops (đổi chỗ nguyên văn; NORA_DIR suy từ vị trí script = cha của ops/; log RAM mặc định `data/cache/process/_mem`) |
 
 `*` tracker.py chỉ còn tới P6.9 (nghỉ hưu sau khi demo đạt dung sai).
 
@@ -120,8 +132,7 @@ Kích thước ước tính: core/backtest.py ~3.600 dòng (một file theo yêu
 data/
   market/
     okx/      cex/<SYM>/{1m..24h}.pkl, perp/, funding.pkl, manifest.json      dex/<chain>/<pool>/…, ticks.parquet
-    binance/  cex/…   cex_ref/  (← binance_hist: TOP10 spot 2019-10 → 2025-01, chỉ để đối chiếu)
-    _meta/
+    binance/  cex/…   (binance_hist đã gộp vào binance/cex; cex_ref và _meta đã bỏ)
   alpha/
     strategies/  định nghĩa chiến lược hệ thống        user/<id>.json  alpha người dùng (code + program_hash + config + kết quả + bằng chứng)
     education/samples.json  presets.json  registry.json  book.json  explore/  testnet/
@@ -152,8 +163,7 @@ Giữ: `alphas/research/okx_top10_agents.json` (panel Top Agents đọc) → `da
    `data/alpha/user/`, `data/alpha/funnel/`, `data/alpha/book/`, `data/market/`, `data/backtest|wfa|carlo|live|cache/` không commit (.gitignore).
 
 Chọn gốc dữ liệu: một chỗ duy nhất `crawl/store.py` — `NORA_DATA_ROOT` (mặc định `nora/data`), `NORA_EXCHANGE` chọn `market/<sàn>`,
-`NORA_LOCAL_DATA_ROOT` giữ cho test. Bí danh nguồn dữ liệu cũ giữ trong `crawl/store.py`: `binance_hist` → `market/binance/cex_ref`
-(bản ghi cũ có `config.exchange` / `data.source = "binance_hist"` vẫn đọc được; nằm trong danh sách shim, không gỡ ở P9.10).
+`NORA_LOCAL_DATA_ROOT` giữ cho test (chế độ phẳng). Cây dữ liệu đã chuyển xong: helper chỉ trả đường MỚI (`_kind_path`), không còn fallback đường cũ.
 Quy tắc manifest: `sha256_1m` = `compute_df_sha256(df)` (băm NỘI DUNG khung dữ liệu), đúng như quality gate so sánh.
 Hiện 79 manifest `okx/cex/*/perp` đang lưu băm BYTE file (đợt gộp data_staging ~07:58 UTC 07/10) → mọi tài sản OKX bị chặn; sửa ở P9.1.
 
@@ -167,7 +177,7 @@ Hiện 79 manifest `okx/cex/*/perp` đang lưu băm BYTE file (đợt gộp data
 | P9.3 | `data/` theo cây mới (script chuyển + kiểm sha256, symlink tạm ở đường cũ) | S | P9.2 | Mọi job đọc/ghi đúng chỗ mới; không mất file (đếm + băm) |
 | P9.4 | `core/` (models, params, indicator, signal, position_size, backtest) + shim | S | P9.2 | Golden + mọi parity + nautilus_diff không đổi |
 | P9.4b | Một engine: paper/live gọi kernel từng nến (trạng thái mảng), gỡ tracker/manager/sim_venue/runner; OkxVenue chỉ I/O | norabt-e2 (logic) | P9.4 | Paper = backtest bit-identical bằng chính engine; test bot unified + OKX xanh; nautilus_diff không đổi |
-| P9.5 | `metrics/` (returns+portfolio → metrics.py; xno đã bị phiên logic xoá) + `regime/`, `wfa/`, `carlo/`, `verdict/` | S | P9.4 + phiên logic xoá xno xong | Số liệu metrics không đổi (test so cũ/mới); nautilus_diff không đổi |
+| P9.5 | `metrics/` (returns+portfolio → metrics.py; xno đã bị phiên logic xoá) + `regime/`, `wfa/`, `carlo/` (+ giải thể `verdict/` ở P9.10a) | S | P9.4 + phiên logic xoá xno xong | Số liệu metrics không đổi (test so cũ/mới); nautilus_diff không đổi |
 | P9.6 | `optimize/` (search, funnel, book, process) + vòng đời `data/cache/process` + dọn cache | S | P9.4 | Huỷ/khôi phục/resume chạy đúng; job cũ đọc được qua shim |
 | P9.7 | `live/` (bot, okx) — chỉ unified; khởi động lại bot demo | S, user duyệt bật lại bot | P9.4, P9.6 | test_live_bot, test_bot_unified, test_okx_venue xanh; bot chạy engine mới |
 | P9.8 | `routes/` (← api) + modes + kiểm tham số job | S | P9.6 | Mọi route `/api/studio/*` giữ nguyên; frontend chạy |

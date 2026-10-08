@@ -1,4 +1,4 @@
-"""P6.6: bộ test CONFORMANCE cho Venue (backend/core/execute/venue.py) — cùng một hợp đồng cho mọi nơi khớp lệnh.
+"""P6.6: bộ test CONFORMANCE cho Venue (backend/core/backtest.py: Venue / Order) — cùng một hợp đồng cho mọi nơi khớp lệnh.
 
 Ba tầng (docs/bmad/p6_execution_design.md §3, roadmap P6.6):
   A  hợp đồng — CÙNG thân test chạy trên SimVenue và OkxVenue (sàn OKX v5 giả lập HTTP, tái dùng `FakeOkx` của test_okx_venue.py); chỉ phần
@@ -18,15 +18,11 @@ from typing import List, Optional
 
 import pytest
 
-from backend.core.execute.events import Fill, OrderRejected
-from backend.core.execute.manager import PositionManager
-from backend.core.execute.models import PositionStatus, PositionType
-from backend.core.execute.sim_venue import SimVenue
-from backend.core.execute.tracker import PositionTracker
-from backend.core.execute.venue import NAN, Order, OrderKind, Venue, new_order_id
-from backend.core.params.builder import build_params
-from backend.live import okx
-from backend.live.okx_venue import OkxVenue
+from backend.core.models import Fill, OrderRejected, PositionStatus, PositionType
+from backend.core.backtest import PositionManager, SimVenue, PositionTracker, NAN, Order, OrderKind, Venue, new_order_id
+from backend.core.params import build_params
+from backend.live import live as lv
+from backend.live.live import OkxVenue
 from test_okx_venue import INSTR, FakeOkx, T0
 
 REF = 50_000.0       # giá tham chiếu chung của Tier A (sim: quote; okx: set_ref)
@@ -132,7 +128,7 @@ class OkxFakeDriver(Driver):
 
     def __init__(self, fake: FakeOkx):
         self.fake = fake
-        self.client = okx.OkxAdapter(("K", "S", "P"), demo=True, pause=0)
+        self.client = lv.OkxAdapter(("K", "S", "P"), demo=True, pause=0)
         self.venue = OkxVenue(self.client, {SLOT: "BTC"}, clock=lambda: T0, settle_s=0)
         self.venue.set_ref(SLOT, REF)
 
@@ -157,7 +153,7 @@ def venue(request, monkeypatch) -> Driver:
     if request.param == "sim_strict":
         return SimStrictDriver()
     fake = FakeOkx()
-    monkeypatch.setattr(okx.urllib.request, "urlopen", fake)
+    monkeypatch.setattr(lv.urllib.request, "urlopen", fake)
     return OkxFakeDriver(fake)
 
 
@@ -514,13 +510,13 @@ class TestOkxDemoTolerance:
     NORA_OKX_DEMO_SYM (mặc định ETH) chọn mã; NORA_OKX_DEMO_BAND_BPS (mặc định 30) là dải dung sai trượt giá."""
 
     def _setup(self):
-        from backend.live.bot import make_adapter
+        from backend.live.live import make_adapter
         client, _ = make_adapter("okx", "demo")
         client.check_account()
         sym = os.environ.get("NORA_OKX_DEMO_SYM", "ETH")
         if client.positions().get(sym):
             pytest.skip(f"đã có vị thế {sym} trên demo — không động vào")
-        rows = client._req("GET", "/api/v5/market/ticker", {"instId": okx.inst(sym)})
+        rows = client._req("GET", "/api/v5/market/ticker", {"instId": lv.inst(sym)})
         ref = float(rows[0]["last"])
         return client, sym, ref
 
@@ -551,9 +547,9 @@ class TestOkxDemoTolerance:
             assert not [e for e in got if isinstance(e, OrderRejected)], f"lệnh chờ bị từ chối: {got}"
             assert {o.kind for o in v.open_orders(SLOT)} >= {OrderKind.SL, OrderKind.DCA}   # TP có thể đã khớp nếu giá nhích đúng 5 bps
             v.cancel_slot(SLOT)
-            assert client._req("GET", "/api/v5/trade/orders-pending", {"instId": okx.inst(sym)}, signed=True) == []
+            assert client._req("GET", "/api/v5/trade/orders-pending", {"instId": lv.inst(sym)}, signed=True) == []
             if sym in client.positions():
-                v.set_ref(SLOT, float(client._req("GET", "/api/v5/market/ticker", {"instId": okx.inst(sym)})[0]["last"]))
+                v.set_ref(SLOT, float(client._req("GET", "/api/v5/market/ticker", {"instId": lv.inst(sym)})[0]["last"]))
                 v.submit(Order(new_order_id(), SLOT, OrderKind.EXIT, False, reason="demo_tol_exit"))
                 drain()
                 assert got[-1].kind == "exit" and abs(got[-1].price - v._ref[SLOT]) / v._ref[SLOT] <= band

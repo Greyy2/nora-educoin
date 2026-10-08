@@ -3,19 +3,20 @@ cửa sổ tick, từ chối (chân SHORT, thiếu tick, trộn perp + DEX), get
 
 Tick giả: mỗi tick đặt dự trữ sao cho giá biên = mid mong muốn (reserve_base cố định, reserve_quote = mid × reserve_base) -> mọi lệnh có trượt giá tính được bằng tay."""
 import json
-import os
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from backend.core.backtest import dex
-from backend.core.data.resampler import save_resampled_dataset
-from backend.core.execute import amm
-from backend.core.execute.models import PositionType
-from backend.core.execute.tracker import PositionTracker
-from backend.core.params.builder import build_params
-from backend.db.tick_storage import TICK_COLUMNS
+from backend.core import backtest as dex
+from backend.crawl.store import require_perp
+from backend.crawl.store import save_resampled_dataset, write_parquet_atomic
+from data_helpers import patch_meta
+from backend.crawl.dex import pool_info
+from backend.core.models import PositionType
+from backend.core.backtest import PositionTracker
+from backend.core.params import build_params
+from backend.crawl.dex import TICK_COLUMNS
 
 T0 = 1_700_006_400_000                 # 00:00 UTC, chia hết cho mọi khung
 MIN, F15, DAY = 60_000, 900_000, 86_400_000
@@ -40,14 +41,13 @@ def _asset(root, name, venue="dex", days=62, ticks=None, **meta):
     save_resampled_dataset(symbol=name, output_dir=str(out), df_1m_raw=df, pool_address="0xpool", crawl_ok=True, requested_start_ts=T0,
                            requested_end_ts=int(df.open_time.max()), extra_meta={"venue": venue, "checksums_verified": True, "exchange": "geckoterminal", **({"network": "base"} if venue == "dex" else {}), **meta})
     d = out / name
-    if venue == "dex":
-        (d / "dex_pool.json").write_text(json.dumps({"onchain": {"pool_address": "0xpool", "fee_rate": FEE, "stable": False, "pool_type": "aerodrome_v2"}}))
-    if ticks is not None:
-        ticks.to_parquet(d / "ticks.parquet", index=False)
-        m = json.loads((d / "manifest.json").read_text())
-        m["ticks"] = {"source": "evm_swaps", "synthetic": False, "start_ts": int(ticks.timestamp_ms.iloc[0]), "end_ts": int(ticks.timestamp_ms.iloc[-1]),
-                      "rows": len(ticks), "window_days": 3, "network": "base", "fee_rate": FEE, "stable": False, "pool_type": "aerodrome_v2"}
-        (d / "manifest.json").write_text(json.dumps(m))
+    onchain = {"pool_address": "0xpool", "fee_rate": FEE, "stable": False, "pool_type": "aerodrome_v2"} if venue == "dex" else None
+    if ticks is not None:   # metadata ticks/onchain nằm trong attrs của ticks.parquet
+        tick_meta = {"source": "evm_swaps", "synthetic": False, "start_ts": int(ticks.timestamp_ms.iloc[0]), "end_ts": int(ticks.timestamp_ms.iloc[-1]),
+                     "rows": len(ticks), "window_days": 3, "network": "base", "fee_rate": FEE, "stable": False, "pool_type": "aerodrome_v2"}
+        write_parquet_atomic(ticks.copy(), str(d / "ticks.parquet"), {"ticks": tick_meta, "onchain": onchain})
+    elif onchain:           # chưa có tick: onchain nằm trong attrs nến
+        patch_meta(str(d), onchain=onchain)
     return d
 
 
@@ -78,15 +78,15 @@ def market(tmp_path, monkeypatch):
     """Gốc dữ liệu giả: DEX XYZ (nến 62 ngày + tick giả đặt sau mỗi test), DEX NOTICK (không tick), CEX AAA có perp; chiến lược t_long / t_cyc / t_short."""
     root = tmp_path / "data"
     monkeypatch.setenv("NORA_LOCAL_DATA_ROOT", str(root))
-    from backend.core.strategy import book as sb
-    f = sb.f
+    from backend.optimize.book import build as sb
+    from backend.alpha.compile import cond, f
     pos = {"exit_unit": "pct", "sizing": "margin_pct", "order_size_pct": 50, "stop_loss_rate": 2.0, "take_profit_rate": 2.0}
     monkeypatch.setattr(sb, "CANDIDATES", [
-        {"id": "t_long", "family": "x", "side": "LONG", "description": "luôn khớp", "tree": sb.cond((f("15m", "close"), ">", 0)),
+        {"id": "t_long", "family": "x", "side": "LONG", "description": "luôn khớp", "tree": cond((f("15m", "close"), ">", 0)),
          "position": {**pos, "cooldown": 100_000}, "space": {}},                       # chỉ một lệnh (cooldown dài) -> kiểm thứ tự TP/SL
-        {"id": "t_cyc", "family": "x", "side": "LONG", "description": "vào lại liên tục", "tree": sb.cond((f("15m", "close"), ">", 0)),
+        {"id": "t_cyc", "family": "x", "side": "LONG", "description": "vào lại liên tục", "tree": cond((f("15m", "close"), ">", 0)),
          "position": {**pos, "cooldown": 15}, "space": {}},
-        {"id": "t_short", "family": "x", "side": "SHORT", "description": "bán khống", "tree": sb.cond((f("15m", "close"), ">", 0)),
+        {"id": "t_short", "family": "x", "side": "SHORT", "description": "bán khống", "tree": cond((f("15m", "close"), ">", 0)),
          "position": pos, "space": {}}])
     _asset(root, "NOTICK")
     _asset(root, "AAA", venue="cex")
@@ -100,8 +100,8 @@ def _xyz(root, ticks):
 
 
 def _run(items, ticks_df, root, **kw):
-    from backend.core.backtest.tick_run import run_tick
-    from backend.core.strategy.book import RISK
+    from backend.optimize.search.evaluate import run_tick
+    from backend.core.params import RISK
     _xyz(root, ticks_df)
     args = dict(start=None, end=None, rpt=0.5, risk=RISK, stop_fill="level", base_frame="15m", capital=CAPITAL)
     args.update(kw)
@@ -113,52 +113,52 @@ def _run(items, ticks_df, root, **kw):
 def test_amm_volatile_impact_is_exact_constant_product():
     rb, rq, qu, fee = 2_000_000.0, 3_000_000.0, 2.0, 0.003              # quote có giá 2 USD -> dự trữ quote 6 triệu USD
     n = 25_000.0
-    buy, sell = amm.price_impact(n, True, rb, rq, qu, fee, False), amm.price_impact(n, False, rb, rq, qu, fee, False)
+    buy, sell = dex.amm_price_impact(n, True, rb, rq, qu, fee, False), dex.amm_price_impact(n, False, rb, rq, qu, fee, False)
     e = n / qu * (1 - fee)                                              # quote đưa vào pool sau phí
     assert buy == pytest.approx(e / rq, rel=1e-12)                      # mua: Δ(1-f) / R_quote
     mid = rq / rb
     a = n / (mid * qu) * (1 - fee)                                      # base bán, sau phí
     assert sell == pytest.approx(a / (rb + a), rel=1e-12)               # bán: A(1-f) / (R_base + A(1-f))
-    out = amm.amount_out(n / qu, rq, rb, fee, False)
+    out = dex.amm_amount_out(n / qu, rq, rb, fee, False)
     assert out == pytest.approx(rb * e / (rq + e), rel=1e-12)
     assert (rq + e) * (rb - out) == pytest.approx(rq * rb, rel=1e-12)   # x*y=k giữ nguyên (trên phần đã trừ phí)
-    assert amm.price_impact(n, True, rb, rq, qu, 0.0, False) > buy      # bỏ phí khỏi đầu vào thì trượt giá lớn hơn một chút: phí không nằm trong impact
+    assert dex.amm_price_impact(n, True, rb, rq, qu, 0.0, False) > buy      # bỏ phí khỏi đầu vào thì trượt giá lớn hơn một chút: phí không nằm trong impact
 
 
 def test_amm_impact_adds_gas_and_validates_state():
-    m = amm.AmmImpact(FEE, False, GAS)
+    m = dex.AmmImpact(FEE, False, GAS)
     with pytest.raises(ValueError):
         m.set_state(0.0, 1.0, 1.0)
     m.set_state(RB, 100 * RB, 1.0)
     n = 1_000.0
-    assert m(n, True) == pytest.approx(amm.price_impact(n, True, RB, 100 * RB, 1.0, FEE, False) + GAS / n)
+    assert m(n, True) == pytest.approx(dex.amm_price_impact(n, True, RB, 100 * RB, 1.0, FEE, False) + GAS / n)
     assert m(0.0, True) == 0.0
     with pytest.raises(ValueError):
-        amm.AmmImpact(1.0, False)
+        dex.AmmImpact(1.0, False)
 
 
 def test_amm_stable_pool_solves_invariant_and_slips_less_than_volatile():
     rb = rq = 5_000_000.0
     fee = 0.0005
     for spend in (1_000.0, 100_000.0, 1_000_000.0):
-        out = amm.amount_out(spend, rq, rb, fee, True)
+        out = dex.amm_amount_out(spend, rq, rb, fee, True)
         e = spend * (1 - fee)
-        assert amm._stable_k(rq + e, rb - out) == pytest.approx(amm._stable_k(rq, rb), rel=1e-12)    # x³y+xy³ = k
-    small, big = amm.price_impact(1_000.0, True, rb, rq, 1.0, fee, True), amm.price_impact(1_000_000.0, True, rb, rq, 1.0, fee, True)
-    vol = amm.price_impact(1_000_000.0, True, rb, rq, 1.0, fee, False)
+        assert dex._stable_k(rq + e, rb - out) == pytest.approx(dex._stable_k(rq, rb), rel=1e-12)    # x³y+xy³ = k
+    small, big = dex.amm_price_impact(1_000.0, True, rb, rq, 1.0, fee, True), dex.amm_price_impact(1_000_000.0, True, rb, rq, 1.0, fee, True)
+    vol = dex.amm_price_impact(1_000_000.0, True, rb, rq, 1.0, fee, False)
     assert 0 < small < big < vol                                          # stable cân bằng gần giá 1:1 trượt ít hơn x*y=k, tăng theo khối lượng
-    assert amm.price_impact(1_000_000.0, False, rb, rq, 1.0, fee, True) > 0
+    assert dex.amm_price_impact(1_000_000.0, False, rb, rq, 1.0, fee, True) > 0
 
 
 def test_pool_info_refuses_null_fee_and_reads_sources(tmp_path, monkeypatch):
     root = tmp_path / "data"
     monkeypatch.setenv("NORA_LOCAL_DATA_ROOT", str(root))
     d = _asset(root, "NOFEE")
-    (d / "dex_pool.json").write_text(json.dumps({"onchain": {"fee_rate": None, "stable": False, "pool_type": "aerodrome_v2"}}))
+    patch_meta(str(d), onchain={"fee_rate": None, "stable": False, "pool_type": "aerodrome_v2"})
     with pytest.raises(ValueError, match="phí pool"):
-        dex.pool_info("dex:NOFEE")
+        pool_info("dex:NOFEE")
     d = _asset(root, "WITHFEE")
-    info = dex.pool_info("WITHFEE")
+    info = pool_info("WITHFEE")
     assert info["fee_rate"] == FEE and info["fee_source"].startswith("dex_pool.json") and info["pool_type"] == "aerodrome_v2" and info["ticks"] is None
 
 
@@ -219,7 +219,7 @@ def test_tracker_risk_sizing_uses_impact_on_planned_notional():
 
 
 def test_kernel_refuses_trackers_with_amm_hooks():
-    from backend.core.backtest.kernel import pack_slots
+    from backend.core.backtest import pack_slots
     with pytest.raises(ValueError, match="limit_taker"):
         pack_slots([_tracker(limit_taker=True)])
     pack_slots([_tracker()])
@@ -227,7 +227,7 @@ def test_kernel_refuses_trackers_with_amm_hooks():
 
 # ─── tín hiệu: thời điểm giao + cổng nến không có swap ─────────────────────
 def _fake_signals(match, stop, traded, latency=2_000, nb=None):
-    from backend.core.backtest.tick_run import _Signals
+    from backend.optimize.search.evaluate import _Signals
     s = _Signals.__new__(_Signals)
     s.v = {"t": np.arange(len(match)) * F15 + W, "entries": [{"match": np.array(match), "stop": np.array(stop), "vol": None, "dca": None}]}
     s.i0, s.nb, s.w, s.frame_ms, s.latency = 0, nb or len(match), W, F15, latency
@@ -260,7 +260,7 @@ ITEMS = [("t_long", {})]
 
 
 def _entry_notional_and_fill():
-    m = amm.AmmImpact(FEE, False, GAS)
+    m = dex.AmmImpact(FEE, False, GAS)
     m.set_state(RB, 100.0 * RB, 1.0)
     margin = CAPITAL * 0.5
     return margin, 100.0 * (1 + m(margin, True))
@@ -311,52 +311,54 @@ def test_short_leg_and_both_sides_are_rejected_with_vietnamese_message(market):
     with pytest.raises(ValueError, match="chỉ chạy chân LONG"):
         _run([("t_long", {}), ("t_short", {})], path_ticks([100.0, 100.0]), market)
     with pytest.raises(ValueError, match="chỉ chạy chân LONG"):
-        from backend.core.backtest.run import run
+        from backend.optimize.search.evaluate import run
         run([("t_short", {})], ["dex:NOTICK"], W, W + DAY, 0.5, "level", {}, base_frame="15m", venue="dex")
 
 
 def test_tick_mode_requires_ticks_and_dex_and_no_mixing(market):
-    from backend.api.jobs import batch
+    from backend.optimize.process import process as batch
+    from backend.routes import jobs as batch_routes
     base = {"start": "2023-12-10", "end": "2023-12-12", "timeframe": "15m", "strategies": [{"id": "t_long", "params": {}}]}
     _xyz(market, path_ticks([100.0, 100.0]))
-    ok = batch.build_job("book_backtest", {**base, "symbols": ["XYZ"], "data": "candle"})
+    ok = batch_routes.build_job("book_backtest", {**base, "symbols": ["XYZ"], "data": "candle"})
     assert ok["symbols"] == ["dex:XYZ"] and "data" not in ok
     with pytest.raises(batch.JobError, match="chưa có tick"):
-        batch.build_job("book_backtest", {**base, "symbols": ["dex:NOTICK"], "data": "tick"})
+        batch_routes.build_job("book_backtest", {**base, "symbols": ["dex:NOTICK"], "data": "tick"})
     with pytest.raises(batch.JobError, match="chạy chung"):
-        batch.build_job("book_backtest", {**base, "symbols": ["BTC", "dex:XYZ"]})
+        batch_routes.build_job("book_backtest", {**base, "symbols": ["BTC", "dex:XYZ"]})
     with pytest.raises(batch.JobError, match="chỉ dành cho tài sản DEX"):
-        batch.build_job("book_backtest", {**base, "symbols": ["BTC"], "data": "tick"})
+        batch_routes.build_job("book_backtest", {**base, "symbols": ["BTC"], "data": "tick"})
     with pytest.raises(batch.JobError, match="chân LONG"):
-        batch.build_job("book_backtest", {**base, "symbols": ["XYZ"], "strategies": [{"id": "t_short", "params": {}}]})
+        batch_routes.build_job("book_backtest", {**base, "symbols": ["XYZ"], "strategies": [{"id": "t_short", "params": {}}]})
     with pytest.raises(batch.JobError, match="chọn chiến lược"):
-        batch.build_job("book_backtest", {k: v for k, v in base.items() if k != "strategies"} | {"symbols": ["XYZ"]})
+        batch_routes.build_job("book_backtest", {k: v for k, v in base.items() if k != "strategies"} | {"symbols": ["XYZ"]})
     with pytest.raises(batch.JobError, match="không có tài sản DEX"):
-        batch.build_job("book_backtest", {**base, "symbols": ["dex:ZZZ"]})
+        batch_routes.build_job("book_backtest", {**base, "symbols": ["dex:ZZZ"]})
     day = "2023-11-14"                                          # trước đầu tick giả (W = đầu ngày thứ 60 sau T0 = 2024-01-13): cửa sổ ngoài độ phủ
     with pytest.raises(batch.JobError, match="ngắn hơn một nến cơ sở"):
-        batch.build_job("book_backtest", {**base, "symbols": ["XYZ"], "data": "tick", "start": day, "end": "2023-11-15"})
-    t = batch.build_job("book_backtest", {**base, "symbols": ["XYZ"], "data": "tick", "start": "2024-01-13", "end": "2024-01-14", "latency_ms": 500, "gas_usd": 0.1})
+        batch_routes.build_job("book_backtest", {**base, "symbols": ["XYZ"], "data": "tick", "start": day, "end": "2023-11-15"})
+    t = batch_routes.build_job("book_backtest", {**base, "symbols": ["XYZ"], "data": "tick", "start": "2024-01-13", "end": "2024-01-14", "latency_ms": 500, "gas_usd": 0.1})
     assert t["data"] == "tick" and t["latency_ms"] == 500 and t["gas_usd"] == 0.1
 
 
 def test_wfa_and_funnel_reject_dex_symbols(market):
-    from backend.api.jobs import batch
+    from backend.optimize.process import process as batch
+    from backend.routes import jobs as batch_routes
     _xyz(market, path_ticks([100.0, 100.0]))
     with pytest.raises(batch.JobError, match="WFA / phễu chưa hỗ trợ"):
-        batch.check_symbols(["dex:XYZ"])
+        batch_routes.check_symbols(["dex:XYZ"])
     with pytest.raises(batch.JobError, match="WFA / phễu chưa hỗ trợ"):
-        batch.build_job("book_wfa", {"candidates": ["t_long"], "symbols": ["XYZ"]})
+        batch_routes.build_job("book_wfa", {"candidates": ["t_long"], "symbols": ["XYZ"]})
     with pytest.raises(ValueError, match="WFA chưa hỗ trợ tài sản DEX"):
-        from backend.wfa.run import run_job as wfa_job
+        from backend.optimize.process.tasks import run_book_wfa as wfa_job
         wfa_job({"candidates": "t_long", "symbols": "dex:XYZ"})
     with pytest.raises(ValueError, match="chưa hỗ trợ tài sản DEX"):
-        dex.require_perp(["AAA", "dex:XYZ"], "Phễu")
-    dex.require_perp(["AAA"], "Phễu")
+        require_perp(["AAA", "dex:XYZ"], "Phễu")
+    require_perp(["AAA"], "Phễu")
 
 
 def test_run_job_rejects_mixing_and_tick_on_perp(market):
-    from backend.core.backtest.run import run_job
+    from backend.optimize.process.tasks import run_book_backtest as run_job
     with pytest.raises(ValueError, match="chạy chung"):
         run_job({"strategies": [{"id": "t_long"}], "symbols": "AAA,dex:NOTICK", "start": "2024-01-01", "end": "2024-01-02"})
     with pytest.raises(ValueError, match="chỉ dành cho tài sản DEX"):
@@ -365,7 +367,7 @@ def test_run_job_rejects_mixing_and_tick_on_perp(market):
 
 # ─── API: danh sách tài sản ─────────────────────────────────────────────────
 def test_get_book_lists_assets_with_candle_and_tick_coverage(market):
-    from backend.api.routers.book import get_book
+    from backend.routes.book import get_book
     ticks = path_ticks([100.0, 100.0])
     _xyz(market, ticks)
     body = get_book()
@@ -391,7 +393,7 @@ def _cyc_ticks():
 
 
 def test_run_job_tick_end_to_end_schema_and_candle_mode_for_dex(market, tmp_path, monkeypatch):
-    from backend.core.backtest.run import run_job
+    from backend.optimize.process.tasks import run_book_backtest as run_job
     monkeypatch.setenv("NORA_JOB_DIR", str(tmp_path / "job"))
     _xyz(market, _cyc_ticks())
     out = run_job({"strategies": [{"id": "t_cyc"}], "symbols": "XYZ", "data": "tick", "timeframe": "15m", "out": str(tmp_path / "o.json")})

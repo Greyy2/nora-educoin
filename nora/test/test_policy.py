@@ -1,10 +1,10 @@
-"""Test hàm thuần của core/execute/policy.py (mức giá + khối lượng của chính sách vị thế).
+"""Test hàm thuần của core/position_size.py (mức giá + khối lượng của chính sách vị thế).
 Tracker uỷ quyền vào policy; kết quả tracker không đổi được bảo chứng bởi golden + parity kernel."""
 import math
 
 import pytest
 
-from backend.core.execute import policy as P
+from backend.core import position_size as P
 
 L, S = 1.0, -1.0
 

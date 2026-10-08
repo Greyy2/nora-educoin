@@ -3,8 +3,8 @@ import dataclasses
 
 import pytest
 
-from backend.core.execute.events import Fill, OrderRejected
-from backend.live import compare as C
+from backend.core.models import Fill, OrderRejected
+from backend.metrics import trades as C
 
 H = 3_600_000
 T0 = 1_700_000_000_000

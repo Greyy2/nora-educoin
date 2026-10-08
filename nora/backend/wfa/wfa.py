@@ -1,4 +1,4 @@
-# P9.5 — chuyển NGUYÊN VĂN từ wfa/walk_forward.py (chỉ đổi dòng import sang đường dẫn mới; đường dẫn cũ là shim).
+# Nguồn: docs/bmad/p9_review_log.md (mục P9.5, P9.10b). Phần CHẠY engine (run_job, _pool_shared, plan_*_jobs, run_portfolio_wfa) nằm ở optimize/process/tasks.py (wfa nằm dưới optimize).
 """Walk-Forward Analysis cho SỔ CHIẾN LƯỢC (danh mục nhiều tài sản, MỘT sổ vốn) + Monte Carlo trên lợi suất ngày MTM.
 
 Khác WFA đơn tài sản (wfa.py): chọn tham số theo CHIẾN LƯỢC (dùng chung cả vũ trụ), OOS chạy CẢ sổ cùng nhau với
@@ -16,36 +16,28 @@ Chạy song song: MỌI job IS của MỌI fold trong một pool, rồi MỌI jo
 dựng dữ liệu dùng chung (mmap) cho từng (cửa sổ, refs) và xoá sau khi pool thành công.
 """
 import json
-import os
-import time
 from collections import Counter
-from dataclasses import asdict, dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
 
 import numpy as np
-import pandas as pd
 
-from backend.core.backtest.run import BacktestJob, make_engine
-from backend.metrics.metrics import portfolio_metrics
-from backend.optimize.shared import SharedExporter
-from backend.utils.parallel import pool_map_safe
-
+from backend.core.params import config_from_dict
 from backend.carlo.carlo import (MC_MAX_RUIN_PCT, MC_MIN_SIMULATIONS, MC_RUIN_THRESHOLD_PCT, STRESS_MAX_MDD_PCT,
-                                 evaluate_mc_gate, extra_cost_from_turnover, measure_turnover, merge_exposure, merge_turnover,
-                                 run_monte_carlo_daily_gate, vertical_exposure)
+                                 evaluate_mc_gate, extra_cost_from_turnover, merge_exposure, merge_turnover,
+                                 run_monte_carlo_daily_gate)
 
-DAY = 86_400_000
 
 # ── Gate chấp nhận (không nới để có kết quả đẹp) ────────────────────────────
 MIN_FOLDS = 5                      # tối thiểu số fold
 MIN_AVG_IS_RET_PCT = 0.0           # lãi IS trung bình các fold >= 0 (lỗ ngay trên dữ liệu chọn tham số thì OOS dương chỉ là may)
 MIN_TRADED_FOLDS = 3               # tối thiểu số fold có lệnh (fold NO_TRADE trung tính)
 MIN_FOLD_T = 1.0                   # t-stat lãi TB/fold OOS (extreme, fold có lệnh) >= 1 — thay "tỉ lệ fold lãi >= 60%" (lãi lệch phải;
-                                   # core/metrics/returns.fold_stats, cùng cổng với phễu S3)
+                                   # wfa/wfa.fold_stats, cùng cổng với phễu S3)
 MIN_EX_BEST_FOLD_PCT = -2.0        # bỏ fold OOS tốt nhất, lãi kép (extreme) còn lại >= -2%
 MAX_FOLD_MDD_PCT = 30.0            # MDD tệ nhất của một fold OOS (extreme) <= 30%
 MIN_COMPOUNDED_OOS_PCT = 0.0       # lãi kép OOS (extreme) >= 0
-# Monte Carlo (hằng số gốc ở backend/carlo/monte_carlo.py, dùng chung mọi gate): >= 10.000 bootstrap, P(MDD >= 30% trong 1 năm) <= 5%,
+# Monte Carlo (hằng số gốc ở backend/carlo/carlo.py, dùng chung mọi gate): >= 10.000 bootstrap, P(MDD >= 30% trong 1 năm) <= 5%,
 # và MỌI kịch bản cực xấu tất định (+ đường bootstrap tệ nhất) có MDD < STRESS_MAX_MDD_PCT, không cháy vốn.
 MAX_MC_RUIN_PCT = MC_MAX_RUIN_PCT
 MIN_MC_DAYS = 20                   # ít hơn ngần này ngày OOS thì không đủ để bootstrap -> check MC trượt
@@ -64,99 +56,7 @@ class PortfolioWfaConfig:
 
     @classmethod
     def from_dict(cls, d: Optional[Dict[str, Any]]) -> "PortfolioWfaConfig":
-        d = dict(d or {})
-        return cls(**{k: d[k] for k in cls.__dataclass_fields__ if k in d})
-
-
-# Seam cho test: thay bằng bản chạy tuần tự trong tiến trình để ghi lại job.
-_pool_map = pool_map_safe
-
-
-# ── Job & worker ────────────────────────────────────────────────────────────
-def run_job(job):
-    import contextlib
-    import io
-    from backend.utils.memwatch import peak_rss_mb, rss_anon_mb
-    eng, start = make_engine(job)
-    with contextlib.redirect_stdout(io.StringIO()):
-        eng.run()
-    res = eng.get_results()
-    result = portfolio_metrics(res, start)
-    from backend.metrics.trades import trade_rows
-    rows = trade_rows(res["positions"])
-    result["shock"] = vertical_exposure(rows, job.rpt)   # MC: kịch bản trend thẳng đứng
-    result["turnover"] = measure_turnover(rows, len(result["daily"]))   # MC: kịch bản cost_x2 dùng vòng quay ĐO TỪ LỆNH
-    if job.regime:   # lãi/lỗ theo (chiến lược, regime lúc vào lệnh) -> học bảng regime (regime="learn")
-        from backend.regime.regime import engine_by_regime
-        result["by_regime"] = engine_by_regime(eng, res["positions"])
-    # Ngày UTC đầu của chuỗi lợi suất ngày (mẫu vốn đầu tiên >= start) -> dựng nhãn ngày cho đường vốn OOS
-    first = next((c["time"] for c in res["equity_curve"] if c["time"] >= start), None)
-    result["_daily_start"] = _date(first) if first is not None else None
-    result["_peak_rss_mb"] = round(peak_rss_mb(), 1)
-    result["_rss_anon_mb"] = round(rss_anon_mb(), 1)
-    return result
-
-
-def _pool_shared(jobs, workers, label, shared_dir, store=None, stage=None, progress=None):
-    """Làm nóng kho dùng chung -> pool -> dọn kho (lỗi thì ngoại lệ bay lên, kho giữ nguyên để gỡ lỗi). jobs: [BacktestJob].
-    store (ResultsStore, tuỳ chọn): mỗi kết quả ghi ngay khi xong; job đã có trong kho (cùng job_key) bỏ qua -> `--resume`.
-    stage "wfa_is": bỏ chuỗi `daily` (chọn cấu hình IS không cần) để RAM/kho gọn. Kết quả luôn đúng thứ tự jobs."""
-    if store is None and progress is None:
-        exporter = SharedExporter(shared_dir, label)
-        exporter.ensure(jobs)
-        res = _pool_map(run_job, jobs, workers, label)
-        exporter.cleanup()
-        return res
-    from backend.optimize.store import data_fingerprint, make_job_key
-    from backend.optimize.store import normalize
-    stage = stage or "wfa"
-    results: List[Any] = [None] * len(jobs)
-    keys_of: List[Optional[str]] = [None] * len(jobs)
-    missing = []
-    fp = data_fingerprint(jobs[0].symbols) if (store is not None and jobs) else None
-    for i, job in enumerate(jobs):
-        if store is not None:
-            extra = {"rpt": job.rpt, "symbols": list(job.symbols)}
-            if job.base_frame != "1m":   # khung chạy khác -> khoá khác (resume không trộn kết quả hai khung)
-                extra["base_frame"] = job.base_frame
-            if job.regime:
-                extra["regime"] = job.regime
-            keys_of[i] = make_job_key(stage, "-", [[c, p] for c, p in job.items], list(job.window), job.stop_fill, job.risk, fp,
-                                      extra=extra)
-            row = store.get(keys_of[i])
-            if row is not None:
-                results[i] = row["metrics"]
-                if progress is not None:
-                    progress.tick(resumed=True)
-                continue
-        missing.append(i)
-    if missing:
-        sub = [jobs[i] for i in missing]
-        exporter = SharedExporter(shared_dir, label)
-        exporter.ensure(sub)
-
-        def _done(j, res):
-            i = missing[j]
-            m = normalize(res)
-            if stage == "wfa_is":
-                m.pop("daily", None)
-                m.pop("stats", None)
-            results[i] = m
-            if store is not None:
-                store.put(keys_of[i], stage, "-", [[c, p] for c, p in jobs[i].items], m, ord=i)
-            if progress is not None:
-                progress.tick(worker_peak_mb=m.get("_peak_rss_mb"))
-        _pool_map(run_job, sub, workers, label, on_done=_done)
-        exporter.cleanup()
-    return results
-
-
-def _strip(m):
-    return {k: v for k, v in m.items() if k not in ("daily", "_peak_rss_mb", "_rss_anon_mb", "_daily_start", "by_regime", "shock", "turnover")}
-
-
-def _date(ts) -> str:
-    return f"{pd.Timestamp(int(ts), unit='ms'):%Y-%m-%d}"
+        return config_from_dict(cls, d)
 
 
 # ── Chọn cấu hình ở IS (thuần, test được) ───────────────────────────────────
@@ -175,50 +75,6 @@ def select_best(rows: List[Dict[str, Any]], min_trades: int) -> Optional[int]:
         if sc is not None and (best is None or sc > best):
             best_i, best = i, sc
     return best_i
-
-
-def plan_is_jobs(candidates, folds, symbols, risk, rpt, shared_dir, base_frame="1m"):
-    """Danh sách (khoá, job) IS: khoá = (fold, candidate_id, chỉ số cấu hình). Cửa sổ IS = [train_start, train_end]."""
-    is_risk = {**risk, "kill_switch_dd_pct": 0}
-    keys, jobs = [], []
-    for fi, fold in enumerate(folds):
-        for cand in candidates:
-            for ci, cfg_params in enumerate(cand["configs"]):
-                keys.append((fi, cand["id"], ci))
-                jobs.append(BacktestJob([(cand["id"], cfg_params)], (fold["train_start_ts"], fold["train_end_ts"]), "level", is_risk,
-                                        rpt, symbols, shared_dir, base_frame))
-    return keys, jobs
-
-
-def plan_oos_jobs(chosen, folds, symbols, risk, rpt, shared_dir, base_frame="1m", regime_maps=None):
-    """chosen[fold] = [(candidate_id, params)] (rỗng -> fold NO_TRADE, không chạy). Khoá = (fold, stop_fill).
-    regime_maps[fold] (tuỳ chọn): bảng regime học trên train của fold đó."""
-    keys, jobs = [], []
-    for fi, fold in enumerate(folds):
-        if not chosen[fi]:
-            continue
-        rmap = regime_maps[fi] if regime_maps else None
-        for sf in ("level", "extreme"):
-            keys.append((fi, sf))
-            jobs.append(BacktestJob(chosen[fi], (fold["test_start_ts"], fold["test_end_ts"]), sf, risk, rpt, symbols, shared_dir, base_frame,
-                                    rmap))
-    return keys, jobs
-
-
-def plan_regime_jobs(chosen, folds, symbols, risk, rpt, shared_dir, base_frame="1m", learn_from=None):
-    """regime="learn": mỗi fold chạy lại các cấu hình đã chọn trên cửa sổ HỌC (kill switch tắt như IS) ở chế độ quan sát regime
-    -> lãi/lỗ theo (chiến lược, regime). Cửa sổ học = [learn_from, train_end] (mở rộng: thêm mẫu, vẫn kết thúc trước test);
-    learn_from=None -> đúng cửa sổ train của fold. Khoá = fold."""
-    from backend.regime.regime import OBSERVE
-    is_risk = {**risk, "kill_switch_dd_pct": 0}
-    keys, jobs = [], []
-    for fi, fold in enumerate(folds):
-        if chosen[fi]:
-            keys.append(fi)
-            lo = fold["train_start_ts"] if learn_from is None else min(int(learn_from), fold["train_start_ts"])
-            jobs.append(BacktestJob(chosen[fi], (lo, fold["train_end_ts"]), "level", is_risk, rpt, symbols, shared_dir,
-                                    base_frame, {cid: OBSERVE for cid, _ in chosen[fi]}))
-    return keys, jobs
 
 
 # ── Tổng hợp + gate (thuần, test được) ──────────────────────────────────────
@@ -252,7 +108,6 @@ def aggregate_folds(folds: List[Dict[str, Any]], cfg: PortfolioWfaConfig) -> Dic
                                         horizon_days=cfg.mc_horizon_days, ruin_threshold_pct=MC_RUIN_THRESHOLD_PCT,
                                         seed=cfg.mc_seed, max_ruin_pct=MAX_MC_RUIN_PCT, stress_max_mdd_pct=STRESS_MAX_MDD_PCT, shock=shock,
                                         extra_cost_daily=extra_cost_from_turnover(turnover["turnover_daily"]))
-    from backend.metrics.metrics import fold_stats
     fs = fold_stats([f["oos_extreme"]["ret_pct"] if f["oos_extreme"] else 0.0 for f in folds],
                     [f["status"] == "TRADED" and (f["oos_extreme"] or {}).get("trades", 0) > 0 for f in folds])
     return {
@@ -297,125 +152,6 @@ def evaluate_gate(summary: Dict[str, Any]) -> Dict[str, Any]:
     return {"passed": all(c["passed"] for c in checks.values()), "checks": checks}
 
 
-# ── Chạy ────────────────────────────────────────────────────────────────────
-def run_portfolio_wfa(candidates, symbols, start_ts, end_ts, cfg, risk, risk_per_trade_pct, workers, shared_root,
-                      store=None, progress=None, base_frame="1m", regime="off", regime_learn_from=None) -> Dict[str, Any]:
-    """candidates = [{"id": candidate_id, "configs": [params...]}]; cfg: PortfolioWfaConfig hoặc dict.
-    regime: "off" (mặc định, như trước) | "learn": mỗi fold học bảng regime ↔ chiến lược trên TRAIN (core/regime/learn.py) rồi áp lên test;
-    regime_learn_from (ms, tuỳ chọn): học trên cửa sổ mở rộng [regime_learn_from, train_end] thay vì chỉ train của fold.
-    risk: dict RiskConfig dùng cho OOS (kill switch BẬT); IS tự tắt kill switch. Trả dict kết quả (xem aggregate_folds).
-    store/progress (tuỳ chọn, backend/optimize): ghi từng kết quả job vào kho + bỏ qua job đã có (--resume) + tiến độ."""
-    cfg = cfg if isinstance(cfg, PortfolioWfaConfig) else PortfolioWfaConfig.from_dict(cfg)
-    symbols, rpt = list(symbols), float(risk_per_trade_pct)
-    folds = generate_folds(int(start_ts), int(end_ts), cfg.train_days, cfg.test_days, cfg.step_days)
-    if not folds:
-        raise ValueError("Khoảng thời gian không đủ để tạo ít nhất 1 fold")
-    os.makedirs(shared_root, exist_ok=True)
-    t0 = time.time()
-
-    # IS: MỌI fold × chiến lược × cấu hình trong MỘT pool
-    is_keys, is_jobs = plan_is_jobs(candidates, folds, symbols, risk, rpt, shared_root, base_frame)
-    if progress is not None:
-        progress.start_stage("WFA-IS", len(is_jobs))
-    is_res = _pool_shared(is_jobs, workers, f"[WFA-IS] {len(folds)} fold × {len(is_jobs) // len(folds)} job", shared_root,
-                          store, "wfa_is", progress)
-    is_by = {k: m for k, m in zip(is_keys, is_res)}
-    print(f"[WFA-IS] {len(is_jobs)} job IS xong ({time.time() - t0:.0f}s)", flush=True)
-
-    # Chọn cấu hình theo IS (chỉ dùng kết quả IS)
-    chosen: List[List[Tuple[str, Dict[str, Any]]]] = []
-    picks: List[Dict[str, Optional[int]]] = []
-    for fi in range(len(folds)):
-        pick, items = {}, []
-        for cand in candidates:
-            rows = [is_by[(fi, cand["id"], ci)] for ci in range(len(cand["configs"]))]
-            best = select_best(rows, cfg.min_is_trades)
-            pick[cand["id"]] = best
-            if best is not None:
-                items.append((cand["id"], cand["configs"][best]))
-        chosen.append(items)
-        picks.append(pick)
-
-    # regime="learn": bảng regime của mỗi fold chỉ học từ train
-    regime_maps, train_regime = None, {}
-    if regime == "learn":
-        from backend.regime.regime import learn_map
-        rg_keys, rg_jobs = plan_regime_jobs(chosen, folds, symbols, risk, rpt, shared_root, base_frame, regime_learn_from)
-        if progress is not None:
-            progress.start_stage("WFA-REGIME", len(rg_jobs))
-        rg_res = _pool_shared(rg_jobs, workers, f"[WFA-REGIME] {len(rg_jobs)} job", shared_root, store, "wfa_regime", progress) if rg_jobs else []
-        train_regime = {fi: m.get("by_regime") or {} for fi, m in zip(rg_keys, rg_res)}
-        regime_maps = [{cid: rc for cid, rc in learn_map(train_regime.get(fi, {}), [c for c, _ in chosen[fi]]).items() if rc}
-                       for fi in range(len(folds))]
-        print(f"[WFA-REGIME] {len(rg_jobs)} job học regime xong ({time.time() - t0:.0f}s)", flush=True)
-    elif regime != "off":
-        raise ValueError(f"regime phải là off|learn (nhận {regime!r})")
-
-    # OOS: MỌI fold × {level, extreme} trong MỘT pool
-    oos_keys, oos_jobs = plan_oos_jobs(chosen, folds, symbols, risk, rpt, shared_root, base_frame, regime_maps)
-    if progress is not None:
-        progress.start_stage("WFA-OOS", len(oos_jobs))
-    oos_res = _pool_shared(oos_jobs, workers, f"[WFA-OOS] {len(oos_jobs)} job", shared_root, store, "wfa_oos", progress) if oos_jobs else []
-    oos_by = {k: m for k, m in zip(oos_keys, oos_res)}
-    print(f"[WFA-OOS] {len(oos_jobs)} job OOS xong ({time.time() - t0:.0f}s)", flush=True)
-
-    fold_records = []
-    for fi, fold in enumerate(folds):
-        cids = [c["id"] for c in candidates]
-        is_sel = {cid: _strip(is_by[(fi, cid, picks[fi][cid])]) | {"score": round(is_score(is_by[(fi, cid, picks[fi][cid])],
-                                                                                          cfg.min_is_trades), 4)}
-                  for cid in cids if picks[fi][cid] is not None}
-        rec = {
-            "fold": fi + 1,
-            "train": [_date(fold["train_start_ts"]), _date(fold["train_end_ts"])],
-            "test": [_date(fold["test_start_ts"]), _date(fold["test_end_ts"])],
-            "train_ts": [fold["train_start_ts"], fold["train_end_ts"]], "test_ts": [fold["test_start_ts"], fold["test_end_ts"]],
-            "status": "TRADED" if chosen[fi] else "NO_TRADE",
-            "chosen_idx": picks[fi],
-            "chosen": {cid: (candidates[i]["configs"][picks[fi][cid]] if picks[fi][cid] is not None else None)
-                       for i, cid in enumerate(cids)},
-            "is": is_sel,
-            "is_ret_pct": round(sum(m["ret_pct"] for m in is_sel.values()) / len(is_sel), 2) if is_sel else 0.0,
-            "is_candidates": {cid: [{"ret_pct": m["ret_pct"], "mdd_pct": m["mdd_pct"], "trades": m["trades"],
-                                     "score": is_score(m, cfg.min_is_trades)}
-                                    for m in (is_by[(fi, cid, ci)] for ci in range(len(candidates[i]["configs"])))]
-                              for i, cid in enumerate(cids)},
-        }
-        for sf in ("level", "extreme"):
-            m = oos_by.get((fi, sf))
-            rec[f"oos_{sf}"] = _strip(m) if m else None
-            rec[f"oos_daily_{sf}"] = list(m["daily"]) if m else [0.0] * cfg.test_days   # NO_TRADE: vốn đứng yên
-            first = (m or {}).get("_daily_start") or _date(fold["test_start_ts"])
-            rec[f"oos_daily_dates_{sf}"] = [f"{d:%Y-%m-%d}" for d in pd.date_range(first, periods=len(rec[f"oos_daily_{sf}"]), freq="D")]
-        rec["shock"] = (oos_by.get((fi, "extreme")) or {}).get("shock")
-        m_ext = oos_by.get((fi, "extreme"))
-        if m_ext is None:                                           # fold NO_TRADE: không có lệnh nào -> vòng quay 0 (đo được)
-            rec["turnover"] = measure_turnover([], len(rec["oos_daily_extreme"]))
-        else:                                                       # kết quả job cũ trong kho (resume) không lưu vòng quay -> không đo được
-            rec["turnover"] = m_ext.get("turnover") or {"turnover_daily": None, "note": "kết quả fold cũ không lưu vòng quay", "sum": 0.0,
-                                                        "days": len(rec["oos_daily_extreme"]), "trades": 0, "measurable": 0}
-        if regime_maps is not None:
-            rec["regime_map"] = regime_maps[fi]
-            rec["train_by_regime"] = train_regime.get(fi, {})
-        rec["trades"] = {sf: (rec[f"oos_{sf}"]["trades"] if rec[f"oos_{sf}"] else 0) for sf in ("level", "extreme")}
-        rec["halted_at"] = {sf: (rec[f"oos_{sf}"]["halted_at"] if rec[f"oos_{sf}"] else None) for sf in ("level", "extreme")}
-        fold_records.append(rec)
-
-    summary = aggregate_folds(fold_records, cfg)
-    gate = evaluate_gate(summary)
-    all_res = [m for m in list(is_res) + list(oos_res) if m]
-    return {
-        "config": asdict(cfg), "risk": risk, "risk_per_trade_pct": rpt, "symbols": symbols,
-        **({"regime": regime} if regime != "off" else {}),
-        **({"regime_learn_from": _date(regime_learn_from)} if regime != "off" and regime_learn_from else {}),
-        "window": [_date(start_ts), _date(end_ts)], "candidates": [{"id": c["id"], "configs": c["configs"]} for c in candidates],
-        "folds": fold_records, "summary": summary, "gate": gate,
-        "aggregate": summary, "mc": summary["mc"],   # tên theo docs/ui_contract.md §4 (cùng đối tượng với summary / summary.mc)
-        "mem": {"peak_rss_mb": max([m["_peak_rss_mb"] for m in all_res], default=0.0),
-                "rss_anon_mb": max([m["_rss_anon_mb"] for m in all_res], default=0.0)},
-    }
-
-
 def generate_folds(
     start_ts: int,
     end_ts: int,
@@ -448,3 +184,113 @@ def generate_folds(
         })
         test_start += step
     return folds
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Kiểm chứng chéo / ổn định tham số: PBO-CSCV, căn chuỗi ngày, lân cận.
+#
+# - PBO: Bailey, Borwein, López de Prado, Zhu (2017) — CSCV: chia T ngày thành S khối liền kề, mọi C(S, S/2) cách chọn nửa IS;
+#   alpha tốt nhất IS có hạng OOS tương đối ω; logit = ln(ω / (1 - ω)); PBO = P(logit <= 0).
+# - Lân cận: ±1 bước trên lưới của TỪNG khoá của không gian tham số (khoá chỉ có 1 giá trị thì không có lân cận).
+# ══════════════════════════════════════════════════════════════════════════
+import itertools
+from typing import Sequence
+
+
+# ── PBO (CSCV) ──────────────────────────────────────────────────────────────
+def pbo_cscv(matrix: np.ndarray, n_blocks: int = 16, chunk: int = 1024) -> Dict[str, Any]:
+    """matrix (T ngày × N alpha) lợi suất ngày -> {"pbo", "n_splits", "n_alphas", "n_days", "logit_median"}.
+    T bị cắt phần đầu cho chia hết n_blocks. Hiệu năng = Sharpe (mean/std) trên tập ngày; alpha phẳng (std = 0) có Sharpe 0.
+    Hạng OOS của alpha tốt nhất IS: hạng trung bình khi hoà; ω = hạng / (N + 1). Không đủ dữ liệu (N < 2 hoặc T < 2*n_blocks) -> pbo None."""
+    M = np.asarray(matrix, dtype=float)
+    T, N = M.shape
+    if N < 2 or T < 2 * n_blocks or n_blocks % 2:
+        return {"pbo": None, "n_splits": 0, "n_alphas": int(N), "n_days": int(T), "logit_median": None}
+    bs = T // n_blocks
+    M = M[T - bs * n_blocks:]
+    blocks = M.reshape(n_blocks, bs, N)
+    s1 = blocks.sum(axis=1)                 # (S, N)
+    s2 = (blocks ** 2).sum(axis=1)
+    tot1, tot2 = s1.sum(axis=0), s2.sum(axis=0)
+    combos = np.array(list(itertools.combinations(range(n_blocks), n_blocks // 2)), dtype=np.int64)   # (C, S/2)
+    C = combos.shape[0]
+    ind = np.zeros((C, n_blocks), dtype=float)
+    ind[np.arange(C)[:, None], combos] = 1.0
+    n_is = bs * (n_blocks // 2)
+    n_oos = bs * n_blocks - n_is
+
+    def sharpe(sum1, sum2, n):
+        mean = sum1 / n
+        var = np.maximum(sum2 / n - mean ** 2, 0.0) * n / (n - 1)
+        sd = np.sqrt(var)
+        return np.where(sd > 1e-12, mean / np.where(sd > 1e-12, sd, 1.0), 0.0)
+
+    logits: List[np.ndarray] = []
+    for lo in range(0, C, chunk):
+        w = ind[lo:lo + chunk]
+        sr_is = sharpe(w @ s1, w @ s2, n_is)
+        sr_oos = sharpe(tot1 - w @ s1, tot2 - w @ s2, n_oos)
+        best = np.argmax(sr_is, axis=1)
+        ob = sr_oos[np.arange(len(w)), best][:, None]
+        less = (sr_oos < ob).sum(axis=1)
+        eq = (sr_oos == ob).sum(axis=1)
+        rank = less + (eq + 1) / 2.0         # hạng trung bình (1..N)
+        omega = rank / (N + 1.0)
+        logits.append(np.log(omega / (1.0 - omega)))
+    lg = np.concatenate(logits)
+    return {"pbo": float((lg <= 0).mean()), "n_splits": int(C), "n_alphas": int(N), "n_days": int(bs * n_blocks),
+            "logit_median": float(np.median(lg))}
+
+
+def align_daily(series: List[Dict[str, Any]], n_max: Optional[int] = None) -> np.ndarray:
+    """series = [{"start": "YYYY-MM-DD", "rets": [...]}, ...] (mỗi alpha một chuỗi) -> ma trận (ngày × alpha) căn theo NGÀY lịch,
+    ngày thiếu = 0 (vốn đứng yên). Dùng cho PBO khi các alpha có độ dài/ngày bắt đầu hơi khác nhau."""
+    import pandas as pd
+    if not series:
+        return np.zeros((0, 0))
+    starts = [pd.Timestamp(s["start"]) for s in series]
+    ends = [st + pd.Timedelta(days=len(s["rets"])) for st, s in zip(starts, series)]
+    lo, hi = min(starts), max(ends)
+    T = int((hi - lo).days)
+    M = np.zeros((T, len(series)))
+    for j, (st, s) in enumerate(zip(starts, series)):
+        off = int((st - lo).days)
+        M[off:off + len(s["rets"]), j] = s["rets"]
+    return M
+
+
+# ── Lân cận tham số ─────────────────────────────────────────────────────────
+def neighbours(space: Dict[str, Sequence[Any]], params: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Các điểm cách `params` đúng 1 bước lưới trên đúng 1 khoá (tối đa 2 mỗi khoá). Khoá có giá trị lệch lưới -> không có lân cận khoá đó."""
+    out = []
+    for key in sorted(space):
+        vals = list(space[key])
+        if key not in params or params[key] not in vals:
+            continue
+        i = vals.index(params[key])
+        for j in (i - 1, i + 1):
+            if 0 <= j < len(vals):
+                out.append({**params, key: vals[j]})
+    return out
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# fold_stats = thống kê cổng WFA (quy tắc: metrics/ chỉ tính thuần, không cổng/kiểm định)
+# ══════════════════════════════════════════════════════════════════════════
+import math
+
+
+def fold_stats(fold_rets_pct: Sequence[float], traded: Sequence[bool]) -> Dict[str, Any]:
+    """Thống kê lãi OOS theo fold cho cổng WFA (phễu S3 + WFA danh mục). Không dùng "tỉ lệ fold lãi" làm cổng vì lãi của chiến lược theo xu
+    hướng lệch phải (đa số tháng lỗ nhẹ, vài tháng lãi lớn): đo trên 360 alpha, 124/145 alpha có lãi OOS bị loại chỉ vì < 60% fold lãi
+    (test/scripts/research_funnel_diagnosis.py). Fold KHÔNG có lệnh là trung tính: không vào tỉ lệ / t-stat.
+    -> traded_folds, positive_ratio (trên fold có lệnh), fold_t (t-stat lãi TB/fold trên fold có lệnh; < 2 fold hoặc độ lệch 0 -> 0),
+       oos_ex_best_pct (lãi kép OOS sau khi bỏ fold tốt nhất — lãi không được dựa vào một fold may mắn)."""
+    x = np.asarray([float(r) for r, t in zip(fold_rets_pct, traded) if t], dtype=float)
+    allx = np.asarray([float(r) for r in fold_rets_pct], dtype=float)
+    n = len(x)
+    sd = float(x.std(ddof=1)) if n > 1 else 0.0
+    t = float(x.mean() / (sd / math.sqrt(n))) if n > 1 and sd > 0 else 0.0
+    ex = np.delete(allx, int(allx.argmax())) if len(allx) else allx
+    return {"traded_folds": n, "positive_ratio": float((x > 0).mean()) if n else 0.0, "fold_t": round(t, 4),
+            "oos_ex_best_pct": round(float((np.prod(1.0 + ex / 100.0) - 1.0) * 100.0), 4) if len(allx) else 0.0}

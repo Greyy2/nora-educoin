@@ -2,7 +2,7 @@
 
 Aligned: open[t+1] := close[t] (high/low widened to keep OHLC valid) so Nora's next-bar-open entry and
 Nautilus' current-bar-close entry occur at the same price.
-Run: PYTHONDONTWRITEBYTECODE=1 backend/utils/ops/run_limited.sh --no-lock -- test/scripts/nautilus_diff/export_data.py
+Run: PYTHONDONTWRITEBYTECODE=1 ops/run_limited.sh --no-lock -- test/scripts/nautilus_diff/export_data.py
 """
 import json
 import os
@@ -20,7 +20,7 @@ SIGNALS = {"ema20_50": (20, 50), "ema5_13": (5, 13)}
 
 def main():
     os.makedirs(OUT, exist_ok=True)
-    df = pd.read_pickle(os.path.join(NORA, "data/okx/cex/BTC/perp/1h.pkl")).reset_index(drop=True)
+    df = pd.read_pickle(os.path.join(NORA, "data/market/okx/cex/BTC/perp/1h.pkl")).reset_index(drop=True)
     sig = pd.DataFrame({"open_time": df.open_time})
     for name, (f, s) in SIGNALS.items():
         ef, es = df.close.ewm(span=f, adjust=False).mean(), df.close.ewm(span=s, adjust=False).mean()

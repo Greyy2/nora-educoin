@@ -50,7 +50,7 @@ SL_FILL = "extreme"
 
 
 def _signals():
-    from backend.core.strategy.library import cond, f
+    from backend.alpha.compile import cond, f
     if SIGNAL_SET == "r2":
         up = (f("4h", "ema_50"), ">", f("4h", "ema_200"))
         rng = (f("1h", "er_20"), "<", 0.3)
@@ -89,10 +89,10 @@ def _signals():
 
 
 def _load(symbol):
-    from backend.core.backtest.engine import BacktestEngine
-    from backend.core.params.builder import build_params
-    from backend.core.signals.evaluator import VectorEvaluator, lag_key
-    from backend.db.local_pkl import read_manifest
+    from backend.core.backtest import BacktestEngine
+    from backend.core.params import build_params
+    from backend.core.signal import VectorEvaluator, lag_key
+    from backend.crawl.store import read_manifest
     m = read_manifest(symbol)
     start, end = int(m["start_ts"]), int(m["end_ts"])
     start = max(start, end - 1095 * 86_400_000)
@@ -249,7 +249,7 @@ def run_asset(symbol):
 
 
 def _init_grid(round_id):
-    from backend.utils.memwatch import worker_init
+    from backend.optimize.process.workers import worker_init
     worker_init()
     global OFFS, TTLS, TPS, SLS, TOS, SIGNAL_SET
     OFFS, TTLS, TPS, SLS, TOS = (GRIDS[round_id][k] for k in ("OFFS", "TTLS", "TPS", "SLS", "TOS"))
@@ -265,8 +265,8 @@ def main(argv=None):
     ap.add_argument("--out", default=os.path.join(NORA_ROOT, "data", "_cache", "reports"))
     a = ap.parse_args(argv)
     assets = a.assets.split(",")
-    from backend.utils.memwatch import require_memory_limit
-    from backend.utils.parallel import resolve_workers
+    from backend.optimize.process.workers import require_memory_limit
+    from backend.optimize.process.workers import resolve_workers
     require_memory_limit("research_maker_scalp")
     # 1500 MB/worker: mỗi job nạp nến 1m cả lịch sử một tài sản + mảng tín hiệu/khớp lệnh cho cả lưới cấu hình (chưa đo thực)
     workers = resolve_workers(a.workers, 1500, "research_maker_scalp")

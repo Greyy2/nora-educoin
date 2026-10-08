@@ -1,8 +1,7 @@
 """Tick swap on-chain + lưu tick/nến local DEX.
 
-P9.2 (ADR-P9): gộp NGUYÊN VĂN db/tick_storage.py + core/data/tick_crawler.py. Shim ở đường dẫn cũ.
+Nguồn gộp: docs/bmad/p9_review_log.md
 """
-import json
 import os
 import time
 import re
@@ -11,19 +10,19 @@ from typing import Any, Dict, List, Optional, Tuple
 import pandas as pd
 import numpy as np
 import requests
-from backend.crawl.store import clean_name, default_data_root, list_assets, resolve_asset_dir, DATA_HOME, parse_symbol, split_instrument
+from backend.crawl.store import clean_name, default_data_root, list_assets, resolve_asset_dir, parse_symbol, split_instrument
+from backend.crawl.store import asset_meta, manifest_of_dir, write_parquet_atomic
+from backend.core.backtest import reserve_price   # MỘT bản duy nhất (NumPy, không njit — xem chú thích AMM ở core/backtest.py)
 from backend.crawl import cex as okx
 from backend.crawl.cex import log
-from backend.utils.jobs import as_list, options, write_job_result
+from backend.crawl.store import as_list, options, write_job_result
 
 
-# ====================================================================================================
-# ↓ db/tick_storage.py  (P9.2: chuyển nguyên văn; module cũ: backend.db.tick_storage)
-# ====================================================================================================
-# Tick (swap on-chain) và nến local: <gốc>/dex/<SYM>/ticks.parquet cạnh nến của pool, khai báo trong manifest.json["ticks"]. Chỉ DEX có tick.
+# ── Lưu tick DEX ──────────────────────────────────────────────────────────────────────────────
+# Tick (swap on-chain) và nến local: <gốc>/dex/<SYM>/ticks.parquet cạnh nến của pool, khai báo trong attrs["nora"]["ticks"] của chính file parquet. Chỉ DEX có tick.
 #
 # Tick là cửa sổ TRƯỢT ngắn (mặc định 3 ngày, tối đa 14): mỗi lần lưu cắt mọi tick cũ hơn cửa sổ.
-# Nến chỉ có một nguồn là 1m.pkl + core/data/resampler.py; tick KHÔNG sinh nến vào kho (ticks_to_1m chỉ để đối chiếu).
+# Nến chỉ có một nguồn là 1m.pkl + crawl/store.py (resampler); tick KHÔNG sinh nến vào kho.
 #
 
 TICK_COLUMNS = [
@@ -47,8 +46,6 @@ DAY_MS = 86_400_000
 
 PKL_COLUMNS = ["open_time", "open", "high", "low", "close", "volume"]
 
-STANDARD_MINUTE_FRAMES = [1, 5, 10, 15]
-STANDARD_HOUR_FRAMES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]
 
 
 
@@ -64,12 +61,6 @@ def resolve_tick_file(symbol: str, data_root: Optional[str] = None) -> Optional[
     return path if os.path.isfile(path) else None
 
 
-def _write_json_atomic(path: str, obj: Dict[str, Any]) -> None:
-    with open(path + ".tmp", "w", encoding="utf-8") as fh:
-        json.dump(obj, fh, indent=2)
-    os.replace(path + ".tmp", path)
-
-
 def save_ticks(
     df: pd.DataFrame,
     symbol: str,
@@ -78,9 +69,10 @@ def save_ticks(
     source: str,
     extra_meta: Optional[Dict[str, Any]] = None,
     data_root: Optional[str] = None,
+    onchain: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Gộp `df` vào dex/<SYM>/ticks.parquet: bỏ trùng theo tx_hash (bản mới thắng), cắt tick cũ hơn retention_days, sắp theo thời gian,
-    rồi ghi manifest["ticks"]. Tài sản (thư mục + manifest.json) phải có sẵn, tức là nến đã được crawl trước."""
+    rồi ghi attrs["nora"]["ticks"] của parquet (+ ["onchain"] = `onchain`, không truyền thì giữ khối cũ). Tài sản (thư mục + nến) phải có sẵn, tức là nến đã được crawl trước."""
     if not 1 <= int(retention_days) <= MAX_TICK_DAYS:
         raise ValueError(f"retention_days phải trong 1..{MAX_TICK_DAYS}, nhận {retention_days}")
     missing = [c for c in REQUIRED_TICK_COLUMNS if c not in df.columns]
@@ -88,9 +80,8 @@ def save_ticks(
         raise ValueError(f"tick thiếu cột {missing}")
     root = data_root or default_data_root()
     a_dir = os.path.join(root, "dex", clean_name(symbol))
-    manifest_path = os.path.join(a_dir, "manifest.json")
-    if not os.path.isfile(manifest_path):
-        raise FileNotFoundError(f"chưa có tài sản {a_dir} (thiếu manifest.json): crawl nến trước khi lưu tick")
+    if manifest_of_dir(a_dir) is None:
+        raise FileNotFoundError(f"chưa có tài sản {a_dir} (thiếu nến/metadata): crawl nến trước khi lưu tick")
     tick_path = os.path.join(a_dir, "ticks.parquet")
 
     parts = [pd.read_parquet(tick_path)] if os.path.isfile(tick_path) else []
@@ -101,12 +92,8 @@ def save_ticks(
         raise ValueError("không còn tick nào trong cửa sổ lưu")
     order = [c for c in ("timestamp_ms", "block_number", "log_index") if c in combined.columns]
     combined = combined.sort_values(order, kind="stable").reset_index(drop=True)
-    combined[[c for c in TICK_COLUMNS if c in combined.columns]].to_parquet(tick_path + ".tmp", engine="pyarrow", compression="snappy", index=False)
-    os.replace(tick_path + ".tmp", tick_path)
-
-    with open(manifest_path, "r", encoding="utf-8") as fh:
-        manifest = json.load(fh)
-    manifest["ticks"] = {
+    old = asset_meta(a_dir)
+    ticks_meta = {
         "source": source,
         "synthetic": False,
         "start_ts": int(combined["timestamp_ms"].iloc[0]),
@@ -116,21 +103,18 @@ def save_ticks(
         "crawled_at": int(now_ms // 1000),
         **(extra_meta or {}),
     }
-    _write_json_atomic(manifest_path, manifest)
-    return {"symbol": symbol, "tick_path": tick_path, **{k: manifest["ticks"][k] for k in ("rows", "start_ts", "end_ts")}}
+    write_parquet_atomic(combined[[c for c in TICK_COLUMNS if c in combined.columns]], tick_path,
+                         {"ticks": ticks_meta, "onchain": onchain if onchain is not None else old["onchain"]})
+    return {"symbol": symbol, "tick_path": tick_path, **{k: ticks_meta[k] for k in ("rows", "start_ts", "end_ts")}}
 
 
 def tick_coverage(data_root: Optional[str] = None) -> List[Dict[str, Any]]:
-    """Độ phủ tick của mọi tài sản DEX có ticks.parquet + manifest["ticks"] (đọc manifest, không đọc parquet)."""
+    """Độ phủ tick của mọi tài sản DEX có ticks.parquet + attrs["ticks"] (đọc footer parquet, không đọc dữ liệu)."""
     out = []
     for item in list_assets(data_root):
         if item["venue"] != "dex" or not os.path.isfile(os.path.join(item["path"], "ticks.parquet")):
             continue
-        try:
-            with open(os.path.join(item["path"], "manifest.json"), "r", encoding="utf-8") as fh:
-                meta = json.load(fh).get("ticks")
-        except (OSError, ValueError):
-            continue
+        meta = asset_meta(item["path"])["ticks"]
         if isinstance(meta, dict):
             out.append({"symbol": item["symbol"], "venue": item["venue"], **{k: meta.get(k) for k in ("start_ts", "end_ts", "rows", "window_days", "source")}})
     return out
@@ -178,37 +162,35 @@ def load_candle_df(symbol: str, timeframe: str = "1h", data_root: Optional[str] 
     return pd.DataFrame(columns=PKL_COLUMNS)
 
 
-# ====================================================================================================
-# ↓ core/data/tick_crawler.py  (P9.2: chuyển nguyên văn; module cũ: backend.core.data.tick_crawler)
-# ====================================================================================================
-# Crawl tick (swap on-chain EVM) của pool DEX trong cửa sổ trượt ngắn -> dex/<SYM>/ticks.parquet + manifest["ticks"] (nguồn "evm_swaps").
+# ── Crawl tick on-chain ───────────────────────────────────────────────────────────────────────
+# Crawl tick (swap on-chain EVM) của pool DEX trong cửa sổ trượt ngắn -> dex/<SYM>/ticks.parquet + attrs["ticks"] (nguồn "evm_swaps").
 #
-# Chỉ DEX: tài sản CEX (OKX perp) chỉ có nến, không có tick. Tài sản phải có sẵn (nến đã crawl/promote); pool, mạng, tên cặp lấy từ manifest.json của nó.
+# Chỉ DEX: tài sản CEX (OKX perp) chỉ có nến, không có tick. Tài sản phải có sẵn (nến đã crawl/promote); pool, mạng, tên cặp lấy từ metadata (attrs) của nó.
 # Cửa sổ: mặc định DEFAULT_TICK_DAYS=3 ngày, tối đa MAX_TICK_DAYS=14 (vượt thì cắt về 14 và ghi vào `issues`); tick tích luỹ trong cửa sổ trượt, cũ hơn bị cắt khi lưu.
 #
-# Hai cơ sở giá (manifest["ticks"]["price_basis"]): `price` = giá KHỚP gồm phí pool (cơ sở của nến GeckoTerminal — đã đối chiếu: nến GT theo token quote trùng giá khớp
+# Hai cơ sở giá (ticks["price_basis"]): `price` = giá KHỚP gồm phí pool (cơ sở của nến GeckoTerminal — đã đối chiếu: nến GT theo token quote trùng giá khớp
 # cuối phút, median 0 bps; nến GT theo USD còn nhân thêm giá USD của token quote nên lệch vài chục bps) và `mid_price` = giá biên SAU swap (lệch ~phí pool so với giá khớp).
 # Mỗi dòng = một swap: timestamp_ms, block_number, log_index, tx_hash (= "<tx>:<logIndex>", khoá duy nhất), price (USD / 1 token gốc, THỰC KHỚP đã gồm phí pool),
 # amount (token gốc), volume_usd, side (taker "buy" khi token gốc RA khỏi pool), mid_price (giá biên của pool SAU swap theo dự trữ x quote_usd; NaN nếu không có Sync), reserve_base / reserve_quote (dự trữ pool SAU swap, đơn vị token, lấy từ
 # log Sync cùng tx ngay trước log Swap; NaN nếu không ghép được, vd. pool v3 không có Sync), quote_usd (USD / 1 token quote lúc đó).
 #
-# Mọi tham số mạng nằm ở NETWORKS (ghi đè theo mạng bằng data/_meta/dex_networks.json): rpc_url, chain_id (kiểm tra bằng eth_chainId), block_ms + swap_gas_usd (backtest tick), log_span (kích thước ban đầu của đoạn
+# Mọi tham số mạng nằm ở NETWORKS : rpc_url, chain_id (kiểm tra bằng eth_chainId), block_ms + swap_gas_usd (backtest tick), log_span (kích thước ban đầu của đoạn
 # eth_getLogs — tự co đôi khi nút báo vượt giới hạn, nhớ cho phần còn lại), max_rps, batch_size (số lời gọi/JSON-RPC batch, tự co theo giới hạn của nút), eth_usd (nguồn giá ETH/USD cho quote WETH),
 # uniswap_v2_factories (factory đã biết là Uniswap v2 -> phí 0,3%).
 #
-# Metadata pool đọc ON-CHAIN, cache vào dex/<SYM>/dex_pool.json["onchain"]: token0/token1 + symbol() + decimals(), token gốc (vế đầu của tên cặp "VVV / WETH"),
+# Metadata pool đọc ON-CHAIN, cache vào attrs["onchain"] của dex/<SYM>/ticks.parquet: token0/token1 + symbol() + decimals(), token gốc (vế đầu của tên cặp "VVV / WETH"),
 # loại pool (stable() có -> Aerodrome v2: stable = x^3y+xy^3, volatile = x*y=k; factory thuộc uniswap_v2_factories -> Uniswap v2; còn lại null), phí
 # (Aerodrome: factory().getFee(pool, stable) đơn vị 1/10000; Uniswap v2 đã xác minh: 0,003; còn lại hoặc gọi lỗi: null kèm fee_note).
 #
 # Thời gian KHÔNG giả định: (1) log có sẵn blockTimestamp (nút công khai Base có) -> dùng đúng giá trị đó; (2) không có -> lấy mẫu timestamp ở đầu, cuối và vài điểm giữa
 # cửa sổ: nếu tuyến tính chính xác (thời gian block là hằng số nguyên) thì nội suy; (3) ngược lại tra timestamp từng block riêng biệt (JSON-RPC batch).
-# Cách dùng được ghi ở manifest["ticks"]["ts_method"] (log_block_timestamp | linear_interpolation | per_block_lookup). Đầu cửa sổ = block đầu tiên có
+# Cách dùng được ghi ở ticks["ts_method"] (log_block_timestamp | linear_interpolation | per_block_lookup). Đầu cửa sổ = block đầu tiên có
 # timestamp >= (timestamp block mới nhất - days x 86400s), tìm bằng chia đôi trên timestamp thật.
 #
 # Quote -> USD: stable (USDC/USDT/DAI... nhận theo symbol()) = 1; WETH x giá MỞ của phút chứa swap theo nguồn eth_usd của mạng (mặc định nến 1m ETH-USDT-SWAP
-# của OKX qua REST; không nhìn trước), nguồn ghi ở manifest["ticks"]["quote_usd_source"].
+# của OKX qua REST; không nhìn trước), nguồn ghi ở ticks["quote_usd_source"].
 #
-# Job API `data_crawl_ticks` (POST /api/data/ticks/crawl -> api/jobs/runner.py -> run_job): params symbols ("AERO" / "dex:AERO"), days.
+# Job API `data_crawl_ticks` (POST /api/data/ticks/crawl -> optimize/process/process.py -> run_job): params symbols ("AERO" / "dex:AERO"), days.
 #
 
 MINUTE_MS = 60_000
@@ -217,8 +199,8 @@ TS_SAMPLES = 3                                  # điểm lấy mẫu giữa đ�
 NETWORKS: Dict[str, Dict[str, Any]] = {
     "base": {
         "rpc_url": "https://mainnet.base.org", "chain_id": 8453, "log_span": 2000, "max_rps": 8, "batch_size": 10,
-        "block_ms": 2000,        # thời gian một block (Base: 2 giây) — độ trễ mặc định của backtest tick (core/backtest/tick_run.py)
-        "swap_gas_usd": 0.02,    # gas ước tính của MỘT swap (USD, gồm phí dữ liệu L1) — backtest tick cộng vào chi phí mỗi lệnh; ghi đè bằng dex_networks.json
+        "block_ms": 2000,        # thời gian một block (Base: 2 giây) — độ trễ mặc định của backtest tick (optimize/search/evaluate.py: run_tick)
+        "swap_gas_usd": 0.02,    # gas ước tính của MỘT swap (USD, gồm phí dữ liệu L1) — backtest tick cộng vào chi phí mỗi lệnh
         "eth_usd": {"source": "okx_candles", "symbol": "ETH"},
         "uniswap_v2_factories": ["0x8909dc15e40173ff4699343b6eb8132c65e18ec6"],
     },
@@ -250,16 +232,10 @@ def clamp_days(days: Any) -> Tuple[int, Optional[str]]:
 
 
 def network_config(network: str) -> Dict[str, Any]:
-    """Cấu hình của mạng: NETWORKS[network] ghi đè từng khoá bằng data/_meta/dex_networks.json {"base": {"rpc_url": ...}}."""
-    cfg = {k: dict(v) for k, v in NETWORKS.items()}
-    path = os.path.join(DATA_HOME, "_meta", "dex_networks.json")
-    if os.path.isfile(path):
-        with open(path, encoding="utf-8") as fh:
-            for name, over in json.load(fh).items():
-                cfg[name] = {**cfg.get(name, {}), **over}
-    if network not in cfg:
-        raise ValueError(f"chưa hỗ trợ mạng {network!r} (có: {sorted(cfg)})")
-    return cfg[network]
+    """Cấu hình của mạng: bản sao NETWORKS[network]."""
+    if network not in NETWORKS:
+        raise ValueError(f"chưa hỗ trợ mạng {network!r} (có: {sorted(NETWORKS)})")
+    return dict(NETWORKS[network])
 
 
 def _session() -> requests.Session:
@@ -424,20 +400,12 @@ def read_pool_onchain(rpc: Rpc, pool: str, pool_name: str, cfg: Dict[str, Any]) 
 
 
 def pool_onchain(rpc: Rpc, asset_dir: str, pool: str, pool_name: str, cfg: Dict[str, Any]) -> Dict[str, Any]:
-    """Metadata on-chain của pool, cache ở <asset_dir>/dex_pool.json["onchain"] (đọc lại khi đổi pool)."""
-    path = os.path.join(asset_dir, "dex_pool.json")
-    doc: Dict[str, Any] = {}
-    if os.path.isfile(path):
-        with open(path, encoding="utf-8") as fh:
-            doc = json.load(fh)
-    cached = doc.get("onchain")
+    """Metadata on-chain của pool: dùng lại khối "onchain" đã lưu trong attrs ticks.parquet nếu cùng pool_address, không thì đọc lại on-chain.
+    (Không tự ghi: save_ticks(onchain=...) ghi cùng lúc với tick.)"""
+    cached = asset_meta(asset_dir)["onchain"]
     if isinstance(cached, dict) and cached.get("pool_address") == pool:
         return cached
-    doc["onchain"] = read_pool_onchain(rpc, pool, pool_name, cfg)
-    with open(path + ".tmp", "w", encoding="utf-8") as fh:
-        json.dump(doc, fh, indent=2)
-    os.replace(path + ".tmp", path)
-    return doc["onchain"]
+    return read_pool_onchain(rpc, pool, pool_name, cfg)
 
 
 # ─── Giải mã Swap + Sync ────────────────────────────────────────────────────
@@ -482,12 +450,26 @@ def decode_swaps(logs: List[Dict], info: Dict[str, Any]) -> pd.DataFrame:
                         ).astype({"block_number": "int64", "log_index": "int64"})
 
 
-def reserve_price(reserve_base: Any, reserve_quote: Any, stable: bool) -> np.ndarray:
-    """Giá biên (quote / 1 base) theo dự trữ: volatile x*y=k -> rq/rb; stable x^3y+xy^3=k -> (3x^2y+y^3)/(x^3+3xy^2) (x = base, y = quote, đơn vị token)."""
-    x, y = np.asarray(reserve_base, float), np.asarray(reserve_quote, float)
-    if not stable:
-        return y / x
-    return (3 * x * x * y + y ** 3) / (x ** 3 + 3 * x * y * y)
+def pool_info(symbol: str, data_root: Optional[str] = None) -> Dict[str, Any]:
+    """Metadata pool của tài sản DEX: symbol (hiển thị), qualified, network, fee_rate (+ nguồn), stable, pool_type, ticks (attrs ticks hoặc None).
+    Phí: ticks["fee_rate"], không có thì onchain["fee_rate"] (cả hai nằm trong attrs ticks.parquet); null ở cả hai -> ValueError (không đoán phí).
+    (P9.4b: chuyển từ core/backtest.py — core không đọc file; engine nhận `info` do bên gọi truyền vào.)"""
+    name = clean_name(parse_symbol(symbol)[1])
+    path = resolve_asset_dir(f"dex:{name}", data_root=data_root or default_data_root())
+    if not path:
+        raise ValueError(f"không có tài sản DEX '{name}' trong kho dữ liệu")
+    meta = asset_meta(path)
+    manifest, onchain = meta["dataset"] or {}, meta["onchain"] or {}
+    ticks = meta["ticks"]
+    src = "manifest.ticks.fee_rate"   # nhãn nguồn giữ NGUYÊN VĂN (nằm trong kết quả/golden tick), dù khối ticks nay nằm trong attrs ticks.parquet
+    fee = (ticks or {}).get("fee_rate")
+    if fee is None:
+        fee, src = onchain.get("fee_rate"), "dex_pool.json onchain.fee_rate"
+    if fee is None:
+        raise ValueError(f"{name}: chưa xác minh được phí pool on-chain (fee_rate = null) — không thể tính chi phí AMM; crawl lại metadata pool")
+    pick = lambda k: (ticks or {}).get(k) if (ticks or {}).get(k) is not None else onchain.get(k)   # noqa: E731
+    return {"symbol": name, "qualified": f"dex:{name}", "network": (ticks or {}).get("network") or manifest.get("network"), "fee_rate": float(fee),
+            "fee_source": src, "stable": bool(pick("stable")), "pool_type": pick("pool_type"), "ticks": ticks}
 
 
 def attach_timestamps(df: pd.DataFrame, rpc: Rpc, lo: int, hi: int, batch_size: int = 50) -> Tuple[pd.DataFrame, str]:
@@ -579,8 +561,9 @@ def crawl_dex_ticks(symbol: str, days: Any = DEFAULT_TICK_DAYS, data_root: Optio
     name = parse_symbol(symbol)[1]
     root = data_root or default_data_root()
     asset_dir = os.path.join(root, "dex", name)
-    with open(os.path.join(asset_dir, "manifest.json"), encoding="utf-8") as fh:
-        man = json.load(fh)
+    man = manifest_of_dir(asset_dir)
+    if man is None:
+        raise FileNotFoundError(f"chưa có tài sản {asset_dir} (thiếu nến/metadata): crawl nến trước khi crawl tick")
     pool, network = str(man["pool_address"]).lower(), man["network"]
     days, note = clamp_days(days)
     cfg = network_config(network)
@@ -606,7 +589,7 @@ def crawl_dex_ticks(symbol: str, days: Any = DEFAULT_TICK_DAYS, data_root: Optio
         eth, usd_source = eth_usd_candles(session, cfg["eth_usd"], int(df["timestamp_ms"].min()), head_ts * 1000)
     df = quote_to_usd(df, info, eth)
     issues = [note] if note else []
-    saved = save_ticks(df, name, retention_days=days, source="evm_swaps", data_root=data_root, extra_meta={
+    saved = save_ticks(df, name, retention_days=days, source="evm_swaps", data_root=data_root, onchain=info, extra_meta={
         "network": network, "chain_id": chain, "pool_address": pool, "pool_type": info["pool_type"], "stable": info["stable"], "fee_rate": info["fee_rate"],
         "fee_note": info["fee_note"], "quote": info["quote_symbol"], "quote_usd_source": usd_source, "ts_method": ts_method, "reserves_basis": "post_swap", "price_basis": {"price": "fill incl. pool fee", "mid_price": "post-swap marginal price from reserves"},
         "sync_matched_pct": round(matched * 100, 2), "reserve_dev_bps_median": round(float(dev.median()), 2) if len(dev) else None,

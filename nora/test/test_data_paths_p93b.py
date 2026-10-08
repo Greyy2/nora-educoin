@@ -1,7 +1,7 @@
 """
 test_data_paths_p93b.py — P9.3b: người gọi (API/optimize/wfa/live) dùng helper đường dẫn của crawl/store.py.
 
-- book.py `_job_run_dir`: gốc chặn path traversal = is_within(path, "runs") (symlink-safe, cả đường cũ lẫn mới).
+- book.py `_job_run_dir`: gốc chặn path traversal = is_within(path, "runs") (symlink-safe).
 - promote mặc định: staging nằm trong cache/process/<job>/staging, chuyển nguyên tử sang market, rồi xoá staging.
 - Lịch sử: cây đã chuyển thì job xong trong cache/process KHÔNG phải lịch sử; đọc từ backtest|wfa|carlo/<id>.
 - job crawl lỗi giữ log 7 ngày.
@@ -13,8 +13,8 @@ import time
 import pytest
 from fastapi import HTTPException
 
-from backend.api.jobs import batch as bj
-from backend.api.routers import book as book_router
+from backend.optimize.process import process as bj
+from backend.routes import book as book_router
 from backend.crawl import store as st
 from test_data_layout import _save
 
@@ -42,9 +42,8 @@ def _run(path):
     return path
 
 
-@pytest.mark.parametrize("layout", ["old", "new"])
-def test_job_run_dir_guard_accepts_runs_and_rejects_traversal_and_symlink_escape(home, tmp_path, layout):
-    jobs, book = ("_cache/api_jobs", "_cache/book") if layout == "old" else ("cache/process", "alpha/book")
+def test_job_run_dir_guard_accepts_runs_and_rejects_traversal_and_symlink_escape(home, tmp_path):
+    jobs, book = "cache/process", "alpha/book"
     ok = _run(home / book / "run1")
     _job_with_run(home, ok, jobs)
     assert book_router._job_run_dir(JOB) == os.path.realpath(ok)
@@ -72,7 +71,7 @@ def test_promote_default_staging_in_job_process_dir(home):
     plan = st.run_job({"apply": False})
     assert [a["kind"] for a in plan["actions"]] == ["move"] and os.path.isdir(jd / "staging")   # dry-run không đụng gì
     out = st.run_job({"apply": True})
-    assert out["applied"] and os.path.isfile(st.market_dir(venue="cex", symbol="ETH") + "/manifest.json")
+    assert out["applied"] and os.path.isfile(st.market_dir(venue="cex", symbol="ETH") + "/1m.pkl")
     assert not os.path.exists(jd / "staging")                 # staging bị xoá sau khi chuyển hết
     assert not [n for n in os.listdir(home / "cex") if n.startswith(".promote_")]   # không để lại tên tạm
 
@@ -100,7 +99,7 @@ def _mkjob(d, state, kind="book_backtest", age_days=0):
 
 
 def test_history_reads_persisted_dirs_and_hides_done_process_jobs_after_migration(home):
-    (home / "market").mkdir()                                 # cây đã chuyển (layout_version 2)
+    (home / "market").mkdir()                                
     _mkjob(home / "cache" / "process" / "20261007_100000_aaaaaa", "done")        # đã xong, còn trong process: KHÔNG phải lịch sử
     _mkjob(home / "cache" / "process" / "20261007_110000_bbbbbb", "running")     # đang chạy: hiện
     _mkjob(home / "backtest" / "20261007_090000_cccccc", "done")                 # kết quả lâu dài: hiện
@@ -109,11 +108,6 @@ def test_history_reads_persisted_dirs_and_hides_done_process_jobs_after_migratio
     assert ids == ["20261007_110000_bbbbbb", "20261007_090000_cccccc"]
     assert bj.job_dir("20261007_090000_cccccc") == str(home / "backtest" / "20261007_090000_cccccc")   # cổng đọc kết quả theo id
     assert bj.job_dir("20261007_100000_aaaaaa") == str(home / "cache" / "process" / "20261007_100000_aaaaaa")
-
-
-def test_history_unmigrated_tree_unchanged(home):
-    _mkjob(home / "_cache" / "api_jobs" / "20261007_100000_aaaaaa", "done")
-    assert [j["id"] for j in bj.list_jobs(50)] == ["20261007_100000_aaaaaa"]
 
 
 def test_prune_failed_crawl_jobs_after_7_days(home):

@@ -1,9 +1,9 @@
 """Kiểm nhanh logic BOT SÀN (demo/live) so với engine, không cần chờ lệnh thật: phát lại lịch sử nến OKX qua một sàn GIẢ LẬP khớp lệnh
 như sàn thật (lệnh market khớp ở giá mở nến kế; lệnh chờ — SL điều kiện, TP limit, tầng DCA post-only — khớp khi giá trong nến đi qua mức,
-SL/TP KHÔNG tự cập nhật khi tầng DCA khớp cho tới bước sau của bot). Bóng paper trong bot = engine. So từng lệnh bằng live/compare.py.
+SL/TP KHÔNG tự cập nhật khi tầng DCA khớp cho tới bước sau của bot). Bóng paper trong bot = engine. So từng lệnh bằng metrics/trades.py::compare_trades.
 
 Lệch ở đây = khác biệt do CÁCH BOT ĐẶT LỆNH TRÊN SÀN (không phải do sàn): trailing kiểm cuối nến, SL/TP đặt lại chậm sau khi dồn tầng, ...
-Chạy: backend/utils/ops/run_limited.sh --no-lock -- test/scripts/check_bot_exec_replay.py [--days 120] [--book main]
+Chạy: ops/run_limited.sh --no-lock -- test/scripts/check_bot_exec_replay.py [--days 120] [--book main]
 """
 import argparse
 import json
@@ -140,11 +140,11 @@ def main():
     a = ap.parse_args()
     import warnings
     warnings.filterwarnings("ignore")
-    from backend.db.data_layout import default_data_root
-    from backend.live import bot as lb
-    from backend.live import signals as ls
-    from backend.live.compare import compare_trades
-    from backend.live.exchange import Filters
+    from backend.crawl.store import default_data_root
+    from backend.core import backtest as bt
+    from backend.live import live as lb
+    from backend.metrics.trades import compare_trades
+    from backend.live.live import Filters
     book = lb.load_book(kind=a.book, mode="paper")
     strategies, tf = lb.book_strategies(book), book["timeframe"]
     fms = {"15m": 900_000, "1h": 3_600_000}[tf]
@@ -152,9 +152,9 @@ def main():
     root = os.path.join(default_data_root(), "cex")
     full = {}
     for s in syms:
-        need = ls.required_frames(f"{s}@perp", strategies, tf)
+        need = bt.required_frames(f"{s}@perp", strategies, tf)
         fr = {f: pd.read_pickle(os.path.join(root, s, "perp", f"{f}.pkl")) for f in need}
-        full[s] = ls.evaluate(f"{s}@perp", strategies, fr, tf)
+        full[s] = bt.evaluate_signals(f"{s}@perp", strategies, fr, tf)
     t_end = min(int(v["t"][-1]) for v in full.values())
     t0 = t_end - a.days * 86_400_000
     sim = SimExchange(10_000.0)

@@ -1,34 +1,45 @@
-"""Kho một lượt phễu: data/_cache/funnel/<run_id>/ (xem docs/funnel_contract.md §2).
+"""Kho kết quả (P9.6): kho một lần chạy phễu (RunStore: SQLite + parquet) + kho kết quả dùng chung dựng sổ/WFA/phễu (ResultsStore, job_key, code_version).
 
-  run.json              cấu hình + trạng thái từng tầng (ghi nguyên tử)
-  results.sqlite (WAL)  alphas / stage_metrics (theo hợp đồng) + parts / alpha_files / kv (phụ trợ, thêm cột phẳng để phân trang/thống kê nhanh)
-  trades/<stage>/part-*.parquet   danh sách lệnh (cột theo hợp đồng; thời gian = epoch ms int64)
-  daily/<stage>/part-*.parquet    chuỗi lợi suất ngày: 1 hàng = (alpha_id, stage, fold, start_date, rets[list<double>])
-  mc/<alpha_id>.json              Monte Carlo + tìm s
-
-RESUME AN TOÀN: SQLite là sổ cam kết. Mỗi lô: (1) ghi file parquet nguyên tử (tmp -> rename) (2) MỘT giao dịch SQLite ghi stage_metrics + cập nhật alphas
-+ đăng ký file vào `parts`/`alpha_files`. Sập giữa (1) và (2) -> file mồ côi (không có trong `parts`); khi mở lại, `recover()` xoá chúng và các alpha của lô đó
-chưa có stage_metrics nên được chạy lại. Chỉ tiến trình cha ghi (worker chỉ tính) nên không có tranh chấp ghi.
-Móc kiểm thử: env NORA_TEST_FUNNEL_FAIL_AFTER_COMMITS=N -> ném RuntimeError sau lần commit lô thứ N (đã commit) để mô phỏng sập.
+Nguồn gộp: docs/bmad/p9_review_log.md (mục P9.6, P9.8).
 """
+import hashlib
+import heapq
+import itertools
 import json
 import math
 import os
 import sqlite3
 import threading
+import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterator, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Sequence, Tuple
 
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from backend.utils.jsonsafe import json_default
+from backend.optimize.process.workers import pool_imap_bounded
+from backend.crawl.store import json_default, read_json
+from backend.metrics.trades import num_or_none
 
-from . import gates
+
+# ══════════════════════════════════════════════════════════════════════════
+# Kho một lượt phễu: data/cache/process/funnel/<run_id>/ (xem docs/funnel_contract.md §2).
+#
+#   run.json              cấu hình + trạng thái từng tầng (ghi nguyên tử)
+#   results.sqlite (WAL)  alphas / stage_metrics (theo hợp đồng) + parts / alpha_files / kv (phụ trợ, thêm cột phẳng để phân trang/thống kê nhanh)
+#   trades/<stage>/part-*.parquet   danh sách lệnh (cột theo hợp đồng; thời gian = epoch ms int64)
+#   daily/<stage>/part-*.parquet    chuỗi lợi suất ngày: 1 hàng = (alpha_id, stage, fold, start_date, rets[list<double>])
+#   mc/<alpha_id>.json              Monte Carlo + tìm s
+#
+# RESUME AN TOÀN: SQLite là sổ cam kết. Mỗi lô: (1) ghi file parquet nguyên tử (tmp -> rename) (2) MỘT giao dịch SQLite ghi stage_metrics + cập nhật alphas
+# + đăng ký file vào `parts`/`alpha_files`. Sập giữa (1) và (2) -> file mồ côi (không có trong `parts`); khi mở lại, `recover()` xoá chúng và các alpha của lô đó
+# chưa có stage_metrics nên được chạy lại. Chỉ tiến trình cha ghi (worker chỉ tính) nên không có tranh chấp ghi.
+# Móc kiểm thử: env NORA_TEST_FUNNEL_FAIL_AFTER_COMMITS=N -> ném RuntimeError sau lần commit lô thứ N (đã commit) để mô phỏng sập.
+# ══════════════════════════════════════════════════════════════════════════
 
 DB_NAME = "results.sqlite"
 
-_SCHEMA = """
+_RUN_SCHEMA = """
 CREATE TABLE IF NOT EXISTS alphas(
     alpha_id TEXT PRIMARY KEY, strategy TEXT NOT NULL, params_json TEXT NOT NULL, ord INTEGER NOT NULL,
     stage_reached TEXT NOT NULL, stage_idx INTEGER NOT NULL, rejected_stage TEXT, rejected_idx INTEGER,
@@ -73,7 +84,14 @@ class StageResult:
     final_scale: Optional[float] = None
 
 
-def _dumps(o: Any) -> str:
+def _idx_span(prev_idx: int) -> Tuple[int, int]:
+    """[prev_idx, số hiệu tầng kế): số hiệu tầng có khe (S2 đã gộp) nên đầu vào của S3 gồm cả stage_idx 2 của lượt cũ."""
+    from backend.optimize.funnel import stages as gates
+    nxt = min((i for i in gates.STAGE_IDX.values() if i > prev_idx), default=prev_idx + 1)
+    return prev_idx, nxt
+
+
+def _run_dumps(o: Any) -> str:
     return json.dumps(o, default=json_default, allow_nan=False, ensure_ascii=False)
 
 
@@ -88,26 +106,20 @@ def _clean(o: Any) -> Any:
     return o
 
 
-def _num(x: Any) -> Optional[float]:
-    try:
-        v = float(x)
-    except (TypeError, ValueError):
-        return None
-    return v if math.isfinite(v) else None
-
-
 def flat_columns(m: Dict[str, Any]) -> Dict[str, Optional[float]]:
-    out = {k: _num(m.get(k)) for k in FLAT_KEYS}
+    out = {k: num_or_none(m.get(k), None) for k in FLAT_KEYS}
     r, d = out["ret_pct"], out["mdd_pct"]
     out["score"] = (r / max(d, 1.0)) if r is not None and d is not None else None
     return out
 
 
-def atomic_write_json(path: str, obj: Any) -> None:
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+def atomic_write_json(path: str, obj: Any, *, indent: Optional[int] = None, clean: bool = True, allow_nan: bool = False) -> None:
+    """MỘT bộ ghi JSON nguyên tử (file tạm cạnh đích + os.replace: người đọc không bao giờ thấy file dở). `clean` thay NaN/inf bằng null
+    trước khi ghi; `allow_nan` cho phép token NaN/Infinity (chỉ khi clean=False và nơi đọc chấp nhận); `indent` tuỳ chọn."""
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     tmp = f"{path}.tmp{os.getpid()}"
     with open(tmp, "w", encoding="utf-8") as fh:
-        json.dump(_clean(obj), fh, ensure_ascii=False, default=json_default)
+        json.dump(_clean(obj) if clean else obj, fh, ensure_ascii=False, indent=indent, allow_nan=allow_nan, default=json_default)
     os.replace(tmp, path)
 
 
@@ -127,7 +139,7 @@ class RunStore:
             self._con = sqlite3.connect(self.db_path, timeout=60.0, check_same_thread=False, isolation_level=None)
             self._con.execute("PRAGMA journal_mode=WAL")
             self._con.execute("PRAGMA synchronous=NORMAL")
-            self._con.executescript(_SCHEMA)
+            self._con.executescript(_RUN_SCHEMA)
         self._con.execute("PRAGMA busy_timeout=60000")
         self._commits = 0
         self._fail_after = int(os.environ.get("NORA_TEST_FUNNEL_FAIL_AFTER_COMMITS") or 0)
@@ -157,11 +169,7 @@ class RunStore:
 
     # ── run.json / kv ──────────────────────────────────────────────────────
     def read_run(self) -> Dict[str, Any]:
-        try:
-            with open(self.run_json_path, encoding="utf-8") as fh:
-                return json.load(fh)
-        except (OSError, ValueError):
-            return {}
+        return read_json(self.run_json_path, {})
 
     def update_run(self, patch: Dict[str, Any]) -> Dict[str, Any]:
         with self._lock:
@@ -176,7 +184,7 @@ class RunStore:
 
     def set_kv(self, key: str, value: Any) -> None:
         with self._lock:
-            self._con.execute("INSERT OR REPLACE INTO kv(key, value) VALUES (?,?)", (key, _dumps(value)))
+            self._con.execute("INSERT OR REPLACE INTO kv(key, value) VALUES (?,?)", (key, _run_dumps(value)))
 
     def get_kv(self, key: str, default: Any = None) -> Any:
         with self._lock:
@@ -214,13 +222,14 @@ class RunStore:
     # ── S0: ghi alpha ──────────────────────────────────────────────────────
     def add_alphas(self, rows: Sequence[Dict[str, Any]]) -> int:
         """rows: {alpha_id, strategy, params, ord, rejected_code?, rejected_msg?}. INSERT OR IGNORE (idempotent). -> số hàng mới."""
+        from backend.optimize.funnel import stages as gates
         with self._lock:
             self._con.execute("BEGIN")
             n0 = self._con.execute("SELECT COUNT(*) FROM alphas").fetchone()[0]
             self._con.executemany(
                 "INSERT OR IGNORE INTO alphas(alpha_id, strategy, params_json, ord, stage_reached, stage_idx, rejected_stage, rejected_idx, "
                 "reject_code, reject_msg) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                [(r["alpha_id"], r["strategy"], _dumps(r["params"]), r["ord"], gates.STAGES[0], 0,
+                [(r["alpha_id"], r["strategy"], _run_dumps(r["params"]), r["ord"], gates.STAGES[0], 0,
                   gates.STAGES[0] if r.get("reject_code") else None, 0 if r.get("reject_code") else None,
                   r.get("reject_code"), r.get("reject_msg")) for r in rows])
             n1 = self._con.execute("SELECT COUNT(*) FROM alphas").fetchone()[0]
@@ -243,6 +252,7 @@ class RunStore:
 
     def commit_results(self, results: List[StageResult], neighbours: bool = False) -> None:
         """Ghi một lô: parquet (lệnh + ngày) rồi MỘT giao dịch SQLite. neighbours=True: chỉ stage_metrics (điểm lân cận, không đụng bảng alphas)."""
+        from backend.optimize.funnel import stages as gates
         if not results:
             return
         results = sorted(results, key=lambda r: (r.stage, r.alpha_id))
@@ -281,7 +291,7 @@ class RunStore:
                     self._con.execute(
                         "INSERT OR REPLACE INTO stage_metrics(alpha_id, stage, metrics_json, passed, ret_pct, mdd_pct, sharpe, trades, win_rate, "
                         "profit_factor, score) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                        (r.alpha_id, r.stage, _dumps(m), None if neighbours else int(r.passed), fc["ret_pct"], fc["mdd_pct"], fc["sharpe"],
+                        (r.alpha_id, r.stage, _run_dumps(m), None if neighbours else int(r.passed), fc["ret_pct"], fc["mdd_pct"], fc["sharpe"],
                          fc["trades"], fc["win_rate"], fc["profit_factor"], fc["score"]))
                     if neighbours:
                         continue
@@ -307,9 +317,11 @@ class RunStore:
             return int(self._con.execute("SELECT COUNT(*) FROM alphas").fetchone()[0])
 
     def pending(self, prev_idx: int, strategy: Optional[str] = None, after_ord: int = -1, limit: int = 1000) -> List[Dict[str, Any]]:
-        """Alpha đã qua tầng prev_idx và chưa được chấm ở tầng kế (stage_idx = prev_idx, chưa bị loại), theo ord tăng dần, ord > after_ord."""
-        q = "SELECT alpha_id, strategy, params_json, ord FROM alphas WHERE stage_idx=? AND rejected_idx IS NULL AND ord>?"
-        args: List[Any] = [prev_idx, after_ord]
+        """Alpha đã qua tầng prev_idx và chưa được chấm ở tầng kế (stage_idx trong [prev_idx, số hiệu tầng kế), chưa bị loại), theo ord tăng dần,
+        ord > after_ord. (Lượt cũ: alpha đã qua tầng S2_antiluck cũ có stage_idx 2 và vẫn là đầu vào hợp lệ của S3.)"""
+        lo, hi = _idx_span(prev_idx)
+        q = "SELECT alpha_id, strategy, params_json, ord FROM alphas WHERE stage_idx>=? AND stage_idx<? AND rejected_idx IS NULL AND ord>?"
+        args: List[Any] = [lo, hi, after_ord]
         if strategy is not None:
             q += " AND strategy=?"
             args.append(strategy)
@@ -320,7 +332,8 @@ class RunStore:
         return [{"alpha_id": a, "strategy": s, "params": json.loads(p), "ord": o} for a, s, p, o in rows]
 
     def count_pending(self, prev_idx: int, strategy: Optional[str] = None) -> int:
-        q, args = "SELECT COUNT(*) FROM alphas WHERE stage_idx=? AND rejected_idx IS NULL", [prev_idx]
+        lo, hi = _idx_span(prev_idx)
+        q, args = "SELECT COUNT(*) FROM alphas WHERE stage_idx>=? AND stage_idx<? AND rejected_idx IS NULL", [lo, hi]
         if strategy is not None:
             q += " AND strategy=?"
             args.append(strategy)
@@ -330,25 +343,29 @@ class RunStore:
     def strategies_at(self, stage_idx: int) -> List[str]:
         with self._lock:
             return [r[0] for r in self._con.execute(
-                "SELECT DISTINCT strategy FROM alphas WHERE stage_idx=? AND rejected_idx IS NULL ORDER BY strategy", (stage_idx,))]
+                "SELECT DISTINCT strategy FROM alphas WHERE stage_idx>=? AND stage_idx<? AND rejected_idx IS NULL ORDER BY strategy", _idx_span(stage_idx))]
+
+    def has_legacy_stage(self) -> bool:
+        """Lượt chạy trước 08/10/2026 có khối tầng S2_antiluck (đã gộp vào S3/S4): đọc/hiển thị được, không ghi lại."""
+        from backend.optimize.funnel import stages as gates
+        with self._lock:
+            return self._con.execute("SELECT 1 FROM stage_metrics WHERE stage=? LIMIT 1", (gates.LEGACY_STAGE,)).fetchone() is not None
 
     def stage_counts(self) -> List[Dict[str, Any]]:
-        """[{stage, input (đủ điều kiện = đã qua tầng trước), done (đã chấm), passed, rejected}] cho mọi tầng."""
+        """[{stage, input (đủ điều kiện = đã qua tầng trước), done (đã chấm), passed, rejected}] cho mọi tầng (kèm S2_antiluck nếu là lượt cũ)."""
+        from backend.optimize.funnel import stages as gates
         with self._lock:
             grp = self._con.execute("SELECT stage_idx, rejected_idx, COUNT(*) FROM alphas GROUP BY stage_idx, rejected_idx").fetchall()
-        reached = [0] * len(gates.STAGES)      # số alpha có stage_idx >= k
-        rejected = [0] * len(gates.STAGES)
-        for sidx, ridx, n in grp:
-            for k in range(sidx + 1):
-                reached[k] += n
-            if ridx is not None:
-                rejected[ridx] += n
-        out, prev_passed = [], None
-        for k, stage in enumerate(gates.STAGES):
-            done = reached[k]
-            passed = done - rejected[k]
-            eligible = reached[0] if k == 0 else prev_passed
-            out.append({"stage": stage, "input": int(eligible), "done": int(done), "passed": int(passed), "rejected": int(rejected[k])})
+        order = sorted(gates.ALL_STAGE_IDX if self.has_legacy_stage() else gates.STAGE_IDX, key=lambda st: gates.ALL_STAGE_IDX[st])
+        out, prev_passed, first = [], None, None
+        for stage in order:
+            k = gates.ALL_STAGE_IDX[stage]
+            done = sum(n for sidx, _, n in grp if sidx >= k)        # số alpha có stage_idx >= k
+            rejected = sum(n for _, ridx, n in grp if ridx == k)
+            passed = done - rejected
+            first = done if first is None else first
+            out.append({"stage": stage, "input": int(first if prev_passed is None else prev_passed), "done": int(done), "passed": int(passed),
+                        "rejected": int(rejected)})
             prev_passed = passed
         return out
 
@@ -364,6 +381,7 @@ class RunStore:
         return best
 
     def final_alphas(self) -> List[Dict[str, Any]]:
+        from backend.optimize.funnel import stages as gates
         with self._lock:
             ids = [r[0] for r in self._con.execute("SELECT alpha_id FROM alphas WHERE stage_idx=? AND rejected_idx IS NULL ORDER BY ord",
                                                    (gates.STAGE_IDX["FINAL"],)).fetchall()]
@@ -380,12 +398,13 @@ class RunStore:
                 "rejected_stage": r[6], "reject_code": r[7], "reject_msg": r[8], "final_scale": r[9]}
 
     def alpha_metrics(self, alpha_id: str) -> Dict[str, Dict[str, Any]]:
+        from backend.optimize.funnel import stages as gates
         with self._lock:
             rows = self._con.execute("SELECT stage, metrics_json FROM stage_metrics WHERE alpha_id=?", (alpha_id,)).fetchall()
-        return {s: json.loads(m) for s, m in rows if s in gates.STAGE_IDX}
+        return {s: json.loads(m) for s, m in rows if s in gates.ALL_STAGE_IDX}
 
     def metrics_of(self, alpha_ids: Sequence[str], stage: str) -> Dict[str, Dict[str, Any]]:
-        """{alpha_id: metrics} của một stage (kể cả 'S2_neighbour'), theo lô để không vượt giới hạn tham số SQLite."""
+        """{alpha_id: metrics} của một stage (kể cả NEIGHBOUR_STAGE), theo lô để không vượt giới hạn tham số SQLite."""
         out: Dict[str, Dict[str, Any]] = {}
         ids = list(alpha_ids)
         for i in range(0, len(ids), 500):
@@ -484,11 +503,7 @@ class RunStore:
         atomic_write_json(self.mc_path(alpha_id), obj)
 
     def read_mc(self, alpha_id: str) -> Optional[Dict[str, Any]]:
-        try:
-            with open(self.mc_path(alpha_id), encoding="utf-8") as fh:
-                return json.load(fh)
-        except (OSError, ValueError):
-            return None
+        return read_json(self.mc_path(alpha_id))
 
     # ── thống kê dung lượng ────────────────────────────────────────────────
     def disk_bytes(self) -> int:
@@ -500,3 +515,315 @@ class RunStore:
                 except OSError:
                     pass
         return total
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Kho kết quả append-only (SQLite, WAL) cho mỗi lần chạy tối ưu quy mô lớn: <run_dir>/results.sqlite.
+#
+# Vì sao: tối ưu tới ~1.000.000 cấu hình không thể giữ mọi kết quả trong RAM của tiến trình cha (và không thể chạy lại từ đầu khi
+# bị kill). Mỗi kết quả của một job được ghi NGAY vào kho (idempotent theo job_key); tiến trình cha chỉ giữ top-K trong RAM; chạy lại
+# với --resume bỏ qua các job_key đã có -> kết quả cuối y hệt lần chạy không gián đoạn.
+#
+# Bảng:
+#   results(job_key TEXT PRIMARY KEY, stage, candidate, ord INTEGER, params_json, metrics_json, score REAL, created REAL)
+#       ord = chỉ số cấu hình theo thứ tự sinh (để xếp hạng hoà điểm giống `sorted` ổn định); score = điểm xếp hạng (NULL = không đạt / -inf)
+#   meta(key TEXT PRIMARY KEY, value TEXT)
+# job_key = sha1(stage, candidate, params chuẩn hoá, cửa sổ, stop_fill, risk, sha256 dữ liệu, phiên bản mã) — đổi một trong các thành phần
+# này thì kết quả cũ KHÔNG bao giờ được dùng lại.
+#
+# Ghi theo lô (commit mỗi COMMIT_EVERY lần put hoặc COMMIT_SECONDS giây); flush()/close() ghi nốt — CLI gọi trong finally + khi nhận SIGTERM.
+# Móc kiểm thử: env NORA_TEST_FAIL_AFTER_PUTS=N -> sau lần put thứ N (đã commit) ném RuntimeError để mô phỏng sập giữa chừng (chỉ dùng trong test).
+#
+# Chạy một giai đoạn kiểu streaming (stream_stage):
+# Chạy một giai đoạn tối ưu theo kiểu STREAMING: job sinh lười -> pool (bounded) -> ghi ngay vào ResultsStore -> chỉ giữ top-K trong RAM.
+#
+# stream_stage() là khung dùng chung cho build_strategy_book (giai đoạn A) và sàng lọc của optimize/funnel/stages:
+#   - bỏ qua job đã có trong kho (job_key) -> `--resume` tiếp tục đúng chỗ dừng, kết quả cuối y hệt lần chạy không gián đoạn;
+#   - kết quả mỗi job được chuẩn hoá qua JSON (cùng cấu trúc dù lấy từ worker hay từ kho) trước khi đưa cho `handle`;
+#   - `handle(ord, params, metrics, from_store) -> (metrics_để_lưu, điểm)` quyết định lưu gì (vd. bỏ chuỗi `daily` của hàng không thuộc top-K).
+# ══════════════════════════════════════════════════════════════════════════
+
+COMMIT_EVERY = 200
+COMMIT_SECONDS = 3.0
+SCHEMA_VERSION = 1
+
+_RESULTS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS results(
+    job_key TEXT PRIMARY KEY, stage TEXT NOT NULL, candidate TEXT NOT NULL, ord INTEGER,
+    params_json TEXT NOT NULL, metrics_json TEXT NOT NULL, score REAL, created REAL NOT NULL);
+CREATE INDEX IF NOT EXISTS results_rank ON results(stage, candidate, score DESC, ord);
+CREATE INDEX IF NOT EXISTS results_ord ON results(stage, candidate, ord);
+CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT);
+"""
+
+_CODE_FILES = (   # mọi file ảnh hưởng kết quả backtest: đổi một file -> khoá job đổi -> --resume không dùng lại kết quả cũ
+    "backend/core/backtest.py", "backend/core/models.py", "backend/core/params.py", "backend/core/position_size.py",   # P9.4: engine gộp
+    "backend/metrics/metrics.py", "backend/metrics/trades.py",   # P9.5: returns+portfolio gộp, trades chuyển
+    "backend/crawl/store.py", "backend/core/signal.py", "backend/alpha/contract.py", "backend/alpha/compile.py", "backend/core/indicator.py",   # P9.4 part 2: evaluator/kernels đã gộp
+    "backend/optimize/book/build.py", "backend/wfa/wfa.py",   # P9.5 (+ P9.9: sổ chiến lược book.py/library.py gộp vào build.py/signal.py)
+)
+_CODE_VERSION: Optional[str] = None
+
+
+def canonical(obj: Any) -> str:
+    """JSON chuẩn hoá (khoá sắp xếp, không khoảng trắng) — dùng cho job_key."""
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"), default=json_default, allow_nan=True)
+
+
+def code_version() -> str:
+    """Chuỗi phiên bản mã ảnh hưởng kết quả: sha1 nội dung các file engine/chiến lược (hoặc env NORA_CODE_VERSION). Tính một lần."""
+    global _CODE_VERSION
+    env = os.environ.get("NORA_CODE_VERSION")
+    if env:
+        return env
+    if _CODE_VERSION is None:
+        root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+        h = hashlib.sha1(f"v{SCHEMA_VERSION}".encode())
+        for rel in _CODE_FILES:
+            try:
+                with open(os.path.join(root, rel), "rb") as fh:
+                    h.update(rel.encode() + b"\0" + fh.read())
+            except OSError:
+                h.update(rel.encode() + b"\0missing")
+        _CODE_VERSION = h.hexdigest()[:16]
+    return _CODE_VERSION
+
+
+def data_fingerprint(symbols: Iterable[str]) -> List[Any]:
+    """sha256 của 1m.pkl theo manifest từng tài sản (thiếu thì (start, end, số nến)) — thành phần của job_key."""
+    from backend.crawl.store import read_manifest
+    out = []
+    for s in symbols:
+        m = read_manifest(s) or {}
+        out.append([s, m.get("sha256_1m") or [m.get("start_ts"), m.get("end_ts"), m.get("rows_1m") or (m.get("rows") or {}).get("1m")]])
+    return out
+
+
+def make_job_key(stage: str, candidate: str, params: Any, window: Any = None, stop_fill: Any = None, risk: Any = None,
+                 data: Any = None, code: Optional[str] = None, extra: Any = None) -> str:
+    payload = canonical([stage, candidate, params, window, stop_fill, risk, data, code or code_version(), extra])
+    return hashlib.sha1(payload.encode("utf-8")).hexdigest()
+
+
+def _results_dumps(obj: Any) -> str:
+    return json.dumps(obj, default=json_default, allow_nan=True)
+
+
+class ResultsStore:
+    """Kho kết quả của MỘT lần chạy (một file SQLite trong run_dir). An toàn đa luồng; nhiều tiến trình cùng ghi được (WAL + busy_timeout)."""
+
+    def __init__(self, run_dir: str, name: str = DB_NAME, read_only: bool = False):
+        self.path = run_dir if run_dir.endswith(".sqlite") else os.path.join(run_dir, name)
+        if not read_only:
+            os.makedirs(os.path.dirname(self.path), exist_ok=True)
+        self.read_only = read_only
+        self._lock = threading.RLock()
+        self._con = sqlite3.connect(self.path, timeout=60.0, check_same_thread=False, isolation_level=None)
+        self._con.execute("PRAGMA busy_timeout=60000")
+        if read_only:
+            self._con.execute("PRAGMA query_only=1")
+        else:
+            self._con.execute("PRAGMA journal_mode=WAL")
+            self._con.execute("PRAGMA synchronous=NORMAL")
+            self._con.executescript(_RESULTS_SCHEMA)
+        self._pending = 0
+        self._in_tx = False
+        self._last_commit = time.time()
+        self._puts = 0
+        self._fail_after = int(os.environ.get("NORA_TEST_FAIL_AFTER_PUTS") or 0)
+
+    # ── ghi ────────────────────────────────────────────────────────────────
+    def put(self, job_key: str, stage: str, candidate: str, params: Any, metrics: Any, ord: Optional[int] = None,
+            score: Optional[float] = None) -> bool:
+        """Ghi một kết quả; idempotent theo job_key (đã có -> không đổi, trả False)."""
+        sc = None if score is None or (isinstance(score, float) and not math.isfinite(score)) else float(score)
+        with self._lock:
+            if not self._in_tx:
+                self._con.execute("BEGIN")
+                self._in_tx = True
+            cur = self._con.execute(
+                "INSERT OR IGNORE INTO results(job_key, stage, candidate, ord, params_json, metrics_json, score, created) "
+                "VALUES (?,?,?,?,?,?,?,?)",
+                (job_key, stage, candidate, ord, _results_dumps(params), _results_dumps(metrics), sc, time.time()))
+            inserted = cur.rowcount == 1
+            self._pending += 1
+            if self._pending >= COMMIT_EVERY or time.time() - self._last_commit >= COMMIT_SECONDS:
+                self._commit()
+            if inserted:
+                self._puts += 1
+                if self._fail_after and self._puts >= self._fail_after:
+                    self._commit()
+                    raise RuntimeError(f"[test] mô phỏng sập sau {self._puts} job (NORA_TEST_FAIL_AFTER_PUTS)")
+            return inserted
+
+    def _commit(self) -> None:
+        if self._in_tx:
+            self._con.execute("COMMIT")
+            self._in_tx = False
+        self._pending = 0
+        self._last_commit = time.time()
+
+    def flush(self) -> None:
+        with self._lock:
+            if not self.read_only:
+                self._commit()
+
+    def close(self) -> None:
+        with self._lock:
+            try:
+                self.flush()
+            finally:
+                self._con.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+
+    def set_meta(self, key: str, value: Any) -> None:
+        with self._lock:   # autocommit; nếu đang trong giao dịch put thì commit cùng lô
+            self._con.execute("INSERT OR REPLACE INTO meta(key, value) VALUES (?,?)", (key, _results_dumps(value)))
+
+    def get_meta(self, key: str, default: Any = None) -> Any:
+        with self._lock:
+            row = self._con.execute("SELECT value FROM meta WHERE key=?", (key,)).fetchone()
+        return json.loads(row[0]) if row else default
+
+    # ── đọc ────────────────────────────────────────────────────────────────
+    @staticmethod
+    def _row(r) -> Dict[str, Any]:
+        return {"job_key": r[0], "stage": r[1], "candidate": r[2], "ord": r[3], "params": json.loads(r[4]),
+                "metrics": json.loads(r[5]), "score": r[6]}
+
+    _COLS = "job_key, stage, candidate, ord, params_json, metrics_json, score"
+
+    def has(self, job_key: str) -> bool:
+        with self._lock:
+            return self._con.execute("SELECT 1 FROM results WHERE job_key=?", (job_key,)).fetchone() is not None
+
+    def get(self, job_key: str) -> Optional[Dict[str, Any]]:
+        with self._lock:
+            r = self._con.execute(f"SELECT {self._COLS} FROM results WHERE job_key=?", (job_key,)).fetchone()
+        return self._row(r) if r else None
+
+    def count(self, stage: Optional[str] = None, candidate: Optional[str] = None) -> int:
+        q, args = "SELECT COUNT(*) FROM results", []
+        cond = []
+        if stage is not None:
+            cond.append("stage=?"); args.append(stage)
+        if candidate is not None:
+            cond.append("candidate=?"); args.append(candidate)
+        if cond:
+            q += " WHERE " + " AND ".join(cond)
+        with self._lock:
+            return int(self._con.execute(q, args).fetchone()[0])
+
+    def done_keys(self, stage: Optional[str] = None, candidate: Optional[str] = None) -> Iterator[str]:
+        """Duyệt job_key đã xong (iterator — không nạp cả tập vào RAM)."""
+        q, args = "SELECT job_key FROM results", []
+        cond = []
+        if stage is not None:
+            cond.append("stage=?"); args.append(stage)
+        if candidate is not None:
+            cond.append("candidate=?"); args.append(candidate)
+        if cond:
+            q += " WHERE " + " AND ".join(cond)
+        con = self._con
+        with self._lock:
+            keys = con.execute(q, args)
+            for (k,) in keys:
+                yield k
+
+    def iter_rows(self, stage: str, candidate: str) -> Iterator[Dict[str, Any]]:
+        """Duyệt hàng theo ord (streaming, từng lô 500)."""
+        with self._lock:
+            cur = self._con.cursor()
+            cur.execute(f"SELECT {self._COLS} FROM results WHERE stage=? AND candidate=? ORDER BY ord", (stage, candidate))
+        while True:
+            with self._lock:
+                batch = cur.fetchmany(500)
+            if not batch:
+                break
+            for r in batch:
+                yield self._row(r)
+
+    def top_k(self, stage: str, candidate: str, k: int, score_fn: Optional[Callable[[Dict[str, Any]], float]] = None) -> List[Dict[str, Any]]:
+        """k hàng điểm cao nhất, xếp (-điểm, ord) — hoà điểm thì cấu hình sinh trước đứng trước (= `sorted` ổn định theo -điểm).
+        score_fn(row) -> float (-inf = không đạt); mặc định dùng cột score (NULL = -inf). Duyệt streaming, RAM O(k)."""
+        k = max(0, int(k))
+        if score_fn is None:
+            with self._lock:
+                rs = self._con.execute(
+                    f"SELECT {self._COLS} FROM results WHERE stage=? AND candidate=? "
+                    f"ORDER BY score IS NULL, score DESC, ord LIMIT ?", (stage, candidate, k)).fetchall()
+            return [self._row(r) for r in rs]
+
+        def keyed():
+            for row in self.iter_rows(stage, candidate):
+                sc = score_fn(row)
+                yield (-sc, row["ord"] if row["ord"] is not None else 0), row["job_key"], row
+        best = heapq.nsmallest(k, keyed(), key=lambda t: t[0])
+        return [t[2] for t in best]
+
+    def page(self, stage: str, candidate: Optional[str] = None, offset: int = 0, limit: int = 100,
+             sort: str = "order") -> List[Dict[str, Any]]:
+        """Phân trang: sort="order" (thứ tự sinh) hoặc "score" (cao -> thấp, hoà theo ord)."""
+        order = "ORDER BY score IS NULL, score DESC, ord" if sort == "score" else "ORDER BY ord"
+        q, args = f"SELECT {self._COLS} FROM results WHERE stage=?", [stage]
+        if candidate is not None:
+            q += " AND candidate=?"
+            args.append(candidate)
+        q += f" {order} LIMIT ? OFFSET ?"
+        args += [max(1, min(int(limit), 1000)), max(0, int(offset))]
+        with self._lock:
+            rs = self._con.execute(q, args).fetchall()
+        return [self._row(r) for r in rs]
+
+    def candidates(self, stage: str) -> List[str]:
+        with self._lock:
+            return [r[0] for r in self._con.execute("SELECT DISTINCT candidate FROM results WHERE stage=? ORDER BY candidate", (stage,))]
+
+
+# ─── Chạy một giai đoạn kiểu streaming (stream_stage) ──────────────────────
+def normalize(obj: Any) -> Any:
+    """Qua một vòng JSON (np.float64 -> float, tuple -> list...) — đúng thứ sẽ đọc lại từ kho."""
+    return json.loads(json.dumps(obj, default=json_default, allow_nan=True))
+
+
+def stream_stage(items: Iterable[Tuple[int, Any, Any]], fn: Callable, *, workers: int, label: str,
+                 store: Optional[ResultsStore], stage: str, candidate: str,
+                 key_of: Callable[[int, Any, Any], str],
+                 handle: Callable[[int, Any, Dict[str, Any], bool], Tuple[Dict[str, Any], Optional[float]]],
+                 progress=None, max_inflight: Optional[int] = None,
+                 prepare: Optional[Callable[[Any], None]] = None) -> Dict[str, int]:
+    """items: iterable lười của (ord, params, job). Trả {"new": số job vừa chạy, "resumed": số job lấy từ kho}."""
+    pending: Dict[int, Tuple[int, Any, str]] = {}
+    counts = {"new": 0, "resumed": 0}
+
+    def feeder():
+        seq = itertools.count()
+        for ord_, params, job in items:
+            key = key_of(ord_, params, job)
+            row = store.get(key) if store is not None else None
+            if row is not None:
+                handle(ord_, params, row["metrics"], True)
+                counts["resumed"] += 1
+                if progress is not None:
+                    progress.tick(resumed=True)
+                continue
+            if prepare is not None:
+                prepare(job)
+            pending[next(seq)] = (ord_, params, key)
+            yield job
+
+    for i, res in pool_imap_bounded(fn, feeder(), workers, label, max_inflight):
+        ord_, params, key = pending.pop(i)
+        metrics = normalize(res)
+        to_store, score = handle(ord_, params, metrics, False)
+        if store is not None:
+            store.put(key, stage, candidate, params, to_store, ord=ord_, score=score)
+        counts["new"] += 1
+        if progress is not None:
+            progress.tick(worker_peak_mb=metrics.get("_peak_rss_mb") if isinstance(metrics, dict) else None)
+    return counts

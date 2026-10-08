@@ -1,8 +1,9 @@
 """DCA có điều kiện: tầng DCA chỉ khớp khi điều kiện dồn (giá trị ở nến đã đóng trước) đang đúng; không có điều kiện -> như cũ."""
-from backend.core.execute.models import PositionType
-from backend.core.execute.tracker import PositionTracker
-from backend.core.params.builder import build_params
-from backend.core.strategy import book as sb
+from backend.core.models import PositionType
+from backend.core.backtest import PositionTracker
+from backend.core.params import build_params
+from backend.optimize.book import build as sb
+from backend.core.params import materialize, schema_defaults
 
 POS = {"market": "perp", "leverage": 3, "exit_unit": "pct", "sizing": "margin_pct", "order_size_pct": 10.0, "stop_loss_rate": 20.0,
        "take_profit_rate": 0.0, "dca_step_pct": 1.0, "dca_max_layers": 3, "dca_size_multiplier": 1.0, "timeout": 0}
@@ -39,12 +40,12 @@ def test_gate_closed_blocks_layers_and_reopens():
 
 
 def test_dca_legs_materialize_gate_and_validate():
-    from backend.optimize.funnel import generate as gen
+    from backend.optimize.search import generate as gen
     for cid in ("dca_long", "dca_short"):
         c = sb.BY_ID[cid]
-        st = sb.materialize(c, sb.schema_defaults(c))
+        st = materialize(c, schema_defaults(c))
         assert st["dca"] and st["position"]["dca_max_layers"] == 3 and st["position"]["exit_unit"] == "atr"
-        prm = {k: v for k, v in sb.schema_defaults(c).items() if k != "risk_per_trade_pct"}   # phễu cố định rủi ro/lệnh
+        prm = {k: v for k, v in schema_defaults(c).items() if k != "risk_per_trade_pct"}   # phễu cố định rủi ro/lệnh
         assert gen.validate_alpha(c, prm, "schema", "1h") is None
     cat = {s["id"]: s for s in sb.STRATEGIES}
     assert cat["dca"]["legs"] == {"LONG": "dca_long", "SHORT": "dca_short"} and not cat["dca"].get("coming")

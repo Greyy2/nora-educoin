@@ -13,16 +13,15 @@ commit 808d7f4 (baseline) và PASS sau khi sửa.
 7. Không còn default 'SOL'; cấu hình WFA ở frontend khớp schema backend.
 8. Crawler xoá checkpoint khi crawl thành công.
 """
-import json
 import os
 import re
-import time
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from backend.core.data.resampler import save_resampled_dataset
+from backend.crawl.store import save_resampled_dataset
+from data_helpers import set_ticks_attrs
 
 D = 86_400_000
 T0 = 1_700_006_400_000  # 2023-11-15 00:00 UTC (neo ngày)
@@ -69,35 +68,10 @@ def clean_asset(tmp_path, monkeypatch):
     return sym, str(root)
 
 
-def _wait_mc(job_id, timeout=30):
-    from backend.api.jobs.store import get_mc_job
-    t_end = time.time() + timeout
-    while time.time() < t_end:
-        job = get_mc_job(job_id)
-        if job and job.get("status") in ("completed", "failed"):
-            return job
-        time.sleep(0.1)
-    raise AssertionError("MC job không kết thúc")
-
-
-def _completed_wfa(trades, gate=True):
-    from backend.api.jobs.store import complete_wfa_job, create_wfa_job
-    job_id = create_wfa_job("CLEAN", "S", 4)
-    complete_wfa_job(job_id, {
-        "acceptance_gate_passed": gate, "aggregate_oos_trades": trades,
-        "strategy_name": "S", "symbol": "CLEAN",
-    })
-    return job_id
-
-
-def _small_trades(n=40):
-    return [{"trade_id": str(i), "pnl_pct": 0.5 if i % 2 else -0.4} for i in range(n)]
-
-
 # ─── 1. Dữ liệu sạch chạy được end-to-end ───────────────────────────────────
 
 def test_gate_approves_clean_resampled_data(clean_asset):
-    from backend.core.data.quality_gate import DataQualityStatus, evaluate_data_quality
+    from backend.crawl.store import DataQualityStatus, evaluate_data_quality
     sym, root = clean_asset
     dq = evaluate_data_quality(sym, timeframe="1m", data_root=root)
     assert dq["status"] == DataQualityStatus.APPROVED, dq["issues"]
@@ -117,14 +91,13 @@ def _write_ticks(sym_dir, start_ts, n=500, step_ms=60_000):
 
 
 def test_has_ticks_requires_manifest_declaration(tmp_path):
-    from backend.db.local_pkl import has_ticks
+    from backend.crawl.store import has_ticks
     sym_dir = tmp_path / "TK"
     sym_dir.mkdir()
     _write_ticks(str(sym_dir), T0)
     assert has_ticks("TK", data_root=str(tmp_path)) is False, "ticks.parquet không có manifest khai báo -> False"
 
-    with open(sym_dir / "manifest.json", "w") as f:
-        json.dump({"synthetic": False, "ticks": {"synthetic": False, "start_ts": T0, "end_ts": T0 + D}}, f)
+    set_ticks_attrs(str(sym_dir), ticks={"synthetic": False, "start_ts": T0, "end_ts": T0 + D})
     assert has_ticks("TK", data_root=str(tmp_path)) is True
     assert has_ticks("TK", data_root=str(tmp_path), min_days=30) is False
 
@@ -138,7 +111,7 @@ def test_has_ticks_requires_manifest_declaration(tmp_path):
 # ─── 6. Gate bắt buộc 4h; không dựng nến từ tick ────────────────────────────
 
 def test_gate_blocks_when_4h_missing(clean_asset):
-    from backend.core.data.quality_gate import DataQualityStatus, evaluate_data_quality
+    from backend.crawl.store import DataQualityStatus, evaluate_data_quality
     sym, root = clean_asset
     os.remove(os.path.join(root, sym, "4h.pkl"))
     dq = evaluate_data_quality(sym, timeframe="1m", data_root=root)
@@ -147,7 +120,7 @@ def test_gate_blocks_when_4h_missing(clean_asset):
 
 
 def test_load_candle_df_has_no_tick_fallback(tmp_path):
-    from backend.db.tick_storage import load_candle_df
+    from backend.crawl.dex import load_candle_df
     sym_dir = tmp_path / "ONLYTICKS"
     sym_dir.mkdir()
     _write_ticks(str(sym_dir), T0, n=2000)

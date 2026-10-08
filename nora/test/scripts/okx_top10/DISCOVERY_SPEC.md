@@ -8,7 +8,7 @@ predicts the action, then turn the learned model into the simplest rule that kee
 Read-only inputs: /home/vmc03/norabt/none/okx-top10/bots.json; candles via load.candle_arrays (1m, all symbols).
 Reuse: load.py (build_baskets, collapse, candle_arrays, window), match.py (basket_row, level_a, level_b), sim.py.
 Do NOT modify backend/. Everything lives in test/scripts/okx_top10/. Heavy runs via
-/home/vmc03/norabt/nora/backend/utils/ops/run_limited.sh.
+/home/vmc03/norabt/nora/ops/run_limited.sh.
 
 ML libs: the nora venv has no sklearn. Create a separate research venv ~/.venvs/okxr
 (numpy, pandas, scikit-learn, numba, scipy). Never pip install into ~/.venvs/nora.

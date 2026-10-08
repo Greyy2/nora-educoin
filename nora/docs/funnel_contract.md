@@ -80,7 +80,7 @@ Alpha `learn` học bảng regime (`core/regime/learn.py`: chặn regime có ≥
 
 Mã: `backend/optimize/funnel/` (`gates.py` ngưỡng, `generate.py` S0, `antiluck.py` DSR/PBO/lân cận, `sizing.py` tìm s, `storage.py` kho, `stats.py` thống kê,
 `backtest.py` worker, `orchestrator.py` điều phối, `recompute.py`, `promote.py`), CLI `backend/optimize/run_funnel.py`, router `backend/api/routers/funnel.py`.
-Chạy: `backend/utils/ops/run_limited.sh -- -m backend.optimize.run_funnel --strategies a,b --n-per-strategy 200 --seed 7` (`--full-grid`, `--resume <run_id>`, `--until <tầng>`).
+Chạy: `ops/run_limited.sh -- -m backend.optimize.run_funnel --strategies a,b --n-per-strategy 200 --seed 7` (`--full-grid`, `--resume <run_id>`, `--until <tầng>`).
 
 ### 6.1 Ngữ nghĩa từng tầng (chỗ hợp đồng để ngỏ)
 - **alpha_id** = `sha1(chiến lược + "|" + JSON tham số chuẩn hoá (khoá sắp xếp))[:16]`. Lấy mẫu cùng thuật toán `build_strategy_book.iter_configs` (theo chỉ số lưới).

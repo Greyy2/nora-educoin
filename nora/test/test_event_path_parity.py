@@ -8,7 +8,7 @@ trên CÙNG nến + tín hiệu + trần rủi ro + funding + kill. Bảy tầng
   4g limit_through, stop_fill='extreme', gap (open vượt mức), hoà mức thoát-trước-DCA
 Mỗi cấu hình: 1 slot hoặc 3 slot dùng chung MỘT Account. So SÁNH TỪNG BIT (float.hex): mọi trường PositionModel đã đóng, từng nến mọi trạng thái
 của slot + sổ vốn (equity, reserved, peak, rejected), chuỗi OrderModel, vị thế còn mở, bộ đếm, chuỗi sự kiện của book, và id (lệch so với mốc
-đầu lần chạy phải y hệt -> `_next_id()` được gọi đúng thứ tự). Test cuối kiểm các nhánh của từng tầng thực sự bị chạm (không "xanh rỗng").
+đầu lần chạy phải y hệt -> `next_id()` được gọi đúng thứ tự). Test cuối kiểm các nhánh của từng tầng thực sự bị chạm (không "xanh rỗng").
 Số cấu hình mỗi tầng đổi bằng NORA_EVENT_CONFIGS (mặc định 40). Mismatch -> sửa đường event, KHÔNG nới so sánh.
 """
 import dataclasses
@@ -21,15 +21,10 @@ from typing import Any, Dict, List
 
 import pytest
 
-from backend.core.execute import policy
-from backend.core.execute.account import Account
-from backend.core.execute.events import Fill, OrderRejected
-from backend.core.execute.manager import PositionManager
-from backend.core.execute.models import PositionType
-from backend.core.execute.sim_venue import SimVenue
-from backend.core.execute.tracker import PositionTracker, _next_id
-from backend.core.execute.venue import OrderKind
-from backend.core.params.builder import build_params
+from backend.core import position_size as policy
+from backend.core.models import Account, Fill, OrderRejected, PositionType, next_id
+from backend.core.backtest import PositionManager, SimVenue, PositionTracker, OrderKind
+from backend.core.params import build_params
 from test_kernel_parity import _fit_dca_budget, rand_position
 
 M = 60_000
@@ -180,7 +175,7 @@ def _hx(v):
 
 
 def _canon(obj, base: int):
-    """Dataclass -> dict so được từng bit: float.hex, id trừ mốc đầu lần chạy (id Python sinh theo thứ tự gọi `_next_id`)."""
+    """Dataclass -> dict so được từng bit: float.hex, id trừ mốc đầu lần chạy (id Python sinh theo thứ tự gọi `next_id`)."""
     out = {}
     for f in dataclasses.fields(obj):
         v = getattr(obj, f.name)
@@ -204,7 +199,7 @@ def _snap(actor, acct: Account):
 
 
 def _run_world(kind: str, cfg: Dict[str, Any], cov: Counter) -> Dict[str, Any]:
-    base = _next_id()
+    base = next_id()
     acct = Account(cfg["initial"])
     events: List[Any] = []
     venue = CountingVenue(cov) if kind == "event" else None

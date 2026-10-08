@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import { Segmented } from '../ui'
-import { STAGES, STAGE_META, fmtCount } from '../../lib/funnel'
+import { STAGE_META, fmtCount } from '../../lib/funnel'
 import { isNum, fmtPct } from '../../lib/format'
 
 /**
@@ -32,7 +32,7 @@ export default function FunnelChart({ counts, selected, onSelect, tops = {}, run
           const rate = isNum(c.passed) && isNum(c.input) && c.input > 0 && i > 0 ? (c.passed / c.input) * 100 : null
           const top = c.top_reject || tops[c.stage]
           const final = c.stage === 'FINAL'
-          const afterDead = !!deadAt && i > STAGES.indexOf(deadAt)
+          const afterDead = !!deadAt && i > counts.findIndex((x) => x.stage === deadAt)
           const on = selected === c.stage
           return (
             <li key={c.stage}>

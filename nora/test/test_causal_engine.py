@@ -2,9 +2,9 @@ import pytest
 import numpy as np
 import pandas as pd
 
-from backend.core.backtest.engine import BacktestEngine
-from backend.core.params.schema import StrategyParams
-from backend.core.execute.models import PositionStatus
+from backend.core.backtest import BacktestEngine
+from backend.core.params import StrategyParams
+from backend.core.models import PositionStatus
 
 
 def make_dummy_candles(n_minutes: int = 1440 * 10, seed: int = 42, warmup_days: int = 2):

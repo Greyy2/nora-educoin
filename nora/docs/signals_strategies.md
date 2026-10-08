@@ -93,8 +93,8 @@ không cắt lỗ, và số tầng DCA tương quan +0,62 với cú lỗ lớn n
 
 ```bash
 cd nora
-backend/utils/ops/run_limited.sh -- test/scripts/check_signals_strategies.py --workers 4          # 10 tài sản
-backend/utils/ops/run_limited.sh -- test/scripts/check_signals_strategies.py --assets BTC,AERO   # một vài tài sản
+ops/run_limited.sh -- test/scripts/check_signals_strategies.py --workers 4          # 10 tài sản
+ops/run_limited.sh -- test/scripts/check_signals_strategies.py --assets BTC,AERO   # một vài tài sản
 ```
 
 Kết quả được lưu ở `data/_cache/reports/step2_<thời điểm>.json`.

@@ -10,11 +10,10 @@ import sys
 
 import pytest
 
-from backend.core.backtest.engine import BacktestEngine
-from backend.core.execute.tracker import PositionTracker
-from backend.core.params.builder import build_params, dca_budget_check, resolve_costs
-from backend.core.params.schema import StrategyParams
-from backend.core.execute.models import PositionType
+from backend.core.backtest import BacktestEngine, PositionTracker
+from backend.core.params import build_params, dca_budget_check, resolve_costs
+from backend.core.params import StrategyParams
+from backend.core.models import PositionType
 from test_signals_strategies import M, _engine, _ohlcv, _path
 
 SPOT = resolve_costs("cex", "spot", None, None)   # taker 0,10% / maker 0,10%
@@ -79,7 +78,7 @@ def test_build_params_rejects_over_budget_with_clear_message():
 
 
 def test_library_dca_bots_fit_budget():
-    from backend.core.strategy.library import KERNEL_STRATEGIES
+    from legacy_library import KERNEL_STRATEGIES
     dca = [s for s in KERNEL_STRATEGIES if s["default_params"].get("dca_max_layers")]
     assert len(dca) == 3
     for s in dca:
@@ -126,7 +125,7 @@ def test_get_results_exposes_dca_layers_rejected():
 
 def test_portfolio_get_results_has_dca_layers_rejected(tmp_path):
     import golden_scenarios as gs
-    from backend.core.backtest.portfolio import PortfolioEngine, RiskConfig
+    from backend.core.backtest import PortfolioEngine, RiskConfig
     gs.write_synthetic_market(tmp_path / "data")
     with gs.data_root_env(str(tmp_path / "data")):
         eng = PortfolioEngine(["AAA@perp"], [{**gs.LONG, "id": "rsi_long"}], gs.T0, gs.T0 + 20 * gs.DAY,
@@ -185,7 +184,7 @@ def test_cooldown_applies_after_force_close_and_timeout():
 def test_skip_idle_identical_with_cooldown(monkeypatch, cooldown):
     """Trên vòng lặp tham chiếu (kernel = tham chiếu từng bit, test_kernel_parity)."""
     import reference_engine as ref
-    from backend.core.backtest import engine as engine_mod
+    from backend.core import backtest as engine_mod
     monkeypatch.setattr(engine_mod, "BacktestEngine", ref.RefBacktestEngine)   # _engine() dựng qua module
     BacktestEngine = ref.RefBacktestEngine
     df = _ohlcv(4000, seed=5)

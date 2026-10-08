@@ -14,8 +14,8 @@ import pandas as pd
 import pytest
 
 from scripts import research_topbots as rt
-from backend.core.params.builder import dca_budget_check, resolve_costs
-from backend.core.data.resampler import save_resampled_dataset
+from backend.core.params import dca_budget_check, resolve_costs
+from backend.crawl.store import save_resampled_dataset
 
 COSTS = resolve_costs("cex", "perp", None, None)
 HTML = rt.BOTS_HTML

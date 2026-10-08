@@ -15,8 +15,7 @@ import random
 import pytest
 
 import golden_scenarios as gs
-from backend.core.backtest.portfolio import PortfolioEngine
-from backend.live.paper import PaperBook
+from backend.core.backtest import PaperBook, PortfolioEngine
 from test_kernel_parity import hexify, market_root, rand_portfolio_config  # noqa: F401  (market_root là fixture)
 from test_risk_engine import _pos_key, _risk_cfg, _trade_key
 

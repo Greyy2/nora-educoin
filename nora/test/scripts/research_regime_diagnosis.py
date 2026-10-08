@@ -9,7 +9,7 @@
   G. So hồ sơ nhãn "slow" (xu hướng 4h, xác nhận 180 phút) và "fast" (1h, 60 phút) cho C, D và bảng chặn ngược chiều
   H. Tiêu chí P2.4 (viết lại): trên dev2 (ngoài mẫu), lãi trung bình/lệnh trong regime ĐƯỢC PHÉP > trong regime BỊ CHẶN, ở >= 2/3 chiến lược
 
-Dùng (từ nora/): backend/utils/ops/run_limited.sh -- test/scripts/research_regime_diagnosis.py [--out FILE]
+Dùng (từ nora/): ops/run_limited.sh -- test/scripts/research_regime_diagnosis.py [--out FILE]
 """
 import argparse
 import json
@@ -29,16 +29,17 @@ HOUR = 3_600_000
 
 
 def _strategies(items, rpt, regime_of):
-    from backend.core.params.modes import lift_frames
-    from backend.core.strategy.book import CANDIDATES, materialize
+    from backend.optimize.book.build import lift_frames
+    from backend.core.params import materialize
+    from backend.optimize.book.build import CANDIDATES
     by_id = {c["id"]: c for c in CANDIDATES}
     return [materialize(by_id[cid], lift_frames(by_id[cid], prm, TF), regime=regime_of(cid) or False, stop_fill="level",
                         risk_per_trade_pct=rpt) for cid, prm in items]
 
 
 def bt(items, symbols, start, end, rpt, regime_of=lambda cid: None):
-    from backend.core.backtest.run import run
-    from backend.core.strategy.book import RISK
+    from backend.optimize.search.evaluate import run
+    from backend.core.params import RISK
     out = run([], symbols, start, end, rpt, "level", RISK, extra_strategies=_strategies(items, rpt, regime_of), base_frame=TF)
     by = {}
     for t in out["trade_list"]:
@@ -56,12 +57,13 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=os.path.join(NORA_ROOT, "data", "_cache", "research", "regime_diagnosis.json"))
     a = ap.parse_args()
-    from backend.core.backtest.run import WARMUP
-    from backend.core.regime import classifier as rg
-    from backend.core.regime.learn import OBSERVE, by_regime, learn_map, trade_regime
-    from backend.core.strategy.book import REGIME_MAP, perp_symbols
-    from backend.optimize.funnel.gates import compute_windows
-    from backend.core.regime.report import _book_items
+    from backend.optimize.search.evaluate import WARMUP
+    from backend.regime import regime as rg
+    from backend.regime.regime import OBSERVE, by_regime, learn_map, trade_regime
+    from backend.core.params import REGIME_MAP
+    from backend.optimize.book.build import perp_symbols
+    from backend.optimize.funnel.stages import compute_windows
+    from backend.optimize.process.tasks import _book_items
     t0 = time.time()
     symbols = perp_symbols()
     w = compute_windows(symbols)
@@ -199,7 +201,7 @@ def main():
               f"H: {better}/{len(ids)} chiến lược regime được phép tốt hơn -> {'ĐẠT' if g['H_pass'] else 'TRƯỢT'}", flush=True)
     rep["wall_s"] = round(time.time() - t0, 1)
     os.makedirs(os.path.dirname(a.out), exist_ok=True)
-    from backend.utils.jsonsafe import json_default
+    from backend.crawl.store import json_default
     with open(a.out, "w", encoding="utf-8") as fh:
         json.dump(rep, fh, ensure_ascii=False, indent=1, default=json_default)
     print(f"ghi {a.out} ({rep['wall_s']}s)", flush=True)

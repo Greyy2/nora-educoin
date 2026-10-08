@@ -108,7 +108,7 @@ Chuỗi `series` theo **ngày**, nhãn = nửa đêm UTC (giờ đóng nến), `
 4. Trình soạn code trong Chrome thật: `test/scripts/check_code_editor.py` (Playwright).
 5. Golden giữ trùng từng bit (`test_golden_results.py`).
 
-Chạy (từ `nora/`): `backend/utils/ops/run_limited.sh --no-lock -- -m pytest test/test_pydsl_dsl.py test/test_pydsl_causal.py test/test_pydsl_explain.py test/test_pydsl_parity.py test/test_custom_backtest.py -q`.
+Chạy (từ `nora/`): `ops/run_limited.sh --no-lock -- -m pytest test/test_pydsl_dsl.py test/test_pydsl_causal.py test/test_pydsl_explain.py test/test_pydsl_parity.py test/test_custom_backtest.py -q`.
 
 ```bash
 curl -s -X POST localhost:18010/api/studio/strategies/compile -H 'content-type: application/json' -d @<(python3 -c 'import json;print(json.dumps({"code":open("strategy.py").read()}))')

@@ -14,9 +14,9 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from backend.api.routers import alphas as alphas_router
-from backend.core.analytics import strategy_doc, user_alphas
-from backend.core.strategy.pydsl import compile_code
+from backend.routes import alphas as alphas_router
+from backend.optimize.book import registry as strategy_doc, registry as user_alphas
+from backend.alpha.compile import compile_code
 
 
 def _make_mock_job(tmp_path, code, job_id="job_test_123", finish=True):
@@ -73,7 +73,7 @@ class MyAlgo(SimpleAlgorithm):
 
     # 1. Lưu hợp lệ
     # Mock batch.status
-    from backend.api.jobs import batch
+    from backend.optimize.process import process as batch
     monkeypatch.setattr(batch, "status", lambda jid: {"status": "done", "result": res} if jid == job_id else None)
 
     rec, act = user_alphas.save_user_alpha(job_id, code, "Alpha Thử Nghiệm", note="Ghi chú test", base_dir=user_alphas_dir)
@@ -82,7 +82,7 @@ class MyAlgo(SimpleAlgorithm):
     assert rec["status"] == "SAVED"
     alpha_id = rec["id"]
 
-    # Đảm bảo file được tạo trong data/alphas/user/<alpha_id>.json và KHÔNG chạm vào registry.json
+    # Đảm bảo file được tạo trong data/alpha/user/<alpha_id>.json và KHÔNG chạm vào registry.json
     assert os.path.isfile(os.path.join(user_alphas_dir, "user", f"{alpha_id}.json"))
     assert not os.path.exists(os.path.join(user_alphas_dir, "registry.json"))
 
@@ -116,7 +116,7 @@ class MyAlgo2(SimpleAlgorithm):
     job_id, res = _make_mock_job(tmp_path, code, "job_alpha_02")
     user_alphas_dir = str(tmp_path / "alphas")
 
-    from backend.api.jobs import batch
+    from backend.optimize.process import process as batch
     monkeypatch.setattr(batch, "status", lambda jid: {"status": "done", "result": res})
 
     rec, _ = user_alphas.save_user_alpha(job_id, code, "Alpha Đỉnh Cao", base_dir=user_alphas_dir)
@@ -144,7 +144,7 @@ class ApiAlgo(SimpleAlgorithm):
 """
     job_id, res = _make_mock_job(tmp_path, code, "job_alpha_03")
 
-    from backend.api.jobs import batch
+    from backend.optimize.process import process as batch
     monkeypatch.setattr(batch, "status", lambda jid: {"status": "done", "result": res} if jid == job_id else None)
     monkeypatch.setattr(user_alphas, "get_user_alphas_dir", lambda base=None: str(tmp_path / "alphas" / "user"))
 
@@ -176,7 +176,7 @@ class ApiAlgo(SimpleAlgorithm):
 
 def test_beta_driven_id_is_single_source_in_backend_and_ui_has_no_checklist_logic():
     import re
-    from backend.core.analytics import insights
+    from backend.metrics import charts as insights
     assert insights.BETA_DRIVEN_ID == "beta_driven" and insights.BETA_DRIVEN_ID in {r.id for r in insights.RULES}
     ins = [{"id": insights.BETA_DRIVEN_ID, "severity": "warning", "message_vi": "x", "evidence": {"beta": 1}}]
     res = {"trades": [{}] * 30, "metrics": {"simulate": {"trades": 30, "mdd_pct": 10.0}, "test": {"sharpe": 1.0}}, "insights": ins}
@@ -241,7 +241,7 @@ def _full_result(tmp_path, code, job_id):
 
 def test_save_stores_full_snapshot_independent_of_job_dir_and_resave_updates(tmp_path, monkeypatch):
     import shutil
-    from backend.api.jobs import batch
+    from backend.optimize.process import process as batch
     job_id, res = _full_result(tmp_path, CODE_SAVE, "job_snap_01")
     monkeypatch.setattr(batch, "status", lambda jid: {"status": "done", "result": res, "created": 111.0, "finished": 222.0} if jid == job_id else None)
     base = str(tmp_path / "alphas")
@@ -270,7 +270,7 @@ def test_save_stores_full_snapshot_independent_of_job_dir_and_resave_updates(tmp
 
 
 def test_save_rejects_unfinished_missing_or_incomplete_results(tmp_path, monkeypatch):
-    from backend.api.jobs import batch
+    from backend.optimize.process import process as batch
     _, res = _full_result(tmp_path, CODE_SAVE, "job_bad_01")
     base = str(tmp_path / "alphas")
     cases = {"j_run": {"status": "running"}, "j_none": None, "j_empty": {"status": "done", "result": {}},
@@ -283,7 +283,7 @@ def test_save_rejects_unfinished_missing_or_incomplete_results(tmp_path, monkeyp
 
 
 def test_api_ignores_client_supplied_result_and_serves_stored_detail(tmp_path, monkeypatch):
-    from backend.api.jobs import batch
+    from backend.optimize.process import process as batch
     job_id, res = _full_result(tmp_path, CODE_SAVE, "job_api_09")
     monkeypatch.setattr(batch, "status", lambda jid: {"status": "done", "result": res} if jid == job_id else None)
     monkeypatch.setattr(user_alphas, "get_user_alphas_dir", lambda base=None: str(tmp_path / "alphas" / "user"))
@@ -330,57 +330,3 @@ def test_catalog_user_card_has_none_not_zero_for_missing_metrics(tmp_path):
     assert card["summary"]["mdd_pct"] is None
 
 
-# ─── TTL 24 h cho job custom_backtest tạm ───────────────────────────────────
-
-def _job(root, jid, kind="custom_backtest", state="done", age_h=30.0, now=1_000_000_000.0):
-    d = root / jid
-    d.mkdir(parents=True)
-    t = now - age_h * 3600
-    (d / "job.json").write_text(json.dumps({"id": jid, "kind": kind, "state": state, "created": t - 60, "finished": None if state == "running" else t}), encoding="utf-8")
-    (d / "result.json").write_text("{}", encoding="utf-8")
-    return d
-
-
-def test_ttl_cleanup_deletes_only_expired_unsaved_custom_jobs(tmp_path):
-    now = 1_000_000_000.0
-    root = tmp_path / "api_jobs"
-    root.mkdir()
-    old, fresh = "20260101_000000_aaaaaa", "20260101_000001_bbbbbb"
-    saved, edu, running, other_old = "20260101_000002_cccccc", "20260101_000003_dddddd", "20260101_000004_eeeeee", "20260101_000005_ffffff"
-    _job(root, old, age_h=25, now=now)
-    _job(root, fresh, age_h=23, now=now)
-    _job(root, saved, age_h=100, now=now)
-    _job(root, edu, kind="edu_precompute", age_h=100, now=now)
-    _job(root, running, state="running", age_h=100, now=now)
-    _job(root, other_old, state="failed", age_h=48, now=now)
-    (root / "not_a_job").mkdir()
-    (root / "20260101_000006_000000").mkdir()                            # đúng dạng tên nhưng không có job.json
-    base = str(tmp_path / "alphas")
-    os.makedirs(os.path.join(base, "user"))
-    (tmp_path / "alphas" / "user" / "x.json").write_text(json.dumps({"id": "x", "job_id": saved}), encoding="utf-8")
-    assert user_alphas.referenced_job_ids(base) == {saved}
-    out = user_alphas.cleanup_unsaved_jobs(now=now, jobs_root=str(root), base_dir=base)
-    assert sorted(out["deleted"]) == sorted([old, other_old]) and out["kept_referenced"] == 1 and out["kept_recent"] == 1
-    left = {p.name for p in root.iterdir()}
-    assert left == {fresh, saved, edu, running, "not_a_job", "20260101_000006_000000"}
-    assert (root / saved / "result.json").is_file() and (root / edu / "result.json").is_file()
-    # đủ 24 h thì xoá
-    out2 = user_alphas.cleanup_unsaved_jobs(now=now + 3 * 3600, jobs_root=str(root), base_dir=base)
-    assert out2["deleted"] == [fresh] and (root / saved).is_dir()
-    # chạy lại không có gì để xoá; thư mục gốc không tồn tại -> an toàn
-    out3 = user_alphas.cleanup_unsaved_jobs(now=now + 99 * 3600, jobs_root=str(root), base_dir=base)
-    assert out3["deleted"] == [] and (root / running).is_dir() and (root / saved).is_dir()          # đang chạy + có tham chiếu luôn được giữ
-    assert user_alphas.cleanup_unsaved_jobs(jobs_root=str(tmp_path / "none"), base_dir=base)["deleted"] == []
-
-
-def test_ttl_cleanup_never_touches_education_results(tmp_path):
-    """Kết quả bền của edu_precompute (data/education/results) không phải thư mục job: dù đặt cạnh/trong gốc job, thư mục lạ + job edu_precompute đều được giữ."""
-    now = 1_000_000_000.0
-    root = tmp_path / "api_jobs"
-    root.mkdir()
-    (root / "education" / "results").mkdir(parents=True)
-    keep_file = root / "education" / "results" / "kema.json"
-    keep_file.write_text("{}", encoding="utf-8")
-    edu_job = _job(root, "20260101_000000_abcdef", kind="edu_precompute", age_h=500, now=now)
-    out = user_alphas.cleanup_unsaved_jobs(now=now, jobs_root=str(root), base_dir=str(tmp_path / "alphas"))
-    assert out["deleted"] == [] and keep_file.is_file() and edu_job.is_dir()

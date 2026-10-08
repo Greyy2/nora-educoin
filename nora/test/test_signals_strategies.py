@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from backend.core.signals import kernels
+from backend.core import indicator as kernels
 
 T0 = 1_700_006_400_000
 M = 60_000
@@ -107,7 +107,7 @@ def _random_value(rng, depth=0):
 
 
 def test_vector_evaluator_matches_scalar_on_random_asts():
-    from backend.core.signals.evaluator import LogicEvaluator, VectorEvaluator, lag_key
+    from backend.core.signal import LogicEvaluator, VectorEvaluator, lag_key
     rng = np.random.default_rng(7)
     n = 300
     data = {}
@@ -133,8 +133,8 @@ def test_vector_evaluator_matches_scalar_on_random_asts():
 # ─── C. Đa khung + index ────────────────────────────────────────────────────
 
 def _engine(df1, match, stop=None, **pos):
-    from backend.core.backtest.engine import BacktestEngine
-    from backend.core.params.builder import build_params
+    from backend.core.backtest import BacktestEngine
+    from backend.core.params import build_params
     eng = BacktestEngine(0, 0, "T", int(df1.open_time.min()), int(df1.open_time.max()),
                          initial_capital=pos.pop("capital", 10000.0))
     flow_type = pos.pop("side", "LONG")
@@ -156,7 +156,7 @@ def _engine(df1, match, stop=None, **pos):
 
 
 def test_higher_frame_kernel_visible_only_after_close():
-    from backend.core.backtest.engine import FRAME_MS
+    from backend.core.backtest import FRAME_MS
     df = _ohlcv(3000, seed=4)
     eng = _engine(df, [[[{"frame": "15m", "column": "rsi_14"}, ">", -1]]])
     frame_df, cols = eng._build_matrix()
@@ -337,7 +337,7 @@ def test_spot_rejects_short_and_leverage():
 
 
 def test_dex_perp_rejected_and_venue_fees():
-    from backend.core.params.builder import resolve_costs
+    from backend.core.params import resolve_costs
     assert resolve_costs("cex", "spot", None, None) == (0.001, 0.001, 0.0002)
     assert resolve_costs("cex", "perp", None, None) == (0.0005, 0.0002, 0.0002)  # Binance USDT-M VIP0
     assert resolve_costs("dex", "spot", None, None) == (0.003, 0.003, 0.001)
@@ -360,8 +360,8 @@ def test_fees_charged_on_every_layer_and_exit():
 
 def test_mark_to_market_drawdown_sees_floating_loss():
     # lệnh lỗ treo sâu (-8%) rồi hồi về có lãi: MDD theo lệnh đóng = 0, MDD MTM phải thấy lỗ treo
-    from backend.core.metrics.portfolio import curve_mdd_pct
-    from backend.core.metrics.returns import equity_mdd_pct
+    from backend.metrics.metrics import curve_mdd_pct
+    from backend.metrics.metrics import equity_mdd_pct
     prices = [100] * 5 + list(np.linspace(100, 92, 120)) + list(np.linspace(92, 101, 120))
     df = _path(prices)
     eng = _engine(df, _signal_at(df, 4), take_profit_rate=0.8, fee_rate=0.0, slippage_rate=0.0)
@@ -385,7 +385,7 @@ def test_prefix_check_detects_a_lookahead_kernel():
 # ─── E. Công cụ kiểm tra tín hiệu phải phân biệt được edge thật và nhiễu ─────
 
 def _dataset(tmp_path, monkeypatch, returns, name):
-    from backend.core.data.resampler import save_resampled_dataset
+    from backend.crawl.store import save_resampled_dataset
     close = 100 * np.exp(np.cumsum(returns))
     open_ = np.r_[close[0], close[:-1]]
     df = pd.DataFrame({"open_time": T0 + np.arange(len(close), dtype=np.int64) * M, "open": open_,
@@ -402,7 +402,7 @@ DOWN_MINUTE = {"t": {"side": "LONG", "tree": [[[{"frame": "1m", "column": "roc_3
 
 
 def test_diagnostics_detects_planted_edge(tmp_path, monkeypatch):
-    from backend.core.signals.diagnostics import check_signals
+    from backend.core.backtest import check_signals
     rng = np.random.default_rng(11)
     n = 40 * 1440
     eps = rng.normal(0, 0.001, n)
@@ -415,7 +415,7 @@ def test_diagnostics_detects_planted_edge(tmp_path, monkeypatch):
 
 
 def test_diagnostics_rejects_random_walk(tmp_path, monkeypatch):
-    from backend.core.signals.diagnostics import check_signals
+    from backend.core.backtest import check_signals
     rng = np.random.default_rng(12)
     _dataset(tmp_path, monkeypatch, rng.normal(0, 0.001, 40 * 1440), "NOISE")
     res = check_signals("NOISE", DOWN_MINUTE, horizons_min=(15, 60))["signals"]["t"]
@@ -439,12 +439,12 @@ def test_spot_equity_never_negative_and_size_follows_equity():
 def test_cross_over_is_an_event_on_the_frame_bar():
     """cross_over(a, b) = a > b và a[1] <= b[1] trên nến của khung (ta.crossover, KEMA của sova): đúng ở nến cắt, không đúng suốt đoạn
     a > b. Ở lưới 1m, tín hiệu chỉ bật trong các phút thuộc nến 15m ngay sau nến cắt đóng."""
-    from backend.core.strategy.library import cross_over
+    from backend.alpha.compile import cross_over
     df = _ohlcv(6000, seed=11)
     a, b = {"frame": "15m", "column": "close"}, {"frame": "15m", "column": "dch_20"}
     eng = _engine(df, [[list(t) for t in cross_over(a, b)]])
     df1, cols = eng._build_matrix()
-    from backend.core.signals.evaluator import VectorEvaluator, lag_key
+    from backend.core.signal import VectorEvaluator, lag_key
     vec = VectorEvaluator(len(df1), lambda fr, c, lag: cols.get(f"{fr}|{lag_key(c, lag)}", np.full(len(df1), np.nan)))
     cross = vec.tree([[list(t) for t in cross_over(a, b)]])
     state = vec.tree([[[a, ">", b]]])

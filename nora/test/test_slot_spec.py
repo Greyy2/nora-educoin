@@ -1,13 +1,12 @@
 """P9.4b T4 — SlotSpec (core/params.py) chuẩn hoá tham số y hệt PositionTracker.__init__: mọi nhánh ValueError / TypeError cho CÙNG ngoại lệ + thông báo,
-mọi trường dẫn xuất khớp tracker; id lệnh/vị thế rút từ models.next_id (một dãy với tracker._next_id)."""
+mọi trường dẫn xuất khớp tracker; id lệnh/vị thế rút từ models.next_id (một dãy với backtest.next_id: tracker dùng đúng hàm này)."""
 import re
 
 import pytest
 
+from backend.core import backtest as bt
 from backend.core import models
-from backend.core.backtest import SlotDriver, pack_slots
-from backend.core.execute import tracker as trk
-from backend.core.execute.tracker import PositionTracker
+from backend.core.backtest import SlotDriver, pack_slots, PositionTracker
 from backend.core.models import PositionType
 from backend.core.params import StrategyParams
 from backend.core.position_size import SlotSpec
@@ -106,6 +105,6 @@ def test_slot_driver_accepts_specs():
 
 
 def test_ids_share_one_sequence():
-    assert trk._ID_SEQ is models._ID_SEQ and trk._next_id is models.next_id
+    assert bt.next_id is models.next_id
     a = models.next_id()
-    assert trk._next_id() == a + 1 and models.next_id() == a + 2
+    assert bt.next_id() == a + 1 and models.next_id() == a + 2

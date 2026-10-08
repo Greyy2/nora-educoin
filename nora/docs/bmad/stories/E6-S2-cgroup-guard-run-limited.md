@@ -25,7 +25,7 @@ Là người vận hành, tôi muốn script nặng từ chối chạy khi khôn
 
 ## Dev Notes
 
-- Code: `backend/utils/memwatch.py`, `backend/utils/ops/run_limited.sh`.
+- Code: `backend/utils/memwatch.py`, `ops/run_limited.sh`.
 - `conftest.py` đặt `NORA_ALLOW_UNLIMITED=1` cho test nhỏ.
 
 ## Evidence

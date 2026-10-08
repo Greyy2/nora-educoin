@@ -1,8 +1,8 @@
-"""backend.utils.parallel: số worker dùng chung cho mọi đường nặng (resolve_workers / auto_workers / pool_map_safe)."""
+"""backend.optimize.process.workers: số worker dùng chung cho mọi đường nặng (resolve_workers / auto_workers / pool_map_safe)."""
 import importlib.util
 import sys
 
-from backend.utils import memwatch, parallel
+from backend.optimize.process import workers as memwatch, workers as parallel
 
 
 def _patch(monkeypatch, budget, cpus):

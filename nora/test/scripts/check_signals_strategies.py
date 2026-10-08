@@ -4,8 +4,8 @@
 2. Chiến lược (alpha/strategy_library.KERNEL_STRATEGIES): backtest toàn kỳ dữ liệu của từng tài sản,
    đo lợi nhuận, MDD mark-to-market (thấy lỗ treo), lỗ treo tối đa trong lệnh, số tầng DCA, thanh lý.
 
-Kết quả: data/_cache/reports/step2_<ngày>.json + bảng tóm tắt in ra màn hình.
-Dùng:  PYTHONPATH=. python -m backend.core.backtest.check_signals_strategies [--assets BTC,AERO] [--workers auto|4]
+Kết quả: data/cache/process/reports/step2_<ngày>.json + bảng tóm tắt in ra màn hình.
+Dùng:  PYTHONPATH=. python test/scripts/check_signals_strategies.py [--assets BTC,AERO] [--workers auto|4]
 """
 import argparse
 import json
@@ -18,23 +18,24 @@ from datetime import datetime, timezone
 NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 if NORA_ROOT not in sys.path:
     sys.path.insert(0, NORA_ROOT)
-from backend.utils.jsonsafe import json_default  # noqa: E402
+from backend.crawl.store import json_default  # noqa: E402
 
 
 def run_asset(symbol: str) -> dict:
     import io
     import contextlib
-    from backend.core.strategy.library import KERNEL_STRATEGIES, SIGNALS
-    from backend.core.backtest.engine import BacktestEngine
-    from backend.core.metrics.portfolio import curve_mdd_pct
-    from backend.core.metrics.returns import equity_mdd_pct
-    from backend.core.metrics.trades import trade_metrics, trade_rows
-    from backend.core.params.builder import build_params, venue_of_symbol
-    from backend.db.local_pkl import read_manifest
-    from backend.core.signals.diagnostics import check_signals
+    import os as _os
+    import sys as _sys
+    from backend.core.backtest import BacktestEngine
+    from backend.metrics.metrics import curve_mdd_pct
+    from backend.metrics.metrics import equity_mdd_pct
+    from backend.metrics.trades import trade_metrics, trade_rows
+    from backend.core.params import build_params, manifest_pool_fee, manifest_venue
+    from backend.crawl.store import read_manifest
+    from backend.core.backtest import check_signals
 
     manifest = read_manifest(symbol) or {}
-    venue = venue_of_symbol(symbol)
+    venue = manifest_venue(manifest)
     start, end = int(manifest["start_ts"]), int(manifest["end_ts"])
     out = {"symbol": symbol, "venue": venue, "days": manifest.get("coverage_days"), "signals": {}, "strategies": {}}
 
@@ -51,7 +52,8 @@ def run_asset(symbol: str) -> dict:
         flow = strat["flows"][0]
         t0 = time.time()
         engine = BacktestEngine(0, 0, symbol, start, end, initial_capital=10000.0)
-        engine.add_strategy_flow(flow["name"], build_params(flow["name"], flow["ast"], flow["type"], params, venue, symbol))
+        engine.add_strategy_flow(flow["name"], build_params(flow["name"], flow["ast"], flow["type"], params, venue,
+                                                                           manifest_pool_fee(manifest)))
         with contextlib.redirect_stdout(io.StringIO()):
             engine.load_data()
             engine.run()
@@ -84,9 +86,9 @@ def main(argv=None):
     p.add_argument("--workers", default="auto",
                    help="số tiến trình song song; 'auto' = tính theo RAM (gồm cgroup) và CPU")
     args = p.parse_args(argv)
-    from backend.db.data_layout import cache_dir, list_assets
-    from backend.utils.memwatch import require_memory_limit, worker_init
-    from backend.utils.parallel import resolve_workers
+    from backend.crawl.store import cache_dir, list_assets
+    from backend.optimize.process.workers import require_memory_limit, worker_init
+    from backend.optimize.process.workers import resolve_workers
     require_memory_limit("check_signals_strategies")
     # 1200 MB/worker: mỗi job nạp TOÀN BỘ nến một tài sản (nhiều khung) cho check_signals + backtest từng chiến lược (chưa đo thực)
     workers = resolve_workers(args.workers, 1200, "check_signals_strategies")

@@ -10,7 +10,7 @@ const mockModules = import.meta.env.DEV ? import.meta.glob('./mock/*.json') : {}
 
 export class ApiError extends Error {
   // fields: lỗi theo trường của 422 kiểu FastAPI ([{ field, msg }]); [] nếu không có
-  constructor(message, status, fields = []) { super(message); this.status = status; this.fields = fields }
+  constructor(message, status, fields = [], detail = null) { super(message); this.status = status; this.fields = fields; this.detail = detail }
 }
 
 // ---- dữ liệu mẫu: chỉ khi không kết nối được API; luôn có biểu ngữ "dữ liệu mẫu" (xem useMockNotice) ----
@@ -153,16 +153,18 @@ async function requestImpl(path, method, body) {
   if (!res.ok) {
     let msg = [502, 503, 504].includes(res.status) ? `Máy chủ API tạm thời không phản hồi (${res.status}). Thử lại sau giây lát.` : `Lỗi ${res.status}`
     let fields = []
+    let detail = null
     try {
       const j = await res.json()
+      if (j.detail && typeof j.detail === 'object' && !Array.isArray(j.detail)) detail = j.detail
       if (typeof j.detail === 'string') msg = j.detail
       else if (Array.isArray(j.detail)) {
         // 422: mỗi phần tử {loc, msg, field?}; field = đường dẫn dễ đọc do backend thêm vào
         fields = j.detail.map((d) => ({ field: d.field || (Array.isArray(d.loc) ? d.loc.filter((x) => x !== 'body').join('.') : ''), msg: d.msg || d.message || String(d) }))
         msg = fields.map((f) => f.msg).join('; ') || msg
-      } else if (j.detail) msg = JSON.stringify(j.detail)
+      } else if (j.detail) msg = (typeof j.detail === 'object' && j.detail.message) || JSON.stringify(j.detail)
     } catch (e) { /* giữ thông báo mặc định */ }
-    throw new ApiError(msg, res.status, fields)
+    throw new ApiError(msg, res.status, fields, detail)
   }
   return res.json()
 }
@@ -236,7 +238,18 @@ export const getDslReference = () => request("/api/studio/strategies/dsl")
 export const postCompileStrategy = (code) => request('/api/studio/strategies/compile', { method: 'POST', body: { code } })
 export const postExplainStrategy = (code, position = null) => request('/api/studio/strategies/explain', { method: 'POST', body: { code, ...(position && Object.keys(position).length ? { position } : {}) } })
 /** Alpha người dùng: POST = lưu DUY NHẤT (server đọc kết quả từ job_id, kiểm program_hash); GET danh sách gọn; GET {id} = bản ghi đầy đủ gồm result đã lưu. **/
-export const postSaveUserAlpha = ({ job_id, code, name, note = '', source = 'alpha-create' }) => request('/api/studio/alphas/user', { method: 'POST', body: { job_id, code, name, note, source } })
+export const postSaveUserAlpha = ({ job_id, code, name, note = '', source = 'alpha-create', alpha_id }) => request('/api/studio/alphas/user', { method: 'POST', body: { job_id, code, name, note, source, ...(alpha_id ? { alpha_id } : {}) } })
+/** Mã của alpha đã lưu để nạp vào trình soạn tạm: { id, code, version, program_hash, sha256, name, note } (docs/bmad/p10_alpha_contract.md §6). */
+export const getUserAlphaCode = (alphaId) => request(`/api/studio/alphas/user/${encodeURIComponent(alphaId)}/code`)
+export const getUserAlphaVersions = (alphaId) => request(`/api/studio/alphas/user/${encodeURIComponent(alphaId)}/versions`)
+
+// ---- trợ lý viết code + sửa chiến lược hệ thống (docs/bmad/p10_alpha_contract.md §3-§5): tất định, không AI ----
+export const getAssistCatalog = () => request('/api/studio/strategies/assist/catalog')
+export const postAssistCheck = (code) => request('/api/studio/strategies/assist/check', { method: 'POST', body: { code } })
+export const postAssistComplete = (code, line, col) => request('/api/studio/strategies/assist/complete', { method: 'POST', body: { code, line, col } })
+export const postAssistHover = (code, line, col) => request('/api/studio/strategies/assist/hover', { method: 'POST', body: { code, line, col } })
+export const getStrategySource = (id) => request(`/api/studio/strategies/source/${encodeURIComponent(id)}`)
+export const putStrategySource = (id, code, sha256) => request(`/api/studio/strategies/source/${encodeURIComponent(id)}`, { method: 'PUT', body: { code, sha256 } })
 export const getUserAlphas = (params = {}) => {
   const q = new URLSearchParams()
   if (params.sort) q.set('sort', params.sort)

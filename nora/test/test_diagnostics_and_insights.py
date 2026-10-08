@@ -5,8 +5,8 @@ Kiểm thử tính toán chẩn đoán trên dữ liệu dựng tay (xác địn
 import numpy as np
 import pandas as pd
 
-from backend.core.analytics import insights
-from backend.core.metrics import diagnose
+from backend.metrics import charts as insights_metrics
+from backend.metrics import trades as diagnose_metrics
 
 DAY = 86_400_000
 T0 = 1_577_836_800_000     # 2020-01-01 00:00 UTC
@@ -18,7 +18,7 @@ def _closed(sym, enter_day, close_day, pnl, reason, side="LONG", qty=1.0, status
 
 
 def test_exit_category_uses_real_close_reason_not_status():
-    cat = diagnose.exit_category
+    cat = diagnose_metrics.exit_category
     assert cat("Tín hiệu thoát (AST stop)") == "signal"
     assert cat("Stop-loss (từ giá TB)") == "stop_loss"
     assert cat("Take-profit (từ giá TB)") == "take_profit"
@@ -30,7 +30,7 @@ def test_exit_category_uses_real_close_reason_not_status():
     assert cat("") == "unknown" and cat(None) == "unknown"
     # engine gán status SL/TP theo dấu lãi/lỗ cho thoát theo tín hiệu: KHÔNG được coi là Stop-loss/Take-profit
     tr = [_closed("BTC", 0, 3, 50.0, "Tín hiệu thoát (AST stop)", status="TP"), _closed("BTC", 5, 8, -20.0, "Tín hiệu thoát (AST stop)", status="SL")]
-    act = diagnose.compute_signal_activity(tr, T0, T0 + 10 * DAY)
+    act = diagnose_metrics.compute_signal_activity(tr, T0, T0 + 10 * DAY)
     assert act["exit_reason_counts"] == {"signal": 2} and act["exit_reasons"] == {"signal": 100.0}
 
 
@@ -41,7 +41,7 @@ def test_exposure_and_days_in_market_hand_made():
     trades = [_closed("BTC", 2, 6, 10.0, "Tín hiệu thoát (AST stop)", qty=2.0), _closed("ETH", 4, 8, 5.0, "Tín hiệu thoát (AST stop)", qty=1.0)]
     prices = {"BTC": (T0 + np.arange(0, 12) * DAY, np.full(12, 100.0)), "ETH": (T0 + np.arange(0, 12) * DAY, np.full(12, 50.0))}
     series = {"times": times, "equity": eq}
-    act = diagnose.compute_signal_activity(trades, T0, T0 + 10 * DAY, series, None, prices)
+    act = diagnose_metrics.compute_signal_activity(trades, T0, T0 + 10 * DAY, series, None, prices)
     assert act["days_in_market_pct"] == 60.0
     # exposure ngày: BTC 2 × 100 = 200 (ngày 2..5), ETH 50 (ngày 4..7) -> tổng = 4 × 200 + 4 × 50 + 4 × 200(chồng: tính ở trên) ... tính tay bên dưới
     expo = [0, 0, 200, 200, 250, 250, 50, 50, 0, 0]
@@ -54,11 +54,11 @@ def test_market_comparison_from_benchmark_series():
     t = T0 + np.arange(0, 6) * DAY
     bench_eq = np.array([100.0, 110.0, 99.0, 108.9, 119.79, 107.811])
     half = 100.0 * np.cumprod(np.r_[1.0, 1.0 + 0.5 * (bench_eq[1:] / bench_eq[:-1] - 1.0)])     # chiến lược = 0,5 × thị trường -> beta 0,5, tương quan 1
-    out = diagnose.compute_market_comparison(half, t, 100.0, {"times": t, "equity": bench_eq, "label": "test"})
+    out = diagnose_metrics.compute_market_comparison(half, t, 100.0, {"times": t, "equity": bench_eq, "label": "test"})
     assert out["available"] and out["beta"] == 0.5 and out["correlation"] == 1.0
     assert out["market_mdd"] == round(abs(107.811 / 119.79 - 1) * 100, 2)
     assert out["excess_cagr"] == round(out["strategy_cagr"] - out["market_cagr"], 2)
-    none = diagnose.compute_market_comparison(half, t, 100.0, None)           # không benchmark -> không bịa beta/tương quan/thị trường
+    none = diagnose_metrics.compute_market_comparison(half, t, 100.0, None)           # không benchmark -> không bịa beta/tương quan/thị trường
     assert none["available"] is False and none["beta"] is None and none["correlation"] is None and none["market_cagr"] is None and none["market_mdd"] is None
 
 
@@ -77,7 +77,7 @@ def test_regime_counts_trade_entered_at_the_last_boundary():
     times = T0 + 200 * DAY + np.arange(0, n_days + 1) * DAY
     eq = 1000.0 + np.arange(n_days + 1) * 0.5
     trades = [_closed("BTC", 200 + n_days, 200 + n_days + 2, 1.0, "Tín hiệu thoát (AST stop)")]       # vào đúng times[-1]
-    reg = diagnose.compute_regime_analysis({"times": times, "equity": eq}, trades, None, mk, None, 1000.0)
+    reg = diagnose_metrics.compute_regime_analysis({"times": times, "equity": eq}, trades, None, mk, None, 1000.0)
     assert reg["available"] and sum(reg[k]["trades_entered"] for k in ("bull", "bear", "unknown")) == 1
 
 
@@ -87,7 +87,7 @@ def test_regime_days_sum_and_split_by_sma200():
     times = T0 + 200 * DAY + np.arange(0, n_days + 1) * DAY            # bắt đầu sau 200 nến thị trường (có SMA200 ngay)
     eq = 1000.0 + np.cumsum(np.r_[0.0, np.arange(1, n_days + 1) % 7 - 3.0])
     trades = [_closed("BTC", 210, 220, 5.0, "Tín hiệu thoát (AST stop)"), _closed("BTC", 380, 390, -2.0, "Tín hiệu thoát (AST stop)")]
-    reg = diagnose.compute_regime_analysis({"times": times, "equity": eq}, trades, None, mk, None, 1000.0)
+    reg = diagnose_metrics.compute_regime_analysis({"times": times, "equity": eq}, trades, None, mk, None, 1000.0)
     assert reg["available"] and reg["total_days"] == n_days
     assert reg["bull"]["days"] + reg["bear"]["days"] + reg["unknown"]["days"] == n_days
     assert reg["bull"]["days"] > 0 and reg["bear"]["days"] > 0 and reg["unknown"]["days"] == 0
@@ -96,13 +96,13 @@ def test_regime_days_sum_and_split_by_sma200():
     # chế độ phải nhân quả: đổi giá TƯƠNG LAI không đổi nhãn các ngày trước
     mk2 = dict(mk, close=mk["close"].copy())
     mk2["close"][400:] *= 0.1
-    reg2 = diagnose.compute_regime_analysis({"times": times, "equity": eq}, trades, None, mk2, None, 1000.0)
-    st1 = diagnose._market_state(mk, times[:-1])
-    st2 = diagnose._market_state(mk2, times[:-1])
+    reg2 = diagnose_metrics.compute_regime_analysis({"times": times, "equity": eq}, trades, None, mk2, None, 1000.0)
+    st1 = diagnose_metrics._market_state(mk, times[:-1])
+    st2 = diagnose_metrics._market_state(mk2, times[:-1])
     first_changed = int(np.argmax(st1 != st2))
     assert times[first_changed] >= mk["label_times"][399]
     assert reg2["available"]
-    assert diagnose.compute_regime_analysis({"times": times, "equity": eq}, trades, None, None)["available"] is False      # thiếu giá thị trường -> không bịa
+    assert diagnose_metrics.compute_regime_analysis({"times": times, "equity": eq}, trades, None, None)["available"] is False      # thiếu giá thị trường -> không bịa
 
 
 def _frame(n=600, seed=11):
@@ -112,7 +112,7 @@ def _frame(n=600, seed=11):
 
 
 def test_binding_condition_identifies_the_blocking_conjunct():
-    from backend.core.strategy.pydsl import compile_code
+    from backend.alpha.compile import compile_code
     code = """
 class Three(SimpleAlgorithm):
     def __algorithm__(self):
@@ -126,7 +126,7 @@ class Three(SimpleAlgorithm):
 """
     prog = compile_code(code, register=False)
     df = _frame()
-    out = diagnose.compute_binding_condition(prog, {"BTC": df}, int(df["open_time"].iloc[0]), int(df["open_time"].iloc[-1]) + DAY)
+    out = diagnose_metrics.compute_binding_condition(prog, {"BTC": df}, int(df["open_time"].iloc[0]), int(df["open_time"].iloc[-1]) + DAY)
     assert out["available"] and len(out["rules"]) == 1
     rule = out["rules"][0]
     assert rule["n_conjuncts"] == 3
@@ -137,7 +137,7 @@ class Three(SimpleAlgorithm):
     assert rule["binding"]["share_of_near_miss_pct"] >= 50.0
     assert rule["bars"] == len(df) and rule["all_true_bars"] > 0
     d = {"binding_condition": out}
-    ins = [i for i in insights.generate_insights(d, {}) if i["id"] == "binding_condition"]
+    ins = [i for i in insights_metrics.generate_insights(d, {}) if i["id"] == "binding_condition"]
     assert ins and ins[0]["evidence"]["conjunct_index"] == 3 and ins[0]["evidence"]["share_of_near_miss_pct"] == rule["binding"]["share_of_near_miss_pct"]
     assert rule["binding"]["text_vi"] in ins[0]["message_vi"]
 
@@ -156,7 +156,7 @@ def test_diagnose_calculations():
         "train": {"sharpe": 1.8, "cagr_pct": 30.0, "mdd_pct": 8.0},
         "test": {"sharpe": 0.9, "cagr_pct": 15.0, "mdd_pct": 12.0},
     }
-    diag = diagnose.diagnose_run(program=None, series=series, trades=trades, metrics=metrics, initial_capital=10000.0, start=int(times[0]), end=int(times[-1]), fees_total=50.0)
+    diag = diagnose_metrics.diagnose_run(program=None, series=series, trades=trades, metrics=metrics, initial_capital=10000.0, start=int(times[0]), end=int(times[-1]), fees_total=50.0)
 
     sig = diag["signal_activity"]
     assert sig["total_trades"] == 3 and sig["closed_trades"] == 3 and sig["open_trades"] == 0
@@ -185,7 +185,7 @@ def test_diagnose_calculations():
 
 
 def test_train_vs_test_without_train_sharpe_has_no_fake_decay():
-    out = diagnose.compute_train_vs_test({"train": {"sharpe": 0.0}, "test": {"sharpe": 1.0}})
+    out = diagnose_metrics.compute_train_vs_test({"train": {"sharpe": 0.0}, "test": {"sharpe": 1.0}})
     assert out["sharpe_decay"] is None
 
 
@@ -206,11 +206,11 @@ def _diag(**over):
 
 
 def _ids(d):
-    return [i["id"] for i in insights.generate_insights(d, {})]
+    return [i["id"] for i in insights_metrics.generate_insights(d, {})]
 
 
 def test_insight_rules_trigger_from_measured_fields():
-    ins = insights.generate_insights(_diag(), {})
+    ins = insights_metrics.generate_insights(_diag(), {})
     ids = [i["id"] for i in ins]
     assert {"beta_driven", "fee_drag", "only_long_bias", "bear_loss"} <= set(ids)
     for item in ins:                                                        # mỗi nhận xét có bằng chứng = số đo cụ thể
@@ -228,7 +228,7 @@ def test_insight_rules_trigger_from_measured_fields():
         signal_activity={"days_in_market_pct": 3.0, "avg_exposure_pct": 2.0, "total_trades": 12, "closed_trades": 12, "open_trades": 0, "long_trades": 8, "short_trades": 4,
                          "exit_reason_counts": {"stop_loss": 6, "signal": 6}},
     )
-    ins2 = insights.generate_insights(d2, {})
+    ins2 = insights_metrics.generate_insights(d2, {})
     ids2 = [i["id"] for i in ins2]
     assert {"overfit_gap", "tail_dependent", "rarely_in_market", "drawdown_heavy", "high_consecutive_losses", "low_trade_count", "sl_dominant_exit"} <= set(ids2)
     sl = next(i for i in ins2 if i["id"] == "sl_dominant_exit")
@@ -267,7 +267,7 @@ def test_binding_rule_needs_three_conjuncts_and_half_of_near_misses():
 
 
 def test_single_conjunct_rule_reports_pct_true_without_binding():
-    from backend.core.strategy.pydsl import compile_code
+    from backend.alpha.compile import compile_code
     code = """
 class One(SimpleAlgorithm):
     def __algorithm__(self):
@@ -277,7 +277,7 @@ class One(SimpleAlgorithm):
 """
     prog = compile_code(code, register=False)
     df = _frame()
-    out = diagnose.compute_binding_condition(prog, {"BTC": df}, int(df["open_time"].iloc[0]), int(df["open_time"].iloc[-1]) + DAY)
+    out = diagnose_metrics.compute_binding_condition(prog, {"BTC": df}, int(df["open_time"].iloc[0]), int(df["open_time"].iloc[-1]) + DAY)
     rule = out["rules"][0]
     assert rule["n_conjuncts"] == 1 and rule["binding"] is None
     c = rule["conjuncts"][0]
@@ -291,16 +291,16 @@ def test_market_comparison_cagr_uses_metrics_definition():
     times = T0 + np.arange(0, 731) * DAY                       # 730 ngày lợi suất
     eq = 100.0 * np.linspace(1.0, 2.0, 731)
     bench = {"times": times, "equity": eq * 1.0, "label": "x"}
-    out = diagnose.compute_market_comparison(eq, times, 100.0, bench)
+    out = diagnose_metrics.compute_market_comparison(eq, times, 100.0, bench)
     expected = round(((eq[-1] / eq[0]) ** (365.0 / 730.0) - 1.0) * 100.0, 2)
     assert out["strategy_cagr"] == expected == out["market_cagr"]
 
 
 def test_pnl_structure_new_fields_missing_when_no_trade_of_that_kind():
     """Không có lệnh thắng/thua thì avg/max = None (không phải 0 giả); không có lệnh nào -> tất cả None."""
-    only_wins = diagnose.compute_pnl_structure([_closed("BTC", 0, 2, 120.0, "Take-profit"), _closed("BTC", 3, 5, 80.0, "Take-profit")], 0.0, 1000.0)
+    only_wins = diagnose_metrics.compute_pnl_structure([_closed("BTC", 0, 2, 120.0, "Take-profit"), _closed("BTC", 3, 5, 80.0, "Take-profit")], 0.0, 1000.0)
     assert (only_wins["winning_trades"], only_wins["losing_trades"]) == (2, 0)
     assert (only_wins["avg_win"], only_wins["max_win"]) == (100.0, 120.0) and only_wins["avg_loss"] is None and only_wins["max_loss"] is None
     assert only_wins["payoff"] is None
-    none = diagnose.compute_pnl_structure([], 0.0, 1000.0)
+    none = diagnose_metrics.compute_pnl_structure([], 0.0, 1000.0)
     assert all(none[k] is None for k in ("winning_trades", "losing_trades", "avg_win", "avg_loss", "max_win", "max_loss", "win_rate", "payoff"))

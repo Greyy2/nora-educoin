@@ -137,8 +137,8 @@ def data_root_env(root: str):
 
 
 def clear_caches() -> None:
-    from backend.core.backtest import portfolio
-    from backend.core.data.loader import CandleLoader
+    from backend.core import backtest as portfolio
+    from backend.crawl.store import CandleLoader
     CandleLoader.clear_cache()
     portfolio.data_cache_clear()
 
@@ -159,7 +159,7 @@ def _series(days, seed, vol):
 
 def write_synthetic_market(root) -> None:
     """Giống hệt fixture `market` của test_portfolio_engine.py."""
-    from backend.core.data.resampler import save_resampled_dataset
+    from backend.crawl.store import save_resampled_dataset
     root = str(root)
     meta = {"venue": "cex", "checksums_verified": True, "exchange": "binance"}
     for k, (sym, vol) in enumerate((("AAA", 0.0008), ("BBB", 0.0016), ("CCC", 0.0030))):
@@ -187,7 +187,7 @@ SHORT = {"id": "rsi_short", "side": "SHORT", "tree": [[[_f("15m", "rsi_14"), ">"
 
 
 def scenario_portfolio_synthetic(root) -> Dict[str, Any]:
-    from backend.core.backtest.portfolio import PortfolioEngine, RiskConfig
+    from backend.core.backtest import PortfolioEngine, RiskConfig
     write_synthetic_market(root)
     with data_root_env(str(root)):
         eng = PortfolioEngine(["AAA@perp", "BBB@perp", "CCC@perp"], [LONG, SHORT], T0, T0 + 30 * DAY,
@@ -199,9 +199,11 @@ def scenario_portfolio_synthetic(root) -> Dict[str, Any]:
 # ─── Kịch bản 2: một tài sản DEX có phút điền (is_filled=1) + DCA ───────────
 
 def scenario_single_dca_filled(root) -> Dict[str, Any]:
-    from backend.core.backtest.engine import BacktestEngine
-    from backend.core.params.builder import build_params
-    from backend.core.data.resampler import save_resampled_dataset
+    from backend.core.models import data_source
+    from backend.core.params import manifest_pool_fee
+    from backend.core.backtest import BacktestEngine
+    from backend.core.params import build_params
+    from backend.crawl.store import save_resampled_dataset
     root = str(root)
     n = 25 * 1440
     rng = np.random.default_rng(77)
@@ -226,7 +228,8 @@ def scenario_single_dca_filled(root) -> Dict[str, Any]:
     with data_root_env(root):
         eng = BacktestEngine(0, 0, "DEXA", T0, end, trade_start_ts=T0 + 2 * DAY)
         eng.add_strategy_flow("LONG_dca", build_params("LONG_dca", {"match": [{"condition": tree}], "stop": []},
-                                                       "LONG", position, "dex", symbol="DEXA"))
+                                                       "LONG", position, "dex",
+                                                       manifest_pool_fee(data_source().manifest("DEXA"))))
         eng.load_data()
         eng.run()
         res = eng.get_results()
@@ -248,24 +251,25 @@ def real_data_available(data_root) -> bool:
 
 def scenario_portfolio_real(data_root, end: Optional[str] = None, shared_dir: Optional[str] = None) -> Dict[str, Any]:
     """shared_dir: nếu có, export dữ liệu mmap vào đó rồi chạy bằng PortfolioEngine(shared_dir=...) (kết quả phải y hệt)."""
-    from backend.core.strategy import book as sb
-    from backend.core.backtest.portfolio import PortfolioEngine, RiskConfig
+    from backend.optimize.book import build as sb
+    from backend.core.params import RISK, materialize
+    from backend.core.backtest import PortfolioEngine, RiskConfig
     cand = sb.BY_ID
     # cooldown=0, limit_through_pct=0: snapshot này sinh trước khi BASE_POSITION có cooldown=60 / khớp limit phải đi qua mức; ghim để golden
     # vẫn đo đúng ngữ nghĩa cũ
     strategies = [
-        sb.materialize(cand["trend_long"], {"sig.adx_min": 25, "stop_loss_rate": 2.5, "trailing_stop": 3.0,
+        materialize(cand["trend_long"], {"sig.adx_min": 25, "stop_loss_rate": 2.5, "trailing_stop": 3.0,
                                             "trailing_activation_pct": 1.0, "timeout": 4320}, cooldown=0, limit_through_pct=0.0),
-        sb.materialize(cand["reversion_long"], {"sig.rsi_lo": 25, "sig.er_max": 0.3, "stop_loss_rate": 1.5,
+        materialize(cand["reversion_long"], {"sig.rsi_lo": 25, "sig.er_max": 0.3, "stop_loss_rate": 1.5,
                                                 "take_profit_rate": 1.0, "timeout": 1440}, cooldown=0, limit_through_pct=0.0),
     ]
-    risk = RiskConfig.from_dict({**sb.RISK, "kill_switch_dd_pct": 0, "max_open_risk_pct": 0.0, "dd_throttle_pct": 0.0})   # golden: ngữ nghĩa cũ
+    risk = RiskConfig.from_dict({**RISK, "kill_switch_dd_pct": 0, "max_open_risk_pct": 0.0, "dd_throttle_pct": 0.0})   # golden: ngữ nghĩa cũ
     end_ms = int(pd.Timestamp(end or REAL_END, tz="UTC").timestamp() * 1000)
     with data_root_env(str(data_root)):
         eng = PortfolioEngine(REAL_SYMBOLS, strategies, REAL_START_MS - REAL_WARMUP_DAYS * DAY, end_ms,
                               trade_start_ts=REAL_START_MS, risk=risk, shared_dir=shared_dir)
         if shared_dir:
-            from backend.core.data import shared as shared_data
+            from backend.optimize.search import evaluate as shared_data
             shared_data.export(eng, shared_dir)
             clear_caches()
         eng.run()

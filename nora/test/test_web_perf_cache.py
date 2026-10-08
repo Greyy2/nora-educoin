@@ -9,8 +9,8 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from backend.api.jobs import batch as batch_jobs
-from backend.api.routers import chart, funnel as fr, live, portfolio
+from backend.optimize.process import process as batch_jobs
+from backend.routes import chart, funnel as fr, live, portfolio
 from backend.optimize.funnel.storage import RunStore, atomic_write_json
 
 
@@ -24,7 +24,8 @@ def _root(monkeypatch, tmp_path):
 
 
 def _fake_job(name, kind="book_backtest", state="done", log="", result=None, progress=None, pid=2 ** 22 + 1, params=None):
-    d = os.path.join(batch_jobs.jobs_root(), name)
+    base = (batch_jobs.persist_dest_base(kind) if state == "done" else None) or batch_jobs.jobs_root()   # job đã xong sống ở thư mục kết quả bền (ADR §4.5)
+    d = os.path.join(base, name)
     os.makedirs(d, exist_ok=True)
     batch_jobs._write_meta(d, {"id": name, "kind": kind, "params": params or {}, "pid": pid, "created": 1.0, "started": 2.0,
                                "finished": 3.0 if state != "running" else None, "state": state, "exit_code": 0 if state == "done" else None})
@@ -217,8 +218,8 @@ def test_job_get_dead_running_job_becomes_terminal_and_cacheable(app_client):
 def _old_list_jobs(limit=20, kind=None):
     """Bản list_jobs trước khi có đệm (mọi job đều qua _summary: đọc đuôi log + job.json + progress.json)."""
     rows = []
-    for n in sorted((n for n in os.listdir(batch_jobs.jobs_root()) if batch_jobs._JOB_ID_RE.match(n)), reverse=True):
-        s = batch_jobs._summary(os.path.join(batch_jobs.jobs_root(), n))
+    for n, d in batch_jobs._history_dirs():
+        s = batch_jobs._summary(d)
         if not s or (kind and s.get("kind") != kind):
             continue
         s.pop("_lines", None)
@@ -237,7 +238,9 @@ def _mk_many():
     _fake_job("20261001_100003_000004", state="done", log="", progress=None)
     _fake_job("20261001_100004_000005", state="running", pid=os.getpid(), log="working\n", progress={"done": 1})
     _fake_job("20261001_100005_000006", state="running", pid=os.getpid(), log=wait)                   # xếp hàng
-    _fake_job("20261001_100006_000007", state="running", kind="custom_backtest", pid=2 ** 22 + 9, log="y\n[run_limited] exit 0\n", result={"z": 1})   # chết -> done   # custom_backtest: chạy tạm, KHÔNG lưu sang thư mục kết quả (ADR §4.6)
+    _fake_job("20261001_100006_000007", state="running", kind="book_backtest", pid=2 ** 22 + 9, log="y\n[run_limited] exit 0\n", result={"z": 1})   # chết -> done -> lưu sang backtest/
+    batch_jobs._summary(os.path.join(batch_jobs.jobs_root(), "20261001_100006_000007"))      # chốt job chết ngay (done -> lưu sang backtest/) để hai lần đọc thấy cùng một cây
+    batch_jobs._SUMMARY_CACHE.clear()
     os.makedirs(os.path.join(batch_jobs.jobs_root(), "20261001_100007_000008"))                       # thư mục không có job.json
     os.makedirs(os.path.join(batch_jobs.jobs_root(), "not_a_job"))
 

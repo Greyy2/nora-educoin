@@ -1,6 +1,6 @@
 """Sinh lại snapshot "golden results" vào test/golden/*.json từ code HIỆN TẠI.
 
-Chạy:  cd nora && backend/utils/ops/run_limited.sh -- test/scripts/make_golden.py
+Chạy:  cd nora && ops/run_limited.sh -- test/scripts/make_golden.py
 Chỉ chạy lại khi CHỦ ĐÍCH đổi ngữ nghĩa backtest; thay đổi hiệu năng phải giữ nguyên các file này.
 Kịch bản dữ liệu thật dùng NORA_GOLDEN_DATA_ROOT (mặc định <nora>/data), bỏ qua nếu thiếu dữ liệu.
 Nhẹ (không dùng pool/đa tiến trình), không phụ thuộc NORA_ALLOW_UNLIMITED.
@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.join(NORA, "test"))
 GOLDEN_DIR = os.path.join(NORA, "test", "golden")
 
 import golden_scenarios as gs  # noqa: E402
-from backend.core.strategy import book as _sb  # noqa: E402
+from backend.optimize.book import build as _sb  # noqa: E402
 from legacy_candidates import LEGACY  # noqa: E402
 
 # Golden dùng 9 chiến lược cũ (như test/conftest.py::_legacy_candidates); thiếu bước này kịch bản thật lỗi KeyError 'trend_long'

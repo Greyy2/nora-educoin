@@ -8,8 +8,8 @@ import pytest
 
 import golden_scenarios as gs
 import reference_engine as ref
-from backend.core.backtest import engine as _engine_mod, portfolio as _portfolio_mod
-from backend.core.backtest.portfolio import RiskConfig
+from backend.core import backtest as _engine_mod, backtest as _portfolio_mod
+from backend.core.backtest import RiskConfig
 
 BacktestEngine, PortfolioEngine = ref.RefBacktestEngine, ref.RefPortfolioEngine
 

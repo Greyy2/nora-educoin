@@ -1,14 +1,15 @@
 """E9: bot theo sổ (backend/live) — tín hiệu trùng engine, khớp/thoát/kill switch của paper, lệnh + đối soát testnet (sàn giả), bộ lọc sàn, khoá."""
 import json
+from pathlib import Path
 import os
 
 import numpy as np
 import pytest
 
-from backend.live import bot as lb
-from backend.live import signals as ls
-from backend.live.exchange import Filters
-from backend.live.secrets import load_keys, redact
+from backend.core import backtest as bt
+from backend.crawl.store import live_dir, live_state_key
+from backend.live import live as lb
+from backend.live.live import Filters, load_keys, redact
 from test_strategy_book import SYMS, T0, market  # noqa: F401  (market là fixture: 70 ngày, 3 tài sản)
 
 DAY, HOUR = 86_400_000, 3_600_000
@@ -20,16 +21,16 @@ RSI = {"id": "rsi_1h", "side": "LONG", "tree": [[[F("1h", "rsi_14"), "<", 45]]],
 
 def test_live_signals_equal_engine_signals(market):
     """E9-S1 AC4: cùng lịch sử nến -> tín hiệu của bot TRÙNG engine (cùng _build_matrix / VectorEvaluator)."""
-    from backend.core.backtest.portfolio import PortfolioEngine
-    from backend.core.data.loader import CandleLoader
+    from backend.core.backtest import PortfolioEngine
+    from backend.crawl.store import CandleLoader
     sym, start, end = "BBB@perp", T0 + 20 * DAY, T0 + 68 * DAY
     sts = [RSI, {**RSI, "id": "rsi_1h_s", "side": "SHORT", "tree": [[[F("4h", "rsi_14"), ">", 55]]]}]
     pe = PortfolioEngine([sym], sts, start, end, trade_start_ts=start, use_cache=False, base_frame="1h")
     pe.load_data()
     bk = pe.books[0]
-    frames = {fr: CandleLoader(sym, frame=fr, use_cache=False).load_data(0, end) for fr in ls.required_frames(sym, sts, "1h")}
+    frames = {fr: CandleLoader(sym, frame=fr, use_cache=False).load_data(0, end) for fr in bt.required_frames(sym, sts, "1h")}
     assert set(frames) >= {"1h", "4h"}
-    out = ls.evaluate(sym, sts, frames, "1h")
+    out = bt.evaluate_signals(sym, sts, frames, "1h")
     idx = np.searchsorted(out["t"], bk["data"]["t"])
     assert (out["t"][idx] == bk["data"]["t"]).all()
     for e_eng, e_bot in zip(bk["entries"], out["entries"]):
@@ -40,13 +41,14 @@ def test_live_signals_equal_engine_signals(market):
 
 def test_klines_frame_drops_unclosed_bar():
     rows = [[0, "1", "2", "0.5", "1.5", "10", HOUR - 1], [HOUR, "1.5", "3", "1", "2", "5", 2 * HOUR - 1]]
-    df = ls.klines_frame(rows, now_ms=HOUR + 10)
+    df = bt.klines_frame(rows, now_ms=HOUR + 10)
     assert list(df["open_time"]) == [0] and df["close"].iloc[0] == 1.5 and df["is_filled"].iloc[0] == 0
 
 
 # ── bot trên dữ liệu dựng tay ───────────────────────────────────────────────
 def _defaults(cid):
-    from backend.core.strategy.book import BY_ID, schema_defaults
+    from backend.core.params import schema_defaults
+    from backend.optimize.book.build import BY_ID
     from legacy_candidates import LEGACY_BY_ID
     return schema_defaults({**LEGACY_BY_ID, **BY_ID}[cid])
 
@@ -64,7 +66,7 @@ def _bot(tmp_path, mode="paper", client=None, filters=None, book=None):
 
 def _sig(b, sym, ts, match=None, stop=None, close=100.0, low=None, high=None, vol=2.0):
     """Dữ liệu một tài sản trên các nến ts: match/stop = tập open_time có tín hiệu."""
-    _, pairs = ls._engine(f"{sym}@perp", b.strategies, "1h", 0, DAY)
+    _, pairs = bt._engine(f"{sym}@perp", b.strategies, "1h", 0, DAY)
     st, tr = pairs[0]
     n = len(ts)
     arr = lambda x: np.full(n, x, dtype=float)  # noqa: E731
@@ -187,9 +189,11 @@ def test_demo_orders_dca_ladder_protection_and_reconcile(tmp_path, monkeypatch):
 
 
 def test_okx_adapter_signing_contracts_and_candle_paging(monkeypatch):
-    import base64, hashlib, hmac  # noqa: E401
-    from backend.live import okx
-    a = okx.OkxAdapter(("K", "S", "P"), demo=True, pause=0)
+    import base64
+    import hashlib
+    import hmac
+    from backend.live import live as lv
+    a = lv.OkxAdapter(("K", "S", "P"), demo=True, pause=0)
     a._inst["BTC"] = {"ctVal": "0.01", "lotSz": "0.01", "minSz": "0.01", "tickSz": "0.1"}
     assert a.contracts("BTC", 0.0567) == "5.67" and a.contracts("BTC", 0.05679) == "5.67"   # coin -> hợp đồng, làm tròn xuống lotSz
     f = a.filters("BTC")
@@ -213,7 +217,7 @@ def test_okx_adapter_signing_contracts_and_candle_paging(monkeypatch):
         seen["h"] = dict(req.headers)
         seen["url"] = req.full_url
         return R(b'{"code":"0","data":[{"posMode":"net_mode"}]}')
-    monkeypatch.setattr(okx.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(lv.urllib.request, "urlopen", fake_urlopen)
     a.check_account()
     h = {k.lower(): v for k, v in seen["h"].items()}
     assert h["x-simulated-trading"] == "1" and h["ok-access-key"] == "K" and h["ok-access-passphrase"] == "P"
@@ -238,7 +242,7 @@ def test_okx_adapter_signing_contracts_and_candle_paging(monkeypatch):
 
 
 def test_okx_keys_file_and_mode_guards(tmp_path, monkeypatch):
-    from backend.live.secrets import load_okx
+    from backend.live.live import load_okx
     for k in ("NORA_OKX_KEY", "NORA_OKX_SECRET", "NORA_OKX_PASSPHRASE", "NORA_OKX_DEMO"):
         monkeypatch.delenv(k, raising=False)
     p = tmp_path / "okx.env"
@@ -282,7 +286,7 @@ def test_secrets_file_permissions_and_redaction(tmp_path, monkeypatch):
 
 
 def test_live_bot_job_registered_no_lock():
-    from backend.api.jobs import batch
+    from backend.optimize.process import process as batch
     assert "live_bot" in batch.KINDS and "live_bot" in batch.NO_LOCK_KINDS
     assert batch.job_label("live_bot", {"mode": "demo", "venue": "okx", "once": True}) == "Bot sổ · okx demo · một bước"
 
@@ -317,10 +321,10 @@ SHORT = {"id": "trend_s", "side": "SHORT", "tree": [[[F("4h", "rsi_14"), ">", 58
 @pytest.mark.parametrize("risk", [{"max_positions": 8, "max_per_symbol": 1, "max_gross_exposure": 3.0, "kill_switch_dd_pct": 30.0},
                                   {"max_positions": 2, "max_per_symbol": 1, "max_gross_exposure": 0.5, "kill_switch_dd_pct": 2.0}])
 def test_paper_book_replays_engine_trades_exactly(market, risk):
-    """PaperBook từng nến (PositionTracker + vòng danh mục) == PortfolioEngine (kernel): cùng lệnh, cùng giá, cùng lãi/lỗ — với trend, DCA,
+    """Sổ paper KernelBook từng nến (KernelPaperBook, P9.4b T7) == PortfolioEngine (kernel batch): cùng lệnh, cùng giá, cùng lãi/lỗ — với trend, DCA,
     tín hiệu thoát, trailing, giới hạn danh mục và kill switch (bộ risk thứ 2 chặt để kích hoạt chặn + kill switch)."""
-    from backend.core.backtest.portfolio import PortfolioEngine, RiskConfig
-    from backend.live.paper import PaperBook
+    from backend.core.backtest import PortfolioEngine, RiskConfig
+    from backend.core.backtest import KernelPaperBook
     syms = [f"{s}@perp" for s in SYMS]
     sts = [DCA, RSI, SHORT]
     start, end = T0 + 15 * DAY, T0 + 68 * DAY
@@ -335,7 +339,7 @@ def test_paper_book_replays_engine_trades_exactly(market, risk):
         assert any(w[6] > 1 for w in want)                                         # có lệnh DCA nhiều tầng
     else:
         assert res.get("halted_at") is not None                                    # bộ risk chặt: kill switch kích hoạt
-    pb = PaperBook(sts, syms, "1h", pe.initial_capital, risk, trade_start=start)
+    pb = KernelPaperBook(sts, syms, "1h", pe.initial_capital, risk, trade_start=start)
     grid = sorted({int(t) for bk in pe.books for t in bk["data"]["t"]})
     pos = {bk["symbol"]: {int(t): i for i, t in enumerate(bk["data"]["t"])} for bk in pe.books}
     fptr = {bk["symbol"]: 0 for bk in pe.books}
@@ -365,7 +369,6 @@ def test_paper_book_replays_engine_trades_exactly(market, risk):
 
 
 def test_stale_state_of_other_book_is_archived(tmp_path):
-    from backend.live import bot as lb
     sdir, spath = str(tmp_path), str(tmp_path / "state.json")
     lb._archive_stale_state(sdir, spath, {"generated_at": 1})          # chưa có gì: không làm gì
     assert os.listdir(sdir) == []
@@ -381,7 +384,7 @@ def test_stale_state_of_other_book_is_archived(tmp_path):
 
 def test_symbol_without_api_permission_is_skipped(tmp_path):
     """Khoá API không được giao dịch AAA (OKX 50123) -> cảnh báo, không vị thế, các nến sau không thử lại AAA; mã khác vẫn đánh."""
-    from backend.live.exchange import NotPermitted
+    from backend.live.live import NotPermitted
 
     class Denied(FakeAdapter):
         def market_open(self, sym, side, qty):
@@ -404,21 +407,22 @@ def test_symbol_without_api_permission_is_skipped(tmp_path):
 def test_okx_permission_error_maps_to_not_permitted(monkeypatch):
     import io
     import urllib.error
-    from backend.live import okx
-    from backend.live.exchange import NotPermitted
-    a = okx.OkxAdapter(("K", "S", "P"), demo=True, pause=0)
+    from backend.live import live as lv
+    from backend.live.live import NotPermitted
+    a = lv.OkxAdapter(("K", "S", "P"), demo=True, pause=0)
 
     def deny(req, timeout=0):
         raise urllib.error.HTTPError(req.full_url, 401, "x", {}, io.BytesIO(b'{"msg":"no permission for the Crypto","code":"50123"}'))
-    monkeypatch.setattr(okx.urllib.request, "urlopen", deny)
+    monkeypatch.setattr(lv.urllib.request, "urlopen", deny)
     with pytest.raises(NotPermitted):
         a._req("POST", "/api/v5/trade/order", body={}, signed=True)
 
 
 def test_live_trades_equity_series_from_events(tmp_path, monkeypatch):
     """Đường vốn trên trang Live: sự kiện "step" khử trùng theo nến (giữ bản cuối), sắp theo thời gian, tối đa 2000 điểm; started = "start" đầu tiên."""
-    from backend.api.routers import live as live_router
-    d = tmp_path / "_cache" / "live" / "okx_demo"
+    from backend.routes import live as live_router
+    monkeypatch.setenv("NORA_LOCAL_DATA_ROOT", str(tmp_path))
+    d = Path(live_dir("okx", "demo"))
     d.mkdir(parents=True)
     H = 3_600_000
     evs = [{"t": 5, "kind": "start", "venue": "okx"}, {"t": 99, "kind": "start", "venue": "okx"},
@@ -429,7 +433,7 @@ def test_live_trades_equity_series_from_events(tmp_path, monkeypatch):
            {"t": 14, "kind": "step", "bar": 3 * H}]                         # thiếu equity
     (d / "events.jsonl").write_text("\n".join(json.dumps(e) for e in evs) + "\n{hỏng\n", encoding="utf-8")
     monkeypatch.setenv("NORA_LOCAL_DATA_ROOT", str(tmp_path))
-    r = live_router.bot_trades(mode="demo", venue="okx", limit=10)
+    r = live_router.bot_trades(mode="demo", venue="okx", limit=10, book="main", engine=None)
     assert r["equity_series"] == [{"t": H, "equity": 100.0}, {"t": 2 * H, "equity": 102.5}] and r["started"] == 5
     assert r["halted"] is False and r["alerts"] == []
     # P9.12: MDD + lãi/lỗ từ đầu do backend tính (state không có equity -> điểm cuối đường vốn)
@@ -438,13 +442,13 @@ def test_live_trades_equity_series_from_events(tmp_path, monkeypatch):
     series, _, _, _ = live_router._equity_series(str(d), cap=1)
     assert series == [{"t": 2 * H, "equity": 102.5}]
     monkeypatch.setenv("NORA_LOCAL_DATA_ROOT", str(tmp_path / "none"))
-    r = live_router.bot_trades(mode="demo", venue="okx", limit=10)
+    r = live_router.bot_trades(mode="demo", venue="okx", limit=10, book="main", engine=None)
     assert r["equity_series"] == [] and r["started"] is None
     assert r["equity_stats"]["pnl_pct"] is None and r["equity_stats"]["pnl_note"] and r["equity_stats"]["mdd_pct"] is None and r["equity_stats"]["mdd_note"]
 
 
 def test_compare_exec_with_paper_and_state_dirs_per_book():
-    from backend.live.compare import compare_trades
+    from backend.metrics.trades import compare_trades
     H = 3_600_000
     ex = [{"symbol": "BTC", "strategy": "dca_long", "side": "LONG", "qty": 0.1, "avg": 101.0, "entry_time": 10 * H + 5_000,
            "open_price": 101.0, "close_price": 103.0, "pnl": 0.19, "layers": 2, "reason": "Sàn đã đóng (SL/TP)"},
@@ -459,7 +463,8 @@ def test_compare_exec_with_paper_and_state_dirs_per_book():
     q = out["pairs"][0]
     assert q["entry_bps"] == 100.0 and q["close_bps"] == round((103.5 - 103.0) / 103.5 * 10_000, 2)     # sàn mua đắt hơn, bán rẻ hơn: dương
     assert q["ret_pct"][0] == round(0.19 / (0.1 * 101.0) * 100, 4)
-    assert lb.state_key("okx", "paper") == "okx_paper" and lb.state_key("okx", "paper", "explore") == "okx_paper_explore"
+    assert live_state_key("okx", "paper") == "paper/okx_main" and live_state_key("okx", "paper", "explore") == "paper/okx_explore"
+    assert live_state_key("okx", "demo") == "testnet/okx_main" and live_state_key("okx", "live", "main", "legacy") == "live/okx_main_legacy"
 
 
 def _cmp_pair(side, close, reason="Stop-loss (từ giá TB)", **extra):
@@ -474,7 +479,7 @@ def _cmp_pair(side, close, reason="Stop-loss (từ giá TB)", **extra):
 
 
 def test_compare_sl_classification_long_short():
-    from backend.live.compare import compare_trades
+    from backend.metrics.trades import compare_trades
     for side, cases in (("LONG", {96.0: "better", 95.0: "better", 93.0: "between", 90.0: "between", 88.0: "worse"}),
                         ("SHORT", {104.0: "better", 105.0: "better", 107.0: "between", 110.0: "between", 112.0: "worse"})):
         for close, want in cases.items():
@@ -493,7 +498,7 @@ def test_compare_sl_classification_long_short():
 
 
 def test_compare_fee_funding_pct_and_old_paper_trades():
-    from backend.live.compare import compare_trades
+    from backend.metrics.trades import compare_trades
     ex, pa = _cmp_pair("LONG", 95.0, ex={"qty": 2.0, "fee": -0.4, "funding": -0.2}, pa={"qty": 2.0, "fees": 0.1, "funding": -0.05})
     q = compare_trades([ex], [pa], "1h")["pairs"][0]
     assert q["fee_pct"] == [0.2, 0.05] and q["funding_pct"] == [0.1, -0.025]      # chi phí / (qty*avg) %, dương = trả
@@ -512,7 +517,7 @@ def test_compare_fee_funding_pct_and_old_paper_trades():
 
 
 def test_compare_flags_and_min_pairs():
-    from backend.live.compare import compare_trades, MIN_PAIRS
+    from backend.metrics.trades import compare_trades, MIN_PAIRS
     H = 3_600_000
     ok = compare_trades(*[[x] for x in _cmp_pair("LONG", 95.0, reason="TP", ex={"fee": -0.05}, pa={"fees": 0.05, "close_price": 95.0})], "1h")
     assert ok["summary"]["flags"] == [] and ok["summary"]["enough"] is False and ok["summary"]["min_pairs"] == MIN_PAIRS == 30
@@ -534,8 +539,8 @@ def test_compare_flags_and_min_pairs():
 
 
 def test_okx_closed_since_parses_positions_history(monkeypatch):
-    from backend.live import okx
-    a = okx.OkxAdapter(("K", "S", "P"), demo=True, pause=0)
+    from backend.live import live as lv
+    a = lv.OkxAdapter(("K", "S", "P"), demo=True, pause=0)
     rows = [{"cTime": "1000000", "uTime": "2000000", "closeAvgPx": "103.2", "openAvgPx": "101", "realizedPnl": "0.21", "fee": "-0.01",
              "fundingFee": "0"},
             {"cTime": "1", "uTime": "5", "closeAvgPx": "1", "openAvgPx": "1", "realizedPnl": "9", "fee": "0", "fundingFee": "0"}]
@@ -546,8 +551,8 @@ def test_okx_closed_since_parses_positions_history(monkeypatch):
 
 def test_okx_equity_is_usdt_in_single_currency_margin(monkeypatch):
     """Lỗi đã gặp trên demo: totalEq gồm cả BTC/OKB trong ví -> khối lượng gấp 20 lần số USDT ký quỹ được, tầng DCA bị từ chối 51008."""
-    from backend.live import okx
-    a = okx.OkxAdapter(("K", "S", "P"), demo=True, pause=0)
+    from backend.live import live as lv
+    a = lv.OkxAdapter(("K", "S", "P"), demo=True, pause=0)
     bal = [{"totalEq": "106651.4", "adjEq": "", "details": [{"ccy": "BTC", "eq": "1"}, {"ccy": "USDT", "eq": "4865.7"}]}]
 
     def req(method, path, params=None, body=None, signed=False):
@@ -563,8 +568,8 @@ def test_close_qty_rounding_and_okx_contracts_no_dust():
     """Lỗi tìm ra bằng phát lại: làm tròn XUỐNG khối lượng lệnh đóng để lại một bước lẻ -> vị thế sót không bao giờ đóng hết."""
     f = Filters(0.01, 0.01, 0.01, 0.0)
     assert f.qty(5.67 * (1 - 1e-8)) == 5.66 and f.qty_close(5.67 * (1 - 1e-8)) == 5.67
-    from backend.live import okx
-    a = okx.OkxAdapter(None, demo=True, pause=0)
+    from backend.live import live as lv
+    a = lv.OkxAdapter(None, demo=True, pause=0)
     a._inst["BTC"] = {"ctVal": "0.01", "lotSz": "0.01", "minSz": "0.01", "tickSz": "0.1"}
     assert a.contracts("BTC", 0.0567 * (1 - 1e-12)) == "5.67" and a.contracts("BTC", 0.05669) == "5.66"
 
@@ -608,21 +613,22 @@ def test_fresh_state_peak_comes_from_measured_equity_not_nominal_capital(tmp_pat
 
 def test_live_trades_shows_halted_and_alerts_since_last_start(tmp_path, monkeypatch):
     """Trang Live phải thấy bot đang dừng (kill switch) và cảnh báo của lần chạy hiện tại — cảnh báo trước lần khởi động gần nhất bỏ qua."""
-    from backend.api.routers import live as live_router
-    d = tmp_path / "_cache" / "live" / "okx_demo"
+    from backend.routes import live as live_router
+    monkeypatch.setenv("NORA_LOCAL_DATA_ROOT", str(tmp_path))
+    d = Path(live_dir("okx", "demo"))
     d.mkdir(parents=True)
     evs = [{"t": 1, "kind": "start"}, {"t": 2, "kind": "crit", "reason": "cũ"}, {"t": 3, "kind": "start"},
            {"t": 4, "kind": "warn", "reason": "w"}, {"t": 5, "kind": "crit", "reason": "kill switch"}]
     (d / "events.jsonl").write_text("\n".join(json.dumps(e) for e in evs) + "\n", encoding="utf-8")
     (d / "state.json").write_text(json.dumps({"halted": True, "peak_equity": 100.0}), encoding="utf-8")
     monkeypatch.setenv("NORA_LOCAL_DATA_ROOT", str(tmp_path))
-    r = live_router.bot_trades(mode="demo", venue="okx", limit=10)
+    r = live_router.bot_trades(mode="demo", venue="okx", limit=10, book="main", engine=None)
     assert r["halted"] is True and r["peak_equity"] == 100.0
     assert [a["reason"] for a in r["alerts"]] == ["w", "kill switch"]
 
 
 def test_okx_refuses_key_with_withdraw_permission(monkeypatch):
-    from backend.live.okx import OkxAdapter
+    from backend.live.live import OkxAdapter
     a = OkxAdapter(("k", "s", "p"), demo=True)
     cfg = {"posMode": "net_mode", "perm": "read_only,trade,withdraw"}
     monkeypatch.setattr(a, "_req", lambda *args, **kw: [cfg])

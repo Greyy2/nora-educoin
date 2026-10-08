@@ -1,6 +1,6 @@
 """Sinh lại snapshot golden đường TICK vào test/golden/tick_*.json từ code HIỆN TẠI (P9.4b T0).
 
-Chạy:  cd nora && backend/utils/ops/run_limited.sh --no-lock -- test/scripts/make_golden_tick.py
+Chạy:  cd nora && ops/run_limited.sh --no-lock -- test/scripts/make_golden_tick.py
 Chỉ chạy lại khi CHỦ ĐÍCH đổi ngữ nghĩa tick; refactor phải giữ nguyên các file này (test/test_tick_golden.py).
 """
 import json

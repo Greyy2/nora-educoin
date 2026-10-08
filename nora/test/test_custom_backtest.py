@@ -9,9 +9,9 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 import golden_scenarios as gs
-from backend.api.jobs import batch as batch_jobs
-from backend.api.routers import custom as custom_router
-from backend.api.routers import strategies as strategies_router
+from backend.optimize.process import process as batch_jobs
+from backend.routes import custom as custom_router
+from backend.routes import strategies as strategies_router
 from job_modules import launched
 
 CODE_DAILY = '''
@@ -48,9 +48,9 @@ def _params(**kw):
 
 
 def test_run_reports_everything_with_one_flat_metric_set(market, monkeypatch):
-    from backend.core.backtest import custom_run
+    from backend.optimize.process import tasks as custom_run
     monkeypatch.setenv("NORA_JOB_DIR", str(market / "job"))
-    out = custom_run.run_job(_params(code=CODE_DAILY, initial_capital=100_000))
+    out = custom_run.run_custom_backtest(_params(code=CODE_DAILY, initial_capital=100_000))
     assert os.path.isfile(market / "job" / "result.json")
     json.dumps(out, allow_nan=False)                                        # JSON hợp lệ, không NaN
     for key in ("config", "program_hash", "data", "metrics", "yearly", "series", "trades", "positions_open", "by_symbol", "warnings"):
@@ -69,8 +69,8 @@ def test_run_reports_everything_with_one_flat_metric_set(market, monkeypatch):
 
 
 def test_runs_on_1m_with_perp_and_echoes_position(market):
-    from backend.core.backtest import custom_run
-    out = custom_run.run_job(_params(code=CODE_1H, symbols=["AAA", "BBB", "CCC"], initial_capital=10_000,
+    from backend.optimize.process import tasks as custom_run
+    out = custom_run.run_custom_backtest(_params(code=CODE_1H, symbols=["AAA", "BBB", "CCC"], initial_capital=10_000,
                                      position={"risk_per_trade_pct": 0.25}))
     assert out["config"]["run_frame"] == "1m" and out["config"]["data_symbols"] == ["AAA@perp", "BBB@perp", "CCC@perp"]
     assert out["config"]["position"]["risk_per_trade_pct"] == 0.25
@@ -80,20 +80,20 @@ def test_runs_on_1m_with_perp_and_echoes_position(market):
 
 
 def test_job_rejects_bad_input_clearly(market):
-    from backend.core.backtest import custom_run
+    from backend.optimize.process import tasks as custom_run
     with pytest.raises(ValueError, match=r"dòng 4, cột \d+"):
-        custom_run.run_job(_params(code="class S(SimpleAlgorithm):\n    def __algorithm__(self):\n        x = self.data.pv_close\n        y = x and x\n"))
+        custom_run.run_custom_backtest(_params(code="class S(SimpleAlgorithm):\n    def __algorithm__(self):\n        x = self.data.pv_close\n        y = x and x\n"))
     with pytest.raises(ValueError, match="Không có dữ liệu"):
-        custom_run.run_job(_params(code=CODE_DAILY, symbols=["ZZZ"]))
+        custom_run.run_custom_backtest(_params(code=CODE_DAILY, symbols=["ZZZ"]))
     for gone in ("profile", "exchange", "universe", "market"):             # tham số đã gỡ: không còn chế độ / nguồn / rổ cố định
         with pytest.raises(ValueError, match="tham số lạ"):
-            custom_run.run_job(_params(code=CODE_DAILY, **{gone: "x"}))
+            custom_run.run_custom_backtest(_params(code=CODE_DAILY, **{gone: "x"}))
     with pytest.raises(ValueError, match="tham số lạ"):
-        custom_run.run_job(_params(code=CODE_DAILY, bogus=1))
+        custom_run.run_custom_backtest(_params(code=CODE_DAILY, bogus=1))
 
 
 def test_default_universe_and_window_come_from_the_store(market):
-    from backend.core.backtest import custom_run, run_defaults
+    from backend.optimize.process import tasks as custom_run, tasks as run_defaults
     uni = run_defaults.default_universe()
     assert {"AAA", "BBB", "CCC"} <= set(uni) and uni == sorted(uni)
     assert custom_run.resolve_symbols(["BBB@perp", "AAA"]) == ["BBB", "AAA"] and custom_run.resolve_symbols(None) == uni
@@ -102,7 +102,7 @@ def test_default_universe_and_window_come_from_the_store(market):
 
 
 def test_daily_series_labels_and_returns():
-    from backend.core.backtest.custom_run import DAY, daily_series
+    from backend.optimize.process.tasks import DAY, daily_series
     start = 10 * DAY
     curve = [{"time": start + h * 3_600_000, "equity": 100.0 + h} for h in range(0, 24 * 3)]
     s = daily_series(curve, start, start + 3 * DAY, 3_600_000, 100.0)
@@ -125,15 +125,9 @@ class FakePopen:
         return 0
 
 
-CLEANUPS = []
-
-
 @pytest.fixture
 def client(monkeypatch, tmp_path):
     monkeypatch.setenv("NORA_LOCAL_DATA_ROOT", str(tmp_path / "data"))
-    from backend.core.analytics import user_alphas
-    CLEANUPS.clear()
-    monkeypatch.setattr(user_alphas, "cleanup_quietly", lambda: CLEANUPS.append(1))    # không quét thư mục job thật trong test
     FakePopen.calls = []
     monkeypatch.setattr(batch_jobs.subprocess, "Popen", FakePopen)
     app = FastAPI()
@@ -176,14 +170,14 @@ def test_api_custom_backtest_launches_job_with_validated_params(client):
     assert client.post("/api/studio/custom/backtest", json={**body, "position": {"nope": 1}}).status_code == 422
     assert client.post("/api/studio/custom/backtest", json={**body, "symbols": ["B" * 40]}).status_code == 422
     assert client.post("/api/studio/custom/backtest", json={**body, "initial_capital": -5}).status_code == 422
-    assert len(FakePopen.calls) == 1 and CLEANUPS == [1]         # mỗi lần chạy mới kích hoạt dọn job tạm quá hạn
+    assert len(FakePopen.calls) == 1
 
 
 def test_diagnostics_use_real_benchmark_and_market(market, monkeypatch):
     """Chẩn đoán lấy từ chính lần chạy: benchmark luôn long chạy qua cùng engine , series.benchmark, chế độ thị trường (chuỗi ngắn -> unknown), lý do thoát thật."""
-    from backend.core.backtest import custom_run
+    from backend.optimize.process import tasks as custom_run
     monkeypatch.setenv("NORA_JOB_DIR", str(market / "job"))
-    out = custom_run.run_job(_params(code=CODE_1H, initial_capital=100_000))
+    out = custom_run.run_custom_backtest(_params(code=CODE_1H, initial_capital=100_000))
     d = out["diagnostics"]
     mc = d["market_comparison"]
     assert mc["available"], out["warnings"]
@@ -203,9 +197,9 @@ def test_diagnostics_use_real_benchmark_and_market(market, monkeypatch):
 
 def test_benchmark_aligned_with_strategy_start_and_holds_without_risk_sizing(market, monkeypatch):
     """Cả hai đường vốn cùng lưới ngày và bắt đầu ở đúng vốn đầu; benchmark nắm giữ chia đều (không định cỡ theo rủi ro, không SL) nên khác chiến lược."""
-    from backend.core.backtest import custom_run
+    from backend.optimize.process import tasks as custom_run
     monkeypatch.setenv("NORA_JOB_DIR", str(market / "job"))
-    out = custom_run.run_job(_params(code=CODE_DAILY, initial_capital=100_000))
+    out = custom_run.run_custom_backtest(_params(code=CODE_DAILY, initial_capital=100_000))
     s = out["series"]
     b = s["benchmark"]
     assert b["times"] == s["times"] and b["equity"][0] == s["equity"][0] == 100_000
@@ -214,7 +208,7 @@ def test_benchmark_aligned_with_strategy_start_and_holds_without_risk_sizing(mar
 
 def test_yearly_table_drops_years_with_fewer_than_two_return_days():
     import pandas as pd
-    from backend.core.backtest.custom_run import DAY, yearly_table
+    from backend.optimize.process.tasks import DAY, yearly_table
     start = int(pd.Timestamp("2019-12-31", tz="UTC").value // 1_000_000)
     times = start + np.arange(0, 6) * DAY                    # nhãn 12-31, 01-01 .. 01-05
     eq = np.array([100.0, 100.0, 101.0, 102.0, 101.0, 103.0])
@@ -228,9 +222,9 @@ def test_yearly_table_drops_years_with_fewer_than_two_return_days():
 def test_stage_series_are_computed_in_backend_with_benchmark_per_stage(market, monkeypatch):
     """series.stages = {all, train, test} đã tính ở backend trên chuỗi ngày đầy đủ (equity, pnl, drawdown_pct, ret_pct, benchmark); test = lần chạy lại từ vốn đầu
     + benchmark chạy lại cùng cửa sổ (series.test.benchmark), KHÔNG co dãn; giao diện không phải tính lại."""
-    from backend.core.backtest import custom_run
+    from backend.optimize.process import tasks as custom_run
     monkeypatch.setenv("NORA_JOB_DIR", str(market / "job"))
-    out = custom_run.run_job(_params(code=CODE_1H, initial_capital=100_000))
+    out = custom_run.run_custom_backtest(_params(code=CODE_1H, initial_capital=100_000))
     s = out["series"]
     st = s["stages"]
     assert set(st) == {"all", "train", "test"} and all(st[k] for k in st)
@@ -258,7 +252,7 @@ def test_stage_series_are_computed_in_backend_with_benchmark_per_stage(market, m
 
 def test_stage_downsample_is_explicit_and_composable():
     """Hạ mẫu chỉ để vẽ: nhóm step điểm (điểm 0 riêng), equity/pnl = cuối nhóm, drawdown = đáy nhóm, ret = lãi kép nhóm; ghi rõ trong `downsample`."""
-    from backend.core.metrics.series_stages import downsample_stage, stage_block
+    from backend.metrics.charts import downsample_stage, stage_block
     rng = np.random.default_rng(1)
     n = 101
     eq = 100_000 * np.cumprod(np.r_[1.0, 1.0 + rng.normal(0, 0.01, n - 1)])

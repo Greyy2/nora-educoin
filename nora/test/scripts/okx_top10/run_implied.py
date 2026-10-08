@@ -1,5 +1,5 @@
 """Chạy Phase 4 (implied exit fitting) cho 1 hoặc nhiều bot. Ví dụ:
-  NORA_PYTHON=~/.venvs/okxr/bin/python OMP_NUM_THREADS=6 /home/vmc03/norabt/nora/backend/utils/ops/run_limited.sh --mem 4G --no-lock -- \
+  NORA_PYTHON=~/.venvs/okxr/bin/python OMP_NUM_THREADS=6 /home/vmc03/norabt/nora/ops/run_limited.sh --mem 4G --no-lock -- \
       /home/vmc03/norabt/nora/test/scripts/okx_top10/run_implied.py --bot Auroraxwt
 """
 import argparse, os, sys

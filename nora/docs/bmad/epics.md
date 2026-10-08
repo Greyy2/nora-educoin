@@ -23,7 +23,7 @@ Trạng thái: `backlog` (chưa làm) · `ready` (đủ điều kiện làm) · 
 | E13 | Hai chế độ chạy Cơ bản / Nâng cao | done | 2 / 2 | 5/7 preset stage A chưa qua dev2 (ghi nhãn). |
 | E14 | Phễu kiểm duyệt alpha | done | 3 / 3 | Lượt thật 36.000 alpha → 0 FINAL; alpha SOL bị loại khi kiểm lại. |
 | E15 | Regime và điều phối chiến lược | done | 6 / 6 | Bảng tĩnh không khớp dữ liệu; học trên train cải thiện nhưng WFA chưa qua. |
-| E16 | Kiến trúc thực thi thống nhất (backtest → testnet → live) | in-progress | 1 / 1 | ADR duyệt; P6.1–P6.4 xong; P6.5–P6.9 đang làm. |
+| E16 | Kiến trúc thực thi thống nhất (backtest → testnet → live) | in-progress | 9 / 10 | P6.0–P6.7, P6.10–P6.12 xong; P6.8 demo bot đang chạy đo dung sai. |
 
 Tổng: 16 epic (11 done, 3 in-progress, 2 backlog); 85 story (68 done, 0 in-progress, 2 review, 0 ready, 15 backlog).
 
@@ -271,3 +271,12 @@ Một giao diện sàn (`Venue`) cho sim và OKX, một risk engine, kế toán 
 | Story | Tiêu đề | Trạng thái |
 |---|---|---|
 | [E16-S1](stories/E16-S1-adr-unified-execution.md) | ADR kiến trúc thực thi thống nhất (P6.0) | done |
+| [E16-S2](stories/E16-S2-risk-engine.md) | Risk engine độc lập (P6.1) | done |
+| [E16-S3](stories/E16-S3-policy-functions.md) | Hàm thuần chính sách vị thế (P6.2) | done |
+| [E16-S4](stories/E16-S4-events-and-account.md) | Kế toán vị thế theo sự kiện (P6.3) | done |
+| [E16-S5](stories/E16-S5-venue-and-manager.md) | Giao diện Venue, SimVenue và PositionManager (P6.4) | done |
+| [E16-S6](stories/E16-S6-runner-and-paperbook.md) | Runner điều phối và PaperBook trên SimVenue (P6.5) | done |
+| [E16-S7](stories/E16-S7-venue-conformance.md) | Bộ kiểm thử hợp đồng Venue (P6.6) | done |
+| [E16-S8](stories/E16-S8-okx-venue.md) | Adapter OkxVenue (P6.7) | done |
+| [E16-S9](stories/E16-S9-unified-bot.md) | Bot chạy trên lõi thống nhất (P6.8) | in-progress |
+| [E16-S10](stories/E16-S10-nautilus-parity-and-two-phase.md) | Đối chiếu chuẩn NautilusTrader & Nến hai pha (P6.10–P6.12) | done |

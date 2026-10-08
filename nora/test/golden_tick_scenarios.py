@@ -4,7 +4,6 @@ Thị trường tick giả lấy từ test_tick_backtest.py (cùng hàm sinh n�
 DCA, sizing theo rủi ro, gas, TP/SL, latency). Kết quả được CHUẨN HOÁ (float -> float.hex, bỏ meta không tất định) để so sánh bit-identical.
 Snapshot: test/golden/tick_*.json, sinh bằng test/scripts/make_golden_tick.py; test: test/test_tick_golden.py.
 """
-import json
 import os
 import tempfile
 from contextlib import contextmanager
@@ -14,7 +13,7 @@ import numpy as np
 
 import test_tick_backtest as tt
 from golden_scenarios import hx
-from backend.core.data.resampler import save_resampled_dataset  # noqa: F401  (tt._asset dùng)
+from backend.crawl.store import save_resampled_dataset  # noqa: F401  (tt._asset dùng)
 
 N_RANDOM = 20
 VOLATILE_RB = (2e5, 1e6, 5e6)
@@ -42,12 +41,12 @@ def canon_result(res: Dict[str, Any]) -> Dict[str, Any]:
 @contextmanager
 def tick_market(extra_candidates: List[Dict[str, Any]] = ()):
     """Gốc dữ liệu giả (thư mục tạm) + chiến lược t_long / t_cyc (như fixture `market` của test_tick_backtest) + `extra_candidates`."""
-    from backend.core.strategy import book as sb
-    f = sb.f
+    from backend.optimize.book import build as sb
+    from backend.alpha.compile import cond, f
     pos = {"exit_unit": "pct", "sizing": "margin_pct", "order_size_pct": 50, "stop_loss_rate": 2.0, "take_profit_rate": 2.0}
-    base = [{"id": "t_long", "family": "x", "side": "LONG", "description": "luôn khớp", "tree": sb.cond((f("15m", "close"), ">", 0)),
+    base = [{"id": "t_long", "family": "x", "side": "LONG", "description": "luôn khớp", "tree": cond((f("15m", "close"), ">", 0)),
              "position": {**pos, "cooldown": 100_000}, "space": {}},
-            {"id": "t_cyc", "family": "x", "side": "LONG", "description": "vào lại liên tục", "tree": sb.cond((f("15m", "close"), ">", 0)),
+            {"id": "t_cyc", "family": "x", "side": "LONG", "description": "vào lại liên tục", "tree": cond((f("15m", "close"), ">", 0)),
              "position": {**pos, "cooldown": 15}, "space": {}}]
     old_c, old_e, old_env = sb.CANDIDATES, sb.EXTRA_CANDIDATES, os.environ.get("NORA_LOCAL_DATA_ROOT")
     with tempfile.TemporaryDirectory(prefix="nora_golden_tick_") as tmp:
@@ -67,16 +66,16 @@ def tick_market(extra_candidates: List[Dict[str, Any]] = ()):
 
 def _run(items, symbols, root, ticks_by_name, pools=None, **kw):
     """ticks_by_name {tên: bảng tick}; pools {tên: {"stable":bool,"fee":float}} ghi đè metadata pool (mặc định volatile, phí tt.FEE)."""
-    from backend.core.backtest.tick_run import run_tick
-    from backend.core.strategy.book import RISK
+    from backend.optimize.search.evaluate import run_tick
+    from backend.core.params import RISK
+    from backend.crawl.store import asset_meta
+    from data_helpers import set_ticks_attrs
     for name, tk in ticks_by_name.items():
         d = tt._asset(root, name, ticks=tk)
         p = (pools or {}).get(name)
         if p:
-            (d / "dex_pool.json").write_text(json.dumps({"onchain": {"pool_address": "0xpool", "fee_rate": p["fee"], "stable": p["stable"], "pool_type": "aerodrome_v2"}}))
-            m = json.loads((d / "manifest.json").read_text())
-            m["ticks"].update(fee_rate=p["fee"], stable=p["stable"])
-            (d / "manifest.json").write_text(json.dumps(m))
+            ticks_meta = {**asset_meta(str(d))["ticks"], "fee_rate": p["fee"], "stable": p["stable"]}
+            set_ticks_attrs(str(d), ticks=ticks_meta, onchain={"pool_address": "0xpool", "fee_rate": p["fee"], "stable": p["stable"], "pool_type": "aerodrome_v2"})
     a = dict(start=None, end=None, rpt=0.5, risk=RISK, stop_fill="level", base_frame="15m", capital=tt.CAPITAL)
     a.update(kw)
     return run_tick(items, symbols, a.pop("start"), a.pop("end"), a.pop("rpt"), a.pop("risk"), a.pop("stop_fill"), a.pop("base_frame"), a.pop("capital"), **a)
@@ -134,12 +133,11 @@ def random_config(seed: int) -> Dict[str, Any]:
 
 
 def run_random(cfg: Dict[str, Any]) -> Dict[str, Any]:
-    from backend.core.strategy import book as sb
-    f = sb.f
-    tree = sb.cond((f("15m", "close"), ">", 0)) if cfg["signal"] == "always" else sb.cond((f("15m", "close"), ">", f("15m", "close", 1)))
+    from backend.alpha.compile import cond, f
+    tree = cond((f("15m", "close"), ">", 0)) if cfg["signal"] == "always" else cond((f("15m", "close"), ">", f("15m", "close", 1)))
     cand = {"id": "t_rand", "family": "x", "side": "LONG", "description": "ngẫu nhiên", "tree": tree, "position": cfg["position"], "space": {}}
     if cfg["signal"] == "up":
-        cand["stop"] = sb.cond((f("15m", "close"), "<", f("15m", "close", 1)))
+        cand["stop"] = cond((f("15m", "close"), "<", f("15m", "close", 1)))
     with tick_market([cand]) as root:
         ticks = {p["name"]: _random_ticks(np.random.default_rng(p["seed"]), p["stable"], p["rb"], p["n"], p["step_ms"], p["vol"]) for p in cfg["pools"]}
         meta = {p["name"]: {"stable": p["stable"], "fee": p["fee"]} for p in cfg["pools"]}

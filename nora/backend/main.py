@@ -1,6 +1,6 @@
 """Nora API: app FastAPI duy nhất (uvicorn backend.main:app).
 
-Mọi việc (backtest, WFA, Monte Carlo, phễu alpha, danh mục) đi qua các router trong backend/api/routers;
+Mọi việc (backtest, WFA, Monte Carlo, phễu alpha, danh mục) đi qua các router trong backend/routes;
 UI, terminal (curl) và script đều gọi cùng các endpoint này. Bản build frontend (frontend/dist) được phục vụ ở "/".
 """
 from pathlib import Path
@@ -11,7 +11,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from backend.api.routers import alphas, book, chart, custom, data, education, funnel, live, market, portfolio, strategies
+from backend.routes import alphas, book, chart, custom, data, education, funnel, live, market, portfolio, strategies
 
 app = FastAPI(title="Nora API", version="3.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -32,12 +32,12 @@ app.include_router(chart.router)
 
 
 @app.on_event("startup")
-def _cleanup_temporary_runs():
-    """Dọn job custom_backtest tạm (>24 h, không thuộc alpha đã lưu) chạy nền, không chặn khởi động."""
+def _enforce_job_lifecycle():
+    """Cache chỉ giữ tiến trình chưa xong: job xong -> lưu/xoá, bot đã dừng -> xoá, lỗi quá 7 ngày -> xoá (chạy nền, không chặn khởi động)."""
     import threading
 
-    from backend.core.analytics import user_alphas
-    threading.Thread(target=user_alphas.cleanup_quietly, name="user-run-ttl", daemon=True).start()
+    from backend.optimize.process import process as batch_jobs
+    threading.Thread(target=batch_jobs.enforce_lifecycle, name="job-lifecycle", daemon=True).start()
 
 
 @app.get("/api/health")

@@ -1,12 +1,12 @@
 """Mô hình + sự kiện + kế toán của engine (P9.4): lệnh/vị thế (OrderModel, PositionModel), sự kiện (Fill, FundingApplied, ...), Account/PositionBook, CapitalLedger.
 
-Hợp nhất NGUYÊN VĂN từ core/execute/{models,events,account,ledger}.py (xem docs/bmad/p9_review_log.md, mục P9.4 part 1). Đường dẫn cũ là alias (shim).
+Nguồn gộp: docs/bmad/p9_review_log.md (mục P9.4).
 """
 import itertools
 import time
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Any, Dict, Optional, List, Union
+from typing import Any, Callable, Dict, Optional, List, Protocol, Union
 
 # Bộ đếm id toàn cục (lệnh / vị thế), tăng dần và không trùng (int(time.time()*1000) trùng khi nhiều lệnh mở trong cùng 1 ms).
 # Bắt đầu từ epoch-ms * 1000 để vẫn sắp xếp theo thời gian. Kernel, tracker và sim venue cùng rút từ MỘT dãy này.
@@ -18,8 +18,6 @@ def next_id() -> int:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# P9.4 — nguyên văn từ core/execute/models.py
-#
 # Mô hình vị thế / lệnh của engine (dataclass + enum loại vị thế, loại lệnh, trạng thái).
 # ══════════════════════════════════════════════════════════════════════════
 
@@ -141,8 +139,6 @@ class OrderModel:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# P9.4 — nguyên văn từ core/execute/events.py
-#
 # Sự kiện thực thi (P6.3): nguồn thay đổi DUY NHẤT của sổ vốn (Account) và vị thế (PositionBook).
 #
 # Mỗi sự kiện là dữ liệu bất biến; phát lại cùng chuỗi sự kiện vào Account + PositionBook mới cho đúng từng bit
@@ -220,8 +216,6 @@ def unrealized_pnl(qty: float, avg: float, price: float, fees_paid: float, is_lo
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# P9.4 — nguyên văn từ core/execute/account.py
-#
 # Kế toán thực thi (P6.3): Account (sổ vốn chung) + PositionBook (kế toán một slot).
 #
 # Hai lớp này là nơi DUY NHẤT thay đổi vốn và vị thế; chỉ thay đổi qua sự kiện (events.py) nên phát lại chuỗi
@@ -240,7 +234,7 @@ class Account:
     reserved : tiền đang bị khoá trong các vị thế mở (ký quỹ + phí vào lệnh đã trả).
     free     : equity × usage − reserved. Mọi lệnh vào / tầng DCA phải giữ chỗ được từ free,
                nên nhiều flow cùng lúc KHÔNG thể dùng quá vốn (lỗi cũ: mỗi flow tự dùng 100%).
-    (Trước P6.3 tên là CapitalLedger — vẫn import được từ core/execute/ledger.py.)
+    (Trước P6.3 tên là CapitalLedger — vẫn import được từ backend.core.models.)
     """
 
     def __init__(self, capital: float, usage: float = 1.0):
@@ -445,9 +439,89 @@ class PositionBook:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# P9.4 — nguyên văn từ core/execute/ledger.py
-#
-# Tương thích ngược: CapitalLedger là tên cũ của Account (core/execute/account.py) — cùng một lớp.
+# Tương thích ngược: CapitalLedger là tên cũ của Account — cùng một lớp.
 # ══════════════════════════════════════════════════════════════════════════
 
 CapitalLedger = Account
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Nguồn dữ liệu của engine (engine-API pass, ADR-P9: core không I/O, không import gì ngoài core)
+#
+# Engine (BacktestEngine / PortfolioEngine / build_plan / signal_snapshot / check_signals) KHÔNG tự đọc đĩa: mọi nến, funding, manifest, cổng chất
+# lượng, kho mmap dùng chung và bộ nhớ đệm mảng đi qua MỘT đối tượng `DataSource` truyền vào (`data=`). Bản cài đặt thật nằm NGOÀI core
+# (backend/optimize/search/evaluate.py: EngineData bọc crawl/store + kho mmap dùng chung). `data=None` = nguồn mặc định của tiến
+# trình, do tầng trên đăng ký bằng set_default_data_source (backend/optimize/__init__.py — mọi lối vào: API, job, worker, test, live).
+# ══════════════════════════════════════════════════════════════════════════
+
+class DataMemo(Protocol):
+    """Bộ nhớ đệm mảng đã dựng (theo byte) của tiến trình: get(key) -> giá trị | None; put(key, giá trị, số byte); clear(); used (byte)."""
+    used: int
+
+    def get(self, key: Any) -> Any: ...
+
+    def put(self, key: Any, value: Any, nbytes: int) -> None: ...
+
+    def clear(self) -> None: ...
+
+
+class DataSource(Protocol):
+    """Mọi thứ engine cần từ dữ liệu (đúng các thao tác engine dùng; cài đặt: backend/optimize/search/evaluate.py::EngineData)."""
+
+    def candles(self, symbol: str, frame: str, start: int, end: int, columns: Optional[List[str]] = None,
+                use_cache: bool = True) -> Any:
+        """Nến [start, end] (gồm hai đầu) của khung `frame` (DataFrame như CandleLoader.load_data)."""
+
+    def funding(self, symbol: str) -> Any:
+        """Toàn bộ funding.pkl của instrument perp (DataFrame) hoặc None nếu không có."""
+
+    def require_ok(self, symbols: List[str]) -> Any:
+        """Cổng chất lượng dữ liệu BẮT BUỘC (raise nếu synthetic / sai sha256 / thiếu dữ liệu)."""
+
+    def manifest(self, symbol: str) -> Optional[Dict[str, Any]]:
+        """Manifest của tài sản (venue, pool_fee_rate, start_ts, end_ts, ...) hoặc None."""
+
+    def base_name(self, symbol: str) -> str:
+        """Tên tài sản trần: 'cex:btc@perp' -> 'BTC'."""
+
+    def shared_plan(self, eng: Any) -> Optional[Dict[str, Any]]:
+        """Khoá kho mmap dùng chung cho đúng bộ dữ liệu engine `eng` sẽ dựng (None: không dùng kho)."""
+
+    def shared_load(self, out_dir: str, plan: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Dữ liệu của `plan` từ kho (giống PortfolioEngine._build_symbol_data) hoặc None nếu thiếu / hỏng."""
+
+    def shared_fill(self, out_dir: str, pe: Any, eng: Any, plan: Dict[str, Any]) -> Any:
+        """Tính (qua đúng hàm của engine) và ghi phần còn thiếu của `plan` vào kho."""
+
+    def release(self) -> None:
+        """Nhả bộ nhớ đệm nến của tiến trình (sau khi điền kho)."""
+
+    @property
+    def memo(self) -> DataMemo:
+        """Bộ nhớ đệm mảng đã dựng của tiến trình (PortfolioEngine._load_symbol)."""
+
+
+_DEFAULT_DATA: List[Any] = [None]
+_DEFAULT_FACTORY: List[Any] = [None]
+
+
+def set_default_data_source(src: Optional[DataSource]) -> None:
+    """Đăng ký nguồn dữ liệu mặc định của tiến trình (gọi ở tầng trên — backend/optimize/__init__.py; test có thể thay)."""
+    _DEFAULT_DATA[0] = src
+    _DEFAULT_FACTORY[0] = None
+
+
+def set_default_data_factory(factory: Optional[Callable[[], DataSource]]) -> None:
+    """Như set_default_data_source nhưng LƯỜI: `factory()` chỉ chạy ở lần data_source() đầu tiên (gói đăng ký không phải import nặng khi nạp)."""
+    _DEFAULT_DATA[0] = None
+    _DEFAULT_FACTORY[0] = factory
+
+
+def data_source(data: Optional[DataSource] = None) -> DataSource:
+    """`data` nếu có, không thì nguồn mặc định đã đăng ký; chưa đăng ký -> RuntimeError rõ ràng."""
+    src = data if data is not None else _DEFAULT_DATA[0]
+    if src is None and _DEFAULT_FACTORY[0] is not None:
+        src = _DEFAULT_DATA[0] = _DEFAULT_FACTORY[0]()
+    if src is None:
+        raise RuntimeError("engine chưa có nguồn dữ liệu: truyền data=... hoặc import backend.optimize (đăng ký EngineData mặc định)")
+    return src

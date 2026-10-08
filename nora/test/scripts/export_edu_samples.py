@@ -1,7 +1,7 @@
 """Xuất 50 mẫu giáo dục (frontend/src/components/education/educationSamples.js) ra data/education/samples.json để job backend đọc.
 
 Cùng trường với bản JS: key, name, category, difficulty, position (tuỳ chọn), summary, code.
-Chạy:  backend/utils/ops/run_limited.sh --no-lock -- test/scripts/export_edu_samples.py [--check]
+Chạy:  ops/run_limited.sh --no-lock -- test/scripts/export_edu_samples.py [--check]
   --check  không ghi, thoát mã 1 nếu samples.json đã cũ so với file JS (dùng trong CI).
 """
 import json

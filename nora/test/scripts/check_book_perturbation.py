@@ -1,14 +1,18 @@
 #!/usr/bin/env python
-# Chạy: backend/utils/ops/run_limited.sh --no-lock -- test/scripts/check_book_perturbation.py (từ thư mục nora)
-import os, sys
+# Chạy: ops/run_limited.sh --no-lock -- test/scripts/check_book_perturbation.py (từ thư mục nora)
+import os
+import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 """Kiểm overfit: đổi từng tham số của alpha ±1-2 bước schema, chấm trên holdout (bi quan). Plateau thật -> đa số lân cận vẫn lãi."""
-import json, warnings, statistics as S
+import json
+import warnings
+import statistics as S
 warnings.filterwarnings("ignore")
 import pandas as pd
-from backend.core.backtest.run import run
-from backend.core.strategy.book import BY_ID, RISK, perp_symbols
-b = json.load(open("data/alphas/book.json"))
+from backend.optimize.search.evaluate import run
+from backend.core.params import RISK
+from backend.optimize.book.build import BY_ID, perp_symbols
+b = json.load(open("data/alpha/book.json"))
 w = b["windows"]; ms = lambda d: int(pd.Timestamp(d, tz="UTC").timestamp() * 1000)
 start, end = ms(w["dev2_end"]), ms(w["end"])
 for s in b["strategies"]:

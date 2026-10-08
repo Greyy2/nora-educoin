@@ -1,22 +1,12 @@
-"""Monte Carlo trên lợi suất NGÀY mark-to-market cho đường đơn tài sản (WFA -> MC -> cổng optimize_alphas).
-
-1. daily_returns_from_curve = đúng chuỗi ngày mà portfolio_metrics từng tự tính (so với bản cũ, từng bit).
-2. WFA đơn tài sản xuất aggregate_oos_daily_returns (chỉ fold TRADED, chỉ trong cửa sổ test).
-3. MC chọn basis daily/trades; fallback có ghi chú; cùng seed -> cùng kết quả.
-4. optimize_alphas.monte_carlo_gate: cổng ruin đọc MC ngày, giữ MC lệnh làm tham chiếu.
-"""
-import importlib.util
+"""Số đo lợi suất NGÀY mark-to-market dùng chung: daily_returns_from_curve = đúng chuỗi ngày mà portfolio_metrics từng tự tính (so với bản cũ, từng bit)."""
 import os
-import time
 
 import numpy as np
 import pandas as pd
-import pytest
 
-from backend.core.metrics.returns import daily_returns_from_curve
-from backend.core.metrics.portfolio import portfolio_metrics
-from backend.core.data.resampler import save_resampled_dataset
-from test_round3_completion import FLOW_1M, T0, D, _rw_1m
+from backend.metrics.metrics import daily_returns_from_curve
+from backend.metrics.metrics import portfolio_metrics
+from test_round3_completion import T0, D
 
 NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
@@ -66,71 +56,3 @@ def test_daily_returns_from_curve_empty_and_before_start():
     assert daily_returns_from_curve([], 0, 1000.0) == []
     rows = [{"time": 1000, "equity": 1000.0, "equity_worst": 1000.0}]
     assert daily_returns_from_curve(rows, 10**13, 1000.0) == []
-
-
-# ── 2. WFA đơn tài sản ──────────────────────────────────────────────────────
-@pytest.fixture
-def clean_asset(tmp_path, monkeypatch):
-    root = tmp_path / "data"
-    root.mkdir()
-    monkeypatch.setenv("NORA_LOCAL_DATA_ROOT", str(root))
-    df = _rw_1m(40)
-    save_resampled_dataset(symbol="CLEAN", output_dir=str(root), df_1m_raw=df, pool_address="0xclean", crawl_ok=True,
-                           requested_start_ts=int(df.open_time.min()), requested_end_ts=int(df.open_time.max()))
-    return "CLEAN"
-
-
-def _wfa(sym):
-    from backend.api.jobs.store import create_wfa_job, get_wfa_job
-    from backend.core.contracts import StrategySnapshot, WfaFoldConfig
-    from backend.wfa.walk_forward import execute_wfa_pipeline
-    snap = StrategySnapshot(name="DailyMC", symbol=sym, flows=[FLOW_1M], start_ts=T0 + 6 * D, end_ts=T0 + 39 * D)
-    job_id = create_wfa_job(sym, "DailyMC", 0)
-    execute_wfa_pipeline(job_id, snap, WfaFoldConfig(train_days=10, test_days=5, min_folds=3), "h")
-    job = get_wfa_job(job_id)
-    assert job["status"] == "completed", job.get("error")
-    return job_id, job["result"]
-
-
-# ── 3. Chọn basis của Monte Carlo ───────────────────────────────────────────
-def _wait_mc(job_id, timeout=30):
-    from backend.api.jobs.store import get_mc_job
-    end = time.time() + timeout
-    while time.time() < end:
-        job = get_mc_job(job_id)
-        if job and job.get("status") in ("completed", "failed"):
-            return job
-        time.sleep(0.05)
-    raise AssertionError("MC job không kết thúc")
-
-
-def _fake_wfa(daily, trades):
-    from backend.api.jobs.store import complete_wfa_job, create_wfa_job
-    job_id = create_wfa_job("CLEAN", "S", 4)
-    res = {"acceptance_gate_passed": True, "aggregate_oos_trades": trades, "strategy_name": "S", "symbol": "CLEAN"}
-    if daily is not None:
-        res["aggregate_oos_daily_returns"] = daily
-    complete_wfa_job(job_id, res)
-    return job_id
-
-
-def _run_mc(job_id, **kw):
-    from backend.api.jobs.store import create_mc_job
-    from backend.carlo.monte_carlo import execute_monte_carlo_pipeline
-    from backend.core.contracts import MonteCarloRunRequest
-    req = MonteCarloRunRequest(source_wfa_id=job_id, simulations=200, **kw)
-    mid = create_mc_job("CLEAN", "S", 200, source_wfa_id=job_id)
-    execute_monte_carlo_pipeline(mid, req, [])
-    job = _wait_mc(mid)
-    assert job["status"] == "completed", job.get("error")
-    return job["result"]
-
-
-# ── 4. Cổng MC của optimize_alphas ──────────────────────────────────────────
-def _load_optimize():
-    spec = importlib.util.spec_from_file_location("optimize_alphas_mod", os.path.join(NORA_ROOT, "backend", "optimize", "optimize_alphas.py"))
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
-
-

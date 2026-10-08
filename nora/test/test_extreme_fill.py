@@ -2,7 +2,7 @@
 trong nến chạy — engine.minute_path), đúng như khi chạy khung 1m; trước đây khớp ở đáy/đỉnh của cả nến 15m/1h (bi quan gấp nhiều lần)."""
 import numpy as np
 
-from backend.core.strategy.book import f
+from backend.alpha.compile import f
 from test_strategy_book import T0, market  # noqa: F401  (market là fixture: 70 ngày, 3 tài sản)
 
 DAY = 86_400_000
@@ -11,7 +11,7 @@ LONG = {"id": "rsi15_long", "side": "LONG", "tree": [[[f("15m", "rsi_14"), "<", 
 
 
 def _run(base_frame, stop_fill):
-    from backend.core.backtest.portfolio import PortfolioEngine, RiskConfig
+    from backend.core.backtest import PortfolioEngine, RiskConfig
     st = {**LONG, "position": {**POS, "stop_fill": stop_fill}}
     eng = PortfolioEngine(["BBB@perp"], [st], T0 + 2 * DAY, T0 + 68 * DAY, trade_start_ts=T0 + 10 * DAY,
                           risk=RiskConfig.from_dict({"max_positions": 99, "max_per_symbol": 99, "max_gross_exposure": 1e9, "kill_switch_dd_pct": 0}),
@@ -21,7 +21,7 @@ def _run(base_frame, stop_fill):
 
 
 def test_minute_path_offsets_cover_each_base_bar(market):
-    from backend.core.backtest.engine import BacktestEngine
+    from backend.core.backtest import BacktestEngine
     eng = BacktestEngine(0, 0, "BBB@perp", T0 + 2 * DAY, T0 + 5 * DAY, base_frame="15m")
     t = T0 + 3 * DAY + np.arange(4, dtype=np.int64) * 900_000
     mp = eng.minute_path(t)

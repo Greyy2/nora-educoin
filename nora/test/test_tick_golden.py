@@ -1,6 +1,6 @@
 """Golden đường TICK (TickBook / run_tick): kết quả phải BIT-IDENTICAL với test/golden/tick_*.json (P9.4b T0 — mốc trước khi gộp engine).
 
-Sinh lại CHỈ khi chủ đích đổi ngữ nghĩa tick:  backend/utils/ops/run_limited.sh --no-lock -- test/scripts/make_golden_tick.py
+Sinh lại CHỈ khi chủ đích đổi ngữ nghĩa tick:  ops/run_limited.sh --no-lock -- test/scripts/make_golden_tick.py
 """
 import json
 import os

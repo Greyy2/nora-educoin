@@ -1,7 +1,7 @@
 """Unit systemd của Nora: restart API không được giết job nền (job là tiến trình con của nora-api.service)."""
 import os
 
-OPS = os.path.join(os.path.dirname(__file__), "..", "backend", "utils", "ops", "systemd")
+OPS = os.path.join(os.path.dirname(__file__), "..", "ops", "systemd")
 
 
 def _directives(name):
@@ -17,7 +17,7 @@ def test_api_unit_restart_keeps_background_jobs():
 
 def test_job_launcher_points_at_existing_run_limited_and_modules():
     import importlib
-    from backend.api.jobs import batch
+    from backend.optimize.process import process as batch
     assert os.access(batch.RUN_LIMITED, os.X_OK)
     for kind, spec in batch.KINDS.items():
         importlib.import_module(spec["module"])          # mọi loại job trỏ tới module có thật
@@ -26,14 +26,14 @@ def test_job_launcher_points_at_existing_run_limited_and_modules():
 def test_backend_has_only_planned_packages():
     root = os.path.join(os.path.dirname(__file__), "..", "backend")
     pkgs = {d for d in os.listdir(root) if os.path.isdir(os.path.join(root, d)) and not d.startswith(("_", "."))}
-    # ADR-P9: package đích + package cũ còn trong giai đoạn chuyển (api -> routes, db/utils -> crawl/optimize; gỡ ở P9.10)
-    target = {"core", "metrics", "regime", "wfa", "carlo", "verdict", "optimize", "crawl", "live", "routes"}
-    legacy = {"api", "db", "utils"}
+    # ADR-P9: package đích; script vận hành nằm ngoài backend (nora/ops)
+    target = {"alpha", "core", "metrics", "regime", "wfa", "carlo", "optimize", "crawl", "live", "routes"}
+    legacy = set()
     assert pkgs <= target | legacy, sorted(pkgs - target - legacy)
 
 
 def test_resume_code_fingerprint_files_exist():
-    from backend.optimize import store as results_store
+    from backend.optimize.funnel import storage as results_store
     root = os.path.join(os.path.dirname(__file__), "..")
     missing = [f for f in results_store._CODE_FILES if not os.path.isfile(os.path.join(root, f))]
     assert not missing        # file đổi tên mà quên cập nhật -> khoá resume không còn theo dõi mã thật

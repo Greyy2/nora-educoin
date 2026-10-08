@@ -11,46 +11,47 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from backend.api.jobs import batch as batch_jobs
+from backend.optimize.process import process as batch_jobs
+from backend.routes import jobs as batch_jobs_routes
 from job_modules import launched
-from backend.api.routers import book as book_router
-from backend.api.routers import strategies as strategies_router
-from backend.core.params.builder import POSITION_KEYS
-from backend.core.params import presets as pr
-from backend.core.params import modes as rm
-from backend.core.params.template import FRAMES, collect_placeholders, collect_string_placeholders, resolve_placeholders
-from backend.core.strategy import book as sb
-from backend.core.strategy.book import BASE_POSITION, BY_ID, CANDIDATES, materialize, schema_defaults
+from backend.routes import book as book_router
+from backend.routes import strategies as strategies_router
+from backend.core.params import POSITION_KEYS
+from backend.optimize.book import build as pr
+from backend.routes import modes as rm
+from backend.core.params import FRAMES, collect_placeholders, collect_string_placeholders, resolve_placeholders
+from backend.core.params import BASE_POSITION, materialize, schema_defaults
+from backend.optimize.book.build import BY_ID, CANDIDATES
 from legacy_candidates import LEGACY
-from backend.core.strategy.library import calc, cond, cross_over, cross_under, f, p
+from backend.alpha.compile import calc, cond, cross_over, cross_under, f, tree_p
 
 
 # ─── Cây CŨ (literal, trước khi tham số hoá chu kỳ/khung) — bằng chứng bit-identical của mặc định ──────────
 _UP_1H = (f("1h", "ema_50"), ">", f("1h", "ema_200"))
 _DN_1H = (f("1h", "ema_50"), "<", f("1h", "ema_200"))
-_KC_UP = {**f("4h", "ema_30"), "add": calc(f("4h", "atr_14"), "*", p("k_up", 2.0))}
-_KC_DN = {**f("4h", "ema_30"), "subtract": calc(f("4h", "atr_14"), "*", p("k_dn", 2.0))}
+_KC_UP = {**f("4h", "ema_30"), "add": calc(f("4h", "atr_14"), "*", tree_p("k_up", 2.0))}
+_KC_DN = {**f("4h", "ema_30"), "subtract": calc(f("4h", "atr_14"), "*", tree_p("k_dn", 2.0))}
 # Cây mặc định (tham số = mặc định schema). Họ trend/breakout/momentum vào lệnh khi CẮT (sự kiện, như ta.crossover / KEMA của sova).
 OLD_TREES = {
-    "trend_long": cond(_UP_1H, (f("1h", "adx_14"), ">", p("adx_min", 20)), *cross_over(f("15m", "close"), f("15m", "dch_20"))),
-    "trend_short": cond(_DN_1H, (f("1h", "adx_14"), ">", p("adx_min", 20)), *cross_under(f("15m", "close"), f("15m", "dcl_20"))),
+    "trend_long": cond(_UP_1H, (f("1h", "adx_14"), ">", tree_p("adx_min", 20)), *cross_over(f("15m", "close"), f("15m", "dch_20"))),
+    "trend_short": cond(_DN_1H, (f("1h", "adx_14"), ">", tree_p("adx_min", 20)), *cross_under(f("15m", "close"), f("15m", "dcl_20"))),
     "breakout_4h_long": cond((f("4h", "ema_50"), ">", f("4h", "ema_200")), *cross_over(f("4h", "close"), f("4h", "dch_20"))),
     "breakout_4h_short": cond((f("4h", "ema_50"), "<", f("4h", "ema_200")), *cross_under(f("4h", "close"), f("4h", "dcl_20"))),
     "keltner_trend_long": cond(*cross_over(f("4h", "close"), _KC_UP)),
     "keltner_trend_short": cond(*cross_under(f("4h", "close"), _KC_DN)),
-    "momentum_long": cond(*cross_over(f("1h", "roc_24"), p("roc_min", 3)), (f("15m", "close"), ">", f("15m", "ema_20"))),
-    "reversion_long": cond((f("5m", "rsi_14"), "<", p("rsi_lo", 25)), (f("5m", "close"), "<", f("5m", "bbl_20_2")),
-                           (f("1h", "er_20"), "<", p("er_max", 0.3))),
-    "reversion_short": cond((f("5m", "rsi_14"), ">", p("rsi_hi", 75)), (f("5m", "close"), ">", f("5m", "bbu_20_2")),
-                            (f("1h", "er_20"), "<", p("er_max", 0.3))),
+    "momentum_long": cond(*cross_over(f("1h", "roc_24"), tree_p("roc_min", 3)), (f("15m", "close"), ">", f("15m", "ema_20"))),
+    "reversion_long": cond((f("5m", "rsi_14"), "<", tree_p("rsi_lo", 25)), (f("5m", "close"), "<", f("5m", "bbl_20_2")),
+                           (f("1h", "er_20"), "<", tree_p("er_max", 0.3))),
+    "reversion_short": cond((f("5m", "rsi_14"), ">", tree_p("rsi_hi", 75)), (f("5m", "close"), ">", f("5m", "bbu_20_2")),
+                            (f("1h", "er_20"), "<", tree_p("er_max", 0.3))),
 }
 
 OLD_TREES.update({"kema_long": OLD_TREES["keltner_trend_long"], "kema_short": OLD_TREES["keltner_trend_short"],
                   "sideway_long": OLD_TREES["reversion_long"], "sideway_short": OLD_TREES["reversion_short"],
-                  "dca_long": cond((f("1h", "rsi_14"), "<", p("rsi_lo", 30)), (f("1h", "close"), "<", f("1h", "bbl_20_2")),
-                                   (f("4h", "er_20"), "<", p("er_max", 0.35))),
-                  "dca_short": cond((f("1h", "rsi_14"), ">", p("rsi_hi", 70)), (f("1h", "close"), ">", f("1h", "bbu_20_2")),
-                                    (f("4h", "er_20"), "<", p("er_max", 0.35)))})
+                  "dca_long": cond((f("1h", "rsi_14"), "<", tree_p("rsi_lo", 30)), (f("1h", "close"), "<", f("1h", "bbl_20_2")),
+                                   (f("4h", "er_20"), "<", tree_p("er_max", 0.35))),
+                  "dca_short": cond((f("1h", "rsi_14"), ">", tree_p("rsi_hi", 70)), (f("1h", "close"), ">", f("1h", "bbu_20_2")),
+                                    (f("4h", "er_20"), "<", tree_p("er_max", 0.35)))})
 REAL_CATALOG_TESTS = ("test_real_catalog_", "test_default_resolution_equals_old_literal_tree", "test_default_position_and_signal_params_unchanged",
                       "test_schema_is_well_formed")
 
@@ -59,8 +60,8 @@ REAL_CATALOG_TESTS = ("test_real_catalog_", "test_default_resolution_equals_old_
 def _legacy_catalog(request, monkeypatch):
     """Phần lớn test cơ chế (preset, chế độ chạy, kiểm tham số) viết trên 9 chiến lược cũ: chạy chúng trên danh mục cũ; test danh mục thật thì không."""
     if not request.node.name.startswith(REAL_CATALOG_TESTS):
-        monkeypatch.setattr(sb, "CANDIDATES", list(LEGACY))
-        monkeypatch.setattr(sb, "EXTRA_CANDIDATES", [])
+        monkeypatch.setattr(pr, "CANDIDATES", list(LEGACY))
+        monkeypatch.setattr(pr, "EXTRA_CANDIDATES", [])
 
 
 # ─── 1. Mẫu tham số hoá ──────────────────────────────────────────────────────
@@ -373,7 +374,7 @@ def test_get_strategies_shape(client):
     r = client.get("/api/studio/strategies")
     assert r.status_code == 200
     rows = r.json()
-    assert [x["id"] for x in rows] == [c["id"] for c in sb.CANDIDATES] and len(rows) == 9
+    assert [x["id"] for x in rows] == [c["id"] for c in pr.CANDIDATES] and len(rows) == 9
     x = {r["id"]: r for r in rows}["trend_long"]
     assert set(x) == {"id", "strategy", "family", "side", "description", "params_schema", "preset", "frames_allowed"}
     assert x["frames_allowed"] == list(FRAMES) and list(x["params_schema"]) == list(BY_ID["trend_long"]["params_schema"])   # thứ tự giữ nguyên
@@ -420,7 +421,7 @@ def test_basic_mode_ignores_client_params_and_uses_presets(client):
 
 
 def test_basic_mode_limits_strategy_count_and_ids(client):
-    ids = [c["id"] for c in sb.CANDIDATES]
+    ids = [c["id"] for c in pr.CANDIDATES]
     assert client.post(URL, json={**BT, "strategies": [{"id": i} for i in ids]}).status_code == 200      # đúng 9 (cả sổ)
     n = len(FakePopen.calls)
     r = client.post(URL, json={**BT, "strategies": [{"id": i} for i in ids] + [{"id": "trend_long"}]})
@@ -571,7 +572,8 @@ def test_mc_advanced_bad_stress_names_422(client):
 
 
 def _stamped_job(kind, state="done", name=None, result=None, **meta):
-    d = os.path.join(batch_jobs.jobs_root(), name or f"{time.strftime('%Y%m%d_%H%M%S')}_a1b2c3")
+    base = (batch_jobs.persist_dest_base(kind) if state == "done" else None) or batch_jobs.jobs_root()   # job đã xong sống ở thư mục kết quả bền
+    d = os.path.join(base, name or f"{time.strftime('%Y%m%d_%H%M%S')}_a1b2c3")
     os.makedirs(d, exist_ok=True)
     batch_jobs._write_meta(d, {"id": os.path.basename(d), "kind": kind, "params": {}, "pid": 2 ** 22 + 1, "created": 1.0, "started": 2.0,
                                "finished": 3.0, "state": state, "exit_code": 0, **meta})
@@ -680,16 +682,16 @@ def test_wfa_advanced_strategy_configs(client):
 
 
 def test_check_wfa_strategies_accepts_schema_keys_and_choices():
-    ok = batch_jobs.check_wfa_strategies([{"id": "trend_long", "configs": [{"sig.ema_fast": 20, "sig.trend_tf": "4h", "stop_loss_rate": 2.0}]}])
+    ok = batch_jobs_routes.check_wfa_strategies([{"id": "trend_long", "configs": [{"sig.ema_fast": 20, "sig.trend_tf": "4h", "stop_loss_rate": 2.0}]}])
     assert ok[0]["configs"][0]["sig.trend_tf"] == "4h"
     for bad in ({"sig.trend_tf": "3h"}, {"sig.ema_fast": "20"}, {"nope": 1}, {"stop_loss_rate": float("nan")}, {"stop_loss_rate": True}):
         with pytest.raises(batch_jobs.JobError):
-            batch_jobs.check_wfa_strategies([{"id": "trend_long", "configs": [bad]}])
+            batch_jobs_routes.check_wfa_strategies([{"id": "trend_long", "configs": [bad]}])
 
 
 def test_wfa_job_candidates_from_list_accepts_schema_keys():
     import importlib
-    vb = importlib.import_module("backend.wfa.run")
+    vb = importlib.import_module("backend.optimize.process.tasks")
     assert vb.candidates_from_list([{"id": "trend_long", "configs": [{"sig.ema_fast": 20, "sig.trend_tf": "4h"}]}])[0]["configs"][0]["sig.trend_tf"] == "4h"
     with pytest.raises(SystemExit):
         vb.candidates_from_list([{"id": "trend_long", "configs": [{"nope": 1}]}])
@@ -711,7 +713,7 @@ def test_presets_evidence_bools_are_real_bools(tmp_path):
 
 def test_timeframe_lifts_frames_and_blocks_incompatible_strategies():
     """Khung chạy: lựa chọn khung < khung chạy được nâng lên (nếu là lựa chọn hợp lệ) hoặc bỏ; chiến lược không còn khung hợp lệ bị báo."""
-    from backend.optimize.funnel import generate as gen
+    from backend.optimize.search import generate as gen
     by = BY_ID
     sp = gen.space_for(by["trend_long"], "schema", "1h")
     assert set(sp["sig.entry_tf"]) == {"1h"} and set(sp["sig.trend_tf"]) == {"1h", "4h", "24h"}

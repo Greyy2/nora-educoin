@@ -4,9 +4,9 @@ import math
 import numpy as np
 import pytest
 
-from backend.core.metrics import returns as rt
-from backend.core.metrics.portfolio import curve_mdd_pct, series_metrics
-from backend.core.metrics.trades import NOTE_NO_LOSSES, NOTE_NO_PNL, NOTE_NO_TRADES, exposure_metrics, strategy_correlation, trade_metrics, trade_stats
+from backend.metrics import metrics as rt
+from backend.metrics.metrics import curve_mdd_pct, series_metrics
+from backend.metrics.trades import NOTE_NO_LOSSES, NOTE_NO_PNL, NOTE_NO_TRADES, exposure_metrics, strategy_correlation, trade_metrics, trade_stats
 
 H = 3_600_000
 D = 24 * H
@@ -98,7 +98,7 @@ def test_zero_trades_give_none_not_zero():
     assert m["win_rate_note"] == NOTE_NO_TRADES and m["profit_factor_note"] == NOTE_NO_TRADES
     assert trade_stats([]) == {"win_rate": None, "win_rate_note": NOTE_NO_TRADES, "profit_factor": None, "profit_factor_note": NOTE_NO_TRADES}
     # đường phễu: series_metrics không lệnh -> None (không 0 giả), cổng S1 vẫn quyết định theo số lệnh
-    from backend.core.metrics.portfolio import series_metrics
+    from backend.metrics.metrics import series_metrics
     sm = series_metrics([0.001, -0.002], [])
     assert sm["trades"] == 0 and sm["win_rate"] is None and sm["profit_factor"] is None and sm["profit_factor_note"] == NOTE_NO_TRADES
 
@@ -168,8 +168,10 @@ def test_funnel_gates_do_not_read_win_rate_or_profit_factor():
     "không có lệnh thua" (profit_factor_note == NOTE_NO_LOSSES) phải được coi là ĐẠT (hành vi cũ PF = 99) — test này sẽ nhắc."""
     import inspect
 
-    from backend.optimize.funnel import gates
-    src = inspect.getsource(gates)
+    from backend.optimize.funnel import stages as gates
+    # P9.10b: cổng đã gộp vào optimize/funnel/stages.py (cùng file với mã chạy phễu/hiển thị đọc win_rate/PF) -> chỉ quét các hàm cổng evaluate_*
+    src = "".join(inspect.getsource(getattr(gates, n)) for n in ("evaluate_s1", "evaluate_dsr", "evaluate_neighbour", "evaluate_s3", "evaluate_mc_checks", "evaluate_s6",
+                                                                   "dsr_cut", "thresholds_snapshot", "_msg", "reason_label"))
     assert "profit_factor" not in src and "win_rate" not in src
     base = {"ret_pct": 5.0, "mdd_pct": 5.0, "trades": 500, "symbols_positive": 8}
     assert gates.evaluate_s1({**base, "profit_factor": None, "win_rate": None}) == gates.evaluate_s1({**base, "profit_factor": 99.0, "win_rate": 100.0})

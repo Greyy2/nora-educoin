@@ -1,6 +1,6 @@
 """Run Nora's single kernel engine (SlotDriver = slot_bar on arrays; self-check: == RefPositionTracker, the frozen oracle in test/reference_engine.py)
 bar by bar on the exported bars/signals. Writes out/nora_<dataset>_<signal>_<stage>.json.
-Run from nora/: PYTHONDONTWRITEBYTECODE=1 backend/utils/ops/run_limited.sh --no-lock -- test/scripts/nautilus_diff/run_nora.py [ohlc|adaptive]
+Run from nora/: PYTHONDONTWRITEBYTECODE=1 ops/run_limited.sh --no-lock -- test/scripts/nautilus_diff/run_nora.py [ohlc|adaptive]
 (intrabar_path; "adaptive" writes out/nora_<...>_adaptive.json and is compared with Nautilus bar_adaptive_high_low_ordering=True)
 """
 import json
@@ -14,7 +14,7 @@ sys.path.insert(0, HERE)
 from common import STAGES, SIGNALS, DATASETS, CAPITAL, ORDER_SIZE_PCT, TAKER, MAKER  # noqa: E402
 
 from step_common import run_single                                  # noqa: E402
-from backend.core.params.schema import StrategyParams                 # noqa: E402
+from backend.core.params import StrategyParams
 
 OUT = os.path.join(HERE, "out")
 

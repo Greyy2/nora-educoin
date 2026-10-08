@@ -7,13 +7,13 @@ Làm **đúng thứ tự**, xong dòng nào thì sửa cột "Trạng thái" tro
 
 | Luật | Cách làm |
 |---|---|
-| Chạy Python | Luôn qua `backend/utils/ops/run_limited.sh` từ thư mục `nora/`. Lệnh nhẹ thêm `--no-lock`. Ví dụ: `backend/utils/ops/run_limited.sh --no-lock -- -m pytest -q test/test_golden_results.py` |
+| Chạy Python | Luôn qua `ops/run_limited.sh` từ thư mục `nora/`. Lệnh nhẹ thêm `--no-lock`. Ví dụ: `ops/run_limited.sh --no-lock -- -m pytest -q test/test_golden_results.py` |
 | Biến môi trường | `export PYTHONDONTWRITEBYTECODE=1` trước khi chạy |
 | Golden | Sau MỌI thay đổi engine: `test/test_golden_results.py` phải xanh (trùng từng bit). Không chạy `test/scripts/make_golden.py` trừ khi CỐ Ý đổi luật khớp lệnh |
 | Một engine | Không tạo engine thứ hai. Tăng tốc = sửa ruột `PortfolioEngine`/`BacktestEngine` |
 | Một chỗ cấu hình worker | `backend/utils/parallel.py` + `backend/utils/memwatch.py`. Không thêm biến/cờ worker ở chỗ khác |
 | Dữ liệu thật | Không mock trong backtest/WFA/MC. Quality gate (`require_data_ok`) đã chặn sẵn |
-| Full test | `backend/utils/ops/run_limited.sh -- -m pytest test -q -p no:cacheprovider` (~16 phút). Chạy trước mỗi commit |
+| Full test | `ops/run_limited.sh -- -m pytest test -q -p no:cacheprovider` (~16 phút). Chạy trước mỗi commit |
 | Commit | Nhỏ, theo từng ID (vd `perf(engine): P1.2 numba kernel`) |
 
 ---
@@ -32,7 +32,7 @@ Làm **đúng thứ tự**, xong dòng nào thì sửa cột "Trạng thái" tro
 | `requirements.txt` | Chưa ghim `numba` |
 
 ### P1.1 Profile
-1. `backend/utils/ops/run_limited.sh --no-lock -- test/scripts/bench_engine.py --help` → xem tham số.
+1. `ops/run_limited.sh --no-lock -- test/scripts/bench_engine.py --help` → xem tham số.
 2. Chạy 1 alpha thật (breakout_4h_long mặc định, 8 tài sản perp, cửa sổ dev1) với cProfile.
 3. Ghi bảng % thời gian: nạp dữ liệu / tín hiệu (VectorEvaluator) / vòng lặp / metrics vào `docs/bmad/stories/E12-S6-profile.md`.
 - **Xong khi:** biết vòng lặp chiếm bao nhiêu %. Nếu tín hiệu chiếm lớn → P1.5 (dùng chung tín hiệu) quan trọng hơn numba.
@@ -40,10 +40,10 @@ Làm **đúng thứ tự**, xong dòng nào thì sửa cột "Trạng thái" tro
 ### P1.2–P1.3 Kernel trùng từng bit
 1. Ghim numba: `uv pip install -p /home/vmc03/.venvs/nora/bin/python numba`, thêm dòng `numba==<phiên bản>` vào `requirements.txt`.
 2. Sửa 2 test trượt trước:
-   - `NORA_PARITY_CONFIGS=6 backend/utils/ops/run_limited.sh --no-lock -- -m pytest test/test_kernel_parity.py -q -k ruin`
+   - `NORA_PARITY_CONFIGS=6 ops/run_limited.sh --no-lock -- -m pytest test/test_kernel_parity.py -q -k ruin`
    - So từng trường kết quả (hàm `assert_bit_identical` in trường lệch đầu tiên). Hay gặp: thứ tự phép cộng phí/funding khi vốn ≤ 0; cờ `ruined_at`; không mở lệnh sau khi halt; mẫu equity sau halt.
    - Sửa **kernel**, không sửa test, không nới so sánh.
-3. Chạy đủ: `backend/utils/ops/run_limited.sh -- -m pytest test/test_kernel_parity.py -q` (mặc định 330 cấu hình). Phải xanh 100%.
+3. Chạy đủ: `ops/run_limited.sh -- -m pytest test/test_kernel_parity.py -q` (mặc định 330 cấu hình). Phải xanh 100%.
 4. Gắn vào engine (diff nhỏ nhất): trong `PortfolioEngine.run()` và `BacktestEngine.run()` thay thân vòng lặp từng phút bằng gọi kernel qua `_kernel_io`; giữ nguyên chữ ký hàm, `get_results()`.
 5. Xoá vòng lặp Python cũ trong engine (bản cũ chỉ còn ở `test/reference_engine.py`).
 6. Kiểm: golden + parity + full test.
@@ -122,7 +122,7 @@ File `docs/bmad/stories/E15-S1-regime-spec.md`, trả lời:
 ---
 
 ## P3 — Chạy phễu thật end-to-end
-1. `backend/utils/ops/run_limited.sh -- -m backend.optimize.run_funnel --strategies <7 chiến lược> --n-per-strategy <N> --seed 7`
+1. `ops/run_limited.sh -- -m backend.optimize.run_funnel --strategies <7 chiến lược> --n-per-strategy <N> --seed 7`
 2. Theo dõi trên `/funnel` (UI) hoặc `GET /api/studio/funnel/runs/{id}`.
 3. Ghi bảng 100k → ? → ? vào `docs/research/funnel_run_<ngày>.md` (số lượng, lý do loại hàng đầu mỗi tầng).
 4. SOL (P3.3): chạy S5 sizing cho `trend_long_perp__SOL`; cập nhật `data/alphas/registry.json`; trượt → xoá `data/alphas/testnet/trend_long_perp__SOL.json`.

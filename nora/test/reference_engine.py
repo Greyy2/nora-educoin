@@ -21,18 +21,16 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 import numpy as np
 import pandas as pd
 
-from backend.core.data import shared as shared_data
-from backend.core.backtest.engine import BacktestEngine as _ProdEngine
-from backend.core.backtest.engine import FRAME_MS, collect_field_refs
-from backend.core.backtest.portfolio import _DATA_CACHE, RiskConfig, _strategy_flow
-from backend.core.signals import kernels
-from backend.core.signals.evaluator import VectorEvaluator, lag_key
+from backend.optimize.search import evaluate as shared_data
+from backend.core.backtest import BacktestEngine as _ProdEngine, FRAME_MS, collect_field_refs, data_source, RiskConfig, _strategy_flow
+from backend.core import indicator as kernels
+from backend.core.signal import VectorEvaluator, lag_key
 
 
 import itertools
 import time
-from backend.core.params.schema import StrategyParams
-from backend.core.execute.models import OrderModel, OrderType, PositionModel, PositionStatus, PositionType
+from backend.core.params import StrategyParams
+from backend.core.models import OrderModel, OrderType, PositionModel, PositionStatus, PositionType
 
 # Bộ đếm id toàn cục, tăng dần và không trùng (int(time.time()*1000) trùng khi
 # nhiều lệnh mở trong cùng 1 ms). Bắt đầu từ epoch-ms * 1000 để vẫn sắp xếp theo thời gian.
@@ -782,6 +780,7 @@ class RefBacktestEngine:
     # ─── Dữ liệu: dùng CHUNG đường nạp / căn khung / chỉ báo của engine thật (tham chiếu chỉ đóng băng logic khớp lệnh từng nến) ───
     base_frame = "1m"   # tham chiếu chạy trên nến 1m
     check_frames = _ProdEngine.__dict__["check_frames"]
+    _src = _ProdEngine.__dict__["_src"]
     load_data = _ProdEngine.__dict__["load_data"]
     load_frames = _ProdEngine.__dict__["load_frames"]
     _load_funding = _ProdEngine.__dict__["_load_funding"]
@@ -962,7 +961,7 @@ class RefPortfolioEngine:
 
     # ─── Dữ liệu ────────────────────────────────────────────────────────────
     def _make_trackers(self, symbol: str, ledger: RefCapitalLedger) -> Tuple[RefBacktestEngine, List[Tuple[Dict, RefPositionTracker]]]:
-        from backend.core.params.builder import build_params
+        from backend.core.params import build_params, manifest_pool_fee
         eng = RefBacktestEngine(0, 0, symbol, self.start_ts, self.end_ts, trade_start_ts=self.trade_start_ts,
                              initial_capital=self.initial_capital)
         eng.ledger = ledger
@@ -972,7 +971,7 @@ class RefPortfolioEngine:
                 continue
             name = f"{st['side']}_{st['id']}"
             eng.add_strategy_flow(name, build_params(name, _strategy_flow(st), st["side"], st["position"],
-                                                     self.venue, symbol=symbol))
+                                                     self.venue, pool_fee=manifest_pool_fee(data_source().manifest(symbol)) if self.venue == "dex" else None))
             pairs.append((st, eng.trackers[-1]))
         return eng, pairs
 
@@ -999,20 +998,20 @@ class RefPortfolioEngine:
         }
 
     def _load_symbol(self, symbol: str, eng: RefBacktestEngine) -> Dict[str, Any]:
-        if self.shared_dir:  # mmap chỉ đọc do tiến trình cha dựng — KHÔNG đưa vào _DATA_CACHE (không nhân bản RAM)
+        if self.shared_dir:  # mmap chỉ đọc do tiến trình cha dựng — KHÔNG đưa vào DataSource.memo (không nhân bản RAM)
             plan = shared_data.plan(eng)     # chỉ đọc phần đã có (lưu theo cột); thiếu thì dựng như thường
             shared = shared_data.load(self.shared_dir, plan) if plan else None
             if shared is not None:
                 return shared
         key = self._cache_key(symbol, eng)
         if self.use_cache:
-            cached = _DATA_CACHE.get(key)
+            cached = data_source().memo.get(key)
             if cached is not None:
                 return cached
         data = self._build_symbol_data(eng)
         if self.use_cache:
             arrays = [data[k] for k in ("t", "o", "h", "l", "c", "f_t", "f_r")] + list(data["cols"].values())
-            _DATA_CACHE.put(key, data, sum(a.nbytes for a in arrays))
+            data_source().memo.put(key, data, sum(a.nbytes for a in arrays))
         return data
 
     def load_data(self) -> None:
@@ -1023,8 +1022,7 @@ class RefPortfolioEngine:
                 continue
             # Cổng chất lượng dữ liệu BẮT BUỘC (synthetic / sai sha256 / thiếu dữ liệu -> từ chối); có cache theo file nên rẻ khi gọi lại.
             # Tiến trình cha của CLI đã gọi trước khi fork pool -> worker thừa kế cache, không đọc lại 1m.
-            from backend.core.data.quality_gate import require_data_ok
-            require_data_ok([sym])
+            data_source().require_ok([sym])
             data = self._load_symbol(sym, eng)
             n = len(data["t"])
             cols = data["cols"]

@@ -14,10 +14,10 @@ Giá chọn để tính tay: phí = trượt = 0, ký quỹ mỗi tầng 20% v�
 """
 import pytest
 
-from backend.core.execute import policy
-from backend.core.execute.models import PositionType
-from backend.core.execute.tracker import PositionTracker
-from backend.core.params.schema import StrategyParams
+from backend.core import position_size as policy
+from backend.core.models import PositionType
+from backend.core.backtest import PositionTracker
+from backend.core.params import StrategyParams
 from test_conservative_fills import _all, _params, _pos
 
 FLAT1 = (100.0, 100.0, 100.0, 100.0)
@@ -31,7 +31,7 @@ def _run(side, bars, path, **pos):
 
 # ─── mặc định, tham số, hàm thuần ───────────────────────────────────────────
 def test_default_is_ohlc_and_validation():
-    from backend.core.params.builder import build_params
+    from backend.core.params import build_params
     assert StrategyParams().intrabar_path == "ohlc"
     p = build_params("f", {"match": [], "stop": []}, "LONG", {"market": "spot"}, "cex")
     assert p.intrabar_path == "ohlc"

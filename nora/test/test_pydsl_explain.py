@@ -10,8 +10,8 @@
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from backend.api.routers import strategies as strategies_router
-from backend.core.strategy.pydsl import compile_code, explain_program, explain_report
+from backend.routes import strategies as strategies_router
+from backend.alpha.compile import compile_code, explain_program, explain_report
 
 
 def test_explain_form_1_crossover():
@@ -174,8 +174,8 @@ class Demo(SimpleAlgorithm):
 
 def test_nora_risk_text_follows_actual_position():
     """Câu 'Quản trị rủi ro' của hồ sơ nora chỉ nhắc cơ chế thực sự bật, theo tham số vị thế được gửi."""
-    from backend.core.strategy.pydsl import compile_code
-    from backend.core.strategy.pydsl.explain import explain_program
+    from backend.alpha.compile import compile_code
+    from backend.alpha.compile import explain_program
     code = ("class S(SimpleAlgorithm):\n    timeframe = '24h'\n    def __algorithm__(self):\n"
             "        c = self.data.pv_close\n        self.set_positions(c < self.feat.sma(c, 20), position=0)\n"
             "        self.set_positions(c > self.feat.sma(c, 20), position=1)\n")

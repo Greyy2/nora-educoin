@@ -1,6 +1,6 @@
 """Nora side of the extended differential test (S4-S8): the single kernel engine bar by bar on the exported bars/signals (SlotDriver for the
 single-symbol stages, checked == RefPositionTracker; KernelBook + admission trace for the S8 portfolio stages). Writes out/ext/nora_<ds>_<signal>_<stage>_<path>.json.
-Run from nora/: PYTHONDONTWRITEBYTECODE=1 backend/utils/ops/run_limited.sh --no-lock -- test/scripts/nautilus_diff/ext_run_nora.py [ohlc|adaptive] [stages,..] [datasets,..] [signals,..]
+Run from nora/: PYTHONDONTWRITEBYTECODE=1 ops/run_limited.sh --no-lock -- test/scripts/nautilus_diff/ext_run_nora.py [ohlc|adaptive] [stages,..] [datasets,..] [signals,..]
 """
 import json
 import os
@@ -13,7 +13,7 @@ sys.path.insert(0, HERE)
 from ext_common import skip, CAPITAL, DATASETS, MAKER, OUT, SIGNALS, STAGES, SYMS, TAKER  # noqa: E402
 
 from step_common import run_single as _run_single, run_portfolio as _run_portfolio  # noqa: E402
-from backend.core.params.schema import StrategyParams                 # noqa: E402
+from backend.core.params import StrategyParams
 
 
 def make_params(st, path):

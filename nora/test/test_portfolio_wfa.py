@@ -11,8 +11,9 @@ import json
 import numpy as np
 import pytest
 
-from backend.wfa import walk_forward as pw
-from backend.wfa.walk_forward import generate_folds
+from backend.optimize.process import tasks as pt
+from backend.wfa import wfa as pw
+from backend.wfa.wfa import generate_folds
 from test_strategy_book import T0, _load_script, _small_book, market  # noqa: F401  (market là fixture)
 
 DAY = 86_400_000
@@ -37,12 +38,12 @@ def _serial(monkeypatch):
     def fake(fn, jobs, workers, label):
         log.append((label, list(jobs)))
         return [fn(j) for j in jobs]
-    monkeypatch.setattr(pw, "_pool_map", fake)
+    monkeypatch.setattr(pt, "_pool_map", fake)
     return log
 
 
 def _run(sb, tmp_path, tag, end_days=66, cands=None):
-    return pw.run_portfolio_wfa(cands or _cands(), sb.perp_symbols(), START, T0 + end_days * DAY, CFG, RISK, 0.5, 1,
+    return pt.run_portfolio_wfa(cands or _cands(), sb.perp_symbols(), START, T0 + end_days * DAY, CFG, RISK, 0.5, 1,
                                 str(tmp_path / tag))
 
 
@@ -69,8 +70,8 @@ def _old_bootstrap(daily, scale, n=4000, block=5, horizon=365, seed=1, mdd_limit
 
 @pytest.mark.parametrize("scale", [0.25, 1.0, 3.0])
 def test_bootstrap_daily_identical_to_old_implementation(scale):
-    from backend.carlo.monte_carlo import bootstrap_daily
-    from backend.carlo.monte_carlo import run_monte_carlo_daily
+    from backend.carlo.carlo import bootstrap_daily
+    from backend.carlo.carlo import run_monte_carlo_daily
     daily = np.random.default_rng(3).normal(0.001, 0.02, 300)
     old = _old_bootstrap(daily, scale, n=500, seed=5)
     assert bootstrap_daily(daily, scale, n=500, seed=5) == old
@@ -82,8 +83,8 @@ def test_bootstrap_daily_identical_to_old_implementation(scale):
 
 
 def test_script_aliases_still_point_to_shared_metrics():
-    from backend.carlo.monte_carlo import bootstrap_daily
-    from backend.core.metrics.portfolio import portfolio_metrics
+    from backend.carlo.carlo import bootstrap_daily
+    from backend.metrics.metrics import portfolio_metrics
     mod = _load_script("build_strategy_book")
     assert mod.metrics is portfolio_metrics and mod.bootstrap is bootstrap_daily
 
@@ -93,14 +94,14 @@ def test_folds_do_not_overlap_and_oos_daily_only_from_test_windows(market, monke
     sb = _small_book(monkeypatch)
     _serial(monkeypatch)
     seen = []  # (start_ts, thời điểm đầu/cuối của đường vốn, số ngày) cho từng lần tính số đo
-    orig = pw.portfolio_metrics
+    orig = pt.portfolio_metrics
 
     def spy(res, start_ts):
         m = orig(res, start_ts)
         times = [p["time"] for p in res["equity_curve"] if p["time"] >= start_ts]
         seen.append((start_ts, min(times), max(times), len(m["daily"])))
         return m
-    monkeypatch.setattr(pw, "portfolio_metrics", spy)
+    monkeypatch.setattr(pt, "portfolio_metrics", spy)
 
     res = _run(sb, tmp_path, "a")
     folds = res["folds"]
@@ -279,17 +280,17 @@ def test_validate_book_main_end_to_end(market, monkeypatch, tmp_path):
 
 def test_bootstrap_daily_default_sims_is_mc_minimum():
     import inspect
-    from backend.carlo.monte_carlo import MC_MIN_SIMULATIONS
-    from backend.carlo.monte_carlo import bootstrap_daily
+    from backend.carlo.carlo import MC_MIN_SIMULATIONS
+    from backend.carlo.carlo import bootstrap_daily
     assert inspect.signature(bootstrap_daily).parameters["n"].default == MC_MIN_SIMULATIONS
 
 
 def test_wfa_regime_learn_maps_come_from_train_only(market, monkeypatch, tmp_path):
-    from backend.core.regime.learn import OBSERVE
+    from backend.regime.regime import OBSERVE
     sb = _small_book(monkeypatch)
     log = _serial(monkeypatch)
     off = _run(sb, tmp_path, "off")
-    res = pw.run_portfolio_wfa(_cands(), sb.perp_symbols(), START, T0 + 66 * DAY, CFG, RISK, 0.5, 1, str(tmp_path / "learn"),
+    res = pt.run_portfolio_wfa(_cands(), sb.perp_symbols(), START, T0 + 66 * DAY, CFG, RISK, 0.5, 1, str(tmp_path / "learn"),
                                regime="learn")
     assert res["regime"] == "learn" and "regime" not in off and all("regime_map" not in f for f in off["folds"])
     rg_jobs = next(jobs for label, jobs in log if "WFA-REGIME" in label)
@@ -303,4 +304,4 @@ def test_wfa_regime_learn_maps_come_from_train_only(market, monkeypatch, tmp_pat
     # IS / chọn cấu hình không đổi khi bật learn
     assert [f["chosen"] for f in res["folds"]] == [f["chosen"] for f in off["folds"]]
     with pytest.raises(ValueError):
-        pw.run_portfolio_wfa(_cands(), sb.perp_symbols(), START, T0 + 66 * DAY, CFG, RISK, 0.5, 1, str(tmp_path / "bad"), regime="static")
+        pt.run_portfolio_wfa(_cands(), sb.perp_symbols(), START, T0 + 66 * DAY, CFG, RISK, 0.5, 1, str(tmp_path / "bad"), regime="static")

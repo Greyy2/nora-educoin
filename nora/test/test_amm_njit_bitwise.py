@@ -1,5 +1,5 @@
-"""P9.4b T6: toán AMM trong kernel (core/backtest.py: _amm_impact, _amm_out_raw, ...) và vỏ core/execute/amm.py phải BIT-IDENTICAL (float.hex) với bản đóng băng
-của amm.py cũ (test/reference_engine.py: RefAmmImpact, ref_*) trên 10k dự trữ / phí / gas / khối lượng ngẫu nhiên, pool volatile và stable.
+"""P9.4b T6: toán AMM trong kernel (core/backtest.py: _amm_impact, _amm_out_raw, ...) và vỏ Python (amm_amount_out / amm_price_impact / AmmImpact) phải BIT-IDENTICAL (float.hex) với bản đóng băng
+của core/execute/amm.py cũ (test/reference_engine.py: RefAmmImpact, ref_*) trên 10k dự trữ / phí / gas / khối lượng ngẫu nhiên, pool volatile và stable.
 
 Giá biên (reserve_price) tính bằng NumPy ở Python rồi ghi vào F_MID (KernelBook.set_amm): NumPy >= 2 (AVX512/SVML) tính `y ** 3` khác libm pow ở bit cuối
 (~5% đầu vào) nên bản njit math.pow không thể trùng từng bit — test cuối khoá lý do này (không phải test hành vi: nếu máy khác không còn khác biệt thì chỉ in cảnh báo)."""
@@ -11,7 +11,6 @@ import pytest
 
 from reference_engine import RefAmmImpact, ref_amount_out, ref_price_impact, ref_reserve_price
 from backend.core import backtest as bt
-from backend.core.execute import amm
 
 N = 10_000
 
@@ -56,16 +55,16 @@ def test_amm_shim_equals_frozen_math(stable):
     rng = random.Random(42_000 + stable)
     for i in range(N // 2):
         rb, rq, fee, gas, qu, n, buy = _draw(rng)
-        assert amm.reserve_price(rb, rq, stable).hex() == float(ref_reserve_price(rb, rq, stable)).hex()
-        assert amm.price_impact(n, buy, rb, rq, qu, fee, stable).hex() == ref_price_impact(n, buy, rb, rq, qu, fee, stable).hex(), (i, stable)
+        assert bt.reserve_price(rb, rq, stable).hex() == float(ref_reserve_price(rb, rq, stable)).hex()
+        assert bt.amm_price_impact(n, buy, rb, rq, qu, fee, stable).hex() == ref_price_impact(n, buy, rb, rq, qu, fee, stable).hex(), (i, stable)
         spend = n / qu
-        assert amm.amount_out(spend, rq, rb, fee, stable).hex() == ref_amount_out(spend, rq, rb, fee, stable).hex()
-        m = amm.AmmImpact(fee, stable, gas)
+        assert bt.amm_amount_out(spend, rq, rb, fee, stable).hex() == ref_amount_out(spend, rq, rb, fee, stable).hex()
+        m = bt.AmmImpact(fee, stable, gas)
         r = RefAmmImpact(fee, stable, gas)
         m.set_state(rb, rq, qu)
         r.set_state(rb, rq, qu)
         assert m(n, buy).hex() == r(n, buy).hex()
-        assert amm._stable_k(rb, rq).hex() == float(rb * rb * rb * rq + rb * rq * rq * rq).hex()
+        assert bt._stable_k(rb, rq).hex() == float(rb * rb * rb * rq + rb * rq * rq * rq).hex()
 
 
 def test_stable_bisection_hits_the_iteration_cap_identically():
@@ -86,9 +85,9 @@ def test_invalid_state_raises_same_valueerror_and_kernel_flags_error():
         bt._amm_state(0.0, 1.0, 1.0, False)
     assert str(got.value) == str(want.value)
     with pytest.raises(ValueError, match="phí pool phải trong"):
-        amm.AmmImpact(1.0, False)
+        bt.AmmImpact(1.0, False)
     with pytest.raises(ValueError, match="swap không hợp lệ"):
-        amm.amount_out(0.0, 1.0, 1.0, 0.003, False)
+        bt.amm_amount_out(0.0, 1.0, 1.0, 0.003, False)
     # kernel: dự trữ chưa đặt (0) -> cờ lỗi, trả 0.0; Python (_amm_check) ném ValueError
     P, F, G = _slot_arrays(0.003, False, 0.0, 0.0, 0.0, 0.0)
     assert bt._amm_impact(0, 100.0, True, P, F, G) == 0.0 and G[bt.G_AMERR] == 1

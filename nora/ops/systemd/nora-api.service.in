@@ -1,0 +1,25 @@
+# Mẫu unit API Nora (user service). Điền @NORA_DIR@ / @NORA_PYTHON@ bằng ops/install_user_units.sh.
+# Nằm trong nora.slice (ngân sách chung 12G); API tự giới hạn thêm 3G để không lấn phần của job nặng.
+[Unit]
+Description=Nora Backtest API (uvicorn)
+After=network.target
+
+[Service]
+Slice=nora.slice
+WorkingDirectory=@NORA_DIR@
+EnvironmentFile=-%h/.config/nora/nora.env
+Environment=PYTHONPATH=@NORA_DIR@ PYTHONDONTWRITEBYTECODE=1 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NORA_CANDLE_CACHE_MB=512 NORA_DATA_CACHE_MB=512 NORA_API_HOST=0.0.0.0 NORA_API_PORT=18010
+ExecStart=@NORA_PYTHON@ -m uvicorn backend.main:app --host ${NORA_API_HOST} --port ${NORA_API_PORT}
+CPUAffinity=0-13
+Nice=5
+MemoryMax=3G
+MemoryHigh=2700M
+MemorySwapMax=0
+Restart=on-failure
+RestartSec=5
+# Job nền (run_limited.sh, kể cả job đang xếp hàng) là tiến trình con của API: restart/stop API CHỈ dừng uvicorn, không giết job.
+# Job đang chạy vẫn ghi out.log/result.json; API mới đọc trạng thái theo pid + dòng "exit N" của run_limited.
+KillMode=process
+
+[Install]
+WantedBy=default.target

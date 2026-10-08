@@ -7,9 +7,10 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from backend.api.jobs import batch as batch_jobs
-from backend.api.routers import education as edu_router
-from backend.core.backtest import edu_precompute as edu
+from backend.optimize.process import process as batch_jobs
+from backend.routes import jobs as batch_jobs_routes
+from backend.routes import education as edu_router
+from backend.optimize.process import tasks as edu
 from backend.crawl import store
 
 
@@ -41,13 +42,13 @@ HAVE_DATA = bool(ROOT) and os.path.isfile(os.path.join(ROOT, "cex", "BTC", "perp
 
 
 def test_job_kind_registered_and_params_validated():
-    assert batch_jobs.KINDS["edu_precompute"]["module"] == "backend.core.backtest.edu_precompute"
-    assert batch_jobs.build_job("edu_precompute", {}) == {}
-    assert batch_jobs.build_job("edu_precompute", {"only": ["trend_kema_breakout"]}) == {"only": ["trend_kema_breakout"]}
+    assert batch_jobs.KINDS["edu_precompute"]["module"] == "backend.optimize.process.tasks" and batch_jobs.KINDS["edu_precompute"]["func"] == "run_edu_precompute"
+    assert batch_jobs_routes.build_job("edu_precompute", {}) == {}
+    assert batch_jobs_routes.build_job("edu_precompute", {"only": ["trend_kema_breakout"]}) == {"only": ["trend_kema_breakout"]}
     with pytest.raises(batch_jobs.JobError):
-        batch_jobs.build_job("edu_precompute", {"only": ["không_có"]})
+        batch_jobs_routes.build_job("edu_precompute", {"only": ["không_có"]})
     with pytest.raises(batch_jobs.JobError):
-        batch_jobs.build_job("edu_precompute", {"start": "2024-01-01"})
+        batch_jobs_routes.build_job("edu_precompute", {"start": "2024-01-01"})
 
 
 def test_downsample_keeps_ends_and_alignment():
@@ -85,7 +86,7 @@ def test_run_job_real_sample_writes_result_and_index(tmp_path, monkeypatch):
     monkeypatch.setattr(edu, "results_dir", lambda: str(tmp_path))
     monkeypatch.delenv("NORA_JOB_DIR", raising=False)
     monkeypatch.setenv("NORA_LOCAL_DATA_ROOT", ROOT)
-    res = edu.run_job({"only": ["trend_kema_breakout"], "start": "2025-01-02", "end": "2025-03-31"})
+    res = edu.run_edu_precompute({"only": ["trend_kema_breakout"], "start": "2025-01-02", "end": "2025-03-31"})
     assert res["ok"] == 1 and res["failed"] == 0
     rec = json.load(open(tmp_path / "trend_kema_breakout.json"))
     for k in ("key", "program_hash", "config", "data", "git_commit", "generated_at", "metrics", "diagnostics", "insights", "series", "explain"):

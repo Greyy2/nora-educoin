@@ -3,7 +3,7 @@
 Nguyên tắc: không dùng LLM; mọi câu giải thích phải ĐÚNG với code VÀ cấu hình thực thi mặc định của Nora (kèm `position` mà mẫu khai báo).
 Phần viết tay chỉ là lý thuyết ("Khái niệm tài chính"); quy tắc / chỉ báo / thực thi do explain.py sinh lúc chạy nên KHÔNG lặp lại trong docstring.
 
-Mã thoát khác 0 nếu có bất kỳ lỗi nào. Chạy:  backend/utils/ops/run_limited.sh --no-lock -- test/scripts/lint_edu_samples.py [đường_dẫn_samples.js]
+Mã thoát khác 0 nếu có bất kỳ lỗi nào. Chạy:  ops/run_limited.sh --no-lock -- test/scripts/lint_edu_samples.py [đường_dẫn_samples.js]
 
 Quy tắc (mã lỗi ở đầu mỗi dòng báo cáo):
   SCHEMA    đủ key/name/category/difficulty/summary/code; category thuộc 5 nhóm (mỗi nhóm 10 mẫu); difficulty hợp lệ; key & name duy nhất;
@@ -31,12 +31,12 @@ _NORA = os.path.abspath(os.path.join(_HERE, "..", ".."))
 if _NORA not in sys.path:
     sys.path.insert(0, _NORA)
 
-from backend.core.strategy.pydsl import compile_code  # noqa: E402
-from backend.core.strategy.pydsl import profiles  # noqa: E402
-from backend.core.strategy.pydsl.explain import explain_program  # noqa: E402
-from backend.core.strategy.pydsl.program import Bin, BoolConst, Call, Cmp, Const, Data, Inv, Logic, Neg, Pick  # noqa: E402
-from backend.core.strategy.pydsl.spec import FEATURE_SPECS_DATA, OP_SPECS_DATA  # noqa: E402
-from backend.core.params.builder import POSITION_KEYS  # noqa: E402
+from backend.alpha.compile import compile_code  # noqa: E402
+from backend.core import params as profiles, backtest as profiles_core  # noqa: E402
+from backend.alpha.compile import explain_program  # noqa: E402
+from backend.core.signal import Bin, BoolConst, Call, Cmp, Const, Data, Inv, Logic, Neg, Pick  # noqa: E402
+from backend.core.indicator import FEATURE_SPECS_DATA, OP_SPECS_DATA  # noqa: E402
+from backend.core.params import POSITION_KEYS
 
 SAMPLES_PATH = os.path.join(_NORA, "frontend", "src", "components", "education", "educationSamples.js")
 CATEGORIES = ["Trend Following", "Mean Reversion", "Breakout & Momentum", "Multi-Indicator Confluence", "Risk-Managed & Exits"]
@@ -319,7 +319,7 @@ def lint_sample(s: dict, valid_feats: set, valid_ops: set):
         if o not in valid_ops:
             err("COMPILE", f"operator không tồn tại: self.op.{o}")
     try:
-        profiles.build_plan(program, ["BTC@perp"], position=pos or None)
+        profiles_core.build_plan(program, ["BTC@perp"], position=pos or None)
     except Exception as e:   # noqa: BLE001
         err("COMPILE", f"build_plan lỗi: {e}")
     try:

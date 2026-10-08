@@ -1,0 +1,21 @@
+{
+ "n_bars": 4320,
+ "start": "2026-04-07T16:00:00",
+ "end": "2026-10-04T15:00:00",
+ "open_eq_prev_close_frac": 0.511924056494559,
+ "open_eq_prev_close_n": 2211,
+ "mean_abs_gap_bps": 0.0072450611661261915,
+ "max_abs_gap_bps": 0.28279069767322973,
+ "bars_hl_widened_by_alignment": 45,
+ "signals": {
+  "ema20_50": {
+   "entries": 38,
+   "exits": 38
+  },
+  "ema5_13": {
+   "entries": 163,
+   "exits": 162
+  }
+ },
+ "gapped_bars_injected": 227
+}

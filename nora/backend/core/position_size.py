@@ -1,17 +1,15 @@
 """Chính sách vị thế + khối lượng + kiểm rủi ro (P9.4): hàm THUẦN số học cho mọi mức giá / khối lượng / admit_entry.
 
-Hợp nhất NGUYÊN VĂN từ core/execute/{policy,risk}.py (xem docs/bmad/p9_review_log.md, mục P9.4 part 1). Đường dẫn cũ là alias (shim).
+Nguồn gộp: docs/bmad/p9_review_log.md (mục P9.4).
 """
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 from backend.core.models import PositionType
-from backend.core.params import StrategyParams
+from backend.core.params import DEFAULT_CAPITAL, StrategyParams
 from backend.core.models import gross_pnl, pnl_move, unrealized_pnl   # noqa: F401  (P9.4: ba hàm này chuyển sang models; policy.gross_pnl... vẫn là cùng đối tượng)
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# P9.4 — nguyên văn từ core/execute/policy.py
-#
 # Chính sách vị thế (position policy) — hàm THUẦN cho mọi mức giá và công thức khối lượng.
 #
 # Một nguồn duy nhất cho công thức: `PositionTracker` (backtest) uỷ quyền vào đây; PositionManager và bot live (P6.4+)
@@ -247,12 +245,10 @@ def apply_risk_ceiling(margin: float, planned_risk: float, max_new_risk: float) 
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# P9.4 — nguyên văn từ core/execute/risk.py
-#
 # Quy tắc rủi ro danh mục — NGUỒN DUY NHẤT cho sim/paper/live: hàm thuần, đầu vào là số thường (không đối tượng sổ vốn/tracker),
 # nên PaperBook, runner và bot sàn dùng chung với số của riêng mình.
 #
-# Bản numba trong core/backtest/kernel.py giữ bản sao riêng của các quy tắc này (để chạy nhanh); hai bản được khoá bằng test parity
+# Bản numba trong core/backtest.py (kernel) giữ bản sao riêng của các quy tắc này (để chạy nhanh); hai bản được khoá bằng test parity
 # (test/test_risk_engine.py, test/test_kernel_parity.py) — sửa quy tắc ở đây thì phải sửa kernel và chạy lại parity.
 #
 # Thứ tự phép toán float và cấu trúc điều kiện giữ y nguyên code gốc của PaperBook.step_bar (so sánh tường minh, không dùng max/min,
@@ -313,7 +309,7 @@ class SlotSpec:
     """Tham số đã chuẩn hoá + trạng thái khởi đầu của một slot. Tên thuộc tính trùng PositionTracker (pack_slots đọc được cả hai)."""
 
     def __init__(self, account_id: int, campaign_id: int, symbol: str, flow_name: str, params: "StrategyParams",
-                 pos_type: PositionType, initial_capital: float = 10000.0, entry_equity: Optional[float] = None):
+                 pos_type: PositionType, initial_capital: float = DEFAULT_CAPITAL, entry_equity: Optional[float] = None):
         self.account_id = account_id
         self.campaign_id = campaign_id
         self.symbol = symbol

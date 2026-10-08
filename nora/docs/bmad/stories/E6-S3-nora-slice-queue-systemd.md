@@ -32,7 +32,7 @@ Là người vận hành, tôi muốn cả dự án Nora nằm trong một ngân
 ## Evidence
 
 - Commit: `836103b` (message: kiểm trên máy này — trần chỉ giết job (exit 137); hai job chạy lần lượt; 265 test qua, peak 877 MB; API khoẻ trong slice ~110 MB; `--workers auto` chọn 5 worker, đỉnh 5657 MB).
-- Dời vào `backend/utils/ops/` ở `4e8dd61`. Tests: `test/test_memory_guards.py::test_planning_budget_*`.
+- Dời vào `ops/` ở `4e8dd61`. Tests: `test/test_memory_guards.py::test_planning_budget_*`.
 - Lưu ý: kiểm bằng tay trên máy này; không có test tự động cho `flock` hay cgroup thật (chưa có).
 
 ## Change Log

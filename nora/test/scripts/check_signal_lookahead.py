@@ -2,7 +2,7 @@
 đầy đủ ở mọi nến trước T. Nếu một chỉ báo/khung lớn dùng nến chưa đóng (dữ liệu tương lai), tín hiệu gần T sẽ đổi khi thêm dữ liệu sau T.
 
 Cắt: mỗi khung chỉ giữ nến ĐÃ ĐÓNG tại T (open_time + độ dài khung <= T) — đúng như bot thấy lúc T.
-Chạy: backend/utils/ops/run_limited.sh --no-lock -- test/scripts/check_signal_lookahead.py [--book explore] [--symbols BTC,ETH] [--cuts 6]
+Chạy: ops/run_limited.sh --no-lock -- test/scripts/check_signal_lookahead.py [--book explore] [--symbols BTC,ETH] [--cuts 6]
 """
 import argparse
 import json
@@ -26,10 +26,10 @@ def main():
     a = ap.parse_args()
     import warnings
     warnings.filterwarnings("ignore")
-    from backend.core.params.presets import alphas_dir
-    from backend.db.data_layout import default_data_root
-    from backend.live import signals as ls
-    from backend.live.bot import book_strategies
+    from backend.optimize.book.build import alphas_dir
+    from backend.crawl.store import default_data_root
+    from backend.core import backtest as bt
+    from backend.live.live import book_strategies
     path = os.path.join(alphas_dir(), "explore" if a.book == "explore" else "", "book.json")
     book = json.load(open(path, encoding="utf-8"))
     sts, tf = book_strategies(book), book["timeframe"]
@@ -37,19 +37,19 @@ def main():
     rng = np.random.default_rng(7)
     total = 0
     for sym in a.symbols.split(","):
-        need = ls.required_frames(sym, sts, tf)
+        need = bt.required_frames(sym, sts, tf)
         full = {fr: pd.read_pickle(os.path.join(root, sym, "perp", f"{fr}.pkl")) for fr in need}
         t_end = int(full[tf]["open_time"].iloc[-1]) + FRAME_MS[tf]
         t_start = t_end - a.bars * FRAME_MS[tf]
         full = {fr: df[df["open_time"] >= t_start - 400 * FRAME_MS[fr]].reset_index(drop=True) for fr, df in full.items()}
-        ref = ls.evaluate(sym, sts, full, tf)
+        ref = bt.evaluate_signals(sym, sts, full, tf)
         tt = ref["t"]
         cuts = sorted(rng.choice(np.arange(len(tt) // 2, len(tt) - 1), a.cuts, replace=False))
         bad = 0
         for c in cuts:
             T = int(tt[c])                                                          # bot đang ở đầu nến tt[c]: mọi nến trước đã đóng
             cut = {fr: df[df["open_time"] + FRAME_MS[fr] <= T].reset_index(drop=True) for fr, df in full.items()}
-            got = ls.evaluate(sym, sts, cut, tf)
+            got = bt.evaluate_signals(sym, sts, cut, tf)
             n = len(got["t"])
             assert (got["t"] == tt[:n]).all()
             for e_ref, e_got in zip(ref["entries"], got["entries"]):

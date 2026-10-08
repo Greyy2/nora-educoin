@@ -4,8 +4,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from backend.core.strategy.pydsl import compile_code, features, ops
-from backend.core.strategy.pydsl.spec import REQUIRED
+from backend.alpha.compile import compile_code
+from backend.core import indicator as features, indicator as ops
+from backend.core.indicator import REQUIRED
 
 N = 700
 CUTS = (120, 333, 520, 699)
@@ -58,10 +59,10 @@ def test_feature_is_causal_prefix_invariant(name):
     data = _df()
     bools = (data["close"] > data["open"], data["high"] > data["close"])
     kw = _args(spec, data, N, bools)
-    full = features.evaluate(spec, N, **kw)
+    full = features.evaluate_feature(spec, N, **kw)
     outs = full if spec.nout > 1 else (full,)
     for t in CUTS:
-        part = features.evaluate(spec, t, **_cut(kw, t))
+        part = features.evaluate_feature(spec, t, **_cut(kw, t))
         parts = part if spec.nout > 1 else (part,)
         for i, (f, p) in enumerate(zip(outs, parts)):
             _same(p, f[:t], f"{name}[{i}] dùng dữ liệu tương lai (khác khi cắt tại {t})")

@@ -15,6 +15,8 @@ os.environ.setdefault("NORA_ALLOW_UNLIMITED", "1")
 
 import pytest  # noqa: E402
 
+import backend.optimize  # noqa: E402,F401  (đăng ký lười nguồn dữ liệu mặc định của engine: EngineData)
+
 
 _BASE_DATA_ROOT = os.environ["NORA_LOCAL_DATA_ROOT"]
 
@@ -29,6 +31,6 @@ def _restore_data_root():
 @pytest.fixture(autouse=True)
 def _legacy_candidates(monkeypatch):
     """Golden / parity / test cơ chế dùng 9 chiến lược cũ: đăng ký vào book.EXTRA_CANDIDATES (BY_ID tra được, danh mục API không đổi)."""
-    from backend.core.strategy import book as sb
+    from backend.optimize.book import build as sb
     from legacy_candidates import LEGACY
     monkeypatch.setattr(sb, "EXTRA_CANDIDATES", list(LEGACY))

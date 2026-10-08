@@ -477,7 +477,7 @@ function FullView({ data, ctx }) {
   )
 }
 
-/** Bộ số đo chuẩn toàn kỳ chạy (core/metrics): lợi nhuận, sụt giảm, rủi ro, theo lệnh, DCA/đòn bẩy, danh mục. */
+/** Bộ số đo chuẩn toàn kỳ chạy (backend/metrics/metrics.py): lợi nhuận, sụt giảm, rủi ro, theo lệnh, DCA/đòn bẩy, danh mục. */
 const STAT_GROUPS = [
   ['Lợi nhuận', 'returns', [['ret_pct', 'Lãi kỳ', 'pct'], ['cagr_pct', 'CAGR', 'pct', 'cagr'], ['vol_ann_pct', 'Biến động năm', 'pct'],
     ['win_days_pct', 'Tỉ lệ ngày lãi', 'pct'], ['best_day_pct', 'Ngày tốt nhất', 'spct'], ['worst_day_pct', 'Ngày tệ nhất', 'spct']]],

@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from backend.core.data.resampler import save_resampled_dataset
+from backend.crawl.store import save_resampled_dataset
 
 T0 = 1_700_006_400_000
 SYMS = ("AAA", "BBB", "CCC")
@@ -41,21 +41,22 @@ def market(tmp_path, monkeypatch):
                                    requested_start_ts=T0, requested_end_ts=end, extra_meta={**meta, **extra})
         ft = T0 + np.arange(1, 70 * 3) * 8 * 3_600_000
         pd.DataFrame({"funding_time": ft, "interval_h": 8.0, "rate": 0.0001}).to_pickle(root / "cex" / sym / "perp" / "funding.pkl")
-    from backend.core.strategy import book as sb
-    f = sb.f
+    from backend.optimize.book import build as sb
+    from backend.alpha.compile import cond, f, tree_p
     monkeypatch.setattr(sb, "UNIVERSE", list(SYMS))
     monkeypatch.setattr(sb, "CANDIDATES", [
         {"id": "t_long", "family": "x", "side": "LONG", "description": "test",
-         "tree": sb.cond((f("15m", "rsi_14"), "<", sb.p("lo", 40))), "position": {},
+         "tree": cond((f("15m", "rsi_14"), "<", tree_p("lo", 40))), "position": {},
          "space": {"sig.lo": [35, 40], "stop_loss_rate": [2.0], "take_profit_rate": [2.0], "timeout": [720]}},
         {"id": "t_short", "family": "x", "side": "SHORT", "description": "test",
-         "tree": sb.cond((f("15m", "rsi_14"), ">", 60)), "position": {"atr_frame": "4h"},
+         "tree": cond((f("15m", "rsi_14"), ">", 60)), "position": {"atr_frame": "4h"},
          "space": {"stop_loss_rate": [1.5, 2.5], "trailing_stop": [2.0], "timeout": [720]}}])
     return root
 
 
 def _load_script():
-    path = os.path.join(os.path.dirname(__file__), "..", "backend", "core", "backtest", "run.py")
+    from job_modules import job_path   # P9.6: run.py gộp vào optimize/process/tasks.py (run_book_backtest)
+    path = job_path("run_book_backtest")
     spec = importlib.util.spec_from_file_location("run_book_backtest", path)
     mod = importlib.util.module_from_spec(spec)
     sys.modules["run_book_backtest"] = mod
@@ -102,11 +103,11 @@ def test_deterministic(market, tmp_path, monkeypatch):
 
 
 def test_downsample_keeps_ends_and_limit():
-    mod = _load_script()
+    from backend.optimize.search.evaluate import downsample   # P9.6: run.py gộp vào optimize/search/evaluate.py
     curve = [{"time": i} for i in range(10_001)]
-    d = mod.downsample(curve)
+    d = downsample(curve)
     assert len(d) <= 2000 and d[0] == curve[0] and d[-1] == curve[-1]
-    assert mod.downsample(curve[:50]) == curve[:50]
+    assert downsample(curve[:50]) == curve[:50]
 
 
 def test_rejects_unknown_strategy_and_bad_window(market, tmp_path):
@@ -134,10 +135,11 @@ def test_trade_list_has_notional_and_daily_nav(market, tmp_path):
 
 def test_strategy_symbols_filter_restricts_markets(market):
     """Khoá "symbols" của chiến lược dựng sẵn (alpha trong kho) -> chỉ chạy trên các tài sản đó; mặc định vẫn là mọi tài sản."""
-    from backend.core.strategy import book as sb
+    from backend.optimize.book import build as sb
+    from backend.core.params import materialize
     mod = _load_script()
     cand = sb.BY_ID["t_long"]
-    base = sb.materialize(cand, {"sig.lo": 45, "stop_loss_rate": 2.0, "take_profit_rate": 2.0, "timeout": 720})
+    base = materialize(cand, {"sig.lo": 45, "stop_loss_rate": 2.0, "take_profit_rate": 2.0, "timeout": 720})
     syms = [f"{s}@perp" for s in SYMS]
     kw = dict(items=[], symbols=syms, start=mod._ts("2023-12-10"), end=mod._ts("2024-01-15") + 86_400_000, rpt=0.5, stop_fill="level",
               risk={"max_positions": 8, "max_per_symbol": 1, "max_gross_exposure": 3.0, "kill_switch_dd_pct": 0})

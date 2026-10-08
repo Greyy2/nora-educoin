@@ -2,8 +2,8 @@
 import pytest
 
 from test_portfolio_dashboard import _bench, _job, _ms, _rng_returns, _trade, client, make_result  # noqa: F401  (client là fixture)
-from backend.core.analytics import dashboard as pdash
-from backend.core.metrics.trades import strategy_family
+from backend.metrics import charts as pdash
+from backend.metrics.trades import strategy_family
 
 
 def _res():

@@ -4,12 +4,12 @@ Cây đích chưa tồn tại (P9.2..P9.8 chuyển dần), nên test ánh xạ �
 rồi phân tích import (ast, gồm cả import cục bộ trong hàm) của MỌI module trong backend/.
 
 Luật (ADR §2):
-  core <- {metrics, regime, wfa, carlo, verdict} <- optimize <- {live, routes};   crawl chỉ được gọi từ optimize, live, routes;
+  core <- {metrics, regime, wfa, carlo} <- optimize <- {live, routes};   crawl được import core, và chỉ được gọi từ optimize, live, routes;
   core không import gì ngoài core; trong core theo thứ tự models <- params <- indicator <- signal <- position_size <- backtest
   (file trước không import file sau).
 Diễn giải của test này:
-  - tầng giữa {metrics, regime, wfa, carlo, verdict} được import core và import lẫn nhau (cùng hạng), KHÔNG import optimize/live/routes/crawl;
-  - crawl chỉ import crawl (dữ liệu và cấu hình nạp ở tầng trên rồi truyền xuống);
+  - tầng giữa {metrics, regime, wfa, carlo} được import core và import lẫn nhau (cùng hạng), KHÔNG import optimize/live/routes/crawl;
+  - crawl import core + crawl (core là đáy thuần; dữ liệu và cấu hình nạp ở tầng trên rồi truyền xuống);
   - optimize import core + tầng giữa + crawl + optimize; live thêm optimize; routes import mọi tầng trừ main;
   - module có dòng đánh dấu `# P9-SHIM` trong 5 dòng đầu là shim tương thích (đường dẫn cũ tái xuất đường dẫn mới) -> không tính khi làm bên import.
 
@@ -31,18 +31,18 @@ REPORT = NORA / "docs" / "bmad" / "p9_layering_report.md"
 STRICT = os.environ.get("NORA_LAYERING_STRICT", "0") not in ("", "0", "false", "False")
 WRITE = os.environ.get("NORA_LAYERING_WRITE", "0") not in ("", "0", "false", "False")   # chỉ ghi báo cáo khi đặt NORA_LAYERING_WRITE=1
 
-MID = {"metrics", "regime", "wfa", "carlo", "verdict"}
+MID = {"metrics", "regime", "wfa", "carlo"}
 ALLOWED: Dict[str, set] = {
     "core": {"core"},
-    "metrics": {"core"} | MID,
-    "regime": {"core"} | MID,
-    "wfa": {"core"} | MID,
-    "carlo": {"core"} | MID,
-    "verdict": {"core"} | MID,
-    "crawl": {"crawl"},
-    "optimize": {"core", "crawl", "optimize"} | MID,
-    "live": {"core", "crawl", "optimize", "live"} | MID,
-    "routes": {"core", "crawl", "optimize", "live", "routes"} | MID,
+    "alpha": {"core", "alpha"},     # hợp đồng + bộ chuyển chiến lược người viết -> IR của core; không import tầng trên
+    "metrics": {"core", "alpha"} | MID,
+    "regime": {"core", "alpha"} | MID,
+    "wfa": {"core", "alpha"} | MID,
+    "carlo": {"core", "alpha"} | MID,
+    "crawl": {"core", "crawl"},     # core là đáy thuần: crawl được import core (core không import ra ngoài core)
+    "optimize": {"core", "alpha", "crawl", "optimize"} | MID,
+    "live": {"core", "alpha", "crawl", "optimize", "live"} | MID,
+    "routes": {"core", "alpha", "crawl", "optimize", "live", "routes"} | MID,
 }
 EXEMPT_LAYERS = {"script"}      # không ràng buộc (script vận hành / nghiên cứu)
 
@@ -57,81 +57,23 @@ def _r(name: str) -> int:
 
 
 LAYER_RULES: List[Tuple[str, str, Optional[int]]] = [
-    # --- crawl (P9.2: đã chuyển thật vào backend/crawl/; đường dẫn cũ là shim) ---
+    # P9.10a: mọi đường dẫn cũ (shim) đã xoá; bảng chỉ còn cây đích.
     ("crawl", "crawl", None),
     ("core", "core", None),                                  # core/__init__ và mọi file chưa liệt kê
-    ("db", "crawl", None),
-    ("core/data", "crawl", None),
-    ("utils/lru", "crawl", None),
-    ("utils/jsonsafe", "crawl", None),
-    # --- core: models ---
-    ("core/models", "core", _r("models")),                   # P9.4: file đích (execute/{models,events,account,ledger} hợp nhất)
-    ("core/position_size", "core", _r("position_size")),     # P9.4: file đích (execute/{policy,risk} hợp nhất)
-    ("core/execute/models", "core", _r("models")),
-    ("core/execute/events", "core", _r("models")),
-    ("core/execute/account", "core", _r("models")),
-    ("core/execute/ledger", "core", _r("models")),
-    # --- core: params ---
-    ("core/params/schema", "core", _r("params")),
-    ("core/params/template", "core", _r("params")),
-    ("core/params/builder", "core", _r("params")),
-    ("core/params/presets", "optimize", None),               # -> optimize/book/build.py
-    ("core/params/modes", "routes", None),                   # -> routes/modes.py
+    ("core/models", "core", _r("models")),
     ("core/params", "core", _r("params")),
-    ("core/strategy/book", "core", _r("params")),            # materialize, BASE_POSITION
-    ("core/strategy/library", "core", _r("params")),         # P9.9 thành dữ liệu
-    ("core/strategy", "core", _r("params")),
-    # --- core: indicator ---
-    ("core/indicator", "core", _r("indicator")),             # P9.4 part 2: file đích (kernels + pydsl/{spec,features,ops} hợp nhất)
-    ("core/signal", "core", _r("signal")),                   # P9.4 part 2: file đích (evaluator/snapshot/diagnostics + pydsl/{errors,program,parser,explain})
-    ("core/signals/kernels", "core", _r("indicator")),
-    ("core/strategy/pydsl/features", "core", _r("indicator")),
-    ("core/strategy/pydsl/ops", "core", _r("indicator")),
-    # --- core: signal ---
-    ("core/signals", "core", _r("signal")),                  # evaluator, snapshot, diagnostics
-    ("core/strategy/pydsl/profiles", "core", _r("backtest")),   # build_plan -> core/backtest.py
-    ("core/strategy/pydsl/weights", "optimize", None),       # nạp ở optimize, không nạp trong core
-    ("core/strategy/pydsl", "core", _r("signal")),           # spec, parser, program, errors, explain
-    # --- core: position_size ---
-    ("core/execute/policy", "core", _r("position_size")),
-    ("core/execute/risk", "core", _r("position_size")),
-    # --- core: backtest (engine thực thi) ---
-    ("core/backtest/run", "optimize", None),                 # run_job -> optimize/process/tasks.py
-    ("core/backtest/custom_run", "optimize", None),
-    ("core/backtest/tick_run", "optimize", None),
-    ("core/backtest/edu_precompute", "optimize", None),
-    ("core/backtest", "core", _r("backtest")),               # engine, portfolio, dex, kernel
-    ("core/execute", "core", _r("backtest")),                # venue, amm, tracker, manager, sim_venue, runner (P9.4b gỡ)
-    # --- metrics ---
-    ("metrics", "metrics", None),                            # P9.5: file đích metrics/{metrics,trades,charts}
-    ("regime", "regime", None),                              # P9.5: regime/regime.py
-    ("verdict", "verdict", None),                            # P9.5: verdict/verdict.py
-    ("core/metrics/diagnose", "verdict", None),
-    ("core/metrics/diagnose_inputs", "verdict", None),       # phần nạp dữ liệu -> optimize/process/tasks.py (khi tách)
-    ("core/metrics", "metrics", None),                       # returns, portfolio, trades
-    ("core/analytics/insights", "verdict", None),
-    ("core/analytics/user_alphas", "optimize", None),
-    ("core/analytics/strategy_doc", "optimize", None),
-    ("core/analytics/top_agents", "script", None),           # -> test/scripts/
-    ("core/analytics", "metrics", None),                     # dashboard, signal_explain, feeds
-    # --- regime / wfa / carlo / verdict ---
-    ("core/regime/report", "optimize", None),                # run_job
-    ("core/regime", "regime", None),
-    ("wfa/run", "optimize", None),                           # run_job
+    ("core/indicator", "core", _r("indicator")),
+    ("core/signal", "core", _r("signal")),
+    ("core/position_size", "core", _r("position_size")),
+    ("core/backtest", "core", _r("backtest")),
+    ("alpha", "alpha", None),                                # alpha/{contract,compile}
+    ("metrics", "metrics", None),                            # metrics/{metrics,trades,charts}
+    ("regime", "regime", None),
     ("wfa", "wfa", None),
     ("carlo", "carlo", None),
-    ("optimize/funnel/antiluck", "verdict", None),
-    # --- optimize ---
     ("optimize", "optimize", None),
-    ("utils/jobs", "optimize", None),                        # -> optimize/process/process.py
-    ("utils/parallel", "optimize", None),                    # -> optimize/process/workers.py
-    ("utils/memwatch", "optimize", None),
-    ("utils/ops", "script", None),                           # shell/ops, không phải module import
-    ("utils", "optimize", None),
-    # --- live ---
     ("live", "live", None),
-    # --- routes ---
-    ("api", "routes", None),
+    ("routes", "routes", None),
     ("main", "routes", None),
 ]
 _RULES_SORTED = sorted(LAYER_RULES, key=lambda r: -len(r[0]))
@@ -199,7 +141,7 @@ def _imports_of(path: Path, mod: str, modules: Dict[str, Path]) -> List[Tuple[st
             base_path = "/".join(base_dotted.split(".")[1:])
             for a in node.names:
                 cand = f"{base_path}/{a.name}" if base_path else a.name
-                if a.name != "*" and cand in modules:   # from backend.core.data import shared  -> module con
+                if a.name != "*" and cand in modules:   # from backend.crawl import store  -> module con
                     found.append((cand, node.lineno))
                 else:
                     found.append((base_path, node.lineno))
@@ -250,7 +192,7 @@ def render(res: dict) -> str:
     L = [
         "# P9 — báo cáo luật phụ thuộc (tự sinh bởi nora/test/test_layering.py, chế độ BÁO CÁO)",
         "",
-        "Không sửa tay. Sinh lại: `NORA_LAYERING_WRITE=1 PYTHONDONTWRITEBYTECODE=1 backend/utils/ops/run_limited.sh --no-lock -- -m pytest -q test/test_layering.py`.",
+        "Không sửa tay. Sinh lại: `NORA_LAYERING_WRITE=1 PYTHONDONTWRITEBYTECODE=1 ops/run_limited.sh --no-lock -- -m pytest -q test/test_layering.py`.",
         "Bật bắt buộc (P9.10): `NORA_LAYERING_STRICT=1`. Luật: ADR-P9 §2; ánh xạ đường dẫn hiện tại -> tầng đích: bảng `LAYER_RULES` trong test.",
         "",
         f"- Module backend: {res['modules']} · shim (`# P9-SHIM`, bỏ qua): {len(res['shims'])} · chưa ánh xạ: {len(res['unmapped'])}",
@@ -281,7 +223,7 @@ def render(res: dict) -> str:
 
 def test_layering_rules():
     res = collect()
-    assert res["modules"] > 100, "không đọc được backend/ (đường dẫn sai?)"
+    assert res["modules"] > 40, "không đọc được backend/ (đường dẫn sai?)"
     text = render(res)
     if WRITE:
         REPORT.parent.mkdir(parents=True, exist_ok=True)
@@ -297,14 +239,10 @@ def test_layering_rules():
 
 def test_layer_table_sanity():
     """Bảng ánh xạ tự kiểm: vài đường dẫn đã biết phải rơi đúng tầng (chống sửa bảng nhầm)."""
-    assert layer_of("core/data/loader") == ("crawl", None)
-    assert layer_of("db/local_pkl") == ("crawl", None)
     assert layer_of("crawl/store") == ("crawl", None)
-    assert layer_of("api/routers/book") == ("routes", None)
-    assert layer_of("core/backtest/engine") == ("core", _r("backtest"))
-    assert layer_of("core/backtest/run") == ("optimize", None)
-    assert layer_of("core/signals/kernels") == ("core", _r("indicator"))
-    assert layer_of("optimize/funnel/antiluck") == ("verdict", None)
-    assert layer_of("core/metrics/diagnose_inputs") == ("verdict", None)
-    assert layer_of("core/metrics/returns") == ("metrics", None)
+    assert layer_of("routes/book") == ("routes", None)
+    assert layer_of("core/backtest") == ("core", _r("backtest"))
+    assert layer_of("core/indicator") == ("core", _r("indicator"))
+    assert layer_of("metrics/trades") == ("metrics", None)
+    assert layer_of("optimize/process/tasks") == ("optimize", None)
     assert layer_of("live/okx") == ("live", None)

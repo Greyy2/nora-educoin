@@ -22,7 +22,7 @@ Cập nhật: 2026-10-06 · Nhánh: `fix/pipeline-audit` · Cách làm từng vi
 |---|---|---|
 | Mô phỏng khớp lệnh, vốn, rủi ro | `backend/core/backtest` | **Một engine duy nhất** (`PortfolioEngine`, `BacktestEngine`). Tăng tốc = thay vòng lặp bên trong bằng numba (`kernel.py`), không tạo engine thứ hai. |
 | Sinh tham số, chia lô, gom alpha chung tín hiệu, chạy nhiều worker, lưu kết quả, resume | `backend/optimize` | Gọi engine, không tự mô phỏng. |
-| Cấu hình tài nguyên (số worker, RAM/worker, CPU) | `backend/utils/parallel.py` + `memwatch.py` | **Một chỗ duy nhất.** Chạy trong `nora.slice` 12G, CPU 0-13, qua `backend/utils/ops/run_limited.sh`. |
+| Cấu hình tài nguyên (số worker, RAM/worker, CPU) | `backend/utils/parallel.py` + `memwatch.py` | **Một chỗ duy nhất.** Chạy trong `nora.slice` 12G, CPU 0-13, qua `ops/run_limited.sh`. |
 | WFA / MC | `backend/wfa`, `backend/carlo` | Dùng engine qua optimize. |
 | Phễu lọc S0–FINAL | `backend/optimize/funnel` | Điều phối các tầng, thống kê từng tầng. |
 | Regime | `backend/core/regime` (mới) | Causal, dùng chung cho backtest, WFA, MC, live. |

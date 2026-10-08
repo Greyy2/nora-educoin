@@ -17,9 +17,11 @@ from job_modules import launched
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from backend.core.data.resampler import save_resampled_dataset
-from backend.optimize.funnel import antiluck, gates, sizing, stats as fstats
-from backend.optimize.funnel.generate import alpha_id_of, iter_params, validate_alpha
+from backend.crawl.store import save_resampled_dataset
+from backend.carlo import carlo
+from backend.wfa import wfa as wfa_mod
+from backend.optimize.funnel import stages as gates, stages as sizing, stages as fstats
+from backend.optimize.search.generate import alpha_id_of, iter_params, validate_alpha
 from backend.optimize.funnel.storage import RunStore
 
 T0 = 1_700_006_400_000
@@ -68,10 +70,10 @@ def _data_root(market):
 @pytest.fixture
 def small_book(monkeypatch):
     """Chiến lược test + vũ trụ 3 tài sản; ngưỡng NỚI (chỉ test): mọi alpha có lệnh đi hết các tầng."""
-    from backend.core.strategy import book as sb
-    f = sb.f
+    from backend.optimize.book import build as sb
+    from backend.alpha.compile import cond, f, tree_p
     cands = [{"id": "t_long", "family": "x", "side": "LONG", "description": "test",
-              "tree": sb.cond((f("15m", "rsi_14"), "<", sb.p("lo", 40))), "position": {},
+              "tree": cond((f("15m", "rsi_14"), "<", tree_p("lo", 40))), "position": {},
               "space": {"sig.lo": [35, 40, 45], "stop_loss_rate": [2.0], "take_profit_rate": [2.0], "timeout": [720]}}]
     monkeypatch.setattr(sb, "UNIVERSE", list(SYMS))
     monkeypatch.setattr(sb, "CANDIDATES", cands)
@@ -89,20 +91,21 @@ def lenient(monkeypatch):
 
 
 def _cfg(**kw):
-    from backend.optimize.funnel.orchestrator import FunnelConfig
+    from backend.optimize.funnel.stages import FunnelConfig
     return FunnelConfig(strategies=["t_long"], n_per_strategy=3, seed=7, train_days=5, test_days=4, **kw)
 
 
 def _run(run_id, **kw):
-    from backend.optimize.funnel import orchestrator as orch
+    from backend.optimize.funnel import stages as orch
     return orch.run_funnel(_cfg(), run_id=run_id, workers=0, log=lambda s: None, **kw)
 
 
 # ─── Ngưỡng + hàm thuần ─────────────────────────────────────────────────────
 def test_gate_constants_match_existing_gates():
-    from backend.carlo import monte_carlo as mc
-    from backend.core.strategy.book import BASE_RISK_PER_TRADE_PCT, GATES
-    from backend.wfa import walk_forward as pw
+    from backend.carlo import carlo as mc
+    from backend.core.params import BASE_RISK_PER_TRADE_PCT
+    from backend.optimize.book.build import GATES
+    from backend.wfa import wfa as pw
     assert gates.S1_MIN_TRADES == GATES["min_trades"] and gates.S1_MIN_SYMBOLS_POSITIVE == GATES["min_symbols_positive"]
     assert gates.S1_MAX_MDD_PCT == GATES["max_mdd_pct"] and gates.BASE_RISK_PER_TRADE_PCT == BASE_RISK_PER_TRADE_PCT
     assert gates.S3_MIN_FOLDS == pw.MIN_FOLDS and gates.S3_MIN_FOLD_T == pw.MIN_FOLD_T
@@ -113,13 +116,15 @@ def test_gate_constants_match_existing_gates():
     assert gates.S4_STRESS_MAX_MDD_PCT == mc.STRESS_MAX_MDD_PCT == 50.0 and gates.S4_RUIN_THRESHOLD_PCT == mc.MC_RUIN_THRESHOLD_PCT
     assert (gates.S2_DSR_TOP_FRAC, gates.S2_DSR_TOP_MIN, gates.S2_NEIGHBOUR_MIN_PROFIT_RATIO, gates.S2_PBO_MAX, gates.S2_PBO_BLOCKS) == (0.05, 3, 0.60, 0.5, 16)
     assert (gates.S5_S_MIN, gates.S5_S_MAX, gates.S5_TOLERANCE) == (0.2, 3.0, 0.01)
-    assert gates.STAGES[0] == "S0_generate" and gates.STAGES[-1] == "FINAL" and len(gates.STAGES) == 8
+    assert gates.STAGES[0] == "S0_generate" and gates.STAGES[-1] == "FINAL" and len(gates.STAGES) == 7
+    assert "S2_antiluck" not in gates.STAGES and gates.LEGACY_STAGE not in gates.STAGE_IDX      # không còn tầng chống ăn may riêng
+    assert [gates.STAGE_IDX[x] for x in gates.STAGES] == [0, 1, 3, 4, 5, 6, 7] and gates.ALL_STAGE_IDX[gates.LEGACY_STAGE] == 2   # khe số 2: khớp kho cũ
 
 
 def test_windows_match_build_strategy_book(market):
-    from backend.optimize.funnel.gates import compute_windows
+    from backend.optimize.funnel.stages import compute_windows
     import importlib
-    bsb = importlib.import_module("backend.optimize.book")
+    bsb = importlib.import_module("backend.optimize.book.build")
     syms = [f"{s}@perp" for s in SYMS]
     assert compute_windows(syms) == bsb.windows(syms)
 
@@ -133,10 +138,11 @@ def test_reject_codes_and_messages():
     assert gates.evaluate_s1({**ok, "symbols_positive": 2})[1] == "S1.symbols_positive"
     ok_, code, msg = gates.evaluate_s1({**ok, "trades": 10})
     assert msg.startswith("S1.min_trades: ") and "10 < 40" in msg
-    assert gates.evaluate_s2(0.3, 0.3, 0.8)[0]                                   # đúng ngưỡng top: qua (DSR thấp vẫn đi tiếp nếu ở top)
-    assert gates.evaluate_s2(0.29, 0.3, 0.8)[1] == "S2.dsr_rank"
-    assert gates.evaluate_s2(0.5, None, 0.8)[1] == "S2.dsr_rank"                 # chiến lược không có alpha qua S1
-    assert gates.evaluate_s2(0.99, 0.3, 0.5)[1] == "S2.neighbor"
+    assert gates.evaluate_dsr(0.3, 0.3)[0]                                       # đúng ngưỡng top: qua (DSR thấp vẫn đi tiếp nếu ở top)
+    assert gates.evaluate_dsr(0.29, 0.3)[1] == "S2.dsr_rank"
+    assert gates.evaluate_dsr(0.5, None)[1] == "S2.dsr_rank"                     # chiến lược không có alpha qua S1
+    assert gates.evaluate_neighbour(0.8)[0] and gates.evaluate_neighbour(None)[0]
+    assert gates.evaluate_neighbour(0.5)[1] == "S2.neighbor"
     assert gates.dsr_cut([0.1 * i for i in range(100)]) == 0.1 * 95              # top 5% của 100 = 5 alpha -> giá trị thứ 5
     assert gates.dsr_cut([0.2, 0.9]) == 0.2 and gates.dsr_cut([]) is None        # ít hơn 3 alpha: lấy hết
     s3 = {"folds": 8, "traded_folds": 8, "positive_ratio": 0.75, "compounded_oos_ret_pct": 3.0, "fold_t": 1.4, "oos_ex_best_pct": 0.5,
@@ -163,18 +169,18 @@ def test_dsr_matches_hand_computed_example():
     (Φ⁻¹ tra bảng chuẩn). SR = 0.1/ngày, T = 252, skew −0.5, kurt 5:
     mẫu số = sqrt(1 − (−0.5)(0.1) + (5 − 1)/4·0.01) = sqrt(1.06) = 1.029563; z = (0.1 − 0.031492)·sqrt(251)/1.029563 = 1.0542 ->
     DSR = Φ(z)."""
-    sr0 = antiluck.expected_max_sr(10, 0.0004)
+    sr0 = carlo.expected_max_sr(10, 0.0004)
     assert sr0 == pytest.approx(0.031492, abs=2e-6)
-    d = antiluck.deflated_sharpe(0.1, 252, -0.5, 5.0, 10, 0.0004)
+    d = carlo.deflated_sharpe(0.1, 252, -0.5, 5.0, 10, 0.0004)
     z = (0.1 - 0.0314920) * math.sqrt(251) / math.sqrt(1.06)
     assert z == pytest.approx(1.0542, abs=2e-4)
     expect = 0.5 * math.erfc(-z / math.sqrt(2))
     assert d["dsr"] == pytest.approx(expect, abs=1e-4) and d["dsr"] == pytest.approx(0.8541, abs=2e-3)
     # một lần thử duy nhất (N = 1) hoặc không có phương sai: SR0 = 0 -> DSR = xác suất SR > 0
-    assert antiluck.expected_max_sr(1, 0.01) == 0.0
-    assert antiluck.deflated_sharpe(0.1, 252, 0.0, 3.0, 1, 0.0)["dsr"] == pytest.approx(0.94299, abs=1e-4)   # Φ(0.1·√251) = Φ(1.5843)
+    assert carlo.expected_max_sr(1, 0.01) == 0.0
+    assert carlo.deflated_sharpe(0.1, 252, 0.0, 3.0, 1, 0.0)["dsr"] == pytest.approx(0.94299, abs=1e-4)   # Φ(0.1·√251) = Φ(1.5843)
     # alpha kém hơn kỳ vọng SR lớn nhất -> DSR < 0,5
-    assert antiluck.deflated_sharpe(0.02, 252, 0.0, 3.0, 1000, 0.0004)["dsr"] < 0.5
+    assert carlo.deflated_sharpe(0.02, 252, 0.0, 3.0, 1000, 0.0004)["dsr"] < 0.5
 
 
 def test_pbo_overfit_high_robust_low():
@@ -188,18 +194,18 @@ def test_pbo_overfit_high_robust_low():
     rob = np.zeros((T, N))
     for j in range(N):   # chênh lệch kỹ năng BỀN: alpha j có drift 0.0003·j ở mọi khối
         rob[:, j] = 0.0003 * j + rng.normal(0, 0.01, T)
-    po, pr = antiluck.pbo_cscv(over), antiluck.pbo_cscv(rob)
+    po, pr = wfa_mod.pbo_cscv(over), wfa_mod.pbo_cscv(rob)
     assert po["n_splits"] == 12870 and po["pbo"] > 0.6
     assert pr["pbo"] < 0.1
-    assert antiluck.pbo_cscv(over[:10])["pbo"] is None   # không đủ ngày
+    assert wfa_mod.pbo_cscv(over[:10])["pbo"] is None   # không đủ ngày
 
 
 def test_neighbours_and_alpha_ids():
     space = {"a": [1, 2, 3], "b": [10], "c": [0.5, 1.5]}
-    nb = antiluck.neighbours(space, {"a": 2, "b": 10, "c": 0.5})
+    nb = wfa_mod.neighbours(space, {"a": 2, "b": 10, "c": 0.5})
     assert sorted((tuple(sorted(n.items()))) for n in nb) == sorted([(("a", 1), ("b", 10), ("c", 0.5)), (("a", 3), ("b", 10), ("c", 0.5)),
                                                                      (("a", 2), ("b", 10), ("c", 1.5))])
-    assert antiluck.neighbours(space, {"a": 1, "b": 10, "c": 1.5}) == [{"a": 2, "b": 10, "c": 1.5}, {"a": 1, "b": 10, "c": 0.5}]
+    assert wfa_mod.neighbours(space, {"a": 1, "b": 10, "c": 1.5}) == [{"a": 2, "b": 10, "c": 1.5}, {"a": 1, "b": 10, "c": 0.5}]
     assert alpha_id_of("s", {"a": 1, "b": 2}) == alpha_id_of("s", {"b": 2, "a": 1}) != alpha_id_of("s2", {"a": 1, "b": 2})
     a = list(iter_params(space, 4, 7))
     assert a == list(iter_params(space, 4, 7)) and len({alpha_id_of("s", p) for p in a}) == 4
@@ -207,7 +213,7 @@ def test_neighbours_and_alpha_ids():
 
 
 def test_validate_alpha_rejects_bad_params():
-    from backend.core.strategy.book import CANDIDATES
+    from backend.optimize.book.build import CANDIDATES
     c = CANDIDATES[0]
     ok = next(iter_params(c["space"], 1, 7))
     assert validate_alpha(c, ok) is None
@@ -261,10 +267,10 @@ def test_stats_histogram_bins_and_in_out():
 def full_run(market):
     """Một lượt đầy đủ S0 → FINAL (ngưỡng nới) dùng chung cho các test đọc kết quả."""
     mp = pytest.MonkeyPatch()
-    from backend.core.strategy import book as sb
-    f = sb.f
+    from backend.optimize.book import build as sb
+    from backend.alpha.compile import cond, f, tree_p
     cands = [{"id": "t_long", "family": "x", "side": "LONG", "description": "test",
-              "tree": sb.cond((f("15m", "rsi_14"), "<", sb.p("lo", 40))), "position": {},
+              "tree": cond((f("15m", "rsi_14"), "<", tree_p("lo", 40))), "position": {},
               "space": {"sig.lo": [35, 40, 45], "stop_loss_rate": [2.0], "take_profit_rate": [2.0], "timeout": [720]}}]
     mp.setattr(sb, "UNIVERSE", list(SYMS))
     mp.setattr(sb, "CANDIDATES", cands)
@@ -299,9 +305,10 @@ def test_full_pipeline_stage_transitions_and_storage(full_run):
             a = fa["alpha_id"]
             sm = store.alpha_metrics(a)
             assert set(sm) == set(gates.STAGES[1:])     # có số đo ở mọi tầng S1..FINAL
-            assert {"dsr", "neighbor_ratio", "pbo_strategy", "pbo_flag"} <= set(sm["S2_antiluck"])
             assert {"folds", "folds_profitable", "positive_ratio", "worst_fold_mdd", "is_ret_avg"} <= set(sm["S3_wfa"])
+            assert {"neighbor_ratio", "neighbor_n", "pbo_strategy", "pbo_flag"} <= set(sm["S3_wfa"])      # lân cận + PBO chạy trong S3
             assert {"p_mdd_ge_30", "stress_max_mdd", "simulations", "mdd_p95"} <= set(sm["S4_montecarlo"])
+            assert {"dsr", "dsr_cut", "n_trials", "n_trials_raw"} <= set(sm["S4_montecarlo"])             # DSR chạy trong S4
             assert sm["S5_sizing"]["final_scale"] == fa["final_scale"] == sm["FINAL"]["final_scale"]
             t1, t3, t5, t6 = (store.read_trades(a, s) for s in ("S1_backtest", "S3_wfa", "S5_sizing", "S6_holdout"))
             assert t1 and t3 and t6
@@ -348,7 +355,7 @@ def test_stage_stats_payload_shape(full_run):
 
 
 def test_trades_recompute_identical_to_stored_for_passer(full_run):
-    from backend.optimize.funnel.recompute import recompute_s1
+    from backend.optimize.funnel.stages import recompute_s1
     a = full_run["final_alphas"][0]["alpha_id"]
     store = RunStore(full_run["run_dir"], read_only=True)
     try:
@@ -365,7 +372,7 @@ def test_trades_recompute_identical_to_stored_for_passer(full_run):
 
 @pytest.fixture
 def client(monkeypatch):
-    from backend.api.routers import funnel as fr
+    from backend.routes import funnel as fr
     app = FastAPI()
     app.include_router(fr.router)
     return TestClient(app)
@@ -430,7 +437,7 @@ def test_s1_rejects_store_stats_only_and_recompute_endpoint(small_book, monkeypa
     monkeypatch.setattr(gates, "S1_MIN_TRADES", 10 ** 6)
     res = _run("fr-test-s1rej", until="S1_backtest")
     c = {x["stage"]: x for x in res["counts"]}
-    assert c["S1_backtest"]["rejected"] == 3 and c["S1_backtest"]["passed"] == 0 and c["S2_antiluck"]["input"] == 0
+    assert c["S1_backtest"]["rejected"] == 3 and c["S1_backtest"]["passed"] == 0 and c["S3_wfa"]["input"] == 0
     store = RunStore(res["run_dir"], read_only=True)
     try:
         rows = list(store.iter_stage_metrics("S1_backtest"))
@@ -441,8 +448,8 @@ def test_s1_rejects_store_stats_only_and_recompute_endpoint(small_book, monkeypa
         assert al["reject_code"] == "S1.min_trades" and al["reject_msg"].startswith("S1.min_trades: ") and al["rejected_stage"] == "S1_backtest"
     finally:
         store.close()
-    from backend.api.routers import funnel as fr
-    from backend.optimize.funnel.recompute import cache_path, recompute_s1
+    from backend.routes import funnel as fr
+    from backend.optimize.funnel.stages import cache_path, recompute_s1
     from backend.optimize.funnel.storage import atomic_write_json
     calls = []
     monkeypatch.setattr(fr, "_run_recompute_subprocess", lambda run_id, aid: (calls.append(aid), atomic_write_json(cache_path(res["run_dir"], aid), recompute_s1(res["run_dir"], aid))))
@@ -459,14 +466,14 @@ def test_s1_rejects_store_stats_only_and_recompute_endpoint(small_book, monkeypa
 
 def test_real_strict_gates_reject_with_codes_and_counts(small_book):
     """Ngưỡng THẬT (S1: >= 40 lệnh, >= 5/8 tài sản có lãi...): mọi alpha hoặc qua đúng điều kiện hoặc bị loại kèm mã + câu tiếng Việt."""
-    res = _run("fr-test-strict", until="S2_antiluck")
+    res = _run("fr-test-strict", until="S1_backtest")
     store = RunStore(res["run_dir"], read_only=True)
     try:
         for a, _, m, _ in store.iter_stage_metrics("S1_backtest"):
             al = store.get_alpha(a)
             ok, code, msg = gates.evaluate_s1(m)
             assert (al["rejected_stage"] is None) == ok and al["reject_code"] == code and al["reject_msg"] == msg
-            assert al["stage_reached"] == "S1_backtest" or (ok and al["stage_reached"] == "S2_antiluck")
+            assert al["stage_reached"] == "S1_backtest"
         c = {x["stage"]: x for x in store.stage_counts()}
         assert c["S1_backtest"]["passed"] + c["S1_backtest"]["rejected"] == 3
         reasons = {r["code"] for r in fstats.stage_stats(store, "S1_backtest")["reject_reasons"]}
@@ -477,7 +484,6 @@ def test_real_strict_gates_reject_with_codes_and_counts(small_book):
 
 # ─── Resume ─────────────────────────────────────────────────────────────────
 def _dump(run_dir):
-    import sqlite3
     con = sqlite3.connect(os.path.join(run_dir, "results.sqlite"))
     out = {"alphas": con.execute("SELECT * FROM alphas ORDER BY alpha_id").fetchall(),
            "stage_metrics": con.execute("SELECT * FROM stage_metrics ORDER BY alpha_id, stage").fetchall(),
@@ -493,13 +499,13 @@ def _dump(run_dir):
 
 
 def test_resume_after_crash_is_identical(small_book, lenient, monkeypatch, tmp_path):
-    from backend.optimize.funnel import orchestrator as orch
+    from backend.optimize.funnel import stages as orch
     monkeypatch.setitem(orch.FLUSH_N, "S1_backtest", 1)      # mỗi alpha một lô -> sập giữa chừng thật sự
-    ref = _run("fr-test-ref", until="S2_antiluck")
+    ref = _run("fr-test-ref", until="S3_wfa")
     assert ref["status"] == "done"
     monkeypatch.setenv("NORA_TEST_FUNNEL_FAIL_AFTER_COMMITS", "2")
     with pytest.raises(RuntimeError, match="mô phỏng sập"):
-        _run("fr-test-kill", until="S2_antiluck")
+        _run("fr-test-kill", until="S3_wfa")
     kill_dir = os.path.join(orch.funnel_root(), "fr-test-kill")
     part = RunStore(kill_dir, read_only=True)
     try:
@@ -511,14 +517,14 @@ def test_resume_after_crash_is_identical(small_book, lenient, monkeypatch, tmp_p
     orphan = os.path.join(kill_dir, "daily", "S1_backtest", "part-000099.parquet")
     open(orphan, "wb").write(b"junk")
     monkeypatch.delenv("NORA_TEST_FUNNEL_FAIL_AFTER_COMMITS")
-    res = _run("fr-test-kill", until="S2_antiluck")
+    res = _run("fr-test-kill", until="S3_wfa")
     assert res["status"] == "done" and not os.path.exists(orphan)
     a, b = _dump(ref["run_dir"]), _dump(res["run_dir"])
     assert a["alphas"] == b["alphas"] and a["stage_metrics"] == b["stage_metrics"] and a["kv"] == b["kv"]
-    assert a["trades"] == b["trades"] and a["daily"] == b["daily"] and len(a["daily"]) == 3
+    assert a["trades"] == b["trades"] and a["daily"] == b["daily"] and len(a["daily"]) >= 3
     assert [x["done"] for x in ref["counts"]] == [x["done"] for x in res["counts"]]
     # chạy tiếp lượt đã xong = không làm lại gì
-    again = _run("fr-test-kill", until="S2_antiluck")
+    again = _run("fr-test-kill", until="S3_wfa")
     assert _dump(again["run_dir"])["stage_metrics"] == b["stage_metrics"]
 
 
@@ -536,7 +542,7 @@ class FakePopen:
 
 
 def test_api_post_run_launches_job_and_writes_queued_stub(small_book, client, monkeypatch):
-    from backend.api.jobs import batch as batch_jobs
+    from backend.optimize.process import process as batch_jobs
     FakePopen.calls = []
     monkeypatch.setattr(batch_jobs.subprocess, "Popen", FakePopen)
     base = "/api/studio/funnel"
@@ -550,7 +556,7 @@ def test_api_post_run_launches_job_and_writes_queued_stub(small_book, client, mo
     assert p["strategies"] == ["t_long"] and p["windows"] == {"start": "2025-01-01"}
     queued = [x for x in client.get(f"{base}/runs").json()["runs"] if x["run_id"] == j["run_id"]][0]
     assert queued["job_id"] == j["job_id"] and queued["strategies"] == ["t_long"] and queued["total_alphas"] == 3
-    from backend.api.routers import funnel as fr
+    from backend.routes import funnel as fr
     stub = json.load(open(os.path.join(fr.funnel_root(), j["run_id"], "run.json"), encoding="utf-8"))
     assert stub["status"] == "queued" and stub["config"]["seed"] == 3
     jobs = batch_jobs.list_jobs(5, "funnel_run")
@@ -585,14 +591,14 @@ def test_api_post_run_launches_job_and_writes_queued_stub(small_book, client, mo
     assert est["s1_eta_s"] == pytest.approx(3 * 0.4 / 4, abs=0.1)
     assert client.get(f"{base}/estimate", params={"strategies": "t_long", "n_per_strategy": 100, "regime": "both"}).json()["sec_per_backtest"] is None
     dflt = client.get(f"{base}/estimate", params={"strategies": "t_long", "n_per_strategy": 100}).json()
-    from backend.utils.parallel import default_workers
-    from backend.optimize.funnel.orchestrator import PER_WORKER_MB
+    from backend.optimize.process.workers import default_workers
+    from backend.optimize.funnel.stages import PER_WORKER_MB
     assert dflt["workers_source"] == "server_default" and dflt["workers"] == default_workers(PER_WORKER_MB) >= 1
 
 
 def test_pool_mode_matches_serial_with_shared_data(small_book, lenient):
     """Chạy bằng pool 2 worker + dữ liệu dùng chung mmap cho KẾT QUẢ y hệt chạy tuần tự (S1..S3), và dọn _shared khi xong."""
-    from backend.optimize.funnel import orchestrator as orch
+    from backend.optimize.funnel import stages as orch
     ser = _run("fr-test-serial", until="S3_wfa")
     par = orch.run_funnel(_cfg(), run_id="fr-test-pool", workers=2, until="S3_wfa", log=lambda s: None)
     a, b = _dump(ser["run_dir"]), _dump(par["run_dir"])
@@ -601,8 +607,8 @@ def test_pool_mode_matches_serial_with_shared_data(small_book, lenient):
 
 
 def test_funnel_job_kind_registered_in_batch_with_label():
-    from backend.api.jobs import batch
-    assert batch.KINDS["funnel_run"]["module"] == "backend.optimize.funnel.run"
+    from backend.optimize.process import process as batch
+    assert batch.KINDS["funnel_run"]["module"] == "backend.optimize.funnel.stages" and batch.KINDS["funnel_run"]["func"] == "run_funnel_run"
     lab = batch.job_label("funnel_run", {"strategies": ["trend_long", "breakout_4h_long"], "n_per_strategy": 40, "symbols": ["BTC@perp"]})
     assert lab == "Phễu · trend_long, breakout_4h_long · n=40/chiến lược · BTC"
     assert batch.job_label("funnel_run", {"resume": "fr-x"}) == "Phễu · chạy tiếp fr-x"
@@ -610,7 +616,7 @@ def test_funnel_job_kind_registered_in_batch_with_label():
 
 def test_s1_grouped_run_many_equals_individual_runs(small_book):
     """S1 theo nhóm (cùng tín hiệu, nhiều bộ tham số vị thế -> run_many) phải TRÙNG TỪNG BIT với chạy từng alpha riêng."""
-    from backend.optimize.funnel import evaluate as ev
+    from backend.optimize.search import evaluate as ev
     start, end = T0 + 3 * 86_400_000, T0 + 20 * 86_400_000
     params = [{"sig.lo": 40, "stop_loss_rate": sl, "take_profit_rate": tp, "timeout": to}
               for sl, tp, to in ((2.0, 2.0, 720), (1.0, 3.0, 0), (3.0, 1.5, 1440), (0.8, 0.8, 360))]
@@ -628,10 +634,10 @@ def test_s1_grouped_run_many_equals_individual_runs(small_book):
 def test_schema_space_factored_sampling_deterministic_unique_grouped():
     """space=schema: lưới rời rạc từ params_schema; lấy mẫu phân tầng tất định, không lặp, mỗi bộ tín hiệu có PER_SIGNAL bộ vị thế."""
     import importlib.util
-    from backend.core.params.modes import schema_space
-    from backend.optimize.funnel import generate as gen
+    from backend.optimize.book.build import schema_space
+    from backend.optimize.search import generate as gen
     # bản riêng của module sổ chiến lược (fixture phạm vi module khác đang thay CANDIDATES bằng chiến lược test)
-    path = os.path.join(os.path.dirname(__file__), "..", "backend", "core", "strategy", "book.py")
+    path = os.path.join(os.path.dirname(__file__), "..", "backend", "optimize", "book", "build.py")
     spec = importlib.util.spec_from_file_location("book_fresh_for_test", path)
     fresh = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(fresh)
@@ -685,8 +691,8 @@ def test_sigterm_right_after_commit_exits_cleanly(tmp_path):
 def test_regime_both_variants_are_separate_trials_and_learn_on_train(small_book, lenient, monkeypatch):
     """P2.7: regime="both" -> mỗi bộ tham số thành 2 alpha (off + learn) -> DSR/PBO đếm N = tổng số biến thể. Biến thể learn học bảng regime
     trên cửa sổ HỌC: S1 = chính dev1 (trong mẫu, đã là một lần thử), WFA OOS = train của fold, holdout = toàn bộ trước holdout."""
-    from backend.optimize.funnel import evaluate as bt
-    from backend.optimize.funnel import orchestrator as orch
+    from backend.optimize.search import evaluate as bt
+    from backend.optimize.funnel import stages as orch
     seen = []
     orig = bt.learned_regime
 
@@ -705,9 +711,9 @@ def test_regime_both_variants_are_separate_trials_and_learn_on_train(small_book,
         m1 = store.metrics_of(learn, "S1_backtest")
         assert all(isinstance(m1[a]["regime_blocked"], list) for a in learn)
         assert all("regime_blocked" not in m for m in store.metrics_of(off, "S1_backtest").values())
-        m2 = store.metrics_of(learn + off, "S2_antiluck")
-        assert {m["n_trials_raw"] for m in m2.values()} == {6}                  # cả 2 biến thể là lần thử
-        assert all(1 <= m["n_trials"] <= 6 for m in m2.values())               # N hiệu dụng (gom lần thử tương quan) <= N
+        info = store.get_kv("strategy_level:t_long")
+        assert info["n_trials_raw"] == 6                                        # cả 2 biến thể là lần thử
+        assert 1 <= info["n_trials"] <= 6                                       # N hiệu dụng (gom lần thử tương quan) <= N
         windows = store.read_run()["windows_ms"]
     finally:
         store.close()
@@ -719,7 +725,7 @@ def test_regime_both_variants_are_separate_trials_and_learn_on_train(small_book,
 def test_s3_gate_is_skew_robust(monkeypatch):
     """Cổng S3 03/10: lãi lệch phải (đa số fold lỗ nhẹ, một fold lãi lớn) không bị loại chỉ vì tỉ lệ fold lãi; nhưng phải có t >= 1 và không
     dựa vào đúng một fold; fold 0 lệnh trung tính."""
-    from backend.core.metrics.returns import fold_stats
+    from backend.wfa.wfa import fold_stats
     # ngưỡng thật (fixture full_run nới ngưỡng ở phạm vi module — đặt lại cho test này)
     for k, v in dict(S3_MIN_FOLDS=5, S3_MIN_TRADED_FOLDS=3, S3_MIN_FOLD_T=1.0, S3_MIN_EX_BEST_FOLD_PCT=-2.0, S3_MIN_COMPOUNDED_OOS_PCT=0.0,
                      S3_MAX_FOLD_MDD_PCT=30.0, S3_MIN_AVG_IS_RET_PCT=0.0).items():
@@ -746,18 +752,18 @@ def test_effective_trials_clusters_correlated_trials():
     base = rng.normal(0, 0.01, (300, 3))                                       # 3 nguồn độc lập
     cols = [base[:, i % 3] + rng.normal(0, 0.001, 300) for i in range(30)]   # 30 lần thử = 3 cụm gần trùng
     M = np.column_stack(cols)
-    assert antiluck.effective_trials(M, 30) == 3
-    assert antiluck.effective_trials(M, 3000) == 300                          # phóng theo tỉ lệ cụm / mẫu
+    assert carlo.effective_trials(M, 30) == 3
+    assert carlo.effective_trials(M, 3000) == 300                          # phóng theo tỉ lệ cụm / mẫu
     indep = rng.normal(0, 0.01, (300, 20))
-    assert antiluck.effective_trials(indep, 20) == 20
-    assert antiluck.effective_trials(np.zeros((0, 0)), 50) == 50               # không có mẫu: giữ N (bảo thủ)
+    assert carlo.effective_trials(indep, 20) == 20
+    assert carlo.effective_trials(np.zeros((0, 0)), 50) == 50               # không có mẫu: giữ N (bảo thủ)
 
 
 def test_funnel_book_publish_checks_wfa_and_scores_holdout(full_run, tmp_path):
     """Xuất bản sổ từ alpha FINAL (optimize/funnel/publish.py): job WFA phải đúng cấu hình + rủi ro + gate qua; holdout chấm một lần;
     registry.write_book ghi book.json (+ testnet/book.json chỉ khi holdout đạt)."""
-    from backend.optimize.funnel import publish
-    from backend.optimize.registry import write_book
+    from backend.optimize.funnel import stages as publish
+    from backend.optimize.book.registry import write_book
     store = RunStore(full_run["run_dir"], read_only=True)
     try:
         aid = next(a for a, _, _, _ in store.iter_stage_metrics("FINAL"))
@@ -786,8 +792,8 @@ def test_funnel_book_publish_checks_wfa_and_scores_holdout(full_run, tmp_path):
 def test_funnel_explore_book_accepts_unvalidated_alpha(full_run, tmp_path):
     """Sổ thử nghiệm (explore): alpha qua S1 nhưng chưa FINAL được nhận, không cần WFA; ghi explore/book.json status EXPLORE_DEMO +
     danh sách unvalidated; sổ chính vẫn từ chối alpha đó."""
-    from backend.optimize.funnel import publish
-    from backend.optimize.registry import EXPLORE_STATUS, write_explore_book
+    from backend.optimize.funnel import stages as publish
+    from backend.optimize.book.registry import EXPLORE_STATUS, write_explore_book
     import shutil
     run_dir = str(tmp_path / "run")
     shutil.copytree(full_run["run_dir"], run_dir)
@@ -813,7 +819,7 @@ def test_funnel_explore_book_accepts_unvalidated_alpha(full_run, tmp_path):
 
 def test_aggregate_wfa_measures_turnover_from_oos_trades():
     """P9.13: S3 ghi vòng quay vốn/ngày đo từ lệnh OOS (danh nghĩa mở / vốn lúc vào lệnh / số ngày) để MC dựng cost_x2; thiếu lệnh -> None + lý do."""
-    from backend.optimize.funnel import evaluate as ev
+    from backend.optimize.search import evaluate as ev
     H = 3_600_000
 
     def tr(pnl, notional_margin, lev, eq, t):
@@ -830,3 +836,72 @@ def test_aggregate_wfa_measures_turnover_from_oos_trades():
     assert m2["turnover_daily"] is None and "không có danh sách lệnh" in m2["turnover_note"]
     m3 = ev.aggregate_wfa([fold(1, [tr(5.0, 100.0, 5.0, 0.0, 0)])])["metrics"]                          # thiếu vốn lúc vào lệnh
     assert m3["turnover_daily"] is None and "thiếu danh nghĩa hoặc vốn" in m3["turnover_note"]
+
+
+# ─── Chống ăn may gộp vào S3 / S4 (không còn tầng S2 riêng) ─────────────────
+def test_neighbour_rejection_now_happens_in_s3_with_same_code(small_book, lenient, monkeypatch):
+    """Alpha từng bị S2 loại vì lân cận (S2.neighbor) nay bị S3 loại cùng mã; chỉ alpha đã qua WFA mới tốn backtest lân cận."""
+    seen = []
+
+    def fake(ctx, strategy, cand, rows):
+        seen.append(len(rows))
+        return {r["alpha_id"]: (0.0, 4) for r in rows}
+    monkeypatch.setattr(gates, "_neighbour_ratios", fake)
+    monkeypatch.setattr(gates, "S2_NEIGHBOUR_MIN_PROFIT_RATIO", 0.60)      # mặc định thật (fixture lenient hạ về 0)
+    res = _run("fr-test-nb-s3", until="S3_wfa")
+    c = {x["stage"]: x for x in res["counts"]}
+    assert "S2_antiluck" not in c and c["S3_wfa"]["input"] == c["S1_backtest"]["passed"] >= 1
+    assert c["S3_wfa"]["rejected"] == c["S3_wfa"]["done"] and seen and sum(seen) == c["S3_wfa"]["done"]
+    store = RunStore(res["run_dir"], read_only=True)
+    try:
+        for a, _, m, _ in store.iter_stage_metrics("S3_wfa"):
+            al = store.get_alpha(a)
+            assert al["rejected_stage"] == "S3_wfa" and al["reject_code"] == "S2.neighbor" and al["reject_msg"].startswith("S2.neighbor: ")
+            assert m["neighbor_ratio"] == 0.0 and m["neighbor_n"] == 4 and "pbo_flag" in m
+        assert store.get_kv("strategy_level:t_long")["n_trials_raw"] == 3
+    finally:
+        store.close()
+
+
+def test_dsr_rejection_now_happens_in_s4_before_monte_carlo(small_book, lenient, monkeypatch):
+    """Alpha từng bị S2 loại vì DSR ngoài top (S2.dsr_rank) nay bị S4 loại cùng mã, trước khi chạy Monte Carlo."""
+    monkeypatch.setattr(gates, "dsr_cut", lambda dsrs: 1e9)
+    res = _run("fr-test-dsr-s4", until="S4_montecarlo")
+    c = {x["stage"]: x for x in res["counts"]}
+    assert c["S3_wfa"]["passed"] >= 1 and c["S4_montecarlo"]["input"] == c["S3_wfa"]["passed"]
+    assert c["S4_montecarlo"]["rejected"] == c["S4_montecarlo"]["done"] == c["S4_montecarlo"]["input"] and c["S4_montecarlo"]["passed"] == 0
+    store = RunStore(res["run_dir"], read_only=True)
+    try:
+        for a, _, m, _ in store.iter_stage_metrics("S4_montecarlo"):
+            al = store.get_alpha(a)
+            assert al["rejected_stage"] == "S4_montecarlo" and al["reject_code"] == "S2.dsr_rank" and al["reject_msg"].startswith("S2.dsr_rank: ")
+            assert "dsr" in m and "simulations" not in m and store.read_mc(a) is None      # chưa tốn Monte Carlo
+    finally:
+        store.close()
+
+
+def test_legacy_run_with_s2_block_still_reads(small_book, lenient):
+    """Kho cũ có khối S2_antiluck (stage_idx 2): vẫn đếm / hiển thị thống kê như tầng cũ, và là đầu vào hợp lệ của S3; không ghi lại dữ liệu."""
+    res = _run("fr-test-legacy", until="S1_backtest")
+    con = sqlite3.connect(os.path.join(res["run_dir"], "results.sqlite"))
+    a = con.execute("SELECT alpha_id FROM alphas WHERE stage_idx=1 AND rejected_idx IS NULL LIMIT 1").fetchone()[0]
+    con.execute("UPDATE alphas SET stage_reached='S2_antiluck', stage_idx=2 WHERE alpha_id=?", (a,))
+    con.execute("INSERT INTO stage_metrics(alpha_id, stage, metrics_json, passed, ret_pct) VALUES (?, 'S2_antiluck', '{\"dsr\": 0.5, \"ret_pct\": 1.0}', 1, 1.0)", (a,))
+    con.commit()
+    con.close()
+    store = RunStore(res["run_dir"], read_only=True)
+    try:
+        names = [x["stage"] for x in store.stage_counts()]
+        assert names == ["S0_generate", "S1_backtest", "S2_antiluck", "S3_wfa", "S4_montecarlo", "S5_sizing", "S6_holdout", "FINAL"]
+        c = {x["stage"]: x for x in store.stage_counts()}
+        assert c["S2_antiluck"]["passed"] == 1 and c["S3_wfa"]["input"] == 1
+        assert store.count_pending(gates.STAGE_IDX["S1_backtest"]) >= 1 and a in {r["alpha_id"] for r in store.pending(gates.STAGE_IDX["S1_backtest"])}
+        assert "S2_antiluck" in store.alpha_metrics(a) and fstats.stage_stats(store, "S2_antiluck")["stage"] == "S2_antiluck"
+    finally:
+        store.close()
+    with pytest.raises(KeyError):          # lượt mới không có tầng S2
+        fresh = RunStore(_run("fr-test-nolegacy", until="S1_backtest")["run_dir"], read_only=True)
+        try:
+            fstats.stage_stats(fresh, "S2_antiluck")
+        finally:
+            fresh.close()

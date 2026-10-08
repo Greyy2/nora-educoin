@@ -34,7 +34,7 @@ nora/
 ### Chạy việc gì ở đâu — một cửa: API
 
 Mọi việc nặng là **job** chạy qua cùng một đường: endpoint API → `api/jobs/batch.launch` ghi `params.json` → tiến trình riêng
-`backend/utils/ops/run_limited.sh -- -m backend.api.jobs.runner <job_dir>` (trần RAM nora.slice) → `run_job(params)` của module.
+`ops/run_limited.sh -- -m backend.api.jobs.runner <job_dir>` (trần RAM nora.slice) → `run_job(params)` của module.
 UI, terminal (curl) hay script đều gọi **cùng endpoint**; không có lệnh terminal riêng cho từng việc.
 
 | Việc | Endpoint | Loại job → module |
@@ -50,7 +50,7 @@ UI, terminal (curl) hay script đều gọi **cùng endpoint**; không có lện
 
 Theo dõi / huỷ: `GET /api/studio/book/jobs`, `GET /api/studio/book/jobs/{id}`, `POST /api/studio/book/jobs/{id}/cancel`.
 Ví dụ terminal: `curl -X POST localhost:18010/api/studio/book/backtest -H 'content-type: application/json' -d '{"mode":"basic","strategies":[{"id":"trend_long"}],"start":"2025-03-01","end":"2025-04-30"}'`.
-Script kiểm tra/nghiên cứu (không phải logic sản phẩm) nằm ở `test/scripts/`, chạy bằng `backend/utils/ops/run_limited.sh -- test/scripts/<tên>.py`.
+Script kiểm tra/nghiên cứu (không phải logic sản phẩm) nằm ở `test/scripts/`, chạy bằng `ops/run_limited.sh -- test/scripts/<tên>.py`.
 
 ---
 
@@ -91,7 +91,7 @@ nora/docs/
 
 - **Bắt đầu phiên mới:** đọc [bmad/README.md](bmad/README.md), [bmad/prd.md](bmad/prd.md) (mục 3, 7, 8), [bmad/epics.md](bmad/epics.md) và `knowledge_base/02_boss_mandates_and_rulebase.md`.
 - **Trước khi sửa code:** đọc phần liên quan trong [bmad/architecture.md](bmad/architecture.md). Golden test phải giữ bit-identical trừ khi chủ đích đổi ngữ nghĩa backtest.
-- **Chạy job nặng:** luôn qua `backend/utils/ops/run_limited.sh` (nora.slice 12G, hàng đợi); chi tiết ở `bmad/architecture.md` mục 12.
+- **Chạy job nặng:** luôn qua `ops/run_limited.sh` (nora.slice 12G, hàng đợi); chi tiết ở `bmad/architecture.md` mục 12.
 - **Khi xong một story:** cập nhật file story (trạng thái, task, Evidence, Change Log), `bmad/sprint-status.yaml`, `bmad/epics.md`, rồi chạy kiểm tra nhất quán trong `bmad/README.md`.
 - **Khi chủ sở hữu đưa ra góp ý hoặc luật mới:** bổ sung vào `knowledge_base/02_boss_mandates_and_rulebase.md`.
 - **Không nới gate** để có kết quả đẹp; không có kết quả đạt thì ghi nhận trung thực.

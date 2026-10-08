@@ -19,21 +19,19 @@ import time
 
 import pytest
 
-from backend.core.data import quality_gate as qg
-from backend.optimize import store as rs
-from backend.utils.jobs import Progress
-from backend.optimize.store import stream_stage
-from backend.utils import parallel
+from backend.crawl import store as qg
+from backend.optimize.funnel import storage as rs
+from backend.optimize.process.process import Progress
+from backend.optimize.funnel.storage import stream_stage
+from backend.optimize.process import workers as parallel
+from data_helpers import patch_meta
 from test_portfolio_wfa import DAY, START, T0, _load_script, _small_book, market  # noqa: F401  (market là fixture)
 
 
 # ─── 12.1 cổng chất lượng dữ liệu bắt buộc ──────────────────────────────────
 def _tamper(market, sym="AAA", **changes):
-    """Sửa manifest của <sym>@perp (synthetic=true / sha256 sai ...) và xoá cache gate."""
-    path = market / "cex" / sym / "perp" / "manifest.json"
-    m = json.loads(path.read_text())
-    m.update(changes)
-    path.write_text(json.dumps(m))
+    """Sửa metadata (attrs) của <sym>@perp (synthetic=true / digest_1m sai ...) và xoá cache gate."""
+    patch_meta(str(market / "cex" / sym / "perp"), **changes)
     qg._GATE_CACHE.clear()
     qg._WARNED.clear()
 
@@ -42,19 +40,19 @@ def _restore_cache():
     qg._GATE_CACHE.clear()
 
 
-BAD = {"synthetic": dict(synthetic=True), "sha256": dict(sha256_1m="0" * 64)}
+BAD = {"synthetic": dict(synthetic=True), "digest": dict(digest_1m="0" * 64)}
 
 
 def test_require_data_ok_passes_clean_market_and_lists_issues_for_bad(market):
     ok = qg.require_data_ok(["AAA@perp", "BBB@perp"])
     assert set(ok) == {"AAA@perp", "BBB@perp"} and all(v["status"] in ("APPROVED", "WARNING") for v in ok.values())
     _tamper(market, "AAA", synthetic=True)
-    _tamper(market, "BBB", sha256_1m="0" * 64)
+    _tamper(market, "BBB", digest_1m="0" * 64)
     with pytest.raises(qg.DataQualityError) as e:
         qg.require_data_ok(["AAA@perp", "BBB@perp", "CCC@perp"])
     msg = str(e.value)
     assert "AAA@perp" in msg and "BBB@perp" in msg and "CCC@perp" not in msg      # liệt kê từng tài sản lỗi
-    assert "BLOCKED" in msg and "synthetic" in msg and "sha256" in msg
+    assert "BLOCKED" in msg and "synthetic" in msg and "digest_1m" in msg
     with pytest.raises(SystemExit) as se:                                         # bản cho CLI: SystemExit(thông điệp)
         qg.require_data_ok_or_exit(["AAA@perp"])
     assert "AAA@perp" in str(se.value)
@@ -73,10 +71,11 @@ def test_require_data_ok_needs_more_data_and_warning(market, monkeypatch, caplog
 
 @pytest.mark.parametrize("kind", sorted(BAD))
 def test_portfolio_engine_refuses_bad_data(market, monkeypatch, kind):
-    from backend.core.backtest.portfolio import PortfolioEngine
+    from backend.core.backtest import PortfolioEngine
+    from backend.core.params import materialize
     sb = _small_book(monkeypatch)
     cands = sb.BY_ID
-    st = sb.materialize(cands["t_long"], {"sig.lo": 40, "stop_loss_rate": 2.0, "take_profit_rate": 2.0, "timeout": 720})
+    st = materialize(cands["t_long"], {"sig.lo": 40, "stop_loss_rate": 2.0, "take_profit_rate": 2.0, "timeout": 720})
     _tamper(market, "BBB", **BAD[kind])
     eng = PortfolioEngine(sb.perp_symbols(), [st], T0, T0 + 30 * DAY, trade_start_ts=T0 + 3 * DAY, use_cache=False)
     with pytest.raises(qg.DataQualityError, match="BBB@perp"):
@@ -240,7 +239,7 @@ def test_iter_configs_same_sequence_as_old_configs(n, seed):
 
 def test_iter_configs_real_candidate_spaces_and_huge_space_is_lazy():
     bsb = _load_script("build_strategy_book")
-    from backend.core.strategy.book import CANDIDATES
+    from backend.optimize.book.build import CANDIDATES
     for c in CANDIDATES:
         assert list(bsb.iter_configs(c, 24, 7)) == _old_configs(c, 24, 7)
     huge = {"space": {f"k{i}": list(range(10)) for i in range(40)}}                   # 10^40 tổ hợp (> 2^63): không dựng lưới
@@ -471,8 +470,8 @@ def test_validate_book_max_configs(market, monkeypatch):
 
 # ─── 12.3 resume optimize_alphas (sàng lọc theo cấu hình + cặp) ─────────────
 def _oa_space(sb, market="perp"):
-    from backend.core.strategy.library import cond, f, p
-    return {"id": "t_space", "venue": "cex", "side": "LONG", "tree": cond((f("15m", "rsi_14"), "<", p("lo", 40))),
+    from backend.alpha.compile import cond, f, tree_p
+    return {"id": "t_space", "venue": "cex", "side": "LONG", "tree": cond((f("15m", "rsi_14"), "<", tree_p("lo", 40))),
             "fixed": {"market": market, "leverage": 2, "order_size_pct": 50, "take_profit_rate": 2.0, "stop_loss_rate": 2.0},
             "space": {"sig.lo": [25, 30, 35, 40, 45, 50], "trailing_stop": [1.0, 2.0, 3.0]}}
 
@@ -505,8 +504,8 @@ def test_progress_resumed_ticks_do_not_count_toward_rate(tmp_path):
 _KILL_SCRIPT = r"""
 import os, sys, time
 sys.path.insert(0, {root!r})
-from backend.optimize.store import ResultsStore
-from backend.utils.jobs import Progress, graceful_sigterm
+from backend.optimize.funnel.storage import ResultsStore
+from backend.optimize.process.process import Progress, graceful_sigterm
 d = sys.argv[1]
 store = ResultsStore(d)
 prog = Progress(d)
@@ -539,7 +538,7 @@ def test_sigterm_flushes_store_and_marks_cancelled(tmp_path):
 
 # ─── 12.4 API: tiến độ, huỷ, stage_a có phân trang, tham số build lớn ───────
 from test_book_ui_backend import client  # noqa: E402,F401  (fixture: app FastAPI + Popen giả)
-from backend.api.jobs import batch as batch_jobs  # noqa: E402
+from backend.optimize.process import process as batch_jobs  # noqa: E402
 
 
 def _job(state="running", pid=None, name="20260101_000009_a1b2c3", **extra):
@@ -581,7 +580,7 @@ def test_cancel_endpoint_sigterms_process_group_and_marks_cancelled(client):
 
 
 def test_stage_a_endpoint_paginates_store(client, tmp_path, monkeypatch):
-    from backend.db.data_layout import cache_dir
+    from backend.crawl.store import cache_dir
     run = cache_dir(None, "book", "20260101_000000")
     st = rs.ResultsStore(run)
     for i in range(25):
@@ -603,7 +602,7 @@ def test_stage_a_endpoint_paginates_store(client, tmp_path, monkeypatch):
     assert client.get(f"/api/studio/book/jobs/{name}/stage_a?candidate=nope").status_code == 404
     assert client.get(f"/api/studio/book/jobs/{name}/stage_a?limit=0").status_code == 422
     assert client.get(f"/api/studio/book/jobs/{name}/stage_a?sort=x").status_code == 422
-    # run_dir ngoài data/_cache/ bị từ chối; job không có progress/result -> 404
+    # run_dir ngoài data/cache/process/ bị từ chối; job không có progress/result -> 404
     with open(os.path.join(d, "progress.json"), "w") as fh:
         json.dump({"run_dir": str(tmp_path)}, fh)
     assert client.get(f"/api/studio/book/jobs/{name}/stage_a").status_code == 404

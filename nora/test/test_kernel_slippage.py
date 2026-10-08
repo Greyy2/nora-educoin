@@ -4,8 +4,7 @@ Kernel không hỗ trợ impact_fn (AMM/DEX) nên trường hợp đó nằm ở
 import pytest
 
 import golden_scenarios as gs
-from backend.core.backtest.portfolio import PortfolioEngine
-from backend.live.paper import PaperBook
+from backend.core.backtest import PaperBook, PortfolioEngine
 from test_kernel_parity import market_root, rand_portfolio_config  # noqa: F401  (market_root là fixture)
 from test_risk_engine import _risk_cfg
 from test_runner_parity import _risk_dict, _run

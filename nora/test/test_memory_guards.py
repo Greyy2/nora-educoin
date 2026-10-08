@@ -22,7 +22,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from backend.core.data.resampler import save_resampled_dataset
+from backend.crawl.store import save_resampled_dataset
 
 T0 = 1_700_006_400_000
 M = 60_000
@@ -33,7 +33,7 @@ MB = 1024 * 1024
 # ─── ByteLRU ────────────────────────────────────────────────────────────────
 
 def test_byte_lru_evicts_least_recently_used_by_bytes():
-    from backend.utils.lru import ByteLRU
+    from backend.crawl.store import ByteLRU
     lru = ByteLRU(1)
     lru.put("a", "A", MB // 2)
     lru.put("b", "B", MB // 2)
@@ -46,7 +46,7 @@ def test_byte_lru_evicts_least_recently_used_by_bytes():
 
 
 def test_byte_lru_replacing_a_key_keeps_the_byte_ledger_right():
-    from backend.utils.lru import ByteLRU
+    from backend.crawl.store import ByteLRU
     lru = ByteLRU(1)
     lru.put("a", 1, 600_000)
     lru.put("a", 2, 300_000)
@@ -56,7 +56,7 @@ def test_byte_lru_replacing_a_key_keeps_the_byte_ledger_right():
 
 
 def test_byte_lru_ledger_stays_consistent_under_threads():
-    from backend.utils.lru import ByteLRU
+    from backend.crawl.store import ByteLRU
     lru = ByteLRU(1)
 
     def work(seed):
@@ -93,7 +93,7 @@ def _series(days, seed=3):
 
 @pytest.fixture
 def one_asset(tmp_path, monkeypatch):
-    from backend.core.data.loader import CandleLoader
+    from backend.crawl.store import CandleLoader
     root = tmp_path / "data"
     monkeypatch.setenv("NORA_LOCAL_DATA_ROOT", str(root))
     monkeypatch.setenv("NORA_DATA_SOURCE", "auto")
@@ -107,8 +107,8 @@ def one_asset(tmp_path, monkeypatch):
 
 
 def test_loader_caches_each_file_once_and_windows_match_fetch(one_asset):
-    from backend.core.data.loader import _CANDLE_CACHE, CandleLoader
-    from backend.db.local_pkl import fetch_candles_df
+    from backend.crawl.store import _CANDLE_CACHE, CandleLoader
+    from backend.crawl.store import fetch_candles_df
     windows = ((T0, T0 + DAY), (T0 + DAY + 7 * M, T0 + 3 * DAY - M), (T0 - DAY, T0 + 10 * DAY))
     for frame in ("1m", "15m", "1h"):
         for start, end in windows:
@@ -119,14 +119,14 @@ def test_loader_caches_each_file_once_and_windows_match_fetch(one_asset):
 
 
 def test_loader_returns_only_engine_columns(one_asset):
-    from backend.core.data.loader import CandleLoader
+    from backend.crawl.store import CandleLoader
     cols = set(CandleLoader("AAA", "1m").load_data(T0, T0 + DAY).columns)
     assert {"open_time", "open", "high", "low", "close", "volume", "is_filled"} <= cols
     assert not cols & {"symbol", "timestamp", "close_time", "is_close"}
 
 
 def test_loader_cache_expires_when_file_is_rewritten(one_asset):
-    from backend.core.data.loader import CandleLoader
+    from backend.crawl.store import CandleLoader
     before = CandleLoader("AAA", "1m").load_data(T0, T0 + DAY)["close"].to_numpy().copy()
     path = one_asset / "cex" / "AAA" / "1m.pkl"
     df = pd.read_pickle(path)
@@ -191,17 +191,8 @@ def test_pool_map_safe_reruns_only_missing_jobs_after_worker_kill(tmp_path, caps
 
 # ─── memwatch ───────────────────────────────────────────────────────────────
 
-def test_effective_available_respects_cgroup_limit(monkeypatch):
-    from backend.utils import memwatch
-    monkeypatch.setattr(memwatch, "mem_available_mb", lambda: 30_000.0)
-    monkeypatch.setattr(memwatch, "cgroup_free_mb", lambda: 4_000.0)
-    assert memwatch.effective_available_mb() == 4_000.0
-    monkeypatch.setattr(memwatch, "cgroup_free_mb", lambda: None)
-    assert memwatch.effective_available_mb() == 30_000.0
-
-
 def test_peak_rss_is_at_least_current_rss():
-    from backend.utils import memwatch
+    from backend.optimize.process import workers as memwatch
     if not os.path.exists("/proc/self/status"):
         pytest.skip("cần Linux /proc")
     assert memwatch.peak_rss_mb() >= memwatch.rss_mb() > 0
@@ -210,7 +201,7 @@ def test_peak_rss_is_at_least_current_rss():
 # ─── trần RAM bắt buộc + cỡ pool theo cgroup ─────────────────────────────────
 
 def test_require_memory_limit_refuses_without_cap(monkeypatch):
-    from backend.utils import memwatch
+    from backend.optimize.process import workers as memwatch
     monkeypatch.setattr(memwatch, "cgroup_limit_mb", lambda: None)
     monkeypatch.delenv("NORA_ALLOW_UNLIMITED", raising=False)
     with pytest.raises(SystemExit, match="run_limited.sh"):
@@ -221,21 +212,21 @@ def test_require_memory_limit_refuses_without_cap(monkeypatch):
 
 
 def test_require_memory_limit_allows_explicit_unlimited(monkeypatch):
-    from backend.utils import memwatch
+    from backend.optimize.process import workers as memwatch
     monkeypatch.setattr(memwatch, "cgroup_limit_mb", lambda: None)
     monkeypatch.setenv("NORA_ALLOW_UNLIMITED", "1")
     memwatch.require_memory_limit("build_strategy_book")  # không raise
 
 
 def test_require_memory_limit_returns_the_cap(monkeypatch):
-    from backend.utils import memwatch
+    from backend.optimize.process import workers as memwatch
     monkeypatch.setattr(memwatch, "cgroup_limit_mb", lambda: 8192.0)
     monkeypatch.delenv("NORA_ALLOW_UNLIMITED", raising=False)
     assert memwatch.require_memory_limit("build_strategy_book") == 8192.0
 
 
 def _patch_mem(monkeypatch, cgroup_free, host, reserve="8000"):
-    from backend.utils import memwatch
+    from backend.optimize.process import workers as memwatch
     monkeypatch.setattr(memwatch, "cgroup_free_mb", lambda: cgroup_free)
     monkeypatch.setattr(memwatch, "mem_available_mb", lambda: host)
     if reserve is None:
@@ -305,5 +296,5 @@ def test_auto_workers_backs_off_when_host_busy(monkeypatch):
 
 
 def test_worker_init_never_raises():
-    from backend.utils import memwatch
+    from backend.optimize.process import workers as memwatch
     memwatch.worker_init()

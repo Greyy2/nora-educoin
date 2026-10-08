@@ -5,7 +5,7 @@ LONG khi close cắt lên dải trên (close[1] < up[1] và close > up), SHORT k
 Nora: engine thật (live/signals.evaluate với khung chạy = khung tín hiệu). Tín hiệu của Nora ở nến t dùng nến khung ĐÃ ĐÓNG trước t
 (không nhìn trước), nên kỳ vọng nora[t] == sova[t-1] (lệch đúng 1 nến), không lệch nào khác.
 
-Chạy: backend/utils/ops/run_limited.sh --no-lock -- test/scripts/check_sova_parity.py [--symbols BTC,ETH] [--tf 4h]
+Chạy: ops/run_limited.sh --no-lock -- test/scripts/check_sova_parity.py [--symbols BTC,ETH] [--tf 4h]
 """
 import argparse
 import os
@@ -32,21 +32,22 @@ def sova_signals(df: pd.DataFrame, ema_n: int, atr_n: int, k_up: float, k_dn: fl
 
 
 def nora_signals(sym: str, df: pd.DataFrame, tf: str, params: dict):
-    from backend.core.strategy.book import CANDIDATES, materialize, schema_defaults
-    from backend.live import signals as ls
+    from backend.core.params import materialize, schema_defaults
+    from backend.optimize.book.build import CANDIDATES
+    from backend.core import backtest as bt
     by = {c["id"]: c for c in CANDIDATES}
     sts = [materialize(by[i], {**schema_defaults(by[i]), **params}, risk_per_trade_pct=1.0, stop_fill="level")
            for i in ("keltner_trend_long", "keltner_trend_short")]
     frames = {tf: df[["open_time", "open", "high", "low", "close", "volume"]].assign(is_filled=0)}
     if tf != "4h":
         frames["4h"] = pd.read_pickle(os.path.join(ls_root(), sym, "perp", "4h.pkl"))
-    v = ls.evaluate(sym, sts, frames, tf)
+    v = bt.evaluate_signals(sym, sts, frames, tf)
     long_e, short_e = v["entries"][0], v["entries"][1]
     return v["t"], long_e["match"], short_e["match"], long_e["stop"]
 
 
 def ls_root():
-    from backend.db.data_layout import default_data_root
+    from backend.crawl.store import default_data_root
     return os.path.join(default_data_root(), "cex")
 
 
@@ -73,7 +74,7 @@ def main():
     a = ap.parse_args()
     import warnings
     warnings.filterwarnings("ignore")
-    from backend.core.signals.kernels import compute
+    from backend.core.indicator import compute
     total = 0
     for cfg in a.configs.split(","):
         ema_n, atr_n, k_up, k_dn = int(cfg.split(":")[0]), int(cfg.split(":")[1]), float(cfg.split(":")[2]), float(cfg.split(":")[3])

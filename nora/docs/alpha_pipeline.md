@@ -90,7 +90,7 @@ Kết quả: `<data>/_cache/book_wfa/<thời điểm>/report.json`.
 ## 9. API sổ chiến lược: job nền (`/api/studio/book`)
 
 API có trần RAM riêng (3G) nên KHÔNG chạy backtest/WFA danh mục trong tiến trình. Mỗi job là một tiến trình con
-`backend/utils/ops/run_limited.sh -- -m backend.<gói>.<lệnh> ...` (scope riêng trong `nora.slice`, xếp hàng tuần tự bằng flock, worker tự chia);
+`ops/run_limited.sh -- -m backend.<gói>.<lệnh> ...` (scope riêng trong `nora.slice`, xếp hàng tuần tự bằng flock, worker tự chia);
 API chỉ khởi chạy, theo dõi và đọc kết quả (`backend/api/jobs/batch.py`, router `backend/api/routers/book.py`).
 
 | Endpoint | Việc |

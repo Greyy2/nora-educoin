@@ -13,14 +13,14 @@ Là người vận hành, tôi muốn truy cập UI từ xa qua một domain có
 1. **Given** nginx làm reverse proxy tới `127.0.0.1:18010`, **When** truy cập domain không có thông tin đăng nhập, **Then** nhận 401 cho cả trang và `/api`.
 2. **Given** đăng nhập đúng, **When** dùng UI, **Then** vòng Alpha → Backtest → WFA → MC → Danh mục chạy bình thường (poll job không bị chặn).
 3. **Given** HTTP, **When** truy cập, **Then** chuyển sang HTTPS.
-4. **Given** cấu hình nginx, **When** xem repo, **Then** có mẫu cấu hình trong `backend/utils/ops/` (không chứa mật khẩu).
+4. **Given** cấu hình nginx, **When** xem repo, **Then** có mẫu cấu hình trong `ops/` (không chứa mật khẩu).
 
 ## Tasks / Subtasks
 
 - [ ] Mẫu cấu hình nginx (TLS, basic auth, proxy, timeout cho job)
 - [ ] Hướng dẫn tạo `htpasswd`
 - [ ] Kiểm bằng `curl` (401/200)
-- [ ] Ghi vào `backend/utils/ops/README.md`
+- [ ] Ghi vào `ops/README.md`
 
 ## Dev Notes
 

@@ -1,12 +1,9 @@
 """Nến + funding CEX (Binance data.binance.vision/REST và OKX CDN/REST) -> 1m.pkl + khung resample + manifest.
 
-P9.2 (ADR-P9): gộp NGUYÊN VĂN core/data/crawler.py (Binance) + core/data/okx_crawler.py (OKX).
-Tên trùng giữa hai nguồn được đổi phía OKX: crawl -> okx_crawl, crawl_funding -> okx_crawl_funding, run_job -> okx_run_job,
-DEFAULT_CACHE_DIR -> OKX_DEFAULT_CACHE_DIR. Đường dẫn module cũ vẫn dùng được qua shim (core/data/{crawler,okx_crawler}.py).
+Nguồn gộp: docs/bmad/p9_review_log.md
 """
 import hashlib
 import io
-import json
 import os
 import time
 import zipfile
@@ -16,34 +13,28 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 import requests
-from backend.utils.jobs import as_list, options, write_job_result
-from backend.crawl.store import save_resampled_dataset
+from backend.crawl.store import NORA_ROOT, as_list, options, save_resampled_dataset, stamp_attrs, write_job_result, write_pickle_atomic
 
 
-# ====================================================================================================
-# ↓ core/data/crawler.py  (P9.2: chuyển nguyên văn; module cũ: backend.core.data.crawler)
-# ====================================================================================================
-# Crawl nến 1m Binance Spot (CEX) nhiều năm -> 1m.pkl + các khung resample + manifest.json.
+# ── Crawl nến Binance Spot ────────────────────────────────────────────────────────────────────
+# Crawl nến 1m Binance Spot (CEX) nhiều năm -> 1m.pkl + các khung resample (metadata nằm trong attrs của pkl).
 #
 # Nguồn (theo thứ tự):
 # 1. data.binance.vision  — file ZIP theo THÁNG cho các tháng đã đóng, kèm .CHECKSUM (SHA-256).
 # 2. data.binance.vision  — file ZIP theo NGÀY cho tháng hiện tại (tới hôm qua).
 # 3. REST /api/v3/klines — phần còn lại tới hiện tại (hôm nay).
 #
-# Mọi resample/manifest đi qua core/resampler.save_resampled_dataset (một nguồn duy nhất = 1m).
+# Mọi resample/manifest đi qua crawl/store.save_resampled_dataset (một nguồn duy nhất = 1m).
 #
 # Lưu ý định dạng:
 # - Từ 2025-01-01, open_time trong file spot của data.binance.vision tính bằng MICRO-giây
 #   (trước đó là mili-giây). REST API vẫn trả mili-giây. Mọi timestamp được chuẩn hoá về ms.
 # - volume ghi vào pkl là quote_asset_volume (USDT) để cùng đơn vị USD với dữ liệu DEX.
 #
-# Job API `data_crawl` (POST /api/data/crawl -> api/jobs/runner.py -> run_job): params symbols ("BTC,ETH" hoặc list), market (spot|um),
-# years, quote, end_ts; mặc định ghi vào data/binance/cex (Binance = dữ liệu tham khảo; sàn triển khai OKX: core/data/okx_crawler.py).
+# Job API `data_crawl` (POST /api/data/crawl -> optimize/process/process.py -> run_job): params symbols ("BTC,ETH" hoặc list), market (spot|um),
+# years, quote, end_ts; mặc định ghi vào data/market/binance/cex (Binance = dữ liệu tham khảo; sàn triển khai OKX: crawl/cex.py).
 #
 
-NORA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-
-VISION_BASE = "https://data.binance.vision/data/spot"
 REST_BASE = "https://api.binance.com/api/v3/klines"
 MARKETS = {
     "spot": {"vision": "https://data.binance.vision/data/spot", "rest": REST_BASE,
@@ -54,7 +45,7 @@ MARKETS = {
 }
 MINUTE_MS = 60_000
 DEFAULT_CACHE_DIR = os.environ.get("NORA_BINANCE_CACHE_DIR") or os.path.join(
-    os.path.dirname(NORA_DIR), "data", "cache", "binance")  # cha của thư mục nora/ = gốc repo
+    os.path.dirname(NORA_ROOT), "data", "cache", "binance")  # cha của thư mục nora/ = gốc repo
 KLINE_COLUMNS = [
     "open_time", "open", "high", "low", "close", "volume_base", "close_time",
     "quote_volume", "trades", "taker_buy_base", "taker_buy_quote", "ignore",
@@ -321,7 +312,7 @@ def crawl(args) -> List[Dict]:
         if df.empty:
             log(f"[skip] {base}: không có dữ liệu ({issues})")
             continue
-        # spot -> <out>/<SYM>;  perp -> <out>/<SYM>/perp  (xem backend/db/data_layout.py)
+        # spot -> <out>/<SYM>;  perp -> <out>/<SYM>/perp  (xem backend/crawl/store.py)
         out_dir, dir_name = (args.output_dir, base) if args.market == "spot" else (os.path.join(args.output_dir, base), "perp")
         extra = {
             "venue": "cex",
@@ -334,8 +325,11 @@ def crawl(args) -> List[Dict]:
             "checksums_verified": True,
             "crawl_issues": issues,
         }
+        if args.market != "spot":  # ký hiệu instrument: BTC@perp (thư mục là "perp")
+            extra["symbol"] = f"{base}@perp"
+        funding_meta = None
         if funding is not None:
-            extra["funding"] = {
+            funding_meta = {
                 "file": "funding.pkl",
                 "rows": int(len(funding)),
                 "start_ts": int(funding["funding_time"].min()) if len(funding) else None,
@@ -355,11 +349,8 @@ def crawl(args) -> List[Dict]:
             extra_meta=extra,
         )
         if funding is not None:
-            funding.to_pickle(os.path.join(out_dir, dir_name, "funding.pkl"))
-        if args.market != "spot":  # ký hiệu instrument: BTC@perp
-            manifest["symbol"] = f"{base}@perp"
-            with open(os.path.join(out_dir, dir_name, "manifest.json"), "w", encoding="utf-8") as fh:
-                json.dump(manifest, fh, indent=2)
+            write_pickle_atomic(stamp_attrs(funding, {"funding": funding_meta}), os.path.join(out_dir, dir_name, "funding.pkl"))
+            manifest["funding"] = funding_meta
         log(f"[manifest] {base} rows_1m={manifest['rows']['1m']} coverage_days={manifest['coverage_days']} "
             f"filled={manifest['filled_ratio_1m']:.4f} crawl_ok={manifest['crawl_ok']} files={stats}")
         summaries.append(manifest)
@@ -380,10 +371,8 @@ def run_job(params=None) -> List[Dict]:
     return out
 
 
-# ====================================================================================================
-# ↓ core/data/okx_crawler.py  (P9.2: chuyển nguyên văn; module cũ: backend.core.data.okx_crawler)
-# ====================================================================================================
-# Crawl nến 1m + funding OKX USDT-SWAP (sàn triển khai của Nora) nhiều năm -> 1m.pkl + các khung resample + funding.pkl + manifest.json.
+# ── Crawl nến + funding OKX ───────────────────────────────────────────────────────────────────
+# Crawl nến 1m + funding OKX USDT-SWAP (sàn triển khai của Nora) nhiều năm -> 1m.pkl + các khung resample + funding.pkl (metadata nằm trong attrs của pkl).
 #
 # Nguồn nến (theo thứ tự):
 # 1. static.okx.com/cdn/okex/traderecords/candlesticks/daily — file ZIP CHÍNH THỨC theo NGÀY (ngày giờ Hồng Kông, UTC+8: file "D" phủ
@@ -394,22 +383,21 @@ def run_job(params=None) -> List[Dict]:
 # Nguồn funding (theo thứ tự, mỗi mốc chỉ lấy một nguồn):
 # 1. static.okx.com/.../swaprate/daily — file ngày chính thức (real_funding_rate = funding đã thanh toán); OKX ngừng phát hành từ ~09/2025.
 # 2. REST /api/v5/public/funding-rate-history (realizedRate) — chỉ ~3 tháng gần nhất.
-# 3. Khoảng trống còn lại: PROXY = funding Binance USDT-M cùng mã (data/binance/cex/<SYM>/perp/funding.pkl) — ghi rõ trong manifest
+# 3. Khoảng trống còn lại: PROXY = funding Binance USDT-M cùng mã (data/market/binance/cex/<SYM>/perp/funding.pkl) — ghi rõ trong manifest
 #    (funding.sources, funding.proxy_ranges). Funding hai sàn tương quan cao nhưng không trùng: kết quả backtest trong khoảng proxy là xấp xỉ.
 #
 # Dữ liệu từ API chính thức của sàn (không có file checksum như data.binance.vision) -> manifest official_api=True, checksums_verified=False.
 #
-# Job API `data_crawl_okx` (POST /api/data/crawl exchange=okx -> api/jobs/runner.py -> run_job): params symbols, years, end_ts, output_dir
-# (router đặt data_staging/), cache_dir, workers. Sau đó POST /api/data/promote đưa tài sản qua quality gate vào data/okx/cex/.
+# Job API `data_crawl_okx` (POST /api/data/crawl exchange=okx -> optimize/process/process.py -> run_job): params symbols, years, end_ts, output_dir
+# (router đặt data/cache/process/_staging/), cache_dir, workers. Sau đó POST /api/data/promote đưa tài sản qua quality gate vào data/market/okx/cex/.
 #
 
-NORA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 CDN = "https://static.okx.com/cdn/okex/traderecords"
 REST = "https://www.okx.com"
 MINUTE_MS, HOUR_MS, DAY_MS = 60_000, 3_600_000, 86_400_000
 HK_OFFSET_MS = 8 * HOUR_MS                 # ngày của file CDN theo giờ Hồng Kông
 FUNDING_GAP_MS = 16 * HOUR_MS              # hai mốc funding OKX cách nhau hơn mức này -> khoảng trống (chu kỳ chuẩn 8h)
-OKX_DEFAULT_CACHE_DIR = os.environ.get("NORA_OKX_CACHE_DIR") or os.path.join(os.path.dirname(NORA_DIR), "data", "cache", "okx")
+OKX_DEFAULT_CACHE_DIR = os.environ.get("NORA_OKX_CACHE_DIR") or os.path.join(os.path.dirname(NORA_ROOT), "data", "cache", "okx")
 COLS = ["open_time", "open", "high", "low", "close", "volume"]
 
 
@@ -631,19 +619,18 @@ def okx_crawl(args) -> List[Dict]:
         extra = {
             "venue": "cex", "exchange": "okx_swap", "market": "perp", "base_symbol": base, "market_symbol": inst(base),
             "volume_unit": "quote_usdt", "source_files": stats, "checksums_verified": False, "official_api": True, "crawl_issues": issues,
-            "funding": {"file": "funding.pkl", "rows": int(len(funding)),
+            "symbol": f"{base}@perp",
+        }
+        funding_meta = {"file": "funding.pkl", "rows": int(len(funding)),
                         "start_ts": int(funding["funding_time"].min()) if len(funding) else None,
                         "end_ts": int(funding["funding_time"].max()) if len(funding) else None,
-                        "mean_rate": float(funding["rate"].mean()) if len(funding) else None, **fmeta},
-        }
+                        "mean_rate": float(funding["rate"].mean()) if len(funding) else None, **fmeta}
         out_dir = os.path.join(args.output_dir, base)
         manifest = save_resampled_dataset(symbol="perp", output_dir=out_dir, df_1m_raw=df, pool_address=f"okx:perp:{inst(base)}",
                                           source="okx_swap", synthetic=False, crawl_ok=not issues, requested_start_ts=start_ms,
                                           requested_end_ts=end_ms, extra_meta=extra)
-        funding.to_pickle(os.path.join(out_dir, "perp", "funding.pkl"))
-        manifest["symbol"] = f"{base}@perp"
-        with open(os.path.join(out_dir, "perp", "manifest.json"), "w", encoding="utf-8") as fh:
-            json.dump(manifest, fh, indent=2)
+        write_pickle_atomic(stamp_attrs(funding, {"funding": funding_meta}), os.path.join(out_dir, "perp", "funding.pkl"))
+        manifest["funding"] = funding_meta
         log(f"[manifest] {base} rows_1m={manifest['rows']['1m']} coverage_days={manifest['coverage_days']} "
             f"filled={manifest['filled_ratio_1m']:.4f} crawl_ok={manifest['crawl_ok']} files={stats}")
         summaries.append(manifest)

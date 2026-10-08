@@ -7,7 +7,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "scripts"))
 import lint_edu_samples as L  # noqa: E402
-from backend.core.strategy.pydsl.spec import FEATURE_SPECS_DATA, OP_SPECS_DATA  # noqa: E402
+from backend.core.indicator import FEATURE_SPECS_DATA, OP_SPECS_DATA  # noqa: E402
 
 FEATS, OPS = set(FEATURE_SPECS_DATA), set(OP_SPECS_DATA)
 

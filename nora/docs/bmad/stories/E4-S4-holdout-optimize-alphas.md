@@ -25,7 +25,7 @@ Là người nghiên cứu, tôi muốn một quy trình cố định chia dữ 
 
 ## Dev Notes
 
-- Code: `backend/optimize/optimize_alphas.py`. Chạy: `backend/utils/ops/run_limited.sh -- -m backend.optimize.optimize_alphas --n 60 --workers auto`. Đặc tả: `architecture.md` §8.1.
+- Code: `backend/optimize/optimize_alphas.py`. Chạy: `ops/run_limited.sh -- -m backend.optimize.optimize_alphas --n 60 --workers auto`. Đặc tả: `architecture.md` §8.1.
 - Hiện chưa hiệu chỉnh đa kiểm định (E10-S1/S2) và holdout đã chấm nhiều lần (R-2).
 
 ## Evidence

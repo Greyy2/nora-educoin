@@ -14,10 +14,10 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from backend.core.analytics import feeds
-from backend.core.analytics import dashboard as pdash
-from backend.api.routers import portfolio as portfolio_router
-from backend.api.jobs import batch as batch_jobs
+from backend.metrics import charts as feeds
+from backend.metrics import charts as pdash
+from backend.routes import portfolio as portfolio_router
+from backend.optimize.process import process as batch_jobs
 
 INIT = 10_000.0
 DAY = 86_400_000
@@ -341,7 +341,7 @@ def test_dashboard_endpoint_caches_and_rebases_benchmark(client, monkeypatch):
     res, _ = make_result(_rng_returns(100))
     jid = _job(res)
     calls = []
-    monkeypatch.setattr(portfolio_router.pd_mod, "benchmark_daily_closes", lambda *a: calls.append(a) or _bench())
+    monkeypatch.setattr(portfolio_router, "benchmark_daily_closes",lambda *a: calls.append(a) or _bench())
     r = client.get(f"/api/studio/portfolio/dashboard?source=backtest&job_id={jid}&period=3M")
     assert r.status_code == 200, r.text
     p = r.json()

@@ -122,8 +122,8 @@ Reading: `can_open differs` = entries Nora admits (or rejects) that the synchron
 
 ## Reproduce (from `nora/`)
 ```
-PYTHONDONTWRITEBYTECODE=1 backend/utils/ops/run_limited.sh --no-lock -- test/scripts/nautilus_diff/ext_export_data.py
-PYTHONDONTWRITEBYTECODE=1 backend/utils/ops/run_limited.sh --no-lock -- test/scripts/nautilus_diff/ext_run_nora.py ohlc|adaptive [stages|all] [datasets|all] [signals|all]
+PYTHONDONTWRITEBYTECODE=1 ops/run_limited.sh --no-lock -- test/scripts/nautilus_diff/ext_export_data.py
+PYTHONDONTWRITEBYTECODE=1 ops/run_limited.sh --no-lock -- test/scripts/nautilus_diff/ext_run_nora.py ohlc|adaptive [stages|all] [datasets|all] [signals|all]
 systemd-run --user --scope --slice=nora.slice -p MemoryMax=4G ~/.venvs/nautilus/bin/python -I test/scripts/nautilus_diff/ext_run_nautilus.py ohlc|adaptive [stages|all] [datasets|all] [signals|all]
 ~/.venvs/nora/bin/python test/scripts/nautilus_diff/ext_compare.py ohlc|adaptive [stage-prefix|all]
 ```

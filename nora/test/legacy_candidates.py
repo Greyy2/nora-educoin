@@ -1,10 +1,53 @@
 """9 định nghĩa chiến lược cũ (trước khi gom về 3 chiến lược KEMA / Sideway / DCA) — CHỈ cho test: golden snapshot, kiểm parity kernel,
-test cơ chế preset / chế độ chạy viết trên các id này. conftest đăng ký chúng vào book.EXTRA_CANDIDATES cho mọi test."""
+test cơ chế preset / chế độ chạy viết trên các id này. conftest đăng ký chúng vào optimize.book.build.EXTRA_CANDIDATES cho mọi test."""
 from typing import Any, Dict, List
 
-from backend.core.strategy.book import (_KC_CLOSE, _KC_DN, _KC_UP, _TF_FAST, _TF_SLOW, _choice, _exit_risk_schema, _flt, _int,
-                                        _keltner_schema, _reversion_schema)
-from backend.core.strategy.library import cond, cross_over, cross_under, f, p
+from backend.core.params import exit_risk_schema as _exit_risk_schema, schema_choice as _choice, schema_flt as _flt, schema_int as _int
+from backend.alpha.compile import calc, cond, cross_over, cross_under, f, tree_p
+
+_TF_SLOW = ("15m", "1h", "4h", "24h")     # khung xu hướng / bộ lọc regime
+_TF_FAST = ("1m", "5m", "15m", "1h")      # khung điểm vào lệnh
+
+# Lược đồ/cây Keltner + reversion của 3 chiến lược cũ — chuyển từ book.py cũ của thư mục strategy trong core (P9.9: chiến lược hệ thống nay viết bằng DSL trong
+# data/alpha/strategies/*.py; các mảnh này chỉ còn phục vụ 9 định nghĩa cũ bên dưới).
+def _keltner_schema():
+    return {
+        "sig.signal_tf": _choice("signal", "Khung tín hiệu", "4h", _TF_SLOW, "Khung nến tính kênh Keltner và xét điểm cắt."),
+        "sig.ema_n": _int("signal", "Chu kỳ EMA (đường giữa)", 30, 5, 200, "nến", "EMA đường giữa của kênh Keltner."),
+        "sig.atr_n": _int("signal", "Chu kỳ ATR của kênh", 14, 5, 50, "nến", "ATR (Wilder) đo độ rộng kênh."),
+        "sig.k_up": _flt("signal", "Hệ số dải trên", 2.0, 0.5, 5.0, 0.1, "× ATR", "Dải trên = EMA + hệ số × ATR."),
+        "sig.k_dn": _flt("signal", "Hệ số dải dưới", 2.0, 0.5, 5.0, 0.1, "× ATR", "Dải dưới = EMA − hệ số × ATR."),
+        **_exit_risk_schema(3.0, 0.0, 0.0, 0.0, 0, "4h"),
+    }
+
+
+def _keltner_bands():
+    """(dải trên, dải dưới) của kênh Keltner trên khung tín hiệu: EMA(ema_n) ± k × ATR(atr_n) — kiểu KEMA."""
+    atr = f("{signal_tf}", "atr_{atr_n}")
+    up = {**f("{signal_tf}", "ema_{ema_n}"), "add": calc(atr, "*", tree_p("k_up", 2.0))}
+    dn = {**f("{signal_tf}", "ema_{ema_n}"), "subtract": calc(atr, "*", tree_p("k_dn", 2.0))}
+    return up, dn
+
+
+_KC_UP, _KC_DN = _keltner_bands()
+_KC_CLOSE = f("{signal_tf}", "close")
+
+
+def _reversion_schema(side_key, side_default, side_lo, side_hi, side_label):
+    return {
+        "sig.entry_tf": _choice("signal", "Khung điểm vào", "5m", _TF_FAST, "Khung nến tính RSI và dải Bollinger."),
+        "sig.rsi_n": _int("signal", "Chu kỳ RSI", 14, 2, 50, "nến", "Chu kỳ RSI (Wilder)."),
+        side_key: _flt("signal", side_label, side_default, side_lo, side_hi, 1.0, "", "Ngưỡng RSI kích hoạt bắt hồi."),
+        "sig.bb_n": _int("signal", "Chu kỳ Bollinger", 20, 5, 100, "nến", "Chu kỳ đường giữa của dải Bollinger."),
+        "sig.bb_k": _flt("signal", "Độ rộng Bollinger (k)", 2.0, 1.0, 4.0, 0.1, "σ", "Dải cách đường giữa k độ lệch chuẩn."),
+        "sig.regime_tf": _choice("signal", "Khung regime", "1h", _TF_SLOW, "Khung đo mức đi ngang bằng Efficiency Ratio."),
+        "sig.er_n": _int("signal", "Chu kỳ ER", 20, 5, 100, "nến", "Chu kỳ Efficiency Ratio (1 = xu hướng, 0 = đi ngang)."),
+        "sig.er_max": _flt("signal", "Ngưỡng ER tối đa", 0.3, 0.1, 0.6, 0.05, "", "Chỉ bắt hồi khi ER thấp hơn mức này (thị trường đi ngang)."),
+        **_exit_risk_schema(1.5, 1.5, 0.0, 0.0, 1440, "1h"),
+    }
+
+
+
 
 
 def _trend_schema(sl, trail, act, timeout):
@@ -37,7 +80,7 @@ LEGACY: List[Dict[str, Any]] = [
         "id": "trend_long", "family": "Theo xu hướng (trend following)", "variant": "EMA + ADX + phá đỉnh Donchian", "side": "LONG",
         "description": "1h EMA50 > EMA200, ADX14 > ngưỡng, 15m close CẮT LÊN đỉnh 20 nến trước (sự kiện phá đỉnh). Thoát: SL + trailing theo ATR.",
         "tree": cond((f("{trend_tf}", "ema_{ema_fast}"), ">", f("{trend_tf}", "ema_{ema_slow}")),
-                     (f("{trend_tf}", "adx_{adx_n}"), ">", p("adx_min", 20)),
+                     (f("{trend_tf}", "adx_{adx_n}"), ">", tree_p("adx_min", 20)),
                      *cross_over(f("{entry_tf}", "close"), f("{entry_tf}", "dch_{dch_n}"))),
         "position": {},
         "space": {"sig.adx_min": [20, 25, 30], "stop_loss_rate": [1.5, 2.5, 3.5], "trailing_stop": [2.0, 3.0, 4.5],
@@ -48,7 +91,7 @@ LEGACY: List[Dict[str, Any]] = [
         "id": "trend_short", "family": "Theo xu hướng (trend following)", "variant": "EMA + ADX + phá đáy Donchian", "side": "SHORT",
         "description": "Đối xứng trend_long.",
         "tree": cond((f("{trend_tf}", "ema_{ema_fast}"), "<", f("{trend_tf}", "ema_{ema_slow}")),
-                     (f("{trend_tf}", "adx_{adx_n}"), ">", p("adx_min", 20)),
+                     (f("{trend_tf}", "adx_{adx_n}"), ">", tree_p("adx_min", 20)),
                      *cross_under(f("{entry_tf}", "close"), f("{entry_tf}", "dcl_{dch_n}"))),
         "position": {},
         "space": {"sig.adx_min": [20, 25, 30], "stop_loss_rate": [1.5, 2.5, 3.5], "trailing_stop": [2.0, 3.0, 4.5],
@@ -99,7 +142,7 @@ LEGACY: List[Dict[str, Any]] = [
     {
         "id": "momentum_long", "family": "Theo đà", "side": "LONG",
         "description": "1h ROC24 CẮT LÊN ngưỡng % và 15m close > EMA20 15m.",
-        "tree": cond(*cross_over(f("{roc_tf}", "roc_{roc_n}"), p("roc_min", 3)), (f("{entry_tf}", "close"), ">", f("{entry_tf}", "ema_{ema_n}"))),
+        "tree": cond(*cross_over(f("{roc_tf}", "roc_{roc_n}"), tree_p("roc_min", 3)), (f("{entry_tf}", "close"), ">", f("{entry_tf}", "ema_{ema_n}"))),
         "position": {},
         "space": {"sig.roc_min": [3, 5, 8], "stop_loss_rate": [1.5, 2.5, 3.5], "trailing_stop": [2.0, 3.0, 4.5],
                   "trailing_activation_pct": [0.0, 1.0], "timeout": [1440, 4320]},
@@ -115,8 +158,8 @@ LEGACY: List[Dict[str, Any]] = [
     {
         "id": "reversion_long", "family": "Bắt hồi (có SL)", "side": "LONG",
         "description": "5m RSI14 < ngưỡng, dưới Bollinger dưới, regime đi ngang (1h ER20 < ngưỡng). TP/SL theo ATR.",
-        "tree": cond((f("{entry_tf}", "rsi_{rsi_n}"), "<", p("rsi_lo", 25)), (f("{entry_tf}", "close"), "<", f("{entry_tf}", "bbl_{bb_n}_{bb_k}")),
-                     (f("{regime_tf}", "er_{er_n}"), "<", p("er_max", 0.3))),
+        "tree": cond((f("{entry_tf}", "rsi_{rsi_n}"), "<", tree_p("rsi_lo", 25)), (f("{entry_tf}", "close"), "<", f("{entry_tf}", "bbl_{bb_n}_{bb_k}")),
+                     (f("{regime_tf}", "er_{er_n}"), "<", tree_p("er_max", 0.3))),
         "position": {},
         "space": {"sig.rsi_lo": [20, 25, 30], "sig.er_max": [0.2, 0.3], "stop_loss_rate": [1.0, 1.5, 2.5],
                   "take_profit_rate": [0.75, 1.0, 1.5, 2.5], "timeout": [240, 1440]},
@@ -125,8 +168,8 @@ LEGACY: List[Dict[str, Any]] = [
     {
         "id": "reversion_short", "family": "Bắt hồi (có SL)", "side": "SHORT",
         "description": "Đối xứng reversion_long.",
-        "tree": cond((f("{entry_tf}", "rsi_{rsi_n}"), ">", p("rsi_hi", 75)), (f("{entry_tf}", "close"), ">", f("{entry_tf}", "bbu_{bb_n}_{bb_k}")),
-                     (f("{regime_tf}", "er_{er_n}"), "<", p("er_max", 0.3))),
+        "tree": cond((f("{entry_tf}", "rsi_{rsi_n}"), ">", tree_p("rsi_hi", 75)), (f("{entry_tf}", "close"), ">", f("{entry_tf}", "bbu_{bb_n}_{bb_k}")),
+                     (f("{regime_tf}", "er_{er_n}"), "<", tree_p("er_max", 0.3))),
         "position": {},
         "space": {"sig.rsi_hi": [70, 75, 80], "sig.er_max": [0.2, 0.3], "stop_loss_rate": [1.0, 1.5, 2.5],
                   "take_profit_rate": [0.75, 1.0, 1.5, 2.5], "timeout": [240, 1440]},

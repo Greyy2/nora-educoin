@@ -1,10 +1,10 @@
 """Smoke check NHANH cho pipeline backtest Nora: kiểm bất biến + tất định (KHÔNG phải chạy production).
 
 Chạy qua run_limited (nora.slice 12G, xếp hàng):
-  backend/utils/ops/run_limited.sh -- -m backend.core.backtest.smoke_check single    --out DIR   # 7 ứng viên strategy_book (SOL@perp) + 8 bot-style (BTC) + DCA probe
-  backend/utils/ops/run_limited.sh -- -m backend.core.backtest.smoke_check portfolio --out DIR   # danh mục 8 tài sản perp x 7 ứng viên (+ shared_dir)
-  backend/utils/ops/run_limited.sh -- -m backend.core.backtest.smoke_check studio    --out DIR   # WFA + Monte Carlo (hàm pipeline, không HTTP) cho alpha trong registry
-  backend/utils/ops/run_limited.sh -- -m backend.core.backtest.smoke_check optcheck  --run DIR1 [--run DIR2]   # kiểm results.json + fold của optimize_alphas
+  ops/run_limited.sh -- test/scripts/smoke_check.py single    --out DIR   # 7 ứng viên strategy_book (SOL@perp) + 8 bot-style (BTC) + DCA probe
+  ops/run_limited.sh -- test/scripts/smoke_check.py portfolio --out DIR   # danh mục 8 tài sản perp x 7 ứng viên (+ shared_dir)
+  ops/run_limited.sh -- test/scripts/smoke_check.py studio    --out DIR   # WFA + Monte Carlo (hàm pipeline, không HTTP) cho alpha trong registry
+  ops/run_limited.sh -- test/scripts/smoke_check.py optcheck  --run DIR1 [--run DIR2]   # kiểm results.json + fold của optimize_alphas
 
 Bất biến mỗi lần chạy: sổ vốn, vị thế, bậc DCA, rủi ro theo SL, trần danh nghĩa/đòn bẩy, trần danh mục.
 Tất định: chạy 2 lần, xoá cache giữa hai lần, so canonical (test/golden_scenarios.canonicalize).
@@ -27,7 +27,7 @@ NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", 
 for _p in (NORA_ROOT, os.path.join(NORA_ROOT, "test")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
-from backend.utils.jsonsafe import json_default  # noqa: E402
+from backend.crawl.store import json_default  # noqa: E402
 
 DAY = 86_400_000
 MIN = 60_000
@@ -249,8 +249,8 @@ def first_config(space):
 
 
 def run_candidate(c, symbol, start, end, trade_start):
-    from backend.core.strategy.book import materialize
-    from backend.core.backtest.portfolio import PortfolioEngine
+    from backend.core.params import materialize
+    from backend.core.backtest import PortfolioEngine
     st = materialize(c, first_config(c["space"]))
     t0 = time.time()
     eng = PortfolioEngine([symbol], [st], start, end, trade_start_ts=trade_start)
@@ -259,15 +259,15 @@ def run_candidate(c, symbol, start, end, trade_start):
 
 
 def run_bot(strat, symbol, start, end, trade_start, override=None):
-    from backend.core.backtest.engine import BacktestEngine
-    from backend.core.params.builder import build_params
+    from backend.core.backtest import BacktestEngine
+    from backend.core.params import build_params
     pos = {k: v for k, v in strat["default_params"].items() if k != "initial_capital"}
     pos.update(override or {})
     fl = strat["flows"][0]
     name = f"{fl['type']}_{strat['id']}"
     t0 = time.time()
     eng = BacktestEngine(0, 0, symbol, start, end, trade_start_ts=trade_start, initial_capital=10000.0)
-    eng.add_strategy_flow(name, build_params(name, fl["ast"], fl["type"], pos, "cex", symbol=symbol))
+    eng.add_strategy_flow(name, build_params(name, fl["ast"], fl["type"], pos, "cex"))
     quiet(eng.load_data)
     quiet(eng.run)
     return eng, eng.get_results(), time.time() - t0, pos
@@ -275,9 +275,9 @@ def run_bot(strat, symbol, start, end, trade_start, override=None):
 
 def dca_unit_probe():
     """Thăm dò tất định (không dữ liệu thị trường): giá rơi xuyên mọi bậc DCA -> số tầng đã khớp theo order_size_pct."""
-    from backend.core.execute.tracker import PositionTracker
-    from backend.core.params.builder import build_params
-    from backend.core.execute.models import PositionType
+    from backend.core.backtest import PositionTracker
+    from backend.core.params import build_params
+    from backend.core.models import PositionType
     out = {}
     for size in (20.0, 19.0):
         pos = {"market": "spot", "leverage": 1.0, "order_size_pct": size, "dca_step_pct": 0.75, "dca_max_layers": 4,
@@ -297,8 +297,9 @@ def dca_unit_probe():
 
 
 def cmd_single(a):
-    from backend.core.strategy.book import CANDIDATES
-    from backend.core.strategy.library import KERNEL_STRATEGIES
+    from backend.optimize.book.build import CANDIDATES
+    import os as _os
+    import sys as _sys
     start, end, ts = windows()
     rows = []
     print(f"== single: cửa sổ {START} -> {END} (+{WARMUP_D}d khởi động)  [cấu hình = khoá sắp xếp, giá trị đầu tiên của mỗi khoá]", flush=True)
@@ -344,8 +345,9 @@ def cmd_single(a):
 # ─── portfolio ───────────────────────────────────────────────────────────────
 
 def mk_portfolio(shared_dir=None):
-    from backend.core.strategy.book import CANDIDATES, RISK, materialize, perp_symbols
-    from backend.core.backtest.portfolio import PortfolioEngine, RiskConfig
+    from backend.core.params import RISK, materialize
+    from backend.optimize.book.build import CANDIDATES, perp_symbols
+    from backend.core.backtest import PortfolioEngine, RiskConfig
     start, end, ts = windows()
     sts = [materialize(c, first_config(c["space"])) for c in CANDIDATES]
     risk = RiskConfig.from_dict(RISK)
@@ -369,7 +371,7 @@ def cmd_portfolio(a):
     quiet(eng2.run)
     det = deterministic(res, eng2.get_results())
     # shared_dir: export mmap rồi chạy lại, phải y hệt
-    from backend.core.data import shared as shared_data
+    from backend.optimize.search import evaluate as shared_data
     sd = os.path.join(a.out, "_shared")
     clear()
     eng3, _, _ = mk_portfolio(shared_dir=sd)
@@ -408,7 +410,7 @@ def main():
     ap.add_argument("cmd", choices=["single", "portfolio"])
     ap.add_argument("--out", default=os.path.join(NORA_ROOT, "data", "_cache", "smoke"))
     a = ap.parse_args()
-    from backend.utils.memwatch import require_memory_limit
+    from backend.optimize.process.workers import require_memory_limit
     require_memory_limit("smoke_check")
     {"single": cmd_single, "portfolio": cmd_portfolio}[a.cmd](a)
 

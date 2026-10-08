@@ -1,4 +1,4 @@
-"""Nạp bots/summary, dựng BASKET theo (bot, sym, side), nạp nến 1m (data_staging/cex).
+"""Nạp bots/summary, dựng BASKET theo (bot, sym, side), nạp nến 1m (data/cache/process/_staging/cex).
 
 Định nghĩa basket (khớp analyze.py: trường bk/add):
   với mỗi (sym, side), sắp sub-position theo thời điểm mở o; một sub-position thuộc basket hiện tại nếu
@@ -14,7 +14,7 @@ import pandas as pd
 
 BOTS_JSON = "/home/vmc03/norabt/none/okx-top10/bots.json"
 SUMMARY_JSON = "/home/vmc03/norabt/none/okx-top10/summary.json"
-CANDLE_DIR = "/home/vmc03/norabt/nora/data_staging/cex"
+CANDLE_DIR = os.environ.get("NORA_OKX_CEX_DATA", "/home/vmc03/norabt/nora/data/market/okx/cex")
 MIN = 60_000
 
 

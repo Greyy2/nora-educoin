@@ -62,7 +62,7 @@ Bot sàn (epic E9) chạy như job API; trang Live đọc `data/_cache/live/<sà
 | `backend/live/` | `signals.py` (tín hiệu nến đóng qua đúng engine), `okx.py` (REST OKX, sàn triển khai), `exchange.py` (bộ lọc + Binance tham khảo), `bot.py` (job `live_bot`: paper / demo / live), `paper.py` (bóng paper), `compare.py` (đối soát sàn ↔ paper), `secrets.py` | E9, 04/10/2026 |
 | `backend/carlo/` | `monte_carlo.py` (bootstrap ngày, kịch bản cực xấu, gate, `bootstrap_daily`) | |
 | `backend/utils/` | `parallel.py`, `memwatch.py`, `lru.py`, `jsonsafe.py`, `jobs.py` (options, Progress, SIGTERM, result.json) | |
-| `backend/utils/ops/` | `run_limited.sh`, `install_user_units.sh`, `systemd/` | |
+| `ops/` | `run_limited.sh`, `install_user_units.sh`, `systemd/` | |
 | `test/` | pytest, `golden_scenarios.py`, `golden/*.json`, `scripts/` (smoke_check, bench_engine, check_signals_strategies, research_*, make_golden, check_tests_vs_ref) | |
 | `data/` | dữ liệu và cache; chỉ `data/alphas/` được commit | |
 | `frontend/src/` | Vite + React: `pages/`, `components/`, `lib/`, `hooks/`, `api.js` (cổng dev 18011, proxy `/api` tới 18010) | |
@@ -329,7 +329,7 @@ Báo cáo `report.json` có `folds[]`, `summary` (= `aggregate`), `gate`, `mc` (
 - **Kịch bản cực xấu + gate (mọi gate alpha/sổ):** hằng số ở đầu `backend/carlo/monte_carlo.py` (`MC_MIN_SIMULATIONS = 10_000`, `MC_MAX_RUIN_PCT = 5`, `STRESS_MAX_MDD_PCT = 50`).
   `stress_scenarios` dựng 5 kịch bản tất định từ chuỗi lợi suất ngày (`worst_days_first`, `reversed_order`, `crash_day` = 2× ngày xấu nhất chặn −95% đặt đầu,
   `cost_x2`, `longest_losing_streak_x2`), thêm `worst_bootstrap` (đường MDD lớn nhất). `evaluate_mc_gate`: `simulations` ≥ 10.000, P(MDD ≥ 30%) ≤ 5%,
-  MDD mọi kịch bản < 50%, không kịch bản nào cháy vốn; < 10.000 mô phỏng thì `gate_eligible = false`. `run_monte_carlo` chia lô (`MC_CHUNK_ELEMS`) nên RAM không tỉ lệ số mô phỏng.
+  MDD mọi kịch bản < 50%, không kịch bản nào cháy vốn; < 10.000 mô phỏng thì `gate_eligible = false`.
 - **Cổng ruin của alpha đơn tài sản** (`optimize_alphas.monte_carlo_gate`, `mc_basis="daily"`): gọi `run_monte_carlo` (không phải `run_monte_carlo_daily`) trên chuỗi lợi suất ngày OOS đổi sang `pnl_pct`,
   10.000 mô phỏng, block 5, seed 7, **số bước mô phỏng = số ngày OOS** (ví dụ 434 ngày cho SOL, không cố định 365 ngày); `P(MDD ≥ 30%) ≤ 5%` VÀ gate cực xấu (`mc.stress`, `mc.gate`; check `mc_stress_gate`). MC theo lệnh chỉ ghi tham chiếu (`monte_carlo_trades`).
   Ít hơn 30 điểm thì `risk_of_ruin_pct = None` và check trượt. Cổng của sổ chiến lược (§7.2) dùng `run_monte_carlo_daily` với horizon 365 ngày: hai cổng không cùng horizon nên không so trực tiếp con số.
@@ -396,7 +396,7 @@ Một lần WFA danh mục khác của hai chiến lược này (`data/_cache/bo
 ## 9. Job nền
 
 `backend/api/jobs/batch.py`. API (cấp RAM 3 GB) **không** chạy backtest/WFA nặng trong tiến trình; mỗi job là tiến trình con
-`backend/utils/ops/run_limited.sh -- -m backend.<gói>.<lệnh> <cờ...>` (không shell: danh sách đối số đi thẳng vào `Popen`).
+`ops/run_limited.sh -- -m backend.<gói>.<lệnh> <cờ...>` (không shell: danh sách đối số đi thẳng vào `Popen`).
 
 | `kind` | Module | Cờ cho phép |
 |---|---|---|
@@ -463,9 +463,9 @@ Bundle hiện là một file JS ≈ 583 KB chưa nén (đo `ls -la frontend/dist
 
 | Hạng mục | Cấu hình | Nguồn |
 |---|---|---|
-| Ngân sách RAM chung | `nora.slice`: `MemoryMax=12G`, `MemoryHigh=10800M` (90%), `MemorySwapMax=0`, `TasksMax=512` | `backend/utils/ops/systemd/nora.slice` |
+| Ngân sách RAM chung | `nora.slice`: `MemoryMax=12G`, `MemoryHigh=10800M` (90%), `MemorySwapMax=0`, `TasksMax=512` | `ops/systemd/nora.slice` |
 | API | unit user `nora-api.service` trong slice: `MemoryMax=3G`, `MemoryHigh=2700M`, `CPUAffinity=0-13`, `Nice=5`, `Restart=on-failure`, cổng 18010, `NORA_CANDLE_CACHE_MB=512`, `NORA_DATA_CACHE_MB=512`, BLAS 1 luồng, `EnvironmentFile=-%h/.config/nora/nora.env` | `systemd/nora-api.service.in` |
-| Job nặng | `run_limited.sh`: `systemd-run --user --scope --slice=nora.slice` + `taskset -c 0-13` + `nice -n 10`; tuỳ chọn `--mem`, `--cpus`, `--log`, `--no-wait` (thoát 75), `--no-lock`; thoát 137/9 thì báo có thể do OOM | `backend/utils/ops/run_limited.sh` |
+| Job nặng | `run_limited.sh`: `systemd-run --user --scope --slice=nora.slice` + `taskset -c 0-13` + `nice -n 10`; tuỳ chọn `--mem`, `--cpus`, `--log`, `--no-wait` (thoát 75), `--no-lock`; thoát 137/9 thì báo có thể do OOM | `ops/run_limited.sh` |
 | Hàng đợi | `flock` trên `${XDG_RUNTIME_DIR:-/tmp}/nora-heavy.lock`: job nặng xếp hàng từng cái | như trên |
 | Log RAM | mỗi giây `epoch,current_mb` → `data/_cache/runs/<ts>_mem.csv`; in đỉnh `[run_limited] peak RAM X MB / limit ... | exit N` | như trên |
 | Dự phòng cho máy | `planning_budget_mb() = min(85% × phần trống cgroup, MemAvailable − NORA_HOST_RESERVE_MB)`; `NORA_HOST_RESERVE_MB` mặc định **8000**; không cgroup: 60% MemAvailable | `backend/utils/memwatch.py` |
@@ -475,17 +475,17 @@ Bundle hiện là một file JS ≈ 583 KB chưa nén (đo `ls -la frontend/dist
 | Cổng RAM | `check_memory_gate(required)` ném lỗi nếu ngân sách hiện tại < `workers × per_worker_mb`; `require_memory_limit` bắt buộc cgroup (trừ `NORA_ALLOW_UNLIMITED=1`) | `utils/memwatch.py` |
 | Cache | `NORA_CANDLE_CACHE_MB` (1024, script đặt 512), `NORA_DATA_CACHE_MB` (1500, script đặt 1024); xả giữa các cặp/chiến lược | `loader.py`, `portfolio.py` |
 | Môi trường | Python 3.11, venv `~/.venvs/nora` (`uv venv -p 3.11`), `requirements.txt` ghim: pandas 2.3.3, numpy 2.4.6, pyarrow 25.0.1, pydantic 2.13.5, fastapi 0.142.2, starlette 1.7.0, uvicorn 0.54.0, pymongo, pymysql, redis, requests, pytest 9.1.1, httpx 0.28.1; `numba` tuỳ chọn | `requirements.txt` |
-| Cài đặt | `backend/utils/ops/install_user_units.sh` (idempotent, không enable/start); `nora/start.sh` / `nora/stop.sh` cài unit nếu thiếu, build UI nếu thiếu `dist`, rồi `systemctl --user restart nora-api` | `backend/utils/ops/`, `nora/start.sh` |
+| Cài đặt | `ops/install_user_units.sh` (idempotent, không enable/start); `nora/start.sh` / `nora/stop.sh` cài unit nếu thiếu, build UI nếu thiếu `dist`, rồi `systemctl --user restart nora-api` | `ops/`, `nora/start.sh` |
 
 Hằng số gate nằm đúng một nơi cho mỗi đường ống (§7, §8): sửa gate phải sửa hằng số đó và test tương ứng.
 
 ## 13. Kiểm thử
 
-- Chạy: `backend/utils/ops/run_limited.sh -- -m pytest test -q -p no:cacheprovider` (từ `nora/`). `nora/pytest.ini`: `testpaths = test`. `test/conftest.py` cô lập DB và data root (`NORA_PIPELINE_DB_PATH`, `NORA_LOCAL_DATA_ROOT` trong thư mục tạm).
+- Chạy: `ops/run_limited.sh -- -m pytest test -q -p no:cacheprovider` (từ `nora/`). `nora/pytest.ini`: `testpaths = test`. `test/conftest.py` cô lập DB và data root (`NORA_PIPELINE_DB_PATH`, `NORA_LOCAL_DATA_ROOT` trong thư mục tạm).
 - **Số lượng:** 440 test qua tại `a3202c9` (báo cáo commit); đếm tĩnh có 303 hàm `test_*` trong 33 file (chênh vì tham số hoá). Cây làm việc hiện có thay đổi chưa commit ở `test_portfolio_dashboard.py` và `test_portfolio_engine.py`, nên số hiện tại có thể khác. `requirements.txt` còn ghi "265 test" (lỗi thời).
   Lịch sử (từ message commit): 258 (`407f51f`) → 265 (`836103b`) → 271 (`030c7f9`) → 285 (`b179f2b`) → 313 (`edb26f4`) → 316 (`06ae13b`) → 323 (`935d4d1`) → 351 (`2d4698f`) → 358 (`45f734e`) → 427 (`efe4fb2`) → 430 (`876ce9e`, `6d35c0d`, `4e8dd61`) → 440 (`a3202c9`).
 - **Golden bit-identical:** `test/golden_scenarios.py` chạy engine và chuẩn hoá mọi float bằng `float.hex()`; 3 kịch bản (`portfolio_synthetic`, `single_dca_filled`, `portfolio_real` trên BTC/SOL/DOGE perp, ghim `cooldown=0`) + 1 test chứng minh phép so sánh bắt được xáo trộn 1 bit
-  (`test_golden_comparison_detects_one_bit_perturbation`). Snapshot `test/golden/*.json`; sinh lại bằng `backend/utils/ops/run_limited.sh -- test/scripts/make_golden.py` **chỉ khi chủ đích đổi ngữ nghĩa backtest**. Mọi thay đổi hiệu năng/tái cấu trúc phải để golden không đổi.
+  (`test_golden_comparison_detects_one_bit_perturbation`). Snapshot `test/golden/*.json`; sinh lại bằng `ops/run_limited.sh -- test/scripts/make_golden.py` **chỉ khi chủ đích đổi ngữ nghĩa backtest**. Mọi thay đổi hiệu năng/tái cấu trúc phải để golden không đổi.
 - **Smoke:** `backend/core/backtest/smoke_check.py` (`single`, `portfolio`, `studio`, `optcheck`): bất biến sổ vốn, DCA, rủi ro theo SL, trần danh nghĩa/đòn bẩy, trần danh mục; chạy hai lần xoá cache để kiểm tất định. Kết quả gần nhất ghi trong commit: "0 FAIL" (`6d35c0d`, `4e8dd61`).
 - **Đối chiếu lỗi cũ:** `test/scripts/check_tests_vs_ref.sh <git-ref>` chạy test hiện tại trên code ở ref cũ (ref phải từ `6d35c0d` trở đi vì đường import đã đổi).
 

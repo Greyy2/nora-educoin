@@ -2,25 +2,22 @@
 
 1. Dựng kịch bản trên chuỗi thủ công: MDD / lãi cuối / ngày xấu nhất / ngày chìm đúng từng số.
 2. evaluate_mc_gate: mỗi check lật độc lập.
-3. Tái lập 10.000 kịch bản; trùng bit bản bootstrap CŨ (cùng seed + số mô phỏng), bất kể kích thước lô; RAM bị chặn.
+3. Tái lập 10.000 kịch bản; trùng bit vòng bootstrap ngày CŨ (cùng seed + số mô phỏng).
 4. API: mặc định 10.000, tối đa 50.000, gate_eligible, bảng stress + worst_path.
 5. optimize_alphas.monte_carlo_gate ghi mc.simulations / mc.stress / mc.gate.
 """
 import importlib.util
 import json
 import os
-import tracemalloc
 
 import numpy as np
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from backend.api.routers import book as book_router
-from backend.carlo import monte_carlo as mcm
-from backend.carlo.monte_carlo import (MC_MIN_SIMULATIONS, STRESS_MAX_MDD_PCT, evaluate_mc_gate,
-                                       longest_losing_run, run_monte_carlo, run_monte_carlo_daily, run_monte_carlo_daily_detail,
-                                       stress_scenarios)
+from backend.routes import book as book_router
+from backend.carlo import carlo as mcm
+from backend.carlo.carlo import MC_MIN_SIMULATIONS, STRESS_MAX_MDD_PCT, evaluate_mc_gate, longest_losing_run, run_monte_carlo_daily, run_monte_carlo_daily_detail, stress_scenarios
 
 NORA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 NAMES = ["worst_days_first", "reversed_order", "crash_day", "cost_x2", "longest_losing_streak_x2"]
@@ -64,8 +61,6 @@ def test_cost_x2_penalises_only_active_days_and_uses_given_cost():
     assert s["terminal_ret_pct"] == round((1.09 * 0.89 - 1) * 100, 2) == -2.99
     assert s["mdd_pct"] == round((1 - 0.89) * 100, 2) == 11.0
     assert s["worst_day_pct"] == -11.0 and "0.010%" not in s["note_vi"] and "1.000%" in s["note_vi"]
-    assert mcm.estimate_extra_daily_cost(78, 434, 0.5) == pytest.approx((0.0005 + 0.0002) * 2 * 78 * 0.5 / 434)
-    assert mcm.estimate_extra_daily_cost(78, 0, 0.5) is None
 
 
 def test_cost_x2_without_measured_turnover_is_marked_not_measured_and_fails_the_gate():
@@ -168,65 +163,6 @@ def test_gate_each_check_flips_independently():
 
 
 # ── 3. Tái lập, trùng bit bản cũ, RAM ───────────────────────────────────────
-def _old_run_monte_carlo(trades, simulations, block_size, seed, ruin_threshold_pct=30.0, initial_capital=10000.0):
-    """Bản run_monte_carlo TRƯỚC khi chia lô/thêm kịch bản cực xấu (một khối, rng.choice) — để so từng bit."""
-    rng = np.random.default_rng(seed)
-    pnl = np.array([float(t["pnl_pct"]) for t in trades])
-    n = len(pnl)
-    if block_size <= 1:
-        sampled = rng.choice(pnl, size=(simulations, n), replace=True)
-    else:
-        nb = int(np.ceil(n / block_size))
-        starts = rng.integers(0, max(1, n - block_size + 1), size=(simulations, nb))
-        idx = (starts[:, :, None] + np.arange(block_size)[None, None, :]).reshape(simulations, -1)[:, :n]
-        sampled = pnl[idx]
-    cum = np.cumprod(np.maximum(0.0, 1.0 + sampled / 100.0), axis=1)
-    eq = np.hstack([np.full((simulations, 1), initial_capital), initial_capital * cum])
-    rm = np.maximum.accumulate(eq, axis=1)
-    mdd = np.max((rm - eq) / np.maximum(rm, 1e-9) * 100.0, axis=1)
-    term = eq[:, -1]
-    tr = (term - initial_capital) / initial_capital * 100.0
-    out = {"risk_of_ruin_pct": round(float(np.sum(mdd >= ruin_threshold_pct) / simulations * 100.0), 2),
-           "percentile_mdd": {"p50": round(float(np.percentile(mdd, 50)), 2), "p90": round(float(np.percentile(mdd, 90)), 2),
-                              "p95": round(float(np.percentile(mdd, 95)), 2), "p99": round(float(np.percentile(mdd, 99)), 2),
-                              "worst": round(float(np.max(mdd)), 2)},
-           "terminal_return_pct": {"p10": round(float(np.percentile(tr, 10)), 2), "p50": round(float(np.percentile(tr, 50)), 2),
-                                   "p90": round(float(np.percentile(tr, 90)), 2), "worst": round(float(np.min(tr)), 2),
-                                   "best": round(float(np.max(tr)), 2)},
-           "summary": {"avg_mdd_pct": round(float(np.mean(mdd)), 2), "median_profit_usd": round(float(np.median(term - initial_capital)), 2),
-                       "win_ratio_of_simulations": round(float(np.sum(tr > 0) / simulations * 100.0), 1),
-                       "min_terminal_equity": round(float(np.min(term)), 2), "max_terminal_equity": round(float(np.max(term)), 2)}}
-    chosen = {int(np.argmin(term)), int(np.argmax(term)), int(np.argsort(term)[simulations // 2])}
-    for i in rng.choice(simulations, size=min(35, simulations), replace=False):
-        chosen.add(int(i))
-        if len(chosen) >= min(35, simulations):
-            break
-    steps = eq.shape[1]
-    sidx = list(range(0, steps, max(1, steps // 60)))
-    if sidx[-1] != steps - 1:
-        sidx.append(steps - 1)
-    out["sample_paths"] = [[round(float(eq[c, s]), 2) for s in sidx] for c in chosen]
-    sm = eq[:, sidx]
-    out["quantile_curves"] = {"steps": len(sidx), **{f"p{q}": [round(float(v), 2) for v in np.percentile(sm, q, axis=0)] for q in (5, 25, 50, 75, 95)},
-                              "best": [round(float(v), 2) for v in np.max(sm, axis=0)], "worst": [round(float(v), 2) for v in np.min(sm, axis=0)]}
-    return out, float(mdd.max())
-
-
-@pytest.mark.parametrize("block,sims,chunk", [(5, 10_000, None), (1, 10_000, None), (5, 2_000, 7_000), (1, 1_500, 3_000), (3, 777, 1_000)])
-def test_run_monte_carlo_bit_identical_to_previous_implementation(monkeypatch, block, sims, chunk):
-    if chunk:
-        monkeypatch.setattr(mcm, "MC_CHUNK_ELEMS", chunk)        # ép chia lô nhỏ: kết quả không được phụ thuộc kích thước lô
-    rng = np.random.default_rng(5)
-    trades = [{"pnl_pct": float(x)} for x in rng.normal(0.08, 2.5, 434)]
-    ref, ref_worst = _old_run_monte_carlo(trades, sims, block, seed=7)
-    new = run_monte_carlo(trades, simulations=sims, block_size=block, seed=7)
-    wb = new.pop("worst_bootstrap")
-    for k, v in ref.items():
-        assert new[k] == v, k
-    assert wb["name"] == "worst_bootstrap" and wb["mdd_pct"] == round(ref_worst, 2) == new["percentile_mdd"]["worst"]
-    assert wb["days"] == 434
-
-
 def test_run_monte_carlo_daily_identical_to_previous_bootstrap_loop():
     d = np.random.default_rng(11).normal(0.001, 0.015, 300)
     rng = np.random.default_rng(3)
@@ -262,15 +198,6 @@ def test_10k_is_deterministic_and_seed_sensitive():
     assert [r["name"] for r in a["stress"]] == NAMES + ["worst_bootstrap"]
     # chuỗi kịch bản tất định: KHÔNG phụ thuộc seed
     assert run_monte_carlo_daily_detail(d, seed=10)["stress"][:5] == a["stress"][:5]
-
-
-def test_chunked_memory_stays_bounded():
-    trades = [{"pnl_pct": float(x)} for x in np.random.default_rng(4).normal(0.1, 2.0, 434)]
-    tracemalloc.start()
-    run_monte_carlo(trades, simulations=10_000, block_size=5, seed=7)
-    peak = tracemalloc.get_traced_memory()[1]
-    tracemalloc.stop()
-    assert peak < 200 * 1024 * 1024, peak / 1e6          # trước đây ~ >300 MB cho 10.000 x 434 (6 mảng 35 MB)
 
 
 # ── 4. API ──────────────────────────────────────────────────────────────────

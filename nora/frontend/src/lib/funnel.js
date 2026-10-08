@@ -3,21 +3,25 @@
 // để UI không gãy khi backend thêm/đổi tên trường nhỏ.
 import { isNum, fmtNum, fmtPct, fmtSPct } from './format'
 
-export const STAGES = ['S0_generate', 'S1_backtest', 'S2_antiluck', 'S3_wfa', 'S4_montecarlo', 'S5_sizing', 'S6_holdout', 'FINAL']
+// Từ 08/10/2026 chống ăn may không còn là tầng riêng: lân cận + PBO nằm trong S3, DSR nằm trong S4 (số hiệu tầng giữ nguyên, chừa trống S2).
+export const STAGES = ['S0_generate', 'S1_backtest', 'S3_wfa', 'S4_montecarlo', 'S5_sizing', 'S6_holdout', 'FINAL']
+/** Lượt chạy trước 08/10/2026 còn khối S2 cũ: vẫn hiển thị như tầng "cũ" (chỉ khi backend trả về). */
+export const LEGACY_STAGE = 'S2_antiluck'
+export const ALL_STAGES = ['S0_generate', 'S1_backtest', LEGACY_STAGE, 'S3_wfa', 'S4_montecarlo', 'S5_sizing', 'S6_holdout', 'FINAL']
 
 export const STAGE_META = {
   S0_generate: { short: 'S0', name: 'Sinh alpha', data: 'Không gian tham số', rule: 'Hợp lệ (vd. ngân sách DCA); mỗi alpha có mã riêng' },
   S1_backtest: { short: 'S1', name: 'Backtest sàng lọc', data: 'dev1', rule: 'Lãi > 0, MDD ≤ 30%, đủ số lệnh, đủ số tài sản có lãi' },
-  S2_antiluck: { short: 'S2', name: 'Chống ăn may', data: 'dev1 + lân cận', rule: 'Top 5% DSR của chiến lược (N hiệu dụng); lân cận tham số có lãi ≥ 60%; PBO chiến lược > 0,5 chỉ cảnh báo' },
-  S3_wfa: { short: 'S3', name: 'Walk-forward', data: 'dev2', rule: '≥ 5 fold, ≥ 60% fold OOS lãi, lãi kép OOS > 0, MDD fold xấu nhất ≤ 30%' },
-  S4_montecarlo: { short: 'S4', name: 'Monte Carlo', data: 'chuỗi ngày OOS', rule: '≥ 10.000 kịch bản, P(MDD ≥ 30%) ≤ 5%, mọi kịch bản cực xấu MDD < 50%' },
+  S2_antiluck: { short: 'S2 (cũ)', name: 'Chống ăn may (cũ)', data: 'dev1 + lân cận', rule: 'Tầng cũ, nay đã gộp: lân cận + PBO nằm trong S3, DSR (top 5%, N hiệu dụng) nằm trong S4' },
+  S3_wfa: { short: 'S3', name: 'Walk-forward + lân cận', data: 'dev2 + lân cận dev1', rule: '≥ 5 fold, t-stat lãi/fold ≥ 1, lãi kép OOS > 0, MDD fold xấu nhất ≤ 30%; lân cận tham số có lãi ≥ 60%; PBO chiến lược > 0,5 chỉ cảnh báo' },
+  S4_montecarlo: { short: 'S4', name: 'Monte Carlo + DSR', data: 'chuỗi ngày OOS', rule: 'Top 5% DSR của chiến lược (N hiệu dụng); ≥ 10.000 kịch bản, P(MDD ≥ 30%) ≤ 5%, mọi kịch bản cực xấu MDD < 50% (tầng kết luận)' },
   S5_sizing: { short: 'S5', name: 'Khối lượng sống sót', data: 'như S4', rule: 'Hệ số vốn lớn nhất s sống sót qua S4, xác nhận bằng backtest + WFA + MC; s ≥ 0,2' },
   S6_holdout: { short: 'S6', name: 'Holdout', data: '20% cuối', rule: 'Ở hệ số s: lãi > 0, MDD ≤ 30% (đúng mức và giá xấu nhất)' },
   FINAL: { short: 'FINAL', name: 'Đủ điều kiện testnet', data: '', rule: 'Qua mọi tầng; ghi vào kho alpha kèm s và bằng chứng' },
 }
 export const stageName = (s) => STAGE_META[s]?.name || String(s || '—')
 export const stageShort = (s) => STAGE_META[s]?.short || String(s || '—')
-export const stageIdx = (s) => STAGES.indexOf(s)
+export const stageIdx = (s) => ALL_STAGES.indexOf(s)
 /** Tầng có dữ liệu thống kê phân phối / lệnh (S0 chỉ có số lượng). */
 export const stageHasTrades = (s) => ['S1_backtest', 'S2_antiluck', 'S3_wfa', 'S4_montecarlo', 'S5_sizing', 'S6_holdout'].includes(s)
 
@@ -87,8 +91,8 @@ const num = (v) => (isNum(v) ? v : (v != null && v !== '' && Number.isFinite(Num
 export function normCounts(counts) {
   const list = Array.isArray(counts) ? counts : Object.entries(counts || {}).map(([stage, c]) => ({ stage, ...(typeof c === 'object' ? c : { passed: c }) }))
   const by = Object.fromEntries(list.map((c) => [c.stage, c]))
-  // luôn đủ 8 tầng theo thứ tự; tầng chưa có số liệu để null
-  return STAGES.map((st, i) => {
+  // luôn đủ 7 tầng theo thứ tự (+ S2 cũ nếu lượt chạy cũ có); tầng chưa có số liệu để null
+  return ALL_STAGES.filter((st) => st !== LEGACY_STAGE || by[st]).map((st, i) => {
     const c = by[st]
     if (!c) return { stage: st, input: null, passed: null, top_reject: null }
     const passed = num(c.passed ?? c.out ?? c.count)
@@ -167,13 +171,13 @@ export function normAlphaPage(raw) {
 export function normAlphaDetail(raw) {
   if (!raw) return null
   const a = normAlpha(raw)
-  const metricsBy = raw.stage_metrics || raw.metrics_by_stage || (a.metrics && STAGES.some((s) => a.metrics[s]) ? a.metrics : {})
+  const metricsBy = raw.stage_metrics || raw.metrics_by_stage || (a.metrics && ALL_STAGES.some((s) => a.metrics[s]) ? a.metrics : {})
   const reachedI = stageIdx(a.stage_reached)
   const rejI = stageIdx(a.rejected_stage)
   let stages = arr(raw.stages, raw.journey)
   if (!stages.length) {
-    stages = STAGES.slice(1).map((st, k) => {
-      const i = k + 1
+    stages = ALL_STAGES.slice(1).filter((st) => st !== LEGACY_STAGE || metricsBy[st] || rejI === stageIdx(st)).map((st) => {
+      const i = stageIdx(st)
       let status = 'none'
       if (rejI === i) status = 'fail'
       else if (reachedI > i || (reachedI === i && rejI < 0)) status = 'pass'

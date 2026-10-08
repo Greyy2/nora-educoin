@@ -15,7 +15,7 @@ from reference_engine import RefPositionTracker                              # n
 
 from backend.core import backtest as bt                                    # noqa: E402
 from backend.core.backtest import KernelBook, SlotDriver                   # noqa: E402
-from backend.core.execute.models import PositionType                       # noqa: E402
+from backend.core.models import PositionType                       # noqa: E402
 from backend.core.position_size import SlotSpec                                 # noqa: E402
 from backend.core.position_size import admit_entry                         # noqa: E402
 

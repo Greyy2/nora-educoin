@@ -1,13 +1,11 @@
-# P9.5 — chuyển NGUYÊN VĂN từ carlo/monte_carlo.py (đường dẫn cũ là shim).
+# Nguồn: docs/bmad/p9_review_log.md (mục P9.5, P9.10a).
 """Monte Carlo: bootstrap theo khối + kịch bản cực xấu + gate (mọi cổng alpha/sổ đều đọc hằng số ở đây).
 
 Thực hiện:
-- Vectorized Block Bootstrap Resampling trên tỷ lệ lợi nhuận lệnh (pnl_pct) HOẶC (basis="daily", mặc định khi có WFA nguồn)
-  trên lợi suất NGÀY mark-to-market của OOS — đường vốn ngày đã chứa lỗ treo nên MDD không bị đánh giá thấp.
+- Block Bootstrap trên lợi suất NGÀY mark-to-market của OOS — đường vốn ngày đã chứa lỗ treo nên MDD không bị đánh giá thấp.
 - Mô phỏng tăng trưởng vốn theo lãi kép thực tế (Compounded Equity: equity *= 1 + r).
-- Đo lường phân phối xác suất Max Drawdown theo danh sách confidence_levels (Percentile 50th, 90th, 95th, 99th).
-- Tính toán Xác suất Cháy / Thua lỗ nghiêm trọng (Risk of Ruin %).
-- Xuất dữ liệu biểu đồ phân tán và quantile bands (Fan Chart: p5, p25, p50, p75, p95).
+- Phân phối xác suất Max Drawdown / lãi cuối và Xác suất Cháy (Risk of Ruin %).
+- Xuất dữ liệu biểu đồ phân tán và quantile bands (Fan Chart).
 - Sử dụng Local Generator ngẫu nhiên `np.random.default_rng(seed)` an toàn đa luồng.
 """
 from typing import Any, Dict, List, Optional
@@ -28,7 +26,6 @@ STRESS_COST_TAKER = 0.0005
 STRESS_COST_SLIPPAGE = 0.0002
 NOTE_COST_UNMEASURED = "không đo được vòng quay vốn (thiếu lệnh của lượt chạy này) nên không dựng kịch bản chi phí gấp đôi; không dùng vòng quay giả định"
 CRASH_CAP = 0.95                   # ngày sập tối đa -95%
-MC_CHUNK_ELEMS = 2_000_000         # xử lý theo lô: mỗi mảng (lô x bước) <= 16 MB float64 -> đỉnh RAM vài chục MB dù 50.000 mô phỏng
 STRESS_PATH_POINTS = 72            # số điểm tối đa mỗi đường vẽ trả về cho UI
 # Trend thẳng đứng (P2.6): giá đi +40% trong 3 ngày / −30% trong 1 ngày NGƯỢC vị thế lớn nhất từng mở. Lỗ mỗi vị thế:
 #   có cắt lỗ theo rủi ro (sizing "risk": danh nghĩa × khoảng SL = rpt × vốn): min(danh nghĩa × biên độ, STRESS_GAP_MULT × rpt × vốn)
@@ -199,14 +196,6 @@ def stress_scenarios(daily, scale: float = 1.0, extra_cost_daily: Optional[float
     return rows
 
 
-def estimate_extra_daily_cost(n_trades: int, n_days: int, notional_fraction: float,
-                              taker: float = STRESS_COST_TAKER, slippage: float = STRESS_COST_SLIPPAGE) -> Optional[float]:
-    """Phí/ngày bổ sung cho cost_x2 khi chỉ biết số lệnh và tỉ trọng TB: (taker+trượt giá) x 2 x (số lệnh x tỉ trọng / số ngày). n_days <= 0 -> None."""
-    if n_days <= 0:
-        return None
-    return (taker + slippage) * 2.0 * (n_trades * notional_fraction / n_days)
-
-
 def extra_cost_from_turnover(turnover_daily: Optional[float], taker: float = STRESS_COST_TAKER,
                              slippage: float = STRESS_COST_SLIPPAGE) -> Optional[float]:
     """Phí bổ sung/ngày hoạt động cho cost_x2 từ vòng quay ĐO ĐƯỢC (lần vốn/ngày); None (không đo được) -> None."""
@@ -320,177 +309,7 @@ def strip_paths(rows: Optional[List[Dict[str, Any]]]) -> Optional[List[Dict[str,
     return [{k: v for k, v in r.items() if k != "path"} for r in rows] if rows is not None else None
 
 
-# ─── Bootstrap theo lệnh/ngày (chia lô, tiết kiệm RAM) ──────────────────────────────────────────────────
-def run_monte_carlo(
-    trades: List[Dict[str, Any]],
-    simulations: int = 1000,
-    initial_capital: float = 10000.0,
-    ruin_threshold_pct: float = 30.0,
-    confidence_levels: Optional[List[float]] = None,
-    block_size: int = 1,
-    seed: Optional[int] = None,
-) -> Dict[str, Any]:
-    """Thực hiện mô phỏng Monte Carlo vector tốc độ cao trên mảng PnL (lãi kép).
-
-    Xử lý theo LÔ (MC_CHUNK_ELEMS) để RAM không tỉ lệ với số mô phỏng; số RNG gọi/ thứ tự gọi giữ nguyên bản một-khối
-    (cùng seed + cùng số mô phỏng -> cùng từng con số). Kết quả có thêm `worst_bootstrap` (đường có MDD lớn nhất)."""
-    if confidence_levels is None:
-        confidence_levels = [90.0, 95.0, 99.0]
-
-    # RNG cục bộ không ảnh hưởng global state (an toàn đa luồng)
-    rng = np.random.default_rng(seed)
-
-    trades_count = len(trades)
-    if trades_count < 30:
-        raise ValueError(
-            f"Số lượng lệnh ({trades_count}) < 30. "
-            "Monte Carlo yêu cầu tối thiểu 30 lệnh để đảm bảo ý nghĩa thống kê."
-        )
-
-    # Đọc pnl_pct để tính lãi kép; nếu thiếu thì trích xuất từ pnl_usd / initial_capital
-    pnl_pct_list = []
-    for t in trades:
-        if "pnl_pct" in t and t["pnl_pct"] is not None:
-            pnl_pct_list.append(float(t["pnl_pct"]))
-        elif "pnl_usd" in t and t["pnl_usd"] is not None and initial_capital > 0:
-            pnl_pct_list.append(float(t["pnl_usd"]) / initial_capital * 100.0)
-        elif "estimated_pnl_usd" in t and t["estimated_pnl_usd"] is not None and initial_capital > 0:
-            pnl_pct_list.append(float(t["estimated_pnl_usd"]) / initial_capital * 100.0)
-        else:
-            raise ValueError(f"Trade thiếu trường pnl_pct hoặc pnl_usd: {t}")
-
-    pnl_pct_array = np.array(pnl_pct_list, dtype=np.float64)
-
-    # ─── Kế hoạch bootstrap: chỉ số (nhỏ) rút MỘT lần; mỗi lô dựng lại phần pnl từ kế hoạch ───────────────
-    if block_size <= 1:
-        # Trade Bootstrap độc lập có hoàn lại (rng.choice(replace=True) = rng.integers rồi lấy phần tử)
-        plan = rng.integers(0, trades_count, size=(simulations, trades_count))
-
-        def gather(rows):
-            return pnl_pct_array[plan[rows]]
-    else:
-        # Vectorized Block Bootstrap để bảo tồn tương quan chuỗi lệnh
-        num_blocks = int(np.ceil(trades_count / block_size))
-        max_start = max(1, trades_count - block_size + 1)
-        plan = rng.integers(0, max_start, size=(simulations, num_blocks))
-        offsets = np.arange(block_size)
-
-        def gather(rows):
-            starts = plan[rows]
-            indices = (starts[:, :, None] + offsets[None, None, :]).reshape(starts.shape[0], -1)[:, :trades_count]
-            return pnl_pct_array[indices]
-
-    def equities(sampled_pcts):
-        # ─── Compounded Equity Curves (Lãi kép): r = pnl_pct / 100.0; multiplier = max(0.0, 1.0 + r)
-        step_multipliers = np.maximum(0.0, 1.0 + (sampled_pcts / 100.0))
-        cum_returns = np.cumprod(step_multipliers, axis=1)
-        return np.hstack([
-            np.full((sampled_pcts.shape[0], 1), initial_capital, dtype=np.float64),
-            initial_capital * cum_returns,
-        ])
-
-    total_steps = trades_count + 1
-    step_stride = max(1, total_steps // 60)
-    sample_indices = list(range(0, total_steps, step_stride))
-    if sample_indices[-1] != total_steps - 1:
-        sample_indices.append(total_steps - 1)
-
-    sim_max_drawdowns = np.empty(simulations)
-    terminal_equities = np.empty(simulations)
-    sampled_matrix = np.empty((simulations, len(sample_indices)))
-    chunk = max(1, MC_CHUNK_ELEMS // total_steps)
-    for a in range(0, simulations, chunk):
-        b = min(simulations, a + chunk)
-        eq = equities(gather(slice(a, b)))
-        # ─── Max Drawdown Calculation ───
-        running_max = np.maximum.accumulate(eq, axis=1)
-        drawdowns = (running_max - eq) / np.maximum(running_max, 1e-9) * 100.0
-        sim_max_drawdowns[a:b] = np.max(drawdowns, axis=1)
-        terminal_equities[a:b] = eq[:, -1]
-        sampled_matrix[a:b] = eq[:, sample_indices]
-        del eq, running_max, drawdowns
-
-    # ─── Risk of Ruin ──────────────────────────────────────────────────────────
-    ruined_sims = np.sum(sim_max_drawdowns >= ruin_threshold_pct)
-    risk_of_ruin_pct = round(float(ruined_sims / simulations * 100.0), 2)
-
-    # ─── Percentile Metrics ────────────────────────────────────────────────────
-    percentile_mdd = {
-        "p50": round(float(np.percentile(sim_max_drawdowns, 50)), 2),
-    }
-    for cl in confidence_levels:
-        key = f"p{int(cl)}"
-        percentile_mdd[key] = round(float(np.percentile(sim_max_drawdowns, cl)), 2)
-    percentile_mdd["worst"] = round(float(np.max(sim_max_drawdowns)), 2)
-
-    terminal_returns = (terminal_equities - initial_capital) / initial_capital * 100.0
-    terminal_return_pct = {
-        "p10": round(float(np.percentile(terminal_returns, 10)), 2),
-        "p50": round(float(np.percentile(terminal_returns, 50)), 2),
-        "p90": round(float(np.percentile(terminal_returns, 90)), 2),
-        "worst": round(float(np.min(terminal_returns)), 2),
-        "best": round(float(np.max(terminal_returns)), 2),
-    }
-
-    profitable_sims = np.sum(terminal_returns > 0)
-    win_ratio_of_simulations = round(float(profitable_sims / simulations * 100.0), 1)
-
-    # ─── Downsample Sample Paths for UI Fan Chart ──────────────────────────────
-    num_paths_to_export = min(35, simulations)
-    worst_idx = int(np.argmin(terminal_equities))
-    best_idx = int(np.argmax(terminal_equities))
-    median_idx = int(np.argsort(terminal_equities)[simulations // 2])
-
-    chosen_indices = {worst_idx, best_idx, median_idx}
-    rand_indices = rng.choice(simulations, size=num_paths_to_export, replace=False)
-    for idx in rand_indices:
-        chosen_indices.add(int(idx))
-        if len(chosen_indices) >= num_paths_to_export:
-            break
-
-    exported_paths = []
-    for c_idx in chosen_indices:
-        row_eq = equities(gather(np.array([c_idx])))[0]
-        exported_paths.append([round(float(row_eq[s]), 2) for s in sample_indices])
-
-    # Step-by-step quantile envelopes across sampled steps
-    quantile_curves = {
-        "steps": len(sample_indices),
-        "p5": [round(float(v), 2) for v in np.percentile(sampled_matrix, 5, axis=0)],
-        "p25": [round(float(v), 2) for v in np.percentile(sampled_matrix, 25, axis=0)],
-        "p50": [round(float(v), 2) for v in np.percentile(sampled_matrix, 50, axis=0)],
-        "p75": [round(float(v), 2) for v in np.percentile(sampled_matrix, 75, axis=0)],
-        "p95": [round(float(v), 2) for v in np.percentile(sampled_matrix, 95, axis=0)],
-        "best": [round(float(v), 2) for v in np.max(sampled_matrix, axis=0)],
-        "worst": [round(float(v), 2) for v in np.min(sampled_matrix, axis=0)],
-    }
-
-    # Đường bootstrap tệ nhất theo MDD (hoà -> đường đầu tiên): dựng lại từ kế hoạch, cùng công thức hệ số ngày
-    worst_mdd_idx = int(np.argmax(sim_max_drawdowns))
-    worst_bootstrap = _path_row("worst_bootstrap", gather(np.array([worst_mdd_idx]))[0] / 100.0)
-
-    return {
-        "simulations": simulations,
-        "trades_count": trades_count,
-        "initial_capital": round(initial_capital, 2),
-        "percentile_mdd": percentile_mdd,
-        "risk_of_ruin_pct": risk_of_ruin_pct,
-        "ruin_threshold_pct": ruin_threshold_pct,
-        "terminal_return_pct": terminal_return_pct,
-        "sample_paths": exported_paths,
-        "quantile_curves": quantile_curves,
-        "worst_bootstrap": worst_bootstrap,
-        "seed": seed,
-        "summary": {
-            "avg_mdd_pct": round(float(np.mean(sim_max_drawdowns)), 2),
-            "median_profit_usd": round(float(np.median(terminal_equities - initial_capital)), 2),
-            "win_ratio_of_simulations": win_ratio_of_simulations,
-            "min_terminal_equity": round(float(np.min(terminal_equities)), 2),
-            "max_terminal_equity": round(float(np.max(terminal_equities)), 2),
-        },
-    }
-
-
+# ─── Bootstrap theo ngày ────────────────────────────────────────────────────────────────────────────────
 def _daily_bootstrap(d, n: int, block_days: int, horizon_days: int, seed, scale: float, cols=None):
     """Vòng bootstrap ngày dùng chung (giữ NGUYÊN thứ tự RNG: mỗi mô phỏng một lệnh rng.integers).
     -> (mdds, rets, fan_vals|None, chỉ số ngày của đường có MDD lớn nhất). `cols` = cột đường vốn cần lấy cho fan."""
@@ -522,7 +341,7 @@ def run_monte_carlo_daily(
 ) -> Dict[str, Any]:
     """Block bootstrap trên LỢI SUẤT NGÀY mark-to-market (gồm cả lỗ chưa chốt), mô phỏng `horizon_days` ngày.
 
-    Khác run_monte_carlo (lệnh đã đóng): đường vốn ngày đã chứa lỗ treo nên MDD không bị đánh giá thấp.
+    Đường vốn ngày đã chứa lỗ treo nên MDD không bị đánh giá thấp.
     `scale` nhân lợi suất ngày (hệ số rủi ro). Thứ tự gọi RNG GIỮ NGUYÊN bản bootstrap của build_strategy_book
     (mỗi lần mô phỏng một lệnh rng.integers) -> cùng seed/scale cho đúng cùng số; đừng vector hoá khi chưa so lại bit.
     Mặc định MC_MIN_SIMULATIONS (10.000): số nhỏ hơn chỉ để thử nhanh, không dùng làm gate."""
@@ -634,7 +453,6 @@ def run_monte_carlo_daily_detail(
 
 
 # Alias for backward compatibility
-run_monte_carlo_simulation = run_monte_carlo
 
 
 def bootstrap_daily(daily, scale, n=10_000, block=5, horizon=365, seed=1):  # n = carlo.MC_MIN_SIMULATIONS
@@ -643,3 +461,75 @@ def bootstrap_daily(daily, scale, n=10_000, block=5, horizon=365, seed=1):  # n 
                               ruin_threshold_pct=MC_RUIN_THRESHOLD_PCT, seed=seed, scale=scale)
     return {"median_ret_pct": r["median_ret_pct"], "p05_ret_pct": r["p05_ret_pct"], "mdd_p95_pct": r["mdd_p95_pct"],
             "p_mdd_ge_30_pct": r["p_mdd_ge_ruin_pct"]}
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Ý nghĩa thống kê: DSR, N hiệu dụng.
+#
+# - DSR: Bailey & López de Prado (2014), "The Deflated Sharpe Ratio". Mọi Sharpe ở đây là Sharpe THEO NGÀY (không quy năm).
+#     SR0 = sqrt(V[SR_trials]) * ((1 - γ) * Φ^-1(1 - 1/N) + γ * Φ^-1(1 - 1/(N e)))       (kỳ vọng SR lớn nhất của N lần thử, γ = Euler–Mascheroni)
+#     DSR = Φ( (SR - SR0) * sqrt(T - 1) / sqrt(1 - skew * SR + (kurt - 1)/4 * SR²) )      (kurt = kurtosis THÔ, chuẩn = 3)
+# - N hiệu dụng (effective_trials): các lần thử gần trùng nhau (lân cận lưới, biến thể regime) không phải phép thử độc lập. Theo López de Prado
+#   (gom cụm các chiến lược tương quan), N dùng cho SR0 = số cụm (tương quan lợi suất ngày > rho) trong mẫu top-K, phóng theo tỉ lệ ra cả N.
+# ══════════════════════════════════════════════════════════════════════════
+import math
+from statistics import NormalDist
+from typing import Sequence
+
+
+EULER_GAMMA = 0.5772156649015329
+
+_N01 = NormalDist()
+
+
+def norm_cdf(z: float) -> float:
+    return _N01.cdf(z)
+
+
+def norm_ppf(p: float) -> float:
+    return _N01.inv_cdf(p)
+
+
+# ── DSR ─────────────────────────────────────────────────────────────────────
+def expected_max_sr(n_trials: int, sr_var: float) -> float:
+    """SR0: kỳ vọng Sharpe lớn nhất của n_trials lần thử độc lập có phương sai Sharpe sr_var (theo ngày). n <= 1 -> 0."""
+    if n_trials <= 1 or not sr_var > 0:
+        return 0.0
+    g = EULER_GAMMA
+    return math.sqrt(sr_var) * ((1.0 - g) * norm_ppf(1.0 - 1.0 / n_trials) + g * norm_ppf(1.0 - 1.0 / (n_trials * math.e)))
+
+
+def deflated_sharpe(sr: float, n_days: int, skew: float, kurt: float, n_trials: int, sr_var: float) -> Dict[str, float]:
+    """DSR = xác suất Sharpe thật > SR0 sau khi hiệu chỉnh số lần thử, độ lệch, kurtosis, độ dài mẫu. -> {dsr, sr0}."""
+    sr0 = expected_max_sr(n_trials, sr_var)
+    if n_days < 3:
+        return {"dsr": 0.0, "sr0": sr0}
+    denom = math.sqrt(max(1e-12, 1.0 - skew * sr + (kurt - 1.0) / 4.0 * sr * sr))
+    z = (sr - sr0) * math.sqrt(n_days - 1) / denom
+    return {"dsr": norm_cdf(z), "sr0": sr0}
+
+
+def trial_sr_variance(srs: Sequence[float]) -> float:
+    """Phương sai (ddof=1) của Sharpe theo ngày qua các alpha đã thử của một chiến lược; < 2 alpha -> 0."""
+    a = np.asarray([x for x in srs if x is not None and math.isfinite(x)], dtype=float)
+    return float(a.var(ddof=1)) if a.size >= 2 else 0.0
+
+
+EFF_RHO = 0.7   # hai lần thử tương quan lợi suất ngày > 0,7 -> cùng một cụm (không độc lập)
+
+
+def effective_trials(M: np.ndarray, n_total: int, rho: float = EFF_RHO) -> int:
+    """N hiệu dụng: gom cụm tham lam các cột của M (ngày × alpha, thứ tự = xếp hạng giảm dần) — alpha vào cụm có đại diện tương quan > rho,
+    không thì mở cụm mới; N_eff = round(số cụm / số cột × n_total), trong [1, n_total]. Mẫu rỗng -> n_total (bảo thủ)."""
+    if M.size == 0 or M.shape[1] < 2:
+        return max(1, int(n_total))
+    M = M[:, M.std(axis=0) > 0]
+    k = M.shape[1]
+    if k < 2:
+        return max(1, int(n_total))
+    C = np.corrcoef(M.T)
+    reps: List[int] = []
+    for j in range(k):
+        if not any(C[j, r] > rho for r in reps):
+            reps.append(j)
+    return int(min(n_total, max(1, round(len(reps) / k * n_total))))

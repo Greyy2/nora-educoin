@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from backend.core.data.resampler import save_resampled_dataset
+from backend.crawl.store import save_resampled_dataset
 
 T0 = 1_700_006_400_000
 M = 60_000
@@ -63,9 +63,9 @@ SHORT = {"id": "rsi_short", "side": "SHORT", "tree": [[[f("15m", "rsi_14"), ">",
 # ─── Tracker: ATR + rủi ro ──────────────────────────────────────────────────
 
 def _tracker(**pos):
-    from backend.core.execute.tracker import PositionTracker
-    from backend.core.params.builder import build_params
-    from backend.core.execute.models import PositionType
+    from backend.core.backtest import PositionTracker
+    from backend.core.params import build_params
+    from backend.core.models import PositionType
     side = pos.pop("side", "LONG")
     params = build_params("f", {"match": [], "stop": []}, side, {**POSITION, **pos}, "cex")
     return PositionTracker(0, 0, "X", "f", params, PositionType.LONG if side == "LONG" else PositionType.SHORT,
@@ -121,11 +121,11 @@ def test_risk_sizing_requires_stop_loss():
 # ─── Engine: ATR lấy từ nến đã đóng ─────────────────────────────────────────
 
 def test_engine_atr_unit_comes_from_closed_bar_at_signal(market):
-    from backend.core.backtest.engine import BacktestEngine
-    from backend.core.params.builder import build_params
+    from backend.core.backtest import BacktestEngine
+    from backend.core.params import build_params
     eng = BacktestEngine(0, 0, "BBB@perp", T0, T0 + 20 * DAY, trade_start_ts=T0 + 3 * DAY)
     eng.add_strategy_flow("LONG_x", build_params("LONG_x", {"match": [{"condition": LONG["tree"]}], "stop": []},
-                                                 "LONG", POSITION, "cex", symbol="BBB@perp"))
+                                                 "LONG", POSITION, "cex"))
     eng.load_data()
     df1, cols = eng._build_matrix()
     eng.run()
@@ -139,7 +139,7 @@ def test_engine_atr_unit_comes_from_closed_bar_at_signal(market):
         # natr ở nến tín hiệu là của nến 1h đã đóng trước thời điểm quyết định
         f1h = eng.frames["1h"]
         closed = f1h[f1h.open_time + 3_600_000 <= hour_start + ((times[sig_row] + M) - hour_start)]
-        from backend.core.signals import kernels
+        from backend.core import indicator as kernels
         expect = kernels.compute(f1h, "natr_14").to_numpy()[len(closed) - 1]
         assert p.unit_pct == pytest.approx(expect)
 
@@ -147,7 +147,7 @@ def test_engine_atr_unit_comes_from_closed_bar_at_signal(market):
 # ─── Danh mục ───────────────────────────────────────────────────────────────
 
 def _portfolio(symbols, strategies, risk=None, days=(3, 30), **kw):
-    from backend.core.backtest.portfolio import PortfolioEngine, RiskConfig
+    from backend.core.backtest import PortfolioEngine, RiskConfig
     eng = PortfolioEngine(symbols, strategies, T0, T0 + days[1] * DAY, trade_start_ts=T0 + days[0] * DAY,
                           risk=RiskConfig.from_dict(risk), use_cache=False, **kw)
     eng.load_data()
@@ -155,15 +155,14 @@ def _portfolio(symbols, strategies, risk=None, days=(3, 30), **kw):
 
 
 def test_portfolio_single_symbol_matches_single_engine(market):
-    from backend.core.backtest.engine import BacktestEngine
-    from backend.core.params.builder import build_params
+    from backend.core.backtest import BacktestEngine
+    from backend.core.params import build_params
     pe = _portfolio(["BBB@perp"], [LONG], risk={"max_positions": 99, "max_per_symbol": 99,
                                                  "max_gross_exposure": 1e9, "kill_switch_dd_pct": 0})
     pe.run()
     se = BacktestEngine(0, 0, "BBB@perp", T0, T0 + 30 * DAY, trade_start_ts=T0 + 3 * DAY)
     se.add_strategy_flow("LONG_rsi_long", build_params("LONG_rsi_long", {"match": [{"condition": LONG["tree"]}],
-                                                                         "stop": []}, "LONG", POSITION, "cex",
-                                                       symbol="BBB@perp"))
+                                                                         "stop": []}, "LONG", POSITION, "cex"))
     se.load_data()
     se.run()
     a, b = pe.get_results(), se.get_results()
@@ -177,7 +176,7 @@ def test_portfolio_single_symbol_matches_single_engine(market):
 def test_portfolio_risk_caps_and_shared_ledger(market, monkeypatch):
     """Trần rủi ro kiểm SAU MỖI PHÚT trên vòng lặp tham chiếu (kernel = tham chiếu từng bit, test_kernel_parity)."""
     import reference_engine as ref
-    from backend.core.backtest import portfolio as portfolio_mod
+    from backend.core import backtest as portfolio_mod
     monkeypatch.setattr(portfolio_mod, "PortfolioEngine", ref.RefPortfolioEngine)
     syms = ["AAA@perp", "BBB@perp", "CCC@perp"]
     risk = {"max_positions": 2, "max_per_symbol": 1, "max_gross_exposure": 1.5, "kill_switch_dd_pct": 0}
@@ -215,7 +214,7 @@ def test_portfolio_risk_caps_and_shared_ledger(market, monkeypatch):
 
 
 def test_portfolio_is_deterministic_and_cache_safe(market):
-    from backend.core.backtest.portfolio import PortfolioEngine, RiskConfig
+    from backend.core.backtest import PortfolioEngine, RiskConfig
     out = []
     for cache in (False, True, True):
         eng = PortfolioEngine(["AAA@perp", "CCC@perp"], [LONG, SHORT], T0, T0 + 25 * DAY, trade_start_ts=T0 + 3 * DAY,

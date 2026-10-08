@@ -5,17 +5,30 @@ import pathlib
 from backend.crawl.store import alpha_run_dir, run_dir
 import json
 import os
+import threading
 
 import pandas as pd
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from backend.api.routers import book as book_router
-from backend.api.jobs import batch as batch_jobs
+from backend.routes import book as book_router
+from backend.optimize.process import process as batch_jobs
 from job_modules import launched
 from test_portfolio_wfa import DAY, START, T0, _load_script, _small_book, market  # noqa: F401  (market là fixture)
-from test_book_api import FakePopen
+
+
+class FakePopen:
+    """Job chạy mãi (wait chặn): nếu waiter kết thúc ngay, job 'done' không còn trong Lịch sử (ADR §4.5: chỉ job đang chạy / lỗi ở cache/process)."""
+    calls = []
+
+    def __init__(self, cmd, **kw):
+        FakePopen.calls.append((cmd, kw))
+        self.pid = 2 ** 22 + 12345   # không tồn tại trong /proc
+        self.returncode = None
+
+    def wait(self):
+        threading.Event().wait()
 
 
 @pytest.fixture
@@ -52,21 +65,18 @@ def test_catalog_default_params_universe_windows(client, tmp_path):
 
 def test_default_params_match_run_book_backtest_mid_params():
     import importlib.util
-    spec = importlib.util.spec_from_file_location("rbb", os.path.join(os.path.dirname(__file__), "..", "backend", "core", "backtest", "run.py"))
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    from backend.core.strategy.book import CANDIDATES
+    from backend.optimize.search import evaluate as mod   # P9.6: thư viện run.py nằm ở search/evaluate.py
+    from backend.optimize.book.build import CANDIDATES
     for c in CANDIDATES:
         assert book_router.default_params(c["space"]) == mod._mid_params(c, {})
 
 
 def test_alphas_endpoint(client, tmp_path, monkeypatch):
-    monkeypatch.setattr(batch_jobs, "NORA_DIR", str(tmp_path / "nora"))
     r = client.get("/api/studio/alphas")
     assert r.status_code == 200 and r.json()["registry"] is None and r.json()["book"] is None and r.json()["registry_status"] == []
     assert r.json()["engine"]["main"]["needs_rebuild"] is None and r.json()["engine"]["explore"]["needs_rebuild"] is None   # chưa có sổ
-    os.makedirs(tmp_path / "data" / "alphas")
-    (tmp_path / "data" / "alphas" / "registry.json").write_text(json.dumps({"alphas": [1]}))
+    os.makedirs(tmp_path / "data" / "alpha")
+    (tmp_path / "data" / "alpha" / "registry.json").write_text(json.dumps({"alphas": [1]}))
     (tmp_path / "book.json").write_text(json.dumps({"status": "READY"}))
     j = client.get("/api/studio/alphas").json()
     assert j["registry"] == {"alphas": [1]} and j["book"] == {"status": "READY"}
@@ -76,7 +86,7 @@ def test_alphas_endpoint(client, tmp_path, monkeypatch):
 
 # ─── §2 nhãn + lọc kind ─────────────────────────────────────────────────────
 def _meta_job(kind, params, name):
-    d = os.path.join(batch_jobs.jobs_root(), name)
+    d = os.path.join(batch_jobs.persist_dest_base(kind) or run_dir("backtest"), name)   # job đã xong sống ở thư mục kết quả bền, không ở cache/process
     os.makedirs(d, exist_ok=True)
     batch_jobs._write_meta(d, {"id": name, "kind": kind, "params": params, "pid": None, "created": 1.0, "started": None, "finished": None,
                                "state": "done", "exit_code": 0})
@@ -227,32 +237,32 @@ def test_build_strategy_book_result_json_has_stage_a_for_every_config(market, mo
 
 # ─── P9.15: engine_version của sổ + needs_rebuild; P9.14: trạng thái + nguồn gốc alpha registry ──────────────
 def test_engine_version_is_stable_and_detects_engine_source_change(tmp_path, monkeypatch):
-    from backend.utils import engine_version as ev
+    from backend.optimize.book import registry as ev
     a = ev.engine_version()
     assert a == ev.engine_version() and len(a["hash"]) == 64 and a["files"] > 0
     # custom_run / edu_precompute (sản phẩm của phiên alpha) KHÔNG nằm trong mã engine
     names = [rel for rel, _ in ev._engine_files()]
-    assert "backend/core/backtest/kernel.py" in names and "backend/core/execute/runner.py" in names
+    assert "backend/core/backtest.py" in names and "backend/optimize/search/evaluate.py" in names   # P9.6: core/backtest/ đã xoá; thư viện run.py + tick_run nằm ở search/evaluate.py
+    assert "backend/core/indicator.py" in names and "backend/core/signal.py" in names   # P9.10b: cột + tín hiệu của engine cũng là mã engine
     assert not any(n.endswith(("custom_run.py", "edu_precompute.py")) for n in names)
     # đổi một file engine -> hash đổi (dùng thư mục giả)
     fake = tmp_path / "nora"
-    (fake / "backend/core/backtest").mkdir(parents=True)
-    (fake / "backend/core/execute").mkdir(parents=True)
-    (fake / "backend/core/backtest/kernel.py").write_text("x = 1\n")
+    for rel in ev.ENGINE_FILES:
+        (fake / rel).parent.mkdir(parents=True, exist_ok=True)
+        (fake / rel).write_text("x = 1\n")
     monkeypatch.setattr(ev, "NORA_DIR", str(fake))
     ev._cache.update(sig=None, value=None, at=0.0)
     h1 = ev.engine_version()["hash"]
-    (fake / "backend/core/backtest/kernel.py").write_text("x = 2\n")
+    (fake / "backend/core/backtest.py").write_text("x = 2\n")
     assert ev.engine_version()["hash"] != h1
-    (fake / "backend/core/backtest/custom_run.py").write_text("y = 1\n")       # file loại trừ: không đổi hash
     h2 = ev.engine_version()["hash"]
-    (fake / "backend/core/backtest/custom_run.py").write_text("y = 2\n")
+    (fake / "backend/core/custom_run.py").write_text("y = 1\n")       # file ngoài ENGINE_FILES (vd. sản phẩm của phiên alpha): không đổi hash
     assert ev.engine_version()["hash"] == h2
     ev._cache.update(sig=None, value=None, at=0.0)
 
 
 def test_book_engine_status_missing_same_and_changed():
-    from backend.utils.engine_version import REASON_NO_VERSION, book_engine_status, engine_version
+    from backend.optimize.book.registry import REASON_NO_VERSION, book_engine_status, engine_version
     cur = engine_version()
     assert book_engine_status(None)["needs_rebuild"] is None
     old = book_engine_status({"status": "READY"})
@@ -264,10 +274,9 @@ def test_book_engine_status_missing_same_and_changed():
 
 
 def test_build_book_stamps_engine_version_and_api_reports_needs_rebuild(client, tmp_path, monkeypatch):
-    from backend.optimize import registry as reg
-    from backend.utils.engine_version import REASON_NO_VERSION, engine_version
-    monkeypatch.setattr(batch_jobs, "NORA_DIR", str(tmp_path / "nora"))
-    adir = tmp_path / "data" / "alphas"
+    from backend.optimize.book import registry as reg
+    from backend.optimize.book.registry import REASON_NO_VERSION, engine_version
+    adir = tmp_path / "data" / "alpha"
     os.makedirs(adir / "explore")
     # sổ cũ (không có engine_version) -> cần dựng lại, lý do rõ ràng
     (tmp_path / "book.json").write_text(json.dumps({"status": "READY_FOR_TESTNET"}))
@@ -287,7 +296,7 @@ def test_build_book_stamps_engine_version_and_api_reports_needs_rebuild(client, 
 
 
 def test_registry_provenance_shows_status_and_note():
-    from backend.api.routers.book import registry_provenance
+    from backend.routes.book import registry_provenance
     assert registry_provenance(None) == []
     reg = {"generated_at": 1, "source_optimization": "/x/_cache/optimize/20261001_1440", "code": {"commit": "2d4698f96e14", "dirty_backend": True},
            "alphas": [{"alpha_id": "trend_long_perp__SOL", "status": "retired", "data": {"exchange": "binance_usdm"},

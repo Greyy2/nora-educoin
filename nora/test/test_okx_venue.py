@@ -1,5 +1,5 @@
-"""P6.7: OkxVenue (backend/live/okx_venue.py) cài Venue Protocol trên OkxAdapter — contract test KHÔNG cần mạng.
-Tầng HTTP của okx.py (urllib.request.urlopen) được thay bằng sàn OKX giả trả JSON đúng hình dạng API v5 -> chạy qua OkxAdapter THẬT
+"""P6.7: OkxVenue (OkxVenue, backend/live/live.py) cài Venue Protocol trên OkxAdapter — contract test KHÔNG cần mạng.
+Tầng HTTP của live/live.py (urllib.request.urlopen) được thay bằng sàn OKX giả trả JSON đúng hình dạng API v5 -> chạy qua OkxAdapter THẬT
 (đổi coin <-> hợp đồng, thân lệnh, reduce-only / post-only / trigger). Lớp TestOkxDemoLive bỏ qua trừ khi NORA_OKX_DEMO_LIVE=1."""
 import json
 import math
@@ -8,10 +8,10 @@ import urllib.parse
 
 import pytest
 
-from backend.core.execute.events import Fill, OrderRejected
-from backend.core.execute.venue import Order, OrderKind, Venue, new_order_id
-from backend.live import okx
-from backend.live.okx_venue import OkxVenue, SlotConflict
+from backend.core.models import Fill, OrderRejected
+from backend.core.backtest import Order, OrderKind, Venue, new_order_id
+from backend.live import live as lv
+from backend.live.live import OkxVenue, SlotConflict
 
 NAN = float("nan")
 T0 = 1_700_000_000_000
@@ -116,12 +116,12 @@ class FakeOkx:
 @pytest.fixture
 def fake(monkeypatch):
     f = FakeOkx()
-    monkeypatch.setattr(okx.urllib.request, "urlopen", f)
+    monkeypatch.setattr(lv.urllib.request, "urlopen", f)
     return f
 
 
 def mk(fake, slots=None, **kw):
-    a = okx.OkxAdapter(("K", "S", "P"), demo=True, pause=0)
+    a = lv.OkxAdapter(("K", "S", "P"), demo=True, pause=0)
     v = OkxVenue(a, slots if slots is not None else {0: "BTC"}, clock=lambda: T0, settle_s=0, **kw)
     v.set_ref(0, 50000.0)
     return a, v
@@ -341,7 +341,7 @@ def test_not_permitted_is_order_rejected(fake, monkeypatch):
 
     def deny(req, timeout=0):
         return _Resp(json.dumps({"code": "50123", "msg": "API key doesn't have permission", "data": []}).encode())
-    monkeypatch.setattr(okx.urllib.request, "urlopen", deny)
+    monkeypatch.setattr(lv.urllib.request, "urlopen", deny)
     v.submit(entry())
     (r,) = events(v)
     assert isinstance(r, OrderRejected) and r.reason == "not_permitted"
@@ -352,7 +352,7 @@ def test_unclassified_exchange_error_is_raised(fake):
     a, v = mk(fake)
     open_long(fake, v)
     fake.fail[("/api/v5/trade/order-algo", "conditional")] = ("1", [{"sCode": "51000", "sMsg": "Parameter error"}])
-    with pytest.raises(okx.ExchangeError):
+    with pytest.raises(lv.ExchangeError):
         v.submit(Order(new_order_id(), 0, OrderKind.SL, False, level=49000.0))
 
 
@@ -433,7 +433,7 @@ class TestOkxDemoLive:
     NORA_OKX_DEMO_SYM (mặc định ETH) chọn mã."""
 
     def test_entry_protect_cancel_exit_roundtrip(self):
-        from backend.live.bot import make_adapter
+        from backend.live.live import make_adapter
         client, _ = make_adapter("okx", "demo")
         client.check_account()
         sym = os.environ.get("NORA_OKX_DEMO_SYM", "ETH")
@@ -452,7 +452,7 @@ class TestOkxDemoLive:
             v.submit(Order(new_order_id(), 0, OrderKind.TP, False, level=ref * 1.3, reduce_only=True))
             assert client.positions().get(sym) is not None
             v.cancel_slot(0)
-            assert client._req("GET", "/api/v5/trade/orders-pending", {"instId": okx.inst(sym)}, signed=True) == []
+            assert client._req("GET", "/api/v5/trade/orders-pending", {"instId": lv.inst(sym)}, signed=True) == []
             v.submit(Order(new_order_id(), 0, OrderKind.EXIT, False, reason="demo_live_exit"))
             assert [e.kind for e in events(v)] == ["exit"] and sym not in client.positions()
         finally:                                                                # luôn dọn: không để lại vị thế / lệnh trên demo
