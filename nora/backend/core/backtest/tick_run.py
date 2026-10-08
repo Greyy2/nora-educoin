@@ -1,8 +1,8 @@
 """Backtest THEO TICK cho tài sản DEX (spot AMM, chỉ chân LONG) — job book_backtest với data="tick" (core/backtest/run.py::run_job).
 
 Vì sao: nến 15m không biết trong nến TP hay SL chạm trước, và AMM không có sổ lệnh (không có lệnh limit chờ, khớp luôn là swap có trượt giá theo độ sâu pool).
-Mỗi swap on-chain (tick) là một bước khớp lệnh: PaperBook (đúng PositionTracker + vòng danh mục của engine) chạy từng tick như một vi-nến o=h=l=c = giá biên SAU swap
-(mid_price; NaN thì dùng giá khớp). Một engine duy nhất — không có bộ khớp lệnh thứ hai; chỉ hai móc tuỳ chọn của tracker (limit_taker, impact_fn).
+Mỗi swap on-chain (tick) là một bước khớp lệnh: TickBook (= KernelBook, kernel numba duy nhất + vòng danh mục của engine) chạy từng tick như một vi-nến o=h=l=c = giá biên SAU swap
+(mid_price; NaN thì dùng giá khớp). Một engine duy nhất — không có bộ khớp lệnh thứ hai; chỉ hai móc AMM trong kernel (limit_taker, trượt giá theo dự trữ pool; P9.4b T6).
 
 Tín hiệu (đường tính của bot live: live/signals.evaluate, không bản tính thứ hai):
 - Khung tín hiệu = nến TRƯỚC cửa sổ (kho nến local, làm khởi động) + nến dựng từ tick TRONG cửa sổ. Dựng bằng nến 1m: 1m kho (< W) + ticks_to_bars(tick, "1m") rồi lấp khe bằng
@@ -14,7 +14,7 @@ Tín hiệu (đường tính của bot live: live/signals.evaluate, không bản
 - Tín hiệu giao ở tick k -> tracker đặt lệnh chờ -> mở vị thế ở ĐẦU tick k+1 (swap kế tiếp thực tế); tương tự tín hiệu thoát. Nến cơ sở đầu tiên có tín hiệu là [W, W+F).
 - SL / TP / tầng DCA phản ứng NGAY tại tick giá cắt qua mức (không trễ, giả định bot theo dõi liên tục) và khớp ở GIÁ HIỆN TẠI (hoặc mức nếu chưa vượt) + trượt giá AMM.
 
-Chi phí (core/execute/amm.py): mọi lệnh = swap taker (limit_taker=True): phí = phí pool (manifest["ticks"]["fee_rate"], null -> từ chối) + trượt giá ĐÚNG theo dự trữ pool tại tick đó
+Chi phí (kernel core/backtest.py::_amm_impact; vỏ Python core/execute/amm.py): mọi lệnh = swap taker (limit_taker=True): phí = phí pool (manifest["ticks"]["fee_rate"], null -> từ chối) + trượt giá ĐÚNG theo dự trữ pool tại tick đó
 (x*y=k hoặc stable x³y+xy³=k, giải số) + gas cố định mỗi swap (NETWORKS[mạng]["swap_gas_usd"] hoặc tham số gas_usd) quy theo danh nghĩa.
 Giới hạn đã biết: một lệnh của ta không làm đổi dự trữ cho tick kế (không mô hình hoá tác động lên pool); vốn MTM đánh giá theo giá biên, chưa trừ chi phí thoát.
 Kết quả: cùng lược đồ run.run (số đo danh mục, trade_list, equity_curve lấy mẫu mỗi NẾN CƠ SỞ, daily_nav, config) + config.data="tick", tick_window, latency_ms, cost_model, tick_stats.
@@ -29,40 +29,27 @@ from backend.core.backtest import dex
 from backend.core.backtest.portfolio import aggregate_positions
 from backend.core.backtest.run import result_payload
 from backend.core.data.resampler import fill_missing_1m_candles, resample_from_1m, ticks_to_bars
+from backend.core.backtest import KernelBook
 from backend.core.execute.amm import AmmImpact
-from backend.live.paper import PaperBook
 from backend.db.local_pkl import _frame_ms
 
 MINUTE_MS = 60_000
 CANDLE_COLS = ["open_time", "open", "high", "low", "close", "volume", "is_filled"]
 
 
-class TickBook(PaperBook):
-    """PaperBook của backtest tick: gắn móc AMM vào mọi tracker (theo pool của tài sản) và giữ PositionModel đã đóng (symbol, strategy_id) cho metrics."""
+class TickBook(KernelBook):
+    """Sổ của backtest tick = KernelBook (kernel numba, P9.4b T6) với pool AMM gắn cho mọi tài sản: mọi lệnh là swap taker (limit_taker), phí = phí pool,
+    trượt giá theo dự trữ pool mỗi tick (`set_amm` trước mỗi `step_bar`). Giữ mọi hàng kết quả (record_full) để dựng PositionModel (symbol, strategy_id) cho metrics."""
+
+    ALLOW_EQUAL_T = True        # nhiều swap một block cùng timestamp
 
     def __init__(self, strategies, symbols, base_frame, capital, risk, trade_start, models: List[AmmImpact]):
-        super().__init__(strategies, symbols, base_frame, capital, risk, trade_start, engine="tracker")   # móc AMM chưa có ở SimVenue (tạm, ngoài P6)
-        self.closed: List[Any] = []
-        for bk, model in zip(self.books, models):
-            for e in bk["entries"]:
-                tr = e["tracker"]
-                tr.limit_taker, tr.impact_fn = True, model
-                tr.fee_rate = tr.maker_fee_rate = model.fee
+        super().__init__(strategies, symbols, base_frame, capital, risk, trade_start, record_full=True, record_events=False,
+                         amm=[{"fee": m.fee, "stable": m.stable, "gas": m.gas_usd} for m in models])
 
-    def _collect(self, sym, e, pos, low, high):
-        super()._collect(sym, e, pos, low, high)
-        pos.strategy_id = e["strategy"]
-        self.closed.append(pos)
-
-    def close_all(self, t: int) -> None:
-        """Cuối cửa sổ: đóng mọi vị thế còn mở ở giá biên cuối (market, như close_at_end của engine)."""
-        for b, bk in enumerate(self.books):
-            for e in bk["entries"]:
-                tr = e["tracker"]
-                tr.pending_entry = False
-                pos = tr.force_close(t, self.last_close[b])
-                if pos is not None:
-                    self._collect(bk["symbol"], e, pos, self.last_low[b], self.last_high[b])
+    def results(self) -> List[Any]:
+        """Vị thế đã đóng theo thứ tự đóng (PositionModel; sau close_all)."""
+        return self.full_objects()[0]
 
 
 def _signal_frames(q: str, strategies: List[Dict[str, Any]], base_frame: str, w: int, nb: int, frame_ms: int, ticks: pd.DataFrame) -> Dict[str, pd.DataFrame]:
@@ -185,7 +172,7 @@ def run_tick(items, symbols: List[str], start: Optional[int], end: Optional[int]
     t_last = w
     for ts, si, mid, rb, rq, qu in zip(feed["ts"].tolist(), feed["si"].tolist(), feed["mid"].tolist(), feed["rb"].tolist(), feed["rq"].tolist(), feed["qu"].tolist()):
         flush((ts - w) // frame_ms)
-        models[si].set_state(rb, rq, qu)
+        book.set_amm(si, rb, rq, qu)
         sym = infos[si]["qualified"]
         book.step_bar(ts, {sym: (mid, mid, mid, mid)}, {sym: sigs[si].at(ts)})
         eq, worst = book.mtm()
@@ -196,9 +183,10 @@ def run_tick(items, symbols: List[str], start: Optional[int], end: Optional[int]
     worst_bar = min(worst_bar, worst)
     flush((t_last - w) // frame_ms + 1)
 
-    fills = [(o.slippage, o.liquidity) for bk in book.books for en in bk["entries"] for o in en["tracker"].orders if o.liquidity == "taker"]
-    by_strategy, by_symbol = aggregate_positions(book.closed)
-    res = {"positions": book.closed, "equity_curve": curve, "final_equity": book.ledger.equity, "initial_capital": float(capital), "by_strategy": by_strategy,
+    fills = book.taker_slippage()
+    closed = book.results()
+    by_strategy, by_symbol = aggregate_positions(closed)
+    res = {"positions": closed, "equity_curve": curve, "final_equity": book.ledger.equity, "initial_capital": float(capital), "by_strategy": by_strategy,
            "by_symbol": by_symbol, "rejected_for_capital": book.ledger.rejected, "rejected_for_risk": book.rejected_for_risk,
            "risk_blocked_attempts": book.rejected_for_risk, "halted_at": book.halted_at, "risk": dict(risk)}
     out = result_payload(res, w, e)
@@ -214,7 +202,7 @@ def run_tick(items, symbols: List[str], start: Optional[int], end: Optional[int]
     }
     out["tick_stats"] = {"signal_bars": nb, "signal_bars_skipped": sum(s.skipped for s in sigs), "entries_ignored_no_trade_bar": sum(s.ignored_no_trade for s in sigs),
                          "ticks_reserve_filled": stats["reserve_ffill"], "ticks_mid_fallback": stats["mid_fallback"], "taker_fills": len(fills),
-                         "avg_fill_slippage_bps": round(float(np.mean([f[0] for f in fills])) * 1e4, 4) if fills else None}
+                         "avg_fill_slippage_bps": round(float(np.mean(fills)) * 1e4, 4) if len(fills) else None}
     out["final_equity"] = round(res["final_equity"], 2)
     out["meta"] = {"wall_s": round(time.time() - t0, 1), "peak_rss_mb": round(peak_rss_mb(), 1)}
     return out

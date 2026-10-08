@@ -8,6 +8,8 @@ trong phần còn lại của nến sau fill DCA đầu tiên (SL tính từ avg
 đúng ở mức đặt kể cả khi open gap qua mức (stop-market SL/trailing/thanh lý vẫn khớp ở open).
 Cập nhật có chủ đích 2026-10-06 (lần 2, người dùng quyết: Nora khớp ĐÚNG như NautilusTrader, không bảo thủ hơn): thêm `intrabar_path`
 ("ohlc" mặc định / "adaptive" / "adverse_first" = hành vi cũ giữ nguyên) — `_intrabar_path` là bản viết lại độc lập, không dùng policy.py.
+Cập nhật có chủ đích 2026-10-08 (P9.4b T6, quyết định h): `RefPositionTracker` nhận lại hai móc AMM `limit_taker` / `impact_fn` — BẢN SAO ĐÓNG BĂNG nguyên văn nhánh của
+tracker thật trước khi AMM vào kernel — cùng toán AMM đóng băng (`RefAmmImpact`, `ref_*`) làm oracle cho test_amm_parity.py / test_amm_njit_bitwise.py. Mặc định (móc tắt) hành vi cũ giữ từng bit.
 Sinh ra bằng cách chép nguyên văn execution.py / engine.py:BacktestEngine / portfolio.py:PortfolioEngine rồi đổi tên lớp (Ref*).
 """
 import contextlib
@@ -77,6 +79,72 @@ class RefCapitalLedger:
             self.peak = self.equity
 
 
+# ─── AMM đóng băng (bản sao nguyên văn core/execute/amm.py trước T6; reserve_price = NumPy như crawl/dex.py) ───
+REF_BISECT_MAX_ITER = 200
+
+
+def ref_reserve_price(reserve_base, reserve_quote, stable: bool):
+    x, y = np.asarray(reserve_base, float), np.asarray(reserve_quote, float)
+    if not stable:
+        return y / x
+    return (3 * x * x * y + y ** 3) / (x ** 3 + 3 * x * y * y)
+
+
+def ref_stable_k(x: float, y: float) -> float:
+    return x * x * x * y + x * y * y * y
+
+
+def ref_amount_out(amount_in: float, r_in: float, r_out: float, fee: float, stable: bool) -> float:
+    if not (amount_in > 0 and r_in > 0 and r_out > 0):
+        raise ValueError(f"swap không hợp lệ: vào={amount_in}, dự trữ=({r_in}, {r_out})")
+    eff = amount_in * (1.0 - fee)
+    if not stable:
+        return r_out * eff / (r_in + eff)
+    k, x1 = ref_stable_k(r_in, r_out), r_in + eff
+    lo, hi = 0.0, r_out
+    for _ in range(REF_BISECT_MAX_ITER):
+        mid = 0.5 * (lo + hi)
+        if mid <= lo or mid >= hi:
+            break
+        if ref_stable_k(x1, mid) < k:
+            lo = mid
+        else:
+            hi = mid
+    return r_out - hi
+
+
+def ref_price_impact(notional_usd: float, is_buy: bool, reserve_base: float, reserve_quote: float, quote_usd: float, fee: float, stable: bool) -> float:
+    mid = float(ref_reserve_price(reserve_base, reserve_quote, stable))
+    if is_buy:
+        spend = notional_usd / quote_usd
+        got = ref_amount_out(spend, reserve_quote, reserve_base, fee, stable)
+        return spend * (1.0 - fee) / got / mid - 1.0
+    sell = notional_usd / (mid * quote_usd)
+    got = ref_amount_out(sell, reserve_base, reserve_quote, fee, stable)
+    return 1.0 - got / (sell * (1.0 - fee)) / mid
+
+
+class RefAmmImpact:
+    """impact_fn của MỘT pool (bản đóng băng của amm.AmmImpact)."""
+
+    def __init__(self, fee: float, stable: bool, gas_usd: float = 0.0):
+        if not 0.0 <= fee < 1.0:
+            raise ValueError(f"phí pool phải trong [0, 1), nhận {fee}")
+        self.fee, self.stable, self.gas_usd = float(fee), bool(stable), float(gas_usd)
+        self.reserve_base = self.reserve_quote = self.quote_usd = float("nan")
+
+    def set_state(self, reserve_base: float, reserve_quote: float, quote_usd: float) -> None:
+        if not (reserve_base > 0 and reserve_quote > 0 and quote_usd > 0):
+            raise ValueError(f"dự trữ pool không hợp lệ: ({reserve_base}, {reserve_quote}), quote_usd={quote_usd}")
+        self.reserve_base, self.reserve_quote, self.quote_usd = float(reserve_base), float(reserve_quote), float(quote_usd)
+
+    def __call__(self, notional_usd: float, is_buy: bool) -> float:
+        if not notional_usd > 0:
+            return 0.0
+        return ref_price_impact(notional_usd, is_buy, self.reserve_base, self.reserve_quote, self.quote_usd, self.fee, self.stable) \
+            + self.gas_usd / notional_usd
+
+
 class RefPositionTracker:
     """Theo dõi vòng đời vị thế của một flow: Entry -> DCA -> TP / SL / Trailing / Timeout / Liq / Exit."""
 
@@ -90,7 +158,11 @@ class RefPositionTracker:
         pos_type: PositionType,
         initial_capital: float = 10000.0,
         ledger: Optional[RefCapitalLedger] = None,
+        limit_taker: bool = False,
+        impact_fn=None,
     ):
+        self.limit_taker = bool(limit_taker)    # AMM: DCA / chốt lời khớp như lệnh taker (phí taker + trượt giá)
+        self.impact_fn = impact_fn              # (notional_usd, is_buy) -> trượt giá; None = slippage_rate cố định
         self.account_id = account_id
         self.campaign_id = campaign_id
         self.symbol = symbol
@@ -248,11 +320,26 @@ class RefPositionTracker:
             return min(level, open_price)
         return max(level, open_price)
 
+    def _hook(self) -> bool:
+        return self.limit_taker or self.impact_fn is not None
+
+    def _slip(self, notional: float, is_buy: bool) -> float:
+        return self.slippage_rate if self.impact_fn is None else float(self.impact_fn(float(notional), bool(is_buy)))
+
+    def _cost(self, notional: float) -> float:
+        """Chi phí KHỨ HỒI (phí taker + trượt giá) trên danh nghĩa `notional`."""
+        if self.impact_fn is None:
+            return 2.0 * (self.fee_rate + self.slippage_rate)
+        return 2.0 * self.fee_rate + self._slip(notional, True) + self._slip(notional, False)
+
     # ─── Hành động ──────────────────────────────────────────────────────────
     def _add_layer(self, t: int, price: float, margin: float, market_order: bool, reason: str) -> bool:
-        fill = price * (1 + self.slippage_rate if self.is_long else 1 - self.slippage_rate) if market_order else price
+        hook = self._hook()
         notional = margin * self.pos_leverage
-        fee = notional * (self.fee_rate if market_order else self.maker_fee_rate)
+        taker = market_order or self.limit_taker
+        slip = self._slip(notional, self.is_long) if taker else 0.0
+        fill = price * (1 + slip if self.is_long else 1 - slip) if taker else price
+        fee = notional * (self.fee_rate if taker else self.maker_fee_rate)
         if margin <= 0 or fill <= 0 or self.margin_used + margin + self.fees_paid + fee > self.max_capital + 1e-9:
             return False
         if not self.ledger.reserve(margin + fee):
@@ -279,7 +366,8 @@ class RefPositionTracker:
         self.orders.append(OrderModel(
             order_id=oid, account_id=self.account_id, position_id=self.position.result_id, order_time=t,
             order_type=OrderType.BUY if self.is_long else OrderType.SELL, order_price=fill, qty=qty,
-            phase=self.layer_count - 1, fee_usd=fee, liquidity="taker" if market_order else "maker",
+            phase=self.layer_count - 1, fee_usd=fee, liquidity="taker" if taker else "maker",
+            **({"slippage": slip} if hook else {}),
         ))
         self.is_open = True
         return True
@@ -310,8 +398,13 @@ class RefPositionTracker:
         margin = min(margin, budget / (1.0 + self.pos_leverage * self.fee_rate),
                      self.max_new_notional / self.pos_leverage)
         if self.sizing == "risk" and margin > 0:
-            self.planned_risk = min(self.planned_risk, margin * self.pos_leverage * (self.sl_pct / 100.0 + 2.0 * (
-                self.fee_rate + self.slippage_rate)) * self._layer_mult_total())
+            if self.impact_fn is None:
+                self.planned_risk = min(self.planned_risk, margin * self.pos_leverage * (self.sl_pct / 100.0 + 2.0 * (
+                    self.fee_rate + self.slippage_rate)) * self._layer_mult_total())
+            else:
+                total_mult = self._layer_mult_total()
+                self.planned_risk = min(self.planned_risk, margin * self.pos_leverage * (
+                    self.sl_pct / 100.0 + self._cost(margin * self.pos_leverage * total_mult)) * total_mult)
         if self.max_new_risk != float("inf") and self.planned_risk > self.max_new_risk:   # vượt trần rủi ro đang mở của danh mục
             if self.max_new_risk <= 0:
                 margin = 0.0
@@ -340,10 +433,16 @@ class RefPositionTracker:
         thì mất ~risk_per_trade_pct% vốn. Danh nghĩa bị chặn bởi max_notional_pct% vốn.
         Perp: đòn bẩy thực = min(đòn bẩy tham số, mức để giá thanh lý cách giá vào >= 1,5 × khoảng SL)."""
         sl = self.sl_pct / 100.0
-        cost = 2.0 * (self.fee_rate + self.slippage_rate)
         total_mult = self._layer_mult_total()
-        notional = self.equity * self.risk_pct / 100.0 / (sl + cost)
-        notional = min(notional, self.equity * self.max_notional_pct / 100.0)
+        if self.impact_fn is None:
+            cost = 2.0 * (self.fee_rate + self.slippage_rate)
+            notional = self.equity * self.risk_pct / 100.0 / (sl + cost)
+            notional = min(notional, self.equity * self.max_notional_pct / 100.0)
+        else:   # trượt giá phụ thuộc khối lượng: lần 1 chưa tính trượt (chỉ phí), lần 2 tính trượt theo khối lượng dự kiến của lần 1
+            cap = self.equity * self.max_notional_pct / 100.0
+            notional = min(self.equity * self.risk_pct / 100.0 / (sl + 2.0 * self.fee_rate), cap)
+            cost = self._cost(notional)
+            notional = min(self.equity * self.risk_pct / 100.0 / (sl + cost), cap)
         if self.market == "perp":
             safe = int(1.0 / (1.5 * sl + self.mmr)) if sl > 0 else int(self.max_leverage)
             self.pos_leverage = float(max(1, min(int(self.max_leverage), safe)))
@@ -351,12 +450,16 @@ class RefPositionTracker:
         return notional / total_mult / self.pos_leverage
 
     def _close(self, t: int, raw_price: float, status: PositionStatus, reason: str, market_order: bool) -> PositionModel:
-        if market_order and status != PositionStatus.LIQ:
-            price = raw_price * (1 - self.slippage_rate if self.is_long else 1 + self.slippage_rate)
+        hook = self._hook()
+        taker = market_order or self.limit_taker
+        slip = 0.0
+        if taker and status != PositionStatus.LIQ:
+            slip = self._slip(self.qty * raw_price, not self.is_long)
+            price = raw_price * (1 - slip if self.is_long else 1 + slip)
         else:
             price = raw_price
         gross = self.qty * ((price - self.avg) if self.is_long else (self.avg - price))
-        exit_fee = self.qty * price * (self.fee_rate if market_order or status == PositionStatus.LIQ else self.maker_fee_rate)
+        exit_fee = self.qty * price * (self.fee_rate if taker or status == PositionStatus.LIQ else self.maker_fee_rate)
         trade_cash = gross - self.fees_paid - exit_fee          # phần chưa vào ledger (funding đã vào)
         if status == PositionStatus.LIQ:                         # isolated: mất tối đa ký quỹ + phí đã trả
             trade_cash = max(trade_cash, -(self.margin_used + self.fees_paid + exit_fee))
@@ -384,7 +487,8 @@ class RefPositionTracker:
             order_id=_next_id(), account_id=self.account_id, position_id=pos.result_id, order_time=t,
             order_type=OrderType.SELL if self.is_long else OrderType.BUY, order_price=price, qty=self.qty,
             phase=self.layer_count, fee_usd=exit_fee,
-            liquidity="liquidation" if status == PositionStatus.LIQ else ("taker" if market_order else "maker"),
+            liquidity="liquidation" if status == PositionStatus.LIQ else ("taker" if taker else "maker"),
+            **({"slippage": slip} if hook else {}),
         ))
         self.is_open = False
         self.pending_exit = False
@@ -480,14 +584,15 @@ class RefPositionTracker:
                 if not self._reached(trigger, p):
                     break
                 margin = self.next_margin * self.dca_mults[k]
-                if self._add_layer(t, dca_level, margin, market_order=False, reason="DCA"):
+                if self._add_layer(t, self._gap_fill(dca_level, o) if self.limit_taker else dca_level, margin, market_order=False, reason="DCA"):
                     self.next_margin = margin
                     dca_filled = True
                     continue
                 self.dca_rejected += 1
                 self.dca_steps = self.dca_steps[: k]
             if self.tp_pct and ((p >= need) if L else (p <= need)):
-                return self._close(t, tp_lv, PositionStatus.TP, "Take-profit (từ giá TB)", market_order=False)
+                tp_px = (max(tp_lv, o) if L else min(tp_lv, o)) if self.limit_taker else tp_lv   # AMM (swap): open vượt mức -> khớp ở open
+                return self._close(t, tp_px, PositionStatus.TP, "Take-profit (từ giá TB)", market_order=False)
             events: List[Tuple[float, int, str]] = []
             if sl_lv is not None:
                 events.append((sl_lv, 0, "sl"))
@@ -549,7 +654,7 @@ class RefPositionTracker:
                               else min(reached, key=lambda e: (e[0], e[1])))
             price = self._gap_fill(level, o)
             if kind == "dca":
-                price = dca_level                           # lệnh limit chờ sẵn khớp ĐÚNG ở giá đặt, kể cả khi gap qua mức
+                price = self._gap_fill(dca_level, o) if self.limit_taker else dca_level   # limit khớp ĐÚNG ở giá đặt kể cả khi gap; AMM (swap) khớp ở open
                 margin = self.next_margin * self.dca_mults[k]
                 sl_before = self.avg * (1 - sign * self.sl_pct / 100.0) if self.sl_pct else None
                 if self._add_layer(t, price, margin, market_order=False, reason="DCA"):
@@ -574,7 +679,7 @@ class RefPositionTracker:
             tp_level = self.avg * (1 + sign * self.tp_pct / 100.0)
             need = tp_level * (1 + sign * self.limit_through) if self.limit_through else tp_level
             if (favorable >= need) if self.is_long else (favorable <= need):
-                price = tp_level                            # limit chờ sẵn khớp ĐÚNG ở mức TP
+                price = (max(tp_level, o) if self.is_long else min(tp_level, o)) if self.limit_taker else tp_level   # limit khớp ĐÚNG ở mức TP; AMM khớp ở open
                 return self._close(t, price, PositionStatus.TP, "Take-profit (từ giá TB)", market_order=False)
         return None
 

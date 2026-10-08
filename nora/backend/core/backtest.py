@@ -5,6 +5,7 @@ Hợp nhất NGUYÊN VĂN từ core/backtest/{kernel,engine,portfolio,dex}.py (x
 import contextlib
 import io
 import json
+import math
 import os
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional, Tuple, Set
@@ -50,22 +51,26 @@ NONE_I = -(1 << 62)          # None của mốc thời gian (halted_at / ruined_
 
 # ── Cột trạng thái float F ──────────────────────────────────────────────────
 F_QTY, F_AVG, F_MU, F_FP, F_LAST_FILL, F_NEXT, F_PEAK, F_MAE, F_RES_HERE, F_FUND, F_ENTRY_EQ, F_MAXCAP, F_POS_LEV, \
-    F_PLANNED, F_PVOL, F_SL, F_TP, F_TRAIL, F_TACT, F_UNIT = range(20)   # F_UNIT: tracker.unit_pct (đặt ở mỗi lần _open qua được kiểm ATR, kể cả khi lệnh bị từ chối)
-F_DS0 = 20                    # F[:, F_DS0 + j] = bước DCA hiện tại (đã quy đổi theo unit)
-F_FIXED = 20
+    F_PLANNED, F_PVOL, F_SL, F_TP, F_TRAIL, F_TACT, F_UNIT, F_RB, F_RQ, F_QU, F_MID = range(24)   # F_UNIT: tracker.unit_pct (đặt ở mỗi lần _open qua được kiểm ATR, kể cả khi lệnh bị từ chối)
+# F_RB/F_RQ/F_QU: dự trữ pool (base, quote) + USD / 1 quote tại tick hiện tại, F_MID: giá biên theo dự trữ (reserve_price) — KernelBook.set_amm ghi mỗi tick; chỉ đọc khi PI_AMM = 1
+F_DS0 = 24                    # F[:, F_DS0 + j] = bước DCA hiện tại (đã quy đổi theo unit)
+F_FIXED = 24
 # ── Tham số float P ─────────────────────────────────────────────────────────
-P_FEE, P_MAKER, P_SLIP, P_MMR, P_MAXLEV, P_CAPUSE, P_BSL, P_BTP, P_BTR, P_BTA, P_RISK, P_MAXNOT, P_OSP, P_LTHRU = range(14)
-P_BS0 = 14                    # P[:, P_BS0 + j] = bước DCA gốc; P[:, P_BS0 + ml + j] = hệ số khối lượng tầng j (ml = số cột tối đa)
-P_FIXED = 14                  # P_LTHRU: lệnh limit (DCA, TP) chỉ khớp khi giá đi qua mức bấy nhiêu (tỉ lệ); 0 = chạm là khớp
+P_FEE, P_MAKER, P_SLIP, P_MMR, P_MAXLEV, P_CAPUSE, P_BSL, P_BTP, P_BTR, P_BTA, P_RISK, P_MAXNOT, P_OSP, P_LTHRU, P_AFEE, P_ASTABLE, P_AGAS = range(17)
+# P_AFEE/P_ASTABLE/P_AGAS: pool AMM của slot (phí thu trên đầu vào, 1 = stable x³y+xy³, gas USD mỗi swap); chỉ đọc khi PI_AMM = 1
+P_BS0 = 17                    # P[:, P_BS0 + j] = bước DCA gốc; P[:, P_BS0 + ml + j] = hệ số khối lượng tầng j (ml = số cột tối đa)
+P_FIXED = 17                  # P_LTHRU: lệnh limit (DCA, TP) chỉ khớp khi giá đi qua mức bấy nhiêu (tỉ lệ); 0 = chạm là khớp
 # ── Tham số int PI ──────────────────────────────────────────────────────────
-PI_LONG, PI_PERP, PI_TIMEOUT, PI_COOL, PI_EXTREME, PI_ATR, PI_RISKSZ, PI_NBASE, PI_MAXOPEN, PI_PATH = range(10)
-NPI = 10                      # PI_PATH: đường giá trong nến — 0 adverse_first (cũ), 1 ohlc (mặc định), 2 adaptive
+PI_LONG, PI_PERP, PI_TIMEOUT, PI_COOL, PI_EXTREME, PI_ATR, PI_RISKSZ, PI_NBASE, PI_MAXOPEN, PI_PATH, PI_LTAKER, PI_AMM = range(12)
+# PI_LTAKER: DCA / chốt lời là swap (khớp như lệnh taker, ở open nếu gap); PI_AMM: trượt giá theo dự trữ pool (thay slippage_rate cho mọi lệnh taker + chi phí khứ hồi khi tính khối lượng)
+NPI = 12                      # PI_PATH: đường giá trong nến — 0 adverse_first (cũ), 1 ohlc (mặc định), 2 adaptive
 # ── Trạng thái int I ────────────────────────────────────────────────────────
 I_OPEN, I_PE, I_PX, I_LAYERS, I_ENTRY_T, I_LASTCLOSE, I_HASLC, I_DCAREJ, I_SKIP, I_POS, I_NST, I_BLK, I_DCAOK = range(13)
 NI = 13                       # I_DCAOK: 1 = nến này được dồn tầng DCA (điều kiện DCA tại cuối nến trước; không có điều kiện -> luôn 1)
 # ── Bộ đếm G ────────────────────────────────────────────────────────────────
-G_REJ, G_NPOS, G_NORD, G_NCL, G_OVF, G_RISKMIN, G_ATT, G_HALT, G_RUIN, G_NSMP, G_NADM = range(11)
-NG = 11                       # G_NADM: số lần xét hạn mức đã ghi vào vết ADM (không bao giờ đặt G_OVF; chỉ ghi khi cfg_i[CI_ADM_ON] != 0)
+G_REJ, G_NPOS, G_NORD, G_NCL, G_OVF, G_RISKMIN, G_ATT, G_HALT, G_RUIN, G_NSMP, G_NADM, G_AMERR = range(12)
+# G_AMERR: 1 = một lệnh AMM gặp đầu vào không hợp lệ (dự trữ <= 0, ...); Python (KernelBook / SlotDriver) ném ValueError sau lời gọi kernel
+NG = 12                       # G_NADM: số lần xét hạn mức đã ghi vào vết ADM (không bao giờ đặt G_OVF; chỉ ghi khi cfg_i[CI_ADM_ON] != 0)
 # cfg_i: (trade_start, max_positions, max_per_symbol, close_at_end, step_ms, địa chỉ lưới, độ dài lưới, địa chỉ ADM, sức chứa ADM, bật ADM)
 CI_ADM_PTR, CI_ADM_CAP, CI_ADM_ON = 7, 8, 9
 NCI = 10
@@ -108,6 +113,86 @@ def _pmax(a, b):
 @njit(**_JIT)
 def _pmin(a, b):
     return b if b < a else a
+
+
+# ─── AMM (pool Uniswap v2 / Aerodrome v2): chi phí swap ĐÚNG theo dự trữ pool (P9.4b T6) ─────────────────────────────────────────────
+# NGUỒN DUY NHẤT của toán AMM: core/execute/amm.py chỉ là vỏ Python (kiểm đầu vào, ném ValueError, gọi các hàm này). Chép nguyên văn từ amm.py cũ:
+# volatile x*y=k (công thức đóng), stable x³y+xy³=k (chia đôi 200 vòng, cùng thứ tự phép toán).
+# GIÁ BIÊN (`reserve_price`) tính ở Python bằng NumPy, KHÔNG trong njit: NumPy (>= 2, AVX512/SVML) tính `y ** 3` bằng pow SIMD khác libm pow ở bit cuối
+# (~5% số đầu vào; math.pow của numba = libm), nên bản njit không thể trùng từng bit — `set_amm` tính mid bằng đúng hàm NumPy cũ và ghi vào F_MID.
+_AMM_BISECT = 200      # chia đôi trên [0, dự trữ]: số thực hội tụ sau ~60 vòng, trần để không lặp vô hạn
+
+
+@njit(**_JIT)
+def _stable_k(x, y):
+    return x * x * x * y + x * y * y * y
+
+
+@njit(**_JIT)
+def _amm_out_raw(amount_in, r_in, r_out, fee, stable):
+    """Lượng token nhận được (đầu vào đã được kiểm > 0): phí thu trên đầu vào."""
+    eff = amount_in * (1.0 - fee)
+    if not stable:
+        return r_out * eff / (r_in + eff)
+    k = _stable_k(r_in, r_out)
+    x1 = r_in + eff
+    lo = 0.0
+    hi = r_out
+    for _ in range(_AMM_BISECT):
+        mid = 0.5 * (lo + hi)
+        if mid <= lo or mid >= hi:
+            break
+        if _stable_k(x1, mid) < k:
+            lo = mid
+        else:
+            hi = mid
+    return r_out - hi
+
+
+@njit(**_JIT)
+def _amm_price_impact_raw(notional, is_buy, mid, rb, rq, qu, fee, stable):
+    """Trượt giá (tỉ lệ, KHÔNG gồm phí pool và gas) của lệnh `notional` USD; đầu vào đã được kiểm (notional, dự trữ, qu > 0); mid = giá biên trước lệnh."""
+    if is_buy:
+        spend = notional / qu
+        got = _amm_out_raw(spend, rq, rb, fee, stable)
+        return spend * (1.0 - fee) / got / mid - 1.0
+    sell = notional / (mid * qu)
+    got = _amm_out_raw(sell, rb, rq, fee, stable)
+    return 1.0 - got / (sell * (1.0 - fee)) / mid
+
+
+@njit(**_JIT)
+def _amm_impact(k, notional, is_buy, P, F, G):
+    """impact_fn của slot k trên pool hiện tại (F_RB/F_RQ/F_QU): trượt giá + gas / danh nghĩa; 0 khi !(notional > 0). Đầu vào không hợp lệ -> G_AMERR."""
+    if not notional > 0.0:
+        return 0.0
+    rb = F[k, F_RB]
+    rq = F[k, F_RQ]
+    qu = F[k, F_QU]
+    if not (rb > 0.0 and rq > 0.0 and qu > 0.0):
+        G[G_AMERR] = 1
+        return 0.0
+    stable = P[k, P_ASTABLE] != 0.0
+    mid = F[k, F_MID]
+    # đầu vào của _amm_out_raw phải > 0 (amount_out cũ ném ValueError): mua spend = notional/qu, bán sell = notional/(mid*qu)
+    if not ((notional / qu if is_buy else notional / (mid * qu)) > 0.0):
+        G[G_AMERR] = 1
+        return 0.0
+    return _amm_price_impact_raw(notional, is_buy, mid, rb, rq, qu, P[k, P_AFEE], stable) + P[k, P_AGAS] / notional
+
+
+@njit(**_JIT)
+def _slip(k, notional, is_buy, P, PI, F, G):
+    """Tỉ lệ trượt giá của một lệnh taker: impact theo pool (AMM) hoặc slippage_rate cố định (policy.slip_rate)."""
+    if PI[k, PI_AMM] == 1:
+        return _amm_impact(k, notional, is_buy, P, F, G)
+    return P[k, P_SLIP]
+
+
+@njit(**_JIT)
+def _rt_cost(k, notional, P, PI, F, G):
+    """Chi phí KHỨ HỒI trên danh nghĩa `notional` khi có impact (policy.round_trip_cost nhánh impact_fn): 2·phí + trượt mua + trượt bán."""
+    return 2.0 * P[k, P_FEE] + _slip(k, notional, True, P, PI, F, G) + _slip(k, notional, False, P, PI, F, G)
 
 
 # ─── Tracker: các hành động (dịch từ PositionTracker) ───────────────────────
@@ -156,14 +241,16 @@ def _log_order(pidx, t, price, qty, phase, fee, is_exit, liq, raw, slip, ordF, o
 def _layer_cost(k, price, margin, market, PI, P, F, LG, G):
     """Chi phí một lớp vào lệnh (chưa áp dụng): -> (ok_code, fill, fee, notional, slip). ok_code 0 ok, 1 vượt ngân sách, 2 thiếu vốn (G_REJ += 1)."""
     long_ = PI[k, PI_LONG] == 1
-    slip = P[k, P_SLIP] if market else 0.0
-    if market:
-        fill = price * ((1.0 + P[k, P_SLIP]) if long_ else (1.0 - P[k, P_SLIP]))
-    else:
-        fill = price
+    taker = market or PI[k, PI_LTAKER] == 1
     lev = F[k, F_POS_LEV]
     notional = margin * lev
-    fee = notional * (P[k, P_FEE] if market else P[k, P_MAKER])
+    if taker:
+        slip = _slip(k, notional, long_, P, PI, F, G)
+        fill = price * ((1.0 + slip) if long_ else (1.0 - slip))
+    else:
+        slip = 0.0
+        fill = price
+    fee = notional * (P[k, P_FEE] if taker else P[k, P_MAKER])
     if margin <= 0.0 or fill <= 0.0 or F[k, F_MU] + margin + F[k, F_FP] + fee > F[k, F_MAXCAP] + 1e-9:
         return 1, fill, fee, notional, slip
     amount = margin + fee
@@ -219,7 +306,7 @@ def _add_layer(k, t, price, margin, market, reason, P, PI, F, I, LG, G, outF, ou
     if ok != 0:
         return False
     qty = notional / fill
-    _layer_apply(k, t, fill, qty, notional, margin, fee, 2 if market else 1, reason, slip, price, P, PI, F, I, LG, G, outF, outI, ordF, ordI)
+    _layer_apply(k, t, fill, qty, notional, margin, fee, 2 if (market or PI[k, PI_LTAKER] == 1) else 1, reason, slip, price, P, PI, F, I, LG, G, outF, outI, ordF, ordI)
     return True
 
 
@@ -251,13 +338,19 @@ def _layer_mult_total(k, n, P):
 
 
 @njit(**_JIT)
-def _risk_margin(k, P, PI, F, I, LG):
+def _risk_margin(k, P, PI, F, I, LG, G):
     sl = F[k, F_SL] / 100.0
-    cost = 2.0 * (P[k, P_FEE] + P[k, P_SLIP])
     total_mult = _layer_mult_total(k, I[k, I_NST], P)
     eq = LG[LG_EQ]
-    notional = eq * P[k, P_RISK] / 100.0 / (sl + cost)
-    notional = _pmin(notional, eq * P[k, P_MAXNOT] / 100.0)
+    if PI[k, PI_AMM] == 1:   # trượt giá phụ thuộc khối lượng: lần 1 chỉ tính phí, lần 2 tính trượt theo khối lượng dự kiến của lần 1 (policy.risk_margin)
+        cap = eq * P[k, P_MAXNOT] / 100.0
+        notional = _pmin(eq * P[k, P_RISK] / 100.0 / (sl + 2.0 * P[k, P_FEE]), cap)
+        cost = _rt_cost(k, notional, P, PI, F, G)
+        notional = _pmin(eq * P[k, P_RISK] / 100.0 / (sl + cost), cap)
+    else:
+        cost = 2.0 * (P[k, P_FEE] + P[k, P_SLIP])
+        notional = eq * P[k, P_RISK] / 100.0 / (sl + cost)
+        notional = _pmin(notional, eq * P[k, P_MAXNOT] / 100.0)
     if PI[k, PI_PERP] == 1:
         maxlev_i = np.int64(P[k, P_MAXLEV])
         if sl > 0.0:
@@ -273,16 +366,17 @@ def _risk_margin(k, P, PI, F, I, LG):
 
 
 @njit(**_JIT)
-def _close_cost(k, raw_price, status, market, PI, P, F):
+def _close_cost(k, raw_price, status, market, PI, P, F, G):
     """Giá/phí/trượt giá đóng hết vị thế (chưa áp dụng): -> (price, exit_fee, slip)."""
     long_ = PI[k, PI_LONG] == 1
+    taker = market or PI[k, PI_LTAKER] == 1
     slip = 0.0
-    if market and status != S_LIQ:
-        slip = P[k, P_SLIP]
-        price = raw_price * ((1.0 - P[k, P_SLIP]) if long_ else (1.0 + P[k, P_SLIP]))
+    if taker and status != S_LIQ:
+        slip = _slip(k, F[k, F_QTY] * raw_price, not long_, P, PI, F, G)
+        price = raw_price * ((1.0 - slip) if long_ else (1.0 + slip))
     else:
         price = raw_price
-    exit_fee = F[k, F_QTY] * price * (P[k, P_FEE] if (market or status == S_LIQ) else P[k, P_MAKER])
+    exit_fee = F[k, F_QTY] * price * (P[k, P_FEE] if (taker or status == S_LIQ) else P[k, P_MAKER])
     return price, exit_fee, slip
 
 
@@ -351,10 +445,10 @@ def _close_apply(k, t, price, exit_fee, status, reason, liq, slip, raw, P, PI, F
 
 @njit(**_JIT)
 def _close(k, t, raw_price, status, reason, market, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq):
-    price, exit_fee, slip = _close_cost(k, raw_price, status, market, PI, P, F)
+    price, exit_fee, slip = _close_cost(k, raw_price, status, market, PI, P, F, G)
     if status == S_LIQ:
         liq = 3
-    elif market:
+    elif market or PI[k, PI_LTAKER] == 1:
         liq = 2
     else:
         liq = 1
@@ -388,7 +482,7 @@ def _open(k, t, open_price, max_new, max_risk, rscale, P, PI, F, I, LG, G, outF,
     F[k, F_PLANNED] = 0.0
     lev = F[k, F_POS_LEV]
     if PI[k, PI_RISKSZ] == 1:
-        margin = _risk_margin(k, P, PI, F, I, LG)
+        margin = _risk_margin(k, P, PI, F, I, LG, G)
     else:
         margin = eq * P[k, P_OSP] / 100.0
     lev = F[k, F_POS_LEV]
@@ -404,7 +498,11 @@ def _open(k, t, open_price, max_new, max_risk, rscale, P, PI, F, I, LG, G, outF,
         m = y
     margin = m
     if PI[k, PI_RISKSZ] == 1 and margin > 0.0:
-        v = margin * lev * (F[k, F_SL] / 100.0 + 2.0 * (P[k, P_FEE] + P[k, P_SLIP])) * _layer_mult_total(k, I[k, I_NST], P)
+        total_mult = _layer_mult_total(k, I[k, I_NST], P)
+        if PI[k, PI_AMM] == 1:
+            v = margin * lev * (F[k, F_SL] / 100.0 + _rt_cost(k, margin * lev * total_mult, P, PI, F, G)) * total_mult
+        else:
+            v = margin * lev * (F[k, F_SL] / 100.0 + 2.0 * (P[k, P_FEE] + P[k, P_SLIP])) * total_mult
         F[k, F_PLANNED] = _pmin(F[k, F_PLANNED], v)
     if max_risk != np.inf and F[k, F_PLANNED] > max_risk:   # vượt trần rủi ro đang mở của danh mục
         if max_risk <= 0.0:
@@ -460,6 +558,7 @@ def _intrabar_path(k, t, o, h, l, c, ML, MH, ja, jb, P, PI, F, I, LG, G, outF, o
     """Đường ohlc / adaptive (bản dịch tracker._intrabar_path): mỗi chặng là một tick; trong tick (a) mọi tầng DCA bị xuyên qua,
     (b) chốt lời, (c) stop (SL / trailing / thanh lý). SL / TP cố định cả nến (lệnh đã nằm trên sàn từ cuối nến trước)."""
     long_ = PI[k, PI_LONG] == 1
+    ltaker = PI[k, PI_LTAKER] == 1         # AMM: DCA / chốt lời là swap -> khớp ở open nếu gap qua mức (không phải lệnh limit chờ sẵn)
     adverse = l if long_ else h
     sign = 1.0 if long_ else -1.0
     ml = (P.shape[1] - P_FIXED) // 2
@@ -498,7 +597,10 @@ def _intrabar_path(k, t, o, h, l, c, ML, MH, ja, jb, P, PI, F, I, LG, G, outF, o
             if not ((p <= trig) if long_ else (p >= trig)):
                 break
             margin = F[k, F_NEXT] * P[k, P_BS0 + ml + kk]
-            if _add_layer(k, t, dca_level, margin, False, R_DCA, P, PI, F, I, LG, G, outF, outI, ordF, ordI):
+            dca_price = dca_level
+            if ltaker:
+                dca_price = _pmin(dca_level, o) if long_ else _pmax(dca_level, o)   # policy.gap_fill
+            if _add_layer(k, t, dca_price, margin, False, R_DCA, P, PI, F, I, LG, G, outF, outI, ordF, ordI):
                 F[k, F_NEXT] = margin
                 dca_filled = True
                 continue
@@ -506,7 +608,10 @@ def _intrabar_path(k, t, o, h, l, c, ML, MH, ja, jb, P, PI, F, I, LG, G, outF, o
             I[k, I_NST] = kk
         # (b) chốt lời
         if has_tp and ((p >= need) if long_ else (p <= need)):
-            _close(k, t, tp_lv, S_TP, R_TP, False, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq)
+            tp_price = tp_lv
+            if ltaker:
+                tp_price = _pmax(tp_lv, o) if long_ else _pmin(tp_lv, o)   # policy.tp_fill_price
+            _close(k, t, tp_price, S_TP, R_TP, False, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq)
             return True
         # (c) nhóm stop: SL, trailing, thanh lý (hoà mức -> cái đứng trước)
         have = False
@@ -578,6 +683,7 @@ def _intrabar_path(k, t, o, h, l, c, ML, MH, ja, jb, P, PI, F, I, LG, G, outF, o
 @njit(**_JIT)
 def _intrabar_adverse(k, t, o, h, l, ML, MH, ja, jb, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq):
     long_ = PI[k, PI_LONG] == 1
+    ltaker = PI[k, PI_LTAKER] == 1
     adverse = l if long_ else h
     favorable = h if long_ else l
     sign = 1.0 if long_ else -1.0
@@ -645,6 +751,8 @@ def _intrabar_adverse(k, t, o, h, l, ML, MH, ja, jb, P, PI, F, I, LG, G, outF, o
             price = o if o > level else level                 # max(level, open)
         if best_kind == 0:
             price = dca_level                                     # lệnh limit chờ sẵn khớp ĐÚNG ở giá đặt, kể cả khi gap qua mức
+            if ltaker:
+                price = _pmin(dca_level, o) if long_ else _pmax(dca_level, o)   # AMM (swap): khớp ở open nếu gap
             margin = F[k, F_NEXT] * P[k, P_BS0 + ml + kk]
             sl_before = F[k, F_AVG] * (1.0 - sign * F[k, F_SL] / 100.0)   # SL đang nằm trên sàn trước fill (chỉ dùng khi sl_pct > 0)
             if _add_layer(k, t, price, margin, False, R_DCA, P, PI, F, I, LG, G, outF, outI, ordF, ordI):
@@ -686,6 +794,8 @@ def _intrabar_adverse(k, t, o, h, l, ML, MH, ja, jb, P, PI, F, I, LG, G, outF, o
         need = tp_level * (1.0 + sign * P[k, P_LTHRU]) if P[k, P_LTHRU] != 0.0 else tp_level
         if (favorable >= need) if long_ else (favorable <= need):
             price = tp_level                                  # limit khớp ĐÚNG ở mức TP, kể cả khi open đã vượt mức
+            if ltaker:
+                price = _pmax(tp_level, o) if long_ else _pmin(tp_level, o)   # AMM (swap): khớp ở open nếu gap có lợi
             _close(k, t, price, S_TP, R_TP, False, P, PI, F, I, LG, G, outF, outI, ordF, ordI, closeSeq)
             return True
     return False
@@ -1557,10 +1667,15 @@ _CAP_HINT = [_INIT_CAP_POS, _INIT_CAP_ORD]
 
 
 # ─── Đóng gói tracker ───────────────────────────────────────────────────────
-def pack_slots(specs: List[Any]) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+def pack_slots(specs: List[Any], amm: Optional[List[Optional[Dict[str, Any]]]] = None) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """-> (P, PI, F, I) khởi tạo từ các SlotSpec (core/params.py: mọi chuẩn hoá / kiểm tra tham số làm ở đó). Đọc theo tên thuộc tính nên
-    nhận được cả PositionTracker còn ở trạng thái ban đầu (đường Python cũ, tới T10)."""
+    nhận được cả PositionTracker còn ở trạng thái ban đầu (đường Python cũ, tới T10).
+    amm (P9.4b T6): theo từng slot, None hoặc {["fee", "stable", "gas"], ["limit_taker" (mặc định True)], ["fee_rate"]} = slot chạy hai móc AMM của tracker cũ: có "fee" -> impact_fn =
+    trượt giá theo dự trữ pool (KernelBook / SlotDriver.set_amm ghi dự trữ mỗi tick); limit_taker -> DCA / chốt lời là swap taker; "fee_rate" ghi đè phí taker = phí maker (= phí pool).
+    Tracker mang móc limit_taker / impact_fn (đường Python) vẫn bị từ chối: cấu hình AMM chỉ đi qua `amm`."""
     nt = len(specs)
+    if amm is not None and len(amm) != nt:
+        raise ValueError("amm: cần đúng một mục (hoặc None) cho mỗi slot")
     ml = max([1] + [len(tr.base_dca_steps) for tr in specs])
     P = np.zeros((nt, P_FIXED + 2 * ml))
     PI = np.zeros((nt, NPI), dtype=np.int64)
@@ -1589,6 +1704,17 @@ def pack_slots(specs: List[Any]) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np
         PI[k, PI_RISKSZ] = 1 if tr.sizing == "risk" else 0
         PI[k, PI_NBASE] = len(tr.base_dca_steps)
         PI[k, PI_MAXOPEN] = tr.max_open_trades
+        a = amm[k] if amm is not None else None
+        if a is not None:
+            PI[k, PI_LTAKER] = 1 if a.get("limit_taker", True) else 0
+            if a.get("fee") is not None:             # có pool: trượt giá theo dự trữ (impact_fn); không có: chỉ limit_taker (trượt = slippage_rate)
+                fee = float(a["fee"])
+                if not 0.0 <= fee < 1.0:
+                    raise ValueError(f"phí pool phải trong [0, 1), nhận {fee}")
+                PI[k, PI_AMM] = 1
+                P[k, P_AFEE], P[k, P_ASTABLE], P[k, P_AGAS] = fee, 1.0 if a["stable"] else 0.0, float(a.get("gas", 0.0))
+            if a.get("fee_rate") is not None:
+                P[k, P_FEE] = P[k, P_MAKER] = float(a["fee_rate"])
         F[k, F_ENTRY_EQ], F[k, F_MAXCAP], F[k, F_POS_LEV] = tr.entry_equity, tr.max_capital, tr.pos_leverage
         F[k, F_PLANNED], F[k, F_PVOL] = tr.planned_risk, np.nan
         F[k, F_SL], F[k, F_TP], F[k, F_TRAIL], F[k, F_TACT] = tr.sl_pct, tr.tp_pct, tr.trail_pct, tr.trail_activation_pct
@@ -1874,9 +2000,32 @@ def run_many(eng: Any, position_overrides: List[Dict[str, Any]]) -> List[Dict[st
 # Cùng mảng trạng thái, cùng thân nến `_portfolio_bar` với backtest; không pickle lớp: save/load = paper_state.npz + paper.json.
 _ONE_F = np.zeros(1)                       # ML/MH giả (không có đường 1m): carray độ dài 1 và ja == jb nên không bao giờ được đọc
 _DAY_MS = 86_400_000
-KB_SCHEMA = 1
+KB_SCHEMA = 2                              # 2: + cột AMM (P_AFEE.., PI_LTAKER/PI_AMM, F_RB.., G_AMERR) — T6
 _EXIT_KIND = {R_SL: "sl", R_TP: "tp", R_TRAIL: "trail", R_STOP: "exit", R_TIMEOUT: "timeout", R_LIQ: "liq", R_KILL: "kill", R_END: "end"}
 _CHUNK = 64                                # số nến tối đa mỗi lần gọi step_bars (chặn kích thước bộ đệm dự phòng)
+
+
+def _amm_check(G: np.ndarray) -> None:
+    """Kernel đặt G_AMERR khi một lệnh AMM gặp đầu vào không hợp lệ (amount_out cũ ném ValueError) -> ném lại ở đây (cờ được xoá)."""
+    if G[G_AMERR] != 0:
+        G[G_AMERR] = 0
+        raise ValueError("swap không hợp lệ: khối lượng hoặc dự trữ pool không dương (kernel AMM)")
+
+
+def reserve_price(reserve_base: Any, reserve_quote: Any, stable: bool) -> np.ndarray:
+    """Giá biên (quote / 1 base) theo dự trữ: volatile x*y=k -> rq/rb; stable x^3y+xy^3=k -> (3x^2y+y^3)/(x^3+3xy^2) (x = base, y = quote, đơn vị token).
+    Bản của core (không import crawl); NumPy thuần — xem chú thích AMM trên `_amm_out_raw` vì sao không nằm trong njit."""
+    x, y = np.asarray(reserve_base, float), np.asarray(reserve_quote, float)
+    if not stable:
+        return y / x
+    return (3 * x * x * y + y ** 3) / (x ** 3 + 3 * x * y * y)
+
+
+def _amm_state(rb: float, rq: float, qu: float, stable: bool) -> Tuple[float, float, float, float]:
+    """-> (rb, rq, qu, mid) đã kiểm (AmmImpact.set_state)."""
+    if not (rb > 0 and rq > 0 and qu > 0):
+        raise ValueError(f"dự trữ pool không hợp lệ: ({rb}, {rq}), quote_usd={qu}")
+    return float(rb), float(rq), float(qu), float(reserve_price(rb, rq, stable))
 
 
 class _LedgerView:
@@ -1917,9 +2066,13 @@ class KernelBook:
     record_full=True (test): giữ nguyên mọi hàng + tracker khởi đầu, không nén -> full_objects() dựng PositionModel/OrderModel y hệt batch."""
 
     MTM_SAMPLE_MINUTES = 60
+    ALLOW_EQUAL_T = False                  # True: nhiều bước cùng t (tick DEX: nhiều swap một block) — kernel không phụ thuộc t tăng ngặt
 
     def __init__(self, strategies: List[Dict[str, Any]], symbols: List[str], base_frame: str, capital: float, risk: Dict[str, Any],
-                 trade_start: int = 0, record_full: bool = False, record_events: bool = True, adm_capacity: int = 0):
+                 trade_start: int = 0, record_full: bool = False, record_events: bool = True, adm_capacity: int = 0,
+                 amm: Optional[List[Optional[Dict[str, Any]]]] = None):
+        """amm (T6): theo từng sổ (tài sản), None hoặc {"fee", "stable", "gas"} = pool AMM của tài sản đó — mọi slot của sổ chạy limit_taker + trượt giá theo dự trữ pool
+        (phí taker = maker = phí pool); gọi `set_amm(b, rb, rq, qu)` trước mỗi nến."""
         slots, specs = [], []
         pe = PortfolioEngine(list(symbols), strategies, 0, _DAY_MS, trade_start_ts=0, use_cache=False, base_frame=base_frame)
         for b, sym in enumerate(symbols):
@@ -1929,7 +2082,9 @@ class KernelBook:
         if not specs:
             raise ValueError("Cần ít nhất một tài sản và một chiến lược")
         self._setup(list(symbols), slots, base_frame, float(capital), dict(risk), int(trade_start), record_events, adm_capacity)
-        P, PI, F, I = pack_slots(specs)
+        if amm is not None and len(amm) != len(symbols):
+            raise ValueError("amm: cần đúng một mục (hoặc None) cho mỗi tài sản")
+        P, PI, F, I = pack_slots(specs, None if amm is None else [None if amm[s["book"]] is None else {**amm[s["book"]], "fee_rate": amm[s["book"]]["fee"]} for s in slots])
         F[:, F_ENTRY_EQ] = float(capital)
         for k, tr in enumerate(specs):
             F[k, F_MAXCAP] = float(capital) * tr.capital_usage
@@ -2020,6 +2175,21 @@ class KernelBook:
         ev, self.events = self.events, []
         return ev
 
+    def set_amm(self, b: int, reserve_base: float, reserve_quote: float, quote_usd: float) -> None:
+        """Dự trữ pool (token) + USD / 1 quote của sổ b tại tick sắp bước (AmmImpact.set_state): ghi cho mọi slot của sổ. Không hợp lệ -> ValueError."""
+        o0, o1 = int(self.book_off[b]), int(self.book_off[b + 1])
+        rb, rq, qu, mid = _amm_state(reserve_base, reserve_quote, quote_usd, bool(self.P[o0, P_ASTABLE]))
+        self.F[o0:o1, F_RB], self.F[o0:o1, F_RQ], self.F[o0:o1, F_QU], self.F[o0:o1, F_MID] = rb, rq, qu, mid
+
+    def taker_slippage(self) -> np.ndarray:
+        """Tỉ lệ trượt giá của mọi lệnh taker (không tính thanh lý) theo thứ tự slot rồi thời gian (như duyệt tracker.orders từng slot). Cần record_full (không nén hàng)."""
+        if not self.record_full:
+            raise ValueError("taker_slippage cần record_full=True")
+        nord = int(self.G[G_NORD])
+        rows = np.flatnonzero(self.ordI[:nord, ORI_LIQ] == 2)
+        slot = self.outI[self.ordI[rows, ORI_POS], OI_TR]
+        return self.ordF[rows[np.argsort(slot, kind="stable")], OR_SLIP]
+
     # ── bộ đệm ──
     def _compact(self) -> None:
         """Bỏ hàng của vị thế đã đóng khỏi outF/outI/ordF/ordI (đã thành dict trong `trades`); giữ vị thế đang mở + lệnh của chúng, đánh số lại."""
@@ -2094,7 +2264,8 @@ class KernelBook:
         FRl: List[float] = []
         dummy = int(_ONE_F.ctypes.data)
         for q, (t, bars, sig, funding) in enumerate(feed):
-            if q and t <= int(T[q - 1]) or (self._last_t is not None and q == 0 and t <= self._last_t):
+            lo_ok = (lambda a, b: a < b) if self.ALLOW_EQUAL_T else (lambda a, b: a <= b)   # a "không hợp lệ" so với b
+            if q and lo_ok(t, int(T[q - 1])) or (self._last_t is not None and q == 0 and lo_ok(t, self._last_t)):
                 raise ValueError(f"KernelBook: nến phải tăng ngặt theo thời gian (t={t})")
             T[q] = t
             for b, sym in enumerate(self.symbols):
@@ -2124,6 +2295,7 @@ class KernelBook:
         ran = step_bars(T, BAR, BARI, FR, SIG, SIGV, self.tr_book, self.book_off, self.P, self.PI, self.F, self.I, self.cfg_i, self.cfg_f,
                         self.PS, self.PSI, self.LPX, self.outF, self.outI, self.ordF, self.ordI, self.closeSeq, self.eqT, self.eqM, self.eqW,
                         G, self.LG, False)
+        _amm_check(G)
         if G[G_OVF] != 0 or ran != n:
             raise RuntimeError("KernelBook: tràn bộ đệm kết quả (lỗi dự phòng — _reserve phải ngăn được)")
         self._last_t = int(T[-1])
@@ -2185,6 +2357,7 @@ class KernelBook:
                   self.outF, self.outI, self.ordF, self.ordI, self.closeSeq, self.eqT, self.eqM, self.eqW)
         T = np.array([int(t)], dtype=np.int64)
         LL, HH = self.LPX[:, 1][None, :], self.LPX[:, 2][None, :]
+        _amm_check(G)
         closed = self._collect_closed(ncl0, int(G[G_NCL]), T, LL, HH)
         self.trades.extend(closed)
         if self.record_events:
@@ -2286,10 +2459,10 @@ class SlotDriver:
     `driver[k]` là SlotView có giao diện đọc + on_bar / apply_funding / force_close / unrealized_pnl_usd / orders / position của PositionTracker.
     Id lệnh rút từ dãy toàn cục theo thứ tự tạo (như tracker)."""
 
-    def __init__(self, specs: List[Any], meta: Optional[List[Tuple[str, str]]] = None):
+    def __init__(self, specs: List[Any], meta: Optional[List[Tuple[str, str]]] = None, amm: Optional[List[Optional[Dict[str, Any]]]] = None):
         self.nt = len(specs)
         self.specs = list(specs)
-        self.P, self.PI, self.F, self.I = pack_slots(specs)
+        self.P, self.PI, self.F, self.I = pack_slots(specs, amm)
         led = getattr(specs[0], "ledger", None)   # SlotSpec: sổ vốn mới (vốn đầu = initial_capital); PositionTracker (đường cũ): sổ của nó
         if led is not None:
             self.LG = np.array([float(led.equity), float(led.reserved), float(led.peak)])
@@ -2308,6 +2481,10 @@ class SlotDriver:
 
     def __getitem__(self, k: int) -> "SlotView":
         return self.views[k]
+
+    def set_amm(self, k: int, reserve_base: float, reserve_quote: float, quote_usd: float) -> None:
+        """Dự trữ pool của slot k tại tick sắp bước (slot chạy `amm=` ở pack_slots)."""
+        self.F[k, F_RB], self.F[k, F_RQ], self.F[k, F_QU], self.F[k, F_MID] = _amm_state(reserve_base, reserve_quote, quote_usd, bool(self.P[k, P_ASTABLE]))
 
     def _alloc(self, cp: int, co: int) -> None:
         self.outF, self.outI, self.ordF, self.ordI, self.closeSeq = _alloc(cp, co, 1)[:5]
@@ -2426,6 +2603,7 @@ class SlotView:
         FL = np.array([bool(entry_signal), bool(stop_signal), bool(can_open), bool(dca_gate)], dtype=np.int64)
         c0 = int(d.G[G_NCL])
         slot_bar(self._k, int(t), X, FL, ML, MH, int(ja), int(jb), d.P, d.PI, d.F, d.I, d.LG, d.G, d.outF, d.outI, d.ordF, d.ordI, d.closeSeq)
+        _amm_check(d.G)
         if d.G[G_OVF] != 0:
             raise RuntimeError("SlotDriver: tràn bộ đệm kết quả")
         return d._closed_since(c0)
@@ -2436,6 +2614,7 @@ class SlotView:
         c0 = int(d.G[G_NCL])
         slot_force_close(self._k, int(t), float(raw_price), R_KILL if reason.startswith("Kill") else R_END, d.P, d.PI, d.F, d.I, d.LG, d.G,
                          d.outF, d.outI, d.ordF, d.ordI, d.closeSeq)
+        _amm_check(d.G)
         return d._closed_since(c0)
 
 

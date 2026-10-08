@@ -44,7 +44,8 @@ PnL % của lệnh tính trên vốn lúc mở lệnh (để ghép lãi kép đ�
 Hai móc TUỲ CHỌN cho thị trường không có sổ lệnh (AMM / DEX, chạy bằng tick — core/backtest/tick_run.py); mặc định tắt = hành vi cũ đúng từng bit:
 - limit_taker=True: tầng DCA và chốt lời không phải lệnh limit chờ sẵn mà là swap thực hiện khi giá đi qua mức -> tính như lệnh market (phí taker + trượt giá).
 - impact_fn(notional_usd, is_buy) -> tỉ lệ trượt giá, thay slippage_rate cho MỌI lệnh khớp kiểu taker và cho chi phí khứ hồi khi tính khối lượng (_risk_margin).
-Kernel numba (core/backtest/kernel.py) KHÔNG hỗ trợ hai móc này: chỉ đường Python (PaperBook / tracker) dùng được; kernel từ chối tracker có móc.
+Kernel numba (core/backtest.py) chạy hai móc này riêng (P9.4b T6: PI_LTAKER / PI_AMM, KernelBook(amm=) / SlotDriver(amm=)); `pack_slots` vẫn từ chối tracker mang móc. Bản tracker
+là nguồn gốc của nhánh AMM trong kernel; oracle đóng băng của nhánh này: test/reference_engine.py::RefPositionTracker (limit_taker / impact_fn).
 """
 from operator import attrgetter
 from typing import Any, Callable, Dict, List, Optional, Tuple
