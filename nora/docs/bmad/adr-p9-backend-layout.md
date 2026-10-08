@@ -65,6 +65,8 @@ backend/
   paper khớp ngay trong engine; live gửi lệnh qua `live/okx.py` (OkxVenue chỉ còn là cổng I/O) và nạp fill của sàn ngược vào trạng thái engine.
 - Gỡ bản Python thứ hai: `core/execute/{tracker,manager,sim_venue,runner}` (P9.4b). `test/reference_engine.py` giữ trong test làm oracle.
 
+**Cổng bắt buộc khi chuyển file có đường dẫn theo `__file__`:** `store.code_version()` và `engine_version()` phải giống hệt trước/sau (sai độ sâu → khoá job đổi âm thầm, hỏng `--resume`).
+
 **Luật phụ thuộc** (test tự động chặn vi phạm, ban đầu báo cáo, sau bắt buộc):
 `core ← {metrics, regime, wfa, carlo, verdict} ← optimize ← {live, routes}`; `crawl` chỉ được gọi từ `optimize`, `live`, `routes`;
 `core` không import gì ngoài `core`; trong core theo thứ tự `models ← params ← indicator ← signal ← position_size ← backtest`
@@ -89,19 +91,20 @@ backend/
 | verdict/verdict.py | optimize/funnel/antiluck, core/metrics/diagnose, phần tính thuần của core/metrics/diagnose_inputs (benchmark, regime, exits, exposure, binding — nhận mảng), core/analytics/insights |
 | optimize/search/generate.py | optimize/funnel/generate |
 | optimize/search/evaluate.py | optimize/funnel/evaluate, optimize/shared |
-| optimize/funnel/stages.py | optimize/funnel/{orchestrator,gates,sizing,stats,publish,promote,recompute,run} |
+| optimize/funnel/stages.py | optimize/funnel/{orchestrator,gates,sizing,stats,publish,promote,recompute,run,estimate} |
 | optimize/funnel/storage.py | optimize/funnel/storage, optimize/store |
-| optimize/book/build.py | optimize/book, core/params/presets |
-| optimize/book/registry.py | optimize/{registry,revalidate}, core/analytics/{user_alphas,strategy_doc} |
+| optimize/book/build.py | optimize/book, core/params/presets, phần engine dùng của core/params/modes (funnel/generate, live/bot, engine import) |
+| optimize/book/registry.py | optimize/{registry,revalidate}, core/analytics/{user_alphas,strategy_doc}, utils/engine_version |
 | optimize/process/process.py | api/jobs/runner, phần hàng đợi/chạy/trạng thái của api/jobs/batch, utils/jobs |
-| optimize/process/tasks.py | mọi `run_job`: core/backtest/{run,custom_run,tick_run,edu_precompute}, wfa/run, core/regime/report, core/data/promote; phần NẠP dữ liệu của core/metrics/diagnose_inputs; nạp `data/alpha/universes/*.json` rồi truyền vào build_plan |
+| optimize/search/evaluate.py (thêm) | phần thư viện của core/backtest/run (BacktestJob, make_engine, run, result_payload) |
+| optimize/process/tasks.py | mọi `run_job`: core/backtest/{run,custom_run,tick_run,edu_precompute}, wfa/run, core/regime/report (run_job của data_promote đã nằm ở crawl/store); phần NẠP dữ liệu của core/metrics/diagnose_inputs; nạp `data/alpha/universes/*.json` rồi truyền vào build_plan |
 | optimize/process/workers.py | utils/{parallel,memwatch} |
 | crawl/cex.py | core/data/{crawler,okx_crawler} |
 | crawl/dex.py | core/data/tick_crawler, db/tick_storage |
 | crawl/store.py | db/{data_layout,local_pkl}, core/data/{loader,resampler,quality_gate,shared}, utils/{lru,jsonsafe} |
 | live/bot.py | live/{bot,unified,signals} |
 | live/okx.py | live/{okx,okx_venue,exchange,secrets} |
-| routes/*.py | api/routers/*; routes/modes.py ← api/modes + core/params/modes; routes/jobs.py ← phần kiểm tham số của api/jobs/batch |
+| routes/*.py | api/routers/*; routes/modes.py ← api/modes + phần chỉ-API của core/params/modes (tách đôi, P9.6b/P9.8); routes/jobs.py ← phần kiểm tham số của api/jobs/batch |
 | data/alpha/strategies/*.json | định nghĩa cứng trong core/strategy/{library,book}.py (SIGNALS, KERNEL_STRATEGIES, CANDIDATES) |
 | (xoá) | core/strategy/pydsl/weights.py — tỉ trọng TOP10 xnoquant, bỏ cùng chế độ xno |
 | data/alpha/education/samples.json | mẫu Education đang nằm ở frontend JS + data/education/samples.json — thành nguồn gốc ở backend, phục vụ qua API |
