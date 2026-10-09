@@ -336,3 +336,21 @@ Yêu cầu liên quan: FR-8, FR-13, NFR-1.
 | [E20-S2](stories/E20-S2-two-phase-order-lifecycle.md) | Hạch toán vòng đời lệnh hai pha không rò rỉ dữ liệu | done |
 | [E20-S3](stories/E20-S3-causal-timing-tests.md) | Bộ test kiểm định causal signal timing bit-identical | done |
 
+## E21: Đối chiếu NautilusTrader — hành vi còn thiếu kịch bản (P13) [backlog]
+
+Đối chiếu 8 khoảng trống hành vi (G1–G8) giữa Nora và NautilusTrader: quy ước khớp lệnh khi có gap (S12), limit_through_pct (S13), một nến chạm cả DCA lẫn SL (S11g), thanh lý/ký quỹ (S13b), sizing/kill-switch (S13c), stop_fill extreme (S13d), AMM DEX tick (S14), và live/paper KernelBook từng bước (S15). Chi tiết kỹ thuật tham chiếu tại [archive/p13_nautilus_gaps_plan.md](archive/p13_nautilus_gaps_plan.md).
+
+Yêu cầu liên quan: FR-8, FR-13, NFR-1, NFR-8.
+
+| Story | Tiêu đề | Trạng thái |
+|---|---|---|
+| [E21-S1](stories/E21-S1-nautilus-gap-fill-convention.md) | G1: Quy ước khớp lệnh trên dữ liệu có gap (S12) | backlog |
+| [E21-S2](stories/E21-S2-nautilus-gap-limit-through.md) | G2: Khớp limit qua mức limit_through_pct > 0 (S13) | backlog |
+| [E21-S3](stories/E21-S3-nautilus-gap-dca-sl-same-bar.md) | G3: Một nến 1m chạm cả tầng DCA lẫn cắt lỗ cũ (S11g) | backlog |
+| [E21-S4](stories/E21-S4-nautilus-gap-liquidation-margin.md) | G4: Thanh lý (liquidation) và sụt ký quỹ (S13b) | backlog |
+| [E21-S5](stories/E21-S5-nautilus-gap-risk-sizing-kill-switch.md) | G5: Sizing theo rủi ro, trần notional và kill switch (S13c) | backlog |
+| [E21-S6](stories/E21-S6-nautilus-gap-stop-fill-extreme.md) | G6: stop_fill="extreme" và gap qua mức dừng (S13d) | backlog |
+| [E21-S7](stories/E21-S7-nautilus-gap-dex-tick-amm.md) | G7: Engine tick và AMM cho DEX (S14) | backlog |
+| [E21-S8](stories/E21-S8-nautilus-gap-kernelbook-live-batch.md) | G8: Live/paper KernelBook từng bước = batch = Nautilus (S15) | backlog |
+
+

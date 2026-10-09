@@ -32,7 +32,7 @@ Done
 
 ## QA Results
 - **Gate:** PASS
-- **Commit:** `64a7a43`
+- **Commit:** `64a7a43`, `6f54be2`
 - **Tests:**
   - `pytest test/test_signal_event.py` PASS
   - `pytest test/test_causal_engine.py` PASS
@@ -43,3 +43,5 @@ Done
 | 2026-10-07 | 1.0.0 | Đảm bảo strictly causal signal timing | BMAD Dev |
 | 2026-10-09 | 1.0.1 | Chuyển sang Review, cập nhật test thật | BMAD Dev |
 | 2026-10-09 | 1.0.2 | Hoàn tất nghiệm thu, chuyển sang Done với commit `64a7a43` | BMAD Dev |
+| 2026-10-09 | 1.0.3 | Bổ sung commit `6f54be2` (tường minh atr_frame/cooldown cho DCA/Sideway) | BMAD Dev |
+

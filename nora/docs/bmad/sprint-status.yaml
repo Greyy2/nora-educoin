@@ -210,3 +210,16 @@ epics:
       E20-S1-causal-signal-execution-open: done
       E20-S2-two-phase-order-lifecycle: done
       E20-S3-causal-timing-tests: done
+  E21:
+    title: Đối chiếu NautilusTrader — hành vi còn thiếu kịch bản (P13)
+    status: backlog
+    stories:
+      E21-S1-nautilus-gap-fill-convention: backlog
+      E21-S2-nautilus-gap-limit-through: backlog
+      E21-S3-nautilus-gap-dca-sl-same-bar: backlog
+      E21-S4-nautilus-gap-liquidation-margin: backlog
+      E21-S5-nautilus-gap-risk-sizing-kill-switch: backlog
+      E21-S6-nautilus-gap-stop-fill-extreme: backlog
+      E21-S7-nautilus-gap-dex-tick-amm: backlog
+      E21-S8-nautilus-gap-kernelbook-live-batch: backlog
+
