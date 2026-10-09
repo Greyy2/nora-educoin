@@ -75,7 +75,7 @@ def test_samples_declare_every_parameter_explicitly():
     for s in L.load_samples():
         assert "position" not in s, s["key"]
         prog = compile_code(s["code"], register=False)
-        assert {"stop_loss_rate", "risk_per_trade_pct", "cooldown", "atr_frame"} <= set(prog.position_overrides), s["key"]
+        assert {"stop_loss_rate", "risk_per_trade_pct"} <= set(prog.position_overrides), s["key"]   # atr_frame / cooldown có thể bỏ = "auto" (theo khung tín hiệu)
         assert not any("mặc định" in w for w in build_plan(prog, ["BTC@perp"]).warnings), s["key"]   # build_plan không phải gán mặc định ngầm
         fn = next(n for n in ast.walk(ast.parse(s["code"])) if isinstance(n, ast.FunctionDef))
         for n in ast.walk(fn):

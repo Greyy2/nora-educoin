@@ -7,6 +7,7 @@ from backend.core import indicator as kernels
 from backend.core.signal import DslError
 from backend.alpha.compile import compile_code, compile_report
 from backend.core import backtest as profiles
+from backend.core.params import AUTO, FRAME_MS, resolve_position_auto
 
 HEAD = "class S(SimpleAlgorithm):\n    def __algorithm__(self):\n"
 
@@ -219,7 +220,7 @@ def test_plan_defaults_overrides_and_validation():
     plan = profiles.build_plan(prog, ["BTC", "ETH"], position={"risk_per_trade_pct": 1.0})
     st = plan.strategies[0]
     assert plan.symbols == ["BTC@perp", "ETH@perp"] and plan.base_frame == "1m" and "symbols" not in st
-    assert st["position"]["stop_loss_rate"] == 2.5 and st["position"]["risk_per_trade_pct"] == 1.0 and st["position"]["cooldown"] == 60
+    assert st["position"]["stop_loss_rate"] == 2.5 and st["position"]["risk_per_trade_pct"] == 1.0 and st["position"]["cooldown"] == resolve_position_auto({"cooldown": AUTO}, prog.meta()["timeframe"])["cooldown"] == FRAME_MS[prog.meta()["timeframe"]] // 60_000
     assert any("mặc định" in w for w in plan.warnings)
     with pytest.raises(ValueError, match="khoá vị thế"):
         profiles.build_plan(prog, ["BTC"], position={"nope": 1})

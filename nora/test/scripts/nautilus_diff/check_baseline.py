@@ -1,7 +1,7 @@
 """P9.4b T0 baseline: sha256 of canonical JSON (sorted keys, floats as hex) of Nora outputs.
 Usage (from nora/): python test/scripts/nautilus_diff/check_baseline.py [--write]
   --write  regenerate p94b_baseline.sha256 ; default: recompute and compare (exit 1 on mismatch).
-Covers out/nora_*.json and out/ext/nora_*.json (fields trades, final_equity, open_at_end, dca_rejected, funding_log,
+Covers out/nora_*.json, out/ext/nora_*.json out/s9/nora_*.json (S9: s9_run_nora.py + s9_compare.py -> s9_results.json) and out/s10/nora_*.json (S10: s10_run_nora.py + s10_compare.py -> s10_results.json) and out/s11/nora_*.json (S11: s11_run_nora.py + s11_compare.py -> s11_results.json) (fields trades, final_equity, open_at_end, dca_rejected, funding_log,
 rejected_for_risk, decisions) and the whole of results*.json / ext_results*.json (compare outputs).
 Regenerate the inputs first with run_nora.py / ext_run_nora.py [ohlc|adaptive] and compare.py / ext_compare.py.
 """
@@ -32,11 +32,11 @@ def sha(o):
 
 def compute():
     res = {}
-    for pat in ("out/nora_*.json", "out/ext/nora_*.json"):
+    for pat in ("out/nora_*.json", "out/ext/nora_*.json", "out/s9/nora_*.json", "out/s10/nora_*.json", "out/s11/nora_*.json"):
         for f in sorted(glob.glob(os.path.join(HERE, pat))):
             d = json.load(open(f))
             res[os.path.relpath(f, HERE)] = sha({k: d[k] for k in FIELDS if k in d})
-    for pat in ("results*.json", "ext_results*.json"):
+    for pat in ("results*.json", "ext_results*.json", "s9_results*.json", "s10_results*.json", "s11_results*.json"):
         for f in sorted(glob.glob(os.path.join(HERE, pat))):
             res[os.path.relpath(f, HERE)] = sha(json.load(open(f)))
     return res

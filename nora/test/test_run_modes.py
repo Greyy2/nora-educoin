@@ -20,7 +20,7 @@ from backend.core.params import POSITION_KEYS
 from backend.optimize.book import build as pr
 from backend.routes import process as process_routes
 from backend.core.params import FRAMES, collect_placeholders, collect_string_placeholders, resolve_placeholders
-from backend.core.params import BASE_POSITION, materialize, schema_defaults
+from backend.core.params import BASE_POSITION, materialize, resolve_position_auto, schema_defaults
 from backend.optimize.book.build import BY_ID, CANDIDATES
 from legacy_candidates import LEGACY
 from backend.alpha.compile import calc, cond, cross_over, cross_under, f, tree_p
@@ -81,7 +81,8 @@ def test_default_resolution_equals_old_literal_tree(cid):
 def test_default_position_and_signal_params_unchanged(cid):
     c = BY_ID[cid]
     st = materialize(c, {})
-    assert st["position"] == {**BASE_POSITION, **c["position"]} and st["signal_params"] == {}   # không thêm khoá nào khi không truyền gì
+    assert st["position"] == resolve_position_auto({**BASE_POSITION, **c["position"]}) and st["signal_params"] == {}   # không thêm khoá nào khi không truyền gì
+    assert st["position"]["atr_frame"] == c["position"].get("atr_frame", "1h") and st["position"]["cooldown"] == c["position"].get("cooldown", 60)   # sổ chiến lược: "auto" giải ra 1h/60 (không có khung tín hiệu)
     st2 = materialize(c, {"sig.adx_min": 25, "stop_loss_rate": 2}, risk_per_trade_pct=0.75)
     assert st2["signal_params"] == {"adx_min": 25} and st2["position"]["stop_loss_rate"] == 2 and st2["position"]["risk_per_trade_pct"] == 0.75
 

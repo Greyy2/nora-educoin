@@ -28,6 +28,11 @@ def test_notes_quote_run_numbers():
     assert next(x["action_vi"] for x in r["explain"]["rules"] if x["type"].startswith("entry")) in n["metrics"]["ret_pct"]
 
 
+def test_fixture_notes_numbers_all_come_from_result():
+    r = _rec()
+    _check_numbers(r, build_notes(r["explain"], r))
+
+
 def test_notes_deterministic_and_degrade():
     r = _rec()
     assert build_notes(r["explain"], r) == build_notes(r["explain"], r)
@@ -44,7 +49,7 @@ from test_custom_backtest import CODE_1H, _params, market  # noqa: E402,F401
 
 CODE_EMA = '''
 class Ema(SimpleAlgorithm):
-    timeframe = "24h"
+    timeframe = "4h"
     fast = 3
     slow = 8
     def __algorithm__(self):
@@ -159,3 +164,16 @@ def test_tour_is_five_simple_steps():
     from backend.metrics.charts import EDUCATION_HIDDEN_SECTIONS
     assert set(EDUCATION_HIDDEN_SECTIONS) == {"benchmark", "holding", "pnl_structure"}
     assert not {t["key"] for t in NOTE_TOUR} & set(EDUCATION_HIDDEN_SECTIONS)
+
+
+def test_summary_cap_skip_sentence():
+    r = json.loads(json.dumps(_rec()))
+    r["config"] = {**(r.get("config") or {}), "risk": {"max_positions": 3}}
+    r["risk_blocked_attempts"] = 7
+    s = build_notes(r["explain"], r)["summary"]
+    assert "7 lần tín hiệu vào bị bỏ qua vì danh mục đã giữ đủ 3 vị thế." in s
+    allowed = _result_numbers(r)   # (fixture recorded: other sections not number-checked here)
+    assert {7.0, 3.0} <= allowed and {7.0, 3.0} <= _numbers("7 lần ... 3 vị thế")
+    for v in (0, None):
+        r["risk_blocked_attempts"] = v
+        assert "bị bỏ qua" not in build_notes(r["explain"], r)["summary"]

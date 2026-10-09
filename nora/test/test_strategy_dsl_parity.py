@@ -16,7 +16,7 @@ import pytest
 import golden_scenarios as gs
 from backend.core.signal import DslError
 from backend.alpha.compile import compile_strategy_module, load_system_strategies, strategies_dir
-from backend.core.params import REGIME_MAP, RISK, materialize, schema_defaults
+from backend.core.params import AUTO_FALLBACK_ATR_FRAME, AUTO_FALLBACK_COOLDOWN, REGIME_MAP, RISK, materialize, schema_defaults
 from backend.optimize.book import build as sl
 
 FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "system_candidates_v1.json")
@@ -36,10 +36,19 @@ def _old(cid):
     return c
 
 
+def _norm(c):
+    """Điền mặc định cũ vào position (atr_frame 1h / cooldown 60 phút): file chiến lược khai tường minh, fixture cũ để {} — hai dạng tương đương."""
+    c = copy.deepcopy(c)
+    c["position"] = {"atr_frame": AUTO_FALLBACK_ATR_FRAME, "cooldown": AUTO_FALLBACK_COOLDOWN, **c.get("position", {})}
+    return c
+
+
 def test_loaded_catalog_is_json_identical_to_old_hardcoded():
     assert [c["id"] for c in sl.CANDIDATES] == IDS
     for c in sl.CANDIDATES:
-        assert _dump(c) == _dump(_old(c["id"])), c["id"]
+        assert _dump(_norm(c)) == _dump(_norm(_old(c["id"]))), c["id"]
+        # bất biến thật: materialize() trùng từng ký tự với định nghĩa cũ
+        assert _dump(materialize(c, schema_defaults(c))) == _dump(materialize(_old(c["id"]), schema_defaults(_old(c["id"])))), c["id"]
     assert _dump(sl.STRATEGIES) == _dump(OLD["strategies"])
     assert sorted(REGIME_MAP) == sorted(OLD["regime_map_keys"])
     assert set(sl.SOURCES) == set(IDS) and all(v["file"].endswith(".py") for v in sl.SOURCES.values())

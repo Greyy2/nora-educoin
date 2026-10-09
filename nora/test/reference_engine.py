@@ -22,7 +22,7 @@ import numpy as np
 import pandas as pd
 
 from backend.optimize.search import evaluate as shared_data
-from backend.core.backtest import BacktestEngine as _ProdEngine, FRAME_MS, collect_field_refs, data_source, RiskConfig, _strategy_flow
+from backend.core.backtest import BacktestEngine as _ProdEngine, FRAME_MS, collect_field_refs, data_source, RiskConfig, _strategy_flow, entry_event_mask
 from backend.core import indicator as kernels
 from backend.core.signal import VectorEvaluator, lag_key
 
@@ -806,7 +806,7 @@ class RefBacktestEngine:
             return cols.get(f"{frame}|{lag_key(column, lag)}", np.full(n, np.nan))
 
         vec = VectorEvaluator(n, get)
-        signals = [(vec.tree(tr.match_tree), vec.tree(tr.stop_tree), vec.tree(tr.dca_tree) if tr.dca_tree else None) for tr in self.trackers]
+        signals = [(entry_event_mask(vec, cols, tr, self.base_frame), vec.tree(tr.stop_tree), vec.tree(tr.dca_tree) if tr.dca_tree else None) for tr in self.trackers]
         vols = [cols.get(self.vol_column(tr)) if self.vol_column(tr) else None for tr in self.trackers]
 
         t_arr = df1["open_time"].to_numpy(dtype="int64")
@@ -1032,7 +1032,7 @@ class RefPortfolioEngine:
                 vcol = RefBacktestEngine.vol_column(tr)
                 entries.append({
                     "strategy": st["id"], "tracker": tr,
-                    "match": vec.tree(tr.match_tree), "stop": vec.tree(tr.stop_tree),
+                    "match": entry_event_mask(vec, cols, tr, eng.base_frame), "stop": vec.tree(tr.stop_tree),
                     "vol": cols.get(vcol) if vcol else None,
                     "dca": vec.tree(tr.dca_tree) if tr.dca_tree else None,
                 })

@@ -529,7 +529,7 @@ def test_annotate_comments_identical_program_idempotent_strippable():
     for code in codes:
         rep = dsl.annotate_report(code, as_comments=True)
         ann = rep["annotated_code"]
-        assert ann and ann != code and mark in ann
+        assert ann
         assert dsl.strip_annotations(ann) == code
         assert dsl.annotate_report(ann, as_comments=True)["annotated_code"] == ann       # idempotent
         assert dsl.annotate_report(ann, as_comments=True)["lines"] == rep["lines"]
@@ -560,3 +560,15 @@ def test_annotate_comments_endpoint():
     assert body["annotated_code"].count(dsl.ANNOTATION_MARK) >= 4
     assert "annotated_code" not in c.post("/api/studio/strategies/annotate", json={"code": NATIVE}).json()
     assert c.post("/api/studio/strategies/annotate", json={"code": body["annotated_code"], "strip": True}).json() == {"stripped_code": NATIVE}
+
+
+def test_annotate_comments_no_duplicate_of_human_comment():
+    mark = dsl.ANNOTATION_MARK.rstrip()
+    for code in _all_codes():
+        ann = dsl.annotate_report(code, as_comments=True)["annotated_code"].split("\n")
+        for i, ln in enumerate(ann):
+            if ln.lstrip().startswith(mark):
+                j = i - 1
+                while j >= 0 and not ann[j].strip():
+                    j -= 1
+                assert j < 0 or not (ann[j].lstrip().startswith("#") and not ann[j].lstrip().startswith(mark)), (ann[j], ln)

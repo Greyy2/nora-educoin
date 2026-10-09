@@ -1,0 +1,350 @@
+{
+ "S11a": {
+  "cfg": {
+   "cool": 120,
+   "dca": null,
+   "ema": 20,
+   "fund": false,
+   "lev": 1,
+   "osp": 50.0,
+   "side": "L",
+   "sl": 0.5
+  },
+  "cool_skips_naut": {
+   "BTC": 141,
+   "ETH": 127
+  },
+  "d_equity": 2.6965180950355716e-05,
+  "dca_rejected_nora": 0,
+  "funding_events_charged_naut": 294,
+  "funding_naut": 41.19272312194,
+  "funding_nora": 41.19272301220689,
+  "layers_total": 363,
+  "match": true,
+  "max_diff": {
+   "fee": 3.9193672929371814e-07,
+   "fund": 1.4786396729249418e-07,
+   "pnl": 1.5570876428228075e-05,
+   "px": 3.4224561561417564e-16,
+   "qty": 8.827072465967912e-08
+  },
+  "min_signal_gap_min": 120,
+  "n_fills_checked": 726,
+  "n_naut": 363,
+  "n_nora": 363,
+  "n_paired_ok": 363,
+  "open_at_end_naut": [
+   [
+    "ETH",
+    1790809200000
+   ]
+  ],
+  "open_at_end_nora": [
+   [
+    "ETH",
+    1790809200000
+   ]
+  ],
+  "realized_equity_naut": 8783.75477112806,
+  "realized_equity_nora": 8783.75474416288,
+  "sl_exits": 156,
+  "stage": "S11a",
+  "trades_with_dca": 0,
+  "unmatched_or_bad": []
+ },
+ "S11b": {
+  "cfg": {
+   "cool": 0,
+   "dca": {
+    "mult": 1.5,
+    "n": 3,
+    "step": 0.5
+   },
+   "ema": 20,
+   "fund": false,
+   "lev": 1,
+   "osp": 10.0,
+   "side": "L",
+   "sl": 2.0
+  },
+  "cool_skips_naut": {
+   "BTC": 0,
+   "ETH": 0
+  },
+  "d_equity": 2.255290382890962e-06,
+  "dca_rejected_nora": 0,
+  "funding_events_charged_naut": 318,
+  "funding_naut": 10.682876540239503,
+  "funding_nora": 10.6828762960035,
+  "layers_total": 498,
+  "match": true,
+  "max_diff": {
+   "fee": 5.375970668630714e-07,
+   "fund": 2.1762263768820844e-07,
+   "pnl": 1.4908053685758205e-05,
+   "px": 2.1183648974904773e-12,
+   "qty": 4.078261146784251e-07
+  },
+  "min_signal_gap_min": 59,
+  "n_fills_checked": 831,
+  "n_naut": 333,
+  "n_nora": 333,
+  "n_paired_ok": 333,
+  "open_at_end_naut": [
+   [
+    "ETH",
+    1790809200000
+   ]
+  ],
+  "open_at_end_nora": [
+   [
+    "ETH",
+    1790809200000
+   ]
+  ],
+  "realized_equity_naut": 9744.12598904976,
+  "realized_equity_nora": 9744.12598679447,
+  "sl_exits": 0,
+  "stage": "S11b",
+  "trades_with_dca": 121,
+  "unmatched_or_bad": []
+ },
+ "S11c": {
+  "cfg": {
+   "cool": 0,
+   "dca": null,
+   "ema": 20,
+   "fund": true,
+   "lev": 2,
+   "osp": 40.0,
+   "side": "L",
+   "sl": 1.0
+  },
+  "cool_skips_naut": {
+   "BTC": 0,
+   "ETH": 0
+  },
+  "d_equity": 4.887035356659908e-05,
+  "dca_rejected_nora": 0,
+  "funding_events_charged_naut": 314,
+  "funding_naut": 61.736211051163046,
+  "funding_nora": 61.73621165212072,
+  "layers_total": 337,
+  "match": true,
+  "max_diff": {
+   "fee": 4.4272795385325026e-07,
+   "fund": 2.644542416163631e-07,
+   "pnl": 2.783808616868555e-05,
+   "px": 2.295455638352525e-16,
+   "qty": 6.080514746875448e-08
+  },
+  "min_signal_gap_min": 40,
+  "n_fills_checked": 674,
+  "n_naut": 337,
+  "n_nora": 337,
+  "n_paired_ok": 337,
+  "open_at_end_naut": [
+   [
+    "ETH",
+    1790809200000
+   ]
+  ],
+  "open_at_end_nora": [
+   [
+    "ETH",
+    1790809200000
+   ]
+  ],
+  "realized_equity_naut": 8353.45831567884,
+  "realized_equity_nora": 8353.458364549193,
+  "sl_exits": 35,
+  "stage": "S11c",
+  "trades_with_dca": 0,
+  "unmatched_or_bad": []
+ },
+ "S11d": {
+  "cfg": {
+   "cool": 120,
+   "dca": {
+    "mults": [
+     1.5,
+     2.0,
+     1.0
+    ],
+    "steps": [
+     0.3,
+     0.5,
+     0.9
+    ]
+   },
+   "ema": 20,
+   "fund": true,
+   "lev": 2,
+   "osp": 10.0,
+   "side": "L",
+   "sl": 2.0
+  },
+  "cool_skips_naut": {
+   "BTC": 114,
+   "ETH": 94
+  },
+  "d_equity": 4.5158478314988315e-05,
+  "dca_rejected_nora": 0,
+  "funding_events_charged_naut": 304,
+  "funding_naut": 21.483681391113276,
+  "funding_nora": 21.48368119291148,
+  "layers_total": 597,
+  "match": true,
+  "max_diff": {
+   "fee": 5.579427146962246e-07,
+   "fund": 1.1734003946273219e-07,
+   "pnl": 1.2355308996347958e-05,
+   "px": 2.953317725794352e-12,
+   "qty": 2.0667205809776654e-07
+  },
+  "min_signal_gap_min": 179,
+  "n_fills_checked": 913,
+  "n_naut": 316,
+  "n_nora": 316,
+  "n_paired_ok": 316,
+  "open_at_end_naut": [
+   [
+    "ETH",
+    1790809200000
+   ]
+  ],
+  "open_at_end_nora": [
+   [
+    "ETH",
+    1790809200000
+   ]
+  ],
+  "realized_equity_naut": 9422.969788908886,
+  "realized_equity_nora": 9422.969834067364,
+  "sl_exits": 0,
+  "stage": "S11d",
+  "trades_with_dca": 206,
+  "unmatched_or_bad": []
+ },
+ "S11e": {
+  "cfg": {
+   "cool": 120,
+   "dca": {
+    "mult": 1.5,
+    "n": 3,
+    "step": 0.5
+   },
+   "ema": 20,
+   "fund": true,
+   "lev": 2,
+   "osp": 10.0,
+   "side": "S",
+   "sl": 2.0
+  },
+  "cool_skips_naut": {
+   "BTC": 109,
+   "ETH": 121
+  },
+  "d_equity": 7.424331488437019e-05,
+  "dca_rejected_nora": 0,
+  "funding_events_charged_naut": 291,
+  "funding_naut": -14.318853260981836,
+  "funding_nora": -14.31885299254748,
+  "layers_total": 520,
+  "match": true,
+  "max_diff": {
+   "fee": 6.159097494240484e-07,
+   "fund": 2.0907502662481647e-07,
+   "pnl": 1.4281714669550638e-05,
+   "px": 2.6454204055534056e-12,
+   "qty": 2.1638243185957294e-07
+  },
+  "min_signal_gap_min": 179,
+  "n_fills_checked": 855,
+  "n_naut": 335,
+  "n_nora": 335,
+  "n_paired_ok": 335,
+  "open_at_end_naut": [
+   [
+    "BTC",
+    1790798400000
+   ]
+  ],
+  "open_at_end_nora": [
+   [
+    "BTC",
+    1790798400000
+   ]
+  ],
+  "realized_equity_naut": 8703.77900896098,
+  "realized_equity_nora": 8703.778934717666,
+  "sl_exits": 1,
+  "stage": "S11e",
+  "trades_with_dca": 126,
+  "unmatched_or_bad": []
+ },
+ "S11f": {
+  "cfg": {
+   "cool": 120,
+   "dca": {
+    "mults": [
+     1.5,
+     1.5,
+     1.5
+    ],
+    "steps": [
+     0.3,
+     0.3,
+     0.3
+    ]
+   },
+   "ema": 20,
+   "fund": true,
+   "lev": 1,
+   "osp": 12.0,
+   "side": "L",
+   "sl": 0.9
+  },
+  "cool_skips_naut": {
+   "BTC": 116,
+   "ETH": 100
+  },
+  "d_equity": 6.148813008621801e-05,
+  "dca_rejected_nora": 0,
+  "funding_events_charged_naut": 303,
+  "funding_naut": 11.080864518540285,
+  "funding_nora": 11.08086518510417,
+  "layers_total": 692,
+  "match": true,
+  "max_diff": {
+   "fee": 7.865164741716058e-07,
+   "fund": 1.4692656635784118e-07,
+   "pnl": 1.8088034508423334e-05,
+   "px": 2.080577685270844e-10,
+   "qty": 3.7013698960857675e-07
+  },
+  "min_signal_gap_min": 179,
+  "n_fills_checked": 1012,
+  "n_naut": 320,
+  "n_nora": 320,
+  "n_paired_ok": 320,
+  "open_at_end_naut": [
+   [
+    "ETH",
+    1790809200000
+   ]
+  ],
+  "open_at_end_nora": [
+   [
+    "ETH",
+    1790809200000
+   ]
+  ],
+  "realized_equity_naut": 9045.055010161459,
+  "realized_equity_nora": 9045.055071649589,
+  "sl_exits": 18,
+  "stage": "S11f",
+  "trades_with_dca": 208,
+  "unmatched_or_bad": []
+ }
+}

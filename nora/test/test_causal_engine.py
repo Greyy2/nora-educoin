@@ -104,9 +104,10 @@ def test_no_lookahead_when_future_modified():
             "id": "flow1",
             "type": "LONG",
             "ast": {
+                # P12: tín hiệu khung 4h chỉ kích ở phút đầu sau khi nến 4h đóng, lúc đó close 1m (đã đóng) == close 4h -> dùng ">=" để có lệnh
                 "match": [{
                     "condition": [
-                        [[{"frame": "1m", "column": "close"}, ">", {"frame": "4h", "column": "close"}]]
+                        [[{"frame": "1m", "column": "close"}, ">=", {"frame": "4h", "column": "close"}]]
                     ]
                 }],
                 "stop": [{

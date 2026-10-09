@@ -1,0 +1,119 @@
+{
+ "S9a": {
+  "cfg": {
+   "ema": 20,
+   "lev": 1,
+   "mode": "cross",
+   "osp": 50.0,
+   "sl": 1.0
+  },
+  "d_equity": 3.0783457987126894e-05,
+  "entries_only_at_daily_boundary": true,
+  "legacy_level_reentry_candidates": 9,
+  "match": true,
+  "n_naut": 15,
+  "n_nora": 15,
+  "n_paired": 15,
+  "n_paired_ok": 15,
+  "open_at_end_naut": [
+   [
+    "ETH",
+    1789689600000
+   ]
+  ],
+  "open_at_end_nora": [
+   [
+    "ETH",
+    1789689600000
+   ]
+  ],
+  "realized_equity_naut": 10764.72163846,
+  "realized_equity_nora": 10764.721669243458,
+  "rejected_for_risk_nora_minutes": 12,
+  "same_day_reentries": 0,
+  "sl_exits": 10,
+  "sl_fill_at_level": true,
+  "sl_intrabar_path_ok": 10,
+  "sl_same_day": 9,
+  "stage": "S9a",
+  "unmatched_or_bad": []
+ },
+ "S9b": {
+  "cfg": {
+   "ema": 10,
+   "lev": 1,
+   "mode": "level",
+   "osp": 50.0,
+   "sl": 1.5
+  },
+  "d_equity": 5.839651930727996e-05,
+  "entries_only_at_daily_boundary": true,
+  "legacy_level_reentry_candidates": 24,
+  "match": true,
+  "n_naut": 37,
+  "n_nora": 37,
+  "n_paired": 37,
+  "n_paired_ok": 37,
+  "open_at_end_naut": [
+   [
+    "BTC",
+    1789776000000
+   ]
+  ],
+  "open_at_end_nora": [
+   [
+    "BTC",
+    1789776000000
+   ]
+  ],
+  "realized_equity_naut": 9966.39298027,
+  "realized_equity_nora": 9966.39303866652,
+  "rejected_for_risk_nora_minutes": 114,
+  "same_day_reentries": 0,
+  "sl_exits": 24,
+  "sl_fill_at_level": true,
+  "sl_intrabar_path_ok": 24,
+  "sl_same_day": 19,
+  "stage": "S9b",
+  "unmatched_or_bad": []
+ },
+ "S9c": {
+  "cfg": {
+   "ema": 10,
+   "lev": 1,
+   "mode": "level",
+   "osp": 50.0,
+   "sl": 0.4
+  },
+  "d_equity": 2.21951340790838e-05,
+  "entries_only_at_daily_boundary": true,
+  "legacy_level_reentry_candidates": 62,
+  "match": true,
+  "n_naut": 68,
+  "n_nora": 68,
+  "n_paired": 68,
+  "n_paired_ok": 68,
+  "open_at_end_naut": [
+   [
+    "BTC",
+    1789948800000
+   ]
+  ],
+  "open_at_end_nora": [
+   [
+    "BTC",
+    1789948800000
+   ]
+  ],
+  "realized_equity_naut": 9420.528932510002,
+  "realized_equity_nora": 9420.528954705136,
+  "rejected_for_risk_nora_minutes": 114,
+  "same_day_reentries": 0,
+  "sl_exits": 63,
+  "sl_fill_at_level": true,
+  "sl_intrabar_path_ok": 62,
+  "sl_same_day": 57,
+  "stage": "S9c",
+  "unmatched_or_bad": []
+ }
+}

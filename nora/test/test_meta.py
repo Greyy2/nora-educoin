@@ -49,6 +49,7 @@ def test_frames_live_jobs(m):
     assert set(m["live"]["venues"]) == {"okx", "binance"}
     assert [k["kind"] for k in m["jobs"]["kinds"]] == list(P.KINDS)
     for k in m["jobs"]["kinds"]:
+        assert k["label_vi"] == P.KINDS[k["kind"]]["label_vi"] and k["label_vi"] != k["kind"]
         assert k["ephemeral"] == (k["kind"] in P.EPHEMERAL_KINDS)
         base = P.persist_dest_base(k["kind"])
         assert k["persist_to"] == (os.path.relpath(base, store.data_home()) if base else None)
@@ -160,3 +161,50 @@ def test_etag_changes_with_metric_defs(monkeypatch):
     changed = {**metrics_mod.METRIC_DEFS, "sharpe": {**metrics_mod.METRIC_DEFS["sharpe"], "label_vi": "Sharpe (đổi)"}}
     monkeypatch.setattr(process_routes, "METRIC_DEFS", changed)
     assert process_routes._build_meta()["version"] != v0
+
+
+# ─── trades_from, stress, metric keys của phễu, limits.book_mc ───────────────
+import re as _re  # noqa: E402
+
+
+def test_trades_from_mapping(m):
+    for s in m["funnel"]["stages"]:
+        assert s["trades_from"] == stages.trades_from(s["id"])
+        if s["has_trades"]:
+            assert s["trades_from"] is None
+        elif s["trades_from"] is not None:
+            assert s["trades_from"] in stages.TRADE_STAGES and stages.ALL_STAGE_IDX[s["trades_from"]] < s["idx"]
+    by = {s["id"]: s["trades_from"] for s in m["funnel"]["stages"]}
+    assert by[stages.LEGACY_STAGE] == "S1_backtest" and by["S4_montecarlo"] == "S3_wfa" and by["FINAL"] == "S6_holdout"
+    assert by["S0_generate"] is None   # trước mọi tầng có lệnh
+
+
+def test_stress_equals_carlo(m):
+    assert m["stress"] == carlo.STRESS_SCENARIOS
+    by = {s["key"]: s["label_vi"] for s in m["stress"]}
+    assert by == carlo.STRESS_LABELS_VI
+    assert f"−{carlo.VERTICAL_CRASH_PCT:.0f}%" in by["vertical_crash"]
+    assert f"+{carlo.VERTICAL_SURGE_PCT:.0f}%/{carlo.VERTICAL_SURGE_DAYS} ngày" in by["vertical_surge"]
+    assert {s["key"] for s in m["stress"] if s["needs_positions"]} == set(carlo.VERTICAL_NAMES)
+
+
+def test_funnel_js_metric_keys_have_defs(m):
+    src = open(os.path.join(os.path.dirname(__file__), "..", "frontend", "src", "lib", "funnel.js"), encoding="utf-8").read()
+    blk = src[src.index("export const METRICS = {"):]
+    keys = _re.findall(r"^  (\w+):", blk[:blk.index("\n}\n")], _re.M)
+    assert keys  # METRICS giờ chỉ giữ gợi ý UI (term/tone); nhãn/đơn vị lấy từ meta.metrics.defs
+    assert [k for k in keys if k not in m["metrics"]["defs"]] == []
+    d = m["metrics"]["defs"]["p_mdd_ge_30"]
+    assert f"{carlo.MC_RUIN_THRESHOLD_PCT:g}%" in d["label_vi"] and f"{carlo.MC_RUIN_THRESHOLD_PCT:g}%" in d["help_vi"]
+
+
+def test_book_mc_limits_equal_schema(m):
+    props = optimize.McRequest.model_json_schema()["properties"]
+    lim = m["limits"]["book_mc"]
+    for f in ("simulations", "block_days", "horizon_days", "ruin_threshold_pct", "seed", "scale", "stress_max_mdd_pct"):
+        for b in ("minimum", "maximum", "exclusiveMinimum", "default"):
+            if b in props[f]:
+                assert lim[f][b] == props[f][b], (f, b)
+        assert lim[f]["help_vi"] == props[f]["description"]
+    assert lim["ruin_threshold_pct"]["default"] == carlo.MC_RUIN_THRESHOLD_PCT
+    assert lim["simulations"]["maximum"] == carlo.MC_MAX_SIMULATIONS and lim["simulations"]["default"] == carlo.MC_MIN_SIMULATIONS

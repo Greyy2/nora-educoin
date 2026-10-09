@@ -21,8 +21,7 @@ import numpy as np
 import pandas as pd
 
 NORA = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-sys.path.insert(0, NORA)
-RAW = os.path.join(os.path.dirname(NORA), ".agent", "_bmad-output", "planning-artifacts", "research",
+RAW = os.path.join(NORA, "docs", "bmad", "research",
                    "market-okx-ai-fintech-agent-economy-2026-09-28", "digests", "bots50")
 FMS = {"15m": 900_000, "1h": 3_600_000, "4h": 14_400_000}
 
