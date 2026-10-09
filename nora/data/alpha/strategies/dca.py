@@ -16,7 +16,7 @@ class DcaLong(SimpleAlgorithm):
     id = "dca_long"
     family = "DCA (bắt hồi + dồn có điều kiện)"
     description = "RSI quá bán và giá dưới dải Bollinger dưới khi thị trường đi ngang → mua; giá giảm tiếp thì dồn thêm tầng theo bước ATR CHỈ khi vẫn đi ngang (ER, ADX thấp). Chốt lời và cắt lỗ cả rổ tính từ giá trung bình."
-    position = {'exit_unit': 'atr'}
+    position = {'exit_unit': 'atr', 'atr_frame': '1h', 'cooldown': 60}   # tường minh: khung ATR 1h, nghỉ 60 phút (mặc định cũ; mặc định mới theo khung tín hiệu)
 
     def __algorithm__(self):
         e = self.frame(p('entry_tf', '1h',
@@ -135,7 +135,7 @@ class DcaShort(SimpleAlgorithm):
     id = "dca_short"
     family = "DCA (bắt hồi + dồn có điều kiện)"
     description = "RSI quá mua và giá trên dải Bollinger trên khi thị trường đi ngang → bán; giá tăng tiếp thì dồn thêm tầng theo bước ATR CHỈ khi vẫn đi ngang (ER, ADX thấp). Chốt lời và cắt lỗ cả rổ tính từ giá trung bình."
-    position = {'exit_unit': 'atr'}
+    position = {'exit_unit': 'atr', 'atr_frame': '1h', 'cooldown': 60}   # tường minh: khung ATR 1h, nghỉ 60 phút (mặc định cũ; mặc định mới theo khung tín hiệu)
 
     def __algorithm__(self):
         e = self.frame(p('entry_tf', '1h',

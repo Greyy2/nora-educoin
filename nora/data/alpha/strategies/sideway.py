@@ -17,6 +17,7 @@ class SidewayLong(SimpleAlgorithm):
     id = "sideway_long"
     family = "Sideway (đi ngang)"
     description = "Chỉ đánh khi thị trường đi ngang (ER thấp): RSI quá bán và giá dưới dải Bollinger dưới → mua. Chốt lời / cắt lỗ theo ATR."
+    position = {'atr_frame': '1h', 'cooldown': 60}   # tường minh: khung ATR 1h, nghỉ 60 phút (mặc định cũ)
 
     def __algorithm__(self):
         e = self.frame(p('entry_tf', '5m',
@@ -80,6 +81,7 @@ class SidewayShort(SimpleAlgorithm):
     id = "sideway_short"
     family = "Sideway (đi ngang)"
     description = "Chỉ đánh khi thị trường đi ngang (ER thấp): RSI quá mua và giá trên dải Bollinger trên → bán. Chốt lời / cắt lỗ theo ATR."
+    position = {'atr_frame': '1h', 'cooldown': 60}   # tường minh: khung ATR 1h, nghỉ 60 phút (mặc định cũ)
 
     def __algorithm__(self):
         e = self.frame(p('entry_tf', '5m',
