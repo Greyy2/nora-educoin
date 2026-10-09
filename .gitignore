@@ -2,10 +2,26 @@ __MACOSX
 coins/node_modules
 .idea
 data/
-# Ngoại lệ: nora/data/alphas/ (sổ alpha, registry, testnet) được commit; phần còn lại của nora/data/ vẫn bị bỏ qua
+# Ngoại lệ: nora/data/ chỉ theo dõi phần định nghĩa/cấu hình của nora/data/alpha/ (ADR-P9 §4.7). Không commit: alpha/{user,funnel,book}/, market/, backtest/,
+# wfa/, carlo/, live/, cache/ và symlink tạm ở đường cũ (alphas, _cache, okx, binance, ... nằm dưới nora/data/* nên đã bị chặn)
 !nora/data/
 nora/data/*
-!nora/data/alphas/
+!nora/data/alpha/
+nora/data/alpha/*
+!nora/data/alpha/strategies/
+!nora/data/alpha/education/
+!nora/data/alpha/universes/
+!nora/data/alpha/research/
+!nora/data/alpha/explore/
+!nora/data/alpha/testnet/
+!nora/data/alpha/presets.json
+!nora/data/alpha/registry.json
+!nora/data/alpha/book.json
+# P9.9: định nghĩa chiến lược hệ thống (Python DSL) ở nora/data/alpha/strategies/ được commit (cây data mới; hiện còn ở data/alphas/strategies/)
+!nora/data/alpha/
+nora/data/alpha/*
+!nora/data/alpha/strategies/
+nora/data/alpha/strategies/.versions/
 # mã nguồn tên "data" (package Python) không phải dữ liệu: luôn theo dõi
 !nora/backend/core/data/
 # Dữ liệu thị trường Nora (hàng trăm MB): staging crawl và bộ dữ liệu cũ dùng làm tham chiếu test

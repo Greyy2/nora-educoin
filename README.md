@@ -2,9 +2,9 @@
 
 # NoraBT
 
-**AI risk supervisor for OKX copy-trading bots**
+**AI risk supervisor for OKX copy-trading bots & Crypto Perp Quantitative Pipeline**
 
-Rebuilds a bot's real track record from OKX public data and shows what its headline numbers hide before anyone copies it.
+> 📌 **Core Quantitative Pipeline & Studio:** Hệ thống nghiên cứu định lượng, Core Engine 1m, WFA, Monte Carlo, và Studio UI nằm tại thư mục [`nora/`](nora/README.md). Xem [Nora Documentation](nora/docs/bmad/README.md).
 
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
@@ -13,7 +13,7 @@ Rebuilds a bot's real track record from OKX public data and shows what its headl
 ![OKX](https://img.shields.io/badge/OKX-public%20API-000000)
 ![x402](https://img.shields.io/badge/x402-X%20Layer-7B3FE4)
 
-[System overview](Agent/docs/SYSTEM_OVERVIEW.md) · [OKX AI report](Agent/docs/OKX_AI_REPORT.md) · [Deployment runbook](Agent/docker/README.md)
+[Nora Core Pipeline](nora/README.md) · [Nora BMAD Docs](nora/docs/bmad/README.md) · [System overview](Agent/docs/SYSTEM_OVERVIEW.md) · [OKX AI report](Agent/docs/OKX_AI_REPORT.md)
 
 </div>
 
