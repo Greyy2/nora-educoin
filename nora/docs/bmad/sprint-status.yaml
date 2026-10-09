@@ -1,17 +1,28 @@
-# Trạng thái máy đọc được của dự án Nora (BMAD).
-# Giá trị hợp lệ: backlog | ready | in-progress | review | done.
-# Nguồn sự thật cho từng story là file stories/<id>-<slug>.md; file này phải khớp (xem README.md, mục Kiểm tra nhất quán).
 project: nora
-last_updated: 2026-10-06
-baseline_commit: dc08366
+last_updated: '2026-10-09'
+baseline_commit: f4864d5
 branch: fix/pipeline-audit
-status_values: [backlog, ready, in-progress, review, done]
+status_values:
+- backlog
+- ready
+- in-progress
+- review
+- done
 summary:
-  epics: {done: 11, in-progress: 3, backlog: 2}
-  stories: {done: 64, review: 4, in-progress: 0, ready: 0, backlog: 17, total: 85}
+  epics:
+    done: 15
+    in-progress: 3
+    backlog: 2
+  stories:
+    done: 91
+    review: 2
+    in-progress: 1
+    ready: 0
+    backlog: 15
+    total: 109
 epics:
   E1:
-    title: "Dữ liệu thị trường"
+    title: Dữ liệu thị trường
     status: done
     stories:
       E1-S1-crawl-binance-klines: done
@@ -21,7 +32,7 @@ epics:
       E1-S5-promote-staging: done
       E1-S6-dex-data-pipeline: done
   E2:
-    title: "Tín hiệu & chiến lược"
+    title: Tín hiệu & chiến lược
     status: done
     stories:
       E2-S1-causal-kernels: done
@@ -30,7 +41,7 @@ epics:
       E2-S4-strategy-library-templates: done
       E2-S5-strategy-book-candidates: done
   E3:
-    title: "Engine backtest, vốn & rủi ro"
+    title: Engine backtest, vốn & rủi ro
     status: done
     stories:
       E3-S1-intrabar-execution: done
@@ -42,7 +53,7 @@ epics:
       E3-S7-shared-mmap-skip-idle: done
       E3-S8-golden-harness: done
   E4:
-    title: "Kiểm chứng WFA / Monte Carlo / holdout"
+    title: Kiểm chứng WFA / Monte Carlo / holdout
     status: done
     stories:
       E4-S1-wfa-single-asset: done
@@ -52,7 +63,7 @@ epics:
       E4-S5-robustness-stopfill-sizing: done
       E4-S6-null-falsification-research: done
   E5:
-    title: "Alpha & sổ chiến lược"
+    title: Alpha & sổ chiến lược
     status: done
     stories:
       E5-S1-alpha-registry-testnet-config: done
@@ -61,7 +72,7 @@ epics:
       E5-S4-book-export-holdout-rule: done
       E5-S5-first-book-run-holdout-failed: done
   E6:
-    title: "Hạ tầng vận hành & bộ nhớ"
+    title: Hạ tầng vận hành & bộ nhớ
     status: done
     stories:
       E6-S1-oom-root-cause-bounded-caches: done
@@ -71,7 +82,7 @@ epics:
       E6-S5-package-layout-environment: done
       E6-S6-smoke-check-ref-check: done
   E7:
-    title: "Studio API"
+    title: Studio API
     status: done
     stories:
       E7-S1-book-jobs-api: done
@@ -82,7 +93,7 @@ epics:
       E7-S6-mock-feeds-live-testnet: done
       E7-S7-catalog-alphas-studio-compat: done
   E8:
-    title: "UI v2"
+    title: UI v2
     status: in-progress
     stories:
       E8-S1-v2-shell-theme-routing: done
@@ -93,7 +104,7 @@ epics:
       E8-S6-ux-improvements: done
       E8-S7-frontend-automated-tests: backlog
   E9:
-    title: "Testnet & Live"
+    title: Testnet & Live
     status: in-progress
     stories:
       E9-S1-testnet-bot-executor: done
@@ -104,7 +115,7 @@ epics:
       E9-S6-live-backtest-reconciliation: review
       E9-S7-exchange-secrets-management: done
   E10:
-    title: "Nghiên cứu chiến lược mới & phương pháp"
+    title: Nghiên cứu chiến lược mới & phương pháp
     status: backlog
     stories:
       E10-S1-deflated-sharpe-ratio: backlog
@@ -114,7 +125,7 @@ epics:
       E10-S5-sol-edge-explanation: backlog
       E10-S6-trial-ledger-multiple-testing: backlog
   E11:
-    title: "Bảo mật & phát hành"
+    title: Bảo mật & phát hành
     status: backlog
     stories:
       E11-S1-api-bind-localhost: backlog
@@ -125,27 +136,27 @@ epics:
       E11-S6-gate-on-book-path: backlog
       E11-S7-release-process: backlog
   E12:
-    title: "Tốc độ (500k alpha ≤ 4 h)"
+    title: Tốc độ (500k alpha ≤ 4 h)
     status: done
     stories:
       E12-S1-numba-kernel-fast-forward: done
       E12-S2-shared-column-store: done
       E12-S3-run-timeframe: done
   E13:
-    title: "Hai chế độ chạy Cơ bản / Nâng cao"
+    title: Hai chế độ chạy Cơ bản / Nâng cao
     status: done
     stories:
       E13-S1-basic-advanced-modes: done
       E13-S2-presets-timeframe-dev2: done
   E14:
-    title: "Phễu kiểm duyệt alpha"
+    title: Phễu kiểm duyệt alpha
     status: done
     stories:
       E14-S1-funnel-s0-final: done
       E14-S2-funnel-real-run-9-strategies: done
       E14-S3-alpha-sol-revalidate-testnet: done
   E15:
-    title: "Regime và điều phối chiến lược"
+    title: Regime và điều phối chiến lược
     status: done
     stories:
       E15-S1-regime-spec: done
@@ -155,10 +166,11 @@ epics:
       E15-S5-regime-trials-dsr-pbo: done
       E15-S6-regime-ui: done
   E16:
-    title: "Kiến trúc thực thi thống nhất"
+    title: Kiến trúc thực thi thống nhất (backtest → testnet → live)
     status: in-progress
     stories:
       E16-S1-adr-unified-execution: done
+      E16-S10-nautilus-parity-and-two-phase: done
       E16-S2-risk-engine: done
       E16-S3-policy-functions: done
       E16-S4-events-and-account: done
@@ -167,4 +179,34 @@ epics:
       E16-S7-venue-conformance: done
       E16-S8-okx-venue: done
       E16-S9-unified-bot: in-progress
-      E16-S10-nautilus-parity-and-two-phase: done
+  E17:
+    title: Tái cấu trúc backend + dữ liệu (P9)
+    status: done
+    stories:
+      E17-S1-backend-layering: done
+      E17-S2-market-data-store: done
+      E17-S3-scoped-process-cache: done
+      E17-S4-cleanup-source-tree: done
+  E18:
+    title: Alpha contract + Studio Editor (P10)
+    status: done
+    stories:
+      E18-S1-strategy-contract-base: done
+      E18-S2-alpha-validator-contract: done
+      E18-S3-sample-strategies-library: done
+      E18-S4-studio-editor-and-education-ui: done
+  E19:
+    title: UI nguồn sự thật duy nhất + responsive (P11)
+    status: done
+    stories:
+      E19-S1-studio-meta-endpoint: done
+      E19-S2-meta-provider-context: done
+      E19-S3-ui-sync-with-meta: done
+      E19-S4-responsive-dark-theme: done
+  E20:
+    title: Signal timing & Causal execution (P12)
+    status: done
+    stories:
+      E20-S1-causal-signal-execution-open: done
+      E20-S2-two-phase-order-lifecycle: done
+      E20-S3-causal-timing-tests: done

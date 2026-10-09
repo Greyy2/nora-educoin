@@ -1,7 +1,7 @@
 # SPEC: Multi-Bot Portfolio Correlation and Joint Risk Engine
 
 > **BMAD Document Standard (Derived Spec)**  
-> **Source Memory:** `_bmad-output/specs/spec-portfolio-correlation/.memlog.md`  
+> **Source Memory:** [`.memlog.md`](.memlog.md)  
 > **Topic:** Multi-Bot Portfolio Correlation and Joint Risk Engine  
 > **Goal:** Quantify cross-bot correlation, detect diversification illusion, joint Monte Carlo stress test  
 > **Status:** APPROVED / PRODUCTION READY  

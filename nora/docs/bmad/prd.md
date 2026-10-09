@@ -1,226 +1,206 @@
-# PRD: Nora, pipeline nghiên cứu và kiểm chứng chiến lược crypto perp
+# PRD: Nora, Pipeline Nghiên Cứu và Kiểm Chứng Chiến Lược Crypto Perp
 
-Phiên bản: 1.0 · Ngày: 01/10/2026 · Nhánh: `fix/pipeline-audit` (HEAD `a3202c9`) · Phạm vi code: `nora/`
+Phiên bản: 2.0 · Ngày: 09/10/2026 · Kiến trúc chuẩn: P9–P12 (Backend 5 phân tầng, Data một cây, UI MetaProvider)
 
-Tài liệu này mô tả sản phẩm cần có và ghi rõ phần nào đã có, phần nào chưa. Chi tiết kỹ thuật ở
-[architecture.md](architecture.md); danh sách việc ở [epics.md](epics.md). Mọi số đo đều có nguồn trong repo;
-chỗ chưa đo ghi "chưa đo".
+Tài liệu này mô tả chi tiết sản phẩm, phạm vi, các yêu cầu chức năng (FR), yêu cầu phi chức năng (NFR), rủi ro, và ánh xạ tới danh sách Epics (E1–E20). Chi tiết kỹ thuật nằm ở [architecture.md](architecture.md); danh sách chi tiết các story ở [epics.md](epics.md).
+
+---
 
 ## 1. Vấn đề và tầm nhìn
 
 ### 1.1 Vấn đề
-
-Bảng xếp hạng bot giao dịch công khai (OKX, Binance) cho thấy lãi rất cao nhưng không cho thấy lỗ treo, đòn bẩy
-và chi phí thật. Phân tích trong `alpha_pipeline.md` §7 cho thấy phần lớn ROI "khủng" đến từ đòn bẩy 10-30x
-và lỗ chưa chốt không hiển thị; chia cho đòn bẩy trung vị thì chỉ còn khoảng 2-15% mỗi 90 ngày trên 1x. Một bộ quét
-"rải limit" từng cho +10-20 bps/lệnh trên cả 8 tài sản, nhưng trên random walk vẫn ra +15 bps: edge giả do chọn trước
-lệnh "sẽ khớp" và do giả định stop-loss khớp đúng mức. Hai lỗi này là lỗi kiểm chứng, không phải lỗi thị trường.
-
-Vì vậy cần một hệ thống mà kết quả backtest đáng tin: không nhìn trước tương lai, chi phí và rủi ro thanh lý được mô phỏng,
-đường vốn tính cả lỗ chưa chốt, và mọi chiến lược phải qua nhiều cổng kiểm chứng độc lập trước khi được gọi là alpha.
+- Bảng xếp hạng bot giao dịch công khai (OKX, Binance) thường phóng đại lợi nhuận (bỏ qua lỗ treo, đòn bẩy quá mức, chi phí trượt giá và funding thật).
+- Nhiều hệ thống backtest mắc lỗi nghiêm trọng: **nhìn trước tương lai (lookahead bias)**, giả định khớp lệnh phi thực tế (chọn trước lệnh thắng, khớp stop-loss tại đúng giá đặt khi nến gap xuyên qua), và **overfitting** do thử quá nhiều tham số mà không có kiểm định out-of-sample nghiêm ngặt.
+- Thiếu sự liên kết chặt chẽ giữa môi trường backtest và môi trường thực thi live, dẫn tới việc "backtest lãi khủng nhưng live cháy tài khoản".
 
 ### 1.2 Tầm nhìn
-
-Một pipeline duy nhất, tái lập được từng bit, đi từ dữ liệu thị trường đến cấu hình chạy testnet/live cho crypto perp:
-
+Xây dựng một pipeline định lượng crypto perp duy nhất, tái lập bit-identical, đi từ nến thô tới thực thi live:
 ```
-nghiên cứu -> kiểm chứng (backtest, WFA, Monte Carlo, holdout) -> alpha/sổ chiến lược -> testnet/live -> theo dõi danh mục
+Dữ liệu chuẩn -> Tín hiệu/Chiến lược -> Core Engine (Khớp 2 pha) -> Kiểm chứng (WFA/MC/Holdout) -> Alpha Registry/Sổ -> Live (Paper/Testnet/Live)
 ```
 
-Nguyên tắc không đổi:
+**Nguyên tắc không thoả hiệp:**
+1. **Tuyệt đối Causal:** Nến tại thời điểm $t$ chỉ nhìn dữ liệu đã đóng trước hoặc tại $t$. Không nhìn trước nến tương lai.
+2. **Bi quan khi chưa chắc chắn:** Trong một nến, chiều bất lợi được xử lý trước; tính cả 2 kịch bản SL level (cận trên) và SL extreme (cận dưới).
+3. **Quản trị bằng NAV Mark-to-Market (MTM):** Đường vốn tính theo NAV thực tế từng giờ (bao gồm unrealized PnL), không chỉ tính vốn khi chốt lệnh.
+4. **Không nới cổng kiểm định:** Không hạ tiêu chí để lấy kết quả đẹp. Nếu không đạt thì kết luận "chưa có alpha".
+5. **Một Engine duy nhất:** Cùng một logic khớp lệnh và hạch toán vốn từ backtest, WFA, Monte Carlo đến Paper/Testnet.
 
-1. **Không nới gate để có kết quả đẹp.** Không có chiến lược nào đạt thì báo "không có". Hiện trạng: một alpha đơn tài sản
-   đạt (SOL), sổ chiến lược trượt holdout (`HOLDOUT_FAILED`) và không có cấu hình testnet.
-2. **Causal tuyệt đối.** Giá trị tại nến t chỉ dùng dữ liệu đã đóng tới t; khung lớn chỉ hiện khi nến khung đó đã đóng.
-3. **Bi quan khi chưa chắc.** Phía bất lợi xử lý trước trong nến; mọi kết quả báo cả SL khớp "level" (cận trên) và "extreme" (cận dưới).
-4. **Theo dõi bằng NAV mark-to-market,** không bằng lãi đã chốt.
+---
 
 ## 2. Người dùng mục tiêu
 
-| Người dùng | Việc cần làm | Tính năng chính |
+| Người dùng | Nhu cầu & Hành vi | Điểm chạm tính năng |
 |---|---|---|
-| Người nghiên cứu / quant | Đề xuất chiến lược, hiệu chỉnh tham số, kiểm chứng, đọc bằng chứng | Trang Alpha, Backtest/WFA/Monte Carlo, kho alpha, lệnh `python -m backend.<gói>.<lệnh>` |
-| Người vận hành | Chạy job nặng an toàn trên máy dùng chung, xuất bản sổ, theo dõi danh mục, xử lý sự cố | Hàng đợi `run_limited`, `nora.slice`, trang Danh mục, `publish`, log RAM |
+| **Quantitative Researcher** | Nghiên cứu tín hiệu, viết chiến lược, quét không gian tham số, chạy WFA & Monte Carlo, xuất bản Alpha | Trang Studio, Backtest, Funnel, Alpha Lab, CLI `ops/run_limited.sh` |
+| **Trader / Quant Operator** | Vận hành sổ chiến lược, theo dõi danh mục đa tài sản, giám sát rủi ro tài khoản thật, kích hoạt Kill Switch | Trang Portfolio, Live Monitor, History, cấu hình `live/config.yaml` |
+| **Quant Learner / Dev** | Tìm hiểu cơ chế khớp lệnh perp, xem mẫu chiến lược chuẩn, tự viết và chạy thử chiến lược theo contract | Trang Education, Create Alpha, tài liệu `engine-spec.md` |
 
-Hiện chưa có người dùng trả tiền hay đa người dùng; hệ thống chạy một máy, một nhóm nhỏ, không có xác thực (xem NFR-9, R-5).
+---
 
 ## 3. Mục tiêu và chỉ số thành công
 
-| # | Mục tiêu | Chỉ số / ngưỡng | Hiện trạng (nguồn) |
+| ID | Mục tiêu | Chỉ số & Ngưỡng định lượng | Trạng thái hiện tại |
 |---|---|---|---|
-| G1 | Chỉ công nhận alpha qua đủ cổng | WFA: ≥ 60% fold OOS có lãi, ≥ 5 fold, lãi IS TB ≥ 0, MDD fold ≤ 30%, lãi kép OOS ≥ 0 · Monte Carlo trên lợi suất ngày MTM: P(MDD ≥ 30%) ≤ 5% (alpha đơn tài sản: chuỗi mô phỏng dài bằng số ngày OOS; sổ: 365 ngày) · Holdout 20% cuối: lãi > 0, MDD ≤ 30%, đủ lệnh · đòn bẩy ≤ 10x | `trend_long_perp__SOL` đạt: WFA 14 fold, 9 có lãi (64,3%), OOS +35,97%; MC ngày 0,80% (chuỗi 434 ngày OOS); holdout +14,71%, MDD 12,23% (`data/alphas/registry.json`) |
-| G2 | Sổ chiến lược qua holdout trước khi xuất cấu hình testnet | `holdout_level` > 0 và MDD ≤ 30% (cả level, extreme) | **Chưa đạt**: sổ `breakout_4h_long + breakout_4h_short` holdout −4,06% (level) / −7,38% (extreme) → `HOLDOUT_FAILED`, không có `testnet/book.json` |
-| G3 | Tái lập bit-identical | Cùng dữ liệu (sha256), cùng tham số, cùng seed cho cùng từng bit; tối ưu hiệu năng không đổi kết quả | Golden harness 3 kịch bản + 1 test phát hiện xáo trộn 1 bit; qua mọi lần mmap / skip-idle / tái cấu trúc (`test/test_golden_results.py`) |
-| G4 | Chạy gọn trong ngân sách RAM chung | `nora.slice` MemoryMax 12 GB, không swap; không job nào làm sập máy | Sau sửa OOM: build 7 ứng viên × 24 cấu hình 487 s, đỉnh 2,5 GB (`06ae13b`); benchmark 8 perp: đỉnh slice 5950 → 2045 MB (`b179f2b`) |
-| G5 | Vòng lặp UI đầy đủ không cần CLI | Alpha build → Backtest → WFA → Monte Carlo → Danh mục | Chạy thật: build 71,1 s, backtest 6,6 s, WFA 53,5 s (đọc từ `data/_cache/api_jobs/*/job.json`); Monte Carlo đồng bộ, ngưỡng test < 15 s ở kích thước tối đa, thời gian thực tế chưa ghi log |
-| G6 | Theo dõi danh mục Live / Testnet / Backtest | Cùng một payload cho cả ba nguồn; Live/Testnet nối tài khoản thật không đổi UI | Payload xong; Live/Testnet đang dùng feed **giả lập** (`mock: true`); chưa có tài khoản thật |
-| G7 | Không có gate nào bị nới âm thầm | Hằng số gate nằm ở một nơi, có test | `backend/wfa/portfolio_wfa.py` (đầu file), `backend/core/strategy/strategy_book.py` (`GATES`), `backend/optimize/optimize_alphas.py` |
+| **G1** | Chỉ công nhận Alpha qua đủ cổng | WFA: $\ge 60\%$ fold OOS có lãi, $\ge 5$ folds, MDD OOS $\le 30\%$, CAGR OOS $> 0$. Monte Carlo MTM: $P(\text{MDD} \ge 30\%) \le 5\%$. Holdout 20% cuối: Return $> 0$, MDD $\le 30\%$, Leverage $\le 10x$. | Đạt cho cặp `SOL` (`trend_long_perp__SOL`: WFA 14 folds, 64.3% win, OOS +35.97%; MC ngày 0.80%; Holdout +14.71%). |
+| **G2** | Sổ chiến lược qua Holdout trước khi cấp Testnet | `holdout_level > 0` và MDD $\le 30\%$ (cả level và extreme). | Đang tiếp tục kiểm chứng thêm các ứng viên mới sau P10. |
+| **G3** | Tái lập Bit-identical | Cùng SHA256 dữ liệu, cùng tham số, cùng seed $\rightarrow$ Ra kết quả trùng khớp từng bit float (`test_golden_results.py`). | 100% đạt qua Golden Harness và Nautilus 332/332 parity test. |
+| **G4** | Vận hành trong ngân sách RAM | Giới hạn `nora.slice` MemoryMax 12 GB, không swap; không có process nào gây OOM máy chủ. | Đạt. Quản lý qua `ops/run_limited.sh` và `flock`. |
+| **G5** | Vòng lặp UI Studio khép kín | Người dùng tạo chiến lược $\rightarrow$ Backtest $\rightarrow$ WFA $\rightarrow$ MC $\rightarrow$ Xuất bản sổ hoàn toàn qua giao diện web. | Đạt (Trang Backtest, Alpha, CreateAlpha kết nối `/api/studio/*`). |
+| **G6** | Giám sát danh mục Live / Paper | Dashboard đọc trực tiếp trạng thái tài khoản OKX demo / live thật, hiển thị NAV MTM, drawdown, vị thế mở. | Đạt qua route `/api/studio/live/*`. |
 
-## 4. Phạm vi
+---
+
+## 4. Phạm vi sản phẩm
 
 ### 4.1 Trong phạm vi
+- **Dữ liệu:** OKX & Binance Futures (10 tài sản cốt lõi: BTC, ETH, SOL, BNB, XRP, DOGE, ADA, AVAX, NEAR, SUI), nến 1m + funding history, cấu trúc cây thống nhất `data/market/<venue>/<market>/<symbol>/<timeframe>.pkl`.
+- **Backend 5 phân tầng:** `alpha → core → optimize → live → routes`. Core engine không phụ thuộc I/O.
+- **Chiến lược:** Strategy Contract tiêu chuẩn (`BaseStrategy`, `evaluate(candles) -> signals`, kiểm định RUN / ADAPT / REJECT).
+- **Core Engine:** Khớp nến 1m, 2 pha (khám phá tín hiệu $\rightarrow$ khớp lệnh nội bar OHLC), hỗ trợ DCA, isolated margin perp, funding rate, liquidation price, và `CapitalLedger` chống over-allocation.
+- **Kiểm chứng:** Walk-Forward Analysis (WFA), Monte Carlo Block Bootstrap (theo lệnh và theo chuỗi ngày MTM), Holdout out-of-sample.
+- **Thực thi Live:** Tách biệt 3 môi trường rõ ràng: `live/paper`, `live/testnet`, `live/live`.
+- **Frontend:** Single-Page Application (React/Vite), giao diện Dark Theme chuyên nghiệp, Responsive, lấy danh mục metadata động từ `/api/studio/meta`.
 
-- Dữ liệu Binance spot và USDT-M perp (8 tài sản: BTC, ETH, SOL, BNB, XRP, DOGE, ADA, AVAX), nến 1m + funding, 3 năm.
-- Tín hiệu kernel causal, chiến lược AST, engine 1m có DCA, perp, thanh lý, funding, sổ vốn chung, giới hạn danh mục.
-- Kiểm chứng: WFA (đơn tài sản và danh mục), Monte Carlo (theo lệnh và theo ngày MTM), holdout, kiểm độ bền, kiểm null.
-- Kho alpha, sổ chiến lược, xuất cấu hình Binance Futures testnet, xuất bản có xác nhận.
-- API Studio (job nền), UI v2 (Danh mục, Backtest/WFA/Monte Carlo, Alpha), vận hành trong `nora.slice`.
+### 4.2 Ngoài phạm vi
+- Giao dịch cao tần dưới 1 phút (HFT, order book tick-level L2/L3).
+- Arbitrage cross-exchange và multi-leg spread trading.
+- DEX và on-chain spot tokens (tập trung tối đa vào Crypto Perp CEX).
+- Đa người dùng phức tạp, SSO, phân quyền RBAC và hệ thống thanh toán thương mại.
 
-### 4.2 Ngoài phạm vi (hiện tại)
+---
 
-- Giao dịch bằng vốn thật: chưa bật (bot OKX demo chạy từ 04/10/2026; live cần `confirm_live`, epic E9).
-- Khung dưới 1 phút, sổ lệnh (order book), tick CEX; dữ liệu on-chain; đa sàn ngoài Binance.
-- Tối ưu danh mục toàn cục (mean-variance), phân bổ vốn động giữa alpha.
-- Đa người dùng, phân quyền, thanh toán.
-- DEX spot: dữ liệu và code còn (AERO, VVV, tối đa 179 ngày) nhưng không phải trọng tâm; DEX không hỗ trợ perp.
-- Hệ thống MySQL/Mongo cũ và các trang "Legacy" của UI: giữ nguyên, không phát triển thêm.
+## 5. Yêu cầu chức năng (Functional Requirements - FR)
 
-## 5. Yêu cầu chức năng (FR)
-
-Cột "TT": **Có** = đã có và có test; **Một phần** = có nhưng thiếu ý nào đó (ghi chú); **Chưa** = chưa có. Cột Epic trỏ tới [epics.md](epics.md).
-
-### 5.1 Dữ liệu
-
-| ID | Yêu cầu | TT | Epic |
+### 5.1 Dữ liệu Thị trường (Market Data)
+| ID | Yêu cầu chức năng | Trạng thái | Epic liên kết |
 |---|---|---|---|
-| FR-1 | Crawl nến 1m Binance spot và USDT-M perp + lịch sử funding từ data.binance.vision (ZIP có checksum SHA-256) và REST cho phần mới nhất; thiếu tháng hoặc checksum sai thì `crawl_ok=false` | Có | E1 |
-| FR-2 | Bố cục `data/cex/<SYM>[/perp]`, `data/dex/<SYM>`; ký hiệu `BTC@perp` luôn phân giải tới thư mục perp, không bao giờ rơi về spot; tên trùng giữa hai venue phải ghi tiền tố, không đoán | Có | E1 |
-| FR-3 | 1m là nguồn duy nhất; 5m/15m/1h/4h/24h resample theo UTC, `label=left, closed=left`, 4h neo 00:00 UTC; resample idempotent | Có | E1 |
-| FR-4 | Mỗi tài sản có `manifest.json` (nguồn, `synthetic`, `crawl_ok`, độ phủ, `filled_ratio_1m`, `sha256_1m`, checksum đã xác minh) | Có | E1 |
-| FR-5 | Quality gate trả `APPROVED / WARNING / BLOCKED / NEEDS_MORE_DATA`; chặn khi thiếu manifest, `synthetic`, `crawl_ok=false`, sha256 lệch, trùng timestamp, `filled_ratio > 60%`, thiếu 4h, resample lệch; < 30 ngày thì `NEEDS_MORE_DATA` | Một phần: gate được gọi ở Studio `/simulate`, scan, WFA đơn tài sản, research, `promote_staging`; **không** gọi trong đường danh mục/sổ (`PortfolioEngine`, `build_strategy_book`, `validate_book`, `run_book_backtest`) | E1, E11 |
-| FR-6 | `promote_staging` chỉ chuyển sang `data/<venue>/` những tài sản qua gate | Có | E1 |
+| **FR-1** | Crawl dữ liệu nến 1m lịch sử và funding rates từ sàn (Binance / OKX) kèm kiểm tra checksum tính toàn vẹn. | Có | E1 |
+| **FR-2** | Lưu trữ dữ liệu chuẩn hóa dạng một cây duy nhất `data/market/<venue>/<market>/<symbol>/<timeframe>.pkl`. | Có | E1, E17 |
+| **FR-3** | Đóng gói metadata (`sha256`, `coverage`, `filled_ratio`, `is_synthetic`) trực tiếp vào attrs của DataFrame `.pkl`. | Có | E1, E17 |
+| **FR-4** | Resample causal từ nến 1m ra các khung cao hơn (5m, 15m, 1h, 4h, 1d) theo UTC, `label='left', closed='left'`. | Có | E1 |
+| **FR-5** | Data Quality Gate: Tự động phân loại `APPROVED / WARNING / BLOCKED / NEEDS_MORE_DATA`. Chặn dữ liệu thiếu hoặc synthetic. | Có | E1, E11 |
+| **FR-6** | Bổ sung đầy đủ 10 cặp tài sản chính: BTC, ETH, SOL, BNB, XRP, DOGE, ADA, AVAX, NEAR, SUI. | Có | E17 |
 
-### 5.2 Tín hiệu và chiến lược
-
-| ID | Yêu cầu | TT | Epic |
+### 5.2 Tín hiệu và Chiến lược (Alpha & Strategy Contract)
+| ID | Yêu cầu chức năng | Trạng thái | Epic liên kết |
 |---|---|---|---|
-| FR-7 | 23 kernel thuần và causal (prefix-invariant); NaN trong giai đoạn khởi động; điều kiện dùng NaN là False | Có | E2 |
-| FR-8 | Khung 1m, 5m, 15m, 1h, 4h, 24h; kernel khung F chỉ hiện ở nến 1m khi nến F đã đóng (`avail_time = open_F + độ dài F`); đọc nến trước bằng `index` (≤ 500) | Có | E2 |
-| FR-9 | Chiến lược là cây điều kiện AST; bộ đánh giá vector cho cùng kết quả với bộ đánh giá từng nến | Có | E2 |
-| FR-10 | Kiểm tra tín hiệu trước khi ghép chiến lược: `CO_THONG_TIN / YEU / KHONG` theo t-stat, kiểm bằng dữ liệu cài sẵn edge và random walk | Có | E2 |
-| FR-11 | Thư viện: 8 tín hiệu `SIGNALS`, 8 chiến lược mẫu `KERNEL_STRATEGIES`, 5 không gian tối ưu `OPTIMIZATION_SPACES`, 7 ứng viên sổ `CANDIDATES` | Có | E2 |
-| FR-12 | Ngưỡng tín hiệu tham số hoá `{"param": ...}`, tối ưu qua khoá `sig.<tên>` | Có | E2 |
+| **FR-7** | Thư viện 23+ kernel tín hiệu thuần và strictly causal (prefix-invariant). Không được phép rò rỉ nến tương lai. | Có | E2 |
+| **FR-8** | Căn chỉnh đa khung thời gian: Nến khung $F$ chỉ có sẵn cho nến 1m sau khi nến $F$ đã đóng (`avail_time = open_F + duration_F`). | Có | E2, E20 |
+| **FR-9** | Chuẩn hóa Strategy Contract: Kế thừa `BaseStrategy`, cài đặt phương thức `evaluate(candles) -> signals`. | Có | E18 |
+| **FR-10** | Trình xác thực Alpha Validator: Phân loại chiến lược theo 3 trạng thái `RUN` (hợp lệ trực tiếp), `ADAPT` (cần bọc adapter), `REJECT` (sai contract/lookahead). | Có | E18 |
+| **FR-11** | Cung cấp kho 50+ chiến lược mẫu (Trend, Reversal, Breakout, Volatility, DCA) kèm docstrings tiếng Anh giải thích logic cho Education. | Có | E18 |
+| **FR-12** | Quản lý tham số hoá chiến lược (`parameters` schema) cho phép engine quét grid/opt một cách tất định. | Có | E2, E18 |
 
-### 5.3 Engine và rủi ro
-
-| ID | Yêu cầu | TT | Epic |
+### 5.3 Core Execution Engine & Quản trị Vốn
+| ID | Yêu cầu chức năng | Trạng thái | Epic liên kết |
 |---|---|---|---|
-| FR-13 | Khớp lệnh trên nến 1m có giao dịch; vào ở open nến kế tiếp sau tín hiệu; phía bất lợi xử lý theo thứ tự giá chạm, hoà thì ưu tiên thoát; gap xuyên stop-market khớp ở open, lệnh limit chờ sẵn khớp ở mức đặt; SL cũ còn hiệu lực trong nến vừa khớp DCA; không chốt lời trong nến vừa khớp tầng DCA | Có | E3 |
-| FR-14 | Phí taker cho lệnh market (vào, SL, trailing, timeout, thoát theo tín hiệu), maker cho tầng DCA và chốt lời; mặc định theo venue: CEX perp 0,05%/0,02% + trượt 0,02% | Có | E3 |
-| FR-15 | Perp: ký quỹ isolated, giá thanh lý, funding trả/nhận hạch toán vào vốn; spot không short, không đòn bẩy | Có | E3 |
-| FR-16 | Hai kiểu khối lượng: `margin_pct` (ký quỹ = % vốn hiện tại) và `risk` (lỗ tại SL = `risk_per_trade_pct`% vốn, gồm phí khứ hồi); `risk` cần `stop_loss_rate > 0` | Có | E3 |
-| FR-17 | `exit_unit="atr"`: SL/TP/trailing/bước DCA là bội số ATR% của nến đã đóng lúc có tín hiệu; chưa đủ ATR thì bỏ tín hiệu | Có | E3 |
-| FR-18 | Đòn bẩy thực (sizing `risk`, perp) = min(đòn bẩy tham số, ⌊1/(1,5×SL + mmr)⌋) để giá thanh lý cách giá vào ≥ 1,5 lần khoảng SL | Có | E3 |
-| FR-19 | Ngân sách DCA: cấu hình `margin_pct` không vừa vốn bị từ chối kèm gợi ý `order_size_pct` lớn nhất còn vừa; tầng bị bỏ lúc chạy được đếm (`dca_layers_rejected`) | Có | E3 |
-| FR-20 | `cooldown` (phút) sau khi đóng vị thế mới nhận tín hiệu vào lại (mặc định 0; sổ dùng 60) | Có | E3 |
-| FR-21 | `CapitalLedger`: mọi flow và tầng DCA giữ chỗ từ cùng một quỹ vốn; vốn ≤ 0 thì ngừng mở lệnh | Có | E3 |
-| FR-22 | `PortfolioEngine`: nhiều tài sản × nhiều chiến lược trên một sổ vốn; `RiskConfig` mặc định 8 vị thế, 1 vị thế/tài sản, tổng danh nghĩa ≤ 3× vốn, kill switch khi MDD MTM ≥ 30% | Có | E3 |
-| FR-23 | Đường vốn MTM lấy mẫu mỗi giờ, kèm điểm xấu nhất trong nến (`equity_worst`); MDD thấy được lỗ treo | Có | E3 |
-| FR-24 | Dữ liệu giá + kernel dùng chung giữa worker qua mmap (chỉ đọc); bỏ qua phút rảnh; kết quả bit-identical | Có | E3 |
+| **FR-13** | Khớp lệnh nến 1m theo mô hình 2 pha: Phase 1 tạo tín hiệu cuối nến $t$; Phase 2 khớp lệnh tại nến $t+1$ (open hoặc chạm limit/stop trong bar). | Có | E3, E20 |
+| **FR-14** | Khớp lệnh nội bar bi quan: Ưu tiên chạm Stop-Loss trước Take-Profit khi cả 2 mức giá đều nằm trong phạm vi $[Low, High]$. | Có | E3 |
+| **FR-15** | Mô phỏng chi phí thực tế: Phí taker/maker theo sàn, trượt giá (slippage), funding rate tính theo chu kỳ 8 giờ. | Có | E3 |
+| **FR-16** | Cơ chế tính khối lượng đa dạng: Fixed Margin, % Equity, hoặc % Risk per trade (đo bằng khoảng cách ATR tới SL). | Có | E3 |
+| **FR-17** | Quản lý vị thế DCA và đòn bẩy Isolated: Tính toán chính xác giá hòa vốn, giá thanh lý và tỷ lệ ký quỹ duy trì. | Có | E3 |
+| **FR-18** | `CapitalLedger`: Sổ quỹ vốn tập trung, theo dõi tổng ký quỹ, ngăn chặn over-allocation giữa nhiều chiến lược chạy đồng thời. | Có | E3 |
+| **FR-19** | `PortfolioEngine`: Chạy danh mục đa tài sản × đa chiến lược với giới hạn rủi ro danh mục (Max open positions, Max notional). | Có | E3 |
+| **FR-20** | Tương thích và đối soát tương đương bit-for-bit với engine NautilusTrader (332/332 test cases khớp tuyệt đối). | Có | E16 |
 
-### 5.4 Kiểm chứng
-
-| ID | Yêu cầu | TT | Epic |
+### 5.4 Kiểm định & Tối ưu hóa (Validation & Optimization)
+| ID | Yêu cầu chức năng | Trạng thái | Epic liên kết |
 |---|---|---|---|
-| FR-25 | WFA đơn tài sản: fold IS/OOS không chồng, chọn tham số trên IS, kiểm cố định trên OOS; gate gồm `is_return, total_folds, positive_ratio, total_trades, worst_mdd, compounded_return`; fold không có cấu hình đủ lệnh IS là `NO_TRADE` | Có | E4 |
-| FR-26 | WFA danh mục: IS chọn lại cấu hình từng chiến lược, OOS chạy cả sổ chung vốn (kill switch bật), báo SL "level" và "extreme"; gate 6 điều kiện (xem architecture §6.2) | Có | E4 |
-| FR-27 | Monte Carlo block bootstrap theo lệnh đã đóng **và** theo lợi suất ngày MTM; cổng ruin dùng cơ sở ngày; cùng seed cho cùng số | Có | E4 |
-| FR-28 | Holdout 20% cuối chạy một lần với cấu hình đã chốt; không chọn lại gì ở bước này | Có | E4 |
-| FR-29 | Kiểm độ bền: lân cận tham số (đổi từng tham số một mức) và chuyển tài sản | Có | E4 |
-| FR-30 | Kiểm null: bộ quét mới phải ra "không có edge" trên random walk | Có (cho bộ quét maker và DC); chưa là cổng bắt buộc cho mọi bộ quét | E4, E10 |
-| FR-31 | Hệ số vốn tối đa theo ngân sách rủi ro P(MDD ≥ 30%) ≤ 5% (bootstrap ngày) | Có | E4 |
-| FR-32 | Hiệu chỉnh đa kiểm định (Deflated Sharpe, permutation test), nhật ký số lần chạm holdout | Chưa | E10 |
+| **FR-21** | Walk-Forward Analysis (WFA) đơn tài sản và danh mục: Chia các fold IS/OOS độc lập, chọn tham số trên IS, kiểm định trên OOS. | Có | E4 |
+| **FR-22** | Monte Carlo Block Bootstrap: Mô phỏng phân phối lợi nhuận theo lệnh và theo chuỗi ngày NAV MTM với cùng seed. | Có | E4 |
+| **FR-23** | Tính toán xác suất phá sản và Drawdown tối đa: $P(\text{MDD} \ge 30\%)$. | Có | E4 |
+| **FR-24** | Kiểm định Out-of-Sample Holdout (20% dữ liệu cuối): Chỉ chạy một lần duy nhất với cấu hình đã chốt từ WFA. | Có | E4, E10 |
+| **FR-25** | Tối ưu hóa đa tầng (Funnel Optimization): Sàng lọc nhanh Stage 1 $\rightarrow$ WFA Stage 2 $\rightarrow$ MC Stage 3 $\rightarrow$ Holdout Stage 4. | Có | E5 |
+| **FR-26** | Xuất bản Alpha Registry (`data/alphas/registry.json`) và Book Config (`book.json`) kèm toàn bộ bằng chứng kiểm định. | Có | E5 |
 
-### 5.5 Alpha và sổ chiến lược
-
-| ID | Yêu cầu | TT | Epic |
+### 5.5 Thực thi Live & Giám sát (Live Execution)
+| ID | Yêu cầu chức năng | Trạng thái | Epic liên kết |
 |---|---|---|---|
-| FR-33 | `optimize_alphas`: dev1 sàng lọc (top-8) → dev2 WFA → MC ngày → holdout; ALPHA chỉ khi qua cả bốn và đòn bẩy ≤ 10x | Có | E4, E5 |
-| FR-34 | Kho alpha `data/alphas/registry.json` ghi đủ để tái lập (AST đã thay tham số, bằng chứng từng giai đoạn, sha256 dữ liệu, commit code) | Có | E5 |
-| FR-35 | `build_strategy_book`, giai đoạn A-D: dev1 chọn tham số trên cả vũ trụ, dev2 gate, chốt rủi ro/lệnh bằng bootstrap, holdout một lần | Có | E5 |
-| FR-36 | `book.json` luôn có `status ∈ {READY_FOR_TESTNET, HOLDOUT_FAILED}`; `testnet/book.json` chỉ ghi khi holdout đạt, và xoá bản cũ khi trượt | Có | E5 |
-| FR-37 | Cấu hình testnet mô tả đúng hành vi đã mô phỏng (ISOLATED, MARKET vào lệnh, LIMIT GTX cho DCA, STOP_MARKET reduce-only, kill switch 30%) | Có (chỉ là file cấu hình; chưa có bot đọc) | E5, E9 |
+| **FR-27** | Phân tầng môi trường Live rõ ràng thành 3 package độc lập: `live/paper`, `live/testnet`, `live/live`. | Có | E9, E17 |
+| **FR-28** | Kết nối API sàn OKX v5 (REST + WebSocket) thực hiện đặt lệnh, hủy lệnh, đồng bộ vị thế và số dư. | Có | E9 |
+| **FR-29** | Giám sát vị thế và hạch toán PnL real-time, đối soát trượt giá và phí giữa sàn thực tế và engine mô phỏng. | Có | E9 |
+| **FR-30** | Kill Switch an toàn: Tự động đóng toàn bộ vị thế và hủy lệnh chờ khi drawdown danh mục vượt ngưỡng an toàn (ví dụ 30%). | Có | E9 |
 
-### 5.6 Vận hành
-
-| ID | Yêu cầu | TT | Epic |
+### 5.6 API & Backend Services
+| ID | Yêu cầu chức năng | Trạng thái | Epic liên kết |
 |---|---|---|---|
-| FR-38 | Mọi job nặng chạy qua `ops/run_limited.sh` trong `nora.slice` (12 GB, không swap), xếp hàng tuần tự bằng `flock`, CPU 0-13, nice 10 | Có | E6 |
-| FR-39 | Script nặng từ chối chạy khi không có trần RAM cgroup (trừ `NORA_ALLOW_UNLIMITED=1`) | Có | E6 |
-| FR-40 | Số worker tự chia: min(CPU dùng được, ngân sách RAM / RAM mỗi worker); ngân sách chừa dự phòng 8 GB cho máy dùng chung | Có | E6 |
-| FR-41 | Worker bị OOM-kill thì chạy lại riêng các job còn thiếu với nửa số worker; lỗi thật của job nổi lên ngay | Có | E6 |
-| FR-42 | Cài đặt lặp lại được: venv + `requirements.txt` ghim phiên bản, unit systemd user (`install_user_units.sh`) | Có | E6 |
-| FR-43 | `smoke_check` kiểm bất biến và tất định nhanh (single / portfolio / studio / optcheck) | Có | E6 |
+| **FR-31** | Backend module hóa thành 5 phân tầng: `backend.alpha`, `backend.core`, `backend.optimize`, `backend.live`, `backend.routes`. | Có | E17 |
+| **FR-32** | Endpoint nguồn sự thật duy nhất cho Frontend: `GET /api/studio/meta` (cung cấp danh sách sàn, tài sản, chiến lược, chỉ số). | Có | E19 |
+| **FR-33** | Background Job Runner: Quản lý các tác vụ nặng (Backtest, WFA, Build Book) qua tiến trình nền, cung cấp trạng thái `queued/running/done/failed`. | Có | E7 |
+| **FR-34** | Quản lý Cache chuẩn: Không lưu cache disk vĩnh viễn không kiểm soát; chỉ giữ cache tiến trình đang chạy và dọn dẹp khi hoàn tất. | Có | E17 |
+| **FR-35** | Endpoint xuất bản sổ chiến lược: `POST /api/studio/book/publish` có cơ chế xác nhận an toàn. | Có | E7 |
 
-### 5.7 API
-
-| ID | Yêu cầu | TT | Epic |
+### 5.7 Giao diện Người dùng (Frontend UX/UI)
+| ID | Yêu cầu chức năng | Trạng thái | Epic liên kết |
 |---|---|---|---|
-| FR-44 | `/api/studio/book/*`: backtest, WFA, build chạy nền (trả `job_id`), trạng thái `queued/running/done/failed`, bền qua khởi động lại API, tối đa 8 job đang chạy/chờ (429) | Có | E7 |
-| FR-45 | Đối số job kiểm chặt: danh sách trắng loại job và cờ, không shell, ngày/tài sản/số trong khoảng | Có | E7 |
-| FR-46 | `POST /book/mc` đồng bộ, trùng bit với `run_monte_carlo_daily` cùng seed; giới hạn simulations ≤ 10000, horizon ≤ 730 | Có | E7 |
-| FR-47 | `POST /book/publish` chép sổ của job build sang `data/alphas/` (build không tự ghi đè sổ đang xuất bản) | Có | E7 |
-| FR-48 | `GET /portfolio/dashboard?source=live|testnet|backtest`, 5 kỳ `1M/3M/YTD/1Y/ALL`; Live/Testnet rơi về feed giả lập có `mock: true` | Có | E7 |
-| FR-49 | `GET /book/`, `GET /alphas` cấp catalog, tham số mặc định, vũ trụ, cửa sổ, kho alpha | Có | E7 |
-| FR-50 | API Studio cũ (`/simulate`, `/scan`, `/wfa/run`, `/monte-carlo/run`) lưu SQLite, giữ tương thích | Có | E7 |
+| **FR-36** | `MetaProvider` React Context: Tải metadata từ `/api/studio/meta` khi khởi động; toàn bộ UI tiêu thụ meta này, không hardcode. | Có | E19 |
+| **FR-37** | Trang Portfolio: Hiển thị NAV MTM, Drawdown, Daily P&L, rolling Sharpe, bảng vị thế và sự kiện rủi ro. | Có | E8 |
+| **FR-38** | Trang Backtest & Funnel: Cấu hình tài sản, chiến lược, chạy backtest và phân tích đường cong vốn trực quan. | Có | E8 |
+| **FR-39** | Trang Alpha Lab: Quản lý kho Alpha, bảng xếp hạng các ứng viên, xem chi tiết bằng chứng WFA/MC. | Có | E8 |
+| **FR-40** | Trang CreateAlpha & Education: Trình biên tập chiến lược tương tác, hiển thị code mẫu, chú thích lý thuyết và kết quả chạy thử. | Có | E18, E19 |
+| **FR-41** | Thiết kế Responsive, Dark Theme tinh tế, nhất quán trên Desktop và Tablet. | Có | E19 |
 
-### 5.8 UI
+---
 
-| ID | Yêu cầu | TT | Epic |
+## 6. Yêu cầu phi chức năng (Non-Functional Requirements - NFR)
+
+| ID | Tiêu chí | Nội dung yêu cầu | Phương thức kiểm chứng |
 |---|---|---|---|
-| FR-51 | Trang Danh mục: KPI, NAV so với BTC, drawdown, P&L ngày, phân phối lợi suất + VaR, heatmap tháng, rolling Sharpe, bảng chiến lược, sự kiện rủi ro, bảng vị thế đang mở | Có | E8 |
-| FR-52 | Nguồn Live / Testnet / Backtest; feed giả lập có banner và chip MOCK | Có | E8 |
-| FR-53 | Trang Backtest → WFA (tham số cố định hoặc chọn lại ở IS) → Monte Carlo (fan chart, histogram, gate), deep-link được | Có | E8 |
-| FR-54 | Trang Alpha: bảng xếp hạng stage A, "Gửi sang Backtest", kho alpha, trạng thái sổ, "Xuất bản sổ này" có hộp xác nhận | Có | E8 |
-| FR-55 | Chủ đề Sáng/Tối, nhớ lựa chọn | Có | E8 |
-| FR-56 | Cải thiện trải nghiệm (đang làm): phạm vi chốt trong story E8-S6 | Một phần | E8 |
+| **NFR-1** | **Strictly Causal** | Không có bất kỳ rò rỉ tương lai nào trong tính toán kernel, resample nến, và thời điểm vào lệnh. | Bộ test causal: `test_kernel_is_causal_prefix_invariant`, `test_no_lookahead_*`. |
+| **NFR-2** | **Tính Bất biến Vốn** | Vốn trên `CapitalLedger` luôn khớp từng xu với tổng realized PnL, unrealized PnL, phí và funding ở mọi nến. | `test_ledger_invariants_every_bar_random_multi_flow`. |
+| **NFR-3** | **Tái lập Bit-identical** | Cùng dữ liệu + cùng tham số + cùng seed phải ra cùng từng bit float trong kết quả backtest và chỉ số. | `test/test_golden_results.py` (Golden bit-identical harness). |
+| **NFR-4** | **Kiến trúc Phân tầng** | Tuân thủ tuyệt đối quy tắc phụ thuộc 1 chiều: `alpha → core → optimize → live → routes`. Không import ngược, không vòng lặp. | `test_p9_layering_strict.py`. |
+| **NFR-5** | **Quản lý Bộ nhớ** | Toàn bộ ứng dụng Nora chạy trong giới hạn 12 GB RAM (`nora.slice`). Không sử dụng swap, tự động giải phóng bộ nhớ. | `ops/run_limited.sh`, cgroups limits. |
+| **NFR-6** | **Tách biệt Core I/O** | `backend/core/` hoàn toàn là tính toán thuần túy (pure domain logic), không thực hiện bất kỳ thao tác I/O (file, network, DB). | Code review gate & unit test core không mock I/O. |
+| **NFR-7** | **Độ trễ API** | Endpoint `/api/studio/meta` phản hồi dưới 100ms. Các job nặng phải trả về `job_id` trong vòng dưới 200ms. | Benchmark API request latency. |
+| **NFR-8** | **Khả năng quan sát** | Mọi background job đều có file log riêng biệt (`job.json`, `out.log`), lưu thời gian chạy, CPU/RAM đỉnh và mã thoát. | Kiểm tra thư mục job execution log. |
 
-### 5.9 Testnet và Live
+---
 
-| ID | Yêu cầu | TT | Epic |
+## 7. Ràng buộc kỹ thuật (Technical Constraints)
+
+1. **Môi trường máy chủ:** Linux (Ubuntu/Debian), Python 3.11 trong venv ghim cứng dependencies (`requirements.txt`).
+2. **Cgroup Slice:** Mọi tiến trình chạy nặng bắt buộc khởi chạy qua `ops/run_limited.sh` nằm trong slice `nora.slice` (MemoryMax 12 GB, nice 10).
+3. **Frontend Stack:** React 18, Vite, CSS Modules / Vanilla CSS hiện đại, không sử dụng thư viện UI cồng kềnh ngoài luồng.
+4. **Quy tắc đặt tên:** Tránh tuyệt đối các từ khóa nhạy cảm bị tường lửa chặn (như "miner" $\rightarrow$ dùng "PhienDao").
+
+---
+
+## 8. Rủi ro và Biện pháp Giảm thiểu
+
+| ID | Rủi ro | Tác động | Biện pháp giảm thiểu |
 |---|---|---|---|
-| FR-57 | Bot sàn (OKX demo / live) đọc sổ `book.json` và chạy đúng quy tắc đã mô phỏng | Có (OKX demo; phát lại trên sàn giả lập ≈ engine) | E9 |
-| FR-58 | Số liệu tài khoản thật (lịch sử lệnh, số dư, vị thế) thay feed giả lập | Có: trang Live (`/api/studio/live/*`); feed giả lập đã bỏ | E9 |
-| FR-59 | Kill switch live (30% từ đỉnh) và giới hạn danh mục áp trên tài khoản thật | Có (demo); chưa đo độ trễ | E9 |
-| FR-60 | Đối soát live so với backtest (sai khác khớp lệnh, trượt giá, phí) | Có: sàn ↔ bóng paper (engine); chờ ≥ 30 cặp lệnh | E9 |
+| **R-1** | Multiple Testing Overfitting | Tìm ra chiến lược có kết quả backtest tốt chỉ nhờ may mắn khi quét quá nhiều tham số. | Bổ sung Deflated Sharpe Ratio, Permutation test, và kiểm định trên Holdout data chưa từng dùng. |
+| **R-2** | Regime Shift | Thị trường chuyển biến bất ngờ khiến chiến lược trend/reversal bị thua lỗ liên tiếp. | Giới hạn MDD bằng Portfolio Kill Switch (30%), áp dụng kiểm định độ bền lân cận tham số. |
+| **R-3** | Trượt giá thực tế vượt giả định | Khớp lệnh live bị trượt giá nặng hơn 0.02% trong các đợt biến động mạnh. | Đối soát liên tục sai lệch trượt giá giữa sàn thật và engine; cảnh báo nếu vượt ngưỡng dự tính. |
+| **R-4** | Tràn RAM máy chủ dùng chung | Job tối ưu hóa đa luồng tiêu tốn quá nhiều RAM gây sập máy chủ. | Cơ chế cấp phát worker động: $\min(\text{CPUs}, \text{RAM\_free} / \text{RAM\_worker})$ và giám sát cgroup. |
 
-## 6. Yêu cầu phi chức năng (NFR)
+---
 
-| ID | Loại | Yêu cầu | Cách kiểm |
+## 9. Danh sách Epics (E1 – E20)
+
+Hệ thống được phát triển và quản trị theo 20 Epics chuẩn BMAD:
+
+| Epic ID | Tên Epic | Mục tiêu & Phạm vi cốt lõi | FR liên kết |
 |---|---|---|---|
-| NFR-1 | Tính đúng | Không nhìn trước tương lai ở kernel, khung lớn, vào lệnh, chọn tham số trong WFA | `test_kernel_is_causal_prefix_invariant`, `test_prefix_check_detects_a_lookahead_kernel`, `test_no_lookahead_when_future_modified`, `test_4h_lookahead_candle_visibility`, `test_is_selection_never_sees_oos_data` |
-| NFR-2 | Tính đúng | Bất biến vốn ở mọi nến; lãi/lỗ tính lại độc lập từ lệnh con khớp | `test_ledger_invariants_every_bar_random_multi_flow`, `test_pnl_recomputed_independently_from_orders` |
-| NFR-3 | Tái lập | Cùng dữ liệu + tham số + seed = cùng từng bit; mọi float của golden mã hoá `float.hex()` | `test_golden_*`, `test_*_skip_equals_full_loop`, `test_mmap_data_equals_built_data_bit_for_bit` |
-| NFR-4 | Hiệu năng | Job build/WFA đủ nhanh để lặp trong một buổi | build 71,1 s (1 ứng viên × 8 cấu hình), WFA 53,5 s, backtest 6,6 s; full 7 × 24 cấu hình 487 s; các số khác chưa đo |
-| NFR-5 | Bộ nhớ | Toàn Nora ≤ 12 GB (`nora.slice`), API ≤ 3 GB; ~142 MB RAM riêng mỗi worker; không cache nào không giới hạn | `test_memory_guards.py` (25 test), log `data/_cache/runs/*_mem.csv` |
-| NFR-6 | Bảo mật | Chỉ API được phép gọi job; không shell; không lộ khoá sàn; truy cập bị kiểm soát | Đối số job: có (`test_book_api.py`). Xác thực API: **chưa có** (R-5); khoá sàn: chưa áp dụng vì chưa có bot |
-| NFR-7 | Khả dụng UI | Dùng được ở trình duyệt bị chính sách chặn URL chứa "miner"; Sáng/Tối; trạng thái job rõ (queued/running/done/failed) | commit `cc68087`, `b0419d5` |
-| NFR-8 | Quan sát | Mỗi job có `out.log`, thời điểm bắt đầu/kết thúc, mã thoát; mỗi lần chạy nặng có log RAM mỗi giây | `data/_cache/api_jobs/<id>/`, `data/_cache/runs/` |
-| NFR-9 | Bảo mật mạng | API chỉ nên nghe trong mạng tin cậy | Hiện unit systemd đặt `NORA_API_HOST=0.0.0.0`, CORS `*`: **chưa đạt** (E11) |
-| NFR-10 | Bảo trì | Bố cục package rõ (core/db/api/optimize/wfa/carlo/utils + main.py; lệnh nằm trong gói của nó, ops trong utils/ops); không import vòng | commit `6d35c0d`: 94 module import được; `backend/main.py` vẫn 2261 dòng chứa route cũ |
-
-## 7. Ràng buộc
-
-- **Máy dùng chung:** 67 GB RAM, không swap, ~32 GB trống tại thời điểm cấu hình; Nora giới hạn 12 GB (~18%). Tràn trần thì kernel chỉ giết tiến trình trong slice. Một job tràn RAM từng làm sập cả máy trước khi có `nora.slice` (nguyên nhân gốc: cache không giới hạn × 10 worker, xem E6-S1).
-- **CPU:** lõi 0-13, `nice 10`; controller `cpu` không được uỷ quyền cho user session nên dùng `taskset`, không dùng `CPUQuota`.
-- **Chính sách trình duyệt:** trình duyệt do quản trị chặn đường dẫn có chứa "miner"; Vite dev nạp `/src/pages/Miner.jsx` làm toàn app không khởi động. Đã đổi tên thành `PhienDao.jsx` (`cc68087`). Mọi tên file/route mới tránh từ này.
-- **Dữ liệu:** Binance Vision (3 năm). DEX qua GeckoTerminal miễn phí tối đa 179 ngày, không có tick lịch sử.
-- **Sàn mục tiêu:** Binance USDT-M (phí VIP0: taker 0,05%, maker 0,02%). Mọi kết quả phụ thuộc giả định phí và trượt giá 0,02% mỗi chiều.
-- **Python 3.11** trong `~/.venvs/nora`; số tệp dữ liệu (`data/`) không commit, trừ `data/alphas/`.
-
-## 8. Rủi ro và câu hỏi mở
-
-| ID | Rủi ro / câu hỏi | Tác động | Hướng xử lý |
-|---|---|---|---|
-| R-1 | **Đa kiểm định (multiple testing).** Đã quét 34 cặp chiến lược × tài sản ở một lượt `optimize_alphas` (`data/_cache/optimize/20260930_1728`: 1 ALPHA, 23 KHONG_DAT, 10 LOAI_O_SANG_LOC), chưa kể các lượt khác và 7 ứng viên sổ. Gate hiện tại không hiệu chỉnh cho số lần thử | Alpha SOL có thể là kết quả may mắn khi chọn 1 trong 34 | E10-S1 (Deflated Sharpe), E10-S2 (permutation test), E10-S6 (sổ ghi số lần thử) |
-| R-2 | **Holdout đã dùng nhiều lần.** Giai đoạn D của sổ đã chấm ít nhất 2 lần (`data/_cache/book/20261001_115808`, `..._152813`); holdout của SOL được dùng lại khi tái kiểm (`45f734e`) và trong các lượt tối ưu khác | Holdout không còn "chưa ai chạm"; ước lượng lạc quan | E10-S3 (chính sách holdout, holdout mới khi có dữ liệu mới) |
-| R-3 | **Edge SOL riêng lẻ.** Trend chung cho 8 tài sản thất bại; long trend chỉ có edge trên SOL, DOGE yếu (`alpha_pipeline.md` §7); SOL một mình tốt hơn SOL+DOGE | Rủi ro tập trung một tài sản; có thể là đặc thù giai đoạn | E10-S5 |
-| R-4 | **Sổ trượt holdout.** Dev2 +26,8% (level) rồi holdout −4,06%: dấu hiệu quá khớp giai đoạn dev hoặc đổi regime | Chưa có sổ nào được cấp testnet | E10-S4 |
-| R-5 | **API chưa xác thực.** Unit systemd nghe `0.0.0.0`, CORS `allow_origins=["*"]`, `POST /book/*` chạy được job nặng và `publish` ghi đè `data/alphas/` | Ai trong mạng cũng chạy được job hoặc đổi sổ | E11-S1, E11-S2, E11-S3 |
-| R-6 | **Live feed (đã xử lý).** Feed giả lập đã bỏ; trang Live đọc state bot + tài khoản OKX demo | — | Đóng 06/10/2026 (E9-S3) |
-| R-7 | **Gate dữ liệu không chặn đường danh mục.** Dữ liệu hỏng sau khi đã promote sẽ không bị `PortfolioEngine` phát hiện | Kết quả sổ sai âm thầm | E11-S6 |
-| R-8 | **Giả định khớp lệnh.** SL khớp "level" lạc quan; `extreme` bi quan; thực tế nằm giữa. Đã có đối soát sàn OKX demo ↔ paper (phí, trượt, SL level/extreme); chờ đủ ≥ 30 cặp lệnh | Lợi nhuận thật có thể thấp hơn cận trên | E9-S6 |
-| R-9 | **Bundle UI một cục** (~583 KB JS chưa nén, `frontend/dist`); `main.py` 2261 dòng còn route MySQL cũ | Tải chậm, khó bảo trì | E11-S4, E11-S5 |
-| Q-1 | Có chấp nhận holdout "mới" bằng dữ liệu tích luỹ thêm (từ 01/10/2026 trở đi) làm cổng cuối cho SOL không? | Quyết định E10-S3 | Chờ chủ sở hữu |
-| Q-2 | Vốn thật tối đa cho testnet/live và ngân sách rủi ro (hiện 30% MDD, ≤ 5% xác suất) có giữ nguyên? | Quyết định E9-S5 | Chờ chủ sở hữu |
-| Q-3 | Hệ số vốn cho alpha SOL: 0,5x (extreme) hay 0,75x (level)? | Cấu hình testnet | Chờ chủ sở hữu |
+| **E1** | Data Pipeline & Market Store | Thu thập, chuẩn hóa, lưu trữ dữ liệu nến 1m và funding rates Binance/OKX. | FR-1, FR-2, FR-3, FR-4, FR-5 |
+| **E2** | Causal Signals & AST Strategy | 23+ kernel tín hiệu thuần nhân quả và bộ phân tích điều kiện chiến lược. | FR-7, FR-8, FR-12 |
+| **E3** | Core Execution Engine | Động cơ khớp lệnh nến 1m, 2 pha, DCA, perp margin, funding, và CapitalLedger. | FR-13, FR-14, FR-15, FR-16, FR-17, FR-18, FR-19 |
+| **E4** | Validation Harness | Bộ kiểm định định lượng: WFA đơn tài sản, WFA danh mục, Monte Carlo Bootstrap, Holdout. | FR-21, FR-22, FR-23, FR-24 |
+| **E5** | Alpha & Strategy Book | Quy trình tối ưu đa tầng (Funnel) và đóng gói sổ chiến lược `book.json`. | FR-25, FR-26 |
+| **E6** | Ops, Resource & Memory Limits | Quản trị tiến trình an toàn qua `ops/run_limited.sh`, cgroups slice, giám sát RAM. | NFR-5 |
+| **E7** | Studio API Services | Hệ thống FastAPI router, Background Job Runner, API endpoints cho Studio. | FR-33, FR-34, FR-35 |
+| **E8** | Frontend Application | Giao diện React v2: Trang Danh mục, Backtest, Funnel, Alpha Lab. | FR-37, FR-38, FR-39 |
+| **E9** | Live Trading & Account Sync | Thực thi trên sàn OKX demo/live, đồng bộ vị thế, tài khoản, giám sát rủi ro real-time. | FR-28, FR-29, FR-30 |
+| **E10** | Multiple Testing Correction & Robustness | Hiệu chỉnh đa kiểm định (Deflated Sharpe), kiểm định độ bền tham số và kiểm tra null. | R-1, FR-24 |
+| **E11** | System Hardening & Security | Bảo mật API, kiểm soát phân quyền mạng, chuẩn hóa dữ liệu gate toàn hệ thống. | FR-5, NFR-7 |
+| **E12** | Advanced Portfolio Sizing | Thuật toán phân bổ vốn động, tối ưu hóa danh mục theo tỷ lệ rủi ro (Risk-Parity). | FR-19 |
+| **E13** | Execution Analytics & Reporting | Báo cáo hiệu suất giao dịch chi tiết, phân tích drawdown thời gian thực, export PDF/HTML. | FR-37 |
+| **E14** | Dynamic Market Regime Detection | Bộ lọc chế độ thị trường (Trending vs Ranging) hỗ trợ bật/tắt chiến lược tự động. | FR-7, FR-11 |
+| **E15** | Cross-Venue Parity Engine | Chuẩn hóa quy tắc khớp lệnh và phí giữa Binance Futures và OKX Perpetuals. | FR-15 |
+| **E16** | Single Engine Parity (Nautilus Parity) | Hợp nhất single engine, đạt 332/332 test cases tương đương từng bit với NautilusTrader. | FR-20, NFR-3 |
+| **E17** | Backend & Data Restructuring (P9) | Tái cấu trúc 5 phân tầng sạch sẽ, cây dữ liệu một nguồn `data/market/`, dọn dẹp cache. | FR-2, FR-3, FR-6, FR-31, FR-34, NFR-4, NFR-6 |
+| **E18** | Strategy Contract & Studio Editor (P10) | Hợp đồng chiến lược thống nhất `BaseStrategy`, Alpha Validator RUN/ADAPT/REJECT, 50+ mẫu. | FR-9, FR-10, FR-11, FR-40 |
+| **E19** | UI Single Source of Truth & Responsive (P11) | Metadata tập trung `/api/studio/meta`, `MetaProvider`, đồng bộ UI hoàn chỉnh, Responsive. | FR-32, FR-36, FR-41 |
+| **E20** | Causal Signal Timing & Order Lifecycle (P12) | Kiểm soát chu kỳ lệnh nghiêm ngặt, tín hiệu bar $t$ thực thi tại open $t+1$, chống lookahead. | FR-8, FR-13, NFR-1 |

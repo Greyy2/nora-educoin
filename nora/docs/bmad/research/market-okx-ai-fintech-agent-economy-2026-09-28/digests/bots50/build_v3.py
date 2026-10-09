@@ -3,9 +3,11 @@ import json
 import re
 from collections import Counter
 
+import os
+
 SP = '/tmp/claude-1000/-home-ubuntu-norabt/47a0aee2-9f8b-4307-bd29-550a7e8f13f1/scratchpad/'
 BU = SP + 'build/'
-RESEARCH = '/home/ubuntu/norabt/_bmad-output/planning-artifacts/research/market-okx-ai-fintech-agent-economy-2026-09-28/research.md'
+RESEARCH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "research.md"))
 
 old = open(BU + 'template.html').read()
 CSS = old[old.index('<style>'):old.index('</style>') + 8]

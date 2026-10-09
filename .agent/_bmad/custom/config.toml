@@ -1,7 +1,14 @@
 # Team / enterprise overrides for _bmad/config.toml.
 # Committed to the repo — applies to every developer on the project.
 # Tables deep-merge over base config; keyed entries merge by key.
-# Example: override an agent descriptor, or add a new agent.
-#
-# [agents.bmad-agent-pm]
-# description = "Prefers short, bulleted PRDs over narrative drafts."
+
+[core]
+project_name = "nora"
+document_output_language = "Tiếng Việt"
+communication_language = "Vietnamese"
+output_folder = "nora/docs/bmad"
+
+[modules.bmm]
+planning_artifacts = "{project-root}/nora/docs/bmad"
+implementation_artifacts = "{project-root}/nora/docs/bmad"
+project_knowledge = "{project-root}/nora/docs"

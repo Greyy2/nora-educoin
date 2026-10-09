@@ -24,8 +24,12 @@ Trạng thái: `backlog` (chưa làm) · `ready` (đủ điều kiện làm) · 
 | E14 | Phễu kiểm duyệt alpha | done | 3 / 3 | Lượt thật 36.000 alpha → 0 FINAL; alpha SOL bị loại khi kiểm lại. |
 | E15 | Regime và điều phối chiến lược | done | 6 / 6 | Bảng tĩnh không khớp dữ liệu; học trên train cải thiện nhưng WFA chưa qua. |
 | E16 | Kiến trúc thực thi thống nhất (backtest → testnet → live) | in-progress | 9 / 10 | P6.0–P6.7, P6.10–P6.12 xong; P6.8 demo bot đang chạy đo dung sai. |
+| E17 | Tái cấu trúc backend + dữ liệu (P9) | done | 4 / 4 | Phân tầng 5 lớp sạch sẽ, cây dữ liệu một nguồn data/market, scoped process cache. |
+| E18 | Alpha contract + Studio Editor (P10) | done | 4 / 4 | Hợp đồng BaseStrategy, Validator RUN/ADAPT/REJECT, 50+ chiến lược mẫu, Studio Editor web. |
+| E19 | UI nguồn sự thật duy nhất + responsive (P11) | done | 4 / 4 | MetaProvider (/api/studio/meta), đồng bộ dropdown/pages, Dark theme responsive. |
+| E20 | Signal timing & Causal execution (P12) | done | 3 / 3 | Tín hiệu bar t khớp tại open bar t+1, hạch toán 2 pha, bộ test causal bit-identical. |
 
-Tổng: 16 epic (11 done, 3 in-progress, 2 backlog); 85 story (68 done, 0 in-progress, 2 review, 0 ready, 15 backlog).
+Tổng: 20 epic (15 done, 3 in-progress, 2 backlog); 109 story (91 done, 1 in-progress, 2 review, 0 ready, 15 backlog).
 
 Epic E5 mang trạng thái `done` về mặt tính năng. Kết quả nghiên cứu là: alpha `trend_long_perp__SOL` từng hợp lệ nhưng bị loại khi kiểm lại bằng engine hiện hành (E14-S3, 03/10/2026); sổ `breakout_4h_long + breakout_4h_short` ở trạng thái `HOLDOUT_FAILED`, không có cấu hình testnet cho sổ. Việc tìm sổ qua holdout nằm ở E10.
 
@@ -280,3 +284,55 @@ Một giao diện sàn (`Venue`) cho sim và OKX, một risk engine, kế toán 
 | [E16-S8](stories/E16-S8-okx-venue.md) | Adapter OkxVenue (P6.7) | done |
 | [E16-S9](stories/E16-S9-unified-bot.md) | Bot chạy trên lõi thống nhất (P6.8) | in-progress |
 | [E16-S10](stories/E16-S10-nautilus-parity-and-two-phase.md) | Đối chiếu chuẩn NautilusTrader & Nến hai pha (P6.10–P6.12) | done |
+
+## E17: Tái cấu trúc backend + dữ liệu (P9) [done]
+
+Phân tầng 5 lớp backend độc lập `alpha → core → optimize → live → routes`, cây dữ liệu một nguồn `data/market/` kèm metadata attrs, xoá dead code và quản lý scoped cache.
+
+Yêu cầu liên quan: FR-2, FR-3, FR-6, FR-31, FR-34, NFR-4, NFR-6.
+
+| Story | Tiêu đề | Trạng thái |
+|---|---|---|
+| [E17-S1](stories/E17-S1-backend-layering.md) | Phân tầng 5 lớp backend alpha -> core -> optimize -> live -> routes | done |
+| [E17-S2](stories/E17-S2-market-data-store.md) | Cấu trúc cây dữ liệu thống nhất và metadata attrs | done |
+| [E17-S3](stories/E17-S3-scoped-process-cache.md) | Cơ chế cache tiến trình scoped và dọn dẹp bộ nhớ tạm | done |
+| [E17-S4](stories/E17-S4-cleanup-source-tree.md) | Loại bỏ module cũ, dead code và đồng bộ source-tree.md | done |
+
+## E18: Alpha contract + Studio Editor (P10) [done]
+
+Chuẩn hoá Strategy Contract `BaseStrategy` (`evaluate(candles) -> signals`), Validator phân loại RUN / ADAPT / REJECT, 50+ chiến lược mẫu kèm docstrings tiếng Anh, tích hợp Studio Editor và Education mode trên web.
+
+Yêu cầu liên quan: FR-9, FR-10, FR-11, FR-40.
+
+| Story | Tiêu đề | Trạng thái |
+|---|---|---|
+| [E18-S1](stories/E18-S1-strategy-contract-base.md) | Chuẩn hoá Strategy Contract BaseStrategy | done |
+| [E18-S2](stories/E18-S2-alpha-validator-contract.md) | Trình xác thực Alpha Validator RUN ADAPT REJECT | done |
+| [E18-S3](stories/E18-S3-sample-strategies-library.md) | Thư viện 50+ chiến lược mẫu kèm docstrings tiếng Anh | done |
+| [E18-S4](stories/E18-S4-studio-editor-and-education-ui.md) | Tích hợp Studio Editor và trang Education trên giao diện web | done |
+
+## E19: UI nguồn sự thật duy nhất + responsive (P11) [done]
+
+Endpoint `/api/studio/meta` cung cấp danh mục động, `MetaProvider` React Context, đồng bộ toàn bộ dropdown trang UI, thiết kế Dark theme và Responsive.
+
+Yêu cầu liên quan: FR-32, FR-36, FR-41.
+
+| Story | Tiêu đề | Trạng thái |
+|---|---|---|
+| [E19-S1](stories/E19-S1-studio-meta-endpoint.md) | Endpoint API metadata tập trung /api/studio/meta | done |
+| [E19-S2](stories/E19-S2-meta-provider-context.md) | MetaProvider React Context nạp và phân phối metadata | done |
+| [E19-S3](stories/E19-S3-ui-sync-with-meta.md) | Đồng bộ toàn bộ các trang UI với MetaProvider | done |
+| [E19-S4](stories/E19-S4-responsive-dark-theme.md) | Thiết kế Responsive và hoàn thiện Dark theme | done |
+
+## E20: Signal timing & Causal execution (P12) [done]
+
+Tín hiệu bar $t$ khớp tại open bar $t+1$, hạch toán vòng đời lệnh 2 pha bi quan, loại bỏ lookahead bias, bộ test kiểm định strictly causal bit-identical.
+
+Yêu cầu liên quan: FR-8, FR-13, NFR-1.
+
+| Story | Tiêu đề | Trạng thái |
+|---|---|---|
+| [E20-S1](stories/E20-S1-causal-signal-execution-open.md) | Thực thi tín hiệu tại open nến t+1 sau khi nến t đã đóng | done |
+| [E20-S2](stories/E20-S2-two-phase-order-lifecycle.md) | Hạch toán vòng đời lệnh hai pha không rò rỉ dữ liệu | done |
+| [E20-S3](stories/E20-S3-causal-timing-tests.md) | Bộ test kiểm định causal signal timing bit-identical | done |
+

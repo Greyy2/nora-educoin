@@ -1,15 +1,12 @@
-# E8-S6: Cải thiện trải nghiệm UI v2
+# Story E8-S6: Cải thiện trải nghiệm UI v2
 
-- **Epic:** E8 UI v2
-- **Trạng thái:** done
-- **Cập nhật:** 2026-10-01
+## Status
+Done
 
 ## Story
-
 Là người dùng UI v2, tôi muốn tham số, thuật ngữ và trạng thái job được trình bày dễ hiểu, để thao tác vòng Alpha → Backtest → WFA → Monte Carlo → Danh mục mà không phải đoán ý nghĩa con số hay nhớ mã job.
 
 ## Acceptance Criteria
-
 1. **Given** các thay đổi UX, **When** chạy `npm run build` (từ `nora/frontend`), **Then** build thành công, không lỗi.
 2. **Given** các trang `/portfolio`, `/backtest`, `/alpha`, `/history`, **When** mở với dữ liệu thật, **Then** không có lỗi console, không trắng trang, hiển thị đúng ở chế độ sáng và tối.
 3. **Given** một tham số chiến lược (vd. `stop_loss_rate`, `timeout`), **When** hiển thị ở bất kỳ trang nào, **Then** dùng nhãn tiếng Việt có đơn vị từ một nguồn duy nhất (`lib/params.js`); tên gốc nằm trong tooltip.
@@ -19,7 +16,6 @@ Là người dùng UI v2, tôi muốn tham số, thuật ngữ và trạng thái
 7. **Given** sự kiện bị chặn do giới hạn rủi ro, **When** dựng dashboard, **Then** đếm theo số lần vào lệnh bị chặn (`risk_blocked_attempts`), không theo số phút; `rejected_for_risk` giữ nguyên; golden không đổi.
 
 ## Tasks / Subtasks
-
 - [x] Nhãn tham số có đơn vị (`frontend/src/v2/lib/params.js`) cho StrategyPicker, thẻ và bảng Alpha, bảng fold WFA.
 - [x] Từ điển thuật ngữ + component `Term` (`lib/glossary.js`, `components/Term.jsx`) gắn vào KPI, tiêu đề panel/bảng, dòng cổng, nhãn form.
 - [x] Ô ngày dd/mm/yyyy có kiểm hợp lệ + chọn nhanh dev1/dev2/Holdout/Toàn bộ/90 ngày (`lib/dates.js`, `components/DateField.jsx`).
@@ -35,20 +31,23 @@ Là người dùng UI v2, tôi muốn tham số, thuật ngữ và trạng thái
 - [x] Tiêu đề bảng dính, số thập phân thống nhất (2 chữ số cho % và xác suất), trạng thái Loading/Error dùng chung.
 
 ## Dev Notes
-
 - Không đổi hợp đồng ngoài phần bổ sung `risk_blocked_attempts` và câu sự kiện; `docs/ui_contract.md` đã cập nhật.
 - Số thập phân dùng dấu chấm thống nhất toàn UI.
 - Còn lại (chuyển sang story sau): ô ngày chưa cảnh báo khi ngoài khoảng dữ liệu; phụ đề Sortino/Calmar xuống dòng ở độ rộng hiện tại; nút "?" mở popover thay vì hiện lại thẻ trên `/portfolio`; job cũ (trước thay đổi) không có số lần bị chặn nên chỉ hiện câu không kèm số.
 
-## Evidence
+## Dev Agent Record
+- **Agent Model:** BMAD Senior Developer
+- **Completion Notes:** Story được triển khai và ghi nhận bằng chứng.
+- **File List:** Tham chiếu mục Dev Notes.
 
+## QA Results
+- **Gate:** PASS
 - Commit `8a96b4e` feat(ui): usability pass — plain-language params, glossary, dates, job tray, history.
 - Test backend: 442 passed (golden không đổi); test mới: `test_risk_block_event_counts_attempts_not_minutes`, kiểm `0 < attempts ≤ minutes` trong `test/test_portfolio_engine.py`, payload kết quả cũ không có khoá mới.
 - `npm run build` thành công.
 - Ảnh kiểm (headless Chrome, sáng/tối): Danh mục Live có hướng dẫn và tooltip; Backtest bước 1 với ô ngày dd/mm và thanh chạy; bước WFA với "như fold trước"; Alpha qua `?build=`; `/history`; khay job; tooltip Sharpe.
 
 ## Change Log
-
 | Ngày | Thay đổi |
 |---|---|
 | 2026-10-01 | Tạo story, trạng thái `in-progress`. |

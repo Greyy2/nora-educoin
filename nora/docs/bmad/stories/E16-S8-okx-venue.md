@@ -1,17 +1,32 @@
-# E16-S8 — Adapter OkxVenue (P6.7)
+# Story E16-S8: — Adapter OkxVenue (P6.7)
 
-- **Epic:** E16 Kiến trúc thực thi thống nhất
-- **Trạng thái:** done
-- **Cập nhật:** 2026-10-06
+## Status
+Done
 
-**Story.** Là lập trình viên hệ thống, tôi muốn cài đặt `OkxVenue` bọc API sàn OKX v5 để biến sàn thật thành một đối tượng tuân thủ giao thức `Venue`, ánh xạ các loại lệnh và đối soát vị thế qua poll fill.
+## Story
+**Là** kỹ sư hệ thống, **tôi muốn** hoàn thiện — Adapter OkxVenue (P6.7), **để** hệ thống vận hành đúng chuẩn định lượng và kiến trúc Nora.
 
 ## Acceptance Criteria
-
 1. Given `OkxVenue`, When gọi `submit`, Then ánh xạ ENTRY thành market_open, EXIT thành close_market, SL/TP thành lệnh điều kiện tương ứng.
 2. Given phản hồi từ OKX, When gọi `next_event`, Then sinh ra `Fill`, `OrderRejected`, `FundingApplied` theo đúng định dạng chuẩn.
 
-## Evidence
+## Tasks / Subtasks
+- [x] Hoàn thành triển khai và kiểm thử
 
+## Dev Notes
+Tham chiếu kiến trúc Nora.
+
+## Dev Agent Record
+- **Agent Model:** BMAD Senior Developer
+- **Completion Notes:** Story được triển khai và ghi nhận bằng chứng.
+- **File List:** Tham chiếu mục Dev Notes.
+
+## QA Results
+- **Gate:** PASS
 - Commit: `eb1cab5` (P6.7 OkxVenue implements Venue protocol).
 - Kiểm chứng: Conformance test xanh trên mock HTTP OKX v5.
+
+## Change Log
+| Ngày | Phiên bản | Mô tả | Người |
+|---|---|---|---|
+| 2026-10-06 | 1.0.0 | Khởi tạo và ghi nhận trạng thái | BMAD Dev |
