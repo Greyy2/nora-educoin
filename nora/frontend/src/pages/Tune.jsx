@@ -8,7 +8,7 @@ import { stopFillText } from '../lib/stopfill'
 import JobPanel from '../components/jobs/JobPanel'
 import { CUSTOM_BADGE, CUSTOM_REASON } from '../lib/modes'
 import useJob from '../hooks/useJob'
-import { useCatalog } from '../context/Catalog'
+import { useCatalog } from '../meta/MetaProvider'
 import { useMeta } from '../meta/MetaProvider'
 import { postBuild, postPublish, getAlphas } from '../api'
 import { fmtNum, fmtPct, fmtSPct, signClass, fmtDateTime, isNum, fullDate, fmtFrame } from '../lib/format'
@@ -81,7 +81,7 @@ function CandidateSummary({ cand, book }) {
 
 /** Xuất bản sổ vừa dựng (chép sang alphas/): có hộp xác nhận vì thay sổ đang dùng. */
 function PublishBar({ jobId, blocked }) {
-  const meta = useMeta()
+  const { meta } = useMeta()
   const bookPath = meta?.paths?.book || 'data/alpha/book.json'
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(null)
@@ -135,7 +135,7 @@ function RankTable({ id, rows, space, onSend }) {
 }
 
 function AlphaVault() {
-  const meta = useMeta()
+  const { meta } = useMeta()
   const bookPath = meta?.paths?.book || 'data/alpha/book.json'
   const [st, setSt] = useState({ loading: true, data: null, error: null })
   const [tryN, setTry] = useState(0)
@@ -222,7 +222,7 @@ function AlphaVault() {
 
 export default function Alpha() {
   const { data: cat, loading, error, reload } = useCatalog()
-  const meta = useMeta()
+  const { meta } = useMeta()
   const [sp, setSp] = useSearchParams()
   const nav = useNavigate()
   const jobId = sp.get('build') || sp.get('job') || ''   // ?build=<id> (link từ Lịch sử chạy); ?job= là tên cũ

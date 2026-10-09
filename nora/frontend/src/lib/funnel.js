@@ -1,143 +1,131 @@
 // Phễu kiểm duyệt: tên tầng, nhãn chỉ số và bộ chuẩn hoá payload (docs/funnel_contract.md).
 // Hợp đồng mới ghi rõ hình dạng của /stats; các phần còn lại (danh sách, chi tiết, lệnh) được chuẩn hoá khoan dung
 // để UI không gãy khi backend thêm/đổi tên trường nhỏ.
-import { isNum, fmtNum, fmtPct, fmtSPct } from './format'
+import { isNum, fmtMetric as fmtMetricCore, metricTone as metricToneCore } from './format'
 
-// Từ 08/10/2026 chống ăn may không còn là tầng riêng: lân cận + PBO nằm trong S3, DSR nằm trong S4 (số hiệu tầng giữ nguyên, chừa trống S2).
-export const STAGES = ['S0_generate', 'S1_backtest', 'S3_wfa', 'S4_montecarlo', 'S5_sizing', 'S6_holdout', 'FINAL']
-/** Lượt chạy trước 08/10/2026 còn khối S2 cũ: vẫn hiển thị như tầng "cũ" (chỉ khi backend trả về). */
-export const LEGACY_STAGE = 'S2_antiluck'
-export const ALL_STAGES = ['S0_generate', 'S1_backtest', LEGACY_STAGE, 'S3_wfa', 'S4_montecarlo', 'S5_sizing', 'S6_holdout', 'FINAL']
+// Meta hiện hành (MetaProvider đăng ký khi nạp /api/studio/meta): dùng khi nơi gọi (api.js chuẩn hoá payload, định dạng ô) không có `meta` trong tay.
+let _meta = null
+export const registerFunnelMeta = (meta) => { _meta = meta || null }
 
-export const STAGE_META = {
-  S0_generate: { short: 'S0', name: 'Sinh alpha', data: 'Không gian tham số', rule: 'Hợp lệ (vd. ngân sách DCA); mỗi alpha có mã riêng' },
-  S1_backtest: { short: 'S1', name: 'Backtest sàng lọc', data: 'dev1', rule: 'Lãi > 0, MDD ≤ 30%, đủ số lệnh, đủ số tài sản có lãi' },
-  S2_antiluck: { short: 'S2 (cũ)', name: 'Chống ăn may (cũ)', data: 'dev1 + lân cận', rule: 'Tầng cũ, nay đã gộp: lân cận + PBO nằm trong S3, DSR (top 5%, N hiệu dụng) nằm trong S4' },
-  S3_wfa: { short: 'S3', name: 'Walk-forward + lân cận', data: 'dev2 + lân cận dev1', rule: '≥ 5 fold, t-stat lãi/fold ≥ 1, lãi kép OOS > 0, MDD fold xấu nhất ≤ 30%; lân cận tham số có lãi ≥ 60%; PBO chiến lược > 0,5 chỉ cảnh báo' },
-  S4_montecarlo: { short: 'S4', name: 'Monte Carlo + DSR', data: 'chuỗi ngày OOS', rule: 'Top 5% DSR của chiến lược (N hiệu dụng); ≥ 10.000 kịch bản, P(MDD ≥ 30%) ≤ 5%, mọi kịch bản cực xấu MDD < 50% (tầng kết luận)' },
-  S5_sizing: { short: 'S5', name: 'Khối lượng sống sót', data: 'như S4', rule: 'Hệ số vốn lớn nhất s sống sót qua S4, xác nhận bằng backtest + WFA + MC; s ≥ 0,2' },
-  S6_holdout: { short: 'S6', name: 'Holdout', data: '20% cuối', rule: 'Ở hệ số s: lãi > 0, MDD ≤ 30% (đúng mức và giá xấu nhất)' },
-  FINAL: { short: 'FINAL', name: 'Đủ điều kiện testnet', data: '', rule: 'Qua mọi tầng; ghi vào kho alpha kèm s và bằng chứng' },
-}
 export const stageName = (s, meta) => {
-  if (meta?.funnel?.stages) {
-    const st = meta.funnel.stages.find((x) => x.id === s)
+  if ((meta || _meta)?.funnel?.stages) {
+    const st = (meta || _meta).funnel.stages.find((x) => x.id === s)
     if (st?.label) return st.label
   }
-  return STAGE_META[s]?.name || String(s || '—')
+  return String(s || '—')
 }
 
 export const stageShort = (s, meta) => {
-  if (meta?.funnel?.stages) {
-    const st = meta.funnel.stages.find((x) => x.id === s)
+  if ((meta || _meta)?.funnel?.stages) {
+    const st = (meta || _meta).funnel.stages.find((x) => x.id === s)
     if (st?.short) return st.short
   }
-  return STAGE_META[s]?.short || String(s || '—')
+  return String(s || '—')
+}
+
+export const stageRule = (s, meta) => {
+  if (!(meta || _meta)?.funnel?.gates) return ''
+  const gates = (meta || _meta).funnel.gates.filter((g) => g.stage === s)
+  if (!gates.length) return ''
+  return gates.map((g) => {
+    const d = meta.metrics?.defs?.[g.key]
+    const label = d?.label_vi || g.key
+    const unit = d?.unit ? ` ${d.unit}` : ''
+    return `${label}: ${g.value}${unit}`
+  }).join('; ')
+}
+
+export const getAllFunnelStages = (meta) => {
+  if ((meta || _meta)?.funnel?.stages) {
+    return (meta || _meta).funnel.stages.map((x) => x.id)
+  }
+  return []
+}
+
+export const getFunnelStages = (meta) => {
+  if ((meta || _meta)?.funnel?.stages) {
+    return (meta || _meta).funnel.stages.filter((x) => !x.legacy).map((x) => x.id)
+  }
+  return []
 }
 
 export const stageIdx = (s, meta) => {
-  const all = meta?.funnel?.stages ? meta.funnel.stages.map((x) => x.id) : ALL_STAGES
+  const all = getAllFunnelStages(meta)
   return all.indexOf(s)
 }
 
 /** Tầng có dữ liệu thống kê phân phối / lệnh (S0 chỉ có số lượng). */
 export const stageHasTrades = (s, meta) => {
-  if (meta?.funnel?.stages) {
-    const st = meta.funnel.stages.find((x) => x.id === s)
+  if ((meta || _meta)?.funnel?.stages) {
+    const st = (meta || _meta).funnel.stages.find((x) => x.id === s)
     if (st) return Boolean(st.has_trades)
   }
-  return ['S1_backtest', 'S3_wfa', 'S5_sizing', 'S6_holdout'].includes(s)
+  return false
 }
 
-export const getFunnelStages = (meta) =>
-  meta?.funnel?.stages ? meta.funnel.stages.filter((x) => !x.legacy).map((x) => x.id) : STAGES
-
-export const getAllFunnelStages = (meta) =>
-  meta?.funnel?.stages ? meta.funnel.stages.map((x) => x.id) : ALL_STAGES
-
-export const getFunnelGates = (meta) => meta?.funnel?.gates || []
+export const getFunnelGates = (meta) => (meta || _meta)?.funnel?.gates || []
 
 export const RUN_STATUS = {
   queued: { text: 'Đang chờ', cls: 'warn' }, running: { text: 'Đang chạy', cls: 'info' }, done: { text: 'Hoàn tất', cls: 'ok' },
   failed: { text: 'Thất bại', cls: 'bad' }, cancelled: { text: 'Đã huỷ', cls: 'warn' },
 }
 
-// ---- chỉ số: nhãn + định dạng. `k` là khoá glossary nếu có ----
-const f1 = (v) => fmtNum(v, 1)
+// ---- chỉ số: nhãn / đơn vị / định dạng đều lấy từ meta.metrics.defs; ở đây chỉ giữ phần thuần giao diện ----
+// term = khoá glossary, tone = tô màu theo dấu. Khoá không có trong bảng này không hiện ở ma trận chỉ số theo tầng.
 export const METRICS = {
-  ret_pct: { label: 'Lãi', fmt: (v) => fmtSPct(v, 1), tone: true },
-  mdd_pct: { label: 'MDD', term: 'mdd', fmt: (v) => fmtPct(v, 1) },
-  sharpe: { label: 'Sharpe', term: 'sharpe', fmt: (v) => fmtNum(v, 2) },
-  sortino: { label: 'Sortino', term: 'sortino', fmt: (v) => fmtNum(v, 2) },
-  trades: { label: 'Số lệnh', fmt: (v) => fmtNum(v, 0) },
-  win_rate: { label: 'Tỉ lệ thắng', fmt: (v) => fmtPct(v, 1) },
-  profit_factor: { label: 'Profit factor', term: 'profit_factor', fmt: (v) => fmtNum(v, 2) },
-  symbols_positive: { label: 'Tài sản có lãi', fmt: (v) => fmtNum(v, 0) },
-  dsr: { label: 'DSR', term: 'dsr', fmt: (v) => fmtNum(v, 3) },
-  neighbor_ratio: { label: 'Lân cận có lãi', term: 'neighbor', fmt: (v) => fmtPct(v * 100, 0) },
-  pbo_strategy: { label: 'PBO (chiến lược)', term: 'pbo', fmt: (v) => fmtNum(v, 2) },
-  pbo_flag: { label: 'Cờ PBO', fmt: (v) => (v ? 'Có' : 'Không') },
-  folds: { label: 'Số fold', term: 'fold', fmt: (v) => fmtNum(v, 0) },
-  folds_profitable: { label: 'Fold lãi', fmt: (v) => fmtNum(v, 0) },
-  positive_ratio: { label: 'Tỉ lệ fold lãi (fold có lệnh)', fmt: (v) => fmtPct(v * 100, 0) },
-  traded_folds: { label: 'Fold có lệnh', fmt: (v) => fmtNum(v, 0) },
-  fold_t: { label: 't-stat lãi theo fold', fmt: (v) => fmtNum(v, 2) },
-  oos_ex_best_pct: { label: 'Lãi OOS bỏ fold tốt nhất', fmt: (v) => fmtSPct(v, 2), tone: true },
-  worst_fold_mdd: { label: 'MDD fold xấu nhất', fmt: (v) => fmtPct(v, 1) },
-  is_ret_avg: { label: 'Lãi IS trung bình', term: 'is', fmt: (v) => fmtSPct(v, 1), tone: true },
-  p_mdd_ge_30: { label: 'P(MDD ≥ 30%)', term: 'p_mdd', fmt: (v) => fmtPct(v, 1) },
-  stress_max_mdd: { label: 'MDD kịch bản cực xấu', term: 'stress', fmt: (v) => fmtPct(v, 1) },
-  mdd_p95: { label: 'MDD P95', fmt: (v) => fmtPct(v, 1) },
-  simulations: { label: 'Số mô phỏng', fmt: (v) => fmtNum(v, 0) },
-  final_scale: { label: 'Hệ số s', term: 'scale_s', fmt: (v) => fmtNum(v, 2) },
-  search_steps: { label: 'Bước tìm s', fmt: (v) => fmtNum(v, 0) },
-  cagr_pct: { label: 'CAGR', fmt: (v) => fmtSPct(v, 1), tone: true },
-  calmar: { label: 'Calmar', fmt: (v) => fmtNum(v, 2) },
-  cvar95_pct: { label: 'CVaR 95%', fmt: (v) => fmtPct(v, 2) },
-  max_dd_days: { label: 'Ngày sụt giảm dài nhất', fmt: (v) => fmtNum(v, 0) },
-  payoff: { label: 'Payoff', fmt: (v) => fmtNum(v, 2) },
-  mdd_intrabar_pct: { label: 'MDD trong nến', fmt: (v) => fmtPct(v, 2) },
-  mdd_daily_pct: { label: 'MDD theo ngày', fmt: (v) => fmtPct(v, 2) },
-  mdd_basis: { label: 'Cơ sở MDD', fmt: (v) => ({ intrabar: 'trong nến', daily: 'theo ngày' }[v] || String(v)) },
-  fees_usd: { label: 'Phí (USDT)', fmt: (v) => fmtNum(v, 2) },
-  funding_usd: { label: 'Funding (USDT)', fmt: (v) => fmtNum(v, 2) },
-  n_days: { label: 'Số ngày', fmt: (v) => fmtNum(v, 0) },
-  halted: { label: 'Bị dừng khẩn', fmt: (v) => (v ? 'Có' : 'Không') },
+  ret_pct: { tone: true }, mdd_pct: { term: 'mdd' }, sharpe: { term: 'sharpe' }, sortino: { term: 'sortino' }, trades: {}, win_rate: {},
+  profit_factor: { term: 'profit_factor' }, symbols_positive: {}, dsr: { term: 'dsr' }, neighbor_ratio: { term: 'neighbor' },
+  pbo_strategy: { term: 'pbo' }, pbo_flag: {}, folds: { term: 'fold' }, folds_profitable: {}, positive_ratio: {}, traded_folds: {}, fold_t: {},
+  oos_ex_best_pct: { tone: true }, worst_fold_mdd: {}, is_ret_avg: { term: 'is', tone: true }, p_mdd_ge_30: { term: 'p_mdd' },
+  stress_max_mdd: { term: 'stress' }, mdd_p95: {}, simulations: {}, final_scale: { term: 'scale_s' }, search_steps: {},
+  cagr_pct: { tone: true }, calmar: {}, cvar95_pct: {}, max_dd_days: {}, payoff: {}, mdd_intrabar_pct: {}, mdd_daily_pct: {},
+  mdd_basis: {}, fees_usd: {}, funding_usd: {}, n_days: {}, halted: {},
 }
-export const metricLabel = (k, meta) => meta?.metrics?.defs?.[k]?.label_vi || METRICS[k]?.label || k
-export const metricUnit = (k, meta) => meta?.metrics?.defs?.[k]?.unit || ''
-export const metricHelp = (k, meta) => meta?.metrics?.defs?.[k]?.help_vi || ''
-export const metricTone = (k, v, meta) => metricToneCore(k, v, meta?.metrics?.defs || meta)
+const defsOf = (meta) => meta?.metrics?.defs || (meta && !meta.metrics && typeof meta === 'object' ? meta : null) || _meta?.metrics?.defs || null
+export const metricLabel = (k, meta) => defsOf(meta)?.[k]?.label_vi || ''
+export const metricUnit = (k, meta) => defsOf(meta)?.[k]?.unit || ''
+export const metricHelp = (k, meta) => defsOf(meta)?.[k]?.help_vi || ''
+export const metricTone = (k, v, meta) => metricToneCore(k, v, defsOf(meta))
 
 export function fmtMetric(k, v, defs) {
   if (v == null) return '—'
-  const metricDefs = defs?.metrics?.defs ? defs.metrics.defs : defs
-  const res = fmtMetricCore(k, v, metricDefs)
-  if (res !== '—') return res
-  const m = METRICS[k]
-  if (m) return m.fmt(v)
-  return isNum(v) ? fmtNum(v, Math.abs(v) >= 100 ? 0 : 2) : String(v)
+  const metricDefs = defsOf(defs)
+  const def = metricDefs?.[k]
+  if (typeof v === 'boolean') return v ? 'Có' : 'Không'
+  // backend ghi rõ "thang 0–1 (nhân 100 khi hiển thị)" trong help_vi của chỉ số
+  if (isNum(v) && def?.unit === '%' && /thang 0[–-]1/.test(def.help_vi || '')) v = v * 100
+  return fmtMetricCore(k, v, metricDefs)
 }
 
 /** Sáu chỉ số phân phối dùng cho biểu đồ chồng nhóm vào/ra. */
 export const DIST_KEYS = ['ret_pct', 'mdd_pct', 'sharpe', 'trades', 'win_rate', 'profit_factor']
-export const DIST_UNIT = { ret_pct: '%', mdd_pct: '%', win_rate: '%' }
 
 // ---- chuẩn hoá ----
 const arr = (...c) => { for (const x of c) if (Array.isArray(x)) return x; return [] }
 const num = (v) => (isNum(v) ? v : (v != null && v !== '' && Number.isFinite(Number(v)) ? Number(v) : null))
 
-export function normCounts(counts) {
+const isLegacyStage = (st, meta) => !!(meta || _meta)?.funnel?.stages?.find((x) => x.id === st)?.legacy
+
+export function normCounts(counts, meta) {
   const list = Array.isArray(counts) ? counts : Object.entries(counts || {}).map(([stage, c]) => ({ stage, ...(typeof c === 'object' ? c : { passed: c }) }))
   const by = Object.fromEntries(list.map((c) => [c.stage, c]))
-  // luôn đủ 7 tầng theo thứ tự (+ S2 cũ nếu lượt chạy cũ có); tầng chưa có số liệu để null
-  return ALL_STAGES.filter((st) => st !== LEGACY_STAGE || by[st]).map((st, i) => {
+  const allStages = getAllFunnelStages(meta)
+  const stagesToUse = allStages.length ? allStages : list.map((c) => c.stage)
+  return stagesToUse.filter((st) => !isLegacyStage(st, meta) || by[st]).map((st, i) => {
     const c = by[st]
     if (!c) return { stage: st, input: null, passed: null, top_reject: null }
     const passed = num(c.passed ?? c.out ?? c.count)
     const input = num(c.input ?? c.in ?? (i === 0 ? passed : null))
     return { stage: st, input, passed, top_reject: c.top_reject || null }
   })
+}
+
+/** Tách số đếm của một lượt thành luồng chính (`counts`) và tầng cũ (`legacy_counts`, theo cờ legacy của meta). Gọi lúc render với meta hiện hành
+ *  (không dựa vào lúc chuẩn hoá payload, khi meta có thể chưa nạp). Tầng cũ không nằm trong luồng chuyển đổi chính. */
+export function splitLegacy(run, meta) {
+  if (!run) return run
+  const all = run.all_counts || run.counts
+  return { ...run, all_counts: all, counts: all.filter((c) => !isLegacyStage(c.stage, meta)), legacy_counts: all.filter((c) => isLegacyStage(c.stage, meta)) }
 }
 
 export function normRun(r) {
@@ -158,6 +146,7 @@ export function normRun(r) {
     windows: r.windows || cfg.windows || null,
     total_alphas: num(r.total_alphas) ?? counts[0].passed ?? null,
     counts,
+    all_counts: counts,
     progress: r.progress || null,
   }
 }
@@ -207,16 +196,20 @@ export function normAlphaPage(raw) {
 }
 
 /** Chi tiết alpha -> { ...alpha, stages: [{stage, status:'pass'|'fail'|'none', code, msg, metrics}], nav:{stage:{dates,values}}, mc } */
-export function normAlphaDetail(raw) {
+export function normAlphaDetail(raw, meta) {
   if (!raw) return null
   const a = normAlpha(raw)
-  const metricsBy = raw.stage_metrics || raw.metrics_by_stage || (a.metrics && ALL_STAGES.some((s) => a.metrics[s]) ? a.metrics : {})
-  const reachedI = stageIdx(a.stage_reached)
-  const rejI = stageIdx(a.rejected_stage)
+  const allStages = getAllFunnelStages(meta)
+  const metricsBy = raw.stage_metrics || raw.metrics_by_stage || (a.metrics && allStages.some((s) => a.metrics[s]) ? a.metrics : {})
+  const reachedI = stageIdx(a.stage_reached, meta)
+  const rejI = stageIdx(a.rejected_stage, meta)
   let stages = arr(raw.stages, raw.journey)
   if (!stages.length) {
-    stages = ALL_STAGES.slice(1).filter((st) => st !== LEGACY_STAGE || metricsBy[st] || rejI === stageIdx(st)).map((st) => {
-      const i = stageIdx(st)
+    stages = allStages.slice(1).filter((st) => {
+      const stMeta = (meta || _meta)?.funnel?.stages?.find((x) => x.id === st)
+      return !stMeta?.legacy || metricsBy[st] || rejI === stageIdx(st, meta)
+    }).map((st) => {
+      const i = stageIdx(st, meta)
       let status = 'none'
       if (rejI === i) status = 'fail'
       else if (reachedI > i || (reachedI === i && rejI < 0)) status = 'pass'

@@ -1,15 +1,17 @@
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Panel, Status, Spinner, Loading, ErrorState, Empty } from '../../ui'
-import { STAGES, STAGE_META, RUN_STATUS, fmtCount, fmtEta } from '../../../lib/funnel'
+import { useMeta } from '../../../meta/MetaProvider'
+import { RUN_STATUS, fmtCount, fmtEta, stageShort, splitLegacy } from '../../../lib/funnel'
 import { fmtDateTime, fmtPct, isNum } from '../../../lib/format'
 import { legLabel } from '../../../lib/strategyLabel'
 
 /** Phễu thu nhỏ: 8 cột (S0 → FINAL), chiều cao theo log số alpha còn lại. */
 export function MiniFunnel({ counts }) {
+  const { meta } = useMeta()
   const max = Math.max(1, ...counts.map((c) => c.input ?? c.passed ?? 0))
   const h = (n) => (isNum(n) && n > 0 ? Math.max(2, (Math.log10(1 + n) / Math.log10(1 + max)) * 22) : 0)
-  const label = counts.map((c) => `${STAGE_META[c.stage]?.short || c.stage}: ${fmtCount(c.passed)}`).join(' → ')
+  const label = counts.map((c) => `${stageShort(c.stage, meta)}: ${fmtCount(c.passed)}`).join(' → ')
   return (
     <svg className="n-minif" viewBox="0 0 108 24" width="108" height="24" role="img" aria-label={`Số alpha còn lại qua các tầng. ${label}`}>
       <title>{label}</title>
@@ -26,9 +28,10 @@ const lastCount = (counts) => { for (let i = counts.length - 1; i >= 0; i--) if 
 
 export default function RunsList({ q, onCreate }) {
   const nav = useNavigate()
+  const { meta } = useMeta()
   if (q.error && !q.data) return <ErrorState title="Không tải được danh sách lượt chạy" error={q.error} onRetry={q.reload} />
   if (!q.data) return <Loading what="danh sách lượt chạy" />
-  const runs = q.data
+  const runs = q.data.map((r) => splitLegacy(r, meta))   // luồng chính S0 → FINAL: tầng cũ (cờ legacy) không vào hàng thu nhỏ
   if (!runs.length) return <Empty title="Chưa có lượt phễu nào"><p>Tạo lượt đầu tiên để chạy hàng loạt alpha qua các tầng kiểm duyệt.</p><div className="n-sticky-actions" style={{ justifyContent: 'center' }}><button type="button" className="n-btn primary" onClick={onCreate}>Tạo lượt mới</button></div></Empty>
   return (
     <Panel title="Các lượt chạy" meta={<span className="mono">{runs.length} lượt{q.error ? ' · lỗi làm mới' : ''}</span>}>

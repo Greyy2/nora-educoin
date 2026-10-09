@@ -5,6 +5,7 @@
 import { parseJobParams, jobLabel } from './lib/jobs'
 import { normRun, normRuns, normStats, normAlphaPage, normAlphaDetail, normTrades } from './lib/funnel'
 import { invalidateResource } from './lib/bus'
+import { registerParamSchema } from './lib/params'
 
 export class ApiError extends Error {
   // fields: lỗi theo trường của 422 kiểu FastAPI ([{ field, msg }]); [] nếu không có
@@ -141,7 +142,15 @@ export const getTopAgents = () => request('/api/studio/alphas/top_agents')
 let strategiesP = null
 /** Các chiến lược lõi: params_schema, preset {params, source, source_kind, evidence}, frames_allowed. Có đệm theo phiên trang; `force` tải lại. */
 export function getStrategies(force = false) {
-  if (!strategiesP || force) strategiesP = request('/api/studio/strategies').catch((e) => { strategiesP = null; throw e })
+  if (!strategiesP || force) {
+    strategiesP = request('/api/studio/strategies').then((res) => {
+      registerParamSchema(res)
+      return res
+    }).catch((e) => {
+      strategiesP = null
+      throw e
+    })
+  }
   return strategiesP
 }
 

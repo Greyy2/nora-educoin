@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom'
 import '../styles/shell.css'
-import { useCatalog } from '../context/Catalog'
+import { useCatalog } from '../meta/MetaProvider'
 import { ErrorBoundary } from '../components/ui'
 import JobTray from '../components/jobs/JobTray'
 import { GuideSteps } from '../components/ui/QuickGuide'

@@ -2,22 +2,22 @@ import React, { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { PageHead, Panel, Segmented, Status, Spinner, Empty, Loading, ErrorState } from '../components/ui'
 import useJobList from '../hooks/useJobList'
+import { useMeta } from '../meta/MetaProvider'
 import { ResolvedParams } from '../components/optimize/RunModes'
 import { CUSTOM_BADGE, CUSTOM_REASON } from '../lib/modes'
 import Term from '../components/ui/Term'
 import { JOB_STATUS, jobKindText, jobLink, jobElapsed, isActiveJob, jobDetail } from '../lib/jobs'
 import { fmtDuration, fmtDateTime, toMs } from '../lib/format'
 
-const KINDS = [
-  { value: 'all', label: 'Tất cả' }, { value: 'book_backtest', label: 'Backtest' }, { value: 'book_wfa', label: 'WFA' }, { value: 'book_build', label: 'Alpha' }, { value: 'custom_backtest', label: 'Python' },
-]
 const STATES = [
   { value: 'all', label: 'Tất cả' }, { value: 'running', label: 'Đang chạy' }, { value: 'queued', label: 'Đang chờ' }, { value: 'done', label: 'Hoàn tất' }, { value: 'failed', label: 'Thất bại' },
 ]
 
 export default function History() {
   const { jobs, loading, error, reload, running, queued, updatedAt } = useJobList(100)
+  const { meta: appMeta } = useMeta()
   const [kind, setKind] = useState('all')
+  const KINDS = useMemo(() => [{ value: 'all', label: 'Tất cả' }, ...[...new Set(jobs.map((j) => j.kind).filter(Boolean))].map((k) => ({ value: k, label: jobKindText(k, appMeta) }))], [jobs, appMeta])
   const [state, setState] = useState('all')
   const nav = useNavigate()
   const rows = useMemo(() => jobs.filter((j) => (kind === 'all' || j.kind === kind) && (state === 'all' || j.status === state)), [jobs, kind, state])
@@ -61,7 +61,7 @@ export default function History() {
                   return (
                     <tr key={j.job_id}>
                       <td className="mono">{fmtDateTime(toMs(j.created))}</td>
-                      <td>{jobKindText(j.kind)}</td>
+                      <td>{jobKindText(j.kind, appMeta)}</td>
                       <td>{j.mode ? (
                         <span className="n-modecell">
                           <span className={`n-mode-badge ${j.mode}`}>{j.mode === 'advanced' ? <Term k="mode_advanced">Nâng cao</Term> : <Term k="mode_basic">Cơ bản</Term>}</span>

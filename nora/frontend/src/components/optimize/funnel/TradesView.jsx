@@ -15,7 +15,7 @@ const price = (v) => (isNum(v) ? fmtNum(v, Math.abs(v) >= 100 ? 2 : 4) : '—')
 
 /** Danh sách lệnh của một alpha ở một tầng. Tầng walk-forward gom theo fold. Lệnh chưa lưu (alpha bị loại ở S1) thì tự tính lại bằng backtest tất định. */
 export default function TradesView({ runId, alphaId, stage, compact = false }) {
-  const meta = useMeta()
+  const { meta } = useMeta()
   const [fold, setFold] = useState('')
   const [recompute, setRecompute] = useState(false)
   const [chart, setChart] = useState(null) // lệnh đang mở biểu đồ

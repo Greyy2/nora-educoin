@@ -3,9 +3,10 @@ import { Panel, Empty } from '../../ui'
 import Term from '../../ui/Term'
 import OverlayHist from '../../charts/OverlayHist'
 import { AlphaLink, ParamList, StrategyName } from './parts'
-import Collapsible from '../../ui/Collapsible'
 import { summarizeParams } from './paramSummary'
-import { DIST_KEYS, DIST_UNIT, METRICS, STAGE_META, fmtCount, fmtMetric } from '../../../lib/funnel'
+import Collapsible from '../../ui/Collapsible'
+import { useMeta } from '../../../meta/MetaProvider'
+import { DIST_KEYS, METRICS, fmtCount, fmtMetric, metricLabel, metricUnit, stageName, stageRule } from '../../../lib/funnel'
 import { paramHeader, fmtParamFull } from '../../../lib/params'
 import { fmtNum, fmtPct, fmtSPct, signClass, isNum } from '../../../lib/format'
 import { legLabel } from '../../../lib/strategyLabel'
@@ -29,7 +30,7 @@ function Kpis({ s }) {
   )
 }
 
-function Distributions({ s }) {
+function Distributions({ s, meta }) {
   const keys = DIST_KEYS.filter((k) => s.distributions[k])
   if (!keys.length) return null
   const first = s.distributions[keys[0]]
@@ -47,13 +48,14 @@ function Distributions({ s }) {
       <div className="n-fn-dists">
         {keys.map((k) => {
           const d = s.distributions[k]
-          const m = METRICS[k]
+          const m = METRICS[k] || {}
+          const lbl = metricLabel(k, meta)
           return (
             <figure key={k} className="n-fn-dist">
-              <figcaption>{m.term ? <Term k={m.term}>{m.label}</Term> : m.label}
-                <span className="muted mono"> · trung vị {fmtMetric(k, d.in?.p50)} → {fmtMetric(k, d.out?.p50)}</span>
+              <figcaption>{m.term ? <Term k={m.term}>{lbl}</Term> : lbl}
+                <span className="muted mono"> · trung vị {fmtMetric(k, d.in?.p50, meta)} → {fmtMetric(k, d.out?.p50, meta)}</span>
                 {d.in?.n_missing > 0 && <span className="muted n-na" title={MISSING_WHY[k] || 'không đo được'}> · {fmtCount(d.in.n_missing)} alpha không xác định</span>}</figcaption>
-              <OverlayHist a={d.in} b={d.out} unit={DIST_UNIT[k] || ''} xFormat={DIST_FMT[k]} label={`Phân phối ${m.label}`} height={140} />
+              <OverlayHist a={d.in} b={d.out} unit={metricUnit(k, meta) === '%' ? '%' : ''} xFormat={DIST_FMT[k]} label={`Phân phối ${lbl}`} height={140} />
             </figure>
           )
         })}
@@ -66,9 +68,9 @@ function Distributions({ s }) {
             <thead><tr><th>Chỉ số</th><th className="r">Vào P5</th><th className="r">Vào P50</th><th className="r">Vào P95</th><th className="r">Qua P5</th><th className="r">Qua P50</th><th className="r">Qua P95</th></tr></thead>
             <tbody>
               {keys.map((k) => { const d = s.distributions[k]; return (
-                <tr key={k}><td>{METRICS[k].label}</td>
-                  {['p5', 'p50', 'p95'].map((p) => <td key={`i${p}`} className="r">{fmtMetric(k, d.in?.[p])}</td>)}
-                  {['p5', 'p50', 'p95'].map((p) => <td key={`o${p}`} className="r">{fmtMetric(k, d.out?.[p])}</td>)}
+                <tr key={k}><td>{metricLabel(k, meta)}</td>
+                  {['p5', 'p50', 'p95'].map((p) => <td key={`i${p}`} className="r">{fmtMetric(k, d.in?.[p], meta)}</td>)}
+                  {['p5', 'p50', 'p95'].map((p) => <td key={`o${p}`} className="r">{fmtMetric(k, d.out?.[p], meta)}</td>)}
                 </tr>
               ) })}
             </tbody>
@@ -236,11 +238,13 @@ function TopAlphas({ s, stage, onOpen }) {
 
 export default function StageStats({ stats, stage, onOpen }) {
   if (!stats) return null
-  const meta = STAGE_META[stage]
+  const { meta: metaGlobal } = useMeta()
+  const name = stageName(stage, metaGlobal)
+  const rule = stageRule(stage, metaGlobal)
   const noDist = !Object.keys(stats.distributions).length
   return (
     <div style={{ display: 'grid', gap: 12 }}>
-      <div className="n-banner" style={{ marginBottom: 0 }}><span><b>{meta?.name}</b>{meta?.data ? ` · dữ liệu ${meta.data}` : ''}. Điều kiện qua: {meta?.rule}.</span></div>
+      <div className="n-banner" style={{ marginBottom: 0 }}><span><b>{name}</b>{rule ? `. Điều kiện qua: ${rule}` : ''}.</span></div>
       <Kpis s={stats} />
       {noDist
         ? <Empty title="Chưa có phân phối cho tầng này">{stage === 'S0_generate' ? 'Tầng sinh alpha chỉ có số lượng và phân bổ theo chiến lược.' : 'Backend chưa trả phân phối chỉ số cho tầng này.'}</Empty>

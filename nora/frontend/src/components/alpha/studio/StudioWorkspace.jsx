@@ -54,15 +54,16 @@ export default function StudioWorkspace({ mode = 'create' }) {
   const [saveOpen, setSaveOpen] = useState(false)
   const [setOpen, setSetOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [annOpen, setAnnOpen] = useState(false)
   const [strip, setStrip] = useState(false)
   const setRef = useRef(null)
   useEffect(() => {
-    if (!setOpen && !historyOpen) return undefined
-    const click = (e) => { if (setRef.current && !setRef.current.contains(e.target)) { setSetOpen(false); setHistoryOpen(false) } }
-    const key = (e) => { if (e.key === 'Escape') { setSetOpen(false); setHistoryOpen(false) } }
+    if (!setOpen && !historyOpen && !annOpen) return undefined
+    const click = (e) => { if (setRef.current && !setRef.current.contains(e.target)) { setSetOpen(false); setHistoryOpen(false); setAnnOpen(false) } }
+    const key = (e) => { if (e.key === 'Escape') { setSetOpen(false); setHistoryOpen(false); setAnnOpen(false) } }
     document.addEventListener('mousedown', click); document.addEventListener('keydown', key)
     return () => { document.removeEventListener('mousedown', click); document.removeEventListener('keydown', key) }
-  }, [setOpen, historyOpen])
+  }, [setOpen, historyOpen, annOpen])
 
   // mở lại một job từ Lịch sử chạy: /alpha/create?job=... (kết quả tạm, không gắn với code đang soạn nên chưa lưu được cho tới khi chạy lại)
   const [sp] = useSearchParams()
@@ -220,7 +221,15 @@ export default function StudioWorkspace({ mode = 'create' }) {
   async function useSample(s) {
     const text = await sampleText(s.code)
     const d = newDraft(s.name, text, { sampleKey: s.key || s.name })
-    set((p) => ({ drafts: [...p.drafts, d], active: d.id })); setCompiled(null)
+    set((p) => {
+      // Tab đang mở còn trống (chưa có code/ghi chú, chưa chạy, chưa lưu) -> ghi mẫu vào chính tab đó; ngược lại mở tab mới.
+      const cur = p.drafts.find((x) => x.id === p.active) || p.drafts[0]
+      if (cur && !cur.code.trim() && !cur.jobId && !cur.saved && !cur.alphaId) {
+        return { drafts: p.drafts.map((x) => (x.id === cur.id ? { ...d, id: cur.id } : x)), active: cur.id }
+      }
+      return { drafts: [...p.drafts, d], active: d.id }
+    })
+    setCompiled(null)
   }
   const expired = !!draft.jobId && !job && (jobErrStatus === 404 || jobErrStatus === 410)
   const chip = draft.saved ? (dirty ? 'Đã sửa, chưa lưu' : 'Đã lưu') : dirty ? 'Chưa lưu' : 'Nháp'
@@ -263,9 +272,14 @@ export default function StudioWorkspace({ mode = 'create' }) {
           <div className="se-btns" ref={setRef}>
             <button type="button" className={`n-icon-btn ${problems.length ? 'warn' : ''}`} aria-label="Cài đặt chạy" aria-expanded={setOpen} title="Cài đặt chạy" onClick={() => setSetOpen(!setOpen)}>{ICON.gear}</button>
             <button type="button" className="n-icon-btn" aria-label="Kiểm tra code" title="Kiểm tra (biên dịch, không chạy)" disabled={!!busy || !draft.code.trim()} onClick={() => { compile(); setStrip(true) }}>{busy === 'compile' ? <Spinner /> : ICON.check}</button>
-            {educ && <button type="button" className="n-btn sm" title="Sinh lại chú thích tiếng Việt `# ▸` trên từng dòng (không đổi kết quả chạy)" disabled={annBusy || !draft.code.trim()} onClick={() => reAnnotate(false)}>Chú thích lại</button>}
-            {educ && <button type="button" className="n-btn sm" title="Xoá các dòng chú thích `# ▸` tự sinh (giữ chú thích của bạn)" disabled={annBusy || !draft.code.trim()} onClick={() => reAnnotate(true)}>Bỏ chú thích</button>}
+            {educ && <button type="button" className="n-icon-btn" aria-label="Chú thích" aria-expanded={annOpen} title="Chú thích tiếng Việt `# ▸` trên từng dòng" disabled={annBusy || !draft.code.trim()} onClick={() => setAnnOpen(!annOpen)}>{annBusy ? <Spinner /> : <b style={{ fontSize: 12 }}>▸#</b>}</button>}
             <button type="button" className="n-icon-btn" aria-label="Nhân bản" title="Nhân bản sang tab mới" onClick={() => addDraft(`${draft.name} (bản sao)`, draft.code)}>{ICON.copy}</button>
+            {educ && annOpen && (
+              <div className="n-pop se-annp" role="menu" aria-label="Chú thích">
+                <button type="button" role="menuitem" className="n-btn sm" title="Sinh lại chú thích ngắn `# ▸` (không đổi kết quả chạy)" onClick={() => { setAnnOpen(false); reAnnotate(false) }}>Chú thích lại</button>
+                <button type="button" role="menuitem" className="n-btn sm" title="Xoá các dòng chú thích `# ▸` tự sinh (giữ chú thích của bạn)" onClick={() => { setAnnOpen(false); reAnnotate(true) }}>Bỏ chú thích</button>
+              </div>
+            )}
             {setOpen && (
               <div className="n-pop se-setp" role="dialog" aria-label="Cài đặt chạy">
                 <div className="n-pop-h"><b>Cài đặt chạy</b><button type="button" className="n-btn sm" onClick={() => setSetOpen(false)}>Đóng</button></div>

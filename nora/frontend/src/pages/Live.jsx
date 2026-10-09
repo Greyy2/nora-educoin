@@ -191,7 +191,7 @@ function CompareFills({ mode = 'demo', book = 'main', engine = 'unified' }) {
 }
 
 export default function Live() {
-  const meta = useMeta()
+  const { meta } = useMeta()
   const liveModes = meta?.live?.modes || []
   const tabs = useMemo(() => {
     if (!liveModes.length) {

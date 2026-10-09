@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { GLOSSARY } from '../../lib/glossary'
+import { GLOSSARY, glossaryDef } from '../../lib/glossary'
+import { useMeta } from '../../meta/MetaProvider'
 
 /**
  * Thuật ngữ có giải thích: `<Term k="sharpe">Sharpe</Term>` (bỏ children thì dùng nhãn trong glossary).
@@ -7,6 +8,7 @@ import { GLOSSARY } from '../../lib/glossary'
  * Tooltip dùng position: fixed nên không bị cắt bởi bảng cuộn (overflow) hay khung panel.
  */
 export default function Term({ k, children, className = '' }) {
+  const { meta } = useMeta()
   const g = GLOSSARY[k]
   const id = useId()
   const btn = useRef(null)
@@ -42,7 +44,7 @@ export default function Term({ k, children, className = '' }) {
           <circle cx="8" cy="8" r="6.4" /><path d="M8 7.2v3.6" /><circle cx="8" cy="4.9" r=".5" fill="currentColor" />
         </svg>
       </button>
-      {pos && <span id={id} role="tooltip" className="n-term-tip" style={pos}><b>{g.label}</b>{g.def}</span>}
+      {pos && <span id={id} role="tooltip" className="n-term-tip" style={pos}><b>{g.label}</b>{glossaryDef(g, meta)}</span>}
     </span>
   )
 }

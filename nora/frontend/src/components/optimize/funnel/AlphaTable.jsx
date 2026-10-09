@@ -25,7 +25,7 @@ export default function AlphaTable({ runId, stage, strategies, selected, onSelec
   const q = useAsync(() => getFunnelAlphas(runId, { stage, status: status === 'all' ? '' : status, strategy, sort: sortParam, offset: pg.offset, limit: pg.limit }),
     [runId, stage, status, strategy, sortParam, pg.offset, pg.limit])
   const reset = (fn) => (v) => { fn(v); setPg((p) => ({ ...p, offset: 0 })) }
-  const meta = useMeta()
+  const { meta } = useMeta()
   const hasTrades = stageHasTrades(stage, meta)
   const showS = ['S5_sizing', 'S6_holdout', 'FINAL'].includes(stage)
   const d = q.data

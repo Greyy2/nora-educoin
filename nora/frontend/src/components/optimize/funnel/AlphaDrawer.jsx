@@ -8,19 +8,20 @@ import { ParamList, AlphaStatus, StrategyName } from './parts'
 import useAsync from '../../../hooks/useAsync'
 import { useMeta } from '../../../meta/MetaProvider'
 import { getFunnelAlpha, postFunnelPromote } from '../../../api'
-import { STAGE_META, ALL_STAGES, METRICS, stageName, stageShort, stageHasTrades, fmtMetric, metricLabel } from '../../../lib/funnel'
+import { METRICS, stageName, stageShort, stageHasTrades, stageRule, fmtMetric, metricLabel } from '../../../lib/funnel'
 import { fmtNum, fmtPct, fmtSPct, signClass, isNum } from '../../../lib/format'
 
 const ICON = { pass: '✓', fail: '✗', none: '–' }
 
 function Journey({ d }) {
+  const { meta } = useMeta()
   return (
     <ol className="n-jr" aria-label="Hành trình qua các tầng">
       {d.stages.map((s) => (
         <li key={s.stage} className={s.status}>
           <span className="ic" aria-hidden="true">{ICON[s.status]}</span>
           <span className="tx">
-            <b title={STAGE_META[s.stage]?.rule}>{stageShort(s.stage)} · {stageName(s.stage)}</b>
+            <b title={stageRule(s.stage, meta)}>{stageShort(s.stage, meta)} · {stageName(s.stage, meta)}</b>
             <span className="sr-only">{s.status === 'pass' ? 'Qua' : s.status === 'fail' ? 'Bị loại' : 'Chưa tới'}</span>
             {s.status === 'fail' && <span className="why">{s.msg || s.code}</span>}
             {s.status === 'none' && <span className="muted">chưa tới</span>}
@@ -36,7 +37,7 @@ function MetricMatrix({ d }) {
   const order = Object.keys(METRICS)
   // chỉ hiện chỉ số đã có nhãn và là giá trị đơn (bỏ khoá thô/đối tượng lồng như by_symbol, fold_detail, sr_daily, skew, kurt)
   const scalar = (v) => v == null || ['number', 'string', 'boolean'].includes(typeof v)
-  const keys = [...new Set(cols.flatMap((s) => Object.keys(s.metrics)))].filter((k) => METRICS[k] && cols.every((s) => scalar(s.metrics[k]))).sort((a, b) => {
+  const keys = [...new Set(cols.flatMap((s) => Object.keys(s.metrics)))].filter((k) => METRICS[k] && metricLabel(k) && cols.every((s) => scalar(s.metrics[k]))).sort((a, b) => {
     const ia = order.indexOf(a); const ib = order.indexOf(b)
     return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib)
   })
@@ -62,7 +63,8 @@ function MetricMatrix({ d }) {
 }
 
 function NavSection({ d }) {
-  const stages = ALL_STAGES.filter((s) => d.nav[s])
+  const { meta } = useMeta()
+  const stages = Object.keys(d.nav || {})
   const [st, setSt] = useState(stages[0] || null)
   const cur = d.nav[st] ? st : stages[0]
   if (!cur) return <p className="n-note">Chưa có đường NAV cho alpha này.</p>
@@ -70,7 +72,7 @@ function NavSection({ d }) {
   return (
     <>
       <div className="n-fn-tools" style={{ marginBottom: 6 }}>
-        <Segmented label="Tầng của đường NAV" value={cur} onChange={setSt} options={stages.map((s) => ({ value: s, label: `${stageShort(s)} · ${stageName(s)}` }))} />
+        <Segmented label="Tầng của đường NAV" value={cur} onChange={setSt} options={stages.map((s) => ({ value: s, label: `${stageShort(s, meta)} · ${stageName(s, meta)}` }))} />
         <span className="n-note mono">{n.values.length} ngày · {fmtNum(n.values[0], 0)} → {fmtNum(n.values[n.values.length - 1], 0)} USDT ({fmtSPct((n.values[n.values.length - 1] / n.values[0] - 1) * 100, 1)})</span>
       </div>
       <AreaLine key={cur} dates={n.dates} series={[{ key: 'nav', label: 'NAV (USDT)', values: n.values, color: 'var(--n-blue)', area: true }]} height={220}
@@ -80,19 +82,22 @@ function NavSection({ d }) {
 }
 
 function ScalePanel({ d }) {
+  const { meta } = useMeta()
   const s = d.final_scale
+  const sMin = meta?.funnel?.gates?.find((g) => g.key === 'S5_S_MIN')?.value
+  const sMinTxt = isNum(sMin) ? String(sMin).replace('.', ',') : null
   if (!isNum(s) && !d.scale_search) return null
-  const tone = !isNum(s) ? '' : s < 0.2 ? 'neg' : s < 0.5 ? 'warn' : 'pos'
+  const tone = !isNum(s) ? '' : isNum(sMin) && s < sMin ? 'neg' : s < 0.5 ? 'warn' : 'pos'
   return (
-    <Panel title={<><Term k="scale_s">Khối lượng sống sót (s)</Term></>} meta={d.stages.find((x) => x.stage === 'S5_sizing')?.status === 'fail' ? <Status tone="bad">✗ s dưới 0,2</Status> : null}>
+    <Panel title={<><Term k="scale_s">Khối lượng sống sót (s)</Term></>} meta={d.stages.find((x) => x.stage === 'S5_sizing')?.status === 'fail' ? <Status tone="bad">✗ s dưới {sMinTxt}</Status> : null}>
       <div className="n-scale">
         <div>
           <div className={`n-scale-v mono ${tone}`}>{isNum(s) ? fmtNum(s, 2) : '—'}</div>
           <div className="n-note">≈ {isNum(s) ? fmtPct(s * 100, 0) : '—'} cỡ lệnh gốc</div>
         </div>
-        <div className="n-scale-bar" role="img" aria-label={`s = ${isNum(s) ? fmtNum(s, 2) : 'chưa có'} trên thang 0 đến 1, ngưỡng loại 0,2`}>
-          <div className="trk"><i className={tone} style={{ width: `${Math.max(0, Math.min(1, s || 0)) * 100}%` }} /><span className="mk" style={{ left: '20%' }} title="Ngưỡng loại s = 0,2" /></div>
-          <div className="sc mono"><span>0</span><span style={{ marginLeft: '12%' }}>0,2 (ngưỡng loại)</span><span style={{ marginLeft: 'auto' }}>1</span></div>
+        <div className="n-scale-bar" role="img" aria-label={`s = ${isNum(s) ? fmtNum(s, 2) : 'chưa có'} trên thang 0 đến 1, ${sMinTxt ? `ngưỡng loại ${sMinTxt}` : ''}`}>
+          <div className="trk"><i className={tone} style={{ width: `${Math.max(0, Math.min(1, s || 0)) * 100}%` }} /><span className="mk" style={{ left: `${(isNum(sMin) ? sMin : 0) * 100}%`, display: isNum(sMin) ? undefined : 'none' }} title={`Ngưỡng loại s = ${sMinTxt}`} /></div>
+          <div className="sc mono"><span>0</span><span style={{ marginLeft: '12%' }}>{sMinTxt ? `${sMinTxt} (ngưỡng loại)` : ''}</span><span style={{ marginLeft: 'auto' }}>1</span></div>
         </div>
       </div>
       {d.scale_search?.length > 0 && (
@@ -100,10 +105,10 @@ function ScalePanel({ d }) {
           <summary>Các bước tìm nhị phân s ({d.scale_search.length})</summary>
           <div className="n-tblwrap">
             <table className="n-tbl">
-              <thead><tr><th className="r">s thử</th><th className="r">P(MDD ≥ 30%)</th><th className="r">MDD kịch bản cực xấu</th><th>Qua điều kiện S4</th></tr></thead>
+              <thead><tr><th className="r">s thử</th><th className="r">{metricLabel('p_mdd_ge_30')}</th><th className="r">{metricLabel('stress_max_mdd')}</th><th>Qua điều kiện S4</th></tr></thead>
               <tbody>
                 {[...d.scale_search].sort((a, b) => b.s - a.s).map((r) => (
-                  <tr key={r.s}><td className="r">{fmtNum(r.s, 2)}</td><td className="r">{fmtPct(r.p_mdd_ge_30, 1)}</td><td className="r">{fmtPct(r.stress_max_mdd, 1)}</td>
+                  <tr key={r.s}><td className="r">{fmtNum(r.s, 2)}</td><td className="r">{fmtMetric('p_mdd_ge_30', r.p_mdd_ge_30)}</td><td className="r">{fmtMetric('stress_max_mdd', r.stress_max_mdd)}</td>
                     <td>{r.measured === false ? <span title={r.note_vi}><Status tone="warn">Không đo được</Status></span> : r.passed ? <Status tone="ok">✓ Đạt</Status> : <Status tone="bad">✗ Không đạt</Status>}</td></tr>
                 ))}
               </tbody>
@@ -124,7 +129,7 @@ function CompactMc({ mc }) {
   return (
     <div style={{ display: 'grid', gap: 10 }}>
       <div className="n-tiles" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', margin: 0 }}>
-        {entries.map(([k, v]) => <div className="n-tile" key={k}><div className="l">{METRICS[k]?.label || k}</div><div className="v">{fmtMetric(k, v)}</div></div>)}
+        {entries.map(([k, v]) => <div className="n-tile" key={k}><div className="l">{metricLabel(k) || k}</div><div className="v">{fmtMetric(k, v)}</div></div>)}
       </div>
       {stress.length > 0 && (
         <div className="n-tblwrap"><table className="n-tbl"><thead><tr><th>Kịch bản</th><th className="r">MDD</th><th>Kết quả</th></tr></thead>
@@ -135,7 +140,7 @@ function CompactMc({ mc }) {
 }
 
 function PromoteBar({ runId, d, onDone }) {
-  const meta = useMeta()
+  const { meta } = useMeta()
   const regPath = meta?.paths?.registry || 'data/alpha/registry.json'
   const [step, setStep] = useState('idle') // idle | confirm | busy | done
   const [err, setErr] = useState(null)
@@ -175,7 +180,7 @@ function PromoteBar({ runId, d, onDone }) {
 }
 
 export default function AlphaDrawer({ runId, alphaId, onClose, onTrades }) {
-  const meta = useMeta()
+  const { meta } = useMeta()
   const q = useAsync(() => getFunnelAlpha(runId, alphaId), [runId, alphaId])
   const d = q.data
   const [tradeStage, setTradeStage] = useState('')

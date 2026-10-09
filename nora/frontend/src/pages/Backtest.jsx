@@ -12,7 +12,7 @@ import DashboardLoader, { PERIODS } from '../components/portfolio/Dashboard'
 import WfaResult from '../components/optimize/WfaResult'
 import McResult from '../components/optimize/McResult'
 import useJob from '../hooks/useJob'
-import { useCatalog } from '../context/Catalog'
+import { useCatalog } from '../meta/MetaProvider'
 import { useMeta } from '../meta/MetaProvider'
 import { postBacktest, postWfa, postMc } from '../api'
 import { parseJobParams, JOB_STATUS } from '../lib/jobs'
@@ -23,8 +23,9 @@ import { STOP_FILL, stopFillOptions } from '../lib/stopfill'
 import { paramLabel } from '../lib/params'
 import { SIDE_TEXT, legLabel, legsFor, picksFromLegs, strategyName } from '../lib/strategyLabel'
 import {
-  MC_STD, STRESS, STRESS_ALL, WFA_STD, WFA_SCHEMA_KEYS_SUPPORTED, WFA_PENDING_NOTE, mcIsCustom, presetParams,
+  WFA_SCHEMA_KEYS_SUPPORTED, WFA_PENDING_NOTE, mcIsCustom, presetParams,
   validateStrategy, coerceParams, splitServerErrors, flatServerErrors, CUSTOM_BADGE, timeframeMismatch,
+  getWfaStd, getMcStd, getStressScenarios, bookMcSpec,
 } from '../lib/modes'
 
 function readPrefill(location, sp) {
@@ -172,7 +173,7 @@ function StepBacktest({ cat, strats, sc, form, setForm, btId, bt, onLaunched, on
   const [err, setErr] = useState(null)
   const [runErr, setRunErr] = useState(null) // { per, general } từ 422 của lần chạy gần nhất
   const [period, setPeriod] = useState('ALL')
-  const meta = useMeta()
+  const { meta } = useMeta()
   const dataUniverse = meta?.universe?.data?.assets || cat.universe || []
   const bookUniverse = meta?.universe?.book || []
   const [useBookUniverse, setUseBookUniverse] = useState(false)
@@ -543,10 +544,21 @@ function StepBacktest({ cat, strats, sc, form, setForm, btId, bt, onLaunched, on
 }
 
 /* ------------------------------ Bước 2: WFA ------------------------------ */
-function StepWfa({ cat, strats, form, setForm, wfaId, wfa, onLaunched, onNext }) {
+function StepWfaInner({ cat, strats, form, setForm, wfaId, wfa, onLaunched, onNext, meta, wfaStd }) {
   const mode = form.mode
   const adv = mode === 'advanced'
-  const [f, setF] = useState({ train: WFA_STD.train_days, test: WFA_STD.test_days, kind: 'fixed', n: 3, start: form.start, end: form.end, step: '', sims: '', mcSeed: '', regime: 'off' })
+  const [f, setF] = useState(() => ({
+    train: wfaStd.train_days,
+    test: wfaStd.test_days,
+    kind: 'fixed',
+    n: 3,
+    start: form.start,
+    end: form.end,
+    step: '',
+    sims: '',
+    mcSeed: '',
+    regime: 'off',
+  }))
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(null)
   const [runErr, setRunErr] = useState(null)
@@ -646,8 +658,8 @@ function StepWfa({ cat, strats, form, setForm, wfaId, wfa, onLaunched, onNext })
             </>
           ) : (
             <>
-              <Locked label={<>Số ngày train (<Term k="is">IS</Term>)</>} id="lk-train">{WFA_STD.train_days}</Locked>
-              <Locked label={<>Số ngày test (<Term k="oos">OOS</Term>)</>} id="lk-test">{WFA_STD.test_days}</Locked>
+              <Locked label={<>Số ngày train (<Term k="is">IS</Term>)</>} id="lk-train">{wfaStd ? wfaStd.train_days : '—'}</Locked>
+              <Locked label={<>Số ngày test (<Term k="oos">OOS</Term>)</>} id="lk-test">{wfaStd ? wfaStd.test_days : '—'}</Locked>
             </>
           )}
           <Field id="wf-start" label="Từ ngày"><DateInput id="wf-start" label="Từ ngày" value={f.start} onChange={(v) => set({ start: v })} /></Field>
@@ -657,8 +669,8 @@ function StepWfa({ cat, strats, form, setForm, wfaId, wfa, onLaunched, onNext })
         {adv && (
           <div className="n-form-row" style={{ marginTop: 12 }}>
             <ParamField idBase="wf" k="step_days" spec={{ type: 'int', min: 1, max: 365, unit: 'ngày' }} value={f.step} onChange={(v) => set({ step: v })} disabled={pend} note={pend ? WFA_PENDING_NOTE : null} />
-            <ParamField idBase="wf" k="sims" spec={{ type: 'int', min: 100, max: 50000, unit: 'kịch bản' }} value={f.sims} onChange={(v) => set({ sims: v })} disabled={pend} note={pend ? WFA_PENDING_NOTE : null} />
-            <ParamField idBase="wf" k="mc_seed" spec={{ type: 'int', min: 0, max: 2147483647 }} value={f.mcSeed} onChange={(v) => set({ mcSeed: v })} disabled={pend} note={pend ? WFA_PENDING_NOTE : null} />
+            <ParamField idBase="wf" k="sims" spec={bookMcSpec(meta, 'simulations', 'int', { help_vi: null })} value={f.sims} onChange={(v) => set({ sims: v })} disabled={pend} note={pend ? WFA_PENDING_NOTE : null} />
+            <ParamField idBase="wf" k="mc_seed" spec={bookMcSpec(meta, 'seed', 'int', { help_vi: null })} value={f.mcSeed} onChange={(v) => set({ mcSeed: v })} disabled={pend} note={pend ? WFA_PENDING_NOTE : null} />
           </div>
         )}
         <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end', flexWrap: 'wrap', marginTop: 12 }}>
@@ -726,43 +738,51 @@ function StepWfa({ cat, strats, form, setForm, wfaId, wfa, onLaunched, onNext })
   )
 }
 
-/* --------------------------- Bước 3: Monte Carlo --------------------------- */
-const MC_FIELDS = [
-  { k: 'simulations', spec: { type: 'int', min: 100, max: 50000, step: 1000 }, std: MC_STD.simulations, cust: true },
-  { k: 'block_days', spec: { type: 'int', min: 1, max: 30 }, std: MC_STD.block_days },
-  { k: 'horizon_days', spec: { type: 'int', min: 5, max: 730 }, std: MC_STD.horizon_days },
-  { k: 'seed', spec: { type: 'int', min: 0, max: 2147483647 }, std: MC_STD.seed },
-  { k: 'scale', spec: { type: 'float', min: 0.1, max: 10, step: 0.1 }, std: MC_STD.scale },
-  { k: 'ruin_threshold_pct', spec: { type: 'float', min: 1, max: 100 }, std: MC_STD.ruin_threshold_pct, cust: true },
-  { k: 'stress_max_mdd_pct', spec: { type: 'float', min: 1, max: 100 }, std: MC_STD.stress_max_mdd_pct, cust: true },
-]
+function StepWfa({ cat, strats, form, setForm, wfaId, wfa, onLaunched, onNext }) {
+  const { meta } = useMeta()
+  const wfaStd = getWfaStd(meta)
+  if (!wfaStd) return <Loading what="cấu hình chuẩn walk-forward" />
+  return <StepWfaInner cat={cat} strats={strats} form={form} setForm={setForm} wfaId={wfaId} wfa={wfa} onLaunched={onLaunched} onNext={onNext} meta={meta} wfaStd={wfaStd} />
+}
 
+/* --------------------------- Bước 3: Monte Carlo --------------------------- */
 function mcCheck(spec, v) {
   if (v === '' || v == null || !Number.isFinite(Number(v))) return 'Nhập một số'
   const n = Number(v)
   if (spec.type === 'int' && !Number.isInteger(n)) return 'Phải là số nguyên'
-  if (n < spec.min || n > spec.max) return `Phải nằm trong khoảng ${spec.min} đến ${spec.max}`
+  if (n < spec.min || n > spec.max || (spec.minExclusive && n === spec.min)) return `Phải nằm trong khoảng ${spec.minExclusive ? 'lớn hơn' : 'từ'} ${spec.min} đến ${spec.max}`
   return null
 }
 
-function StepMc({ wfaId, wfa, form, setForm }) {
+function StepMcInner({ wfaId, form, setForm, meta, mcStd, stressScenarios, stressAll }) {
   const mode = form.mode
   const adv = mode === 'advanced'
-  const [f, setF] = useState({ ...MC_STD, extra_cost_daily_pct: '', stress: STRESS_ALL, basis: 'extreme' })
+  const [f, setF] = useState(() => ({ ...mcStd, extra_cost_daily_pct: '', stress: stressAll, basis: 'extreme' }))
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(null)
   const [srvErr, setSrvErr] = useState({})
   const [res, setRes] = useState(null)
   const set = (p) => { setSrvErr({}); setF((x) => ({ ...x, ...p })) }
+
+    const mcFields = useMemo(() => [
+    { k: 'simulations', spec: bookMcSpec(meta, 'simulations', 'int', { step: 1000 }), std: mcStd.simulations, cust: true },
+    { k: 'block_days', spec: bookMcSpec(meta, 'block_days', 'int'), std: mcStd.block_days },
+    { k: 'horizon_days', spec: bookMcSpec(meta, 'horizon_days', 'int'), std: mcStd.horizon_days },
+    { k: 'seed', spec: bookMcSpec(meta, 'seed', 'int'), std: mcStd.seed },
+    { k: 'scale', spec: bookMcSpec(meta, 'scale', 'float', { step: 0.1 }), std: mcStd.scale },
+    { k: 'ruin_threshold_pct', spec: bookMcSpec(meta, 'ruin_threshold_pct', 'float'), std: mcStd.ruin_threshold_pct, cust: true },
+    { k: 'stress_max_mdd_pct', spec: bookMcSpec(meta, 'stress_max_mdd_pct', 'float'), std: mcStd.stress_max_mdd_pct, cust: true },
+  ], [meta, mcStd])
+
   const fe = {}
   if (adv) {
-    MC_FIELDS.forEach((m) => { const e = mcCheck(m.spec, f[m.k]); if (e) fe[m.k] = e })
+    mcFields.forEach((m) => { const e = mcCheck(m.spec, f[m.k]); if (e) fe[m.k] = e })
     if (f.extra_cost_daily_pct !== '') { const e = mcCheck({ type: 'float', min: 0, max: 5 }, f.extra_cost_daily_pct); if (e) fe.extra_cost_daily_pct = e }
     if (!f.stress.length) fe.stress_scenarios = 'Chọn ít nhất một kịch bản cực xấu'
   }
   const errs = { ...srvErr, ...fe }
   const hasErr = Object.keys(fe).length > 0
-  const custom = adv && !hasErr && mcIsCustom(f)
+  const custom = adv && !hasErr && mcIsCustom(f, meta)
 
   async function run() {
     setErr(null); setSrvErr({})
@@ -783,15 +803,15 @@ function StepMc({ wfaId, wfa, form, setForm }) {
       if (e.fields?.length) { setSrvErr(flat.byName); setErr(flat.rest.join('; ') || 'Máy chủ từ chối một số tham số: xem các ô báo đỏ.') } else setErr(e.message)
     } finally { setBusy(false) }
   }
-  const toggleStress = (n) => set({ stress: f.stress.includes(n) ? f.stress.filter((x) => x !== n) : STRESS_ALL.filter((x) => x === n || f.stress.includes(x)) })
+  const toggleStress = (n) => set({ stress: f.stress.includes(n) ? f.stress.filter((x) => x !== n) : stressAll.filter((x) => x === n || f.stress.includes(x)) })
   return (
     <>
       <ModeSwitch mode={mode} onChange={(m) => setForm({ mode: m })} />
       <Panel title={<>Cấu hình <Term k="mc">Monte Carlo</Term> (<Term k="bootstrap">bootstrap theo khối</Term>, mark-to-market ngày)</>}>
         <div className="n-form-row">
-          {adv ? MC_FIELDS.map((m) => (
+          {adv ? mcFields.map((m) => (
             <ParamField key={m.k} idBase="mc" k={m.k} spec={m.spec} value={f[m.k]} onChange={(v) => set({ [m.k]: v })} error={errs[m.k]} />
-          )) : MC_FIELDS.map((m) => (
+          )) : mcFields.map((m) => (
             <Locked key={m.k} label={paramLabel(m.k)} id={`lk-${m.k}`}>{Number(m.std).toLocaleString('vi-VN')}</Locked>
           ))}
           {adv && <ParamField idBase="mc" k="extra_cost_daily_pct" spec={{ type: 'float', min: 0, max: 5, unit: '%/ngày' }} value={f.extra_cost_daily_pct} onChange={(v) => set({ extra_cost_daily_pct: v })} error={errs.extra_cost_daily_pct} />}
@@ -802,9 +822,9 @@ function StepMc({ wfaId, wfa, form, setForm }) {
           </Field></div>
         </div>
         <fieldset className="n-pgroup" style={{ marginTop: 12 }}>
-          <legend><Term k="stress">Kịch bản cực xấu</Term>{!adv ? <> · <LockIcon /> đủ 6 kịch bản</> : null}</legend>
+          <legend><Term k="stress">Kịch bản cực xấu</Term>{!adv ? <> · <LockIcon /> đủ {stressScenarios.length} kịch bản</> : null}</legend>
           <div className="n-chips" role="group" aria-label="Kịch bản cực xấu">
-            {STRESS.map((s) => {
+            {stressScenarios.map((s) => {
               const on = !adv || f.stress.includes(s.name)
               return (
                 <label key={s.name} className={`n-chip ${on ? 'on' : ''}`} style={!adv ? { opacity: 0.8, cursor: 'default' } : undefined}>
@@ -815,11 +835,11 @@ function StepMc({ wfaId, wfa, form, setForm }) {
           </div>
           {errs.stress_scenarios && <span className="n-field-err" role="alert">{errs.stress_scenarios}</span>}
         </fieldset>
-        {!adv && <p className="n-note" style={{ marginTop: 8 }}>Cơ bản: {MC_STD.simulations.toLocaleString('vi-VN')} mô phỏng, cổng chuẩn (P(MDD ≥ 30%) ≤ 5%, mọi kịch bản cực xấu MDD &lt; 50%); chỉ nguồn WFA được lấy từ bước 2.</p>}
+        {!adv && <p className="n-note" style={{ marginTop: 8 }}>Cơ bản: {mcStd.simulations.toLocaleString('vi-VN')} mô phỏng, cổng chuẩn (P(MDD ≥ {mcStd.ruin_threshold_pct}%) ≤ {mcStd.max_ruin_pct}%, mọi kịch bản cực xấu MDD &lt; {mcStd.stress_max_mdd_pct}%); chỉ nguồn WFA được lấy từ bước 2.</p>}
         {custom && (
           <div className="n-banner" role="alert" style={{ borderLeftColor: 'var(--n-warn)', marginTop: 12, marginBottom: 0 }}>
             <span className="n-custom-badge">⚠ {CUSTOM_BADGE}</span>
-            <span>Cổng khác chuẩn (dưới 10.000 mô phỏng, ngưỡng phá sản ≠ 30%, MDD cực xấu ≠ 50% hoặc thiếu kịch bản): kết quả chỉ để thử nghiệm.</span>
+            <span>Cổng khác chuẩn (dưới {mcStd.simulations.toLocaleString('vi-VN')} mô phỏng, ngưỡng phá sản ≠ {mcStd.ruin_threshold_pct}%, MDD cực xấu ≠ {mcStd.stress_max_mdd_pct}% hoặc thiếu kịch bản): kết quả chỉ để thử nghiệm.</span>
           </div>
         )}
         <div className="n-sticky-actions">
@@ -839,9 +859,21 @@ function StepMc({ wfaId, wfa, form, setForm }) {
   )
 }
 
+function StepMc({ wfaId, wfa, form, setForm }) {
+  const { meta } = useMeta()
+  const mcStd = getMcStd(meta)
+  const stressScenarios = useMemo(() => getStressScenarios(meta), [meta])
+  const stressAll = useMemo(() => stressScenarios.map((s) => s.name), [stressScenarios])
+
+  if (!mcStd) return <Loading what="cấu hình chuẩn Monte Carlo" />
+  return <StepMcInner wfaId={wfaId} form={form} setForm={setForm} meta={meta} mcStd={mcStd} stressScenarios={stressScenarios} stressAll={stressAll} />
+}
+
 /* --------------------------------- Trang --------------------------------- */
 export default function Backtest() {
   const { data: cat, loading, error, reload } = useCatalog()
+  const { meta } = useMeta()
+  const dataUniverse = meta?.universe?.data?.assets || cat?.universe || []
   const strats = useStrategies()
   const sc = useStrategyCatalog()
   const [sp, setSp] = useSearchParams()

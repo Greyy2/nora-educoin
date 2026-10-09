@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { PageHead, Panel, Status, Spinner, Loading, ErrorState, Empty, Segmented } from '../components/ui'
 import JobPanel from '../components/jobs/JobPanel'
@@ -14,10 +14,10 @@ import '../styles/optimize.css'
 import { EmptyStage } from '../components/optimize/funnel/parts'
 import useAsync from '../hooks/useAsync'
 import useJob from '../hooks/useJob'
-import { useCatalog } from '../context/Catalog'
+import { useCatalog } from '../meta/MetaProvider'
 import { useMeta } from '../meta/MetaProvider'
 import { listFunnelRuns, getFunnelRun, getFunnelStats, getFunnelAlphas } from '../api'
-import { ALL_STAGES, STAGE_META, RUN_STATUS, shortId, fmtCount, stageShort, stageName, stageHasTrades } from '../lib/funnel'
+import { RUN_STATUS, shortId, fmtCount, stageShort, stageName, stageHasTrades, getAllFunnelStages, splitLegacy } from '../lib/funnel'
 import { isNum } from '../lib/format'
 import { fmtDateTime, fullDate } from '../lib/format'
 import { legLabel } from '../lib/strategyLabel'
@@ -58,10 +58,12 @@ function RunsPage() {
 }
 
 /* ------------------------------- xem một lượt ------------------------------- */
-// tầng thật sự lưu lệnh; S4 (Monte Carlo + DSR), S2 cũ và FINAL xem lệnh qua tầng gần nhất có lệnh
-const TRADE_STAGES = ['S1_backtest', 'S3_wfa', 'S5_sizing', 'S6_holdout']
-const TRADE_STAGE_OF = { S2_antiluck: 'S1_backtest', S4_montecarlo: 'S3_wfa', FINAL: 'S6_holdout' }
-const tradeStageOf = (st) => (TRADE_STAGES.includes(st) ? st : TRADE_STAGE_OF[st] || null)
+// tầng xem lệnh = chính nó nếu có lệnh riêng, ngược lại theo `trades_from` trong meta.funnel.stages
+function tradeStageOf(st, meta) {
+  const x = meta?.funnel?.stages?.find((y) => y.id === st)
+  if (!x) return null
+  return x.has_trades ? x.id : (x.trades_from ?? null)
+}
 const TABS = [{ value: 'stats', label: 'Thống kê' }, { value: 'alphas', label: 'Alpha' }, { value: 'trades', label: 'Lệnh' }]
 
 function RunMeta({ run }) {
@@ -88,16 +90,17 @@ function RunMeta({ run }) {
 }
 
 function RunView({ runId }) {
-  const meta = useMeta()
+  const { meta } = useMeta()
   const nav = useNavigate()
   const [sp, setSp] = useSearchParams()
   const runQ = useAsync(() => getFunnelRun(runId), [runId], { poll: (r) => (isLive(r.status) ? 5000 : 0) }) // một vòng poll duy nhất cho lượt đang chạy (tiến độ lấy từ run.progress); tab ẩn thì tạm dừng
-  const run = runQ.data
+  const run = useMemo(() => splitLegacy(runQ.data, meta), [runQ.data, meta])
   const live = !!run && isLive(run.status)
   // job chỉ hỏi khi lượt đã thất bại (lấy log lỗi, 1 lần); lúc đang chạy dùng run.progress để khỏi poll chồng 2 nguồn
   const jobQ = useJob(run?.job_id && run?.status === 'failed' ? run.job_id : null)
 
-  const stage = ALL_STAGES.includes(sp.get('stage')) ? sp.get('stage') : 'S1_backtest'
+  const allStages = getAllFunnelStages(meta)
+  const stage = allStages.includes(sp.get('stage')) ? sp.get('stage') : (allStages[1] || 'S1_backtest')
   const tab = TABS.some((t) => t.value === sp.get('tab')) ? sp.get('tab') : 'stats'
   const sel = sp.get('sel') || ''
   // mặc định chỉ hiện tóm tắt; phần chi tiết tầng (và dữ liệu nặng của nó) chỉ mở khi chọn tầng / tab / alpha
@@ -117,8 +120,9 @@ function RunView({ runId }) {
   const finalCount = run?.counts?.[7]?.passed
   const finalQ = useAsync(isNum(finalCount) && finalCount > 0 ? () => getFunnelStats(runId, 'FINAL') : null, [runId, finalCount, run?.status])
   // danh sách alpha cho ô chọn ở tab Lệnh: nhẹ hơn nhiều so với /stats
-  const tStage = tradeStageOf(stage) || 'S1_backtest'
-  const pickQ = useAsync(detail && tab === 'trades' ? () => getFunnelAlphas(runId, { stage: tStage, status: 'passed', sort: '-sharpe', limit: 25 }) : null, [runId, tStage, detail, tab])
+  const tradeStages = useMemo(() => (meta?.funnel?.stages || []).filter((x) => x.has_trades && !x.legacy).map((x) => x.id), [meta])
+  const tStage = tradeStageOf(stage, meta) || tradeStages[0] || ''
+  const pickQ = useAsync(detail && tab === 'trades' && tStage ? () => getFunnelAlphas(runId, { stage: tStage, status: 'passed', sort: '-sharpe', limit: 25 }) : null, [runId, tStage, detail, tab])
 
   // lý do loại chính của mọi tầng: nếu backend không kèm trong `counts` thì lấy từ /stats từng tầng (tuần tự, sau khi lượt không còn chạy)
   const [tops, setTops] = useState({})
@@ -152,7 +156,7 @@ function RunView({ runId }) {
 
   const openAlpha = useCallback((id) => setParams({ alpha: id }, false), [setParams])
   const closeAlpha = useCallback(() => setParams({ alpha: '' }, false), [setParams])
-  const toTrades = useCallback((id, st) => setParams({ alpha: '', sel: id, tab: 'trades', stage: tradeStageOf(st) || 'S1_backtest' }, false), [setParams])
+  const toTrades = useCallback((id, st) => setParams({ alpha: '', sel: id, tab: 'trades', stage: tradeStageOf(st, meta) || tradeStages[0] || '' }, false), [setParams, meta, tradeStages])
   const closeDetail = () => setParams({ stage: '', tab: '', sel: '' }, false)
   const pickStage = (st) => (detail && st === stage ? closeDetail() : setParams({ stage: st, tab: st === 'S0_generate' && tab !== 'stats' ? 'stats' : tab }, false))
   const openFinal = () => setParams({ stage: 'FINAL', tab: 'alphas', sel: '' }, false)
@@ -202,7 +206,7 @@ function RunView({ runId }) {
             )}
           </div>
         )}
-        <FunnelChart counts={run.counts} selected={detail ? stage : null} onSelect={pickStage} tops={tops} running={live} deadAt={deadAt?.stage || null} />
+        <FunnelChart counts={run.counts} legacy={run.legacy_counts} selected={detail ? stage : null} onSelect={pickStage} tops={tops} running={live} deadAt={deadAt?.stage || null} />
       </Panel>
 
       <div style={{ marginTop: 12 }}>
@@ -237,7 +241,7 @@ function RunView({ runId }) {
           <Panel title="Lệnh của alpha đang chọn" meta={
             <>
               <Segmented label="Tầng của danh sách lệnh" value={tStage} onChange={(st) => setParams({ stage: st })}
-                options={TRADE_STAGES.map((st) => ({ value: st, label: stageShort(st) }))} />
+                options={tradeStages.map((st) => ({ value: st, label: stageShort(st, meta) }))} />
               <label className="n-lbl" htmlFor="tr-alpha">Alpha</label>
               <select id="tr-alpha" className="n-sel n-fs-pick" value={tradeAlpha} onChange={(e) => setParams({ sel: e.target.value })}>
                 {!alphaOptions.length && <option value="">{pickQ.loading ? 'Đang tải…' : 'Chưa có alpha'}</option>}

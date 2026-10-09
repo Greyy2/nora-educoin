@@ -3,7 +3,7 @@ import { Segmented } from '../ui'
 import Term from '../ui/Term'
 import useAsync from '../../hooks/useAsync'
 import { getStrategies, getStrategyCatalog, postValidateStrategy } from '../../api'
-import { PARAM_GROUPS, paramLabel, paramHint, paramUnit, fmtParamFull } from '../../lib/params'
+import { getParamGroups, registerParamSchema, paramLabel, paramHint, paramUnit, fmtParamFull } from '../../lib/params'
 import { MODES, modeText, CUSTOM_BADGE, CUSTOM_REASON, presetInfo, validateStrategy, coerceParams, sameValue, changedKeys, WFA_PENDING_NOTE } from '../../lib/modes'
 import { fmtSPct, fmtPct, fmtNum } from '../../lib/format'
 
@@ -17,7 +17,10 @@ export function LockIcon() {
 
 /** Các chiến lược lõi (lược đồ + preset) từ GET /api/studio/strategies. */
 export function useStrategies() {
-  const q = useAsync(() => getStrategies(), [])
+  const q = useAsync(() => getStrategies().then((data) => {
+    registerParamSchema(data)
+    return data
+  }), [])
   const byId = useMemo(() => Object.fromEntries((q.data || []).map((s) => [s.id, s])), [q.data])
   return { list: q.data || [], byId, loading: q.loading, error: q.error, reload: () => { getStrategies(true); q.reload() } }
 }
@@ -73,7 +76,7 @@ export function ModeSwitch({ mode, onChange, className = '' }) {
       <p className="n-note">
         {mode === 'basic'
           ? <><Term k="mode_basic">Cơ bản</Term>: dùng <Term k="preset">preset</Term> (bộ tham số tốt nhất) đã khoá; máy chủ bỏ qua mọi tham số khác.</>
-          : <><Term k="mode_advanced">Nâng cao</Term>: chỉnh được từng tham số, khung thời gian, ngày và cổng. Đổi cổng hoặc dùng ít hơn 10.000 kịch bản thì kết quả <b>không xuất bản được</b>.</>}
+          : <><Term k="mode_advanced">Nâng cao</Term>: chỉnh được từng tham số, khung thời gian, ngày và cổng. Đổi cổng hoặc dùng ít kịch bản mô phỏng hơn mức chuẩn thì kết quả <b>không xuất bản được</b>.</>}
       </p>
     </div>
   )
@@ -173,7 +176,7 @@ export function ParamField({ idBase, k, spec, value, onChange, error, disabled, 
 }
 
 function ReadonlyGrid({ schema, params }) {
-  const groups = PARAM_GROUPS.map((g) => ({ ...g, keys: Object.keys(schema).filter((k) => schema[k].group === g.key) })).filter((g) => g.keys.length)
+  const groups = getParamGroups(schema)
   return (
     <div className="n-ro">
       {groups.map((g) => (
@@ -235,7 +238,7 @@ export function StrategyCard({ strat, name = null, sideText = null, mode, params
   const schema = strat.params_schema
   const preset = strat.preset?.params || {}
   const on = toggle ? toggle.on : true
-  const keysByGroup = PARAM_GROUPS.map((g) => ({ ...g, keys: Object.keys(schema).filter((k) => schema[k].group === g.key) })).filter((g) => g.keys.length)
+  const keysByGroup = getParamGroups(schema)
   const changed = mode === 'advanced' ? changedKeys(schema, params || {}, preset) : []
   const stratErrs = Object.entries(errors).filter(([k]) => !(k in schema))
   const nErr = Object.keys(errors).length

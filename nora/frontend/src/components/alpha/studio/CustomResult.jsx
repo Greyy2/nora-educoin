@@ -181,7 +181,7 @@ export default function CustomResult({ result, jobLine, explain = false, tourKey
   const open = Array.isArray(result?.positions_open) ? result.positions_open : []
 
   // ---- hướng dẫn từng bước (chỉ education): danh sách bước do backend quyết định (GET /api/studio/meta `explain_tour`); lời giải thích = result.explain.notes[notes_key]; thiếu ghi chú / dữ liệu thì bỏ bước ----
-  const meta = useMeta()
+  const { meta } = useMeta()
   const [tour, setTour] = useState(null) // null | chỉ số bước
   const steps = useMemo(() => {
     if (!explain) return []

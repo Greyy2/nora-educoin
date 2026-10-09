@@ -11,7 +11,7 @@ import { Spinner } from '../ui'
  *  cảnh báo nếu bot live đang chạy dùng sổ đó.
  */
 export default function EngineWarning({ status, label, bookKey }) {
-  const meta = useMeta()
+  const { meta } = useMeta()
   const st = status || (bookKey ? meta?.books?.[bookKey] : null)
   const botQ = useAsync(getLiveBot, [])
   const [busy, setBusy] = useState(false)
@@ -91,7 +91,7 @@ export function EngineStamp({ book }) {
 
 /** Cảnh báo cho trang thư viện alpha: số thống kê của thẻ alpha lấy từ sổ main/explore, nên sổ dựng bằng engine cũ thì phải cảnh báo ở đây. */
 export function CatalogEngineWarning() {
-  const meta = useMeta()
+  const { meta } = useMeta()
   const books = meta?.books
   if (!books) return null
   return (

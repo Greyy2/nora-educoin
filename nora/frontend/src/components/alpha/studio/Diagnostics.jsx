@@ -307,7 +307,7 @@ function TrainTest({ tv }) {
 
 /** result = result.json của custom_backtest hoặc bản ghi Education chạy sẵn. withInsights: thêm danh sách nhận xét ở đầu. */
 export default function Diagnostics({ result, withInsights = false, isEducation = false }) {
-  const meta = useMeta()
+  const { meta } = useMeta()
   const hidden = isEducation ? (meta?.education_hidden_sections || []) : []
   const d = result?.diagnostics
   const insights = Array.isArray(result?.insights) ? result.insights : []

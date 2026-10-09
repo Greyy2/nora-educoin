@@ -6,21 +6,19 @@ export const MODES = [{ value: 'basic', label: 'Cơ bản' }, { value: 'advanced
 export const modeText = (m) => (m === 'advanced' ? 'Nâng cao' : 'Cơ bản')
 
 export const CUSTOM_BADGE = 'Cấu hình tuỳ chỉnh — không xuất bản được'
-export const CUSTOM_REASON = 'Cổng khác chuẩn (ngưỡng, kịch bản cực xấu hoặc dưới 10.000 mô phỏng) nên kết quả chỉ để thử nghiệm: không xuất bản / promote được.'
+export const CUSTOM_REASON = 'Cổng khác chuẩn (ngưỡng, kịch bản cực xấu hoặc ít mô phỏng hơn mức chuẩn) nên kết quả chỉ để thử nghiệm: không xuất bản / promote được.'
 
 // Khớp backend/routes/modes.py (WFA_SCHEMA_KEYS_SUPPORTED = True từ P0.3b): WFA nâng cao nhận mọi khoá của lược đồ (chu kỳ, khung)
 // cùng step_days / sims / mc_seed. Trước đây cờ phía giao diện bị bỏ quên ở false nên các ô này bị khoá dù máy chủ đã hỗ trợ.
 export const WFA_SCHEMA_KEYS_SUPPORTED = true
 export const WFA_PENDING_NOTE = 'chưa hỗ trợ ở WFA (đang làm)'
 
-export const WFA_STD = { train_days: 120, test_days: 30 }
-export const MC_STD = { simulations: 10000, block_days: 5, horizon_days: 365, ruin_threshold_pct: 30, seed: 7, scale: 1, stress_max_mdd_pct: 50 }
-
 export function getWfaStd(meta) {
   const lim = meta?.limits?.book_wfa
+  if (!lim?.train_days?.default || !lim?.test_days?.default) return null
   return {
-    train_days: lim?.train_days?.default ?? WFA_STD.train_days,
-    test_days: lim?.test_days?.default ?? WFA_STD.test_days,
+    train_days: lim.train_days.default,
+    test_days: lim.test_days.default,
   }
 }
 
@@ -28,37 +26,42 @@ export function getMcStd(meta) {
   const lim = meta?.limits?.book_mc
   const gates = meta?.funnel?.gates || []
   const findGate = (k) => gates.find((g) => g.key === k)?.value
+  const simulations = findGate('MC_MIN_SIMULATIONS') ?? lim?.simulations?.default
+  const ruin_threshold_pct = findGate('MC_RUIN_THRESHOLD_PCT') ?? lim?.ruin_threshold_pct?.default
+  const stress_max_mdd_pct = findGate('STRESS_MAX_MDD_PCT') ?? lim?.stress_max_mdd_pct?.default
+  if (simulations == null || ruin_threshold_pct == null) return null
   return {
-    simulations: findGate('MC_MIN_SIMULATIONS') ?? lim?.simulations?.default ?? MC_STD.simulations,
-    block_days: lim?.block_days?.default ?? MC_STD.block_days,
-    horizon_days: lim?.horizon_days?.default ?? MC_STD.horizon_days,
-    ruin_threshold_pct: findGate('MC_RUIN_THRESHOLD_PCT') ?? lim?.ruin_threshold_pct?.default ?? MC_STD.ruin_threshold_pct,
-    seed: lim?.seed?.default ?? MC_STD.seed,
-    scale: lim?.scale?.default ?? MC_STD.scale,
-    stress_max_mdd_pct: findGate('STRESS_MAX_MDD_PCT') ?? MC_STD.stress_max_mdd_pct,
+    simulations,
+    block_days: lim?.block_days?.default,
+    horizon_days: lim?.horizon_days?.default,
+    ruin_threshold_pct,
+    max_ruin_pct: findGate('MC_MAX_RUIN_PCT'),
+    seed: lim?.seed?.default,
+    scale: lim?.scale?.default,
+    stress_max_mdd_pct,
   }
 }
 
-export const STRESS = [
-  { name: 'worst_days_first', label: 'Ngày lỗ tệ nhất đến trước' },
-  { name: 'reversed_order', label: 'Đảo ngược lịch sử' },
-  { name: 'crash_day', label: 'Ngày sập (2× ngày xấu nhất)' },
-  { name: 'cost_x2', label: 'Phí gấp đôi' },
-  { name: 'longest_losing_streak_x2', label: 'Chuỗi ngày lỗ dài nhất lặp 2 lần' },
-  { name: 'worst_bootstrap', label: 'Bootstrap tệ nhất' },
-  // trend thẳng đứng: chỉ có khi nguồn là job WFA (biết vị thế đã mở)
-  { name: 'vertical_surge', label: 'Tăng thẳng đứng +40%/3 ngày' },
-  { name: 'vertical_crash', label: 'Sập −30%/1 ngày' },
-  { name: 'vertical_chain', label: 'Tăng dựng rồi sập, lặp 2 lần' },
-]
-export const STRESS_ALL = STRESS.map((s) => s.name)
+/** Kịch bản cực xấu từ meta.stress: [{ name, label, default_on, needs_positions }]. Chưa có meta -> []. */
+export function getStressScenarios(meta) {
+  return (meta?.stress || []).map((x) => ({ name: x.key, label: x.label_vi, default_on: !!x.default_on, needs_positions: !!x.needs_positions }))
+}
+
+/** Spec ô nhập cho một trường book_mc: min/max/help từ meta.limits.book_mc (exclusiveMinimum -> minExclusive). */
+export function bookMcSpec(meta, key, type, extra = {}) {
+  const l = meta?.limits?.book_mc?.[key] || {}
+  const exclusive = l.minimum == null && l.exclusiveMinimum != null
+  return { type, min: l.minimum ?? l.exclusiveMinimum, minExclusive: exclusive, max: l.maximum, help_vi: l.help_vi, ...extra }
+}
 
 /** MC có đổi cổng so với chuẩn không (khớp rm.mc_standard của backend). */
 export function mcIsCustom(f, meta) {
   const std = getMcStd(meta)
-  const subset = f.stress || STRESS_ALL
+  if (!std) return false
+  const allStress = getStressScenarios(meta).map((s) => s.name)
+  const subset = f.stress || allStress
   return !(Number(f.simulations) >= std.simulations && Number(f.ruin_threshold_pct) === std.ruin_threshold_pct
-    && Number(f.stress_max_mdd_pct) === std.stress_max_mdd_pct && STRESS_ALL.every((n) => subset.includes(n)))
+    && Number(f.stress_max_mdd_pct) === std.stress_max_mdd_pct && allStress.every((n) => subset.includes(n)))
 }
 
 

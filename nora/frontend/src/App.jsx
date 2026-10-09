@@ -1,7 +1,7 @@
 import React, { Suspense, lazy } from 'react'
 import { createBrowserRouter, RouterProvider, Routes, Route, Navigate } from 'react-router-dom'
 import Shell from './layout/Shell'
-import { CatalogProvider } from './context/Catalog'
+import { CatalogProvider } from './meta/MetaProvider'
 import { Loading } from './components/ui'
 import AlphaTabs from './components/alpha/AlphaTabs'
 

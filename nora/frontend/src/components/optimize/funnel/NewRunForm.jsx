@@ -17,7 +17,7 @@ const N_PRESETS = [100, 1000, 10000, 100000]
 const gridSize = (c) => Object.values(c.space || {}).reduce((p, a) => p * Math.max(1, a.length), 1)
 
 export default function NewRunForm({ cat, onLaunched, onCancel }) {
-  const meta = useMeta()
+  const { meta } = useMeta()
   const catalog = cat?.catalog || []
   const dataUniverse = meta?.universe?.data?.assets || cat?.universe || []
   const bookUniverse = meta?.universe?.book || []

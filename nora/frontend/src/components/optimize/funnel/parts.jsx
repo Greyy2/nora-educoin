@@ -1,7 +1,7 @@
 import React from 'react'
 import { Status } from '../../ui'
 import { paramText } from '../../../lib/params'
-import { shortId, stageShort, stageName, STAGE_META, fmtMetric, metricLabel } from '../../../lib/funnel'
+import { shortId, stageShort, stageName, fmtMetric, metricLabel } from '../../../lib/funnel'
 import { isNum, signClass } from '../../../lib/format'
 import { legLabel, legSide } from '../../../lib/strategyLabel'
 
@@ -26,7 +26,7 @@ export function AlphaStatus({ a }) {
   return <Status tone="info">{stageShort(a.stage_reached)}</Status>
 }
 
-export { stageName, stageShort, STAGE_META, metricLabel }
+export { stageName, stageShort, metricLabel }
 
 /** Tên chiến lược kèm chiều ("KEMA · Long"; id cũ có hậu tố "(cũ)"), id thô là chữ phụ. */
 export function StrategyName({ id }) {

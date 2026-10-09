@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { Status, Spinner } from '../ui'
 import useJobList from '../../hooks/useJobList'
+import { useMeta } from '../../meta/MetaProvider'
 import { JOB_STATUS, jobKindText, jobLink, jobElapsed, isActiveJob, jobDetail } from '../../lib/jobs'
 import { fmtDuration, fmtDateTime, toMs } from '../../lib/format'
 
@@ -14,6 +15,7 @@ const ICON = (
 /** Chỉ báo công việc nền ở thanh trên: số job đang chạy / đang chờ + danh sách job gần đây, mỗi dòng dẫn tới đúng trang/bước. */
 export default function JobTray() {
   const { jobs, loading, error, running, queued, reload } = useJobList(20)
+  const { meta: appMeta } = useMeta()
   const [open, setOpen] = useState(false)
   const [now, setNow] = useState(Date.now())
   const box = useRef(null)
@@ -54,7 +56,7 @@ export default function JobTray() {
               return (
                 <li key={j.job_id}>
                   <Link to={jobLink(j) || '/history'} title={`Mở ${j.job_id}`}>
-                    <span className="k">{jobKindText(j.kind)}</span>
+                    <span className="k">{jobKindText(j.kind, appMeta)}</span>
                     <span className="lb">{jobDetail(j)}</span>
                     <Status tone={meta.cls}>{isActiveJob(j) && <Spinner />}{meta.text}</Status>
                     <span className="mono t">{el != null ? fmtDuration(el) : '—'}</span>

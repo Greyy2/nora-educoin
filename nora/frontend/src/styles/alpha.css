@@ -478,7 +478,10 @@ button.se-chip:hover { background: var(--n-surface-3); color: var(--n-ink); }
 .se-chip .d { width: 6px; height: 6px; border-radius: 50%; background: var(--n-ink-3); }
 .se-chip .d.ok { background: var(--n-pos); }
 .se-btns { display: flex; align-items: center; gap: 4px; }
+.se-btns { flex: none; }
 .se-btns .n-btn { flex: none; white-space: nowrap; }
+.se-annp { position: absolute; top: calc(100% + 4px); right: 12px; display: flex; flex-direction: column; gap: 4px; padding: 6px; z-index: 30; min-width: 140px; }
+.se-save, .se-run { flex: none; }
 .se-btns .n-icon-btn { width: 34px; height: 34px; border: 1px solid var(--n-line); border-radius: 8px; background: var(--n-surface); }
 .se-btns .n-icon-btn.warn { color: var(--n-warn); }
 .se-run { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 18px; border-radius: 999px; border: 0; cursor: pointer; background: var(--n-accent); color: var(--n-accent-ink); font-weight: 600; font-size: 13.5px; white-space: nowrap; }

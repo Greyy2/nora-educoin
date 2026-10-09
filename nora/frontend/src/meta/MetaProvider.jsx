@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
-import { getStudioMeta, getCatalog } from '../api'
+import { getStudioMeta, getCatalog, getStrategies } from '../api'
 
+import { registerFunnelMeta } from '../lib/funnel'
 import { subscribeResource, invalidateResource } from '../lib/bus'
 
 export { invalidateResource, subscribeResource }
@@ -41,6 +42,7 @@ export function MetaProvider({ children }) {
       if (data && data.version) {
         metaVersion.current = data.version
       }
+      registerFunnelMeta(data)
       setMeta(data)
       return data
     } catch (e) {
@@ -62,7 +64,7 @@ export function MetaProvider({ children }) {
     if (!silent) setLoading(true)
     setError(null)
     try {
-      await Promise.all([loadMeta(silent), loadCatalog(silent)])
+      await Promise.all([loadMeta(silent), loadCatalog(silent), getStrategies(silent).catch(() => null)])
     } finally {
       if (!silent) setLoading(false)
     }

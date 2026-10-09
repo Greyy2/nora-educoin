@@ -36,29 +36,12 @@ export const JOB_STATUS = {
   failed: { text: 'Thất bại', cls: 'bad' },
   cancelled: { text: 'Đã huỷ', cls: 'warn' },
 }
-
-export const JOB_KIND = {
-  book_backtest: { text: 'Backtest', short: 'Backtest' },
-  book_wfa: { text: 'Walk-forward', short: 'WFA' },
-  book_build: { text: 'Alpha · tối ưu', short: 'Alpha' },
-  custom_backtest: { text: 'Backtest Python', short: 'Python' },
-  funnel_run: { text: 'Phễu kiểm duyệt', short: 'Phễu' },
-  funnel_recompute: { text: 'Phễu · tính lại lệnh', short: 'Phễu' },
-  presets_build: { text: 'Dựng preset', short: 'Preset' },
-  funnel_book: { text: 'Phễu · dựng sổ', short: 'Phễu' },
-  live_bot: { text: 'Bot live', short: 'Live' },
-  data_crawl: { text: 'Tải dữ liệu', short: 'Dữ liệu' },
-  data_crawl_okx: { text: 'Tải dữ liệu OKX', short: 'Dữ liệu' },
-  data_crawl_ticks: { text: 'Tải dữ liệu tick', short: 'Dữ liệu' },
-  data_promote: { text: 'Đưa dữ liệu vào kho', short: 'Dữ liệu' },
-}
-
 export const jobKindText = (k, meta) => {
   if (meta?.jobs?.kinds) {
     const found = meta.jobs.kinds.find((item) => item.kind === k)
-    if (found?.label) return found.label
+    if (found?.label_vi) return found.label_vi
   }
-  return JOB_KIND[k]?.text || String(k || '—')
+  return String(k || '—')
 }
 
 /** Đường dẫn mở đúng trang/bước của một job (deep link). */
