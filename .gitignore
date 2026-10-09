@@ -73,6 +73,7 @@ dist/
 *.key
 
 # BMAD
+/_bmad
 _bmad/config.user.toml
 _bmad/custom/config.user.toml
 
@@ -81,3 +82,8 @@ sova/
 
 # Kết quả nghiên cứu mô phỏng bot top OKX (sinh lại bằng run_*.py)
 nora/test/scripts/okx_top10/out/
+
+# Local temporary state
+saved_ids.txt
+nora/saved_ids.txt
+

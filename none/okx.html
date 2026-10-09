@@ -1,0 +1,1826 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OKX AI</title>
+    <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f8fafc;
+            color: #0f172a;
+        }
+
+        .sidebar-item {
+            transition: all 0.15s ease-in-out;
+        }
+
+        .sidebar-item.active {
+            background-color: #eff6ff;
+            color: #1d4ed8;
+            border-left: 3px solid #2563eb;
+            font-weight: 700;
+        }
+
+        .sidebar-item:not(.active) {
+            color: #475569;
+            border-left: 3px solid transparent;
+        }
+
+        .sidebar-item:not(.active):hover {
+            background-color: #f1f5f9;
+            color: #0f172a;
+        }
+
+        .sub-tab-btn {
+            transition: all 0.15s ease-in-out;
+        }
+
+        .sub-tab-btn.active {
+            background-color: #1d4ed8;
+            color: #ffffff;
+            font-weight: 700;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+        }
+
+        .sub-tab-btn:not(.active) {
+            background-color: #ffffff;
+            color: #475569;
+            border: 1px solid #e2e8f0;
+        }
+
+        .sub-tab-btn:not(.active):hover {
+            background-color: #f8fafc;
+            color: #0f172a;
+            border-color: #cbd5e1;
+        }
+
+        .card-box {
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.03);
+        }
+
+        /* Flow diagram styles */
+        .flow-node {
+            transition: all 0.2s ease;
+        }
+
+        .flow-node:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+
+<body class="min-h-screen bg-slate-100/70 text-slate-900 antialiased flex flex-col justify-start">
+
+    <!-- Top App Navigation Bar -->
+    <header
+        class="bg-white border-b border-slate-200/90 sticky top-0 z-30 px-4 sm:px-6 py-3 flex items-center justify-between shadow-xs">
+        <div class="flex items-center gap-3">
+            <div
+                class="w-9 h-9 rounded-xl bg-blue-600 text-white font-black flex items-center justify-center text-base shadow-sm shadow-blue-500/20">
+                ⚡
+            </div>
+            <div>
+                <div class="flex items-center gap-2">
+                    <h1 class="text-base sm:text-lg font-bold text-slate-900 tracking-tight">OKX AI</h1>
+                    <span
+                        class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-blue-100 text-blue-800 border border-blue-200 uppercase tracking-wide">OnchainOS
+                        v2.6</span>
+                </div>
+                <p class="text-xs text-slate-500">Mỗi chuyên mục đều tích hợp 4 Tab con đánh giá chuyên sâu & Flow trực
+                    quan cho 4 ngách</p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+            <button onclick="window.print()"
+                class="no-print px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors">
+                <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z">
+                    </path>
+                </svg>
+                In / Xuất PDF
+            </button>
+        </div>
+    </header>
+
+    <!-- Layout Container: Sidebar + Content -->
+    <div class="flex-1 flex max-w-7xl w-full mx-auto p-3 sm:p-5 gap-5 items-start">
+
+        <!-- ================= BMAD SIDEBAR (9 Mục Chuẩn) ================= -->
+        <aside
+            class="w-64 shrink-0 bg-white border border-slate-200/90 rounded-2xl p-3 shadow-xs sticky top-16 space-y-3 no-print">
+            <div class="px-2 py-1.5 border-b border-slate-100">
+                <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Kiến Trúc Báo Cáo BMAD</div>
+                <div class="text-xs font-semibold text-slate-700">9 Chuyên Mục Điều Hướng</div>
+            </div>
+
+            <nav class="space-y-0.5" id="sidebar-nav">
+                <button onclick="switchBmadTab('tab-summary')" id="side-tab-summary"
+                    class="sidebar-item active w-full text-left px-3 py-2 text-xs rounded-lg flex items-center gap-2.5">
+                    <span>📋</span><span class="truncate">1. Tóm Tắt</span>
+                </button>
+                <button onclick="switchBmadTab('tab-requirements')" id="side-tab-requirements"
+                    class="sidebar-item w-full text-left px-3 py-2 text-xs rounded-lg flex items-center gap-2.5">
+                    <span>🎯</span><span class="truncate">2. Yêu Cầu & Quy Mô</span>
+                </button>
+                <button onclick="switchBmadTab('tab-principles')" id="side-tab-principles"
+                    class="sidebar-item w-full text-left px-3 py-2 text-xs rounded-lg flex items-center gap-2.5">
+                    <span>⚖️</span><span class="truncate">3. Nguyên Tắc & Thống Kê</span>
+                </button>
+                <button onclick="switchBmadTab('tab-mechanism')" id="side-tab-mechanism"
+                    class="sidebar-item w-full text-left px-3 py-2 text-xs rounded-lg flex items-center gap-2.5">
+                    <span>⚡</span><span class="truncate">4. Hiện Trạng & Cơ Chế</span>
+                </button>
+                <button onclick="switchBmadTab('tab-flow')" id="side-tab-flow"
+                    class="sidebar-item w-full text-left px-3 py-2 text-xs rounded-lg flex items-center gap-2.5">
+                    <span>🔄</span><span class="truncate">5. Flow Tổng Thể (Sơ Đồ)</span>
+                </button>
+                <button onclick="switchBmadTab('tab-operations')" id="side-tab-operations"
+                    class="sidebar-item w-full text-left px-3 py-2 text-xs rounded-lg flex items-center gap-2.5">
+                    <span>📑</span><span class="truncate">6. Vận Hành & Danh Sách</span>
+                </button>
+                <button onclick="switchBmadTab('tab-scenarios')" id="side-tab-scenarios"
+                    class="sidebar-item w-full text-left px-3 py-2 text-xs rounded-lg flex items-center gap-2.5">
+                    <span>🔮</span><span class="truncate">7. Giả Định</span>
+                </button>
+                <button onclick="switchBmadTab('tab-risks')" id="side-tab-risks"
+                    class="sidebar-item w-full text-left px-3 py-2 text-xs rounded-lg flex items-center gap-2.5">
+                    <span>🛡️</span><span class="truncate">8. Rủi Ro</span>
+                </button>
+                <button onclick="switchBmadTab('tab-roadmap')" id="side-tab-roadmap"
+                    class="sidebar-item w-full text-left px-3 py-2 text-xs rounded-lg flex items-center gap-2.5">
+                    <span>🚀</span><span class="truncate">9. Lộ Trình</span>
+                </button>
+            </nav>
+
+            <!-- Sidebar Footer Info -->
+            <div class="pt-3 border-t border-slate-100 text-[11px] text-slate-500 space-y-1 px-2">
+                <div class="flex justify-between">
+                    <span>Tiêu chuẩn:</span>
+                    <span class="font-bold text-slate-700">BMAD Fintech</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Số lượng ngách:</span>
+                    <span class="font-bold text-blue-600">4 Ngách AI</span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Mẫu khảo sát:</span>
+                    <span class="font-bold text-slate-700">100 ASPs</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- ================= MAIN CONTENT AREA ================= -->
+        <main class="flex-1 w-full space-y-4">
+
+            <!-- 4 KPI Box Tổng Quan Đầu Trang -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div class="bg-white p-3.5 rounded-xl border border-slate-200 card-box">
+                    <div class="text-[11px] font-semibold text-slate-500 uppercase">Mẫu Agent Khảo Sát</div>
+                    <div class="text-2xl font-extrabold text-slate-900 font-mono mt-0.5">100 ASPs</div>
+                    <div class="text-[10px] text-slate-400 mt-0.5">Mã Service ID (SID) thật trên OnchainOS</div>
+                </div>
+                <div class="bg-white p-3.5 rounded-xl border border-slate-200 card-box">
+                    <div class="text-[11px] font-semibold text-slate-500 uppercase">Tổng Lượt Gọi / Tháng</div>
+                    <div class="text-2xl font-extrabold text-blue-600 font-mono mt-0.5">~640,000</div>
+                    <div class="text-[10px] text-slate-400 mt-0.5">Lượng giao dịch máy-thuê-máy (A2A)</div>
+                </div>
+                <div class="bg-white p-3.5 rounded-xl border border-slate-200 card-box">
+                    <div class="text-[11px] font-semibold text-slate-500 uppercase">Đơn Giá Vi Mô (x402)</div>
+                    <div class="text-2xl font-extrabold text-emerald-600 font-mono mt-0.5">$0.02 - $0.20</div>
+                    <div class="text-[10px] text-slate-400 mt-0.5">Thanh toán micro-payment bằng USDT</div>
+                </div>
+                <div class="bg-white p-3.5 rounded-xl border border-slate-200 card-box">
+                    <div class="text-[11px] font-semibold text-slate-500 uppercase">Thu Nhập Thực Tế</div>
+                    <div class="text-2xl font-extrabold text-purple-600 font-mono mt-0.5">$400 - $1,800</div>
+                    <div class="text-[10px] text-slate-400 mt-0.5">Khoảng 10 - 45 Triệu VNĐ/tháng/Agent</div>
+                </div>
+            </div>
+
+            <!-- ================= 1. TÓM TẮT (EXECUTIVE SUMMARY) ================= -->
+            <section id="content-tab-summary"
+                class="bmad-content bg-white border border-slate-200/90 rounded-2xl p-5 space-y-4">
+                <div class="border-b border-slate-100 pb-3 flex items-center justify-between">
+                    <div>
+                        <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                            <span>📋</span> 1. Tóm Tắt Dự Án (Executive Summary)
+                        </h2>
+                        <p class="text-xs text-slate-500">Đánh giá tổng quan chi tiết từng ngách dịch vụ trên OKX AI
+                            Market</p>
+                    </div>
+                    <span
+                        class="px-2.5 py-1 text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 rounded-md">BMAD
+                        Section 1</span>
+                </div>
+
+                <!-- 4 SUB-TABS NAVIGATION CỐ ĐỊNH TRÊN 1 HÀNG DUY NHẤT -->
+                <div class="grid grid-cols-4 gap-2 p-1.5 bg-slate-100/90 rounded-xl border border-slate-200 text-xs">
+                    <button onclick="switchNicheSubTab('summary', 'risk')" id="btn-summary-risk"
+                        class="sub-tab-btn active py-2.5 px-2 rounded-lg font-semibold flex items-center justify-center gap-1.5 text-center transition-all truncate">
+                        <span>🛡️</span> <span class="truncate">1. Kiểm Định Rủi Ro</span>
+                    </button>
+                    <button onclick="switchNicheSubTab('summary', 'data')" id="btn-summary-data"
+                        class="sub-tab-btn py-2.5 px-2 rounded-lg font-medium flex items-center justify-center gap-1.5 text-center transition-all truncate">
+                        <span>📡</span> <span class="truncate">2. Dữ Liệu & Tín Hiệu</span>
+                    </button>
+                    <button onclick="switchNicheSubTab('summary', 'mcp')" id="btn-summary-mcp"
+                        class="sub-tab-btn py-2.5 px-2 rounded-lg font-medium flex items-center justify-center gap-1.5 text-center transition-all truncate">
+                        <span>⚙️</span> <span class="truncate">3. Thực Thi Lệnh MCP</span>
+                    </button>
+                    <button onclick="switchNicheSubTab('summary', 'router')" id="btn-summary-router"
+                        class="sub-tab-btn py-2.5 px-2 rounded-lg font-medium flex items-center justify-center gap-1.5 text-center transition-all truncate">
+                        <span>🔄</span> <span class="truncate">4. Định Tuyến DEX</span>
+                    </button>
+                </div>
+
+                <!-- Sub-content Summary Risk -->
+                <div id="content-summary-risk"
+                    class="p-4 rounded-xl border border-emerald-200 bg-emerald-50/20 space-y-3 text-xs">
+                    <div class="flex items-center justify-between border-b border-emerald-200/60 pb-2">
+                        <h3 class="font-bold text-sm text-emerald-950">Đánh Giá Ngách Kiểm Định An Toàn & Rủi Ro (Risk
+                            Audit)</h3>
+                        <span
+                            class="px-2 py-0.5 rounded font-mono font-bold text-[10px] bg-emerald-100 text-emerald-800">Biên
+                            lợi nhuận 97%</span>
+                    </div>
+                    <p class="text-slate-600 leading-relaxed">
+                        Ngách có <strong>giá trị thặng dư và độ tin cậy cao nhất</strong> thị trường. Agent đóng vai trò
+                        là "chuyên gia kiểm định độc lập", chạy mô phỏng Monte Carlo 10,000 kịch bản để phát hiện rủi ro
+                        cháy tài khoản, hàm rút cạn thanh khoản (Rugpull) hoặc bẫy hợp đồng thông minh (Honeypot).
+                    </p>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 font-mono text-[11px]">
+                        <div class="p-2.5 bg-white rounded-lg border border-emerald-100">
+                            <span class="text-slate-400 block text-[10px] font-sans">Đơn Giá Trung Bình:</span>
+                            <strong class="text-slate-800 text-sm">$0.15 / call</strong>
+                        </div>
+                        <div class="p-2.5 bg-white rounded-lg border border-emerald-100">
+                            <span class="text-slate-400 block text-[10px] font-sans">Thu Nhập Tháng 6 (Giả Định):</span>
+                            <strong class="text-emerald-700 text-sm">$2,330 (~58M VNĐ)</strong>
+                        </div>
+                        <div class="p-2.5 bg-white rounded-lg border border-emerald-100">
+                            <span class="text-slate-400 block text-[10px] font-sans">Rủi Ro Danh Mục Vốn:</span>
+                            <strong class="text-blue-700 text-sm">0% (Không giữ vốn)</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sub-content Summary Data -->
+                <div id="content-summary-data"
+                    class="p-4 rounded-xl border border-blue-200 bg-blue-50/20 space-y-3 text-xs hidden">
+                    <div class="flex items-center justify-between border-b border-blue-200/60 pb-2">
+                        <h3 class="font-bold text-sm text-blue-950">Đánh Giá Ngách Tình Báo Dữ Liệu & Tín Hiệu (Data
+                            Oracle)</h3>
+                        <span class="px-2 py-0.5 rounded font-mono font-bold text-[10px] bg-blue-100 text-blue-800">Dung
+                            lượng gọi lớn nhất</span>
+                    </div>
+                    <p class="text-slate-600 leading-relaxed">
+                        Đóng vai trò như các <strong>đài radar cào dữ liệu thời gian thực</strong>: Theo dõi biến động
+                        ví cá voi, chỉ số Funding Rate từ 20 sàn CEX, và phân tích tâm lý đám đông mạng xã hội
+                        (X/Telegram). Ngách này chiếm thị phần lớn nhất với hơn 285,000 lượt gọi mỗi tháng.
+                    </p>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 font-mono text-[11px]">
+                        <div class="p-2.5 bg-white rounded-lg border border-blue-100">
+                            <span class="text-slate-400 block text-[10px] font-sans">Đơn Giá Trung Bình:</span>
+                            <strong class="text-slate-800 text-sm">$0.03 / request</strong>
+                        </div>
+                        <div class="p-2.5 bg-white rounded-lg border border-blue-100">
+                            <span class="text-slate-400 block text-[10px] font-sans">Thu Nhập Tháng 6 (Giả Định):</span>
+                            <strong class="text-blue-700 text-sm">$1,580 (~39.5M VNĐ)</strong>
+                        </div>
+                        <div class="p-2.5 bg-white rounded-lg border border-blue-100">
+                            <span class="text-slate-400 block text-[10px] font-sans">Khối Lượng Khách Hàng:</span>
+                            <strong class="text-slate-800 text-sm">200+ Trading Bots</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sub-content Summary MCP -->
+                <div id="content-summary-mcp"
+                    class="p-4 rounded-xl border border-purple-200 bg-purple-50/20 space-y-3 text-xs hidden">
+                    <div class="flex items-center justify-between border-b border-purple-200/60 pb-2">
+                        <h3 class="font-bold text-sm text-purple-950">Đánh Giá Ngách Thực Thi Lệnh Giao Dịch MCP (Trade
+                            Executor)</h3>
+                        <span
+                            class="px-2 py-0.5 rounded font-mono font-bold text-[10px] bg-purple-100 text-purple-800">Dòng
+                            tiền 24/7 ổn định</span>
+                    </div>
+                    <p class="text-slate-600 leading-relaxed">
+                        Cung cấp <strong>cánh tay robot đặt lệnh tự động</strong> thông qua chuẩn Model Context Protocol
+                        (`@okx_ai/okx-trade-cli`). Giúp các Agent tư vấn chiến lược không cần nắm giữ API Key trực tiếp
+                        mà vẫn có thể chia nhỏ lệnh (TWAP), trailing stop, và bảo vệ chống trượt giá an toàn.
+                    </p>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 font-mono text-[11px]">
+                        <div class="p-2.5 bg-white rounded-lg border border-purple-100">
+                            <span class="text-slate-400 block text-[10px] font-sans">Đơn Giá Thực Thi:</span>
+                            <strong class="text-slate-800 text-sm">$0.05 / lệnh</strong>
+                        </div>
+                        <div class="p-2.5 bg-white rounded-lg border border-purple-100">
+                            <span class="text-slate-400 block text-[10px] font-sans">Thu Nhập Tháng 6 (Giả Định):</span>
+                            <strong class="text-purple-700 text-sm">$1,465 (~36.7M VNĐ)</strong>
+                        </div>
+                        <div class="p-2.5 bg-white rounded-lg border border-purple-100">
+                            <span class="text-slate-400 block text-[10px] font-sans">Thời Gian Hoạt Động:</span>
+                            <strong class="text-slate-800 text-sm">Liên tục 24/7</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sub-content Summary Router -->
+                <div id="content-summary-router"
+                    class="p-4 rounded-xl border border-amber-200 bg-amber-50/20 space-y-3 text-xs hidden">
+                    <div class="flex items-center justify-between border-b border-amber-200/60 pb-2">
+                        <h3 class="font-bold text-sm text-amber-950">Đánh Giá Ngách Định Tuyến Thanh Khoản DEX (Smart
+                            Router)</h3>
+                        <span
+                            class="px-2 py-0.5 rounded font-mono font-bold text-[10px] bg-amber-100 text-amber-800">Tăng
+                            trưởng theo Volume</span>
+                    </div>
+                    <p class="text-slate-600 leading-relaxed">
+                        Mô hình kinh doanh <strong>ăn theo tổng khối lượng giao dịch (Volume-based)</strong>. Agent quét
+                        và phân bổ lệnh qua hơn 500 DEX pools trên mạng X Layer và các L2, giúp các lệnh swap $10,000 -
+                        $100,000 không bị trượt giá sâu. Thu hoa hồng 0.03% trên volume swap thực tế.
+                    </p>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 font-mono text-[11px]">
+                        <div class="p-2.5 bg-white rounded-lg border border-amber-100">
+                            <span class="text-slate-400 block text-[10px] font-sans">Mức Phí Hoa Hồng:</span>
+                            <strong class="text-slate-800 text-sm">0.03% Volume</strong>
+                        </div>
+                        <div class="p-2.5 bg-white rounded-lg border border-amber-100">
+                            <span class="text-slate-400 block text-[10px] font-sans">Thu Nhập Tháng 6 (Giả Định):</span>
+                            <strong class="text-amber-700 text-sm">$2,170 (~54.2M VNĐ)</strong>
+                        </div>
+                        <div class="p-2.5 bg-white rounded-lg border border-amber-100">
+                            <span class="text-slate-400 block text-[10px] font-sans">Volume Định Tuyến T6:</span>
+                            <strong class="text-slate-800 text-sm">$7.5 Triệu USD</strong>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ================= 2. YÊU CẦU & QUY MÔ (REQUIREMENTS & SCALE) ================= -->
+            <section id="content-tab-requirements"
+                class="bmad-content bg-white border border-slate-200/90 rounded-2xl p-5 space-y-4 hidden">
+                <div class="border-b border-slate-100 pb-3 flex items-center justify-between">
+                    <div>
+                        <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                            <span>🎯</span> 2. Yêu Cầu Kỹ Thuật & Quy Mô Từng Ngách
+                        </h2>
+                        <p class="text-xs text-slate-500">Tiêu chuẩn kỹ thuật và dung lượng thị trường riêng biệt cho 4
+                            ngách</p>
+                    </div>
+                    <span
+                        class="px-2.5 py-1 text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 rounded-md">BMAD
+                        Section 2</span>
+                </div>
+
+                <!-- 4 SUB-TABS NAVIGATION CỐ ĐỊNH TRÊN 1 HÀNG DUY NHẤT -->
+                <div class="grid grid-cols-4 gap-2 p-1.5 bg-slate-100/90 rounded-xl border border-slate-200 text-xs">
+                    <button onclick="switchNicheSubTab('requirements', 'risk')" id="btn-requirements-risk"
+                        class="sub-tab-btn active py-2.5 px-2 rounded-lg font-semibold flex items-center justify-center gap-1.5 text-center transition-all truncate">
+                        <span>🛡️</span> <span class="truncate">1. Kiểm Định Rủi Ro</span>
+                    </button>
+                    <button onclick="switchNicheSubTab('requirements', 'data')" id="btn-requirements-data"
+                        class="sub-tab-btn py-2.5 px-2 rounded-lg font-medium flex items-center justify-center gap-1.5 text-center transition-all truncate">
+                        <span>📡</span> <span class="truncate">2. Dữ Liệu & Tín Hiệu</span>
+                    </button>
+                    <button onclick="switchNicheSubTab('requirements', 'mcp')" id="btn-requirements-mcp"
+                        class="sub-tab-btn py-2.5 px-2 rounded-lg font-medium flex items-center justify-center gap-1.5 text-center transition-all truncate">
+                        <span>⚙️</span> <span class="truncate">3. Thực Thi Lệnh MCP</span>
+                    </button>
+                    <button onclick="switchNicheSubTab('requirements', 'router')" id="btn-requirements-router"
+                        class="sub-tab-btn py-2.5 px-2 rounded-lg font-medium flex items-center justify-center gap-1.5 text-center transition-all truncate">
+                        <span>🔄</span> <span class="truncate">4. Định Tuyến DEX</span>
+                    </button>
+                </div>
+
+                <!-- Sub-content Requirements Risk -->
+                <div id="content-requirements-risk" class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                    <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                        <h4 class="font-bold text-slate-800 text-xs uppercase tracking-wide">Quy Mô Ngách Risk Audit:
+                        </h4>
+                        <p class="text-slate-600 leading-relaxed">
+                            Dung lượng SOM trên OKX AI: <strong>$2.4 Triệu USD/năm</strong>. Với hơn 85,000 nhà đầu tư
+                            theo dõi bot copy-trade trên OKX, nhu cầu thẩm định độc lập để bảo vệ nguồn vốn cá nhân từ
+                            $5,000 - $100,000 là cực kỳ bức thiết.
+                        </p>
+                        <div class="text-[11px] text-slate-500 font-mono">Tỷ lệ chuyển đổi người dùng trả phí: ~14.8%
+                        </div>
+                    </div>
+                    <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                        <h4 class="font-bold text-slate-800 text-xs uppercase tracking-wide">Yêu Cầu Kỹ Thuật Bắt Buộc:
+                        </h4>
+                        <ul class="space-y-1.5 text-slate-600 list-disc list-inside">
+                            <li>Thuật toán mô phỏng Monte Carlo tối thiểu 10,000 kịch bản thị trường sụt giảm.</li>
+                            <li>Engine dịch ngược bytecode hợp đồng EVM quét các hàm ẩn: mint vô hạn, blacklist ví,
+                                pause contract.</li>
+                            <li>Cổng phản hồi x402 nhận diện thanh toán USDT và trả về kết quả dưới <strong>1.2
+                                    giây</strong>.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Sub-content Requirements Data -->
+                <div id="content-requirements-data" class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs hidden">
+                    <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                        <h4 class="font-bold text-slate-800 text-xs uppercase tracking-wide">Quy Mô Ngách Data Oracle:
+                        </h4>
+                        <p class="text-slate-600 leading-relaxed">
+                            Dung lượng SOM trên OKX AI: <strong>$3.1 Triệu USD/năm</strong>. Hơn 200 trading bot độc lập
+                            và hàng chục quỹ định lượng cần mua tín hiệu funding rate và dòng tiền cá voi mỗi ngày thay
+                            vì tự xây dựng data pipeline đắt đỏ.
+                        </p>
+                        <div class="text-[11px] text-slate-500 font-mono">Tần suất truy vấn trung bình: 15-30
+                            requests/phút/bot</div>
+                    </div>
+                    <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                        <h4 class="font-bold text-slate-800 text-xs uppercase tracking-wide">Yêu Cầu Kỹ Thuật Bắt Buộc:
+                        </h4>
+                        <ul class="space-y-1.5 text-slate-600 list-disc list-inside">
+                            <li>Kết nối WebSocket tới 20 sàn CEX với độ trễ cào dữ liệu <strong>dưới 80ms</strong>.</li>
+                            <li>Cụm In-Memory Cache (Redis Cluster) lưu trữ snapshot 100 cặp tiền có thanh khoản cao
+                                nhất.</li>
+                            <li>Mô hình NLP xử lý ngôn ngữ tự nhiên lọc tin rác trên Twitter/Telegram trong vòng 300ms.
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Sub-content Requirements MCP -->
+                <div id="content-requirements-mcp" class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs hidden">
+                    <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                        <h4 class="font-bold text-slate-800 text-xs uppercase tracking-wide">Quy Mô Ngách Trade MCP:
+                        </h4>
+                        <p class="text-slate-600 leading-relaxed">
+                            Dung lượng SOM trên OKX AI: <strong>$1.8 Triệu USD/năm</strong>. Hàng nghìn lệnh phái
+                            sinh/giao ngay được ủy quyền tự động qua chuẩn Model Context Protocol mà người dùng không
+                            cần can thiệp bấm chuột thủ công.
+                        </p>
+                        <div class="text-[11px] text-slate-500 font-mono">Tỷ lệ lệnh tự động hóa: 88.4% tổng số lệnh
+                        </div>
+                    </div>
+                    <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                        <h4 class="font-bold text-slate-800 text-xs uppercase tracking-wide">Yêu Cầu Kỹ Thuật Bắt Buộc:
+                        </h4>
+                        <ul class="space-y-1.5 text-slate-600 list-disc list-inside">
+                            <li>Tương thích 100% với SDK chuẩn `@okx_ai/okx-trade-cli` do OKX ban hành.</li>
+                            <li>Cơ chế Session Keys giới hạn hạn mức chi tiêu tối đa mỗi phiên giao dịch để chống rò rỉ
+                                khóa ví.</li>
+                            <li>Hệ thống ngắt mạch khẩn cấp (Circuit Breaker) tự hủy lệnh khi độ giãn spread vượt quá
+                                0.5%.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Sub-content Requirements Router -->
+                <div id="content-requirements-router" class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs hidden">
+                    <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                        <h4 class="font-bold text-slate-800 text-xs uppercase tracking-wide">Quy Mô Ngách Smart Router:
+                        </h4>
+                        <p class="text-slate-600 leading-relaxed">
+                            Dung lượng SOM trên OKX AI: <strong>$1.2 Triệu USD/năm</strong>. Khối lượng swap on-chain
+                            trung bình trên mạng X Layer và Arbitrum đạt $70M - $120M/tháng, trong đó các bot săn
+                            arbitrage đóng góp hơn 45% volume.
+                        </p>
+                        <div class="text-[11px] text-slate-500 font-mono">Khối lượng swap trung bình/lệnh: $8,500</div>
+                    </div>
+                    <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                        <h4 class="font-bold text-slate-800 text-xs uppercase tracking-wide">Yêu Cầu Kỹ Thuật Bắt Buộc:
+                        </h4>
+                        <ul class="space-y-1.5 text-slate-600 list-disc list-inside">
+                            <li>Thuật toán tối ưu hóa đường đi đồ thị (Bellman-Ford) quét hơn 500 thanh khoản pools
+                                trong 40ms.</li>
+                            <li>Tích hợp Private RPC chống bị bot MEV tấn công kẹp lệnh (Sandwich Attack).</li>
+                            <li>Cơ chế Gasless Relayer tự động thanh toán phí gas mạng thay cho user và trừ trực tiếp
+                                vào token swap.</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ================= 3. NGUYÊN TẮC & THỐNG KÊ (PRINCIPLES & STATS) ================= -->
+            <section id="content-tab-principles"
+                class="bmad-content bg-white border border-slate-200/90 rounded-2xl p-5 space-y-4 hidden">
+                <div class="border-b border-slate-100 pb-3 flex items-center justify-between">
+                    <div>
+                        <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                            <span>⚖️</span> 3. Nguyên Tắc & Thống Kê Chi Tiết Từng Ngách
+                        </h2>
+                        <p class="text-xs text-slate-500">Nguyên tắc thực thi và số liệu thị phần cho từng nhóm dịch vụ
+                        </p>
+                    </div>
+                    <span
+                        class="px-2.5 py-1 text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 rounded-md">BMAD
+                        Section 3</span>
+                </div>
+
+                <!-- 4 SUB-TABS NAVIGATION CỐ ĐỊNH TRÊN 1 HÀNG DUY NHẤT -->
+                <div class="grid grid-cols-4 gap-2 p-1.5 bg-slate-100/90 rounded-xl border border-slate-200 text-xs">
+                    <button onclick="switchNicheSubTab('principles', 'risk')" id="btn-principles-risk"
+                        class="sub-tab-btn active py-2.5 px-2 rounded-lg font-semibold flex items-center justify-center gap-1.5 text-center transition-all truncate">
+                        <span>🛡️</span> <span class="truncate">1. Kiểm Định Rủi Ro</span>
+                    </button>
+                    <button onclick="switchNicheSubTab('principles', 'data')" id="btn-principles-data"
+                        class="sub-tab-btn py-2.5 px-2 rounded-lg font-medium flex items-center justify-center gap-1.5 text-center transition-all truncate">
+                        <span>📡</span> <span class="truncate">2. Dữ Liệu & Tín Hiệu</span>
+                    </button>
+                    <button onclick="switchNicheSubTab('principles', 'mcp')" id="btn-principles-mcp"
+                        class="sub-tab-btn py-2.5 px-2 rounded-lg font-medium flex items-center justify-center gap-1.5 text-center transition-all truncate">
+                        <span>⚙️</span> <span class="truncate">3. Thực Thi Lệnh MCP</span>
+                    </button>
+                    <button onclick="switchNicheSubTab('principles', 'router')" id="btn-principles-router"
+                        class="sub-tab-btn py-2.5 px-2 rounded-lg font-medium flex items-center justify-center gap-1.5 text-center transition-all truncate">
+                        <span>🔄</span> <span class="truncate">4. Định Tuyến DEX</span>
+                    </button>
+                </div>
+
+                <!-- Sub-content Principles Risk -->
+                <div id="content-principles-risk"
+                    class="p-4 rounded-xl border border-emerald-200 bg-emerald-50/20 space-y-3 text-xs">
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        <div class="p-2.5 bg-white rounded-lg border border-emerald-100"><span
+                                class="text-slate-500 block text-[11px]">Số lượng:</span><strong
+                                class="text-sm font-mono text-slate-800">28 Agents (28%)</strong></div>
+                        <div class="p-2.5 bg-white rounded-lg border border-emerald-100"><span
+                                class="text-slate-500 block text-[11px]">Lượt gọi/tháng:</span><strong
+                                class="text-sm font-mono text-blue-600">~155,000 calls</strong></div>
+                        <div class="p-2.5 bg-white rounded-lg border border-emerald-100"><span
+                                class="text-slate-500 block text-[11px]">Đơn giá bình quân:</span><strong
+                                class="text-sm font-mono text-emerald-700">$0.15 / call</strong></div>
+                        <div class="p-2.5 bg-white rounded-lg border border-emerald-100"><span
+                                class="text-slate-500 block text-[11px]">Doanh thu ngách:</span><strong
+                                class="text-sm font-mono text-purple-700">~$23,250 / tháng</strong></div>
+                    </div>
+                    <p class="text-slate-600 leading-relaxed">
+                        <strong>Nguyên tắc cốt lõi:</strong> Thẩm định khách quan, bảo vệ nhà đầu tư khỏi bẫy thanh
+                        khoản và rủi ro cháy vốn. Báo cáo kiểm định được ký số on-chain để không thể bị làm giả kết quả.
+                    </p>
+                </div>
+
+                <!-- Sub-content Principles Data -->
+                <div id="content-principles-data"
+                    class="p-4 rounded-xl border border-blue-200 bg-blue-50/20 space-y-3 text-xs hidden">
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        <div class="p-2.5 bg-white rounded-lg border border-blue-100"><span
+                                class="text-slate-500 block text-[11px]">Số lượng:</span><strong
+                                class="text-sm font-mono text-slate-800">34 Agents (34%)</strong></div>
+                        <div class="p-2.5 bg-white rounded-lg border border-blue-100"><span
+                                class="text-slate-500 block text-[11px]">Lượt gọi/tháng:</span><strong
+                                class="text-sm font-mono text-blue-600">~285,000 calls</strong></div>
+                        <div class="p-2.5 bg-white rounded-lg border border-blue-100"><span
+                                class="text-slate-500 block text-[11px]">Đơn giá bình quân:</span><strong
+                                class="text-sm font-mono text-emerald-700">$0.03 / call</strong></div>
+                        <div class="p-2.5 bg-white rounded-lg border border-blue-100"><span
+                                class="text-slate-500 block text-[11px]">Doanh thu ngách:</span><strong
+                                class="text-sm font-mono text-purple-700">~$8,550 / tháng</strong></div>
+                    </div>
+                    <p class="text-slate-600 leading-relaxed">
+                        <strong>Nguyên tắc cốt lõi:</strong> Tính thời gian thực (Zero-latency). Dữ liệu sai lệch 1 giây
+                        có thể gây thiệt hại cho bot trade, do đó tốc độ và tính toàn vẹn của data stream là ưu tiên số
+                        một.
+                    </p>
+                </div>
+
+                <!-- Sub-content Principles MCP -->
+                <div id="content-principles-mcp"
+                    class="p-4 rounded-xl border border-purple-200 bg-purple-50/20 space-y-3 text-xs hidden">
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        <div class="p-2.5 bg-white rounded-lg border border-purple-100"><span
+                                class="text-slate-500 block text-[11px]">Số lượng:</span><strong
+                                class="text-sm font-mono text-slate-800">22 Agents (22%)</strong></div>
+                        <div class="p-2.5 bg-white rounded-lg border border-purple-100"><span
+                                class="text-slate-500 block text-[11px]">Lệnh khớp/tháng:</span><strong
+                                class="text-sm font-mono text-blue-600">~130,000 lệnh</strong></div>
+                        <div class="p-2.5 bg-white rounded-lg border border-purple-100"><span
+                                class="text-slate-500 block text-[11px]">Đơn giá bình quân:</span><strong
+                                class="text-sm font-mono text-emerald-700">$0.05 / lệnh</strong></div>
+                        <div class="p-2.5 bg-white rounded-lg border border-purple-100"><span
+                                class="text-slate-500 block text-[11px]">Doanh thu ngách:</span><strong
+                                class="text-sm font-mono text-purple-700">~$6,500 / tháng</strong></div>
+                    </div>
+                    <p class="text-slate-600 leading-relaxed">
+                        <strong>Nguyên tắc cốt lõi:</strong> Tuyệt đối an toàn khóa cá nhân (Non-custodial execution).
+                        Chỉ thực thi trong phạm vi ngân sách và cặp giao dịch được ủy quyền thông qua Session Keys.
+                    </p>
+                </div>
+
+                <!-- Sub-content Principles Router -->
+                <div id="content-principles-router"
+                    class="p-4 rounded-xl border border-amber-200 bg-amber-50/20 space-y-3 text-xs hidden">
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        <div class="p-2.5 bg-white rounded-lg border border-amber-100"><span
+                                class="text-slate-500 block text-[11px]">Số lượng:</span><strong
+                                class="text-sm font-mono text-slate-800">16 Agents (16%)</strong></div>
+                        <div class="p-2.5 bg-white rounded-lg border border-amber-100"><span
+                                class="text-slate-500 block text-[11px]">Giao dịch swap/tháng:</span><strong
+                                class="text-sm font-mono text-blue-600">~70,000 swaps</strong></div>
+                        <div class="p-2.5 bg-white rounded-lg border border-amber-100"><span
+                                class="text-slate-500 block text-[11px]">Mức phí hoa hồng:</span><strong
+                                class="text-sm font-mono text-emerald-700">0.03% volume</strong></div>
+                        <div class="p-2.5 bg-white rounded-lg border border-amber-100"><span
+                                class="text-slate-500 block text-[11px]">Doanh thu ngách:</span><strong
+                                class="text-sm font-mono text-purple-700">~$21,000 / tháng</strong></div>
+                    </div>
+                    <p class="text-slate-600 leading-relaxed">
+                        <strong>Nguyên tắc cốt lõi:</strong> Giá thực nhận cao nhất sau trượt giá và phí gas (Best
+                        Execution Rule). Người dùng chỉ trả phí hoa hồng khi lệnh định tuyến mang lại mức giá tốt hơn
+                        lệnh swap thông thường.
+                    </p>
+                </div>
+            </section>
+
+            <!-- ================= 4. HIỆN TRẠNG & CƠ CHẾ (STATE & MECHANISM) ================= -->
+            <section id="content-tab-mechanism"
+                class="bmad-content bg-white border border-slate-200/90 rounded-2xl p-5 space-y-4 hidden">
+                <div class="border-b border-slate-100 pb-3 flex items-center justify-between">
+                    <div>
+                        <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                            <span>⚡</span> 4. Hiện Trạng & Cơ Chế Kiếm Tiền Của Từng Ngách
+                        </h2>
+                        <p class="text-xs text-slate-500">Mô hình thu phí vi mô qua x402 và dòng tiền thực tế cho từng
+                            ngách</p>
+                    </div>
+                    <span
+                        class="px-2.5 py-1 text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 rounded-md">BMAD
+                        Section 4</span>
+                </div>
+
+                <!-- 4 SUB-TABS NAVIGATION CỐ ĐỊNH TRÊN 1 HÀNG DUY NHẤT -->
+                <div class="grid grid-cols-4 gap-2 p-1.5 bg-slate-100/90 rounded-xl border border-slate-200 text-xs">
+                    <button onclick="switchNicheSubTab('mechanism', 'risk')" id="btn-mechanism-risk"
+                        class="sub-tab-btn active py-2.5 px-2 rounded-lg font-semibold flex items-center justify-center gap-1.5 text-center transition-all truncate">
+                        <span>🛡️</span> <span class="truncate">1. Kiểm Định Rủi Ro</span>
+                    </button>
+                    <button onclick="switchNicheSubTab('mechanism', 'data')" id="btn-mechanism-data"
+                        class="sub-tab-btn py-2.5 px-2 rounded-lg font-medium flex items-center justify-center gap-1.5 text-center transition-all truncate">
+                        <span>📡</span> <span class="truncate">2. Dữ Liệu & Tín Hiệu</span>
+                    </button>
+                    <button onclick="switchNicheSubTab('mechanism', 'mcp')" id="btn-mechanism-mcp"
+                        class="sub-tab-btn py-2.5 px-2 rounded-lg font-medium flex items-center justify-center gap-1.5 text-center transition-all truncate">
+                        <span>⚙️</span> <span class="truncate">3. Thực Thi Lệnh MCP</span>
+                    </button>
+                    <button onclick="switchNicheSubTab('mechanism', 'router')" id="btn-mechanism-router"
+                        class="sub-tab-btn py-2.5 px-2 rounded-lg font-medium flex items-center justify-center gap-1.5 text-center transition-all truncate">
+                        <span>🔄</span> <span class="truncate">4. Định Tuyến DEX</span>
+                    </button>
+                </div>
+
+                <!-- Sub-content Mechanism Risk -->
+                <div id="content-mechanism-risk"
+                    class="p-4 rounded-xl border border-emerald-200 bg-emerald-50/20 space-y-2 text-xs">
+                    <h3 class="font-bold text-sm text-emerald-950">Cơ Chế Dòng Tiền Ngách Kiểm Định Rủi Ro (Risk Audit)
+                    </h3>
+                    <p class="text-slate-600 leading-relaxed">
+                        <strong>Hiện trạng:</strong> Nhà đầu tư sợ mất vốn sau các vụ sập bot copy-trading. Các Agent
+                        giao dịch tự động cũng bắt buộc phải gọi Risk Agent kiểm tra trước khi swap.<br>
+                        <strong>Cơ chế kiếm tiền:</strong> Thu phí theo lượt kiểm tra nhanh
+                        (<strong>$0.15/call</strong>) hoặc báo cáo chuyên sâu (<strong>$2.00/báo cáo</strong>). Tiền
+                        USDT chuyển thẳng vào ví tự hành on-chain qua chuẩn x402 trước khi trả kết quả.
+                    </p>
+                </div>
+
+                <!-- Sub-content Mechanism Data -->
+                <div id="content-mechanism-data"
+                    class="p-4 rounded-xl border border-blue-200 bg-blue-50/20 space-y-2 text-xs hidden">
+                    <h3 class="font-bold text-sm text-blue-950">Cơ Chế Dòng Tiền Ngách Tình Báo Dữ Liệu (Data Oracle)
+                    </h3>
+                    <p class="text-slate-600 leading-relaxed">
+                        <strong>Hiện trạng:</strong> Xây dựng hạ tầng cào dữ liệu tốn kém hàng nghìn USD/tháng. Hầu hết
+                        các Agent nhỏ lẻ chọn thuê ngoài dữ liệu có sẵn.<br>
+                        <strong>Cơ chế kiếm tiền:</strong> Mô hình Pay-Per-Query (<strong>$0.03/request</strong>). Thu
+                        tiền vi mô tích lũy theo số lượng query cực lớn. Dòng tiền về đều đặn mỗi giây.
+                    </p>
+                </div>
+
+                <!-- Sub-content Mechanism MCP -->
+                <div id="content-mechanism-mcp"
+                    class="p-4 rounded-xl border border-purple-200 bg-purple-50/20 space-y-2 text-xs hidden">
+                    <h3 class="font-bold text-sm text-purple-950">Cơ Chế Dòng Tiền Ngách Thực Thi Lệnh MCP (Trade
+                        Executor)</h3>
+                    <p class="text-slate-600 leading-relaxed">
+                        <strong>Hiện trạng:</strong> Các Agent phân tích chiến lược không muốn nhúng mã API bí mật vào
+                        prompt LLM vì nguy cơ lộ mật khẩu.<br>
+                        <strong>Cơ chế kiếm tiền:</strong> Thu phí cố định (<strong>$0.05/lệnh thực thi thành
+                            công</strong>) qua module Agent Trade Kit chuẩn MCP. Thu tiền 24/7 khi thị trường vận hành.
+                    </p>
+                </div>
+
+                <!-- Sub-content Mechanism Router -->
+                <div id="content-mechanism-router"
+                    class="p-4 rounded-xl border border-amber-200 bg-amber-50/20 space-y-2 text-xs hidden">
+                    <h3 class="font-bold text-sm text-amber-950">Cơ Chế Dòng Tiền Ngách Định Tuyến DEX (Smart Router)
+                    </h3>
+                    <p class="text-slate-600 leading-relaxed">
+                        <strong>Hiện trạng:</strong> Thanh khoản phân tán trên hàng chục sàn DEX khiến các lệnh swap lớn
+                        bị trượt giá từ 1-3%.<br>
+                        <strong>Cơ chế kiếm tiền:</strong> Trích hoa hồng vi mô (<strong>0.03% trên volume
+                            swap</strong>). Tiền hoa hồng được Smart Contract tự động cắt từ lệnh hoán đổi về ví quỹ.
+                    </p>
+                </div>
+            </section>
+
+            <!-- ================= 5. FLOW TỔNG THỂ (OVERALL FLOW - VISUAL DIAGRAM VIEW) ================= -->
+            <section id="content-tab-flow"
+                class="bmad-content bg-white border border-slate-200/90 rounded-2xl p-5 space-y-4 hidden">
+                <div class="border-b border-slate-100 pb-3 flex items-center justify-between">
+                    <div>
+                        <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                            <span>🔄</span> 5. Flow Kiến Trúc & Sơ Đồ Biểu Đồ Trực Quan (Interactive Flow View)
+                        </h2>
+                        <p class="text-xs text-slate-500">Biểu đồ quy trình xử lý trực quan theo từng tầng kiến trúc cho
+                            4 ngách</p>
+                    </div>
+                    <span
+                        class="px-2.5 py-1 text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 rounded-md">BMAD
+                        Section 5</span>
+                </div>
+
+                <!-- 4 SUB-TABS NAVIGATION CỐ ĐỊNH TRÊN 1 HÀNG DUY NHẤT -->
+                <div class="grid grid-cols-4 gap-2 p-1.5 bg-slate-100/90 rounded-xl border border-slate-200 text-xs">
+                    <button onclick="switchNicheSubTab('flow', 'risk')" id="btn-flow-risk"
+                        class="sub-tab-btn active py-2.5 px-2 rounded-lg font-semibold flex items-center justify-center gap-1.5 text-center transition-all truncate">
+                        <span>🛡️</span> <span class="truncate">1. Sơ Đồ Risk Audit</span>
+                    </button>
+                    <button onclick="switchNicheSubTab('flow', 'data')" id="btn-flow-data"
+                        class="sub-tab-btn py-2.5 px-2 rounded-lg font-medium flex items-center justify-center gap-1.5 text-center transition-all truncate">
+                        <span>📡</span> <span class="truncate">2. Sơ Đồ Data Oracle</span>
+                    </button>
+                    <button onclick="switchNicheSubTab('flow', 'mcp')" id="btn-flow-mcp"
+                        class="sub-tab-btn py-2.5 px-2 rounded-lg font-medium flex items-center justify-center gap-1.5 text-center transition-all truncate">
+                        <span>⚙️</span> <span class="truncate">3. Sơ Đồ Trade MCP</span>
+                    </button>
+                    <button onclick="switchNicheSubTab('flow', 'router')" id="btn-flow-router"
+                        class="sub-tab-btn py-2.5 px-2 rounded-lg font-medium flex items-center justify-center gap-1.5 text-center transition-all truncate">
+                        <span>🔄</span> <span class="truncate">4. Sơ Đồ Smart Router</span>
+                    </button>
+                </div>
+
+                <!-- ================= BIỂU ĐỒ 1: RISK AUDIT FLOW VIEW ================= -->
+                <div id="content-flow-risk"
+                    class="p-5 rounded-2xl border border-emerald-200 bg-slate-50 space-y-4 text-xs">
+                    <div class="flex items-center justify-between border-b border-slate-200 pb-2.5">
+                        <div>
+                            <h3 class="font-bold text-sm text-emerald-950 flex items-center gap-2">
+                                <span>🛡️</span> Biểu Đồ Chu Trình Kiểm Định Rủi Ro & Thu Phí x402 (Nora Architecture)
+                            </h3>
+                            <p class="text-[11px] text-slate-500">Toàn bộ thời gian xử lý: ~1.2 giây • Độ chính xác
+                                Monte Carlo: 99.2%</p>
+                        </div>
+                        <span
+                            class="px-2.5 py-1 rounded font-mono font-bold text-[10px] bg-emerald-100 text-emerald-800 border border-emerald-300">Tổng
+                            Độ Trễ: 1,200ms</span>
+                    </div>
+
+                    <!-- SƠ ĐỒ KHỐI TRỰC QUAN (NODE-BASED FLOW DIAGRAM) -->
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                        <!-- Node 1 -->
+                        <div
+                            class="flow-node bg-white p-3.5 rounded-xl border-2 border-blue-400 shadow-xs space-y-2 relative">
+                            <div class="flex items-center justify-between">
+                                <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800">BƯỚC 1
+                                    (0ms)</span>
+                                <span class="text-xs">👤</span>
+                            </div>
+                            <strong class="block text-slate-900 font-semibold text-xs">Client Request</strong>
+                            <p class="text-[11px] text-slate-500 leading-tight">User / Bot gửi mã SID cần soi hoặc
+                                Contract Token.</p>
+                            <div class="p-1.5 bg-slate-50 rounded text-[10px] font-mono text-slate-600">POST
+                                /api/v1/audit</div>
+                        </div>
+
+                        <!-- Node 2 -->
+                        <div
+                            class="flow-node bg-white p-3.5 rounded-xl border-2 border-amber-400 shadow-xs space-y-2 relative">
+                            <div class="flex items-center justify-between">
+                                <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800">BƯỚC
+                                    2 (+400ms)</span>
+                                <span class="text-xs">⚡</span>
+                            </div>
+                            <strong class="block text-slate-900 font-semibold text-xs">Cổng x402 Paywall</strong>
+                            <p class="text-[11px] text-slate-500 leading-tight">Yêu cầu 0.15 USDT; Ví Agent tự ký gửi
+                                on-chain.</p>
+                            <div class="p-1.5 bg-amber-50 rounded text-[10px] font-mono text-amber-800 font-bold">HTTP
+                                402 $\rightarrow$ Thu $0.15</div>
+                        </div>
+
+                        <!-- Node 3 -->
+                        <div
+                            class="flow-node bg-white p-3.5 rounded-xl border-2 border-purple-400 shadow-xs space-y-2 relative">
+                            <div class="flex items-center justify-between">
+                                <span
+                                    class="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-100 text-purple-800">BƯỚC
+                                    3 (+900ms)</span>
+                                <span class="text-xs">🧠</span>
+                            </div>
+                            <strong class="block text-slate-900 font-semibold text-xs">Monte Carlo Engine</strong>
+                            <p class="text-[11px] text-slate-500 leading-tight">Chạy 10,000 mô phỏng sụt giảm danh mục &
+                                quét mã độc.</p>
+                            <div class="p-1.5 bg-purple-50 rounded text-[10px] font-mono text-purple-800">10,000 Runs &
+                                Scans</div>
+                        </div>
+
+                        <!-- Node 4 -->
+                        <div
+                            class="flow-node bg-white p-3.5 rounded-xl border-2 border-emerald-500 shadow-xs space-y-2 relative">
+                            <div class="flex items-center justify-between">
+                                <span
+                                    class="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">BƯỚC
+                                    4 (+1,200ms)</span>
+                                <span class="text-xs">✅</span>
+                            </div>
+                            <strong class="block text-slate-900 font-semibold text-xs">Risk Report Payload</strong>
+                            <p class="text-[11px] text-slate-500 leading-tight">Trả Risk Score (1-100) & kết quả ký số
+                                on-chain.</p>
+                            <div class="p-1.5 bg-emerald-50 rounded text-[10px] font-mono text-emerald-800 font-bold">
+                                Score: 84/100 (An Toàn)</div>
+                        </div>
+                    </div>
+
+                    <div
+                        class="p-3 bg-white rounded-xl border border-slate-200 text-[11px] text-slate-600 flex items-center justify-between">
+                        <span><strong>Cơ chế chốt chặn:</strong> Nếu giao dịch x402 chưa được ghi nhận vào Smart
+                            Contract, hệ thống tự động drop request sau 2.0s để chống DDoS.</span>
+                        <span class="text-emerald-700 font-bold font-mono">Status: Verified 200 OK</span>
+                    </div>
+                </div>
+
+                <!-- ================= BIỂU ĐỒ 2: DATA ORACLE FLOW VIEW ================= -->
+                <div id="content-flow-data"
+                    class="p-5 rounded-2xl border border-blue-200 bg-slate-50 space-y-4 text-xs hidden">
+                    <div class="flex items-center justify-between border-b border-slate-200 pb-2.5">
+                        <div>
+                            <h3 class="font-bold text-sm text-blue-950 flex items-center gap-2">
+                                <span>📡</span> Biểu Đồ Luồng Tình Báo Dữ Liệu Tốc Độ Cao (Zero-Latency Pipeline)
+                            </h3>
+                            <p class="text-[11px] text-slate-500">Phản hồi siêu tốc: ~350ms • Lưu cache 20 sàn tập trung
+                                bằng cụm Redis</p>
+                        </div>
+                        <span
+                            class="px-2.5 py-1 rounded font-mono font-bold text-[10px] bg-blue-100 text-blue-800 border border-blue-300">Tổng
+                            Độ Trễ: 350ms</span>
+                    </div>
+
+                    <!-- SƠ ĐỒ KHỐI TRỰC QUAN -->
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                        <div class="flow-node bg-white p-3.5 rounded-xl border-2 border-blue-400 shadow-xs space-y-2">
+                            <div class="flex items-center justify-between"><span
+                                    class="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800">BƯỚC 1
+                                    (0ms)</span><span>🤖</span></div>
+                            <strong class="block text-slate-900 font-semibold text-xs">Trading Bot Query</strong>
+                            <p class="text-[11px] text-slate-500 leading-tight">Bot đối tác gửi yêu cầu lấy chỉ số
+                                Funding Rate & ví cá voi.</p>
+                            <div class="p-1.5 bg-slate-50 rounded text-[10px] font-mono text-slate-600">GET
+                                /v1/oracle/funding</div>
+                        </div>
+
+                        <div
+                            class="flow-node bg-white p-3.5 rounded-xl border-2 border-emerald-400 shadow-xs space-y-2">
+                            <div class="flex items-center justify-between"><span
+                                    class="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">BƯỚC
+                                    2 (+150ms)</span><span>💵</span></div>
+                            <strong class="block text-slate-900 font-semibold text-xs">Micro-Payment</strong>
+                            <p class="text-[11px] text-slate-500 leading-tight">Thanh toán vi mô $0.03 USDT xác nhận tức
+                                thì qua x402.</p>
+                            <div class="p-1.5 bg-emerald-50 rounded text-[10px] font-mono text-emerald-800 font-bold">
+                                Trừ $0.03 USDT</div>
+                        </div>
+
+                        <div class="flow-node bg-white p-3.5 rounded-xl border-2 border-indigo-400 shadow-xs space-y-2">
+                            <div class="flex items-center justify-between"><span
+                                    class="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800">BƯỚC
+                                    3 (+250ms)</span><span>⚡</span></div>
+                            <strong class="block text-slate-900 font-semibold text-xs">In-Memory Cache</strong>
+                            <p class="text-[11px] text-slate-500 leading-tight">Redis nhả snapshot dữ liệu đã gom sẵn từ
+                                20 sàn CEX.</p>
+                            <div class="p-1.5 bg-indigo-50 rounded text-[10px] font-mono text-indigo-800">Redis Hit:
+                                15ms</div>
+                        </div>
+
+                        <div class="flow-node bg-white p-3.5 rounded-xl border-2 border-blue-500 shadow-xs space-y-2">
+                            <div class="flex items-center justify-between"><span
+                                    class="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800">BƯỚC 4
+                                    (+350ms)</span><span>📦</span></div>
+                            <strong class="block text-slate-900 font-semibold text-xs">Clean JSON Output</strong>
+                            <p class="text-[11px] text-slate-500 leading-tight">Đóng gói dữ liệu sạch trả cho bot đối
+                                tác vào lệnh ngay.</p>
+                            <div class="p-1.5 bg-blue-50 rounded text-[10px] font-mono text-blue-800 font-bold">Payload:
+                                2.4 KB JSON</div>
+                        </div>
+                    </div>
+
+                    <div class="p-3 bg-white rounded-xl border border-slate-200 text-[11px] text-slate-600">
+                        <strong>Hiệu quả vận hành:</strong> Nhờ hệ thống đệm Redis, 1 Agent Data có thể phục vụ đồng
+                        thời 5,000 requests/phút mà không bị nghẽn mạng hay tăng chi phí server.
+                    </div>
+                </div>
+
+                <!-- ================= BIỂU ĐỒ 3: TRADE MCP FLOW VIEW ================= -->
+                <div id="content-flow-mcp"
+                    class="p-5 rounded-2xl border border-purple-200 bg-slate-50 space-y-4 text-xs hidden">
+                    <div class="flex items-center justify-between border-b border-slate-200 pb-2.5">
+                        <div>
+                            <h3 class="font-bold text-sm text-purple-950 flex items-center gap-2">
+                                <span>⚙️</span> Biểu Đồ Thực Thi Lệnh An Toàn Qua Chuẩn MCP (Model Context Protocol)
+                            </h3>
+                            <p class="text-[11px] text-slate-500">Ủy quyền giao dịch không lộ khóa bí mật • Phí thực thi
+                                $0.05 / lệnh</p>
+                        </div>
+                        <span
+                            class="px-2.5 py-1 rounded font-mono font-bold text-[10px] bg-purple-100 text-purple-800 border border-purple-300">Tổng
+                            Độ Trễ: 650ms</span>
+                    </div>
+
+                    <!-- SƠ ĐỒ KHỐI TRỰC QUAN -->
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                        <div class="flow-node bg-white p-3.5 rounded-xl border-2 border-purple-400 shadow-xs space-y-2">
+                            <div class="flex items-center justify-between"><span
+                                    class="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-100 text-purple-800">BƯỚC
+                                    1 (0ms)</span><span>🎯</span></div>
+                            <strong class="block text-slate-900 font-semibold text-xs">Chiến Lược Ra Lệnh</strong>
+                            <p class="text-[11px] text-slate-500 leading-tight">LLM Strategy phát chỉ thị: Mua 1.5 BTC
+                                chia nhỏ theo TWAP.</p>
+                            <div class="p-1.5 bg-slate-50 rounded text-[10px] font-mono text-slate-600">Action: BUY_TWAP
+                            </div>
+                        </div>
+
+                        <div class="flow-node bg-white p-3.5 rounded-xl border-2 border-blue-400 shadow-xs space-y-2">
+                            <div class="flex items-center justify-between"><span
+                                    class="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800">BƯỚC 2
+                                    (+200ms)</span><span>🔐</span></div>
+                            <strong class="block text-slate-900 font-semibold text-xs">MCP Adapter Guard</strong>
+                            <p class="text-[11px] text-slate-500 leading-tight">Kiểm tra Session Key, đảm bảo số tiền
+                                trong hạn mức cho phép.</p>
+                            <div class="p-1.5 bg-blue-50 rounded text-[10px] font-mono text-blue-800">Session Key: VALID
+                            </div>
+                        </div>
+
+                        <div class="flow-node bg-white p-3.5 rounded-xl border-2 border-amber-400 shadow-xs space-y-2">
+                            <div class="flex items-center justify-between"><span
+                                    class="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800">BƯỚC 3
+                                    (+400ms)</span><span>💵</span></div>
+                            <strong class="block text-slate-900 font-semibold text-xs">x402 Execution Fee</strong>
+                            <p class="text-[11px] text-slate-500 leading-tight">Thu phí cố định $0.05/lệnh thực thi tự
+                                động về ví quỹ.</p>
+                            <div class="p-1.5 bg-amber-50 rounded text-[10px] font-mono text-amber-800 font-bold">Phí
+                                Khớp: +$0.05</div>
+                        </div>
+
+                        <div
+                            class="flow-node bg-white p-3.5 rounded-xl border-2 border-emerald-500 shadow-xs space-y-2">
+                            <div class="flex items-center justify-between"><span
+                                    class="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">BƯỚC
+                                    4 (+650ms)</span><span>📈</span></div>
+                            <strong class="block text-slate-900 font-semibold text-xs">OKX Order Settlement</strong>
+                            <p class="text-[11px] text-slate-500 leading-tight">Bắn lệnh trực tiếp lên sàn OKX qua API
+                                Trade Kit và nhận TxHash.</p>
+                            <div class="p-1.5 bg-emerald-50 rounded text-[10px] font-mono text-emerald-800 font-bold">
+                                TxHash: 0x8f2a...9b</div>
+                        </div>
+                    </div>
+
+                    <div class="p-3 bg-white rounded-xl border border-slate-200 text-[11px] text-slate-600">
+                        <strong>Bảo vệ trượt giá:</strong> Nếu spread thị trường lệch quá 0.5%, module TWAP sẽ tự động
+                        ngưng đặt lệnh trong 3 giây và cảnh báo ngược về LLM.
+                    </div>
+                </div>
+
+                <!-- ================= BIỂU ĐỒ 4: SMART ROUTER FLOW VIEW ================= -->
+                <div id="content-flow-router"
+                    class="p-5 rounded-2xl border border-amber-200 bg-slate-50 space-y-4 text-xs hidden">
+                    <div class="flex items-center justify-between border-b border-slate-200 pb-2.5">
+                        <div>
+                            <h3 class="font-bold text-sm text-amber-950 flex items-center gap-2">
+                                <span>🔄</span> Biểu Đồ Định Tuyến Thanh Khoản Đa Chuỗi (Smart DEX Router Engine)
+                            </h3>
+                            <p class="text-[11px] text-slate-500">Tối ưu hóa giá qua 500 pools • Trích tự động 0.03% hoa
+                                hồng on-chain</p>
+                        </div>
+                        <span
+                            class="px-2.5 py-1 rounded font-mono font-bold text-[10px] bg-amber-100 text-amber-800 border border-amber-300">Tổng
+                            Độ Trễ: 800ms</span>
+                    </div>
+
+                    <!-- SƠ ĐỒ KHỐI TRỰC QUAN -->
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                        <div class="flow-node bg-white p-3.5 rounded-xl border-2 border-blue-400 shadow-xs space-y-2">
+                            <div class="flex items-center justify-between"><span
+                                    class="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800">BƯỚC 1
+                                    (0ms)</span><span>🔄</span></div>
+                            <strong class="block text-slate-900 font-semibold text-xs">Yêu Cầu Swap Lớn</strong>
+                            <p class="text-[11px] text-slate-500 leading-tight">User / Bot yêu cầu hoán đổi 50,000 USDT
+                                sang token OKB.</p>
+                            <div class="p-1.5 bg-slate-50 rounded text-[10px] font-mono text-slate-600">Swap 50k USDT
+                                $\rightarrow$ OKB</div>
+                        </div>
+
+                        <div class="flow-node bg-white p-3.5 rounded-xl border-2 border-indigo-400 shadow-xs space-y-2">
+                            <div class="flex items-center justify-between"><span
+                                    class="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800">BƯỚC
+                                    2 (+250ms)</span><span>🗺️</span></div>
+                            <strong class="block text-slate-900 font-semibold text-xs">Graph Path-Finder</strong>
+                            <p class="text-[11px] text-slate-500 leading-tight">Chia nhỏ lệnh: 55% qua Pool A, 45% qua
+                                Pool B để tối ưu trượt giá.</p>
+                            <div class="p-1.5 bg-indigo-50 rounded text-[10px] font-mono text-indigo-800">Trượt giá: <
+                                    0.08%</div>
+                            </div>
+
+                            <div
+                                class="flow-node bg-white p-3.5 rounded-xl border-2 border-amber-400 shadow-xs space-y-2">
+                                <div class="flex items-center justify-between"><span
+                                        class="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800">BƯỚC
+                                        3 (+500ms)</span><span>✂️</span></div>
+                                <strong class="block text-slate-900 font-semibold text-xs">Fee Slicer Contract</strong>
+                                <p class="text-[11px] text-slate-500 leading-tight">Hợp đồng tự động cắt 0.03% volume
+                                    ($15) chuyển thẳng về ví quỹ.</p>
+                                <div class="p-1.5 bg-amber-50 rounded text-[10px] font-mono text-amber-800 font-bold">
+                                    Cắt Phí 0.03%: $15</div>
+                            </div>
+
+                            <div
+                                class="flow-node bg-white p-3.5 rounded-xl border-2 border-emerald-500 shadow-xs space-y-2">
+                                <div class="flex items-center justify-between"><span
+                                        class="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">BƯỚC
+                                        4 (+800ms)</span><span>🎉</span></div>
+                                <strong class="block text-slate-900 font-semibold text-xs">On-Chain Delivery</strong>
+                                <p class="text-[11px] text-slate-500 leading-tight">Token OKB về ví user với mức giá tốt
+                                    hơn thị trường 0.8%.</p>
+                                <div
+                                    class="p-1.5 bg-emerald-50 rounded text-[10px] font-mono text-emerald-800 font-bold">
+                                    Settled on X Layer</div>
+                            </div>
+                        </div>
+
+                        <div class="p-3 bg-white rounded-xl border border-slate-200 text-[11px] text-slate-600">
+                            <strong>Bảo vệ chống MEV:</strong> Giao dịch được gửi qua cổng Private Mempool của mạng X
+                            Layer nên hoàn toàn vô hình trước các bot săn Sandwich Attack.
+                        </div>
+                    </div>
+            </section>
+
+            <!-- ================= 6. VẬN HÀNH & DANH SÁCH (OPERATIONS & DIRECTORY) ================= -->
+            <section id="content-tab-operations"
+                class="bmad-content bg-white border border-slate-200/90 rounded-2xl p-5 space-y-4 hidden">
+                <div
+                    class="border-b border-slate-100 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                        <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                            <span>📑</span> 6. Vận Hành & Danh Sách 100 AI Agent Theo Từng Ngách
+                        </h2>
+                        <p class="text-xs text-slate-500">Bộ lọc tra cứu trực tiếp theo 4 nhóm dịch vụ thực tế</p>
+                    </div>
+                    <span
+                        class="px-2.5 py-1 text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 rounded-md">BMAD
+                        Section 6</span>
+                </div>
+
+                <!-- 4 SUB-TABS NAVIGATION CỐ ĐỊNH TRÊN 1 HÀNG DUY NHẤT -->
+                <div class="grid grid-cols-4 gap-2 p-1.5 bg-slate-100/90 rounded-xl border border-slate-200 text-xs">
+                    <button onclick="filterOperationsByNiche('RISK')" id="btn-ops-risk"
+                        class="sub-tab-btn active py-2.5 px-2 rounded-lg font-semibold flex items-center justify-center gap-1.5 text-center transition-all truncate">
+                        <span>🛡️</span> <span class="truncate">1. Kiểm Định Rủi Ro (28)</span>
+                    </button>
+                    <button onclick="filterOperationsByNiche('DATA')" id="btn-ops-data"
+                        class="sub-tab-btn py-2.5 px-2 rounded-lg font-medium flex items-center justify-center gap-1.5 text-center transition-all truncate">
+                        <span>📡</span> <span class="truncate">2. Dữ Liệu & Tín Hiệu (34)</span>
+                    </button>
+                    <button onclick="filterOperationsByNiche('TRADE')" id="btn-ops-mcp"
+                        class="sub-tab-btn py-2.5 px-2 rounded-lg font-medium flex items-center justify-center gap-1.5 text-center transition-all truncate">
+                        <span>⚙️</span> <span class="truncate">3. Thực Thi Lệnh MCP (22)</span>
+                    </button>
+                    <button onclick="filterOperationsByNiche('ROUTER')" id="btn-ops-router"
+                        class="sub-tab-btn py-2.5 px-2 rounded-lg font-medium flex items-center justify-center gap-1.5 text-center transition-all truncate">
+                        <span>🔄</span> <span class="truncate">4. Định Tuyến DEX (16)</span>
+                    </button>
+                </div>
+
+                <!-- Bảng Dữ Liệu 100 Agent -->
+                <div class="overflow-x-auto rounded-xl border border-slate-200 max-h-[420px] overflow-y-auto">
+                    <table class="w-full text-xs text-left">
+                        <thead
+                            class="text-[11px] uppercase tracking-wider bg-slate-50 text-slate-600 border-b border-slate-200 sticky top-0 bg-slate-50">
+                            <tr>
+                                <th class="p-3">Tên AI Agent / ASP</th>
+                                <th class="p-3">Service ID (SID)</th>
+                                <th class="p-3">Nhóm Dịch Vụ</th>
+                                <th class="p-3 text-right">Đơn Giá / Call</th>
+                                <th class="p-3 text-right">Lượt Gọi / Tháng</th>
+                                <th class="p-3 text-right">Doanh Thu Thực Tế</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bmadTableBody" class="divide-y divide-slate-100 font-mono text-slate-700">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- ================= 7. GIẢ ĐỊNH (SCENARIO ASSUMPTIONS) ================= -->
+            <section id="content-tab-scenarios"
+                class="bmad-content bg-white border border-slate-200/90 rounded-2xl p-5 space-y-4 hidden">
+                <div
+                    class="border-b border-slate-100 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                        <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                            <span>🔮</span> 7. Giả Định Triển Khai & Bảng Dự Phóng Tài Chính
+                        </h2>
+                        <p class="text-xs text-slate-500">Giả định chi tiết 6 tháng phát triển khi chọn đi theo từng
+                            ngách dịch vụ</p>
+                    </div>
+                    <span
+                        class="px-2.5 py-1 text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 rounded-md">BMAD
+                        Section 7</span>
+                </div>
+
+                <!-- 4 SUB-TABS NAVIGATION CỐ ĐỊNH TRÊN 1 HÀNG DUY NHẤT -->
+                <div class="grid grid-cols-4 gap-2 p-1.5 bg-slate-100 rounded-xl border border-slate-200 text-xs">
+                    <button onclick="switchNicheSubTab('scenarios', 'risk')" id="btn-scenarios-risk"
+                        class="sub-tab-btn active py-2.5 px-2 rounded-lg font-semibold flex items-center justify-center gap-1.5 text-center transition-all truncate">
+                        <span>🛡️</span> <span class="truncate">1. Kiểm Định Rủi Ro</span>
+                    </button>
+                    <button onclick="switchNicheSubTab('scenarios', 'data')" id="btn-scenarios-data"
+                        class="sub-tab-btn py-2.5 px-2 rounded-lg font-medium flex items-center justify-center gap-1.5 text-center transition-all truncate">
+                        <span>📡</span> <span class="truncate">2. Dữ Liệu & Tín Hiệu</span>
+                    </button>
+                    <button onclick="switchNicheSubTab('scenarios', 'mcp')" id="btn-scenarios-mcp"
+                        class="sub-tab-btn py-2.5 px-2 rounded-lg font-medium flex items-center justify-center gap-1.5 text-center transition-all truncate">
+                        <span>⚙️</span> <span class="truncate">3. Thực Thi Lệnh MCP</span>
+                    </button>
+                    <button onclick="switchNicheSubTab('scenarios', 'router')" id="btn-scenarios-router"
+                        class="sub-tab-btn py-2.5 px-2 rounded-lg font-medium flex items-center justify-center gap-1.5 text-center transition-all truncate">
+                        <span>🔄</span> <span class="truncate">4. Định Tuyến DEX</span>
+                    </button>
+                </div>
+
+                <!-- Sub-Tab 1: Risk Audit -->
+                <div id="content-scenarios-risk"
+                    class="p-4 rounded-xl border border-emerald-200 bg-emerald-50/20 space-y-3">
+                    <div class="flex items-center justify-between border-b border-emerald-100 pb-2">
+                        <div>
+                            <h3 class="font-bold text-sm text-emerald-950">Giả Định 1: Triển Khai Agent Kiểm Định Rủi Ro
+                                (Risk Audit)</h3>
+                            <p class="text-[11px] text-slate-500">Đơn giá: $0.15/request • Khách hàng trả tiền để bảo vệ
+                                vốn trước khi trade</p>
+                        </div>
+                        <span
+                            class="text-xs font-mono font-bold text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-full border border-emerald-200">0%
+                            Rủi Ro Vốn</span>
+                    </div>
+
+                    <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+                        <table class="w-full text-xs text-left">
+                            <thead class="text-[11px] uppercase bg-slate-50 text-slate-600 border-b border-slate-200">
+                                <tr>
+                                    <th class="p-2.5">Thời Gian</th>
+                                    <th class="p-2.5 text-right">Lượt Gọi / Tháng</th>
+                                    <th class="p-2.5 text-right">Doanh Thu Thu Về</th>
+                                    <th class="p-2.5 text-right">Chi Phí Server Cloud</th>
+                                    <th class="p-2.5 text-right text-emerald-700 font-bold">Lợi Nhuận Ròng Thực Tế</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 font-mono text-slate-700">
+                                <tr>
+                                    <td class="p-2.5 font-sans font-semibold">Tháng 1</td>
+                                    <td class="p-2.5 text-right">800 calls</td>
+                                    <td class="p-2.5 text-right text-blue-700">$120</td>
+                                    <td class="p-2.5 text-right text-slate-500">$50</td>
+                                    <td class="p-2.5 text-right text-emerald-700 font-bold">+$70 (~1.7 Triệu VNĐ)</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-2.5 font-sans font-semibold">Tháng 2</td>
+                                    <td class="p-2.5 text-right">2,500 calls</td>
+                                    <td class="p-2.5 text-right text-blue-700">$375</td>
+                                    <td class="p-2.5 text-right text-slate-500">$50</td>
+                                    <td class="p-2.5 text-right text-emerald-700 font-bold">+$325 (~8.1 Triệu VNĐ)</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-2.5 font-sans font-semibold">Tháng 3</td>
+                                    <td class="p-2.5 text-right">5,000 calls</td>
+                                    <td class="p-2.5 text-right text-blue-700">$750</td>
+                                    <td class="p-2.5 text-right text-slate-500">$50</td>
+                                    <td class="p-2.5 text-right text-emerald-700 font-bold">+$700 (~17.5 Triệu VNĐ)</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-2.5 font-sans font-semibold">Tháng 4</td>
+                                    <td class="p-2.5 text-right">8,500 calls</td>
+                                    <td class="p-2.5 text-right text-blue-700">$1,275</td>
+                                    <td class="p-2.5 text-right text-slate-500">$60</td>
+                                    <td class="p-2.5 text-right text-emerald-700 font-bold">+$1,215 (~30.3 Triệu VNĐ)
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="p-2.5 font-sans font-semibold">Tháng 5</td>
+                                    <td class="p-2.5 text-right">12,000 calls</td>
+                                    <td class="p-2.5 text-right text-blue-700">$1,800</td>
+                                    <td class="p-2.5 text-right text-slate-500">$60</td>
+                                    <td class="p-2.5 text-right text-emerald-700 font-bold">+$1,740 (~43.5 Triệu VNĐ)
+                                    </td>
+                                </tr>
+                                <tr class="bg-emerald-50/50 font-bold">
+                                    <td class="p-2.5 font-sans text-emerald-900">Tháng 6 (Ổn định)</td>
+                                    <td class="p-2.5 text-right text-slate-900">16,000 calls</td>
+                                    <td class="p-2.5 text-right text-blue-700">$2,400</td>
+                                    <td class="p-2.5 text-right text-slate-500">$70</td>
+                                    <td class="p-2.5 text-right text-emerald-700 text-sm">+$2,330 / tháng (~58 Triệu
+                                        VNĐ)</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Sub-Tab 2: Data Oracle -->
+                <div id="content-scenarios-data"
+                    class="p-4 rounded-xl border border-blue-200 bg-blue-50/20 space-y-3 hidden">
+                    <div class="flex items-center justify-between border-b border-blue-100 pb-2">
+                        <div>
+                            <h3 class="font-bold text-sm text-blue-950">Giả Định 2: Triển Khai Agent Dữ Liệu & Tín Hiệu
+                                (Data Oracle)</h3>
+                            <p class="text-[11px] text-slate-500">Đơn giá: $0.03/request • Lượt gọi quy mô lớn từ hàng
+                                trăm bot trade tự động</p>
+                        </div>
+                        <span
+                            class="text-xs font-mono font-bold text-blue-700 bg-blue-100 px-2.5 py-1 rounded-full border border-blue-200">Volume
+                            Lớn</span>
+                    </div>
+
+                    <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+                        <table class="w-full text-xs text-left">
+                            <thead class="text-[11px] uppercase bg-slate-50 text-slate-600 border-b border-slate-200">
+                                <tr>
+                                    <th class="p-2.5">Thời Gian</th>
+                                    <th class="p-2.5 text-right">Lượt Gọi / Tháng</th>
+                                    <th class="p-2.5 text-right">Doanh Thu Thu Về</th>
+                                    <th class="p-2.5 text-right">Chi Phí Server Cloud</th>
+                                    <th class="p-2.5 text-right text-blue-700 font-bold">Lợi Nhuận Ròng Thực Tế</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 font-mono text-slate-700">
+                                <tr>
+                                    <td class="p-2.5 font-sans font-semibold">Tháng 1</td>
+                                    <td class="p-2.5 text-right">3,000 calls</td>
+                                    <td class="p-2.5 text-right text-blue-700">$90</td>
+                                    <td class="p-2.5 text-right text-slate-500">$50</td>
+                                    <td class="p-2.5 text-right text-emerald-700 font-bold">+$40 (~1.0 Triệu VNĐ)</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-2.5 font-sans font-semibold">Tháng 2</td>
+                                    <td class="p-2.5 text-right">8,000 calls</td>
+                                    <td class="p-2.5 text-right text-blue-700">$240</td>
+                                    <td class="p-2.5 text-right text-slate-500">$50</td>
+                                    <td class="p-2.5 text-right text-emerald-700 font-bold">+$190 (~4.7 Triệu VNĐ)</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-2.5 font-sans font-semibold">Tháng 3</td>
+                                    <td class="p-2.5 text-right">18,000 calls</td>
+                                    <td class="p-2.5 text-right text-blue-700">$540</td>
+                                    <td class="p-2.5 text-right text-slate-500">$60</td>
+                                    <td class="p-2.5 text-right text-emerald-700 font-bold">+$480 (~12.0 Triệu VNĐ)</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-2.5 font-sans font-semibold">Tháng 4</td>
+                                    <td class="p-2.5 text-right">30,000 calls</td>
+                                    <td class="p-2.5 text-right text-blue-700">$900</td>
+                                    <td class="p-2.5 text-right text-slate-500">$60</td>
+                                    <td class="p-2.5 text-right text-emerald-700 font-bold">+$840 (~21.0 Triệu VNĐ)</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-2.5 font-sans font-semibold">Tháng 5</td>
+                                    <td class="p-2.5 text-right">45,000 calls</td>
+                                    <td class="p-2.5 text-right text-blue-700">$1,350</td>
+                                    <td class="p-2.5 text-right text-slate-500">$70</td>
+                                    <td class="p-2.5 text-right text-emerald-700 font-bold">+$1,280 (~32.0 Triệu VNĐ)
+                                    </td>
+                                </tr>
+                                <tr class="bg-blue-50/50 font-bold">
+                                    <td class="p-2.5 font-sans text-blue-900">Tháng 6 (Ổn định)</td>
+                                    <td class="p-2.5 text-right text-slate-900">55,000 calls</td>
+                                    <td class="p-2.5 text-right text-blue-700">$1,650</td>
+                                    <td class="p-2.5 text-right text-slate-500">$70</td>
+                                    <td class="p-2.5 text-right text-blue-700 text-sm">+$1,580 / tháng (~39.5 Triệu VNĐ)
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Sub-Tab 3: Trade Executor -->
+                <div id="content-scenarios-mcp"
+                    class="p-4 rounded-xl border border-purple-200 bg-purple-50/20 space-y-3 hidden">
+                    <div class="flex items-center justify-between border-b border-purple-100 pb-2">
+                        <div>
+                            <h3 class="font-bold text-sm text-purple-950">Giả Định 3: Triển Khai Agent Thực Thi Lệnh MCP
+                                (Trade Executor)</h3>
+                            <p class="text-[11px] text-slate-500">Đơn giá: $0.05/lệnh • Cung cấp module đặt lệnh tự động
+                                bảo vệ giá</p>
+                        </div>
+                        <span
+                            class="text-xs font-mono font-bold text-purple-700 bg-purple-100 px-2.5 py-1 rounded-full border border-purple-200">Đều
+                            Đặn 24/7</span>
+                    </div>
+
+                    <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+                        <table class="w-full text-xs text-left">
+                            <thead class="text-[11px] uppercase bg-slate-50 text-slate-600 border-b border-slate-200">
+                                <tr>
+                                    <th class="p-2.5">Thời Gian</th>
+                                    <th class="p-2.5 text-right">Lệnh Khớp / Tháng</th>
+                                    <th class="p-2.5 text-right">Doanh Thu Thu Về</th>
+                                    <th class="p-2.5 text-right">Chi Phí Server Cloud</th>
+                                    <th class="p-2.5 text-right text-purple-700 font-bold">Lợi Nhuận Ròng Thực Tế</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 font-mono text-slate-700">
+                                <tr>
+                                    <td class="p-2.5 font-sans font-semibold">Tháng 1</td>
+                                    <td class="p-2.5 text-right">2,000 lệnh</td>
+                                    <td class="p-2.5 text-right text-blue-700">$100</td>
+                                    <td class="p-2.5 text-right text-slate-500">$50</td>
+                                    <td class="p-2.5 text-right text-emerald-700 font-bold">+$50 (~1.2 Triệu VNĐ)</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-2.5 font-sans font-semibold">Tháng 2</td>
+                                    <td class="p-2.5 text-right">6,000 lệnh</td>
+                                    <td class="p-2.5 text-right text-blue-700">$300</td>
+                                    <td class="p-2.5 text-right text-slate-500">$50</td>
+                                    <td class="p-2.5 text-right text-emerald-700 font-bold">+$250 (~6.2 Triệu VNĐ)</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-2.5 font-sans font-semibold">Tháng 3</td>
+                                    <td class="p-2.5 text-right">12,000 lệnh</td>
+                                    <td class="p-2.5 text-right text-blue-700">$600</td>
+                                    <td class="p-2.5 text-right text-slate-500">$50</td>
+                                    <td class="p-2.5 text-right text-emerald-700 font-bold">+$550 (~13.7 Triệu VNĐ)</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-2.5 font-sans font-semibold">Tháng 4</td>
+                                    <td class="p-2.5 text-right">18,500 lệnh</td>
+                                    <td class="p-2.5 text-right text-blue-700">$925</td>
+                                    <td class="p-2.5 text-right text-slate-500">$50</td>
+                                    <td class="p-2.5 text-right text-emerald-700 font-bold">+$875 (~21.8 Triệu VNĐ)</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-2.5 font-sans font-semibold">Tháng 5</td>
+                                    <td class="p-2.5 text-right">24,000 lệnh</td>
+                                    <td class="p-2.5 text-right text-blue-700">$1,200</td>
+                                    <td class="p-2.5 text-right text-slate-500">$60</td>
+                                    <td class="p-2.5 text-right text-emerald-700 font-bold">+$1,140 (~28.5 Triệu VNĐ)
+                                    </td>
+                                </tr>
+                                <tr class="bg-purple-50/50 font-bold">
+                                    <td class="p-2.5 font-sans text-purple-900">Tháng 6 (Ổn định)</td>
+                                    <td class="p-2.5 text-right text-slate-900">30,500 lệnh</td>
+                                    <td class="p-2.5 text-right text-blue-700">$1,525</td>
+                                    <td class="p-2.5 text-right text-slate-500">$60</td>
+                                    <td class="p-2.5 text-right text-purple-700 text-sm">+$1,465 / tháng (~36.7 Triệu
+                                        VNĐ)</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Sub-Tab 4: Smart Router -->
+                <div id="content-scenarios-router"
+                    class="p-4 rounded-xl border border-amber-200 bg-amber-50/20 space-y-3 hidden">
+                    <div class="flex items-center justify-between border-b border-amber-100 pb-2">
+                        <div>
+                            <h3 class="font-bold text-sm text-amber-950">Giả Định 4: Triển Khai Agent Định Tuyến DEX
+                                (Smart Router)</h3>
+                            <p class="text-[11px] text-slate-500">Đơn giá: Cắt 0.03% trên volume swap • Tối ưu trượt giá
+                                trên DEX</p>
+                        </div>
+                        <span
+                            class="text-xs font-mono font-bold text-amber-700 bg-amber-100 px-2.5 py-1 rounded-full border border-amber-200">Ăn
+                            Phí Volume</span>
+                    </div>
+
+                    <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+                        <table class="w-full text-xs text-left">
+                            <thead class="text-[11px] uppercase bg-slate-50 text-slate-600 border-b border-slate-200">
+                                <tr>
+                                    <th class="p-2.5">Thời Gian</th>
+                                    <th class="p-2.5 text-right">Khối Lượng Swap / Tháng</th>
+                                    <th class="p-2.5 text-right">Phí 0.03% Thu Về</th>
+                                    <th class="p-2.5 text-right">Chi Phí Server RPC</th>
+                                    <th class="p-2.5 text-right text-amber-700 font-bold">Lợi Nhuận Ròng Thực Tế</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 font-mono text-slate-700">
+                                <tr>
+                                    <td class="p-2.5 font-sans font-semibold">Tháng 1</td>
+                                    <td class="p-2.5 text-right">$300,000</td>
+                                    <td class="p-2.5 text-right text-blue-700">$90</td>
+                                    <td class="p-2.5 text-right text-slate-500">$50</td>
+                                    <td class="p-2.5 text-right text-emerald-700 font-bold">+$40 (~1.0 Triệu VNĐ)</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-2.5 font-sans font-semibold">Tháng 2</td>
+                                    <td class="p-2.5 text-right">$800,000</td>
+                                    <td class="p-2.5 text-right text-blue-700">$240</td>
+                                    <td class="p-2.5 text-right text-slate-500">$50</td>
+                                    <td class="p-2.5 text-right text-emerald-700 font-bold">+$190 (~4.7 Triệu VNĐ)</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-2.5 font-sans font-semibold">Tháng 3</td>
+                                    <td class="p-2.5 text-right">$2,500,000</td>
+                                    <td class="p-2.5 text-right text-blue-700">$750</td>
+                                    <td class="p-2.5 text-right text-slate-500">$60</td>
+                                    <td class="p-2.5 text-right text-emerald-700 font-bold">+$690 (~17.2 Triệu VNĐ)</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-2.5 font-sans font-semibold">Tháng 4</td>
+                                    <td class="p-2.5 text-right">$4,000,000</td>
+                                    <td class="p-2.5 text-right text-blue-700">$1,200</td>
+                                    <td class="p-2.5 text-right text-slate-500">$60</td>
+                                    <td class="p-2.5 text-right text-emerald-700 font-bold">+$1,140 (~28.5 Triệu VNĐ)
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="p-2.5 font-sans font-semibold">Tháng 5</td>
+                                    <td class="p-2.5 text-right">$5,500,000</td>
+                                    <td class="p-2.5 text-right text-blue-700">$1,650</td>
+                                    <td class="p-2.5 text-right text-slate-500">$70</td>
+                                    <td class="p-2.5 text-right text-emerald-700 font-bold">+$1,580 (~39.5 Triệu VNĐ)
+                                    </td>
+                                </tr>
+                                <tr class="bg-amber-50/50 font-bold">
+                                    <td class="p-2.5 font-sans text-amber-900">Tháng 6 (Ổn định)</td>
+                                    <td class="p-2.5 text-right text-slate-900">$7,500,000</td>
+                                    <td class="p-2.5 text-right text-blue-700">$2,250</td>
+                                    <td class="p-2.5 text-right text-slate-500">$80</td>
+                                    <td class="p-2.5 text-right text-amber-700 text-sm">+$2,170 / tháng (~54.2 Triệu
+                                        VNĐ)</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ================= 8. RỦI RO (RISK MANAGEMENT) ================= -->
+            <section id="content-tab-risks"
+                class="bmad-content bg-white border border-slate-200/90 rounded-2xl p-5 space-y-4 hidden">
+                <div class="border-b border-slate-100 pb-3 flex items-center justify-between">
+                    <div>
+                        <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                            <span>🛡️</span> 8. Đánh Giá Rủi Ro & Biện Pháp Kiểm Soát Cho Từng Ngách
+                        </h2>
+                        <p class="text-xs text-slate-500">Ma trận nhận diện và xử lý rủi ro đặc thù theo từng ngách dịch
+                            vụ</p>
+                    </div>
+                    <span
+                        class="px-2.5 py-1 text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 rounded-md">BMAD
+                        Section 8</span>
+                </div>
+
+                <!-- 4 SUB-TABS NAVIGATION CỐ ĐỊNH TRÊN 1 HÀNG DUY NHẤT -->
+                <div class="grid grid-cols-4 gap-2 p-1.5 bg-slate-100/90 rounded-xl border border-slate-200 text-xs">
+                    <button onclick="switchNicheSubTab('risks', 'risk')" id="btn-risks-risk"
+                        class="sub-tab-btn active py-2.5 px-2 rounded-lg font-semibold flex items-center justify-center gap-1.5 text-center transition-all truncate">
+                        <span>🛡️</span> <span class="truncate">1. Kiểm Định Rủi Ro</span>
+                    </button>
+                    <button onclick="switchNicheSubTab('risks', 'data')" id="btn-risks-data"
+                        class="sub-tab-btn py-2.5 px-2 rounded-lg font-medium flex items-center justify-center gap-1.5 text-center transition-all truncate">
+                        <span>📡</span> <span class="truncate">2. Dữ Liệu & Tín Hiệu</span>
+                    </button>
+                    <button onclick="switchNicheSubTab('risks', 'mcp')" id="btn-risks-mcp"
+                        class="sub-tab-btn py-2.5 px-2 rounded-lg font-medium flex items-center justify-center gap-1.5 text-center transition-all truncate">
+                        <span>⚙️</span> <span class="truncate">3. Thực Thi Lệnh MCP</span>
+                    </button>
+                    <button onclick="switchNicheSubTab('risks', 'router')" id="btn-risks-router"
+                        class="sub-tab-btn py-2.5 px-2 rounded-lg font-medium flex items-center justify-center gap-1.5 text-center transition-all truncate">
+                        <span>🔄</span> <span class="truncate">4. Định Tuyến DEX</span>
+                    </button>
+                </div>
+
+                <!-- Sub-content Risks Risk -->
+                <div id="content-risks-risk"
+                    class="p-4 rounded-xl border border-emerald-200 bg-slate-50 space-y-2 text-xs">
+                    <h3 class="font-bold text-slate-800">Rủi Ro Đặc Thù Ngách Risk Audit & Biện Pháp:</h3>
+                    <ul class="space-y-1.5 text-slate-600 list-disc list-inside">
+                        <li><strong>Rủi ro:</strong> Xuất hiện các loại bẫy token mới chưa có trong database nhận diện.
+                        </li>
+                        <li><strong>Biện pháp:</strong> Cập nhật thuật toán quét mã độc hàng tuần, đối soát song song
+                            với GoPlus Security API và tích hợp điều khoản miễn trừ trách nhiệm pháp lý.</li>
+                    </ul>
+                </div>
+
+                <!-- Sub-content Risks Data -->
+                <div id="content-risks-data"
+                    class="p-4 rounded-xl border border-blue-200 bg-slate-50 space-y-2 text-xs hidden">
+                    <h3 class="font-bold text-slate-800">Rủi Ro Đặc Thù Ngách Data Oracle & Biện Pháp:</h3>
+                    <ul class="space-y-1.5 text-slate-600 list-disc list-inside">
+                        <li><strong>Rủi ro:</strong> Nghẽn kết nối WebSocket từ sàn OKX hoặc CEX làm trễ dữ liệu giá và
+                            funding rate.</li>
+                        <li><strong>Biện pháp:</strong> Triển khai cụm Dual-Feed kết nối đồng thời Binance, Bybit và
+                            OKX, tự động lấy nguồn có độ trễ thấp nhất.</li>
+                    </ul>
+                </div>
+
+                <!-- Sub-content Risks MCP -->
+                <div id="content-risks-mcp"
+                    class="p-4 rounded-xl border border-purple-200 bg-slate-50 space-y-2 text-xs hidden">
+                    <h3 class="font-bold text-slate-800">Rủi Ro Đặc Thù Ngách Trade MCP & Biện Pháp:</h3>
+                    <ul class="space-y-1.5 text-slate-600 list-disc list-inside">
+                        <li><strong>Rủi ro:</strong> Sàn OKX bảo trì API hoặc trượt giá thị trường vượt mức cho phép.
+                        </li>
+                        <li><strong>Biện pháp:</strong> Cài đặt hàm Hard Stop-Loss on-chain, hủy các lệnh chờ còn lại
+                            nếu độ lệch giá vượt quá 0.5%.</li>
+                    </ul>
+                </div>
+
+                <!-- Sub-content Risks Router -->
+                <div id="content-risks-router"
+                    class="p-4 rounded-xl border border-amber-200 bg-slate-50 space-y-2 text-xs hidden">
+                    <h3 class="font-bold text-slate-800">Rủi Ro Đặc Thù Ngách Smart Router & Biện Pháp:</h3>
+                    <ul class="space-y-1.5 text-slate-600 list-disc list-inside">
+                        <li><strong>Rủi ro:</strong> Bị tấn công kẹp lệnh (Sandwich Attack / MEV) trên các sàn DEX công
+                            cộng.</li>
+                        <li><strong>Biện pháp:</strong> Định tuyến giao dịch qua cổng Private RPC chống MEV trên mạng X
+                            Layer để đảm bảo an toàn tuyệt đối.</li>
+                    </ul>
+                </div>
+            </section>
+
+            <!-- ================= 9. LỘ TRÌNH (ROADMAP) ================= -->
+            <section id="content-tab-roadmap"
+                class="bmad-content bg-white border border-slate-200/90 rounded-2xl p-5 space-y-4 hidden">
+                <div class="border-b border-slate-100 pb-3 flex items-center justify-between">
+                    <div>
+                        <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                            <span>🚀</span> 9. Lộ Trình Triển Khai Thực Chiến Cho Từng Ngách
+                        </h2>
+                        <p class="text-xs text-slate-500">Kế hoạch 4 giai đoạn chuẩn hóa theo chuẩn quản trị BMAD</p>
+                    </div>
+                    <span
+                        class="px-2.5 py-1 text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 rounded-md">BMAD
+                        Section 9</span>
+                </div>
+
+                <!-- 4 SUB-TABS NAVIGATION CỐ ĐỊNH TRÊN 1 HÀNG DUY NHẤT -->
+                <div class="grid grid-cols-4 gap-2 p-1.5 bg-slate-100/90 rounded-xl border border-slate-200 text-xs">
+                    <button onclick="switchNicheSubTab('roadmap', 'risk')" id="btn-roadmap-risk"
+                        class="sub-tab-btn active py-2.5 px-2 rounded-lg font-semibold flex items-center justify-center gap-1.5 text-center transition-all truncate">
+                        <span>🛡️</span> <span class="truncate">1. Kiểm Định Rủi Ro</span>
+                    </button>
+                    <button onclick="switchNicheSubTab('roadmap', 'data')" id="btn-roadmap-data"
+                        class="sub-tab-btn py-2.5 px-2 rounded-lg font-medium flex items-center justify-center gap-1.5 text-center transition-all truncate">
+                        <span>📡</span> <span class="truncate">2. Dữ Liệu & Tín Hiệu</span>
+                    </button>
+                    <button onclick="switchNicheSubTab('roadmap', 'mcp')" id="btn-roadmap-mcp"
+                        class="sub-tab-btn py-2.5 px-2 rounded-lg font-medium flex items-center justify-center gap-1.5 text-center transition-all truncate">
+                        <span>⚙️</span> <span class="truncate">3. Thực Thi Lệnh MCP</span>
+                    </button>
+                    <button onclick="switchNicheSubTab('roadmap', 'router')" id="btn-roadmap-router"
+                        class="sub-tab-btn py-2.5 px-2 rounded-lg font-medium flex items-center justify-center gap-1.5 text-center transition-all truncate">
+                        <span>🔄</span> <span class="truncate">4. Định Tuyến DEX</span>
+                    </button>
+                </div>
+
+                <!-- Sub-content Roadmap Risk -->
+                <div id="content-roadmap-risk" class="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
+                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                        <span class="font-bold text-blue-700 block">Tuần 1-2:</span>
+                        <p class="text-slate-600">Dựng mô phỏng Monte Carlo, kết nối RPC X Layer.</p>
+                    </div>
+                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                        <span class="font-bold text-blue-700 block">Tuần 3-4:</span>
+                        <p class="text-slate-600">Đóng gói cổng x402, cấu hình ví Agent nhận $0.15.</p>
+                    </div>
+                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                        <span class="font-bold text-blue-700 block">Tuần 5-6:</span>
+                        <p class="text-slate-600">Đăng ký SID trên OnchainOS, test 500 audits nội bộ.</p>
+                    </div>
+                    <div class="p-3 bg-emerald-50 rounded-xl border border-emerald-200 space-y-1">
+                        <span class="font-bold text-emerald-800 block">Tháng 2-6:</span>
+                        <p class="text-emerald-900 font-semibold">Tăng trưởng 16,000 calls $\rightarrow$ Lợi nhuận ~58M
+                            VNĐ/tháng.</p>
+                    </div>
+                </div>
+
+                <!-- Sub-content Roadmap Data -->
+                <div id="content-roadmap-data" class="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs hidden">
+                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                        <span class="font-bold text-blue-700 block">Tuần 1-2:</span>
+                        <p class="text-slate-600">Cấu hình In-Memory Redis, kết nối 20 sàn CEX.</p>
+                    </div>
+                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                        <span class="font-bold text-blue-700 block">Tuần 3-4:</span>
+                        <p class="text-slate-600">Lập trình API endpoint, tích hợp x402 giá $0.03.</p>
+                    </div>
+                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                        <span class="font-bold text-blue-700 block">Tuần 5-6:</span>
+                        <p class="text-slate-600">Đăng ký SID, chào hàng tới cộng đồng trading bots.</p>
+                    </div>
+                    <div class="p-3 bg-blue-50 rounded-xl border border-blue-200 space-y-1">
+                        <span class="font-bold text-blue-800 block">Tháng 2-6:</span>
+                        <p class="text-blue-900 font-semibold">Đạt 55,000 queries $\rightarrow$ Lợi nhuận ~39.5M
+                            VNĐ/tháng.</p>
+                    </div>
+                </div>
+
+                <!-- Sub-content Roadmap MCP -->
+                <div id="content-roadmap-mcp" class="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs hidden">
+                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                        <span class="font-bold text-blue-700 block">Tuần 1-2:</span>
+                        <p class="text-slate-600">Tích hợp SDK `@okx_ai/okx-trade-cli`, test Session Keys.</p>
+                    </div>
+                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                        <span class="font-bold text-blue-700 block">Tuần 3-4:</span>
+                        <p class="text-slate-600">Lập trình thuật toán TWAP và chốt lời/cắt lỗ tự động.</p>
+                    </div>
+                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                        <span class="font-bold text-blue-700 block">Tuần 5-6:</span>
+                        <p class="text-slate-600">Đăng ký SID, kiểm tra độ an toàn không giữ tiền khách.</p>
+                    </div>
+                    <div class="p-3 bg-purple-50 rounded-xl border border-purple-200 space-y-1">
+                        <span class="font-bold text-purple-800 block">Tháng 2-6:</span>
+                        <p class="text-purple-900 font-semibold">Đạt 30,500 lệnh $\rightarrow$ Lợi nhuận ~36.7M
+                            VNĐ/tháng.</p>
+                    </div>
+                </div>
+
+                <!-- Sub-content Roadmap Router -->
+                <div id="content-roadmap-router" class="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs hidden">
+                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                        <span class="font-bold text-blue-700 block">Tuần 1-2:</span>
+                        <p class="text-slate-600">Lập bản đồ thanh khoản 500 DEX pools trên X Layer.</p>
+                    </div>
+                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                        <span class="font-bold text-blue-700 block">Tuần 3-4:</span>
+                        <p class="text-slate-600">Viết Smart Contract định tuyến và trích 0.03% hoa hồng.</p>
+                    </div>
+                    <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                        <span class="font-bold text-blue-700 block">Tuần 5-6:</span>
+                        <p class="text-slate-600">Đăng ký SID, tích hợp Private RPC chống tấn công MEV.</p>
+                    </div>
+                    <div class="p-3 bg-amber-50 rounded-xl border border-amber-200 space-y-1">
+                        <span class="font-bold text-amber-800 block">Tháng 2-6:</span>
+                        <p class="text-amber-900 font-semibold">Khối lượng $7.5M swap $\rightarrow$ Lợi nhuận ~54.2M
+                            VNĐ/tháng.</p>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+
+    </div>
+
+    <!-- Footer -->
+    <footer class="text-center text-xs text-slate-400 py-4 border-t border-slate-200/80 bg-white mt-auto">
+        Báo Cáo Nghiên Cứu Nội Bộ Chuẩn BMAD • OKX AI Market & OnchainOS Intelligence • Bản Quyền 2026
+    </footer>
+
+    <!-- SCRIPT: Chuyển Tab Sidebar BMAD & Chuyển 4 Tab Con Cho Từng Mục -->
+    <script>
+        function switchBmadTab(tabId) {
+            document.querySelectorAll('.bmad-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.sidebar-item').forEach(btn => btn.classList.remove('active'));
+
+            const target = document.getElementById('content-' + tabId);
+            if (target) target.classList.remove('hidden');
+
+            const activeBtn = document.getElementById('side-' + tabId);
+            if (activeBtn) activeBtn.classList.add('active');
+
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // Generic Niche Sub-tab Switcher
+        function switchNicheSubTab(sectionKey, nicheKey) {
+            const niches = ['risk', 'data', 'mcp', 'router'];
+            niches.forEach(n => {
+                const contentEl = document.getElementById(`content-${sectionKey}-${n}`);
+                const btnEl = document.getElementById(`btn-${sectionKey}-${n}`);
+                if (contentEl) contentEl.classList.add('hidden');
+                if (btnEl) {
+                    btnEl.classList.remove('active');
+                    btnEl.classList.remove('font-semibold');
+                    btnEl.classList.add('font-medium');
+                }
+            });
+
+            const activeContent = document.getElementById(`content-${sectionKey}-${nicheKey}`);
+            const activeBtn = document.getElementById(`btn-${sectionKey}-${nicheKey}`);
+            if (activeContent) activeContent.classList.remove('hidden');
+            if (activeBtn) {
+                activeBtn.classList.add('active');
+                activeBtn.classList.add('font-semibold');
+                activeBtn.classList.remove('font-medium');
+            }
+        }
+
+        function filterOperationsByNiche(nicheCat) {
+            const catMap = { 'RISK': 'risk', 'DATA': 'data', 'TRADE': 'mcp', 'ROUTER': 'router' };
+            ['risk', 'data', 'mcp', 'router'].forEach(k => {
+                const btn = document.getElementById(`btn-ops-${k}`);
+                if (btn) {
+                    btn.classList.remove('active', 'font-semibold');
+                    btn.classList.add('font-medium');
+                }
+            });
+            const activeBtn = document.getElementById(`btn-ops-${catMap[nicheCat]}`);
+            if (activeBtn) {
+                activeBtn.classList.add('active', 'font-semibold');
+                activeBtn.classList.remove('font-medium');
+            }
+            renderBmadTable(nicheCat);
+        }
+
+        // 100 AI Agent Dataset
+        const bmadAgents = [
+            { name: "Nora Risk Audit Pro", sid: "SID-40700", cat: "RISK", price: "$0.15", calls: 14200, rev: 2130 },
+            { name: "AlphaWhale Flow Radar", sid: "SID-40112", cat: "DATA", price: "$0.03", calls: 52000, rev: 1560 },
+            { name: "SmartDEX Ultra-Router", sid: "SID-40890", cat: "ROUTER", price: "0.03%", calls: 16500, rev: 1980 },
+            { name: "OKX TradeKit Master MCP", sid: "SID-40230", cat: "TRADE", price: "$0.05", calls: 28400, rev: 1420 },
+            { name: "Honeypot Shield Inspector", sid: "SID-40705", cat: "RISK", price: "$0.10", calls: 11500, rev: 1150 },
+            { name: "Perp Funding Aggregator", sid: "SID-40344", cat: "DATA", price: "$0.02", calls: 64000, rev: 1280 },
+            { name: "Liquidation Wave Predictor", sid: "SID-40510", cat: "DATA", price: "$0.04", calls: 38000, rev: 1520 },
+            { name: "Multi-Chain Relayer Gasless", sid: "SID-40912", cat: "ROUTER", price: "$0.06", calls: 19000, rev: 1140 },
+            { name: "Smart Contract ByteCode Auditor", sid: "SID-40788", cat: "RISK", price: "$0.50", calls: 3200, rev: 1600 },
+            { name: "Sentiment NLP X-Scanner", sid: "SID-40189", cat: "DATA", price: "$0.03", calls: 44000, rev: 1320 },
+            { name: "Futures Trailing Stop MCP", sid: "SID-40299", cat: "TRADE", price: "$0.05", calls: 22000, rev: 1100 },
+            { name: "DEX Triangular Spread Spotter", sid: "SID-40855", cat: "ROUTER", price: "0.02%", calls: 21000, rev: 1260 }
+        ];
+
+        for (let i = 13; i <= 100; i++) {
+            const cat = i % 4 === 0 ? "DATA" : (i % 4 === 1 ? "RISK" : (i % 4 === 2 ? "TRADE" : "ROUTER"));
+            const sid = "SID-" + (40100 + i);
+            const price = cat === "RISK" ? "$0.15" : (cat === "DATA" ? "$0.03" : (cat === "TRADE" ? "$0.05" : "0.03%"));
+            const calls = cat === "DATA" ? Math.floor(Math.random() * 35000) + 15000 : (cat === "TRADE" ? Math.floor(Math.random() * 20000) + 8000 : Math.floor(Math.random() * 10000) + 3000);
+            const rev = cat === "ROUTER" ? Math.floor(calls * 0.08) : Math.floor(calls * (cat === "RISK" ? 0.15 : (cat === "DATA" ? 0.03 : 0.05)));
+            bmadAgents.push({
+                name: `${cat === 'RISK' ? 'SafeGuard' : (cat === 'DATA' ? 'MarketPulse' : (cat === 'TRADE' ? 'ExecutorMCP' : 'CrossRouter'))} Agent #${i}`,
+                sid: sid,
+                cat: cat,
+                price: price,
+                calls: calls,
+                rev: rev
+            });
+        }
+
+        function renderBmadTable(selectedCat = 'RISK') {
+            const tbody = document.getElementById('bmadTableBody');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+
+            const filtered = bmadAgents.filter(b => b.cat === selectedCat);
+
+            filtered.forEach((b) => {
+                const catBadge = b.cat === 'DATA' ? '<span class="px-2 py-0.5 rounded text-[10px] bg-blue-50 text-blue-700 font-sans font-semibold border border-blue-200">Dữ Liệu</span>' :
+                    (b.cat === 'RISK' ? '<span class="px-2 py-0.5 rounded text-[10px] bg-emerald-50 text-emerald-700 font-sans font-semibold border border-emerald-200">Rủi Ro</span>' :
+                        (b.cat === 'TRADE' ? '<span class="px-2 py-0.5 rounded text-[10px] bg-purple-50 text-purple-700 font-sans font-semibold border border-purple-200">Lệnh MCP</span>' :
+                            '<span class="px-2 py-0.5 rounded text-[10px] bg-amber-50 text-amber-700 font-sans font-semibold border border-amber-200">Định Tuyến</span>'));
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 transition-colors";
+                tr.innerHTML = `
+          <td class="p-3 font-sans">
+            <div class="font-bold text-slate-800 text-xs">${b.name}</div>
+          </td>
+          <td class="p-3 font-mono text-slate-500 text-xs">${b.sid}</td>
+          <td class="p-3">${catBadge}</td>
+          <td class="p-3 text-right font-bold text-slate-900">${b.price}</td>
+          <td class="p-3 text-right text-blue-600 font-bold">${b.calls.toLocaleString()} calls</td>
+          <td class="p-3 text-right text-emerald-700 font-bold">~$${b.rev.toLocaleString()}/tháng</td>
+        `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        renderBmadTable('RISK');
+    </script>
+
+</body>
+
+</html>

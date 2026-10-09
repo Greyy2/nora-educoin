@@ -1,0 +1,201 @@
+{
+ "asOf": "06/10/2026",
+ "window": "Lệnh đóng công khai 05/07 – 06/10/2026 (OKX chỉ trả 90 ngày gần nhất); đường PnL và PnL/ROI 90 ngày do OKX công bố.",
+ "regime": {
+  "label": "Đi ngang, nghiêng tăng nhẹ",
+  "rows": [
+   [
+    "BTC",
+    "+3,1%",
+    "+7,1%",
+    "0,07"
+   ],
+   [
+    "ETH",
+    "+1,7%",
+    "+8,0%",
+    "0,07"
+   ],
+   [
+    "SOL",
+    "+2,0%",
+    "+13,4%",
+    "0,18"
+   ],
+   [
+    "SNDK",
+    "−0,4%",
+    "−4,3%",
+    "0,37"
+   ],
+   [
+    "ZEC",
+    "−2,5%",
+    "+25,3%",
+    "0,21"
+   ]
+  ],
+  "cols": [
+   "Mã",
+   "7 ngày",
+   "30 ngày",
+   "ER 4H"
+  ],
+  "note": "ER (efficiency ratio) 20 nến 4H: gần 0 là giật qua lại, gần 1 là chạy một chiều. BTC và ETH ở 0,07: 30 ngày nhích lên 7–8% nhưng đường đi rất nhiễu."
+ },
+ "headline": "Top 10 OKX thắng nhờ mua nhịp chỉnh trong thị trường đi ngang, đòn bẩy cao, chia hai phe về cách xử lý lệnh lỗ.",
+ "points": [
+  "Cả 10 bot đều vào ngược hoặc trung tính so với biến động 24 giờ trước (tỷ lệ vào theo đà 21–48%, chưa bot nào trên 50%). Sáu bot ngược đà rõ (≤ 40%). Lối chung: giá giảm thì mua, giá tăng thì bán.",
+  "Đòn bẩy cao: trung vị 10–100x, 8/10 bot có đòn bẩy trung vị từ 20x trở lên. 6/10 bot nghiêng long (≥ 57% lệnh long), hợp với BTC/ETH nhích lên 7–8% trong 30 ngày.",
+  "Hai phe xử lý lệnh lỗ. Phe DCA (01pp, Sugary-PoH-GasCap, Scary-Merge-Llama, Auroraxwt) vào thêm khi giá đi ngược, thắng 64–86% lệnh nhưng lãi trung bình chỉ 0,6–1,9 lần lỗ trung bình. Phe gồng lãi (Physical-Epoch-Fuel, Professor-Wang, Faithful-Punk-Fuse, Firsthand-ATL-Pansy) giữ lệnh thắng lâu hơn hẳn lệnh thua (2 đến hơn 40 lần), lãi trung bình gấp 3,2–3,8 lần lỗ trung bình.",
+  "Cổ phiếu và hàng hoá token hoá (SNDK, SKHYNIX, MU, SPCX, MSTR, XAU) nằm trong top mã của 6/10 bot. Không còn chỉ là BTC/ETH.",
+  "Rủi ro cần xem kỹ nhất là Auroraxwt: lệnh lỗ được giữ trung vị 15,9 giờ, lệnh thắng chỉ 1 giờ. Bot đang ôm −108.722 USDT lỗ treo và lỗ −30.423 USDT trong 7 ngày gần nhất."
+ ],
+ "styles": [
+  {
+   "key": "dca",
+   "label": "DCA bắt hồi",
+   "desc": "Giá đi ngược thì vào thêm tầng, chốt cả rổ khi giá hồi. Thắng nhiều lệnh nhỏ, đuôi lỗ dày.",
+   "bots": [
+    "01pp",
+    "Sugary-PoH-GasCap",
+    "Scary-Merge-Llama",
+    "Auroraxwt"
+   ]
+  },
+  {
+   "key": "swing",
+   "label": "Swing cắt lỗ nhanh",
+   "desc": "Mua nhịp chỉnh, cắt lệnh sai sớm, giữ lệnh đúng lâu. Lãi trung bình lớn hơn lỗ trung bình.",
+   "bots": [
+    "Physical-Epoch-Fuel",
+    "Professor-Wang",
+    "Dark-Wood-Dahlia"
+   ]
+  },
+  {
+   "key": "big",
+   "label": "Săn cú lớn",
+   "desc": "Ít lệnh, đòn bẩy rất cao trên BTC/ETH. Vài lệnh lớn nhất làm ra phần lớn tiền lãi.",
+   "bots": [
+    "Faithful-Punk-Fuse",
+    "Firsthand-ATL-Pansy"
+   ]
+  },
+  {
+   "key": "scalp",
+   "label": "Lướt ngắn",
+   "desc": "Giữ lệnh vài giờ, ít khi vào thêm, chủ yếu cổ phiếu token hoá.",
+   "bots": [
+    "M Power7"
+   ]
+  }
+ ],
+ "bots": {
+  "Faithful-Punk-Fuse": {
+   "styleKey": "big",
+   "style": "Săn cú lớn",
+   "verdict": "Chỉ long ETH/BTC với đòn bẩy 50–100x, ôm lệnh thắng nhiều ngày. 5 lệnh lớn nhất chiếm 71% tiền lãi.",
+   "how": "27 lệnh đóng trong 90 ngày, 100% long, chỉ ETH (16) và BTC (11). Đòn bẩy trung vị 50x, tối đa 100x. Vào ngược đà: chỉ 28% lệnh vào cùng chiều 24 giờ trước, tức chủ yếu mua sau nhịp giảm. Có vào thêm (63% lệnh là tầng thêm), một phần là nhồi khi đang lãi.",
+   "edge": "Lệnh thắng giữ trung vị 184 giờ, lệnh thua chỉ 29,5 giờ. Lãi trung bình gấp 3,76 lần lỗ trung bình. ETH/BTC nhích lên đều trong 30 ngày nên lệnh long giữ lâu được hưởng trọn.",
+   "risk": "Toàn bộ long, đòn bẩy 50–100x trên 2 mã: một nhịp giảm mạnh của ETH/BTC đánh vào mọi vị thế cùng lúc. 8 vị thế đang mở (OKX ẩn mã) đang lãi treo +336.589 USDT, chưa chốt."
+  },
+  "Physical-Epoch-Fuel": {
+   "styleKey": "swing",
+   "style": "Swing cắt lỗ nhanh",
+   "verdict": "Swing cổ phiếu chip token hoá (SKHYNIX, SNDK, MU) và BTC/ETH. Profit factor 8,7, cao thứ ba trong nhóm.",
+   "how": "73 lệnh, 75% long, đòn bẩy trung vị 20x. Mã chính SKHYNIX (21), SNDK (11), BTC (11), ETH (10), MU (7). Vào ngược đà (33%): mua khi giá vừa giảm. 47% lệnh là tầng thêm, bước giá trung vị 1,09%.",
+   "edge": "Lệnh thắng giữ trung vị 72 giờ, lệnh thua 25 giờ: cắt sai sớm, để đúng chạy. Lãi trung bình gấp 3,74 lần lỗ trung bình, lỗ lớn nhất chỉ −3.977 USDT so với lãi lớn nhất +37.840.",
+   "risk": "Tập trung vào cổ phiếu bán dẫn token hoá: nến cuối tuần và lúc thị trường Mỹ đóng cửa có thể giật mạnh. Lệnh thắng từng âm tới 5,7% giá (p90) trước khi về lãi, nhân đòn bẩy 20x là gần cháy ký quỹ."
+  },
+  "01pp": {
+   "styleKey": "dca",
+   "style": "DCA bắt hồi",
+   "verdict": "DCA hai chiều trên 26 mã, 4,3 lệnh/ngày. Lãi đều nhưng lãi trung bình bằng lỗ trung bình.",
+   "how": "393 lệnh, long và short chia đôi (50%), đòn bẩy trung vị 15x. Mã chính ETH (78), MSTR (50), BTC (40), UNI (35), SPCX (20). 54% lệnh là tầng vào thêm, bước giá trung vị 0,76%, chuỗi dài nhất 23 tầng. Vào ngược đà (31%).",
+   "edge": "Thị trường đi ngang nên giá hay quay lại vùng vào: thắng 64% lệnh, profit factor 1,74. Chạy hai chiều nên ít phụ thuộc hướng thị trường.",
+   "risk": "Lãi trung bình chỉ bằng 0,98 lần lỗ trung bình. Lệnh lỗ lớn nhất −16.321 USDT. Khi một mã chạy một chiều, rổ DCA 20+ tầng lỗ dồn. 7 ngày gần nhất −4.263 USDT."
+  },
+  "Firsthand-ATL-Pansy": {
+   "styleKey": "big",
+   "style": "Săn cú lớn",
+   "verdict": "Chỉ BTC, đòn bẩy 100x, 23 lệnh trong 90 ngày. 5 lệnh lớn nhất chiếm 89% tiền lãi.",
+   "how": "23 lệnh, 100% BTC, đòn bẩy 100x ở mọi lệnh, 57% long. Vào ngược đà mạnh (21%). Tầng thêm vào gần như cùng giá (bước 0,02%), tức chia nhỏ lệnh chứ không DCA khi giá ngược.",
+   "edge": "Ít lệnh, chọn điểm vào sau nhịp quét. Lãi trung bình gấp 3,81 lần lỗ trung bình, profit factor 10,8. Có 583 người copy, nhiều nhất trong 10 bot.",
+   "risk": "100x nghĩa là giá đi ngược 1% là mất toàn bộ ký quỹ lệnh. Kết quả dựa vào vài lệnh: bỏ 5 lệnh tốt nhất thì còn rất ít lãi. 7 ngày gần nhất −12.061 USDT."
+  },
+  "Sugary-PoH-GasCap": {
+   "styleKey": "dca",
+   "style": "DCA bắt hồi",
+   "verdict": "DCA dày phe short trên ETH, 50x, chốt nhanh trong vài giờ. Thắng 86% lệnh, profit factor 12.",
+   "how": "148 lệnh trong 27 ngày (5,6 lệnh/ngày), 76% short, đòn bẩy 50x. Mã chính ETH (106), SNDK (23), ZEC (17). 74% lệnh là tầng thêm, bước giá rất dày 0,23%, chuỗi dài nhất 21 tầng. Giữ lệnh trung vị 4,9 giờ.",
+   "edge": "ETH giật lên rồi xả lại trong biên hẹp: short ở nhịp tăng, rải tầng 0,23%, chốt khi giá hồi xuống. Lỗ lớn nhất chỉ −2.932 USDT.",
+   "risk": "Mới lead 27 ngày, chưa qua nhịp ETH tăng mạnh. Nghiêng short trong lúc ETH +8% / 30 ngày. Một cú ETH bung lên 5% (lệnh thắng từng ngược 5,5% ở p90) với 21 tầng 50x là lỗ rất nặng."
+  },
+  "Scary-Merge-Llama": {
+   "styleKey": "dca",
+   "style": "DCA bắt hồi",
+   "verdict": "DCA long ETH/BTC 50x, thắng 81% lệnh, lãi 30 ngày cao nhất nhóm (+313.099 USDT).",
+   "how": "79 lệnh, 86% long, đòn bẩy 50x. Mã chính ETH (41), BTC (21), UNI (8). 42% lệnh là tầng thêm, bước giá 0,51%, tối đa 6 tầng. Giữ lệnh trung vị 14 giờ.",
+   "edge": "Mua thêm khi ETH/BTC giảm trong xu hướng nhích lên, giá quay lại thì chốt. Không còn vị thế mở, lãi đã chốt hết.",
+   "risk": "Lãi trung bình chỉ gấp 1,1 lần lỗ trung bình. Lệnh lỗ lớn nhất −34.685 USDT, bằng khoảng 11% tổng lãi đã chốt. AUM chỉ 44.328 USDT, đã đủ 50/50 người copy."
+  },
+  "Professor-Wang": {
+   "styleKey": "swing",
+   "style": "Swing cắt lỗ nhanh",
+   "verdict": "Kỷ luật cắt lỗ nhất nhóm: lệnh thua đóng trung vị sau 0,4 giờ, lệnh thắng giữ 19 giờ.",
+   "how": "39 lệnh trong 26 ngày, long/short cân bằng (51% long), đòn bẩy trung vị 20x. Mã chính ETH (17), BTC (11), ZEC (5). Ít vào thêm (15%). Vào ngược đà nhẹ (42%).",
+   "edge": "Sai là cắt ngay, đúng thì để chạy: lãi trung bình gấp 3,19 lần lỗ trung bình, profit factor 7,2. Hai chiều nên không phụ thuộc hướng.",
+   "risk": "Mới lead 26 ngày, mẫu 39 lệnh còn nhỏ. Lệnh lỗ lớn nhất −10.339 USDT cho thấy có lúc không cắt kịp. 7 vị thế mở đang lỗ treo −4.514 USDT."
+  },
+  "M Power7": {
+   "styleKey": "scalp",
+   "style": "Lướt ngắn",
+   "verdict": "Lướt cổ phiếu và hàng hoá token hoá (SNDK, ZEC, CL, TSLA), giữ lệnh trung vị 2,6 giờ.",
+   "how": "101 lệnh, 82% long, đòn bẩy 20x. Mã chính SNDK (33), ZEC (18), SKHYNIX (6), CL dầu (5), TSLA (5). Ít vào thêm (16%). Trung tính về đà (48%).",
+   "edge": "Vào ra nhanh, cắt lệnh thua sớm (1,9 giờ so với 4,5 giờ cho lệnh thắng). Đang có 22 vị thế mở lãi treo +40.732 USDT.",
+   "risk": "Biên lãi mỏng: profit factor 1,65, lãi trung bình chỉ gấp 1,13 lần lỗ. Lãi đã chốt từ lệnh công khai chỉ 12.531 USDT so với PnL 90 ngày OKX công bố 131.617, phần lớn kết quả nằm ở vị thế mở và lệnh ngoài cửa sổ. AUM chỉ 4.692 USDT."
+  },
+  "Dark-Wood-Dahlia": {
+   "styleKey": "swing",
+   "style": "Swing cắt lỗ nhanh",
+   "verdict": "Rải nhiều lệnh nhỏ trên 60 mã, thắng dưới nửa nhưng giữ lệnh đúng lâu gấp 3 lệnh sai.",
+   "how": "449 lệnh (7,6 lệnh/ngày) trên 60 mã, chủ yếu SNDK (116), BTC (50), MU (32), ZEC (21), XAU (18). 60% long, đòn bẩy trung vị 10x. 57% lệnh là tầng thêm, bước 1,06%.",
+   "edge": "Chỉ thắng 47% lệnh nhưng lãi trung bình gấp 1,78 lần lỗ: lệnh thắng giữ 25 giờ, lệnh thua 8,3 giờ. Đòn bẩy thấp nhất nhóm.",
+   "risk": "Gần như không có người copy (2 người, AUM 735 USDT): hạng cao nhờ ROI, chưa có đám đông kiểm chứng. Đang mở 40 vị thế."
+  },
+  "Auroraxwt": {
+   "styleKey": "dca",
+   "style": "DCA bắt hồi",
+   "verdict": "Lướt 20 lệnh/ngày, thắng 75% lệnh nhưng gồng lỗ: lệnh thua giữ 15,9 giờ, lệnh thắng 1 giờ.",
+   "how": "1.867 lệnh, long/short cân bằng (52% long), đòn bẩy 20x. Mã chính BTC (369), SPCX (246), SNDK (213), XAU vàng (191), MU (157). 48% lệnh là tầng thêm, bước 0,46%, chuỗi dài nhất 16 tầng.",
+   "edge": "Chốt lời rất nhanh khi giá nhích về phía mình, thị trường đi ngang cho nhiều nhịp như vậy. Lãi đã chốt 251.256 USDT.",
+   "risk": "Lãi trung bình chỉ bằng 0,58 lần lỗ trung bình. Lệnh lỗ được ôm lâu và vào thêm. Đang lỗ treo −108.722 USDT trên 20 vị thế mở, 7 ngày gần nhất −30.423 USDT: dấu hiệu rổ DCA bắt đầu kẹt."
+  }
+ },
+ "method": [
+  "Chọn bot: đi theo bảng xếp hạng lead copy-trade SWAP của OKX (06/10/2026, 282 lead) từ hạng 1 xuống, bỏ lead ẩn lịch sử lệnh hoặc có dưới 20 lệnh đóng công khai (#6 Pretty-Longmeixi-760, #10 Trader KS, #12 yaoyingyi). Lấy đủ 10 bot.",
+  "PnL 90N, ROI 90N, tỷ lệ thắng OKX, AUM, người copy: số OKX công bố. Các chỉ số còn lại tính từ từng lệnh con đã đóng (public-subpositions-history).",
+  "Tầng thêm: lệnh con mở khi lệnh cùng mã, cùng chiều vẫn đang mở. Bước DCA: giá tầng mới xấu hơn tầng trước bao nhiêu %. Theo đà: lệnh vào cùng chiều biến động 24 giờ trước (bỏ qua biến động dưới 0,2%). Giá đi ngược của lệnh thắng: biên độ ngược tối đa theo nến 1H giữa lúc vào và lúc ra.",
+  "Lỗ/lãi treo: tổng upl của vị thế đang mở (public-current-subpositions). Một số lead ẩn mã và giá của vị thế mở.",
+  "Thời điểm vào so với mốc nến: tỷ lệ lệnh con mở trong 90 giây sau mốc đóng nến 15m/1H/4H, so với tỷ lệ kỳ vọng nếu vào ngẫu nhiên (10% / 2,5% / 0,6%)."
+ ],
+ "dataScope": {
+  "title": "Xem được dữ liệu tới mức nào",
+  "have": [
+   "Từng lệnh con (sub-position): thời điểm mở và đóng chính xác tới mili-giây, chiều long/short, đòn bẩy, ký quỹ, khối lượng, giá vào trung bình, giá ra trung bình, PnL. Mỗi lần vào thêm là một lệnh con riêng, nên thấy được từng tầng DCA.",
+   "Vị thế đang mở: giá vào, giá mark, lãi/lỗ treo. Một số lead ẩn mã và giá (hiện là \"OKX ẩn\").",
+   "Đường PnL lũy kế theo ngày, PnL/ROI 90 ngày, tỷ lệ thắng, AUM, số người copy do OKX công bố."
+  ],
+  "missing": [
+   "Không có dữ liệu tick hay từng lần khớp (fill): giá vào/ra là giá trung bình của cả lệnh con, nếu lệnh khớp nhiều lần thì không thấy từng lần.",
+   "Không có lệnh đặt, lệnh huỷ, stop-loss, take-profit, lệnh limit chờ.",
+   "Không biết bot dùng khung nến, chỉ báo hay tín hiệu gì. Lối chơi trên trang là suy ra từ lệnh, không phải bot tự khai.",
+   "OKX chỉ trả lịch sử 90 ngày gần nhất."
+  ],
+  "chart": "Bảng lệnh hiển thị đúng thời điểm thật tới giây. Biểu đồ nến có hai khung: 1H cho cả 90 ngày, 15m cho 30 ngày gần nhất. Mũi tên vào/ra được đặt vào nến chứa thời điểm đó, nên trên 1H lệch tối đa 59 phút, trên 15m tối đa 14 phút.",
+  "timingFinding": "Có thể bot vào theo kiểu chờ đóng nến (ví dụ mở lệnh ngay khi nến 1H đóng). Đã kiểm tra: tỷ lệ lệnh mở trong 90 giây sau mốc đóng nến 15m/1H/4H của cả 10 bot đều gần mức ngẫu nhiên (1H: 0–5,9% so với 2,5% nếu ngẫu nhiên). Không bot nào vào theo nhịp đóng nến. Nhiều khả năng lệnh khớp khi giá chạm một mức (lệnh limit, lệnh điều kiện hoặc vào tay), không phải chạy theo bar.",
+  "hoursFinding": "Giờ vào lệnh (giờ VN): 7/10 bot dồn 33–52% lệnh vào khung 19–22h, trùng giờ mở phiên Mỹ (20:30). Sugary-PoH-GasCap gần như nghỉ 01–07h, M Power7 nghỉ 04–12h: nhịp giống người giao dịch hoặc gắn với giờ thị trường cổ phiếu Mỹ, không chạy đều 24/7.",
+  "batchFinding": "Đóng cùng lúc: nhiều lệnh con đóng trong cùng 1 giây, tức chốt cả rổ bằng một lệnh. Cao ở phe DCA: Sugary-PoH-GasCap 53%, 01pp 49%, Auroraxwt 44%, Physical-Epoch-Fuel 42%."
+ }
+}
