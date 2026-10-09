@@ -32,11 +32,11 @@ def sha(o):
 
 def compute():
     res = {}
-    for pat in ("out/nora_*.json", "out/ext/nora_*.json", "out/s9/nora_*.json", "out/s10/nora_*.json", "out/s11/nora_*.json"):
+    for pat in ("out/nora_*.json", "out/ext/nora_*.json", "out/s9/nora_*.json", "out/s10/nora_*.json", "out/s11/nora_*.json", "out/s12/nora_*.json"):
         for f in sorted(glob.glob(os.path.join(HERE, pat))):
             d = json.load(open(f))
             res[os.path.relpath(f, HERE)] = sha({k: d[k] for k in FIELDS if k in d})
-    for pat in ("results*.json", "ext_results*.json", "s9_results*.json", "s10_results*.json", "s11_results*.json"):
+    for pat in ("results*.json", "ext_results*.json", "s9_results*.json", "s10_results*.json", "s11_results*.json", "s12_results*.json"):
         for f in sorted(glob.glob(os.path.join(HERE, pat))):
             res[os.path.relpath(f, HERE)] = sha(json.load(open(f)))
     return res

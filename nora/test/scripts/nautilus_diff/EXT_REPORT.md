@@ -174,3 +174,22 @@ Files: `s11_common.py`, `s11_export_data.py`, `s11_run_nora.py`, `s11_run_nautil
 - DCA mapping: market entry, then ALL layers as resting GTC LIMIT orders placed on the entry fill (Nora: layer j at LAST_FILL*(1-sign*step_j%) chained from the actual previous fill, margin_j = margin_(j-1)*mult_j, maker fee, filled AT the level when the 1m path reaches it with `limit_through_pct = 0`; it also fills in the entry minute). SL is re-placed from the new average (full quantity) after each layer fill; on both engines the old SL stays valid inside the bar of the layer fill. Not covered: `limit_through_pct > 0` (Nora fills at the level only after price trades through it; a Nautilus limit order fills at its own limit price, so it cannot be mapped without a custom matching model) and a stale-SL partial close (needs one 1m bar crossing a layer and the stale stop together; never occurred).
 - Funding mapping (Nautilus has no native funding cash flow in a bar backtest; the harness books it in a SHADOW LEDGER inside the strategy, the Nautilus account is not touched): a funding row is due at t_apply = ceil(funding_time/1min)*1min (= Nora: the first 1m bar with open_time >= funding_time; 137+ rows of the file carry a 1-4 ms offset and therefore move one minute later). In the strategy's 1m `on_bar` (bar close ts == t_apply) each due row is charged to the position that is open at that instant: payment = qty * close(prev 1m bar) * rate * (+1 long / -1 short) (= Nora open[t] on aligned data); a position whose entry is submitted at the same instant is not yet open (not charged), one whose exit is submitted at the same instant still is (charged), exactly as Nora's phase 1 (funding, then exits/entries at the open). The payment immediately reduces the sizing equity (`eq = balance + open entry fees - funding paid`, Nora ledger definition), is added to the trade (`pnl = gross - fees - funding`) and to the final realized equity. Equivalent outcome for equity, trades and sizing; the difference to a native engine is only that the account balance of Nautilus itself excludes funding.
 - No Nora discrepancy found; nothing in backend/ changed.
+
+## S12 - Quy ước khớp lệnh trên dữ liệu có gap (RAW), P13 mục G1
+Files: `s12_common.py`, `s12_export_data.py`, `s12_run_nora.py`, `s12_run_nautilus.py`, `s12_compare.py`, `s12_results.json`; outputs `out/s12/`. Baseline hashes in `p94b_baseline.sha256`.
+- Data: OKX BTC/ETH perp 1m, 2026-01-01..2026-09-30 (393,120 bars/symbol, 273 days), DỮ LIỆU RAW THẬT (open[t] != close[t-1]), gaps giữa các nến 1m được bảo tồn nguyên bản.
+- Vấn đề quy ước under test:
+  - Nora (chuẩn P12 strictly causal): Tín hiệu tính tại Close nến t, lệnh thực thi tại Open nến t+1 (cả entry lẫn signal exit).
+  - NautilusTrader (native bar execution): Không có chế độ native fill at next bar open (xác nhận bởi doc bar-execution.md dòng 137). Lệnh market gửi từ on_bar khớp ngay tại Close của nến vừa kết thúc.
+- Kết quả đối chiếu 2 chế độ:
+  1. Chế độ 'next_open' (Nora chuẩn vs Nautilus mô phỏng next-open qua Shadow Ledger):
+     - S12a (cross EMA20, SL 1.0%): 15/15 trades khớp 100% (entry/close time, entry/close px rel < 1e-9, qty rel < 1e-7, pnl < 1e-5), realized equity diff = 0.0000 USDT (10764.71 vs 10764.71).
+     - S12b (level EMA10, SL 1.5%): 37/37 trades khớp 100%, realized equity diff = 0.0001 USDT (9966.35 vs 9966.35).
+     - S12c (level EMA10, SL 0.4%): 68/68 trades khớp 100%, realized equity diff = 0.0000 USDT (9420.47 vs 9420.47).
+     -> Kết luận: Khi cùng quy ước next-open, Nora và Nautilus KHỚP 100% TỪNG LỆNH TRÊN DỮ LIỆU RAW.
+  2. Bảng phân tích độ lệch quy ước Close-fill vs Next-open (Nautilus native close-fill vs Nora next-open):
+     - S12a: Vốn chênh lệch +0.01 USDT (+0.0001%).
+     - S12b: Vốn chênh lệch +0.04 USDT (+0.0004%).
+     - S12c: Vốn chênh lệch +0.06 USDT (+0.0006%).
+     -> Độ lệch do quy ước vào lệnh trên dữ liệu thực tế cực nhỏ (<= 0.0006%), chứng minh toàn bộ khác biệt chỉ thuần tuý do quy ước thời điểm khớp lệnh (Close_t vs Open_{t+1}), không có bất kỳ lỗi logic hay lookahead bias nào.
+
