@@ -35,18 +35,26 @@ VERTICAL_SURGE_PCT, VERTICAL_SURGE_DAYS = 40.0, 3
 VERTICAL_CRASH_PCT = 30.0
 STRESS_GAP_MULT = 2.0
 
-STRESS_LABELS_VI = {
-    "worst_days_first": "Ngày lỗ tệ nhất đến trước",
-    "reversed_order": "Đảo ngược thứ tự lịch sử",
-    "crash_day": "Ngày sập (2x ngày xấu nhất) ở đầu",
-    "cost_x2": "Chi phí giao dịch gấp đôi",
-    "longest_losing_streak_x2": "Chuỗi thua dài nhất lặp 2 lần ở đầu",
-    "worst_bootstrap": "Đường bootstrap tệ nhất (MDD lớn nhất)",
-    "vertical_surge": "Tăng thẳng đứng +40%/3 ngày ngược vị thế SHORT lớn nhất",
-    "vertical_crash": "Sập −30%/1 ngày ngược vị thế LONG lớn nhất",
-    "vertical_chain": "Chuỗi liên tiếp: tăng +40%/3 ngày rồi sập −30%, lặp 2 lần",
-}
-VERTICAL_NAMES = ("vertical_surge", "vertical_crash", "vertical_chain")
+_SURGE = f"+{VERTICAL_SURGE_PCT:.0f}%/{VERTICAL_SURGE_DAYS} ngày"
+_CRASH = f"−{VERTICAL_CRASH_PCT:.0f}%/1 ngày"
+# MỘT định nghĩa các kịch bản cực xấu (khoá, nhãn, mặc định bật, cần vị thế); nhãn trượt/sập dựng từ chính hằng số cú sốc ở trên.
+# `shock` = cú sốc giá (%) và số ngày mà kịch bản mô phỏng (chỉ nhóm thẳng đứng). Meta `stress` và STRESS_LABELS_VI đều lấy từ đây.
+STRESS_SCENARIOS: List[Dict[str, Any]] = [
+    {"key": "worst_days_first", "label_vi": "Ngày lỗ tệ nhất đến trước", "default_on": True, "needs_positions": False},
+    {"key": "reversed_order", "label_vi": "Đảo ngược thứ tự lịch sử", "default_on": True, "needs_positions": False},
+    {"key": "crash_day", "label_vi": "Ngày sập (2x ngày xấu nhất) ở đầu", "default_on": True, "needs_positions": False},
+    {"key": "cost_x2", "label_vi": "Chi phí giao dịch gấp đôi", "default_on": True, "needs_positions": False},
+    {"key": "longest_losing_streak_x2", "label_vi": "Chuỗi thua dài nhất lặp 2 lần ở đầu", "default_on": True, "needs_positions": False},
+    {"key": "worst_bootstrap", "label_vi": "Đường bootstrap tệ nhất (MDD lớn nhất)", "default_on": True, "needs_positions": False},
+    {"key": "vertical_surge", "label_vi": f"Tăng thẳng đứng {_SURGE} ngược vị thế SHORT lớn nhất", "default_on": True, "needs_positions": True,
+     "shock": {"move_pct": VERTICAL_SURGE_PCT, "days": VERTICAL_SURGE_DAYS, "against": "SHORT"}},
+    {"key": "vertical_crash", "label_vi": f"Sập {_CRASH} ngược vị thế LONG lớn nhất", "default_on": True, "needs_positions": True,
+     "shock": {"move_pct": -VERTICAL_CRASH_PCT, "days": 1, "against": "LONG"}},
+    {"key": "vertical_chain", "label_vi": f"Chuỗi liên tiếp: tăng {_SURGE} rồi sập −{VERTICAL_CRASH_PCT:.0f}%, lặp 2 lần", "default_on": True, "needs_positions": True,
+     "shock": {"surge_pct": VERTICAL_SURGE_PCT, "surge_days": VERTICAL_SURGE_DAYS, "crash_pct": -VERTICAL_CRASH_PCT, "repeat": 2}},
+]
+STRESS_LABELS_VI = {s["key"]: s["label_vi"] for s in STRESS_SCENARIOS}
+VERTICAL_NAMES = tuple(s["key"] for s in STRESS_SCENARIOS if s["needs_positions"])
 
 
 # ─── Kịch bản cực xấu (tất định, KHÔNG ngẫu nhiên) + gate ──────────────────────────────────────────────

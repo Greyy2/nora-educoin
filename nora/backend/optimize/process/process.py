@@ -1,7 +1,7 @@
 """Hàng đợi / chạy / huỷ / khôi phục job nền (P9.6 + P9.8): tiện ích job (Progress, graceful_sigterm, ghi result.json — từ utils/jobs.py) và phần tiến trình của api/jobs/batch.py (KINDS, launch, status, huỷ, lưu kết quả lâu dài, dọn); `run_job_dir` là thân của api/jobs/runner.run.
 
 Nguồn gộp: docs/bmad/p9_review_log.md (mục P9.6, P9.8). Phần kiểm tham số của batch.py ở routes/jobs.py.
-KINDS có thêm khoá "func" (mặc định "run_job"): tên hàm job sau khi đổi tên run_<kind>.
+KINDS có thêm khoá "label_vi" (nhãn tiếng Việt cho UI, meta.jobs.kinds) và khoá "func" (mặc định "run_job"): tên hàm job sau khi đổi tên run_<kind>.
 """
 # Khối env chạy TRƯỚC mọi import numpy/backend (tiến trình con/worker kế thừa qua fork). Chỉ khi module chạy làm
 # điểm vào job (`-m backend.optimize.process.process <job_dir>`), để tiến trình API import module này không bị đặt env.
@@ -177,31 +177,31 @@ RUN_LIMITED = os.path.join(NORA_DIR, "ops", "run_limited.sh")
 # Danh sách trắng: loại job -> (module có run_job(params), các khoá tham số được phép)
 RUNNER = "backend.optimize.process.process"
 KINDS: Dict[str, Dict[str, Any]] = {
-    "book_backtest": {"module": "backend.optimize.process.tasks", "func": "run_book_backtest",
+    "book_backtest": {"label_vi": "Backtest sổ", "module": "backend.optimize.process.tasks", "func": "run_book_backtest",
                       "params": {"book", "strategies", "symbols", "start", "end", "risk_per_trade", "stop_fill", "regime", "timeframe", "data", "latency_ms", "gas_usd"}},
-    "book_wfa": {"module": "backend.optimize.process.tasks", "func": "run_book_wfa",
+    "book_wfa": {"label_vi": "WFA sổ", "module": "backend.optimize.process.tasks", "func": "run_book_wfa",
                  "params": {"report", "include_rejected", "candidates", "strategies", "symbols", "n", "start", "end", "train_days",
                             "test_days", "step_days", "sims", "mc_seed", "risk_per_trade", "workers", "resume", "max_configs", "force_large",
                             "timeframe", "regime"}},
-    "book_build": {"module": "backend.optimize.book.build", "func": "run_book_build",
+    "book_build": {"label_vi": "Dựng sổ", "module": "backend.optimize.book.build", "func": "run_book_build",
                    "params": {"only", "n", "workers", "keep_top", "resume", "max_configs", "force_large", "timeframe"}},   # out do launch() đặt
-    "funnel_run": {"module": "backend.optimize.funnel.stages", "func": "run_funnel_run",
+    "funnel_run": {"label_vi": "Phễu alpha", "module": "backend.optimize.funnel.stages", "func": "run_funnel_run",
                    "params": {"strategies", "n_per_strategy", "full_grid", "seed", "symbols", "windows", "run_id", "resume", "force_large",
                               "train_days", "test_days", "space", "timeframe", "regime"}},
-    "funnel_recompute": {"module": "backend.optimize.funnel.stages", "func": "run_funnel_recompute", "params": {"run_id", "alpha_id"}},
-    "live_bot": {"module": "backend.live.live", "params": {"mode", "venue", "once", "max_steps", "capital", "confirm_live", "book",
+    "funnel_recompute": {"label_vi": "Tính lại phễu", "module": "backend.optimize.funnel.stages", "func": "run_funnel_recompute", "params": {"run_id", "alpha_id"}},
+    "live_bot": {"label_vi": "Bot live", "module": "backend.live.live", "params": {"mode", "venue", "once", "max_steps", "capital", "confirm_live", "book",
                                                                  "engine", "equity_drift_halt_pct"}},
-    "funnel_book": {"module": "backend.optimize.process.tasks", "func": "run_funnel_book",
+    "funnel_book": {"label_vi": "Sổ từ phễu", "module": "backend.optimize.process.tasks", "func": "run_funnel_book",
                     "params": {"run_id", "alpha_ids", "risk_per_trade_pct", "wfa_job_id", "dry_run", "explore"}},
-    "presets_build": {"module": "backend.optimize.book.build", "func": "run_presets_build", "params": set()},
-    "data_crawl": {"module": "backend.crawl.cex", "params": {"symbols", "market", "years", "output_dir"}},   # output_dir do router đặt
-    "data_crawl_okx": {"module": "backend.crawl.cex", "func": "okx_run_job", "params": {"symbols", "years", "output_dir"}},
-    "data_crawl_ticks": {"module": "backend.crawl.dex", "params": {"symbols", "days"}},
-    "data_promote": {"module": "backend.crawl.store", "params": {"apply", "archive_legacy"}},
-    "alpha_revalidate": {"module": "backend.optimize.book.registry", "func": "run_alpha_revalidate", "params": {"alpha_id", "apply"}},
-    "custom_backtest": {"module": "backend.optimize.process.tasks", "func": "run_custom_backtest",
+    "presets_build": {"label_vi": "Dựng preset", "module": "backend.optimize.book.build", "func": "run_presets_build", "params": set()},
+    "data_crawl": {"label_vi": "Crawl dữ liệu", "module": "backend.crawl.cex", "params": {"symbols", "market", "years", "output_dir"}},   # output_dir do router đặt
+    "data_crawl_okx": {"label_vi": "Crawl OKX", "module": "backend.crawl.cex", "func": "okx_run_job", "params": {"symbols", "years", "output_dir"}},
+    "data_crawl_ticks": {"label_vi": "Crawl tick DEX", "module": "backend.crawl.dex", "params": {"symbols", "days"}},
+    "data_promote": {"label_vi": "Chuyển dữ liệu vào kho", "module": "backend.crawl.store", "params": {"apply", "archive_legacy"}},
+    "alpha_revalidate": {"label_vi": "Kiểm lại alpha", "module": "backend.optimize.book.registry", "func": "run_alpha_revalidate", "params": {"alpha_id", "apply"}},
+    "custom_backtest": {"label_vi": "Backtest tuỳ chỉnh", "module": "backend.optimize.process.tasks", "func": "run_custom_backtest",
                         "params": {"code", "symbols", "start", "end", "train_ratio", "initial_capital", "position", "run_frame"}},
-    "regime_report": {"module": "backend.optimize.process.tasks", "func": "run_regime_report", "params": {"symbols", "start", "end", "event_pct", "backtest", "timeframe"}},
+    "regime_report": {"label_vi": "Báo cáo chế độ thị trường", "module": "backend.optimize.process.tasks", "func": "run_regime_report", "params": {"symbols", "start", "end", "event_pct", "backtest", "timeframe"}},
 }
 NO_LOCK_KINDS = {"live_bot"}
 MAX_ACTIVE = 8          # số job đang chạy/chờ tối đa cùng lúc (mỗi job chờ là một tiến trình bash nhỏ)

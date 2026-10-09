@@ -355,6 +355,9 @@ class SlotSpec:
         if self.exit_unit not in ("pct", "atr"):
             raise ValueError(f"exit_unit phải là 'pct' hoặc 'atr', nhận '{self.exit_unit}'")
         self.atr_frame = str(getattr(params, "atr_frame", "1h") or "1h")
+        self.signal_mode = str(getattr(params, "signal_mode", "event") or "event").lower()    # "event" | "level": core/backtest.py::entry_event_mask
+        if self.signal_mode not in ("event", "level"):
+            raise ValueError(f"signal_mode phải là 'event' hoặc 'level', nhận '{self.signal_mode}'")
         self.atr_period = int(getattr(params, "atr_period", 14) or 14)
         self.sizing = str(getattr(params, "sizing", "margin_pct") or "margin_pct").lower()
         if self.sizing not in ("margin_pct", "risk"):

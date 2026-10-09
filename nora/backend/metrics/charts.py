@@ -313,7 +313,7 @@ def build_dashboard(result: Dict[str, Any], bench_closes: Optional[pd.Series] = 
         "ret_period_pct": _num(ret_period), "bench_ret_period_pct": _num(bench_ret),
         "excess_pct": _num(ret_period - bench_ret) if bench_ret is not None else None,
         "sharpe": _num(sharpe), "sortino": _num(sortino),
-        "calmar": _num(cagr / abs(mdd)) if cagr is not None and mdd < -1e-9 else None,
+        "calmar": _num(rt.calmar(cagr, mdd)),
         "mdd_pct": _num(mdd), "dd_now_pct": _num(dd_p[-1]),
         "var95_1d": _num(var_pct / 100.0 * nav_last) if var_pct is not None else None,
         "var95_pct": _num(var_pct), "cvar95_1d": _num(cvar_pct / 100.0 * nav_last) if cvar_pct is not None else None,
@@ -1066,6 +1066,15 @@ NOTE_TOUR: List[Dict[str, str]] = [{"key": k, "label_vi": lbl, "notes_key": k, "
 EDUCATION_HIDDEN_SECTIONS: List[str] = ["benchmark", "holding", "pnl_structure"]
 
 
+def _cap_skip_text(result: Dict[str, Any]) -> Optional[str]:
+    """Một câu khi tín hiệu vào bị bỏ qua vì danh mục đã đủ max_positions: số LẦN chặn (risk_blocked_attempts) và trần lấy từ kết quả."""
+    n = result.get("risk_blocked_attempts")
+    mp = ((result.get("config") or {}).get("risk") or {}).get("max_positions")
+    if isinstance(n, bool) or not isinstance(n, (int, float)) or n <= 0 or isinstance(mp, bool) or not isinstance(mp, (int, float)):
+        return None
+    return f"{int(n)} lần tín hiệu vào bị bỏ qua vì danh mục đã giữ đủ {int(mp)} vị thế."
+
+
 def build_notes(logic: Dict[str, Any], result: Dict[str, Any]) -> Dict[str, Any]:
     m = (result.get("metrics") or {}).get("simulate") or {}
     d = result.get("diagnostics") or {}
@@ -1091,7 +1100,7 @@ def build_notes(logic: Dict[str, Any], result: Dict[str, Any]) -> Dict[str, Any]
     put("cagr_pct", f"Lợi suất quy năm (365 ngày) {_n(m.get('cagr_pct'))}%/năm" + (f", benchmark luôn long {_n(mc.get('market_cagr'))}%/năm." if _n(mc.get("market_cagr")) else ".")
         if _n(m.get("cagr_pct")) else None)
     put("sharpe", f"Sharpe {_n(m.get('sharpe'))}" + (f", Sortino {_n(m.get('sortino'))}" if _n(m.get("sortino")) else "") + " trên đường vốn cuối ngày của lần chạy này." if _n(m.get("sharpe")) else None,
-        f"Vị thế có mặt {_n(sa.get('days_in_market_pct'), 1)}% số ngày, phơi nhiễm TB {_n(sa.get('avg_exposure_pct'), 1)}% vốn." if _n(sa.get("days_in_market_pct")) else None)
+        f"Vị thế có mặt {_n(sa.get('days_in_market_pct'))}% số ngày, phơi nhiễm TB {_n(sa.get('avg_exposure_pct'))}% vốn." if _n(sa.get("days_in_market_pct")) else None)
     put("sortino", f"Sortino {_n(m.get('sortino'))} so với Sharpe {_n(m.get('sharpe'))} (cùng đường vốn, chỉ tính độ lệch của các ngày lỗ)." if _n(m.get("sortino")) and _n(m.get("sharpe")) else None)
     put("mdd_pct", f"Đáy sụt giảm vốn sâu nhất {_n(m.get('mdd_pct'))}% (vốn cuối ngày)" + (f"; benchmark luôn long sụt {_n(mc.get('market_mdd'))}%." if _n(mc.get("market_mdd")) else ".")
         if _n(m.get("mdd_pct")) else None,
@@ -1099,7 +1108,7 @@ def build_notes(logic: Dict[str, Any], result: Dict[str, Any]) -> Dict[str, Any]
     put("calmar", f"Calmar {_n(m.get('calmar'))}: CAGR {_n(m.get('cagr_pct'))}% trên MDD {_n(m.get('mdd_pct'))}%." if _n(m.get("calmar")) else None)
     put("trades", f"{ps.get('closed_trades', m.get('trades'))} lệnh đã đóng, {sa.get('open_trades', 0)} đang mở; {sa.get('long_trades', 0)} long / {sa.get('short_trades', 0)} short."
         if m.get("trades") is not None else None)
-    put("win_rate_trades", f"{ps.get('winning_trades')} thắng / {ps.get('losing_trades')} thua trên {ps.get('closed_trades')} lệnh đóng ({_n(m.get('win_rate_trades'), 1)}%)."
+    put("win_rate_trades", f"{ps.get('winning_trades')} thắng / {ps.get('losing_trades')} thua trên {ps.get('closed_trades')} lệnh đóng ({_n(m.get('win_rate_trades'))}%)."
         if ps.get("winning_trades") is not None and _n(m.get("win_rate_trades")) else None)
     put("profit_factor_trades", f"Profit factor {_n(m.get('profit_factor_trades'), 3)}: lãi TB {_n(ps.get('avg_win'))} USD mỗi lệnh thắng, lỗ TB {_n(ps.get('avg_loss'))} USD mỗi lệnh thua (đã tính phí)."
         if _n(m.get("profit_factor_trades")) and _n(ps.get("avg_win")) else None)
@@ -1114,9 +1123,9 @@ def build_notes(logic: Dict[str, Any], result: Dict[str, Any]) -> Dict[str, Any]
 
     # 1. Kết quả tổng: lợi suất, sụt giảm, Sharpe, số lệnh, tỉ lệ thắng của CHÍNH lần chạy + quy tắc vào/thoát đã biên dịch
     if _n(m.get("ret_pct")) and _n(m.get("mdd_pct")):
-        wr = f", thắng {_n(m.get('win_rate_trades'), 1)}% số lệnh" if _n(m.get("win_rate_trades")) else ""
+        wr = f", thắng {_n(m.get('win_rate_trades'))}% số lệnh" if _n(m.get("win_rate_trades")) else ""
         put_s("summary", f"Vốn {_n(cap, 0)} → {_n(fin, 0)} USD ({_n(m.get('ret_pct'))}%), sụt giảm sâu nhất {_n(m.get('mdd_pct'))}%, Sharpe {_n(m.get('sharpe'))}, {m.get('trades')} lệnh{wr}.",
-              f"Quy tắc: {entry}." if entry else None, f"{exit_}." if exit_ else None, risk or None)
+              f"Quy tắc: {entry}." if entry else None, f"{exit_}." if exit_ else None, risk or None, _cap_skip_text(result))
     ser_eq, ser_t, ser_dd = ser.get("equity") or [], ser.get("times") or [], ser.get("drawdown") or []
     if ser_eq and len(ser_eq) == len(ser_t) == len(ser_dd) and _n(m.get("mdd_pct")):
         ip = int(np.argmax(ser_eq))
@@ -1126,7 +1135,7 @@ def build_notes(logic: Dict[str, Any], result: Dict[str, Any]) -> Dict[str, Any]
     ex = sa.get("exit_reasons") or {}
     cnt = sa.get("exit_reason_counts") or {}
     if ex:
-        parts = "; ".join(f"{k} {_n(v, 1)}% ({cnt.get(k)} lệnh)" for k, v in sorted(ex.items(), key=lambda kv: -kv[1]))
+        parts = "; ".join(f"{k} {_n(v)}% ({cnt.get(k)} lệnh)" for k, v in sorted(ex.items(), key=lambda kv: -kv[1]))
         put_s("exits", f"Lý do thoát lệnh đo được: {parts}.", f"Quy tắc thoát: {exit_}." if exit_ else None, risk or None)
     if _n(mc.get("strategy_total_return_pct")):
         put_s("benchmark", f"Chiến lược {_n(mc.get('strategy_total_return_pct'))}% so với benchmark luôn long {_n(mc.get('market_total_return_pct'))}%;"
@@ -1135,7 +1144,7 @@ def build_notes(logic: Dict[str, Any], result: Dict[str, Any]) -> Dict[str, Any]
         put_s("holding", f"Giữ TB {_n(sa.get('avg_holding_days'))} ngày, trung vị {_n(sa.get('median_holding_days'))} ngày.")
     if all(_n(ps.get(k)) for k in ("avg_win", "avg_loss", "payoff", "top5_profit_pct")):
         put_s("pnl_structure", f"Lãi TB {_n(ps.get('avg_win'))} USD mỗi lệnh thắng, lỗ TB {_n(ps.get('avg_loss'))} USD mỗi lệnh thua (payoff {_n(ps.get('payoff'))}); "
-              f"5 lệnh lãi nhất chiếm {_n(ps.get('top5_profit_pct'), 1)}% tổng lãi gộp.")
+              f"5 lệnh lãi nhất chiếm {_n(ps.get('top5_profit_pct'))}% tổng lãi gộp.")
     yr = result.get("yearly") or []
     ys = [r for r in yr if _n(r.get("cagr_pct")) and r.get("stage") in ("train", "test")]
     if ys:

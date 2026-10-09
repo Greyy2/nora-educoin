@@ -391,7 +391,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from fastapi import HTTPException
 
 from backend.optimize.process import process as batch_jobs
-from backend.carlo.carlo import STRESS_LABELS_VI, VERTICAL_NAMES
+from backend.carlo.carlo import MC_RUIN_THRESHOLD_PCT, STRESS_LABELS_VI, VERTICAL_NAMES
 from backend.core.params import BASE_RISK_PER_TRADE_PCT
 from backend.optimize.book.build import BY_ID
 from backend.crawl.store import read_json
@@ -411,7 +411,7 @@ MODES = ("basic", "advanced")
 MAX_STRATEGIES = 9                 # số chiến lược lõi (strategy.book.CANDIDATES)
 DEFAULT_TRAIN_DAYS, DEFAULT_TEST_DAYS = 120, 30   # fold mặc định của WFA (validate_book)
 STANDARD_MC_SIMULATIONS = 10_000    # = carlo.carlo.MC_MIN_SIMULATIONS
-STANDARD_MC = {"block_days": 5, "horizon_days": 365, "ruin_threshold_pct": 30.0, "seed": 7, "scale": 1.0}
+STANDARD_MC = {"block_days": 5, "horizon_days": 365, "ruin_threshold_pct": MC_RUIN_THRESHOLD_PCT, "seed": 7, "scale": 1.0}
 # 6 kịch bản luôn có + 3 kịch bản trend thẳng đứng (chỉ có khi nguồn biết vị thế, vd. WFA — carlo.vertical_exposure)
 STRESS_VERTICAL = VERTICAL_NAMES
 STRESS_BASE = tuple(n for n in STRESS_LABELS_VI if n not in VERTICAL_NAMES)     # ("worst_days_first", "reversed_order", "crash_day", "cost_x2", "longest_losing_streak_x2", "worst_bootstrap")
@@ -745,6 +745,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Header, Response
 
+from backend.carlo import carlo
 from backend.core.params import FRAME_MS
 from backend.crawl import store
 from backend.live import live as live_mod
@@ -800,6 +801,8 @@ def _limits() -> Dict[str, Any]:
             if b:
                 if "default" in p:
                     b["default"] = p["default"]
+                if name == "book_mc" and p.get("description"):   # mô tả tiếng Việt của Field McRequest (một nơi)
+                    b["help_vi"] = p["description"]
                 fields[f] = b
         out[name] = fields
     return out
@@ -815,15 +818,15 @@ def _stage_of_prefix(prefix: str) -> Optional[str]:
 
 def _funnel() -> Dict[str, Any]:
     st = funnel_stages
-    stages = [{"id": s, "label": st.STAGE_LABELS.get(s), "idx": st.STAGE_IDX[s], "has_trades": s in st.TRADE_STAGES, "legacy": False} for s in st.STAGES]
+    stages = [{"id": s, "label": st.STAGE_LABELS.get(s), "idx": st.STAGE_IDX[s], "has_trades": s in st.TRADE_STAGES, "trades_from": st.trades_from(s),
+               "legacy": False} for s in st.STAGES]
     stages.append({"id": st.LEGACY_STAGE, "label": st.STAGE_LABELS.get(st.LEGACY_STAGE), "idx": st.LEGACY_STAGE_IDX[st.LEGACY_STAGE],
-                   "has_trades": st.LEGACY_STAGE in st.TRADE_STAGES, "legacy": True})
+                   "has_trades": st.LEGACY_STAGE in st.TRADE_STAGES, "trades_from": st.trades_from(st.LEGACY_STAGE), "legacy": True})
     gates = []
     for name, value in st.thresholds_snapshot().items():   # hằng số ngưỡng hiện hành của stages.py (tên = tên hằng, giá trị = giá trị thật)
         m = _PREFIX_RE.match(name)
         if m:
             gates.append({"key": name, "value": value, "stage": _stage_of_prefix(m.group(1)), "source": "optimize/funnel/stages.py"})
-    from backend.carlo import carlo
     for name in ("MC_MIN_SIMULATIONS", "MC_MAX_SIMULATIONS", "MC_RUIN_THRESHOLD_PCT", "MC_MAX_RUIN_PCT", "STRESS_MAX_MDD_PCT"):
         gates.append({"key": name, "value": getattr(carlo, name), "stage": "S4_montecarlo", "source": "carlo/carlo.py"})
     return {"stages": stages, "gates": gates}
@@ -847,7 +850,7 @@ def _jobs() -> Dict[str, Any]:
     kinds = []
     for kind, entry in batch_process.KINDS.items():
         dest = batch_process.persist_dest_base(kind)
-        kinds.append({"kind": kind, "label": kind, "persist_to": os.path.relpath(dest, store.data_home()) if dest else None,
+        kinds.append({"kind": kind, "label_vi": entry["label_vi"], "persist_to": os.path.relpath(dest, store.data_home()) if dest else None,
                       "ephemeral": kind in batch_process.EPHEMERAL_KINDS, "crawl": kind in batch_process.CRAWL_KINDS,
                       "params": sorted(entry["params"])})
     return {"kinds": kinds}
@@ -895,6 +898,7 @@ def _build_meta() -> Dict[str, Any]:
                               "markets": {e: rel(store.market_root(e)) for e in store.EXCHANGES}},
                      "book": _book_rel(main_book), "explore": _book_rel(explore_book)},
         "limits": _limits(),
+        "stress": carlo.STRESS_SCENARIOS,
         "metrics": {"defs": METRIC_DEFS, "groups": METRIC_GROUPS},
         "explain_tour": NOTE_TOUR,
         "education_hidden_sections": EDUCATION_HIDDEN_SECTIONS,

@@ -87,6 +87,35 @@ def run_custom_backtest(params=None):
     return out
 
 
+def run_parallel(steps) -> Dict[str, Any]:
+    """steps: [(tên, fn(loaded_event))]. Mỗi fn phải set `loaded` khi nạp xong dữ liệu (execute/run_benchmark làm việc đó); bước kế chỉ bắt đầu sau đó
+    (nạp tuần tự, kernel song song). -> {tên: kết quả | ngoại lệ}. stdout chuyển hướng MỘT lần cho cả nhóm (redirect_stdout không an toàn khi lồng giữa thread)."""
+    import contextlib
+    import io
+    import threading
+    out: Dict[str, Any] = {}
+
+    def work(name, fn, ev):
+        try:
+            out[name] = fn(ev)
+        except BaseException as e:      # noqa: BLE001 — trả về cho người gọi quyết định (benchmark lỗi chỉ là cảnh báo)
+            out[name] = e
+        finally:
+            ev.set()
+
+    threads = []
+    with contextlib.redirect_stdout(io.StringIO()):
+        for name, fn in steps:
+            ev = threading.Event()
+            t = threading.Thread(target=work, args=(name, fn, ev), daemon=True)
+            t.start()
+            threads.append(t)
+            ev.wait()
+        for t in threads:
+            t.join()
+    return out
+
+
 def run_custom(params=None):
     """Chạy backtest custom và trả kết quả dict (không tự ghi result.json)."""
     warnings.filterwarnings("ignore")
@@ -120,22 +149,33 @@ def run_custom(params=None):
     t0 = time.time()
     print(f"chiến lược {program.name} [{program.code_hash}] | {len(plan.symbols)} tài sản | {iso_date(start)} → {iso_date(end - DAY)} "
           f"| khung {program.timeframe} chạy {plan.base_frame} | vốn {capital:g}", flush=True)
-    res, eng = execute(plan, start, end, capital)
     split = stage_split(start, end, float(a.train_ratio))
-    test_res = None    # giai đoạn test = lần chạy riêng bắt đầu từ vốn đầu tại đầu test: cùng chương trình/cấu hình/dữ liệu, warmup như lần chạy chính
-    if split < end:
-        test_res, _ = execute(plan, split, end, capital)
-    bench = None
-    try:      # benchmark luôn long qua cùng engine (cache theo cấu hình: chỉ chạy một lần mỗi job/tiến trình)
-        bench = run_benchmark(program, a, plan, names, start, end, capital, data)
-    except Exception as e:      # noqa: BLE001 — thiếu benchmark thì chẩn đoán market_comparison ghi available=False, không bịa số
-        warns = warns + [f"không chạy được benchmark luôn long: {e}"]
-    test_bench = None
-    if test_res is not None:
-        try:      # benchmark của giai đoạn Test: cùng cửa sổ [mốc chia, end], vốn đầu (cache theo cấu hình)
-            test_bench = run_benchmark(program, a, plan, names, split, end, capital, data)
-        except Exception as e:      # noqa: BLE001 — thiếu thì series.stages.test.benchmark = None, không co dãn benchmark toàn kỳ
-            warns = warns + [f"không chạy được benchmark giai đoạn test: {e}"]
+    # 4 lần chạy engine độc lập (chính, test, benchmark toàn kỳ, benchmark test): nạp dữ liệu TUẦN TỰ theo thứ tự này (lần rộng nhất dựng cửa sổ, các lần sau cắt từ bộ nhớ đệm),
+    # kernel numba (nogil) chạy SONG SONG bằng thread. Kết quả từng lần không phụ thuộc lần khác (cùng chương trình/cấu hình/dữ liệu, warmup như lần chạy chính).
+    steps = [("main", lambda ev: execute(plan, start, end, capital, loaded=ev))]
+    if split < end:     # giai đoạn test = lần chạy riêng bắt đầu từ vốn đầu tại đầu test
+        steps.append(("test", lambda ev: execute(plan, split, end, capital, loaded=ev)))
+    # benchmark luôn long qua cùng engine (cache theo cấu hình: chỉ chạy một lần mỗi job/tiến trình)
+    steps.append(("bench", lambda ev: run_benchmark(program, a, plan, names, start, end, capital, data, loaded=ev)))
+    if split < end:     # benchmark của giai đoạn Test: cùng cửa sổ [mốc chia, end], vốn đầu
+        steps.append(("test_bench", lambda ev: run_benchmark(program, a, plan, names, split, end, capital, data, loaded=ev)))
+    got = run_parallel(steps)
+    if isinstance(got["main"], BaseException):
+        raise got["main"]
+    res, eng = got["main"]
+    test_res = got["test"][0] if "test" in got and not isinstance(got["test"], BaseException) else None
+    if isinstance(got.get("test"), BaseException):
+        raise got["test"]
+    bench = test_bench = None
+    if isinstance(got["bench"], BaseException):     # thiếu benchmark thì chẩn đoán market_comparison ghi available=False, không bịa số
+        warns = warns + [f"không chạy được benchmark luôn long: {got['bench']}"]
+    else:
+        bench = got["bench"]
+    if "test_bench" in got:
+        if isinstance(got["test_bench"], BaseException):    # thiếu thì series.stages.test.benchmark = None, không co dãn benchmark toàn kỳ
+            warns = warns + [f"không chạy được benchmark giai đoạn test: {got['test_bench']}"]
+        else:
+            test_bench = got["test_bench"]
     out = build_result(program, plan, res, eng, a, start, end, capital, data, warns, test_res, split, bench=bench, inputs=diagnostic_inputs(plan, program, end),
                        test_bench=test_bench)
     from backend.optimize.book.registry import evaluate_checklist, generate_alpha_id

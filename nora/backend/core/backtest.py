@@ -32,7 +32,7 @@ from backend.core.signal import (DEFAULT_LOOKBACK_MIN, HORIZONS_MIN, MINUTE, _ex
                                  _verdict)
 from backend.core import position_size as policy
 from backend.core.position_size import SlotSpec, admit_entry, kill_triggered
-from backend.core.params import BASE_POSITION, config_from_dict, DATA_COLUMNS, DEFAULT_CAPITAL, DAY_MS as DAY, FRAME_MS, FRAME_ORDER, FRAMES, NORA_DEFAULTS, RISK, RUN_FRAME, StrategyParams
+from backend.core.params import BASE_POSITION, config_from_dict, DATA_COLUMNS, DEFAULT_CAPITAL, DAY_MS as DAY, FRAME_MS, FRAME_ORDER, FRAMES, NORA_DEFAULTS, RISK, RUN_FRAME, StrategyParams, resolve_position_auto
 from backend.core import indicator as kernels
 
 
@@ -98,7 +98,7 @@ R_ENTRY, R_STOP, R_TIMEOUT, R_LIQ, R_SL, R_TRAIL, R_TP, R_END, R_KILL, R_DCA = r
 # trạng thái (PositionStatus)
 S_TP, S_SL, S_CANCEL, S_LIQ = 2, 3, 4, 5
 
-_JIT = dict(cache=True, error_model="numpy")
+_JIT = dict(cache=True, error_model="numpy", nogil=True)   # nogil: các lần chạy độc lập (chính/test/benchmark) chạy kernel song song bằng thread
 
 
 @intrinsic
@@ -1883,6 +1883,23 @@ def _round_curve(eqT: np.ndarray, eqM: np.ndarray, eqW: np.ndarray, ns: int) -> 
 
 
 # ─── Danh mục ───────────────────────────────────────────────────────────────
+def _union_grid(ts: List[np.ndarray]) -> np.ndarray:
+    """np.unique(np.concatenate(ts)) — nhanh hơn cho lưới phút: các t căn theo 60 000 ms -> bitmap thay vì băm/sắp xếp hàng chục triệu phần tử."""
+    if not ts:
+        return np.array([], dtype=np.int64)
+    ne = [t for t in ts if len(t)]
+    if ne:
+        lo = min(int(t[0]) for t in ne)
+        hi = max(int(t[-1]) for t in ne)
+        step = 60_000
+        if (hi - lo) // step < 50_000_000 and all(t[0] <= t[-1] and not ((t - lo) % step).any() for t in ne):
+            mark = np.zeros((hi - lo) // step + 1, dtype=bool)
+            for t in ne:
+                mark[(t - lo) // step] = True
+            return (np.flatnonzero(mark).astype(np.int64) * step + lo)
+    return np.unique(np.concatenate(ts))
+
+
 def run_portfolio(eng: Any) -> None:
     """PortfolioEngine.run(): chạy kernel trên eng.books và ghi kết quả vào eng (closed_positions, orders, equity_curve, bộ đếm, tracker)."""
     books = eng.books
@@ -1901,7 +1918,7 @@ def run_portfolio(eng: Any) -> None:
     if all(len(t) == len(ts[0]) and (t is ts[0] or np.array_equal(t, ts[0])) for t in ts):
         grid, idxms = ts[0], [None] * nb
     else:
-        grid = np.unique(np.concatenate(ts)) if nb else np.array([], dtype=np.int64)
+        grid = _union_grid(ts)
         idxms = []
         for t in ts:
             if len(t) == len(grid) and np.array_equal(t, grid):
@@ -2722,7 +2739,7 @@ def run_backtest(eng: Any) -> None:
     df1, cols = eng._build_matrix()
     n = len(df1)
     vec = matrix_evaluator(cols, n)
-    signals = [(vec.tree(tr.match_tree), vec.tree(tr.stop_tree), vec.tree(tr.dca_tree) if tr.dca_tree else None) for tr in eng.slots]
+    signals = [(entry_event_mask(vec, cols, tr, eng.base_frame), vec.tree(tr.stop_tree), vec.tree(tr.dca_tree) if tr.dca_tree else None) for tr in eng.slots]
     vols = [cols.get(eng.vol_column(tr)) if eng.vol_column(tr) else None for tr in eng.slots]
     real = np.flatnonzero(df1["is_filled"].to_numpy() == 0)   # chỉ nến có giao dịch (nến điền is_filled=1 bị bỏ qua hoàn toàn)
     eng.ruined_at = None
@@ -2812,6 +2829,65 @@ def collect_field_refs(tree) -> Set[Tuple[str, str, int]]:
 
     walk(tree)
     return refs
+
+
+SIGNAL_MODES = ("event", "level")      # "event" (mặc định) | "level" (hành vi cũ — tái tạo kết quả lịch sử)
+SIGNAL_MODE_DEFAULT = "event"
+FRESH = "__fresh"                      # cột tổng hợp "khung|__fresh": nến khung vừa ĐÓNG ở nến chạy này (xem frame_fresh)
+
+
+def slot_signal_mode(slot: Any) -> str:
+    """signal_mode của một slot (SlotSpec / tracker tham chiếu): thuộc tính riêng, hoặc StrategyParams.signal_mode, mặc định "event"."""
+    mode = getattr(slot, "signal_mode", None) or getattr(getattr(slot, "params", None), "signal_mode", None) or SIGNAL_MODE_DEFAULT
+    mode = str(mode).lower()
+    if mode not in SIGNAL_MODES:
+        raise ValueError(f"signal_mode phải là một trong {SIGNAL_MODES}, nhận '{mode}'")
+    return mode
+
+
+def entry_signal_frame(tree: Any, base: str) -> Optional[str]:
+    """Khung tín hiệu của một cây điều kiện VÀO = khung LỚN NHẤT trong các lá của cây; None nếu <= khung chạy (không đổi gì)."""
+    frames = [fr for fr, _, _ in collect_field_refs(tree) if fr in FRAME_MS]
+    top = max(frames, key=FRAME_MS.__getitem__, default=None)
+    return top if top is not None and FRAME_MS[top] > FRAME_MS[base] else None
+
+
+def slot_fresh_frames(slots: Iterable[Any], base: str) -> Set[str]:
+    """Các khung cần cột "khung|__fresh" để dựng mặt nạ vào theo sự kiện (slot signal_mode="event" có cây vào khung > khung chạy)."""
+    return {fr for tr in slots if slot_signal_mode(tr) == "event" for fr in [entry_signal_frame(tr.match_tree, base)] if fr}
+
+
+def frame_fresh(idx: np.ndarray, real: Optional[np.ndarray] = None) -> np.ndarray:
+    """Cột sự kiện của một khung lớn: True ở nến chạy THỰC đầu tiên mà nến khung (chỉ số `idx`, từ align_index) khác nến khung của nến thực liền trước
+    (= nến khung vừa đóng; nến điền is_filled bỏ qua nên sự kiện rơi vào phút điền được chuyển sang nến thực kế tiếp). Nến đầu chuỗi: False
+    (vùng khởi động). `real`: mặt nạ nến thực trên chuỗi idx (None = mọi nến đều thực). Điểm duy nhất định nghĩa "sự kiện" — mọi đường dùng chung."""
+    idx = np.asarray(idx)
+    r = np.arange(len(idx)) if real is None else np.flatnonzero(real)
+    out = np.zeros(len(idx), dtype=bool)
+    if len(r) > 1:
+        out[r[1:]] = idx[r[1:]] != idx[r[:-1]]
+    return out
+
+
+def entry_event_mask(vec: VectorEvaluator, cols: Mapping[str, np.ndarray], slot: Any, base: str) -> np.ndarray:
+    """Mặt nạ tín hiệu VÀO của một slot — MỘT định nghĩa cho batch (load_data / run_backtest), KernelBook/SlotDriver (qua evaluate_signals),
+    signal_snapshot và test/reference_engine.py.
+
+    signal_mode="level" (hoặc khung tín hiệu == khung chạy): mặt nạ trạng thái như cũ, `vec.tree(match_tree)` nguyên vẹn (bit-identical).
+    signal_mode="event" (mặc định) và khung tín hiệu F > khung chạy (F = khung lớn nhất trong lá của cây): tín hiệu chỉ kích ở nến chạy ĐẦU TIÊN
+    sau khi nến F đóng (cột `F|__fresh`), như NautilusTrader on_bar / Sova — không phải trạng thái lặp lại ở mọi nến chạy trong suốt nến F.
+    Hệ quả (chủ ý): lệnh vào bị chặn đúng phút đó (cooldown / đủ vị thế / rủi ro / đang giữ vị thế / vừa đóng vị thế trong nến) thì MẤT, không
+    thử lại ở các nến chạy sau cho tới khi nến F kế tiếp đóng. Cây THOÁT / STOP / DCA là trạng thái, không qua hàm này."""
+    mask = vec.tree(slot.match_tree)
+    if slot_signal_mode(slot) != "event":
+        return mask
+    frame = entry_signal_frame(slot.match_tree, base)
+    if frame is None:
+        return mask
+    fresh = cols.get(f"{frame}|{FRESH}")
+    if fresh is None:
+        raise ValueError(f"thiếu cột {frame}|{FRESH} (sự kiện nến khung) cho tín hiệu vào khung {frame} > {base}")
+    return mask & fresh
 
 
 def frame_features(df: pd.DataFrame, refs: Set[Tuple[str, int]]) -> pd.DataFrame:
@@ -2994,6 +3070,7 @@ class BacktestEngine:
         cols: Dict[str, np.ndarray] = {}
         open_time = df1["open_time"].to_numpy()
         base = self.base_frame
+        fresh_frames = slot_fresh_frames(self.slots, base)    # khung cần cột sự kiện (tín hiệu vào theo sự kiện)
         for frame in ([base] if base in refs else []) + [f for f in refs if f != base]:
             if frame not in FRAME_MS:
                 continue
@@ -3001,6 +3078,8 @@ class BacktestEngine:
             idx = self.align_index(frame, t_frame, open_time, base)
             for cid, v in vals.items():
                 cols[cid] = self.gather(v, idx)
+            if frame in fresh_frames and (only is None or f"{frame}|{FRESH}" in only):
+                cols[f"{frame}|{FRESH}"] = frame_fresh(idx, df1["is_filled"].to_numpy() == 0)
         return df1, cols
 
     def frame_values(self, frame: str, refs: Set[Tuple[str, int]]) -> Tuple[np.ndarray, Dict[str, np.ndarray]]:
@@ -3073,6 +3152,10 @@ class BacktestEngine:
             return pd.DataFrame()
         if "open_time" not in df.columns:
             raise ValueError("Candle data thiếu cột open_time.")
+        ot = df["open_time"]
+        if (ot.dtype == np.int64 and all(df[c].dtype.kind in "fiu" for c in DATA_COLUMNS if c in df.columns)
+                and (len(ot) < 2 or bool((np.diff(ot.to_numpy()) > 0).all()))):
+            return df.reset_index(drop=True)      # đã sạch (int64 tăng ngặt, cột số): các bước dưới là no-op -> chỉ cần bản sao (reset_index sao chép)
         clean = df.reset_index(drop=True).copy()
         clean["open_time"] = pd.to_numeric(clean["open_time"], errors="coerce")
         clean = clean.dropna(subset=["open_time"])
@@ -3262,13 +3345,17 @@ class PortfolioEngine:
 
     def _cache_key(self, symbol: str, eng: BacktestEngine) -> tuple:
         return (symbol, self.start_ts, self.end_ts, self._refs_signature(eng), any(tr.market == "perp" for tr in eng.slots),
-                self.base_frame, needs_minute_path(eng))
+                self.base_frame, needs_minute_path(eng),
+                tuple(sorted(slot_fresh_frames(eng.slots, eng.base_frame))))
 
     def _build_symbol_data(self, eng: BacktestEngine, only: Optional[Set[str]] = None) -> Dict[str, Any]:
         """Dựng `data` của một tài sản (nến thật 1m + cột kernel + funding), không đụng cache.
         only: chỉ tính các cột này (dữ liệu dùng chung điền phần còn thiếu — optimize/search/evaluate.py, kho mmap)."""
-        with contextlib.redirect_stdout(io.StringIO()):
+        if getattr(self, "_quiet_load", False):      # nạp song song (load_data): stdout đã được chuyển hướng một lần ở ngoài (redirect_stdout không an toàn giữa các thread)
             eng.load_data()
+        else:
+            with contextlib.redirect_stdout(io.StringIO()):
+                eng.load_data()
         df1, cols = eng._build_matrix(only=only)
         real = df1["is_filled"].to_numpy() == 0
         t = df1["open_time"].to_numpy(dtype="int64")[real]
@@ -3300,11 +3387,36 @@ class PortfolioEngine:
         src.release()
         return src.shared_load(self.shared_dir, p)
 
+    def _load_symbol_window(self, symbol: str, eng: BacktestEngine) -> Dict[str, Any]:
+        """Dữ liệu một tài sản qua bộ nhớ đệm theo CỬA SỔ: nến 1m + cột chỉ báo chỉ phụ thuộc lịch sử (gốc cố định), nên lần dựng cho cửa sổ rộng hơn
+        (start sớm hơn, cùng end) phục vụ mọi cửa sổ con bằng cách cắt theo thời gian (bằng từng bit với dựng lại): giai đoạn test, benchmark... không dựng lại.
+        Cột: mỗi cột tính độc lập nên tập cột cần ⊆ tập đã dựng là đủ. Funding lọc theo start_ts của engine."""
+        refs = eng._refs_by_frame()
+        need = frozenset(f"{fr}|{lag_key(c, lag)}" for fr, rs in refs.items() for c, lag in rs) \
+            | frozenset(f"{fr}|{FRESH}" for fr in slot_fresh_frames(eng.slots, eng.base_frame))
+        lo = eng.start_ts - eng._warmup_ms(eng.base_frame, refs.get(eng.base_frame, set()))
+        memo = self._src().memo
+        key = ("window", symbol, self.end_ts, any(tr.market == "perp" for tr in eng.slots), self.base_frame)
+        hit = memo.get(key)
+        if hit is not None and hit["lo"] <= lo and hit["start"] <= eng.start_ts and need <= hit["need"]:
+            d = hit["data"]
+            a = int(np.searchsorted(d["t"], lo, side="left"))
+            fa = int(np.searchsorted(d["f_t"], eng.start_ts, side="left"))
+            return {"t": d["t"][a:], "o": d["o"][a:], "h": d["h"][a:], "l": d["l"][a:], "c": d["c"][a:],
+                    "cols": {k: v[a:] for k, v in d["cols"].items() if k in need},
+                    "f_t": d["f_t"][fa:], "f_r": d["f_r"][fa:]}
+        data = self._build_symbol_data(eng)
+        arrays = ([data[k] for k in ("t", "o", "h", "l", "c", "f_t", "f_r")] + list(data["cols"].values()))
+        memo.put(key, {"lo": lo, "start": eng.start_ts, "need": need, "data": data}, sum(a.nbytes for a in arrays))
+        return data
+
     def _load_symbol(self, symbol: str, eng: BacktestEngine) -> Dict[str, Any]:
         if self.shared_dir:  # mmap chỉ đọc dùng chung — KHÔNG đưa vào DataSource.memo (không nhân bản RAM)
             data = self._load_shared(eng)
             if data is not None:
                 return data
+        if self.use_cache and not needs_minute_path(eng):
+            return self._load_symbol_window(symbol, eng)
         key = self._cache_key(symbol, eng)
         memo = self._src().memo if self.use_cache else None
         if self.use_cache:
@@ -3318,8 +3430,11 @@ class PortfolioEngine:
             memo.put(key, data, sum(a.nbytes for a in arrays))
         return data
 
+    LOAD_WORKERS = 4      # số thread dựng dữ liệu tài sản song song (pandas/numpy nhả GIL ở phần nặng); kết quả từng tài sản độc lập nhau
+
     def load_data(self) -> None:
         self.books = []
+        todo = []
         for sym in self.symbols:
             eng, pairs = self._make_slots(sym, self.ledger)
             if not pairs:   # không chiến lược nào chạy trên tài sản này (chỉ xảy ra khi dùng khoá "symbols")
@@ -3327,7 +3442,18 @@ class PortfolioEngine:
             # Cổng chất lượng dữ liệu BẮT BUỘC (synthetic / sai sha256 / thiếu dữ liệu -> từ chối); có cache theo file nên rẻ khi gọi lại.
             # Tiến trình cha của CLI đã gọi trước khi fork pool -> worker thừa kế cache, không đọc lại 1m.
             self._src().require_ok([sym])
-            data = self._load_symbol(sym, eng)
+            todo.append((sym, eng, pairs))
+        if len(todo) > 1 and self.use_cache and not self.shared_dir and self.LOAD_WORKERS > 1:
+            from concurrent.futures import ThreadPoolExecutor
+            self._quiet_load = True
+            try:
+                with contextlib.redirect_stdout(io.StringIO()), ThreadPoolExecutor(min(self.LOAD_WORKERS, len(todo))) as pool:
+                    loaded = list(pool.map(lambda t: self._load_symbol(t[0], t[1]), todo))      # map giữ đúng thứ tự tài sản
+            finally:
+                self._quiet_load = False
+        else:
+            loaded = [self._load_symbol(sym, eng) for sym, eng, _ in todo]
+        for (sym, eng, pairs), data in zip(todo, loaded):
             n = len(data["t"])
             cols = data["cols"]
             vec = matrix_evaluator(cols, n)
@@ -3335,7 +3461,7 @@ class PortfolioEngine:
             entries = []
             for st, tr in pairs:
                 vcol = BacktestEngine.vol_column(tr)
-                match, stop = vec.tree(tr.match_tree), vec.tree(tr.stop_tree)
+                match, stop = entry_event_mask(vec, cols, tr, eng.base_frame), vec.tree(tr.stop_tree)
                 match, stop = _regime_gate(st, labels, match, stop)   # lọc tín hiệu vào theo regime + cầu chì thoát khi sốc ngược chiều
                 entries.append({
                     "strategy": st["id"], "slot": tr, "match": match, "stop": stop,
@@ -3522,7 +3648,7 @@ def evaluate_signals(symbol: str, strategies: List[Dict[str, Any]], frames: Dict
            "high": df1["high"].to_numpy(dtype=float), "low": df1["low"].to_numpy(dtype=float), "entries": []}
     labels = _regime_labels(pairs, cols, n, out["t"])
     for st, tr in pairs:
-        match, stop = vec.tree(tr.match_tree), vec.tree(tr.stop_tree)
+        match, stop = entry_event_mask(vec, cols, tr, eng.base_frame), vec.tree(tr.stop_tree)
         match, stop = _regime_gate(st, labels, match, stop)
         vcol = eng.vol_column(tr)
         out["entries"].append({"strategy": st["id"], "side": st["side"], "match": match, "stop": stop,
@@ -3578,12 +3704,13 @@ def signal_snapshot(symbol: str, strategies: List[Dict[str, Any]], end_ts: int, 
                      "features": {f"{fr} {c}": _num(cols.get(f"{fr}|{c}", np.full(n, np.nan))[i])
                                   for fr, refs in sorted(REGIME_REFS.items()) for c, _ in sorted(refs)}}
     for st, tr in pairs:
-        match, stop = vec.tree(tr.match_tree), vec.tree(tr.stop_tree)
+        match, stop = vec.tree(tr.match_tree), vec.tree(tr.stop_tree)      # TRẠNG THÁI điều kiện (khớp entry_blocks); "entry_fires" mới là sự kiện bot dùng
         entry_raw = bool(match[i])
-        match, stop = _regime_gate(st, labels, match, stop)   # cùng mặt nạ với PortfolioEngine.load_data
+        fires = _regime_gate(st, labels, entry_event_mask(vec, cols, tr, eng.base_frame), stop)[0]   # cùng mặt nạ với PortfolioEngine.load_data
+        match, stop = _regime_gate(st, labels, match, stop)
         m_real = match[real]
         out["strategies"].append({
-            "id": st["id"], "side": st["side"], "entry": bool(match[i]), "exit": bool(stop[i]), "entry_raw": entry_raw,
+            "id": st["id"], "side": st["side"], "entry": bool(match[i]), "entry_fires": bool(fires[i]), "exit": bool(stop[i]), "entry_raw": entry_raw,
             "entry_since": _since(m_real, t_real, len(real) - 1),
             "entry_minutes_in_window": int(m_real.sum()),
             "entry_blocks": _explain(vec, tr.match_tree, i), "exit_blocks": _explain(vec, tr.stop_tree, i),
@@ -3710,7 +3837,7 @@ def build_plan(program: Program, symbols: List[str], position: Optional[Dict[str
     if FRAME_ORDER[program.timeframe] < FRAME_ORDER[base]:
         raise ValueError(f"timeframe của chiến lược ({program.timeframe}) nhỏ hơn khung chạy {base}")
     sid = strategy_id or f"py_{program.code_hash}"
-    pos = {**BASE_POSITION, **NORA_DEFAULTS, **_check_position(program.position_overrides), **_check_position(position or {})}
+    pos = resolve_position_auto({**BASE_POSITION, **NORA_DEFAULTS, **_check_position(program.position_overrides), **_check_position(position or {})}, program.timeframe)
     user_keys = set(program.position_overrides) | set(position or {})
     defaulted = [k for k in NORA_DEFAULTS if k not in user_keys]
     if defaulted:

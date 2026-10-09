@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 import numpy as np
 import pandas as pd
 
+from backend.carlo.carlo import MC_RUIN_THRESHOLD_PCT
 from backend.metrics.trades import exposure_metrics, strategy_correlation, trade_metrics, trade_rows, trade_stats
 
 
@@ -43,16 +44,19 @@ def curve_frame(curve_rows) -> pd.DataFrame:
         return pd.DataFrame(curve_rows)
 
 
-def daily_returns_from_curve(curve_rows, start_ts, initial_capital):
+def daily_returns_from_curve(curve_rows, start_ts, initial_capital, end_ts=None):
     """Lợi suất ngày MTM (vốn đóng cửa mỗi ngày UTC) từ đường vốn `curve_rows` (list dict time/equity/...),
-    chỉ lấy điểm có time >= start_ts, nối từ vốn ban đầu. Dùng chung cho danh mục, WFA và Monte Carlo ngày."""
+    chỉ lấy điểm có time >= start_ts, nối từ vốn ban đầu. Dùng chung cho danh mục, WFA và Monte Carlo ngày.
+    `end_ts` (mốc end LOẠI TRỪ của cửa sổ, nếu biết): mẫu đúng mốc đó thuộc ngày cuối thật (end - 1ms) như daily_nav / daily_nav_series,
+    không tạo thêm một "ngày" 00:00 chỉ có đúng một mẫu."""
     curve = curve_frame(curve_rows)
     if curve.empty:
         return []
     curve = curve[curve["time"] >= start_ts]
     if curve.empty:
         return []
-    s = pd.Series(curve["equity"].to_numpy(), index=pd.to_datetime(curve["time"], unit="ms"))
+    t = curve["time"] if end_ts is None else np.minimum(curve["time"].to_numpy(), end_ts - 1)
+    s = pd.Series(curve["equity"].to_numpy(), index=pd.to_datetime(t, unit="ms"))
     daily = s.resample("1D").last().ffill()
     daily = pd.concat([pd.Series([initial_capital], index=[daily.index[0] - pd.Timedelta(days=1)]), daily]).pct_change().dropna()
     return [float(x) for x in daily.to_numpy()]
@@ -78,6 +82,11 @@ def sortino(r) -> Optional[float]:
 def total_return_pct(r) -> float:
     r = _arr(r)
     return float((np.prod(1.0 + r) - 1.0) * 100.0) if r.size else 0.0
+
+
+def calmar(cagr: Optional[float], mdd_pct: float) -> Optional[float]:
+    """Calmar = CAGR% / |MDD%| (cùng đơn vị %); None khi chưa có CAGR hoặc không có sụt giảm (MDD ~ 0). Định nghĩa duy nhất."""
+    return cagr / abs(mdd_pct) if cagr is not None and abs(mdd_pct) > 1e-9 else None
 
 
 def cagr_pct(r) -> Optional[float]:
@@ -195,7 +204,7 @@ def return_metrics(daily) -> Dict[str, Any]:
     return {
         "ret_pct": total_return_pct(d), "cagr_pct": cg, "vol_ann_pct": vol_ann_pct(d),
         "sharpe": sharpe(d), "sortino": sortino(d),
-        "calmar": (cg / ddm["mdd_daily_pct"]) if cg is not None and ddm["mdd_daily_pct"] > 1e-9 else None,
+        "calmar": calmar(cg, ddm["mdd_daily_pct"]),
         **ddm, "var95_pct": var, "cvar95_pct": cvar, "skew": st["skew"], "kurt": st["kurt"],
         "days": int(d.size), "win_days_pct": float((active > 0).mean() * 100.0) if active.size else None,
         "best_day_pct": float(d.max() * 100.0) if d.size else None, "worst_day_pct": float(d.min() * 100.0) if d.size else None,
@@ -260,13 +269,13 @@ def curve_mdd_pct(curve_rows, start_ts, initial_capital) -> float:
     return float(np.max((peak - np.minimum(eq, worst)) / peak) * 100) if len(eq) else 0.0
 
 
-def portfolio_metrics(res, start_ts):
+def portfolio_metrics(res, start_ts, end_ts=None):
     """Số đo của `res` (PortfolioEngine.get_results()) từ `start_ts` trở đi (bỏ phần warmup).
-    `daily` = lợi suất ngày theo vốn MTM (đóng cửa), nối từ vốn ban đầu; ngày lấy theo UTC."""
+    `end_ts`: mốc end loại trừ của cửa sổ (xem daily_returns_from_curve). `daily` = lợi suất ngày theo vốn MTM (đóng cửa), nối từ vốn ban đầu; ngày lấy theo UTC."""
     init = res["initial_capital"]
     mdd = curve_mdd_pct(res["equity_curve"], start_ts, init)
-    daily = pd.Series(daily_returns_from_curve(res["equity_curve"], start_ts, init), dtype=float)
-    sharpe = float(daily.mean() / daily.std() * np.sqrt(365)) if daily.std() > 0 else 0.0
+    daily = pd.Series(daily_returns_from_curve(res["equity_curve"], start_ts, init, end_ts), dtype=float)
+    sharpe_ = sharpe(daily.to_numpy()) or 0.0       # công thức duy nhất (sharpe()); chuỗi <2 ngày / không biến động -> 0.0
     by_sym = {k.split("@")[0].split(":")[-1]: round(v["pnl_usd"], 2) for k, v in res["by_symbol"].items()}
     rows = trade_rows(res["positions"])
     times = [c["time"] for c in res["equity_curve"] if c["time"] >= start_ts]
@@ -275,7 +284,7 @@ def portfolio_metrics(res, start_ts):
     stats = {"returns": rm, "trades": trade_metrics(rows), "exposure": exposure_metrics(rows, start_ts, end_ts, init),
              "correlation": strategy_correlation(rows, start_ts, end_ts)}
     return {
-        "ret_pct": round((res["final_equity"] / init - 1) * 100, 2), "mdd_pct": round(mdd, 2), "sharpe": round(sharpe, 2),
+        "ret_pct": round((res["final_equity"] / init - 1) * 100, 2), "mdd_pct": round(mdd, 2), "sharpe": round(sharpe_, 2),
         "trades": len(res["positions"]), "win_pct": round(float(np.mean([p.real_pnl > 0 for p in res["positions"]]) * 100), 1)
         if res["positions"] else None,   # 0 lệnh -> None (không phải 0% giả)
         "symbols_positive": sum(v > 0 for v in by_sym.values()), "by_symbol": by_sym,
@@ -286,7 +295,7 @@ def portfolio_metrics(res, start_ts):
         "halted_at": res["halted_at"], "daily": [round(float(x), 6) for x in daily.to_numpy()],
         "mdd_intrabar_pct": round(mdd, 2), "mdd_daily_pct": _r(rm["mdd_daily_pct"]), "mdd_basis": "intrabar",
         "cagr_pct": _r(rm["cagr_pct"]),
-        "calmar": _r(rm["cagr_pct"] / mdd) if rm["cagr_pct"] is not None and mdd > 1e-9 else None,
+        "calmar": _r(calmar(rm["cagr_pct"], mdd)),
         "stats": _round_tree(stats),
     }
 
@@ -338,7 +347,7 @@ def daily_nav(curve, end):
 def result_payload(res, start, end):
     """Kết quả chuẩn của một lần chạy từ PortfolioEngine.get_results() (hoặc dict cùng dạng của backtest tick): số đo danh mục + danh sách lệnh +
     đường vốn (<= 2000 điểm) + vốn cuối mỗi ngày. Chưa có config / final_equity / meta (người gọi thêm)."""
-    out = portfolio_metrics(res, start)
+    out = portfolio_metrics(res, start, end)
     out["risk_blocked_attempts"] = res["risk_blocked_attempts"]   # số lần vào lệnh bị chặn (rejected_for_risk đếm phút)
     out["trade_list"] = [{
         "symbol": p.symbol.split(":")[-1], "strategy": p.strategy_id, "side": p.pos_type.name,
@@ -545,7 +554,11 @@ METRIC_DEFS: Dict[str, Dict[str, Any]] = {
     "mdd_p50_pct": _d("MDD trung vị", "%", "pct1", "lower", "montecarlo", "Trung vị MDD của các kịch bản."),
     "mdd_p95_pct": _d("MDD P95", "%", "pct1", "lower", "montecarlo", "Phân vị 95% của MDD các kịch bản."),
     "p_mdd_ge_ruin_pct": _d("P(MDD ≥ ngưỡng phá sản)", "%", "pct2", "lower", "montecarlo", "% kịch bản có MDD chạm hoặc vượt ngưỡng phá sản của lần chạy."),
-    "p_mdd_ge_30": _d("P(MDD ≥ 30%)", "%", "pct2", "lower", "montecarlo", "% kịch bản có MDD ≥ ngưỡng phá sản (30% theo cổng chuẩn)."),
+    # khoá giữ tên cũ "p_mdd_ge_30"; con số trong nhãn đọc từ MC_RUIN_THRESHOLD_PCT (carlo.py), không chép tay
+    "p_mdd_ge_30": _d(f"P(MDD ≥ {MC_RUIN_THRESHOLD_PCT:g}%)", "%", "pct2", "lower", "montecarlo",
+                      f"% kịch bản có MDD ≥ ngưỡng phá sản ({MC_RUIN_THRESHOLD_PCT:g}% theo cổng chuẩn)."),
+    "mdd_p95": _d("MDD P95", "%", "pct1", "lower", "montecarlo", "Phân vị 95% của MDD các kịch bản (bí danh của mdd_p95_pct trong bảng phễu)."),
+    "mdd_basis": _d("Cơ sở MDD", "", "text", None, "risk", "Cách đo MDD của số liệu: intrabar = trong nến (giá xấu nhất của nến), daily = theo vốn đóng cửa ngày."),
     "stress_max_mdd": _d("MDD kịch bản cực xấu", "%", "pct1", "lower", "montecarlo", "MDD lớn nhất trong các kịch bản cực xấu."),
     "block_days": _d("Độ dài khối", "ngày", "int", None, "montecarlo", "Số ngày liên tiếp mỗi lần lấy mẫu bootstrap."),
     "horizon_days": _d("Chân trời", "ngày", "int", None, "montecarlo", "Số ngày của mỗi kịch bản mô phỏng."),

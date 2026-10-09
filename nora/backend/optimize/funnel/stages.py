@@ -58,6 +58,15 @@ STAGE_LABELS: Dict[str, str] = {
 TRADE_STAGES: Tuple[str, ...] = ("S1_backtest", "S3_wfa", "S5_sizing", "S6_holdout")   # tầng LƯU lệnh vào kho (storage.write_trades) — thứ tự tầng; route /trades + meta đọc từ đây
 NEIGHBOUR_STAGE = "S2_neighbour"   # kết quả backtest của điểm lân cận chưa có trong S1 (bảng stage_metrics, không phải tầng của phễu)
 
+
+def trades_from(stage: str) -> Optional[str]:
+    """Tầng mà `stage` hiển thị lệnh của nó: chính nó có lệnh -> None; không thì tầng có lệnh gần nhất đứng TRƯỚC trong thứ tự phễu (kể cả tầng cũ S2)."""
+    if stage in TRADE_STAGES:
+        return None
+    order = sorted({**STAGE_IDX, **LEGACY_STAGE_IDX}.items(), key=lambda kv: kv[1])
+    prev = [s for s, _ in order if ALL_STAGE_IDX[stage] > ALL_STAGE_IDX[s] and s in TRADE_STAGES]
+    return prev[-1] if prev else None
+
 # ── Dữ liệu / cửa sổ ────────────────────────────────────────────────────────
 WARMUP_DAYS = 20             # nạp thêm trước đầu cửa sổ để kernel đủ dữ liệu (như build_strategy_book)
 DEV1_FRAC = 0.4              # dev1 = 40% đầu; dev2 = 40% tiếp theo; holdout = 20% cuối (như build_strategy_book.windows)

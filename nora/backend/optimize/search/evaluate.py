@@ -56,13 +56,22 @@ WARMUP = 20 * DAY            # bằng build_strategy_book.WARMUP (chỉ số đo
 MAX_DAYS = 4000
 
 
-def execute(plan, start: int, end: int, initial_capital: float, close_at_end: bool = False):
-    """PortfolioEngine cho một Plan (core/backtest.build_plan) -> (get_results(), engine). Chương trình phải đã được compile_code (đăng ký)."""
+def execute(plan, start: int, end: int, initial_capital: float, close_at_end: bool = False, loaded=None):
+    """PortfolioEngine cho một Plan (core/backtest.build_plan) -> (get_results(), engine). Chương trình phải đã được compile_code (đăng ký).
+    loaded: threading.Event (chế độ chạy song song, xem tasks.run_parallel) — nạp dữ liệu dưới khoá toàn cục rồi báo `loaded` để lần chạy kế tiếp bắt đầu nạp
+    (thứ tự nạp cố định -> bộ nhớ đệm cửa sổ của lần chạy rộng nhất phục vụ các lần sau); phần kernel chạy song song (numba nogil). Người gọi tự chuyển hướng stdout."""
     from backend.core.backtest import BacktestEngine, PortfolioEngine, RiskConfig
     BacktestEngine.MAX_BACKTEST_DAYS = max(BacktestEngine.MAX_BACKTEST_DAYS, MAX_DAYS)
     eng = PortfolioEngine(plan.symbols, plan.strategies, start - WARMUP, end, trade_start_ts=start, initial_capital=initial_capital,
                           risk=RiskConfig.from_dict(plan.risk), venue=plan.venue, close_at_end=close_at_end, base_frame=plan.base_frame,
                           shared_dir=None)
+    if loaded is not None:
+        try:
+            eng.load_data()
+        finally:
+            loaded.set()
+        eng.run()
+        return eng.get_results(), eng
     with contextlib.redirect_stdout(io.StringIO()):
         eng.run()
     return eng.get_results(), eng
@@ -74,7 +83,7 @@ NO_EXIT_POSITION = {"stop_loss_rate": 0.0, "take_profit_rate": 0.0, "trailing_st
 _BENCH_CACHE: Dict[str, Dict[str, Any]] = {}
 
 
-def run_benchmark(program, a, plan, names: List[str], start: int, end: int, capital: float, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def run_benchmark(program, a, plan, names: List[str], start: int, end: int, capital: float, data: Dict[str, Any], loaded=None) -> Optional[Dict[str, Any]]:
     """Benchmark "luôn long" self.set_positions(self.data.pv_close > 0, position=1) chạy qua CÙNG đường engine."""
     from backend.core.backtest import FRAME_MS
     from backend.core.params import resolve_costs
@@ -89,11 +98,13 @@ def run_benchmark(program, a, plan, names: List[str], start: int, end: int, capi
                      sort_keys=True, default=str)
     hit = _BENCH_CACHE.get(key)
     if hit is not None:
+        if loaded is not None:
+            loaded.set()
         return hit
     bench_prog = compile_code(BENCH_CODE.format(tf=program.timeframe))
     bplan = build_plan(bench_prog, names, position=position, run_frame=plan.base_frame)
     bplan.risk = {"max_positions": max(1, len(names)), "max_per_symbol": 1, "max_gross_exposure": 1e6, "kill_switch_dd_pct": 0.0, "max_open_risk_pct": 0.0, "dd_throttle_pct": 0.0}
-    res, _ = execute(bplan, start, end, capital)
+    res, _ = execute(bplan, start, end, capital, loaded=loaded) if loaded is not None else execute(bplan, start, end, capital)
     ser = daily_series(res["equity_curve"], start, end, FRAME_MS[bplan.base_frame], capital)
     out = {"times": ser["times"], "equity": ser["equity"], "program_hash": bench_prog.code_hash, "strategies": [s["id"] for s in bplan.strategies],
            "label": "Luôn long (position=1) cùng rổ/ngày/vốn, chia đều, đòn bẩy 1, không SL/TP/trailing/timeout/kill-switch", "symbols": bplan.symbols}
@@ -1119,7 +1130,7 @@ def _stat(path: Optional[str]):
 
 def plan(eng: "BacktestEngine") -> Optional[Dict[str, Any]]:
     """Khoá nền + khoá từng khung / cột / chỉ số căn cho đúng bộ dữ liệu `eng` sẽ dựng. None nếu không có 1m.pkl."""
-    from backend.core.backtest import FRAME_MS, needs_minute_path
+    from backend.core.backtest import FRAME_MS, needs_minute_path, slot_fresh_frames
     from backend.core.signal import lag_key
     root = default_data_root()
     base_fr = eng.base_frame
@@ -1148,7 +1159,8 @@ def plan(eng: "BacktestEngine") -> Optional[Dict[str, Any]]:
         for col, lag in sorted(refs[frame]):
             cid = f"{frame}|{lag_key(col, lag)}"
             cols[cid] = {"frame": frame, "v": _sha1({"frame": tkey, "cid": cid})}
-    return {"base": base, "frames": frames, "cols": cols, "minute": needs_minute_path(eng)}
+    return {"base": base, "frames": frames, "cols": cols, "minute": needs_minute_path(eng),
+            "fresh": sorted(slot_fresh_frames(eng.slots, base_fr))}      # khung cần cột sự kiện "khung|__fresh" (suy ra từ chỉ số căn khi nạp)
 
 
 def _base_dir(out_dir: str, key: str) -> str:
@@ -1191,13 +1203,19 @@ def load_base(out_dir: str, p: Dict[str, Any]) -> Optional[Dict[str, np.ndarray]
 def load(out_dir: str, p: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Dict giống PortfolioEngine._build_symbol_data: nền là view mmap chỉ đọc, cột = giá trị khung (mmap) căn theo chỉ số dùng chung.
     None nếu thiếu / hỏng bất kỳ phần nào."""
-    from backend.core.backtest import BacktestEngine
+    from backend.core.backtest import BacktestEngine, FRESH, frame_fresh
     base = load_base(out_dir, p)
     if base is None:
         return None
     try:
         idx = {fr: _load_array(_file(out_dir, "ix", f["ix"])) for fr, f in p["frames"].items()}
-        cols = {cid: BacktestEngine.gather(_load_array(_file(out_dir, "fv", c["v"])), idx[c["frame"]]) for cid, c in p["cols"].items()}
+        cols = {}
+        for fr in p["frames"]:            # cùng thứ tự với _build_matrix: cột của khung rồi cột sự kiện của khung đó
+            for cid, c in p["cols"].items():
+                if c["frame"] == fr:
+                    cols[cid] = BacktestEngine.gather(_load_array(_file(out_dir, "fv", c["v"])), idx[fr])
+            if fr in p.get("fresh", ()):     # nền chỉ gồm nến thực -> chuỗi chỉ số căn không có nến điền
+                cols[f"{fr}|{FRESH}"] = frame_fresh(idx[fr])
     except (OSError, ValueError):
         return None
     data: Dict[str, Any] = {k: base[k] for k in ("t", "o", "h", "l", "c")}

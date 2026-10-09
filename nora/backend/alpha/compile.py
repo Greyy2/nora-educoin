@@ -19,7 +19,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple
 from backend.alpha.contract import (BASE_CLASS, KIND_ALPHA, KIND_MODULE, MAX_CODE_CHARS, MAX_NODES, METHOD_OPS, _fmt_range, _is_doc, _position_attr_names, at, classify, has_lifecycle,
                                     lifecycle_body, native_tree, split_suggest, suggest)
 from backend.core.indicator import FEATURES, OPS, REQUIRED, Spec, register_program
-from backend.core.params import BASE_POSITION, DATA_COLUMNS, FRAME_MS, FRAMES as FRAME_TF, NORA_DEFAULTS, VENUE_COSTS
+from backend.core.params import BASE_POSITION, DATA_COLUMNS, FRAME_MS, FRAMES as FRAME_TF, NORA_DEFAULTS, VENUE_COSTS, resolve_position_auto
 from backend.core.signal import (Bin, BoolConst, Call, Cmp, Const, Data, DslError, Inv, Logic, Neg, Node, Pick, Program, TupleVal, code_hash)
 
 from backend.core.models import DATA_DIR  # noqa: E402  (DATA_DIR cố định theo mã, KHÔNG theo NORA_LOCAL_DATA_ROOT của test)
@@ -757,7 +757,8 @@ def explain_program(program: Program, position: Optional[Dict[str, Any]] = None)
 
     # 3. Cơ chế thực thi (engine Nora)
     execution: List[Dict[str, str]] = []
-    pos_cfg = {**BASE_POSITION, **NORA_DEFAULTS, **(program.position_overrides or {}), **(position or {})}   # đúng như build_plan sẽ chạy
+    pos_cfg = resolve_position_auto({**BASE_POSITION, **NORA_DEFAULTS, **(program.position_overrides or {}), **(position or {})},
+                                    program.timeframe)   # đúng như build_plan sẽ chạy (atr_frame / cooldown "auto" -> theo khung tín hiệu)
     risk_parts = []   # chỉ nhắc cơ chế thực sự bật (giá trị > 0) — đúng như build_plan sẽ chạy
     if float(pos_cfg.get("stop_loss_rate") or 0) > 0:
         risk_parts.append(f"Stop-Loss {_clean_num(pos_cfg['stop_loss_rate'])}×ATR tính từ giá trung bình")
@@ -1033,15 +1034,26 @@ def _comment_block(shorts: Dict[int, Tuple[str, str]], code: str) -> str:
     """Chèn MỘT dòng chú thích ngắn `# ▸ …` (<= ~70 ký tự) NGAY TRÊN dòng được giải thích (cùng thụt lề). Khối lặp (tham số, vị thế / rủi ro) chỉ chú thích một lần.
     Chỉ thêm dòng chú thích: IR không đổi. Giải thích đầy đủ (công thức, khoảng hợp lệ, cách đọc) nằm ở `lines[].text_vi` (hover), không nằm trong code."""
     src = code.split("\n")
+    inline: Set[int] = set()      # dòng có chú thích cuối dòng của tác giả
+    try:
+        for tok in tokenize.generate_tokens(io.StringIO(code).readline):
+            if tok.type == tokenize.COMMENT and src[tok.start[0] - 1][: tok.start[1]].strip():
+                inline.add(tok.start[0])
+    except (tokenize.TokenError, IndentationError):
+        pass
     seen: Set[str] = set()
     out: List[str] = []
+    prev = ""                     # dòng không trống ngay trước
     for i, text in enumerate(src, 1):
         sh = shorts.get(i)
         if sh and text.strip() and not (sh[1] and sh[1] in seen):
             if sh[1]:
-                seen.add(sh[1])
-            out.append(f"{text[: len(text) - len(text.lstrip())]}{ANNOTATION_MARK}{sh[0]}")
+                seen.add(sh[1])        # khối đã có chú thích tiêu đề của tác giả cũng coi như đã chú thích
+            if i not in inline and not prev.startswith("#"):      # đã có chú thích của tác giả (ngay trên / cuối dòng): không lặp lại
+                out.append(f"{text[: len(text) - len(text.lstrip())]}{ANNOTATION_MARK}{sh[0]}")
         out.append(text)
+        if text.strip():
+            prev = text.strip()
     return "\n".join(out)
 
 
@@ -1208,6 +1220,17 @@ def _annotate_lines(code: str) -> Dict[str, Any]:
             det = "; ".join(f"{k}: {pos_rows[k]['label_vi']}" + (f" ({pos_rows[k]['doc_vi']})" if pos_rows[k]["doc_vi"] else "") for k in keys if k in pos_rows)
             return add(st, "position", "Khoá vị thế mặc định của chân này" + (f": {det}." if det else "."), short="Vị thế và rủi ro của chiến lược", once="pos")
         row = attrs.get(name)
+        if name == "timeframe" and isinstance(val, ast.Constant) and isinstance(val.value, str) and res["kind"] == KIND_ALPHA:
+            frame = TIMEFRAME_ALIASES.get(val.value.lower(), val.value)
+            if frame in FRAME_MS:
+                declared = {t.id for n in ast.walk(tree) if isinstance(n, ast.Assign) for t in n.targets if isinstance(t, ast.Name)}
+                declared |= {a.value.args[0].value for a in ast.walk(tree) if isinstance(a, ast.Expr) and isinstance(a.value, ast.Call)
+                             and _call_kind(a.value)[0] == "p" and a.value.args and isinstance(a.value.args[0], ast.Constant)}
+                auto = [(k, v) for k, v in (("atr_frame", f"ATR đo trên khung {frame}"), ("cooldown", f"nghỉ {FRAME_MS[frame] // 60_000} phút sau khi thoát")) if k not in declared]
+                if auto:
+                    note = "; ".join(v for _k, v in auto)
+                    return add(st, "attr", f"`{name} = {_src(val)}`: {row['doc_vi']} Không khai báo {'/'.join(k for k, _v in auto)} nên engine dùng: {note}.",
+                               short=f"Khung {frame}: ATR khung {frame}, nghỉ {FRAME_MS[frame] // 60_000} phút" if len(auto) == 2 else f"Khung {frame}: {note}")
         if pk is not None:
             extra = f" {pk['doc_vi']}" if pk["doc_vi"] else ""
             rng = f" Khoảng hợp lệ [{pk['lo']:g}, {pk['hi']:g}]{(' ' + pk['unit']) if pk['unit'] else ''}." if pk["lo"] is not None and pk["hi"] is not None else ""
@@ -1229,7 +1252,7 @@ def _annotate_lines(code: str) -> Dict[str, Any]:
     for node in tree.body:
         if isinstance(node, ast.ClassDef):
             add(node, "class", f"Khai báo chiến lược `{node.name}`: lớp kế thừa {BASE_CLASS}; engine đọc các thuộc tính và luật bên trong để chạy backtest.", header_only=True,
-                short="Chiến lược: engine đọc tham số và luật bên dưới để chạy")
+                short="" if ast.get_docstring(node) else "Chiến lược: engine đọc tham số và luật bên dưới để chạy")
             for st in node.body:
                 if isinstance(st, ast.FunctionDef):
                     func(st)

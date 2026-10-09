@@ -51,6 +51,8 @@ class StrategyParams:
                                            # | "extreme" (giá xấu nhất của nến — bi quan, dùng để kiểm độ bền)
     intrabar_path: str = "ohlc"            # Đường giá trong nến: "ohlc" (mặc định, = NautilusTrader O->H->L->C) | "adaptive" (cực gần open trước)
                                            # | "adverse_first" (cũ: phía bất lợi trước — bi quan, giữ cho kiểm bền)
+    signal_mode: str = "event"             # P12: "event" (mặc định) = tín hiệu VÀO khung > khung chạy chỉ kích ở nến chạy đầu tiên sau khi nến khung đóng
+                                           # | "level" = trạng thái lặp ở mọi nến chạy (hành vi cũ, để tái tạo kết quả lịch sử) — core/backtest.py::entry_event_mask
     cooldown: int = 0                      # Số PHÚT chờ sau khi đóng vị thế mới được nhận tín hiệu vào lại (0 = không chờ)
     limit_through_pct: float = 0.0         # Lệnh limit (tầng DCA, chốt lời) chỉ khớp khi giá đi QUA mức bấy nhiêu % (0 = chạm là khớp)
 
@@ -122,6 +124,7 @@ class StrategyParams:
             "stop_fill": self.stop_fill,
             "intrabar_path": self.intrabar_path,
             "cooldown": self.cooldown,
+            "signal_mode": self.signal_mode,
             "limit_through_pct": self.limit_through_pct,
             "exit_unit": self.exit_unit,
             "atr_frame": self.atr_frame,
@@ -331,7 +334,7 @@ POSITION_KEYS = (
     "trailing_activation_pct", "timeout", "order_size_pct", "dca_step_pct", "dca_max_layers",
     "dca_size_multiplier", "maintenance_margin_rate", "fee_rate", "maker_fee_rate", "slippage_rate",
     "using_match_price", "stop_fill", "intrabar_path", "exit_unit", "atr_frame", "atr_period", "sizing", "risk_per_trade_pct",
-    "max_notional_pct", "cooldown", "dca_steps", "dca_multipliers", "limit_through_pct",
+    "max_notional_pct", "cooldown", "signal_mode", "dca_steps", "dca_multipliers", "limit_through_pct",
 )
 
 VENUE_COSTS = {  # (taker, maker, trượt giá)
@@ -401,6 +404,24 @@ def dca_budget_check(position: Dict[str, Any], venue_costs: Tuple[float, float, 
     return result
 
 
+def _declared_int(v: Any, default: int) -> int:
+    """Số nguyên của khoá vị thế: None (không khai báo) -> default; 0 là giá trị hợp lệ (khác "không khai báo"); "auto" -> mặc định theo khung cũ."""
+    if v is None:
+        return default
+    if v == AUTO:
+        return AUTO_FALLBACK_COOLDOWN
+    return int(v)
+
+
+def _declared_int(v: Any, default: int) -> int:
+    """Số nguyên của khoá vị thế: None (không khai báo) -> default; 0 là giá trị hợp lệ (khác "không khai báo"); "auto" -> mặc định theo khung cũ."""
+    if v is None:
+        return default
+    if v == AUTO:
+        return AUTO_FALLBACK_COOLDOWN
+    return int(v)
+
+
 def build_params(flow_name: str, flow_ast: Dict[str, Any], flow_type: str, position: Dict[str, Any],
                  venue: str, pool_fee: Optional[float] = None) -> StrategyParams:
     """pool_fee: phí pool DEX đã xác minh của tài sản (manifest_pool_fee(DataSource.manifest(symbol))) — chỉ dùng khi venue='dex'."""
@@ -439,10 +460,11 @@ def build_params(flow_name: str, flow_ast: Dict[str, Any], flow_type: str, posit
         timeout=int(position.get("timeout") or 0),
         stop_fill=str(position.get("stop_fill") or "level"),
         intrabar_path=str(position.get("intrabar_path") or "ohlc"),
-        cooldown=int(position.get("cooldown") or 0),
+        cooldown=_declared_int(position.get("cooldown"), 0),
+        signal_mode=str(position.get("signal_mode") or "event"),
         limit_through_pct=max(0.0, float(position.get("limit_through_pct") or 0.0)),
         exit_unit=str(position.get("exit_unit") or "pct"),
-        atr_frame=str(position.get("atr_frame") or "1h"),
+        atr_frame=str(resolve_position_auto(position)["atr_frame"] if "atr_frame" in position else AUTO_FALLBACK_ATR_FRAME),
         atr_period=int(position.get("atr_period") or 14),
         sizing=str(position.get("sizing") or "margin_pct"),
         risk_per_trade_pct=float(position.get("risk_per_trade_pct") or 0.5),
@@ -472,12 +494,29 @@ DEFAULT_TRAIN_RATIO = 0.7                # tỉ lệ train mặc định của c
 PESSIMISTIC_LIMIT_THROUGH_PCT = 0.15   # kịch bản bi quan (stop_fill="extreme"): lệnh limit phải đi qua mức 0,15% mới khớp   # mức chuẩn khi chọn chiến lược; mức cuối do bootstrap ngân sách MDD quyết định
 
 BASE_POSITION = {
-    "market": "perp", "leverage": MAX_LEVERAGE, "exit_unit": "atr", "atr_frame": "1h", "atr_period": 14,
+    "market": "perp", "leverage": MAX_LEVERAGE, "exit_unit": "atr", "atr_frame": "auto", "atr_period": 14,
     "sizing": "risk", "risk_per_trade_pct": BASE_RISK_PER_TRADE_PCT, "max_notional_pct": 300.0,
     "stop_fill": "level",
     "limit_through_pct": 0.05,   # lệnh limit (tầng DCA, chốt lời) chỉ khớp khi giá đi QUA mức 0,05% (hàng đợi sổ lệnh), không phải chạm là khớp
-    "cooldown": 60,   # phút: một nến 1h — tránh vào lại ngay trên cùng trạng thái tín hiệu cũ sau khi vừa thoát (SL/trailing)
+    "cooldown": "auto",   # phút; "auto" = MỘT nến khung tín hiệu (24h -> 1440) — tránh vào lại ngay trên cùng trạng thái tín hiệu cũ sau khi vừa thoát (SL/trailing)
 }
+
+# "auto" của atr_frame / cooldown được giải ở MỘT chỗ duy nhất: resolve_position_auto. Chương trình Alpha (build_plan) biết khung tín hiệu
+# của chiến lược -> atr_frame = khung đó, cooldown = số phút một nến khung đó (như Sova). Sổ chiến lược (materialize) không có khung tín hiệu
+# duy nhất -> giữ giá trị cũ 1h / 60 phút (bit-identical); chiến lược hệ thống phụ thuộc mặc định đã khai báo tường minh.
+AUTO = "auto"
+AUTO_FALLBACK_ATR_FRAME = "1h"
+AUTO_FALLBACK_COOLDOWN = 60
+
+
+def resolve_position_auto(pos: Dict[str, Any], signal_frame: Optional[str] = None) -> Dict[str, Any]:
+    """Bản sao `pos` với atr_frame / cooldown = "auto" đã giải theo khung tín hiệu (None -> mặc định cũ 1h / 60 phút). Giá trị tường minh giữ nguyên."""
+    out = dict(pos)
+    if out.get("atr_frame") == AUTO:
+        out["atr_frame"] = signal_frame or AUTO_FALLBACK_ATR_FRAME
+    if out.get("cooldown") == AUTO:
+        out["cooldown"] = FRAME_MS[signal_frame] // MINUTE_MS if signal_frame else AUTO_FALLBACK_COOLDOWN
+    return out
 
 # Rủi ro danh mục (RiskConfig) của sổ chiến lược — chuyển từ book.py cũ; ở core vì build_plan (core/backtest.py) dựng Plan với bộ này
 # (core không import optimize); optimize/book/build.py import lại từ đây.
@@ -527,7 +566,7 @@ def materialize(candidate: Dict[str, Any], params: Dict[str, Any], regime: Any =
         extra["stop"] = [{"condition": resolve_placeholders(candidate["stop"], signal, signal_defaults(candidate))}]
     if candidate.get("dca_gate"):   # điều kiện cho phép dồn tầng DCA (dồn có điều kiện)
         extra["dca"] = [{"condition": resolve_placeholders(candidate["dca_gate"], signal, signal_defaults(candidate))}]
-    pos = {**BASE_POSITION, **candidate.get("position", {}), **position, **position_overrides}
+    pos = resolve_position_auto({**BASE_POSITION, **candidate.get("position", {}), **position, **position_overrides})
     if pos.get("stop_fill") == "extreme" and "limit_through_pct" not in position and "limit_through_pct" not in position_overrides:
         pos["limit_through_pct"] = PESSIMISTIC_LIMIT_THROUGH_PCT   # bi quan cả cắt lỗ (giá xấu nhất) lẫn lệnh limit (phải đi qua mức)
     return {**extra,

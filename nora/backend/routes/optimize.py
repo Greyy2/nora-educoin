@@ -20,7 +20,7 @@ from backend.optimize.process import process as batch_jobs
 from backend.routes import process as batch_jobs_routes
 from backend.crawl.store import alpha_dir, alpha_file
 from backend.routes.process import STRESS_VERTICAL
-from backend.carlo.carlo import with_gate_thresholds, MC_MAX_RUIN_PCT as MC_RUIN_MAX_PCT, MC_MAX_SIMULATIONS, MC_MIN_SIMULATIONS, STRESS_MAX_MDD_PCT
+from backend.carlo.carlo import with_gate_thresholds, MC_MAX_RUIN_PCT as MC_RUIN_MAX_PCT, MC_MAX_SIMULATIONS, MC_MIN_SIMULATIONS, MC_RUIN_THRESHOLD_PCT, STRESS_MAX_MDD_PCT, STRESS_SCENARIOS
 
 book_router = APIRouter(prefix="/api/studio/book", tags=["book"])
 alphas_router = APIRouter(prefix="/api/studio", tags=["book"])
@@ -103,19 +103,19 @@ class McRequest(BaseModel):
     wfa_job_id: Optional[str] = Field(None, max_length=64, description="Job book_wfa đã xong (lấy chuỗi lợi suất ngày OOS)")
     daily_returns: Optional[List[float]] = Field(None, min_length=MC_MIN_DAYS, max_length=MC_MAX_DAYS,
                                                  description="Lợi suất ngày dạng số thập phân (0.01 = 1%)")
-    basis: str = Field("extreme", pattern="^(extreme|level)$")
+    basis: str = Field("extreme", pattern="^(extreme|level)$", description="Cơ sở chuỗi lợi suất ngày OOS của job WFA: extreme (điểm xấu nhất trong ngày) hoặc level (đóng cửa ngày)")
     simulations: int = Field(MC_MIN_SIMULATIONS, ge=100, le=MC_MAX_SIMULATIONS,
-                             description="< 10.000 vẫn chạy nhưng gate.gate_eligible = false (không dùng làm gate); tối đa 50.000")
-    block_days: int = Field(5, ge=1, le=30)
-    horizon_days: int = Field(365, ge=5, le=730)
-    ruin_threshold_pct: float = Field(30.0, gt=0.0, le=100.0)
-    seed: int = Field(7, ge=0, le=2**31 - 1)
-    scale: float = Field(1.0, gt=0.0, le=10.0)
+                             description="Số kịch bản bootstrap; < 10.000 vẫn chạy nhưng gate.gate_eligible = false (không dùng làm gate); tối đa 50.000")
+    block_days: int = Field(5, ge=1, le=30, description="Độ dài khối bootstrap (số ngày liên tiếp mỗi lần lấy mẫu)")
+    horizon_days: int = Field(365, ge=5, le=730, description="Chân trời mô phỏng: số ngày của mỗi kịch bản")
+    ruin_threshold_pct: float = Field(MC_RUIN_THRESHOLD_PCT, gt=0.0, le=100.0, description="Ngưỡng phá sản: một đường mô phỏng tính là cháy khi MDD >= ngưỡng này (%)")
+    seed: int = Field(7, ge=0, le=2**31 - 1, description="Hạt giống ngẫu nhiên (cùng seed cho cùng kết quả)")
+    scale: float = Field(1.0, gt=0.0, le=10.0, description="Hệ số nhân lên chuỗi lợi suất ngày (kích cỡ vị thế)")
     stress_max_mdd_pct: float = Field(STRESS_MAX_MDD_PCT, gt=0.0, le=100.0, description="MDD tối đa cho phép của MỌI kịch bản cực xấu (gate)")
     extra_cost_daily_pct: Optional[float] = Field(None, ge=0.0, le=5.0,
                                                   description="Phí bổ sung (%/ngày hoạt động) cho kịch bản cost_x2; bỏ trống = hằng số bảo thủ 0,07%")
     mode: str = Field("basic", **MODE_FIELD)
-    stress_scenarios: Optional[List[str]] = Field(None, max_length=9, description="Chỉ advanced: tập con kịch bản cực xấu (mặc định đủ cả); thiếu -> custom_gates")
+    stress_scenarios: Optional[List[str]] = Field(None, max_length=len(STRESS_SCENARIOS), description="Chỉ advanced: tập con kịch bản cực xấu (mặc định đủ cả); thiếu -> custom_gates")
 
     @model_validator(mode="after")
     def _one_source(self):
