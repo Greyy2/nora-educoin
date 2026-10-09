@@ -212,9 +212,9 @@ epics:
       E20-S3-causal-timing-tests: done
   E21:
     title: Đối chiếu NautilusTrader — hành vi còn thiếu kịch bản (P13)
-    status: backlog
+    status: in-progress
     stories:
-      E21-S1-nautilus-gap-fill-convention: backlog
+      E21-S1-nautilus-gap-fill-convention: done
       E21-S2-nautilus-gap-limit-through: backlog
       E21-S3-nautilus-gap-dca-sl-same-bar: backlog
       E21-S4-nautilus-gap-liquidation-margin: backlog
