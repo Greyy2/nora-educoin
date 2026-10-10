@@ -1,0 +1,6 @@
+{
+  "python.defaultInterpreterPath": "/home/vmc03/.venvs/nora/bin/python",
+  "python.analysis.extraPaths": [
+    "/home/vmc03/norabt/nora"
+  ]
+}

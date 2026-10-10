@@ -21,8 +21,13 @@ export function validateRun(form, code) {
   return out
 }
 
-export function buildRunBody(form, code) {
+export function buildRunBody(form, code, timeframe = null) {
   const body = { code, start: form.start, end: form.end, train_ratio: num(form.train_ratio), initial_capital: num(form.capital), symbols: form.symbols }
+  if (form.exec_mode === 'standard') {
+    body.run_frame = '1m'
+  } else if (timeframe) {
+    body.run_frame = timeframe
+  }
   const position = {}
   // Mẫu có thể kèm khoá ngoài ô nhập (vd atr_frame: '24h'): gửi nguyên, số thì ép số.
   Object.entries(form.pos || {}).forEach(([k, v]) => { if (v !== '' && v != null) position[k] = Number.isNaN(Number(v)) ? v : Number(v) })

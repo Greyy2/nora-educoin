@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from backend.optimize.process import process as batch_jobs
-from backend.routes import alpha, optimize, live
+from backend.routes import alpha, optimize
 from backend.optimize.funnel.storage import RunStore, atomic_write_json
 
 
@@ -20,7 +20,6 @@ def _root(monkeypatch, tmp_path):
     for c in (optimize._STATS_CACHE, optimize._STATS_LAST, optimize._COUNTS_CACHE, optimize._COUNTS_LAST, optimize._CACHE):
         c.clear()
     batch_jobs._SUMMARY_CACHE.clear()
-    live._EQ_CACHE.clear()
 
 
 def _fake_job(name, kind="book_backtest", state="done", log="", result=None, progress=None, pid=2 ** 22 + 1, params=None):
@@ -317,24 +316,6 @@ def test_portfolio_trades_reuses_parsed_result_and_invalidates_on_mtime(monkeypa
     assert c.get("/api/studio/portfolio/trades?job_id=20261001_120009_abc123").status_code == 409
 
 
-# ─── 6. live: chuỗi vốn ──────────────────────────────────────────────────────
-def test_equity_series_cache_equal_and_invalidates(tmp_path):
-    p = tmp_path / "events.jsonl"
-    rows = [{"kind": "start", "t": 5}] + [{"kind": "step", "bar": i, "equity": 100.0 + i} for i in range(6)] + [{"kind": "warn", "t": 9}]
-    p.write_text("\n".join(json.dumps(r) for r in rows) + "\nnot json\n")
-    a = live._equity_series(str(tmp_path), cap=4)
-    assert a == live._equity_series_uncached(str(tmp_path), cap=4) and len(a[0]) == 4 and a[1] == 5 and a[2] == [{"kind": "warn", "t": 9}]
-    assert live._equity_series(str(tmp_path), cap=4) is live._equity_series(str(tmp_path), cap=4)          # đệm
-    assert live._equity_series(str(tmp_path), cap=2) == live._equity_series_uncached(str(tmp_path), cap=2)  # cap khác: khoá khác
-    with open(p, "a") as fh:
-        fh.write(json.dumps({"kind": "step", "bar": 99, "equity": 7.0}) + "\n")
-    b = live._equity_series(str(tmp_path), cap=4)
-    assert b == live._equity_series_uncached(str(tmp_path), cap=4) and b[0][-1] == {"t": 99, "equity": 7.0}
-    assert live._equity_series(str(tmp_path / "nope")) == ([], None, [], live._equity_series_uncached(str(tmp_path / "nope"))[3])
-    assert a[3]["bars"] == 6 and a[3]["start"] == 100.0 and a[3]["last"] == 105.0   # tóm tắt trên TOÀN đường vốn, không bị cắt cap=4
-
-
-# ─── 7. chart: nến đọc từ pkl ────────────────────────────────────────────────
 def test_chart_frame_cache_hit_and_invalidates(tmp_path, monkeypatch):
     monkeypatch.setattr(alpha, "_FRAME_CACHE", None)
     p = str(tmp_path / "1h.pkl")

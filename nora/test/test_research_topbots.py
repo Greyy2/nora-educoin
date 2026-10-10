@@ -17,6 +17,8 @@ from scripts import research_topbots as rt
 from backend.core.params import dca_budget_check, resolve_costs
 from backend.crawl.store import save_resampled_dataset
 
+pytestmark = pytest.mark.usefixtures("synthetic_data")   # P15: engine Nautilus lấy nến thực thi + spec từ DataSource; dữ liệu giả lập -> conftest.synthetic_data
+
 COSTS = resolve_costs("cex", "perp", None, None)
 HTML = rt.BOTS_HTML
 needs_html = pytest.mark.skipif(not os.path.isfile(HTML), reason="thiếu okx-report.html")

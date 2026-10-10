@@ -27,7 +27,7 @@ def test_backend_has_only_planned_packages():
     root = os.path.join(os.path.dirname(__file__), "..", "backend")
     pkgs = {d for d in os.listdir(root) if os.path.isdir(os.path.join(root, d)) and not d.startswith(("_", "."))}
     # ADR-P9: package đích; script vận hành nằm ngoài backend (nora/ops)
-    target = {"alpha", "core", "metrics", "regime", "wfa", "carlo", "optimize", "crawl", "live", "routes"}
+    target = {"alpha", "core", "metrics", "regime", "wfa", "carlo", "optimize", "crawl", "nautilus", "routes"}   # P15: live -> nautilus (backend/nautilus là lớp duy nhất dùng NautilusTrader)
     legacy = set()
     assert pkgs <= target | legacy, sorted(pkgs - target - legacy)
 

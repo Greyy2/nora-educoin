@@ -4,8 +4,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from backend.core import backtest as bt
-from backend.core.backtest import BacktestEngine, entry_event_mask, evaluate_signals, matrix_evaluator
+from backend.core import strategy as bt
+from backend.core.strategy import entry_event_mask, evaluate_signals, matrix_evaluator
+from backend.nautilus.engine import BacktestEngine
 from backend.core.params import build_params
 from test_kernel_parity import hexify
 

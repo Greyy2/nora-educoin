@@ -15,7 +15,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Tuple
 
 from backend.optimize.process import process as _proc
-from backend.optimize.process.process import JobBusy, JobError, KINDS
+from backend.optimize.process.process import DEX_UNSUPPORTED, JobBusy, JobError, KINDS, NotReady
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -78,46 +78,16 @@ def check_symbols(symbols: List[str]) -> List[str]:
     return out
 
 
-def check_backtest_symbols(symbols: List[str]) -> Tuple[List[str], str]:
-    """Ký hiệu backtest -> (ký hiệu engine, venue): toàn perp -> check_symbols ('cex'); toàn DEX -> 'dex:AERO' có trong kho ('dex'); trộn hai loại bị từ chối."""
+def check_backtest_symbols(symbols: List[str]) -> List[str]:
+    """Ký hiệu backtest -> ký hiệu engine (perp, qua check_symbols). Tài sản DEX -> NotReady (501): Nautilus không có AMM."""
     from backend.crawl.store import is_dex_symbol
-    flags = [is_dex_symbol(str(s)) for s in symbols]
-    if not any(flags):
-        return check_symbols(symbols), "cex"
-    if not all(flags):
-        raise JobError("không chạy chung tài sản perp (CEX) với tài sản DEX trong một lần backtest — chọn một loại")
-    from backend.crawl.store import clean_name, parse_symbol, resolve_asset_dir
-    out = []
-    for s in symbols:
-        name = clean_name(parse_symbol(str(s))[1])
-        if not name or not resolve_asset_dir(f"dex:{name}"):
-            raise JobError(f"không có tài sản DEX {s!r} trong kho dữ liệu")
-        if f"dex:{name}" not in out:
-            out.append(f"dex:{name}")
-    return out, "dex"
+    if any(is_dex_symbol(str(s)) for s in symbols):
+        raise NotReady(DEX_UNSUPPORTED)
+    return check_symbols(symbols)
 
 
 def _day_ms(day: str, plus_days: int = 0) -> int:
     return (calendar.timegm(time.strptime(day, "%Y-%m-%d")) + plus_days * 86_400) * 1000
-
-
-def check_dex_backtest(p: Dict[str, Any], out: Dict[str, Any], symbols: List[str]) -> None:
-    """Điều kiện riêng của backtest DEX: có chiến lược LONG được chọn; data=tick cần tick đã crawl, pool mô hình hoá được, cửa sổ >= một nến cơ sở."""
-    from backend.core import backtest as dex
-    if not p.get("strategies"):
-        raise JobError("backtest DEX cần chọn chiến lược (chân LONG): sổ data/alpha/book.json là sổ perp")
-    try:
-        from backend.optimize.book.build import BY_ID
-        dex.require_long_legs([s["id"] for s in p["strategies"]], BY_ID)
-        if p.get("data") == "tick":
-            from backend.crawl.store import _frame_ms
-            from backend.crawl.dex import pool_info
-            infos = [pool_info(s) for s in symbols]
-            for i in infos:
-                dex.check_amm_pool(i)
-            dex.tick_window(infos, _day_ms(p["start"]), _day_ms(p["end"], 1), _frame_ms(out.get("timeframe") or "1m"))
-    except ValueError as e:
-        raise JobError(str(e))
 
 
 def check_candidate_ids(ids: List[str]) -> List[str]:
@@ -213,9 +183,8 @@ def build_job(kind: str, p: Dict[str, Any]) -> Dict[str, Any]:
                     raise JobError("params phải là {tên: số}")
                 items.append({"id": s["id"], "params": prm})
             out["strategies"] = items
-        venue = "cex"
         if p.get("symbols"):
-            out["symbols"], venue = check_backtest_symbols(p["symbols"])
+            out["symbols"] = check_backtest_symbols(p["symbols"])
         out["start"], out["end"] = check_date(p["start"]), check_date(p["end"])
         if p["start"] >= p["end"]:
             raise JobError("start phải trước end")
@@ -229,19 +198,10 @@ def build_job(kind: str, p: Dict[str, Any]) -> Dict[str, Any]:
             out["regime"] = True
         if p.get("timeframe"):
             out["timeframe"] = check_timeframe(p["timeframe"])
-        data = p.get("data") or "candle"
-        if data not in ("candle", "tick"):
+        if (p.get("data") or "candle") not in ("candle", "tick"):
             raise JobError("data phải là candle|tick")
-        if data == "tick":
-            if venue != "dex":
-                raise JobError("data=tick chỉ dành cho tài sản DEX (chỉ DEX có tick swap on-chain)")
-            out["data"] = "tick"
-            if p.get("latency_ms") is not None:
-                out["latency_ms"] = check_number(p["latency_ms"], "latency_ms", 0, 3_600_000, integer=True)
-            if p.get("gas_usd") is not None:
-                out["gas_usd"] = check_number(p["gas_usd"], "gas_usd", 0.0, 1000.0)
-        if venue == "dex":
-            check_dex_backtest({**p, "data": data}, out, out["symbols"])
+        if p.get("data") == "tick":
+            raise NotReady(DEX_UNSUPPORTED)   # backtest tick = swap AMM on-chain (chỉ DEX)
     elif kind == "book_wfa":
         if p.get("timeframe"):
             out["timeframe"] = check_timeframe(p["timeframe"])
@@ -748,7 +708,7 @@ from fastapi import APIRouter, Header, Response
 from backend.carlo import carlo
 from backend.core.params import FRAME_MS
 from backend.crawl import store
-from backend.live import live as live_mod
+from backend.nautilus.version import NAUTILUS_VERSION
 from backend.metrics.charts import EDUCATION_HIDDEN_SECTIONS, NOTE_TOUR
 from backend.metrics.metrics import METRIC_DEFS, METRIC_GROUPS
 from backend.optimize.book import registry as book_reg
@@ -764,12 +724,11 @@ _PREFIX_RE = re.compile(r"^(S\d)_")
 def _get_limit_models() -> Dict[str, Any]:
     from backend.routes.optimize import FunnelRunRequest, FunnelBookRequest, _DateRange, WfaStrategyIn, McRequest, BuildRequest
     from backend.routes.alpha import CustomBacktestRequest
-    from backend.routes.live import BotRequest
     from backend.routes.data import CrawlRequest, TicksRequest, RegimeReportRequest
     return {
         "funnel_run": FunnelRunRequest, "funnel_book": FunnelBookRequest, "custom_backtest": CustomBacktestRequest,
         "book_backtest": _DateRange, "book_wfa": WfaStrategyIn, "book_mc": McRequest,
-        "book_build": BuildRequest, "live_bot": BotRequest, "regime_report": RegimeReportRequest,
+        "book_build": BuildRequest, "regime_report": RegimeReportRequest,
         "data_crawl": CrawlRequest, "data_crawl_ticks": TicksRequest,
     }
 
@@ -833,17 +792,27 @@ def _funnel() -> Dict[str, Any]:
 
 
 def _live() -> Dict[str, Any]:
-    from backend.routes.live import BotRequest
-    modes = []
-    for mode in live_mod.PROFILE_MODULES:
-        modes.append({
-            "mode": mode,
-            "dir": "live/" + store.live_state_key("_", mode).split("/")[0],
-            "engines": list(live_mod.ENGINES), "default_engine": store.default_engine(mode),
-            "books": [b for b in live_mod.BOOKS if not (mode == "live" and b == "explore")],
-            "exec": mode in live_mod.EXEC_MODES,
-        })
-    return {"modes": modes, "venues": _choices(BotRequest, "venue"), "books": list(live_mod.BOOKS), "engines": list(live_mod.ENGINES)}
+    """Live chưa chạy được (đang chuyển sang Nautilus TradingNode): không có chế độ nào để chọn; `not_ready` cho UI hiện "chưa hỗ trợ"."""
+    from backend.routes.live import NOT_READY_LIVE
+    return {"modes": [], "venues": ["okx"], "books": [], "engines": [], "not_ready": NOT_READY_LIVE}
+
+
+def _engine() -> Dict[str, Any]:
+    return {"name": "nautilus_trader", "version": NAUTILUS_VERSION, "docs_url": "https://nautilustrader.io/docs/latest/"}
+
+
+_NO_SIM_HELP = "Nautilus không mô phỏng — bị bỏ qua (có cảnh báo trong kết quả)"
+UNSUPPORTED = [   # tính năng của Nautilus 1.231 mà engine báo không mô phỏng (results["warnings"]); UI ẩn/khoá, API bỏ qua + cảnh báo (không giả số)
+    {"key": "slippage_rate", "condition": "> 0", "unsupported": True, "help_vi": _NO_SIM_HELP},
+    {"key": "limit_through_pct", "condition": "> 0", "unsupported": True, "help_vi": _NO_SIM_HELP},
+    {"key": "stop_fill", "condition": "== 'extreme'", "unsupported": True, "help_vi": _NO_SIM_HELP},
+    {"key": "intrabar_path", "condition": "== 'adverse_first'", "unsupported": True,
+     "help_vi": "Nautilus không mô phỏng — engine từ chối (ValueError): chỉ 'ohlc' / 'adaptive'"},
+    {"key": "maintenance_margin_rate", "condition": "always", "unsupported": True, "help_vi": _NO_SIM_HELP + " (thanh lý)"},
+    {"key": "liquidation", "condition": "always", "unsupported": True, "help_vi": _NO_SIM_HELP + " (thanh lý: vị thế đòn bẩy không bị thanh lý)"},
+    {"key": "funding", "condition": "always", "unsupported": True, "help_vi": _NO_SIM_HELP + " (funding perp: funding_usd = 0)"},
+    {"key": "venue_dex", "condition": "always", "unsupported": True, "help_vi": "Nautilus không mô phỏng DEX/AMM: tài sản DEX và backtest tick bị từ chối (501 NOT_READY)"},
+]
 
 
 def _jobs() -> Dict[str, Any]:
@@ -902,12 +871,30 @@ def _build_meta() -> Dict[str, Any]:
         "metrics": {"defs": METRIC_DEFS, "groups": METRIC_GROUPS},
         "explain_tour": NOTE_TOUR,
         "education_hidden_sections": EDUCATION_HIDDEN_SECTIONS,
-        "engine": book_reg.engine_version(),
+        "engine": _engine(),
+        "unsupported": UNSUPPORTED,
+        "risk_profiles": {
+            k: {
+                "name": v.name,
+                "label_vi": v.label_vi,
+                "description": v.description,
+                "sl_anchor": v.sl_anchor,
+                "sl_required": v.sl_required,
+                "dca_mode": v.dca_mode,
+                "dca_max_limit": v.dca_max_limit,
+                "exits_allowed": list(v.exits_allowed),
+                "exits_required_any": list(v.exits_required_any),
+                "sizing_default": v.sizing_default,
+                "reentry_rule": v.reentry_rule,
+                "portfolio_bucket": v.portfolio_bucket,
+            }
+            for k, v in __import__("backend.core.position_size", fromlist=["RISK_PROFILES"]).RISK_PROFILES.items()
+        },
+        "allocation": __import__("backend.core.params", fromlist=["DEFAULT_ALLOCATION"]).DEFAULT_ALLOCATION,
         "books": {"main": _book_status(main_book, False), "explore": _book_status(explore_book, True)},
         "paths": {"book": rel(main_path), "explore_book": rel(explore_path), "registry": rel(store.alpha_file("registry")),
                   "presets": rel(store.alpha_file("presets")), "alpha_user": rel(store.alpha_user_dir()), "cache_process": rel(store.cache_process_dir()),
-                  "market": {e: rel(store.market_root(e)) for e in store.EXCHANGES},
-                  "live": rel(os.path.dirname(os.path.dirname(store.live_dir("_", "paper", "main"))))},
+                  "market": {e: rel(store.market_root(e)) for e in store.EXCHANGES}},
     }
     payload["version"] = hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:16]
     return payload

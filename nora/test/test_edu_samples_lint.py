@@ -71,7 +71,7 @@ def test_samples_declare_every_parameter_explicitly():
     import re
     import backend.optimize  # noqa: F401  (đăng ký nguồn dữ liệu cho build_plan)
     from backend.alpha.compile import compile_code
-    from backend.core.backtest import build_plan
+    from backend.core.strategy import build_plan
     for s in L.load_samples():
         assert "position" not in s, s["key"]
         prog = compile_code(s["code"], register=False)

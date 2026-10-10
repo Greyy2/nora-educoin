@@ -525,7 +525,7 @@ def _rising(x: np.ndarray) -> np.ndarray:
 
 def explain(symbol: str, strategy: Dict[str, Any], base_frame: str, frames: Dict[str, Any], start_ms: int, end_ms: int,
             max_signals: int = 400) -> Dict[str, Any]:
-    from backend.core.backtest import evaluate_signals
+    from backend.core.strategy import evaluate_signals
     v = evaluate_signals(symbol, [strategy], frames, base_frame, with_vec=True)
     vec, t = v["vec"], v["t"]
     e = v["entries"][0]

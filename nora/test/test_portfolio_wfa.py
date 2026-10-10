@@ -16,6 +16,8 @@ from backend.wfa import wfa as pw
 from backend.wfa.wfa import generate_folds
 from test_strategy_book import T0, _load_script, _small_book, market  # noqa: F401  (market là fixture)
 
+pytestmark = pytest.mark.usefixtures("synthetic_data")   # P15: engine Nautilus lấy nến thực thi + spec từ DataSource; dữ liệu giả lập -> conftest.synthetic_data
+
 DAY = 86_400_000
 RISK = {"max_positions": 3, "max_per_symbol": 1, "max_gross_exposure": 3.0, "kill_switch_dd_pct": 30.0}
 CFG = pw.PortfolioWfaConfig(train_days=15, test_days=10, min_is_trades=1, mc_simulations=300)

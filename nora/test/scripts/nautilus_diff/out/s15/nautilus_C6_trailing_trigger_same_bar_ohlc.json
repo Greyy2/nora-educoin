@@ -1,0 +1,27 @@
+{
+  "case": "C6_trailing_trigger_same_bar",
+  "mode": "ohlc",
+  "fills": [
+    {
+      "t": 1700000060000,
+      "side": "BUY",
+      "px": 100.0,
+      "qty": 1.0,
+      "fee": 0.05,
+      "liq": "taker",
+      "kind": "ENTRY"
+    },
+    {
+      "t": 1700000180000,
+      "side": "SELL",
+      "px": 102.44,
+      "qty": 1.0,
+      "fee": 0.05122,
+      "liq": "taker",
+      "kind": "TRAIL"
+    }
+  ],
+  "n_fills": 2,
+  "open_at_end": [],
+  "realized_equity": 10002.33878
+}

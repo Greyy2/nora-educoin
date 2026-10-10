@@ -77,7 +77,8 @@ def engine_version() -> Dict[str, Any]:
     sig = tuple((p, os.stat(p).st_mtime_ns, os.stat(p).st_size) for p in [p for _, p in files] + sfiles)
     if _cache["sig"] == sig and time.time() - _cache["at"] < GIT_TTL_S:
         return dict(_cache["value"])
-    h = hashlib.sha256()
+    from backend.nautilus.version import NAUTILUS_VERSION
+    h = hashlib.sha256(f"nautilus {NAUTILUS_VERSION}\0".encode("utf-8"))   # nâng Nautilus -> sổ dựng bằng bản cũ cần dựng lại
     for rel, p in files:
         with open(p, "rb") as fh:
             h.update(rel.encode("utf-8") + b"\0" + fh.read() + b"\0")

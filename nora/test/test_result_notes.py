@@ -47,6 +47,8 @@ import pytest  # noqa: E402
 from backend.metrics.charts import NOTE_TOUR  # noqa: E402
 from test_custom_backtest import CODE_1H, _params, market  # noqa: E402,F401
 
+pytestmark = pytest.mark.usefixtures("synthetic_data")   # P15: engine Nautilus lấy nến thực thi + spec từ DataSource; dữ liệu giả lập -> conftest.synthetic_data
+
 CODE_EMA = '''
 class Ema(SimpleAlgorithm):
     timeframe = "4h"

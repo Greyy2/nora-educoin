@@ -276,32 +276,6 @@ class SourcePut(BaseModel):
     sha256: str = Field(..., min_length=64, max_length=64, description="sha256 của file lúc mở (khoá lạc quan)")
 
 
-def _live_bot_guard(removed: List[str]) -> None:
-    if not removed:
-        return
-    from backend.optimize.process import process as jobs_store
-    active = [j for j in jobs_store.list_jobs(limit=50, kind="live_bot") if j.get("status") in ("running", "queued")]
-    if not active:
-        return
-    used = set()
-    for j in active:
-        p = j.get("params") or {}
-        if p.get("strategy"):
-            used.add(p["strategy"])
-        book_id = p.get("book") or "main"
-        try:
-            from backend.optimize.book.build import load_book
-            b = load_book(book_id)
-            for c in b.get("candidates", []):
-                used.add(c.get("strategy") or c.get("id"))
-                used.add(c.get("id"))
-        except Exception:
-            pass
-    conflict = [rid for rid in removed if rid in used]
-    if conflict:
-        raise dsl.StrategyEditError(409, "LIVE_BOT_RUNNING", f"Bot live đang chạy sử dụng chiến lược/chân {conflict}: không được đổi tên/bỏ id này. Dừng bot rồi sửa, hoặc giữ nguyên id.", removed=conflict)
-
-
 @strategies_router.get("/source/{strategy_id}")
 def get_source(strategy_id: str) -> Dict[str, Any]:
     try:
@@ -313,7 +287,7 @@ def get_source(strategy_id: str) -> Dict[str, Any]:
 @strategies_router.put("/source/{strategy_id}")
 def put_source(strategy_id: str, req: SourcePut) -> Dict[str, Any]:
     try:
-        out = dsl.write_source(strategy_id, req.code, req.sha256, guard=_live_bot_guard)
+        out = dsl.write_source(strategy_id, req.code, req.sha256)
         presets_mod.reload_system_strategies()
         return out
     except dsl.StrategyEditError as e:
@@ -426,7 +400,6 @@ from backend.core.params import FRAME_MS
 
 chart_router = APIRouter(prefix="/api/studio/chart", tags=["chart"])
 MAX_BARS = 5000          # nến tối đa trong cửa sổ trả về
-OKX_LIMIT = 1500         # như bot: đủ khởi động chỉ báo (signals khớp engine với 1500 nến)
 
 
 class ChartExplainRequest(BaseModel):
@@ -438,6 +411,18 @@ class ChartExplainRequest(BaseModel):
     book: Optional[str] = Field(None, pattern="^(main|explore)$", description="sổ đang chạy (cùng strategy_id)")
     strategy_id: Optional[str] = Field(None, max_length=64)
     source: str = Field("data", pattern="^(data|okx)$")
+
+
+def _load_book(kind: str) -> Dict[str, Any]:
+    """Sổ main (READY_FOR_TESTNET) hoặc explore (EXPLORE_DEMO) từ data/alpha; không có / sai trạng thái -> 404."""
+    from backend.crawl.store import alpha_dir, alpha_file
+    from backend.optimize.book.registry import EXPLORE_STATUS
+    from backend.routes.optimize import _read_json
+    book = _read_json(alpha_dir("explore", "book.json") if kind == "explore" else alpha_file("book"))
+    want = EXPLORE_STATUS if kind == "explore" else "READY_FOR_TESTNET"
+    if book is None or book.get("status") != want:
+        raise HTTPException(404, f"chưa có sổ {kind} ở trạng thái {want}")
+    return book
 
 
 def _strategy(req: ChartExplainRequest):
@@ -460,11 +445,7 @@ def _strategy(req: ChartExplainRequest):
         params, regime = split_regime(al["params"])
         cid, src = al["strategy"], {"run_id": req.run_id, "alpha_id": req.alpha_id, "regime": regime}
     elif req.book and req.strategy_id:
-        from backend.live.live import load_book
-        try:
-            book = load_book(kind=req.book, mode="paper")
-        except (SystemExit, OSError) as e:
-            raise HTTPException(404, str(e))
+        book = _load_book(req.book)
         item = next((s for s in book["strategies"] if s["id"] == req.strategy_id), None)
         if item is None:
             raise HTTPException(404, f"sổ {req.book} không có chiến lược {req.strategy_id}")
@@ -508,38 +489,16 @@ def _read_frame(path: str):
     return df
 
 
-_OKX = None             # một adapter dùng chung: bộ đệm nến theo (mã, khung) -> lần sau chỉ 1 request /candles mỗi khung
-
-
-def _okx():
-    global _OKX
-    if _OKX is None:
-        from backend.live.live import OkxAdapter
-        _OKX = OkxAdapter(None, demo=False)
-    return _OKX
-
-
-def _frames(symbol: str, st: Dict[str, Any], tf: str, source: str) -> Dict[str, Any]:
-    """data: kho nến của sàn đang dùng (toàn bộ lịch sử). okx: kho nến + nến OKX mới nhất nối vào sau (lệnh live gần đây)."""
-    import time
-    import pandas as pd
+def _frames(symbol: str, st: Dict[str, Any], tf: str) -> Dict[str, Any]:
+    """Kho nến của sàn đang dùng (toàn bộ lịch sử)."""
     from backend.crawl.store import market_dir
-    from backend.core.backtest import klines_frame, required_frames
+    from backend.core.strategy import required_frames
     need = required_frames(symbol, [st], tf)
     root = market_dir(venue="cex", symbol=symbol, instrument="perp")
-    now = int(time.time() * 1000)
     out = {}
     for fr in need:
         path = os.path.join(root, f"{fr}.pkl")
         hist = _read_frame(path)
-        if source == "okx":
-            last = int(hist["open_time"].iloc[-1]) if hist is not None and len(hist) else 0
-            gap = (now - last) // FRAME_MS[fr] + 3 if last else OKX_LIMIT
-            live = klines_frame(_okx().klines(symbol, fr, int(min(max(gap, 10), OKX_LIMIT)), now), now)
-            if hist is not None:
-                live = pd.concat([hist[[c for c in live.columns if c in hist.columns]], live], ignore_index=True)
-                live = live.drop_duplicates("open_time", keep="last").sort_values("open_time").reset_index(drop=True)
-            hist = live
         if hist is None:
             raise HTTPException(404, f"chưa có dữ liệu {symbol} khung {fr} ({path})")
         out[fr] = hist
@@ -550,6 +509,8 @@ def _frames(symbol: str, st: Dict[str, Any], tf: str, source: str) -> Dict[str, 
 def post_chart_explain(req: ChartExplainRequest) -> Dict[str, Any]:
     """Nến + chỉ báo + tín hiệu vào/thoát (kèm từng điều kiện và giá trị lúc đó) của một chiến lược trên một mã, trong cửa sổ [start, end]."""
     from backend.metrics.charts import explain
+    if req.source == "okx":
+        raise HTTPException(501, detail={"code": "NOT_READY", "message": "Nến OKX trực tiếp đang chuyển sang Nautilus TradingNode"})
     symbol = req.symbol.split("@")[0].upper()
     st, tf, meta = _strategy(req)
     start, end = int(req.start), int(req.end)
@@ -557,7 +518,7 @@ def post_chart_explain(req: ChartExplainRequest) -> Dict[str, Any]:
         raise HTTPException(422, "end phải sau start")
     if (end - start) // FRAME_MS[tf] > MAX_BARS:
         start = end - MAX_BARS * FRAME_MS[tf]
-    frames = _frames(symbol, st, tf, req.source)
+    frames = _frames(symbol, st, tf)
     try:
         out = explain(symbol, st, tf, frames, start, end)
     except ValueError as e:

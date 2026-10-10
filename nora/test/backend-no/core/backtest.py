@@ -58,19 +58,21 @@ NONE_I = -(1 << 62)          # None của mốc thời gian (halted_at / ruined_
 
 # ── Cột trạng thái float F ──────────────────────────────────────────────────
 F_QTY, F_AVG, F_MU, F_FP, F_LAST_FILL, F_NEXT, F_PEAK, F_MAE, F_RES_HERE, F_FUND, F_ENTRY_EQ, F_MAXCAP, F_POS_LEV, \
-    F_PLANNED, F_PVOL, F_SL, F_TP, F_TRAIL, F_TACT, F_UNIT, F_RB, F_RQ, F_QU, F_MID = range(24)   # F_UNIT: tracker.unit_pct (đặt ở mỗi lần _open qua được kiểm ATR, kể cả khi lệnh bị từ chối)
+    F_PLANNED, F_PVOL, F_SL, F_TP, F_TRAIL, F_TACT, F_UNIT, F_RB, F_RQ, F_QU, F_MID, F_SL_LEVEL = range(25)   # F_UNIT: tracker.unit_pct (đặt ở mỗi lần _open qua được kiểm ATR, kể cả khi lệnh bị từ chối)
 # F_RB/F_RQ/F_QU: dự trữ pool (base, quote) + USD / 1 quote tại tick hiện tại, F_MID: giá biên theo dự trữ (reserve_price) — KernelBook.set_amm ghi mỗi tick; chỉ đọc khi PI_AMM = 1
-F_DS0 = 24                    # F[:, F_DS0 + j] = bước DCA hiện tại (đã quy đổi theo unit)
-F_FIXED = 24
+# F_SL_LEVEL (P14-B3): mức giá Stop Loss tuyệt đối (khi PI_SL_ANCHOR = 1)
+F_DS0 = 25                    # F[:, F_DS0 + j] = bước DCA hiện tại (đã quy đổi theo unit)
+F_FIXED = 25
 # ── Tham số float P ─────────────────────────────────────────────────────────
 P_FEE, P_MAKER, P_SLIP, P_MMR, P_MAXLEV, P_CAPUSE, P_BSL, P_BTP, P_BTR, P_BTA, P_RISK, P_MAXNOT, P_OSP, P_LTHRU, P_AFEE, P_ASTABLE, P_AGAS = range(17)
 # P_AFEE/P_ASTABLE/P_AGAS: pool AMM của slot (phí thu trên đầu vào, 1 = stable x³y+xy³, gas USD mỗi swap); chỉ đọc khi PI_AMM = 1
 P_BS0 = 17                    # P[:, P_BS0 + j] = bước DCA gốc; P[:, P_BS0 + ml + j] = hệ số khối lượng tầng j (ml = số cột tối đa)
 P_FIXED = 17                  # P_LTHRU: lệnh limit (DCA, TP) chỉ khớp khi giá đi qua mức bấy nhiêu (tỉ lệ); 0 = chạm là khớp
 # ── Tham số int PI ──────────────────────────────────────────────────────────
-PI_LONG, PI_PERP, PI_TIMEOUT, PI_COOL, PI_EXTREME, PI_ATR, PI_RISKSZ, PI_NBASE, PI_MAXOPEN, PI_PATH, PI_LTAKER, PI_AMM = range(12)
+PI_LONG, PI_PERP, PI_TIMEOUT, PI_COOL, PI_EXTREME, PI_ATR, PI_RISKSZ, PI_NBASE, PI_MAXOPEN, PI_PATH, PI_LTAKER, PI_AMM, PI_SL_ANCHOR = range(13)
 # PI_LTAKER: DCA / chốt lời là swap (khớp như lệnh taker, ở open nếu gap); PI_AMM: trượt giá theo dự trữ pool (thay slippage_rate cho mọi lệnh taker + chi phí khứ hồi khi tính khối lượng)
-NPI = 12                      # PI_PATH: đường giá trong nến — 0 adverse_first (cũ), 1 ohlc (mặc định), 2 adaptive
+# PI_SL_ANCHOR (P14-B3): 0 = avg (% từ giá TB, legacy), 1 = mức tuyệt đối F_SL_LEVEL (neo entry / last_layer)
+NPI = 13                      # PI_PATH: đường giá trong nến — 0 adverse_first (cũ), 1 ohlc (mặc định), 2 adaptive
 # ── Trạng thái int I ────────────────────────────────────────────────────────
 I_OPEN, I_PE, I_PX, I_LAYERS, I_ENTRY_T, I_LASTCLOSE, I_HASLC, I_DCAREJ, I_SKIP, I_POS, I_NST, I_BLK, I_DCAOK = range(13)
 NI = 13                       # I_DCAOK: 1 = nến này được dồn tầng DCA (điều kiện DCA tại cuối nến trước; không có điều kiện -> luôn 1)
@@ -344,8 +346,8 @@ def _layer_mult_total(k, n, P):
 
 
 @njit(**_JIT)
-def _risk_margin(k, P, PI, F, I, LG, G):
-    sl = F[k, F_SL] / 100.0
+def _risk_margin(k, sl_eff, P, PI, F, I, LG, G):
+    sl = sl_eff / 100.0
     total_mult = _layer_mult_total(k, I[k, I_NST], P)
     eq = LG[LG_EQ]
     if PI[k, PI_AMM] == 1:   # trượt giá phụ thuộc khối lượng: lần 1 chỉ tính phí, lần 2 tính trượt theo khối lượng dự kiến của lần 1 (policy.risk_margin)
@@ -447,6 +449,7 @@ def _close_apply(k, t, price, exit_fee, status, reason, liq, slip, raw, P, PI, F
     F[k, F_RES_HERE] = 0.0
     F[k, F_FUND] = 0.0
     F[k, F_ENTRY_EQ] = LG[LG_EQ]
+    F[k, F_SL_LEVEL] = 0.0
 
 
 @njit(**_JIT)
@@ -487,8 +490,25 @@ def _open(k, t, open_price, max_new, max_risk, rscale, P, PI, F, I, LG, G, outF,
     F[k, F_POS_LEV] = P[k, P_MAXLEV]
     F[k, F_PLANNED] = 0.0
     lev = F[k, F_POS_LEV]
+    if PI[k, PI_SL_ANCHOR] == 1:
+        long_ = PI[k, PI_LONG] == 1
+        sign = 1.0 if long_ else -1.0
+        n_st = I[k, I_NST]
+        if n_st > 0:
+            p_last = open_price
+            for j in range(n_st):
+                p_last = p_last * (1.0 - sign * F[k, F_DS0 + j] / 100.0)
+            sl_lv = p_last * (1.0 - sign * F[k, F_SL] / 100.0) if F[k, F_SL] > 0.0 else p_last
+        else:
+            sl_lv = open_price * (1.0 - sign * F[k, F_SL] / 100.0) if F[k, F_SL] > 0.0 else 0.0
+        F[k, F_SL_LEVEL] = sl_lv
+    else:
+        F[k, F_SL_LEVEL] = 0.0
+
+    sl_eff = (abs(open_price - F[k, F_SL_LEVEL]) / open_price * 100.0) if (PI[k, PI_SL_ANCHOR] == 1 and F[k, F_SL_LEVEL] > 0.0) else F[k, F_SL]
+
     if PI[k, PI_RISKSZ] == 1:
-        margin = _risk_margin(k, P, PI, F, I, LG, G)
+        margin = _risk_margin(k, sl_eff, P, PI, F, I, LG, G)
     else:
         margin = eq * P[k, P_OSP] / 100.0
     lev = F[k, F_POS_LEV]
@@ -506,9 +526,9 @@ def _open(k, t, open_price, max_new, max_risk, rscale, P, PI, F, I, LG, G, outF,
     if PI[k, PI_RISKSZ] == 1 and margin > 0.0:
         total_mult = _layer_mult_total(k, I[k, I_NST], P)
         if PI[k, PI_AMM] == 1:
-            v = margin * lev * (F[k, F_SL] / 100.0 + _rt_cost(k, margin * lev * total_mult, P, PI, F, G)) * total_mult
+            v = margin * lev * (sl_eff / 100.0 + _rt_cost(k, margin * lev * total_mult, P, PI, F, G)) * total_mult
         else:
-            v = margin * lev * (F[k, F_SL] / 100.0 + 2.0 * (P[k, P_FEE] + P[k, P_SLIP])) * total_mult
+            v = margin * lev * (sl_eff / 100.0 + 2.0 * (P[k, P_FEE] + P[k, P_SLIP])) * total_mult
         F[k, F_PLANNED] = _pmin(F[k, F_PLANNED], v)
     if max_risk != np.inf and F[k, F_PLANNED] > max_risk:   # vượt trần rủi ro đang mở của danh mục
         if max_risk <= 0.0:
@@ -568,10 +588,13 @@ def _intrabar_path(k, t, o, h, l, c, ML, MH, ja, jb, P, PI, F, I, LG, G, outF, o
     adverse = l if long_ else h
     sign = 1.0 if long_ else -1.0
     ml = (P.shape[1] - P_FIXED) // 2
-    has_sl = F[k, F_SL] != 0.0
+    has_sl = F[k, F_SL] != 0.0 or (PI[k, PI_SL_ANCHOR] == 1 and F[k, F_SL_LEVEL] != 0.0)
     sl_lv = 0.0
     if has_sl:
-        sl_lv = F[k, F_AVG] * (1.0 - sign * F[k, F_SL] / 100.0)
+        if PI[k, PI_SL_ANCHOR] == 1 and F[k, F_SL_LEVEL] != 0.0:
+            sl_lv = F[k, F_SL_LEVEL]
+        else:
+            sl_lv = F[k, F_AVG] * (1.0 - sign * F[k, F_SL] / 100.0)
     has_tp = F[k, F_TP] != 0.0
     tp_lv = 0.0
     need = 0.0
@@ -712,8 +735,11 @@ def _intrabar_adverse(k, t, o, h, l, ML, MH, ja, jb, P, PI, F, I, LG, G, outF, o
                 best_level = level
                 best_prio = 1
                 best_kind = 0
-        if F[k, F_SL] != 0.0:
-            if has_stale:
+        has_sl = F[k, F_SL] != 0.0 or (PI[k, PI_SL_ANCHOR] == 1 and F[k, F_SL_LEVEL] != 0.0)
+        if has_sl:
+            if PI[k, PI_SL_ANCHOR] == 1 and F[k, F_SL_LEVEL] != 0.0:
+                level = F[k, F_SL_LEVEL]
+            elif has_stale:
                 level = sl_stale
             else:
                 level = F[k, F_AVG] * (1.0 - sign * F[k, F_SL] / 100.0)
@@ -760,10 +786,13 @@ def _intrabar_adverse(k, t, o, h, l, ML, MH, ja, jb, P, PI, F, I, LG, G, outF, o
             if ltaker:
                 price = _pmin(dca_level, o) if long_ else _pmax(dca_level, o)   # AMM (swap): khớp ở open nếu gap
             margin = F[k, F_NEXT] * P[k, P_BS0 + ml + kk]
-            sl_before = F[k, F_AVG] * (1.0 - sign * F[k, F_SL] / 100.0)   # SL đang nằm trên sàn trước fill (chỉ dùng khi sl_pct > 0)
+            if PI[k, PI_SL_ANCHOR] == 1 and F[k, F_SL_LEVEL] != 0.0:
+                sl_before = F[k, F_SL_LEVEL]
+            else:
+                sl_before = F[k, F_AVG] * (1.0 - sign * F[k, F_SL] / 100.0)   # SL đang nằm trên sàn trước fill (chỉ dùng khi sl_pct > 0)
             if _add_layer(k, t, price, margin, False, R_DCA, P, PI, F, I, LG, G, outF, outI, ordF, ordI):
                 F[k, F_NEXT] = margin
-                if (not dca_filled) and F[k, F_SL] != 0.0:
+                if (not dca_filled) and has_sl:
                     has_stale = True                          # SL cũ chưa dời kịp trong phần còn lại của nến
                     sl_stale = sl_before
                 dca_filled = True
@@ -888,8 +917,12 @@ def _quiet_bar(k, t, o, h, l, peak, P, PI, F, I):
             level = level * (1.0 - sign * P[k, P_LTHRU])
         if (adverse <= level) if long_ else (adverse >= level):
             return False
-    if F[k, F_SL] != 0.0:
-        level = F[k, F_AVG] * (1.0 - sign * F[k, F_SL] / 100.0)
+    has_sl = F[k, F_SL] != 0.0 or (PI[k, PI_SL_ANCHOR] == 1 and F[k, F_SL_LEVEL] != 0.0)
+    if has_sl:
+        if PI[k, PI_SL_ANCHOR] == 1 and F[k, F_SL_LEVEL] != 0.0:
+            level = F[k, F_SL_LEVEL]
+        else:
+            level = F[k, F_AVG] * (1.0 - sign * F[k, F_SL] / 100.0)
         if (adverse <= level) if long_ else (adverse >= level):
             return False
     if F[k, F_TRAIL] != 0.0:
@@ -1709,6 +1742,7 @@ def pack_slots(specs: List[Any], amm: Optional[List[Optional[Dict[str, Any]]]] =
         PI[k, PI_RISKSZ] = 1 if tr.sizing == "risk" else 0
         PI[k, PI_NBASE] = len(tr.base_dca_steps)
         PI[k, PI_MAXOPEN] = tr.max_open_trades
+        PI[k, PI_SL_ANCHOR] = getattr(tr, "sl_anchor_mode", 0)
         a = amm[k] if amm is not None else None
         if a is not None:
             PI[k, PI_LTAKER] = 1 if a.get("limit_taker", True) else 0
@@ -1724,6 +1758,7 @@ def pack_slots(specs: List[Any], amm: Optional[List[Optional[Dict[str, Any]]]] =
         F[k, F_PLANNED], F[k, F_PVOL] = tr.planned_risk, np.nan
         F[k, F_SL], F[k, F_TP], F[k, F_TRAIL], F[k, F_TACT] = tr.sl_pct, tr.tp_pct, tr.trail_pct, tr.trail_activation_pct
         F[k, F_UNIT] = tr.unit_pct
+        F[k, F_SL_LEVEL] = 0.0
         for j, s in enumerate(tr.dca_steps):
             F[k, F_DS0 + j] = s
         I[k, I_NST] = len(tr.dca_steps)
@@ -2669,6 +2704,15 @@ class SlotView:
     layer_count, entry_time, dca_rejected, skipped_no_vol = _i(I_LAYERS), _i(I_ENTRY_T), _i(I_DCAREJ), _i(I_SKIP)
     is_open, pending_exit, dca_ok = _b(I_OPEN), _b(I_PX), _b(I_DCAOK)
     del _f, _i, _b
+
+    @property
+    def sl_level(self) -> float:
+        if self._d.PI[self._k, PI_SL_ANCHOR] == 1 and self._d.F[self._k, F_SL_LEVEL] > 0.0:
+            return float(self._d.F[self._k, F_SL_LEVEL])
+        if self.avg > 0.0 and self.sl_pct > 0.0:
+            sign = 1.0 if self.is_long else -1.0
+            return self.avg * (1.0 - sign * self.sl_pct / 100.0)
+        return 0.0
 
     @property
     def pending_entry(self) -> bool:

@@ -591,7 +591,7 @@ class VectorEvaluator:
 # ══════════════════════════════════════════════════════════════════════════
 # Ảnh chụp TÍN HIỆU thị trường tại nến 1m ĐÃ ĐÓNG mới nhất — cùng một đường tính với backtest (không có bản tính thứ hai).
 #
-# signal_snapshot(symbol, strategies, end_ts) dựng engine của tài sản y như PortfolioEngine (_make_trackers -> load_data -> _build_matrix ->
+# signal_snapshot(symbol, strategies, end_ts) dựng engine của tài sản y như PortfolioEngine (_make_slots -> load_data -> _build_matrix ->
 # VectorEvaluator), nên giá trị chỉ báo / điều kiện / tín hiệu vào-thoát ở phút t TRÙNG với thứ engine dùng ở phút t (test_signal_snapshot).
 # Khung lớn chỉ dùng nến đã đóng (avail_time = open + độ dài khung); phút cuối là phút có giao dịch thật (bỏ nến điền).
 #

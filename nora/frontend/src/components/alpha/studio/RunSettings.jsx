@@ -44,6 +44,12 @@ export default function RunSettings({ form, setForm, universe, defaultsError, pr
       <div className="n-form-row">
         <Field id="se-start" label="Từ ngày"><DateInput id="se-start" label="Từ ngày" value={form.start} onChange={(v) => setForm({ start: v })} /></Field>
         <Field id="se-end" label="Đến ngày"><DateInput id="se-end" label="Đến ngày" value={form.end} onChange={(v) => setForm({ end: v })} /></Field>
+        <Field id="se-mode" label="Độ chi tiết khớp lệnh">
+          <select id="se-mode" className="n-sel" value={form.exec_mode || 'fast'} onChange={(e) => setForm({ exec_mode: e.target.value })}>
+            <option value="fast">Nhanh (khung tín hiệu)</option>
+            <option value="standard">Chuẩn (nến 1m)</option>
+          </select>
+        </Field>
         <Field id="se-ratio" label="Tỉ lệ train">
           <input id="se-ratio" type="number" className="n-in" inputMode="decimal" min="0.1" max="0.95" step="0.05" value={form.train_ratio}
             onChange={(e) => setForm({ train_ratio: e.target.value })} />

@@ -1,0 +1,36 @@
+{
+  "case": "C2b_long_dca_below_sl",
+  "mode": "ohlc",
+  "fills": [
+    {
+      "t": 1700000060000,
+      "side": "BUY",
+      "px": 100.0,
+      "qty": 1.0,
+      "fee": 0.05,
+      "liq": "taker",
+      "kind": "ENTRY"
+    },
+    {
+      "t": 1700000120000,
+      "side": "BUY",
+      "px": 97.0,
+      "qty": 1.0309278350515463,
+      "fee": 0.02,
+      "liq": "maker",
+      "kind": "DCA"
+    },
+    {
+      "t": 1700000120000,
+      "side": "SELL",
+      "px": 98.0,
+      "qty": 2.0309278350515463,
+      "fee": 0.09951546391752576,
+      "liq": "taker",
+      "kind": "SL"
+    }
+  ],
+  "n_fills": 3,
+  "open_at_end": [],
+  "realized_equity": 9998.861412371134
+}

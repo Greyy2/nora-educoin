@@ -1,4 +1,4 @@
-"""backend/core/backtest/run.py trên thị trường giả lập (3 tài sản perp): khoá kết quả, result.json theo NORA_JOB_DIR, tất định."""
+"""backend/optimize/search/evaluate.py::run trên thị trường giả lập (3 tài sản perp): khoá kết quả, result.json theo NORA_JOB_DIR, tất định."""
 import importlib.util
 import json
 import os
@@ -10,6 +10,8 @@ import pytest
 
 from backend.core.params import date_ms
 from backend.crawl.store import save_resampled_dataset
+
+pytestmark = pytest.mark.usefixtures("synthetic_data")   # P15: engine Nautilus lấy nến thực thi + spec từ DataSource; dữ liệu giả lập -> conftest.synthetic_data
 
 T0 = 1_700_006_400_000
 SYMS = ("AAA", "BBB", "CCC")
@@ -101,6 +103,7 @@ def test_deterministic(market, tmp_path, monkeypatch):
     assert not (tmp_path / "result.json").exists()   # không đặt NORA_JOB_DIR -> không ghi result.json
     for r in (a, b):
         r.pop("meta")                                # thời gian chạy / RAM không tất định
+        r["provenance"].pop("computed_at")           # dấu thời gian tính (tasks.stamp_provenance) khác nhau theo từng lần chạy; phần engine của provenance vẫn so
     assert json.dumps(a, sort_keys=True, default=str) == json.dumps(b, sort_keys=True, default=str)
 
 

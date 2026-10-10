@@ -1228,7 +1228,7 @@ def build_result(program, plan, res, eng, a, start: int, end: int, capital: floa
                  test_res: Optional[Dict[str, Any]] = None, test_start: Optional[int] = None, bench: Optional[Dict[str, Any]] = None,
                  inputs: Optional[Dict[str, Any]] = None, test_bench: Optional[Dict[str, Any]] = None,
                  alpha_id: Optional[str] = None, checklist: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    from backend.core.backtest import FRAME_MS
+    from backend.core.strategy import FRAME_MS
     from backend.metrics.metrics import result_payload
     from backend.metrics.trades import rows_from_trade_list
     payload = result_payload(res, start, end)

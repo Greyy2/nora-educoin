@@ -13,7 +13,8 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 import requests
-from backend.core.models import DATA_DIR, NORA_DIR
+NORA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+DATA_DIR = os.path.join(NORA_DIR, "data")
 from backend.crawl.store import as_list, options, save_resampled_dataset, stamp_attrs, write_job_result, write_pickle_atomic
 
 

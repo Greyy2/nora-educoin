@@ -1,0 +1,34 @@
+{
+  "case": "C8_limit_through_zero",
+  "mode": "ohlc",
+  "fills": [
+    {
+      "t": 1700000060000,
+      "side": "BUY",
+      "px": 100.0,
+      "qty": 1.0,
+      "fee": 0.05,
+      "liq": "taker",
+      "kind": "ENTRY"
+    },
+    {
+      "t": 1700000120000,
+      "side": "BUY",
+      "px": 99.0,
+      "qty": 1.0101010101010102,
+      "fee": 0.02,
+      "liq": "maker",
+      "kind": "DCA"
+    }
+  ],
+  "n_fills": 2,
+  "open_at_end": [
+    {
+      "sym": "BTC",
+      "enter_time": 1700000060000,
+      "avg_price": 99.49748743718591,
+      "qty": 2.0101010101010104
+    }
+  ],
+  "realized_equity": 9999.93
+}

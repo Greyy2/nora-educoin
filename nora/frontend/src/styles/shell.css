@@ -331,9 +331,220 @@
 
 .n-job { display: flex; flex-direction: column; gap: 8px; }
 .n-job-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.n-prog { display: flex; flex-direction: column; gap: 6px; }
+.n-prog { display: flex; flex-direction: column; gap: 8px; }
 .n-prog-bar { height: 8px; border-radius: 999px; background: var(--n-surface-3); border: 1px solid var(--n-line); overflow: hidden; }
-.n-prog-bar > span { display: block; height: 100%; background: var(--n-accent); border-radius: 999px; transition: width .6s ease; }
+.n-prog-bar > span { display: block; height: 100%; background: var(--n-accent); border-radius: 999px; transition: width .4s ease; }
+
+/* Thanh tiến độ phong cách download: gradient mượt mà + hiệu ứng sóng shimmer khi chạy */
+.n-prog-bar.download-style {
+  height: 12px;
+  border-radius: 999px;
+  background: var(--n-surface-3);
+  border: 1px solid var(--n-line);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4);
+  position: relative;
+  overflow: hidden;
+}
+.n-prog-bar.download-style > span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #10b981 0%, #06b6d4 50%, #3b82f6 100%);
+  border-radius: 999px;
+  transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.45);
+  position: relative;
+  overflow: hidden;
+}
+.n-prog-bar.download-style.is-running > span::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.28) 25%,
+    transparent 25%,
+    transparent 50%,
+    rgba(255, 255, 255, 0.28) 50%,
+    rgba(255, 255, 255, 0.28) 75%,
+    transparent 75%,
+    transparent
+  );
+  background-size: 24px 24px;
+  animation: downloadStripes 1s linear infinite;
+}
+@keyframes downloadStripes {
+  0% { background-position: 0 0; }
+  100% { background-position: 24px 0; }
+}
+
+/* Pipeline Step Tracker: Liệt kê các bước thực thi */
+.n-pipeline-track {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--n-surface-2);
+  border: 1px solid var(--n-line);
+  border-radius: 8px;
+  overflow-x: auto;
+  user-select: none;
+}
+.n-step-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--n-ink-3);
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+.n-step-item.done {
+  color: var(--n-pos);
+  font-weight: 500;
+}
+.n-step-item.active {
+  color: var(--n-ink);
+  font-weight: 600;
+}
+.n-step-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  font-size: 10.5px;
+  font-family: var(--n-mono);
+  border: 1px solid var(--n-line);
+  background: var(--n-surface-3);
+  color: var(--n-ink-3);
+}
+.n-step-item.done .n-step-badge {
+  background: var(--n-pos-wash);
+  border-color: var(--n-pos);
+  color: var(--n-pos);
+}
+.n-step-item.active .n-step-badge {
+  background: var(--n-accent-wash);
+  border-color: var(--n-accent);
+  color: var(--n-accent);
+  box-shadow: 0 0 8px rgba(229, 138, 46, 0.45);
+  animation: stepPulse 1.2s infinite ease-in-out;
+}
+@keyframes stepPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.12); }
+}
+.n-step-arrow {
+  color: var(--n-line);
+  font-size: 10px;
+  margin: 0 2px;
+}
+.n-step-item.done + .n-step-arrow {
+  color: var(--n-pos);
+}
+
+/* Console Log Mốc Thực Tế */
+.n-live-console {
+  background: #0b0b0e;
+  border: 1px solid var(--n-line);
+  border-radius: 8px;
+  margin-top: 8px;
+  overflow: hidden;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.35);
+}
+.n-console-hdr {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #141418;
+  border-bottom: 1px solid var(--n-line);
+  font-size: 11px;
+  font-family: var(--n-mono);
+  color: var(--n-ink-2);
+}
+.n-console-dots {
+  display: flex;
+  gap: 5px;
+}
+.n-console-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+.n-console-dot.r { background: #ef4444; }
+.n-console-dot.y { background: #eab308; }
+.n-console-dot.g { background: #22c55e; }
+.n-console-title {
+  font-weight: 500;
+  color: var(--n-ink-2);
+}
+.n-console-live-badge {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(34, 197, 94, 0.15);
+  color: #3ecf8e;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.n-console-live-pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #3ecf8e;
+  box-shadow: 0 0 6px #3ecf8e;
+  animation: liveBlink 1s ease-in-out infinite alternate;
+}
+@keyframes liveBlink {
+  from { opacity: 0.3; }
+  to { opacity: 1; }
+}
+.n-console-body {
+  padding: 10px 12px;
+  max-height: 200px;
+  overflow-y: auto;
+  font-family: var(--n-mono);
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: #d4d4d8;
+  margin: 0;
+}
+.n-console-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+.n-console-time {
+  color: #71717a;
+  font-size: 10.5px;
+  user-select: none;
+  flex-shrink: 0;
+}
+.n-console-step-badge {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border-radius: 3px;
+  padding: 0 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.n-console-msg {
+  color: #e4e4e7;
+  word-break: break-word;
+}
+.n-console-msg.done-msg {
+  color: #3ecf8e;
+  font-weight: 600;
+}
+
 .n-prog-meta { display: flex; gap: 6px 16px; flex-wrap: wrap; font-size: 12px; color: var(--n-ink-2); }
 .n-prog-meta b { color: var(--n-ink); }
 .n-job-cancel { margin-left: auto; }

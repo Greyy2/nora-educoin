@@ -243,6 +243,11 @@ export default function CustomResult({ result, jobLine, explain = false, tourKey
         {steps.length > 0 && <button type="button" className="n-btn sm se-tourbtn" onClick={() => gotoStep(0)} title="Hướng dẫn đọc kết quả từng bước (←/→, Esc)">Xem giải thích</button>}
         {jobLine}
         {result.program_hash && <span className="mono muted" title="Mã băm chương trình đã biên dịch">{String(result.program_hash).slice(0, 12)}</span>}
+        {result?.provenance && (
+          <span className="n-tag sm" style={{ marginLeft: 6 }} title={`Engine: ${result.provenance.engine} ${result.provenance.version || ''} | Sàn: ${result.provenance.venue || ''} | Khớp: ${result.provenance.base_frame || ''}`}>
+            {result.provenance.base_frame === '1m' ? 'Nautilus • Chuẩn (1m)' : `Nautilus • Nhanh (${result.provenance.base_frame || ''})`}
+          </span>
+        )}
       </div>
       <div className="se-row2">
         <Segmented label="Chế độ xem" value={sub} onChange={setSub} options={SUBS} />

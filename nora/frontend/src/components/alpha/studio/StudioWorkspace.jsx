@@ -90,7 +90,7 @@ export default function StudioWorkspace({ mode = 'create' }) {
       setNote({ tone: 'ok', text: `Đã nạp “${d.name}” (phiên bản ${ver}) để sửa. Chạy backtest rồi “Lưu chiến lược” sẽ tạo phiên bản mới của alpha này.` })
     }, (e) => setNote({ tone: 'bad', text: `Không mở được alpha để sửa: ${e.message}` })).finally(() => setOpeningId(''))
   }, [qAlpha, qVer]) // eslint-disable-line react-hooks/exhaustive-deps
-  const { job, status, error: jobErr, errorStatus: jobErrStatus } = useJob(draft.jobId || null)
+  const { job, status, error: jobErr, errorStatus: jobErrStatus } = useJob(draft.jobId || null, 800)
   const running = status === 'queued' || status === 'running' || status === 'loading'
   const jobResult = status === 'done' ? job?.result : null
   // alpha_id (backend tính) của lần chạy đã xong: so với bản đã lưu để biết còn thay đổi chưa lưu hay không
@@ -120,7 +120,7 @@ export default function StudioWorkspace({ mode = 'create' }) {
     const id0 = draft.id
     const code0 = draft.code
     try {
-      const r = await postCustomBacktest(buildRunBody(form, code0))
+      const r = await postCustomBacktest(buildRunBody(form, code0, compiled?.meta?.timeframe))
       const id = r?.job_id || r?.id
       if (!id) throw new Error('Máy chủ không trả mã job.')
       patchById(id0, { jobId: id, runCode: code0, runAlpha: '', stored: null }); setTab('results')

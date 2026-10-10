@@ -1,0 +1,424 @@
+[
+  {
+    "case": "C1a_market",
+    "mode": "ohlc",
+    "desc": "L\u1ec7nh market v\u00e0o v\u1ecb th\u1ebf \u1edf open",
+    "ok": true,
+    "msg": "MATCH",
+    "metrics": {
+      "n_fills": 1,
+      "equity": 9999.95,
+      "max_px_diff": 0.0,
+      "max_qty_diff": 0.0,
+      "max_fee_diff": 0.0,
+      "eq_diff": 0.0
+    }
+  },
+  {
+    "case": "C1a_market",
+    "mode": "adaptive",
+    "desc": "L\u1ec7nh market v\u00e0o v\u1ecb th\u1ebf \u1edf open",
+    "ok": true,
+    "msg": "MATCH",
+    "metrics": {
+      "n_fills": 1,
+      "equity": 9999.95,
+      "max_px_diff": 0.0,
+      "max_qty_diff": 0.0,
+      "max_fee_diff": 0.0,
+      "eq_diff": 0.0
+    }
+  },
+  {
+    "case": "C1b_limit_touch",
+    "mode": "ohlc",
+    "desc": "Limit TP ch\u1ea1m \u0111\u00fang m\u1ee9c trong n\u1ebfn",
+    "ok": true,
+    "msg": "MATCH",
+    "metrics": {
+      "n_fills": 2,
+      "equity": 10001.9296,
+      "max_px_diff": 0.0,
+      "max_qty_diff": 0.0,
+      "max_fee_diff": 0.0,
+      "eq_diff": 0.0
+    }
+  },
+  {
+    "case": "C1b_limit_touch",
+    "mode": "adaptive",
+    "desc": "Limit TP ch\u1ea1m \u0111\u00fang m\u1ee9c trong n\u1ebfn",
+    "ok": true,
+    "msg": "MATCH",
+    "metrics": {
+      "n_fills": 2,
+      "equity": 10001.9296,
+      "max_px_diff": 0.0,
+      "max_qty_diff": 0.0,
+      "max_fee_diff": 0.0,
+      "eq_diff": 0.0
+    }
+  },
+  {
+    "case": "C1c_limit_miss",
+    "mode": "ohlc",
+    "desc": "Limit TP thi\u1ebfu 0.01 kh\u00f4ng kh\u1edbp",
+    "ok": true,
+    "msg": "MATCH",
+    "metrics": {
+      "n_fills": 1,
+      "equity": 9999.95,
+      "max_px_diff": 0.0,
+      "max_qty_diff": 0.0,
+      "max_fee_diff": 0.0,
+      "eq_diff": 0.0
+    }
+  },
+  {
+    "case": "C1c_limit_miss",
+    "mode": "adaptive",
+    "desc": "Limit TP thi\u1ebfu 0.01 kh\u00f4ng kh\u1edbp",
+    "ok": true,
+    "msg": "MATCH",
+    "metrics": {
+      "n_fills": 1,
+      "equity": 9999.95,
+      "max_px_diff": 0.0,
+      "max_qty_diff": 0.0,
+      "max_fee_diff": 0.0,
+      "eq_diff": 0.0
+    }
+  },
+  {
+    "case": "C2a_long_dca_above_sl",
+    "mode": "ohlc",
+    "desc": "LONG: DCA 99.0 tr\u00ean SL 98.0, n\u1ebfn r\u01a1i 96.0",
+    "ok": true,
+    "msg": "MATCH",
+    "metrics": {
+      "n_fills": 3,
+      "equity": 9996.821404040404,
+      "max_px_diff": 0.0,
+      "max_qty_diff": 9.999998830002264e-11,
+      "max_fee_diff": 5.050504875425688e-10,
+      "eq_diff": 4.0381564758718014e-10
+    }
+  },
+  {
+    "case": "C2a_long_dca_above_sl",
+    "mode": "adaptive",
+    "desc": "LONG: DCA 99.0 tr\u00ean SL 98.0, n\u1ebfn r\u01a1i 96.0",
+    "ok": true,
+    "msg": "MATCH",
+    "metrics": {
+      "n_fills": 3,
+      "equity": 9996.821404040404,
+      "max_px_diff": 0.0,
+      "max_qty_diff": 9.999998830002264e-11,
+      "max_fee_diff": 5.050504875425688e-10,
+      "eq_diff": 4.0381564758718014e-10
+    }
+  },
+  {
+    "case": "C2b_long_dca_below_sl",
+    "mode": "ohlc",
+    "desc": "LONG ca B: DCA 97.0 d\u01b0\u1edbi SL 98.0, n\u1ebfn r\u01a1i 96.0",
+    "ok": true,
+    "msg": "MATCH",
+    "metrics": {
+      "n_fills": 3,
+      "equity": 9998.861412371134,
+      "max_px_diff": 0.0,
+      "max_qty_diff": 4.800000014401521e-09,
+      "max_fee_diff": 3.917525762120455e-09,
+      "eq_diff": 8.865754352882504e-09
+    }
+  },
+  {
+    "case": "C2b_long_dca_below_sl",
+    "mode": "adaptive",
+    "desc": "LONG ca B: DCA 97.0 d\u01b0\u1edbi SL 98.0, n\u1ebfn r\u01a1i 96.0",
+    "ok": true,
+    "msg": "MATCH",
+    "metrics": {
+      "n_fills": 3,
+      "equity": 9998.861412371134,
+      "max_px_diff": 0.0,
+      "max_qty_diff": 4.800000014401521e-09,
+      "max_fee_diff": 3.917525762120455e-09,
+      "eq_diff": 8.865754352882504e-09
+    }
+  },
+  {
+    "case": "C2a_short_dca_above_sl",
+    "mode": "ohlc",
+    "desc": "SHORT: DCA 101.0 tr\u01b0\u1edbc SL 102.0, n\u1ebfn gi\u1eadt 104.0",
+    "ok": false,
+    "msg": "Fill #1 side mismatch: SELL vs BUY",
+    "metrics": {}
+  },
+  {
+    "case": "C2a_short_dca_above_sl",
+    "mode": "adaptive",
+    "desc": "SHORT: DCA 101.0 tr\u01b0\u1edbc SL 102.0, n\u1ebfn gi\u1eadt 104.0",
+    "ok": false,
+    "msg": "Fill #1 side mismatch: SELL vs BUY",
+    "metrics": {}
+  },
+  {
+    "case": "C2b_short_dca_below_sl",
+    "mode": "ohlc",
+    "desc": "SHORT ca B: DCA 103.0 sau SL 102.0, n\u1ebfn gi\u1eadt 104.0",
+    "ok": false,
+    "msg": "Fill #1 side mismatch: SELL vs BUY",
+    "metrics": {}
+  },
+  {
+    "case": "C2b_short_dca_below_sl",
+    "mode": "adaptive",
+    "desc": "SHORT ca B: DCA 103.0 sau SL 102.0, n\u1ebfn gi\u1eadt 104.0",
+    "ok": false,
+    "msg": "Fill #1 side mismatch: SELL vs BUY",
+    "metrics": {}
+  },
+  {
+    "case": "C3_multi_limit_cross",
+    "mode": "ohlc",
+    "desc": "3 t\u1ea7ng DCA (99, 98, 97) c\u00f9ng b\u1ecb v\u01b0\u1ee3t khi n\u1ebfn r\u01a1i 96.5",
+    "ok": true,
+    "msg": "MATCH",
+    "metrics": {
+      "n_fills": 4,
+      "equity": 9999.89,
+      "max_px_diff": 0.0,
+      "max_qty_diff": 2.065150043085751e-09,
+      "max_fee_diff": 0.0,
+      "eq_diff": 0.0
+    }
+  },
+  {
+    "case": "C3_multi_limit_cross",
+    "mode": "adaptive",
+    "desc": "3 t\u1ea7ng DCA (99, 98, 97) c\u00f9ng b\u1ecb v\u01b0\u1ee3t khi n\u1ebfn r\u01a1i 96.5",
+    "ok": true,
+    "msg": "MATCH",
+    "metrics": {
+      "n_fills": 4,
+      "equity": 9999.89,
+      "max_px_diff": 0.0,
+      "max_qty_diff": 2.065150043085751e-09,
+      "max_fee_diff": 0.0,
+      "eq_diff": 0.0
+    }
+  },
+  {
+    "case": "C4a_gap_open_stop",
+    "mode": "ohlc",
+    "desc": "Gap m\u1edf c\u1eeda r\u01a1i xuy\u00ean SL 98.0 (open 95.0) -> kh\u1edbp \u1edf gi\u00e1 open",
+    "ok": true,
+    "msg": "MATCH",
+    "metrics": {
+      "n_fills": 2,
+      "equity": 9994.9025,
+      "max_px_diff": 0.0,
+      "max_qty_diff": 0.0,
+      "max_fee_diff": 0.0,
+      "eq_diff": 0.0
+    }
+  },
+  {
+    "case": "C4a_gap_open_stop",
+    "mode": "adaptive",
+    "desc": "Gap m\u1edf c\u1eeda r\u01a1i xuy\u00ean SL 98.0 (open 95.0) -> kh\u1edbp \u1edf gi\u00e1 open",
+    "ok": true,
+    "msg": "MATCH",
+    "metrics": {
+      "n_fills": 2,
+      "equity": 9994.9025,
+      "max_px_diff": 0.0,
+      "max_qty_diff": 0.0,
+      "max_fee_diff": 0.0,
+      "eq_diff": 0.0
+    }
+  },
+  {
+    "case": "C4b_gap_open_limit",
+    "mode": "ohlc",
+    "desc": "Gap m\u1edf c\u1eeda t\u0103ng qua TP 105.0 (open 108.0) -> kh\u1edbp \u0111\u00fang gi\u00e1 limit 105.0",
+    "ok": true,
+    "msg": "MATCH",
+    "metrics": {
+      "n_fills": 2,
+      "equity": 10004.929,
+      "max_px_diff": 0.0,
+      "max_qty_diff": 0.0,
+      "max_fee_diff": 0.0,
+      "eq_diff": 0.0
+    }
+  },
+  {
+    "case": "C4b_gap_open_limit",
+    "mode": "adaptive",
+    "desc": "Gap m\u1edf c\u1eeda t\u0103ng qua TP 105.0 (open 108.0) -> kh\u1edbp \u0111\u00fang gi\u00e1 limit 105.0",
+    "ok": true,
+    "msg": "MATCH",
+    "metrics": {
+      "n_fills": 2,
+      "equity": 10004.929,
+      "max_px_diff": 0.0,
+      "max_qty_diff": 0.0,
+      "max_fee_diff": 0.0,
+      "eq_diff": 0.0
+    }
+  },
+  {
+    "case": "C5_stale_sl_intrabar",
+    "mode": "ohlc",
+    "desc": "SL c\u0169 98.0 c\u00f2n hi\u1ec7u l\u1ef1c trong n\u1ebfn: low 97.8 k\u00edch ho\u1ea1t SL c\u0169 d\u00f9 SL m\u1edbi l\u00e0 97.51",
+    "ok": true,
+    "msg": "MATCH",
+    "metrics": {
+      "n_fills": 3,
+      "equity": 9996.821404040404,
+      "max_px_diff": 0.0,
+      "max_qty_diff": 9.999998830002264e-11,
+      "max_fee_diff": 5.050504875425688e-10,
+      "eq_diff": 4.0381564758718014e-10
+    }
+  },
+  {
+    "case": "C5_stale_sl_intrabar",
+    "mode": "adaptive",
+    "desc": "SL c\u0169 98.0 c\u00f2n hi\u1ec7u l\u1ef1c trong n\u1ebfn: low 97.8 k\u00edch ho\u1ea1t SL c\u0169 d\u00f9 SL m\u1edbi l\u00e0 97.51",
+    "ok": true,
+    "msg": "MATCH",
+    "metrics": {
+      "n_fills": 3,
+      "equity": 9996.821404040404,
+      "max_px_diff": 0.0,
+      "max_qty_diff": 9.999998830002264e-11,
+      "max_fee_diff": 5.050504875425688e-10,
+      "eq_diff": 4.0381564758718014e-10
+    }
+  },
+  {
+    "case": "C6_trailing_trigger_same_bar",
+    "mode": "ohlc",
+    "desc": "\u0110\u1ec9nh n\u1ebfn n\u00e2ng peak k\u00edch ho\u1ea1t trailing, \u0111\u00e1y n\u1ebfn ch\u1ea1m m\u1ee9c trailing trigger",
+    "ok": true,
+    "msg": "MATCH",
+    "metrics": {
+      "n_fills": 2,
+      "equity": 10002.33878,
+      "max_px_diff": 0.0,
+      "max_qty_diff": 0.0,
+      "max_fee_diff": 0.0,
+      "eq_diff": 0.0
+    }
+  },
+  {
+    "case": "C6_trailing_trigger_same_bar",
+    "mode": "adaptive",
+    "desc": "\u0110\u1ec9nh n\u1ebfn n\u00e2ng peak k\u00edch ho\u1ea1t trailing, \u0111\u00e1y n\u1ebfn ch\u1ea1m m\u1ee9c trailing trigger",
+    "ok": true,
+    "msg": "MATCH",
+    "metrics": {
+      "n_fills": 2,
+      "equity": 10002.33878,
+      "max_px_diff": 0.0,
+      "max_qty_diff": 0.0,
+      "max_fee_diff": 0.0,
+      "eq_diff": 0.0
+    }
+  },
+  {
+    "case": "C7_reduce_only_flat",
+    "mode": "ohlc",
+    "desc": "L\u1ec7nh stop reduce-only \u0111\u00f3ng h\u1ebft 2.0 qty sau khi DCA kh\u1edbp",
+    "ok": true,
+    "msg": "MATCH",
+    "metrics": {
+      "n_fills": 3,
+      "equity": 9996.821404040404,
+      "max_px_diff": 0.0,
+      "max_qty_diff": 9.999998830002264e-11,
+      "max_fee_diff": 5.050504875425688e-10,
+      "eq_diff": 4.0381564758718014e-10
+    }
+  },
+  {
+    "case": "C7_reduce_only_flat",
+    "mode": "adaptive",
+    "desc": "L\u1ec7nh stop reduce-only \u0111\u00f3ng h\u1ebft 2.0 qty sau khi DCA kh\u1edbp",
+    "ok": true,
+    "msg": "MATCH",
+    "metrics": {
+      "n_fills": 3,
+      "equity": 9996.821404040404,
+      "max_px_diff": 0.0,
+      "max_qty_diff": 9.999998830002264e-11,
+      "max_fee_diff": 5.050504875425688e-10,
+      "eq_diff": 4.0381564758718014e-10
+    }
+  },
+  {
+    "case": "C8_limit_through_zero",
+    "mode": "ohlc",
+    "desc": "limit_through_pct=0: ch\u1ea1m \u0111\u00fang 99.0 l\u00e0 kh\u1edbp maker",
+    "ok": true,
+    "msg": "MATCH",
+    "metrics": {
+      "n_fills": 2,
+      "equity": 9999.93,
+      "max_px_diff": 0.0,
+      "max_qty_diff": 9.999998830002264e-11,
+      "max_fee_diff": 0.0,
+      "eq_diff": 0.0
+    }
+  },
+  {
+    "case": "C8_limit_through_zero",
+    "mode": "adaptive",
+    "desc": "limit_through_pct=0: ch\u1ea1m \u0111\u00fang 99.0 l\u00e0 kh\u1edbp maker",
+    "ok": true,
+    "msg": "MATCH",
+    "metrics": {
+      "n_fills": 2,
+      "equity": 9999.93,
+      "max_px_diff": 0.0,
+      "max_qty_diff": 9.999998830002264e-11,
+      "max_fee_diff": 0.0,
+      "eq_diff": 0.0
+    }
+  },
+  {
+    "case": "C9_liquidation",
+    "mode": "ohlc",
+    "desc": "\u0110\u00f2n b\u1ea9y 20x, MMR 0.5%: liq price = 95.5. N\u1ebfn r\u01a1i 94.0 -> thanh l\u00fd",
+    "ok": true,
+    "msg": "MATCH",
+    "metrics": {
+      "n_fills": 2,
+      "equity": 9908.045,
+      "max_px_diff": 0.0,
+      "max_qty_diff": 0.0,
+      "max_fee_diff": 1.1102230246251565e-16,
+      "eq_diff": 0.0
+    }
+  },
+  {
+    "case": "C9_liquidation",
+    "mode": "adaptive",
+    "desc": "\u0110\u00f2n b\u1ea9y 20x, MMR 0.5%: liq price = 95.5. N\u1ebfn r\u01a1i 94.0 -> thanh l\u00fd",
+    "ok": true,
+    "msg": "MATCH",
+    "metrics": {
+      "n_fills": 2,
+      "equity": 9908.045,
+      "max_px_diff": 0.0,
+      "max_qty_diff": 0.0,
+      "max_fee_diff": 1.1102230246251565e-16,
+      "eq_diff": 0.0
+    }
+  }
+]

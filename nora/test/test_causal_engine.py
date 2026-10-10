@@ -2,9 +2,11 @@ import pytest
 import numpy as np
 import pandas as pd
 
-from backend.core.backtest import BacktestEngine
+from backend.nautilus.engine import BacktestEngine
 from backend.core.params import StrategyParams
 from backend.core.models import PositionStatus
+from data_helpers import FrameData
+
 
 
 def make_dummy_candles(n_minutes: int = 1440 * 10, seed: int = 42, warmup_days: int = 2):
@@ -62,7 +64,7 @@ def make_dummy_candles(n_minutes: int = 1440 * 10, seed: int = 42, warmup_days: 
 def create_test_engine(df_1m, df_4h, flow_config, using_match_price=False, stop_loss_rate=5.0, take_profit_rate=10.0):
     start_ts = int(df_1m["open_time"].min())
     end_ts = int(df_1m["open_time"].max())
-    engine = BacktestEngine(account_id=0, campaign_id=0, symbol="TEST", start_ts=start_ts, end_ts=end_ts)
+    engine = BacktestEngine(account_id=0, campaign_id=0, symbol="TEST", start_ts=start_ts, end_ts=end_ts, data=FrameData({"TEST": df_1m}))   # nến thực thi = chính df_1m (DataSource)
     for flow in flow_config["flows"]:
         flow_ast = dict(flow.get("ast", flow))
         flow_name = flow.get("id", "flow1")
@@ -294,8 +296,8 @@ def test_gap_through_sl_fills_at_open():
     assert len(trades) > 0
     trade = trades[0]
     assert trade.status == PositionStatus.SL
-    # Giá đóng phải là gap_open_p có slippage (0.0002), KHÔNG PHẢI sl_target
-    expected_exit_price = gap_open_p * (1.0 - 0.0002)
+    # Giá đóng phải là gap_open_p, KHÔNG PHẢI sl_target. P15-D: trượt giá mặc định 0 (Nautilus không mô phỏng trượt giá %, core/params.py::VENUE_COSTS)
+    expected_exit_price = gap_open_p
     assert trade.close_price == pytest.approx(expected_exit_price, rel=1e-9), (
         f"SL phải khớp ở giá open thực tế khi gap: {trade.close_price} vs expected {expected_exit_price}"
     )

@@ -542,12 +542,18 @@ def test_job_kind_registered_and_router(tmp_path, monkeypatch):
 
     launched = []
     monkeypatch.setattr(batch, "launch", lambda kind, params: launched.append((kind, params)) or "20260101_000000_abcdef")
-    assert data_routes.post_ticks_crawl(data_routes.TicksRequest(symbols=["AERO"], days=7)) == {"job_id": "20260101_000000_abcdef"}
-    assert launched == [("data_crawl_ticks", {"symbols": ["AERO"], "days": 7})]
+    from backend.optimize.process.process import NotReady
+    with pytest.raises(NotReady):      # Nautilus không có AMM: API trả 501, không khởi chạy job
+        data_routes.post_ticks_crawl(data_routes.TicksRequest(symbols=["AERO"], days=7))
+    assert launched == []
+    assert "data_crawl_ticks" in batch.KINDS      # mã crawl tick giữ nguyên, chỉ bị chặn ở API
 
     root = str(tmp_path)
     monkeypatch.setenv("NORA_LOCAL_DATA_ROOT", root)
     _asset(root, "dex", "AERO")
     ts.save_ticks(_ticks(4), "AERO", retention_days=3, source="evm_swaps", data_root=root)
-    cov = data_routes.get_ticks_coverage()["assets"]
+    with pytest.raises(NotReady):
+        data_routes.get_ticks_coverage()
+    from backend.crawl.dex import tick_coverage
+    cov = tick_coverage()
     assert len(cov) == 1 and cov[0]["symbol"] == "AERO" and cov[0]["rows"] == 4 and cov[0]["window_days"] == 3

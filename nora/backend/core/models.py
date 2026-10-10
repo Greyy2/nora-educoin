@@ -9,7 +9,10 @@ from dataclasses import dataclass
 from enum import IntEnum
 from typing import Any, Callable, Dict, Optional, List, Protocol, Union
 
-NORA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))   # gốc dự án nora/ — định nghĩa DUY NHẤT (hằng đường dẫn, không I/O)
+_cand = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+if os.path.basename(_cand) == "test":
+    _cand = os.path.abspath(os.path.join(_cand, ".."))
+NORA_DIR = _cand
 DATA_DIR = os.path.join(NORA_DIR, "data")   # cây dữ liệu mặc định (crawl/store, alpha/compile)
 
 # Bộ đếm id toàn cục (lệnh / vị thế), tăng dần và không trùng (int(time.time()*1000) trùng khi nhiều lệnh mở trong cùng 1 ms).
@@ -475,6 +478,14 @@ class DataSource(Protocol):
     def candles(self, symbol: str, frame: str, start: int, end: int, columns: Optional[List[str]] = None,
                 use_cache: bool = True) -> Any:
         """Nến [start, end] (gồm hai đầu) của khung `frame` (DataFrame như CandleLoader.load_data)."""
+
+    def exec_arrays(self, symbol: str, frame: str, start: int, end: int) -> Dict[str, Any]:
+        """Nến THỰC THI của engine: nến 1m THẬT (không nến bù) gộp thành khung `frame`, theo open_time trong [start, end] ->
+        {"t" (open_time ms, int64), "o", "h", "l", "c", "v"} (numpy). Engine đổi mảng này thành Bar Nautilus."""
+
+    def instrument_spec(self, symbol: str) -> Dict[str, Any]:
+        """Spec hợp đồng của tài sản: tickSz, lotSz, ctVal, minSz, margin_init, margin_maint, maker_fee, taker_fee (+ base_symbol).
+        Engine dựng Instrument Nautilus (độ chính xác giá/khối lượng) từ đây."""
 
     def funding(self, symbol: str) -> Any:
         """Toàn bộ funding.pkl của instrument perp (DataFrame) hoặc None nếu không có."""

@@ -1,7 +1,7 @@
 """S10 Nautilus side (pattern of s9_run_nautilus.py): BacktestEngine (L1 bar execution, NETTING MARGIN), two instruments, each with a 1-MINUTE-LAST-EXTERNAL
 stream (matching) and a signal-frame stream (1/4-HOUR-LAST-EXTERNAL, ts = bar CLOSE). Entry = market at the signal-bar close (= last 1m close = Nora's next
 1m open on the ALIGNED data), decided in the signal bar's on_bar (symbols in book order, +1 ns spacing, admission via Nora's own pure npolicy formulas).
-Exit mechanics (all levels computed with the SAME float expressions as backend/core/backtest.py::_intrabar_path):
+Exit mechanics (all levels computed with the SAME float expressions as test/backend-no/backend/core/backtest.py::_intrabar_path):
   unit      = natr_<period> of the last atr_frame candle CLOSED at the entry instant (precomputed in s10_export_data.py; "pct": 1.0); NaN -> entry skipped.
   SL        level = avg*(1 - sl*unit/100)
   TP        level = avg*(1 + tp*unit/100) -> reduce-only LIMIT SELL (maker fee, fills at the level)

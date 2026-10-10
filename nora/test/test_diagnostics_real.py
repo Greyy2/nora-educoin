@@ -61,7 +61,7 @@ class CustomStrategy(SimpleAlgorithm):
 
 def _run(code, **extra):
     from backend.optimize.process import tasks as custom_run
-    from backend.core.backtest import data_cache_clear
+    from backend.core.strategy import data_cache_clear
     from backend.crawl.store import CandleLoader
     CandleLoader.clear_cache()
     data_cache_clear()

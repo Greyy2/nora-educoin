@@ -845,7 +845,7 @@ def _scalar_base(m: Dict[str, Any]) -> Dict[str, Any]:
 # ── Từng tầng ───────────────────────────────────────────────────────────────
 def check_timeframe(cfg: FunnelConfig) -> None:
     """Khung chạy phải là khung có dữ liệu và mọi chiến lược đã chọn phải có khung tín hiệu >= khung chạy."""
-    from backend.core.backtest import FRAME_MS
+    from backend.core.strategy import FRAME_MS
     from backend.optimize.search.generate import incompatible
     if cfg.timeframe not in FRAME_MS:
         raise ValueError(f"khung chạy không hợp lệ: {cfg.timeframe!r}")

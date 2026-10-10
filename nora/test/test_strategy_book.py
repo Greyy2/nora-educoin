@@ -17,6 +17,8 @@ import pytest
 
 from backend.crawl.store import save_resampled_dataset
 
+pytestmark = pytest.mark.usefixtures("synthetic_data")   # P15: engine Nautilus lấy nến thực thi + spec từ DataSource; dữ liệu giả lập -> conftest.synthetic_data
+
 T0 = 1_700_006_400_000
 SYMS = ("AAA", "BBB", "CCC")
 

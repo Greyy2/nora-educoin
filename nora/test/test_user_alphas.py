@@ -18,6 +18,8 @@ from backend.routes import alpha
 from backend.optimize.book import registry as strategy_doc, registry as user_alphas
 from backend.alpha.compile import compile_code
 
+pytestmark = pytest.mark.usefixtures("synthetic_data")   # P15: engine Nautilus lấy nến thực thi + spec từ DataSource; dữ liệu giả lập -> conftest.synthetic_data
+
 
 def _make_mock_job(tmp_path, code, job_id="job_test_123", finish=True):
     prog = compile_code(code, register=False)

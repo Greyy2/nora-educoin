@@ -11,14 +11,15 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from backend.optimize.process.process import EphemeralGone
-from backend.routes import alpha, data, live, optimize, process
+from backend.optimize.process.process import EphemeralGone, NotReady
+from backend.nautilus.version import NAUTILUS_VERSION
+from backend.routes import alpha, data, engine, live, optimize, process
 
 app = FastAPI(title="Nora API", version="3.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=5)   # JSON thống kê/biểu đồ lớn (vài trăm KB) nén còn ~1/8; mức 5 thay mặc định 9: ~100 ms -> ~10 ms CPU/450 KB (nén chạy trong event loop, giữ GIL), file to hơn ~10%
 
-for m in (process, alpha, optimize, data, live):
+for m in (process, alpha, optimize, data, live, engine):
     for r in m.ROUTERS:
         app.include_router(r)
 
@@ -27,6 +28,12 @@ for m in (process, alpha, optimize, data, live):
 def _ephemeral_gone(_request, exc: EphemeralGone):
     """Kết quả job tạm đã hết hạn -> 410 (khác 404 = id chưa từng có); detail.code để giao diện nhận biết."""
     return JSONResponse(status_code=410, content={"detail": {"code": exc.code, "message": str(exc), "job_id": exc.job_id}})
+
+
+@app.exception_handler(NotReady)
+def _not_ready(_request, exc: NotReady):
+    """Tính năng Nautilus chưa hỗ trợ -> 501; detail.code = NOT_READY để giao diện hiện "chưa hỗ trợ"."""
+    return JSONResponse(status_code=501, content={"detail": {"code": exc.code, "message": str(exc)}})
 
 
 @app.on_event("startup")
@@ -40,7 +47,7 @@ def _enforce_job_lifecycle():
 
 @app.get("/api/health")
 def health():
-    return {"ok": True}
+    return {"ok": True, "engine": {"name": "nautilus_trader", "version": NAUTILUS_VERSION}}
 
 
 # ─── Giao diện (bản build Vite) ───────────────────────────────────────────────

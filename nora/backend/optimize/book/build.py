@@ -135,14 +135,14 @@ def schema_space(candidate: Dict[str, Any], exclude=SCHEMA_SPACE_EXCLUDE) -> Dic
 # ─── Khung chạy (nến mô phỏng) ───────────────────────────────────────────────
 def frame_keys(candidate: Dict[str, Any]) -> List[str]:
     """Khoá chọn KHUNG nến của chiến lược (sig.*_tf, atr_frame...): kiểu choice, mọi lựa chọn là khung."""
-    from backend.core.backtest import FRAME_MS
+    from backend.core.strategy import FRAME_MS
     return [k for k, v in (candidate.get("params_schema") or {}).items()
             if v.get("type") == "choice" and set(v.get("choices") or []) <= set(FRAME_MS)]
 
 
 def lift_frame(frame: str, base_frame: str, choices: List[str]) -> Optional[str]:
     """Khung >= khung chạy giữ nguyên; nhỏ hơn -> khung chạy nếu là lựa chọn hợp lệ, không thì None (không chạy được)."""
-    from backend.core.backtest import FRAME_MS
+    from backend.core.strategy import FRAME_MS
     if FRAME_MS[frame] >= FRAME_MS[base_frame]:
         return frame
     return base_frame if base_frame in choices else None

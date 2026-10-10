@@ -27,6 +27,7 @@ from backend.core.models import NORA_DIR
 from backend.core.params import DAY_MS as DAY, DEFAULT_CAPITAL, DEFAULT_TRAIN_RATIO, date_ms, iso_date
 from backend.crawl.store import (as_list, check_data, data_info, default_window, json_default, load_prices, load_report, load_samples, options,
                                  resolve_symbols, strategy_frames, write_job_result)
+from backend.nautilus.engine import provenance as engine_provenance
 from backend.metrics.trades import build_result, downsample_series, label_stats, shock_stats, stage_split
 from backend.optimize.funnel.storage import atomic_write_json
 from backend.optimize.search.evaluate import (WARMUP, _pool_shared, candidates_from_ids, candidates_from_list, candidates_from_report, execute, load_items,
@@ -45,6 +46,14 @@ REGIME_REPORT_DEFAULTS = {"symbols": "", "start": "", "end": "", "event_pct": 12
 FUNNEL_BOOK_DEFAULTS = {"run_id": "", "alpha_ids": "", "risk_per_trade_pct": None, "wfa_job_id": "", "dry_run": False, "explore": False}
 
 
+def stamp_provenance(prov: Dict[str, Any]) -> Dict[str, Any]:
+    """Thêm LÊN provenance do engine dựng (nautilus/engine.py::provenance) nguồn job: job_id (thư mục job: env NORA_JOB_DIR; ngoài job -> None) và computed_at (UTC).
+    Không định nghĩa lại trường nào của engine."""
+    job_dir = os.environ.get("NORA_JOB_DIR")
+    return {**prov, "job_id": os.path.basename(os.path.normpath(job_dir)) if job_dir else None,
+            "computed_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
+
+
 def git_commit() -> Optional[str]:
     try:
         return subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=NORA_DIR, capture_output=True, text=True, timeout=10).stdout.strip() or None
@@ -53,7 +62,7 @@ def git_commit() -> Optional[str]:
 
 
 def _clear_data_caches() -> None:
-    from backend.core.backtest import data_cache_clear
+    from backend.core.strategy import data_cache_clear
     from backend.crawl.store import CandleLoader
     CandleLoader.clear_cache()
     data_cache_clear()
@@ -131,24 +140,42 @@ def run_custom(params=None):
     os.environ.pop("NORA_SHARED_DATA_DIR", None)   # cột py_ tính trong tiến trình, không đi qua kho dùng chung
     from backend.optimize.process.workers import require_memory_limit
     require_memory_limit("custom_run")
+    from datetime import datetime, timezone
+    from backend.optimize.process.process import Progress
     from backend.core.signal import DslError
     from backend.alpha.compile import compile_code
-    from backend.core.backtest import build_plan
+    from backend.core.strategy import build_plan
+
+    t0 = time.time()
+    job_dir = os.environ.get("NORA_JOB_DIR")
+    progress = Progress(job_dir, min_interval=0.05) if job_dir else None
+
+    def _mark(step: int, total: int, stage_name: str, detail: str = ""):
+        now_str = datetime.now(timezone.utc).strftime("%H:%M:%S")
+        txt = f"[{now_str}] [{step}/{total}] {stage_name}"
+        if detail:
+            txt += f" · {detail}"
+        print(txt, flush=True)
+        if progress:
+            progress.start_stage(stage_name, total=total, done=step)
+
+    _mark(1, 5, "Biên dịch chiến lược", "phân tích cú pháp AST & hợp đồng")
     try:
         program = compile_code(a.code)
     except DslError as e:
         raise ValueError(f"Lỗi biên dịch chiến lược: {e}") from None
     names = resolve_symbols(as_list(a.symbols))
     plan = build_plan(program, names, position=a.position or None, run_frame=a.run_frame or None)
+
+    _mark(2, 5, "Nạp & xác thực dữ liệu", f"{len(plan.symbols)} tài sản · khung {plan.base_frame}")
     check_data(plan.symbols)
     start, end = date_ms(a.start), date_ms(a.end) + DAY
     if end <= start:
         raise ValueError("end phải sau start")
     capital = float(a.initial_capital) if a.initial_capital else DEFAULT_CAPITAL
     data, warns = data_info(plan.symbols, start, end, source)
-    t0 = time.time()
-    print(f"chiến lược {program.name} [{program.code_hash}] | {len(plan.symbols)} tài sản | {iso_date(start)} → {iso_date(end - DAY)} "
-          f"| khung {program.timeframe} chạy {plan.base_frame} | vốn {capital:g}", flush=True)
+
+    _mark(3, 5, "Tính toán ma trận tín hiệu", f"khung {program.timeframe} với warmup lịch sử")
     split = stage_split(start, end, float(a.train_ratio))
     # 4 lần chạy engine độc lập (chính, test, benchmark toàn kỳ, benchmark test): nạp dữ liệu TUẦN TỰ theo thứ tự này (lần rộng nhất dựng cửa sổ, các lần sau cắt từ bộ nhớ đệm),
     # kernel numba (nogil) chạy SONG SONG bằng thread. Kết quả từng lần không phụ thuộc lần khác (cùng chương trình/cấu hình/dữ liệu, warmup như lần chạy chính).
@@ -159,6 +186,8 @@ def run_custom(params=None):
     steps.append(("bench", lambda ev: run_benchmark(program, a, plan, names, start, end, capital, data, loaded=ev)))
     if split < end:     # benchmark của giai đoạn Test: cùng cửa sổ [mốc chia, end], vốn đầu
         steps.append(("test_bench", lambda ev: run_benchmark(program, a, plan, names, split, end, capital, data, loaded=ev)))
+
+    _mark(4, 5, "Khớp lệnh Nautilus Trader", f"venue OKX Margin USDT · {plan.base_frame}")
     got = run_parallel(steps)
     if isinstance(got["main"], BaseException):
         raise got["main"]
@@ -176,6 +205,8 @@ def run_custom(params=None):
             warns = warns + [f"không chạy được benchmark giai đoạn test: {got['test_bench']}"]
         else:
             test_bench = got["test_bench"]
+
+    _mark(5, 5, "Tính toán chỉ số & chẩn đoán", "Sharpe, Drawdown, PnL & báo cáo")
     out = build_result(program, plan, res, eng, a, start, end, capital, data, warns, test_res, split, bench=bench, inputs=diagnostic_inputs(plan, program, end),
                        test_bench=test_bench)
     from backend.optimize.book.registry import evaluate_checklist, generate_alpha_id
@@ -183,10 +214,15 @@ def run_custom(params=None):
     out["checklist"] = evaluate_checklist(out)
     from backend.optimize.process.workers import peak_rss_mb
     out["meta"] = {"wall_s": round(time.time() - t0, 1), "peak_rss_mb": round(peak_rss_mb(), 1)}   # không tất định -> tách riêng
+    out["provenance"] = stamp_provenance(out.get("provenance") or engine_provenance(plan.base_frame))
+
+    if progress:
+        progress.status = "done"
+        progress.write(force=True)
 
     sim = out["metrics"]["simulate"]
-    print(f"vốn cuối {out['final_equity']} | lãi {sim['ret_pct']}% | MDD {sim['mdd_pct']}% | lệnh đóng {len(out['trades'])} "
-          f"mở {len(out['positions_open'])} | {out['meta']['wall_s']}s", flush=True)
+    now_str = datetime.now(timezone.utc).strftime("%H:%M:%S")
+    print(f"[{now_str}] Hoàn tất! Vốn cuối {out['final_equity']} | Lãi {sim['ret_pct']}% | MDD {sim['mdd_pct']}% | Lệnh {len(out['trades'])} | {out['meta']['wall_s']}s", flush=True)
     return out
 
 
@@ -241,6 +277,7 @@ def run_book_backtest(params=None):
               f"{pd.Timestamp(end, unit='ms'):%Y-%m-%d} | rủi ro/lệnh {rpt}% | SL {a.stop_fill}", flush=True)
         out = run(items, symbols, start, end, rpt, a.stop_fill, risk, regime=bool(a.regime), base_frame=a.timeframe or "1m",
                   venue=venue, initial_capital=a.capital)
+    out["provenance"] = stamp_provenance(out["provenance"])
     print(f"lãi {out['ret_pct']}%  MDD {out['mdd_pct']}%  sharpe {out['sharpe']}  lệnh {out['trades']}  "
           f"+{out['symbols_positive']}/{len(symbols)}  kill={'có' if out['halted_at'] else 'không'}  "
           f"{json.dumps(out['by_strategy'], ensure_ascii=False, default=json_default)}", flush=True)
@@ -354,6 +391,7 @@ def run_book_wfa(params=None):
                              "wall_s": round(time.time() - t0, 1)}
             if os.path.isdir(shared_dir):
                 shutil.rmtree(shared_dir, ignore_errors=True)
+            res["provenance"] = stamp_provenance(engine_provenance(a.timeframe or "1m"))
             path = os.path.join(run_dir, "report.json")
             with open(path, "w", encoding="utf-8") as fh:
                 json.dump(res, fh, ensure_ascii=False, indent=1, default=json_default)
@@ -441,10 +479,11 @@ def run_regime_report(params=None):
         print(f"tắt regime: lãi {off['ret_pct']}% MDD {off['mdd_pct']}% sharpe {off['sharpe']} lệnh {off['trades']}", flush=True)
         on = run(items, symbols, start, end, rpt, "level", None, regime=True, base_frame=tf)
         print(f"bật regime: lãi {on['ret_pct']}% MDD {on['mdd_pct']}% sharpe {on['sharpe']} lệnh {on['trades']}", flush=True)
-        report["backtest"] = {"risk_per_trade_pct": rpt, "off": _summary(off), "on": _summary(on),
+        report["backtest"] = {"provenance": off["provenance"], "risk_per_trade_pct": rpt, "off": _summary(off), "on": _summary(on),
                               "off_by_regime": by_regime(off["trade_list"], series),
                               "on_by_regime": by_regime(on["trade_list"], series),
                               "equity_off": off.get("daily_nav"), "equity_on": on.get("daily_nav")}
+    report["provenance"] = stamp_provenance(report["backtest"]["provenance"] if "backtest" in report else engine_provenance(tf))
     report["meta"] = {"wall_s": round(time.time() - t0, 1)}
     print(f"thời gian {report['meta']['wall_s']}s", flush=True)
     write_job_result(report)

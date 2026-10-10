@@ -12,10 +12,18 @@ import numpy as np
 import requests
 from backend.crawl.store import clean_name, default_data_root, list_assets, resolve_asset_dir, parse_symbol, split_instrument
 from backend.crawl.store import asset_meta, manifest_of_dir, write_parquet_atomic
-from backend.core.backtest import reserve_price   # MỘT bản duy nhất (NumPy, không njit — xem chú thích AMM ở core/backtest.py)
 from backend.crawl import cex as okx
 from backend.crawl.cex import log
 from backend.crawl.store import as_list, options, write_job_result
+
+
+def reserve_price(reserve_base: Any, reserve_quote: Any, stable: bool) -> np.ndarray:
+    """Giá biên (quote / 1 base) theo dự trữ."""
+    x, y = np.asarray(reserve_base, float), np.asarray(reserve_quote, float)
+    if not stable:
+        return y / x
+    return (3 * x * x * y + y ** 3) / (x ** 3 + 3 * x * y * y)
+
 
 
 # ── Lưu tick DEX ──────────────────────────────────────────────────────────────────────────────

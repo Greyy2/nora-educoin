@@ -67,7 +67,8 @@ def test_endpoint_matches_run_monte_carlo_daily(client):
     out = r.json()
     ref = run_monte_carlo_daily(DAILY, simulations=500, block_days=5, horizon_days=200, ruin_threshold_pct=25.0, seed=7, scale=1.5)
     assert out["summary"] == ref
-    assert set(out) == {"summary", "fan", "mdd_hist", "ret_hist", "stress", "worst_path", "gate", "params"}
+    assert set(out) == {"summary", "fan", "mdd_hist", "ret_hist", "stress", "worst_path", "gate", "params", "provenance"}
+    assert out["provenance"] is None   # P15-D: chỉ chuỗi ngày người dùng gửi -> không có lần chạy engine nào (nguồn WFA mới mang provenance của engine)
     assert out["gate"]["ruin_max_pct"] == 5.0 and out["params"]["source"] == {"kind": "daily_returns"}
 
 

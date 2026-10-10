@@ -557,7 +557,8 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT);
 """
 
 _CODE_FILES = (   # mọi file ảnh hưởng kết quả backtest: đổi một file -> khoá job đổi -> --resume không dùng lại kết quả cũ
-    "backend/core/backtest.py", "backend/core/models.py", "backend/core/params.py", "backend/core/position_size.py",   # P9.4: engine gộp
+    "backend/core/strategy.py", "backend/core/models.py", "backend/core/params.py", "backend/core/position_size.py",   # tín hiệu + kế hoạch vị thế
+    "backend/nautilus/engine.py", "backend/optimize/search/evaluate.py",   # P15: engine khớp lệnh = Nautilus (adapter) + vòng chạy
     "backend/metrics/metrics.py", "backend/metrics/trades.py",   # P9.5: returns+portfolio gộp, trades chuyển
     "backend/crawl/store.py", "backend/core/signal.py", "backend/alpha/contract.py", "backend/alpha/compile.py", "backend/core/indicator.py",   # P9.4 part 2: evaluator/kernels đã gộp
     "backend/optimize/book/build.py", "backend/wfa/wfa.py",   # P9.5 (+ P9.9: sổ chiến lược book.py/library.py gộp vào build.py/signal.py)
@@ -578,7 +579,8 @@ def code_version() -> str:
         return env
     if _CODE_VERSION is None:
         root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-        h = hashlib.sha1(f"v{SCHEMA_VERSION}".encode())
+        from backend.nautilus.version import NAUTILUS_VERSION
+        h = hashlib.sha1(f"v{SCHEMA_VERSION}|nautilus {NAUTILUS_VERSION}".encode())   # nâng Nautilus -> khoá job đổi
         for rel in _CODE_FILES:
             try:
                 with open(os.path.join(root, rel), "rb") as fh:

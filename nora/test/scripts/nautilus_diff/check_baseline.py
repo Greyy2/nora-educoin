@@ -13,7 +13,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 BASE = os.path.join(HERE, "p94b_baseline.sha256")
-FIELDS = ("trades", "final_equity", "open_at_end", "dca_rejected", "funding_log", "rejected_for_risk", "decisions")
+FIELDS = ("trades", "final_equity", "open_at_end", "dca_rejected", "funding_log", "rejected_for_risk", "decisions", "fills", "realized_equity")
 
 
 def canon(o):
@@ -32,11 +32,11 @@ def sha(o):
 
 def compute():
     res = {}
-    for pat in ("out/nora_*.json", "out/ext/nora_*.json", "out/s9/nora_*.json", "out/s10/nora_*.json", "out/s11/nora_*.json", "out/s12/nora_*.json"):
+    for pat in ("out/nora_*.json", "out/ext/nora_*.json", "out/s9/nora_*.json", "out/s10/nora_*.json", "out/s11/nora_*.json", "out/s12/nora_*.json", "out/s15/nora_*.json"):
         for f in sorted(glob.glob(os.path.join(HERE, pat))):
             d = json.load(open(f))
             res[os.path.relpath(f, HERE)] = sha({k: d[k] for k in FIELDS if k in d})
-    for pat in ("results*.json", "ext_results*.json", "s9_results*.json", "s10_results*.json", "s11_results*.json", "s12_results*.json"):
+    for pat in ("results*.json", "ext_results*.json", "s9_results*.json", "s10_results*.json", "s11_results*.json", "s12_results*.json", "s15_results*.json"):
         for f in sorted(glob.glob(os.path.join(HERE, pat))):
             res[os.path.relpath(f, HERE)] = sha(json.load(open(f)))
     return res

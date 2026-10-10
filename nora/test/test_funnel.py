@@ -24,6 +24,8 @@ from backend.optimize.funnel import stages as gates, stages as sizing, stages as
 from backend.optimize.search.generate import alpha_id_of, iter_params, validate_alpha
 from backend.optimize.funnel.storage import RunStore
 
+pytestmark = pytest.mark.usefixtures("synthetic_data")   # P15: engine Nautilus lấy nến thực thi + spec từ DataSource; dữ liệu giả lập -> conftest.synthetic_data
+
 T0 = 1_700_006_400_000
 SYMS = ("AAA", "BBB", "CCC")
 DAYS = 56

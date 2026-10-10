@@ -17,6 +17,8 @@ from backend.optimize.process import process as batch_jobs
 from job_modules import launched
 from test_portfolio_wfa import DAY, START, T0, _load_script, _small_book, market  # noqa: F401  (market là fixture)
 
+pytestmark = pytest.mark.usefixtures("synthetic_data")   # P15: engine Nautilus lấy nến thực thi + spec từ DataSource; dữ liệu giả lập -> conftest.synthetic_data
+
 
 class FakePopen:
     """Job chạy mãi (wait chặn): nếu waiter kết thúc ngay, job 'done' không còn trong Lịch sử (ADR §4.5: chỉ job đang chạy / lỗi ở cache/process)."""
@@ -244,7 +246,7 @@ def test_engine_version_is_stable_and_detects_engine_source_change(tmp_path, mon
     assert a == ev.engine_version() and len(a["hash"]) == 64 and a["files"] > 0
     # custom_run / edu_precompute (sản phẩm của phiên alpha) KHÔNG nằm trong mã engine
     names = [rel for rel, _ in ev._engine_files()]
-    assert "backend/core/backtest.py" in names and "backend/optimize/search/evaluate.py" in names   # P9.6: core/backtest/ đã xoá; thư viện run.py + tick_run nằm ở search/evaluate.py
+    assert "backend/core/strategy.py" in names and "backend/optimize/search/evaluate.py" in names   # P15: core/backtest.py thay bằng core/strategy.py; thư viện run.py + tick_run nằm ở search/evaluate.py
     assert "backend/core/indicator.py" in names and "backend/core/signal.py" in names   # P9.10b: cột + tín hiệu của engine cũng là mã engine
     assert not any(n.endswith(("custom_run.py", "edu_precompute.py")) for n in names)
     # đổi một file engine -> hash đổi (dùng thư mục giả)
@@ -255,7 +257,7 @@ def test_engine_version_is_stable_and_detects_engine_source_change(tmp_path, mon
     monkeypatch.setattr(ev, "NORA_DIR", str(fake))
     ev._cache.update(sig=None, value=None, at=0.0)
     h1 = ev.engine_version()["hash"]
-    (fake / "backend/core/backtest.py").write_text("x = 2\n")
+    (fake / "backend/core/strategy.py").write_text("x = 2\n")
     assert ev.engine_version()["hash"] != h1
     h2 = ev.engine_version()["hash"]
     (fake / "backend/core/custom_run.py").write_text("y = 1\n")       # chỉ .py trong core/ mới tính -> custom_run.py nằm ngoài list?
@@ -290,9 +292,9 @@ def test_engine_hash_tracks_strategy_ir_not_comments(tmp_path, monkeypatch):
     assert ev.engine_version()["hash"] != h0
     ev._cache.update(sig=None, value=None, at=0.0)
     inputs = ev.engine_inputs()
-    assert "strategy:kema_long" in inputs and "backend/core/backtest.py" in inputs
+    assert "strategy:kema_long" in inputs and "backend/core/strategy.py" in inputs
     st = ev.book_engine_status({"engine_version": {"hash": "0" * 64, "commit": "abc"}})
-    assert "strategy:" not in st["reason"] and "kema_long" in st["reason"] and "backend/core/backtest.py" in st["reason"]
+    assert "strategy:" not in st["reason"] and "kema_long" in st["reason"] and "backend/core/strategy.py" in st["reason"]
 
 
 def test_book_engine_status_missing_same_and_changed():

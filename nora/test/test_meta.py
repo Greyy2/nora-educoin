@@ -7,12 +7,14 @@ from fastapi.testclient import TestClient
 from backend.carlo import carlo
 from backend.core.params import FRAME_MS
 from backend.crawl import store
-from backend.live import live as live_mod
+from backend.nautilus.version import NAUTILUS_VERSION
 from backend.main import app
 from backend.optimize.book import registry
 from backend.optimize.funnel import stages
 from backend.optimize.process import process as P
-from backend.routes import alpha, optimize, process as process_routes, live as live_routes
+from backend.routes import alpha, optimize, process as process_routes, live as live_routes  # noqa: F401
+
+pytestmark = pytest.mark.usefixtures("synthetic_data")   # P15: engine Nautilus lấy nến thực thi + spec từ DataSource; dữ liệu giả lập -> conftest.synthetic_data
 
 
 @pytest.fixture(scope="module")
@@ -40,13 +42,8 @@ def test_gates_equal_constants(m):
 def test_frames_live_jobs(m):
     assert m["frames"]["all"] == list(FRAME_MS)
     assert set(m["frames"]["funnel"]) <= set(FRAME_MS) and set(m["frames"]["custom_backtest"]) <= set(FRAME_MS)
-    modes = {x["mode"]: x for x in m["live"]["modes"]}
-    assert set(modes) == {"paper", "demo", "live"}
-    for k, x in modes.items():
-        assert x["default_engine"] == store.default_engine(k) and x["engines"] == list(live_mod.ENGINES)
-        assert x["dir"] == "live/" + store.LIVE_MODE_DIR[k]
-    assert modes["live"]["books"] == ["main"] and modes["paper"]["books"] == list(live_mod.BOOKS)
-    assert set(m["live"]["venues"]) == {"okx", "binance"}
+    assert m["live"]["modes"] == [] and m["live"]["not_ready"] == live_routes.NOT_READY_LIVE   # live chuyển sang Nautilus TradingNode
+    assert m["live"]["venues"] == ["okx"]
     assert [k["kind"] for k in m["jobs"]["kinds"]] == list(P.KINDS)
     for k in m["jobs"]["kinds"]:
         assert k["label_vi"] == P.KINDS[k["kind"]]["label_vi"] and k["label_vi"] != k["kind"]
@@ -63,10 +60,14 @@ def test_universe_limits_books_paths(m):
     lim = m["limits"]["funnel_run"]["seed"]
     sch = optimize.FunnelRunRequest.model_json_schema()["properties"]["seed"]
     assert (lim["minimum"], lim["maximum"], lim["default"]) == (sch["minimum"], sch["maximum"], sch["default"])
-    cap = m["limits"]["live_bot"]["capital"]
-    assert cap["exclusiveMinimum"] == 0 and cap["maximum"] == live_routes.BotRequest.model_json_schema()["properties"]["capital"]["maximum"]
+    assert "live_bot" not in m["limits"] and "live_bot" not in P.KINDS
     for key, p in (("book", store.alpha_file("book")), ("explore_book", store.alpha_dir("explore", "book.json"))):
         assert m["paths"][key] == os.path.relpath(p, store.data_home())
+
+
+def test_engine_is_nautilus(m):
+    assert m["engine"] == {"name": "nautilus_trader", "version": NAUTILUS_VERSION, "docs_url": "https://nautilustrader.io/docs/latest/"}
+    assert NAUTILUS_VERSION not in ("", "not_installed")
 
 
 def test_book_fix_parsed_from_book(m):

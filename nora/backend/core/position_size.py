@@ -2,6 +2,7 @@
 
 Nguồn gộp: docs/bmad/p9_review_log.md (mục P9.4).
 """
+from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 from backend.core.models import PositionType
@@ -68,6 +69,30 @@ def dca_trigger(level: float, limit_through: float, sign: float) -> float:
 def sl_level(avg: float, sl_pct: float, sign: float) -> float:
     """Mức stop-loss tính từ giá trung bình."""
     return avg * (1 - sign * sl_pct / 100.0)
+
+
+def sl_price_for_anchor(anchor: str, entry_price: float, avg_price: float, sl_pct: float,
+                        sign: float, dca_steps: Sequence[float] = (),
+                        sl_beyond_last_pct: float = 0.0) -> float:
+    """Tính mức giá Stop Loss tuyệt đối theo điểm neo:
+    - 'avg': neo giá TB hiện tại: avg * (1 - sign * sl_pct / 100)
+    - 'entry': neo giá mở vị thế ban đầu: entry * (1 - sign * sl_pct / 100)
+    - 'last_layer': neo sau tầng DCA cuối cùng:
+        p_last = entry; duyệt qua dca_steps (p_last = p_last * (1 - sign * step / 100));
+        sl_level = p_last * (1 - sign * beyond / 100) (nếu beyond == 0 thì dùng sl_pct)
+    - 'none': 0.0 (không có SL)
+    """
+    if anchor == "none" or (sl_pct <= 0.0 and sl_beyond_last_pct <= 0.0):
+        return 0.0
+    if anchor == "entry":
+        return entry_price * (1.0 - sign * sl_pct / 100.0)
+    if anchor == "last_layer":
+        p_last = entry_price
+        for s in dca_steps:
+            p_last = p_last * (1.0 - sign * s / 100.0)
+        beyond = sl_beyond_last_pct if sl_beyond_last_pct > 0.0 else sl_pct
+        return p_last * (1.0 - sign * beyond / 100.0)
+    return avg_price * (1.0 - sign * sl_pct / 100.0)
 
 
 def trail_active(peak: float, avg: float, activation_pct: float, sign: float) -> bool:
@@ -269,21 +294,35 @@ class Admission(NamedTuple):
 
 def admit_entry(n_open: int, per_symbol_open: int, equity: float, peak: float, gross: float, open_risk: float,
                 max_positions, max_per_symbol, max_gross_exposure: float, max_open_risk_pct: float = 0.0,
-                dd_throttle_pct: float = 0.0, dd_throttle_floor: float = 0.25) -> Admission:
+                dd_throttle_pct: float = 0.0, dd_throttle_floor: float = 0.25,
+                bucket_open: int = 0, bucket_max_positions: int = 0,
+                bucket_open_risk: float = 0.0, bucket_max_open_risk_pct: float = 0.0,
+                bucket_gross: float = 0.0, bucket_max_gross_exposure: float = 0.0) -> Admission:
     """Xét một lệnh vào mới ở giá mở nến.
     n_open / per_symbol_open: số vị thế đang mở toàn danh mục / của tài sản này. equity / peak: vốn đã chốt LÚC MỞ NẾN (chưa gồm lệnh thoát trong nến) và đỉnh của nó.
     gross: tổng danh nghĩa đang mở, định giá theo đóng nến TRƯỚC (người gọi tính ở pha mở nến, P6.12: không nhìn giá nến hiện tại). open_risk: Σ planned_risk của vị thế mở.
-    max_open_risk_pct / dd_throttle_pct = 0 -> tắt quy tắc; peak <= 0 -> bỏ qua dd_throttle."""
+    max_open_risk_pct / dd_throttle_pct = 0 -> tắt quy tắc; peak <= 0 -> bỏ qua dd_throttle.
+    Hỗ trợ kiểm tra theo bucket phân bổ (P14-B5): nếu bucket_max_positions > 0 thì kiểm thêm trần bucket.
+    Nếu bucket_* = 0 -> không áp trần bucket (legacy bit-identical)."""
     max_new_notional, max_new_risk, risk_scale = INF, INF, 1.0
     blocked = n_open >= int(max_positions) or per_symbol_open >= int(max_per_symbol)
+    if not blocked and bucket_max_positions > 0:
+        blocked = bucket_open >= int(bucket_max_positions)
     if blocked:
         return Admission(False, max_new_notional, max_new_risk, risk_scale)
     room = float(max_gross_exposure) * equity - gross
+    if bucket_max_gross_exposure > 0:
+        b_room = float(bucket_max_gross_exposure) * equity - bucket_gross
+        room = min(room, b_room)
     max_new_notional = max(0.0, room)
     can_open = room > 0
     risk_cap = float(max_open_risk_pct or 0.0) / 100.0
     if can_open and risk_cap != 0.0:                 # trần Σ rủi ro tới SL của vị thế mở (như kernel)
         max_new_risk = risk_cap * equity - open_risk
+        if bucket_max_open_risk_pct > 0:
+            b_risk_cap = float(bucket_max_open_risk_pct) / 100.0
+            b_new_risk = b_risk_cap * equity - bucket_open_risk
+            max_new_risk = min(max_new_risk, b_new_risk)
         can_open = max_new_risk > 0.0
     thr = float(dd_throttle_pct or 0.0) / 100.0
     if can_open and thr != 0.0 and peak > 0.0:       # giảm rủi ro theo mức sụt vốn đã chốt
@@ -302,6 +341,217 @@ def kill_triggered(worst: float, peak_mtm: float, kill_switch_dd_pct: float) -> 
 
 
 # ══════════════════════════════════════════════════════════════════════════
+# P14-B2 — Strategy Risk Controller: 5 họ quản lý rủi ro (legacy, trend, breakout, mean_reversion, dca)
+# Nguồn sự thật duy nhất cho phân loại, luật hợp lệ, điểm neo SL, thoát lệnh, và phân bổ danh mục.
+# ══════════════════════════════════════════════════════════════════════════
+
+@dataclass(frozen=True)
+class RiskIssue:
+    code: str
+    message_vi: str
+    suggestion: str
+
+
+@dataclass(frozen=True)
+class RiskProfile:
+    name: str
+    label_vi: str
+    description: str
+    sl_anchor: str          # "avg" | "entry" | "last_layer" | "none"
+    sl_required: bool
+    dca_mode: str           # "allowed" | "forbidden" | "limited" | "required"
+    dca_max_limit: int      # 0 nếu forbidden/allowed, 2 nếu limited
+    exits_allowed: Tuple[str, ...]
+    exits_required_any: Tuple[str, ...]
+    sizing_default: str     # "margin_pct" | "risk"
+    reentry_rule: str
+    portfolio_bucket: str
+
+
+RISK_PROFILES: Dict[str, RiskProfile] = {
+    "legacy": RiskProfile(
+        name="legacy",
+        label_vi="Hiện tại (Legacy)",
+        description="Giữ nguyên hành vi hiện tại của hệ thống, không áp luật rủi ro bổ sung (bit-identical).",
+        sl_anchor="avg",
+        sl_required=False,
+        dca_mode="allowed",
+        dca_max_limit=0,
+        exits_allowed=("signal", "sl", "tp", "trail", "timeout"),
+        exits_required_any=(),
+        sizing_default="margin_pct",
+        reentry_rule="Hành vi hiện tại",
+        portfolio_bucket="legacy",
+    ),
+    "trend": RiskProfile(
+        name="trend",
+        label_vi="Theo xu hướng (Trend)",
+        description="Giao dịch theo xu hướng: không dùng DCA ngược chiều, bắt buộc có cắt lỗ hoặc trailing stop.",
+        sl_anchor="entry",
+        sl_required=False,
+        dca_mode="forbidden",
+        dca_max_limit=0,
+        exits_allowed=("signal", "trail", "sl", "tp", "timeout"),
+        exits_required_any=("sl", "trail"),
+        sizing_default="risk",
+        reentry_rule="Sự kiện tín hiệu + cooldown 1 nến",
+        portfolio_bucket="trend",
+    ),
+    "breakout": RiskProfile(
+        name="breakout",
+        label_vi="Phá vỡ vùng (Breakout)",
+        description="Giao dịch bứt phá ngưỡng: không DCA, bắt buộc cắt lỗ cứng và ít nhất 1 cơ chế trailing hoặc timeout.",
+        sl_anchor="entry",
+        sl_required=True,
+        dca_mode="forbidden",
+        dca_max_limit=0,
+        exits_allowed=("sl", "trail", "timeout", "signal"),
+        exits_required_any=("trail", "timeout"),
+        sizing_default="risk",
+        reentry_rule="Sự kiện tín hiệu",
+        portfolio_bucket="breakout",
+    ),
+    "mean_reversion": RiskProfile(
+        name="mean_reversion",
+        label_vi="Đảo chiều về TB (Mean Reversion)",
+        description="Đánh hồi quy trung bình: bắt buộc SL, giới hạn tối đa 2 tầng DCA, mọi tầng DCA phải nằm trước SL.",
+        sl_anchor="avg",
+        sl_required=True,
+        dca_mode="limited",
+        dca_max_limit=2,
+        exits_allowed=("tp", "signal", "sl", "timeout"),
+        exits_required_any=(),
+        sizing_default="risk",
+        reentry_rule="Sự kiện tín hiệu",
+        portfolio_bucket="mean_reversion",
+    ),
+    "dca": RiskProfile(
+        name="dca",
+        label_vi="Bình quân giá (DCA)",
+        description="Dồn lệnh kéo giá trung bình: bắt buộc >= 1 tầng DCA, tầng cuối nằm trước SL hoặc neo sau tầng cuối.",
+        sl_anchor="last_layer",
+        sl_required=False,
+        dca_mode="required",
+        dca_max_limit=0,
+        exits_allowed=("tp", "signal", "timeout", "sl"),
+        exits_required_any=(),
+        sizing_default="margin_pct",
+        reentry_rule="Sau khi đóng rổ",
+        portfolio_bucket="dca",
+    ),
+}
+
+
+def get_risk_profile(name_or_alias: str) -> RiskProfile:
+    """Lấy profile theo tên họ (mặc định 'legacy' nếu không tìm thấy)."""
+    key = str(name_or_alias or "legacy").lower().strip()
+    return RISK_PROFILES.get(key, RISK_PROFILES["legacy"])
+
+
+def validate_strategy_risk(params: Any, profile_name: Optional[str] = None) -> List[RiskIssue]:
+    """Kiểm tra tính hợp lệ của tham số chiến lược theo Risk Profile đã chọn."""
+    if isinstance(params, dict):
+        p_dict = params
+        def _get(k, d=None):
+            return p_dict.get(k, d)
+    else:
+        def _get(k, d=None):
+            return getattr(params, k, d)
+
+    p_name = profile_name or _get("risk_profile") or "legacy"
+    profile = get_risk_profile(str(p_name))
+
+    if profile.name == "legacy":
+        return []
+
+    issues: List[RiskIssue] = []
+
+    sl_rate = float(_get("stop_loss_rate") or 0.0)
+    trail = float(_get("trailing_stop") or 0.0)
+    timeout = int(_get("timeout") or 0)
+    dca_layers = int(_get("dca_max_layers") or 0)
+    dca_step = float(_get("dca_step_pct") or 0.0)
+    dca_steps = [float(x) for x in (_get("dca_steps") or [])]
+    if not dca_steps and dca_layers > 0 and dca_step > 0:
+        dca_steps = [dca_step] * dca_layers
+    has_dca = dca_layers > 0 or len(dca_steps) > 0 or dca_step > 0
+
+    if profile.name == "trend":
+        if has_dca:
+            issues.append(RiskIssue(
+                code="TREND_DCA_FORBIDDEN",
+                message_vi="Chiến lược theo xu hướng (trend) không được dùng DCA để tránh gồng lỗ ngược xu hướng.",
+                suggestion="Bỏ tham số dca_max_layers hoặc đặt dca_max_layers = 0.",
+            ))
+        if sl_rate <= 0.0 and trail <= 0.0:
+            issues.append(RiskIssue(
+                code="TREND_EXIT_REQUIRED",
+                message_vi="Chiến lược trend bắt buộc có cắt lỗ (stop_loss_rate > 0) hoặc trailing stop (trailing_stop > 0).",
+                suggestion="Khai báo stop_loss_rate > 0 hoặc trailing_stop > 0.",
+            ))
+
+    elif profile.name == "breakout":
+        if has_dca:
+            issues.append(RiskIssue(
+                code="BREAKOUT_DCA_FORBIDDEN",
+                message_vi="Chiến lược phá vỡ (breakout) không được dùng DCA.",
+                suggestion="Bỏ tham số dca_max_layers hoặc đặt dca_max_layers = 0.",
+            ))
+        if sl_rate <= 0.0:
+            issues.append(RiskIssue(
+                code="BREAKOUT_SL_REQUIRED",
+                message_vi="Chiến lược breakout bắt buộc có mức cắt lỗ cứng (stop_loss_rate > 0).",
+                suggestion="Khai báo stop_loss_rate > 0.",
+            ))
+        if trail <= 0.0 and timeout <= 0:
+            issues.append(RiskIssue(
+                code="BREAKOUT_TIMEOUT_OR_TRAIL_REQUIRED",
+                message_vi="Chiến lược breakout cần có trailing_stop hoặc timeout để đóng lệnh khi bứt phá thất bại.",
+                suggestion="Thêm trailing_stop > 0 hoặc timeout > 0.",
+            ))
+
+    elif profile.name == "mean_reversion":
+        if sl_rate <= 0.0:
+            issues.append(RiskIssue(
+                code="REVERT_SL_REQUIRED",
+                message_vi="Chiến lược đảo chiều (mean_reversion) bắt buộc có stop_loss_rate để bảo vệ vốn khi thị trường vào xu hướng mạnh.",
+                suggestion="Khai báo stop_loss_rate > 0.",
+            ))
+        if dca_layers > 2 or len(dca_steps) > 2:
+            issues.append(RiskIssue(
+                code="REVERT_DCA_LIMIT_EXCEEDED",
+                message_vi="Chiến lược mean_reversion chỉ cho phép tối đa 2 tầng DCA (dca_max_layers <= 2).",
+                suggestion="Đặt dca_max_layers <= 2.",
+            ))
+        if len(dca_steps) > 0 and sl_rate > 0.0:
+            dca_depth = sum(dca_steps)
+            if dca_depth >= sl_rate:
+                issues.append(RiskIssue(
+                    code="REVERT_DCA_BEYOND_SL",
+                    message_vi=f"Tổng khoảng lùi các tầng DCA ({dca_depth:.2f}%) nằm sau hoặc trùng với mức Stop Loss ({sl_rate:.2f}%).",
+                    suggestion="Đặt stop_loss_rate lớn hơn tổng khoảng lùi các tầng DCA, hoặc giảm dca_step_pct.",
+                ))
+
+    elif profile.name == "dca":
+        if dca_layers < 1 and len(dca_steps) < 1:
+            issues.append(RiskIssue(
+                code="DCA_LAYERS_REQUIRED",
+                message_vi="Chiến lược họ DCA bắt buộc có ít nhất 1 tầng dồn lệnh (dca_max_layers >= 1).",
+                suggestion="Đặt dca_max_layers >= 1 kèm dca_step_pct.",
+            ))
+        sl_anchor = str(_get("sl_anchor") or "last_layer").lower()
+        if sl_anchor == "avg" and sl_rate > 0.0 and len(dca_steps) > 0:
+            dca_depth = sum(dca_steps)
+            if dca_depth >= sl_rate:
+                issues.append(RiskIssue(
+                    code="DCA_SL_CONFLICT",
+                    message_vi=f"Mức Stop Loss ({sl_rate:.2f}% từ TB) nông hơn hoặc cắt ngang các tầng DCA (độ sâu {dca_depth:.2f}%).",
+                    suggestion="Dùng neo sl_anchor='last_layer' (kèm sl_beyond_last_pct) hoặc nâng stop_loss_rate lớn hơn độ sâu tầng cuối.",
+                ))
+    return issues
+
+
+# ══════════════════════════════════════════════════════════════════════════
 # P9.4b T4 — SlotSpec: chuẩn hoá tham số một slot (flow) cho kernel, NGUYÊN VĂN từ PositionTracker.__init__ (cùng mặc định, cùng trường dẫn xuất,
 # cùng ngoại lệ + thông báo + thứ tự kiểm). PositionTracker dựng từ SlotSpec nên chỉ còn MỘT bản logic này.
 # ══════════════════════════════════════════════════════════════════════════
@@ -317,6 +567,18 @@ class SlotSpec:
         self.params = params
         self.pos_type = pos_type
         self.is_long = pos_type == PositionType.LONG
+
+        self.risk_profile = str(getattr(params, "risk_profile", "legacy") or "legacy").lower()
+        profile = get_risk_profile(self.risk_profile)
+        if self.risk_profile != "legacy":
+            issues = validate_strategy_risk(params, self.risk_profile)
+            if issues:
+                raise ValueError(f"Flow '{flow_name}': vi phạm quy tắc Risk Profile '{self.risk_profile}' — {issues[0].message_vi} (Gợi ý: {issues[0].suggestion})")
+
+        self.sl_anchor = str(getattr(params, "sl_anchor", "") or profile.sl_anchor or "avg").lower()
+        self.sl_beyond_last_pct = max(0.0, float(getattr(params, "sl_beyond_last_pct", 0.0) or 0.0))
+        # sl_anchor_mode: 0 = avg (% từ giá TB, legacy bit-identical), 1 = neo tuyệt đối (entry hoặc last_layer)
+        self.sl_anchor_mode = 1 if (self.sl_anchor in ("entry", "last_layer") and self.risk_profile != "legacy") else 0
 
         self.market = str(getattr(params, "market", "spot") or "spot").lower()
         if self.market not in ("spot", "perp"):

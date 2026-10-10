@@ -1,0 +1,27 @@
+{
+  "case": "C9_liquidation",
+  "mode": "adaptive",
+  "fills": [
+    {
+      "t": 1700000060000,
+      "side": "BUY",
+      "px": 100.0,
+      "qty": 20.0,
+      "fee": 1.0,
+      "liq": "taker",
+      "kind": "ENTRY"
+    },
+    {
+      "t": 1700000120000,
+      "side": "SELL",
+      "px": 95.5,
+      "qty": 20.0,
+      "fee": 0.9550000000000001,
+      "liq": "liquidation",
+      "kind": "EXIT"
+    }
+  ],
+  "n_fills": 2,
+  "open_at_end": [],
+  "realized_equity": 9908.045
+}

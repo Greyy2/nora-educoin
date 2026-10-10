@@ -1,0 +1,27 @@
+{
+  "case": "C4a_gap_open_stop",
+  "mode": "ohlc",
+  "fills": [
+    {
+      "t": 1700000060000,
+      "side": "BUY",
+      "px": 100.0,
+      "qty": 1.0,
+      "fee": 0.05,
+      "liq": "taker",
+      "kind": "ENTRY"
+    },
+    {
+      "t": 1700000120000,
+      "side": "SELL",
+      "px": 95.0,
+      "qty": 1.0,
+      "fee": 0.0475,
+      "liq": "taker",
+      "kind": "SL"
+    }
+  ],
+  "n_fills": 2,
+  "open_at_end": [],
+  "realized_equity": 9994.9025
+}

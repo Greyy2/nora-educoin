@@ -19,6 +19,8 @@ from backend.alpha.compile import compile_strategy_module, load_system_strategie
 from backend.core.params import AUTO_FALLBACK_ATR_FRAME, AUTO_FALLBACK_COOLDOWN, REGIME_MAP, RISK, materialize, schema_defaults
 from backend.optimize.book import build as sl
 
+pytestmark = pytest.mark.usefixtures("synthetic_data")   # P15: engine Nautilus lấy nến thực thi + spec từ DataSource; dữ liệu giả lập -> conftest.synthetic_data
+
 FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "system_candidates_v1.json")
 with open(FIXTURE, encoding="utf-8") as _fh:
     OLD = json.load(_fh)
@@ -36,11 +38,23 @@ def _old(cid):
     return c
 
 
+# P14 thêm vào params_schema của MỌI chiến lược hệ thống ba tham số hồ sơ rủi ro (core/params.py::BASE_POSITION: risk_profile, sl_anchor, sl_beyond_last_pct);
+# fixture system_candidates_v1.json chụp trước P14 nên không có. Chủ ý của mã (không phải lỗi) -> bỏ khỏi so sánh; mọi khoá còn lại vẫn so từng ký tự.
+P14_SCHEMA_KEYS = ("risk_profile", "sl_anchor", "sl_beyond_last_pct")
+
+
 def _norm(c):
-    """Điền mặc định cũ vào position (atr_frame 1h / cooldown 60 phút): file chiến lược khai tường minh, fixture cũ để {} — hai dạng tương đương."""
+    """Điền mặc định cũ vào position (atr_frame 1h / cooldown 60 phút): file chiến lược khai tường minh, fixture cũ để {} — hai dạng tương đương.
+    Bỏ ba khoá schema P14 (xem P14_SCHEMA_KEYS)."""
     c = copy.deepcopy(c)
+    for k in P14_SCHEMA_KEYS:
+        c.get("params_schema", {}).pop(k, None)
     c["position"] = {"atr_frame": AUTO_FALLBACK_ATR_FRAME, "cooldown": AUTO_FALLBACK_COOLDOWN, **c.get("position", {})}
     return c
+
+
+def _with_avg_anchor(st):
+    return {**st, "position": {**st["position"], "sl_anchor": st["position"].get("sl_anchor") or "avg"}}
 
 
 def test_loaded_catalog_is_json_identical_to_old_hardcoded():
@@ -48,7 +62,9 @@ def test_loaded_catalog_is_json_identical_to_old_hardcoded():
     for c in sl.CANDIDATES:
         assert _dump(_norm(c)) == _dump(_norm(_old(c["id"]))), c["id"]
         # bất biến thật: materialize() trùng từng ký tự với định nghĩa cũ
-        assert _dump(materialize(c, schema_defaults(c))) == _dump(materialize(_old(c["id"]), schema_defaults(_old(c["id"])))), c["id"]
+        # P14: schema mới có sl_anchor mặc định "avg"; fixture cũ không có khoá -> position.sl_anchor "" = theo risk_profile "legacy" (position_size.RISK_PROFILES["legacy"].sl_anchor == "avg")
+        assert _dump(_with_avg_anchor(materialize(c, schema_defaults(c)))) == _dump(
+            _with_avg_anchor(materialize(_old(c["id"]), schema_defaults(_old(c["id"]))))), c["id"]
     assert _dump(sl.STRATEGIES) == _dump(OLD["strategies"])
     assert sorted(REGIME_MAP) == sorted(OLD["regime_map_keys"])
     assert set(sl.SOURCES) == set(IDS) and all(v["file"].endswith(".py") for v in sl.SOURCES.values())
@@ -99,7 +115,8 @@ def test_materialize_identical_over_param_points(cid):
 
 
 def _run(strategies, symbols, root):
-    from backend.core.backtest import PortfolioEngine, RiskConfig
+    from backend.core.strategy import RiskConfig
+    from backend.nautilus.engine import PortfolioEngine
     with gs.data_root_env(str(root)):
         eng = PortfolioEngine(symbols, strategies, gs.T0, gs.T0 + 38 * gs.DAY, trade_start_ts=gs.T0 + 18 * gs.DAY,
                               risk=RiskConfig.from_dict(RISK), use_cache=False)

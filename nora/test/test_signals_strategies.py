@@ -13,6 +13,8 @@ import pandas as pd
 import pytest
 
 from backend.core import indicator as kernels
+from data_helpers import FrameData
+
 
 T0 = 1_700_006_400_000
 M = 60_000
@@ -133,10 +135,10 @@ def test_vector_evaluator_matches_scalar_on_random_asts():
 # ─── C. Đa khung + index ────────────────────────────────────────────────────
 
 def _engine(df1, match, stop=None, **pos):
-    from backend.core.backtest import BacktestEngine
+    from backend.nautilus.engine import BacktestEngine
     from backend.core.params import build_params
     eng = BacktestEngine(0, 0, "T", int(df1.open_time.min()), int(df1.open_time.max()),
-                         initial_capital=pos.pop("capital", 10000.0))
+                         initial_capital=pos.pop("capital", 10000.0), data=FrameData({"T": df1}))   # nến thực thi = chính df1 (DataSource)
     flow_type = pos.pop("side", "LONG")
     venue = pos.pop("venue", "cex")
     if "fee_rate" in pos and "maker_fee_rate" not in pos:
@@ -156,7 +158,7 @@ def _engine(df1, match, stop=None, **pos):
 
 
 def test_higher_frame_kernel_visible_only_after_close():
-    from backend.core.backtest import FRAME_MS
+    from backend.core.strategy import FRAME_MS
     df = _ohlcv(3000, seed=4)
     eng = _engine(df, [[[{"frame": "15m", "column": "rsi_14"}, ">", -1]]])
     frame_df, cols = eng._build_matrix()
@@ -222,15 +224,15 @@ def test_dca_layers_average_price_and_tp_from_average():
     assert pos.close_time > int(df.open_time[8]), "Không được chốt lời trong nến vừa khớp tầng DCA"
 
 
-def test_no_take_profit_in_same_bar_as_dca_fill():
-    # đường cũ "adverse_first" (bảo thủ): nến có DCA khớp thì TP không được xét
+def test_adverse_first_intrabar_path_is_rejected_by_nautilus_engine():
+    # P15: đường cũ "adverse_first" (phía bất lợi trước; nến có DCA khớp thì TP không được xét) KHÔNG có trong Nautilus
+    # (bar_adaptive_high_low_ordering chỉ có ohlc / adaptive) -> engine từ chối rõ ràng (nautilus/engine.py::NautilusRun._check_slots), không khớp giả.
     df = _path([100] * 5 + [100, 99.4, 100.8, 100.8])
-    df.loc[6, "high"] = 100.9  # nến 6: vừa chạm tầng DCA (99.5) vừa vượt TP của giá TB
+    df.loc[6, "high"] = 100.9
     eng = _engine(df, _signal_at(df, 4), order_size_pct=20, dca_step_pct=0.5, dca_max_layers=1,
                   take_profit_rate=0.3, fee_rate=0.0, slippage_rate=0.0, intrabar_path="adverse_first")
-    eng.run()
-    pos = eng.closed_positions[0]
-    assert pos.layers == 2 and pos.close_time >= int(df.open_time[7])
+    with pytest.raises(ValueError, match="adverse_first"):
+        eng.run()
 
 
 def test_take_profit_in_same_bar_as_dca_fill_ohlc():
@@ -241,8 +243,9 @@ def test_take_profit_in_same_bar_as_dca_fill_ohlc():
                   take_profit_rate=0.3, fee_rate=0.0, slippage_rate=0.0)
     eng.run()
     pos = eng.closed_positions[0]
-    assert pos.layers == 1 and pos.close_time == int(df.open_time[6]) and pos.close_price == pytest.approx(100.3)
-    # nến có DCA @99.5 rồi close 100.2 đã vượt TP mới (avg x 1.003 ~ 100.05, chưa vượt TP cũ 100.3): TP đặt lại khớp ngay ở close (taker)
+    # Nautilus ghi ts_event của fill = giờ ĐÓNG nến (nến 6 đóng lúc open[6] + 1 phút); engine cũ ghi giờ MỞ nến
+    assert pos.layers == 1 and pos.close_time == int(df.open_time[6]) + M and pos.close_price == pytest.approx(100.3)
+    # nến có DCA @99.5 rồi close 100.2 đã vượt TP mới (avg x 1.003 ~ 100.05, chưa vượt TP cũ 100.3)
     df = _path([100] * 5 + [100, 99.4, 100.2, 100.2])
     df.loc[6, ["high", "close"]] = [100.2, 100.2]
     df.loc[7, ["open", "high", "low", "close"]] = 100.2
@@ -250,28 +253,33 @@ def test_take_profit_in_same_bar_as_dca_fill_ohlc():
                   take_profit_rate=0.3, fee_rate=0.0, slippage_rate=0.0)
     eng.run()
     pos = eng.closed_positions[0]
-    assert pos.layers == 2 and pos.close_time == int(df.open_time[6]) and pos.close_price == pytest.approx(100.2)
+    # P15: Nautilus đặt lại TP limit theo giá TB mới (avg x 1.003 ~ 100.05) và khớp maker khi giá chạm trong nến; engine cũ khớp taker ở close 100.2
+    assert pos.layers == 2 and pos.close_time == int(df.open_time[6]) + M and pos.close_price == pytest.approx(pos.avg_price * 1.003)
 
 
 def test_stale_stop_loss_after_dca_and_ordering():
-    # giá rơi thẳng 100 -> 96 trong một nến: tầng DCA @99 khớp trước, rồi SL CŨ (100 x 0.98 = 98) — quy tắc bảo thủ 2026-10-06:
-    # SL tính từ giá TB mới (avg x 0.98 = 97.51) chỉ có hiệu lực từ nến sau (test_conservative_fills.py)
+    # giá rơi thẳng 100 -> 96 trong một nến: tầng DCA @99 khớp trước, rồi SL CŨ (100 x 0.98 = 98) chỉ phủ khối lượng lệnh đầu (Nautilus: lệnh stop giữ qty cũ
+    # tới khi được sửa ở bước sau) -> phần DCA còn lại bị đóng riêng ở giá đóng nến (96). Engine cũ đóng cả vị thế ở 98.
     df = _path([100] * 5 + [100, 96, 96])
     eng = _engine(df, _signal_at(df, 4), order_size_pct=50, dca_step_pct=1.0, dca_max_layers=1,
                   stop_loss_rate=2.0, fee_rate=0.0, slippage_rate=0.0)
     eng.run()
     pos = eng.closed_positions[0]
     assert pos.layers == 2 and pos.status.name == "SL"
-    assert pos.close_price == pytest.approx(98.0)
+    exits = [o for o in eng.orders if o.order_type.name == "SELL"]
+    assert [round(o.order_price, 4) for o in exits] == [98.0, 96.0]            # SL cũ ở 98 trước, rồi phần DCA còn lại ở 96
+    assert pos.close_price == pytest.approx(sum(o.order_price * o.qty for o in exits) / sum(o.qty for o in exits))
+    assert 96.0 < pos.close_price < 98.0
 
 
 @pytest.mark.parametrize("side", ["LONG", "SHORT"])
-def test_stop_fill_extreme_uses_worst_price_of_bar(side):
-    # nến 6 giật xuyên SL 2% tới 95 (long) / 105 (short): "level" khớp đúng mức, "extreme" khớp ở đáy/đỉnh nến
+def test_stop_fill_extreme_is_not_modeled_and_warns(side):
+    # nến 6 giật xuyên SL 2% tới 95 (long) / 105 (short). Nautilus không có "khớp ở cực trị nến": stop_fill="extreme" bị bỏ qua + cảnh báo
+    # (nautilus/engine.py::_check_slots), cả hai chế độ đều khớp stop-market ở mức SL
     move = [100] * 5 + ([100, 97, 97] if side == "LONG" else [100, 103, 103])
     df = _path(move)
     df.loc[6, "low" if side == "LONG" else "high"] = 95.0 if side == "LONG" else 105.0
-    closes = {}
+    closes, warns = {}, {}
     for mode in ("level", "extreme"):
         eng = _engine(df, _signal_at(df, 4), side=side, market="perp", stop_loss_rate=2.0, fee_rate=0.0,
                       slippage_rate=0.0, stop_fill=mode)
@@ -279,8 +287,10 @@ def test_stop_fill_extreme_uses_worst_price_of_bar(side):
         pos = eng.closed_positions[0]
         assert pos.status.name == "SL"
         closes[mode] = pos.close_price
+        warns[mode] = eng.get_results()["warnings"]
     assert closes["level"] == pytest.approx(98.0 if side == "LONG" else 102.0)
-    assert closes["extreme"] == pytest.approx(95.0 if side == "LONG" else 105.0)
+    assert closes["extreme"] == closes["level"]
+    assert any("stop_fill='extreme'" in w for w in warns["extreme"]) and not any("stop_fill='extreme'" in w for w in warns["level"])
 
 
 def test_stop_fill_rejects_unknown_mode():
@@ -289,22 +299,14 @@ def test_stop_fill_rejects_unknown_mode():
         _engine(df, _signal_at(df, 4), stop_fill="median")
 
 
-def test_trailing_stop_uses_previous_peak():
-    # đường cũ "adverse_first": trailing dùng đỉnh các nến TRƯỚC
-    df = _path([100] * 5 + [100, 101, 103, 105, 104, 103.9, 103.0])
-    eng = _engine(df, _signal_at(df, 4), trailing_stop=1.0, fee_rate=0.0, slippage_rate=0.0, intrabar_path="adverse_first")
-    eng.run()
-    pos = eng.closed_positions[0]
-    assert pos.close_price == pytest.approx(105 * 0.99) and pos.status.name == "TP"
-
-
-def test_trailing_stop_peak_runs_per_leg_ohlc():
-    # đường mặc định "ohlc": đỉnh chạy theo chặng -> nến 7 (101, 103, 101, 103): H lên 103 rồi L 101 xuyên mức 103 x 0.99 = 101.97 ngay trong nến
+def test_trailing_stop_uses_previous_peak_in_nautilus():
+    # Nautilus TrailingStopMarket cập nhật mức theo đỉnh của các nến ĐÃ XỬ LÝ: nến 7 (101, 103, 101, 103) không cắt ngay trong nến;
+    # đỉnh 105 (nến 9) -> mức 105 x 0.99 = 103.95, khớp khi giá hồi về 104. Engine cũ ("ohlc" theo chặng) cắt ở 101.97 ngay nến 7.
     df = _path([100] * 5 + [100, 101, 103, 105, 104, 103.9, 103.0])
     eng = _engine(df, _signal_at(df, 4), trailing_stop=1.0, fee_rate=0.0, slippage_rate=0.0)
     eng.run()
     pos = eng.closed_positions[0]
-    assert pos.close_price == pytest.approx(103 * 0.99) and pos.status.name == "TP" and pos.close_time == int(df.open_time[7])
+    assert pos.close_price == pytest.approx(105 * 0.99) and pos.status.name == "TP" and pos.close_reason == "Trailing stop"
 
 
 def test_timeout_closes_at_open():
@@ -316,16 +318,16 @@ def test_timeout_closes_at_open():
     assert pos.close_reason == "Hết thời gian giữ lệnh"
 
 
-def test_perp_liquidation_caps_loss_at_margin():
+def test_perp_liquidation_is_not_modeled_and_warns():
+    # Nautilus 1.231 không thanh lý trong backtest: vị thế 20x giữ tới hết dữ liệu, lỗ có thể vượt ký quỹ; engine báo thẳng trong warnings
     df = _path([100] * 5 + [100, 94, 90, 90])
     eng = _engine(df, _signal_at(df, 4), market="perp", leverage=20, order_size_pct=10,
                   fee_rate=0.0, slippage_rate=0.0)
     eng.run()
     pos = eng.closed_positions[0]
-    liq = 100 * (1 - 1 / 20 + 0.005)
-    assert pos.status.name == "LIQ" and pos.close_price == pytest.approx(liq)
-    assert pos.real_pnl >= -1000.0 - 1e-6  # mất tối đa ký quỹ 10% vốn
-    assert pos.real_pnl == pytest.approx(-1000.0 * (1 - 0.005 * 20), rel=1e-6)
+    assert pos.status.name != "LIQ" and pos.close_reason == "End of Backtest" and pos.close_price == pytest.approx(90.0)
+    assert pos.real_pnl == pytest.approx(-2000.0)                                    # 200 coin x (90 - 100): vượt ký quỹ 1000 (không thanh lý)
+    assert any("thanh lý" in w for w in eng.get_results()["warnings"])
 
 
 def test_spot_rejects_short_and_leverage():
@@ -338,8 +340,8 @@ def test_spot_rejects_short_and_leverage():
 
 def test_dex_perp_rejected_and_venue_fees():
     from backend.core.params import resolve_costs
-    assert resolve_costs("cex", "spot", None, None) == (0.001, 0.001, 0.0002)
-    assert resolve_costs("cex", "perp", None, None) == (0.0005, 0.0002, 0.0002)  # Binance USDT-M VIP0
+    assert resolve_costs("cex", "spot", None, None) == (0.001, 0.001, 0.0)   # P15-D: trượt giá mặc định 0 (Nautilus không mô phỏng trượt giá %; core/params.py::VENUE_COSTS)
+    assert resolve_costs("cex", "perp", None, None) == (0.0005, 0.0002, 0.0)  # Binance USDT-M VIP0; trượt 0 như trên
     assert resolve_costs("dex", "spot", None, None) == (0.003, 0.003, 0.001)
     with pytest.raises(ValueError):
         resolve_costs("dex", "perp", None, None)
@@ -402,7 +404,7 @@ DOWN_MINUTE = {"t": {"side": "LONG", "tree": [[[{"frame": "1m", "column": "roc_3
 
 
 def test_diagnostics_detects_planted_edge(tmp_path, monkeypatch):
-    from backend.core.backtest import check_signals
+    from backend.core.strategy import check_signals
     rng = np.random.default_rng(11)
     n = 40 * 1440
     eps = rng.normal(0, 0.001, n)
@@ -415,7 +417,7 @@ def test_diagnostics_detects_planted_edge(tmp_path, monkeypatch):
 
 
 def test_diagnostics_rejects_random_walk(tmp_path, monkeypatch):
-    from backend.core.backtest import check_signals
+    from backend.core.strategy import check_signals
     rng = np.random.default_rng(12)
     _dataset(tmp_path, monkeypatch, rng.normal(0, 0.001, 40 * 1440), "NOISE")
     res = check_signals("NOISE", DOWN_MINUTE, horizons_min=(15, 60))["signals"]["t"]

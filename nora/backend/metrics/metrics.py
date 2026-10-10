@@ -348,6 +348,8 @@ def result_payload(res, start, end):
     """Kết quả chuẩn của một lần chạy từ PortfolioEngine.get_results() (hoặc dict cùng dạng của backtest tick): số đo danh mục + danh sách lệnh +
     đường vốn (<= 2000 điểm) + vốn cuối mỗi ngày. Chưa có config / final_equity / meta (người gọi thêm)."""
     out = portfolio_metrics(res, start, end)
+    out["provenance"] = dict(res["provenance"])   # do engine dựng (nautilus/engine.py::provenance); job runner thêm job_id / computed_at
+    out["warnings"] = list(res.get("warnings", []))   # tính năng Nautilus không mô phỏng (trượt giá, funding, thanh lý...) — nói thẳng cho người dùng
     out["risk_blocked_attempts"] = res["risk_blocked_attempts"]   # số lần vào lệnh bị chặn (rejected_for_risk đếm phút)
     out["trade_list"] = [{
         "symbol": p.symbol.split(":")[-1], "strategy": p.strategy_id, "side": p.pos_type.name,

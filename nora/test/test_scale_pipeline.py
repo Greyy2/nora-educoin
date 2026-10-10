@@ -27,6 +27,8 @@ from backend.optimize.process import workers as parallel
 from data_helpers import patch_meta
 from test_portfolio_wfa import DAY, START, T0, _load_script, _small_book, market  # noqa: F401  (market là fixture)
 
+pytestmark = pytest.mark.usefixtures("synthetic_data")   # P15: engine Nautilus lấy nến thực thi + spec từ DataSource; dữ liệu giả lập -> conftest.synthetic_data
+
 
 # ─── 12.1 cổng chất lượng dữ liệu bắt buộc ──────────────────────────────────
 def _tamper(market, sym="AAA", **changes):
@@ -71,7 +73,7 @@ def test_require_data_ok_needs_more_data_and_warning(market, monkeypatch, caplog
 
 @pytest.mark.parametrize("kind", sorted(BAD))
 def test_portfolio_engine_refuses_bad_data(market, monkeypatch, kind):
-    from backend.core.backtest import PortfolioEngine
+    from backend.nautilus.engine import PortfolioEngine
     from backend.core.params import materialize
     sb = _small_book(monkeypatch)
     cands = sb.BY_ID
@@ -457,6 +459,7 @@ def test_validate_book_resume_is_identical_to_straight_run(market, monkeypatch, 
     def load(d):
         r = json.loads((d / "report.json").read_text())
         r.pop("source"), r.pop("mem")
+        r["provenance"].pop("computed_at")      # dấu thời gian tính (tasks.stamp_provenance) khác nhau mỗi lần chạy
         return json.dumps(_strip_rss(r))
     assert load(killed) == load(straight)
     assert rs.ResultsStore(str(killed), read_only=True).count() == rs.ResultsStore(str(straight), read_only=True).count()

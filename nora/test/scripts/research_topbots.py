@@ -272,7 +272,8 @@ def run_config(symbol: str, strategies: List[Dict[str, Any]], start: int, trade_
     """Một lần chạy PortfolioEngine trên MỘT tài sản (một sổ vốn riêng), không kill-switch, không trần rủi ro."""
     import contextlib
     import io
-    from backend.core.backtest import PortfolioEngine, RiskConfig
+    from backend.nautilus.engine import PortfolioEngine
+    from backend.core.strategy import RiskConfig
     risk = RiskConfig(max_positions=10, max_per_symbol=4, max_gross_exposure=1e9, kill_switch_dd_pct=0.0)
     eng = PortfolioEngine([symbol], strategies, start, end, trade_start_ts=trade_start, initial_capital=INITIAL,
                           risk=risk, venue="cex")

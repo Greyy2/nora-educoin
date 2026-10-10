@@ -1,0 +1,27 @@
+{
+  "case": "C9_liquidation",
+  "mode": "ohlc",
+  "fills": [
+    {
+      "t": 1700000060000,
+      "side": "BUY",
+      "px": 100.0,
+      "qty": 20.0,
+      "fee": 1.0,
+      "liq": "taker",
+      "kind": "ENTRY"
+    },
+    {
+      "t": 1700000180000,
+      "side": "SELL",
+      "px": 95.5,
+      "qty": 20.0,
+      "fee": 0.955,
+      "liq": "taker",
+      "kind": "LIQ"
+    }
+  ],
+  "n_fills": 2,
+  "open_at_end": [],
+  "realized_equity": 9908.045
+}

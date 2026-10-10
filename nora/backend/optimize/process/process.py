@@ -189,8 +189,6 @@ KINDS: Dict[str, Dict[str, Any]] = {
                    "params": {"strategies", "n_per_strategy", "full_grid", "seed", "symbols", "windows", "run_id", "resume", "force_large",
                               "train_days", "test_days", "space", "timeframe", "regime"}},
     "funnel_recompute": {"label_vi": "Tính lại phễu", "module": "backend.optimize.funnel.stages", "func": "run_funnel_recompute", "params": {"run_id", "alpha_id"}},
-    "live_bot": {"label_vi": "Bot live", "module": "backend.live.live", "params": {"mode", "venue", "once", "max_steps", "capital", "confirm_live", "book",
-                                                                 "engine", "equity_drift_halt_pct"}},
     "funnel_book": {"label_vi": "Sổ từ phễu", "module": "backend.optimize.process.tasks", "func": "run_funnel_book",
                     "params": {"run_id", "alpha_ids", "risk_per_trade_pct", "wfa_job_id", "dry_run", "explore"}},
     "presets_build": {"label_vi": "Dựng preset", "module": "backend.optimize.book.build", "func": "run_presets_build", "params": set()},
@@ -203,7 +201,7 @@ KINDS: Dict[str, Dict[str, Any]] = {
                         "params": {"code", "symbols", "start", "end", "train_ratio", "initial_capital", "position", "run_frame"}},
     "regime_report": {"label_vi": "Báo cáo chế độ thị trường", "module": "backend.optimize.process.tasks", "func": "run_regime_report", "params": {"symbols", "start", "end", "event_pct", "backtest", "timeframe"}},
 }
-NO_LOCK_KINDS = {"live_bot"}
+NO_LOCK_KINDS: set = set()   # mọi job đi qua hàng đợi run_limited (bot live chuyển sang Nautilus TradingNode, không còn là job)
 MAX_ACTIVE = 8          # số job đang chạy/chờ tối đa cùng lúc (mỗi job chờ là một tiến trình bash nhỏ)
 LOG_TAIL_LINES = 40
 WAITING_MARK = "đang chờ job khác của Nora"   # dòng run_limited.sh in khi xếp hàng
@@ -214,6 +212,14 @@ _LOCK = threading.Lock()
 
 class JobError(ValueError):
     """Đối số/loại job không hợp lệ (router đổi thành HTTP 422)."""
+
+
+DEX_UNSUPPORTED = "DEX/AMM không được Nautilus hỗ trợ"
+
+
+class NotReady(RuntimeError):
+    """Tính năng chưa có trên engine Nautilus (DEX/AMM, tick swap, ...): API đổi thành HTTP 501 detail {"code": "NOT_READY", "message"}; trong job -> job lỗi có thông điệp."""
+    code = "NOT_READY"
 
 
 class JobBusy(RuntimeError):
@@ -311,7 +317,7 @@ def _finish(job_dir: str, exit_code: Optional[int]) -> Dict[str, Any]:
         if exit_code is None and state != "cancelled":
             meta["error"] = "tiến trình kết thúc không rõ mã thoát và không có result.json"
         _write_meta(job_dir, meta)
-    if meta.get("state") == "done" or meta.get("kind") == "live_bot":
+    if meta.get("state") == "done":
         _persist_quietly(job_dir)   # ngoài _LOCK: sao chép có thể lâu; bước cuối của nó tự lấy _LOCK
     return meta
 
@@ -404,7 +410,6 @@ def prune_orphan_dirs(min_age: float = ORPHAN_MIN_AGE, now: Optional[float] = No
 
 
 # ─── Vòng đời kết quả (ADR-P9 §4 bước 2–3) ──────────────────────────────────
-# live_bot: log chỉ để theo dõi khi đang chạy — xong/huỷ/lỗi là xoá ngay (persist_job); trạng thái bền ở data/live.
 EPHEMERAL_KINDS = ("custom_backtest",)   # /alpha/create, /education: chạy TẠM, không lưu ra data/; kết quả xong nằm trong bộ nhớ API (LRU) tới khi API khởi động lại
 EPHEMERAL_MAX = 64
 _EPH: "OrderedDict[str, Dict[str, Any]]" = OrderedDict()
@@ -515,11 +520,6 @@ def persist_job(job_dir: str, dry_run: bool = False) -> Dict[str, Any]:
     jid, kind = meta.get("id") or os.path.basename(job_dir), meta.get("kind")
     out = {"id": jid, "kind": kind, "action": "skip", "dest": None}
     in_root = os.path.realpath(os.path.dirname(os.path.realpath(job_dir))) == os.path.realpath(jobs_root()) and bool(_JOB_ID_RE.match(str(jid)))
-    if kind == "live_bot" and meta.get("state") in TERMINAL_STATES and in_root:
-        out["action"] = "would_clean" if dry_run else "cleaned"      # bot xong/huỷ/lỗi: chỉ còn log, trạng thái ở data/live
-        if not dry_run:
-            shutil.rmtree(job_dir, ignore_errors=True)
-        return out
     if kind in EPHEMERAL_KINDS and meta.get("state") == "done" and in_root:
         if dry_run:
             out["action"] = "would_clean"
@@ -623,7 +623,7 @@ def persist_finished_jobs(apply: bool = False) -> List[Dict[str, Any]]:
 
 def enforce_lifecycle() -> Dict[str, Any]:
     """Luật "cache chỉ chứa tiến trình chưa xong" — gọi khi API khởi động: job mất tiến trình được chốt trạng thái; job xong -> lưu về nhà bền rồi xoá thư mục process
-    (live_bot xong/huỷ/lỗi và job tạm custom_backtest cũ: xoá); job lỗi: xoá; job huỷ còn tiến độ chạy dở: giữ 7 ngày (PAUSED_KEEP_DAYS), huỷ không có gì: xoá; đang chạy giữ nguyên."""
+    (job tạm custom_backtest cũ: xoá); job lỗi: xoá; job huỷ còn tiến độ chạy dở: giữ 7 ngày (PAUSED_KEEP_DAYS), huỷ không có gì: xoá; đang chạy giữ nguyên."""
     root, rows = jobs_root(), []
     for name in sorted(os.listdir(root)):
         d = os.path.join(root, name)
@@ -662,7 +662,6 @@ def launch(kind: str, params: Dict[str, Any]) -> str:
     with open(os.path.join(job_dir, "params.json"), "w", encoding="utf-8") as fh:   # đầu vào của runner (ghi TRƯỚC khi chạy)
         json.dump({"kind": kind, "params": params}, fh, ensure_ascii=False)
     env = dict(_env(), NORA_JOB_DIR=job_dir)
-    # bot chạy lâu (live_bot): không giữ khoá hàng đợi job nặng, vẫn trong nora.slice
     cmd = [RUN_LIMITED] + (["--no-lock"] if kind in NO_LOCK_KINDS else []) + ["--", "-m", RUNNER, job_dir]
     log = open(os.path.join(job_dir, "out.log"), "ab")
     try:
@@ -853,9 +852,6 @@ def job_label(kind: str, params: Optional[Dict[str, Any]]) -> str:
         return f"Phễu · {_names(p.get('strategies')) or '?'} · {n} · {syms}"
     if kind == "funnel_recompute":
         return f"Phễu · tính lại lệnh {p.get('alpha_id')}"
-    if kind == "live_bot":
-        return (f"Bot sổ · {p.get('venue', 'okx')} {p.get('mode')}" + (" · sổ thử nghiệm" if p.get("book") == "explore" else "")
-                + (" · một bước" if p.get("once") else "") + (" · unified" if p.get("engine") == "unified" else ""))
     if kind == "funnel_book":
         return (f"Phễu · xuất bản sổ {'thử nghiệm ' if p.get('explore') else ''}từ {p.get('run_id')} ({p.get('alpha_ids')}) "
                 f"rủi ro {p.get('risk_per_trade_pct')}%")

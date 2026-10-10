@@ -102,7 +102,9 @@ def test_schema_is_well_formed(cid):
         else:
             assert key in POSITION_KEYS and spec["group"] in ("dca", "exit", "risk")
         if spec["type"] == "choice":
-            assert spec["default"] in spec["choices"] and set(spec["choices"]) <= set(FRAMES)
+            assert spec["default"] in spec["choices"]
+            if key.startswith("atr_") or key == "atr_frame":
+                assert set(spec["choices"]) <= set(FRAMES)    # chỉ khoá khung nến bị ràng buộc theo FRAMES; P14 thêm choice không-khung (risk_profile, sl_anchor: core/params.py::EXIT_RISK_SPEC)
         else:
             assert {"min", "max", "step"} <= set(spec) and spec["min"] <= spec["default"] <= spec["max"]
         if key in mid and not key.startswith("sig."):

@@ -14,6 +14,8 @@ from backend.routes import alpha
 from backend.routes import alpha
 from job_modules import launched
 
+pytestmark = pytest.mark.usefixtures("synthetic_data")   # P15: engine Nautilus lấy nến thực thi + spec từ DataSource; dữ liệu giả lập -> conftest.synthetic_data
+
 CODE_DAILY = '''
 class Hold(SimpleAlgorithm):
     timeframe = "24h"

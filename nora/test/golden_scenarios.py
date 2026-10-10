@@ -137,7 +137,7 @@ def data_root_env(root: str):
 
 
 def clear_caches() -> None:
-    from backend.core import backtest as portfolio
+    from backend.core import strategy as portfolio
     from backend.crawl.store import CandleLoader
     CandleLoader.clear_cache()
     portfolio.data_cache_clear()
@@ -187,7 +187,8 @@ SHORT = {"id": "rsi_short", "side": "SHORT", "tree": [[[_f("15m", "rsi_14"), ">"
 
 
 def scenario_portfolio_synthetic(root) -> Dict[str, Any]:
-    from backend.core.backtest import PortfolioEngine, RiskConfig
+    from backend.core.strategy import RiskConfig
+    from backend.nautilus.engine import PortfolioEngine
     write_synthetic_market(root)
     with data_root_env(str(root)):
         eng = PortfolioEngine(["AAA@perp", "BBB@perp", "CCC@perp"], [LONG, SHORT], T0, T0 + 30 * DAY,
@@ -201,7 +202,7 @@ def scenario_portfolio_synthetic(root) -> Dict[str, Any]:
 def scenario_single_dca_filled(root) -> Dict[str, Any]:
     from backend.core.models import data_source
     from backend.core.params import manifest_pool_fee
-    from backend.core.backtest import BacktestEngine
+    from backend.nautilus.engine import BacktestEngine
     from backend.core.params import build_params
     from backend.crawl.store import save_resampled_dataset
     root = str(root)
@@ -253,7 +254,8 @@ def scenario_portfolio_real(data_root, end: Optional[str] = None, shared_dir: Op
     """shared_dir: nếu có, export dữ liệu mmap vào đó rồi chạy bằng PortfolioEngine(shared_dir=...) (kết quả phải y hệt)."""
     from backend.optimize.book import build as sb
     from backend.core.params import RISK, materialize
-    from backend.core.backtest import PortfolioEngine, RiskConfig
+    from backend.core.strategy import RiskConfig
+    from backend.nautilus.engine import PortfolioEngine
     cand = sb.BY_ID
     # cooldown=0, limit_through_pct=0: snapshot này sinh trước khi BASE_POSITION có cooldown=60 / khớp limit phải đi qua mức; ghim để golden
     # vẫn đo đúng ngữ nghĩa cũ

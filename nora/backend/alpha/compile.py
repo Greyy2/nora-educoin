@@ -145,6 +145,12 @@ class _Compiler:
         if self.timeframe is None:
             self.timeframe = "24h"
             self.warnings.append("Không khai báo `timeframe`: dùng mặc định 24h.")
+        profile_name = self.position_overrides.get("risk_profile") or "legacy"
+        if profile_name != "legacy":
+            from backend.core.position_size import validate_strategy_risk
+            issues = validate_strategy_risk(self.position_overrides, profile_name)
+            if issues:
+                raise at(cls, f"Vi phạm quy tắc Risk Profile '{profile_name}': {issues[0].message_vi} (Gợi ý: {issues[0].suggestion})")
         return Program(name=self.name, code_hash=code_hash(tree), timeframe=self.timeframe, calls=self.calls, open_times=self.open_times,
                        open_ranges=self.open_ranges, close_ranges=self.close_ranges, position_overrides=self.position_overrides,
                        features=self.features, columns=self.columns, warnings=self.warnings, ops=self.ops)
@@ -1494,6 +1500,12 @@ class _StrategyCompiler:
         st = _LegState(self)
         for s in algo.body:
             st.stmt(s)
+        prof = position.get("risk_profile") or "legacy"
+        if prof != "legacy":
+            from backend.core.position_size import validate_strategy_risk
+            issues = validate_strategy_risk(position, prof)
+            if issues:
+                raise at(cls, f"Vi phạm quy tắc Risk Profile '{prof}': {issues[0].message_vi} (Gợi ý: {issues[0].suggestion})")
         return st.finish(cls, attrs, position, strategy_id)
 
     # ─── literal ────────────────────────────────────────────────────────────

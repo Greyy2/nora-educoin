@@ -61,8 +61,18 @@ class AmbiguousSymbolError(ValueError):
     """Cùng một ký hiệu tồn tại ở cả cex/ và dex/ mà không chỉ rõ venue."""
 
 
-from backend.core.models import DATA_DIR  # noqa: E402  (định nghĩa duy nhất ở core/models)
-from backend.core.params import DAY_MS, DEFAULT_CAPITAL, DEFAULT_TRAIN_RATIO, iso_date  # noqa: E402
+NORA_DATA_ROOT = os.environ.get("NORA_DATA_ROOT", "/home/vmc03/norabt/nora/data")
+DATA_DIR = NORA_DATA_ROOT
+DAY_MS = 86_400_000
+DEFAULT_CAPITAL = 10_000.0
+DEFAULT_TRAIN_RATIO = 0.7
+
+
+def iso_date(ts):
+    import datetime
+    return datetime.datetime.utcfromtimestamp(ts / 1000).strftime("%Y-%m-%d")
+
+
 EXCHANGES = ("okx", "binance")
 DEFAULT_EXCHANGE = "okx"
 
@@ -2069,8 +2079,7 @@ _FRAME_ORDER = ("24h", "4h", "1h", "15m", "5m", "1m")
 
 
 def _clean(df: pd.DataFrame, drop_filled: bool = True) -> pd.DataFrame:
-    from backend.core.backtest import BacktestEngine
-    out = BacktestEngine._prepare_candles(df)
+    out = df.copy()
     if drop_filled and "is_filled" in out.columns:
         out = out[pd.to_numeric(out["is_filled"], errors="coerce").fillna(0).astype(int) == 0].reset_index(drop=True)
     return out

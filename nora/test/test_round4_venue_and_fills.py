@@ -18,7 +18,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from data_helpers import FrameData
+
 from backend.crawl.store import save_resampled_dataset
+
+pytestmark = pytest.mark.usefixtures("synthetic_data")   # P15: engine Nautilus lấy nến thực thi + spec từ DataSource; dữ liệu giả lập -> conftest.synthetic_data
 
 D = 86_400_000
 T0 = 1_700_006_400_000  # 2023-11-15 00:00 UTC
@@ -64,12 +68,12 @@ def clean_asset(tmp_path, monkeypatch):
 # ─── 1-2. Nến điền ──────────────────────────────────────────────────────────
 
 def _engine_with(df_1m: pd.DataFrame, match_time: int):
-    from backend.core.backtest import BacktestEngine
+    from backend.nautilus.engine import BacktestEngine
     from backend.core.params import StrategyParams
     df_4h = df_1m.assign(dt=pd.to_datetime(df_1m.open_time, unit="ms", utc=True)).set_index("dt").resample(
         "4h", closed="left", label="left").agg({"open_time": "first", "open": "first", "high": "max",
                                                 "low": "min", "close": "last", "volume": "sum"}).dropna().reset_index(drop=True)
-    eng = BacktestEngine(0, 0, "T", int(df_1m.open_time.min()), int(df_1m.open_time.max()))
+    eng = BacktestEngine(0, 0, "T", int(df_1m.open_time.min()), int(df_1m.open_time.max()), data=FrameData({"T": df_1m}))
     ast = {"type": "LONG",
            "match": [{"condition": [[[{"frame": "1m", "column": "open_time"}, "==", match_time]]]}],
            "stop": []}
@@ -79,7 +83,9 @@ def _engine_with(df_1m: pd.DataFrame, match_time: int):
     return eng
 
 
-def test_pending_entry_waits_for_next_real_minute():
+def test_filled_minutes_are_never_execution_bars():
+    # P15: phút điền (is_filled=1, không giao dịch) KHÔNG vào Nautilus (nến thực thi = nến 1m THẬT). Tín hiệu ở nến thật k khớp market ở GIÁ ĐÓNG nến k
+    # (= open k+1, nằm ngay trước khoảng phút điền); engine cũ chờ "phút có giao dịch kế tiếp" (k+4). Mọi fill phải rơi vào ranh giới của nến THẬT.
     df = _rw_1m(2)
     df["is_filled"] = 0
     k = 1500                                   # tín hiệu ở nến k (sau khi đã có cây 4h đóng)
@@ -90,7 +96,9 @@ def test_pending_entry_waits_for_next_real_minute():
     eng = _engine_with(df, int(df.loc[k, "open_time"]))
     eng.run()
     pos = eng.closed_positions[0]
-    assert pos.enter_time == int(df.loc[k + 4, "open_time"]), "Phải khớp ở open phút CÓ giao dịch kế tiếp"
+    assert pos.enter_time == int(df.loc[k, "open_time"]) + 60_000, "Khớp ở giá đóng nến thật k"
+    real_close_ts = {int(t) + 60_000 for t in df.loc[df["is_filled"] == 0, "open_time"]}
+    assert {o.order_time for o in eng.orders} <= real_close_ts, "Không fill nào gắn với nến điền"
 
 
 def test_final_close_uses_last_real_minute():
@@ -100,7 +108,7 @@ def test_final_close_uses_last_real_minute():
     eng = _engine_with(df, int(df.loc[1500, "open_time"]))
     eng.run()
     pos = eng.closed_positions[-1]
-    assert pos.close_time == int(df.loc[len(df) - 6, "open_time"])
+    assert pos.close_time == int(df.loc[len(df) - 6, "open_time"]) + 60_000       # nến thật cuối đóng lúc open + 1 phút (ts_event của Nautilus = giờ đóng nến)
 
 
 def test_fetch_candles_keeps_is_filled(clean_asset):

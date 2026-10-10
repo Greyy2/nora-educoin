@@ -32,7 +32,7 @@ if _NORA not in sys.path:
     sys.path.insert(0, _NORA)
 
 from backend.alpha.compile import compile_code  # noqa: E402
-from backend.core import params as profiles, backtest as profiles_core  # noqa: E402
+from backend.core import params as profiles, strategy as profiles_core  # noqa: E402
 from backend.alpha.compile import explain_program  # noqa: E402
 from backend.core.signal import Bin, BoolConst, Call, Cmp, Const, Data, Inv, Logic, Neg, Pick  # noqa: E402
 from backend.core.indicator import FEATURE_SPECS_DATA, OP_SPECS_DATA  # noqa: E402

@@ -19,6 +19,7 @@ from backend.routes import process as modes
 from backend.optimize.process import process as batch_jobs
 from backend.routes import process as batch_jobs_routes
 from backend.crawl.store import alpha_dir, alpha_file
+from backend.nautilus.engine import provenance as engine_provenance
 from backend.routes.process import STRESS_VERTICAL
 from backend.carlo.carlo import with_gate_thresholds, MC_MAX_RUIN_PCT as MC_RUIN_MAX_PCT, MC_MAX_SIMULATIONS, MC_MIN_SIMULATIONS, MC_RUIN_THRESHOLD_PCT, STRESS_MAX_MDD_PCT, STRESS_SCENARIOS
 
@@ -49,8 +50,7 @@ class _DateRange(BaseModel):
 
 class BacktestRequest(_DateRange):
     strategies: Optional[List[StrategyIn]] = Field(None, max_length=16, description="Bỏ trống = dùng data/alpha/book.json")
-    symbols: Optional[List[str]] = Field(None, max_length=16, description="Mặc định cả vũ trụ (perp). Hoặc tài sản DEX (\"AERO\" / \"dex:AERO\": spot, chỉ chân LONG; "
-                                                                          "bắt buộc chọn strategies) — không trộn perp với DEX; WFA / phễu chưa hỗ trợ DEX")
+    symbols: Optional[List[str]] = Field(None, max_length=16, description="Mặc định cả vũ trụ (perp). Tài sản DEX bị từ chối 501 NOT_READY (Nautilus không hỗ trợ AMM)")
     start: str
     end: str
     risk_per_trade_pct: Optional[float] = Field(None, gt=0.0, le=5.0)
@@ -58,8 +58,7 @@ class BacktestRequest(_DateRange):
     regime: bool = Field(False, description="Bật lọc regime + cầu chì (regime/regime.py, core/params.py REGIME_MAP)")
     timeframe: str = Field("15m", pattern="^(15m|1h|4h)$", description="Khung chạy (nến mô phỏng); khung tín hiệu nhỏ hơn được nâng lên")
     mode: str = Field("basic", **MODE_FIELD)
-    data: str = Field("candle", pattern="^(candle|tick)$", description="candle: engine nến; tick: mỗi swap on-chain là một bước khớp lệnh (chỉ DEX có tick đã crawl; "
-                                                                      "cửa sổ cắt theo độ phủ tick) — chi phí AMM đúng theo dự trữ pool")
+    data: str = Field("candle", pattern="^(candle|tick)$", description="candle: nến; tick: 501 NOT_READY (backtest tick/AMM chỉ dành cho DEX, Nautilus không hỗ trợ)")
     latency_ms: Optional[int] = Field(None, ge=0, le=3_600_000, description="Chỉ data=tick: trễ từ lúc nến đóng tới lúc bot hành động; bỏ trống = thời gian một block của mạng")
     gas_usd: Optional[float] = Field(None, ge=0.0, le=1000.0, description="Chỉ data=tick: gas mỗi swap (USD); bỏ trống = cấu hình của mạng")
 
@@ -195,26 +194,15 @@ def default_params(space: Dict[str, List[Any]]) -> Dict[str, Any]:
 
 
 def _assets() -> List[Dict[str, Any]]:
-    """Tài sản có dữ liệu: [{symbol, venue cex|dex, market perp|spot, candles{start_ts,end_ts}, ticks{start_ts,end_ts,rows,window_days}|null, network?, fee_rate?}]
-    — để UI chọn tài sản + chế độ (nến / tick). Chỉ DEX có tick; network / fee_rate (phí pool) của DEX lấy từ metadata (attrs) của pkl / ticks.parquet."""
-    from backend.crawl.dex import pool_info
+    """Tài sản có dữ liệu: [{symbol, venue cex, market perp, candles{start_ts,end_ts}, ticks null}]. DEX/AMM không được Nautilus hỗ trợ nên không được đưa ra (dữ liệu DEX vẫn nằm trong kho)."""
     from backend.crawl.store import list_assets, manifest_of_dir
-    from backend.crawl.dex import tick_coverage
-    ticks = {c["symbol"]: {k: c[k] for k in ("start_ts", "end_ts", "rows", "window_days")} for c in tick_coverage()}
     out = []
     for it in list_assets():
-        if it["venue"] not in ("cex", "dex"):
+        if it["venue"] != "cex":
             continue
         manifest = manifest_of_dir(it["path"]) or {}
-        row = {"symbol": it["symbol"], "venue": it["venue"], "market": "perp" if it["instrument"] == "perp" else "spot",
-               "candles": {"start_ts": manifest.get("start_ts"), "end_ts": manifest.get("end_ts")}, "ticks": ticks.get(it["symbol"]) if it["venue"] == "dex" else None}
-        if it["venue"] == "dex":
-            row["network"] = manifest.get("network")
-            try:
-                row["fee_rate"] = pool_info(it["symbol"])["fee_rate"]
-            except ValueError:
-                row["fee_rate"] = None
-        out.append(row)
+        out.append({"symbol": it["symbol"], "venue": "cex", "market": "perp" if it["instrument"] == "perp" else "spot",
+                    "candles": {"start_ts": manifest.get("start_ts"), "end_ts": manifest.get("end_ts")}, "ticks": None})
     return out
 
 
@@ -495,7 +483,9 @@ def post_mc(req: McRequest):
         shock = summary.get("shock")   # WFA ghi vị thế ngược chiều lớn nhất -> thêm kịch bản trend thẳng đứng
         turnover = summary.get("turnover_daily")   # WFA ghi vòng quay vốn đo từ lệnh OOS -> kịch bản cost_x2 (job cũ không có -> không đo được)
         source = {"kind": "wfa", "job_id": req.wfa_job_id, "basis": req.basis}
+        provenance = job["result"].get("provenance")   # nguồn gốc của lần chạy engine tạo ra chuỗi OOS
     else:
+        provenance = None   # chỉ chuỗi ngày người dùng gửi: không có lần chạy engine nào
         daily, source, shock, turnover = req.daily_returns, {"kind": "daily_returns"}, None, None   # chỉ chuỗi ngày: không biết vòng quay
         # kiểm ở đây (không trong validator pydantic): lỗi validator kèm đầu vào NaN làm FastAPI không dựng được phản hồi 422
         if not all(math.isfinite(x) and x > -1.0 for x in daily):
@@ -515,6 +505,7 @@ def post_mc(req: McRequest):
         out["stress"] = [r for r in out["stress"] if r["name"] in keep]
         out["gate"] = evaluate_mc_gate(cfg["simulations"], out["summary"]["p_mdd_ge_ruin_pct"], out["stress"], max_ruin_pct=MC_RUIN_MAX_PCT,
                                        ruin_threshold_pct=cfg["ruin_threshold_pct"], stress_max_mdd_pct=cfg["stress_max_mdd_pct"])
+    out["provenance"] = provenance
     out["gate"]["custom_gates"] = custom
     if custom:
         out["gate"]["gate_eligible"] = False   # kết quả dùng ngưỡng tuỳ chỉnh không bao giờ là gate
@@ -1184,12 +1175,14 @@ def get_alpha(run_id: str, alpha_id: str):
             if n:
                 nav[st] = n
         mcfile = store.read_mc(alpha_id) or {}
+        timeframe = (_read_run_json(_run_dir(run_id)).get("config") or {}).get("timeframe") or "1m"
         a.pop("ord", None)
         a.pop("stage_idx", None)
         return {**a, "stage_metrics": sm, "metrics": sm.get(a["stage_reached"]) or {}, "nav": nav, "mc": with_gate_thresholds(mcfile.get("mc")),
                 "mc_full_size": with_gate_thresholds(mcfile.get("mc_full_size")), "scale_search": mcfile.get("scale_search") or [], "verified": mcfile.get("verified"),
                 "confirm_attempts": mcfile.get("attempts") or [], "min_size": mcfile.get("min_size"),
-                "stored_trades": {st: store.has_trades(alpha_id, st) for st in gates.TRADE_STAGES}}
+                "stored_trades": {st: store.has_trades(alpha_id, st) for st in gates.TRADE_STAGES},
+                "provenance": engine_provenance(timeframe)}
     finally:
         store.close()
 

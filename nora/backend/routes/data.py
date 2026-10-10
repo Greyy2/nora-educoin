@@ -10,7 +10,8 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field, StringConstraints
 
 from backend.routes import process as batch_jobs
-from backend.crawl.dex import DEFAULT_TICK_DAYS, MAX_TICK_DAYS, tick_coverage
+from backend.crawl.dex import DEFAULT_TICK_DAYS, MAX_TICK_DAYS
+from backend.optimize.process.process import DEX_UNSUPPORTED, NotReady
 
 data_router = APIRouter(prefix="/api/data", tags=["data"])
 # Crawl ghi vào <cache/process>/<job>/staging/cex (batch.launch đặt output_dir); chỉ promote (qua quality gate) mới đưa vào market/<sàn>/ rồi xoá staging.
@@ -44,14 +45,14 @@ def post_crawl(req: CrawlRequest):
 
 @data_router.post("/ticks/crawl")
 def post_ticks_crawl(req: TicksRequest):
-    """Tải tick (swap on-chain) của pool DEX ĐÃ có nến vào cửa sổ trượt `days` ngày, ghi cạnh nến + manifest["ticks"]. CEX chỉ có nến."""
-    return batch_jobs.http_launch("data_crawl_ticks", {"symbols": req.symbols, "days": req.days})
+    """501 NOT_READY: tick swap on-chain chỉ phục vụ backtest AMM, Nautilus không hỗ trợ DEX/AMM (mã crawl giữ nguyên trong backend/crawl/dex.py)."""
+    raise NotReady(DEX_UNSUPPORTED)
 
 
 @data_router.get("/ticks/coverage")
 def get_ticks_coverage():
-    """Độ phủ tick từng tài sản đang có: [{symbol, venue, start_ts, end_ts, rows, window_days, source}]."""
-    return {"assets": tick_coverage()}
+    """501 NOT_READY: xem /ticks/crawl (không có backtest tick trên Nautilus)."""
+    raise NotReady(DEX_UNSUPPORTED)
 
 
 @data_router.post("/promote")

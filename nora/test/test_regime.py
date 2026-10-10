@@ -1,10 +1,13 @@
 """Regime (core/regime/classifier.py): luật phân loại + chống nhảy, nhân quả (không nhìn tương lai), và ghép vào PortfolioEngine
 (lọc tín hiệu vào, cầu chì thoát) — không bật regime thì engine y nguyên (golden bất biến)."""
+import pytest
 import numpy as np
 
 from backend.regime import regime as rg
 from test_strategy_book import T0, market  # noqa: F401  (market là fixture: 70 ngày, 3 tài sản)
 from backend.alpha.compile import f
+
+pytestmark = pytest.mark.usefixtures("synthetic_data")   # P15: engine Nautilus lấy nến thực thi + spec từ DataSource; dữ liệu giả lập -> conftest.synthetic_data
 
 M = 60_000
 DAY = 86_400_000
@@ -60,9 +63,9 @@ def test_masks_for_strategy():
 
 
 def _labels(symbol, start, end):
-    from backend.core.backtest import PortfolioEngine
+    from backend.nautilus.engine import PortfolioEngine
     pe = PortfolioEngine([symbol], [LONG], start, end, trade_start_ts=start, use_cache=False)
-    eng, _ = pe._make_trackers(symbol, pe.ledger)
+    eng, _ = pe._make_slots(symbol, pe.ledger)
     eng.extra_refs = rg.REFS
     eng.load_data()
     df1, cols = eng._build_matrix()
@@ -82,7 +85,8 @@ def test_regime_is_causal(market):
 
 
 def _run(strategies, start=T0 + 40 * DAY, end=T0 + 68 * DAY):
-    from backend.core.backtest import PortfolioEngine, RiskConfig
+    from backend.core.strategy import RiskConfig
+    from backend.nautilus.engine import PortfolioEngine
     eng = PortfolioEngine(["BBB@perp"], strategies, T0 + 2 * DAY, end, trade_start_ts=start,
                           risk=RiskConfig.from_dict({"max_positions": 99, "max_per_symbol": 99, "max_gross_exposure": 1e9,
                                                      "kill_switch_dd_pct": 0}), use_cache=False)
@@ -118,7 +122,8 @@ def test_regime_filters_entries_to_allowed_states(market):
 
 def test_keltner_trend_exits_on_opposite_band_cross(market):
     """keltner_trend_long (KEMA của sova): vào khi close cắt lên dải trên, thoát khi close cắt xuống dải dưới (cây stop)."""
-    from backend.core.backtest import PortfolioEngine, RiskConfig
+    from backend.core.strategy import RiskConfig
+    from backend.nautilus.engine import PortfolioEngine
     from backend.core.params import materialize
     from backend.optimize.book.build import BY_ID
     cand = BY_ID["keltner_trend_long"]

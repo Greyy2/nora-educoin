@@ -1,0 +1,7 @@
+{
+  "venvPath": "/home/vmc03/.venvs",
+  "venv": "nora",
+  "extraPaths": [
+    "/home/vmc03/norabt/nora"
+  ]
+}

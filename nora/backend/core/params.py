@@ -41,7 +41,7 @@ class StrategyParams:
     leverage: int = 1                      # Đòn bẩy
     fee_rate: float = 0.0005               # Phí TAKER mỗi chiều (lệnh market)
     maker_fee_rate: Optional[float] = None # Phí MAKER mỗi chiều (lệnh limit: DCA, chốt lời); None = bằng taker
-    slippage_rate: float = 0.0002          # Slippage mỗi chiều
+    slippage_rate: float = 0.0           # Slippage mỗi chiều — Nautilus không mô phỏng trượt giá % (engine bỏ qua + cảnh báo nếu > 0), nên mặc định 0
     stop_loss_rate: float = 0.0            # % Cắt lỗ tính từ GIÁ TRUNG BÌNH (0 = không cắt)
     take_profit_rate: float = 0.0          # % Chốt lời tính từ GIÁ TRUNG BÌNH (0 = không chốt)
     trailing_stop: float = 0.0             # % Trailing stop tính từ đỉnh/đáy có lợi nhất (0 = tắt)
@@ -72,6 +72,9 @@ class StrategyParams:
     max_notional_pct: float = 100.0        # (sizing="risk") trần giá trị danh nghĩa một vị thế, % vốn
     dca_steps: List[float] = field(default_factory=list)      # (tuỳ chọn) bước riêng từng tầng, % — ghi đè dca_step_pct
     dca_multipliers: List[float] = field(default_factory=list) # (tuỳ chọn) hệ số riêng từng tầng
+    risk_profile: str = "legacy"           # P14: họ quản lý rủi ro ("legacy", "trend", "breakout", "mean_reversion", "dca")
+    sl_anchor: str = ""                    # P14: neo Stop Loss ("", "avg", "entry", "last_layer", "none" - rỗng = theo risk_profile)
+    sl_beyond_last_pct: float = 0.0        # P14: % lùi sau tầng cuối cùng khi neo last_layer
 
     # 6. Các tham số tự do khác (để đánh giá điều kiện)
     extra: Dict[str, Any] = field(default_factory=dict)
@@ -335,11 +338,12 @@ POSITION_KEYS = (
     "dca_size_multiplier", "maintenance_margin_rate", "fee_rate", "maker_fee_rate", "slippage_rate",
     "using_match_price", "stop_fill", "intrabar_path", "exit_unit", "atr_frame", "atr_period", "sizing", "risk_per_trade_pct",
     "max_notional_pct", "cooldown", "signal_mode", "dca_steps", "dca_multipliers", "limit_through_pct",
+    "risk_profile", "sl_anchor", "sl_beyond_last_pct",
 )
 
 VENUE_COSTS = {  # (taker, maker, trượt giá)
-    ("cex", "spot"): (0.0010, 0.0010, 0.0002),
-    ("cex", "perp"): (0.0005, 0.0002, 0.0002),
+    ("cex", "spot"): (0.0010, 0.0010, 0.0),      # trượt 0: Nautilus không mô phỏng trượt giá %
+    ("cex", "perp"): (0.0005, 0.0002, 0.0),
     ("dex", "spot"): (0.0030, 0.0030, 0.0010),
 }
 
@@ -479,6 +483,9 @@ def build_params(flow_name: str, flow_ast: Dict[str, Any], flow_type: str, posit
         dca_multipliers=[float(x) for x in (position.get("dca_multipliers") or [])],
         maintenance_margin_rate=float(position.get("maintenance_margin_rate") or 0.005),
         extra={"ast": {**flow_ast, "type": flow_type}, "type": flow_type},
+        risk_profile=str(position.get("risk_profile") or "legacy"),
+        sl_anchor=str(position.get("sl_anchor") or ""),
+        sl_beyond_last_pct=float(position.get("sl_beyond_last_pct") or 0.0),
     )
 
 
@@ -497,8 +504,11 @@ BASE_POSITION = {
     "market": "perp", "leverage": MAX_LEVERAGE, "exit_unit": "atr", "atr_frame": "auto", "atr_period": 14,
     "sizing": "risk", "risk_per_trade_pct": BASE_RISK_PER_TRADE_PCT, "max_notional_pct": 300.0,
     "stop_fill": "level",
-    "limit_through_pct": 0.05,   # lệnh limit (tầng DCA, chốt lời) chỉ khớp khi giá đi QUA mức 0,05% (hàng đợi sổ lệnh), không phải chạm là khớp
+    "limit_through_pct": 0.0,    # Nautilus không mô phỏng "giá phải đi QUA mức limit": 0 = chạm là khớp (>0 bị bỏ qua + cảnh báo trong kết quả)
     "cooldown": "auto",   # phút; "auto" = MỘT nến khung tín hiệu (24h -> 1440) — tránh vào lại ngay trên cùng trạng thái tín hiệu cũ sau khi vừa thoát (SL/trailing)
+    "risk_profile": "legacy",
+    "sl_anchor": "",
+    "sl_beyond_last_pct": 0.0,
 }
 
 # "auto" của atr_frame / cooldown được giải ở MỘT chỗ duy nhất: resolve_position_auto. Chương trình Alpha (build_plan) biết khung tín hiệu
@@ -528,6 +538,15 @@ RISK = {
     "max_open_risk_pct": 6.0,    # Σ rủi ro tới SL (cả rổ DCA) của mọi vị thế mở <= 6% vốn: nhiều rổ cùng chạm SL cũng chỉ mất tối đa ~6%
     "dd_throttle_pct": 5.0,      # vốn đã chốt sụt d% so với đỉnh -> lệnh mới rủi ro × max(0,25; 1 − d/5)
     "dd_throttle_floor": 0.25,
+}
+
+# Phân bổ rủi ro danh mục theo họ chiến lược (P14-B5)
+DEFAULT_ALLOCATION = {
+    "legacy": {"max_positions": 8, "max_open_risk_pct": 6.0, "max_gross_exposure": 3.0},
+    "trend": {"max_positions": 4, "max_open_risk_pct": 3.0, "max_gross_exposure": 1.5},
+    "breakout": {"max_positions": 3, "max_open_risk_pct": 2.0, "max_gross_exposure": 1.0},
+    "mean_reversion": {"max_positions": 3, "max_open_risk_pct": 2.0, "max_gross_exposure": 1.0},
+    "dca": {"max_positions": 2, "max_open_risk_pct": 3.0, "max_gross_exposure": 1.5},
 }
 
 # Regime cho phép vào lệnh (core/regime/classifier.py). Chỉ áp khi bật regime (materialize(..., regime=True)); tắt -> chiến lược y như cũ
@@ -627,6 +646,10 @@ EXIT_RISK_SPEC: Dict[str, tuple] = {
     "atr_frame": ("choice", "exit", "Khung tính ATR", "1h", ("5m", "15m", "1h", "4h", "24h"), None, None, "",
                   "Khung nến đo ATR% để quy đổi cắt lỗ/chốt lời/trailing."),
     "atr_period": ("int", "exit", "Chu kỳ ATR", 14, 5, 50, 1, "nến", "Số nến của ATR (Wilder)."),
+    "sl_anchor": ("choice", "exit", "Neo Stop Loss", "avg", ("avg", "entry", "last_layer", "none"), None, None, "",
+                  "Điểm neo tính mức giá Stop Loss: avg (giá TB), entry (giá vào lệnh), last_layer (tầng DCA cuối), none (không SL)."),
+    "sl_beyond_last_pct": ("float", "exit", "% Lùi sau tầng DCA cuối", 0.0, 0.0, 10.0, 0.1, "%",
+                           "Khoảng cách đặt SL sau tầng DCA cuối cùng khi neo last_layer."),
     "risk_per_trade_pct": ("float", "risk", "Rủi ro mỗi lệnh", BASE_RISK_PER_TRADE_PCT, 0.05, 5.0, 0.05, "% vốn",
                            "Chạm cắt lỗ thì mất xấp xỉ bấy nhiêu % vốn; khối lượng lệnh tự tính theo đó. "
                            "Chế độ Nâng cao: mọi chiến lược trong một lần chạy phải cùng mức này."),
@@ -634,6 +657,8 @@ EXIT_RISK_SPEC: Dict[str, tuple] = {
                          "Giá trị danh nghĩa tối đa của một lệnh so với vốn."),
     "leverage": ("int", "risk", "Trần đòn bẩy", MAX_LEVERAGE, 1, MAX_LEVERAGE, 1, "x",
                  "Đòn bẩy tối đa; đòn bẩy thực tự hạ để giá thanh lý xa hơn 1,5 × khoảng cắt lỗ."),
+    "risk_profile": ("choice", "risk", "Họ quản lý rủi ro", "legacy", ("legacy", "trend", "breakout", "mean_reversion", "dca"), None, None, "",
+                     "Quy định luật rủi ro, điểm neo Stop Loss và kiểm hợp lệ cho chiến lược."),
 }
 
 
