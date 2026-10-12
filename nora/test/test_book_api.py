@@ -11,7 +11,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from backend.crawl.store import alpha_run_dir, run_dir
+from backend.models.storage import alpha_run_dir, run_dir
 from backend.routes import optimize
 from backend.optimize.process import process as batch_jobs
 from backend.routes import process as process_routes

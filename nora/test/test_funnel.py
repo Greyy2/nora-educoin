@@ -17,7 +17,7 @@ from job_modules import launched
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from backend.crawl.store import save_resampled_dataset
+from data_helpers import save_synthetic
 from backend.carlo import carlo
 from backend.wfa import wfa as wfa_mod
 from backend.optimize.funnel import stages as gates, stages as sizing, stages as fstats
@@ -47,15 +47,9 @@ def market(tmp_path_factory):
     root = tmp_path_factory.mktemp("fdata") / "data"
     old = os.environ.get("NORA_LOCAL_DATA_ROOT")
     os.environ["NORA_LOCAL_DATA_ROOT"] = str(root)
-    meta = {"venue": "cex", "checksums_verified": True, "exchange": "binance"}
     for k, sym in enumerate(SYMS):
         df = _series(DAYS, 20 + k, 0.0008 * (k + 1))
-        end = int(df.open_time.max())
-        for name, out, extra in ((sym, root / "cex", {}), ("perp", root / "cex" / sym, {"exchange": "binance_usdm", "market": "perp"})):
-            save_resampled_dataset(symbol=name, output_dir=str(out), df_1m_raw=df, pool_address="x", crawl_ok=True,
-                                   requested_start_ts=T0, requested_end_ts=end, extra_meta={**meta, **extra})
-        ft = T0 + np.arange(1, DAYS * 3) * 8 * 3_600_000
-        pd.DataFrame({"funding_time": ft, "interval_h": 8.0, "rate": 0.0001}).to_pickle(root / "cex" / sym / "perp" / "funding.pkl")
+        save_synthetic(symbol=sym, output_dir=str(root / "cex"), df_1m_raw=df)
     yield root
     if old is None:
         os.environ.pop("NORA_LOCAL_DATA_ROOT", None)

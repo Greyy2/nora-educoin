@@ -378,7 +378,7 @@ def load_current() -> dict[str, FileInfo]:
 
 
 def module_to_files(mod: str, cur: dict[str, FileInfo]) -> list[str]:
-    """'backend.crawl.cex' -> ['crawl/cex.py']; nếu X.py và X/__init__.py cùng tồn tại ưu tiên file không phải shim."""
+    """'backend.data.crawl' -> ['data/crawl.py']; nếu X.py và X/__init__.py cùng tồn tại ưu tiên file không phải shim."""
     if not mod.startswith("backend"):
         return []
     parts = mod.split(".")[1:]

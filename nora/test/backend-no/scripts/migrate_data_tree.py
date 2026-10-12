@@ -1,3 +1,4 @@
+# ARCHIVED (P17-T1 B4): script của kho pkl / backend.crawl cũ (catalog nay cập nhật bằng job data_update -> backend.data.crawl).
 #!/usr/bin/env python
 """P9.3c — chuyển nora/data/ sang cây dữ liệu CUỐI của ADR-P9 §4 (docs/bmad/adr-p9-backend-layout.md; log: docs/bmad/p9_review_log.md "P9.3c plan").
 

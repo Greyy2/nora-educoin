@@ -5,7 +5,7 @@ chạy tuần tự trong tiến trình (seam `_pool_map`) để ghi lại job; t
 """
 import pathlib
 
-from backend.crawl.store import alpha_run_dir, run_dir
+from backend.models.storage import alpha_run_dir, run_dir
 import json
 
 import numpy as np
@@ -280,7 +280,7 @@ def test_validate_book_main_end_to_end(market, monkeypatch, tmp_path):
 
 def test_validate_book_with_report_reads_stage_a_and_report(market, monkeypatch, tmp_path):
     """--report: load_report trả (stage_a, report) từ stage_a.json + report.json; job chọn top-n cấu hình của chiến lược ĐẠT từ stage_a."""
-    from backend.crawl.store import load_report
+    from backend.models.storage import load_report
     _small_book(monkeypatch)
     ts = lambda t: f"{__import__('pandas').Timestamp(t, unit='ms'):%Y-%m-%d}"   # noqa: E731
     rep_dir = tmp_path / "book_run"

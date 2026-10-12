@@ -1,3 +1,4 @@
+# ARCHIVED (P17-T1 B4): script của kho pkl / backend.crawl cũ (catalog nay cập nhật bằng job data_update -> backend.data.crawl).
 #!/usr/bin/env python
 """Gộp data/binance_hist/cex (spot 1m 2019-10 .. 2025-01) vào data/market/binance/cex (spot 2023-09-30 .. nay) thành MỘT chuỗi liên tục mỗi mã.
 

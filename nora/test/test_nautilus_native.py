@@ -105,6 +105,7 @@ def test_run_custom_native_end_to_end(monkeypatch):
 # ═══ P16: một lõi + một bộ chuyển kết quả cho đường bản địa ═══════════════════
 from backend.models.models import PositionStatus
 from backend.nautilus import catalog as cat
+from backend.data.data import exec_arrays
 
 T0 = 1704067200000      # 2024-01-01
 HOUR = 3_600_000
@@ -206,7 +207,7 @@ def test_equity_marks_each_position_at_its_own_price():
     opens = {o["symbol"]: o for o in res["open_positions"]}
     assert set(opens) == {"BTC", "ETH"}
     for sym, o in opens.items():
-        last = float(cat.exec_arrays(cat.normalize_symbol(sym), "1h", T0, end)["c"][-1])
+        last = float(exec_arrays(cat.normalize_symbol(sym), "1h", T0, end)["c"][-1])
         assert o["mark_price"] == pytest.approx(last) and res["last_close"][sym] == pytest.approx(last)
         assert o["unrealized_pnl"] == pytest.approx(o["qty"] * (last - o["entry_price"]), abs=1e-6)
     assert opens["BTC"]["mark_price"] != pytest.approx(opens["ETH"]["mark_price"])      # hai giá khác hẳn nhau

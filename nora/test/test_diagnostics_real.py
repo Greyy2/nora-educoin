@@ -62,8 +62,8 @@ class CustomStrategy(SimpleAlgorithm):
 def _run(code, **extra):
     from backend.optimize.process import tasks as custom_run
     from backend.alpha.dsl.strategy import data_cache_clear
-    from backend.crawl.store import CandleLoader
-    CandleLoader.clear_cache()
+    from backend.data.data import clear_caches
+    clear_caches()
     data_cache_clear()
     params = {"code": code, "symbols": SYMBOLS, "start": "2024-06-01", "end": "2025-05-31", "train_ratio": 0.7, "initial_capital": 100_000, **extra}
     return custom_run.run_custom_backtest(params)

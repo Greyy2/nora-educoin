@@ -1,3 +1,4 @@
+# ARCHIVED (P17-T1 B4): kiểm cổng chất lượng/bù nến trên kho pkl + backend.crawl cũ; hành vi còn lại đã viết lại trong test/test_data.py (catalog + verdict trong manifest).
 """
 test_resampler_idempotent.py — Đợt 1.2: fill_missing_1m_candles phải idempotent
 

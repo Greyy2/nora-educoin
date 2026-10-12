@@ -80,7 +80,7 @@ def main():
                rpt=gates.BASE_RISK_PER_TRADE_PCT, tf=cfg.get("timeframe", "1m"), shared=shared)
     print(f"{len(rows)} alpha (đã qua S1) × {len(CTX['folds'])} fold, khung {CTX['tf']}, {a.workers} worker", flush=True)
     t0 = time.time()
-    from backend.crawl.store import require_data_ok
+    from backend.data.data import require_data_ok
     require_data_ok(cfg["symbols"])
     from multiprocessing import get_context
     with get_context("fork").Pool(a.workers) as pool:

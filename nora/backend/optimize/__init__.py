@@ -14,7 +14,7 @@ from backend.models.models import set_default_data_factory as _set_factory
 
 
 def _engine_data_factory():
-    from backend.optimize.search.evaluate import make_engine_data
+    from backend.data.data import make_engine_data
     return make_engine_data()
 
 

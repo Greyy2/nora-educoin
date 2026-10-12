@@ -20,11 +20,9 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, NamedTupl
 import numpy as np
 import pandas as pd
 
-from backend.nautilus import catalog as nautilus_catalog
 from backend.models.params import DAY_MS as DAY
 from backend.alpha.dsl.strategy import display_name
-from backend.crawl.store import ByteLRU, CandleLoader, env_mb, read_manifest, require_data_ok, base_name as _base_name
-from backend.crawl.store import _file_fingerprint, default_data_root, resolve_symbol_dir   # kho mmap dùng chung (plan)
+from backend.data.data import catalog_digest, default_catalog_path, read_manifest
 
 if TYPE_CHECKING:
     from backend.nautilus.engine import BacktestEngine, PortfolioEngine
@@ -132,7 +130,7 @@ def load_items(a):
             if s.get("id") not in by_id:
                 raise SystemExit(f"Không có chiến lược: {s.get('id')}; có: {sorted(by_id)}")
             items.append((s["id"], _mid_params(by_id[s["id"]], s.get("params"))))
-    from backend.crawl.store import alpha_file
+    from backend.models.storage import alpha_file
     path = a.book or alpha_file("book")
     if not os.path.isfile(path):
         alt = os.path.join(NORA_DIR, "data", "alpha", "book.json")
@@ -154,7 +152,7 @@ from backend.metrics.metrics import result_payload
 class BacktestJob(NamedTuple):
     """Đặc tả MỘT lần backtest danh mục — dùng chung cho dựng sổ (optimize/book), WFA (wfa/wfa) và phễu (optimize/funnel).
     items: [(id chiến lược lõi, tham số)]; window: (start, end) ms — chỉ số đo từ start, nạp thêm WARMUP trước đó; symbols None = vũ trụ
-    perp của sổ; shared_dir None = env NORA_SHARED_DATA_DIR (crawl/store.py); base_frame = khung chạy (nến mô phỏng)."""
+    perp của sổ; shared_dir None = env NORA_SHARED_DATA_DIR (backend/optimize/search/evaluate.py); base_frame = khung chạy (nến mô phỏng)."""
     items: List[Tuple[str, Dict[str, Any]]]
     window: Tuple[int, int]
     stop_fill: str
@@ -245,7 +243,7 @@ def run_tick(items, symbols: List[str], start: Optional[int], end: Optional[int]
 #
 # Mọi hàm `w_*` là hàm cấp module (pickle được qua ProcessPoolExecutor), nhận một dict `job` thuần dữ liệu và trả dict thuần dữ liệu.
 # Máy chạy là PortfolioEngine DÙNG LẠI (cùng đường với build_strategy_book giai đoạn A / validate_book): không có logic mô phỏng riêng ở đây.
-# Dữ liệu giá + kernel đọc qua mmap dùng chung (backend/crawl/store.py) khi `shared_dir` có đặt; không thì tự dựng (cùng kết quả từng bit).
+# Dữ liệu giá + kernel đọc qua mmap dùng chung (backend/optimize/search/evaluate.py) khi `shared_dir` có đặt; không thì tự dựng (cùng kết quả từng bit).
 # ══════════════════════════════════════════════════════════════════════════
 
 
@@ -896,7 +894,7 @@ def w_holdout(job: Dict[str, Any]) -> Dict[str, Any]:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Làm nóng / dọn kho dữ liệu dùng chung (crawl/store.py) cho MỌI lối chạy nhiều alpha: dựng sổ (optimize/book), WFA
+# Làm nóng / dọn kho dữ liệu dùng chung (backend/optimize/search/evaluate.py) cho MỌI lối chạy nhiều alpha: dựng sổ (optimize/book), WFA
 # (wfa/wfa) và phễu (optimize/funnel). Một chỗ duy nhất — trước đây mỗi lối có bản riêng.
 #
 # Kho không bắt buộc đầy đủ: worker thiếu nền / cột / chỉ số nào thì tự tính đúng phần đó và ghi vào kho cho worker khác (song song, không
@@ -919,7 +917,7 @@ def w_holdout(job: Dict[str, Any]) -> Dict[str, Any]:
 #   fv/<khoá cột>.npy                                       giá trị cột trên các nến đó
 #   ix/<khoá căn>.npy                                       chỉ số nến khung dùng ở từng phút của nền (-1 = chưa có)
 # Khoá:
-#   nền  = sha1(tài sản, nguồn, cửa sổ, khung chạy, điểm bắt đầu nạp, perp, vân tay file khung chạy + funding.pkl)
+#   nền  = sha1(tài sản, nguồn, cửa sổ, khung chạy, điểm bắt đầu nạp, perp, vân tay catalog)
 #   khung = sha1(tài sản, nguồn, khung, vân tay file khung, mốc cuối)       cột = sha1(khung, cột)       căn = sha1(nền, khung)
 # Ghi nguyên tử (file / thư mục tạm + rename): người đọc không bao giờ thấy dữ liệu dở; hai tiến trình ghi cùng khoá thì một bản thắng.
 #
@@ -939,39 +937,34 @@ def _sha1(payload: Dict[str, Any]) -> str:
     return hashlib.sha1(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()
 
 
-def _stat(path: Optional[str]):
-    try:
-        st = os.stat(path) if path else None
-    except OSError:
-        return None
-    return [st.st_mtime_ns, st.st_size] if st else None
+def _catalog_fp(symbol: str) -> Optional[List[str]]:
+    """Dấu vân tay nến của tài sản = digest catalog (mọi khung đều suy ra từ nến 1m của catalog). None nếu catalog chưa có tài sản."""
+    return None if read_manifest(symbol) is None else [catalog_digest([symbol])]
 
 
 def plan(eng: "BacktestEngine") -> Optional[Dict[str, Any]]:
-    """Khoá nền + khoá từng khung / cột / chỉ số căn cho đúng bộ dữ liệu `eng` sẽ dựng. None nếu không có 1m.pkl."""
+    """Khoá nền + khoá từng khung / cột / chỉ số căn cho đúng bộ dữ liệu `eng` sẽ dựng. None nếu catalog không có nến của tài sản."""
     from backend.alpha.dsl.strategy import FRAME_MS, needs_minute_path, slot_fresh_frames
     from backend.alpha.dsl.signal import lag_key
-    root = default_data_root()
+    root = default_catalog_path()
     base_fr = eng.base_frame
-    fp1 = _file_fingerprint(eng.symbol, base_fr, root)
+    fp1 = _catalog_fp(eng.symbol)
     if fp1 is None:
         return None
     refs = eng._refs_by_frame()
     if any(col.startswith("py_") for rs in refs.values() for col, _ in rs):
         return None   # cột chương trình Python (P7) tính trong tiến trình, KHÔNG ghi vào kho dùng chung
     perp = any(tr.market == "perp" for tr in eng.slots)
-    sym_dir = resolve_symbol_dir(eng.symbol)
     base = _sha1({"v": FORMAT_VERSION, "sym": eng.symbol, "root": root, "start": int(eng.start_ts), "end": int(eng.end_ts),
                   "base_frame": base_fr, "load_base": int(eng.start_ts - eng._warmup_ms(base_fr, refs.get(base_fr, set()))),
                   "perp": perp, "fp_base": list(fp1), "minute": needs_minute_path(eng),
-                  "fp_1m": list(_file_fingerprint(eng.symbol, "1m", root) or []) if needs_minute_path(eng) else None,
-                  "fp_funding": _stat(os.path.join(sym_dir, "funding.pkl")) if (perp and sym_dir) else None})
+                  "fp_1m": list(_catalog_fp(eng.symbol) or []) if needs_minute_path(eng) else None})
     frames: Dict[str, Dict[str, str]] = {}
     cols: Dict[str, Dict[str, str]] = {}
     for frame in ([base_fr] if base_fr in refs else []) + [f for f in refs if f != base_fr]:   # cùng thứ tự với _build_matrix
         if frame not in FRAME_MS:
             continue
-        fp = _file_fingerprint(eng.symbol, frame, root)
+        fp = _catalog_fp(eng.symbol)
         tkey = _sha1({"v": FORMAT_VERSION, "sym": eng.symbol, "root": root, "frame": frame, "fp": list(fp) if fp else None,
                       "end": int(eng.end_ts)})
         frames[frame] = {"t": tkey, "ix": _sha1({"base": base, "frame": tkey, "base_frame": base_fr})}
@@ -1119,7 +1112,7 @@ def export(pe: "PortfolioEngine", out_dir: str) -> Dict[str, Any]:
         eng, _ = pe._make_slots(sym, pe.ledger)
         p = plan(eng)
         if p is None:
-            raise RuntimeError(f"{sym}: không tạo được khoá dữ liệu dùng chung (thiếu 1m.pkl)")
+            raise RuntimeError(f"{sym}: không tạo được khoá dữ liệu dùng chung (catalog chưa có nến)")
         if any(fill(out_dir, pe, eng, p).values()):
             out["written"].append(sym)
         out["paths"] |= paths(p)
@@ -1160,8 +1153,8 @@ def release_memory() -> None:
     import ctypes
     import gc
     from backend.alpha.dsl.strategy import data_cache_clear
-    from backend.crawl.store import CandleLoader
-    CandleLoader.clear_cache()
+    from backend.data.data import clear_caches
+    clear_caches()
     data_cache_clear()
     gc.collect()
     try:
@@ -1223,68 +1216,3 @@ class SharedExporter:
         if self.label:
             print(f"[shared] {self.label}: dọn {mb:.0f} MB ({time.time() - self.t0:.0f}s)", flush=True)
         self.seen.clear()
-
-
-# ══════════════════════════════════════════════════════════════════════════
-# Nguồn dữ liệu mặc định của engine (từ module data cũ): cài đặt models/models.DataSource trên crawl/store + kho mmap ở trên.
-# ══════════════════════════════════════════════════════════════════════════
-
-class EngineData:
-    """DataSource (models/models.DataSource) trên dữ liệu local: nến (CandleLoader, có cache theo tiến trình), funding.pkl, manifest, cổng chất lượng, kho mmap dùng chung,
-    bộ nhớ đệm mảng đã dựng (memo: ByteLRU theo NORA_DATA_CACHE_MB, mặc định 1500 MB — tạo ở lần dùng đầu)."""
-
-    def __init__(self) -> None:
-        self._memo = None
-
-    def candles(self, symbol: str, frame: str, start: int, end: int, columns: Optional[List[str]] = None, use_cache: bool = True):
-        return CandleLoader(symbol, frame=frame, use_cache=use_cache).load_data(start, end, columns=columns)
-
-    def exec_arrays(self, symbol: str, frame: str, start: int, end: int):
-        """Nến thực thi từ ParquetDataCatalog Nautilus (kho nến chuẩn của engine; cache theo tiến trình ở nautilus/catalog)."""
-        return nautilus_catalog.exec_arrays(symbol, frame, start, end)
-
-    def instrument_spec(self, symbol: str):
-        """Spec OKX thật (data/market/okx/instruments.json)."""
-        return nautilus_catalog.instrument_spec(symbol)
-
-    def funding(self, symbol: str):
-        path = resolve_symbol_dir(symbol)
-        file = os.path.join(path, "funding.pkl") if path else None
-        if not file or not os.path.isfile(file):
-            return None
-        return pd.read_pickle(file)
-
-    def require_ok(self, symbols: List[str]):
-        return require_data_ok(symbols)
-
-    def manifest(self, symbol: str) -> Optional[Dict[str, Any]]:
-        return read_manifest(symbol)
-
-    def base_name(self, symbol: str) -> str:
-        return _base_name(symbol)
-
-    def shared_plan(self, eng):
-        return plan(eng)
-
-    def shared_load(self, out_dir: str, plan: Dict[str, Any]):
-        return load(out_dir, plan)
-
-    def shared_fill(self, out_dir: str, pe, eng, plan: Dict[str, Any]):
-        return fill(out_dir, pe, eng, plan)
-
-    def release(self) -> None:
-        CandleLoader.clear_cache()
-
-    @property
-    def memo(self):
-        if self._memo is None:
-            self._memo = ByteLRU(env_mb("NORA_DATA_CACHE_MB", 1500))
-        return self._memo
-
-
-ENGINE_DATA = EngineData()
-
-
-def make_engine_data() -> EngineData:
-    """Nhà máy nguồn dữ liệu mặc định (backend/optimize/__init__.py đăng ký LƯỜI qua core.models.set_default_data_factory)."""
-    return ENGINE_DATA

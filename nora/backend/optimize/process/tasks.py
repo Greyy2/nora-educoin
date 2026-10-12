@@ -1,7 +1,7 @@
 """Các job (P9.6, P11): điểm vào khởi chạy của từng loại job (mỗi loại job một hàm run_<kind> mỏng).
 
 Nội dung tính toán thuần -> backend/metrics/trades.py
-Nội dung nạp dữ liệu -> backend/crawl/store.py
+Nội dung nạp dữ liệu -> backend/data/data.py
 Nội dung chạy engine / WFA -> backend/optimize/search/evaluate.py
 Nội dung xuất bản / quản lý sổ -> backend/optimize/book/registry.py
 """
@@ -25,8 +25,8 @@ import pandas as pd
 
 from backend.models.models import NORA_DIR
 from backend.models.params import DAY_MS as DAY, DEFAULT_CAPITAL, DEFAULT_TRAIN_RATIO, date_ms, iso_date
-from backend.crawl.store import (as_list, check_data, data_info, default_window, json_default, load_prices, load_report, load_samples, options,
-                                 resolve_symbols, strategy_frames, write_job_result)
+from backend.models.storage import as_list, json_default, load_report, load_samples, options, write_job_result
+from backend.data.data import check_data, data_info, default_window, load_prices, resolve_symbols, strategy_frames
 from backend.nautilus.engine import provenance as engine_provenance
 from backend.metrics.trades import build_result, downsample_series, label_stats, shock_stats, stage_split
 from backend.optimize.funnel.storage import atomic_write_json
@@ -63,8 +63,8 @@ def git_commit() -> Optional[str]:
 
 def _clear_data_caches() -> None:
     from backend.alpha.dsl.strategy import data_cache_clear
-    from backend.crawl.store import CandleLoader
-    CandleLoader.clear_cache()
+    from backend.data.data import clear_caches
+    clear_caches()
     data_cache_clear()
 
 
@@ -161,8 +161,7 @@ def run_custom(params=None):
         raise ValueError("cần start và end (YYYY-MM-DD)")
     if not 0.1 <= float(a.train_ratio) <= 0.95:
         raise ValueError("train_ratio phải trong [0,1; 0,95]")
-    from backend.crawl.store import exchange
-    source = exchange()
+    source = "okx"
     os.environ.pop("NORA_SHARED_DATA_DIR", None)   # cột py_ tính trong tiến trình, không đi qua kho dùng chung
     from backend.optimize.process.workers import require_memory_limit
     require_memory_limit("custom_run")
@@ -310,13 +309,13 @@ def run_book_backtest(params=None):
     SignalEngine.MAX_BACKTEST_DAYS = 4000
     from backend.optimize.book.build import perp_symbols
 
-    from backend.crawl.store import classify_symbols
+    from backend.data.data import classify_symbols
     if a.data not in ("candle", "tick"):
         raise ValueError("data phải là candle|tick")
     symbols, venue = classify_symbols(as_list(a.symbols)) if as_list(a.symbols) else (perp_symbols(), "cex")
     if a.data == "tick" and venue != "dex":
         raise ValueError("data=tick chỉ dành cho tài sản DEX (chỉ DEX có tick swap on-chain)")
-    from backend.crawl.store import require_data_ok_or_exit
+    from backend.data.data import require_data_ok_or_exit
     require_data_ok_or_exit(symbols)   # cổng chất lượng dữ liệu bắt buộc (synthetic / sai sha256 / thiếu dữ liệu -> từ chối)
     items, rpt, risk = load_items(a)
     if a.risk_per_trade is not None:
@@ -328,7 +327,7 @@ def run_book_backtest(params=None):
                        latency_ms=a.latency_ms, gas_usd=a.gas_usd)
     else:
         if not (a.start and a.end):  # thiếu một đầu -> lấy theo dữ liệu có sẵn
-            from backend.crawl.store import read_manifest
+            from backend.data.data import read_manifest
             ms = [read_manifest(s) for s in symbols]
             if not all(ms):
                 raise SystemExit(f"Thiếu dữ liệu (manifest) cho: {[s for s, m in zip(symbols, ms) if not m]}")
@@ -364,7 +363,7 @@ def run_book_wfa(params=None):
     """Chạy job WFA với `params` -> báo cáo (cũng ghi report.json + $NORA_JOB_DIR/result.json)."""
     warnings.filterwarnings("ignore")
     a = options(BOOK_WFA_DEFAULTS, params)
-    from backend.crawl.store import require_perp
+    from backend.data.data import require_perp
     require_perp(as_list(a.symbols), "WFA")
     if sum(map(bool, (a.report, a.candidates, a.strategies))) != 1:
         raise ValueError("chọn đúng một: report, candidates hoặc strategies")
@@ -373,7 +372,7 @@ def run_book_wfa(params=None):
     require_memory_limit("validate_book")
     from backend.models.params import BASE_RISK_PER_TRADE_PCT, RISK
     from backend.optimize.book.build import perp_symbols
-    from backend.crawl.store import run_dir as run_dir_of
+    from backend.models.storage import run_dir as run_dir_of
     from backend.optimize.process.workers import resolve_workers
     from backend.optimize.book import build as bsb
     from backend.wfa.wfa import generate_folds, PortfolioWfaConfig
@@ -394,7 +393,7 @@ def run_book_wfa(params=None):
                  else candidates_from_ids(as_list(a.candidates), a.n, a.seed))
         w = bsb.windows(perp_symbols())
     symbols = [x if "@" in x else f"{x}@perp" for x in as_list(a.symbols)] or perp_symbols()
-    from backend.crawl.store import require_data_ok_or_exit
+    from backend.data.data import require_data_ok_or_exit
     require_data_ok_or_exit(symbols)   # cổng chất lượng dữ liệu bắt buộc (trước khi fork pool để worker thừa kế cache gate)
     if a.risk_per_trade is not None:
         rpt = a.risk_per_trade
@@ -514,7 +513,7 @@ def run_regime_report(params=None):
     require_memory_limit("regime_report")
     from backend.models.params import REGIME_MAP
     from backend.optimize.book.build import perp_symbols
-    from backend.crawl.store import read_manifest, require_data_ok_or_exit
+    from backend.data.data import read_manifest, require_data_ok_or_exit
     symbols = [s if "@" in s else f"{s}@perp" for s in as_list(a.symbols)] or perp_symbols()
     require_data_ok_or_exit(symbols)
     ms = [read_manifest(s) for s in symbols]
@@ -565,7 +564,7 @@ def run_funnel_book(params=None) -> Dict[str, Any]:
     from backend.optimize.process.workers import require_memory_limit
     require_memory_limit("funnel_book")
     from backend.optimize.process import process as batch_jobs
-    from backend.crawl.store import alpha_dir as alphas_dir
+    from backend.models.storage import alpha_dir as alphas_dir
     from backend.optimize.funnel.stages import funnel_root
     from backend.optimize.book.registry import write_book, write_explore_book, build_report, book_source
     run_dir = os.path.join(funnel_root(), a.run_id)

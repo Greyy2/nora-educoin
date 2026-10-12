@@ -80,7 +80,7 @@ def get_user_alphas(
 
 
 def _load_samples():
-    from backend.crawl.store import alpha_education_samples
+    from backend.models.storage import alpha_education_samples
     return _read(alpha_education_samples()) or []
 
 
@@ -391,7 +391,7 @@ class CustomBacktestRequest(BaseModel):
 @custom_router.get("/defaults")
 def get_run_defaults() -> Dict[str, Any]:
     """Mặc định của form chạy, tính từ kho dữ liệu OKX: {symbols (rổ perp), start, end (phần dữ liệu chung), train_ratio, initial_capital}."""
-    from backend.crawl.store import run_defaults
+    from backend.data.data import run_defaults
     try:
         return run_defaults()
     except ValueError as e:
@@ -439,7 +439,7 @@ class ChartExplainRequest(BaseModel):
 
 def _load_book(kind: str) -> Dict[str, Any]:
     """Sổ main (READY_FOR_TESTNET) hoặc explore (EXPLORE_DEMO) từ data/alpha; không có / sai trạng thái -> 404."""
-    from backend.crawl.store import alpha_dir, alpha_file
+    from backend.models.storage import alpha_dir, alpha_file
     from backend.optimize.book.registry import EXPLORE_STATUS
     from backend.routes.optimize import _read_json
     book = _read_json(alpha_dir("explore", "book.json") if kind == "explore" else alpha_file("book"))
@@ -486,45 +486,19 @@ def _strategy(req: ChartExplainRequest):
     return st, tf, meta
 
 
-_FRAME_CACHE = None     # ByteLRU nến thô đọc từ pkl, khoá (đường dẫn, mtime_ns, size); engine copy khi _prepare_candles nên dùng chung được
-
-
-def _read_frame(path: str):
-    """pd.read_pickle có đệm theo mtime/size (explain nào cũng nạp lại cả file nến). Không có file -> None. Ngân sách: NORA_CHART_CACHE_MB (256)."""
-    global _FRAME_CACHE
-    import pandas as pd
-    try:
-        st = os.stat(path)
-    except OSError:
-        return None
-    if _FRAME_CACHE is None:
-        from backend.crawl.store import ByteLRU, env_mb
-        _FRAME_CACHE = ByteLRU(env_mb("NORA_CHART_CACHE_MB", 256))
-    key = (path, st.st_mtime_ns, st.st_size)
-    hit = _FRAME_CACHE.get(key)
-    if hit is not None:
-        return hit
-    df = pd.read_pickle(path)
-    try:
-        nbytes = int(df.memory_usage(index=True, deep=False).sum())
-    except Exception:
-        nbytes = st.st_size * 4
-    _FRAME_CACHE.put(key, df, nbytes)
-    return df
-
-
 def _frames(symbol: str, st: Dict[str, Any], tf: str) -> Dict[str, Any]:
-    """Kho nến của sàn đang dùng (toàn bộ lịch sử)."""
-    from backend.crawl.store import market_dir
+    """Nến các khung cần cho chiến lược (toàn bộ lịch sử) từ catalog OKX — cùng nguồn với engine (data.load_candles, có cache)."""
     from backend.alpha.dsl.strategy import required_frames
+    from backend.data.data import CatalogError, load_candles
     need = required_frames(symbol, [st], tf)
-    root = market_dir(venue="cex", symbol=symbol, instrument="perp")
     out = {}
     for fr in need:
-        path = os.path.join(root, f"{fr}.pkl")
-        hist = _read_frame(path)
-        if hist is None:
-            raise HTTPException(404, f"chưa có dữ liệu {symbol} khung {fr} ({path})")
+        try:
+            hist = load_candles(symbol, fr)
+        except (CatalogError, ValueError) as exc:
+            raise HTTPException(404, f"chưa có dữ liệu {symbol} khung {fr} ({exc})")
+        if hist.empty:
+            raise HTTPException(404, f"chưa có dữ liệu {symbol} khung {fr}")
         out[fr] = hist
     return out
 

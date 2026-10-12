@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from backend.metrics import charts as se
-from backend.crawl.store import CandleLoader
+from backend.data.data import load_candles
 from backend.alpha.dsl import strategy as bt
 from test_strategy_book import T0, market  # noqa: F401  (market là fixture: 70 ngày, 3 tài sản)
 
@@ -19,7 +19,7 @@ ST = {"id": "x", "side": "LONG", "position": POS,
 
 def test_explain_signals_match_engine_and_conditions(market):
     sym, end = "BBB@perp", T0 + 68 * DAY
-    frames = {fr: CandleLoader(sym, frame=fr, use_cache=False).load_data(0, end) for fr in bt.required_frames(sym, [ST], "1h")}
+    frames = {fr: load_candles(sym, fr, 0, end, use_cache=False) for fr in bt.required_frames(sym, [ST], "1h")}
     ref = bt.evaluate_signals(sym, [ST], frames, "1h")
     start = int(ref["t"][300])
     out = se.explain(sym, ST, "1h", frames, start, end)
@@ -46,7 +46,7 @@ def test_explain_signals_match_engine_and_conditions(market):
 
 def test_explain_window_outside_data_raises(market):
     sym = "BBB@perp"
-    frames = {fr: CandleLoader(sym, frame=fr, use_cache=False).load_data(0, T0 + 68 * DAY) for fr in bt.required_frames(sym, [ST], "1h")}
+    frames = {fr: load_candles(sym, fr, 0, T0 + 68 * DAY, use_cache=False) for fr in bt.required_frames(sym, [ST], "1h")}
     with pytest.raises(ValueError):
         se.explain(sym, ST, "1h", frames, T0 + 400 * DAY, T0 + 401 * DAY)
 

@@ -78,20 +78,12 @@ def test_custom_goes_to_memory_live_bot_cleaned_edu_cleaned(home):
     assert not (home / "backtest").exists() or not os.listdir(home / "backtest")
 
 
-def test_other_kinds_cleaned_on_done_and_crawl_kept_only_while_staged(home):
+def test_other_kinds_cleaned_on_done(home):
     pr = _job(home, A, "presets_build", result={"r": 1})
-    c1 = _job(home, B, "data_crawl_okx", result={"r": 1})          # không staging -> dọn khi xong
-    c2 = _job(home, C, "data_crawl", result={"r": 1})
-    asset = c2 / "staging" / "cex" / "BTC"
-    asset.mkdir(parents=True)
-    (asset / "1m.pkl").write_bytes(b"")            # tài sản = thư mục có .pkl
-    for d in (pr, c1, c2):
+    up = _job(home, B, "data_update", result={"r": 1})          # catalog được ghi thẳng, không staging -> dọn khi xong
+    for d in (pr, up):
         bj._finish(str(d), 0)
-    assert not pr.exists() and not c1.exists() and c2.exists()      # c2 còn tài sản chờ promote
-    pm = _job(home, D, "data_promote", result={"r": 1})
-    (asset / "1m.pkl").unlink(); asset.rmdir()               # promote đã chuyển hết
-    bj._finish(str(pm), 0)
-    assert not pm.exists() and not c2.exists()
+    assert not pr.exists() and not up.exists()
 
 
 def test_failed_and_cancelled_pruned_at_next_cleanup(home):
@@ -186,7 +178,7 @@ def test_ephemeral_lru_bounded_and_enforce_lifecycle_on_start(home, monkeypatch)
 
 
 def test_writer_does_not_recreate_removed_job_dir_and_orphans_are_pruned(home, monkeypatch):
-    from backend.crawl.store import write_job_result
+    from backend.models.storage import write_job_result
     root = home / "cache" / "process"
     d = _job(home, A, "live_bot", state="cancelled")
     os.makedirs(d, exist_ok=True)   # writer chỉ ghi khi thư mục job tồn tại (launch tạo sẵn)

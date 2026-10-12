@@ -141,7 +141,7 @@ def _imports_of(path: Path, mod: str, modules: Dict[str, Path]) -> List[Tuple[st
             base_path = "/".join(base_dotted.split(".")[1:])
             for a in node.names:
                 cand = f"{base_path}/{a.name}" if base_path else a.name
-                if a.name != "*" and cand in modules:   # from backend.crawl import store  -> module con
+                if a.name != "*" and cand in modules:   # from backend.models import storage  -> module con
                     found.append((cand, node.lineno))
                 else:
                     found.append((base_path, node.lineno))

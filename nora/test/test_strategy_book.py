@@ -7,7 +7,7 @@ Dữ liệu giả lập 3 tài sản perp (không gọi mạng). Kiểm:
 """
 import pathlib
 
-from backend.crawl.store import alpha_run_dir
+from backend.models.storage import alpha_run_dir
 import importlib.util
 import json
 
@@ -15,7 +15,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from backend.crawl.store import save_resampled_dataset
+from data_helpers import save_synthetic
 
 pytestmark = pytest.mark.usefixtures("synthetic_data")   # P15: engine Nautilus lấy nến thực thi + spec từ DataSource; dữ liệu giả lập -> conftest.synthetic_data
 
@@ -38,16 +38,9 @@ def _series(days, seed, vol):
 def market(tmp_path, monkeypatch):
     root = tmp_path / "data"
     monkeypatch.setenv("NORA_LOCAL_DATA_ROOT", str(root))
-    meta = {"venue": "cex", "checksums_verified": True, "exchange": "binance"}
     for k, sym in enumerate(SYMS):
         df = _series(70, 20 + k, 0.0008 * (k + 1))
-        end = int(df.open_time.max())
-        for name, out, extra in ((sym, root / "cex", {}), ("perp", root / "cex" / sym,
-                                                         {"exchange": "binance_usdm", "market": "perp"})):
-            save_resampled_dataset(symbol=name, output_dir=str(out), df_1m_raw=df, pool_address="x", crawl_ok=True,
-                                   requested_start_ts=T0, requested_end_ts=end, extra_meta={**meta, **extra})
-        ft = T0 + np.arange(1, 70 * 3) * 8 * 3_600_000
-        pd.DataFrame({"funding_time": ft, "interval_h": 8.0, "rate": 0.0001}).to_pickle(root / "cex" / sym / "perp" / "funding.pkl")
+        save_synthetic(symbol=sym, output_dir=str(root / "cex"), df_1m_raw=df)
     return root
 
 
@@ -171,7 +164,7 @@ def test_write_book_holdout_fail_no_testnet_and_removes_stale(tmp_path, capsys, 
 
 
 def test_json_default_numpy_types():
-    from backend.crawl.store import json_default
+    from backend.models.storage import json_default
     obj = {"b": np.bool_(False), "i": np.int64(3), "f": np.float64(1.5), "nan": np.float32("nan"),
            "inf": np.float32("inf"), "a": np.array([1, 2]), "t": pd.Timestamp("2026-01-02")}
     out = json.loads(json.dumps(obj, default=json_default))

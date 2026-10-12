@@ -177,7 +177,7 @@ SPOT_POSITION = {"market": "spot", "leverage": 1}    # ghi đè vị thế của
 POOL_TYPES = ("aerodrome_v2", "uniswap_v2")          # pool AMM có dự trữ trong tick (Sync): volatile x*y=k hoặc stable x³y+xy³=k
 
 
-# is_dex_symbol / classify_symbols / require_perp (đọc thư mục dữ liệu): ở backend/crawl/store.py (engine-API pass — core không I/O).
+# is_dex_symbol / classify_symbols / require_perp (đọc thư mục dữ liệu): ở backend/data/data.py (engine-API pass — core không I/O).
 
 
 def display_name(symbol: str) -> str:
@@ -204,7 +204,7 @@ def tick_window(infos: List[Dict[str, Any]], start: Optional[int], end: Optional
     phủ trọn bằng tick), E = min(end, tick cuối). Ngắn hơn một nến cơ sở -> ValueError."""
     for i in infos:
         if not i["ticks"]:
-            raise ValueError(f"{i['symbol']}: chưa có tick — crawl tick (data_crawl_ticks) trước khi chạy backtest tick")
+            raise ValueError(f"{i['symbol']}: chưa có tick — backtest tick không được Nautilus hỗ trợ")
     lo, hi = max(int(i["ticks"]["start_ts"]) for i in infos), min(int(i["ticks"]["end_ts"]) for i in infos)
     w = max(int(start or 0), lo)
     w = -(-w // frame_ms) * frame_ms
@@ -605,7 +605,7 @@ class SignalEngine:
         self.slots: List[SlotSpec] = []
         self.slot_views: List[Any] = []   # trạng thái cuối của từng slot sau run() (SlotView)
         self.ledger = CapitalLedger(self.initial_capital)
-        self.funding: Optional[pd.DataFrame] = None  # perp: funding_time, rate
+        self.funding: Optional[pd.DataFrame] = None  # luôn None: engine Nautilus không mô phỏng funding
         self.df_base: Optional[pd.DataFrame] = None        # nến khung chạy của cửa sổ (đã gồm warmup)
         self.df_base_hist: Optional[pd.DataFrame] = None   # lịch sử khung chạy từ gốc (chỉ khi có cột của chính khung chạy)
         self.df_4h: Optional[pd.DataFrame] = None
@@ -676,8 +676,6 @@ class SignalEngine:
             self.trade_start_ts = self.start_ts
 
         self.load_frames(refs)
-        if any(tr.market == "perp" for tr in self.slots):
-            self.funding = self._load_funding()
 
     def minute_path(self, open_time: np.ndarray) -> Dict[str, np.ndarray]:
         """Đường giá 1m bên trong từng nến chạy (khung chạy > 1m) — cho khớp "extreme" đúng ngữ nghĩa 1m: lệnh stop khớp ở giá xấu nhất của
@@ -708,13 +706,6 @@ class SignalEngine:
             df = self._prepare_candles(self._src().candles(self.symbol, frame, HISTORY_START, self.end_ts))
             self.frames[frame] = self._enrich_4h(df) if frame == "4h" else df
         self.df_4h = self.frames.get("4h")
-
-    def _load_funding(self) -> Optional[pd.DataFrame]:
-        """funding.pkl của instrument perp (nếu symbol là BTC@perp; DataSource.funding). Không có -> None (ghi rõ trong kết quả)."""
-        df = self._src().funding(self.symbol)
-        if df is None:
-            return None
-        return df[(df["funding_time"] >= self.start_ts) & (df["funding_time"] <= self.end_ts)].sort_values("funding_time")
 
     # ─── Chạy ───────────────────────────────────────────────────────────────
     def _build_matrix(self, only: Optional[Set[str]] = None) -> Tuple[pd.DataFrame, Dict[str, np.ndarray]]:

@@ -1,3 +1,4 @@
+# ARCHIVED (P17-T1 B4): script của kho pkl / backend.crawl cũ (catalog nay cập nhật bằng job data_update -> backend.data.crawl).
 """Build ParquetDataCatalog chuẩn NautilusTrader cho toàn bộ 10 symbols OKX perp.
 Đọc 1m.pkl, lọc nến thật (is_filled == 0), chuyển đổi sang base volume, đặt ts_event là close time và ghi vào catalog.
 """

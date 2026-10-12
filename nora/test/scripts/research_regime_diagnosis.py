@@ -201,7 +201,7 @@ def main():
               f"H: {better}/{len(ids)} chiến lược regime được phép tốt hơn -> {'ĐẠT' if g['H_pass'] else 'TRƯỢT'}", flush=True)
     rep["wall_s"] = round(time.time() - t0, 1)
     os.makedirs(os.path.dirname(a.out), exist_ok=True)
-    from backend.crawl.store import json_default
+    from backend.models.storage import json_default
     with open(a.out, "w", encoding="utf-8") as fh:
         json.dump(rep, fh, ensure_ascii=False, indent=1, default=json_default)
     print(f"ghi {a.out} ({rep['wall_s']}s)", flush=True)

@@ -1,3 +1,4 @@
+# ARCHIVED (P17-T1 B4): golden đường tick/DEX — Nautilus không hỗ trợ AMM/tick.
 """Sinh lại snapshot golden đường TICK vào test/golden/tick_*.json từ code HIỆN TẠI (P9.4b T0).
 
 Chạy:  cd nora && ops/run_limited.sh --no-lock -- test/scripts/make_golden_tick.py

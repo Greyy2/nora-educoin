@@ -2,7 +2,7 @@
 stage_a trong result của build_strategy_book, oos_daily_dates của WFA."""
 import pathlib
 
-from backend.crawl.store import alpha_run_dir, run_dir
+from backend.models.storage import alpha_run_dir, run_dir
 import json
 import os
 import threading

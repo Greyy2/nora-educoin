@@ -26,9 +26,10 @@ RAW = os.path.join(NORA, "docs", "bmad", "research",
 FMS = {"15m": 900_000, "1h": 3_600_000, "4h": 14_400_000}
 
 
-def features(root, sym):
+def features(sym):
     from backend.alpha.dsl.indicator import compute
-    fr = {f: pd.read_pickle(os.path.join(root, sym, "perp", f"{f}.pkl")) for f in ("15m", "1h", "4h")}
+    from backend.data.data import load_candles
+    fr = {f: load_candles(sym, f) for f in ("15m", "1h", "4h")}
     h = fr["1h"]
     c = h["close"]
     bbl, bbu = compute(h, "bbl_20_2"), compute(h, "bbu_20_2")
@@ -57,9 +58,8 @@ def auc(a, b):
 
 
 def main():
-    from backend.crawl.store import default_data_root
-    root = os.path.join(default_data_root(), "cex")
-    have = {s for s in os.listdir(root) if os.path.isdir(os.path.join(root, s, "perp"))}
+    from backend.data.data import default_universe
+    have = set(default_universe())
     raw = json.load(gzip.open(os.path.join(RAW, "okx_bots_raw.json.gz")))
     variants = {r["name"]: r["variant"] for r in json.load(open(os.path.join(RAW, "dca_variants.json")))["bots"] if r["ex"] == "OKX"}
     baskets = []
@@ -84,7 +84,7 @@ def main():
     feats, base = {}, defaultdict(list)
     t_lo, t_hi = min(x["t"] for x in baskets), max(x["t"] for x in baskets)
     for sym in sorted({x["sym"] for x in baskets}):
-        f1, f15, f4 = features(root, sym)
+        f1, f15, f4 = features(sym)
         feats[sym] = (f1, f15, f4)
         m = f1[(f1["t_close"] >= t_lo) & (f1["t_close"] <= t_hi)]
         for _, row in m.iterrows():

@@ -62,7 +62,7 @@ def check_date(value: str) -> str:
 
 def check_symbols(symbols: List[str]) -> List[str]:
     """Chuẩn hoá 'BTC' / 'BTC@perp' -> 'BTC@perp'; chỉ nhận tài sản trong vũ trụ của sổ chiến lược (WFA, phễu: chưa hỗ trợ DEX)."""
-    from backend.crawl.store import require_perp
+    from backend.data.data import require_perp
     from backend.optimize.book.build import UNIVERSE
     try:
         require_perp(symbols, "WFA / phễu")
@@ -80,8 +80,8 @@ def check_symbols(symbols: List[str]) -> List[str]:
 
 def check_backtest_symbols(symbols: List[str]) -> List[str]:
     """Ký hiệu backtest -> ký hiệu engine (perp, qua check_symbols). Tài sản DEX -> NotReady (501): Nautilus không có AMM."""
-    from backend.crawl.store import is_dex_symbol
-    if any(is_dex_symbol(str(s)) for s in symbols):
+    from backend.data.data import parse_symbol
+    if any(parse_symbol(str(s))[0] == "dex" for s in symbols):
         raise NotReady(DEX_UNSUPPORTED)
     return check_symbols(symbols)
 
@@ -111,7 +111,7 @@ def check_number(value: Any, name: str, lo: float, hi: float, integer: bool = Fa
 
 def check_report_dir(report_dir: str) -> str:
     """Thư mục lần chạy build_strategy_book: tên thư mục hoặc đường dẫn nằm TRONG alpha_run_dir("book") (cũ <data>/alpha/book/), có stage_a.json + report.json."""
-    from backend.crawl.store import alpha_run_dir
+    from backend.models.storage import alpha_run_dir
     base = os.path.realpath(alpha_run_dir("book"))
     path = os.path.realpath(report_dir if os.path.isabs(report_dir) else os.path.join(base, report_dir))
     if os.path.dirname(path) != base:
@@ -262,7 +262,7 @@ def build_custom_backtest(p: Dict[str, Any]) -> Dict[str, Any]:
     from backend.alpha.compile import compile_code
     from backend.alpha.contract import MAX_CODE_CHARS
     from backend.models.params import FRAMES
-    from backend.crawl.store import base_name
+    from backend.data.data import base_name
     out: Dict[str, Any] = {}
     code = p.get("code")
     if not isinstance(code, str) or not code.strip() or len(code) > MAX_CODE_CHARS:
@@ -314,8 +314,8 @@ def build_custom_backtest(p: Dict[str, Any]) -> Dict[str, Any]:
 
 
 # ─── Vòng đời kết quả (ADR-P9 §4 bước 2–3) ──────────────────────────────────
-# Loại khác (presets_build, alpha_revalidate, regime_report, funnel_book, funnel_recompute, data_promote): kết quả bền do chính job ghi
-# -> xong là dọn thư mục process (không chép). Crawl: giữ tới khi staging/ hết tài sản chưa promote (xem _crawl_staged).
+# Loại khác (presets_build, alpha_revalidate, regime_report, funnel_book, funnel_recompute, data_update): kết quả bền do chính job ghi
+# -> xong là dọn thư mục process (không chép).
 
 
 def http_launch(kind: str, params: Dict[str, Any]) -> Dict[str, str]:
@@ -354,7 +354,7 @@ from backend.optimize.process import process as batch_jobs
 from backend.carlo.carlo import MC_RUIN_THRESHOLD_PCT, STRESS_LABELS_VI, VERTICAL_NAMES
 from backend.models.params import BASE_RISK_PER_TRADE_PCT
 from backend.optimize.book.build import BY_ID
-from backend.crawl.store import read_json
+from backend.models.storage import read_json
 from backend.optimize.book import build as presets_mod
 from backend.optimize.book.build import FieldError, lift_frames, validate_params
 
@@ -707,7 +707,8 @@ from fastapi import APIRouter, Header, Response
 
 from backend.carlo import carlo
 from backend.models.params import FRAME_MS
-from backend.crawl import store
+from backend.data import data as market_data
+from backend.models import storage as store
 from backend.nautilus.version import NAUTILUS_VERSION
 from backend.metrics.charts import EDUCATION_HIDDEN_SECTIONS, NOTE_TOUR
 from backend.metrics.metrics import METRIC_DEFS, METRIC_GROUPS
@@ -724,12 +725,12 @@ _PREFIX_RE = re.compile(r"^(S\d)_")
 def _get_limit_models() -> Dict[str, Any]:
     from backend.routes.optimize import FunnelRunRequest, FunnelBookRequest, _DateRange, WfaStrategyIn, McRequest, BuildRequest
     from backend.routes.alpha import CustomBacktestRequest
-    from backend.routes.data import CrawlRequest, TicksRequest, RegimeReportRequest
+    from backend.routes.data import CrawlRequest, RegimeReportRequest
     return {
         "funnel_run": FunnelRunRequest, "funnel_book": FunnelBookRequest, "custom_backtest": CustomBacktestRequest,
         "book_backtest": _DateRange, "book_wfa": WfaStrategyIn, "book_mc": McRequest,
         "book_build": BuildRequest, "regime_report": RegimeReportRequest,
-        "data_crawl": CrawlRequest, "data_crawl_ticks": TicksRequest,
+        "data_update": CrawlRequest,
     }
 
 
@@ -820,7 +821,7 @@ def _jobs() -> Dict[str, Any]:
     for kind, entry in batch_process.KINDS.items():
         dest = batch_process.persist_dest_base(kind)
         kinds.append({"kind": kind, "label_vi": entry["label_vi"], "persist_to": os.path.relpath(dest, store.data_home()) if dest else None,
-                      "ephemeral": kind in batch_process.EPHEMERAL_KINDS, "crawl": kind in batch_process.CRAWL_KINDS,
+                      "ephemeral": kind in batch_process.EPHEMERAL_KINDS,
                       "params": sorted(entry["params"])})
     return {"kinds": kinds}
 
@@ -855,16 +856,16 @@ def _build_meta() -> Dict[str, Any]:
     rel = lambda p: os.path.relpath(p, home)   # noqa: E731
     main_path, explore_path = store.alpha_file("book"), store.alpha_dir("explore", "book.json")
     main_book, explore_book = store.read_json(main_path), store.read_json(explore_path)
-    ex = store.exchange()
-    perp = [a["symbol"] for a in store.list_assets() if a.get("instrument") == "perp"]
+    okx_root = os.path.dirname(market_data.default_catalog_path())   # data/market/okx: sàn triển khai duy nhất
+    perp = [a["symbol"] for a in market_data.coverage()]
     payload = {
         "funnel": _funnel(),
         "frames": {"all": list(FRAME_MS), "custom_backtest": _choices(CustomBacktestRequest, "run_frame"),
                    "funnel": _choices(FunnelRunRequest, "timeframe")},
         "live": _live(),
         "jobs": _jobs(),
-        "universe": {"data": {"exchange": ex, "instrument": "perp", "assets": perp,
-                              "markets": {e: rel(store.market_root(e)) for e in store.EXCHANGES}},
+        "universe": {"data": {"exchange": "okx", "instrument": "perp", "assets": perp,
+                              "markets": {"okx": rel(okx_root)}},
                      "book": _book_rel(main_book), "explore": _book_rel(explore_book)},
         "limits": _limits(),
         "stress": carlo.STRESS_SCENARIOS,
@@ -894,7 +895,7 @@ def _build_meta() -> Dict[str, Any]:
         "books": {"main": _book_status(main_book, False), "explore": _book_status(explore_book, True)},
         "paths": {"book": rel(main_path), "explore_book": rel(explore_path), "registry": rel(store.alpha_file("registry")),
                   "presets": rel(store.alpha_file("presets")), "alpha_user": rel(store.alpha_user_dir()), "cache_process": rel(store.cache_process_dir()),
-                  "market": {e: rel(store.market_root(e)) for e in store.EXCHANGES}},
+                  "market": {"okx": rel(okx_root)}},
     }
     payload["version"] = hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:16]
     return payload

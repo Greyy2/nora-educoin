@@ -231,8 +231,9 @@ def test_unsupported_features_are_flagged_not_faked():
 def test_catalog_instrument_and_aggregation():
     i = cat.get_instrument("BTC@perp")
     assert str(i.base_currency) == "BTC" and str(i.quote_currency) == "USDT" and float(i.size_increment) == 0.0001
-    a = cat.read_catalog_1m("BTC", ms("2024-03-04 00:00"), ms("2024-03-04 05:59"))
-    h = cat.aggregate_frame(a, "1h")
+    from backend.data import data as D
+    a = D.read_1m("BTC", ms("2024-03-04 00:00"), ms("2024-03-04 05:59"))
+    h = D.aggregate_frame(a, "1h")
     assert len(h["t"]) == 6 and h["t"][0] == ms("2024-03-04 00:00")
     assert h["o"][0] == a["o"][0] and h["c"][0] == a["c"][59] and h["h"][0] == a["h"][:60].max() and h["l"][0] == a["l"][:60].min()
     assert h["v"][0] == pytest.approx(a["v"][:60].sum())

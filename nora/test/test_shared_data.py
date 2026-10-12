@@ -7,7 +7,7 @@ import pandas as pd
 import pytest
 
 import golden_scenarios as gs
-from backend.crawl.store import save_resampled_dataset
+from data_helpers import save_synthetic
 
 pytestmark = pytest.mark.usefixtures("synthetic_data")   # P15: engine Nautilus lấy nến thực thi + spec từ DataSource; dữ liệu giả lập -> conftest.synthetic_data
 
@@ -33,18 +33,8 @@ def market(tmp_path, monkeypatch):
     root = tmp_path / "data"
     monkeypatch.setenv("NORA_LOCAL_DATA_ROOT", str(root))
     monkeypatch.delenv("NORA_SHARED_DATA_DIR", raising=False)
-    meta = {"venue": "cex", "checksums_verified": True, "exchange": "binance"}
     for k, (sym, vol) in enumerate((("AAA", 0.0008), ("BBB", 0.0016), ("CCC", 0.0030))):
-        df = _series(40, 10 + k, vol)
-        end = int(df.open_time.max())
-        save_resampled_dataset(symbol=sym, output_dir=str(root / "cex"), df_1m_raw=df, pool_address="s", crawl_ok=True,
-                               requested_start_ts=T0, requested_end_ts=end, extra_meta=meta)
-        save_resampled_dataset(symbol="perp", output_dir=str(root / "cex" / sym), df_1m_raw=df, pool_address="p",
-                               crawl_ok=True, requested_start_ts=T0, requested_end_ts=end,
-                               extra_meta={**meta, "exchange": "binance_usdm", "market": "perp"})
-        ft = T0 + np.arange(1, 40 * 3) * 8 * 3_600_000
-        pd.DataFrame({"funding_time": ft, "interval_h": 8.0, "rate": 0.0001 * (k + 1)}).to_pickle(
-            root / "cex" / sym / "perp" / "funding.pkl")
+        save_synthetic(symbol=sym, output_dir=str(root / "cex"), df_1m_raw=_series(40, 10 + k, vol))
     gs.clear_caches()
     yield root
     gs.clear_caches()
@@ -101,9 +91,10 @@ def test_key_changes_when_source_file_changes(market):
     e, _ = eng._make_slots("AAA@perp", eng.ledger)
     p1 = shared_data.plan(e)
     assert p1 == shared_data.plan(e) and len(p1["base"]) == 40 and p1["cols"]
-    fund = market / "cex" / "AAA" / "perp" / "funding.pkl"
-    st = fund.stat()
-    os.utime(fund, ns=(st.st_atime_ns, st.st_mtime_ns + 1_000_000_000))
+    import glob
+    for fp in glob.glob(str(market / "market" / "okx" / "catalog" / "data" / "bar" / "AAA-USDT-SWAP.*" / "*.parquet")):   # catalog đổi (mtime) -> khoá đổi
+        st = os.stat(fp)
+        os.utime(fp, ns=(st.st_atime_ns, st.st_mtime_ns + 1_000_000_000))
     p2 = shared_data.plan(e)
     assert p2["base"] != p1["base"]
     assert shared_data.load(str(market), {"base": "0" * 40, "frames": {}, "cols": {}}) is None
@@ -219,6 +210,9 @@ def test_golden_real_through_shared_mmap(tmp_path):
     root = os.path.abspath(os.environ.get("NORA_GOLDEN_DATA_ROOT") or os.path.join(os.path.dirname(__file__), "..", "data"))
     if not gs.real_data_available(root):
         pytest.skip(f"Không có dữ liệu thật tại {root}")
+    if not os.environ.get("NORA_GOLDEN_DATA_ROOT"):
+        pytest.skip("portfolio_real.json ghi bằng engine cũ trên kho pkl (mốc thời gian/số liệu khác engine Nautilus + catalog): chỉ so khi "
+                    "đặt NORA_GOLDEN_DATA_ROOT tới kho tương ứng")
     with open(os.path.join(os.path.dirname(__file__), "golden", "portfolio_real.json"), encoding="utf-8") as fh:
         golden = json.load(fh)
     fresh = gs.scenario_portfolio_real(root, shared_dir=str(tmp_path / "shared"))

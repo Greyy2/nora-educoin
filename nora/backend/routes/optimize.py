@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from backend.routes import process as modes
 from backend.optimize.process import process as batch_jobs
 from backend.routes import process as batch_jobs_routes
-from backend.crawl.store import alpha_dir, alpha_file
+from backend.models.storage import alpha_dir, alpha_file
 from backend.nautilus.engine import provenance as engine_provenance
 from backend.routes.process import STRESS_VERTICAL
 from backend.carlo.carlo import with_gate_thresholds, MC_MAX_RUIN_PCT as MC_RUIN_MAX_PCT, MC_MAX_SIMULATIONS, MC_MIN_SIMULATIONS, MC_RUIN_THRESHOLD_PCT, STRESS_MAX_MDD_PCT, STRESS_SCENARIOS
@@ -138,7 +138,7 @@ class BuildRequest(BaseModel):
 
 # ─── Đọc sổ / báo cáo ───────────────────────────────────────────────────────
 def book_path() -> str:
-    """Sổ đang dùng (crawl.store.alpha_file: alpha/book.json; NORA_BOOK_PATH / NORA_ALPHAS_DIR ghi đè)."""
+    """Sổ đang dùng (models/storage.alpha_file: alpha/book.json; NORA_BOOK_PATH / NORA_ALPHAS_DIR ghi đè)."""
     return alpha_file("book")
 
 
@@ -166,7 +166,7 @@ def _book_summary(book: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def latest_wfa_summary() -> Optional[Dict[str, Any]]:
-    from backend.crawl.store import run_dir
+    from backend.models.storage import run_dir
     base = run_dir("wfa")
     for name in sorted(os.listdir(base) if os.path.isdir(base) else (), reverse=True):
         path = os.path.join(base, name, "report.json")
@@ -195,15 +195,9 @@ def default_params(space: Dict[str, List[Any]]) -> Dict[str, Any]:
 
 def _assets() -> List[Dict[str, Any]]:
     """Tài sản có dữ liệu: [{symbol, venue cex, market perp, candles{start_ts,end_ts}, ticks null}]. DEX/AMM không được Nautilus hỗ trợ nên không được đưa ra (dữ liệu DEX vẫn nằm trong kho)."""
-    from backend.crawl.store import list_assets, manifest_of_dir
-    out = []
-    for it in list_assets():
-        if it["venue"] != "cex":
-            continue
-        manifest = manifest_of_dir(it["path"]) or {}
-        out.append({"symbol": it["symbol"], "venue": "cex", "market": "perp" if it["instrument"] == "perp" else "spot",
-                    "candles": {"start_ts": manifest.get("start_ts"), "end_ts": manifest.get("end_ts")}, "ticks": None})
-    return out
+    from backend.data.data import coverage
+    return [{"symbol": a["symbol"], "venue": "cex", "market": "perp",
+             "candles": {"start_ts": a["start_ts"], "end_ts": a["end_ts"]}, "ticks": None} for a in coverage()]
 
 
 def _catalog() -> List[Dict[str, Any]]:
@@ -220,7 +214,7 @@ def _universe_windows(book: Optional[Dict[str, Any]]):
     if not windows:
         try:
             import pandas as pd
-            from backend.crawl.store import read_manifest
+            from backend.data.data import read_manifest
             ms = [read_manifest(s) for s in universe]
             start = max(int(m["start_ts"]) for m in ms) + 20 * 86_400_000
             end = min(int(m["end_ts"]) for m in ms)
@@ -411,8 +405,8 @@ def post_cancel(job_id: str):
 
 
 def _job_run_dir(job_id: str) -> str:
-    """Thư mục lần chạy (có results.sqlite) của một job build: progress.json (khi đang chạy) hoặc result.json (khi xong); phải nằm trong thư mục lượt chạy (crawl.store.is_within(…, "runs"))."""
-    from backend.crawl.store import is_within
+    """Thư mục lần chạy (có results.sqlite) của một job build: progress.json (khi đang chạy) hoặc result.json (khi xong); phải nằm trong thư mục lượt chạy (models/storage.is_within(…, "runs"))."""
+    from backend.models.storage import is_within
     jd = batch_jobs.job_dir(job_id)
     run_dir = None
     for name in ("progress.json", "result.json"):
@@ -527,7 +521,7 @@ from typing import Any, Dict, Optional
 import pandas as pd
 from fastapi import APIRouter, HTTPException, Query
 
-from backend.crawl.store import benchmark_daily_closes
+from backend.data.data import benchmark_daily_closes
 from backend.metrics import charts as feeds
 from backend.metrics import charts as pd_mod
 from backend.optimize.process import process as batch_jobs
@@ -699,7 +693,7 @@ from backend.optimize.search.generate import count_params
 from backend.optimize.funnel.stages import read_cached
 from backend.carlo.carlo import with_gate_thresholds
 from backend.models.params import DEFAULT_CAPITAL
-from backend.crawl.store import read_json
+from backend.models.storage import read_json
 from backend.metrics.charts import LruCache
 from backend.optimize.funnel.stages import scalar_metrics, stage_stats
 from backend.optimize.funnel.storage import RunStore, atomic_write_json
@@ -725,7 +719,7 @@ SORT_COLS = {"ret_pct": "m.ret_pct", "mdd_pct": "m.mdd_pct", "sharpe": "m.sharpe
 from backend.optimize.funnel.stages import funnel_root   # P9.6: MỘT định nghĩa (stages.py); router chỉ import
 
 
-from backend.crawl.store import alpha_dir as alphas_dir   # P9.6: MỘT định nghĩa (crawl/store.alpha_dir, tôn trọng NORA_ALPHAS_DIR); monkeypatch fr.alphas_dir vẫn hiệu lực
+from backend.models.storage import alpha_dir as alphas_dir
 
 
 def _run_dir(run_id: str) -> str:

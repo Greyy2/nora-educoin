@@ -1,3 +1,4 @@
+# ARCHIVED (P17-T1 B4): script của kho pkl / backend.crawl cũ (catalog nay cập nhật bằng job data_update -> backend.data.crawl).
 #!/usr/bin/env python
 """Chuyển metadata tài sản từ manifest.json / dex_pool.json vào attrs của chính file dữ liệu (pkl / parquet).
 

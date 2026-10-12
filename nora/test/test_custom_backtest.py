@@ -97,7 +97,7 @@ def test_job_rejects_bad_input_clearly(market):
 
 
 def test_default_universe_and_window_come_from_the_store(market):
-    from backend.crawl import store as run_defaults
+    from backend.data import data as run_defaults
     uni = run_defaults.default_universe()
     assert {"AAA", "BBB", "CCC"} <= set(uni) and uni == sorted(uni)
     assert run_defaults.resolve_symbols(["BBB@perp", "AAA"]) == ["BBB", "AAA"] and run_defaults.resolve_symbols(None) == uni

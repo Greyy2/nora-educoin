@@ -32,7 +32,7 @@ def _run(pythonpath: str, module: str, cfg: str, out: str) -> None:
 
 @pytest.mark.skipif(not os.path.isdir(os.path.join(MARKET, "BTC", "perp")), reason="thiếu dữ liệu nến BTC/ETH")
 def test_evaluate_signals_bit_identical_to_old():
-    from backend.crawl.store import load_samples
+    from backend.models.storage import load_samples
     samples = [{"key": s["key"], "code": s["code"]} for s in load_samples(os.path.join(ROOT, "data", "alpha", "education", "samples.json"))[:10]]
     assert len(samples) == 10
     with tempfile.TemporaryDirectory() as tmp:

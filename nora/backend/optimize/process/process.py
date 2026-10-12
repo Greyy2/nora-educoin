@@ -192,10 +192,7 @@ KINDS: Dict[str, Dict[str, Any]] = {
     "funnel_book": {"label_vi": "Sổ từ phễu", "module": "backend.optimize.process.tasks", "func": "run_funnel_book",
                     "params": {"run_id", "alpha_ids", "risk_per_trade_pct", "wfa_job_id", "dry_run", "explore"}},
     "presets_build": {"label_vi": "Dựng preset", "module": "backend.optimize.book.build", "func": "run_presets_build", "params": set()},
-    "data_crawl": {"label_vi": "Crawl dữ liệu", "module": "backend.crawl.cex", "params": {"symbols", "market", "years", "output_dir"}},   # output_dir do router đặt
-    "data_crawl_okx": {"label_vi": "Crawl OKX", "module": "backend.crawl.cex", "func": "okx_run_job", "params": {"symbols", "years", "output_dir"}},
-    "data_crawl_ticks": {"label_vi": "Crawl tick DEX", "module": "backend.crawl.dex", "params": {"symbols", "days"}},
-    "data_promote": {"label_vi": "Chuyển dữ liệu vào kho", "module": "backend.crawl.store", "params": {"apply", "archive_legacy"}},
+    "data_update": {"label_vi": "Cập nhật dữ liệu OKX", "module": "backend.data.crawl", "func": "run_job", "params": {"symbols"}},
     "alpha_revalidate": {"label_vi": "Kiểm lại alpha", "module": "backend.optimize.book.registry", "func": "run_alpha_revalidate", "params": {"alpha_id", "apply"}},
     "custom_backtest": {"label_vi": "Backtest tuỳ chỉnh", "module": "backend.optimize.process.tasks", "func": "run_custom_backtest",
                         "params": {"code", "symbols", "start", "end", "train_ratio", "initial_capital", "position", "run_frame"}},
@@ -230,7 +227,7 @@ class JobBusy(RuntimeError):
 # ─── Đường dẫn ──────────────────────────────────────────────────────────────
 def jobs_root() -> str:
     """Job ĐANG chạy (và job lỗi còn giữ log): cache/process. Tạo thư mục nếu chưa có."""
-    from backend.crawl.store import cache_process_dir
+    from backend.models.storage import cache_process_dir
     path = cache_process_dir()
     os.makedirs(path, exist_ok=True)
     return path
@@ -242,7 +239,7 @@ RESULT_KINDS = ("backtest", "wfa", "carlo")
 
 def _persisted_dirs() -> List[str]:
     """Các gốc kết quả lâu dài đang tồn tại (qua helper, đã có fallback cũ->mới); 'education' (kết quả Education) không phải job nên bị loại ở _JOB_ID_RE."""
-    from backend.crawl.store import alpha_run_dir as _ard, run_dir as _rd
+    from backend.models.storage import alpha_run_dir as _ard, run_dir as _rd
     dirs = [_rd(k) for k in RESULT_KINDS] + [_ard("book"), _ard("funnel")]   # book_build -> alpha/book/<id>; funnel_run (chỉ bản ghi job) -> alpha/funnel/<id>
     return [d for d in dirs if os.path.isdir(d)]
 
@@ -285,7 +282,7 @@ def _check_params(kind: str, params: Dict[str, Any]) -> None:
 
 # ─── Lưu/đọc job.json ───────────────────────────────────────────────────────
 def _read_json(path: str) -> Any:
-    from backend.crawl.store import read_json      # nạp lười: giữ module process nhẹ (không kéo numpy/pandas khi chỉ quản lý job)
+    from backend.models.storage import read_json
     return read_json(path)
 
 
@@ -351,8 +348,6 @@ def _env() -> Dict[str, str]:
     return env
 
 
-CRAWL_KINDS = ("data_crawl", "data_crawl_okx")
-STAGING_SUBDIR = "staging"      # <job_dir>/staging/cex/<SYM>/...: file tạm crawl, chờ promote
 FAILED_LOG_KEEP_DAYS = 0        # người dùng chốt 2026-10-08: job LỖI xoá ở lượt dọn kế tiếp (job mới / API khởi động)
 PAUSED_KEEP_DAYS = 7            # job đã HUỶ còn tiến độ chạy dở (progress.json, chạy tiếp bằng --resume) giữ 7 ngày; huỷ mà không có gì -> xoá như job lỗi
 
@@ -376,11 +371,6 @@ def _prune_failed(kinds, days: float, now: Optional[float], paused_days: float =
             shutil.rmtree(path, ignore_errors=True)
             gone.append(name)
     return gone
-
-
-def prune_failed_crawl_jobs(days: float = FAILED_LOG_KEEP_DAYS, now: Optional[float] = None) -> List[str]:
-    """Xoá thư mục job crawl LỖI/HUỶ quá `days` ngày (theo mtime job.json) trong cache/process. Trả danh sách job_id đã xoá."""
-    return _prune_failed(CRAWL_KINDS, days, now)
 
 
 def prune_failed_jobs(days: float = FAILED_LOG_KEEP_DAYS, now: Optional[float] = None) -> List[str]:
@@ -414,8 +404,8 @@ def prune_orphan_dirs(min_age: float = ORPHAN_MIN_AGE, now: Optional[float] = No
 EPHEMERAL_KINDS = ("custom_backtest",)   # /alpha/create, /education: chạy TẠM, không lưu ra data/; kết quả xong nằm trong bộ nhớ API (LRU) tới khi API khởi động lại
 EPHEMERAL_MAX = 64
 _EPH: "OrderedDict[str, Dict[str, Any]]" = OrderedDict()
-# Loại khác (presets_build, alpha_revalidate, regime_report, funnel_book, funnel_recompute, data_promote): kết quả bền do chính job ghi
-# -> xong là dọn thư mục process (không chép). Crawl: giữ tới khi staging/ hết tài sản chưa promote (xem _crawl_staged).
+# Loại khác (presets_build, alpha_revalidate, regime_report, funnel_book, funnel_recompute, data_update): kết quả bền do chính job ghi
+# -> xong là dọn thư mục process (không chép).
 PERSIST_AREAS = {"book_backtest": ("run", "backtest"), "book_wfa": ("run", "wfa"),
                  "book_build": ("alpha", "book"), "funnel_run": ("alpha", "funnel")}
 PERSIST_FILES = ("job.json", "params.json", "result.json", "out.log", "progress.json")   # + alphas/ (book_build); không chép checkpoint/_shared/staging
@@ -423,7 +413,7 @@ PERSIST_FILES = ("job.json", "params.json", "result.json", "out.log", "progress.
 
 def persist_dest_base(kind: str) -> Optional[str]:
     """Thư mục kết quả lâu dài của một loại job; None nếu loại này không lưu (xem PERSIST_AREAS)."""
-    from backend.crawl.store import alpha_run_dir, run_dir
+    from backend.models.storage import alpha_run_dir, run_dir
     area = PERSIST_AREAS.get(kind)
     if not area:
         return None
@@ -532,13 +522,9 @@ def persist_job(job_dir: str, dry_run: bool = False) -> Dict[str, Any]:
         return out
     base = persist_dest_base(kind)
     if not base:
-        if kind in CRAWL_KINDS and _crawl_staged(job_dir):
-            return out   # còn tài sản chờ promote
         out["action"] = "would_clean" if dry_run else "cleaned"
         if not dry_run:
             shutil.rmtree(job_dir, ignore_errors=True)
-            if kind == "data_promote":   # promote vừa dọn staging -> job crawl đã xong không còn gì chờ
-                clean_unstaged_crawl_jobs()
         return out
     dest = os.path.join(base, jid)
     out["dest"] = dest
@@ -585,24 +571,6 @@ def persist_job(job_dir: str, dry_run: bool = False) -> Dict[str, Any]:
     return out
 
 
-def _crawl_staged(job_dir: str) -> bool:
-    from backend.crawl.store import list_assets
-    return bool(list_assets(os.path.join(job_dir, STAGING_SUBDIR)))
-
-
-def clean_unstaged_crawl_jobs() -> List[str]:
-    """Xoá thư mục job crawl ĐÃ XONG mà staging/ không còn tài sản chưa promote. Trả job_id đã xoá."""
-    import shutil
-    root, gone = jobs_root(), []
-    for name in os.listdir(root):
-        d = os.path.join(root, name)
-        meta = _read_meta(d) if _JOB_ID_RE.match(name) else None
-        if meta and meta.get("kind") in CRAWL_KINDS and meta.get("state") == "done" and not _crawl_staged(d):
-            shutil.rmtree(d, ignore_errors=True)
-            gone.append(name)
-    return gone
-
-
 def _persist_quietly(job_dir: str) -> None:
     """Gọi khi job vừa xong: lỗi lưu không làm hỏng job (kết quả vẫn ở process; persist_finished_jobs thử lại sau)."""
     try:
@@ -643,7 +611,7 @@ def enforce_lifecycle() -> Dict[str, Any]:
             r = persist_job(d)
             if r["action"] != "skip":
                 rows.append(r)
-    return {"jobs": rows, "pruned": prune_failed_jobs(), "crawl_cleaned": clean_unstaged_crawl_jobs()}
+    return {"jobs": rows, "pruned": prune_failed_jobs()}
 
 
 def launch(kind: str, params: Dict[str, Any]) -> str:
@@ -656,8 +624,6 @@ def launch(kind: str, params: Dict[str, Any]) -> str:
     job_dir = os.path.join(jobs_root(), job_id)
     os.makedirs(job_dir)
     prune_failed_jobs()   # job lỗi/huỷ: xoá (cache chỉ giữ tiến trình đang chạy)
-    if kind in CRAWL_KINDS:   # crawl ghi vào thư mục process của CHÍNH job (ADR §4); promote chuyển tài sản đạt gate sang market/ rồi xoá staging
-        params["output_dir"] = os.path.join(job_dir, STAGING_SUBDIR, "cex")
     if kind == "book_build":   # sổ dựng xong nằm trong thư mục job; alphas/ chỉ đổi khi người dùng xuất bản (book_export.publish_book)
         params["out"] = os.path.join(job_dir, "alphas")
     with open(os.path.join(job_dir, "params.json"), "w", encoding="utf-8") as fh:   # đầu vào của runner (ghi TRƯỚC khi chạy)
@@ -824,8 +790,8 @@ def _names(v: Any) -> str:
 
 
 def _book_rel() -> str:
-    """Đường dẫn sổ hiện hành để hiển thị (sinh từ crawl/store, không viết cứng): <gốc dữ liệu>/alpha/book.json."""
-    from backend.crawl.store import alpha_dir, alpha_file
+    """Đường dẫn sổ hiện hành để hiển thị (sinh từ models/storage, không viết cứng): <gốc dữ liệu>/alpha/book.json."""
+    from backend.models.storage import alpha_dir, alpha_file
     ad = alpha_dir()
     return "/".join([os.path.basename(os.path.dirname(ad)), os.path.basename(ad), os.path.basename(alpha_file("book"))])
 
@@ -858,14 +824,8 @@ def job_label(kind: str, params: Optional[Dict[str, Any]]) -> str:
                 f"rủi ro {p.get('risk_per_trade_pct')}%")
     if kind == "presets_build":
         return "Dựng presets.json"
-    if kind == "data_crawl":
-        return f"Tải dữ liệu · {_names(p.get('symbols'))} · {p.get('market', 'spot')} · {p.get('years', 3)} năm"
-    if kind == "data_crawl_okx":
-        return f"Tải dữ liệu OKX · {_names(p.get('symbols'))} · perp · {p.get('years', 3)} năm"
-    if kind == "data_crawl_ticks":
-        return f"Tải tick · {_names(p.get('symbols'))} · {p.get('days')} ngày"
-    if kind == "data_promote":
-        return f"Đưa dữ liệu staging vào kho · {'thực hiện' if p.get('apply') else 'xem trước'}"
+    if kind == "data_update":
+        return f"Cập nhật dữ liệu OKX · {_names(p.get('symbols')) or 'cả rổ'} · perp"
     return f"Dựng sổ · {_names(p.get('only')) or 'mọi chiến lược'} · n={p.get('n') or 24}"
 
 

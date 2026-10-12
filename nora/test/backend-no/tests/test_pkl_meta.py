@@ -1,3 +1,4 @@
+# ARCHIVED (P17-T1 B4): kiểm bố cục thư mục pkl / manifest-trong-attrs / staging-promote / Binance của backend.crawl cũ (không còn: dữ liệu = ParquetDataCatalog OKX).
 """Metadata tài sản nằm trong attrs của pkl/parquet (không còn manifest.json / dex_pool.json): asset_meta, digest_1m, biên engine, migration."""
 import json
 import os

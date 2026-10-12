@@ -1,3 +1,4 @@
+# ARCHIVED (P17-T1 B4): golden đường tick/DEX — Nautilus không hỗ trợ AMM/tick.
 """Kịch bản golden cho đường TICK (core/backtest/tick_run.py::run_tick, TickBook) — P9.4b T0.
 
 Thị trường tick giả lấy từ test_tick_backtest.py (cùng hàm sinh nến/tick) + 20 cấu hình ngẫu nhiên có seed (pool volatile/stable, một/hai pool,
@@ -13,7 +14,7 @@ import numpy as np
 
 import test_tick_backtest as tt
 from golden_scenarios import hx
-from backend.crawl.store import save_resampled_dataset  # noqa: F401  (tt._asset dùng)
+from data_helpers import save_synthetic
 
 N_RANDOM = 20
 VOLATILE_RB = (2e5, 1e6, 5e6)
@@ -68,7 +69,7 @@ def _run(items, symbols, root, ticks_by_name, pools=None, **kw):
     """ticks_by_name {tên: bảng tick}; pools {tên: {"stable":bool,"fee":float}} ghi đè metadata pool (mặc định volatile, phí tt.FEE)."""
     from backend.optimize.search.evaluate import run_tick
     from backend.models.params import RISK
-    from backend.crawl.store import asset_meta
+    # TODO-MIG asset_meta
     from data_helpers import set_ticks_attrs
     for name, tk in ticks_by_name.items():
         d = tt._asset(root, name, ticks=tk)

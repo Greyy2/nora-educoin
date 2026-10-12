@@ -39,7 +39,7 @@ from backend.alpha.dsl.signal import Bin, BoolConst, Call, Cmp, Const, Data, Inv
 from backend.alpha.dsl.indicator import FEATURE_SPECS_DATA, OP_SPECS_DATA  # noqa: E402
 from backend.models.params import POSITION_KEYS
 from backend.models.models import DATA_DIR  # noqa: E402
-from backend.crawl.store import load_samples as _load_samples  # noqa: E402
+from backend.models.storage import load_samples as _load_samples
 
 CATEGORIES = ["Trend Following", "Mean Reversion", "Breakout & Momentum", "Multi-Indicator Confluence", "Risk-Managed & Exits"]
 DIFFICULTIES = {"Beginner", "Intermediate", "Advanced"}

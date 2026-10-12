@@ -142,9 +142,9 @@ def map_bot(bot: Dict[str, Any], available: List[str], costs: Tuple[float, float
 
 
 def available_symbols() -> List[str]:
-    from backend.crawl.store import resolve_asset_dir
+    from backend.data.data import read_manifest
     names = ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA", "AVAX"]
-    return [s for s in names if resolve_asset_dir(f"{s}@perp")]
+    return [s for s in names if read_manifest(s)]
 
 
 # ─── Chiến lược ─────────────────────────────────────────────────────────────
@@ -393,8 +393,8 @@ def main(argv=None):
     a = ap.parse_args(argv)
 
     from backend.models.params import resolve_costs
-    from backend.crawl.store import require_data_ok_or_exit
-    from backend.crawl.store import read_manifest
+    from backend.data.data import require_data_ok_or_exit
+    from backend.data.data import read_manifest
     from backend.optimize.process.workers import require_memory_limit, worker_init
     from backend.optimize.process.workers import resolve_workers
     require_memory_limit("research_topbots")

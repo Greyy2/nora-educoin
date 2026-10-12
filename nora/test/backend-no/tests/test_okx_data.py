@@ -1,3 +1,4 @@
+# ARCHIVED (P17-T1 B4): kiểm crawler/promote/funding.pkl của backend.crawl cũ; phần crawl OKX mới được test trong test/test_data.py (không mạng).
 """
 test_okx_data.py — dữ liệu theo sàn (data/<okx|binance>/...) + crawler OKX (không gọi mạng).
 

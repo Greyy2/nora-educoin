@@ -432,7 +432,7 @@ def test_user_alpha_new_version(tmp_path, monkeypatch, client):
     assert "result_stale" not in rec2
     # API: GET code + versions + POST alpha_id
     monkeypatch.setenv("NORA_ALPHAS_DIR", base)
-    monkeypatch.setattr("backend.crawl.store.alpha_user_dir", lambda: os.path.join(base, "user"))
+    monkeypatch.setattr("backend.models.storage.alpha_user_dir", lambda: os.path.join(base, "user"))
     c = client.get(f"/api/studio/alphas/user/{aid}/code").json()
     assert c["code"] == code2 and c["version"] == 2 and len(c["sha256"]) == 64
     assert [v["version"] for v in client.get(f"/api/studio/alphas/user/{aid}/versions").json()] == [1, 2]

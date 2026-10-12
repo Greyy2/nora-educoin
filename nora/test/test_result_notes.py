@@ -2,7 +2,7 @@
 import json
 import os
 
-from backend.crawl import store
+from backend.models import storage as store
 from backend.metrics.charts import build_notes
 
 REC = os.path.join(os.path.dirname(__file__), "fixtures", "result_notes_sample.json")

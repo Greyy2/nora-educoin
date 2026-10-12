@@ -20,8 +20,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from backend.crawl.store import save_resampled_dataset
-from data_helpers import set_ticks_attrs
+from data_helpers import save_synthetic
 
 D = 86_400_000
 T0 = 1_700_006_400_000  # 2023-11-15 00:00 UTC (neo ngày)
@@ -61,9 +60,8 @@ def clean_asset(tmp_path, monkeypatch):
     monkeypatch.setenv("NORA_LOCAL_DATA_ROOT", str(root))
     sym = "CLEAN"
     df = _rw_1m(40)
-    save_resampled_dataset(
-        symbol=sym, output_dir=str(root), df_1m_raw=df, pool_address="0xclean",
-        crawl_ok=True, requested_start_ts=int(df.open_time.min()), requested_end_ts=int(df.open_time.max()),
+    save_synthetic(
+        symbol=sym, output_dir=str(root), df_1m_raw=df, data_root=str(root),
     )
     return sym, str(root)
 
@@ -71,60 +69,21 @@ def clean_asset(tmp_path, monkeypatch):
 # ─── 1. Dữ liệu sạch chạy được end-to-end ───────────────────────────────────
 
 def test_gate_approves_clean_resampled_data(clean_asset):
-    from backend.crawl.store import DataQualityStatus, evaluate_data_quality
+    from backend.data.crawl import DataQualityStatus, evaluate_data_quality
+    from backend.data.data import quality_verdict
     sym, root = clean_asset
-    dq = evaluate_data_quality(sym, timeframe="1m", data_root=root)
+    dq = evaluate_data_quality(sym, data_root=root)
     assert dq["status"] == DataQualityStatus.APPROVED, dq["issues"]
+    assert quality_verdict(sym, root)["status"] == DataQualityStatus.APPROVED    # verdict đã được ghi vào manifest lúc ghi catalog
 
 
 # ─── 2. Monte Carlo: ưu tiên nguồn lệnh ─────────────────────────────────────
-
-
-# ─── 3. Tick thật: fail-closed và phải đủ độ phủ ────────────────────────────
-
-def _write_ticks(sym_dir, start_ts, n=500, step_ms=60_000):
-    pd.DataFrame({
-        "timestamp_ms": start_ts + np.arange(n, dtype=np.int64) * step_ms,
-        "price": 100.0 + np.sin(np.arange(n)),
-        "amount": 1.0,
-    }).to_parquet(os.path.join(sym_dir, "ticks.parquet"))
-
-
-def test_has_ticks_requires_manifest_declaration(tmp_path):
-    from backend.crawl.store import has_ticks
-    sym_dir = tmp_path / "TK"
-    sym_dir.mkdir()
-    _write_ticks(str(sym_dir), T0)
-    assert has_ticks("TK", data_root=str(tmp_path)) is False, "ticks.parquet không có manifest khai báo -> False"
-
-    set_ticks_attrs(str(sym_dir), ticks={"synthetic": False, "start_ts": T0, "end_ts": T0 + D})
-    assert has_ticks("TK", data_root=str(tmp_path)) is True
-    assert has_ticks("TK", data_root=str(tmp_path), min_days=30) is False
 
 
 # ─── 4. Cache research hết hạn khi dữ liệu đổi ──────────────────────────────
 
 
 # ─── 5. Sweep θ ─────────────────────────────────────────────────────────────
-
-
-# ─── 6. Gate bắt buộc 4h; không dựng nến từ tick ────────────────────────────
-
-def test_gate_blocks_when_4h_missing(clean_asset):
-    from backend.crawl.store import DataQualityStatus, evaluate_data_quality
-    sym, root = clean_asset
-    os.remove(os.path.join(root, sym, "4h.pkl"))
-    dq = evaluate_data_quality(sym, timeframe="1m", data_root=root)
-    assert dq["status"] == DataQualityStatus.BLOCKED
-    assert any("4h" in i for i in dq["issues"])
-
-
-def test_load_candle_df_has_no_tick_fallback(tmp_path):
-    from backend.crawl.dex import load_candle_df
-    sym_dir = tmp_path / "ONLYTICKS"
-    sym_dir.mkdir()
-    _write_ticks(str(sym_dir), T0, n=2000)
-    assert load_candle_df("ONLYTICKS", "1h", data_root=str(tmp_path)).empty
 
 
 # ─── 7. Không default 'SOL'; frontend khớp schema ───────────────────────────

@@ -1,3 +1,4 @@
+# ARCHIVED (P17-T1 B4): script của kho pkl / backend.crawl cũ (catalog nay cập nhật bằng job data_update -> backend.data.crawl).
 import sys, os
 sys.path.insert(0, "/home/vmc03/norabt/nora")
 import tempfile

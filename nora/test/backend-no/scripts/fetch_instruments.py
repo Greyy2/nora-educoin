@@ -1,3 +1,4 @@
+# ARCHIVED (P17-T1 B4): thay bằng backend.data.crawl.fetch_instruments (chỉ lấy spec OKX thật, không có spec dự phòng nhập tay).
 """Fetch OKX public instruments spec for SWAP contracts and save to instruments.json."""
 import json
 import urllib.request

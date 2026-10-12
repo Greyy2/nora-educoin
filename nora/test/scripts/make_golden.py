@@ -35,15 +35,14 @@ def _write(name: str, canon: dict, seconds: float) -> None:
 
 
 def main() -> int:
-    for name, fn in (("portfolio_synthetic", gs.scenario_portfolio_synthetic),
-                     ("single_dca_filled", gs.scenario_single_dca_filled)):
+    for name, fn in (("portfolio_synthetic", gs.scenario_portfolio_synthetic),):
         with tempfile.TemporaryDirectory(prefix="nora_golden_") as tmp:
             t = time.time()
             canon = fn(os.path.join(tmp, "data"))
             _write(name, canon, time.time() - t)
     data_root = os.environ.get("NORA_GOLDEN_DATA_ROOT") or os.path.join(NORA, "data")
     if not gs.real_data_available(data_root):
-        print(f"[make_golden] portfolio_real SKIPPED: thiếu BTC/perp/1m.pkl ... trong {data_root}", flush=True)
+        print(f"[make_golden] portfolio_real SKIPPED: thiếu catalog OKX của rổ trong {data_root}", flush=True)
         return 0
     t = time.time()
     canon = gs.scenario_portfolio_real(data_root)

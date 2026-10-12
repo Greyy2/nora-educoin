@@ -5,7 +5,7 @@ Dữ liệu giả lập 3 tài sản perp 70 ngày (fixture `market` của test_
 """
 import pathlib
 
-from backend.crawl.store import alpha_run_dir, run_dir
+from backend.models.storage import alpha_run_dir, run_dir
 import itertools
 import json
 import os
@@ -19,12 +19,11 @@ import time
 
 import pytest
 
-from backend.crawl import store as qg
+from backend.data import data as qg
 from backend.optimize.funnel import storage as rs
 from backend.optimize.process.process import Progress
 from backend.optimize.funnel.storage import stream_stage
 from backend.optimize.process import workers as parallel
-from data_helpers import patch_meta
 from test_portfolio_wfa import DAY, START, T0, _load_script, _small_book, market  # noqa: F401  (market là fixture)
 
 pytestmark = pytest.mark.usefixtures("synthetic_data")   # P15: engine Nautilus lấy nến thực thi + spec từ DataSource; dữ liệu giả lập -> conftest.synthetic_data
@@ -32,24 +31,22 @@ pytestmark = pytest.mark.usefixtures("synthetic_data")   # P15: engine Nautilus 
 
 # ─── 12.1 cổng chất lượng dữ liệu bắt buộc ──────────────────────────────────
 def _tamper(market, sym="AAA", **changes):
-    """Sửa metadata (attrs) của <sym>@perp (synthetic=true / digest_1m sai ...) và xoá cache gate."""
-    patch_meta(str(market / "cex" / sym / "perp"), **changes)
-    qg._GATE_CACHE.clear()
+    """Ghi verdict BLOCKED giả vào manifest của <sym> (mô phỏng crawl.evaluate_data_quality chặn dữ liệu hỏng); changes["issue"] = lý do."""
+    path = market / "market" / "okx" / "catalog" / "_manifest" / f"{sym}.json"
+    m = json.loads(path.read_text(encoding="utf-8"))
+    m["quality"] = {"symbol": sym, "status": "BLOCKED", "quality_score": 0.0, "issues": [changes["issue"]], "metrics": {}}
+    path.write_text(json.dumps(m), encoding="utf-8")
     qg._WARNED.clear()
 
 
-def _restore_cache():
-    qg._GATE_CACHE.clear()
-
-
-BAD = {"synthetic": dict(synthetic=True), "digest": dict(digest_1m="0" * 64)}
+BAD = {"synthetic": dict(issue="Chặn chạy: dữ liệu đánh dấu synthetic"), "digest": dict(issue="Chặn chạy: digest_1m không khớp")}
 
 
 def test_require_data_ok_passes_clean_market_and_lists_issues_for_bad(market):
     ok = qg.require_data_ok(["AAA@perp", "BBB@perp"])
     assert set(ok) == {"AAA@perp", "BBB@perp"} and all(v["status"] in ("APPROVED", "WARNING") for v in ok.values())
-    _tamper(market, "AAA", synthetic=True)
-    _tamper(market, "BBB", digest_1m="0" * 64)
+    _tamper(market, "AAA", **BAD["synthetic"])
+    _tamper(market, "BBB", **BAD["digest"])
     with pytest.raises(qg.DataQualityError) as e:
         qg.require_data_ok(["AAA@perp", "BBB@perp", "CCC@perp"])
     msg = str(e.value)
@@ -61,9 +58,9 @@ def test_require_data_ok_passes_clean_market_and_lists_issues_for_bad(market):
 
 
 def test_require_data_ok_needs_more_data_and_warning(market, monkeypatch, caplog):
-    def fake(symbol, **kw):
+    def fake(symbol, data_root=None):
         return {"symbol": symbol, "status": {"S1": "NEEDS_MORE_DATA", "S2": "WARNING"}[symbol], "issues": [f"vấn đề của {symbol}"]}
-    monkeypatch.setattr(qg, "evaluate_data_quality", fake)
+    monkeypatch.setattr(qg, "quality_verdict", fake)
     with pytest.raises(qg.DataQualityError, match="S1"):
         qg.require_data_ok(["S1", "S2"])
     with caplog.at_level("WARNING"):
@@ -98,7 +95,6 @@ def test_every_entry_point_refuses_bad_data(market, monkeypatch, tmp_path, kind)
     rbb = _load_script("run_book_backtest")
     with pytest.raises(SystemExit, match="CCC@perp"):
         rbb.run_job({"strategies": [{"id": "t_long"}], "start": "2023-11-20", "end": "2023-11-25"})
-    _restore_cache()
 
 
 # ─── 12.2 pool_imap_bounded ─────────────────────────────────────────────────
@@ -584,7 +580,7 @@ def test_cancel_endpoint_sigterms_process_group_and_marks_cancelled(client):
 
 
 def test_stage_a_endpoint_paginates_store(client, tmp_path, monkeypatch):
-    from backend.crawl.store import cache_dir
+    from backend.models.storage import cache_dir
     run = cache_dir(None, "book", "20260101_000000")
     st = rs.ResultsStore(run)
     for i in range(25):

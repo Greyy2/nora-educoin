@@ -1,3 +1,4 @@
+# ARCHIVED (P17-T1 B4): kiểm tick/DEX (Nautilus không hỗ trợ; endpoint tick 501 được test_no_mock kiểm).
 """
 test_ticks.py — crawl tick swap on-chain EVM (chỉ DEX) + lưu cửa sổ trượt (không gọi mạng).
 

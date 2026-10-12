@@ -1,3 +1,4 @@
+# ARCHIVED (P17-T1 B4): kiểm cổng chất lượng/bù nến trên kho pkl + backend.crawl cũ; hành vi còn lại đã viết lại trong test/test_data.py (catalog + verdict trong manifest).
 """Cổng chất lượng dữ liệu: thiếu manifest / synthetic / resample lệch -> BLOCKED; dữ liệu sạch -> APPROVED."""
 import os
 import tempfile

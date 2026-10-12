@@ -24,6 +24,7 @@ nora/data/alpha/*
 nora/data/alpha/strategies/.versions/
 # mã nguồn tên "data" (package Python) không phải dữ liệu: luôn theo dõi
 !nora/backend/core/data/
+!nora/backend/data/
 # Dữ liệu thị trường Nora (hàng trăm MB): staging crawl và bộ dữ liệu cũ dùng làm tham chiếu test
 nora/data_staging/
 nora/data_staging_perp/

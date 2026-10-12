@@ -1,26 +1,20 @@
 """
-test_round4_venue_and_fills.py — vòng 4: dữ liệu 3 năm CEX (Binance) + 2 DEX.
+test_round4_venue_and_fills.py — vòng 4: dữ liệu OKX perp (nến điền, ngưỡng phút trống, bước nhảy giá).
 
 1. Engine KHÔNG khớp lệnh trên nến điền (is_filled=1); khớp ở open phút có giao dịch kế tiếp.
-2. fetch_candles_df giữ cột is_filled cho engine.
+2. load_candles giữ cột is_filled cho engine.
 3. Gate: ngưỡng phút trống MAX_FILLED_RATIO_1M (60%).
 4. WFA gate có điều kiện lợi nhuận IS (min_is_profit_pct).
 5. Monte Carlo: robust_passed = WFA gate True VÀ ruin <= max_ruin_pct.
-6. Crawler Binance: chuẩn hoá µs->ms, bỏ header, volume = quote, kiểm SHA-256, thiếu tháng -> crawl_ok=False.
 7. Mô hình phí theo venue (CEX/DEX) trong Research.
 """
-import hashlib
-import io
-import time
-import zipfile
-
 import numpy as np
 import pandas as pd
 import pytest
 
 from data_helpers import FrameData
 
-from backend.crawl.store import save_resampled_dataset
+from data_helpers import save_synthetic
 
 pytestmark = pytest.mark.usefixtures("synthetic_data")   # P15: engine Nautilus lấy nến thực thi + spec từ DataSource; dữ liệu giả lập -> conftest.synthetic_data
 
@@ -57,10 +51,8 @@ def clean_asset(tmp_path, monkeypatch):
     root.mkdir()
     monkeypatch.setenv("NORA_LOCAL_DATA_ROOT", str(root))
     df = _rw_1m(40)
-    save_resampled_dataset(
-        symbol="CLEAN", output_dir=str(root), df_1m_raw=df, pool_address="0xclean", crawl_ok=True,
-        requested_start_ts=int(df.open_time.min()), requested_end_ts=int(df.open_time.max()),
-        extra_meta={"venue": "cex", "exchange": "binance"},
+    save_synthetic(
+        symbol="CLEAN", output_dir=str(root), df_1m_raw=df, data_root=str(root),
     )
     return "CLEAN", str(root)
 
@@ -112,22 +104,21 @@ def test_final_close_uses_last_real_minute():
 
 
 def test_fetch_candles_keeps_is_filled(clean_asset):
-    from backend.crawl.store import fetch_candles_df
+    from backend.data.data import load_candles
     sym, root = clean_asset
-    assert "is_filled" in fetch_candles_df(sym, "1m", data_root=root).columns
+    assert "is_filled" in load_candles(sym, "1m", data_root=root).columns
 
 
 # ─── 3. Gate ngưỡng phút trống ──────────────────────────────────────────────
 
 @pytest.mark.parametrize("empty_ratio,blocked", [(0.45, False), (0.70, True)])
 def test_gate_filled_ratio_threshold(tmp_path, empty_ratio, blocked):
-    from backend.crawl.store import evaluate_data_quality
+    from backend.data.crawl import evaluate_data_quality
     df = _rw_1m(35)
     keep = np.random.default_rng(0).random(len(df)) >= empty_ratio
     keep[0] = keep[-1] = True
-    save_resampled_dataset(symbol="SPARSE", output_dir=str(tmp_path), df_1m_raw=df[keep], pool_address="0x",
-                           crawl_ok=True, requested_start_ts=int(df.open_time.min()), requested_end_ts=int(df.open_time.max()))
-    dq = evaluate_data_quality("SPARSE", timeframe="1m", data_root=str(tmp_path))
+    save_synthetic(symbol="SPARSE", output_dir=str(tmp_path), df_1m_raw=df[keep], data_root=str(tmp_path))
+    dq = evaluate_data_quality("SPARSE", data_root=str(tmp_path))
     # WARNING (vd. nhiều nến volume=0) không chặn; chỉ BLOCKED / NEEDS_MORE_DATA mới chặn
     assert (dq["status"] in ("BLOCKED", "NEEDS_MORE_DATA")) is blocked, dq["issues"]
 
@@ -136,88 +127,6 @@ def test_gate_filled_ratio_threshold(tmp_path, empty_ratio, blocked):
 
 
 # ─── 5. Monte Carlo robust verdict ──────────────────────────────────────────
-
-# ─── 6. Crawler Binance ─────────────────────────────────────────────────────
-
-def _kline_csv(rows):
-    return "\n".join(",".join(str(v) for v in r) for r in rows).encode()
-
-
-def test_parse_kline_csv_normalizes_microseconds_and_uses_quote_volume():
-    from backend.crawl.cex import parse_kline_csv
-    ms, us = 1717200000000, 1785542400000000
-    raw = b"open_time,open,high,low,close,volume,close_time,quote_volume,count,tbb,tbq,ignore\n" + _kline_csv([
-        [ms, 1, 2, 0.5, 1.5, 10, ms + 59999, 15.0, 3, 1, 1, 0],
-        [us, 1, 2, 0.5, 1.5, 10, us + 59999999, 16.0, 3, 1, 1, 0],
-    ])
-    df = parse_kline_csv(raw)
-    assert df["open_time"].tolist() == [ms, us // 1000]
-    assert df["volume"].tolist() == [15.0, 16.0], "volume phải là quote volume (USDT)"
-
-
-class _Resp:
-    def __init__(self, content=b"", text=""):
-        self.content, self.text, self.status_code = content, text, 200
-
-
-def _zip_bytes(csv: bytes) -> bytes:
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w") as zf:
-        zf.writestr("X-1m-2024-01.csv", csv)
-    return buf.getvalue()
-
-
-def test_fetch_vision_zip_rejects_bad_checksum(tmp_path, monkeypatch):
-    import backend.crawl.cex as cb
-    payload = _zip_bytes(_kline_csv([[T0, 1, 1, 1, 1, 1, T0 + 59999, 1, 1, 1, 1, 0]]))
-    monkeypatch.setattr(cb, "_http_get", lambda s, url, **k: _Resp(text="0" * 64 + "  f.zip") if url.endswith(".CHECKSUM") else _Resp(content=payload))
-    with pytest.raises(cb.ChecksumMismatch):
-        cb.fetch_vision_zip(None, "https://x/f.zip", str(tmp_path))
-    assert not (tmp_path / "f.zip").exists(), "File sai checksum không được lưu vào cache"
-
-
-def test_fetch_vision_zip_ok_and_cached(tmp_path, monkeypatch):
-    import backend.crawl.cex as cb
-    csv = _kline_csv([[T0, 1, 1, 1, 1, 1, T0 + 59999, 1, 1, 1, 1, 0]])
-    payload = _zip_bytes(csv)
-    good = hashlib.sha256(payload).hexdigest()
-    calls = []
-
-    def fake_get(s, url, **k):
-        calls.append(url)
-        return _Resp(text=f"{good}  f.zip") if url.endswith(".CHECKSUM") else _Resp(content=payload)
-
-    monkeypatch.setattr(cb, "_http_get", fake_get)
-    assert cb.fetch_vision_zip(None, "https://x/f.zip", str(tmp_path)) == csv
-    assert cb.fetch_vision_zip(None, "https://x/f.zip", str(tmp_path)) == csv
-    assert sum(1 for u in calls if u.endswith(".zip")) == 1, "Lần 2 phải dùng cache"
-
-
-def test_binance_missing_month_marks_crawl_not_ok(tmp_path, monkeypatch):
-    import backend.crawl.cex as cb
-    from backend.crawl.store import evaluate_data_quality
-
-    def fake_zip(session, url, cache_dir):
-        if "2024-02" in url:
-            return None                                  # tháng bị thiếu
-        if "/daily/" in url:
-            return None
-        tag = url.rsplit("-1m-", 1)[1].replace(".zip", "")
-        start = pd.Timestamp(tag + "-01" if len(tag) == 7 else tag, tz="UTC")
-        end = start + pd.offsets.MonthBegin(1)
-        idx = pd.date_range(start, end, freq="1min", inclusive="left")
-        ts = (idx.asi8 // 10**6).astype("int64")
-        rows = [[int(t) * 1000, 1, 1.1, 0.9, 1, 1, 0, 5, 1, 1, 1, 0] for t in ts]  # µs
-        return _kline_csv(rows)
-
-    monkeypatch.setattr(cb, "fetch_vision_zip", fake_zip)
-    monkeypatch.setattr(cb, "fetch_rest_klines", lambda *a, **k: pd.DataFrame(columns=["open_time", "open", "high", "low", "close", "volume"]))
-    end_ms = int(pd.Timestamp("2024-04-01", tz="UTC").value // 10**6) - 60_000
-    manifest = cb.run_job({"symbols": "TST", "years": 90 / 365.25, "end_ts": end_ms, "output_dir": str(tmp_path)})[0]
-    assert manifest["venue"] == "cex" and manifest["exchange"] == "binance"
-    assert manifest["crawl_ok"] is False and any("2024-02" in i for i in manifest["crawl_issues"])
-    assert evaluate_data_quality("TST", timeframe="1m", data_root=str(tmp_path))["status"] == "BLOCKED"
-
 
 # ─── 7. Phí theo venue ──────────────────────────────────────────────────────
 
@@ -228,40 +137,13 @@ def test_binance_missing_month_marks_crawl_not_ok(tmp_path, monkeypatch):
 #  cắt về 6 cột OHLCV trước khi lọc -> mất cờ is_filled.)
 
 
-# ─── 9. Bước nhảy > 50%/phút: CEX đã kiểm checksum -> WARNING; nguồn khác -> BLOCKED ─
+# ─── 9. Bước nhảy > 50%/phút: dữ liệu OKX chính thức -> WARNING (sự kiện thật), không chặn ───
 
-@pytest.mark.parametrize("meta,expected", [
-    ({"venue": "cex", "exchange": "binance", "checksums_verified": True}, "WARNING"),
-    ({"venue": "dex", "exchange": "geckoterminal"}, "BLOCKED"),
-    ({"venue": "cex"}, "BLOCKED"),                       # CEX nhưng chưa kiểm checksum
-])
-def test_extreme_move_policy_by_source(tmp_path, meta, expected):
-    from backend.crawl.store import evaluate_data_quality
+def test_extreme_move_is_warning_not_blocked(tmp_path):
+    from backend.data.crawl import evaluate_data_quality
     df = _rw_1m(35)
     k = 20_000
     df.loc[k, ["open", "high", "low", "close"]] = df.loc[k, "close"] * 1.8   # +80% trong 1 phút
-    save_resampled_dataset(symbol="JUMP", output_dir=str(tmp_path), df_1m_raw=df, pool_address="0x", crawl_ok=True,
-                           requested_start_ts=int(df.open_time.min()), requested_end_ts=int(df.open_time.max()),
-                           extra_meta=meta)
-    dq = evaluate_data_quality("JUMP", timeframe="1h", data_root=str(tmp_path))
-    assert dq["status"] == expected, dq["issues"]
-
-
-# ─── 10. Cache của gate: nhanh ở lần 2, hết hạn ngay khi bất kỳ file dữ liệu nào đổi ─
-
-def test_gate_cache_invalidates_on_file_change(tmp_path):
-    from backend.crawl import store as g
-    df = _rw_1m(35)
-    save_resampled_dataset(symbol="CACHE", output_dir=str(tmp_path), df_1m_raw=df, pool_address="0x", crawl_ok=True,
-                           requested_start_ts=int(df.open_time.min()), requested_end_ts=int(df.open_time.max()))
-    first = g.evaluate_data_quality("CACHE", timeframe="1m", data_root=str(tmp_path))
-    assert first["status"] != "BLOCKED"
-    first["status"] = "MUTATED"  # sửa bản trả về không được làm hỏng cache
-    assert g.evaluate_data_quality("CACHE", timeframe="1m", data_root=str(tmp_path))["status"] != "MUTATED"
-
-    p4h = tmp_path / "CACHE" / "4h.pkl"
-    bad = pd.read_pickle(p4h)
-    bad["close"] *= 1.1
-    time.sleep(0.01)
-    bad.to_pickle(p4h)
-    assert g.evaluate_data_quality("CACHE", timeframe="1m", data_root=str(tmp_path))["status"] == "BLOCKED"
+    save_synthetic(symbol="JUMP", output_dir=str(tmp_path), df_1m_raw=df, data_root=str(tmp_path))
+    dq = evaluate_data_quality("JUMP", data_root=str(tmp_path))
+    assert dq["status"] == "WARNING", dq["issues"]

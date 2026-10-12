@@ -1,3 +1,4 @@
+# ARCHIVED (P17-T1 B4): kiểm bố cục thư mục pkl / manifest-trong-attrs / staging-promote / Binance của backend.crawl cũ (không còn: dữ liệu = ParquetDataCatalog OKX).
 """
 test_data_layout.py — kiến trúc thư mục dữ liệu thị trường data/{cex,dex}/<SYM>.
 

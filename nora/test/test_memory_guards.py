@@ -3,9 +3,7 @@
 Kiểm:
 - ByteLRU: loại theo BYTE (không theo số mục), cập nhật khoá cũ đúng sổ, mục quá ngân sách không cache,
   sổ byte không lệch khi nhiều luồng dùng cùng lúc (API chạy job trên ThreadPoolExecutor);
-- CandleLoader: mỗi FILE chỉ cache một lần dù gọi nhiều cửa sổ; cửa sổ trả về khớp đúng fetch_candles_df;
-  không thêm cột compat; ghi đè file thì cache tự hết hạn;
-- Mongo: luôn nạp theo cửa sổ, không cache (không kéo cả collection vào RAM);
+- data.load_candles: cửa sổ trả về khớp đúng khung đầy đủ, lần 2 lấy từ cache; không thêm cột compat; ghi lại catalog thì cache tự hết hạn;
 - _pool_map_safe: giữ thứ tự; lỗi trong job nổi lên ngay (không chạy lại, không che lỗi);
   worker bị kill -> chỉ chạy lại các job còn thiếu;
 - memwatch: RAM dùng được tính cả giới hạn cgroup; script nặng bắt buộc có trần RAM (require_memory_limit);
@@ -22,7 +20,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from backend.crawl.store import save_resampled_dataset
+from data_helpers import save_synthetic
 
 T0 = 1_700_006_400_000
 M = 60_000
@@ -33,7 +31,7 @@ MB = 1024 * 1024
 # ─── ByteLRU ────────────────────────────────────────────────────────────────
 
 def test_byte_lru_evicts_least_recently_used_by_bytes():
-    from backend.crawl.store import ByteLRU
+    from backend.models.storage import ByteLRU
     lru = ByteLRU(1)
     lru.put("a", "A", MB // 2)
     lru.put("b", "B", MB // 2)
@@ -46,7 +44,7 @@ def test_byte_lru_evicts_least_recently_used_by_bytes():
 
 
 def test_byte_lru_replacing_a_key_keeps_the_byte_ledger_right():
-    from backend.crawl.store import ByteLRU
+    from backend.models.storage import ByteLRU
     lru = ByteLRU(1)
     lru.put("a", 1, 600_000)
     lru.put("a", 2, 300_000)
@@ -56,7 +54,7 @@ def test_byte_lru_replacing_a_key_keeps_the_byte_ledger_right():
 
 
 def test_byte_lru_ledger_stays_consistent_under_threads():
-    from backend.crawl.store import ByteLRU
+    from backend.models.storage import ByteLRU
     lru = ByteLRU(1)
 
     def work(seed):
@@ -79,7 +77,7 @@ def test_byte_lru_ledger_stays_consistent_under_threads():
     assert 0 <= lru.used <= lru.budget
 
 
-# ─── CandleLoader ───────────────────────────────────────────────────────────
+# ─── data.load_candles ─────────────────────────────────────────────────────
 
 def _series(days, seed=3):
     n = days * 1440
@@ -93,48 +91,43 @@ def _series(days, seed=3):
 
 @pytest.fixture
 def one_asset(tmp_path, monkeypatch):
-    from backend.crawl.store import CandleLoader
+    from backend.data.data import clear_caches
     root = tmp_path / "data"
     monkeypatch.setenv("NORA_LOCAL_DATA_ROOT", str(root))
-    monkeypatch.setenv("NORA_DATA_SOURCE", "auto")
-    df = _series(5)
-    save_resampled_dataset(symbol="AAA", output_dir=str(root / "cex"), df_1m_raw=df, pool_address="s",
-                           crawl_ok=True, requested_start_ts=T0, requested_end_ts=int(df.open_time.max()),
-                           extra_meta={"venue": "cex"})
-    CandleLoader.clear_cache()
+    save_synthetic(symbol="AAA", output_dir=str(root / "cex"), df_1m_raw=_series(5))
+    clear_caches()
     yield root
-    CandleLoader.clear_cache()
+    clear_caches()
 
 
-def test_loader_caches_each_file_once_and_windows_match_fetch(one_asset):
-    from backend.crawl.store import _CANDLE_CACHE, CandleLoader
-    from backend.crawl.store import fetch_candles_df
+def test_loader_windows_match_full_frame_and_are_cached(one_asset):
+    from backend.data import data as D
     windows = ((T0, T0 + DAY), (T0 + DAY + 7 * M, T0 + 3 * DAY - M), (T0 - DAY, T0 + 10 * DAY))
     for frame in ("1m", "15m", "1h"):
+        full = D.load_candles("AAA", frame, 0, 2**62)
         for start, end in windows:
-            got = CandleLoader("AAA", frame).load_data(start, end).reset_index(drop=True)
-            expected = fetch_candles_df("AAA", frame, start_ts=start, end_ts=end, compat=False)
+            got = D.load_candles("AAA", frame, start, end).reset_index(drop=True)
+            expected = full[(full["open_time"] >= start) & (full["open_time"] <= end)].reset_index(drop=True)
             pd.testing.assert_frame_equal(got, expected)
-    assert len(_CANDLE_CACHE) == 3       # một mục mỗi file, không phải mỗi cửa sổ
+    assert len(D._get_candles_cache()) > 0
+    again = D.load_candles("AAA", "1h", T0, T0 + DAY)
+    assert D.load_candles("AAA", "1h", T0, T0 + DAY) is again       # lần 2 lấy từ cache
 
 
 def test_loader_returns_only_engine_columns(one_asset):
-    from backend.crawl.store import CandleLoader
-    cols = set(CandleLoader("AAA", "1m").load_data(T0, T0 + DAY).columns)
+    from backend.data.data import load_candles
+    cols = set(load_candles("AAA", "1m", T0, T0 + DAY).columns)
     assert {"open_time", "open", "high", "low", "close", "volume", "is_filled"} <= cols
     assert not cols & {"symbol", "timestamp", "close_time", "is_close"}
 
 
-def test_loader_cache_expires_when_file_is_rewritten(one_asset):
-    from backend.crawl.store import CandleLoader
-    before = CandleLoader("AAA", "1m").load_data(T0, T0 + DAY)["close"].to_numpy().copy()
-    path = one_asset / "cex" / "AAA" / "1m.pkl"
-    df = pd.read_pickle(path)
+def test_loader_cache_expires_when_catalog_is_rewritten(one_asset):
+    from backend.data.data import load_candles
+    before = load_candles("AAA", "1m", T0, T0 + DAY)["close"].to_numpy().copy()
+    df = _series(5)
     df[["open", "high", "low", "close"]] *= 2
-    df.to_pickle(path)
-    st = os.stat(path)
-    os.utime(path, ns=(st.st_atime_ns, st.st_mtime_ns + 10**9))  # mtime chắc chắn khác lần trước
-    after = CandleLoader("AAA", "1m").load_data(T0, T0 + DAY)["close"].to_numpy()
+    save_synthetic(symbol="AAA", output_dir=str(one_asset / "cex"), df_1m_raw=df)    # ghi lại catalog: digest đổi -> cache hết hạn
+    after = load_candles("AAA", "1m", T0, T0 + DAY)["close"].to_numpy()
     np.testing.assert_allclose(after, before * 2)
 
 

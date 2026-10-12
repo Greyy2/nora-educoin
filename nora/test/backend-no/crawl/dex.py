@@ -12,10 +12,18 @@ import numpy as np
 import requests
 from backend.crawl.store import clean_name, default_data_root, list_assets, resolve_asset_dir, parse_symbol, split_instrument
 from backend.crawl.store import asset_meta, manifest_of_dir, write_parquet_atomic
-from backend.core.backtest import reserve_price   # MỘT bản duy nhất (NumPy, không njit — xem chú thích AMM ở core/backtest.py)
 from backend.crawl import cex as okx
 from backend.crawl.cex import log
 from backend.crawl.store import as_list, options, write_job_result
+
+
+def reserve_price(reserve_base: Any, reserve_quote: Any, stable: bool) -> np.ndarray:
+    """Giá biên (quote / 1 base) theo dự trữ."""
+    x, y = np.asarray(reserve_base, float), np.asarray(reserve_quote, float)
+    if not stable:
+        return y / x
+    return (3 * x * x * y + y ** 3) / (x ** 3 + 3 * x * y * y)
+
 
 
 # ── Lưu tick DEX ──────────────────────────────────────────────────────────────────────────────
@@ -453,7 +461,7 @@ def decode_swaps(logs: List[Dict], info: Dict[str, Any]) -> pd.DataFrame:
 def pool_info(symbol: str, data_root: Optional[str] = None) -> Dict[str, Any]:
     """Metadata pool của tài sản DEX: symbol (hiển thị), qualified, network, fee_rate (+ nguồn), stable, pool_type, ticks (attrs ticks hoặc None).
     Phí: ticks["fee_rate"], không có thì onchain["fee_rate"] (cả hai nằm trong attrs ticks.parquet); null ở cả hai -> ValueError (không đoán phí).
-    (P9.4b: chuyển từ core/backtest.py — core không đọc file; engine nhận `info` do bên gọi truyền vào.)"""
+    (P9.4b: chuyển từ nautilus/engine.py — core không đọc file; engine nhận `info` do bên gọi truyền vào.)"""
     name = clean_name(parse_symbol(symbol)[1])
     path = resolve_asset_dir(f"dex:{name}", data_root=data_root or default_data_root())
     if not path:

@@ -13,7 +13,7 @@ _cand = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if os.path.basename(_cand) == "test":
     _cand = os.path.abspath(os.path.join(_cand, ".."))
 NORA_DIR = _cand
-DATA_DIR = os.path.join(NORA_DIR, "data")   # cây dữ liệu mặc định (crawl/store, alpha/compile)
+DATA_DIR = os.path.join(NORA_DIR, "data")   # cây dữ liệu mặc định (models/storage, alpha/compile)
 
 # Bộ đếm id toàn cục (lệnh / vị thế), tăng dần và không trùng (int(time.time()*1000) trùng khi nhiều lệnh mở trong cùng 1 ms).
 # Bắt đầu từ epoch-ms * 1000 để vẫn sắp xếp theo thời gian. Kernel, tracker và sim venue cùng rút từ MỘT dãy này.
@@ -455,9 +455,9 @@ CapitalLedger = Account
 # ══════════════════════════════════════════════════════════════════════════
 # Nguồn dữ liệu của engine (engine-API pass, ADR-P9: core không I/O, không import gì ngoài core)
 #
-# Engine (BacktestEngine / PortfolioEngine / build_plan / signal_snapshot / check_signals) KHÔNG tự đọc đĩa: mọi nến, funding, manifest, cổng chất
+# Engine (BacktestEngine / PortfolioEngine / build_plan / signal_snapshot / check_signals) KHÔNG tự đọc đĩa: mọi nến, manifest, cổng chất
 # lượng, kho mmap dùng chung và bộ nhớ đệm mảng đi qua MỘT đối tượng `DataSource` truyền vào (`data=`). Bản cài đặt thật nằm NGOÀI core
-# (backend/optimize/search/evaluate.py: EngineData bọc crawl/store + kho mmap dùng chung). `data=None` = nguồn mặc định của tiến
+# (backend/data/data.py: EngineData đọc catalog Nautilus + kho mmap dùng chung của optimize/search/evaluate.py). `data=None` = nguồn mặc định của tiến
 # trình, do tầng trên đăng ký bằng set_default_data_source (backend/optimize/__init__.py — mọi lối vào: API, job, worker, test, live).
 # ══════════════════════════════════════════════════════════════════════════
 
@@ -473,7 +473,7 @@ class DataMemo(Protocol):
 
 
 class DataSource(Protocol):
-    """Mọi thứ engine cần từ dữ liệu (đúng các thao tác engine dùng; cài đặt: backend/optimize/search/evaluate.py::EngineData)."""
+    """Mọi thứ engine cần từ dữ liệu (đúng các thao tác engine dùng; cài đặt: backend/data/data.py::EngineData)."""
 
     def candles(self, symbol: str, frame: str, start: int, end: int, columns: Optional[List[str]] = None,
                 use_cache: bool = True) -> Any:
@@ -486,9 +486,6 @@ class DataSource(Protocol):
     def instrument_spec(self, symbol: str) -> Dict[str, Any]:
         """Spec hợp đồng của tài sản: tickSz, lotSz, ctVal, minSz, margin_init, margin_maint, maker_fee, taker_fee (+ base_symbol).
         Engine dựng Instrument Nautilus (độ chính xác giá/khối lượng) từ đây."""
-
-    def funding(self, symbol: str) -> Any:
-        """Toàn bộ funding.pkl của instrument perp (DataFrame) hoặc None nếu không có."""
 
     def require_ok(self, symbols: List[str]) -> Any:
         """Cổng chất lượng dữ liệu BẮT BUỘC (raise nếu synthetic / sai sha256 / thiếu dữ liệu)."""

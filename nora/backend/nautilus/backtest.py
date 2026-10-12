@@ -21,6 +21,7 @@ from nautilus_trader.model.objects import Money
 from nautilus_trader.trading.strategy import Strategy, StrategyConfig
 
 from backend.alpha.dsl.strategy import RiskConfig
+from backend.data.data import exec_arrays
 from backend.models.params import FRAME_MS
 from backend.nautilus import catalog as cat
 from backend.nautilus import results as res_mod
@@ -291,7 +292,7 @@ def run_native(strategy_cls: Type[Strategy], symbols: List[str], start_ms: int, 
     for inst in insts.values():
         eng.add_instrument(inst)
     lo = int(start_ms) // fr * fr
-    ex = {n: cat.exec_arrays(n, base_frame, lo, int(end_ms)) for n in norm}
+    ex = {n: exec_arrays(n, base_frame, lo, int(end_ms)) for n in norm}
     last_close_ms = {insts[n].id: int(ex[n]["t"][-1]) + fr for n in norm if len(ex[n]["t"])}
     user = build_user_strategy(strategy_cls, strategy_id, insts, bar_types, params or {})
     tracker = EquityTracker(bar_types, fr, user, last_close_ms, close_at_end, initial_capital)

@@ -16,7 +16,8 @@ sys.path.insert(0, NORA)
 
 from backend.alpha.compile import compile_code                       # noqa: E402
 from backend.alpha.dsl.signal import DslError                             # noqa: E402
-from backend.crawl.store import alpha_education_samples, run_defaults   # noqa: E402
+from backend.models.storage import alpha_education_samples
+from backend.data.data import run_defaults
 from backend.optimize.process import tasks                           # noqa: E402
 from backend.routes import process as job_routes                     # noqa: E402
 

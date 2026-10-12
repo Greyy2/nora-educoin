@@ -316,21 +316,22 @@ def test_portfolio_trades_reuses_parsed_result_and_invalidates_on_mtime(monkeypa
     assert c.get("/api/studio/portfolio/trades?job_id=20261001_120009_abc123").status_code == 409
 
 
-def test_chart_frame_cache_hit_and_invalidates(tmp_path, monkeypatch):
-    monkeypatch.setattr(alpha, "_FRAME_CACHE", None)
-    p = str(tmp_path / "1h.pkl")
+def test_chart_frames_come_from_catalog_loader(monkeypatch):
+    """Biểu đồ nạp nến qua data.load_candles (cache ở đó theo digest catalog); thiếu dữ liệu -> 404."""
+    from fastapi import HTTPException
+    from backend.data import data as D
+    seen = []
     df = pd.DataFrame({"open_time": [1, 2, 3], "open": [1.0, 2.0, 3.0]})
-    df.to_pickle(p)
-    reads = []
-    real = pd.read_pickle
-    monkeypatch.setattr(pd, "read_pickle", lambda *a, **k: (reads.append(a), real(*a, **k))[1])
-    a = alpha._read_frame(p)
-    assert a.equals(df) and alpha._read_frame(p) is a and len(reads) == 1
-    pd.DataFrame({"open_time": [1, 2], "open": [1.0, 2.0]}).to_pickle(p)
-    _bump(p)
-    b = alpha._read_frame(p)
-    assert len(b) == 2 and len(reads) == 2
-    assert alpha._read_frame(str(tmp_path / "none.pkl")) is None
+    monkeypatch.setattr(D, "load_candles", lambda sym, fr, *a, **k: (seen.append((sym, fr)), df)[1])
+    out = alpha._frames("BTC", {"id": "x", "side": "LONG", "tree": [[[{"frame": "1h", "column": "close"}, ">", 0]]], "position": {}}, "1h")
+    assert seen and all(v is df for v in out.values())
+
+    def missing(sym, fr, *a, **k):
+        raise D.CatalogError("thiếu")
+    monkeypatch.setattr(D, "load_candles", missing)
+    with pytest.raises(HTTPException) as e:
+        alpha._frames("BTC", {"id": "x", "side": "LONG", "tree": [[[{"frame": "1h", "column": "close"}, ">", 0]]], "position": {}}, "1h")
+    assert e.value.status_code == 404
 
 
 # ─── 8. tính lại lệnh: chặn thời gian của request ────────────────────────────

@@ -24,7 +24,7 @@ from backend.optimize.search import evaluate as bt
 from backend.optimize.search.evaluate import SharedExporter
 from backend.optimize.search.generate import alpha_id_of, count_params, iter_params, iter_params_factored, regime_variants, space_for, validate_alpha
 from backend.metrics.trades import num_or_none
-from backend.crawl.store import as_list, options, read_json, write_job_result
+from backend.models.storage import as_list, options, read_json, write_job_result
 from backend.carlo import carlo
 from backend.models.params import BASE_RISK_PER_TRADE_PCT, DAY_MS as DAY, date_ms, iso_date
 from backend.wfa import wfa as wfa_mod
@@ -280,7 +280,7 @@ def thresholds_snapshot() -> Dict[str, Any]:
 def compute_windows(symbols: List[str], override: Optional[Dict[str, str]] = None) -> Dict[str, int]:
     """{"start", "dev1_end", "dev2_end", "end"} (ms UTC). Mặc định: start = max(đầu dữ liệu) + WARMUP, end = min(cuối dữ liệu),
     dev1 = 40% đầu, dev2 = 40% tiếp, holdout = 20% cuối. `override` ({khoá: "YYYY-MM-DD"}) ghi đè từng mốc; mốc phải tăng dần."""
-    from backend.crawl.store import read_manifest
+    from backend.data.data import read_manifest
     ms = [read_manifest(s) for s in symbols]
     if not all(ms):
         raise SystemExit(f"Thiếu dữ liệu (manifest) cho: {[s for s, m in zip(symbols, ms) if not m]}")
@@ -670,7 +670,7 @@ def new_run_id() -> str:
 
 
 def funnel_root() -> str:
-    from backend.crawl.store import alpha_run_dir
+    from backend.models.storage import alpha_run_dir
     path = alpha_run_dir("funnel")
     os.makedirs(path, exist_ok=True)
     return path
@@ -1259,7 +1259,7 @@ def run_funnel(cfg: FunnelConfig, run_id: Optional[str] = None, workers: int = 0
     if sum(planned.values()) > max_alphas:
         raise ValueError(f"{sum(planned.values()):,} alpha vượt giới hạn {max_alphas:,} (giảm n_per_strategy hoặc số chiến lược)")
     if check_data:
-        from backend.crawl.store import require_data_ok
+        from backend.data.data import require_data_ok
         require_data_ok(cfg.symbols)   # cổng chất lượng dữ liệu BẮT BUỘC, trước khi tạo kho / fork pool
     if resuming and old.get("windows_ms"):
         windows = old["windows_ms"]
@@ -1268,8 +1268,7 @@ def run_funnel(cfg: FunnelConfig, run_id: Optional[str] = None, workers: int = 0
     store = RunStore(run_dir)
     progress = Progress(run_dir)
     job_dir = os.environ.get("NORA_JOB_DIR")
-    from backend.crawl.store import exchange
-    cfg_out = {**cfg.to_dict(), "windows": windows_iso(windows), **git_info(), "data_exchange": exchange(),
+    cfg_out = {**cfg.to_dict(), "windows": windows_iso(windows), **git_info(), "data_exchange": "okx",
                "data_sha256": hashlib.sha256(json.dumps(data_fingerprint(cfg.symbols), sort_keys=True).encode()).hexdigest(),
                "thresholds": thresholds_snapshot()}
     store.update_run({"run_id": run_id, "job_id": os.path.basename(job_dir) if job_dir else old.get("job_id"), "status": "running",
@@ -1368,7 +1367,8 @@ def recompute_s1(run_dir: str, alpha_id: str, shared_dir: Optional[str] = None) 
 
 def run_funnel_recompute(params=None) -> Dict[str, Any]:
     """Tính lại lệnh S1 của params["alpha_id"] trong lượt params["run_id"] -> ghi <run_dir>/recomputed/<alpha_id>.json."""
-    from backend.crawl.store import options, require_data_ok_or_exit
+    from backend.models.storage import options
+    from backend.data.data import require_data_ok_or_exit
     from backend.optimize.process.workers import require_memory_limit
     a = options({"run_id": "", "alpha_id": ""}, params)
     if not a.run_id or not a.alpha_id:
@@ -1445,9 +1445,9 @@ def run_funnel_run(params=None):
     if total > cap:
         raise SystemExit(f"Từ chối: {total:,} alpha ({planned}) vượt max_alphas {cap:,}. Giảm n_per_strategy / số chiến lược hoặc đặt force_large (trần cứng 1.000.000).")
 
-    from backend.crawl.store import require_perp
+    from backend.data.data import require_perp
     from backend.optimize.book.build import perp_symbols
-    from backend.crawl.store import require_data_ok_or_exit
+    from backend.data.data import require_data_ok_or_exit
     require_perp(cfg.symbols or [], "Phễu")
     require_data_ok_or_exit(cfg.symbols or perp_symbols())   # cổng chất lượng dữ liệu BẮT BUỘC, trước mọi việc khác và trước khi fork pool
 

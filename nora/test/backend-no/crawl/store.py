@@ -19,6 +19,8 @@ from typing import Dict, List, Optional, Tuple, Any, Hashable
 import numpy as np
 import pandas as pd
 
+from backend.models.storage import *  # noqa: F401,F403
+
 
 # ── Layout thư mục dữ liệu ────────────────────────────────────────────────────────────────────
 # Kiến trúc thư mục dữ liệu thị trường (market data) — một nơi duy nhất quyết định đường dẫn.
@@ -61,8 +63,18 @@ class AmbiguousSymbolError(ValueError):
     """Cùng một ký hiệu tồn tại ở cả cex/ và dex/ mà không chỉ rõ venue."""
 
 
-from backend.core.models import DATA_DIR  # noqa: E402  (định nghĩa duy nhất ở core/models)
-from backend.core.params import DAY_MS, DEFAULT_CAPITAL, DEFAULT_TRAIN_RATIO, iso_date  # noqa: E402
+NORA_DATA_ROOT = os.environ.get("NORA_DATA_ROOT", "/home/vmc03/norabt/nora/data")
+DATA_DIR = NORA_DATA_ROOT
+DAY_MS = 86_400_000
+DEFAULT_CAPITAL = 10_000.0
+DEFAULT_TRAIN_RATIO = 0.7
+
+
+def iso_date(ts):
+    import datetime
+    return datetime.datetime.utcfromtimestamp(ts / 1000).strftime("%Y-%m-%d")
+
+
 EXCHANGES = ("okx", "binance")
 DEFAULT_EXCHANGE = "okx"
 
@@ -420,6 +432,9 @@ _COMPAT_COLUMNS = {"symbol", "timestamp", "close_time", "is_close"}
 
 
 def _frame_ms(frame: str) -> int:
+    from backend.models.params import FRAME_MS      # bảng khung MỘT NƠI; khung ngoài bảng (vd. 30s, 2h, 1d) phân tích theo số+đơn vị
+    if frame in FRAME_MS:
+        return FRAME_MS[frame]
     match = re.fullmatch(r"(\d+)([smhd])", frame.lower())
     if not match:
         return 0
@@ -719,7 +734,7 @@ def benchmark_daily_closes(symbol: str, start_ms: int, end_ms: int) -> pd.Series
 # ── Bộ đệm LRU theo byte ──────────────────────────────────────────────────────────────────────
 # Bộ đệm LRU giới hạn theo BYTE (không theo số mục), an toàn đa luồng.
 #
-# Dùng chung cho crawl/store.py (_CANDLE_CACHE) và core/backtest.py (_DATA_CACHE).
+# Dùng chung cho crawl/store.py (_CANDLE_CACHE) và nautilus/engine.py (_DATA_CACHE).
 # - Mỗi tiến trình có bản riêng (multiprocessing); trong một tiến trình, API chạy job trên
 #   ThreadPoolExecutor nên mọi thao tác đều giữ khoá.
 # - Mục lớn hơn cả ngân sách thì không cache (và bản cũ cùng khoá bị bỏ).
@@ -1937,7 +1952,7 @@ def run_job(params=None):
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Nhận diện tài sản theo thư mục dữ liệu (engine-API pass: từ core/backtest.py khối dex và core/params.data_symbol — chúng đọc đĩa nên không thuộc core).
+# Nhận diện tài sản theo thư mục dữ liệu (engine-API pass: từ nautilus/engine.py khối dex và models/params.data_symbol — chúng đọc đĩa nên không thuộc core).
 # ══════════════════════════════════════════════════════════════════════════
 
 def base_name(symbol: str) -> str:
@@ -2069,8 +2084,7 @@ _FRAME_ORDER = ("24h", "4h", "1h", "15m", "5m", "1m")
 
 
 def _clean(df: pd.DataFrame, drop_filled: bool = True) -> pd.DataFrame:
-    from backend.core.backtest import BacktestEngine
-    out = BacktestEngine._prepare_candles(df)
+    out = df.copy()
     if drop_filled and "is_filled" in out.columns:
         out = out[pd.to_numeric(out["is_filled"], errors="coerce").fillna(0).astype(int) == 0].reset_index(drop=True)
     return out

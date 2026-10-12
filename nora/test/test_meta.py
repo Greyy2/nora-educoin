@@ -6,7 +6,8 @@ from fastapi.testclient import TestClient
 
 from backend.carlo import carlo
 from backend.models.params import FRAME_MS
-from backend.crawl import store
+from backend.models import storage as store
+from backend.data.data import coverage
 from backend.nautilus.version import NAUTILUS_VERSION
 from backend.main import app
 from backend.optimize.book import registry
@@ -53,7 +54,7 @@ def test_frames_live_jobs(m):
 
 
 def test_universe_limits_books_paths(m):
-    assert m["universe"]["data"]["assets"] == [a["symbol"] for a in store.list_assets() if a.get("instrument") == "perp"]
+    assert m["universe"]["data"]["assets"] == [a["symbol"] for a in coverage()]
     for key, path in (("book", store.alpha_file("book")), ("explore", store.alpha_dir("explore", "book.json"))):
         b = store.read_json(path)
         assert m["universe"][key] == (b["universe"] if b else [])

@@ -14,7 +14,7 @@ SAMPLE_SPEC_FIELDS = ("symbols", "start", "end", "train_ratio", "initial_capital
 
 
 def _dir() -> str:
-    from backend.crawl.store import alpha_dir
+    from backend.models.storage import alpha_dir
     return alpha_dir("education", "results")
 
 
@@ -33,8 +33,8 @@ def cache_key(code: str, run_spec: dict) -> str:
     phash, tf = _program_info(code)
     base_frame = run_spec.get("run_frame") or tf or "1h"
     try:
-        from backend.crawl.store import resolve_symbols
-        from backend.nautilus.catalog import catalog_digest
+        from backend.data.data import resolve_symbols
+        from backend.data.data import catalog_digest
         digest = catalog_digest(resolve_symbols(run_spec.get("symbols")))
     except Exception:   # noqa: BLE001 — chưa có catalog/dữ liệu: khoá vẫn xác định, chạy sẽ báo lỗi dữ liệu rõ ràng
         digest = ""
@@ -57,15 +57,15 @@ def get(key: str) -> Optional[Dict[str, Any]]:
 
 
 def put(key: str, result: Dict[str, Any]) -> None:
-    from backend.crawl.store import write_json_atomic
+    from backend.models.storage import write_json_atomic
     os.makedirs(_dir(), exist_ok=True)
     write_json_atomic(_path(key), result)
 
 
 def sample_run_spec(sample: dict, defaults: Optional[dict] = None) -> dict:
-    """Thiết lập chạy của mẫu = mặc định của Studio (crawl.store.run_defaults, chế độ 'Nhanh': run_frame rỗng = khung tín hiệu) + trường riêng của mẫu."""
+    """Thiết lập chạy của mẫu = mặc định của Studio (data.run_defaults, chế độ 'Nhanh': run_frame rỗng = khung tín hiệu) + trường riêng của mẫu."""
     if defaults is None:
-        from backend.crawl.store import run_defaults
+        from backend.data.data import run_defaults
         defaults = run_defaults()
     spec = dict(defaults)
     for f in SAMPLE_SPEC_FIELDS:

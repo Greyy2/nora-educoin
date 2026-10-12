@@ -18,14 +18,14 @@ import pandas as pd
 from backend.carlo.carlo import bootstrap_daily
 from backend.models.params import DAY_MS as DAY, BASE_RISK_PER_TRADE_PCT, REGIME_MAP, RISK, materialize, regime_for, schema_defaults
 from backend.alpha.compile import load_system_strategies
-from backend.crawl.store import alpha_dir, alpha_dir as alphas_dir, alpha_run_dir
+from backend.models.storage import alpha_dir, alpha_dir as alphas_dir, alpha_run_dir
 from backend.metrics.metrics import portfolio_metrics
 from backend.models.models import NORA_DIR
 from backend.optimize.funnel.storage import atomic_write_json, data_fingerprint, make_job_key, normalize, ResultsStore, stream_stage
 from backend.optimize.process.workers import auto_workers, pool_map_safe
 from backend.optimize.search.evaluate import BacktestJob, make_engine, SharedExporter
 from backend.optimize.search.generate import grid_size, iter_params
-from backend.crawl.store import as_list, json_default, options, read_json, write_job_result
+from backend.models.storage import as_list, json_default, options, read_json, write_job_result
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -290,7 +290,7 @@ def book_strategies(ids: Optional[List[str]] = None, regime: bool = True) -> Lis
 #   workers="auto" đọc cả giới hạn cgroup (systemd-run -p MemoryMax=...), không chỉ RAM trống của máy.
 #   BẮT BUỘC chạy dưới trần RAM (job API luôn qua ops/run_limited.sh; không có trần cgroup thì từ chối, trừ khi NORA_ALLOW_UNLIMITED=1).
 #   Dữ liệu dùng chung: trước mỗi pool, tiến trình CHA dựng một lần mảng giá + kernel + funding của cả vũ trụ vào
-#   <run_dir>/_shared/ (backend/crawl/store.py); worker chỉ np.load(mmap_mode="r") qua NORA_SHARED_DATA_DIR
+#   <run_dir>/_shared/ (backend/optimize/search/evaluate.py); worker chỉ np.load(mmap_mode="r") qua NORA_SHARED_DATA_DIR
 #   -> RAM riêng (anon) mỗi worker nhỏ, trang file chỉ tính MỘT lần trong cgroup. Chạy xong thì xoá _shared (lỗi thì giữ lại).
 #   OMP_NUM_THREADS / OPENBLAS_NUM_THREADS / MKL_NUM_THREADS đặt = "1" nếu chưa có.
 # ══════════════════════════════════════════════════════════════════════════
@@ -319,7 +319,7 @@ PER_WORKER_MB = 800
 
 
 def windows(symbols):
-    from backend.crawl.store import read_manifest
+    from backend.data.data import read_manifest
     ms = [read_manifest(s) for s in symbols]
     start = max(int(m["start_ts"]) for m in ms) + WARMUP
     end = min(int(m["end_ts"]) for m in ms)
@@ -511,7 +511,7 @@ def run_book_build(params=None):
     from backend.optimize.process.workers import require_memory_limit
     require_memory_limit("build_strategy_book")
     from backend.optimize.process.workers import check_memory_gate, planning_budget_mb
-    from backend.crawl.store import require_data_ok_or_exit
+    from backend.data.data import require_data_ok_or_exit
     from backend.optimize.process.process import Progress, graceful_sigterm
 
     # Cổng chất lượng dữ liệu BẮT BUỘC — trước mọi việc khác và trước khi fork pool (worker thừa kế cache gate)
@@ -989,7 +989,7 @@ def build_presets(book: Optional[Dict[str, Any]] = None, runs_dir: Optional[str]
     if book is None and use_book_file:
         book = read_json(book_path())
     if runs_dir is None:
-        from backend.crawl.store import cache_dir
+        from backend.models.storage import cache_dir
         runs_dir = cache_dir(None, "book")
     book_items = from_book(book, CANDIDATES)
     stage_a_items = from_build_runs(runs_dir, CANDIDATES)

@@ -9,7 +9,7 @@ import pandas as pd
 import pytest
 
 from backend.models.params import date_ms
-from backend.crawl.store import save_resampled_dataset
+from data_helpers import save_synthetic
 
 pytestmark = pytest.mark.usefixtures("synthetic_data")   # P15: engine Nautilus lấy nến thực thi + spec từ DataSource; dữ liệu giả lập -> conftest.synthetic_data
 
@@ -34,16 +34,9 @@ def _series(days, seed, vol):
 def market(tmp_path, monkeypatch):
     root = tmp_path / "data"
     monkeypatch.setenv("NORA_LOCAL_DATA_ROOT", str(root))
-    meta = {"venue": "cex", "checksums_verified": True, "exchange": "binance"}
     for k, sym in enumerate(SYMS):
         df = _series(70, 20 + k, 0.0008 * (k + 1))
-        end = int(df.open_time.max())
-        for name, out, extra in ((sym, root / "cex", {}), ("perp", root / "cex" / sym,
-                                                         {"exchange": "binance_usdm", "market": "perp"})):
-            save_resampled_dataset(symbol=name, output_dir=str(out), df_1m_raw=df, pool_address="x", crawl_ok=True,
-                                   requested_start_ts=T0, requested_end_ts=end, extra_meta={**meta, **extra})
-        ft = T0 + np.arange(1, 70 * 3) * 8 * 3_600_000
-        pd.DataFrame({"funding_time": ft, "interval_h": 8.0, "rate": 0.0001}).to_pickle(root / "cex" / sym / "perp" / "funding.pkl")
+        save_synthetic(symbol=sym, output_dir=str(root / "cex"), df_1m_raw=df)
     from backend.optimize.book import build as sb
     from backend.alpha.compile import cond, f, tree_p
     monkeypatch.setattr(sb, "UNIVERSE", list(SYMS))

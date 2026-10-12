@@ -1,3 +1,4 @@
+# ARCHIVED (P17-T1 B4): kiểm bố cục thư mục pkl / manifest-trong-attrs / staging-promote / Binance của backend.crawl cũ (không còn: dữ liệu = ParquetDataCatalog OKX).
 """
 test_data_paths_p93b.py — P9.3b: người gọi (API/optimize/wfa/live) dùng helper đường dẫn của crawl/store.py.
 

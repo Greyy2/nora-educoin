@@ -18,7 +18,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from backend.optimize.process.workers import pool_imap_bounded
-from backend.crawl.store import json_default, read_json
+from backend.models.storage import json_default, read_json
 from backend.metrics.trades import num_or_none
 
 
@@ -560,7 +560,7 @@ _CODE_FILES = (   # mọi file ảnh hưởng kết quả backtest: đổi một
     "backend/alpha/dsl/strategy.py", "backend/models/models.py", "backend/models/params.py", "backend/models/position_size.py",   # tín hiệu + kế hoạch vị thế
     "backend/nautilus/engine.py", "backend/optimize/search/evaluate.py",   # P15: engine khớp lệnh = Nautilus (adapter) + vòng chạy
     "backend/metrics/metrics.py", "backend/metrics/trades.py",   # P9.5: returns+portfolio gộp, trades chuyển
-    "backend/crawl/store.py", "backend/alpha/dsl/signal.py", "backend/alpha/contract.py", "backend/alpha/compile.py", "backend/alpha/dsl/indicator.py",   # P9.4 part 2: evaluator/kernels đã gộp
+    "backend/data/data.py", "backend/alpha/dsl/signal.py", "backend/alpha/contract.py", "backend/alpha/compile.py", "backend/alpha/dsl/indicator.py",   # P9.4 part 2: evaluator/kernels đã gộp
     "backend/optimize/book/build.py", "backend/wfa/wfa.py",   # P9.5 (+ P9.9: sổ chiến lược book.py/library.py gộp vào build.py/signal.py)
 )
 _CODE_VERSION: Optional[str] = None
@@ -592,13 +592,9 @@ def code_version() -> str:
 
 
 def data_fingerprint(symbols: Iterable[str]) -> List[Any]:
-    """sha256 của 1m.pkl theo manifest từng tài sản (thiếu thì (start, end, số nến)) — thành phần của job_key."""
-    from backend.crawl.store import read_manifest
-    out = []
-    for s in symbols:
-        m = read_manifest(s) or {}
-        out.append([s, m.get("sha256_1m") or [m.get("start_ts"), m.get("end_ts"), m.get("rows_1m") or (m.get("rows") or {}).get("1m")]])
-    return out
+    """Dấu vân tay catalog nến 1m của từng tài sản (data.catalog_digest) — thành phần của job_key."""
+    from backend.data.data import catalog_digest
+    return [[s, catalog_digest([s])] for s in symbols]
 
 
 def make_job_key(stage: str, candidate: str, params: Any, window: Any = None, stop_fill: Any = None, risk: Any = None,

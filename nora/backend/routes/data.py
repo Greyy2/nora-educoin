@@ -1,51 +1,47 @@
-"""Routes dữ liệu và thị trường (P11): crawl dữ liệu, kiểm tra độ phủ nến/tick, chế độ thị trường (regime).
+"""Routes dữ liệu và thị trường (P11): cập nhật catalog OKX, độ phủ nến, chế độ thị trường (regime).
 
 Gộp từ: data.py, market.py.
 """
-"""Dữ liệu thị trường (/api/data): tải nến OKX (sàn triển khai, mặc định) / Binance (tham khảo) và đưa dữ liệu đã qua quality gate từ staging vào kho — đều là job nền."""
-import os
-from typing import Annotated, List
+from typing import List
 
-from fastapi import APIRouter
-from pydantic import BaseModel, Field, StringConstraints
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
 
 from backend.routes import process as batch_jobs
-from backend.crawl.dex import DEFAULT_TICK_DAYS, MAX_TICK_DAYS
 from backend.optimize.process.process import DEX_UNSUPPORTED, NotReady
 
 data_router = APIRouter(prefix="/api/data", tags=["data"])
-# Crawl ghi vào <cache/process>/<job>/staging/cex (batch.launch đặt output_dir); chỉ promote (qua quality gate) mới đưa vào market/<sàn>/ rồi xoá staging.
+# Cập nhật nến OKX perp vào ParquetDataCatalog (job nền data_update -> backend.data.crawl.run_job); catalog + manifest ghi thẳng, không còn staging/promote.
 
 
 class CrawlRequest(BaseModel):
     symbols: List[str] = Field(..., min_length=1, max_length=20)
-    exchange: str = Field("okx", pattern="^(okx|binance)$")   # okx = USDT-SWAP (kèm funding) -> data/okx; binance -> data/binance
-    market: str = Field("um", pattern="^(spot|um)$")       # chỉ Binance: um = USDT-M perpetual (kèm funding)
-    years: float = Field(3.0, gt=0, le=8)
 
 
 class TicksRequest(BaseModel):
-    symbols: List[Annotated[str, StringConstraints(pattern=r"^(dex:)?[A-Za-z0-9_]{1,20}$")]] = Field(..., min_length=1, max_length=20)   # tài sản DEX ("AERO" / "dex:AERO")
-    days: int = Field(DEFAULT_TICK_DAYS, ge=1, le=MAX_TICK_DAYS)
+    symbols: List[str] = Field(..., min_length=1, max_length=20)   # tài sản DEX ("AERO" / "dex:AERO")
+    days: int = Field(7, ge=1, le=30)
 
 
 class PromoteRequest(BaseModel):
-    apply: bool = False               # False = chỉ lập kế hoạch (dry-run)
+    apply: bool = False
     archive_legacy: bool = False
 
 
 @data_router.post("/crawl")
 def post_crawl(req: CrawlRequest):
-    """Tải nến 1m (+ funding với perp) vào thư mục process của job (staging/cex); sau đó POST /promote đưa tài sản qua quality gate vào data/<sàn>/cex."""
+    """Cập nhật catalog nến 1m OKX perp (rổ cố định 10 tài sản) tới hiện tại; kiểm định chất lượng ghi vào manifest."""
+    from backend.data.data import UNIVERSE_BASES
     syms = [s.strip().upper() for s in req.symbols if s.strip().isalnum()]
-    if req.exchange == "okx":
-        return batch_jobs.http_launch("data_crawl_okx", {"symbols": syms, "years": req.years})
-    return batch_jobs.http_launch("data_crawl", {"symbols": syms, "market": req.market, "years": req.years})
+    bad = [s for s in syms if s not in UNIVERSE_BASES]
+    if bad:
+        raise HTTPException(422, f"{bad}: không thuộc rổ OKX perp của Nora ({', '.join(UNIVERSE_BASES)})")
+    return batch_jobs.http_launch("data_update", {"symbols": syms})
 
 
 @data_router.post("/ticks/crawl")
 def post_ticks_crawl(req: TicksRequest):
-    """501 NOT_READY: tick swap on-chain chỉ phục vụ backtest AMM, Nautilus không hỗ trợ DEX/AMM (mã crawl giữ nguyên trong backend/crawl/dex.py)."""
+    """501 NOT_READY: tick swap on-chain chỉ phục vụ backtest AMM, Nautilus không hỗ trợ DEX/AMM."""
     raise NotReady(DEX_UNSUPPORTED)
 
 
@@ -57,16 +53,14 @@ def get_ticks_coverage():
 
 @data_router.post("/promote")
 def post_promote(req: PromoteRequest):
-    """Đưa tài sản đã qua quality gate từ staging của các job crawl vào market/<sàn>/ (apply=False: chỉ xem kế hoạch)."""
-    return batch_jobs.http_launch("data_promote", {"apply": req.apply, "archive_legacy": req.archive_legacy})
-
+    """501 NOT_READY: không còn bước promote — job data_update ghi thẳng vào catalog (kiểm định chất lượng nằm trong manifest)."""
+    raise NotReady("Không còn bước chuyển dữ liệu vào kho: data_update ghi thẳng vào catalog")
 
 
 # ══════════════════════════════════════════════════════════════════════════
 # PHẦN 2: THỊ TRƯỜNG & REGIME (gộp từ market.py)
 # ══════════════════════════════════════════════════════════════════════════
 
-import os
 import threading
 import time
 from collections import OrderedDict
@@ -82,15 +76,11 @@ _MAX = 64
 
 
 def _fingerprint(symbol: str) -> Optional[tuple]:
-    from backend.crawl.store import resolve_symbol_dir
-    d = resolve_symbol_dir(symbol)
-    if not d:
-        return None
-    f = os.path.join(d, "1m.pkl")
+    """Khoá cache theo dấu vân tay catalog của tài sản (đổi khi catalog được cập nhật)."""
+    from backend.data.data import catalog_digest
     try:
-        st = os.stat(f)
-        return (f, st.st_mtime_ns, st.st_size)
-    except OSError:
+        return (catalog_digest([symbol]),)
+    except ValueError:
         return None
 
 
@@ -103,7 +93,7 @@ def regime_history(symbol: str, days: int) -> Dict[str, Any]:
     from backend.optimize.search.evaluate import WARMUP
     from backend.metrics import regime as rg
     from backend.models.params import REGIME_MAP
-    from backend.crawl.store import read_manifest
+    from backend.data.data import read_manifest
     m = read_manifest(symbol)
     if not m:
         return {"symbol": symbol, "error": "chưa có dữ liệu (manifest)"}

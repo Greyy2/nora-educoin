@@ -14,7 +14,7 @@ sys.path.insert(0, _HERE)
 import lint_edu_samples as L  # noqa: E402
 
 sys.path.insert(0, L._NORA)
-from backend.crawl.store import alpha_education_samples  # noqa: E402
+from backend.models.storage import alpha_education_samples
 
 OUT = alpha_education_samples()
 FIELDS = ("key", "name", "category", "difficulty", "position", "summary", "code")

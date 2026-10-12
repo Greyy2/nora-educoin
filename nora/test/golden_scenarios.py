@@ -138,8 +138,8 @@ def data_root_env(root: str):
 
 def clear_caches() -> None:
     from backend.alpha.dsl import strategy as portfolio
-    from backend.crawl.store import CandleLoader
-    CandleLoader.clear_cache()
+    from backend.data.data import clear_caches as clear_data_caches
+    clear_data_caches()
     portfolio.data_cache_clear()
 
 
@@ -158,21 +158,12 @@ def _series(days, seed, vol):
 
 
 def write_synthetic_market(root) -> None:
-    """Giống hệt fixture `market` của test_portfolio_engine.py."""
-    from backend.crawl.store import save_resampled_dataset
+    """Giống hệt fixture `market` của test_portfolio_engine.py (catalog giả lập trong root)."""
+    from data_helpers import save_synthetic
     root = str(root)
-    meta = {"venue": "cex", "checksums_verified": True, "exchange": "binance"}
-    for k, (sym, vol) in enumerate((("AAA", 0.0008), ("BBB", 0.0016), ("CCC", 0.0030))):
-        df = _series(40, 10 + k, vol)
-        end = int(df.open_time.max())
-        save_resampled_dataset(symbol=sym, output_dir=os.path.join(root, "cex"), df_1m_raw=df, pool_address="s",
-                               crawl_ok=True, requested_start_ts=T0, requested_end_ts=end, extra_meta=meta)
-        save_resampled_dataset(symbol="perp", output_dir=os.path.join(root, "cex", sym), df_1m_raw=df,
-                               pool_address="p", crawl_ok=True, requested_start_ts=T0, requested_end_ts=end,
-                               extra_meta={**meta, "exchange": "binance_usdm", "market": "perp"})
-        ft = T0 + np.arange(1, 40 * 3) * 8 * 3_600_000
-        pd.DataFrame({"funding_time": ft, "interval_h": 8.0, "rate": 0.0001 * (k + 1)}).to_pickle(
-            os.path.join(root, "cex", sym, "perp", "funding.pkl"))
+    with data_root_env(root):
+        for k, (sym, vol) in enumerate((("AAA", 0.0008), ("BBB", 0.0016), ("CCC", 0.0030))):
+            save_synthetic(symbol=sym, output_dir=os.path.join(root, "cex"), df_1m_raw=_series(40, 10 + k, vol))
 
 
 def _f(frame, column, index=0):
@@ -197,46 +188,6 @@ def scenario_portfolio_synthetic(root) -> Dict[str, Any]:
         return canonicalize(eng.get_results())
 
 
-# ─── Kịch bản 2: một tài sản DEX có phút điền (is_filled=1) + DCA ───────────
-
-def scenario_single_dca_filled(root) -> Dict[str, Any]:
-    from backend.models.models import data_source
-    from backend.models.params import manifest_pool_fee
-    from backend.nautilus.engine import BacktestEngine
-    from backend.models.params import build_params
-    from backend.crawl.store import save_resampled_dataset
-    root = str(root)
-    n = 25 * 1440
-    rng = np.random.default_rng(77)
-    r = rng.normal(0, 0.0025, n)
-    r[1:] -= 0.1 * r[:-1]
-    c = 100 * np.exp(np.cumsum(r))
-    o = np.r_[c[0], c[:-1]]
-    vol = 0.0025
-    full = pd.DataFrame({"open_time": T0 + np.arange(n, dtype=np.int64) * M, "open": o,
-                         "high": np.maximum(o, c) * (1 + vol / 3), "low": np.minimum(o, c) * (1 - vol / 3),
-                         "close": c, "volume": 5.0})
-    keep = rng.random(n) > 0.30
-    keep[0] = keep[-1] = True
-    raw = full[keep].reset_index(drop=True)
-    end = int(full.open_time.max())
-    save_resampled_dataset(symbol="DEXA", output_dir=os.path.join(root, "dex"), df_1m_raw=raw, pool_address="0xdex",
-                           crawl_ok=True, requested_start_ts=T0, requested_end_ts=end,
-                           extra_meta={"venue": "dex", "pool_fee_rate": 0.003})
-    position = {"market": "spot", "leverage": 1, "order_size_pct": 20, "dca_step_pct": 0.5, "dca_max_layers": 3,
-                "take_profit_rate": 1.0, "stop_loss_rate": 3.0, "timeout": 720}
-    tree = [[[_f("1m", "rsi_14"), "<", 30]]]
-    with data_root_env(root):
-        eng = BacktestEngine(0, 0, "DEXA", T0, end, trade_start_ts=T0 + 2 * DAY)
-        eng.add_strategy_flow("LONG_dca", build_params("LONG_dca", {"match": [{"condition": tree}], "stop": []},
-                                                       "LONG", position, "dex",
-                                                       manifest_pool_fee(data_source().manifest("DEXA"))))
-        eng.load_data()
-        eng.run()
-        res = eng.get_results()
-    return canonicalize(res)
-
-
 # ─── Kịch bản 3: danh mục dữ liệu thật ──────────────────────────────────────
 
 REAL_SYMBOLS = ["BTC@perp", "SOL@perp", "DOGE@perp"]
@@ -246,8 +197,10 @@ REAL_WARMUP_DAYS = 20
 
 
 def real_data_available(data_root) -> bool:
-    return all(os.path.isfile(os.path.join(str(data_root), "cex", s.split("@")[0], "perp", "1m.pkl"))
-               for s in REAL_SYMBOLS)
+    """Catalog OKX thật (market/okx/catalog dưới data_root) có nến 1m của mọi REAL_SYMBOLS."""
+    from backend.data.data import read_manifest
+    cat = os.path.join(str(data_root), "market", "okx", "catalog")
+    return all(read_manifest(s.split("@")[0], cat) is not None for s in REAL_SYMBOLS)
 
 
 def scenario_portfolio_real(data_root, end: Optional[str] = None, shared_dir: Optional[str] = None) -> Dict[str, Any]:

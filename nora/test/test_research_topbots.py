@@ -15,7 +15,7 @@ import pytest
 
 from scripts import research_topbots as rt
 from backend.models.params import dca_budget_check, resolve_costs
-from backend.crawl.store import save_resampled_dataset
+from data_helpers import save_synthetic
 
 pytestmark = pytest.mark.usefixtures("synthetic_data")   # P15: engine Nautilus lấy nến thực thi + spec từ DataSource; dữ liệu giả lập -> conftest.synthetic_data
 
@@ -124,14 +124,7 @@ def market(tmp_path, monkeypatch):
     df = pd.DataFrame({"open_time": T0 + np.arange(n, dtype=np.int64) * M, "open": o,
                        "high": np.maximum(o, c) * 1.0005, "low": np.minimum(o, c) * 0.9995, "close": c, "volume": 10.0})
     end = int(df.open_time.max())
-    meta = {"venue": "cex", "checksums_verified": True, "exchange": "binance"}
-    save_resampled_dataset(symbol="AAA", output_dir=str(root / "cex"), df_1m_raw=df, pool_address="s", crawl_ok=True,
-                           requested_start_ts=T0, requested_end_ts=end, extra_meta=meta)
-    save_resampled_dataset(symbol="perp", output_dir=str(root / "cex" / "AAA"), df_1m_raw=df, pool_address="p",
-                           crawl_ok=True, requested_start_ts=T0, requested_end_ts=end,
-                           extra_meta={**meta, "exchange": "binance_usdm", "market": "perp"})
-    ft = T0 + np.arange(1, 30 * 3) * 8 * 3_600_000
-    pd.DataFrame({"funding_time": ft, "interval_h": 8.0, "rate": 0.0001}).to_pickle(root / "cex" / "AAA" / "perp" / "funding.pkl")
+    save_synthetic(symbol="AAA", output_dir=str(root / "cex"), df_1m_raw=df)
     return end
 
 

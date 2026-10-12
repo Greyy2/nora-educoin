@@ -387,7 +387,7 @@ def test_prefix_check_detects_a_lookahead_kernel():
 # ─── E. Công cụ kiểm tra tín hiệu phải phân biệt được edge thật và nhiễu ─────
 
 def _dataset(tmp_path, monkeypatch, returns, name):
-    from backend.crawl.store import save_resampled_dataset
+    from data_helpers import save_synthetic
     close = 100 * np.exp(np.cumsum(returns))
     open_ = np.r_[close[0], close[:-1]]
     df = pd.DataFrame({"open_time": T0 + np.arange(len(close), dtype=np.int64) * M, "open": open_,
@@ -395,7 +395,7 @@ def _dataset(tmp_path, monkeypatch, returns, name):
                        "close": close, "volume": 10.0})
     root = tmp_path / "data"
     monkeypatch.setenv("NORA_LOCAL_DATA_ROOT", str(root))
-    save_resampled_dataset(symbol=name, output_dir=str(root / "cex"), df_1m_raw=df, pool_address="x", crawl_ok=True,
+    save_synthetic(symbol=name, output_dir=str(root / "cex"), df_1m_raw=df, pool_address="x", crawl_ok=True,
                            requested_start_ts=int(df.open_time.min()), requested_end_ts=int(df.open_time.max()),
                            extra_meta={"venue": "cex", "exchange": "test", "checksums_verified": True})
 

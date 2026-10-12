@@ -14,9 +14,9 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from backend.alpha.dsl.indicator import REGISTRY
-from backend.crawl.store import alpha_dir as alphas_dir
-from backend.crawl.store import options, write_job_result
-from backend.crawl.store import json_default, read_json
+from backend.models.storage import alpha_dir as alphas_dir
+from backend.models.storage import options, write_job_result
+from backend.models.storage import json_default, read_json
 from backend.metrics.charts import BETA_DRIVEN_ID
 from backend.optimize.funnel.storage import atomic_write_json
 from backend.models.models import NORA_DIR
@@ -163,7 +163,7 @@ def _git_revision(repo_dir: str) -> Dict[str, Any]:
 def build_registry(results: List[Dict[str, Any]], spaces: List[Dict[str, Any]], source: str,
                    repo_dir: Optional[str] = None, robustness: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     from backend.models.params import resolve_placeholders, split_params
-    from backend.crawl.store import read_manifest
+    from backend.data.data import read_manifest
 
     by_id = {s["id"]: s for s in spaces}
     alphas = []
@@ -494,10 +494,9 @@ def build_report(run_dir: str, alpha_ids: List[str], rpt: float, wfa: Dict[str, 
         st.close()
     cfg, w = run_info["config"], run_info["windows_ms"]
     tf = cfg.get("timeframe", "1m")
-    from backend.crawl.store import exchange
-    data_ex = cfg.get("data_exchange", "binance")           # run trước khi tách dữ liệu theo sàn = dữ liệu Binance
-    if data_ex != exchange():
-        raise ValueError(f"run phễu chạy trên dữ liệu {data_ex}, đang dùng {exchange()} (NORA_EXCHANGE) — holdout phải cùng dữ liệu")
+    data_ex = cfg.get("data_exchange", "binance")           # run cũ (trước khi chỉ còn OKX) = dữ liệu Binance
+    if data_ex != "okx":
+        raise ValueError(f"run phễu chạy trên dữ liệu {data_ex}, đang dùng okx — holdout phải cùng dữ liệu")
     if wfa or not explore:
         wfa_items = sorted((s["id"], s["configs"][0]) for s in wfa.get("candidates") or [] if s.get("configs"))
         want = sorted((i["id"], {k: v for k, v in i["params"].items()}) for i in items)
@@ -662,7 +661,7 @@ def run_alpha_revalidate(params=None) -> Dict[str, Any]:
     from backend.optimize.process.workers import require_memory_limit
     require_memory_limit("alpha_revalidate")
     al = load_alpha(a.alpha_id)
-    from backend.crawl.store import require_data_ok_or_exit
+    from backend.data.data import require_data_ok_or_exit
     require_data_ok_or_exit([al["data_symbol"]])
     rep = revalidate(al)
     print(f"{rep['alpha_id']}: {rep['status']}" + (f" (s={rep.get('final_scale')})" if rep["status"] == "validated" else f" — {rep['reason']}"),
@@ -677,7 +676,7 @@ def run_alpha_revalidate(params=None) -> Dict[str, Any]:
 # ══════════════════════════════════════════════════════════════════════════
 # Quản lý Alpha người dùng (C1 — lưu trữ, xác minh, checklist, catalog).
 #
-# Kho lưu trữ: crawl/store.alpha_user_dir()/<alpha_id>.json (đường dẫn đặt MỘT chỗ: get_user_alphas_dir; thư mục job: batch.jobs_root())
+# Kho lưu trữ: models/storage.alpha_user_dir()/<alpha_id>.json (đường dẫn đặt MỘT chỗ: get_user_alphas_dir; thư mục job: batch.jobs_root())
 # alpha_id = sha1(program_hash + cấu hình chạy)[:12]
 # Bản ghi = code + program_hash + config + ảnh chụp đầy đủ kết quả (`result`) + `evidence`, đã xác minh trực tiếp từ job_id (chống giả mạo từ client).
 # Chạy ở /alpha/create và /education chỉ là TẠM THỜI (job_ttl dọn sau 24 h nếu không được lưu); chỉ lệnh Lưu mới ghi vào đây.
@@ -687,7 +686,7 @@ def run_alpha_revalidate(params=None) -> Dict[str, Any]:
 def get_user_alphas_dir(base_dir: Optional[str] = None) -> str:
     if base_dir:
         return os.path.join(base_dir, "user")
-    from backend.crawl.store import alpha_user_dir
+    from backend.models.storage import alpha_user_dir
     return alpha_user_dir()
 
 
@@ -1337,7 +1336,7 @@ def catalog(alphas_dir: Optional[str] = None) -> Dict[str, Any]:
 # ══════════════════════════════════════════════════════════════════════════
 # Top agent trade: doc ket qua da dong bang (implied exit fit + OOS) cua 10 bot copy-trade top OKX.
 #
-# Nguon duy nhat: crawl/store.alpha_dir('research', 'okx_top10_agents.json') (git-tracked, co provenance).
+# Nguon duy nhat: models/storage.alpha_dir('research', 'okx_top10_agents.json') (git-tracked, co provenance).
 # Khong doc scripts nghien cuu; ket qua nghien cuu da duoc dong bang mot lan.
 #
 # GET /api/studio/alphas/top_agents
@@ -1354,7 +1353,7 @@ def catalog(alphas_dir: Optional[str] = None) -> Dict[str, Any]:
 # ══════════════════════════════════════════════════════════════════════════
 
 def _frozen_path() -> str:
-    from backend.crawl.store import alpha_dir
+    from backend.models.storage import alpha_dir
     return alpha_dir("research", "okx_top10_agents.json")
 
 
