@@ -359,9 +359,9 @@ def result_payload(res, start, end):
         "qty": round(p.qty, 8), "notional": round(p.qty * (p.avg_price or p.enter_price), 2),
         "margin_usd": round(p.total_margin_usd or 0.0, 2),
         # thêm cho bảng lệnh + số đo theo chiến lược (metrics/trades.rows_from_trade_list)
-        "avg_price": round(p.avg_price or p.enter_price, 8), "pnl_pct": round(p.profit_pct, 4), "fees_usd": round(p.fees_usd or 0.0, 4),
-        "funding_usd": round(p.funding_usd or 0.0, 4), "layers": int(p.layers or 0), "mae_pct": round(p.mae_pct or 0.0, 4),
-        "leverage": float(p.leverage_used or 1.0), "entry_equity": round(p.entry_equity or 0.0, 2),
+        "avg_price": round(p.avg_price or p.enter_price, 8), "pnl_pct": None if p.profit_pct is None else round(p.profit_pct, 4), "fees_usd": round(p.fees_usd or 0.0, 4),
+        "funding_usd": round(p.funding_usd or 0.0, 4), "layers": int(p.layers or 0), "mae_pct": None if p.mae_pct is None else round(p.mae_pct, 4),
+        "leverage": None if p.leverage_used is None else float(p.leverage_used or 1.0), "entry_equity": round(p.entry_equity or 0.0, 2),
     } for p in res["positions"]]
     curve = [{"time": c["time"], "equity": round(c["equity"], 2), "equity_worst": round(c["equity_worst"], 2)}
              for c in res["equity_curve"] if c["time"] >= start]

@@ -42,10 +42,10 @@ def trade_rows(positions) -> List[Dict[str, Any]]:
         "symbol": p.symbol, "strategy": getattr(p, "strategy_id", "") or "", "side": p.pos_type.name,
         "enter_time": int(p.enter_time), "close_time": int(p.close_time),
         "enter_price": float(p.enter_price), "close_price": float(p.close_price), "qty": float(p.qty),
-        "pnl_usd": float(p.real_pnl), "pnl_pct": float(p.profit_pct), "fees_usd": float(p.fees_usd or 0.0),
+        "pnl_usd": float(p.real_pnl), "pnl_pct": None if p.profit_pct is None else float(p.profit_pct), "fees_usd": float(p.fees_usd or 0.0),
         "funding_usd": float(p.funding_usd or 0.0), "status": p.status.name, "layers": int(p.layers or 0),
-        "mae_pct": float(p.mae_pct or 0.0), "margin_usd": float(getattr(p, "total_margin_usd", 0.0) or 0.0),
-        "leverage": float(getattr(p, "leverage_used", 1.0) or 1.0), "entry_equity": float(getattr(p, "entry_equity", 0.0) or 0.0),
+        "mae_pct": None if p.mae_pct is None else float(p.mae_pct), "margin_usd": float(getattr(p, "total_margin_usd", 0.0) or 0.0),
+        "leverage": None if getattr(p, "leverage_used", 1.0) is None else float(getattr(p, "leverage_used", 1.0) or 1.0), "entry_equity": float(getattr(p, "entry_equity", 0.0) or 0.0),
     } for p in positions]
 
 
@@ -67,8 +67,10 @@ def rows_from_trade_list(trade_list: List[Dict[str, Any]]) -> List[Dict[str, Any
                     "enter_time": int(t.get("enter_time") or 0), "close_time": int(t["close_time"]),
                     "pnl_usd": pnl, "pnl_pct": float(t["pnl_pct"]) if t.get("pnl_pct") is not None else (pnl / eq * 100.0 if eq > 0 else 0.0),
                     "fees_usd": float(t.get("fees_usd") or 0.0), "funding_usd": float(t.get("funding_usd") or 0.0),
-                    "status": t.get("status"), "layers": int(t.get("layers") or 1), "mae_pct": float(t.get("mae_pct") or 0.0),
-                    "margin_usd": float(t.get("margin_usd") or 0.0), "leverage": float(t.get("leverage") or 1.0), "entry_equity": eq})
+                    "status": t.get("status"), "layers": int(t.get("layers") or 1),
+                    "mae_pct": None if t.get("mae_pct", 0.0) is None else float(t.get("mae_pct") or 0.0),
+                    "margin_usd": float(t.get("margin_usd") or 0.0), "leverage": None if t.get("leverage", 1.0) is None else float(t.get("leverage") or 1.0),
+                    "entry_equity": eq})
     return out
 
 
@@ -101,7 +103,7 @@ def trade_metrics(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     rows = sorted(rows, key=lambda r: (r["close_time"], r["enter_time"]))
     n = len(rows)
     pnl = np.asarray([r["pnl_usd"] for r in rows], dtype=float)
-    pct = np.asarray([r["pnl_pct"] for r in rows], dtype=float)
+    pct = np.asarray([r["pnl_pct"] for r in rows if r["pnl_pct"] is not None], dtype=float)     # pnl_pct None (vốn lúc vào ≤ 0) bị bỏ qua, không thay bằng 0
     fees = float(sum(r.get("fees_usd", 0.0) for r in rows))
     funding = float(sum(r.get("funding_usd", 0.0) for r in rows))
     wins, losses = pnl[pnl > 0], pnl[pnl < 0]
@@ -111,11 +113,12 @@ def trade_metrics(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     pre_fee = float(pnl.sum()) + fees
     top = np.sort(wins)[::-1][:5]
     hold_h = np.asarray([(r["close_time"] - r["enter_time"]) / 3_600_000 for r in rows], dtype=float)
-    mae = np.asarray([r.get("mae_pct", 0.0) for r in rows], dtype=float)
+    mae_known = all(r.get("mae_pct", 0.0) is not None for r in rows)       # MAE không tính được (chiến lược bản địa) -> mae_* = None, không điền 0
+    mae = np.asarray([r.get("mae_pct", 0.0) for r in rows], dtype=float) if mae_known else np.zeros(0)
     layers = np.asarray([r.get("layers", 1) for r in rows], dtype=float)
     pf, pf_note = profit_factor_of(gp, gl, n)
     prox = [abs(r["mae_pct"]) / 100.0 * r["entry_equity"] / r["margin_usd"] * 100.0
-            for r in rows if r.get("margin_usd") and r.get("entry_equity")]
+            for r in rows if r.get("margin_usd") and r.get("entry_equity") and r.get("mae_pct") is not None]
     return {
         "trades": n, "wins": int(wins.size), "losses": int(losses.size), "breakeven": int(n - wins.size - losses.size),
         "win_rate": float(wins.size / n * 100.0) if n else None, "loss_rate": float(losses.size / n * 100.0) if n else None,
@@ -126,7 +129,7 @@ def trade_metrics(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
         "payoff": (avg_win / abs(avg_loss)) if avg_win is not None and avg_loss else None,
         "expectancy_usd": float(pnl.mean()) if n else None, "expectancy_pct": float(pct.mean()) if n else None,
         "best_trade_usd": float(pnl.max()) if n else None, "worst_trade_usd": float(pnl.min()) if n else None,
-        "best_trade_pct": float(pct.max()) if n else None, "worst_trade_pct": float(pct.min()) if n else None,
+        "best_trade_pct": float(pct.max()) if pct.size else None, "worst_trade_pct": float(pct.min()) if pct.size else None,
         "max_consec_wins": max_consecutive(pnl > 0), "max_consec_losses": max_consecutive(pnl < 0),
         "top5_share_pct": float(top.sum() / gp * 100.0) if gp > 0 else None,
         "avg_hold_h": float(hold_h.mean()) if n else None, "max_hold_h": float(hold_h.max()) if n else None,
@@ -134,7 +137,7 @@ def trade_metrics(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
         "long": _side_block([r for r in rows if r["side"] == "LONG"]),
         "short": _side_block([r for r in rows if r["side"] == "SHORT"]),
         "layers_avg": float(layers.mean()) if n else None, "layers_max": int(layers.max()) if n else 0,
-        "mae_avg_pct": float(mae.mean()) if n else None, "mae_worst_pct": float(mae.min()) if n else None,
+        "mae_avg_pct": float(mae.mean()) if n and mae_known else None, "mae_worst_pct": float(mae.min()) if n and mae_known else None,
         "liq_proximity_max_pct": float(max(prox)) if prox else None,
         "liquidations": int(sum(1 for r in rows if r.get("status") == LIQ_STATUS)),
     }
@@ -355,8 +358,8 @@ def _is_reject(o: Any) -> bool:
 
 
 def _frame_ms(timeframe: str) -> int:
-    if timeframe in FRAME_MS:
-        return FRAME_MS[timeframe]
+    if timeframe in FRAME_MS_ALL:
+        return FRAME_MS_ALL[timeframe]
     try:
         return int(timeframe[:-1]) * {"m": 60_000, "h": 3_600_000, "d": 86_400_000}[timeframe[-1]]
     except (KeyError, ValueError, IndexError, TypeError):

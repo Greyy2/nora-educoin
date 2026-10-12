@@ -430,6 +430,9 @@ _COMPAT_COLUMNS = {"symbol", "timestamp", "close_time", "is_close"}
 
 
 def _frame_ms(frame: str) -> int:
+    from backend.models.params import FRAME_MS      # bảng khung MỘT NƠI; khung ngoài bảng (vd. 30s, 2h, 1d) phân tích theo số+đơn vị
+    if frame in FRAME_MS:
+        return FRAME_MS[frame]
     match = re.fullmatch(r"(\d+)([smhd])", frame.lower())
     if not match:
         return 0

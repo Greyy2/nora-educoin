@@ -192,97 +192,14 @@ def run_custom(params=None):
     except DslError as e:
         raise ValueError(f"Lỗi biên dịch chiến lược: {e}") from None
 
-    # Nhánh chạy Native Nautilus Strategy thuần
-    if getattr(program, "is_native", False):
-        raw_syms = as_list(a.symbols) if a.symbols else program.symbols
-        clean_syms = [s.split("-")[0].split("@")[0].split(":")[-1] for s in raw_syms] if raw_syms else ["BTC"]
-        names = resolve_symbols(clean_syms)
-        base_frame = a.run_frame or program.timeframe or "1h"
-
-        _mark(2, 5, "Nạp & xác thực dữ liệu", f"{len(names)} tài sản · khung {base_frame}")
-        check_data(names)
-        start, end = date_ms(a.start), date_ms(a.end) + DAY
-        if end <= start:
-            raise ValueError("end phải sau start")
-        capital = float(a.initial_capital) if a.initial_capital else DEFAULT_CAPITAL
-        data, warns = data_info(names, start, end, source)
-
-        _mark(3, 5, "Khởi tạo Nautilus Engine", f"Chiến lược {program.name} · venue OKX")
-        split = stage_split(start, end, float(a.train_ratio))
-        from backend.nautilus.runner import NativeNautilusRunner
-
-        _mark(4, 5, "Mô phỏng sự kiện Nautilus", f"Khớp lệnh bar-by-bar · {base_frame}")
-        main_runner = NativeNautilusRunner(
-            strategy_class=program.strategy_cls,
-            symbols=names,
-            start_ms=start,
-            end_ms=end,
-            initial_capital=capital,
-            base_frame=base_frame,
-            strategy_id=program.name,
-        )
-        res = main_runner.run()
-
-        test_res = None
-        if split < end:
-            test_runner = NativeNautilusRunner(
-                strategy_class=program.strategy_cls,
-                symbols=names,
-                start_ms=split,
-                end_ms=end,
-                initial_capital=capital,
-                base_frame=base_frame,
-                strategy_id=f"{program.name}_TEST",
-            )
-            test_res = test_runner.run()
-
-        from types import SimpleNamespace
-        plan = SimpleNamespace(
-            symbols=names,
-            base_frame=base_frame,
-            risk={"max_positions": len(names), "max_per_symbol": 1, "max_gross_exposure": 1e6, "kill_switch_dd_pct": 0.0},
-            strategies=[{"id": program.name}],
-            warnings=[],
-            echo={},
-        )
-        eng = SimpleNamespace(
-            open_positions=lambda: res.get("open_positions", [])
-        )
-
-        bench = test_bench = None
-        try:
-            bench = run_benchmark(program, a, plan, names, start, end, capital, data)
-        except Exception as e:
-            warns = warns + [f"không chạy được benchmark: {e}"]
-        if split < end:
-            try:
-                test_bench = run_benchmark(program, a, plan, names, split, end, capital, data)
-            except Exception as e:
-                warns = warns + [f"không chạy được benchmark test: {e}"]
-
-        _mark(5, 5, "Tính toán chỉ số & chẩn đoán", "Sharpe, Drawdown, PnL & báo cáo")
-        out = build_result(
-            program, plan, res, eng, a, start, end, capital, data, warns, test_res, split,
-            bench=bench, inputs=diagnostic_inputs(plan, program, end), test_bench=test_bench
-        )
-        from backend.optimize.book.registry import evaluate_checklist, generate_alpha_id
-        out["alpha_id"] = generate_alpha_id(program.code_hash, out["config"])
-        out["checklist"] = evaluate_checklist(out)
-        from backend.optimize.process.workers import peak_rss_mb
-        out["meta"] = {"wall_s": round(time.time() - t0, 1), "peak_rss_mb": round(peak_rss_mb(), 1)}
-        out["provenance"] = stamp_provenance(out.get("provenance") or engine_provenance(plan.base_frame))
-
-        if progress:
-            progress.status = "done"
-            progress.write(force=True)
-
-        sim = out["metrics"]["simulate"]
-        now_str = datetime.now(timezone.utc).strftime("%H:%M:%S")
-        print(f"[{now_str}] Hoàn tất! Vốn cuối {out['final_equity']} | Lãi {sim['ret_pct']}% | MDD {sim['mdd_pct']}% | Lệnh {len(out['trades'])} | {out['meta']['wall_s']}s", flush=True)
-        return out
-
-    names = resolve_symbols(as_list(a.symbols))
-    plan = build_plan(program, names, position=a.position or None, run_frame=a.run_frame)
+    native = bool(getattr(program, "is_native", False))
+    if native:      # Strategy Nautilus bản địa: không có plan DSL -> Plan thật (cùng kiểu build_plan trả về) để benchmark / chẩn đoán / build_result dùng chung
+        from backend.alpha.dsl.strategy import Plan
+        names = resolve_symbols(as_list(a.symbols) or program.symbols or None)
+        plan = Plan(strategies=[{"id": program.name}], symbols=[f"{n}@perp" for n in names], risk={}, base_frame=a.run_frame or program.timeframe)
+    else:
+        names = resolve_symbols(as_list(a.symbols))
+        plan = build_plan(program, names, position=a.position or None, run_frame=a.run_frame)
 
     _mark(2, 5, "Nạp & xác thực dữ liệu", f"{len(plan.symbols)} tài sản · khung {plan.base_frame}")
     check_data(plan.symbols)
@@ -292,13 +209,26 @@ def run_custom(params=None):
     capital = float(a.initial_capital) if a.initial_capital else DEFAULT_CAPITAL
     data, warns = data_info(plan.symbols, start, end, source)
 
-    _mark(3, 5, "Tính toán ma trận tín hiệu", f"khung {program.timeframe} với warmup lịch sử")
+    if native:
+        _mark(3, 5, "Khởi tạo Nautilus Engine", f"Chiến lược {program.name} · venue OKX")
+
+        def run_one(s: int, e: int, ev):
+            from backend.nautilus.backtest import run_native
+            ev.set()        # chạy thẳng từ catalog Nautilus: không có bước nạp tín hiệu tuần tự
+            r = run_native(program.strategy_cls, plan.symbols, s, e, capital, plan.base_frame, strategy_id=program.name)
+            r["provenance"] = engine_provenance(plan.base_frame)
+            return r, _OpenPositions(r["open_positions"])
+    else:
+        _mark(3, 5, "Tính toán ma trận tín hiệu", f"khung {program.timeframe} với warmup lịch sử")
+
+        def run_one(s: int, e: int, ev):
+            return execute(plan, s, e, capital, loaded=ev)
     split = stage_split(start, end, float(a.train_ratio))
     # 4 lần chạy engine độc lập (chính, test, benchmark toàn kỳ, benchmark test): nạp dữ liệu TUẦN TỰ theo thứ tự này (lần rộng nhất dựng cửa sổ, các lần sau cắt từ bộ nhớ đệm),
     # kernel numba (nogil) chạy SONG SONG bằng thread. Kết quả từng lần không phụ thuộc lần khác (cùng chương trình/cấu hình/dữ liệu, warmup như lần chạy chính).
-    steps = [("main", lambda ev: execute(plan, start, end, capital, loaded=ev))]
+    steps = [("main", lambda ev: run_one(start, end, ev))]
     if split < end:     # giai đoạn test = lần chạy riêng bắt đầu từ vốn đầu tại đầu test
-        steps.append(("test", lambda ev: execute(plan, split, end, capital, loaded=ev)))
+        steps.append(("test", lambda ev: run_one(split, end, ev)))
     # benchmark luôn long qua cùng engine (cache theo cấu hình: chỉ chạy một lần mỗi job/tiến trình)
     steps.append(("bench", lambda ev: run_benchmark(program, a, plan, names, start, end, capital, data, loaded=ev)))
     if split < end:     # benchmark của giai đoạn Test: cùng cửa sổ [mốc chia, end], vốn đầu
@@ -306,6 +236,22 @@ def run_custom(params=None):
 
     _mark(4, 5, "Khớp lệnh", f"mô phỏng vị thế · {plan.base_frame}")
     got = run_parallel(steps)
+    return _finish(program, plan, a, start, end, capital, data, warns, split, got, t0, progress, _mark)
+
+
+class _OpenPositions:
+    """Vị thế mở của một lần chạy bản địa, theo giao diện `open_positions()` mà build_result đọc từ engine."""
+
+    def __init__(self, rows: List[Dict[str, Any]]):
+        self.rows = rows
+
+    def open_positions(self) -> List[Dict[str, Any]]:
+        return list(self.rows)
+
+
+def _finish(program, plan, a, start: int, end: int, capital: float, data: Dict[str, Any], warns: List[str], split: int, got: Dict[str, Any], t0: float,
+            progress, mark) -> Dict[str, Any]:
+    """MỘT đuôi cho mọi nhánh của run_custom: kết quả các lần chạy (`got` của run_parallel) -> build_result + alpha_id / checklist / meta / provenance."""
     if isinstance(got["main"], BaseException):
         raise got["main"]
     res, eng = got["main"]
@@ -323,7 +269,7 @@ def run_custom(params=None):
         else:
             test_bench = got["test_bench"]
 
-    _mark(5, 5, "Tính toán chỉ số & chẩn đoán", "Sharpe, Drawdown, PnL & báo cáo")
+    mark(5, 5, "Tính toán chỉ số & chẩn đoán", "Sharpe, Drawdown, PnL & báo cáo")
     out = build_result(program, plan, res, eng, a, start, end, capital, data, warns, test_res, split, bench=bench, inputs=diagnostic_inputs(plan, program, end),
                        test_bench=test_bench)
     from backend.optimize.book.registry import evaluate_checklist, generate_alpha_id

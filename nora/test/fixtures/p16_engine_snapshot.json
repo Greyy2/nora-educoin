@@ -1,0 +1,32 @@
+{
+ "backtest_engine": {
+  "curve": 265,
+  "final_equity": 11113.60080736,
+  "orders": 96,
+  "positions": 48,
+  "sha256": "3f5dace5bbc00f5e76f14249d3728b747426b9b530c56b482b4134a89ee9738e"
+ },
+ "portfolio_dca": {
+  "curve": 265,
+  "final_equity": 13420.15502419,
+  "orders": 265,
+  "positions": 105,
+  "sha256": "9c2de7f9154b8001b1104e3078755656b115f1f4dcc0932d180db0b3c86ea33a"
+ },
+ "run_many": [
+  {
+   "curve": 265,
+   "final_equity": 12026.90061225,
+   "orders": 244,
+   "positions": 122,
+   "sha256": "0f0b8825f038f52f37db74b2837c1c90b9c0e8df320a4cb20230612f53335b9d"
+  },
+  {
+   "curve": 265,
+   "final_equity": 11963.735522179999,
+   "orders": 118,
+   "positions": 59,
+   "sha256": "5430e08f0d14d48b5c9ee0380eecee1a6334b3b5a287fcceea4ddd7697455873"
+  }
+ ]
+}

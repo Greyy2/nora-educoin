@@ -1,7 +1,7 @@
 """Engine backtest = NautilusTrader (P15): `PortfolioEngine` / `BacktestEngine` giữ chữ ký, phương thức công khai và hình dạng `get_results()` của engine cũ,
 nhưng khớp lệnh, phí, số dư, vị thế do `nautilus_trader.backtest.engine.BacktestEngine` sinh (venue OKX, NETTING, MARGIN, USDT, bar_execution=True).
 
-Luồng một lần chạy (`NautilusRun`):
+Luồng một lần chạy (`backtest.NautilusRun`; dựng engine / nạp nến theo chunk ở backtest.py, kết quả ở results.py):
   1. Tín hiệu: tính SẴN bằng backend.alpha.dsl.strategy (SignalEngine / matrix_evaluator / entry_event_mask / _regime_gate) — đúng đường dữ liệu engine cũ.
   2. Nến thực thi: ParquetDataCatalog (1m EXTERNAL, ts_event = đóng) — khung chạy > 1m do `catalog.aggregate_frame` gộp; nạp theo CHUNK (RAM bị chặn),
      `BacktestEngine.run(streaming=True)` từng chunk.
@@ -13,177 +13,20 @@ Không mô phỏng (Nautilus không có; KHÔNG giả): trượt giá %, funding
 import contextlib
 import io
 from dataclasses import asdict
-from decimal import Decimal
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set
 
 import numpy as np
 
 from nautilus_trader import __version__ as NAUTILUS_VERSION
-from nautilus_trader.backtest.config import BacktestEngineConfig
-from nautilus_trader.backtest.engine import BacktestEngine as NautilusEngine
-from nautilus_trader.config import LoggingConfig, RiskEngineConfig
-from nautilus_trader.model.currencies import USDT
-from nautilus_trader.model.enums import AccountType, OmsType
-from nautilus_trader.model.objects import Money
 
-from backend.models.params import FRAME_MS
 from backend.alpha.dsl.signal import lag_key
 from backend.alpha.dsl.strategy import (FRESH, RiskConfig, SignalEngine, SignalPortfolio, aggregate_positions, entry_event_mask,
                                    matrix_evaluator, slot_fresh_frames, _regime_gate, _regime_labels)
 from backend.nautilus import catalog as cat
-from backend.nautilus.portfolio import Coordinator
-from backend.nautilus.strategy import FLAT, NoraSlotStrategy
+from backend.nautilus.backtest import CHUNK_BARS, NautilusRun      # noqa: F401 — NautilusRun: lõi chạy ở backtest.py; re-export cho nơi gọi cũ
 
 FILL_CONVENTION = ("Lệnh market gửi lúc nến i đóng khớp ở GIÁ ĐÓNG nến i (Nautilus bar_execution); engine cũ khớp ở giá MỞ nến i+1. "
                    "SL/TP/TRAIL/DCA khớp theo đường O→H→L→C của nến (bar_adaptive_high_low_ordering theo intrabar_path).")
-CHUNK_BARS = 300_000        # số nến tối đa mỗi lần nạp vào engine Nautilus (chặn RAM)
-
-
-# ═══ Một lần chạy trên Nautilus ═════════════════════════════════════════════
-class NautilusRun:
-    """books = [{"symbol", "data": {"t"...}, "entries": [{"strategy", "slot": SlotSpec, "match", "stop", "vol", "dca"}]}] (như PortfolioEngine.books)."""
-    KEEP_REPORTS = False     # test: giữ các báo cáo Nautilus (fills / positions / account) để đối chiếu
-
-    def __init__(self, books: List[Dict[str, Any]], initial_capital: float, risk: RiskConfig, trade_start_ts: int, end_ts: int, base_frame: str,
-                 close_at_end: bool, data: Any):
-        """data: DataSource (models/models) — nến thực thi + spec hợp đồng đều lấy từ đây (một đường dữ liệu)."""
-        self.data = data
-        self.books, self.initial, self.risk = books, float(initial_capital), risk
-        self.trade_start, self.end_ts, self.base, self.close_at_end = int(trade_start_ts), int(end_ts), base_frame, bool(close_at_end)
-        self.fr = FRAME_MS[base_frame]
-        self.warnings: List[str] = []
-        self.reports: Dict[str, Any] = {}
-
-    # ── kiểm tra tham số mô phỏng được / không ──
-    def _check_slots(self) -> None:
-        slip, thru, extreme, lev = set(), set(), set(), False
-        paths, perp = set(), False
-        for b in self.books:
-            for e in b["entries"]:
-                sp = e["slot"]
-                if sp.intrabar_path == "adverse_first":
-                    raise ValueError(f"{e['strategy']}: intrabar_path='adverse_first' không được hỗ trợ trên Nautilus (chỉ ohlc / adaptive)")
-                paths.add(sp.intrabar_path)
-                if sp.slippage_rate > 0:
-                    slip.add(sp.slippage_rate)
-                if sp.limit_through > 0:
-                    thru.add(sp.limit_through)
-                if sp.stop_fill == "extreme":
-                    extreme.add(e["strategy"])
-                perp |= sp.market == "perp"
-                lev |= sp.market == "perp" and sp.max_leverage > 1
-        if len(paths) > 1:
-            raise ValueError(f"Mọi chiến lược của một lần chạy phải cùng intrabar_path (Nautilus cấu hình theo venue), nhận {sorted(paths)}")
-        self.adaptive = "adaptive" in paths
-        if slip:
-            self.warnings.append(f"slippage_rate={sorted(slip)} không được Nautilus mô phỏng (không có trượt giá %): bỏ qua, khớp ở giá của mô hình Nautilus")
-        if thru:
-            self.warnings.append(f"limit_through_pct={sorted(thru)} không được hỗ trợ: lệnh limit khớp khi giá chạm mức (không cần đi xuyên qua)")
-        if extreme:
-            self.warnings.append(f"stop_fill='extreme' ({sorted(extreme)}) không được hỗ trợ: stop-market khớp theo mô hình Nautilus")
-        if lev:
-            self.warnings.append("thanh lý (liquidation) không được Nautilus 1.231 mô phỏng trong backtest: vị thế đòn bẩy không bị thanh lý")
-        if perp:
-            self.warnings.append("funding perp không được Nautilus thanh toán trong backtest: funding_usd = 0")
-
-    def _instruments(self) -> Dict[str, Any]:
-        fees: Dict[str, Tuple[float, float]] = {}
-        for b in self.books:
-            for e in b["entries"]:
-                sp = e["slot"]
-                f = (float(sp.maker_fee_rate), float(sp.fee_rate))
-                if fees.setdefault(b["symbol"], f) != f:
-                    raise ValueError(f"{b['symbol']}: các chiến lược trên cùng tài sản phải cùng phí maker/taker (Nautilus đặt phí trên instrument)")
-        return {sym: cat.build_instrument(sym, self.data.instrument_spec(sym), maker_fee=m, taker_fee=t) for sym, (m, t) in fees.items()}
-
-    # ── chạy ──
-    def run(self) -> Dict[str, Any]:
-        self._check_slots()
-        insts = self._instruments()
-        books = self.books
-        lo = self.trade_start // self.fr * self.fr
-        ex = [self.data.exec_arrays(b["symbol"], self.base, lo, self.end_ts) for b in books]
-        total = sum(len(a["t"]) for a in ex)
-        cfg = BacktestEngineConfig(logging=LoggingConfig(bypass_logging=True), risk_engine=RiskEngineConfig(bypass=True), run_analysis=False)
-        eng = NautilusEngine(cfg)
-        max_lev = max([float(e["slot"].max_leverage) for b in books for e in b["entries"]] + [1.0])
-        eng.add_venue(venue=cat.VENUE_OKX, oms_type=OmsType.NETTING, account_type=AccountType.MARGIN, base_currency=USDT,
-                      starting_balances=[Money(self.initial, USDT)], default_leverage=Decimal(str(max_lev)), bar_execution=True,
-                      bar_adaptive_high_low_ordering=self.adaptive, reject_stop_orders=False, use_message_queue=False)
-        for inst in insts.values():
-            eng.add_instrument(inst)
-        acct: List[Any] = []     # tài khoản được Nautilus tạo khi bắt đầu chạy
-
-        def balance() -> float:
-            if not acct:
-                acct.append(eng.cache.account_for_venue(cat.VENUE_OKX))
-            return acct[0].balance_total(USDT).as_double()
-        co = Coordinator(self.risk, self.initial, self.trade_start, balance, len(books), self.fr)
-        slots: List[NoraSlotStrategy] = []
-        n_per = []
-        for b_i, b in enumerate(books):
-            t_list = b["data"]["t"].tolist()
-            n_per.append(len(b["entries"]))
-            last_open = int(ex[b_i]["t"][-1]) if len(ex[b_i]["t"]) else None
-            for e in b["entries"]:
-                sig = {"t": t_list, "match": e["match"].tolist(), "stop": e["stop"].tolist(),
-                       "vol": e["vol"].tolist() if e.get("vol") is not None else None, "dca": e["dca"].tolist() if e.get("dca") is not None else None}
-                s = NoraSlotStrategy(len(slots), e["slot"], e["strategy"], b["symbol"], b_i, insts[b["symbol"]], cat.get_bar_type(b["symbol"], self.base),
-                                     self.fr, sig, co, last_open, self.close_at_end, self.trade_start)
-                slots.append(s)
-                eng.add_strategy(s)
-        co.slots = slots
-        last_open_all = max((int(a["t"][-1]) for a in ex if len(a["t"])), default=None)
-        if total:
-            n_chunks = max(1, -(-total // CHUNK_BARS))
-            t_min, t_max = min(int(a["t"][0]) for a in ex if len(a["t"])), last_open_all
-            edges = np.linspace(t_min, t_max + 1, n_chunks + 1).astype(np.int64)
-            for c in range(n_chunks):
-                bars, ts_all, w_all = [], [], []
-                for b_i, b in enumerate(books):
-                    t = ex[b_i]["t"]
-                    a, z = int(np.searchsorted(t, edges[c])), int(np.searchsorted(t, edges[c + 1]))
-                    if z > a:
-                        bars += cat.bars_from_arrays(b["symbol"], ex[b_i], self.base, insts[b["symbol"]], a, z)
-                        ts_all.append(t[a:z] + self.fr)
-                        w_all.append(np.full(z - a, n_per[b_i], dtype=np.int64))
-                if not bars:
-                    continue
-                u, inv = np.unique(np.concatenate(ts_all), return_inverse=True)
-                co.set_grid(u, np.bincount(inv, weights=np.concatenate(w_all)).astype(np.int64))
-                eng.add_data(bars, sort=True)
-                eng.run(streaming=True)
-                eng.clear_data()
-            eng.end()
-        if self.close_at_end and eng.cache.positions_open():
-            self.warnings.append(f"{len(eng.cache.positions_open())} vị thế còn mở sau close_at_end")
-        co.final_sample(last_open_all, self.initial)
-        out = self._results(co, slots, ex)
-        out["reports"] = None
-        if self.KEEP_REPORTS:
-            self.reports = {"fills": eng.trader.generate_order_fills_report(), "positions": eng.trader.generate_positions_report(),
-                            "account": eng.trader.generate_account_report(cat.VENUE_OKX), "balance": balance()}
-            out["reports"] = self.reports
-        eng.dispose()
-        return out
-
-    def _results(self, co: Coordinator, slots: List[NoraSlotStrategy], ex: List[Dict[str, np.ndarray]]) -> Dict[str, Any]:
-        last_close = {b["symbol"]: (float(ex[i]["c"][-1]) if len(ex[i]["t"]) else float("nan")) for i, b in enumerate(self.books)}
-        opens = []
-        for s in slots:
-            if s.qty > 0 and s.st != FLAT:
-                mark = last_close[s.symbol]
-                opens.append({"symbol": s.symbol, "strategy": s.sid, "side": s.spec.pos_type.name, "qty": s.qty, "entry_price": s.avg,
-                              "mark_price": mark, "notional": s.qty * mark, "unrealized_pnl": s.unrealized(mark), "opened": int(s.entry_time),
-                              "margin_usd": s.margin_used, "leverage": s.pos_lev})
-        warns = list(self.warnings)
-        if co.venue_rejects:
-            warns.append(f"{len(co.venue_rejects)} lệnh bị Nautilus từ chối (ví dụ {co.venue_rejects[0]})")
-        return {"positions": co.positions, "orders": co.orders, "equity_curve": co.curve, "final_equity": co.equity(), "balance": co.balance(),
-                "rejected_for_capital": co.rejected_for_capital, "rejected_for_risk": co.rejected_for_risk, "risk_blocked_attempts": co.risk_blocked_attempts,
-                "halted_at": co.halted_at, "ruined_at": co.ruined_at, "skipped_no_vol": sum(s.skipped_no_vol for s in slots),
-                "dca_layers_rejected": sum(s.dca_rejected for s in slots), "last_close": last_close, "open_positions": opens, "warnings": warns,
-                "venue_rejects": co.venue_rejects}
 
 
 def provenance(base_frame: str) -> Dict[str, Any]:

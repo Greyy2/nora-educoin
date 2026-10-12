@@ -29,6 +29,8 @@ from nautilus_trader.model.objects import FIXED_SCALAR, Currency, Price, Quantit
 from nautilus_trader.persistence.catalog import ParquetDataCatalog
 from nautilus_trader.persistence.wranglers import BarDataWrangler
 
+from backend.models.params import FRAME_MS
+
 NORA_DATA_ROOT = os.environ.get("NORA_DATA_ROOT", "/home/vmc03/norabt/nora/data")
 DEFAULT_CATALOG_PATH = os.path.join(NORA_DATA_ROOT, "market", "okx", "catalog")
 INSTRUMENTS_PATH = os.path.join(NORA_DATA_ROOT, "market", "okx", "instruments.json")
@@ -36,7 +38,6 @@ INSTRUMENTS_PATH = os.path.join(NORA_DATA_ROOT, "market", "okx", "instruments.js
 VENUE_OKX = Venue("OKX")
 MINUTE_MS = 60_000
 
-_FRAME_MS = {"1m": 60_000, "5m": 300_000, "15m": 900_000, "1h": 3_600_000, "4h": 14_400_000, "24h": 86_400_000, "1d": 86_400_000}
 _FRAME_TO_SPEC = {
     "1m": (1, BarAggregation.MINUTE), "5m": (5, BarAggregation.MINUTE), "15m": (15, BarAggregation.MINUTE),
     "1h": (1, BarAggregation.HOUR), "4h": (4, BarAggregation.HOUR), "24h": (1, BarAggregation.DAY), "1d": (1, BarAggregation.DAY),
@@ -60,10 +61,11 @@ def get_catalog_root() -> str:
 
 
 def frame_ms(frame: str) -> int:
+    """Mili-giây một nến của khung (bảng MỘT NƠI: models/params.FRAME_MS; "1d" = "24h")."""
     try:
-        return _FRAME_MS[frame]
+        return FRAME_MS["24h" if frame == "1d" else frame]
     except KeyError:
-        raise ValueError(f"Khung không hợp lệ: {frame!r} (có: {list(_FRAME_MS)})")
+        raise ValueError(f"Khung không hợp lệ: {frame!r} (có: {list(FRAME_MS)})")
 
 
 # ─── Ký hiệu ────────────────────────────────────────────────────────────────

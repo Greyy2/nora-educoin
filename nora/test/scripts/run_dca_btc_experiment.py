@@ -13,7 +13,7 @@ from nautilus_trader.indicators import RelativeStrengthIndex
 from nautilus_trader.model.enums import OrderSide
 from nautilus_trader.model.data import Bar
 
-from backend.nautilus.runner import NativeNautilusRunner
+from backend.nautilus.backtest import run_native
 
 
 class ReportDcaStrategy(Strategy):
@@ -145,15 +145,7 @@ def run_experiment():
     initial_cap = 10_000.0
 
     t0 = time.time()
-    runner = NativeNautilusRunner(
-        strategy_class=ReportDcaStrategy,
-        symbols=["BTC"],
-        start_ms=start_ms,
-        end_ms=end_ms,
-        initial_capital=initial_cap,
-        base_frame="1h",
-    )
-    res = runner.run()
+    res = run_native(ReportDcaStrategy, ["BTC"], start_ms, end_ms, initial_cap, "1h")
     t1 = time.time()
 
     elapsed = t1 - t0

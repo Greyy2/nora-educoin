@@ -19,7 +19,7 @@ from nautilus_trader.model.enums import OrderSide
 from nautilus_trader.model.data import Bar
 
 from backend.alpha.compile import compile_code
-from backend.nautilus.runner import NativeNautilusRunner
+from backend.nautilus.backtest import run_native
 from backend.optimize.process.tasks import run_custom
 
 
@@ -139,20 +139,12 @@ def test_dca_strategy_compilation():
 
 
 def test_dca_native_runner_execution_on_btc():
-    """Chạy thực nghiệm chiến lược DCA Native trên 1 cặp BTC bằng NativeNautilusRunner."""
+    """Chạy thực nghiệm chiến lược DCA Native trên 1 cặp BTC bằng run_native."""
     prog = compile_code(DCA_NATIVE_CODE)
     start_ms = 1704067200000  # 2024-01-01
     end_ms = start_ms + 3600000 * 24 * 60  # 60 ngày dữ liệu 1h
 
-    runner = NativeNautilusRunner(
-        strategy_class=prog.strategy_cls,
-        symbols=prog.symbols,
-        start_ms=start_ms,
-        end_ms=end_ms,
-        initial_capital=10_000.0,
-        base_frame="1h",
-    )
-    res = runner.run()
+    res = run_native(prog.strategy_cls, prog.symbols, start_ms, end_ms, 10_000.0, "1h")
 
     # Kiểm tra kết quả tổng quan
     assert "positions" in res
