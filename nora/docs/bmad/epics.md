@@ -1,6 +1,6 @@
 # Epic và story
 
-Cập nhật: 2026-10-06 · Baseline code: `dc2032c` (nhánh `fix/pipeline-audit`). Yêu cầu: [prd.md](prd.md); kiến trúc: [architecture.md](architecture.md); trạng thái máy đọc: [sprint-status.yaml](sprint-status.yaml).
+Cập nhật: 2026-10-06 · Baseline code: `dc2032c` (nhánh `fix/pipeline-audit`). Yêu cầu: [prd.md](prd.md); kiến trúc: [p16_consolidation_plan.md](p16_consolidation_plan.md); trạng thái máy đọc: [sprint-status.yaml](sprint-status.yaml).
 
 Trạng thái: `backlog` (chưa làm) · `ready` (đủ điều kiện làm) · `in-progress` · `review` · `done`. Mỗi story có một file trong [stories/](stories/).
 
@@ -28,8 +28,11 @@ Trạng thái: `backlog` (chưa làm) · `ready` (đủ điều kiện làm) · 
 | E18 | Alpha contract + Studio Editor (P10) | done | 4 / 4 | Hợp đồng BaseStrategy, Validator RUN/ADAPT/REJECT, 50+ chiến lược mẫu, Studio Editor web. |
 | E19 | UI nguồn sự thật duy nhất + responsive (P11) | done | 4 / 4 | MetaProvider (/api/studio/meta), đồng bộ dropdown/pages, Dark theme responsive. |
 | E20 | Signal timing & Causal execution (P12) | done | 3 / 3 | Tín hiệu bar t khớp tại open bar t+1, hạch toán 2 pha, bộ test causal bit-identical. |
+| E21 | Đối chiếu NautilusTrader — hành vi còn thiếu (P13) | in-progress | 1 / 8 | S2/S4/S6/S7/S8 wont-do (Nautilus là engine); S3/S5 → test Coordinator/NoraSlotStrategy. |
+| E22 | P15 Nautilus native backend | in-progress | 3 / 7 | R1–R3 done; R4, R5 in-progress; R6, R7 backlog. |
+| E23 | P16 Hợp nhất sau P15 | in-progress | 1 / 12 | P1 done; P2, P5, P6 in-progress; còn lại backlog. |
 
-Tổng: 20 epic (15 done, 3 in-progress, 2 backlog); 109 story (91 done, 1 in-progress, 2 review, 0 ready, 15 backlog).
+Tổng: 23 epic (16 done, 5 in-progress, 2 backlog); 136 story (96 done, 2 review, 5 in-progress, 27 backlog, 1 superseded, 5 wont-do). Số liệu theo `sprint-status.yaml` (12/10/2026).
 
 Epic E5 mang trạng thái `done` về mặt tính năng. Kết quả nghiên cứu là: alpha `trend_long_perp__SOL` từng hợp lệ nhưng bị loại khi kiểm lại bằng engine hiện hành (E14-S3, 03/10/2026); sổ `breakout_4h_long + breakout_4h_short` ở trạng thái `HOLDOUT_FAILED`, không có cấu hình testnet cho sổ. Việc tìm sổ qua holdout nằm ở E10.
 
@@ -345,12 +348,38 @@ Yêu cầu liên quan: FR-8, FR-13, NFR-1, NFR-8.
 | Story | Tiêu đề | Trạng thái |
 |---|---|---|
 | [E21-S1](stories/E21-S1-nautilus-gap-fill-convention.md) | G1: Quy ước khớp lệnh trên dữ liệu có gap (S12) | done |
-| [E21-S2](stories/E21-S2-nautilus-gap-limit-through.md) | G2: Khớp limit qua mức limit_through_pct > 0 (S13) | backlog |
+| [E21-S2](stories/E21-S2-nautilus-gap-limit-through.md) | G2: Khớp limit qua mức limit_through_pct > 0 (S13) | wont-do |
 | [E21-S3](stories/E21-S3-nautilus-gap-dca-sl-same-bar.md) | G3: Một nến 1m chạm cả tầng DCA lẫn cắt lỗ cũ (S11g) | backlog |
-| [E21-S4](stories/E21-S4-nautilus-gap-liquidation-margin.md) | G4: Thanh lý (liquidation) và sụt ký quỹ (S13b) | backlog |
+| [E21-S4](stories/E21-S4-nautilus-gap-liquidation-margin.md) | G4: Thanh lý (liquidation) và sụt ký quỹ (S13b) | wont-do |
 | [E21-S5](stories/E21-S5-nautilus-gap-risk-sizing-kill-switch.md) | G5: Sizing theo rủi ro, trần notional và kill switch (S13c) | backlog |
-| [E21-S6](stories/E21-S6-nautilus-gap-stop-fill-extreme.md) | G6: stop_fill="extreme" và gap qua mức dừng (S13d) | backlog |
-| [E21-S7](stories/E21-S7-nautilus-gap-dex-tick-amm.md) | G7: Engine tick và AMM cho DEX (S14) | backlog |
-| [E21-S8](stories/E21-S8-nautilus-gap-kernelbook-live-batch.md) | G8: Live/paper KernelBook từng bước = batch = Nautilus (S15) | backlog |
+| [E21-S6](stories/E21-S6-nautilus-gap-stop-fill-extreme.md) | G6: stop_fill="extreme" và gap qua mức dừng (S13d) | wont-do |
+| [E21-S7](stories/E21-S7-nautilus-gap-dex-tick-amm.md) | G7: Engine tick và AMM cho DEX (S14) | wont-do |
+| [E21-S8](stories/E21-S8-nautilus-gap-kernelbook-live-batch.md) | G8: Live/paper KernelBook từng bước = batch = Nautilus (S15) | wont-do |
 
+## E22: P15 Nautilus native backend [in-progress]
 
+Backend = API + adapter dùng thẳng NautilusTrader 1.231.0 (plan gốc: [p15_nautilus_native_backend.md](p15_nautilus_native_backend.md); handover: [p15_handover.md](p15_handover.md) §4). Thay thế E16-S9 (bot thống nhất tự build).
+
+| Story | Tiêu đề | Trạng thái |
+|---|---|---|
+| E22-R1 | Full suite xanh (987 passed) | done |
+| E22-R2 | Chuyển script engine cũ sang `test/backend-no/` | done |
+| E22-R3 | Meta: tham số không mô phỏng `unsupported:true` | done |
+| E22-R4 | UI: Độ chi tiết khớp lệnh, badge provenance, warnings | in-progress |
+| E22-R5 | Cache kết quả + làm nóng 50 mẫu education | in-progress |
+| E22-R6 | Restart nora-api + E2E | backlog |
+| E22-R7 | Live trên Nautilus TradingNode | backlog |
+
+## E23: P16 Hợp nhất sau P15 [in-progress]
+
+Hợp nhất kiến trúc, gỡ số giả, một lõi engine, dữ liệu một nguồn (`backend/data.py`), cache + UI R4, docs. Chi tiết: [p16_consolidation_plan.md](p16_consolidation_plan.md).
+
+| Story | Tiêu đề | Trạng thái |
+|---|---|---|
+| E23-P1 | Xanh lại & khoá cây | done |
+| E23-P2 | Gỡ số giả + một lõi engine | in-progress |
+| E23-P3 | Routes mỏng + phân lớp | backlog |
+| E23-P4 | Dữ liệu một nguồn | backlog |
+| E23-P5 | Cache R5 + UI R4 đầy đủ | in-progress |
+| E23-P6 | Docs & backlog | in-progress |
+| E23-D1..D6 | Gộp `crawl/` → `backend/data.py` (D1 storage, D2 đọc/quality, D3 crawl+catalog, D4 chuyển pkl, D5 archive crawl, D6 archive pkl + E2E) | backlog |

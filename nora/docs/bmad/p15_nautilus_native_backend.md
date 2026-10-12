@@ -1,6 +1,8 @@
+> **Plan gốc P15 — hiện trạng & kiến trúc chốt xem [p16_consolidation_plan.md](p16_consolidation_plan.md).** Checkbox bên dưới chỉ tick các mục đã xong theo `p15_handover.md` §4/§5 (R1, R3); phần còn lại giữ nguyên.
+
 # P15 — Backend = API + adapter dùng thẳng NautilusTrader (plan + TODO triển khai)
 
-Quyết định 2026-10-10: không tự build engine. UI giữ nguyên UX và đủ dữ liệu; `backend/` chỉ còn API, adapter (UI ↔ Nautilus) và xử lý dữ liệu (crawl → catalog Nautilus). Backend cũ: `test/backend-no/` (chỉ tham chiếu để port logic KHÔNG thuộc engine; không import từ backend). Bản nháp trước: `p15_nautilus_native_backend.v1.md`.
+Quyết định 2026-10-10: không tự build engine. UI giữ nguyên UX và đủ dữ liệu; `backend/` chỉ còn API, adapter (UI ↔ Nautilus) và xử lý dữ liệu (crawl → catalog Nautilus). Backend cũ: `test/backend-no/` (chỉ tham chiếu để port logic KHÔNG thuộc engine; không import từ backend). Bản nháp trước (đã archive tại `archive/2026-10-p16/p15_nautilus_native_backend.v1.md`): `p15_nautilus_native_backend.v1.md`.
 
 Nguyên tắc cứng:
 1. Engine = Nautilus. Không tự mô phỏng khớp lệnh / tính vốn / tính phí. Không fork/sửa mã Nautilus (LGPL-3.0) — hành vi riêng viết trong Strategy/Actor của mình.
@@ -57,9 +59,9 @@ backend/
 
 ## 2. Phase 0 — Môi trường + hợp đồng (0,5 ngày)
 
-- [ ] **0.1 Venv** `~/.venvs/nora312` (Python 3.12): `requirements-backend.txt` pin `nautilus_trader==1.231.0`, fastapi, uvicorn, pandas, pyarrow, numpy (+ numba nếu signals cần). `ops/run_limited.sh` dùng venv mới. Đổi ExecStart `nora-api.service` SAU khi Phase 3 qua test; giữ `~/.venvs/nora` để chạy backend-no làm tham chiếu.
+- [x] **0.1 Venv** `~/.venvs/nora312` (Python 3.12): `requirements-backend.txt` pin `nautilus_trader==1.231.0`, fastapi, uvicorn, pandas, pyarrow, numpy (+ numba nếu signals cần). `ops/run_limited.sh` dùng venv mới. Đổi ExecStart `nora-api.service` SAU khi Phase 3 qua test; giữ `~/.venvs/nora` để chạy backend-no làm tham chiếu.
 - [ ] **0.2 Hợp đồng API** `docs/bmad/p15_api_contract.md`: mỗi endpoint trong `frontend/src/api.js` (≈50) ghi method, request, response shape (field UI THẬT SỰ đọc — grep component), nguồn mới (Nautilus / port logic / dữ liệu). Snapshot shape thật bằng backend-no trên venv cũ → `test/fixtures/api_contract/<endpoint>.json` (chỉ key + kiểu).
-- [ ] **0.3 Bảng tính năng** (trong contract doc) — mỗi tham số UI gửi (`position.*`, POSITION_KEYS) → cách làm trên Nautilus:
+- [x] **0.3 Bảng tính năng** (trong contract doc) — mỗi tham số UI gửi (`position.*`, POSITION_KEYS) → cách làm trên Nautilus:
 
 | Tham số UI | Nautilus |
 |---|---|

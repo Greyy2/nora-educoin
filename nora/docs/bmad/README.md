@@ -4,7 +4,7 @@ Bộ tài liệu được xây dựng và duy trì theo phương pháp **BMAD (B
 
 Tài liệu được viết bằng tiếng Việt; các thuật ngữ kỹ thuật, tên file, hàm, tham số và trạng thái máy đọc giữ nguyên tiếng Anh.
 - Baseline code: Commit `f4864d5` (Nhánh `fix/pipeline-audit`)
-- Cập nhật: 09/10/2026
+- Cập nhật: 12/10/2026
 
 ---
 
@@ -13,15 +13,17 @@ Tài liệu được viết bằng tiếng Việt; các thuật ngữ kỹ thu�
 | Tài liệu | Nội dung chính | Khi nào đọc |
 |---|---|---|
 | [product-brief.md](product-brief.md) | Vấn đề, tầm nhìn, đối tượng người dùng, chỉ số thành công | Khi bắt đầu dự án hoặc định hình lại mục tiêu |
-| [prd.md](prd.md) | PRD v2.0: Phạm vi, FR1–FR41, NFR1–NFR8, ràng buộc, rủi ro và danh sách 20 Epics | Trước khi đề xuất tính năng hoặc thay đổi phạm vi |
-| [architecture.md](architecture.md) | Architecture Spine: Tổng quan 5 phân tầng và điều hướng kiến trúc | Trước khi sửa mã nguồn hoặc thiết kế luồng |
-| [architecture/](architecture/) | Đặc tả chi tiết từng phân hệ: source-tree, coding-standards, components, data-models, api-spec, engine-spec, test-strategy, decisions (ADRs) | Khi lập trình hoặc kiểm định một phân tầng cụ thể |
+| [prd.md](prd.md) | PRD v2.0: Phạm vi, FR1–FR41, NFR1–NFR8, ràng buộc, rủi ro và danh sách Epics (E1–E20 + E22–E23 mục P15/P16 trong epics.md) | Trước khi đề xuất tính năng hoặc thay đổi phạm vi |
+| [p16_consolidation_plan.md](p16_consolidation_plan.md) | Kế hoạch P16 hiện hành: hiện trạng, kiến trúc file đích (§4), `backend/data.py` (§5), phases | Trước khi sửa mã nguồn hoặc thiết kế luồng |
+| [p15_handover.md](p15_handover.md) · [p15_api_contract.md](p15_api_contract.md) · [p15_nautilus_native_backend.md](p15_nautilus_native_backend.md) | Luật kiến trúc/logic, hợp đồng API và plan gốc P15 (Nautilus native) | Khi làm việc với engine/API |
+| [../knowledge_base/02_boss_mandates_and_rulebase.md](../knowledge_base/02_boss_mandates_and_rulebase.md) | Rulebase/chỉ đạo của anh | Khi cần luật nghiệp vụ |
 | [ux-design.md](ux-design.md) | Đặc tả giao diện & UX: Sơ đồ màn hình, luồng người dùng, MetaProvider, chuẩn format | Khi phát triển hoặc sửa component frontend |
-| [epics.md](epics.md) | Bảng tổng quan 20 Epics (E1–E20), 109 Stories, và tiến độ tổng | Khi lập kế hoạch sprint hoặc chọn story tiếp theo |
+| [epics.md](epics.md) | Bảng tổng quan 23 Epics, 136 Stories, và tiến độ tổng | Khi lập kế hoạch sprint hoặc chọn story tiếp theo |
 | [sprint-status.yaml](sprint-status.yaml) | Nguồn trạng thái máy đọc duy nhất của toàn bộ sprint | Cho công cụ CI/CD, script kiểm tra, và AI agent |
 | [stories/](stories/) | Mỗi story một file markdown theo chuẩn BMAD 9 mục | Khi thực hiện hoặc nghiệm thu story cụ thể |
 | [research/](research/) | Báo cáo nghiên cứu, tài liệu forge và specs theo chuẩn BMAD | Khi tham khảo kết quả nghiên cứu thị trường / bot |
-| [archive/](archive/) | Lưu trữ các kế hoạch cũ (P6–P12), review log, handover, roadmap cũ, và legacy docs | Chỉ đọc khi cần tra cứu lịch sử quyết định |
+| [archive/](archive/) | Lưu trữ kế hoạch cũ (P6–P13), review log, handover, roadmap cũ, legacy docs | Chỉ đọc khi cần tra cứu lịch sử quyết định |
+| [archive/2026-10-p16/](archive/2026-10-p16/README.md) | architecture/*, architecture.md, p14_*, p15 v1, knowledge_base 01/03/04 (engine cũ/DEX) | Chỉ tra cứu lịch sử |
 
 ---
 

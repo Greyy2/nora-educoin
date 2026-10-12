@@ -12,7 +12,7 @@ Mọi endpoint phải tuân thủ tuyệt đối cấu trúc này. Nếu logic c
 | `order_size_pct` | float (1–100%) | Sizing động từ `portfolio.account(venue).balance_free * order_size_pct * leverage` |
 | `leverage` | int (1–125) | Cấu hình `leverages={instrument_id: Decimal(leverage)}` trong `engine.add_venue` |
 | `maker_fee`, `taker_fee` | float | `MakerTakerFeeModel` + `maker_fee`/`taker_fee` trong `CryptoPerpetual` lấy từ OKX instrument |
-| `slippage_pct` | float | Bỏ khỏi UI hoặc dùng `FillModel` tính trượt giá |
+| `slippage_pct` | float | **Không mô phỏng** (Nautilus không có trượt giá %): provenance `slippage_modeled:false` + `warnings` khi ≠ 0; tham số `unsupported:true` trong meta; mặc định 0 |
 | `stop_loss_rate` (SL) | float | `StopMarketOrder` (reduce_only=True) neo theo giá khớp entry / avg position |
 | `take_profit_rate` (TP) | float | `LimitOrder` (reduce_only=True) |
 | `trailing_stop_rate` | float | `TrailingStopMarketOrder` (activation_price, callback_rate / basis_points) |
@@ -20,10 +20,12 @@ Mọi endpoint phải tuân thủ tuyệt đối cấu trúc này. Nếu logic c
 | `timeout_bars` | int | Đặt timer cảnh báo đóng lệnh sau N bars qua `clock.set_time_alert` hoặc so `ts_event` |
 | `cooldown_bars` | int | Khoảng nghỉ không vào lệnh mới sau khi vừa đóng vị thế |
 | `atr_frame`, `atr_mult` | str, float | Chỉ báo `AverageTrueRange` của Nautilus trên BarType tương ứng |
-| `max_positions` | int | `PortfolioGuard(Actor)` quản lý giới hạn số vị thế đồng thời của danh mục |
-| `max_drawdown_limit` | float | Kill switch trong `PortfolioGuard`: chuyển sang `TradingState.REDUCING/HALTED` |
-| `funding` | - | **Không tính** (Backtest engine của Nautilus không thanh toán funding; UI ẩn) |
-| `liquidation` | - | `PortfolioGuard` tự động cắt vị thế khi margin < maint_margin (ghi rõ luật Nora) |
+| `max_positions` | int | `Coordinator` trong `backend/nautilus/portfolio.py` quản lý giới hạn số vị thế đồng thời của danh mục (không có `PortfolioGuard`) |
+| `max_drawdown_limit` | float | Kill switch max drawdown nằm trong `Coordinator` (`backend/nautilus/portfolio.py`) |
+| `funding` | - | **Không mô phỏng** (backtest Nautilus không thanh toán funding): provenance `funding_modeled:false` + `warnings`; `unsupported:true`; UI ẩn |
+| `liquidation` | - | **Không mô phỏng** thanh lý/ký quỹ: provenance `liquidation_modeled:false` + `warnings`; `unsupported:true` |
+| `limit_through_pct` | float | **Không mô phỏng**: provenance `limit_through_modeled:false` + `warnings`; `unsupported:true` |
+| `stop_fill` (`extreme`) | str | **Không mô phỏng** giá khớp extreme khi gap: provenance `stop_fill_extreme_modeled:false` + `warnings`; `unsupported:true` |
 
 ---
 
@@ -71,6 +73,7 @@ Mọi endpoint phải tuân thủ tuyệt đối cấu trúc này. Nếu logic c
 7. `GET /api/studio/education/samples`
    - Response: Danh sách đúng 50 mẫu chiến lược giáo dục từ `data/alpha/education/samples.json`:
      `[{ "key": str, "name": str, "category": str, "difficulty": str, "summary": str, "code": str }]`
+   - Kết quả mẫu: CHỈ từ cache thật. `GET /api/studio/education/samples/{key}/result` → `404 {"code":"NOT_READY"}` cho tới khi job `education_warm` đã chạy mẫu đó (không còn `sample_results.json` / số giả).
 8. `GET /api/studio/alphas/catalog`
    - Response:
      ```json

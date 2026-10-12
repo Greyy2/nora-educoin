@@ -1,5 +1,5 @@
 project: nora
-last_updated: '2026-10-09'
+last_updated: '2026-10-12'
 baseline_commit: f4864d5
 branch: fix/pipeline-audit
 status_values:
@@ -8,18 +8,22 @@ status_values:
 - in-progress
 - review
 - done
+- superseded
+- wont-do
 summary:
   epics:
-    done: 15
-    in-progress: 3
+    done: 16
+    in-progress: 5
     backlog: 2
   stories:
-    done: 91
+    done: 96
     review: 2
-    in-progress: 1
+    in-progress: 5
     ready: 0
-    backlog: 15
-    total: 109
+    backlog: 27
+    superseded: 1
+    wont-do: 5
+    total: 136
 epics:
   E1:
     title: Dữ liệu thị trường
@@ -167,7 +171,7 @@ epics:
       E15-S6-regime-ui: done
   E16:
     title: Kiến trúc thực thi thống nhất (backtest → testnet → live)
-    status: in-progress
+    status: done
     stories:
       E16-S1-adr-unified-execution: done
       E16-S10-nautilus-parity-and-two-phase: done
@@ -178,7 +182,7 @@ epics:
       E16-S6-runner-and-paperbook: done
       E16-S7-venue-conformance: done
       E16-S8-okx-venue: done
-      E16-S9-unified-bot: in-progress
+      E16-S9-unified-bot: superseded  # thay bằng E22-R7 (Nautilus TradingNode)
   E17:
     title: Tái cấu trúc backend + dữ liệu (P9)
     status: done
@@ -215,11 +219,38 @@ epics:
     status: in-progress
     stories:
       E21-S1-nautilus-gap-fill-convention: done
-      E21-S2-nautilus-gap-limit-through: backlog
-      E21-S3-nautilus-gap-dca-sl-same-bar: backlog
-      E21-S4-nautilus-gap-liquidation-margin: backlog
-      E21-S5-nautilus-gap-risk-sizing-kill-switch: backlog
-      E21-S6-nautilus-gap-stop-fill-extreme: backlog
-      E21-S7-nautilus-gap-dex-tick-amm: backlog
-      E21-S8-nautilus-gap-kernelbook-live-batch: backlog
+      E21-S2-nautilus-gap-limit-through: wont-do  # Nautilus là engine; hành vi không mô phỏng → unsupported/501
+      E21-S3-nautilus-gap-dca-sl-same-bar: backlog  # test hành vi Coordinator/NoraSlotStrategy
+      E21-S4-nautilus-gap-liquidation-margin: wont-do  # Nautilus là engine; hành vi không mô phỏng → unsupported/501
+      E21-S5-nautilus-gap-risk-sizing-kill-switch: backlog  # test hành vi Coordinator/NoraSlotStrategy
+      E21-S6-nautilus-gap-stop-fill-extreme: wont-do  # Nautilus là engine; hành vi không mô phỏng → unsupported/501
+      E21-S7-nautilus-gap-dex-tick-amm: wont-do  # Nautilus là engine; hành vi không mô phỏng → unsupported/501
+      E21-S8-nautilus-gap-kernelbook-live-batch: wont-do  # Nautilus là engine; hành vi không mô phỏng → unsupported/501
 
+  E22:
+    title: P15 Nautilus native backend
+    status: in-progress
+    stories:
+      E22-R1-full-suite-green: done
+      E22-R2-move-old-engine-scripts: done
+      E22-R3-meta-unsupported-params: done
+      E22-R4-ui-base-frame-provenance: in-progress
+      E22-R5-result-cache-education-warm: in-progress
+      E22-R6-restart-api-e2e: backlog
+      E22-R7-live-nautilus-tradingnode: backlog
+  E23:
+    title: P16 Hợp nhất sau P15
+    status: in-progress
+    stories:
+      E23-P1-green-and-lock-tree: done
+      E23-P2-engine-core: in-progress
+      E23-P3-routes-thin: backlog
+      E23-P4-data-single-source: backlog
+      E23-P5-cache-ui: in-progress
+      E23-P6-docs: in-progress
+      E23-D1-models-storage: backlog
+      E23-D2-data-module-read-quality: backlog
+      E23-D3-crawl-okx-update-catalog: backlog
+      E23-D4-migrate-pkl-readers: backlog
+      E23-D5-archive-crawl-tests: backlog
+      E23-D6-archive-pkl-e2e: backlog

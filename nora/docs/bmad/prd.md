@@ -1,8 +1,15 @@
 # PRD: Nora, Pipeline Nghiên Cứu và Kiểm Chứng Chiến Lược Crypto Perp
 
+> **Ghi chú P16 (2026-10-12).** Các mục sau đã **superseded** bởi P15–P16 (xem [p16_consolidation_plan.md](p16_consolidation_plan.md)):
+> - **FR-20**, **FR-31**, **NFR-6** và mọi tuyên bố "332/332 parity / Nautilus 2.0": engine là **NautilusTrader 1.231.0** (adapter `backend/nautilus/`), không còn engine tự build nên không còn parity bit-for-bit với engine cũ.
+> - Cấu trúc 5 phân tầng `backend.core` / `backend.live` (FR-31, NFR-6) thay bằng layout P16 (`models`, `alpha`, `nautilus`, `metrics`, `wfa`, `carlo`, `optimize`, `routes`).
+> - DEX nằm ngoài phạm vi (endpoint trả 501 `NOT_READY`).
+> - Kiến trúc hiện hành: `p16_consolidation_plan.md` §4; tài liệu `architecture*` cũ đã archive tại `bmad/archive/2026-10-p16/`.
+
+
 Phiên bản: 2.0 · Ngày: 09/10/2026 · Kiến trúc chuẩn: P9–P12 (Backend 5 phân tầng, Data một cây, UI MetaProvider)
 
-Tài liệu này mô tả chi tiết sản phẩm, phạm vi, các yêu cầu chức năng (FR), yêu cầu phi chức năng (NFR), rủi ro, và ánh xạ tới danh sách Epics (E1–E20). Chi tiết kỹ thuật nằm ở [architecture.md](architecture.md); danh sách chi tiết các story ở [epics.md](epics.md).
+Tài liệu này mô tả chi tiết sản phẩm, phạm vi, các yêu cầu chức năng (FR), yêu cầu phi chức năng (NFR), rủi ro, và ánh xạ tới danh sách Epics (E1–E20). Chi tiết kỹ thuật nằm ở [p16_consolidation_plan.md](p16_consolidation_plan.md) (kiến trúc cũ: [archive/2026-10-p16/architecture.md](archive/2026-10-p16/architecture.md)); danh sách chi tiết các story ở [epics.md](epics.md).
 
 ---
 
@@ -44,7 +51,7 @@ Dữ liệu chuẩn -> Tín hiệu/Chiến lược -> Core Engine (Khớp 2 pha)
 |---|---|---|---|
 | **G1** | Chỉ công nhận Alpha qua đủ cổng | WFA: $\ge 60\%$ fold OOS có lãi, $\ge 5$ folds, MDD OOS $\le 30\%$, CAGR OOS $> 0$. Monte Carlo MTM: $P(\text{MDD} \ge 30\%) \le 5\%$. Holdout 20% cuối: Return $> 0$, MDD $\le 30\%$, Leverage $\le 10x$. | Đạt cho cặp `SOL` (`trend_long_perp__SOL`: WFA 14 folds, 64.3% win, OOS +35.97%; MC ngày 0.80%; Holdout +14.71%). |
 | **G2** | Sổ chiến lược qua Holdout trước khi cấp Testnet | `holdout_level > 0` và MDD $\le 30\%$ (cả level và extreme). | Đang tiếp tục kiểm chứng thêm các ứng viên mới sau P10. |
-| **G3** | Tái lập Bit-identical | Cùng SHA256 dữ liệu, cùng tham số, cùng seed $\rightarrow$ Ra kết quả trùng khớp từng bit float (`test_golden_results.py`). | 100% đạt qua Golden Harness và Nautilus 332/332 parity test. |
+| **G3** | Tái lập Bit-identical | Cùng SHA256 dữ liệu, cùng tham số, cùng seed $\rightarrow$ Ra kết quả trùng khớp từng bit float (`test_golden_results.py`). | 100% đạt qua Golden Harness (superseded P16: không còn "Nautilus 332/332 parity"). |
 | **G4** | Vận hành trong ngân sách RAM | Giới hạn `nora.slice` MemoryMax 12 GB, không swap; không có process nào gây OOM máy chủ. | Đạt. Quản lý qua `ops/run_limited.sh` và `flock`. |
 | **G5** | Vòng lặp UI Studio khép kín | Người dùng tạo chiến lược $\rightarrow$ Backtest $\rightarrow$ WFA $\rightarrow$ MC $\rightarrow$ Xuất bản sổ hoàn toàn qua giao diện web. | Đạt (Trang Backtest, Alpha, CreateAlpha kết nối `/api/studio/*`). |
 | **G6** | Giám sát danh mục Live / Paper | Dashboard đọc trực tiếp trạng thái tài khoản OKX demo / live thật, hiển thị NAV MTM, drawdown, vị thế mở. | Đạt qua route `/api/studio/live/*`. |
@@ -102,7 +109,7 @@ Dữ liệu chuẩn -> Tín hiệu/Chiến lược -> Core Engine (Khớp 2 pha)
 | **FR-17** | Quản lý vị thế DCA và đòn bẩy Isolated: Tính toán chính xác giá hòa vốn, giá thanh lý và tỷ lệ ký quỹ duy trì. | Có | E3 |
 | **FR-18** | `CapitalLedger`: Sổ quỹ vốn tập trung, theo dõi tổng ký quỹ, ngăn chặn over-allocation giữa nhiều chiến lược chạy đồng thời. | Có | E3 |
 | **FR-19** | `PortfolioEngine`: Chạy danh mục đa tài sản × đa chiến lược với giới hạn rủi ro danh mục (Max open positions, Max notional). | Có | E3 |
-| **FR-20** | Tương thích và đối soát tương đương bit-for-bit với engine NautilusTrader (332/332 test cases khớp tuyệt đối). | Có | E16 |
+| **FR-20** (superseded P16) | Tương thích và đối soát tương đương bit-for-bit với engine NautilusTrader (332/332 test cases khớp tuyệt đối). | Có | E16 |
 
 ### 5.4 Kiểm định & Tối ưu hóa (Validation & Optimization)
 | ID | Yêu cầu chức năng | Trạng thái | Epic liên kết |
@@ -125,7 +132,7 @@ Dữ liệu chuẩn -> Tín hiệu/Chiến lược -> Core Engine (Khớp 2 pha)
 ### 5.6 API & Backend Services
 | ID | Yêu cầu chức năng | Trạng thái | Epic liên kết |
 |---|---|---|---|
-| **FR-31** | Backend module hóa thành 5 phân tầng: `backend.alpha`, `backend.core`, `backend.optimize`, `backend.live`, `backend.routes`. | Có | E17 |
+| **FR-31** (superseded P16) | Backend module hóa thành 5 phân tầng: `backend.alpha`, `backend.core`, `backend.optimize`, `backend.live`, `backend.routes`. | Có | E17 |
 | **FR-32** | Endpoint nguồn sự thật duy nhất cho Frontend: `GET /api/studio/meta` (cung cấp danh sách sàn, tài sản, chiến lược, chỉ số). | Có | E19 |
 | **FR-33** | Background Job Runner: Quản lý các tác vụ nặng (Backtest, WFA, Build Book) qua tiến trình nền, cung cấp trạng thái `queued/running/done/failed`. | Có | E7 |
 | **FR-34** | Quản lý Cache chuẩn: Không lưu cache disk vĩnh viễn không kiểm soát; chỉ giữ cache tiến trình đang chạy và dọn dẹp khi hoàn tất. | Có | E17 |
@@ -152,7 +159,7 @@ Dữ liệu chuẩn -> Tín hiệu/Chiến lược -> Core Engine (Khớp 2 pha)
 | **NFR-3** | **Tái lập Bit-identical** | Cùng dữ liệu + cùng tham số + cùng seed phải ra cùng từng bit float trong kết quả backtest và chỉ số. | `test/test_golden_results.py` (Golden bit-identical harness). |
 | **NFR-4** | **Kiến trúc Phân tầng** | Tuân thủ tuyệt đối quy tắc phụ thuộc 1 chiều: `alpha → core → optimize → live → routes`. Không import ngược, không vòng lặp. | `test_p9_layering_strict.py`. |
 | **NFR-5** | **Quản lý Bộ nhớ** | Toàn bộ ứng dụng Nora chạy trong giới hạn 12 GB RAM (`nora.slice`). Không sử dụng swap, tự động giải phóng bộ nhớ. | `ops/run_limited.sh`, cgroups limits. |
-| **NFR-6** | **Tách biệt Core I/O** | `backend/core/` hoàn toàn là tính toán thuần túy (pure domain logic), không thực hiện bất kỳ thao tác I/O (file, network, DB). | Code review gate & unit test core không mock I/O. |
+| **NFR-6** (superseded P16) | **Tách biệt Core I/O** | `backend/core/` hoàn toàn là tính toán thuần túy (pure domain logic), không thực hiện bất kỳ thao tác I/O (file, network, DB). | Code review gate & unit test core không mock I/O. |
 | **NFR-7** | **Độ trễ API** | Endpoint `/api/studio/meta` phản hồi dưới 100ms. Các job nặng phải trả về `job_id` trong vòng dưới 200ms. | Benchmark API request latency. |
 | **NFR-8** | **Khả năng quan sát** | Mọi background job đều có file log riêng biệt (`job.json`, `out.log`), lưu thời gian chạy, CPU/RAM đỉnh và mã thoát. | Kiểm tra thư mục job execution log. |
 
@@ -199,7 +206,7 @@ Hệ thống được phát triển và quản trị theo 20 Epics chuẩn BMAD:
 | **E13** | Execution Analytics & Reporting | Báo cáo hiệu suất giao dịch chi tiết, phân tích drawdown thời gian thực, export PDF/HTML. | FR-37 |
 | **E14** | Dynamic Market Regime Detection | Bộ lọc chế độ thị trường (Trending vs Ranging) hỗ trợ bật/tắt chiến lược tự động. | FR-7, FR-11 |
 | **E15** | Cross-Venue Parity Engine | Chuẩn hóa quy tắc khớp lệnh và phí giữa Binance Futures và OKX Perpetuals. | FR-15 |
-| **E16** | Single Engine Parity (Nautilus Parity) | Hợp nhất single engine, đạt 332/332 test cases tương đương từng bit với NautilusTrader. | FR-20, NFR-3 |
+| **E16** | Single Engine Parity (Nautilus Parity) | Hợp nhất single engine, đạt 332/332 test cases tương đương từng bit với NautilusTrader. (superseded P16) | FR-20, NFR-3 |
 | **E17** | Backend & Data Restructuring (P9) | Tái cấu trúc 5 phân tầng sạch sẽ, cây dữ liệu một nguồn `data/market/`, dọn dẹp cache. | FR-2, FR-3, FR-6, FR-31, FR-34, NFR-4, NFR-6 |
 | **E18** | Strategy Contract & Studio Editor (P10) | Hợp đồng chiến lược thống nhất `BaseStrategy`, Alpha Validator RUN/ADAPT/REJECT, 50+ mẫu. | FR-9, FR-10, FR-11, FR-40 |
 | **E19** | UI Single Source of Truth & Responsive (P11) | Metadata tập trung `/api/studio/meta`, `MetaProvider`, đồng bộ UI hoàn chỉnh, Responsive. | FR-32, FR-36, FR-41 |
