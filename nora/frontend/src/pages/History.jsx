@@ -38,7 +38,7 @@ export default function History() {
 
       {error && <ErrorState title="Không tải được lịch sử chạy" error={error} onRetry={reload} />}
       {loading && !jobs.length && <Loading what="lịch sử chạy" />}
-      {!loading && !error && !jobs.length && <Empty title="Chưa có lần chạy nào">Chạy thử tại <Link to="/alpha/tune" style={{ color: 'var(--n-accent)' }}>Alpha</Link> hoặc <Link to="/backtest" style={{ color: 'var(--n-accent)' }}>Backtest</Link>.</Empty>}
+      {!loading && !error && !jobs.length && <Empty title="Chưa có lần chạy nào">Chạy thử tại <Link to="/alpha/create" style={{ color: 'var(--n-accent)' }}>Alpha</Link> hoặc <Link to="/backtest" style={{ color: 'var(--n-accent)' }}>Backtest</Link>.</Empty>}
 
       {jobs.length > 0 && (
         <Panel title="Các lần chạy" meta={

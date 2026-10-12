@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 
 
 const STEPS = [
-  { to: '/alpha/tune', title: 'Alpha', text: 'Chọn một chiến lược, thử nhiều bộ tham số trên vùng dev1 và xếp hạng theo điểm. Danh mục ý tưởng + công thức của các alpha đang chạy nằm ở tab Alpha.' },
+  { to: '/alpha', title: 'Alpha', text: 'Chọn hoặc tạo chiến lược. Danh mục ý tưởng + công thức của các alpha đang chạy nằm ở tab Alpha.' },
   { to: '/backtest', title: 'Backtest', text: 'Chạy danh mục với bộ tham số đã chọn trên khoảng ngày và các tài sản bạn muốn.' },
   { to: '/backtest', title: 'Walk-forward (WFA)', text: 'Bước 2 trong trang Backtest: kiểm tra out-of-sample cuốn chiếu để biết có bị khớp quá mức không.' },
   { to: '/backtest', title: 'Monte Carlo', text: 'Bước 3: mô phỏng hàng nghìn kịch bản để đo xác suất sụt giảm vượt ngưỡng phá sản.' },

@@ -1,7 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { getStudioMeta, getCatalog, getStrategies } from '../api'
 
-import { registerFunnelMeta } from '../lib/funnel'
 import { subscribeResource, invalidateResource } from '../lib/bus'
 
 export { invalidateResource, subscribeResource }
@@ -42,7 +41,6 @@ export function MetaProvider({ children }) {
       if (data && data.version) {
         metaVersion.current = data.version
       }
-      registerFunnelMeta(data)
       setMeta(data)
       return data
     } catch (e) {

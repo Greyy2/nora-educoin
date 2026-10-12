@@ -1,5 +1,5 @@
 import React, { useId } from 'react'
-import { fmtCount } from '../../lib/funnel'
+const fmtCount = (n) => (Number.isFinite(n) ? n.toLocaleString('en-US') : '—')
 
 /** Phân trang theo offset/limit. */
 export default function Pager({ total, offset, limit, onChange, sizes = [25, 50, 100] }) {

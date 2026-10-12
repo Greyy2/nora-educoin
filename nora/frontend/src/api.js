@@ -3,7 +3,6 @@
 // Không có dữ liệu giả lập: mất kết nối / lỗi máy chủ -> ApiError (production thử lại 1 lần với GET).
 
 import { parseJobParams, jobLabel } from './lib/jobs'
-import { normRun, normRuns, normStats, normAlphaPage, normAlphaDetail, normTrades } from './lib/funnel'
 import { invalidateResource } from './lib/bus'
 import { registerParamSchema } from './lib/params'
 
@@ -308,48 +307,6 @@ export const portfolioTradesCsvUrl = (o) => `/api/studio/portfolio/trades?${_qs(
 
 /** Nến + đường chỉ báo + tín hiệu vào/thoát kèm giá trị từng điều kiện (POST /api/studio/chart/explain). */
 export const explainChart = (body) => request('/api/studio/chart/explain', { method: 'POST', body })
-
-// ── Phễu kiểm duyệt (Funnel) ──
-const FR = '/api/studio/funnel/runs'
-
-/** Danh sách các đợt chạy phễu kiểm duyệt. */
-export const listFunnelRuns = () => request(FR).then(normRuns)
-
-/** Chi tiết một đợt chạy phễu. */
-export const getFunnelRun = (id) => request(`${FR}/${enc(id)}`).then(normRun)
-
-/** Khởi chạy đợt phễu mới (funnel_run). */
-export const postFunnelRun = (body) => request(FR, { method: 'POST', body })
-
-/** Thống kê chi tiết một tầng trong phễu. */
-export const getFunnelStats = (id, stage) => request(`${FR}/${enc(id)}/stages/${enc(stage)}/stats`).then(normStats)
-
-/** Danh sách alpha qua tầng phân trang trong phễu. */
-export const getFunnelAlphas = (id, o) => request(`${FR}/${enc(id)}/alphas${qs(o)}`).then(normAlphaPage)
-
-/** Chi tiết một alpha trong phễu. */
-export const getFunnelAlpha = (id, alphaId) => request(`${FR}/${enc(id)}/alphas/${enc(alphaId)}`).then(normAlphaDetail)
-
-/** Danh sách lệnh của một alpha trong phễu. */
-export const getFunnelTrades = (id, alphaId, o) => request(`${FR}/${enc(id)}/alphas/${enc(alphaId)}/trades${qs(o)}`).then(normTrades)
-
-/** Thăng hạng alpha từ phễu vào sổ / kho alpha. */
-export const postFunnelPromote = (id, alphaId, note) =>
-  request(`${FR}/${enc(id)}/alphas/${enc(alphaId)}/promote`, { method: 'POST', body: { confirm: true, ...(note ? { note } : {}) } })
-    .then((r) => { invalidateResource('alphas'); invalidateResource('catalog'); invalidateResource('meta'); return r })
-
-/** Dựng sổ trực tiếp từ đợt chạy phễu (funnel_book). */
-export const postFunnelBook = (runId, body = {}) =>
-  request(`${FR}/${enc(runId)}/book`, { method: 'POST', body })
-    .then((r) => { invalidateResource('catalog'); invalidateResource('meta'); return r })
-
-/** Huỷ một đợt chạy phễu đang chạy. */
-export const postFunnelCancel = (runId) =>
-  request(`${FR}/${enc(runId)}/cancel`, { method: 'POST' })
-
-/** Ước tính thời gian S1 trước khi chạy phễu: { per_strategy, total_alphas, sec_per_backtest, workers, s1_eta_s }. */
-export const getFunnelEstimate = ({ strategies, nPerStrategy, fullGrid, workers, timeframe, regime }) =>
-  request(`/api/studio/funnel/estimate${qs({ strategies: strategies.join(','), n_per_strategy: fullGrid ? '' : nPerStrategy, full_grid: fullGrid ? 'true' : '', workers, timeframe, regime })}`)
 
 // ═════════════════════════════════════════════════════════════════════════════
 // 3. DATA ROUTER (backend/routes/data.py)

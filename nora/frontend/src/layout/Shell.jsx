@@ -117,7 +117,6 @@ export default function Shell({ children }) {
   const { data, loading, error } = useCatalog()
   const isEdu = loc.pathname.startsWith('/education')
   const page = ALL_SEARCH_PAGES.find((p) => loc.pathname.startsWith(p.to))
-  const runCrumb = loc.pathname.startsWith('/alpha/funnel/') ? decodeURIComponent(loc.pathname.split('/')[3] || '') : ''
   const apiTone = error ? 'bad' : loading && !data ? 'warn' : 'ok'
   const apiText = error ? 'API ngoại tuyến' : loading && !data ? 'Đang kết nối' : 'API trực tuyến'
   const dataEnd = data?.windows?.end
@@ -173,8 +172,7 @@ export default function Shell({ children }) {
             ) : (
               <>
                 <Link to="/portfolio">Tổng quan</Link><span className="sep">›</span>
-                {runCrumb ? <><Link to={page?.to}>{page?.title}</Link><span className="sep">›</span><span className="mono">Lượt {runCrumb}</span></>
-                  : <span>{page ? page.title : 'Không tìm thấy trang'}</span>}
+                <span>{page ? page.title : 'Không tìm thấy trang'}</span>
               </>
             )}
           </div>

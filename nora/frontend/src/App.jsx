@@ -29,10 +29,8 @@ const Portfolio    = lazyRetry(() => import('./pages/Portfolio'))
 const Backtest     = lazyRetry(() => import('./pages/Backtest'))
 const AlphaCatalog = lazyRetry(() => import('./pages/AlphaCatalog'))
 const Studio       = lazyRetry(() => import('./pages/Studio'))
-const Tune         = lazyRetry(() => import('./pages/Tune'))         // tối ưu sổ chiến lược (/alpha/tune)
 const History      = lazyRetry(() => import('./pages/History'))
 const Live         = lazyRetry(() => import('./pages/Live'))
-const Funnel       = lazyRetry(() => import('./pages/Funnel'))
 
 function AppRoutes() {
   return (
@@ -45,9 +43,9 @@ function AppRoutes() {
         <Route path="/alpha"               element={<AlphaLayout />}>
           <Route index                     element={<AlphaCatalog />} />
           <Route path="create"             element={<Studio mode="create" />} />
-          <Route path="tune"               element={<Tune />} />
-          <Route path="funnel"             element={<Funnel />} />
-          <Route path="funnel/:runId"      element={<Funnel />} />
+          <Route path="tune"               element={<Navigate to="/alpha" replace />} />
+          <Route path="funnel"             element={<Navigate to="/alpha" replace />} />
+          <Route path="funnel/:runId"      element={<Navigate to="/alpha" replace />} />
         </Route>
 
         <Route path="/live"                element={<Live />} />

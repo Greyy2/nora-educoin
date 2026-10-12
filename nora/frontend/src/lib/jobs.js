@@ -47,13 +47,8 @@ export const jobKindText = (k, meta) => {
 /** Đường dẫn mở đúng trang/bước của một job (deep link). */
 export function jobLink(j) {
   const id = encodeURIComponent(j.job_id || j.id)
-  if (String(j.kind || '').startsWith('funnel')) {
-    const rid = j.run_id || parseJobParams(j.params).run_id
-    return rid ? `/alpha/funnel/${encodeURIComponent(rid)}` : '/alpha/funnel'
-  }
   if (j.kind === 'custom_backtest') return `/alpha/create?job=${id}`
   if (j.kind === 'book_wfa') return `/backtest?wfa=${id}&step=2`
-  if (j.kind === 'book_build') return `/alpha/tune?build=${id}`
   if (j.kind === 'live_bot') return '/live'
   if (j.kind === 'book_backtest') return `/backtest?job=${id}`
   return null // job dữ liệu / Education: không có trang kết quả riêng
