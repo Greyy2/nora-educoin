@@ -8,7 +8,7 @@ Thứ tự: T1 dứt kiến trúc → T2+T3 Education hoàn chỉnh (ưu tiên s
 |---|---|---|
 | 1 | Hoàn thiện UI | ✅ (R4 badge/cảnh báo/Chuẩn-Nhanh, dọn Studio) |
 | 2 | Đồng bộ tham số + code chiến lược chuẩn quốc tế / TradingView | ✅ (theo anh) |
-| 3 | Kiến trúc cực gọn, CHỈ BACKTEST: xoá wfa/carlo/optimize, metrics = Nautilus PortfolioAnalyzer, dùng thẳng Nautilus | ◐ lõi xong (1 engine, 1 adapter, gỡ số giả). Còn lại → **T1** |
+| 3 | Kiến trúc cực gọn: Backtest → WFA → MC (giữ wfa/carlo), xoá funnel/search/tune, metrics = Nautilus PortfolioAnalyzer, dùng thẳng Nautilus | ◐ lõi xong (1 engine, 1 adapter, gỡ số giả). Còn lại → **T1** |
 | 4 | Hybrid biên dịch: Education = Nora DSL; Chuyên gia = tự nhận code phức tạp → biên dịch Nautilus native | T4 |
 | 5 | Paper/testnet OKX đồng bộ backtest | T5 |
 | 6 | Home kiểu sova → 2 hệ thống song song Education / Coin | T2 |
@@ -16,7 +16,7 @@ Thứ tự: T1 dứt kiến trúc → T2+T3 Education hoàn chỉnh (ưu tiên s
 
 ## TODO tổng (tick khi Opus xác nhận cổng)
 - [ ] **T1 Dứt kiến trúc** — chi tiết: `p17_t1_architecture_detail.md`
-  - [ ] B0 baseline snapshot · [ ] B1 models/storage.py · [ ] B2 data.py đọc · [ ] B3 data.py ghi + job data_update · [ ] B4 cắt pkl + archive crawl/pkl · [ ] B5a jobs/ signal/ alpha/plan · [ ] B5b routes mỏng · [ ] B5c xoá wfa/carlo/optimize + UI research · [ ] B5d metrics = Nautilus PortfolioAnalyzer · [ ] B6 suite xanh + restart + education_warm
+  - [ ] B0 baseline snapshot · [ ] B1 models/storage.py · [ ] B2 data.py đọc · [ ] B3 data.py ghi + job data_update · [ ] B4 cắt pkl + archive crawl/pkl · [ ] B5a jobs/ signal/ alpha/plan · [ ] B5b routes mỏng · [ ] B5c xoá funnel/search/tune (giữ wfa/carlo) + UI Funnel/Tune · [ ] B5d metrics = Nautilus PortfolioAnalyzer · [ ] B6 suite xanh + restart + education_warm
 - [ ] **T2 Home + khung Education/Coin + User** — chi tiết: `p17_t2_*.md` (Opus viết khi T1 đạt)
   - [ ] users.py + routes/users + cookie · [ ] owner_id cho user alpha · [ ] Home (2 thẻ) · [ ] EduLayout / CoinLayout + redirect route cũ · [ ] chọn/tạo user, /edu/me
 - [ ] **T3 Education hoàn chỉnh**
@@ -35,19 +35,19 @@ Thứ tự: T1 dứt kiến trúc → T2+T3 Education hoàn chỉnh (ưu tiên s
 │     /edu/s/:id           Xem chiến lược (code + kết quả), nút "Sao chép về của tôi"
 │     /edu/studio          Viết/chạy/lưu (Nora DSL, form đơn giản)
 │     /edu/me              Profile của tôi
-└── /coin/*      COIN (chỉ backtest: Alpha catalog, Studio chuyên gia, History, Live)
+└── /coin/*      COIN (Alpha catalog, Studio chuyên gia, Backtest → WFA → MC, Portfolio, History, Live)
 ```
 Luật mẫu: user mới (0 chiến lược) → Studio mở sẵn mẫu, thấy danh sách mẫu; khi user có ≥1 chiến lược đã lưu → ẩn mục "Mẫu" (vẫn xem được chiến lược của user khác qua Market).
 
 ---
 
-## T1 — Dứt kiến trúc: cực gọn, chỉ backtest (làm TRƯỚC)
+## T1 — Dứt kiến trúc: cực gọn, Backtest → WFA → MC (làm TRƯỚC)
 Chi tiết từng bước + bảng file: **`p17_t1_architecture_detail.md`**. Tóm tắt:
 - `backend/data.py` thay `crawl/` (catalog là nguồn duy nhất, bỏ pkl/funding/Binance/DEX).
-- Xoá `wfa/`, `carlo/`, `optimize/` + UI Funnel/Tune/Portfolio/Book; phần còn dùng (chiến lược hệ thống + user alpha + sample cache) → `backend/strategies.py`.
+- GIỮ `wfa/`, `carlo/` + luồng sổ Backtest → WFA → MC. Xoá `optimize/` (funnel, search, registry promote/revalidate/top_agents) + UI Funnel/Tune; phần còn dùng → `backend/strategies.py` (chiến lược hệ thống, user alpha, sample cache) và `jobs/tasks.py` (book backtest/WFA/MC).
 - Metrics = Nautilus PortfolioAnalyzer; `metrics/report.py` chỉ ghép payload UI + MDD/CAGR/Calmar.
-- Cây: `main.py data.py strategies.py jobs/ routes/ alpha/ signal/ nautilus/ metrics/ models/`; routes mỏng; chỉ `nautilus/` import nautilus_trader.
-**Cổng**: snapshot engine + tín hiệu IDENTICAL; bảng so metrics cũ/mới giải thích được; grep sạch; full suite 0 failed; backend ≤ ~13k dòng; vite build sạch.
+- Cây: `main.py data.py strategies.py jobs/ routes/ alpha/ signal/ nautilus/ metrics/ wfa/ carlo/ models/`; routes mỏng; chỉ `nautilus/` import nautilus_trader.
+**Cổng**: snapshot engine + tín hiệu IDENTICAL; bảng so metrics cũ/mới giải thích được; grep sạch; full suite 0 failed; backend ≤ ~15k dòng; vite build sạch.
 
 ## T2 — Home + khung Education + User (nền)
 **Backend**

@@ -1,6 +1,6 @@
 # P17 · T1 — Dứt kiến trúc backend + crawl → `data.py` (plan chi tiết)
 
-**Chốt 2026-10-12 (anh):** hệ thống CHỈ GIỮ BACKTEST. Xoá `wfa/`, `carlo/`, toàn bộ `optimize/` (funnel, search, book build) + UI Funnel/Tune/Portfolio/Book-WFA-MC; logic cũ đã lưu trong git (tag `pre-p17-research`) + `test/backend-no/`. Metrics lấy từ **Nautilus PortfolioAnalyzer**. Cái gì Nautilus có thì dùng thẳng, không viết lại.
+**Chốt 2026-10-12 (anh):** luồng giữ lại = **Backtest → WFA → Monte Carlo**. GIỮ `wfa/`, `carlo/` (thư viện thuần). Xoá phần research còn lại: `optimize/funnel`, `optimize/search/generate`, kho mmap/run_many, registry promote/revalidate/top_agents + UI Funnel/Tune; logic cũ lưu trong git (tag `pre-p17-research`) + `test/backend-no/`. Metrics lấy từ **Nautilus PortfolioAnalyzer**. Cái gì Nautilus có thì dùng thẳng, không viết lại.
 
 ### Cây backend đích (cực gọn)
 ```
@@ -8,15 +8,17 @@ backend/
 ├── main.py
 ├── data.py            dữ liệu OKX → catalog (đọc/ghi/quality/EngineData)
 ├── strategies.py      kho chiến lược: hệ thống (BY_ID, validate_params, lift_frames, FieldError, catalog/doc) + user (save/list/version) + sample_cache
-├── jobs/              runner.py · tasks.py (run_custom, education_warm, data_update) · workers.py
+├── jobs/              runner.py · tasks.py (run_custom, book_backtest, book_wfa, book_mc, education_warm, data_update) · workers.py
 ├── routes/            alpha.py · process.py · data.py · live.py · engine.py
 ├── alpha/             compile.py · contract.py · plan.py
 ├── signal/            indicator.py · ta.py · nodes.py · compute.py
 ├── nautilus/          backtest.py · engine.py · strategy.py · portfolio.py · results.py · catalog.py · live.py · version.py
 ├── metrics/           report.py (payload UI: stats PortfolioAnalyzer + equity/trades/chart cần cho CustomResult)
+├── wfa/               wfa.py (giữ nguyên)
+├── carlo/             carlo.py (giữ nguyên)
 └── models/            models.py · params.py · position_size.py · storage.py · meta.py
 ```
-Mục tiêu: backend ≤ ~13k dòng (hiện 30k).
+Mục tiêu: backend ≤ ~15k dòng (hiện 30k).
 
 
 Người làm: anh. Opus: test cổng. Nhánh `fix/pipeline-audit`. Chạy Python: `ops/run_limited.sh --no-lock -- <args>` (từ `nora/`).
@@ -106,22 +108,22 @@ Một file, 5 mục; mỗi logic một định nghĩa:
 **Kiểm**:
 - `grep -rln "nautilus_trader" backend | grep -v backend/nautilus/` = 0 (chú ý `main.py`, `routes/process.py`, `alpha/compile.py` đang import → chuyển qua `backend.nautilus.version`/hàm bọc).
 - `grep -rn "backend.optimize.process\|backend.alpha.dsl" backend test ops` = 0.
-- `test_layering.py` cập nhật luật import: `routes→jobs→nautilus→{alpha,signal}→models`; `strategies, data` → models; `metrics` không import nautilus/signal.
+- `test_layering.py` cập nhật luật import: `routes→jobs→{wfa,nautilus}→{alpha,signal}→models`; `strategies, data` → models; `metrics, carlo` không import nautilus/signal.
 - [SNAP] · [QUICK] · `p9_ledger.py --dups` sạch.
 
-**5c. Xoá research (chỉ giữ backtest)** — trước khi xoá: `git tag pre-p17-research`.
+**5c. Xoá research (giữ Backtest → WFA → MC)** — trước khi xoá: `git tag pre-p17-research`.
 | Xoá | Giữ lại (chuyển chỗ) |
 |---|---|
-| `backend/wfa/`, `backend/carlo/` | — |
+| — | `backend/wfa/`, `backend/carlo/` GIỮ NGUYÊN |
 | `optimize/funnel/*`, `optimize/search/generate.py` | `split_regime` (nếu alpha/compile còn cần) → `alpha/plan.py` |
 | `optimize/search/evaluate.py` (kho mmap dùng chung, run_many, funnel cache) | `execute`, `run_benchmark`, `WARMUP` → `jobs/tasks.py` hoặc `nautilus/engine.py`; `EngineData` → `data.py` (Bước 2) |
-| `optimize/book/build.py` (build_book, WFA, MC, publish, testnet_config) | `BY_ID`, `UNIVERSE`, `perp_symbols`, `lift_frames`, `validate_params`, `FieldError` → `strategies.py` |
-| `optimize/book/registry.py` (registry, promote, revalidate, wfa_check, build_report, top_agents, testnet) | user alpha (`save_user_alpha`, `list_user_alphas`, `get_user_alpha`, `*_version*`, `update_user_alpha_status`, `generate_alpha_id`, `evaluate_checklist`) + tài liệu catalog (`catalog`, `leg_doc`, `summarize`, `conditions`, `_exits`, `_sizing`…) → `strategies.py` |
+| `optimize/book/build.py` phần publish/explore/testnet_config | `BY_ID`, `UNIVERSE`, `perp_symbols`, `lift_frames`, `validate_params`, `FieldError` → `strategies.py`; luồng sổ backtest/WFA/MC (build_book giai đoạn backtest, gọi wfa/carlo) → `jobs/tasks.py` (`run_book_backtest`, `run_book_wfa`, `run_book_mc`) |
+| `optimize/book/registry.py` (registry, promote, revalidate, build_report, top_agents, testnet) | user alpha (`save_user_alpha`, `list_user_alphas`, `get_user_alpha`, `*_version*`, `update_user_alpha_status`, `generate_alpha_id`, `evaluate_checklist`) + tài liệu catalog (`catalog`, `leg_doc`, `summarize`, `conditions`, `_exits`, `_sizing`…) → `strategies.py` |
 | `PortfolioEngine.run_many`, `_load_shared`, shared_dir/mmap trong `nautilus/engine.py` | `PortfolioEngine.run` |
-| routes: mọi endpoint funnel/book/wfa/mc/tune/registry/presets/top_agents trong `routes/optimize.py` (xoá file), phần tương ứng trong `routes/process.py`, `routes/data.py` | endpoint custom backtest, compile, user alpha, education, meta, jobs, data, live(501), engine |
-| job kinds trong runner: funnel_*, book_*, wfa*, mc*, revalidate*, live_bot… | `custom_backtest`, `education_warm`, `data_update` |
-| test: funnel/book/wfa/mc/carlo/registry/revalidate/top_agents/shared_data/run_many/kernel… → `test/backend-no/tests/` | test custom/compile/nautilus/meta/no_mock/education/user_alphas/data |
-| **Frontend**: pages `Funnel`, `Tune`, `Portfolio`, `Backtest` (book), `components/optimize/**` (McResult, WfaResult, funnel/*), `lib/funnel.js`, hàm api tương ứng | Studio, AlphaCatalog, History, Live, Education; route `/` tạm → `/alpha` (T2 thay bằng Home) |
+| routes: endpoint funnel/tune/registry/promote/revalidate/presets/top_agents trong `routes/optimize.py`, `routes/process.py`, `routes/data.py` | endpoint book backtest/WFA/MC (`routes/optimize.py` chỉ còn phần này, đổi tên `routes/book.py`), custom backtest, compile, user alpha, education, meta, jobs, data, live(501), engine |
+| job kinds: funnel_*, revalidate*, publish/explore, live_bot… | `custom_backtest`, `book_backtest`, `book_wfa`, `book_mc`, `education_warm`, `data_update` |
+| test: funnel/registry/revalidate/top_agents/shared_data/run_many/kernel… → `test/backend-no/tests/` | test custom/compile/nautilus/meta/no_mock/education/user_alphas/data + book/wfa/mc (`test_portfolio_wfa`, `test_book_mc_api`, `test_daily_mc`, `test_run_book_backtest`) |
+| **Frontend**: pages `Funnel`, `Tune`, `components/optimize/funnel/*`, `lib/funnel.js`, hàm api tương ứng | Studio, AlphaCatalog, Backtest (backtest → WFA → MC, `McResult`, `WfaResult`), Portfolio, History, Live, Education |
 
 **5d. Metrics = Nautilus PortfolioAnalyzer**
 - `nautilus/backtest.py`: bật `run_analysis=True`; sau run lấy `eng.portfolio.analyzer` → `get_performance_stats_pnls()`, `get_performance_stats_returns()`, `get_performance_stats_general()` (Sharpe, Sortino, Profit Factor, Win Rate, Expectancy, Avg Winner/Loser, Returns Volatility…) → đưa vào `results["stats"]` (giữ nguyên tên Nautilus).
@@ -139,8 +141,8 @@ Một file, 5 mục; mỗi logic một định nghĩa:
 1. [SNAP] IDENTICAL + signal snapshot IDENTICAL.
 2. Grep: `backend.crawl`, `read_pickle`, `.pkl`, `backend.optimize.process`, `backend.alpha.dsl` = 0; nautilus_trader chỉ trong `backend/nautilus/`.
 3. Full suite 0 failed; `p9_ledger --dups` sạch; e2e exit 0.
-4. Cây `backend/` đúng mục *Cây backend đích* ở đầu file; không còn `wfa/ carlo/ optimize/ crawl/`; `vite build` sạch, UI không còn link tới trang đã xoá.
-5. Backend ≤ ~13k dòng (`find backend -name '*.py' | xargs cat | wc -l`).
+4. Cây `backend/` đúng mục *Cây backend đích* ở đầu file; không còn `optimize/ crawl/`; `wfa/ carlo/` còn và test WFA/MC xanh; `vite build` sạch, UI không còn link tới trang đã xoá.
+5. Backend ≤ ~15k dòng (`find backend -name '*.py' | xargs cat | wc -l`).
 
 ## Phụ lục A — test fail sẵn ở baseline `dae2e71`
 (Opus điền khi full suite baseline chạy xong.)
