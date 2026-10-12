@@ -14,6 +14,18 @@ Thứ tự: T1 dứt kiến trúc → T2+T3 Education hoàn chỉnh (ưu tiên s
 | 6 | Home kiểu sova → 2 hệ thống song song Education / Coin | T2 |
 | 7 | User: profile, chiến lược của mình, market theo user, 10 user × 50 mẫu, ẩn mẫu khi đã có chiến lược | T2–T3 |
 
+## TODO tổng (tick khi Opus xác nhận cổng)
+- [ ] **T1 Dứt kiến trúc** — chi tiết: `p17_t1_architecture_detail.md`
+  - [ ] B0 baseline snapshot tín hiệu · [ ] B1 models/storage.py · [ ] B2 data.py đọc · [ ] B3 data.py ghi + job data_update · [ ] B4 cắt pkl + archive crawl/pkl · [ ] B5 jobs/ signal/ alpha/plan + routes mỏng · [ ] B6 suite xanh + restart + education_warm
+- [ ] **T2 Home + khung Education/Coin + User** — chi tiết: `p17_t2_*.md` (Opus viết khi T1 đạt)
+  - [ ] users.py + routes/users + cookie · [ ] owner_id cho user alpha · [ ] Home (2 thẻ) · [ ] EduLayout / CoinLayout + redirect route cũ · [ ] chọn/tạo user, /edu/me
+- [ ] **T3 Education hoàn chỉnh**
+  - [ ] seed 10 user × 5 chiến lược · [ ] Market /edu · [ ] Profile /edu/u/:handle · [ ] Xem /edu/s/:id + fork · [ ] Studio Edu + luật ẩn mẫu · [ ] E2E e2e_edu.py
+- [ ] **T4 Hybrid biên dịch**
+  - [ ] alpha/route.classify + reasons · [ ] whitelist import native · [ ] badge Coin Studio · [ ] bộ 20 mẫu phân loại
+- [ ] **T5 OKX paper/testnet**
+  - [ ] SignalActor tăng dần (parity) · [ ] TradingNode demo · [ ] job live_paper/testnet · [ ] đối chiếu compare_events · [ ] UI /coin/live
+
 ## Mô hình sản phẩm
 ```
 /                Home (preview 2 hệ thống: thẻ + số liệu thật + nút vào)
