@@ -1,5 +1,24 @@
 # P17 · T1 — Dứt kiến trúc backend + crawl → `data.py` (plan chi tiết)
 
+**Chốt 2026-10-12 (anh):** hệ thống CHỈ GIỮ BACKTEST. Xoá `wfa/`, `carlo/`, toàn bộ `optimize/` (funnel, search, book build) + UI Funnel/Tune/Portfolio/Book-WFA-MC; logic cũ đã lưu trong git (tag `pre-p17-research`) + `test/backend-no/`. Metrics lấy từ **Nautilus PortfolioAnalyzer**. Cái gì Nautilus có thì dùng thẳng, không viết lại.
+
+### Cây backend đích (cực gọn)
+```
+backend/
+├── main.py
+├── data.py            dữ liệu OKX → catalog (đọc/ghi/quality/EngineData)
+├── strategies.py      kho chiến lược: hệ thống (BY_ID, validate_params, lift_frames, FieldError, catalog/doc) + user (save/list/version) + sample_cache
+├── jobs/              runner.py · tasks.py (run_custom, education_warm, data_update) · workers.py
+├── routes/            alpha.py · process.py · data.py · live.py · engine.py
+├── alpha/             compile.py · contract.py · plan.py
+├── signal/            indicator.py · ta.py · nodes.py · compute.py
+├── nautilus/          backtest.py · engine.py · strategy.py · portfolio.py · results.py · catalog.py · live.py · version.py
+├── metrics/           report.py (payload UI: stats PortfolioAnalyzer + equity/trades/chart cần cho CustomResult)
+└── models/            models.py · params.py · position_size.py · storage.py · meta.py
+```
+Mục tiêu: backend ≤ ~13k dòng (hiện 30k).
+
+
 Người làm: anh. Opus: test cổng. Nhánh `fix/pipeline-audit`. Chạy Python: `ops/run_limited.sh --no-lock -- <args>` (từ `nora/`).
 Nguyên tắc: không đổi kết quả. Mỗi bước có lệnh kiểm; bước xong mới sang bước sau; commit mỗi bước.
 
@@ -87,8 +106,28 @@ Một file, 5 mục; mỗi logic một định nghĩa:
 **Kiểm**:
 - `grep -rln "nautilus_trader" backend | grep -v backend/nautilus/` = 0 (chú ý `main.py`, `routes/process.py`, `alpha/compile.py` đang import → chuyển qua `backend.nautilus.version`/hàm bọc).
 - `grep -rn "backend.optimize.process\|backend.alpha.dsl" backend test ops` = 0.
-- `test_layering.py` cập nhật luật import: `routes→jobs→{optimize,wfa}→nautilus→signal→models`; `metrics, carlo` không import nautilus/signal.
+- `test_layering.py` cập nhật luật import: `routes→jobs→nautilus→{alpha,signal}→models`; `strategies, data` → models; `metrics` không import nautilus/signal.
 - [SNAP] · [QUICK] · `p9_ledger.py --dups` sạch.
+
+**5c. Xoá research (chỉ giữ backtest)** — trước khi xoá: `git tag pre-p17-research`.
+| Xoá | Giữ lại (chuyển chỗ) |
+|---|---|
+| `backend/wfa/`, `backend/carlo/` | — |
+| `optimize/funnel/*`, `optimize/search/generate.py` | `split_regime` (nếu alpha/compile còn cần) → `alpha/plan.py` |
+| `optimize/search/evaluate.py` (kho mmap dùng chung, run_many, funnel cache) | `execute`, `run_benchmark`, `WARMUP` → `jobs/tasks.py` hoặc `nautilus/engine.py`; `EngineData` → `data.py` (Bước 2) |
+| `optimize/book/build.py` (build_book, WFA, MC, publish, testnet_config) | `BY_ID`, `UNIVERSE`, `perp_symbols`, `lift_frames`, `validate_params`, `FieldError` → `strategies.py` |
+| `optimize/book/registry.py` (registry, promote, revalidate, wfa_check, build_report, top_agents, testnet) | user alpha (`save_user_alpha`, `list_user_alphas`, `get_user_alpha`, `*_version*`, `update_user_alpha_status`, `generate_alpha_id`, `evaluate_checklist`) + tài liệu catalog (`catalog`, `leg_doc`, `summarize`, `conditions`, `_exits`, `_sizing`…) → `strategies.py` |
+| `PortfolioEngine.run_many`, `_load_shared`, shared_dir/mmap trong `nautilus/engine.py` | `PortfolioEngine.run` |
+| routes: mọi endpoint funnel/book/wfa/mc/tune/registry/presets/top_agents trong `routes/optimize.py` (xoá file), phần tương ứng trong `routes/process.py`, `routes/data.py` | endpoint custom backtest, compile, user alpha, education, meta, jobs, data, live(501), engine |
+| job kinds trong runner: funnel_*, book_*, wfa*, mc*, revalidate*, live_bot… | `custom_backtest`, `education_warm`, `data_update` |
+| test: funnel/book/wfa/mc/carlo/registry/revalidate/top_agents/shared_data/run_many/kernel… → `test/backend-no/tests/` | test custom/compile/nautilus/meta/no_mock/education/user_alphas/data |
+| **Frontend**: pages `Funnel`, `Tune`, `Portfolio`, `Backtest` (book), `components/optimize/**` (McResult, WfaResult, funnel/*), `lib/funnel.js`, hàm api tương ứng | Studio, AlphaCatalog, History, Live, Education; route `/` tạm → `/alpha` (T2 thay bằng Home) |
+
+**5d. Metrics = Nautilus PortfolioAnalyzer**
+- `nautilus/backtest.py`: bật `run_analysis=True`; sau run lấy `eng.portfolio.analyzer` → `get_performance_stats_pnls()`, `get_performance_stats_returns()`, `get_performance_stats_general()` (Sharpe, Sortino, Profit Factor, Win Rate, Expectancy, Avg Winner/Loser, Returns Volatility…) → đưa vào `results["stats"]` (giữ nguyên tên Nautilus).
+- `metrics/report.py` (thay `metrics/{metrics,trades,charts,regime}.py`): ghép payload UI = stats Nautilus (ánh xạ sang khoá UI `sharpe, sortino, pf, win, trades, fees`) + chỉ tính phần Nautilus KHÔNG có, mỗi cái một hàm: `mdd_pct`, `cagr`, `calmar` từ equity curve; equity/drawdown series, trades list, by_symbol, yearly. Bỏ: diagnostics/insights/regime/compare/exposure/correlation… nếu `CustomResult.jsx` không hiển thị (grep frontend trước khi xoá).
+- train/test/simulate: mỗi giai đoạn một lần chạy (đã có) → stats Nautilus từng lần.
+- **Kiểm**: 3 mẫu (KEMA, DCA, 1 native) — bảng so sánh chỉ số cũ (Nora) vs mới (Nautilus) lưu `test/fixtures/p17_metrics_compare.json`; khác biệt phải giải thích được bằng định nghĩa (ví dụ Sharpe năm hoá 252 vs 365); UI CustomResult hiển thị đủ.
 
 ## Bước 6 — Suite xanh + restart
 - [ ] Sửa từng test trong Phụ lục A (test cũ sai theo code mới → sửa test, ghi lý do; bug thật → sửa code).
@@ -100,7 +139,8 @@ Một file, 5 mục; mỗi logic một định nghĩa:
 1. [SNAP] IDENTICAL + signal snapshot IDENTICAL.
 2. Grep: `backend.crawl`, `read_pickle`, `.pkl`, `backend.optimize.process`, `backend.alpha.dsl` = 0; nautilus_trader chỉ trong `backend/nautilus/`.
 3. Full suite 0 failed; `p9_ledger --dups` sạch; e2e exit 0.
-4. Cây `backend/` đúng p16 §4: `main.py data.py routes/ jobs/ alpha/ signal/ nautilus/ metrics/ wfa/ carlo/ optimize/ models/`.
+4. Cây `backend/` đúng mục *Cây backend đích* ở đầu file; không còn `wfa/ carlo/ optimize/ crawl/`; `vite build` sạch, UI không còn link tới trang đã xoá.
+5. Backend ≤ ~13k dòng (`find backend -name '*.py' | xargs cat | wc -l`).
 
 ## Phụ lục A — test fail sẵn ở baseline `dae2e71`
 (Opus điền khi full suite baseline chạy xong.)

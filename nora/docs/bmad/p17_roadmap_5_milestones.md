@@ -8,7 +8,7 @@ Thứ tự: T1 dứt kiến trúc → T2+T3 Education hoàn chỉnh (ưu tiên s
 |---|---|---|
 | 1 | Hoàn thiện UI | ✅ (R4 badge/cảnh báo/Chuẩn-Nhanh, dọn Studio) |
 | 2 | Đồng bộ tham số + code chiến lược chuẩn quốc tế / TradingView | ✅ (theo anh) |
-| 3 | Kiến trúc gọn chuẩn | ◐ lõi xong (1 engine, 1 adapter kết quả, gỡ số giả). Còn: data.py, cây package, routes mỏng → **T1** |
+| 3 | Kiến trúc cực gọn, CHỈ BACKTEST: xoá wfa/carlo/optimize, metrics = Nautilus PortfolioAnalyzer, dùng thẳng Nautilus | ◐ lõi xong (1 engine, 1 adapter, gỡ số giả). Còn lại → **T1** |
 | 4 | Hybrid biên dịch: Education = Nora DSL; Chuyên gia = tự nhận code phức tạp → biên dịch Nautilus native | T4 |
 | 5 | Paper/testnet OKX đồng bộ backtest | T5 |
 | 6 | Home kiểu sova → 2 hệ thống song song Education / Coin | T2 |
@@ -16,7 +16,7 @@ Thứ tự: T1 dứt kiến trúc → T2+T3 Education hoàn chỉnh (ưu tiên s
 
 ## TODO tổng (tick khi Opus xác nhận cổng)
 - [ ] **T1 Dứt kiến trúc** — chi tiết: `p17_t1_architecture_detail.md`
-  - [ ] B0 baseline snapshot tín hiệu · [ ] B1 models/storage.py · [ ] B2 data.py đọc · [ ] B3 data.py ghi + job data_update · [ ] B4 cắt pkl + archive crawl/pkl · [ ] B5 jobs/ signal/ alpha/plan + routes mỏng · [ ] B6 suite xanh + restart + education_warm
+  - [ ] B0 baseline snapshot · [ ] B1 models/storage.py · [ ] B2 data.py đọc · [ ] B3 data.py ghi + job data_update · [ ] B4 cắt pkl + archive crawl/pkl · [ ] B5a jobs/ signal/ alpha/plan · [ ] B5b routes mỏng · [ ] B5c xoá wfa/carlo/optimize + UI research · [ ] B5d metrics = Nautilus PortfolioAnalyzer · [ ] B6 suite xanh + restart + education_warm
 - [ ] **T2 Home + khung Education/Coin + User** — chi tiết: `p17_t2_*.md` (Opus viết khi T1 đạt)
   - [ ] users.py + routes/users + cookie · [ ] owner_id cho user alpha · [ ] Home (2 thẻ) · [ ] EduLayout / CoinLayout + redirect route cũ · [ ] chọn/tạo user, /edu/me
 - [ ] **T3 Education hoàn chỉnh**
@@ -35,24 +35,19 @@ Thứ tự: T1 dứt kiến trúc → T2+T3 Education hoàn chỉnh (ưu tiên s
 │     /edu/s/:id           Xem chiến lược (code + kết quả), nút "Sao chép về của tôi"
 │     /edu/studio          Viết/chạy/lưu (Nora DSL, form đơn giản)
 │     /edu/me              Profile của tôi
-└── /coin/*      COIN (hệ thống hiện tại: Alpha, Funnel, Book, Backtest, Live…)
+└── /coin/*      COIN (chỉ backtest: Alpha catalog, Studio chuyên gia, History, Live)
 ```
 Luật mẫu: user mới (0 chiến lược) → Studio mở sẵn mẫu, thấy danh sách mẫu; khi user có ≥1 chiến lược đã lưu → ẩn mục "Mẫu" (vẫn xem được chiến lược của user khác qua Market).
 
 ---
 
-## T1 — Dứt kiến trúc backend + crawl → data.py (làm TRƯỚC)
-**Bước 1 — `backend/data.py` thay `crawl/`** (chi tiết: p16_consolidation_plan.md §5, D1–D6)
-- D1 `models/storage.py`: đường dẫn (alpha_dir, run_dir, live_dir, cache_*, is_within) + IO (read_json, write_json_atomic, json_default, write_job_result, options, as_list, ByteLRU, env_mb) tách khỏi `crawl/store.py`; sửa ~50 file import.
-- D2 `data.py` đọc: UNIVERSE 10 symbol, normalize_symbol (1 định nghĩa), `load_bars(symbol, frame, start, end)` từ catalog (pyarrow + aggregate_frame chuyển về đây), daily_close, catalog_digest, coverage, quality gate trên catalog.
-- D3 `data.py` ghi: fetch_instruments, crawl OKX 1m tăng dần (CDN zip + REST), `nautilus.catalog.write_bars` + manifest; job `data_update` thay 4 kind cũ (data_crawl, data_crawl_okx, data_crawl_ticks, data_promote).
-- D4 tín hiệu (DataSource), chart, routes/data, benchmark đọc `data.load_bars` — bỏ pkl.
-- D5 archive `backend/crawl/` + test cũ → `test/backend-no/`; test mới `test/test_data.py`.
-- D6 archive `data/market/okx/cex/*.pkl` → `data/archive/2026-10-p16/`.
-**Bước 2 — cây package đích** (p16 §4): `optimize/process` → `jobs/`; `alpha/dsl/{indicator,signal,ta}` → `signal/{indicator,nodes,ta}`; `alpha/dsl/strategy.py` tách `alpha/plan.py` (build_plan, Plan) + `signal/compute.py` (SignalEngine/SignalPortfolio…); `metrics/regime` bỏ import nautilus.
-**Bước 3 — routes mỏng**: `post_mc` gate → carlo/book; `_nav` → metrics; `_build_meta` → module meta; meta thêm `engine.default_exec_mode`, `frames.defaults`; `BacktestRequest.run_frame`.
-**Bước 4 — suite xanh**: sửa các test fail sẵn (danh sách baseline Opus gửi).
-**Cổng (Opus test)**: `grep backend.crawl` = 0; `grep read_pickle|\.pkl` trong backend = 0; `load_bars` bit-identical `catalog.exec_arrays` (10 symbol × 1m/15m/1h); signal parity trên catalog (nếu lệch do nến fill → báo anh duyệt); `p16_engine_snapshot --check` IDENTICAL; chỉ `backend/nautilus/` import nautilus_trader; routes không logic; full suite 0 failed; p9_ledger --dups sạch.
+## T1 — Dứt kiến trúc: cực gọn, chỉ backtest (làm TRƯỚC)
+Chi tiết từng bước + bảng file: **`p17_t1_architecture_detail.md`**. Tóm tắt:
+- `backend/data.py` thay `crawl/` (catalog là nguồn duy nhất, bỏ pkl/funding/Binance/DEX).
+- Xoá `wfa/`, `carlo/`, `optimize/` + UI Funnel/Tune/Portfolio/Book; phần còn dùng (chiến lược hệ thống + user alpha + sample cache) → `backend/strategies.py`.
+- Metrics = Nautilus PortfolioAnalyzer; `metrics/report.py` chỉ ghép payload UI + MDD/CAGR/Calmar.
+- Cây: `main.py data.py strategies.py jobs/ routes/ alpha/ signal/ nautilus/ metrics/ models/`; routes mỏng; chỉ `nautilus/` import nautilus_trader.
+**Cổng**: snapshot engine + tín hiệu IDENTICAL; bảng so metrics cũ/mới giải thích được; grep sạch; full suite 0 failed; backend ≤ ~13k dòng; vite build sạch.
 
 ## T2 — Home + khung Education + User (nền)
 **Backend**
