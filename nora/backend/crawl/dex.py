@@ -461,7 +461,7 @@ def decode_swaps(logs: List[Dict], info: Dict[str, Any]) -> pd.DataFrame:
 def pool_info(symbol: str, data_root: Optional[str] = None) -> Dict[str, Any]:
     """Metadata pool của tài sản DEX: symbol (hiển thị), qualified, network, fee_rate (+ nguồn), stable, pool_type, ticks (attrs ticks hoặc None).
     Phí: ticks["fee_rate"], không có thì onchain["fee_rate"] (cả hai nằm trong attrs ticks.parquet); null ở cả hai -> ValueError (không đoán phí).
-    (P9.4b: chuyển từ core/backtest.py — core không đọc file; engine nhận `info` do bên gọi truyền vào.)"""
+    (P9.4b: chuyển từ nautilus/engine.py — core không đọc file; engine nhận `info` do bên gọi truyền vào.)"""
     name = clean_name(parse_symbol(symbol)[1])
     path = resolve_asset_dir(f"dex:{name}", data_root=data_root or default_data_root())
     if not path:

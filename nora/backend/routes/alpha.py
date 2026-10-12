@@ -79,19 +79,13 @@ def get_user_alphas(
     return user_alphas.list_user_alphas(sort=sort, status=status)
 
 
-_SAMPLE_RESULTS_CACHE = None
-_SAMPLES_CACHE = None
+def _load_samples():
+    from backend.crawl.store import alpha_education_samples
+    return _read(alpha_education_samples()) or []
 
 
-def _get_sample_data():
-    global _SAMPLE_RESULTS_CACHE, _SAMPLES_CACHE
-    if _SAMPLE_RESULTS_CACHE is None or _SAMPLES_CACHE is None:
-        from backend.crawl.store import alpha_education_samples
-        samples_path = alpha_education_samples()
-        _SAMPLES_CACHE = _read(samples_path) or []
-        results_path = os.path.join(os.path.dirname(samples_path), "sample_results.json")
-        _SAMPLE_RESULTS_CACHE = _read(results_path) or {}
-    return _SAMPLES_CACHE, _SAMPLE_RESULTS_CACHE
+def _not_ready(what: str):
+    return HTTPException(404, {"code": "NOT_READY", "message": f"Chưa có kết quả backtest thật cho {what} (chạy job education_warm)."})
 
 
 @alphas_router.get("/user/{alpha_id}")
@@ -99,11 +93,11 @@ def get_user_alpha_detail(alpha_id: str) -> Dict[str, Any]:
     """Lấy chi tiết một Alpha người dùng hoặc chiến lược mẫu đã có kết quả."""
     rec = user_alphas.get_user_alpha(alpha_id)
     if not rec:
-        # Fallback tra cứu trong kho kết quả mẫu (sử dụng in-memory cache)
-        samples, res_data = _get_sample_data()
-        sample_item = next((s for s in samples if s.get("key") == alpha_id or s.get("name") == alpha_id), None)
-        if sample_item and alpha_id in res_data:
-            s_res = res_data[alpha_id]
+        # Fallback: mẫu giáo dục, CHỈ khi có kết quả thật trong cache
+        from backend.optimize.process import sample_cache
+        sample_item = next((x for x in _load_samples() if x.get("key") == alpha_id or x.get("name") == alpha_id), None)
+        s_res = sample_cache.lookup(sample_item) if sample_item else None
+        if s_res is not None:
             return {
                 "id": alpha_id,
                 "name": sample_item.get("name", alpha_id),
@@ -585,43 +579,44 @@ def _read(path: str):
 
 @education_router.get("/samples")
 def get_education_samples():
-    """Trả về danh sách 50 mẫu chiến lược giáo dục. Mẫu đầu tiên kèm toàn bộ result để view tức thì, các mẫu khác kèm metrics nhẹ."""
-    samples, res_data = _get_sample_data()
+    """Danh sách mẫu giáo dục. Chỉ mẫu có kết quả backtest THẬT trong cache mới kèm metrics/final_equity/pnl_usd/initial_capital; còn lại result_status = NOT_READY."""
+    from backend.optimize.process import sample_cache
+    samples = _load_samples()
     if not samples:
         raise HTTPException(404, "Không tìm thấy file mẫu education/samples.json")
+    try:
+        spec = sample_cache.sample_run_spec({})
+    except ValueError:
+        spec = None   # kho dữ liệu trống -> không mẫu nào có kết quả thật
     out = []
-    for idx, s in enumerate(samples):
+    for s in samples:
         item = dict(s)
-        k = item.get("key")
-        if k and k in res_data:
-            r = res_data[k]
+        r = sample_cache.lookup(s, sample_cache.sample_run_spec(s, spec)) if spec else None
+        if r is None:
+            item["result_status"] = "NOT_READY"
+        else:
             item["metrics"] = r.get("metrics")
-            init_cap = r.get("config", {}).get("initial_capital", 10000.0)
+            init_cap = r.get("config", {}).get("initial_capital", spec.get("initial_capital"))
             fin_eq = r.get("final_equity")
             item["initial_capital"] = init_cap
             item["final_equity"] = fin_eq
-            if fin_eq is not None:
+            if fin_eq is not None and init_cap is not None:
                 item["pnl_usd"] = round(fin_eq - init_cap, 2)
-            elif item["metrics"] and "simulate" in item["metrics"]:
-                sim_ret = item["metrics"]["simulate"].get("ret_pct", 0)
-                item["pnl_usd"] = round(init_cap * sim_ret / 100, 2)
-            # Mẫu đầu tiên đính kèm toàn bộ result để client view ngay lập tức khi load trang mà không cần request thứ hai
-            if idx == 0:
-                item["result"] = r
         out.append(item)
     return out
 
 
 @education_router.get("/samples/{key}/result")
 def get_education_sample_result(key: str):
-    """Lấy chi tiết kết quả backtest chuẩn của 1 mẫu cụ thể khi người dùng chọn xem."""
-    _, res_data = _get_sample_data()
-    if key not in res_data:
-        raise HTTPException(404, f"Không tìm thấy kết quả của mẫu {key}")
-    return res_data[key]
-
-
-
+    """Kết quả backtest thật (cache) của 1 mẫu; chưa có -> 404 NOT_READY."""
+    from backend.optimize.process import sample_cache
+    sample = next((x for x in _load_samples() if x.get("key") == key), None)
+    if sample is None:
+        raise HTTPException(404, f"Không tìm thấy mẫu {key}")
+    r = sample_cache.lookup(sample)
+    if r is None:
+        raise _not_ready(f"mẫu {key}")
+    return r
 
 
 ROUTERS = [alphas_router, strategies_router, custom_router, education_router, chart_router]

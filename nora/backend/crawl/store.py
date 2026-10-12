@@ -729,7 +729,7 @@ def benchmark_daily_closes(symbol: str, start_ms: int, end_ms: int) -> pd.Series
 # ── Bộ đệm LRU theo byte ──────────────────────────────────────────────────────────────────────
 # Bộ đệm LRU giới hạn theo BYTE (không theo số mục), an toàn đa luồng.
 #
-# Dùng chung cho crawl/store.py (_CANDLE_CACHE) và core/backtest.py (_DATA_CACHE).
+# Dùng chung cho crawl/store.py (_CANDLE_CACHE) và nautilus/engine.py (_DATA_CACHE).
 # - Mỗi tiến trình có bản riêng (multiprocessing); trong một tiến trình, API chạy job trên
 #   ThreadPoolExecutor nên mọi thao tác đều giữ khoá.
 # - Mục lớn hơn cả ngân sách thì không cache (và bản cũ cùng khoá bị bỏ).
@@ -1947,7 +1947,7 @@ def run_job(params=None):
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Nhận diện tài sản theo thư mục dữ liệu (engine-API pass: từ core/backtest.py khối dex và core/params.data_symbol — chúng đọc đĩa nên không thuộc core).
+# Nhận diện tài sản theo thư mục dữ liệu (engine-API pass: từ nautilus/engine.py khối dex và models/params.data_symbol — chúng đọc đĩa nên không thuộc core).
 # ══════════════════════════════════════════════════════════════════════════
 
 def base_name(symbol: str) -> str:

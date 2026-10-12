@@ -132,7 +132,7 @@ def incompatible(candidates: List[Dict[str, Any]], mode: str, base_frame: str) -
     return out
 
 
-REGIME_KEY = "regime"                     # khoá đặc biệt trong params của alpha: "learn" = học bảng regime trên dữ liệu train (regime/regime.learn_map)
+REGIME_KEY = "regime"                     # khoá đặc biệt trong params của alpha: "learn" = học bảng regime trên dữ liệu train (metrics/regime.learn_map)
 REGIME_MODES = ("off", "learn", "both")
 
 

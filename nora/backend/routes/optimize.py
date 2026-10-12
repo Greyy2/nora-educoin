@@ -55,7 +55,7 @@ class BacktestRequest(_DateRange):
     end: str
     risk_per_trade_pct: Optional[float] = Field(None, gt=0.0, le=5.0)
     stop_fill: str = Field("level", pattern="^(level|extreme)$")
-    regime: bool = Field(False, description="Bật lọc regime + cầu chì (regime/regime.py, core/params.py REGIME_MAP)")
+    regime: bool = Field(False, description="Bật lọc regime + cầu chì (metrics/regime.py, models/params.py REGIME_MAP)")
     timeframe: str = Field("15m", pattern="^(15m|1h|4h)$", description="Khung chạy (nến mô phỏng); khung tín hiệu nhỏ hơn được nâng lên")
     mode: str = Field("basic", **MODE_FIELD)
     data: str = Field("candle", pattern="^(candle|tick)$", description="candle: nến; tick: 501 NOT_READY (backtest tick/AMM chỉ dành cho DEX, Nautilus không hỗ trợ)")
@@ -89,7 +89,7 @@ class WfaRequest(_DateRange):
     mc_seed: Optional[int] = Field(None, ge=0, le=2**31 - 1)
     timeframe: str = Field("15m", pattern="^(15m|1h|4h)$", description="Khung chạy (nến mô phỏng); khung tín hiệu nhỏ hơn được nâng lên")
     regime: str = Field("off", pattern="^(off|learn)$",
-                        description="learn: mỗi fold học bảng regime ↔ chiến lược trên train rồi áp lên test (regime/regime.learn_map)")
+                        description="learn: mỗi fold học bảng regime ↔ chiến lược trên train rồi áp lên test (metrics/regime.learn_map)")
 
     @model_validator(mode="after")
     def _one_source(self):

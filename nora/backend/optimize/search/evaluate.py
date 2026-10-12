@@ -54,7 +54,7 @@ MAX_DAYS = 4000
 
 
 def execute(plan, start: int, end: int, initial_capital: float, close_at_end: bool = False, loaded=None):
-    """PortfolioEngine cho một Plan (core/backtest.build_plan) -> (get_results(), engine). Chương trình phải đã được compile_code (đăng ký).
+    """PortfolioEngine cho một Plan (alpha/dsl/strategy.build_plan) -> (get_results(), engine). Chương trình phải đã được compile_code (đăng ký).
     loaded: threading.Event (chế độ chạy song song, xem tasks.run_parallel) — nạp dữ liệu dưới khoá toàn cục rồi báo `loaded` để lần chạy kế tiếp bắt đầu nạp
     (thứ tự nạp cố định -> bộ nhớ đệm cửa sổ của lần chạy rộng nhất phục vụ các lần sau); phần kernel chạy song song (numba nogil). Người gọi tự chuyển hướng stdout."""
     from backend.nautilus.engine import BacktestEngine, PortfolioEngine
@@ -163,7 +163,7 @@ class BacktestJob(NamedTuple):
     symbols: Optional[List[str]] = None
     shared_dir: Optional[str] = None
     base_frame: str = "1m"
-    regime: Optional[Dict[str, Any]] = None   # {id chiến lược: cấu hình regime} (regime/regime.learn_map); thiếu id -> không lọc
+    regime: Optional[Dict[str, Any]] = None   # {id chiến lược: cấu hình regime} (metrics/regime.learn_map); thiếu id -> không lọc
 
 
 def make_engine(job: BacktestJob):
@@ -228,7 +228,7 @@ def run(items, symbols, start, end, rpt, stop_fill, risk, extra_strategies=None,
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Backtest THEO TICK cho tài sản DEX (AMM): Nautilus không có AMM -> NotReady. Thân cũ: test/backend-no (core/backtest tick_run).
+# Backtest THEO TICK cho tài sản DEX (AMM): Nautilus không có AMM -> NotReady. Thân cũ: test/backend-no (tick_run của engine cũ).
 # ══════════════════════════════════════════════════════════════════════════
 
 def run_tick(items, symbols: List[str], start: Optional[int], end: Optional[int], rpt: float, risk: Dict[str, Any], stop_fill: str, base_frame: str,
@@ -630,7 +630,7 @@ def plan_regime_jobs(chosen, folds, symbols, risk, rpt, shared_dir, base_frame="
 def run_portfolio_wfa(candidates, symbols, start_ts, end_ts, cfg, risk, risk_per_trade_pct, workers, shared_root,
                       store=None, progress=None, base_frame="1m", regime="off", regime_learn_from=None) -> Dict[str, Any]:
     """candidates = [{"id": candidate_id, "configs": [params...]}]; cfg: PortfolioWfaConfig hoặc dict.
-    regime: "off" (mặc định, như trước) | "learn": mỗi fold học bảng regime ↔ chiến lược trên TRAIN (regime/regime.learn_map) rồi áp lên test;
+    regime: "off" (mặc định, như trước) | "learn": mỗi fold học bảng regime ↔ chiến lược trên TRAIN (metrics/regime.learn_map) rồi áp lên test;
     regime_learn_from (ms, tuỳ chọn): học trên cửa sổ mở rộng [regime_learn_from, train_end] thay vì chỉ train của fold.
     risk: dict RiskConfig dùng cho OOS (kill switch BẬT); IS tự tắt kill switch. Trả dict kết quả (xem aggregate_folds).
     store/progress (tuỳ chọn, backend/optimize): ghi từng kết quả job vào kho + bỏ qua job đã có (--resume) + tiến độ."""
@@ -1226,11 +1226,11 @@ class SharedExporter:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Nguồn dữ liệu mặc định của engine (từ module data cũ): cài đặt core/models.DataSource trên crawl/store + kho mmap ở trên.
+# Nguồn dữ liệu mặc định của engine (từ module data cũ): cài đặt models/models.DataSource trên crawl/store + kho mmap ở trên.
 # ══════════════════════════════════════════════════════════════════════════
 
 class EngineData:
-    """DataSource (core/models.DataSource) trên dữ liệu local: nến (CandleLoader, có cache theo tiến trình), funding.pkl, manifest, cổng chất lượng, kho mmap dùng chung,
+    """DataSource (models/models.DataSource) trên dữ liệu local: nến (CandleLoader, có cache theo tiến trình), funding.pkl, manifest, cổng chất lượng, kho mmap dùng chung,
     bộ nhớ đệm mảng đã dựng (memo: ByteLRU theo NORA_DATA_CACHE_MB, mặc định 1500 MB — tạo ở lần dùng đầu)."""
 
     def __init__(self) -> None:

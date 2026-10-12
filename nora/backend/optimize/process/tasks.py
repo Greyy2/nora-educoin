@@ -96,6 +96,32 @@ def run_custom_backtest(params=None):
     return out
 
 
+def education_warm(params=None):
+    """Job education_warm: chạy THẬT (cùng đường run_custom của Studio) các mẫu giáo dục chưa có cache, ghi kết quả vào sample_cache.
+    params: keys (tuỳ chọn) = chỉ các mẫu này. -> [{key, status: cached|skipped|error, cache_key, error?}]; lỗi từng mẫu không dừng job."""
+    from backend.optimize.process import sample_cache
+    a = options({"keys": None}, params)
+    wanted = set(as_list(a.keys)) if a.keys else None
+    out = []
+    for s in load_samples():
+        k = s.get("key")
+        if wanted is not None and k not in wanted:
+            continue
+        try:
+            spec = sample_cache.sample_run_spec(s)
+            ck = sample_cache.cache_key(s.get("code", ""), spec)
+            if sample_cache.get(ck) is not None:
+                out.append({"key": k, "status": "skipped", "cache_key": ck})
+                continue
+            res = run_custom({"code": s.get("code", ""), **{f: spec.get(f) for f in sample_cache.SAMPLE_SPEC_FIELDS if spec.get(f) not in (None, "")}})
+            sample_cache.put(ck, res)
+            out.append({"key": k, "status": "cached", "cache_key": ck})
+        except Exception as e:   # noqa: BLE001 — ghi lỗi từng mẫu, chạy tiếp
+            out.append({"key": k, "status": "error", "error": f"{type(e).__name__}: {e}"})
+    write_job_result(out)
+    return out
+
+
 def run_parallel(steps) -> Dict[str, Any]:
     """steps: [(tên, fn(loaded_event))]. Mỗi fn phải set `loaded` khi nạp xong dữ liệu (execute/run_benchmark làm việc đó); bước kế chỉ bắt đầu sau đó
     (nạp tuần tự, kernel song song). -> {tên: kết quả | ngoại lệ}. stdout chuyển hướng MỘT lần cho cả nhóm (redirect_stdout không an toàn khi lồng giữa thread)."""

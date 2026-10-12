@@ -1,4 +1,4 @@
-"""Dựng sổ + presets (P9.6): nhóm kiểm tham số/khung dùng cho engine và phễu (từ core/params/modes), dựng sổ chiến lược (optimize/book), presets (core/params/presets).
+"""Dựng sổ + presets (P9.6): nhóm kiểm tham số/khung dùng cho engine và phễu (từ models/params/modes), dựng sổ chiến lược (optimize/book), presets (models/params/presets).
 
 Nguồn gộp: docs/bmad/p9_review_log.md (mục P9.6, P9.8, P9.9). Chiến lược hệ thống nạp từ file DSL (strategy_loader cũ) nằm ở đây.
 """
@@ -165,7 +165,7 @@ def lift_frames(candidate: Dict[str, Any], params: Dict[str, Any], base_frame: s
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Dữ liệu sổ chiến lược (phần tham số vị thế đã ở core/params.py — RISK cũng ở đó vì core/backtest.build_plan cần)
+# Dữ liệu sổ chiến lược (phần tham số vị thế đã ở models/params.py — RISK cũng ở đó vì alpha/dsl/strategy.build_plan cần)
 #
 # Sổ chiến lược (strategy book): tham số theo CHIẾN LƯỢC, không theo tài sản; vốn phân bổ theo RỦI RO.
 #
@@ -226,7 +226,7 @@ BY_ID: Mapping = _ById()
 STRATEGIES: List[Dict[str, Any]] = list(_LOADED["strategies"])
 SOURCES: Dict[str, Dict[str, str]] = dict(_LOADED["sources"])   # {id chân: {file, sha256, code_hash}} — nguồn gốc file của từng chiến lược
 
-REGIME_MAP.update({c["id"]: regime_for(c["side"]) for c in CANDIDATES})   # REGIME_MAP (dict) do core/params.py giữ; điền ở đây
+REGIME_MAP.update({c["id"]: regime_for(c["side"]) for c in CANDIDATES})   # REGIME_MAP (dict) do models/params.py giữ; điền ở đây
 
 
 def reload_system_strategies() -> Dict[str, Any]:

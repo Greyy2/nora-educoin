@@ -46,7 +46,7 @@ class NautilusRun:
 
     def __init__(self, books: List[Dict[str, Any]], initial_capital: float, risk: RiskConfig, trade_start_ts: int, end_ts: int, base_frame: str,
                  close_at_end: bool, data: Any):
-        """data: DataSource (core/models) — nến thực thi + spec hợp đồng đều lấy từ đây (một đường dữ liệu)."""
+        """data: DataSource (models/models) — nến thực thi + spec hợp đồng đều lấy từ đây (một đường dữ liệu)."""
         self.data = data
         self.books, self.initial, self.risk = books, float(initial_capital), risk
         self.trade_start, self.end_ts, self.base, self.close_at_end = int(trade_start_ts), int(end_ts), base_frame, bool(close_at_end)

@@ -1,7 +1,7 @@
 """Bộ chuyển đổi alpha -> IR (P9 alpha/): biên dịch DSL Python (compile_program/compile_code/explain), module chiến lược hệ thống (compile_strategy_module),
 hàm dựng cây điều kiện, và nạp file data/alpha/strategies/*.py (cache theo mtime+size).
 
-Chuyển từ core/signal.py + optimize/book/build.py (P9 alpha pass). Chỉ import core + alpha/contract; thư mục chiến lược tính từ vị trí mã (như NORA_DIR cũ).
+Chuyển từ alpha/dsl/signal.py + optimize/book/build.py (P9 alpha pass). Chỉ import core + alpha/contract; thư mục chiến lược tính từ vị trí mã (như NORA_DIR cũ).
 """
 import ast
 import copy
@@ -2134,8 +2134,8 @@ def compile_strategy_module(code: str, tree: Optional[ast.Module] = None) -> Dic
 # Báo cáo cho thấy 21/28 bot không cắt lỗ và 17/26 lead OKX đang ôm lỗ treo tổng −1,29M USDT;
 # số tầng DCA tương quan +0,62 với cú lỗ lớn nhất. Không cắt lỗ = win rate đẹp, đuôi lỗ không giới hạn.
 #
-# Mỗi SIGNAL là một cây điều kiện AST trên kernel (core/indicator.py), được kiểm tra riêng
-# bằng diagnostics (core/signal.py) trước khi ghép với tham số quản lý vị thế thành STRATEGY.
+# Mỗi SIGNAL là một cây điều kiện AST trên kernel (alpha/dsl/indicator.py), được kiểm tra riêng
+# bằng diagnostics (alpha/dsl/signal.py) trước khi ghép với tham số quản lý vị thế thành STRATEGY.
 # ══════════════════════════════════════════════════════════════════════════
 
 def f(frame: str, column: str, index: int = 0) -> Dict[str, Any]:
@@ -2189,8 +2189,8 @@ def tree_p(name: str, default: float) -> dict:
 # ══════════════════════════════════════════════════════════════════════════
 # Nạp chiến lược hệ thống từ file Python DSL (P9.9): data/alpha/strategies/*.py.
 #
-# MỘT định dạng nguồn duy nhất cho mọi chiến lược: file Python kiểu SimpleAlgorithm (cú pháp ở core/signal.py, khối "P9.9"). Cây AST / `params_schema` / `space`
-# chỉ là dạng ĐÃ BIÊN DỊCH, sinh lại từ file mỗi lần nạp (nhớ theo mtime+size), không sửa tay. Core không đọc file: lớp này đọc rồi `core/signal.compile_strategy_module`
+# MỘT định dạng nguồn duy nhất cho mọi chiến lược: file Python kiểu SimpleAlgorithm (cú pháp ở alpha/dsl/signal.py, khối "P9.9"). Cây AST / `params_schema` / `space`
+# chỉ là dạng ĐÃ BIÊN DỊCH, sinh lại từ file mỗi lần nạp (nhớ theo mtime+size), không sửa tay. Core không đọc file: lớp này đọc rồi `alpha/dsl/signal.compile_strategy_module`
 # biên dịch thuần; CANDIDATES / STRATEGIES / BY_ID (khối "Sổ chiến lược" bên dưới) chỉ là các góc nhìn trên kết quả nạp.
 # ══════════════════════════════════════════════════════════════════════════
 

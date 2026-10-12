@@ -1,6 +1,6 @@
-"""Strategy Contract (P9 alpha/): giới hạn + lỗi + gợi ý cho chiến lược do người dùng/AI viết. Chỉ import core (DslError ở core/signal vì Program ném nó).
+"""Strategy Contract (P9 alpha/): giới hạn + lỗi + gợi ý cho chiến lược do người dùng/AI viết. Chỉ import core (DslError ở alpha/dsl/signal vì Program ném nó).
 
-Chuyển từ core/signal.py (P9 alpha pass): MAX_CODE_CHARS, MAX_NODES, BASE_CLASS, at, suggest, _position_attr_names.
+Chuyển từ alpha/dsl/signal.py (P9 alpha pass): MAX_CODE_CHARS, MAX_NODES, BASE_CLASS, at, suggest, _position_attr_names.
 """
 import ast
 import difflib
@@ -121,7 +121,7 @@ def lifecycle_body(cls: ast.ClassDef) -> List[ast.stmt]:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Danh mục nguyên thủy được phép (catalog) — MỘT định nghĩa duy nhất, sinh từ core/indicator (FEATURES/OPS) + thuộc tính hợp đồng.
+# Danh mục nguyên thủy được phép (catalog) — MỘT định nghĩa duy nhất, sinh từ alpha/dsl/indicator (FEATURES/OPS) + thuộc tính hợp đồng.
 # Dùng cho cả kiểm lỗi (check_contract) lẫn trợ lý viết code (assist). Không lặp lại danh sách ở nơi khác.
 # ══════════════════════════════════════════════════════════════════════════
 

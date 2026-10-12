@@ -16,7 +16,7 @@ GIẢ ĐỊNH VỀ ĐIỂM VÀO (báo cáo không tiết lộ trigger của bot)
                 chỉ vào khi 24h trước đó đi ngược chiều lệnh, momentum >= 60% (theo đà) chỉ vào cùng chiều 24h.
   "reversion" : tín hiệu bắt hồi có sẵn (strategy_library: dip_5m_rsi_bb_ranging / rip_5m_rsi_bb_ranging).
 
-Chạy: ops/run_limited.sh -- -m backend.core.research.research_topbots [--bots a,b] [--windows A,B] [--workers auto|8]
+Chạy: ops/run_limited.sh -- test/scripts/research_topbots.py [--bots a,b] [--windows A,B] [--workers auto|8]
 Kết quả: data/cache/process/research/topbots/<ts>.json + bảng in ra stdout. Tất định (không ngẫu nhiên).
 """
 import argparse

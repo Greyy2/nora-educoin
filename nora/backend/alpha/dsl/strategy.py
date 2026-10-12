@@ -1,4 +1,4 @@
-"""Logic KHÔNG thuộc engine, tách nguyên văn từ test/backend-no/core/backtest.py (P15-A): tín hiệu trên nến đã đóng (evaluate_signals, signal_snapshot,
+"""Logic KHÔNG thuộc engine, tách nguyên văn từ test/backend-no/nautilus/engine.py (P15-A): tín hiệu trên nến đã đóng (evaluate_signals, signal_snapshot,
 check_signals), dựng kế hoạch (build_plan, Plan), RiskConfig, hằng số/tiện ích dùng chung, Order/Venue (định nghĩa dữ liệu).
 KHÔNG có mô phỏng khớp lệnh: engine = backend/nautilus/. SignalEngine / SignalPortfolio = đúng các phương thức nạp dữ liệu + dựng ma trận cột của
 BacktestEngine / PortfolioEngine cũ (không có run/kernel/sổ vốn mô phỏng)."""
@@ -308,9 +308,9 @@ def _bar_sig(v: Dict[str, Any], i: int) -> List[Dict[str, Any]]:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Ảnh chụp tín hiệu (signal_snapshot) + kiểm tra tín hiệu (check_signals) — engine-API pass: chuyển từ core/signal.py (cần PortfolioEngine /
-# BacktestEngine + nguồn dữ liệu). Phần giải thích/thống kê thuần (_explain, _since, _thin, _forward_bps, _stats, _verdict) vẫn ở core/signal.py.
-# Chú thích đầy đủ: core/signal.py, các mục ảnh chụp tín hiệu (snapshot) và kiểm tra tín hiệu (diagnostics).
+# Ảnh chụp tín hiệu (signal_snapshot) + kiểm tra tín hiệu (check_signals) — engine-API pass: chuyển từ alpha/dsl/signal.py (cần PortfolioEngine /
+# BacktestEngine + nguồn dữ liệu). Phần giải thích/thống kê thuần (_explain, _since, _thin, _forward_bps, _stats, _verdict) vẫn ở alpha/dsl/signal.py.
+# Chú thích đầy đủ: alpha/dsl/signal.py, các mục ảnh chụp tín hiệu (snapshot) và kiểm tra tín hiệu (diagnostics).
 # ══════════════════════════════════════════════════════════════════════════
 
 def signal_snapshot(symbol: str, strategies: List[Dict[str, Any]], end_ts: int, lookback_minutes: int = DEFAULT_LOOKBACK_MIN,
@@ -419,14 +419,14 @@ def check_signals(symbol: str, signals: Dict[str, Dict[str, Any]], start_ts: Opt
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Dựng kế hoạch chạy (hằng số profile ở core/params.py)
+# Dựng kế hoạch chạy (hằng số profile ở models/params.py)
 #
 # Thực thi chương trình DSL (docs/bmad/p7_python_strategies.md §5): chương trình đã biên dịch -> chiến lược của PortfolioEngine.
 #
 # Một cấu hình thực thi duy nhất = mặc định của engine Nora: perp OKX, khối lượng theo rủi ro (BASE_POSITION), SL 3×ATR (NORA_DEFAULTS), trần đòn bẩy,
 # cooldown 60 phút, RiskConfig mặc định của sổ. Ghi đè bằng thuộc tính lớp của chiến lược hoặc `position` (khoá của params.builder.POSITION_KEYS).
 #
-# Tín hiệu là cột `py_<hash12>_<le|lx|se|sx>` (core/indicator.py::register_program): vào = [cột le/se] > 0,5; thoát = [cột lx/sx] > 0,5.
+# Tín hiệu là cột `py_<hash12>_<le|lx|se|sx>` (alpha/dsl/indicator.py::register_program): vào = [cột le/se] > 0,5; thoát = [cột lx/sx] > 0,5.
 # ══════════════════════════════════════════════════════════════════════════
 
 @dataclass
@@ -582,7 +582,7 @@ class SignalEngine:
     def __init__(self, account_id: int, campaign_id: int, symbol: str, start_ts: int, end_ts: int,
                  trade_start_ts: Optional[int] = None, initial_capital: float = DEFAULT_CAPITAL, base_frame: str = "1m",
                  data: Optional[DataSource] = None):
-        """data: nguồn dữ liệu (core/models.DataSource); None = nguồn mặc định của tiến trình (set_default_data_source)."""
+        """data: nguồn dữ liệu (models/models.DataSource); None = nguồn mặc định của tiến trình (set_default_data_source)."""
         if base_frame not in FRAME_MS:
             raise ValueError(f"Khung chạy không hợp lệ: {base_frame!r} (có: {list(FRAME_MS)})")
         self.base_frame = base_frame   # khung nến dùng để MÔ PHỎNG (khớp lệnh, SL/TP theo high/low của nến này)
@@ -850,7 +850,7 @@ class SignalPortfolio:
                  risk: Optional[RiskConfig] = None, venue: str = "cex", use_cache: bool = True,
                  shared_dir: Optional[str] = None, close_at_end: bool = True, base_frame: str = "1m",
                  data: Optional[DataSource] = None):
-        """data: nguồn dữ liệu (core/models.DataSource); None = nguồn mặc định của tiến trình (set_default_data_source).
+        """data: nguồn dữ liệu (models/models.DataSource); None = nguồn mặc định của tiến trình (set_default_data_source).
         base_frame: khung nến dùng để mô phỏng (1m mặc định; 15m/1h/4h chạy nhanh hơn nhiều, khung tín hiệu phải >= khung chạy).
         strategies: [{"id", "side": LONG|SHORT, "tree": AST đã thay tham số, "position": {...POSITION_KEYS}}].
         Khoá tuỳ chọn "symbols": [..] giới hạn chiến lược đó chỉ chạy trên các tài sản này (mặc định: mọi tài sản).

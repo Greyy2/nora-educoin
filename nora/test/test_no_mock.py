@@ -177,3 +177,24 @@ def test_default_position_does_not_trigger_unsupported_warnings():
     from backend.models.params import BASE_POSITION, VENUE_COSTS, StrategyParams
     assert BASE_POSITION["limit_through_pct"] == 0.0 and BASE_POSITION["stop_fill"] == "level"
     assert all(v[2] == 0.0 for k, v in VENUE_COSTS.items() if k[0] == "cex") and StrategyParams().slippage_rate == 0.0
+
+
+def test_no_random_results_in_backend():
+    """Không file backend nào dựng kết quả bằng random (equity/metrics giả); chỉ Monte Carlo/tìm kiếm có seed được phép."""
+    allowed = {os.path.join("backend", "carlo"), os.path.join("backend", "optimize", "search"), os.path.join("backend", "optimize", "funnel"), os.path.join("backend", "wfa")}
+    rx = re.compile(r"^\s*(import random\b|from random import|random\.Random|\.gauss\()")
+    hits = []
+    for dp, _dn, fns in os.walk(os.path.join(ROOT, "backend")):
+        rel_dp = os.path.relpath(dp, ROOT)
+        if "__pycache__" in dp or any(rel_dp.startswith(a) for a in allowed):
+            continue
+        for fn in fns:
+            if fn.endswith(".py"):
+                with open(os.path.join(dp, fn), encoding="utf-8") as fh:
+                    hits += [f"{rel_dp}/{fn}:{i}" for i, ln in enumerate(fh, 1) if rx.search(ln)]
+    assert not hits, "random trong backend ngoài carlo/search/funnel/wfa:\n" + "\n".join(hits)
+
+
+def test_education_result_not_ready_route_exists():
+    from backend.routes import alpha
+    assert not hasattr(alpha, "_get_sample_data")

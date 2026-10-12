@@ -171,7 +171,7 @@ def graceful_sigterm(progress: Optional[Progress] = None) -> Iterator[None]:
 # queued suy ra từ out.log. Huỷ: cancel(job_id) gửi SIGTERM cho CẢ nhóm tiến trình (job flush kho kết quả rồi thoát -> chạy lại bằng resume). Không dùng shell.
 # ══════════════════════════════════════════════════════════════════════════
 
-from backend.models.models import NORA_DIR  # noqa: E402  (định nghĩa duy nhất ở core/models)
+from backend.models.models import NORA_DIR  # noqa: E402  (định nghĩa duy nhất ở models/models)
 RUN_LIMITED = os.path.join(NORA_DIR, "ops", "run_limited.sh")
 
 # Danh sách trắng: loại job -> (module có run_job(params), các khoá tham số được phép)
@@ -199,6 +199,7 @@ KINDS: Dict[str, Dict[str, Any]] = {
     "alpha_revalidate": {"label_vi": "Kiểm lại alpha", "module": "backend.optimize.book.registry", "func": "run_alpha_revalidate", "params": {"alpha_id", "apply"}},
     "custom_backtest": {"label_vi": "Backtest tuỳ chỉnh", "module": "backend.optimize.process.tasks", "func": "run_custom_backtest",
                         "params": {"code", "symbols", "start", "end", "train_ratio", "initial_capital", "position", "run_frame"}},
+    "education_warm": {"label_vi": "Làm nóng kết quả mẫu giáo dục", "module": "backend.optimize.process.tasks", "func": "education_warm", "params": {"keys"}},
     "regime_report": {"label_vi": "Báo cáo chế độ thị trường", "module": "backend.optimize.process.tasks", "func": "run_regime_report", "params": {"symbols", "start", "end", "event_pct", "backtest", "timeframe"}},
 }
 NO_LOCK_KINDS: set = set()   # mọi job đi qua hàng đợi run_limited (bot live chuyển sang Nautilus TradingNode, không còn là job)

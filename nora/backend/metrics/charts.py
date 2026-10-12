@@ -417,7 +417,7 @@ class LruCache:
 # ══════════════════════════════════════════════════════════════════════════
 # Giải thích tín hiệu của MỘT chiến lược trên MỘT mã: nến + đường chỉ báo + điểm tín hiệu + từng điều kiện đúng/sai tại mỗi điểm.
 #
-# Tính bằng đúng đường của engine/bot (core/backtest.py::evaluate_signals -> PortfolioEngine._build_matrix + VectorEvaluator), nên thứ vẽ ra là thứ engine
+# Tính bằng đúng đường của engine/bot (nautilus/engine.py::evaluate_signals -> PortfolioEngine._build_matrix + VectorEvaluator), nên thứ vẽ ra là thứ engine
 # "thấy": giá trị khung lớn ở nến t là nến khung ĐÃ ĐÓNG gần nhất; tín hiệu ở nến t xét trên giá đóng của t và vào lệnh ở open nến t+1.
 #
 # explain(...) -> {

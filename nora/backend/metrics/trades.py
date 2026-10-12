@@ -660,7 +660,7 @@ def _base(sym: str) -> str:
 # ─── Chuẩn hoá lệnh (đã đóng + đang mở) ─────────────────────────────────────
 
 def exit_category(reason: Any) -> str:
-    """close_reason của engine (core/backtest.py REASONS) -> signal | stop_loss | take_profit | trailing | timeout | kill_switch | open_at_end |
+    """close_reason của engine (nautilus/engine.py REASONS) -> signal | stop_loss | take_profit | trailing | timeout | kill_switch | open_at_end |
     liquidation | other | unknown. KHÔNG suy từ status (status chỉ là dấu lãi/lỗ cho thoát theo tín hiệu)."""
     r = str(reason or "").strip().lower()
     if not r:

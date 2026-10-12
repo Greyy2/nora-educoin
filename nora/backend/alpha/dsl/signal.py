@@ -2,8 +2,8 @@
 + kiểm tra tín hiệu (diagnostics). Trình biên dịch (compile_code/compile_report/explain_*/compile_strategy_module/hàm dựng cây f, cond, ...) đã chuyển sang alpha/compile.py;
 hợp đồng (at, suggest, giới hạn) ở alpha/contract.py.
 
-Nguồn gộp: docs/bmad/p9_review_log.md (mục P9.4 part 2). Chỉ import `params` và `indicator`. signal_snapshot / check_signals (cần engine + nguồn dữ liệu) nằm ở core/backtest.py;
-phần phân loại regime thuần (classify, masks_for, REFS, ...) nằm ở đây (regime/regime.py import lại).
+Nguồn gộp: docs/bmad/p9_review_log.md (mục P9.4 part 2). Chỉ import `params` và `indicator`. signal_snapshot / check_signals (cần engine + nguồn dữ liệu) nằm ở nautilus/engine.py;
+phần phân loại regime thuần (classify, masks_for, REFS, ...) nằm ở đây (metrics/regime.py import lại).
 """
 import ast
 import hashlib
@@ -659,16 +659,16 @@ def _since(arr: np.ndarray, t: np.ndarray, i: int) -> Optional[int]:
     return int(t[j]) if j > 0 else None
 
 
-# signal_snapshot: ở core/backtest.py (cần PortfolioEngine; engine-API pass).
+# signal_snapshot: ở nautilus/engine.py (cần PortfolioEngine; engine-API pass).
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Phần phân loại thuần nằm ở core vì engine lọc tín hiệu theo regime; regime/regime.py import lại từ đây, giữ series/learn). MINUTE dùng chung với ảnh chụp tín hiệu bên dưới.
+# Phần phân loại thuần nằm ở core vì engine lọc tín hiệu theo regime; metrics/regime.py import lại từ đây, giữ series/learn). MINUTE dùng chung với ảnh chụp tín hiệu bên dưới.
 #
 # Regime thị trường theo phút — causal, cùng bộ máy căn khung với tín hiệu (chỉ nến 1h/4h ĐÃ ĐÓNG), dùng chung cho backtest / WFA / phễu /
 # tín hiệu thị trường / live.
 #
-# Đặc trưng (cột kernel, core/indicator.py):
+# Đặc trưng (cột kernel, alpha/dsl/indicator.py):
 #   4h er_20 (độ hiệu quả xu hướng), 4h adx_14 (độ mạnh), 4h ema_50 / ema_200 (chiều), 1h roc_24 (lợi suất 24h, %), 1h roc_1 (nến 1h cuối, %),
 #   1h bbwp_20_2_720 (phân vị độ rộng Bollinger trong 30 ngày 1h, 0..100).
 # Trạng thái thô (ưu tiên từ trên xuống):
@@ -895,4 +895,4 @@ def _verdict(by_h: Dict[int, Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
-# check_signals: ở core/backtest.py (cần BacktestEngine + nguồn dữ liệu; engine-API pass).
+# check_signals: ở nautilus/engine.py (cần BacktestEngine + nguồn dữ liệu; engine-API pass).

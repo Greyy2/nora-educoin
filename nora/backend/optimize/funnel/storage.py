@@ -557,10 +557,10 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT);
 """
 
 _CODE_FILES = (   # mọi file ảnh hưởng kết quả backtest: đổi một file -> khoá job đổi -> --resume không dùng lại kết quả cũ
-    "backend/core/strategy.py", "backend/core/models.py", "backend/core/params.py", "backend/core/position_size.py",   # tín hiệu + kế hoạch vị thế
+    "backend/alpha/dsl/strategy.py", "backend/models/models.py", "backend/models/params.py", "backend/models/position_size.py",   # tín hiệu + kế hoạch vị thế
     "backend/nautilus/engine.py", "backend/optimize/search/evaluate.py",   # P15: engine khớp lệnh = Nautilus (adapter) + vòng chạy
     "backend/metrics/metrics.py", "backend/metrics/trades.py",   # P9.5: returns+portfolio gộp, trades chuyển
-    "backend/crawl/store.py", "backend/core/signal.py", "backend/alpha/contract.py", "backend/alpha/compile.py", "backend/core/indicator.py",   # P9.4 part 2: evaluator/kernels đã gộp
+    "backend/crawl/store.py", "backend/alpha/dsl/signal.py", "backend/alpha/contract.py", "backend/alpha/compile.py", "backend/alpha/dsl/indicator.py",   # P9.4 part 2: evaluator/kernels đã gộp
     "backend/optimize/book/build.py", "backend/wfa/wfa.py",   # P9.5 (+ P9.9: sổ chiến lược book.py/library.py gộp vào build.py/signal.py)
 )
 _CODE_VERSION: Optional[str] = None

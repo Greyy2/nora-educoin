@@ -301,7 +301,7 @@ def parse_column(column: str) -> Optional[Tuple[KernelSpec, Tuple[float, ...]]]:
 COLUMN_GRAMMAR.update(base=DATA_COLUMNS, parse=parse_column)   # params (đứng dưới) kiểm tên cột khi thay {tên} qua bảng này
 
 
-# ─── Cột chương trình Python (P7, DSL trong core/signal.py) ────────────────────────
+# ─── Cột chương trình Python (P7, DSL trong alpha/dsl/signal.py) ────────────────────────
 # `py_<hash12>_<le|lx|se|sx>`: tín hiệu vào/thoát long/short của MỘT chương trình DSL đã biên dịch. Chương trình được đăng ký TRONG tiến trình chạy
 # engine (register_program) rồi đi qua đúng đường kernel như mọi cột khác (engine.frame_features không đổi). Cột py_ không bao giờ được ghi vào kho
 # dùng chung (kho dùng chung optimize/search/evaluate.py bỏ qua) — tính trong tiến trình, tất định theo mã.

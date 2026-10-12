@@ -27,14 +27,14 @@ from backend.models.models import NORA_DIR
 # có thể không còn tái lập được -> giao diện cảnh báo "cần dựng lại".
 #
 # engine_version() = {"hash": sha256 của ĐẦU VÀO KẾT QUẢ, "commit": git HEAD ngắn, "dirty": có thay đổi chưa commit trong các đầu vào đó, "files": số đầu vào}.
-# Đầu vào kết quả (engine_inputs) = (a) file tính toán của engine: backend/core/*.py + optimize/search/evaluate.py (băm byte file), (b) MỖI chiến lược hệ thống: băm IR đã biên dịch
+# Đầu vào kết quả (engine_inputs) = (a) file tính toán của engine: backend/alpha/dsl/*.py + backend/models/*.py + optimize/search/evaluate.py (băm byte file), (b) MỖI chiến lược hệ thống: băm IR đã biên dịch
 # (cây tín hiệu/stop/position/space của từng chân qua alpha loader) — KHÔNG băm byte file .py nên sửa chú thích/docstring/khoảng trắng không đổi; sửa logic thì đổi.
 # Đánh đổi: alpha/compile.py vẫn là trình biên dịch nhưng không băm file; ta băm KẾT QUẢ biên dịch (IR) nên refactor compiler không đổi IR thì không bật cờ, còn sửa compiler làm IR đổi
 # thì bật cờ. alpha/contract.py (trợ giúp/gợi ý/sổ tay) không ảnh hưởng kết quả nên không nằm trong. So sánh chỉ dùng `hash`; `commit` để người đọc biết sổ dựng ở đâu.
 # Cùng hàm cho mọi nơi ghi (optimize/book/registry.build_book) và đọc (API). Nhớ theo (đường dẫn, mtime_ns, size) của file engine + file chiến lược -> không đọc lại mỗi request.
 # ══════════════════════════════════════════════════════════════════════════
 
-ENGINE_COMPUTE_FILES = ("backend/optimize/search/evaluate.py",)    # ngoài backend/core/*.py
+ENGINE_COMPUTE_FILES = ("backend/optimize/search/evaluate.py",)    # ngoài backend/alpha/dsl/*.py + backend/models/*.py
 REASON_NO_VERSION = "sổ dựng trước khi có phiên bản engine"
 
 GIT_TTL_S = 60.0   # commit / dirty đổi mà không đổi file (git commit) -> làm tươi sau tối đa ngần này giây; hash không phụ thuộc git
