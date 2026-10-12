@@ -6,7 +6,8 @@
 ```
 backend/
 ├── main.py
-├── data.py            dữ liệu OKX → catalog (đọc/ghi/quality/EngineData)
+├── data/              crawl.py  — KÉO dữ liệu về: crawl OKX, kiểm định, chuẩn hoá, ghi catalog + manifest (nora/data)
+│                      data.py   — DÙNG dữ liệu cho backtest: đọc catalog, khung, nến tín hiệu, EngineData, universe
 ├── strategies.py      kho chiến lược: hệ thống (BY_ID, validate_params, lift_frames, FieldError, catalog/doc) + user (save/list/version) + sample_cache
 ├── jobs/              runner.py · tasks.py (run_custom, book_backtest, book_wfa, book_mc, education_warm, data_update) · workers.py
 ├── routes/            alpha.py · process.py · data.py · live.py · engine.py
@@ -55,7 +56,20 @@ Tách khỏi `backend/crawl/store.py` mọi thứ KHÔNG phải dữ liệu th�
 - [ ] Sửa import ở mọi nơi dùng các tên trên (danh sách: `grep -rlE "backend\.crawl" backend test`). `store.py` tạm `from backend.models.storage import *` để không gãy giữa chừng.
 - **Kiểm**: `grep -rnE "from backend.crawl.store import .*(alpha_|run_dir|live_dir|read_json|json_default|ByteLRU|options|cache_)" backend test` = 0 · [QUICK] xanh.
 
-## Bước 2 — `backend/data.py` phần ĐỌC (D2)
+
+### Tách `backend/data/` (chốt 2026-10-12, anh)
+`backend/crawl/` xoá. Thư mục mới `backend/data/` gồm 2 file, KHÔNG phụ thuộc chéo ngược:
+| File | Trách nhiệm | Hàm (từ `backend/data.py` hiện có, 1079 dòng) |
+|---|---|---|
+| `data/crawl.py` | Kéo dữ liệu về hệ thống: tải OKX (CDN zip + REST), **kiểm định** (quality gate), **chuẩn hoá** (cột, ts=close, base volume, bỏ trùng/hỏng), khớp quy ước hệ thống, ghi `ParquetDataCatalog` + manifest vào `nora/data/market/okx/` | `inst`, `_day_tag`, `_http_get`, `fetch_day_zip`, `parse_candles_csv`, `_okx_get`, `fetch_rest_candles`, `_hk_days`, `_hk_day_range`, `crawl_candles`, `fetch_instruments`, `update_catalog`, `run_job`, `evaluate_data_quality`, `DataQualityStatus` |
+| `data/data.py` | Dùng dữ liệu cho backtest: universe/symbol, đọc catalog (pyarrow), gộp khung, nến cho tầng tín hiệu, giá ngày, EngineData. KHÔNG tải mạng, KHÔNG ghi catalog | `clean_name`…`data_info`, `read_manifest`, `coverage`, `read_1m`, `frame_ms`, `aggregate_frame`, `exec_arrays`, `fill_missing_1m_candles`, `resample_from_1m`, `load_candles`, `catalog_digest`, `daily_close`, `load_prices`, `benchmark_daily_closes`, `strategy_frames`, `require_data_ok`, `require_data_ok_or_exit`, `DataQualityError`, `EngineData`, `make_engine_data` |
+Luật:
+- Chiều import: `data/crawl.py → data/data.py` (dùng `normalize_symbol`, `read_manifest`, `read_1m`); `data.py` không import crawl. Ghi catalog qua `nautilus/catalog.write_bars` (chỉ nautilus/ import nautilus_trader).
+- Kiểm định MỘT định nghĩa: `crawl.evaluate_data_quality` chạy lúc cập nhật → ghi verdict vào manifest; `data.require_data_ok` chỉ ĐỌC verdict trong manifest (không tính lại).
+- Catalog chỉ lưu nến THẬT. "Làm mượt"/lấp nến thiếu (`fill_missing_1m_candles`, `is_filled`) chỉ trong bộ nhớ ở `data.py` cho tầng tín hiệu (giữ parity), không bao giờ ghi xuống đĩa.
+- Job `data_update` → module `backend.data.crawl`, func `run_job`.
+
+## Bước 2 — `backend/data/data.py` phần ĐỌC (D2)
 Một file, 5 mục; mỗi logic một định nghĩa:
 
 1. **Universe/symbol**: `UNIVERSE` (10: BTC ETH SOL BNB XRP DOGE ADA AVAX LINK TRX), `normalize_symbol` (chuyển từ `nautilus/catalog.py`; catalog gọi lại data), `base_name`, `parse_symbol`, `split_instrument`, `clean_name`, `data_symbol`, `require_perp`, `classify_symbols`, `resolve_symbols`, `default_universe` (= UNIVERSE ∩ có catalog), `default_window`, `run_defaults`, `check_data`, `data_info`.
@@ -74,7 +88,7 @@ Một file, 5 mục; mỗi logic một định nghĩa:
   - Quality gate cũ vs mới cùng verdict 10 symbol.
   - [SNAP] IDENTICAL.
 
-## Bước 3 — `data.py` phần GHI + job (D3)
+## Bước 3 — `backend/data/crawl.py` phần GHI + job (D3)
 - [ ] `fetch_instruments()` (từ `test/scripts/fetch_instruments.py`) → `data/market/okx/instruments.json`.
 - [ ] Crawl OKX 1m (chuyển từ `crawl/cex.py`: `inst`, `_day_tag`, `fetch_day_zip`, `parse_candles_csv`, `_okx_get`, `fetch_rest_candles`, `_hk_days`, `_hk_day_range`, `crawl_candles`, `_gaps`, hằng CDN/REST/HK_OFFSET_MS/COLS). **Không** chuyển funding, Binance.
 - [ ] `update_catalog(symbol, end=None)`: mốc cuối từ manifest → crawl phần sau → bỏ nến trùng/không hợp lệ → `nautilus.catalog.write_bars(symbol, df)` (thêm hàm này: `df_1m_to_nautilus_bars` + `ParquetDataCatalog.write_data`, thay `write_catalog_bars` mà `build_catalog.py` gọi nhưng không tồn tại) → cập nhật manifest {start_ts, end_ts, rows, digest}.
@@ -87,7 +101,7 @@ Một file, 5 mục; mỗi logic một định nghĩa:
 - [ ] Xoá khỏi backend: `exchange()`, `EXCHANGES`, `exchange_root`, `exchange_of`, `market_dir` theo venue dex, `has_ticks`, `ticks_to_bars`, `save_resampled_dataset`, `generate_manifest` (cũ), staging/promote, `is_dex_symbol` (thay: symbol không thuộc UNIVERSE → lỗi rõ / 501).
 - [ ] D5: `git mv backend/crawl test/backend-no/crawl`; test chỉ dành crawl cũ (`test_crawler_and_gate`, `test_okx_data`, `test_pkl_meta`, `test_ticks`, `test_data_layout*`, `test_data_paths_p93b`, `test_resampler_idempotent`, `test_data_quality_gate`) → hoặc viết lại trên `data.py`, hoặc chuyển `test/backend-no/tests/` (ghi lý do đầu file).
 - [ ] D6: `mv data/market/okx/cex data/archive/2026-10-p16/okx_cex_pkl` (sau khi mọi kiểm xanh).
-- **Kiểm**: `grep -rn "backend.crawl\|read_pickle\|\.pkl\b" backend` = 0 · `p16_engine_snapshot.py --signals --check test/fixtures/p17_signal_snapshot.json` IDENTICAL · [SNAP] · [QUICK].
+- **Kiểm**: `grep -rn "backend.crawl\|read_pickle\|\.pkl\b" backend` = 0 · `backend/data/data.py` không import `requests`/`crawl` · `p16_engine_snapshot.py --signals --check test/fixtures/p17_signal_snapshot.json` IDENTICAL · [SNAP] · [QUICK].
 
 ## Bước 5 — Cây package đích + routes mỏng
 **5a. Di chuyển** (git mv + sửa import; không sửa logic):
@@ -141,7 +155,7 @@ Một file, 5 mục; mỗi logic một định nghĩa:
 1. [SNAP] IDENTICAL + signal snapshot IDENTICAL.
 2. Grep: `backend.crawl`, `read_pickle`, `.pkl`, `backend.optimize.process`, `backend.alpha.dsl` = 0; nautilus_trader chỉ trong `backend/nautilus/`.
 3. Full suite 0 failed; `p9_ledger --dups` sạch; e2e exit 0.
-4. Cây `backend/` đúng mục *Cây backend đích* ở đầu file; không còn `optimize/ crawl/`; `wfa/ carlo/` còn và test WFA/MC xanh; `vite build` sạch, UI không còn link tới trang đã xoá.
+4. Cây `backend/` đúng mục *Cây backend đích* (có `data/crawl.py` + `data/data.py`, không còn `backend/data.py` đơn) ở đầu file; không còn `optimize/ crawl/`; `wfa/ carlo/` còn và test WFA/MC xanh; `vite build` sạch, UI không còn link tới trang đã xoá.
 5. Backend ≤ ~15k dòng (`find backend -name '*.py' | xargs cat | wc -l`).
 
 ## Phụ lục A — test fail sẵn ở baseline `dae2e71`
