@@ -8,6 +8,8 @@ import TradesView from './TradesView'
 import { ParamList, AlphaStatus, StrategyName } from './parts'
 import useAsync from '../../../hooks/useAsync'
 import { useMeta } from '../../../meta/MetaProvider'
+import ProvenanceBadge from '../../common/ProvenanceBadge'
+import WarningsPanel from '../../common/WarningsPanel'
 import { getFunnelAlpha, postFunnelPromote } from '../../../api'
 import { METRICS, stageName, stageShort, stageHasTrades, stageRule, fmtMetric, metricLabel } from '../../../lib/funnel'
 import { fmtNum, fmtPct, fmtSPct, signClass, isNum } from '../../../lib/format'
@@ -223,9 +225,11 @@ export default function AlphaDrawer({ runId, alphaId, onClose, onTrades }) {
               <div className="n-drawer-id">
                 <StrategyName id={d.strategy} />
                 <AlphaStatus a={d} />
+                <ProvenanceBadge provenance={d.provenance} />
                 {isNum(d.final_scale) && <span>s = <b className="mono">{fmtNum(d.final_scale, 2)}</b></span>}
                 <div className="params"><ParamList params={d.params} /></div>
               </div>
+              <WarningsPanel warnings={d.warnings} />
               <Panel title="Hành trình qua các tầng"><Journey d={d} /></Panel>
               <Panel title="Chỉ số từng tầng"><MetricMatrix d={d} /></Panel>
               <Panel title="NAV theo tầng"><NavSection d={d} /></Panel>

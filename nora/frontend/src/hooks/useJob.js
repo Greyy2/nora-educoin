@@ -62,11 +62,11 @@ function subscribe(jobId, interval, cb) {
 
 /**
  * Theo dõi GET /api/studio/book/jobs/{id} cho tới khi done/failed/cancelled; dừng khi unmount hoặc đổi id.
- * Nhịp `interval` ms (mặc định 2s), giãn dần tới 10s nếu trạng thái/tiến độ không đổi; tab ẩn thì tạm dừng, hiện lại hỏi ngay.
+ * Nhịp `interval` ms (mặc định 1,5s), giãn dần tới 10s nếu trạng thái/tiến độ không đổi; tab ẩn thì tạm dừng, hiện lại hỏi ngay.
  * Nhiều component cùng id dùng chung một vòng poll. Trả { job, error, errorStatus, status } (errorStatus = mã HTTP của lỗi cuối, vd 404/410 = kết quả tạm đã mất).
  * status: 'loading' (chưa có phản hồi đầu) | queued | running | done | failed | cancelled | null (không có id).
  */
-export default function useJob(jobId, { interval = 800 } = {}) {
+export default function useJob(jobId, { interval = 1500 } = {}) {
   const [state, setState] = useState({ job: null, error: null, errorStatus: null })
   useEffect(() => {
     setState({ job: null, error: null, errorStatus: null })

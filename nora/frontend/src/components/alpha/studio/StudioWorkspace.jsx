@@ -14,6 +14,8 @@ import useJob from '../../../hooks/useJob'
 import useAsync, { useResource } from '../../../hooks/useAsync'
 import useMemState from '../../../hooks/useMemState'
 import useUnsavedGuard from '../../../hooks/useUnsavedGuard'
+import { useMeta } from '../../../meta/MetaProvider'
+import { defaultExecMode } from '../../../lib/metaDefaults'
 import { useRunDefaults, resolveForm } from '../../../lib/runDefaults'
 import { POSITION_KEYS, validateRun, buildRunBody } from '../../../lib/runForm'
 import { newDraft, isDraftDirty, configToForm } from '../../../lib/studioDraft'
@@ -28,9 +30,13 @@ const DEFAULT_FORM = { pos: {} } // rổ / ngày / train / vốn lấy từ back
 const makeInitial = () => ({ drafts: [newDraft('Chiến lược 1', '')], active: '', form: {}, seeded: false }) // seeded: tab 1 đã được nạp mẫu đầu tiên (chỉ một lần mỗi phiên trang)
 
 /** View chung của /alpha/create và /education (mode = 'create' | 'education'). Khác biệt: ở 'education' CustomResult hiện ghi chú giải thích từng mục (result.explain.notes từ backend) và mẫu mở ra kèm chú thích `# ▸` từng dòng. */
+// Đối chiếu mẫu <-> alpha đã lưu: ưu tiên khoá / id, dự phòng theo tên.
+const findBy = (list, s, keyOf, nameOf) => list.find((x) => s.key && keyOf(x) === s.key) || list.find((x) => s.name && nameOf(x) === s.name)
+
 export default function StudioWorkspace({ mode = 'create' }) {
   const educ = mode === 'education'
   const [st, set] = useMemState(makeInitial)
+  const { meta } = useMeta()
   const { defaults, universe, error: defaultsError } = useRunDefaults()
   const form = resolveForm(DEFAULT_FORM, st.form, defaults)
   const drafts = st.drafts
@@ -90,7 +96,7 @@ export default function StudioWorkspace({ mode = 'create' }) {
       setNote({ tone: 'ok', text: `Đã nạp “${d.name}” (phiên bản ${ver}) để sửa. Chạy backtest rồi “Lưu chiến lược” sẽ tạo phiên bản mới của alpha này.` })
     }, (e) => setNote({ tone: 'bad', text: `Không mở được alpha để sửa: ${e.message}` })).finally(() => setOpeningId(''))
   }, [qAlpha, qVer]) // eslint-disable-line react-hooks/exhaustive-deps
-  const { job, status, error: jobErr, errorStatus: jobErrStatus } = useJob(draft.jobId || null, 800)
+  const { job, status, error: jobErr, errorStatus: jobErrStatus } = useJob(draft.jobId || null)
   const running = status === 'queued' || status === 'running' || status === 'loading'
   const jobResult = status === 'done' ? job?.result : null
   // alpha_id (backend tính) của lần chạy đã xong: so với bản đã lưu để biết còn thay đổi chưa lưu hay không
@@ -120,7 +126,7 @@ export default function StudioWorkspace({ mode = 'create' }) {
     const id0 = draft.id
     const code0 = draft.code
     try {
-      const r = await postCustomBacktest(buildRunBody(form, code0, compiled?.meta?.timeframe))
+      const r = await postCustomBacktest(buildRunBody(form, code0, stale ? null : compiled?.meta?.timeframe, defaultExecMode(meta)))
       const id = r?.job_id || r?.id
       if (!id) throw new Error('Máy chủ không trả mã job.')
       patchById(id0, { jobId: id, runCode: code0, runAlpha: '', stored: null }); setTab('results')
@@ -131,13 +137,18 @@ export default function StudioWorkspace({ mode = 'create' }) {
     } finally { setBusy('') }
   }
 
-  // "Lưu chiến lược": cho phép lưu cả mẫu hoặc chiến lược sửa đổi để cập nhật kết quả vào hệ thống
+  // "Lưu chiến lược" chỉ bật khi: (1) lần chạy XONG của CHÍNH code đang soạn (runCode === code, máy chủ vẫn kiểm lại program_hash) VÀ
+  // (2) là chiến lược mới, hoặc mẫu / alpha đã lưu mà code đã khác bản gốc (baseCode) VÀ (3) chương trình này (program_hash) chưa có trong kho alpha người dùng.
   const savedItems = Array.isArray(saved.data) ? saved.data : []
-  const canSave = !!jobResult && draft.runCode === draft.code && !busy
+  const isDup = !!jobResult && (savedItems.some((a) => a.program_hash && a.program_hash === jobResult.program_hash) || (!!draft.saved && draft.saved.code === draft.code))
+  const unchanged = draft.code === draft.baseCode && !!draft.baseCode.trim()
+  const canSave = !!jobResult && draft.runCode === draft.code && !unchanged && !isDup && !busy
   const saveWhy = !draft.jobId ? 'Chạy backtest cho code hiện tại trước khi lưu'
     : !jobResult ? 'Chờ lần chạy hoàn tất'
       : draft.runCode !== draft.code ? 'Chạy lại sau khi sửa'
-        : 'Lưu chiến lược (cập nhật kết quả vào hệ thống)'
+        : unchanged ? (draft.sampleKey ? 'Mẫu chưa thay đổi: sửa code hoặc tham số rồi chạy lại' : 'Chưa sửa so với bản đã lưu: sửa code rồi chạy lại')
+          : isDup ? 'Đã lưu chiến lược này'
+            : 'Lưu chiến lược (code + cấu hình + kết quả đầy đủ)'
 
   function markSaved(res, name) {
     patchById(draft.id, { saved: { alpha_id: res.alpha_id, code: draft.code, name: name || draft.name }, runAlpha: res.alpha_id, name: name || draft.name, stored: null, ...(res.version ? { alphaId: res.alpha_id, alphaVersion: res.version } : {}) })
@@ -186,9 +197,7 @@ export default function StudioWorkspace({ mode = 'create' }) {
     if (qJob || qAlpha) { set({ seeded: true }); return }
     seeding.current = true
     const s0 = sampleList[0]
-    const matched = savedItems.find(
-      (a) => a.name === s0.name || a.id === s0.key || (a.code && a.code.trim() === s0.code.trim())
-    )
+    const matched = findBy(savedItems, s0, (a) => a.id, (a) => a.name)
 
     sampleText(s0.code).then(async (text) => {
       let rec = null
@@ -221,7 +230,6 @@ export default function StudioWorkspace({ mode = 'create' }) {
           seeded: true,
           drafts: [d],
           active: d.id,
-          tab: storedRec?.result ? 'results' : 'results',
           form: (storedRec?.config) ? { ...p.form, ...configToForm(storedRec.config, POSITION_KEYS) } : p.form,
         }
       })
@@ -242,50 +250,20 @@ export default function StudioWorkspace({ mode = 'create' }) {
     } catch (e) { setNote({ tone: 'bad', text: `Không ${strip ? 'bỏ' : 'tạo'} được chú thích: ${e.message}` }) } finally { setAnnBusy(false) }
   }
 
-  async function activateTab(id) {
-    const target = drafts.find((d) => d.id === id)
-    set({ active: id })
-    setTab('results')
+  const activateTab = (id) => { set({ active: id }); setTab('results') }
 
-    if (target && target.sampleKey && !target.stored?.result && !target.jobId) {
-      try {
-        const resData = await getEducationSampleResult(target.sampleKey)
-        if (resData) {
-          patchById(id, {
-            stored: {
-              id: target.sampleKey,
-              name: target.name,
-              result: resData,
-              metrics: resData.metrics,
-              code: target.code,
-              config: resData.config,
-            },
-          })
-        }
-      } catch (e) {
-        // fallback
-      }
-    }
-  }
-
-  // Luôn đảm bảo chiến lược mẫu đang xem có kết quả backtest sẵn sàng để hiển thị ngay
+  // Mẫu đang xem chưa có kết quả: lấy kết quả đã tính sẵn của backend (MỘT đường duy nhất). Chưa có (404 NOT_READY) -> không nạp gì, người dùng bấm Chạy.
+  const sampleTried = useRef(new Set())
   useEffect(() => {
-    if (draft.sampleKey && !draft.stored?.result && !draft.jobId) {
-      getEducationSampleResult(draft.sampleKey).then((resData) => {
-        if (resData) {
-          patchById(draft.id, {
-            stored: {
-              id: draft.sampleKey,
-              name: draft.name,
-              result: resData,
-              metrics: resData.metrics,
-              code: draft.code,
-              config: resData.config,
-            },
-          })
-        }
-      }).catch(() => {})
-    }
+    const key = draft.sampleKey
+    if (!key || draft.stored?.result || draft.jobId || sampleTried.current.has(key)) return
+    sampleTried.current.add(key)
+    const id = draft.id
+    getEducationSampleResult(key).then((resData) => {
+      if (!resData) return
+      patchById(id, { stored: { id: key, name: draft.name, result: resData, metrics: resData.metrics, code: draft.code, config: resData.config } })
+      if (resData.config) set((p) => ({ form: { ...p.form, ...configToForm(resData.config, POSITION_KEYS) } }))
+    }).catch(() => { /* NOT_READY / lỗi: không thử lại trong phiên */ })
   }, [draft.id, draft.sampleKey, draft.stored?.result, draft.jobId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const tm = compiled?.meta?.timeframe
@@ -293,70 +271,36 @@ export default function StudioWorkspace({ mode = 'create' }) {
   const issue = compiled && !stale && !compiled.ok
   const TABS = [['samples', 'Chiến lược mẫu'], ['results', 'Kết quả']]
   async function useSample(s) {
-    const sampleKey = s.key || s.name
+    // 1. Mẫu đã mở ở một tab -> chọn tab đó (khoá trước, dự phòng theo tên)
+    const openDraft = findBy(drafts, s, (d) => d.sampleKey, (d) => d.name)
+    if (openDraft) { activateTab(openDraft.id); return }
 
-    // 1. Nếu mẫu này đã mở ở tab file nào rồi -> chọn ngay tab đó và view result
-    const openDraft = drafts.find(
-      (d) => (d.sampleKey && d.sampleKey === sampleKey) || d.name === s.name
-    )
-    if (openDraft) {
-      await activateTab(openDraft.id)
-      return
-    }
+    // 2. Đã có bản lưu trong kho alpha người dùng -> mở bản lưu
+    const matched = findBy(savedItems, s, (a) => a.id, (a) => a.name)
+    if (matched) { await openSaved(matched.id); return }
 
-    // 2. Nếu mẫu này đã có bản lưu trong kho alpha người dùng -> mở bản lưu
-    const matched = savedItems.find(
-      (a) => a.name === s.name || a.id === s.key || a.program_hash === s.program_hash
-    )
-    if (matched) {
-      await openSaved(matched.id)
-      return
-    }
-
-    // 3. Chuẩn bị kết quả mẫu
-    let sampleResData = s.result
-    if (!sampleResData && s.key) {
-      try {
-        sampleResData = await getEducationSampleResult(s.key)
-      } catch (e) {
-        // fallback
-      }
-    }
+    // 3. Tab mới chứa code mẫu; kết quả tính sẵn (nếu có trong danh sách mẫu) hiện ngay, không có thì effect phía trên thử nạp / để người dùng chạy
+    const sampleResData = s.result || null
     const text = await sampleText(s.code)
-    const storedRec = sampleResData ? {
-      id: s.key || s.name,
-      name: s.name,
-      result: sampleResData,
-      metrics: s.metrics || sampleResData.metrics,
-      code: s.code,
-      config: sampleResData.config,
-    } : null
-
-    const d = newDraft(s.name, text, {
-      sampleKey: s.key || s.name,
-      stored: storedRec,
-      saved: storedRec ? { alpha_id: s.key || s.name, code: s.code, name: s.name } : null,
+    const sampleKey = s.key || s.name
+    const d = newDraft(s.name, text, sampleResData ? {
+      sampleKey,
+      stored: { id: sampleKey, name: s.name, result: sampleResData, metrics: s.metrics || sampleResData.metrics, code: s.code, config: sampleResData.config },
+      saved: { alpha_id: sampleKey, code: s.code, name: s.name },
       runAlpha: s.key || '',
-    })
+    } : { sampleKey })
+    const formPatch = (p) => (sampleResData?.config ? { ...p.form, ...configToForm(sampleResData.config, POSITION_KEYS) } : p.form)
 
     set((p) => {
       // Tab đang mở còn trống (chưa có code/ghi chú, chưa chạy, chưa lưu) -> ghi mẫu vào chính tab đó; ngược lại mở tab mới.
       const cur = p.drafts.find((x) => x.id === p.active) || p.drafts[0]
       if (cur && !cur.code.trim() && !cur.jobId && !cur.saved && !cur.alphaId) {
-        return {
-          drafts: p.drafts.map((x) => (x.id === cur.id ? { ...d, id: cur.id } : x)),
-          active: cur.id,
-          form: (sampleResData?.config) ? { ...p.form, ...configToForm(sampleResData.config, POSITION_KEYS) } : p.form,
-        }
+        return { drafts: p.drafts.map((x) => (x.id === cur.id ? { ...d, id: cur.id } : x)), active: cur.id, form: formPatch(p) }
       }
-      return {
-        drafts: [...p.drafts, d],
-        active: d.id,
-        form: (sampleResData?.config) ? { ...p.form, ...configToForm(sampleResData.config, POSITION_KEYS) } : p.form,
-      }
+      return { drafts: [...p.drafts, d], active: d.id, form: formPatch(p) }
     })
     setCompiled(null)
-    setTab('results') // Bắt buộc lập tức chuyển sang tab results!
+    setTab('results')
   }
   const expired = !!draft.jobId && !job && (jobErrStatus === 404 || jobErrStatus === 410)
   const isSampleOrSaved = Boolean(draft.sampleKey || draft.saved || draft.stored || draft.alphaId)
@@ -503,7 +447,7 @@ export default function StudioWorkspace({ mode = 'create' }) {
           )}
           {tab === 'samples' && sampleRes.loading && !sampleList.length && <Spinner />}
           {tab === 'samples' && !sampleRes.error && (
-            <SamplesPane samples={sampleList} onUse={useSample} saved={saved} onOpenSaved={openSaved} openingId={openingId} activeId={draft.saved?.alpha_id || ''} />
+            <SamplesPane samples={sampleList} onUse={useSample} saved={saved} onOpenSaved={openSaved} openingId={openingId} activeId={draft.saved?.alpha_id || ''} defaultCapital={Number(form.capital) || null} />
           )}
         </div>
       </div>

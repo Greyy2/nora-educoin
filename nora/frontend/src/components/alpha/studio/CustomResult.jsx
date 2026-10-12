@@ -9,8 +9,10 @@ import { fmtNum, fmtSPct, fmtPct, fmtMoney, signClass, isNum, toMs, fmtSigned } 
 import Diagnostics, { InsightList } from './Diagnostics'
 import ResultExplain from './ResultExplain'
 import ResultTour from './ResultTour'
+import ProvenanceBadge from '../../common/ProvenanceBadge'
+import WarningsPanel from '../../common/WarningsPanel'
 import { useMeta } from '../../../meta/MetaProvider'
-import { normMetrics, normYearly, stagePlot, normWarnings, resolveCols, TRADE_COLS, SYMBOL_COLS, POSITION_COLS } from '../../../lib/customResult'
+import { normMetrics, normYearly, stagePlot, resolveCols, TRADE_COLS, SYMBOL_COLS, POSITION_COLS } from '../../../lib/customResult'
 
 const STAGES = [
   { value: 'train', label: 'Train', block: 'train' },
@@ -174,7 +176,6 @@ export default function CustomResult({ result, jobLine, explain = false, tourKey
   const yearlyAll = useMemo(() => normYearly(result?.yearly), [result])
   const hasM = (r) => [r.sharpe, r.cagr, r.mdd, r.pf, r.calmar].some(isNum)
   const yearly = (stage === 'all' ? yearlyAll : yearlyAll.filter((r) => r.stage === stage)).filter(hasM)
-  const warnings = normWarnings(result?.warnings)
   const trades = Array.isArray(result?.trades) ? result.trades : []
   const notes = explain ? result?.explain?.notes || {} : {}
   const bySym = Array.isArray(result?.by_symbol) ? result.by_symbol : []
@@ -243,11 +244,7 @@ export default function CustomResult({ result, jobLine, explain = false, tourKey
         {steps.length > 0 && <button type="button" className="n-btn sm se-tourbtn" onClick={() => gotoStep(0)} title="Hướng dẫn đọc kết quả từng bước (←/→, Esc)">Xem giải thích</button>}
         {jobLine}
         {result.program_hash && <span className="mono muted" title="Mã băm chương trình đã biên dịch">{String(result.program_hash).slice(0, 12)}</span>}
-        {result?.provenance && (
-          <span className="n-tag sm" style={{ marginLeft: 6 }} title={`Chế độ khớp: ${result.provenance.base_frame === '1m' ? 'Chuẩn (1m)' : `Nhanh (${result.provenance.base_frame || ''})`}`}>
-            {result.provenance.base_frame === '1m' ? 'Khớp Chuẩn (1m)' : `Khớp Nhanh (${result.provenance.base_frame || ''})`}
-          </span>
-        )}
+        <ProvenanceBadge provenance={result?.provenance} />
       </div>
       <div className="se-row2">
         <Segmented label="Chế độ xem" value={sub} onChange={setSub} options={SUBS} />
@@ -308,10 +305,7 @@ export default function CustomResult({ result, jobLine, explain = false, tourKey
           {Array.isArray(result?.trades) ? <section className="se-cc" data-tour="trades"><div className="se-cc-h"><b>Danh sách lệnh</b><span className="sp" /><span className="muted">{fmtNum(trades.length, 0)} lệnh</span></div><div className="se-cc-b"><TradesTable trades={trades} /></div></section>
             : <p className="n-note se-pad">Kết quả không kèm danh sách lệnh.</p>}
           {open.length > 0 && <section className="se-cc"><div className="se-cc-h"><b>Vị thế còn mở cuối kỳ</b><span className="sp" /><span className="muted">{open.length}</span></div><div className="se-cc-b"><Rows rows={open} spec={POSITION_COLS} empty="" /></div></section>}
-          {warnings.length > 0 && (
-            <section className="se-cc"><div className="se-cc-h"><b>Cảnh báo</b><span className="sp" /><span className="muted">{warnings.length}</span></div><div className="se-cc-b">
-              <ul className="n-events">{warnings.map((w, i) => <li key={i}><span className="ic warn" role="img" aria-label="Cảnh báo">▲</span><span className="tx">{w}</span></li>)}</ul></div></section>
-          )}
+          <WarningsPanel warnings={result?.warnings} />
         </>
       )}
     </div>

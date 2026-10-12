@@ -9,8 +9,10 @@ import { postFunnelRun, getFunnelEstimate } from '../../../api'
 import { fmtEta, fmtCount } from '../../../lib/funnel'
 import { daysInclusive } from '../../../lib/dates'
 import { fullDate, fmtNum, fmtFrame } from '../../../lib/format'
+import { framesOf, defaultFrame } from '../../../lib/metaDefaults'
 import { useMeta } from '../../../meta/MetaProvider'
 
+// Giới hạn UI (khớp backend FunnelRunRequest); meta.limits hiện chưa công bố tổng số alpha / gợi ý N nên giữ hằng số tại đây.
 const MAX_TOTAL = 1000000
 const LARGE_TOTAL = 200000
 const N_PRESETS = [100, 1000, 10000, 100000]
@@ -33,8 +35,8 @@ export default function NewRunForm({ cat, onLaunched, onCancel }) {
   const [mode, setMode] = useState('n')
   const [n, setN] = useState(1000)
   const [seed, setSeed] = useState(42)
-  const frames = meta?.frames?.funnel || ['15m', '1h', '4h']
-  const [timeframe, setTimeframe] = useState(frames[0] || '15m')
+  const frames = framesOf(meta)
+  const [timeframe, setTimeframe] = useState(defaultFrame(meta))
   const [regime, setRegime] = useState('off')          // off | learn | both (mỗi biến thể là một alpha -> DSR/PBO đếm đủ)
   const [symbols, setSymbols] = useState(universe)
   useEffect(() => {

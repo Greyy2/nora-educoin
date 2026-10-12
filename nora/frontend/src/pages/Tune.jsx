@@ -1,3 +1,4 @@
+import { framesOf, defaultFrame } from '../lib/metaDefaults'
 import React, { useEffect, useState } from 'react'
 import '../styles/alpha.css'
 import { useNavigate, useSearchParams } from 'react-router-dom'
@@ -230,8 +231,8 @@ export default function Alpha() {
   const [n, setN] = useState(24)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(null)
-  const frames = meta?.frames?.funnel || meta?.frames?.all || ['15m', '1h', '4h']
-  const [timeframe, setTimeframe] = useState(frames[0] || '15m')
+  const frames = framesOf(meta)
+  const [timeframe, setTimeframe] = useState(defaultFrame(meta))
   const job = useJob(jobId)
 
   const patch = (o) => {

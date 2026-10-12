@@ -38,78 +38,60 @@ function formatWinRate(win) {
  * Hiển thị thẻ kết quả định lượng trực quan (PNL, Max Drawdown, Sharpe Ratio, Win-rate).
  * Bấm vào lập tức chuyển tab file và mở kết quả chi tiết.
  */
-export default function SamplesPane({ samples, onUse, saved, onOpenSaved, openingId = '', activeId = '' }) {
+/** Rút gọn số liệu thẻ từ một bản ghi (mẫu hoặc alpha đã lưu). Không có metrics (NOT_READY) -> ready=false, không có số nào. */
+function cardStats(item, savedRec, fallbackCapital) {
+  const result = item.result || savedRec?.result || null
+  const m = item.metrics || savedRec?.metrics || result?.metrics || null
+  const sim = m ? (m.simulate || m.test || null) : null
+  if (!sim || item.result_status === 'NOT_READY') return { ready: false, result }
+  const retPct = sim.ret_pct ?? sim.return_pct
+  const capital = item.initial_capital ?? savedRec?.initial_capital ?? result?.config?.initial_capital ?? fallbackCapital
+  const finalEq = item.final_equity ?? result?.final_equity
+  const pnlUsd = item.pnl_usd ?? savedRec?.pnl_usd
+    ?? (isNum(finalEq) && isNum(capital) ? finalEq - capital : (isNum(retPct) && isNum(capital) ? (capital * retPct) / 100 : null))
+  return {
+    ready: true, result, metrics: m, pnlUsd, retPct,
+    mddPct: sim.mdd_pct ?? sim.max_drawdown_pct,
+    sharpe: sim.sharpe,
+    winRate: sim.win_rate_trades ?? sim.win_rate,
+  }
+}
+
+export default function SamplesPane({ samples, onUse, saved, onOpenSaved, openingId = '', activeId = '', defaultCapital = null }) {
   const savedItems = (Array.isArray(saved?.data) ? saved.data : []).filter((s) => s.status !== 'ARCHIVED')
 
-  // Bản đồ đối chiếu các bản ghi đã lưu theo tên hoặc id/key
-  const savedByName = new Map()
-  savedItems.forEach((item) => {
-    if (item.name) savedByName.set(item.name.toLowerCase().trim(), item)
-    if (item.id) savedByName.set(item.id.toLowerCase().trim(), item)
-  })
-
+  // Đối chiếu bản ghi đã lưu: ưu tiên id / khoá của mẫu, dự phòng theo tên
+  const norm = (v) => String(v || '').toLowerCase().trim()
+  const savedById = new Map(savedItems.filter((i) => i.id).map((i) => [norm(i.id), i]))
+  const savedByName = new Map(savedItems.filter((i) => i.name).map((i) => [norm(i.name), i]))
   const matchedSavedIds = new Set()
 
-  // Danh sách các mẫu tiêu chuẩn kèm kết quả tính trước
   const sampleEntries = samples.map((s) => {
-    const savedRec =
-      savedByName.get((s.name || '').toLowerCase().trim()) ||
-      savedByName.get((s.key || '').toLowerCase().trim())
+    const savedRec = (s.key && savedById.get(norm(s.key))) || (s.name && savedByName.get(norm(s.name))) || null
     if (savedRec) matchedSavedIds.add(savedRec.id)
-
-    const m = s.metrics || savedRec?.metrics || s.result?.metrics || null
-    const sim = m ? (m.simulate || m.test || null) : null
-    const pnlUsd = s.pnl_usd ?? (s.final_equity && s.initial_capital ? s.final_equity - s.initial_capital : (sim && isNum(sim.ret_pct) ? (10000 * sim.ret_pct) / 100 : null))
-    const retPct = sim ? (sim.ret_pct ?? sim.return_pct) : null
-    const mddPct = sim ? (sim.mdd_pct ?? sim.max_drawdown_pct) : null
-    const sharpe = sim ? sim.sharpe : null
-    const winRate = sim ? (sim.win_rate_trades ?? sim.win_rate) : null
-
     return {
       key: s.key || s.name,
       name: s.name,
       summary: s.summary || s.note,
       code: s.code,
-      result: s.result || savedRec?.result || null,
-      metrics: m,
-      pnlUsd,
-      retPct,
-      mddPct,
-      sharpe,
-      winRate,
-      savedRec: savedRec || null,
+      ...cardStats(s, savedRec, defaultCapital),
+      savedRec,
       isSample: true,
     }
   })
 
-  // Các chiến lược người dùng lưu mà không trùng tên với mẫu nào
+  // Các chiến lược người dùng lưu mà không trùng mẫu nào
   const userEntries = savedItems
     .filter((item) => !matchedSavedIds.has(item.id))
-    .map((item) => {
-      const m = item.metrics || item.result?.metrics || null
-      const sim = m ? (m.simulate || m.test || null) : null
-      const pnlUsd = item.pnl_usd ?? (item.result?.final_equity && item.result?.config?.initial_capital ? item.result.final_equity - item.result.config.initial_capital : (sim && isNum(sim.ret_pct) ? (10000 * sim.ret_pct) / 100 : null))
-      const retPct = sim ? (sim.ret_pct ?? sim.return_pct) : null
-      const mddPct = sim ? (sim.mdd_pct ?? sim.max_drawdown_pct) : null
-      const sharpe = sim ? sim.sharpe : null
-      const winRate = sim ? (sim.win_rate_trades ?? sim.win_rate) : null
-
-      return {
-        key: item.id,
-        name: item.name || item.id,
-        summary: `Chiến lược người dùng · Cập nhật ${item.updated_at ? String(item.updated_at).slice(0, 10) : ''}`,
-        code: item.code,
-        result: item.result || null,
-        metrics: m,
-        pnlUsd,
-        retPct,
-        mddPct,
-        sharpe,
-        winRate,
-        savedRec: item,
-        isUserAlpha: true,
-      }
-    })
+    .map((item) => ({
+      key: item.id,
+      name: item.name || item.id,
+      summary: `Chiến lược người dùng · Cập nhật ${item.updated_at ? String(item.updated_at).slice(0, 10) : ''}`,
+      code: item.code,
+      ...cardStats(item, null, defaultCapital),
+      savedRec: item,
+      isUserAlpha: true,
+    }))
 
   const allItems = [...userEntries, ...sampleEntries]
 
@@ -149,33 +131,28 @@ export default function SamplesPane({ samples, onUse, saved, onOpenSaved, openin
                 <b className="se-card-title">{s.name}</b>
               </div>
 
-              {/* Bảng kết quả định lượng trực quan theo chuẩn quốc tế */}
-              <div className="se-card-metrics">
-                <div className="se-metric-row">
-                  <span className="se-metric-lbl">PNL</span>
-                  <span className={`se-metric-val ${s.retPct > 0 ? 'pos' : s.retPct < 0 ? 'neg' : ''}`}>
-                    {formatPnl(s.pnlUsd, s.retPct)}
-                  </span>
+              {s.ready ? (
+                <div className="se-card-metrics">
+                  <div className="se-metric-row">
+                    <span className="se-metric-lbl">PNL</span>
+                    <span className={`se-metric-val ${s.retPct > 0 ? 'pos' : s.retPct < 0 ? 'neg' : ''}`}>{formatPnl(s.pnlUsd, s.retPct)}</span>
+                  </div>
+                  <div className="se-metric-row">
+                    <span className="se-metric-lbl">Max Drawdown</span>
+                    <span className={`se-metric-val ${s.mddPct ? 'neg' : ''}`}>{formatMdd(s.mddPct)}</span>
+                  </div>
+                  <div className="se-metric-row">
+                    <span className="se-metric-lbl">Sharpe Ratio</span>
+                    <span className="se-metric-val">{formatSharpe(s.sharpe)}</span>
+                  </div>
+                  <div className="se-metric-row">
+                    <span className="se-metric-lbl">Win-rate</span>
+                    <span className="se-metric-val">{formatWinRate(s.winRate)}</span>
+                  </div>
                 </div>
-                <div className="se-metric-row">
-                  <span className="se-metric-lbl">Max Drawdown</span>
-                  <span className={`se-metric-val ${s.mddPct ? 'neg' : ''}`}>
-                    {formatMdd(s.mddPct)}
-                  </span>
-                </div>
-                <div className="se-metric-row">
-                  <span className="se-metric-lbl">Sharpe Ratio</span>
-                  <span className="se-metric-val">
-                    {formatSharpe(s.sharpe)}
-                  </span>
-                </div>
-                <div className="se-metric-row">
-                  <span className="se-metric-lbl">Win-rate</span>
-                  <span className="se-metric-val">
-                    {formatWinRate(s.winRate)}
-                  </span>
-                </div>
-              </div>
+              ) : (
+                <div className="se-card-metrics"><span className="muted">Chưa có kết quả</span></div>
+              )}
 
               {isOpening && <Spinner />}
             </div>

@@ -15,6 +15,10 @@ import useJob from '../hooks/useJob'
 import { useCatalog } from '../meta/MetaProvider'
 import { useMeta } from '../meta/MetaProvider'
 import { postBacktest, postWfa, postMc } from '../api'
+import ProvenanceBadge from '../components/common/ProvenanceBadge'
+import WarningsPanel from '../components/common/WarningsPanel'
+import ExecModeSelect from '../components/common/ExecModeSelect'
+import { framesOf, defaultFrame, defaultExecMode, execRunFrame } from '../lib/metaDefaults'
 import { parseJobParams, JOB_STATUS } from '../lib/jobs'
 import { daysInclusive } from '../lib/dates'
 import { isDexSym, dexSym, dexAssets, tickChip, dexRange, msStamp } from '../lib/dex'
@@ -200,7 +204,7 @@ function StepBacktest({ cat, strats, sc, form, setForm, btId, bt, onLaunched, on
   const nStrat = groups.length
   const risk = adv ? form.risk : basicRisk(form.sel, strats.byId)
   const fill = adv ? form.stopFill : 'level'
-  const tfMismatch = adv ? [] : timeframeMismatch(ids, strats.byId, form.timeframe || '1h')
+  const tfMismatch = adv ? [] : timeframeMismatch(ids, strats.byId, form.timeframe || defaultFrame(meta))
 
   const paramsFor = (id) => ({ ...form.sel[id], risk_per_trade_pct: form.risk })
   const clientErr = useMemo(() => {
@@ -232,7 +236,9 @@ function StepBacktest({ cat, strats, sc, form, setForm, btId, bt, onLaunched, on
     if (reason) return setErr(reason)
     setBusy(true)
     try {
-      const body = { mode, symbols: form.symbols, start: form.start, end: form.end, timeframe: form.timeframe || '1h', data: dataMode }
+      const body = { mode, symbols: form.symbols, start: form.start, end: form.end, timeframe: form.timeframe || defaultFrame(meta), data: dataMode }
+      const runFrame = execRunFrame(form.exec_mode || defaultExecMode(meta))
+      if (runFrame) body.run_frame = runFrame // Chuẩn: khớp trên nến 1m (cùng quy ước với Studio)
       if (tickOn) {
         if (String(form.latency ?? '').trim() !== '') body.latency_ms = Number(form.latency)
         if (String(form.gas ?? '').trim() !== '') body.gas_usd = Number(form.gas)
@@ -376,8 +382,8 @@ function StepBacktest({ cat, strats, sc, form, setForm, btId, bt, onLaunched, on
               <Field id="bt-end" label="Đến ngày"><DateInput id="bt-end" label="Đến ngày" value={form.end} min={range?.start} max={range?.end} onChange={(v) => setForm({ end: v })} /></Field>
               <div style={{ gridColumn: '1 / -1' }}>
                 <Field id="bt-tf" label="Khung chạy (nến mô phỏng, dùng cho cả Backtest và WFA)">
-                  <select id="bt-tf" className="n-sel" value={form.timeframe || '1h'} onChange={(e) => setForm({ timeframe: e.target.value })}>
-                    {(meta?.frames?.custom_backtest || meta?.frames?.all || ['15m', '1h', '4h']).map((f) => (
+                  <select id="bt-tf" className="n-sel" value={form.timeframe || defaultFrame(meta)} onChange={(e) => setForm({ timeframe: e.target.value })}>
+                    {framesOf(meta).map((f) => (
                       <option key={f} value={f}>{fmtFrame(f)}</option>
                     ))}
                   </select>
@@ -387,6 +393,9 @@ function StepBacktest({ cat, strats, sc, form, setForm, btId, bt, onLaunched, on
                     </span>
                   )}
                 </Field>
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <ExecModeSelect id="bt-exec" value={form.exec_mode} onChange={(v) => setForm({ exec_mode: v })} />
               </div>
               <div style={{ gridColumn: '1 / -1' }}>
                 {multi ? (
@@ -530,6 +539,8 @@ function StepBacktest({ cat, strats, sc, form, setForm, btId, bt, onLaunched, on
               Mở trên Danh mục ↗
             </Link>
           </div>
+          <ProvenanceBadge provenance={bt.job?.result?.provenance} style={{ marginLeft: 0 }} />
+          <WarningsPanel warnings={bt.job?.result?.warnings} />
           <TickResultNote result={bt.job?.result} />
           <DashboardLoader jobId={btId} period={period} compact />
         </div>
@@ -610,7 +621,7 @@ function StepWfaInner({ cat, strats, form, setForm, wfaId, wfa, onLaunched, onNe
   async function run() {
     setErr(null); setRunErr(null)
     if (reason) return setErr(`${reason}.`)
-    const body = { mode, start: f.start, end: f.end, symbols: form.symbols, timeframe: form.timeframe || '1h', regime: f.regime || 'off' }
+    const body = { mode, start: f.start, end: f.end, symbols: form.symbols, timeframe: form.timeframe || defaultFrame(meta), regime: f.regime || 'off' }
     if (adv) {
       Object.assign(body, { train_days: Number(f.train), test_days: Number(f.test), risk_per_trade_pct: Number(form.risk) })
       if (WFA_SCHEMA_KEYS_SUPPORTED) {
@@ -723,6 +734,8 @@ function StepWfaInner({ cat, strats, form, setForm, wfaId, wfa, onLaunched, onNe
           </Panel>
           {wfa.status === 'done' && (report?.folds ? (
             <>
+              <ProvenanceBadge provenance={report.provenance} style={{ marginLeft: 0 }} />
+              <WarningsPanel warnings={report.warnings} />
               <WfaResult report={report} />
               <div className="n-sticky-actions"><button type="button" className="n-btn primary" onClick={onNext}>Tiếp tục: Monte Carlo →</button></div>
             </>
@@ -847,6 +860,8 @@ function StepMcInner({ wfaId, form, setForm, meta, mcStd, stressScenarios, stres
         <div style={{ marginTop: 12, display: 'grid', gap: 8 }}>
           <ModeStamp mode={res.params?.mode || mode} customGates={res.params?.custom_gates ?? res.gate?.custom_gates} promotable={res.params?.promotable} ignored={res.params?.ignored_client_params} />
           <PublishBlocked customGates={res.params?.custom_gates ?? res.gate?.custom_gates} promotable={res.params?.promotable} />
+          <ProvenanceBadge provenance={res.provenance} style={{ marginLeft: 0 }} />
+          <WarningsPanel warnings={res.warnings} />
           <McResult mc={res} />
         </div>
       )}
@@ -876,8 +891,8 @@ export default function Backtest() {
   const btId = sp.get('job') || ''
   const wfaId = sp.get('wfa') || ''
   const stepQ = Number(sp.get('step')) || 1
-  const bt = useJob(btId, { interval: 400 })
-  const wfa = useJob(wfaId, { interval: 600 })
+  const bt = useJob(btId, { interval: 1000 })
+  const wfa = useJob(wfaId, { interval: 1000 })
   const [form, setFormRaw] = useState(null)
   const seeded = useRef(false)
 
@@ -901,7 +916,7 @@ export default function Backtest() {
       mode: pre?.mode || (customPre ? 'advanced' : 'basic'), sel, multi: Object.keys(picksFromLegs(Object.keys(sel), sc.list)).length > 1 || symbols.length > 1,
       symbols, start: pre?.start || w.dev2_end || '', end: pre?.end || w.end || '',
       risk: pre?.risk_per_trade_pct ?? cat.book?.risk_per_trade_pct ?? 0.5, stopFill: pre?.stop_fill || 'level',
-      timeframe: pre?.timeframe || '1h', data: pre?.data || 'candle', latency: pre?.latency_ms ?? '', gas: pre?.gas_usd ?? '',
+      timeframe: pre?.timeframe || '', exec_mode: pre?.exec_mode || '', data: pre?.data || 'candle', latency: pre?.latency_ms ?? '', gas: pre?.gas_usd ?? '',
     })
   }, [cat, strats.list, sc.list]) // eslint-disable-line react-hooks/exhaustive-deps
 

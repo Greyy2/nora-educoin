@@ -1,5 +1,6 @@
 // Form chạy backtest chiến lược Python dùng chung cho /alpha/create và /education: kiểm tra đầu vào và dựng thân POST /api/studio/custom/backtest.
 // Một cấu hình thực thi duy nhất (mặc định của engine Nora); form chỉ chọn rổ, ngày, vốn và ghi đè tham số vị thế.
+import { execRunFrame } from './metaDefaults'
 import { POSITION_FIELDS } from '../components/alpha/studio/RunSettings'
 
 export const POSITION_KEYS = POSITION_FIELDS.map((f) => f.key)
@@ -21,14 +22,11 @@ export function validateRun(form, code) {
   return out
 }
 
-export function buildRunBody(form, code, timeframe = null) {
-  const tf = timeframe || (String(code || '').match(/timeframe\s*=\s*['"]([0-9a-zA-Z]+)['"]/)?.[1]) || null
+/** timeframe = khung của chương trình đã biên dịch (compile.meta.timeframe); thiếu -> không gửi run_frame, backend quyết định. */
+export function buildRunBody(form, code, timeframe = null, defaultMode = 'fast') {
   const body = { code, start: form.start, end: form.end, train_ratio: num(form.train_ratio), initial_capital: num(form.capital), symbols: form.symbols }
-  if (form.exec_mode === 'standard') {
-    body.run_frame = '1m'
-  } else if (tf) {
-    body.run_frame = tf
-  }
+  const rf = execRunFrame(form.exec_mode || defaultMode, timeframe)
+  if (rf) body.run_frame = rf
   const position = {}
   // Mẫu có thể kèm khoá ngoài ô nhập (vd atr_frame: '24h'): gửi nguyên, số thì ép số.
   Object.entries(form.pos || {}).forEach(([k, v]) => { if (v !== '' && v != null) position[k] = Number.isNaN(Number(v)) ? v : Number(v) })

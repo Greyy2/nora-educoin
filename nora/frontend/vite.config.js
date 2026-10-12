@@ -18,5 +18,6 @@ export default defineConfig({
       },
     },
   },
+  // emptyOutDir:false có chủ đích: giữ các chunk băm của bản build cũ để tab đang mở (lazyRetry) vẫn tải được chunk cũ thay vì 404 sau khi triển khai.
   build: { outDir: 'dist', emptyOutDir: false, sourcemap: false },
 })
