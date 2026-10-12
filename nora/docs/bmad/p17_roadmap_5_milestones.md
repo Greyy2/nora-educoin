@@ -1,18 +1,18 @@
 # P17 — Lộ trình 5 tiến độ (2026-10-12)
 
 Vai trò: **anh làm** từng tiến độ; **Opus** phân tích, viết brief, test cổng. Mỗi tiến độ xong = cổng xanh + commit.
-Ưu tiên số 1: **Education hoàn chỉnh** (T1+T2).
+Thứ tự: T1 dứt kiến trúc → T2+T3 Education hoàn chỉnh (ưu tiên sản phẩm) → T4 hybrid → T5 OKX.
 
 ## Lộ trình gốc → trạng thái
 | # | Bước | Trạng thái |
 |---|---|---|
 | 1 | Hoàn thiện UI | ✅ (R4 badge/cảnh báo/Chuẩn-Nhanh, dọn Studio) |
 | 2 | Đồng bộ tham số + code chiến lược chuẩn quốc tế / TradingView | ✅ (theo anh) |
-| 3 | Kiến trúc gọn chuẩn | ✅ lõi (1 engine Nautilus, 1 adapter kết quả, gỡ số giả). Phần còn lại → T4 |
-| 4 | Hybrid biên dịch: Education = Nora DSL; Chuyên gia = tự nhận code phức tạp → biên dịch Nautilus native | T3 |
+| 3 | Kiến trúc gọn chuẩn | ◐ lõi xong (1 engine, 1 adapter kết quả, gỡ số giả). Còn: data.py, cây package, routes mỏng → **T1** |
+| 4 | Hybrid biên dịch: Education = Nora DSL; Chuyên gia = tự nhận code phức tạp → biên dịch Nautilus native | T4 |
 | 5 | Paper/testnet OKX đồng bộ backtest | T5 |
-| 6 | Home kiểu sova → 2 hệ thống song song Education / Coin | T1 |
-| 7 | User: profile, chiến lược của mình, market theo user, 10 user × 50 mẫu, ẩn mẫu khi đã có chiến lược | T1–T2 |
+| 6 | Home kiểu sova → 2 hệ thống song song Education / Coin | T2 |
+| 7 | User: profile, chiến lược của mình, market theo user, 10 user × 50 mẫu, ẩn mẫu khi đã có chiến lược | T2–T3 |
 
 ## Mô hình sản phẩm
 ```
@@ -29,18 +29,30 @@ Luật mẫu: user mới (0 chiến lược) → Studio mở sẵn mẫu, thấy
 
 ---
 
-## T1 — Home + khung Education + User (nền)
+## T1 — Dứt kiến trúc backend + crawl → data.py (làm TRƯỚC)
+**Bước 1 — `backend/data.py` thay `crawl/`** (chi tiết: p16_consolidation_plan.md §5, D1–D6)
+- D1 `models/storage.py`: đường dẫn (alpha_dir, run_dir, live_dir, cache_*, is_within) + IO (read_json, write_json_atomic, json_default, write_job_result, options, as_list, ByteLRU, env_mb) tách khỏi `crawl/store.py`; sửa ~50 file import.
+- D2 `data.py` đọc: UNIVERSE 10 symbol, normalize_symbol (1 định nghĩa), `load_bars(symbol, frame, start, end)` từ catalog (pyarrow + aggregate_frame chuyển về đây), daily_close, catalog_digest, coverage, quality gate trên catalog.
+- D3 `data.py` ghi: fetch_instruments, crawl OKX 1m tăng dần (CDN zip + REST), `nautilus.catalog.write_bars` + manifest; job `data_update` thay 4 kind cũ (data_crawl, data_crawl_okx, data_crawl_ticks, data_promote).
+- D4 tín hiệu (DataSource), chart, routes/data, benchmark đọc `data.load_bars` — bỏ pkl.
+- D5 archive `backend/crawl/` + test cũ → `test/backend-no/`; test mới `test/test_data.py`.
+- D6 archive `data/market/okx/cex/*.pkl` → `data/archive/2026-10-p16/`.
+**Bước 2 — cây package đích** (p16 §4): `optimize/process` → `jobs/`; `alpha/dsl/{indicator,signal,ta}` → `signal/{indicator,nodes,ta}`; `alpha/dsl/strategy.py` tách `alpha/plan.py` (build_plan, Plan) + `signal/compute.py` (SignalEngine/SignalPortfolio…); `metrics/regime` bỏ import nautilus.
+**Bước 3 — routes mỏng**: `post_mc` gate → carlo/book; `_nav` → metrics; `_build_meta` → module meta; meta thêm `engine.default_exec_mode`, `frames.defaults`; `BacktestRequest.run_frame`.
+**Bước 4 — suite xanh**: sửa các test fail sẵn (danh sách baseline Opus gửi).
+**Cổng (Opus test)**: `grep backend.crawl` = 0; `grep read_pickle|\.pkl` trong backend = 0; `load_bars` bit-identical `catalog.exec_arrays` (10 symbol × 1m/15m/1h); signal parity trên catalog (nếu lệch do nến fill → báo anh duyệt); `p16_engine_snapshot --check` IDENTICAL; chỉ `backend/nautilus/` import nautilus_trader; routes không logic; full suite 0 failed; p9_ledger --dups sạch.
+
+## T2 — Home + khung Education + User (nền)
 **Backend**
 - `backend/users.py` (1 file): User {id, handle, display_name, avatar, bio, created_at}; lưu `data/users/<id>.json`; phiên đăng nhập đơn giản: cookie `nora_uid` ký HMAC (secret `~/.config/nora/app.env`), không mật khẩu ở bản đầu (chọn/tạo user). Routes `routes/users.py`: `GET/POST /api/users`, `GET /api/users/{handle}`, `GET/POST /api/me`, `PUT /api/me` (profile).
 - User alpha có `owner_id`: sửa `optimize/book/registry.save_user_alpha/list_user_alphas` thêm `owner_id`, lọc theo owner; `GET /api/users/{handle}/strategies`.
-- Fix suite: các test đang fail ở baseline (danh sách ở `scratchpad/baseline.log` — Opus gửi kèm brief).
 **Frontend**
 - `pages/Home.jsx` (tham chiếu sova `frontend/src/pages/Home`: tiêu đề, 2 thẻ hệ thống, số liệu thật từ API, nút vào). Route `/` = Home.
 - Tách layout: `layout/EduLayout.jsx`, `layout/CoinLayout.jsx` (Shell hiện tại → Coin, mọi route cũ chuyển dưới `/coin/*`, redirect đường cũ).
 - Chọn/tạo user (modal), avatar góc phải, `/edu/me`.
 **Cổng (Opus test)**: full suite 0 failed; `/` render 2 thẻ; tạo user → cookie → `/api/me` đúng; route cũ redirect; vite build sạch.
 
-## T2 — Education hoàn chỉnh (Market + seed + mẫu)
+## T3 — Education hoàn chỉnh (Market + seed + mẫu)
 - Seed: script `test/scripts/seed_edu_users.py` tạo 10 user (tên/handle/avatar/bio tiếng Việt), chia 50 mẫu (5/user, trộn category/difficulty), lưu thành user alpha có owner.
 - Kết quả THẬT: chạy job `education_warm` (mọi mẫu qua Nautilus) → cache; thẻ chỉ hiện số khi có cache (đã làm ở P16).
 - Market `/edu`: lưới user (số chiến lược, best Sharpe/PnL thật); `/edu/u/:handle`: chiến lược của user; `/edu/s/:id`: code + CustomResult; "Sao chép về của tôi" (fork → owner = tôi, chạy lại).
@@ -48,18 +60,12 @@ Luật mẫu: user mới (0 chiến lược) → Studio mở sẵn mẫu, thấy
 - Quyền: chỉ owner sửa/xoá; người khác xem + fork.
 **Cổng**: 10 user × 5 chiến lược hiển thị; mọi số trên thẻ = cache Nautilus thật (đối chiếu 3 mẫu bằng chạy lại); user mới thấy mẫu, sau khi lưu 1 chiến lược thì mẫu ẩn; fork chạy được; E2E script `test/scripts/e2e_edu.py` exit 0. → **Education DONE.**
 
-## T3 — Hybrid biên dịch (chuyên gia)
+## T4 — Hybrid biên dịch (chuyên gia)
 - `alpha/route.py`: `classify(code) -> "dsl" | "native"`: native khi code là class kế thừa `nautilus_trader...Strategy`, hoặc dùng cấu trúc ngoài DSL (state machine nhiều lệnh, order book, nhiều instrument phụ thuộc nhau, quản lý lệnh tuỳ ý); DSL khi khớp hợp đồng DSL. Trả lý do (`reasons[]`) để UI hiện.
 - Compile native: kiểm import whitelist (nautilus_trader, numpy, pandas, math…), cấm os/subprocess/socket/open; chạy trong job subprocess (run_limited). Lỗi rõ ràng.
 - Coin Studio: badge "Biên dịch: Nora DSL / Nautilus native" + lý do; Education luôn DSL (code phức tạp → gợi ý chuyển sang Coin).
 - Cùng hợp đồng kết quả (đã thống nhất ở P16: `nautilus/results.py`).
 **Cổng**: bộ 20 mẫu phân loại đúng (10 DSL, 10 native, gồm ca biên); code cấm import bị chặn; native multi-order chạy ra kết quả + benchmark; test_nautilus_native xanh.
-
-## T4 — Coin hoàn chỉnh + dứt kiến trúc
-- Chuyển package theo cây đích (p16 §4): `optimize/process` → `jobs/`; `alpha/dsl` → `signal/` + `alpha/plan.py`; `metrics/regime` bỏ import nautilus.
-- Routes mỏng: `post_mc` gate, `_nav`, `_build_meta` xuống module; meta thêm `engine.default_exec_mode`, `frames.defaults`; `BacktestRequest.run_frame`.
-- `backend/data.py` thay `crawl/` (p16 §5: D1–D6): catalog là nguồn duy nhất, archive pkl.
-**Cổng**: grep import cấm = 0; snapshot `p16_engine_snapshot --check` IDENTICAL; signal parity; full suite xanh; p9_ledger --dups sạch.
 
 ## T5 — Paper/testnet OKX đồng bộ backtest
 - `nautilus/live.py`: TradingNode + OKX adapter (demo), chạy CHÍNH các Strategy class của backtest; tín hiệu tăng dần (`SignalActor` gọi lại `signal/`) — cùng một định nghĩa với backtest.
