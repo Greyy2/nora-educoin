@@ -246,6 +246,9 @@ export const postCustomBacktest = (body) => request('/api/studio/custom/backtest
 /** Danh sách 50 mẫu chiến lược giáo dục chuẩn từ backend. */
 export const getEducationSamples = () => request('/api/studio/education/samples')
 
+/** Lấy kết quả backtest chuẩn của 1 mẫu giáo dục cụ thể. */
+export const getEducationSampleResult = (key) => request(`/api/studio/education/samples/${encodeURIComponent(key)}/result`)
+
 // ═════════════════════════════════════════════════════════════════════════════
 // 2. OPTIMIZE ROUTER (backend/routes/optimize.py)
 //    Sổ chiến lược, backtest danh mục, WFA, Monte Carlo, phễu kiểm duyệt, biểu đồ lệnh

@@ -66,7 +66,7 @@ function subscribe(jobId, interval, cb) {
  * Nhiều component cùng id dùng chung một vòng poll. Trả { job, error, errorStatus, status } (errorStatus = mã HTTP của lỗi cuối, vd 404/410 = kết quả tạm đã mất).
  * status: 'loading' (chưa có phản hồi đầu) | queued | running | done | failed | cancelled | null (không có id).
  */
-export default function useJob(jobId, { interval = 2000 } = {}) {
+export default function useJob(jobId, { interval = 800 } = {}) {
   const [state, setState] = useState({ job: null, error: null, errorStatus: null })
   useEffect(() => {
     setState({ job: null, error: null, errorStatus: null })

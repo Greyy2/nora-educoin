@@ -3,7 +3,7 @@ import dataclasses
 
 import pytest
 
-from backend.core.models import Fill, OrderRejected
+from backend.models.models import Fill, OrderRejected
 from backend.metrics import trades as C
 
 H = 3_600_000

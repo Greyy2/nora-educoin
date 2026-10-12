@@ -16,11 +16,11 @@ from backend.routes import process as process_routes
 from job_modules import launched
 from backend.routes import optimize
 from backend.routes import alpha
-from backend.core.params import POSITION_KEYS
+from backend.models.params import POSITION_KEYS
 from backend.optimize.book import build as pr
 from backend.routes import process as process_routes
-from backend.core.params import FRAMES, collect_placeholders, collect_string_placeholders, resolve_placeholders
-from backend.core.params import BASE_POSITION, materialize, resolve_position_auto, schema_defaults
+from backend.models.params import FRAMES, collect_placeholders, collect_string_placeholders, resolve_placeholders
+from backend.models.params import BASE_POSITION, materialize, resolve_position_auto, schema_defaults
 from backend.optimize.book.build import BY_ID, CANDIDATES
 from legacy_candidates import LEGACY
 from backend.alpha.compile import calc, cond, cross_over, cross_under, f, tree_p

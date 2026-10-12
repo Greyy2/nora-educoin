@@ -244,8 +244,8 @@ export default function CustomResult({ result, jobLine, explain = false, tourKey
         {jobLine}
         {result.program_hash && <span className="mono muted" title="Mã băm chương trình đã biên dịch">{String(result.program_hash).slice(0, 12)}</span>}
         {result?.provenance && (
-          <span className="n-tag sm" style={{ marginLeft: 6 }} title={`Engine: ${result.provenance.engine} ${result.provenance.version || ''} | Sàn: ${result.provenance.venue || ''} | Khớp: ${result.provenance.base_frame || ''}`}>
-            {result.provenance.base_frame === '1m' ? 'Nautilus • Chuẩn (1m)' : `Nautilus • Nhanh (${result.provenance.base_frame || ''})`}
+          <span className="n-tag sm" style={{ marginLeft: 6 }} title={`Chế độ khớp: ${result.provenance.base_frame === '1m' ? 'Chuẩn (1m)' : `Nhanh (${result.provenance.base_frame || ''})`}`}>
+            {result.provenance.base_frame === '1m' ? 'Khớp Chuẩn (1m)' : `Khớp Nhanh (${result.provenance.base_frame || ''})`}
           </span>
         )}
       </div>

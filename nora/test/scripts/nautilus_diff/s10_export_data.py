@@ -35,7 +35,7 @@ def natr_np(df, n):
 
 def main():
     from backend.crawl.store import save_resampled_dataset
-    from backend.core.indicator import ema as nora_ema, natr as nora_natr
+    from backend.alpha.dsl.indicator import ema as nora_ema, natr as nora_natr
     os.makedirs(OUT, exist_ok=True)
     t0 = int(pd.Timestamp(START, tz="UTC").timestamp() * 1000)
     t1 = int(pd.Timestamp(END, tz="UTC").timestamp() * 1000) + DAY - 60_000

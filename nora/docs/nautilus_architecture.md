@@ -1,78 +1,121 @@
-# Kiến Trúc Nora Backend (Powered by Nautilus Trader)
+# Kiến Trúc Nora Backend (Nautilus Trader Native-First)
 
 > **Tài liệu tham chiếu chuẩn quốc tế:** [Nautilus Trader Documentation](https://nautilustrader.io/docs/)  
-> **Kho mã nguồn:** [nautechsystems/nautilus_trader (GitHub)](https://github.com/nautechsystems/nautilus_trader)
+> **Kho mã nguồn:** [nautechsystems/nautilus_trader (GitHub)](https://github.com/nautechsystems/nautilus_trader)  
+> **Phiên bản cố định:** `1.231.0` (OKX CEX Venue, Margin, Netting, USDT Base)
 
 ---
 
-## 1. Cấu Trúc Backend Mới (Tinh Gọn & Trực Tiếp)
+## 1. Phân Tầng Kiến Trúc Backend (Separation of Concerns)
 
-Toàn bộ các engine khớp lệnh tự viết cũ (`core`, `alpha`, `optimize`, `wfa`, `carlo`, `live`, `metrics`, `regime`) đã được dọn sạch khỏi `backend/` và lưu trữ nguyên vẹn tại [test/backend-no/](file:///home/vmc03/norabt/nora/test/backend-no/).
-
-Kiến trúc `backend/` hiện tại gồm 3 thành phần duy nhất:
+Hệ thống backend của Nora được chuẩn hóa theo mô hình phân tầng chặt chẽ. **Nautilus Trader là engine duy nhất** chịu trách nhiệm mô phỏng sự kiện, khớp lệnh, quản lý tài khoản và giao dịch thực tế. Các module khác đóng vai trò cung cấp dữ liệu, tối ưu hóa và phân tích rủi ro.
 
 ```text
-backend/
-├── crawl/                      # Giữ nguyên module crawl dữ liệu OKX (store.py, cex.py, dex.py)
-├── nautilus/                   # Core Engine Adapter kết nối Nautilus Trader 2.0
-│    ├── data.py                # Nạp nến trực tiếp từ /data/market/okx/cex/ và đổi sang Bar
-│    ├── engine.py              # NautilusRunner: Khởi tạo BacktestEngine, chạy và thu thập PnL/Metrics
-│    ├── strategy.py            # NoraNautilusStrategy: Đặt lệnh Entry, DCA, SL, TP, Trailing Stop
-│    └── version.py             # Quản lý phiên bản & tự động check update PyPI
-├── routes/
-│    ├── nautilus_api.py        # API Gateway phục vụ UI: /api/studio/* và /api/data/crawl
-│    └── __init__.py
-├── __init__.py
-└── main.py                     # FastAPI Application Gateway
+                                 [Nora Frontend UI / Studio]
+                                              │
+                                              ▼
+                                 [FastAPI Gateway: routes/]
+                                              │
+                     ┌────────────────────────┼────────────────────────┐
+                     │                        │                        │
+                     ▼                        ▼                        ▼
+           [backend/optimize/]        [backend/metrics/]       [backend/carlo/]
+           • Parameter Search         • Performance Metrics    • Monte Carlo
+           • Screening Funnel         • Market Regime          • WFA Analysis
+           • Background Workers         (regime.py)
+                     │                        │
+                     └────────────────────────┼────────────────────────┘
+                                              │
+                                              ▼
+                                    [backend/nautilus/]
+                         ★ TRÁI TIM KHỚP LỆNH & THỰC THI DUY NHẤT ★
+                         ├── runner.py    (Native Strategy Runner)
+                         ├── results.py   (UI Data Contract Formatter)
+                         ├── engine.py    (Portfolio / Backtest Engine)
+                         ├── strategy.py  (DSL -> Nautilus Adapter)
+                         ├── catalog.py   (Parquet Data Catalog)
+                         └── live.py      (OKX Live / Paper Connector)
+                                     ▲                 ▲
+                                     │                 │
+                ┌────────────────────┘                 └────────────────────┐
+                │                                                           │
+       [backend/models/]                                          [backend/crawl/]
+       • Domain Models & Data Schemas                             • OKX Market Data Fetcher
+       • Parameter & Risk Defaults                                • Parquet Store Sync
+       • Position Sizing Rules
+                │
+                ▼
+       [backend/alpha/dsl/]
+       • Vectorized Technical Indicators
+       • DSL AST Logic & Signal Trees
+```
+
+> **Lưu ý:** Thư mục `backend/core/` và `backend/regime/` đã được **XÓA BỎ HOÀN TOÀN** để loại bỏ mọi nhầm lẫn về engine cũ.
+
+---
+
+## 2. Chi Tiết Vai Trò Các Module
+
+### 2.1. `backend/nautilus/` — Execution & Backtest Engine Độc Quyền
+Trung tâm tính toán và thực thi toàn bộ chiến lược:
+- **`NativeNautilusRunner` (`runner.py`):** Thực thi trực tiếp các chiến lược viết bằng mã Python bản địa kế thừa từ `nautilus_trader.trading.strategy.Strategy`. Tự do sử dụng các chỉ báo, state machine, multi-order, dynamic risk của Nautilus mà không bị giới hạn bởi DSL.
+- **`format_nautilus_results` (`results.py`):** Trích xuất lịch sử lệnh, fill, position và equity curve từ `engine.cache` và `reports` của Nautilus, chuyển đổi khớp 100% với hợp đồng dữ liệu hiển thị của Nora UI.
+- **`BacktestEngine` / `PortfolioEngine` (`engine.py`):** Điều phối nạp dữ liệu nến, khởi tạo sàn giao dịch ảo OKX, gán phí maker/taker và đòn bẩy.
+- **`NautilusStrategy` (`strategy.py`):** Adapter chuyển đổi các chiến lược viết bằng cú pháp DSL cấu hình (AST tree) sang mô hình thực thi của Nautilus.
+- **`catalog.py`:** Quản lý kho `ParquetDataCatalog`, đồng bộ nến 1m, 5m, 15m, 1h, 4h, 1d từ kho dữ liệu OKX.
+
+### 2.2. `backend/models/` — Domain Data Models, Parameters & Position Sizing
+- `models.py`: Định nghĩa kiểu dữ liệu dùng chung (`PositionModel`, `OrderModel`, `CapitalLedger`, `Fill`).
+- `params.py`: Cấu hình tham số chiến lược, chi phí sàn, đòn bẩy và mặc định rủi ro.
+- `position_size.py`: Quy tắc phân bổ slot và tính toán quy mô vị thế.
+
+### 2.3. `backend/alpha/dsl/` — Domain-Specific Language (Cho Bộ Tạo Chiến Lược Kéo-Thả)
+- `indicator.py`: Bộ tính toán chỉ báo kỹ thuật vector hóa (EMA, RSI, MACD, ATR, Bollinger, SuperTrend...).
+- `signal.py` & `strategy.py`: Parser AST cây điều kiện, chuẩn bị kế hoạch tín hiệu (Signal Plan) cho các chiến lược tạo qua giao diện UI kéo thả trước khi chuyển vào Nautilus Adapter.
+
+### 2.4. `backend/optimize/` — Hyperparameter Search & Workflow Management
+- `search/`: Thuật toán Grid Search và Bayesian Optimization. Mọi trial đều gọi Nautilus Engine để tính PnL và Sharpe.
+- `funnel/`: Phễu sàng lọc Alpha 3 tầng (Fast Screening -> Full Backtest -> Stress Test).
+- `book/`: Quản lý sổ đăng ký chiến lược (Strategy Registry) và metadata.
+- `process/tasks.py`: Worker xử lý background jobs.
+
+### 2.5. `backend/metrics/` — Chỉ Số Đánh Giá & Phân Loại Regime Thị Trường
+- `metrics.py` & `trades.py` & `charts.py`: Thống kê PnL, Drawdown, Profit Factor, Sharpe/Sortino.
+- `regime.py`: Phân loại trạng thái thị trường trên từng cây nến (Trend Up/Down, Surge, Crash, Range) để cung cấp báo cáo chẩn đoán đa chế độ trên UI.
+
+### 2.6. `backend/carlo/` & `backend/wfa/` — Phân Tích Rủi Ro & Đánh Giá Độc Lập
+- `carlo/`: Mô phỏng Monte Carlo 10,000 kịch bản và stress-test kịch bản xấu (Black Swan).
+- `wfa/`: Walk-Forward Analysis kiểm tra tính bền vững out-of-sample của chiến lược.
+
+
+---
+
+## 3. Quy Trình Thực Thi Chiến Lược Đồng Nhất
+
+Dù người dùng tạo chiến lược bằng **Native Python Code** (Nautilus Trader Strategy) hay qua **Nora DSL / Visual Builder**, luồng thực thi tại backend đều hội tụ về Nautilus:
+
+```text
+[Mã Chiến Lược Người Dùng]
+        │
+        ├─► [Native Nautilus Strategy] ──► NativeNautilusRunner ──┐
+        │   (kế thừa nautilus Strategy)                           │
+        │                                                         ├──► BacktestEngine (Nautilus)
+        └─► [Nora DSL / Builder]        ──► NoraSlotStrategy   ──┘     • Venue OKX Margin/Netting
+            (AST Condition Tree)            (Nautilus Adapter)         • Parquet Data Catalog
+                                                                       • Ticker/Bar Event Streaming
+                                                                                  │
+                                                                                  ▼
+                                                                     [format_nautilus_results]
+                                                                                  │
+                                                                                  ▼
+                                                                     [Nora UI Standard Contract]
+                                                                     (Equity, Trades, Metrics, Regimes)
 ```
 
 ---
 
-## 2. Kết Nối Trực Tiếp Kho Dữ Liệu Đã Crawl Sẵn (`/home/vmc03/norabt/nora/data`)
+## 4. Kiểm Thử Hệ Thống (100% Verification PASS)
 
-Hệ thống kết nối trực tiếp kho nến thật đã crawl của OKX:
-- **Đường dẫn:** `/home/vmc03/norabt/nora/data/market/okx/cex/{SYMBOL}/perp/{TIMEFRAME}.pkl`
-- **10 Cặp Hợp Đồng Vĩnh Cửu Có Sẵn:** `BTC`, `ETH`, `SOL`, `XRP`, `DOGE`, `ADA`, `AVAX`, `BNB`, `LINK`, `TRX`.
-- **Khung thời gian:** `1m`, `5m`, `15m`, `1h`, `4h`, `24h` (chứa hơn 26,000 nến từ 2023 đến 2026).
-- **Tốc độ thực thi:** NautilusTrader chạy 1,000 nến thật chỉ mất **~0.007 giây** (7 mili-giây).
-
----
-
-## 3. Danh Sách API Hoạt Động
-
-1. `GET /api/studio/custom/defaults`: Trả về danh sách symbols có sẵn từ kho data thật, ngày mặc định, vốn.
-2. `GET /api/studio/strategies`: Trả về danh sách tham số vị thế cho UI render form.
-3. `POST /api/studio/custom/backtest`: Nhận tham số từ UI, nạp nến thật và chạy BacktestEngine của Nautilus.
-4. `GET /api/studio/book/jobs/{job_id}`: Trả về trạng thái job (`done`), biểu đồ nến, equity curve và metrics (Sharpe, Profit Factor, Win Rate, Drawdown).
-5. `POST /api/data/crawl`: Tiếp nhận yêu cầu crawl thêm nến cho symbol mới từ OKX.
-6. `GET /api/studio/nautilus/version`: Kiểm tra phiên bản Nautilus hiện tại và link docs.
-7. `GET /api/studio/nautilus/check_update`: Kiểm tra phiên bản mới nhất từ PyPI.
-
----
-
-## 4. Bốn Chế Độ Hoạt Động (Backtest -> Paper -> Testnet -> Live)
-
-1. **Backtest (Mô phỏng lịch sử):**
-   - Sử dụng `NautilusRunner` với `BacktestEngine` của NautilusTrader.
-   - Nạp trực tiếp dữ liệu nến thật từ kho `/home/vmc03/norabt/nora/data/market/okx/cex/`.
-   - Tốc độ thực thi: ~0.006s cho 500 nến, tính đầy đủ Sharpe, Sortino, Profit Factor, Drawdown.
-2. **Paper (Mô phỏng Realtime):**
-   - Sử dụng `SimulatedExchange` / Sandbox của Nautilus với dữ liệu thị trường trực tiếp.
-   - Khớp lệnh local, vốn ảo, không rủi ro, không cần gọi API key.
-3. **Testnet / Demo (OKX Demo Trading):**
-   - Đọc an toàn khóa API từ file `~/.config/nora/okx.env`.
-   - Kết nối trực tiếp OKX Demo Trading (`x-simulated-trading: 1`) với `OKXEnvironment.DEMO`.
-   - Đặt lệnh thật trên môi trường thử nghiệm sàn OKX.
-4. **Live (OKX Real Trading):**
-   - Kết nối sàn OKX thật (`OKXEnvironment.LIVE`).
-   - Có cơ chế bảo vệ **Demo Lock** (`NORA_OKX_DEMO=1`) ngăn chặn rủi ro gửi lệnh nhầm vào tài khoản thật.
-
----
-
-## 5. Kiểm Thử Hệ Thống (Verification 100% PASS)
-
-Tất cả các bộ test đều chạy tự động và PASS 100%:
-- `test/test_nautilus_runner.py`: Xác minh NautilusRunner độc lập.
-- `test/test_nautilus_api.py`: Xác minh toàn bộ 5 API kết nối dữ liệu thật và trả về kết quả chuẩn cho UI.
-- `test/test_all_modes_nautilus.py`: Kiểm thử liên hoàn toàn diện cả 4 chế độ (Backtest -> Paper -> Testnet -> Live).
-
+- **`test/test_nautilus_native.py`:** Xác minh Native Nautilus Strategy execution, metadata detection, AST bypass và worker task end-to-end (4/4 PASS).
+- **`test/test_nautilus_engine.py`:** Xác minh BacktestEngine & PortfolioEngine với dữ liệu OKX thực tế (13/13 PASS).
+- **`test/test_all_modes_nautilus.py`:** Xác minh 4 chế độ Backtest, Paper, Testnet, Live.

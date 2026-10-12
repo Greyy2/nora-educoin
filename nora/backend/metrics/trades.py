@@ -19,8 +19,8 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from backend.core.params import DAY_MS as DAY, FRAME_MS as FRAME_MS_ALL, HOUR_MS as HOUR, MINUTE_MS as MINUTE, date_ms, iso_date
-from backend.regime import regime as rg
+from backend.models.params import DAY_MS as DAY, FRAME_MS as FRAME_MS_ALL, HOUR_MS as HOUR, MINUTE_MS as MINUTE, date_ms, iso_date
+from backend.metrics import regime as rg
 
 LIQ_STATUS = "LIQ"
 NOTE_NO_TRADES = "không có lệnh nào"
@@ -627,7 +627,7 @@ def compare_events(exec_events: List[Any], sim_events: List[Any], timeframe: str
 # 5. pnl_structure: win rate, payoff, top 5 lệnh, chuỗi thua, fee drag, phân bổ coin & năm.
 # 6. regime_analysis: chế độ thị trường theo giá BTC (hoặc chỉ số rổ nếu không có BTC) trên/dưới SMA200 nhân quả: số ngày, lãi theo ngày, lệnh vào, thời gian có vị thế.
 # ══════════════════════════════════════════════════════════════════════════
-from backend.core.signal import Program
+from backend.alpha.dsl.signal import Program
 
 
 SMA_DAYS = 200
@@ -968,7 +968,7 @@ def compute_regime_analysis(series: Dict[str, np.ndarray], trades: List[Dict[str
 
 def _conjuncts(node) -> List[Any]:
     """Các vế cấp cao nhất của một chuỗi A & B & C (cả toán tử & lẫn op and_)."""
-    from backend.core.signal import Call, Logic
+    from backend.alpha.dsl.signal import Call, Logic
     if isinstance(node, Logic) and node.op == "&":
         return _conjuncts(node.a) + _conjuncts(node.b)
     if isinstance(node, Call) and not node.is_feature and node.spec.name == "and_":
@@ -981,7 +981,7 @@ def compute_binding_condition(program: Optional[Program], frames: Optional[Dict[
     đếm nến có open_time trong [start, end)). Mỗi vế: pct_true, only_false_bars (nến mà nó là vế DUY NHẤT sai = vế chặn), share_of_near_miss_pct = only_false / (tổng nến chỉ sai
     đúng một vế). `binding` = vế có phần chặn lớn nhất. Bỏ qua điều kiện giờ vào lệnh (position_open_times/ranges)."""
     from backend.alpha.compile import expr_to_vi
-    from backend.core.signal import Ctx
+    from backend.alpha.dsl.signal import Ctx
     if program is None or not frames:
         return {"available": False, "rules": [], "reason": "thiếu chương trình hoặc nến"}
     rules: List[Dict[str, Any]] = []
@@ -1228,7 +1228,7 @@ def build_result(program, plan, res, eng, a, start: int, end: int, capital: floa
                  test_res: Optional[Dict[str, Any]] = None, test_start: Optional[int] = None, bench: Optional[Dict[str, Any]] = None,
                  inputs: Optional[Dict[str, Any]] = None, test_bench: Optional[Dict[str, Any]] = None,
                  alpha_id: Optional[str] = None, checklist: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    from backend.core.strategy import FRAME_MS
+    from backend.alpha.dsl.strategy import FRAME_MS
     from backend.metrics.metrics import result_payload
     from backend.metrics.trades import rows_from_trade_list
     payload = result_payload(res, start, end)

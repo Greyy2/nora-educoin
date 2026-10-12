@@ -3,11 +3,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from backend.core import indicator as kernels
-from backend.core.signal import DslError
+from backend.alpha.dsl import indicator as kernels
+from backend.alpha.dsl.signal import DslError
 from backend.alpha.compile import compile_code, compile_report
-from backend.core import strategy as profiles
-from backend.core.params import AUTO, FRAME_MS, resolve_position_auto
+from backend.alpha.dsl import strategy as profiles
+from backend.models.params import AUTO, FRAME_MS, resolve_position_auto
 
 HEAD = "class S(SimpleAlgorithm):\n    def __algorithm__(self):\n"
 

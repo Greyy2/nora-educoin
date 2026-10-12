@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from backend.routes import alpha
-from backend.core import indicator as feat_mod, indicator as ops_mod
+from backend.alpha.dsl import indicator as feat_mod, indicator as ops_mod
 
 
 def test_dsl_reference():

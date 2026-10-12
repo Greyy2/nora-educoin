@@ -13,11 +13,18 @@ export const newDraft = (name, code, extra = {}) => ({
   id: uid(), name, code, baseCode: code, jobId: '', sampleKey: '', runAlpha: '', saved: null, stored: null, ...extra,
 })
 
-/** Chưa lưu: code khác bản đã lưu, hoặc kết quả chạy khác bản đã lưu; chưa lưu lần nào thì sửa code hoặc có lần chạy là chưa lưu. */
+/** Chưa lưu: chỉ cảnh báo khi người dùng thực sự sửa code so với bản gốc.
+ * Chiến lược mẫu hoặc chiến lược đã có trong hệ thống bản chất đã được lưu sẵn,
+ * việc chưa chạy hoặc chạy lại không làm mất mát gì nên không coi là dirty khi thoát. */
 export function isDraftDirty(d) {
   if (!d) return false
-  if (d.saved) return d.code !== d.saved.code || (!!d.jobId && d.runAlpha !== d.saved.alpha_id)
-  return d.code !== d.baseCode || !!d.jobId
+  const isSampleOrSaved = Boolean(d.sampleKey || d.saved || d.stored || d.alphaId)
+  if (isSampleOrSaved) {
+    // Chỉ dirty khi người dùng đã chỉnh sửa code so với bản gốc của mẫu / bản đã lưu
+    return d.code !== d.baseCode
+  }
+  // Chiến lược mới hẳn: chỉ dirty khi đã nhập code thực tế
+  return Boolean(d.code && d.code.trim().length > 0 && d.code !== d.baseCode)
 }
 
 /** Cấu hình đã lưu (config của kết quả) -> các trường form chạy. Tham số vị thế chỉ lấy các khoá có ô nhập. */

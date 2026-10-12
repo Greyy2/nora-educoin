@@ -108,7 +108,7 @@ def space_for(candidate: Dict[str, Any], mode: str = "grid", base_frame: str = "
         raise ValueError(f"space phải là một trong {SPACE_MODES}")
     if base_frame != "1m":
         from backend.optimize.book.build import frame_keys, lift_frame
-        from backend.core.params import schema_defaults
+        from backend.models.params import schema_defaults
         defaults = schema_defaults(candidate)
         schema = candidate.get("params_schema") or {}
         for k in frame_keys(candidate):
@@ -161,9 +161,9 @@ def validate_alpha(candidate: Dict[str, Any], params: Dict[str, Any], mode: str 
     mọi khung >= khung chạy, EMA nhanh < chậm, đòn bẩy <= S0_MAX_LEVERAGE, và dựng được tham số vị thế (build_params: ngân sách DCA...)."""
     from backend.optimize.funnel import stages as gates
     import math
-    from backend.core.strategy import FRAME_MS
+    from backend.alpha.dsl.strategy import FRAME_MS
     from backend.optimize.book.build import frame_keys
-    from backend.core.params import schema_defaults
+    from backend.models.params import schema_defaults
     params, rmode = split_regime(params)
     if rmode not in (None, "learn"):
         return f"regime phải là learn (nhận {rmode!r})"
@@ -178,16 +178,16 @@ def validate_alpha(candidate: Dict[str, Any], params: Dict[str, Any], mode: str 
         return f"khung {small} nhỏ hơn khung chạy {base_frame}"
     if mode == "schema":
         from backend.optimize.book.build import validate_params
-        from backend.core.params import schema_defaults
+        from backend.models.params import schema_defaults
         _, errs = validate_params(candidate, params, schema_defaults(candidate))
         if errs:
             return errs[0][1]
     elif not all(k in fkeys or (isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)) for k, v in params.items()):
         return "mọi tham số phải là số hữu hạn"
     try:
-        from backend.core.params import build_params
-        from backend.core.strategy import _strategy_flow
-        from backend.core.params import materialize
+        from backend.models.params import build_params
+        from backend.alpha.dsl.strategy import _strategy_flow
+        from backend.models.params import materialize
         st = materialize(candidate, params)
         if float(st["position"].get("leverage") or 1) > gates.S0_MAX_LEVERAGE:
             return f"đòn bẩy > {gates.S0_MAX_LEVERAGE}x"

@@ -106,7 +106,7 @@ def test_default_universe_and_window_come_from_the_store(market):
 
 
 def test_daily_series_labels_and_returns():
-    from backend.core.params import DAY_MS as DAY
+    from backend.models.params import DAY_MS as DAY
     from backend.metrics.trades import daily_series
     start = 10 * DAY
     curve = [{"time": start + h * 3_600_000, "equity": 100.0 + h} for h in range(0, 24 * 3)]
@@ -217,7 +217,7 @@ def test_benchmark_aligned_with_strategy_start_and_holds_without_risk_sizing(mar
 
 def test_yearly_table_drops_years_with_fewer_than_two_return_days():
     import pandas as pd
-    from backend.core.params import DAY_MS as DAY
+    from backend.models.params import DAY_MS as DAY
     from backend.metrics.trades import yearly_table
     start = int(pd.Timestamp("2019-12-31", tz="UTC").value // 1_000_000)
     times = start + np.arange(0, 6) * DAY                    # nhãn 12-31, 01-01 .. 01-05

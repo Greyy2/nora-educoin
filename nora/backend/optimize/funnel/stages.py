@@ -26,7 +26,7 @@ from backend.optimize.search.generate import alpha_id_of, count_params, iter_par
 from backend.metrics.trades import num_or_none
 from backend.crawl.store import as_list, options, read_json, write_job_result
 from backend.carlo import carlo
-from backend.core.params import BASE_RISK_PER_TRADE_PCT, DAY_MS as DAY, date_ms, iso_date
+from backend.models.params import BASE_RISK_PER_TRADE_PCT, DAY_MS as DAY, date_ms, iso_date
 from backend.wfa import wfa as wfa_mod
 
 
@@ -845,7 +845,7 @@ def _scalar_base(m: Dict[str, Any]) -> Dict[str, Any]:
 # ── Từng tầng ───────────────────────────────────────────────────────────────
 def check_timeframe(cfg: FunnelConfig) -> None:
     """Khung chạy phải là khung có dữ liệu và mọi chiến lược đã chọn phải có khung tín hiệu >= khung chạy."""
-    from backend.core.strategy import FRAME_MS
+    from backend.alpha.dsl.strategy import FRAME_MS
     from backend.optimize.search.generate import incompatible
     if cfg.timeframe not in FRAME_MS:
         raise ValueError(f"khung chạy không hợp lệ: {cfg.timeframe!r}")

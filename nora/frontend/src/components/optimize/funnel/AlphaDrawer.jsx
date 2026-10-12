@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Panel, Segmented, Status, Loading, ErrorState, ErrorBox, Spinner } from '../../ui'
 import Term from '../../ui/Term'
 import McResult from '../McResult'
@@ -203,7 +204,7 @@ export default function AlphaDrawer({ runId, alphaId, onClose, onTrades }) {
   const ts = tradeStage || tStages.find((s) => d?.stored_trades?.[s]) || tStages[0] || ''
   const mc = d?.mc
   const mcFits = mc && mc.fan?.p50?.length > 1 && mc.summary
-  return (
+  return createPortal(
     <div className="n-drawer-wrap">
       <div className="n-drawer-bg" onClick={onClose} aria-hidden="true" />
       <aside className="n-drawer" role="dialog" aria-modal="true" aria-label={`Chi tiết alpha ${alphaId}`} tabIndex={-1} ref={box}>
@@ -248,6 +249,7 @@ export default function AlphaDrawer({ runId, alphaId, onClose, onTrades }) {
           )}
         </div>
       </aside>
-    </div>
+    </div>,
+    document.body
   )
 }

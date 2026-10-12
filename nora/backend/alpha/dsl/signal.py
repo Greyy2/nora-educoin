@@ -14,8 +14,8 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple
 
 import numpy as np
 
-from backend.core.indicator import Spec, evaluate_feature, nan_nonfinite
-from backend.core.params import DATA_COLUMNS, FRAME_MS, MINUTE_MS as MINUTE, REGIME_NAMES
+from backend.alpha.dsl.indicator import Spec, evaluate_feature, nan_nonfinite
+from backend.models.params import DATA_COLUMNS, FRAME_MS, MINUTE_MS as MINUTE, REGIME_NAMES
 
 
 # ══════════════════════════════════════════════════════════════════════════

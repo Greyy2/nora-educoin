@@ -1,6 +1,6 @@
 """NoraSlotStrategy (P15): MỘT Strategy của Nautilus cho mỗi (chiến lược × tài sản) — ngữ nghĩa PositionManager cũ trên lệnh Nautilus.
 
-Tín hiệu (match / stop / vol / dca) tính SẴN bằng backend.core.strategy (cùng đường dữ liệu engine cũ) và tra theo open_time của nến khung chạy
+Tín hiệu (match / stop / vol / dca) tính SẴN bằng backend.alpha.dsl.strategy (cùng đường dữ liệu engine cũ) và tra theo open_time của nến khung chạy
 (ts_event của Bar = open_time + độ dài khung). Lệnh, khớp, phí, số dư, vị thế do Nautilus sinh; strategy chỉ quyết định.
 
 Quy ước thời điểm (khác engine cũ, ghi trong kết quả `fill_convention`): engine cũ vào lệnh ở GIÁ MỞ nến kế tiếp; Nautilus (bar_execution) khớp lệnh
@@ -22,8 +22,8 @@ from nautilus_trader.model.instruments import CryptoPerpetual
 from nautilus_trader.model.objects import Quantity
 from nautilus_trader.trading.strategy import Strategy, StrategyConfig
 
-from backend.core import position_size as policy
-from backend.core.models import OrderModel, OrderType, PositionModel, PositionStatus, next_id
+from backend.models import position_size as policy
+from backend.models.models import OrderModel, OrderType, PositionModel, PositionStatus, next_id
 
 FLAT, ENTERING, OPEN, EXITING = 0, 1, 2, 3
 REASONS = {"ENTRY": "Tín hiệu vào lệnh (AST match)", "DCA": "DCA", "EXIT": "Tín hiệu thoát (AST stop)", "TIMEOUT": "Hết thời gian giữ lệnh",

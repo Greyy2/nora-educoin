@@ -1,1 +1,4 @@
-"""Chỉ số, bảng lệnh, chuỗi biểu đồ (P9.5). Xem docs/bmad/adr-p9-backend-layout.md."""
+"""Chỉ số, bảng lệnh, chuỗi biểu đồ, phân tích regime thị trường."""
+from backend.metrics import regime
+
+__all__ = ["regime"]

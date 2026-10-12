@@ -32,12 +32,13 @@ if _NORA not in sys.path:
     sys.path.insert(0, _NORA)
 
 from backend.alpha.compile import compile_code  # noqa: E402
-from backend.core import params as profiles, strategy as profiles_core  # noqa: E402
+from backend.models import params as profiles  # noqa: E402
+from backend.alpha.dsl import strategy as profiles_core  # noqa: E402
 from backend.alpha.compile import explain_program  # noqa: E402
-from backend.core.signal import Bin, BoolConst, Call, Cmp, Const, Data, Inv, Logic, Neg, Pick  # noqa: E402
-from backend.core.indicator import FEATURE_SPECS_DATA, OP_SPECS_DATA  # noqa: E402
-from backend.core.params import POSITION_KEYS
-from backend.core.models import DATA_DIR  # noqa: E402
+from backend.alpha.dsl.signal import Bin, BoolConst, Call, Cmp, Const, Data, Inv, Logic, Neg, Pick  # noqa: E402
+from backend.alpha.dsl.indicator import FEATURE_SPECS_DATA, OP_SPECS_DATA  # noqa: E402
+from backend.models.params import POSITION_KEYS
+from backend.models.models import DATA_DIR  # noqa: E402
 from backend.crawl.store import load_samples as _load_samples  # noqa: E402
 
 CATEGORIES = ["Trend Following", "Mean Reversion", "Breakout & Momentum", "Multi-Indicator Confluence", "Risk-Managed & Exits"]

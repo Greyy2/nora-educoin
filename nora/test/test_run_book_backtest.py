@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from backend.core.params import date_ms
+from backend.models.params import date_ms
 from backend.crawl.store import save_resampled_dataset
 
 pytestmark = pytest.mark.usefixtures("synthetic_data")   # P15: engine Nautilus lấy nến thực thi + spec từ DataSource; dữ liệu giả lập -> conftest.synthetic_data
@@ -141,7 +141,7 @@ def test_trade_list_has_notional_and_daily_nav(market, tmp_path):
 def test_strategy_symbols_filter_restricts_markets(market):
     """Khoá "symbols" của chiến lược dựng sẵn (alpha trong kho) -> chỉ chạy trên các tài sản đó; mặc định vẫn là mọi tài sản."""
     from backend.optimize.book import build as sb
-    from backend.core.params import materialize
+    from backend.models.params import materialize
     mod = _load_script()
     cand = sb.BY_ID["t_long"]
     base = materialize(cand, {"sig.lo": 45, "stop_loss_rate": 2.0, "take_profit_rate": 2.0, "timeout": 720})

@@ -79,11 +79,41 @@ def get_user_alphas(
     return user_alphas.list_user_alphas(sort=sort, status=status)
 
 
+_SAMPLE_RESULTS_CACHE = None
+_SAMPLES_CACHE = None
+
+
+def _get_sample_data():
+    global _SAMPLE_RESULTS_CACHE, _SAMPLES_CACHE
+    if _SAMPLE_RESULTS_CACHE is None or _SAMPLES_CACHE is None:
+        from backend.crawl.store import alpha_education_samples
+        samples_path = alpha_education_samples()
+        _SAMPLES_CACHE = _read(samples_path) or []
+        results_path = os.path.join(os.path.dirname(samples_path), "sample_results.json")
+        _SAMPLE_RESULTS_CACHE = _read(results_path) or {}
+    return _SAMPLES_CACHE, _SAMPLE_RESULTS_CACHE
+
+
 @alphas_router.get("/user/{alpha_id}")
 def get_user_alpha_detail(alpha_id: str) -> Dict[str, Any]:
-    """Lấy chi tiết một Alpha người dùng."""
+    """Lấy chi tiết một Alpha người dùng hoặc chiến lược mẫu đã có kết quả."""
     rec = user_alphas.get_user_alpha(alpha_id)
     if not rec:
+        # Fallback tra cứu trong kho kết quả mẫu (sử dụng in-memory cache)
+        samples, res_data = _get_sample_data()
+        sample_item = next((s for s in samples if s.get("key") == alpha_id or s.get("name") == alpha_id), None)
+        if sample_item and alpha_id in res_data:
+            s_res = res_data[alpha_id]
+            return {
+                "id": alpha_id,
+                "name": sample_item.get("name", alpha_id),
+                "code": sample_item.get("code", ""),
+                "config": s_res.get("config", {}),
+                "metrics": s_res.get("metrics", {}),
+                "result": s_res,
+                "status": "SAVED",
+                "version": 1,
+            }
         raise HTTPException(status_code=404, detail=f"Không tìm thấy alpha {alpha_id}")
     return rec
 
@@ -149,7 +179,7 @@ from pydantic import BaseModel, Field
 from backend.routes import process as batch_jobs
 from backend.optimize.book import build as presets_mod
 from backend.routes import process as rm
-from backend.core.params import FRAMES
+from backend.models.params import FRAMES
 from backend.alpha import compile as dsl
 
 strategies_router = APIRouter(prefix="/api/studio/strategies", tags=["strategies"])
@@ -232,7 +262,7 @@ _DATA_DOC = {"open": "Giá mở cửa", "high": "Giá cao nhất", "low": "Giá 
 
 
 def _sig_param(p) -> str:
-    from backend.core.indicator import REQUIRED
+    from backend.alpha.dsl.indicator import REQUIRED
     return p.name if p.default is REQUIRED else f"{p.name}={p.default!r}"
 
 
@@ -261,8 +291,8 @@ def _spec_rows(specs: Dict[str, Any], prefix: str) -> List[Dict[str, Any]]:
 @strategies_router.get("/dsl")
 def get_dsl_reference() -> Dict[str, Any]:
     """Danh sách những gì DSL hỗ trợ (chỉ đọc): cột dữ liệu self.data.pv_*, chỉ báo self.feat.*, operator self.op.*."""
-    from backend.core import indicator as feat_mod, indicator as ops_mod
-    from backend.core.signal import DATA_COLUMNS
+    from backend.alpha.dsl import indicator as feat_mod, indicator as ops_mod
+    from backend.alpha.dsl.signal import DATA_COLUMNS
     return {"data": [{"name": f"pv_{c}", "signature": f"self.data.pv_{c}", "doc": _DATA_DOC.get(c, c)} for c in DATA_COLUMNS],
             "features": _spec_rows(feat_mod.FEATURES, "self.feat"), "operators": _spec_rows(ops_mod.OPS, "self.op")}
 
@@ -396,7 +426,7 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from backend.core.params import FRAME_MS
+from backend.models.params import FRAME_MS
 
 chart_router = APIRouter(prefix="/api/studio/chart", tags=["chart"])
 MAX_BARS = 5000          # nến tối đa trong cửa sổ trả về
@@ -428,7 +458,7 @@ def _load_book(kind: str) -> Dict[str, Any]:
 def _strategy(req: ChartExplainRequest):
     """-> (chiến lược đã materialize, khung chạy, thông tin hiển thị)."""
     from backend.optimize.book.build import lift_frames
-    from backend.core.params import materialize
+    from backend.models.params import materialize
     from backend.optimize.book.build import BY_ID
     by = BY_ID
     if req.run_id and req.alpha_id:
@@ -492,7 +522,7 @@ def _read_frame(path: str):
 def _frames(symbol: str, st: Dict[str, Any], tf: str) -> Dict[str, Any]:
     """Kho nến của sàn đang dùng (toàn bộ lịch sử)."""
     from backend.crawl.store import market_dir
-    from backend.core.strategy import required_frames
+    from backend.alpha.dsl.strategy import required_frames
     need = required_frames(symbol, [st], tf)
     root = market_dir(venue="cex", symbol=symbol, instrument="perp")
     out = {}
@@ -555,13 +585,40 @@ def _read(path: str):
 
 @education_router.get("/samples")
 def get_education_samples():
-    """Trả về 50 mẫu chiến lược giáo dục chuẩn từ data/alpha/education/samples.json."""
-    from backend.crawl.store import alpha_education_samples
-    samples_path = alpha_education_samples()
-    data = _read(samples_path)
-    if data is None:
+    """Trả về danh sách 50 mẫu chiến lược giáo dục. Mẫu đầu tiên kèm toàn bộ result để view tức thì, các mẫu khác kèm metrics nhẹ."""
+    samples, res_data = _get_sample_data()
+    if not samples:
         raise HTTPException(404, "Không tìm thấy file mẫu education/samples.json")
-    return data
+    out = []
+    for idx, s in enumerate(samples):
+        item = dict(s)
+        k = item.get("key")
+        if k and k in res_data:
+            r = res_data[k]
+            item["metrics"] = r.get("metrics")
+            init_cap = r.get("config", {}).get("initial_capital", 10000.0)
+            fin_eq = r.get("final_equity")
+            item["initial_capital"] = init_cap
+            item["final_equity"] = fin_eq
+            if fin_eq is not None:
+                item["pnl_usd"] = round(fin_eq - init_cap, 2)
+            elif item["metrics"] and "simulate" in item["metrics"]:
+                sim_ret = item["metrics"]["simulate"].get("ret_pct", 0)
+                item["pnl_usd"] = round(init_cap * sim_ret / 100, 2)
+            # Mẫu đầu tiên đính kèm toàn bộ result để client view ngay lập tức khi load trang mà không cần request thứ hai
+            if idx == 0:
+                item["result"] = r
+        out.append(item)
+    return out
+
+
+@education_router.get("/samples/{key}/result")
+def get_education_sample_result(key: str):
+    """Lấy chi tiết kết quả backtest chuẩn của 1 mẫu cụ thể khi người dùng chọn xem."""
+    _, res_data = _get_sample_data()
+    if key not in res_data:
+        raise HTTPException(404, f"Không tìm thấy kết quả của mẫu {key}")
+    return res_data[key]
 
 
 

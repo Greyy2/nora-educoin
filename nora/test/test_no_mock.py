@@ -174,6 +174,6 @@ def test_meta_unsupported_keys_are_flagged(client):
 
 def test_default_position_does_not_trigger_unsupported_warnings():
     # mặc định (slippage 0, limit_through 0, stop_fill level, intrabar ohlc) không kích cảnh báo "không mô phỏng" cho các khoá đó
-    from backend.core.params import BASE_POSITION, VENUE_COSTS, StrategyParams
+    from backend.models.params import BASE_POSITION, VENUE_COSTS, StrategyParams
     assert BASE_POSITION["limit_through_pct"] == 0.0 and BASE_POSITION["stop_fill"] == "level"
     assert all(v[2] == 0.0 for k, v in VENUE_COSTS.items() if k[0] == "cex") and StrategyParams().slippage_rate == 0.0

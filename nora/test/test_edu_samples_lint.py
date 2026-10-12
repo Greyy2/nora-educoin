@@ -7,7 +7,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "scripts"))
 import lint_edu_samples as L  # noqa: E402
-from backend.core.indicator import FEATURE_SPECS_DATA, OP_SPECS_DATA  # noqa: E402
+from backend.alpha.dsl.indicator import FEATURE_SPECS_DATA, OP_SPECS_DATA  # noqa: E402
 
 FEATS, OPS = set(FEATURE_SPECS_DATA), set(OP_SPECS_DATA)
 
@@ -71,7 +71,7 @@ def test_samples_declare_every_parameter_explicitly():
     import re
     import backend.optimize  # noqa: F401  (đăng ký nguồn dữ liệu cho build_plan)
     from backend.alpha.compile import compile_code
-    from backend.core.strategy import build_plan
+    from backend.alpha.dsl.strategy import build_plan
     for s in L.load_samples():
         assert "position" not in s, s["key"]
         prog = compile_code(s["code"], register=False)

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Spinner } from '../../ui'
 import CodeEditor from './CodeEditor'
 import AssistChip, { AssistList } from './AssistChip'
@@ -68,7 +69,7 @@ export default function SystemStrategyEditor({ id, name, onClose, onSaved }) {
   }
 
   const blocked = assist?.status === 'done' && assist.verdict === 'REJECT'
-  return (
+  return createPortal(
     <div className="n-modal-backdrop" onClick={tryClose}>
       <div className="n-modal-content sse-box" role="dialog" aria-modal="true" aria-label={`Sửa mã nguồn ${name || id}`} onClick={(e) => e.stopPropagation()}>
         <header className="sse-hd">
@@ -100,6 +101,7 @@ export default function SystemStrategyEditor({ id, name, onClose, onSaved }) {
           </footer>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

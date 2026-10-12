@@ -17,7 +17,7 @@ import useUnsavedGuard from '../../../hooks/useUnsavedGuard'
 import { useRunDefaults, resolveForm } from '../../../lib/runDefaults'
 import { POSITION_KEYS, validateRun, buildRunBody } from '../../../lib/runForm'
 import { newDraft, isDraftDirty, configToForm } from '../../../lib/studioDraft'
-import { postCompileStrategy, postCustomBacktest, postSaveUserAlpha, getUserAlphas, getUserAlphaDetail, getUserAlphaCode, getUserAlphaVersionCode, getEducationSamples, postAnnotate } from '../../../api'
+import { postCompileStrategy, postCustomBacktest, postSaveUserAlpha, getUserAlphas, getUserAlphaDetail, getUserAlphaCode, getUserAlphaVersionCode, getEducationSamples, getEducationSampleResult, postAnnotate } from '../../../api'
 import UserAlphaVersionHistory from './UserAlphaVersionHistory'
 import { parseCompileError } from '../../../lib/customResult'
 import '../../../styles/alpha.css'
@@ -131,18 +131,13 @@ export default function StudioWorkspace({ mode = 'create' }) {
     } finally { setBusy('') }
   }
 
-  // "Lưu chiến lược" chỉ bật khi: (1) lần chạy XONG của CHÍNH code đang soạn (runCode === code, máy chủ vẫn kiểm lại program_hash) VÀ
-  // (2) là chiến lược mới, hoặc mẫu / alpha đã lưu mà code đã khác bản gốc (baseCode) VÀ (3) chương trình này (program_hash) chưa có trong kho alpha người dùng.
+  // "Lưu chiến lược": cho phép lưu cả mẫu hoặc chiến lược sửa đổi để cập nhật kết quả vào hệ thống
   const savedItems = Array.isArray(saved.data) ? saved.data : []
-  const isDup = !!jobResult && (savedItems.some((a) => a.program_hash && a.program_hash === jobResult.program_hash) || (!!draft.saved && draft.saved.code === draft.code))
-  const unchanged = draft.code === draft.baseCode && !!draft.baseCode.trim()
-  const canSave = !!jobResult && draft.runCode === draft.code && !unchanged && !isDup && !busy
+  const canSave = !!jobResult && draft.runCode === draft.code && !busy
   const saveWhy = !draft.jobId ? 'Chạy backtest cho code hiện tại trước khi lưu'
     : !jobResult ? 'Chờ lần chạy hoàn tất'
       : draft.runCode !== draft.code ? 'Chạy lại sau khi sửa'
-        : unchanged ? (draft.sampleKey ? 'Mẫu chưa thay đổi: sửa code hoặc tham số rồi chạy lại' : 'Chưa sửa so với bản đã lưu: sửa code rồi chạy lại')
-          : isDup ? 'Đã lưu chiến lược này'
-            : 'Lưu chiến lược (code + cấu hình + kết quả đầy đủ)'
+        : 'Lưu chiến lược (cập nhật kết quả vào hệ thống)'
 
   function markSaved(res, name) {
     patchById(draft.id, { saved: { alpha_id: res.alpha_id, code: draft.code, name: name || draft.name }, runAlpha: res.alpha_id, name: name || draft.name, stored: null, ...(res.version ? { alphaId: res.alpha_id, alphaVersion: res.version } : {}) })
@@ -184,21 +179,54 @@ export default function StudioWorkspace({ mode = 'create' }) {
   const sampleList = Array.isArray(sampleRes.data) ? sampleRes.data : []
   const sampleText = async (code) => { if (!educ) return code; try { return (await postAnnotate(code, { as_comments: true })).annotated_code || code } catch (e) { return code } }
 
-  // Mở trang: tab 1 nạp sẵn mẫu đầu tiên (education: bản có chú thích `# ▸`; create: nguyên bản). Không làm nếu đang mở job / alpha qua URL hoặc tab 1 đã có nội dung.
+  // Mở trang: tab 1 nạp sẵn mẫu đầu tiên kèm kết quả để view ngay lập tức cả code và kết quả mẫu đó
   const seeding = useRef(false)
   useEffect(() => {
     if (st.seeded || seeding.current || !sampleList.length) return
     if (qJob || qAlpha) { set({ seeded: true }); return }
     seeding.current = true
     const s0 = sampleList[0]
-    sampleText(s0.code).then((text) => {
+    const matched = savedItems.find(
+      (a) => a.name === s0.name || a.id === s0.key || (a.code && a.code.trim() === s0.code.trim())
+    )
+
+    sampleText(s0.code).then(async (text) => {
+      let rec = null
+      if (matched) {
+        try { rec = await getUserAlphaDetail(matched.id) } catch (e) { /* fallback */ }
+      }
+      const s0Res = rec?.result || s0.result || null
+      const storedRec = s0Res ? {
+        id: rec?.id || s0.key || s0.name,
+        name: rec?.name || s0.name,
+        result: s0Res,
+        metrics: rec?.metrics || s0.metrics || s0Res.metrics || null,
+        code: rec?.code || s0.code,
+        config: rec?.config || s0Res.config || null,
+      } : (rec || null)
+
       set((p) => {
         const d0 = p.drafts[0]
         const pristine = p.drafts.length === 1 && d0 && !d0.code.trim() && !d0.jobId
-        return { seeded: true, ...(pristine ? { drafts: [newDraft(s0.name, text, { sampleKey: s0.key || s0.name })], active: '' } : {}) }
+        if (!pristine) return { seeded: true }
+        const d = newDraft(rec?.name || s0.name, text, {
+          sampleKey: s0.key || s0.name,
+          saved: storedRec ? { alpha_id: storedRec.id, code: s0.code, name: storedRec.name } : null,
+          stored: storedRec,
+          runAlpha: storedRec?.id || '',
+          alphaId: rec?.id || '',
+          alphaVersion: rec?.version || 1,
+        })
+        return {
+          seeded: true,
+          drafts: [d],
+          active: d.id,
+          tab: storedRec?.result ? 'results' : 'results',
+          form: (storedRec?.config) ? { ...p.form, ...configToForm(storedRec.config, POSITION_KEYS) } : p.form,
+        }
       })
     })
-  }, [sampleList.length, st.seeded]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sampleList.length, savedItems.length, st.seeded]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Giải thích từng dòng (chỉ education) = chú thích `# ▸` trong chính code, do backend sinh (annotate as_comments, idempotent); không có widget nào trong editor.
   const [annBusy, setAnnBusy] = useState(false)
@@ -214,25 +242,125 @@ export default function StudioWorkspace({ mode = 'create' }) {
     } catch (e) { setNote({ tone: 'bad', text: `Không ${strip ? 'bỏ' : 'tạo'} được chú thích: ${e.message}` }) } finally { setAnnBusy(false) }
   }
 
+  async function activateTab(id) {
+    const target = drafts.find((d) => d.id === id)
+    set({ active: id })
+    setTab('results')
+
+    if (target && target.sampleKey && !target.stored?.result && !target.jobId) {
+      try {
+        const resData = await getEducationSampleResult(target.sampleKey)
+        if (resData) {
+          patchById(id, {
+            stored: {
+              id: target.sampleKey,
+              name: target.name,
+              result: resData,
+              metrics: resData.metrics,
+              code: target.code,
+              config: resData.config,
+            },
+          })
+        }
+      } catch (e) {
+        // fallback
+      }
+    }
+  }
+
+  // Luôn đảm bảo chiến lược mẫu đang xem có kết quả backtest sẵn sàng để hiển thị ngay
+  useEffect(() => {
+    if (draft.sampleKey && !draft.stored?.result && !draft.jobId) {
+      getEducationSampleResult(draft.sampleKey).then((resData) => {
+        if (resData) {
+          patchById(draft.id, {
+            stored: {
+              id: draft.sampleKey,
+              name: draft.name,
+              result: resData,
+              metrics: resData.metrics,
+              code: draft.code,
+              config: resData.config,
+            },
+          })
+        }
+      }).catch(() => {})
+    }
+  }, [draft.id, draft.sampleKey, draft.stored?.result, draft.jobId]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const tm = compiled?.meta?.timeframe
   const uniText = `${form.symbols.length} tài sản`
   const issue = compiled && !stale && !compiled.ok
-  const TABS = [['samples', 'Mẫu'], ['results', 'Kết quả']]
+  const TABS = [['samples', 'Chiến lược mẫu'], ['results', 'Kết quả']]
   async function useSample(s) {
+    const sampleKey = s.key || s.name
+
+    // 1. Nếu mẫu này đã mở ở tab file nào rồi -> chọn ngay tab đó và view result
+    const openDraft = drafts.find(
+      (d) => (d.sampleKey && d.sampleKey === sampleKey) || d.name === s.name
+    )
+    if (openDraft) {
+      await activateTab(openDraft.id)
+      return
+    }
+
+    // 2. Nếu mẫu này đã có bản lưu trong kho alpha người dùng -> mở bản lưu
+    const matched = savedItems.find(
+      (a) => a.name === s.name || a.id === s.key || a.program_hash === s.program_hash
+    )
+    if (matched) {
+      await openSaved(matched.id)
+      return
+    }
+
+    // 3. Chuẩn bị kết quả mẫu
+    let sampleResData = s.result
+    if (!sampleResData && s.key) {
+      try {
+        sampleResData = await getEducationSampleResult(s.key)
+      } catch (e) {
+        // fallback
+      }
+    }
     const text = await sampleText(s.code)
-    const d = newDraft(s.name, text, { sampleKey: s.key || s.name })
+    const storedRec = sampleResData ? {
+      id: s.key || s.name,
+      name: s.name,
+      result: sampleResData,
+      metrics: s.metrics || sampleResData.metrics,
+      code: s.code,
+      config: sampleResData.config,
+    } : null
+
+    const d = newDraft(s.name, text, {
+      sampleKey: s.key || s.name,
+      stored: storedRec,
+      saved: storedRec ? { alpha_id: s.key || s.name, code: s.code, name: s.name } : null,
+      runAlpha: s.key || '',
+    })
+
     set((p) => {
       // Tab đang mở còn trống (chưa có code/ghi chú, chưa chạy, chưa lưu) -> ghi mẫu vào chính tab đó; ngược lại mở tab mới.
       const cur = p.drafts.find((x) => x.id === p.active) || p.drafts[0]
       if (cur && !cur.code.trim() && !cur.jobId && !cur.saved && !cur.alphaId) {
-        return { drafts: p.drafts.map((x) => (x.id === cur.id ? { ...d, id: cur.id } : x)), active: cur.id }
+        return {
+          drafts: p.drafts.map((x) => (x.id === cur.id ? { ...d, id: cur.id } : x)),
+          active: cur.id,
+          form: (sampleResData?.config) ? { ...p.form, ...configToForm(sampleResData.config, POSITION_KEYS) } : p.form,
+        }
       }
-      return { drafts: [...p.drafts, d], active: d.id }
+      return {
+        drafts: [...p.drafts, d],
+        active: d.id,
+        form: (sampleResData?.config) ? { ...p.form, ...configToForm(sampleResData.config, POSITION_KEYS) } : p.form,
+      }
     })
     setCompiled(null)
+    setTab('results') // Bắt buộc lập tức chuyển sang tab results!
   }
   const expired = !!draft.jobId && !job && (jobErrStatus === 404 || jobErrStatus === 410)
-  const chip = draft.saved ? (dirty ? 'Đã sửa, chưa lưu' : 'Đã lưu') : dirty ? 'Chưa lưu' : 'Nháp'
+  const isSampleOrSaved = Boolean(draft.sampleKey || draft.saved || draft.stored || draft.alphaId)
+  const chip = isSampleOrSaved ? (dirty ? 'Đã sửa, chưa lưu' : 'Đã lưu') : dirty ? 'Chưa lưu' : 'Nháp'
 
   return (
     <div className="se-ws">
@@ -240,7 +368,7 @@ export default function StudioWorkspace({ mode = 'create' }) {
         <div className="se-tabs" role="tablist" aria-label="Bản nháp">
           {drafts.map((d) => (
             <div key={d.id} className={`se-tab ${d.id === draft.id ? 'on' : ''}`}>
-              <button type="button" role="tab" aria-selected={d.id === draft.id} title={d.name} onClick={() => set({ active: d.id })}>
+              <button type="button" role="tab" aria-selected={d.id === draft.id} title={d.name} onClick={() => activateTab(d.id)}>
                 {isDraftDirty(d) ? <span className="dirty-dot" title="Có thay đổi chưa lưu" /> : null}
                 <span className="file-icon" style={{ opacity: 0.75, fontSize: 12 }}>🐍</span>
                 <span>{d.name.endsWith('.py') ? d.name : `${d.name}.py`}</span>
@@ -254,7 +382,7 @@ export default function StudioWorkspace({ mode = 'create' }) {
         <div className="se-hd">
           <input className="se-name" aria-label="Tên chiến lược" placeholder="Tên chiến lược" value={draft.name} onChange={(e) => patchDraft({ name: e.target.value })} />
           <div className="se-chips">
-            <button type="button" className="se-chip" onClick={() => setSetOpen(true)} title={draft.saved ? `Alpha ${draft.saved.alpha_id}` : 'Chưa lưu: bản nháp và kết quả chạy chỉ tồn tại trong phiên này'}><i className={`d ${draft.saved && !dirty ? 'ok' : ''}`} />{chip}</button>
+            <button type="button" className="se-chip" onClick={() => setSetOpen(true)} title={isSampleOrSaved ? (dirty ? 'Đã sửa so với mẫu gốc' : 'Chiến lược đã lưu trong hệ thống') : (dirty ? 'Chiến lược mới chưa lưu' : 'Bản nháp mới')}><i className={`d ${isSampleOrSaved && !dirty ? 'ok' : ''}`} />{chip}</button>
             <button type="button" className="se-chip" onClick={() => setSetOpen(true)} title="Rổ tài sản"><i className="d" />{uniText}</button>
             {tm && <span className="se-chip"><i className="d" />{tm}</span>}
             {draft.alphaId && (
@@ -363,7 +491,7 @@ export default function StudioWorkspace({ mode = 'create' }) {
                   jobLine={<JobLine job={job} savedId={draft.saved && draft.saved.alpha_id === draft.runAlpha ? draft.saved.alpha_id : ''} onClear={() => patchDraft({ jobId: '', runCode: '', runAlpha: draft.saved ? draft.saved.alpha_id : '' })} />}
                 />
               )}
-              {!draft.jobId && draft.stored?.result && <CustomResult key={`s-${draft.stored.id}`} result={draft.stored.result} explain={educ} tourKey={educ ? `s-${draft.stored.id}` : ''} jobLine={<StoredLine rec={draft.stored} />} />}
+              {!draft.jobId && draft.stored?.result && <CustomResult key={`s-${draft.stored.id}`} result={draft.stored.result} explain={educ} tourKey="" jobLine={<StoredLine rec={draft.stored} />} />}
               {!draft.jobId && !draft.stored?.result && <Empty title="Chưa có kết quả">Chọn rổ tài sản và khoảng ngày ở biểu tượng cài đặt, rồi bấm “Chạy backtest”. Kết quả (Train / Test / Toàn kỳ, đường lãi lỗ, drawdown, lệnh) hiện ở đây và chỉ là tạm thời cho tới khi bấm “Lưu chiến lược”.</Empty>}
             </div>
           )}

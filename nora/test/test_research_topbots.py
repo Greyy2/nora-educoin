@@ -14,7 +14,7 @@ import pandas as pd
 import pytest
 
 from scripts import research_topbots as rt
-from backend.core.params import dca_budget_check, resolve_costs
+from backend.models.params import dca_budget_check, resolve_costs
 from backend.crawl.store import save_resampled_dataset
 
 pytestmark = pytest.mark.usefixtures("synthetic_data")   # P15: engine Nautilus lấy nến thực thi + spec từ DataSource; dữ liệu giả lập -> conftest.synthetic_data

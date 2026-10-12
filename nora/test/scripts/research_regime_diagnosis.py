@@ -30,7 +30,7 @@ HOUR = 3_600_000
 
 def _strategies(items, rpt, regime_of):
     from backend.optimize.book.build import lift_frames
-    from backend.core.params import materialize
+    from backend.models.params import materialize
     from backend.optimize.book.build import CANDIDATES
     by_id = {c["id"]: c for c in CANDIDATES}
     return [materialize(by_id[cid], lift_frames(by_id[cid], prm, TF), regime=regime_of(cid) or False, stop_fill="level",
@@ -39,7 +39,7 @@ def _strategies(items, rpt, regime_of):
 
 def bt(items, symbols, start, end, rpt, regime_of=lambda cid: None):
     from backend.optimize.search.evaluate import run
-    from backend.core.params import RISK
+    from backend.models.params import RISK
     out = run([], symbols, start, end, rpt, "level", RISK, extra_strategies=_strategies(items, rpt, regime_of), base_frame=TF)
     by = {}
     for t in out["trade_list"]:
@@ -58,9 +58,9 @@ def main():
     ap.add_argument("--out", default=os.path.join(NORA_ROOT, "data", "_cache", "research", "regime_diagnosis.json"))
     a = ap.parse_args()
     from backend.optimize.search.evaluate import WARMUP
-    from backend.regime import regime as rg
-    from backend.regime.regime import OBSERVE, by_regime, learn_map, trade_regime
-    from backend.core.params import REGIME_MAP
+    from backend.metrics import regime as rg
+    from backend.metrics.regime import OBSERVE, by_regime, learn_map, trade_regime
+    from backend.models.params import REGIME_MAP
     from backend.optimize.book.build import perp_symbols
     from backend.optimize.funnel.stages import compute_windows
     from backend.optimize.process.tasks import _book_items

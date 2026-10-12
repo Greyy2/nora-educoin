@@ -171,7 +171,7 @@ def graceful_sigterm(progress: Optional[Progress] = None) -> Iterator[None]:
 # queued suy ra từ out.log. Huỷ: cancel(job_id) gửi SIGTERM cho CẢ nhóm tiến trình (job flush kho kết quả rồi thoát -> chạy lại bằng resume). Không dùng shell.
 # ══════════════════════════════════════════════════════════════════════════
 
-from backend.core.models import NORA_DIR  # noqa: E402  (định nghĩa duy nhất ở core/models)
+from backend.models.models import NORA_DIR  # noqa: E402  (định nghĩa duy nhất ở core/models)
 RUN_LIMITED = os.path.join(NORA_DIR, "ops", "run_limited.sh")
 
 # Danh sách trắng: loại job -> (module có run_job(params), các khoá tham số được phép)

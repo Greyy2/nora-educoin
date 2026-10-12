@@ -16,11 +16,11 @@ from typing import Any, Dict, List, Optional, Tuple
 import pandas as pd
 
 from backend.carlo.carlo import bootstrap_daily
-from backend.core.params import DAY_MS as DAY, BASE_RISK_PER_TRADE_PCT, REGIME_MAP, RISK, materialize, regime_for, schema_defaults
+from backend.models.params import DAY_MS as DAY, BASE_RISK_PER_TRADE_PCT, REGIME_MAP, RISK, materialize, regime_for, schema_defaults
 from backend.alpha.compile import load_system_strategies
 from backend.crawl.store import alpha_dir, alpha_dir as alphas_dir, alpha_run_dir
 from backend.metrics.metrics import portfolio_metrics
-from backend.core.models import NORA_DIR
+from backend.models.models import NORA_DIR
 from backend.optimize.funnel.storage import atomic_write_json, data_fingerprint, make_job_key, normalize, ResultsStore, stream_stage
 from backend.optimize.process.workers import auto_workers, pool_map_safe
 from backend.optimize.search.evaluate import BacktestJob, make_engine, SharedExporter
@@ -100,7 +100,7 @@ def validate_params(candidate: Dict[str, Any], params: Any, base: Dict[str, Any]
     # Thay thử vào cây: bắt cột kernel/khung không hợp lệ (cùng kiểm tra lúc chạy thật) + ngân sách DCA của vị thế
     try:
         st = materialize(candidate, full)
-        from backend.core.params import VENUE_COSTS, dca_budget_check
+        from backend.models.params import VENUE_COSTS, dca_budget_check
         budget = dca_budget_check(st["position"], VENUE_COSTS[("cex", "perp")])
         if not budget["ok"]:
             errors.append((prefix, f"{cid}: ngân sách DCA không đủ — cần {budget['need_pct']:.1f}% vốn, trần {budget['cap_pct']:.1f}%"))
@@ -135,14 +135,14 @@ def schema_space(candidate: Dict[str, Any], exclude=SCHEMA_SPACE_EXCLUDE) -> Dic
 # ─── Khung chạy (nến mô phỏng) ───────────────────────────────────────────────
 def frame_keys(candidate: Dict[str, Any]) -> List[str]:
     """Khoá chọn KHUNG nến của chiến lược (sig.*_tf, atr_frame...): kiểu choice, mọi lựa chọn là khung."""
-    from backend.core.strategy import FRAME_MS
+    from backend.alpha.dsl.strategy import FRAME_MS
     return [k for k, v in (candidate.get("params_schema") or {}).items()
             if v.get("type") == "choice" and set(v.get("choices") or []) <= set(FRAME_MS)]
 
 
 def lift_frame(frame: str, base_frame: str, choices: List[str]) -> Optional[str]:
     """Khung >= khung chạy giữ nguyên; nhỏ hơn -> khung chạy nếu là lựa chọn hợp lệ, không thì None (không chạy được)."""
-    from backend.core.strategy import FRAME_MS
+    from backend.alpha.dsl.strategy import FRAME_MS
     if FRAME_MS[frame] >= FRAME_MS[base_frame]:
         return frame
     return base_frame if base_frame in choices else None

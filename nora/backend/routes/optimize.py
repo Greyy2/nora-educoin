@@ -698,7 +698,7 @@ from backend.optimize.funnel import stages as gates
 from backend.optimize.search.generate import count_params
 from backend.optimize.funnel.stages import read_cached
 from backend.carlo.carlo import with_gate_thresholds
-from backend.core.params import DEFAULT_CAPITAL
+from backend.models.params import DEFAULT_CAPITAL
 from backend.crawl.store import read_json
 from backend.metrics.charts import LruCache
 from backend.optimize.funnel.stages import scalar_metrics, stage_stats

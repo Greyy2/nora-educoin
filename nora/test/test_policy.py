@@ -4,7 +4,7 @@ import math
 
 import pytest
 
-from backend.core import position_size as P
+from backend.models import position_size as P
 
 L, S = 1.0, -1.0
 

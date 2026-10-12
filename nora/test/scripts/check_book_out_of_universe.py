@@ -10,7 +10,7 @@ import warnings
 warnings.filterwarnings("ignore")
 import pandas as pd
 from backend.optimize.search.evaluate import run
-from backend.core.params import RISK
+from backend.models.params import RISK
 b = json.load(open("data/alpha/book.json"))
 items = [(s["id"], s["params"]) for s in b["strategies"]]
 syms = [s for s in ("LINK", "LTC", "DOT", "TRX", "BCH", "NEAR", "UNI", "ATOM") if os.path.isdir(f"data/market/okx/cex/{s}/perp")]

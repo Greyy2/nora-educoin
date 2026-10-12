@@ -101,8 +101,8 @@ def regime_history(symbol: str, days: int) -> Dict[str, Any]:
     """Regime hiện tại + lịch sử `days` ngày cuối của một tài sản: các đoạn [bắt đầu, kết thúc, trạng thái], tỷ trọng thời gian, chiến lược
     được bật ở regime hiện tại theo bảng của sổ (book.REGIME_MAP)."""
     from backend.optimize.search.evaluate import WARMUP
-    from backend.regime import regime as rg
-    from backend.core.params import REGIME_MAP
+    from backend.metrics import regime as rg
+    from backend.models.params import REGIME_MAP
     from backend.crawl.store import read_manifest
     m = read_manifest(symbol)
     if not m:
@@ -143,7 +143,7 @@ def get_regime(symbols: Optional[str] = Query(None, description="vd BTC,SOL (m�
     """Regime hiện tại + lịch sử từng tài sản (nến 15m đã đóng) và chiến lược đang bật theo bảng regime của sổ."""
     from backend.optimize.process.process import JobError
     from backend.routes.process import check_symbols
-    from backend.regime import regime as rg
+    from backend.metrics import regime as rg
     from backend.optimize.book.build import perp_symbols
     try:
         syms = check_symbols([s for s in symbols.split(",") if s]) if symbols else perp_symbols()

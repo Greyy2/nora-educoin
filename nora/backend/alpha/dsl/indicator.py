@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 from numba import njit
 
-from backend.core.params import COLUMN_GRAMMAR, DATA_COLUMNS
+from backend.models.params import COLUMN_GRAMMAR, DATA_COLUMNS
 
 
 # ══════════════════════════════════════════════════════════════════════════

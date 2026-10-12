@@ -8,7 +8,7 @@ import datetime as dt
 import pytest
 
 from backend.alpha.compile import cond, f
-from backend.core.strategy import RiskConfig
+from backend.alpha.dsl.strategy import RiskConfig
 from backend.nautilus import catalog as cat
 from backend.nautilus.engine import NautilusRun, PortfolioEngine, BacktestEngine
 from backend.nautilus.strategy import FLAT
@@ -88,10 +88,10 @@ def test_base_frame_1h_invariants():
 
 
 def test_backtest_engine_single_symbol_matches_shape():
-    from backend.core.models import data_source
+    from backend.models.models import data_source
     eng = BacktestEngine(0, 0, "BTC@perp", ms("2024-03-04 00:00") - 3600_000, ms("2024-03-04 03:00"), trade_start_ts=ms("2024-03-04 00:00"), base_frame="1m")
-    from backend.core.params import build_params
-    from backend.core.strategy import _strategy_flow
+    from backend.models.params import build_params
+    from backend.alpha.dsl.strategy import _strategy_flow
     st = {"id": "x", "side": "LONG", "tree": cond((f("1m", "close"), ">", 0)), "position": {**BASE, "stop_loss_rate": 0.3, "take_profit_rate": 0.4}}
     eng.add_strategy_flow("LONG_x", build_params("LONG_x", _strategy_flow(st), "LONG", st["position"], "cex"))
     eng.load_data()

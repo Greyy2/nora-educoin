@@ -25,8 +25,8 @@ const I = {
 // Hệ thống chính (Coin)
 const COIN_PAGES = [
   { to: '/portfolio', title: 'Tổng quan danh mục', short: 'Tổng quan', icon: I.portfolio },
-  { to: '/alpha', title: 'Alpha · Tạo chiến lược + Danh mục + Tối ưu + Phễu', short: 'Alpha', icon: I.alpha },
-  { to: '/backtest', title: 'Backtest · WFA · Monte Carlo', short: 'Backtest', icon: I.backtest },
+  { to: '/alpha', title: 'Alpha', short: 'Alpha', icon: I.alpha },
+  { to: '/backtest', title: 'Backtest', short: 'Backtest', icon: I.backtest },
   { to: '/live', title: 'Bot live · paper / demo', short: 'Live', icon: I.live },
   { to: '/history', title: 'Lịch sử chạy', short: 'Lịch sử', icon: I.history },
 ]
@@ -190,9 +190,10 @@ export default function Shell({ children }) {
           <span className="n-pill"><span className={`n-dot ${apiTone}`} />{apiText}</span>
           <ThemeButton />
         </header>
-        <div className={`n-content${loc.pathname.startsWith('/alpha/create') || loc.pathname.startsWith('/education') ? ' flush' : ''}`}>
-          <ErrorBoundary key={loc.pathname}>{children}</ErrorBoundary>
+        <div className={`n-content${loc.pathname.startsWith('/alpha') || loc.pathname.startsWith('/education') ? ' flush' : ''}`}>
+          <ErrorBoundary key={loc.pathname.startsWith('/alpha') ? '/alpha' : loc.pathname}>{children}</ErrorBoundary>
         </div>
+
       </div>
     </div>
   )

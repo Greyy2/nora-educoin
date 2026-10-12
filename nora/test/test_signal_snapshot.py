@@ -1,7 +1,7 @@
 """Ảnh chụp tín hiệu (core/signals/snapshot.py): cùng đường tính với engine và KHÔNG nhìn tương lai."""
 import numpy as np
 
-from backend.core.params import materialize
+from backend.models.params import materialize
 from test_strategy_book import T0, _small_book, market  # noqa: F401  (market là fixture)
 
 DAY = 86_400_000
@@ -15,9 +15,9 @@ def test_snapshot_is_causal_future_data_does_not_change_it(market, monkeypatch):
     """Cùng điểm bắt đầu cửa sổ; thêm 3 ngày dữ liệu SAU phút được chụp -> mọi điều kiện/giá trị ở phút đó y hệt (chỉ báo đệ quy như RSI
     phụ thuộc điểm bắt đầu nên giữ nguyên điểm bắt đầu)."""
     from backend.nautilus.engine import PortfolioEngine
-    from backend.core.signal import VectorEvaluator, lag_key
-    from backend.core.strategy import signal_snapshot
-    from backend.core.signal import _explain
+    from backend.alpha.dsl.signal import VectorEvaluator, lag_key
+    from backend.alpha.dsl.strategy import signal_snapshot
+    from backend.alpha.dsl.signal import _explain
     sb = _small_book(monkeypatch)
     strats = _strats(sb)
     end = T0 + 20 * DAY + 7 * 60_000
@@ -40,8 +40,8 @@ def test_snapshot_is_causal_future_data_does_not_change_it(market, monkeypatch):
 def test_snapshot_matches_engine_signal_arrays(market, monkeypatch):
     """Tín hiệu vào của snapshot ở phút cuối == mảng tín hiệu mà engine dùng (VectorEvaluator trên ma trận của engine) ở phút đó."""
     from backend.nautilus.engine import PortfolioEngine
-    from backend.core.signal import VectorEvaluator, lag_key
-    from backend.core.strategy import signal_snapshot
+    from backend.alpha.dsl.signal import VectorEvaluator, lag_key
+    from backend.alpha.dsl.strategy import signal_snapshot
     sb = _small_book(monkeypatch)
     strats = _strats(sb)
     end = T0 + 25 * DAY

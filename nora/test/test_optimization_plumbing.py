@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from backend.core.params import collect_placeholders, resolve_placeholders, split_params
+from backend.models.params import collect_placeholders, resolve_placeholders, split_params
 from backend.crawl.store import save_resampled_dataset
 
 T0 = 1_700_006_400_000
@@ -61,15 +61,15 @@ def perp_root(tmp_path, monkeypatch):
 
 
 def test_dex_uses_verified_pool_fee(tmp_path, monkeypatch):
-    from backend.core.params import build_params
+    from backend.models.params import build_params
     root = tmp_path / "data"
     monkeypatch.setenv("NORA_LOCAL_DATA_ROOT", str(root))
     df = _rw(35)
     save_resampled_dataset(symbol="POOL", output_dir=str(root / "dex"), df_1m_raw=df, pool_address="0x", crawl_ok=True,
                            requested_start_ts=int(df.open_time.min()), requested_end_ts=int(df.open_time.max()),
                            extra_meta={"venue": "dex", "pool_fee_rate": 0.0005})
-    from backend.core.models import data_source
-    from backend.core.params import manifest_pool_fee
+    from backend.models.models import data_source
+    from backend.models.params import manifest_pool_fee
     params = build_params("LONG_x", {"match": [], "stop": []}, "LONG", {}, "dex", manifest_pool_fee(data_source().manifest("POOL")))
     assert params.fee_rate == 0.0005 and params.maker_fee_rate == 0.0005
     assert build_params("LONG_x", {"match": [], "stop": []}, "LONG", {}, "dex", None).fee_rate == 0.003

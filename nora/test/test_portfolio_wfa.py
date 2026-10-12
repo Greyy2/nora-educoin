@@ -307,7 +307,7 @@ def test_bootstrap_daily_default_sims_is_mc_minimum():
 
 
 def test_wfa_regime_learn_maps_come_from_train_only(market, monkeypatch, tmp_path):
-    from backend.regime.regime import OBSERVE
+    from backend.metrics.regime import OBSERVE
     sb = _small_book(monkeypatch)
     log = _serial(monkeypatch)
     off = _run(sb, tmp_path, "off")

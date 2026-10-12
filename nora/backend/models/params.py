@@ -274,7 +274,7 @@ def _resolve_string(text: str, field: str, values: Dict[str, Any], defaults: Dic
             raise ValueError(f"Khung thời gian {out!r} không hợp lệ; chọn một trong {list(FRAMES)}")
         return out
     if not COLUMN_GRAMMAR:
-        raise RuntimeError("chưa nạp core/indicator (ngữ pháp tên cột chỉ báo) — import backend.core.indicator trước khi thay {tên} trong column")
+        raise RuntimeError("chưa nạp core/indicator (ngữ pháp tên cột chỉ báo) — import backend.alpha.dsl.indicator trước khi thay {tên} trong column")
     if out in COLUMN_GRAMMAR["base"]:
         return out
     parsed = COLUMN_GRAMMAR["parse"](out)

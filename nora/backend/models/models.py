@@ -241,7 +241,7 @@ class Account:
     reserved : tiền đang bị khoá trong các vị thế mở (ký quỹ + phí vào lệnh đã trả).
     free     : equity × usage − reserved. Mọi lệnh vào / tầng DCA phải giữ chỗ được từ free,
                nên nhiều flow cùng lúc KHÔNG thể dùng quá vốn (lỗi cũ: mỗi flow tự dùng 100%).
-    (Trước P6.3 tên là CapitalLedger — vẫn import được từ backend.core.models.)
+    (Trước P6.3 tên là CapitalLedger — vẫn import được từ backend.models.models.)
     """
 
     def __init__(self, capital: float, usage: float = 1.0):

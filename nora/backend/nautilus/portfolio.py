@@ -11,8 +11,8 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 
-from backend.core import position_size as policy
-from backend.core.strategy import RiskConfig
+from backend.models import position_size as policy
+from backend.alpha.dsl.strategy import RiskConfig
 
 MTM_SAMPLE_MINUTES = 60
 

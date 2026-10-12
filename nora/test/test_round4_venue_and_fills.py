@@ -69,7 +69,7 @@ def clean_asset(tmp_path, monkeypatch):
 
 def _engine_with(df_1m: pd.DataFrame, match_time: int):
     from backend.nautilus.engine import BacktestEngine
-    from backend.core.params import StrategyParams
+    from backend.models.params import StrategyParams
     df_4h = df_1m.assign(dt=pd.to_datetime(df_1m.open_time, unit="ms", utc=True)).set_index("dt").resample(
         "4h", closed="left", label="left").agg({"open_time": "first", "open": "first", "high": "max",
                                                 "low": "min", "close": "last", "volume": "sum"}).dropna().reset_index(drop=True)

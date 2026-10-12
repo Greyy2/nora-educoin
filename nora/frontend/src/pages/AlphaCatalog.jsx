@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { PageHead, Panel, Loading, ErrorState, Empty, Segmented } from '../components/ui'
 import MathBlock from '../components/ui/MathBlock'
@@ -233,7 +234,7 @@ function StrategyDoc({ s, onClose, onReload }) {
     navigate(`/alpha/create?alpha=${encodeURIComponent(s.alpha_id || s.strategy)}`)
   }
 
-  return (
+  return createPortal(
     <div className="n-drawer-wrap">
       <div className="n-drawer-bg" onClick={onClose} aria-hidden="true" />
       <aside
@@ -339,7 +340,8 @@ function StrategyDoc({ s, onClose, onReload }) {
         </div>
       </aside>
       {editSrc && <SystemStrategyEditor id={s.strategy} name={s.name} onClose={() => setEditSrc(false)} onSaved={onReload} />}
-    </div>
+    </div>,
+    document.body
   )
 }
 

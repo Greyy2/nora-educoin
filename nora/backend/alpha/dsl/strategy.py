@@ -12,16 +12,16 @@ from typing import Any, Callable, Deque, Dict, Iterable, List, Mapping, Optional
 import numpy as np
 import pandas as pd
 
-from backend.core.models import CapitalLedger, Fill, OrderRejected, PositionType
-from backend.core.models import DataSource, data_source
-from backend.core.signal import lag_key, VectorEvaluator, Program
-from backend.core.signal import CODE as REGIME_CODE, LABEL_VI as REGIME_LABEL_VI, NAMES as REGIME_NAMES, REFS as REGIME_REFS
-from backend.core.signal import classify, masks_for, profile_cfg, raw_states
-from backend.core.signal import (DEFAULT_LOOKBACK_MIN, HORIZONS_MIN, MINUTE, _explain, _forward_bps, _num, _since, _stats, _thin,
+from backend.models.models import CapitalLedger, Fill, OrderRejected, PositionType
+from backend.models.models import DataSource, data_source
+from backend.alpha.dsl.signal import lag_key, VectorEvaluator, Program
+from backend.alpha.dsl.signal import CODE as REGIME_CODE, LABEL_VI as REGIME_LABEL_VI, NAMES as REGIME_NAMES, REFS as REGIME_REFS
+from backend.alpha.dsl.signal import classify, masks_for, profile_cfg, raw_states
+from backend.alpha.dsl.signal import (DEFAULT_LOOKBACK_MIN, HORIZONS_MIN, MINUTE, _explain, _forward_bps, _num, _since, _stats, _thin,
                                  _verdict)
-from backend.core.position_size import SlotSpec
-from backend.core.params import BASE_POSITION, config_from_dict, DATA_COLUMNS, DEFAULT_CAPITAL, DAY_MS as DAY, FRAME_MS, FRAME_ORDER, FRAMES, NORA_DEFAULTS, RISK, RUN_FRAME, StrategyParams, resolve_position_auto
-from backend.core import indicator as kernels
+from backend.models.position_size import SlotSpec
+from backend.models.params import BASE_POSITION, config_from_dict, DATA_COLUMNS, DEFAULT_CAPITAL, DAY_MS as DAY, FRAME_MS, FRAME_ORDER, FRAMES, NORA_DEFAULTS, RISK, RUN_FRAME, StrategyParams, resolve_position_auto
+from backend.alpha.dsl import indicator as kernels
 
 
 KEY = "__bar_open_time"  # cột khoá nội bộ (tránh trùng với cột "open_time" mà AST có thể dùng)
@@ -366,7 +366,7 @@ def check_signals(symbol: str, signals: Dict[str, Dict[str, Any]], start_ts: Opt
                   end_ts: Optional[int] = None, horizons_min: Iterable[int] = HORIZONS_MIN,
                   baseline_step: int = 7, data: Optional[DataSource] = None) -> Dict[str, Any]:
     """Kiểm tra nhiều tín hiệu trên một tài sản (nạp dữ liệu + tính kernel một lần). data: nguồn dữ liệu (None = mặc định)."""
-    from backend.core.params import VENUE_COSTS, build_params, manifest_venue
+    from backend.models.params import VENUE_COSTS, build_params, manifest_venue
 
     manifest = data_source(data).manifest(symbol) or {}
     venue = manifest_venue(manifest)
@@ -500,7 +500,7 @@ def build_plan(program: Program, symbols: List[str], position: Optional[Dict[str
 
 
 def _check_position(pos: Dict[str, Any]) -> Dict[str, Any]:
-    from backend.core.params import POSITION_KEYS
+    from backend.models.params import POSITION_KEYS
     bad = sorted(set(pos) - set(POSITION_KEYS))
     if bad:
         raise ValueError(f"khoá vị thế không hợp lệ: {bad}; có: {sorted(POSITION_KEYS)}")
@@ -889,7 +889,7 @@ class SignalPortfolio:
         return data_source(getattr(self, "data", None))
 
     def _make_slots(self, symbol: str, ledger: CapitalLedger) -> Tuple[SignalEngine, List[Tuple[Dict, SlotSpec]]]:
-        from backend.core.params import build_params, manifest_pool_fee
+        from backend.models.params import build_params, manifest_pool_fee
         eng = SignalEngine(0, 0, symbol, self.start_ts, self.end_ts, trade_start_ts=self.trade_start_ts,
                              initial_capital=self.initial_capital, base_frame=self.base_frame, data=getattr(self, "data", None))
         eng.ledger = ledger

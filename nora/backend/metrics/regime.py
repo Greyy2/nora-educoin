@@ -1,22 +1,19 @@
-"""Regime thị trường (P9.5): nhận diện trạng thái theo phút, causal (classifier) + học bảng regime ↔ chiến lược từ dữ liệu TRAIN (learn).
+"""Market Regime Classification & Analysis (Tích hợp trong metrics).
 
-Nguồn gộp: docs/bmad/p9_review_log.md (mục P9.5).
-Job báo cáo regime là run_regime_report ở optimize/process/tasks.py.
+Nhận diện trạng thái thị trường theo phút, causal (classifier) + học bảng regime ↔ chiến lược từ dữ liệu TRAIN (learn).
 """
 import math
 from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-
-# Phần phân loại thuần (trạng thái, ngưỡng, REFS, raw_states/smooth/classify, masks_for) là MỘT định nghĩa ở core/signal.py (engine dùng);
-# file này giữ series (nhãn qua đường dữ liệu engine) + học bảng regime (learn).
-from backend.core.signal import (
+# Phân loại trạng thái, ngưỡng, REFS, raw_states/smooth/classify, masks_for
+from backend.alpha.dsl.signal import (
     CODE, CRASH, DEFAULTS, LABEL_VI, MINUTE, NAMES, PROFILES, RANGE, REFS, SURGE, TREND_DOWN, TREND_UP, UNKNOWN, VOL_EXPANSION,
     classify, masks_for, profile_cfg, raw_states, smooth,
 )
 
-__all__ = [   # tái xuất phần phân loại (rg.*) + phần riêng của file này
+__all__ = [
     "CODE", "CRASH", "DEFAULTS", "LABEL_VI", "MINUTE", "NAMES", "PROFILES", "RANGE", "REFS", "SURGE", "TREND_DOWN", "TREND_UP", "UNKNOWN",
     "VOL_EXPANSION", "classify", "masks_for", "profile_cfg", "raw_states", "smooth",
     "series", "OBSERVE", "MIN_TRADES", "T_MAX", "trade_regime", "by_regime", "engine_by_regime", "learn_map",
@@ -25,8 +22,7 @@ __all__ = [   # tái xuất phần phân loại (rg.*) + phần riêng của fil
 
 def series(symbol: str, start: int, end: int, venue: str = "cex", cfg: Optional[Dict[str, float]] = None,
            base_frame: str = "1m") -> Dict[str, np.ndarray]:
-    """Nhãn regime từng nến khung chạy của một tài sản qua đúng đường dữ liệu của engine (nạp + căn khung + warmup theo khung).
-    -> {t, close, real (nến thật, không điền), raw, labels}."""
+    """Nhãn regime từng nến khung chạy của một tài sản qua đường dữ liệu của engine."""
     from backend.nautilus.engine import PortfolioEngine
     probe = {"id": "_regime_probe", "side": "LONG", "position": {"market": "perp"},
              "tree": [[[{"frame": "1h", "column": "roc_1", "index": 0}, ">", 1e18]]]}
@@ -45,20 +41,6 @@ def series(symbol: str, start: int, end: int, venue: str = "cex", cfg: Optional[
             "raw": raw, "labels": smooth(raw, t, cfg)}
 
 
-# ══════════════════════════════════════════════════════════════════════════
-# Học bảng regime ↔ chiến lược từ dữ liệu TRAIN (WFA regime="learn") thay cho bảng tĩnh book.REGIME_MAP.
-#
-# Lý do (P2.4, báo cáo regime trên 8 tài sản): bảng tĩnh không khớp dữ liệu — vd. momentum_long lãi ở RANGE nhưng chỉ được phép TREND_UP/SURGE;
-# sau CRASH giá thường hồi (lợi suất 24h tới +2,5%) nên cầu chì cắt LONG khi CRASH làm lỗ thêm. Bật bảng tĩnh làm sổ từ +29,6% thành −26%.
-#
-# Luật học (chỉ dùng lệnh của cửa sổ học, không nhìn test):
-#   chặn regime R của chiến lược S  khi  số lệnh S vào trong R >= min_trades (30)  VÀ  t-stat của lãi/lỗ trung bình mỗi lệnh <= t_max (−2).
-#   Ít lệnh hơn / lỗ không có ý nghĩa thống kê: không đủ bằng chứng để chặn -> vẫn cho phép.  Cầu chì: tắt (fuse=False) trừ khi truyền fuse=True.
-#   Vì sao chặt: luật cũ (>= 5 lệnh, tổng lỗ) chỉ giữ cùng dấu 48% cặp (chiến lược, regime) từ dev1 sang dev2 — học nhiễu
-#   (test/scripts/research_regime_diagnosis.py phần D).
-# OBSERVE: cấu hình regime "chỉ quan sát" (cho phép mọi regime, không cầu chì) -> engine tính nhãn mà lệnh trùng bit với khi tắt regime.
-# ══════════════════════════════════════════════════════════════════════════
-
 OBSERVE: Dict[str, Any] = {"allowed": list(NAMES), "fuse": False}
 MIN_TRADES = 30
 T_MAX = -2.0
@@ -71,8 +53,7 @@ def trade_regime(t: np.ndarray, labels: np.ndarray, enter_time: int) -> str:
 
 
 def by_regime(trades: List[Dict[str, Any]], labels: Dict[str, Dict[str, np.ndarray]]) -> Dict[str, Dict[str, Dict[str, Any]]]:
-    """{chiến lược: {regime: {trades, wins, pnl_usd, win_rate, avg_pnl_pct}}}. trades: [{symbol, strategy, enter_time, pnl, pnl_pct?}];
-    labels: {symbol: {"t", "labels"}}."""
+    """{chiến lược: {regime: {trades, wins, pnl_usd, win_rate, avg_pnl_pct}}}."""
     agg: Dict[str, Dict[str, Dict[str, float]]] = {}
     for tr in trades:
         s = labels.get(tr["symbol"])
@@ -98,7 +79,7 @@ def by_regime(trades: List[Dict[str, Any]], labels: Dict[str, Dict[str, np.ndarr
 
 
 def engine_by_regime(eng, positions) -> Dict[str, Dict[str, Dict[str, Any]]]:
-    """by_regime từ một PortfolioEngine đã chạy với cấu hình regime (nhãn nằm ở eng.books[*].entries[*].regime)."""
+    """by_regime từ một PortfolioEngine đã chạy với cấu hình regime."""
     labels = {}
     for b in eng.books:
         lab = next((e["regime"] for e in b["entries"] if e.get("regime") is not None), None)
@@ -111,7 +92,7 @@ def engine_by_regime(eng, positions) -> Dict[str, Dict[str, Dict[str, Any]]]:
 
 def learn_map(stats: Dict[str, Dict[str, Dict[str, Any]]], strategies: List[str], min_trades: int = MIN_TRADES,
               fuse: bool = False, t_max: float = T_MAX) -> Dict[str, Optional[Dict[str, Any]]]:
-    """{chiến lược: cấu hình regime | None (không lọc)} theo luật ở đầu file."""
+    """{chiến lược: cấu hình regime | None (không lọc)} theo luật kiểm định thống kê."""
     out: Dict[str, Optional[Dict[str, Any]]] = {}
     for sid in strategies:
         st = stats.get(sid) or {}

@@ -511,12 +511,7 @@ function StepBacktest({ cat, strats, sc, form, setForm, btId, bt, onLaunched, on
 
       {btId && (
         <Panel title="Tiến trình backtest" className="" meta={<span className="mono">{btId}</span>}>
-          {bt.status === 'done' ? (
-            <details className="n-details">
-              <summary>Job đã xong: xem chi tiết job và tham số đã dùng</summary>
-              <JobPanel job={bt.job} status={bt.status} error={bt.error} />
-            </details>
-          ) : <JobPanel job={bt.job} status={bt.status} error={bt.error} />}
+          <JobPanel job={bt.job} status={bt.status} error={bt.error} title="Tiến trình Backtest" isBacktest={true} />
           {bt.status === 'done' && (
             <div className="n-sticky-actions">
               <button type="button" className="n-btn primary" onClick={onNext} disabled={isDex} title={isDex ? 'Walk-forward chưa hỗ trợ tài sản DEX' : undefined}>Tiếp tục: Walk-forward →</button>
@@ -881,8 +876,8 @@ export default function Backtest() {
   const btId = sp.get('job') || ''
   const wfaId = sp.get('wfa') || ''
   const stepQ = Number(sp.get('step')) || 1
-  const bt = useJob(btId)
-  const wfa = useJob(wfaId)
+  const bt = useJob(btId, { interval: 400 })
+  const wfa = useJob(wfaId, { interval: 600 })
   const [form, setFormRaw] = useState(null)
   const seeded = useRef(false)
 
@@ -945,7 +940,7 @@ export default function Backtest() {
   const ready = cat && form && strats.list.length > 0 && sc.list.length > 0
   return (
     <>
-      <PageHead kicker="Một vòng kiểm chứng" title="Backtest · WFA · Monte Carlo"
+      <PageHead kicker="Một vòng kiểm chứng" title="Backtest"
         subtitle="Chọn một chiến lược, chạy backtest, kiểm tra out-of-sample bằng walk-forward, rồi mô phỏng Monte Carlo để đo rủi ro phá sản. Mỗi bước mở khoá sau khi bước trước chạy xong." />
       <div className="n-stepper" role="tablist" aria-label="Các bước">
         {steps.map((s) => (

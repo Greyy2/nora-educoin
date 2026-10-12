@@ -4,7 +4,7 @@ import os
 
 import pytest
 
-from backend.core.models import DATA_DIR  # noqa: E402
+from backend.models.models import DATA_DIR  # noqa: E402
 
 SYMBOLS = ["BTC", "ETH"]
 
@@ -61,7 +61,7 @@ class CustomStrategy(SimpleAlgorithm):
 
 def _run(code, **extra):
     from backend.optimize.process import tasks as custom_run
-    from backend.core.strategy import data_cache_clear
+    from backend.alpha.dsl.strategy import data_cache_clear
     from backend.crawl.store import CandleLoader
     CandleLoader.clear_cache()
     data_cache_clear()

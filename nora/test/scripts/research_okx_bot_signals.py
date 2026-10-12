@@ -27,7 +27,7 @@ FMS = {"15m": 900_000, "1h": 3_600_000, "4h": 14_400_000}
 
 
 def features(root, sym):
-    from backend.core.indicator import compute
+    from backend.alpha.dsl.indicator import compute
     fr = {f: pd.read_pickle(os.path.join(root, sym, "perp", f"{f}.pkl")) for f in ("15m", "1h", "4h")}
     h = fr["1h"]
     c = h["close"]

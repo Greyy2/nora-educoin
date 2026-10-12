@@ -16,7 +16,7 @@ import pandas as pd
 import pytest
 
 from backend.crawl import cex as oc
-from backend.core.models import DATA_DIR  # noqa: E402
+from backend.models.models import DATA_DIR  # noqa: E402
 from backend.crawl import store as dl
 
 H = 3_600_000

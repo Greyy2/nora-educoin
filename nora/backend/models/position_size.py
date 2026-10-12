@@ -5,9 +5,9 @@ Nguồn gộp: docs/bmad/p9_review_log.md (mục P9.4).
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Sequence, Tuple
 
-from backend.core.models import PositionType
-from backend.core.params import DEFAULT_CAPITAL, StrategyParams
-from backend.core.models import gross_pnl, pnl_move, unrealized_pnl   # noqa: F401  (P9.4: ba hàm này chuyển sang models; policy.gross_pnl... vẫn là cùng đối tượng)
+from backend.models.models import PositionType
+from backend.models.params import DEFAULT_CAPITAL, StrategyParams
+from backend.models.models import gross_pnl, pnl_move, unrealized_pnl   # noqa: F401  (P9.4: ba hàm này chuyển sang models; policy.gross_pnl... vẫn là cùng đối tượng)
 
 
 # ══════════════════════════════════════════════════════════════════════════

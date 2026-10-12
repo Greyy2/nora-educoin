@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from backend.core import indicator as kernels
+from backend.alpha.dsl import indicator as kernels
 from data_helpers import FrameData
 
 
@@ -109,7 +109,7 @@ def _random_value(rng, depth=0):
 
 
 def test_vector_evaluator_matches_scalar_on_random_asts():
-    from backend.core.signal import LogicEvaluator, VectorEvaluator, lag_key
+    from backend.alpha.dsl.signal import LogicEvaluator, VectorEvaluator, lag_key
     rng = np.random.default_rng(7)
     n = 300
     data = {}
@@ -136,7 +136,7 @@ def test_vector_evaluator_matches_scalar_on_random_asts():
 
 def _engine(df1, match, stop=None, **pos):
     from backend.nautilus.engine import BacktestEngine
-    from backend.core.params import build_params
+    from backend.models.params import build_params
     eng = BacktestEngine(0, 0, "T", int(df1.open_time.min()), int(df1.open_time.max()),
                          initial_capital=pos.pop("capital", 10000.0), data=FrameData({"T": df1}))   # nến thực thi = chính df1 (DataSource)
     flow_type = pos.pop("side", "LONG")
@@ -158,7 +158,7 @@ def _engine(df1, match, stop=None, **pos):
 
 
 def test_higher_frame_kernel_visible_only_after_close():
-    from backend.core.strategy import FRAME_MS
+    from backend.alpha.dsl.strategy import FRAME_MS
     df = _ohlcv(3000, seed=4)
     eng = _engine(df, [[[{"frame": "15m", "column": "rsi_14"}, ">", -1]]])
     frame_df, cols = eng._build_matrix()
@@ -339,7 +339,7 @@ def test_spot_rejects_short_and_leverage():
 
 
 def test_dex_perp_rejected_and_venue_fees():
-    from backend.core.params import resolve_costs
+    from backend.models.params import resolve_costs
     assert resolve_costs("cex", "spot", None, None) == (0.001, 0.001, 0.0)   # P15-D: trượt giá mặc định 0 (Nautilus không mô phỏng trượt giá %; core/params.py::VENUE_COSTS)
     assert resolve_costs("cex", "perp", None, None) == (0.0005, 0.0002, 0.0)  # Binance USDT-M VIP0; trượt 0 như trên
     assert resolve_costs("dex", "spot", None, None) == (0.003, 0.003, 0.001)
@@ -404,7 +404,7 @@ DOWN_MINUTE = {"t": {"side": "LONG", "tree": [[[{"frame": "1m", "column": "roc_3
 
 
 def test_diagnostics_detects_planted_edge(tmp_path, monkeypatch):
-    from backend.core.strategy import check_signals
+    from backend.alpha.dsl.strategy import check_signals
     rng = np.random.default_rng(11)
     n = 40 * 1440
     eps = rng.normal(0, 0.001, n)
@@ -417,7 +417,7 @@ def test_diagnostics_detects_planted_edge(tmp_path, monkeypatch):
 
 
 def test_diagnostics_rejects_random_walk(tmp_path, monkeypatch):
-    from backend.core.strategy import check_signals
+    from backend.alpha.dsl.strategy import check_signals
     rng = np.random.default_rng(12)
     _dataset(tmp_path, monkeypatch, rng.normal(0, 0.001, 40 * 1440), "NOISE")
     res = check_signals("NOISE", DOWN_MINUTE, horizons_min=(15, 60))["signals"]["t"]
@@ -446,7 +446,7 @@ def test_cross_over_is_an_event_on_the_frame_bar():
     a, b = {"frame": "15m", "column": "close"}, {"frame": "15m", "column": "dch_20"}
     eng = _engine(df, [[list(t) for t in cross_over(a, b)]])
     df1, cols = eng._build_matrix()
-    from backend.core.signal import VectorEvaluator, lag_key
+    from backend.alpha.dsl.signal import VectorEvaluator, lag_key
     vec = VectorEvaluator(len(df1), lambda fr, c, lag: cols.get(f"{fr}|{lag_key(c, lag)}", np.full(len(df1), np.nan)))
     cross = vec.tree([[list(t) for t in cross_over(a, b)]])
     state = vec.tree([[[a, ">", b]]])

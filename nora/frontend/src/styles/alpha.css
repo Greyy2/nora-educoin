@@ -353,10 +353,59 @@
   border: 1px solid rgba(148, 163, 184, 0.25);
   color: #cbd5e1;
 }
-/* Trang Tạo chiến lược: không gian làm việc kín chiều cao (trái = code, phải = tab Mẫu / Kết quả / Dữ liệu / Features / Operators). Tiền tố se-. */
-.n-content.flush { padding: 0; overflow: hidden; display: flex; flex-direction: column; }
-.n-content.flush > .n-tabs { margin: 0; padding: 0 16px; flex: none; }
+/* Bố cục đồng bộ toàn bộ cụm Alpha: thanh tab trên góc cố định sát header, không reload tab */
+.n-content.flush {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.n-alpha-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+.n-alpha-header-tabs {
+  flex: none;
+  background: var(--n-bg);
+  border-bottom: 1px solid var(--n-line);
+  padding: 0 16px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.n-alpha-header-tabs .n-tabs {
+  margin: 0;
+  border-bottom: none;
+}
+.n-alpha-header-tabs .n-tabs a {
+  padding: 7px 14px;
+}
+.n-alpha-body {
+  flex: 1;
+  min-height: 0;
+}
+.n-alpha-body.flush {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.n-alpha-body.standard {
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 18px 22px 40px;
+}
+@media (max-width: 900px) {
+  .n-alpha-body.standard {
+    padding: 14px 12px 30px;
+  }
+}
+
 .se-ws { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+
 .se-left { position: relative; display: flex; flex-direction: column; min-height: 0; min-width: 0; border-right: 1px solid var(--n-line); background: var(--n-surface-2); }
 .se-right { display: flex; flex-direction: column; min-height: 0; min-width: 0; background: var(--n-bg); }
 .se-sp { flex: 1; }
@@ -526,6 +575,69 @@ button.se-chip:hover { background: var(--n-surface-3); color: var(--n-ink); }
 .se-card-h .n-chip { font-size: 11px; }
 .se-card-c { font-size: 11px; color: var(--n-brand); margin-bottom: 4px; }
 .se-empty-code { position: absolute; z-index: 1; top: 14px; left: 56px; right: 24px; color: var(--n-muted); font-size: 12.5px; line-height: 1.6; pointer-events: none; }
+
+/* Card thống kê kết quả mẫu định lượng chuẩn quốc tế */
+.se-sample-card {
+  padding: 12px 14px;
+  background: var(--n-surface);
+  border: 1px solid var(--n-line);
+  border-radius: 8px;
+  transition: all 0.15s ease-in-out;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+}
+.se-sample-card:hover {
+  border-color: var(--n-accent, #6366f1);
+  background: var(--n-surface-2);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+.se-sample-card.on {
+  border-color: var(--n-accent, #6366f1);
+  background: rgba(99, 102, 241, 0.08);
+  box-shadow: 0 0 0 1px var(--n-accent, #6366f1);
+}
+.se-card-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--n-ink);
+  line-height: 1.4;
+  margin-bottom: 4px;
+}
+.se-card-metrics {
+  display: flex;
+  flex-direction: column;
+  margin-top: 6px;
+  border-top: 1px solid var(--n-line);
+  padding-top: 4px;
+}
+.se-metric-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.12);
+  font-size: 12.5px;
+}
+.se-metric-row:last-child {
+  border-bottom: none;
+}
+.se-metric-lbl {
+  color: var(--n-ink-2, #888);
+  font-weight: 500;
+}
+.se-metric-val {
+  font-weight: 700;
+  font-family: var(--n-mono, monospace);
+  color: var(--n-ink);
+}
+.se-metric-val.pos {
+  color: #10b981;
+}
+.se-metric-val.neg {
+  color: #ef4444;
+}
 
 /* ô soạn code: CodeMirror 6 (components/studio/CodeEditor.jsx); màu / font lấy từ biến --n-* trong theme của chính component */
 .se-ed { position: relative; overflow: hidden; background: var(--n-surface-2); }

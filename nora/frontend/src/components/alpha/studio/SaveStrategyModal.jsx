@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { postSaveUserAlpha } from '../../../api'
 import { fmtNum, fmtPct, fmtSPct, signClass } from '../../../lib/format'
@@ -56,7 +57,7 @@ export default function SaveStrategyModal({ isOpen, onClose, jobId, code, defaul
     } catch (err) { setError(err.message || 'Lỗi lưu chiến lược') } finally { setSubmitting(false) }
   }
 
-  return (
+  return createPortal(
     <div className="n-modal-backdrop" onClick={onClose}>
       <div className="n-modal-content push-alpha-modal" role="dialog" aria-modal="true" aria-labelledby="save-t" onClick={(e) => e.stopPropagation()}>
         <header className="push-alpha-header">
@@ -111,6 +112,7 @@ export default function SaveStrategyModal({ isOpen, onClose, jobId, code, defaul
           </form>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

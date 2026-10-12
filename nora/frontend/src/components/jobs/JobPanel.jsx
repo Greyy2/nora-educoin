@@ -5,12 +5,12 @@ import { toMs, fmtDuration, fmtPct } from '../../lib/format'
 import { postCancel } from '../../api'
 import { ModeStamp, ResolvedParams } from '../optimize/RunModes'
 
-// 5 bước tiêu chuẩn trong tiến trình Backtest Nautilus của Nora
+// 5 bước tiêu chuẩn trong tiến trình Backtest
 const BACKTEST_STEPS = [
   { id: 1, label: 'Biên dịch', key: 'Biên dịch' },
   { id: 2, label: 'Nạp dữ liệu', key: 'Nạp' },
   { id: 3, label: 'Tín hiệu', key: 'Tín hiệu' },
-  { id: 4, label: 'Khớp Nautilus', key: 'Nautilus' },
+  { id: 4, label: 'Khớp lệnh', key: 'Khớp' },
   { id: 5, label: 'Chỉ số', key: 'chỉ số' },
 ]
 
@@ -24,7 +24,7 @@ function parseLogLine(ln) {
 }
 
 /** Bảng theo dõi một job nền: trạng thái, thanh tiến độ download-style, các bước pipeline, và nhật ký mốc trực tiếp. */
-export default function JobPanel({ job, status, error, title, onCancelled }) {
+export default function JobPanel({ job, status, error, title, onCancelled, isBacktest }) {
   const [now, setNow] = useState(Date.now())
   const [cancelling, setCancelling] = useState(false)
   const [cancelError, setCancelError] = useState(null)
@@ -38,7 +38,7 @@ export default function JobPanel({ job, status, error, title, onCancelled }) {
   }, [live])
   useEffect(() => { if (!live) setCancelling(false) }, [live])
 
-  const meta = JOB_STATUS[status] || { text: 'Đang tải', cls: '' }
+  const meta = JOB_STATUS[status] || { text: 'Đang chuẩn bị', cls: '' }
   const created = toMs(job?.created)
   const started = toMs(job?.started) || created
   const finished = toMs(job?.finished)
@@ -61,20 +61,81 @@ export default function JobPanel({ job, status, error, title, onCancelled }) {
     try { const j = await postCancel(job.job_id); if (onCancelled) onCancelled(j) } catch (e) { setCancelError(e.message); setCancelling(false) }
   }
 
-  // Xác định bước pipeline hiện tại
-  const isBacktestPipeline = prog?.total === 5 || String(title || '').toLowerCase().includes('backtest') || String(job?.kind || '').includes('backtest')
-  let currentStepIdx = 0
+  // Xác định bước pipeline hiện tại từ backend (hỗ trợ hiển thị ngay lập tức khi vừa nhấn Chạy)
+  const isBacktestPipeline = Boolean(isBacktest || prog?.total === 5 || String(title || '').toLowerCase().includes('backtest') || String(job?.kind || '').includes('backtest'))
+  let targetStepIdx = 0
   if (status === 'done') {
-    currentStepIdx = BACKTEST_STEPS.length
+    targetStepIdx = BACKTEST_STEPS.length
   } else if (prog) {
     if (prog.stage) {
       const idx = BACKTEST_STEPS.findIndex((s) => prog.stage.toLowerCase().includes(s.key.toLowerCase()))
-      if (idx >= 0) currentStepIdx = idx
-      else currentStepIdx = Math.max(0, Math.min(BACKTEST_STEPS.length - 1, (prog.done || 1) - 1))
+      if (idx >= 0) targetStepIdx = idx
+      else targetStepIdx = Math.max(0, Math.min(BACKTEST_STEPS.length - 1, (prog.done || 1) - 1))
     } else if (prog.done != null) {
-      currentStepIdx = Math.max(0, Math.min(BACKTEST_STEPS.length - 1, prog.done - 1))
+      targetStepIdx = Math.max(0, Math.min(BACKTEST_STEPS.length - 1, prog.done - 1))
     }
   }
+
+  // Paced Step Animator: Tạo chuyển động lướt nhanh, dứt khoát và mượt mà giữa các bước
+  // Khi backend tính toán siêu tốc, UI vẫn lướt tuần tự qua từng bước một cách dứt khoát (110ms - 160ms), không bị cảm giác delay/lag
+  const [displayedStepIdx, setDisplayedStepIdx] = useState(() => (status === 'done' ? BACKTEST_STEPS.length : 0))
+
+  useEffect(() => {
+    if (!isBacktestPipeline) {
+      setDisplayedStepIdx(targetStepIdx)
+      return undefined
+    }
+
+    if (displayedStepIdx < targetStepIdx) {
+      // Nếu chênh lệch nhiều bước hoặc job đã xong: catch up nhanh (90ms-110ms)
+      // Nếu chuyển bước bình thường: 150ms để mắt kịp nắm bắt mà không hề thấy khựng
+      const delay = (status === 'done' || targetStepIdx - displayedStepIdx > 1) ? 100 : 160
+      const timer = setTimeout(() => {
+        setDisplayedStepIdx((prev) => Math.min(targetStepIdx, prev + 1))
+      }, delay)
+      return () => clearTimeout(timer)
+    }
+  }, [displayedStepIdx, targetStepIdx, isBacktestPipeline, status])
+
+  // Nội suy phần trăm mượt mà đồng bộ với displayedStepIdx (chu kỳ 50ms, siêu nhạy)
+  const [animatedPct, setAnimatedPct] = useState(0)
+
+  useEffect(() => {
+    if (status === 'done' && displayedStepIdx >= BACKTEST_STEPS.length) {
+      setAnimatedPct(100)
+      return undefined
+    }
+    if (status !== 'running' && status !== 'done') {
+      setAnimatedPct(status === 'queued' ? 4 : 0)
+      return undefined
+    }
+
+    const currentStep = isBacktestPipeline ? displayedStepIdx : targetStepIdx
+    const basePct = isBacktestPipeline
+      ? Math.max(8, currentStep * 20 + 4)
+      : Math.max(8, prog?.pct || 8)
+
+    setAnimatedPct((prev) => Math.max(prev, basePct))
+
+    const maxStepPct = isBacktestPipeline
+      ? Math.min(status === 'done' ? 100 : 96, (currentStep + 1) * 20 - 2)
+      : Math.min(96, (prog?.pct || 0) + 15)
+
+    const timer = setInterval(() => {
+      setAnimatedPct((prev) => {
+        if (prev < maxStepPct) {
+          const delta = (maxStepPct - prev) * 0.22 + 0.4
+          return Math.min(maxStepPct, prev + delta)
+        }
+        return prev
+      })
+    }, 50)
+
+    return () => clearInterval(timer)
+  }, [status, displayedStepIdx, targetStepIdx, isBacktestPipeline, prog?.pct])
+
+  const effectiveStepIdx = isBacktestPipeline ? displayedStepIdx : targetStepIdx
+  const isAllStepsFinished = effectiveStepIdx >= BACKTEST_STEPS.length || (status === 'done' && displayedStepIdx >= BACKTEST_STEPS.length)
 
   return (
     <div className="n-job" aria-live="polite">
@@ -90,53 +151,92 @@ export default function JobPanel({ job, status, error, title, onCancelled }) {
         )}
       </div>
 
-      {/* Hiển thị pipeline các bước trong tiến trình Backtest */}
-      {isBacktestPipeline && (status === 'running' || status === 'queued' || status === 'done') && (
-        <div className="n-pipeline-track" role="list" aria-label="Các bước thực thi">
-          {BACKTEST_STEPS.map((step, idx) => {
-            const isDone = status === 'done' || idx < currentStepIdx
-            const isActive = status === 'running' && idx === currentStepIdx
-            const stepClass = isDone ? 'done' : isActive ? 'active' : 'pending'
-            return (
-              <React.Fragment key={step.id}>
-                <div className={`n-step-item ${stepClass}`} role="listitem">
-                  <span className="n-step-badge">
-                    {isDone ? '✓' : step.id}
-                  </span>
-                  <span className="n-step-name">{step.label}</span>
-                </div>
-                {idx < BACKTEST_STEPS.length - 1 && (
-                  <span className="n-step-arrow" aria-hidden="true">→</span>
-                )}
-              </React.Fragment>
-            )
-          })}
-        </div>
-      )}
-
-      {/* Thanh tiến độ phong cách download: mượt mà, shimmer khi chạy */}
-      {prog && (status === 'running' || status === 'done' || status === 'cancelled') && (
-        <div className="n-prog" role="group" aria-label="Tiến độ thực thi">
+      {/* THANH TIẾN ĐỘ HỢP NHẤT: Kích thước rộng hơn, chứa trực tiếp các bước pipeline bên trong */}
+      {isBacktestPipeline ? (
+        <div className="n-unified-pipeline-wrap" role="group" aria-label="Tiến trình Backtest">
           <div
-            className={`n-prog-bar download-style ${status === 'running' ? 'is-running' : ''}`}
+            className="n-unified-pipeline-bar"
             role="progressbar"
             aria-valuemin={0}
             aria-valuemax={100}
-            aria-valuenow={Math.round(prog.pct)}
+            aria-valuenow={Math.round(isAllStepsFinished ? 100 : animatedPct)}
           >
-            <span style={{ width: `${Math.min(100, Math.max(status === 'done' ? 100 : (prog.pct > 0 ? prog.pct : 5), prog.pct))}%` }} />
+            {/* Lớp fill nền gradient chuyển động theo tiến độ */}
+            <div
+              className={`n-unified-fill ${status === 'running' ? 'is-running' : ''}`}
+              style={{ width: `${Math.min(100, Math.max(isAllStepsFinished ? 100 : 6, animatedPct))}%` }}
+            />
+
+            {/* Các bước pipeline hiển thị trực tiếp bên trong thanh */}
+            <div className="n-unified-steps">
+              {BACKTEST_STEPS.map((step, idx) => {
+                const isDone = isAllStepsFinished || idx < effectiveStepIdx
+                const isActive = !isAllStepsFinished && idx === effectiveStepIdx
+                const stepClass = isDone ? 'done' : isActive ? 'active' : 'pending'
+                const arrowDone = isDone || (idx < effectiveStepIdx)
+
+                return (
+                  <React.Fragment key={step.id}>
+                    <div className={`n-unified-step-item ${stepClass}`}>
+                      <span className="n-unified-badge">
+                        {isDone ? '✓' : step.id}
+                      </span>
+                      <span className="n-unified-label">{step.label}</span>
+                    </div>
+                    {idx < BACKTEST_STEPS.length - 1 && (
+                      <span className={`n-unified-arrow ${arrowDone ? 'done' : ''}`} aria-hidden="true">→</span>
+                    )}
+                  </React.Fragment>
+                )
+              })}
+            </div>
           </div>
+
+          {/* Dòng metadata thông số tiến độ bên dưới */}
           <div className="n-prog-meta mono">
-            <b>{fmtPct(status === 'done' ? 100 : prog.pct, prog.pct < 10 ? 1 : 0)}</b>
+            <b>{fmtPct(isAllStepsFinished ? 100 : Math.round(animatedPct), 0)}</b>
             <span>
-              {prog.done.toLocaleString('vi-VN')}/{prog.total.toLocaleString('vi-VN')}
-              {prog.stage ? ` · ${prog.stage}` : ''}
+              {isAllStepsFinished
+                ? '5/5 · Hoàn tất tất cả các bước'
+                : `Bước ${Math.min(5, effectiveStepIdx + 1)}/5: ${BACKTEST_STEPS[effectiveStepIdx]?.label || prog?.stage || ''}`}
             </span>
-            {status === 'running' && <span>Tốc độ {fmtRate(prog.rate)}</span>}
-            {status === 'running' && <span>Còn khoảng {prog.eta != null ? fmtDuration(prog.eta) : '—'}</span>}
-            {prog.peakMb != null && <span className="muted">RAM đỉnh {Math.round(prog.peakMb)} MB</span>}
+            {elapsed != null && (status === 'running' || !isAllStepsFinished) && (
+              <span>Thời gian {fmtDuration(elapsed)}</span>
+            )}
+            {prog?.peakMb != null && <span className="muted">RAM đỉnh {Math.round(prog.peakMb)} MB</span>}
           </div>
         </div>
+      ) : (
+        /* Fallback cho các loại job khác không phải Backtest 5 bước */
+        prog && (status === 'running' || status === 'done' || status === 'cancelled') && (
+          <div className="n-prog" role="group" aria-label="Tiến độ thực thi">
+            <div
+              className={`n-prog-bar download-style ${status === 'running' ? 'is-running' : ''}`}
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(status === 'done' ? 100 : animatedPct)}
+            >
+              <span style={{ width: `${Math.min(100, Math.max(status === 'done' ? 100 : 5, animatedPct))}%` }} />
+            </div>
+            <div className="n-prog-meta mono">
+              <b>{fmtPct(status === 'done' ? 100 : Math.round(animatedPct), 0)}</b>
+              <span>
+                {`${prog.done.toLocaleString('vi-VN')}/${prog.total.toLocaleString('vi-VN')}${prog.stage ? ` · ${prog.stage}` : ''}`}
+              </span>
+              {elapsed != null && status === 'running' && (
+                <span>Thời gian {fmtDuration(elapsed)}</span>
+              )}
+              {prog.rate > 0 && status === 'running' && (
+                <span>Tốc độ {fmtRate(prog.rate)}</span>
+              )}
+              {prog.eta != null && status === 'running' && (
+                <span>Còn khoảng {fmtDuration(prog.eta)}</span>
+              )}
+              {prog.peakMb != null && <span className="muted">RAM đỉnh {Math.round(prog.peakMb)} MB</span>}
+            </div>
+          </div>
+        )
       )}
 
       {job?.mode && <ModeStamp mode={job.mode} customGates={job.custom_gates} promotable={job.promotable} ignored={job.ignored_client_params} />}
@@ -156,7 +256,7 @@ export default function JobPanel({ job, status, error, title, onCancelled }) {
                 <span className="n-console-dot y" />
                 <span className="n-console-dot g" />
               </div>
-              <span className="n-console-title">Nhật ký thực thi · Nautilus Trader</span>
+              <span className="n-console-title">Nhật ký tiến trình thực thi</span>
               {status === 'running' && (
                 <span className="n-console-live-badge">
                   <span className="n-console-live-pulse" />

@@ -9,11 +9,12 @@ import re
 import tokenize
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
-from backend.core.signal import DslError
+from backend.alpha.dsl.signal import DslError
 
 MAX_CODE_CHARS = 50_000
 MAX_NODES = 20_000
-BASE_CLASS = "SimpleAlgorithm"
+BASE_CLASSES = ("NoraStrategy", "Strategy", "AlphaStrategy", "SimpleAlgorithm")
+BASE_CLASS = "NoraStrategy"
 
 def at(node, message: str) -> DslError:
     """DslError gắn vào một nút ast (lineno, col_offset 0-based -> cột 1-based)."""
@@ -33,7 +34,7 @@ def suggest(name: str, options: Iterable[str], n: int = 4) -> str:
 
 
 def _position_attr_names() -> Set[str]:
-    from backend.core.params import POSITION_KEYS
+    from backend.models.params import POSITION_KEYS
     return set(POSITION_KEYS)
 
 
@@ -44,7 +45,7 @@ def _position_attr_names() -> Set[str]:
 # ══════════════════════════════════════════════════════════════════════════
 
 LIFECYCLE = ("on_start", "on_bar", "on_stop")
-_ACTIONS = ("set_positions", "set_dca_gate")
+_ACTIONS = ("set_positions", "set_position", "buy", "sell", "close", "close_position", "set_dca_gate")
 
 
 def _is_doc(stmt) -> bool:
@@ -150,14 +151,14 @@ _SERIES_EXAMPLE = {"high": "high", "low": "low", "close": "close", "volume": "vo
 
 
 def _default_json(v):
-    from backend.core.indicator import REQUIRED
+    from backend.alpha.dsl.indicator import REQUIRED
     if v is REQUIRED:
         return None
     return v
 
 
 def _arg_row(p) -> dict:
-    from backend.core.indicator import REQUIRED
+    from backend.alpha.dsl.indicator import REQUIRED
     series = p.kind in _SERIES_TYPE
     return {"name": p.name, "type": _SERIES_TYPE.get(p.kind, p.kind), "required": p.default is REQUIRED,
             "default": _default_json(p.default), "lo": None if series else p.lo, "hi": None if series else p.hi}
@@ -169,7 +170,7 @@ def _fmt_default(v) -> str:
 
 def _call_texts(prefix: str, spec) -> tuple:
     """(signature, example, insert) của self.feat.x(...) / self.op.x(...)."""
-    from backend.core.indicator import REQUIRED
+    from backend.alpha.dsl.indicator import REQUIRED
     sig, ex, ins = [], [], []
     n = 0
     for p in spec.params:
@@ -219,7 +220,7 @@ def _module_features() -> list:
 
 def _kernel_row(name: str) -> dict:
     """Hàng catalog cho chỉ báo CHỈ có ở cột kernel (indicator.REGISTRY), loại module."""
-    from backend.core.indicator import REGISTRY
+    from backend.alpha.dsl.indicator import REGISTRY
     ks = REGISTRY[name]
     series = {"atr": ("high", "low", "close"), "adx": ("high", "low", "close")}.get(name, ("real",))
     args = [{"name": a, "type": "series_num", "required": True, "default": None, "lo": None, "hi": None} for a in series]
@@ -233,9 +234,9 @@ def _kernel_row(name: str) -> dict:
 
 def build_catalog() -> dict:
     """Danh mục đầy đủ (không có `version`; xem `catalog()`)."""
-    from backend.core.indicator import FEATURES, OPS
-    from backend.core.params import EXIT_RISK_SPEC, FRAMES, POSITION_KEYS
-    from backend.core.signal import DATA_COLUMNS, DSL_VERSION
+    from backend.alpha.dsl.indicator import FEATURES, OPS
+    from backend.models.params import EXIT_RISK_SPEC, FRAMES, POSITION_KEYS
+    from backend.alpha.dsl.signal import DATA_COLUMNS, DSL_VERSION
     mod_feat = set(_module_features())
     features = [_spec_row("self.feat", "feature", FEATURES[n], ["alpha", "module"] if n in mod_feat else ["alpha"]) for n in sorted(FEATURES)]
     features += [_kernel_row(n) for n in sorted(mod_feat - set(FEATURES))]     # cột kernel chỉ có ở loại module (vd. er)

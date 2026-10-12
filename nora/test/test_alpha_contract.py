@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 
 from backend.alpha import compile as dsl, contract
 from backend.alpha.compile import compile_code, compile_program, compile_strategy_module, load_system_strategies, strategies_dir
-from backend.core.indicator import FEATURES, OPS
+from backend.alpha.dsl.indicator import FEATURES, OPS
 from backend.optimize.book import build as sb
 from backend.optimize.book import registry as user_alphas
 from backend.routes import alpha

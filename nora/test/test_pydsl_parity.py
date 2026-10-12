@@ -7,9 +7,9 @@ import pytest
 
 import golden_scenarios as gs
 from backend.optimize.book import build as sb
-from backend.core.params import RISK, materialize, schema_defaults
+from backend.models.params import RISK, materialize, schema_defaults
 from backend.alpha.compile import compile_code
-from backend.core import strategy as profiles
+from backend.alpha.dsl import strategy as profiles
 
 pytestmark = pytest.mark.usefixtures("synthetic_data")   # P15: engine Nautilus lấy nến thực thi + spec từ DataSource; dữ liệu giả lập -> conftest.synthetic_data
 
@@ -35,7 +35,7 @@ def _core_strategy():
 
 
 def _run(strategies, symbols, start_ms, end_ms, trade_start, root):
-    from backend.core.strategy import RiskConfig
+    from backend.alpha.dsl.strategy import RiskConfig
     from backend.nautilus.engine import PortfolioEngine
     with gs.data_root_env(str(root)):
         eng = PortfolioEngine(symbols, strategies, start_ms, end_ms, trade_start_ts=trade_start, risk=RiskConfig.from_dict(RISK),

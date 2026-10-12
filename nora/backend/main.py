@@ -56,7 +56,7 @@ if WEB.exists():
     app.mount("/assets", StaticFiles(directory=str(WEB / "assets")), name="assets")
 
     def _index():
-        return FileResponse(WEB / "index.html", headers={"Cache-Control": "no-cache, must-revalidate"})
+        return FileResponse(WEB / "index.html", headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"})
 
     @app.get("/")
     def index():

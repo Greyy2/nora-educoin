@@ -137,7 +137,7 @@ def data_root_env(root: str):
 
 
 def clear_caches() -> None:
-    from backend.core import strategy as portfolio
+    from backend.alpha.dsl import strategy as portfolio
     from backend.crawl.store import CandleLoader
     CandleLoader.clear_cache()
     portfolio.data_cache_clear()
@@ -187,7 +187,7 @@ SHORT = {"id": "rsi_short", "side": "SHORT", "tree": [[[_f("15m", "rsi_14"), ">"
 
 
 def scenario_portfolio_synthetic(root) -> Dict[str, Any]:
-    from backend.core.strategy import RiskConfig
+    from backend.alpha.dsl.strategy import RiskConfig
     from backend.nautilus.engine import PortfolioEngine
     write_synthetic_market(root)
     with data_root_env(str(root)):
@@ -200,10 +200,10 @@ def scenario_portfolio_synthetic(root) -> Dict[str, Any]:
 # ─── Kịch bản 2: một tài sản DEX có phút điền (is_filled=1) + DCA ───────────
 
 def scenario_single_dca_filled(root) -> Dict[str, Any]:
-    from backend.core.models import data_source
-    from backend.core.params import manifest_pool_fee
+    from backend.models.models import data_source
+    from backend.models.params import manifest_pool_fee
     from backend.nautilus.engine import BacktestEngine
-    from backend.core.params import build_params
+    from backend.models.params import build_params
     from backend.crawl.store import save_resampled_dataset
     root = str(root)
     n = 25 * 1440
@@ -253,8 +253,8 @@ def real_data_available(data_root) -> bool:
 def scenario_portfolio_real(data_root, end: Optional[str] = None, shared_dir: Optional[str] = None) -> Dict[str, Any]:
     """shared_dir: nếu có, export dữ liệu mmap vào đó rồi chạy bằng PortfolioEngine(shared_dir=...) (kết quả phải y hệt)."""
     from backend.optimize.book import build as sb
-    from backend.core.params import RISK, materialize
-    from backend.core.strategy import RiskConfig
+    from backend.models.params import RISK, materialize
+    from backend.alpha.dsl.strategy import RiskConfig
     from backend.nautilus.engine import PortfolioEngine
     cand = sb.BY_ID
     # cooldown=0, limit_through_pct=0: snapshot này sinh trước khi BASE_POSITION có cooldown=60 / khớp limit phải đi qua mức; ghim để golden

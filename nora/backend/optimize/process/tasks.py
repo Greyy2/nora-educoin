@@ -23,8 +23,8 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
-from backend.core.models import NORA_DIR
-from backend.core.params import DAY_MS as DAY, DEFAULT_CAPITAL, DEFAULT_TRAIN_RATIO, date_ms, iso_date
+from backend.models.models import NORA_DIR
+from backend.models.params import DAY_MS as DAY, DEFAULT_CAPITAL, DEFAULT_TRAIN_RATIO, date_ms, iso_date
 from backend.crawl.store import (as_list, check_data, data_info, default_window, json_default, load_prices, load_report, load_samples, options,
                                  resolve_symbols, strategy_frames, write_job_result)
 from backend.nautilus.engine import provenance as engine_provenance
@@ -32,8 +32,8 @@ from backend.metrics.trades import build_result, downsample_series, label_stats,
 from backend.optimize.funnel.storage import atomic_write_json
 from backend.optimize.search.evaluate import (WARMUP, _pool_shared, candidates_from_ids, candidates_from_list, candidates_from_report, execute, load_items,
                                               plan_is_jobs, print_summary, run, run_benchmark, run_portfolio_wfa)
-from backend.regime import regime as rg
-from backend.regime.regime import by_regime
+from backend.metrics import regime as rg
+from backend.metrics.regime import by_regime
 
 CUSTOM_BACKTEST_DEFAULTS = {"code": "", "symbols": None, "start": "", "end": "", "train_ratio": DEFAULT_TRAIN_RATIO, "initial_capital": None, "position": None, "run_frame": ""}
 BOOK_BACKTEST_DEFAULTS = {"book": "", "strategies": None, "symbols": "", "start": "", "end": "", "risk_per_trade": None, "stop_fill": "level", "regime": False, "timeframe": "1m", "out": "",
@@ -62,7 +62,7 @@ def git_commit() -> Optional[str]:
 
 
 def _clear_data_caches() -> None:
-    from backend.core.strategy import data_cache_clear
+    from backend.alpha.dsl.strategy import data_cache_clear
     from backend.crawl.store import CandleLoader
     CandleLoader.clear_cache()
     data_cache_clear()
@@ -142,9 +142,10 @@ def run_custom(params=None):
     require_memory_limit("custom_run")
     from datetime import datetime, timezone
     from backend.optimize.process.process import Progress
-    from backend.core.signal import DslError
+    from backend.alpha.dsl.signal import DslError
     from backend.alpha.compile import compile_code
-    from backend.core.strategy import build_plan
+    from backend.alpha.dsl.strategy import SignalEngine, build_plan
+    SignalEngine.MAX_BACKTEST_DAYS = 4000
 
     t0 = time.time()
     job_dir = os.environ.get("NORA_JOB_DIR")
@@ -164,8 +165,98 @@ def run_custom(params=None):
         program = compile_code(a.code)
     except DslError as e:
         raise ValueError(f"Lỗi biên dịch chiến lược: {e}") from None
+
+    # Nhánh chạy Native Nautilus Strategy thuần
+    if getattr(program, "is_native", False):
+        raw_syms = as_list(a.symbols) if a.symbols else program.symbols
+        clean_syms = [s.split("-")[0].split("@")[0].split(":")[-1] for s in raw_syms] if raw_syms else ["BTC"]
+        names = resolve_symbols(clean_syms)
+        base_frame = a.run_frame or program.timeframe or "1h"
+
+        _mark(2, 5, "Nạp & xác thực dữ liệu", f"{len(names)} tài sản · khung {base_frame}")
+        check_data(names)
+        start, end = date_ms(a.start), date_ms(a.end) + DAY
+        if end <= start:
+            raise ValueError("end phải sau start")
+        capital = float(a.initial_capital) if a.initial_capital else DEFAULT_CAPITAL
+        data, warns = data_info(names, start, end, source)
+
+        _mark(3, 5, "Khởi tạo Nautilus Engine", f"Chiến lược {program.name} · venue OKX")
+        split = stage_split(start, end, float(a.train_ratio))
+        from backend.nautilus.runner import NativeNautilusRunner
+
+        _mark(4, 5, "Mô phỏng sự kiện Nautilus", f"Khớp lệnh bar-by-bar · {base_frame}")
+        main_runner = NativeNautilusRunner(
+            strategy_class=program.strategy_cls,
+            symbols=names,
+            start_ms=start,
+            end_ms=end,
+            initial_capital=capital,
+            base_frame=base_frame,
+            strategy_id=program.name,
+        )
+        res = main_runner.run()
+
+        test_res = None
+        if split < end:
+            test_runner = NativeNautilusRunner(
+                strategy_class=program.strategy_cls,
+                symbols=names,
+                start_ms=split,
+                end_ms=end,
+                initial_capital=capital,
+                base_frame=base_frame,
+                strategy_id=f"{program.name}_TEST",
+            )
+            test_res = test_runner.run()
+
+        from types import SimpleNamespace
+        plan = SimpleNamespace(
+            symbols=names,
+            base_frame=base_frame,
+            risk={"max_positions": len(names), "max_per_symbol": 1, "max_gross_exposure": 1e6, "kill_switch_dd_pct": 0.0},
+            strategies=[{"id": program.name}],
+            warnings=[],
+            echo={},
+        )
+        eng = SimpleNamespace(
+            open_positions=lambda: res.get("open_positions", [])
+        )
+
+        bench = test_bench = None
+        try:
+            bench = run_benchmark(program, a, plan, names, start, end, capital, data)
+        except Exception as e:
+            warns = warns + [f"không chạy được benchmark: {e}"]
+        if split < end:
+            try:
+                test_bench = run_benchmark(program, a, plan, names, split, end, capital, data)
+            except Exception as e:
+                warns = warns + [f"không chạy được benchmark test: {e}"]
+
+        _mark(5, 5, "Tính toán chỉ số & chẩn đoán", "Sharpe, Drawdown, PnL & báo cáo")
+        out = build_result(
+            program, plan, res, eng, a, start, end, capital, data, warns, test_res, split,
+            bench=bench, inputs=diagnostic_inputs(plan, program, end), test_bench=test_bench
+        )
+        from backend.optimize.book.registry import evaluate_checklist, generate_alpha_id
+        out["alpha_id"] = generate_alpha_id(program.code_hash, out["config"])
+        out["checklist"] = evaluate_checklist(out)
+        from backend.optimize.process.workers import peak_rss_mb
+        out["meta"] = {"wall_s": round(time.time() - t0, 1), "peak_rss_mb": round(peak_rss_mb(), 1)}
+        out["provenance"] = stamp_provenance(out.get("provenance") or engine_provenance(plan.base_frame))
+
+        if progress:
+            progress.status = "done"
+            progress.write(force=True)
+
+        sim = out["metrics"]["simulate"]
+        now_str = datetime.now(timezone.utc).strftime("%H:%M:%S")
+        print(f"[{now_str}] Hoàn tất! Vốn cuối {out['final_equity']} | Lãi {sim['ret_pct']}% | MDD {sim['mdd_pct']}% | Lệnh {len(out['trades'])} | {out['meta']['wall_s']}s", flush=True)
+        return out
+
     names = resolve_symbols(as_list(a.symbols))
-    plan = build_plan(program, names, position=a.position or None, run_frame=a.run_frame or None)
+    plan = build_plan(program, names, position=a.position or None, run_frame=a.run_frame)
 
     _mark(2, 5, "Nạp & xác thực dữ liệu", f"{len(plan.symbols)} tài sản · khung {plan.base_frame}")
     check_data(plan.symbols)
@@ -187,7 +278,7 @@ def run_custom(params=None):
     if split < end:     # benchmark của giai đoạn Test: cùng cửa sổ [mốc chia, end], vốn đầu
         steps.append(("test_bench", lambda ev: run_benchmark(program, a, plan, names, split, end, capital, data, loaded=ev)))
 
-    _mark(4, 5, "Khớp lệnh Nautilus Trader", f"venue OKX Margin USDT · {plan.base_frame}")
+    _mark(4, 5, "Khớp lệnh", f"mô phỏng vị thế · {plan.base_frame}")
     got = run_parallel(steps)
     if isinstance(got["main"], BaseException):
         raise got["main"]
@@ -243,6 +334,8 @@ def run_book_backtest(params=None):
         raise ValueError("chọn một: book hoặc strategies")
     from backend.optimize.process.workers import require_memory_limit
     require_memory_limit("run_book_backtest")
+    from backend.alpha.dsl.strategy import SignalEngine
+    SignalEngine.MAX_BACKTEST_DAYS = 4000
     from backend.optimize.book.build import perp_symbols
 
     from backend.crawl.store import classify_symbols
@@ -306,7 +399,7 @@ def run_book_wfa(params=None):
 
     from backend.optimize.process.workers import check_memory_gate, require_memory_limit
     require_memory_limit("validate_book")
-    from backend.core.params import BASE_RISK_PER_TRADE_PCT, RISK
+    from backend.models.params import BASE_RISK_PER_TRADE_PCT, RISK
     from backend.optimize.book.build import perp_symbols
     from backend.crawl.store import run_dir as run_dir_of
     from backend.optimize.process.workers import resolve_workers
@@ -411,7 +504,7 @@ def run_book_wfa(params=None):
 
 def _book_items():
     from backend.optimize.book.build import load_presets, CANDIDATES
-    from backend.core.params import BASE_RISK_PER_TRADE_PCT
+    from backend.models.params import BASE_RISK_PER_TRADE_PCT
     presets = load_presets()
     items, rpts = [], []
     for c in CANDIDATES:
@@ -447,7 +540,7 @@ def run_regime_report(params=None):
     a = options(REGIME_REPORT_DEFAULTS, params)
     from backend.optimize.process.workers import require_memory_limit
     require_memory_limit("regime_report")
-    from backend.core.params import REGIME_MAP
+    from backend.models.params import REGIME_MAP
     from backend.optimize.book.build import perp_symbols
     from backend.crawl.store import read_manifest, require_data_ok_or_exit
     symbols = [s if "@" in s else f"{s}@perp" for s in as_list(a.symbols)] or perp_symbols()

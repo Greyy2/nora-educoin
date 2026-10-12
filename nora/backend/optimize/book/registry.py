@@ -13,13 +13,13 @@ import warnings
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
-from backend.core.indicator import REGISTRY
+from backend.alpha.dsl.indicator import REGISTRY
 from backend.crawl.store import alpha_dir as alphas_dir
 from backend.crawl.store import options, write_job_result
 from backend.crawl.store import json_default, read_json
 from backend.metrics.charts import BETA_DRIVEN_ID
 from backend.optimize.funnel.storage import atomic_write_json
-from backend.core.models import NORA_DIR
+from backend.models.models import NORA_DIR
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -42,9 +42,14 @@ _cache: Dict[str, Any] = {"sig": None, "value": None, "at": 0.0}
 
 
 def _engine_files() -> List[Tuple[str, str]]:
-    core = os.path.join(NORA_DIR, "backend", "core")
-    rels = [f"backend/core/{n}" for n in sorted(os.listdir(core)) if n.endswith(".py") and n != "__init__.py"] + list(ENGINE_COMPUTE_FILES)
+    rels = []
+    for d in ["backend/nautilus", "backend/models", "backend/alpha/dsl"]:
+        dp = os.path.join(NORA_DIR, d)
+        if os.path.isdir(dp):
+            rels.extend([f"{d}/{n}" for n in sorted(os.listdir(dp)) if n.endswith(".py") and n != "__init__.py"])
+    rels += list(ENGINE_COMPUTE_FILES)
     return [(rel, os.path.join(NORA_DIR, rel)) for rel in rels if os.path.isfile(os.path.join(NORA_DIR, rel))]
+
 
 
 def _strategy_ir_hashes() -> List[Tuple[str, str]]:
@@ -157,7 +162,7 @@ def _git_revision(repo_dir: str) -> Dict[str, Any]:
 
 def build_registry(results: List[Dict[str, Any]], spaces: List[Dict[str, Any]], source: str,
                    repo_dir: Optional[str] = None, robustness: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    from backend.core.params import resolve_placeholders, split_params
+    from backend.models.params import resolve_placeholders, split_params
     from backend.crawl.store import read_manifest
 
     by_id = {s["id"]: s for s in spaces}
@@ -242,7 +247,7 @@ def _is_true(v) -> bool:
 
 
 def build_book(report: Dict[str, Any], source: str, repo_dir: str = None) -> Dict[str, Any]:
-    from backend.core.params import materialize
+    from backend.models.params import materialize
     from backend.optimize.book.build import UNIVERSE, BY_ID
     book = report["book"]
     holdout_pass = _is_true(book.get("holdout_pass"))
@@ -383,7 +388,7 @@ def registry_alpha_id(strategy: str, alpha_id: str) -> str:
 
 def promote_alpha(run_dir: str, alpha_id: str, alphas_dir: str, note: Optional[str] = None) -> Dict[str, Any]:
     """-> {"registry_path", "alpha_id", "registry_alpha_id", "final_scale", "testnet_config"}. ValueError nếu alpha chưa FINAL."""
-    from backend.core.params import RISK, materialize
+    from backend.models.params import RISK, materialize
     from backend.optimize.book.build import BY_ID, UNIVERSE
     from backend.optimize.funnel.storage import RunStore
     from backend.optimize.funnel.stages import risk_for_scale
@@ -406,7 +411,7 @@ def promote_alpha(run_dir: str, alpha_id: str, alphas_dir: str, note: Optional[s
     params, rmode = split_regime(alpha["params"])
     regime = False
     if rmode == "learn":   # bảng regime của lần chạy holdout (học trên dữ liệu trước holdout)
-        from backend.regime.regime import NAMES
+        from backend.metrics.regime import NAMES
         blocked = ((stages.get("S6_holdout") or {}).get("regime_blocked")) or []
         regime = {"allowed": [r for r in NAMES if r not in blocked], "fuse": False, "blocked": blocked} if blocked else False
     st = materialize(cand, params, regime=regime, risk_per_trade_pct=rpt, stop_fill="level")
@@ -460,7 +465,7 @@ EXPLORE_MIN_STAGE = 1      # sổ thử nghiệm: alpha phải qua S1 (stage_idx
 
 def build_report(run_dir: str, alpha_ids: List[str], rpt: float, wfa: Dict[str, Any], explore: bool = False) -> Dict[str, Any]:
     from backend.optimize.search.evaluate import run
-    from backend.core.params import RISK
+    from backend.models.params import RISK
     from backend.optimize.search.generate import split_regime
     from backend.optimize.funnel.storage import RunStore
     from backend.optimize.funnel.stages import evaluate_s6, S6_MIN_RET_PCT, S6_MAX_MDD_PCT, windows_iso
@@ -572,7 +577,7 @@ def alpha_strategy(al: Dict[str, Any], scale: float = 1.0) -> Dict[str, Any]:
 
 def _run(al, window, stop_fill: str, kill: bool, scale: float = 1.0) -> Dict[str, Any]:
     from backend.optimize.search.evaluate import run
-    from backend.core.params import BASE_RISK_PER_TRADE_PCT, RISK
+    from backend.models.params import BASE_RISK_PER_TRADE_PCT, RISK
     risk = {**RISK, "kill_switch_dd_pct": RISK["kill_switch_dd_pct"] if kill else 0}
     return run([], [al["data_symbol"]], int(window[0]), int(window[1]), BASE_RISK_PER_TRADE_PCT, stop_fill, risk,
                extra_strategies=[alpha_strategy(al, scale)], base_frame=TIMEFRAME)

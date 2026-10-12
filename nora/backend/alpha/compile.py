@@ -16,13 +16,14 @@ import tokenize
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple
 
-from backend.alpha.contract import (BASE_CLASS, KIND_ALPHA, KIND_MODULE, MAX_CODE_CHARS, MAX_NODES, METHOD_OPS, _fmt_range, _is_doc, _position_attr_names, at, classify, has_lifecycle,
+from backend.alpha.contract import (BASE_CLASS, BASE_CLASSES, KIND_ALPHA, KIND_MODULE, MAX_CODE_CHARS, MAX_NODES, METHOD_OPS, _fmt_range, _is_doc, _position_attr_names, at, classify, has_lifecycle,
                                     lifecycle_body, native_tree, split_suggest, suggest)
-from backend.core.indicator import FEATURES, OPS, REQUIRED, Spec, register_program
-from backend.core.params import BASE_POSITION, DATA_COLUMNS, FRAME_MS, FRAMES as FRAME_TF, NORA_DEFAULTS, VENUE_COSTS, resolve_position_auto
-from backend.core.signal import (Bin, BoolConst, Call, Cmp, Const, Data, DslError, Inv, Logic, Neg, Node, Pick, Program, TupleVal, code_hash)
+from backend.alpha.dsl.indicator import FEATURES, OPS, REQUIRED, Spec, register_program
+from backend.alpha.dsl.ta import GLOBAL_TA_FUNCS, OHLCV_COLUMNS, RISK_PARAM_MAP
+from backend.models.params import BASE_POSITION, DATA_COLUMNS, FRAME_MS, FRAMES as FRAME_TF, NORA_DEFAULTS, VENUE_COSTS, resolve_position_auto
+from backend.alpha.dsl.signal import (Bin, BoolConst, Call, Cmp, Const, Data, DslError, Inv, Logic, Neg, Node, Pick, Program, TupleVal, code_hash)
 
-from backend.core.models import DATA_DIR  # noqa: E402  (DATA_DIR cố định theo mã, KHÔNG theo NORA_LOCAL_DATA_ROOT của test)
+from backend.models.models import DATA_DIR  # noqa: E402  (DATA_DIR cố định theo mã, KHÔNG theo NORA_LOCAL_DATA_ROOT của test)
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -34,6 +35,7 @@ from backend.core.models import DATA_DIR  # noqa: E402  (DATA_DIR cố định t
 # ══════════════════════════════════════════════════════════════════════════
 
 DATA_ATTRS = {f"pv_{c}": c for c in DATA_COLUMNS}
+DATA_ATTRS.update({c: c for c in DATA_COLUMNS})
 TIMEFRAME_ALIASES = {"1d": "24h", "d": "24h", "1day": "24h", "daily": "24h", "60m": "1h", "240m": "4h", "1440m": "24h"}
 _CMP = {ast.Gt: ">", ast.GtE: ">=", ast.Lt: "<", ast.LtE: "<=", ast.Eq: "==", ast.NotEq: "!="}
 _ARITH = {ast.Add: "+", ast.Sub: "-", ast.Mult: "*", ast.Div: "/", ast.Pow: "**"}
@@ -112,10 +114,11 @@ class _Compiler:
             else:
                 raise at(node, "Ở cấp ngoài chỉ được có docstring và một class chiến lược")
         if len(classes) != 1:
-            raise DslError(f"Cần đúng một class kế thừa {BASE_CLASS}, tìm thấy {len(classes)}", 1, 1)
+            raise DslError(f"Cần đúng một class kế thừa {' hoặc '.join(BASE_CLASSES)}, tìm thấy {len(classes)}", 1, 1)
         cls = classes[0]
-        if not (len(cls.bases) == 1 and isinstance(cls.bases[0], ast.Name) and cls.bases[0].id == BASE_CLASS) or cls.keywords or cls.decorator_list:
-            raise at(cls, f"Class phải có dạng `class {cls.name}({BASE_CLASS}):`")
+        base_name = cls.bases[0].id if (len(cls.bases) == 1 and isinstance(cls.bases[0], ast.Name)) else None
+        if not (base_name in BASE_CLASSES) or cls.keywords or cls.decorator_list:
+            raise at(cls, f"Class phải có dạng `class {cls.name}({BASE_CLASS}):` (hoặc kế thừa: {', '.join(BASE_CLASSES)})")
         self.name = cls.name
         algo = None
         for stmt in lifecycle_body(cls):
@@ -147,7 +150,7 @@ class _Compiler:
             self.warnings.append("Không khai báo `timeframe`: dùng mặc định 24h.")
         profile_name = self.position_overrides.get("risk_profile") or "legacy"
         if profile_name != "legacy":
-            from backend.core.position_size import validate_strategy_risk
+            from backend.models.position_size import validate_strategy_risk
             issues = validate_strategy_risk(self.position_overrides, profile_name)
             if issues:
                 raise at(cls, f"Vi phạm quy tắc Risk Profile '{profile_name}': {issues[0].message_vi} (Gợi ý: {issues[0].suggestion})")
@@ -201,6 +204,9 @@ class _Compiler:
                 (self.open_ranges if name == "position_open_ranges" else self.close_ranges).extend(rng)
         elif name in _position_attr_names():
             self.position_overrides[name] = value
+        elif name in RISK_PARAM_MAP:
+            mapped_name = RISK_PARAM_MAP[name]
+            self.position_overrides[mapped_name] = value
         else:
             self.consts[name] = value
 
@@ -209,10 +215,17 @@ class _Compiler:
         if isinstance(st, ast.Expr):
             if isinstance(st.value, ast.Constant) and isinstance(st.value.value, str):
                 return
-            if (isinstance(st.value, ast.Call) and isinstance(st.value.func, ast.Attribute) and st.value.func.attr == "set_positions"
-                    and self._is_self(st.value.func.value)):
-                return self._set_positions(st.value)
-            raise at(st, "Câu lệnh biểu thức đứng riêng không có tác dụng; chỉ self.set_positions(...) được gọi như một lệnh")
+            if isinstance(st.value, ast.Call) and isinstance(st.value.func, ast.Attribute) and self._is_self(st.value.func.value):
+                attr = st.value.func.attr
+                if attr in ("set_positions", "set_position"):
+                    return self._set_positions(st.value)
+                if attr == "buy":
+                    return self._order_action(st.value, 1.0)
+                if attr == "sell":
+                    return self._order_action(st.value, -1.0)
+                if attr in ("close", "close_position"):
+                    return self._order_action(st.value, 0.0)
+            raise at(st, "Câu lệnh biểu thức đứng riêng không có tác dụng; chỉ self.set_position(...), self.buy(...), self.sell(...), self.close(...) được gọi như một lệnh")
         if isinstance(st, ast.Pass):
             return
         if isinstance(st, ast.Assign):
@@ -254,8 +267,8 @@ class _Compiler:
     def _check_name(node):
         if node.id == "self":
             raise at(node, "Không gán lại `self`")
-        if node.id == "SimpleAlgorithm":
-            raise at(node, "Tên này dành riêng")
+        if node.id in ("self", "SimpleAlgorithm", "NoraStrategy", "Strategy", "AlphaStrategy"):
+            raise at(node, f"Tên `{node.id}` dành riêng cho hệ thống")
 
     @staticmethod
     def _is_self(node) -> bool:
@@ -284,6 +297,22 @@ class _Compiler:
         if not -1.0 <= level.value <= 1.0:
             raise at(pos_node, f"position phải trong [-1, 1], nhận {level.value:g}")
         self.calls.append((mask, level.value, call.lineno))
+
+    def _order_action(self, call: ast.Call, target_pos: float):
+        func_name = getattr(call.func, "attr", "action")
+        mask_node = None
+        if call.args:
+            mask_node = call.args[0]
+        for kw in call.keywords:
+            if kw.arg in ("mask", "condition", "when", "signal"):
+                mask_node = kw.value
+                break
+        if mask_node is None:
+            raise at(call, f"Thiếu điều kiện kích hoạt: self.{func_name}(condition)")
+        mask = self._expr(mask_node)
+        if mask.kind != "bool":
+            raise at(mask_node, f"Điều kiện của self.{func_name} phải là biểu thức logic bool (ví dụ crossover(fast, slow))")
+        self.calls.append((mask, target_pos, call.lineno))
 
     # ─── biểu thức ──────────────────────────────────────────────────────────
     def _tick(self, node):
@@ -316,10 +345,13 @@ class _Compiler:
         if isinstance(node, ast.Name):
             if node.id in self.env:
                 return self.env[node.id]
+            if node.id in OHLCV_COLUMNS:
+                self.columns.add(node.id)
+                return Data(node.id, line, col)
             if node.id in ("abs", "min", "max", "round", "len", "sum", "float", "int"):
-                raise at(node, f"Hàm Python `{node.id}` không dùng được: dùng self.op.* hoặc phương thức .abs()/.shift()/.fillna()")
+                raise at(node, f"Hàm Python `{node.id}` không dùng được: dùng hàm ta.* hoặc phương thức .abs()/.shift()/.fillna()")
             if node.id in ("np", "pd", "numpy", "pandas", "math"):
-                raise at(node, f"`{node.id}` không có sẵn trong DSL: dùng self.feat.* / self.op.*")
+                raise at(node, f"`{node.id}` không có sẵn trong DSL: dùng hàm ta.* hoặc chỉ báo trực tiếp")
             raise at(node, f"Biến `{node.id}` chưa được gán." + suggest(node.id, self.env))
         if isinstance(node, ast.Attribute):
             return self._attribute(node)
@@ -351,7 +383,11 @@ class _Compiler:
         raise at(node, "Không dùng được chỉ mục [...] trên chuỗi (nhìn lại quá khứ: .shift(k) / self.op.previous; tương lai bị cấm)")
 
     def _attribute(self, node: ast.Attribute):
-        # self.data.pv_close | self.<thuộc tính lớp>
+        # ta.close / ta.high...
+        if isinstance(node.value, ast.Name) and node.value.id == "ta" and node.attr in OHLCV_COLUMNS:
+            self.columns.add(node.attr)
+            return Data(node.attr, node.lineno, node.col_offset + 1)
+        # self.data.pv_close | self.data.close | self.<thuộc tính lớp>
         if isinstance(node.value, ast.Attribute) and self._is_self(node.value.value) and node.value.attr == "data":
             if node.attr not in DATA_ATTRS:
                 raise at(node, f"self.data.{node.attr} không có." + suggest(node.attr, DATA_ATTRS))
@@ -365,7 +401,7 @@ class _Compiler:
             if node.attr in self.consts:
                 raise at(node, f"self.{node.attr} không phải số nên không dùng được trong biểu thức")
             raise at(node, f"self.{node.attr} chưa được khai báo ở cấp class." + suggest(node.attr, self.consts))
-        raise at(node, "Truy cập thuộc tính này chưa được hỗ trợ (chỉ self.data.pv_*, self.<hằng>, self.feat.*, self.op.*)")
+        raise at(node, "Truy cập thuộc tính này chưa được hỗ trợ (chỉ self.data.pv_*, self.<hằng>, self.feat.*, self.op.*, ta.*)")
 
     def _binop(self, node: ast.BinOp):
         sym = _ARITH.get(type(node.op))
@@ -424,11 +460,31 @@ class _Compiler:
     # ─── lời gọi ────────────────────────────────────────────────────────────
     def _call(self, node: ast.Call):
         fn = node.func
+        # 1. Gọi trực tiếp hàm toàn cầu (crossover, ema, rsi, atr...)
+        if isinstance(fn, ast.Name) and fn.id in GLOBAL_TA_FUNCS:
+            kind, real_name = GLOBAL_TA_FUNCS[fn.id]
+            table, label = (FEATURES, "feat") if kind == "feat" else (OPS, "op")
+            spec = table.get(real_name)
+            if spec is not None:
+                return self._bind_call(spec, kind == "feat", node, [self._expr(a) for a in node.args], list(node.args),
+                                       [(k.arg, k.value, self._expr(k.value)) for k in node.keywords])
+
+        # 2. Gọi qua namespace ta.* (ta.crossover, ta.ema, ta.rsi...)
+        if isinstance(fn, ast.Attribute) and isinstance(fn.value, ast.Name) and fn.value.id == "ta":
+            if fn.attr in GLOBAL_TA_FUNCS:
+                kind, real_name = GLOBAL_TA_FUNCS[fn.attr]
+                table, label = (FEATURES, "feat") if kind == "feat" else (OPS, "op")
+                spec = table.get(real_name)
+                if spec is not None:
+                    return self._bind_call(spec, kind == "feat", node, [self._expr(a) for a in node.args], list(node.args),
+                                           [(k.arg, k.value, self._expr(k.value)) for k in node.keywords])
+            raise at(fn, f"ta.{fn.attr} chưa được hỗ trợ." + suggest(fn.attr, GLOBAL_TA_FUNCS))
+
         if not isinstance(fn, ast.Attribute):
             what = fn.id if isinstance(fn, ast.Name) else "hàm"
             if what in ("abs", "min", "max", "round", "float", "int", "len", "sum"):
                 raise at(node, f"Hàm Python `{what}` không dùng được: dùng self.op.* (vd. self.op.abs(x)) hoặc phương thức .abs()/.shift()/.fillna()")
-            raise at(node, f"Không gọi được `{what}(...)`: dùng self.feat.<tên>(...), self.op.<tên>(...) hoặc phương thức .shift()/.fillna()/.abs()")
+            raise at(node, f"Không gọi được `{what}(...)`: dùng chỉ báo/toán tử có sẵn (vd. ema, crossover) hoặc self.feat.<tên>, self.op.<tên>")
         v = fn.value
         if isinstance(v, ast.Attribute) and self._is_self(v.value) and v.attr in ("feat", "op"):
             table, label = (FEATURES, "feat") if v.attr == "feat" else (OPS, "op")
@@ -708,6 +764,20 @@ def _has_event_trigger(node: Node) -> bool:
 
 def explain_program(program: Program, position: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Phân tích chương trình đã biên dịch và trả về bộ giải thích có cấu trúc."""
+    if not hasattr(program, "calls") or getattr(program, "is_native", False):
+        return {
+            "indicators": getattr(program, "native_indicators", []),
+            "rules": getattr(program, "native_rules", [
+                {"index": 1, "line": 1, "level": 1.0, "type": "nautilus_native",
+                 "condition_vi": f"Thực thi trực tiếp logic Strategy NautilusTrader ({getattr(program, 'name', 'Strategy')})",
+                 "action_vi": "Vào lệnh & quản lý vị thế tự động qua Nautilus Engine",
+                 "has_trigger": True}
+            ]),
+            "execution": getattr(program, "native_execution", [
+                {"label_vi": "Hệ thống khớp lệnh", "desc_vi": "NautilusTrader 1.231.0 (OKX Netting Margin)"}
+            ]),
+            "warnings": list(getattr(program, "warnings", [])),
+        }
 
     # 1. Chỉ báo sử dụng
     all_calls: List[Call] = []
@@ -830,12 +900,141 @@ def explain_program(program: Program, position: Optional[Dict[str, Any]] = None)
 
 
 # ══════════════════════════════════════════════════════════════════════════
+# Native Nautilus Trader Support (P15 Native)
+# ══════════════════════════════════════════════════════════════════════════
+
+class NautilusNativeProgram:
+    """Wrapper tương thích Program cho Native Nautilus Strategy."""
+
+    def __init__(self, code: str, strategy_cls: Any, name: str, tree: Optional[ast.AST] = None, timeframe: str = "1h",
+                 symbols: Optional[List[str]] = None, description: str = "", warnings: Optional[List[str]] = None):
+        self.code = code
+        self.tree = tree if tree is not None else ast.parse(code)
+        self.code_hash = code_hash(self.tree)
+        self.strategy_cls = strategy_cls
+        self.name = name
+        self.timeframe = timeframe
+        self.symbols = symbols or ["BTC-USDT-SWAP"]
+        self.description = description
+        self.warnings = list(warnings or [])
+        self.is_native = True
+        self.calls: List[Tuple[Node, float, int]] = []
+        self.open_times: List[int] = []
+        self.open_ranges: List[Tuple[int, int]] = []
+        self.close_ranges: List[Tuple[int, int]] = []
+        self.position_overrides: Dict[str, Any] = {}
+        self.features: List[str] = []
+        self.ops: List[str] = []
+        self.columns: List[str] = []
+        self.levels = [1, -1]
+        self.has_long = True
+        self.has_short = True
+        self.warmup_bars = 0
+        self.legs = ["LONG", "SHORT"]
+        self.native_indicators: List[Dict[str, Any]] = []
+        self.native_rules = [
+            {"index": 1, "line": 1, "level": 1.0, "type": "nautilus_native",
+             "condition_vi": f"Chiến lược định lượng thuần NautilusTrader ({name})",
+             "action_vi": "Vào lệnh & quản lý vị thế tự động qua Nautilus Engine", "has_trigger": True}
+        ]
+        self.native_execution = [
+            {"label_vi": "Hệ thống khớp lệnh", "desc_vi": "NautilusTrader 1.231.0 (OKX Netting Margin)"}
+        ]
+
+    def meta(self) -> Dict[str, Any]:
+        return {
+            "timeframe": self.timeframe, "features": self.features, "ops": self.ops, "columns": self.columns,
+            "legs": self.legs, "position_levels": self.levels, "warmup_bars": self.warmup_bars, "is_native": True,
+            "name": self.name,
+        }
+
+
+def is_nautilus_native(code: str) -> bool:
+    """Kiểm tra mã nguồn có phải là chiến lược Native Nautilus Trader (kế thừa Strategy) hay không."""
+    if not isinstance(code, str) or not code.strip():
+        return False
+    if "nautilus_trader" in code:
+        return True
+    try:
+        tree = ast.parse(code)
+        for node in tree.body:
+            if isinstance(node, ast.ClassDef):
+                for base in node.bases:
+                    if isinstance(base, ast.Name) and base.id in ("Strategy", "NautilusStrategy"):
+                        return True
+                    if isinstance(base, ast.Attribute) and base.attr == "Strategy":
+                        return True
+    except Exception:
+        pass
+    return False
+
+
+def compile_nautilus_strategy(code: str) -> NautilusNativeProgram:
+    """Biên dịch và tải class Strategy của Nautilus Trader từ chuỗi code Python."""
+    try:
+        tree = ast.parse(code)
+    except SyntaxError as e:
+        raise DslError(f"Lỗi cú pháp Python trong chiến lược Nautilus: {e.msg}", e.lineno, e.offset or 1) from None
+
+    strat_cls_node = None
+    for node in tree.body:
+        if isinstance(node, ast.ClassDef):
+            for base in node.bases:
+                if (isinstance(base, ast.Name) and base.id in ("Strategy", "NautilusStrategy")) or \
+                   (isinstance(base, ast.Attribute) and base.attr == "Strategy"):
+                    strat_cls_node = node
+                    break
+            if strat_cls_node:
+                break
+
+    if not strat_cls_node:
+        raise DslError("Không tìm thấy class kế thừa Strategy của NautilusTrader trong mã nguồn", 1, 1)
+
+    cls_name = strat_cls_node.name
+    timeframe = "1h"
+    symbols = ["BTC-USDT-SWAP"]
+    desc = ast.get_docstring(strat_cls_node) or ""
+
+    for item in strat_cls_node.body:
+        if isinstance(item, ast.Assign):
+            for target in item.targets:
+                if isinstance(target, ast.Name):
+                    if target.id == "timeframe" and isinstance(item.value, ast.Constant):
+                        timeframe = str(item.value.value)
+                    elif target.id == "symbols" and isinstance(item.value, ast.List):
+                        symbols = [str(elt.value) for elt in item.value.elts if isinstance(elt, ast.Constant)]
+
+    # Compile and execute code in isolated namespace
+    ns: Dict[str, Any] = {"__name__": f"nautilus_user_{cls_name.lower()}"}
+    try:
+        exec(compile(tree, f"<nautilus_{cls_name}>", "exec"), ns)
+    except Exception as e:
+        raise DslError(f"Lỗi khi nạp module chiến lược Nautilus: {e}") from None
+
+    strat_cls = ns.get(cls_name)
+    if not strat_cls:
+        raise DslError(f"Không thể khởi tạo class {cls_name}", 1, 1)
+
+    return NautilusNativeProgram(
+        code=code,
+        strategy_cls=strat_cls,
+        name=cls_name,
+        tree=tree,
+        timeframe=timeframe,
+        symbols=symbols,
+        description=desc,
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════
 # API biên dịch DSL (từ pydsl/__init__.py): compile_code -> compile_program + register_program; compile_report; explain_report.
 # `explain_program(prog, position)` của __init__ là hàm bọc import cục bộ tới explain.explain_program (cùng chữ ký) -> bỏ, dùng chính explain_program ở trên.
 # ══════════════════════════════════════════════════════════════════════════
 
-def compile_code(code: str, register: bool = True) -> Program:
-    """Biên dịch + (mặc định) đăng ký vào kernels để PortfolioEngine tính được cột py_<hash12>_*. Phải gọi trong CHÍNH tiến trình chạy engine."""
+def compile_code(code: str, register: bool = True) -> Any:
+    """Biên dịch + (mặc định) đăng ký vào kernels. Tự động nhận diện Native Nautilus và DSL."""
+    if is_nautilus_native(code):
+        return compile_nautilus_strategy(code)
     try:
         prog = compile_program(code)
     except DslError as native_err:       # dạng ngoài hợp đồng native (hàm strategy(data) / JSON): bộ chuyển đổi -> cùng IR; không chuyển được -> lỗi gốc
@@ -1431,7 +1630,7 @@ class _StrategyCompiler:
         if meta is None:
             raise DslError("Thiếu `STRATEGY = {...}` (id, name, kind, description, idea)", 1, 1)
         if not classes:
-            raise DslError(f"Cần ít nhất một class kế thừa {BASE_CLASS}", 1, 1)
+            raise DslError(f"Cần ít nhất một class kế thừa {' hoặc '.join(BASE_CLASSES)}", 1, 1)
         cands = [self._leg(c, meta["id"]) for c in classes]
         sides = [c["side"] for c in cands]
         if len(set(sides)) != len(sides):
@@ -1459,8 +1658,9 @@ class _StrategyCompiler:
 
     # ─── một chân (class) ───────────────────────────────────────────────────
     def _leg(self, cls: ast.ClassDef, strategy_id: str) -> Dict[str, Any]:
-        if not (len(cls.bases) == 1 and isinstance(cls.bases[0], ast.Name) and cls.bases[0].id == BASE_CLASS) or cls.keywords or cls.decorator_list:
-            raise at(cls, f"Class phải có dạng `class {cls.name}({BASE_CLASS}):`")
+        base_name = cls.bases[0].id if (len(cls.bases) == 1 and isinstance(cls.bases[0], ast.Name)) else None
+        if not (base_name in BASE_CLASSES) or cls.keywords or cls.decorator_list:
+            raise at(cls, f"Class phải có dạng `class {cls.name}({BASE_CLASS}):` (hoặc kế thừa: {', '.join(BASE_CLASSES)})")
         attrs: Dict[str, Any] = {}
         position: Dict[str, Any] = {}
         algo = None
@@ -1502,7 +1702,7 @@ class _StrategyCompiler:
             st.stmt(s)
         prof = position.get("risk_profile") or "legacy"
         if prof != "legacy":
-            from backend.core.position_size import validate_strategy_risk
+            from backend.models.position_size import validate_strategy_risk
             issues = validate_strategy_risk(position, prof)
             if issues:
                 raise at(cls, f"Vi phạm quy tắc Risk Profile '{prof}': {issues[0].message_vi} (Gợi ý: {issues[0].suggestion})")
@@ -1632,7 +1832,7 @@ class _LegState:
         return _Prm(name, spec)
 
     def _spec(self, call, name: str, default, kw: Dict[str, Any]) -> Dict[str, Any]:
-        from backend.core.params import EXIT_RISK_SPEC, POSITION_KEYS, SIG_PREFIX
+        from backend.models.params import EXIT_RISK_SPEC, POSITION_KEYS, SIG_PREFIX
         is_pos = name in POSITION_KEYS
         base = EXIT_RISK_SPEC.get(name)
         if base is not None:
@@ -1811,7 +2011,7 @@ class _LegState:
             self.used.add(v.name)
             return "{%s}" % v.name
         if isinstance(v, _NUMERIC) and not isinstance(v, bool):
-            from backend.core.params import _fmt_number
+            from backend.models.params import _fmt_number
             return _fmt_number(v)
         raise at(node, f"`{what}` phải là số hoặc tham số số p(...)")
 
@@ -1860,7 +2060,7 @@ class _LegState:
 
     # ─── kết quả ────────────────────────────────────────────────────────────
     def finish(self, cls: ast.ClassDef, attrs: Dict[str, str], position: Dict[str, Any], strategy_id: str) -> Dict[str, Any]:
-        from backend.core.params import (EXIT_RISK_SPEC, exit_risk_entry, resolve_placeholders, schema_choice, schema_flt, schema_int,
+        from backend.models.params import (EXIT_RISK_SPEC, exit_risk_entry, resolve_placeholders, schema_choice, schema_flt, schema_int,
                                          signal_defaults)
         long_ = [c for c, lv in self.entries if lv > 0]
         short = [c for c, lv in self.entries if lv < 0]
@@ -2495,7 +2695,7 @@ class _Normalise(ast.NodeTransformer):
                     self.src.note("NORMALIZED_NAME", f"`self.data.{node.attr}` -> `self.data.{canon}`", node)
                     return ast.copy_location(ast.Attribute(value=v, attr=canon, ctx=node.ctx), node)
             elif v.attr in ("feat", "op"):
-                from backend.core.indicator import FEATURES, OPS
+                from backend.alpha.dsl.indicator import FEATURES, OPS
                 table = FEATURES if v.attr == "feat" else OPS
                 low = node.attr.lower()
                 if node.attr not in table and low in table:

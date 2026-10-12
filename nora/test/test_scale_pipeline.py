@@ -74,7 +74,7 @@ def test_require_data_ok_needs_more_data_and_warning(market, monkeypatch, caplog
 @pytest.mark.parametrize("kind", sorted(BAD))
 def test_portfolio_engine_refuses_bad_data(market, monkeypatch, kind):
     from backend.nautilus.engine import PortfolioEngine
-    from backend.core.params import materialize
+    from backend.models.params import materialize
     sb = _small_book(monkeypatch)
     cands = sb.BY_ID
     st = materialize(cands["t_long"], {"sig.lo": 40, "stop_loss_rate": 2.0, "take_profit_rate": 2.0, "timeout": 720})

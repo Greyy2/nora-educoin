@@ -15,7 +15,7 @@ NORA = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, NORA)
 
 from backend.alpha.compile import compile_code                       # noqa: E402
-from backend.core.signal import DslError                             # noqa: E402
+from backend.alpha.dsl.signal import DslError                             # noqa: E402
 from backend.crawl.store import alpha_education_samples, run_defaults   # noqa: E402
 from backend.optimize.process import tasks                           # noqa: E402
 from backend.routes import process as job_routes                     # noqa: E402

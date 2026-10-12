@@ -17,7 +17,7 @@ import pandas as pd
 
 NORA = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, NORA)
-from backend.core.models import DATA_DIR  # noqa: E402
+from backend.models.models import DATA_DIR  # noqa: E402
 from backend.crawl import store  # noqa: E402
 from migrate_pkl_meta import same_frame  # noqa: E402
 

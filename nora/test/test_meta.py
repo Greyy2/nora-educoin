@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.carlo import carlo
-from backend.core.params import FRAME_MS
+from backend.models.params import FRAME_MS
 from backend.crawl import store
 from backend.nautilus.version import NAUTILUS_VERSION
 from backend.main import app

@@ -73,7 +73,7 @@ def feasible_layers(leverage: float, step: float, layers_req: int, mult: float, 
                     min_pct: float = MIN_ORDER_SIZE_PCT) -> Tuple[int, float]:
     """Số tầng DCA lớn nhất <= layers_req mà ký quỹ lệnh đầu lớn nhất (theo dca_budget_check) >= min_pct.
     -> (số tầng, order_size_pct lớn nhất cho phép)."""
-    from backend.core.params import dca_budget_check
+    from backend.models.params import dca_budget_check
     taker = costs[0]
     for n in range(max(0, int(layers_req)), -1, -1):
         if n == 0 or step <= 0:   # không DCA: ký quỹ + phí vào lệnh <= 100% vốn (đúng PositionTracker._open)
@@ -217,7 +217,7 @@ def curve_stats(df: pd.DataFrame, trade_start_ms: int) -> Dict[str, Any]:
 
 def compute_metrics(res: Dict[str, Any], trade_start: int, end: int) -> Dict[str, Any]:
     """Thống kê một lần chạy (một tài sản, một cấu hình) từ kết quả PortfolioEngine.get_results()."""
-    from backend.core.models import PositionStatus
+    from backend.models.models import PositionStatus
     pos = res["positions"]
     forced = [p for p in pos if p.close_reason == "End of Backtest"]
     closed = [p for p in pos if p.close_reason != "End of Backtest"]
@@ -273,7 +273,7 @@ def run_config(symbol: str, strategies: List[Dict[str, Any]], start: int, trade_
     import contextlib
     import io
     from backend.nautilus.engine import PortfolioEngine
-    from backend.core.strategy import RiskConfig
+    from backend.alpha.dsl.strategy import RiskConfig
     risk = RiskConfig(max_positions=10, max_per_symbol=4, max_gross_exposure=1e9, kill_switch_dd_pct=0.0)
     eng = PortfolioEngine([symbol], strategies, start, end, trade_start_ts=trade_start, initial_capital=INITIAL,
                           risk=risk, venue="cex")
@@ -392,7 +392,7 @@ def main(argv=None):
     ap.add_argument("--out", default=OUT_DIR)
     a = ap.parse_args(argv)
 
-    from backend.core.params import resolve_costs
+    from backend.models.params import resolve_costs
     from backend.crawl.store import require_data_ok_or_exit
     from backend.crawl.store import read_manifest
     from backend.optimize.process.workers import require_memory_limit, worker_init

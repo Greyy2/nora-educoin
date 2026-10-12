@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Loading, ErrorState } from '../ui'
 import SignalChart from './SignalChart'
 import SignalExplainPanel from './SignalExplainPanel'
@@ -32,7 +33,7 @@ export default function TradeChartDrawer({ open, onClose, request, trade, title 
   const selected = useMemo(() => d?.signals?.find((s) => s.t === selT) || null, [d, selT])
 
   if (!open || !trade) return null
-  return (
+  return createPortal(
     <div className="n-drawer-wrap">
       <div className="n-drawer-bg" onClick={onClose} aria-hidden="true" />
       <aside className="n-drawer" role="dialog" aria-modal="true" aria-label={title || 'Biểu đồ tín hiệu'} tabIndex={-1} ref={box}>
@@ -55,6 +56,7 @@ export default function TradeChartDrawer({ open, onClose, request, trade, title 
           )}
         </div>
       </aside>
-    </div>
+    </div>,
+    document.body
   )
 }

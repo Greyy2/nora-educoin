@@ -148,6 +148,7 @@
 .n-content { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 18px 22px 40px; }
 .n-content.legacy-host { padding: 0; background: var(--ground, var(--n-bg)); color: var(--ink); }
 .n-content.legacy-host .main { min-height: 100%; }
+.n-content.flush { padding: 0; overflow: hidden; display: flex; flex-direction: column; }
 
 /* ---------- đầu trang ---------- */
 .n-page-h { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
@@ -377,7 +378,166 @@
   100% { background-position: 24px 0; }
 }
 
-/* Pipeline Step Tracker: Liệt kê các bước thực thi */
+/* ==========================================================================
+   UNIFIED PIPELINE PROGRESS BAR (Thanh tiến độ hợp nhất tích hợp các bước)
+   ========================================================================== */
+.n-unified-pipeline-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.n-unified-pipeline-bar {
+  position: relative;
+  min-height: 46px;
+  border-radius: 12px;
+  background: var(--n-surface-2, #18181b);
+  border: 1px solid var(--n-line, #2a2a30);
+  overflow: hidden;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.4), 0 2px 10px rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: center;
+  user-select: none;
+}
+
+.n-unified-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  background: linear-gradient(90deg, rgba(16, 185, 129, 0.28) 0%, rgba(6, 182, 212, 0.35) 45%, rgba(59, 130, 246, 0.45) 100%);
+  border-right: 2px solid #38bdf8;
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.55);
+  border-radius: 11px 0 0 11px;
+  transition: width 0.2s cubic-bezier(0.2, 0.8, 0.3, 1);
+  z-index: 1;
+}
+
+.n-unified-fill.is-running::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.12) 25%,
+    transparent 25%,
+    transparent 50%,
+    rgba(255, 255, 255, 0.12) 50%,
+    rgba(255, 255, 255, 0.12) 75%,
+    transparent 75%,
+    transparent
+  );
+  background-size: 28px 28px;
+  animation: downloadStripes 1.2s linear infinite;
+}
+
+.n-unified-steps {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0 16px;
+  gap: 6px;
+}
+
+.n-unified-step-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.n-unified-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-size: 11px;
+  font-family: var(--n-mono);
+  font-weight: 600;
+  border: 1.5px solid var(--n-line);
+  background: var(--n-surface-3, rgba(255, 255, 255, 0.06));
+  color: var(--n-ink-3);
+  transition: all 0.15s ease;
+}
+
+.n-unified-label {
+  font-size: 12.5px;
+  color: var(--n-ink-3);
+  transition: all 0.15s ease;
+}
+
+/* Bước đã hoàn tất (done) */
+.n-unified-step-item.done .n-unified-badge {
+  background: var(--n-pos-wash, rgba(16, 185, 129, 0.25));
+  border-color: var(--n-pos, #10b981);
+  color: var(--n-pos, #10b981);
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.35);
+}
+.n-unified-step-item.done .n-unified-label {
+  color: var(--n-pos, #10b981);
+  font-weight: 600;
+}
+
+/* Bước đang thực thi (active) */
+.n-unified-step-item.active .n-unified-badge {
+  background: var(--n-accent-wash, rgba(229, 138, 46, 0.25));
+  border-color: var(--n-accent, #e58a2e);
+  color: var(--n-accent, #e58a2e);
+  box-shadow: 0 0 12px rgba(229, 138, 46, 0.55);
+  animation: stepPulse 1.2s infinite ease-in-out;
+}
+.n-unified-step-item.active .n-unified-label {
+  color: var(--n-ink, #ffffff);
+  font-weight: 700;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+}
+
+/* Bước chưa tới (pending) */
+.n-unified-step-item.pending {
+  opacity: 0.7;
+}
+
+/* Mũi tên kết nối */
+.n-unified-arrow {
+  color: var(--n-line);
+  font-size: 11px;
+  user-select: none;
+  transition: color 0.25s ease;
+}
+.n-unified-arrow.done {
+  color: var(--n-pos, #10b981);
+  opacity: 0.8;
+}
+
+@media (max-width: 860px) {
+  .n-unified-pipeline-bar {
+    min-height: 40px;
+  }
+  .n-unified-steps {
+    padding: 0 10px;
+    gap: 4px;
+  }
+  .n-unified-label {
+    font-size: 11px;
+  }
+}
+@media (max-width: 680px) {
+  .n-unified-label {
+    display: none;
+  }
+  .n-unified-step-item.active .n-unified-label {
+    display: inline;
+  }
+}
+
+/* Pipeline Step Tracker cũ (fallback) */
 .n-pipeline-track {
   display: flex;
   align-items: center;
@@ -767,11 +927,11 @@
 .n-runbar.n-runbar-inline { position: static; margin: 14px 0 0; padding: 12px 0 0; background: transparent; box-shadow: none; border-top: 1px solid var(--n-line); }
 .n-runbar .est { font-family: var(--n-sans); color: var(--n-ink-2); font-size: 12px; margin-top: 2px; }
 
-/* ngăn chi tiết alpha */
-.n-drawer-wrap { position: fixed; inset: 0; z-index: 80; }
-.n-drawer-bg { position: absolute; inset: 0; background: rgba(0, 0, 0, .5); }
-.n-drawer { position: absolute; top: 0; right: 0; bottom: 0; width: min(980px, 100vw); background: var(--n-bg); border-left: 1px solid var(--n-line); display: flex; flex-direction: column; box-shadow: -12px 0 40px rgba(0, 0, 0, .35); outline: none; }
-.n-drawer-h { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 18px; border-bottom: 1px solid var(--n-line); background: var(--n-rail); }
+/* ngăn chi tiết alpha / chiến lược */
+.n-drawer-wrap { position: fixed; inset: 0; z-index: 10000; display: flex; justify-content: flex-end; }
+.n-drawer-bg { position: fixed; inset: 0; background: rgba(0, 0, 0, .58); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+.n-drawer { position: fixed; top: 0; right: 0; bottom: 0; height: 100vh; max-height: 100vh; width: min(980px, 100vw); background: var(--n-bg); border-left: 1px solid var(--n-line); display: flex; flex-direction: column; box-shadow: -16px 0 48px rgba(0, 0, 0, .45); outline: none; z-index: 10001; }
+.n-drawer-h { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 18px; border-bottom: 1px solid var(--n-line); background: var(--n-rail); flex: none; }
 .n-drawer-h h2 { font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
 .n-drawer-h .kick { font-size: 11.5px; }
 .n-drawer-b { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 18px 0; }

@@ -105,7 +105,7 @@ def _run(run_id, **kw):
 # ─── Ngưỡng + hàm thuần ─────────────────────────────────────────────────────
 def test_gate_constants_match_existing_gates():
     from backend.carlo import carlo as mc
-    from backend.core.params import BASE_RISK_PER_TRADE_PCT
+    from backend.models.params import BASE_RISK_PER_TRADE_PCT
     from backend.optimize.book.build import GATES
     from backend.wfa import wfa as pw
     assert gates.S1_MIN_TRADES == GATES["min_trades"] and gates.S1_MIN_SYMBOLS_POSITIVE == GATES["min_symbols_positive"]

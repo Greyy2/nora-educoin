@@ -1,8 +1,8 @@
 """P12-B: atr_frame / cooldown không khai báo = "auto" -> theo khung tín hiệu của chiến lược; khai báo tường minh giữ nguyên."""
 import backend.optimize  # noqa: F401  (đăng ký nguồn dữ liệu cho build_plan)
 from backend.alpha.compile import annotate_report, compile_code, explain_program
-from backend.core.strategy import build_plan
-from backend.core.params import BASE_POSITION, materialize, resolve_position_auto
+from backend.alpha.dsl.strategy import build_plan
+from backend.models.params import BASE_POSITION, materialize, resolve_position_auto
 
 CODE = '''class S(SimpleAlgorithm):
     timeframe = "{tf}"

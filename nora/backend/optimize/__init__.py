@@ -1,9 +1,16 @@
-"""Tối ưu hoá alpha: sinh lưới tham số, xếp hạng, chạy; registry và xuất sổ chiến lược.
+"""Strategy Optimization & Workflow Pipeline (P15 Native-First Architecture).
 
-Import gói này đăng ký (LƯỜI) nguồn dữ liệu mặc định của engine — core không tự đọc đĩa. Nhà máy chỉ import backend.optimize.search.evaluate
-(EngineData, make_engine_data) ở lần data_source() đầu tiên; import gói KHÔNG kéo numpy/pandas/crawl (process.py đặt env BLAS/cache sau __init__ này).
+Tầng điều phối tối ưu hóa siêu tham số và quản lý tác vụ nền:
+- `search/`: Thuật toán tìm kiếm Grid Search & Bayesian Optimization
+- `funnel/`: Phễu sàng lọc Alpha 3 tầng (Screening -> Full Backtest -> Stress Test)
+- `book/`: Sổ đăng ký chiến lược (Strategy Registry) và metadata
+- `process/`: Task worker xử lý hàng đợi bất đồng bộ
+
+LƯU Ý KIẾN TRÚC:
+- Mọi tác vụ chạy thử nghiệm tham số đều gọi thẳng NautilusTrader BacktestEngine.
 """
-from backend.core.models import set_default_data_factory as _set_factory
+from backend.models.models import set_default_data_factory as _set_factory
+
 
 
 def _engine_data_factory():

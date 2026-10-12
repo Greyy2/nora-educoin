@@ -3,17 +3,36 @@ import { createBrowserRouter, RouterProvider, Routes, Route, Navigate } from 're
 import Shell from './layout/Shell'
 import { CatalogProvider } from './meta/MetaProvider'
 import { Loading } from './components/ui'
-import AlphaTabs from './components/alpha/AlphaTabs'
+import AlphaLayout from './layout/AlphaLayout'
+
+// Tự động tải lại trang khi gặp chunk cũ bị xoá sau khi deploy (Failed to fetch dynamically imported module)
+function lazyRetry(fn) {
+  return lazy(() =>
+    fn().catch((err) => {
+      const msg = String(err?.message || '')
+      if (msg.includes('dynamically imported module') || msg.includes('Importing a module script failed')) {
+        const key = 'nora_chunk_reload'
+        const last = sessionStorage.getItem(key)
+        if (!last || Date.now() - Number(last) > 8000) {
+          sessionStorage.setItem(key, String(Date.now()))
+          window.location.reload()
+          return new Promise(() => {})
+        }
+      }
+      throw err
+    })
+  )
+}
 
 // Mỗi trang một chunk: lần đầu chỉ tải trang đang mở (biểu đồ nến chỉ tải khi vào trang có biểu đồ)
-const Portfolio   = lazy(() => import('./pages/Portfolio'))
-const Backtest    = lazy(() => import('./pages/Backtest'))
-const AlphaCatalog = lazy(() => import('./pages/AlphaCatalog'))
-const Studio       = lazy(() => import('./pages/Studio'))
-const Tune        = lazy(() => import('./pages/Tune'))         // tối ưu sổ chiến lược (/alpha/tune)
-const History     = lazy(() => import('./pages/History'))
-const Live        = lazy(() => import('./pages/Live'))
-const Funnel      = lazy(() => import('./pages/Funnel'))
+const Portfolio    = lazyRetry(() => import('./pages/Portfolio'))
+const Backtest     = lazyRetry(() => import('./pages/Backtest'))
+const AlphaCatalog = lazyRetry(() => import('./pages/AlphaCatalog'))
+const Studio       = lazyRetry(() => import('./pages/Studio'))
+const Tune         = lazyRetry(() => import('./pages/Tune'))         // tối ưu sổ chiến lược (/alpha/tune)
+const History      = lazyRetry(() => import('./pages/History'))
+const Live         = lazyRetry(() => import('./pages/Live'))
+const Funnel       = lazyRetry(() => import('./pages/Funnel'))
 
 function AppRoutes() {
   return (
@@ -23,11 +42,14 @@ function AppRoutes() {
         <Route path="/"                    element={<Navigate to="/portfolio" replace />} />
         <Route path="/portfolio"           element={<Portfolio />} />
         <Route path="/backtest"            element={<Backtest />} />
-        <Route path="/alpha/funnel"        element={<><AlphaTabs /><Funnel /></>} />
-        <Route path="/alpha/funnel/:runId" element={<><AlphaTabs /><Funnel /></>} />
-        <Route path="/alpha"               element={<><AlphaTabs /><AlphaCatalog /></>} />
-        <Route path="/alpha/create"        element={<><AlphaTabs /><Studio mode="create" /></>} />
-        <Route path="/alpha/tune"          element={<><AlphaTabs /><Tune /></>} />
+        <Route path="/alpha"               element={<AlphaLayout />}>
+          <Route index                     element={<AlphaCatalog />} />
+          <Route path="create"             element={<Studio mode="create" />} />
+          <Route path="tune"               element={<Tune />} />
+          <Route path="funnel"             element={<Funnel />} />
+          <Route path="funnel/:runId"      element={<Funnel />} />
+        </Route>
+
         <Route path="/live"                element={<Live />} />
         <Route path="/history"             element={<History />} />
         <Route path="/education"           element={<Studio mode="education" />} />

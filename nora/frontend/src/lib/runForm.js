@@ -22,11 +22,12 @@ export function validateRun(form, code) {
 }
 
 export function buildRunBody(form, code, timeframe = null) {
+  const tf = timeframe || (String(code || '').match(/timeframe\s*=\s*['"]([0-9a-zA-Z]+)['"]/)?.[1]) || null
   const body = { code, start: form.start, end: form.end, train_ratio: num(form.train_ratio), initial_capital: num(form.capital), symbols: form.symbols }
   if (form.exec_mode === 'standard') {
     body.run_frame = '1m'
-  } else if (timeframe) {
-    body.run_frame = timeframe
+  } else if (tf) {
+    body.run_frame = tf
   }
   const position = {}
   // Mẫu có thể kèm khoá ngoài ô nhập (vd atr_frame: '24h'): gửi nguyên, số thì ép số.

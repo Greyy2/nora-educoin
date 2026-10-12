@@ -257,11 +257,11 @@ _BASE_RE = re.compile(r"^[A-Z0-9]{2,12}$")
 
 def build_custom_backtest(p: Dict[str, Any]) -> Dict[str, Any]:
     """Tham số job custom_backtest (chiến lược Python): kiểm code bằng chính trình biên dịch (lỗi -> JobError kèm dòng/cột), rổ, ngày, vốn, vị thế."""
-    from backend.core.params import POSITION_KEYS
-    from backend.core.signal import DslError
+    from backend.models.params import POSITION_KEYS
+    from backend.alpha.dsl.signal import DslError
     from backend.alpha.compile import compile_code
     from backend.alpha.contract import MAX_CODE_CHARS
-    from backend.core.params import FRAMES
+    from backend.models.params import FRAMES
     from backend.crawl.store import base_name
     out: Dict[str, Any] = {}
     code = p.get("code")
@@ -352,7 +352,7 @@ from fastapi import HTTPException
 
 from backend.optimize.process import process as batch_jobs
 from backend.carlo.carlo import MC_RUIN_THRESHOLD_PCT, STRESS_LABELS_VI, VERTICAL_NAMES
-from backend.core.params import BASE_RISK_PER_TRADE_PCT
+from backend.models.params import BASE_RISK_PER_TRADE_PCT
 from backend.optimize.book.build import BY_ID
 from backend.crawl.store import read_json
 from backend.optimize.book import build as presets_mod
@@ -706,7 +706,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Header, Response
 
 from backend.carlo import carlo
-from backend.core.params import FRAME_MS
+from backend.models.params import FRAME_MS
 from backend.crawl import store
 from backend.nautilus.version import NAUTILUS_VERSION
 from backend.metrics.charts import EDUCATION_HIDDEN_SECTIONS, NOTE_TOUR
@@ -888,9 +888,9 @@ def _build_meta() -> Dict[str, Any]:
                 "reentry_rule": v.reentry_rule,
                 "portfolio_bucket": v.portfolio_bucket,
             }
-            for k, v in __import__("backend.core.position_size", fromlist=["RISK_PROFILES"]).RISK_PROFILES.items()
+            for k, v in __import__("backend.models.position_size", fromlist=["RISK_PROFILES"]).RISK_PROFILES.items()
         },
-        "allocation": __import__("backend.core.params", fromlist=["DEFAULT_ALLOCATION"]).DEFAULT_ALLOCATION,
+        "allocation": __import__("backend.models.params", fromlist=["DEFAULT_ALLOCATION"]).DEFAULT_ALLOCATION,
         "books": {"main": _book_status(main_book, False), "explore": _book_status(explore_book, True)},
         "paths": {"book": rel(main_path), "explore_book": rel(explore_path), "registry": rel(store.alpha_file("registry")),
                   "presets": rel(store.alpha_file("presets")), "alpha_user": rel(store.alpha_user_dir()), "cache_process": rel(store.cache_process_dir()),
