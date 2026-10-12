@@ -10,7 +10,7 @@
 # Controller `cpu` không được uỷ quyền cho user session nên không dùng CPUQuota được -> giới hạn CPU bằng taskset
 # (+ nice 10 để nhường tải cho người khác). Script Python dùng usable_cpus() nên tự thấy đúng số CPU được cấp.
 #
-# Dùng (từ thư mục nora/):  ops/run_limited.sh [--mem 8G] [--cpus 0-13] [--log FILE] [--no-wait | --no-lock] -- -m backend.optimize.process.process <job_dir>
+# Dùng (từ thư mục nora/):  ops/run_limited.sh [--mem 8G] [--cpus 0-13] [--log FILE] [--no-wait | --no-lock] -- -m backend.jobs.runner <job_dir>
 #   --no-wait  job khác đang chạy thì thoát ngay với mã 75 (mặc định: chờ trong hàng đợi)
 #   --no-lock  bỏ qua hàng đợi (cho lệnh nhẹ); vẫn nằm trong nora.slice
 # Biến môi trường (mặc định): NORA_MEM_MAX= (rỗng = chỉ dùng trần slice)  NORA_CPUS=0-13

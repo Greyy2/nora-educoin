@@ -1,3 +1,4 @@
+# Đã chuyển khỏi test/ (P17 T1-B5c): kiểm tính năng nghiên cứu đã gỡ (funnel/revalidate/kho dựng sổ); bản gốc còn ở tag pre-p17-research.
 """Pipeline tối ưu quy mô lớn (tới ~1.000.000 cấu hình) mà KHÔNG đổi kết quả:
 cổng dữ liệu bắt buộc, pool streaming có chặn, kho kết quả SQLite, lấy mẫu cấu hình lười, top-K, resume, ước lượng/trần, tiến độ/huỷ.
 
@@ -21,9 +22,9 @@ import pytest
 
 from backend.data import data as qg
 from backend.optimize.funnel import storage as rs
-from backend.optimize.process.process import Progress
-from backend.optimize.funnel.storage import stream_stage
-from backend.optimize.process import workers as parallel
+from backend.jobs.runner import Progress
+from backend.jobs._store import stream_stage
+from backend.jobs import workers as parallel
 from test_portfolio_wfa import DAY, START, T0, _load_script, _small_book, market  # noqa: F401  (market là fixture)
 
 pytestmark = pytest.mark.usefixtures("synthetic_data")   # P15: engine Nautilus lấy nến thực thi + spec từ DataSource; dữ liệu giả lập -> conftest.synthetic_data
@@ -237,7 +238,7 @@ def test_iter_configs_same_sequence_as_old_configs(n, seed):
 
 def test_iter_configs_real_candidate_spaces_and_huge_space_is_lazy():
     bsb = _load_script("build_strategy_book")
-    from backend.optimize.book.build import CANDIDATES
+    from backend.strategies import CANDIDATES
     for c in CANDIDATES:
         assert list(bsb.iter_configs(c, 24, 7)) == _old_configs(c, 24, 7)
     huge = {"space": {f"k{i}": list(range(10)) for i in range(40)}}                   # 10^40 tổ hợp (> 2^63): không dựng lưới
@@ -504,8 +505,8 @@ def test_progress_resumed_ticks_do_not_count_toward_rate(tmp_path):
 _KILL_SCRIPT = r"""
 import os, sys, time
 sys.path.insert(0, {root!r})
-from backend.optimize.funnel.storage import ResultsStore
-from backend.optimize.process.process import Progress, graceful_sigterm
+from backend.jobs._store import ResultsStore
+from backend.jobs.runner import Progress, graceful_sigterm
 d = sys.argv[1]
 store = ResultsStore(d)
 prog = Progress(d)
@@ -538,7 +539,7 @@ def test_sigterm_flushes_store_and_marks_cancelled(tmp_path):
 
 # ─── 12.4 API: tiến độ, huỷ, stage_a có phân trang, tham số build lớn ───────
 from test_book_ui_backend import client  # noqa: E402,F401  (fixture: app FastAPI + Popen giả)
-from backend.optimize.process import process as batch_jobs  # noqa: E402
+from backend.jobs import runner as batch_jobs  # noqa: E402
 
 
 def _job(state="running", pid=None, name="20260101_000009_a1b2c3", **extra):

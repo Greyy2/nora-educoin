@@ -1,14 +1,13 @@
 import React, { useEffect, useState } from 'react'
-import { getUserAlphaVersions, getUserAlphaVersionCode, postRevalidateAlpha } from '../../../api'
-import { Spinner, Status, ErrorState } from '../../ui'
+import { getUserAlphaVersions, getUserAlphaVersionCode } from '../../../api'
+import { Spinner, ErrorState } from '../../ui'
 import { fmtDateTime, fmtNum, fmtPct, fmtSPct } from '../../../lib/format'
-import { invalidateResource } from '../../../lib/bus'
 
 /**
  * Hiển thị lịch sử phiên bản của Alpha người dùng, xem & so sánh mã nguồn giữa các phiên bản,
- * và nút kiểm lại (Revalidate) alpha bằng engine hiện hành.
+ * (kiểm lại alpha đã gỡ cùng phễu).
  */
-export default function UserAlphaVersionHistory({ alphaId, currentVersion, onSelectVersion, onRevalidateDone }) {
+export default function UserAlphaVersionHistory({ alphaId, currentVersion, onSelectVersion }) {
   const [versions, setVersions] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -17,8 +16,6 @@ export default function UserAlphaVersionHistory({ alphaId, currentVersion, onSel
   const [verDetail, setVerDetail] = useState(null)
   const [verLoading, setVerLoading] = useState(false)
 
-  const [revalidating, setRevalidating] = useState(false)
-  const [revalMsg, setRevalMsg] = useState(null)
 
   async function loadVersions() {
     if (!alphaId) return
@@ -63,23 +60,6 @@ export default function UserAlphaVersionHistory({ alphaId, currentVersion, onSel
     }
   }, [alphaId, selectedVer])
 
-  async function handleRevalidate() {
-    if (revalidating || !alphaId) return
-    setRevalidating(true)
-    setRevalMsg(null)
-    try {
-      const res = await postRevalidateAlpha(alphaId, false)
-      setRevalMsg({ tone: 'ok', text: `Đã khởi chạy kiểm lại (Job ${res.job_id || res.id || 'alpha_revalidate'})` })
-      invalidateResource('alphas')
-      invalidateResource('meta')
-      if (onRevalidateDone) onRevalidateDone(res)
-    } catch (e) {
-      setRevalMsg({ tone: 'bad', text: `Lỗi kiểm lại: ${e.message}` })
-    } finally {
-      setRevalidating(false)
-    }
-  }
-
   if (loading) return <div className="n-note"><Spinner /> Đang tải lịch sử phiên bản…</div>
   if (error) return <p className="n-note neg">{error} <button type="button" className="n-btn sm" onClick={loadVersions}>Thử lại</button></p>
 
@@ -87,11 +67,6 @@ export default function UserAlphaVersionHistory({ alphaId, currentVersion, onSel
     return (
       <div className="n-note">
         Chưa có lịch sử phiên bản bổ sung.
-        <div style={{ marginTop: 8 }}>
-          <button type="button" className="n-btn sm" onClick={handleRevalidate} disabled={revalidating}>
-            {revalidating ? <><Spinner /> Đang chạy…</> : '⟳ Kiểm lại (Revalidate)'}
-          </button>
-        </div>
       </div>
     )
   }
@@ -104,16 +79,8 @@ export default function UserAlphaVersionHistory({ alphaId, currentVersion, onSel
     <div className="n-user-versions" style={{ marginTop: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
         <h4 style={{ margin: 0 }}>Lịch sử phiên bản ({versions.length})</h4>
-        <button type="button" className="n-btn sm" onClick={handleRevalidate} disabled={revalidating} title="Kiểm lại alpha bằng engine hiện hành (job alpha_revalidate)">
-          {revalidating ? <><Spinner /> Đang gửi…</> : '⟳ Kiểm lại (Revalidate)'}
-        </button>
       </div>
 
-      {revalMsg && (
-        <div style={{ marginBottom: 8 }}>
-          <Status tone={revalMsg.tone}>{revalMsg.text}</Status>
-        </div>
-      )}
 
       {/* Tabs chọn phiên bản */}
       <div className="n-seg" style={{ marginBottom: 10, display: 'flex', flexWrap: 'wrap', gap: 4 }}>

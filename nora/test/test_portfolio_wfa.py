@@ -11,7 +11,7 @@ import json
 import numpy as np
 import pytest
 
-from backend.optimize.search import evaluate as pt
+from backend.jobs import evaluate as pt
 from backend.wfa import wfa as pw
 from backend.wfa.wfa import generate_folds
 from test_strategy_book import T0, _load_script, _small_book, market  # noqa: F401  (market là fixture)
@@ -82,13 +82,6 @@ def test_bootstrap_daily_identical_to_old_implementation(scale):
             "p_mdd_ge_30_pct": mc["p_mdd_ge_ruin_pct"]} == old
     assert mc["simulations"] == 500 and mc["block_days"] == 5 and mc["horizon_days"] == 365 and mc["seed"] == 5
     assert 0 <= mc["mdd_p50_pct"] <= mc["mdd_p95_pct"]
-
-
-def test_script_aliases_still_point_to_shared_metrics():
-    from backend.carlo.carlo import bootstrap_daily
-    from backend.metrics.metrics import portfolio_metrics
-    mod = _load_script("build_strategy_book")
-    assert mod.metrics is portfolio_metrics and mod.bootstrap is bootstrap_daily
 
 
 # ── Bước 2: fold, OOS, không nhìn trước, tái lập ────────────────────────────

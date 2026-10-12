@@ -14,6 +14,9 @@ except ImportError:
     NAUTILUS_AVAILABLE = False
 
 
+ENGINE_NAME = "nautilus_trader"   # tên engine công bố cho UI / health (nơi DUY NHẤT ngoài import)
+
+
 def get_version_info() -> Dict[str, Any]:
     """Trả thông tin phiên bản NautilusTrader hiện tại và đường dẫn tài liệu chuẩn."""
     return {

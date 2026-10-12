@@ -1,10 +1,7 @@
-"""Lớp dùng chung cho các router (P11): kiểm tham số, khởi chạy job, chế độ Cơ bản/Nâng cao, metadata UI.
+"""Lớp dùng chung cho các router: kiểm tham số job (ngày, tài sản, số, thư mục báo cáo, cấu hình WFA), dựng params cho book_backtest / book_wfa /
+custom_backtest, http_launch, chế độ chạy Cơ bản/Nâng cao (preset khoá sẵn vs mọi tham số chỉnh được) và endpoint GET /api/studio/meta.
 
-Gộp từ: jobs.py, modes.py, meta.py.
-"""
-"""Kiểm tham số job (P9.8): ngày, tài sản, số, thư mục báo cáo, chiến lược WFA, dựng params cho book_backtest/book_wfa/book_build/custom_backtest, http_launch.
-
-Nguồn gộp: docs/bmad/p9_review_log.md (mục P9.6, P9.8). `http_launch` gọi `_proc.launch` (tra cứu thuộc tính lúc gọi nên monkeypatch `launch` có hiệu lực).
+`http_launch` gọi `_proc.launch` (tra cứu thuộc tính lúc gọi nên monkeypatch `launch` có hiệu lực). Job chạy ở tiến trình riêng: backend/jobs/runner.py.
 """
 import calendar
 import math
@@ -12,41 +9,22 @@ import os
 import re
 import time
 from datetime import datetime
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Optional
 
-from backend.optimize.process import process as _proc
-from backend.optimize.process.process import DEX_UNSUPPORTED, JobBusy, JobError, KINDS, NotReady
+from fastapi import HTTPException, APIRouter, Header, Response
+
+from backend.jobs import runner as _proc, runner as batch_jobs
+from backend.jobs.runner import DEX_UNSUPPORTED, JobBusy, JobError, KINDS, NotReady
+from backend.carlo.carlo import MC_RUIN_THRESHOLD_PCT, STRESS_LABELS_VI, VERTICAL_NAMES
+from backend.models.params import BASE_RISK_PER_TRADE_PCT
+from backend.strategies import BY_ID, FieldError, lift_frames, validate_params
+from backend.models.storage import read_json
+from backend import strategies as presets_mod
+from backend.models.meta import build_meta
 
 
-# ══════════════════════════════════════════════════════════════════════════
-# Job nền nặng (backtest, WFA, dựng sổ, phễu, dữ liệu...), chạy NGOÀI tiến trình API qua MỘT cửa: backend/optimize/process/process.py.
-#
-# Vì sao: API có trần RAM riêng (3G) nên không được chạy việc nặng trong tiến trình. Mỗi job là một tiến trình con
-# `ops/run_limited.sh -- -m backend.optimize.process.process <job_dir>`: tự có scope riêng trong nora.slice (trần chung 12G), xếp hàng
-# tuần tự (flock) và tự chia worker theo RAM còn trống. runner đọc job.json {kind, params} rồi gọi run_job(params) của module trong KINDS.
-# API chỉ khởi chạy, theo dõi và đọc kết quả. UI, terminal (curl) và script đều đi qua cùng endpoint -> cùng job.
-#
-# Mỗi job có thư mục <data>/cache/process/<job_id>/ (kết quả lâu dài: backtest|wfa|carlo/<job_id>):
-#   params.json đầu vào của runner {kind, params}
-#   job.json    siêu dữ liệu (id, kind, params, pid, created/started/finished, state, exit_code)
-#   out.log     stdout+stderr của job
-#   result.json báo cáo cuối do script ghi (quy ước env NORA_JOB_DIR, xem backend/optimize/process/process.py)
-#   alphas/     (chỉ job book_build) sổ vừa dựng: book.json [+ testnet/book.json]; KHÔNG ghi đè nora/data/alpha/ — xuất bản qua POST /book/publish
-#   progress.json  (job tối ưu quy mô lớn) tiến độ do job ghi mỗi <= 5 giây: stage, done, total, rate, eta_s, peak_rss_mb (xem backend/optimize/process/process.py)
-# Trạng thái trả ra: queued (đang chờ hàng đợi run_limited) | running | done | failed | cancelled. Trạng thái bền (job.json) chỉ có running/done/failed/cancelled;
-# queued suy ra từ out.log. Huỷ: cancel(job_id) gửi SIGTERM cho CẢ nhóm tiến trình (job flush kho kết quả rồi thoát -> chạy lại bằng resume). Không dùng shell.
-# ══════════════════════════════════════════════════════════════════════════
-
-# Danh sách trắng: loại job -> (module có run_job(params), các khoá tham số được phép)
-MAX_BUILD_CONFIGS = 1_000_000   # trần cứng của API cho --n (mỗi chiến lược); CLI còn có --max-configs (mặc định 200000) + --force-large
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 MAX_WFA_STRATEGIES, MAX_WFA_CONFIGS = 16, 50
-
-
-# ─── Đường dẫn ──────────────────────────────────────────────────────────────
-
-
-# Kết quả lâu dài của job đã xong (ADR-P9 §4): backtest|wfa|carlo/<id>. Cùng tệp như thư mục job (job.json, params.json, result.json, ...).
 
 
 # ─── Kiểm đối số ────────────────────────────────────────────────────────────
@@ -63,7 +41,7 @@ def check_date(value: str) -> str:
 def check_symbols(symbols: List[str]) -> List[str]:
     """Chuẩn hoá 'BTC' / 'BTC@perp' -> 'BTC@perp'; chỉ nhận tài sản trong vũ trụ của sổ chiến lược (WFA, phễu: chưa hỗ trợ DEX)."""
     from backend.data.data import require_perp
-    from backend.optimize.book.build import UNIVERSE
+    from backend.strategies import UNIVERSE
     try:
         require_perp(symbols, "WFA / phễu")
     except ValueError as e:
@@ -91,7 +69,7 @@ def _day_ms(day: str, plus_days: int = 0) -> int:
 
 
 def check_candidate_ids(ids: List[str]) -> List[str]:
-    from backend.optimize.book.build import BY_ID
+    from backend.strategies import BY_ID
     known = set(BY_ID)
     bad = [i for i in ids if i not in known]
     if bad:
@@ -125,7 +103,7 @@ def check_report_dir(report_dir: str) -> str:
 def check_wfa_strategies(items: Any) -> List[Dict[str, Any]]:
     """[{"id", "configs": [{tham số: giá trị}]}] do người dùng chọn: id thuộc thư viện; khoá thuộc `space` hoặc `params_schema` của ứng viên;
     giá trị là số hữu hạn, riêng khoá kiểu "choice" (khung thời gian) là chuỗi nằm trong danh sách lựa chọn."""
-    from backend.optimize.book.build import BY_ID
+    from backend.strategies import BY_ID
     by_id = BY_ID
     if not isinstance(items, list) or not items or len(items) > MAX_WFA_STRATEGIES:
         raise JobError(f"strategies phải là danh sách 1..{MAX_WFA_STRATEGIES} chiến lược")
@@ -232,17 +210,6 @@ def build_job(kind: str, p: Dict[str, Any]) -> Dict[str, Any]:
                 out[key] = check_number(p[key], key, lo, hi, integer=True)
         if p.get("risk_per_trade_pct") is not None:
             out["risk_per_trade"] = check_number(p["risk_per_trade_pct"], "risk_per_trade_pct", 0.01, 5.0)
-    elif kind == "book_build":
-        if p.get("only"):
-            out["only"] = check_candidate_ids(p["only"])
-        if p.get("n") is not None:
-            out["n"] = check_number(p["n"], "n", 1, MAX_BUILD_CONFIGS, integer=True)
-        if p.get("keep_top") is not None:
-            out["keep_top"] = check_number(p["keep_top"], "keep_top", 3, 5000, integer=True)
-        if p.get("force_large"):
-            out["force_large"] = True
-        if p.get("timeframe"):
-            out["timeframe"] = check_timeframe(p["timeframe"])
     elif kind == "custom_backtest":
         out = build_custom_backtest(p)
     else:
@@ -258,7 +225,7 @@ _BASE_RE = re.compile(r"^[A-Z0-9]{2,12}$")
 def build_custom_backtest(p: Dict[str, Any]) -> Dict[str, Any]:
     """Tham số job custom_backtest (chiến lược Python): kiểm code bằng chính trình biên dịch (lỗi -> JobError kèm dòng/cột), rổ, ngày, vốn, vị thế."""
     from backend.models.params import POSITION_KEYS
-    from backend.alpha.dsl.signal import DslError
+    from backend.signal.nodes import DslError
     from backend.alpha.compile import compile_code
     from backend.alpha.contract import MAX_CODE_CHARS
     from backend.models.params import FRAMES
@@ -307,15 +274,7 @@ def build_custom_backtest(p: Dict[str, Any]) -> Dict[str, Any]:
     return out
 
 
-# ─── Lưu/đọc job.json ───────────────────────────────────────────────────────
-
-
-# ─── Khởi chạy ──────────────────────────────────────────────────────────────
-
-
-# ─── Vòng đời kết quả (ADR-P9 §4 bước 2–3) ──────────────────────────────────
-# Loại khác (presets_build, alpha_revalidate, regime_report, funnel_book, funnel_recompute, data_update): kết quả bền do chính job ghi
-# -> xong là dọn thư mục process (không chép).
+# ─── Khởi chạy job ───────────────────────────────────────────────────────────
 
 
 def http_launch(kind: str, params: Dict[str, Any]) -> Dict[str, str]:
@@ -329,34 +288,6 @@ def http_launch(kind: str, params: Dict[str, Any]) -> Dict[str, str]:
         raise HTTPException(429, str(e))
 
 
-def build_and_launch(kind: str, params: Dict[str, Any]) -> Dict[str, str]:
-    """build_job + http_launch cho router (P9.10a: gộp `_launch` của routes/book.py và routes/education.py): JobError khi kiểm tham số -> HTTP 422."""
-    from fastapi import HTTPException
-    try:
-        job_params = build_job(kind, params)
-    except JobError as e:
-        raise HTTPException(422, str(e))
-    return http_launch(kind, job_params)
-
-
-# ─── Theo dõi ───────────────────────────────────────────────────────────────
-
-
-# ══════════════════════════════════════════════════════════════════════════
-# PHẦN 2: CHẾ ĐỘ CHẠY CƠ BẢN / NÂNG CAO (gộp từ modes.py)
-# ══════════════════════════════════════════════════════════════════════════
-
-from typing import Any, Dict, List, Optional, Tuple
-
-from fastapi import HTTPException
-
-from backend.optimize.process import process as batch_jobs
-from backend.carlo.carlo import MC_RUIN_THRESHOLD_PCT, STRESS_LABELS_VI, VERTICAL_NAMES
-from backend.models.params import BASE_RISK_PER_TRADE_PCT
-from backend.optimize.book.build import BY_ID
-from backend.models.storage import read_json
-from backend.optimize.book import build as presets_mod
-from backend.optimize.book.build import FieldError, lift_frames, validate_params
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -420,7 +351,7 @@ def mc_standard(simulations: int, ruin_threshold_pct: float, stress_max_mdd_pct:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Chế độ chạy Cơ bản / Nâng cao cho backtest, WFA, Monte Carlo (lớp API; logic kiểm tham số ở backend/optimize/book/build.py).
+# Chế độ chạy Cơ bản / Nâng cao cho backtest, WFA, Monte Carlo (lớp API; logic kiểm tham số ở backend/strategies.py).
 #
 # basic     MÁY CHỦ bỏ qua tham số do client gửi, dùng preset (data/alpha/presets.json) của các chiến lược được chọn (tối đa 7);
 #           WFA fold mặc định 120/30 và gate chuẩn; MC 10.000 kịch bản + đủ 6 kịch bản cực xấu + gate chuẩn.
@@ -691,220 +622,24 @@ def resolve_mc(req) -> Dict[str, Any]:
             "extra_cost_daily_pct": req.extra_cost_daily_pct, "stress": subset, "custom_gates": custom, "ignored_client_params": False}
 
 
+# ─── Metadata cho UI (lắp ráp ở models/meta.py) ─────────────────────────────
 
-
-# ══════════════════════════════════════════════════════════════════════════
-# PHẦN 3: METADATA API CHO UI (gộp từ meta.py)
-# ══════════════════════════════════════════════════════════════════════════
-
-import hashlib
-import json
-import os
-import re
-from typing import Any, Dict, List, Optional
-
-from fastapi import APIRouter, Header, Response
-
-from backend.carlo import carlo
-from backend.models.params import FRAME_MS
-from backend.data import data as market_data
-from backend.models import storage as store
-from backend.nautilus.version import NAUTILUS_VERSION
-from backend.metrics.charts import EDUCATION_HIDDEN_SECTIONS, NOTE_TOUR
-from backend.metrics.metrics import METRIC_DEFS, METRIC_GROUPS
-from backend.optimize.book import registry as book_reg
-from backend.optimize.funnel import stages as funnel_stages
-from backend.optimize.process import process as batch_process
 
 meta_router = APIRouter(prefix="/api/studio", tags=["meta"])
 
-_BOUNDS = ("minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "minLength", "maxLength", "minItems", "maxItems")
-_PREFIX_RE = re.compile(r"^(S\d)_")
 
-
-def _get_limit_models() -> Dict[str, Any]:
-    from backend.routes.optimize import FunnelRunRequest, FunnelBookRequest, _DateRange, WfaStrategyIn, McRequest, BuildRequest
+def _limit_models() -> Dict[str, Any]:
     from backend.routes.alpha import CustomBacktestRequest
-    from backend.routes.data import CrawlRequest, RegimeReportRequest
-    return {
-        "funnel_run": FunnelRunRequest, "funnel_book": FunnelBookRequest, "custom_backtest": CustomBacktestRequest,
-        "book_backtest": _DateRange, "book_wfa": WfaStrategyIn, "book_mc": McRequest,
-        "book_build": BuildRequest, "regime_report": RegimeReportRequest,
-        "data_update": CrawlRequest,
-    }
-
-
-def _prop(model, field: str) -> Dict[str, Any]:
-    p = model.model_json_schema()["properties"][field]
-    for alt in p.get("anyOf", []):   # Optional[...] -> nhánh không-null
-        if alt.get("type") != "null":
-            return {**alt, **{k: v for k, v in p.items() if k != "anyOf"}}
-    return p
-
-
-def _choices(model, field: str) -> List[str]:
-    """Tập giá trị mà validator của route chấp nhận: pattern `^(a|b|c)$` hoặc enum/Literal (Pydantic schema)."""
-    p = _prop(model, field)
-    if "enum" in p:
-        return list(p["enum"])
-    m = re.match(r"^\^\(([^()]*)\)\$$", p.get("pattern", ""))
-    return m.group(1).split("|") if m else []
-
-
-def _limits() -> Dict[str, Any]:
-    out: Dict[str, Any] = {}
-    for name, model in _get_limit_models().items():
-        fields = {}
-        for f in model.model_json_schema()["properties"]:
-            p = _prop(model, f)
-            b = {k: p[k] for k in _BOUNDS if k in p}
-            if b:
-                if "default" in p:
-                    b["default"] = p["default"]
-                if name == "book_mc" and p.get("description"):   # mô tả tiếng Việt của Field McRequest (một nơi)
-                    b["help_vi"] = p["description"]
-                fields[f] = b
-        out[name] = fields
-    return out
-
-
-def _stage_of_prefix(prefix: str) -> Optional[str]:
-    idx = int(prefix[1])
-    for s, i in funnel_stages.ALL_STAGE_IDX.items():
-        if i == idx:
-            return s
-    return None
-
-
-def _funnel() -> Dict[str, Any]:
-    st = funnel_stages
-    stages = [{"id": s, "label": st.STAGE_LABELS.get(s), "idx": st.STAGE_IDX[s], "has_trades": s in st.TRADE_STAGES, "trades_from": st.trades_from(s),
-               "legacy": False} for s in st.STAGES]
-    stages.append({"id": st.LEGACY_STAGE, "label": st.STAGE_LABELS.get(st.LEGACY_STAGE), "idx": st.LEGACY_STAGE_IDX[st.LEGACY_STAGE],
-                   "has_trades": st.LEGACY_STAGE in st.TRADE_STAGES, "trades_from": st.trades_from(st.LEGACY_STAGE), "legacy": True})
-    gates = []
-    for name, value in st.thresholds_snapshot().items():   # hằng số ngưỡng hiện hành của stages.py (tên = tên hằng, giá trị = giá trị thật)
-        m = _PREFIX_RE.match(name)
-        if m:
-            gates.append({"key": name, "value": value, "stage": _stage_of_prefix(m.group(1)), "source": "optimize/funnel/stages.py"})
-    for name in ("MC_MIN_SIMULATIONS", "MC_MAX_SIMULATIONS", "MC_RUIN_THRESHOLD_PCT", "MC_MAX_RUIN_PCT", "STRESS_MAX_MDD_PCT"):
-        gates.append({"key": name, "value": getattr(carlo, name), "stage": "S4_montecarlo", "source": "carlo/carlo.py"})
-    return {"stages": stages, "gates": gates}
-
-
-def _live() -> Dict[str, Any]:
-    """Live chưa chạy được (đang chuyển sang Nautilus TradingNode): không có chế độ nào để chọn; `not_ready` cho UI hiện "chưa hỗ trợ"."""
-    from backend.routes.live import NOT_READY_LIVE
-    return {"modes": [], "venues": ["okx"], "books": [], "engines": [], "not_ready": NOT_READY_LIVE}
-
-
-def _engine() -> Dict[str, Any]:
-    return {"name": "nautilus_trader", "version": NAUTILUS_VERSION, "docs_url": "https://nautilustrader.io/docs/latest/"}
-
-
-_NO_SIM_HELP = "Nautilus không mô phỏng — bị bỏ qua (có cảnh báo trong kết quả)"
-UNSUPPORTED = [   # tính năng của Nautilus 1.231 mà engine báo không mô phỏng (results["warnings"]); UI ẩn/khoá, API bỏ qua + cảnh báo (không giả số)
-    {"key": "slippage_rate", "condition": "> 0", "unsupported": True, "help_vi": _NO_SIM_HELP},
-    {"key": "limit_through_pct", "condition": "> 0", "unsupported": True, "help_vi": _NO_SIM_HELP},
-    {"key": "stop_fill", "condition": "== 'extreme'", "unsupported": True, "help_vi": _NO_SIM_HELP},
-    {"key": "intrabar_path", "condition": "== 'adverse_first'", "unsupported": True,
-     "help_vi": "Nautilus không mô phỏng — engine từ chối (ValueError): chỉ 'ohlc' / 'adaptive'"},
-    {"key": "maintenance_margin_rate", "condition": "always", "unsupported": True, "help_vi": _NO_SIM_HELP + " (thanh lý)"},
-    {"key": "liquidation", "condition": "always", "unsupported": True, "help_vi": _NO_SIM_HELP + " (thanh lý: vị thế đòn bẩy không bị thanh lý)"},
-    {"key": "funding", "condition": "always", "unsupported": True, "help_vi": _NO_SIM_HELP + " (funding perp: funding_usd = 0)"},
-    {"key": "venue_dex", "condition": "always", "unsupported": True, "help_vi": "Nautilus không mô phỏng DEX/AMM: tài sản DEX và backtest tick bị từ chối (501 NOT_READY)"},
-]
-
-
-def _jobs() -> Dict[str, Any]:
-    kinds = []
-    for kind, entry in batch_process.KINDS.items():
-        dest = batch_process.persist_dest_base(kind)
-        kinds.append({"kind": kind, "label_vi": entry["label_vi"], "persist_to": os.path.relpath(dest, store.data_home()) if dest else None,
-                      "ephemeral": kind in batch_process.EPHEMERAL_KINDS,
-                      "params": sorted(entry["params"])})
-    return {"kinds": kinds}
-
-
-def _book_rel(book: Optional[Dict[str, Any]]) -> List[str]:
-    return list(book.get("universe") or []) if book else []
-
-
-def _fix(book: Optional[Dict[str, Any]], explore: bool) -> Dict[str, Any]:
-    """Cách dựng lại sổ, lấy từ chính sổ: source -> run_id/wfa_job_id; strategies[].evidence.funnel_alpha_id; risk_per_trade_pct. Không từ phễu -> book_build."""
-    src = book_reg.parse_book_source((book or {}).get("source"))
-    if not src:
-        return {"action": "book_build", "endpoint": "/api/studio/book/build"}
-    ids = [(s.get("evidence") or {}).get("funnel_alpha_id") for s in (book or {}).get("strategies", [])]
-    return {"action": "funnel_book", "endpoint": f"/api/studio/funnel/runs/{src['run_id']}/book",
-            "body": {"alpha_ids": [i for i in ids if i], "risk_per_trade_pct": book.get("risk_per_trade_pct"),
-                     "wfa_job_id": src["wfa_job_id"] or "", "explore": explore},
-            "run_id": src["run_id"], "wfa_job_id": src["wfa_job_id"], "source": book["source"]}
-
-
-def _book_status(book: Optional[Dict[str, Any]], explore: bool) -> Dict[str, Any]:
-    st = book_reg.book_engine_status(book)
-    if st.get("needs_rebuild"):
-        st["fix"] = _fix(book, explore)
-    return st
-
-
-def _build_meta() -> Dict[str, Any]:
-    from backend.routes.alpha import CustomBacktestRequest
-    from backend.routes.optimize import FunnelRunRequest
-    home = store.data_home()
-    rel = lambda p: os.path.relpath(p, home)   # noqa: E731
-    main_path, explore_path = store.alpha_file("book"), store.alpha_dir("explore", "book.json")
-    main_book, explore_book = store.read_json(main_path), store.read_json(explore_path)
-    okx_root = os.path.dirname(market_data.default_catalog_path())   # data/market/okx: sàn triển khai duy nhất
-    perp = [a["symbol"] for a in market_data.coverage()]
-    payload = {
-        "funnel": _funnel(),
-        "frames": {"all": list(FRAME_MS), "custom_backtest": _choices(CustomBacktestRequest, "run_frame"),
-                   "funnel": _choices(FunnelRunRequest, "timeframe")},
-        "live": _live(),
-        "jobs": _jobs(),
-        "universe": {"data": {"exchange": "okx", "instrument": "perp", "assets": perp,
-                              "markets": {"okx": rel(okx_root)}},
-                     "book": _book_rel(main_book), "explore": _book_rel(explore_book)},
-        "limits": _limits(),
-        "stress": carlo.STRESS_SCENARIOS,
-        "metrics": {"defs": METRIC_DEFS, "groups": METRIC_GROUPS},
-        "explain_tour": NOTE_TOUR,
-        "education_hidden_sections": EDUCATION_HIDDEN_SECTIONS,
-        "engine": _engine(),
-        "unsupported": UNSUPPORTED,
-        "risk_profiles": {
-            k: {
-                "name": v.name,
-                "label_vi": v.label_vi,
-                "description": v.description,
-                "sl_anchor": v.sl_anchor,
-                "sl_required": v.sl_required,
-                "dca_mode": v.dca_mode,
-                "dca_max_limit": v.dca_max_limit,
-                "exits_allowed": list(v.exits_allowed),
-                "exits_required_any": list(v.exits_required_any),
-                "sizing_default": v.sizing_default,
-                "reentry_rule": v.reentry_rule,
-                "portfolio_bucket": v.portfolio_bucket,
-            }
-            for k, v in __import__("backend.models.position_size", fromlist=["RISK_PROFILES"]).RISK_PROFILES.items()
-        },
-        "allocation": __import__("backend.models.params", fromlist=["DEFAULT_ALLOCATION"]).DEFAULT_ALLOCATION,
-        "books": {"main": _book_status(main_book, False), "explore": _book_status(explore_book, True)},
-        "paths": {"book": rel(main_path), "explore_book": rel(explore_path), "registry": rel(store.alpha_file("registry")),
-                  "presets": rel(store.alpha_file("presets")), "alpha_user": rel(store.alpha_user_dir()), "cache_process": rel(store.cache_process_dir()),
-                  "market": {"okx": rel(okx_root)}},
-    }
-    payload["version"] = hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:16]
-    return payload
+    from backend.routes.book import BacktestRequest, McRequest, WfaStrategyIn, _DateRange
+    from backend.routes.data import CrawlRequest
+    return {"custom_backtest": CustomBacktestRequest, "book_backtest": _DateRange, "book_wfa": WfaStrategyIn, "book_mc": McRequest,
+            "data_update": CrawlRequest, "book_backtest_req": BacktestRequest}
 
 
 @meta_router.get("/meta")
 def get_studio_meta(response: Response, if_none_match: Optional[str] = Header(None)) -> Dict[str, Any]:
     """Metadata UI từ nguồn thật, kèm ETag (If-None-Match khớp -> 304)."""
-    meta = _build_meta()
+    meta = build_meta(_limit_models())
     etag = f'"{meta["version"]}"'
     if if_none_match and if_none_match.strip() == etag:
         return Response(status_code=304, headers={"ETag": etag, "Cache-Control": "no-cache"})

@@ -9,9 +9,9 @@ from fastapi.testclient import TestClient
 
 from backend.alpha import compile as dsl, contract
 from backend.alpha.compile import compile_code, compile_program, compile_strategy_module, load_system_strategies, strategies_dir
-from backend.alpha.dsl.indicator import FEATURES, OPS
-from backend.optimize.book import build as sb
-from backend.optimize.book import registry as user_alphas
+from backend.signal.indicator import FEATURES, OPS
+from backend import strategies as sb
+from backend import strategies as user_alphas
 from backend.routes import alpha
 from backend.routes import alpha
 
@@ -409,7 +409,7 @@ def test_user_alpha_new_version(tmp_path, monkeypatch, client):
     code1 = FUNCTION.replace("FAST = 20", "FAST = 20")
     code2 = FUNCTION.replace("FAST = 20", "FAST = 30")
     results = {"j1": _mock_job(code1, "j1", 220000.0), "j2": _mock_job(code2, "j2", 260000.0)}
-    from backend.optimize.process import process as batch
+    from backend.jobs import runner as batch
     monkeypatch.setattr(batch, "status", lambda jid: {"status": "done", "result": results[jid]} if jid in results else None)
     base = str(tmp_path / "alphas")
     rec1, act1 = user_alphas.save_user_alpha("j1", code1, "Alpha A", base_dir=base)

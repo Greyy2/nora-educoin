@@ -60,8 +60,8 @@ class CustomStrategy(SimpleAlgorithm):
 
 
 def _run(code, **extra):
-    from backend.optimize.process import tasks as custom_run
-    from backend.alpha.dsl.strategy import data_cache_clear
+    from backend.jobs import tasks as custom_run
+    from backend.signal.compute import data_cache_clear
     from backend.data.data import clear_caches
     clear_caches()
     data_cache_clear()
@@ -142,8 +142,8 @@ def test_three_conjunct_strategy_binding_condition_real_run():
 
 
 def test_benchmark_runs_once_per_config(monkeypatch):
-    from backend.optimize.process import tasks as custom_run
-    from backend.optimize.search import evaluate as ev
+    from backend.jobs import tasks as custom_run
+    from backend.jobs import evaluate as ev
     ev._BENCH_CACHE.clear()
     calls = []
     real = ev.execute

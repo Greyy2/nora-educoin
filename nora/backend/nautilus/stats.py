@@ -17,7 +17,7 @@ Nautilus 1.231 (đã kiểm bằng thực nghiệm, test/test_nautilus_stats.py)
 Đầu ra của `compute`: số thô theo đơn vị Nautilus (phân số, không nhân 100) trừ `win_rate` (phần trăm 0-100, theo giao diện).
 """
 import math
-from typing import Any, Dict, Optional, Sequence
+from typing import Dict, Optional, Sequence
 
 import numpy as np
 import pandas as pd
@@ -26,7 +26,7 @@ from nautilus_trader.analysis import (
 )
 
 ANN = 365                                   # số ngày quy năm của Nora (Nautilus mặc định 252)
-_EPOCH = pd.Timestamp("2000-01-01")         # mốc cho chuỗi không có chỉ số thời gian (chỉ khoảng cách ngày có ý nghĩa)
+_EPOCH = pd.Timestamp(0)                    # mốc cho chuỗi không có chỉ số thời gian (chỉ khoảng cách ngày có ý nghĩa)
 
 
 def _clean(x) -> Optional[float]:

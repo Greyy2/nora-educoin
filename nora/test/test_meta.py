@@ -8,41 +8,36 @@ from backend.carlo import carlo
 from backend.models.params import FRAME_MS
 from backend.models import storage as store
 from backend.data.data import coverage
-from backend.nautilus.version import NAUTILUS_VERSION
+from backend.nautilus.version import ENGINE_NAME, NAUTILUS_VERSION
 from backend.main import app
-from backend.optimize.book import registry
-from backend.optimize.funnel import stages
-from backend.optimize.process import process as P
-from backend.routes import alpha, optimize, process as process_routes, live as live_routes  # noqa: F401
+from backend import strategies
+from backend.models.meta import build_meta
+from backend.jobs import runner as P
+from backend.routes import alpha, book as optimize, process as process_routes, live as live_routes  # noqa: F401
 
 pytestmark = pytest.mark.usefixtures("synthetic_data")   # P15: engine Nautilus lấy nến thực thi + spec từ DataSource; dữ liệu giả lập -> conftest.synthetic_data
 
 
 @pytest.fixture(scope="module")
 def m():
-    return process_routes._build_meta()
+    return build_meta(process_routes._limit_models())
 
 
-def test_stages_and_trades(m):
-    ids = [s["id"] for s in m["funnel"]["stages"] if not s["legacy"]]
-    assert ids == stages.STAGES
-    assert [s["id"] for s in m["funnel"]["stages"] if s["legacy"]] == [stages.LEGACY_STAGE]
-    assert {s["id"] for s in m["funnel"]["stages"] if s["has_trades"]} == set(stages.TRADE_STAGES)
-    assert all(s["label"] == stages.STAGE_LABELS[s["id"]] for s in m["funnel"]["stages"])
 
 
 def test_gates_equal_constants(m):
-    snap = stages.thresholds_snapshot()
-    g = {x["key"]: x["value"] for x in m["funnel"]["gates"]}
-    for k in ("S1_MAX_MDD_PCT", "S1_MIN_TRADES", "S3_MIN_FOLD_T", "S4_MAX_RUIN_PCT", "S6_MAX_MDD_PCT", "S2_PBO_MAX"):
-        assert g[k] == snap[k]
-    assert g["MC_MAX_RUIN_PCT"] == carlo.MC_MAX_RUIN_PCT and g["MC_MIN_SIMULATIONS"] == carlo.MC_MIN_SIMULATIONS
-    assert "min_sharpe" not in g
+    g = {x["key"]: x["value"] for x in m["gates"]}
+    for k in ("MC_MIN_SIMULATIONS", "MC_MAX_SIMULATIONS", "MC_RUIN_THRESHOLD_PCT", "MC_MAX_RUIN_PCT", "STRESS_MAX_MDD_PCT"):
+        assert g[k] == getattr(carlo, k)
+    assert "funnel" not in m   # phễu đã gỡ: meta không còn mục funnel
 
 
 def test_frames_live_jobs(m):
     assert m["frames"]["all"] == list(FRAME_MS)
-    assert set(m["frames"]["funnel"]) <= set(FRAME_MS) and set(m["frames"]["custom_backtest"]) <= set(FRAME_MS)
+    assert set(m["frames"]["book"]) <= set(FRAME_MS) and set(m["frames"]["custom_backtest"]) <= set(FRAME_MS)
+    assert m["frames"]["book"] == ["15m", "1h", "4h"] and m["frames"]["defaults"]["book"] == "1h"
+    assert m["frames"]["defaults"]["custom_backtest"] in m["frames"]["custom_backtest"]
+    assert set(optimize.BacktestRequest.model_json_schema()["properties"]) >= {"run_frame", "timeframe"}
     assert m["live"]["modes"] == [] and m["live"]["not_ready"] == live_routes.NOT_READY_LIVE   # live chuyển sang Nautilus TradingNode
     assert m["live"]["venues"] == ["okx"]
     assert [k["kind"] for k in m["jobs"]["kinds"]] == list(P.KINDS)
@@ -58,8 +53,8 @@ def test_universe_limits_books_paths(m):
     for key, path in (("book", store.alpha_file("book")), ("explore", store.alpha_dir("explore", "book.json"))):
         b = store.read_json(path)
         assert m["universe"][key] == (b["universe"] if b else [])
-    lim = m["limits"]["funnel_run"]["seed"]
-    sch = optimize.FunnelRunRequest.model_json_schema()["properties"]["seed"]
+    lim = m["limits"]["book_mc"]["seed"]
+    sch = optimize.McRequest.model_json_schema()["properties"]["seed"]
     assert (lim["minimum"], lim["maximum"], lim["default"]) == (sch["minimum"], sch["maximum"], sch["default"])
     assert "live_bot" not in m["limits"] and "live_bot" not in P.KINDS
     for key, p in (("book", store.alpha_file("book")), ("explore_book", store.alpha_dir("explore", "book.json"))):
@@ -67,31 +62,13 @@ def test_universe_limits_books_paths(m):
 
 
 def test_engine_is_nautilus(m):
-    assert m["engine"] == {"name": "nautilus_trader", "version": NAUTILUS_VERSION, "docs_url": "https://nautilustrader.io/docs/latest/"}
+    assert m["engine"] == {"name": ENGINE_NAME, "version": NAUTILUS_VERSION, "docs_url": "https://nautilustrader.io/docs/latest/",
+                           "default_exec_mode": "fast"}
     assert NAUTILUS_VERSION not in ("", "not_installed")
 
 
-def test_book_fix_parsed_from_book(m):
-    for key, explore in (("main", False), ("explore", True)):
-        st = m["books"][key]
-        book = store.read_json(store.alpha_file("book") if key == "main" else store.alpha_dir("explore", "book.json"))
-        if not st.get("needs_rebuild"):
-            assert "fix" not in st
-            continue
-        src = registry.parse_book_source(book.get("source"))
-        if src:
-            f = st["fix"]
-            assert f["action"] == "funnel_book" and f["run_id"] == src["run_id"] and f["endpoint"].endswith(f"/runs/{src['run_id']}/book")
-            assert f["body"]["alpha_ids"] == [s["evidence"]["funnel_alpha_id"] for s in book["strategies"] if s["evidence"].get("funnel_alpha_id")]
-            assert f["body"]["risk_per_trade_pct"] == book["risk_per_trade_pct"] and f["body"]["explore"] is explore
-        else:
-            assert st["fix"]["action"] == "book_build"
 
 
-def test_book_source_roundtrip():
-    s = registry.book_source("fr-1", None, "2026-10-08")
-    assert registry.parse_book_source(s) == {"run_id": "fr-1", "wfa_job_id": None, "date": "2026-10-08"}
-    assert registry.parse_book_source("book_build job x") is None
 
 
 def test_etag_304():
@@ -128,7 +105,7 @@ def test_metric_defs_well_formed():
 
 @pytest.fixture
 def real_result(market):
-    from backend.optimize.process import tasks
+    from backend.jobs import tasks
     return tasks.run_custom(_params(code=CODE_1H, symbols=["AAA", "BBB", "CCC"], initial_capital=10_000))
 
 
@@ -159,26 +136,16 @@ def test_meta_exposes_metrics_and_tour(m):
 
 
 def test_etag_changes_with_metric_defs(monkeypatch):
-    v0 = process_routes._build_meta()["version"]
+    v0 = build_meta(process_routes._limit_models())["version"]
     changed = {**metrics_mod.METRIC_DEFS, "sharpe": {**metrics_mod.METRIC_DEFS["sharpe"], "label_vi": "Sharpe (đổi)"}}
-    monkeypatch.setattr(process_routes, "METRIC_DEFS", changed)
-    assert process_routes._build_meta()["version"] != v0
+    monkeypatch.setattr(metrics_mod, "METRIC_DEFS", changed)
+    assert build_meta(process_routes._limit_models())["version"] != v0
 
 
-# ─── trades_from, stress, metric keys của phễu, limits.book_mc ───────────────
+# ─── stress, limits.book_mc ───────────────
 import re as _re  # noqa: E402
 
 
-def test_trades_from_mapping(m):
-    for s in m["funnel"]["stages"]:
-        assert s["trades_from"] == stages.trades_from(s["id"])
-        if s["has_trades"]:
-            assert s["trades_from"] is None
-        elif s["trades_from"] is not None:
-            assert s["trades_from"] in stages.TRADE_STAGES and stages.ALL_STAGE_IDX[s["trades_from"]] < s["idx"]
-    by = {s["id"]: s["trades_from"] for s in m["funnel"]["stages"]}
-    assert by[stages.LEGACY_STAGE] == "S1_backtest" and by["S4_montecarlo"] == "S3_wfa" and by["FINAL"] == "S6_holdout"
-    assert by["S0_generate"] is None   # trước mọi tầng có lệnh
 
 
 def test_stress_equals_carlo(m):
@@ -190,14 +157,6 @@ def test_stress_equals_carlo(m):
     assert {s["key"] for s in m["stress"] if s["needs_positions"]} == set(carlo.VERTICAL_NAMES)
 
 
-def test_funnel_js_metric_keys_have_defs(m):
-    src = open(os.path.join(os.path.dirname(__file__), "..", "frontend", "src", "lib", "funnel.js"), encoding="utf-8").read()
-    blk = src[src.index("export const METRICS = {"):]
-    keys = _re.findall(r"^  (\w+):", blk[:blk.index("\n}\n")], _re.M)
-    assert keys  # METRICS giờ chỉ giữ gợi ý UI (term/tone); nhãn/đơn vị lấy từ meta.metrics.defs
-    assert [k for k in keys if k not in m["metrics"]["defs"]] == []
-    d = m["metrics"]["defs"]["p_mdd_ge_30"]
-    assert f"{carlo.MC_RUIN_THRESHOLD_PCT:g}%" in d["label_vi"] and f"{carlo.MC_RUIN_THRESHOLD_PCT:g}%" in d["help_vi"]
 
 
 def test_book_mc_limits_equal_schema(m):

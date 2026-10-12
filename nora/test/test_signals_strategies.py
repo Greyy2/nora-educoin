@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from backend.alpha.dsl import indicator as kernels
+from backend.signal import indicator as kernels
 from data_helpers import FrameData
 
 
@@ -109,7 +109,7 @@ def _random_value(rng, depth=0):
 
 
 def test_vector_evaluator_matches_scalar_on_random_asts():
-    from backend.alpha.dsl.signal import LogicEvaluator, VectorEvaluator, lag_key
+    from backend.signal.nodes import LogicEvaluator, VectorEvaluator, lag_key
     rng = np.random.default_rng(7)
     n = 300
     data = {}
@@ -158,7 +158,7 @@ def _engine(df1, match, stop=None, **pos):
 
 
 def test_higher_frame_kernel_visible_only_after_close():
-    from backend.alpha.dsl.strategy import FRAME_MS
+    from backend.models.params import FRAME_MS
     df = _ohlcv(3000, seed=4)
     eng = _engine(df, [[[{"frame": "15m", "column": "rsi_14"}, ">", -1]]])
     frame_df, cols = eng._build_matrix()
@@ -404,7 +404,7 @@ DOWN_MINUTE = {"t": {"side": "LONG", "tree": [[[{"frame": "1m", "column": "roc_3
 
 
 def test_diagnostics_detects_planted_edge(tmp_path, monkeypatch):
-    from backend.alpha.dsl.strategy import check_signals
+    from backend.signal.compute import check_signals
     rng = np.random.default_rng(11)
     n = 40 * 1440
     eps = rng.normal(0, 0.001, n)
@@ -417,7 +417,7 @@ def test_diagnostics_detects_planted_edge(tmp_path, monkeypatch):
 
 
 def test_diagnostics_rejects_random_walk(tmp_path, monkeypatch):
-    from backend.alpha.dsl.strategy import check_signals
+    from backend.signal.compute import check_signals
     rng = np.random.default_rng(12)
     _dataset(tmp_path, monkeypatch, rng.normal(0, 0.001, 40 * 1440), "NOISE")
     res = check_signals("NOISE", DOWN_MINUTE, horizons_min=(15, 60))["signals"]["t"]
@@ -446,7 +446,7 @@ def test_cross_over_is_an_event_on_the_frame_bar():
     a, b = {"frame": "15m", "column": "close"}, {"frame": "15m", "column": "dch_20"}
     eng = _engine(df, [[list(t) for t in cross_over(a, b)]])
     df1, cols = eng._build_matrix()
-    from backend.alpha.dsl.signal import VectorEvaluator, lag_key
+    from backend.signal.nodes import VectorEvaluator, lag_key
     vec = VectorEvaluator(len(df1), lambda fr, c, lag: cols.get(f"{fr}|{lag_key(c, lag)}", np.full(len(df1), np.nan)))
     cross = vec.tree([[list(t) for t in cross_over(a, b)]])
     state = vec.tree([[[a, ">", b]]])

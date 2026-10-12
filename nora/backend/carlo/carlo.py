@@ -482,7 +482,6 @@ def bootstrap_daily(daily, scale, n=10_000, block=5, horizon=365, seed=1):  # n 
 # ══════════════════════════════════════════════════════════════════════════
 import math
 from statistics import NormalDist
-from typing import Sequence
 
 
 EULER_GAMMA = 0.5772156649015329
@@ -507,22 +506,6 @@ def expected_max_sr(n_trials: int, sr_var: float) -> float:
     return math.sqrt(sr_var) * ((1.0 - g) * norm_ppf(1.0 - 1.0 / n_trials) + g * norm_ppf(1.0 - 1.0 / (n_trials * math.e)))
 
 
-def deflated_sharpe(sr: float, n_days: int, skew: float, kurt: float, n_trials: int, sr_var: float) -> Dict[str, float]:
-    """DSR = xác suất Sharpe thật > SR0 sau khi hiệu chỉnh số lần thử, độ lệch, kurtosis, độ dài mẫu. -> {dsr, sr0}."""
-    sr0 = expected_max_sr(n_trials, sr_var)
-    if n_days < 3:
-        return {"dsr": 0.0, "sr0": sr0}
-    denom = math.sqrt(max(1e-12, 1.0 - skew * sr + (kurt - 1.0) / 4.0 * sr * sr))
-    z = (sr - sr0) * math.sqrt(n_days - 1) / denom
-    return {"dsr": norm_cdf(z), "sr0": sr0}
-
-
-def trial_sr_variance(srs: Sequence[float]) -> float:
-    """Phương sai (ddof=1) của Sharpe theo ngày qua các alpha đã thử của một chiến lược; < 2 alpha -> 0."""
-    a = np.asarray([x for x in srs if x is not None and math.isfinite(x)], dtype=float)
-    return float(a.var(ddof=1)) if a.size >= 2 else 0.0
-
-
 EFF_RHO = 0.7   # hai lần thử tương quan lợi suất ngày > 0,7 -> cùng một cụm (không độc lập)
 
 
@@ -541,3 +524,33 @@ def effective_trials(M: np.ndarray, n_total: int, rho: float = EFF_RHO) -> int:
         if not any(C[j, r] > rho for r in reps):
             reps.append(j)
     return int(min(n_total, max(1, round(len(reps) / k * n_total))))
+
+
+def mc_report(daily, cfg: Dict[str, Any], *, shock: Optional[Dict[str, float]] = None, turnover: Optional[float] = None,
+              provenance: Optional[Dict[str, Any]] = None, source: Optional[Dict[str, Any]] = None, basis: str = "extreme",
+              custom: bool = False) -> Dict[str, Any]:
+    """Báo cáo Monte Carlo ngày + gate cho route /book/mc. cfg = cấu hình đã phân giải (routes/process.resolve_mc): simulations, block_days,
+    horizon_days, ruin_threshold_pct, seed, scale, stress_max_mdd_pct, extra_cost_daily_pct, stress (tập con kịch bản | None), mode,
+    ignored_client_params. custom: nguồn đã dùng gate tuỳ chỉnh -> kết quả không bao giờ là gate / không promote được."""
+    cust = custom or bool(cfg.get("custom_gates"))
+    if shock and cfg["stress"] is not None and not set(VERTICAL_NAMES) <= set(cfg["stress"]):
+        cust = True   # nguồn biết vị thế mà bỏ kịch bản trend thẳng đứng -> gate không chuẩn
+    extra = cfg["extra_cost_daily_pct"]            # người dùng nhập (advanced) ưu tiên; không thì vòng quay đo từ lệnh; không có -> cost_x2 "không đo được"
+    extra_daily = extra / 100.0 if extra is not None else extra_cost_from_turnover(turnover)
+    out = run_monte_carlo_daily_detail(daily, simulations=cfg["simulations"], block_days=cfg["block_days"], horizon_days=cfg["horizon_days"],
+                                       ruin_threshold_pct=cfg["ruin_threshold_pct"], seed=cfg["seed"], scale=cfg["scale"],
+                                       max_ruin_pct=MC_MAX_RUIN_PCT, stress_max_mdd_pct=cfg["stress_max_mdd_pct"],
+                                       extra_cost_daily=extra_daily, shock=shock)
+    if cfg["stress"] is not None:   # tập con kịch bản cực xấu: lọc + tính lại gate trên đúng tập đó
+        keep = set(cfg["stress"])
+        out["stress"] = [r for r in out["stress"] if r["name"] in keep]
+        out["gate"] = evaluate_mc_gate(cfg["simulations"], out["summary"]["p_mdd_ge_ruin_pct"], out["stress"], max_ruin_pct=MC_MAX_RUIN_PCT,
+                                       ruin_threshold_pct=cfg["ruin_threshold_pct"], stress_max_mdd_pct=cfg["stress_max_mdd_pct"])
+    out["provenance"] = provenance
+    out["gate"]["custom_gates"] = cust
+    if cust:
+        out["gate"]["gate_eligible"] = False   # kết quả dùng ngưỡng tuỳ chỉnh không bao giờ là gate
+    out = with_gate_thresholds(out)
+    out["params"].update(turnover_daily=turnover, source=source, basis=basis, mode=cfg["mode"], custom_gates=cust, promotable=not cust,
+                         ignored_client_params=cfg["ignored_client_params"])
+    return out

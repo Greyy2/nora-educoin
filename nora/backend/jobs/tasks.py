@@ -2,8 +2,8 @@
 
 Nội dung tính toán thuần -> backend/metrics/trades.py
 Nội dung nạp dữ liệu -> backend/data/data.py
-Nội dung chạy engine / WFA -> backend/optimize/search/evaluate.py
-Nội dung xuất bản / quản lý sổ -> backend/optimize/book/registry.py
+Nội dung chạy engine / WFA -> backend/jobs/evaluate.py
+Nội dung xuất bản / quản lý sổ -> backend/strategies.py
 """
 import os
 for _blas_env in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS",
@@ -15,25 +15,21 @@ os.environ.setdefault("NORA_DATA_CACHE_MB", "1024")
 import itertools
 import json
 import shutil
-import subprocess
 import time
 import warnings
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import pandas as pd
 
-from backend.models.models import NORA_DIR
-from backend.models.params import DAY_MS as DAY, DEFAULT_CAPITAL, DEFAULT_TRAIN_RATIO, date_ms, iso_date
+from backend import strategies
+from backend.models.params import DAY_MS as DAY, DEFAULT_CAPITAL, DEFAULT_TRAIN_RATIO, date_ms
 from backend.models.storage import as_list, json_default, load_report, load_samples, options, write_job_result
-from backend.data.data import check_data, data_info, default_window, load_prices, resolve_symbols, strategy_frames
+from backend.data.data import check_data, data_info, load_prices, resolve_symbols, strategy_frames
 from backend.nautilus.engine import provenance as engine_provenance
-from backend.metrics.trades import build_result, downsample_series, label_stats, shock_stats, stage_split
-from backend.optimize.funnel.storage import atomic_write_json
-from backend.optimize.search.evaluate import (WARMUP, _pool_shared, candidates_from_ids, candidates_from_list, candidates_from_report, execute, load_items,
+from backend.metrics.trades import build_result, stage_split
+from backend.jobs.evaluate import (WARMUP, _pool_shared, candidates_from_ids, candidates_from_list, candidates_from_report, execute, load_items,
                                               plan_is_jobs, print_summary, run, run_benchmark, run_portfolio_wfa)
-from backend.metrics import regime as rg
-from backend.metrics.regime import by_regime
 
 CUSTOM_BACKTEST_DEFAULTS = {"code": "", "symbols": None, "start": "", "end": "", "train_ratio": DEFAULT_TRAIN_RATIO, "initial_capital": None, "position": None, "run_frame": ""}
 BOOK_BACKTEST_DEFAULTS = {"book": "", "strategies": None, "symbols": "", "start": "", "end": "", "risk_per_trade": None, "stop_fill": "level", "regime": False, "timeframe": "1m", "out": "",
@@ -42,8 +38,6 @@ BOOK_WFA_DEFAULTS = {"report": "", "include_rejected": False, "candidates": "", 
                      "start": "", "end": "", "train_days": 120, "test_days": 30, "step_days": None, "min_is_trades": 10, "sims": 10_000,
                      "mc_seed": 1, "timeframe": "1m", "regime": "off", "risk_per_trade": None, "workers": "auto", "per_worker_mb": None, "resume": "", "max_configs": 200_000,
                      "force_large": False}
-REGIME_REPORT_DEFAULTS = {"symbols": "", "start": "", "end": "", "event_pct": 12.0, "backtest": True, "timeframe": "15m"}
-FUNNEL_BOOK_DEFAULTS = {"run_id": "", "alpha_ids": "", "risk_per_trade_pct": None, "wfa_job_id": "", "dry_run": False, "explore": False}
 
 
 def stamp_provenance(prov: Dict[str, Any]) -> Dict[str, Any]:
@@ -52,20 +46,6 @@ def stamp_provenance(prov: Dict[str, Any]) -> Dict[str, Any]:
     job_dir = os.environ.get("NORA_JOB_DIR")
     return {**prov, "job_id": os.path.basename(os.path.normpath(job_dir)) if job_dir else None,
             "computed_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
-
-
-def git_commit() -> Optional[str]:
-    try:
-        return subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=NORA_DIR, capture_output=True, text=True, timeout=10).stdout.strip() or None
-    except Exception:      # noqa: BLE001
-        return None
-
-
-def _clear_data_caches() -> None:
-    from backend.alpha.dsl.strategy import data_cache_clear
-    from backend.data.data import clear_caches
-    clear_caches()
-    data_cache_clear()
 
 
 def diagnostic_inputs(plan, program, end: int) -> Dict[str, Any]:
@@ -97,9 +77,8 @@ def run_custom_backtest(params=None):
 
 
 def education_warm(params=None):
-    """Job education_warm: chạy THẬT (cùng đường run_custom của Studio) các mẫu giáo dục chưa có cache, ghi kết quả vào sample_cache.
+    """Job education_warm: chạy THẬT (cùng đường run_custom của Studio) các mẫu giáo dục chưa có cache, ghi kết quả vào strategies.
     params: keys (tuỳ chọn) = chỉ các mẫu này. -> [{key, status: cached|skipped|error, cache_key, error?}]; lỗi từng mẫu không dừng job."""
-    from backend.optimize.process import sample_cache
     a = options({"keys": None}, params)
     wanted = set(as_list(a.keys)) if a.keys else None
     out = []
@@ -108,13 +87,13 @@ def education_warm(params=None):
         if wanted is not None and k not in wanted:
             continue
         try:
-            spec = sample_cache.sample_run_spec(s)
-            ck = sample_cache.cache_key(s.get("code", ""), spec)
-            if sample_cache.get(ck) is not None:
+            spec = strategies.sample_run_spec(s)
+            ck = strategies.sample_cache_key(s.get("code", ""), spec)
+            if strategies.sample_get(ck) is not None:
                 out.append({"key": k, "status": "skipped", "cache_key": ck})
                 continue
-            res = run_custom({"code": s.get("code", ""), **{f: spec.get(f) for f in sample_cache.SAMPLE_SPEC_FIELDS if spec.get(f) not in (None, "")}})
-            sample_cache.put(ck, res)
+            res = run_custom({"code": s.get("code", ""), **{f: spec.get(f) for f in strategies.SAMPLE_SPEC_FIELDS if spec.get(f) not in (None, "")}})
+            strategies.sample_put(ck, res)
             out.append({"key": k, "status": "cached", "cache_key": ck})
         except Exception as e:   # noqa: BLE001 — ghi lỗi từng mẫu, chạy tiếp
             out.append({"key": k, "status": "error", "error": f"{type(e).__name__}: {e}"})
@@ -163,13 +142,14 @@ def run_custom(params=None):
         raise ValueError("train_ratio phải trong [0,1; 0,95]")
     source = "okx"
     os.environ.pop("NORA_SHARED_DATA_DIR", None)   # cột py_ tính trong tiến trình, không đi qua kho dùng chung
-    from backend.optimize.process.workers import require_memory_limit
+    from backend.jobs.workers import require_memory_limit
     require_memory_limit("custom_run")
     from datetime import datetime, timezone
-    from backend.optimize.process.process import Progress
-    from backend.alpha.dsl.signal import DslError
+    from backend.jobs.runner import Progress
+    from backend.signal.nodes import DslError
     from backend.alpha.compile import compile_code
-    from backend.alpha.dsl.strategy import SignalEngine, build_plan
+    from backend.signal.compute import SignalEngine
+    from backend.alpha.plan import build_plan
     SignalEngine.MAX_BACKTEST_DAYS = 4000
 
     t0 = time.time()
@@ -193,7 +173,7 @@ def run_custom(params=None):
 
     native = bool(getattr(program, "is_native", False))
     if native:      # Strategy Nautilus bản địa: không có plan DSL -> Plan thật (cùng kiểu build_plan trả về) để benchmark / chẩn đoán / build_result dùng chung
-        from backend.alpha.dsl.strategy import Plan
+        from backend.alpha.plan import Plan
         names = resolve_symbols(as_list(a.symbols) or program.symbols or None)
         plan = Plan(strategies=[{"id": program.name}], symbols=[f"{n}@perp" for n in names], risk={}, base_frame=a.run_frame or program.timeframe)
     else:
@@ -271,10 +251,10 @@ def _finish(program, plan, a, start: int, end: int, capital: float, data: Dict[s
     mark(5, 5, "Tính toán chỉ số & chẩn đoán", "Sharpe, Drawdown, PnL & báo cáo")
     out = build_result(program, plan, res, eng, a, start, end, capital, data, warns, test_res, split, bench=bench, inputs=diagnostic_inputs(plan, program, end),
                        test_bench=test_bench)
-    from backend.optimize.book.registry import evaluate_checklist, generate_alpha_id
+    from backend.strategies import evaluate_checklist, generate_alpha_id
     out["alpha_id"] = generate_alpha_id(program.code_hash, out["config"])
     out["checklist"] = evaluate_checklist(out)
-    from backend.optimize.process.workers import peak_rss_mb
+    from backend.jobs.workers import peak_rss_mb
     out["meta"] = {"wall_s": round(time.time() - t0, 1), "peak_rss_mb": round(peak_rss_mb(), 1)}   # không tất định -> tách riêng
     out["provenance"] = stamp_provenance(out.get("provenance") or engine_provenance(plan.base_frame))
 
@@ -286,9 +266,6 @@ def _finish(program, plan, a, start: int, end: int, capital: float, data: Dict[s
     now_str = datetime.now(timezone.utc).strftime("%H:%M:%S")
     print(f"[{now_str}] Hoàn tất! Vốn cuối {out['final_equity']} | Lãi {sim['ret_pct']}% | MDD {sim['mdd_pct']}% | Lệnh {len(out['trades'])} | {out['meta']['wall_s']}s", flush=True)
     return out
-
-
-
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -303,11 +280,11 @@ def run_book_backtest(params=None):
         raise ValueError("stop_fill phải là level|extreme")
     if a.book and a.strategies:
         raise ValueError("chọn một: book hoặc strategies")
-    from backend.optimize.process.workers import require_memory_limit
+    from backend.jobs.workers import require_memory_limit
     require_memory_limit("run_book_backtest")
-    from backend.alpha.dsl.strategy import SignalEngine
+    from backend.signal.compute import SignalEngine
     SignalEngine.MAX_BACKTEST_DAYS = 4000
-    from backend.optimize.book.build import perp_symbols
+    from backend.strategies import perp_symbols
 
     from backend.data.data import classify_symbols
     if a.data not in ("candle", "tick"):
@@ -322,7 +299,7 @@ def run_book_backtest(params=None):
         rpt = a.risk_per_trade
     if a.data == "tick":   # cửa sổ do độ phủ tick quyết định (tick_run.run_tick cắt theo tick); thiếu đầu nào lấy hết độ phủ
         start, end = (date_ms(a.start) if a.start else None), (date_ms(a.end) + DAY if a.end else None)
-        from backend.optimize.search.evaluate import run_tick
+        from backend.jobs.evaluate import run_tick
         out = run_tick(items, symbols, start, end, rpt, risk, a.stop_fill, a.timeframe or "1m", float(a.capital or DEFAULT_CAPITAL),
                        latency_ms=a.latency_ms, gas_usd=a.gas_usd)
     else:
@@ -368,13 +345,13 @@ def run_book_wfa(params=None):
     if sum(map(bool, (a.report, a.candidates, a.strategies))) != 1:
         raise ValueError("chọn đúng một: report, candidates hoặc strategies")
 
-    from backend.optimize.process.workers import check_memory_gate, require_memory_limit
+    from backend.jobs.workers import check_memory_gate, require_memory_limit
     require_memory_limit("validate_book")
     from backend.models.params import BASE_RISK_PER_TRADE_PCT, RISK
-    from backend.optimize.book.build import perp_symbols
+    from backend.strategies import perp_symbols
     from backend.models.storage import run_dir as run_dir_of
-    from backend.optimize.process.workers import resolve_workers
-    from backend.optimize.book import build as bsb
+    from backend.jobs.workers import resolve_workers
+    from backend.jobs import evaluate as bsb
     from backend.wfa.wfa import generate_folds, PortfolioWfaConfig
 
     per_worker_mb = a.per_worker_mb or bsb.PER_WORKER_MB
@@ -402,8 +379,8 @@ def run_book_wfa(params=None):
     start = date_ms(a.start) if a.start else w["dev1_end"]
     end = date_ms(a.end) if a.end else w["dev2_end"]
 
-    from backend.optimize.process.process import Progress, graceful_sigterm
-    from backend.optimize.funnel.storage import ResultsStore
+    from backend.jobs.runner import Progress, graceful_sigterm
+    from backend.jobs.evaluate import ResultsStore
 
     folds = generate_folds(int(start), int(end), a.train_days, a.test_days, a.step_days)
     n_cfg = sum(len(c["configs"]) for c in cands)
@@ -473,117 +450,8 @@ def run_book_wfa(params=None):
 # Job regime_report: báo cáo độ chính xác regime + so sánh backtest
 # ══════════════════════════════════════════════════════════════════════════
 
-def _book_items():
-    from backend.optimize.book.build import load_presets, CANDIDATES
-    from backend.models.params import BASE_RISK_PER_TRADE_PCT
-    presets = load_presets()
-    items, rpts = [], []
-    for c in CANDIDATES:
-        prm = dict(presets[c["id"]]["params"])
-        if prm.get("risk_per_trade_pct") is not None:
-            rpts.append(float(prm["risk_per_trade_pct"]))
-        prm.pop("risk_per_trade_pct", None)
-        items.append((c["id"], prm))
-    return items, (min(rpts) if rpts else BASE_RISK_PER_TRADE_PCT)
-
-
-def _summary(out: Dict[str, Any]) -> Dict[str, Any]:
-    keys = ("ret_pct", "mdd_pct", "sharpe", "sortino", "calmar", "trades", "win_rate", "profit_factor", "final_equity", "halted_at")
-    return {**{k: out.get(k) for k in keys}, "by_strategy": out.get("by_strategy")}
-
-
-def _pool_states(per_symbol: Dict[str, Any]) -> Dict[str, Any]:
-    tot = sum(v["minutes"] for v in per_symbol.values()) or 1
-    out = {}
-    for name in rg.NAMES:
-        rows = [(v["minutes"], v["states"][name]) for v in per_symbol.values() if name in v["states"]]
-        if not rows:
-            continue
-        n = sum(r["fwd24_n"] for _, r in rows) or 1
-        avg = lambda k: round(sum((r[k] or 0) * r["fwd24_n"] for _, r in rows) / n, 3)  # noqa: E731
-        out[name] = {"share_pct": round(sum(m * r["share_pct"] for m, r in rows) / tot, 2),
-                     "fwd24_mean_pct": avg("fwd24_mean_pct"), "fwd24_up_pct": avg("fwd24_up_pct"), "fwd24_abs_pct": avg("fwd24_abs_pct")}
-    return out
-
-
-def run_regime_report(params=None):
-    warnings.filterwarnings("ignore")
-    a = options(REGIME_REPORT_DEFAULTS, params)
-    from backend.optimize.process.workers import require_memory_limit
-    require_memory_limit("regime_report")
-    from backend.models.params import REGIME_MAP
-    from backend.optimize.book.build import perp_symbols
-    from backend.data.data import read_manifest, require_data_ok_or_exit
-    symbols = [s if "@" in s else f"{s}@perp" for s in as_list(a.symbols)] or perp_symbols()
-    require_data_ok_or_exit(symbols)
-    ms = [read_manifest(s) for s in symbols]
-    if not all(ms):
-        raise SystemExit(f"Thiếu dữ liệu (manifest) cho: {[s for s, m in zip(symbols, ms) if not m]}")
-    start = date_ms(a.start) if a.start else max(int(m["start_ts"]) for m in ms) + WARMUP
-    end = date_ms(a.end) + DAY if a.end else min(int(m["end_ts"]) for m in ms)
-    t0 = time.time()
-    tf = a.timeframe
-    report: Dict[str, Any] = {"config": {"symbols": symbols, "start": start, "end": end, "event_pct": float(a.event_pct), "timeframe": tf,
-                                         "classifier": rg.DEFAULTS, "regime_map": REGIME_MAP},
-                              "labels": {}, "shocks": {}}
-    series = {}
-    for sym in symbols:
-        s = rg.series(sym, start - WARMUP, end, base_frame=tf)
-        series[sym] = {"t": s["t"], "labels": s["labels"]}
-        report["labels"][sym] = label_stats(s, start)
-        report["shocks"][sym] = shock_stats(s, start, float(a.event_pct))
-        sh = report["shocks"][sym]
-        print(f"{sym}: đổi {report['labels'][sym]['switches_per_30d']}/30 ngày | sập {sh['CRASH']['detected']}/{sh['CRASH']['events']} "
-              f"trễ {sh['CRASH']['median_lag_min']}p | tăng dựng {sh['SURGE']['detected']}/{sh['SURGE']['events']}", flush=True)
-        del s
-    report["labels_all"] = _pool_states(report["labels"])
-    if a.backtest:
-        items, rpt = _book_items()
-        off = run(items, symbols, start, end, rpt, "level", None, base_frame=tf)
-        print(f"tắt regime: lãi {off['ret_pct']}% MDD {off['mdd_pct']}% sharpe {off['sharpe']} lệnh {off['trades']}", flush=True)
-        on = run(items, symbols, start, end, rpt, "level", None, regime=True, base_frame=tf)
-        print(f"bật regime: lãi {on['ret_pct']}% MDD {on['mdd_pct']}% sharpe {on['sharpe']} lệnh {on['trades']}", flush=True)
-        report["backtest"] = {"provenance": off["provenance"], "risk_per_trade_pct": rpt, "off": _summary(off), "on": _summary(on),
-                              "off_by_regime": by_regime(off["trade_list"], series),
-                              "on_by_regime": by_regime(on["trade_list"], series),
-                              "equity_off": off.get("daily_nav"), "equity_on": on.get("daily_nav")}
-    report["provenance"] = stamp_provenance(report["backtest"]["provenance"] if "backtest" in report else engine_provenance(tf))
-    report["meta"] = {"wall_s": round(time.time() - t0, 1)}
-    print(f"thời gian {report['meta']['wall_s']}s", flush=True)
-    write_job_result(report)
-    return report
-
 
 # ══════════════════════════════════════════════════════════════════════════
 # Job funnel_book: xuất bản sổ chung vốn từ phễu
 # ══════════════════════════════════════════════════════════════════════════
 
-def run_funnel_book(params=None) -> Dict[str, Any]:
-    warnings.filterwarnings("ignore")
-    a = options(FUNNEL_BOOK_DEFAULTS, params)
-    from backend.optimize.process.workers import require_memory_limit
-    require_memory_limit("funnel_book")
-    from backend.optimize.process import process as batch_jobs
-    from backend.models.storage import alpha_dir as alphas_dir
-    from backend.optimize.funnel.stages import funnel_root
-    from backend.optimize.book.registry import write_book, write_explore_book, build_report, book_source
-    run_dir = os.path.join(funnel_root(), a.run_id)
-    wfa = {}
-    if a.wfa_job_id or not a.explore:
-        job = batch_jobs.status(a.wfa_job_id)
-        if not job or job.get("kind") != "book_wfa" or job.get("status") != "done":
-            raise SystemExit(f"wfa_job_id {a.wfa_job_id} không phải job book_wfa đã xong")
-        wfa = job["result"]
-    rep = build_report(run_dir, as_list(a.alpha_ids), float(a.risk_per_trade_pct), wfa, explore=bool(a.explore))
-    h = rep["book"]["final"]["holdout"]
-    print(f"holdout level {h['level']['ret_pct']}% / extreme {h['extreme']['ret_pct']}% (MDD {h['extreme']['mdd_pct']}%) -> "
-          f"{'ĐẠT' if rep['book']['holdout_pass'] else 'TRƯỢT'}", flush=True)
-    out = {"report": rep, "written": []}
-    if not a.dry_run:
-        source = book_source(a.run_id, a.wfa_job_id, time.strftime('%Y-%m-%d'))
-        repo = os.path.abspath(os.path.join(alphas_dir(), "..", ".."))
-        out["written"] = (write_explore_book(rep, os.path.join(alphas_dir(), "explore"), source=source, repo_dir=repo) if a.explore
-                          else write_book(rep, alphas_dir(), source=source, repo_dir=repo))
-        print("ghi:", out["written"], flush=True)
-    write_job_result(out)
-    return out

@@ -27,7 +27,7 @@ FMS = {"15m": 900_000, "1h": 3_600_000, "4h": 14_400_000}
 
 
 def features(sym):
-    from backend.alpha.dsl.indicator import compute
+    from backend.signal.indicator import compute
     from backend.data.data import load_candles
     fr = {f: load_candles(sym, f) for f in ("15m", "1h", "4h")}
     h = fr["1h"]

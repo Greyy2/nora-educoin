@@ -10,7 +10,9 @@ Kiểm:
   planning_budget_mb = min(85% cgroup trống, MemAvailable − dự phòng) (60% MemAvailable khi không có cgroup);
   _auto_workers chia ngân sách đó cho trần mỗi worker, CPU = usable_cpus.
 """
+import importlib
 import importlib.util
+from types import SimpleNamespace
 import os
 import random
 import sys
@@ -134,14 +136,9 @@ def test_loader_cache_expires_when_catalog_is_rewritten(one_asset):
 # ─── _pool_map_safe ─────────────────────────────────────────────────────────
 
 def _load_book_script():
-    name = "build_strategy_book"
-    from job_modules import job_path
-    path = job_path(name)
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules[name] = mod
-    spec.loader.exec_module(mod)
-    return mod
+    """Bộ pool/worker dùng chung của job (backend/jobs/workers.py): thay cho script dựng sổ cũ; `_pool_map_safe` / `_auto_workers` là tên cũ."""
+    from backend.jobs import workers
+    return SimpleNamespace(_pool_map_safe=workers.pool_map_safe, _auto_workers=workers.auto_workers)
 
 
 def _square(x):
@@ -185,7 +182,7 @@ def test_pool_map_safe_reruns_only_missing_jobs_after_worker_kill(tmp_path, caps
 # ─── memwatch ───────────────────────────────────────────────────────────────
 
 def test_peak_rss_is_at_least_current_rss():
-    from backend.optimize.process import workers as memwatch
+    from backend.jobs import workers as memwatch
     if not os.path.exists("/proc/self/status"):
         pytest.skip("cần Linux /proc")
     assert memwatch.peak_rss_mb() >= memwatch.rss_mb() > 0
@@ -194,7 +191,7 @@ def test_peak_rss_is_at_least_current_rss():
 # ─── trần RAM bắt buộc + cỡ pool theo cgroup ─────────────────────────────────
 
 def test_require_memory_limit_refuses_without_cap(monkeypatch):
-    from backend.optimize.process import workers as memwatch
+    from backend.jobs import workers as memwatch
     monkeypatch.setattr(memwatch, "cgroup_limit_mb", lambda: None)
     monkeypatch.delenv("NORA_ALLOW_UNLIMITED", raising=False)
     with pytest.raises(SystemExit, match="run_limited.sh"):
@@ -205,21 +202,21 @@ def test_require_memory_limit_refuses_without_cap(monkeypatch):
 
 
 def test_require_memory_limit_allows_explicit_unlimited(monkeypatch):
-    from backend.optimize.process import workers as memwatch
+    from backend.jobs import workers as memwatch
     monkeypatch.setattr(memwatch, "cgroup_limit_mb", lambda: None)
     monkeypatch.setenv("NORA_ALLOW_UNLIMITED", "1")
     memwatch.require_memory_limit("build_strategy_book")  # không raise
 
 
 def test_require_memory_limit_returns_the_cap(monkeypatch):
-    from backend.optimize.process import workers as memwatch
+    from backend.jobs import workers as memwatch
     monkeypatch.setattr(memwatch, "cgroup_limit_mb", lambda: 8192.0)
     monkeypatch.delenv("NORA_ALLOW_UNLIMITED", raising=False)
     assert memwatch.require_memory_limit("build_strategy_book") == 8192.0
 
 
 def _patch_mem(monkeypatch, cgroup_free, host, reserve="8000"):
-    from backend.optimize.process import workers as memwatch
+    from backend.jobs import workers as memwatch
     monkeypatch.setattr(memwatch, "cgroup_free_mb", lambda: cgroup_free)
     monkeypatch.setattr(memwatch, "mem_available_mb", lambda: host)
     if reserve is None:
@@ -289,5 +286,5 @@ def test_auto_workers_backs_off_when_host_busy(monkeypatch):
 
 
 def test_worker_init_never_raises():
-    from backend.optimize.process import workers as memwatch
+    from backend.jobs import workers as memwatch
     memwatch.worker_init()

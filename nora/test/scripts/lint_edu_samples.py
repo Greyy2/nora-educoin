@@ -33,10 +33,10 @@ if _NORA not in sys.path:
 
 from backend.alpha.compile import compile_code  # noqa: E402
 from backend.models import params as profiles  # noqa: E402
-from backend.alpha.dsl import strategy as profiles_core  # noqa: E402
+from backend.alpha import plan as profiles_core  # noqa: E402
 from backend.alpha.compile import explain_program  # noqa: E402
-from backend.alpha.dsl.signal import Bin, BoolConst, Call, Cmp, Const, Data, Inv, Logic, Neg, Pick  # noqa: E402
-from backend.alpha.dsl.indicator import FEATURE_SPECS_DATA, OP_SPECS_DATA  # noqa: E402
+from backend.signal.nodes import Bin, BoolConst, Call, Cmp, Const, Data, Inv, Logic, Neg, Pick  # noqa: E402
+from backend.signal.indicator import FEATURE_SPECS_DATA, OP_SPECS_DATA  # noqa: E402
 from backend.models.params import POSITION_KEYS
 from backend.models.models import DATA_DIR  # noqa: E402
 from backend.models.storage import load_samples as _load_samples

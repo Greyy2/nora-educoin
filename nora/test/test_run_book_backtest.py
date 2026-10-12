@@ -37,7 +37,7 @@ def market(tmp_path, monkeypatch):
     for k, sym in enumerate(SYMS):
         df = _series(70, 20 + k, 0.0008 * (k + 1))
         save_synthetic(symbol=sym, output_dir=str(root / "cex"), df_1m_raw=df)
-    from backend.optimize.book import build as sb
+    from backend import strategies as sb
     from backend.alpha.compile import cond, f, tree_p
     monkeypatch.setattr(sb, "UNIVERSE", list(SYMS))
     monkeypatch.setattr(sb, "CANDIDATES", [
@@ -133,7 +133,7 @@ def test_trade_list_has_notional_and_daily_nav(market, tmp_path):
 
 def test_strategy_symbols_filter_restricts_markets(market):
     """Khoá "symbols" của chiến lược dựng sẵn (alpha trong kho) -> chỉ chạy trên các tài sản đó; mặc định vẫn là mọi tài sản."""
-    from backend.optimize.book import build as sb
+    from backend import strategies as sb
     from backend.models.params import materialize
     mod = _load_script()
     cand = sb.BY_ID["t_long"]

@@ -14,7 +14,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple
 
 import numpy as np
 
-from backend.alpha.dsl.indicator import Spec, evaluate_feature, nan_nonfinite
+from backend.signal.indicator import Spec, evaluate_feature, nan_nonfinite
 from backend.models.params import DATA_COLUMNS, FRAME_MS, MINUTE_MS as MINUTE, REGIME_NAMES
 
 
@@ -668,7 +668,7 @@ def _since(arr: np.ndarray, t: np.ndarray, i: int) -> Optional[int]:
 # Regime thị trường theo phút — causal, cùng bộ máy căn khung với tín hiệu (chỉ nến 1h/4h ĐÃ ĐÓNG), dùng chung cho backtest / WFA / phễu /
 # tín hiệu thị trường / live.
 #
-# Đặc trưng (cột kernel, alpha/dsl/indicator.py):
+# Đặc trưng (cột kernel, signal/indicator.py):
 #   4h er_20 (độ hiệu quả xu hướng), 4h adx_14 (độ mạnh), 4h ema_50 / ema_200 (chiều), 1h roc_24 (lợi suất 24h, %), 1h roc_1 (nến 1h cuối, %),
 #   1h bbwp_20_2_720 (phân vị độ rộng Bollinger trong 30 ngày 1h, 0..100).
 # Trạng thái thô (ưu tiên từ trên xuống):

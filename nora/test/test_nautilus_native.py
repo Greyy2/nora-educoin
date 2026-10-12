@@ -8,7 +8,7 @@ from nautilus_trader.trading.strategy import Strategy, StrategyConfig
 
 from backend.alpha.compile import compile_code, is_nautilus_native
 from backend.nautilus.backtest import run_native
-from backend.optimize.process.tasks import run_custom
+from backend.jobs.tasks import run_custom
 
 NATIVE_CODE_SAMPLE = '''
 from nautilus_trader.trading.strategy import Strategy, StrategyConfig

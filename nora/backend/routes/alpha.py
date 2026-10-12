@@ -1,31 +1,30 @@
-"""Routes alpha (P11): viết, sửa, biên dịch, chạy thử, giải thích chiến lược, kho alpha người dùng, giáo dục.
-
-Gộp từ: alphas.py, strategies.py, custom.py, chart.py, education.py.
-"""
-"""Thư viện chiến lược (/api/studio/alphas): mỗi chiến lược = ý tưởng + công thức bằng lời + công thức toán (ký hiệu) + thống kê alpha đã đạt, theo NGUỒN.
-
-GET /api/studio/alphas/catalog  {"sources": [{"key": "nora", "label": "Nora", "strategies": [...]}]} — nguồn ngoài thêm sau cùng định dạng.
-Dựng từ optimize/book/build.py (cây khuôn + params_schema) + data/alpha/book.json, explore/book.json qua optimize/book/registry.strategy_doc (đọc thuần).
-Và kho Alpha người dùng (/api/studio/alphas/user).
-"""
+"""Routes alpha: thư viện chiến lược (catalog + top agents), alpha người dùng, chiến lược hệ thống và soạn thảo (compile/annotate/assist), chạy thử
+tuỳ chỉnh (custom backtest), giải thích biểu đồ, mẫu giáo dục. Logic nằm ở backend/strategies.py và backend/alpha/; file này chỉ validate + gọi."""
+import json
+import re
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
-from backend.optimize.book import registry as strategy_doc, registry as top_agents, registry as user_alphas
+from backend import strategies
+from backend.routes import process as batch_jobs_routes
+from backend.models.params import FRAMES, FRAME_MS
+from backend.alpha import compile as dsl
+from backend.jobs import runner as batch_jobs
+
 
 alphas_router = APIRouter(prefix="/api/studio/alphas", tags=["alphas"])
 
 
 @alphas_router.get("/catalog")
 def get_alpha_catalog() -> Dict[str, Any]:
-    return strategy_doc.catalog()
+    return strategies.catalog()
 
 
 @alphas_router.get("/top_agents")
 def get_top_agents() -> Dict[str, Any]:
-    return top_agents.top_agents()
+    return strategies.top_agents()
 
 
 # ─── ALPHA NGƯỜI DÙNG (C1) ───────────────────────────────────────────────────
@@ -47,7 +46,7 @@ class UpdateStatusRequest(BaseModel):
 def post_user_alpha(req: SaveUserAlphaRequest) -> Dict[str, Any]:
     """Đẩy chiến lược vào kho Alpha người dùng sau khi chạy backtest thành công."""
     try:
-        record, action = user_alphas.save_user_alpha(
+        record, action = strategies.save_user_alpha(
             job_id=req.job_id,
             code=req.code,
             name=req.name,
@@ -76,7 +75,7 @@ def get_user_alphas(
     status: Optional[str] = Query(None, description="Lọc trạng thái: SAVED | CANDIDATE | ARCHIVED"),
 ) -> List[Dict[str, Any]]:
     """Lấy danh sách các Alpha người dùng đã lưu."""
-    return user_alphas.list_user_alphas(sort=sort, status=status)
+    return strategies.list_user_alphas(sort=sort, status=status)
 
 
 def _load_samples():
@@ -91,12 +90,11 @@ def _not_ready(what: str):
 @alphas_router.get("/user/{alpha_id}")
 def get_user_alpha_detail(alpha_id: str) -> Dict[str, Any]:
     """Lấy chi tiết một Alpha người dùng hoặc chiến lược mẫu đã có kết quả."""
-    rec = user_alphas.get_user_alpha(alpha_id)
+    rec = strategies.get_user_alpha(alpha_id)
     if not rec:
         # Fallback: mẫu giáo dục, CHỈ khi có kết quả thật trong cache
-        from backend.optimize.process import sample_cache
         sample_item = next((x for x in _load_samples() if x.get("key") == alpha_id or x.get("name") == alpha_id), None)
-        s_res = sample_cache.lookup(sample_item) if sample_item else None
+        s_res = strategies.sample_lookup(sample_item) if sample_item else None
         if s_res is not None:
             return {
                 "id": alpha_id,
@@ -116,7 +114,7 @@ def get_user_alpha_detail(alpha_id: str) -> Dict[str, Any]:
 def get_user_alpha_code(alpha_id: str) -> Dict[str, Any]:
     """Mã nguồn để nạp vào trình soạn tạm (sửa -> chạy lại -> Lưu thành phiên bản mới qua POST /user với alpha_id)."""
     import hashlib
-    rec = user_alphas.get_user_alpha(alpha_id)
+    rec = strategies.get_user_alpha(alpha_id)
     if not rec:
         raise HTTPException(status_code=404, detail=f"Không tìm thấy alpha {alpha_id}")
     code = rec.get("code") or ""
@@ -126,7 +124,7 @@ def get_user_alpha_code(alpha_id: str) -> Dict[str, Any]:
 
 @alphas_router.get("/user/{alpha_id}/versions")
 def get_user_alpha_versions(alpha_id: str) -> List[Dict[str, Any]]:
-    rows = user_alphas.list_user_alpha_versions(alpha_id)
+    rows = strategies.list_user_alpha_versions(alpha_id)
     if rows is None:
         raise HTTPException(status_code=404, detail=f"Không tìm thấy alpha {alpha_id}")
     return rows
@@ -134,7 +132,7 @@ def get_user_alpha_versions(alpha_id: str) -> List[Dict[str, Any]]:
 
 @alphas_router.get("/user/{alpha_id}/versions/{version}")
 def get_user_alpha_version(alpha_id: str, version: int) -> Dict[str, Any]:
-    rec = user_alphas.get_user_alpha_version(alpha_id, version)
+    rec = strategies.get_user_alpha_version(alpha_id, version)
     if not rec:
         raise HTTPException(status_code=404, detail=f"Không có phiên bản {version} của alpha {alpha_id}")
     return rec
@@ -143,7 +141,7 @@ def get_user_alpha_version(alpha_id: str, version: int) -> Dict[str, Any]:
 @alphas_router.post("/user/{alpha_id}/archive")
 def post_archive_user_alpha(alpha_id: str) -> Dict[str, Any]:
     """Lưu trữ (archive) một Alpha người dùng (không xóa cứng)."""
-    ok = user_alphas.update_user_alpha_status(alpha_id, "ARCHIVED")
+    ok = strategies.update_user_alpha_status(alpha_id, "ARCHIVED")
     if not ok:
         raise HTTPException(status_code=404, detail=f"Không tìm thấy alpha {alpha_id}")
     return {"ok": True, "alpha_id": alpha_id, "status": "ARCHIVED"}
@@ -154,27 +152,11 @@ def post_update_user_alpha_status(alpha_id: str, req: UpdateStatusRequest) -> Di
     """Cập nhật trạng thái Alpha người dùng: SAVED | CANDIDATE | ARCHIVED."""
     if req.status not in ("SAVED", "CANDIDATE", "ARCHIVED"):
         raise HTTPException(status_code=400, detail="Trạng thái không hợp lệ: phải là SAVED, CANDIDATE hoặc ARCHIVED")
-    ok = user_alphas.update_user_alpha_status(alpha_id, req.status)
+    ok = strategies.update_user_alpha_status(alpha_id, req.status)
     if not ok:
         raise HTTPException(status_code=404, detail=f"Không tìm thấy alpha {alpha_id}")
     return {"ok": True, "alpha_id": alpha_id, "status": req.status}
 
-
-
-# ══════════════════════════════════════════════════════════════════════════
-# PHẦN 2: CHIẾN LƯỢC HỆ THỐNG VÀ SOẠN THẢO (gộp từ strategies.py)
-# ══════════════════════════════════════════════════════════════════════════
-
-from typing import Any, Dict, List, Optional
-
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
-
-from backend.routes import process as batch_jobs
-from backend.optimize.book import build as presets_mod
-from backend.routes import process as rm
-from backend.models.params import FRAMES
-from backend.alpha import compile as dsl
 
 strategies_router = APIRouter(prefix="/api/studio/strategies", tags=["strategies"])
 
@@ -187,32 +169,32 @@ class ValidateRequest(BaseModel):
 @strategies_router.get("")
 @strategies_router.get("/")
 def get_strategies() -> List[Dict[str, Any]]:
-    presets = presets_mod.load_presets()
+    presets = strategies.load_presets()
     return [{"id": c["id"], "strategy": c.get("strategy"), "family": c["family"], "side": c["side"], "description": c["description"],
              "params_schema": c["params_schema"], "preset": presets[c["id"]], "frames_allowed": list(FRAMES)}
-            for c in presets_mod.CANDIDATES]
+            for c in strategies.CANDIDATES]
 
 
 @strategies_router.get("/catalog")
 def get_strategy_catalog() -> List[Dict[str, Any]]:
     """3 chiến lược (KEMA / Sideway / DCA) và các chân theo chiều: legs = {LONG: id, SHORT: id}. Mỗi bộ tham số của một chân = một alpha;
     "Cả hai" = chạy cả hai chân. coming = chưa có chân nào (đang xây dựng)."""
-    return presets_mod.STRATEGIES
+    return strategies.STRATEGIES
 
 
 @strategies_router.post("/validate")
 def post_validate(req: ValidateRequest):
-    cand = presets_mod.BY_ID.get(req.id)
+    cand = strategies.BY_ID.get(req.id)
     if cand is None:
-        raise HTTPException(404, f"Không có chiến lược '{req.id}'; có: {[c['id'] for c in presets_mod.CANDIDATES]}")
-    full, errors = rm.validate_params(cand, req.params, presets_mod.load_presets()[req.id]["params"], "params")
+        raise HTTPException(404, f"Không có chiến lược '{req.id}'; có: {[c['id'] for c in strategies.CANDIDATES]}")
+    full, errors = strategies.validate_params(cand, req.params, strategies.load_presets()[req.id]["params"], "params")
     return {"ok": not errors, "errors": [{"field": f, "message": m} for f, m in errors], "resolved": None if errors else full}
 
 
 @strategies_router.post("/presets")
 def post_build_presets():
     """Dựng lại data/alpha/presets.json từ sổ đã chốt + lần dựng sổ mới nhất (job nền presets_build, không chạy backtest)."""
-    return batch_jobs.http_launch("presets_build", {})
+    return batch_jobs_routes.http_launch("presets_build", {})
 
 
 class CompileRequest(BaseModel):
@@ -251,12 +233,11 @@ def post_strategy_explain(req: StrategyExplainRequest) -> Dict[str, Any]:
     return dsl.explain_report(req.code, position=req.position)
 
 
-
 _DATA_DOC = {"open": "Giá mở cửa", "high": "Giá cao nhất", "low": "Giá thấp nhất", "close": "Giá đóng cửa", "volume": "Khối lượng"}
 
 
 def _sig_param(p) -> str:
-    from backend.alpha.dsl.indicator import REQUIRED
+    from backend.signal.indicator import REQUIRED
     return p.name if p.default is REQUIRED else f"{p.name}={p.default!r}"
 
 
@@ -281,16 +262,13 @@ def _spec_rows(specs: Dict[str, Any], prefix: str) -> List[Dict[str, Any]]:
     return rows
 
 
-
 @strategies_router.get("/dsl")
 def get_dsl_reference() -> Dict[str, Any]:
     """Danh sách những gì DSL hỗ trợ (chỉ đọc): cột dữ liệu self.data.pv_*, chỉ báo self.feat.*, operator self.op.*."""
-    from backend.alpha.dsl import indicator as feat_mod, indicator as ops_mod
-    from backend.alpha.dsl.signal import DATA_COLUMNS
+    from backend.signal import indicator as feat_mod, indicator as ops_mod
+    from backend.signal.nodes import DATA_COLUMNS
     return {"data": [{"name": f"pv_{c}", "signature": f"self.data.pv_{c}", "doc": _DATA_DOC.get(c, c)} for c in DATA_COLUMNS],
             "features": _spec_rows(feat_mod.FEATURES, "self.feat"), "operators": _spec_rows(ops_mod.OPS, "self.op")}
-
-
 
 
 # ─── P10: sửa tại chỗ + trợ lý viết code ─────────────────────────────────────
@@ -312,7 +290,7 @@ def get_source(strategy_id: str) -> Dict[str, Any]:
 def put_source(strategy_id: str, req: SourcePut) -> Dict[str, Any]:
     try:
         out = dsl.write_source(strategy_id, req.code, req.sha256)
-        presets_mod.reload_system_strategies()
+        strategies.reload_system_strategies()
         return out
     except dsl.StrategyEditError as e:
         raise HTTPException(e.status, e.detail()) from None
@@ -357,18 +335,6 @@ def post_assist_hover(req: AssistPos) -> Dict[str, Any]:
     return contract.hover(req.code, req.line, req.col)
 
 
-# ══════════════════════════════════════════════════════════════════════════
-# PHẦN 3: BACKTEST TỰ CHỌN (gộp từ custom.py)
-# ══════════════════════════════════════════════════════════════════════════
-
-from typing import Any, Dict, List, Optional
-
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field, field_validator
-
-from backend.optimize.process import process as batch_jobs
-from backend.routes import process as batch_jobs_routes
-
 custom_router = APIRouter(prefix="/api/studio/custom", tags=["custom"])
 
 
@@ -409,19 +375,6 @@ def post_custom_backtest(req: CustomBacktestRequest) -> Dict[str, str]:
     return launched
 
 
-
-# ══════════════════════════════════════════════════════════════════════════
-# PHẦN 4: GIẢI THÍCH BIỂU ĐỒ (gộp từ chart.py)
-# ══════════════════════════════════════════════════════════════════════════
-
-import os
-from typing import Any, Dict, Optional
-
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
-
-from backend.models.params import FRAME_MS
-
 chart_router = APIRouter(prefix="/api/studio/chart", tags=["chart"])
 MAX_BARS = 5000          # nến tối đa trong cửa sổ trả về
 
@@ -430,8 +383,6 @@ class ChartExplainRequest(BaseModel):
     symbol: str = Field(..., pattern=r"^[A-Za-z0-9]{2,12}(@perp)?$")
     start: int = Field(..., ge=0, description="ms, mở cửa sổ")
     end: int = Field(..., ge=0, description="ms, đóng cửa sổ")
-    run_id: Optional[str] = Field(None, max_length=64, description="alpha của lượt phễu (cùng alpha_id)")
-    alpha_id: Optional[str] = Field(None, pattern=r"^[0-9a-f]{16}$")
     book: Optional[str] = Field(None, pattern="^(main|explore)$", description="sổ đang chạy (cùng strategy_id)")
     strategy_id: Optional[str] = Field(None, max_length=64)
     source: str = Field("data", pattern="^(data|okx)$")
@@ -440,10 +391,9 @@ class ChartExplainRequest(BaseModel):
 def _load_book(kind: str) -> Dict[str, Any]:
     """Sổ main (READY_FOR_TESTNET) hoặc explore (EXPLORE_DEMO) từ data/alpha; không có / sai trạng thái -> 404."""
     from backend.models.storage import alpha_dir, alpha_file
-    from backend.optimize.book.registry import EXPLORE_STATUS
-    from backend.routes.optimize import _read_json
-    book = _read_json(alpha_dir("explore", "book.json") if kind == "explore" else alpha_file("book"))
-    want = EXPLORE_STATUS if kind == "explore" else "READY_FOR_TESTNET"
+    from backend.models.storage import read_json
+    book = read_json(alpha_dir("explore", "book.json") if kind == "explore" else alpha_file("book"))
+    want = "EXPLORE_DEMO" if kind == "explore" else "READY_FOR_TESTNET"
     if book is None or book.get("status") != want:
         raise HTTPException(404, f"chưa có sổ {kind} ở trạng thái {want}")
     return book
@@ -451,36 +401,21 @@ def _load_book(kind: str) -> Dict[str, Any]:
 
 def _strategy(req: ChartExplainRequest):
     """-> (chiến lược đã materialize, khung chạy, thông tin hiển thị)."""
-    from backend.optimize.book.build import lift_frames
     from backend.models.params import materialize
-    from backend.optimize.book.build import BY_ID
-    by = BY_ID
-    if req.run_id and req.alpha_id:
-        from backend.routes.optimize import open_run
-        from backend.optimize.search.generate import split_regime
-        st = open_run(req.run_id)
-        try:
-            al = st.get_alpha(req.alpha_id)
-            tf = (st.read_run().get("config") or {}).get("timeframe", "1m")
-        finally:
-            st.close()
-        if al is None:
-            raise HTTPException(404, f"không có alpha {req.alpha_id}")
-        params, regime = split_regime(al["params"])
-        cid, src = al["strategy"], {"run_id": req.run_id, "alpha_id": req.alpha_id, "regime": regime}
-    elif req.book and req.strategy_id:
+    by = strategies.BY_ID
+    if req.book and req.strategy_id:
         book = _load_book(req.book)
         item = next((s for s in book["strategies"] if s["id"] == req.strategy_id), None)
         if item is None:
             raise HTTPException(404, f"sổ {req.book} không có chiến lược {req.strategy_id}")
-        params, regime, tf, cid = item["params"], None, book.get("timeframe", "1m"), item["id"]
+        params, tf, cid = item["params"], book.get("timeframe", "1m"), item["id"]
         src = {"book": req.book, "book_source": book.get("source"), "unvalidated": cid in (book.get("unvalidated") or [])}
     else:
-        raise HTTPException(422, "cần (run_id + alpha_id) hoặc (book + strategy_id)")
+        raise HTTPException(422, "cần book + strategy_id")
     if cid not in by:
         raise HTTPException(404, f"chiến lược {cid} không còn trong danh sách")
     params = {k: v for k, v in params.items() if k != "risk_per_trade_pct"}
-    st = materialize(by[cid], lift_frames(by[cid], params, tf), risk_per_trade_pct=1.0, stop_fill="level")
+    st = materialize(by[cid], strategies.lift_frames(by[cid], params, tf), risk_per_trade_pct=1.0, stop_fill="level")
     meta = {"id": cid, "side": by[cid]["side"], "family": by[cid].get("family"), "description": by[cid].get("description"),
             "params": params, **src}
     return st, tf, meta
@@ -488,7 +423,7 @@ def _strategy(req: ChartExplainRequest):
 
 def _frames(symbol: str, st: Dict[str, Any], tf: str) -> Dict[str, Any]:
     """Nến các khung cần cho chiến lược (toàn bộ lịch sử) từ catalog OKX — cùng nguồn với engine (data.load_candles, có cache)."""
-    from backend.alpha.dsl.strategy import required_frames
+    from backend.signal.compute import required_frames
     from backend.data.data import CatalogError, load_candles
     need = required_frames(symbol, [st], tf)
     out = {}
@@ -524,19 +459,6 @@ def post_chart_explain(req: ChartExplainRequest) -> Dict[str, Any]:
     return {**out, "strategy": meta, "source": req.source}
 
 
-
-# ══════════════════════════════════════════════════════════════════════════
-# PHẦN 5: GIÁO DỤC VÀ MẪU ĐỊNH LƯỢNG (gộp từ education.py)
-# ══════════════════════════════════════════════════════════════════════════
-
-import json
-import os
-import re
-from typing import List, Optional
-
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
-
 education_router = APIRouter(prefix="/api/studio/education", tags=["education"])
 _KEY_RE = re.compile(r"^[a-z0-9_]{1,80}$")
 
@@ -554,18 +476,17 @@ def _read(path: str):
 @education_router.get("/samples")
 def get_education_samples():
     """Danh sách mẫu giáo dục. Chỉ mẫu có kết quả backtest THẬT trong cache mới kèm metrics/final_equity/pnl_usd/initial_capital; còn lại result_status = NOT_READY."""
-    from backend.optimize.process import sample_cache
     samples = _load_samples()
     if not samples:
         raise HTTPException(404, "Không tìm thấy file mẫu education/samples.json")
     try:
-        spec = sample_cache.sample_run_spec({})
+        spec = strategies.sample_run_spec({})
     except ValueError:
         spec = None   # kho dữ liệu trống -> không mẫu nào có kết quả thật
     out = []
     for s in samples:
         item = dict(s)
-        r = sample_cache.lookup(s, sample_cache.sample_run_spec(s, spec)) if spec else None
+        r = strategies.sample_lookup(s, strategies.sample_run_spec(s, spec)) if spec else None
         if r is None:
             item["result_status"] = "NOT_READY"
         else:
@@ -583,11 +504,10 @@ def get_education_samples():
 @education_router.get("/samples/{key}/result")
 def get_education_sample_result(key: str):
     """Kết quả backtest thật (cache) của 1 mẫu; chưa có -> 404 NOT_READY."""
-    from backend.optimize.process import sample_cache
     sample = next((x for x in _load_samples() if x.get("key") == key), None)
     if sample is None:
         raise HTTPException(404, f"Không tìm thấy mẫu {key}")
-    r = sample_cache.lookup(sample)
+    r = strategies.sample_lookup(sample)
     if r is None:
         raise _not_ready(f"mẫu {key}")
     return r

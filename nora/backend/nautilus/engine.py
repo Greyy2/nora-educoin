@@ -2,7 +2,7 @@
 nhưng khớp lệnh, phí, số dư, vị thế do `nautilus_trader.backtest.engine.BacktestEngine` sinh (venue OKX, NETTING, MARGIN, USDT, bar_execution=True).
 
 Luồng một lần chạy (`backtest.NautilusRun`; dựng engine / nạp nến theo chunk ở backtest.py, kết quả ở results.py):
-  1. Tín hiệu: tính SẴN bằng backend.alpha.dsl.strategy (SignalEngine / matrix_evaluator / entry_event_mask / _regime_gate) — đúng đường dữ liệu engine cũ.
+  1. Tín hiệu: tính SẴN bằng backend.signal.compute (SignalEngine / matrix_evaluator / entry_event_mask / _regime_gate) — đúng đường dữ liệu engine cũ.
   2. Nến thực thi: ParquetDataCatalog (1m EXTERNAL, ts_event = đóng) — khung chạy > 1m do `catalog.aggregate_frame` gộp; nạp theo CHUNK (RAM bị chặn),
      `BacktestEngine.run(streaming=True)` từng chunk.
   3. Mỗi (chiến lược × tài sản) một `NoraSlotStrategy`; `Coordinator` (portfolio.py) giữ luật rủi ro danh mục, kill switch, đường vốn.
@@ -19,9 +19,9 @@ import numpy as np
 
 from nautilus_trader import __version__ as NAUTILUS_VERSION
 
-from backend.alpha.dsl.signal import lag_key
-from backend.alpha.dsl.strategy import (FRESH, RiskConfig, SignalEngine, SignalPortfolio, aggregate_positions, entry_event_mask,
-                                   matrix_evaluator, slot_fresh_frames, _regime_gate, _regime_labels)
+from backend.signal.nodes import lag_key
+from backend.signal.compute import FRESH, SignalEngine, SignalPortfolio, entry_event_mask, matrix_evaluator, slot_fresh_frames, _regime_gate, _regime_labels
+from backend.alpha.plan import RiskConfig, aggregate_positions
 from backend.nautilus import catalog as cat
 from backend.nautilus.backtest import CHUNK_BARS, NautilusRun      # noqa: F401 — NautilusRun: lõi chạy ở backtest.py; re-export cho nơi gọi cũ
 

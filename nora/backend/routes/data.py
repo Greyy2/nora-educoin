@@ -1,14 +1,14 @@
-"""Routes dữ liệu và thị trường (P11): cập nhật catalog OKX, độ phủ nến, chế độ thị trường (regime).
+"""Routes dữ liệu và thị trường: cập nhật catalog OKX, độ phủ nến, chế độ thị trường (regime)."""
+import threading
+from collections import OrderedDict
+from typing import Any, Dict, List, Optional
 
-Gộp từ: data.py, market.py.
-"""
-from typing import List
-
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from backend.routes import process as batch_jobs
-from backend.optimize.process.process import DEX_UNSUPPORTED, NotReady
+from backend.jobs.runner import DEX_UNSUPPORTED, NotReady
+
 
 data_router = APIRouter(prefix="/api/data", tags=["data"])
 # Cập nhật nến OKX perp vào ParquetDataCatalog (job nền data_update -> backend.data.crawl.run_job); catalog + manifest ghi thẳng, không còn staging/promote.
@@ -57,17 +57,8 @@ def post_promote(req: PromoteRequest):
     raise NotReady("Không còn bước chuyển dữ liệu vào kho: data_update ghi thẳng vào catalog")
 
 
-# ══════════════════════════════════════════════════════════════════════════
-# PHẦN 2: THỊ TRƯỜNG & REGIME (gộp từ market.py)
-# ══════════════════════════════════════════════════════════════════════════
+# ─── Thị trường & regime ───────────────────────────────────────────────────
 
-import threading
-import time
-from collections import OrderedDict
-from typing import Any, Dict, List, Optional
-
-from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel, Field
 
 market_router = APIRouter(prefix="/api/studio/market", tags=["market"])
 _CACHE: "OrderedDict[tuple, Dict[str, Any]]" = OrderedDict()
@@ -90,7 +81,7 @@ REGIME_FRAME = "15m"          # nhãn regime trên nến 15m (đặc trưng 1h/4
 def regime_history(symbol: str, days: int) -> Dict[str, Any]:
     """Regime hiện tại + lịch sử `days` ngày cuối của một tài sản: các đoạn [bắt đầu, kết thúc, trạng thái], tỷ trọng thời gian, chiến lược
     được bật ở regime hiện tại theo bảng của sổ (book.REGIME_MAP)."""
-    from backend.optimize.search.evaluate import WARMUP
+    from backend.jobs.evaluate import WARMUP
     from backend.metrics import regime as rg
     from backend.models.params import REGIME_MAP
     from backend.data.data import read_manifest
@@ -131,43 +122,16 @@ def regime_history(symbol: str, days: int) -> Dict[str, Any]:
 def get_regime(symbols: Optional[str] = Query(None, description="vd BTC,SOL (mặc định cả vũ trụ perp của sổ)"),
                days: int = Query(30, ge=1, le=365)):
     """Regime hiện tại + lịch sử từng tài sản (nến 15m đã đóng) và chiến lược đang bật theo bảng regime của sổ."""
-    from backend.optimize.process.process import JobError
+    from backend.jobs.runner import JobError
     from backend.routes.process import check_symbols
     from backend.metrics import regime as rg
-    from backend.optimize.book.build import perp_symbols
+    from backend.strategies import perp_symbols
     try:
         syms = check_symbols([s for s in symbols.split(",") if s]) if symbols else perp_symbols()
     except JobError as e:
         raise HTTPException(422, str(e))
     return {"days": days, "frame": REGIME_FRAME, "names": list(rg.NAMES), "labels_vi": rg.LABEL_VI,
             "symbols": [regime_history(s, days) for s in syms]}
-
-
-class RegimeReportRequest(BaseModel):
-    symbols: Optional[List[str]] = Field(None, max_length=16, description="Mặc định cả vũ trụ perp của sổ")
-    start: Optional[str] = None
-    end: Optional[str] = None
-    event_pct: float = Field(12.0, ge=3.0, le=50.0, description="Ngưỡng sự kiện thẳng đứng (|lợi suất 24h| %) dùng để chấm điểm")
-    backtest: bool = Field(True, description="Chạy kèm sổ presets tắt/bật regime để so sánh")
-    timeframe: str = Field("15m", pattern="^(15m|1h|4h)$", description="Khung chạy (nến mô phỏng)")
-
-
-@market_router.post("/regime/report")
-def post_regime_report(req: RegimeReportRequest):
-    """Báo cáo độ chính xác regime + so sánh bật/tắt regime (job nền regime_report, kết quả ở result.json của job)."""
-    from backend.optimize.process import process as batch_jobs
-    from backend.routes import process as batch_jobs_routes
-    p: Dict[str, Any] = {"event_pct": req.event_pct, "backtest": req.backtest, "timeframe": req.timeframe}
-    try:
-        if req.symbols:
-            p["symbols"] = ",".join(batch_jobs_routes.check_symbols(req.symbols))
-        for k in ("start", "end"):
-            if getattr(req, k):
-                p[k] = batch_jobs_routes.check_date(getattr(req, k))
-    except batch_jobs.JobError as e:
-        raise HTTPException(422, str(e))
-    return batch_jobs_routes.http_launch("regime_report", p)
-
 
 
 ROUTERS = [data_router, market_router]

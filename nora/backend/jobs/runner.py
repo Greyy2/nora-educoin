@@ -4,7 +4,7 @@ Nguồn gộp: docs/bmad/p9_review_log.md (mục P9.6, P9.8). Phần kiểm tham
 KINDS có thêm khoá "label_vi" (nhãn tiếng Việt cho UI, meta.jobs.kinds) và khoá "func" (mặc định "run_job"): tên hàm job sau khi đổi tên run_<kind>.
 """
 # Khối env chạy TRƯỚC mọi import numpy/backend (tiến trình con/worker kế thừa qua fork). Chỉ khi module chạy làm
-# điểm vào job (`-m backend.optimize.process.process <job_dir>`), để tiến trình API import module này không bị đặt env.
+# điểm vào job (`-m backend.jobs.runner <job_dir>`), để tiến trình API import module này không bị đặt env.
 if __name__ == "__main__":
     import os
     for _e in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "VECLIB_MAXIMUM_THREADS", "NUMEXPR_NUM_THREADS"):
@@ -27,13 +27,13 @@ from typing import Any, Dict, Iterator, List, Optional, Sequence, Tuple
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Tiện ích chung cho job nền (chạy qua optimize/process/process.py): tham số, kết quả, tiến độ, huỷ an toàn.
+# Tiện ích chung cho job nền (chạy qua jobs/runner.py): tham số, kết quả, tiến độ, huỷ an toàn.
 #
 # Tiến độ + huỷ an toàn cho job dài: <run_dir>/progress.json (ghi tối đa mỗi 5 giây) và xử lý SIGTERM.
 #
 # progress.json = {"run_dir", "stage", "done", "total", "rate" (job/giây của giai đoạn), "eta_s", "elapsed_s", "peak_rss_mb" (tiến trình cha),
 #                  "worker_peak_rss_mb", "status": running|done|cancelled|failed, "updated", "estimate": {...}}
-# Nếu env NORA_JOB_DIR có đặt (job của API) file được ghi thêm vào đó để API (backend/optimize/process/process.py) hiển thị.
+# Nếu env NORA_JOB_DIR có đặt (job của API) file được ghi thêm vào đó để API (backend/jobs/runner.py) hiển thị.
 #
 # SIGTERM (nút "Huỷ" của API gửi cho cả nhóm tiến trình): handler ném SystemExit(143) ở luồng chính -> các khối finally của job flush kho kết quả
 # (ResultsStore.close) rồi ghi progress status="cancelled" -> chạy lại với --resume tiếp tục đúng chỗ dừng.
@@ -94,7 +94,7 @@ class Progress:
         remaining = max(self.total - self.done, 0)
         eta = remaining / rate if rate > 0 else None
         try:
-            from backend.optimize.process.workers import peak_rss_mb
+            from backend.jobs.workers import peak_rss_mb
             peak = round(peak_rss_mb(), 1)
         except Exception:
             peak = None
@@ -111,8 +111,8 @@ class Progress:
         snap = self.snapshot()
         for path in self.paths:
             try:
-                from backend.optimize.funnel.storage import atomic_write_json
-                atomic_write_json(path, snap, clean=False, allow_nan=True)
+                from backend.models.storage import write_json_atomic
+                write_json_atomic(path, snap)
                 self._wrote += 1
             except OSError:
                 pass
@@ -153,10 +153,10 @@ def graceful_sigterm(progress: Optional[Progress] = None) -> Iterator[None]:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Job nền nặng (backtest, WFA, dựng sổ, phễu, dữ liệu...), chạy NGOÀI tiến trình API qua MỘT cửa: backend/optimize/process/process.py.
+# Job nền nặng (backtest, WFA, dữ liệu...), chạy NGOÀI tiến trình API qua MỘT cửa: backend/jobs/runner.py.
 #
 # Vì sao: API có trần RAM riêng (3G) nên không được chạy việc nặng trong tiến trình. Mỗi job là một tiến trình con
-# `ops/run_limited.sh -- -m backend.optimize.process.process <job_dir>`: tự có scope riêng trong nora.slice (trần chung 12G), xếp hàng
+# `ops/run_limited.sh -- -m backend.jobs.runner <job_dir>`: tự có scope riêng trong nora.slice (trần chung 12G), xếp hàng
 # tuần tự (flock) và tự chia worker theo RAM còn trống. runner đọc job.json {kind, params} rồi gọi run_job(params) của module trong KINDS.
 # API chỉ khởi chạy, theo dõi và đọc kết quả. UI, terminal (curl) và script đều đi qua cùng endpoint -> cùng job.
 #
@@ -164,9 +164,8 @@ def graceful_sigterm(progress: Optional[Progress] = None) -> Iterator[None]:
 #   params.json đầu vào của runner {kind, params}
 #   job.json    siêu dữ liệu (id, kind, params, pid, created/started/finished, state, exit_code)
 #   out.log     stdout+stderr của job
-#   result.json báo cáo cuối do script ghi (quy ước env NORA_JOB_DIR, xem backend/optimize/process/process.py)
-#   alphas/     (chỉ job book_build) sổ vừa dựng: book.json [+ testnet/book.json]; KHÔNG ghi đè nora/data/alpha/ — xuất bản qua POST /book/publish
-#   progress.json  (job tối ưu quy mô lớn) tiến độ do job ghi mỗi <= 5 giây: stage, done, total, rate, eta_s, peak_rss_mb (xem backend/optimize/process/process.py)
+#   result.json báo cáo cuối do script ghi (quy ước env NORA_JOB_DIR, xem backend/jobs/runner.py)
+#   progress.json  (job tối ưu quy mô lớn) tiến độ do job ghi mỗi <= 5 giây: stage, done, total, rate, eta_s, peak_rss_mb (xem backend/jobs/runner.py)
 # Trạng thái trả ra: queued (đang chờ hàng đợi run_limited) | running | done | failed | cancelled. Trạng thái bền (job.json) chỉ có running/done/failed/cancelled;
 # queued suy ra từ out.log. Huỷ: cancel(job_id) gửi SIGTERM cho CẢ nhóm tiến trình (job flush kho kết quả rồi thoát -> chạy lại bằng resume). Không dùng shell.
 # ══════════════════════════════════════════════════════════════════════════
@@ -175,29 +174,19 @@ from backend.models.models import NORA_DIR  # noqa: E402  (định nghĩa duy nh
 RUN_LIMITED = os.path.join(NORA_DIR, "ops", "run_limited.sh")
 
 # Danh sách trắng: loại job -> (module có run_job(params), các khoá tham số được phép)
-RUNNER = "backend.optimize.process.process"
+RUNNER = "backend.jobs.runner"
 KINDS: Dict[str, Dict[str, Any]] = {
-    "book_backtest": {"label_vi": "Backtest sổ", "module": "backend.optimize.process.tasks", "func": "run_book_backtest",
+    "book_backtest": {"label_vi": "Backtest sổ", "module": "backend.jobs.tasks", "func": "run_book_backtest",
                       "params": {"book", "strategies", "symbols", "start", "end", "risk_per_trade", "stop_fill", "regime", "timeframe", "data", "latency_ms", "gas_usd"}},
-    "book_wfa": {"label_vi": "WFA sổ", "module": "backend.optimize.process.tasks", "func": "run_book_wfa",
+    "book_wfa": {"label_vi": "WFA sổ", "module": "backend.jobs.tasks", "func": "run_book_wfa",
                  "params": {"report", "include_rejected", "candidates", "strategies", "symbols", "n", "start", "end", "train_days",
                             "test_days", "step_days", "sims", "mc_seed", "risk_per_trade", "workers", "resume", "max_configs", "force_large",
                             "timeframe", "regime"}},
-    "book_build": {"label_vi": "Dựng sổ", "module": "backend.optimize.book.build", "func": "run_book_build",
-                   "params": {"only", "n", "workers", "keep_top", "resume", "max_configs", "force_large", "timeframe"}},   # out do launch() đặt
-    "funnel_run": {"label_vi": "Phễu alpha", "module": "backend.optimize.funnel.stages", "func": "run_funnel_run",
-                   "params": {"strategies", "n_per_strategy", "full_grid", "seed", "symbols", "windows", "run_id", "resume", "force_large",
-                              "train_days", "test_days", "space", "timeframe", "regime"}},
-    "funnel_recompute": {"label_vi": "Tính lại phễu", "module": "backend.optimize.funnel.stages", "func": "run_funnel_recompute", "params": {"run_id", "alpha_id"}},
-    "funnel_book": {"label_vi": "Sổ từ phễu", "module": "backend.optimize.process.tasks", "func": "run_funnel_book",
-                    "params": {"run_id", "alpha_ids", "risk_per_trade_pct", "wfa_job_id", "dry_run", "explore"}},
-    "presets_build": {"label_vi": "Dựng preset", "module": "backend.optimize.book.build", "func": "run_presets_build", "params": set()},
+    "presets_build": {"label_vi": "Dựng preset", "module": "backend.strategies", "func": "run_presets_build", "params": set()},
     "data_update": {"label_vi": "Cập nhật dữ liệu OKX", "module": "backend.data.crawl", "func": "run_job", "params": {"symbols"}},
-    "alpha_revalidate": {"label_vi": "Kiểm lại alpha", "module": "backend.optimize.book.registry", "func": "run_alpha_revalidate", "params": {"alpha_id", "apply"}},
-    "custom_backtest": {"label_vi": "Backtest tuỳ chỉnh", "module": "backend.optimize.process.tasks", "func": "run_custom_backtest",
+    "custom_backtest": {"label_vi": "Backtest tuỳ chỉnh", "module": "backend.jobs.tasks", "func": "run_custom_backtest",
                         "params": {"code", "symbols", "start", "end", "train_ratio", "initial_capital", "position", "run_frame"}},
-    "education_warm": {"label_vi": "Làm nóng kết quả mẫu giáo dục", "module": "backend.optimize.process.tasks", "func": "education_warm", "params": {"keys"}},
-    "regime_report": {"label_vi": "Báo cáo chế độ thị trường", "module": "backend.optimize.process.tasks", "func": "run_regime_report", "params": {"symbols", "start", "end", "event_pct", "backtest", "timeframe"}},
+    "education_warm": {"label_vi": "Làm nóng kết quả mẫu giáo dục", "module": "backend.jobs.tasks", "func": "education_warm", "params": {"keys"}},
 }
 NO_LOCK_KINDS: set = set()   # mọi job đi qua hàng đợi run_limited (bot live chuyển sang Nautilus TradingNode, không còn là job)
 MAX_ACTIVE = 8          # số job đang chạy/chờ tối đa cùng lúc (mỗi job chờ là một tiến trình bash nhỏ)
@@ -239,8 +228,8 @@ RESULT_KINDS = ("backtest", "wfa", "carlo")
 
 def _persisted_dirs() -> List[str]:
     """Các gốc kết quả lâu dài đang tồn tại (qua helper, đã có fallback cũ->mới); 'education' (kết quả Education) không phải job nên bị loại ở _JOB_ID_RE."""
-    from backend.models.storage import alpha_run_dir as _ard, run_dir as _rd
-    dirs = [_rd(k) for k in RESULT_KINDS] + [_ard("book"), _ard("funnel")]   # book_build -> alpha/book/<id>; funnel_run (chỉ bản ghi job) -> alpha/funnel/<id>
+    from backend.models.storage import run_dir as _rd
+    dirs = [_rd(k) for k in RESULT_KINDS]
     return [d for d in dirs if os.path.isdir(d)]
 
 
@@ -291,8 +280,8 @@ def _read_meta(job_dir: str) -> Optional[Dict[str, Any]]:
 
 
 def _write_meta(job_dir: str, meta: Dict[str, Any]) -> None:
-    from backend.optimize.funnel.storage import atomic_write_json      # nạp lười: giữ module process nhẹ
-    atomic_write_json(os.path.join(job_dir, "job.json"), meta, indent=1, clean=False, allow_nan=True)
+    from backend.models.storage import write_json_atomic      # nạp lười: giữ module runner nhẹ
+    write_json_atomic(os.path.join(job_dir, "job.json"), meta, indent=1)
 
 
 def _finish(job_dir: str, exit_code: Optional[int]) -> Dict[str, Any]:
@@ -404,11 +393,10 @@ def prune_orphan_dirs(min_age: float = ORPHAN_MIN_AGE, now: Optional[float] = No
 EPHEMERAL_KINDS = ("custom_backtest",)   # /alpha/create, /education: chạy TẠM, không lưu ra data/; kết quả xong nằm trong bộ nhớ API (LRU) tới khi API khởi động lại
 EPHEMERAL_MAX = 64
 _EPH: "OrderedDict[str, Dict[str, Any]]" = OrderedDict()
-# Loại khác (presets_build, alpha_revalidate, regime_report, funnel_book, funnel_recompute, data_update): kết quả bền do chính job ghi
+# Loại khác (presets_build, data_update): kết quả bền do chính job ghi
 # -> xong là dọn thư mục process (không chép).
-PERSIST_AREAS = {"book_backtest": ("run", "backtest"), "book_wfa": ("run", "wfa"),
-                 "book_build": ("alpha", "book"), "funnel_run": ("alpha", "funnel")}
-PERSIST_FILES = ("job.json", "params.json", "result.json", "out.log", "progress.json")   # + alphas/ (book_build); không chép checkpoint/_shared/staging
+PERSIST_AREAS = {"book_backtest": ("run", "backtest"), "book_wfa": ("run", "wfa")}
+PERSIST_FILES = ("job.json", "params.json", "result.json", "out.log", "progress.json")   # không chép checkpoint/_shared/staging
 
 
 def persist_dest_base(kind: str) -> Optional[str]:
@@ -528,7 +516,7 @@ def persist_job(job_dir: str, dry_run: bool = False) -> Dict[str, Any]:
         return out
     dest = os.path.join(base, jid)
     out["dest"] = dest
-    if not os.path.isfile(os.path.join(job_dir, "result.json")) and kind != "funnel_run":
+    if not os.path.isfile(os.path.join(job_dir, "result.json")):
         return out   # job xong không có kết quả: giữ nguyên ở process
     if dry_run:
         out["action"] = "would_exists" if os.path.isdir(dest) and _same_result(job_dir, dest) else "would_persist"
@@ -624,8 +612,6 @@ def launch(kind: str, params: Dict[str, Any]) -> str:
     job_dir = os.path.join(jobs_root(), job_id)
     os.makedirs(job_dir)
     prune_failed_jobs()   # job lỗi/huỷ: xoá (cache chỉ giữ tiến trình đang chạy)
-    if kind == "book_build":   # sổ dựng xong nằm trong thư mục job; alphas/ chỉ đổi khi người dùng xuất bản (book_export.publish_book)
-        params["out"] = os.path.join(job_dir, "alphas")
     with open(os.path.join(job_dir, "params.json"), "w", encoding="utf-8") as fh:   # đầu vào của runner (ghi TRƯỚC khi chạy)
         json.dump({"kind": kind, "params": params}, fh, ensure_ascii=False)
     env = dict(_env(), NORA_JOB_DIR=job_dir)
@@ -812,21 +798,11 @@ def job_label(kind: str, params: Optional[Dict[str, Any]]) -> str:
         else:
             src = f"báo cáo {os.path.basename(p.get('report') or '?')}"
         return f"WFA · {src} · {syms} · {rng}" if (p.get("start") or p.get("symbols")) else f"WFA · {src}"
-    if kind == "funnel_run":
-        if p.get("resume"):
-            return f"Phễu · chạy tiếp {p['resume']}"
-        n = "lưới đủ" if p.get("full_grid") else f"n={p.get('n_per_strategy') or '?'}/chiến lược"
-        return f"Phễu · {_names(p.get('strategies')) or '?'} · {n} · {syms}"
-    if kind == "funnel_recompute":
-        return f"Phễu · tính lại lệnh {p.get('alpha_id')}"
-    if kind == "funnel_book":
-        return (f"Phễu · xuất bản sổ {'thử nghiệm ' if p.get('explore') else ''}từ {p.get('run_id')} ({p.get('alpha_ids')}) "
-                f"rủi ro {p.get('risk_per_trade_pct')}%")
     if kind == "presets_build":
         return "Dựng presets.json"
     if kind == "data_update":
         return f"Cập nhật dữ liệu OKX · {_names(p.get('symbols')) or 'cả rổ'} · perp"
-    return f"Dựng sổ · {_names(p.get('only')) or 'mọi chiến lược'} · n={p.get('n') or 24}"
+    return kind
 
 
 TERMINAL_STATES = ("done", "failed", "cancelled")
@@ -912,7 +888,7 @@ def list_jobs(limit: int = 20, kind: Optional[str] = None) -> List[Dict[str, Any
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Thân chạy một job (trước đây api/jobs/runner.run; điểm vào `python -m backend.optimize.process.process <job_dir>` ở cuối file; khối env OMP/NORA_*_CACHE_MB
+# Thân chạy một job (trước đây api/jobs/runner.run; điểm vào `python -m backend.jobs.runner <job_dir>` ở cuối file; khối env OMP/NORA_*_CACHE_MB
 # ở đầu file, chỉ đặt khi chạy làm __main__). Tra KINDS[kind]["module"] + ["func"] (mặc định "run_job").
 # ══════════════════════════════════════════════════════════════════════════
 def run_job_dir(job_dir: str):
@@ -929,5 +905,5 @@ def run_job_dir(job_dir: str):
 if __name__ == "__main__":     # P9.10a — từ api/jobs/runner.py (đã xoá)
     import sys
     if len(sys.argv) != 2:
-        raise SystemExit("dùng: python -m backend.optimize.process.process <job_dir>")
+        raise SystemExit("dùng: python -m backend.jobs.runner <job_dir>")
     run_job_dir(sys.argv[1])

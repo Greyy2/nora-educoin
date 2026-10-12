@@ -1,7 +1,7 @@
 """Bộ chuyển đổi alpha -> IR (P9 alpha/): biên dịch DSL Python (compile_program/compile_code/explain), module chiến lược hệ thống (compile_strategy_module),
 hàm dựng cây điều kiện, và nạp file data/alpha/strategies/*.py (cache theo mtime+size).
 
-Chuyển từ alpha/dsl/signal.py + optimize/book/build.py (P9 alpha pass). Chỉ import core + alpha/contract; thư mục chiến lược tính từ vị trí mã (như NORA_DIR cũ).
+Chuyển từ signal/nodes.py + strategies.py (P9 alpha pass). Chỉ import core + alpha/contract; thư mục chiến lược tính từ vị trí mã (như NORA_DIR cũ).
 """
 import ast
 import copy
@@ -18,10 +18,10 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple
 
 from backend.alpha.contract import (BASE_CLASS, BASE_CLASSES, KIND_ALPHA, KIND_MODULE, MAX_CODE_CHARS, MAX_NODES, METHOD_OPS, _fmt_range, _is_doc, _position_attr_names, at, classify, has_lifecycle,
                                     lifecycle_body, native_tree, split_suggest, suggest)
-from backend.alpha.dsl.indicator import FEATURES, OPS, REQUIRED, Spec, register_program
-from backend.alpha.dsl.ta import GLOBAL_TA_FUNCS, OHLCV_COLUMNS, RISK_PARAM_MAP
+from backend.signal.indicator import FEATURES, OPS, REQUIRED, Spec, register_program
+from backend.signal.ta import GLOBAL_TA_FUNCS, OHLCV_COLUMNS, RISK_PARAM_MAP
 from backend.models.params import BASE_POSITION, DATA_COLUMNS, FRAME_MS, FRAMES as FRAME_TF, NORA_DEFAULTS, VENUE_COSTS, resolve_position_auto
-from backend.alpha.dsl.signal import (Bin, BoolConst, Call, Cmp, Const, Data, DslError, Inv, Logic, Neg, Node, Pick, Program, TupleVal, code_hash)
+from backend.signal.nodes import (Bin, BoolConst, Call, Cmp, Const, Data, DslError, Inv, Logic, Neg, Node, Pick, Program, TupleVal, code_hash)
 
 from backend.models.models import DATA_DIR  # noqa: E402  (DATA_DIR cố định theo mã, KHÔNG theo NORA_LOCAL_DATA_ROOT của test)
 
@@ -953,8 +953,6 @@ def is_nautilus_native(code: str) -> bool:
     """Kiểm tra mã nguồn có phải là chiến lược Native Nautilus Trader (kế thừa Strategy) hay không."""
     if not isinstance(code, str) or not code.strip():
         return False
-    if "nautilus_trader" in code:
-        return True
     try:
         tree = ast.parse(code)
         for node in tree.body:
@@ -2134,8 +2132,8 @@ def compile_strategy_module(code: str, tree: Optional[ast.Module] = None) -> Dic
 # Báo cáo cho thấy 21/28 bot không cắt lỗ và 17/26 lead OKX đang ôm lỗ treo tổng −1,29M USDT;
 # số tầng DCA tương quan +0,62 với cú lỗ lớn nhất. Không cắt lỗ = win rate đẹp, đuôi lỗ không giới hạn.
 #
-# Mỗi SIGNAL là một cây điều kiện AST trên kernel (alpha/dsl/indicator.py), được kiểm tra riêng
-# bằng diagnostics (alpha/dsl/signal.py) trước khi ghép với tham số quản lý vị thế thành STRATEGY.
+# Mỗi SIGNAL là một cây điều kiện AST trên kernel (signal/indicator.py), được kiểm tra riêng
+# bằng diagnostics (signal/nodes.py) trước khi ghép với tham số quản lý vị thế thành STRATEGY.
 # ══════════════════════════════════════════════════════════════════════════
 
 def f(frame: str, column: str, index: int = 0) -> Dict[str, Any]:
@@ -2189,8 +2187,8 @@ def tree_p(name: str, default: float) -> dict:
 # ══════════════════════════════════════════════════════════════════════════
 # Nạp chiến lược hệ thống từ file Python DSL (P9.9): data/alpha/strategies/*.py.
 #
-# MỘT định dạng nguồn duy nhất cho mọi chiến lược: file Python kiểu SimpleAlgorithm (cú pháp ở alpha/dsl/signal.py, khối "P9.9"). Cây AST / `params_schema` / `space`
-# chỉ là dạng ĐÃ BIÊN DỊCH, sinh lại từ file mỗi lần nạp (nhớ theo mtime+size), không sửa tay. Core không đọc file: lớp này đọc rồi `alpha/dsl/signal.compile_strategy_module`
+# MỘT định dạng nguồn duy nhất cho mọi chiến lược: file Python kiểu SimpleAlgorithm (cú pháp ở signal/nodes.py, khối "P9.9"). Cây AST / `params_schema` / `space`
+# chỉ là dạng ĐÃ BIÊN DỊCH, sinh lại từ file mỗi lần nạp (nhớ theo mtime+size), không sửa tay. Core không đọc file: lớp này đọc rồi `signal/nodes.compile_strategy_module`
 # biên dịch thuần; CANDIDATES / STRATEGIES / BY_ID (khối "Sổ chiến lược" bên dưới) chỉ là các góc nhìn trên kết quả nạp.
 # ══════════════════════════════════════════════════════════════════════════
 
@@ -2695,7 +2693,7 @@ class _Normalise(ast.NodeTransformer):
                     self.src.note("NORMALIZED_NAME", f"`self.data.{node.attr}` -> `self.data.{canon}`", node)
                     return ast.copy_location(ast.Attribute(value=v, attr=canon, ctx=node.ctx), node)
             elif v.attr in ("feat", "op"):
-                from backend.alpha.dsl.indicator import FEATURES, OPS
+                from backend.signal.indicator import FEATURES, OPS
                 table = FEATURES if v.attr == "feat" else OPS
                 low = node.attr.lower()
                 if node.attr not in table and low in table:
@@ -2846,7 +2844,7 @@ def program_via_adapter(code, native_err: DslError):
     return _compile(KIND_ALPHA, src.code, tree)
 
 
-# ═══ Sửa chiến lược hệ thống tại chỗ (P10; gộp từ optimize/book/strategy_files) ═══
+# ═══ Sửa chiến lược hệ thống tại chỗ (P10; gộp từ strategies.py/strategy_files) ═══
 
 MAX_BACKUPS = 20
 BACKUP_DIRNAME = ".versions"
@@ -2896,7 +2894,7 @@ def _prune_backups(directory: str, stem: str) -> None:
 def write_source(strategy_or_leg_id: str, code: str, sha256: str, backup_root: Optional[str] = None,
                  guard: Optional[Callable[[List[str]], None]] = None) -> Dict[str, Any]:
     """Ghi file chiến lược (thuần alpha). `backup_root`: thư mục cha của BACKUP_DIRNAME (mặc định: strategies_dir). `guard(removed_ids)`: tầng gọi chèn kiểm tra
-    ngoài alpha (vd bot live) — ném StrategyEditError để chặn trước khi ghi. Nạp lại sổ ở tầng trên (optimize/book/build.reload_system_strategies)."""
+    ngoài alpha (vd bot live) — ném StrategyEditError để chặn trước khi ghi. Nạp lại sổ ở tầng trên (strategies.py.reload_system_strategies)."""
     info = resolve(strategy_or_leg_id)
     path = os.path.join(strategies_dir(), info["file"])
     with open(path, "rb") as fh:

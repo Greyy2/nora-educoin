@@ -62,10 +62,10 @@ def _norm(path):
 def _ui_calls():
     with open(API_JS, encoding="utf-8") as fh:
         src = fh.read()
-    fr = re.search(r"const FR = '([^']+)'", src).group(1)
+    fm = re.search(r"const FR = '([^']+)'", src)   # tiền tố chung (api.js hiện gọi đường dẫn đầy đủ nên có thể không có)
     out = []
     for m in _CALL.finditer(src):
-        path = m.group(2).replace("${FR}", fr)
+        path = m.group(2).replace("${FR}", fm.group(1)) if fm else m.group(2)
         path = _norm(path)
         meth = re.search(r"method:\s*'(\w+)'", m.group(3) or "")
         out.append(((meth.group(1) if meth else "GET").lower(), path))
@@ -117,7 +117,7 @@ def test_dex_and_tick_not_ready(client):
         r = client.request(method.upper(), path, json=body)
         assert r.status_code == 501 and r.json()["detail"]["code"] == "NOT_READY", (path, r.status_code, r.text[:200])
         assert "DEX" in r.json()["detail"]["message"]
-    from backend.optimize.process.process import NotReady
+    from backend.jobs.runner import NotReady
     from backend.routes import process as process_routes
     with pytest.raises(NotReady, match="DEX/AMM"):
         process_routes.check_backtest_symbols(["dex:AERO"])
@@ -189,10 +189,10 @@ def test_no_random_results_in_backend():
         if "__pycache__" in dp or any(rel_dp.startswith(a) for a in allowed):
             continue
         for fn in fns:
-            if fn.endswith(".py"):
+            if fn.endswith(".py") and not (rel_dp == "backend" and fn == "strategies.py"):   # strategies.py: lấy mẫu cấu hình tham số có hạt giống (iter_params)
                 with open(os.path.join(dp, fn), encoding="utf-8") as fh:
                     hits += [f"{rel_dp}/{fn}:{i}" for i, ln in enumerate(fh, 1) if rx.search(ln)]
-    assert not hits, "random trong backend ngoài carlo/search/funnel/wfa:\n" + "\n".join(hits)
+    assert not hits, "random trong backend ngoài carlo/wfa/strategies.iter_params:\n" + "\n".join(hits)
 
 
 def test_education_result_not_ready_route_exists():

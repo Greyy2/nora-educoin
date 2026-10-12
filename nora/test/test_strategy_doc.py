@@ -2,7 +2,7 @@
 Sideway gộp hai chiều), công thức dựng từ cây khuôn của engine nên mọi tham số ngưỡng của cây đều có mặt trong công thức."""
 import json
 
-from backend.optimize.book import registry as sd
+from backend import strategies as sd
 
 
 def _params(tree):
@@ -30,7 +30,7 @@ def test_one_entry_per_strategy_not_per_alpha(tmp_path):
 
 
 def test_formula_mirrors_engine_template_and_wording():
-    from backend.optimize.book.build import BY_ID
+    from backend.strategies import BY_ID
     for cid in ("kema_long", "dca_short", "sideway_long"):
         c = BY_ID[cid]
         d = sd.leg_doc(c)

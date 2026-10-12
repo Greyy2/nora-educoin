@@ -1,4 +1,4 @@
-"""Đệm tầng API (việc nặng không tính lại trong request): thống kê tầng phễu, danh sách lượt, GET job (lite + ETag), list_jobs,
+"""Đệm tầng API (việc nặng không tính lại trong request): GET job (lite + ETag), list_jobs,
 trang lệnh portfolio, chuỗi vốn bot live, nến của chart, tính lại lệnh bị chặn thời gian. Mọi đệm phải trả ĐÚNG những gì đường không đệm trả."""
 import json
 import os
@@ -9,16 +9,14 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from backend.optimize.process import process as batch_jobs
-from backend.routes import alpha, optimize
-from backend.optimize.funnel.storage import RunStore, atomic_write_json
+from backend.jobs import runner as batch_jobs
+from backend.routes import alpha, book as optimize
 
 
 @pytest.fixture(autouse=True)
 def _root(monkeypatch, tmp_path):
     monkeypatch.setenv("NORA_LOCAL_DATA_ROOT", str(tmp_path / "data"))
-    for c in (optimize._STATS_CACHE, optimize._STATS_LAST, optimize._COUNTS_CACHE, optimize._COUNTS_LAST, optimize._CACHE):
-        c.clear()
+    optimize._CACHE.clear()
     batch_jobs._SUMMARY_CACHE.clear()
 
 
@@ -39,112 +37,6 @@ def _fake_job(name, kind="book_backtest", state="done", log="", result=None, pro
 def _bump(path):
     st = os.stat(path)
     os.utime(path, ns=(st.st_atime_ns, st.st_mtime_ns + 5_000_000_000))
-
-
-# ─── 1. thống kê tầng phễu ───────────────────────────────────────────────────
-def _mk_run(run_id, stages_done=True):
-    d = os.path.join(optimize.funnel_root(), run_id)
-    RunStore(d).close()   # results.sqlite rỗng
-    atomic_write_json(os.path.join(d, "run.json"), {"run_id": run_id, "status": "done" if stages_done else "running", "created": 1.0,
-                                                    "stages": {"S0_generate": {"status": "done" if stages_done else "running"}}})
-    return d
-
-
-@pytest.fixture
-def funnel_client(monkeypatch):
-    calls = []
-
-    def fake_stats(store, stage, top_n=20):
-        calls.append((stage, top_n))
-        return {"stage": stage, "top_n": top_n, "n": len(calls), "x": [1.5, None, "ă"]}
-    monkeypatch.setattr(optimize, "stage_stats", fake_stats)
-    app = FastAPI()
-    app.include_router(optimize.funnel_router)
-    return TestClient(app), calls
-
-
-def test_stage_stats_cache_hit_identical_and_invalidates_on_store_change(funnel_client):
-    c, calls = funnel_client
-    d = _mk_run("fr-t1", stages_done=False)
-    optimize.LIVE_MIN_INTERVAL_S = 0.0          # chỉ thử đệm theo chữ ký (nhịp tối thiểu có test riêng)
-    url = "/api/studio/funnel/runs/fr-t1/stages/S0_generate/stats?top=21"
-    try:
-        a = c.get(url)
-        b = c.get(url)
-        assert a.status_code == 200 and a.content == b.content and len(calls) == 1          # lần 2: đệm, không tính
-        assert a.json() == {"stage": "S0_generate", "top_n": 21, "n": 1, "x": [1.5, None, "ă"]}
-        assert c.get(url.replace("top=21", "top=22")).json()["top_n"] == 22 and len(calls) == 2   # tham số khác: khoá khác
-        _bump(os.path.join(d, "results.sqlite"))
-        assert c.get(url).json()["n"] == 3 and len(calls) == 3                               # mtime đổi: tính lại
-        wal = os.path.join(d, "results.sqlite-wal")                                          # WAL đổi cũng làm mất đệm
-        open(wal, "ab").write(b"x")
-        assert c.get(url).json()["n"] == 4
-    finally:
-        optimize.LIVE_MIN_INTERVAL_S = 15.0
-
-
-def test_stage_stats_body_is_what_fastapi_would_render(funnel_client, monkeypatch):
-    c, calls = funnel_client
-    _mk_run("fr-t2")
-    got = c.get("/api/studio/funnel/runs/fr-t2/stages/S0_generate/stats?top=33")
-    app = FastAPI()
-
-    @app.get("/x")
-    def x():
-        return {"stage": "S0_generate", "top_n": 33, "n": 1, "x": [1.5, None, "ă"]}
-    assert got.content == TestClient(app).get("/x").content and got.headers["content-type"] == "application/json"
-
-
-def test_stage_stats_live_run_min_interval_and_done_run_not_throttled(funnel_client):
-    c, calls = funnel_client
-    d = _mk_run("fr-live", stages_done=False)
-    url = "/api/studio/funnel/runs/fr-live/stages/S0_generate/stats?top=21"
-    first = c.get(url).json()
-    _bump(os.path.join(d, "results.sqlite"))
-    assert c.get(url).json() == first and len(calls) == 1          # kho đổi nhưng < 15 s: trả kết quả trước
-    optimize._STATS_LAST.put(("fr-live", "S0_generate", 21), (time.monotonic() - 16, optimize._STATS_LAST.get(("fr-live", "S0_generate", 21))[1]))
-    assert c.get(url).json()["n"] == 2                              # quá 15 s: tính lại
-    # lượt đã xong: không có nhịp tối thiểu
-    d2 = _mk_run("fr-done", stages_done=True)
-    u2 = "/api/studio/funnel/runs/fr-done/stages/S0_generate/stats?top=21"
-    c.get(u2)
-    _bump(os.path.join(d2, "results.sqlite"))
-    c.get(u2)
-    assert [k for k in calls].count(("S0_generate", 21)) == 4
-
-
-def test_stage_stats_errors_unchanged(funnel_client):
-    c, _ = funnel_client
-    assert c.get("/api/studio/funnel/runs/fr-none/stages/S0_generate/stats").status_code == 404
-    assert c.get("/api/studio/funnel/runs/fr-none/stages/S9_nope/stats").status_code == 404
-    assert c.get("/api/studio/funnel/runs/ab/stages/S0_generate/stats").status_code == 422
-
-
-# ─── 2. danh sách lượt ───────────────────────────────────────────────────────
-def test_runs_list_counts_cached_and_equal(monkeypatch):
-    opened = []
-    real = optimize.RunStore
-
-    def spy(d, read_only=False):
-        opened.append(d)
-        return real(d, read_only=read_only)
-    monkeypatch.setattr(optimize, "RunStore", spy)
-    d = _mk_run("fr-r1")
-    app = FastAPI()
-    app.include_router(optimize.funnel_router)
-    c = TestClient(app)
-    c.get("/api/studio/funnel/runs")          # lần mở đầu tiên có thể tạo results.sqlite-wal (đổi chữ ký) -> khởi động ấm trước khi đếm
-    optimize._COUNTS_CACHE.clear()
-    optimize._COUNTS_LAST.clear()
-    del opened[:]
-    a = c.get("/api/studio/funnel/runs").json()
-    n = len(opened)
-    assert n >= 1
-    b = c.get("/api/studio/funnel/runs").json()
-    assert a == b and len(opened) == n                              # lần 2 không mở kho
-    _bump(os.path.join(d, "results.sqlite"))
-    c.get("/api/studio/funnel/runs")
-    assert len(opened) == n + 1                                     # chữ ký đổi: đếm lại
 
 
 # ─── 3. GET job: lite + ETag ─────────────────────────────────────────────────
@@ -232,7 +124,7 @@ def _old_list_jobs(limit=20, kind=None):
 def _mk_many():
     wait = "[run_limited] đang chờ job khác của Nora chạy xong...\n"
     _fake_job("20261001_100000_000001", state="done", log="a\n[run_limited] exit 0\n", result={"r": 1}, progress={"stage": "S1", "done": 3, "total": 3})
-    _fake_job("20261001_100001_000002", state="failed", kind="funnel_run", log="x" * 100_000 + "\nboom\n", params={"strategies": ["a"], "n_per_strategy": 5})
+    _fake_job("20261001_100001_000002", state="failed", kind="book_wfa", log="x" * 100_000 + "\nboom\n", params={"candidates": ["a"], "n": 5})
     _fake_job("20261001_100002_000003", state="cancelled", kind="book_wfa", log="c\n", progress={"stage": "S3", "done": 1, "total": 9})
     _fake_job("20261001_100003_000004", state="done", log="", progress=None)
     _fake_job("20261001_100004_000005", state="running", pid=os.getpid(), log="working\n", progress={"done": 1})
@@ -250,7 +142,7 @@ def test_list_jobs_equals_uncached_version_cold_and_warm():
     for _ in range(2):                                   # lần 1: đệm trống; lần 2: đệm đã điền
         got = batch_jobs.list_jobs(100)
         assert got == old
-    for kind in ("book_wfa", "funnel_run", "book_backtest"):
+    for kind in ("book_wfa", "presets_build", "book_backtest"):
         assert batch_jobs.list_jobs(100, kind) == _old_list_jobs(100, kind)
     assert [x["id"] for x in batch_jobs.list_jobs(3)] == [x["id"] for x in _old_list_jobs(3)]
 
@@ -335,28 +227,5 @@ def test_chart_frames_come_from_catalog_loader(monkeypatch):
 
 
 # ─── 8. tính lại lệnh: chặn thời gian của request ────────────────────────────
-def test_recompute_bounded_returns_202_then_completes(monkeypatch):
-    done = []
-
-    def slow(run_id, alpha_id):
-        time.sleep(0.5)
-        done.append(alpha_id)
-    monkeypatch.setattr(optimize, "_run_recompute_subprocess", slow)
-    monkeypatch.setattr(optimize, "RECOMPUTE_WAIT_S", 0.1)
-    r = optimize._recompute_bounded("fr-x", "a1")
-    assert r.status_code == 202 and json.loads(r.body)["status"] == "computing" and r.headers["retry-after"] == "30"
-    assert optimize._recompute_bounded("fr-x", "a1").status_code == 202       # vẫn đang chạy: không chạy thêm bản thứ hai
-    monkeypatch.setattr(optimize, "RECOMPUTE_WAIT_S", 5.0)
-    assert optimize._recompute_bounded("fr-x", "a1") is None and done == ["a1"]
-    assert ("fr-x", "a1") not in optimize._RECOMPUTE_INFLIGHT
 
 
-def test_recompute_bounded_propagates_errors(monkeypatch):
-    from fastapi import HTTPException
-
-    def boom(run_id, alpha_id):
-        raise HTTPException(500, "tính lại lệnh thất bại: x")
-    monkeypatch.setattr(optimize, "_run_recompute_subprocess", boom)
-    with pytest.raises(HTTPException) as e:
-        optimize._recompute_bounded("fr-x", "a2")
-    assert e.value.status_code == 500

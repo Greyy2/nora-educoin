@@ -15,7 +15,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from backend.routes import alpha
-from backend.optimize.book import registry as strategy_doc, registry as user_alphas
+from backend import strategies as strategy_doc, strategies as user_alphas
 from backend.alpha.compile import compile_code
 
 pytestmark = pytest.mark.usefixtures("synthetic_data")   # P15: engine Nautilus lấy nến thực thi + spec từ DataSource; dữ liệu giả lập -> conftest.synthetic_data
@@ -75,7 +75,7 @@ class MyAlgo(SimpleAlgorithm):
 
     # 1. Lưu hợp lệ
     # Mock batch.status
-    from backend.optimize.process import process as batch
+    from backend.jobs import runner as batch
     monkeypatch.setattr(batch, "status", lambda jid: {"status": "done", "result": res} if jid == job_id else None)
 
     rec, act = user_alphas.save_user_alpha(job_id, code, "Alpha Thử Nghiệm", note="Ghi chú test", base_dir=user_alphas_dir)
@@ -118,7 +118,7 @@ class MyAlgo2(SimpleAlgorithm):
     job_id, res = _make_mock_job(tmp_path, code, "job_alpha_02")
     user_alphas_dir = str(tmp_path / "alphas")
 
-    from backend.optimize.process import process as batch
+    from backend.jobs import runner as batch
     monkeypatch.setattr(batch, "status", lambda jid: {"status": "done", "result": res})
 
     rec, _ = user_alphas.save_user_alpha(job_id, code, "Alpha Đỉnh Cao", base_dir=user_alphas_dir)
@@ -146,7 +146,7 @@ class ApiAlgo(SimpleAlgorithm):
 """
     job_id, res = _make_mock_job(tmp_path, code, "job_alpha_03")
 
-    from backend.optimize.process import process as batch
+    from backend.jobs import runner as batch
     monkeypatch.setattr(batch, "status", lambda jid: {"status": "done", "result": res} if jid == job_id else None)
     monkeypatch.setattr(user_alphas, "get_user_alphas_dir", lambda base=None: str(tmp_path / "alphas" / "user"))
 
@@ -245,7 +245,7 @@ def _full_result(tmp_path, code, job_id):
 
 def test_save_stores_full_snapshot_independent_of_job_dir_and_resave_updates(tmp_path, monkeypatch):
     import shutil
-    from backend.optimize.process import process as batch
+    from backend.jobs import runner as batch
     job_id, res = _full_result(tmp_path, CODE_SAVE, "job_snap_01")
     monkeypatch.setattr(batch, "status", lambda jid: {"status": "done", "result": res, "created": 111.0, "finished": 222.0} if jid == job_id else None)
     base = str(tmp_path / "alphas")
@@ -274,7 +274,7 @@ def test_save_stores_full_snapshot_independent_of_job_dir_and_resave_updates(tmp
 
 
 def test_save_rejects_unfinished_missing_or_incomplete_results(tmp_path, monkeypatch):
-    from backend.optimize.process import process as batch
+    from backend.jobs import runner as batch
     _, res = _full_result(tmp_path, CODE_SAVE, "job_bad_01")
     base = str(tmp_path / "alphas")
     cases = {"j_run": {"status": "running"}, "j_none": None, "j_empty": {"status": "done", "result": {}},
@@ -287,7 +287,7 @@ def test_save_rejects_unfinished_missing_or_incomplete_results(tmp_path, monkeyp
 
 
 def test_api_ignores_client_supplied_result_and_serves_stored_detail(tmp_path, monkeypatch):
-    from backend.optimize.process import process as batch
+    from backend.jobs import runner as batch
     job_id, res = _full_result(tmp_path, CODE_SAVE, "job_api_09")
     monkeypatch.setattr(batch, "status", lambda jid: {"status": "done", "result": res} if jid == job_id else None)
     monkeypatch.setattr(user_alphas, "get_user_alphas_dir", lambda base=None: str(tmp_path / "alphas" / "user"))

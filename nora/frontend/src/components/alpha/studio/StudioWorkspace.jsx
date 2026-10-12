@@ -372,7 +372,6 @@ export default function StudioWorkspace({ mode = 'create' }) {
                       setCompiled(null)
                       setHistoryOpen(false)
                     }}
-                    onRevalidateDone={() => saved.reload()}
                   />
                 </div>
               </div>

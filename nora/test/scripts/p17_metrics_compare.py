@@ -1,6 +1,6 @@
 """P17 — so sánh số đo CŨ (công thức tự cài của Nora) với MỚI (thống kê NautilusTrader qua backend/nautilus/stats.py) trên 3 lần chạy THẬT.
 
-Đường chạy: backend.optimize.process.tasks.run_custom (đúng đường của nút "Chạy", chế độ Nhanh = run_frame rỗng), mẫu giáo dục
+Đường chạy: backend.jobs.tasks.run_custom (đúng đường của nút "Chạy", chế độ Nhanh = run_frame rỗng), mẫu giáo dục
 data/alpha/education/samples.json: KEMA (trend_kema_breakout), RSI+BB đảo chiều có DCA (revert_rsi_bb + position.dca_*), Donchian (breakout_donchian_turtle).
 Mỗi lần chạy, `trades._metric_block` được bọc để bắt (lợi suất ngày, lệnh) của từng giai đoạn simulate/train/test; MỚI = chính hàm của Nora (đã đổi
 sang Nautilus), CŨ = bản sao công thức cũ nằm trong file này (CHỈ để so sánh, không dùng ở nơi khác).
@@ -21,7 +21,7 @@ sys.path.insert(0, NORA)
 
 from backend.metrics import metrics as mm                      # noqa: E402
 from backend.metrics import trades as tr                       # noqa: E402
-from backend.optimize.process import tasks                     # noqa: E402
+from backend.jobs import tasks                     # noqa: E402
 
 ANN = 365
 RUNS = [

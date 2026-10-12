@@ -5,7 +5,7 @@ import pytest
 
 from backend.metrics import charts as se
 from backend.data.data import load_candles
-from backend.alpha.dsl import strategy as bt
+from backend.signal import compute as bt
 from test_strategy_book import T0, market  # noqa: F401  (market là fixture: 70 ngày, 3 tài sản)
 
 DAY = 86_400_000

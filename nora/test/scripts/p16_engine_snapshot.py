@@ -16,8 +16,9 @@ os.environ.pop("NORA_LOCAL_DATA_ROOT", None)
 import numpy as np
 
 from backend.alpha.compile import calc, cond, cross_over, f    # noqa: E402
-from backend.alpha.dsl.strategy import RiskConfig, _strategy_flow  # noqa: E402
-import backend.optimize  # noqa: E402,F401  (đăng ký EngineData mặc định)
+from backend.alpha.plan import RiskConfig
+from backend.signal.compute import _strategy_flow
+import backend  # noqa: F401  (đăng ký EngineData mặc định)
 from backend.models.params import build_params                  # noqa: E402
 from backend.nautilus.engine import BacktestEngine, PortfolioEngine  # noqa: E402
 

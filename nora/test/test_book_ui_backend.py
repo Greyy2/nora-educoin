@@ -12,8 +12,8 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from backend.routes import optimize
-from backend.optimize.process import process as batch_jobs
+from backend.routes import book as optimize
+from backend.jobs import runner as batch_jobs
 from job_modules import launched
 from test_portfolio_wfa import DAY, START, T0, _load_script, _small_book, market  # noqa: F401  (market là fixture)
 
@@ -42,7 +42,6 @@ def client(monkeypatch, tmp_path):
     monkeypatch.setattr(batch_jobs.subprocess, "Popen", FakePopen)
     app = FastAPI()
     app.include_router(optimize.book_router)
-    app.include_router(optimize.alphas_router)
     return TestClient(app)
 
 
@@ -67,23 +66,10 @@ def test_catalog_default_params_universe_windows(client, tmp_path):
 
 def test_default_params_match_run_book_backtest_mid_params():
     import importlib.util
-    from backend.optimize.search import evaluate as mod   # P9.6: thư viện run.py nằm ở search/evaluate.py
-    from backend.optimize.book.build import CANDIDATES
+    from backend.jobs import evaluate as mod   # P9.6: thư viện run.py nằm ở search/evaluate.py
+    from backend.strategies import CANDIDATES
     for c in CANDIDATES:
         assert optimize.default_params(c["space"]) == mod._mid_params(c, {})
-
-
-def test_alphas_endpoint(client, tmp_path, monkeypatch):
-    r = client.get("/api/studio/alphas")
-    assert r.status_code == 200 and r.json()["registry"] is None and r.json()["book"] is None and r.json()["registry_status"] == []
-    assert r.json()["engine"]["main"]["needs_rebuild"] is None and r.json()["engine"]["explore"]["needs_rebuild"] is None   # chưa có sổ
-    os.makedirs(tmp_path / "data" / "alpha")
-    (tmp_path / "data" / "alpha" / "registry.json").write_text(json.dumps({"alphas": [1]}))
-    (tmp_path / "book.json").write_text(json.dumps({"status": "READY"}))
-    j = client.get("/api/studio/alphas").json()
-    assert j["registry"] == {"alphas": [1]} and j["book"] == {"status": "READY"}
-    (tmp_path / "book.json").write_text("{oops")
-    assert client.get("/api/studio/alphas").status_code == 500
 
 
 # ─── §2 nhãn + lọc kind ─────────────────────────────────────────────────────
@@ -100,14 +86,12 @@ def test_job_labels_and_kind_filter(client):
     _meta_job("book_backtest", bt, "20260101_000001_a1b2c3")
     _meta_job("book_backtest", {"start": "2025-01-01", "end": "2025-02-01"}, "20260101_000002_a1b2c3")
     _meta_job("book_wfa", {"candidates": ["trend_long", "trend_short"], "n": 3}, "20260101_000003_a1b2c3")
-    _meta_job("book_build", {"only": ["trend_long"], "n": 24}, "20260101_000004_a1b2c3")
     jobs = client.get("/api/studio/book/jobs").json()["jobs"]
     by = {j["id"]: j for j in jobs}
     assert by["20260101_000001_a1b2c3"]["label"] == "Backtest · breakout_4h_long, breakout_4h_short · BTC,SOL · 2025-03-01→2025-04-30"
     lab = by["20260101_000002_a1b2c3"]["label"]
     assert lab.startswith("Backtest · sổ ") and lab.endswith("/alpha/book.json · cả vũ trụ · 2025-01-01→2025-02-01") and "alphas/" not in lab
     assert by["20260101_000003_a1b2c3"]["label"].startswith("WFA · trend_long, trend_short (n=3)")
-    assert by["20260101_000004_a1b2c3"]["label"] == "Dựng sổ · trend_long · n=24"
     only_bt = client.get("/api/studio/book/jobs?kind=book_backtest").json()["jobs"]
     assert [j["kind"] for j in only_bt] == ["book_backtest"] * 2 and only_bt[0]["id"] > only_bt[1]["id"]
     assert [j["id"] for j in client.get("/api/studio/book/jobs?kind=book_wfa").json()["jobs"]] == ["20260101_000003_a1b2c3"]
@@ -206,48 +190,15 @@ def test_validate_book_strategies_validation(market, monkeypatch, tmp_path):
         vb.run_job({"strategies": [{"id": "t_long", "configs": [{}]}], "candidates": "t_long"})
 
 
-# ─── §6 stage_a ─────────────────────────────────────────────────────────────
-def test_stage_a_rows_helper():
-    bsb = _load_script("build_strategy_book")
-    neg = float("-inf")
-    dev1 = {"ret_pct": 5.0, "mdd_pct": 2.0, "trades": 40, "symbols_positive": 5, "sharpe": 1.2, "win_pct": 50, "daily": [1, 2], "by_symbol": {}}
-    rows = bsb.stage_a_rows({"a": [{"params": {"k": 1}, "dev1": dev1, "score": 2.5}, {"params": {"k": 2}, "dev1": dev1, "score": neg}]})
-    assert rows == {"a": [{"params": {"k": 1}, "dev1": {k: dev1[k] for k in ("ret_pct", "mdd_pct", "trades", "symbols_positive", "sharpe")},
-                           "score": 2.5, "passed": True},
-                          {"params": {"k": 2}, "dev1": rows["a"][1]["dev1"], "score": None, "passed": False}]}
-    json.dumps(rows, allow_nan=False)
-
-
-def test_build_strategy_book_result_json_has_stage_a_for_every_config(market, monkeypatch, tmp_path):
-    _small_book(monkeypatch)
-    job_dir = tmp_path / "job"
-    os.makedirs(job_dir, exist_ok=True)   # writer chỉ ghi khi thư mục job tồn tại (launch tạo sẵn)
-    monkeypatch.setenv("NORA_JOB_DIR", str(job_dir))
-    bsb = _load_script("build_strategy_book")
-    bsb.run_job({"workers": 2, "per_worker_mb": 300, "n": 4, "out": str(tmp_path / "alphas")})
-    res = json.loads((job_dir / "result.json").read_text())
-    assert set(res["stage_a"]) == {"t_long", "t_short"}
-    assert len(res["stage_a"]["t_long"]) == 2 and len(res["stage_a"]["t_short"]) == 2          # lưới nhỏ hơn n=4 -> thử hết
-    for rows in res["stage_a"].values():
-        assert [r["score"] for r in rows if r["score"] is not None] == sorted((r["score"] for r in rows if r["score"] is not None), reverse=True)
-        for r in rows:
-            assert set(r) == {"params", "dev1", "score", "passed"} and set(r["dev1"]) == {"ret_pct", "mdd_pct", "trades", "symbols_positive", "sharpe"}
-            assert r["passed"] == (r["score"] is not None)
-    # khớp stage_a.json (đầy đủ) về số cấu hình và tham số
-    full = json.loads(sorted(pathlib.Path(alpha_run_dir("book")).glob("*/stage_a.json"))[-1].read_text())
-    for cid, rows in full.items():
-        assert [r["params"] for r in rows] == [r["params"] for r in res["stage_a"][cid]]
-
-
 # ─── P9.15: engine_version của sổ + needs_rebuild; P9.14: trạng thái + nguồn gốc alpha registry ──────────────
 def test_engine_version_is_stable_and_detects_engine_source_change(tmp_path, monkeypatch):
-    from backend.optimize.book import registry as ev
+    from backend import strategies as ev
     a = ev.engine_version()
     assert a == ev.engine_version() and len(a["hash"]) == 64 and a["files"] > 0
     # custom_run / edu_precompute (sản phẩm của phiên alpha) KHÔNG nằm trong mã engine
     names = [rel for rel, _ in ev._engine_files()]
-    assert "backend/core/strategy.py" in names and "backend/optimize/search/evaluate.py" in names   # P15: core/backtest.py thay bằng core/strategy.py; thư viện run.py + tick_run nằm ở search/evaluate.py
-    assert "backend/core/indicator.py" in names and "backend/core/signal.py" in names   # P9.10b: cột + tín hiệu của engine cũng là mã engine
+    assert "backend/nautilus/strategy.py" in names and "backend/jobs/evaluate.py" in names   # P15: core/backtest.py thay bằng core/strategy.py; thư viện run.py + tick_run nằm ở search/evaluate.py
+    assert "backend/signal/indicator.py" in names and "backend/signal/nodes.py" in names   # P9.10b: cột + tín hiệu của engine cũng là mã engine
     assert not any(n.endswith(("custom_run.py", "edu_precompute.py")) for n in names)
     # đổi một file engine -> hash đổi (dùng thư mục giả)
     fake = tmp_path / "nora"
@@ -257,10 +208,10 @@ def test_engine_version_is_stable_and_detects_engine_source_change(tmp_path, mon
     monkeypatch.setattr(ev, "NORA_DIR", str(fake))
     ev._cache.update(sig=None, value=None, at=0.0)
     h1 = ev.engine_version()["hash"]
-    (fake / "backend/core/strategy.py").write_text("x = 2\n")
+    (fake / "backend/nautilus/strategy.py").write_text("x = 2\n")
     assert ev.engine_version()["hash"] != h1
     h2 = ev.engine_version()["hash"]
-    (fake / "backend/core/custom_run.py").write_text("y = 1\n")       # chỉ .py trong core/ mới tính -> custom_run.py nằm ngoài list?
+    (fake / "backend/signal/custom_run.py").write_text("y = 1\n")       # chỉ .py trong core/ mới tính -> custom_run.py nằm ngoài list?
     ev._cache.update(sig=None, value=None, at=0.0)
     (fake / "backend/alpha").mkdir(parents=True, exist_ok=True)
     h3 = ev.engine_version()["hash"]
@@ -274,7 +225,7 @@ def test_engine_version_is_stable_and_detects_engine_source_change(tmp_path, mon
 def test_engine_hash_tracks_strategy_ir_not_comments(tmp_path, monkeypatch):
     import shutil
     from backend.alpha.compile import strategies_dir
-    from backend.optimize.book import registry as ev
+    from backend import strategies as ev
     d = tmp_path / "strategies"
     shutil.copytree(strategies_dir(), d, ignore=shutil.ignore_patterns("__pycache__"))
     monkeypatch.setenv("NORA_STRATEGIES_DIR", str(d))
@@ -292,13 +243,13 @@ def test_engine_hash_tracks_strategy_ir_not_comments(tmp_path, monkeypatch):
     assert ev.engine_version()["hash"] != h0
     ev._cache.update(sig=None, value=None, at=0.0)
     inputs = ev.engine_inputs()
-    assert "strategy:kema_long" in inputs and "backend/core/strategy.py" in inputs
+    assert "strategy:kema_long" in inputs and "backend/nautilus/strategy.py" in inputs
     st = ev.book_engine_status({"engine_version": {"hash": "0" * 64, "commit": "abc"}})
-    assert "strategy:" not in st["reason"] and "kema_long" in st["reason"] and "backend/core/strategy.py" in st["reason"]
+    assert "strategy:" not in st["reason"] and "kema_long" in st["reason"] and "backend/nautilus/strategy.py" in st["reason"]
 
 
 def test_book_engine_status_missing_same_and_changed():
-    from backend.optimize.book.registry import REASON_NO_VERSION, book_engine_status, engine_version
+    from backend.strategies import REASON_NO_VERSION, book_engine_status, engine_version
     cur = engine_version()
     assert book_engine_status(None)["needs_rebuild"] is None
     old = book_engine_status({"status": "READY"})
@@ -309,37 +260,3 @@ def test_book_engine_status_missing_same_and_changed():
     assert stale["needs_rebuild"] is True and "abc1234" in stale["reason"] and "00000000" in stale["reason"]
 
 
-def test_build_book_stamps_engine_version_and_api_reports_needs_rebuild(client, tmp_path, monkeypatch):
-    from backend.optimize.book import registry as reg
-    from backend.optimize.book.registry import REASON_NO_VERSION, engine_version
-    adir = tmp_path / "data" / "alpha"
-    os.makedirs(adir / "explore")
-    # sổ cũ (không có engine_version) -> cần dựng lại, lý do rõ ràng
-    (tmp_path / "book.json").write_text(json.dumps({"status": "READY_FOR_TESTNET"}))
-    (adir / "explore" / "book.json").write_text(json.dumps({"status": "EXPLORE_DEMO", "engine_version": engine_version()}))
-    e = client.get("/api/studio/alphas").json()["engine"]
-    assert e["main"]["needs_rebuild"] is True and e["main"]["reason"] == REASON_NO_VERSION
-    assert e["explore"]["needs_rebuild"] is False and e["current"]["hash"] == engine_version()["hash"]
-    # build_book (đường duy nhất của write_book / write_explore_book / xuất bản phễu) đóng dấu engine_version hiện hành
-    import inspect
-    assert "engine_version()" in inspect.getsource(reg.build_book) and "engine_version()" in inspect.getsource(reg.build_registry)
-    # xuất bản sổ giữ nguyên engine_version lúc dựng và trả trạng thái
-    src, dst = tmp_path / "src", tmp_path / "dst"
-    os.makedirs(src)
-    (src / "book.json").write_text(json.dumps({"status": "READY_FOR_TESTNET", "strategies": [], "engine_version": {**engine_version(), "hash": "1" * 64}}))
-    out = reg.publish_book(str(src), str(dst))
-    assert out["engine"]["needs_rebuild"] is True and json.loads((dst / "book.json").read_text())["engine_version"]["hash"] == "1" * 64
-
-
-def test_registry_provenance_shows_status_and_note():
-    from backend.routes.optimize import registry_provenance
-    assert registry_provenance(None) == []
-    reg = {"generated_at": 1, "source_optimization": "/x/_cache/optimize/20261001_1440", "code": {"commit": "2d4698f96e14", "dirty_backend": True},
-           "alphas": [{"alpha_id": "trend_long_perp__SOL", "status": "retired", "data": {"exchange": "binance_usdm"},
-                       "revalidation": {"reason": "S3.positive_ratio: Tỉ lệ fold lãi < 60%", "checked_at": 5}},
-                      {"alpha_id": "x__ETH", "data": {}}]}
-    rows = {r["alpha_id"]: r for r in registry_provenance(reg)}
-    sol = rows["trend_long_perp__SOL"]
-    assert sol["status"] == "retired" and "nghỉ hưu" in sol["status_label"] and sol["status_note"].startswith("S3.positive_ratio") and sol["checked_at"] == 5
-    assert "2d4698f" in sol["provenance"] and "binance_usdm" in sol["provenance"] and "20261001_1440" in sol["provenance"] and sol["needs_rebuild"] is True
-    assert rows["x__ETH"]["status"] is None and rows["x__ETH"]["status_note"] == "chưa kiểm lại bằng engine hiện hành"

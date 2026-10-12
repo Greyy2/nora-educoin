@@ -65,10 +65,13 @@ class Ema(SimpleAlgorithm):
 
 def _run(code, **kw):
     """Đúng đường nút Chạy: build_job('custom_backtest') -> tasks.run_custom."""
-    from backend.optimize.process import tasks
+    from backend.jobs import tasks
     from backend.routes import process as job_routes
     cfg = {"start": "2023-11-22", "end": "2023-12-18", "symbols": ["AAA", "BBB", "CCC"], "initial_capital": 10_000, **kw, "code": code}
-    tasks._clear_data_caches()
+    from backend.data.data import clear_caches
+    from backend.signal.compute import data_cache_clear
+    clear_caches()
+    data_cache_clear()
     return tasks.run_custom(job_routes.build_job("custom_backtest", cfg))
 
 

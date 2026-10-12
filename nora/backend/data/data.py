@@ -100,11 +100,6 @@ def normalize_symbol(symbol: str) -> str:
     return s
 
 
-def get_base_symbol(symbol: str) -> str:
-    """Lấy base symbol: 'BTC-USDT-SWAP' -> 'BTC'."""
-    return normalize_symbol(symbol).split("-")[0]
-
-
 def data_symbol(symbol: str, market: str = "perp") -> Tuple[str, str]:
     """Ký hiệu dữ liệu thực dùng cho engine: 'BTC' -> ('BTC@perp', 'perp')."""
     base = base_name(symbol)
@@ -611,7 +606,6 @@ def strategy_frames(symbols: List[str], timeframe: str, end: int, drop_filled: b
     return out
 
 
-
 # ══════════════════════════════════════════════════════════════════════════
 # 4. CỔNG CHẤT LƯỢNG (CHỈ ĐỌC VERDICT TRONG MANIFEST)
 # ══════════════════════════════════════════════════════════════════════════
@@ -706,21 +700,21 @@ class EngineData:
 
     def shared_plan(self, eng: Any) -> Optional[Dict[str, Any]]:
         try:
-            from backend.optimize.search.evaluate import plan
+            from backend.jobs.evaluate import plan
             return plan(eng)
         except ImportError:
             return None
 
     def shared_load(self, out_dir: str, plan_dict: Dict[str, Any]) -> Any:
         try:
-            from backend.optimize.search.evaluate import load
+            from backend.jobs.evaluate import load
             return load(out_dir, plan_dict)
         except ImportError:
             return None
 
     def shared_fill(self, out_dir: str, pe: Any, eng: Any, plan_dict: Dict[str, Any]) -> Any:
         try:
-            from backend.optimize.search.evaluate import fill
+            from backend.jobs.evaluate import fill
             return fill(out_dir, pe, eng, plan_dict)
         except ImportError:
             return None

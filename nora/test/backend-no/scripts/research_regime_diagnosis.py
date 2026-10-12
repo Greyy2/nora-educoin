@@ -1,3 +1,4 @@
+# Đã chuyển khỏi test/scripts (P17 T1-B5c): phụ thuộc phễu / job regime_report đã gỡ; bản gốc ở tag pre-p17-research.
 """Chẩn đoán vì sao regime (P2.4/P2.5) chưa đạt: tách từng nguyên nhân bằng thí nghiệm có đối chứng trên dữ liệu thật (khung 15m, preset).
 
   A. Danh mục: tắt / bảng tĩnh / bảng tĩnh không cầu chì / chỉ cầu chì            -> phần lỗ do lọc vào lệnh vs do cầu chì
@@ -29,16 +30,16 @@ HOUR = 3_600_000
 
 
 def _strategies(items, rpt, regime_of):
-    from backend.optimize.book.build import lift_frames
+    from backend.strategies import lift_frames
     from backend.models.params import materialize
-    from backend.optimize.book.build import CANDIDATES
+    from backend.strategies import CANDIDATES
     by_id = {c["id"]: c for c in CANDIDATES}
     return [materialize(by_id[cid], lift_frames(by_id[cid], prm, TF), regime=regime_of(cid) or False, stop_fill="level",
                         risk_per_trade_pct=rpt) for cid, prm in items]
 
 
 def bt(items, symbols, start, end, rpt, regime_of=lambda cid: None):
-    from backend.optimize.search.evaluate import run
+    from backend.jobs.evaluate import run
     from backend.models.params import RISK
     out = run([], symbols, start, end, rpt, "level", RISK, extra_strategies=_strategies(items, rpt, regime_of), base_frame=TF)
     by = {}
@@ -57,13 +58,13 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=os.path.join(NORA_ROOT, "data", "_cache", "research", "regime_diagnosis.json"))
     a = ap.parse_args()
-    from backend.optimize.search.evaluate import WARMUP
+    from backend.jobs.evaluate import WARMUP
     from backend.metrics import regime as rg
     from backend.metrics.regime import OBSERVE, by_regime, learn_map, trade_regime
     from backend.models.params import REGIME_MAP
-    from backend.optimize.book.build import perp_symbols
-    from backend.optimize.funnel.stages import compute_windows
-    from backend.optimize.process.tasks import _book_items
+    from backend.strategies import perp_symbols
+    from backend.XXstages import compute_windows
+    from backend.jobs.tasks import _book_items
     t0 = time.time()
     symbols = perp_symbols()
     w = compute_windows(symbols)

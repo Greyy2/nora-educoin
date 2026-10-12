@@ -11,28 +11,34 @@ os.environ.setdefault("NORA_DATA_CACHE_MB", "1024")
 
 import contextlib
 import hashlib
+import heapq
 import io
+import itertools
 import json
+import math
 import shutil
+import sqlite3
+import threading
 import time
-from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, NamedTuple, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, Iterator, List, NamedTuple, Optional, Set, Tuple
 
 import numpy as np
 import pandas as pd
 
 from backend.models.params import DAY_MS as DAY
-from backend.alpha.dsl.strategy import display_name
+from backend.alpha.plan import display_name
 from backend.data.data import catalog_digest, default_catalog_path, read_manifest
 
 if TYPE_CHECKING:
     from backend.nautilus.engine import BacktestEngine, PortfolioEngine
-from backend.metrics.metrics import daily_stats, flat_extras, portfolio_metrics, series_metrics, sortino
-from backend.metrics.trades import trade_rows, trade_stats
+from backend.metrics.metrics import portfolio_metrics
 from backend.models.models import NORA_DIR
+from backend.jobs.workers import pool_imap_bounded
+from backend.models.storage import json_default
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Job backtest (POST /api/studio/book/backtest -> optimize/process/process.py -> run_job): một lần PortfolioEngine cho sổ chiến lược.
+# Job backtest (POST /api/studio/book/backtest -> jobs/runner.py -> run_job): một lần PortfolioEngine cho sổ chiến lược.
 #
 # Tham số (run_job params; mặc định ở DEFAULTS):
 #   book        đường dẫn book.json (mặc định data/alpha/book.json) — chiến lược + tham số + rủi ro/lệnh + giới hạn danh mục của sổ đã chốt
@@ -41,22 +47,35 @@ from backend.models.models import NORA_DIR
 #   risk_per_trade  % vốn rủi ro mỗi lệnh (mặc định: của sổ, hoặc mức chuẩn 0,5%); stop_fill level|extreme (mặc định level)
 #   symbols     perp ("BTC", "BTC@perp") HOẶC DEX ("AERO", "dex:AERO"; spot, chỉ chân LONG) — không trộn hai loại; DEX không bị ép "@perp"
 #   data        candle (mặc định: engine nến như mọi tài sản) | tick (chỉ DEX: mỗi swap on-chain là một bước khớp lệnh, chi phí AMM đúng trên dự trữ pool —
-#               optimize/search/evaluate.run_tick); latency_ms / gas_usd chỉ cho data=tick (mặc định theo mạng của pool: NETWORKS[mạng]); capital vốn ban đầu
+#               jobs/evaluate.py.run_tick); latency_ms / gas_usd chỉ cho data=tick (mặc định theo mạng của pool: NETWORKS[mạng]); capital vốn ban đầu
 #   out         (tuỳ chọn) ghi kết quả JSON ra đường dẫn này
 # Kết quả: số đo danh mục (portfolio_metrics) + by_symbol/by_strategy + lệnh + đường vốn (<= 2000 điểm) -> $NORA_JOB_DIR/result.json.
 # ══════════════════════════════════════════════════════════════════════════
 
 
-WARMUP = 20 * DAY            # bằng build_strategy_book.WARMUP (chỉ số đo từ start trở đi)
+WARMUP = 20 * DAY            # nạp thêm 20 ngày trước start để chỉ báo ấm (chỉ số đo từ start trở đi)
+# Đo 01/10/2026 (dữ liệu dùng chung qua mmap, 8 tài sản perp, dev1 ≈ 14 tháng): VmHWM 560–590 MB mỗi worker (đã gồm trang mmap
+# dùng chung ~440 MB/giai đoạn; phần riêng ~150 MB) × 1,3 dự phòng. Đo lại bằng dòng `đỉnh RAM/worker`, ghi đè bằng per_worker_mb
+# khi kích thước dữ liệu hoặc ngân sách cache đổi; trần cgroup (run_limited.sh) mới là rào cứng.
+PER_WORKER_MB = 800
+
+
+def windows(symbols):
+    """Cửa sổ dev1/dev2 (ms) theo dữ liệu thật của các tài sản: bắt đầu sau WARMUP, dev1 = 40%, dev2 đến 80%."""
+    ms = [read_manifest(s) for s in symbols]
+    start = max(int(m["start_ts"]) for m in ms) + WARMUP
+    end = min(int(m["end_ts"]) for m in ms)
+    span = end - start
+    return {"start": start, "dev1_end": start + int(span * 0.4), "dev2_end": start + int(span * 0.8), "end": end}
 MAX_DAYS = 4000
 
 
 def execute(plan, start: int, end: int, initial_capital: float, close_at_end: bool = False, loaded=None):
-    """PortfolioEngine cho một Plan (alpha/dsl/strategy.build_plan) -> (get_results(), engine). Chương trình phải đã được compile_code (đăng ký).
+    """PortfolioEngine cho một Plan (signal/compute.py.build_plan) -> (get_results(), engine). Chương trình phải đã được compile_code (đăng ký).
     loaded: threading.Event (chế độ chạy song song, xem tasks.run_parallel) — nạp dữ liệu dưới khoá toàn cục rồi báo `loaded` để lần chạy kế tiếp bắt đầu nạp
     (thứ tự nạp cố định -> bộ nhớ đệm cửa sổ của lần chạy rộng nhất phục vụ các lần sau); phần kernel chạy song song (numba nogil). Người gọi tự chuyển hướng stdout."""
     from backend.nautilus.engine import BacktestEngine, PortfolioEngine
-    from backend.alpha.dsl.strategy import RiskConfig
+    from backend.alpha.plan import RiskConfig
     BacktestEngine.MAX_BACKTEST_DAYS = max(BacktestEngine.MAX_BACKTEST_DAYS, MAX_DAYS)
     eng = PortfolioEngine(plan.symbols, plan.strategies, start - WARMUP, end, trade_start_ts=start, initial_capital=initial_capital,
                           risk=RiskConfig.from_dict(plan.risk), venue=plan.venue, close_at_end=close_at_end, base_frame=plan.base_frame,
@@ -81,10 +100,10 @@ _BENCH_CACHE: Dict[str, Dict[str, Any]] = {}
 
 def run_benchmark(program, a, plan, names: List[str], start: int, end: int, capital: float, data: Dict[str, Any], loaded=None) -> Optional[Dict[str, Any]]:
     """Benchmark "luôn long" self.set_positions(self.data.pv_close > 0, position=1) chạy qua CÙNG đường engine."""
-    from backend.alpha.dsl.strategy import FRAME_MS
+    from backend.models.params import FRAME_MS
     from backend.models.params import resolve_costs
     from backend.alpha.compile import compile_code
-    from backend.alpha.dsl.strategy import build_plan
+    from backend.alpha.plan import build_plan
     from backend.metrics.trades import daily_series
     position = {**(program.position_overrides or {}), **(a.position or {})}
     taker = resolve_costs(plan.venue, "perp", position.get("fee_rate"), position.get("slippage_rate"), position.get("maker_fee_rate"))[0]
@@ -119,7 +138,7 @@ def _mid_params(candidate, params):
 def load_items(a):
     """-> (items [(id, params)], rủi ro/lệnh mặc định, dict RiskConfig)."""
     from backend.models.params import BASE_RISK_PER_TRADE_PCT, RISK
-    from backend.optimize.book.build import BY_ID
+    from backend.strategies import BY_ID
     by_id = BY_ID
     if a.strategies:
         raw = a.strategies
@@ -148,11 +167,10 @@ def load_items(a):
 from backend.metrics.metrics import result_payload
 
 
-
 class BacktestJob(NamedTuple):
-    """Đặc tả MỘT lần backtest danh mục — dùng chung cho dựng sổ (optimize/book), WFA (wfa/wfa) và phễu (optimize/funnel).
+    """Đặc tả MỘT lần backtest danh mục — dùng chung cho dựng sổ (strategies.py), WFA (wfa/wfa) và phễu ((phễu đã gỡ)).
     items: [(id chiến lược lõi, tham số)]; window: (start, end) ms — chỉ số đo từ start, nạp thêm WARMUP trước đó; symbols None = vũ trụ
-    perp của sổ; shared_dir None = env NORA_SHARED_DATA_DIR (backend/optimize/search/evaluate.py); base_frame = khung chạy (nến mô phỏng)."""
+    perp của sổ; shared_dir None = env NORA_SHARED_DATA_DIR (backend/jobs/evaluate.py); base_frame = khung chạy (nến mô phỏng)."""
     items: List[Tuple[str, Dict[str, Any]]]
     window: Tuple[int, int]
     stop_fill: str
@@ -167,10 +185,10 @@ class BacktestJob(NamedTuple):
 def make_engine(job: BacktestJob):
     """PortfolioEngine của job (chưa nạp dữ liệu) + mốc bắt đầu đo. Khung tín hiệu nhỏ hơn khung chạy được nâng lên (params.modes.lift_frames)."""
     from backend.nautilus.engine import PortfolioEngine
-    from backend.alpha.dsl.strategy import RiskConfig
-    from backend.optimize.book.build import lift_frames
+    from backend.alpha.plan import RiskConfig
+    from backend.strategies import lift_frames
     from backend.models.params import materialize
-    from backend.optimize.book.build import perp_symbols, BY_ID
+    from backend.strategies import perp_symbols, BY_ID
     by_id = BY_ID
     regime = job.regime or {}
     strategies = [materialize(by_id[cid], lift_frames(by_id[cid], prm, job.base_frame), regime=regime.get(cid) or False,
@@ -186,15 +204,15 @@ def run(items, symbols, start, end, rpt, stop_fill, risk, extra_strategies=None,
     giả lập. close_at_end=False: giữ vị thế còn mở cuối dữ liệu (kết quả thêm `open_positions`); mặc định như backtest thường.
     venue="dex": symbols là tài sản DEX ("dex:AERO") — spot, đòn bẩy 1, chỉ chân LONG, phí pool từ manifest (builder.build_params); mặc định "cex" = perp."""
     from backend.models.params import materialize
-    from backend.optimize.book.build import BY_ID
+    from backend.strategies import BY_ID
     from backend.nautilus.engine import PortfolioEngine
-    from backend.alpha.dsl.strategy import RiskConfig
-    from backend.optimize.process.workers import peak_rss_mb
+    from backend.alpha.plan import RiskConfig
+    from backend.jobs.workers import peak_rss_mb
     by_id = BY_ID
-    from backend.optimize.book.build import lift_frames
+    from backend.strategies import lift_frames
     spot = {}
     if venue == "dex":
-        from backend.alpha.dsl import strategy as dex
+        from backend.alpha import plan as dex
         dex.require_long_legs([cid for cid, _ in items], BY_ID)
         spot = dex.SPOT_POSITION
     strategies = [materialize(by_id[cid], lift_frames(by_id[cid], prm, base_frame), regime=regime, stop_fill=stop_fill,
@@ -234,7 +252,7 @@ def run_tick(items, symbols: List[str], start: Optional[int], end: Optional[int]
     """items [(id chiến lược, tham số)], symbols = ký hiệu DEX engine ("dex:AERO"), start/end ms (None = hết độ phủ tick; cắt theo độ phủ, xem dex.tick_window)
     -> kết quả cùng lược đồ run.run. latency_ms / gas_usd None = theo mạng của pool (tạo từ NETWORKS).
     Nautilus không có AMM -> NotReady (501) ngay từ đầu (thân hàm cũ: test/backend-no)."""
-    from backend.optimize.process.process import DEX_UNSUPPORTED, NotReady
+    from backend.jobs.runner import DEX_UNSUPPORTED, NotReady
     raise NotReady(DEX_UNSUPPORTED)
 
 
@@ -243,9 +261,8 @@ def run_tick(items, symbols: List[str], start: Optional[int], end: Optional[int]
 #
 # Mọi hàm `w_*` là hàm cấp module (pickle được qua ProcessPoolExecutor), nhận một dict `job` thuần dữ liệu và trả dict thuần dữ liệu.
 # Máy chạy là PortfolioEngine DÙNG LẠI (cùng đường với build_strategy_book giai đoạn A / validate_book): không có logic mô phỏng riêng ở đây.
-# Dữ liệu giá + kernel đọc qua mmap dùng chung (backend/optimize/search/evaluate.py) khi `shared_dir` có đặt; không thì tự dựng (cùng kết quả từng bit).
+# Dữ liệu giá + kernel đọc qua mmap dùng chung (backend/jobs/evaluate.py) khi `shared_dir` có đặt; không thì tự dựng (cùng kết quả từng bit).
 # ══════════════════════════════════════════════════════════════════════════
-
 
 
 # ── Engine ──────────────────────────────────────────────────────────────────
@@ -261,188 +278,6 @@ def to_job(job: Dict[str, Any]) -> BacktestJob:
     return BacktestJob([(job["strategy"], job["params"])], (int(job["window"][0]), int(job["window"][1])), job["stop_fill"],
                        risk_dict(job["kill"]), job["rpt"], list(job["symbols"]), job.get("shared_dir"), job.get("base_frame", "1m"),
                        {job["strategy"]: rmap} if rmap else None)
-
-
-def learned_regime(job: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """Alpha regime="learn": chạy chế độ quan sát (SL level, kill tắt) trên cửa sổ HỌC (job["learn_window"], mặc định chính cửa sổ của job —
-    S1 dev1 là trong mẫu, đã tính là một lần thử riêng trong DSR/PBO) -> bảng regime của chiến lược (None = không chặn regime nào)."""
-    from backend.metrics.regime import OBSERVE, engine_by_regime, learn_map
-    obs = to_job({**job, "window": job.get("learn_window") or job["window"], "stop_fill": "level", "kill": False, "regime_map": OBSERVE})
-    eng, _ = make_engine(obs)
-    with contextlib.redirect_stdout(io.StringIO()):
-        eng.run()
-    return learn_map(engine_by_regime(eng, eng.get_results()["positions"]), [job["strategy"]])[job["strategy"]]
-
-
-def make_engine_from_dict(job: Dict[str, Any]):
-    return make_engine(to_job(job))
-
-
-def _outputs(res: Dict[str, Any], start: int, want_trades: bool) -> Dict[str, Any]:
-    """get_results() của một lần chạy -> {"metrics", "daily", "daily_start", "trades"} (số đo phẳng của phễu, không gồm chuỗi ngày)."""
-    pm = portfolio_metrics(res, start)
-    daily = pm["daily"]
-
-    first = next((c["time"] for c in res["equity_curve"] if c["time"] >= start), None)
-    rows = trade_rows(res["positions"])
-    ds = daily_stats(daily)
-    m = {
-        "ret_pct": pm["ret_pct"], "mdd_pct": pm["mdd_pct"], "sharpe": pm["sharpe"], "sortino": round(sortino(daily) or 0.0, 2),
-        "trades": pm["trades"], "symbols_positive": pm["symbols_positive"], **trade_stats(rows),
-        "sr_daily": round(ds["sr_daily"], 6), "skew": round(ds["skew"], 4), "kurt": round(ds["kurt"], 4), "n_days": ds["n_days"],
-        "fees_usd": pm["fees_usd"], "funding_usd": pm["funding_usd"], "halted": bool(pm["halted_at"]),
-        "by_symbol": pm["by_symbol"],
-        "mdd_intrabar_pct": pm["mdd_intrabar_pct"], "mdd_daily_pct": pm["mdd_daily_pct"], "mdd_basis": "intrabar", **flat_extras(pm["stats"]),
-    }
-    return {"metrics": m, "daily": daily, "daily_start": f"{pd.Timestamp(int(first), unit='ms'):%Y-%m-%d}" if first is not None else None,
-            "trades": rows if want_trades else None}
-
-
-def run_backtest(job: Dict[str, Any], want_trades: bool = False) -> Dict[str, Any]:
-    """Một lần PortfolioEngine -> {"metrics", "daily", "daily_start", "trades"}. Alpha regime="learn": học bảng regime trước (learned_regime)."""
-    if job.get("regime_mode") == "learn":
-        job = {**job, "regime_map": learned_regime(job)}
-    eng, start = make_engine_from_dict(job)
-    with contextlib.redirect_stdout(io.StringIO()):
-        eng.run()
-    out = _outputs(eng.get_results(), start, want_trades)
-    if job.get("regime_mode") == "learn":
-        out["metrics"]["regime_blocked"] = (job["regime_map"] or {}).get("blocked", [])
-    return out
-
-
-def signal_key(job: Dict[str, Any]) -> str:
-    """Khoá nhóm cho run_many: cùng chiến lược + cùng cây tín hiệu sau khi thay tham số + cùng đơn vị thoát / khung ATR + cùng cửa sổ/tài sản/
-    kill/stop_fill -> dữ liệu và tín hiệu dùng chung; chỉ tham số vị thế/thoát lệnh khác nhau."""
-    import json
-    from backend.models.params import materialize
-    from backend.optimize.book.build import BY_ID
-    by_id = BY_ID
-    st = materialize(by_id[job["strategy"]], job["params"], stop_fill=job["stop_fill"], risk_per_trade_pct=job["rpt"])
-    pos = st["position"]
-    return json.dumps([job["strategy"], st["tree"], st.get("stop"), pos.get("exit_unit"), pos.get("atr_frame"), pos.get("atr_period"),
-                       job["window"], job["kill"], list(job["symbols"]), job.get("base_frame", "1m"), job.get("regime_mode")],
-                      sort_keys=True, default=str)
-
-
-def run_backtest_many(jobs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Nhiều alpha CÙNG signal_key: nạp dữ liệu + tính tín hiệu một lần (engine của job đầu), chạy các bộ tham số vị thế bằng
-    PortfolioEngine.run_many (trùng từng bit với chạy riêng — test_kernel_parity / test_funnel)."""
-    from backend.models.params import materialize
-    from backend.optimize.book.build import BY_ID
-    if jobs[0].get("regime_mode"):   # bảng regime học riêng từng alpha -> tín hiệu vào khác nhau, chạy riêng
-        return [run_backtest(j, bool(j.get("trades"))) for j in jobs]
-    by_id = BY_ID
-    eng, start = make_engine_from_dict(jobs[0])
-    with contextlib.redirect_stdout(io.StringIO()):
-        eng.load_data()
-        results = eng.run_many([materialize(by_id[j["strategy"]], j["params"], stop_fill=j["stop_fill"], risk_per_trade_pct=j["rpt"])["position"]
-                                for j in jobs])
-    return [_outputs(r, start, bool(j.get("trades"))) for r, j in zip(results, jobs)]
-
-
-def base_job(strategy: str, params: Dict[str, Any], window, stop_fill: str, kill: bool, rpt: float, symbols, shared_dir,
-             base_frame: str = "1m", learn_window=None) -> Dict[str, Any]:
-    """params có thể kèm khoá regime ("learn") -> tách ra regime_mode; learn_window: cửa sổ học bảng regime (mặc định = window)."""
-    from backend.optimize.search.generate import split_regime
-    params, rmode = split_regime(params)
-    job = {"strategy": strategy, "params": params, "window": [int(window[0]), int(window[1])], "stop_fill": stop_fill, "kill": kill,
-           "rpt": rpt, "symbols": list(symbols), "shared_dir": shared_dir, "base_frame": base_frame}
-    if rmode:
-        job["regime_mode"] = rmode
-        if learn_window is not None:
-            job["learn_window"] = [int(learn_window[0]), int(learn_window[1])]
-    return job
-
-
-# ── Monte Carlo (DÙNG LẠI backend/carlo/carlo.py) ─────────────────────
-def _mc_kwargs(scale: float) -> Dict[str, Any]:
-    from backend.optimize.funnel import stages as gates
-    return dict(simulations=gates.S4_MIN_SIMULATIONS, block_days=gates.S4_BLOCK_DAYS, horizon_days=gates.S4_HORIZON_DAYS,
-                ruin_threshold_pct=gates.S4_RUIN_THRESHOLD_PCT, seed=gates.S4_SEED, scale=scale,
-                max_ruin_pct=gates.S4_MAX_RUIN_PCT, stress_max_mdd_pct=gates.S4_STRESS_MAX_MDD_PCT)
-
-
-def _gate_of(simulations: int, ruin: float, stress) -> Dict[str, Any]:
-    from backend.optimize.funnel import stages as gates
-    from backend.carlo.carlo import evaluate_mc_gate
-    return evaluate_mc_gate(simulations, ruin, stress, min_simulations=gates.S4_MIN_SIMULATIONS, max_ruin_pct=gates.S4_MAX_RUIN_PCT,
-                            ruin_threshold_pct=gates.S4_RUIN_THRESHOLD_PCT, stress_max_mdd_pct=gates.S4_STRESS_MAX_MDD_PCT)
-
-
-def mc_check(series, scale: float, shock: Optional[Dict[str, float]] = None, turnover: Optional[float] = None) -> Dict[str, Any]:
-    """MC dạng gate (không điểm vẽ) trên chuỗi ngày × scale -> {"passed", "p_mdd_ge_30", "stress_max_mdd", "gate", "summary"}.
-    shock (metrics["shock"] của S3): thêm kịch bản trend thẳng đứng (lỗ nhân scale).
-    turnover (metrics["turnover_daily"] của S3, lần vốn/ngày ĐO TỪ LỆNH): cho kịch bản cost_x2; None -> cost_x2 "không đo được", cổng không đạt."""
-    from backend.carlo.carlo import extra_cost_from_turnover, run_monte_carlo_daily_gate
-    r = run_monte_carlo_daily_gate(series, **_mc_kwargs(scale), shock=shock, extra_cost_daily=extra_cost_from_turnover(turnover))
-    gate = _gate_of(r["simulations"], r["p_mdd_ge_ruin_pct"], r["stress"])
-    return {"passed": bool(gate["passed"]), "p_mdd_ge_30": r["p_mdd_ge_ruin_pct"],
-            "stress_max_mdd": max((x["mdd_pct"] for x in r["stress"] if x["mdd_pct"] is not None), default=None), "gate": gate,
-            "summary": {k: r[k] for k in ("median_ret_pct", "p05_ret_pct", "mdd_p50_pct", "mdd_p95_pct", "p_mdd_ge_ruin_pct", "simulations")}}
-
-
-def mc_detail(series, scale: float, basis: str = "extreme", shock: Optional[Dict[str, float]] = None,
-              turnover: Optional[float] = None) -> Dict[str, Any]:
-    """MC chi tiết (quạt, histogram, kịch bản cực xấu có đường vẽ) + gate theo ngưỡng của phễu. Ghi vào mc/<alpha_id>.json."""
-    from backend.carlo.carlo import extra_cost_from_turnover, run_monte_carlo_daily_detail
-    out = run_monte_carlo_daily_detail(series, **_mc_kwargs(scale), shock=shock, extra_cost_daily=extra_cost_from_turnover(turnover))
-    out["gate"] = _gate_of(out["summary"]["simulations"], out["summary"]["p_mdd_ge_ruin_pct"], out["stress"])
-    out["params"] = {**out["params"], "basis": basis}
-    return out
-
-
-# ── WFA tham số cố định ─────────────────────────────────────────────────────
-def fold_job_plan(folds: List[Dict[str, int]]) -> List[Dict[str, Any]]:
-    from backend.models.params import iso_date
-    return [{"fold": i + 1, "train": [f["train_start_ts"], f["train_end_ts"]], "test": [f["test_start_ts"], f["test_end_ts"]],
-             "train_iso": [iso_date(f["train_start_ts"]), iso_date(f["train_end_ts"])],
-             "test_iso": [iso_date(f["test_start_ts"]), iso_date(f["test_end_ts"])]} for i, f in enumerate(folds)]
-
-
-def run_wfa(strategy: str, params: Dict[str, Any], folds: List[Dict[str, Any]], symbols, rpt: float, shared_dir: Optional[str],
-            base_frame: str = "1m") -> Dict[str, Any]:
-    """Mỗi fold: IS = backtest cửa sổ train (SL level, kill tắt); OOS = backtest cửa sổ test (SL extreme = khớp bi quan, kill BẬT).
-    Cùng quy ước validate_book với một cấu hình duy nhất (không chọn lại tham số). Cơ sở kết luận là OOS extreme."""
-    out = []
-    for f in folds:
-        is_r = run_backtest(base_job(strategy, params, f["train"], "level", False, rpt, symbols, shared_dir, base_frame))
-        oos = run_backtest(base_job(strategy, params, f["test"], "extreme", True, rpt, symbols, shared_dir, base_frame, learn_window=f["train"]),
-                           want_trades=True)   # regime="learn": bảng regime học trên train của fold
-        out.append({"fold": f["fold"], "train": f["train_iso"], "test": f["test_iso"], "is_ret_pct": is_r["metrics"]["ret_pct"],
-                    "is_trades": is_r["metrics"]["trades"], "oos": oos["metrics"], "daily": oos["daily"],
-                    "daily_start": oos["daily_start"] or f["test_iso"][0], "trades": oos["trades"]})
-    return {"folds": out}
-
-
-def aggregate_wfa(folds: List[Dict[str, Any]], rpt: Optional[float] = None) -> Dict[str, Any]:
-    """-> {"summary" (cho evaluate_s3), "metrics" (stage_metrics S3), "series" (chuỗi ngày OOS nối), "trades" (có cột fold), "daily" (theo fold)}.
-    rpt (rủi ro/lệnh lúc chạy OOS): metrics["shock"] = vị thế ngược chiều lớn nhất (carlo.vertical_exposure) cho kịch bản trend thẳng đứng."""
-    n = len(folds)
-    series = [x for f in folds for x in f["daily"]]
-    trades = [{**t, "fold": f["fold"]} for f in folds for t in (f["trades"] or [])]
-    positive = sum(1 for f in folds if f["oos"]["ret_pct"] > 0)
-    compounded = round(float((np.prod(1.0 + np.asarray(series, dtype=float)) - 1.0) * 100), 2) if series else 0.0
-    is_avg = round(sum(f["is_ret_pct"] for f in folds) / n, 2) if n else None
-    from backend.wfa.wfa import fold_stats
-    fs = fold_stats([f["oos"]["ret_pct"] for f in folds], [f["oos"]["trades"] > 0 for f in folds])
-    summary = {"folds": n, "positive_ratio": fs["positive_ratio"], "compounded_oos_ret_pct": compounded,
-               "worst_fold_mdd": max((f["oos"]["mdd_pct"] for f in folds), default=0.0), "is_ret_avg": is_avg,
-               "traded_folds": fs["traded_folds"], "fold_t": fs["fold_t"], "oos_ex_best_pct": fs["oos_ex_best_pct"]}
-    metrics = {**series_metrics(series, trades), "folds": n, "folds_profitable": positive, "positive_ratio": round(summary["positive_ratio"], 4),
-               "traded_folds": fs["traded_folds"], "fold_t": fs["fold_t"], "oos_ex_best_pct": fs["oos_ex_best_pct"],
-               "worst_fold_mdd": summary["worst_fold_mdd"], "is_ret_avg": is_avg,
-               "fold_detail": [{"fold": f["fold"], "train": f["train"], "test": f["test"], "is_ret_pct": f["is_ret_pct"],
-                                "oos_ret_pct": f["oos"]["ret_pct"], "oos_mdd_pct": f["oos"]["mdd_pct"], "trades": f["oos"]["trades"],
-                                "halted": f["oos"]["halted"]} for f in folds]}
-    from backend.carlo.carlo import measure_turnover
-    tv = measure_turnover(None if any(f["trades"] is None for f in folds) else trades, len(series))   # vòng quay vốn đo từ lệnh OOS -> cost_x2 của MC
-    metrics["turnover_daily"], metrics["turnover_note"] = tv["turnover_daily"], tv["note"]
-    if rpt is not None:
-        from backend.carlo.carlo import vertical_exposure
-        metrics["shock"] = vertical_exposure(trades, rpt)
-    daily = [{"fold": f["fold"], "start": f["daily_start"], "rets": f["daily"]} for f in folds]
-    return {"summary": summary, "metrics": metrics, "series": series, "trades": trades, "daily": daily}
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -465,7 +300,7 @@ def candidates_from_report(stage_a, report, n, include_rejected, only=None):
 
 
 def candidates_from_ids(ids, n, seed):
-    from backend.optimize.book.build import BY_ID, configs
+    from backend.strategies import BY_ID, configs
     by_id = BY_ID
     missing = [i for i in ids if i not in by_id]
     if missing:
@@ -475,7 +310,7 @@ def candidates_from_ids(ids, n, seed):
 
 def candidates_from_list(raw):
     """Cấu hình do người dùng chọn: [{"id", "configs": [{tham số}]}] -> đúng như vậy (kiểm id/khoá tham số theo `space` + `params_schema`)."""
-    from backend.optimize.book.build import BY_ID
+    from backend.strategies import BY_ID
     by_id = BY_ID
     if not isinstance(raw, list) or not raw:
         raise SystemExit("strategies phải là danh sách không rỗng")
@@ -494,12 +329,12 @@ def candidates_from_list(raw):
     return out
 
 
-from backend.optimize.process.workers import pool_map_safe
+from backend.jobs.workers import pool_map_safe
 _pool_map = pool_map_safe
 
 
 def run_wfa_job(job):
-    from backend.optimize.process.workers import peak_rss_mb, rss_anon_mb
+    from backend.jobs.workers import peak_rss_mb, rss_anon_mb
     from backend.carlo.carlo import measure_turnover, vertical_exposure
     from backend.models.params import iso_date
     eng, start = make_engine(job)
@@ -532,8 +367,6 @@ def _pool_shared(jobs, workers, label, shared_dir, store=None, stage=None, progr
         res = _pool_map(run_wfa_job, jobs, workers, label)
         exporter.cleanup()
         return res
-    from backend.optimize.funnel.storage import data_fingerprint, make_job_key
-    from backend.optimize.funnel.storage import normalize
     stage = stage or "wfa"
     results: List[Any] = [None] * len(jobs)
     keys_of: List[Optional[str]] = [None] * len(jobs)
@@ -577,7 +410,7 @@ def _pool_shared(jobs, workers, label, shared_dir, store=None, stage=None, progr
 
 
 def _strip(m):
-    from backend.optimize.book.build import strip_metrics
+    from backend.strategies import strip_metrics
     return strip_metrics(m, ("_daily_start", "by_regime", "shock", "turnover"))
 
 
@@ -776,126 +609,9 @@ def print_summary(res):
     print(f"đỉnh RAM/worker {m['peak_rss_mb']:.0f} MB (riêng {m['rss_anon_mb']:.0f} MB + mmap dùng chung)", flush=True)
 
 
-# ── Hàm worker (một job = một alpha) ────────────────────────────────────────
-def w_backtest(job: Dict[str, Any]) -> Dict[str, Any]:
-    """S1 / điểm lân cận (S3) / tính lại lệnh: job gồm các khoá của base_job + "trades": False | True | "pass" (chỉ trả lệnh khi qua S1)."""
-    from backend.optimize.funnel import stages as gates
-    try:
-        out = run_backtest(job, want_trades=bool(job.get("trades")))
-        if job.get("trades") == "pass" and not gates.evaluate_s1(out["metrics"])[0]:
-            out["trades"] = None   # alpha bị loại ở S1: chỉ lưu thống kê (lệnh tính lại khi cần)
-        return out
-    except ValueError as exc:   # tham số không hợp lệ ngoài dự kiến (S0 đã lọc phần lớn) -> loại alpha này, không sập cả lượt
-        return {"error": f"{type(exc).__name__}: {exc}"}
-
-
-def w_backtest_group(group: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """S1 theo nhóm: group = {"jobs": [job w_backtest, ...]} cùng signal_key -> danh sách kết quả cùng thứ tự (như w_backtest từng job).
-    Lỗi tham số ở một job -> chạy riêng từng job của nhóm để chỉ alpha lỗi bị loại."""
-    from backend.optimize.funnel import stages as gates
-    jobs = group["jobs"]
-    try:
-        outs = run_backtest_many(jobs)
-    except ValueError:
-        return [w_backtest(j) for j in jobs]
-    for j, out in zip(jobs, outs):
-        if j.get("trades") == "pass" and not gates.evaluate_s1(out["metrics"])[0]:
-            out["trades"] = None
-    return outs
-
-
-def w_backtest_group_rss(group: Dict[str, Any]) -> Dict[str, Any]:
-    """w_backtest_group + RAM RIÊNG của worker sau nhóm (heap, không gồm trang mmap dùng chung) -> progress.worker_peak_rss_mb."""
-    from backend.optimize.process.workers import rss_anon_mb
-    outs = w_backtest_group(group)
-    return {"outs": outs, "rss_anon_mb": round(rss_anon_mb(), 1)}
-
-
-def w_wfa(job: Dict[str, Any]) -> Dict[str, Any]:
-    """S3: job = {strategy, params, folds (fold_job_plan), symbols, rpt, shared_dir}."""
-    try:
-        return run_wfa(job["strategy"], job["params"], job["folds"], job["symbols"], job["rpt"], job["shared_dir"], job.get("base_frame", "1m"))
-    except ValueError as exc:
-        return {"error": f"{type(exc).__name__}: {exc}"}
-
-
-def w_mc(job: Dict[str, Any]) -> Dict[str, Any]:
-    """S4: job = {series, shock?}. Chi tiết ở s = 1 (ghi mc/<alpha>.json) + gate ở hệ số tối thiểu S5_S_MIN (alpha còn cứu được bằng giảm khối lượng không?)."""
-    from backend.optimize.funnel import stages as gates
-    series = job["series"]
-    if len(series) < gates.S4_MIN_DAYS:
-        return {"days": len(series), "detail": None, "min_size": None}
-    detail = mc_detail(series, 1.0, shock=job.get("shock"), turnover=job.get("turnover"))
-    mn = mc_check(series, gates.S5_S_MIN, job.get("shock"), job.get("turnover"))
-    return {"days": len(series), "detail": detail, "min_size": {"s": gates.S5_S_MIN, **{k: mn[k] for k in ("passed", "p_mdd_ge_30", "stress_max_mdd", "gate")}}}
-
-
-def w_sizing(job: Dict[str, Any]) -> Dict[str, Any]:
-    """S5: tìm nhị phân s trên chuỗi ngày nhân s; xác nhận bằng S1 + WFA + MC thật ở s (hạ s từng bước nếu trượt).
-    job = {strategy, params, series, shock?, windows {start, dev1_end}, folds, symbols, shared_dir}."""
-    from backend.optimize.funnel import stages as gates
-    from backend.optimize.funnel import stages as sizing
-    series = np.asarray(job["series"], dtype=float)
-    s_star, steps = sizing.search_scale(lambda s: mc_check(series, s, job.get("shock"), job.get("turnover")))
-    if s_star is None:
-        return {"s": None, "search": steps, "attempts": [], "reason": "scale_low"}
-    keep: Dict[str, Any] = {}
-
-    def confirm(s: float) -> Dict[str, Any]:
-        rpt = sizing.risk_for_scale(s)
-        r1 = run_backtest(base_job(job["strategy"], job["params"], (job["windows"]["start"], job["windows"]["dev1_end"]), "level", False, rpt,
-                                   job["symbols"], job["shared_dir"], job.get("base_frame", "1m")))
-        ok1 = gates.evaluate_s1(r1["metrics"])
-        att: Dict[str, Any] = {"backtest": ok1[0], "backtest_ret_pct": r1["metrics"]["ret_pct"], "backtest_mdd_pct": r1["metrics"]["mdd_pct"],
-                               "wfa": None, "mc": None, "passed": False}
-        if not ok1[0]:
-            att["reason"] = ok1[2]
-            return att
-        wfa = aggregate_wfa(run_wfa(job["strategy"], job["params"], job["folds"], job["symbols"], rpt, job["shared_dir"],
-                                    job.get("base_frame", "1m"))["folds"], rpt)
-        ok3 = gates.evaluate_s3(wfa["summary"])
-        att["wfa"] = ok3[0]
-        if not ok3[0]:
-            att["reason"] = ok3[2]
-            return att
-        if len(wfa["series"]) < gates.S4_MIN_DAYS:
-            att["mc"], att["reason"] = False, "quá ít ngày OOS"
-            return att
-        mcr = mc_check(wfa["series"], 1.0, wfa["metrics"].get("shock"), wfa["metrics"].get("turnover_daily"))
-        att["mc"], att["p_mdd_ge_30"], att["stress_max_mdd"] = mcr["passed"], mcr["p_mdd_ge_30"], mcr["stress_max_mdd"]
-        att["passed"] = bool(mcr["passed"])
-        if not att["passed"]:
-            att["reason"] = gates.evaluate_mc_checks(mcr["gate"], "S5")[2]
-        else:
-            keep.update(s=s, wfa=wfa, backtest=r1)
-        return att
-
-    s_ok, attempts = sizing.confirm_with_stepdown(s_star, confirm)
-    out: Dict[str, Any] = {"s": s_ok, "s_search": s_star, "search": steps, "attempts": attempts}
-    if s_ok is None:
-        out["reason"] = "scale_low" if (attempts and attempts[-1]["s"] - gates.S5_CONFIRM_STEP < gates.S5_S_MIN - 1e-9) else "confirm"
-        return out
-    wfa = keep["wfa"]
-    out.update({"wfa": wfa, "backtest": {"metrics": keep["backtest"]["metrics"]}, "mc_detail": mc_detail(wfa["series"], 1.0, basis="confirmed_wfa_at_s",
-                                                                                                      shock=wfa["metrics"].get("shock"),
-                                                                                                      turnover=wfa["metrics"].get("turnover_daily"))})
-    return out
-
-
-def w_holdout(job: Dict[str, Any]) -> Dict[str, Any]:
-    """S6: chạy MỘT lần ở hệ số s trên holdout: SL khớp đúng mức ("level") và giá xấu nhất ("extreme"), kill switch BẬT."""
-    win = (job["windows"]["dev2_end"], job["windows"]["end"])
-    learn = (job["windows"]["start"], job["windows"]["dev2_end"])   # regime="learn": học trên toàn bộ dữ liệu trước holdout
-    out = {}
-    for fill in ("level", "extreme"):
-        out[fill] = run_backtest(base_job(job["strategy"], job["params"], win, fill, True, job["rpt"], job["symbols"], job["shared_dir"],
-                                          job.get("base_frame", "1m"), learn_window=learn), want_trades=True)
-    return out
-
-
 # ══════════════════════════════════════════════════════════════════════════
-# Làm nóng / dọn kho dữ liệu dùng chung (backend/optimize/search/evaluate.py) cho MỌI lối chạy nhiều alpha: dựng sổ (optimize/book), WFA
-# (wfa/wfa) và phễu (optimize/funnel). Một chỗ duy nhất — trước đây mỗi lối có bản riêng.
+# Làm nóng / dọn kho dữ liệu dùng chung (backend/jobs/evaluate.py) cho MỌI lối chạy nhiều alpha: dựng sổ (strategies.py), WFA
+# (wfa/wfa) và phễu ((phễu đã gỡ)). Một chỗ duy nhất — trước đây mỗi lối có bản riêng.
 #
 # Kho không bắt buộc đầy đủ: worker thiếu nền / cột / chỉ số nào thì tự tính đúng phần đó và ghi vào kho cho worker khác (song song, không
 # nghẽn ở tiến trình cha). Làm nóng ở tiến trình cha chỉ để các worker đầu tiên không cùng tính một thứ.
@@ -944,8 +660,9 @@ def _catalog_fp(symbol: str) -> Optional[List[str]]:
 
 def plan(eng: "BacktestEngine") -> Optional[Dict[str, Any]]:
     """Khoá nền + khoá từng khung / cột / chỉ số căn cho đúng bộ dữ liệu `eng` sẽ dựng. None nếu catalog không có nến của tài sản."""
-    from backend.alpha.dsl.strategy import FRAME_MS, needs_minute_path, slot_fresh_frames
-    from backend.alpha.dsl.signal import lag_key
+    from backend.models.params import FRAME_MS
+    from backend.signal.compute import needs_minute_path, slot_fresh_frames
+    from backend.signal.nodes import lag_key
     root = default_catalog_path()
     base_fr = eng.base_frame
     fp1 = _catalog_fp(eng.symbol)
@@ -1015,7 +732,7 @@ def load_base(out_dir: str, p: Dict[str, Any]) -> Optional[Dict[str, np.ndarray]
 def load(out_dir: str, p: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Dict giống PortfolioEngine._build_symbol_data: nền là view mmap chỉ đọc, cột = giá trị khung (mmap) căn theo chỉ số dùng chung.
     None nếu thiếu / hỏng bất kỳ phần nào."""
-    from backend.alpha.dsl.strategy import FRESH, SignalEngine, frame_fresh
+    from backend.signal.compute import FRESH, SignalEngine, frame_fresh
     base = load_base(out_dir, p)
     if base is None:
         return None
@@ -1070,7 +787,7 @@ def _write_base(out_dir: str, key: str, symbol: str, data: Dict[str, Any]) -> No
 
 def fill(out_dir: str, pe: "PortfolioEngine", eng: "BacktestEngine", p: Dict[str, Any]) -> Dict[str, int]:
     """Tính và ghi phần còn thiếu của kế hoạch `p`: nền, giá trị cột theo khung, chỉ số căn — qua đúng hàm của engine."""
-    from backend.alpha.dsl.signal import lag_key
+    from backend.signal.nodes import lag_key
     wrote = {"base": 0, "cols": 0, "frames": 0, "index": 0}
     if load_base(out_dir, p) is None:
         _write_base(out_dir, p["base"], eng.symbol, pe._build_symbol_data(eng, only=set()))
@@ -1119,19 +836,6 @@ def export(pe: "PortfolioEngine", out_dir: str) -> Dict[str, Any]:
     return out
 
 
-def remove(out_dir: str, rel_paths: Iterable[str]) -> None:
-    """Xoá các phần (thư mục nền / file) theo đường dẫn tương đối — dọn sau một giai đoạn."""
-    for rel in rel_paths:
-        path = os.path.join(out_dir, rel)
-        if os.path.isdir(path):
-            shutil.rmtree(path, ignore_errors=True)
-        else:
-            try:
-                os.remove(path)
-            except OSError:
-                pass
-
-
 def size_mb(out_dir: str, rel_paths: Optional[Iterable[str]] = None) -> float:
     """Dung lượng (MB) của các phần chỉ định, hoặc cả out_dir."""
     targets = [os.path.join(out_dir, r) for r in rel_paths] if rel_paths is not None else [out_dir]
@@ -1152,7 +856,7 @@ def release_memory() -> None:
     """Xoá bộ đệm nến / dữ liệu trong tiến trình và trả heap về OS (trước khi fork pool / sau khi xuất)."""
     import ctypes
     import gc
-    from backend.alpha.dsl.strategy import data_cache_clear
+    from backend.signal.compute import data_cache_clear
     from backend.data.data import clear_caches
     clear_caches()
     data_cache_clear()
@@ -1200,7 +904,7 @@ class SharedExporter:
             for job in todo:
                 export_job(job)
         else:
-            from backend.optimize.process.workers import pool_map_safe
+            from backend.jobs.workers import pool_map_safe
             pool_map_safe(export_job, todo, min(self.workers, len(todo)), f"[shared] {self.label}")
 
     def __call__(self, job: Any) -> None:
@@ -1216,3 +920,316 @@ class SharedExporter:
         if self.label:
             print(f"[shared] {self.label}: dọn {mb:.0f} MB ({time.time() - self.t0:.0f}s)", flush=True)
         self.seen.clear()
+
+
+# ════ Kho kết quả append-only (ResultsStore) + khoá job: dùng cho WFA danh mục (tiếp tục lần chạy bị ngắt) ════
+
+# ══════════════════════════════════════════════════════════════════════════
+# Kho kết quả append-only (SQLite, WAL) cho mỗi lần chạy tối ưu quy mô lớn: <run_dir>/results.sqlite.
+#
+# Vì sao: tối ưu tới ~1.000.000 cấu hình không thể giữ mọi kết quả trong RAM của tiến trình cha (và không thể chạy lại từ đầu khi
+# bị kill). Mỗi kết quả của một job được ghi NGAY vào kho (idempotent theo job_key); tiến trình cha chỉ giữ top-K trong RAM; chạy lại
+# với --resume bỏ qua các job_key đã có -> kết quả cuối y hệt lần chạy không gián đoạn.
+#
+# Bảng:
+#   results(job_key TEXT PRIMARY KEY, stage, candidate, ord INTEGER, params_json, metrics_json, score REAL, created REAL)
+#       ord = chỉ số cấu hình theo thứ tự sinh (để xếp hạng hoà điểm giống `sorted` ổn định); score = điểm xếp hạng (NULL = không đạt / -inf)
+#   meta(key TEXT PRIMARY KEY, value TEXT)
+# job_key = sha1(stage, candidate, params chuẩn hoá, cửa sổ, stop_fill, risk, sha256 dữ liệu, phiên bản mã) — đổi một trong các thành phần
+# này thì kết quả cũ KHÔNG bao giờ được dùng lại.
+#
+# Ghi theo lô (commit mỗi COMMIT_EVERY lần put hoặc COMMIT_SECONDS giây); flush()/close() ghi nốt — CLI gọi trong finally + khi nhận SIGTERM.
+# Móc kiểm thử: env NORA_TEST_FAIL_AFTER_PUTS=N -> sau lần put thứ N (đã commit) ném RuntimeError để mô phỏng sập giữa chừng (chỉ dùng trong test).
+#
+# Chạy một giai đoạn kiểu streaming (stream_stage):
+# Chạy một giai đoạn tối ưu theo kiểu STREAMING: job sinh lười -> pool (bounded) -> ghi ngay vào ResultsStore -> chỉ giữ top-K trong RAM.
+#
+# stream_stage() là khung dùng chung cho build_strategy_book (giai đoạn A) và sàng lọc của (phễu đã gỡ)/stages:
+#   - bỏ qua job đã có trong kho (job_key) -> `--resume` tiếp tục đúng chỗ dừng, kết quả cuối y hệt lần chạy không gián đoạn;
+#   - kết quả mỗi job được chuẩn hoá qua JSON (cùng cấu trúc dù lấy từ worker hay từ kho) trước khi đưa cho `handle`;
+#   - `handle(ord, params, metrics, from_store) -> (metrics_để_lưu, điểm)` quyết định lưu gì (vd. bỏ chuỗi `daily` của hàng không thuộc top-K).
+# ══════════════════════════════════════════════════════════════════════════
+
+DB_NAME = "results.sqlite"
+COMMIT_EVERY = 200
+COMMIT_SECONDS = 3.0
+SCHEMA_VERSION = 1
+
+_RESULTS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS results(
+    job_key TEXT PRIMARY KEY, stage TEXT NOT NULL, candidate TEXT NOT NULL, ord INTEGER,
+    params_json TEXT NOT NULL, metrics_json TEXT NOT NULL, score REAL, created REAL NOT NULL);
+CREATE INDEX IF NOT EXISTS results_rank ON results(stage, candidate, score DESC, ord);
+CREATE INDEX IF NOT EXISTS results_ord ON results(stage, candidate, ord);
+CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT);
+"""
+
+_CODE_FILES = (   # mọi file ảnh hưởng kết quả backtest: đổi một file -> khoá job đổi -> --resume không dùng lại kết quả cũ
+    "backend/signal/compute.py", "backend/alpha/plan.py", "backend/models/models.py", "backend/models/params.py", "backend/models/position_size.py",   # tín hiệu + kế hoạch vị thế
+    "backend/nautilus/engine.py", "backend/jobs/evaluate.py",   # P15: engine khớp lệnh = Nautilus (adapter) + vòng chạy
+    "backend/metrics/metrics.py", "backend/metrics/trades.py",   # P9.5: returns+portfolio gộp, trades chuyển
+    "backend/data/data.py", "backend/signal/nodes.py", "backend/alpha/contract.py", "backend/alpha/compile.py", "backend/signal/indicator.py",   # P9.4 part 2: evaluator/kernels đã gộp
+    "backend/strategies.py", "backend/wfa/wfa.py",   # P9.5 (+ P9.9: sổ chiến lược book.py/library.py gộp vào build.py/signal.py)
+)
+_CODE_VERSION: Optional[str] = None
+
+
+def canonical(obj: Any) -> str:
+    """JSON chuẩn hoá (khoá sắp xếp, không khoảng trắng) — dùng cho job_key."""
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"), default=json_default, allow_nan=True)
+
+
+def code_version() -> str:
+    """Chuỗi phiên bản mã ảnh hưởng kết quả: sha1 nội dung các file engine/chiến lược (hoặc env NORA_CODE_VERSION). Tính một lần."""
+    global _CODE_VERSION
+    env = os.environ.get("NORA_CODE_VERSION")
+    if env:
+        return env
+    if _CODE_VERSION is None:
+        root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        from backend.nautilus.version import NAUTILUS_VERSION
+        h = hashlib.sha1(f"v{SCHEMA_VERSION}|nautilus {NAUTILUS_VERSION}".encode())   # nâng Nautilus -> khoá job đổi
+        for rel in _CODE_FILES:
+            try:
+                with open(os.path.join(root, rel), "rb") as fh:
+                    h.update(rel.encode() + b"\0" + fh.read())
+            except OSError:
+                h.update(rel.encode() + b"\0missing")
+        _CODE_VERSION = h.hexdigest()[:16]
+    return _CODE_VERSION
+
+
+def data_fingerprint(symbols: Iterable[str]) -> List[Any]:
+    """Dấu vân tay catalog nến 1m của từng tài sản (data.catalog_digest) — thành phần của job_key."""
+    from backend.data.data import catalog_digest
+    return [[s, catalog_digest([s])] for s in symbols]
+
+
+def make_job_key(stage: str, candidate: str, params: Any, window: Any = None, stop_fill: Any = None, risk: Any = None,
+                 data: Any = None, code: Optional[str] = None, extra: Any = None) -> str:
+    payload = canonical([stage, candidate, params, window, stop_fill, risk, data, code or code_version(), extra])
+    return hashlib.sha1(payload.encode("utf-8")).hexdigest()
+
+
+def _results_dumps(obj: Any) -> str:
+    return json.dumps(obj, default=json_default, allow_nan=True)
+
+
+class ResultsStore:
+    """Kho kết quả của MỘT lần chạy (một file SQLite trong run_dir). An toàn đa luồng; nhiều tiến trình cùng ghi được (WAL + busy_timeout)."""
+
+    def __init__(self, run_dir: str, name: str = DB_NAME, read_only: bool = False):
+        self.path = run_dir if run_dir.endswith(".sqlite") else os.path.join(run_dir, name)
+        if not read_only:
+            os.makedirs(os.path.dirname(self.path), exist_ok=True)
+        self.read_only = read_only
+        self._lock = threading.RLock()
+        self._con = sqlite3.connect(self.path, timeout=60.0, check_same_thread=False, isolation_level=None)
+        self._con.execute("PRAGMA busy_timeout=60000")
+        if read_only:
+            self._con.execute("PRAGMA query_only=1")
+        else:
+            self._con.execute("PRAGMA journal_mode=WAL")
+            self._con.execute("PRAGMA synchronous=NORMAL")
+            self._con.executescript(_RESULTS_SCHEMA)
+        self._pending = 0
+        self._in_tx = False
+        self._last_commit = time.time()
+        self._puts = 0
+        self._fail_after = int(os.environ.get("NORA_TEST_FAIL_AFTER_PUTS") or 0)
+
+    # ── ghi ────────────────────────────────────────────────────────────────
+    def put(self, job_key: str, stage: str, candidate: str, params: Any, metrics: Any, ord: Optional[int] = None,
+            score: Optional[float] = None) -> bool:
+        """Ghi một kết quả; idempotent theo job_key (đã có -> không đổi, trả False)."""
+        sc = None if score is None or (isinstance(score, float) and not math.isfinite(score)) else float(score)
+        with self._lock:
+            if not self._in_tx:
+                self._con.execute("BEGIN")
+                self._in_tx = True
+            cur = self._con.execute(
+                "INSERT OR IGNORE INTO results(job_key, stage, candidate, ord, params_json, metrics_json, score, created) "
+                "VALUES (?,?,?,?,?,?,?,?)",
+                (job_key, stage, candidate, ord, _results_dumps(params), _results_dumps(metrics), sc, time.time()))
+            inserted = cur.rowcount == 1
+            self._pending += 1
+            if self._pending >= COMMIT_EVERY or time.time() - self._last_commit >= COMMIT_SECONDS:
+                self._commit()
+            if inserted:
+                self._puts += 1
+                if self._fail_after and self._puts >= self._fail_after:
+                    self._commit()
+                    raise RuntimeError(f"[test] mô phỏng sập sau {self._puts} job (NORA_TEST_FAIL_AFTER_PUTS)")
+            return inserted
+
+    def _commit(self) -> None:
+        if self._in_tx:
+            self._con.execute("COMMIT")
+            self._in_tx = False
+        self._pending = 0
+        self._last_commit = time.time()
+
+    def flush(self) -> None:
+        with self._lock:
+            if not self.read_only:
+                self._commit()
+
+    def close(self) -> None:
+        with self._lock:
+            try:
+                self.flush()
+            finally:
+                self._con.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+
+    def set_meta(self, key: str, value: Any) -> None:
+        with self._lock:   # autocommit; nếu đang trong giao dịch put thì commit cùng lô
+            self._con.execute("INSERT OR REPLACE INTO meta(key, value) VALUES (?,?)", (key, _results_dumps(value)))
+
+    def get_meta(self, key: str, default: Any = None) -> Any:
+        with self._lock:
+            row = self._con.execute("SELECT value FROM meta WHERE key=?", (key,)).fetchone()
+        return json.loads(row[0]) if row else default
+
+    # ── đọc ────────────────────────────────────────────────────────────────
+    @staticmethod
+    def _row(r) -> Dict[str, Any]:
+        return {"job_key": r[0], "stage": r[1], "candidate": r[2], "ord": r[3], "params": json.loads(r[4]),
+                "metrics": json.loads(r[5]), "score": r[6]}
+
+    _COLS = "job_key, stage, candidate, ord, params_json, metrics_json, score"
+
+    def has(self, job_key: str) -> bool:
+        with self._lock:
+            return self._con.execute("SELECT 1 FROM results WHERE job_key=?", (job_key,)).fetchone() is not None
+
+    def get(self, job_key: str) -> Optional[Dict[str, Any]]:
+        with self._lock:
+            r = self._con.execute(f"SELECT {self._COLS} FROM results WHERE job_key=?", (job_key,)).fetchone()
+        return self._row(r) if r else None
+
+    def count(self, stage: Optional[str] = None, candidate: Optional[str] = None) -> int:
+        q, args = "SELECT COUNT(*) FROM results", []
+        cond = []
+        if stage is not None:
+            cond.append("stage=?"); args.append(stage)
+        if candidate is not None:
+            cond.append("candidate=?"); args.append(candidate)
+        if cond:
+            q += " WHERE " + " AND ".join(cond)
+        with self._lock:
+            return int(self._con.execute(q, args).fetchone()[0])
+
+    def done_keys(self, stage: Optional[str] = None, candidate: Optional[str] = None) -> Iterator[str]:
+        """Duyệt job_key đã xong (iterator — không nạp cả tập vào RAM)."""
+        q, args = "SELECT job_key FROM results", []
+        cond = []
+        if stage is not None:
+            cond.append("stage=?"); args.append(stage)
+        if candidate is not None:
+            cond.append("candidate=?"); args.append(candidate)
+        if cond:
+            q += " WHERE " + " AND ".join(cond)
+        con = self._con
+        with self._lock:
+            keys = con.execute(q, args)
+            for (k,) in keys:
+                yield k
+
+    def iter_rows(self, stage: str, candidate: str) -> Iterator[Dict[str, Any]]:
+        """Duyệt hàng theo ord (streaming, từng lô 500)."""
+        with self._lock:
+            cur = self._con.cursor()
+            cur.execute(f"SELECT {self._COLS} FROM results WHERE stage=? AND candidate=? ORDER BY ord", (stage, candidate))
+        while True:
+            with self._lock:
+                batch = cur.fetchmany(500)
+            if not batch:
+                break
+            for r in batch:
+                yield self._row(r)
+
+    def top_k(self, stage: str, candidate: str, k: int, score_fn: Optional[Callable[[Dict[str, Any]], float]] = None) -> List[Dict[str, Any]]:
+        """k hàng điểm cao nhất, xếp (-điểm, ord) — hoà điểm thì cấu hình sinh trước đứng trước (= `sorted` ổn định theo -điểm).
+        score_fn(row) -> float (-inf = không đạt); mặc định dùng cột score (NULL = -inf). Duyệt streaming, RAM O(k)."""
+        k = max(0, int(k))
+        if score_fn is None:
+            with self._lock:
+                rs = self._con.execute(
+                    f"SELECT {self._COLS} FROM results WHERE stage=? AND candidate=? "
+                    f"ORDER BY score IS NULL, score DESC, ord LIMIT ?", (stage, candidate, k)).fetchall()
+            return [self._row(r) for r in rs]
+
+        def keyed():
+            for row in self.iter_rows(stage, candidate):
+                sc = score_fn(row)
+                yield (-sc, row["ord"] if row["ord"] is not None else 0), row["job_key"], row
+        best = heapq.nsmallest(k, keyed(), key=lambda t: t[0])
+        return [t[2] for t in best]
+
+    def page(self, stage: str, candidate: Optional[str] = None, offset: int = 0, limit: int = 100,
+             sort: str = "order") -> List[Dict[str, Any]]:
+        """Phân trang: sort="order" (thứ tự sinh) hoặc "score" (cao -> thấp, hoà theo ord)."""
+        order = "ORDER BY score IS NULL, score DESC, ord" if sort == "score" else "ORDER BY ord"
+        q, args = f"SELECT {self._COLS} FROM results WHERE stage=?", [stage]
+        if candidate is not None:
+            q += " AND candidate=?"
+            args.append(candidate)
+        q += f" {order} LIMIT ? OFFSET ?"
+        args += [max(1, min(int(limit), 1000)), max(0, int(offset))]
+        with self._lock:
+            rs = self._con.execute(q, args).fetchall()
+        return [self._row(r) for r in rs]
+
+    def candidates(self, stage: str) -> List[str]:
+        with self._lock:
+            return [r[0] for r in self._con.execute("SELECT DISTINCT candidate FROM results WHERE stage=? ORDER BY candidate", (stage,))]
+
+
+# ─── Chạy một giai đoạn kiểu streaming (stream_stage) ──────────────────────
+def normalize(obj: Any) -> Any:
+    """Qua một vòng JSON (np.float64 -> float, tuple -> list...) — đúng thứ sẽ đọc lại từ kho."""
+    return json.loads(json.dumps(obj, default=json_default, allow_nan=True))
+
+
+def stream_stage(items: Iterable[Tuple[int, Any, Any]], fn: Callable, *, workers: int, label: str,
+                 store: Optional[ResultsStore], stage: str, candidate: str,
+                 key_of: Callable[[int, Any, Any], str],
+                 handle: Callable[[int, Any, Dict[str, Any], bool], Tuple[Dict[str, Any], Optional[float]]],
+                 progress=None, max_inflight: Optional[int] = None,
+                 prepare: Optional[Callable[[Any], None]] = None) -> Dict[str, int]:
+    """items: iterable lười của (ord, params, job). Trả {"new": số job vừa chạy, "resumed": số job lấy từ kho}."""
+    pending: Dict[int, Tuple[int, Any, str]] = {}
+    counts = {"new": 0, "resumed": 0}
+
+    def feeder():
+        seq = itertools.count()
+        for ord_, params, job in items:
+            key = key_of(ord_, params, job)
+            row = store.get(key) if store is not None else None
+            if row is not None:
+                handle(ord_, params, row["metrics"], True)
+                counts["resumed"] += 1
+                if progress is not None:
+                    progress.tick(resumed=True)
+                continue
+            if prepare is not None:
+                prepare(job)
+            pending[next(seq)] = (ord_, params, key)
+            yield job
+
+    for i, res in pool_imap_bounded(fn, feeder(), workers, label, max_inflight):
+        ord_, params, key = pending.pop(i)
+        metrics = normalize(res)
+        to_store, score = handle(ord_, params, metrics, False)
+        if store is not None:
+            store.put(key, stage, candidate, params, to_store, ord=ord_, score=score)
+        counts["new"] += 1
+        if progress is not None:
+            progress.tick(worker_peak_mb=metrics.get("_peak_rss_mb") if isinstance(metrics, dict) else None)
+    return counts

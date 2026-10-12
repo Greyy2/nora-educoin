@@ -15,7 +15,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from backend.routes import optimize
+from backend.routes import book as optimize
 from backend.carlo import carlo as mcm
 from backend.carlo.carlo import MC_MIN_SIMULATIONS, STRESS_MAX_MDD_PCT, evaluate_mc_gate, longest_losing_run, run_monte_carlo_daily, run_monte_carlo_daily_detail, stress_scenarios
 

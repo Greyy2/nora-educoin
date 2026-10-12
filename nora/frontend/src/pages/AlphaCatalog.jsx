@@ -332,7 +332,6 @@ function StrategyDoc({ s, onClose, onReload }) {
                   alphaId={s.alpha_id}
                   currentVersion={s.version}
                   onSelectVersion={(vRec) => navigate(`/studio?alpha=${encodeURIComponent(s.alpha_id)}&version=${vRec.version}`)}
-                  onRevalidateDone={() => onReload && onReload()}
                 />
               </section>
             )}

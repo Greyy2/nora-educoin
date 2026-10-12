@@ -5,7 +5,7 @@ import os
 
 import pytest
 
-from backend.optimize.book import registry as ta
+from backend import strategies as ta
 from backend.models.models import DATA_DIR  # noqa: E402
 
 FROZEN = next((os.path.join(DATA_DIR, *sub, "research", "okx_top10_agents.json") for sub in (("alpha",), ("alphas",))

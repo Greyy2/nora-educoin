@@ -24,7 +24,7 @@ export function getWfaStd(meta) {
 
 export function getMcStd(meta) {
   const lim = meta?.limits?.book_mc
-  const gates = meta?.funnel?.gates || []
+  const gates = meta?.gates || []
   const findGate = (k) => gates.find((g) => g.key === k)?.value
   const simulations = findGate('MC_MIN_SIMULATIONS') ?? lim?.simulations?.default
   const ruin_threshold_pct = findGate('MC_RUIN_THRESHOLD_PCT') ?? lim?.ruin_threshold_pct?.default

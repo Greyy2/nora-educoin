@@ -217,10 +217,6 @@ export const getUserAlphaVersions = (alphaId) => request(`/api/studio/alphas/use
 /** Mã nguồn của một phiên bản cụ thể của alpha người dùng. */
 export const getUserAlphaVersionCode = (alphaId, version) => request(`/api/studio/alphas/user/${enc(alphaId)}/versions/${enc(version)}`)
 
-/** Kiểm lại alpha trong kho bằng engine hiện hành (job nền alpha_revalidate). */
-export const postRevalidateAlpha = (alphaId, apply = false) =>
-  request(`/api/studio/alphas/${enc(alphaId)}/revalidate?apply=${apply ? 'true' : 'false'}`, { method: 'POST' })
-
 /** Lưu alpha người dùng: server đọc kết quả từ job_id, kiểm tra program_hash. */
 export const postSaveUserAlpha = ({ job_id, code, name, note = '', source = 'alpha-create', alpha_id }) =>
   request('/api/studio/alphas/user', { method: 'POST', body: { job_id, code, name, note, source, ...(alpha_id ? { alpha_id } : {}) } })
@@ -271,22 +267,11 @@ export async function getCatalog() {
   }
 }
 
-/** Danh sách alpha hiện tại của sổ. */
-export const getAlphas = () => request('/api/studio/alphas')
-
 /** Khởi chạy job backtest sổ chiến lược (book_backtest). */
 export const postBacktest = (body) => request('/api/studio/book/backtest', { method: 'POST', body })
 
 /** Khởi chạy job Walk-Forward Analysis sổ chiến lược (book_wfa). */
 export const postWfa = (body) => request('/api/studio/book/wfa', { method: 'POST', body })
-
-/** Khởi chạy job dựng sổ alpha (book_build). */
-export const postBuild = (body) => request('/api/studio/book/build', { method: 'POST', body })
-
-/** Xuất bản sổ alpha từ kết quả job dựng sổ (book_build). */
-export const postPublish = (jobId) =>
-  request('/api/studio/book/publish', { method: 'POST', body: { job_id: jobId } })
-    .then((r) => { invalidateResource('catalog'); invalidateResource('meta'); return r })
 
 /** Khởi chạy phân tích Monte Carlo (book_mc). */
 export const postMc = (body) => request('/api/studio/book/mc', { method: 'POST', body })
@@ -315,9 +300,6 @@ export const explainChart = (body) => request('/api/studio/chart/explain', { met
 
 /** Regime hiện tại + lịch sử từng tài sản (nến 15m đã đóng) + chiến lược đang bật theo bảng regime của sổ. */
 export const getMarketRegime = (o = {}) => request(`/api/studio/market/regime?${_qs(o)}`)
-
-/** Tạo báo cáo phân tích chế độ thị trường (job nền regime_report). */
-export const postRegimeReport = (body = {}) => request('/api/studio/market/regime/report', { method: 'POST', body })
 
 /** API vận hành: Tải dữ liệu nến sàn vào kho staging (job data_crawl). */
 export const postDataCrawl = (body) => request('/api/data/crawl', { method: 'POST', body })
@@ -383,9 +365,6 @@ export async function listAllJobs(limit = 20) {
 
 /** Đọc trạng thái + kết quả một job (?lite=1 bỏ trade_list lớn). */
 export const getJob = (id) => request(`/api/studio/book/jobs/${enc(id)}?lite=1`).then(normJob)
-
-/** Đọc kết quả Stage A của job dựng sổ (book_build). */
-export const getJobStageA = (id) => request(`/api/studio/book/jobs/${enc(id)}/stage_a`)
 
 /** Huỷ một job đang chạy (SIGTERM tới nhóm tiến trình). */
 export const postCancel = (id) => request(`/api/studio/book/jobs/${enc(id)}/cancel`, { method: 'POST' }).then(normJob)

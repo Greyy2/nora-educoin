@@ -1,6 +1,6 @@
 """NoraSlotStrategy (P15): MỘT Strategy của Nautilus cho mỗi (chiến lược × tài sản) — ngữ nghĩa PositionManager cũ trên lệnh Nautilus.
 
-Tín hiệu (match / stop / vol / dca) tính SẴN bằng backend.alpha.dsl.strategy (cùng đường dữ liệu engine cũ) và tra theo open_time của nến khung chạy
+Tín hiệu (match / stop / vol / dca) tính SẴN bằng backend.signal.compute (cùng đường dữ liệu engine cũ) và tra theo open_time của nến khung chạy
 (ts_event của Bar = open_time + độ dài khung). Lệnh, khớp, phí, số dư, vị thế do Nautilus sinh; strategy chỉ quyết định.
 
 Quy ước thời điểm (khác engine cũ, ghi trong kết quả `fill_convention`): engine cũ vào lệnh ở GIÁ MỞ nến kế tiếp; Nautilus (bar_execution) khớp lệnh

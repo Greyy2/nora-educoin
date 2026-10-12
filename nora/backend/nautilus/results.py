@@ -6,7 +6,7 @@
     * vị thế đóng = `cache.positions()` đã đóng + `cache.position_snapshots()` (NETTING chụp vị thế cũ khi mở lại cùng instrument);
     * lý do đóng / trạng thái lấy từ LỆNH ĐÓNG (tag ENTRY/SL/TP/TRAIL/EXIT/END... nếu chiến lược gắn, không thì theo loại lệnh), KHÔNG BAO GIỜ từ dấu của PnL;
     * trường không tính được từ cache = None (người dùng phải xử lý None): mae_pct, max_price, min_price, unit_pct, risk_usd.
-- by_symbol / by_strategy: duy nhất `alpha.dsl.strategy.aggregate_positions`.
+- by_symbol / by_strategy: duy nhất `signal.compute.aggregate_positions`.
 """
 from bisect import bisect_right
 from typing import Any, Dict, List, Optional
@@ -16,7 +16,7 @@ import numpy as np
 from nautilus_trader.model.currencies import USDT
 from nautilus_trader.model.enums import LiquiditySide, OrderSide, OrderStatus, OrderType as NtOrderType
 
-from backend.alpha.dsl.strategy import aggregate_positions
+from backend.alpha.plan import aggregate_positions
 from backend.models.models import OrderModel, OrderType, PositionModel, PositionStatus, PositionType, next_id
 from backend.nautilus import catalog as cat
 from backend.nautilus.strategy import FLAT, REASONS

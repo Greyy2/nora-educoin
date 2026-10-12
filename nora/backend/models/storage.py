@@ -30,13 +30,6 @@ def data_home() -> str:
     return os.environ.get("NORA_LOCAL_DATA_ROOT") or os.environ.get("NORA_DATA_ROOT") or DATA_DIR
 
 
-def _flat() -> bool:
-    if os.environ.get("NORA_LOCAL_DATA_ROOT"):
-        return True
-    nd = os.environ.get("NORA_DATA_ROOT")
-    return bool(nd) and any(os.path.isdir(os.path.join(nd, v)) for v in VENUES)
-
-
 def _kind_path(home: str, kind: str) -> str:
     j = os.path.join
     table = {
@@ -147,11 +140,6 @@ def cache_process_dir(job_id: Optional[str] = None) -> str:
     return _under(data_home(), "process", *([job_id] if job_id else []))
 
 
-def cache_runs_dir() -> str:
-    """Log RAM của run_limited.sh: cache/process/_mem."""
-    return _under(data_home(), "mem")
-
-
 _ROOT_GROUPS = {"runs": ("book", "funnel", "wfa", "backtest", "carlo", "process")}
 
 
@@ -221,12 +209,26 @@ def read_json(path: str, default: Any = None) -> Any:
         return default
 
 
-def write_json_atomic(path: str, obj: Any) -> None:
-    """json.dump (default=json_default) ra tên tạm rồi os.replace: người đọc không bao giờ thấy file dở. Lỗi -> xoá file tạm rồi ném lại."""
+def _clean(o: Any) -> Any:
+    """Thay NaN/inf bằng None (JSON hợp lệ cho trình duyệt)."""
+    if isinstance(o, float):
+        return o if math.isfinite(o) else None
+    if isinstance(o, dict):
+        return {k: _clean(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [_clean(v) for v in o]
+    return o
+
+
+def write_json_atomic(path: str, obj: Any, *, indent: Optional[int] = None, clean: bool = False, allow_nan: bool = True) -> None:
+    """MỘT bộ ghi JSON nguyên tử (json.dump default=json_default ra tên tạm cạnh đích rồi os.replace: người đọc không bao giờ thấy file dở;
+    lỗi -> xoá file tạm rồi ném lại). `clean` thay NaN/inf bằng null trước khi ghi (JSON chuẩn cho trình duyệt; kèm allow_nan=False);
+    `allow_nan` cho phép token NaN/Infinity; `indent` tuỳ chọn."""
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     tmp = f"{path}.{os.getpid()}.tmp"
     try:
         with open(tmp, "w", encoding="utf-8") as fh:
-            json.dump(obj, fh, ensure_ascii=False, default=json_default)
+            json.dump(_clean(obj) if clean else obj, fh, ensure_ascii=False, indent=indent, allow_nan=allow_nan, default=json_default)
         os.replace(tmp, path)
     except BaseException:
         try:

@@ -5,8 +5,8 @@ import pandas as pd
 import pytest
 
 from backend.alpha.compile import compile_code
-from backend.alpha.dsl import indicator as features, indicator as ops
-from backend.alpha.dsl.indicator import REQUIRED
+from backend.signal import indicator as features, indicator as ops
+from backend.signal.indicator import REQUIRED
 
 N = 700
 CUTS = (120, 333, 520, 699)

@@ -1,6 +1,6 @@
-"""Strategy Contract (P9 alpha/): giới hạn + lỗi + gợi ý cho chiến lược do người dùng/AI viết. Chỉ import core (DslError ở alpha/dsl/signal vì Program ném nó).
+"""Strategy Contract (P9 alpha/): giới hạn + lỗi + gợi ý cho chiến lược do người dùng/AI viết. Chỉ import core (DslError ở signal/nodes vì Program ném nó).
 
-Chuyển từ alpha/dsl/signal.py (P9 alpha pass): MAX_CODE_CHARS, MAX_NODES, BASE_CLASS, at, suggest, _position_attr_names.
+Chuyển từ signal/nodes.py (P9 alpha pass): MAX_CODE_CHARS, MAX_NODES, BASE_CLASS, at, suggest, _position_attr_names.
 """
 import ast
 import difflib
@@ -9,7 +9,7 @@ import re
 import tokenize
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
-from backend.alpha.dsl.signal import DslError
+from backend.signal.nodes import DslError
 
 MAX_CODE_CHARS = 50_000
 MAX_NODES = 20_000
@@ -121,7 +121,7 @@ def lifecycle_body(cls: ast.ClassDef) -> List[ast.stmt]:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Danh mục nguyên thủy được phép (catalog) — MỘT định nghĩa duy nhất, sinh từ alpha/dsl/indicator (FEATURES/OPS) + thuộc tính hợp đồng.
+# Danh mục nguyên thủy được phép (catalog) — MỘT định nghĩa duy nhất, sinh từ signal/indicator (FEATURES/OPS) + thuộc tính hợp đồng.
 # Dùng cho cả kiểm lỗi (check_contract) lẫn trợ lý viết code (assist). Không lặp lại danh sách ở nơi khác.
 # ══════════════════════════════════════════════════════════════════════════
 
@@ -151,14 +151,14 @@ _SERIES_EXAMPLE = {"high": "high", "low": "low", "close": "close", "volume": "vo
 
 
 def _default_json(v):
-    from backend.alpha.dsl.indicator import REQUIRED
+    from backend.signal.indicator import REQUIRED
     if v is REQUIRED:
         return None
     return v
 
 
 def _arg_row(p) -> dict:
-    from backend.alpha.dsl.indicator import REQUIRED
+    from backend.signal.indicator import REQUIRED
     series = p.kind in _SERIES_TYPE
     return {"name": p.name, "type": _SERIES_TYPE.get(p.kind, p.kind), "required": p.default is REQUIRED,
             "default": _default_json(p.default), "lo": None if series else p.lo, "hi": None if series else p.hi}
@@ -170,7 +170,7 @@ def _fmt_default(v) -> str:
 
 def _call_texts(prefix: str, spec) -> tuple:
     """(signature, example, insert) của self.feat.x(...) / self.op.x(...)."""
-    from backend.alpha.dsl.indicator import REQUIRED
+    from backend.signal.indicator import REQUIRED
     sig, ex, ins = [], [], []
     n = 0
     for p in spec.params:
@@ -220,7 +220,7 @@ def _module_features() -> list:
 
 def _kernel_row(name: str) -> dict:
     """Hàng catalog cho chỉ báo CHỈ có ở cột kernel (indicator.REGISTRY), loại module."""
-    from backend.alpha.dsl.indicator import REGISTRY
+    from backend.signal.indicator import REGISTRY
     ks = REGISTRY[name]
     series = {"atr": ("high", "low", "close"), "adx": ("high", "low", "close")}.get(name, ("real",))
     args = [{"name": a, "type": "series_num", "required": True, "default": None, "lo": None, "hi": None} for a in series]
@@ -234,9 +234,9 @@ def _kernel_row(name: str) -> dict:
 
 def build_catalog() -> dict:
     """Danh mục đầy đủ (không có `version`; xem `catalog()`)."""
-    from backend.alpha.dsl.indicator import FEATURES, OPS
+    from backend.signal.indicator import FEATURES, OPS
     from backend.models.params import EXIT_RISK_SPEC, FRAMES, POSITION_KEYS
-    from backend.alpha.dsl.signal import DATA_COLUMNS, DSL_VERSION
+    from backend.signal.nodes import DATA_COLUMNS, DSL_VERSION
     mod_feat = set(_module_features())
     features = [_spec_row("self.feat", "feature", FEATURES[n], ["alpha", "module"] if n in mod_feat else ["alpha"]) for n in sorted(FEATURES)]
     features += [_kernel_row(n) for n in sorted(mod_feat - set(FEATURES))]     # cột kernel chỉ có ở loại module (vd. er)

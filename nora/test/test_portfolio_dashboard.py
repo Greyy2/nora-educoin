@@ -16,8 +16,8 @@ from fastapi.testclient import TestClient
 
 from backend.metrics import charts as feeds
 from backend.metrics import charts as pdash
-from backend.routes import optimize
-from backend.optimize.process import process as batch_jobs
+from backend.routes import book as optimize
+from backend.jobs import runner as batch_jobs
 
 INIT = 10_000.0
 DAY = 86_400_000

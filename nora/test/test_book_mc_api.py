@@ -8,8 +8,8 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from backend.routes import optimize
-from backend.optimize.process import process as batch_jobs
+from backend.routes import book as optimize
+from backend.jobs import runner as batch_jobs
 from backend.carlo.carlo import run_monte_carlo_daily, run_monte_carlo_daily_detail
 
 DAILY = list(np.random.default_rng(11).normal(0.0012, 0.012, 150))

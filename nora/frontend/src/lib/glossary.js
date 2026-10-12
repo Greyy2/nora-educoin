@@ -49,9 +49,9 @@ export const GLOSSARY = {
   fee_drag: { label: 'Phí ăn lãi', def: 'Phí giao dịch chia cho lãi trước phí. Cao nghĩa là phần lớn edge bị sàn lấy mất (hay gặp ở scalp).' },
 }
 
-/** Mô tả của một thuật ngữ; `def` có thể là hàm nhận g(key) -> giá trị cổng từ meta.funnel.gates (null nếu chưa có). */
+/** Mô tả của một thuật ngữ; `def` có thể là hàm nhận g(key) -> giá trị cổng từ meta.gates (hằng số Monte Carlo) (null nếu chưa có). */
 export function glossaryDef(entry, meta) {
   if (typeof entry?.def !== 'function') return entry?.def || ''
-  const gates = meta?.funnel?.gates || []
+  const gates = meta?.gates || []
   return entry.def((key) => gates.find((x) => x.key === key)?.value ?? null)
 }

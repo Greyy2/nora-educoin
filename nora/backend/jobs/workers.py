@@ -227,7 +227,7 @@ def check_memory_gate(required_mb: float, label: str = "") -> None:
 # - pool_imap_bounded: như trên nhưng job là một iterator (sinh lười) và kết quả trả dần theo thứ tự hoàn thành, luôn giữ <= max_inflight
 #   future đang gửi -> bộ nhớ cha phẳng dù có hàng triệu job (đường tối ưu quy mô lớn).
 #
-# memwatch được import lúc gọi (không phải lúc import module) để test monkeypatch được `backend.optimize.process.workers`.
+# memwatch được import lúc gọi (không phải lúc import module) để test monkeypatch được `backend.jobs.workers`.
 # ══════════════════════════════════════════════════════════════════════════
 
 def _abort_pool(pool, exc: BaseException) -> None:
@@ -367,12 +367,6 @@ def auto_workers(per_worker_mb: float, max_workers: Optional[int] = None) -> int
     if max_workers is not None:
         n = max(1, min(n, int(max_workers)))
     return n
-
-
-def default_workers(per_worker_mb: float) -> int:
-    """Số worker mặc định của phễu/WFA khi người dùng không chọn: CHÍNH là số `--workers auto` sẽ dùng (auto_workers). Nguồn duy nhất —
-    giao diện / API ước tính đọc từ đây, không giữ hằng số riêng (trước đây 14 ở router và 6 ở NewRunForm)."""
-    return auto_workers(per_worker_mb)
 
 
 def resolve_workers(arg, per_worker_mb: float, label: str = "") -> int:

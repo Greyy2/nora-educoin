@@ -20,7 +20,7 @@ from nautilus_trader.model.data import Bar
 
 from backend.alpha.compile import compile_code
 from backend.nautilus.backtest import run_native
-from backend.optimize.process.tasks import run_custom
+from backend.jobs.tasks import run_custom
 
 
 DCA_NATIVE_CODE = '''

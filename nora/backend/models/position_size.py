@@ -2,12 +2,12 @@
 
 Nguồn gộp: docs/bmad/p9_review_log.md (mục P9.4).
 """
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 from backend.models.models import PositionType
 from backend.models.params import DEFAULT_CAPITAL, StrategyParams
-from backend.models.models import gross_pnl, pnl_move, unrealized_pnl   # noqa: F401  (P9.4: ba hàm này chuyển sang models; policy.gross_pnl... vẫn là cùng đối tượng)
+from backend.models.models import gross_pnl, pnl_move, unrealized_pnl   # noqa: F401  (ba hàm này ở models; position_size.gross_pnl... vẫn là cùng đối tượng)
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -28,33 +28,6 @@ ImpactFn = Optional[Callable[[float, bool], float]]
 INTRABAR_PATHS = ("ohlc", "adaptive", "adverse_first")
 
 
-def sign_of(is_long: bool) -> float:
-    return 1.0 if is_long else -1.0
-
-
-# ─── Đường giá trong nến (intrabar_path) ────────────────────────────────────
-def bar_points(path: str, o: float, h: float, l: float, c: float) -> Tuple[float, float, float, float]:
-    """Bốn điểm giá nến đi qua theo thứ tự (chỉ cho "ohlc" / "adaptive"; "adverse_first" xử lý riêng, không theo điểm).
-    "ohlc" (mặc định, = NautilusTrader): Open -> High -> Low -> Close. "adaptive" (= `bar_adaptive_high_low_ordering=True`): cực gần open
-    ghé trước — Nautilus `bar_high_first = high - open < open - low` (HOÀ khoảng cách -> Low trước)."""
-    if path == "ohlc" or h - o < o - l:
-        return (o, h, l, c)
-    return (o, l, h, c)
-
-
-def peak_step(peak: float, price: float, is_long: bool) -> float:
-    """Đỉnh (long) / đáy (short) có lợi chạy dọc đường giá: cập nhật sau mỗi chặng (max/min kiểu Python)."""
-    if is_long:
-        return price if price > peak else peak
-    return price if price < peak else peak
-
-
-def tick_stop_price(level: float, open_price: float, is_long: bool, at_open: bool) -> float:
-    """Giá khớp lệnh STOP-market / thanh lý khi bị một chặng đường giá xuyên qua (đường ohlc/adaptive): chặng mở cửa (gap) -> open
-    (`gap_fill`); chặng trong nến -> đúng mức kích hoạt (NautilusTrader `fill_at_market=False`: stop khớp ở trigger)."""
-    return gap_fill(level, open_price, is_long) if at_open else level
-
-
 # ─── Mức giá ────────────────────────────────────────────────────────────────
 def dca_level(last_fill: float, step_pct: float, sign: float) -> float:
     """Mức đặt tầng DCA kế tiếp: lùi `step_pct`% khỏi giá khớp gần nhất (long: xuống, short: lên)."""
@@ -69,30 +42,6 @@ def dca_trigger(level: float, limit_through: float, sign: float) -> float:
 def sl_level(avg: float, sl_pct: float, sign: float) -> float:
     """Mức stop-loss tính từ giá trung bình."""
     return avg * (1 - sign * sl_pct / 100.0)
-
-
-def sl_price_for_anchor(anchor: str, entry_price: float, avg_price: float, sl_pct: float,
-                        sign: float, dca_steps: Sequence[float] = (),
-                        sl_beyond_last_pct: float = 0.0) -> float:
-    """Tính mức giá Stop Loss tuyệt đối theo điểm neo:
-    - 'avg': neo giá TB hiện tại: avg * (1 - sign * sl_pct / 100)
-    - 'entry': neo giá mở vị thế ban đầu: entry * (1 - sign * sl_pct / 100)
-    - 'last_layer': neo sau tầng DCA cuối cùng:
-        p_last = entry; duyệt qua dca_steps (p_last = p_last * (1 - sign * step / 100));
-        sl_level = p_last * (1 - sign * beyond / 100) (nếu beyond == 0 thì dùng sl_pct)
-    - 'none': 0.0 (không có SL)
-    """
-    if anchor == "none" or (sl_pct <= 0.0 and sl_beyond_last_pct <= 0.0):
-        return 0.0
-    if anchor == "entry":
-        return entry_price * (1.0 - sign * sl_pct / 100.0)
-    if anchor == "last_layer":
-        p_last = entry_price
-        for s in dca_steps:
-            p_last = p_last * (1.0 - sign * s / 100.0)
-        beyond = sl_beyond_last_pct if sl_beyond_last_pct > 0.0 else sl_pct
-        return p_last * (1.0 - sign * beyond / 100.0)
-    return avg_price * (1.0 - sign * sl_pct / 100.0)
 
 
 def trail_active(peak: float, avg: float, activation_pct: float, sign: float) -> bool:

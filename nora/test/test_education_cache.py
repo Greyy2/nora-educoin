@@ -6,7 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.main import app
-from backend.optimize.process import sample_cache
+from backend import strategies as sample_cache
 from backend.routes import alpha as alpha_routes
 
 SAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "alpha", "education", "samples.json")
@@ -27,26 +27,26 @@ def cache_dir(monkeypatch, tmp_path):
 
 def test_key_changes_with_code_and_frame():
     code = _sample()["code"]
-    k = sample_cache.cache_key(code, SPEC)
-    assert k == sample_cache.cache_key(code, dict(SPEC))
-    assert k != sample_cache.cache_key(code, {**SPEC, "run_frame": "1m"})
-    assert k != sample_cache.cache_key(code, {**SPEC, "end": "2024-04-01"})
+    k = sample_cache.sample_cache_key(code, SPEC)
+    assert k == sample_cache.sample_cache_key(code, dict(SPEC))
+    assert k != sample_cache.sample_cache_key(code, {**SPEC, "run_frame": "1m"})
+    assert k != sample_cache.sample_cache_key(code, {**SPEC, "end": "2024-04-01"})
     # mẫu khác (logic khác) -> hash chương trình khác -> khoá khác
     alt = _sample()
     for s in json.load(open(SAMPLES, encoding="utf-8"))[1:]:
         if s["code"] != code:
             alt = s
             break
-    assert k != sample_cache.cache_key(alt["code"], SPEC)
+    assert k != sample_cache.sample_cache_key(alt["code"], SPEC)
 
 
 def test_get_put_roundtrip(cache_dir):
     key = "a" * 64
-    assert sample_cache.get(key) is None
-    sample_cache.put(key, {"metrics": {"x": 1}, "final_equity": 1.5})
-    assert sample_cache.get(key) == {"metrics": {"x": 1}, "final_equity": 1.5}
+    assert sample_cache.sample_get(key) is None
+    sample_cache.sample_put(key, {"metrics": {"x": 1}, "final_equity": 1.5})
+    assert sample_cache.sample_get(key) == {"metrics": {"x": 1}, "final_equity": 1.5}
     assert os.path.exists(cache_dir / "alpha" / "education" / "results" / f"{key}.json")
-    assert sample_cache.get("không-hợp-lệ") is None
+    assert sample_cache.sample_get("không-hợp-lệ") is None
 
 
 def test_endpoint_not_ready_without_cache(cache_dir, monkeypatch):
@@ -59,8 +59,8 @@ def test_endpoint_not_ready_without_cache(cache_dir, monkeypatch):
     lst = c.get("/api/studio/education/samples").json()
     assert lst[0]["result_status"] == "NOT_READY" and "metrics" not in lst[0] and "final_equity" not in lst[0]
     # có cache thật -> trả đúng nội dung cache
-    key = sample_cache.cache_key(s["code"], SPEC)
-    sample_cache.put(key, {"metrics": {"m": 1}, "final_equity": 11000.0, "config": {"initial_capital": 10000.0}})
+    key = sample_cache.sample_cache_key(s["code"], SPEC)
+    sample_cache.sample_put(key, {"metrics": {"m": 1}, "final_equity": 11000.0, "config": {"initial_capital": 10000.0}})
     assert c.get(f"/api/studio/education/samples/{s['key']}/result").json()["final_equity"] == 11000.0
     lst = c.get("/api/studio/education/samples").json()
     assert lst[0]["pnl_usd"] == 1000.0 and "result_status" not in lst[0]

@@ -85,7 +85,7 @@ def test_regime_is_causal(market):
 
 
 def _run(strategies, start=T0 + 40 * DAY, end=T0 + 68 * DAY):
-    from backend.alpha.dsl.strategy import RiskConfig
+    from backend.alpha.plan import RiskConfig
     from backend.nautilus.engine import PortfolioEngine
     eng = PortfolioEngine(["BBB@perp"], strategies, T0 + 2 * DAY, end, trade_start_ts=start,
                           risk=RiskConfig.from_dict({"max_positions": 99, "max_per_symbol": 99, "max_gross_exposure": 1e9,
@@ -122,10 +122,10 @@ def test_regime_filters_entries_to_allowed_states(market):
 
 def test_keltner_trend_exits_on_opposite_band_cross(market):
     """keltner_trend_long (KEMA của sova): vào khi close cắt lên dải trên, thoát khi close cắt xuống dải dưới (cây stop)."""
-    from backend.alpha.dsl.strategy import RiskConfig
+    from backend.alpha.plan import RiskConfig
     from backend.nautilus.engine import PortfolioEngine
     from backend.models.params import materialize
-    from backend.optimize.book.build import BY_ID
+    from backend.strategies import BY_ID
     cand = BY_ID["keltner_trend_long"]
     st = materialize(cand, {"sig.signal_tf": "1h", "sig.ema_n": 20, "sig.k_up": 1.0, "sig.k_dn": 1.0, "stop_loss_rate": 6.0})
     assert st["stop"] and st["stop"][0]["condition"]
@@ -160,7 +160,7 @@ def test_learn_map_blocks_only_losing_regimes_with_enough_trades():
 
 def test_regime_map_is_opposite_trend_deny_list_without_fuse():
     from backend.models.params import REGIME_DENY, REGIME_MAP
-    from backend.optimize.book.build import CANDIDATES
+    from backend.strategies import CANDIDATES
     assert set(REGIME_MAP) == {c["id"] for c in CANDIDATES}
     for c in CANDIDATES:
         cfg = REGIME_MAP[c["id"]]

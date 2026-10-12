@@ -1,27 +1,22 @@
-"""Logic KHÔNG thuộc engine, tách nguyên văn từ test/backend-no/nautilus/engine.py (P15-A): tín hiệu trên nến đã đóng (evaluate_signals, signal_snapshot,
-check_signals), dựng kế hoạch (build_plan, Plan), RiskConfig, hằng số/tiện ích dùng chung, Order/Venue (định nghĩa dữ liệu).
-KHÔNG có mô phỏng khớp lệnh: engine = backend/nautilus/. SignalEngine / SignalPortfolio = đúng các phương thức nạp dữ liệu + dựng ma trận cột của
-BacktestEngine / PortfolioEngine cũ (không có run/kernel/sổ vốn mô phỏng)."""
+"""Tính tín hiệu trên nến đã đóng: SignalEngine, SignalPortfolio, evaluate_signals, signal_snapshot, check_signals, ma trận cột và regime.
+Tách từ module strategy cũ (P17 T1-B5a); kế hoạch chạy (Plan/build_plan/RiskConfig) ở backend/alpha/plan.py."""
 
-import itertools
 import os
-from dataclasses import asdict, dataclass, field
-from enum import IntEnum
-from typing import Any, Callable, Deque, Dict, Iterable, List, Mapping, Optional, Protocol, Tuple, Set, Union
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple, Set
 
 import numpy as np
 import pandas as pd
 
-from backend.models.models import CapitalLedger, Fill, OrderRejected, PositionType
-from backend.models.models import DataSource, data_source
-from backend.alpha.dsl.signal import lag_key, VectorEvaluator, Program
-from backend.alpha.dsl.signal import CODE as REGIME_CODE, LABEL_VI as REGIME_LABEL_VI, NAMES as REGIME_NAMES, REFS as REGIME_REFS
-from backend.alpha.dsl.signal import classify, masks_for, profile_cfg, raw_states
-from backend.alpha.dsl.signal import (DEFAULT_LOOKBACK_MIN, HORIZONS_MIN, MINUTE, _explain, _forward_bps, _num, _since, _stats, _thin,
-                                 _verdict)
+from backend.alpha.plan import RiskConfig
+from backend.models.models import CapitalLedger, DataSource, PositionType, data_source
+from backend.signal import indicator as kernels
+from backend.signal.nodes import lag_key, VectorEvaluator
+from backend.signal.nodes import CODE as REGIME_CODE, LABEL_VI as REGIME_LABEL_VI, NAMES as REGIME_NAMES, REFS as REGIME_REFS
+from backend.signal.nodes import classify, masks_for, profile_cfg, raw_states
+from backend.signal.nodes import (DEFAULT_LOOKBACK_MIN, HORIZONS_MIN, MINUTE, _explain, _forward_bps, _num, _since, _stats, _thin,
+                                  _verdict)
 from backend.models.position_size import SlotSpec
-from backend.models.params import BASE_POSITION, config_from_dict, DATA_COLUMNS, DEFAULT_CAPITAL, DAY_MS as DAY, FRAME_MS, FRAME_ORDER, FRAMES, NORA_DEFAULTS, RISK, RUN_FRAME, StrategyParams, resolve_position_auto
-from backend.alpha.dsl import indicator as kernels
+from backend.models.params import DATA_COLUMNS, DEFAULT_CAPITAL, DAY_MS as DAY, FRAME_MS, StrategyParams
 
 
 KEY = "__bar_open_time"  # cột khoá nội bộ (tránh trùng với cột "open_time" mà AST có thể dùng)
@@ -133,39 +128,9 @@ def needs_minute_path(eng) -> bool:
     return getattr(eng, "base_frame", "1m") != "1m" and any(getattr(tr, "stop_fill", "level") == "extreme" for tr in getattr(eng, "slots", []))
 
 
-@dataclass
-class RiskConfig:
-    max_positions: int = 8
-    max_per_symbol: int = 1
-    max_gross_exposure: float = 3.0
-    kill_switch_dd_pct: float = 30.0   # 0 = tắt
-    max_open_risk_pct: float = 0.0     # trần Σ rủi ro tới SL (cả rổ DCA) của mọi vị thế đang mở, % vốn; lệnh mới bị thu nhỏ / chặn. 0 = tắt
-    dd_throttle_pct: float = 0.0       # vốn đã chốt sụt d% so với đỉnh -> rủi ro lệnh mới × max(sàn, 1 − d / mức này). 0 = tắt
-    dd_throttle_floor: float = 0.25    # hệ số rủi ro tối thiểu khi đang giảm theo mức sụt
-
-    @classmethod
-    def from_dict(cls, d: Optional[Dict[str, Any]]) -> "RiskConfig":
-        return config_from_dict(cls, d)
-
-
 def data_cache_clear(data: Optional[DataSource] = None) -> None:
     """Xóa bộ nhớ đệm mảng (DataSource.memo) — gọi giữa các chiến lược ứng viên để giải phóng RAM."""
     data_source(data).memo.clear()
-
-
-def aggregate_positions(positions) -> Tuple[Dict[str, Dict[str, float]], Dict[str, Dict[str, float]]]:
-    """Lệnh đã đóng -> (by_strategy, by_symbol): {pnl_usd, trades, wins, fees_usd, funding_usd} — dùng chung cho engine danh mục và backtest tick."""
-    by_strategy: Dict[str, Dict[str, float]] = {}
-    by_symbol: Dict[str, Dict[str, float]] = {}
-    for p in positions:
-        for key, bucket in ((p.strategy_id, by_strategy), (p.symbol, by_symbol)):
-            agg = bucket.setdefault(key, {"pnl_usd": 0.0, "trades": 0, "wins": 0, "fees_usd": 0.0, "funding_usd": 0.0})
-            agg["pnl_usd"] += p.real_pnl
-            agg["trades"] += 1
-            agg["wins"] += int(p.real_pnl > 0)
-            agg["fees_usd"] += p.fees_usd or 0.0
-            agg["funding_usd"] += p.funding_usd or 0.0
-    return by_strategy, by_symbol
 
 
 def _strategy_flow(strategy: Dict[str, Any]) -> Dict[str, Any]:
@@ -173,66 +138,10 @@ def _strategy_flow(strategy: Dict[str, Any]) -> Dict[str, Any]:
             "dca": strategy.get("dca") or []}
 
 
-SPOT_POSITION = {"market": "spot", "leverage": 1}    # ghi đè vị thế của chiến lược khi chạy trên DEX
-POOL_TYPES = ("aerodrome_v2", "uniswap_v2")          # pool AMM có dự trữ trong tick (Sync): volatile x*y=k hoặc stable x³y+xy³=k
-
-
-# is_dex_symbol / classify_symbols / require_perp (đọc thư mục dữ liệu): ở backend/data/data.py (engine-API pass — core không I/O).
-
-
-def display_name(symbol: str) -> str:
-    return symbol.split("@")[0].split(":")[-1]
-
-
-def require_long_legs(strategy_ids: List[str], by_id: Mapping[str, Dict[str, Any]]) -> None:
-    """by_id: {id chiến lược: định nghĩa} (optimize/book/build.BY_ID) — core không import sổ chiến lược."""
-    short = [i for i in strategy_ids if by_id[i]["side"] != "LONG"]
-    if short:
-        raise ValueError(f"DEX là spot AMM — không bán khống được nên chỉ chạy chân LONG; bỏ chân SHORT / \"Cả hai chiều\": {short}")
-
-
-def check_amm_pool(info: Dict[str, Any]) -> None:
-    """Pool phải có dự trữ trong tick (loại v2 nhận diện được) và có mạng — nếu không thì không mô hình hoá được AMM."""
-    if info["pool_type"] not in POOL_TYPES:
-        raise ValueError(f"{info['symbol']}: loại pool {info['pool_type']!r} chưa hỗ trợ — chỉ pool có dự trữ (Aerodrome/Uniswap v2): {POOL_TYPES}")
-    if not info["network"]:
-        raise ValueError(f"{info['symbol']}: manifest thiếu network")
-
-
-def tick_window(infos: List[Dict[str, Any]], start: Optional[int], end: Optional[int], frame_ms: int) -> Tuple[int, int]:
-    """Cửa sổ chạy tick [W, E] (ms) = [start, end] cắt theo độ phủ tick chung của các tài sản: W làm tròn LÊN mốc nến cơ sở kế tiếp (nến tín hiệu đầu tiên
-    phủ trọn bằng tick), E = min(end, tick cuối). Ngắn hơn một nến cơ sở -> ValueError."""
-    for i in infos:
-        if not i["ticks"]:
-            raise ValueError(f"{i['symbol']}: chưa có tick — backtest tick không được Nautilus hỗ trợ")
-    lo, hi = max(int(i["ticks"]["start_ts"]) for i in infos), min(int(i["ticks"]["end_ts"]) for i in infos)
-    w = max(int(start or 0), lo)
-    w = -(-w // frame_ms) * frame_ms
-    e = min(int(end) if end else hi, hi)
-    if e - w < frame_ms:
-        raise ValueError(f"cửa sổ tick sau khi cắt theo độ phủ tick ({lo}..{hi} ms) ngắn hơn một nến cơ sở ({frame_ms // 60_000} phút)")
-    return w, e
-
-
-KLINE_COLS = ["open_time", *DATA_COLUMNS, "close_time"]
-
-
-def klines_frame(rows: List[List[Any]], now_ms: int) -> pd.DataFrame:
-    """Nến sàn -> DataFrame engine; bỏ nến CHƯA đóng (close_time >= now)."""
-    df = pd.DataFrame([r[:7] for r in rows], columns=KLINE_COLS)
-    for c in ("open", "high", "low", "close", "volume"):
-        df[c] = df[c].astype(float)
-    df["open_time"] = df["open_time"].astype("int64")
-    df = df[df["close_time"].astype("int64") < now_ms].drop(columns=["close_time"]).reset_index(drop=True)
-    df["is_filled"] = 0
-    return df
-
-
 def required_frames(symbol: str, strategies: List[Dict[str, Any]], base_frame: str) -> List[str]:
     """Các khung engine cần cho sổ (gồm khung chạy và 4h — engine luôn nạp 4h)."""
     eng, _ = _engine_slots(symbol, strategies, base_frame, 0, DAY)
     return sorted(set(eng._refs_by_frame()) | {base_frame, "4h"})
-
 
 
 def _portfolio(symbol: str, strategies: List[Dict[str, Any]], base_frame: str, start: int, end: int):
@@ -301,16 +210,10 @@ def evaluate_signals(symbol: str, strategies: List[Dict[str, Any]], frames: Dict
     return out
 
 
-def _bar_sig(v: Dict[str, Any], i: int) -> List[Dict[str, Any]]:
-    return [{"match": bool(e["match"][i]), "stop": bool(e["stop"][i]), "vol": (float(e["vol"][i]) if e["vol"] is not None else None),
-             "dca": bool(e["dca"][i]) if e.get("dca") is not None else True}
-            for e in v["entries"]]
-
-
 # ══════════════════════════════════════════════════════════════════════════
-# Ảnh chụp tín hiệu (signal_snapshot) + kiểm tra tín hiệu (check_signals) — engine-API pass: chuyển từ alpha/dsl/signal.py (cần PortfolioEngine /
-# BacktestEngine + nguồn dữ liệu). Phần giải thích/thống kê thuần (_explain, _since, _thin, _forward_bps, _stats, _verdict) vẫn ở alpha/dsl/signal.py.
-# Chú thích đầy đủ: alpha/dsl/signal.py, các mục ảnh chụp tín hiệu (snapshot) và kiểm tra tín hiệu (diagnostics).
+# Ảnh chụp tín hiệu (signal_snapshot) + kiểm tra tín hiệu (check_signals) — engine-API pass: chuyển từ signal/nodes.py (cần PortfolioEngine /
+# BacktestEngine + nguồn dữ liệu). Phần giải thích/thống kê thuần (_explain, _since, _thin, _forward_bps, _stats, _verdict) vẫn ở signal/nodes.py.
+# Chú thích đầy đủ: signal/nodes.py, các mục ảnh chụp tín hiệu (snapshot) và kiểm tra tín hiệu (diagnostics).
 # ══════════════════════════════════════════════════════════════════════════
 
 def signal_snapshot(symbol: str, strategies: List[Dict[str, Any]], end_ts: int, lookback_minutes: int = DEFAULT_LOOKBACK_MIN,
@@ -423,153 +326,6 @@ def check_signals(symbol: str, signals: Dict[str, Dict[str, Any]], start_ts: Opt
 #
 # Thực thi chương trình DSL (docs/bmad/p7_python_strategies.md §5): chương trình đã biên dịch -> chiến lược của PortfolioEngine.
 #
-# Một cấu hình thực thi duy nhất = mặc định của engine Nora: perp OKX, khối lượng theo rủi ro (BASE_POSITION), SL 3×ATR (NORA_DEFAULTS), trần đòn bẩy,
-# cooldown 60 phút, RiskConfig mặc định của sổ. Ghi đè bằng thuộc tính lớp của chiến lược hoặc `position` (khoá của params.builder.POSITION_KEYS).
-#
-# Tín hiệu là cột `py_<hash12>_<le|lx|se|sx>` (alpha/dsl/indicator.py::register_program): vào = [cột le/se] > 0,5; thoát = [cột lx/sx] > 0,5.
-# ══════════════════════════════════════════════════════════════════════════
-
-@dataclass
-class Plan:
-    strategies: List[Dict[str, Any]]
-    symbols: List[str]                       # ký hiệu dữ liệu cho PortfolioEngine ("BTC@perp")
-    risk: Dict[str, Any]
-    base_frame: str
-    venue: str = "cex"
-    warnings: List[str] = field(default_factory=list)
-    echo: Dict[str, Any] = field(default_factory=dict)   # cấu hình hiệu lực (vào result.json)
-
-
-def _ref(program: Program, kind: str) -> Dict[str, Any]:
-    return {"frame": program.timeframe, "column": program.column(kind), "index": 0}
-
-
-def _tree(program: Program, kind: str) -> List:
-    return [[[_ref(program, kind), ">", 0.5]]]
-
-
-def _leg_signals(program: Program, side: str) -> Tuple[List, List]:
-    """(cây vào, stop) của một chân: stop theo dạng materialize(): [{"condition": cây}]."""
-    ent, ext = ("le", "lx") if side == "LONG" else ("se", "sx")
-    return _tree(program, ent), [{"condition": _tree(program, ext)}]
-
-
-def leg_level(program: Program, side: str, warnings: List[str]) -> float:
-    """Mức |position| lớn nhất của chân; nhiều mức khác nhau -> cảnh báo (v1 chỉ dùng mức lớn nhất)."""
-    levels = sorted({abs(lv) for lv in program.levels if (lv > 0 if side == "LONG" else lv < 0)})
-    if len(levels) > 1:
-        warnings.append(f"Chân {side} có nhiều mức position khác nhau {levels}: v1 dùng mức lớn nhất ({levels[-1]:g}) cho mọi lệnh vào, "
-                        "không tăng/giảm vị thế theo mức")
-    return levels[-1]
-
-
-def build_plan(program: Program, symbols: List[str], position: Optional[Dict[str, Any]] = None, strategy_id: Optional[str] = None,
-               run_frame: Optional[str] = None, exact_id: bool = False, data: Optional[DataSource] = None) -> Plan:
-    """strategy_id: tiền tố id chiến lược (mặc định py_<hash12>). exact_id: chương trình một chân -> id chiến lược = strategy_id đúng nguyên văn
-    (kiểm parity với chiến lược lõi cùng id). data: nguồn dữ liệu (tên tài sản trần — DataSource.base_name); None = mặc định."""
-    if not symbols:
-        raise ValueError("Cần ít nhất một tài sản")
-    legs = program.legs
-    if not legs:
-        raise ValueError("Chương trình không có chân nào có mức position khác 0 (chỉ có set_positions(..., position=0))")
-    warnings: List[str] = []
-    base = run_frame or RUN_FRAME
-    if base not in FRAME_ORDER:
-        raise ValueError(f"run_frame phải thuộc {list(FRAMES)}")
-    if FRAME_ORDER[program.timeframe] < FRAME_ORDER[base]:
-        raise ValueError(f"timeframe của chiến lược ({program.timeframe}) nhỏ hơn khung chạy {base}")
-    sid = strategy_id or f"py_{program.code_hash}"
-    pos = resolve_position_auto({**BASE_POSITION, **NORA_DEFAULTS, **_check_position(program.position_overrides), **_check_position(position or {})}, program.timeframe)
-    user_keys = set(program.position_overrides) | set(position or {})
-    defaulted = [k for k in NORA_DEFAULTS if k not in user_keys]
-    if defaulted:
-        warnings.append("Dùng mặc định của engine cho " + ", ".join(f"{k}={NORA_DEFAULTS[k]}" for k in defaulted)
-                        + f" (rủi ro {pos['risk_per_trade_pct']}%/lệnh, SL tính theo ATR); khai báo trong code hoặc `position` để đổi")
-    if FRAME_ORDER.get(str(pos.get("atr_frame")), 0) < FRAME_ORDER[base]:
-        raise ValueError(f"atr_frame {pos.get('atr_frame')} nhỏ hơn khung chạy {base}")
-    src = data_source(data)
-    names = list(dict.fromkeys(src.base_name(s) for s in symbols))
-    data_symbols = [f"{n}@perp" for n in names]
-    strategies = []
-    for side in legs:
-        leg_level(program, side, warnings)    # chỉ để cảnh báo; định cỡ theo rủi ro, bỏ qua độ lớn mức
-        tree, stop = _leg_signals(program, side)
-        strategies.append({"id": sid if exact_id and len(legs) == 1 else f"{sid}_{side.lower()}", "side": side, "tree": tree, "stop": stop,
-                           "position": dict(pos)})
-    return Plan(strategies, data_symbols, dict(RISK), base, "cex", warnings, {"position": pos})
-
-
-def _check_position(pos: Dict[str, Any]) -> Dict[str, Any]:
-    from backend.models.params import POSITION_KEYS
-    bad = sorted(set(pos) - set(POSITION_KEYS))
-    if bad:
-        raise ValueError(f"khoá vị thế không hợp lệ: {bad}; có: {sorted(POSITION_KEYS)}")
-    for k, v in pos.items():
-        if isinstance(v, bool) or not isinstance(v, (int, float, str)):
-            raise ValueError(f"vị thế {k}: phải là số hoặc chuỗi, nhận {v!r}")
-    return dict(pos)
-
-
-NAN = float("nan")
-
-
-class OrderKind(IntEnum):
-    ENTRY = 1   # market, mở tầng đầu
-    EXIT = 2    # market, đóng hết (tín hiệu thoát / hết thời gian / kill)
-    DCA = 3     # limit nhồi tầng
-    SL = 4      # stop-loss đóng hết (từ giá TB)
-    TRAIL = 5   # trailing stop đóng hết
-    TP = 6      # limit chốt lời đóng hết (từ giá TB)
-
-
-@dataclass
-class Order:
-    id: int
-    slot: int
-    kind: OrderKind
-    is_buy: bool
-    level: float = NAN          # DCA/SL/TRAIL/TP: mức giá đặt; ENTRY/EXIT: nan (market ở open)
-    trigger: float = NAN        # DCA/TP có limit_through: mức phải đi QUA; mặc định (nan) = level
-    notional: float = 0.0       # ENTRY/DCA (sim tính qty = notional / giá khớp); EXIT/SL/TRAIL/TP: đóng hết
-    margin: float = 0.0
-    reason: str = ""            # nhãn close_reason / start_reason của tracker
-    reduce_only: bool = False
-    post_only: bool = False
-    # TRAIL (P6.8b): `level` luôn là mức stop TĨNH tính từ đỉnh các nến trước (SimVenue đọc mức này). Venue có trailing gốc (OKX) đọc thêm
-    # `activation` (giá kích hoạt) và `callback_pct` (% lùi khỏi đỉnh, vd 1.5 = 1.5%); thiếu (nan) thì rơi về level / trigger như quy ước cũ.
-    activation: float = NAN
-    callback_pct: float = NAN
-    # TRAIL cho SimVenue đường ohlc/adaptive: `peak` = đỉnh/đáy có lợi các nến TRƯỚC (venue tự chạy tiếp theo từng chặng của nến) và
-    # `activation_pct` = ngưỡng lãi % để bật trailing (so với avg hiện tại); thiếu (nan) thì venue dùng `level` tĩnh như đường cũ.
-    peak: float = NAN
-    activation_pct: float = NAN
-
-
-@dataclass(frozen=True)
-class VenueCaps:
-    generates_liquidation: bool   # venue tự sinh Fill thanh lý (sim); sàn thật chỉ quan sát
-    native_trailing: bool         # venue có lệnh trailing gốc (OKX); sim dùng mức tĩnh tính từ đỉnh các nến trước
-    post_only: bool               # venue hỗ trợ post_only cho lệnh limit
-    rounds_qty: bool              # venue làm tròn qty/giá theo bộ lọc sàn
-
-
-class Venue(Protocol):
-    caps: VenueCaps
-
-    def submit(self, order: Order) -> None: ...
-    def cancel(self, order_id: int) -> None: ...
-    def cancel_slot(self, slot: int) -> None: ...
-    def open_orders(self, slot: int) -> List[Order]: ...
-    def next_event(self, slot: int) -> Optional[Union[Fill, OrderRejected]]: ...
-
-
-_ORDER_ID = itertools.count(1)
-
-
-def new_order_id() -> int:
-    """Cấp `Order.id` mới (toàn cục, tăng dần). Tách khỏi `models._ID_SEQ` để việc đặt/huỷ lệnh chờ không tiêu id của OrderModel."""
-    return next(_ORDER_ID)
-
 
 class SignalEngine:
     """Điều phối dữ liệu, tín hiệu và các flow chiến lược."""
@@ -784,7 +540,6 @@ class SignalEngine:
         return out
 
 
-
     # ─── Tiện ích dữ liệu ───────────────────────────────────────────────────
     @staticmethod
     def _prepare_candles(df: Optional[pd.DataFrame]) -> pd.DataFrame:
@@ -846,7 +601,7 @@ class SignalPortfolio:
         strategies: [{"id", "side": LONG|SHORT, "tree": AST đã thay tham số, "position": {...POSITION_KEYS}}].
         Khoá tuỳ chọn "symbols": [..] giới hạn chiến lược đó chỉ chạy trên các tài sản này (mặc định: mọi tài sản).
         close_at_end=False: KHÔNG đóng vị thế còn mở ở cuối dữ liệu (vốn cuối vẫn là MTM) — xem open_positions() (feed giả lập).
-        shared_dir: thư mục dữ liệu mmap dùng chung (DataSource.shared_*; optimize/search/evaluate.py); mặc định env NORA_SHARED_DATA_DIR.
+        shared_dir: thư mục dữ liệu mmap dùng chung (DataSource.shared_*; jobs/evaluate.py); mặc định env NORA_SHARED_DATA_DIR.
         Có thì _load_symbol ưu tiên đọc mmap (chỉ đọc) thay vì tự dựng; không thấy khoá thì dựng như cũ."""
         if not symbols or not strategies:
             raise ValueError("Cần ít nhất một tài sản và một chiến lược")
@@ -898,3 +653,4 @@ class SignalPortfolio:
                                                      self.venue, pool_fee=pool_fee))
             pairs.append((st, eng.slots[-1]))
         return eng, pairs
+

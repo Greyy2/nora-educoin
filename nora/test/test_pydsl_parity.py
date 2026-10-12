@@ -6,10 +6,11 @@ import pandas as pd
 import pytest
 
 import golden_scenarios as gs
-from backend.optimize.book import build as sb
+from backend import strategies as sb
 from backend.models.params import RISK, materialize, schema_defaults
 from backend.alpha.compile import compile_code
-from backend.alpha.dsl import strategy as profiles
+from backend.signal import compute as profiles
+from backend.alpha import plan as _plan_mod
 
 pytestmark = pytest.mark.usefixtures("synthetic_data")   # P15: engine Nautilus lấy nến thực thi + spec từ DataSource; dữ liệu giả lập -> conftest.synthetic_data
 
@@ -35,7 +36,7 @@ def _core_strategy():
 
 
 def _run(strategies, symbols, start_ms, end_ms, trade_start, root):
-    from backend.alpha.dsl.strategy import RiskConfig
+    from backend.alpha.plan import RiskConfig
     from backend.nautilus.engine import PortfolioEngine
     with gs.data_root_env(str(root)):
         eng = PortfolioEngine(symbols, strategies, start_ms, end_ms, trade_start_ts=trade_start, risk=RiskConfig.from_dict(RISK),
@@ -47,7 +48,7 @@ def _run(strategies, symbols, start_ms, end_ms, trade_start, root):
 def _parity(root, symbols, start_ms, end_ms, trade_start):
     core = _core_strategy()
     prog = compile_code(KEMA_CODE)
-    plan = profiles.build_plan(prog, symbols, position=core["position"], strategy_id="kema_long", exact_id=True)
+    plan = _plan_mod.build_plan(prog, symbols, position=core["position"], strategy_id="kema_long", exact_id=True)
     assert len(plan.strategies) == 1
     assert {k: plan.strategies[0]["position"][k] for k in core["position"]} == core["position"]
     a = _run([core], symbols, start_ms, end_ms, trade_start, root)

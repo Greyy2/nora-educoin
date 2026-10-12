@@ -137,7 +137,7 @@ def data_root_env(root: str):
 
 
 def clear_caches() -> None:
-    from backend.alpha.dsl import strategy as portfolio
+    from backend.signal import compute as portfolio
     from backend.data.data import clear_caches as clear_data_caches
     clear_data_caches()
     portfolio.data_cache_clear()
@@ -178,7 +178,7 @@ SHORT = {"id": "rsi_short", "side": "SHORT", "tree": [[[_f("15m", "rsi_14"), ">"
 
 
 def scenario_portfolio_synthetic(root) -> Dict[str, Any]:
-    from backend.alpha.dsl.strategy import RiskConfig
+    from backend.alpha.plan import RiskConfig
     from backend.nautilus.engine import PortfolioEngine
     write_synthetic_market(root)
     with data_root_env(str(root)):
@@ -205,9 +205,9 @@ def real_data_available(data_root) -> bool:
 
 def scenario_portfolio_real(data_root, end: Optional[str] = None, shared_dir: Optional[str] = None) -> Dict[str, Any]:
     """shared_dir: nếu có, export dữ liệu mmap vào đó rồi chạy bằng PortfolioEngine(shared_dir=...) (kết quả phải y hệt)."""
-    from backend.optimize.book import build as sb
+    from backend import strategies as sb
     from backend.models.params import RISK, materialize
-    from backend.alpha.dsl.strategy import RiskConfig
+    from backend.alpha.plan import RiskConfig
     from backend.nautilus.engine import PortfolioEngine
     cand = sb.BY_ID
     # cooldown=0, limit_through_pct=0: snapshot này sinh trước khi BASE_POSITION có cooldown=60 / khớp limit phải đi qua mức; ghim để golden
@@ -224,7 +224,7 @@ def scenario_portfolio_real(data_root, end: Optional[str] = None, shared_dir: Op
         eng = PortfolioEngine(REAL_SYMBOLS, strategies, REAL_START_MS - REAL_WARMUP_DAYS * DAY, end_ms,
                               trade_start_ts=REAL_START_MS, risk=risk, shared_dir=shared_dir)
         if shared_dir:
-            from backend.optimize.search import evaluate as shared_data
+            from backend.jobs import evaluate as shared_data
             shared_data.export(eng, shared_dir)
             clear_caches()
         eng.run()

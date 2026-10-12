@@ -12,7 +12,7 @@ import pandas as pd
 
 def main(module: str, inp: str, out: str) -> None:
     cfg = json.load(open(inp, encoding="utf-8"))
-    import backend.optimize  # noqa: F401  (đăng ký nguồn dữ liệu mặc định, như conftest)
+    import backend  # noqa: F401  (đăng ký nguồn dữ liệu mặc định, như conftest)
     mod = importlib.import_module(module)
     from backend.alpha.compile import compile_code
     res = {}

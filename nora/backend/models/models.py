@@ -457,8 +457,8 @@ CapitalLedger = Account
 #
 # Engine (BacktestEngine / PortfolioEngine / build_plan / signal_snapshot / check_signals) KHÔNG tự đọc đĩa: mọi nến, manifest, cổng chất
 # lượng, kho mmap dùng chung và bộ nhớ đệm mảng đi qua MỘT đối tượng `DataSource` truyền vào (`data=`). Bản cài đặt thật nằm NGOÀI core
-# (backend/data/data.py: EngineData đọc catalog Nautilus + kho mmap dùng chung của optimize/search/evaluate.py). `data=None` = nguồn mặc định của tiến
-# trình, do tầng trên đăng ký bằng set_default_data_source (backend/optimize/__init__.py — mọi lối vào: API, job, worker, test, live).
+# (backend/data/data.py: EngineData đọc catalog Nautilus + kho mmap dùng chung của jobs/evaluate.py). `data=None` = nguồn mặc định của tiến
+# trình, do tầng trên đăng ký bằng set_default_data_source (backend/__init__.py — mọi lối vào: API, job, worker, test, live).
 # ══════════════════════════════════════════════════════════════════════════
 
 class DataMemo(Protocol):
@@ -518,7 +518,7 @@ _DEFAULT_FACTORY: List[Any] = [None]
 
 
 def set_default_data_source(src: Optional[DataSource]) -> None:
-    """Đăng ký nguồn dữ liệu mặc định của tiến trình (gọi ở tầng trên — backend/optimize/__init__.py; test có thể thay)."""
+    """Đăng ký nguồn dữ liệu mặc định của tiến trình (gọi ở tầng trên — backend/__init__.py; test có thể thay)."""
     _DEFAULT_DATA[0] = src
     _DEFAULT_FACTORY[0] = None
 
@@ -535,5 +535,5 @@ def data_source(data: Optional[DataSource] = None) -> DataSource:
     if src is None and _DEFAULT_FACTORY[0] is not None:
         src = _DEFAULT_DATA[0] = _DEFAULT_FACTORY[0]()
     if src is None:
-        raise RuntimeError("engine chưa có nguồn dữ liệu: truyền data=... hoặc import backend.optimize (đăng ký EngineData mặc định)")
+        raise RuntimeError("engine chưa có nguồn dữ liệu: truyền data=... hoặc import backend (đăng ký EngineData mặc định)")
     return src

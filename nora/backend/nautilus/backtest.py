@@ -20,7 +20,7 @@ from nautilus_trader.model.enums import AccountType, OmsType
 from nautilus_trader.model.objects import Money
 from nautilus_trader.trading.strategy import Strategy, StrategyConfig
 
-from backend.alpha.dsl.strategy import RiskConfig
+from backend.alpha.plan import RiskConfig
 from backend.data.data import exec_arrays
 from backend.models.params import FRAME_MS
 from backend.nautilus import catalog as cat

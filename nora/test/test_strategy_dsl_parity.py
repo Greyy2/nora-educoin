@@ -14,10 +14,10 @@ import random
 import pytest
 
 import golden_scenarios as gs
-from backend.alpha.dsl.signal import DslError
+from backend.signal.nodes import DslError
 from backend.alpha.compile import compile_strategy_module, load_system_strategies, strategies_dir
 from backend.models.params import AUTO_FALLBACK_ATR_FRAME, AUTO_FALLBACK_COOLDOWN, REGIME_MAP, RISK, materialize, schema_defaults
-from backend.optimize.book import build as sl
+from backend import strategies as sl
 
 pytestmark = pytest.mark.usefixtures("synthetic_data")   # P15: engine Nautilus lấy nến thực thi + spec từ DataSource; dữ liệu giả lập -> conftest.synthetic_data
 
@@ -115,7 +115,7 @@ def test_materialize_identical_over_param_points(cid):
 
 
 def _run(strategies, symbols, root):
-    from backend.alpha.dsl.strategy import RiskConfig
+    from backend.alpha.plan import RiskConfig
     from backend.nautilus.engine import PortfolioEngine
     with gs.data_root_env(str(root)):
         eng = PortfolioEngine(symbols, strategies, gs.T0, gs.T0 + 38 * gs.DAY, trade_start_ts=gs.T0 + 18 * gs.DAY,

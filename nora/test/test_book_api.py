@@ -12,8 +12,8 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from backend.models.storage import alpha_run_dir, run_dir
-from backend.routes import optimize
-from backend.optimize.process import process as batch_jobs
+from backend.routes import book as optimize
+from backend.jobs import runner as batch_jobs
 from backend.routes import process as process_routes
 from job_modules import launched
 
@@ -140,76 +140,6 @@ def test_wfa_report_dir_must_be_a_book_run(client, tmp_path):
         assert client.post("/api/studio/book/wfa", json={"report_dir": evil}).status_code == 422
 
 
-def test_build_params_and_whitelist(client):
-    r = client.post("/api/studio/book/build", json={"only": ["trend_long"], "n": 6})
-    assert r.status_code == 200
-    kind, p = launched(FakePopen.calls[0])
-    assert kind == "book_build" and p["only"] == ["trend_long"] and p["n"] == 6
-    out = p["out"]           # build luôn ghi vào thư mục job, không đụng nora/data/alphas
-    job_id = os.path.basename(os.path.dirname(out))
-    assert out == os.path.join(batch_jobs.jobs_root(), job_id, "alphas") and out != os.path.join(batch_jobs.NORA_DIR, "data", "alphas")
-    assert client.post("/api/studio/book/build", json={"only": ["x"]}).status_code == 422
-    assert client.post("/api/studio/book/build", json={"n": 0}).status_code == 422
-    # tầng batch_jobs không tin router: loại job lạ / tham số lạ / giá trị không ghi được JSON bị chặn
-    with pytest.raises(batch_jobs.JobError):
-        batch_jobs.launch("shell", {"c": "id"})
-    with pytest.raises(batch_jobs.JobError):
-        batch_jobs.launch("book_build", {"out": "/etc"})
-    with pytest.raises(batch_jobs.JobError):
-        batch_jobs.launch("book_build", {"n": float("nan")})
-    with pytest.raises(batch_jobs.JobError):
-        process_routes.build_job("rm", {})
-
-
-# ─── Xuất bản sổ đã dựng ────────────────────────────────────────────────────
-def _built_job(state="done", book=True, testnet=False, name=None, kind="book_build"):
-    jid, d = _fake_job(kind=kind, pid=os.getpid() if state == "running" else None, state=state, name=name, log="x\n")
-    if book:
-        os.makedirs(os.path.join(d, "alphas", "testnet"), exist_ok=True)
-        open(os.path.join(d, "alphas", "book.json"), "w").write(json.dumps({"status": "READY_FOR_TESTNET" if testnet else "HOLDOUT_FAILED",
-                                                                           "holdout_pass": testnet, "generated_at": 7,
-                                                                           "strategies": [{"id": "trend_long"}]}))
-        if testnet:
-            open(os.path.join(d, "alphas", "testnet", "book.json"), "w").write(json.dumps({"mode": "testnet"}))
-        else:
-            os.rmdir(os.path.join(d, "alphas", "testnet"))
-    return jid
-
-
-def test_publish_copies_book_and_testnet_and_cleans_stale(client, tmp_path, monkeypatch):
-    dest = tmp_path / "published"
-    monkeypatch.setenv("NORA_ALPHAS_DIR", str(dest))
-    monkeypatch.delenv("NORA_BOOK_PATH")
-    j1 = _built_job(testnet=True, name="20260101_000001_aaaaaa")
-    r = client.post("/api/studio/book/publish", json={"job_id": j1})
-    assert r.status_code == 200, r.text
-    assert r.json()["published"] and r.json()["status"] == "READY_FOR_TESTNET" and r.json()["strategies"] == ["trend_long"]
-    assert json.loads((dest / "book.json").read_text())["generated_at"] == 7
-    assert json.loads((dest / "testnet" / "book.json").read_text()) == {"mode": "testnet"}
-    # sổ trượt holdout (không có testnet/book.json) -> testnet cũ ở đích bị xoá
-    j2 = _built_job(testnet=False, name="20260101_000002_bbbbbb")
-    r = client.post("/api/studio/book/publish", json={"job_id": j2})
-    assert r.status_code == 200 and r.json()["testnet_removed"] is True
-    assert json.loads((dest / "book.json").read_text())["status"] == "HOLDOUT_FAILED"
-    assert not (dest / "testnet" / "book.json").exists()
-    assert not list(dest.rglob("*.tmp"))
-
-
-def test_publish_errors(client, tmp_path, monkeypatch):
-    dest = tmp_path / "published"
-    monkeypatch.setenv("NORA_ALPHAS_DIR", str(dest))
-    monkeypatch.delenv("NORA_BOOK_PATH")
-    no_book = _built_job(book=False, name="20260101_000003_cccccc")
-    assert client.post("/api/studio/book/publish", json={"job_id": no_book}).status_code == 409      # job xong nhưng không có book.json
-    running = _built_job(state="running", name="20260101_000004_dddddd")
-    assert client.post("/api/studio/book/publish", json={"job_id": running}).status_code == 409
-    other = _built_job(kind="book_wfa", name="20260101_000005_eeeeee")
-    assert client.post("/api/studio/book/publish", json={"job_id": other}).status_code == 422
-    assert client.post("/api/studio/book/publish", json={"job_id": "20260101_000000_ffffff"}).status_code == 404
-    assert client.post("/api/studio/book/publish", json={"job_id": "../../etc"}).status_code == 422
-    assert not dest.exists()
-
-
 # ─── Trạng thái job (thư mục giả) ───────────────────────────────────────────
 def _fake_job(kind="book_backtest", pid=2 ** 22 + 1, state="running", log="", result=None, name=None):
     d = os.path.join(batch_jobs.jobs_root(), name or f"{time.strftime('%Y%m%d_%H%M%S')}_abc123")
@@ -259,8 +189,25 @@ def test_job_status_log_tail_and_bad_ids(client):
     assert client.get("/api/studio/book/jobs/not-an-id").status_code == 422
 
 
+def test_job_whitelist(client):
+    """Tầng batch_jobs không tin router: loại job lạ / tham số lạ / giá trị không ghi được JSON bị chặn."""
+    with pytest.raises(batch_jobs.JobError):
+        batch_jobs.launch("shell", {"c": "id"})
+    with pytest.raises(batch_jobs.JobError):
+        batch_jobs.launch("book_backtest", {"out": "/etc"})
+    with pytest.raises(batch_jobs.JobError):
+        batch_jobs.launch("book_backtest", {"risk_per_trade": float("nan")})
+    with pytest.raises(batch_jobs.JobError):
+        process_routes.build_job("rm", {})
+    for gone in ("book_build", "funnel_run", "funnel_book", "alpha_revalidate", "regime_report"):   # kind đã gỡ cùng phễu
+        with pytest.raises(batch_jobs.JobError):
+            batch_jobs.launch(gone, {})
+    for gone in ("/api/studio/book/build", "/api/studio/book/publish", "/api/studio/funnel/runs"):
+        assert client.post(gone, json={}).status_code in (404, 405)
+
+
 def test_waiter_thread_records_exit_code(client, tmp_path):
-    jid = batch_jobs.launch("book_build", {"n": 2})
+    jid = batch_jobs.launch("book_backtest", {})
     deadline = time.time() + 5
     while time.time() < deadline and batch_jobs._read_meta(os.path.join(batch_jobs.jobs_root(), jid))["state"] == "running":
         time.sleep(0.05)
@@ -271,7 +218,8 @@ def test_waiter_thread_records_exit_code(client, tmp_path):
 def test_too_many_active_jobs_is_429(client, monkeypatch):
     monkeypatch.setattr(batch_jobs, "MAX_ACTIVE", 1)
     _fake_job(pid=os.getpid(), log="x\n")
-    assert client.post("/api/studio/book/build", json={}).status_code == 429
+    with pytest.raises(batch_jobs.JobBusy):
+        batch_jobs.launch("book_backtest", {})
 
 
 # ─── GET / ───────────────────────────────────────────────────────────────────

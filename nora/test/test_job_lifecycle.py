@@ -5,7 +5,7 @@ import time
 
 import pytest
 
-from backend.optimize.process import process as bj
+from backend.jobs import runner as bj
 
 
 @pytest.fixture
@@ -51,19 +51,6 @@ def test_success_persists_and_cleans_process(home):
     s = bj.status(A)
     assert s["status"] == "done" and s["result"] == {"metrics": {"n": 1}} and s["log_tail"] == ["log"]
     assert [j["id"] for j in bj.list_jobs(10)] == [A]
-
-
-def test_wfa_links_report_and_build_keeps_alphas_and_funnel_record(home):
-    w = _job(home, A, "book_wfa", result={"report_path": str(home / "wfa" / "20261007_0900" / "report.json")})
-    b = _job(home, B, "book_build", result={"run_dir": "x"}, extra={"alphas": "{}"})
-    f = _job(home, C, "funnel_run", result={"ok": 1})
-    for d in (w, b, f):
-        bj._finish(str(d), 0)
-    assert json.load(open(home / "wfa" / A / "job.json"))["report_dir"] == str(home / "wfa" / "20261007_0900")
-    assert (home / "alpha" / "book" / B / "alphas" / "book.json").is_file()
-    assert (home / "alpha" / "funnel" / C / "job.json").is_file()
-    assert bj.job_dir(B) == str(home / "alpha" / "book" / B) and bj.status(C)["status"] == "done"
-    assert not any((home / "cache" / "process").iterdir())
 
 
 def test_custom_goes_to_memory_live_bot_cleaned_edu_cleaned(home):
@@ -134,7 +121,7 @@ def test_persist_finished_jobs_dry_run_default_then_apply(home):
 
 
 def test_portfolio_dashboard_reads_persisted_book_backtest(home):
-    from backend.routes import optimize
+    from backend.routes import book as optimize
     res = {"metrics": {}, "daily_returns": [], "trade_list": []}
     d = _job(home, A, "book_backtest", result=res)
     bj._finish(str(d), 0)
@@ -154,7 +141,7 @@ def test_ephemeral_lru_bounded_and_enforce_lifecycle_on_start(home, monkeypatch)
     assert bj.ephemeral_gone(ids[0]) and not bj.ephemeral_gone(ids[2]) and not bj.ephemeral_gone("20261007_999999_ffffff")
     from fastapi.testclient import TestClient
     from backend.main import app
-    from backend.optimize.book import registry as reg
+    from backend import strategies as reg
     c = TestClient(app)
     r = c.get(f"/api/studio/book/jobs/{ids[0]}")
     assert r.status_code == 410 and r.json()["detail"]["code"] == "EPHEMERAL_GONE"

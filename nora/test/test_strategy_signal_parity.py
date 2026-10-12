@@ -1,4 +1,4 @@
-"""P15-A: tín hiệu của backend.alpha.dsl.strategy.evaluate_signals == backend-no (cũ) từng bit, trên 10 mẫu giáo dục × BTC, ETH, cửa sổ 2024-01-01..2024-07-01.
+"""P15-A: tín hiệu của backend.signal.compute.evaluate_signals == backend-no (cũ) từng bit, trên 10 mẫu giáo dục × BTC, ETH, cửa sổ 2024-01-01..2024-07-01.
 Hai phía chạy trong tiến trình con riêng (cũ: PYTHONPATH chỉ có thư mục tạm với symlink backend -> test/backend-no) để không đụng tên gói `backend`."""
 import json
 import os
@@ -45,7 +45,7 @@ def test_evaluate_signals_bit_identical_to_old():
                        "warm_ms": 120 * 86_400_000, "root": MARKET}, fh)
         old_out, new_out = os.path.join(tmp, "old.npz"), os.path.join(tmp, "new.npz")
         _run(shim, "backend.core.backtest", cfg, old_out)
-        _run(ROOT, "backend.alpha.dsl.strategy", cfg, new_out)
+        _run(ROOT, "backend.signal.compute", cfg, new_out)
         old, new = np.load(old_out), np.load(new_out)
         assert sorted(old.files) == sorted(new.files)
         assert not [f for f in old.files if f.endswith("|error")], [str(old[f]) for f in old.files if f.endswith("|error")]

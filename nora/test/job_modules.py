@@ -4,15 +4,10 @@ import os
 # P9.6: (file mới, tên hàm job) — mỗi file giờ chứa nhiều job (run_job đã đổi tên run_<kind>); job_path dựng một file bọc nạp nguyên file đích
 # (giữ __file__ thật để đường dẫn tính từ __file__ đúng) rồi gán `run_job = <hàm job>`, nên test cũ vẫn gọi module.run_job(...).
 JOB_FILES = {
-    "build_strategy_book": ("optimize/book/build.py", "run_book_build"),
-    "validate_book": ("optimize/process/tasks.py", "run_book_wfa"),
-    "run_book_backtest": ("optimize/process/tasks.py", "run_book_backtest"),
-    "run_funnel": ("optimize/funnel/stages.py", "run_funnel_run"),
-    "promote_staging": ("core/data/promote.py", "run_job"),
+    "validate_book": ("jobs/tasks.py", "run_book_wfa"),
+    "run_book_backtest": ("jobs/tasks.py", "run_book_backtest"),
 }
-# Module mang dữ liệu sổ chiến lược dùng chung (UNIVERSE / CANDIDATES / GATES...): test monkeypatch BẢN CHÍNH (backend.optimize.book.build), nên bản bọc phải
-# trỏ vào đúng module đó chứ không nạp thêm một bản riêng (bản riêng sẽ có UNIVERSE / CANDIDATES riêng, không thấy monkeypatch).
-SHARED_MODULES = {"build_strategy_book": "backend.optimize.book.build"}
+SHARED_MODULES: dict = {}   # tên job -> module dùng chung cần trỏ vào (hiện không có)
 _WRAP_DIR = []
 
 
@@ -38,7 +33,7 @@ def launched(call):
     """(kind, params) của một lần batch.launch đã ghi lại bởi FakePopen: cmd = [run_limited.sh, "--", "-m", runner, job_dir]."""
     import json
     cmd = call[0]
-    assert cmd[1:4] == ["--", "-m", "backend.optimize.process.process"], cmd
+    assert cmd[1:4] == ["--", "-m", "backend.jobs.runner"], cmd
     with open(os.path.join(cmd[4], "params.json"), encoding="utf-8") as fh:
         spec = json.load(fh)
     return spec["kind"], spec["params"]

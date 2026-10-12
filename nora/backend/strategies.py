@@ -1,25 +1,431 @@
-"""Kho alpha + sổ (P9.6): phiên bản engine (engine_version), registry/sổ chính/sổ thử nghiệm/xuất bản (registry), kiểm lại alpha (revalidate), alpha người dùng (user_alphas), tài liệu chiến lược (strategy_doc), Top Agents (đọc file nghiên cứu đã đóng băng).
+"""Chiến lược hệ thống (nạp từ file DSL), kiểm tham số/khung, presets (bộ tham số tốt nhất cho chế độ Cơ bản), alpha người dùng (lưu/phiên bản/checklist),
+tài liệu thư viện chiến lược (catalog) và top agents.
 
-Nguồn gộp: docs/bmad/p9_review_log.md (mục P9.6, P9.8).
+Nguồn gộp: docs/bmad/p9_review_log.md (mục P9.6, P9.8, P9.9). Chiến lược hệ thống nạp từ file DSL (strategy_loader cũ) nằm ở đây.
 """
+import functools
 import hashlib
 import json
+import math
 import os
+import random
 import re
-import shutil
 import subprocess
+import sys
 import time
-import warnings
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from collections.abc import Mapping
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
-from backend.alpha.dsl.indicator import REGISTRY
-from backend.models.storage import alpha_dir as alphas_dir
-from backend.models.storage import options, write_job_result
-from backend.models.storage import json_default, read_json
+
+from backend.signal.indicator import REGISTRY
 from backend.metrics.charts import BETA_DRIVEN_ID
-from backend.optimize.funnel.storage import atomic_write_json
 from backend.models.models import NORA_DIR
+from backend.models.params import REGIME_MAP, materialize, regime_for, schema_defaults
+from backend.alpha.compile import load_system_strategies
+from backend.models.storage import alpha_dir as alphas_dir, alpha_dir as _alpha_dir, write_json_atomic
+from backend.models.storage import options, read_json, write_job_result
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Chế độ chạy: Cơ bản (basic = preset khoá sẵn) / Nâng cao (advanced = mọi tham số chỉnh được, kiểm theo params_schema).
+#
+# Module thuần (không FastAPI): kiểm tham số theo params_schema của chiến lược, điền khoá thiếu từ preset, rút tham số tối thiểu cho job,
+# và phân loại "custom_gates" (kết quả dùng ngưỡng gate khác chuẩn -> không được xuất bản/promote). Lớp API: backend/routes/modes.py.
+# Mọi thông báo lỗi bằng tiếng Việt, gắn theo TRƯỜNG: [{"field": "strategies[0].params.sig.ema_fast", "message": "..."}].
+# ══════════════════════════════════════════════════════════════════════════
+
+# 6 kịch bản luôn có + 3 kịch bản trend thẳng đứng (chỉ có khi nguồn biết vị thế, vd. WFA — carlo.vertical_exposure)
+
+FieldError = Tuple[str, str]       # (trường, thông báo)
+
+
+def _num(v: Any) -> bool:
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+
+
+def _unit(spec: Dict[str, Any]) -> str:
+    return f" {spec['unit']}" if spec.get("unit") else ""
+
+
+def check_value(key: str, spec: Dict[str, Any], value: Any) -> Tuple[Any, Optional[str]]:
+    """-> (giá trị đã chuẩn hoá, lỗi|None) cho một tham số theo spec của params_schema."""
+    label = f"{spec['label_vi']} ({key})"
+    if spec["type"] == "choice":
+        if value not in spec["choices"] or not isinstance(value, str):
+            return None, f"{label} phải là một trong {spec['choices']}, nhận {value!r}"
+        return value, None
+    if not _num(value):
+        return None, f"{label} phải là số, nhận {value!r}"
+    lo, hi = spec["min"], spec["max"]
+    if spec["type"] == "int":
+        if not float(value).is_integer():
+            return None, f"{label} phải là số nguyên từ {lo} đến {hi}{_unit(spec)}, nhận {value!r}"
+        value = int(value)
+    else:
+        value = float(value)
+    if not lo <= value <= hi:
+        return None, f"{label} phải nằm trong khoảng {lo} đến {hi}{_unit(spec)}, nhận {value!r}"
+    return value, None
+
+
+def validate_params(candidate: Dict[str, Any], params: Any, base: Dict[str, Any], prefix: str = "params") -> Tuple[Dict[str, Any], List[FieldError]]:
+    """Kiểm `params` của một chiến lược theo params_schema (khoá lạ, kiểu, khoảng, khung thời gian, EMA nhanh < chậm, cột kernel, ngân sách DCA).
+    Khoá thiếu lấy từ `base` (preset). -> (tham số ĐẦY ĐỦ đã chuẩn hoá, danh sách lỗi theo trường). Có lỗi thì tham số đầy đủ chưa đáng tin."""
+    schema = candidate["params_schema"]
+    cid = candidate["id"]
+    errors: List[FieldError] = []
+    if not isinstance(params, dict):
+        return dict(base), [(prefix, f"{cid}: params phải là đối tượng {{khoá: giá trị}}, nhận {type(params).__name__}")]
+    full = dict(base)
+    for key, value in params.items():
+        spec = schema.get(key)
+        if spec is None:
+            hint = f" (ý bạn là '{'sig.' + key}'?)" if "sig." + key in schema else ""
+            errors.append((f"{prefix}.{key}", f"{cid}: tham số '{key}' không có trong chiến lược này{hint}; khoá hợp lệ: {list(schema)}"))
+            continue
+        norm, err = check_value(key, spec, value)
+        if err:
+            errors.append((f"{prefix}.{key}", f"{cid}: {err}"))
+        else:
+            full[key] = norm
+    if errors:
+        return full, errors
+    fast, slow = full.get("sig.ema_fast"), full.get("sig.ema_slow")
+    if fast is not None and slow is not None and fast >= slow:
+        errors.append((f"{prefix}.sig.ema_fast", f"{cid}: EMA nhanh ({fast}) phải nhỏ hơn EMA chậm ({slow})"))
+    if errors:
+        return full, errors
+    # Thay thử vào cây: bắt cột kernel/khung không hợp lệ (cùng kiểm tra lúc chạy thật) + ngân sách DCA của vị thế
+    try:
+        st = materialize(candidate, full)
+        from backend.models.params import VENUE_COSTS, dca_budget_check
+        budget = dca_budget_check(st["position"], VENUE_COSTS[("cex", "perp")])
+        if not budget["ok"]:
+            errors.append((prefix, f"{cid}: ngân sách DCA không đủ — cần {budget['need_pct']:.1f}% vốn, trần {budget['cap_pct']:.1f}%"))
+    except ValueError as exc:
+        errors.append((prefix, f"{cid}: {exc}"))
+    return full, errors
+
+
+# ─── Khung chạy (nến mô phỏng) ───────────────────────────────────────────────
+def frame_keys(candidate: Dict[str, Any]) -> List[str]:
+    """Khoá chọn KHUNG nến của chiến lược (sig.*_tf, atr_frame...): kiểu choice, mọi lựa chọn là khung."""
+    from backend.models.params import FRAME_MS
+    return [k for k, v in (candidate.get("params_schema") or {}).items()
+            if v.get("type") == "choice" and set(v.get("choices") or []) <= set(FRAME_MS)]
+
+
+def lift_frame(frame: str, base_frame: str, choices: List[str]) -> Optional[str]:
+    """Khung >= khung chạy giữ nguyên; nhỏ hơn -> khung chạy nếu là lựa chọn hợp lệ, không thì None (không chạy được)."""
+    from backend.models.params import FRAME_MS
+    if FRAME_MS[frame] >= FRAME_MS[base_frame]:
+        return frame
+    return base_frame if base_frame in choices else None
+
+
+def lift_frames(candidate: Dict[str, Any], params: Dict[str, Any], base_frame: str) -> Dict[str, Any]:
+    """Tham số với mọi khung (kể cả mặc định schema) nâng lên >= khung chạy. ValueError nếu một khung không thể nâng."""
+    if base_frame == "1m":
+        return dict(params)
+    out = dict(params)
+    defaults = schema_defaults(candidate)
+    for k in frame_keys(candidate):
+        cur = out.get(k, defaults[k])
+        new = lift_frame(cur, base_frame, list(candidate["params_schema"][k]["choices"]))
+        if new is None:
+            raise ValueError(f"{candidate['id']}: {k}={cur} nhỏ hơn khung chạy {base_frame} và không có lựa chọn >= {base_frame}")
+        if new != cur or k in out:
+            out[k] = new
+    return out
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Dữ liệu sổ chiến lược (phần tham số vị thế đã ở models/params.py — RISK cũng ở đó vì signal/compute.py.build_plan cần)
+#
+# Sổ chiến lược (strategy book): tham số theo CHIẾN LƯỢC, không theo tài sản; vốn phân bổ theo RỦI RO.
+#
+# Nguyên tắc:
+# - Một chiến lược = tín hiệu (AST trên kernel) + quản lý vị thế. Một bộ tham số dùng chung cho cả vũ trụ tài sản.
+# - Thoát lệnh theo bội số ATR% (exit_unit="atr") để cùng tham số tự co giãn theo biến động từng tài sản:
+#   stop_loss_rate=2 nghĩa là SL cách giá vào 2 × ATR%(khung atr_frame) đo ở nến đã đóng lúc có tín hiệu.
+# - Khối lượng theo rủi ro (sizing="risk"): chạm SL mất ~risk_per_trade_pct% vốn; đòn bẩy tự hạ để thanh lý
+#   cách giá vào >= 1,5 × khoảng SL; trần đòn bẩy 10x (mức rủi ro đã chốt).
+# - Rủi ro danh mục (RiskConfig): số vị thế đồng thời, mỗi tài sản tối đa 1 vị thế, trần tổng danh nghĩa, kill switch 30%.
+#
+# Chọn chiến lược (run_book_build bên dưới) chạy trên CẢ vũ trụ cùng lúc (backtest danh mục), nên một
+# cấu hình chỉ thắng nhờ một tài sản sẽ bị loại bởi điều kiện độ phủ (đa số tài sản phải có lãi).
+#
+# Chiến lược hệ thống = file Python DSL (P9.9): KEMA / Sideway / DCA (mỗi chiến lược một chân LONG và một chân SHORT; mỗi bộ tham số của một chân = một alpha;
+# "Cả hai" = chạy cả hai chân) được VIẾT trong data/alpha/strategies/*.py (SimpleAlgorithm + p('tên', mặc_định, lo=, hi=, step=, grid=) cho tham số; nhãn/trợ giúp
+# tiếng Việt nằm trong file). CANDIDATES / STRATEGIES / BY_ID bên dưới chỉ là góc nhìn trên kết quả biên dịch của load_system_strategies (cây khuôn, params_schema,
+# space) — core không đọc file.
+# ══════════════════════════════════════════════════════════════════════════
+
+UNIVERSE = ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA", "AVAX"]
+
+
+_LOADED = load_system_strategies()
+CANDIDATES: List[Dict[str, Any]] = list(_LOADED["candidates"])
+# Định nghĩa đăng ký thêm ngoài danh mục (test: chiến lược cũ của golden / kiểm parity). Không hiện ở API danh mục, không sinh alpha.
+EXTRA_CANDIDATES: List[Dict[str, Any]] = []
+
+
+def all_candidates() -> List[Dict[str, Any]]:
+    """Danh mục + định nghĩa đăng ký thêm (đọc tại lúc gọi: test thay CANDIDATES / EXTRA_CANDIDATES vẫn có hiệu lực)."""
+    return CANDIDATES + EXTRA_CANDIDATES
+
+
+class _ById(Mapping):
+    """{id: định nghĩa} của all_candidates(), tính tại lúc tra."""
+    def _m(self) -> Dict[str, Dict[str, Any]]:
+        return {c["id"]: c for c in all_candidates()}
+
+    def __getitem__(self, key: str) -> Dict[str, Any]:
+        return self._m()[key]
+
+    def __iter__(self):
+        return iter(self._m())
+
+    def __len__(self) -> int:
+        return len(self._m())
+
+
+BY_ID: Mapping = _ById()
+
+STRATEGIES: List[Dict[str, Any]] = list(_LOADED["strategies"])
+SOURCES: Dict[str, Dict[str, str]] = dict(_LOADED["sources"])   # {id chân: {file, sha256, code_hash}} — nguồn gốc file của từng chiến lược
+
+REGIME_MAP.update({c["id"]: regime_for(c["side"]) for c in CANDIDATES})   # REGIME_MAP (dict) do models/params.py giữ; điền ở đây
+
+
+def reload_system_strategies() -> Dict[str, Any]:
+    """Nạp lại data/alpha/strategies/*.py (cache mtime+size tự vô hiệu) và làm mới CANDIDATES / STRATEGIES / SOURCES / REGIME_MAP TẠI CHỖ
+    (các nơi đã giữ tham chiếu tới danh sách vẫn thấy mã mới). Lượt backtest / sổ / phễu chạy SAU ĐÓ dùng mã mới. Lỗi biên dịch -> DslError, trạng thái cũ giữ nguyên."""
+    loaded = load_system_strategies()
+    old_ids = {c["id"] for c in CANDIDATES}
+    CANDIDATES[:] = list(loaded["candidates"])
+    STRATEGIES[:] = list(loaded["strategies"])
+    SOURCES.clear()
+    SOURCES.update(loaded["sources"])
+    for gone in old_ids - {c["id"] for c in CANDIDATES}:
+        REGIME_MAP.pop(gone, None)
+    REGIME_MAP.update({c["id"]: regime_for(c["side"]) for c in CANDIDATES})
+    return loaded
+
+
+def perp_symbols(universe: List[str] = None) -> List[str]:
+    return [f"{s}@perp" for s in (universe or UNIVERSE)]
+
+
+def configs(candidate, n, seed, lazy=False):
+    """Danh sách cấu hình (như cũ). lazy=True -> trả generator (không dựng lưới/danh sách) cho không gian rất lớn."""
+    gen = iter_params(candidate["space"], n, seed)
+    return gen if lazy else list(gen)
+
+
+def strip_metrics(m, also=()):
+    """Bỏ khoá nội bộ/nặng (chuỗi ngày, RSS) khỏi số đo trước khi ghi ra file; `also` = khoá bỏ thêm. MỘT định nghĩa cho build + tasks."""
+    drop = ("daily", "_peak_rss_mb", "_rss_anon_mb") + tuple(also)
+    return {k: v for k, v in m.items() if k not in drop}
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Bộ tham số tốt nhất ("preset") của từng chiến lược ứng viên — dùng cho chế độ Cơ bản của UI/API.
+#
+# Nguồn:
+#   book    sổ đã chốt data/alpha/book.json (biến NORA_BOOK_PATH): tham số + bằng chứng dev1/dev2 của chiến lược trong sổ.
+#   default giá trị mặc định của params_schema ("mặc định — chưa tối ưu"), không có bằng chứng, timeframe=None.
+# Mỗi preset ghi `timeframe` = khung chạy lúc tối ưu (dữ liệu cũ không ghi -> "1m").
+# `params` của preset luôn ĐẦY ĐỦ mọi khoá của params_schema (khoá thiếu lấy mặc định) để UI hiển thị/sửa; khi chạy job chỉ cần phần khác mặc định
+# (routes/modes.job_params). File xuất ra: data/alpha/presets.json (job presets_build = run_job cuối file này).
+# ══════════════════════════════════════════════════════════════════════════
+
+PRESETS_VERSION = 1
+SOURCE_DEFAULT = "mặc định — chưa tối ưu"
+METRIC_KEYS = ("ret_pct", "mdd_pct", "sharpe", "trades", "win_pct", "symbols_positive", "halted_at")
+
+
+def book_path() -> str:
+    return os.environ.get("NORA_BOOK_PATH") or os.path.join(alphas_dir(), "book.json")
+
+
+def presets_path() -> str:
+    return os.environ.get("NORA_PRESETS_PATH") or os.path.join(alphas_dir(), "presets.json")
+
+
+def book_timeframe() -> str:
+    book = read_json(book_path())
+    return (book or {}).get("timeframe", "1m") if isinstance(book, dict) else "1m"
+
+
+def metrics_row(m: Any) -> Optional[Dict[str, Any]]:
+    return {k: m[k] for k in METRIC_KEYS if k in m} if isinstance(m, dict) else None
+
+
+def _clean_params(candidate: Dict[str, Any], raw: Dict[str, Any]) -> Dict[str, Any]:
+    """Mặc định schema, ghi đè bằng khoá của `raw` thuộc schema (khoá lạ bị bỏ)."""
+    schema = candidate["params_schema"]
+    params = dict(schema_defaults(candidate))
+    for key, value in (raw or {}).items():
+        spec = schema.get(key)
+        if spec is None or isinstance(value, bool):
+            continue
+        if spec["type"] == "choice":
+            if value in spec["choices"]:
+                params[key] = value
+        elif isinstance(value, (int, float)) and math.isfinite(value):
+            params[key] = int(value) if spec["type"] == "int" and float(value).is_integer() else value
+    return params
+
+
+def _date_vi(ms: Any) -> Optional[str]:
+    try:
+        return time.strftime("%d/%m", time.gmtime(float(ms) / 1000.0))
+    except (TypeError, ValueError, OverflowError, OSError):
+        return None
+
+
+def from_book(book: Optional[Dict[str, Any]], candidates: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    out: Dict[str, Dict[str, Any]] = {}
+    if not isinstance(book, dict):
+        return out
+    by_id = {c["id"]: c for c in candidates}
+    when = _date_vi(book.get("generated_at"))
+    label = f"book.json (sổ đã build {when})" if when else "book.json"
+    tf = book.get("timeframe", "1m")
+    for s in book.get("strategies") or []:
+        cand = by_id.get(s.get("id"))
+        if cand is None:
+            continue
+        raw = {**(s.get("params") or {})}
+        if book.get("risk_per_trade_pct") is not None:
+            raw.setdefault("risk_per_trade_pct", book["risk_per_trade_pct"])
+        ev = s.get("evidence") or {}
+        top = (ev.get("dev1_top") or [{}])[0]
+        out[cand["id"]] = {
+            "params": _clean_params(cand, raw), "timeframe": tf, "source": label, "source_kind": "book",
+            "evidence": {"stage": "book", "timeframe": tf, "accepted": ev.get("accepted"), "stability": ev.get("stability"),
+                         "dev1_tried": ev.get("dev1_tried"), "dev1": metrics_row(top.get("dev1")),
+                         "dev2_level": metrics_row(top.get("dev2_level")), "dev2_extreme": metrics_row(top.get("dev2_extreme")),
+                         "holdout_pass": book.get("holdout_pass"), "book_status": book.get("status")},
+        }
+    return out
+
+
+# ─── Dựng + đọc ─────────────────────────────────────────────────────────────
+def build_presets(book: Optional[Dict[str, Any]] = None, use_book_file: bool = True) -> Dict[str, Any]:
+    """Dựng bảng preset cho mọi chiến lược lõi: tham số trong sổ (book.json) nếu có, không thì mặc định của params_schema.
+    book=None -> đọc book.json hiện hành."""
+    if book is None and use_book_file:
+        book = read_json(book_path())
+    book_items = from_book(book, CANDIDATES)
+    presets: Dict[str, Any] = {}
+    for c in CANDIDATES:
+        presets[c["id"]] = book_items.get(c["id"]) or {"params": dict(schema_defaults(c)), "timeframe": None,
+                                                        "source": SOURCE_DEFAULT, "source_kind": "default", "evidence": None}
+    return {"version": PRESETS_VERSION, "generated_at": int(time.time() * 1000), "presets": presets}
+
+
+def write_presets(doc: Dict[str, Any], path: Optional[str] = None) -> str:
+    path = path or presets_path()
+    write_json_atomic(path, doc, indent=1)
+    return path
+
+
+def load_presets(path: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
+    """{id: {params, timeframe, source, source_kind, evidence}} cho MỌI chiến lược lõi. Đọc presets.json; chiến lược thiếu/hỏng -> mặc định schema
+    (không ghi file). File được kiểm lại theo schema hiện hành (khoá lạ bỏ, thiếu thì điền mặc định)."""
+    doc = read_json(path or presets_path())
+    stored = (doc or {}).get("presets") if isinstance(doc, dict) else None
+    stored = stored if isinstance(stored, dict) else {}
+    out: Dict[str, Dict[str, Any]] = {}
+    for c in all_candidates():      # cả chiến lược cũ: sổ / lượt phễu đã có vẫn đọc được
+        p = stored.get(c["id"])
+        if isinstance(p, dict) and isinstance(p.get("params"), dict):
+            out[c["id"]] = {"params": _clean_params(c, p["params"]), "timeframe": p.get("timeframe"),
+                            "source": p.get("source") or SOURCE_DEFAULT,
+                            "source_kind": p.get("source_kind") or "default", "evidence": p.get("evidence")}
+        else:
+            out[c["id"]] = {"params": dict(schema_defaults(c)), "timeframe": None,
+                            "source": SOURCE_DEFAULT, "source_kind": "default", "evidence": None}
+    return out
+
+
+# ─── Job dựng presets.json (POST /api/studio/strategies/presets) ────────────
+def _key_params(params, schema):
+    """Chỉ các tham số khác mặc định (để bảng gọn)."""
+    return {k: v for k, v in params.items() if v != schema[k]["default"]}
+
+
+def format_table(doc):
+    lines = []
+    for c in CANDIDATES:
+        p = doc["presets"][c["id"]]
+        tf = p.get("timeframe")
+        tf_label = f"[{tf}]" if tf else "[—]"
+        ev = (p.get("evidence") or {}).get("dev1") or {}
+        ev_txt = (f" | dev1 lãi {ev.get('ret_pct')}% MDD {ev.get('mdd_pct')}% sharpe {ev.get('sharpe')} lệnh {ev.get('trades')} "
+                  f"+{ev.get('symbols_positive')}") if ev else ""
+        full = p.get("evidence") or {}
+        d2 = full.get("dev2_extreme") or {}
+        ev_txt += (f" | dev2(extreme) lãi {d2.get('ret_pct')}% MDD {d2.get('mdd_pct')}% — "
+                   f"{'ĐẠT' if full.get('dev2_pass', full.get('accepted')) is True else 'LOẠI'} dev2") if d2 else ""
+        lines.append(f"{c['id']:18s} {tf_label} {p['source']}{ev_txt}")
+        lines.append(f"{'':18s} khác mặc định: {_key_params(p['params'], c['params_schema']) or '(không — toàn bộ là mặc định)'}")
+    return "\n".join(lines)
+
+
+def run_presets_build(params=None) -> Dict[str, Any]:
+    """Dựng presets.json từ file có sẵn (không chạy backtest). params: out, book, dry_run."""
+    a = options({"out": "", "book": "", "dry_run": False}, params)
+    doc = build_presets(book=read_json(a.book or book_path()), use_book_file=False)
+    print(format_table(doc))
+    if not a.dry_run:
+        print("ghi:", write_presets(doc, a.out or None))
+    write_job_result(doc)
+    return doc
+
+
+# ─── Lấy mẫu cấu hình tham số ──────────────────────────────────────────────
+
+def grid_size(space: Dict[str, List[Any]]) -> int:
+    total = 1
+    for k in space:
+        total *= len(space[k])
+    return total
+
+
+def iter_params(space: Dict[str, List[Any]], n: Optional[int], seed: int, full_grid: bool = False) -> Iterator[Dict[str, Any]]:
+    """Sinh lười từng bộ tham số: full_grid hoặc n >= kích thước lưới -> toàn lưới (thứ tự product theo khoá sắp xếp); ngược lại n vị trí ngẫu nhiên không lặp."""
+    keys = sorted(space)
+    sizes = [len(space[k]) for k in keys]
+    total = grid_size(space)
+    if full_grid or n is None or total <= n:
+        positions = range(total)
+    elif total <= sys.maxsize:
+        positions = random.Random(seed).sample(range(total), int(n))
+    else:   # không gian khổng lồ (> 2^63): rút ngẫu nhiên không lặp
+        rng = random.Random(seed)
+
+        def _draw():
+            seen = set()
+            while len(seen) < n:
+                x = rng.randrange(total)
+                if x not in seen:
+                    seen.add(x)
+                    yield x
+        positions = _draw()
+    for pos in positions:
+        vals, r = [], pos
+        for k, sz in zip(reversed(keys), reversed(sizes)):
+            r, m = divmod(r, sz)
+            vals.append(space[k][m])
+        vals.reverse()
+        yield dict(zip(keys, vals))
+
+
+# ═══ Alpha người dùng, tài liệu thư viện chiến lược, top agents, phiên bản engine của sổ ═══
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -27,14 +433,14 @@ from backend.models.models import NORA_DIR
 # có thể không còn tái lập được -> giao diện cảnh báo "cần dựng lại".
 #
 # engine_version() = {"hash": sha256 của ĐẦU VÀO KẾT QUẢ, "commit": git HEAD ngắn, "dirty": có thay đổi chưa commit trong các đầu vào đó, "files": số đầu vào}.
-# Đầu vào kết quả (engine_inputs) = (a) file tính toán của engine: backend/alpha/dsl/*.py + backend/models/*.py + optimize/search/evaluate.py (băm byte file), (b) MỖI chiến lược hệ thống: băm IR đã biên dịch
+# Đầu vào kết quả (engine_inputs) = (a) file tính toán của engine: backend/signal/*.py + backend/models/*.py + jobs/evaluate.py (băm byte file), (b) MỖI chiến lược hệ thống: băm IR đã biên dịch
 # (cây tín hiệu/stop/position/space của từng chân qua alpha loader) — KHÔNG băm byte file .py nên sửa chú thích/docstring/khoảng trắng không đổi; sửa logic thì đổi.
 # Đánh đổi: alpha/compile.py vẫn là trình biên dịch nhưng không băm file; ta băm KẾT QUẢ biên dịch (IR) nên refactor compiler không đổi IR thì không bật cờ, còn sửa compiler làm IR đổi
 # thì bật cờ. alpha/contract.py (trợ giúp/gợi ý/sổ tay) không ảnh hưởng kết quả nên không nằm trong. So sánh chỉ dùng `hash`; `commit` để người đọc biết sổ dựng ở đâu.
-# Cùng hàm cho mọi nơi ghi (optimize/book/registry.build_book) và đọc (API). Nhớ theo (đường dẫn, mtime_ns, size) của file engine + file chiến lược -> không đọc lại mỗi request.
+# Cùng hàm cho mọi nơi ghi (strategies.py.build_book) và đọc (API). Nhớ theo (đường dẫn, mtime_ns, size) của file engine + file chiến lược -> không đọc lại mỗi request.
 # ══════════════════════════════════════════════════════════════════════════
 
-ENGINE_COMPUTE_FILES = ("backend/optimize/search/evaluate.py",)    # ngoài backend/alpha/dsl/*.py + backend/models/*.py
+ENGINE_COMPUTE_FILES = ("backend/jobs/evaluate.py", "backend/alpha/plan.py")    # ngoài backend/{nautilus,models,signal}/*.py (compile/contract không ảnh hưởng kết quả)
 REASON_NO_VERSION = "sổ dựng trước khi có phiên bản engine"
 
 GIT_TTL_S = 60.0   # commit / dirty đổi mà không đổi file (git commit) -> làm tươi sau tối đa ngần này giây; hash không phụ thuộc git
@@ -43,13 +449,12 @@ _cache: Dict[str, Any] = {"sig": None, "value": None, "at": 0.0}
 
 def _engine_files() -> List[Tuple[str, str]]:
     rels = []
-    for d in ["backend/nautilus", "backend/models", "backend/alpha/dsl"]:
+    for d in ["backend/nautilus", "backend/models", "backend/signal"]:
         dp = os.path.join(NORA_DIR, d)
         if os.path.isdir(dp):
             rels.extend([f"{d}/{n}" for n in sorted(os.listdir(dp)) if n.endswith(".py") and n != "__init__.py"])
     rels += list(ENGINE_COMPUTE_FILES)
     return [(rel, os.path.join(NORA_DIR, rel)) for rel in rels if os.path.isfile(os.path.join(NORA_DIR, rel))]
-
 
 
 def _strategy_ir_hashes() -> List[Tuple[str, str]]:
@@ -122,7 +527,7 @@ def book_engine_status(book: Optional[Dict[str, Any]]) -> Dict[str, Any]:
 # ══════════════════════════════════════════════════════════════════════════
 # Kho alpha (C3) + xuất cấu hình cho Binance Futures testnet (D).
 #
-# Kho alpha = các bộ (chiến lược × tài sản × tham số) đã qua ĐỦ gate của backend/optimize/funnel/stages.py:
+# Kho alpha = các bộ (chiến lược × tài sản × tham số) đã qua ĐỦ gate của (phễu đã gỡ):
 # WFA (OOS) + Monte Carlo (cháy <= 5%) + holdout 20% cuối có lãi và MDD <= 30%, đòn bẩy <= 10x.
 # Mỗi mục ghi đủ để tái lập: template, tham số, AST đã thay tham số, số liệu từng giai đoạn,
 # sha256 dữ liệu 1m, commit code tại thời điểm tối ưu.
@@ -146,399 +551,10 @@ def book_engine_status(book: Optional[Dict[str, Any]]) -> Dict[str, Any]:
 # - Giới hạn danh mục: max_positions, max_per_symbol, kill switch khi vốn MTM sụt kill_switch_dd_pct% từ đỉnh.
 # ══════════════════════════════════════════════════════════════════════════
 
-TESTNET = {"exchange": "binance_futures_testnet", "rest": "https://testnet.binancefuture.com",
-           "ws": "wss://stream.binancefuture.com", "fees_assumed": {"maker": 0.0002, "taker": 0.0005}}
-
-
-def _git_revision(repo_dir: str) -> Dict[str, Any]:
-    try:
-        head = subprocess.run(["git", "-C", repo_dir, "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
-        dirty = bool(subprocess.run(["git", "-C", repo_dir, "status", "--porcelain", "nora/backend"],
-                                    capture_output=True, text=True).stdout.strip())
-        return {"commit": head or None, "dirty_backend": dirty}
-    except OSError:
-        return {"commit": None, "dirty_backend": None}
-
-
-def build_registry(results: List[Dict[str, Any]], spaces: List[Dict[str, Any]], source: str,
-                   repo_dir: Optional[str] = None, robustness: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    from backend.models.params import resolve_placeholders, split_params
-    from backend.data.data import read_manifest
-
-    by_id = {s["id"]: s for s in spaces}
-    alphas = []
-    for r in results:
-        if r.get("verdict") != "ALPHA":
-            continue
-        sd = by_id[r["space"]]
-        params = dict(r["final_params"])
-        signal, position = split_params(params)
-        tree = resolve_placeholders(sd["tree"], signal)
-        manifest = read_manifest(r["data_symbol"]) or {}
-        alphas.append({
-            "alpha_id": f"{r['space']}__{r['symbol']}",
-            "strategy": r["space"],
-            "family": sd["family"],
-            "side": sd["side"],
-            "symbol": r["symbol"],
-            "data_symbol": r["data_symbol"],
-            "price_source": r.get("price_source"),
-            "market": position.get("market", "spot"),
-            "position": position,
-            "signal_params": signal,
-            "flows": [{"id": r["space"], "name": f"{sd['side']} {r['space']}", "type": sd["side"],
-                       "ast": {"type": sd["side"], "match": [{"condition": tree}], "stop": []}}],
-            "evidence": {"windows": r.get("windows"), "screen": r.get("screen"), "wfa": r.get("wfa"),
-                         "monte_carlo": r.get("mc"), "monte_carlo_trades": r.get("mc_trades"), "holdout": r.get("holdout"), "checks": r.get("checks"),
-                         "configs_tried": r.get("configs_tried"), "space_size": r.get("space_size")},
-            "robustness": (robustness or {}).get(f"{r['space']}__{r['symbol']}"),
-            "data": {"sha256_1m": manifest.get("sha256_1m"), "start_ts": manifest.get("start_ts"),
-                     "end_ts": manifest.get("end_ts"), "exchange": manifest.get("exchange")},
-        })
-    return {
-        "generated_at": int(time.time() * 1000),
-        "source_optimization": source,
-        "code": _git_revision(repo_dir) if repo_dir else None,
-        "engine_version": engine_version(),   # P9.15: hash mã engine lúc dựng -> API so với engine hiện hành (needs_rebuild)
-        "gates": {"wfa": "acceptance_gate_passed", "mc_ruin_max_pct": 5.0, "mc_basis": "daily", "holdout_mdd_max_pct": 30.0,
-                  "leverage_max": 10},
-        "pairs_evaluated": len(results),
-        "alphas": alphas,
-    }
-
-
-def testnet_config(alpha: Dict[str, Any]) -> Dict[str, Any]:
-    """Cấu hình chạy Binance Futures testnet cho một alpha perp."""
-    if alpha["market"] != "perp":
-        raise ValueError(f"{alpha['alpha_id']}: testnet Binance Futures chỉ nhận alpha market=perp")
-    pos = alpha["position"]
-    short = alpha["side"] == "SHORT"
-    return {
-        **TESTNET,
-        "alpha_id": alpha["alpha_id"],
-        "symbol": f"{alpha['symbol']}USDT",
-        "margin_type": "ISOLATED",
-        "leverage": int(pos.get("leverage", 1)),
-        "position_side": "SHORT" if short else "LONG",
-        "sizing": {"order_size_pct_of_equity": pos.get("order_size_pct", 100.0),
-                   "note": "ký quỹ lệnh đầu = % vốn hiện tại; notional = ký quỹ × đòn bẩy"},
-        "entry": {"order_type": "MARKET", "when": "đầu phút kế tiếp sau khi tín hiệu đúng trên nến 1m đã đóng",
-                  "signal_flows": alpha["flows"]},
-        "dca": {"enabled": float(pos.get("dca_step_pct", 0) or 0) > 0 and int(pos.get("dca_max_layers", 0) or 0) > 0,
-                "step_pct_from_last_fill": pos.get("dca_step_pct", 0.0),
-                "max_layers": pos.get("dca_max_layers", 0),
-                "size_multiplier": pos.get("dca_size_multiplier", 1.0),
-                "order_type": "LIMIT", "time_in_force": "GTX"},
-        "take_profit": {"pct_from_avg": pos.get("take_profit_rate", 0.0), "order_type": "LIMIT", "reduce_only": True},
-        "stop_loss": {"pct_from_avg": pos.get("stop_loss_rate", 0.0), "order_type": "STOP_MARKET", "reduce_only": True},
-        "trailing": {"pct_from_peak": pos.get("trailing_stop", 0.0),
-                     "activation_pct": pos.get("trailing_activation_pct", 0.0), "order_type": "MARKET"},
-        "timeout_minutes": pos.get("timeout", 0),
-        "risk_limits": {"kill_switch_drawdown_pct": 30.0, "max_leverage": 10},
-        "backtest_evidence": alpha["evidence"],
-        "exchange_filters": "lấy tickSize / stepSize / minNotional từ /fapi/v1/exchangeInfo khi khởi động",
-    }
-
-
-# ─── Sổ chiến lược: ghi book.json / testnet, xuất bản (book_export) ────────
-def _is_true(v) -> bool:
-    """Chặt chẽ: chỉ True thật (hoặc chuỗi "True" của báo cáo cũ do default=str); chuỗi 'False' KHÔNG được coi là đúng."""
-    return v is True or v == "True"
-
-
-def build_book(report: Dict[str, Any], source: str, repo_dir: str = None) -> Dict[str, Any]:
-    from backend.models.params import materialize
-    from backend.optimize.book.build import UNIVERSE, BY_ID
-    book = report["book"]
-    holdout_pass = _is_true(book.get("holdout_pass"))
-    by_id = BY_ID
-    strategies = []
-    for item in book["strategies"]:
-        cand = by_id[item["id"]]
-        st = materialize(cand, item["params"], risk_per_trade_pct=book["risk_per_trade_pct"], stop_fill="level")
-        strategies.append({
-            "id": cand["id"], "family": cand["family"], "side": cand["side"], "description": cand["description"],
-            "params": item["params"], "signal_params": st["signal_params"], "position": st["position"],
-            "flow": {"type": cand["side"], "match": [{"condition": st["tree"]}], "stop": []},
-            "evidence": report["candidates"][cand["id"]],
-        })
-    return {
-        "generated_at": int(time.time() * 1000),
-        "timeframe": report.get("timeframe", "1m"),
-        "data_exchange": report.get("data_exchange", "binance"),
-        "source": source,
-        "code": _git_revision(repo_dir) if repo_dir else None,
-        "engine_version": engine_version(),   # P9.15: hash mã engine lúc dựng sổ -> API so với engine hiện hành (needs_rebuild)
-        "universe": [f"{s}@perp" for s in UNIVERSE],
-        "windows": report["windows"],
-        "gates": report["gates"],
-        "risk": book["risk"],
-        "risk_per_trade_pct": book["risk_per_trade_pct"],
-        "risk_scale_bootstrap": book["risk_scale_bootstrap"],
-        "strategies": strategies,
-        "evidence": {"dev2_base_risk": book["dev2_base_risk"], "final": book["final"]},
-        "holdout_pass": holdout_pass,
-        "status": "READY_FOR_TESTNET" if holdout_pass else "HOLDOUT_FAILED",
-        "rejected_candidates": {k: v for k, v in report["candidates"].items() if not _is_true(v.get("accepted"))},
-    }
-
-
-def testnet_book_config(book: Dict[str, Any]) -> Dict[str, Any]:
-    return {
-        **TESTNET,
-        "kind": "portfolio_book",
-        "symbols": [s.split("@")[0] + "USDT" for s in book["universe"]],
-        "margin_type": "ISOLATED",
-        "sizing": {
-            "mode": "risk", "risk_per_trade_pct_of_equity": book["risk_per_trade_pct"],
-            "formula": "notional = equity × risk% / (SL% + 2 × (taker + slippage)); "
-                       "leverage = min(max, floor(1 / (1.5 × SL + mmr)))",
-        },
-        "portfolio_limits": book["risk"],
-        "strategies": [{
-            "id": s["id"], "side": s["side"], "signal_flow": s["flow"],
-            "atr": {"frame": s["position"]["atr_frame"], "period": s["position"]["atr_period"],
-                    "kernel": "natr (ATR Wilder / close × 100), nến đã đóng"},
-            "exits_in_atr_multiples": {k: s["position"].get(k, 0) for k in
-                                       ("stop_loss_rate", "take_profit_rate", "trailing_stop", "trailing_activation_pct")},
-            "timeout_minutes": s["position"].get("timeout", 0),
-            "max_leverage": s["position"]["leverage"], "max_notional_pct": s["position"]["max_notional_pct"],
-            "orders": {"entry": "MARKET", "stop_loss": "STOP_MARKET reduce-only", "trailing": "MARKET",
-                       "take_profit": "LIMIT reduce-only", "timeout": "MARKET"},
-        } for s in book["strategies"]],
-        "backtest_evidence": book["evidence"],
-        "exchange_filters": "lấy tickSize / stepSize / minNotional từ /fapi/v1/exchangeInfo khi khởi động",
-    }
-
-
-def write_book(report: Dict[str, Any], out_dir: str, source: str, repo_dir: str = None) -> List[str]:
-    """Luôn ghi book.json; CHỈ ghi testnet/book.json khi holdout đạt. Holdout trượt -> xoá testnet/book.json cũ (nếu có)."""
-    book = build_book(report, source, repo_dir)
-    os.makedirs(out_dir, exist_ok=True)
-    paths = [os.path.join(out_dir, "book.json")]
-    with open(paths[0], "w", encoding="utf-8") as fh:
-        json.dump(book, fh, ensure_ascii=False, indent=2, default=json_default)
-    testnet_path = os.path.join(out_dir, "testnet", "book.json")
-    if book["holdout_pass"]:
-        os.makedirs(os.path.dirname(testnet_path), exist_ok=True)
-        with open(testnet_path, "w", encoding="utf-8") as fh:
-            json.dump(testnet_book_config(book), fh, ensure_ascii=False, indent=2, default=json_default)
-        paths.append(testnet_path)
-    elif os.path.exists(testnet_path):
-        os.remove(testnet_path)
-        print(f"holdout KHÔNG đạt: đã xoá {testnet_path} cũ (không cấp cấu hình testnet cho sổ trượt holdout).")
-    return paths
-
-
-EXPLORE_STATUS = "EXPLORE_DEMO"
-
-
-def write_explore_book(report: Dict[str, Any], out_dir: str, source: str, repo_dir: str = None) -> List[str]:
-    """Sổ THỬ NGHIỆM (alpha chưa chắc qua đủ cổng) -> out_dir/book.json, status EXPLORE_DEMO: chỉ chạy paper/demo, không có testnet/live."""
-    book = build_book(report, source, repo_dir)
-    book["status"] = EXPLORE_STATUS
-    book["unvalidated"] = sorted(k for k, v in report["candidates"].items() if not v.get("validated"))
-    os.makedirs(out_dir, exist_ok=True)
-    path = os.path.join(out_dir, "book.json")
-    with open(path, "w", encoding="utf-8") as fh:
-        json.dump(book, fh, ensure_ascii=False, indent=2, default=json_default)
-    return [path]
-
-
-def publish_book(src_dir: str, dest_dir: str) -> Dict[str, Any]:
-    """Xuất bản một sổ đã dựng (src_dir/book.json [+ testnet/book.json]) sang dest_dir (thư mục data/alpha/ đang dùng).
-
-    Cùng quy tắc write_book: testnet/book.json CHỈ có khi sổ nguồn có (holdout đạt); nếu không thì xoá testnet/book.json cũ ở đích.
-    Ghi qua file tạm + os.replace nên người đọc không thấy file dở dang. Thiếu src_dir/book.json -> FileNotFoundError."""
-    src_book = os.path.join(src_dir, "book.json")
-    if not os.path.isfile(src_book):
-        raise FileNotFoundError(src_book)
-    src_testnet = os.path.join(src_dir, "testnet", "book.json")
-    dst_book = os.path.join(dest_dir, "book.json")
-    dst_testnet = os.path.join(dest_dir, "testnet", "book.json")
-
-    def _copy(src: str, dst: str) -> None:
-        os.makedirs(os.path.dirname(dst), exist_ok=True)
-        tmp = dst + ".tmp"
-        shutil.copyfile(src, tmp)
-        os.replace(tmp, dst)
-
-    with open(src_book, encoding="utf-8") as fh:
-        book = json.load(fh)
-    _copy(src_book, dst_book)
-    written, removed = [dst_book], False
-    if os.path.isfile(src_testnet):
-        _copy(src_testnet, dst_testnet)
-        written.append(dst_testnet)
-    elif os.path.exists(dst_testnet):
-        os.remove(dst_testnet)
-        removed = True
-    return {"status": book.get("status"), "holdout_pass": book.get("holdout_pass"), "generated_at": book.get("generated_at"),
-            "engine": book_engine_status(book),   # sổ xuất bản giữ engine_version lúc DỰNG (xuất bản không dựng lại)
-            "strategies": [s.get("id") for s in book.get("strategies", [])], "written": written, "testnet_removed": removed}
-
 
 # ══════════════════════════════════════════════════════════════════════════
 # Xuất bản & Thăng hạng Alpha từ phễu (promote_alpha, build_report, book_source)
 # ══════════════════════════════════════════════════════════════════════════
-
-def registry_alpha_id(strategy: str, alpha_id: str) -> str:
-    return f"funnel__{strategy}__{alpha_id}"
-
-
-def promote_alpha(run_dir: str, alpha_id: str, alphas_dir: str, note: Optional[str] = None) -> Dict[str, Any]:
-    """-> {"registry_path", "alpha_id", "registry_alpha_id", "final_scale", "testnet_config"}. ValueError nếu alpha chưa FINAL."""
-    from backend.models.params import RISK, materialize
-    from backend.optimize.book.build import BY_ID, UNIVERSE
-    from backend.optimize.funnel.storage import RunStore
-    from backend.optimize.funnel.stages import risk_for_scale
-    from backend.optimize.search.generate import split_regime
-    store = RunStore(run_dir, read_only=True)
-    try:
-        alpha = store.get_alpha(alpha_id)
-        run = store.read_run()
-        stages = store.alpha_metrics(alpha_id)
-        mc = store.read_mc(alpha_id)
-    finally:
-        store.close()
-    if alpha is None:
-        raise KeyError(alpha_id)
-    if alpha["stage_reached"] != "FINAL" or alpha["rejected_stage"] or alpha["final_scale"] is None:
-        raise ValueError(f"alpha chưa đạt FINAL (dừng ở {alpha['stage_reached']}, loại: {alpha['reject_code']})")
-    s = float(alpha["final_scale"])
-    rpt = risk_for_scale(s)
-    cand = BY_ID[alpha["strategy"]]
-    params, rmode = split_regime(alpha["params"])
-    regime = False
-    if rmode == "learn":   # bảng regime của lần chạy holdout (học trên dữ liệu trước holdout)
-        from backend.metrics.regime import NAMES
-        blocked = ((stages.get("S6_holdout") or {}).get("regime_blocked")) or []
-        regime = {"allowed": [r for r in NAMES if r not in blocked], "fuse": False, "blocked": blocked} if blocked else False
-    st = materialize(cand, params, regime=regime, risk_per_trade_pct=rpt, stop_fill="level")
-    cfg = run.get("config", {})
-    reg_id = registry_alpha_id(alpha["strategy"], alpha_id)
-    funnel = {
-        "run_id": run.get("run_id"), "alpha_id": alpha_id, "final_scale": s, "risk_per_trade_pct": rpt, "params": alpha["params"],
-        "universe": cfg.get("symbols"), "windows": cfg.get("windows"), "data_sha256": cfg.get("data_sha256"), "commit": cfg.get("commit"),
-        "thresholds": cfg.get("thresholds"), "stage_metrics": stages,
-        "monte_carlo": {"summary": ((mc or {}).get("mc") or {}).get("summary"), "gate": ((mc or {}).get("mc") or {}).get("gate"),
-                        "scale_search": (mc or {}).get("scale_search"), "verified": (mc or {}).get("verified")},
-        "promoted_at": int(time.time() * 1000), "note": note,
-    }
-    entry = {
-        "alpha_id": reg_id, "strategy": alpha["strategy"], "family": cand["family"], "side": cand["side"], "symbol": "PORTFOLIO",
-        "data_symbol": None, "price_source": None, "market": "perp", "position": st["position"], "signal_params": st["signal_params"],
-        **({"regime": st["regime"]} if st.get("regime") else {}),
-        "flows": [{"id": alpha["strategy"], "name": f"{cand['side']} {alpha['strategy']}", "type": cand["side"],
-                   "ast": {"type": cand["side"], "match": [{"condition": st["tree"]}], "stop": []}}],
-        "evidence": {"windows": cfg.get("windows"), "funnel": {k: stages.get(k) for k in ("S1_backtest", "S3_wfa", "S6_holdout")}},
-        "robustness": None, "data": {"sha256_1m": cfg.get("data_sha256"), "exchange": "binance_usdm"},
-        "funnel": funnel,
-    }
-    reg_path = os.path.join(alphas_dir, "registry.json")
-    try:
-        with open(reg_path, encoding="utf-8") as fh:
-            registry = json.load(fh)
-    except FileNotFoundError:
-        repo = os.path.dirname(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
-        registry = build_registry([], [], source=run_dir, repo_dir=repo)
-    alphas = [a for a in registry.get("alphas", []) if a.get("alpha_id") != reg_id]
-    alphas.append(entry)
-    registry["alphas"] = alphas
-    registry["generated_at"] = int(time.time() * 1000)
-    atomic_write_json(reg_path, registry, indent=2, clean=False, allow_nan=True)
-
-    book = {"universe": cfg.get("symbols") or [f"{u}@perp" for u in UNIVERSE], "risk_per_trade_pct": rpt, "risk": RISK,
-            "strategies": [{"id": cand["id"], "side": cand["side"], "flow": entry["flows"][0]["ast"], "position": st["position"]}],
-            "evidence": {"funnel": funnel}}
-    testnet_path = os.path.join(alphas_dir, "testnet", f"{reg_id}.json")
-    atomic_write_json(testnet_path, {**testnet_book_config(book), "funnel_alpha_id": alpha_id, "final_scale": s}, indent=2, clean=False, allow_nan=True)
-    return {"registry_path": reg_path, "alpha_id": alpha_id, "registry_alpha_id": reg_id, "final_scale": s, "testnet_config": testnet_path}
-
-
-def _metrics(r: Dict[str, Any]) -> Dict[str, Any]:
-    return {k: r.get(k) for k in ("ret_pct", "mdd_pct", "sharpe", "trades", "win_rate", "profit_factor", "halted_at")}
-
-
-EXPLORE_MIN_STAGE = 1      # sổ thử nghiệm: alpha phải qua S1 (stage_idx >= 1 và không bị loại ở S0/S1; lượt cũ: stage_idx 2 = đã qua S1)
-
-
-def build_report(run_dir: str, alpha_ids: List[str], rpt: float, wfa: Dict[str, Any], explore: bool = False) -> Dict[str, Any]:
-    from backend.optimize.search.evaluate import run
-    from backend.models.params import RISK
-    from backend.optimize.search.generate import split_regime
-    from backend.optimize.funnel.storage import RunStore
-    from backend.optimize.funnel.stages import evaluate_s6, S6_MIN_RET_PCT, S6_MAX_MDD_PCT, windows_iso
-    st = RunStore(run_dir, read_only=True)
-    try:
-        run_info = st.read_run()
-        items, cands, seen = [], {}, set()
-        for aid in alpha_ids:
-            al = st.get_alpha(aid)
-            if al is None:
-                raise ValueError(f"không có alpha {aid}")
-            final = al["stage_reached"] == "FINAL" and not al["rejected_stage"]
-            passed_s1 = int(al["stage_idx"]) >= EXPLORE_MIN_STAGE and not (al["rejected_stage"] in ("S0_generate", "S1_backtest"))
-            if not final and not (explore and passed_s1):
-                raise ValueError(f"{aid} chưa đạt {'S1' if explore else 'FINAL'} (dừng ở {al['stage_reached']})")
-            if al["strategy"] in seen:
-                raise ValueError(f"mỗi chiến lược một alpha: {al['strategy']} bị lặp")
-            seen.add(al["strategy"])
-            params, _ = split_regime(al["params"])
-            params = {k: v for k, v in params.items() if k != "risk_per_trade_pct"}
-            items.append({"id": al["strategy"], "params": params})
-            cands[al["strategy"]] = {"accepted": True, "funnel_alpha_id": aid, "final_scale": al["final_scale"], "validated": final,
-                                     "stage_reached": al["stage_reached"], "reject_code": al["reject_code"],
-                                     "stage_metrics": st.alpha_metrics(aid)}
-    finally:
-        st.close()
-    cfg, w = run_info["config"], run_info["windows_ms"]
-    tf = cfg.get("timeframe", "1m")
-    data_ex = cfg.get("data_exchange", "binance")           # run cũ (trước khi chỉ còn OKX) = dữ liệu Binance
-    if data_ex != "okx":
-        raise ValueError(f"run phễu chạy trên dữ liệu {data_ex}, đang dùng okx — holdout phải cùng dữ liệu")
-    if wfa or not explore:
-        wfa_items = sorted((s["id"], s["configs"][0]) for s in wfa.get("candidates") or [] if s.get("configs"))
-        want = sorted((i["id"], {k: v for k, v in i["params"].items()}) for i in items)
-        if [x[0] for x in wfa_items] != [x[0] for x in want] or any(
-                {k: b[1].get(k) for k in a[1]} != a[1] for a, b in zip(wfa_items, want)):   # WFA chỉ ghi khoá khác mặc định
-            raise ValueError("job WFA không chạy đúng các cấu hình của sổ")
-        if float(wfa.get("risk_per_trade_pct") or -1) != float(rpt):
-            raise ValueError(f"job WFA chạy rủi ro {wfa.get('risk_per_trade_pct')}% khác {rpt}%")
-        if not explore and not (wfa.get("gate") or {}).get("passed"):
-            raise ValueError("gate WFA danh mục của sổ chưa qua")
-    hold = {}
-    for sf in ("level", "extreme"):
-        r = run([(i["id"], i["params"]) for i in items], cfg["symbols"], int(w["dev2_end"]), int(w["end"]), rpt, sf, RISK, base_frame=tf)
-        hold[sf] = _metrics(r)
-    ok, code, msg = evaluate_s6(hold["level"], hold["extreme"])
-    return {
-        "timeframe": tf,
-        "data_exchange": data_ex,
-        "windows": windows_iso(w),
-        "gates": {"funnel_thresholds": cfg.get("thresholds"), "wfa_gate": wfa.get("gate"), "holdout": {"min_ret_pct": S6_MIN_RET_PCT,
-                                                                                                      "max_mdd_pct": S6_MAX_MDD_PCT}},
-        "book": {"strategies": items, "risk_per_trade_pct": float(rpt), "risk": RISK, "risk_scale_bootstrap": None,
-                 "dev2_base_risk": {"wfa_summary": {k: v for k, v in (wfa.get("summary") or {}).items() if k not in ("oos_daily", "oos_daily_dates")}},
-                 "explore": bool(explore),
-                 "final": {"holdout": hold, "holdout_reason": msg}, "holdout_pass": bool(ok)},
-        "candidates": cands,
-    }
-
-
-BOOK_SOURCE_FMT = "funnel {run_id} (wfa {wfa}) {date}"
-_BOOK_SOURCE_RE = re.compile(r"^funnel (?P<run_id>\S+) \(wfa (?P<wfa>\S+)\) (?P<date>\S+)$")
-
-
-def book_source(run_id: str, wfa_job_id: Optional[str], date: str) -> str:
-    """Chuỗi `source` ghi vào book.json (MỘT định dạng); parse_book_source đọc ngược."""
-    return BOOK_SOURCE_FMT.format(run_id=run_id, wfa=wfa_job_id or "-", date=date)
-
-
-def parse_book_source(source: Optional[str]) -> Optional[Dict[str, Any]]:
-    """{"run_id", "wfa_job_id" | None, "date"} từ book["source"]; None nếu sổ không dựng từ phễu."""
-    m = _BOOK_SOURCE_RE.match(source or "")
-    return {"run_id": m["run_id"], "wfa_job_id": None if m["wfa"] == "-" else m["wfa"], "date": m["date"]} if m else None
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -552,125 +568,6 @@ def parse_book_source(source: Optional[str]) -> Optional[Dict[str, Any]]:
 # Kết luận: "validated" (kèm final_scale) hoặc "retired" (kèm mã + lý do). apply=True: ghi status/revalidation vào registry; alpha bị loại thì
 # cấu hình testnet của nó chuyển sang data/alpha/testnet/_retired/ (giữ lại để tra cứu, bot không còn đọc).
 # ══════════════════════════════════════════════════════════════════════════
-
-ALPHA_REVALIDATE_DEFAULTS = {"alpha_id": "trend_long_perp__SOL", "apply": False}
-TIMEFRAME = "15m"   # khung chạy (khung tín hiệu của alpha phải >= khung này; trend_long_perp__SOL dùng 15m/1h)
-
-
-def load_alpha(alpha_id: str, base: Optional[str] = None) -> Dict[str, Any]:
-    with open(os.path.join(base or alphas_dir(), "registry.json"), encoding="utf-8") as fh:
-        reg = json.load(fh)
-    al = next((a for a in reg.get("alphas") or [] if a.get("alpha_id") == alpha_id), None)
-    if al is None:
-        raise SystemExit(f"Không có alpha {alpha_id} trong registry.json")
-    return al
-
-
-def alpha_strategy(al: Dict[str, Any], scale: float = 1.0) -> Dict[str, Any]:
-    """Chiến lược PortfolioEngine của alpha (đúng tham số đã lưu; khối lượng nhân scale), chỉ chạy trên tài sản của nó."""
-    from backend.optimize.funnel.stages import scale_position
-    ast = al["flows"][0]["ast"]
-    return {"id": al["alpha_id"], "side": al["side"], "tree": ast["match"][0]["condition"], "stop": ast.get("stop") or [],
-            "position": scale_position(al["position"], scale) if scale != 1.0 else dict(al["position"]), "symbols": [al["data_symbol"]]}
-
-
-def _run(al, window, stop_fill: str, kill: bool, scale: float = 1.0) -> Dict[str, Any]:
-    from backend.optimize.search.evaluate import run
-    from backend.models.params import BASE_RISK_PER_TRADE_PCT, RISK
-    risk = {**RISK, "kill_switch_dd_pct": RISK["kill_switch_dd_pct"] if kill else 0}
-    return run([], [al["data_symbol"]], int(window[0]), int(window[1]), BASE_RISK_PER_TRADE_PCT, stop_fill, risk,
-               extra_strategies=[alpha_strategy(al, scale)], base_frame=TIMEFRAME)
-
-
-def _oos(r: Dict[str, Any]) -> Dict[str, Any]:
-    return {"ret_pct": r["ret_pct"], "mdd_pct": r["mdd_pct"], "trades": r["trades"], "halted": bool(r.get("halted_at"))}
-
-
-def wfa_check(al, folds: List[Dict[str, Any]], scale: float = 1.0) -> Dict[str, Any]:
-    """WFA tham số cố định (cùng quy ước phễu S3) -> aggregate_wfa (summary/metrics/series/trades) + shock (vị thế ngược chiều lớn nhất)."""
-    from backend.carlo.carlo import merge_exposure, vertical_exposure
-    from backend.metrics.trades import rows_from_trade_list
-    from backend.optimize.search.evaluate import aggregate_wfa
-    out, shocks = [], []
-    for f in folds:
-        is_r = _run(al, f["train"], "level", False, scale)
-        oos = _run(al, f["test"], "extreme", True, scale)
-        rows = rows_from_trade_list(oos["trade_list"])
-        shocks.append(vertical_exposure(oos["trade_list"], None))   # alpha cỡ theo % vốn: lỗ tối đa = ký quỹ (bảo thủ)
-        out.append({"fold": f["fold"], "train": f["train_iso"], "test": f["test_iso"], "is_ret_pct": is_r["ret_pct"], "is_trades": is_r["trades"],
-                    "oos": _oos(oos), "daily": oos["daily"], "daily_start": f["test_iso"][0], "trades": rows})
-    agg = aggregate_wfa(out)
-    agg["shock"] = merge_exposure(shocks)
-    return agg
-
-
-def revalidate(al: Dict[str, Any], windows: Optional[Dict[str, int]] = None) -> Dict[str, Any]:
-    from backend.optimize.search import evaluate as bt
-    from backend.optimize.funnel import stages as gates, stages as sizing
-    w = windows or gates.compute_windows([al["data_symbol"]])
-    folds = bt.fold_job_plan(gates.wfa_folds(w))
-    rep: Dict[str, Any] = {"alpha_id": al["alpha_id"], "symbol": al["data_symbol"], "windows": gates.windows_iso(w), "checked_at": int(time.time() * 1000)}
-    agg = wfa_check(al, folds)
-    ok3, code3, msg3 = gates.evaluate_s3(agg["summary"])
-    rep["wfa"] = {"summary": agg["summary"], "passed": ok3, "reason": None if ok3 else msg3,
-                  "metrics": {k: agg["metrics"].get(k) for k in ("ret_pct", "mdd_pct", "sharpe", "trades", "win_rate", "profit_factor")}}
-    rep["shock"] = agg["shock"]
-    verdict = lambda ok, code, msg, **kw: {**rep, **kw, "status": "validated" if ok else "retired", "reject_code": None if ok else code,  # noqa: E731
-                                           "reason": None if ok else msg}
-    if not ok3:
-        return verdict(False, code3, msg3)
-    if len(agg["series"]) < gates.S4_MIN_DAYS:
-        return verdict(False, "S4.days", f"S4.days: {gates.reason_label('S4.days')} ({len(agg['series'])} < {gates.S4_MIN_DAYS})")
-    turnover = agg["metrics"].get("turnover_daily")   # đo từ lệnh OOS (None -> cost_x2 không đo được -> cổng không đạt)
-    s_star, steps = sizing.search_scale(lambda s: bt.mc_check(agg["series"], s, agg["shock"], turnover))
-    rep["sizing"] = {"s": s_star, "search": steps}
-    if s_star is None:
-        last = bt.mc_check(agg["series"], gates.S5_S_MIN, agg["shock"], turnover)
-        _, code, msg = gates.evaluate_mc_checks(last["gate"], "S5")
-        return verdict(False, code, msg)
-    hold = (w["dev2_end"], w["end"])
-    lv, ex = _run(al, hold, "level", True, s_star), _run(al, hold, "extreme", True, s_star)
-    ok6, code6, msg6 = gates.evaluate_s6(lv, ex)
-    rep["holdout"] = {"scale": s_star, "level": _oos(lv), "extreme": _oos(ex), "passed": ok6}
-    return verdict(ok6, code6, msg6, final_scale=s_star if ok6 else None)
-
-
-def apply_result(rep: Dict[str, Any], base: Optional[str] = None) -> List[str]:
-    """Ghi status + revalidation vào registry; alpha "retired" -> testnet/<id>.json chuyển sang testnet/_retired/. -> các đường dẫn đã đổi."""
-    base = base or alphas_dir()
-    path = os.path.join(base, "registry.json")
-    with open(path, encoding="utf-8") as fh:
-        reg = json.load(fh)
-    al = next(a for a in reg["alphas"] if a.get("alpha_id") == rep["alpha_id"])
-    al["status"] = rep["status"]
-    al["revalidation"] = {k: v for k, v in rep.items() if k != "alpha_id"}
-    atomic_write_json(path, reg, indent=2, clean=False, allow_nan=True)
-    changed = [path]
-    tn = os.path.join(base, "testnet", f"{rep['alpha_id']}.json")
-    if rep["status"] == "retired" and os.path.isfile(tn):
-        dst = os.path.join(base, "testnet", "_retired", f"{rep['alpha_id']}.json")
-        os.makedirs(os.path.dirname(dst), exist_ok=True)
-        shutil.move(tn, dst)
-        changed.append(dst)
-    return changed
-
-
-def run_alpha_revalidate(params=None) -> Dict[str, Any]:
-    warnings.filterwarnings("ignore")
-    a = options(ALPHA_REVALIDATE_DEFAULTS, params)
-    from backend.optimize.process.workers import require_memory_limit
-    require_memory_limit("alpha_revalidate")
-    al = load_alpha(a.alpha_id)
-    from backend.data.data import require_data_ok_or_exit
-    require_data_ok_or_exit([al["data_symbol"]])
-    rep = revalidate(al)
-    print(f"{rep['alpha_id']}: {rep['status']}" + (f" (s={rep.get('final_scale')})" if rep["status"] == "validated" else f" — {rep['reason']}"),
-          flush=True)
-    if a.apply:
-        rep["changed"] = apply_result(rep)
-        print("đã ghi:", rep["changed"], flush=True)
-    write_job_result(rep)
-    return rep
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -705,7 +602,7 @@ def generate_alpha_id(program_hash: str, config: Dict[str, Any]) -> str:
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:12]
 
 
-def _num(v: Any) -> Optional[float]:
+def _num_or_none(v: Any) -> Optional[float]:
     """Số hữu hạn (kể cả 0) hoặc None — không bao giờ thay thiếu bằng 0."""
     if isinstance(v, bool) or not isinstance(v, (int, float)):
         return None
@@ -715,7 +612,7 @@ def _num(v: Any) -> Optional[float]:
 
 def _first_num(block: Any, *keys: str) -> Optional[float]:
     for k in keys:
-        n = _num((block or {}).get(k)) if isinstance(block, dict) else None
+        n = _num_or_none((block or {}).get(k)) if isinstance(block, dict) else None
         if n is not None:
             return n
     return None
@@ -773,18 +670,15 @@ def evaluate_checklist(result: Dict[str, Any]) -> Dict[str, Any]:
 SNAPSHOT_REQUIRED = ("config", "metrics", "program_hash")
 
 
-def _git_commit() -> Optional[str]:
-    try:
-        from backend.optimize.process.tasks import git_commit
-        return git_commit()
-    except Exception:      # noqa: BLE001 — bằng chứng phụ, thiếu thì null
-        return None
+def git_commit() -> Optional[str]:
+    """Commit git ngắn của HEAD (None nếu không đọc được) — bằng chứng/nguồn gốc kết quả; MỘT định nghĩa cho job + bản ghi alpha."""
+    return _git("rev-parse", "--short", "HEAD")
 
 
 def build_evidence(result: Dict[str, Any], job_id: str, job: Dict[str, Any]) -> Dict[str, Any]:
     data = result.get("data") or {}
     return {"job_id": job_id, "program_hash": result.get("program_hash"), "data_source": data.get("source"), "data_sha256_1m": data.get("sha256_1m"),
-            "git_commit": _git_commit(), "job_created": job.get("created"), "job_finished": job.get("finished"), "engine": "custom_run (PortfolioEngine)"}
+            "git_commit": git_commit(), "job_created": job.get("created"), "job_finished": job.get("finished"), "engine": "custom_run (PortfolioEngine)"}
 
 
 def save_user_alpha(job_id: str, code: str, name: str, note: str = "", source: str = "alpha-create",
@@ -797,7 +691,7 @@ def save_user_alpha(job_id: str, code: str, name: str, note: str = "", source: s
     - `alpha_id` (P10): lưu PHIÊN BẢN MỚI của alpha đã có (sửa code trong trình soạn tạm -> chạy lại -> Lưu): giữ id, bản ghi cũ nguyên vẹn được
       chuyển vào user/_versions/<id>.v<n>.json, bản ghi chính nhận code + kết quả + bằng chứng mới với version = n + 1
     """
-    from backend.optimize.process import process as batch
+    from backend.jobs import runner as batch
 
     job = batch.status(job_id)
     if not job:
@@ -880,14 +774,14 @@ def save_user_alpha(job_id: str, code: str, name: str, note: str = "", source: s
         history = list(old_record.get("versions") or [_version_row(old_record, prev_v)])
         vdir = os.path.join(user_dir, "_versions")
         os.makedirs(vdir, exist_ok=True)
-        atomic_write_json(os.path.join(vdir, f"{alpha_id}.v{prev_v}.json"), old_record, indent=1)     # bản cũ nguyên vẹn (kể cả kết quả) để so sánh
+        write_json_atomic(os.path.join(vdir, f"{alpha_id}.v{prev_v}.json"), old_record, indent=1, clean=True, allow_nan=False)     # bản cũ nguyên vẹn (kể cả kết quả) để so sánh
         record["version"] = prev_v + 1
         record["versions"] = history + [_version_row(record, prev_v + 1)]
     else:
         record["version"] = int(old_record.get("version") or 1)
         if old_record.get("versions"):
             record["versions"] = old_record["versions"]
-    atomic_write_json(file_path, record, indent=1)
+    write_json_atomic(file_path, record, indent=1, clean=True, allow_nan=False)
     return record, action
 
 
@@ -988,14 +882,14 @@ def update_user_alpha_status(alpha_id: str, new_status: str, base_dir: Optional[
     rec["updated_at"] = datetime.now(timezone.utc).isoformat()
     user_dir = get_user_alphas_dir(base_dir)
     file_path = os.path.join(user_dir, f"{alpha_id}.json")
-    atomic_write_json(file_path, rec, indent=1)
+    write_json_atomic(file_path, rec, indent=1, clean=True, allow_nan=False)
     return True
 
 
 # ══════════════════════════════════════════════════════════════════════════
 # Thư viện chiến lược: mỗi CHIẾN LƯỢC (không phải mỗi alpha / khung giờ) = Ý tưởng -> Công thức bằng lời -> Công thức toán học -> Thống kê.
 #
-# Công thức dựng từ CÂY KHUÔN của chiến lược (optimize/book/build.py CANDIDATES: "ema_{ema_n}", {"param": "k_up"}, khung "{signal_tf}") nên là dạng KÝ HIỆU,
+# Công thức dựng từ CÂY KHUÔN của chiến lược (strategies.py CANDIDATES: "ema_{ema_n}", {"param": "k_up"}, khung "{signal_tf}") nên là dạng KÝ HIỆU,
 # đúng cấu trúc engine đang chạy; nhãn tham số lấy từ params_schema. Thống kê = các alpha đã qua kiểm định của chiến lược đó trong sổ chính + sổ thử nghiệm
 # (mọi khung giờ gộp chung). Danh mục: STRATEGIES; chiến lược có "doc": "combined" (Sideway) là MỘT mục gồm cả hai chiều.
 #
@@ -1249,10 +1143,8 @@ def _user_card_metrics(sim: Any) -> Dict[str, Any]:
 
 
 def catalog(alphas_dir: Optional[str] = None) -> Dict[str, Any]:
-    from backend.optimize.book.build import BY_ID, STRATEGIES
     if alphas_dir is None:
-        from backend.optimize.book.build import alphas_dir as _ad
-        alphas_dir = _ad()
+        alphas_dir = _alpha_dir()
     books = [(k, b) for k, b in (("main", read_json(os.path.join(alphas_dir, "book.json"))),
                                  ("explore", read_json(os.path.join(alphas_dir, "explore", "book.json")))) if b]
     sizing_tex, sizing_w = _sizing()
@@ -1383,3 +1275,82 @@ def top_agents() -> Dict[str, Any]:
         "generated_at": prov.get("frozen_at"),
         "provenance": prov,
     }
+
+
+# ═══ Cache kết quả mẫu giáo dục ═══
+
+_KEY_RE = re.compile(r"^[0-9a-f]{64}$")
+SAMPLE_SPEC_FIELDS = ("symbols", "start", "end", "train_ratio", "initial_capital", "run_frame")
+
+
+def _sample_dir() -> str:
+    from backend.models.storage import alpha_dir
+    return alpha_dir("education", "results")
+
+
+@functools.lru_cache(maxsize=256)
+def _program_info(code: str) -> tuple:
+    """(program_hash, timeframe) của mã — hash do compile_code tính; DslError nếu mã không biên dịch."""
+    from backend.alpha.compile import compile_code
+    prog = compile_code(code)
+    h = getattr(prog, "code_hash", None) or hashlib.sha256(code.encode("utf-8")).hexdigest()
+    return h, getattr(prog, "timeframe", None)
+
+
+def sample_cache_key(code: str, run_spec: dict) -> str:
+    """sha256 của {program_hash, run_spec, phiên bản Nautilus, dấu vân tay catalog, base_frame}."""
+    from backend.nautilus.version import NAUTILUS_VERSION
+    phash, tf = _program_info(code)
+    base_frame = run_spec.get("run_frame") or tf or "1h"
+    try:
+        from backend.data.data import resolve_symbols
+        from backend.data.data import catalog_digest
+        digest = catalog_digest(resolve_symbols(run_spec.get("symbols")))
+    except Exception:   # noqa: BLE001 — chưa có catalog/dữ liệu: khoá vẫn xác định, chạy sẽ báo lỗi dữ liệu rõ ràng
+        digest = ""
+    payload = {"program_hash": phash, "run_spec": run_spec, "nautilus": NAUTILUS_VERSION, "catalog": digest, "base_frame": base_frame}
+    return hashlib.sha256(json.dumps(payload, sort_keys=True, ensure_ascii=False, default=str).encode("utf-8")).hexdigest()
+
+
+def _sample_path(key: str) -> str:
+    if not _KEY_RE.match(key):
+        raise ValueError("khoá cache không hợp lệ")
+    return os.path.join(_sample_dir(), f"{key}.json")
+
+
+def sample_get(key: str) -> Optional[Dict[str, Any]]:
+    try:
+        with open(_sample_path(key), encoding="utf-8") as fh:
+            return json.load(fh)
+    except (FileNotFoundError, ValueError, OSError):
+        return None
+
+
+def sample_put(key: str, result: Dict[str, Any]) -> None:
+    from backend.models.storage import write_json_atomic
+    os.makedirs(_sample_dir(), exist_ok=True)
+    write_json_atomic(_sample_path(key), result)
+
+
+def sample_run_spec(sample: dict, defaults: Optional[dict] = None) -> dict:
+    """Thiết lập chạy của mẫu = mặc định của Studio (data.run_defaults, chế độ 'Nhanh': run_frame rỗng = khung tín hiệu) + trường riêng của mẫu."""
+    if defaults is None:
+        from backend.data.data import run_defaults
+        defaults = run_defaults()
+    spec = dict(defaults)
+    for f in SAMPLE_SPEC_FIELDS:
+        if sample.get(f) not in (None, ""):
+            spec[f] = sample[f]
+    if sample.get("timeframe"):
+        spec["run_frame"] = sample["timeframe"]
+    spec.setdefault("run_frame", "")
+    return spec
+
+
+def sample_lookup(sample: dict, spec: Optional[dict] = None) -> Optional[Dict[str, Any]]:
+    """Kết quả thật đã cache cho mẫu (khoá hiện hành) hoặc None (chưa chạy / mã không biên dịch / thiếu dữ liệu)."""
+    try:
+        spec = spec if spec is not None else sample_run_spec(sample)
+        return sample_get(sample_cache_key(sample.get("code", ""), spec))
+    except Exception:   # noqa: BLE001 — không tính được khoá = chưa có kết quả thật
+        return None

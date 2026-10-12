@@ -1,3 +1,4 @@
+# Đã chuyển khỏi test/scripts (P17 T1-B5c): phụ thuộc phễu / job regime_report đã gỡ; bản gốc ở tag pre-p17-research.
 """Vì sao phễu gần như không ai qua? Lấy mẫu các alpha ĐÃ QUA S1 của một lượt phễu, chạy WFA (S3) cho từng alpha bằng engine hiện hành
 (khớp "extreme" theo nến 1m), BỎ QUA S2 — để biết mỗi cổng loại bao nhiêu và S2 có đang loại cả alpha qua được WFA không.
 
@@ -25,7 +26,7 @@ CTX = {}
 
 
 def _one(row):
-    from backend.optimize.search import evaluate as bt
+    from backend.jobs import evaluate as bt
     c = CTX
     folds = []
     try:
@@ -50,9 +51,9 @@ def main():
     ap.add_argument("--workers", type=int, default=6)   # 12 worker từng lên ~10 GB RAM (mỗi worker đọc 1m.pkl cho khớp extreme)
     ap.add_argument("--seed", type=int, default=1)
     a = ap.parse_args()
-    from backend.optimize.search import evaluate as bt
-    from backend.optimize.funnel import stages as gates
-    from backend.optimize.funnel.storage import RunStore
+    from backend.jobs import evaluate as bt
+    from backend import XXstages as gates
+    from backend.jobs._store import RunStore
     run_dir = os.path.join(NORA_ROOT, "data", "_cache", "funnel", a.run)
     st = RunStore(run_dir, read_only=True)
     run = st.read_run()

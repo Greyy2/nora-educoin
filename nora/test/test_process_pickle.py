@@ -1,6 +1,6 @@
 """P9.6 — hàm worker gửi qua ProcessPoolExecutor được pickle theo `module.qualname`: dời hàm giữa các file mà không giữ tên thì pool hỏng lặng lẽ.
 
-Với mỗi worker (run_book, export_job, w_*, worker_init, lớp BacktestJob): (1) pickle round-trip trả đúng đối tượng; (2) `__module__` là NHÀ MỚI
+Với mỗi worker (run_wfa_job, export_job, worker_init, lớp BacktestJob): (1) pickle round-trip trả đúng đối tượng; (2) `__module__` là NHÀ MỚI
 (đường cũ chỉ là alias); (3) một tiến trình `spawn` (interpreter sạch, chỉ import theo tên) giải pickle ra đúng hàm và chạy được initializer.
 Bảng HOME cập nhật theo từng bước P9.6.
 """
@@ -12,19 +12,12 @@ import pickle
 import pytest
 
 # (đường cũ, tên, nhà mới)
-EVAL = "backend.optimize.search.evaluate"
+EVAL = "backend.jobs.evaluate"
 HOME = [
-    ("backend.optimize.search.evaluate", "w_backtest", EVAL),
-    ("backend.optimize.search.evaluate", "w_backtest_group", EVAL),
-    ("backend.optimize.search.evaluate", "w_backtest_group_rss", EVAL),
-    ("backend.optimize.search.evaluate", "w_wfa", EVAL),
-    ("backend.optimize.search.evaluate", "w_mc", EVAL),
-    ("backend.optimize.search.evaluate", "w_sizing", EVAL),
-    ("backend.optimize.search.evaluate", "w_holdout", EVAL),
-    ("backend.optimize.search.evaluate", "export_job", EVAL),
-    ("backend.optimize.book.build", "run_book", "backend.optimize.book.build"),
-    ("backend.optimize.process.workers", "worker_init", "backend.optimize.process.workers"),
-    ("backend.optimize.search.evaluate", "BacktestJob", EVAL),
+    ("backend.jobs.evaluate", "export_job", EVAL),
+    ("backend.jobs.evaluate", "run_wfa_job", EVAL),
+    ("backend.jobs.workers", "worker_init", "backend.jobs.workers"),
+    ("backend.jobs.evaluate", "BacktestJob", EVAL),
 ]
 
 
@@ -51,7 +44,7 @@ def test_roundtrip_and_home(old, name, home):
 
 
 def test_spawn_pool_resolves_all_workers():
-    from backend.optimize.process.workers import worker_init
+    from backend.jobs.workers import worker_init
     blobs = [pickle.dumps(_load(old, name)) for old, name, _ in HOME]
     ctx = mp.get_context("spawn")
     with cf.ProcessPoolExecutor(max_workers=2, mp_context=ctx, initializer=worker_init) as pool:

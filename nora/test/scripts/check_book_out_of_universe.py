@@ -9,7 +9,7 @@ import os
 import warnings
 warnings.filterwarnings("ignore")
 import pandas as pd
-from backend.optimize.search.evaluate import run
+from backend.jobs.evaluate import run
 from backend.models.params import RISK
 b = json.load(open("data/alpha/book.json"))
 items = [(s["id"], s["params"]) for s in b["strategies"]]

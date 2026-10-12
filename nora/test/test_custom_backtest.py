@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 import golden_scenarios as gs
-from backend.optimize.process import process as batch_jobs
+from backend.jobs import runner as batch_jobs
 from backend.routes import alpha
 from backend.routes import alpha
 from job_modules import launched
@@ -50,7 +50,7 @@ def _params(**kw):
 
 
 def test_run_reports_everything_with_one_flat_metric_set(market, monkeypatch):
-    from backend.optimize.process import tasks as custom_run
+    from backend.jobs import tasks as custom_run
     (market / "job").mkdir(exist_ok=True)
     os.makedirs(market / "job", exist_ok=True)   # writer chỉ ghi khi thư mục job tồn tại (launch tạo sẵn)
     monkeypatch.setenv("NORA_JOB_DIR", str(market / "job"))
@@ -73,7 +73,7 @@ def test_run_reports_everything_with_one_flat_metric_set(market, monkeypatch):
 
 
 def test_runs_on_1m_with_perp_and_echoes_position(market):
-    from backend.optimize.process import tasks as custom_run
+    from backend.jobs import tasks as custom_run
     out = custom_run.run_custom_backtest(_params(code=CODE_1H, symbols=["AAA", "BBB", "CCC"], initial_capital=10_000,
                                      position={"risk_per_trade_pct": 0.25}))
     assert out["config"]["run_frame"] == "1m" and out["config"]["data_symbols"] == ["AAA@perp", "BBB@perp", "CCC@perp"]
@@ -84,7 +84,7 @@ def test_runs_on_1m_with_perp_and_echoes_position(market):
 
 
 def test_job_rejects_bad_input_clearly(market):
-    from backend.optimize.process import tasks as custom_run
+    from backend.jobs import tasks as custom_run
     with pytest.raises(ValueError, match=r"dòng 4, cột \d+"):
         custom_run.run_custom_backtest(_params(code="class S(SimpleAlgorithm):\n    def __algorithm__(self):\n        x = self.data.pv_close\n        y = x and x\n"))
     with pytest.raises(ValueError, match="Không có dữ liệu"):
@@ -180,7 +180,7 @@ def test_api_custom_backtest_launches_job_with_validated_params(client):
 
 def test_diagnostics_use_real_benchmark_and_market(market, monkeypatch):
     """Chẩn đoán lấy từ chính lần chạy: benchmark luôn long chạy qua cùng engine , series.benchmark, chế độ thị trường (chuỗi ngắn -> unknown), lý do thoát thật."""
-    from backend.optimize.process import tasks as custom_run
+    from backend.jobs import tasks as custom_run
     (market / "job").mkdir(exist_ok=True)
     os.makedirs(market / "job", exist_ok=True)   # writer chỉ ghi khi thư mục job tồn tại (launch tạo sẵn)
     monkeypatch.setenv("NORA_JOB_DIR", str(market / "job"))
@@ -204,7 +204,7 @@ def test_diagnostics_use_real_benchmark_and_market(market, monkeypatch):
 
 def test_benchmark_aligned_with_strategy_start_and_holds_without_risk_sizing(market, monkeypatch):
     """Cả hai đường vốn cùng lưới ngày và bắt đầu ở đúng vốn đầu; benchmark nắm giữ chia đều (không định cỡ theo rủi ro, không SL) nên khác chiến lược."""
-    from backend.optimize.process import tasks as custom_run
+    from backend.jobs import tasks as custom_run
     (market / "job").mkdir(exist_ok=True)
     os.makedirs(market / "job", exist_ok=True)   # writer chỉ ghi khi thư mục job tồn tại (launch tạo sẵn)
     monkeypatch.setenv("NORA_JOB_DIR", str(market / "job"))
@@ -232,7 +232,7 @@ def test_yearly_table_drops_years_with_fewer_than_two_return_days():
 def test_stage_series_are_computed_in_backend_with_benchmark_per_stage(market, monkeypatch):
     """series.stages = {all, train, test} đã tính ở backend trên chuỗi ngày đầy đủ (equity, pnl, drawdown_pct, ret_pct, benchmark); test = lần chạy lại từ vốn đầu
     + benchmark chạy lại cùng cửa sổ (series.test.benchmark), KHÔNG co dãn; giao diện không phải tính lại."""
-    from backend.optimize.process import tasks as custom_run
+    from backend.jobs import tasks as custom_run
     (market / "job").mkdir(exist_ok=True)
     os.makedirs(market / "job", exist_ok=True)   # writer chỉ ghi khi thư mục job tồn tại (launch tạo sẵn)
     monkeypatch.setenv("NORA_JOB_DIR", str(market / "job"))

@@ -15,7 +15,7 @@ os.environ.setdefault("NORA_ALLOW_UNLIMITED", "1")
 
 import pytest  # noqa: E402
 
-import backend.optimize  # noqa: E402,F401  (đăng ký lười nguồn dữ liệu mặc định của engine: EngineData)
+import backend  # noqa: F401  (đăng ký lười nguồn dữ liệu mặc định của engine: EngineData)
 
 
 _BASE_DATA_ROOT = os.environ["NORA_LOCAL_DATA_ROOT"]
@@ -31,7 +31,7 @@ def _restore_data_root():
 @pytest.fixture(autouse=True)
 def _legacy_candidates(monkeypatch):
     """Golden / parity / test cơ chế dùng 9 chiến lược cũ: đăng ký vào book.EXTRA_CANDIDATES (BY_ID tra được, danh mục API không đổi)."""
-    from backend.optimize.book import build as sb
+    from backend import strategies as sb
     from legacy_candidates import LEGACY
     monkeypatch.setattr(sb, "EXTRA_CANDIDATES", list(LEGACY))
 
@@ -41,7 +41,7 @@ def synthetic_data():
     """Nguồn dữ liệu engine cho test dữ liệu GIẢ LẬP (pkl trong NORA_LOCAL_DATA_ROOT): nến thực thi từ chính kho giả lập + spec khai báo tường minh
     (data_helpers.SyntheticData). Dùng `pytestmark = pytest.mark.usefixtures("synthetic_data")`. Phạm vi module (các fixture dựng dữ liệu cấp module chạy engine ngay khi dựng). Khôi phục nhà máy mặc định (EngineData / catalog thật) sau module."""
     from backend.models.models import set_default_data_factory, set_default_data_source
-    from backend.optimize import _engine_data_factory
+    from backend import _engine_data_factory
     from data_helpers import SyntheticData
     set_default_data_source(SyntheticData())
     yield

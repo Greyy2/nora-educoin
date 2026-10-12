@@ -1,23 +1,8 @@
-"""P9.0 — kiểm luật phụ thuộc của ADR-P9 (docs/bmad/adr-p9-backend-layout.md §2 "Luật phụ thuộc").
+"""Luật phụ thuộc của backend/ (P17 T1-B5): routes -> jobs -> strategies -> {wfa, nautilus} -> {metrics, carlo} -> data -> {alpha, signal} -> models.
 
-Cây đích chưa tồn tại (P9.2..P9.8 chuyển dần), nên test ánh xạ ĐƯỜNG DẪN HIỆN TẠI -> TẦNG ĐÍCH bằng bảng LAYER_RULES (theo §3 của ADR)
-rồi phân tích import (ast, gồm cả import cục bộ trong hàm) của MỌI module trong backend/.
-
-Luật (ADR §2):
-  core <- {metrics, regime, wfa, carlo} <- optimize <- {live, routes};   crawl được import core, và chỉ được gọi từ optimize, live, routes;
-  core không import gì ngoài core; trong core theo thứ tự models <- params <- indicator <- signal <- position_size <- backtest
-  (file trước không import file sau).
-Diễn giải của test này:
-  - tầng giữa {metrics, regime, wfa, carlo} được import core và import lẫn nhau (cùng hạng), KHÔNG import optimize/live/routes/crawl;
-  - crawl import core + crawl (core là đáy thuần; dữ liệu và cấu hình nạp ở tầng trên rồi truyền xuống);
-  - optimize import core + tầng giữa + crawl + optimize; live thêm optimize; routes import mọi tầng trừ main;
-  - module có dòng đánh dấu `# P9-SHIM` trong 5 dòng đầu là shim tương thích (đường dẫn cũ tái xuất đường dẫn mới) -> không tính khi làm bên import.
-
-Chế độ:
-  - BÁO CÁO (mặc định): test luôn xanh, in danh sách vi phạm (pytest -s); ghi docs/bmad/p9_layering_report.md khi NORA_LAYERING_WRITE=1.
-  - NGHIÊM NGẶT (P9.10): NORA_LAYERING_STRICT=1 -> fail nếu còn vi phạm (hoặc module chưa có trong bảng ánh xạ).
-  - NORA_LAYERING_WRITE=1 mới ghi file báo cáo (mặc định: không ghi).
-"""
+Phân tích import bằng ast (gồm import cục bộ trong hàm) của MỌI module trong backend/. Ngoại lệ có lý do liệt kê ở EXCEPTIONS.
+Chế độ BÁO CÁO (mặc định): in vi phạm; NORA_LAYERING_STRICT=1 -> fail nếu còn vi phạm hoặc có module chưa ánh xạ.
+nautilus_trader chỉ được import trong backend/nautilus/ (test_only_nautilus_package_imports_engine)."""
 import ast
 import os
 from collections import Counter, defaultdict
@@ -31,52 +16,51 @@ REPORT = NORA / "docs" / "bmad" / "p9_layering_report.md"
 STRICT = os.environ.get("NORA_LAYERING_STRICT", "0") not in ("", "0", "false", "False")
 WRITE = os.environ.get("NORA_LAYERING_WRITE", "0") not in ("", "0", "false", "False")   # chỉ ghi báo cáo khi đặt NORA_LAYERING_WRITE=1
 
-MID = {"metrics", "regime", "wfa", "carlo"}
+# Cây backend đích (P17 T1-B5): routes -> jobs -> {wfa, nautilus, metrics, carlo} -> {alpha, signal} -> models; data và strategies đứng cạnh.
+#   models (đáy)  <-  signal, alpha (cùng hạng: plan <-> nodes/compute)  <-  data  <-  metrics, carlo  <-  wfa, nautilus  <-  strategies  <-  jobs  <-  routes  <-  main
 ALLOWED: Dict[str, set] = {
-    "core": {"core"},
-    "alpha": {"core", "alpha"},     # hợp đồng + bộ chuyển chiến lược người viết -> IR của core; không import tầng trên
-    "metrics": {"core", "alpha"} | MID,
-    "regime": {"core", "alpha"} | MID,
-    "wfa": {"core", "alpha"} | MID,
-    "carlo": {"core", "alpha"} | MID,
-    "crawl": {"core", "crawl"},     # core là đáy thuần: crawl được import core (core không import ra ngoài core)
-    "optimize": {"core", "alpha", "crawl", "optimize"} | MID,
-    "live": {"core", "alpha", "crawl", "optimize", "live"} | MID,
-    "routes": {"core", "alpha", "crawl", "optimize", "live", "routes"} | MID,
+    "models": {"models"},
+    "signal": {"models", "signal", "alpha"},
+    "alpha": {"models", "signal", "alpha"},
+    "data": {"models", "data"},
+    "carlo": {"models", "carlo"},                                      # không import nautilus / signal
+    "metrics": {"models", "data", "alpha", "signal", "carlo", "metrics"},   # không import nautilus (regime lấy nến qua signal.compute + data.data)
+    "wfa": {"models", "alpha", "signal", "metrics", "carlo", "wfa"},
+    "nautilus": {"models", "data", "alpha", "signal", "metrics", "nautilus"},
+    "strategies": {"models", "data", "alpha", "signal", "metrics", "carlo", "nautilus", "strategies"},
+    "jobs": {"models", "data", "alpha", "signal", "metrics", "carlo", "wfa", "nautilus", "strategies", "jobs"},
+    "meta": {"models", "data", "alpha", "signal", "metrics", "carlo", "nautilus", "strategies", "jobs", "routes"},   # models/meta.py: lắp ráp metadata từ mọi nguồn (lười)
+    "routes": {"models", "data", "alpha", "signal", "metrics", "carlo", "wfa", "nautilus", "strategies", "jobs", "routes", "meta"},
+    "main": {"models", "data", "alpha", "signal", "metrics", "carlo", "wfa", "nautilus", "strategies", "jobs", "routes", "meta", "main"},
 }
+# Ngoại lệ có ghi lý do: (module nguồn, module đích) được phép dù ngược chiều.
+EXCEPTIONS = {
+    ("data/data", "jobs/evaluate"),        # nguồn dữ liệu mặc định nối kho mmap dùng chung của job (đảo phụ thuộc qua DataSource, import lười + ImportError)
+    ("data/data", "nautilus/catalog"),     # EngineData.instrument_spec: spec công cụ từ ParquetDataCatalog của Nautilus (import lười)
+    ("strategies", "jobs/runner"),         # save_user_alpha đọc job đã xong từ runner (import lười)
+    ("data/crawl", "nautilus/catalog"),    # ghi catalog Nautilus khi crawl nến
+}
+# Ngoại lệ theo tầng: (tầng nguồn, module đích). metrics lấy thống kê hiệu suất từ nautilus/stats (bộ chuyển PortfolioAnalyzer -> khoá UI) — chỗ DUY NHẤT metrics chạm nautilus.
+LAYER_EXCEPTIONS = {("metrics", "nautilus/stats")}
 EXEMPT_LAYERS = {"script"}      # không ràng buộc (script vận hành / nghiên cứu)
 
-# Thứ tự trong core: file hạng thấp KHÔNG được import file hạng cao hơn.
-CORE_ORDER = ["models", "params", "indicator", "signal", "position_size", "backtest"]
-
-
-# Bảng ánh xạ: đường dẫn hiện tại (tính từ backend/, bỏ .py, dùng "/") -> (tầng đích, hạng trong core hoặc None).
-# Khớp theo tiền tố DÀI NHẤT. Nguồn: ADR §3 + chỉ đạo P9.2 (promote và utils/{lru,jsonsafe} nằm trong crawl/store).
-def _r(name: str) -> int:
-    return CORE_ORDER.index(name)
-
-
 LAYER_RULES: List[Tuple[str, str, Optional[int]]] = [
-    # P9.10a: mọi đường dẫn cũ (shim) đã xoá; bảng chỉ còn cây đích.
-    ("crawl", "crawl", None),
-    ("core", "core", None),                                  # core/__init__ và mọi file chưa liệt kê
-    ("core/models", "core", _r("models")),
-    ("core/params", "core", _r("params")),
-    ("core/indicator", "core", _r("indicator")),
-    ("core/signal", "core", _r("signal")),
-    ("core/position_size", "core", _r("position_size")),
-    ("core/backtest", "core", _r("backtest")),
-    ("alpha", "alpha", None),                                # alpha/{contract,compile}
-    ("metrics", "metrics", None),                            # metrics/{metrics,trades,charts}
-    ("regime", "regime", None),
-    ("wfa", "wfa", None),
+    ("models", "models", None),
+    ("models/meta", "meta", None),
+    ("signal", "signal", None),
+    ("alpha", "alpha", None),
+    ("data", "data", None),
+    ("metrics", "metrics", None),
     ("carlo", "carlo", None),
-    ("optimize", "optimize", None),
-    ("live", "live", None),
+    ("wfa", "wfa", None),
+    ("nautilus", "nautilus", None),
+    ("strategies", "strategies", None),
+    ("jobs", "jobs", None),
     ("routes", "routes", None),
-    ("main", "routes", None),
+    ("main", "main", None),
 ]
 _RULES_SORTED = sorted(LAYER_RULES, key=lambda r: -len(r[0]))
+CORE_ORDER: List[str] = []
 
 
 def layer_of(mod: str) -> Tuple[Optional[str], Optional[int]]:
@@ -178,10 +162,8 @@ def collect() -> dict:
                 continue
             seen.add(key)
             edges[(layer, t_layer)] += 1
-            if t_layer not in ALLOWED[layer]:
+            if t_layer not in ALLOWED[layer] and (mod, tgt) not in EXCEPTIONS and (layer, tgt) not in LAYER_EXCEPTIONS:
                 violations.append({"rule": f"{layer} -> {t_layer}", "from": mod, "to": tgt, "line": line})
-            elif layer == "core" and rank is not None and t_rank is not None and t_rank > rank:
-                violations.append({"rule": f"core order {CORE_ORDER[rank]} -> {CORE_ORDER[t_rank]}", "from": mod, "to": tgt, "line": line})
     return {"modules": len(modules), "violations": violations, "unmapped": unmapped, "shims": shims, "edges": edges}
 
 
@@ -239,10 +221,26 @@ def test_layering_rules():
 
 def test_layer_table_sanity():
     """Bảng ánh xạ tự kiểm: vài đường dẫn đã biết phải rơi đúng tầng (chống sửa bảng nhầm)."""
-    assert layer_of("crawl/store") == ("crawl", None)
+    assert layer_of("data/crawl") == ("data", None)
     assert layer_of("routes/book") == ("routes", None)
-    assert layer_of("core/backtest") == ("core", _r("backtest"))
-    assert layer_of("core/indicator") == ("core", _r("indicator"))
-    assert layer_of("metrics/trades") == ("metrics", None)
-    assert layer_of("optimize/process/tasks") == ("optimize", None)
-    assert layer_of("live/okx") == ("live", None)
+    assert layer_of("signal/compute") == ("signal", None)
+    assert layer_of("alpha/plan") == ("alpha", None)
+    assert layer_of("models/meta") == ("meta", None)
+    assert layer_of("models/params") == ("models", None)
+    assert layer_of("jobs/tasks") == ("jobs", None)
+    assert layer_of("strategies") == ("strategies", None)
+    assert layer_of("nautilus/engine") == ("nautilus", None)
+
+
+def test_only_nautilus_package_imports_engine():
+    """nautilus_trader (và chuỗi tên của nó) chỉ xuất hiện trong backend/nautilus/."""
+    bad = [str(p.relative_to(NORA)) for p in BACKEND.rglob("*.py") if "__pycache__" not in p.parts and "nautilus" != p.relative_to(BACKEND).parts[0]
+           and "nautilus_trader" in p.read_text(encoding="utf-8")]
+    assert not bad, bad
+
+
+def test_layering_strict_now():
+    """Sau B5 cây đích sạch: không vi phạm, không module chưa ánh xạ."""
+    res = collect()
+    assert not res["unmapped"], res["unmapped"]
+    assert not res["violations"], [f"{v['from']}:{v['line']} -> {v['to']}" for v in res["violations"]]

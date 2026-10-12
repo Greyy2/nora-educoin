@@ -1,1 +1,1 @@
-"""Alpha (P9, ADR §2): hợp đồng chiến lược (contract) + bộ chuyển đổi -> IR (compile). Tầng: alpha trên core, dưới optimize/live/routes."""
+"""Alpha: hợp đồng chiến lược (contract), bộ chuyển đổi -> IR (compile) và kế hoạch chạy (plan). Tầng: alpha và signal cùng hạng, trên models, dưới data/metrics/nautilus/jobs/routes."""

@@ -1,6 +1,6 @@
 """Tham số chiến lược (P9.4): schema (StrategyParams), template (placeholder/sig.*), builder (build_params), materialize + BASE_POSITION của sổ.
 
-Nguồn gộp: docs/bmad/p9_review_log.md (mục P9.4). Dữ liệu sổ (CANDIDATES/GATES/STRATEGIES) nằm ở optimize/book/build.py.
+Nguồn gộp: docs/bmad/p9_review_log.md (mục P9.4). Dữ liệu sổ (CANDIDATES/GATES/STRATEGIES) nằm ở strategies.py.
 """
 import math
 import re
@@ -260,7 +260,7 @@ def _placeholder_text(name: str, field: str, values: Dict[str, Any], defaults: D
     raise ValueError(f"Tham số tín hiệu '{name}' phải là số hoặc khung thời gian, nhận {value!r}")
 
 
-# Ngữ pháp tên cột chỉ báo {"base": BASE_COLUMNS, "parse": parse_column} — alpha/dsl/indicator.py đăng ký lúc import (params đứng DƯỚI indicator
+# Ngữ pháp tên cột chỉ báo {"base": BASE_COLUMNS, "parse": parse_column} — signal/indicator.py đăng ký lúc import (params đứng DƯỚI indicator
 # trong thứ tự core nên không import nó; mọi đường gọi materialize/resolve_placeholders đều đã nạp engine -> indicator).
 COLUMN_GRAMMAR: Dict[str, Any] = {}
 
@@ -274,7 +274,7 @@ def _resolve_string(text: str, field: str, values: Dict[str, Any], defaults: Dic
             raise ValueError(f"Khung thời gian {out!r} không hợp lệ; chọn một trong {list(FRAMES)}")
         return out
     if not COLUMN_GRAMMAR:
-        raise RuntimeError("chưa nạp alpha/dsl/indicator (ngữ pháp tên cột chỉ báo) — import backend.alpha.dsl.indicator trước khi thay {tên} trong column")
+        raise RuntimeError("chưa nạp signal/indicator (ngữ pháp tên cột chỉ báo) — import backend.signal.indicator trước khi thay {tên} trong column")
     if out in COLUMN_GRAMMAR["base"]:
         return out
     parsed = COLUMN_GRAMMAR["parse"](out)
@@ -417,15 +417,6 @@ def _declared_int(v: Any, default: int) -> int:
     return int(v)
 
 
-def _declared_int(v: Any, default: int) -> int:
-    """Số nguyên của khoá vị thế: None (không khai báo) -> default; 0 là giá trị hợp lệ (khác "không khai báo"); "auto" -> mặc định theo khung cũ."""
-    if v is None:
-        return default
-    if v == AUTO:
-        return AUTO_FALLBACK_COOLDOWN
-    return int(v)
-
-
 def build_params(flow_name: str, flow_ast: Dict[str, Any], flow_type: str, position: Dict[str, Any],
                  venue: str, pool_fee: Optional[float] = None) -> StrategyParams:
     """pool_fee: phí pool DEX đã xác minh của tài sản (manifest_pool_fee(DataSource.manifest(symbol))) — chỉ dùng khi venue='dex'."""
@@ -491,7 +482,7 @@ def build_params(flow_name: str, flow_ast: Dict[str, Any], flow_type: str, posit
 
 # ══════════════════════════════════════════════════════════════════════════
 # Phần tham số vị thế của sổ chiến lược: hằng số mức rủi ro, BASE_POSITION, regime_for, schema_defaults, signal_defaults, materialize.
-# Dữ liệu CANDIDATES/GATES/STRATEGIES nằm ở optimize/book/build.py (RISK ở dưới đây, vì alpha/dsl/strategy.build_plan cần).
+# Dữ liệu CANDIDATES/GATES/STRATEGIES nằm ở strategies.py (RISK ở dưới đây, vì signal/compute.py.build_plan cần).
 # ══════════════════════════════════════════════════════════════════════════
 
 MAX_LEVERAGE = 10
@@ -528,8 +519,8 @@ def resolve_position_auto(pos: Dict[str, Any], signal_frame: Optional[str] = Non
         out["cooldown"] = FRAME_MS[signal_frame] // MINUTE_MS if signal_frame else AUTO_FALLBACK_COOLDOWN
     return out
 
-# Rủi ro danh mục (RiskConfig) của sổ chiến lược — chuyển từ book.py cũ; ở core vì build_plan (alpha/dsl/strategy.py) dựng Plan với bộ này
-# (core không import optimize); optimize/book/build.py import lại từ đây.
+# Rủi ro danh mục (RiskConfig) của sổ chiến lược — chuyển từ book.py cũ; ở core vì build_plan (signal/compute.py) dựng Plan với bộ này
+# (core không import optimize); strategies.py import lại từ đây.
 RISK = {
     "max_positions": 8,          # tối đa số vị thế mở đồng thời (toàn danh mục)
     "max_per_symbol": 1,         # mỗi tài sản tối đa 1 vị thế (mọi chiến lược cộng lại) -> không cộng dồn rủi ro
@@ -555,10 +546,10 @@ DEFAULT_ALLOCATION = {
 # đáy. Bảng "chỉ cho vào ở regime X" cũ (+ cầu chì) bị dữ liệu thật bác bỏ: sổ +29,6% -> −26,0%; bảng tĩnh chỉ cho vào 8–12% lệnh lãi của chiến
 # lược xu hướng vì nhãn xu hướng 4h đến muộn hơn điểm phá vỡ (test/scripts/research_regime_diagnosis.py, roadmap P2.4).
 REGIME_DENY: Dict[str, List[str]] = {"LONG": ["TREND_DOWN", "CRASH"], "SHORT": ["TREND_UP", "SURGE"]}
-REGIME_NAMES = ("UNKNOWN", "RANGE", "TREND_UP", "TREND_DOWN", "VOL_EXPANSION", "SURGE", "CRASH")   # tên regime theo mã 0..6 (classifier trong alpha/dsl/signal.py dùng chung)
+REGIME_NAMES = ("UNKNOWN", "RANGE", "TREND_UP", "TREND_DOWN", "VOL_EXPANSION", "SURGE", "CRASH")   # tên regime theo mã 0..6 (classifier trong signal/nodes.py dùng chung)
 def regime_for(side: str) -> Dict[str, Any]:
     return {"allowed": [r for r in REGIME_NAMES if r not in REGIME_DENY[side]], "fuse": False}
-REGIME_MAP: Dict[str, Dict[str, Any]] = {}   # P9.4: bảng {id: cấu hình regime}; optimize/book/build.py điền từ CANDIDATES; materialize tra bảng này (thiếu -> regime_for(side), cùng kết quả)
+REGIME_MAP: Dict[str, Dict[str, Any]] = {}   # P9.4: bảng {id: cấu hình regime}; strategies.py điền từ CANDIDATES; materialize tra bảng này (thiếu -> regime_for(side), cùng kết quả)
 
 
 def schema_defaults(candidate: Dict[str, Any], group: str = None) -> Dict[str, Any]:

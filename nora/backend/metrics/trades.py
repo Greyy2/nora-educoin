@@ -8,7 +8,7 @@ Quy ước:
     Expectancy của Nautilus = TB PnL các lệnh KHÁC 0 (bỏ lệnh hoà); ProfitFactor của Nautilus = Σ dương / |Σ âm| của chuỗi đưa vào;
   - profit_factor = Σ lãi / Σ lỗ. KHÔNG có lệnh lỗ (Σ lỗ = 0) thì PF không xác định -> None + `profit_factor_note` nêu lý do (không còn số chặn 99);
     0 lệnh -> win_rate = None, profit_factor = None (+ ghi chú), không phải 0 giả. Giao diện hiện "—" + lý do;
-  - cổng phễu (optimize/funnel/stages.py) KHÔNG đọc win_rate / profit_factor nên đổi này không đổi quyết định cổng nào; nếu sau này cổng đọc PF,
+  - cổng phễu ((phễu đã gỡ)) KHÔNG đọc win_rate / profit_factor nên đổi này không đổi quyết định cổng nào; nếu sau này cổng đọc PF,
     "không có lệnh thua" (profit_factor_note == NOTE_NO_LOSSES) phải được coi là ĐẠT tiêu chí PF (hành vi cũ: PF = 99 ≥ mọi ngưỡng), đừng so None với số;
   - payoff = TB lệnh thắng / |TB lệnh thua|; expectancy = PnL trung bình mỗi lệnh (USD và % vốn lúc mở lệnh);
   - fee_drag_pct = phí / lãi trước phí (phần lãi gộp bị phí ăn mất); None khi lãi trước phí <= 0;
@@ -22,8 +22,7 @@ import numpy as np
 import pandas as pd
 
 from backend.nautilus import stats as ns
-from backend.models.params import DAY_MS as DAY, FRAME_MS as FRAME_MS_ALL, HOUR_MS as HOUR, MINUTE_MS as MINUTE, date_ms, iso_date
-from backend.metrics import regime as rg
+from backend.models.params import DAY_MS as DAY, FRAME_MS as FRAME_MS_ALL, date_ms, iso_date
 
 LIQ_STATUS = "LIQ"
 NOTE_NO_TRADES = "không có lệnh nào"
@@ -635,11 +634,10 @@ def compare_events(exec_events: List[Any], sim_events: List[Any], timeframe: str
 # 5. pnl_structure: win rate, payoff, top 5 lệnh, chuỗi thua, fee drag, phân bổ coin & năm.
 # 6. regime_analysis: chế độ thị trường theo giá BTC (hoặc chỉ số rổ nếu không có BTC) trên/dưới SMA200 nhân quả: số ngày, lãi theo ngày, lệnh vào, thời gian có vị thế.
 # ══════════════════════════════════════════════════════════════════════════
-from backend.alpha.dsl.signal import Program
+from backend.signal.nodes import Program
 
 
 SMA_DAYS = 200
-
 
 
 def _safe_float(v: Any, default: float = 0.0) -> float:
@@ -976,7 +974,7 @@ def compute_regime_analysis(series: Dict[str, np.ndarray], trades: List[Dict[str
 
 def _conjuncts(node) -> List[Any]:
     """Các vế cấp cao nhất của một chuỗi A & B & C (cả toán tử & lẫn op and_)."""
-    from backend.alpha.dsl.signal import Call, Logic
+    from backend.signal.nodes import Call, Logic
     if isinstance(node, Logic) and node.op == "&":
         return _conjuncts(node.a) + _conjuncts(node.b)
     if isinstance(node, Call) and not node.is_feature and node.spec.name == "and_":
@@ -989,7 +987,7 @@ def compute_binding_condition(program: Optional[Program], frames: Optional[Dict[
     đếm nến có open_time trong [start, end)). Mỗi vế: pct_true, only_false_bars (nến mà nó là vế DUY NHẤT sai = vế chặn), share_of_near_miss_pct = only_false / (tổng nến chỉ sai
     đúng một vế). `binding` = vế có phần chặn lớn nhất. Bỏ qua điều kiện giờ vào lệnh (position_open_times/ranges)."""
     from backend.alpha.compile import expr_to_vi
-    from backend.alpha.dsl.signal import Ctx
+    from backend.signal.nodes import Ctx
     if program is None or not frames:
         return {"available": False, "rules": [], "reason": "thiếu chương trình hoặc nến"}
     rules: List[Dict[str, Any]] = []
@@ -1236,7 +1234,7 @@ def build_result(program, plan, res, eng, a, start: int, end: int, capital: floa
                  test_res: Optional[Dict[str, Any]] = None, test_start: Optional[int] = None, bench: Optional[Dict[str, Any]] = None,
                  inputs: Optional[Dict[str, Any]] = None, test_bench: Optional[Dict[str, Any]] = None,
                  alpha_id: Optional[str] = None, checklist: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    from backend.alpha.dsl.strategy import FRAME_MS
+    from backend.models.params import FRAME_MS
     from backend.metrics.metrics import result_payload
     from backend.metrics.trades import rows_from_trade_list
     payload = result_payload(res, start, end)
@@ -1345,83 +1343,3 @@ def _episodes(mask: np.ndarray):
     return list(zip(np.flatnonzero(d == 1), np.flatnonzero(d == -1)))
 
 
-def label_stats(s: Dict[str, np.ndarray], start: int) -> Dict[str, Any]:
-    t, lab, close, real = s["t"], s["labels"], s["close"], s["real"]
-    keep = (t >= start) & real
-    t, lab, close = t[keep], lab[keep], close[keep]
-    n = len(t)
-    days = (t[-1] - t[0]) / DAY if n > 1 else 0.0
-    # mẫu mỗi giờ: lợi suất 24h tới (phút cuối cùng <= t + 24h)
-    hourly = np.flatnonzero((t % HOUR) == 0)
-    fwd_idx = np.searchsorted(t, t[hourly] + DAY, side="right") - 1
-    ok = (t[fwd_idx] >= t[hourly] + DAY - HOUR)
-    h, fi = hourly[ok], fwd_idx[ok]
-    fwd = (close[fi] / close[h] - 1.0) * 100.0
-    out: Dict[str, Any] = {"minutes": int(n), "days": round(days, 1), "states": {}}
-    switches = int((np.diff(lab.astype(np.int16)) != 0).sum())
-    out["switches_per_30d"] = round(switches / days * 30, 2) if days else None
-    for code, name in enumerate(rg.NAMES):
-        m = lab == code
-        if not m.any():
-            continue
-        eps = _episodes(m)
-        dur = [(t[e - 1] - t[b]) / HOUR + 1 / 60 for b, e in eps]
-        r = fwd[lab[h] == code]
-        out["states"][name] = {
-            "share_pct": round(100 * m.mean(), 2), "episodes": len(eps), "avg_hours": round(float(np.mean(dur)), 1),
-            "fwd24_n": int(r.size),
-            "fwd24_mean_pct": round(float(r.mean()), 3) if r.size else None,
-            "fwd24_median_pct": round(float(np.median(r)), 3) if r.size else None,
-            "fwd24_up_pct": round(float((r > 0).mean() * 100), 1) if r.size else None,
-            "fwd24_abs_pct": round(float(np.abs(r).mean()), 3) if r.size else None,
-        }
-    return out
-
-
-def shock_stats(s: Dict[str, np.ndarray], start: int, event_pct: float) -> Dict[str, Any]:
-    t, lab, close, real = s["t"], s["labels"], s["close"], s["real"]
-    keep = (t >= start) & real
-    t, lab, close = t[keep], lab[keep], close[keep]
-    hourly = np.flatnonzero((t % HOUR) == 0)
-    fwd_idx = np.searchsorted(t, t[hourly] + DAY, side="right") - 1
-    fwd = (close[fwd_idx] / close[hourly] - 1.0) * 100.0
-    out = {}
-    for name, code, sign in (("CRASH", rg.CRASH, -1), ("SURGE", rg.SURGE, 1)):
-        ev = sign * fwd >= event_pct
-        rows = []
-        for b, e in _episodes(ev):
-            i0 = hourly[b]
-            i1 = int(np.searchsorted(t, t[i0] + DAY, side="right"))
-            hit = np.flatnonzero(lab[i0:i1] == code)
-            already = None
-            # cực trị của đợt trong 24h sau đầu đợt (đáy với sập, đỉnh với tăng)
-            seg = close[i0:i1]
-            ext = int(np.argmin(seg) if sign < 0 else np.argmax(seg))
-            total = seg[ext] / close[i0] - 1.0
-            lag = None
-            if hit.size:
-                k = int(hit[0])
-                lag = int((t[i0 + k] - t[i0]) // MINUTE)
-                already = round(100 * (close[i0 + k] / close[i0] - 1.0) / total, 1) if total else None
-            rows.append({"start": int(t[i0]), "move_pct": round(100 * total, 2), "detected": bool(hit.size), "lag_min": lag,
-                         "move_done_pct": already})
-        det = [r for r in rows if r["detected"]]
-        alarms = []
-        for b, e in _episodes(lab == code):
-            j = int(np.searchsorted(t, t[b] + DAY, side="right")) - 1
-            if t[j] >= t[b] + DAY - HOUR:
-                alarms.append((close[j] / close[b] - 1.0) * 100.0)
-        alarms = np.asarray(alarms)
-        out[name] = {
-            "events": len(rows), "detected": len(det),
-            "recall_pct": round(100 * len(det) / len(rows), 1) if rows else None,
-            "median_lag_min": int(np.median([r["lag_min"] for r in det])) if det else None,
-            "median_move_done_pct": float(np.median([r["move_done_pct"] for r in det if r["move_done_pct"] is not None]))
-            if det else None,
-            "alarms": int(alarms.size),
-            # cầu chì đúng khi sau khi bật giá TIẾP TỤC cùng chiều sốc (vị thế ngược chiều bị cắt là tránh lỗ thêm)
-            "alarm_continuation_pct": round(float((sign * alarms > 0).mean() * 100), 1) if alarms.size else None,
-            "alarm_fwd24_mean_pct": round(float(alarms.mean()), 3) if alarms.size else None,
-            "worst_events": sorted(rows, key=lambda r: sign * -r["move_pct"])[:5],
-        }
-    return out

@@ -273,7 +273,7 @@ def run_config(symbol: str, strategies: List[Dict[str, Any]], start: int, trade_
     import contextlib
     import io
     from backend.nautilus.engine import PortfolioEngine
-    from backend.alpha.dsl.strategy import RiskConfig
+    from backend.alpha.plan import RiskConfig
     risk = RiskConfig(max_positions=10, max_per_symbol=4, max_gross_exposure=1e9, kill_switch_dd_pct=0.0)
     eng = PortfolioEngine([symbol], strategies, start, end, trade_start_ts=trade_start, initial_capital=INITIAL,
                           risk=risk, venue="cex")
@@ -395,8 +395,8 @@ def main(argv=None):
     from backend.models.params import resolve_costs
     from backend.data.data import require_data_ok_or_exit
     from backend.data.data import read_manifest
-    from backend.optimize.process.workers import require_memory_limit, worker_init
-    from backend.optimize.process.workers import resolve_workers
+    from backend.jobs.workers import require_memory_limit, worker_init
+    from backend.jobs.workers import resolve_workers
     require_memory_limit("research_topbots")
     t0 = time.time()
     costs = resolve_costs("cex", "perp", None, None)

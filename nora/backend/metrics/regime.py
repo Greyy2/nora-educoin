@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 
 # Phân loại trạng thái, ngưỡng, REFS, raw_states/smooth/classify, masks_for
-from backend.alpha.dsl.signal import (
+from backend.signal.nodes import (
     CODE, CRASH, DEFAULTS, LABEL_VI, MINUTE, NAMES, PROFILES, RANGE, REFS, SURGE, TREND_DOWN, TREND_UP, UNKNOWN, VOL_EXPANSION,
     classify, masks_for, profile_cfg, raw_states, smooth,
 )
@@ -23,10 +23,10 @@ __all__ = [
 def series(symbol: str, start: int, end: int, venue: str = "cex", cfg: Optional[Dict[str, float]] = None,
            base_frame: str = "1m") -> Dict[str, np.ndarray]:
     """Nhãn regime từng nến khung chạy của một tài sản qua đường dữ liệu của engine."""
-    from backend.nautilus.engine import PortfolioEngine
+    from backend.signal.compute import SignalPortfolio
     probe = {"id": "_regime_probe", "side": "LONG", "position": {"market": "perp"},
              "tree": [[[{"frame": "1h", "column": "roc_1", "index": 0}, ">", 1e18]]]}
-    pe = PortfolioEngine([symbol], [probe], start, end, trade_start_ts=start, venue=venue, use_cache=False, base_frame=base_frame)
+    pe = SignalPortfolio([symbol], [probe], start, end, trade_start_ts=start, venue=venue, use_cache=False, base_frame=base_frame)
     eng, _ = pe._make_slots(symbol, pe.ledger)
     eng.extra_refs = REFS
     eng.load_data()

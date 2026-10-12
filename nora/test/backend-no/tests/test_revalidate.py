@@ -1,10 +1,11 @@
+# Đã chuyển khỏi test/ (P17 T1-B5c): kiểm tính năng nghiên cứu đã gỡ (funnel/revalidate/kho dựng sổ); bản gốc còn ở tag pre-p17-research.
 """P3.3: kiểm lại alpha trong kho bằng engine hiện hành (backend/optimize/revalidate.py) + ghi trạng thái registry / gỡ testnet."""
 import pytest
 import json
 import os
 
-from backend.optimize.book import registry as rv
-from backend.optimize.funnel import stages as gates
+from backend import strategies as rv
+from backend import XXstages as gates
 from test_strategy_book import T0, market  # noqa: F401  (market là fixture: 70 ngày, 3 tài sản)
 
 pytestmark = pytest.mark.usefixtures("synthetic_data")   # P15: engine Nautilus lấy nến thực thi + spec từ DataSource; dữ liệu giả lập -> conftest.synthetic_data

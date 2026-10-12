@@ -44,7 +44,7 @@ SYMS = ["AAA@perp", "BBB@perp", "CCC@perp"]
 
 
 def _engine(**kw):
-    from backend.alpha.dsl.strategy import RiskConfig
+    from backend.alpha.plan import RiskConfig
     from backend.nautilus.engine import PortfolioEngine
     return PortfolioEngine(SYMS, [gs.LONG, gs.SHORT], T0, T0 + 30 * DAY, trade_start_ts=T0 + 3 * DAY,
                            risk=RiskConfig(), use_cache=False, **kw)
@@ -69,7 +69,7 @@ def _tmp_left(out):
 
 
 def test_mmap_data_equals_built_data_bit_for_bit(market, tmp_path):
-    from backend.optimize.search import evaluate as shared_data
+    from backend.jobs import evaluate as shared_data
     eng = _engine()
     out = tmp_path / "shared"
     info = shared_data.export(eng, str(out))
@@ -86,7 +86,7 @@ def test_mmap_data_equals_built_data_bit_for_bit(market, tmp_path):
 
 
 def test_key_changes_when_source_file_changes(market):
-    from backend.optimize.search import evaluate as shared_data
+    from backend.jobs import evaluate as shared_data
     eng = _engine()
     e, _ = eng._make_slots("AAA@perp", eng.ledger)
     p1 = shared_data.plan(e)
@@ -103,9 +103,9 @@ def test_key_changes_when_source_file_changes(market):
 def test_indicators_are_window_invariant_fixed_origin(market):
     """Chỉ báo tính từ đầu lịch sử (gốc cố định, như TradingView): cùng phút -> cùng giá trị dù cửa sổ backtest bắt đầu khác nhau,
     và dù cột khác cùng khung cần warmup dài hơn. Khoá cột vì thế không phụ thuộc cửa sổ nạp."""
-    from backend.alpha.dsl.strategy import RiskConfig
+    from backend.alpha.plan import RiskConfig
     from backend.nautilus.engine import PortfolioEngine
-    from backend.optimize.search import evaluate as shared_data
+    from backend.jobs import evaluate as shared_data
     a = {"id": "a", "side": "LONG", "tree": [[[{"frame": "4h", "column": "ema_20"}, ">", 0],
                                              [{"frame": "1m", "column": "rsi_14"}, ">", 0]]], "position": gs._POSITION}
     b = {"id": "b", "side": "LONG", "tree": [[[{"frame": "4h", "column": "ema_20"}, ">", {"frame": "4h", "column": "ema_120"}],
@@ -126,9 +126,9 @@ def test_indicators_are_window_invariant_fixed_origin(market):
 
 
 def test_two_groups_share_base_and_only_add_missing_columns(market, tmp_path):
-    from backend.alpha.dsl.strategy import RiskConfig
+    from backend.alpha.plan import RiskConfig
     from backend.nautilus.engine import PortfolioEngine
-    from backend.optimize.search import evaluate as shared_data
+    from backend.jobs import evaluate as shared_data
     out = tmp_path / "shared"
     st1 = {"id": "s1", "side": "LONG", "tree": [[[{"frame": "15m", "column": "rsi_14"}, "<", 40]]], "position": gs._POSITION}
     st2 = {"id": "s2", "side": "LONG", "tree": [[[{"frame": "15m", "column": "rsi_20"}, "<", 30]]], "position": gs._POSITION}
@@ -160,8 +160,8 @@ def test_build_matrix_only_equals_subset_of_full(market):
 
 
 def test_run_with_shared_dir_matches_run_without(market, tmp_path, monkeypatch):
-    from backend.alpha.dsl import strategy as portfolio
-    from backend.optimize.search import evaluate as shared_data
+    from backend.signal import compute as portfolio
+    from backend.jobs import evaluate as shared_data
     plain = _engine()
     plain.run()
     golden = gs.canonicalize(plain.get_results())
@@ -179,7 +179,7 @@ def test_run_with_shared_dir_matches_run_without(market, tmp_path, monkeypatch):
     # qua biến môi trường + use_cache=True: dữ liệu mmap KHÔNG vào _DATA_CACHE
     monkeypatch.setenv("NORA_SHARED_DATA_DIR", out)
     gs.clear_caches()
-    from backend.alpha.dsl.strategy import RiskConfig
+    from backend.alpha.plan import RiskConfig
     from backend.nautilus.engine import PortfolioEngine
     env_eng = PortfolioEngine(SYMS, [gs.LONG, gs.SHORT], T0, T0 + 30 * DAY, trade_start_ts=T0 + 3 * DAY,
                               risk=RiskConfig(), use_cache=True)
@@ -224,9 +224,9 @@ def test_golden_real_through_shared_mmap(tmp_path):
 def test_lazy_fill_equals_built_and_is_reused(market, tmp_path, frame):
     """Kho trống: worker tự điền (nền + giá trị cột theo khung + chỉ số căn) -> bằng từng bit với tự dựng; engine thứ hai cùng refs
     không phải tính gì nữa. Gồm cả cột khung 1m (tính trên toàn bộ phút thật từ đầu lịch sử)."""
-    from backend.alpha.dsl.strategy import RiskConfig
+    from backend.alpha.plan import RiskConfig
     from backend.nautilus.engine import PortfolioEngine
-    from backend.optimize.search import evaluate as shared_data
+    from backend.jobs import evaluate as shared_data
     out = tmp_path / "shared"
     st = {"id": "s", "side": "LONG", "position": gs._POSITION,
           "tree": [[[{"frame": frame, "column": "rsi_14"}, "<", {"frame": "4h", "column": "ema_30", "index": 1}]]]}
@@ -253,7 +253,7 @@ def test_lazy_fill_equals_built_and_is_reused(market, tmp_path, frame):
 
 def test_base_frame_1h_shared_equals_built_and_rejects_smaller_frames(market, tmp_path):
     """Khung chạy 1h: kho dùng chung bằng từng bit với tự dựng; khung tín hiệu nhỏ hơn khung chạy bị từ chối rõ ràng."""
-    from backend.alpha.dsl.strategy import RiskConfig
+    from backend.alpha.plan import RiskConfig
     from backend.nautilus.engine import PortfolioEngine
     st = {"id": "s", "side": "LONG", "position": {**gs._POSITION, "atr_frame": "1h"},
           "tree": [[[{"frame": "1h", "column": "rsi_14"}, "<", {"frame": "4h", "column": "ema_30", "index": 1}]]]}
