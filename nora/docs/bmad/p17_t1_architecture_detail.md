@@ -145,4 +145,14 @@ Một file, 5 mục; mỗi logic một định nghĩa:
 5. Backend ≤ ~15k dòng (`find backend -name '*.py' | xargs cat | wc -l`).
 
 ## Phụ lục A — test fail sẵn ở baseline `dae2e71`
-(Opus điền khi full suite baseline chạy xong.)
+Full suite tại `dae2e71`: **15 failed, 979 passed, 6 skipped** (54'51").
+| Test | Ghi chú hướng xử lý |
+|---|---|
+| `test_alpha_contract.py::test_run_all_education_samples_identical_ir`, `test_adapt_function_style`, `test_adapt_json_spec[dict]`, `[text]`, `test_annotate_all_education_samples` | compile/contract sau refactor alpha/dsl — kiểm lỗi thật trước |
+| `test_book_ui_backend.py::test_engine_version_is_stable_and_detects_engine_source_change`, `test_engine_hash_tracks_strategy_ir_not_comments` | danh sách file engine (registry `_engine_files`) còn trỏ path cũ — xử lý trong B5c (registry bỏ) |
+| `test_edu_samples_lint.py::test_lint_risk_params_must_match` | mẫu education vs tham số rủi ro |
+| `test_okx_data.py::test_exchange_root` | thuộc crawl cũ → B4/D5 |
+| `test_ops_units.py::test_backend_has_only_planned_packages`, `test_resume_code_fingerprint_files_exist` | cập nhật theo cây đích ở B5 |
+| `test_run_book_backtest.py::test_main_writes_result_json_with_expected_keys`, `test_deterministic`, `test_trade_list_has_notional_and_daily_nav` | luồng sổ backtest (giữ) — lỗi thật, sửa ở B5c khi chuyển vào jobs/tasks |
+| `test_strategy_signal_parity.py::test_evaluate_signals_bit_identical_to_old` | so với engine cũ trong test/backend-no (mẫu mới không chạy trên code cũ) → chuyển test sang backend-no hoặc so với snapshot B0 |
+
