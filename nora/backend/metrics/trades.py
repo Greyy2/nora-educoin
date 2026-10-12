@@ -4,6 +4,8 @@
 
 Quy ước:
   - thắng = PnL > 0, thua = PnL < 0, hoà (= 0) đếm riêng; win_rate = thắng / tổng lệnh (hoà làm giảm win_rate, không tính là thua);
+  - win_rate, profit_factor, avg win/loss, expectancy = lớp thống kê của NautilusTrader (nautilus/stats.py), Nora không tự cài công thức. Lưu ý:
+    Expectancy của Nautilus = TB PnL các lệnh KHÁC 0 (bỏ lệnh hoà); ProfitFactor của Nautilus = Σ dương / |Σ âm| của chuỗi đưa vào;
   - profit_factor = Σ lãi / Σ lỗ. KHÔNG có lệnh lỗ (Σ lỗ = 0) thì PF không xác định -> None + `profit_factor_note` nêu lý do (không còn số chặn 99);
     0 lệnh -> win_rate = None, profit_factor = None (+ ghi chú), không phải 0 giả. Giao diện hiện "—" + lý do;
   - cổng phễu (optimize/funnel/stages.py) KHÔNG đọc win_rate / profit_factor nên đổi này không đổi quyết định cổng nào; nếu sau này cổng đọc PF,
@@ -19,6 +21,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+from backend.nautilus import stats as ns
 from backend.models.params import DAY_MS as DAY, FRAME_MS as FRAME_MS_ALL, HOUR_MS as HOUR, MINUTE_MS as MINUTE, date_ms, iso_date
 from backend.metrics import regime as rg
 
@@ -28,13 +31,13 @@ NOTE_NO_LOSSES = "không có lệnh thua"
 NOTE_NO_PNL = "không có lệnh lãi hay lỗ (chỉ lệnh hoà)"
 
 
-def profit_factor_of(gross_profit: float, gross_loss: float, n_trades: int):
-    """(profit_factor | None, lý do | None). Σ lỗ = 0 -> PF không xác định (None), KHÔNG chặn ở một hằng số."""
-    if n_trades == 0:
-        return None, NOTE_NO_TRADES
-    if gross_loss > 0:
-        return gross_profit / gross_loss, None
-    return None, (NOTE_NO_LOSSES if gross_profit > 0 else NOTE_NO_PNL)
+def profit_factor_note(pnl, pf) -> Optional[str]:
+    """Lý do khi profit factor không xác định (pf None); None khi có giá trị. Chỉ giải thích — giá trị do Nautilus tính (nautilus/stats.py)."""
+    if pf is not None:
+        return None
+    if len(pnl) == 0:
+        return NOTE_NO_TRADES
+    return NOTE_NO_LOSSES if any(x > 0 for x in pnl) else NOTE_NO_PNL
 
 
 def trade_rows(positions) -> List[Dict[str, Any]]:
@@ -75,13 +78,14 @@ def rows_from_trade_list(trade_list: List[Dict[str, Any]]) -> List[Dict[str, Any
 
 
 def trade_stats(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """win_rate (1 chữ số) + profit_factor (3 chữ số) cho bảng của phễu. Không xác định -> None + `*_note` (lý do), không dùng 0/99 giả."""
-    pnl = np.asarray([r["pnl_usd"] for r in rows], dtype=float)
-    gp, gl = float(pnl[pnl > 0].sum()), float(-pnl[pnl < 0].sum())
-    pf, note = profit_factor_of(gp, gl, int(pnl.size))
-    return {"win_rate": round(float((pnl > 0).mean() * 100), 1) if pnl.size else None,
-            "win_rate_note": None if pnl.size else NOTE_NO_TRADES,
-            "profit_factor": round(pf, 3) if pf is not None else None, "profit_factor_note": note}
+    """win_rate (1 chữ số) + profit_factor (3 chữ số) cho bảng của phễu — Nautilus WinRate / ProfitFactor trên PnL từng lệnh.
+    Không xác định -> None + `*_note` (lý do), không dùng 0/99 giả."""
+    pnl = [r["pnl_usd"] for r in rows]
+    wr = ns.pnl_stats(pnl)["win_rate"]
+    pf = ns.trade_profit_factor(pnl)
+    return {"win_rate": round(wr, 1) if wr is not None else None,
+            "win_rate_note": None if pnl else NOTE_NO_TRADES,
+            "profit_factor": round(pf, 3) if pf is not None else None, "profit_factor_note": profit_factor_note(pnl, pf)}
 
 
 def _side_block(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -108,26 +112,27 @@ def trade_metrics(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     funding = float(sum(r.get("funding_usd", 0.0) for r in rows))
     wins, losses = pnl[pnl > 0], pnl[pnl < 0]
     gp, gl = float(wins.sum()), float(-losses.sum())
-    avg_win = float(wins.mean()) if wins.size else None
-    avg_loss = float(losses.mean()) if losses.size else None
+    nst = ns.pnl_stats(pnl, pct)                                  # Nautilus WinRate / Expectancy / AvgWinner / AvgLoser
+    avg_win, avg_loss = nst["avg_winner"], nst["avg_loser"]
     pre_fee = float(pnl.sum()) + fees
     top = np.sort(wins)[::-1][:5]
     hold_h = np.asarray([(r["close_time"] - r["enter_time"]) / 3_600_000 for r in rows], dtype=float)
     mae_known = all(r.get("mae_pct", 0.0) is not None for r in rows)       # MAE không tính được (chiến lược bản địa) -> mae_* = None, không điền 0
     mae = np.asarray([r.get("mae_pct", 0.0) for r in rows], dtype=float) if mae_known else np.zeros(0)
     layers = np.asarray([r.get("layers", 1) for r in rows], dtype=float)
-    pf, pf_note = profit_factor_of(gp, gl, n)
+    pf = ns.trade_profit_factor(pnl)                              # Nautilus ProfitFactor trên PnL từng lệnh
+    pf_note = profit_factor_note(pnl, pf)
     prox = [abs(r["mae_pct"]) / 100.0 * r["entry_equity"] / r["margin_usd"] * 100.0
             for r in rows if r.get("margin_usd") and r.get("entry_equity") and r.get("mae_pct") is not None]
     return {
         "trades": n, "wins": int(wins.size), "losses": int(losses.size), "breakeven": int(n - wins.size - losses.size),
-        "win_rate": float(wins.size / n * 100.0) if n else None, "loss_rate": float(losses.size / n * 100.0) if n else None,
+        "win_rate": nst["win_rate"], "loss_rate": float(losses.size / n * 100.0) if n else None,
         "win_rate_note": None if n else NOTE_NO_TRADES,
         "profit_factor": pf, "profit_factor_note": pf_note,
         "gross_profit_usd": gp, "gross_loss_usd": gl, "pnl_usd": float(pnl.sum()),
         "avg_win_usd": avg_win, "avg_loss_usd": avg_loss,
         "payoff": (avg_win / abs(avg_loss)) if avg_win is not None and avg_loss else None,
-        "expectancy_usd": float(pnl.mean()) if n else None, "expectancy_pct": float(pct.mean()) if n else None,
+        "expectancy_usd": nst["expectancy"], "expectancy_pct": nst["expectancy_pct"],
         "best_trade_usd": float(pnl.max()) if n else None, "worst_trade_usd": float(pnl.min()) if n else None,
         "best_trade_pct": float(pct.max()) if pct.size else None, "worst_trade_pct": float(pct.min()) if pct.size else None,
         "max_consec_wins": max_consecutive(pnl > 0), "max_consec_losses": max_consecutive(pnl < 0),

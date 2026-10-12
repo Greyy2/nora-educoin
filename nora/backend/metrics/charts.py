@@ -19,7 +19,7 @@ from backend.metrics.metrics import ANN, daily_nav_series
 # ══════════════════════════════════════════════════════════════════════════
 # Payload trang Danh mục (docs/ui_contract.md §3) dựng từ kết quả một job `book_backtest` + giá đóng cửa ngày của benchmark.
 #
-# Hàm thuần (không I/O; giá benchmark do nơi gọi nạp qua crawl/store.benchmark_daily_closes) để test được bằng dữ liệu giả:
+# Hàm thuần (không I/O; giá benchmark do nơi gọi nạp qua data.benchmark_daily_closes) để test được bằng dữ liệu giả:
 #   build_dashboard(result, bench_closes, period)  -> dict payload (available: True)
 # Quy ước:
 #   - Ngày = ngày UTC. NAV ngày = vốn MTM cuối ngày (`daily_nav` của run_book_backtest nếu có, không thì mẫu cuối ngày của equity_curve).
@@ -326,8 +326,6 @@ def build_dashboard(result: Dict[str, Any], bench_closes: Optional[pd.Series] = 
     trades = result.get("trade_list") or []
     p_start = int(dates[0].value // 1_000_000)           # đầu ngày đầu tiên của kỳ (ms)
     p_trades = [t for t in trades if t.get("close_time") is not None and t["close_time"] >= p_start]
-    wins = sum(t["pnl"] for t in p_trades if t["pnl"] > 0)
-    losses = -sum(t["pnl"] for t in p_trades if t["pnl"] < 0)
     t_ref = int(result["equity_curve"][-1]["time"]) if result.get("equity_curve") else int(last.value // 1_000_000) + DAY_MS
     pos_rows = position_rows(result.get("positions"))
     live_open = [{"strategy": r["strategy"], "side": r["side"], "enter_time": r["opened"], "close_time": None, "notional": r["notional"],
@@ -341,8 +339,10 @@ def build_dashboard(result: Dict[str, Any], bench_closes: Optional[pd.Series] = 
     pct = lambda x: _num(x / nav_last * 100.0, 1) if nav_last > 0 else None
     ids = [s["id"] for s in cfg.get("strategies") or []] or sorted({t["strategy"] for t in trades})
     halted = bool(result.get("halted_at"))
-    from backend.metrics.trades import profit_factor_of
-    pf_period, pf_note = profit_factor_of(wins, losses, len(p_trades))
+    from backend.nautilus.stats import trade_profit_factor
+    from backend.metrics.trades import profit_factor_note
+    pf_period = trade_profit_factor([t["pnl"] for t in p_trades])      # Nautilus ProfitFactor trên PnL lệnh của kỳ
+    pf_note = profit_factor_note([t["pnl"] for t in p_trades], pf_period)
     active = np.abs(pnl_p) > 1e-9   # ngày có P&L khác 0 (ngày đứng ngoài thị trường không tính là ngày lỗ)
     risk = {
         "margin_used_pct": pct(sum(margins)) if open_t and all(m is not None for m in margins) else None,
@@ -350,7 +350,7 @@ def build_dashboard(result: Dict[str, Any], bench_closes: Optional[pd.Series] = 
         "exposure_net_pct": (pct(long_n - short_n) if open_t else 0.0) if have_notional else None,
         "by_market": [{"name": "Crypto perp", "long_pct": pct(long_n) if have_notional else None,
                        "short_pct": pct(short_n) if have_notional else None}],
-        "cagr_pct": _num(cagr), "vol_annual_pct": _num(float(np.std(ret_p, ddof=1)) * math.sqrt(ANN) * 100.0) if n >= 2 else None,
+        "cagr_pct": _num(cagr), "vol_annual_pct": _num(rt.vol_ann_pct(ret_p)),
         "win_days_pct": _num(float(np.mean(pnl_p[active] > 0)) * 100.0, 1) if active.any() else None,
         "active_days": int(active.sum()),
         "profit_factor": _num(pf_period),

@@ -73,7 +73,8 @@ def test_trade_metrics_win_loss_breakeven_payoff_expectancy():
     assert (m["trades"], m["wins"], m["losses"], m["breakeven"]) == (5, 2, 2, 1)
     assert m["win_rate"] == 40.0 and m["loss_rate"] == 40.0                       # hoà không là thua
     assert m["profit_factor"] == pytest.approx(50 / 20) and m["payoff"] == pytest.approx(25 / 10)
-    assert m["expectancy_usd"] == pytest.approx(30 / 5) and m["pnl_usd"] == 30
+    # Nautilus Expectancy = TB PnL các lệnh KHÁC 0 (bỏ lệnh hoà): 30 / 4 (Nora cũ chia cho cả lệnh hoà: 30 / 5)
+    assert m["expectancy_usd"] == pytest.approx(30 / 4) and m["pnl_usd"] == 30
     assert m["best_trade_usd"] == 30 and m["worst_trade_usd"] == -10
     assert m["top5_share_pct"] == pytest.approx(100.0)
     assert trade_stats(rows) == {"win_rate": 40.0, "win_rate_note": None, "profit_factor": 2.5, "profit_factor_note": None}

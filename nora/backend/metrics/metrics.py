@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 
 from backend.carlo.carlo import MC_RUIN_THRESHOLD_PCT
+from backend.nautilus import stats as ns
 from backend.metrics.trades import exposure_metrics, strategy_correlation, trade_metrics, trade_rows, trade_stats
 
 
@@ -18,15 +19,14 @@ from backend.metrics.trades import exposure_metrics, strategy_correlation, trade
 # hồi phục, VaR/CVaR, thống kê chuỗi (cho DSR).
 #
 # Quy ước (một nguồn duy nhất cho mọi tầng: backtest, sổ, phễu, WFA, trang Danh mục):
-#   - năm = 365 ngày (crypto giao dịch cả tuần); lãi suất phi rủi ro = 0;
-#   - Sharpe = mean(r) / std(r, ddof=1) × √365; Sortino = mean(r) / √mean(min(r, 0)²) × √365 (độ lệch xuống so với 0);
-#     chuỗi < 2 ngày hoặc độ lệch ≈ 0 -> None (không xác định), KHÔNG phải 0;
-#   - CAGR = (Π(1 + r))^(365 / số ngày) − 1; Calmar = CAGR / MDD theo ngày;
+#   - năm = 365 ngày (crypto giao dịch cả tuần; Nautilus mặc định 252 nên Nora truyền period=365); lãi suất phi rủi ro = 0;
+#   - Sharpe, Sortino, biến động, CAGR, MDD ngày, Calmar, Profit factor = CÁC LỚP THỐNG KÊ CỦA NAUTILUSTRADER (backend/nautilus/stats.py) — Nora
+#     không tự cài công thức; chuỗi < 2 ngày hoặc độ lệch 0 -> None (không xác định), KHÔNG phải 0;
 #   - MDD theo ngày dùng giá đóng ngày (nhẹ hơn MDD trong nến của engine — xem metrics/portfolio.py);
 #   - VaR/CVaR 95% = phân vị 5% lịch sử của r ngày (số dương = mức lỗ 1 ngày) và trung bình phần đuôi tệ hơn nó.
 # ══════════════════════════════════════════════════════════════════════════
 
-ANN = 365   # số ngày quy năm (crypto giao dịch cả tuần)
+ANN = ns.ANN   # số ngày quy năm (365) — định nghĩa duy nhất ở backend/nautilus/stats.py
 
 
 def _arr(r) -> np.ndarray:
@@ -64,19 +64,13 @@ def daily_returns_from_curve(curve_rows, start_ts, initial_capital, end_ts=None)
 
 # ─── Rủi ro điều chỉnh lợi nhuận ────────────────────────────────────────────
 def sharpe(r) -> Optional[float]:
-    r = _arr(r)
-    if len(r) < 2:
-        return None
-    sd = float(np.std(r, ddof=1))
-    return float(np.mean(r) / sd * math.sqrt(ANN)) if sd > 1e-12 else None
+    """Sharpe (Nautilus SharpeRatio, period=365) của chuỗi r ngày; None khi không xác định."""
+    return ns.returns_stats(_arr(r), keys=("sharpe",))["sharpe"]
 
 
 def sortino(r) -> Optional[float]:
-    r = _arr(r)
-    if len(r) < 2:
-        return None
-    dd = float(np.sqrt(np.mean(np.minimum(r, 0.0) ** 2)))   # độ lệch xuống so với 0
-    return float(np.mean(r) / dd * math.sqrt(ANN)) if dd > 1e-12 else None
+    """Sortino (Nautilus SortinoRatio, period=365); None khi không xác định."""
+    return ns.returns_stats(_arr(r), keys=("sortino",))["sortino"]
 
 
 def total_return_pct(r) -> float:
@@ -85,24 +79,21 @@ def total_return_pct(r) -> float:
 
 
 def calmar(cagr: Optional[float], mdd_pct: float) -> Optional[float]:
-    """Calmar = CAGR% / |MDD%| (cùng đơn vị %); None khi chưa có CAGR hoặc không có sụt giảm (MDD ~ 0). Định nghĩa duy nhất."""
+    """Calmar = CAGR% / |MDD%| cho MDD TRONG NẾN (intrabar; Nautilus không có đường vốn trong nến nên không có thống kê tương ứng). Calmar theo
+    ngày (return_metrics) lấy từ Nautilus CalmarRatio."""
     return cagr / abs(mdd_pct) if cagr is not None and abs(mdd_pct) > 1e-9 else None
 
 
 def cagr_pct(r) -> Optional[float]:
-    """Lợi nhuận quy năm. Vốn về 0 hoặc âm -> -100; chuỗi rỗng -> None."""
-    r = _arr(r)
-    if r.size == 0:
-        return None
-    growth = float(np.prod(1.0 + r))
-    if growth <= 0:
-        return -100.0
-    return float((growth ** (ANN / r.size) - 1.0) * 100.0)
+    """Lợi nhuận quy năm (%) — Nautilus CAGR(period=365). Chuỗi rỗng / < 2 ngày -> None."""
+    v = ns.returns_stats(_arr(r), keys=("cagr",))["cagr"]
+    return None if v is None else v * 100.0
 
 
 def vol_ann_pct(r) -> Optional[float]:
-    r = _arr(r)
-    return float(np.std(r, ddof=1) * math.sqrt(ANN) * 100.0) if r.size >= 2 else None
+    """Biến động quy năm (%) — Nautilus ReturnsVolatility(period=365)."""
+    v = ns.returns_stats(_arr(r), keys=("returns_volatility",))["returns_volatility"]
+    return None if v is None else v * 100.0
 
 
 def var_cvar_pct(r, q: float = 5.0) -> Tuple[Optional[float], Optional[float]]:
@@ -197,15 +188,16 @@ def return_metrics(daily) -> Dict[str, Any]:
     sụt giảm + thời gian, độ lệch/độ nhọn, tỉ lệ ngày lãi, ngày tốt/xấu nhất."""
     d = _arr(daily)
     ddm = drawdown_stats(d)
-    cg = cagr_pct(d)
+    nt = ns.returns_stats(d)                                # MỘT lần gọi Nautilus cho mọi số đo trên lợi suất ngày
+    pct = lambda v: None if v is None else v * 100.0
     var, cvar = var_cvar_pct(d)
     st = daily_stats(d)
     active = d[np.abs(d) > 1e-12]
     return {
-        "ret_pct": total_return_pct(d), "cagr_pct": cg, "vol_ann_pct": vol_ann_pct(d),
-        "sharpe": sharpe(d), "sortino": sortino(d),
-        "calmar": calmar(cg, ddm["mdd_daily_pct"]),
-        **ddm, "var95_pct": var, "cvar95_pct": cvar, "skew": st["skew"], "kurt": st["kurt"],
+        "ret_pct": total_return_pct(d), "cagr_pct": pct(nt["cagr"]), "vol_ann_pct": pct(nt["returns_volatility"]),
+        "sharpe": nt["sharpe"], "sortino": nt["sortino"], "profit_factor": nt["profit_factor"],
+        "calmar": nt["calmar"],
+        **ddm, "mdd_daily_pct": abs(pct(nt["max_drawdown"])) if nt["max_drawdown"] is not None else ddm["mdd_daily_pct"], "var95_pct": var, "cvar95_pct": cvar, "skew": st["skew"], "kurt": st["kurt"],
         "days": int(d.size), "win_days_pct": float((active > 0).mean() * 100.0) if active.size else None,
         "best_day_pct": float(d.max() * 100.0) if d.size else None, "worst_day_pct": float(d.min() * 100.0) if d.size else None,
     }
@@ -285,8 +277,7 @@ def portfolio_metrics(res, start_ts, end_ts=None):
              "correlation": strategy_correlation(rows, start_ts, end_ts)}
     return {
         "ret_pct": round((res["final_equity"] / init - 1) * 100, 2), "mdd_pct": round(mdd, 2), "sharpe": round(sharpe_, 2),
-        "trades": len(res["positions"]), "win_pct": round(float(np.mean([p.real_pnl > 0 for p in res["positions"]]) * 100), 1)
-        if res["positions"] else None,   # 0 lệnh -> None (không phải 0% giả)
+        "trades": len(res["positions"]), "win_pct": _r(ns.pnl_stats([p.real_pnl for p in res["positions"]])["win_rate"], 1),   # Nautilus WinRate; 0 lệnh -> None (không phải 0% giả)
         "symbols_positive": sum(v > 0 for v in by_sym.values()), "by_symbol": by_sym,
         "by_strategy": {k: {"pnl_usd": round(v["pnl_usd"], 2), "trades": v["trades"]} for k, v in res["by_strategy"].items()},
         "fees_usd": round(sum(p.fees_usd or 0 for p in res["positions"]), 2),
@@ -316,10 +307,11 @@ def series_metrics(daily, trades: List[Dict[str, Any]]) -> Dict[str, Any]:
     d = np.asarray(daily, dtype=float)
     rm = return_metrics(d)
     stats = {"returns": rm, "trades": trade_metrics(trades)}
+    ts = trade_stats(trades)                                  # win_rate = Nautilus WinRate trên PnL lệnh
     return {"ret_pct": round(rm["ret_pct"], 2) if d.size else 0.0, "mdd_pct": round(rm["mdd_daily_pct"], 2),
             "sharpe": round(rm["sharpe"], 2) if rm["sharpe"] is not None else 0.0,
             "sortino": round(rm["sortino"], 2) if rm["sortino"] is not None else 0.0,
-            "trades": len(trades), **trade_stats(trades), "oos_days": int(d.size),
+            "trades": len(trades), **ts, "oos_days": int(d.size),
             "mdd_daily_pct": round(rm["mdd_daily_pct"], 2), "mdd_basis": "daily", **flat_extras(stats)}
 
 
