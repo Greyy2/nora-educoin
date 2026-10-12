@@ -13,7 +13,9 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 os.environ.pop("NORA_LOCAL_DATA_ROOT", None)
 
-from backend.alpha.compile import cond, f                      # noqa: E402
+import numpy as np
+
+from backend.alpha.compile import calc, cond, cross_over, f    # noqa: E402
 from backend.alpha.dsl.strategy import RiskConfig, _strategy_flow  # noqa: E402
 import backend.optimize  # noqa: E402,F401  (đăng ký EngineData mặc định)
 from backend.models.params import build_params                  # noqa: E402
@@ -88,17 +90,62 @@ def collect() -> dict:
     return {"backtest_engine": case_backtest_engine(), "portfolio_dca": case_portfolio_dca(), "run_many": case_run_many()}
 
 
+def case_signals() -> dict:
+    syms = [
+        "BTC@perp", "ETH@perp", "SOL@perp", "BNB@perp", "XRP@perp",
+        "DOGE@perp", "ADA@perp", "AVAX@perp", "LINK@perp", "TRX@perp",
+    ]
+    frames = ["15m", "1h", "4h"]
+    out = {}
+
+    def _h(arr):
+        if arr is None:
+            return None
+        return hashlib.sha256(np.ascontiguousarray(arr).tobytes()).hexdigest()
+
+    for fr in frames:
+        kc_up = {**f(fr, "ema_20"), "add": calc(f(fr, "atr_14"), "*", 2.0)}
+        tree_kema = cond(*cross_over(f(fr, "close"), kc_up))
+        stop_kema = cond((f(fr, "close"), "<", f(fr, "ema_20")))
+
+        tree_dca = cond((f(fr, "rsi_14"), "<", 30), (f(fr, "close"), "<", f(fr, "bbl_20_2")))
+        dca_gate = cond((f(fr, "rsi_14"), "<", 40))
+
+        s1 = {"id": "kema", "side": "LONG", "tree": tree_kema, "stop": [{"condition": stop_kema}], "position": {**BASE, **EXITS, "atr_frame": fr}}
+        s2 = {"id": "dca", "side": "LONG", "tree": tree_dca, "dca": [{"condition": dca_gate}], "position": {**BASE, **DCA, "atr_frame": fr}}
+
+        pe = PortfolioEngine(syms, [s1, s2], ms(A) - 86400000 * 24, ms(B), trade_start_ts=ms(A), risk=RiskConfig(**OPEN_RISK), base_frame=fr)
+        pe.load_data()
+
+        fr_res = {}
+        for b in pe.books:
+            sym = b["symbol"]
+            entries_dict = {}
+            for e in b["entries"]:
+                entries_dict[e["strategy"]] = {
+                    "match": _h(e["match"]),
+                    "stop": _h(e["stop"]),
+                    "vol": _h(e["vol"]),
+                    "dca": _h(e["dca"]),
+                }
+            entries_dict["_t"] = _h(b["data"]["t"])
+            fr_res[sym] = entries_dict
+        out[fr] = fr_res
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--save")
     ap.add_argument("--check")
+    ap.add_argument("--signals", action="store_true")
     a = ap.parse_args()
-    cur = collect()
-    print(json.dumps(cur, indent=1, sort_keys=True))
+    cur = case_signals() if a.signals else collect()
     if a.save:
         with open(a.save, "w") as fh:
             json.dump(cur, fh, indent=1, sort_keys=True)
         print("saved", a.save)
+        return 0
     if a.check:
         with open(a.check) as fh:
             base = json.load(fh)
@@ -107,8 +154,10 @@ def main() -> int:
             return 0
         print("DIFFERENT")
         return 1
+    print(json.dumps(cur, indent=1, sort_keys=True))
     return 0
 
 
 if __name__ == "__main__":
     sys.exit(main())
+
