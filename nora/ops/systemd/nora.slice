@@ -11,7 +11,7 @@
 Description=Ngân sách RAM chung của dự án Nora (12G, không swap)
 
 [Slice]
-MemoryMax=12G
-MemoryHigh=10800M
+MemoryMax=10G
+MemoryHigh=9G
 MemorySwapMax=0
-TasksMax=512
+TasksMax=8192

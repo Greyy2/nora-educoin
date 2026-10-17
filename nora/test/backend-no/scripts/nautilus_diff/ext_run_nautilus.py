@@ -27,8 +27,8 @@ NORA = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
 sys.path.insert(0, NORA)
 from ext_common import skip, CAPITAL, DATASETS, MAKER, OUT, SIGNALS, STAGES, TAKER, tag  # noqa: E402
 # Nora's own pure functions (no numba / no I/O): the pre-trade risk caps and the sizing clamp, used verbatim as the "same formulas"
-from backend.models import position_size as npolicy  # noqa: E402
-from backend.models import position_size as nrisk      # noqa: E402
+from backend.analys.position import position_size as npolicy  # noqa: E402
+from backend.analys.position import position_size as nrisk      # noqa: E402
 
 USDT = Currency.from_str("USDT")
 BASES = {"BTC": Currency.from_str("BTC"), "ETH": Currency.from_str("ETH"), "SOL": Currency.from_str("SOL")}

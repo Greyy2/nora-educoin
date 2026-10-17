@@ -16,8 +16,8 @@ import pytest
 import golden_scenarios as gs
 from backend.signal.nodes import DslError
 from backend.alpha.compile import compile_strategy_module, load_system_strategies, strategies_dir
-from backend.models.params import AUTO_FALLBACK_ATR_FRAME, AUTO_FALLBACK_COOLDOWN, REGIME_MAP, RISK, materialize, schema_defaults
-from backend import strategies as sl
+from backend.analys.param import AUTO_FALLBACK_ATR_FRAME, AUTO_FALLBACK_COOLDOWN, REGIME_MAP, RISK, materialize, schema_defaults
+from backend.alpha import strategies as sl
 
 pytestmark = pytest.mark.usefixtures("synthetic_data")   # P15: engine Nautilus lấy nến thực thi + spec từ DataSource; dữ liệu giả lập -> conftest.synthetic_data
 

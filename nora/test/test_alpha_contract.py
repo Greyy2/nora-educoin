@@ -9,9 +9,9 @@ from fastapi.testclient import TestClient
 
 from backend.alpha import compile as dsl, contract
 from backend.alpha.compile import compile_code, compile_program, compile_strategy_module, load_system_strategies, strategies_dir
-from backend.signal.indicator import FEATURES, OPS
-from backend import strategies as sb
-from backend import strategies as user_alphas
+from backend.analys.indicator import FEATURES, OPS
+from backend.alpha import strategies as sb
+from backend.alpha import strategies as user_alphas
 from backend.routes import alpha
 from backend.routes import alpha
 
@@ -48,6 +48,7 @@ def strategy(data):
     ema = feat.ema(close, FAST)
     return {"entry": op.crossed_above(close, ema), "exit": close < ema}
 '''
+NATIVE_NORA = NATIVE.replace("SimpleAlgorithm", "NoraStrategy")   # bộ chuyển đổi (ADAPT) sinh class kế thừa NoraStrategy; tên lớp cha nằm trong code_hash
 NATIVE_INLINE = '''
 class CustomStrategy(SimpleAlgorithm):
     timeframe = "4h"
@@ -76,7 +77,7 @@ def test_run_all_education_samples_identical_ir():
     assert len(samples) == 50
     for s in samples:
         res = contract.check_contract(s["code"])
-        assert res["verdict"] == "RUN" and res["style"] == "simple_algorithm", s["key"]
+        assert res["verdict"] == "RUN" and res["style"] == "lifecycle", s["key"]   # mẫu education nay viết kiểu NoraStrategy.on_bar (lifecycle)
         assert res["ir"].code_hash == compile_code(s["code"], register=False).code_hash, s["key"]
 
 
@@ -110,7 +111,7 @@ def test_module_lifecycle_and_side():
 def test_adapt_function_style():
     res = contract.check_contract(FUNCTION)
     assert (res["verdict"], res["style"]) == ("ADAPT", "function")
-    assert res["ir"].code_hash == compile_program(NATIVE).code_hash
+    assert res["ir"].code_hash == compile_program(NATIVE_NORA).code_hash
     assert compile_program(res["normalized_code"]).code_hash == res["ir"].code_hash
     assert any(d["code"] == "ADAPTED_FUNCTION" for d in res["diagnostics"])
     assert compile_code(FUNCTION, register=False).code_hash == res["ir"].code_hash        # compile_code (đường chạy thật) nhận trực tiếp
@@ -127,7 +128,7 @@ def test_adapt_json_spec(form):
     code = JSON_SPEC if form == "dict" else json.dumps(JSON_SPEC, indent=1)
     res = contract.check_contract(code)
     assert (res["verdict"], res["style"]) == ("ADAPT", "json_spec")
-    assert res["ir"].code_hash == compile_program(NATIVE_INLINE).code_hash
+    assert res["ir"].code_hash == compile_program(NATIVE_INLINE.replace("SimpleAlgorithm", "NoraStrategy")).code_hash
     assert compile_program(res["normalized_code"]).code_hash == res["ir"].code_hash
     if form == "text":
         assert compile_code(code, register=False).code_hash == res["ir"].code_hash
@@ -484,7 +485,7 @@ def test_annotate_all_education_samples():
     for s in samples:
         rep = _check_annot(s["code"])
         kinds = {r["kind"] for r in rep["lines"]}
-        assert {"feature", "rule_entry"} <= kinds or {"op", "rule_entry"} <= kinds, s["key"]
+        assert {"feature", "position"} <= kinds or {"op", "position"} <= kinds, s["key"]   # mẫu dùng self.buy/self.close -> kind "position", không còn rule_entry
 
 
 def test_annotate_lifecycle_and_rule_text():

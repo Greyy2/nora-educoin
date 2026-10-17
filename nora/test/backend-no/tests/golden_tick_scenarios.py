@@ -68,7 +68,7 @@ def tick_market(extra_candidates: List[Dict[str, Any]] = ()):
 def _run(items, symbols, root, ticks_by_name, pools=None, **kw):
     """ticks_by_name {tên: bảng tick}; pools {tên: {"stable":bool,"fee":float}} ghi đè metadata pool (mặc định volatile, phí tt.FEE)."""
     from backend.optimize.search.evaluate import run_tick
-    from backend.models.params import RISK
+    from backend.analys.param import RISK
     # TODO-MIG asset_meta
     from data_helpers import set_ticks_attrs
     for name, tk in ticks_by_name.items():

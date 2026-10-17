@@ -23,7 +23,7 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.abspath(os.path.join(HERE, "..", "..", "..")))
 from s12_common import CAPITAL, DAY, MAKER, OUT, PORT, STAGES, SYMS, TAKER  # noqa: E402
 from ext_run_nautilus import build_trades, inst_id, make_instrument
-from backend.models import position_size as npolicy
+from backend.analys.position import position_size as npolicy
 
 USDT = Currency.from_str("USDT")
 VENUE = Venue("OKX")

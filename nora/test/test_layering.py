@@ -30,14 +30,16 @@ ALLOWED: Dict[str, set] = {
     "strategies": {"models", "data", "alpha", "signal", "metrics", "carlo", "nautilus", "strategies"},
     "jobs": {"models", "data", "alpha", "signal", "metrics", "carlo", "wfa", "nautilus", "strategies", "jobs"},
     "meta": {"models", "data", "alpha", "signal", "metrics", "carlo", "nautilus", "strategies", "jobs", "routes"},   # models/meta.py: lắp ráp metadata từ mọi nguồn (lười)
-    "routes": {"models", "data", "alpha", "signal", "metrics", "carlo", "wfa", "nautilus", "strategies", "jobs", "routes", "meta"},
-    "main": {"models", "data", "alpha", "signal", "metrics", "carlo", "wfa", "nautilus", "strategies", "jobs", "routes", "meta", "main"},
+    "users": {"models", "users"},
+    "routes": {"models", "data", "alpha", "signal", "metrics", "carlo", "wfa", "nautilus", "strategies", "jobs", "routes", "meta", "users"},
+    "main": {"models", "data", "alpha", "signal", "metrics", "carlo", "wfa", "nautilus", "strategies", "jobs", "routes", "meta", "main", "users"},
 }
 # Ngoại lệ có ghi lý do: (module nguồn, module đích) được phép dù ngược chiều.
 EXCEPTIONS = {
     ("data/data", "jobs/evaluate"),        # nguồn dữ liệu mặc định nối kho mmap dùng chung của job (đảo phụ thuộc qua DataSource, import lười + ImportError)
     ("data/data", "nautilus/catalog"),     # EngineData.instrument_spec: spec công cụ từ ParquetDataCatalog của Nautilus (import lười)
-    ("strategies", "jobs/runner"),         # save_user_alpha đọc job đã xong từ runner (import lười)
+    ("alpha/strategies", "jobs/runner"),   # save_user_alpha đọc job đã xong từ runner (import lười)
+    ("alpha/store", "jobs/runner"),        # save_user_alpha đọc job đã xong từ runner (import lười)
     ("data/crawl", "nautilus/catalog"),    # ghi catalog Nautilus khi crawl nến
 }
 # Ngoại lệ theo tầng: (tầng nguồn, module đích). metrics lấy thống kê hiệu suất từ nautilus/stats (bộ chuyển PortfolioAnalyzer -> khoá UI) — chỗ DUY NHẤT metrics chạm nautilus.
@@ -48,14 +50,16 @@ LAYER_RULES: List[Tuple[str, str, Optional[int]]] = [
     ("models", "models", None),
     ("models/meta", "meta", None),
     ("signal", "signal", None),
+    ("alpha/strategies", "strategies", None),
+    ("alpha/store", "strategies", None),
     ("alpha", "alpha", None),
     ("data", "data", None),
     ("metrics", "metrics", None),
     ("carlo", "carlo", None),
     ("wfa", "wfa", None),
     ("nautilus", "nautilus", None),
-    ("strategies", "strategies", None),
     ("jobs", "jobs", None),
+    ("users", "users", None),
     ("routes", "routes", None),
     ("main", "main", None),
 ]
@@ -228,7 +232,7 @@ def test_layer_table_sanity():
     assert layer_of("models/meta") == ("meta", None)
     assert layer_of("models/params") == ("models", None)
     assert layer_of("jobs/tasks") == ("jobs", None)
-    assert layer_of("strategies") == ("strategies", None)
+    assert layer_of("alpha/strategies") == ("strategies", None)
     assert layer_of("nautilus/engine") == ("nautilus", None)
 
 

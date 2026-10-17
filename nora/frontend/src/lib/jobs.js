@@ -47,14 +47,14 @@ export const jobKindText = (k, meta) => {
 /** Đường dẫn mở đúng trang/bước của một job (deep link). */
 export function jobLink(j) {
   const id = encodeURIComponent(j.job_id || j.id)
-  if (j.kind === 'custom_backtest') return `/alpha/create?job=${id}`
-  if (j.kind === 'book_wfa') return `/backtest?wfa=${id}&step=2`
-  if (j.kind === 'live_bot') return '/live'
-  if (j.kind === 'book_backtest') return `/backtest?job=${id}`
+  if (j.kind === 'custom_backtest') return `/coin/alpha/create?job=${id}`
+  if (j.kind === 'book_wfa') return `/coin/backtest?wfa=${id}&step=2`
+  if (j.kind === 'live_bot') return '/coin/live'
+  if (j.kind === 'book_backtest') return `/coin/backtest?job=${id}`
   return null // job dữ liệu / Education: không có trang kết quả riêng
 }
 
-export const isActiveJob = (j) => j.status === 'running' || j.status === 'queued'
+export const isActiveJob = (j) => ['running', 'queued', 'starting', 'resuming', 'stopping'].includes(j.status)
 
 /** Thời gian của job (giây): đang chạy = từ lúc bắt đầu tới nay, xong = lúc chạy thực tế, đang chờ = đã chờ bao lâu. */
 export function jobElapsed(j, now = Date.now()) {

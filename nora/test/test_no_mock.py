@@ -55,7 +55,8 @@ _CALL = re.compile(r"request\(\s*(['`])(/api/[^'`]*|\$\{FR\}[^'`]*)\1(?:\s*,\s*\
 
 def _norm(path):
     """Bỏ phần query (nối bằng ?, qs(...), _qs(...), q, qsStr), thay ${enc(...)} / ${id} bằng một đoạn đường dẫn X."""
-    path = re.split(r"\?|\$\{_?qs\b|\$\{q\b|\$\{qsStr", path)[0]
+    path = re.split(r"\$\{\w+\s*\?|\?|\$\{_?qs\b|\$\{q\b|\$\{qsStr", path)[0]
+    path = re.sub(r"\$\{[^}]*$", "", path)   # `${mode ? ...}` bị cắt ở '?': bỏ phần ${ dở dang
     return re.sub(r"\$\{[^}]*\}", "X", path)
 
 
@@ -98,18 +99,24 @@ def client():
     return TestClient(app)
 
 
-LIVE_501 = [("get", "/api/studio/live/bot"), ("post", "/api/studio/live/bot"), ("get", "/api/studio/live/trades"), ("get", "/api/studio/live/compare"),
-            ("get", "/api/studio/live/compare_events"), ("get", "/api/studio/live/positions"), ("get", "/api/studio/live/balance"),
-            ("get", "/api/studio/live/status"), ("post", "/api/studio/live/order"), ("post", "/api/studio/live/cancel")]
+# T5: /live/bot đã thật (validate body -> 422, không còn 501); đặt lệnh thủ công không hỗ trợ (501 NOT_SUPPORTED, không bịa order_id).
+LIVE_MANUAL = [("get", "/api/studio/live/positions"), ("get", "/api/studio/live/balance"),
+               ("get", "/api/studio/live/status"), ("post", "/api/studio/live/order"), ("post", "/api/studio/live/cancel")]
 
 
-@pytest.mark.parametrize("method,path", LIVE_501)
+@pytest.mark.parametrize("method,path", LIVE_MANUAL)
 def test_live_endpoints_not_ready(client, method, path):
     r = getattr(client, method)(path)
     assert r.status_code == 501, (r.status_code, r.text[:200])
-    d = r.json()["detail"]
-    assert d["code"] == "NOT_READY" and d["message"] == "Live đang chuyển sang Nautilus TradingNode"
+    assert r.json()["detail"]["code"] == "NOT_SUPPORTED"
     assert "order_id" not in r.text
+
+
+def test_live_bot_is_real_endpoint(client):
+    r = client.post("/api/studio/live/bot")   # thiếu body -> validation, không phải 501 giả
+    assert r.status_code == 422, (r.status_code, r.text[:200])
+    r = client.post("/api/studio/live/bot", json={"mode": "live", "symbols": ["BTC"], "capital": 100})
+    assert r.status_code in (400, 422) and "order_id" not in r.text   # live tiền thật cần confirm_live / hợp lệ
 
 
 def test_dex_and_tick_not_ready(client):
@@ -134,7 +141,7 @@ def test_meta_offers_no_dex_and_declares_engine(client):
     meta = client.get("/api/studio/meta").json()
     assert meta["engine"]["name"] == "nautilus_trader" and meta["engine"]["docs_url"].startswith("https://nautilustrader.io/docs")
     assert all(not a.startswith("dex:") for a in meta["universe"]["data"]["assets"])
-    assert meta["live"]["modes"] == [] and meta["live"]["not_ready"]["code"] == "NOT_READY"
+    assert meta["live"]["modes"] == ["paper", "testnet", "live"]   # T5: live thật
 
 
 def test_health_reports_engine(client):
@@ -151,7 +158,10 @@ def test_check_update_never_offers_install(client):
 def test_environments_have_no_keys_and_live_not_ready(client):
     env = client.get("/api/studio/environments").json()
     assert env["backtest"]["ready"] is True
-    assert all(env[k]["ready"] is False and env[k]["not_ready"]["code"] == "NOT_READY" for k in ("paper", "testnet", "live"))
+    # T5: paper/testnet chạy thật trên Nautilus; live tiền thật dựng sẵn nhưng khoá (demo_lock, ready=False)
+    assert env["paper"]["ready"] is True and env["testnet"]["ready"] is True
+    assert env["live"]["ready"] is False and env["live"]["demo_lock"] is True
+    assert not any("key" in str(v).lower() and "secret" in str(v).lower() for v in env.values())
 
 
 def test_test_connection_without_keys_says_not_configured(client, monkeypatch, tmp_path):
@@ -174,14 +184,14 @@ def test_meta_unsupported_keys_are_flagged(client):
 
 def test_default_position_does_not_trigger_unsupported_warnings():
     # mặc định (slippage 0, limit_through 0, stop_fill level, intrabar ohlc) không kích cảnh báo "không mô phỏng" cho các khoá đó
-    from backend.models.params import BASE_POSITION, VENUE_COSTS, StrategyParams
+    from backend.analys.param import BASE_POSITION, VENUE_COSTS, StrategyParams
     assert BASE_POSITION["limit_through_pct"] == 0.0 and BASE_POSITION["stop_fill"] == "level"
     assert all(v[2] == 0.0 for k, v in VENUE_COSTS.items() if k[0] == "cex") and StrategyParams().slippage_rate == 0.0
 
 
 def test_no_random_results_in_backend():
     """Không file backend nào dựng kết quả bằng random (equity/metrics giả); chỉ Monte Carlo/tìm kiếm có seed được phép."""
-    allowed = {os.path.join("backend", "carlo"), os.path.join("backend", "optimize", "search"), os.path.join("backend", "optimize", "funnel"), os.path.join("backend", "wfa")}
+    allowed = {os.path.join("backend", "carlo"), os.path.join("backend", "wfa")}
     rx = re.compile(r"^\s*(import random\b|from random import|random\.Random|\.gauss\()")
     hits = []
     for dp, _dn, fns in os.walk(os.path.join(ROOT, "backend")):
@@ -189,7 +199,7 @@ def test_no_random_results_in_backend():
         if "__pycache__" in dp or any(rel_dp.startswith(a) for a in allowed):
             continue
         for fn in fns:
-            if fn.endswith(".py") and not (rel_dp == "backend" and fn == "strategies.py"):   # strategies.py: lấy mẫu cấu hình tham số có hạt giống (iter_params)
+            if fn.endswith(".py") and not (rel_dp == os.path.join("backend", "alpha") and fn == "strategies.py"):   # strategies.py: lấy mẫu cấu hình tham số có hạt giống (iter_params)
                 with open(os.path.join(dp, fn), encoding="utf-8") as fh:
                     hits += [f"{rel_dp}/{fn}:{i}" for i, ln in enumerate(fh, 1) if rx.search(ln)]
     assert not hits, "random trong backend ngoài carlo/wfa/strategies.iter_params:\n" + "\n".join(hits)

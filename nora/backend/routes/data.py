@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from backend.routes import process as batch_jobs
+from backend.routes.studio import http_launch
 from backend.jobs.runner import DEX_UNSUPPORTED, NotReady
 
 
@@ -32,11 +32,13 @@ class PromoteRequest(BaseModel):
 def post_crawl(req: CrawlRequest):
     """Cập nhật catalog nến 1m OKX perp (rổ cố định 10 tài sản) tới hiện tại; kiểm định chất lượng ghi vào manifest."""
     from backend.data.data import UNIVERSE_BASES
+    from backend.data.crawl import scan_universe_bases
+    allowed = set(UNIVERSE_BASES) | set(scan_universe_bases())
     syms = [s.strip().upper() for s in req.symbols if s.strip().isalnum()]
-    bad = [s for s in syms if s not in UNIVERSE_BASES]
+    bad = [s for s in syms if s not in allowed]
     if bad:
-        raise HTTPException(422, f"{bad}: không thuộc rổ OKX perp của Nora ({', '.join(UNIVERSE_BASES)})")
-    return batch_jobs.http_launch("data_update", {"symbols": syms})
+        raise HTTPException(422, f"{bad}: không thuộc rổ OKX perp của Nora ({', '.join(sorted(allowed))})")
+    return http_launch("data_update", {"symbols": syms})
 
 
 @data_router.post("/ticks/crawl")
@@ -81,9 +83,9 @@ REGIME_FRAME = "15m"          # nhãn regime trên nến 15m (đặc trưng 1h/4
 def regime_history(symbol: str, days: int) -> Dict[str, Any]:
     """Regime hiện tại + lịch sử `days` ngày cuối của một tài sản: các đoạn [bắt đầu, kết thúc, trạng thái], tỷ trọng thời gian, chiến lược
     được bật ở regime hiện tại theo bảng của sổ (book.REGIME_MAP)."""
-    from backend.jobs.evaluate import WARMUP
-    from backend.metrics import regime as rg
-    from backend.models.params import REGIME_MAP
+    from backend.jobs.runner.backtest import WARMUP
+    from backend.analys.metrics import regime as rg
+    from backend.analys.param import REGIME_MAP
     from backend.data.data import read_manifest
     m = read_manifest(symbol)
     if not m:
@@ -124,8 +126,8 @@ def get_regime(symbols: Optional[str] = Query(None, description="vd BTC,SOL (m�
     """Regime hiện tại + lịch sử từng tài sản (nến 15m đã đóng) và chiến lược đang bật theo bảng regime của sổ."""
     from backend.jobs.runner import JobError
     from backend.routes.process import check_symbols
-    from backend.metrics import regime as rg
-    from backend.strategies import perp_symbols
+    from backend.analys.metrics import regime as rg
+    from backend.analys.alpha.strategies import perp_symbols
     try:
         syms = check_symbols([s for s in symbols.split(",") if s]) if symbols else perp_symbols()
     except JobError as e:

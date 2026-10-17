@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Panel, Status, Empty, Loading, ErrorState, NA } from '../ui'
 import Term from '../ui/Term'
@@ -260,18 +260,23 @@ function ExtraCharts({ s, dist, monthly, risk, notes }) {
 
 const unrealizedOf = (positions) => positions.reduce((a, p) => a + (isNum(p.unrealized_pnl) ? p.unrealized_pnl : 0), 0)
 
-/** Tổng quan ngắn gọn: hàng KPI, một biểu đồ NAV, vài khối tóm tắt; mọi thứ chi tiết nằm trong các mục thu gọn. */
+/** Tổng quan danh mục: 6 KPI chuẩn, biểu đồ Mức sụt giảm vốn (Drawdown / MDD), và Regime thị trường lộ diện bên ngoài. */
 function OverviewView({ data, ctx }) {
-  const { kpis: k = {}, series: s = {}, risk = {}, strategies = [], events = [], positions = [], source = {}, period } = data
+  const { kpis: k = {}, series: s = {}, period } = data
   const st = data.stats || {}
   const t = st.trades || {}
-  const bench = (source.benchmark || 'BTC@perp').replace('@perp', '')
+  const bench = (data.source?.benchmark || 'BTC@perp').replace('@perp', '')
   const dates = s.dates || []
   const [hi, setHi] = useState(null)
-  const net = isNum(risk.unrealized_pnl_usd) ? risk.unrealized_pnl_usd : unrealizedOf(positions)
   const retColor = (k.ret_period_pct ?? 0) >= 0 ? 'var(--n-pos)' : 'var(--n-neg)'
   const sortino = isNum(k.sortino) ? <><Term k="sortino">Sortino</Term> {fmtNum(k.sortino)}</> : null
   const calmar = isNum(k.calmar) ? <><Term k="calmar">Calmar</Term> {fmtNum(k.calmar)}</> : null
+
+  // Tỉ lệ thắng & Profit factor: thống kê cả backtest lẫn paper/live nếu có
+  const totalWin = ctx?.totalWin
+  const winRate = isNum(totalWin?.win_pct) ? totalWin.win_pct : t.win_rate
+  const profitFactor = isNum(totalWin?.profit_factor) ? totalWin.profit_factor : t.profit_factor
+
   const kpis = [
     isNum(k.nav) && (
       <Kpi key="nav" label={<Term k="nav">NAV</Term>} labelText="NAV" spark={k.spark_nav} sparkColor="var(--n-accent)" sparkArea
@@ -296,119 +301,70 @@ function OverviewView({ data, ctx }) {
     isNum(t.trades) && (
       <Kpi key="trades" label="Số lệnh" sub={<>toàn kỳ chạy{t.long?.trades >= 0 && t.short?.trades >= 0 ? ` · Long ${t.long.trades} · Short ${t.short.trades}` : ''}</>}>{t.trades}</Kpi>
     ),
-    (isNum(t.win_rate) || t.win_rate_note) && (
-      <Kpi key="win" label="Tỉ lệ thắng" sub={<><Term k="profit_factor">Profit factor</Term> {isNum(t.profit_factor) ? fmtNum(t.profit_factor) : <NA note={t.profit_factor_note} />}</>}>{isNum(t.win_rate) ? fmtPct(t.win_rate, 1) : <NA note={t.win_rate_note} />}</Kpi>
+    (isNum(winRate) || t.win_rate_note) && (
+      <Kpi key="win" label="Tỉ lệ thắng" sub={<><Term k="profit_factor">Profit factor</Term> {isNum(profitFactor) ? fmtNum(profitFactor) : <NA note={t.profit_factor_note} />}</>}>{isNum(winRate) ? fmtPct(winRate, 1) : <NA note={t.win_rate_note} />}</Kpi>
     ),
   ].filter(Boolean)
 
-  const TOP = 5
-  const hasRisk = isNum(risk.margin_used_pct) || isNum(risk.exposure_gross_pct) || positions.length > 0
+  // Tính toán mức sụt giảm MDD từ NAV hoặc lấy s.drawdown_pct
+  const ddValues = useMemo(() => {
+    if (s.drawdown_pct && s.drawdown_pct.length) return s.drawdown_pct
+    if (!s.nav || !s.nav.length) return []
+    let peak = -Infinity
+    return s.nav.map((v) => {
+      if (!isNum(v)) return 0
+      if (v > peak) peak = v
+      return peak > 0 ? ((v / peak) - 1.0) * 100.0 : 0
+    })
+  }, [s.drawdown_pct, s.nav])
+
   return (
     <>
       {kpis.length > 0 && <div className="pf-kpis">{kpis}</div>}
 
       {dates.length > 1 && (
-        <Panel title={<><Term k="nav">NAV</Term> so với {bench}</>} meta={
-          <>
-            <span className="mono">{dates.length} ngày</span>
-            <span className="n-legend">
-              <span><i style={{ borderTopColor: 'var(--n-accent)' }} />NAV</span>
-              <span><i className="dash" style={{ borderTopColor: 'var(--n-bench)' }} />{bench}</span>
-              <span><i className="sq" style={{ background: 'var(--n-neg)', opacity: 0.6 }} />Drawdown</span>
-            </span>
-          </>
-        }>
-          <AreaLine dates={dates} height={250} hover={hi} onHover={setHi} label="NAV so với benchmark"
+        <Panel
+          title="Mức sụt giảm vốn (Drawdown / MDD)"
+          meta={
+            <>
+              <span className="mono">{dates.length} ngày</span>
+              <span className="n-legend">
+                <span><i style={{ borderTopColor: 'var(--n-neg)' }} />Drawdown (%)</span>
+                <span><i className="dash" style={{ borderTopColor: 'var(--n-ink-3)' }} />Mốc 0%</span>
+                <span><i className="sq" style={{ background: 'var(--n-neg)', opacity: 0.6 }} />Underwater</span>
+              </span>
+            </>
+          }
+        >
+          <AreaLine
+            dates={dates}
+            height={250}
+            hover={hi}
+            onHover={setHi}
+            label="Mức sụt giảm vốn (Drawdown)"
+            refLines={[{ y: 0, label: '0%' }]}
+            valueFormat={(v) => fmtSPct(v, 2)}
             series={[
-              { key: 'nav', label: 'NAV', values: s.nav || [], color: 'var(--n-accent)', area: true },
-              { key: 'bench', label: bench, values: s.bench || [], color: 'var(--n-bench)', dashed: true },
-            ]} />
+              {
+                key: 'dd',
+                label: 'Drawdown',
+                values: ddValues,
+                color: 'var(--n-neg, #f0616d)',
+                area: true,
+                baseY: 0,
+              },
+            ]}
+          />
           <div className="n-uw-h"><Term k="underwater">Underwater</Term> (sụt giảm từ đỉnh)</div>
-          <UnderwaterStrip dates={dates} values={s.drawdown_pct || []} hover={hi} onHover={setHi} />
+          <UnderwaterStrip dates={dates} values={ddValues} hover={hi} onHover={setHi} />
         </Panel>
       )}
 
-      <div className="pf-blocks" style={{ marginTop: 12 }}>
-        {strategies.length > 0 && (
-          <Panel title="Chiến thuật" meta={<span>kỳ {periodLong(period)}</span>}>
-            <div className="n-tblwrap">
-              <table className="n-tbl">
-                <thead><tr><th>Chiến thuật</th><th className="r">Lãi/lỗ</th><th className="r">Đóng góp</th></tr></thead>
-                <tbody>
-                  {strategies.slice(0, TOP).map((x) => (
-                    <tr key={x.id}>
-                      <td><b title={x.id}>{legLabel(x.id)}</b> {x.side && legLabel(x.id) === x.id && <span className={`n-badge ${String(x.side).toLowerCase()}`}>{x.side}</span>}</td>
-                      <td className={`r ${signClass(x.pnl)}`}>{arrow(x.pnl)} {fmtMoney(x.pnl, true)}</td>
-                      <td className={`r ${signClass(x.contribution_pct)}`}>{fmtSPct(x.contribution_pct)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {strategies.length > TOP && <p className="pf-more">+{strategies.length - TOP} chiến thuật khác trong mục Chi tiết bên dưới.</p>}
-          </Panel>
-        )}
-        {hasRisk && (
-          <Panel title="Rủi ro và vị thế">
-            {isNum(risk.margin_used_pct) && (
-              <>
-                <div className="n-meter-top">
-                  <span><Term k="margin_used">Ký quỹ đã dùng</Term></span>
-                  <span className="v">{fmtPct(risk.margin_used_pct)}</span>
-                </div>
-                <ProgressBar value={risk.margin_used_pct} marks={[50, 70]} warnAt={50} critAt={70} label="Ký quỹ đã dùng" />
-              </>
-            )}
-            {(isNum(risk.exposure_gross_pct) || isNum(risk.exposure_net_pct)) && (
-              <div className="n-tiles">
-                {isNum(risk.exposure_gross_pct) && <div className="n-tile"><div className="l"><Term k="exposure_gross">Exposure gộp</Term></div><div className="v">{fmtPct(risk.exposure_gross_pct)}</div></div>}
-                {isNum(risk.exposure_net_pct) && <div className="n-tile"><div className="l"><Term k="exposure_net">Exposure ròng</Term></div><div className={`v ${signClass(risk.exposure_net_pct)}`}>{fmtSPct(risk.exposure_net_pct)}</div></div>}
-              </div>
-            )}
-            {positions.length > 0 && (
-              <div style={{ marginTop: 10 }}>
-                <div className="pf-line"><span className="k">Vị thế đang mở</span><span className="v">{positions.length}</span></div>
-                <div className="pf-line"><span className="k">Lãi/lỗ chưa chốt</span><span className={`v ${signClass(net)}`}>{fmtMoney(net, true)} USDT</span></div>
-              </div>
-            )}
-          </Panel>
-        )}
-      </div>
-
-      <h2 className="pf-details-h">Chi tiết</h2>
-      {(strategies.length > 0 || events.length > 0 || (data.strategy_stats || []).length > 0) && (
-        <DetailSection title="Chiến thuật và sự kiện rủi ro" hint={`${strategies.length} chiến thuật${events.length ? ` · ${events.length} sự kiện` : ''}`}>
-          {strategies.length > 0 && (
-            <Panel title="Hiệu suất chiến thuật" meta={<span>{strategies.length} chiến thuật · kỳ {periodLong(period)}</span>}>
-              <StrategiesTable rows={strategies} />
-            </Panel>
-          )}
-          {events.length > 0 && (
-            <Panel title="Sự kiện rủi ro" meta={<span>trong kỳ</span>} className="pf-gap"><Events rows={events} /></Panel>
-          )}
-          {(data.strategy_stats || []).length > 0 && <div className="pf-gap"><FamilyStatsPanel rows={data.strategy_stats} period={periodLong(period)} /></div>}
-        </DetailSection>
-      )}
-      {positions.length > 0 && (
-        <DetailSection title="Vị thế đang mở" hint={`${positions.length} vị thế · chưa chốt ${fmtMoney(net, true)} USDT`}>
-          <PositionsTable rows={positions} />
-        </DetailSection>
-      )}
-      <DetailSection title="Biểu đồ phụ" hint="lãi/lỗ ngày, phân phối, theo tháng, Sharpe cuốn chiếu">
-        <ExtraCharts s={s} dist={data.distribution} monthly={data.monthly} risk={risk} notes={data.risk_notes} />
-      </DetailSection>
-      {data.stats && (
-        <DetailSection title="Số đo chi tiết" hint="toàn kỳ chạy">
-          <StatsPanel stats={data.stats} mdd={data.mdd} bare />
-        </DetailSection>
-      )}
-      <DetailSection title="Regime thị trường" hint="theo từng tài sản">
-        <RegimePanel bare />
-      </DetailSection>
-      {ctx && (
-        <DetailSection title="Danh sách lệnh" hint="lọc, sắp xếp, tải CSV">
-          <TradesPanel jobId={ctx.jobId} period={period} bare />
-        </DetailSection>
+      {/* Regime thị trường để ra ngoài không bị ẩn */}
+      {!ctx?.hideRegime && (
+        <div style={{ marginTop: 14 }}>
+          <RegimePanel />
+        </div>
       )}
     </>
   )
@@ -542,34 +498,52 @@ function StatsPanel({ stats, mdd, bare = false }) {
   )
 }
 
+const DASHBOARD_CACHE = new Map()
+const getDashCacheKey = (jobId, period) => `${jobId || 'latest'}:${period || 'ALL'}`
+
 /** Tải payload Danh mục của một job backtest và hiển thị: rỗng (kèm lý do) / lỗi / dashboard. */
-export default function DashboardLoader({ jobId, period, onLoaded, openLink, compact = false }) {
-  const [st, setSt] = useState({ loading: true, data: null, error: null })
+export default function DashboardLoader({ jobId, period, onLoaded, openLink, compact = false, totalWin = null, hideRegime = false }) {
+  const cacheKey = getDashCacheKey(jobId, period)
+  const cached = DASHBOARD_CACHE.get(cacheKey)
+  const [st, setSt] = useState(() => ({
+    loading: !cached,
+    data: cached || null,
+    error: null,
+  }))
   const [tick, setTick] = useState(0)      // đổi để buộc tải lại
 
   useEffect(() => {
-    if (!jobId) { setSt({ loading: false, data: null, error: null }); return undefined }
     let dead = false
-    setSt((s) => ({ ...s, loading: true, error: null }))
-    getDashboard({ jobId, period }).then(
-      (data) => { if (!dead) { setSt({ loading: false, data, error: null }); onLoaded && data.available && onLoaded(data) } },
-      (e) => { if (!dead) setSt({ loading: false, data: null, error: e.message }) },
+    if (!DASHBOARD_CACHE.has(cacheKey)) {
+      setSt((s) => ({ ...s, loading: true, error: null }))
+    }
+    getDashboard({ jobId: jobId || undefined, period }).then(
+      (data) => {
+        if (!dead) {
+          if (data?.available) DASHBOARD_CACHE.set(cacheKey, data)
+          setSt({ loading: false, data, error: null })
+          onLoaded && data.available && onLoaded(data)
+        }
+      },
+      (e) => {
+        if (!dead) setSt((s) => ({ ...s, loading: false, error: s.data ? null : e.message }))
+      },
     )
     return () => { dead = true }
-  }, [jobId, period, tick]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [jobId, period, tick, cacheKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const retry = useCallback(() => setTick((n) => n + 1), [])
 
   if (st.error && !st.data) return <ErrorState title="Không tải được dữ liệu danh mục" error={st.error} onRetry={retry} />
   if (st.loading && !st.data) return <Loading what="danh mục" />
-  if (!jobId) return <Empty title="Chưa chọn lần backtest">Chọn một backtest đã chạy xong ở trên, hoặc chạy mới tại <Link to="/backtest">Backtest</Link>.</Empty>
   if (!st.data?.available) {
-    return <Empty title="Chưa có dữ liệu backtest">{st.data?.reason || 'Backtest chưa khả dụng.'}</Empty>
+    return <Empty title="Chưa có dữ liệu danh mục">{st.data?.reason || 'Chưa có backtest nào hoàn tất — chạy Backtest trước.'}</Empty>
   }
   return (
-    <div style={{ opacity: st.loading ? 0.6 : 1, transition: 'opacity .15s' }}>
+    <div style={{ opacity: st.loading && !st.data ? 0.6 : 1, transition: 'opacity .15s' }}>
       {openLink}
-      <DashboardView data={st.data} ctx={{ jobId }} compact={compact} />
+      <DashboardView data={st.data} ctx={{ jobId, totalWin, hideRegime }} compact={compact} />
     </div>
   )
 }
+

@@ -10,8 +10,8 @@ import statistics as S
 warnings.filterwarnings("ignore")
 import pandas as pd
 from backend.jobs.evaluate import run
-from backend.models.params import RISK
-from backend.strategies import BY_ID, perp_symbols
+from backend.analys.param import RISK
+from backend.alpha.strategies import BY_ID, perp_symbols
 b = json.load(open("data/alpha/book.json"))
 w = b["windows"]; ms = lambda d: int(pd.Timestamp(d, tz="UTC").timestamp() * 1000)
 start, end = ms(w["dev2_end"]), ms(w["end"])

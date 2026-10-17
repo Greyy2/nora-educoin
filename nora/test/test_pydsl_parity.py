@@ -1,13 +1,14 @@
 """P7 — parity nội bộ: `kema_long` viết bằng DSL Python, hồ sơ `nora`, CÙNG dict vị thế như materialize() -> lệnh, lệnh con và đường vốn TRÙNG TỪNG BIT
 với chiến lược lõi (cùng PortfolioEngine). Dữ liệu tổng hợp (luôn chạy) + dữ liệu thật ngắn (bỏ qua khi không có)."""
+import glob
 import os
 
 import pandas as pd
 import pytest
 
 import golden_scenarios as gs
-from backend import strategies as sb
-from backend.models.params import RISK, materialize, schema_defaults
+from backend.alpha import strategies as sb
+from backend.analys.param import RISK, materialize, schema_defaults
 from backend.alpha.compile import compile_code
 from backend.signal import compute as profiles
 from backend.alpha import plan as _plan_mod
@@ -67,9 +68,10 @@ def test_kema_long_dsl_equals_core_synthetic(tmp_path):
 
 
 def test_kema_long_dsl_equals_core_real_data():
-    root = os.path.abspath(os.environ.get("NORA_PARITY_DATA_ROOT") or os.path.join(os.path.dirname(__file__), "..", "data", "okx"))
+    root = os.path.abspath(os.environ.get("NORA_PARITY_DATA_ROOT") or os.path.join(os.path.dirname(__file__), "..", "data"))
     syms = ["BTC@perp", "SOL@perp"]
-    if not all(os.path.isfile(os.path.join(root, "cex", s.split("@")[0], "perp", "1m.pkl")) for s in syms):
+    from backend.data.data import bar_dir
+    if not all(glob.glob(os.path.join(bar_dir(s, root), "*.parquet")) for s in syms):
         pytest.skip(f"không có dữ liệu thật perp tại {root}")
     t = lambda d: int(pd.Timestamp(d, tz="UTC").timestamp() * 1000)  # noqa: E731
     a, b = _parity(root, syms, t("2026-03-01") - 20 * gs.DAY, t("2026-04-15"), t("2026-03-01"))

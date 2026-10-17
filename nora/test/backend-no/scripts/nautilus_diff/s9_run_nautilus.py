@@ -30,7 +30,7 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.abspath(os.path.join(HERE, "..", "..", "..")))
 from s9_common import CAPITAL, DAY, MAKER, OUT, PORT, STAGES, SYMS, TAKER  # noqa: E402
 from ext_run_nautilus import build_trades, inst_id, make_instrument      # noqa: E402  (the same trade reconstruction as S4-S8)
-from backend.models import position_size as npolicy                        # noqa: E402  (Nora's own pure sizing / admission formulas)
+from backend.analys.position import position_size as npolicy                        # noqa: E402  (Nora's own pure sizing / admission formulas)
 
 USDT = Currency.from_str("USDT")
 VENUE = Venue("OKX")

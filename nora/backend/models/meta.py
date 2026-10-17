@@ -10,7 +10,7 @@ import re
 from typing import Any, Dict, List
 
 from backend.models import storage as store
-from backend.models.params import FRAME_MS
+from backend.analys.param import FRAME_MS
 
 _BOUNDS = ("minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "minLength", "maxLength", "minItems", "maxItems")
 BOOK_DEFAULT_FRAME = "1h"      # khung chạy mặc định của backtest/WFA sổ (frames.defaults.book)
@@ -59,15 +59,16 @@ def _gates() -> List[Dict[str, Any]]:
 
 
 def _live() -> Dict[str, Any]:
-    """Live chưa chạy được (đang chuyển sang Nautilus TradingNode): không có chế độ nào để chọn; `not_ready` cho UI hiện "chưa hỗ trợ"."""
-    from backend.routes.live import NOT_READY_LIVE
-    return {"modes": [], "venues": ["okx"], "books": [], "engines": [], "not_ready": NOT_READY_LIVE}
+    return {"modes": ["paper", "testnet", "live"], "venues": ["okx"], "books": ["main", "explore"], "engines": ["unified"]}
 
 
 def _engine() -> Dict[str, Any]:
     from backend.nautilus.version import ENGINE_NAME, NAUTILUS_VERSION
+    from backend.analys.param import STANDARD_FRAME
     return {"name": ENGINE_NAME, "version": NAUTILUS_VERSION, "docs_url": "https://nautilustrader.io/docs/latest/",
-            "default_exec_mode": DEFAULT_EXEC_MODE}
+            "default_exec_mode": DEFAULT_EXEC_MODE, "standard_frame": STANDARD_FRAME,
+            "run_modes": ["backtest", "paper", "testnet"]}
+
 
 
 _NO_SIM_HELP = "Nautilus không mô phỏng — bị bỏ qua (có cảnh báo trong kết quả)"
@@ -96,7 +97,7 @@ def _jobs() -> Dict[str, Any]:
 
 
 def _risk_profiles() -> Dict[str, Any]:
-    from backend.models.position_size import RISK_PROFILES
+    from backend.analys.position import RISK_PROFILES
     return {k: {"name": v.name, "label_vi": v.label_vi, "description": v.description, "sl_anchor": v.sl_anchor, "sl_required": v.sl_required,
                 "dca_mode": v.dca_mode, "dca_max_limit": v.dca_max_limit, "exits_allowed": list(v.exits_allowed),
                 "exits_required_any": list(v.exits_required_any), "sizing_default": v.sizing_default, "reentry_rule": v.reentry_rule,
@@ -110,8 +111,8 @@ def build_meta(limit_models: Dict[str, Any]) -> Dict[str, Any]:
     from backend.data import data as market_data
     from backend.metrics.charts import EDUCATION_HIDDEN_SECTIONS, NOTE_TOUR
     from backend.metrics.metrics import METRIC_DEFS, METRIC_GROUPS
-    from backend.models.params import DEFAULT_ALLOCATION
-    from backend.strategies import book_engine_status
+    from backend.analys.param import DEFAULT_ALLOCATION
+    from backend.alpha.strategies import book_engine_status
     home = store.data_home()
     rel = lambda p: os.path.relpath(p, home)   # noqa: E731
     main_path, explore_path = store.alpha_file("book"), store.alpha_dir("explore", "book.json")

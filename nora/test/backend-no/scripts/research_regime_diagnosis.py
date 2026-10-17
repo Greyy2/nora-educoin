@@ -31,7 +31,7 @@ HOUR = 3_600_000
 
 def _strategies(items, rpt, regime_of):
     from backend.strategies import lift_frames
-    from backend.models.params import materialize
+    from backend.analys.param import materialize
     from backend.strategies import CANDIDATES
     by_id = {c["id"]: c for c in CANDIDATES}
     return [materialize(by_id[cid], lift_frames(by_id[cid], prm, TF), regime=regime_of(cid) or False, stop_fill="level",
@@ -40,7 +40,7 @@ def _strategies(items, rpt, regime_of):
 
 def bt(items, symbols, start, end, rpt, regime_of=lambda cid: None):
     from backend.jobs.evaluate import run
-    from backend.models.params import RISK
+    from backend.analys.param import RISK
     out = run([], symbols, start, end, rpt, "level", RISK, extra_strategies=_strategies(items, rpt, regime_of), base_frame=TF)
     by = {}
     for t in out["trade_list"]:
@@ -61,7 +61,7 @@ def main():
     from backend.jobs.evaluate import WARMUP
     from backend.metrics import regime as rg
     from backend.metrics.regime import OBSERVE, by_regime, learn_map, trade_regime
-    from backend.models.params import REGIME_MAP
+    from backend.analys.param import REGIME_MAP
     from backend.strategies import perp_symbols
     from backend.XXstages import compute_windows
     from backend.jobs.tasks import _book_items

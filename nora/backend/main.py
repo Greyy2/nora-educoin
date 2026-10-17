@@ -12,16 +12,15 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.jobs.runner import EphemeralGone, NotReady
-from backend.nautilus.version import ENGINE_NAME, NAUTILUS_VERSION
-from backend.routes import alpha, book, data, engine, live, process
+from backend.core import ENGINE_NAME, NAUTILUS_VERSION
+from backend.routes import ROUTERS
 
 app = FastAPI(title="Nora API", version="3.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
-app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=5)   # JSON thống kê/biểu đồ lớn (vài trăm KB) nén còn ~1/8; mức 5 thay mặc định 9: ~100 ms -> ~10 ms CPU/450 KB (nén chạy trong event loop, giữ GIL), file to hơn ~10%
+app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=5)
 
-for m in (process, alpha, book, data, live, engine):
-    for r in m.ROUTERS:
-        app.include_router(r)
+for r in ROUTERS:
+    app.include_router(r)
 
 
 @app.exception_handler(EphemeralGone)

@@ -56,7 +56,7 @@ def _load_script(name):
 
 
 def _small_book(monkeypatch):
-    from backend import strategies as sb
+    from backend.alpha import strategies as sb
     from backend.alpha.compile import cond, f, tree_p
     cands = [
         {"id": "t_long", "family": "x", "side": "LONG", "description": "test",

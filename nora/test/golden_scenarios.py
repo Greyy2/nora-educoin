@@ -205,8 +205,8 @@ def real_data_available(data_root) -> bool:
 
 def scenario_portfolio_real(data_root, end: Optional[str] = None, shared_dir: Optional[str] = None) -> Dict[str, Any]:
     """shared_dir: nếu có, export dữ liệu mmap vào đó rồi chạy bằng PortfolioEngine(shared_dir=...) (kết quả phải y hệt)."""
-    from backend import strategies as sb
-    from backend.models.params import RISK, materialize
+    from backend.alpha import strategies as sb
+    from backend.analys.param import RISK, materialize
     from backend.alpha.plan import RiskConfig
     from backend.nautilus.engine import PortfolioEngine
     cand = sb.BY_ID

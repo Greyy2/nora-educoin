@@ -62,6 +62,11 @@ export function PageHead({ kicker, title, subtitle, children }) {
 export class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { err: null } }
   static getDerivedStateFromError(err) { return { err } }
+  componentDidUpdate(prevProps) {
+    if (this.state.err && prevProps.resetKey !== this.props.resetKey) {
+      this.setState({ err: null })
+    }
+  }
   render() {
     if (this.state.err) {
       return <div className="n-err" role="alert">Không hiển thị được nội dung này: {String(this.state.err.message || this.state.err)}</div>

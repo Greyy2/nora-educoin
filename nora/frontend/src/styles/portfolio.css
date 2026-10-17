@@ -13,9 +13,6 @@
 .pf-line .v { font-family: var(--n-mono); font-variant-numeric: tabular-nums; }
 .pf-link { color: var(--n-accent); }
 
-/* thẻ "Tín hiệu & bot live" */
-.pf-live p { margin: 0 0 12px; color: var(--n-ink-2); font-size: 12.5px; }
-.pf-live .n-btn { display: inline-block; }
 
 /* mục Chi tiết thu gọn */
 .pf-details-h { margin: 18px 0 8px; font-size: 12px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: var(--n-ink-3); }

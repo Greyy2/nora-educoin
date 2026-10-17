@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from backend.models.params import collect_placeholders, resolve_placeholders, split_params
+from backend.analys.param import collect_placeholders, resolve_placeholders, split_params
 from data_helpers import save_synthetic
 
 T0 = 1_700_006_400_000

@@ -13,6 +13,7 @@ import ProvenanceBadge from '../../common/ProvenanceBadge'
 import WarningsPanel from '../../common/WarningsPanel'
 import { useMeta } from '../../../meta/MetaProvider'
 import { normMetrics, normYearly, stagePlot, resolveCols, TRADE_COLS, SYMBOL_COLS, POSITION_COLS } from '../../../lib/customResult'
+import TestingStatusCard from './TestingStatusCard'
 
 const STAGES = [
   { value: 'train', label: 'Train', block: 'train' },
@@ -101,7 +102,7 @@ function TradesTable({ trades }) {
 }
 
 
-const SUBS = [{ value: 'overview', label: 'Tổng quan' }, { value: 'perf', label: 'Hiệu suất' }, { value: 'analysis', label: 'Phân tích' }]
+const SUBS = [{ value: 'overview', label: 'Overview' }, { value: 'perf', label: 'Performance' }, { value: 'analysis', label: 'Analysis' }]
 const CHARTS = [
   { key: 'equity', label: 'Đường vốn (Equity)' },
   { key: 'pnl', label: 'Lãi lỗ (PnL)' },
@@ -181,39 +182,137 @@ export default function CustomResult({ result, jobLine, explain = false, tourKey
   const bySym = Array.isArray(result?.by_symbol) ? result.by_symbol : []
   const open = Array.isArray(result?.positions_open) ? result.positions_open : []
 
-  // ---- hướng dẫn từng bước (chỉ education): danh sách bước do backend quyết định (GET /api/studio/meta `explain_tour`); lời giải thích = result.explain.notes[notes_key]; thiếu ghi chú / dữ liệu thì bỏ bước ----
+  // ---- hướng dẫn từng bước (chỉ education): 3 bước đầu code/chạy + 5 bước giải thích kết quả ----
   const { meta } = useMeta()
   const [tour, setTour] = useState(null) // null | chỉ số bước
   const steps = useMemo(() => {
     if (!explain) return []
-    // Chỗ hiển thị của từng mục tour trên giao diện (tab con, bộ chọn DOM, điều kiện có dữ liệu); khoá khớp `explain_tour[].key`.
+
+    // 3 bước chính đầu tiên: Hướng dẫn cách viết code chiến lược và chạy
+    const codeSteps = [
+      {
+        id: 'code_editor',
+        title: 'Soạn thảo chiến lược Python',
+        sub: 'overview',
+        sel: '[data-tour="code-editor"], .se-code',
+        body: [
+          { text: 'Viết chiến lược bằng ngôn ngữ Python kế thừa lớp SimpleAlgorithm. Bạn định nghĩa các quy tắc vào lệnh, thoát lệnh và quản lý vị thế dựa trên dữ liệu nến & chỉ báo kỹ thuật.' },
+        ],
+      },
+      {
+        id: 'code_settings',
+        title: 'Cài đặt tham số & Rổ coin',
+        sub: 'overview',
+        sel: '[data-tour="code-settings"], .se-chips',
+        body: [
+          { text: 'Chọn các cặp tiền mã hoá (BTC, ETH,...), khung thời gian nến và mức vốn khởi điểm tại thanh cấu hình trước khi tiến hành chạy kiểm thử.' },
+        ],
+      },
+      {
+        id: 'code_run',
+        title: 'Chạy kiểm thử trên dữ liệu thật',
+        sub: 'overview',
+        sel: '[data-tour="code-run"], .se-run',
+        body: [
+          { text: 'Bấm nút "Chạy backtest" (hoặc phím tắt Ctrl/⌘ + Enter) để hệ thống tự động mô phỏng khớp lệnh trên toàn bộ dữ liệu lịch sử chuẩn xác.' },
+        ],
+      },
+    ]
+
+    // 5 bước tiếp theo: Giải thích các thành phần cốt lõi của kết quả (Result)
     const place = {
-      summary: { sub: 'overview', sel: '[data-tour="summary"]', ok: true },
-      equity: { sub: 'overview', show: 'equity', sel: '[data-tour="equity"]', ok: !!ser },
-      yearly: { sub: 'overview', sel: '[data-tour="yearly"]', ok: yearlyAll.length > 0 },
-      by_symbol: { sub: 'perf', sel: '[data-tour="by_symbol"]', ok: bySym.length > 0 },
-      train_test: { sub: 'analysis', sel: '[data-tour="train_test"]', ok: true },
+      summary: {
+        sub: 'overview',
+        sel: '[data-tour="summary"]',
+        ok: true,
+        title: 'Kết quả tổng quan',
+        fallback: 'Tổng hợp các chỉ số trọng yếu: Tổng lãi lỗ (PnL), tỷ lệ thắng (Win Rate), chỉ số Sharpe và độ sụt giảm tối đa (Max Drawdown).',
+      },
+      equity: {
+        sub: 'overview',
+        show: 'equity',
+        sel: '[data-tour="equity"]',
+        ok: !!ser,
+        title: 'Đường cong tăng trưởng vốn',
+        fallback: 'Đường vốn biểu thị giá trị tài sản qua thời gian so với thị trường mua & giữ (Buy & Hold). Đường vốn tăng đều, ít gián đoạn là minh chứng cho chiến lược ổn định.',
+      },
+      yearly: {
+        sub: 'overview',
+        sel: '[data-tour="yearly"]',
+        ok: yearlyAll.length > 0,
+        title: 'Lãi lỗ theo từng năm',
+        fallback: 'Bảng thống kê hiệu suất qua từng năm, giúp đánh giá chiến lược có sinh lời bền vững qua các chu kỳ thị trường (bull, bear, sideway) hay không.',
+      },
+      by_symbol: {
+        sub: 'perf',
+        sel: '[data-tour="by_symbol"]',
+        ok: bySym.length > 0,
+        title: 'Hiệu suất theo tài sản',
+        fallback: 'Phân tích chi tiết trên từng đồng coin trong danh mục để nhận biết tài sản nào mang lại lợi nhuận chính và tài sản nào kém hiệu quả.',
+      },
+      testing_status: {
+        sub: 'analysis',
+        sel: '[data-tour="testing_status"]',
+        ok: true,
+        title: 'Bộ tiêu chí kiểm định (IS Testing Status)',
+        fallback: 'Bộ tiêu chí định lượng chuẩn XNO: kiểm tra Sharpe Ratio (≥ 1.2), CAGR (≥ 25%), Max Drawdown (≥ -40%), Profit Factor (≥ 1.7) và Calmar (≥ 0.9) để đánh giá chiến lược có đạt chuẩn vượt qua bài kiểm định hay chưa.',
+      },
+      train_test: {
+        sub: 'analysis',
+        sel: '[data-tour="train_test"]',
+        ok: true,
+        title: 'Kiểm định Train và Test',
+        fallback: 'Kiểm định ngoài mẫu (Out-of-sample): so sánh kết quả giữa tập huấn luyện (Train) và kiểm thử (Test) để bảo đảm chiến lược không bị học vẹt (overfit).',
+      },
     }
-    return (meta?.explain_tour || []).map((item) => {
+
+    const defaultSections = [
+      { key: 'summary', label_vi: 'Kết quả tổng quan' },
+      { key: 'testing_status', label_vi: 'Bộ tiêu chí kiểm định (IS Testing Status)' },
+      { key: 'equity', label_vi: 'Đường cong tăng trưởng vốn' },
+      { key: 'yearly', label_vi: 'Lãi lỗ theo từng năm' },
+      { key: 'by_symbol', label_vi: 'Hiệu suất theo tài sản' },
+      { key: 'train_test', label_vi: 'Kiểm định Train và Test' },
+    ]
+    const tourList = (meta?.explain_tour && meta.explain_tour.length > 0) ? meta.explain_tour : defaultSections
+
+    const resultSteps = tourList.map((item) => {
       const pl = place[item.key]
-      const text = notes[item.notes_key || item.key]
-      return pl && pl.ok && typeof text === 'string' && text ? { id: item.key, title: item.label_vi, sub: pl.sub, show: pl.show, sel: pl.sel, body: [{ text }] } : null
+      if (!pl || !pl.ok) return null
+      const noteText = notes[item.notes_key || item.key] || pl.fallback
+      return {
+        id: item.key,
+        title: item.label_vi || pl.title || item.key,
+        sub: pl.sub,
+        show: pl.show,
+        sel: pl.sel,
+        body: [{ text: noteText }],
+      }
     }).filter(Boolean)
+
+    return [...codeSteps, ...resultSteps]
   }, [explain, notes, ser, yearlyAll.length, bySym.length, meta?.explain_tour])
+
   const gotoStep = useCallback((i) => {
     const d = steps[i]
     if (!d) return
-    setStage('all'); setSub(d.sub)
+    if (d.sub) {
+      setStage('all')
+      setSub(d.sub)
+    }
     if (d.show) setShown((p) => (p[d.show] ? p : { ...p, [d.show]: true }))
     setTour(i)
   }, [steps])
+
   const closeTour = useCallback(() => setTour(null), [])
+
   useEffect(() => {
     if (!tourKey || !steps.length || SEEN_TOURS.has(tourKey)) return undefined
     SEEN_TOURS.add(tourKey)
-    const t = setTimeout(() => gotoStep(0), 350)
+    const t = setTimeout(() => gotoStep(0), 450)
     return () => clearTimeout(t)
   }, [tourKey, steps.length]) // eslint-disable-line react-hooks/exhaustive-deps
+
   if (!result || typeof result !== 'object') return <Empty title="Chưa có kết quả">Job đã xong nhưng máy chủ không trả <code>result</code>.</Empty>
 
   const cfg = result.config || {}
@@ -241,7 +340,7 @@ export default function CustomResult({ result, jobLine, explain = false, tourKey
         <span className="se-lbl">Giai đoạn:</span>
         <Segmented label="Giai đoạn" value={stage} onChange={setStage} options={opts} />
         <span className="se-sp" />
-        {steps.length > 0 && <button type="button" className="n-btn sm se-tourbtn" onClick={() => gotoStep(0)} title="Hướng dẫn đọc kết quả từng bước (←/→, Esc)">Xem giải thích</button>}
+        {steps.length > 0 && <button type="button" className="n-btn sm se-tourbtn" onClick={() => gotoStep(0)} title="Hướng dẫn từng bước từ Code đến Kết quả (←/→, Esc)">✨ Xem hướng dẫn ({steps.length} bước)</button>}
         {jobLine}
         {result.program_hash && <span className="mono muted" title="Mã băm chương trình đã biên dịch">{String(result.program_hash).slice(0, 12)}</span>}
         <ProvenanceBadge provenance={result?.provenance} />
@@ -301,6 +400,9 @@ export default function CustomResult({ result, jobLine, explain = false, tourKey
 
       {sub === 'analysis' && (
         <>
+          <div data-tour="testing_status">
+            <TestingStatusCard metrics={m} stage={stage} capital={cfg?.initial_capital} />
+          </div>
           <Diagnostics result={result} isEducation={explain} />
           {Array.isArray(result?.trades) ? <section className="se-cc" data-tour="trades"><div className="se-cc-h"><b>Danh sách lệnh</b><span className="sp" /><span className="muted">{fmtNum(trades.length, 0)} lệnh</span></div><div className="se-cc-b"><TradesTable trades={trades} /></div></section>
             : <p className="n-note se-pad">Kết quả không kèm danh sách lệnh.</p>}

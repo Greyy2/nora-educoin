@@ -7,7 +7,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "scripts"))
 import lint_edu_samples as L  # noqa: E402
-from backend.signal.indicator import FEATURE_SPECS_DATA, OP_SPECS_DATA  # noqa: E402
+from backend.analys.indicator import FEATURE_SPECS_DATA, OP_SPECS_DATA  # noqa: E402
 
 FEATS, OPS = set(FEATURE_SPECS_DATA), set(OP_SPECS_DATA)
 
@@ -57,11 +57,11 @@ def test_lint_threshold_and_direction(samples):
 
 
 def test_lint_risk_params_must_match(samples):
-    base = samples["risk_atr_fixed_multiple_stop"]   # tham số vị thế khai báo trong code: stop_loss_rate = 2.0
-    assert "    stop_loss_rate = 2.0" in base["code"] and not _errs(base)
+    base = samples["risk_atr_fixed_multiple_stop"]   # tham số vị thế khai báo trong code: stop_loss_pct = 2.0   # mẫu nay khai báo bằng tên lớp NoraStrategy (stop_loss_pct), lint đọc qua position_overrides (stop_loss_rate)
+    assert "    stop_loss_pct = 2.0" in base["code"] and not _errs(base)
     assert "RISKNUM" in _errs(_with(base, summary="Mua khi giá đóng cửa cắt lên SMA 20; cắt lỗ 5×ATR."))
     assert "RISK" in _errs(_with(base, summary=base["summary"] + " Chốt lời 4×ATR."))            # take_profit_rate chưa khai báo
-    no_sl = "\n".join(ln for ln in base["code"].split("\n") if not ln.startswith("    stop_loss_rate"))
+    no_sl = "\n".join(ln for ln in base["code"].split("\n") if not ln.startswith("    stop_loss_pct"))
     assert "RISK" in _errs(_with(base, code=no_sl))                                              # bỏ SL khỏi code nhưng văn bản vẫn nói
 
 

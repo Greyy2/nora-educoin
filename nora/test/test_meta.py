@@ -5,12 +5,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.carlo import carlo
-from backend.models.params import FRAME_MS
+from backend.analys.param import FRAME_MS
 from backend.models import storage as store
 from backend.data.data import coverage
 from backend.nautilus.version import ENGINE_NAME, NAUTILUS_VERSION
 from backend.main import app
-from backend import strategies
+from backend.alpha import strategies
 from backend.models.meta import build_meta
 from backend.jobs import runner as P
 from backend.routes import alpha, book as optimize, process as process_routes, live as live_routes  # noqa: F401
@@ -38,7 +38,8 @@ def test_frames_live_jobs(m):
     assert m["frames"]["book"] == ["15m", "1h", "4h"] and m["frames"]["defaults"]["book"] == "1h"
     assert m["frames"]["defaults"]["custom_backtest"] in m["frames"]["custom_backtest"]
     assert set(optimize.BacktestRequest.model_json_schema()["properties"]) >= {"run_frame", "timeframe"}
-    assert m["live"]["modes"] == [] and m["live"]["not_ready"] == live_routes.NOT_READY_LIVE   # live chuyển sang Nautilus TradingNode
+    # T5: live đã chạy thật trên Nautilus TradingNode -> meta khai báo đủ chế độ (không còn modes=[] / not_ready)
+    assert m["live"]["modes"] == ["paper", "testnet", "live"] and "not_ready" not in m["live"]
     assert m["live"]["venues"] == ["okx"]
     assert [k["kind"] for k in m["jobs"]["kinds"]] == list(P.KINDS)
     for k in m["jobs"]["kinds"]:
@@ -56,14 +57,15 @@ def test_universe_limits_books_paths(m):
     lim = m["limits"]["book_mc"]["seed"]
     sch = optimize.McRequest.model_json_schema()["properties"]["seed"]
     assert (lim["minimum"], lim["maximum"], lim["default"]) == (sch["minimum"], sch["maximum"], sch["default"])
-    assert "live_bot" not in m["limits"] and "live_bot" not in P.KINDS
+    assert "live_bot" in P.KINDS and P.KINDS["live_bot"]["func"] == "run_live_bot"   # T5: bot live là job kind thật
     for key, p in (("book", store.alpha_file("book")), ("explore_book", store.alpha_dir("explore", "book.json"))):
         assert m["paths"][key] == os.path.relpath(p, store.data_home())
 
 
 def test_engine_is_nautilus(m):
     assert m["engine"] == {"name": ENGINE_NAME, "version": NAUTILUS_VERSION, "docs_url": "https://nautilustrader.io/docs/latest/",
-                           "default_exec_mode": "fast"}
+                           "default_exec_mode": "fast", "standard_frame": "1m",
+                           "run_modes": ["backtest", "paper", "testnet"]}   # T5: thêm paper/testnet
     assert NAUTILUS_VERSION not in ("", "not_installed")
 
 

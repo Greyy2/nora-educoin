@@ -291,13 +291,15 @@ def _is_main_guard(n: ast.If) -> bool:
     return "__name__" in ast.dump(n.test) and "__main__" in ast.dump(n.test)
 
 
-def top_symbols(tree: ast.Module) -> dict[str, ast.AST]:
+def top_symbols(tree: ast.Module, redefs: "list[str] | None" = None) -> dict[str, ast.AST]:
     """name -> statement node (def/class/assign) cấp module (đệ quy vào if/try/with không phải main-guard); bỏ import, __all__, docstring."""
     out: dict[str, ast.AST] = {}
 
     def walk(body):
         for st in body:
             if isinstance(st, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                if redefs is not None and st.name in out and isinstance(out[st.name], (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                    redefs.append(st.name)
                 out[st.name] = st
             elif isinstance(st, ast.Assign):
                 for t in st.targets:
@@ -354,10 +356,11 @@ class FileInfo:
         self.shim = is_shim(src)
         self.tree = None
         self.syms: dict[str, ast.AST] = {}
+        self.redefs: list[str] = []          # tên def/class cấp module định nghĩa >1 lần trong cùng file
         try:
             self.tree = ast.parse(src)
             if not self.shim:
-                self.syms = top_symbols(self.tree)
+                self.syms = top_symbols(self.tree, self.redefs)
         except SyntaxError as e:
             print(f"[warn] không parse được {rel}: {e}", file=sys.stderr)
 
@@ -621,6 +624,11 @@ def find_dups(cur: dict[str, FileInfo], threshold: float = 0.8, folder: str = ""
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and (node.end_lineno - node.lineno) >= 2:
                 by_name[name].append((rel, node))
     out = []
+    for rel, fi in cur.items():
+        if rel.startswith("test/") or fi.shim or (folder and not rel.startswith(folder)):
+            continue
+        for name in sorted(set(fi.redefs)):
+            out.append((rel, rel, name, "REDEF", 1.0))
     for name, items in by_name.items():
         for i in range(len(items)):
             for j in range(i + 1, len(items)):

@@ -6,7 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.main import app
-from backend import strategies as sample_cache
+from backend.alpha import strategies as sample_cache
 from backend.routes import alpha as alpha_routes
 
 SAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "alpha", "education", "samples.json")

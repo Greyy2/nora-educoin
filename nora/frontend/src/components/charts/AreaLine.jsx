@@ -75,7 +75,7 @@ export default function AreaLine({
               const ys = s.values.map((v) => (isNum(v) ? Y(v) : null))
               return (
                 <g key={s.key}>
-                  {s.area && <path d={areaPath(xs, ys, PAD.t + plotH)} fill={s.color} opacity="0.11" />}
+                  {s.area && <path d={areaPath(xs, ys, s.baseY !== undefined ? Y(s.baseY) : PAD.t + plotH)} fill={s.color} opacity="0.11" />}
                   <path d={linePath(xs, ys)} fill="none" stroke={s.color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round"
                     strokeDasharray={s.dashed ? '5 4' : undefined} />
                   {(() => {

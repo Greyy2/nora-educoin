@@ -8,7 +8,7 @@ from backend.signal.nodes import DslError
 from backend.alpha.compile import compile_code, compile_report
 from backend.signal import compute as profiles
 from backend.alpha import plan as _plan_mod
-from backend.models.params import AUTO, FRAME_MS, resolve_position_auto
+from backend.analys.param import AUTO, FRAME_MS, resolve_position_auto
 
 HEAD = "class S(SimpleAlgorithm):\n    def __algorithm__(self):\n"
 
@@ -220,7 +220,8 @@ def test_plan_defaults_overrides_and_validation():
     prog = compile_code(_body("c = self.data.pv_close", "self.set_positions(c > 1, position=1)", attrs="    stop_loss_rate = 2.5\n"), register=False)
     plan = _plan_mod.build_plan(prog, ["BTC", "ETH"], position={"risk_per_trade_pct": 1.0})
     st = plan.strategies[0]
-    assert plan.symbols == ["BTC@perp", "ETH@perp"] and plan.base_frame == "1m" and "symbols" not in st
+    # B7: thiếu run_frame -> Nhanh = khung tín hiệu của chương trình (prog.timeframe)
+    assert plan.symbols == ["BTC@perp", "ETH@perp"] and plan.base_frame == prog.timeframe and "symbols" not in st
     assert st["position"]["stop_loss_rate"] == 2.5 and st["position"]["risk_per_trade_pct"] == 1.0 and st["position"]["cooldown"] == resolve_position_auto({"cooldown": AUTO}, prog.meta()["timeframe"])["cooldown"] == FRAME_MS[prog.meta()["timeframe"]] // 60_000
     assert any("mặc định" in w for w in plan.warnings)
     with pytest.raises(ValueError, match="khoá vị thế"):

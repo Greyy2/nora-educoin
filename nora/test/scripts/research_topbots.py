@@ -73,7 +73,7 @@ def feasible_layers(leverage: float, step: float, layers_req: int, mult: float, 
                     min_pct: float = MIN_ORDER_SIZE_PCT) -> Tuple[int, float]:
     """Số tầng DCA lớn nhất <= layers_req mà ký quỹ lệnh đầu lớn nhất (theo dca_budget_check) >= min_pct.
     -> (số tầng, order_size_pct lớn nhất cho phép)."""
-    from backend.models.params import dca_budget_check
+    from backend.analys.param import dca_budget_check
     taker = costs[0]
     for n in range(max(0, int(layers_req)), -1, -1):
         if n == 0 or step <= 0:   # không DCA: ký quỹ + phí vào lệnh <= 100% vốn (đúng PositionTracker._open)
@@ -392,7 +392,7 @@ def main(argv=None):
     ap.add_argument("--out", default=OUT_DIR)
     a = ap.parse_args(argv)
 
-    from backend.models.params import resolve_costs
+    from backend.analys.param import resolve_costs
     from backend.data.data import require_data_ok_or_exit
     from backend.data.data import read_manifest
     from backend.jobs.workers import require_memory_limit, worker_init

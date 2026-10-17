@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { Panel, Empty, Spinner, NA } from '../ui'
 import Term from '../ui/Term'
 import { getPortfolioTrades, portfolioTradesCsvUrl, getMarketRegime } from '../../api'
@@ -164,13 +163,24 @@ function RegimeBar({ segs, from, to, labels }) {
   )
 }
 
+const REGIME_CACHE = new Map()
+
 export function RegimePanel({ bare = false }) {
   const [days, setDays] = useState(30)
-  const [st, setSt] = useState({ loading: true, data: null, error: null })
+  const cached = REGIME_CACHE.get(days)
+  const [st, setSt] = useState(() => ({ loading: !cached, data: cached || null, error: null }))
   useEffect(() => {
     let dead = false
-    setSt((x) => ({ ...x, loading: true }))
-    getMarketRegime({ days }).then((data) => !dead && setSt({ loading: false, data, error: null }), (e) => !dead && setSt({ loading: false, data: null, error: e.message }))
+    if (!REGIME_CACHE.has(days)) setSt((x) => ({ ...x, loading: true }))
+    getMarketRegime({ days }).then(
+      (data) => {
+        if (!dead) {
+          REGIME_CACHE.set(days, data)
+          setSt({ loading: false, data, error: null })
+        }
+      },
+      (e) => !dead && setSt((x) => ({ ...x, loading: false, error: x.data ? null : e.message })),
+    )
     return () => { dead = true }
   }, [days])
   const d = st.data
@@ -210,16 +220,6 @@ export function RegimePanel({ bare = false }) {
             LONG không vào khi xu hướng giảm / sập mạnh, SHORT không vào khi xu hướng tăng / tăng thẳng đứng.</p>
         </>
       )}
-    </Panel>
-  )
-}
-
-/* ─── Thẻ dẫn sang trang Live: tín hiệu của sổ đang chạy (kèm biểu đồ và giải thích từng điều kiện) nằm ở đó ─── */
-export function LiveBotCard() {
-  return (
-    <Panel title="Tín hiệu & bot live" className="pf-live">
-      <p>Tín hiệu live của sổ đang chạy, kèm biểu đồ nến và giải thích từng điều kiện vào/thoát, nằm ở trang Live.</p>
-      <Link to="/live" className="n-btn">Mở trang Live</Link>
     </Panel>
   )
 }

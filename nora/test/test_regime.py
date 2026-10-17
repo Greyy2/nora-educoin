@@ -124,8 +124,8 @@ def test_keltner_trend_exits_on_opposite_band_cross(market):
     """keltner_trend_long (KEMA của sova): vào khi close cắt lên dải trên, thoát khi close cắt xuống dải dưới (cây stop)."""
     from backend.alpha.plan import RiskConfig
     from backend.nautilus.engine import PortfolioEngine
-    from backend.models.params import materialize
-    from backend.strategies import BY_ID
+    from backend.analys.param import materialize
+    from backend.alpha.strategies import BY_ID
     cand = BY_ID["keltner_trend_long"]
     st = materialize(cand, {"sig.signal_tf": "1h", "sig.ema_n": 20, "sig.k_up": 1.0, "sig.k_dn": 1.0, "stop_loss_rate": 6.0})
     assert st["stop"] and st["stop"][0]["condition"]
@@ -159,8 +159,8 @@ def test_learn_map_blocks_only_losing_regimes_with_enough_trades():
 
 
 def test_regime_map_is_opposite_trend_deny_list_without_fuse():
-    from backend.models.params import REGIME_DENY, REGIME_MAP
-    from backend.strategies import CANDIDATES
+    from backend.analys.param import REGIME_DENY, REGIME_MAP
+    from backend.alpha.strategies import CANDIDATES
     assert set(REGIME_MAP) == {c["id"] for c in CANDIDATES}
     for c in CANDIDATES:
         cfg = REGIME_MAP[c["id"]]

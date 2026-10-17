@@ -49,7 +49,6 @@ function subscribe(limit, cb) {
     if (!subs.size) {
       clearTimeout(timer)
       document.removeEventListener('visibilitychange', onVis)
-      state = { ...state, loading: true, updatedAt: null, limit: 0 } // lần sau mount hỏi lại từ đầu, giữ jobs cũ để khỏi nháy
     }
   }
 }

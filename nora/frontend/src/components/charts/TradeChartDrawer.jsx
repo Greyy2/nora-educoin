@@ -34,7 +34,7 @@ export default function TradeChartDrawer({ open, onClose, request, trade, title 
 
   if (!open || !trade) return null
   return createPortal(
-    <div className="n-drawer-wrap">
+    <div className="v2 n-drawer-wrap">
       <div className="n-drawer-bg" onClick={onClose} aria-hidden="true" />
       <aside className="n-drawer" role="dialog" aria-modal="true" aria-label={title || 'Biểu đồ tín hiệu'} tabIndex={-1} ref={box}>
         <header className="n-drawer-h">

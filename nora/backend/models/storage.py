@@ -40,6 +40,7 @@ def _kind_path(home: str, kind: str) -> str:
         "wfa": j(home, "wfa"),
         "carlo": j(home, "carlo"),
         "live": j(home, "live"),
+        "users": j(home, "users"),
         "process": j(home, "cache", "process"),
         "mem": j(home, "cache", "process", "_mem"),
         "shared": j(home, "cache", "shared"),
@@ -92,6 +93,11 @@ def alpha_file(*parts: str) -> str:
 def alpha_user_dir() -> str:
     """alpha/user: alpha người dùng."""
     return alpha_dir("user")
+
+
+def users_dir(*parts: str) -> str:
+    """data/users: thư mục lưu thông tin người dùng."""
+    return _under(data_home(), "users", *parts)
 
 
 def alpha_education_samples() -> str:
@@ -198,6 +204,29 @@ def json_default(o):
     if isinstance(o, np.datetime64):
         return str(o)
     return str(o)
+
+
+def pid_start_ticks(pid: Any) -> Optional[int]:
+    """Thời điểm tiến trình bắt đầu (clock ticks từ lúc boot, /proc/<pid>/stat trường 22); None nếu không đọc được. Dùng nhận biết PID bị tái sử dụng."""
+    try:
+        with open(f"/proc/{int(pid)}/stat", "rb") as fh:
+            return int(fh.read().rsplit(b")", 1)[1].split()[19])
+    except (OSError, IndexError, ValueError, TypeError):
+        return None
+
+
+def pid_alive(pid: Any, start_ticks: Optional[int] = None) -> bool:
+    """MỘT định nghĩa "tiến trình còn sống" (đọc /proc, zombie = chết). `start_ticks` (nếu biết) phải khớp thời điểm bắt đầu — PID bị tái sử dụng = chết."""
+    if not pid:
+        return False
+    try:
+        with open(f"/proc/{int(pid)}/stat", "rb") as fh:
+            parts = fh.read().rsplit(b")", 1)[1].split()
+    except (OSError, IndexError, ValueError, TypeError):
+        return False
+    if parts[0] == b"Z":
+        return False
+    return start_ticks is None or int(parts[19]) == int(start_ticks)
 
 
 def read_json(path: str, default: Any = None) -> Any:

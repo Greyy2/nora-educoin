@@ -2,7 +2,7 @@
 test cơ chế preset / chế độ chạy viết trên các id này. conftest đăng ký chúng vào optimize.book.build.EXTRA_CANDIDATES cho mọi test."""
 from typing import Any, Dict, List
 
-from backend.models.params import exit_risk_schema as _exit_risk_schema, schema_choice as _choice, schema_flt as _flt, schema_int as _int
+from backend.analys.param import exit_risk_schema as _exit_risk_schema, schema_choice as _choice, schema_flt as _flt, schema_int as _int
 from backend.alpha.compile import calc, cond, cross_over, cross_under, f, tree_p
 
 _TF_SLOW = ("15m", "1h", "4h", "24h")     # khung xu hướng / bộ lọc regime

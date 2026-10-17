@@ -11,13 +11,17 @@ const stores = new Map()
 const sig = (j) => `${j.status}|${j.progress?.done ?? ''}|${j.progress?.stage ?? ''}|${j.log_tail?.length ?? ''}`
 
 function makeStore(jobId) {
-  const st = { subs: new Map(), state: { job: null, error: null }, timer: null, dead: false, step: 0, last: '', fails: 0, inflight: false }
+  const st = { subs: new Map(), state: { job: null, error: null }, timer: null, dead: false, step: 0, last: '', fails: 0, inflight: false, t0: Date.now() }
   const base = () => Math.min(...[...st.subs.values()])
   const emit = () => st.subs.forEach((_, cb) => cb(st.state))
   const schedule = () => {
     clearTimeout(st.timer)
     if (st.dead || document.hidden) return // tab ẩn: dừng, hiện lại sẽ hỏi ngay
-    const delay = Math.min(base() * 2 ** st.step, Math.max(MAX_DELAY, base()))
+    // Trong 15 giây đầu của job, không giãn nhịp theo lũy thừa để bắt trạng thái done nhanh nhất
+    const isEarly = (Date.now() - st.t0) < 15000
+    const delay = isEarly
+      ? Math.min(base(), 800)
+      : Math.min(base() * 2 ** st.step, Math.max(MAX_DELAY, base()))
     st.timer = setTimeout(tick, delay)
   }
   async function tick() {
@@ -66,7 +70,7 @@ function subscribe(jobId, interval, cb) {
  * Nhiều component cùng id dùng chung một vòng poll. Trả { job, error, errorStatus, status } (errorStatus = mã HTTP của lỗi cuối, vd 404/410 = kết quả tạm đã mất).
  * status: 'loading' (chưa có phản hồi đầu) | queued | running | done | failed | cancelled | null (không có id).
  */
-export default function useJob(jobId, { interval = 1500 } = {}) {
+export default function useJob(jobId, { interval = 650 } = {}) {
   const [state, setState] = useState({ job: null, error: null, errorStatus: null })
   useEffect(() => {
     setState({ job: null, error: null, errorStatus: null })

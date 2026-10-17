@@ -9,18 +9,15 @@ from backend.models.models import DATA_DIR  # noqa: E402
 SYMBOLS = ["BTC", "ETH"]
 
 
-def _real_root():
-    """Gốc dữ liệu OKX thật (conftest trỏ NORA_LOCAL_DATA_ROOT vào thư mục tạm): market/okx (mới) hoặc okx (cũ)."""
-    for sub in (("market", "okx"), ("okx",)):
-        root = os.path.join(DATA_DIR, *sub)
-        if os.path.isdir(os.path.join(root, "cex")):
-            return root
-    return None
+def _has_1m(root, sym):
+    import glob
+    from backend.data.data import bar_dir
+    return bool(glob.glob(os.path.join(bar_dir(f"{sym}@perp", root), "*.parquet")))
 
 
-ROOT = _real_root()
-pytestmark = pytest.mark.skipif(not ROOT or not all(os.path.isfile(os.path.join(ROOT, "cex", s, "perp", "1m.pkl")) for s in SYMBOLS),
-                                reason="chưa có dữ liệu OKX perp BTC/ETH trong kho thật")
+ROOT = DATA_DIR   # gốc dữ liệu (chứa market/okx/catalog); nến thật đọc từ catalog Nautilus, không còn pkl
+pytestmark = pytest.mark.skipif(not all(_has_1m(ROOT, s) for s in SYMBOLS),
+                                reason="chưa có dữ liệu OKX perp BTC/ETH trong catalog thật")
 
 # ba vế: a luôn đúng, b (RSI > 40) đúng phần lớn, c (đóng cửa > EMA20 × 1.15) hiếm -> c là vế chặn
 CODE_3 = """

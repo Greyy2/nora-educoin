@@ -31,7 +31,7 @@ def _restore_data_root():
 @pytest.fixture(autouse=True)
 def _legacy_candidates(monkeypatch):
     """Golden / parity / test cơ chế dùng 9 chiến lược cũ: đăng ký vào book.EXTRA_CANDIDATES (BY_ID tra được, danh mục API không đổi)."""
-    from backend import strategies as sb
+    from backend.alpha import strategies as sb
     from legacy_candidates import LEGACY
     monkeypatch.setattr(sb, "EXTRA_CANDIDATES", list(LEGACY))
 

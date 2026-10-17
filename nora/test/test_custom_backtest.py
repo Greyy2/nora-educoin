@@ -59,7 +59,7 @@ def test_run_reports_everything_with_one_flat_metric_set(market, monkeypatch):
     json.dumps(out, allow_nan=False)                                        # JSON hợp lệ, không NaN
     for key in ("config", "program_hash", "data", "metrics", "yearly", "series", "trades", "positions_open", "by_symbol", "warnings"):
         assert key in out
-    assert "profile" not in out["config"] and out["config"]["run_frame"] == "1m" and out["config"]["symbols"] == ["AAA", "BBB"]
+    assert "profile" not in out["config"] and out["config"]["run_frame"] == "24h" and out["config"]["symbols"] == ["AAA", "BBB"]
     s = out["series"]
     assert len(s["times"]) == len(s["equity"]) == len(s["drawdown"]) == len(s["pnl"]) and s["times"][0] == 1700611200   # 2023-11-22
     assert all(t2 - t1 == 86400 for t1, t2 in zip(s["times"], s["times"][1:]))
@@ -75,7 +75,7 @@ def test_run_reports_everything_with_one_flat_metric_set(market, monkeypatch):
 def test_runs_on_1m_with_perp_and_echoes_position(market):
     from backend.jobs import tasks as custom_run
     out = custom_run.run_custom_backtest(_params(code=CODE_1H, symbols=["AAA", "BBB", "CCC"], initial_capital=10_000,
-                                     position={"risk_per_trade_pct": 0.25}))
+                                     position={"risk_per_trade_pct": 0.25}, run_frame="1m"))
     assert out["config"]["run_frame"] == "1m" and out["config"]["data_symbols"] == ["AAA@perp", "BBB@perp", "CCC@perp"]
     assert out["config"]["position"]["risk_per_trade_pct"] == 0.25
     assert any("mặc định" in w for w in out["warnings"])
@@ -106,7 +106,7 @@ def test_default_universe_and_window_come_from_the_store(market):
 
 
 def test_daily_series_labels_and_returns():
-    from backend.models.params import DAY_MS as DAY
+    from backend.analys.param import DAY_MS as DAY
     from backend.metrics.trades import daily_series
     start = 10 * DAY
     curve = [{"time": start + h * 3_600_000, "equity": 100.0 + h} for h in range(0, 24 * 3)]
@@ -217,7 +217,7 @@ def test_benchmark_aligned_with_strategy_start_and_holds_without_risk_sizing(mar
 
 def test_yearly_table_drops_years_with_fewer_than_two_return_days():
     import pandas as pd
-    from backend.models.params import DAY_MS as DAY
+    from backend.analys.param import DAY_MS as DAY
     from backend.metrics.trades import yearly_table
     start = int(pd.Timestamp("2019-12-31", tz="UTC").value // 1_000_000)
     times = start + np.arange(0, 6) * DAY                    # nhãn 12-31, 01-01 .. 01-05

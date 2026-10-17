@@ -65,9 +65,15 @@ export default function ResultTour({ steps, index, onIndex, onClose }) {
     const below = vh - (rect.top + rect.height) - PAD
     const above = rect.top - PAD
     let top
-    if (below >= h + 12) top = rect.top + rect.height + PAD + 8
-    else if (above >= h + 12) top = rect.top - PAD - 8 - h
-    else top = Math.min(vh - h - 12, Math.max(12, vh - h - 24)) // mục quá cao: popover nằm đáy màn hình, đè lên mép mục
+    if (rect.height > vh * 0.55) {
+      top = Math.max(20, (vh - h) / 2)
+    } else if (below >= h + 12) {
+      top = rect.top + rect.height + PAD + 8
+    } else if (above >= h + 12) {
+      top = rect.top - PAD - 8 - h
+    } else {
+      top = Math.min(vh - h - 12, Math.max(12, vh - h - 24))
+    }
     const left = Math.min(vw - w - 12, Math.max(12, rect.left + Math.min(rect.width, 600) / 2 - w / 2))
     setPos({ left, top })
   }, [rect, index, step])
@@ -75,7 +81,7 @@ export default function ResultTour({ steps, index, onIndex, onClose }) {
   if (!step) return null
   const sp = rect ? { left: rect.left - PAD, top: rect.top - PAD, width: rect.width + 2 * PAD, height: rect.height + 2 * PAD } : null
   return createPortal(
-    <div className="rt-root" role="dialog" aria-modal="false" aria-label="Hướng dẫn đọc kết quả">
+    <div className="rt-root" role="dialog" aria-modal="false" aria-label="Hướng dẫn Studio">
       {sp ? <div className="rt-spot" style={sp} /> : <div className="rt-dim" />}
       <div ref={popRef} className="rt-pop" style={{ left: pos.left, top: pos.top, width: Math.min(POP_W, window.innerWidth - 24) }}>
         <div className="rt-hd"><span className="rt-step">Bước {index + 1}/{steps.length}</span><span className="rt-title">{step.title}</span></div>

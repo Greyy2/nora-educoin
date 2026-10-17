@@ -19,7 +19,7 @@ from backend.alpha.compile import calc, cond, cross_over, f    # noqa: E402
 from backend.alpha.plan import RiskConfig
 from backend.signal.compute import _strategy_flow
 import backend  # noqa: F401  (đăng ký EngineData mặc định)
-from backend.models.params import build_params                  # noqa: E402
+from backend.analys.param import build_params                  # noqa: E402
 from backend.nautilus.engine import BacktestEngine, PortfolioEngine  # noqa: E402
 
 
@@ -91,12 +91,12 @@ def collect() -> dict:
     return {"backtest_engine": case_backtest_engine(), "portfolio_dca": case_portfolio_dca(), "run_many": case_run_many()}
 
 
-def case_signals() -> dict:
-    syms = [
+def case_signals(syms=None, frames=None) -> dict:
+    syms = syms or [
         "BTC@perp", "ETH@perp", "SOL@perp", "BNB@perp", "XRP@perp",
         "DOGE@perp", "ADA@perp", "AVAX@perp", "LINK@perp", "TRX@perp",
     ]
-    frames = ["15m", "1h", "4h"]
+    frames = frames or ["15m", "1h", "4h"]
     out = {}
 
     def _h(arr):

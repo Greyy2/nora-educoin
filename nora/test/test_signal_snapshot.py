@@ -1,7 +1,7 @@
 """Ảnh chụp tín hiệu (core/signals/snapshot.py): cùng đường tính với engine và KHÔNG nhìn tương lai."""
 import numpy as np
 
-from backend.models.params import materialize
+from backend.analys.param import materialize
 from test_strategy_book import T0, _small_book, market  # noqa: F401  (market là fixture)
 
 DAY = 86_400_000

@@ -19,7 +19,7 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from backend.models.params import DEFAULT_CAPITAL, DEFAULT_TRAIN_RATIO, FRAME_MS
+from backend.analys.param import DEFAULT_CAPITAL, DEFAULT_TRAIN_RATIO, FRAME_MS
 from backend.models.storage import NORA_DATA_ROOT, ByteLRU, env_mb, iso_date
 
 logger = logging.getLogger("nora.data")
@@ -135,13 +135,24 @@ def default_catalog_path(data_root: Optional[str] = None) -> str:
 
 
 def default_universe() -> List[str]:
-    """Rổ mặc định = các tài sản perp có nến trong catalog: rổ OKX cố định (UNIVERSE) theo thứ tự chuẩn, rồi tài sản khác (nếu catalog có, vd. dữ liệu thử) theo ABC."""
+    """Rổ mặc định = các tài sản perp có nến trong catalog thuộc rổ cố định (UNIVERSE_BASES).
+    Các coin quét trong universe_scan.json không tự động vào default_universe để bảo vệ backtest/studio mặc định.
+    """
     bar_dir_all = os.path.join(default_catalog_path(), "data", "bar")
     if not os.path.isdir(bar_dir_all):
         return sorted(UNIVERSE_BASES)
     present = {d.split("-")[0].split(".")[0] for d in os.listdir(bar_dir_all) if "1-MINUTE" in d}
-    res = [b for b in UNIVERSE_BASES if b in present] + sorted(present - set(UNIVERSE_BASES))
+    res = [b for b in UNIVERSE_BASES if b in present]
+    if not res and present:
+        return sorted(present)
     return res if res else sorted(UNIVERSE_BASES)
+
+
+def scan_universe(data_root: Optional[str] = None) -> List[str]:
+    """Danh sách các coin quét (từ universe_scan.json); fallback về default_universe nếu chưa có file quét."""
+    from backend.data.crawl import scan_universe_bases
+    bases = scan_universe_bases(data_root)
+    return bases if bases else default_universe()
 
 
 def resolve_symbols(symbols: Optional[List[str]]) -> List[str]:
@@ -401,19 +412,18 @@ CANDLE_COLUMNS = ["open_time", "open", "high", "low", "close", "volume"]
 
 
 def fill_missing_1m_candles(df_1m: pd.DataFrame) -> pd.DataFrame:
-    """Điền khoảng trống 1m: lưới thời gian liên tục từ min_t tới max_t, nến điền có is_filled=1, volume=0."""
+    """Điền khoảng trống 1m vector hoá: lưới thời gian liên tục từ min_t tới max_t, nến điền có is_filled=1, volume=0."""
     if df_1m.empty:
         df_empty = df_1m.copy()
         if "is_filled" not in df_empty.columns:
             df_empty["is_filled"] = 0
         return df_empty
 
-    df = df_1m.copy()
+    df = df_1m
     if "is_filled" in df.columns:
-        df = df[df["is_filled"].fillna(0).astype(int) != 1]
-
-    df = df.sort_values("open_time").drop_duplicates("open_time", keep="last").reset_index(drop=True)
-    df["is_filled"] = 0
+        mask_keep = (df["is_filled"].fillna(0).astype(int) != 1)
+        if not mask_keep.all():
+            df = df[mask_keep]
 
     if df.empty:
         result = df_1m.copy()
@@ -421,26 +431,65 @@ def fill_missing_1m_candles(df_1m: pd.DataFrame) -> pd.DataFrame:
             result["is_filled"] = 0
         return result
 
-    min_t = int(df["open_time"].min())
-    max_t = int(df["open_time"].max())
+    # Sắp xếp và loại bỏ trùng open_time (giữ cuối)
+    df = df.sort_values("open_time").drop_duplicates("open_time", keep="last")
+
+    t_arr = np.asarray(df["open_time"], dtype=np.int64)
+    o_arr = np.asarray(df["open"], dtype=np.float64)
+    h_arr = np.asarray(df["high"], dtype=np.float64)
+    l_arr = np.asarray(df["low"], dtype=np.float64)
+    c_arr = np.asarray(df["close"], dtype=np.float64)
+    v_arr = np.asarray(df["volume"], dtype=np.float64)
+
+    min_t = int(t_arr[0])
+    max_t = int(t_arr[-1])
+    n_bars = (max_t - min_t) // MINUTE_MS + 1
+
+    if len(t_arr) == n_bars:
+        return pd.DataFrame({
+            "open_time": t_arr,
+            "open": o_arr,
+            "high": h_arr,
+            "low": l_arr,
+            "close": c_arr,
+            "volume": v_arr,
+            "is_filled": np.zeros(n_bars, dtype=int),
+        })
 
     full_times = np.arange(min_t, max_t + MINUTE_MS, MINUTE_MS, dtype=np.int64)
-    grid_df = pd.DataFrame({"open_time": full_times})
-    merged = pd.merge(grid_df, df, on="open_time", how="left")
+    out_open = np.empty(n_bars, dtype=np.float64)
+    out_high = np.empty(n_bars, dtype=np.float64)
+    out_low = np.empty(n_bars, dtype=np.float64)
+    out_close = np.empty(n_bars, dtype=np.float64)
+    out_vol = np.zeros(n_bars, dtype=np.float64)
+    out_filled = np.ones(n_bars, dtype=int)
 
-    missing_mask = merged["close"].isna()
-    merged.loc[missing_mask, "is_filled"] = 1
-    merged.loc[~missing_mask, "is_filled"] = 0
-    merged.loc[missing_mask, "volume"] = 0.0
+    idx = ((t_arr - min_t) // MINUTE_MS).astype(np.intp)
+    out_open[idx] = o_arr
+    out_high[idx] = h_arr
+    out_low[idx] = l_arr
+    out_close[idx] = c_arr
+    out_vol[idx] = v_arr
+    out_filled[idx] = 0
 
-    merged["close"] = merged["close"].ffill().bfill()
-    merged.loc[missing_mask, "open"] = merged.loc[missing_mask, "close"]
-    merged.loc[missing_mask, "high"] = merged.loc[missing_mask, "close"]
-    merged.loc[missing_mask, "low"] = merged.loc[missing_mask, "close"]
+    missing_mask = (out_filled == 1)
+    if np.any(missing_mask):
+        s_close = pd.Series(list(out_close), dtype=float)
+        s_close.iloc[missing_mask] = np.nan
+        out_close = s_close.ffill().bfill().to_numpy()
+        out_open[missing_mask] = out_close[missing_mask]
+        out_high[missing_mask] = out_close[missing_mask]
+        out_low[missing_mask] = out_close[missing_mask]
 
-    merged["open_time"] = merged["open_time"].astype(np.int64)
-    merged["is_filled"] = merged["is_filled"].astype(int)
-    return merged
+    return pd.DataFrame({
+        "open_time": full_times,
+        "open": out_open,
+        "high": out_high,
+        "low": out_low,
+        "close": out_close,
+        "volume": out_vol,
+        "is_filled": out_filled,
+    })
 
 
 def resample_from_1m(df_1m: pd.DataFrame, timeframe: str) -> pd.DataFrame:
@@ -484,6 +533,14 @@ def _get_candles_cache() -> ByteLRU:
     return _CANDLES_CACHE
 
 
+def _frame_cache_path(symbol: str, frame: str, digest: str, data_root: Optional[str] = None) -> str:
+    root = data_root or NORA_DATA_ROOT
+    cdir = os.path.join(root, "cache", "frames")
+    os.makedirs(cdir, exist_ok=True)
+    sym_safe = normalize_symbol(symbol).replace("/", "_").replace("-", "_")
+    return os.path.join(cdir, f"{sym_safe}_{frame}_{digest}.npz")
+
+
 def load_candles(
     symbol: str,
     frame: str = "1m",
@@ -497,7 +554,7 @@ def load_candles(
     Tái tạo chính xác cấu trúc dữ liệu nến:
     - 1m catalog -> fill_missing_1m_candles (có cột is_filled).
     - Khung > 1m -> resample_from_1m.
-    - Cache trong bộ nhớ bằng ByteLRU.
+    - Cache trên đĩa (.npz mmap) và trong bộ nhớ bằng ByteLRU.
     """
     norm = normalize_symbol(symbol)
     digest = catalog_digest([norm], data_root)
@@ -509,33 +566,75 @@ def load_candles(
         df_res = cache.get(cache_key)
 
     if df_res is None:
-        # Đệm 1 ngày hai đầu: (a) khung > 1m cần ĐỦ phút của nến cuối cửa sổ (nến mở tại end_ms gồm cả phần sau end_ms); (b) phút thiếu sát hai đầu
-        # cửa sổ vẫn được điền theo giá thật kề bên như khi điền cả lịch sử. Lọc lại đúng [start_ms, end_ms] sau khi dựng.
-        fetch_start = max(0, int(start_ms) - DAY_MS)
-        arr = read_1m(norm, fetch_start, int(end_ms) + DAY_MS, data_root)
-        if len(arr["t"]) == 0:
-            cols = CANDLE_COLUMNS + (["is_filled"] if frame == "1m" else [])
-            return pd.DataFrame(columns=columns or cols)
+        npz_path = _frame_cache_path(norm, frame, digest, data_root)
+        if os.path.isfile(npz_path):
+            try:
+                with np.load(npz_path, mmap_mode="r") as npz:
+                    t = npz["open_time"]
+                    i0 = int(np.searchsorted(t, start_ms, side="left"))
+                    i1 = int(np.searchsorted(t, end_ms, side="right"))
+                    data_dict: Dict[str, Any] = {
+                        "open_time": np.array(t[i0:i1], copy=False),
+                        "open": np.array(npz["open"][i0:i1], copy=False),
+                        "high": np.array(npz["high"][i0:i1], copy=False),
+                        "low": np.array(npz["low"][i0:i1], copy=False),
+                        "close": np.array(npz["close"][i0:i1], copy=False),
+                        "volume": np.array(npz["volume"][i0:i1], copy=False),
+                    }
+                    if "is_filled" in npz.files:
+                        data_dict["is_filled"] = np.array(npz["is_filled"][i0:i1], copy=False)
+                    df_res = pd.DataFrame(data_dict)
+            except Exception as e:
+                logger.warning("Lỗi đọc cache frame %s: %s, dựng lại", npz_path, e)
+                df_res = None
 
-        df_raw = pd.DataFrame({
-            "open_time": arr["t"],
-            "open": arr["o"],
-            "high": arr["h"],
-            "low": arr["l"],
-            "close": arr["c"],
-            "volume": arr["v"],
-            "is_filled": 0,
-        })
-        df_1m_filled = fill_missing_1m_candles(df_raw)
-        if frame == "1m":
-            df_full = df_1m_filled
-        else:
-            df_full = resample_from_1m(df_1m_filled, frame)
+        if df_res is None:
+            # Dựng toàn bộ lịch sử nến từ catalog để lưu cache khung trên đĩa
+            arr = read_1m(norm, 0, 2**62, data_root)
+            if len(arr["t"]) == 0:
+                cols = CANDLE_COLUMNS + (["is_filled"] if frame == "1m" else [])
+                return pd.DataFrame(columns=columns or cols)
 
-        df_res = df_full[(df_full["open_time"] >= start_ms) & (df_full["open_time"] <= end_ms)].reset_index(drop=True)
+            df_raw = pd.DataFrame({
+                "open_time": arr["t"],
+                "open": arr["o"],
+                "high": arr["h"],
+                "low": arr["l"],
+                "close": arr["c"],
+                "volume": arr["v"],
+                "is_filled": 0,
+            })
+            df_1m_filled = fill_missing_1m_candles(df_raw)
+            if frame == "1m":
+                df_full = df_1m_filled
+            else:
+                df_full = resample_from_1m(df_1m_filled, frame)
+
+            try:
+                tmp_path = f"{npz_path}.{os.getpid()}.tmp.npz"
+                save_kwargs = {
+                    "open_time": np.asarray(df_full["open_time"], dtype=np.int64),
+                    "open": np.asarray(df_full["open"], dtype=np.float64),
+                    "high": np.asarray(df_full["high"], dtype=np.float64),
+                    "low": np.asarray(df_full["low"], dtype=np.float64),
+                    "close": np.asarray(df_full["close"], dtype=np.float64),
+                    "volume": np.asarray(df_full["volume"], dtype=np.float64),
+                }
+                if "is_filled" in df_full.columns:
+                    save_kwargs["is_filled"] = np.asarray(df_full["is_filled"], dtype=np.int64)
+                np.savez(tmp_path, **save_kwargs)
+                actual_tmp = tmp_path if os.path.exists(tmp_path) else f"{tmp_path}.npz"
+                os.replace(actual_tmp, npz_path)
+            except Exception as e:
+                logger.warning("Không thể ghi cache frame %s: %s", npz_path, e)
+
+            df_res = df_full[(df_full["open_time"] >= start_ms) & (df_full["open_time"] <= end_ms)].reset_index(drop=True)
+
         if use_cache and df_res is not None:
             mem = df_res.memory_usage(deep=True).sum()
             cache.put(cache_key, df_res, mem)
+    if df_res is None:
+        df_res = pd.DataFrame(columns=columns or CANDLE_COLUMNS)
     if columns is not None:
         avail = [c for c in columns if c in df_res.columns]
         return df_res[avail]
@@ -591,14 +690,14 @@ def benchmark_daily_closes(symbol: str, start_ms: int, end_ms: int) -> pd.Series
         return pd.Series(dtype=float)
     t, c = r
     mask = (t >= start_ms) & (t <= end_ms)
-    idx = pd.to_datetime(t[mask], unit="ms", utc=True)
+    idx = pd.to_datetime(list(t[mask]), unit="ms", utc=True)
     return pd.Series(c[mask], index=idx, name="close")
 
 
-def strategy_frames(symbols: List[str], timeframe: str, end: int, drop_filled: bool = False) -> Dict[str, pd.DataFrame]:
+def strategy_frames(symbols: List[str], timeframe: str, end: int, start_ms: int = 0, drop_filled: bool = False) -> Dict[str, pd.DataFrame]:
     out = {}
     for s in symbols:
-        df = load_candles(s, frame=timeframe, start_ms=0, end_ms=end)
+        df = load_candles(s, frame=timeframe, start_ms=start_ms, end_ms=end)
         if not df.empty:
             if drop_filled and "is_filled" in df.columns:
                 df = df[df["is_filled"] == 0].reset_index(drop=True)
@@ -686,7 +785,7 @@ class EngineData:
         return exec_arrays(symbol, frame, start, end)
 
     def instrument_spec(self, symbol: str) -> Dict[str, Any]:
-        from backend.nautilus.catalog import instrument_spec
+        from backend.core.catalog import instrument_spec
         return instrument_spec(symbol)
 
     def require_ok(self, symbols: List[str]) -> Dict[str, Dict[str, Any]]:
@@ -700,21 +799,21 @@ class EngineData:
 
     def shared_plan(self, eng: Any) -> Optional[Dict[str, Any]]:
         try:
-            from backend.jobs.evaluate import plan
+            from backend.jobs.runner.backtest import plan
             return plan(eng)
         except ImportError:
             return None
 
     def shared_load(self, out_dir: str, plan_dict: Dict[str, Any]) -> Any:
         try:
-            from backend.jobs.evaluate import load
+            from backend.jobs.runner.backtest import load
             return load(out_dir, plan_dict)
         except ImportError:
             return None
 
     def shared_fill(self, out_dir: str, pe: Any, eng: Any, plan_dict: Dict[str, Any]) -> Any:
         try:
-            from backend.jobs.evaluate import fill
+            from backend.jobs.runner.backtest import fill
             return fill(out_dir, pe, eng, plan_dict)
         except ImportError:
             return None

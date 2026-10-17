@@ -7,35 +7,40 @@ Nora Quantitative Backtesting & Live Execution Engine. Python 3.11+ backend (Fas
 
 ## Policy
 
-- Một engine duy nhất: mọi chế độ backtest, paper, testnet, live đều chạy qua `nautilus/engine.py`. Nhanh hơn thì tối ưu trong `optimize/`, tuyệt đối không dựng engine thứ hai.
+- Một engine duy nhất: mọi chế độ backtest, paper, testnet đều chạy qua `nautilus/engine.py`. Nhanh hơn thì tối ưu trong worker / cache, tuyệt đối không dựng engine thứ hai.
 - Mỗi logic một định nghĩa: cấm lặp code logic; gate `p9_ledger --dups` phải bằng 0.
-- Phân tầng nghiêm ngặt: `models` → `alpha`/`metrics`/`wfa`/`carlo` → `crawl` → `optimize` → `routes`. `models`/`alpha/dsl` không làm I/O; `metrics` chỉ tính toán thuần. Gate `test_layering` strict = 0.
-- Chiến lược Python qua Strategy Contract (`alpha/contract.py`) → IR (`alpha/dsl/signal.py`). Xử lý theo 3 trạng thái: RUN | ADAPT | REJECT, không đoán.
-- Cây dữ liệu chuẩn: `data/{market/<sàn>/{cex,dex}, alpha, backtest, wfa, carlo, live/{paper,testnet,live}, cache/{process,shared}}`. Dữ liệu thị trường chỉ dùng `.pkl` có metadata trong attrs. Cache chỉ giữ tiến trình đang chạy hoặc dở dang.
+- Phân tầng nghiêm ngặt: `models` → `signal`, `alpha` → `data` → `metrics`, `carlo` → `wfa`, `nautilus` → `strategies` / `alpha/store` → `jobs` → `routes` → `main`. Phân tầng theo `test_layering.py`.
+- Chiến lược Python qua Strategy Contract (`alpha/contract.py`) → IR/Plan (`alpha/plan.py`). Xử lý theo 3 trạng thái: RUN | ADAPT | REJECT, không đoán.
+- Cây dữ liệu chuẩn: `data/{market/okx/catalog, alpha/{user,education,presets.json}, users, backtest, wfa, carlo}`. Dữ liệu thị trường là ParquetDataCatalog của Nautilus (không còn pkl).
 - Không mock số liệu trong backtest, WFA, Monte Carlo.
-- Golden tests bit-identical: nếu lệch số thì sửa code, không nới ngưỡng test. Khoá API OKX chỉ đọc từ `~/.config/nora/okx.env`. Chế độ live thật bắt buộc có cờ `confirm_live`.
+- Golden tests bit-identical: nếu lệch số thì sửa code, không nới ngưỡng test. Khoá API OKX chỉ đọc từ `~/.config/nora/okx.env`.
 
 ## Where things are
 
-- Engine & dữ liệu: `backend/nautilus/` (engine = NautilusTrader adapter), DSL/IR: `backend/alpha/dsl/`, mô hình & tham số: `backend/models/`
-- Thư viện Alpha & Contract: `backend/alpha/` (các chiến lược định lượng, adapter, kiểm duyệt)
-- Tối ưu hoá & tìm kiếm: `backend/optimize/` (WFA, Monte Carlo, regime, portfolio funnel)
-- Live trading: đã gỡ `backend/live/`; live qua Nautilus TradingNode là việc tương lai (R7)
-- API Routes & Services: `backend/routes/` (5 router chính)
-- Giao diện người dùng: `frontend/` (React, Vite, giao tiếp API backend qua `/api`)
-- Tài liệu BMAD: `docs/bmad/` (kiến trúc `architecture/`, PRD `prd.md`, câu chuyện `stories/`, trạng thái `sprint-status.yaml`)
+- Engine & Adapter: `backend/nautilus/` (engine = NautilusTrader adapter; catalog = nạp/quản lý catalog Parquet)
+- Quản lý Dữ liệu: `backend/data/` (`crawl.py` = kéo nến OKX về catalog; `data.py` = đọc catalog cấp cho engine)
+- Tín hiệu & Chỉ báo: `backend/signal/` (`compute.py`, `nodes.py`, `indicator.py`)
+- Thư viện Alpha & DSL: `backend/alpha/` (`compile.py`, `contract.py`, `plan.py`, `strategies.py`, `store.py`)
+- Mô hình & Cấu hình: `backend/models/` (`models.py`, `params.py`, `position_size.py`, `storage.py`, `meta.py`)
+- Quản trị Job & Vòng đời: `backend/jobs/` (`runner.py`, `tasks.py`, `evaluate.py`)
+- Đo lường & Hiệu suất: `backend/metrics/` (thống kê Nautilus PortfolioAnalyzer, `charts.py`, `trades.py`, `report.py`)
+- Walk-Forward & Monte Carlo: `backend/wfa/`, `backend/carlo/`
+- Người dùng & Phiên: `backend/users.py`, `backend/routes/users.py`
+- API Routes & Services: `backend/routes/` (`alpha.py`, `book.py`, `data.py`, `process.py`, `users.py`, `home.py`)
+- Giao diện người dùng: `frontend/` (React, Vite, 2 hệ thống song song Education / Coin qua `EduLayout` & `CoinLayout`)
+- Tài liệu BMAD: `docs/bmad/`
 - Script kiểm tra & nghiên cứu: `test/scripts/`
 
 ## Running and verifying
 
-- Mọi tiến trình Python nặng phải chạy qua `ops/run_limited.sh` (cgroup slice 12GB RAM limit).
-- Chạy backend FastAPI: `uvicorn backend.routes.app:app --port 18010`
-- Chạy frontend: `cd frontend && npm run dev` (cổng 18011) hoặc build production `npm run build`.
+- Mọi tiến trình Python nặng phải chạy qua `ops/run_limited.sh --no-lock -- <args>` (cgroup slice 12GB RAM limit).
+- Chạy backend FastAPI: `uvicorn backend.main:app --port 18010`
+- Chạy frontend: `cd frontend && npm run dev` (cổng 18011) hoặc build production `cd frontend && npx vite build`.
 - Kiểm tra tính toàn vẹn kiến trúc: `pytest test/test_layering.py` và `python test/scripts/p9_ledger.py --dups`.
 
 ## Conventions that differ from defaults
 
-- UI chỉ là lớp trình bày: backend là nguồn sự thật duy nhất (`/api/studio/meta`). Frontend không tự tính toán số liệu tài chính hoặc giữ logic kinh doanh.
+- UI chỉ là lớp trình bày: backend là nguồn sự thật duy nhất (`/api/studio/meta`, `/api/home/summary`). Frontend không tự tính toán số liệu tài chính hoặc giữ logic kinh doanh.
 - Timeframe và nến: hoàn toàn là nến đã đóng (strictly closed causal bars) để triệt tiêu lookahead bias.
 - Phí, trượt giá, funding rate được trừ thực tế theo từng nến và từng lệnh khớp, không ước lượng đơn giản hoá.
 

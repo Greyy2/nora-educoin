@@ -9,7 +9,7 @@ import AlphaTabs from '../components/alpha/AlphaTabs'
  */
 export default function AlphaLayout() {
   const loc = useLocation()
-  const isCreate = loc.pathname.startsWith('/alpha/create')
+  const isCreate = /^\/(coin\/)?alpha\/create/.test(loc.pathname)
 
   return (
     <div className="n-alpha-layout">

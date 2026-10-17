@@ -20,7 +20,7 @@ export default function EngineWarning({ status, label, bookKey }) {
 
   if (!st || st.needs_rebuild !== true) return null
 
-  const isBotRunning = botQ.data?.running && (botQ.data?.state?.book_kind === (bookKey || 'main') || botQ.data?.book === (bookKey || 'main'))
+  const isBotRunning = botQ.data?.running?.length > 0 && (botQ.data?.state?.book_kind === (bookKey || 'main') || botQ.data?.book === (bookKey || 'main'))
 
   const handleFix = async () => {
     if (!st.fix?.endpoint) return
@@ -54,11 +54,21 @@ export default function EngineWarning({ status, label, bookKey }) {
   return (
     <div className="n-warnbox" role="alert" style={{ marginBottom: 10 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
-        <div>
-          <b>⚠ Cần dựng lại sổ {label || bookKey || ''}.</b> {st.reason}.{' '}
-          <span className="muted">
-            Số trong sổ có thể không còn khớp engine hiện hành ({st.current?.commit ? `commit ${st.current.commit}` : 'hiện tại'}).
-          </span>
+        <div style={{ flex: 1, minWidth: 260 }}>
+          <div style={{ fontSize: 13, fontWeight: 600 }}>
+            ⚠ Cần dựng lại sổ {label || bookKey || ''}
+          </div>
+          <div style={{ fontSize: 12.5, marginTop: 2, color: 'var(--n-ink-2)' }}>
+            Mã nguồn động cơ đã có cập nhật mới ({st.current?.commit ? `commit ${st.current.commit}` : 'bản mới'}). Số liệu trong sổ có thể cần được đồng bộ lại.
+          </div>
+          {st.reason && (
+            <details style={{ marginTop: 4, fontSize: 11.5, opacity: 0.75 }}>
+              <summary style={{ cursor: 'pointer' }}>Chi tiết thay đổi mã nguồn</summary>
+              <div style={{ marginTop: 4, fontFamily: 'var(--n-mono, monospace)', fontSize: 11, wordBreak: 'break-word', padding: '4px 8px', background: 'rgba(0,0,0,0.15)', borderRadius: 4 }}>
+                {st.reason}
+              </div>
+            </details>
+          )}
           {isBotRunning && (
             <div style={{ color: 'var(--n-neg, #ef4444)', marginTop: 4, fontWeight: 500 }}>
               ⚠ Cảnh báo: Bot live đang chạy dùng sổ này!

@@ -9,12 +9,13 @@ import StrategyChoice from '../components/optimize/backtest/StrategyChoice'
 import PresetSummary from '../components/optimize/backtest/PresetSummary'
 import JobPanel from '../components/jobs/JobPanel'
 import DashboardLoader, { PERIODS } from '../components/portfolio/Dashboard'
+import BacktestStats from '../components/portfolio/BacktestStats'
 import WfaResult from '../components/optimize/WfaResult'
 import McResult from '../components/optimize/McResult'
 import useJob from '../hooks/useJob'
 import { useCatalog } from '../meta/MetaProvider'
 import { useMeta } from '../meta/MetaProvider'
-import { postBacktest, postWfa, postMc } from '../api'
+import { postBacktest, postWfa, postMc, getAlphaCatalog } from '../api'
 import ProvenanceBadge from '../components/common/ProvenanceBadge'
 import WarningsPanel from '../components/common/WarningsPanel'
 import ExecModeSelect from '../components/common/ExecModeSelect'
@@ -172,11 +173,183 @@ function TickResultNote({ result }) {
   )
 }
 
+/** Bộ chọn Alpha từ kho có sẵn */
+function AlphaPicker({ onSelect, selectedId, emptyText = 'Không tìm thấy Alpha phù hợp.' }) {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+
+  useEffect(() => {
+    let cancel = false
+    getAlphaCatalog()
+      .then((res) => { if (!cancel) { setData(res); setLoading(false) } })
+      .catch(() => { if (!cancel) setLoading(false) })
+    return () => { cancel = true }
+  }, [])
+
+  const alphas = useMemo(() => {
+    if (!data) return []
+    const list = []
+    ;(data.strategies || []).forEach((s) => {
+      ;(s.alphas || []).forEach((a) => {
+        list.push({
+          id: a.alpha_id || a.leg || `${s.id}_${a.timeframe}_${a.side}`,
+          stratId: s.id,
+          name: `${s.name} (${a.timeframe} · ${a.side})`,
+          stratName: s.name,
+          timeframe: a.timeframe || '15m',
+          side: a.side || s.side || 'LONG',
+          ret_pct: a.ret_pct,
+          mdd_pct: a.mdd_pct,
+          sharpe: a.sharpe,
+          params: a.params || {},
+          book: a.book || 'main',
+          source: 'catalog',
+        })
+      })
+    })
+    ;(data.user_alphas || []).forEach((u) => {
+      const st = u.stats || {}
+      list.push({
+        id: u.id,
+        stratId: u.strategy_id || 'custom',
+        name: u.name || u.id,
+        stratName: u.name || 'Chiến lược người dùng',
+        timeframe: u.timeframe || '15m',
+        side: u.side || 'LONG',
+        ret_pct: st.ret_pct,
+        mdd_pct: st.mdd_pct,
+        sharpe: st.sharpe,
+        params: u.params || {},
+        book: 'user',
+        source: 'user',
+      })
+    })
+    return list
+  }, [data])
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return alphas
+    const q = search.toLowerCase()
+    return alphas.filter((a) => a.name.toLowerCase().includes(q) || a.stratName.toLowerCase().includes(q) || a.id.toLowerCase().includes(q))
+  }, [alphas, search])
+
+  if (loading) return <Loading what="danh sách Alpha" />
+
+  return (
+    <div style={{ display: 'grid', gap: 10 }}>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 4, flexWrap: 'wrap' }}>
+        <input
+          type="text"
+          className="n-in"
+          placeholder="Tìm kiếm Alpha theo tên, chiến lược..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ maxWidth: 300, fontSize: 13, padding: '5px 10px' }}
+        />
+        <span className="n-note" style={{ fontSize: 12 }}>{filtered.length} Alpha khả dụng</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 10 }}>
+        {filtered.map((a) => {
+          const isSel = selectedId === a.id
+          return (
+            <div
+              key={a.id}
+              onClick={() => onSelect(a)}
+              style={{
+                background: isSel ? 'rgba(99,102,241, 0.12)' : 'var(--n-surface, #1e293b)',
+                border: isSel ? '1.5px solid var(--n-accent, #6366f1)' : '1px solid var(--n-line, rgba(255,255,255,0.08))',
+                borderRadius: 8,
+                padding: '10px 12px',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6, gap: 4 }}>
+                <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--n-ink, #f8fafc)', lineHeight: 1.3 }}>{a.name}</span>
+                <span className="n-badge" style={{ fontSize: 10, whiteSpace: 'nowrap' }}>{a.timeframe} · {a.side}</span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, textAlign: 'center', background: 'var(--n-surface-2, rgba(255,255,255,0.03))', padding: '6px 4px', borderRadius: 6, fontSize: 11 }}>
+                <div>
+                  <div style={{ color: 'var(--n-ink-3, #94a3b8)', fontSize: 10 }}>pnl</div>
+                  <div style={{ fontWeight: 600, color: (a.ret_pct ?? 0) >= 0 ? 'var(--n-pos, #10b981)' : 'var(--n-neg, #ef4444)' }}>
+                    {a.ret_pct != null ? fmtSPct(a.ret_pct, 1) : '—'}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ color: 'var(--n-ink-3, #94a3b8)', fontSize: 10 }}>mdd</div>
+                  <div style={{ fontWeight: 600 }}>{a.mdd_pct != null ? fmtPct(a.mdd_pct, 1) : '—'}</div>
+                </div>
+                <div>
+                  <div style={{ color: 'var(--n-ink-3, #94a3b8)', fontSize: 10 }}>sharpe</div>
+                  <div style={{ fontWeight: 600 }}>{a.sharpe != null ? fmtNum(a.sharpe, 2) : '—'}</div>
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      {!filtered.length && <p className="n-note">{emptyText}</p>}
+    </div>
+  )
+}
+
+/** Panel Scan & Gen tham số từ 3 chiến lược cốt lõi */
+function CoreScanGenPanel({ catalog, picks, multi, onPick, onSide, longOnly, onGenerate }) {
+  const [variantsCount, setVariantsCount] = useState(50)
+  const [stepPctRange, setStepPctRange] = useState('1.5 - 3.5')
+  const [layersRange, setLayersRange] = useState('2 - 5')
+  const [genDone, setGenDone] = useState(false)
+
+  const handleGen = () => {
+    setGenDone(true)
+    if (onGenerate) onGenerate({ count: variantsCount, stepRange: stepPctRange, layers: layersRange })
+  }
+
+  return (
+    <div style={{ display: 'grid', gap: 14 }}>
+      <StrategyChoice catalog={catalog} picks={picks} multi={multi} onPick={onPick} onSide={onSide} longOnly={longOnly} />
+      
+      <div style={{ background: 'var(--n-surface-2, rgba(255,255,255,0.03))', padding: '12px 14px', borderRadius: 8, border: '1px solid var(--n-line, rgba(255,255,255,0.08))' }}>
+        <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span>⚡</span> Cấu hình quét / sinh biến thể tham số (Parameter Sweep):
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
+          <Field id="gen-count" label="Số lượng biến thể">
+            <select id="gen-count" className="n-sel" value={variantsCount} onChange={(e) => { setVariantsCount(Number(e.target.value)); setGenDone(false) }}>
+              <option value={20}>20 biến thể</option>
+              <option value={50}>50 biến thể</option>
+              <option value={100}>100 biến thể (Chuẩn P19)</option>
+            </select>
+          </Field>
+          <Field id="gen-step" label="Khoảng bước giá (Step %)">
+            <input id="gen-step" className="n-in" value={stepPctRange} onChange={(e) => { setStepPctRange(e.target.value); setGenDone(false) }} placeholder="1.2 - 3.5" />
+          </Field>
+          <Field id="gen-layers" label="Số tầng tối đa (Layers)">
+            <input id="gen-layers" className="n-in" value={layersRange} onChange={(e) => { setLayersRange(e.target.value); setGenDone(false) }} placeholder="2 - 5" />
+          </Field>
+        </div>
+        <div style={{ marginTop: 10, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button type="button" className="n-btn primary sm" onClick={handleGen}>
+            ⚡ Quét & Sinh biến thể Alpha
+          </button>
+          {genDone && <span className="n-badge ok" style={{ fontSize: 12 }}>Đã sinh {variantsCount} biến thể tham số sẵn sàng kiểm định ✓</span>}
+          <span className="n-note" style={{ fontSize: 12 }}>
+            Quét không gian tham số và tự động sinh ra các cấu hình Alpha tiềm năng để backtest.
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function StepBacktest({ cat, strats, sc, form, setForm, btId, bt, onLaunched, onNext }) {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(null)
   const [runErr, setRunErr] = useState(null) // { per, general } từ 422 của lần chạy gần nhất
   const [period, setPeriod] = useState('ALL')
+  const [stratMode, setStratMode] = useState('catalog')
+  const [selectedAlphaId, setSelectedAlphaId] = useState('')
   const { meta } = useMeta()
   const dataUniverse = meta?.universe?.data?.assets || cat.universe || []
   const bookUniverse = meta?.universe?.book || []
@@ -306,19 +479,73 @@ function StepBacktest({ cat, strats, sc, form, setForm, btId, bt, onLaunched, on
   const applyBook = () => { const sel = selFromList(cat.book?.strategies, strats.byId); setForm({ multi: Object.keys(picksFromLegs(Object.keys(sel), sc.list)).length > 1, sel }) }
   const symOpts = form.symbols[0] && !isDex && !universe.includes(form.symbols[0]) ? [form.symbols[0], ...universe] : universe
 
+  const handlePickAlpha = (alpha) => {
+    setSelectedAlphaId(alpha.id)
+    const stratEntry = sc.list.find((c) => c.id === alpha.stratId || Object.values(c.legs || {}).includes(alpha.stratId)) || sc.list[0]
+    if (stratEntry) {
+      const defSide = alpha.side === 'SHORT' ? 'SHORT' : alpha.side === 'BOTH' ? 'BOTH' : 'LONG'
+      let sel = applySide({}, stratEntry, defSide, strats.byId)
+      if (alpha.params && Object.keys(alpha.params).length > 0) {
+        Object.keys(sel).forEach((legId) => {
+          sel[legId] = { ...sel[legId], ...alpha.params }
+        })
+      }
+      setForm({
+        sel,
+        timeframe: alpha.timeframe || form.timeframe,
+        risk: basicRisk(sel, strats.byId),
+      })
+    }
+  }
+
   return (
     <>
-      <Panel title="Chọn chiến lược" meta={multi ? (
-        <>
-          <button type="button" className="n-btn sm" onClick={applyBook} disabled={!bookOk} title={bookOk ? undefined : 'Sổ hiện tại dùng chiến lược cũ, không nạp được'}>Dùng sổ hiện tại</button>
-          <button type="button" className="n-btn sm" onClick={() => setForm({ sel: {} })} disabled={!nSel}>Bỏ chọn</button>
-          <span className="mono">{nStrat} đã chọn</span>
-        </>
-      ) : null}>
-        <StrategyChoice catalog={sc.list} picks={picks} multi={multi} onPick={pickStrategy} onSide={pickSide} longOnly={isDex} />
+      <div style={{ marginBottom: 14 }}>
+        <Segmented
+          label="Chế độ chọn chiến lược"
+          value={stratMode}
+          onChange={(m) => setStratMode(m)}
+          options={[
+            { value: 'catalog', label: '1. Chọn từ các Alpha có sẵn' },
+            { value: 'scan_gen', label: '2. Scan / Gen tham số từ 3 chiến lược cốt lõi' },
+          ]}
+        />
+      </div>
+
+      <Panel
+        title={stratMode === 'catalog' ? 'Kho Alpha có sẵn' : '3 Chiến lược cốt lõi'}
+        meta={multi ? (
+          <>
+            <button type="button" className="n-btn sm" onClick={applyBook} disabled={!bookOk} title={bookOk ? undefined : 'Sổ hiện tại dùng chiến lược cũ, không nạp được'}>Dùng sổ hiện tại</button>
+            <button type="button" className="n-btn sm" onClick={() => { setForm({ sel: {} }); setSelectedAlphaId('') }} disabled={!nSel}>Bỏ chọn</button>
+            <span className="mono">{nStrat} đã chọn</span>
+          </>
+        ) : (
+          nSel > 0 ? <button type="button" className="n-btn sm" onClick={() => { setForm({ sel: {} }); setSelectedAlphaId('') }}>Bỏ chọn ({nStrat})</button> : null
+        )}
+      >
+        {stratMode === 'catalog' ? (
+          <AlphaPicker onSelect={handlePickAlpha} selectedId={selectedAlphaId} />
+        ) : (
+          <CoreScanGenPanel
+            catalog={sc.list}
+            picks={picks}
+            multi={multi}
+            onPick={pickStrategy}
+            onSide={pickSide}
+            longOnly={isDex}
+          />
+        )}
       </Panel>
 
-      {!nSel && <p className="n-note" style={{ marginTop: 12 }}>Chọn một chiến lược để xem tham số và thiết lập phạm vi chạy.</p>}
+      {!nSel && (
+        <div style={{ padding: '24px 16px', textAlign: 'center', background: 'var(--n-surface-2, rgba(255,255,255,0.02))', borderRadius: 8, border: '1px dashed var(--n-line, rgba(255,255,255,0.12))', marginTop: 12 }}>
+          <div style={{ fontWeight: 600, color: 'var(--n-ink, #f8fafc)', fontSize: 14, marginBottom: 4 }}>Chưa chọn chiến lược hoặc Alpha</div>
+          <div className="n-note" style={{ maxWidth: 520, margin: '0 auto', fontSize: 12.5, lineHeight: 1.5 }}>
+            Vui lòng bấm chọn một Alpha có sẵn ở danh sách phía trên hoặc chuyển sang chế độ Scan / Gen tham số để bắt đầu kiểm định.
+          </div>
+        </div>
+      )}
 
       {nSel > 0 && (
         <div className="n-grid g-main-side" style={{ marginTop: 12 }}>
@@ -531,18 +758,9 @@ function StepBacktest({ cat, strats, sc, form, setForm, btId, bt, onLaunched, on
 
       {btId && bt.status === 'done' && (
         <div style={{ marginTop: 12 }}>
-          <div className="n-page-h" style={{ marginBottom: 8 }}>
-            <div className="n-ctrls">
-              <Segmented label="Kỳ xem" value={period} onChange={setPeriod} options={PERIODS} />
-            </div>
-            <Link className="n-btn" to="/portfolio" onClick={() => { try { localStorage.setItem('nora-v2-portfolio', JSON.stringify({ jobId: btId, period })) } catch (e) { /* bỏ qua */ } }}>
-              Mở trên Danh mục ↗
-            </Link>
-          </div>
           <ProvenanceBadge provenance={bt.job?.result?.provenance} style={{ marginLeft: 0 }} />
           <WarningsPanel warnings={bt.job?.result?.warnings} />
           <TickResultNote result={bt.job?.result} />
-          <DashboardLoader jobId={btId} period={period} compact />
         </div>
       )}
     </>
@@ -746,11 +964,39 @@ function StepWfaInner({ cat, strats, form, setForm, wfaId, wfa, onLaunched, onNe
   )
 }
 
-function StepWfa({ cat, strats, form, setForm, wfaId, wfa, onLaunched, onNext }) {
+function StepWfa({ cat, strats, sc, form, setForm, wfaId, wfa, onLaunched, onNext }) {
   const { meta } = useMeta()
   const wfaStd = getWfaStd(meta)
   if (!wfaStd) return <Loading what="cấu hình chuẩn walk-forward" />
-  return <StepWfaInner cat={cat} strats={strats} form={form} setForm={setForm} wfaId={wfaId} wfa={wfa} onLaunched={onLaunched} onNext={onNext} meta={meta} wfaStd={wfaStd} />
+  const ids = Object.keys(form.sel)
+
+  return (
+    <>
+      {!ids.length && (
+        <Panel title="Chọn Alpha để cấu hình Walk-forward (WFA)">
+          <p className="n-note" style={{ marginBottom: 12 }}>
+            Bạn chưa chọn chiến lược nào từ bước 1. Hãy bấm chọn một Alpha đã backtest bên dưới để nạp cấu hình và tiếp tục WFA:
+          </p>
+          <AlphaPicker
+            onSelect={(alpha) => {
+              const stratEntry = sc?.list?.find((c) => c.id === alpha.stratId || Object.values(c.legs || {}).includes(alpha.stratId)) || sc?.list?.[0]
+              if (stratEntry) {
+                const defSide = alpha.side === 'SHORT' ? 'SHORT' : alpha.side === 'BOTH' ? 'BOTH' : 'LONG'
+                let sel = applySide({}, stratEntry, defSide, strats.byId)
+                if (alpha.params && Object.keys(alpha.params).length > 0) {
+                  Object.keys(sel).forEach((legId) => {
+                    sel[legId] = { ...sel[legId], ...alpha.params }
+                  })
+                }
+                setForm({ sel, timeframe: alpha.timeframe || form.timeframe, risk: basicRisk(sel, strats.byId) })
+              }
+            }}
+          />
+        </Panel>
+      )}
+      <StepWfaInner cat={cat} strats={strats} form={form} setForm={setForm} wfaId={wfaId} wfa={wfa} onLaunched={onLaunched} onNext={onNext} meta={meta} wfaStd={wfaStd} />
+    </>
+  )
 }
 
 /* --------------------------- Bước 3: Monte Carlo --------------------------- */
@@ -762,7 +1008,7 @@ function mcCheck(spec, v) {
   return null
 }
 
-function StepMcInner({ wfaId, form, setForm, meta, mcStd, stressScenarios, stressAll }) {
+function StepMcInner({ wfaId, form, setForm, meta, mcStd, stressScenarios, stressAll, onSelectWfa, sc, strats }) {
   const mode = form.mode
   const adv = mode === 'advanced'
   const [f, setF] = useState(() => ({ ...mcStd, extra_cost_daily_pct: '', stress: stressAll, basis: 'extreme' }))
@@ -772,7 +1018,7 @@ function StepMcInner({ wfaId, form, setForm, meta, mcStd, stressScenarios, stres
   const [res, setRes] = useState(null)
   const set = (p) => { setSrvErr({}); setF((x) => ({ ...x, ...p })) }
 
-    const mcFields = useMemo(() => [
+  const mcFields = useMemo(() => [
     { k: 'simulations', spec: bookMcSpec(meta, 'simulations', 'int', { step: 1000 }), std: mcStd.simulations, cust: true },
     { k: 'block_days', spec: bookMcSpec(meta, 'block_days', 'int'), std: mcStd.block_days },
     { k: 'horizon_days', spec: bookMcSpec(meta, 'horizon_days', 'int'), std: mcStd.horizon_days },
@@ -794,6 +1040,7 @@ function StepMcInner({ wfaId, form, setForm, meta, mcStd, stressScenarios, stres
 
   async function run() {
     setErr(null); setSrvErr({})
+    if (!wfaId) return setErr('Vui lòng chọn một Alpha hoặc phiên WFA bên trên để chạy Monte Carlo.')
     if (hasErr) return setErr('Còn ô nhập không hợp lệ: xem các ô báo đỏ.')
     setBusy(true)
     try {
@@ -814,6 +1061,25 @@ function StepMcInner({ wfaId, form, setForm, meta, mcStd, stressScenarios, stres
   const toggleStress = (n) => set({ stress: f.stress.includes(n) ? f.stress.filter((x) => x !== n) : stressAll.filter((x) => x === n || f.stress.includes(x)) })
   return (
     <>
+      {!wfaId && (
+        <Panel title="Chọn Alpha để mô phỏng Monte Carlo">
+          <p className="n-note" style={{ marginBottom: 12 }}>
+            Bạn có thể chọn một Alpha đã kiểm định bên dưới để cài đặt và chạy mô phỏng rủi ro phá sản bằng Monte Carlo:
+          </p>
+          <AlphaPicker
+            onSelect={(alpha) => {
+              const stratEntry = sc?.list?.find((c) => c.id === alpha.stratId || Object.values(c.legs || {}).includes(alpha.stratId)) || sc?.list?.[0]
+              if (stratEntry) {
+                const defSide = alpha.side === 'SHORT' ? 'SHORT' : alpha.side === 'BOTH' ? 'BOTH' : 'LONG'
+                let sel = applySide({}, stratEntry, defSide, strats?.byId || {})
+                setForm({ sel, timeframe: alpha.timeframe || form.timeframe })
+              }
+              if (onSelectWfa) onSelectWfa(alpha.id)
+            }}
+          />
+        </Panel>
+      )}
+
       <ModeSwitch mode={mode} onChange={(m) => setForm({ mode: m })} />
       <Panel title={<>Cấu hình <Term k="mc">Monte Carlo</Term> (<Term k="bootstrap">bootstrap theo khối</Term>, mark-to-market ngày)</>}>
         <div className="n-form-row">
@@ -852,7 +1118,7 @@ function StepMcInner({ wfaId, form, setForm, meta, mcStd, stressScenarios, stres
         )}
         <div className="n-sticky-actions">
           <button type="button" className="n-btn primary" onClick={run} disabled={busy || hasErr} title={hasErr ? 'Sửa các ô báo đỏ' : undefined}>{busy ? <Spinner /> : null} Chạy Monte Carlo</button>
-          <span className="mono muted">từ WFA {wfaId}</span>
+          {wfaId && <span className="mono muted">từ WFA {wfaId}</span>}
           <ErrorBox>{err}</ErrorBox>
         </div>
       </Panel>
@@ -869,14 +1135,14 @@ function StepMcInner({ wfaId, form, setForm, meta, mcStd, stressScenarios, stres
   )
 }
 
-function StepMc({ wfaId, wfa, form, setForm }) {
+function StepMc({ wfaId, wfa, form, setForm, onSelectWfa, sc, strats }) {
   const { meta } = useMeta()
   const mcStd = getMcStd(meta)
   const stressScenarios = useMemo(() => getStressScenarios(meta), [meta])
   const stressAll = useMemo(() => stressScenarios.map((s) => s.name), [stressScenarios])
 
   if (!mcStd) return <Loading what="cấu hình chuẩn Monte Carlo" />
-  return <StepMcInner wfaId={wfaId} form={form} setForm={setForm} meta={meta} mcStd={mcStd} stressScenarios={stressScenarios} stressAll={stressAll} />
+  return <StepMcInner wfaId={wfaId} form={form} setForm={setForm} meta={meta} mcStd={mcStd} stressScenarios={stressScenarios} stressAll={stressAll} onSelectWfa={onSelectWfa} sc={sc} strats={strats} />
 }
 
 /* --------------------------------- Trang --------------------------------- */
@@ -903,12 +1169,12 @@ export default function Backtest() {
   }
   const setForm = (p) => setFormRaw((f) => ({ ...f, ...p }))
 
-  // khởi tạo form từ danh mục + preset + dữ liệu truyền từ trang Alpha (có tham số riêng -> chế độ Nâng cao)
+  // khởi tạo form từ danh mục + preset + dữ liệu truyền từ trang Alpha (nếu không có prefill: neutral state)
   useEffect(() => {
     if (!cat || !strats.list.length || !sc.list.length || form) return
     const pre = readPrefill(location, sp)
     const w = cat.windows || {}
-    const sel = selFromList(pre?.strategies, strats.byId)
+    const sel = pre?.strategies ? selFromList(pre.strategies, strats.byId) : {}
     if (pre) seeded.current = true
     const customPre = !!pre?.strategies?.some((s) => s.params && Object.keys(s.params).length)
     const symbols = pre?.symbols || defaultSymbols(dataUniverse.length ? dataUniverse : (cat.universe || []))
@@ -942,21 +1208,22 @@ export default function Backtest() {
   }, [bt.job, form, cat, sc.list]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const btDone = bt.status === 'done'
-  const dexRun = !!form?.symbols?.some(isDexSym)
   const wfaDone = wfa.status === 'done'
-  const step = stepQ >= 3 && wfaDone ? 3 : stepQ >= 2 && (btDone || !!wfaId) ? 2 : 1  // link ?wfa=…&step=2 mở thẳng bước 2
+  const step = Math.min(3, Math.max(1, stepQ || 1))
 
   const steps = useMemo(() => [
     { n: 1, title: 'Backtest', st: bt.status ? (JOB_STATUS[bt.status]?.text || 'Đang tải') : 'Chưa chạy', locked: false, done: btDone },
-    { n: 2, title: 'Walk-forward (WFA)', st: dexRun && !wfaId ? 'Chưa hỗ trợ DEX' : !btDone && !wfaId ? 'Mở khoá sau backtest' : wfa.status ? (JOB_STATUS[wfa.status]?.text || 'Đang tải') : 'Chưa chạy', locked: (!btDone && !wfaId) || (dexRun && !wfaId), done: wfaDone },
-    { n: 3, title: 'Monte Carlo', st: !wfaDone ? 'Mở khoá sau WFA' : 'Sẵn sàng', locked: !wfaDone, done: false },
-  ], [bt.status, wfa.status, btDone, wfaDone, wfaId, dexRun])
+    { n: 2, title: 'Walk-forward (WFA)', st: wfa.status ? (JOB_STATUS[wfa.status]?.text || 'Đang tải') : (wfaId ? 'Đã liên kết' : 'Sẵn sàng'), locked: false, done: wfaDone },
+    { n: 3, title: 'Monte Carlo', st: 'Sẵn sàng', locked: false, done: false },
+  ], [bt.status, wfa.status, btDone, wfaDone, wfaId])
 
   const ready = cat && form && strats.list.length > 0 && sc.list.length > 0
   return (
     <>
       <PageHead kicker="Một vòng kiểm chứng" title="Backtest"
-        subtitle="Chọn một chiến lược, chạy backtest, kiểm tra out-of-sample bằng walk-forward, rồi mô phỏng Monte Carlo để đo rủi ro phá sản. Mỗi bước mở khoá sau khi bước trước chạy xong." />
+        subtitle="Chọn một Alpha hoặc chiến lược cốt lõi, chạy kiểm định, kiểm tra out-of-sample bằng Walk-forward và mô phỏng Monte Carlo để đo lường rủi ro." />
+
+      {/* 1. Thanh các bước: 3 bước mở khoá trực tiếp */}
       <div className="n-stepper" role="tablist" aria-label="Các bước">
         {steps.map((s) => (
           <button key={s.n} type="button" role="tab" aria-selected={step === s.n} disabled={s.locked}
@@ -977,10 +1244,18 @@ export default function Backtest() {
           onLaunched={(id) => patch({ job: id, wfa: null, step: 1 })} onNext={() => patch({ step: 2 })} />
       )}
       {ready && step === 2 && (
-        <StepWfa key={btId} cat={cat} strats={strats} form={form} setForm={setForm} wfaId={wfaId} wfa={wfa}
+        <StepWfa key={btId} cat={cat} strats={strats} sc={sc} form={form} setForm={setForm} wfaId={wfaId} wfa={wfa}
           onLaunched={(id) => patch({ wfa: id, step: 2 })} onNext={() => patch({ step: 3 })} />
       )}
-      {ready && step === 3 && <StepMc key={wfaId} wfaId={wfaId} wfa={wfa} form={form} setForm={setForm} />}
+      {ready && step === 3 && (
+        <StepMc key={wfaId} wfaId={wfaId} wfa={wfa} form={form} setForm={setForm} onSelectWfa={(id) => patch({ wfa: id })} sc={sc} strats={strats} />
+      )}
+
+      {/* 2. Thống kê kết quả ngay bên dưới */}
+      <div style={{ marginTop: 28, paddingTop: 18, borderTop: '1px solid var(--n-line, rgba(255,255,255,0.08))' }}>
+        <h3 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 600 }}>Thống kê kết quả backtest</h3>
+        <BacktestStats activeJobId={btDone ? btId : ''} />
+      </div>
     </>
   )
 }

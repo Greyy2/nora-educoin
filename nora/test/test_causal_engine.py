@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 
 from backend.nautilus.engine import BacktestEngine
-from backend.models.params import StrategyParams
+from backend.analys.param import StrategyParams
 from backend.models.models import PositionStatus
 from data_helpers import FrameData
 

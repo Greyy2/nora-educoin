@@ -1,4 +1,4 @@
-"""Nạp bots/summary, dựng BASKET theo (bot, sym, side), nạp nến 1m (data/cache/process/_staging/cex).
+"""Nạp bots/summary, dựng BASKET theo (bot, sym, side), nạp nến 1m từ catalog (backend.data.data.read_1m).
 
 Định nghĩa basket (khớp analyze.py: trường bk/add):
   với mỗi (sym, side), sắp sub-position theo thời điểm mở o; một sub-position thuộc basket hiện tại nếu
@@ -14,7 +14,6 @@ import pandas as pd
 
 BOTS_JSON = "/home/vmc03/norabt/none/okx-top10/bots.json"
 SUMMARY_JSON = "/home/vmc03/norabt/none/okx-top10/summary.json"
-CANDLE_DIR = os.environ.get("NORA_OKX_CEX_DATA", "/home/vmc03/norabt/nora/data/market/okx/cex")
 MIN = 60_000
 
 
@@ -102,10 +101,15 @@ def load_candles(sym):
     """DataFrame 1m đầy đủ của sym (cache), hoặc None nếu thiếu file. Cột: open_time,open,high,low,close,volume."""
     if sym in _CANDLES:
         return _CANDLES[sym]
-    p = os.path.join(CANDLE_DIR, sym, "perp", "1m.pkl")
+    import sys
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
+    from backend.data.data import CatalogError, read_1m   # nến 1m từ catalog Nautilus (thay pkl cex)
     df = None
-    if os.path.exists(p):
-        df = pd.read_pickle(p).sort_values("open_time").reset_index(drop=True)
+    try:
+        a = read_1m(f"{sym}@perp")
+        df = pd.DataFrame({"open_time": a["t"], "open": a["o"], "high": a["h"], "low": a["l"], "close": a["c"], "volume": a["v"]})
+    except CatalogError:
+        pass
     _CANDLES[sym] = df
     return df
 

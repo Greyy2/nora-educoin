@@ -15,7 +15,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from backend.routes import alpha
-from backend import strategies as strategy_doc, strategies as user_alphas
+from backend.alpha import strategies as strategy_doc, strategies as user_alphas
 from backend.alpha.compile import compile_code
 
 pytestmark = pytest.mark.usefixtures("synthetic_data")   # P15: engine Nautilus lấy nến thực thi + spec từ DataSource; dữ liệu giả lập -> conftest.synthetic_data

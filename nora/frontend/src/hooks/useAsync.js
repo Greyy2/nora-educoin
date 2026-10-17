@@ -1,15 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { subscribeResource, invalidateResource } from '../lib/bus'
 
-export { invalidateResource as invalidate }
+export { invalidateResource, invalidateResource as invalidate }
+
+const RESOURCE_CACHE = new Map()
 
 /**
  * useResource(key, fetcher, { poll, deps }):
  * Hook nạp tài nguyên theo khoá key, tự động lắng nghe invalidate(key) để làm mới.
+ * Có cơ chế SWR (Stale-While-Revalidate): nếu có cache thì trả về ngay lập tức (0ms),
+ * không làm màn hình bị chớp loading / giật lag khi chuyển đổi view.
  * Trả về { data, loading, error, reload }.
  */
 export function useResource(key, fn, { poll, deps = [] } = {}) {
-  const [st, setSt] = useState({ data: null, loading: !!fn, error: null })
+  const cached = key && RESOURCE_CACHE.has(key) ? RESOURCE_CACHE.get(key) : null
+  const [st, setSt] = useState({
+    data: cached ? cached.data : null,
+    loading: cached ? false : !!fn,
+    error: null,
+  })
   const seq = useRef(0)
   const timer = useRef(null)
   const fnRef = useRef(fn)
@@ -26,10 +35,13 @@ export function useResource(key, fn, { poll, deps = [] } = {}) {
       return
     }
     const my = ++seq.current
-    if (!silent) setSt((s) => ({ ...s, loading: true, error: null }))
+    const hasCache = key && RESOURCE_CACHE.has(key)
+    const isSilent = silent || hasCache
+    if (!isSilent) setSt((s) => ({ ...s, loading: true, error: null }))
     f().then(
       (data) => {
         if (my !== seq.current) return
+        if (key) RESOURCE_CACHE.set(key, { data, ts: Date.now() })
         setSt({ data, loading: false, error: null })
         const ms = pollRef.current ? pollRef.current(data) : 0
         polling.current = !!ms
@@ -45,10 +57,10 @@ export function useResource(key, fn, { poll, deps = [] } = {}) {
       },
       (e) => {
         if (my !== seq.current) return
-        setSt((s) => ({ data: silent ? s.data : null, loading: false, error: e.message || String(e) }))
+        setSt((s) => ({ data: isSilent ? s.data : null, loading: false, error: e.message || String(e) }))
       }
     )
-  }, [])
+  }, [key])
 
   useEffect(() => {
     run(false)
@@ -63,6 +75,7 @@ export function useResource(key, fn, { poll, deps = [] } = {}) {
     if (!key) return undefined
     const handler = (pattern) => {
       if (pattern === 'all' || pattern === key || (typeof key === 'string' && key.startsWith(pattern))) {
+        if (key) RESOURCE_CACHE.delete(key)
         run(true)
       }
     }

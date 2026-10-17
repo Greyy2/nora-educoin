@@ -141,7 +141,7 @@ def test_ephemeral_lru_bounded_and_enforce_lifecycle_on_start(home, monkeypatch)
     assert bj.ephemeral_gone(ids[0]) and not bj.ephemeral_gone(ids[2]) and not bj.ephemeral_gone("20261007_999999_ffffff")
     from fastapi.testclient import TestClient
     from backend.main import app
-    from backend import strategies as reg
+    from backend.alpha import strategies as reg
     c = TestClient(app)
     r = c.get(f"/api/studio/book/jobs/{ids[0]}")
     assert r.status_code == 410 and r.json()["detail"]["code"] == "EPHEMERAL_GONE"

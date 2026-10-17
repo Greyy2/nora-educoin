@@ -8,12 +8,9 @@ After=network.target
 Slice=nora.slice
 WorkingDirectory=@NORA_DIR@
 EnvironmentFile=-%h/.config/nora/nora.env
-Environment=PYTHONPATH=@NORA_DIR@ PYTHONDONTWRITEBYTECODE=1 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NORA_CANDLE_CACHE_MB=512 NORA_DATA_CACHE_MB=512 NORA_API_HOST=0.0.0.0 NORA_API_PORT=18010
-ExecStart=@NORA_PYTHON@ -m uvicorn backend.main:app --host ${NORA_API_HOST} --port ${NORA_API_PORT}
-CPUAffinity=0-13
-Nice=5
-MemoryMax=3G
-MemoryHigh=2700M
+Environment=PYTHONPATH=@NORA_DIR@ PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NORA_CANDLE_CACHE_MB=512 NORA_DATA_CACHE_MB=512
+ExecStart=@NORA_PYTHON@ -m uvicorn backend.main:app --host 0.0.0.0 --port 18010
+Nice=0
 MemorySwapMax=0
 Restart=on-failure
 RestartSec=5

@@ -136,7 +136,7 @@ def test_vector_evaluator_matches_scalar_on_random_asts():
 
 def _engine(df1, match, stop=None, **pos):
     from backend.nautilus.engine import BacktestEngine
-    from backend.models.params import build_params
+    from backend.analys.param import build_params
     eng = BacktestEngine(0, 0, "T", int(df1.open_time.min()), int(df1.open_time.max()),
                          initial_capital=pos.pop("capital", 10000.0), data=FrameData({"T": df1}))   # nến thực thi = chính df1 (DataSource)
     flow_type = pos.pop("side", "LONG")
@@ -158,7 +158,7 @@ def _engine(df1, match, stop=None, **pos):
 
 
 def test_higher_frame_kernel_visible_only_after_close():
-    from backend.models.params import FRAME_MS
+    from backend.analys.param import FRAME_MS
     df = _ohlcv(3000, seed=4)
     eng = _engine(df, [[[{"frame": "15m", "column": "rsi_14"}, ">", -1]]])
     frame_df, cols = eng._build_matrix()
@@ -339,7 +339,7 @@ def test_spot_rejects_short_and_leverage():
 
 
 def test_dex_perp_rejected_and_venue_fees():
-    from backend.models.params import resolve_costs
+    from backend.analys.param import resolve_costs
     assert resolve_costs("cex", "spot", None, None) == (0.001, 0.001, 0.0)   # P15-D: trượt giá mặc định 0 (Nautilus không mô phỏng trượt giá %; core/params.py::VENUE_COSTS)
     assert resolve_costs("cex", "perp", None, None) == (0.0005, 0.0002, 0.0)  # Binance USDT-M VIP0; trượt 0 như trên
     assert resolve_costs("dex", "spot", None, None) == (0.003, 0.003, 0.001)

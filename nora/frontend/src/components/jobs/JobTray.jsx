@@ -66,7 +66,7 @@ export default function JobTray() {
               )
             })}
           </ul>
-          <div className="n-pop-f"><Link to="/history">Xem toàn bộ lịch sử chạy →</Link></div>
+          <div className="n-pop-f"><Link to="/coin/history">Xem toàn bộ lịch sử chạy →</Link></div>
         </div>
       )}
     </div>

@@ -2,7 +2,7 @@
 import backend  # noqa: F401  (đăng ký nguồn dữ liệu cho build_plan)
 from backend.alpha.compile import annotate_report, compile_code, explain_program
 from backend.alpha.plan import build_plan
-from backend.models.params import BASE_POSITION, materialize, resolve_position_auto
+from backend.analys.param import BASE_POSITION, materialize, resolve_position_auto
 
 CODE = '''class S(SimpleAlgorithm):
     timeframe = "{tf}"
@@ -51,7 +51,8 @@ def test_plan_1h_same_as_old_default():
 
 
 def test_plan_explicit_unchanged():
-    pos = build_plan(_prog("24h", '    atr_frame = "4h"\n    cooldown = 0\n'), ["BTC@perp"]).strategies[0]["position"]
+    # B7: chiến lược 24h có atr_frame="4h" cần chạy ở khung <= 4h (ở đây truyền run_frame="1m" / Chuẩn)
+    pos = build_plan(_prog("24h", '    atr_frame = "4h"\n    cooldown = 0\n'), ["BTC@perp"], run_frame="1m").strategies[0]["position"]
     assert (pos["atr_frame"], pos["cooldown"]) == ("4h", 0)
 
 

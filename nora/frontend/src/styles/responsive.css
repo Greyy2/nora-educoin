@@ -39,7 +39,6 @@
 /* ---------- laptop nhỏ / tablet ngang ≤1280 ---------- */
 @media (max-width: 1280px) {
   .v2 .g-main-side, .v2 .g-table-ev { grid-template-columns: minmax(0, 1fr) 320px; }
-  .v2 .se-name { flex-basis: 160px; width: 160px; }
 }
 
 /* ---------- tablet ≤1024 ---------- */
@@ -119,7 +118,7 @@
   .v2 .se-rtabs button { font-size: 13px; white-space: nowrap; }
   .v2 .se-rbody { padding: 12px 10px 20px; }
   .v2 .se-cards { grid-template-columns: minmax(0, 1fr); }
-  .v2 .se-tabs { height: 40px; }
+  :root { --se-hd-h: 40px; }
 }
 
 /* màn hình rất hẹp ≤380 */

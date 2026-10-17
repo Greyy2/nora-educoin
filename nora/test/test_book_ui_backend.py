@@ -67,7 +67,7 @@ def test_catalog_default_params_universe_windows(client, tmp_path):
 def test_default_params_match_run_book_backtest_mid_params():
     import importlib.util
     from backend.jobs import evaluate as mod   # P9.6: thư viện run.py nằm ở search/evaluate.py
-    from backend.strategies import CANDIDATES
+    from backend.alpha.strategies import CANDIDATES
     for c in CANDIDATES:
         assert optimize.default_params(c["space"]) == mod._mid_params(c, {})
 
@@ -192,7 +192,7 @@ def test_validate_book_strategies_validation(market, monkeypatch, tmp_path):
 
 # ─── P9.15: engine_version của sổ + needs_rebuild; P9.14: trạng thái + nguồn gốc alpha registry ──────────────
 def test_engine_version_is_stable_and_detects_engine_source_change(tmp_path, monkeypatch):
-    from backend import strategies as ev
+    from backend.alpha import strategies as ev
     a = ev.engine_version()
     assert a == ev.engine_version() and len(a["hash"]) == 64 and a["files"] > 0
     # custom_run / edu_precompute (sản phẩm của phiên alpha) KHÔNG nằm trong mã engine
@@ -225,7 +225,7 @@ def test_engine_version_is_stable_and_detects_engine_source_change(tmp_path, mon
 def test_engine_hash_tracks_strategy_ir_not_comments(tmp_path, monkeypatch):
     import shutil
     from backend.alpha.compile import strategies_dir
-    from backend import strategies as ev
+    from backend.alpha import strategies as ev
     d = tmp_path / "strategies"
     shutil.copytree(strategies_dir(), d, ignore=shutil.ignore_patterns("__pycache__"))
     monkeypatch.setenv("NORA_STRATEGIES_DIR", str(d))
@@ -249,7 +249,7 @@ def test_engine_hash_tracks_strategy_ir_not_comments(tmp_path, monkeypatch):
 
 
 def test_book_engine_status_missing_same_and_changed():
-    from backend.strategies import REASON_NO_VERSION, book_engine_status, engine_version
+    from backend.alpha.strategies import REASON_NO_VERSION, book_engine_status, engine_version
     cur = engine_version()
     assert book_engine_status(None)["needs_rebuild"] is None
     old = book_engine_status({"status": "READY"})

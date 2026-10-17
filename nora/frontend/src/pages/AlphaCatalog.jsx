@@ -3,12 +3,12 @@ import { createPortal } from 'react-dom'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { PageHead, Panel, Loading, ErrorState, Empty, Segmented } from '../components/ui'
 import MathBlock from '../components/ui/MathBlock'
-import { CatalogEngineWarning } from '../components/optimize/EngineWarning'
 import useAsync, { useResource } from '../hooks/useAsync'
 import SystemStrategyEditor from '../components/alpha/studio/SystemStrategyEditor'
 import UserAlphaVersionHistory from '../components/alpha/studio/UserAlphaVersionHistory'
 import { getAlphaCatalog, getTopAgents, postArchiveUserAlpha, postUpdateUserAlphaStatus } from '../api'
-import { fmtNum, fmtPct, fmtSPct, signClass } from '../lib/format'
+import { fmtNum, fmtPct, fmtSPct, signClass, isNum } from '../lib/format'
+import useResizableDrawer from '../hooks/useResizableDrawer'
 import '../styles/alpha.css'
 
 // Thư viện chiến lược: mỗi CHIẾN LƯỢC = ý tưởng -> công thức bằng lời -> công thức toán -> thống kê alpha đã đạt.
@@ -17,44 +17,6 @@ const BOOK = { main: 'sổ chính', explore: 'thử nghiệm' }
 
 function best(stats) {
   return (stats || []).reduce((b, x) => (b == null || (x.ret_pct ?? -1e9) > (b.ret_pct ?? -1e9) ? x : b), null)
-}
-
-/** Hook hỗ trợ co giãn drawer sang trái và lưu kích thước. */
-function useResizableDrawer(defaultWidth = 980) {
-  const [width, setWidth] = useState(() => {
-    try {
-      const saved = Number(localStorage.getItem('nora_alpha_drawer_w'))
-      if (saved && saved >= 420 && saved <= window.innerWidth) return saved
-    } catch (e) { /* bỏ qua */ }
-    return Math.min(defaultWidth, window.innerWidth - 20)
-  })
-
-  const onMouseDown = (e) => {
-    e.preventDefault()
-    document.body.style.cursor = 'col-resize'
-    document.body.style.userSelect = 'none'
-
-    const onMouseMove = (moveEvt) => {
-      const newW = window.innerWidth - moveEvt.clientX
-      const clamped = Math.max(450, Math.min(window.innerWidth - 10, newW))
-      setWidth(clamped)
-      try {
-        localStorage.setItem('nora_alpha_drawer_w', String(clamped))
-      } catch (err) { /* bỏ qua */ }
-    }
-
-    const onMouseUp = () => {
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-      window.removeEventListener('mousemove', onMouseMove)
-      window.removeEventListener('mouseup', onMouseUp)
-    }
-
-    window.addEventListener('mousemove', onMouseMove)
-    window.addEventListener('mouseup', onMouseUp)
-  }
-
-  return { width, onMouseDown }
 }
 
 /** Câu có ký hiệu toán trong $…$ -> chữ + KaTeX nội dòng. */
@@ -231,11 +193,11 @@ function StrategyDoc({ s, onClose, onReload }) {
   }
 
   const handleOpenEditor = () => {
-    navigate(`/alpha/create?alpha=${encodeURIComponent(s.alpha_id || s.strategy)}`)
+    navigate(`/coin/alpha/create?alpha=${encodeURIComponent(s.alpha_id || s.strategy)}`)
   }
 
   return createPortal(
-    <div className="n-drawer-wrap">
+    <div className="v2 n-drawer-wrap">
       <div className="n-drawer-bg" onClick={onClose} aria-hidden="true" />
       <aside
         className="n-drawer"
@@ -253,50 +215,82 @@ function StrategyDoc({ s, onClose, onReload }) {
           title="Kéo sang trái/phải để thay đổi kích thước ngăn chi tiết"
         />
 
-        <header className="n-drawer-h">
+        <header className="n-drawer-h" style={{ paddingBottom: 10 }}>
           <div style={{ minWidth: 0 }}>
             <div className="kick muted">{s.isTopAgent ? 'Top Agent Trade · OKX Copy-Trade' : s.kind}</div>
-            <h2>{s.name} <span className={`n-badge ${SIDE_CLS[s.side] || ''}`}>{s.side}</span></h2>
+            <h2>
+              {s.name}{' '}
+              <span className={`n-badge ${SIDE_CLS[s.side] || ''}`}>{s.side}</span>
+            </h2>
             {s.isTopAgent && <TopAgentProvenance prov={s.provenance} mixed={s.mixed_runs} caveat={s.caveat} />}
-            {!s.is_user_alpha && !s.isTopAgent && s.strategy && (
-              <div style={{ marginTop: 8 }}>
-                <button type="button" className="n-btn sm" onClick={() => setEditSrc(true)} title="Xem / sửa file chiến lược hệ thống (data/alpha/strategies)">{'</>'} Mã nguồn</button>
-              </div>
-            )}
-            {s.is_user_alpha && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
-                <button type="button" className="n-btn sm brand" onClick={handleOpenEditor}>
-                  Mở để sửa ➔
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+              {!s.is_user_alpha && !s.isTopAgent && s.strategy && (
+                <button type="button" className="n-btn sm" onClick={() => setEditSrc(true)} title="Xem / sửa file chiến lược hệ thống">
+                  {'</>'} Mã nguồn
                 </button>
-                <button type="button" className="n-btn sm" onClick={handleToggleCandidate} disabled={acting}>
-                  {s.stats?.[0]?.stage === 'CANDIDATE' ? 'Bỏ đánh dấu ứng viên' : '★ Đánh dấu ứng viên'}
-                </button>
-                <button type="button" className="n-btn sm" style={{ color: '#ef4444' }} onClick={handleArchive} disabled={acting}>
-                  Lưu trữ (Archive)
-                </button>
-              </div>
-            )}
+              )}
+              {s.is_user_alpha && (
+                <>
+                  <button type="button" className="n-btn sm brand" onClick={handleOpenEditor}>
+                    Mở để sửa ➔
+                  </button>
+                  <button type="button" className="n-btn sm" onClick={handleToggleCandidate} disabled={acting}>
+                    {s.stats?.[0]?.stage === 'CANDIDATE' ? 'Bỏ đánh dấu ứng viên' : '★ Đánh dấu ứng viên'}
+                  </button>
+                  <button type="button" className="n-btn sm" style={{ color: 'var(--n-neg)' }} onClick={handleArchive} disabled={acting}>
+                    Lưu trữ (Archive)
+                  </button>
+                </>
+              )}
+            </div>
           </div>
           <button type="button" className="n-btn" onClick={onClose} aria-label="Đóng">Đóng ✕</button>
         </header>
 
-        <div className="n-drawer-b">
+        <div className="n-drawer-b" style={{ padding: '20px 24px' }}>
           <div className="n-ad-body">
             <section className="n-ad-sec">
-              <h3>Ý tưởng</h3>
+              <h3>Ý tưởng giao dịch</h3>
               <p className="n-ad-idea">{s.idea}</p>
             </section>
 
+            {/* Bảng tham số cấu hình */}
+            {s.params_list && s.params_list.length > 0 && (
+              <section className="n-ad-sec">
+                <h3>Bộ tham số cấu hình</h3>
+                <div className="n-tblwrap" style={{ marginTop: 8 }}>
+                  <table className="n-tbl">
+                    <thead>
+                      <tr>
+                        <th>Tham số</th>
+                        <th>Giá trị</th>
+                        <th>Khóa tham số</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {s.params_list.map((p) => (
+                        <tr key={p.key}>
+                          <td><b>{p.label}</b></td>
+                          <td><b className="mono ok" style={{ fontSize: 13.5 }}>{p.value}</b></td>
+                          <td className="mono muted">{p.key}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )}
+
             <section className="n-ad-sec">
-              <h3>Công thức</h3>
+              <h3>Quy tắc thực thi & Diễn giải logic</h3>
               <ul className="n-ad-plain">
                 {s.plain.map((x, i) => <li key={i}><Rich text={x} /></li>)}
               </ul>
             </section>
 
-            {s.math.length > 0 && (
+            {s.math && s.math.length > 0 && (
               <section className="n-ad-sec">
-                <h3>Công thức toán học</h3>
+                <h3>Công thức toán học định lượng</h3>
                 {s.isTopAgent && <p className="n-note">Dạng tổng quát của loại bot (minh hoạ ký hiệu), không phải tham số đã fit của bot này; tham số cụ thể xem mục Công thức.</p>}
                 {s.math.map((m, i) => (
                   <div key={i} className="n-ad-mathrow">
@@ -307,31 +301,13 @@ function StrategyDoc({ s, onClose, onReload }) {
               </section>
             )}
 
-            <section className="n-ad-sec">
-              <h3>Thống kê</h3>
-              {s.isTopAgent ? (
-                <>
-                  <TopAgentSummary m={s.summary} />
-                  <TopAgentBreakdown rows={s.breakdown} />
-                  <p className="n-note">Số liệu giao dịch thực tế trên sàn OKX từ tài khoản copy-trade gốc.</p>
-                </>
-              ) : !s.stats.length ? (
-                <p className="n-note">Chưa có alpha nào của chiến lược này qua kiểm định.</p>
-              ) : (
-                <>
-                  <Summary m={s.summary} />
-                  <Results stats={s.stats} />
-                  <p className="n-note">Số liệu giai đoạn kiểm định cuối (FINAL) của phễu, 8 tài sản; "bi quan" = cắt lỗ khớp ở giá xấu nhất của nến.</p>
-                </>
-              )}
-            </section>
-
             {s.is_user_alpha && (
               <section className="n-ad-sec">
+                <h3>Lịch sử phiên bản</h3>
                 <UserAlphaVersionHistory
                   alphaId={s.alpha_id}
                   currentVersion={s.version}
-                  onSelectVersion={(vRec) => navigate(`/studio?alpha=${encodeURIComponent(s.alpha_id)}&version=${vRec.version}`)}
+                  onSelectVersion={(vRec) => navigate(`/coin/alpha/create?alpha=${encodeURIComponent(s.alpha_id)}&version=${vRec.version}`)}
                 />
               </section>
             )}
@@ -341,6 +317,36 @@ function StrategyDoc({ s, onClose, onReload }) {
       {editSrc && <SystemStrategyEditor id={s.strategy} name={s.name} onClose={() => setEditSrc(false)} onSaved={onReload} />}
     </div>,
     document.body
+  )
+}
+
+function extractCardStats(s) {
+  const m = s.summary || s.metrics || s.stats?.[0] || best(s.stats) || {}
+  const ret = m.ret_pct ?? (s.isTopAgent && m.realized != null ? m.realized : null)
+  const mdd = m.mdd_pct ?? m.extreme_mdd_pct
+  const sharpe = m.sharpe
+  return { ret, mdd, sharpe, isRealizedUsdt: s.isTopAgent && m.ret_pct == null && m.realized != null }
+}
+
+function CardStats({ s }) {
+  const { ret, mdd, sharpe, isRealizedUsdt } = extractCardStats(s)
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, marginTop: 10, padding: '8px 10px', background: 'var(--n-card, rgba(255,255,255,0.03))', borderRadius: 6, border: '1px solid var(--n-line, rgba(255,255,255,0.06))', fontSize: 12 }}>
+      <div>
+        <span className="muted" style={{ display: 'block', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.04em' }}>PnL</span>
+        <b className={signClass(ret)} style={{ fontSize: 13 }}>
+          {ret == null ? '—' : isRealizedUsdt ? `${ret >= 0 ? '+' : ''}${fmtNum(ret, 0)} $` : fmtSPct(ret, 1)}
+        </b>
+      </div>
+      <div>
+        <span className="muted" style={{ display: 'block', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.04em' }}>MDD</span>
+        <b className="neg" style={{ fontSize: 13 }}>{mdd != null ? fmtPct(mdd, 1) : '—'}</b>
+      </div>
+      <div>
+        <span className="muted" style={{ display: 'block', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Sharpe</span>
+        <b style={{ fontSize: 13 }}>{isNum(sharpe) ? fmtNum(sharpe, 2) : '—'}</b>
+      </div>
+    </div>
   )
 }
 
@@ -355,24 +361,16 @@ function Card({ s, onOpen }) {
           <span className={`n-badge ${SIDE_CLS[s.side] || ''}`}>{s.side}</span>
         </div>
         <div className="k muted" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          <span className="n-badge" style={{ background: 'rgba(99,102,241,0.15)', color: '#818cf8', fontWeight: 700 }}>
+          <span className="n-badge" style={{ background: 'var(--n-accent-wash)', color: 'var(--n-accent)', fontWeight: 700 }}>
             Alpha người dùng
           </span>
-          {isCandidate ? (
-            <span className="n-badge" style={{ background: 'rgba(234,179,8,0.15)', color: '#facc15', fontWeight: 700 }}>
+          {isCandidate && (
+            <span className="n-badge" style={{ background: 'var(--n-accent-wash)', color: 'var(--n-warn)', fontWeight: 700 }}>
               ★ Ứng viên
             </span>
-          ) : (
-            <span className="n-badge">Đã lưu</span>
           )}
         </div>
-        <p className="idea">{s.idea}</p>
-        <div className="st">
-          <span><span className="muted">Lợi nhuận</span> <b className={signClass(st0.ret_pct)}>{fmtSPct(st0.ret_pct, 1)}</b></span>
-          <span><span className="muted">MDD</span> <b className="neg">{fmtPct(st0.mdd_pct, 1)}</b></span>
-          <span><span className="muted">Sharpe</span> <b>{fmtNum(st0.sharpe, 2)}</b></span>
-          <span><span className="muted">Lệnh</span> <b>{fmtNum(st0.trades, 0)}</b></span>
-        </div>
+        <CardStats s={s} />
       </button>
     )
   }
@@ -386,29 +384,19 @@ function Card({ s, onOpen }) {
           <span className={`n-badge ${SIDE_CLS[s.side] || ''}`}>{s.side}</span>
         </div>
         <div className="k muted">{s.kind} · {sum.leverage ? `${sum.leverage}x` : 'OKX'}</div>
-        <p className="idea">{s.idea}</p>
-        <div className="st">
-          <span><span className="muted">Lãi chốt</span> <b className={signClass(sum.realized)}>{sum.realized != null ? `${sum.realized >= 0 ? '+' : ''}${fmtNum(sum.realized, 0)} USDT` : '—'}</b></span>
-          <span><span className="muted">Thắng</span> <b>{fmtPct(sum.win_rate, 1)}</b></span>
-          <span><span className="muted">PF</span> <b>{fmtNum(sum.profit_factor, 2)}</b></span>
-          <span><span className="muted">Lệnh</span> <b>{fmtNum(sum.trades, 0)}</b></span>
-          <span><span className="muted">Basket</span> <b>{fmtNum(sum.baskets, 0)}</b></span>
-        </div>
-        {s.mixed_runs && <div className="warn" style={{ fontSize: 12, marginTop: 6 }}>⚠ OOS tính trên bản fit cũ hơn</div>}
+        <CardStats s={s} />
       </button>
     )
   }
 
-  const b = best(s.stats)
   return (
     <button type="button" className="n-ad-card" onClick={onOpen}>
-      <div className="h"><b>{s.name}</b> <span className={`n-badge ${SIDE_CLS[s.side] || ''}`}>{s.side}</span></div>
-      <div className="k muted">{s.kind}</div>
-      <p className="idea">{s.idea}</p>
-      <div className="st">
-        <span><span className="muted">Alpha đạt</span> <b>{s.stats.length}</b></span>
-        {b && <span><span className="muted">Tốt nhất</span> <b className={signClass(b.ret_pct)}>{fmtSPct(b.ret_pct, 1)}</b> <span className="muted">MDD</span> <b>{fmtPct(b.mdd_pct, 1)}</b></span>}
+      <div className="h">
+        <b>{s.name}</b>
+        <span className={`n-badge ${SIDE_CLS[s.side] || ''}`}>{s.side}</span>
       </div>
+      <div className="k muted">{s.kind}</div>
+      <CardStats s={s} />
     </button>
   )
 }
@@ -433,13 +421,11 @@ function mapTopAgentBot(b, prov) {
   const win = r.win
   const general = BOT_TYPE_GENERAL[b.bot_type] || { kind: b.bot_type ? `Loại bot: ${b.bot_type}` : 'OKX copy-trade', text: 'Bot copy-trade OKX; các luật thoát đã fit xem mục Công thức.' }
 
-  // Chiều giao dịch: chỉ từ longPct của payload; thiếu thì hiện "—"
   const longPct = r.longPct
   const side = longPct == null ? '—' : longPct >= 70 ? 'Long' : longPct <= 30 ? 'Short' : 'Long + Short'
   const kind = general.kind
   const idea = general.text
 
-  // Công thức: chỉ từ payload.formula_summary / exit_structure / report_stats (văn bản thuần, không KaTeX)
   const plain = []
   for (const [key, label] of FORMULA_LABELS) {
     if (b.formula_summary?.[key]) plain.push(`${label}: ${b.formula_summary[key]}`)
@@ -452,7 +438,6 @@ function mapTopAgentBot(b, prov) {
   }
   if (plain.length === 0) plain.push('Chưa có công thức thoát đã fit trong dữ liệu.')
 
-  // Công thức toán học định lượng
   const math = [
     {
       title: 'Dạng tổng quát · Chốt lời & Cắt lỗ',
@@ -468,7 +453,6 @@ function mapTopAgentBot(b, prov) {
     },
   ]
 
-  // Thống kê
   const summary = {
     realized,
     win_rate: win,
@@ -485,7 +469,6 @@ function mapTopAgentBot(b, prov) {
     max_layers: r.maxLayers,
   }
 
-  // Cơ cấu phân bổ lệnh thoát
   const breakdownDesc = {
     'TP-limit': 'Khớp giá chốt lời giới hạn đặt sẵn tại sàn',
     'trailing/pullback': 'Chốt lời động khi giá tạo đỉnh và quay đầu hồi',
@@ -537,9 +520,8 @@ export default function AlphaCatalog() {
       <PageHead
         kicker="Thư viện chiến lược"
         title="Alpha"
-        subtitle="Mỗi chiến lược: ý tưởng → công thức → công thức toán → thống kê các alpha đã đạt. Bấm một thẻ để xem."
+        subtitle="Danh mục toàn bộ Alpha: mô tả ý tưởng, bộ tham số cấu hình, quy tắc thực thi và công thức toán học định lượng."
       />
-      <CatalogEngineWarning />
       {q.error && <ErrorState title="Không tải được thư viện chiến lược" error={q.error} onRetry={q.reload} />}
       {q.loading && !q.data && <Loading what="thư viện chiến lược" />}
 
@@ -552,7 +534,7 @@ export default function AlphaCatalog() {
           return true
         })
         const nUser = rawList.filter((s) => s.is_user_alpha).length
-        const nCore = rawList.length - nUser
+        const nCore = rawList.filter((s) => !s.is_user_alpha).length
 
         return (
           <Panel
@@ -561,18 +543,18 @@ export default function AlphaCatalog() {
             meta={
               <Segmented
                 label="Lọc nhóm"
-                value={filter}
+                value={filter === 'verified' ? 'all' : filter}
                 onChange={setFilter}
                 options={[
                   { value: 'all', label: `Tất cả (${rawList.length})` },
-                  { value: 'core', label: `Chiến lược lõi (${nCore})` },
+                  { value: 'core', label: `Chiến lược hệ thống (${nCore})` },
                   { value: 'user', label: `Alpha người dùng (${nUser})` },
                 ]}
               />
             }
           >
             {!filteredList.length ? (
-              <Empty title={filter === 'user' ? 'Chưa có Alpha người dùng nào được lưu' : 'Chưa có chiến lược'} />
+              <Empty title={filter === 'user' ? 'Chưa có Alpha người dùng nào được lưu' : 'Chưa có chiến lược phù hợp bộ lọc'} />
             ) : (
               <div className="n-ad-grid">
                 {filteredList.map((s) => (
@@ -584,7 +566,7 @@ export default function AlphaCatalog() {
         )
       })}
 
-      {/* Mục bên dưới: Top agent trade (Chiến lược bot copy-trade bên ngoài OKX) */}
+      {/* Mục bên dưới: Top agent trade */}
       <Panel
         title="Top agent trade"
         meta={<span>{topAgentStrategies.length} chiến lược bot OKX</span>}
@@ -609,3 +591,4 @@ export default function AlphaCatalog() {
     </>
   )
 }
+

@@ -22,10 +22,10 @@ export function validateRun(form, code) {
   return out
 }
 
-/** timeframe = khung của chương trình đã biên dịch (compile.meta.timeframe); thiếu -> không gửi run_frame, backend quyết định. */
-export function buildRunBody(form, code, timeframe = null, defaultMode = 'fast') {
+/** Dựng thân POST /api/studio/custom/backtest. Chế độ Nhanh không gửi run_frame (backend quyết theo chương trình). */
+export function buildRunBody(form, code, _timeframe = null, defaultMode = 'fast') {
   const body = { code, start: form.start, end: form.end, train_ratio: num(form.train_ratio), initial_capital: num(form.capital), symbols: form.symbols }
-  const rf = execRunFrame(form.exec_mode || defaultMode, timeframe)
+  const rf = execRunFrame(form.exec_mode || defaultMode)
   if (rf) body.run_frame = rf
   const position = {}
   // Mẫu có thể kèm khoá ngoài ô nhập (vd atr_frame: '24h'): gửi nguyên, số thì ép số.

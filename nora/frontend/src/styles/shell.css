@@ -1088,3 +1088,304 @@ td .n-resolved-b { min-width: 320px; }
 .n-fn-row.legacy .fbar .fill { background: var(--n-bench); }
 .n-fn-legacy-toggle { border: 0; background: transparent; color: var(--n-ink-2); font-size: 12px; cursor: pointer; padding: 6px 10px; }
 .n-fn-legacy-toggle:hover { color: var(--n-ink); }
+
+/* Form vào bằng tên (EnterForm) */
+.n-enter-lbl { display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--text-secondary, #94a3b8); }
+.n-enter-row { display: flex; gap: 10px; align-items: stretch; }
+.n-enter-in {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  background: var(--bg-secondary, rgba(255, 255, 255, 0.04));
+  color: var(--text-primary, inherit);
+  font-size: 14px;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+.n-enter-in:hover {
+  border-color: rgba(99, 102, 241, 0.45);
+}
+.n-enter-in:focus {
+  outline: none;
+  border-color: var(--primary, #6366f1);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+}
+.n-enter-sub { font-size: 13px; font-weight: 500; color: var(--text-secondary, #94a3b8); margin: 22px 0 10px; }
+.n-enter-chips { display: flex; flex-wrap: wrap; gap: 10px; max-height: 220px; overflow-y: auto; padding: 2px; }
+.n-enter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px 6px 6px;
+  border-radius: 24px;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+  background: var(--card-bg, rgba(255, 255, 255, 0.05));
+  color: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.n-enter-chip:hover {
+  transform: translateY(-2px);
+  border-color: var(--primary, #6366f1);
+  background: rgba(99, 102, 241, 0.14);
+  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.22);
+  color: var(--text-primary, #fff);
+}
+.n-enter-chip.on {
+  border-color: var(--primary, #6366f1);
+  background: rgba(99, 102, 241, 0.2);
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.2);
+  font-weight: 600;
+}
+.n-enter-chip:active {
+  transform: translateY(0);
+}
+.n-enter-av {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  transition: transform 0.2s ease;
+}
+.n-enter-chip:hover .n-enter-av {
+  transform: scale(1.12);
+}
+
+/* Live: danh sách bot hợp nhất */
+.n-lv-row { cursor: pointer; }
+.n-lv-row:hover td, .n-lv-row.sel td { background: var(--n-surface-2, rgba(127,127,127,.12)); }
+.n-lv-row:focus-visible { outline: 2px solid var(--n-accent); outline-offset: -2px; }
+.n-lv-bots td small { opacity: .7; }
+
+/* ============================================
+   USER BADGE & PROFILE DROPDOWN (LIGHT / DARK)
+   ============================================ */
+.n-user-badge-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+/* Badge Trigger Button */
+.n-user-badge-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 20px;
+  padding: 3px 12px 3px 4px;
+  color: #f8fafc;
+  cursor: pointer;
+  font-size: 13px;
+  font-family: inherit;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.n-user-badge-btn:hover,
+.n-user-badge-btn.active {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.n-user-badge-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+.n-user-badge-name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.n-user-badge-arrow {
+  font-size: 10px;
+  color: #94a3b8;
+  transition: transform 0.2s ease;
+}
+
+.n-user-badge-btn.active .n-user-badge-arrow {
+  transform: rotate(180deg);
+}
+
+/* Dropdown Menu Box */
+.n-user-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.2);
+  min-width: 200px;
+  z-index: 1000;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  animation: nUserMenuFadeIn 0.15s ease-out;
+}
+
+@keyframes nUserMenuFadeIn {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.n-user-menu-header {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 4px;
+}
+
+.n-user-menu-name {
+  font-weight: 600;
+  font-size: 13px;
+  color: #f8fafc;
+  line-height: 1.3;
+}
+
+.n-user-menu-handle {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+
+.n-user-menu-item {
+  padding: 9px 12px;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: #e2e8f0;
+  cursor: pointer;
+  font-size: 13px;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: all 0.15s ease;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.n-user-menu-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+.n-user-menu-ico {
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+}
+
+.n-user-menu-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 4px 0;
+}
+
+.n-user-menu-item.logout {
+  color: #f87171;
+}
+
+.n-user-menu-item.logout:hover {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+}
+
+/* ============================================
+   LIGHT MODE ADAPTATION (Linh động Sáng / Tối)
+   ============================================ */
+[data-theme="light"] .n-user-badge-btn,
+:root[data-theme="light"] .n-user-badge-btn {
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  color: #0f172a;
+}
+
+[data-theme="light"] .n-user-badge-btn:hover,
+[data-theme="light"] .n-user-badge-btn.active,
+:root[data-theme="light"] .n-user-badge-btn:hover,
+:root[data-theme="light"] .n-user-badge-btn.active {
+  background: rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="light"] .n-user-badge-arrow,
+:root[data-theme="light"] .n-user-badge-arrow {
+  color: #64748b;
+}
+
+[data-theme="light"] .n-user-menu,
+:root[data-theme="light"] .n-user-menu {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12), 0 4px 10px rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .n-user-menu-header,
+:root[data-theme="light"] .n-user-menu-header {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+}
+
+[data-theme="light"] .n-user-menu-name,
+:root[data-theme="light"] .n-user-menu-name {
+  color: #0f172a;
+}
+
+[data-theme="light"] .n-user-menu-handle,
+:root[data-theme="light"] .n-user-menu-handle {
+  color: #64748b;
+}
+
+[data-theme="light"] .n-user-menu-item,
+:root[data-theme="light"] .n-user-menu-item {
+  color: #334155;
+}
+
+[data-theme="light"] .n-user-menu-item:hover,
+:root[data-theme="light"] .n-user-menu-item:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: #0f172a;
+}
+
+[data-theme="light"] .n-user-menu-divider,
+:root[data-theme="light"] .n-user-menu-divider {
+  background: rgba(0, 0, 0, 0.07);
+}
+
+[data-theme="light"] .n-user-menu-item.logout,
+:root[data-theme="light"] .n-user-menu-item.logout {
+  color: #dc2626;
+}
+
+[data-theme="light"] .n-user-menu-item.logout:hover,
+:root[data-theme="light"] .n-user-menu-item.logout:hover {
+  background: rgba(220, 38, 38, 0.08);
+  color: #b91c1c;
+}
+
+
+/* Lớp phủ ngăn kéo/hộp thoại: trong suốt một phần để vẫn thấy trang phía sau (cả hai giao diện) */
+.v2.n-drawer-wrap { display: flex; grid-template-columns: none; background: transparent; }
+.n-drawer-bg { background: color-mix(in srgb, var(--n-bg) 50%, transparent); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
+.n-drawer { box-shadow: -16px 0 48px rgba(0, 0, 0, .3); }
+.v2 select:not([class]), .v2 input:not([class]):not([type=checkbox]):not([type=radio]):not([type=range]), .v2 textarea:not([class]) { background: var(--n-surface-2); color: var(--n-ink); border: 1px solid var(--n-line); border-radius: 6px; padding: 5px 8px; }
+.v2 input:not([class])::placeholder { color: var(--n-ink-3); }

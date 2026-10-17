@@ -201,6 +201,7 @@ export const getUserAlphas = (params = {}) => {
   const q = new URLSearchParams()
   if (params.sort) q.set('sort', params.sort)
   if (params.status) q.set('status', params.status)
+  if (params.owner_id) q.set('owner_id', params.owner_id)
   const qsStr = q.toString()
   return request(`/api/studio/alphas/user${qsStr ? `?${qsStr}` : ''}`)
 }
@@ -319,22 +320,71 @@ export const getDataTicksCoverage = (o = {}) => request(`/api/data/ticks/coverag
 // ═════════════════════════════════════════════════════════════════════════════
 
 /** Lệnh + vị thế của bot live theo chế độ (paper/demo/live): sàn + paper, sổ đang chạy, danh sách chiến lược/cặp. */
-export const getLiveTrades = (mode = 'paper', venue = 'okx', limit = 200, book = 'main') =>
-  request(`/api/studio/live/trades${qs({ mode, venue, limit, book })}`)
+export const getLiveTrades = (mode = 'paper', venue = 'okx', limit = 200, book = 'main', engine) =>
+  request(`/api/studio/live/trades${qs({ mode, venue, limit, book, engine })}`)
 
 /** Lệnh sàn (khớp thật) ghép với lệnh paper bóng cùng nến: {summary, pairs, only_exec, only_paper}. */
-export const getLiveCompare = (mode = 'demo', venue = 'okx', book = 'main') =>
-  request(`/api/studio/live/compare${qs({ mode, venue, book })}`)
+export const getLiveCompare = (mode = 'demo', venue = 'okx', book = 'main', engine) =>
+  request(`/api/studio/live/compare${qs({ mode, venue, book, engine })}`)
 
 /** Đối soát cấp sự kiện cho bot exec/unified (lệch bps theo loại lệnh, độ trễ, dải SL, slippage hiệu chỉnh). */
-export const getLiveCompareEvents = (mode = 'demo', venue = 'okx', book = 'main') =>
-  request(`/api/studio/live/compare_events${qs({ mode, venue, book })}`)
+export const getLiveCompareEvents = (mode = 'demo', venue = 'okx', book = 'main', engine) =>
+  request(`/api/studio/live/compare_events${qs({ mode, venue, book, engine })}`)
+
+/** Các bot cũ (đã dừng) còn dữ liệu trên đĩa: {bots:[{tab: paper|testnet|live, mode, book, equity, start_equity, pnl_pct, mdd_pct, trades, started, ended}]}. */
+export const getLiveArchive = () => request('/api/studio/live/archive')
 
 /** Đọc trạng thái bot live hiện tại (PID, tiến trình, config). */
 export const getLiveBot = () => request('/api/studio/live/bot')
 
-/** Khởi động / điều khiển bot live (start, stop). */
+/** Khởi động bot live (Paper / Testnet / Live). */
 export const postLiveBot = (body) => request('/api/studio/live/bot', { method: 'POST', body })
+
+/** Chiến lược đã backtest có lãi để chọn chạy bot: {candidates:[{id,name,source,timeframe,symbols,ret_pct,...,wfa,mc}], n}. */
+export const getLiveCandidates = () => request('/api/studio/live/candidates')
+
+/** Chạy backtest cho cấu hình tuỳ chỉnh từ bộ chọn trước khi bật bot. */
+export const postCandidateBacktest = (body) => request('/api/studio/live/candidate_backtest', { method: 'POST', body })
+
+/** Trường tham số chỉnh được của chiến lược ở khung tín hiệu: {kind, fields:{khoá: spec}, defaults}. Cùng resolve_strategy với backtest/bot. */
+export const getCandidateSchema = (alphaId, signalTf, bookSource) => request(`/api/studio/live/candidate_schema${qs({ alpha_id: alphaId, signal_tf: signalTf, book_source: bookSource })}`)
+
+/** Danh sách các bot live/paper/testnet. */
+export const listLiveBots = (mode) => request(`/api/studio/live/bots${mode ? `?mode=${enc(mode)}` : ''}`)
+
+/** Tổng hợp bot theo nhóm paper / live. */
+export const getLiveSummary = () => request('/api/studio/live/summary')
+
+/** Chi tiết 1 bot live. */
+export const getLiveBotDetail = (botId) => request(`/api/studio/live/bot/${enc(botId)}`)
+
+/** Dừng bot live. */
+export const stopLiveBot = (botId, close = true) => request(`/api/studio/live/bot/${enc(botId)}/stop?close=${close}`, { method: 'POST' })
+
+/** Xoá bot đã dừng + dữ liệu (409 nếu đang chạy). */
+export const deleteLiveBot = (botId, mode) => request(`/api/studio/live/bot/${enc(botId)}${mode ? `?mode=${enc(mode)}` : ''}`, { method: 'DELETE' })
+
+/** Lịch sử trades của bot live. */
+export const getLiveBotTrades = (botId) => request(`/api/studio/live/bot/${enc(botId)}/trades`)
+
+/** Biểu đồ bot: nến + lệnh khớp thật + tín hiệu (+ replay backtest khi replay=true). */
+export const getLiveBotChart = (botId, frame, replay = false) => request(`/api/studio/live/bot/${enc(botId)}/chart${qs({ frame, replay: replay ? 1 : undefined })}`)
+
+/** Đối chiếu bot live với backtest replay. */
+export const getLiveBotCompare = (botId) => request(`/api/studio/live/bot/${enc(botId)}/compare`)
+
+/** Chạy lại bot đã dừng (resume). */
+export const resumeLiveBot = (botId) => request(`/api/studio/live/bot/${enc(botId)}/resume`, { method: 'POST' })
+
+/** Trạng thái tài nguyên: số bot đang chạy, giới hạn, RAM. */
+export const getLiveResourceStatus = () => request('/api/studio/live/resource_status')
+
+/** Dừng nhiều bot cùng lúc. */
+export const batchStopLiveBots = (botIds, close = true) => request('/api/studio/live/bots/stop', { method: 'POST', body: { bot_ids: botIds, close } })
+
+/** Xoá nhiều bot đã dừng cùng lúc. */
+export const batchDeleteLiveBots = (botIds, mode) => request('/api/studio/live/bots', { method: 'DELETE', body: { bot_ids: botIds, mode } })
+
 
 // ═════════════════════════════════════════════════════════════════════════════
 // 5. PROCESS ROUTER (backend/routes/process.py)
@@ -371,4 +421,84 @@ export const postCancel = (id) => request(`/api/studio/book/jobs/${enc(id)}/canc
 
 /** Metadata duy nhất từ backend (nguồn sự thật tập trung cho UI). */
 export const getStudioMeta = () => request('/api/studio/meta')
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 6. USERS & HOME (backend/routes/users.py, backend/routes/home.py)
+// ═════════════════════════════════════════════════════════════════════════════
+
+/** Danh sách user công khai: [{handle, display_name, avatar, bio, role, n_strategies}]. */
+export const getUsers = () => request('/api/users')
+
+/** Tạo user mới: {handle, display_name, bio?}. */
+export const createUser = (body) => request('/api/users', { method: 'POST', body })
+
+/** Chi tiết 1 user: {id, handle, display_name, avatar, bio, role, created_at}. */
+export const getUser = (handle) => request(`/api/users/${enc(handle)}`)
+
+/** Danh sách chiến lược của user: {handle, strategies: [...]}. */
+export const getUserStrategies = (handle) => request(`/api/users/${enc(handle)}/strategies`)
+
+/** Đọc phiên hiện tại: {user: User|null}. */
+export const getMe = () => request('/api/me')
+
+/** Đăng nhập theo handle: {ok: true, user: User}. */
+export const login = (handle) => request('/api/me/login', { method: 'POST', body: { handle } })
+
+/** Đăng xuất (xoá cookie). */
+export const enterByName = (name) => request('/api/me/enter', { method: 'POST', body: { name } })
+
+// Đăng xuất
+export const logout = () => request('/api/me/logout', { method: 'POST' })
+
+/** Sửa thông tin cá nhân: {display_name?, avatar?, bio?}. */
+export const updateMe = (body) => request('/api/me', { method: 'PUT', body })
+
+/** Tóm tắt hệ thống cho trang Home: {edu: {...}, coin: {...}}. */
+export const getHomeSummary = () => request('/api/home/summary')
+
+
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Education Market (backend/routes/edu.py)
+// ═════════════════════════════════════════════════════════════════════════════
+
+/** Lưới user kèm tổng hợp: {users: [{handle, display_name, avatar, bio, n_strategies, total_pnl_usd, max_mdd_pct, best}]}. sort: pnl | new | name. */
+const _eduCache = { market: {}, user: {} }
+export const eduMarketCached = (sort = 'pnl') => _eduCache.market[sort]
+export const eduUserCached = (handle) => _eduCache.user[handle]
+export const getEduMarket = (sort = 'pnl') => request(`/api/edu/market?sort=${enc(sort)}`).then((d) => (_eduCache.market[sort] = d))
+
+/** Hồ sơ + chiến lược của 1 user: {user, summary, strategies: [{id, name, category, ret_pct, mdd_pct, sharpe, win_rate, trades, pnl_usd}]}. */
+export const getEduUser = (handle) => request(`/api/edu/users/${enc(handle)}`).then((d) => (_eduCache.user[handle] = d))
+export const prefetchEduUser = (handle) => { if (!_eduCache.user[handle]) getEduUser(handle).catch(() => {}) }
+
+/** Chi tiết công khai (chỉ đọc) của 1 chiến lược: {id, name, code, result, card, owner}. */
+export const getEduStrategy = (id) => request(`/api/edu/strategies/${enc(id)}`)
+
+/** Mẫu hiển thị trong Studio Education: {show_samples, samples: [1 mẫu hướng dẫn]}. */
+export const getEduSamplesVisible = () => request('/api/edu/samples/visible')
+
+/** Sao chép (fork) chiến lược về bản nháp của user hiện tại. */
+export const postForkStrategy = (alphaId) => request(`/api/edu/strategies/${enc(alphaId)}/fork`, { method: 'POST' })
+
+// Helper chung cho các trang mới (research)
+export const apiGet = (path) => request(path)
+export const apiPost = (path, body) => request(path, { method: 'POST', body })
+
+/** Tổng hợp mọi lần backtest đã xong: {runs, pnl_usd, capital, pnl_pct, mdd_pct, trades, last, recent[]}. */
+export const getBacktestSummary = () => request('/api/studio/book/backtest_summary')
+
+/** Tổng hợp chung Backtest + Paper + Live (tính ở backend). */
+export const getOverview = () => request('/api/studio/overview')
+export const getOverviewSeries = () => request('/api/studio/overview/series')
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Universe Scan (backend/routes/scan.py)
+// ═════════════════════════════════════════════════════════════════════════════
+export const postUniverseScan = (body) => request('/api/studio/scan/universe', { method: 'POST', body })
+export const getUniverseScan = (runId = 'latest') => request(`/api/studio/scan/universe/${encodeURIComponent(runId)}`)
+export const getUniverseRuns = () => request('/api/studio/scan/runs')
+export const getUniverseInfo = () => request('/api/studio/scan/universe_info')
+export const getLatestSweep = () => request('/api/studio/scan/sweep/latest')
+export const getLatestWfaCarlo = () => request('/api/studio/scan/wfa_carlo/latest')
 

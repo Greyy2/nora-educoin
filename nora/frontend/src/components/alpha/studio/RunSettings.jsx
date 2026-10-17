@@ -1,7 +1,8 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Field } from '../../ui'
 import { DateInput } from '../../ui/DateField'
 import ExecModeSelect from '../../common/ExecModeSelect'
+import RunModeSelect from '../../common/RunModeSelect'
 import { paramLabel, paramUnit, paramHint } from '../../../lib/params'
 
 /** Các tham số quản lý vị thế (khoá = tên khoá `position` của API). Để trống = dùng giá trị trong code / mặc định của engine. */
@@ -18,6 +19,7 @@ export const POSITION_FIELDS = [
 const symName = (s) => String(s).replace('@perp', '')
 
 export default function RunSettings({ form, setForm, universe, defaultsError, problems }) {
+  const [showComboInfo, setShowComboInfo] = useState(false)
   const toggleSym = (s) => setForm({ symbols: form.symbols.includes(s) ? form.symbols.filter((x) => x !== s) : [...form.symbols, s] })
   const setPos = (k, v) => setForm({ pos: { ...form.pos, [k]: v } })
   const nPos = Object.values(form.pos || {}).filter((v) => v !== '' && v != null).length
@@ -25,7 +27,70 @@ export default function RunSettings({ form, setForm, universe, defaultsError, pr
   return (
     <div className="se-set">
       <div className="n-field">
-        <span className="n-lbl" id="se-uni-l">{`Tài sản (${form.symbols.length} đã chọn)`}</span>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+          <span className="n-lbl" id="se-uni-l" style={{ margin: 0 }}>{`Tài sản (${form.symbols.length} đã chọn)`}</span>
+          <button
+            type="button"
+            className="n-btn xs"
+            style={{ fontSize: 11, padding: '2px 8px', display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', background: showComboInfo ? 'var(--n-accent, #38bdf8)' : 'rgba(56, 189, 248, 0.1)', color: showComboInfo ? '#000' : 'var(--n-accent, #38bdf8)', border: '1px solid var(--n-accent, #38bdf8)', borderRadius: 14 }}
+            onClick={() => setShowComboInfo((v) => !v)}
+            title="Xem so sánh: Chơi 1 con vs Combo nhiều con"
+          >
+            <span style={{ fontWeight: 800, borderRadius: '50%', background: showComboInfo ? '#000' : 'var(--n-accent, #38bdf8)', color: showComboInfo ? '#fff' : '#000', width: 14, height: 14, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10 }}>i</span>
+            <span style={{ fontWeight: 600 }}>Mẹo Combo</span>
+          </button>
+        </div>
+
+        {showComboInfo && (
+          <div style={{
+            margin: '6px 0 10px',
+            padding: '10px 12px',
+            borderRadius: 8,
+            background: 'var(--n-bg-panel, #0f172a)',
+            border: '1px solid var(--n-accent, #38bdf8)',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+            fontSize: 12
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <span style={{ fontWeight: 700, color: 'var(--n-accent, #38bdf8)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                💡 Hướng dẫn: Chơi 1 tài sản vs Combo nhiều tài sản
+              </span>
+              <button type="button" className="n-btn xs ghost" style={{ padding: '0 4px', fontSize: 12 }} onClick={() => setShowComboInfo(false)}>✕</button>
+            </div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, lineHeight: 1.45 }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--n-border, rgba(255,255,255,0.1))', color: 'var(--n-text-muted, #94a3b8)' }}>
+                  <th style={{ textAlign: 'left', padding: '4px 6px', width: '22%' }}>Tiêu chí</th>
+                  <th style={{ textAlign: 'left', padding: '4px 6px', width: '38%', color: '#f59e0b' }}>Chơi 1 tài sản (vd: BTC)</th>
+                  <th style={{ textAlign: 'left', padding: '4px 6px', width: '40%', color: '#10b981' }}>Chơi Combo (BTC + ETH + SOL)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                  <td style={{ padding: '5px 6px', fontWeight: 600, color: '#cbd5e1' }}>Bản chất</td>
+                  <td style={{ padding: '5px 6px' }}>"Bỏ tất cả trứng vào 1 giỏ"</td>
+                  <td style={{ padding: '5px 6px', color: '#34d399' }}>"Chia trứng vào 3 ngăn riêng"</td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                  <td style={{ padding: '5px 6px', fontWeight: 600, color: '#cbd5e1' }}>Đường vốn (MDD)</td>
+                  <td style={{ padding: '5px 6px' }}>Giật rất mạnh: BTC sập là tài khoản cắm đầu, đường cong gãy khúc.</td>
+                  <td style={{ padding: '5px 6px', color: '#34d399' }}>Mượt mà hơn (Smooth): Con này lỗ thì con kia lãi gánh lại.</td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                  <td style={{ padding: '5px 6px', fontWeight: 600, color: '#cbd5e1' }}>Cơ hội vào lệnh</td>
+                  <td style={{ padding: '5px 6px' }}>Thấp: Khi BTC sideway, bot ngồi chơi, đọng vốn không sinh lời.</td>
+                  <td style={{ padding: '5px 6px', color: '#34d399' }}>Liên tục: Dòng tiền xoay vòng, bắt được sóng của nhiều hệ.</td>
+                </tr>
+                <tr>
+                  <td style={{ padding: '5px 6px', fontWeight: 600, color: '#cbd5e1' }}>Tâm lý giao dịch</td>
+                  <td style={{ padding: '5px 6px' }}>Đau tim, phụ thuộc 100% vào số phận 1 đồng coin.</td>
+                  <td style={{ padding: '5px 6px', color: '#34d399' }}>Tâm lý ổn định, ngủ ngon vì danh mục có sự bọc lót.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+
         <div className="n-chips" role="group" aria-labelledby="se-uni-l">
           {universe.map((s) => {
             const on = form.symbols.includes(s)
@@ -43,6 +108,7 @@ export default function RunSettings({ form, setForm, universe, defaultsError, pr
       </div>
 
       <div className="n-form-row">
+        <RunModeSelect id="se-run-mode" value={form.run_mode} onChange={(v) => setForm({ run_mode: v })} />
         <Field id="se-start" label="Từ ngày"><DateInput id="se-start" label="Từ ngày" value={form.start} onChange={(v) => setForm({ start: v })} /></Field>
         <Field id="se-end" label="Đến ngày"><DateInput id="se-end" label="Đến ngày" value={form.end} onChange={(v) => setForm({ end: v })} /></Field>
         <ExecModeSelect id="se-mode" value={form.exec_mode} onChange={(v) => setForm({ exec_mode: v })} />
@@ -54,6 +120,7 @@ export default function RunSettings({ form, setForm, universe, defaultsError, pr
           <input id="se-cap" type="number" className="n-in" inputMode="decimal" min="1" step="any" value={form.capital} onChange={(e) => setForm({ capital: e.target.value })} />
         </Field>
       </div>
+
 
       <details className="n-details se-pos">
           <summary>Quản lý vị thế{nPos ? ` (đã đặt ${nPos})` : ''}</summary>

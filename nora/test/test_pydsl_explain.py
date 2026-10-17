@@ -40,7 +40,7 @@ class EmaCross(SimpleAlgorithm):
     assert r2["level"] == 0.0 and r2["type"] == "exit"
     assert "cắt xuống" in r2["action_vi"]
 
-    assert any("Khớp ở giá mở cửa" in e["desc"] for e in exp["execution"])
+    assert any("khớp ở giá đóng của nến đó" in e["desc"] for e in exp["execution"])   # Nautilus bar_execution: khớp ở giá đóng nến tín hiệu
     assert any("Perpetual" in e["desc"] for e in exp["execution"])
 
 

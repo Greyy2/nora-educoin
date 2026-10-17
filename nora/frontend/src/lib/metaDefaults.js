@@ -26,5 +26,5 @@ export const defaultExecMode = (meta) => {
   const d = meta?.engine?.default_exec_mode
   return d === 'standard' ? 'standard' : 'fast'
 }
-/** Chuẩn -> run_frame '1m'; Nhanh -> khung `fallback` (khung tín hiệu / chọn tay) hoặc null (backend quyết định). */
-export const execRunFrame = (mode, fallback = null) => (mode === 'standard' ? '1m' : fallback || null)
+/** Chuẩn -> run_frame standard_frame (mặc định '1m'); Nhanh -> KHÔNG gửi run_frame (undefined, backend quyết định theo chương trình). */
+export const execRunFrame = (mode, meta = null) => (mode === 'standard' ? (meta?.engine?.standard_frame || '1m') : undefined)

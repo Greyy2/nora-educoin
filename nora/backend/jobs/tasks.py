@@ -3,7 +3,7 @@
 Nội dung tính toán thuần -> backend/metrics/trades.py
 Nội dung nạp dữ liệu -> backend/data/data.py
 Nội dung chạy engine / WFA -> backend/jobs/evaluate.py
-Nội dung xuất bản / quản lý sổ -> backend/strategies.py
+Nội dung xuất bản / quản lý sổ -> backend/alpha/strategies.py
 """
 import os
 for _blas_env in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS",
@@ -18,18 +18,20 @@ import shutil
 import time
 import warnings
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
-from backend import strategies
-from backend.models.params import DAY_MS as DAY, DEFAULT_CAPITAL, DEFAULT_TRAIN_RATIO, date_ms
+from backend.analys.alpha import strategies
+from backend.analys.param import DAY_MS as DAY, DEFAULT_CAPITAL, DEFAULT_TRAIN_RATIO, date_ms
 from backend.models.storage import as_list, json_default, load_report, load_samples, options, write_job_result
 from backend.data.data import check_data, data_info, load_prices, resolve_symbols, strategy_frames
-from backend.nautilus.engine import provenance as engine_provenance
-from backend.metrics.trades import build_result, stage_split
-from backend.jobs.evaluate import (WARMUP, _pool_shared, candidates_from_ids, candidates_from_list, candidates_from_report, execute, load_items,
-                                              plan_is_jobs, print_summary, run, run_benchmark, run_portfolio_wfa)
+from backend.core.engine import provenance as engine_provenance
+from backend.analys.metrics.trades import build_result, stage_split
+from backend.jobs.runner.backtest import (WARMUP, _pool_shared, execute, load_items,
+                                          run, run_benchmark)
+from backend.jobs.runner.wfa import (candidates_from_ids, candidates_from_list, candidates_from_report,
+                                     plan_is_jobs, print_summary, run_portfolio_wfa)
 
 CUSTOM_BACKTEST_DEFAULTS = {"code": "", "symbols": None, "start": "", "end": "", "train_ratio": DEFAULT_TRAIN_RATIO, "initial_capital": None, "position": None, "run_frame": ""}
 BOOK_BACKTEST_DEFAULTS = {"book": "", "strategies": None, "symbols": "", "start": "", "end": "", "risk_per_trade": None, "stop_fill": "level", "regime": False, "timeframe": "1m", "out": "",
@@ -48,9 +50,9 @@ def stamp_provenance(prov: Dict[str, Any]) -> Dict[str, Any]:
             "computed_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
 
 
-def diagnostic_inputs(plan, program, end: int) -> Dict[str, Any]:
+def diagnostic_inputs(plan, program, end: int, start: Optional[int] = None) -> Dict[str, Any]:
     """Dữ liệu thật cho chẩn đoán: giá ngày từng tài sản, chuỗi thị trường (BTC hoặc chỉ số rổ đều), nến khung chiến lược (binding_condition)."""
-    from backend.metrics.trades import market_series
+    from backend.analys.metrics.trades import market_series
     out: Dict[str, Any] = {"prices": None, "market": None, "frames": None, "errors": []}
     try:
         out["prices"] = load_prices(plan.symbols, end)
@@ -58,7 +60,9 @@ def diagnostic_inputs(plan, program, end: int) -> Dict[str, Any]:
     except Exception as e:      # noqa: BLE001 — chẩn đoán không được làm hỏng kết quả backtest
         out["errors"].append(f"giá thị trường: {e}")
     try:
-        out["frames"] = strategy_frames(plan.symbols, program.timeframe, end, drop_filled=(program.timeframe == plan.base_frame))
+        warmup_ms = int(getattr(program, "warmup_bars", 60) or 60) * 86400 * 1000
+        start_ms = max(0, (start or end) - warmup_ms) if start is not None else 0
+        out["frames"] = strategy_frames(plan.symbols, program.timeframe, end, start_ms=start_ms, drop_filled=(program.timeframe == plan.base_frame))
     except Exception as e:      # noqa: BLE001
         out["errors"].append(f"nến khung chiến lược: {e}")
     return out
@@ -142,14 +146,14 @@ def run_custom(params=None):
         raise ValueError("train_ratio phải trong [0,1; 0,95]")
     source = "okx"
     os.environ.pop("NORA_SHARED_DATA_DIR", None)   # cột py_ tính trong tiến trình, không đi qua kho dùng chung
-    from backend.jobs.workers import require_memory_limit
+    from backend.jobs.worker import require_memory_limit
     require_memory_limit("custom_run")
     from datetime import datetime, timezone
     from backend.jobs.runner import Progress
-    from backend.signal.nodes import DslError
-    from backend.alpha.compile import compile_code
-    from backend.signal.compute import SignalEngine
-    from backend.alpha.plan import build_plan
+    from backend.analys.signal.signal import DslError
+    from backend.analys.alpha.code.compile import compile_code
+    from backend.analys.signal.compute import SignalEngine
+    from backend.analys.alpha.code.plan import build_plan
     SignalEngine.MAX_BACKTEST_DAYS = 4000
 
     t0 = time.time()
@@ -173,9 +177,10 @@ def run_custom(params=None):
 
     native = bool(getattr(program, "is_native", False))
     if native:      # Strategy Nautilus bản địa: không có plan DSL -> Plan thật (cùng kiểu build_plan trả về) để benchmark / chẩn đoán / build_result dùng chung
-        from backend.alpha.plan import Plan
+        from backend.analys.alpha.code.plan import Plan, resolve_run_frame
         names = resolve_symbols(as_list(a.symbols) or program.symbols or None)
-        plan = Plan(strategies=[{"id": program.name}], symbols=[f"{n}@perp" for n in names], risk={}, base_frame=a.run_frame or program.timeframe)
+        base_frame = resolve_run_frame(a.run_frame, getattr(program, "timeframe", None))
+        plan = Plan(strategies=[{"id": program.name}], symbols=[f"{n}@perp" for n in names], risk={}, base_frame=base_frame)
     else:
         names = resolve_symbols(as_list(a.symbols))
         plan = build_plan(program, names, position=a.position or None, run_frame=a.run_frame)
@@ -251,12 +256,14 @@ def _finish(program, plan, a, start: int, end: int, capital: float, data: Dict[s
     mark(5, 5, "Tính toán chỉ số & chẩn đoán", "Sharpe, Drawdown, PnL & báo cáo")
     out = build_result(program, plan, res, eng, a, start, end, capital, data, warns, test_res, split, bench=bench, inputs=diagnostic_inputs(plan, program, end),
                        test_bench=test_bench)
-    from backend.strategies import evaluate_checklist, generate_alpha_id
+    from backend.analys.alpha.strategies import evaluate_checklist, generate_alpha_id
     out["alpha_id"] = generate_alpha_id(program.code_hash, out["config"])
     out["checklist"] = evaluate_checklist(out)
-    from backend.jobs.workers import peak_rss_mb
+    from backend.jobs.worker import peak_rss_mb
     out["meta"] = {"wall_s": round(time.time() - t0, 1), "peak_rss_mb": round(peak_rss_mb(), 1)}   # không tất định -> tách riêng
     out["provenance"] = stamp_provenance(out.get("provenance") or engine_provenance(plan.base_frame))
+    from backend.analys.alpha.code.route import classify
+    out["compile"] = classify(a.code)
 
     if progress:
         progress.status = "done"
@@ -280,11 +287,11 @@ def run_book_backtest(params=None):
         raise ValueError("stop_fill phải là level|extreme")
     if a.book and a.strategies:
         raise ValueError("chọn một: book hoặc strategies")
-    from backend.jobs.workers import require_memory_limit
+    from backend.jobs.worker import require_memory_limit
     require_memory_limit("run_book_backtest")
-    from backend.signal.compute import SignalEngine
+    from backend.analys.signal.compute import SignalEngine
     SignalEngine.MAX_BACKTEST_DAYS = 4000
-    from backend.strategies import perp_symbols
+    from backend.analys.alpha.strategies import perp_symbols
 
     from backend.data.data import classify_symbols
     if a.data not in ("candle", "tick"):
@@ -299,7 +306,7 @@ def run_book_backtest(params=None):
         rpt = a.risk_per_trade
     if a.data == "tick":   # cửa sổ do độ phủ tick quyết định (tick_run.run_tick cắt theo tick); thiếu đầu nào lấy hết độ phủ
         start, end = (date_ms(a.start) if a.start else None), (date_ms(a.end) + DAY if a.end else None)
-        from backend.jobs.evaluate import run_tick
+        from backend.jobs.runner.backtest import run_tick
         out = run_tick(items, symbols, start, end, rpt, risk, a.stop_fill, a.timeframe or "1m", float(a.capital or DEFAULT_CAPITAL),
                        latency_ms=a.latency_ms, gas_usd=a.gas_usd)
     else:
@@ -345,14 +352,14 @@ def run_book_wfa(params=None):
     if sum(map(bool, (a.report, a.candidates, a.strategies))) != 1:
         raise ValueError("chọn đúng một: report, candidates hoặc strategies")
 
-    from backend.jobs.workers import check_memory_gate, require_memory_limit
+    from backend.jobs.worker import check_memory_gate, require_memory_limit
     require_memory_limit("validate_book")
-    from backend.models.params import BASE_RISK_PER_TRADE_PCT, RISK
-    from backend.strategies import perp_symbols
+    from backend.analys.param import BASE_RISK_PER_TRADE_PCT, RISK
+    from backend.analys.alpha.strategies import perp_symbols
     from backend.models.storage import run_dir as run_dir_of
-    from backend.jobs.workers import resolve_workers
-    from backend.jobs import evaluate as bsb
-    from backend.wfa.wfa import generate_folds, PortfolioWfaConfig
+    from backend.jobs.worker import resolve_workers
+    from backend.jobs.runner import backtest as bsb
+    from backend.analys.validation.wfa.wfa import generate_folds, PortfolioWfaConfig
 
     per_worker_mb = a.per_worker_mb or bsb.PER_WORKER_MB
     workers = resolve_workers(a.workers, per_worker_mb, "validate_book")
@@ -380,7 +387,7 @@ def run_book_wfa(params=None):
     end = date_ms(a.end) if a.end else w["dev2_end"]
 
     from backend.jobs.runner import Progress, graceful_sigterm
-    from backend.jobs.evaluate import ResultsStore
+    from backend.jobs.runner.wfa import ResultsStore
 
     folds = generate_folds(int(start), int(end), a.train_days, a.test_days, a.step_days)
     n_cfg = sum(len(c["configs"]) for c in cands)
@@ -447,11 +454,311 @@ def run_book_wfa(params=None):
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Job regime_report: báo cáo độ chính xác regime + so sánh backtest
+# Job live_bot: chạy bot Live / Paper / Testnet trên Nautilus TradingNode
 # ══════════════════════════════════════════════════════════════════════════
 
+class ConfigError(ValueError):
+    """Cấu hình chiến lược của bộ chọn không hợp lệ: .errors = [(trường, thông báo)] (route trả 400)."""
+    def __init__(self, errors):
+        self.errors = list(errors)
+        super().__init__("; ".join(m for _, m in self.errors))
 
-# ══════════════════════════════════════════════════════════════════════════
-# Job funnel_book: xuất bản sổ chung vốn từ phễu
-# ══════════════════════════════════════════════════════════════════════════
+
+def config_hash(alpha_id: str, signal_tf: Any, params: Dict[str, Any], symbols: Any) -> str:
+    """Băm chuẩn tắc của cấu hình ĐÃ GIẢI (alpha, khung tín hiệu, tham số đầy đủ, rổ tài sản)."""
+    import hashlib
+    names = sorted(resolve_symbols(list(symbols))) if symbols else []
+    blob = json.dumps({"a": str(alpha_id), "tf": signal_tf or None, "p": params, "s": names}, sort_keys=True, default=str, ensure_ascii=False)
+    return hashlib.sha256(blob.encode()).hexdigest()[:16]
+
+
+def resolve_strategy(alpha_id=None, code=None, signal_tf=None, params=None, symbols=None, book=None) -> Dict[str, Any]:
+    """MỘT định nghĩa "cấu hình chiến lược đã giải", dùng chung cho backtest từ bộ chọn và run_live_bot (resolve_live_source).
+    Alpha hệ thống: validate_params (schema; sai -> ConfigError) -> lift_frames(signal_tf) -> materialize => {"kind":"system","params": đầy đủ,"strategy": slot}.
+    Alpha người dùng (alpha_id/code): `params` = ghi đè vị thế (POSITION_KEYS), gộp lên vị thế đã lưu; khoá lạ -> ConfigError => {"kind":"user","position": gộp, ...}.
+    Luôn có "hash" (config_hash) và "params" chuẩn tắc."""
+    from backend.analys.alpha import strategies as alpha_store
+    from backend.analys.alpha.strategies import validate_params, lift_frames, BY_ID, load_presets
+    from backend.analys.param import materialize, schema_defaults, POSITION_KEYS
+    if params is not None and not isinstance(params, dict):
+        raise ConfigError([("params", "params phải là đối tượng {khoá: giá trị}")])
+    params = dict(params or {})
+    rec = alpha_store.get_user_alpha(str(alpha_id)) if alpha_id and not code else None
+    if rec is None and alpha_id and not code:
+        cand = BY_ID.get(alpha_id)
+        if cand is None:
+            raise ConfigError([("alpha_id", f"alpha_id {alpha_id!r} không có trong alpha người dùng lẫn chiến lược hệ thống")])
+        row = (strategies.stored_row(alpha_id, signal_tf, book) or strategies.stored_row(alpha_id, signal_tf)) if signal_tf else None
+        base = dict(row["params"]) if row else schema_defaults(cand)      # Mặc định = ĐÚNG bộ tham số đã backtest của chân (sổ main/explore); tuỳ chỉnh = ghi đè lên đó
+        full, errs = validate_params(cand, params, base, "params")
+        if errs:
+            raise ConfigError(errs)
+        if signal_tf:
+            try:
+                full = lift_frames(cand, full, signal_tf)     # đúng như backtest: mọi khung tín hiệu nâng lên >= khung của dòng
+            except ValueError as e:
+                raise ConfigError([("signal_tf", str(e))])
+        return {"kind": "system", "alpha_id": alpha_id, "signal_tf": signal_tf, "params": full, "book": row.get("book") if row else None, "strategy": materialize(cand, full),
+                "hash": config_hash(alpha_id, signal_tf, full, symbols)}
+    bad = sorted(set(params) - set(POSITION_KEYS))
+    if bad:
+        raise ConfigError([(f"params.{k}", f"tham số '{k}' không phải tham số vị thế của alpha; hợp lệ: {sorted(POSITION_KEYS)}") for k in bad])
+    for k, v in params.items():
+        if isinstance(v, bool) or not isinstance(v, (int, float, str)):
+            raise ConfigError([(f"params.{k}", f"{k}: phải là số hoặc chuỗi, nhận {v!r}")])
+    position = {**(((rec or {}).get("config") or {}).get("position") or {}), **params}
+    return {"kind": "user", "alpha_id": alpha_id, "signal_tf": signal_tf, "params": params, "position": position,
+            "hash": config_hash(alpha_id or "code", signal_tf, position, symbols)}
+
+
+def _picker_store() -> str:
+    from backend.models.storage import alpha_dir
+    return os.path.join(alpha_dir(), "picker_backtests.json")
+
+
+def picker_backtest_save(job_id: str, config: Dict[str, Any]) -> None:
+    """Ghi cấu hình ĐÃ GIẢI của backtest từ bộ chọn theo job_id (giữ 200 bản gần nhất)."""
+    path = _picker_store()
+    try:
+        with open(path, encoding="utf-8") as fh:
+            db = json.load(fh)
+    except (OSError, ValueError):
+        db = {}
+    db[str(job_id)] = {**config, "ts": time.time()}
+    for k in sorted(db, key=lambda x: db[x].get("ts", 0))[:-200]:
+        db.pop(k, None)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = f"{path}.{os.getpid()}.tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(db, fh, ensure_ascii=False, default=json_default)
+    os.replace(tmp, path)
+
+
+def picker_backtest_get(job_id: str):
+    try:
+        with open(_picker_store(), encoding="utf-8") as fh:
+            return json.load(fh).get(str(job_id))
+    except (OSError, ValueError):
+        return None
+
+
+def resolve_live_source(params: Dict[str, Any]) -> Dict[str, Any]:
+    """Nguồn chiến lược của bot -> {"strategies", "risk", "symbols" (ký hiệu dữ liệu "BTC@perp"), "base_frame", "native", "label"}. CÙNG đường với backtest:
+    compile_code -> build_plan (DSL) hoặc Strategy bản địa (như run_native). alpha_id: mã của alpha người dùng (alpha/store) kèm vị thế/rủi ro đã lưu; không phải
+    alpha người dùng -> chiến lược hệ thống (alpha/strategies)."""
+    from backend.analys.alpha.code.compile import compile_code
+    from backend.analys.alpha.code.plan import build_plan
+    from backend.analys.alpha import strategies as alpha_store
+    from backend.data.data import resolve_symbols
+
+    symbols = params.get("symbols") or ["BTC-USDT-SWAP"]
+    if isinstance(symbols, str):
+        symbols = [x.strip() for x in symbols.split(",") if x.strip()]
+    names = resolve_symbols(list(symbols))
+    signal_tf = params.get("signal_tf") or None      # khung tín hiệu của dòng đã backtest lãi (bộ chọn chiến lược): BẮT BUỘC theo, không tự suy khung khác
+    run_frame = params.get("base_frame") or signal_tf or None
+    if signal_tf:
+        from backend.analys.param import FRAME_MS
+        if signal_tf not in FRAME_MS:
+            raise ValueError(f"signal_tf {signal_tf!r} không hợp lệ")
+        if run_frame and FRAME_MS[run_frame] > FRAME_MS[signal_tf]:
+            raise ValueError(f"Khung chạy {run_frame} lớn hơn khung tín hiệu {signal_tf}")
+    code, position, risk, label, name = params.get("code"), dict(params.get("position") or {}), None, "custom", None
+    if code and not params.get("alpha_id") and params.get("params"):
+        position.update(resolve_strategy(code=code, signal_tf=signal_tf, params=params["params"])["params"])
+    if not code and params.get("alpha_id"):
+        rec = alpha_store.get_user_alpha(str(params["alpha_id"]))
+        if rec is not None:
+            code, label, name = rec["code"], f"alpha:{rec['id']}", rec.get("name")
+            cfg = rec.get("config") or {}
+            position = {**(cfg.get("position") or {}), **position, **resolve_strategy(params["alpha_id"], None, signal_tf, params.get("params"))["params"]}
+            risk = cfg.get("risk")
+        else:
+            rs = resolve_strategy(params["alpha_id"], None, signal_tf, params.get("params"), names, params.get("book_source"))
+            return {"strategies": [rs["strategy"]], "risk": None, "symbols": [f"{n}@perp" for n in names], "base_frame": run_frame or "1h", "native": None,
+                    "label": f"system:{params['alpha_id']}", "name": params["alpha_id"]}
+    if not code:
+        raise ValueError("Cần code hoặc alpha_id để chạy bot")
+    program = compile_code(code)
+    if signal_tf and not getattr(program, "is_native", False) and program.timeframe != signal_tf:
+        raise ValueError(f"Chiến lược khai báo timeframe {program.timeframe}, không phải khung đã backtest lãi {signal_tf}: không thể chạy bot ở khung khác")
+    if getattr(program, "is_native", False):
+        return {"strategies": [], "risk": None, "symbols": [f"{n}@perp" for n in (resolve_symbols(program.symbols) if program.symbols and not params.get("symbols") else names)],
+                "base_frame": run_frame or getattr(program, "timeframe", None) or "1h",
+                "native": {"cls": program.strategy_cls, "id": program.name, "params": {}}, "label": f"native:{program.name}", "name": program.name}
+    plan = build_plan(program, names, position=position or None, run_frame=run_frame)
+    return {"strategies": plan.strategies, "risk": risk or plan.risk, "symbols": plan.symbols, "base_frame": plan.base_frame, "native": None, "label": label, "name": name or getattr(program, "name", None) or plan.strategies[0]["id"]}
+
+
+def launch_fingerprint(params: Dict[str, Any], src: Dict[str, Any]) -> Dict[str, Any]:
+    """Dấu vân tay cấu hình của bot (băm slot đã giải) + so với cấu hình ĐÃ BACKTEST của cùng (chiến lược, khung tín hiệu): dựng lại qua CÙNG resolve_live_source (materialize/lift_frames
+    hoặc compile+build_plan) từ chính alpha_id/code + signal_tf, KHÔNG kèm ghi đè vị thế/tham số của lần chạy. Không phải bộ chọn (không signal_tf) hoặc Strategy bản địa: match = None."""
+    from backend.core import live as lv
+    if not src.get("strategies"):
+        return {"strategy_fingerprint": None, "fingerprint_expected": None, "fingerprint_match": None}
+    fp = lv.strategy_fingerprint(src["strategies"], src["symbols"], src["base_frame"])
+    exp, match = None, None
+    if params.get("signal_tf") and (params.get("alpha_id") or params.get("code")):
+        base = {k: params[k] for k in ("alpha_id", "code", "symbols", "signal_tf", "book_source") if params.get(k)}
+        if params.get("backtest_job_id"):      # tuỳ chỉnh: kỳ vọng = cấu hình ĐÃ GIẢI của chính job backtest (không phải tham số lần bật)
+            rec = picker_backtest_get(params["backtest_job_id"])
+            base = {k: rec[k] for k in ("alpha_id", "signal_tf", "symbols", "params", "book_source") if rec and rec.get(k) is not None} if rec else None
+        try:
+            if base is None:
+                raise ValueError(f"không có cấu hình đã lưu cho job backtest {params['backtest_job_id']}")
+            ref = resolve_live_source({**base, "base_frame": params["signal_tf"]})
+            exp = lv.strategy_fingerprint(ref["strategies"], ref["symbols"], ref["base_frame"])
+            if ref["base_frame"] != src["base_frame"]:      # chạy ở khung nhỏ hơn khung tín hiệu: so theo cấu hình nếu chạy ở khung của backtest
+                exp = lv.strategy_fingerprint(ref["strategies"], ref["symbols"], src["base_frame"])
+            match = exp == fp
+        except Exception as e:
+            exp, match = f"error: {type(e).__name__}: {e}", False
+    return {"strategy_fingerprint": fp, "fingerprint_expected": exp, "fingerprint_match": match}
+
+
+def run_live_bot(params: Dict[str, Any]) -> Dict[str, Any]:
+    """Khởi chạy (hoặc CHẠY LẠI: params.resume) bot live/paper/testnet qua Nautilus TradingNode: chiến lược dựng như backtest (resolve_live_source), nạp lịch sử tín hiệu, rồi node.run().
+
+    Quy tắc dữ liệu: tiến trình thoát / sập / API khởi động lại KHÔNG đóng vị thế và KHÔNG đổi trạng thái bot (supervisor chạy lại cùng bot_id, resume=True: cùng thư mục, chỉ nối thêm
+    events/equity, Nautilus đối soát sàn). CHỈ cờ `stop` (POST /live/bot/{id}/stop) mới dừng bot, và chỉ khi close=True mới đóng vị thế (của riêng bot)."""
+    import threading
+    from backend.core import live as lv
+
+    mode = str(params.get("mode", "paper"))
+    capital = float(params.get("capital") or 1000.0)
+    confirm_live = bool(params.get("confirm_live", False))
+    resume = bool(params.get("resume", False))
+    bot_id = str(params.get("bot_id") or lv.new_bot_id(mode))
+    launch_params = {k: v for k, v in params.items() if k != "resume"}
+    src = resolve_live_source(params)
+    if mode == "testnet":
+        print(f"[TESTNET] chế độ vị thế OKX demo: {lv.ensure_net_position_mode()}", flush=True)
+    bot_dir = None
+
+    def start_node(resume_: bool):
+        nonlocal bot_dir
+        nd = lv.build_node(mode, src["strategies"], src["symbols"], capital, base_frame=src["base_frame"], confirm_live=confirm_live, bot_id=bot_id,
+                           risk=src["risk"], native=src["native"], enter_on_start=bool(params.get("enter_on_start", False)) and not resume_, resume=resume_,
+                           launch_params=launch_params)
+        bot_dir = nd.nora.bot_dir
+        print(f"[{mode.upper()}] {bot_id}{' (chạy lại)' if resume_ else ''}: {src['label']} · {len(nd.nora.slots)} slot · {len(src['symbols'])} tài sản · khung {src['base_frame']}", flush=True)
+        if nd.nora.signals:
+            t0 = time.time()
+            stats = lv.warm_start(nd)
+            print(f"[{mode.upper()}] nạp lịch sử tín hiệu xong ({time.time() - t0:.0f}s): " + ", ".join(f"{x['symbol']}:+{x['rest_rows']}rest" for x in stats), flush=True)
+            try:
+                import gc, ctypes
+                gc.collect()
+                ctypes.CDLL("libc.so.6").malloc_trim(0)
+            except Exception:
+                pass
+        return nd
+
+    try:
+        node = start_node(resume)
+    except Exception:
+        if bot_dir:
+            lv.set_status(bot_dir, "failed")        # chỉ khi dựng node lỗi (bot mới); bot chạy lại lỗi thì supervisor đếm số lần rồi mới failed
+        raise
+    try:
+        ident = launch_fingerprint(params, src)
+    except Exception as e:
+        ident = {"strategy_fingerprint": None, "fingerprint_expected": None, "fingerprint_match": None, "fingerprint_error": f"{type(e).__name__}: {e}"}
+    node.nora.recorder.record_event("strategy_identity", ident)
+    lv.set_status(bot_dir, "starting", strategy=src.get("name") or src["label"], job_id=os.path.basename(os.environ.get("NORA_JOB_DIR", "")) or None, **ident)
+    stop_file = os.path.join(bot_dir, "stop")
+
+    def stop_watcher():
+        while True:
+            flag = lv.stop_flag(bot_dir)
+            if flag is not None:
+                close = bool(flag.get("close", True))
+                print(f"[{mode.upper()}] Nhận cờ dừng cho {bot_id} (close={close}), đang dừng...", flush=True)
+                loop = node.kernel.loop
+                loop.call_soon_threadsafe(lv.apply_stop, node, close)
+                deadline = time.time() + 45.0
+                while close and not lv.own_flat(node) and time.time() < deadline:
+                    time.sleep(0.5)
+                loop.call_soon_threadsafe(node.stop)
+                time.sleep(3.0)
+                try:
+                    loop.call_soon_threadsafe(loop.stop)
+                except Exception:
+                    pass
+                break
+            time.sleep(2.0)
+
+    threading.Thread(target=stop_watcher, daemon=True).start()
+    from backend.models.storage import pid_start_ticks
+    lv.set_status(bot_dir, "running", pid=os.getpid(), pid_start=pid_start_ticks(os.getpid()), resume_failures=0)
+    print(f"[{mode.upper()}] Bot {bot_id} đang chạy...", flush=True)
+    failures = 0
+    while True:
+        reason = None
+        try:
+            reason = lv.run_node(node)           # DataWatch: dữ liệu không lên / đứng -> dừng node, trả lý do
+        finally:
+            node.dispose()
+        if os.path.isfile(stop_file):
+            lv.set_status(bot_dir, "stopped")     # người dùng dừng -> chốt. Thoát vì lý do khác: giữ "running" để supervisor chạy lại, KHÔNG đóng vị thế
+            break
+        if reason is None:
+            node.nora.recorder.record_event("process_exit", {"note": "tiến trình thoát không do người dùng dừng; không đóng vị thế, chờ supervisor chạy lại"})
+            break
+        failures = 1 if getattr(node.nora, "was_ready", False) else failures + 1
+        if failures >= lv.MAX_DATA_ATTEMPTS:
+            msg = f"dữ liệu OKX không lên/đứng ({reason}) sau {failures} lần kết nối lại"
+            node.nora.recorder.record_event("error", {"error": msg, "reason": reason, "attempts": failures})
+            lv.set_status(bot_dir, "failed", error=msg, error_reason=reason)
+            print(f"[{mode.upper()}] {bot_id} THẤT BẠI: {msg}", flush=True)
+            return {"bot_id": bot_id, "mode": mode, "status": "failed", "error": msg}
+        wait = lv.BACKOFF_S[min(failures - 1, len(lv.BACKOFF_S) - 1)]
+        node.nora.recorder.record_event("data_retry", {"reason": reason, "attempt": failures, "wait_s": wait})
+        print(f"[{mode.upper()}] {bot_id}: dữ liệu lỗi ({reason}), dựng lại node sau {wait:.0f}s (lần {failures}/{lv.MAX_DATA_ATTEMPTS})", flush=True)
+        time.sleep(wait)
+        node = start_node(True)
+        lv.set_status(bot_dir, "running", pid=os.getpid(), pid_start=pid_start_ticks(os.getpid()))
+
+    return {"bot_id": bot_id, "mode": mode, "status": "stopped" if os.path.isfile(stop_file) else "running"}
+
+
+def run_alpha_research(params=None):
+    """Chạy job alpha_research với params {prompt, opts} -> dict kết quả."""
+    from backend.analys.alpha.prompt import research
+    p = params or {}
+    prompt = str(p.get("prompt", ""))
+    opts = dict(p.get("opts", {}) or {})
+    s1 = research.validate_prompt(prompt, opts)
+    if not s1.get("valid"):
+        out = {"valid": False, "error": s1.get("reason"), "step1": s1}
+    else:
+        ideas = research.generate_ideas(s1.get("normalized_prompt") or prompt, opts)
+        out = {"valid": True, "step1": s1, "step2": ideas}
+    write_job_result(out)
+    return out
+
+
+# ─── Khởi tạo và liên kết các runner vào file tổng tasks ───
+from backend.jobs.runner.alpha import (
+    run_universe_scan,
+    run_parameter_sweep,
+    run_param_sweep,
+    load_universe_sectors,
+    OPTIMIZED_8_COINS,
+    generate_100_strategies,
+)
+from backend.jobs.runner.live import (
+    build_chart,
+    supervise_once,
+    match_fills,
+    resolve_live_source,
+    launch_fingerprint,
+)
+
+from backend.jobs.runner.backtest import (
+    make_engine,
+    run_tick,
+    BacktestJob,
+    SharedExporter,
+)
 

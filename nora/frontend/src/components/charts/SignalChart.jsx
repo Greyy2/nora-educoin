@@ -18,7 +18,7 @@ function readTheme(el) {
 const chartOpts = (c) => ({
   layout: { background: { color: c.bg }, textColor: c.text, fontFamily: "'IBM Plex Sans', system-ui, sans-serif", fontSize: 11 },
   grid: { vertLines: { color: c.grid }, horzLines: { color: c.grid } },
-  rightPriceScale: { borderColor: c.line },
+  rightPriceScale: { borderColor: c.line, scaleMargins: { top: 0.15, bottom: 0.22 } },
   timeScale: { borderColor: c.line },
   crosshair: { mode: CrosshairMode.Normal },
 })
@@ -125,17 +125,33 @@ export default function SignalChart({ data, trades = NONE, selectedT = null, onS
       const sel = selectedT != null && s.t === selectedT
       const time = snapTime(cur.times, s.t)
       if (s.kind === 'entry') {
-        m.push({ time, position: long ? 'belowBar' : 'aboveBar', shape: long ? 'arrowUp' : 'arrowDown', color: sel ? col.accent : (long ? col.pos : col.neg), text: 'Tín hiệu', size: sel ? 2 : 1 })
+        m.push({ time, position: long ? 'belowBar' : 'aboveBar', shape: long ? 'arrowUp' : 'arrowDown', color: sel ? col.accent : (long ? col.pos : col.neg), text: long ? '▲ Tín hiệu' : '▼ Tín hiệu', size: sel ? 2 : 1.2 })
       } else {
-        m.push({ time, position: long ? 'aboveBar' : 'belowBar', shape: 'circle', color: sel ? col.accent : col.warn, text: 'Thoát', size: sel ? 2 : 1 })
+        m.push({ time, position: long ? 'aboveBar' : 'belowBar', shape: long ? 'arrowDown' : 'arrowUp', color: sel ? col.accent : col.warn, text: long ? '▼ Thoát' : '▲ Thoát', size: sel ? 2 : 1.2 })
       }
     })
     trades.forEach((t) => {
       const tl = String(t.side || side).toUpperCase() !== 'SHORT'
-      m.push({ time: snapTime(cur.times, t.enter_ms / 1000), position: tl ? 'belowBar' : 'aboveBar', shape: 'square', color: col.info, text: 'Vào', size: 1 })
+      m.push({
+        time: snapTime(cur.times, t.enter_ms / 1000),
+        position: tl ? 'belowBar' : 'aboveBar',
+        shape: tl ? 'arrowUp' : 'arrowDown',
+        color: tl ? col.pos : col.neg,
+        text: tl ? '▲ Vào Long' : '▼ Vào Short',
+        size: 1.3,
+      })
       if (t.close_ms) {
-        const c = Number.isFinite(t.pnl) ? (t.pnl >= 0 ? col.pos : col.neg) : col.warn
-        m.push({ time: snapTime(cur.times, t.close_ms / 1000), position: tl ? 'aboveBar' : 'belowBar', shape: 'square', color: c, text: t.reason ? `Ra ${t.reason}` : 'Ra', size: 1 })
+        const isWin = Number.isFinite(t.pnl) ? t.pnl >= 0 : true
+        const c = isWin ? col.pos : col.neg
+        const reasonTxt = t.reason ? ` ${t.reason}` : ''
+        m.push({
+          time: snapTime(cur.times, t.close_ms / 1000),
+          position: tl ? 'aboveBar' : 'belowBar',
+          shape: tl ? 'arrowDown' : 'arrowUp',
+          color: c,
+          text: tl ? `▼ Chốt${reasonTxt}` : `▲ Chốt${reasonTxt}`,
+          size: 1.3,
+        })
       }
     })
     m.sort((a, b) => a.time - b.time)

@@ -33,7 +33,7 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.abspath(os.path.join(HERE, "..", "..", "..")))
 from s11_common import CAPITAL, HOUR, M, MAKER, OUT, PORT, STAGES, SYMS, TAKER, dca_lists  # noqa: E402
 from ext_run_nautilus import build_trades, inst_id, make_instrument      # noqa: E402
-from backend.models import position_size as npolicy                        # noqa: E402
+from backend.analys.position import position_size as npolicy                        # noqa: E402
 
 USDT = Currency.from_str("USDT")
 VENUE = Venue("OKX")

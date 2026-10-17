@@ -28,7 +28,16 @@ export default function JobPanel({ job, status, error, title, onCancelled, isBac
   const [now, setNow] = useState(Date.now())
   const [cancelling, setCancelling] = useState(false)
   const [cancelError, setCancelError] = useState(null)
+  const [copied, setCopied] = useState(false)
   const consoleBodyRef = useRef(null)
+
+  const copyLogs = () => {
+    if (!lines.length) return
+    navigator.clipboard.writeText(lines.join('\n')).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
 
   const live = status === 'queued' || status === 'running' || status === 'loading'
   useEffect(() => {
@@ -81,15 +90,17 @@ export default function JobPanel({ job, status, error, title, onCancelled, isBac
   const [displayedStepIdx, setDisplayedStepIdx] = useState(() => (status === 'done' ? BACKTEST_STEPS.length : 0))
 
   useEffect(() => {
+    if (status === 'done') {
+      setDisplayedStepIdx(BACKTEST_STEPS.length)
+      return undefined
+    }
     if (!isBacktestPipeline) {
       setDisplayedStepIdx(targetStepIdx)
       return undefined
     }
 
     if (displayedStepIdx < targetStepIdx) {
-      // Nếu chênh lệch nhiều bước hoặc job đã xong: catch up nhanh (90ms-110ms)
-      // Nếu chuyển bước bình thường: 150ms để mắt kịp nắm bắt mà không hề thấy khựng
-      const delay = (status === 'done' || targetStepIdx - displayedStepIdx > 1) ? 100 : 160
+      const delay = (targetStepIdx - displayedStepIdx > 1) ? 80 : 120
       const timer = setTimeout(() => {
         setDisplayedStepIdx((prev) => Math.min(targetStepIdx, prev + 1))
       }, delay)
@@ -101,11 +112,11 @@ export default function JobPanel({ job, status, error, title, onCancelled, isBac
   const [animatedPct, setAnimatedPct] = useState(0)
 
   useEffect(() => {
-    if (status === 'done' && displayedStepIdx >= BACKTEST_STEPS.length) {
+    if (status === 'done') {
       setAnimatedPct(100)
       return undefined
     }
-    if (status !== 'running' && status !== 'done') {
+    if (status !== 'running') {
       setAnimatedPct(status === 'queued' ? 4 : 0)
       return undefined
     }
@@ -246,57 +257,61 @@ export default function JobPanel({ job, status, error, title, onCancelled, isBac
       {status === 'failed' && <ErrorBox>Job thất bại (mã thoát {String(job?.exit_code ?? '?')}). Xem nhật ký bên dưới.</ErrorBox>}
       {status === 'cancelled' && <div className="muted">Job đã bị huỷ. Kết quả đã chạy được giữ lại trong kho; chạy tiếp bằng <span className="mono">--resume</span> với cùng thư mục lần chạy.</div>}
 
-      {/* Nhật ký thực thi trực tiếp theo mốc: mở sẵn khi đang chạy hoặc lỗi, thu gọn khi đã xong */}
+      {/* Nhật ký thực thi trực tiếp dạng Terminal Console chuẩn */}
       {lines.length > 0 && (
-        status === 'running' || status === 'queued' || status === 'failed' ? (
-          <div className="n-live-console" role="region" aria-label="Nhật ký thực thi trực tiếp">
-            <div className="n-console-hdr">
-              <div className="n-console-dots" aria-hidden="true">
-                <span className="n-console-dot r" />
-                <span className="n-console-dot y" />
-                <span className="n-console-dot g" />
-              </div>
-              <span className="n-console-title">Nhật ký tiến trình thực thi</span>
-              {status === 'running' && (
+        <div className="n-live-console" role="region" aria-label="Terminal Output">
+          <div className="n-console-hdr">
+            <div className="n-console-dots" aria-hidden="true">
+              <span className="n-console-dot r" />
+              <span className="n-console-dot y" />
+              <span className="n-console-dot g" />
+            </div>
+            <span className="n-console-title" style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' }}>
+              Terminal Console (out.log)
+            </span>
+            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button
+                type="button"
+                onClick={copyLogs}
+                style={{
+                  background: 'transparent',
+                  border: '1px solid var(--n-line, #334155)',
+                  color: copied ? 'var(--n-pos, #10b981)' : 'var(--n-ink-2, #94a3b8)',
+                  borderRadius: 4,
+                  padding: '2px 8px',
+                  fontSize: 10.5,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+                title="Sao chép toàn bộ nhật ký"
+              >
+                {copied ? '✓ Đã chép' : 'Sao chép'}
+              </button>
+              {status === 'running' ? (
                 <span className="n-console-live-badge">
                   <span className="n-console-live-pulse" />
-                  TRỰC TIẾP
+                  LIVE
                 </span>
-              )}
-            </div>
-            <div className="n-console-body" ref={consoleBodyRef}>
-              {lines.map((ln, i) => {
-                const parsed = parseLogLine(ln)
-                const isFinished = parsed.msg.includes('Hoàn tất!')
-                return (
-                  <div key={i} className="n-console-row">
-                    {parsed.time && <span className="n-console-time">[{parsed.time}]</span>}
-                    {parsed.step && <span className="n-console-step-badge">{parsed.step}</span>}
-                    <span className={`n-console-msg ${isFinished ? 'done-msg' : ''}`}>{parsed.msg}</span>
-                  </div>
-                )
-              })}
+              ) : status === 'done' ? (
+                <span className="n-badge ok" style={{ fontSize: 10 }}>DONE ✓</span>
+              ) : null}
             </div>
           </div>
-        ) : (
-          <details className="n-details">
-            <summary>Nhật ký thực thi đã hoàn tất ({lines.length} dòng)</summary>
-            <div className="n-live-console" style={{ marginTop: 6 }}>
-              <div className="n-console-body" style={{ maxHeight: 160 }}>
-                {lines.map((ln, i) => {
-                  const parsed = parseLogLine(ln)
-                  return (
-                    <div key={i} className="n-console-row">
-                      {parsed.time && <span className="n-console-time">[{parsed.time}]</span>}
-                      {parsed.step && <span className="n-console-step-badge">{parsed.step}</span>}
-                      <span className="n-console-msg">{parsed.msg}</span>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          </details>
-        )
+          <div className="n-console-body" ref={consoleBodyRef} style={{ maxHeight: 220, background: '#0b0f19', color: '#e2e8f0', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Fira Code", monospace' }}>
+            {lines.map((ln, i) => {
+              const parsed = parseLogLine(ln)
+              const isFinished = parsed.msg.includes('Hoàn tất!')
+              return (
+                <div key={i} className="n-console-row" style={{ display: 'flex', gap: 6 }}>
+                  <span style={{ color: '#475569', userSelect: 'none' }}>$</span>
+                  {parsed.time && <span className="n-console-time" style={{ color: '#64748b' }}>[{parsed.time}]</span>}
+                  {parsed.step && <span className="n-console-step-badge">{parsed.step}</span>}
+                  <span className={`n-console-msg ${isFinished ? 'done-msg' : ''}`} style={{ color: isFinished ? '#34d399' : '#e2e8f0' }}>{parsed.msg}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
       )}
     </div>
   )

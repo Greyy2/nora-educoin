@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import io
+import json
 import logging
 import os
 import time
@@ -42,6 +43,10 @@ def _day_tag(d: date) -> Tuple[str, str]:
 
 
 def _http_get(session: requests.Session, url: str, retries: int = 5, timeout: int = 60, **kwargs) -> Optional[requests.Response]:
+    headers = dict(kwargs.pop("headers", None) or {})
+    if "User-Agent" not in headers:
+        headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    kwargs["headers"] = headers
     for attempt in range(1, retries + 1):
         try:
             resp = session.get(url, timeout=timeout, **kwargs)
@@ -301,18 +306,31 @@ def refresh_quality(symbols: Optional[List[str]] = None, data_root: Optional[str
 
 
 
-def fetch_instruments(data_root: Optional[str] = None) -> Dict[str, Any]:
-    """Cập nhật instruments.json (spec hợp đồng OKX thật của rổ 10 tài sản; thiếu spec thì báo lỗi, không bù số) từ OKX REST API; nằm cạnh thư mục catalog."""
+def fetch_instruments(symbols: Optional[List[str]] = None, data_root: Optional[str] = None) -> Dict[str, Any]:
+    """Cập nhật instruments.json từ OKX REST API. Nếu symbols không truyền -> hợp của 10 coin gốc + coin trong universe_scan.json.
+    Merge vào file hiện có, giữ nguyên các mục cũ; thiếu spec thì báo lỗi, không bù số."""
     out_dir = os.path.dirname(D.default_catalog_path(data_root))
     os.makedirs(out_dir, exist_ok=True)
     path = os.path.join(out_dir, "instruments.json")
+
+    existing: Dict[str, Any] = {}
+    if os.path.isfile(path):
+        try:
+            with open(path, encoding="utf-8") as fh:
+                old_res = json.load(fh)
+            existing = old_res.get("instruments") or {}
+        except Exception:
+            existing = {}
+
+    target_bases = set(D.base_name(s) for s in symbols) if symbols else (set(D.UNIVERSE_BASES) | set(scan_universe_bases(data_root)))
+
     session = requests.Session()
     data = _okx_get(session, "/api/v5/public/instruments", {"instType": "SWAP"}, 0.2)
-    spec_map: Dict[str, Any] = {}
+    spec_map: Dict[str, Any] = dict(existing)
     for item in data:
         inst_id = item.get("instId")
         base = inst_id.split("-")[0] if inst_id else ""
-        if inst_id != inst(base) or base not in D.UNIVERSE_BASES:
+        if inst_id != inst(base) or base not in target_bases:
             continue
         tick, lot = str(item["tickSz"]), str(item["lotSz"])
         spec_map[inst_id] = {
@@ -330,7 +348,7 @@ def fetch_instruments(data_root: Optional[str] = None) -> Dict[str, Any]:
             "margin_init": 0.02,
             "margin_maint": 0.01,
         }
-    missing = [inst(b) for b in D.UNIVERSE_BASES if inst(b) not in spec_map]
+    missing = [inst(b) for b in target_bases if inst(b) not in spec_map]
     if missing:
         raise RuntimeError(f"OKX không trả spec cho {missing}")
     res = {"fetched_at": int(time.time()), "exchange": "okx", "instruments": spec_map}
@@ -372,20 +390,33 @@ def append_to_catalog(symbol: str, df_new: pd.DataFrame, data_root: Optional[str
     return commit_candles(symbol, df, data_root)
 
 
-def update_catalog(symbol: str, end_ms: Optional[int] = None, data_root: Optional[str] = None) -> Dict[str, Any]:
-    """Cập nhật nến 1m từ nến cuối trong manifest tới end_ms (mặc định: hiện tại - 2 phút); chưa có dữ liệu thì lấy 30 ngày gần nhất."""
+def update_catalog(
+    symbol: str,
+    end_ms: Optional[int] = None,
+    data_root: Optional[str] = None,
+    start_ms: Optional[int] = None,
+    days: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Cập nhật nến 1m từ nến cuối trong manifest tới end_ms (mặc định: hiện tại - 2 phút); chưa có dữ liệu thì lấy days ngày gần nhất (mặc định 30 ngày, hoặc start_ms)."""
     base = D.base_name(symbol)
     norm = D.normalize_symbol(symbol)
-    if base not in D.UNIVERSE_BASES:
-        raise ValueError(f"{symbol}: không thuộc rổ OKX perp của Nora ({', '.join(D.UNIVERSE_BASES)})")
+    allowed_bases = set(D.UNIVERSE_BASES) | set(scan_universe_bases(data_root))
+    if base not in allowed_bases:
+        raise ValueError(f"{symbol}: không thuộc rổ OKX perp của Nora ({', '.join(sorted(allowed_bases))})")
     last = _last_open_ms(D.read_manifest(base, data_root))
     target_end = int(end_ms) if end_ms else int(time.time() * 1000) - 2 * MINUTE_MS
-    start_ms = last + MINUTE_MS if last is not None else target_end - 30 * DAY_MS
-    if start_ms >= target_end:
+    default_lookback_days = days if days is not None else 30
+    if start_ms is not None and last is None:
+        calc_start = int(start_ms)
+    elif last is not None:
+        calc_start = last + MINUTE_MS
+    else:
+        calc_start = target_end - default_lookback_days * DAY_MS
+    if calc_start >= target_end:
         return {"symbol": norm, "status": "UP_TO_DATE", "new_rows": 0}
     session = requests.Session()
     cache_dir = os.path.join(data_home(), "cache", "okx")
-    df_new, _, issues = crawl_candles(session, base, start_ms, target_end, cache_dir)
+    df_new, _, issues = crawl_candles(session, base, calc_start, target_end, cache_dir)
     res = append_to_catalog(base, df_new, data_root)
     if issues:
         res["issues"] = issues
@@ -402,3 +433,191 @@ def run_job(params: Dict[str, Any]) -> Dict[str, Any]:
         except Exception as exc:
             results[s] = {"error": str(exc)}
     return {"results": results}
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# UNIVERSE SCAN (100 CẶP OKX USDT-SWAP)
+# ══════════════════════════════════════════════════════════════════════════
+
+NON_CRYPTO_BLACKLIST = {
+    "SNDK", "SOXL", "SKHYNIX", "XAU", "MU", "CL", "SPCX", "KORU", "CT",
+    "TSLA", "NVDA", "AAPL", "MSFT", "AMZN", "GOOGL", "META", "BNO", "UNG",
+}
+MAX_LIST_TIME = 1743465599000  # 2025-03-31 23:59:59 UTC (niêm yết <= 2025-03)
+
+
+def scan_universe_path(data_root: Optional[str] = None) -> str:
+    out_dir = os.path.dirname(D.default_catalog_path(data_root))
+    return os.path.join(out_dir, "universe_scan.json")
+
+
+def load_scan_universe(data_root: Optional[str] = None) -> List[Dict[str, Any]]:
+    path = scan_universe_path(data_root)
+    if not os.path.isfile(path):
+        return []
+    try:
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+        return data.get("coins") or []
+    except Exception:
+        return []
+
+
+def scan_universe_bases(data_root: Optional[str] = None) -> List[str]:
+    coins = load_scan_universe(data_root)
+    return [c["base"] for c in coins if "base" in c]
+
+
+def select_scan_universe(data_root: Optional[str] = None, max_coins: int = 100) -> Dict[str, Any]:
+    """Lọc 100 coin OKX USDT-SWAP tự động từ API OKX -> ghi universe_scan.json.
+    Quy tắc:
+    - state == "live", instId == "{base}-USDT-SWAP"
+    - listTime <= 2025-03 (đảm bảo đủ lịch sử)
+    - loại non-crypto / hàng hoá / ETF
+    - vol24h_usd >= 1M
+    - luôn gồm 10 coin hiện có
+    - Top 100 theo volume USD
+    - Hạng: A (>=20M), B (5-20M), C (1-5M)
+    """
+    import json
+    session = requests.Session()
+    inst_data = _okx_get(session, "/api/v5/public/instruments", {"instType": "SWAP"}, 0.15)
+    ticker_data = _okx_get(session, "/api/v5/market/tickers", {"instType": "SWAP"}, 0.15)
+
+    ticker_map = {t["instId"]: t for t in ticker_data if "instId" in t}
+
+    valid_candidates = []
+    seen_bases = set()
+
+    for item in inst_data:
+        inst_id = item.get("instId", "")
+        if not inst_id.endswith("-USDT-SWAP"):
+            continue
+        parts = inst_id.split("-")
+        if len(parts) < 3:
+            continue
+        base = parts[0].upper()
+        if base in seen_bases:
+            continue
+
+        if item.get("state") != "live":
+            continue
+
+        if base in NON_CRYPTO_BLACKLIST:
+            continue
+        if str(item.get("instCategory", "1")) != "1":
+            continue
+
+        list_time = int(item.get("listTime") or 0)
+        is_core_10 = base in D.UNIVERSE_BASES
+        if not is_core_10 and list_time > MAX_LIST_TIME:
+            continue
+
+        tick_info = ticker_map.get(inst_id)
+        if not tick_info:
+            continue
+
+        last_px = float(tick_info.get("last") or 0.0)
+        vol_ccy = float(tick_info.get("volCcy24h") or 0.0)
+        vol24h_usd = vol_ccy * last_px
+
+        if not is_core_10 and vol24h_usd < 1_000_000:
+            continue
+
+        grade = "A" if vol24h_usd >= 20_000_000 else "B" if vol24h_usd >= 5_000_000 else "C"
+
+        seen_bases.add(base)
+        valid_candidates.append({
+            "base": base,
+            "inst_id": inst_id,
+            "grade": grade,
+            "list_time": list_time,
+            "vol24h_usd": round(vol24h_usd, 2),
+            "ct_val": str(item.get("ctVal", "")),
+            "tick_sz": str(item.get("tickSz", "")),
+            "lot_sz": str(item.get("lotSz", "")),
+            "min_sz": str(item.get("minSz", item.get("lotSz", ""))),
+            "lever": int(float(item.get("lever") or 0)),
+            "is_core": is_core_10,
+        })
+
+    valid_candidates.sort(key=lambda x: x["vol24h_usd"], reverse=True)
+
+    core_candidates = [c for c in valid_candidates if c["is_core"]]
+    other_candidates = [c for c in valid_candidates if not c["is_core"]]
+
+    selected = core_candidates + other_candidates[:max(0, max_coins - len(core_candidates))]
+    selected.sort(key=lambda x: x["vol24h_usd"], reverse=True)
+
+    for c in selected:
+        c.pop("is_core", None)
+
+    res = {
+        "generated_at": int(time.time()),
+        "rule": "state:live, -USDT-SWAP, listTime<=2025-03, vol>=1M, top 100",
+        "total_coins": len(selected),
+        "coins": selected,
+    }
+
+    path = scan_universe_path(data_root)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    write_json_atomic(path, res)
+
+    cnt_a = sum(1 for c in selected if c["grade"] == "A")
+    cnt_b = sum(1 for c in selected if c["grade"] == "B")
+    cnt_c = sum(1 for c in selected if c["grade"] == "C")
+    print(f"[Universe Scan] Đã chọn {len(selected)} coin -> {path}")
+    print(f"  Hạng A (>= $20M): {cnt_a} coin")
+    print(f"  Hạng B ($5M-$20M): {cnt_b} coin")
+    print(f"  Hạng C ($1M-$5M):  {cnt_c} coin")
+    return res
+
+
+def run_scan_crawl(params: Dict[str, Any]) -> Dict[str, Any]:
+    """Job `data_scan_crawl`: crawl nến 2 năm cho 100 coin quét từ OKX CDN zip.
+    Chạy đa luồng theo coin (3 workers để kiểm soát RAM < 12G nora.slice). Resume được.
+    """
+    coins = params.get("coins") or scan_universe_bases()
+    start_ms = int(params.get("start_ms") or 1728777600000)   # 2024-10-13 00:00:00 UTC (2 năm)
+    end_ms = int(params.get("end_ms") or (time.time() * 1000 - 2 * MINUTE_MS))
+    workers = min(int(params.get("workers") or 3), 4)
+    resume = bool(params.get("resume", True))
+
+    results: Dict[str, Any] = {}
+    total = len(coins)
+    done_count = 0
+    t_start = time.time()
+
+    print(f"[Scan Crawl] Bắt đầu tải {total} coin (từ {start_ms} tới {end_ms}, workers={workers})")
+
+    def _worker(base: str) -> Tuple[str, Dict[str, Any]]:
+        if resume:
+            m = D.read_manifest(base)
+            if m and m.get("quality", {}).get("status") in ("APPROVED", "WARNING") and int(m.get("rows_1m") or 0) >= 900_000:
+                return base, {"symbol": base, "status": "ALREADY_EXISTS", "rows_1m": int(m.get("rows_1m") or 0), "quality": m.get("quality", {}).get("status")}
+        try:
+            res = update_catalog(base, end_ms=end_ms, start_ms=start_ms)
+            return base, res
+        except Exception as exc:
+            return base, {"error": str(exc), "status": "FAILED"}
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        for base, res in pool.map(_worker, coins):
+            done_count += 1
+            results[base] = res
+            status = res.get("status") or ("FAILED" if "error" in res else "OK")
+            q = res.get("quality") or "—"
+            elapsed = time.time() - t_start
+            eta = (elapsed / done_count) * (total - done_count) if done_count > 0 else 0
+            print(f"[{done_count}/{total}] {base}: {status} (quality={q}) - ETA {eta/60:.1f}m")
+
+    summary = {
+        "total": total,
+        "completed": len(results),
+        "approved": sum(1 for r in results.values() if r.get("quality") == "APPROVED"),
+        "warning": sum(1 for r in results.values() if r.get("quality") == "WARNING"),
+        "failed": sum(1 for r in results.values() if "error" in r),
+        "elapsed_s": round(time.time() - t_start, 1),
+        "details": results,
+    }
+    return summary

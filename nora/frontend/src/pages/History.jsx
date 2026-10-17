@@ -7,14 +7,55 @@ import { ResolvedParams } from '../components/optimize/RunModes'
 import { CUSTOM_BADGE, CUSTOM_REASON } from '../lib/modes'
 import Term from '../components/ui/Term'
 import { JOB_STATUS, jobKindText, jobLink, jobElapsed, isActiveJob, jobDetail } from '../lib/jobs'
-import { fmtDuration, fmtDateTime, toMs } from '../lib/format'
+import { fmtDuration, fmtDateTime, toMs, fmtMoney, fmtPct, fmtSPct, isNum } from '../lib/format'
+import { useResource } from '../hooks/useAsync'
+import { getLiveArchive } from '../api'
 
 const STATES = [
   { value: 'all', label: 'Tất cả' }, { value: 'running', label: 'Đang chạy' }, { value: 'queued', label: 'Đang chờ' }, { value: 'done', label: 'Hoàn tất' }, { value: 'failed', label: 'Thất bại' },
 ]
 
+const TABS = [{ value: 'backtest', label: 'Backtest' }, { value: 'testnet', label: 'Testnet' }, { value: 'live', label: 'Live' }]
+const BACKTEST_KIND = /backtest|wfa|^mc|carlo/ // backtest / custom / walk-forward / Monte Carlo
+const BOT_NAME = { 'paper:main': 'Paper · sổ chính', 'paper:explore': 'Paper · thử nghiệm 15m', 'demo:main': 'Demo OKX · sổ chính', 'demo:legacy': 'Demo OKX · bản cũ' }
+
+// Bot cũ (đã dừng) đọc từ data/live: testnet = data/live/testnet, live = data/live/live. Số liệu thật từ state/events, không có thì để trống.
+function BotHistory({ tab }) {
+  const q = useResource('live:archive', getLiveArchive)
+  const bots = (q.data?.bots || []).filter((b) => (tab === 'testnet' ? b.tab === 'testnet' || b.tab === 'paper' : b.tab === 'live'))
+  if (q.error) return <ErrorState title="Không tải được lịch sử bot" error={q.error} onRetry={q.reload} />
+  if (q.loading && !q.data) return <Loading what="lịch sử bot" />
+  if (!bots.length) return <Empty title={tab === 'live' ? 'Chưa có lần chạy Live nào' : 'Chưa có lần chạy Testnet nào'}>Bot mới chạy trên engine mới — sắp có.</Empty>
+  return (
+    <Panel title={tab === 'live' ? 'Bot Live (đã dừng)' : 'Bot Testnet / Paper (đã dừng)'} meta={<span>Dữ liệu bot cũ (đã dừng)</span>}>
+      <div className="n-tblwrap">
+        <table className="n-tbl">
+          <thead><tr><th>Bot</th><th>Bắt đầu (UTC)</th><th>Ghi nhận cuối (UTC)</th><th className="r">Vốn đầu</th><th className="r">Vốn cuối</th><th className="r">Lãi/lỗ</th><th className="r">MDD</th><th className="r">Lệnh đã đóng</th><th /></tr></thead>
+          <tbody>
+            {bots.map((b) => (
+              <tr key={`${b.mode}${b.book}${b.engine}`}>
+                <td>{BOT_NAME[`${b.mode}:${b.mode === 'demo' && b.engine === 'legacy' ? 'legacy' : b.book}`] || `${b.mode} · ${b.book}`}</td>
+                <td className="mono">{isNum(b.started) ? fmtDateTime(b.started) : '—'}</td>
+                <td className="mono">{isNum(b.ended) ? fmtDateTime(b.ended) : '—'}</td>
+                <td className="r">{isNum(b.start_equity) ? fmtMoney(b.start_equity) : '—'}</td>
+                <td className="r">{isNum(b.equity) ? fmtMoney(b.equity) : '—'}</td>
+                <td className="r">{isNum(b.pnl_pct) ? fmtSPct(b.pnl_pct) : '—'}</td>
+                <td className="r">{isNum(b.mdd_pct) ? fmtPct(b.mdd_pct) : '—'}</td>
+                <td className="r">{b.trades}</td>
+                <td><Link className="n-btn sm" to="/coin/live">Mở</Link></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Panel>
+  )
+}
+
 export default function History() {
-  const { jobs, loading, error, reload, running, queued, updatedAt } = useJobList(100)
+  const [tab, setTab] = useState('backtest')
+  const { jobs: allJobs, loading, error, reload, running, queued, updatedAt } = useJobList(100)
+  const jobs = useMemo(() => allJobs.filter((j) => BACKTEST_KIND.test(String(j.kind || ''))), [allJobs])
   const { meta: appMeta } = useMeta()
   const [kind, setKind] = useState('all')
   const KINDS = useMemo(() => [{ value: 'all', label: 'Tất cả' }, ...[...new Set(jobs.map((j) => j.kind).filter(Boolean))].map((k) => ({ value: k, label: jobKindText(k, appMeta) }))], [jobs, appMeta])
@@ -31,14 +72,18 @@ export default function History() {
   return (
     <>
       <PageHead kicker="Công việc nền" title="Lịch sử chạy"
-        subtitle="Mọi lần chạy backtest, walk-forward và tối ưu alpha (tối đa 100 lần gần nhất). Mở một dòng để quay lại đúng trang và bước đã chạy.">
-        <Segmented label="Lọc theo loại" value={kind} onChange={setKind} options={KINDS} />
-        <Segmented label="Lọc theo trạng thái" value={state} onChange={setState} options={STATES} />
+        subtitle="Backtest: các lần chạy backtest, walk-forward và Monte Carlo (tối đa 100 job gần nhất). Testnet / Live: bot giao dịch đã chạy trên sàn.">
+        <Segmented label="Nhóm lịch sử" value={tab} onChange={setTab} options={TABS} />
+        {tab === 'backtest' && <Segmented label="Lọc theo loại" value={kind} onChange={setKind} options={KINDS} />}
+        {tab === 'backtest' && <Segmented label="Lọc theo trạng thái" value={state} onChange={setState} options={STATES} />}
       </PageHead>
+
+      {tab !== 'backtest' && <BotHistory tab={tab} />}
+      {tab === 'backtest' && <>
 
       {error && <ErrorState title="Không tải được lịch sử chạy" error={error} onRetry={reload} />}
       {loading && !jobs.length && <Loading what="lịch sử chạy" />}
-      {!loading && !error && !jobs.length && <Empty title="Chưa có lần chạy nào">Chạy thử tại <Link to="/alpha/create" style={{ color: 'var(--n-accent)' }}>Alpha</Link> hoặc <Link to="/backtest" style={{ color: 'var(--n-accent)' }}>Backtest</Link>.</Empty>}
+      {!loading && !error && !jobs.length && <Empty title="Chưa có lần backtest nào">Chạy thử tại <Link to="/coin/alpha/create" style={{ color: 'var(--n-accent)' }}>Alpha</Link> hoặc <Link to="/coin/backtest" style={{ color: 'var(--n-accent)' }}>Backtest</Link>.</Empty>}
 
       {jobs.length > 0 && (
         <Panel title="Các lần chạy" meta={
@@ -85,6 +130,7 @@ export default function History() {
           </div>
         </Panel>
       )}
+      </>}
     </>
   )
 }

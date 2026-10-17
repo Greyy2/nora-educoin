@@ -27,7 +27,7 @@ from backend.data.data import (
     read_manifest,
     require_data_ok,
 )
-from backend.models.params import FRAME_MS
+from backend.analys.param import FRAME_MS
 
 H = 3_600_000
 DAY = 86_400_000
@@ -241,3 +241,36 @@ def test_real_data_in_gap_replaces_filled_candle():
     out = fill_missing_1m_candles(real)
     assert int((out["is_filled"] == 1).sum()) == 0
     assert float(out.loc[out["open_time"] == t_gap, "close"].iloc[0]) == 150.0
+
+
+# ─── E. P19 Universe Scan Regressions ─────────────────────────────────────
+
+def test_p19_universe_scan_regressions():
+    """Kiểm hồi quy P19: default_universe() luôn đúng 10 coin gốc, scan_universe() trả 100 coin."""
+    from backend.data.crawl import load_scan_universe, scan_universe_bases
+    from backend.nautilus.catalog import get_instrument
+
+    # 1. default_universe() chỉ gồm 10 coin gốc
+    def_uni = D.default_universe()
+    assert len(def_uni) == 10
+    bases = [s.replace("@perp", "") for s in def_uni]
+    assert set(bases) == set(D.UNIVERSE_BASES)
+
+    # 2. scan_universe() trả đủ 100 coin
+    scan_uni = D.scan_universe()
+    assert len(scan_uni) == 100
+    for b in D.UNIVERSE_BASES:
+        assert b in scan_uni
+
+    # 3. universe_scan.json phân hạng A, B, C và không có mã phi-crypto
+    coins_meta = load_scan_universe()
+    assert len(coins_meta) == 100
+    grades = {c["grade"] for c in coins_meta}
+    assert {"A", "B", "C"}.issubset(grades)
+
+    # 4. instruments.json có spec của coin mới (vd: SUI, NEAR)
+    for sym in ("NEAR", "SUI", "BTC", "ETH"):
+        inst = get_instrument(sym)
+        assert inst is not None
+        assert inst.id.value.endswith(".OKX")
+        assert inst.price_precision > 0

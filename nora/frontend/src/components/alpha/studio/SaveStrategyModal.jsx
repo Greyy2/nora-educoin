@@ -75,7 +75,9 @@ export default function SaveStrategyModal({ isOpen, onClose, jobId, code, defaul
             <p>Mã bản ghi <span className="alpha-badge-id">{done.alpha_id}</span> · code, cấu hình, kết quả đầy đủ và bằng chứng đã được lưu; không còn phụ thuộc lần chạy tạm.</p>
             <div style={{ width: '100%', textAlign: 'left' }}><Checklist checklist={done.checklist} /></div>
             <div className="success-actions">
-              <button type="button" className="n-btn brand" onClick={() => { onClose(); navigate('/alpha') }}>Xem trong Thư viện alpha ➔</button>
+              <button type="button" className="n-btn brand" onClick={() => { onClose(); navigate(source === 'education' ? '/edu/me' : '/coin/alpha/catalog') }}>
+                {source === 'education' ? 'Xem trong Hồ sơ chiến lược ➔' : 'Xem trong Thư viện alpha ➔'}
+              </button>
               <button type="button" className="n-btn" onClick={onClose}>Đóng</button>
             </div>
           </div>
@@ -113,6 +115,6 @@ export default function SaveStrategyModal({ isOpen, onClose, jobId, code, defaul
         )}
       </div>
     </div>,
-    document.body
+    document.querySelector('.v2') || document.body
   )
 }
