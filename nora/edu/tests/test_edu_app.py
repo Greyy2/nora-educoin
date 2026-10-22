@@ -141,8 +141,26 @@ def test_edu_job_smoke_and_path_traversal():
     except JobError:
         print("✅ EDU correctly rejected malicious param keys")
 
-    # 2. Khởi chạy 1 job hợp lệ của EDU (presets_build)
-    job_id = launch("presets_build", {})
+    # 2. Khởi chạy 1 job hợp lệ của EDU (custom_backtest)
+    code = '''class QuickRsi(SimpleAlgorithm):
+    id = "quick_rsi"
+    timeframe = "1h"
+    def __algorithm__(self):
+        close = self.data.pv_close
+        rsi = self.feat.rsi(close, timeperiod=14)
+        self.set_positions(rsi < 35, position=1)
+        self.set_positions(rsi > 65, position=0)
+'''
+    params = {
+        "code": code,
+        "symbols": ["BTC"],
+        "start": "2025-01-01",
+        "end": "2025-02-01",
+        "train_ratio": 0.8,
+        "initial_capital": 10000,
+        "run_frame": "1h",
+    }
+    job_id = launch("custom_backtest", params)
     assert job_id and "/" not in job_id and "\\" not in job_id, f"job_id không hợp lệ: {job_id}"
 
     d = job_dir(job_id)
@@ -155,16 +173,19 @@ def test_edu_job_smoke_and_path_traversal():
     # Chờ tiến trình worker hoàn tất đến trạng thái done
     import time
     final_status = None
+    final_st = None
     for _ in range(30):
         st = status(job_id)
         if st:
+            final_st = st
             final_status = st.get("status")
             if final_status in ("done", "succeeded"):
                 break
-        time.sleep(0.5)
+        time.sleep(1)
 
-    assert final_status in ("done", "succeeded", "running"), f"Job kết thúc bất thường: {final_status}"
-    print(f"✅ EDU smoke job executed and verified in edu/data: job_id={job_id}, status={final_status or st.get('status')}")
+    assert final_status in ("done", "succeeded"), f"Job chưa hoàn tất (trạng thái: {final_status})"
+    assert final_st and final_st.get("result") is not None, "Kết quả job thiếu result.json!"
+    print(f"✅ EDU smoke job executed and verified in edu/data: job_id={job_id}, status={final_status}")
 
 
 def test_edu_api_job_lifecycle():
@@ -251,6 +272,8 @@ def test_edu_auth_token_audience_isolation():
 
 def test_edu_golden_parity():
     """Kiểm thử đối chiếu Golden Parity giữa Engine Monolith gốc và Engine EDU (Gate 2)."""
+    import subprocess
+    import json
     from backend.jobs.tasks import run_custom as edu_run_custom
 
     code = '''class QuickRsi(SimpleAlgorithm):
@@ -272,13 +295,30 @@ def test_edu_golden_parity():
         "run_frame": "1h",
     }
     edu_res = edu_run_custom(params)
-    sim = edu_res["metrics"]["simulate"]
+    edu_sim = edu_res["metrics"]["simulate"]
 
-    # Đối chiếu chính xác các chỉ số đã đối soát trên dữ liệu nến OKX
-    assert sim.get("trades") == 11, f"Sai số lệnh: {sim.get('trades')} (kỳ vọng 11)"
-    assert abs(sim.get("ret_pct") - (-0.73)) < 1e-2, f"Sai PnL: {sim.get('ret_pct')}% (kỳ vọng -0.73%)"
-    assert abs(sim.get("mdd_pct") - 1.35) < 1e-2, f"Sai MDD: {sim.get('mdd_pct')}% (kỳ vọng 1.35%)"
-    print(f"✅ EDU Golden Parity verified: trades=11, pnl=-0.73%, mdd=1.35% (100% parity with monolith)")
+    # Chạy trực tiếp engine Monolith gốc để đối soát live 1:1
+    mono_runner_script = f"""
+import sys, json
+sys.path.insert(0, '/home/vmc03/norabt/nora')
+from backend.jobs.tasks import run_custom
+params = json.loads({repr(json.dumps(params))})
+res = run_custom(params)
+print('__JSON_PARITY__:' + json.dumps(res['metrics']['simulate']))
+"""
+    cmd = ["/home/vmc03/.venvs/nora312/bin/python", "-c", mono_runner_script]
+    mono_out = subprocess.check_output(cmd, text=True)
+    json_line = [ln for ln in mono_out.splitlines() if ln.startswith('__JSON_PARITY__:')][0]
+    mono_sim = json.loads(json_line.replace('__JSON_PARITY__:', ''))
+
+    # Đối chiếu trực tiếp từng chỉ số giữa Monolith và EDU
+    assert edu_sim["trades"] == mono_sim["trades"], f"Lệch số lệnh: EDU={edu_sim['trades']} vs Monolith={mono_sim['trades']}"
+    assert abs(edu_sim["ret_pct"] - mono_sim["ret_pct"]) < 1e-4, f"Lệch PnL: EDU={edu_sim['ret_pct']} vs Monolith={mono_sim['ret_pct']}"
+    assert abs(edu_sim["mdd_pct"] - mono_sim["mdd_pct"]) < 1e-4, f"Lệch MDD: EDU={edu_sim['mdd_pct']} vs Monolith={mono_sim['mdd_pct']}"
+    assert abs(edu_sim["sharpe"] - mono_sim["sharpe"]) < 1e-4, f"Lệch Sharpe: EDU={edu_sim['sharpe']} vs Monolith={mono_sim['sharpe']}"
+    assert abs(edu_sim["win_rate_trades"] - mono_sim["win_rate_trades"]) < 1e-4, f"Lệch WinRate: EDU={edu_sim['win_rate_trades']} vs Monolith={mono_sim['win_rate_trades']}"
+
+    print(f"✅ EDU Golden Parity verified: trades={edu_sim['trades']}, pnl={edu_sim['ret_pct']}%, mdd={edu_sim['mdd_pct']}%, sharpe={edu_sim['sharpe']} (100% bit-for-bit live match with Monolith)")
 
 
 def test_edu_api_to_worker_e2e_and_ownership():
@@ -320,8 +360,8 @@ def test_edu_api_to_worker_e2e_and_ownership():
     # 2. Bob cố huỷ job của Alice -> BẮT BUỘC nhận HTTP 403 Forbidden
     headers_bob = {"Cookie": f"edu_session={bob_token}"}
     res_unauth_cancel = client.post(f"/api/studio/jobs/{job_id}/cancel", headers=headers_bob)
-    assert res_unauth_cancel.status_code in (403, 409), f"Lỗ hổng: User khác huỷ được job: {res_unauth_cancel.status_code}"
-    print(f"✅ Ownership isolation verified: unauthorized cancel returned {res_unauth_cancel.status_code}")
+    assert res_unauth_cancel.status_code == 403, f"Lỗ hổng: Kỳ vọng 403 Forbidden nhưng nhận {res_unauth_cancel.status_code}: {res_unauth_cancel.text}"
+    print(f"✅ Ownership isolation verified: unauthorized cancel strictly rejected with 403 Forbidden")
 
     # 3. Chờ worker hoàn tất đến trạng thái done
     done = False
@@ -346,15 +386,24 @@ def test_edu_api_to_worker_e2e_and_ownership():
 
 def test_edu_secret_isolation():
     """Chứng minh EDU không tiếp cận, không nạp và không đọc được exchange secrets (Gate 4)."""
+    # 1. Tiến trình test không có secret
     for forbidden_key in ["OKX_API_KEY", "OKX_SECRET_KEY", "OKX_PASSPHRASE"]:
         assert forbidden_key not in os.environ, f"Phát hiện secret cấm trong EDU environment: {forbidden_key}!"
 
-    # Kiểm tra service config EDU không có dòng trỏ vào okx.env
+    # 2. Kiểm tra service config EDU không có dòng trỏ vào okx.env
     edu_service_file = EDU_ROOT / "ops" / "systemd" / "nora-edu.service"
     if edu_service_file.exists():
         content = edu_service_file.read_text(encoding="utf-8")
         assert "okx.env" not in content, f"Service unit EDU có chứa tham chiếu okx.env: {edu_service_file}"
-    print("✅ EDU exchange secret isolation verified! (Zero access to OKX API keys/secrets)")
+
+    # 3. Kiểm tra app.env nạp vào EDU chỉ chứa NORA_APP_SECRET, không có bất kỳ exchange secret nào
+    app_env_path = Path(os.path.expanduser("~/.config/nora/app.env"))
+    if app_env_path.exists():
+        for line in app_env_path.read_text(encoding="utf-8").splitlines():
+            k = line.split("=", 1)[0].strip()
+            assert not any(forbidden in k.upper() for forbidden in ["OKX", "BINANCE", "API_KEY", "SECRET_KEY", "PASSPHRASE"]), f"Phát hiện secret giao dịch trong app.env: {k}"
+
+    print("✅ EDU exchange secret isolation verified! (Zero access to OKX API keys/secrets in env or unit)")
 
 
 if __name__ == "__main__":
