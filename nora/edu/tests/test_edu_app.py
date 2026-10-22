@@ -300,7 +300,7 @@ def test_edu_golden_parity():
     # Chạy trực tiếp engine Monolith gốc để đối soát live 1:1
     mono_runner_script = f"""
 import sys, json
-sys.path.insert(0, '/home/vmc03/norabt/nora')
+sys.path.insert(0, '/home/vmc03/norabt/nora/coin')
 from backend.jobs.tasks import run_custom
 params = json.loads({repr(json.dumps(params))})
 res = run_custom(params)
