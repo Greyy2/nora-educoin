@@ -33,15 +33,15 @@ if [ "${SKIP_BUILD:-0}" != 1 ]; then
 fi
 
 # ─── 2. Kiểm tra backend APIs ─────────────────────────────────────────────────
-# COIN API (port 18010)
+# COIN API (port 18012)
 if [ "$PRODUCT" = "coin" ]; then
-    HEALTH_RESP=$(curl -s --max-time 3 http://127.0.0.1:18010/api/health || true)
+    HEALTH_RESP=$(curl -s --max-time 3 http://127.0.0.1:18012/api/health || true)
     if ! echo "$HEALTH_RESP" | grep -q '"product"[[:space:]]*:[[:space:]]*"coin"'; then
-        log "Port 18010 hiện chưa chạy COIN API chuẩn (product: coin). Phản hồi: $HEALTH_RESP" >&2
+        log "Port 18012 hiện chưa chạy COIN API chuẩn (product: coin). Phản hồi: $HEALTH_RESP" >&2
         log "Từ chối trỏ coin.nora.expsolution.io vào service không phải COIN!" >&2
         exit 1
     fi
-    log "Xác nhận COIN API hợp lệ trên port 18010 (product: coin)."
+    log "Xác nhận COIN API hợp lệ trên port 18012 (product: coin)."
 elif [ "$PRODUCT" = "legacy" ]; then
     if ! curl -sf -o /dev/null http://127.0.0.1:18010/api/health; then
         log "Legacy API chưa chạy trên port 18010." >&2
@@ -57,14 +57,14 @@ elif [ "$PRODUCT" = "all" ]; then
     log "Port 18010 phản hồi: $HEALTH_RESP"
 fi
 
-# EDU API (port 18020)
+# EDU API (port 18022)
 if [ "$PRODUCT" = "all" ] || [ "$PRODUCT" = "edu" ]; then
-    HEALTH_RESP=$(curl -s --max-time 3 http://127.0.0.1:18020/api/health || true)
+    HEALTH_RESP=$(curl -s --max-time 3 http://127.0.0.1:18022/api/health || true)
     if ! echo "$HEALTH_RESP" | grep -q '"product"[[:space:]]*:[[:space:]]*"edu"'; then
-        log "Port 18020 không trả về product: edu (phản hồi: $HEALTH_RESP) — kiểm tra nora-edu.service!" >&2
+        log "Port 18022 không trả về product: edu (phản hồi: $HEALTH_RESP) — kiểm tra nora-edu.service!" >&2
         exit 1
     fi
-    log "Xác nhận EDU API hợp lệ trên port 18020 (product: edu)."
+    log "Xác nhận EDU API hợp lệ trên port 18022 (product: edu)."
 fi
 
 # ─── 3. Nginx — quyền truy cập thư mục (www-data cần o+x) ───────────────────
