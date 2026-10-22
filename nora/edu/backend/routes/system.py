@@ -384,18 +384,30 @@ def _get_cookie_key_for_request(request: Request) -> str:
     return "nora_uid"
 
 
+def current_uid(request: Request) -> Optional[str]:
+    """Lấy UID từ cookie phiên đã xác thực (HMAC hợp lệ theo product audience)."""
+    cookie_key = _get_cookie_key_for_request(request)
+    cookie_val = request.cookies.get(cookie_key)
+    if not cookie_val:
+        raw_cookie = request.headers.get("cookie", "")
+        for part in raw_cookie.split(";"):
+            if "=" in part:
+                k, v = part.strip().split("=", 1)
+                if k.strip() == cookie_key:
+                    cookie_val = v.strip()
+                    break
+    if not cookie_val and cookie_key == "nora_uid":
+        cookie_val = request.cookies.get("nora_uid")
+    if not cookie_val:
+        return None
+    return users.verify_uid(cookie_val)
+
+
 def current_user(request: Request) -> Optional[Dict[str, Any]]:
     """Dependency lấy thông tin người dùng từ cookie phiên cô lập theo product.
     Tuyệt đối không fallback chéo giữa edu_session và coin_session.
     """
-    cookie_key = _get_cookie_key_for_request(request)
-    cookie_val = request.cookies.get(cookie_key)
-    if not cookie_val and cookie_key == "nora_uid":
-        # Chỉ trong monolith cũ mới fallback
-        cookie_val = request.cookies.get("nora_uid")
-    if not cookie_val:
-        return None
-    uid = users.verify_uid(cookie_val)
+    uid = current_uid(request)
     if not uid:
         return None
     return users.get_user(uid)

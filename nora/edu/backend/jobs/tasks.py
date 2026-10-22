@@ -33,7 +33,7 @@ from backend.jobs.runner.backtest import (WARMUP, _pool_shared, execute, load_it
 from backend.jobs.runner.wfa import (candidates_from_ids, candidates_from_list, candidates_from_report,
                                      plan_is_jobs, print_summary, run_portfolio_wfa)
 
-CUSTOM_BACKTEST_DEFAULTS = {"code": "", "symbols": None, "start": "", "end": "", "train_ratio": DEFAULT_TRAIN_RATIO, "initial_capital": None, "position": None, "run_frame": ""}
+CUSTOM_BACKTEST_DEFAULTS = {"code": "", "symbols": None, "start": "", "end": "", "train_ratio": DEFAULT_TRAIN_RATIO, "initial_capital": None, "position": None, "run_frame": "", "owner_uid": None}
 BOOK_BACKTEST_DEFAULTS = {"book": "", "strategies": None, "symbols": "", "start": "", "end": "", "risk_per_trade": None, "stop_fill": "level", "regime": False, "timeframe": "1m", "out": "",
                           "data": "candle", "latency_ms": None, "gas_usd": None, "capital": None}
 BOOK_WFA_DEFAULTS = {"report": "", "include_rejected": False, "candidates": "", "strategies": None, "symbols": "", "n": 3, "seed": 7,
@@ -76,6 +76,8 @@ def diagnostic_inputs(plan, program, end: int, start: Optional[int] = None) -> D
 def run_custom_backtest(params=None):
     """Chạy job custom_backtest với `params` -> dict kết quả (cũng ghi $NORA_JOB_DIR/result.json)."""
     out = run_custom(params)
+    if isinstance(params, dict) and params.get("owner_uid") and isinstance(out, dict):
+        out["owner_uid"] = params["owner_uid"]
     write_job_result(out)
     return out
 

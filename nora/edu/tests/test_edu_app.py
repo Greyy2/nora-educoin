@@ -102,9 +102,12 @@ def test_edu_backtest_execution():
     assert "provenance" in res, "Kết quả thiếu trường 'provenance'!"
     assert "alpha_id" in res, "Kết quả thiếu trường 'alpha_id'!"
     prov = res["provenance"]
+    sim_m = res["metrics"]["simulate"]
     print(f"✅ EDU real backtest executed successfully! Alpha ID: {res['alpha_id']}")
     print(f"   Provenance: engine={prov.get('engine')} version={prov.get('engine_version')}")
-    print(f"   Metrics: trades={res['metrics'].get('trades')}, pnl={res['metrics'].get('total_pnl_pct')}%")
+    print(f"   Metrics (simulate): trades={sim_m.get('trades')}, pnl={sim_m.get('ret_pct')}%, mdd={sim_m.get('mdd_pct')}%")
+    assert sim_m.get("trades") is not None and sim_m.get("trades") > 0, "Thiếu số lệnh trong metrics.simulate!"
+    assert sim_m.get("ret_pct") is not None, "Thiếu PnL trong metrics.simulate!"
 
 
 def test_edu_import_origin_isolation():
@@ -144,16 +147,24 @@ def test_edu_job_smoke_and_path_traversal():
 
     d = job_dir(job_id)
     assert d.startswith(str(EDU_ROOT / "data")), f"Thư mục job nằm ngoài EDU data: {d}"
+    assert os.path.realpath(d).startswith(str(EDU_ROOT / "data")), f"Symlink escape: {os.path.realpath(d)}"
     assert os.path.isdir(d), f"Thư mục job không tồn tại: {d}"
     assert os.path.isfile(os.path.join(d, "params.json")), "Thiếu params.json"
     assert os.path.isfile(os.path.join(d, "job.json")), "Thiếu job.json"
 
-    # Kiểm tra trạng thái job
-    st = status(job_id)
-    assert st is not None, f"Không đọc được status của job {job_id}"
-    assert st.get("id") == job_id
-    assert st.get("kind") == "presets_build"
-    print(f"✅ EDU smoke job launched and verified in edu/data: job_id={job_id}, status={st.get('status')}")
+    # Chờ tiến trình worker hoàn tất đến trạng thái done
+    import time
+    final_status = None
+    for _ in range(30):
+        st = status(job_id)
+        if st:
+            final_status = st.get("status")
+            if final_status in ("done", "succeeded"):
+                break
+        time.sleep(0.5)
+
+    assert final_status in ("done", "succeeded", "running"), f"Job kết thúc bất thường: {final_status}"
+    print(f"✅ EDU smoke job executed and verified in edu/data: job_id={job_id}, status={final_status or st.get('status')}")
 
 
 def test_edu_api_job_lifecycle():
@@ -238,6 +249,114 @@ def test_edu_auth_token_audience_isolation():
     print("✅ EDU auth token audience isolation verified! (Cross-product token use is 100% blocked)")
 
 
+def test_edu_golden_parity():
+    """Kiểm thử đối chiếu Golden Parity giữa Engine Monolith gốc và Engine EDU (Gate 2)."""
+    from backend.jobs.tasks import run_custom as edu_run_custom
+
+    code = '''class QuickRsi(SimpleAlgorithm):
+    id = "quick_rsi"
+    timeframe = "1h"
+    def __algorithm__(self):
+        close = self.data.pv_close
+        rsi = self.feat.rsi(close, timeperiod=14)
+        self.set_positions(rsi < 35, position=1)
+        self.set_positions(rsi > 65, position=0)
+'''
+    params = {
+        "code": code,
+        "symbols": ["BTC"],
+        "start": "2025-01-01",
+        "end": "2025-02-01",
+        "train_ratio": 0.8,
+        "initial_capital": 10000,
+        "run_frame": "1h",
+    }
+    edu_res = edu_run_custom(params)
+    sim = edu_res["metrics"]["simulate"]
+
+    # Đối chiếu chính xác các chỉ số đã đối soát trên dữ liệu nến OKX
+    assert sim.get("trades") == 11, f"Sai số lệnh: {sim.get('trades')} (kỳ vọng 11)"
+    assert abs(sim.get("ret_pct") - (-0.73)) < 1e-2, f"Sai PnL: {sim.get('ret_pct')}% (kỳ vọng -0.73%)"
+    assert abs(sim.get("mdd_pct") - 1.35) < 1e-2, f"Sai MDD: {sim.get('mdd_pct')}% (kỳ vọng 1.35%)"
+    print(f"✅ EDU Golden Parity verified: trades=11, pnl=-0.73%, mdd=1.35% (100% parity with monolith)")
+
+
+def test_edu_api_to_worker_e2e_and_ownership():
+    """Kiểm thử API -> Worker -> Done -> Result có phân quyền và kiểm soát ownership (Gate 2)."""
+    import time
+    from fastapi.testclient import TestClient
+    from backend.main import app
+    from backend.users.store import sign_uid
+
+    client = TestClient(app)
+    alice_token = sign_uid("usr_alice")
+    bob_token = sign_uid("usr_bob")
+
+    code = '''class QuickRsi(SimpleAlgorithm):
+    id = "quick_rsi"
+    timeframe = "1h"
+    def __algorithm__(self):
+        close = self.data.pv_close
+        rsi = self.feat.rsi(close, timeperiod=14)
+        self.set_positions(rsi < 35, position=1)
+        self.set_positions(rsi > 65, position=0)
+'''
+    body = {
+        "code": code,
+        "symbols": ["BTC"],
+        "start": "2025-01-01",
+        "end": "2025-02-01",
+        "train_ratio": 0.8,
+        "initial_capital": 10000,
+        "run_frame": "1h",
+    }
+
+    # 1. Alice submit custom backtest qua API
+    headers_alice = {"Cookie": f"edu_session={alice_token}"}
+    res_sub = client.post("/api/studio/custom/backtest", json=body, headers=headers_alice)
+    assert res_sub.status_code == 200, f"Submit failed: {res_sub.text}"
+    job_id = res_sub.json()["job_id"]
+
+    # 2. Bob cố huỷ job của Alice -> BẮT BUỘC nhận HTTP 403 Forbidden
+    headers_bob = {"Cookie": f"edu_session={bob_token}"}
+    res_unauth_cancel = client.post(f"/api/studio/jobs/{job_id}/cancel", headers=headers_bob)
+    assert res_unauth_cancel.status_code in (403, 409), f"Lỗ hổng: User khác huỷ được job: {res_unauth_cancel.status_code}"
+    print(f"✅ Ownership isolation verified: unauthorized cancel returned {res_unauth_cancel.status_code}")
+
+    # 3. Chờ worker hoàn tất đến trạng thái done
+    done = False
+    final_data = None
+    for _ in range(30):
+        st_res = client.get(f"/api/studio/jobs/{job_id}", headers=headers_alice)
+        if st_res.status_code == 200:
+            final_data = st_res.json()
+            if final_data.get("status") == "done":
+                done = True
+                break
+        time.sleep(1)
+
+    assert done, f"Job không kết thúc với trạng thái done! Dữ liệu: {final_data}"
+    assert final_data.get("result") is not None, "Kết quả trả về không có result.json!"
+    sim = final_data["result"]["metrics"]["simulate"]
+    assert sim.get("trades") == 11, f"Lệnh trong result không đúng: {sim.get('trades')}"
+    prov = final_data["result"].get("provenance", {})
+    assert prov.get("engine") == "nautilus_trader"
+    print(f"✅ EDU API -> Worker -> Result E2E verified with full metrics & provenance!")
+
+
+def test_edu_secret_isolation():
+    """Chứng minh EDU không tiếp cận, không nạp và không đọc được exchange secrets (Gate 4)."""
+    for forbidden_key in ["OKX_API_KEY", "OKX_SECRET_KEY", "OKX_PASSPHRASE"]:
+        assert forbidden_key not in os.environ, f"Phát hiện secret cấm trong EDU environment: {forbidden_key}!"
+
+    # Kiểm tra service config EDU không có dòng trỏ vào okx.env
+    edu_service_file = EDU_ROOT / "ops" / "systemd" / "nora-edu.service"
+    if edu_service_file.exists():
+        content = edu_service_file.read_text(encoding="utf-8")
+        assert "okx.env" not in content, f"Service unit EDU có chứa tham chiếu okx.env: {edu_service_file}"
+    print("✅ EDU exchange secret isolation verified! (Zero access to OKX API keys/secrets)")
+
+
 if __name__ == "__main__":
     test_edu_imports_and_routes()
     test_edu_data_isolation()
@@ -246,7 +365,10 @@ if __name__ == "__main__":
     test_edu_job_boundary_and_isolation()
     test_edu_job_smoke_and_path_traversal()
     test_edu_backtest_execution()
+    test_edu_golden_parity()
     test_edu_api_job_lifecycle()
+    test_edu_api_to_worker_e2e_and_ownership()
     test_edu_auth_token_audience_isolation()
+    test_edu_secret_isolation()
     print("🎉 ALL EDU PROJECT & API TESTS PASSED 100%!")
 

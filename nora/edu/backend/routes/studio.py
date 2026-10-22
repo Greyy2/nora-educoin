@@ -285,6 +285,8 @@ def build_custom_backtest(p: Dict[str, Any]) -> Dict[str, Any]:
         if p["run_frame"] not in FRAMES:
             raise JobError(f"run_frame phải thuộc {list(FRAMES)}")
         out["run_frame"] = p["run_frame"]
+    if p.get("owner_uid"):
+        out["owner_uid"] = str(p["owner_uid"])
     return out
 
 
@@ -1020,8 +1022,18 @@ def get_job(job_id: str, request: Request, response: Response, lite: bool = Fals
 
 
 @book_router.post("/jobs/{job_id}/cancel")
-def post_cancel(job_id: str):
+def post_cancel(job_id: str, request: Request):
     """Huỷ job đang chạy/chờ: SIGTERM cả nhóm tiến trình; CLI flush kho kết quả rồi thoát -> có thể chạy tiếp bằng --resume <run_dir>."""
+    if request:
+        from backend.routes.system import current_uid
+        req_uid = current_uid(request)
+        try:
+            s = batch_jobs.status(job_id)
+            if s and req_uid and s.get("params", {}).get("owner_uid"):
+                if s["params"]["owner_uid"] != req_uid:
+                    raise HTTPException(403, "Bạn không có quyền huỷ job của người dùng khác")
+        except batch_jobs.JobError:
+            pass
     try:
         s = batch_jobs.cancel(job_id)
     except batch_jobs.JobError as e:
@@ -1633,10 +1645,16 @@ def get_run_defaults() -> Dict[str, Any]:
 
 
 @custom_router.post("/backtest")
-def post_custom_backtest(req: CustomBacktestRequest) -> Dict[str, str]:
+def post_custom_backtest(req: CustomBacktestRequest, request: Request) -> Dict[str, str]:
     """Khởi chạy job custom_backtest -> {"job_id"}. Lỗi code: 422 với thông điệp 'Lỗi biên dịch: dòng L, cột C: ...'."""
     try:
-        params = batch_jobs_routes.build_job("custom_backtest", req.model_dump(exclude_none=True))
+        data = req.model_dump(exclude_none=True)
+        if request:
+            from backend.routes.system import current_uid
+            uid = current_uid(request)
+            if uid:
+                data["owner_uid"] = uid
+        params = batch_jobs_routes.build_job("custom_backtest", data)
     except batch_jobs.JobError as e:
         raise HTTPException(422, str(e))
     launched = batch_jobs_routes.http_launch("custom_backtest", params)

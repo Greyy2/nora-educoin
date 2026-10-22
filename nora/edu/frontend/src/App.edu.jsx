@@ -7,7 +7,7 @@
  * API base: edu.nora.expsolution.io/api (hoặc localhost:18020/api khi dev).
  */
 import React, { Suspense, lazy } from 'react'
-import { createBrowserRouter, RouterProvider, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { createBrowserRouter, RouterProvider, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom'
 import EduLayout from './layout/EduLayout'
 import { CatalogProvider } from './meta/MetaProvider'
 import { UserProvider, useUser } from './meta/UserProvider'
@@ -47,6 +47,23 @@ function ProtectedRoute({ children }) {
   return children
 }
 
+function LegacyRedirect({ to }) {
+  const location = useLocation()
+  return <Navigate to={`${to}${location.search}`} replace />
+}
+
+function LegacyEduUserRedirect() {
+  const { handle } = useParams()
+  const location = useLocation()
+  return <Navigate to={`/u/${handle}${location.search}`} replace />
+}
+
+function LegacyEduStrategyRedirect() {
+  const { id } = useParams()
+  const location = useLocation()
+  return <Navigate to={`/s/${id}${location.search}`} replace />
+}
+
 function AppEduRoutes() {
   return (
     <Suspense fallback={<Loading what="trang" />}>
@@ -54,18 +71,24 @@ function AppEduRoutes() {
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
 
-        {/* EDU system */}
-        <Route path="/edu" element={<ProtectedRoute><EduLayout /></ProtectedRoute>}>
-          <Route index element={<EduMarket />} />
-          <Route path="studio" element={<Studio mode="education" />} />
-          <Route path="me" element={<MyProfile />} />
-          <Route path="u/:handle" element={<EduUser />} />
-          <Route path="s/:id" element={<EduStrategy />} />
+        {/* Product Root Routes */}
+        <Route element={<ProtectedRoute><EduLayout /></ProtectedRoute>}>
+          <Route path="/market" element={<EduMarket />} />
+          <Route path="/studio" element={<Studio mode="education" />} />
+          <Route path="/me" element={<MyProfile />} />
+          <Route path="/u/:handle" element={<EduUser />} />
+          <Route path="/s/:id" element={<EduStrategy />} />
         </Route>
 
-        {/* Redirect legacy /education và /coin/* -> /edu */}
-        <Route path="/education" element={<Navigate to="/edu/studio" replace />} />
-        <Route path="/coin/*" element={<Navigate to="/edu" replace />} />
+        {/* Backward Compatibility & Legacy Redirects (Preserves query strings & deep links) */}
+        <Route path="/edu" element={<LegacyRedirect to="/market" />} />
+        <Route path="/edu/market" element={<LegacyRedirect to="/market" />} />
+        <Route path="/edu/studio" element={<LegacyRedirect to="/studio" />} />
+        <Route path="/edu/me" element={<LegacyRedirect to="/me" />} />
+        <Route path="/edu/u/:handle" element={<LegacyEduUserRedirect />} />
+        <Route path="/edu/s/:id" element={<LegacyEduStrategyRedirect />} />
+        <Route path="/education" element={<LegacyRedirect to="/studio" />} />
+        <Route path="/coin/*" element={<LegacyRedirect to="/" />} />
 
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
