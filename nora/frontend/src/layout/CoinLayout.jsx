@@ -4,6 +4,7 @@ import '../styles/shell.css'
 import { useCatalog } from '../meta/MetaProvider'
 import { ErrorBoundary } from '../components/ui'
 import JobTray from '../components/jobs/JobTray'
+import NotificationBell from '../components/notifications/NotificationBell'
 import { GuideSteps } from '../components/ui/QuickGuide'
 import UserBadge from '../components/user/UserBadge'
 
@@ -24,7 +25,7 @@ const I = {
 }
 
 const COIN_PAGES = [
-  { to: '/coin/portfolio', title: 'Tổng quan danh mục', short: 'Tổng quan', icon: I.portfolio, preload: () => import('../pages/Portfolio') },
+  { to: '/coin/portfolio', title: 'Tổng quan', short: 'Tổng quan', icon: I.portfolio, preload: () => import('../pages/Portfolio') },
   { to: '/coin/alpha/create', match: '/coin/alpha', title: 'Alpha', short: 'Alpha', icon: I.alpha, preload: () => import('../pages/Studio') },
   { to: '/coin/backtest', title: 'Backtest', short: 'Backtest', icon: I.backtest, preload: () => import('../pages/Backtest') },
   { to: '/coin/live', title: 'Bot live · paper / demo', short: 'Live', icon: I.live, preload: () => import('../pages/Live') },
@@ -129,10 +130,14 @@ export default function CoinLayout({ children }) {
           </svg>
           <span className="n-rl">Trang chủ</span>
         </Link>
-        <Link to="/edu" className="n-rail-btn" title="Chuyển sang Nora Education">
+        <a
+          href={typeof window !== 'undefined' && window.location.hostname.includes('coin.nora.') ? window.location.origin.replace('coin.nora.', 'edu.nora.') + '/edu' : '/edu'}
+          className="n-rail-btn"
+          title="Chuyển sang Nora Education"
+        >
           {I.education}
           <span className="n-rl">Education</span>
-        </Link>
+        </a>
       </nav>
 
       <div className="n-main">
@@ -145,6 +150,7 @@ export default function CoinLayout({ children }) {
             <span>{page ? page.title : 'Không tìm thấy trang'}</span>
           </div>
           <div className="n-top-sp" />
+          <NotificationBell />
           <JobTray />
           <HelpButton />
           {data?.windows?.end && (

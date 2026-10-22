@@ -35,7 +35,8 @@ COLS = ["open_time", "open", "high", "low", "close", "volume"]
 
 
 def inst(base: str) -> str:
-    return f"{base}-USDT-SWAP"
+    coin = str(base or "").split("@")[0].split("-")[0].split("/")[0].split(":")[0].upper()
+    return f"{coin}-USDT-SWAP"
 
 
 def _day_tag(d: date) -> Tuple[str, str]:

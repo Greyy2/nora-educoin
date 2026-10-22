@@ -2,19 +2,55 @@ import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import useAsync, { useResource } from '../../hooks/useAsync'
+import useJob from '../../hooks/useJob'
 import { getAlphaCatalog, getLatestWfaCarlo, getPortfolioTrades } from '../../api'
 import { fmtNum, fmtPct, fmtSPct, fmtMoney, fmtDateTime, signClass } from '../../lib/format'
 import useResizableDrawer from '../../hooks/useResizableDrawer'
+import AreaLine from '../charts/AreaLine'
 import UnderwaterStrip from '../charts/UnderwaterStrip'
+import JobPanel from '../jobs/JobPanel'
 
-const SIDE_CLS = { Long: 'pos', Short: 'neg', 'Long + Short': 'both' }
+const SIDE_CLS = { Long: 'pos', Short: 'neg', 'Long + Short': 'both', LONG: 'pos', SHORT: 'neg', BOTH: 'both' }
+
+const PARAM_LABELS = {
+  fast_period: 'Chu kỳ EMA nhanh (Fast Period)',
+  slow_period: 'Chu kỳ EMA chậm (Slow Period)',
+  signal_period: 'Chu kỳ tín hiệu (Signal Period)',
+  rsi_period: 'Chu kỳ RSI (RSI Period)',
+  rsi_oversold: 'Ngưỡng quá bán RSI (Oversold)',
+  rsi_overbought: 'Ngưỡng quá mua RSI (Overbought)',
+  bb_period: 'Chu kỳ Bollinger Bands',
+  bb_std: 'Độ lệch chuẩn Bollinger Bands',
+  stop_loss_pct: 'Cắt lỗ (Stop Loss %)',
+  take_profit_pct: 'Chốt lời (Take Profit %)',
+  risk_per_trade_pct: 'Rủi ro mỗi lệnh (Risk %)',
+  dca_steps: 'Số tầng dồn lệnh (DCA Layers)',
+  dca_step_pct: 'Khoảng cách mỗi tầng DCA (%)',
+  tp_pct: 'Chốt lời (Take Profit %)',
+  sl_pct: 'Cắt lỗ (Stop Loss %)',
+  pullback_pct: 'Độ hồi tối thiểu (Pullback %)',
+  rebound_pct: 'Độ nảy xác nhận (Rebound %)',
+  base_notional: 'Quy mô vị thế cơ sở ($)',
+  vol_multiplier: 'Hệ số khối lượng (Volume Mult)',
+  atr_period: 'Chu kỳ biến động ATR',
+  atr_multiplier: 'Hệ số dãn cách ATR',
+}
 
 function Tile({ label, value, cls = '', sub }) {
   return (
-    <div className="n-tile" style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--n-surface, #1e293b)' }}>
-      <div className="l" style={{ fontSize: 12, color: 'var(--n-ink-2, #94a3b8)', marginBottom: 4 }}>{label}</div>
-      <div className={`v ${cls}`} style={{ fontSize: 18, fontWeight: 700 }}>{value}</div>
-      {sub && <div className="s muted" style={{ fontSize: 11, marginTop: 2, color: 'var(--n-ink-3, #64748b)' }}>{sub}</div>}
+    <div
+      className="n-tile"
+      style={{
+        padding: '12px 16px',
+        borderRadius: 8,
+        background: 'var(--n-surface)',
+        border: '1px solid var(--n-line)',
+        boxShadow: 'var(--n-shadow)',
+      }}
+    >
+      <div className="l" style={{ fontSize: 12, color: 'var(--n-ink-2)', marginBottom: 4, fontWeight: 500 }}>{label}</div>
+      <div className={`v ${cls}`} style={{ fontSize: 19, fontWeight: 700, fontFamily: 'var(--n-mono)' }}>{value}</div>
+      {sub && <div className="s muted" style={{ fontSize: 11, marginTop: 3, color: 'var(--n-ink-3)' }}>{sub}</div>}
     </div>
   )
 }
@@ -178,13 +214,15 @@ function generateDrawdownSeries(trades, mddTargetRaw = 1.46) {
   if (!trades || !trades.length) {
     const dates = []
     const values = []
+    const equity = []
     const now = Date.now()
     for (let i = 180; i >= 0; i--) {
       const d = new Date(now - i * 86400000).toISOString().slice(0, 10)
       dates.push(d)
       values.push(0)
+      equity.push(10000)
     }
-    return { dates, values }
+    return { dates, values, equity }
   }
 
   const sorted = [...trades].sort((a, b) => a.close_time - b.close_time)
@@ -223,11 +261,11 @@ function generateDrawdownSeries(trades, mddTargetRaw = 1.46) {
   const scale = (maxRawDd < -0.01 && targetDd < -0.01) ? (targetDd / maxRawDd) : 1
   const values = rawDds.map((dd) => Math.min(0, Math.round(dd * scale * 100) / 100))
 
-  return { dates: dailyDates, values }
+  return { dates: dailyDates, values, equity: dailyEquity }
 }
 
 /** Ngăn chi tiết kết quả Backtest, WFA và Monte Carlo của 1 Alpha */
-function AlphaResultDrawer({ alpha, activeJobId, onClose }) {
+export function AlphaResultDrawer({ alpha, activeJobId, onClose }) {
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('backtest')
   const box = useRef(null)
@@ -241,6 +279,28 @@ function AlphaResultDrawer({ alpha, activeJobId, onClose }) {
   const [apiTrades, setApiTrades] = useState(null)
   const [loadingTrades, setLoadingTrades] = useState(false)
   const [hoverDd, setHoverDd] = useState(null)
+
+  // Theo dõi tiến trình Job Backtest (nếu có activeJobId hoặc job_id gắn với alpha)
+  const targetJobId = activeJobId || alpha.job_id || alpha.jobId || ''
+  const bt = useJob(targetJobId, { interval: 1000 })
+
+  // Danh sách đầy đủ tham số của chiến lược
+  const paramEntries = useMemo(() => {
+    if (alpha.params_list && alpha.params_list.length > 0) {
+      return alpha.params_list.map((p) => ({ label: p.label || PARAM_LABELS[p.key] || p.key, key: p.key, value: p.value }))
+    }
+    const cfg = { ...(alpha.preset?.params || {}), ...(alpha.config || {}), ...(alpha.params || {}) }
+    const entries = []
+    Object.entries(cfg).forEach(([k, v]) => {
+      if (v == null || typeof v === 'object') return
+      entries.push({
+        label: PARAM_LABELS[k] || k,
+        key: k,
+        value: typeof v === 'number' ? fmtNum(v, 2) : String(v),
+      })
+    })
+    return entries
+  }, [alpha])
 
   useEffect(() => {
     const opener = document.activeElement
@@ -338,20 +398,20 @@ function AlphaResultDrawer({ alpha, activeJobId, onClose }) {
   }, [filteredTrades, tradePage])
 
   const tabs = [
-    { id: 'backtest', label: '📈 Kết quả Backtest' },
-    { id: 'wfa', label: '🔄 Walk-Forward (WFA)', badge: wfa ? '10F' : null },
-    { id: 'monte_carlo', label: '🎲 Monte Carlo & Stress Test', badge: mc ? '10k' : null },
+    { id: 'backtest', label: 'Kết quả Backtest' },
+    { id: 'wfa', label: 'Walk-Forward (WFA)', badge: wfa ? '10F' : null },
+    { id: 'monte_carlo', label: 'Monte Carlo & Stress Test', badge: mc ? '10k' : null },
   ]
 
   return createPortal(
-    <div className="v2 n-drawer-wrap">
-      <div className="n-drawer-bg" onClick={onClose} aria-hidden="true" />
+    <div className="v2 n-drawer-wrap" style={{ zIndex: 10005 }}>
+      <div className="n-drawer-bg" onClick={onClose} aria-hidden="true" style={{ zIndex: 10005 }} />
       <aside
         className="n-drawer"
         role="dialog"
         aria-modal="true"
         aria-label={`Kết quả kiểm định ${alpha.name}`}
-        style={{ width: `${width}px`, maxWidth: '100vw', overflowX: 'hidden' }}
+        style={{ width: `${width}px`, maxWidth: '100vw', overflowX: 'hidden', zIndex: 10006 }}
         tabIndex={-1}
         ref={box}
       >
@@ -369,7 +429,7 @@ function AlphaResultDrawer({ alpha, activeJobId, onClose }) {
               <span className={`n-badge ${SIDE_CLS[alpha.side] || ''}`}>{alpha.side}</span>
               {alpha.verified && (
                 <span className="n-badge ok" style={{ marginLeft: 8, fontSize: 12 }}>
-                  🛡️ Đã duyệt WFA & Monte Carlo
+                  Đã duyệt WFA & Monte Carlo
                 </span>
               )}
             </h2>
@@ -387,22 +447,36 @@ function AlphaResultDrawer({ alpha, activeJobId, onClose }) {
               )}
             </div>
           </div>
-          <button type="button" className="n-btn" onClick={onClose} aria-label="Đóng">Đóng ✕</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              type="button"
+              className="n-btn primary sm"
+              onClick={() => {
+                onClose()
+                navigate(`/coin/backtest?step=2&wfa_alpha=${encodeURIComponent(alpha.key || alpha.id || alpha.strategy)}`)
+              }}
+              style={{ fontWeight: 700, padding: '6px 14px', fontSize: 13 }}
+              title="Tiếp tục sang Bước 2: Walk-Forward Analysis"
+            >
+              Tiếp tục: Walk-forward →
+            </button>
+            <button type="button" className="n-btn sm" onClick={onClose} aria-label="Đóng">Đóng ✕</button>
+          </div>
         </header>
 
         {/* Thanh điều hướng 3 Tab kiểm định */}
-        <div style={{ display: 'flex', gap: 4, padding: '0 24px', borderBottom: '1px solid var(--n-border, rgba(255,255,255,0.08))', background: 'var(--n-surface, #18181b)' }}>
+        <div style={{ display: 'flex', gap: 4, padding: '0 24px', borderBottom: '1px solid var(--n-line)', background: 'var(--n-surface)' }}>
           {tabs.map((t) => (
             <button
               key={t.id}
               type="button"
               onClick={() => setActiveTab(t.id)}
               style={{
-                padding: '10px 14px',
+                padding: '11px 16px',
                 border: 'none',
-                borderBottom: activeTab === t.id ? '2px solid var(--n-accent, #38bdf8)' : '2px solid transparent',
+                borderBottom: activeTab === t.id ? '2px solid var(--n-accent)' : '2px solid transparent',
                 background: 'transparent',
-                color: activeTab === t.id ? 'var(--n-ink, #f8fafc)' : 'var(--n-ink-2, #94a3b8)',
+                color: activeTab === t.id ? 'var(--n-ink)' : 'var(--n-ink-2)',
                 fontWeight: activeTab === t.id ? 700 : 500,
                 fontSize: '13.5px',
                 cursor: 'pointer',
@@ -432,46 +506,84 @@ function AlphaResultDrawer({ alpha, activeJobId, onClose }) {
                     <Tile label="Profit Factor" value={fmtNum(oos.profit_factor || 1.85, 2)} sub="Tổng lãi / Tổng lỗ" />
                   </div>
 
-                  {/* ── BIỂU ĐỒ SỤT GIẢM VỐN (UNDERWATER / DRAWDOWN CHART) ── */}
-                  <div style={{ marginTop: 22, padding: '16px 18px', borderRadius: 8, background: 'var(--n-surface, #1e293b)', border: '1px solid var(--n-border, rgba(255,255,255,0.08))' }}>
+                  {/* ── BIỂU ĐỒ TĂNG TRƯỞNG VỐN & SỤT GIẢM (PNL EQUITY CURVE & UNDERWATER DRAWDOWN) ── */}
+                  <div style={{ marginTop: 22, padding: '16px 18px', borderRadius: 8, background: 'var(--n-surface)', border: '1px solid var(--n-line)', boxShadow: 'var(--n-shadow)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
                       <div>
-                        <h4 style={{ margin: 0, fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span>📉 Biểu đồ sụt giảm vốn (Drawdown từ đỉnh High-Water Mark)</span>
+                        <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--n-ink)' }}>
+                          Đường cong vốn PnL (Equity Curve) & Sụt giảm (Drawdown)
                         </h4>
                         <div className="muted" style={{ fontSize: 11.5, marginTop: 2 }}>
-                          Đường biểu diễn % sụt giảm vốn tức thời từ đỉnh NAV cao nhất theo thời gian (OOS 6 Tháng)
+                          Biểu đồ tăng trưởng tài sản ròng NAV ($) và tỷ lệ sụt giảm vốn tức thời từ đỉnh High-Water Mark (OOS 6 Tháng)
                         </div>
                       </div>
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <span className={`n-badge ${signClass(oos.ret_pct)}`} style={{ fontSize: 11, padding: '3px 8px' }}>
+                          Lợi nhuận: {fmtSPct(oos.ret_pct, 2)}
+                        </span>
                         <span className="n-badge neg" style={{ fontSize: 11, padding: '3px 8px' }}>
                           Max Drawdown: −{fmtPct(oos.mdd_pct, 2)}
                         </span>
-                        <span className="n-badge ok" style={{ fontSize: 11, padding: '3px 8px' }}>
-                          Hiện tại: 0.00% (Đỉnh vốn)
-                        </span>
                         <span className="n-badge mono" style={{ fontSize: 11, padding: '3px 8px' }}>
-                          Hồi phục TB: ~2.8 ngày
+                          Vốn khởi điểm: $10,000
                         </span>
                       </div>
                     </div>
 
-                    <div style={{ width: '100%', minHeight: 120 }}>
-                      <UnderwaterStrip dates={ddSeries.dates} values={ddSeries.values} height={125} hover={hoverDd} onHover={setHoverDd} />
+                    {/* Biểu đồ PnL Equity */}
+                    <div style={{ width: '100%', marginBottom: 14 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--n-ink-2)' }}>
+                          Đường cong NAV ($)
+                        </span>
+                        <span className="muted mono" style={{ fontSize: 11 }}>
+                          NAV cuối kỳ: ${fmtNum(ddSeries.equity?.[ddSeries.equity.length - 1] || 10000, 2)}
+                        </span>
+                      </div>
+                      <AreaLine
+                        dates={ddSeries.dates}
+                        series={[{
+                          key: 'equity',
+                          label: 'Giá trị tài khoản ($)',
+                          values: ddSeries.equity,
+                          color: '#38bdf8',
+                          area: true,
+                        }]}
+                        height={160}
+                        valueFormat={(v) => '$' + Math.round(v).toLocaleString()}
+                        hover={hoverDd}
+                        onHover={setHoverDd}
+                        label="Đường cong vốn NAV"
+                      />
+                    </div>
+
+                    {/* Biểu đồ Drawdown Underwater */}
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--n-ink-2)' }}>
+                          Tỷ lệ sụt giảm từ đỉnh High-Water Mark (%)
+                        </span>
+                        <span className="muted mono" style={{ fontSize: 11 }}>
+                          Đỉnh vốn = 0.00%
+                        </span>
+                      </div>
+                      <div style={{ width: '100%', minHeight: 100 }}>
+                        <UnderwaterStrip dates={ddSeries.dates} values={ddSeries.values} height={105} hover={hoverDd} onHover={setHoverDd} />
+                      </div>
                     </div>
 
                     <div className="muted" style={{ fontSize: 11, marginTop: 8, fontStyle: 'italic', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 4 }}>
-                      <span>* Đường màu đỏ sát mốc 0.0% phản ánh chiến lược có khả năng kiểm soát drawdown chặt chẽ và phục hồi nhanh.</span>
+                      <span>* Cả 2 biểu đồ PnL và Drawdown được đồng bộ con trỏ thời gian chuột khi hover để theo dõi chính xác từng điểm tương ứng.</span>
                       <span className="mono">Chu kỳ kiểm định: 180 ngày</span>
                     </div>
                   </div>
 
                   {/* ── DANH SÁCH LỆNH ĐÃ ĐÓNG (TRADE HISTORY) ── */}
-                  <div style={{ marginTop: 24, padding: '16px 18px', borderRadius: 8, background: 'var(--n-surface, #1e293b)', border: '1px solid var(--n-border, rgba(255,255,255,0.08))' }}>
+                  <div style={{ marginTop: 24, padding: '16px 18px', borderRadius: 8, background: 'var(--n-surface)', border: '1px solid var(--n-line)', boxShadow: 'var(--n-shadow)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
                       <div>
-                        <h4 style={{ margin: 0, fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span>📋 Danh sách lệnh đã đóng (Trade History)</span>
+                        <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--n-ink)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span>Danh sách lệnh đã đóng (Trade History)</span>
                           <span className="n-badge mono" style={{ fontSize: 11, padding: '2px 6px' }}>
                             {allTrades.length} lệnh
                           </span>
@@ -483,7 +595,7 @@ function AlphaResultDrawer({ alpha, activeJobId, onClose }) {
 
                       {/* Nút lọc kết quả lệnh & tải CSV */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                        <div style={{ display: 'flex', gap: 4, background: 'rgba(0,0,0,0.25)', padding: 3, borderRadius: 6, border: '1px solid var(--n-border, rgba(255,255,255,0.06))' }}>
+                        <div style={{ display: 'flex', gap: 4, background: 'var(--n-surface-2)', padding: 3, borderRadius: 6, border: '1px solid var(--n-line)' }}>
                           <button
                             type="button"
                             className="n-btn sm"
@@ -491,8 +603,8 @@ function AlphaResultDrawer({ alpha, activeJobId, onClose }) {
                             style={{
                               fontSize: 11.5,
                               padding: '3px 8px',
-                              background: tradeFilter === 'all' ? 'var(--n-accent, #38bdf8)' : 'transparent',
-                              color: tradeFilter === 'all' ? '#000' : 'var(--n-ink-2, #94a3b8)',
+                              background: tradeFilter === 'all' ? 'var(--n-accent)' : 'transparent',
+                              color: tradeFilter === 'all' ? '#000' : 'var(--n-ink-2)',
                               fontWeight: tradeFilter === 'all' ? 700 : 500,
                               border: 'none',
                             }}
@@ -507,12 +619,12 @@ function AlphaResultDrawer({ alpha, activeJobId, onClose }) {
                               fontSize: 11.5,
                               padding: '3px 8px',
                               background: tradeFilter === 'win' ? '#10b981' : 'transparent',
-                              color: tradeFilter === 'win' ? '#fff' : 'var(--n-ink-2, #94a3b8)',
+                              color: tradeFilter === 'win' ? '#fff' : 'var(--n-ink-2)',
                               fontWeight: tradeFilter === 'win' ? 700 : 500,
                               border: 'none',
                             }}
                           >
-                            🟢 Thắng ({winCount})
+                            Lệnh thắng ({winCount})
                           </button>
                           <button
                             type="button"
@@ -522,55 +634,55 @@ function AlphaResultDrawer({ alpha, activeJobId, onClose }) {
                               fontSize: 11.5,
                               padding: '3px 8px',
                               background: tradeFilter === 'loss' ? '#f43f5e' : 'transparent',
-                              color: tradeFilter === 'loss' ? '#fff' : 'var(--n-ink-2, #94a3b8)',
+                              color: tradeFilter === 'loss' ? '#fff' : 'var(--n-ink-2)',
                               fontWeight: tradeFilter === 'loss' ? 700 : 500,
                               border: 'none',
                             }}
                           >
-                            🔴 Thua ({lossCount})
+                            Lệnh thua ({lossCount})
                           </button>
                         </div>
 
                         <input
                           type="text"
-                          className="n-input sm"
+                          className="n-in sm"
                           placeholder="Tìm kiếm lệnh..."
                           value={tradeSearch}
                           onChange={(e) => { setTradeSearch(e.target.value); setTradePage(1) }}
-                          style={{ width: 140, fontSize: 11.5, padding: '4px 8px' }}
+                          style={{ width: 140, fontSize: 11.5, padding: '4px 8px', height: 28 }}
                         />
 
                         <button
                           type="button"
                           className="n-btn sm"
                           onClick={() => downloadTradesCsv(allTrades, alpha.name || alpha.strategy)}
-                          style={{ fontSize: 11.5, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}
+                          style={{ fontSize: 11.5, padding: '4px 10px', height: 28 }}
                           title="Tải toàn bộ danh sách lệnh dưới định dạng file CSV"
                         >
-                          ⬇ Tải CSV
+                          Tải CSV
                         </button>
                       </div>
                     </div>
 
                     {/* Bảng chi tiết lệnh */}
-                    <div className="n-tblwrap" style={{ width: '100%', maxWidth: '100%', overflowX: 'auto', boxSizing: 'border-box' }}>
-                      <table className="n-tbl" style={{ width: '100%', tableLayout: 'fixed' }}>
+                    <div className="n-tblwrap" style={{ width: '100%', maxWidth: '100%', overflowX: 'auto', border: '1px solid var(--n-line)', borderRadius: 6, boxSizing: 'border-box' }}>
+                      <table className="n-tbl" style={{ width: '100%', minWidth: 920, borderCollapse: 'collapse' }}>
                         <thead>
-                          <tr>
-                            <th style={{ width: '5%', textAlign: 'center' }}>#</th>
-                            <th style={{ width: '17%' }}>Thời gian (Đóng / Vào)</th>
-                            <th style={{ width: '13%' }}>Cặp & Chiều</th>
-                            <th style={{ width: '20%' }}>Giá vào ➔ Giá đóng</th>
-                            <th style={{ width: '10%', textAlign: 'center' }}>Tầng DCA</th>
-                            <th className="r" style={{ width: '11%' }}>Quy mô ($)</th>
-                            <th className="r" style={{ width: '13%' }}>Lợi nhuận (PnL)</th>
-                            <th style={{ width: '11%' }}>Lý do đóng</th>
+                          <tr style={{ background: 'var(--n-surface-2)' }}>
+                            <th style={{ width: 44, textAlign: 'center', borderRight: '1px solid var(--n-line)', padding: '10px 8px' }}>#</th>
+                            <th style={{ width: 165, borderRight: '1px solid var(--n-line)', padding: '10px 12px' }}>Thời gian (Đóng / Vào)</th>
+                            <th style={{ width: 125, borderRight: '1px solid var(--n-line)', padding: '10px 12px' }}>Cặp & Chiều</th>
+                            <th style={{ width: 180, borderRight: '1px solid var(--n-line)', padding: '10px 12px' }}>Giá vào ➔ Giá đóng</th>
+                            <th style={{ width: 90, textAlign: 'center', borderRight: '1px solid var(--n-line)', padding: '10px 8px' }}>Tầng DCA</th>
+                            <th className="r" style={{ width: 110, borderRight: '1px solid var(--n-line)', padding: '10px 12px' }}>Quy mô ($)</th>
+                            <th className="r" style={{ width: 130, borderRight: '1px solid var(--n-line)', padding: '10px 12px' }}>Lợi nhuận (PnL)</th>
+                            <th style={{ minWidth: 150, padding: '10px 12px' }}>Lý do đóng</th>
                           </tr>
                         </thead>
                         <tbody>
                           {pagedTrades.length === 0 ? (
                             <tr>
-                              <td colSpan={8} className="c muted" style={{ padding: 20 }}>
+                              <td colSpan={8} className="c muted" style={{ padding: 24 }}>
                                 Không có lệnh nào phù hợp với điều kiện tìm kiếm.
                               </td>
                             </tr>
@@ -579,19 +691,25 @@ function AlphaResultDrawer({ alpha, activeJobId, onClose }) {
                               const orderIdx = (tradePage - 1) * PAGE_SIZE + idx + 1
                               const isWin = t.pnl > 0 || t.status === 'TP'
                               return (
-                                <tr key={`${t.close_time}-${idx}`}>
-                                  <td className="c muted" style={{ fontSize: 11 }}>{orderIdx}</td>
-                                  <td>
-                                    <div className="mono" style={{ fontSize: 12, fontWeight: 500 }}>
+                                <tr
+                                  key={`${t.close_time}-${idx}`}
+                                  style={{
+                                    background: idx % 2 === 1 ? 'var(--n-surface-2)' : 'var(--n-surface)',
+                                    borderBottom: '1px solid var(--n-line)',
+                                  }}
+                                >
+                                  <td className="c muted" style={{ fontSize: 11.5, borderRight: '1px solid var(--n-line)', padding: '8px 6px' }}>{orderIdx}</td>
+                                  <td style={{ borderRight: '1px solid var(--n-line)', padding: '8px 12px' }}>
+                                    <div className="mono" style={{ fontSize: 12, fontWeight: 500, color: 'var(--n-ink)' }}>
                                       {fmtDateTime(t.close_time)}
                                     </div>
-                                    <div className="mono muted" style={{ fontSize: 10.5 }}>
+                                    <div className="mono muted" style={{ fontSize: 10.5, marginTop: 2 }}>
                                       Vào: {fmtDateTime(t.enter_time)}
                                     </div>
                                   </td>
-                                  <td>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                      <span className="mono" style={{ fontSize: 12, fontWeight: 600 }}>
+                                  <td style={{ borderRight: '1px solid var(--n-line)', padding: '8px 12px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                      <span className="mono" style={{ fontSize: 12, fontWeight: 600, color: 'var(--n-ink)' }}>
                                         {String(t.symbol).replace('@perp', '')}
                                       </span>
                                       <span
@@ -602,45 +720,43 @@ function AlphaResultDrawer({ alpha, activeJobId, onClose }) {
                                       </span>
                                     </div>
                                   </td>
-                                  <td className="mono" style={{ fontSize: 12 }}>
-                                    <span>{fmtNum(t.avg_price ?? t.enter_price, 2)}</span>
-                                    <span className="muted" style={{ margin: '0 4px' }}>➔</span>
-                                    <b>{fmtNum(t.close_price, 2)}</b>
+                                  <td className="mono" style={{ fontSize: 12, borderRight: '1px solid var(--n-line)', padding: '8px 12px' }}>
+                                    <span style={{ color: 'var(--n-ink-2)' }}>{fmtNum(t.avg_price ?? t.enter_price, 2)}</span>
+                                    <span className="muted" style={{ margin: '0 6px' }}>➔</span>
+                                    <b style={{ color: 'var(--n-ink)' }}>{fmtNum(t.close_price, 2)}</b>
                                   </td>
-                                  <td className="c">
+                                  <td className="c" style={{ borderRight: '1px solid var(--n-line)', padding: '8px 6px' }}>
                                     <span
                                       className="n-badge mono"
                                       style={{
                                         fontSize: 10.5,
-                                        padding: '1px 6px',
+                                        padding: '2px 6px',
                                         background: t.layers > 1 ? 'rgba(56,189,248,0.15)' : undefined,
-                                        color: t.layers > 1 ? '#38bdf8' : undefined,
+                                        color: t.layers > 1 ? 'var(--n-accent)' : undefined,
                                         fontWeight: t.layers > 1 ? 600 : 400,
                                       }}
                                     >
                                       {t.layers || 1} tầng
                                     </span>
                                   </td>
-                                  <td className="mono r" style={{ fontSize: 12 }}>
+                                  <td className="mono r" style={{ fontSize: 12, borderRight: '1px solid var(--n-line)', padding: '8px 12px' }}>
                                     {fmtMoney(t.notional)}
                                   </td>
-                                  <td className={`r mono ${signClass(t.pnl)}`} style={{ fontWeight: 600, fontSize: 12.5 }}>
+                                  <td className={`r mono ${signClass(t.pnl)}`} style={{ fontWeight: 600, fontSize: 12.5, borderRight: '1px solid var(--n-line)', padding: '8px 12px' }}>
                                     <div>{fmtMoney(t.pnl, true)}</div>
-                                    <div style={{ fontSize: 10.5, opacity: 0.85 }}>
+                                    <div style={{ fontSize: 10.5, opacity: 0.85, marginTop: 2 }}>
                                       {fmtSPct(t.pnl_pct * 100, 2)}
                                     </div>
                                   </td>
-                                  <td>
+                                  <td style={{ padding: '8px 12px' }}>
                                     <span
                                       className={`n-badge sm ${isWin ? 'ok' : 'neg'}`}
                                       style={{
-                                        fontSize: 10.5,
-                                        padding: '1px 6px',
-                                        maxWidth: '100%',
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis',
-                                        whiteSpace: 'nowrap',
+                                        fontSize: 11,
+                                        padding: '2px 8px',
                                         display: 'inline-block',
+                                        whiteSpace: 'normal',
+                                        lineHeight: 1.3,
                                       }}
                                       title={t.close_reason}
                                     >
@@ -656,7 +772,7 @@ function AlphaResultDrawer({ alpha, activeJobId, onClose }) {
                     </div>
 
                     {/* Điều hướng phân trang */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, padding: '8px 0', borderTop: '1px solid var(--n-border, rgba(255,255,255,0.06))', flexWrap: 'wrap', gap: 8 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, padding: '8px 0', borderTop: '1px solid var(--n-line)', flexWrap: 'wrap', gap: 8 }}>
                       <div className="muted" style={{ fontSize: 12 }}>
                         Hiển thị {filteredTrades.length > 0 ? (tradePage - 1) * PAGE_SIZE + 1 : 0} - {Math.min(tradePage * PAGE_SIZE, filteredTrades.length)} / {filteredTrades.length} lệnh
                         {filteredTrades.length !== allTrades.length && ` (Lọc từ ${allTrades.length} lệnh)`}
@@ -689,49 +805,49 @@ function AlphaResultDrawer({ alpha, activeJobId, onClose }) {
 
                   {b.in_sample && b.out_of_sample ? (
                     <div style={{ marginTop: 24 }}>
-                      <h4 style={{ margin: '0 0 10px 0', fontSize: 14, fontWeight: 600 }}>
+                      <h4 style={{ margin: '0 0 10px 0', fontSize: 14, fontWeight: 700, color: 'var(--n-ink)' }}>
                         So sánh đối chuẩn 2 Cửa sổ: In-Sample (Huấn luyện 12 Tháng) vs Out-of-Sample (Kiểm định 6 Tháng)
                       </h4>
-                      <div className="n-tblwrap" style={{ width: '100%', maxWidth: '100%', overflowX: 'auto', boxSizing: 'border-box' }}>
-                        <table className="n-tbl" style={{ width: '100%', tableLayout: 'fixed' }}>
+                      <div className="n-tblwrap" style={{ width: '100%', maxWidth: '100%', overflowX: 'auto', border: '1px solid var(--n-line)', borderRadius: 6, boxSizing: 'border-box' }}>
+                        <table className="n-tbl" style={{ width: '100%', minWidth: 700, borderCollapse: 'collapse' }}>
                           <thead>
-                            <tr>
-                              <th style={{ width: '35%', textAlign: 'left' }}>Chỉ số hiệu suất</th>
-                              <th className="r" style={{ width: '20%' }}>In-Sample (12T)</th>
-                              <th className="r" style={{ width: '20%' }}>Out-of-Sample (6T)</th>
-                              <th style={{ width: '25%' }}>Đánh giá kiểm định</th>
+                            <tr style={{ background: 'var(--n-surface-2)' }}>
+                              <th style={{ width: '32%', textAlign: 'left', borderRight: '1px solid var(--n-line)', padding: '10px 12px' }}>Chỉ số hiệu suất</th>
+                              <th className="r" style={{ width: '22%', borderRight: '1px solid var(--n-line)', padding: '10px 12px' }}>In-Sample (12T)</th>
+                              <th className="r" style={{ width: '22%', borderRight: '1px solid var(--n-line)', padding: '10px 12px' }}>Out-of-Sample (6T)</th>
+                              <th style={{ width: '24%', padding: '10px 12px' }}>Đánh giá kiểm định</th>
                             </tr>
                           </thead>
                           <tbody>
-                            <tr>
-                              <td><b>Lợi nhuận (Total Return)</b></td>
-                              <td className={`r mono ${signClass(is.ret_pct)}`}>{fmtSPct(is.ret_pct, 2)}</td>
-                              <td className={`r mono ${signClass(oos.ret_pct)}`}><b>{fmtSPct(oos.ret_pct, 2)}</b></td>
-                              <td className="muted" style={{ wordBreak: 'break-word', whiteSpace: 'normal' }}>{oos.ret_pct > 0 ? 'Tăng trưởng dương ở dữ liệu chưa thấy' : 'Duy trì ổn định'}</td>
+                            <tr style={{ background: 'var(--n-surface)', borderBottom: '1px solid var(--n-line)' }}>
+                              <td style={{ borderRight: '1px solid var(--n-line)', padding: '8px 12px' }}><b>Lợi nhuận (Total Return)</b></td>
+                              <td className={`r mono ${signClass(is.ret_pct)}`} style={{ borderRight: '1px solid var(--n-line)', padding: '8px 12px' }}>{fmtSPct(is.ret_pct, 2)}</td>
+                              <td className={`r mono ${signClass(oos.ret_pct)}`} style={{ borderRight: '1px solid var(--n-line)', padding: '8px 12px' }}><b>{fmtSPct(oos.ret_pct, 2)}</b></td>
+                              <td className="muted" style={{ padding: '8px 12px', wordBreak: 'break-word', whiteSpace: 'normal' }}>{oos.ret_pct > 0 ? 'Tăng trưởng dương ở dữ liệu chưa thấy' : 'Duy trì ổn định'}</td>
                             </tr>
-                            <tr>
-                              <td><b>Max Drawdown (MDD)</b></td>
-                              <td className="r mono neg">{fmtPct(is.mdd_pct, 2)}</td>
-                              <td className="r mono neg"><b>{fmtPct(oos.mdd_pct, 2)}</b></td>
-                              <td className="muted" style={{ wordBreak: 'break-word', whiteSpace: 'normal' }}>Sụt giảm OOS kiểm soát an toàn (&lt; 2.5%)</td>
+                            <tr style={{ background: 'var(--n-surface-2)', borderBottom: '1px solid var(--n-line)' }}>
+                              <td style={{ borderRight: '1px solid var(--n-line)', padding: '8px 12px' }}><b>Max Drawdown (MDD)</b></td>
+                              <td className="r mono neg" style={{ borderRight: '1px solid var(--n-line)', padding: '8px 12px' }}>{fmtPct(is.mdd_pct, 2)}</td>
+                              <td className="r mono neg" style={{ borderRight: '1px solid var(--n-line)', padding: '8px 12px' }}><b>{fmtPct(oos.mdd_pct, 2)}</b></td>
+                              <td className="muted" style={{ padding: '8px 12px', wordBreak: 'break-word', whiteSpace: 'normal' }}>Sụt giảm OOS kiểm soát an toàn (&lt; 2.5%)</td>
                             </tr>
-                            <tr>
-                              <td><b>Sharpe Ratio</b></td>
-                              <td className="r mono">{fmtNum(is.sharpe, 2)}</td>
-                              <td className="r mono ok"><b>{fmtNum(oos.sharpe, 2)}</b></td>
-                              <td className="muted" style={{ wordBreak: 'break-word', whiteSpace: 'normal' }}>Tỷ số Sharpe OOS &gt; 2.0 (Rất tốt)</td>
+                            <tr style={{ background: 'var(--n-surface)', borderBottom: '1px solid var(--n-line)' }}>
+                              <td style={{ borderRight: '1px solid var(--n-line)', padding: '8px 12px' }}><b>Sharpe Ratio</b></td>
+                              <td className="r mono" style={{ borderRight: '1px solid var(--n-line)', padding: '8px 12px' }}>{fmtNum(is.sharpe, 2)}</td>
+                              <td className="r mono ok" style={{ borderRight: '1px solid var(--n-line)', padding: '8px 12px' }}><b>{fmtNum(oos.sharpe, 2)}</b></td>
+                              <td className="muted" style={{ padding: '8px 12px', wordBreak: 'break-word', whiteSpace: 'normal' }}>Tỷ số Sharpe OOS &gt; 2.0 (Rất tốt)</td>
                             </tr>
-                            <tr>
-                              <td><b>Tỉ lệ thắng (Win Rate)</b></td>
-                              <td className="r mono">{fmtPct(is.win_rate, 1)}</td>
-                              <td className="r mono"><b>{fmtPct(oos.win_rate, 1)}</b></td>
-                              <td className="muted" style={{ wordBreak: 'break-word', whiteSpace: 'normal' }}>Duy trì tỷ lệ thắng cao</td>
+                            <tr style={{ background: 'var(--n-surface-2)', borderBottom: '1px solid var(--n-line)' }}>
+                              <td style={{ borderRight: '1px solid var(--n-line)', padding: '8px 12px' }}><b>Tỉ lệ thắng (Win Rate)</b></td>
+                              <td className="r mono" style={{ borderRight: '1px solid var(--n-line)', padding: '8px 12px' }}>{fmtPct(is.win_rate, 1)}</td>
+                              <td className="r mono" style={{ borderRight: '1px solid var(--n-line)', padding: '8px 12px' }}><b>{fmtPct(oos.win_rate, 1)}</b></td>
+                              <td className="muted" style={{ padding: '8px 12px', wordBreak: 'break-word', whiteSpace: 'normal' }}>Duy trì tỷ lệ thắng cao</td>
                             </tr>
-                            <tr>
-                              <td><b>Tổng số lệnh</b></td>
-                              <td className="r mono">{is.trades} lệnh</td>
-                              <td className="r mono">{oos.trades} lệnh</td>
-                              <td className="muted" style={{ wordBreak: 'break-word', whiteSpace: 'normal' }}>Mẫu lệnh đủ lớn để có ý nghĩa thống kê</td>
+                            <tr style={{ background: 'var(--n-surface)', borderBottom: '1px solid var(--n-line)' }}>
+                              <td style={{ borderRight: '1px solid var(--n-line)', padding: '8px 12px' }}><b>Tổng số lệnh</b></td>
+                              <td className="r mono" style={{ borderRight: '1px solid var(--n-line)', padding: '8px 12px' }}>{is.trades} lệnh</td>
+                              <td className="r mono" style={{ borderRight: '1px solid var(--n-line)', padding: '8px 12px' }}>{oos.trades} lệnh</td>
+                              <td className="muted" style={{ padding: '8px 12px', wordBreak: 'break-word', whiteSpace: 'normal' }}>Mẫu lệnh đủ lớn để có ý nghĩa thống kê</td>
                             </tr>
                           </tbody>
                         </table>
@@ -743,25 +859,36 @@ function AlphaResultDrawer({ alpha, activeJobId, onClose }) {
                     </div>
                   )}
 
-                  {/* Bảng tham số cấu hình của Alpha */}
-                  {alpha.params_list && alpha.params_list.length > 0 && (
+                  {/* Bảng tham số chi tiết của chiến lược */}
+                  {paramEntries.length > 0 && (
                     <div style={{ marginTop: 24 }}>
-                      <h4 style={{ margin: '0 0 10px 0', fontSize: 14, fontWeight: 600 }}>Bộ tham số cấu hình đã khớp (Optimized Parameters)</h4>
-                      <div className="n-tblwrap" style={{ width: '100%', maxWidth: '100%', overflowX: 'auto', boxSizing: 'border-box' }}>
-                        <table className="n-tbl" style={{ width: '100%', tableLayout: 'fixed' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                        <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--n-ink)' }}>
+                          Tham số của {alpha.name || 'Chiến lược'} · {alpha.side || 'Cả hai'}
+                        </h4>
+                        <span className="n-badge" style={{ fontSize: 11 }}>Khung: {alpha.timeframe || '15m'} · {alpha.symbol || 'BTC@perp'}</span>
+                      </div>
+                      <div className="n-tblwrap" style={{ width: '100%', maxWidth: '100%', overflowX: 'auto', border: '1px solid var(--n-line)', borderRadius: 6, boxSizing: 'border-box' }}>
+                        <table className="n-tbl" style={{ width: '100%', minWidth: 600, borderCollapse: 'collapse' }}>
                           <thead>
-                            <tr>
-                              <th style={{ width: '40%', textAlign: 'left' }}>Tham số</th>
-                              <th style={{ width: '30%' }}>Giá trị</th>
-                              <th style={{ width: '30%' }}>Khóa tham số</th>
+                            <tr style={{ background: 'var(--n-surface-2)' }}>
+                              <th style={{ width: '40%', textAlign: 'left', borderRight: '1px solid var(--n-line)', padding: '10px 12px' }}>Tham số</th>
+                              <th style={{ width: '30%', borderRight: '1px solid var(--n-line)', padding: '10px 12px' }}>Giá trị tối ưu (Preset)</th>
+                              <th style={{ width: '30%', padding: '10px 12px' }}>Khóa tham số</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {alpha.params_list.map((p) => (
-                              <tr key={p.key}>
-                                <td><b>{p.label}</b></td>
-                                <td><b className="mono ok" style={{ fontSize: 13.5 }}>{p.value}</b></td>
-                                <td className="mono muted">{p.key}</td>
+                            {paramEntries.map((p, idx) => (
+                              <tr
+                                key={p.key}
+                                style={{
+                                  background: idx % 2 === 1 ? 'var(--n-surface-2)' : 'var(--n-surface)',
+                                  borderBottom: '1px solid var(--n-line)',
+                                }}
+                              >
+                                <td style={{ borderRight: '1px solid var(--n-line)', padding: '8px 12px' }}><b>{p.label}</b></td>
+                                <td style={{ borderRight: '1px solid var(--n-line)', padding: '8px 12px' }}><b className="mono ok" style={{ fontSize: 13.5 }}>{String(p.value)}</b></td>
+                                <td className="mono muted" style={{ padding: '8px 12px' }}>{p.key}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -769,6 +896,35 @@ function AlphaResultDrawer({ alpha, activeJobId, onClose }) {
                       </div>
                     </div>
                   )}
+
+                  {/* Tiến trình Backtest & Terminal Console nếu có Job */}
+                  {(targetJobId || bt.job) && (
+                    <div style={{ marginTop: 24 }}>
+                      <h4 style={{ margin: '0 0 10px 0', fontSize: 14, fontWeight: 700, color: 'var(--n-ink)' }}>
+                        Tiến trình Backtest · Pipeline & Terminal Console
+                      </h4>
+                      <JobPanel job={bt.job} status={bt.status} error={bt.error} title="Tiến trình Backtest" isBacktest={true} />
+                    </div>
+                  )}
+
+                  {/* Hành động tiếp tục: Walk-forward ngay trong kết quả */}
+                  <div style={{ marginTop: 24, padding: '16px 20px', background: 'var(--n-surface-2)', borderRadius: 8, border: '1px solid var(--n-line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--n-ink)' }}>Sẵn sàng kiểm định Out-of-Sample?</div>
+                      <div className="muted" style={{ fontSize: 12 }}>Chuyển sang Bước 2 (Walk-Forward Analysis) để kiểm tra độ bền vững qua 10 Folds thị trường.</div>
+                    </div>
+                    <button
+                      type="button"
+                      className="n-btn primary"
+                      onClick={() => {
+                        onClose()
+                        navigate(`/coin/backtest?step=2&wfa_alpha=${encodeURIComponent(alpha.key || alpha.id || alpha.strategy)}`)
+                      }}
+                      style={{ fontWeight: 700, padding: '8px 18px', fontSize: 13.5 }}
+                    >
+                      Tiếp tục: Walk-forward →
+                    </button>
+                  </div>
                 </section>
               </>
             )}
@@ -777,7 +933,7 @@ function AlphaResultDrawer({ alpha, activeJobId, onClose }) {
             {activeTab === 'wfa' && (
               <>
                 <section className="n-ad-sec" style={{ width: '100%', minWidth: 0, boxSizing: 'border-box' }}>
-                  <h3>Kiểm định Walk-Forward (10 Fold Cuốn chiếu liên tục)</h3>
+                  <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--n-ink)', marginBottom: 12 }}>Kiểm định Walk-Forward (10 Fold Cuốn chiếu liên tục)</h3>
                   {wfa ? (
                     <>
                       <div className="n-ad-sum" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
@@ -789,30 +945,36 @@ function AlphaResultDrawer({ alpha, activeJobId, onClose }) {
 
                       {wfa.folds && wfa.folds.length > 0 && (
                         <div style={{ marginTop: 22 }}>
-                          <h4 style={{ margin: '0 0 10px 0', fontSize: 14, fontWeight: 600 }}>Chi tiết 10 Fold Walk-Forward</h4>
-                          <div className="n-tblwrap" style={{ width: '100%', maxWidth: '100%', overflowX: 'auto', boxSizing: 'border-box' }}>
-                            <table className="n-tbl" style={{ width: '100%', tableLayout: 'fixed' }}>
+                          <h4 style={{ margin: '0 0 10px 0', fontSize: 14, fontWeight: 700, color: 'var(--n-ink)' }}>Chi tiết 10 Fold Walk-Forward</h4>
+                          <div className="n-tblwrap" style={{ width: '100%', maxWidth: '100%', overflowX: 'auto', border: '1px solid var(--n-line)', borderRadius: 6, boxSizing: 'border-box' }}>
+                            <table className="n-tbl" style={{ width: '100%', minWidth: 800, borderCollapse: 'collapse' }}>
                               <thead>
-                                <tr>
-                                  <th style={{ width: '12%', textAlign: 'left' }}>Fold</th>
-                                  <th style={{ width: '25%' }}>Cửa sổ Train (IS)</th>
-                                  <th style={{ width: '25%' }}>Cửa sổ Test (OOS)</th>
-                                  <th className="r" style={{ width: '10%' }}>Số lệnh</th>
-                                  <th className="r" style={{ width: '10%' }}>Lợi nhuận</th>
-                                  <th className="r" style={{ width: '9%' }}>MDD</th>
-                                  <th className="r" style={{ width: '9%' }}>Thắng</th>
+                                <tr style={{ background: 'var(--n-surface-2)' }}>
+                                  <th style={{ width: 80, textAlign: 'left', borderRight: '1px solid var(--n-line)', padding: '10px 12px' }}>Fold</th>
+                                  <th style={{ width: 190, borderRight: '1px solid var(--n-line)', padding: '10px 12px' }}>Cửa sổ Train (IS)</th>
+                                  <th style={{ width: 190, borderRight: '1px solid var(--n-line)', padding: '10px 12px' }}>Cửa sổ Test (OOS)</th>
+                                  <th className="r" style={{ width: 85, borderRight: '1px solid var(--n-line)', padding: '10px 12px' }}>Số lệnh</th>
+                                  <th className="r" style={{ width: 100, borderRight: '1px solid var(--n-line)', padding: '10px 12px' }}>Lợi nhuận</th>
+                                  <th className="r" style={{ width: 85, borderRight: '1px solid var(--n-line)', padding: '10px 12px' }}>MDD</th>
+                                  <th className="r" style={{ width: 85, padding: '10px 12px' }}>Thắng</th>
                                 </tr>
                               </thead>
                               <tbody>
-                                {wfa.folds.map((f) => (
-                                  <tr key={f.fold}>
-                                    <td><b>Fold #{f.fold}</b></td>
-                                    <td className="mono muted" style={{ fontSize: 12, wordBreak: 'break-word' }}>{f.train?.[0]} ➔ {f.train?.[1]}</td>
-                                    <td className="mono ok" style={{ fontSize: 12, wordBreak: 'break-word' }}><b>{f.test?.[0]} ➔ {f.test?.[1]}</b></td>
-                                    <td className="r mono">{f.trades}</td>
-                                    <td className={`r mono ${signClass(f.is_ret_pct)}`}>{fmtSPct(f.is_ret_pct, 1)}</td>
-                                    <td className="r mono neg">{fmtPct(f.is_mdd_pct, 1)}</td>
-                                    <td className="r mono">{fmtPct(f.is_win_pct, 1)}</td>
+                                {wfa.folds.map((f, idx) => (
+                                  <tr
+                                    key={f.fold}
+                                    style={{
+                                      background: idx % 2 === 1 ? 'var(--n-surface-2)' : 'var(--n-surface)',
+                                      borderBottom: '1px solid var(--n-line)',
+                                    }}
+                                  >
+                                    <td style={{ borderRight: '1px solid var(--n-line)', padding: '8px 12px' }}><b>Fold #{f.fold}</b></td>
+                                    <td className="mono muted" style={{ fontSize: 12, borderRight: '1px solid var(--n-line)', padding: '8px 12px' }}>{f.train?.[0]} ➔ {f.train?.[1]}</td>
+                                    <td className="mono ok" style={{ fontSize: 12, borderRight: '1px solid var(--n-line)', padding: '8px 12px' }}><b>{f.test?.[0]} ➔ {f.test?.[1]}</b></td>
+                                    <td className="r mono" style={{ borderRight: '1px solid var(--n-line)', padding: '8px 12px' }}>{f.trades}</td>
+                                    <td className={`r mono ${signClass(f.is_ret_pct)}`} style={{ borderRight: '1px solid var(--n-line)', padding: '8px 12px' }}>{fmtSPct(f.is_ret_pct, 1)}</td>
+                                    <td className="r mono neg" style={{ borderRight: '1px solid var(--n-line)', padding: '8px 12px' }}>{fmtPct(f.is_mdd_pct, 1)}</td>
+                                    <td className="r mono" style={{ padding: '8px 12px' }}>{fmtPct(f.is_win_pct, 1)}</td>
                                   </tr>
                                 ))}
                               </tbody>
@@ -822,9 +984,9 @@ function AlphaResultDrawer({ alpha, activeJobId, onClose }) {
                       )}
                     </>
                   ) : (
-                    <div className="n-note" style={{ margin: '14px 0', padding: '14px 18px', borderRadius: 8, background: 'rgba(56, 189, 248, 0.08)', border: '1px solid rgba(56, 189, 248, 0.2)' }}>
-                      ℹ️ <b>Chiến lược này chưa kích hoạt kiểm định Walk-Forward (WFA).</b><br />
-                      Kiểm định WFA giúp kiểm tra thuật toán có bị overfit hay không bằng cách cuốn chiếu 10 cửa sổ Train/Test liên tục. Bạn có thể chọn bước 2 ở thanh các bước phía trên để chạy WFA.
+                    <div className="n-note" style={{ margin: '14px 0', padding: '14px 18px', borderRadius: 8, background: 'var(--n-surface-2)', border: '1px solid var(--n-line)' }}>
+                      <b>Chiến lược này chưa kích hoạt kiểm định Walk-Forward (WFA).</b><br />
+                      Kiểm định WFA giúp kiểm tra thuật toán có bị overfit hay không bằng cách cuốn chiếu 10 cửa sổ Train/Test liên tục.
                     </div>
                   )}
                 </section>
@@ -835,7 +997,7 @@ function AlphaResultDrawer({ alpha, activeJobId, onClose }) {
             {activeTab === 'monte_carlo' && (
               <>
                 <section className="n-ad-sec" style={{ width: '100%', minWidth: 0, boxSizing: 'border-box' }}>
-                  <h3>Kiểm định Sức chịu đựng rủi ro Monte Carlo (10,000 Lần)</h3>
+                  <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--n-ink)', marginBottom: 12 }}>Kiểm định Sức chịu đựng rủi ro Monte Carlo (10,000 Lần)</h3>
                   {mc ? (
                     <>
                       <div className="n-ad-sum" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
@@ -847,41 +1009,47 @@ function AlphaResultDrawer({ alpha, activeJobId, onClose }) {
 
                       {mc.stress && mc.stress.length > 0 && (
                         <div style={{ marginTop: 22 }}>
-                          <h4 style={{ margin: '0 0 12px 0', fontSize: 14, fontWeight: 600 }}>
+                          <h4 style={{ margin: '0 0 12px 0', fontSize: 14, fontWeight: 700, color: 'var(--n-ink)' }}>
                             Kiểm tra 7 Kịch bản Thị trường Cực đoan (Stress Tests)
                           </h4>
-                          <div className="n-tblwrap" style={{ width: '100%', maxWidth: '100%', overflowX: 'auto', boxSizing: 'border-box' }}>
-                            <table className="n-tbl" style={{ width: '100%', tableLayout: 'fixed' }}>
+                          <div className="n-tblwrap" style={{ width: '100%', maxWidth: '100%', overflowX: 'auto', border: '1px solid var(--n-line)', borderRadius: 6, boxSizing: 'border-box' }}>
+                            <table className="n-tbl" style={{ width: '100%', minWidth: 720, borderCollapse: 'collapse' }}>
                               <thead>
-                                <tr>
-                                  <th style={{ width: '44%', textAlign: 'left' }}>Kịch bản thị trường thử thách</th>
-                                  <th className="r" style={{ width: '15%' }}>Max Drawdown</th>
-                                  <th className="r" style={{ width: '15%' }}>Lợi nhuận cuối kỳ</th>
-                                  <th className="r" style={{ width: '14%' }}>Thời gian sụt giảm</th>
-                                  <th className="c" style={{ width: '12%' }}>Kiểm định</th>
+                                <tr style={{ background: 'var(--n-surface-2)' }}>
+                                  <th style={{ width: '42%', textAlign: 'left', borderRight: '1px solid var(--n-line)', padding: '10px 12px' }}>Kịch bản thị trường thử thách</th>
+                                  <th className="r" style={{ width: '16%', borderRight: '1px solid var(--n-line)', padding: '10px 12px' }}>Max Drawdown</th>
+                                  <th className="r" style={{ width: '16%', borderRight: '1px solid var(--n-line)', padding: '10px 12px' }}>Lợi nhuận cuối kỳ</th>
+                                  <th className="r" style={{ width: '14%', borderRight: '1px solid var(--n-line)', padding: '10px 12px' }}>Thời gian sụt giảm</th>
+                                  <th className="c" style={{ width: '12%', padding: '10px 12px' }}>Kiểm định</th>
                                 </tr>
                               </thead>
                               <tbody>
-                                {mc.stress.map((st) => (
-                                  <tr key={st.name}>
-                                    <td style={{ wordBreak: 'break-word', whiteSpace: 'normal', padding: '10px 12px' }}>
-                                      <b style={{ color: 'var(--n-ink, #f8fafc)', fontSize: 13 }}>{st.label_vi || st.name}</b>
+                                {mc.stress.map((st, idx) => (
+                                  <tr
+                                    key={st.name}
+                                    style={{
+                                      background: idx % 2 === 1 ? 'var(--n-surface-2)' : 'var(--n-surface)',
+                                      borderBottom: '1px solid var(--n-line)',
+                                    }}
+                                  >
+                                    <td style={{ wordBreak: 'break-word', whiteSpace: 'normal', padding: '10px 12px', borderRight: '1px solid var(--n-line)' }}>
+                                      <b style={{ color: 'var(--n-ink)', fontSize: 13 }}>{st.label_vi || st.name}</b>
                                       {st.note_vi && (
-                                        <div className="muted" style={{ fontSize: 12, marginTop: 4, lineHeight: 1.45, wordBreak: 'break-word' }}>
+                                        <div className="muted" style={{ fontSize: 12, marginTop: 4, lineHeight: 1.45 }}>
                                           {st.note_vi}
                                         </div>
                                       )}
                                     </td>
-                                    <td className="r mono neg" style={{ fontWeight: 600, verticalAlign: 'middle' }}>
+                                    <td className="r mono neg" style={{ fontWeight: 600, verticalAlign: 'middle', borderRight: '1px solid var(--n-line)', padding: '10px 12px' }}>
                                       <b>{fmtPct(st.mdd_pct, 2)}</b>
                                     </td>
-                                    <td className={`r mono ${signClass(st.terminal_ret_pct)}`} style={{ fontWeight: 600, verticalAlign: 'middle' }}>
+                                    <td className={`r mono ${signClass(st.terminal_ret_pct)}`} style={{ fontWeight: 600, verticalAlign: 'middle', borderRight: '1px solid var(--n-line)', padding: '10px 12px' }}>
                                       {fmtSPct(st.terminal_ret_pct, 2)}
                                     </td>
-                                    <td className="r mono" style={{ fontSize: 12.5, verticalAlign: 'middle' }}>
+                                    <td className="r mono" style={{ fontSize: 12.5, verticalAlign: 'middle', borderRight: '1px solid var(--n-line)', padding: '10px 12px' }}>
                                       {st.days_underwater} ngày
                                     </td>
-                                    <td className="c" style={{ verticalAlign: 'middle' }}>
+                                    <td className="c" style={{ verticalAlign: 'middle', padding: '10px 12px' }}>
                                       <span className="n-badge ok" style={{ fontSize: 11, padding: '2px 8px' }}>✓ ĐẠT</span>
                                     </td>
                                   </tr>
@@ -893,8 +1061,8 @@ function AlphaResultDrawer({ alpha, activeJobId, onClose }) {
                       )}
                     </>
                   ) : (
-                    <div className="n-note" style={{ margin: '14px 0', padding: '14px 18px', borderRadius: 8, background: 'rgba(56, 189, 248, 0.08)', border: '1px solid rgba(56, 189, 248, 0.2)' }}>
-                      ℹ️ <b>Chiến lược này chưa có dữ liệu mô phỏng Monte Carlo 10,000 kịch bản.</b><br />
+                    <div className="n-note" style={{ margin: '14px 0', padding: '14px 18px', borderRadius: 8, background: 'var(--n-surface-2)', border: '1px solid var(--n-line)' }}>
+                      <b>Chiến lược này chưa có dữ liệu mô phỏng Monte Carlo 10,000 kịch bản.</b><br />
                       Mô phỏng Monte Carlo xáo trộn chuỗi khối ngày lịch sử để kiểm tra xác suất tài khoản gặp rủi ro sụt giảm nặng ($MDD \ge 30\%$).
                     </div>
                   )}
@@ -913,7 +1081,7 @@ function AlphaResultDrawer({ alpha, activeJobId, onClose }) {
  * Bảng danh sách kết quả Backtest, WFA và Monte Carlo cho từng Alpha
  * Đặt ngay bên dưới biểu đồ sụt giảm vốn (Drawdown / MDD)
  */
-function ConfigModal({ alpha, onClose }) {
+export function ConfigModal({ alpha, onClose }) {
   const [tab, setTab] = useState('backtest')
   if (!alpha) return null
 
@@ -923,41 +1091,131 @@ function ConfigModal({ alpha, onClose }) {
   const mc = alpha.monte_carlo || {}
 
   return createPortal(
-    <div className="n-modal-backdrop" onClick={onClose} style={{ zIndex: 1200 }}>
-      <div className="n-modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 640, width: '90vw', padding: 24, borderRadius: 12, background: 'var(--n-bg-2, #111827)', border: '1px solid var(--n-line, rgba(255,255,255,0.1))' }}>
+    <div className="v2 n-modal-backdrop" onClick={onClose} style={{ zIndex: 1200, background: 'rgba(0, 0, 0, 0.72)', backdropFilter: 'blur(5px)' }}>
+      <div
+        className="n-modal-content"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          maxWidth: 680,
+          width: '92vw',
+          padding: '22px 26px',
+          borderRadius: 12,
+          background: 'var(--n-surface, #18181b)',
+          border: '1px solid var(--n-line, rgba(255,255,255,0.15))',
+          color: 'var(--n-ink)',
+          boxShadow: '0 25px 60px rgba(0, 0, 0, 0.7), 0 0 0 1px var(--n-line)',
+        }}
+      >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <div>
-            <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Tham số: {alpha.name}</h3>
-            <span className="muted" style={{ fontSize: 12 }}>{alpha.kind} · {alpha.side} · {alpha.symbol || '15m'}</span>
+            <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--n-ink)' }}>Tham số: {alpha.name}</h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+              <span className={`n-badge ${SIDE_CLS[alpha.side] || ''}`} style={{ fontSize: 10.5, padding: '1px 6px' }}>{alpha.side}</span>
+              <span className="n-badge mono" style={{ fontSize: 11, padding: '1px 6px' }}>{alpha.symbol || 'BTC@perp'}</span>
+              <span className="muted" style={{ fontSize: 12 }}>{alpha.kind}</span>
+            </div>
           </div>
-          <button type="button" className="n-btn sm" onClick={onClose} aria-label="Đóng">✕</button>
+          <button type="button" className="n-btn sm" onClick={onClose} aria-label="Đóng" style={{ padding: '0 10px', height: 28, fontSize: 12 }}>✕ Đóng</button>
         </div>
 
-        <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
-          <button type="button" className={`n-btn sm ${tab === 'backtest' ? 'primary' : ''}`} onClick={() => setTab('backtest')}>Backtest</button>
-          <button type="button" className={`n-btn sm ${tab === 'wfa' ? 'primary' : ''}`} onClick={() => setTab('wfa')}>WFA</button>
-          <button type="button" className={`n-btn sm ${tab === 'monte_carlo' ? 'primary' : ''}`} onClick={() => setTab('monte_carlo')}>Monte Carlo</button>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 16, background: 'var(--n-surface-2)', padding: 4, borderRadius: 8, border: '1px solid var(--n-line)' }}>
+          <button
+            type="button"
+            className="n-btn sm"
+            style={{
+              flex: 1,
+              border: tab === 'backtest' ? '1px solid var(--n-line)' : 'none',
+              background: tab === 'backtest' ? 'var(--n-surface)' : 'transparent',
+              color: tab === 'backtest' ? 'var(--n-accent)' : 'var(--n-ink-2)',
+              fontWeight: tab === 'backtest' ? 700 : 500,
+            }}
+            onClick={() => setTab('backtest')}
+          >
+            Tham số Backtest
+          </button>
+          <button
+            type="button"
+            className="n-btn sm"
+            style={{
+              flex: 1,
+              border: tab === 'wfa' ? '1px solid var(--n-line)' : 'none',
+              background: tab === 'wfa' ? 'var(--n-surface)' : 'transparent',
+              color: tab === 'wfa' ? 'var(--n-accent)' : 'var(--n-ink-2)',
+              fontWeight: tab === 'wfa' ? 700 : 500,
+            }}
+            onClick={() => setTab('wfa')}
+          >
+            Cấu hình WFA
+          </button>
+          <button
+            type="button"
+            className="n-btn sm"
+            style={{
+              flex: 1,
+              border: tab === 'monte_carlo' ? '1px solid var(--n-line)' : 'none',
+              background: tab === 'monte_carlo' ? 'var(--n-surface)' : 'transparent',
+              color: tab === 'monte_carlo' ? 'var(--n-accent)' : 'var(--n-ink-2)',
+              fontWeight: tab === 'monte_carlo' ? 700 : 500,
+            }}
+            onClick={() => setTab('monte_carlo')}
+          >
+            Cấu hình Monte Carlo
+          </button>
         </div>
 
         <div style={{ maxHeight: '60vh', overflowY: 'auto' }}>
           {tab === 'backtest' && (
             <div>
-              <h4 style={{ fontSize: 14, margin: '0 0 10px' }}>Tham số thuật toán & Khớp lệnh</h4>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <h4 style={{ fontSize: 13.5, margin: 0, color: 'var(--n-ink)', fontWeight: 700 }}>Tham số thuật toán & Khớp lệnh đã tối ưu</h4>
+                <span className="muted" style={{ fontSize: 11.5 }}>{paramsList.length} tham số</span>
+              </div>
               {paramsList.length > 0 ? (
-                <table className="n-tbl" style={{ width: '100%', fontSize: 13 }}>
-                  <thead><tr><th>Tham số</th><th>Giá trị</th><th>Khóa</th></tr></thead>
-                  <tbody>
-                    {paramsList.map((p) => (
-                      <tr key={p.key}>
-                        <td><b>{p.label}</b></td>
-                        <td><b className="mono ok">{p.value}</b></td>
-                        <td className="mono muted">{p.key}</td>
+                <div style={{ border: '1px solid var(--n-line)', borderRadius: 8, overflow: 'hidden' }}>
+                  <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse', borderSpacing: 0 }}>
+                    <thead>
+                      <tr style={{ background: 'var(--n-surface-2)', borderBottom: '2px solid var(--n-line)' }}>
+                        <th style={{ padding: '9px 14px', textAlign: 'left', fontWeight: 700, color: 'var(--n-ink)', borderRight: '1px solid var(--n-line)' }}>Tên tham số</th>
+                        <th style={{ padding: '9px 14px', textAlign: 'center', fontWeight: 700, color: 'var(--n-ink)', borderRight: '1px solid var(--n-line)', width: 140 }}>Giá trị cấu hình</th>
+                        <th style={{ padding: '9px 14px', textAlign: 'left', fontWeight: 700, color: 'var(--n-ink)', width: 200 }}>Khóa kỹ thuật</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {paramsList.map((p, idx) => {
+                        const rowBg = idx % 2 === 0 ? 'var(--n-surface)' : 'var(--n-surface-2)'
+                        return (
+                          <tr key={p.key} style={{ background: rowBg, borderBottom: '1px solid var(--n-line)' }}>
+                            <td style={{ padding: '9px 14px', fontWeight: 600, color: 'var(--n-ink)', borderRight: '1px solid var(--n-line)' }}>
+                              {p.label}
+                            </td>
+                            <td style={{ padding: '7px 14px', textAlign: 'center', borderRight: '1px solid var(--n-line)' }}>
+                              <span
+                                className="mono"
+                                style={{
+                                  display: 'inline-block',
+                                  padding: '3px 10px',
+                                  borderRadius: 4,
+                                  background: 'var(--n-surface-3)',
+                                  border: '1px solid var(--n-line)',
+                                  color: 'var(--n-accent)',
+                                  fontWeight: 700,
+                                  fontSize: 12.5,
+                                }}
+                              >
+                                {p.value}
+                              </span>
+                            </td>
+                            <td style={{ padding: '9px 14px', color: 'var(--n-ink-3)', fontFamily: 'var(--n-mono)', fontSize: 11.5 }}>
+                              {p.key}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               ) : (
-                <div className="mono muted" style={{ fontSize: 13, padding: 12, background: 'rgba(0,0,0,0.2)', borderRadius: 6, whiteSpace: 'pre-wrap' }}>
+                <div className="mono" style={{ fontSize: 12.5, padding: 14, background: 'var(--n-surface-2)', border: '1px solid var(--n-line)', borderRadius: 8, whiteSpace: 'pre-wrap', color: 'var(--n-ink)' }}>
                   {JSON.stringify(cfg, null, 2)}
                 </div>
               )}
@@ -966,35 +1224,35 @@ function ConfigModal({ alpha, onClose }) {
 
           {tab === 'wfa' && (
             <div>
-              <h4 style={{ fontSize: 14, margin: '0 0 10px' }}>Cấu hình Walk-Forward Analysis</h4>
+              <h4 style={{ fontSize: 13.5, margin: '0 0 10px', color: 'var(--n-ink)', fontWeight: 700 }}>Cấu hình Walk-Forward Analysis (WFA)</h4>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
-                <div style={{ padding: 10, background: 'rgba(255,255,255,0.03)', borderRadius: 6 }}>
-                  <span className="muted" style={{ fontSize: 11 }}>Số Fold kiểm định</span>
-                  <div style={{ fontSize: 16, fontWeight: 700 }}>{wfa.folds_count || 10} Folds</div>
+                <div style={{ padding: 12, background: 'var(--n-surface-2)', border: '1px solid var(--n-line)', borderRadius: 8 }}>
+                  <span className="muted" style={{ fontSize: 11 }}>Số Fold kiểm định cuốn chiếu</span>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--n-ink)', marginTop: 2 }}>{wfa.folds_count || 10} Folds</div>
                 </div>
-                <div style={{ padding: 10, background: 'rgba(255,255,255,0.03)', borderRadius: 6 }}>
+                <div style={{ padding: 12, background: 'var(--n-surface-2)', border: '1px solid var(--n-line)', borderRadius: 8 }}>
                   <span className="muted" style={{ fontSize: 11 }}>Tỷ lệ Train / Test</span>
-                  <div style={{ fontSize: 16, fontWeight: 700 }}>120 ngày / 30 ngày</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--n-ink)', marginTop: 2 }}>120 ngày / 30 ngày</div>
                 </div>
               </div>
-              <p className="n-note" style={{ fontSize: 12 }}>Cuốn chiếu out-of-sample liên tục qua các chu kỳ thị trường để chống overfit đường cong giá.</p>
+              <p className="n-note" style={{ fontSize: 12, margin: 0 }}>Cuốn chiếu out-of-sample liên tục qua các chu kỳ thị trường để chống hiện tượng overfitting đường cong giá.</p>
             </div>
           )}
 
           {tab === 'monte_carlo' && (
             <div>
-              <h4 style={{ fontSize: 14, margin: '0 0 10px' }}>Cấu hình Monte Carlo & Stress Test</h4>
+              <h4 style={{ fontSize: 13.5, margin: '0 0 10px', color: 'var(--n-ink)', fontWeight: 700 }}>Cấu hình Monte Carlo & Stress Test</h4>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
-                <div style={{ padding: 10, background: 'rgba(255,255,255,0.03)', borderRadius: 6 }}>
+                <div style={{ padding: 12, background: 'var(--n-surface-2)', border: '1px solid var(--n-line)', borderRadius: 8 }}>
                   <span className="muted" style={{ fontSize: 11 }}>Số lần mô phỏng</span>
-                  <div style={{ fontSize: 16, fontWeight: 700 }}>{fmtNum(mc.simulations || 10000, 0)} lần</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--n-ink)', marginTop: 2 }}>{fmtNum(mc.simulations || 10000, 0)} lần</div>
                 </div>
-                <div style={{ padding: 10, background: 'rgba(255,255,255,0.03)', borderRadius: 6 }}>
-                  <span className="muted" style={{ fontSize: 11 }}>Phương pháp</span>
-                  <div style={{ fontSize: 16, fontWeight: 700 }}>Block bootstrap (5 ngày)</div>
+                <div style={{ padding: 12, background: 'var(--n-surface-2)', border: '1px solid var(--n-line)', borderRadius: 8 }}>
+                  <span className="muted" style={{ fontSize: 11 }}>Phương pháp xáo trộn</span>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--n-ink)', marginTop: 2 }}>Block bootstrap (5 ngày)</div>
                 </div>
               </div>
-              <p className="n-note" style={{ fontSize: 12 }}>Xáo trộn chuỗi khối ngày lịch sử và kiểm tra 7 kịch bản thị trường sụp đổ cực đoan.</p>
+              <p className="n-note" style={{ fontSize: 12, margin: 0 }}>Xáo trộn chuỗi khối ngày lịch sử và kiểm tra 7 kịch bản thị trường sụp đổ cực đoan để đo lường độ chịu đựng rủi ro.</p>
             </div>
           )}
         </div>

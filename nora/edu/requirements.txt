@@ -1,0 +1,18 @@
+# Môi trường Python của Nora: Python 3.12 + NautilusTrader (P15), chạy trong nora.slice.
+# Tạo venv:  uv venv -p 3.12 /home/vmc03/.venvs/nora312
+#            uv pip install -p /home/vmc03/.venvs/nora312/bin/python -r nora/requirements.txt
+# Chạy từ thư mục nora/: ./start.sh (API) · ops/run_limited.sh -- -m pytest test -q (test). Job chạy qua API.
+# numba BẮT BUỘC: tính chỉ báo/tín hiệu vector hoá (backend/core/indicator.py, strategy.py). Khớp lệnh do NautilusTrader (backend/nautilus/).
+nautilus_trader==1.231.0
+pandas==2.3.3
+numpy==2.4.6
+pyarrow==26.0.0
+numba==0.68.0
+llvmlite==0.50.0
+pydantic==2.14.0
+fastapi==0.143.0
+starlette==1.7.0
+uvicorn==0.54.0
+requests==2.34.2
+pytest==9.1.1
+httpx==0.28.1   # cho fastapi.testclient.TestClient (test/test_book_api.py)

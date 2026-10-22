@@ -155,273 +155,273 @@ function Chart({ candles, fills, replay, signals, trades, position, showSignals,
     const { candleSeries, volSeries, chart, colors: c } = inst
     const el = containerRef.current
 
-    const times = candles.map((x) => loc(x[0]))
-    const frameSec = times.length > 1 ? times[1] - times[0] : 60
-    const snap = (ms) => {
-      const t = loc(ms)
-      const i = Math.floor((t - times[0]) / frameSec)
-      return times[Math.max(0, Math.min(times.length - 1, i))]
-    }
+    try {
+      // 1. Chuẩn hoá nến: lọc số hợp lệ, sắp xếp tăng dần theo thời gian và khử trùng lặp
+      const rawSorted = [...candles]
+        .filter((x) => Array.isArray(x) && isNum(x[0]) && isNum(x[1]) && isNum(x[2]) && isNum(x[3]) && isNum(x[4]))
+        .sort((a, b) => a[0] - b[0])
 
-    candleSeries.setData(candles.map((x, i) => ({ time: times[i], open: x[1], high: x[2], low: x[3], close: x[4] })))
-    volSeries.setData(candles.map((x, i) => ({ time: times[i], value: x[5], color: (x[4] >= x[1] ? c.pos : c.neg) + '55' })))
-
-    // Xoá priceLines và lineSeries của render trước
-    priceLinesRef.current.forEach((pl) => candleSeries.removePriceLine(pl))
-    priceLinesRef.current = []
-    linesRef.current.forEach((ls) => chart.removeSeries(ls))
-    linesRef.current = []
-
-    const closeOf = (f) => trades.find((t) => t.close_time && Math.abs(t.close_time - f.t) < 120000 && t.symbol === f.symbol)
-    const m = []
-    const info = {}
-    const note = (t, txt) => { (info[t] = info[t] || []).push(txt) }
-    const dcaN = {}
-
-    fills.forEach((f) => {
-      const g = grp(f.kind)
-      const buy = String(f.side).toUpperCase() === 'BUY'
-      const t = snap(f.t)
-      if (g === 'entry' || g === 'dca') {
-        const long = buy
-        const isDca = g === 'dca'
-        const dcaNum = (dcaN[f.symbol] = (dcaN[f.symbol] || 0) + 1)
-        const txt = isDca ? `▲ DCA ${dcaNum}` : (long ? '▲ Mua' : '▼ Bán')
-        m.push({
-          time: t,
-          position: long ? 'belowBar' : 'aboveBar',
-          shape: long ? 'arrowUp' : 'arrowDown',
-          color: long ? c.pos : c.neg,
-          size: isDca ? 1.0 : 1.3,
-          text: txt,
-        })
-        note(t, `${txt} (${fmtVal(f.qty)}@${fmtVal(f.price)})`)
-      } else {
-        const tr = closeOf(f)
-        const pnlTxt = tr && isNum(tr.pnl) ? ` (${sgn(tr.pnl)})` : ''
-        const k = f.kind
-        const exitedLong = !buy
-        const isWin = tr ? tr.pnl >= 0 : (k === 'TP')
-        const col = isWin ? c.pos : (k === 'SL' ? c.neg : c.warn)
-        const label = k === 'TP' ? 'TP' : k === 'SL' ? 'SL' : k === 'TRAIL' ? 'Trail' : 'Thoát'
-        const txt = exitedLong ? `▼ ${label}${pnlTxt}` : `▲ ${label}${pnlTxt}`
-        m.push({
-          time: t,
-          position: exitedLong ? 'aboveBar' : 'belowBar',
-          shape: exitedLong ? 'arrowDown' : 'arrowUp',
-          color: col,
-          size: 1.3,
-          text: txt,
-        })
-        note(t, `${EXIT[k] || k} @${fmtVal(f.price)}${pnlTxt ? ` · PnL${pnlTxt}` : ''}`)
-      }
-    })
-
-    if (showReplay) {
-      replay.forEach((f) => {
-        const buy = String(f.side).toUpperCase() === 'BUY'
-        const g = grp(f.kind)
-        m.push({
-          time: snap(f.t),
-          position: buy ? 'belowBar' : 'aboveBar',
-          shape: buy ? 'arrowUp' : 'arrowDown',
-          color: c.text,
-          size: 0.7,
-          text: `○ ${g === 'exit' ? 'Thoát' : g === 'dca' ? 'DCA' : 'Vào'}`,
-        })
-        note(snap(f.t), `○ Backtest: ${g === 'exit' ? 'thoát' : g === 'dca' ? 'DCA' : 'vào'} @${fmtVal(f.price)}`)
-      })
-    }
-    m.sort((a, b) => a.time - b.time)
-    candleSeries.setMarkers(m)
-
-    // Vị thế đang mở: giá vốn, SL, TP, mức DCA kế tiếp
-    position.forEach((p) => {
-      const L = p.levels || {}
-      const addLine = (price, color, title, lineStyle) => {
-        if (isNum(price)) {
-          const pl = candleSeries.createPriceLine({ price, color, lineWidth: 1, lineStyle, axisLabelVisible: true, title })
-          priceLinesRef.current.push(pl)
+      const cleanCandles = []
+      const seenTime = new Set()
+      for (const item of rawSorted) {
+        if (!seenTime.has(item[0])) {
+          seenTime.add(item[0])
+          cleanCandles.push(item)
         }
       }
-      addLine(p.avg_price, c.info, 'Giá vốn', LineStyle.Solid)
-      addLine(L.sl, c.neg, 'SL', LineStyle.Dashed)
-      addLine(L.tp, c.pos, 'TP', LineStyle.Dashed)
-      addLine(L.dca, c.warn, 'DCA kế', LineStyle.Dotted)
-    })
 
-    // Lệnh đã đóng: nối điểm vào -> điểm thoát
-    if (showLines) {
-      trades.forEach((t) => {
-        if (!t.enter_time || !t.close_time) return
-        const a = snap(t.enter_time)
-        const b = snap(t.close_time)
-        if (a >= b) return
-        const ls = chart.addLineSeries({ color: t.pnl >= 0 ? c.pos : c.neg, lineWidth: 1, lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false })
-        ls.setData([{ time: a, value: t.enter_price }, { time: b, value: t.close_price }])
-        linesRef.current.push(ls)
+      if (!cleanCandles.length) return
+
+      const times = cleanCandles.map((x) => loc(x[0]))
+      const frameSec = times.length > 1 ? Math.max(1, times[1] - times[0]) : 60
+
+      // Binary search chuẩn xác: luôn trả về timestamp hợp lệ từ `times`
+      const snap = (ms) => {
+        if (!times.length || !isNum(ms)) return null
+        const t = loc(ms)
+        if (t <= times[0]) return times[0]
+        if (t >= times[times.length - 1]) return times[times.length - 1]
+        let low = 0, high = times.length - 1
+        while (low <= high) {
+          const mid = (low + high) >> 1
+          if (times[mid] === t) return times[mid]
+          if (times[mid] < t) low = mid + 1
+          else high = mid - 1
+        }
+        const prev = times[high] ?? times[0]
+        const next = times[low] ?? times[times.length - 1]
+        return Math.abs(t - prev) <= Math.abs(next - t) ? prev : next
+      }
+
+      candleSeries.setData(cleanCandles.map((x, i) => ({ time: times[i], open: x[1], high: x[2], low: x[3], close: x[4] })))
+      volSeries.setData(cleanCandles.map((x, i) => ({ time: times[i], value: isNum(x[5]) ? x[5] : 0, color: (x[4] >= x[1] ? c.pos : c.neg) + '55' })))
+
+      // Xoá priceLines và lineSeries của render trước
+      priceLinesRef.current.forEach((pl) => {
+        try { candleSeries.removePriceLine(pl) } catch (_) {}
       })
-    }
-
-    // ─── TÍNH TOÁN & VẼ CÁC ĐƯỜNG CHỈ BÁO TÍN HIỆU (EMA, BOLLINGER BANDS, ATR) ───
-    const indMap = new Map()
-
-    // 1. Bộ 3 đường EMA (EMA 9 Vàng, EMA 21 Hồng tím, EMA 50 Xanh lơ)
-    let emasData = null
-    if (candles.length >= 3) {
-      emasData = computeEmas(candles, times)
-      if (showEma) {
-        // EMA 9: Vàng (#f59e0b) - Phản ứng nhanh
-        const ls9 = chart.addLineSeries({
-          color: '#f59e0b',
-          lineWidth: 1.5,
-          priceLineVisible: false,
-          lastValueVisible: false,
-          crosshairMarkerVisible: false,
-        })
-        ls9.setData(emasData.ema9)
-        linesRef.current.push(ls9)
-
-        // EMA 21: Hồng tím (#ec4899) - Xu hướng ngắn/trung
-        const ls21 = chart.addLineSeries({
-          color: '#ec4899',
-          lineWidth: 1.5,
-          priceLineVisible: false,
-          lastValueVisible: false,
-          crosshairMarkerVisible: false,
-        })
-        ls21.setData(emasData.ema21)
-        linesRef.current.push(ls21)
-
-        // EMA 50: Xanh lơ (#06b6d4) - Xu hướng chính
-        const ls50 = chart.addLineSeries({
-          color: '#06b6d4',
-          lineWidth: 1.5,
-          priceLineVisible: false,
-          lastValueVisible: false,
-          crosshairMarkerVisible: false,
-        })
-        ls50.setData(emasData.ema50)
-        linesRef.current.push(ls50)
-      }
-    }
-
-    // 2. Dải Bollinger Bands (20, 2.0) - Tím nhạt (#a855f7)
-    let bbData = null
-    if (candles.length >= 20) {
-      bbData = computeBB(candles, times, 20, 2.0)
-      if (showBb) {
-        const lsBbUp = chart.addLineSeries({
-          color: '#a855f7',
-          lineWidth: 1.2,
-          priceLineVisible: false,
-          lastValueVisible: false,
-          crosshairMarkerVisible: false,
-        })
-        lsBbUp.setData(bbData.upper)
-        linesRef.current.push(lsBbUp)
-
-        const lsBbMid = chart.addLineSeries({
-          color: '#94a3b8',
-          lineWidth: 1,
-          lineStyle: LineStyle.Dotted,
-          priceLineVisible: false,
-          lastValueVisible: false,
-          crosshairMarkerVisible: false,
-        })
-        lsBbMid.setData(bbData.mid)
-        linesRef.current.push(lsBbMid)
-
-        const lsBbDn = chart.addLineSeries({
-          color: '#a855f7',
-          lineWidth: 1.2,
-          priceLineVisible: false,
-          lastValueVisible: false,
-          crosshairMarkerVisible: false,
-        })
-        lsBbDn.setData(bbData.lower)
-        linesRef.current.push(lsBbDn)
-      }
-    }
-
-    // 3. Kênh ATR Bands (±2 ATR)
-    let atrData = null
-    if (candles.length >= 14) {
-      atrData = computeATR(candles, times, 14)
-      if (showAtr) {
-        const lsAtrUp = chart.addLineSeries({
-          color: '#10b981',
-          lineWidth: 1,
-          lineStyle: LineStyle.Dashed,
-          priceLineVisible: false,
-          lastValueVisible: false,
-          crosshairMarkerVisible: false,
-        })
-        lsAtrUp.setData(atrData.upper)
-        linesRef.current.push(lsAtrUp)
-
-        const lsAtrDn = chart.addLineSeries({
-          color: '#f43f5e',
-          lineWidth: 1,
-          lineStyle: LineStyle.Dashed,
-          priceLineVisible: false,
-          lastValueVisible: false,
-          crosshairMarkerVisible: false,
-        })
-        lsAtrDn.setData(atrData.lower)
-        linesRef.current.push(lsAtrDn)
-      }
-    }
-
-    // Lưu bảng tra chỉ số theo thời gian để hiển thị HUD
-    const bbUpMap = new Map((bbData?.upper || []).map((x) => [x.time, x.value]))
-    const bbMidMap = new Map((bbData?.mid || []).map((x) => [x.time, x.value]))
-    const bbDnMap = new Map((bbData?.lower || []).map((x) => [x.time, x.value]))
-    const atrValMap = new Map((atrData?.atrVals || []).map((x) => [x.time, x.value]))
-    const ema9Map = new Map((emasData?.ema9 || []).map((x) => [x.time, x.value]))
-    const ema21Map = new Map((emasData?.ema21 || []).map((x) => [x.time, x.value]))
-    const ema50Map = new Map((emasData?.ema50 || []).map((x) => [x.time, x.value]))
-
-    times.forEach((t) => {
-      indMap.set(t, {
-        ema9: ema9Map.get(t),
-        ema21: ema21Map.get(t),
-        ema50: ema50Map.get(t),
-        bbUpper: bbUpMap.get(t),
-        bbMid: bbMidMap.get(t),
-        bbLower: bbDnMap.get(t),
-        atr: atrValMap.get(t),
+      priceLinesRef.current = []
+      linesRef.current.forEach((ls) => {
+        try { chart.removeSeries(ls) } catch (_) {}
       })
-    })
+      linesRef.current = []
 
-    const lastTime = times[times.length - 1]
-    const defaultInd = indMap.get(lastTime) || null
-    setActiveInd(defaultInd)
-
-    // Khoảng hiển thị: từ lúc bot chạy (đệm 25 nến) tới nến cuối
-    const first = Math.max(times[0], loc(startedAt || candles[0][0]) - 25 * frameSec)
-    chart.timeScale().setVisibleRange({ from: first, to: times[times.length - 1] + 8 * frameSec })
-
-    // Tooltip & Cập nhật HUD chỉ báo khi di chuột
-    const byT = new Map(candles.map((x, i) => [times[i], x]))
-    const tip = tipRef.current
-    const onCrosshair = (pm) => {
-      if (pm.time != null && indMap.has(pm.time)) {
-        setActiveInd(indMap.get(pm.time))
-      } else {
-        setActiveInd(defaultInd)
+      const closeOf = (f) => (trades || []).find((t) => t.close_time && Math.abs(t.close_time - f.t) < 120000 && t.symbol === f.symbol)
+      const m = []
+      const info = {}
+      const note = (t, txt) => {
+        if (t != null) {
+          info[t] = info[t] || []
+          info[t].push(txt)
+        }
       }
-      if (!tip) return
-      const x = pm.time != null ? byT.get(pm.time) : null
-      if (!x || !pm.point) { tip.style.display = 'none'; return }
-      const rows = info[pm.time] || []
-      tip.innerHTML = `<b>${fmtLoc(pm.time)}</b><br/>O ${fmtVal(x[1])} · H ${fmtVal(x[2])} · L ${fmtVal(x[3])} · C ${fmtVal(x[4])}<br/>KL ${fmtVal(x[5])}${rows.map((r) => `<br/>${r}`).join('')}`
-      tip.style.display = 'block'
-      tip.style.left = `${Math.min(pm.point.x + 14, el.clientWidth - 230)}px`
-      tip.style.top = `${Math.max(pm.point.y - 10, 4)}px`
+      const dcaN = {}
+
+      ;(fills || []).forEach((f) => {
+        if (!f || !isNum(f.t)) return
+        const g = grp(f.kind)
+        const buy = String(f.side).toUpperCase() === 'BUY'
+        const t = snap(f.t)
+        if (!isNum(t)) return
+
+        if (g === 'entry' || g === 'dca') {
+          const long = buy
+          const isDca = g === 'dca'
+          const dcaNum = (dcaN[f.symbol] = (dcaN[f.symbol] || 0) + 1)
+          const txt = isDca ? `▲ DCA ${dcaNum}` : (long ? '▲ Mua' : '▼ Bán')
+          m.push({
+            time: t,
+            position: long ? 'belowBar' : 'aboveBar',
+            shape: long ? 'arrowUp' : 'arrowDown',
+            color: long ? c.pos : c.neg,
+            size: isDca ? 1.0 : 1.3,
+            text: txt,
+          })
+          note(t, `${txt} (${fmtVal(f.qty)}@${fmtVal(f.price)})`)
+        } else {
+          const tr = closeOf(f)
+          const pnlTxt = tr && isNum(tr.pnl) ? ` (${sgn(tr.pnl)})` : ''
+          const k = f.kind
+          const exitedLong = !buy
+          const isWin = tr ? tr.pnl >= 0 : (k === 'TP')
+          const col = isWin ? c.pos : (k === 'SL' ? c.neg : c.warn)
+          const label = k === 'TP' ? 'TP' : k === 'SL' ? 'SL' : k === 'TRAIL' ? 'Trail' : 'Thoát'
+          const txt = exitedLong ? `▼ ${label}${pnlTxt}` : `▲ ${label}${pnlTxt}`
+          m.push({
+            time: t,
+            position: exitedLong ? 'aboveBar' : 'belowBar',
+            shape: exitedLong ? 'arrowDown' : 'arrowUp',
+            color: col,
+            size: 1.3,
+            text: txt,
+          })
+          note(t, `${EXIT[k] || k} @${fmtVal(f.price)}${pnlTxt ? ` · PnL${pnlTxt}` : ''}`)
+        }
+      })
+
+      if (showReplay) {
+        ;(replay || []).forEach((f) => {
+          if (!f || !isNum(f.t)) return
+          const t = snap(f.t)
+          if (!isNum(t)) return
+          const buy = String(f.side).toUpperCase() === 'BUY'
+          const g = grp(f.kind)
+          m.push({
+            time: t,
+            position: buy ? 'belowBar' : 'aboveBar',
+            shape: buy ? 'arrowUp' : 'arrowDown',
+            color: c.text,
+            size: 0.7,
+            text: `○ ${g === 'exit' ? 'Thoát' : g === 'dca' ? 'DCA' : 'Vào'}`,
+          })
+          note(t, `○ Backtest: ${g === 'exit' ? 'thoát' : g === 'dca' ? 'DCA' : 'vào'} @${fmtVal(f.price)}`)
+        })
+      }
+
+      // Lọc sạch tuyệt đối mọi marker không có time hoặc time không phải số
+      const validMarkers = m.filter((item) => isNum(item.time) && !isNaN(item.time) && item.time != null)
+      validMarkers.sort((a, b) => a.time - b.time)
+      candleSeries.setMarkers(validMarkers)
+
+      // Vị thế đang mở: giá vốn, SL, TP, mức DCA kế tiếp
+      ;(position || []).forEach((p) => {
+        if (!p) return
+        const L = p.levels || {}
+        const addLine = (price, color, title, lineStyle) => {
+          if (isNum(price) && !isNaN(price)) {
+            try {
+              const pl = candleSeries.createPriceLine({ price: Number(price), color, lineWidth: 1, lineStyle, axisLabelVisible: true, title })
+              priceLinesRef.current.push(pl)
+            } catch (_) {}
+          }
+        }
+        addLine(p.avg_price, c.info, 'Giá vốn', LineStyle.Solid)
+        addLine(L.sl, c.neg, 'SL', LineStyle.Dashed)
+        addLine(L.tp, c.pos, 'TP', LineStyle.Dashed)
+        addLine(L.dca, c.warn, 'DCA kế', LineStyle.Dotted)
+      })
+
+      // Lệnh đã đóng: nối điểm vào -> điểm thoát
+      if (showLines) {
+        ;(trades || []).forEach((t) => {
+          if (!t || !t.enter_time || !t.close_time || !isNum(t.enter_price) || !isNum(t.close_price)) return
+          const a = snap(t.enter_time)
+          const b = snap(t.close_time)
+          if (!isNum(a) || !isNum(b) || a >= b) return
+          try {
+            const ls = chart.addLineSeries({ color: t.pnl >= 0 ? c.pos : c.neg, lineWidth: 1, lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false })
+            ls.setData([{ time: a, value: Number(t.enter_price) }, { time: b, value: Number(t.close_price) }])
+            linesRef.current.push(ls)
+          } catch (_) {}
+        })
+      }
+
+      // ─── TÍNH TOÁN & VẼ CÁC ĐƯỜNG CHỈ BÁO TÍN HIỆU (EMA, BOLLINGER BANDS, ATR) ───
+      const indMap = new Map()
+
+      // 1. Bộ 3 đường EMA
+      let emasData = null
+      if (cleanCandles.length >= 3) {
+        emasData = computeEmas(cleanCandles, times)
+        if (showEma) {
+          const addEma = (arr, col) => {
+            if (!arr?.length) return
+            const ls = chart.addLineSeries({ color: col, lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false })
+            ls.setData(arr.filter((pt) => isNum(pt.time) && isNum(pt.value)))
+            linesRef.current.push(ls)
+          }
+          addEma(emasData.ema9, '#f59e0b')
+          addEma(emasData.ema21, '#ec4899')
+          addEma(emasData.ema50, '#06b6d4')
+        }
+      }
+
+      // 2. Dải Bollinger Bands
+      let bbData = null
+      if (cleanCandles.length >= 20) {
+        bbData = computeBB(cleanCandles, times, 20, 2.0)
+        if (showBb) {
+          const addLine = (arr, col, style = LineStyle.Solid, width = 1.2) => {
+            if (!arr?.length) return
+            const ls = chart.addLineSeries({ color: col, lineWidth: width, lineStyle: style, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false })
+            ls.setData(arr.filter((pt) => isNum(pt.time) && isNum(pt.value)))
+            linesRef.current.push(ls)
+          }
+          addLine(bbData.upper, '#a855f7')
+          addLine(bbData.mid, '#94a3b8', LineStyle.Dotted, 1)
+          addLine(bbData.lower, '#a855f7')
+        }
+      }
+
+      // 3. Kênh ATR Bands
+      let atrData = null
+      if (cleanCandles.length >= 14) {
+        atrData = computeATR(cleanCandles, times, 14)
+        if (showAtr) {
+          const addAtr = (arr, col) => {
+            if (!arr?.length) return
+            const ls = chart.addLineSeries({ color: col, lineWidth: 1, lineStyle: LineStyle.Dashed, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false })
+            ls.setData(arr.filter((pt) => isNum(pt.time) && isNum(pt.value)))
+            linesRef.current.push(ls)
+          }
+          addAtr(atrData.upper, '#10b981')
+          addAtr(atrData.lower, '#f43f5e')
+        }
+      }
+
+      // Lưu bảng tra chỉ số theo thời gian để hiển thị HUD
+      const bbUpMap = new Map((bbData?.upper || []).map((x) => [x.time, x.value]))
+      const bbMidMap = new Map((bbData?.mid || []).map((x) => [x.time, x.value]))
+      const bbDnMap = new Map((bbData?.lower || []).map((x) => [x.time, x.value]))
+      const atrValMap = new Map((atrData?.atrVals || []).map((x) => [x.time, x.value]))
+      const ema9Map = new Map((emasData?.ema9 || []).map((x) => [x.time, x.value]))
+      const ema21Map = new Map((emasData?.ema21 || []).map((x) => [x.time, x.value]))
+      const ema50Map = new Map((emasData?.ema50 || []).map((x) => [x.time, x.value]))
+
+      times.forEach((t) => {
+        indMap.set(t, {
+          ema9: ema9Map.get(t),
+          ema21: ema21Map.get(t),
+          ema50: ema50Map.get(t),
+          bbUpper: bbUpMap.get(t),
+          bbMid: bbMidMap.get(t),
+          bbLower: bbDnMap.get(t),
+          atr: atrValMap.get(t),
+        })
+      })
+
+      const lastTime = times[times.length - 1]
+      const defaultInd = indMap.get(lastTime) || null
+      setActiveInd(defaultInd)
+
+      // Khoảng hiển thị: từ lúc bot chạy (đệm 25 nến) tới nến cuối
+      const startCandidate = startedAt ? loc(startedAt) : cleanCandles[0][0]
+      const first = Math.max(times[0], (isNum(startCandidate) ? startCandidate : times[0]) - 25 * frameSec)
+      chart.timeScale().setVisibleRange({ from: first, to: times[times.length - 1] + 8 * frameSec })
+
+      // Tooltip & Cập nhật HUD chỉ báo khi di chuột
+      const byT = new Map(cleanCandles.map((x, i) => [times[i], x]))
+      const tip = tipRef.current
+      const onCrosshair = (pm) => {
+        if (pm.time != null && indMap.has(pm.time)) {
+          setActiveInd(indMap.get(pm.time))
+        } else {
+          setActiveInd(defaultInd)
+        }
+        if (!tip) return
+        const x = pm.time != null ? byT.get(pm.time) : null
+        if (!x || !pm.point) { tip.style.display = 'none'; return }
+        const rows = info[pm.time] || []
+        tip.innerHTML = `<b>${fmtLoc(pm.time)}</b><br/>O ${fmtVal(x[1])} · H ${fmtVal(x[2])} · L ${fmtVal(x[3])} · C ${fmtVal(x[4])}<br/>KL ${fmtVal(x[5])}${rows.map((r) => `<br/>${r}`).join('')}`
+        tip.style.display = 'block'
+        tip.style.left = `${Math.min(pm.point.x + 14, el.clientWidth - 230)}px`
+        tip.style.top = `${Math.max(pm.point.y - 10, 4)}px`
+      }
+      chart.subscribeCrosshairMove(onCrosshair)
+      return () => chart.unsubscribeCrosshairMove(onCrosshair)
+    } catch (err) {
+      console.warn('LiveBotChart render warning:', err)
     }
-    chart.subscribeCrosshairMove(onCrosshair)
-    return () => chart.unsubscribeCrosshairMove(onCrosshair)
   }, [candles, fills, replay, trades, position, showReplay, showLines, showEma, showBb, showAtr, startedAt])
 
   return (

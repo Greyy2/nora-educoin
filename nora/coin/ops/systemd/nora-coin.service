@@ -1,0 +1,20 @@
+[Unit]
+Description=Nora COIN API (uvicorn 127.0.0.1:18012)
+After=network.target
+
+[Service]
+Slice=nora.slice
+WorkingDirectory=/home/vmc03/norabt/nora/coin
+EnvironmentFile=-%h/.config/nora/okx.env
+EnvironmentFile=-%h/.config/nora/app.env
+EnvironmentFile=-%h/.config/nora/llm.env
+Environment=PYTHONPATH=/home/vmc03/norabt/nora/coin PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NORA_CANDLE_CACHE_MB=512 NORA_DATA_CACHE_MB=512 NORA_DATA_ROOT=/home/vmc03/norabt/nora/coin/data
+ExecStart=/home/vmc03/.venvs/nora312/bin/python -m uvicorn backend.main:app --host 127.0.0.1 --port 18012
+Nice=0
+MemorySwapMax=0
+Restart=on-failure
+RestartSec=5
+KillMode=process
+
+[Install]
+WantedBy=default.target

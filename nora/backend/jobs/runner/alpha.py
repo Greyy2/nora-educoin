@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+from numba import njit
 
 from backend.data import data as D
 from backend.data.crawl import load_scan_universe, scan_universe_bases
@@ -389,6 +390,137 @@ def generate_100_strategies(base_strategy: Dict[str, Any]) -> List[Dict[str, Any
     return strategies
 
 
+# ── Mô phỏng Vectorized DCA Siêu tốc (Tier 1 Screening) ─────────────────────
+@njit
+def _simulate_dca_numba(
+    close: np.ndarray,
+    high: np.ndarray,
+    low: np.ndarray,
+    rsi: np.ndarray,
+    rsi_thresh: float,
+    step_pct: float,
+    max_layers: int,
+    tp_pct: float,
+    sl_pct: float,
+    mult: float,
+) -> Tuple[int, float, float, float]:
+    """Mô phỏng DCA Long siêu tốc (C-speed qua Numba) để sàng lọc hàng nghìn cấu hình trong vài mili-giây."""
+    n = len(close)
+    in_pos = False
+    layers = 0
+    total_qty = 0.0
+    total_cost = 0.0
+    avg_price = 0.0
+    trades = 0
+    wins = 0
+    pnl_sum = 0.0
+    pnl_sq_sum = 0.0
+
+    tp_mult = 1.0 + tp_pct / 100.0
+    sl_mult = 1.0 - sl_pct / 100.0
+    step_ratio = 1.0 - step_pct / 100.0
+
+    for i in range(n):
+        c = close[i]
+        h = high[i]
+        l = low[i]
+
+        if not in_pos:
+            if not np.isnan(rsi[i]) and rsi[i] < rsi_thresh:
+                in_pos = True
+                layers = 1
+                base_qty = 1.0
+                total_qty = base_qty
+                total_cost = c * base_qty
+                avg_price = c
+        else:
+            # Kiểm tra Chốt lời (Take-Profit)
+            if h >= avg_price * tp_mult:
+                trade_pnl = (avg_price * tp_mult - avg_price) / avg_price
+                trades += 1
+                wins += 1
+                pnl_sum += trade_pnl
+                pnl_sq_sum += trade_pnl * trade_pnl
+                in_pos = False
+                layers = 0
+                continue
+            # Kiểm tra Cắt lỗ (Stop-Loss)
+            if l <= avg_price * sl_mult:
+                trade_pnl = (avg_price * sl_mult - avg_price) / avg_price
+                trades += 1
+                pnl_sum += trade_pnl
+                pnl_sq_sum += trade_pnl * trade_pnl
+                in_pos = False
+                layers = 0
+                continue
+            # Bơm thêm tầng DCA khi giá giảm qua step_pct
+            if layers < max_layers and l <= avg_price * step_ratio:
+                add_qty = 1.0 * (mult ** layers)
+                total_qty += add_qty
+                total_cost += c * add_qty
+                avg_price = total_cost / total_qty
+                layers += 1
+
+    if trades == 0:
+        return 0, 0.0, 0.0, -999.0
+
+    ret_pct = pnl_sum * 100.0
+    win_rate = (wins / trades) * 100.0
+    mean_pnl = pnl_sum / trades
+    variance = (pnl_sq_sum / trades) - (mean_pnl * mean_pnl)
+    std_pnl = np.sqrt(variance) if variance > 1e-12 else 1e-6
+    ann_factor = np.sqrt(max(1.0, float(trades)))
+    sharpe_est = (mean_pnl / std_pnl) * ann_factor
+
+    return trades, ret_pct, win_rate, sharpe_est
+
+
+def fast_screen_strategies(
+    strat_list: List[Dict[str, Any]],
+    df_candles: pd.DataFrame,
+    top_k: int = 15,
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """Tier 1: Sàng lọc thô siêu tốc toàn bộ danh sách chiến lược bằng Numba trên dữ liệu In-Sample."""
+    from backend.analys.indicator.indicator import compute as compute_ind
+
+    c = df_candles["close"].to_numpy(dtype=np.float64)
+    h = df_candles["high"].to_numpy(dtype=np.float64) if "high" in df_candles else c
+    l = df_candles["low"].to_numpy(dtype=np.float64) if "low" in df_candles else c
+    rsi_14 = compute_ind(df_candles, "rsi_14").to_numpy(dtype=np.float64)
+
+    ranked = []
+    for s in strat_list:
+        pos = s.get("position", {})
+        sig = s.get("signal_params", {})
+        step = float(pos.get("dca_step_pct", 2.0))
+        layers = int(pos.get("dca_max_layers", 3))
+        tp = float(pos.get("take_profit_rate", 1.8))
+        sl = float(pos.get("stop_loss_rate", 9.7))
+        mult = float(pos.get("dca_size_multiplier", 1.8))
+        rsi_thresh = float(sig.get("rsi_lo", 40.0))
+
+        tr, ret, wr, sh = _simulate_dca_numba(c, h, l, rsi_14, rsi_thresh, step, layers, tp, sl, mult)
+        ranked.append({
+            "strat": s,
+            "fast_trades": tr,
+            "fast_ret_pct": round(ret, 2),
+            "fast_win_rate": round(wr, 1),
+            "fast_sharpe": round(sh, 2),
+        })
+
+    # Lọc các chiến lược có ít nhất 5 lệnh và sắp xếp theo Sharpe ước tính giảm dần
+    valid = [r for r in ranked if r["fast_trades"] >= 5]
+    valid.sort(key=lambda x: (x["fast_sharpe"], x["fast_ret_pct"]), reverse=True)
+
+    top_strats = [r["strat"] for r in valid[:top_k]]
+    # Đảm bảo chiến lược baseline luôn có mặt trong top để so sánh chuẩn
+    b0 = strat_list[0]
+    if b0 not in top_strats:
+        top_strats.append(b0)
+
+    return top_strats, ranked
+
+
 def run_single_strategy_sweep(
     strat: Dict[str, Any],
     symbol: str,
@@ -399,7 +531,7 @@ def run_single_strategy_sweep(
     oos_end: int,
     capital: float,
 ) -> Dict[str, Any]:
-    """Chạy 1 cấu hình chiến lược trên BTC cả IS và OOS."""
+    """Chạy 1 cấu hình chiến lược trên BTC cả IS và OOS bằng Nautilus Trader."""
     cfg_id = strat["id"]
     strat_run = copy.deepcopy(strat)
     strat_run["symbols"] = [symbol]
@@ -480,8 +612,10 @@ def run_parameter_sweep(
     book_source: str = "explore",
     capital: float = 10000.0,
     max_workers: int = 3,
+    method: str = "funnel",
+    fast_top_k: int = 15,
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-    """Quét 100 biến thể tham số trên 1 coin."""
+    """Quét tham số thông minh: Hỗ trợ 'funnel' (2 tầng: Numba lọc thô -> Nautilus thẩm định), 'optuna', hoặc 'grid'."""
     from backend.jobs.tasks import resolve_strategy
 
     t0 = time.time()
@@ -491,6 +625,20 @@ def run_parameter_sweep(
     strat_list = generate_100_strategies(base_strategy)
     logger.info("Generated %d strategies for sweep on %s", len(strat_list), symbol)
 
+    # 1. Tầng 1: Lọc thô Vectorized nếu chạy theo mô hình Phễu (Funnel)
+    if method == "funnel":
+        try:
+            df_is = D.load_candles(symbol, frame=signal_tf, start_ms=DEFAULT_IS_START - WARMUP_MS, end_ms=DEFAULT_IS_END)
+            top_strats, ranked_info = fast_screen_strategies(strat_list, df_is, top_k=fast_top_k)
+            strats_to_validate = top_strats
+            print(f"[Sweep Funnel] Đã sàng lọc {len(strat_list)} cấu hình qua Numba. Giữ lại Top {len(strats_to_validate)} để Nautilus thẩm định.", flush=True)
+        except Exception as e:
+            logger.warning("Tier 1 fast screening failed (%s), falling back to full Nautilus validation", e)
+            strats_to_validate = strat_list
+    else:
+        strats_to_validate = strat_list
+
+    # 2. Tầng 2: Chạy Nautilus Trader BacktestEngine chính xác 100%
     results = []
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         futs = [
@@ -505,7 +653,7 @@ def run_parameter_sweep(
                 DEFAULT_OOS_END,
                 capital,
             )
-            for strat in strat_list
+            for strat in strats_to_validate
         ]
         for fut in futs:
             results.append(fut.result())
@@ -521,12 +669,15 @@ def run_parameter_sweep(
     )
 
     top_1 = valid_sorted[0] if valid_sorted else results[0]
-    best_strat = next(s for s in strat_list if s["id"] == top_1["cfg_id"])
+    best_strat = next(s for s in strats_to_validate if s["id"] == top_1["cfg_id"])
     elapsed = round(time.time() - t0, 1)
 
     summary = {
         "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(),
         "elapsed_seconds": elapsed,
+        "optimization_method": method,
+        "total_candidates_screened": len(strat_list),
+        "nautilus_validated_count": len(results),
         "symbol": symbol,
         "base_alpha_id": alpha_id,
         "total_strategies": len(results),
@@ -543,9 +694,101 @@ def run_parameter_sweep(
     out_file = os.path.join(out_dir, "parameter_sweep_btc_100.json")
     write_json_atomic(out_file, summary, indent=2)
 
-    logger.info("Sweep complete in %.1fs. Top 1: %s (OOS Sharpe: %s, Return: %s%%)",
-                elapsed, top_1["cfg_id"], top_1["oos"].get("sharpe"), top_1["oos"].get("ret_pct"))
+    logger.info("Sweep complete in %.1fs (%s). Top 1: %s (OOS Sharpe: %s, Return: %s%%)",
+                elapsed, method, top_1["cfg_id"], top_1["oos"].get("sharpe"), top_1["oos"].get("ret_pct"))
 
+    return summary, best_strat
+
+
+def run_optuna_sweep(
+    alpha_id: str = "dca_long",
+    symbol: str = "BTC@perp",
+    signal_tf: str = "15m",
+    book_source: str = "explore",
+    capital: float = 10000.0,
+    n_trials: int = 40,
+    top_k_nautilus: int = 5,
+) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """Tối ưu tham số thông minh bằng thuật toán Bayesian / Optuna (chuẩn quốc tế)."""
+    import optuna
+    from backend.jobs.tasks import resolve_strategy
+    from backend.analys.indicator.indicator import compute as compute_ind
+
+    t0 = time.time()
+    rs = resolve_strategy(alpha_id, None, signal_tf, None, None, book_source)
+    base_strategy = rs["strategy"]
+
+    df_is = D.load_candles(symbol, frame=signal_tf, start_ms=DEFAULT_IS_START - WARMUP_MS, end_ms=DEFAULT_IS_END)
+    c = df_is["close"].to_numpy(dtype=np.float64)
+    h = df_is["high"].to_numpy(dtype=np.float64) if "high" in df_is else c
+    l = df_is["low"].to_numpy(dtype=np.float64) if "low" in df_is else c
+    rsi_14 = compute_ind(df_is, "rsi_14").to_numpy(dtype=np.float64)
+
+    def objective(trial: optuna.Trial) -> float:
+        step = trial.suggest_float("dca_step_pct", 1.0, 3.5, step=0.25)
+        layers = trial.suggest_int("dca_max_layers", 2, 4)
+        tp = trial.suggest_float("take_profit_rate", 1.0, 2.6, step=0.2)
+        sl = trial.suggest_float("stop_loss_rate", 6.0, 15.0, step=0.5)
+        mult = trial.suggest_float("dca_size_multiplier", 1.4, 2.3, step=0.1)
+        rsi_thresh = trial.suggest_float("rsi_lo", 35.0, 48.0, step=1.0)
+
+        tr, ret, wr, sh = _simulate_dca_numba(c, h, l, rsi_14, rsi_thresh, step, layers, tp, sl, mult)
+        if tr < 5:
+            return -999.0
+        return sh
+
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
+    study = optuna.create_study(direction="maximize", sampler=optuna.samplers.TPESampler(seed=42))
+    study.optimize(objective, n_trials=n_trials)
+
+    # Lấy top k trials tốt nhất để Nautilus thẩm định lại chuẩn xác 100%
+    sorted_trials = sorted([t for t in study.trials if t.value is not None and t.value > -900], key=lambda t: t.value, reverse=True)
+    best_candidates = sorted_trials[:top_k_nautilus]
+
+    nautilus_strats = []
+    for idx, tr in enumerate(best_candidates):
+        s = copy.deepcopy(base_strategy)
+        s["id"] = f"optuna_cfg_{idx:03d}"
+        s["position"]["dca_step_pct"] = tr.params["dca_step_pct"]
+        s["position"]["dca_max_layers"] = tr.params["dca_max_layers"]
+        s["position"]["take_profit_rate"] = tr.params["take_profit_rate"]
+        s["position"]["stop_loss_rate"] = tr.params["stop_loss_rate"]
+        s["position"]["dca_size_multiplier"] = tr.params["dca_size_multiplier"]
+        s["signal_params"]["rsi_lo"] = tr.params["rsi_lo"]
+        if "tree" in s and s["tree"]:
+            try:
+                s["tree"][0][0][2] = tr.params["rsi_lo"]
+            except Exception:
+                pass
+        nautilus_strats.append(s)
+
+    results = [
+        run_single_strategy_sweep(
+            s, symbol, signal_tf, DEFAULT_IS_START, DEFAULT_IS_END, DEFAULT_OOS_START, DEFAULT_OOS_END, capital
+        )
+        for s in nautilus_strats
+    ]
+
+    valid = [r for r in results if r["oos"] and r["oos"].get("trades", 0) >= 5]
+    valid_sorted = sorted(valid, key=lambda x: (x["oos"].get("sharpe") or -999.0, x["oos"].get("ret_pct", -999.0)), reverse=True)
+    top_1 = valid_sorted[0] if valid_sorted else results[0]
+    best_strat = next(s for s in nautilus_strats if s["id"] == top_1["cfg_id"])
+    elapsed = round(time.time() - t0, 1)
+
+    summary = {
+        "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "elapsed_seconds": elapsed,
+        "optimization_method": "optuna_bayesian",
+        "total_trials": n_trials,
+        "nautilus_validated_count": len(results),
+        "symbol": symbol,
+        "base_alpha_id": alpha_id,
+        "top_1_strategy_id": top_1["cfg_id"],
+        "top_1_params": top_1["params"],
+        "top_1_is": top_1["is"],
+        "top_1_oos": top_1["oos"],
+        "all_results": results,
+    }
     return summary, best_strat
 
 
@@ -571,6 +814,141 @@ def run_alpha_research(params=None):
     return out
 
 
+# ── Proxima Matrix Sweep & Scan Backtest (R10/R15/R25, VL, TP, F) ───────────
+def run_proxima_parameter_sweep(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Chạy quét đa chiều tham số Proxima (R10/R15/R25, VL, TP, F) trên dữ liệu nến 1m.
+    
+    Đồng bộ tuyệt đối với logic 3 phân hệ (readings.py -> signal.py -> execution.py).
+    """
+    from backend.adapter.readings import MarketDataReader
+    from backend.analys.signal.signal import ProximaSignalEngine
+    from backend.adapter.execution import UniversalExecutionModel, get_universal_spec
+    from backend.adapter.runner import AdapterRunner
+
+    p = params or {}
+    symbol = str(p.get("symbol", "BTC-USDT-SWAP"))
+    capital = float(p.get("capital", 10000.0))
+    r_grid = [float(x) for x in (p.get("r_grid") or p.get("r_list") or [0.10, 0.15, 0.25])]
+    vl_grid = [float(x) for x in (p.get("vl_grid") or p.get("vl_list") or [0.75, 1.0, 1.25])]
+    tp_grid = [float(x) for x in (p.get("tp_grid") or p.get("tp_list") or [0.8, 1.0, 1.2])]
+    f_grid = [float(x) for x in (p.get("f_grid") or p.get("f_list") or [1.0])]
+
+    spec = get_universal_spec(symbol)
+
+    # Nạp nến nếu có truyền trực tiếp hoặc nạp từ catalog
+    candles = p.get("candles")
+    if candles is None or len(candles) == 0:
+        try:
+            norm_sym = D.normalize_symbol(symbol.split("-")[0] if "-" in symbol else symbol)
+            df = D.load_candles(norm_sym, "1m")
+            if df is not None and not df.empty:
+                candles = df.to_dict("records")
+        except Exception as e:
+            logger.warning(f"Không thể nạp nến tự động cho {symbol}: {e}")
+
+    if not candles:
+        out = {
+            "symbol": symbol,
+            "status": "no_data",
+            "message": f"Không tìm thấy dữ liệu nến 1m cho {symbol}",
+            "variants_tested": 0,
+            "results": [],
+        }
+        write_job_result(out)
+        return out
+
+    results: List[Dict[str, Any]] = []
+
+    for r_ratio in r_grid:
+        for vl_mult in vl_grid:
+            for tp_mult in tp_grid:
+                for f_mult in f_grid:
+                    reader = MarketDataReader(
+                        symbol=symbol,
+                        anchor_hours=1,
+                        k_period=20,
+                        atr_period=14,
+                        f_multiplier=f_mult,
+                        warmup_required=14,
+                    )
+                    signal_engine = ProximaSignalEngine(
+                        ema_k=20,
+                        atr_period=14,
+                        f_multiplier=f_mult,
+                        tp_mult=tp_mult,
+                        warmup_required=14,
+                    )
+                    exec_model = UniversalExecutionModel(
+                        spec=spec,
+                        capital=capital,
+                        r_ratio=r_ratio,
+                        vl_mult=vl_mult,
+                        auto_fill_simulation=True,
+                    )
+                    runner = AdapterRunner(
+                        reader=reader,
+                        execution_model=exec_model,
+                        signal_engine=signal_engine,
+                    )
+
+                    # Chạy feed tuần tự các nến
+                    for c in candles:
+                        c_dict = {
+                            "timestamp": float(c.get("timestamp") or c.get("open_time") or c.get("time") or 0),
+                            "open": float(c.get("open", 0.0)),
+                            "high": float(c.get("high", 0.0)),
+                            "low": float(c.get("low", 0.0)),
+                            "close": float(c.get("close", 0.0)),
+                            "volume": float(c.get("volume", 0.0)),
+                        }
+                        runner.on_1m_bar(c_dict)
+
+                    # Thu thập kết quả chu kỳ
+                    cycles = exec_model.closed_cycles
+                    total_trades = len(cycles)
+                    wins = sum(1 for cyc in cycles if cyc.net_pnl > 0)
+                    losses = sum(1 for cyc in cycles if cyc.net_pnl < 0)
+                    net_pnl = sum(cyc.net_pnl for cyc in cycles)
+                    total_fees = sum(cyc.total_fees for cyc in cycles)
+                    gross_profit = sum(cyc.gross_pnl for cyc in cycles if cyc.gross_pnl > 0)
+                    gross_loss = abs(sum(cyc.gross_pnl for cyc in cycles if cyc.gross_pnl < 0))
+
+                    win_rate = (wins / total_trades * 100.0) if total_trades > 0 else 0.0
+                    profit_factor = (gross_profit / gross_loss) if gross_loss > 1e-9 else (99.0 if gross_profit > 0 else 0.0)
+                    roi_pct = (net_pnl / capital) * 100.0
+
+                    variant_id = f"R{int(r_ratio*100)}_VL{vl_mult}_TP{tp_mult}_F{f_mult}"
+                    results.append({
+                        "variant_id": variant_id,
+                        "r_ratio": r_ratio,
+                        "vl_mult": vl_mult,
+                        "tp_mult": tp_mult,
+                        "f_mult": f_mult,
+                        "total_trades": total_trades,
+                        "wins": wins,
+                        "losses": losses,
+                        "win_rate": round(win_rate, 2),
+                        "profit_factor": round(profit_factor, 2),
+                        "net_pnl": round(net_pnl, 2),
+                        "total_fees": round(total_fees, 2),
+                        "roi_pct": round(roi_pct, 2),
+                    })
+
+    # Sắp xếp kết quả theo net_pnl giảm dần
+    results.sort(key=lambda x: x["net_pnl"], reverse=True)
+
+    out = {
+        "symbol": symbol,
+        "capital": capital,
+        "status": "success",
+        "variants_tested": len(results),
+        "best_variant": results[0] if results else None,
+        "results": results,
+    }
+    write_job_result(out)
+    return out
+
+
 __all__ = [
     "run_alpha_research",
     "run_scan_job",
@@ -580,7 +958,11 @@ __all__ = [
     "run_sweep_job",
     "generate_100_strategies",
     "run_parameter_sweep",
+    "run_optuna_sweep",
+    "fast_screen_strategies",
+    "_simulate_dca_numba",
     "run_single_strategy_sweep",
+    "run_proxima_parameter_sweep",
     "OPTIMIZED_8_COINS",
     "DEFAULT_IS_START",
     "DEFAULT_IS_END",
@@ -588,3 +970,4 @@ __all__ = [
     "DEFAULT_OOS_END",
     "WARMUP_MS",
 ]
+

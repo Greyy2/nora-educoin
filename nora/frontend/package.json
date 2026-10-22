@@ -4,7 +4,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:edu": "vite --config vite.edu.config.js",
+    "dev:coin": "vite --config vite.coin.config.js",
     "build": "vite build",
+    "build:edu": "vite build --config vite.edu.config.js && cp dist-edu/index.edu.html dist-edu/index.html",
+    "build:coin": "vite build --config vite.coin.config.js && cp dist-coin/index.coin.html dist-coin/index.html",
+    "build:all": "npm run build:edu && npm run build:coin",
     "preview": "vite preview",
     "api:check": "node scripts/checkApi.mjs"
   },

@@ -87,12 +87,12 @@ export default function TestingStatusCard({ metrics, stage = 'all', title, capit
   return (
     <div
       style={{
-        background: 'var(--n-card, #ffffff)',
+        background: 'var(--n-surface)',
         borderRadius: 12,
-        border: '1px solid var(--n-line, #e2e8f0)',
+        border: '1px solid var(--n-line)',
         padding: '20px 24px',
         marginBottom: 20,
-        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.05)',
+        boxShadow: 'var(--n-shadow)',
       }}
     >
       {/* Header with Title and Filter Pills */}
@@ -105,11 +105,11 @@ export default function TestingStatusCard({ metrics, stage = 'all', title, capit
           gap: 12,
           marginBottom: 16,
           paddingBottom: 14,
-          borderBottom: '1px solid var(--n-line, #e2e8f0)',
+          borderBottom: '1px solid var(--n-line-soft)',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <h3 style={{ margin: 0, fontSize: 16.5, fontWeight: 700, color: 'var(--n-ink, #0f172a)', letterSpacing: '-0.01em' }}>
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--n-ink)', letterSpacing: '-0.01em' }}>
             {cardTitle}
           </h3>
           {isNum(capital) && capital > 0 && (
@@ -119,9 +119,9 @@ export default function TestingStatusCard({ metrics, stage = 'all', title, capit
                 fontWeight: 600,
                 padding: '2.5px 8px',
                 borderRadius: 6,
-                background: capital >= 10000 ? 'rgba(59, 130, 246, 0.1)' : 'rgba(245, 158, 11, 0.1)',
-                color: capital >= 10000 ? 'var(--n-brand, #2563eb)' : '#d97706',
-                border: `1px solid ${capital >= 10000 ? 'rgba(59, 130, 246, 0.25)' : 'rgba(245, 158, 11, 0.25)'}`,
+                background: capital >= 10000 ? 'rgba(56, 189, 248, 0.12)' : 'rgba(245, 158, 11, 0.12)',
+                color: capital >= 10000 ? 'var(--n-info)' : 'var(--n-warn)',
+                border: `1px solid ${capital >= 10000 ? 'rgba(56, 189, 248, 0.25)' : 'rgba(245, 158, 11, 0.25)'}`,
               }}
             >
               {capital >= 100000
@@ -136,9 +136,9 @@ export default function TestingStatusCard({ metrics, stage = 'all', title, capit
               fontSize: 11,
               padding: '3px 9px',
               borderRadius: 6,
-              background: counts.pass === counts.all ? 'rgba(16, 185, 129, 0.15)' : 'rgba(244, 63, 94, 0.12)',
-              color: counts.pass === counts.all ? 'var(--n-pos, #10b981)' : 'var(--n-neg, #f43f5e)',
-              border: `1px solid ${counts.pass === counts.all ? 'rgba(16, 185, 129, 0.25)' : 'rgba(244, 63, 94, 0.25)'}`,
+              background: counts.pass === counts.all ? 'var(--n-pos-wash)' : 'var(--n-neg-wash)',
+              color: counts.pass === counts.all ? 'var(--n-pos)' : 'var(--n-neg)',
+              border: `1px solid ${counts.pass === counts.all ? 'rgba(62, 207, 142, 0.3)' : 'rgba(240, 97, 109, 0.3)'}`,
               fontWeight: 600,
             }}
           >
@@ -150,10 +150,10 @@ export default function TestingStatusCard({ metrics, stage = 'all', title, capit
         <div
           style={{
             display: 'inline-flex',
-            background: 'var(--n-card-sub, rgba(125, 125, 125, 0.08))',
+            background: 'var(--n-surface-2)',
             borderRadius: 999,
             padding: 3,
-            border: '1px solid var(--n-line, #e2e8f0)',
+            border: '1px solid var(--n-line)',
           }}
         >
           {[
@@ -169,10 +169,10 @@ export default function TestingStatusCard({ metrics, stage = 'all', title, capit
                 type="button"
                 onClick={() => setFilter(btn.key)}
                 style={{
-                  background: active ? 'var(--n-card, #ffffff)' : 'transparent',
-                  color: active ? 'var(--n-ink, #0f172a)' : 'var(--n-ink-2, #64748b)',
-                  border: active ? '1px solid var(--n-line, #cbd5e1)' : '1px solid transparent',
-                  boxShadow: active ? '0 1px 3px rgba(0, 0, 0, 0.08)' : 'none',
+                  background: active ? 'var(--n-surface-3)' : 'transparent',
+                  color: active ? 'var(--n-ink)' : 'var(--n-ink-3)',
+                  border: active ? '1px solid var(--n-line)' : '1px solid transparent',
+                  boxShadow: active ? 'var(--n-shadow)' : 'none',
                   padding: '3px 12px',
                   borderRadius: 999,
                   fontSize: 12,
@@ -202,7 +202,7 @@ export default function TestingStatusCard({ metrics, stage = 'all', title, capit
               alignItems: 'center',
               justifyContent: 'space-between',
               padding: '13px 4px',
-              borderBottom: idx === displayed.length - 1 ? 'none' : '1px solid var(--n-line, rgba(125, 125, 125, 0.1))',
+              borderBottom: idx === displayed.length - 1 ? 'none' : '1px solid var(--n-line-soft)',
             }}
           >
             {/* Left: Icon + Label + Target */}
@@ -213,9 +213,9 @@ export default function TestingStatusCard({ metrics, stage = 'all', title, capit
                     width: 24,
                     height: 24,
                     borderRadius: '50%',
-                    background: 'rgba(16, 185, 129, 0.12)',
-                    border: '1.5px solid var(--n-pos, #10b981)',
-                    color: 'var(--n-pos, #10b981)',
+                    background: 'var(--n-pos-wash)',
+                    border: '1.5px solid var(--n-pos)',
+                    color: 'var(--n-pos)',
                     display: 'inline-flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -234,9 +234,9 @@ export default function TestingStatusCard({ metrics, stage = 'all', title, capit
                     width: 24,
                     height: 24,
                     borderRadius: '50%',
-                    background: 'rgba(244, 63, 94, 0.12)',
-                    border: '1.5px solid var(--n-neg, #f43f5e)',
-                    color: 'var(--n-neg, #f43f5e)',
+                    background: 'var(--n-neg-wash)',
+                    border: '1.5px solid var(--n-neg)',
+                    color: 'var(--n-neg)',
                     display: 'inline-flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -255,9 +255,9 @@ export default function TestingStatusCard({ metrics, stage = 'all', title, capit
                     width: 24,
                     height: 24,
                     borderRadius: '50%',
-                    background: 'rgba(148, 163, 184, 0.12)',
-                    border: '1.5px solid var(--n-line, #94a3b8)',
-                    color: 'var(--n-ink-2, #94a3b8)',
+                    background: 'var(--n-surface-3)',
+                    border: '1.5px solid var(--n-line)',
+                    color: 'var(--n-ink-3)',
                     display: 'inline-flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -271,10 +271,10 @@ export default function TestingStatusCard({ metrics, stage = 'all', title, capit
               )}
 
               <div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--n-ink, #0f172a)', marginBottom: 2 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--n-ink)', marginBottom: 2 }}>
                   {item.name}
                 </div>
-                <div style={{ fontSize: 11.5, color: 'var(--n-ink-2, #64748b)', letterSpacing: '0.01em' }}>
+                <div style={{ fontSize: 11.5, color: 'var(--n-ink-3)', letterSpacing: '0.01em' }}>
                   {item.target}
                 </div>
               </div>
@@ -285,8 +285,8 @@ export default function TestingStatusCard({ metrics, stage = 'all', title, capit
               style={{
                 fontSize: 15,
                 fontWeight: 600,
-                color: item.status === 'pass' ? 'var(--n-pos, #10b981)' : item.status === 'fail' ? 'var(--n-neg, #f43f5e)' : 'var(--n-ink-2, #64748b)',
-                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                color: item.status === 'pass' ? 'var(--n-pos)' : item.status === 'fail' ? 'var(--n-neg)' : 'var(--n-ink-2)',
+                fontFamily: 'var(--n-mono)',
               }}
             >
               {item.val}

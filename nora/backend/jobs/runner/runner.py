@@ -189,13 +189,19 @@ KINDS: Dict[str, Dict[str, Any]] = {
                         "params": {"code", "symbols", "start", "end", "train_ratio", "initial_capital", "position", "run_frame"}},
     "education_warm": {"label_vi": "Làm nóng kết quả mẫu giáo dục", "module": "backend.jobs.tasks", "func": "education_warm", "params": {"keys"}},
     "live_bot": {"label_vi": "Bot Live / Paper / Testnet", "module": "backend.jobs.tasks", "func": "run_live_bot",
-                 "params": {"bot_id", "mode", "source", "alpha_id", "code", "symbols", "capital", "base_frame", "confirm_live", "enter_on_start", "position", "resume", "signal_tf", "params", "book_source", "backtest_job_id", "debug_events"}},
+                 "params": {"bot_id", "mode", "source", "alpha_id", "code", "symbols", "capital", "base_frame", "anchor_tf", "confirm_live", "enter_on_start", "position", "resume", "signal_tf", "params", "book_source", "backtest_job_id", "debug_events", "strategy_type", "r_ratio", "vl_mult", "tp_mult", "f_mult"}},
     "alpha_research": {"label_vi": "Nghiên cứu Alpha (Prompt)", "module": "backend.jobs.tasks", "func": "run_alpha_research",
                        "params": {"prompt", "opts", "pick", "from_step", "edits", "job_id"}},
     "data_scan_crawl": {"label_vi": "Crawl nến 100 coin quét", "module": "backend.data.crawl", "func": "run_scan_crawl",
                         "params": {"coins", "start_ms", "end_ms", "workers", "resume"}},
     "universe_scan": {"label_vi": "Quét thị trường 100 coin", "module": "backend.jobs.tasks", "func": "run_universe_scan",
                       "params": {"alpha_id", "signal_tf", "book_source", "is_start", "is_end", "oos_start", "oos_end", "capital", "coins"}},
+    "parameter_sweep": {"label_vi": "Quét tham số thông minh (Funnel/Optuna)", "module": "backend.jobs.tasks", "func": "run_parameter_sweep",
+                        "params": {"alpha_id", "symbol", "signal_tf", "book_source", "capital", "method", "fast_top_k", "max_workers"}},
+    "optuna_sweep": {"label_vi": "Tối ưu tham số Bayesian Optuna", "module": "backend.jobs.tasks", "func": "run_optuna_sweep",
+                     "params": {"alpha_id", "symbol", "signal_tf", "book_source", "capital", "n_trials", "top_k_nautilus"}},
+    "proxima_sweep": {"label_vi": "Quét tham số Proxima (R, VL, TP, F)", "module": "backend.jobs.tasks", "func": "run_proxima_sweep",
+                      "params": {"symbol", "r_list", "vl_list", "tp_list", "f_list", "capital", "days"}},
 }
 NO_LOCK_KINDS: set = {"live_bot"}   # bot live chạy dài hạn, không lock hàng đợi backtest
 
@@ -550,7 +556,8 @@ def _remember_ephemeral(job_dir: str) -> bool:
     with _LOCK:
         _EPH[meta["id"]] = snap
         _EPH.move_to_end(meta["id"])
-        while len(_EPH) > EPHEMERAL_MAX:
+        max_eph = getattr(sys.modules.get("backend.jobs.runner"), "EPHEMERAL_MAX", EPHEMERAL_MAX)
+        while len(_EPH) > max_eph:
             _EPH.popitem(last=False)
     shutil.rmtree(job_dir, ignore_errors=True)
     return True

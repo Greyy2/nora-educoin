@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { apiPost, apiGet } from '../../../api'
 
@@ -35,6 +35,17 @@ export default function PromptResearchView({ onOpenCode, onSaved }) {
   const [loadingStep, setLoadingStep] = useState('')
   const [error, setError] = useState(null)
   const [saveSuccess, setSaveSuccess] = useState(null)
+  const [engineInfo, setEngineInfo] = useState(null)
+
+  useEffect(() => {
+    let alive = true
+    apiGet('/api/studio/research/engine/status')
+      .then((res) => {
+        if (alive && res) setEngineInfo(res)
+      })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [])
 
   // Chỉnh sửa trực tiếp
   const [editFormula, setEditFormula] = useState(false)
@@ -133,7 +144,14 @@ export default function PromptResearchView({ onOpenCode, onSaved }) {
   const handleSwitchToCode = () => {
     const code = job?.steps?.step4?.code
     if (code && onOpenCode) {
-      onOpenCode(code)
+      onOpenCode({
+        code,
+        name: pickedIdea?.name || 'Alpha Prompt Strategy',
+        symbol,
+        timeframe,
+        metrics: job?.steps?.step5?.metrics || null,
+        jobId: job?.job_id || null,
+      })
     }
   }
 
@@ -159,7 +177,7 @@ export default function PromptResearchView({ onOpenCode, onSaved }) {
     <div style={{ maxWidth: 960, margin: '0 auto', padding: '16px 20px', color: 'var(--n-ink)' }}>
       {/* Tiêu đề & Giới thiệu */}
       <div style={{ marginBottom: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 22, fontWeight: 700, color: 'var(--n-ink)' }}>
             Nora Alpha Research
           </span>
@@ -174,6 +192,23 @@ export default function PromptResearchView({ onOpenCode, onSaved }) {
           }}>
             Mô hình Man Group AlphaTrend
           </span>
+          {engineInfo?.model && (
+            <span style={{
+              fontSize: 11,
+              fontWeight: 500,
+              padding: '2px 9px',
+              borderRadius: 12,
+              background: 'var(--n-surface-2)',
+              color: 'var(--n-ink)',
+              border: '1px solid var(--n-line)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6
+            }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--n-pos)' }} />
+              AI Engine: {engineInfo.model}
+            </span>
+          )}
         </div>
         <div style={{ fontSize: 13, color: 'var(--n-ink-2)', marginTop: 4 }}>
           Quy trình 6 bước tự động: Ý tưởng tài chính → Công thức toán học → Mã nguồn Nora DSL → Backtest Nautilus thật → Tổng hợp kết luận không bịa số.
@@ -674,6 +709,22 @@ export default function PromptResearchView({ onOpenCode, onSaved }) {
                   }}
                 >
                   {editCode ? 'Hủy sửa' : '✏️ Sửa mã nguồn'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSwitchToCode}
+                  style={{
+                    background: 'var(--n-surface-2)',
+                    border: '1px solid var(--n-accent)',
+                    borderRadius: 6,
+                    padding: '3px 10px',
+                    fontSize: 11.5,
+                    color: 'var(--n-accent)',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  📝 Mở trong mode Code
                 </button>
                 <button
                   type="button"

@@ -542,184 +542,17 @@ def picker_backtest_get(job_id: str):
         return None
 
 
-def resolve_live_source(params: Dict[str, Any]) -> Dict[str, Any]:
-    """Nguồn chiến lược của bot -> {"strategies", "risk", "symbols" (ký hiệu dữ liệu "BTC@perp"), "base_frame", "native", "label"}. CÙNG đường với backtest:
-    compile_code -> build_plan (DSL) hoặc Strategy bản địa (như run_native). alpha_id: mã của alpha người dùng (alpha/store) kèm vị thế/rủi ro đã lưu; không phải
-    alpha người dùng -> chiến lược hệ thống (alpha/strategies)."""
-    from backend.analys.alpha.code.compile import compile_code
-    from backend.analys.alpha.code.plan import build_plan
-    from backend.analys.alpha import strategies as alpha_store
-    from backend.data.data import resolve_symbols
-
-    symbols = params.get("symbols") or ["BTC-USDT-SWAP"]
-    if isinstance(symbols, str):
-        symbols = [x.strip() for x in symbols.split(",") if x.strip()]
-    names = resolve_symbols(list(symbols))
-    signal_tf = params.get("signal_tf") or None      # khung tín hiệu của dòng đã backtest lãi (bộ chọn chiến lược): BẮT BUỘC theo, không tự suy khung khác
-    run_frame = params.get("base_frame") or signal_tf or None
-    if signal_tf:
-        from backend.analys.param import FRAME_MS
-        if signal_tf not in FRAME_MS:
-            raise ValueError(f"signal_tf {signal_tf!r} không hợp lệ")
-        if run_frame and FRAME_MS[run_frame] > FRAME_MS[signal_tf]:
-            raise ValueError(f"Khung chạy {run_frame} lớn hơn khung tín hiệu {signal_tf}")
-    code, position, risk, label, name = params.get("code"), dict(params.get("position") or {}), None, "custom", None
-    if code and not params.get("alpha_id") and params.get("params"):
-        position.update(resolve_strategy(code=code, signal_tf=signal_tf, params=params["params"])["params"])
-    if not code and params.get("alpha_id"):
-        rec = alpha_store.get_user_alpha(str(params["alpha_id"]))
-        if rec is not None:
-            code, label, name = rec["code"], f"alpha:{rec['id']}", rec.get("name")
-            cfg = rec.get("config") or {}
-            position = {**(cfg.get("position") or {}), **position, **resolve_strategy(params["alpha_id"], None, signal_tf, params.get("params"))["params"]}
-            risk = cfg.get("risk")
-        else:
-            rs = resolve_strategy(params["alpha_id"], None, signal_tf, params.get("params"), names, params.get("book_source"))
-            return {"strategies": [rs["strategy"]], "risk": None, "symbols": [f"{n}@perp" for n in names], "base_frame": run_frame or "1h", "native": None,
-                    "label": f"system:{params['alpha_id']}", "name": params["alpha_id"]}
-    if not code:
-        raise ValueError("Cần code hoặc alpha_id để chạy bot")
-    program = compile_code(code)
-    if signal_tf and not getattr(program, "is_native", False) and program.timeframe != signal_tf:
-        raise ValueError(f"Chiến lược khai báo timeframe {program.timeframe}, không phải khung đã backtest lãi {signal_tf}: không thể chạy bot ở khung khác")
-    if getattr(program, "is_native", False):
-        return {"strategies": [], "risk": None, "symbols": [f"{n}@perp" for n in (resolve_symbols(program.symbols) if program.symbols and not params.get("symbols") else names)],
-                "base_frame": run_frame or getattr(program, "timeframe", None) or "1h",
-                "native": {"cls": program.strategy_cls, "id": program.name, "params": {}}, "label": f"native:{program.name}", "name": program.name}
-    plan = build_plan(program, names, position=position or None, run_frame=run_frame)
-    return {"strategies": plan.strategies, "risk": risk or plan.risk, "symbols": plan.symbols, "base_frame": plan.base_frame, "native": None, "label": label, "name": name or getattr(program, "name", None) or plan.strategies[0]["id"]}
+# ─── Vận hành Live / Paper / Testnet: Điều phối từ backend.jobs.runner.live ───
+from backend.jobs.runner.live import (
+    resolve_live_source,
+    launch_fingerprint,
+    run_live_bot,
+    build_chart,
+    supervise_once,
+    match_fills,
+)
 
 
-def launch_fingerprint(params: Dict[str, Any], src: Dict[str, Any]) -> Dict[str, Any]:
-    """Dấu vân tay cấu hình của bot (băm slot đã giải) + so với cấu hình ĐÃ BACKTEST của cùng (chiến lược, khung tín hiệu): dựng lại qua CÙNG resolve_live_source (materialize/lift_frames
-    hoặc compile+build_plan) từ chính alpha_id/code + signal_tf, KHÔNG kèm ghi đè vị thế/tham số của lần chạy. Không phải bộ chọn (không signal_tf) hoặc Strategy bản địa: match = None."""
-    from backend.core import live as lv
-    if not src.get("strategies"):
-        return {"strategy_fingerprint": None, "fingerprint_expected": None, "fingerprint_match": None}
-    fp = lv.strategy_fingerprint(src["strategies"], src["symbols"], src["base_frame"])
-    exp, match = None, None
-    if params.get("signal_tf") and (params.get("alpha_id") or params.get("code")):
-        base = {k: params[k] for k in ("alpha_id", "code", "symbols", "signal_tf", "book_source") if params.get(k)}
-        if params.get("backtest_job_id"):      # tuỳ chỉnh: kỳ vọng = cấu hình ĐÃ GIẢI của chính job backtest (không phải tham số lần bật)
-            rec = picker_backtest_get(params["backtest_job_id"])
-            base = {k: rec[k] for k in ("alpha_id", "signal_tf", "symbols", "params", "book_source") if rec and rec.get(k) is not None} if rec else None
-        try:
-            if base is None:
-                raise ValueError(f"không có cấu hình đã lưu cho job backtest {params['backtest_job_id']}")
-            ref = resolve_live_source({**base, "base_frame": params["signal_tf"]})
-            exp = lv.strategy_fingerprint(ref["strategies"], ref["symbols"], ref["base_frame"])
-            if ref["base_frame"] != src["base_frame"]:      # chạy ở khung nhỏ hơn khung tín hiệu: so theo cấu hình nếu chạy ở khung của backtest
-                exp = lv.strategy_fingerprint(ref["strategies"], ref["symbols"], src["base_frame"])
-            match = exp == fp
-        except Exception as e:
-            exp, match = f"error: {type(e).__name__}: {e}", False
-    return {"strategy_fingerprint": fp, "fingerprint_expected": exp, "fingerprint_match": match}
-
-
-def run_live_bot(params: Dict[str, Any]) -> Dict[str, Any]:
-    """Khởi chạy (hoặc CHẠY LẠI: params.resume) bot live/paper/testnet qua Nautilus TradingNode: chiến lược dựng như backtest (resolve_live_source), nạp lịch sử tín hiệu, rồi node.run().
-
-    Quy tắc dữ liệu: tiến trình thoát / sập / API khởi động lại KHÔNG đóng vị thế và KHÔNG đổi trạng thái bot (supervisor chạy lại cùng bot_id, resume=True: cùng thư mục, chỉ nối thêm
-    events/equity, Nautilus đối soát sàn). CHỈ cờ `stop` (POST /live/bot/{id}/stop) mới dừng bot, và chỉ khi close=True mới đóng vị thế (của riêng bot)."""
-    import threading
-    from backend.core import live as lv
-
-    mode = str(params.get("mode", "paper"))
-    capital = float(params.get("capital") or 1000.0)
-    confirm_live = bool(params.get("confirm_live", False))
-    resume = bool(params.get("resume", False))
-    bot_id = str(params.get("bot_id") or lv.new_bot_id(mode))
-    launch_params = {k: v for k, v in params.items() if k != "resume"}
-    src = resolve_live_source(params)
-    if mode == "testnet":
-        print(f"[TESTNET] chế độ vị thế OKX demo: {lv.ensure_net_position_mode()}", flush=True)
-    bot_dir = None
-
-    def start_node(resume_: bool):
-        nonlocal bot_dir
-        nd = lv.build_node(mode, src["strategies"], src["symbols"], capital, base_frame=src["base_frame"], confirm_live=confirm_live, bot_id=bot_id,
-                           risk=src["risk"], native=src["native"], enter_on_start=bool(params.get("enter_on_start", False)) and not resume_, resume=resume_,
-                           launch_params=launch_params)
-        bot_dir = nd.nora.bot_dir
-        print(f"[{mode.upper()}] {bot_id}{' (chạy lại)' if resume_ else ''}: {src['label']} · {len(nd.nora.slots)} slot · {len(src['symbols'])} tài sản · khung {src['base_frame']}", flush=True)
-        if nd.nora.signals:
-            t0 = time.time()
-            stats = lv.warm_start(nd)
-            print(f"[{mode.upper()}] nạp lịch sử tín hiệu xong ({time.time() - t0:.0f}s): " + ", ".join(f"{x['symbol']}:+{x['rest_rows']}rest" for x in stats), flush=True)
-            try:
-                import gc, ctypes
-                gc.collect()
-                ctypes.CDLL("libc.so.6").malloc_trim(0)
-            except Exception:
-                pass
-        return nd
-
-    try:
-        node = start_node(resume)
-    except Exception:
-        if bot_dir:
-            lv.set_status(bot_dir, "failed")        # chỉ khi dựng node lỗi (bot mới); bot chạy lại lỗi thì supervisor đếm số lần rồi mới failed
-        raise
-    try:
-        ident = launch_fingerprint(params, src)
-    except Exception as e:
-        ident = {"strategy_fingerprint": None, "fingerprint_expected": None, "fingerprint_match": None, "fingerprint_error": f"{type(e).__name__}: {e}"}
-    node.nora.recorder.record_event("strategy_identity", ident)
-    lv.set_status(bot_dir, "starting", strategy=src.get("name") or src["label"], job_id=os.path.basename(os.environ.get("NORA_JOB_DIR", "")) or None, **ident)
-    stop_file = os.path.join(bot_dir, "stop")
-
-    def stop_watcher():
-        while True:
-            flag = lv.stop_flag(bot_dir)
-            if flag is not None:
-                close = bool(flag.get("close", True))
-                print(f"[{mode.upper()}] Nhận cờ dừng cho {bot_id} (close={close}), đang dừng...", flush=True)
-                loop = node.kernel.loop
-                loop.call_soon_threadsafe(lv.apply_stop, node, close)
-                deadline = time.time() + 45.0
-                while close and not lv.own_flat(node) and time.time() < deadline:
-                    time.sleep(0.5)
-                loop.call_soon_threadsafe(node.stop)
-                time.sleep(3.0)
-                try:
-                    loop.call_soon_threadsafe(loop.stop)
-                except Exception:
-                    pass
-                break
-            time.sleep(2.0)
-
-    threading.Thread(target=stop_watcher, daemon=True).start()
-    from backend.models.storage import pid_start_ticks
-    lv.set_status(bot_dir, "running", pid=os.getpid(), pid_start=pid_start_ticks(os.getpid()), resume_failures=0)
-    print(f"[{mode.upper()}] Bot {bot_id} đang chạy...", flush=True)
-    failures = 0
-    while True:
-        reason = None
-        try:
-            reason = lv.run_node(node)           # DataWatch: dữ liệu không lên / đứng -> dừng node, trả lý do
-        finally:
-            node.dispose()
-        if os.path.isfile(stop_file):
-            lv.set_status(bot_dir, "stopped")     # người dùng dừng -> chốt. Thoát vì lý do khác: giữ "running" để supervisor chạy lại, KHÔNG đóng vị thế
-            break
-        if reason is None:
-            node.nora.recorder.record_event("process_exit", {"note": "tiến trình thoát không do người dùng dừng; không đóng vị thế, chờ supervisor chạy lại"})
-            break
-        failures = 1 if getattr(node.nora, "was_ready", False) else failures + 1
-        if failures >= lv.MAX_DATA_ATTEMPTS:
-            msg = f"dữ liệu OKX không lên/đứng ({reason}) sau {failures} lần kết nối lại"
-            node.nora.recorder.record_event("error", {"error": msg, "reason": reason, "attempts": failures})
-            lv.set_status(bot_dir, "failed", error=msg, error_reason=reason)
-            print(f"[{mode.upper()}] {bot_id} THẤT BẠI: {msg}", flush=True)
-            return {"bot_id": bot_id, "mode": mode, "status": "failed", "error": msg}
-        wait = lv.BACKOFF_S[min(failures - 1, len(lv.BACKOFF_S) - 1)]
-        node.nora.recorder.record_event("data_retry", {"reason": reason, "attempt": failures, "wait_s": wait})
-        print(f"[{mode.upper()}] {bot_id}: dữ liệu lỗi ({reason}), dựng lại node sau {wait:.0f}s (lần {failures}/{lv.MAX_DATA_ATTEMPTS})", flush=True)
-        time.sleep(wait)
-        node = start_node(True)
-        lv.set_status(bot_dir, "running", pid=os.getpid(), pid_start=pid_start_ticks(os.getpid()))
-
-    return {"bot_id": bot_id, "mode": mode, "status": "stopped" if os.path.isfile(stop_file) else "running"}
 
 
 def run_alpha_research(params=None):
@@ -743,16 +576,13 @@ from backend.jobs.runner.alpha import (
     run_universe_scan,
     run_parameter_sweep,
     run_param_sweep,
+    run_optuna_sweep,
+    fast_screen_strategies,
     load_universe_sectors,
     OPTIMIZED_8_COINS,
     generate_100_strategies,
-)
-from backend.jobs.runner.live import (
-    build_chart,
-    supervise_once,
-    match_fills,
-    resolve_live_source,
-    launch_fingerprint,
+    run_proxima_parameter_sweep,
+    run_proxima_parameter_sweep as run_proxima_sweep,
 )
 
 from backend.jobs.runner.backtest import (

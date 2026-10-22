@@ -342,8 +342,6 @@ def get_overview_series() -> Dict[str, Any]:
     return out
 
 
-ROUTERS = [router]
-
 
 """Routes quản lý người dùng và phiên đăng nhập (P17 T2 B2).
 
@@ -369,9 +367,26 @@ users_router = APIRouter(tags=["users"])
 
 
 
+def _get_cookie_key_for_request(request: Request) -> str:
+    """Xác định đúng key cookie theo ứng dụng và host: cô lập hoàn toàn giữa edu và coin."""
+    app_title = str(getattr(getattr(request, "app", None), "title", ""))
+    host = (request.headers.get("host") or "").lower()
+    if "EDU" in app_title or "edu." in host:
+        return "edu_session"
+    if "COIN" in app_title or "coin." in host:
+        return "coin_session"
+    return "nora_uid"
+
+
 def current_user(request: Request) -> Optional[Dict[str, Any]]:
-    """Dependency lấy thông tin người dùng từ cookie nora_uid."""
-    cookie_val = request.cookies.get("nora_uid")
+    """Dependency lấy thông tin người dùng từ cookie phiên cô lập theo product.
+    Tuyệt đối không fallback chéo giữa edu_session và coin_session.
+    """
+    cookie_key = _get_cookie_key_for_request(request)
+    cookie_val = request.cookies.get(cookie_key)
+    if not cookie_val and cookie_key == "nora_uid":
+        # Chỉ trong monolith cũ mới fallback
+        cookie_val = request.cookies.get("nora_uid")
     if not cookie_val:
         return None
     uid = users.verify_uid(cookie_val)
@@ -381,11 +396,13 @@ def current_user(request: Request) -> Optional[Dict[str, Any]]:
 
 
 def set_uid_cookie(response: Response, user_id: str, request: Request) -> None:
-    """Ghi cookie phiên nora_uid có chữ ký HMAC."""
+    """Ghi cookie phiên có chữ ký HMAC (host-only, HttpOnly, SameSite lax), cô lập theo product."""
     cookie_val = users.sign_uid(user_id)
     is_https = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
+    cookie_key = _get_cookie_key_for_request(request)
+
     response.set_cookie(
-        key="nora_uid",
+        key=cookie_key,
         value=cookie_val,
         max_age=31536000,
         httponly=True,
@@ -396,8 +413,9 @@ def set_uid_cookie(response: Response, user_id: str, request: Request) -> None:
 
 
 def clear_uid_cookie(response: Response) -> None:
-    """Xóa cookie phiên."""
-    response.delete_cookie(key="nora_uid", path="/")
+    """Xóa cookie phiên tương ứng (xóa cả 3 để dọn dẹp sạch)."""
+    for key in ["nora_uid", "edu_session", "coin_session"]:
+        response.delete_cookie(key=key, path="/")
 
 
 # ─── Schema Pydantic ─────────────────────────────────────────────────────────
@@ -590,17 +608,7 @@ def _market_rows() -> list:
         rows = []
         for u in users.list_users():
             user_cards = idx.get(u["id"], [])
-            if not user_cards:
-                continue
-            passed = [c for c in user_cards if c.get("pass_analyst")]
-            candidates = passed if passed else user_cards
-            best_c = max(candidates, key=lambda c: (
-                c.get("ret_pct") is not None,
-                (c.get("ret_pct") or -999) * max(0.1, c.get("sharpe") or 1.0) if (c.get("ret_pct") or -999) > 0 else (c.get("ret_pct") or -999),
-                c.get("sharpe") or -999
-            ))
-            disp_cards = [best_c]
-            rows.append({**_public_user(u), **store.aggregate_cards(disp_cards)})
+            rows.append({**_public_user(u), **store.aggregate_cards(user_cards)})
         _MARKET["rows"] = rows
         _MARKET["sig"] = sig
     return _MARKET["rows"]
@@ -634,17 +642,6 @@ def user_strategies(handle: str, request: Request) -> Dict[str, Any]:
     if not u:
         raise HTTPException(404, "Không tìm thấy người dùng")
     cards = store.owner_strategy_cards(u["id"])
-    me = current_user(request) if request else None
-    is_me = me and (me.get("id") == u["id"] or me.get("handle") == u["handle"])
-    if not is_me and cards:
-        passed = [c for c in cards if c.get("pass_analyst")]
-        candidates = passed if passed else cards
-        best_c = max(candidates, key=lambda c: (
-            c.get("ret_pct") is not None,
-            (c.get("ret_pct") or -999) * max(0.1, c.get("sharpe") or 1.0) if (c.get("ret_pct") or -999) > 0 else (c.get("ret_pct") or -999),
-            c.get("sharpe") or -999
-        ))
-        cards = [best_c]
     cards.sort(key=lambda c: (c["ret_pct"] is None, -(c["ret_pct"] or 0)))
     return {"user": _public_user(u), "summary": store.aggregate_cards(cards), "strategies": cards}
 

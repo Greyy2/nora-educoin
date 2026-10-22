@@ -15,10 +15,9 @@ export const WFA_PENDING_NOTE = 'chưa hỗ trợ ở WFA (đang làm)'
 
 export function getWfaStd(meta) {
   const lim = meta?.limits?.book_wfa
-  if (!lim?.train_days?.default || !lim?.test_days?.default) return null
   return {
-    train_days: lim.train_days.default,
-    test_days: lim.test_days.default,
+    train_days: lim?.train_days?.default || 120,
+    test_days: lim?.test_days?.default || 30,
   }
 }
 
@@ -26,18 +25,17 @@ export function getMcStd(meta) {
   const lim = meta?.limits?.book_mc
   const gates = meta?.gates || []
   const findGate = (k) => gates.find((g) => g.key === k)?.value
-  const simulations = findGate('MC_MIN_SIMULATIONS') ?? lim?.simulations?.default
-  const ruin_threshold_pct = findGate('MC_RUIN_THRESHOLD_PCT') ?? lim?.ruin_threshold_pct?.default
-  const stress_max_mdd_pct = findGate('STRESS_MAX_MDD_PCT') ?? lim?.stress_max_mdd_pct?.default
-  if (simulations == null || ruin_threshold_pct == null) return null
+  const simulations = findGate('MC_MIN_SIMULATIONS') ?? lim?.simulations?.default ?? 10000
+  const ruin_threshold_pct = findGate('MC_RUIN_THRESHOLD_PCT') ?? lim?.ruin_threshold_pct?.default ?? 30
+  const stress_max_mdd_pct = findGate('STRESS_MAX_MDD_PCT') ?? lim?.stress_max_mdd_pct?.default ?? 50
   return {
     simulations,
-    block_days: lim?.block_days?.default,
-    horizon_days: lim?.horizon_days?.default,
+    block_days: lim?.block_days?.default ?? 5,
+    horizon_days: lim?.horizon_days?.default ?? 365,
     ruin_threshold_pct,
-    max_ruin_pct: findGate('MC_MAX_RUIN_PCT'),
-    seed: lim?.seed?.default,
-    scale: lim?.scale?.default,
+    max_ruin_pct: findGate('MC_MAX_RUIN_PCT') ?? 5,
+    seed: lim?.seed?.default ?? 7,
+    scale: lim?.scale?.default ?? 1,
     stress_max_mdd_pct,
   }
 }

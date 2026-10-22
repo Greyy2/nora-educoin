@@ -1246,7 +1246,7 @@ def get_top_agents() -> Dict[str, Any]:
 # ─── ALPHA NGƯỜI DÙNG (C1) ───────────────────────────────────────────────────
 
 class SaveUserAlphaRequest(BaseModel):
-    job_id: str = Field(..., description="Mã job custom_backtest đã hoàn tất")
+    job_id: Optional[str] = Field(None, description="Mã job custom_backtest đã hoàn tất (tuỳ chọn nếu lưu nháp)")
     code: str = Field(..., description="Mã Python của chiến lược")
     name: str = Field(..., min_length=1, max_length=100, description="Tên alpha")
     note: Optional[str] = Field("", max_length=2000, description="Ghi chú chiến lược")
@@ -1406,6 +1406,24 @@ def post_update_user_alpha_status(alpha_id: str, req: UpdateStatusRequest, reque
     if not ok:
         raise HTTPException(status_code=404, detail=f"Không tìm thấy alpha {alpha_id}")
     return {"ok": True, "alpha_id": alpha_id, "status": req.status}
+
+
+@alphas_router.delete("/user/{alpha_id}")
+def delete_user_alpha_endpoint(alpha_id: str, request: Request) -> Dict[str, Any]:
+    """Xóa vĩnh viễn một Alpha người dùng."""
+    rec = store.get_user_alpha(alpha_id)
+    if not rec:
+        raise HTTPException(status_code=404, detail=f"Không tìm thấy alpha {alpha_id}")
+    owner_id = rec.get("owner_id")
+    if owner_id:
+        from backend.routes.system import current_user
+        me = current_user(request)
+        if not me or me.get("id") != owner_id:
+            raise HTTPException(status_code=403, detail="Chỉ chủ sở hữu mới có quyền xóa chiến lược này")
+    ok = store.delete_user_alpha(alpha_id)
+    if not ok:
+        raise HTTPException(status_code=500, detail="Không thể xóa chiến lược")
+    return {"ok": True, "alpha_id": alpha_id, "deleted": True}
 
 
 strategies_router = APIRouter(prefix="/api/studio/strategies", tags=["strategies"])
@@ -1994,6 +2012,28 @@ def start_research(req: StartResearchRequest) -> Dict[str, Any]:
     return _load_job_data(job_id)
 
 
+@research_router.get("/engine/status")
+def get_research_engine_status() -> Dict[str, Any]:
+    """Trả về thông tin LLM / Quant Engine đang được kích hoạt."""
+    from backend.analys.alpha.prompt import llm
+    has_gemini = bool(llm.load_gemini_key())
+    has_anthropic = bool(llm.load_api_key())
+    if has_gemini:
+        provider = "gemini"
+        model = "Gemini 2.5 Flash"
+    elif has_anthropic:
+        provider = "anthropic"
+        model = "Claude 3.5 Sonnet"
+    else:
+        provider = "builtin_quant"
+        model = "Nora Rule Quant Engine"
+    return {
+        "provider": provider,
+        "model": model,
+        "active": True,
+    }
+
+
 @research_router.get("/{job_id}")
 def get_research_job(job_id: str) -> Dict[str, Any]:
     """Lấy trạng thái và kết quả các bước của phiên nghiên cứu."""
@@ -2412,10 +2452,28 @@ def get_latest_wfa_carlo() -> Dict[str, Any]:
     if data is None:
         raise HTTPException(status_code=404, detail="Chưa có báo cáo WFA & Monte Carlo nào")
     return data
+# ─── Allow-list Routers an toàn dành riêng cho EDU (chỉ đọc & biên dịch kiểm tra) ──────
+edu_strategies_router = APIRouter(prefix="/api/studio/strategies", tags=["edu_strategies"])
+edu_strategies_router.add_api_route("", get_strategies, methods=["GET"])
+edu_strategies_router.add_api_route("/", get_strategies, methods=["GET"])
+edu_strategies_router.add_api_route("/catalog", get_strategy_catalog, methods=["GET"])
+edu_strategies_router.add_api_route("/validate", post_validate, methods=["POST"])
+edu_strategies_router.add_api_route("/compile", post_compile, methods=["POST"])
+edu_strategies_router.add_api_route("/annotate", post_strategy_annotate, methods=["POST"])
+edu_strategies_router.add_api_route("/explain", post_strategy_explain, methods=["POST"])
+edu_strategies_router.add_api_route("/dsl", get_dsl_reference, methods=["GET"])
+edu_strategies_router.add_api_route("/source/{strategy_id}", get_source, methods=["GET"])
+edu_strategies_router.add_api_route("/assist/catalog", get_assist_catalog, methods=["GET"])
+edu_strategies_router.add_api_route("/assist/check", post_assist_check, methods=["POST"])
+edu_strategies_router.add_api_route("/assist/complete", post_assist_complete, methods=["POST"])
+edu_strategies_router.add_api_route("/assist/hover", post_assist_hover, methods=["POST"])
 
+edu_custom_router = APIRouter(prefix="/api/studio/custom", tags=["edu_custom"])
+edu_custom_router.add_api_route("/defaults", get_run_defaults, methods=["GET"])
 
-
+EDU_STUDIO_ROUTERS = [meta_router, education_router, chart_router, edu_custom_router, edu_strategies_router]
 
 ROUTERS = [meta_router, book_router, portfolio_router, alphas_router, strategies_router, custom_router, education_router, chart_router, research_router, scan_router]
 router = meta_router
 portfolio = portfolio_router
+

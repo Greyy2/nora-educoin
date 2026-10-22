@@ -3,6 +3,7 @@
 Nguồn gộp: docs/bmad/p9_review_log.md (mục P9.4 part 2).
 Thứ tự trong file: kernels, spec, features, ops. Đăng ký chương trình DSL (`register_program`, cột `py_<hash12>_<le|lx|se|sx>`) nằm trong phần kernels.
 """
+import os
 import re
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
@@ -93,28 +94,210 @@ def _true_range(df: pd.DataFrame) -> pd.Series:
                      axis=1).max(axis=1)
 
 
+# ─── Nautilus Trader Native Indicators Integration ───────────────────────────
+
+def _nautilus_bars_from_df(df: pd.DataFrame):
+    """Dựng nhanh danh sách Bar của Nautilus Trader từ DataFrame nến để chạy chỉ báo Nautilus."""
+    from decimal import Decimal
+    from nautilus_trader.model.currencies import USDT
+    from nautilus_trader.model.data import BarSpecification, BarType
+    from nautilus_trader.model.enums import AggregationSource, BarAggregation, PriceType
+    from nautilus_trader.model.identifiers import InstrumentId, Symbol, Venue
+    from nautilus_trader.model.instruments import CryptoPerpetual
+    from nautilus_trader.model.objects import Currency, Price, Quantity
+    from nautilus_trader.persistence.wranglers import BarDataWrangler
+
+    inst_id = InstrumentId(Symbol("BTC-USDT-SWAP"), Venue("OKX"))
+    inst = CryptoPerpetual(
+        instrument_id=inst_id, raw_symbol=Symbol("BTC-USDT-SWAP"),
+        base_currency=Currency.from_str("BTC"), quote_currency=USDT, settlement_currency=USDT,
+        is_inverse=False, price_precision=1, size_precision=3,
+        price_increment=Price(Decimal("0.1"), 1), size_increment=Quantity(Decimal("0.001"), 3),
+        min_quantity=Quantity(Decimal("0.001"), 3), multiplier=Quantity.from_int(1),
+        margin_init=Decimal("0.01"), margin_maint=Decimal("0.005"),
+        maker_fee=Decimal("0.0002"), taker_fee=Decimal("0.0005"),
+        ts_event=0, ts_init=0,
+    )
+    bar_type = BarType(inst_id, BarSpecification(1, BarAggregation.HOUR, PriceType.LAST), AggregationSource.EXTERNAL)
+    wrangler = BarDataWrangler(bar_type, inst)
+    n = len(df)
+    c = df["close"].to_numpy(dtype=np.float64)
+    h = df["high"].to_numpy(dtype=np.float64) if "high" in df else c
+    l = df["low"].to_numpy(dtype=np.float64) if "low" in df else c
+    o = df["open"].to_numpy(dtype=np.float64) if "open" in df else c
+    v = df["volume"].to_numpy(dtype=np.float64) if "volume" in df else np.ones(n, dtype=np.float64)
+    mat = np.column_stack([o, h, l, c, v])
+    ts = np.arange(n, dtype=np.uint64) * 3600_000_000_000 + 1700000000_000_000_000
+    return [wrangler._build_bar(mat[i], ts[i], ts[i]) for i in range(n)]
+
+
+def nautilus_ema(df: pd.DataFrame, n: int) -> pd.Series:
+    """Tính EMA trực tiếp bằng lớp ExponentialMovingAverage chuẩn 100% của Nautilus Trader."""
+    from nautilus_trader.indicators import ExponentialMovingAverage
+    bars = _nautilus_bars_from_df(df)
+    ind = ExponentialMovingAverage(int(n))
+    out = np.empty(len(bars), dtype=np.float64)
+    for i, b in enumerate(bars):
+        ind.handle_bar(b)
+        out[i] = ind.value if ind.initialized else np.nan
+    return pd.Series(out, index=df.index)
+
+
+def nautilus_sma(df: pd.DataFrame, n: int) -> pd.Series:
+    """Tính SMA trực tiếp bằng lớp SimpleMovingAverage chuẩn 100% của Nautilus Trader."""
+    from nautilus_trader.indicators import SimpleMovingAverage
+    bars = _nautilus_bars_from_df(df)
+    ind = SimpleMovingAverage(int(n))
+    out = np.empty(len(bars), dtype=np.float64)
+    for i, b in enumerate(bars):
+        ind.handle_bar(b)
+        out[i] = ind.value if ind.initialized else np.nan
+    return pd.Series(out, index=df.index)
+
+
+def nautilus_rsi(df: pd.DataFrame, n: int) -> pd.Series:
+    """Tính RSI trực tiếp bằng lớp RelativeStrengthIndex chuẩn 100% của Nautilus Trader."""
+    from nautilus_trader.indicators import RelativeStrengthIndex
+    bars = _nautilus_bars_from_df(df)
+    ind = RelativeStrengthIndex(int(n))
+    out = np.empty(len(bars), dtype=np.float64)
+    for i, b in enumerate(bars):
+        ind.handle_bar(b)
+        out[i] = (ind.value * 100.0) if ind.initialized else np.nan
+    return pd.Series(out, index=df.index)
+
+
+def nautilus_atr(df: pd.DataFrame, n: int) -> pd.Series:
+    """Tính ATR trực tiếp bằng lớp AverageTrueRange chuẩn 100% của Nautilus Trader."""
+    from nautilus_trader.indicators import AverageTrueRange
+    bars = _nautilus_bars_from_df(df)
+    ind = AverageTrueRange(int(n))
+    out = np.empty(len(bars), dtype=np.float64)
+    for i, b in enumerate(bars):
+        ind.handle_bar(b)
+        out[i] = ind.value if ind.initialized else np.nan
+    return pd.Series(out, index=df.index)
+
+
+def nautilus_roc(df: pd.DataFrame, n: int) -> pd.Series:
+    """Tính ROC trực tiếp bằng lớp RateOfChange chuẩn 100% của Nautilus Trader."""
+    from nautilus_trader.indicators import RateOfChange
+    bars = _nautilus_bars_from_df(df)
+    ind = RateOfChange(int(n))
+    out = np.empty(len(bars), dtype=np.float64)
+    for i, b in enumerate(bars):
+        ind.handle_bar(b)
+        out[i] = (ind.value * 100.0) if ind.initialized else np.nan
+    return pd.Series(out, index=df.index)
+
+
+def nautilus_er(df: pd.DataFrame, n: int) -> pd.Series:
+    """Tính Kaufman Efficiency Ratio trực tiếp bằng lớp EfficiencyRatio của Nautilus Trader."""
+    from nautilus_trader.indicators import EfficiencyRatio
+    bars = _nautilus_bars_from_df(df)
+    ind = EfficiencyRatio(int(n))
+    out = np.empty(len(bars), dtype=np.float64)
+    for i, b in enumerate(bars):
+        ind.handle_bar(b)
+        out[i] = ind.value if ind.initialized else np.nan
+    return pd.Series(out, index=df.index)
+
+
+def nautilus_bbands(df: pd.DataFrame, n: int, k: float) -> Dict[str, pd.Series]:
+    """Tính dải Bollinger trực tiếp bằng lớp BollingerBands chuẩn của Nautilus Trader."""
+    from nautilus_trader.indicators import BollingerBands
+    bars = _nautilus_bars_from_df(df)
+    ind = BollingerBands(int(n), float(k))
+    up = np.empty(len(bars), dtype=np.float64)
+    mid = np.empty(len(bars), dtype=np.float64)
+    low = np.empty(len(bars), dtype=np.float64)
+    for i, b in enumerate(bars):
+        ind.handle_bar(b)
+        if ind.initialized:
+            up[i] = ind.upper
+            mid[i] = ind.middle
+            low[i] = ind.lower
+        else:
+            up[i] = mid[i] = low[i] = np.nan
+    return {
+        "upper": pd.Series(up, index=df.index),
+        "middle": pd.Series(mid, index=df.index),
+        "lower": pd.Series(low, index=df.index),
+    }
+
+
+def nautilus_donchian(df: pd.DataFrame, n: int) -> Dict[str, pd.Series]:
+    """Tính kênh Donchian trực tiếp bằng lớp DonchianChannel chuẩn của Nautilus Trader."""
+    from nautilus_trader.indicators import DonchianChannel
+    bars = _nautilus_bars_from_df(df)
+    ind = DonchianChannel(int(n))
+    up = np.empty(len(bars), dtype=np.float64)
+    mid = np.empty(len(bars), dtype=np.float64)
+    low = np.empty(len(bars), dtype=np.float64)
+    for i, b in enumerate(bars):
+        ind.handle_bar(b)
+        if ind.initialized:
+            up[i] = ind.upper
+            mid[i] = ind.middle
+            low[i] = ind.lower
+        else:
+            up[i] = mid[i] = low[i] = np.nan
+    return {
+        "upper": pd.Series(up, index=df.index),
+        "middle": pd.Series(mid, index=df.index),
+        "lower": pd.Series(low, index=df.index),
+    }
+
+
+def nautilus_keltner(df: pd.DataFrame, n: int, k: float) -> Dict[str, pd.Series]:
+    """Tính kênh Keltner trực tiếp bằng lớp KeltnerChannel chuẩn của Nautilus Trader."""
+    from nautilus_trader.indicators import KeltnerChannel
+    bars = _nautilus_bars_from_df(df)
+    ind = KeltnerChannel(int(n), float(k))
+    up = np.empty(len(bars), dtype=np.float64)
+    mid = np.empty(len(bars), dtype=np.float64)
+    low = np.empty(len(bars), dtype=np.float64)
+    for i, b in enumerate(bars):
+        ind.handle_bar(b)
+        if ind.initialized:
+            up[i] = ind.upper
+            mid[i] = ind.middle
+            low[i] = ind.lower
+        else:
+            up[i] = mid[i] = low[i] = np.nan
+    return {
+        "upper": pd.Series(up, index=df.index),
+        "middle": pd.Series(mid, index=df.index),
+        "lower": pd.Series(low, index=df.index),
+    }
+
+
 # ─── Xu hướng ────────────────────────────────────────────────────────────────
 
 def sma(df, n):
-    return df["close"].rolling(int(n), min_periods=int(n)).mean()
+    """Simple Moving Average: Vectorized C-level rolling mean."""
+    n = int(n)
+    return df["close"].rolling(n, min_periods=n).mean()
 
 
 def ema(df, n):
-    """EMA chuẩn TradingView ta.ema: seed SMA n nến đầu, alpha = 2/(n+1)."""
-    return _tv_ewm(df["close"], 2.0 / (int(n) + 1.0), int(n))
+    """Exponential Moving Average: TradingView ta.ema chuẩn C-level Numba."""
+    n = int(n)
+    return _tv_ewm(df["close"], 2.0 / (n + 1), n)
 
 
 def roc(df, n):
-    """% thay đổi giá so với n nến trước."""
-    return (df["close"] / df["close"].shift(int(n)) - 1.0) * 100.0
+    """Rate of Change (% thay đổi giá so với n nến trước)."""
+    n = int(n)
+    return (df["close"] / df["close"].shift(n) - 1.0) * 100.0
 
 
 def er(df, n):
-    """Kaufman Efficiency Ratio (0..1): gần 1 = đi một chiều (xu hướng), gần 0 = nhiễu/đi ngang."""
+    """Kaufman Efficiency Ratio (0..1): tỷ lệ giữa dịch chuyển ròng và tổng biến động."""
     n = int(n)
-    change = (df["close"] - df["close"].shift(n)).abs()
-    path = df["close"].diff().abs().rolling(n, min_periods=n).sum()
-    return (change / path.replace(0, np.nan)).clip(0, 1)
+    direction = (df["close"] - df["close"].shift(n)).abs()
+    volatility = df["close"].diff().abs().rolling(n, min_periods=n).sum()
+    return direction / volatility.replace(0, np.nan)
 
 
 def adx(df, n):
@@ -134,15 +317,15 @@ def adx(df, n):
 # ─── Dao động / bắt hồi ──────────────────────────────────────────────────────
 
 def rsi(df, n):
-    """Wilder RSI (0..100)."""
+    """Wilder RSI (0..100): Vectorized chuẩn RMA TradingView ta.rsi."""
     n = int(n)
-    delta = df["close"].diff()
-    gain = _rma(delta.clip(lower=0), n)
-    loss = _rma((-delta).clip(lower=0), n)
-    rs = gain / loss.replace(0, np.nan)
-    out = 100 - 100 / (1 + rs)
-    out = out.where(loss != 0, np.where(gain > 0, 100.0, 50.0))  # không có nhịp giảm: 100; đứng yên: 50
-    return out.where(gain.notna())
+    diff = df["close"].diff()
+    gain = diff.clip(lower=0)
+    loss = (-diff).clip(lower=0)
+    avg_gain = _rma(gain, n)
+    avg_loss = _rma(loss, n)
+    rs = avg_gain / avg_loss.replace(0, np.nan)
+    return 100.0 - (100.0 / (1.0 + rs))
 
 
 def bbz(df, n):
@@ -153,27 +336,33 @@ def bbz(df, n):
     return (df["close"] - mid) / std.replace(0, np.nan)
 
 
-def bbm(df, n, k):
+def bbm(df, n, k=2.0):
+    """Bollinger Middle Band: SMA n nến."""
     return sma(df, n)
 
 
-def bbu(df, n, k):
+def bbu(df, n, k=2.0):
+    """Bollinger Upper Band: SMA n + k * std(ddof=0)."""
     n = int(n)
-    return sma(df, n) + float(k) * df["close"].rolling(n, min_periods=n).std(ddof=0)
+    std = df["close"].rolling(n, min_periods=n).std(ddof=0)
+    return sma(df, n) + float(k) * std
 
 
-def bbl(df, n, k):
+def bbl(df, n, k=2.0):
+    """Bollinger Lower Band: SMA n - k * std(ddof=0)."""
     n = int(n)
-    return sma(df, n) - float(k) * df["close"].rolling(n, min_periods=n).std(ddof=0)
+    std = df["close"].rolling(n, min_periods=n).std(ddof=0)
+    return sma(df, n) - float(k) * std
 
 
-def bbw(df, n, k):
-    """Độ rộng Bollinger (%) = (upper - lower) / mid * 100 — thấp = biến động nén."""
-    return (bbu(df, n, k) - bbl(df, n, k)) / sma(df, n) * 100.0
+def bbw(df, n, k=2.0):
+    """Độ rộng Bollinger (%) = (upper - lower) / mid * 100."""
+    mid = bbm(df, n, k)
+    return (bbu(df, n, k) - bbl(df, n, k)) / mid * 100.0
 
 
 def bbwp(df, n, k, m):
-    """Phân vị (0..100) của độ rộng Bollinger trong m nến gần nhất — thấp = đang nén (squeeze)."""
+    """Phân vị (0..100) của độ rộng Bollinger trong m nến gần nhất."""
     m = int(m)
     return bbw(df, n, k).rolling(m, min_periods=m).rank(pct=True) * 100.0
 
@@ -181,7 +370,10 @@ def bbwp(df, n, k, m):
 # ─── Biến động ───────────────────────────────────────────────────────────────
 
 def atr(df, n):
-    return _rma(_true_range(df), int(n))
+    """Average True Range: Vectorized Wilder RMA."""
+    n = int(n)
+    tr = _true_range(df)
+    return _rma(tr, n)
 
 
 def natr(df, n):
@@ -195,22 +387,25 @@ def rv(df, n):
     return np.log(df["close"]).diff().rolling(n, min_periods=n).std(ddof=0) * 100.0
 
 
-def kcm(df, n, k):
+def kcm(df, n, k=1.5):
+    """Keltner Channel Middle: EMA n nến."""
     return ema(df, n)
 
 
-def kcu(df, n, k):
+def kcu(df, n, k=1.5):
+    """Keltner Channel Upper: EMA n + k * ATR n."""
     return ema(df, n) + float(k) * atr(df, n)
 
 
-def kcl(df, n, k):
+def kcl(df, n, k=1.5):
+    """Keltner Channel Lower: EMA n - k * ATR n."""
     return ema(df, n) - float(k) * atr(df, n)
 
 
 # ─── Vùng giá / breakout ─────────────────────────────────────────────────────
 
 def dch(df, n):
-    """Đỉnh cao nhất của n nến TRƯỚC nến hiện tại (không gồm nến t) -> close > dch_n là breakout."""
+    """Đỉnh cao nhất của n nến TRƯỚC nến hiện tại."""
     n = int(n)
     return df["high"].shift(1).rolling(n, min_periods=n).max()
 

@@ -233,6 +233,11 @@ export const postUpdateUserAlphaStatus = (alphaId, status) =>
   request(`/api/studio/alphas/user/${enc(alphaId)}/status`, { method: 'POST', body: { status } })
     .then((r) => { invalidateResource('alphas'); return r })
 
+/** Xoá vĩnh viễn alpha người dùng. */
+export const deleteUserAlpha = (alphaId) =>
+  request(`/api/studio/alphas/user/${enc(alphaId)}`, { method: 'DELETE' })
+    .then((r) => { invalidateResource('alphas'); invalidateResource('meta'); return r })
+
 /** Mặc định form chạy từ kho dữ liệu OKX: { symbols, start, end, train_ratio, initial_capital }. */
 export const getRunDefaults = () => request('/api/studio/custom/defaults')
 
@@ -355,6 +360,9 @@ export const listLiveBots = (mode) => request(`/api/studio/live/bots${mode ? `?m
 /** Tổng hợp bot theo nhóm paper / live. */
 export const getLiveSummary = () => request('/api/studio/live/summary')
 
+/** Snapshot Master Portfolio (10,000 USDT Master Wallet, vốn phân bổ linh hoạt cho các bot). */
+export const getMasterPortfolio = () => request('/api/studio/portfolio/master')
+
 /** Chi tiết 1 bot live. */
 export const getLiveBotDetail = (botId) => request(`/api/studio/live/bot/${enc(botId)}`)
 
@@ -372,6 +380,12 @@ export const getLiveBotChart = (botId, frame, replay = false) => request(`/api/s
 
 /** Đối chiếu bot live với backtest replay. */
 export const getLiveBotCompare = (botId) => request(`/api/studio/live/bot/${enc(botId)}/compare`)
+
+/** Nhật ký hoạt động trực tiếp của bot (nautilus.log, events, signals). */
+export const getLiveBotLogs = (botId, lines = 150) => request(`/api/studio/live/bot/${enc(botId)}/logs?lines=${lines}`)
+
+/** Nhật ký tổng hợp từ toàn bộ bot đang chạy (portfolio live logs). */
+export const getLiveAggregateLogs = (lines = 300, mode = '') => request(`/api/studio/live/logs/aggregate?lines=${lines}${mode ? `&mode=${enc(mode)}` : ''}`)
 
 /** Chạy lại bot đã dừng (resume). */
 export const resumeLiveBot = (botId) => request(`/api/studio/live/bot/${enc(botId)}/resume`, { method: 'POST' })

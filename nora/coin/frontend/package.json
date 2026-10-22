@@ -1,0 +1,39 @@
+{
+  "name": "nora-backtest-ui",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:edu": "vite --config vite.edu.config.js",
+    "dev:coin": "vite --config vite.coin.config.js",
+    "build": "vite build",
+    "build:edu": "vite build --config vite.edu.config.js && cp dist-edu/index.edu.html dist-edu/index.html",
+    "build:coin": "vite build --config vite.coin.config.js && cp dist-coin/index.coin.html dist-coin/index.html",
+    "build:all": "npm run build:edu && npm run build:coin",
+    "preview": "vite preview",
+    "api:check": "node scripts/checkApi.mjs"
+  },
+  "dependencies": {
+    "@codemirror/autocomplete": "^6.20.3",
+    "@codemirror/commands": "^6.11.1",
+    "@codemirror/lang-python": "^6.2.1",
+    "@codemirror/language": "^6.13.1",
+    "@codemirror/lint": "^6.9.7",
+    "@codemirror/search": "^6.7.2",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.14",
+    "@lezer/highlight": "^1.2.5",
+    "katex": "^0.19.0",
+    "lightweight-charts": "4.2.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.2"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "vite": "^5.4.8"
+  },
+  "allowScripts": {
+    "esbuild@0.21.5": true
+  }
+}

@@ -1,0 +1,21 @@
+[Unit]
+Description=Nora EDU API (uvicorn 127.0.0.1:18022)
+After=network.target
+
+[Service]
+Slice=nora.slice
+WorkingDirectory=/home/vmc03/norabt/nora/edu
+EnvironmentFile=-%h/.config/nora/app.env
+EnvironmentFile=-%h/.config/nora/llm.env
+Environment=PYTHONPATH=/home/vmc03/norabt/nora/edu PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NORA_CANDLE_CACHE_MB=256 NORA_DATA_CACHE_MB=256 NORA_DATA_ROOT=/home/vmc03/norabt/nora/edu/data
+ExecStart=/home/vmc03/.venvs/nora312/bin/python -m uvicorn backend.main:app --host 127.0.0.1 --port 18022
+Nice=5
+MemoryMax=2G
+MemoryHigh=1500M
+MemorySwapMax=0
+Restart=on-failure
+RestartSec=5
+KillMode=process
+
+[Install]
+WantedBy=default.target

@@ -49,6 +49,17 @@ export default function Home() {
   const [currentSlide, setCurrentSlide] = useState(0)
 
   const enterSystem = (targetPath) => {
+    if (typeof window !== 'undefined') {
+      const host = window.location.hostname
+      if (targetPath.startsWith('/coin') && host.includes('edu.nora.')) {
+        window.location.href = window.location.origin.replace('edu.nora.', 'coin.nora.') + targetPath
+        return
+      }
+      if (targetPath.startsWith('/edu') && host.includes('coin.nora.')) {
+        window.location.href = window.location.origin.replace('coin.nora.', 'edu.nora.') + targetPath
+        return
+      }
+    }
     if (me) {
       navigate(targetPath)
     } else {

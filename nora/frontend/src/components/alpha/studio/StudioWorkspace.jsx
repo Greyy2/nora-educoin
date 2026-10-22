@@ -294,13 +294,21 @@ export default function StudioWorkspace({ mode = 'create' }) {
     return !configChanged && !codeChanged
   })
 
-  const canSave = !!jobResult && draft.runCode === draft.code && changed && !isDup && !busy
-  const saveWhy = !draft.jobId ? 'Chạy backtest cho code hiện tại trước khi lưu'
-    : !jobResult ? 'Chờ lần chạy hoàn tất'
+  const canSave = educ
+    ? (draft.code.trim().length > 0 && changed && !isDup && !busy)
+    : (!!jobResult && draft.runCode === draft.code && changed && !isDup && !busy)
+
+  const saveWhy = educ
+    ? (!draft.code.trim() ? 'Nhập mã chiến lược trước khi lưu'
+      : !changed ? 'Chưa sửa so với bản đã lưu'
+      : isDup ? 'Đã lưu chiến lược có cùng code này'
+      : 'Lưu chiến lược vào danh mục của bạn')
+    : (!draft.jobId ? 'Chạy backtest cho code hiện tại trước khi lưu'
+      : !jobResult ? 'Chờ lần chạy hoàn tất'
       : draft.runCode !== draft.code ? 'Chạy lại sau khi sửa'
-        : !changed ? (draft.sampleKey ? 'Mẫu chưa thay đổi: sửa code hoặc tham số rồi chạy lại' : 'Chưa sửa so với bản đã lưu: sửa code hoặc tham số rồi chạy lại')
-          : isDup ? 'Đã lưu chiến lược có cùng code và tham số này'
-            : 'Lưu chiến lược (code + cấu hình + kết quả đầy đủ)'
+      : !changed ? (draft.sampleKey ? 'Mẫu chưa thay đổi: sửa code hoặc tham số rồi chạy lại' : 'Chưa sửa so với bản đã lưu: sửa code hoặc tham số rồi chạy lại')
+      : isDup ? 'Đã lưu chiến lược có cùng code và tham số này'
+      : 'Lưu chiến lược (code + cấu hình + kết quả đầy đủ)')
 
   function markSaved(res, name) {
     const savedName = name || draft.name
@@ -561,15 +569,54 @@ export default function StudioWorkspace({ mode = 'create' }) {
   const tm = compiled?.meta?.timeframe
   const uniText = `${form.symbols.length} tài sản`
   const issue = compiled && !stale && !compiled.ok
+  const allStrategies = useMemo(() => {
+    const list = []
+    sampleList.forEach((s) => {
+      const b = s.backtest?.out_of_sample || s.summary || s.result?.metrics?.simulate || s.metrics || {}
+      list.push({
+        id: s.key || s.name,
+        name: s.name,
+        code: s.code,
+        result: s.result,
+        metrics: { simulate: b },
+        isSample: true,
+        tag: 'Mẫu hệ thống',
+        raw: s,
+      })
+    })
+    savedItems.forEach((u) => {
+      list.push({
+        id: u.id,
+        name: u.name || u.id,
+        code: u.code,
+        result: u.result,
+        metrics: u.metrics || u.result?.metrics,
+        checklist: u.checklist,
+        version: u.version,
+        updated_at: u.updated_at,
+        isSample: false,
+        tag: 'Đã lưu',
+        raw: u,
+      })
+    })
+    return list
+  }, [sampleList, savedItems])
+
   const TABS = useMemo(() => {
+    if (!educ) {
+      return [
+        ['alphas', `Chiến lược (${allStrategies.length})`],
+        ['results', 'Kết quả'],
+      ]
+    }
     const tabs = []
     if (sampleList.length > 0) {
-      tabs.push(['samples', educ ? 'Mẫu hướng dẫn' : 'Chiến lược mẫu'])
+      tabs.push(['samples', 'Mẫu hướng dẫn'])
     }
     tabs.push(['alphas', `Chiến lược (${savedItems.length})`])
     tabs.push(['results', 'Kết quả'])
     return tabs
-  }, [educ, sampleList.length, savedItems.length])
+  }, [educ, allStrategies.length, sampleList.length, savedItems.length])
 
   async function useSample(s) {
     // 1. Mẫu đã mở ở một tab -> chọn tab đó (khoá trước, dự phòng theo tên)
@@ -617,8 +664,23 @@ export default function StudioWorkspace({ mode = 'create' }) {
       <div className="se-ws" style={{ display: 'block', padding: '16px 20px', overflowY: 'auto', height: '100%' }}>
         <div style={{ marginBottom: 14, display: 'flex' }}><ModeSwitch value="prompt" onChange={setStudioMode} /></div>
         <PromptResearchView
-          onOpenCode={(code) => {
-            patchDraft({ code })
+          onOpenCode={(data) => {
+            if (typeof data === 'string') {
+              patchDraft({ code: data })
+            } else if (data && typeof data === 'object') {
+              const { code, name, symbol, timeframe } = data
+              patchDraft({
+                code: code || '',
+                name: name || draft.name,
+              })
+              if (symbol || timeframe) {
+                setForm((prev) => ({
+                  ...prev,
+                  ...(symbol ? { symbols: [symbol.replace('-', '/')] } : {}),
+                  ...(timeframe ? { timeframe } : {}),
+                }))
+              }
+            }
             setStudioMode('code')
           }}
           onSaved={() => saved.refetch?.()}
@@ -798,18 +860,18 @@ export default function StudioWorkspace({ mode = 'create' }) {
             <div className="se-samples">
               <div className="se-cards-hdr" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                 <h3 className="se-h3" style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>
-                  Chiến lược đã lưu ({savedItems.length})
+                  {!educ ? `Chiến lược (${allStrategies.length})` : `Chiến lược đã lưu (${savedItems.length})`}
                 </h3>
                 {saved?.loading && <span className="muted" style={{ fontSize: 12 }}><Spinner /> Đang tải...</span>}
               </div>
               <div className="se-cards">
-                {savedItems.length === 0 && (
-                  <Empty title="Chưa có chiến lược đã lưu">
-                    Bạn chưa lưu chiến lược nào của riêng mình. Sau khi chạy thử nghiệm đạt yêu cầu, hãy bấm “Lưu chiến lược” để đưa vào danh sách này.
+                {(!educ ? allStrategies : savedItems).length === 0 && (
+                  <Empty title="Chưa có chiến lược">
+                    Chưa có chiến lược nào trong danh mục.
                   </Empty>
                 )}
-                {savedItems.map((item) => {
-                  const isActive = draft.saved?.alpha_id === item.id || draft.alphaId === item.id
+                {(!educ ? allStrategies : savedItems).map((item) => {
+                  const isActive = draft.saved?.alpha_id === item.id || draft.alphaId === item.id || draft.sampleKey === item.id
                   const isOpening = openingId === item.id
                   const sim = item.metrics?.simulate || item.result?.metrics?.simulate || null
                   const retPct = sim ? (sim.ret_pct ?? sim.return_pct) : null
@@ -829,23 +891,36 @@ export default function StudioWorkspace({ mode = 'create' }) {
                     (checklistItems && checklistItems.length > 0 && checklistItems.every((c) => c.ok || c.state === 'pass' || c.passed === true))
                   )
 
+                  const handleItemClick = () => {
+                    if (item.isSample) {
+                      useSample(item.raw)
+                    } else {
+                      openSaved(item.id)
+                    }
+                  }
+
                   return (
                     <div
                       key={item.id}
                       className={`n-card-sel se-sample-card ${isActive ? 'on' : ''}`}
                       role="button"
                       tabIndex={0}
-                      onClick={() => openSaved(item.id)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') openSaved(item.id) }}
+                      onClick={handleItemClick}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleItemClick() }}
                       style={{ cursor: 'pointer', padding: '12px 14px', marginBottom: 10 }}
                     >
                       <div className="se-card-h" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                         <b className="se-card-title" style={{ fontSize: 14 }}>{item.name || item.id}</b>
-                        {passAnalyst && (
-                          <span style={{ fontSize: 10.5, padding: '2px 6px', borderRadius: 4, background: 'rgba(16, 185, 129, 0.15)', color: 'var(--n-pos, #10b981)', fontWeight: 600 }}>
-                            Đạt Analyst ✓
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                          <span className="n-badge" style={{ fontSize: 10 }}>
+                            {item.tag || (item.isSample ? 'Mẫu hệ thống' : 'Đã lưu')}
                           </span>
-                        )}
+                          {passAnalyst && (
+                            <span style={{ fontSize: 10.5, padding: '2px 6px', borderRadius: 4, background: 'rgba(16, 185, 129, 0.15)', color: 'var(--n-pos, #10b981)', fontWeight: 600 }}>
+                              Đạt Analyst ✓
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       {sim ? (
@@ -880,7 +955,7 @@ export default function StudioWorkspace({ mode = 'create' }) {
                       )}
 
                       <div style={{ marginTop: 8, fontSize: 11, color: 'var(--n-ink-2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span>Phiên bản: v{item.version || 1}</span>
+                        <span>{item.isSample ? 'Mẫu chuẩn hệ thống' : `Phiên bản: v${item.version || 1}`}</span>
                         <span>{item.updated_at ? String(item.updated_at).slice(0, 10) : ''}</span>
                       </div>
                       {isOpening && <Spinner />}

@@ -1141,7 +1141,7 @@ class LiveSignals(SignalProvider):
                         return sub.reset_index(drop=True)
             except Exception:
                 pass
-        base_coin = self.symbol.split("-")[0]
+        base_coin = self.symbol.split("@")[0].split("-")[0].split("/")[0].upper()
         with requests.Session() as s:
             return crawl.fetch_rest_candles(s, base_coin, start_ms, end_ms)
 
@@ -1362,4 +1362,285 @@ RISK_PARAM_MAP = {
     "risk_pct": "risk_per_trade_pct",
     "risk_per_trade": "risk_per_trade_pct",
 }
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Proxima Alpha Signal & Decision Engine (Bộ Não Tín Hiệu & Quyết Định Chiến Lược)
+# ══════════════════════════════════════════════════════════════════════════
+
+from dataclasses import dataclass, field
+
+
+@dataclass(frozen=True)
+class SignalDecision:
+    """Quyết định chiến lược phát ra từ signal.py gửi sang execution.py."""
+    signal: str                             # "LONG", "SHORT", "FLAT"
+    intent: str                             # "ENTRY", "CENTER_EXIT", "OPPOSITE_BAND", "PARTIAL_TP", "HOLD"
+    side: str                               # "BUY", "SELL", "HOLD"
+    signal_price: float                     # Giá nến 1m hiện tại
+    sl_reference: Optional[float] = None    # Mức giá Stop Loss đề xuất theo logic chiến lược
+    tp_reference: Optional[float] = None    # Mức giá Take Profit đề xuất theo logic chiến lược
+    exit_reason: str = "none"               # "none", "center_exit", "opposite_band", "partial_tp"
+    atr: float = 0.0                        # ATR(14) nến 1h
+    k_delta: float = 0.0                    # F * ATR
+    z_score: float = 0.0                    # Độ lệch cực trị trên (High - Upper) / K_delta
+    w_score: float = 0.0                    # Độ lệch cực trị dưới (Lower - Low) / K_delta
+    regime_context: Dict[str, Any] = field(default_factory=dict)
+
+
+class ProximaSignalEngine:
+    """Bộ tính toán chỉ báo và sinh quyết định tín hiệu Alpha Proxima (Anchor 1h, Execution 1m)."""
+
+    def __init__(
+        self,
+        ema_k: int = 20,
+        atr_period: int = 14,
+        f_multiplier: float = 1.0,
+        tp_mult: float = 0.8,
+        warmup_required: Optional[int] = None,
+    ):
+        self.ema_k = ema_k
+        self.atr_period = atr_period
+        self.f_multiplier = f_multiplier
+        self.tp_mult = tp_mult
+        self.warmup_required = warmup_required if warmup_required is not None else max(ema_k, atr_period)
+
+        self._ema_val: Optional[float] = None
+        self._atr_val: Optional[float] = None
+        self._last_processed_fingerprint: Optional[Tuple[Any, ...]] = None
+        self.locked_reentry: bool = False
+
+    @property
+    def is_warmed_up(self) -> bool:
+        return self._ema_val is not None and self._atr_val is not None
+
+    def update_anchor_indicators(self, closed_1h_bars: List[Dict[str, float]]) -> None:
+        """Cập nhật EMA(20) và ATR(14) chỉ từ các nến 1h đã đóng hoàn toàn và đủ warmup.
+        
+        Hỗ trợ tự động tính lại chỉ báo khi có nến đến muộn (Late Bar) làm cập nhật lại Anchor Bar cũ.
+        """
+        if not closed_1h_bars or len(closed_1h_bars) < self.warmup_required:
+            self._ema_val = None
+            self._atr_val = None
+            return
+
+        # Dấu vân tay kiểm tra thay đổi dữ liệu (kể cả khi nến cũ được recompute)
+        fingerprint = (
+            len(closed_1h_bars),
+            closed_1h_bars[-1]["timestamp"],
+            closed_1h_bars[-1]["high"],
+            closed_1h_bars[-1]["low"],
+            closed_1h_bars[-1]["close"],
+        )
+        if fingerprint == self._last_processed_fingerprint:
+            return
+
+        # Tính toán chuỗi EMA trên toàn bộ lịch sử nến 1h đã đóng
+        alpha_ema = 2.0 / (self.ema_k + 1.0)
+        ema = closed_1h_bars[0]["close"]
+        for b in closed_1h_bars[1:]:
+            ema = (b["close"] * alpha_ema) + (ema * (1.0 - alpha_ema))
+        self._ema_val = ema
+
+        # ATR(14) chuẩn theo Wilder (chỉ xác nhận khi đủ atr_period True Range)
+        trs = []
+        for idx, b in enumerate(closed_1h_bars):
+            if idx == 0:
+                trs.append(b["high"] - b["low"])
+            else:
+                prev_c = closed_1h_bars[idx - 1]["close"]
+                trs.append(max(b["high"] - b["low"], abs(b["high"] - prev_c), abs(b["low"] - prev_c)))
+
+        if len(trs) >= self.atr_period:
+            atr = sum(trs[:self.atr_period]) / self.atr_period
+            for tr in trs[self.atr_period:]:
+                atr = (atr * (self.atr_period - 1) + tr) / self.atr_period
+            self._atr_val = atr
+        else:
+            self._atr_val = None  # Chưa đủ 14 True Range -> không phát tín hiệu giả định
+            return
+
+        self._last_processed_fingerprint = fingerprint
+
+    def detect_regime(self, current_1m_close: float) -> Dict[str, Any]:
+        """Phân loại bối cảnh thị trường nhẹ nhàng để tham khảo."""
+        if not self._ema_val or not self._atr_val or self._atr_val <= 0:
+            return {"regime": "RANGE", "strength": 0.0}
+
+        dist_from_ema = (current_1m_close - self._ema_val) / self._atr_val
+        atr_pct = (self._atr_val / self._ema_val) * 100.0
+
+        if atr_pct > 2.0:
+            regime = "VOL_EXPANSION"
+        elif dist_from_ema > 0.8:
+            regime = "TREND_UP"
+        elif dist_from_ema < -0.8:
+            regime = "TREND_DOWN"
+        else:
+            regime = "RANGE"
+
+        return {
+            "regime": regime,
+            "dist_from_ema_atr": round(dist_from_ema, 3),
+            "atr_pct": round(atr_pct, 3),
+        }
+
+    def evaluate(
+        self,
+        bar_1m: Dict[str, float],
+        position_context: Optional[Dict[str, Any]] = None,
+    ) -> SignalDecision:
+        """Đánh giá tín hiệu và quyết định hành động (Entry, Center Exit, Opposite Band, Partial TP).
+        
+        Quy tắc Cách A (Đặc tả Proxima Reference gốc):
+        - Upper = EMA + F * ATR
+        - Lower = EMA - F * ATR
+        - K_delta = 2 * F * ATR (độ rộng toàn dải Upper - Lower)
+        - z = (High_1m - Upper) / K_delta
+        - w = (Lower - Low_1m) / K_delta
+        - LONG khi z > F (High_1m > EMA + (1 + 2F) * F * ATR = EMA + 3 * ATR với F=1)
+        - SHORT khi w > F (Low_1m < EMA - 3 * ATR với F=1)
+        """
+        px = bar_1m["close"]
+        high_1m = bar_1m["high"]
+        low_1m = bar_1m["low"]
+
+        if not self.is_warmed_up or self._ema_val is None or self._atr_val is None:
+            return SignalDecision(
+                signal="FLAT", intent="HOLD", side="HOLD", signal_price=px,
+            )
+
+        ema: float = self._ema_val
+        atr: float = self._atr_val
+        # Định nghĩa Cách A: Upper/Lower dùng F * ATR, K_delta = 2 * F * ATR
+        k_half: float = self.f_multiplier * atr
+        k_delta: float = 2.0 * k_half
+        upper_band: float = ema + k_half
+        lower_band: float = ema - k_half
+
+        z_score = (high_1m - upper_band) / k_delta if k_delta > 1e-8 else 0.0
+        w_score = (lower_band - low_1m) / k_delta if k_delta > 1e-8 else 0.0
+        regime_ctx = self.detect_regime(px)
+
+        pos_ctx = position_context or {}
+        qty_contracts = float(pos_ctx.get("qty_contracts", 0.0))
+        entry_price = float(pos_ctx.get("entry_price", 0.0))
+        already_partial_tp = bool(pos_ctx.get("already_partial_tp", False))
+
+        # ─── 1. KHI ĐANG CÓ VỊ THẾ -> XÉT CÁC ĐIỀU KIỆN THOÁT LỆNH ──────
+        if abs(qty_contracts) > 1e-9 and entry_price > 0:
+            is_long = qty_contracts > 0
+
+            # Bước 1.1: Opposite Band (Giá xuyên thủng biên đối diện - Intrabar)
+            opposite_hit = (is_long and low_1m <= lower_band) or (not is_long and high_1m >= upper_band)
+            if opposite_hit:
+                return SignalDecision(
+                    signal="FLAT",
+                    intent="OPPOSITE_BAND",
+                    side="SELL" if is_long else "BUY",
+                    signal_price=lower_band if is_long else upper_band,
+                    exit_reason="opposite_band",
+                    atr=atr,
+                    k_delta=k_delta,
+                    z_score=z_score,
+                    w_score=w_score,
+                    regime_context=regime_ctx,
+                )
+
+            # Bước 1.2: Center Exit (Giá đóng nến 1m quay về chạm EMA_K)
+            center_hit = (is_long and px <= ema) or (not is_long and px >= ema)
+            if center_hit:
+                self.locked_reentry = True
+                return SignalDecision(
+                    signal="FLAT",
+                    intent="CENTER_EXIT",
+                    side="SELL" if is_long else "BUY",
+                    signal_price=ema,
+                    exit_reason="center_exit",
+                    atr=atr,
+                    k_delta=k_delta,
+                    z_score=z_score,
+                    w_score=w_score,
+                    regime_context=regime_ctx,
+                )
+
+            # Bước 1.3: Partial TP (Đạt mục tiêu 5% * TP)
+            best_px = high_1m if is_long else low_1m
+            ret = (best_px - entry_price) / entry_price if is_long else (entry_price - best_px) / entry_price
+            target_tp = 0.05 * self.tp_mult
+
+            if not already_partial_tp and ret >= target_tp:
+                tp_ref_price = entry_price * (1.0 + target_tp) if is_long else entry_price * (1.0 - target_tp)
+                return SignalDecision(
+                    signal="FLAT",
+                    intent="PARTIAL_TP",
+                    side="SELL" if is_long else "BUY",
+                    signal_price=tp_ref_price,
+                    exit_reason="partial_tp",
+                    atr=atr,
+                    k_delta=k_delta,
+                    z_score=z_score,
+                    w_score=w_score,
+                    regime_context=regime_ctx,
+                )
+
+            return SignalDecision(
+                signal="FLAT", intent="HOLD", side="HOLD", signal_price=px,
+                atr=atr, k_delta=k_delta, z_score=z_score, w_score=w_score,
+                regime_context=regime_ctx,
+            )
+
+        # ─── 2. KHI ĐANG FLAT -> XÉT MỞ VỊ THẾ MỚI (BREAKOUT CHUẨN PROXIMA) ──────────
+        # Mở khóa re-entry khi giá đi hẳn ra ngoài dải
+        if self.locked_reentry:
+            if px >= upper_band or px <= lower_band:
+                self.locked_reentry = False
+
+        if not self.locked_reentry:
+            # Chuẩn Proxima Reference: z > F (với F = f_multiplier)
+            if z_score > self.f_multiplier and high_1m > upper_band:
+                tp_pct = 0.05 * self.tp_mult
+                sl_ref = px - (1.5 * atr)
+                tp_ref = px * (1.0 + tp_pct)
+                return SignalDecision(
+                    signal="LONG",
+                    intent="ENTRY",
+                    side="BUY",
+                    signal_price=px,
+                    sl_reference=sl_ref,
+                    tp_reference=tp_ref,
+                    exit_reason="none",
+                    atr=atr,
+                    k_delta=k_delta,
+                    z_score=z_score,
+                    w_score=w_score,
+                    regime_context=regime_ctx,
+                )
+            # Chuẩn Proxima Reference: w > F (với F = f_multiplier)
+            elif w_score > self.f_multiplier and low_1m < lower_band:
+                tp_pct = 0.05 * self.tp_mult
+                sl_ref = px + (1.5 * atr)
+                tp_ref = px * (1.0 - tp_pct)
+                return SignalDecision(
+                    signal="SHORT",
+                    intent="ENTRY",
+                    side="SELL",
+                    signal_price=px,
+                    sl_reference=sl_ref,
+                    tp_reference=tp_ref,
+                    exit_reason="none",
+                    atr=atr,
+                    k_delta=k_delta,
+                    z_score=z_score,
+                    w_score=w_score,
+                    regime_context=regime_ctx,
+                )
+
+        return SignalDecision(
+            signal="FLAT", intent="HOLD", side="HOLD", signal_price=px,
+            atr=atr, k_delta=k_delta, z_score=z_score, w_score=w_score,
+            regime_context=regime_ctx,
+        )
+
+
 

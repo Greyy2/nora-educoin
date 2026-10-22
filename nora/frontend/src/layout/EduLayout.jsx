@@ -76,12 +76,16 @@ export default function EduLayout({ children }) {
           <span className="n-rl">Trang chủ</span>
         </Link>
 
-        <Link to="/coin" className="n-rail-btn" title="Chuyển sang Nora Coin">
+        <a
+          href={typeof window !== 'undefined' && window.location.hostname.includes('edu.nora.') ? window.location.origin.replace('edu.nora.', 'coin.nora.') + '/coin' : '/coin'}
+          className="n-rail-btn"
+          title="Chuyển sang Nora Coin"
+        >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{ width: 18, height: 18 }}>
             <path d="M20 12a8 8 0 1 1-3-6.2" /><circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none" />
           </svg>
           <span className="n-rl">Coin</span>
-        </Link>
+        </a>
       </nav>
 
       <div className="n-main">

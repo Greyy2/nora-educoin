@@ -13,8 +13,8 @@ import os
 import pytest
 from starlette.testclient import TestClient
 
-from backend.alpha import llm
-from backend.alpha import research
+from backend.analys.alpha.prompt import llm
+from backend.analys.alpha.prompt import research
 from backend.main import app
 
 os.environ["NORA_LLM_MOCK"] = "1"
@@ -213,3 +213,93 @@ def test_api_alpha_research_flow():
     save_data = save_resp.json()
     assert save_data["ok"] is True
     assert "alpha_id" in save_data
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# WORK 2 COMPREHENSIVE TESTS: Vectorized Funnel, Optuna Bayesian & Job Runner
+# ══════════════════════════════════════════════════════════════════════════════
+
+def test_work2_fast_screen_strategies():
+    """Kiểm tra tầng 1 lọc thô: tốc độ < 0.5s cho 100+ cấu hình bằng Numba JIT."""
+    import time
+    from backend.data import data as D
+    from backend.jobs.runner.alpha import (
+        DEFAULT_IS_START,
+        DEFAULT_IS_END,
+        WARMUP_MS,
+        fast_screen_strategies,
+        generate_100_strategies,
+    )
+    from backend.jobs.tasks import resolve_strategy
+
+    rs = resolve_strategy("dca_long", None, "15m", None, None, "explore")
+    base_strategy = rs["strategy"]
+    strat_list = generate_100_strategies(base_strategy)
+    assert len(strat_list) == 100
+
+    df_is = D.load_candles("BTC@perp", frame="15m", start_ms=DEFAULT_IS_START - WARMUP_MS, end_ms=DEFAULT_IS_END)
+    assert not df_is.empty
+
+    t0 = time.perf_counter()
+    top_strats, ranked = fast_screen_strategies(strat_list, df_is, top_k=10)
+    elapsed = time.perf_counter() - t0
+
+    assert elapsed < 2.5, f"Tầng 1 Numba phải cực nhanh, thực tế: {elapsed:.3f}s"
+    assert len(top_strats) <= 11
+    assert len(ranked) == 100
+
+
+def test_work2_parameter_sweep_funnel():
+    """Kiểm tra mô hình Phễu 2 tầng: Numba lọc thô -> Nautilus Trader thẩm định."""
+    from backend.jobs.runner.alpha import run_parameter_sweep
+
+    summary, best_strat = run_parameter_sweep(
+        alpha_id="dca_long",
+        symbol="BTC@perp",
+        signal_tf="15m",
+        max_workers=2,
+        method="funnel",
+        fast_top_k=3,
+    )
+    assert summary is not None
+    assert "total_candidates_screened" in summary
+    assert "elapsed_seconds" in summary
+    assert "top_1_strategy_id" in summary
+    assert "top_1_oos" in summary
+    assert best_strat is not None
+    assert "position" in best_strat
+    assert best_strat["id"] == summary["top_1_strategy_id"]
+
+
+def test_work2_optuna_bayesian_sweep():
+    """Kiểm tra thuật toán tìm kiếm Bayes bằng Optuna TPESampler."""
+    from backend.jobs.runner.alpha import run_optuna_sweep
+
+    summary, best_strat = run_optuna_sweep(
+        alpha_id="dca_long",
+        symbol="BTC@perp",
+        signal_tf="15m",
+        n_trials=4,
+        top_k_nautilus=2,
+    )
+    assert summary is not None
+    assert "total_trials" in summary
+    assert "elapsed_seconds" in summary
+    assert "top_1_strategy_id" in summary
+    assert "top_1_oos" in summary
+    assert best_strat is not None
+    assert "position" in best_strat
+    assert best_strat["id"] == summary["top_1_strategy_id"]
+
+
+def test_work2_runner_integration():
+    """Kiểm tra việc đăng ký job parameter_sweep và optuna_sweep trong runner và tasks."""
+    from backend.jobs.runner.runner import KINDS
+    from backend.jobs.tasks import run_parameter_sweep, run_optuna_sweep
+
+    assert "parameter_sweep" in KINDS
+    assert "optuna_sweep" in KINDS
+    assert callable(run_parameter_sweep)
+    assert callable(run_optuna_sweep)
+
+

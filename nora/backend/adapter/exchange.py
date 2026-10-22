@@ -1375,18 +1375,41 @@ def close_own_via_rest(b_dir: str, meta: Dict[str, Any], mode: str) -> List[Dict
     return sent
 
 
-def delete_bot(bot_id: str, mode: Optional[str] = None) -> Dict[str, Any]:
-    """Xoá thư mục data/live/<mode>/<bot_id>/ (kể cả bot cũ đã lưu trữ). Bot đang hoạt động (kể cả đang chạy lại) -> {"ok": False, "running": True}; không thấy -> {"ok": False}."""
+def delete_bot(bot_id: str, mode: Optional[str] = None, force: bool = False) -> Dict[str, Any]:
+    """Xoá thư mục data/live/<mode>/<bot_id>/ (kể cả bot cũ đã lưu trữ).
+    Chỉ chặn khi tiến trình còn sống VÀ chưa có cờ dừng VÀ force=False.
+    Nếu bot đã dừng hoặc tiến trình đã chết -> dọn dẹp và xoá thư mục ngay."""
     import shutil
+    import signal
     if not bot_id or bot_id != os.path.basename(bot_id) or bot_id.startswith("."):
         return {"ok": False, "message": "bot_id không hợp lệ"}
     for m in ((mode,) if mode in MODES else MODES):
         b_dir = os.path.join(data_home(), "live", m, bot_id)
         if os.path.isdir(b_dir):
-            meta = _read_json(os.path.join(b_dir, "bot.json"))
-            if meta and bot_status(meta, b_dir) in ACTIVE_STATES:
+            meta = _read_json(os.path.join(b_dir, "bot.json")) or {}
+            alive = bot_alive(meta)
+            has_stop = stop_flag(b_dir) is not None
+
+            # Chỉ chặn khi bot thực sự đang chạy (tiến trình còn sống VÀ chưa từng dừng VÀ không force)
+            if alive and not has_stop and not force:
                 return {"ok": False, "running": True, "message": "Dừng bot trước khi xoá"}
-            shutil.rmtree(b_dir)
+
+            # Dọn dẹp tiến trình nếu còn sống
+            if alive:
+                pid = meta.get("pid")
+                if pid:
+                    try:
+                        os.kill(int(pid), signal.SIGTERM)
+                        time.sleep(0.1)
+                        if pid_alive(pid, meta.get("pid_start")):
+                            os.kill(int(pid), signal.SIGKILL)
+                    except OSError:
+                        pass
+
+            try:
+                shutil.rmtree(b_dir)
+            except OSError as exc:
+                return {"ok": False, "message": f"Không thể xoá thư mục bot: {exc}"}
             return {"ok": True, "bot_id": bot_id, "mode": m, "deleted": True}
     return {"ok": False, "message": f"Không tìm thấy bot {bot_id}"}
 
@@ -1536,4 +1559,44 @@ def archived_bots_index() -> list:
         out.append({"symbols": t["symbols"] or sorted((_read_json(os.path.join(d, "state.json")).get("positions") or {}).keys()), "mode": mode, "tab": {"paper": "paper", "demo": "testnet", "live": "live"}[mode], "book": book, "engine": eng or "legacy", "dir": os.path.relpath(d, data_home()),
                     "started": t["started"], "ended": t["ended"], "equity": t["equity"], "start_equity": t["equity_stats"]["start"], "mdd_pct": t["equity_stats"]["mdd_pct"],
                     "pnl_pct": t["equity_stats"].get("pnl_pct"), "trades": len(t["exec"]["trades"] or t["paper"]["trades"]), "halted": t["halted"], "status": "archived"})
+
+    # Bổ sung các bot Nautilus (paper/testnet/live) trên đĩa data/live/<mode>/<bot_id>
+    bots_dir = os.path.join(data_home(), "live")
+    for m in ("testnet", "live", "paper"):
+        m_dir = os.path.join(bots_dir, m)
+        if not os.path.isdir(m_dir):
+            continue
+        for b_name in sorted(os.listdir(m_dir)):
+            b_path = os.path.join(m_dir, b_name)
+            meta = _read_json(os.path.join(b_path, "bot.json"))
+            if not meta:
+                continue
+            snap = led.snapshot(b_path, meta)
+            # Đếm số lệnh fill từ events.jsonl
+            evs = _read_events(os.path.join(b_path, "events.jsonl"))
+            n_trades = sum(1 for e in evs if e.get("type") == "fill" and e.get("kind") in ("TP", "SL", "TRAIL", "TIMEOUT", "SIGNAL"))
+            if n_trades == 0:
+                n_trades = sum(1 for e in evs if e.get("type") == "fill")
+            st_ms = meta.get("started_at")
+            en_ms = meta.get("stopped_at") or (evs[-1].get("t") if evs else None)
+            strat = meta.get("strategy") or (", ".join(meta.get("strategies") or [])) or "dca_long"
+            out.append({
+                "bot_id": meta.get("bot_id", b_name),
+                "name": f"{m.upper()} · {strat} ({b_name[:18]})",
+                "symbols": meta.get("symbols") or [],
+                "mode": m,
+                "tab": "testnet" if m in ("testnet", "paper") else "live",
+                "book": strat,
+                "engine": "nautilus",
+                "dir": os.path.relpath(b_path, data_home()),
+                "started": st_ms,
+                "ended": en_ms,
+                "equity": round(snap.get("equity") or meta.get("capital") or 1000, 4),
+                "start_equity": meta.get("capital") or 1000,
+                "mdd_pct": _mdd_pct([snap.get("capital", 1000)] + [r["equity"] for r in snap.get("series", [])]),
+                "pnl_pct": round(snap.get("pnl_pct") or 0, 4),
+                "trades": n_trades,
+                "halted": False,
+                "status": "archived" if bot_status(meta, b_path) == "stopped" else "running",
+            })
     return out

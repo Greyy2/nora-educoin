@@ -5,8 +5,7 @@ import { PageHead, Panel, Loading, ErrorState, Empty, Segmented } from '../compo
 import MathBlock from '../components/ui/MathBlock'
 import useAsync, { useResource } from '../hooks/useAsync'
 import SystemStrategyEditor from '../components/alpha/studio/SystemStrategyEditor'
-import UserAlphaVersionHistory from '../components/alpha/studio/UserAlphaVersionHistory'
-import { getAlphaCatalog, getTopAgents, postArchiveUserAlpha, postUpdateUserAlphaStatus } from '../api'
+import { getAlphaCatalog, getTopAgents, postArchiveUserAlpha, postUpdateUserAlphaStatus, deleteUserAlpha } from '../api'
 import { fmtNum, fmtPct, fmtSPct, signClass, isNum } from '../lib/format'
 import useResizableDrawer from '../hooks/useResizableDrawer'
 import '../styles/alpha.css'
@@ -178,6 +177,20 @@ function StrategyDoc({ s, onClose, onReload }) {
     }
   }
 
+  const handleDelete = async () => {
+    if (!window.confirm(`Bạn có chắc chắn muốn xoá vĩnh viễn chiến lược "${s.name}"? Dữ liệu và các phiên bản sẽ bị xoá hoàn toàn khỏi hệ thống.`)) return
+    setActing(true)
+    try {
+      await deleteUserAlpha(s.alpha_id)
+      onClose()
+      if (onReload) onReload()
+    } catch (e) {
+      alert(e.message || 'Lỗi xoá Alpha')
+    } finally {
+      setActing(false)
+    }
+  }
+
   const handleToggleCandidate = async () => {
     const current = s.stats?.[0]?.stage || 'SAVED'
     const next = current === 'CANDIDATE' ? 'SAVED' : 'CANDIDATE'
@@ -240,6 +253,9 @@ function StrategyDoc({ s, onClose, onReload }) {
                   <button type="button" className="n-btn sm" style={{ color: 'var(--n-neg)' }} onClick={handleArchive} disabled={acting}>
                     Lưu trữ (Archive)
                   </button>
+                  <button type="button" className="n-btn sm danger" onClick={handleDelete} disabled={acting} title="Xoá vĩnh viễn khỏi hệ thống">
+                    🗑 Xoá vĩnh viễn
+                  </button>
                 </>
               )}
             </div>
@@ -301,16 +317,6 @@ function StrategyDoc({ s, onClose, onReload }) {
               </section>
             )}
 
-            {s.is_user_alpha && (
-              <section className="n-ad-sec">
-                <h3>Lịch sử phiên bản</h3>
-                <UserAlphaVersionHistory
-                  alphaId={s.alpha_id}
-                  currentVersion={s.version}
-                  onSelectVersion={(vRec) => navigate(`/coin/alpha/create?alpha=${encodeURIComponent(s.alpha_id)}&version=${vRec.version}`)}
-                />
-              </section>
-            )}
           </div>
         </div>
       </aside>
@@ -320,18 +326,59 @@ function StrategyDoc({ s, onClose, onReload }) {
   )
 }
 
+function extractParamsText(s) {
+  if (s.isTopAgent) {
+    const f = s.formula_summary || {}
+    const p = []
+    if (f.tp) {
+      const tpClean = String(f.tp).replace(/^TP\s*=\s*/i, '').trim()
+      p.push(`TP: ${tpClean}`)
+    }
+    if (f.sl) {
+      const slClean = String(f.sl).replace(/^SL\s*=\s*/i, '').trim()
+      p.push(`SL: ${slClean.length > 25 ? slClean.slice(0, 25) + '…' : slClean}`)
+    }
+    if (f.act) {
+      const actClean = String(f.act).replace(/^kích hoạt trailing\s*=\s*/i, '').trim()
+      p.push(`Trail: ${actClean.length > 20 ? actClean.slice(0, 20) + '…' : actClean}`)
+    }
+    if (s.summary?.leverage) p.push(`Đòn bẩy: ${s.summary.leverage}x`)
+    if (p.length > 0) return p.slice(0, 3).join(' · ')
+    return s.plain?.[0] || 'Chiến lược copy-trade OKX'
+  }
+  if (s.params_list && s.params_list.length > 0) {
+    return s.params_list.map((p) => `${p.label || p.key}: ${p.value}`).slice(0, 4).join(' · ')
+  }
+  if (s.config?.params && Object.keys(s.config.params).length > 0) {
+    return Object.entries(s.config.params).map(([k, v]) => `${k}: ${v}`).slice(0, 4).join(' · ')
+  }
+  if (s.params && Object.keys(s.params).length > 0) {
+    return Object.entries(s.params).map(([k, v]) => `${k}: ${v}`).slice(0, 4).join(' · ')
+  }
+  if (s.config?.position) {
+    return `Đòn bẩy: ${s.config.position.leverage || 1}x · Vốn: ${s.config.position.size_pct || 100}%`
+  }
+  return null
+}
+
 function extractCardStats(s) {
   const m = s.summary || s.metrics || s.stats?.[0] || best(s.stats) || {}
   const ret = m.ret_pct ?? (s.isTopAgent && m.realized != null ? m.realized : null)
-  const mdd = m.mdd_pct ?? m.extreme_mdd_pct
+  let mdd = m.mdd_pct ?? m.extreme_mdd_pct
+  let isMddUsdt = false
+  if (mdd == null && s.isTopAgent && m.max_loss != null) {
+    mdd = m.max_loss
+    isMddUsdt = true
+  }
   const sharpe = m.sharpe
-  return { ret, mdd, sharpe, isRealizedUsdt: s.isTopAgent && m.ret_pct == null && m.realized != null }
+  const winRate = m.win_rate ?? m.win
+  return { ret, mdd, sharpe, winRate, isRealizedUsdt: s.isTopAgent && m.ret_pct == null && m.realized != null, isMddUsdt }
 }
 
 function CardStats({ s }) {
-  const { ret, mdd, sharpe, isRealizedUsdt } = extractCardStats(s)
+  const { ret, mdd, sharpe, winRate, isRealizedUsdt, isMddUsdt } = extractCardStats(s)
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, marginTop: 10, padding: '8px 10px', background: 'var(--n-card, rgba(255,255,255,0.03))', borderRadius: 6, border: '1px solid var(--n-line, rgba(255,255,255,0.06))', fontSize: 12 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, marginTop: 8, padding: '8px 10px', background: 'var(--n-card, rgba(255,255,255,0.03))', borderRadius: 6, border: '1px solid var(--n-line, rgba(255,255,255,0.06))', fontSize: 12 }}>
       <div>
         <span className="muted" style={{ display: 'block', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.04em' }}>PnL</span>
         <b className={signClass(ret)} style={{ fontSize: 13 }}>
@@ -340,54 +387,24 @@ function CardStats({ s }) {
       </div>
       <div>
         <span className="muted" style={{ display: 'block', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.04em' }}>MDD</span>
-        <b className="neg" style={{ fontSize: 13 }}>{mdd != null ? fmtPct(mdd, 1) : '—'}</b>
+        <b className="neg" style={{ fontSize: 13 }}>
+          {mdd == null ? '—' : isMddUsdt ? `${fmtNum(mdd, 0)} $` : fmtPct(mdd, 1)}
+        </b>
       </div>
       <div>
-        <span className="muted" style={{ display: 'block', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Sharpe</span>
-        <b style={{ fontSize: 13 }}>{isNum(sharpe) ? fmtNum(sharpe, 2) : '—'}</b>
+        <span className="muted" style={{ display: 'block', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          {isNum(sharpe) ? 'Sharpe' : 'Win rate'}
+        </span>
+        <b style={{ fontSize: 13 }}>
+          {isNum(sharpe) ? fmtNum(sharpe, 2) : winRate != null ? `${fmtNum(winRate, 1)}%` : '—'}
+        </b>
       </div>
     </div>
   )
 }
 
 function Card({ s, onOpen }) {
-  if (s.is_user_alpha) {
-    const st0 = s.stats?.[0] || {}
-    const isCandidate = st0.stage === 'CANDIDATE'
-    return (
-      <button type="button" className="n-ad-card" onClick={onOpen}>
-        <div className="h">
-          <b>{s.name}</b>
-          <span className={`n-badge ${SIDE_CLS[s.side] || ''}`}>{s.side}</span>
-        </div>
-        <div className="k muted" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          <span className="n-badge" style={{ background: 'var(--n-accent-wash)', color: 'var(--n-accent)', fontWeight: 700 }}>
-            Alpha người dùng
-          </span>
-          {isCandidate && (
-            <span className="n-badge" style={{ background: 'var(--n-accent-wash)', color: 'var(--n-warn)', fontWeight: 700 }}>
-              ★ Ứng viên
-            </span>
-          )}
-        </div>
-        <CardStats s={s} />
-      </button>
-    )
-  }
-
-  if (s.isTopAgent) {
-    const sum = s.summary || {}
-    return (
-      <button type="button" className="n-ad-card" onClick={onOpen}>
-        <div className="h">
-          <b>{s.name}</b>
-          <span className={`n-badge ${SIDE_CLS[s.side] || ''}`}>{s.side}</span>
-        </div>
-        <div className="k muted">{s.kind} · {sum.leverage ? `${sum.leverage}x` : 'OKX'}</div>
-        <CardStats s={s} />
-      </button>
-    )
-  }
+  const paramsText = extractParamsText(s)
 
   return (
     <button type="button" className="n-ad-card" onClick={onOpen}>
@@ -395,7 +412,35 @@ function Card({ s, onOpen }) {
         <b>{s.name}</b>
         <span className={`n-badge ${SIDE_CLS[s.side] || ''}`}>{s.side}</span>
       </div>
-      <div className="k muted">{s.kind}</div>
+      <div className="k muted" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+        <span>{s.kind}</span>
+        {s.is_user_alpha && (
+          <span className="n-badge" style={{ background: 'var(--n-accent-wash)', color: 'var(--n-accent)', fontWeight: 700 }}>
+            Alpha người dùng
+          </span>
+        )}
+        {s.isTopAgent && s.summary?.leverage && (
+          <span className="n-badge">{s.summary.leverage}x</span>
+        )}
+      </div>
+      {paramsText && (
+        <div
+          style={{
+            fontSize: 11,
+            color: 'var(--n-ink-2, #94a3b8)',
+            marginTop: 6,
+            lineHeight: 1.35,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            textAlign: 'left',
+          }}
+          title={paramsText}
+        >
+          <span style={{ color: 'var(--n-ink-3, #64748b)', fontWeight: 600 }}>Tham số: </span>
+          {paramsText}
+        </div>
+      )}
       <CardStats s={s} />
     </button>
   )
@@ -492,6 +537,7 @@ function mapTopAgentBot(b, prov) {
     plain,
     math,
     summary,
+    formula_summary: b.formula_summary || {},
     breakdown,
     isTopAgent: true,
     provenance: prov,

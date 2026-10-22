@@ -4,6 +4,7 @@ import '../styles/shell.css'
 import { useCatalog } from '../meta/MetaProvider'
 import { ErrorBoundary } from '../components/ui'
 import JobTray from '../components/jobs/JobTray'
+import NotificationBell from '../components/notifications/NotificationBell'
 import { GuideSteps } from '../components/ui/QuickGuide'
 
 const KEY = 'nora-theme' // cùng khoá với ThemeToggle cũ
@@ -24,7 +25,7 @@ const I = {
 
 // Hệ thống chính (Coin)
 const COIN_PAGES = [
-  { to: '/portfolio', title: 'Tổng quan danh mục', short: 'Tổng quan', icon: I.portfolio },
+  { to: '/portfolio', title: 'Tổng quan', short: 'Tổng quan', icon: I.portfolio },
   { to: '/alpha', title: 'Alpha', short: 'Alpha', icon: I.alpha },
   { to: '/backtest', title: 'Backtest', short: 'Backtest', icon: I.backtest },
   { to: '/live', title: 'Bot live · paper / demo', short: 'Live', icon: I.live },
@@ -180,6 +181,7 @@ export default function Shell({ children }) {
           {!isEdu && (
             <>
               <Search />
+              <NotificationBell />
               <JobTray />
               <HelpButton />
               {data?.windows?.end && <span className="n-pill" title="Ngày cuối của dữ liệu thị trường"><span className="n-dot ok" />Dữ liệu đến <span className="mono">{dataEnd}</span></span>}

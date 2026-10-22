@@ -52,6 +52,12 @@ class StartBotRequest(BaseModel):
     params: Optional[Dict[str, Any]] = None
     backtest_job_id: Optional[str] = None
     book_source: Optional[str] = Field(None, pattern="^(main|explore)$", description="Sổ của dòng bộ chọn (main|explore); mặc định lấy theo dòng khớp")
+    strategy_type: Optional[str] = Field(None, description="Loại chiến lược: 'proxima' hoặc mặc định (DSL)")
+    anchor_tf: Optional[str] = Field("1h", description="Khung nến Anchor của Proxima (1h/30m/15m)")
+    r_ratio: Optional[float] = Field(0.15, description="Tỷ lệ dự trữ vốn R (mặc định 0.15 = 15%)")
+    vl_mult: Optional[float] = Field(1.0, description="Hệ số khối lượng Volume (VL)")
+    tp_mult: Optional[float] = Field(0.8, description="Hệ số Take Profit (TP)")
+    f_mult: Optional[float] = Field(1.0, description="Hệ số biến động K_delta (F)")
 
 
 class BatchBotRequest(BaseModel):
@@ -118,6 +124,21 @@ def post_start_bot(body: StartBotRequest) -> Dict[str, Any]:
 
     book_source = matched.get("book") if body.from_picker else body.book_source
 
+    # Kiểm tra phân bổ vốn Master: requested_allocation > 0 và không vượt quá 10,000 USDT tổng
+    req_cap = float(body.capital or 1000.0)
+    from backend.core.portfolio import get_live_master_ledger, PortfolioAdmissionController
+    ledger = get_live_master_ledger(body.mode)
+    controller = PortfolioAdmissionController(ledger)
+    ok, reason = controller.admit_bot_launch(req_cap)
+    if not ok:
+        raise HTTPException(400, detail={
+            "code": "EXCEEDS_MASTER_CAPITAL_ALLOCATION",
+            "message": reason,
+            "unallocated_capital": ledger.unallocated_capital,
+            "total_allocated_capital": ledger.total_allocated_capital,
+            "master_initial_capital": ledger.initial_capital,
+        })
+
     bot_id = new_bot_id(body.mode)          # duy nhất (thời gian + 6 hex ngẫu nhiên)
     if find_bot_dir(bot_id) is not None:    # không bao giờ ghi đè / dùng lại dữ liệu bot có sẵn
         raise HTTPException(409, f"Bot {bot_id} đã tồn tại")
@@ -142,6 +163,15 @@ def post_start_bot(body: StartBotRequest) -> Dict[str, Any]:
         params["book_source"] = book_source
     if body.backtest_job_id is not None:
         params["backtest_job_id"] = body.backtest_job_id
+    if body.strategy_type:
+        params["strategy_type"] = body.strategy_type
+        params["anchor_tf"] = body.anchor_tf or "1h"
+        params["r_ratio"] = float(body.r_ratio or 0.15)
+        params["vl_mult"] = float(body.vl_mult or 1.0)
+        params["tp_mult"] = float(body.tp_mult or 0.8)
+        params["f_mult"] = float(body.f_mult or 1.0)
+    elif body.anchor_tf:
+        params["anchor_tf"] = body.anchor_tf
 
     try:
         job_id = launch("live_bot", params)
@@ -259,7 +289,7 @@ def delete_batch_bots(body: BatchBotRequest) -> Dict[str, Any]:
     results = []
     for bid in body.bot_ids:
         try:
-            res = delete_bot(bid, body.mode)
+            res = delete_bot(bid, body.mode, force=True)
             if res.get("running"):
                 results.append({"bot_id": bid, "ok": False, "error": "Bot đang chạy, hãy dừng trước"})
             elif not res.get("ok"):
@@ -327,9 +357,13 @@ def post_stop_bot(
 
 
 @router.delete("/live/bot/{bot_id}")
-def delete_bot_by_id(bot_id: str, mode: Optional[str] = Query(None, pattern="^(paper|testnet|live)$")) -> Dict[str, Any]:
+def delete_bot_by_id(
+    bot_id: str,
+    mode: Optional[str] = Query(None, pattern="^(paper|testnet|live)$"),
+    force: bool = Query(False, description="Cưỡng chế xoá ngay")
+) -> Dict[str, Any]:
     """Xoá bot đã dừng/lỗi/lưu trữ (xoá thư mục data/live/<mode>/<bot_id>)."""
-    res = delete_bot(bot_id, mode)
+    res = delete_bot(bot_id, mode, force=force)
     if res.get("running"):
         raise HTTPException(409, "Dừng bot trước khi xoá")
     if not res.get("ok"):
@@ -389,6 +423,230 @@ def get_bot_trades_by_id(bot_id: str) -> Dict[str, Any]:
         raise HTTPException(404, f"Không tìm thấy bot {bot_id}")
     trades = get_bot_trades(bot_id)
     return {"bot_id": bot_id, "trades": trades, "fills": trades}
+
+
+@router.get("/live/bot/{bot_id}/logs")
+def get_bot_logs_by_id(bot_id: str, lines: int = Query(150, ge=10, le=1000)) -> Dict[str, Any]:
+    """Nhật ký hoạt động thời gian thực của bot (nautilus.log, out.log, tín hiệu & lệnh)."""
+    b_dir = find_bot_dir(bot_id)
+    if not b_dir or not os.path.isdir(b_dir):
+        raise HTTPException(404, f"Không tìm thấy thư mục bot {bot_id}")
+
+    log_file = os.path.join(b_dir, "nautilus.log")
+    raw_lines: List[str] = []
+
+    if os.path.isfile(log_file):
+        try:
+            with open(log_file, "r", encoding="utf-8", errors="replace") as f:
+                all_lines = f.readlines()
+                raw_lines = all_lines[-lines:] if len(all_lines) > lines else all_lines
+        except Exception as e:
+            raw_lines = [f"[ERROR] Không đọc được nautilus.log: {e}"]
+    else:
+        meta_path = os.path.join(b_dir, "bot.json")
+        job_id = None
+        if os.path.isfile(meta_path):
+            try:
+                import json
+                with open(meta_path, "r", encoding="utf-8") as f:
+                    job_id = json.load(f).get("job_id")
+            except Exception:
+                pass
+        if job_id:
+            out_file = os.path.join("data", "cache", "process", job_id, "out.log")
+            if os.path.isfile(out_file):
+                try:
+                    with open(out_file, "r", encoding="utf-8", errors="replace") as f:
+                        all_lines = f.readlines()
+                        raw_lines = all_lines[-lines:] if len(all_lines) > lines else all_lines
+                except Exception:
+                    pass
+
+    parsed_logs = []
+    for line in raw_lines:
+        line_clean = line.rstrip("\r\n")
+        if not line_clean:
+            continue
+        level = "INFO"
+        upper = line_clean.upper()
+        if " [ERROR] " in line_clean or upper.startswith("ERROR") or "EXCEPTION" in upper or "TRACEBACK" in upper:
+            level = "ERROR"
+        elif " [WARN] " in line_clean or " [WARNING] " in line_clean or upper.startswith("WARN"):
+            level = "WARN"
+        elif " [DEBUG] " in line_clean:
+            level = "DEBUG"
+        elif "ORDER" in upper or "SUBMIT" in upper or "FILL" in upper:
+            level = "TRADE"
+        elif "SIGNAL" in upper or "MATCH" in upper:
+            level = "SIGNAL"
+
+        parsed_logs.append({
+            "raw": line_clean,
+            "level": level,
+        })
+
+    sig_file = os.path.join(b_dir, "signals.jsonl")
+    recent_signals = []
+    if os.path.isfile(sig_file):
+        try:
+            import json
+            with open(sig_file, "r", encoding="utf-8", errors="replace") as f:
+                sig_lines = f.readlines()[-10:]
+                for sl in sig_lines:
+                    sl = sl.strip()
+                    if sl:
+                        recent_signals.append(json.loads(sl))
+        except Exception:
+            pass
+
+    hb_file = os.path.join(b_dir, "heartbeat.json")
+    heartbeat = None
+    if os.path.isfile(hb_file):
+        try:
+            import json
+            with open(hb_file, "r", encoding="utf-8") as f:
+                heartbeat = json.load(f)
+        except Exception:
+            pass
+
+    return {
+        "ok": True,
+        "bot_id": bot_id,
+        "total_lines": len(raw_lines),
+        "logs": parsed_logs,
+        "raw_text": "".join(raw_lines),
+        "recent_signals": recent_signals,
+        "heartbeat": heartbeat,
+        "timestamp": int(time.time() * 1000),
+    }
+
+
+@router.get("/live/logs/aggregate")
+def get_aggregate_logs(
+    lines: int = Query(300, ge=20, le=2000),
+    mode: Optional[str] = Query(None, pattern="^(paper|testnet|live)$")
+) -> Dict[str, Any]:
+    """Nhật ký tổng hợp từ TẤT CẢ các bot đang chạy (live portfolio stream).
+    Gộp logs từ nautilus.log, signals.jsonl và events.jsonl có gắn tag tên bot/chiến lược."""
+    import json
+    from backend.adapter.exchange import list_bots, find_bot_dir
+
+    all_bots = list_bots()
+    if mode:
+        all_bots = [b for b in all_bots if b.get("mode") == mode]
+
+    running_bots = [b for b in all_bots if b.get("status") == "running"]
+    target_bots = running_bots if running_bots else all_bots[:10]
+
+    merged_logs: List[Dict[str, Any]] = []
+    all_signals: List[Dict[str, Any]] = []
+    all_trades: List[Dict[str, Any]] = []
+
+    for b in target_bots:
+        bid = b.get("bot_id")
+        if not bid:
+            continue
+        b_dir = find_bot_dir(bid)
+        if not b_dir or not os.path.isdir(b_dir):
+            continue
+
+        strat_name = b.get("strategy") or ", ".join(b.get("strategies") or []) or bid[:16]
+
+        # 1. Đọc nautilus.log
+        log_file = os.path.join(b_dir, "nautilus.log")
+        if os.path.isfile(log_file):
+            try:
+                with open(log_file, "r", encoding="utf-8", errors="replace") as f:
+                    file_lines = f.readlines()
+                    slice_lines = file_lines[-80:] if len(file_lines) > 80 else file_lines
+                    for line in slice_lines:
+                        line_clean = line.rstrip("\r\n")
+                        if not line_clean:
+                            continue
+                        level = "INFO"
+                        upper = line_clean.upper()
+                        if " [ERROR] " in line_clean or upper.startswith("ERROR") or "EXCEPTION" in upper or "TRACEBACK" in upper:
+                            level = "ERROR"
+                        elif " [WARN] " in line_clean or " [WARNING] " in line_clean or upper.startswith("WARN"):
+                            level = "WARN"
+                        elif " [DEBUG] " in line_clean:
+                            level = "DEBUG"
+                        elif "ORDER" in upper or "SUBMIT" in upper or "FILL" in upper or "POSITION" in upper:
+                            level = "TRADE"
+                        elif "SIGNAL" in upper or "MATCH" in upper:
+                            level = "SIGNAL"
+
+                        ts_prefix = line_clean[:20] if len(line_clean) >= 20 and line_clean[10] == "T" else ""
+
+                        merged_logs.append({
+                            "raw": f"[{strat_name}] {line_clean}",
+                            "message": line_clean,
+                            "level": level,
+                            "bot_id": bid,
+                            "bot_name": strat_name,
+                            "time_str": ts_prefix,
+                        })
+            except Exception:
+                pass
+
+        # 2. Đọc signals.jsonl
+        sig_file = os.path.join(b_dir, "signals.jsonl")
+        if os.path.isfile(sig_file):
+            try:
+                with open(sig_file, "r", encoding="utf-8", errors="replace") as f:
+                    s_lines = f.readlines()[-15:]
+                    for sl in s_lines:
+                        sl = sl.strip()
+                        if sl:
+                            item = json.loads(sl)
+                            item["bot_id"] = bid
+                            item["bot_name"] = strat_name
+                            all_signals.append(item)
+            except Exception:
+                pass
+
+        # 3. Đọc events.jsonl
+        ev_file = os.path.join(b_dir, "events.jsonl")
+        if os.path.isfile(ev_file):
+            try:
+                with open(ev_file, "r", encoding="utf-8", errors="replace") as f:
+                    e_lines = f.readlines()[-20:]
+                    for el in e_lines:
+                        el = el.strip()
+                        if el:
+                            ev = json.loads(el)
+                            if ev.get("type") in ("fill", "position_closed", "signal"):
+                                ev["bot_id"] = bid
+                                ev["bot_name"] = strat_name
+                                all_trades.append(ev)
+            except Exception:
+                pass
+
+    all_signals.sort(key=lambda s: int(s.get("ts") or 0), reverse=True)
+    all_trades.sort(key=lambda t: int(t.get("ts") or t.get("t") or 0), reverse=True)
+
+    # Sắp xếp merged_logs theo timestamp có sẵn trong dòng
+    def _sort_key(item: Dict[str, Any]) -> str:
+        return item.get("time_str") or ""
+    merged_logs.sort(key=_sort_key)
+
+    final_logs = merged_logs[-lines:] if len(merged_logs) > lines else merged_logs
+
+    return {
+        "ok": True,
+        "mode": mode or "all",
+        "running_bots": [
+            {"id": b.get("bot_id"), "name": b.get("strategy") or b.get("bot_id"), "mode": b.get("mode"), "status": b.get("status")}
+            for b in running_bots
+        ],
+        "total_running": len(running_bots),
+        "total_lines": len(final_logs),
+        "logs": final_logs,
+        "raw_text": "\n".join(l["raw"] for l in final_logs),
+        "recent_signals": all_signals[:30],
+        "recent_trades": all_trades[:40],
+        "timestamp": int(time.time() * 1000),
+    }
 
 
 @router.get("/live/bot/{bot_id}/chart")
@@ -457,6 +715,22 @@ def get_archive() -> Dict[str, Any]:
 @router.post("/live/cancel")
 def live_manual_not_supported() -> Any:
     raise HTTPException(501, detail={"code": "NOT_SUPPORTED", "message": "Đặt lệnh thủ công không được hỗ trợ ở T5"})
+
+
+@router.get("/portfolio/master")
+@router.get("/live/portfolio/master")
+def get_master_portfolio_snapshot() -> Dict[str, Any]:
+    """Snapshot Master Wallet (10,000 USDT) = Các Bot Sleeves (Vốn cấp linh hoạt) + Unallocated Capital."""
+    try:
+        from backend.core.portfolio import get_live_master_ledger
+        ledger = get_live_master_ledger()
+        if ledger.sleeves:
+            return ledger.get_snapshot()
+    except Exception:
+        pass
+
+    from backend.core.portfolio import get_master_portfolio_ledger
+    return get_master_portfolio_ledger().get_snapshot()
 
 
 ROUTERS = [router]

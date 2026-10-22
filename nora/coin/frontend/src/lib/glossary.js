@@ -1,0 +1,57 @@
+// Giải thích một dòng cho các thuật ngữ trên giao diện (hiện khi di chuột / focus vào biểu tượng ⓘ cạnh thuật ngữ).
+export const GLOSSARY = {
+  nav: { label: 'NAV', def: 'Giá trị tài sản ròng của danh mục (vốn + lãi/lỗ đã chốt + lãi/lỗ đang mở), tính bằng USDT.' },
+  sharpe: { label: 'Sharpe', def: 'Lợi nhuận trên mỗi đơn vị biến động (năm hoá). Càng cao càng ổn định; trên 1 là khá, trên 2 là rất tốt.' },
+  sortino: { label: 'Sortino', def: 'Giống Sharpe nhưng chỉ phạt biến động giảm, không phạt biến động tăng.' },
+  calmar: { label: 'Calmar', def: 'Lợi nhuận năm hoá chia cho mức sụt giảm tối đa. Cho biết lãi bao nhiêu trên mỗi 1% sụt sâu nhất.' },
+  mdd: { label: 'Max drawdown (MDD)', def: 'Mức sụt giảm lớn nhất từ một đỉnh vốn xuống đáy kế tiếp, tính theo %.' },
+  underwater: { label: 'Underwater', def: 'Đường thể hiện mức NAV đang thấp hơn đỉnh gần nhất bao nhiêu %; về 0 nghĩa là lập đỉnh mới.' },
+  var95: { label: 'VaR 95%', def: 'Mức lỗ trong một ngày mà chỉ khoảng 5% số ngày tệ hơn (dựa trên lịch sử của kỳ đang xem).' },
+  cvar: { label: 'CVaR', def: 'Lỗ trung bình trong 5% số ngày tệ nhất, tức là "khi đã vượt VaR thì tệ cỡ nào".' },
+  exposure_gross: { label: 'Exposure gộp', def: 'Tổng giá trị danh nghĩa mọi vị thế (Long + Short, cộng trị tuyệt đối) chia cho NAV.' },
+  exposure_net: { label: 'Exposure ròng', def: 'Giá trị danh nghĩa Long trừ Short, chia cho NAV; cho biết danh mục nghiêng về phía nào.' },
+  margin_used: { label: 'Ký quỹ đã dùng', def: 'Phần vốn đang bị giữ làm ký quỹ cho các vị thế mở, tính theo % NAV.' },
+  profit_factor: { label: 'Profit factor', def: 'Tổng lãi các lệnh thắng chia tổng lỗ các lệnh thua. Trên 1 là có lãi; trên 1.5 là tốt.' },
+  win_days: { label: 'Tỉ lệ ngày lãi', def: 'Phần trăm ngày có lãi, chỉ tính các ngày có phát sinh lãi/lỗ (ngày đứng ngoài thị trường không bị tính là ngày lỗ).' },
+  cagr: { label: 'CAGR', def: 'Tốc độ tăng trưởng kép hằng năm: lợi nhuận quy đổi thành tỉ lệ mỗi năm.' },
+  vol_annual: { label: 'Biến động năm', def: 'Độ lệch chuẩn của lợi suất ngày, nhân căn 365 để quy ra năm. Càng cao càng "xóc".' },
+  is: { label: 'IS (in-sample)', def: 'Đoạn dữ liệu dùng để chọn tham số (train). Kết quả ở đây thường đẹp hơn thực tế vì đã được tối ưu.' },
+  oos: { label: 'OOS (out-of-sample)', def: 'Đoạn dữ liệu chưa từng dùng để chọn tham số (test). Đây là phép thử trung thực hơn.' },
+  wfa: { label: 'Walk-forward', def: 'Chia lịch sử thành nhiều cặp train → test nối tiếp nhau; chỉ chấm điểm trên phần test để kiểm tra chiến lược có "sống" ngoài mẫu không.' },
+  fold: { label: 'Fold', def: 'Một lượt train → test trong walk-forward. Càng nhiều fold càng khó trúng may.' },
+  fill: { label: 'Khớp cắt lỗ', def: 'Đúng mức: lệnh cắt lỗ khớp đúng giá đã đặt (lạc quan). Giá xấu nhất của nến: khớp tại giá tệ nhất của cây nến chạm lệnh (bi quan, gần thực tế khi có trượt giá).' },
+  score: { label: 'Điểm (lãi/MDD)', def: 'Điểm xếp hạng cấu hình trên dev1 = lãi chia MDD (MDD tối thiểu tính là 1%). Để trống nếu cấu hình không qua các cổng tối thiểu.' },
+  dev1: { label: 'Dev1', def: 'Vùng dữ liệu đầu tiên (khoảng 40% lịch sử): dùng để thử và chọn tham số.' },
+  dev2: { label: 'Dev2', def: 'Vùng dữ liệu kế tiếp (khoảng 40%): kiểm chứng độc lập các tham số đã chọn ở dev1.' },
+  holdout: { label: 'Holdout', def: 'Vùng dữ liệu cuối (khoảng 20%) giữ kín, chấm đúng một lần cho cả sổ chiến lược; không dùng để chọn tham số.' },
+  mc: { label: 'Monte Carlo', def: 'Mô phỏng hàng nghìn kịch bản tương lai bằng cách xáo trộn lợi suất ngày lịch sử, để đo phân phối lãi và sụt giảm.' },
+  bootstrap: { label: 'Block bootstrap', def: 'Cách xáo trộn lấy mẫu theo khối ngày liên tiếp (không phải từng ngày lẻ) để giữ lại tính "chuỗi lãi/lỗ" của thị trường.' },
+  p_mdd: { label: 'P(MDD ≥ ngưỡng)', def: (g) => `Xác suất (trong các kịch bản mô phỏng) mức sụt giảm tối đa chạm hoặc vượt ngưỡng phá sản${g('S4_RUIN_THRESHOLD_PCT') != null ? `, cổng chuẩn ${g('S4_RUIN_THRESHOLD_PCT')}%` : ''}.` },
+  fan: { label: 'Quạt P5–P95', def: 'Dải các đường vốn mô phỏng: vùng đậm là 50% kịch bản giữa (P25–P75), vùng nhạt là 90% kịch bản (P5–P95); đường giữa là trung vị.' },
+  dsr: { label: 'DSR (Deflated Sharpe)', def: 'Sharpe đã trừ phần "may mắn" do thử quá nhiều alpha. Xác suất Sharpe thật vượt 0 sau khi hiệu chỉnh số lần thử; cổng yêu cầu ≥ 0,95.' },
+  pbo: { label: 'PBO', def: (g) => `Xác suất overfit khi chọn alpha tốt nhất trong mẫu (kiểm tra CSCV). Trên ${g('S2_PBO_MAX') != null ? String(g('S2_PBO_MAX')).replace('.', ',') : 'ngưỡng cổng'} nghĩa là alpha "tốt nhất" thường tụt hạng ngoài mẫu: cả chiến lược bị loại.` },
+  neighbor: { label: 'Lân cận tham số', def: (g) => `Các bộ tham số lệch ±1 bước ở mỗi khoá. Alpha thật phải còn lãi ở ít nhất ${g('S2_NEIGHBOUR_MIN_PROFIT_RATIO') != null ? `${Math.round(g('S2_NEIGHBOUR_MIN_PROFIT_RATIO') * 100)}%` : 'tỉ lệ cổng yêu cầu'} bộ lân cận, tránh trúng "đỉnh nhọn" may rủi.` },
+  scale_s: { label: 'Khối lượng sống sót (s)', def: (g) => `Hệ số vốn lớn nhất trong (0, 1] mà alpha vẫn qua mọi điều kiện Monte Carlo và kịch bản cực xấu. s = 0,6 nghĩa là chỉ nên dùng 60% cỡ lệnh gốc; dưới ${g('S5_S_MIN') != null ? String(g('S5_S_MIN')).replace('.', ',') : 'ngưỡng cổng'} thì loại.` },
+  final: { label: 'FINAL', def: 'Alpha đã qua mọi tầng (S1 → S6) nên đủ điều kiện chạy testnet. Có thể đưa vào kho alpha kèm hệ số s và toàn bộ bằng chứng.' },
+  stress: { label: 'Kịch bản cực xấu', def: (g) => `Chuỗi lợi suất ngày bị xếp lại theo hướng tệ nhất (ngày lỗ dồn lên trước, ngày sập gấp đôi, phí gấp đôi…). Mọi kịch bản phải có MDD dưới ${g('S4_STRESS_MAX_MDD_PCT') != null ? `${g('S4_STRESS_MAX_MDD_PCT')}%` : 'ngưỡng cổng'} và không cháy vốn.` },
+  atr: { label: 'ATR', def: 'Biên độ dao động trung bình thực của giá trong một khoảng gần đây. Cắt lỗ/chốt lời tính theo bội số ATR để tự co giãn theo biến động.' },
+  mode_basic: { label: 'Cơ bản', def: 'Chế độ chạy mặc định: dùng bộ tham số tốt nhất (preset) đã khoá sẵn, fold 120/30 ngày và cổng chuẩn. Máy chủ bỏ qua mọi tham số do giao diện gửi. Kết quả xuất bản được.' },
+  mode_advanced: { label: 'Nâng cao', def: 'Chỉnh được từng tham số của chiến lược (chu kỳ chỉ báo, khung thời gian, thoát lệnh, rủi ro), ngày và cổng. Đổi ngưỡng cổng hoặc dùng ít kịch bản mô phỏng hơn mức chuẩn thì kết quả không xuất bản được.' },
+  preset: { label: 'Preset', def: 'Bộ tham số tốt nhất đã biết của một chiến lược: lấy từ sổ đã xuất bản, hoặc cấu hình top-1 của lần tối ưu mới nhất, hoặc giá trị mặc định nếu chưa tối ưu. Kèm bằng chứng kiểm chứng (dev1, dev2).' },
+  custom_gates: { label: 'Cấu hình tuỳ chỉnh', def: 'Cổng bị đổi so với chuẩn (ngưỡng phá sản, MDD kịch bản cực xấu, thiếu kịch bản, ít mô phỏng hơn mức chuẩn). Kết quả chỉ để thử nghiệm: không xuất bản / promote được.' },
+  mdd_intrabar: { label: 'MDD trong nến', def: 'Sụt giảm lớn nhất tính cả giá XẤU NHẤT bên trong mỗi nến (lỗ treo chạm đáy rồi hồi). Khắt hơn MDD theo ngày; gate của backtest/sổ dùng số này.' },
+  mdd_daily: { label: 'MDD theo ngày', def: 'Sụt giảm lớn nhất trên vốn đóng cửa mỗi ngày. Nhẹ hơn MDD trong nến vì bỏ qua dao động trong ngày.' },
+  payoff: { label: 'Payoff', def: 'Lãi trung bình của lệnh thắng chia cho lỗ trung bình của lệnh thua. Trend thường win rate thấp nhưng payoff cao.' },
+  expectancy: { label: 'Kỳ vọng mỗi lệnh', def: 'Lãi/lỗ trung bình của một lệnh (đã trừ phí). Dương mới có edge, bất kể win rate.' },
+  ulcer: { label: 'Ulcer index', def: 'Căn của trung bình bình phương mức sụt giảm mỗi ngày: phạt cả độ sâu lẫn thời gian nằm dưới đỉnh.' },
+  mae: { label: 'Lỗ treo (MAE)', def: 'Lỗ chưa chốt sâu nhất trong suốt một lệnh, theo % vốn lúc mở lệnh. Bot DCA win cao nhưng MAE rất sâu.' },
+  liq_proximity: { label: 'Gần thanh lý', def: 'Phần ký quỹ của lệnh đã bị lỗ treo ăn mất ở điểm xấu nhất. 100% = bị thanh lý (ký quỹ isolated).' },
+  fee_drag: { label: 'Phí ăn lãi', def: 'Phí giao dịch chia cho lãi trước phí. Cao nghĩa là phần lớn edge bị sàn lấy mất (hay gặp ở scalp).' },
+}
+
+/** Mô tả của một thuật ngữ; `def` có thể là hàm nhận g(key) -> giá trị cổng từ meta.gates (hằng số Monte Carlo) (null nếu chưa có). */
+export function glossaryDef(entry, meta) {
+  if (typeof entry?.def !== 'function') return entry?.def || ''
+  const gates = meta?.gates || []
+  return entry.def((key) => gates.find((x) => x.key === key)?.value ?? null)
+}

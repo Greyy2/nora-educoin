@@ -207,6 +207,8 @@ class _Compiler:
         elif name in RISK_PARAM_MAP:
             mapped_name = RISK_PARAM_MAP[name]
             self.position_overrides[mapped_name] = value
+            if (name.endswith("_pct") or "pct" in name) and "exit_unit" not in self.position_overrides:
+                self.position_overrides["exit_unit"] = "pct"
         else:
             self.consts[name] = value
 

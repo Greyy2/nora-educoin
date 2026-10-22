@@ -23,52 +23,18 @@ from typing import Dict, Optional, Sequence
 import numpy as np
 import pandas as pd
 from nautilus_trader.analysis import (
-    AvgLoser, AvgWinner, Expectancy, ProfitFactor, ReturnsVolatility, SharpeRatio, SortinoRatio, WinRate,
+    AvgLoser,
+    AvgWinner,
+    CAGR,
+    CalmarRatio,
+    Expectancy,
+    MaxDrawdown,
+    ProfitFactor,
+    ReturnsVolatility,
+    SharpeRatio,
+    SortinoRatio,
+    WinRate,
 )
-
-
-class MaxDrawdown:
-    """Tính Maximum Drawdown (phần trăm âm <= 0) từ chuỗi lợi suất."""
-    def calculate_from_returns(self, d: Dict[int, float]) -> float:
-        if not d:
-            return 0.0
-        vals = [d[k] for k in sorted(d.keys())]
-        cum = np.cumprod(1.0 + np.asarray(vals, dtype=float))
-        peaks = np.maximum.accumulate(cum)
-        dds = (cum - peaks) / peaks
-        return float(np.min(dds)) if len(dds) else 0.0
-
-
-class CAGR:
-    """Tính Compound Annual Growth Rate từ chuỗi lợi suất và số ngày quy năm."""
-    def __init__(self, period: int = 365):
-        self.period = period
-
-    def calculate_from_returns(self, d: Dict[int, float]) -> float:
-        if not d:
-            return 0.0
-        vals = [d[k] for k in sorted(d.keys())]
-        n = len(vals)
-        if n == 0:
-            return 0.0
-        cum = float(np.prod(1.0 + np.asarray(vals, dtype=float)))
-        years = n / self.period
-        if years <= 0 or cum <= 0:
-            return float("nan")
-        return float(cum ** (1.0 / years) - 1.0)
-
-
-class CalmarRatio:
-    """Tính Calmar Ratio (CAGR / |MaxDrawdown|)."""
-    def __init__(self, period: int = 365):
-        self.period = period
-
-    def calculate_from_returns(self, d: Dict[int, float]) -> float:
-        cagr = CAGR(self.period).calculate_from_returns(d)
-        mdd = MaxDrawdown().calculate_from_returns(d)
-        if math.isnan(cagr) or mdd >= 0:
-            return float("nan")
-        return float(cagr / abs(mdd))
 
 
 ANN = 365                                   # số ngày quy năm của Nora (Nautilus mặc định 252)

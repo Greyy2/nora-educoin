@@ -64,8 +64,27 @@ def check_for_updates() -> Dict[str, Any]:
 from backend.core import catalog
 from backend.core.backtest import NautilusRun, make_engine, run_native, stream
 from backend.core.engine import BacktestEngine, PortfolioEngine
-from backend.core.portfolio import Coordinator
+from backend.core.portfolio import (
+    Coordinator,
+    MasterPortfolioLedger,
+    PortfolioAdmissionController,
+    RiskPolicyConfig,
+    SleeveState,
+    get_master_portfolio_ledger,
+    get_portfolio_admission_controller,
+    get_live_master_ledger,
+)
 from backend.core.strategy import NoraSlotStrategy
+from backend.core.strategy_proxima import (
+    ProximaNativeStrategy,
+    ProximaNativeStrategyConfig,
+    RUNTIME_SAFETY_POLICY,
+    EXPERIMENTAL_LOGIC_SCHEMA,
+    calculate_contract_aware_sizing,
+    evaluate_signal_variant_a,
+    evaluate_signal_variant_b,
+    resolve_exit_state_machine,
+)
 from backend.analys.metrics import stats
 from backend.adapter import exchange as live
 from backend.adapter import exchange as live_ledger
@@ -85,4 +104,19 @@ __all__ = [
     "PortfolioEngine",
     "Coordinator",
     "NoraSlotStrategy",
+    "ProximaNativeStrategy",
+    "ProximaNativeStrategyConfig",
+    "RUNTIME_SAFETY_POLICY",
+    "EXPERIMENTAL_LOGIC_SCHEMA",
+    "calculate_contract_aware_sizing",
+    "evaluate_signal_variant_a",
+    "evaluate_signal_variant_b",
+    "resolve_exit_state_machine",
+    "MasterPortfolioLedger",
+    "PortfolioAdmissionController",
+    "RiskPolicyConfig",
+    "SleeveState",
+    "get_master_portfolio_ledger",
+    "get_portfolio_admission_controller",
+    "get_live_master_ledger",
 ]

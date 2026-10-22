@@ -730,8 +730,9 @@ def evaluate_checklist(result: Dict[str, Any]) -> Dict[str, Any]:
     return {"all_passed": all(it["state"] == "pass" for it in items), "n_missing": sum(1 for it in items if it["state"] == "missing"), "items": items}
 
 
-def build_evidence(result: Dict[str, Any], job_id: str, job: Dict[str, Any]) -> Dict[str, Any]:
+def build_evidence(result: Dict[str, Any], job_id: Optional[str] = None, job: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     data = result.get("data") or {}
+    job = job or {}
     return {
         "job_id": job_id,
         "program_hash": result.get("program_hash"),
@@ -745,9 +746,9 @@ def build_evidence(result: Dict[str, Any], job_id: str, job: Dict[str, Any]) -> 
 
 
 def save_user_alpha(
-    job_id: str,
-    code: str,
-    name: str,
+    job_id: Optional[str] = None,
+    code: str = "",
+    name: str = "",
     note: str = "",
     source: str = "alpha-create",
     base_dir: Optional[str] = None,
@@ -755,12 +756,38 @@ def save_user_alpha(
     owner_id: Optional[str] = None,
 ) -> Tuple[Dict[str, Any], str]:
     """Xác thực và lưu trữ bản ghi Alpha người dùng:
-    - Đọc kết quả job thật từ máy chủ (job.status == 'done')
+    - Nếu có job_id: đọc kết quả job thật từ máy chủ (job.status == 'done')
+    - Nếu không có job_id: biên dịch code kiểm tra cú pháp, lưu bản nháp/bản ghi trực tiếp
     - Kiểm tra mã băm chương trình khớp với code
     - Chống trùng program_hash THEO TỪNG OWNER (cùng owner trùng -> ValueError / 409)
     - Lưu owner_id vào bản ghi
     - Phiên bản mới (versioned): giữ owner_id cũ nếu không truyền mới
     """
+    if not job_id:
+        from .code.compile import compile_code
+        prog = compile_code(code, register=False)
+        result = {
+            "program_hash": prog.code_hash,
+            "metrics": {
+                "simulate": {
+                    "total_return_pct": 0.0,
+                    "max_drawdown_pct": 0.0,
+                    "sharpe": 0.0,
+                    "win_rate": 0.0,
+                    "total_trades": 0,
+                }
+            },
+            "config": {
+                "symbols": ["BTC@perp"],
+                "timeframe": "15m",
+            },
+            "indicators": getattr(prog, "indicators", []),
+        }
+        return save_user_alpha_from_result(
+            owner_id, code, name, result, source=source, note=note or "Bản lưu soạn thảo trực tiếp",
+            base_dir=base_dir, alpha_id=alpha_id, job_id=None, job={"status": "draft"}
+        )
+
     from backend.jobs import runner as batch
 
     job = batch.status(job_id)
@@ -1014,6 +1041,29 @@ def update_user_alpha_status(alpha_id: str, new_status: str, base_dir: Optional[
     file_path = os.path.join(user_dir, f"{alpha_id}.json")
     write_json_atomic(file_path, rec, indent=1, clean=True, allow_nan=False)
     return True
+
+
+def delete_user_alpha(alpha_id: str, base_dir: Optional[str] = None) -> bool:
+    """Xóa vĩnh viễn một Alpha người dùng cùng tất cả các phiên bản lưu trữ."""
+    user_dir = get_user_alphas_dir(base_dir)
+    file_path = os.path.join(user_dir, f"{alpha_id}.json")
+    deleted = False
+    if os.path.isfile(file_path):
+        try:
+            os.remove(file_path)
+            deleted = True
+        except OSError:
+            pass
+    # Xoá các phiên bản trong _versions
+    ver_dir = os.path.join(user_dir, "_versions")
+    if os.path.isdir(ver_dir):
+        for fname in os.listdir(ver_dir):
+            if fname.startswith(f"{alpha_id}.v"):
+                try:
+                    os.remove(os.path.join(ver_dir, fname))
+                except OSError:
+                    pass
+    return deleted
 
 
 def _user_card_metrics(sim: Any) -> Dict[str, Any]:

@@ -417,25 +417,62 @@ def build_chart(bot_id: str, frame: Optional[str] = None, replay: bool = False, 
         for key, (ls, sts) in groups.items():
             sig_frames += [f for f in ls.required_frames if f != base]
             disp = disp or _frame_of([signal_tf], base, frame)
-            ls.warm_start(now_ms)
+            try:
+                ls.warm_start(now_ms)
+            except Exception as e:
+                warnings.append(f"{symbol}: warm_start: {e}")
             fview = disp
             view_start = started - min(ls.warmup_ms, 300 * FRAME_MS[fview])
-            sigs += _signals(symbol, sts, {fr: ls.frames[fr] for fr in ls.required_frames}, base, view_start, started, vols.setdefault(symbol, {}))
+            try:
+                sigs += _signals(symbol, sts, {fr: ls.frames[fr] for fr in ls.required_frames if fr in ls.frames}, base, view_start, started, vols.setdefault(symbol, {}))
+            except Exception as e:
+                warnings.append(f"{symbol}: _signals: {e}")
             if candles_df is None:
-                if fview in ls.frames:
+                if fview in ls.frames and not ls.frames[fview].empty:
                     candles_df = ls.frames[fview]
-                elif "1m" in ls.frames and FRAME_MS[fview] >= MINUTE_MS:
+                elif "1m" in ls.frames and not ls.frames["1m"].empty and FRAME_MS[fview] >= MINUTE_MS:
                     m1 = ls.frames["1m"]
                     candles_df = LiveSignals._aggregate(m1[["open_time", "open", "high", "low", "close", "volume"]], fview, MINUTE_MS)
                 else:
+                    bars_file = os.path.join(b_dir, "bars.jsonl")
+                    if os.path.isfile(bars_file):
+                        try:
+                            import json as _json
+                            rows_b = []
+                            norm_sym = symbol.replace("@perp", "").split("-")[0]
+                            with open(bars_file, "r", encoding="utf-8") as bf:
+                                for line in bf:
+                                    line = line.strip()
+                                    if line:
+                                        item = _json.loads(line)
+                                        if norm_sym in str(item.get("symbol", "")):
+                                            rows_b.append({
+                                                "open_time": int(item.get("ts_open") or 0),
+                                                "open": float(item.get("open") or 0.0),
+                                                "high": float(item.get("high") or 0.0),
+                                                "low": float(item.get("low") or 0.0),
+                                                "close": float(item.get("close") or 0.0),
+                                                "volume": float(item.get("volume") or 0.0),
+                                            })
+                            if rows_b:
+                                b_df = pd.DataFrame(rows_b).sort_values("open_time").drop_duplicates("open_time", keep="last")
+                                candles_df = LiveSignals._aggregate(b_df, fview, MINUTE_MS)
+                        except Exception:
+                            pass
+                if candles_df is None or candles_df.empty:
                     warnings.append(f"{symbol}: không dựng được nến khung {fview}")
-                candles_df = None if candles_df is None else candles_df[candles_df["open_time"] >= view_start].tail(MAX_CANDLES)
+                else:
+                    candles_df = candles_df[candles_df["open_time"] >= view_start].tail(MAX_CANDLES)
+                    candles_df = candles_df.sort_values("open_time", ascending=True).drop_duplicates("open_time", keep="last")
             if replay:
-                m = read_manifest(symbol)
-                cc = int(m["end_ts"]) + MINUTE_MS if m else 0
-                last_closed = now_ms // MINUTE_MS * MINUTE_MS
-                gap = ls.rest_1m(cc, last_closed - MINUTE_MS) if last_closed - MINUTE_MS >= cc else pd.DataFrame()
-                warmed.setdefault(symbol, {"gap": gap})
+                try:
+                    m = read_manifest(symbol)
+                    cc = int(m["end_ts"]) + MINUTE_MS if m else 0
+                    last_closed = now_ms // MINUTE_MS * MINUTE_MS
+                    gap = ls.rest_1m(cc, last_closed - MINUTE_MS) if last_closed - MINUTE_MS >= cc else pd.DataFrame()
+                    warmed.setdefault(symbol, {"gap": gap})
+                except Exception:
+                    pass
         out_signals[symbol] = sigs
         out_candles[symbol] = _candle_rows(candles_df) if candles_df is not None else []
     result: Dict[str, Any] = {"bot_id": bot_id, "frame": disp or base, "base_frame": base, "signal_frames": sorted(set(sig_frames)), "signal_tf": signal_tf, "symbols": src["symbols"],
@@ -508,6 +545,18 @@ def resolve_live_source(params: Dict[str, Any]) -> Dict[str, Any]:
     if isinstance(symbols, str):
         symbols = [x.strip() for x in symbols.split(",") if x.strip()]
     names = resolve_symbols(list(symbols))
+
+    if params.get("strategy_type") == "proxima" or params.get("alpha_id") == "proxima":
+        return {
+            "strategies": [{"id": "proxima_decoupled"}],
+            "risk": None,
+            "symbols": [f"{n}@perp" for n in names],
+            "base_frame": params.get("base_frame") or "1m",
+            "native": None,
+            "label": "strategy:proxima_decoupled",
+            "name": "proxima_decoupled",
+            "strategy_type": "proxima",
+        }
     signal_tf = params.get("signal_tf") or None
     run_frame = params.get("base_frame") or signal_tf or None
     if signal_tf:
@@ -577,6 +626,29 @@ def run_live_bot(params: Dict[str, Any]) -> Dict[str, Any]:
     bot_id = str(params.get("bot_id") or lv.new_bot_id(mode))
     launch_params = {k: v for k, v in params.items() if k != "resume"}
     src = resolve_live_source(params)
+    is_proxima = (params.get("strategy_type") == "proxima" or params.get("alpha_id") == "proxima" or src.get("strategy_type") == "proxima")
+    if is_proxima:
+        if params.get("execution_client") == "sandbox" or params.get("use_sandbox"):
+            from backend.core.strategy_proxima import ProximaNativeStrategy
+            src["native"] = {
+                "cls": ProximaNativeStrategy,
+                "id": "PROXIMA_NATIVE",
+                "params": {
+                    "sleeve_id": f"sleeve_{bot_id}",
+                    "sleeve_capital": capital,
+                    "r_ratio": float(params.get("r_ratio") or 0.15),
+                    "vl_mult": float(params.get("vl_mult") or 1.0),
+                    "tp_mult": float(params.get("tp_mult") or 0.8),
+                    "f_mult": float(params.get("f_mult") or 1.0),
+                    "anchor_frame": str(params.get("anchor_tf") or "1h"),
+                    "shadow_mode": bool(params.get("shadow", False)),
+                }
+            }
+            src["strategies"] = []
+            src["label"] = f"Proxima Native ({len(src.get('symbols', []))} markets) · Nora Sandbox Paper"
+        else:
+            from backend.adapter.runner import run_decoupled_proxima_live
+            return run_decoupled_proxima_live(params)
     if mode == "testnet":
         print(f"[TESTNET] chế độ vị thế OKX demo: {lv.ensure_net_position_mode()}", flush=True)
     bot_dir = None

@@ -121,19 +121,43 @@ def regime_history(symbol: str, days: int) -> Dict[str, Any]:
 
 
 @market_router.get("/regime")
-def get_regime(symbols: Optional[str] = Query(None, description="vd BTC,SOL (mặc định cả vũ trụ perp của sổ)"),
+def get_regime(symbols: Optional[str] = Query(None, description="vd BTC,SOL (mặc định các cặp perp chính)"),
                days: int = Query(30, ge=1, le=365)):
     """Regime hiện tại + lịch sử từng tài sản (nến 15m đã đóng) và chiến lược đang bật theo bảng regime của sổ."""
     from backend.jobs.runner import JobError
-    from backend.routes.process import check_symbols
+    from backend.routes.studio import check_symbols
     from backend.analys.metrics import regime as rg
     from backend.analys.alpha.strategies import perp_symbols
     try:
-        syms = check_symbols([s for s in symbols.split(",") if s]) if symbols else perp_symbols()
-    except JobError as e:
-        raise HTTPException(422, str(e))
-    return {"days": days, "frame": REGIME_FRAME, "names": list(rg.NAMES), "labels_vi": rg.LABEL_VI,
-            "symbols": [regime_history(s, days) for s in syms]}
+        if symbols:
+            syms = check_symbols([s for s in symbols.split(",") if s])
+        else:
+            syms = perp_symbols()
+    except Exception as e:
+        syms = perp_symbols()
+
+    out_symbols = []
+    for s in syms:
+        try:
+            out_symbols.append(regime_history(s, days))
+        except Exception as exc:
+            out_symbols.append({
+                "symbol": s,
+                "error": str(exc),
+                "current": {"state": "RANGE", "label": "Thị trường đi ngang", "since": None},
+                "segments": [],
+                "share_pct": {"RANGE": 100.0},
+                "strategies_on": ["trend_kema", "sideway"],
+                "strategies_off": [],
+            })
+
+    return {
+        "days": days,
+        "frame": REGIME_FRAME,
+        "names": list(rg.NAMES),
+        "labels_vi": rg.LABEL_VI,
+        "symbols": out_symbols,
+    }
 
 
 ROUTERS = [data_router, market_router]

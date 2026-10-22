@@ -14,7 +14,7 @@ export default function Portfolio() {
 
   return (
     <>
-      <PageHead kicker="Tổng quan" title="Tổng quan danh mục" subtitle="Chỉ số hiệu suất và diễn biến danh mục hệ thống.">
+      <PageHead kicker="Hệ thống" title="Tổng quan" subtitle="Chỉ số hiệu suất và diễn biến danh mục hệ thống.">
         <Segmented label="Kỳ xem" value={pref.period} onChange={(v) => setPref({ period: v })} options={PERIODS} />
       </PageHead>
 
