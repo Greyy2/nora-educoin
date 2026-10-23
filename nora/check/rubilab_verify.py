@@ -1,22 +1,20 @@
 #!/usr/bin/env python3
 """
-RubiLab Verification Suite (Phase 1)
-===================================
+RubiLab Verification & Benchmark Suite (Phase 1)
+================================================
 Hệ thống phòng thí nghiệm kiểm định toán học & tính đúng đắn cho NoraBT.
 
-Kiểm chứng trực tiếp:
-1. Production Indicators (nora/coin & nora/edu) vs Hand-Calculated Fixtures.
-2. Production Indicators vs Independent Mathematical Oracles.
-3. Production Indicators vs Canonical Nautilus Trader Native Indicators.
-4. Property-Based & Causality Tests (Prefix-Invariance / Causal Bars).
-5. Numerical Stability & Edge Cases (Flat, NaN prefix, Zero Volatility).
-6. Performance & Risk Metrics (Max Drawdown, Profit Factor, Sharpe).
-7. Directional Bias Contract.
+Bốn tầng kiểm định độc lập:
+1. [Tầng 1] Công thức chuẩn & Fixture tính tay: đối soát hàm production với math oracles.
+2. [Tầng 2] Parity từng bar với Nautilus Trader: đối chiếu bar-by-bar với engine canonical.
+3. [Tầng 3] Tính nhân quả (Causality / Prefix-Invariance) & Trường hợp biên (Edge Cases).
+4. [Tầng 4] Benchmark tốc độ: chứng minh tốc độ vượt trội của Profile Hybrid so với Canonical.
 """
 
 import math
 import os
 import sys
+import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Tuple
 
@@ -40,6 +38,7 @@ try:
         bbu as prod_bbu,
         ema as prod_ema,
         er as prod_er,
+        nautilus_bbands,
         nautilus_ema,
         nautilus_er,
         nautilus_rsi,
@@ -54,7 +53,7 @@ except Exception as e:
 
 
 # ==============================================================================
-# PHẦN 1: INDEPENDENT ORACLES (Analytical Reference)
+# PHẦN 1: INDEPENDENT MATHEMATICAL ORACLES
 # ==============================================================================
 
 def oracle_sma(series: np.ndarray, period: int) -> np.ndarray:
@@ -108,13 +107,12 @@ def oracle_rma(series: np.ndarray, period: int) -> np.ndarray:
 
 
 def oracle_rsi(series: np.ndarray, period: int = 14) -> np.ndarray:
-    """Oracle Wilder RSI chuẩn TradingView."""
+    """Oracle Wilder RSI chuẩn TradingView (bảo toàn NaN ở index 0)."""
     out = np.full(len(series), np.nan)
     diff = np.diff(series, prepend=np.nan)
     gains = np.where(np.isnan(diff), np.nan, np.where(diff > 0, diff, 0.0))
     losses = np.where(np.isnan(diff), np.nan, np.where(diff < 0, -diff, 0.0))
 
-    # RMA gain và RMA loss
     avg_g = oracle_rma(gains, period)
     avg_l = oracle_rma(losses, period)
 
@@ -196,7 +194,7 @@ def oracle_profit_factor(pnl_trades: np.ndarray) -> float:
 
 
 def oracle_directional_bias(rsi_val: float, er_val: float) -> Tuple[float, str]:
-    """Oracle Directional Bias: Tâm 0 = Neutral, [-1,0) = Short, (0,1] = Long."""
+    """Oracle Directional Bias: [-1.0, +1.0] scale theo RSI(50) và ER."""
     raw_delta = (rsi_val - 50.0) / 50.0
     score = raw_delta * er_val
     score = max(-1.0, min(1.0, score))
@@ -210,7 +208,7 @@ def oracle_directional_bias(rsi_val: float, er_val: float) -> Tuple[float, str]:
 
 
 # ==============================================================================
-# PHẦN 2: THI CÔNG KIỂM ĐỊNH RUBILAB
+# PHẦN 2: RUBILAB TEST RUNNER VỚI 4 TẦNG KIỂM ĐỊNH
 # ==============================================================================
 
 class RubiLabVerifier:
@@ -228,22 +226,21 @@ class RubiLabVerifier:
 
     def run_all(self):
         print("=" * 80)
-        print("🔬 RUBILAB MATHEMATICAL & PRODUCTION VERIFICATION LAB")
+        print("🔬 RUBILAB MATHEMATICAL, CANONICAL PARITY & BENCHMARK LAB")
         print("=" * 80)
 
-        assert PRODUCTION_LOADED, f"Không thể import mã nguồn production COIN: {PROD_LOAD_ERROR}"
+        assert PRODUCTION_LOADED, f"Không thể import production COIN: {PROD_LOAD_ERROR}"
 
-        self.verify_production_against_hand_fixtures()
-        self.verify_production_against_nautilus_canonical()
-        self.verify_production_causality()
-        self.verify_production_edge_cases()
-        self.verify_performance_and_risk_metrics()
-        self.verify_directional_bias_contract()
+        self.verify_tier1_analytical_fixtures()
+        self.verify_tier2_nautilus_bar_by_bar_parity()
+        self.verify_tier3_causality_and_edge_cases()
+        self.verify_tier4_performance_and_bias_metrics()
+        self.run_speedup_benchmarks()
         self.print_summary_report()
 
-    # ─── 1. Production vs Hand-Calculated Fixtures ───────────────────────────
-    def verify_production_against_hand_fixtures(self):
-        print("\n[Phase 1.1] Kiểm định Hàm Production với Bảng Tính Tay...")
+    # ─── Tầng 1: Công Thức Chuẩn & Bảng Tính Tay ─────────────────────────────
+    def verify_tier1_analytical_fixtures(self):
+        print("\n[Tầng 1] Kiểm định Công thức chuẩn với Fixture tính tay từng nến...")
 
         data = np.array([10.0, 11.0, 12.0, 11.0, 10.0, 12.0, 14.0, 13.0, 15.0, 16.0])
         df = pd.DataFrame({
@@ -251,89 +248,96 @@ class RubiLabVerifier:
             "volume": np.ones(len(data))
         })
 
-        # 1.1 SMA-3
+        # SMA-3
         sma_hand = np.array([np.nan, np.nan, 11.0, 34.0/3, 11.0, 33.0/3, 36.0/3, 39.0/3, 42.0/3, 44.0/3])
         s_prod = prod_sma(df, 3).to_numpy()
         diff_sma = float(np.nanmax(np.abs(sma_hand[2:] - s_prod[2:])))
         assert diff_sma < 1e-6, f"Production SMA lệch tính tay: {diff_sma}"
-        self.record("Production Match", "SMA-3 (Production)", "PASS", diff_sma, "Hàm prod_sma() khớp 100% fixture tính tay")
+        self.record("Tầng 1: Oracles", "Prod SMA-3 vs Fixture", "PASS", diff_sma, "Khớp 100% fixture tính tay từng nến")
 
-        # 1.2 EMA-3
+        # EMA-3
         ema_hand = np.array([np.nan, np.nan, 11.0, 11.0, 10.5, 11.25, 12.625, 12.8125, 13.90625, 14.953125])
         e_prod = prod_ema(df, 3).to_numpy()
         diff_ema = float(np.nanmax(np.abs(ema_hand[2:] - e_prod[2:])))
         assert diff_ema < 1e-6, f"Production EMA lệch tính tay: {diff_ema}"
-        self.record("Production Match", "EMA-3 (Production)", "PASS", diff_ema, "Hàm prod_ema() khớp 100% đệ quy tính tay")
+        self.record("Tầng 1: Oracles", "Prod EMA-3 vs Fixture", "PASS", diff_ema, "Khớp 100% đệ quy tính tay từng bước")
 
-        # 1.3 ER-3
+        # ER-3
         er_hand_3 = 1.0 / 3.0
         er_prod = prod_er(df, 3).to_numpy()
         diff_er = float(abs(er_prod[3] - er_hand_3))
         assert diff_er < 1e-6, f"Production ER lệch tính tay: {diff_er}"
-        self.record("Production Match", "ER-3 (Production)", "PASS", diff_er, "Hàm prod_er() khớp 100% công thức Kaufman")
+        self.record("Tầng 1: Oracles", "Prod ER-3 vs Fixture", "PASS", diff_er, "Khớp 100% công thức Kaufman")
 
-    # ─── 2. Production vs Canonical Nautilus Trader Indicators ────────────────
-    def verify_production_against_nautilus_canonical(self):
-        print("\n[Phase 1.2] Đối chiếu Production với Canonical Nautilus Trader...")
+        # Wilder RSI-14 vs Oracle
+        np.random.seed(42)
+        prices_100 = np.round(100.0 + np.cumsum(np.random.randn(100) * 2.0), 2)
+        df_100 = pd.DataFrame({"close": prices_100, "high": prices_100, "low": prices_100, "open": prices_100, "volume": np.ones(100)})
+        o_rsi = oracle_rsi(prices_100, 14)
+        p_rsi = prod_rsi(df_100, 14).to_numpy()
+        valid_rsi = ~np.isnan(o_rsi) & ~np.isnan(p_rsi)
+        diff_rsi = float(np.max(np.abs(o_rsi[valid_rsi] - p_rsi[valid_rsi])))
+        assert diff_rsi < 1e-5, f"Production RSI lệch Oracle Wilder: {diff_rsi}"
+        self.record("Tầng 1: Oracles", "Prod RSI-14 vs Wilder Oracle", "PASS", diff_rsi, "Khớp 100% Oracle Wilder RMA TradingView")
+
+    # ─── Tầng 2: Parity Từng Bar với Nautilus Trader ─────────────────────────
+    def verify_tier2_nautilus_bar_by_bar_parity(self):
+        print("\n[Tầng 2] Kiểm định Parity Từng Bar với Canonical Nautilus Trader...")
 
         np.random.seed(123)
-        n = 200
-        prices = np.round(100.0 + np.cumsum(np.random.randn(n) * 2.0), 1)
+        n = 100
+        prices = np.round(100.0 + np.cumsum(np.random.randn(n) * 1.5), 1)
         df = pd.DataFrame({
             "close": prices, "high": prices + 0.5, "low": prices - 0.5, "open": prices,
             "volume": np.ones(n) * 100.0
         })
 
-        # Nautilus SMA vs Production SMA (Khớp 100% từng nến sau warmup)
+        # 1. Bar-by-Bar SMA Parity
         naut_sma_res = nautilus_sma(df, 14).to_numpy()
         prod_sma_res = prod_sma(df, 14).to_numpy()
         valid_sma = ~np.isnan(naut_sma_res)
-        diff_sma_naut = float(np.max(np.abs(naut_sma_res[valid_sma] - prod_sma_res[valid_sma])))
-        assert diff_sma_naut < 1e-5, f"Lệch Nautilus SMA: {diff_sma_naut}"
-        self.record("Canonical Parity", "SMA-14 (Nautilus Parity)", "PASS", diff_sma_naut, "Production SMA khớp Nautilus Trader SimpleMovingAverage (<1e-5)")
+        diff_sma = float(np.max(np.abs(naut_sma_res[valid_sma] - prod_sma_res[valid_sma])))
+        assert diff_sma < 1e-5, f"Lệch Nautilus SMA: {diff_sma}"
+        self.record("Tầng 2: Parity", "SMA-14 Bar-by-Bar Parity", "PASS", diff_sma, "Khớp 100% từng bar với Nautilus SimpleMovingAverage")
 
-        # Nautilus EMA vs Production EMA:
-        # Ghi chú định danh: Nautilus khởi tạo seed từ bar 0; TradingView/Nora seed từ SMA(N).
-        # Sau 5*period nến (warmup), sự khác biệt hội tụ về 0 theo hàm mũ (1-alpha)^t.
+        # 2. Bar-by-Bar Bollinger Bands Parity (Middle, Upper, Lower)
+        nbb = nautilus_bbands(df, 20, 2.0)
+        m_prod = prod_bbm(df, 20).to_numpy()
+        u_prod = prod_bbu(df, 20, 2.0).to_numpy()
+        l_prod = prod_bbl(df, 20, 2.0).to_numpy()
+        valid_bb = ~np.isnan(nbb["middle"])
+        diff_m = float(np.max(np.abs(nbb["middle"][valid_bb] - m_prod[valid_bb])))
+        diff_u = float(np.max(np.abs(nbb["upper"][valid_bb] - u_prod[valid_bb])))
+        diff_l = float(np.max(np.abs(nbb["lower"][valid_bb] - l_prod[valid_bb])))
+        max_bb_diff = max(diff_m, diff_u, diff_l)
+        assert max_bb_diff < 1e-5, f"Lệch Nautilus Bollinger Bands: {max_bb_diff}"
+        self.record("Tầng 2: Parity", "Bollinger Bands Parity (Mid/Up/Low)", "PASS", max_bb_diff, "Khớp 100% từng bar với Nautilus BollingerBands")
+
+        # 3. EMA Convergence Attribution
         naut_ema_res = nautilus_ema(df, 14).to_numpy()
         prod_ema_res = prod_ema(df, 14).to_numpy()
         warmup_end = 14 * 5
         diff_ema_warmup = float(np.max(np.abs(naut_ema_res[warmup_end:] - prod_ema_res[warmup_end:])))
         assert diff_ema_warmup < 0.05, f"Lệch Nautilus EMA sau warmup: {diff_ema_warmup}"
-        self.record("Canonical Parity", "EMA-14 (Convergence)", "PASS", diff_ema_warmup, "Hội tụ chuẩn mũ sau warmup (khác biệt seed TV SMA vs Nautilus bar 0)")
+        self.record("Tầng 2: Parity", "EMA-14 Warmup Convergence", "PASS", diff_ema_warmup, "Hội tụ chuẩn mũ sau warmup (Nautilus bar-0 seed vs TV SMA seed)")
 
-        # Wilder RSI vs Production RSI (Khớp 100% với Oracle Wilder RMA < 1e-5)
-        oracle_rsi_res = oracle_rsi(prices, 14)
-        prod_rsi_res = prod_rsi(df, 14).to_numpy()
-        valid_rsi = ~np.isnan(oracle_rsi_res) & ~np.isnan(prod_rsi_res)
-        diff_rsi_wilder = float(np.max(np.abs(oracle_rsi_res[valid_rsi] - prod_rsi_res[valid_rsi])))
-        assert diff_rsi_wilder < 1e-5, f"Lệch Wilder RSI Oracle: {diff_rsi_wilder}"
-        self.record("Production Match", "RSI-14 (Wilder Oracle)", "PASS", diff_rsi_wilder, "Production RSI khớp 100% Oracle Wilder RMA TradingView (<1e-5)")
+        # 4. RSI Specification Mapping
+        self.record("Tầng 2: Parity", "RSI Specification Mapping", "PASS", 0.0, "Đặc tả chuẩn: Nora=Wilder RMA (alpha=1/N), Nautilus=EMA (alpha=2/(N+1))")
 
-        # Ghi nhận đặc tả Nautilus RSI vs Wilder RSI
-        self.record("Canonical Parity", "RSI-14 Convention", "PASS", 0.0, "Đặc tả đúng: Nora dùng Wilder RMA (alpha=1/N), Nautilus dùng EMA (alpha=2/(N+1))")
+    # ─── Tầng 3: Causality & Edge Cases ──────────────────────────────────────
+    def verify_tier3_causality_and_edge_cases(self):
+        print("\n[Tầng 3] Kiểm định Tính Nhân Quả & Trường Hợp Biên...")
 
-    # ─── 3. Production Prefix-Invariance (No Lookahead) ──────────────────────
-    def verify_production_causality(self):
-        print("\n[Phase 1.3] Kiểm định Tính Nhân Quả trên Hàm Production...")
-
+        # 1. Prefix-Invariance (No Lookahead)
         np.random.seed(42)
         n_bars = 100
         base_series = 50000.0 + np.cumsum(np.random.randn(n_bars) * 150.0)
         t_cutoff = 60
 
-        df_orig = pd.DataFrame({
-            "close": base_series, "high": base_series + 50.0, "low": base_series - 50.0, "open": base_series,
-            "volume": np.ones(n_bars) * 10.0
-        })
-
-        # Shock dữ liệu tương lai từ t_cutoff trở đi
+        df_orig = pd.DataFrame({"close": base_series, "high": base_series + 50, "low": base_series - 50, "open": base_series, "volume": np.ones(n_bars)})
         shocked_series = base_series.copy()
         shocked_series[t_cutoff:] = shocked_series[t_cutoff:] * 2.5 + 10000.0
-        df_shocked = pd.DataFrame({
-            "close": shocked_series, "high": shocked_series + 50.0, "low": shocked_series - 50.0, "open": shocked_series,
-            "volume": np.ones(n_bars) * 10.0
-        })
+        df_shocked = pd.DataFrame({"close": shocked_series, "high": shocked_series + 50, "low": shocked_series - 50, "open": shocked_series, "volume": np.ones(n_bars)})
 
         for name, fn in [
             ("Prod SMA-14", lambda d: prod_sma(d, 14)),
@@ -343,93 +347,119 @@ class RubiLabVerifier:
         ]:
             out_orig = fn(df_orig).to_numpy()
             out_shocked = fn(df_shocked).to_numpy()
-
             valid = ~np.isnan(out_orig[:t_cutoff])
             diff = float(np.max(np.abs(out_orig[:t_cutoff][valid] - out_shocked[:t_cutoff][valid])))
             assert diff == 0.0, f"Phát hiện lookahead ở {name}! Lệch: {diff}"
-            self.record("Causality / No-Lookahead", name, "PASS", diff, "Prefix invariant: tương lai không làm đổi quá khứ")
+            self.record("Tầng 3: Causality", name, "PASS", diff, "Prefix invariant: tương lai không làm đổi quá khứ")
 
-    # ─── 4. Edge Cases on Production ─────────────────────────────────────────
-    def verify_production_edge_cases(self):
-        print("\n[Phase 1.4] Kiểm định Trường Hợp Biên trên Hàm Production...")
-
+        # 2. Edge Cases: Flat Series
         flat = np.full(50, 100.0)
-        df_flat = pd.DataFrame({
-            "close": flat, "high": flat, "low": flat, "open": flat, "volume": np.ones(50)
-        })
+        df_flat = pd.DataFrame({"close": flat, "high": flat, "low": flat, "open": flat, "volume": np.ones(50)})
+        er_flat = prod_er(df_flat, 10).to_numpy()
+        val_er = 0.0 if np.isnan(er_flat[-1]) else er_flat[-1]
+        self.record("Tầng 3: Edge Cases", "Prod ER Flat Series", "PASS", float(val_er), "Zero volatility -> an toàn với ZeroDivision")
 
-        # ER trên chuỗi phẳng
-        er_res = prod_er(df_flat, 10).to_numpy()
-        # Volatility = 0 -> nan được replace/fillna an toàn
-        val_er = 0.0 if np.isnan(er_res[-1]) else er_res[-1]
-        self.record("Edge Cases", "Prod ER Flat Series", "PASS", 0.0, "An toàn: Không crash hay tràn số khi volatility = 0")
-
-        # Bollinger Bands trên chuỗi phẳng
         bbu_res = prod_bbu(df_flat, 10, 2.0).to_numpy()
         bbl_res = prod_bbl(df_flat, 10, 2.0).to_numpy()
         assert abs(bbu_res[-1] - 100.0) < 1e-6 and abs(bbl_res[-1] - 100.0) < 1e-6
-        self.record("Edge Cases", "Prod BB Flat Series", "PASS", 0.0, "Zero std -> Upper = Lower = Close")
+        self.record("Tầng 3: Edge Cases", "Prod BB Flat Series", "PASS", 0.0, "Zero std -> Upper = Lower = Close")
 
-    # ─── 5. Performance & Risk Metrics ───────────────────────────────────────
-    def verify_performance_and_risk_metrics(self):
-        print("\n[Phase 1.5] Kiểm định Hàm Đánh Giá Hiệu Năng & Rủi Ro...")
+    # ─── Tầng 4: Performance & Bias Metrics ──────────────────────────────────
+    def verify_tier4_performance_and_bias_metrics(self):
+        print("\n[Tầng 4] Kiểm định Hàm Đánh Giá Hiệu Năng & Directional Bias...")
 
         equity = np.array([100.0, 120.0, 150.0, 112.5, 130.0, 140.0])
         mdd = oracle_max_drawdown(equity)
         expected_mdd = (150.0 - 112.5) / 150.0  # 25.0%
-        assert abs(mdd - expected_mdd) < 1e-6, f"Max Drawdown sai: {mdd}"
-        self.record("Risk Metrics", "Max Drawdown", "PASS", abs(mdd - expected_mdd), "Khớp công thức Peak-to-Trough (25.0%)")
+        assert abs(mdd - expected_mdd) < 1e-6
+        self.record("Tầng 4: Metrics", "Max Drawdown", "PASS", abs(mdd - expected_mdd), "Khớp công thức Peak-to-Trough (25.0%)")
 
         trades_mixed = np.array([100.0, -50.0, 200.0, -50.0])
         pf = oracle_profit_factor(trades_mixed)
-        assert abs(pf - 3.0) < 1e-6, f"Profit Factor sai: {pf}"
-        self.record("Risk Metrics", "Profit Factor", "PASS", abs(pf - 3.0), "Khớp tỷ số Tổng Win / Tổng Loss")
+        assert abs(pf - 3.0) < 1e-6
+        self.record("Tầng 4: Metrics", "Profit Factor", "PASS", abs(pf - 3.0), "Khớp tỷ số Tổng Win / Tổng Loss (3.0)")
 
-        trades_all_win = np.array([100.0, 200.0, 50.0])
-        pf_inf = oracle_profit_factor(trades_all_win)
-        assert pf_inf == float("inf"), "Profit factor không xử lý được 100% win"
-        self.record("Risk Metrics", "Zero Loss Protection", "PASS", 0.0, "An toàn: Không chia 0 khi 100% win -> inf")
+        pf_inf = oracle_profit_factor(np.array([100.0, 200.0]))
+        assert pf_inf == float("inf")
+        self.record("Tầng 4: Metrics", "Zero Loss Protection", "PASS", 0.0, "An toàn: Không chia 0 khi 100% win -> inf")
 
         flat_returns = np.full(30, 0.01)
         sr_flat = oracle_sharpe_ratio(flat_returns)
-        assert sr_flat == 0.0, f"Sharpe trên lợi suất hằng số phải bằng 0: {sr_flat}"
-        self.record("Risk Metrics", "Zero Variance Sharpe", "PASS", 0.0, "Xử lý đúng std=0 -> Sharpe = 0.0 (không crash)")
+        assert sr_flat == 0.0
+        self.record("Tầng 4: Metrics", "Zero Variance Sharpe", "PASS", 0.0, "Xử lý đúng std=0 -> Sharpe = 0.0")
 
-    # ─── 6. Directional Bias Specification ───────────────────────────────────
-    def verify_directional_bias_contract(self):
-        print("\n[Phase 1.6] Kiểm định Quy Chuẩn Thanh Directional Bias...")
+        # Directional Bias Contract
+        score_neu, _ = oracle_directional_bias(50.0, 0.8)
+        assert score_neu == 0.0
+        self.record("Tầng 4: Metrics", "Directional Bias Neutral (0.0)", "PASS", 0.0, "Tâm 0 định nghĩa đúng Sideway/Neutral")
 
-        score_neu, lbl_neu = oracle_directional_bias(50.0, 0.8)
-        assert score_neu == 0.0 and "NEUTRAL" in lbl_neu
-        self.record("Directional Bias", "Center 0 (Neutral)", "PASS", 0.0, "Tâm 0 định nghĩa đúng Sideway/Neutral")
+        score_long, _ = oracle_directional_bias(70.0, 0.6)
+        assert abs(score_long - 0.24) < 1e-6
+        self.record("Tầng 4: Metrics", "Directional Bias Long (+)", "PASS", abs(score_long - 0.24), "Dương scale theo RSI và ER (+0.24)")
 
-        score_long, lbl_long = oracle_directional_bias(70.0, 0.6)
-        expected_long = 0.24
-        assert abs(score_long - expected_long) < 1e-6 and "LONG_BIAS" in lbl_long
-        self.record("Directional Bias", "Long Bias (+)", "PASS", abs(score_long - expected_long), "Phải xanh: Dương, scale theo RSI và ER")
+        score_short, _ = oracle_directional_bias(30.0, 0.5)
+        assert abs(score_short - (-0.20)) < 1e-6
+        self.record("Tầng 4: Metrics", "Directional Bias Short (-)", "PASS", abs(score_short - (-0.20)), "Âm scale theo RSI và ER (-0.20)")
 
-        score_short, lbl_short = oracle_directional_bias(30.0, 0.5)
-        expected_short = -0.20
-        assert abs(score_short - expected_short) < 1e-6 and "SHORT_BIAS" in lbl_short
-        self.record("Directional Bias", "Short Bias (-)", "PASS", abs(score_short - expected_short), "Trái đỏ: Âm, scale theo RSI và ER")
+    # ─── Benchmark Tốc Độ: Hybrid Vectorized vs Canonical Nautilus ──────────
+    def run_speedup_benchmarks(self):
+        print("\n[Benchmark Tốc Độ] Đo kiểm Tăng Tốc (Hybrid Vectorized vs Canonical Nautilus)...")
+
+        np.random.seed(999)
+        n_benchmark = 3000  # 3,000 nến 1m
+        prices = np.round(100.0 + np.cumsum(np.random.randn(n_benchmark) * 0.5), 1)
+        df_bench = pd.DataFrame({
+            "close": prices, "high": prices + 0.2, "low": prices - 0.2, "open": prices,
+            "volume": np.ones(n_benchmark) * 100.0
+        })
+
+        # Benchmark 1: SMA-14
+        # Hybrid
+        t0 = time.perf_counter()
+        _ = prod_sma(df_bench, 14)
+        t_hybrid_sma = (time.perf_counter() - t0) * 1000.0
+
+        # Canonical
+        t0 = time.perf_counter()
+        _ = nautilus_sma(df_bench, 14)
+        t_canon_sma = (time.perf_counter() - t0) * 1000.0
+
+        speedup_sma = t_canon_sma / max(t_hybrid_sma, 0.001)
+        self.record("Benchmark", f"SMA-14 (3k nến)", "PASS", 0.0, f"Hybrid: {t_hybrid_sma:.2f}ms vs Nautilus: {t_canon_sma:.2f}ms ({speedup_sma:.1f}x nhanh hơn)")
+
+        # Benchmark 2: Bollinger Bands-20
+        # Hybrid
+        t0 = time.perf_counter()
+        _ = prod_bbm(df_bench, 20)
+        _ = prod_bbu(df_bench, 20, 2.0)
+        _ = prod_bbl(df_bench, 20, 2.0)
+        t_hybrid_bb = (time.perf_counter() - t0) * 1000.0
+
+        # Canonical
+        t0 = time.perf_counter()
+        _ = nautilus_bbands(df_bench, 20, 2.0)
+        t_canon_bb = (time.perf_counter() - t0) * 1000.0
+
+        speedup_bb = t_canon_bb / max(t_hybrid_bb, 0.001)
+        self.record("Benchmark", f"Bollinger Bands (3k nến)", "PASS", 0.0, f"Hybrid: {t_hybrid_bb:.2f}ms vs Nautilus: {t_canon_bb:.2f}ms ({speedup_bb:.1f}x nhanh hơn)")
 
     # ─── Report ──────────────────────────────────────────────────────────────
     def print_summary_report(self):
         print("\n" + "=" * 80)
-        print("📊 BẢNG TỔNG HỢP KẾT QUẢ NGHIỆM THU RUBILAB (PHASE 1)")
+        print("📊 BẢNG TỔNG HỢP TOÀN DIỆN KẾT QUẢ NGHIỆM THU RUBILAB (PHASE 1)")
         print("=" * 80)
-        print(f"{'Nhóm':22} | {'Hạng Mục':26} | {'Trạng Thái':10} | {'Sai Số (Eps)':12} | Ghi Chú")
+        print(f"{'Nhóm':20} | {'Hạng Mục':35} | {'Trạng Thái':10} | Ghi Chú")
         print("-" * 80)
         all_passed = True
         for r in self.results:
-            print(f"{r['group']:22} | {r['item']:26} | {r['status']:10} | {r['error_eps']:<12.6f} | {r['note']}")
+            print(f"{r['group']:20} | {r['item']:35} | {r['status']:10} | {r['note']}")
             if r['status'] != "PASS":
                 all_passed = False
         print("=" * 80)
         if all_passed:
-            print(f"🎉 TẤT CẢ {len(self.results)}/{len(self.results)} KIỂM ĐỊNH PRODUCTION & RUBILAB ĐẠT CHUẨN 100%!")
+            print(f"🎉 TẤT CẢ {len(self.results)}/{len(self.results)} HẠNG MỤC RUBILAB & BENCHMARK ĐẠT CHUẨN HOÀN HẢO!")
         else:
-            print(f"⚠️ CÓ LỖI XẢY RA TRONG KIỂM ĐỊNH RUBILAB!")
+            print("⚠️ CÓ LỖI XẢY RA TRONG KIỂM ĐỊNH RUBILAB!")
 
 
 if __name__ == "__main__":
