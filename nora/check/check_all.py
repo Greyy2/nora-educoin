@@ -210,6 +210,20 @@ class SystemChecker:
             except Exception as e:
                 return str(e)
 
+        def test_product(host: str) -> Tuple[str, str]:
+            request = urllib.request.Request(
+                "http://127.0.0.1/api/health",
+                headers={"Host": host},
+            )
+            try:
+                with urllib.request.urlopen(request, timeout=3) as response:
+                    data = json.loads(response.read().decode("utf-8"))
+                    return str(response.status), str(data.get("product", ""))
+            except urllib.error.HTTPError as error:
+                return str(error.code), ""
+            except (OSError, ValueError) as error:
+                return f"ERROR: {error}", ""
+
         # 4.1 Apex Legacy API
         main_api_code = test_url("nora.expsolution.io", "/api/health")
         self.log_result("Nginx", "Legacy API (nora.expsolution.io)", main_api_code == "200", f"HTTP {main_api_code}")
@@ -223,23 +237,23 @@ class SystemChecker:
         else:
             self.log_result("Nginx", "Apex UI (nora.expsolution.io/)", False, f"HTTP {apex_ui_code} (Chưa cấu hình phản hồi dừng UI chuẩn)")
 
-        # 4.3 EDU Domain Cutover (BẮT BUỘC HTTP 200, 404 là FAIL)
-        edu_code = test_url("edu.nora.expsolution.io", "/api/health")
-        if edu_code == "200":
-            self.log_result("Nginx", "Host: edu.nora.expsolution.io", True, "HTTP 200 OK (Cutover thành công, routing đúng)")
+        # 4.3 EDU Domain Cutover (BẮT BUỘC HTTP 200 và đúng product)
+        edu_code, edu_product = test_product("edu.expsolution.io")
+        if edu_code == "200" and edu_product == "edu":
+            self.log_result("Nginx", "Host: edu.expsolution.io", True, "HTTP 200 OK | product=edu")
         elif edu_code == "404":
-            self.log_result("Nginx", "Host: edu.nora.expsolution.io", False, "HTTP 404 (CHƯA CUTOVER: VHost chưa được symlink vào /etc/nginx/sites-enabled/ hoặc Nginx chưa reload)")
+            self.log_result("Nginx", "Host: edu.expsolution.io", False, "HTTP 404 (VHost chưa được kích hoạt hoặc Nginx chưa reload)")
         else:
-            self.log_result("Nginx", "Host: edu.nora.expsolution.io", False, f"HTTP {edu_code} (Chưa sẵn sàng)")
+            self.log_result("Nginx", "Host: edu.expsolution.io", False, f"HTTP {edu_code} | product={edu_product!r} (Chưa sẵn sàng)")
 
-        # 4.4 COIN Domain Cutover (BẮT BUỘC HTTP 200, 404 là FAIL)
-        coin_code = test_url("coin.nora.expsolution.io", "/api/health")
-        if coin_code == "200":
-            self.log_result("Nginx", "Host: coin.nora.expsolution.io", True, "HTTP 200 OK (Cutover thành công, routing đúng)")
+        # 4.4 COIN Domain Cutover (BẮT BUỘC HTTP 200 và đúng product)
+        coin_code, coin_product = test_product("coin.expsolution.io")
+        if coin_code == "200" and coin_product == "coin":
+            self.log_result("Nginx", "Host: coin.expsolution.io", True, "HTTP 200 OK | product=coin")
         elif coin_code == "404":
-            self.log_result("Nginx", "Host: coin.nora.expsolution.io", False, "HTTP 404 (CHƯA CUTOVER: VHost chưa được symlink vào /etc/nginx/sites-enabled/ hoặc Nginx chưa reload)")
+            self.log_result("Nginx", "Host: coin.expsolution.io", False, "HTTP 404 (VHost chưa được kích hoạt hoặc Nginx chưa reload)")
         else:
-            self.log_result("Nginx", "Host: coin.nora.expsolution.io", False, f"HTTP {coin_code} (Chưa sẵn sàng)")
+            self.log_result("Nginx", "Host: coin.expsolution.io", False, f"HTTP {coin_code} | product={coin_product!r} (Chưa sẵn sàng)")
 
     # =========================================================================
     # 5. RUBILAB MATHEMATICAL & PRODUCTION VERIFICATION

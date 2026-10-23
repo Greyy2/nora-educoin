@@ -100,6 +100,6 @@ sudo systemctl reload nginx
 
 log "Xong. Kiểm tra:"
 [ "$PRODUCT" = "all" ] || [ "$PRODUCT" = "legacy" ] && log "  curl -s -H 'Host: nora.expsolution.io'      http://127.0.0.1/api/health"
-[ "$PRODUCT" = "all" ] || [ "$PRODUCT" = "coin" ]   && log "  curl -s -H 'Host: coin.nora.expsolution.io' http://127.0.0.1/api/health"
-[ "$PRODUCT" = "all" ] || [ "$PRODUCT" = "edu" ]    && log "  curl -s -H 'Host: edu.nora.expsolution.io'  http://127.0.0.1/api/health"
-log "DNS: Cloudflare zone expsolution.io, cần thêm CNAME/A cho coin.nora và edu.nora."
+[ "$PRODUCT" = "all" ] || [ "$PRODUCT" = "coin" ]   && log "  curl -s -H 'Host: coin.expsolution.io' http://127.0.0.1/api/health"
+[ "$PRODUCT" = "all" ] || [ "$PRODUCT" = "edu" ]    && log "  curl -s -H 'Host: edu.expsolution.io'  http://127.0.0.1/api/health"
+log "DNS: Cloudflare zone expsolution.io, records coin and edu point to 203.113.135.195 (Proxied)."
