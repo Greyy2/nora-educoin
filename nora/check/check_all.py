@@ -92,6 +92,17 @@ class SystemChecker:
         else:
             self.log_result("Arch", "EDU Market Data Symlink", False, "EDU data/market không phải symlink hợp lệ")
 
+        # 1.4 Kiểm tra Git Worktree sạch trong nora/
+        try:
+            res = subprocess.run(["git", "status", "--porcelain", "nora/"], cwd=str(NORA_DIR.parent), capture_output=True, text=True, timeout=5)
+            dirty_lines = [line.strip() for line in res.stdout.strip().split("\n") if line.strip()]
+            if dirty_lines:
+                self.log_result("Arch", "Git Worktree Cleanliness (nora/)", False, f"Thư mục nora/ chưa sạch commit: {dirty_lines}")
+            else:
+                self.log_result("Arch", "Git Worktree Cleanliness (nora/)", True, "Thư mục nora/ sạch hoàn toàn, không có uncommitted files")
+        except Exception as e:
+            self.log_result("Arch", "Git Worktree Cleanliness (nora/)", False, f"Lỗi kiểm tra git: {e}")
+
     # =========================================================================
     # 2. CODE ISOLATION & IMPORT HYGIENE
     # =========================================================================
@@ -191,28 +202,50 @@ class SystemChecker:
             self.log_result("Nginx", "Nginx Directory", False, "Không tìm thấy /etc/nginx/sites-enabled")
 
         # Thử curl test cục bộ với Host header
-        def test_vhost(host: str, expected_code: int = 200):
+        def test_url(host: str, path: str = "/api/health") -> str:
             try:
-                cmd = ["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "-H", f"Host: {host}", "http://127.0.0.1/api/health"]
+                cmd = ["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "-H", f"Host: {host}", f"http://127.0.0.1{path}"]
                 res = subprocess.run(cmd, capture_output=True, text=True, timeout=3)
-                code = res.stdout.strip()
-                return code
+                return res.stdout.strip()
             except Exception as e:
                 return str(e)
 
-        main_code = test_vhost("nora.expsolution.io")
-        self.log_result("Nginx", "Host: nora.expsolution.io", main_code == "200", f"HTTP {main_code}")
+        # 4.1 Apex Legacy API
+        main_api_code = test_url("nora.expsolution.io", "/api/health")
+        self.log_result("Nginx", "Legacy API (nora.expsolution.io)", main_api_code == "200", f"HTTP {main_api_code}")
 
-        edu_code = test_vhost("edu.nora.expsolution.io")
-        coin_code = test_vhost("coin.nora.expsolution.io")
-        self.log_result("Nginx", "Host: edu.nora.expsolution.io", edu_code in ("200", "404"), f"HTTP {edu_code} (Cutover pending nếu 404)")
-        self.log_result("Nginx", "Host: coin.nora.expsolution.io", coin_code in ("200", "404"), f"HTTP {coin_code} (Cutover pending nếu 404)")
+        # 4.2 Apex UI (Không được trả 500; phải trả 410 Gone hoặc 302/301 Redirect)
+        apex_ui_code = test_url("nora.expsolution.io", "/")
+        if apex_ui_code == "500":
+            self.log_result("Nginx", "Apex UI (nora.expsolution.io/)", False, "HTTP 500 Internal Server Error (Rewrite cycle loop sang /index.html - Nginx chưa reload config mới)")
+        elif apex_ui_code in ("410", "301", "302"):
+            self.log_result("Nginx", "Apex UI (nora.expsolution.io/)", True, f"HTTP {apex_ui_code} (Chủ đích ngắt UI monolith cũ, chuyển hướng sang domain mới)")
+        else:
+            self.log_result("Nginx", "Apex UI (nora.expsolution.io/)", False, f"HTTP {apex_ui_code} (Chưa cấu hình phản hồi dừng UI chuẩn)")
+
+        # 4.3 EDU Domain Cutover (BẮT BUỘC HTTP 200, 404 là FAIL)
+        edu_code = test_url("edu.nora.expsolution.io", "/api/health")
+        if edu_code == "200":
+            self.log_result("Nginx", "Host: edu.nora.expsolution.io", True, "HTTP 200 OK (Cutover thành công, routing đúng)")
+        elif edu_code == "404":
+            self.log_result("Nginx", "Host: edu.nora.expsolution.io", False, "HTTP 404 (CHƯA CUTOVER: VHost chưa được symlink vào /etc/nginx/sites-enabled/ hoặc Nginx chưa reload)")
+        else:
+            self.log_result("Nginx", "Host: edu.nora.expsolution.io", False, f"HTTP {edu_code} (Chưa sẵn sàng)")
+
+        # 4.4 COIN Domain Cutover (BẮT BUỘC HTTP 200, 404 là FAIL)
+        coin_code = test_url("coin.nora.expsolution.io", "/api/health")
+        if coin_code == "200":
+            self.log_result("Nginx", "Host: coin.nora.expsolution.io", True, "HTTP 200 OK (Cutover thành công, routing đúng)")
+        elif coin_code == "404":
+            self.log_result("Nginx", "Host: coin.nora.expsolution.io", False, "HTTP 404 (CHƯA CUTOVER: VHost chưa được symlink vào /etc/nginx/sites-enabled/ hoặc Nginx chưa reload)")
+        else:
+            self.log_result("Nginx", "Host: coin.nora.expsolution.io", False, f"HTTP {coin_code} (Chưa sẵn sàng)")
 
     # =========================================================================
-    # 5. RUBILAB MATHEMATICAL VERIFICATION
+    # 5. RUBILAB MATHEMATICAL & PRODUCTION VERIFICATION
     # =========================================================================
     def check_rubilab(self):
-        print(f"\n{CYAN}{BOLD}5. KIỂM ĐỊNH TOÁN HỌC & BẤT BIẾN RUBILAB (PHASE 1){RESET}")
+        print(f"\n{CYAN}{BOLD}5. KIỂM ĐỊNH TOÁN HỌC & PRODUCTION RUBILAB (PHASE 1){RESET}")
         rubilab_script = NORA_DIR / "check" / "rubilab_verify.py"
         if not rubilab_script.exists():
             self.log_result("RubiLab", "Script Exists", False, "Không tìm thấy nora/check/rubilab_verify.py")
@@ -220,11 +253,11 @@ class SystemChecker:
 
         cmd = [str(VENV_PYTHON), str(rubilab_script)]
         try:
-            res = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=40)
             if res.returncode == 0:
-                self.log_result("RubiLab", "15/15 Mathematical Assertions", True, "Passed: Oracles, Causality, Edge Cases, Risk, Bias")
+                self.log_result("RubiLab", "Production & Mathematical Assertions", True, "100% Passed: Production Functions, Nautilus Parity, Causality, Edge Cases, Risk, Bias")
             else:
-                self.log_result("RubiLab", "15/15 Mathematical Assertions", False, f"Thất bại:\n{res.stderr or res.stdout}")
+                self.log_result("RubiLab", "Production & Mathematical Assertions", False, f"Thất bại:\n{res.stderr or res.stdout}")
         except Exception as e:
             self.log_result("RubiLab", "Execution", False, f"Lỗi chạy script: {e}")
 

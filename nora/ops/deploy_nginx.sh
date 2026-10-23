@@ -15,20 +15,17 @@ log() { echo "[deploy_nginx] $*"; }
 
 # ─── 1. Build frontend ────────────────────────────────────────────────────────
 if [ "${SKIP_BUILD:-0}" != 1 ]; then
-    cd "$NORA_DIR/frontend"
-    [ -d node_modules ] || taskset -c 0-3 nice -n 10 npm install --no-audit --no-fund
-
-    if [ "$PRODUCT" = "all" ] || [ "$PRODUCT" = "legacy" ]; then
-        log "Build frontend monolith (dist)..."
+    if [ "$PRODUCT" = "all" ] || [ "$PRODUCT" = "coin" ]; then
+        log "Build frontend COIN ($NORA_DIR/coin/frontend)..."
+        cd "$NORA_DIR/coin/frontend"
+        [ -d node_modules ] || taskset -c 0-3 nice -n 10 npm install --no-audit --no-fund
         taskset -c 0-3 nice -n 10 npm run build
     fi
-    if [ "$PRODUCT" = "all" ] || [ "$PRODUCT" = "coin" ]; then
-        log "Build frontend COIN (dist-coin)..."
-        taskset -c 0-3 nice -n 10 npm run build:coin
-    fi
     if [ "$PRODUCT" = "all" ] || [ "$PRODUCT" = "edu" ]; then
-        log "Build frontend EDU (dist-edu)..."
-        taskset -c 0-3 nice -n 10 npm run build:edu
+        log "Build frontend EDU ($NORA_DIR/edu/frontend)..."
+        cd "$NORA_DIR/edu/frontend"
+        [ -d node_modules ] || taskset -c 0-3 nice -n 10 npm install --no-audit --no-fund
+        taskset -c 0-3 nice -n 10 npm run build
     fi
 fi
 
@@ -68,7 +65,7 @@ if [ "$PRODUCT" = "all" ] || [ "$PRODUCT" = "edu" ]; then
 fi
 
 # ─── 3. Nginx — quyền truy cập thư mục (www-data cần o+x) ───────────────────
-for d in "$HOME" "$NORA_DIR/.." "$NORA_DIR" "$NORA_DIR/frontend"; do
+for d in "$HOME" "$NORA_DIR/.." "$NORA_DIR" "$NORA_DIR/coin/frontend" "$NORA_DIR/edu/frontend"; do
     [ "$(( 0$(stat -c %a "$d") & 1 ))" = 1 ] || { log "Thiếu quyền o+x: $d (chmod o+x)" >&2; exit 1; }
 done
 
