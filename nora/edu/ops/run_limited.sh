@@ -11,7 +11,7 @@ LOCK_MODE=wait   # wait | nowait | none
 LOCK_FILE="${XDG_RUNTIME_DIR:-/tmp}/nora-edu-heavy.lock"
 NO_MEM_LOG=0
 
-usage() { echo "Dùng: $0 [--mem 4G] [--cpus 0-13] [--log FILE] [--no-wait | --no-lock] [--no-mem-log] -- <đối số python...>" >&2; exit 2; }
+usage() { echo "Dùng: $0 [--mem 2G] [--cpus 0-13] [--log FILE] [--no-wait | --no-lock] [--no-mem-log] -- <đối số python...>" >&2; exit 2; }
 
 while [ $# -gt 0 ]; do
   case "$1" in

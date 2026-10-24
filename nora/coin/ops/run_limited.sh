@@ -3,7 +3,7 @@
 set -euo pipefail
 
 NORA_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-MEM="${NORA_MEM_MAX:-}"
+MEM="${NORA_MEM_MAX:-4G}"
 CPUS="${NORA_CPUS:-0-13}"
 PY="${NORA_PYTHON:-/home/vmc03/.venvs/nora312/bin/python}"
 LOG="${NORA_MEM_LOG:-}"
@@ -11,7 +11,7 @@ LOCK_MODE=wait   # wait | nowait | none
 LOCK_FILE="${XDG_RUNTIME_DIR:-/tmp}/nora-coin-heavy.lock"
 NO_MEM_LOG=0
 
-usage() { echo "Dùng: $0 [--mem 8G] [--cpus 0-13] [--log FILE] [--no-wait | --no-lock] [--no-mem-log] -- <đối số python...>" >&2; exit 2; }
+usage() { echo "Dùng: $0 [--mem 4G] [--cpus 0-13] [--log FILE] [--no-wait | --no-lock] [--no-mem-log] -- <đối số python...>" >&2; exit 2; }
 
 while [ $# -gt 0 ]; do
   case "$1" in

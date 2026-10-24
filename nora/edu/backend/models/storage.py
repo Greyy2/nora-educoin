@@ -15,7 +15,9 @@ import numpy as np
 
 
 # ─── Gốc dữ liệu ─────────────────────────────────────────────────────────────
-NORA_DATA_ROOT = os.environ.get("NORA_DATA_ROOT", "/home/vmc03/norabt/nora/data")
+from pathlib import Path as _Path
+_DEFAULT_DATA_ROOT = str(_Path(__file__).resolve().parent.parent.parent / "data")
+NORA_DATA_ROOT = os.environ.get("NORA_DATA_ROOT", _DEFAULT_DATA_ROOT)
 DATA_DIR = NORA_DATA_ROOT
 VENUES = ("cex", "dex")
 

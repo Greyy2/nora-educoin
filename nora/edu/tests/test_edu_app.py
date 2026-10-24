@@ -1,6 +1,7 @@
 """Kiểm thử tính độc lập của dự án nora/edu."""
 import os
 import sys
+import tempfile
 from pathlib import Path
 
 EDU_ROOT = Path(__file__).resolve().parent.parent
@@ -405,6 +406,41 @@ def test_edu_secret_isolation():
 
     print("✅ EDU exchange secret isolation verified! (Zero access to OKX API keys/secrets in env or unit)")
 
+def test_edu_backtest_resource_caps():
+    from backend.jobs.worker import resource
+
+    runner = (EDU_ROOT / "ops" / "run_limited.sh").read_text()
+    service = (EDU_ROOT / "ops" / "systemd" / "nora-edu.service").read_text()
+    assert 'MEM="${NORA_MEM_MAX:-2G}"' in runner
+    assert 'MemoryMax=$MEM' in runner and 'MemorySwapMax=0' in runner
+    assert "MemoryMax=2G" in service and "MemorySwapMax=0" in service
+
+    old_paths = resource._cgroup_paths
+    old_available = resource.mem_available_mb
+    old_reserve = resource.host_reserve_mb
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            scope = Path(tmp) / "job.scope"
+            parent = Path(tmp) / "nora.slice"
+            scope.mkdir()
+            parent.mkdir()
+            (scope / "memory.max").write_text(str(2 * 1024**3))
+            (scope / "memory.current").write_text(str(1536 * 1024**2))
+            (parent / "memory.max").write_text(str(10 * 1024**3))
+            (parent / "memory.current").write_text(str(9 * 1024**3))
+            resource._cgroup_paths = lambda: [str(scope), str(parent)]
+            resource.mem_available_mb = lambda: 100_000.0
+            resource.host_reserve_mb = lambda: 0.0
+            assert resource.cgroup_limit_mb() == 2048.0
+            assert resource.cgroup_usage_mb() == 1536.0
+            assert resource.cgroup_free_mb() == 512.0
+            assert abs(resource.planning_budget_mb() - 435.2) < 1e-6
+    finally:
+        resource._cgroup_paths = old_paths
+        resource.mem_available_mb = old_available
+        resource.host_reserve_mb = old_reserve
+    print("✅ EDU backtest resource gate honors per-job and parent cgroup limits")
+
 
 if __name__ == "__main__":
     test_edu_imports_and_routes()
@@ -419,5 +455,5 @@ if __name__ == "__main__":
     test_edu_api_to_worker_e2e_and_ownership()
     test_edu_auth_token_audience_isolation()
     test_edu_secret_isolation()
+    test_edu_backtest_resource_caps()
     print("🎉 ALL EDU PROJECT & API TESTS PASSED 100%!")
-

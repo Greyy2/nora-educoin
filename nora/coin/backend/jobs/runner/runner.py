@@ -156,9 +156,10 @@ def graceful_sigterm(progress: Optional[Progress] = None) -> Iterator[None]:
 # ══════════════════════════════════════════════════════════════════════════
 # Job nền nặng (backtest, WFA, dữ liệu...), chạy NGOÀI tiến trình API qua MỘT cửa: backend/jobs/runner.py.
 #
-# Vì sao: API có trần RAM riêng (3G) nên không được chạy việc nặng trong tiến trình. Mỗi job là một tiến trình con
-# `ops/run_limited.sh -- -m backend.jobs.runner <job_dir>`: tự có scope riêng trong nora.slice (trần chung 12G), xếp hàng
-# tuần tự (flock) và tự chia worker theo RAM còn trống. runner đọc job.json {kind, params} rồi gọi run_job(params) của module trong KINDS.
+# Vì sao: API có trần RAM riêng nên không được chạy việc nặng trong tiến trình. Mỗi job là một tiến trình con
+# `ops/run_limited.sh -- -m backend.jobs.runner <job_dir>`: scope có trần mặc định 4G, nora.slice có trần tổng 10G và không swap.
+# Job nặng chờ lock theo sản phẩm; live_bot không giữ lock backtest nhưng vẫn chịu trần scope và trần nora.slice. Runner chia worker
+# theo ngân sách cgroup hiệu lực rồi gọi run_job(params) của module trong KINDS.
 # API chỉ khởi chạy, theo dõi và đọc kết quả. UI, terminal (curl) và script đều đi qua cùng endpoint -> cùng job.
 #
 # Mỗi job có thư mục <data>/cache/process/<job_id>/ (kết quả lâu dài: backtest|wfa|carlo/<job_id>):

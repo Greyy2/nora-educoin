@@ -1,9 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// vite.coin.config.js — build riêng cho COIN product -> frontend/dist-coin
-// Dùng: npx vite build --config vite.coin.config.js
-// Dev:  npx vite --config vite.coin.config.js
+// COIN frontend; production assets are served from this project's dist directory.
 export default defineConfig({
   plugins: [react()],
   root: '.',
@@ -12,10 +10,10 @@ export default defineConfig({
     host: '0.0.0.0',
     watch: process.env.VITE_INOTIFY === '1' ? {} : { usePolling: true, interval: 300 },
     proxy: {
-      '/api': 'http://127.0.0.1:18010',
-      '/charts': 'http://127.0.0.1:18010',
+      '/api': 'http://127.0.0.1:18012',
+      '/charts': 'http://127.0.0.1:18012',
       '/ws': {
-        target: 'ws://127.0.0.1:18010',
+        target: 'ws://127.0.0.1:18012',
         ws: true,
       },
     },

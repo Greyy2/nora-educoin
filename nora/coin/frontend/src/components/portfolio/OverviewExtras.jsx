@@ -148,8 +148,144 @@ export function TradesPanel({ jobId, period, bare = false }) {
   )
 }
 
-/* ─── Regime thị trường: hiện tại, lịch sử, chiến lược đang bật ─────────────────────────────── */
+/* ─── Regime thị trường: thang đo có dấu, hiện tại, lịch sử & chiến lược đang bật ──────────── */
 const REGIME_DAYS = [7, 30, 90]
+
+export const REGIME_SPECTRUM = [
+  { state: 'CRASH', value: -2, label: 'Sập mạnh', short: 'Sập mạnh (-2)', color: 'var(--n-accent, #e11d48)' },
+  { state: 'TREND_DOWN', value: -1, label: 'Xu hướng giảm', short: 'Giảm (-1)', color: 'var(--n-neg, #f0616d)' },
+  { state: 'RANGE', value: 0, label: 'Đi ngang', short: '0 · Đi ngang', color: 'var(--n-ink-3, #94a3b8)' },
+  { state: 'TREND_UP', value: 1, label: 'Xu hướng tăng', short: 'Tăng (+1)', color: 'var(--n-pos, #10b981)' },
+  { state: 'SURGE', value: 2, label: 'Tăng thẳng đứng', short: 'Tăng sốc (+2)', color: 'var(--n-teal, #06b6d4)' },
+]
+
+export function RegimeScale({ state, label, asOf, since, compact = false, showLabel = true }) {
+  const match = REGIME_SPECTRUM.find((s) => s.state === state)
+  const isVol = state === 'VOL_EXPANSION'
+  const isUnknown = state === 'UNKNOWN' || (!match && !isVol)
+  const activeValue = match ? match.value : 0
+  const displayLabel = label || match?.label || (isVol ? 'Biến động bùng nổ' : 'Chưa đủ dữ liệu')
+  const isStale = Boolean(asOf && (Date.now() - asOf > 86400000))
+
+  if (compact) {
+    return (
+      <div
+        className="n-rgscale-compact"
+        role="meter"
+        aria-label={`Regime: ${displayLabel}`}
+        aria-valuenow={match ? activeValue : undefined}
+        aria-valuemin="-2"
+        aria-valuemax="2"
+        aria-valuetext={displayLabel}
+        title={`${displayLabel}${asOf ? ` · Cập nhật: ${fmtDateTime(asOf)}` : ''}`}
+      >
+        <div className="n-rgscale-mini-track">
+          {REGIME_SPECTRUM.map((seg) => {
+            const isActive = seg.state === state
+            return (
+              <div
+                key={seg.state}
+                className={`n-rgscale-mini-seg ${isActive ? 'active' : ''}`}
+                style={{
+                  backgroundColor: isActive ? seg.color : undefined,
+                  opacity: isActive ? 1 : 0.22,
+                }}
+              />
+            )
+          })}
+        </div>
+        {isVol && <span className="n-rgchip n-rg-VOL_EXPANSION" style={{ fontSize: 10, padding: '1px 5px', marginLeft: 2 }}>Biến động</span>}
+        {isUnknown && <span className="n-rgchip n-rg-UNKNOWN" style={{ fontSize: 10, padding: '1px 5px', marginLeft: 2 }}>Khởi động</span>}
+        {showLabel && (
+          <span className={`n-rgscale-mini-lbl ${match ? (activeValue < 0 ? 'neg' : activeValue > 0 ? 'pos' : 'muted') : 'muted'}`}>
+            {displayLabel}
+          </span>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div
+      className="n-rgscale-featured"
+      role="meter"
+      aria-label={`Thang đo regime thị trường: ${displayLabel}`}
+      aria-valuenow={match ? activeValue : undefined}
+      aria-valuemin="-2"
+      aria-valuemax="2"
+      aria-valuetext={displayLabel}
+    >
+      <div className="n-rgscale-header">
+        <div className="n-rgscale-title-group">
+          <span className="n-rgscale-kicker">Chỉ báo Regime (Thang ngang Âm đỏ ← 0 Trung tính → Dương xanh)</span>
+          <div className="n-rgscale-badge-row">
+            <span className={`n-rgchip n-rg-${state || 'UNKNOWN'}`}>
+              {displayLabel}
+            </span>
+            {isVol && (
+              <span className="n-badge warn" title="Biến động BBWP bùng nổ, rủi ro co giãn biên độ lớn">
+                ⚡ Biến động cao (BBWP mở rộng)
+              </span>
+            )}
+            {isStale && (
+              <span className="n-badge" title="Dữ liệu nến quá 24h">
+                ⏳ Dữ liệu cũ
+              </span>
+            )}
+            {isUnknown && (
+              <span className="n-badge" title="Chưa đủ nến warmup để xác định xu hướng">
+                ℹ️ Đang khởi động dữ liệu
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="n-rgscale-meta-group">
+          {since ? <span className="n-rgscale-since">Kéo dài từ: <b className="mono">{fmtDateTime(since)}</b></span> : null}
+          {asOf ? <span className="n-rgscale-asof muted">Thời điểm dữ liệu (as of): <span className="mono">{fmtDateTime(asOf)}</span></span> : <span className="muted">Chưa có mốc thời gian</span>}
+        </div>
+      </div>
+
+      <div className="n-rgscale-track-wrap">
+        <div className="n-rgscale-axis">
+          <span>← Âm (Bán mạnh / Sập giá)</span>
+          <span className="n-rgscale-zero">0 · Trung tính (Đi ngang)</span>
+          <span>Dương (Tăng giá / Tăng sốc) →</span>
+        </div>
+
+        <div className="n-rgscale-track">
+          {REGIME_SPECTRUM.map((seg) => {
+            const isActive = seg.state === state
+            return (
+              <div
+                key={seg.state}
+                className={`n-rgscale-zone ${isActive ? 'active' : ''}`}
+                style={{
+                  color: seg.color,
+                }}
+              >
+                <div
+                  className="n-rgscale-fill"
+                  style={{
+                    backgroundColor: seg.color,
+                    opacity: isActive ? 0.95 : 0.16,
+                  }}
+                />
+                <span className="n-rgscale-zone-lbl" style={{ color: isActive ? '#fff' : undefined, fontWeight: isActive ? 700 : 500 }}>
+                  {seg.short}
+                </span>
+                {isActive && (
+                  <div className="n-rgscale-pointer" style={{ backgroundColor: seg.color }}>
+                    <span className="n-rgscale-pointer-pulse" style={{ borderColor: seg.color }} />
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function RegimeBar({ segs, from, to, labels }) {
   const span = Math.max(1, to - from)
@@ -188,6 +324,8 @@ export function RegimePanel({ bare = false }) {
   const labels = d?.labels_vi || {}
   const to = Math.max(0, ...rows.map((r) => r.as_of || 0))
   const from = to - days * 86400000
+  const primarySymbol = rows.find((r) => r.symbol.toUpperCase().startsWith('BTC')) || rows[0]
+
   return (
     <Panel className={bare ? 'pf-bare' : ''} title={bare ? null : 'Regime thị trường'} meta={
       <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
@@ -195,19 +333,39 @@ export function RegimePanel({ bare = false }) {
         {REGIME_DAYS.map((n) => <button key={n} type="button" className={`n-btn sm ${days === n ? 'on' : ''}`} aria-pressed={days === n} onClick={() => setDays(n)}>{n} ngày</button>)}
       </span>}>
       {st.error && <Empty title="Không tải được regime">{st.error}</Empty>}
+      {!st.loading && !st.error && rows.length === 0 && (
+        <Empty title="Chưa có dữ liệu regime">Chưa tìm thấy nến 15m hoặc manifest catalog của các tài sản perp.</Empty>
+      )}
       {rows.length > 0 && (
         <>
+          {/* Featured Horizontal Scale cho Benchmark / Tài sản chính */}
+          {primarySymbol && (
+            <RegimeScale
+              state={primarySymbol.current?.state}
+              label={primarySymbol.current?.label}
+              asOf={primarySymbol.as_of}
+              since={primarySymbol.current?.since}
+            />
+          )}
+
           <div className="n-tblwrap">
             <table className="n-tbl n-rg">
-              <thead><tr><th>Tài sản</th><th>Hiện tại</th><th>Từ</th><th>Lịch sử {days} ngày (nến {d.frame})</th><th>Chiến lược đang bật</th></tr></thead>
+              <thead><tr><th>Tài sản</th><th>Thang đo & Trạng thái</th><th>Từ</th><th>Lịch sử {days} ngày (nến {d.frame})</th><th>Chiến lược đang bật</th></tr></thead>
               <tbody>
                 {rows.map((r) => (
                   <tr key={r.symbol}>
                     <td><b>{r.symbol.replace('@perp', '')}</b></td>
-                    <td><span className={`n-rgchip n-rg-${r.current.state}`}>{r.current.label}</span></td>
-                    <td className="mono">{r.current.since ? fmtDateTime(r.current.since) : '—'}</td>
-                    <td style={{ minWidth: 220 }}><RegimeBar segs={r.segments} from={from} to={to} labels={labels} /></td>
-                    <td>{r.strategies_on.length ? r.strategies_on.map((id) => <span key={id} className="n-badge" style={{ marginRight: 4 }} title={id}>{legLabel(id)}</span>) : <span className="muted">không chiến lược nào</span>}</td>
+                    <td>
+                      <RegimeScale
+                        compact
+                        state={r.current?.state}
+                        label={r.current?.label}
+                        asOf={r.as_of}
+                      />
+                    </td>
+                    <td className="mono">{r.current?.since ? fmtDateTime(r.current.since) : '—'}</td>
+                    <td style={{ minWidth: 200 }}><RegimeBar segs={r.segments || []} from={from} to={to} labels={labels} /></td>
+                    <td>{r.strategies_on?.length ? r.strategies_on.map((id) => <span key={id} className="n-badge" style={{ marginRight: 4 }} title={id}>{legLabel(id)}</span>) : <span className="muted">không chiến lược nào</span>}</td>
                   </tr>
                 ))}
               </tbody>
@@ -216,8 +374,8 @@ export function RegimePanel({ bare = false }) {
           <div className="n-rglegend">
             {(d.names || []).filter((n) => n !== 'UNKNOWN').map((n) => <span key={n}><i className={`n-rg-${n}`} />{labels[n] || n}</span>)}
           </div>
-          <p className="n-note">Chiến lược đang bật = được phép vào lệnh ở regime hiện tại theo bảng regime của sổ (chỉ áp khi chạy với regime bật):
-            LONG không vào khi xu hướng giảm / sập mạnh, SHORT không vào khi xu hướng tăng / tăng thẳng đứng.</p>
+          <p className="n-note">Thang đo có dấu: cực âm đỏ bên trái (Sập mạnh -2, Giảm -1) ← 0 ở giữa (Đi ngang) → cực dương xanh bên phải (Tăng +1, Tăng sốc +2).
+            Quy tắc sổ lệnh: LONG không vào khi xu hướng giảm / sập mạnh, SHORT không vào khi xu hướng tăng / tăng thẳng đứng.</p>
         </>
       )}
     </Panel>

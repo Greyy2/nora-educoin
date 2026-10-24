@@ -55,16 +55,6 @@ def _read_int(path: str) -> Optional[int]:
 def _cgroup_paths() -> List[str]:
     """Tìm tất cả các đường dẫn cgroup tiềm năng của tiến trình (từ scope/slice con lên root)."""
     paths = []
-    slice_cg = os.environ.get("NORA_SLICE_CG")
-    if slice_cg and os.path.isdir(slice_cg):
-        paths.append(slice_cg)
-    try:
-        uid = os.getuid()
-        default_nora_cg = f"/sys/fs/cgroup/user.slice/user-{uid}.slice/user@{uid}.service/nora.slice"
-        if os.path.isdir(default_nora_cg) and default_nora_cg not in paths:
-            paths.append(default_nora_cg)
-    except Exception:
-        pass
     try:
         with open("/proc/self/cgroup", "r") as f:
             for line in f:
@@ -80,48 +70,76 @@ def _cgroup_paths() -> List[str]:
                         curr = os.path.dirname(curr)
     except Exception:
         pass
+    slice_cg = os.environ.get("NORA_SLICE_CG")
+    if slice_cg and os.path.isdir(slice_cg) and slice_cg not in paths:
+        paths.append(slice_cg)
+    try:
+        uid = os.getuid()
+        default_nora_cg = f"/sys/fs/cgroup/user.slice/user-{uid}.slice/user@{uid}.service/nora.slice"
+        if os.path.isdir(default_nora_cg) and default_nora_cg not in paths:
+            paths.append(default_nora_cg)
+    except Exception:
+        pass
     if "/sys/fs/cgroup" not in paths and os.path.isdir("/sys/fs/cgroup"):
         paths.append("/sys/fs/cgroup")
     return paths
 
 
-def cgroup_limit_mb() -> Optional[float]:
-    """Giới hạn RAM của cgroup (v2 memory.max hoặc v1 memory.limit_in_bytes) tính theo MB; None nếu không giới hạn."""
-    for cg_dir in _cgroup_paths():
-        val = _read_int(os.path.join(cg_dir, "memory.max"))
-        if val is not None and val < _UNLIMITED_V1:
-            return val / 1024.0 / 1024.0
-        val = _read_int(os.path.join(cg_dir, "memory.limit_in_bytes"))
-        if val is not None and val < _UNLIMITED_V1:
-            return val / 1024.0 / 1024.0
-        val = _read_int(os.path.join(cg_dir, "memory/memory.limit_in_bytes"))
-        if val is not None and val < _UNLIMITED_V1:
-            return val / 1024.0 / 1024.0
+def _cgroup_limit_bytes(cg_dir: str) -> Optional[int]:
+    for name in ("memory.max", "memory.limit_in_bytes", "memory/memory.limit_in_bytes"):
+        try:
+            with open(os.path.join(cg_dir, name), "r") as f:
+                raw = f.read().strip()
+        except OSError:
+            continue
+        if raw == "max":
+            continue
+        try:
+            value = int(raw)
+        except ValueError:
+            continue
+        if value < _UNLIMITED_V1:
+            return value
     return None
 
 
+def _cgroup_usage_bytes(cg_dir: str) -> Optional[int]:
+    for name in ("memory.current", "memory.usage_in_bytes", "memory/memory.usage_in_bytes"):
+        value = _read_int(os.path.join(cg_dir, name))
+        if value is not None:
+            return value
+    return None
+
+
+def cgroup_limit_mb() -> Optional[float]:
+    """Giới hạn RAM hiệu lực nhỏ nhất của cgroup hiện tại và mọi ancestor."""
+    limits = [limit for path in _cgroup_paths() if (limit := _cgroup_limit_bytes(path)) is not None]
+    return min(limits) / 1024.0 / 1024.0 if limits else None
+
+
 def cgroup_usage_mb() -> Optional[float]:
-    """RAM cgroup đang dùng (v2 memory.current hoặc v1 memory.usage_in_bytes) tính theo MB; None nếu không đọc được."""
+    """RAM dùng của cgroup gần tiến trình nhất tính theo MB; None nếu không đọc được."""
     for cg_dir in _cgroup_paths():
-        val = _read_int(os.path.join(cg_dir, "memory.current"))
-        if val is not None:
-            return val / 1024.0 / 1024.0
-        val = _read_int(os.path.join(cg_dir, "memory.usage_in_bytes"))
-        if val is not None:
-            return val / 1024.0 / 1024.0
-        val = _read_int(os.path.join(cg_dir, "memory/memory.usage_in_bytes"))
-        if val is not None:
-            return val / 1024.0 / 1024.0
+        usage = _cgroup_usage_bytes(cg_dir)
+        if usage is not None:
+            return usage / 1024.0 / 1024.0
     return None
 
 
 def cgroup_free_mb() -> Optional[float]:
-    """RAM còn trống trong cgroup = limit - current (MB); None nếu không bị giới hạn bởi cgroup."""
-    limit = cgroup_limit_mb()
-    if limit is None:
-        return None
-    usage = cgroup_usage_mb() or 0.0
-    return max(0.0, limit - usage)
+    """Ngân sách còn lại nhỏ nhất trên cgroup hiện tại và các ancestor."""
+    headroom = []
+    limited = False
+    for cg_dir in _cgroup_paths():
+        limit = _cgroup_limit_bytes(cg_dir)
+        if limit is None:
+            continue
+        limited = True
+        usage = _cgroup_usage_bytes(cg_dir)
+        if usage is None:
+            return 0.0
+        headroom.append(max(0, limit - usage))
+    return min(headroom) / 1024.0 / 1024.0 if limited else None
 
 
 def host_reserve_mb() -> float:
@@ -243,4 +261,3 @@ def require_memory_limit(label: str) -> float:
 
 # Re-exports cho tính tương thích ngược hoàn chỉnh của backend.jobs.workers
 from .pool import pool_map_safe, worker_init, pool_imap_bounded  # noqa: E402
-

@@ -291,7 +291,8 @@ class SystemChecker:
             cmd = [str(VENV_PYTHON), "-m", "pytest", "-q", str(coin_test_file)]
             res = subprocess.run(cmd, cwd=str(NORA_DIR / "coin"), capture_output=True, text=True, timeout=20)
             if res.returncode == 0:
-                self.log_result("Tests", "COIN App Tests (test_coin_app.py)", True, "100% Passed (API routes, app factory)")
+                summary = next((line for line in reversed(res.stdout.splitlines()) if " passed" in line), "pytest passed")
+                self.log_result("Tests", "COIN App Tests (test_coin_app.py)", True, summary)
             else:
                 self.log_result("Tests", "COIN App Tests (test_coin_app.py)", False, res.stdout or res.stderr)
         except Exception as e:
@@ -303,7 +304,8 @@ class SystemChecker:
             cmd = [str(VENV_PYTHON), "-m", "pytest", "-q", str(edu_test_file)]
             res = subprocess.run(cmd, cwd=str(NORA_DIR / "edu"), capture_output=True, text=True, timeout=30)
             if res.returncode == 0:
-                self.log_result("Tests", "EDU App Tests (test_edu_app.py)", True, "100% Passed (12 tests, golden parity, isolation)")
+                summary = next((line for line in reversed(res.stdout.splitlines()) if " passed" in line), "pytest passed")
+                self.log_result("Tests", "EDU App Tests (test_edu_app.py)", True, summary)
             else:
                 self.log_result("Tests", "EDU App Tests (test_edu_app.py)", False, res.stdout or res.stderr)
         except Exception as e:
