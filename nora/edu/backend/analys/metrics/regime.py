@@ -15,7 +15,7 @@ from backend.analys.signal.signal import (
 
 __all__ = [
     "CODE", "CRASH", "DEFAULTS", "LABEL_VI", "MINUTE", "NAMES", "PROFILES", "RANGE", "REFS", "SURGE", "TREND_DOWN", "TREND_UP", "UNKNOWN",
-    "VOL_EXPANSION", "classify", "masks_for", "profile_cfg", "raw_states", "smooth",
+    "VOL_EXPANSION", "classify", "masks_for", "profile_cfg", "raw_states", "smooth", "summarize_window_labels", "summarize_window_context",
     "series", "OBSERVE", "MIN_TRADES", "T_MAX", "trade_regime", "by_regime", "engine_by_regime", "learn_map",
 ]
 
@@ -39,6 +39,70 @@ def series(symbol: str, start: int, end: int, venue: str = "cex", cfg: Optional[
     raw = raw_states(get, n, cfg)
     return {"t": t, "close": df1["close"].to_numpy(dtype="float64"), "real": df1["is_filled"].to_numpy() == 0,
             "raw": raw, "labels": smooth(raw, t, cfg)}
+
+
+def summarize_window_labels(
+    symbol: str,
+    times: np.ndarray,
+    labels: np.ndarray,
+    real: np.ndarray,
+    start_ms: int,
+    end_ms: int,
+) -> Dict[str, Any]:
+    """DEC-01: Return descriptive dominant context for real bars in a half-open run window."""
+    if end_ms <= start_ms:
+        raise ValueError("Market-context window must have end_ms > start_ms")
+    if not (len(times) == len(labels) == len(real)):
+        raise ValueError("Market-context arrays must have matching lengths")
+
+    in_window = (times >= start_ms) & (times < end_ms) & real
+    window_bars = int(np.count_nonzero(in_window))
+    usable = in_window & (labels > UNKNOWN) & (labels < len(NAMES))
+    counts = np.bincount(labels[usable].astype(np.int64), minlength=len(NAMES))
+    classified_bars = int(counts.sum())
+    context: Dict[str, Any] = {
+        "status": "unavailable",
+        "symbol": symbol,
+        "timeframe": "15m",
+        "method": "dominant_causal_label_over_closed_bars_in_backtest_window",
+        "window_start_ms": int(start_ms),
+        "window_end_ms": int(end_ms),
+        "window_bars": window_bars,
+        "classified_bars": classified_bars,
+        "coverage_pct": round(100 * classified_bars / window_bars, 1) if window_bars else 0.0,
+        "reference_only": True,
+    }
+    if not classified_bars:
+        context["reason"] = "No classified real 15m bars in the backtest window"
+        return context
+
+    dominant_code = max(range(1, len(NAMES)), key=lambda code: (int(counts[code]), -code))
+    context.update(
+        status="available",
+        dominant=NAMES[dominant_code],
+        distribution_pct={
+            NAMES[code]: round(100 * int(counts[code]) / classified_bars, 1)
+            for code in range(1, len(NAMES))
+            if counts[code]
+        },
+    )
+    return context
+
+
+def summarize_window_context(symbol: str, start_ms: int, end_ms: int) -> Dict[str, Any]:
+    """DEC-01: Classify actual EDU 15m bars in-window; this never affects execution."""
+    from backend.data.data import base_name
+
+    market_symbol = f"{base_name(symbol)}-USDT"
+    bars = series(symbol, start_ms, end_ms, base_frame="15m")
+    return summarize_window_labels(
+        market_symbol,
+        bars["t"],
+        bars["labels"],
+        bars["real"],
+        start_ms,
+        end_ms,
+    )
 
 
 OBSERVE: Dict[str, Any] = {"allowed": list(NAMES), "fuse": False}

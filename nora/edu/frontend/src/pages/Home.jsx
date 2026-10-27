@@ -11,26 +11,20 @@ const THEME_KEY = 'nora-theme'
 const sv = (d) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{d}</svg>
 )
+
 const ICONS = {
   edu: sv(<><path d="M2 9l10-5 10 5-10 5z" /><path d="M6 11.5V16c3 2 9 2 12 0v-4.5" /></>),
-  coin: sv(<><circle cx="12" cy="12" r="9" /><path d="M14.5 9.2c-.5-.8-1.4-1.2-2.5-1.2-1.4 0-2.5.7-2.5 1.8 0 2.6 5 1.2 5 3.8 0 1.1-1.1 1.9-2.5 1.9-1.1 0-2.1-.5-2.6-1.4M12 6.5V8M12 16v1.5" /></>),
 }
-const FLOW = [
-  { t: 'Ý tưởng', s: 'Đặt giả thuyết giao dịch', i: sv(<><path d="M9 18h6M10 21h4" /><path d="M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z" /></>) },
-  { t: 'Chiến lược', s: 'Viết quy tắc vào và thoát lệnh', i: sv(<><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16" /></>) },
-  { t: 'Backtest', s: 'Thử trên dữ liệu thật', i: sv(<><path d="M3 3v18h18" /><path d="M7 15l4-4 3 3 5-6" /></>) },
-  { t: 'Kiểm định bền vững', s: 'Walk-forward, Monte Carlo', i: sv(<><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" /><path d="M9 12l2 2 4-4" /></>) },
-  { t: 'Chạy thử', s: 'Paper / demo trước khi dùng vốn', soon: true, i: sv(<><circle cx="12" cy="12" r="9" /><path d="M10 8.5l5 3.5-5 3.5z" /></>) },
-  { t: 'Vận hành', s: 'Theo dõi và quản lý danh mục', i: sv(<><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 9h18M8 14h3" /></>) },
-]
+
 const MODULES = [
   { t: 'Dữ liệu & tư duy định lượng', s: 'Nền tảng để đọc thị trường', tags: ['Nến & khung thời gian', 'Lãi, lỗ & rủi ro', 'Dữ liệu thật đã kiểm định', 'Đọc biểu đồ'] },
   { t: 'Chỉ báo & tín hiệu', s: 'Biến giá thành tín hiệu', tags: ['Xu hướng (EMA, Keltner)', 'Đảo chiều (RSI, Bollinger)', 'Phá vỡ (Donchian)', 'Kết hợp tín hiệu'] },
   { t: 'Viết chiến lược', s: 'Từ ý tưởng đến quy tắc', tags: ['Mẫu hướng dẫn', 'Vào & thoát lệnh', 'Cắt lỗ, chốt lời', 'Quản lý vốn'] },
   { t: 'Kiểm thử & đánh giá', s: 'Biết chiến lược đáng tin đến đâu', tags: ['Backtest', 'Train · Test', 'Sharpe, MDD, Win rate', 'So với mua & giữ'] },
-  { t: 'Cộng đồng & thực chiến', s: 'Học cùng nhau, thử thật', tags: ['Market chiến lược', 'Hồ sơ & thành tích', 'Sao chép & cải tiến', 'Chạy thử demo (sắp có)'] },
+  { t: 'Cộng đồng & thực chiến', s: 'Học cùng nhau, thử thật', tags: ['Market chiến lược', 'Hồ sơ & thành tích', 'Sao chép & cải tiến', 'Học tập không rủi ro'] },
 ]
-const NAV = [[0, 'Trang chủ'], [1, 'Hệ thống'], [2, 'Education'], [3, 'Coin']]
+
+const NAV = [[0, 'Trang chủ'], [1, 'Lộ trình học'], [2, 'Thực hành Studio']]
 
 function Stat({ v, l, small }) {
   return (
@@ -48,18 +42,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true)
   const [currentSlide, setCurrentSlide] = useState(0)
 
-  const enterSystem = (targetPath) => {
-    if (typeof window !== 'undefined') {
-      const host = window.location.hostname
-      if (targetPath.startsWith('/coin') && host.includes('edu.nora.')) {
-        window.location.href = window.location.origin.replace('edu.nora.', 'coin.nora.') + targetPath
-        return
-      }
-      if (targetPath.startsWith('/edu') && host.includes('coin.nora.')) {
-        window.location.href = window.location.origin.replace('coin.nora.', 'edu.nora.') + targetPath
-        return
-      }
-    }
+  const enterSystem = (targetPath = '/market') => {
     if (me) {
       navigate(targetPath)
     } else {
@@ -114,7 +97,6 @@ export default function Home() {
   }
 
   const edu = summary?.edu
-  const coin = summary?.coin
   const fmtVal = (val) => (val !== null && val !== undefined ? val : '—')
 
   return (
@@ -126,17 +108,15 @@ export default function Home() {
         <div className="nora-orb nora-orb-3" />
       </div>
 
-      {/* Header tối giản theo phong cách Claude, các nút dồn sang phải */}
+      {/* Header tối giản EDU */}
       <header className="nora-home-header">
         <Link to="/" className="nora-home-logo" onClick={() => scrollToSlide(0)}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{ width: 20, height: 20, color: 'var(--text-primary)' }}>
-            <path d="M20 12a8 8 0 1 1-3-6.2" />
-            <circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none" />
+            <path d="M2 9l10-5 10 5-10 5z" /><path d="M6 11.5V16c3 2 9 2 12 0v-4.5" />
           </svg>
-          <span style={{ fontSize: 16, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--text-primary)' }}>Nora</span>
+          <span style={{ fontSize: 16, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--text-primary)' }}>Nora EDU</span>
         </Link>
 
-        {/* Các điều khiển được gom và dồn hoàn toàn sang phải */}
         <div className="nora-header-right">
           {NAV.map(([i, lbl]) => (
             <button key={i} type="button" className={`nora-nav-btn ${currentSlide === i ? 'active' : ''}`} onClick={() => scrollToSlide(i)}>
@@ -144,7 +124,7 @@ export default function Home() {
             </button>
           ))}
 
-          {/* Theme Toggle Button đồng nhất với các tab view */}
+          {/* Theme Toggle Button */}
           <button
             type="button"
             className="nora-nav-btn nora-theme-toggle"
@@ -177,66 +157,29 @@ export default function Home() {
         </div>
       </header>
 
+      {/* Slide 0: Hero Section */}
       <section id="slide-0" className="nora-slide">
         <div className="nora-hero-content">
-          <div className="nora-hero-kicker"><span>Nora</span></div>
+          <div className="nora-hero-kicker"><span>Nora Education</span></div>
           <h1 className="nora-hero-title">
-            Kiểm chứng chiến lược<br />
-            <span className="nora-hero-title-grad">trên dữ liệu thật</span>
+            Học giao dịch định lượng<br />
+            <span className="nora-hero-title-grad">bằng cách tự tay làm</span>
           </h1>
           <p className="nora-hero-subtitle">
-            Viết ý tưởng giao dịch, thử trên dữ liệu thị trường thật và biết rõ nó bền đến đâu.
+            Lộ trình học tập trực quan, mẫu chiến lược có sẵn, thử nghiệm trên dữ liệu thật và chia sẻ cùng cộng đồng học viên.
           </p>
-          <button type="button" className="n-btn primary nh-start" onClick={() => scrollToSlide(1)}>
-            Bắt đầu
+          <button type="button" className="n-btn primary nh-start" onClick={() => enterSystem('/market')}>
+            Bắt đầu học ngay →
           </button>
         </div>
       </section>
 
+      {/* Slide 1: Lộ trình 5 Module */}
       <section id="slide-1" className="nora-slide nh-sec">
-        <div className="nh-wrap">
-          <div className="nh-head">
-            <h2>Chọn hệ thống</h2>
-            <p>Hai không gian làm việc cho hai mục tiêu khác nhau.</p>
-          </div>
-          <div className="nh-choose">
-            <div className="nh-choice nh-edu">
-              <div className="nh-ico">{ICONS.edu}</div>
-              <h3>Education</h3>
-              <p className="nh-tag">Học giao dịch định lượng bằng cách tự tay làm.</p>
-              <ul>
-                <li>Lộ trình từ cơ bản đến viết chiến lược hoàn chỉnh</li>
-                <li>Mẫu hướng dẫn sẵn để bắt đầu ngay</li>
-                <li>Xem kết quả kiểm thử ngay sau khi viết</li>
-                <li>Chia sẻ và học hỏi cùng cộng đồng</li>
-              </ul>
-              <button type="button" onClick={() => enterSystem('/edu')} className="nora-btn-cta">
-                <span>Vào Education →</span>
-              </button>
-            </div>
-            <div className="nh-choice nh-coin">
-              <div className="nh-ico">{ICONS.coin}</div>
-              <h3>Coin</h3>
-              <p className="nh-tag">Kiểm thử và đánh giá chiến lược nghiêm túc.</p>
-              <ul>
-                <li>Kiểm thử trên nhiều tài sản cùng lúc</li>
-                <li>Đánh giá độ bền ngoài mẫu, tránh chiến lược chỉ khớp quá khứ</li>
-                <li>Lưu lại toàn bộ lịch sử để xem và đối chiếu</li>
-                <li>Quản lý danh mục chiến lược tập trung</li>
-              </ul>
-              <button type="button" onClick={() => enterSystem('/coin/portfolio')} className="nora-btn-cta">
-                <span>Vào Coin →</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section id="slide-2" className="nora-slide nh-sec">
         <div className="nh-wrap nh-wide">
           <div className="nh-head">
-            <h2>Hệ sinh thái Education</h2>
-            <p>Lộ trình 5 module, từ đọc dữ liệu đến chia sẻ chiến lược cùng cộng đồng.</p>
+            <h2>Lộ trình 5 Module học tập</h2>
+            <p>Từ đọc hiểu dữ liệu đến tự thiết kế chiến lược và kiểm thử không rủi ro.</p>
           </div>
           <ol className="nh-road">
             {MODULES.map((m, i) => (
@@ -256,46 +199,39 @@ export default function Home() {
             ))}
           </ol>
           <div className="nh-stats">
-            <Stat v={loading ? <Spinner /> : fmtVal(edu?.users)} l="người học" />
-            <Stat v={loading ? <Spinner /> : fmtVal(edu?.strategies)} l="chiến lược đã viết" />
-            <Stat v={loading ? <Spinner /> : fmtVal(edu?.samples_ready)} l="mẫu sẵn sàng" />
+            <Stat v={loading ? <Spinner /> : fmtVal(edu?.users)} l="học viên" />
+            <Stat v={loading ? <Spinner /> : fmtVal(edu?.strategies)} l="chiến lược đã lưu" />
+            <Stat v={loading ? <Spinner /> : fmtVal(edu?.samples_ready)} l="chiến lược mẫu sẵn sàng" />
           </div>
         </div>
       </section>
 
-      <section id="slide-3" className="nora-slide nh-sec">
-        <div className="nh-wrap nh-wide">
+      {/* Slide 2: Thực hành Studio */}
+      <section id="slide-2" className="nora-slide nh-sec">
+        <div className="nh-wrap">
           <div className="nh-head">
-            <h2>Quy trình Coin</h2>
-            <p>Từ ý tưởng đến vận hành, mỗi bước đều có kiểm chứng.</p>
+            <h2>Không gian Thực hành Studio</h2>
+            <p>Viết chiến lược bằng ngôn ngữ DSL tự nhiên và chạy kiểm thử tức thì.</p>
           </div>
-          <ol className="nh-flow">
-            {FLOW.map((f, i) => (
-              <li key={f.t} className="nh-step">
-                <div className="nh-sico">{f.i}</div>
-                <strong>{f.t}</strong>
-                <span>{f.s}</span>
-                {f.soon && <em>sắp có</em>}
-              </li>
-            ))}
-          </ol>
-          <div className="nh-stats">
-            <Stat v={loading ? <Spinner /> : fmtVal(coin?.system_strategies)} l="chiến lược hệ thống" />
-            <Stat v={loading ? <Spinner /> : fmtVal(coin?.symbols)} l="tài sản" />
-            <Stat v={loading ? <Spinner /> : fmtVal(coin?.data_end)} l="dữ liệu cập nhật đến" small />
-          </div>
-          <div style={{ marginTop: 32 }}>
-            <button
-              type="button"
-              onClick={() => enterSystem('/coin/portfolio')}
-              className="n-btn primary nh-start"
-              style={{ textDecoration: 'none', display: 'inline-block' }}
-            >
-              Vào Coin
-            </button>
+          <div className="nh-choose">
+            <div className="nh-choice nh-edu" style={{ gridColumn: 'span 2' }}>
+              <div className="nh-ico">{ICONS.edu}</div>
+              <h3>Trình biên soạn & Chạy thử Giáo dục</h3>
+              <p className="nh-tag">Môi trường sandbox an toàn, không lo mất vốn hay cấu hình phức tạp.</p>
+              <ul>
+                <li><strong>Cú pháp dễ tiếp cận:</strong> Viết quy tắc vào/thoát lệnh bằng tiếng Việt hoặc Python DSL trực quan.</li>
+                <li><strong>Báo lỗi thông minh:</strong> Chỉ rõ từng dòng, gợi ý chỉnh sửa và hoàn thiện chiến lược.</li>
+                <li><strong>Biểu đồ tín hiệu:</strong> Quan sát điểm mua, điểm bán và đường giá đồng bộ.</li>
+                <li><strong>Thư viện mẫu:</strong> Bắt đầu từ các chiến lược nổi tiếng: Trend Following, Mean Reversion, Breakout.</li>
+              </ul>
+              <button type="button" onClick={() => enterSystem('/studio')} className="nora-btn-cta">
+                <span>Vào Studio Thực hành →</span>
+              </button>
+            </div>
           </div>
         </div>
       </section>
+
 
       {/* Footer */}
       <footer style={{
@@ -308,7 +244,7 @@ export default function Home() {
         borderTop: '1px solid var(--border-color)',
         background: 'var(--header-bg)',
       }}>
-        Nora · 2026 · Kiểm chứng chiến lược trên dữ liệu thật
+        Nora EDU · 2026 · Nền tảng học giao dịch định lượng & kiểm chứng chiến lược
       </footer>
     </div>
   )

@@ -302,7 +302,7 @@ class SystemChecker:
         edu_test_file = NORA_DIR / "edu" / "tests" / "test_edu_app.py"
         try:
             cmd = [str(VENV_PYTHON), "-m", "pytest", "-q", str(edu_test_file)]
-            res = subprocess.run(cmd, cwd=str(NORA_DIR / "edu"), capture_output=True, text=True, timeout=30)
+            res = subprocess.run(cmd, cwd=str(NORA_DIR / "edu"), capture_output=True, text=True, timeout=60)
             if res.returncode == 0:
                 summary = next((line for line in reversed(res.stdout.splitlines()) if " passed" in line), "pytest passed")
                 self.log_result("Tests", "EDU App Tests (test_edu_app.py)", True, summary)

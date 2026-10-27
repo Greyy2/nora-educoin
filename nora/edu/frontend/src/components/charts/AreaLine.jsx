@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { PAD, useWidth, niceScale, xTicks, linePath, areaPath, tipPos } from './geometry'
 import { isNum, fmtTick, dmy, my, fullDate } from '../../lib/format'
 
@@ -11,14 +11,76 @@ import { isNum, fmtTick, dmy, my, fullDate } from '../../lib/format'
 export default function AreaLine({
   dates = [], series = [], height = 240, valueFormat, refLines = [], hover, onHover,
   yDomain, xLabels = true, label = 'Biểu đồ đường', marks = [],
+  zoomRange = [0, 1], onZoom,
 }) {
   const ref = useRef(null)
+  const rectRef = useRef(null)
   const w = useWidth(ref)
   const [local, setLocal] = useState(null)
   const active = hover !== undefined ? hover : local
   const n = dates.length
   const plotW = Math.max(10, w - PAD.l - PAD.r)
   const plotH = height - PAD.t - (xLabels ? PAD.b : 8)
+
+  useEffect(() => {
+    const el = rectRef.current
+    if (!el || !onZoom) return undefined
+    const wheelHandler = (e) => {
+      e.preventDefault()
+      const r = el.getBoundingClientRect()
+      const mx = Math.max(0, Math.min(plotW, e.clientX - r.left))
+      const ratio = plotW > 0 ? mx / plotW : 0.5
+      const [r0, r1] = zoomRange || [0, 1]
+      const curSpan = Math.max(0.01, r1 - r0)
+      const factor = e.deltaY < 0 ? 0.8 : 1.25
+      const minSpan = Math.max(0.01, 5 / Math.max(n, 100))
+      const newSpan = Math.min(1.0, Math.max(minSpan, curSpan * factor))
+      const cursor = r0 + ratio * curSpan
+      let newR0 = cursor - ratio * newSpan
+      let newR1 = newR0 + newSpan
+      if (newR0 < 0) {
+        newR0 = 0
+        newR1 = Math.min(1.0, newSpan)
+      }
+      if (newR1 > 1.0) {
+        newR1 = 1.0
+        newR0 = Math.max(0.0, 1.0 - newSpan)
+      }
+      onZoom([newR0, newR1])
+    }
+    el.addEventListener('wheel', wheelHandler, { passive: false })
+    return () => el.removeEventListener('wheel', wheelHandler)
+  }, [onZoom, zoomRange, plotW, n])
+
+  const handleKeyDown = (e) => {
+    if (!onZoom) return
+    const [r0, r1] = zoomRange || [0, 1]
+    const curSpan = Math.max(0.01, r1 - r0)
+    if (e.key === '+' || e.key === '=') {
+      e.preventDefault()
+      const newSpan = Math.max(0.01, curSpan * 0.8)
+      const center = (r0 + r1) / 2
+      onZoom([Math.max(0, center - newSpan / 2), Math.min(1, center + newSpan / 2)])
+    } else if (e.key === '-' || e.key === '_') {
+      e.preventDefault()
+      const newSpan = Math.min(1.0, curSpan * 1.25)
+      const center = (r0 + r1) / 2
+      onZoom([Math.max(0, center - newSpan / 2), Math.min(1, center + newSpan / 2)])
+    } else if (e.key === '0') {
+      e.preventDefault()
+      onZoom([0, 1])
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault()
+      const shift = curSpan * 0.1
+      const newR0 = Math.max(0, r0 - shift)
+      onZoom([newR0, newR0 + curSpan])
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault()
+      const shift = curSpan * 0.1
+      const newR1 = Math.min(1, r1 + shift)
+      onZoom([newR1 - curSpan, newR1])
+    }
+  }
 
   const sc = useMemo(() => {
     let lo = Infinity
@@ -93,7 +155,21 @@ export default function AreaLine({
                   ? <circle key={s.key} cx={xs[active]} cy={Y(s.values[active])} r="4" fill={s.color} stroke="var(--n-surface)" strokeWidth="2" /> : null))}
               </g>
             )}
-            <rect x={PAD.l} y={PAD.t} width={plotW} height={plotH} fill="transparent" onMouseMove={move} onMouseLeave={leave} />
+            <rect
+              ref={rectRef}
+              x={PAD.l}
+              y={PAD.t}
+              width={plotW}
+              height={plotH}
+              fill="transparent"
+              tabIndex={0}
+              role="region"
+              aria-label="Khu vực tương tác biểu đồ (cuộn chuột hoặc phím +/- để zoom, mũi tên di chuyển, 0 để đặt lại)"
+              onMouseMove={move}
+              onMouseLeave={leave}
+              onKeyDown={handleKeyDown}
+              style={{ outline: 'none', cursor: onZoom ? 'crosshair' : 'default' }}
+            />
           </svg>
           {local != null && local < n && (
             <div className="n-tip" style={{ top: PAD.t + 4, ...tipPos(xs[local], w) }}>

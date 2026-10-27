@@ -96,6 +96,8 @@ function AppRoutes() {
 
 
         {/* Redirect tương thích ngược toàn bộ đường dẫn cũ */}
+        <Route path="/studio" element={<LegacyRedirect to="/edu/studio" />} />
+        <Route path="/market" element={<LegacyRedirect to="/edu" />} />
         <Route path="/portfolio" element={<LegacyRedirect to="/coin/portfolio" />} />
         <Route path="/backtest" element={<LegacyRedirect to="/coin/backtest" />} />
         <Route path="/alpha" element={<LegacyRedirect to="/coin/alpha/create" />} />

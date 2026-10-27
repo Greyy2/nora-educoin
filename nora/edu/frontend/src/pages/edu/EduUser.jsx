@@ -19,52 +19,101 @@ export default function EduUser() {
   if (error) return <div style={{ maxWidth: 1100, margin: '0 auto', padding: 24 }}><div className="n-err">{error}</div></div>
   if (!data) return <div style={{ textAlign: 'center', padding: 48 }}><Spinner /></div>
   const { user, summary, strategies } = data
-  const th = { textAlign: 'right', padding: '8px 10px', fontSize: 12, color: 'var(--n-ink-2)', fontWeight: 500 }
-  const td = { textAlign: 'right', padding: '10px', fontSize: 13, whiteSpace: 'nowrap' }
 
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '32px 24px' }}>
-      <Link to="/edu" style={{ fontSize: 13, color: 'var(--n-ink-2)', textDecoration: 'none' }}>← Market</Link>
-      <div style={{ ...cardStyle, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 20, margin: '12px 0 24px' }}>
-        <Avatar avatar={user.avatar} size={56} />
-        <div style={{ flex: 1, minWidth: 200 }}>
-          <div style={{ fontSize: 20, fontWeight: 700 }}>{user.display_name}</div>
-          <div style={{ fontSize: 12, color: 'var(--n-ink-2)' }}>@{user.handle}</div>
-          {user.bio && <div style={{ fontSize: 13, color: 'var(--n-ink-2)', marginTop: 4 }}>{user.bio}</div>}
+    <div style={{ maxWidth: 1160, margin: '0 auto', padding: '32px 24px', fontFamily: 'inherit' }}>
+      <div style={{ marginBottom: 16 }}>
+        <Link to="/market" style={{ fontSize: 13, color: 'var(--n-accent)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 500 }}>
+          ← Quay lại Market
+        </Link>
+      </div>
+
+      {/* Thẻ thông tin Tác giả */}
+      <div style={{ ...cardStyle, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 24, marginBottom: 28 }}>
+        <Avatar avatar={user.avatar} size={64} />
+        <div style={{ flex: 1, minWidth: 220 }}>
+          <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--n-ink)', letterSpacing: '-0.01em' }}>{user.display_name}</div>
+          <div style={{ fontSize: 13, color: 'var(--n-ink-2)', marginTop: 2 }}>@{user.handle}</div>
+          {user.bio && <div style={{ fontSize: 13.5, color: 'var(--n-ink-2)', marginTop: 8, lineHeight: 1.5 }}>{user.bio}</div>}
         </div>
-        <div style={{ display: 'flex', gap: 28 }}>
+        <div style={{ display: 'flex', gap: 24, background: 'var(--n-surface-2)', padding: '14px 20px', borderRadius: 12, border: '1px solid var(--n-line)' }}>
           <Stat label="Chiến lược" value={summary.n_strategies} />
+          <div style={{ width: 1, background: 'var(--n-line)' }} />
           <Stat label="Tổng PnL" value={usd(summary.total_pnl_usd)} color={tone(summary.total_pnl_usd)} />
-          <Stat label="MDD lớn nhất" value={pct(summary.max_mdd_pct)} />
+          <div style={{ width: 1, background: 'var(--n-line)' }} />
+          <Stat label="Max Drawdown" value={pct(summary.max_mdd_pct)} color={summary.max_mdd_pct != null ? 'var(--n-neg)' : undefined} />
         </div>
       </div>
 
+      {/* Bảng danh sách chiến lược */}
+      <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: 'var(--n-ink)' }}>
+          Danh sách thuật toán & chiến lược ({strategies.length})
+        </h2>
+      </div>
+
       {strategies.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: 40, border: '1px dashed var(--n-line)', borderRadius: 12, color: 'var(--n-ink-2)' }}>Chưa có chiến lược nào.</div>
+        <div style={{ textAlign: 'center', padding: 48, background: 'var(--n-surface)', border: '1px dashed var(--n-line)', borderRadius: 16, color: 'var(--n-ink-2)' }}>
+          Chưa có chiến lược nào được xuất bản.
+        </div>
       ) : (
-        <div style={{ overflowX: 'auto', ...cardStyle, padding: 4 }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>
-                <th style={{ ...th, textAlign: 'left' }}>Chiến lược</th>
-                <th style={{ ...th, textAlign: 'left' }}>Nhóm</th>
-                <th style={th}>Lãi</th><th style={th}>MDD</th><th style={th}>Sharpe</th><th style={th}>Win</th><th style={th}>Số lệnh</th>
-              </tr>
-            </thead>
-            <tbody>
-              {strategies.map((s) => (
-                <tr key={s.id} onClick={() => nav(`/edu/s/${encodeURIComponent(s.id)}`)} style={{ cursor: 'pointer', borderTop: '1px solid var(--n-line-soft)' }}>
-                  <td style={{ ...td, textAlign: 'left', fontWeight: 600 }}><Link to={`/edu/s/${encodeURIComponent(s.id)}`} style={{ color: 'inherit', textDecoration: 'none' }}>{s.name}</Link></td>
-                  <td style={{ ...td, textAlign: 'left', color: 'var(--n-ink-2)' }}>{s.category || '—'}</td>
-                  <td style={{ ...td, color: tone(s.ret_pct) }}>{spct(s.ret_pct)}</td>
-                  <td style={td}>{pct(s.mdd_pct)}</td>
-                  <td style={td}>{isNum(s.sharpe) ? fmtNum(s.sharpe, 2) : '—'}</td>
-                  <td style={td}>{pct(s.win_rate, 1)}</td>
-                  <td style={td}>{s.trades ?? '—'}</td>
+        <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: 'var(--n-surface-2)', borderBottom: '1px solid var(--n-line)' }}>
+                  <th style={{ padding: '12px 18px', fontWeight: 600, color: 'var(--n-ink-2)', fontSize: 12 }}>Chiến lược</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--n-ink-2)', fontSize: 12 }}>Nhóm</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--n-ink-2)', fontSize: 12, textAlign: 'right' }}>Lợi nhuận</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--n-ink-2)', fontSize: 12, textAlign: 'right' }}>Max Drawdown</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--n-ink-2)', fontSize: 12, textAlign: 'right' }}>Sharpe</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--n-ink-2)', fontSize: 12, textAlign: 'right' }}>Win Rate</th>
+                  <th style={{ padding: '12px 18px', fontWeight: 600, color: 'var(--n-ink-2)', fontSize: 12, textAlign: 'right' }}>Số lệnh</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {strategies.map((s) => (
+                  <tr
+                    key={s.id}
+                    onClick={() => nav(`/s/${encodeURIComponent(s.id)}`)}
+                    style={{
+                      cursor: 'pointer',
+                      borderBottom: '1px solid var(--n-line-soft)',
+                      transition: 'background-color 0.15s ease',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--n-surface-2)' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent' }}
+                  >
+                    <td style={{ padding: '14px 18px', fontWeight: 600, color: 'var(--n-ink)' }}>
+                      <Link to={`/s/${encodeURIComponent(s.id)}`} style={{ color: 'inherit', textDecoration: 'none' }}>
+                        ⚡ {s.name}
+                      </Link>
+                    </td>
+                    <td style={{ padding: '14px 16px' }}>
+                      <span style={{ fontSize: 11.5, padding: '3px 8px', borderRadius: 6, background: 'var(--n-surface-2)', border: '1px solid var(--n-line)', color: 'var(--n-ink-2)' }}>
+                        {s.category || 'Mặc định'}
+                      </span>
+                    </td>
+                    <td style={{ padding: '14px 16px', textAlign: 'right', fontWeight: 600, color: tone(s.ret_pct) }}>
+                      {spct(s.ret_pct)}
+                    </td>
+                    <td style={{ padding: '14px 16px', textAlign: 'right', color: s.mdd_pct != null ? 'var(--n-neg)' : 'inherit' }}>
+                      {pct(s.mdd_pct)}
+                    </td>
+                    <td style={{ padding: '14px 16px', textAlign: 'right', fontWeight: 600, color: isNum(s.sharpe) && s.sharpe > 1 ? 'var(--n-accent)' : 'inherit' }}>
+                      {isNum(s.sharpe) ? fmtNum(s.sharpe, 2) : '—'}
+                    </td>
+                    <td style={{ padding: '14px 16px', textAlign: 'right' }}>
+                      {pct(s.win_rate, 1)}
+                    </td>
+                    <td style={{ padding: '14px 18px', textAlign: 'right', color: 'var(--n-ink-2)' }}>
+                      {s.trades ?? '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

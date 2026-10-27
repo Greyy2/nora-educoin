@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { getUser, getUserStrategies, updateMe } from '../../api'
+import { changePassword as apiChangePassword, getUser, getUserStrategies, updateMe } from '../../api'
 import { useUser } from '../../meta/UserProvider'
 import UserPicker from '../../components/user/UserPicker'
 import { Spinner } from '../../components/ui'
@@ -21,6 +21,12 @@ export default function MyProfile() {
   const [editBio, setEditBio] = useState('')
   const [editSaving, setEditSaving] = useState(false)
   const [editErr, setEditErr] = useState(null)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [passwordSaving, setPasswordSaving] = useState(false)
+  const [passwordError, setPasswordError] = useState(null)
+  const [passwordSuccess, setPasswordSuccess] = useState(null)
 
   const [pickerOpen, setPickerOpen] = useState(false)
 
@@ -77,6 +83,33 @@ export default function MyProfile() {
     if (!cleanName) {
       setEditErr('Tên hiển thị không được để trống.')
       return
+    }
+
+    const handleChangePassword = async (e) => {
+      e.preventDefault()
+      setPasswordError(null)
+      setPasswordSuccess(null)
+      if (newPassword !== confirmPassword) {
+        setPasswordError('Mật khẩu mới xác nhận không khớp.')
+        return
+      }
+      if (newPassword.length < 8) {
+        setPasswordError('Mật khẩu mới phải có ít nhất 8 ký tự.')
+        return
+      }
+
+      setPasswordSaving(true)
+      try {
+        await apiChangePassword(currentPassword, newPassword)
+        setCurrentPassword('')
+        setNewPassword('')
+        setConfirmPassword('')
+        setPasswordSuccess('Đã đổi mật khẩu.')
+      } catch (err) {
+        setPasswordError(err.message || 'Không thể đổi mật khẩu.')
+      } finally {
+        setPasswordSaving(false)
+      }
     }
 
     setEditSaving(true)
@@ -194,7 +227,7 @@ export default function MyProfile() {
           type="button"
           className="n-btn primary"
           onClick={() => setPickerOpen(true)}
-          style={{ background: '#7c3aed', borderColor: '#7c3aed', padding: '10px 24px', fontSize: 14 }}
+          style={{ padding: '10px 24px', fontSize: 14 }}
         >
           Chọn người dùng
         </button>
@@ -332,7 +365,6 @@ export default function MyProfile() {
                       type="submit"
                       className="n-btn primary sm"
                       disabled={editSaving}
-                      style={{ background: '#7c3aed', borderColor: '#7c3aed' }}
                     >
                       {editSaving ? 'Đang lưu...' : 'Lưu thay đổi'}
                     </button>
@@ -356,22 +388,87 @@ export default function MyProfile() {
         )}
       </div>
 
+      {isMe && me && (
+        <section style={{
+          background: 'var(--n-surface)',
+          border: '1px solid var(--n-line)',
+          borderRadius: 16,
+          padding: 28,
+          marginBottom: 36,
+        }}>
+          <h2 style={{ fontSize: 20, fontWeight: 700, margin: '0 0 8px', color: 'var(--n-ink)' }}>
+            Đổi mật khẩu
+          </h2>
+          <p style={{ fontSize: 13, color: 'var(--n-ink-2)', margin: '0 0 18px' }}>
+            Nhập mật khẩu hiện tại và chọn mật khẩu mới có ít nhất 8 ký tự.
+          </p>
+          <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 520 }}>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: 'var(--n-ink-2)' }}>
+              Mật khẩu hiện tại
+              <input
+                type="password"
+                autoComplete="current-password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                required
+                maxLength={128}
+                disabled={passwordSaving}
+                style={{ padding: '8px 10px', borderRadius: 6, background: 'var(--n-surface-2)', border: '1px solid var(--n-line)', color: 'inherit', fontSize: 13 }}
+              />
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: 'var(--n-ink-2)' }}>
+              Mật khẩu mới
+              <input
+                type="password"
+                autoComplete="new-password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                required
+                minLength={8}
+                maxLength={128}
+                disabled={passwordSaving}
+                style={{ padding: '8px 10px', borderRadius: 6, background: 'var(--n-surface-2)', border: '1px solid var(--n-line)', color: 'inherit', fontSize: 13 }}
+              />
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: 'var(--n-ink-2)' }}>
+              Xác nhận mật khẩu mới
+              <input
+                type="password"
+                autoComplete="new-password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                minLength={8}
+                maxLength={128}
+                disabled={passwordSaving}
+                style={{ padding: '8px 10px', borderRadius: 6, background: 'var(--n-surface-2)', border: '1px solid var(--n-line)', color: 'inherit', fontSize: 13 }}
+              />
+            </label>
+            {passwordError && <div className="n-err" role="alert" style={{ fontSize: 12 }}>{passwordError}</div>}
+            {passwordSuccess && <div role="status" style={{ color: 'var(--n-accent)', fontSize: 13 }}>{passwordSuccess}</div>}
+            <button type="submit" className="n-btn primary sm" disabled={passwordSaving || !currentPassword || !newPassword || !confirmPassword}>
+              {passwordSaving ? 'Đang đổi...' : 'Đổi mật khẩu'}
+            </button>
+          </form>
+        </section>
+      )}
+
       {/* Strategies Overview section */}
       <div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
           <div>
             <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: 'var(--n-ink)' }}>
-              Thống kê danh mục ({strategies.length} chiến lược đã lưu)
+              Tổng quan chiến lược cá nhân ({strategies.length} chiến lược đã lưu)
             </h2>
             <p style={{ margin: '4px 0 0 0', fontSize: 13, color: 'var(--n-ink-2)' }}>
-              {isMe ? 'Chỉ số tổng quan và phân bổ hiệu suất từ toàn bộ các chiến lược trong không gian cá nhân.' : `Chỉ số tổng hợp các chiến lược của @${user?.handle || ''}`}
+              {isMe ? 'Chỉ số hiệu suất riêng lẻ từ các chiến lược thuật toán trong không gian cá nhân.' : `Chỉ số các chiến lược của @${user?.handle || ''}`}
             </p>
           </div>
 
           <Link
-            to="/edu/studio"
+            to="/studio"
             className="n-btn primary sm"
-            style={{ background: '#7c3aed', borderColor: '#7c3aed', fontSize: 13, textDecoration: 'none' }}
+            style={{ fontSize: 13, textDecoration: 'none' }}
           >
             + Viết chiến lược mới
           </Link>
@@ -401,16 +498,27 @@ export default function MyProfile() {
             </p>
             {isMe && (
               <Link
-                to="/edu/studio"
+                to="/studio"
                 className="n-btn primary sm"
-                style={{ background: '#7c3aed', borderColor: '#7c3aed', textDecoration: 'none' }}
+                style={{ textDecoration: 'none' }}
               >
                 Mở Studio →
               </Link>
             )}
           </div>
         ) : stats && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <div style={{
+              fontSize: 12,
+              color: 'var(--n-ink-2)',
+              background: 'rgba(148, 163, 184, 0.08)',
+              border: '1px solid var(--n-line-soft)',
+              borderRadius: 8,
+              padding: '8px 12px',
+              lineHeight: 1.45,
+            }}>
+              ℹ️ <b>Lưu ý độc lập:</b> Mỗi chiến lược bên dưới có cặp tài sản, khung nến, khoảng ngày và mức vốn riêng. Các chỉ số là trung bình tham khảo của các lần chạy riêng lẻ, không phải hiệu suất của một danh mục đầu tư đã gộp hay mô phỏng chung.
+            </div>
             {/* KPI Cards Grid */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
               {/* 1. Lợi nhuận trung bình */}
@@ -593,8 +701,8 @@ export default function MyProfile() {
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span style={{ color: 'var(--n-ink-2)' }}>Chiến lược dẫn đầu:</span>
                         <Link
-                          to={`/edu/studio?alpha=${encodeURIComponent(stats.bestStrat.id || stats.bestStrat.alpha_id)}`}
-                          style={{ color: '#8b5cf6', fontWeight: 600, textDecoration: 'none', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                          to={`/studio?alpha=${encodeURIComponent(stats.bestStrat.id || stats.bestStrat.alpha_id)}`}
+                          style={{ color: 'var(--n-accent)', fontWeight: 600, textDecoration: 'none', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                           title={stats.bestStrat.name}
                         >
                           {stats.bestStrat.name} →

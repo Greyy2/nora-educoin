@@ -72,6 +72,9 @@ dist/
 *id_ed25519*
 *.pem
 *.key
+*Nora-edu.json
+*google_oauth*.json
+**/secrets/
 
 # BMAD
 /_bmad

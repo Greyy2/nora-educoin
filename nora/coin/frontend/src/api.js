@@ -361,7 +361,7 @@ export const listLiveBots = (mode) => request(`/api/studio/live/bots${mode ? `?m
 export const getLiveSummary = () => request('/api/studio/live/summary')
 
 /** Snapshot Master Portfolio (10,000 USDT Master Wallet, vốn phân bổ linh hoạt cho các bot). */
-export const getMasterPortfolio = () => request('/api/studio/portfolio/master')
+export const getMasterPortfolio = (mode = 'paper') => request(`/api/studio/portfolio/master?mode=${enc(mode)}`)
 
 /** Chi tiết 1 bot live. */
 export const getLiveBotDetail = (botId) => request(`/api/studio/live/bot/${enc(botId)}`)
@@ -455,14 +455,22 @@ export const getUserStrategies = (handle) => request(`/api/users/${enc(handle)}/
 /** Đọc phiên hiện tại: {user: User|null}. */
 export const getMe = () => request('/api/me')
 
-/** Đăng nhập theo handle: {ok: true, user: User}. */
-export const login = (handle) => request('/api/me/login', { method: 'POST', body: { handle } })
+/** Đăng nhập theo handle và password: {ok: true, user: User}. */
+export const login = (handle, password) => request('/api/me/login', { method: 'POST', body: { handle, password } })
+
+/** Đổi mật khẩu tài khoản đang đăng nhập. */
+export const changePassword = (currentPassword, newPassword) =>
+  request('/api/me/password', { method: 'POST', body: { current_password: currentPassword, new_password: newPassword } })
 
 /** Đăng xuất (xoá cookie). */
 export const enterByName = (name) => request('/api/me/enter', { method: 'POST', body: { name } })
 
 // Đăng xuất
 export const logout = () => request('/api/me/logout', { method: 'POST' })
+
+/** Đăng nhập qua mạng xã hội (Google Identity Services). */
+export const socialLogin = (credential, provider = 'google') =>
+  request('/api/me/social-login', { method: 'POST', body: { credential, provider } })
 
 /** Sửa thông tin cá nhân: {display_name?, avatar?, bio?}. */
 export const updateMe = (body) => request('/api/me', { method: 'PUT', body })
@@ -480,7 +488,16 @@ export const getHomeSummary = () => request('/api/home/summary')
 const _eduCache = { market: {}, user: {} }
 export const eduMarketCached = (sort = 'pnl') => _eduCache.market[sort]
 export const eduUserCached = (handle) => _eduCache.user[handle]
-export const getEduMarket = (sort = 'pnl') => request(`/api/edu/market?sort=${enc(sort)}`).then((d) => (_eduCache.market[sort] = d))
+export const getEduMarket = (params = 'pnl') => {
+  const p = typeof params === 'string' ? { sort: params } : (params || {})
+  const sort = p.sort || 'pnl'
+  const qs = new URLSearchParams({ sort })
+  if (p.rankedOnly) qs.set('ranked_only', 'true')
+  if (p.timeframe && p.timeframe !== 'all') qs.set('timeframe', p.timeframe)
+  if (p.symbol && p.symbol !== 'all') qs.set('symbol', p.symbol)
+  const key = qs.toString()
+  return request(`/api/edu/market?${key}`).then((d) => (_eduCache.market[key] = d))
+}
 
 /** Hồ sơ + chiến lược của 1 user: {user, summary, strategies: [{id, name, category, ret_pct, mdd_pct, sharpe, win_rate, trades, pnl_usd}]}. */
 export const getEduUser = (handle) => request(`/api/edu/users/${enc(handle)}`).then((d) => (_eduCache.user[handle] = d))
@@ -498,6 +515,7 @@ export const postForkStrategy = (alphaId) => request(`/api/edu/strategies/${enc(
 // Helper chung cho các trang mới (research)
 export const apiGet = (path) => request(path)
 export const apiPost = (path, body) => request(path, { method: 'POST', body })
+export const apiDelete = (path) => request(path, { method: 'DELETE' })
 
 /** Tổng hợp mọi lần backtest đã xong: {runs, pnl_usd, capital, pnl_pct, mdd_pct, trades, last, recent[]}. */
 export const getBacktestSummary = () => request('/api/studio/book/backtest_summary')
@@ -515,4 +533,3 @@ export const getUniverseRuns = () => request('/api/studio/scan/runs')
 export const getUniverseInfo = () => request('/api/studio/scan/universe_info')
 export const getLatestSweep = () => request('/api/studio/scan/sweep/latest')
 export const getLatestWfaCarlo = () => request('/api/studio/scan/wfa_carlo/latest')
-

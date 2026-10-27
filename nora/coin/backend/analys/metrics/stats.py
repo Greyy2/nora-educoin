@@ -22,19 +22,39 @@ from typing import Dict, Optional, Sequence
 
 import numpy as np
 import pandas as pd
-from nautilus_trader.analysis import (
-    AvgLoser,
-    AvgWinner,
-    CAGR,
-    CalmarRatio,
-    Expectancy,
-    MaxDrawdown,
-    ProfitFactor,
-    ReturnsVolatility,
-    SharpeRatio,
-    SortinoRatio,
-    WinRate,
-)
+try:
+    from nautilus_trader.analysis import (
+        AvgLoser,
+        AvgWinner,
+        CAGR,
+        CalmarRatio,
+        Expectancy,
+        MaxDrawdown,
+        ProfitFactor,
+        ReturnsVolatility,
+        SharpeRatio,
+        SortinoRatio,
+        WinRate,
+    )
+except ImportError:
+    from nautilus_trader.analysis import (
+        AvgLoser,
+        AvgWinner,
+        Expectancy,
+        ProfitFactor,
+        ReturnsVolatility,
+        SharpeRatio,
+        SortinoRatio,
+        WinRate,
+    )
+    class CAGR:
+        def __init__(self, period=365): self.period = period
+        def calculate_from_returns(self, d): return None
+    class CalmarRatio:
+        def __init__(self, period=365): self.period = period
+        def calculate_from_returns(self, d): return None
+    class MaxDrawdown:
+        def calculate_from_returns(self, d): return None
 
 
 ANN = 365                                   # số ngày quy năm của Nora (Nautilus mặc định 252)

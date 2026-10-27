@@ -22,11 +22,19 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from contextlib import asynccontextmanager
 from backend.core import ENGINE_NAME, NAUTILUS_VERSION
-from backend.routes.system import engine_router, home_router, users_router, edu_router
+from backend.routes.system import engine_router, home_router, users_router, edu_router, warm_market_cache
 from backend.routes import studio
 
-app = FastAPI(title="Nora EDU API", version="3.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    warm_market_cache()
+    yield
+
+
+app = FastAPI(title="Nora EDU API", version="3.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[

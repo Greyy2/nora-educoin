@@ -28,7 +28,7 @@ const COIN_PAGES = [
   { to: '/coin/portfolio', title: 'Tổng quan', short: 'Tổng quan', icon: I.portfolio, preload: () => import('../pages/Portfolio') },
   { to: '/coin/alpha/create', match: '/coin/alpha', title: 'Alpha', short: 'Alpha', icon: I.alpha, preload: () => import('../pages/Studio') },
   { to: '/coin/backtest', title: 'Backtest', short: 'Backtest', icon: I.backtest, preload: () => import('../pages/Backtest') },
-  { to: '/coin/live', title: 'Bot live · paper / demo', short: 'Live', icon: I.live, preload: () => import('../pages/Live') },
+  { to: '/coin/live', title: 'Giao dịch', short: 'Giao dịch', icon: I.live, preload: () => import('../pages/Live') },
   { to: '/coin/history', title: 'Lịch sử chạy', short: 'Lịch sử', icon: I.history, preload: () => import('../pages/History') },
 ]
 
@@ -124,21 +124,14 @@ export default function CoinLayout({ children }) {
 
         <div className="n-rail-sp" />
 
-        <Link to="/" className="n-rail-btn" title="← Về Trang chủ Nora">
+        <Link to="/" className="n-rail-btn" title="← Về Trang chủ COIN">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ width: 18, height: 18 }}>
             <path d="M19 12H5M12 19l-7-7 7-7" />
           </svg>
           <span className="n-rl">Trang chủ</span>
         </Link>
-        <a
-          href={typeof window !== 'undefined' && window.location.hostname.includes('coin.nora.') ? window.location.origin.replace('coin.nora.', 'edu.nora.') + '/edu' : '/edu'}
-          className="n-rail-btn"
-          title="Chuyển sang Nora Education"
-        >
-          {I.education}
-          <span className="n-rl">Education</span>
-        </a>
       </nav>
+
 
       <div className="n-main">
         <header className="n-top">

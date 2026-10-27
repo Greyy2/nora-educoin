@@ -110,14 +110,59 @@ def build_plan(program: Program, symbols: List[str], position: Optional[Dict[str
     if FRAME_ORDER[program.timeframe] < FRAME_ORDER[base]:
         raise ValueError(f"timeframe của chiến lược ({program.timeframe}) nhỏ hơn khung chạy {base}")
     sid = strategy_id or f"py_{program.code_hash}"
-    pos = resolve_position_auto({**BASE_POSITION, **NORA_DEFAULTS, **_check_position(program.position_overrides), **_check_position(position or {})}, program.timeframe)
-    user_keys = set(program.position_overrides) | set(position or {})
-    defaulted = [k for k in NORA_DEFAULTS if k not in user_keys]
-    if defaulted:
-        warnings.append("Dùng mặc định của engine cho " + ", ".join(f"{k}={NORA_DEFAULTS[k]}" for k in defaulted)
-                        + f" (rủi ro {pos['risk_per_trade_pct']}%/lệnh, SL tính theo ATR); khai báo trong code hoặc `position` để đổi")
+    code_pos = _check_position(getattr(program, "position_overrides", {}) or {})
+    ui_pos = _check_position(position or {})
+
+    conflicts = []
+    for k, v_ui in ui_pos.items():
+        if k in code_pos:
+            v_code = code_pos[k]
+            diff = False
+            try:
+                diff = abs(float(v_ui) - float(v_code)) > 1e-9
+            except (ValueError, TypeError):
+                diff = str(v_ui).strip() != str(v_code).strip()
+            if diff:
+                msg = f"Tham số vị thế '{k}' khai báo trong code là {v_code} nhưng đang bị cấu hình giao diện ghi đè thành {v_ui}."
+                conflicts.append(msg)
+                warnings.append(msg)
+
+    pos = resolve_position_auto({**BASE_POSITION, **NORA_DEFAULTS, **code_pos, **ui_pos}, program.timeframe)
+    # Engine defaults are part of the effective run configuration and are
+    # shown in the result payload; they are not runtime warnings.
     if FRAME_ORDER.get(str(pos.get("atr_frame")), 0) < FRAME_ORDER[base]:
         raise ValueError(f"atr_frame {pos.get('atr_frame')} nhỏ hơn khung chạy {base}")
+
+    param_provenance = {}
+    exit_u = pos.get("exit_unit", "pct")
+    for k, val in pos.items():
+        if k in ui_pos:
+            src = "ui"
+        elif k in code_pos:
+            src = "code"
+        elif k in NORA_DEFAULTS:
+            src = "nora_default"
+        else:
+            src = "system_default"
+
+        if k in ("stop_loss_rate", "take_profit_rate", "trailing_stop", "trailing_activation_pct", "dca_step_pct"):
+            u = "atr" if exit_u == "atr" else "%"
+        elif k in ("fee_rate", "maker_fee_rate", "slippage_rate", "volume_rate", "order_size_pct", "risk_per_trade_pct", "max_notional_pct", "max_capital_usage"):
+            u = "%"
+        elif k == "leverage":
+            u = "x"
+        elif k in ("timeout", "cooldown"):
+            u = "phút"
+        else:
+            u = ""
+
+        param_provenance[k] = {
+            "source": src,
+            "value": val,
+            "unit": u,
+            "declared_in_code": code_pos.get(k),
+        }
+
     src = data_source(data)
     names = list(dict.fromkeys(src.base_name(s) for s in symbols))
     data_symbols = [f"{n}@perp" for n in names]
@@ -127,7 +172,13 @@ def build_plan(program: Program, symbols: List[str], position: Optional[Dict[str
         tree, stop = _leg_signals(program, side)
         strategies.append({"id": sid if exact_id and len(legs) == 1 else f"{sid}_{side.lower()}", "side": side, "tree": tree, "stop": stop,
                            "position": dict(pos)})
-    return Plan(strategies, data_symbols, dict(RISK), base, "cex", warnings, {"position": pos})
+    echo_data = {
+        "position": pos,
+        "param_provenance": param_provenance,
+        "conflicts": conflicts,
+        "code_declared": code_pos,
+    }
+    return Plan(strategies, data_symbols, dict(RISK), base, "cex", warnings, echo_data)
 
 
 def _check_position(pos: Dict[str, Any]) -> Dict[str, Any]:
@@ -161,4 +212,3 @@ def resolve_run_frame(run_frame: Any = None, program_tf: Optional[str] = None) -
         if FRAME_ORDER[program_tf] < FRAME_ORDER[base]:
             raise ValueError(f"timeframe của chiến lược ({program_tf}) nhỏ hơn khung chạy {base}")
     return base
-

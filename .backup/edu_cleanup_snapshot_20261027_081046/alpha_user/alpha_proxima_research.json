@@ -1,0 +1,27 @@
+{
+  "id": "alpha_proxima_research",
+  "name": "Proxima Universal Breakout (Research)",
+  "code": "from nautilus_trader.trading.strategy import Strategy\nfrom backend.core.strategy_proxima import ProximaNativeStrategy, ProximaNativeStrategyConfig\n\nclass ProximaUniversalAlpha(ProximaNativeStrategy):\n    \"\"\"Proxima Universal Native Alpha phục vụ nghiên cứu & Shadow Mode.\"\"\"\n    timeframe = \"1m\"\n    symbols = [\"BTC\"]\n",
+  "note": "Proxima Native Alpha - Giai đoạn 1: Khung nghiên cứu độc lập. Phân định 3 phân hệ, cờ unverified, tuân thủ Shared Execution của Nora.",
+  "status": "RESEARCH",
+  "created_at": "2026-10-21T08:29:00Z",
+  "updated_at": "2026-10-21T08:29:00Z",
+  "config": {
+    "timeframe": "1m",
+    "anchor_frame": "1h",
+    "symbols": [
+      "BTC"
+    ],
+    "is_native": true,
+    "shadow_mode": true
+  },
+  "metrics": {
+    "simulate": {
+      "ret_pct": null,
+      "mdd_pct": null,
+      "sharpe": null,
+      "win_rate_trades": null,
+      "trades": 0
+    }
+  }
+}

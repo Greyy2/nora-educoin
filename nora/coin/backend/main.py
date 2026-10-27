@@ -15,6 +15,10 @@ if str(COIN_ROOT) not in sys.path:
 
 # Namespace dữ liệu độc lập của COIN
 os.environ.setdefault("NORA_DATA_ROOT", str(COIN_ROOT / "data"))
+os.environ.setdefault("NORA_MASTER_CAPITAL_PAPER", "10000.0")
+os.environ.setdefault("NORA_MASTER_CAPITAL_TESTNET", "10000.0")
+os.environ.setdefault("NORA_MASTER_CAPITAL_LIVE", "50000.0")
+
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,7 +33,19 @@ from backend.core import ENGINE_NAME, NAUTILUS_VERSION
 from backend.routes import studio, data, live
 from backend.routes.system import engine_router, home_router, users_router, overview_router
 
-app = FastAPI(title="Nora COIN API", version="3.0")
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Job lifecycle thread cho COIN (bao gồm cả live bot supervision)."""
+    import threading
+    from backend.jobs import runner as batch_jobs, live_supervisor
+    threading.Thread(target=batch_jobs.enforce_lifecycle, name="coin-job-lifecycle", daemon=True).start()
+    live_supervisor.start()
+    yield
+
+
+app = FastAPI(title="Nora COIN API", version="3.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -64,14 +80,6 @@ def _ephemeral_gone(_request, exc: EphemeralGone):
 @app.exception_handler(NotReady)
 def _not_ready(_request, exc: NotReady):
     return JSONResponse(status_code=501, content={"detail": {"code": exc.code, "message": str(exc)}})
-
-
-@app.on_event("startup")
-def _enforce_job_lifecycle():
-    """Job lifecycle thread cho COIN (bao gồm cả live bot supervision)."""
-    import threading
-    from backend.jobs import runner as batch_jobs
-    threading.Thread(target=batch_jobs.enforce_lifecycle, name="coin-job-lifecycle", daemon=True).start()
 
 
 @app.get("/api/health")

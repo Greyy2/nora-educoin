@@ -1,0 +1,13 @@
+{
+  "id": "5554d6d3d4ff",
+  "handle": "trend_hunter",
+  "display_name": "Thợ săn xu hướng",
+  "avatar": {
+    "emoji": "🦉",
+    "color": "#F59E0B"
+  },
+  "bio": "Đi theo xu hướng chính, cắt lỗ gọn.",
+  "role": "demo",
+  "created_at": "2026-10-12T17:55:42.890882+00:00",
+  "password_hash": "pbkdf2_sha256$100000$cbc9f0b9305a8a4572f5defe8151fbfc$078dfb46e46f60e277d639794ca12343dda3f2f873d64966c7c7509d21e911be"
+}

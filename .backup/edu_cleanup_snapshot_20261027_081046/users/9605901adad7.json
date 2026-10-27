@@ -1,0 +1,13 @@
+{
+  "id": "9605901adad7",
+  "handle": "fx_u3_e31fcb",
+  "display_name": "FX Author BTC Small",
+  "avatar": {
+    "emoji": "🦊",
+    "color": "#F97316"
+  },
+  "bio": "",
+  "role": "learner",
+  "created_at": "2026-10-24T20:18:14.632084+00:00",
+  "password_hash": "pbkdf2_sha256$100000$cbc9f0b9305a8a4572f5defe8151fbfc$078dfb46e46f60e277d639794ca12343dda3f2f873d64966c7c7509d21e911be"
+}

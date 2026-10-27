@@ -1,0 +1,2983 @@
+{
+  "components": {
+    "schemas": {
+      "AnnotateRequest": {
+        "properties": {
+          "as_comments": {
+            "default": false,
+            "description": "Tr\u1ea3 th\u00eam annotated_code: gi\u1ea3i th\u00edch ch\u00e8n th\u00e0nh d\u00f2ng `# \u25b8` tr\u00ean t\u1eebng d\u00f2ng (idempotent)",
+            "title": "As Comments",
+            "type": "boolean"
+          },
+          "code": {
+            "description": "M\u00e3 Python class X(SimpleAlgorithm)",
+            "maxLength": 50000,
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          },
+          "strip": {
+            "default": false,
+            "description": "Ch\u1ec9 g\u1ee1 c\u00e1c d\u00f2ng `# \u25b8` t\u1ef1 sinh, tr\u1ea3 {stripped_code}",
+            "title": "Strip",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "title": "AnnotateRequest",
+        "type": "object"
+      },
+      "AssistCheck": {
+        "properties": {
+          "code": {
+            "maxLength": 60000,
+            "title": "Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "title": "AssistCheck",
+        "type": "object"
+      },
+      "AssistPos": {
+        "properties": {
+          "code": {
+            "maxLength": 60000,
+            "title": "Code",
+            "type": "string"
+          },
+          "col": {
+            "minimum": 1.0,
+            "title": "Col",
+            "type": "integer"
+          },
+          "line": {
+            "minimum": 1.0,
+            "title": "Line",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "line",
+          "col"
+        ],
+        "title": "AssistPos",
+        "type": "object"
+      },
+      "ChartExplainRequest": {
+        "properties": {
+          "book": {
+            "anyOf": [
+              {
+                "pattern": "^(main|explore)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "s\u1ed5 \u0111ang ch\u1ea1y (c\u00f9ng strategy_id)",
+            "title": "Book"
+          },
+          "end": {
+            "description": "ms, \u0111\u00f3ng c\u1eeda s\u1ed5",
+            "minimum": 0.0,
+            "title": "End",
+            "type": "integer"
+          },
+          "source": {
+            "default": "data",
+            "pattern": "^(data|okx)$",
+            "title": "Source",
+            "type": "string"
+          },
+          "start": {
+            "description": "ms, m\u1edf c\u1eeda s\u1ed5",
+            "minimum": 0.0,
+            "title": "Start",
+            "type": "integer"
+          },
+          "strategy_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strategy Id"
+          },
+          "symbol": {
+            "pattern": "^[A-Za-z0-9]{2,12}(@perp)?$",
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol",
+          "start",
+          "end"
+        ],
+        "title": "ChartExplainRequest",
+        "type": "object"
+      },
+      "CompileRequest": {
+        "properties": {
+          "code": {
+            "description": "M\u00e3 Python class X(SimpleAlgorithm)",
+            "maxLength": 50000,
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "title": "CompileRequest",
+        "type": "object"
+      },
+      "CreateUserReq": {
+        "properties": {
+          "avatar": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avatar"
+          },
+          "bio": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Bio",
+            "type": "string"
+          },
+          "display_name": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "handle": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "minLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Handle"
+          }
+        },
+        "required": [
+          "display_name"
+        ],
+        "title": "CreateUserReq",
+        "type": "object"
+      },
+      "CustomBacktestRequest": {
+        "properties": {
+          "code": {
+            "description": "M\u00e3 Python class X(SimpleAlgorithm)",
+            "maxLength": 50000,
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          },
+          "end": {
+            "title": "End",
+            "type": "string"
+          },
+          "initial_capital": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 1000000000.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "M\u1eb7c \u0111\u1ecbnh 10000",
+            "title": "Initial Capital"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Ghi \u0111\u00e8 tham s\u1ed1 v\u1ecb th\u1ebf (kho\u00e1 c\u1ee7a params.builder.POSITION_KEYS)",
+            "title": "Position"
+          },
+          "run_frame": {
+            "anyOf": [
+              {
+                "pattern": "^(1m|5m|15m|1h|4h|24h)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Khung ch\u1ea1y; thi\u1ebfu = Nhanh (khung t\u00edn hi\u1ec7u); '1m' = Chu\u1ea9n",
+            "title": "Run Frame"
+          },
+          "start": {
+            "title": "Start",
+            "type": "string"
+          },
+          "symbols": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 16,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "BTC ho\u1eb7c BTC@perp; b\u1ecf tr\u1ed1ng = c\u1ea3 10 t\u00e0i s\u1ea3n OKX trong kho d\u1eef li\u1ec7u",
+            "title": "Symbols"
+          },
+          "train_ratio": {
+            "default": 0.7,
+            "maximum": 0.95,
+            "minimum": 0.05,
+            "title": "Train Ratio",
+            "type": "number"
+          }
+        },
+        "required": [
+          "code",
+          "start",
+          "end"
+        ],
+        "title": "CustomBacktestRequest",
+        "type": "object"
+      },
+      "EnterReq": {
+        "properties": {
+          "name": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "EnterReq",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "LoginReq": {
+        "properties": {
+          "handle": {
+            "title": "Handle",
+            "type": "string"
+          }
+        },
+        "required": [
+          "handle"
+        ],
+        "title": "LoginReq",
+        "type": "object"
+      },
+      "SaveUserAlphaRequest": {
+        "properties": {
+          "alpha_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "C\u00f3 = l\u01b0u PHI\u00caN B\u1ea2N M\u1edaI c\u1ee7a alpha \u0111\u00e3 c\u00f3 (gi\u1eef id; b\u1ea3n c\u0169 v\u00e0o user/_versions)",
+            "title": "Alpha Id"
+          },
+          "code": {
+            "description": "M\u00e3 Python c\u1ee7a chi\u1ebfn l\u01b0\u1ee3c",
+            "title": "Code",
+            "type": "string"
+          },
+          "forked_from": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Th\u00f4ng tin t\u00e1c gi\u1ea3 g\u1ed1c n\u1ebfu l\u00e0 b\u1ea3n sao/fork",
+            "title": "Forked From"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "M\u00e3 job custom_backtest \u0111\u00e3 ho\u00e0n t\u1ea5t (tu\u1ef3 ch\u1ecdn n\u1ebfu l\u01b0u nh\u00e1p)",
+            "title": "Job Id"
+          },
+          "name": {
+            "description": "T\u00ean alpha",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "",
+            "description": "Ghi ch\u00fa chi\u1ebfn l\u01b0\u1ee3c",
+            "title": "Note"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "alpha-create",
+            "description": "Ngu\u1ed3n \u0111\u1ea9y (alpha-create | education)",
+            "title": "Source"
+          }
+        },
+        "required": [
+          "code",
+          "name"
+        ],
+        "title": "SaveUserAlphaRequest",
+        "type": "object"
+      },
+      "StrategyExplainRequest": {
+        "properties": {
+          "code": {
+            "description": "M\u00e3 Python class X(SimpleAlgorithm)",
+            "maxLength": 50000,
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Tham s\u1ed1 v\u1ecb th\u1ebf nh\u01b0 khi ch\u1ea1y backtest",
+            "title": "Position"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "title": "StrategyExplainRequest",
+        "type": "object"
+      },
+      "UpdateProfileReq": {
+        "properties": {
+          "avatar": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avatar"
+          },
+          "bio": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bio"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          }
+        },
+        "title": "UpdateProfileReq",
+        "type": "object"
+      },
+      "UpdateStatusRequest": {
+        "properties": {
+          "status": {
+            "description": "Tr\u1ea1ng th\u00e1i m\u1edbi: SAVED | CANDIDATE | ARCHIVED",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "UpdateStatusRequest",
+        "type": "object"
+      },
+      "ValidateRequest": {
+        "properties": {
+          "id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Id",
+            "type": "string"
+          },
+          "params": {
+            "additionalProperties": true,
+            "description": "Kho\u00e1 thi\u1ebfu l\u1ea5y t\u1eeb preset",
+            "title": "Params",
+            "type": "object"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "ValidateRequest",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "Nora EDU API",
+    "version": "3.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/": {
+      "get": {
+        "operationId": "index__get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Index"
+      }
+    },
+    "/api/edu/market": {
+      "get": {
+        "description": "L\u01b0\u1edbi user; competitive metrics require exact symbol, timeframe, and evaluation window.",
+        "operationId": "market_api_edu_market_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "default": "name",
+              "title": "Sort",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ranked_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Ranked Only",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timeframe",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Timeframe"
+            }
+          },
+          {
+            "in": "query",
+            "name": "asset",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Asset"
+            }
+          },
+          {
+            "in": "query",
+            "name": "symbol",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Symbol"
+            }
+          },
+          {
+            "in": "query",
+            "name": "start_date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Start Date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "end_date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "End Date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "regime",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Regime"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Market Api Edu Market Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Market",
+        "tags": [
+          "edu"
+        ]
+      }
+    },
+    "/api/edu/samples/visible": {
+      "get": {
+        "description": "Kh\u00e1ch ho\u1eb7c user ch\u01b0a l\u01b0u chi\u1ebfn l\u01b0\u1ee3c n\u00e0o -> \u0111\u00fang 1 m\u1eabu h\u01b0\u1edbng d\u1eabn; user \u0111\u00e3 c\u00f3 >= 1 chi\u1ebfn l\u01b0\u1ee3c -> kh\u00f4ng m\u1eabu.",
+        "operationId": "samples_visible_api_edu_samples_visible_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Samples Visible Api Edu Samples Visible Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Samples Visible",
+        "tags": [
+          "edu"
+        ]
+      }
+    },
+    "/api/edu/strategies/{alpha_id}": {
+      "get": {
+        "description": "Chi ti\u1ebft c\u00f4ng khai (ch\u1ec9 \u0111\u1ecdc): code + k\u1ebft qu\u1ea3 + ch\u1ee7 s\u1edf h\u1eefu.",
+        "operationId": "strategy_detail_api_edu_strategies__alpha_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "alpha_id",
+            "required": true,
+            "schema": {
+              "title": "Alpha Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Strategy Detail Api Edu Strategies  Alpha Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Strategy Detail",
+        "tags": [
+          "edu"
+        ]
+      }
+    },
+    "/api/edu/strategies/{alpha_id}/fork": {
+      "post": {
+        "description": "(\u0110\u0103ng nh\u1eadp) sao ch\u00e9p code v\u1ec1 user hi\u1ec7n t\u1ea1i: t\u1ea1o b\u1ea3n nh\u00e1p \u0111\u1ed9c l\u1eadp k\u00e8m attribution chu\u1ea9n DEC-03.",
+        "operationId": "fork_strategy_api_edu_strategies__alpha_id__fork_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "alpha_id",
+            "required": true,
+            "schema": {
+              "title": "Alpha Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Fork Strategy Api Edu Strategies  Alpha Id  Fork Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Fork Strategy",
+        "tags": [
+          "edu"
+        ]
+      }
+    },
+    "/api/edu/users/{handle}": {
+      "get": {
+        "operationId": "user_strategies_api_edu_users__handle__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "handle",
+            "required": true,
+            "schema": {
+              "title": "Handle",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response User Strategies Api Edu Users  Handle  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "User Strategies",
+        "tags": [
+          "edu"
+        ]
+      }
+    },
+    "/api/health": {
+      "get": {
+        "operationId": "health_api_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health"
+      }
+    },
+    "/api/home/summary": {
+      "get": {
+        "description": "S\u1ed1 li\u1ec7u th\u1eadt cho trang Home.",
+        "operationId": "get_home_summary_api_home_summary_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Home Summary Api Home Summary Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Home Summary",
+        "tags": [
+          "home"
+        ]
+      }
+    },
+    "/api/me": {
+      "get": {
+        "description": "Th\u00f4ng tin phi\u00ean ng\u01b0\u1eddi d\u00f9ng hi\u1ec7n t\u1ea1i (tr\u1ea3 {user: null} n\u1ebfu ch\u01b0a \u0111\u0103ng nh\u1eadp).",
+        "operationId": "get_current_me_api_me_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Current Me Api Me Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Current Me",
+        "tags": [
+          "users"
+        ]
+      },
+      "put": {
+        "description": "C\u1eadp nh\u1eadt th\u00f4ng tin t\u00e0i kho\u1ea3n \u0111ang \u0111\u0103ng nh\u1eadp.",
+        "operationId": "update_current_me_api_me_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfileReq"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Update Current Me Api Me Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Current Me",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/api/me/enter": {
+      "post": {
+        "description": "Onboarding nhanh cho h\u1ecdc vi\u00ean m\u1edbi: lu\u00f4n t\u1ea1o m\u1ed9t t\u00e0i kho\u1ea3n h\u1ecdc vi\u00ean m\u1edbi ri\u00eang bi\u1ec7t, tuy\u1ec7t \u0111\u1ed1i kh\u00f4ng c\u1ea5p phi\u00ean c\u1ee7a t\u00e0i kho\u1ea3n \u0111\u00e3 t\u1ed3n t\u1ea1i.",
+        "operationId": "enter_with_name_api_me_enter_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnterReq"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Enter With Name Api Me Enter Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Enter With Name",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/api/me/login": {
+      "post": {
+        "description": "Ch\u1eb7n \u0111\u0103ng nh\u1eadp ch\u1ec9 b\u1eb1ng handle \u0111\u1ec3 ng\u0103n ch\u1eb7n ho\u00e0n to\u00e0n nguy c\u01a1 chi\u1ebfm \u0111o\u1ea1t t\u00e0i kho\u1ea3n (Account Takeover).",
+        "operationId": "login_with_handle_api_me_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginReq"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Login With Handle Api Me Login Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Login With Handle",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/api/me/logout": {
+      "post": {
+        "description": "\u0110\u0103ng xu\u1ea5t, x\u00f3a cookie phi\u00ean.",
+        "operationId": "logout_current_me_api_me_logout_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Logout Current Me Api Me Logout Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Logout Current Me",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/api/studio/alphas/catalog": {
+      "get": {
+        "operationId": "get_alpha_catalog_api_studio_alphas_catalog_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Alpha Catalog Api Studio Alphas Catalog Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Alpha Catalog",
+        "tags": [
+          "alphas"
+        ]
+      }
+    },
+    "/api/studio/alphas/top_agents": {
+      "get": {
+        "operationId": "get_top_agents_api_studio_alphas_top_agents_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Top Agents Api Studio Alphas Top Agents Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Top Agents",
+        "tags": [
+          "alphas"
+        ]
+      }
+    },
+    "/api/studio/alphas/user": {
+      "get": {
+        "description": "L\u1ea5y danh s\u00e1ch c\u00e1c Alpha ng\u01b0\u1eddi d\u00f9ng \u0111\u00e3 l\u01b0u (m\u1eb7c \u0111\u1ecbnh theo ng\u01b0\u1eddi d\u00f9ng hi\u1ec7n t\u1ea1i n\u1ebfu \u0111\u0103ng nh\u1eadp).",
+        "operationId": "get_user_alphas_api_studio_alphas_user_get",
+        "parameters": [
+          {
+            "description": "Ti\u00eau ch\u00ed s\u1eafp x\u1ebfp: date | sharpe | cagr",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Ti\u00eau ch\u00ed s\u1eafp x\u1ebfp: date | sharpe | cagr",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "L\u1ecdc tr\u1ea1ng th\u00e1i: SAVED | CANDIDATE | ARCHIVED",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "L\u1ecdc tr\u1ea1ng th\u00e1i: SAVED | CANDIDATE | ARCHIVED",
+              "title": "Status"
+            }
+          },
+          {
+            "description": "L\u1ecdc theo ng\u01b0\u1eddi d\u00f9ng s\u1edf h\u1eefu",
+            "in": "query",
+            "name": "owner_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "L\u1ecdc theo ng\u01b0\u1eddi d\u00f9ng s\u1edf h\u1eefu",
+              "title": "Owner Id"
+            }
+          },
+          {
+            "description": "L\u1ea5y t\u1ea5t c\u1ea3 alpha c\u1ee7a m\u1ecdi user",
+            "in": "query",
+            "name": "all_users",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": false,
+              "description": "L\u1ea5y t\u1ea5t c\u1ea3 alpha c\u1ee7a m\u1ecdi user",
+              "title": "All Users"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Get User Alphas Api Studio Alphas User Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get User Alphas",
+        "tags": [
+          "alphas"
+        ]
+      },
+      "post": {
+        "description": "\u0110\u1ea9y chi\u1ebfn l\u01b0\u1ee3c v\u00e0o kho Alpha ng\u01b0\u1eddi d\u00f9ng sau khi ch\u1ea1y backtest th\u00e0nh c\u00f4ng.",
+        "operationId": "post_user_alpha_api_studio_alphas_user_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveUserAlphaRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Post User Alpha Api Studio Alphas User Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post User Alpha",
+        "tags": [
+          "alphas"
+        ]
+      }
+    },
+    "/api/studio/alphas/user/{alpha_id}": {
+      "delete": {
+        "description": "X\u00f3a v\u0129nh vi\u1ec5n m\u1ed9t Alpha ng\u01b0\u1eddi d\u00f9ng.",
+        "operationId": "delete_user_alpha_endpoint_api_studio_alphas_user__alpha_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "alpha_id",
+            "required": true,
+            "schema": {
+              "title": "Alpha Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete User Alpha Endpoint Api Studio Alphas User  Alpha Id  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete User Alpha Endpoint",
+        "tags": [
+          "alphas"
+        ]
+      },
+      "get": {
+        "description": "L\u1ea5y chi ti\u1ebft m\u1ed9t Alpha ng\u01b0\u1eddi d\u00f9ng ho\u1eb7c chi\u1ebfn l\u01b0\u1ee3c m\u1eabu \u0111\u00e3 c\u00f3 k\u1ebft qu\u1ea3.",
+        "operationId": "get_user_alpha_detail_api_studio_alphas_user__alpha_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "alpha_id",
+            "required": true,
+            "schema": {
+              "title": "Alpha Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get User Alpha Detail Api Studio Alphas User  Alpha Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get User Alpha Detail",
+        "tags": [
+          "alphas"
+        ]
+      }
+    },
+    "/api/studio/alphas/user/{alpha_id}/archive": {
+      "post": {
+        "description": "L\u01b0u tr\u1eef (archive) m\u1ed9t Alpha ng\u01b0\u1eddi d\u00f9ng (kh\u00f4ng x\u00f3a c\u1ee9ng).",
+        "operationId": "post_archive_user_alpha_api_studio_alphas_user__alpha_id__archive_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "alpha_id",
+            "required": true,
+            "schema": {
+              "title": "Alpha Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Post Archive User Alpha Api Studio Alphas User  Alpha Id  Archive Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Archive User Alpha",
+        "tags": [
+          "alphas"
+        ]
+      }
+    },
+    "/api/studio/alphas/user/{alpha_id}/code": {
+      "get": {
+        "description": "M\u00e3 ngu\u1ed3n \u0111\u1ec3 n\u1ea1p v\u00e0o tr\u00ecnh so\u1ea1n t\u1ea1m (s\u1eeda -> ch\u1ea1y l\u1ea1i -> L\u01b0u th\u00e0nh phi\u00ean b\u1ea3n m\u1edbi qua POST /user v\u1edbi alpha_id).",
+        "operationId": "get_user_alpha_code_api_studio_alphas_user__alpha_id__code_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "alpha_id",
+            "required": true,
+            "schema": {
+              "title": "Alpha Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get User Alpha Code Api Studio Alphas User  Alpha Id  Code Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get User Alpha Code",
+        "tags": [
+          "alphas"
+        ]
+      }
+    },
+    "/api/studio/alphas/user/{alpha_id}/status": {
+      "post": {
+        "description": "C\u1eadp nh\u1eadt tr\u1ea1ng th\u00e1i Alpha ng\u01b0\u1eddi d\u00f9ng: SAVED | CANDIDATE | ARCHIVED.",
+        "operationId": "post_update_user_alpha_status_api_studio_alphas_user__alpha_id__status_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "alpha_id",
+            "required": true,
+            "schema": {
+              "title": "Alpha Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateStatusRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Post Update User Alpha Status Api Studio Alphas User  Alpha Id  Status Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Update User Alpha Status",
+        "tags": [
+          "alphas"
+        ]
+      }
+    },
+    "/api/studio/alphas/user/{alpha_id}/versions": {
+      "get": {
+        "operationId": "get_user_alpha_versions_api_studio_alphas_user__alpha_id__versions_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "alpha_id",
+            "required": true,
+            "schema": {
+              "title": "Alpha Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Get User Alpha Versions Api Studio Alphas User  Alpha Id  Versions Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get User Alpha Versions",
+        "tags": [
+          "alphas"
+        ]
+      }
+    },
+    "/api/studio/alphas/user/{alpha_id}/versions/{version}": {
+      "get": {
+        "operationId": "get_user_alpha_version_api_studio_alphas_user__alpha_id__versions__version__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "alpha_id",
+            "required": true,
+            "schema": {
+              "title": "Alpha Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "title": "Version",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get User Alpha Version Api Studio Alphas User  Alpha Id  Versions  Version  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get User Alpha Version",
+        "tags": [
+          "alphas"
+        ]
+      }
+    },
+    "/api/studio/book": {
+      "get": {
+        "operationId": "get_book_api_studio_book_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Book",
+        "tags": [
+          "edu_book_jobs"
+        ]
+      }
+    },
+    "/api/studio/book/": {
+      "get": {
+        "operationId": "get_book_api_studio_book__get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Book",
+        "tags": [
+          "edu_book_jobs"
+        ]
+      }
+    },
+    "/api/studio/book/jobs": {
+      "get": {
+        "operationId": "get_jobs_api_studio_book_jobs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Jobs",
+        "tags": [
+          "edu_book_jobs"
+        ]
+      }
+    },
+    "/api/studio/book/jobs/{job_id}": {
+      "get": {
+        "description": "lite=true: b\u1ecf result.trade_list (UI ph\u00e2n trang l\u1ec7nh qua /api/studio/portfolio/trades). Job done/failed/cancelled: ETag + Cache-Control\nprivate, max-age=86400 v\u00e0 If-None-Match -> 304 (kh\u00f4ng \u0111\u1ecdc result.json); \u0111ang ch\u1ea1y/queued: no-store.",
+        "operationId": "get_job_api_studio_book_jobs__job_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lite",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Lite",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Job",
+        "tags": [
+          "edu_book_jobs"
+        ]
+      }
+    },
+    "/api/studio/book/jobs/{job_id}/cancel": {
+      "post": {
+        "description": "Hu\u1ef7 job \u0111ang ch\u1ea1y/ch\u1edd: SIGTERM c\u1ea3 nh\u00f3m ti\u1ebfn tr\u00ecnh; CLI flush kho k\u1ebft qu\u1ea3 r\u1ed3i tho\u00e1t -> c\u00f3 th\u1ec3 ch\u1ea1y ti\u1ebfp b\u1eb1ng --resume <run_dir>.",
+        "operationId": "post_cancel_api_studio_book_jobs__job_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Cancel",
+        "tags": [
+          "edu_book_jobs"
+        ]
+      }
+    },
+    "/api/studio/chart/explain": {
+      "post": {
+        "description": "N\u1ebfn + ch\u1ec9 b\u00e1o + t\u00edn hi\u1ec7u v\u00e0o/tho\u00e1t (k\u00e8m t\u1eebng \u0111i\u1ec1u ki\u1ec7n v\u00e0 gi\u00e1 tr\u1ecb l\u00fac \u0111\u00f3) c\u1ee7a m\u1ed9t chi\u1ebfn l\u01b0\u1ee3c tr\u00ean m\u1ed9t m\u00e3, trong c\u1eeda s\u1ed5 [start, end].",
+        "operationId": "post_chart_explain_api_studio_chart_explain_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChartExplainRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Post Chart Explain Api Studio Chart Explain Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Chart Explain",
+        "tags": [
+          "chart"
+        ]
+      }
+    },
+    "/api/studio/custom/backtest": {
+      "post": {
+        "description": "Kh\u1edfi ch\u1ea1y job custom_backtest -> {\"job_id\"}. L\u1ed7i code: 422 v\u1edbi th\u00f4ng \u0111i\u1ec7p 'L\u1ed7i bi\u00ean d\u1ecbch: d\u00f2ng L, c\u1ed9t C: ...'.",
+        "operationId": "post_custom_backtest_api_studio_custom_backtest_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomBacktestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Post Custom Backtest Api Studio Custom Backtest Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Custom Backtest",
+        "tags": [
+          "edu_custom"
+        ]
+      }
+    },
+    "/api/studio/custom/defaults": {
+      "get": {
+        "description": "M\u1eb7c \u0111\u1ecbnh c\u1ee7a form ch\u1ea1y, t\u00ednh t\u1eeb kho d\u1eef li\u1ec7u OKX: {symbols (r\u1ed5 perp), start, end (ph\u1ea7n d\u1eef li\u1ec7u chung), train_ratio, initial_capital}.",
+        "operationId": "get_run_defaults_api_studio_custom_defaults_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Run Defaults Api Studio Custom Defaults Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Run Defaults",
+        "tags": [
+          "edu_custom"
+        ]
+      }
+    },
+    "/api/studio/education/samples": {
+      "get": {
+        "description": "Danh s\u00e1ch m\u1eabu gi\u00e1o d\u1ee5c. Ch\u1ec9 m\u1eabu c\u00f3 k\u1ebft qu\u1ea3 backtest TH\u1eacT trong cache m\u1edbi k\u00e8m metrics/final_equity/pnl_usd/initial_capital; c\u00f2n l\u1ea1i result_status = NOT_READY.",
+        "operationId": "get_education_samples_api_studio_education_samples_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Education Samples",
+        "tags": [
+          "education"
+        ]
+      }
+    },
+    "/api/studio/education/samples/{key}/result": {
+      "get": {
+        "description": "K\u1ebft qu\u1ea3 backtest th\u1eadt (cache) c\u1ee7a 1 m\u1eabu; ch\u01b0a c\u00f3 -> 404 NOT_READY.",
+        "operationId": "get_education_sample_result_api_studio_education_samples__key__result_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Education Sample Result",
+        "tags": [
+          "education"
+        ]
+      }
+    },
+    "/api/studio/jobs": {
+      "get": {
+        "operationId": "get_jobs_api_studio_jobs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Jobs",
+        "tags": [
+          "edu_jobs"
+        ]
+      }
+    },
+    "/api/studio/jobs/": {
+      "get": {
+        "operationId": "get_jobs_api_studio_jobs__get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Jobs",
+        "tags": [
+          "edu_jobs"
+        ]
+      }
+    },
+    "/api/studio/jobs/{job_id}": {
+      "get": {
+        "description": "lite=true: b\u1ecf result.trade_list (UI ph\u00e2n trang l\u1ec7nh qua /api/studio/portfolio/trades). Job done/failed/cancelled: ETag + Cache-Control\nprivate, max-age=86400 v\u00e0 If-None-Match -> 304 (kh\u00f4ng \u0111\u1ecdc result.json); \u0111ang ch\u1ea1y/queued: no-store.",
+        "operationId": "get_job_api_studio_jobs__job_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lite",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Lite",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Job",
+        "tags": [
+          "edu_jobs"
+        ]
+      }
+    },
+    "/api/studio/jobs/{job_id}/cancel": {
+      "post": {
+        "description": "Hu\u1ef7 job \u0111ang ch\u1ea1y/ch\u1edd: SIGTERM c\u1ea3 nh\u00f3m ti\u1ebfn tr\u00ecnh; CLI flush kho k\u1ebft qu\u1ea3 r\u1ed3i tho\u00e1t -> c\u00f3 th\u1ec3 ch\u1ea1y ti\u1ebfp b\u1eb1ng --resume <run_dir>.",
+        "operationId": "post_cancel_api_studio_jobs__job_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Cancel",
+        "tags": [
+          "edu_jobs"
+        ]
+      }
+    },
+    "/api/studio/meta": {
+      "get": {
+        "description": "Metadata UI t\u1eeb ngu\u1ed3n th\u1eadt, k\u00e8m ETag (If-None-Match kh\u1edbp -> 304).",
+        "operationId": "get_studio_meta_api_studio_meta_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "if-none-match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-None-Match"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Get Studio Meta Api Studio Meta Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Studio Meta",
+        "tags": [
+          "meta"
+        ]
+      }
+    },
+    "/api/studio/nautilus/check_update": {
+      "get": {
+        "description": "H\u1ecfi PyPI b\u1ea3n m\u1edbi nh\u1ea5t. Kh\u00f4ng tr\u1ea3 l\u1ec7nh c\u00e0i: n\u00e2ng c\u1ea5p l\u00e0 thao t\u00e1c th\u1ee7 c\u00f4ng c\u00f3 ki\u1ec3m th\u1eed.",
+        "operationId": "get_nautilus_check_update_api_studio_nautilus_check_update_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Nautilus Check Update Api Studio Nautilus Check Update Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Nautilus Check Update",
+        "tags": [
+          "engine"
+        ]
+      }
+    },
+    "/api/studio/nautilus/version": {
+      "get": {
+        "operationId": "get_nautilus_version_api_studio_nautilus_version_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Nautilus Version Api Studio Nautilus Version Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Nautilus Version",
+        "tags": [
+          "engine"
+        ]
+      }
+    },
+    "/api/studio/strategies": {
+      "get": {
+        "operationId": "get_strategies_api_studio_strategies_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Get Strategies Api Studio Strategies Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Strategies",
+        "tags": [
+          "edu_strategies"
+        ]
+      }
+    },
+    "/api/studio/strategies/": {
+      "get": {
+        "operationId": "get_strategies_api_studio_strategies__get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Get Strategies Api Studio Strategies  Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Strategies",
+        "tags": [
+          "edu_strategies"
+        ]
+      }
+    },
+    "/api/studio/strategies/annotate": {
+      "post": {
+        "description": "Gi\u1ea3i th\u00edch t\u1eebng d\u00f2ng m\u00e3 b\u1eb1ng ti\u1ebfng Vi\u1ec7t (trang /education), t\u1ea5t \u0111\u1ecbnh t\u1eeb AST + IR + catalog: {lines:[{line,end_line,kind,text_vi,refs}], verdict, style, kind,\nnormalized_code, diagnostics}. Kh\u00f4ng ch\u1ea1y backtest, kh\u00f4ng d\u00f9ng AI.",
+        "operationId": "post_strategy_annotate_api_studio_strategies_annotate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnnotateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Post Strategy Annotate Api Studio Strategies Annotate Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Strategy Annotate",
+        "tags": [
+          "edu_strategies"
+        ]
+      }
+    },
+    "/api/studio/strategies/assist/catalog": {
+      "get": {
+        "operationId": "get_assist_catalog_api_studio_strategies_assist_catalog_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Assist Catalog Api Studio Strategies Assist Catalog Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Assist Catalog",
+        "tags": [
+          "edu_strategies"
+        ]
+      }
+    },
+    "/api/studio/strategies/assist/check": {
+      "post": {
+        "operationId": "post_assist_check_api_studio_strategies_assist_check_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistCheck"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Post Assist Check Api Studio Strategies Assist Check Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Assist Check",
+        "tags": [
+          "edu_strategies"
+        ]
+      }
+    },
+    "/api/studio/strategies/assist/complete": {
+      "post": {
+        "operationId": "post_assist_complete_api_studio_strategies_assist_complete_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistPos"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Post Assist Complete Api Studio Strategies Assist Complete Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Assist Complete",
+        "tags": [
+          "edu_strategies"
+        ]
+      }
+    },
+    "/api/studio/strategies/assist/hover": {
+      "post": {
+        "operationId": "post_assist_hover_api_studio_strategies_assist_hover_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistPos"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Post Assist Hover Api Studio Strategies Assist Hover Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Assist Hover",
+        "tags": [
+          "edu_strategies"
+        ]
+      }
+    },
+    "/api/studio/strategies/catalog": {
+      "get": {
+        "description": "3 chi\u1ebfn l\u01b0\u1ee3c (KEMA / Sideway / DCA) v\u00e0 c\u00e1c ch\u00e2n theo chi\u1ec1u: legs = {LONG: id, SHORT: id}. M\u1ed7i b\u1ed9 tham s\u1ed1 c\u1ee7a m\u1ed9t ch\u00e2n = m\u1ed9t alpha;\n\"C\u1ea3 hai\" = ch\u1ea1y c\u1ea3 hai ch\u00e2n. coming = ch\u01b0a c\u00f3 ch\u00e2n n\u00e0o (\u0111ang x\u00e2y d\u1ef1ng).",
+        "operationId": "get_strategy_catalog_api_studio_strategies_catalog_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Get Strategy Catalog Api Studio Strategies Catalog Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Strategy Catalog",
+        "tags": [
+          "edu_strategies"
+        ]
+      }
+    },
+    "/api/studio/strategies/compile": {
+      "post": {
+        "description": "Bi\u00ean d\u1ecbch th\u1eed (kh\u00f4ng ch\u1ea1y, kh\u00f4ng l\u01b0u): {ok, program_hash, meta{timeframe, features, legs, position_levels, warmup_bars, ...}, warnings[],\nerror{line, col, message} | null}. L\u1ed7i code tr\u1ea3 200 v\u1edbi ok=false (UI t\u00f4 \u0111\u00fang d\u00f2ng/c\u1ed9t).",
+        "operationId": "post_compile_api_studio_strategies_compile_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Post Compile Api Studio Strategies Compile Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Compile",
+        "tags": [
+          "edu_strategies"
+        ]
+      }
+    },
+    "/api/studio/strategies/dsl": {
+      "get": {
+        "description": "Danh s\u00e1ch nh\u1eefng g\u00ec DSL h\u1ed7 tr\u1ee3 (ch\u1ec9 \u0111\u1ecdc): c\u1ed9t d\u1eef li\u1ec7u self.data.pv_*, ch\u1ec9 b\u00e1o self.feat.*, operator self.op.*.",
+        "operationId": "get_dsl_reference_api_studio_strategies_dsl_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Dsl Reference Api Studio Strategies Dsl Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Dsl Reference",
+        "tags": [
+          "edu_strategies"
+        ]
+      }
+    },
+    "/api/studio/strategies/explain": {
+      "post": {
+        "description": "Gi\u1ea3i th\u00edch c\u1ea5u tr\u00fac chi\u1ebfn l\u01b0\u1ee3c t\u1eeb c\u00e2y bi\u1ec3u th\u1ee9c \u0111\u00e3 bi\u00ean d\u1ecbch (B2): {ok, indicators[], rules[], execution[], warnings[], error}.",
+        "operationId": "post_strategy_explain_api_studio_strategies_explain_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StrategyExplainRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Post Strategy Explain Api Studio Strategies Explain Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Strategy Explain",
+        "tags": [
+          "edu_strategies"
+        ]
+      }
+    },
+    "/api/studio/strategies/source/{strategy_id}": {
+      "get": {
+        "operationId": "get_source_api_studio_strategies_source__strategy_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "strategy_id",
+            "required": true,
+            "schema": {
+              "title": "Strategy Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Source Api Studio Strategies Source  Strategy Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Source",
+        "tags": [
+          "edu_strategies"
+        ]
+      }
+    },
+    "/api/studio/strategies/validate": {
+      "post": {
+        "operationId": "post_validate_api_studio_strategies_validate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ValidateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Validate",
+        "tags": [
+          "edu_strategies"
+        ]
+      }
+    },
+    "/api/users": {
+      "get": {
+        "description": "Danh s\u00e1ch ng\u01b0\u1eddi d\u00f9ng c\u00f4ng khai k\u00e8m s\u1ed1 chi\u1ebfn l\u01b0\u1ee3c \u0111\u00e3 l\u01b0u.",
+        "operationId": "get_users_list_api_users_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Get Users List Api Users Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Users List",
+        "tags": [
+          "users"
+        ]
+      },
+      "post": {
+        "description": "T\u1ea1o ng\u01b0\u1eddi d\u00f9ng m\u1edbi v\u00e0 t\u1ef1 \u0111\u1ed9ng \u0111\u0103ng nh\u1eadp.",
+        "operationId": "create_new_user_api_users_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUserReq"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create New User Api Users Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create New User",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/api/users/{handle}": {
+      "get": {
+        "description": "Th\u00f4ng tin h\u1ed3 s\u01a1 m\u1ed9t ng\u01b0\u1eddi d\u00f9ng theo handle.",
+        "operationId": "get_user_profile_api_users__handle__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "handle",
+            "required": true,
+            "schema": {
+              "title": "Handle",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get User Profile Api Users  Handle  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get User Profile",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/api/users/{handle}/strategies": {
+      "get": {
+        "description": "Chi\u1ebfn l\u01b0\u1ee3c ng\u01b0\u1eddi d\u00f9ng \u0111\u00e3 l\u01b0u (ch\u1ec9 l\u1ea5y c\u00e1c b\u1ea3n ghi c\u00f3 owner kh\u1edbp).",
+        "operationId": "get_user_strategies_api_users__handle__strategies_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "handle",
+            "required": true,
+            "schema": {
+              "title": "Handle",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Get User Strategies Api Users  Handle  Strategies Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get User Strategies",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/{path}": {
+      "get": {
+        "operationId": "spa__path__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "title": "Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Spa"
+      }
+    }
+  }
+}

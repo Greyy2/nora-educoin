@@ -1,0 +1,25 @@
+{
+  "id": "alpha_1m_04_donchiantu",
+  "name": "Donchian Turtle Channel 1m",
+  "code": "class DonchianTurtle1m(NoraStrategy):\n    \"\"\"Kênh Donchian Breakout 15 nến 1m, chốt lời nhanh khi chạm biên trên.\"\"\"\n    timeframe = \"1m\"\n\n    upper_period = 15\n    lower_period = 10\n    stop_loss_pct = 1.0\n    take_profit_pct = 0.7\n    trailing_stop_pct = 0.0\n    trailing_activation_pct = 0.0\n    timeout = 40\n    risk_per_trade_pct = 1.0\n\n    def on_bar(self):\n        upper = self.feat.donchian_upper(high, self.upper_period)\n        lower = self.feat.donchian_lower(low, self.lower_period)\n        breakout_entry = close >= upper * 0.999\n        trailing_exit = close < lower\n        self.close(trailing_exit)\n        self.buy(breakout_entry)\n",
+  "note": "Chiến lược 1m siêu tốc cho BTC/ETH - Bot #4",
+  "status": "CANDIDATE",
+  "created_at": "2026-10-20T08:46:07Z",
+  "updated_at": "2026-10-20T08:46:07Z",
+  "config": {
+    "timeframe": "1m",
+    "symbols": [
+      "BTC",
+      "ETH"
+    ]
+  },
+  "metrics": {
+    "simulate": {
+      "ret_pct": 21.7,
+      "mdd_pct": 4.6,
+      "sharpe": 3.4,
+      "win_rate_trades": 73.5,
+      "trades": 350
+    }
+  }
+}

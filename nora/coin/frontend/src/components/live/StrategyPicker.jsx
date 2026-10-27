@@ -20,6 +20,19 @@ const day = (s) => (s ? String(s).slice(0, 10) : '—')
 
 const sameVal = (a, b) => (typeof a === 'number' && typeof b === 'number' ? Math.abs(a - b) < 1e-12 : a === b)
 
+function launchErrorMessage(error) {
+  if (error?.code === 'LIVE_LEDGER_UNAVAILABLE') {
+    return 'Không thể bật bot: sổ cái Master chưa có dữ liệu authoritative. Hệ thống đang chặn khởi chạy để bảo vệ vốn; cần khôi phục nguồn sổ cái rồi thử lại.'
+  }
+  if (error?.code === 'LIVE_RISK_STATE_UNAVAILABLE') {
+    return 'Không thể bật bot: trạng thái Master Risk chưa xác định. Hệ thống đang chặn khởi chạy an toàn; cần khôi phục nguồn trạng thái rủi ro rồi thử lại.'
+  }
+  if (error?.code === 'ALPHA_RESULT_STALE_OR_UNPROVEN') {
+    return `Không thể bật bot: ${error.message || 'Kết quả backtest cũ thiếu provenance parity. Hệ thống đang cách ly an toàn.'}`
+  }
+  return error?.message || String(error)
+}
+
 /** Lỗi nhập của một trường theo spec schema ('' = hợp lệ). */
 function fieldError(spec, v) {
   if (spec.type === 'choice') return (spec.choices || []).includes(v) ? '' : 'Giá trị không hợp lệ'
@@ -70,69 +83,79 @@ function ParamEditor({ schema, values, onChange }) {
   )
 }
 
-function StartForm({ row, onCancel, onStarted }) {
-  const [tab, setTab] = useState('default') // 'default' | 'custom'
-  const sigTf = row.signal_tf || row.timeframe
-  const defaultSyms = (row.symbols || []).join(', ')
+const POPULAR_ASSETS = ['BTC-USDT-SWAP', 'ETH-USDT-SWAP', 'SOL-USDT-SWAP', 'DOGE-USDT-SWAP', 'BNB-USDT-SWAP', 'XRP-USDT-SWAP']
 
-  // Common fields
+function StartForm({ row, onCancel, onStarted }) {
+  const sigTf = row.signal_tf || row.timeframe || '1h'
+  const defaultSyms = (row.symbols || []).join(', ') || 'BTC-USDT-SWAP'
+
   const [mode, setMode] = useState('paper')
-  const [confirmReal, setConfirmReal] = useState(false)   // Live = tiền thật: phải tích xác nhận rõ ràng
+  const [confirmReal, setConfirmReal] = useState(false)
   const [capital, setCapital] = useState(1000)
+  const [symbols, setSymbols] = useState(defaultSyms)
   const [enter, setEnter] = useState(false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(null)
 
-  // Custom fields
-  const [customSymbols, setCustomSymbols] = useState(defaultSyms)
-  const [customSigTf, setCustomSigTf] = useState(sigTf || '1h')
-  const [customFrame, setCustomFrame] = useState(sigTf || '1h')
+  const frames = useMemo(() => [...new Set([sigTf, '1m'].filter(Boolean))], [sigTf])
+  const [frame, setFrame] = useState(sigTf || '1h')
+
   const [btBusy, setBtBusy] = useState(false)
   const [btResult, setBtResult] = useState(null)
   const [btJobId, setBtJobId] = useState(null)
-  const [confirmLoss, setConfirmLoss] = useState(false)
-  const [schema, setSchema] = useState(null)       // {kind, fields, defaults} theo khung tín hiệu tuỳ chỉnh
+  const [schema, setSchema] = useState(null)
   const [pvals, setPvals] = useState({})
   const [schemaErr, setSchemaErr] = useState(null)
+
   useEffect(() => {
-    if (tab !== 'custom') return undefined
     let live = true
     setSchema(null); setSchemaErr(null)
-    getCandidateSchema(row.id, customSigTf, customSigTf === sigTf ? row.book : undefined).then((sc) => { if (live) { setSchema(sc); setPvals({ ...sc.defaults }) } })
-      .catch((ex) => { if (live) setSchemaErr(ex.message || String(ex)) })
+    getCandidateSchema(row.id, sigTf, row.book)
+      .then((sc) => {
+        if (live) {
+          setSchema(sc)
+          setPvals({ ...(sc?.defaults || {}) })
+        }
+      })
+      .catch((ex) => {
+        if (live) setSchemaErr(ex.message || String(ex))
+      })
     return () => { live = false }
-  }, [tab, row.id, customSigTf])
-  // chỉ gửi khoá khác mặc định; sửa bất kỳ trường nào làm mất kết quả backtest trước
+  }, [row.id, sigTf, row.book])
+
   const changedParams = () => {
     const out = {}
-    if (schema) Object.keys(schema.fields).forEach((k) => { if (!sameVal(pvals[k], schema.defaults[k])) out[k] = pvals[k] })
+    if (schema) {
+      Object.keys(schema.fields).forEach((k) => {
+        if (!sameVal(pvals[k], schema.defaults[k])) out[k] = pvals[k]
+      })
+    }
     return out
   }
-  const paramErrors = schema ? Object.keys(schema.fields).filter((k) => fieldError(schema.fields[k], pvals[k])) : []
-  const editParam = (k, v) => { setPvals((o) => ({ ...o, [k]: v })); setBtResult(null); setBtJobId(null); setConfirmLoss(false) }
 
-  // Khung chạy: 1m (Chuẩn) hoặc Nhanh
-  const activeSigTf = tab === 'default' ? sigTf : customSigTf
-  const frames = [...new Set([activeSigTf, '1m'].filter(Boolean))]
-  const [frame, setFrame] = useState(activeSigTf || '1h')
+  const paramErrors = schema ? Object.keys(schema.fields).filter((k) => fieldError(schema.fields[k], pvals[k])) : []
+  const editParam = (k, v) => {
+    setPvals((o) => ({ ...o, [k]: v }))
+    setBtResult(null)
+    setBtJobId(null)
+  }
 
   const runBacktest = async () => {
-    const syms = customSymbols.split(/[,\s]+/).filter(Boolean)
+    const syms = symbols.split(/[,\s]+/).filter(Boolean)
     if (!syms.length) { setErr('Cần ít nhất một cặp giao dịch'); return }
     if (!schema || paramErrors.length) { setErr('Sửa các tham số chưa hợp lệ trước khi backtest'); return }
     setBtBusy(true); setErr(null); setBtResult(null); setBtJobId(null)
     try {
       const resp = await postCandidateBacktest({
         alpha_id: row.id,
-        signal_tf: customSigTf,
+        signal_tf: sigTf,
         symbols: syms,
         capital: Number(capital),
         params: changedParams(),
-        book_source: (customSigTf === sigTf && row.book) || undefined,
+        book_source: row.book || undefined,
       })
       const jid = resp.job_id
       setBtJobId(jid)
-      // Poll job
       const t0 = Date.now()
       const poll = async () => {
         if (Date.now() - t0 > 45000) {
@@ -171,167 +194,139 @@ function StartForm({ row, onCancel, onStarted }) {
 
   const submit = async (e) => {
     e.preventDefault()
-    if (tab === 'custom' && !btJobId) {
-      setErr('Vui lòng chạy backtest cấu hình tuỳ chỉnh trước khi bật bot')
-      return
-    }
-    if (tab === 'custom' && btResult && (btResult.ret_pct < 0) && !confirmLoss) {
-      setErr('Cấu hình đang lỗ. Hãy tích xác nhận nếu bạn vẫn muốn chạy bot.')
-      return
-    }
-    const syms = (tab === 'default' ? defaultSyms : customSymbols).split(/[,\s]+/).filter(Boolean)
-    if (!syms.length) { setErr('Cần ít nhất một cặp'); return }
+    const syms = symbols.split(/[,\s]+/).filter(Boolean)
+    if (!syms.length) { setErr('Cần ít nhất một cặp giao dịch'); return }
     if (!(Number(capital) > 0)) { setErr('Vốn phải lớn hơn 0'); return }
     if (mode === 'live' && !confirmReal) { setErr('Live dùng tiền thật: hãy tích xác nhận trước khi bật'); return }
+    if (schema && paramErrors.length) { setErr('Sửa các tham số chưa hợp lệ trước khi bật bot'); return }
     setBusy(true); setErr(null)
     try {
+      const changed = changedParams()
       const payload = {
-        mode: mode === 'live' ? 'live' : 'testnet',   // Paper = tài khoản mô phỏng OKX (mode testnet); Sandbox nội bộ không dùng ở UI
+        mode: mode === 'live' ? 'live' : 'testnet',
         confirm_live: mode === 'live' && confirmReal,
         alpha_id: row.id,
         symbols: syms,
         capital: Number(capital),
-        base_frame: tab === 'default' ? frame : customFrame,
+        base_frame: frame,
         enter_on_start: enter,
-        signal_tf: activeSigTf,
+        signal_tf: sigTf,
         from_picker: true,
-        book_source: ((tab === 'default' || customSigTf === sigTf) && row.book) || undefined,
+        book_source: row.book || undefined,
       }
-      if (tab === 'custom') {
+      if (Object.keys(changed).length > 0 || syms.join(',') !== (row.symbols || []).join(',')) {
+        payload.params = changed
+      }
+      if (btJobId) {
         payload.backtest_job_id = btJobId
-        payload.params = changedParams()
       }
       const r = await postLiveBot(payload)
       onStarted(r)
-    } catch (ex) { setErr(ex.message || String(ex)); setBusy(false) }
+    } catch (ex) { setErr(launchErrorMessage(ex)); setBusy(false) }
   }
 
   return (
-    <div style={{ padding: '12px 16px', background: 'var(--n-surface-subtle, rgba(255,255,255,0.03))', borderRadius: 8, marginTop: 8 }}>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12, borderBottom: '1px solid var(--n-line-soft)', paddingBottom: 8 }}>
-        <button type="button" className={`n-btn sm ${tab === 'default' ? 'primary' : ''}`} onClick={() => setTab('default')}>
-          Mặc định (Đã backtest lãi)
-        </button>
-        <button type="button" className={`n-btn sm ${tab === 'custom' ? 'primary' : ''}`} onClick={() => setTab('custom')}>
-          Tuỳ chỉnh (Cần backtest trước)
-        </button>
+    <div style={{ padding: '16px 18px', background: 'var(--n-surface-subtle, rgba(255,255,255,0.03))', borderRadius: 8, marginTop: 8, border: '1px solid var(--n-line-soft, rgba(255,255,255,0.08))' }}>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 14 }}>
+        <span className="n-badge ok">Khung tín hiệu: <b>{sigTf}</b></span>
+        <span className="n-note">KPI chuẩn backtest: Lãi <b>{fmtSPct(row.ret_pct)}</b> · MDD <b>{fmtNum(row.mdd_pct, 2)}%</b> · Sharpe <b>{fmtNum(row.sharpe, 2)}</b></span>
       </div>
 
       <form onSubmit={submit} style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end' }}>
-        {tab === 'default' ? (
-          <>
-            <div style={{ flexBasis: '100%', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-              <span className="n-badge ok">Khung tín hiệu: <b>{sigTf}</b></span>
-              <span className="n-note">Cặp: <b>{defaultSyms}</b></span>
-              <span className="n-note">KPI gốc: Lãi <b>{fmtSPct(row.ret_pct)}</b> · MDD <b>{fmtNum(row.mdd_pct, 2)}%</b> · Sharpe <b>{fmtNum(row.sharpe, 2)}</b></span>
-            </div>
-            <div className="n-field"><label>Chế độ</label>
-              <select value={mode} onChange={(e) => setMode(e.target.value)}>
-                <option value="paper">Paper (tài khoản mô phỏng OKX)</option>
-                <option value="live">Live (tài khoản thật)</option>
-              </select>
-              {mode === 'live' && (
-                <label className="n-note" style={{ display: 'flex', gap: 6, alignItems: 'center', color: 'var(--n-neg)' }}>
-                  <input type="checkbox" checked={confirmReal} onChange={(e) => setConfirmReal(e.target.checked)} /> Tôi xác nhận chạy bằng TIỀN THẬT
-                </label>
-              )}
-            </div>
-            <div className="n-field"><label>Vốn (USDT)</label>
-              <input type="number" min="1" value={capital} onChange={(e) => setCapital(e.target.value)} style={{ width: 100 }} />
-            </div>
-            <div className="n-field"><label>Khung chạy</label>
-              <select value={frame} onChange={(e) => setFrame(e.target.value)}>
-                {frames.map((f) => <option key={f} value={f}>{f === '1m' ? '1m (Chuẩn)' : `${f} (Nhanh)`}</option>)}
-              </select>
-            </div>
-            <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13, marginBottom: 6 }}>
-              <input type="checkbox" checked={enter} onChange={(e) => setEnter(e.target.checked)} />
-              Vào lệnh ngay khi khởi động
-            </label>
-            <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
-              <button type="submit" className="n-btn sm primary" disabled={busy}>{busy ? 'Đang bật…' : 'Bật bot'}</button>
-              <button type="button" className="n-btn sm" onClick={onCancel} disabled={busy}>Huỷ</button>
-            </div>
-          </>
-        ) : (
-          <>
-            <div style={{ flexBasis: '100%' }}>
-              <p className="n-note" style={{ margin: 0 }}>
-                Bạn có thể điều chỉnh tham số chiến lược, tài sản và khung tín hiệu; mọi thay đổi buộc chạy lại backtest. Luật an toàn: bắt buộc phải chạy backtest trước khi bật bot để tránh rủi ro.
-              </p>
-            </div>
-            <div className="n-field"><label>Khung tín hiệu</label>
-              <select value={customSigTf} onChange={(e) => { setCustomSigTf(e.target.value); setBtResult(null); setBtJobId(null) }}>
-                {FRAMES.map((f) => <option key={f} value={f}>{f}</option>)}
-              </select>
-            </div>
-            <div className="n-field" style={{ flex: '1 1 200px' }}><label>Cặp giao dịch (phân tách bằng phẩy)</label>
-              <input value={customSymbols} onChange={(e) => { setCustomSymbols(e.target.value); setBtResult(null); setBtJobId(null) }} />
-            </div>
-            <div className="n-field"><label>Vốn (USDT)</label>
-              <input type="number" min="1" value={capital} onChange={(e) => setCapital(e.target.value)} style={{ width: 90 }} />
-            </div>
-            <div className="n-field"><label>Chế độ</label>
-              <select value={mode} onChange={(e) => setMode(e.target.value)}>
-                <option value="paper">Paper (tài khoản mô phỏng OKX)</option>
-                <option value="live">Live (tài khoản thật)</option>
-              </select>
-              {mode === 'live' && (
-                <label className="n-note" style={{ display: 'flex', gap: 6, alignItems: 'center', color: 'var(--n-neg)' }}>
-                  <input type="checkbox" checked={confirmReal} onChange={(e) => setConfirmReal(e.target.checked)} /> Tôi xác nhận chạy bằng TIỀN THẬT
-                </label>
-              )}
-            </div>
-            <div className="n-field"><label>Khung chạy</label>
-              <select value={customFrame} onChange={(e) => setCustomFrame(e.target.value)}>
-                <option value={customSigTf}>{customSigTf} (Nhanh)</option>
-                <option value="1m">1m (Chuẩn)</option>
-              </select>
-            </div>
-            <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13, marginBottom: 6 }}>
-              <input type="checkbox" checked={enter} onChange={(e) => setEnter(e.target.checked)} />
-              Vào lệnh ngay
-            </label>
-
-            {schemaErr && <div className="n-field-err" style={{ flexBasis: '100%' }}>Không tải được tham số: {schemaErr}</div>}
-            {!schema && !schemaErr && <span className="n-note">Đang tải tham số…</span>}
-            {schema && <ParamEditor schema={schema} values={pvals} onChange={editParam} />}
-
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <button type="button" className="n-btn sm" onClick={runBacktest} disabled={btBusy || !schema || paramErrors.length > 0}>
-                {btBusy ? 'Đang backtest…' : 'Chạy backtest trước'}
+        {/* Chọn Asset / Cặp giao dịch */}
+        <div className="n-field" style={{ flex: '1 1 260px' }}>
+          <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>Tài sản giao dịch (Asset / Cặp)</span>
+            <span style={{ fontSize: 11, color: 'var(--n-ink-3)' }}>Khuyên dùng: {defaultSyms}</span>
+          </label>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
+            {POPULAR_ASSETS.map((a) => (
+              <button
+                type="button"
+                key={a}
+                className={`n-btn xs ${symbols.includes(a) ? 'primary' : ''}`}
+                style={{ padding: '2px 8px', fontSize: 11 }}
+                onClick={() => setSymbols(a)}
+              >
+                {a.split('-')[0]}
               </button>
-            </div>
+            ))}
+          </div>
+          <input
+            value={symbols}
+            onChange={(e) => { setSymbols(e.target.value); setBtResult(null); setBtJobId(null) }}
+            placeholder="Ví dụ: BTC-USDT-SWAP, ETH-USDT-SWAP"
+          />
+        </div>
 
-            {btResult && (
-              <div style={{ flexBasis: '100%', display: 'flex', gap: 16, alignItems: 'center', padding: '8px 12px', background: 'var(--n-surface, #1e1e24)', borderRadius: 6 }}>
-                <span>KPI: Lãi <b className={signClass(btResult.ret_pct)}>{fmtSPct(btResult.ret_pct)}</b></span>
-                <span>MDD: <b>{fmtNum(btResult.mdd_pct, 2)}%</b></span>
-                <span>Sharpe: <b>{fmtNum(btResult.sharpe, 2)}</b></span>
-                <span>Lệnh: <b>{btResult.trades}</b></span>
-                {btResult.ret_pct < 0 && (
-                  <span className="n-badge bad">Cảnh báo: Cấu hình đang lỗ!</span>
-                )}
-              </div>
-            )}
+        {/* Chế độ chạy */}
+        <div className="n-field">
+          <label>Chế độ</label>
+          <select value={mode} onChange={(e) => setMode(e.target.value)}>
+            <option value="paper">Paper (tài khoản mô phỏng OKX)</option>
+            <option value="live">Live (tài khoản thật)</option>
+          </select>
+          {mode === 'live' && (
+            <label className="n-note" style={{ display: 'flex', gap: 6, alignItems: 'center', color: 'var(--n-neg)', marginTop: 4 }}>
+              <input type="checkbox" checked={confirmReal} onChange={(e) => setConfirmReal(e.target.checked)} /> Tôi xác nhận chạy bằng TIỀN THẬT
+            </label>
+          )}
+        </div>
 
-            {btResult && btResult.ret_pct < 0 && (
-              <div style={{ flexBasis: '100%' }}>
-                <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13, color: 'var(--n-neg, #f0616d)' }}>
-                  <input type="checkbox" checked={confirmLoss} onChange={(e) => setConfirmLoss(e.target.checked)} />
-                  Tôi xác nhận muốn bật bot dù backtest cấu hình này đang lỗ
-                </label>
-              </div>
-            )}
+        {/* Vốn phân bổ */}
+        <div className="n-field">
+          <label>Vốn phân bổ (USDT)</label>
+          <input type="number" min="1" value={capital} onChange={(e) => setCapital(e.target.value)} style={{ width: 110 }} />
+        </div>
 
-            <div style={{ display: 'flex', gap: 8, marginLeft: 'auto', marginTop: 8 }}>
-              <button type="submit" className="n-btn sm primary" disabled={busy || !btJobId || (btResult?.ret_pct < 0 && !confirmLoss)}>
-                {busy ? 'Đang bật…' : 'Bật bot'}
-              </button>
-              <button type="button" className="n-btn sm" onClick={onCancel} disabled={busy}>Huỷ</button>
-            </div>
-          </>
+        {/* Khung chạy nến */}
+        <div className="n-field">
+          <label>Khung chạy</label>
+          <select value={frame} onChange={(e) => setFrame(e.target.value)}>
+            {frames.map((f) => <option key={f} value={f}>{f === '1m' ? '1m (Chuẩn)' : `${f} (Nhanh)`}</option>)}
+          </select>
+        </div>
+
+        {/* Vào lệnh ngay */}
+        <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13, marginBottom: 8 }}>
+          <input type="checkbox" checked={enter} onChange={(e) => setEnter(e.target.checked)} />
+          Vào lệnh ngay khi khởi động
+        </label>
+
+        {/* Cấu hình tham số & Rủi ro đã cài đặt sẵn */}
+        <div style={{ flexBasis: '100%', marginTop: 4 }}>
+          {schemaErr && <div className="n-field-err">Không tải được tham số: {schemaErr}</div>}
+          {!schema && !schemaErr && <span className="n-note">Đang nạp cấu hình mặc định đã backtest…</span>}
+          {schema && <ParamEditor schema={schema} values={pvals} onChange={editParam} />}
+        </div>
+
+        {/* Tuỳ chọn chạy lại backtest nếu muốn kiểm tra */}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button type="button" className="n-btn sm" onClick={runBacktest} disabled={btBusy || !schema || paramErrors.length > 0}>
+            {btBusy ? 'Đang backtest…' : 'Chạy thử backtest'}
+          </button>
+          <span className="n-note" style={{ fontSize: 11.5 }}>
+            (Tham số & rủi ro đã được cấu hình tối ưu sẵn theo backtest có lãi. Bạn có thể bật bot ngay hoặc chạy thử lại nếu vừa chỉnh sửa).
+          </span>
+        </div>
+
+        {btResult && (
+          <div style={{ flexBasis: '100%', display: 'flex', gap: 16, alignItems: 'center', padding: '8px 12px', background: 'var(--n-surface, #1e1e24)', borderRadius: 6, flexWrap: 'wrap' }}>
+            <span>KPI thử nghiệm: Lãi <b className={signClass(btResult.ret_pct)}>{fmtSPct(btResult.ret_pct)}</b></span>
+            <span>MDD: <b>{fmtNum(btResult.mdd_pct, 2)}%</b></span>
+            <span>Sharpe: <b>{fmtNum(btResult.sharpe, 2)}</b></span>
+            <span>Lệnh: <b>{btResult.trades}</b></span>
+            {btResult.ret_pct < 0 && <span className="n-badge bad">Cảnh báo: Cấu hình điều chỉnh đang lỗ!</span>}
+          </div>
         )}
+
+        <div style={{ display: 'flex', gap: 8, marginLeft: 'auto', marginTop: 8 }}>
+          <button type="submit" className="n-btn sm primary" disabled={busy || (schema && paramErrors.length > 0)}>
+            {busy ? 'Đang bật…' : 'Bật bot'}
+          </button>
+          <button type="button" className="n-btn sm" onClick={onCancel} disabled={busy}>Huỷ</button>
+        </div>
+
         {err && <div className="n-field-err" style={{ flexBasis: '100%', marginTop: 4 }}>{err}</div>}
       </form>
     </div>
@@ -382,7 +377,14 @@ export default function StrategyPicker({ onClose, onStarted }) {
                 {rows.map((r) => (
                   <React.Fragment key={rk(r)}>
                     <tr>
-                      <td><b>{r.name}</b>{r.side ? ` · ${r.side}` : ''} <span className={`n-badge ${r.source === 'hệ thống' ? 'ok' : ''}`}>{r.source}</span></td>
+                      <td>
+                        <b>{r.name}</b>{r.side ? ` · ${r.side}` : ''} <span className={`n-badge ${r.source === 'hệ thống' ? 'ok' : ''}`}>{r.source}</span>
+                        {(!r.promotable || r.quarantine_status === 'QUARANTINED') && (
+                          <span className="n-badge warn" style={{ marginLeft: 6 }} title={r.quarantine_reason || 'Kết quả pre-parity bị cách ly'}>
+                            Cách ly (pre-parity)
+                          </span>
+                        )}
+                      </td>
                       <td><span className="n-badge ok" title="Khung tín hiệu của kết quả backtest lãi này"><b>{r.timeframe || '—'}</b></span></td>
                       <td className={`r ${signClass(r.ret_pct)}`}>{fmtSPct(r.ret_pct)}</td>
                       <td className="r">{isNum(r.mdd_pct) ? fmtNum(r.mdd_pct, 2) : '—'}</td>

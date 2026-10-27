@@ -24,7 +24,7 @@ VENUES = ("cex", "dex")
 
 def iso_date(ts):
     import datetime
-    return datetime.datetime.utcfromtimestamp(ts / 1000).strftime("%Y-%m-%d")
+    return datetime.datetime.fromtimestamp(ts / 1000, tz=datetime.timezone.utc).strftime("%Y-%m-%d")
 
 
 def data_home() -> str:
@@ -228,7 +228,7 @@ def pid_alive(pid: Any, start_ticks: Optional[int] = None) -> bool:
         return False
     if parts[0] == b"Z":
         return False
-    return start_ticks is None or int(parts[19]) == int(start_ticks)
+    return start_ticks is None or int(parts[19]) == start_ticks
 
 
 def read_json(path: str, default: Any = None) -> Any:
@@ -320,7 +320,6 @@ class ByteLRU:
             return item[0]
 
     def put(self, key: Hashable, value: Any, nbytes: int) -> None:
-        nbytes = int(nbytes)
         with self._lock:
             old = self._d.pop(key, None)
             if old is not None:

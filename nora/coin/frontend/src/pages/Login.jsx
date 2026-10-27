@@ -2,15 +2,17 @@ import React, { useEffect, useState } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import EnterForm from '../components/user/EnterForm'
 import { useUser } from '../meta/UserProvider'
+import { socialLogin } from '../api'
 import '../styles/home.css'
 
 const THEME_KEY = 'nora-theme'
+const GOOGLE_CLIENT_ID = '214794961821-upa51khm7tkh28r4241ar2mf39b9teh9.apps.googleusercontent.com'
 
 export default function Login() {
-  const { me } = useUser()
+  const { me, refresh } = useUser()
   const navigate = useNavigate()
   const location = useLocation()
-  const from = location.state?.from || '/'
+  const from = location.state?.from || '/coin/portfolio'
 
   const [theme, setTheme] = useState(() => {
     try {
@@ -35,12 +37,90 @@ export default function Login() {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))
   }
 
+  const [googleMsg, setGoogleMsg] = useState(null)
+  const [googleLoading, setGoogleLoading] = useState(false)
+
+  const initGoogleSignIn = () => {
+    if (!window.google?.accounts?.id) return
+    try {
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: async (resp) => {
+          if (resp?.credential) {
+            try {
+              setGoogleLoading(true)
+              setGoogleMsg('Đang xác thực tài khoản Google...')
+              const res = await socialLogin(resp.credential, 'google')
+              if (res?.user) {
+                setGoogleMsg('Đăng nhập thành công! Đang chuyển hướng...')
+                await refresh()
+                navigate(from, { replace: true })
+              }
+            } catch (err) {
+              setGoogleMsg(err.message || 'Xác thực Google thất bại. Vui lòng thử lại.')
+            } finally {
+              setGoogleLoading(false)
+            }
+          }
+        },
+        auto_select: false,
+      })
+
+      const container = document.getElementById('g_btn_hidden_coin')
+      if (container) {
+        container.innerHTML = ''
+        window.google.accounts.id.renderButton(container, {
+          type: 'standard',
+          theme: theme === 'dark' ? 'filled_black' : 'outline',
+          size: 'large',
+          width: 320,
+          text: 'signin_with',
+          locale: 'vi',
+        })
+      }
+    } catch (e) {
+      console.warn('Google Init error:', e)
+    }
+  }
+
+  useEffect(() => {
+    if (!window.google?.accounts?.id) {
+      const script = document.createElement('script')
+      script.src = 'https://accounts.google.com/gsi/client'
+      script.async = true
+      script.defer = true
+      script.onload = () => {
+        initGoogleSignIn()
+      }
+      document.body.appendChild(script)
+    } else {
+      initGoogleSignIn()
+    }
+  }, [theme])
+
+  const handleGoogleSignIn = () => {
+    setGoogleMsg(null)
+    const hiddenBtn = document.querySelector('#g_btn_hidden_coin div[role=button]')
+    if (hiddenBtn) {
+      hiddenBtn.click()
+    } else if (window.google?.accounts?.id) {
+      window.google.accounts.id.prompt((notification) => {
+        if (notification.isNotDisplayed()) {
+          setGoogleMsg('Vui lòng kiểm tra cho phép popup hoặc đăng nhập bằng tài khoản bên dưới.')
+        }
+      })
+    } else {
+      setGoogleMsg('Đang tải thư viện Google, vui lòng thử lại sau giây lát...')
+    }
+  }
+
   // Chuyển hướng nếu đã đăng nhập
   useEffect(() => {
     if (me) {
       navigate(from, { replace: true })
     }
   }, [me, navigate, from])
+
 
   return (
     <div className="nora-home-root">
@@ -55,10 +135,10 @@ export default function Login() {
       <header className="nora-home-header">
         <Link to="/" className="nora-home-logo">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{ width: 20, height: 20, color: 'var(--text-primary)' }}>
-            <path d="M20 12a8 8 0 1 1-3-6.2" />
-            <circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none" />
+            <circle cx="12" cy="12" r="9" />
+            <path d="M14.5 9.2c-.5-.8-1.4-1.2-2.5-1.2-1.4 0-2.5.7-2.5 1.8 0 2.6 5 1.2 5 3.8 0 1.1-1.1 1.9-2.5 1.9-1.1 0-2.1-.5-2.6-1.4M12 6.5V8M12 16v1.5" />
           </svg>
-          <span style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)' }}>noraquantengine</span>
+          <span style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)' }}>Nora COIN</span>
         </Link>
 
         <div className="nora-header-right">
@@ -89,13 +169,13 @@ export default function Login() {
         </div>
       </header>
 
-      {/* Giao diện đăng nhập 2 layout như SOVA */}
+      {/* Giao diện đăng nhập COIN */}
       <div className="login-split-container">
         {/* LEFT SIDE: Branding & info */}
         <div className="login-left-panel">
           <div className="branding-content">
             <h1 className="brand-title">
-              Nora <span className="brand-highlight">Trading</span>
+              Nora <span className="brand-highlight">COIN</span>
             </h1>
 
             <div className="feature-list">
@@ -104,8 +184,8 @@ export default function Login() {
                   <span className="bullet-circle" />
                 </div>
                 <div className="feature-text">
-                  <h3>Backtest Chiến lược</h3>
-                  <p>Chạy backtest nhanh chóng trên dữ liệu lịch sử chất lượng cao</p>
+                  <h3>Backtest & Kiểm định</h3>
+                  <p>Chạy backtest dữ liệu nến/tick thật, đánh giá độ bền ngoài mẫu Walk-Forward và Monte Carlo</p>
                 </div>
               </div>
 
@@ -114,8 +194,8 @@ export default function Login() {
                   <span className="bullet-circle" />
                 </div>
                 <div className="feature-text">
-                  <h3>Kiểm định Nghiêm ngặt</h3>
-                  <p>Đánh giá Walk-Forward, Monte Carlo và loại bỏ hiện tượng học vẹt thị trường</p>
+                  <h3>Nghiên cứu Giả thuyết Alpha</h3>
+                  <p>Xây dựng ý tưởng trading có cơ sở kinh tế, kiểm chứng độc lập trước khi đưa vào danh mục</p>
                 </div>
               </div>
 
@@ -124,21 +204,86 @@ export default function Login() {
                   <span className="bullet-circle" />
                 </div>
                 <div className="feature-text">
-                  <h3>Độ chính xác Cao</h3>
-                  <p>Phân tích hiệu suất chi tiết với metrics chuyên sâu và sổ lệnh thực</p>
+                  <h3>Quản lý Danh mục & Rủi ro</h3>
+                  <p>Giám sát NAV, Sharpe, Drawdown, chỉ báo Regime có dấu và vận hành bot intraday an toàn</p>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* RIGHT SIDE: Form card "Bạn là ai?" */}
+        {/* RIGHT SIDE: Form card */}
         <div className="login-right-panel">
           <div className="login-form-container">
             <div className="form-header">
-              <h2>Bạn là ai?</h2>
-              <p>Nhập tên để vào. Chiến lược bạn lưu sẽ gắn với tên này.</p>
+              <h2>Đăng nhập</h2>
+              <p>Đăng nhập để truy cập danh mục, bot giao dịch và vận hành chiến lược an toàn.</p>
             </div>
+
+            {/* Nút Đăng nhập với Google */}
+            <div style={{ marginBottom: 16 }}>
+              <div id="g_btn_hidden_coin" style={{ display: 'none' }} />
+              <button
+                type="button"
+                onClick={handleGoogleSignIn}
+                disabled={googleLoading}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '10px',
+                  padding: '10px 16px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--n-line-soft, rgba(255, 255, 255, 0.15))',
+                  background: 'var(--n-surface-2, rgba(255, 255, 255, 0.05))',
+                  color: 'var(--text-primary, #ffffff)',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: googleLoading ? 'wait' : 'pointer',
+                  opacity: googleLoading ? 0.7 : 1,
+                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)',
+                }}
+                onMouseEnter={(e) => {
+                  if (!googleLoading) {
+                    e.currentTarget.style.background = 'var(--n-surface-hover, rgba(255, 255, 255, 0.1))'
+                    e.currentTarget.style.borderColor = 'var(--n-accent, #6366f1)'
+                    e.currentTarget.style.transform = 'translateY(-1px)'
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!googleLoading) {
+                    e.currentTarget.style.background = 'var(--n-surface-2, rgba(255, 255, 255, 0.05))'
+                    e.currentTarget.style.borderColor = 'var(--n-line-soft, rgba(255, 255, 255, 0.15))'
+                    e.currentTarget.style.transform = 'translateY(0)'
+                  }
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 48 48" style={{ flexShrink: 0 }}>
+                  <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                  <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                  <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                  <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                  <path fill="none" d="M0 0h48v48H0z"/>
+                </svg>
+                <span>{googleLoading ? 'Đang kết nối Google...' : 'Đăng nhập với Google'}</span>
+              </button>
+
+              {googleMsg && (
+                <div style={{ marginTop: 8, padding: '8px 12px', borderRadius: 6, fontSize: 12, background: 'rgba(99, 102, 241, 0.12)', color: 'var(--n-accent, #6366f1)', border: '1px solid rgba(99, 102, 241, 0.25)', textAlign: 'center' }}>
+                  {googleMsg}
+                </div>
+              )}
+
+
+              <div style={{ display: 'flex', alignItems: 'center', margin: '16px 0 12px', color: 'var(--n-ink-2, #94a3b8)', fontSize: 12 }}>
+                <div style={{ flex: 1, height: '1px', background: 'var(--n-line-soft, rgba(255, 255, 255, 0.12))' }} />
+                <span style={{ padding: '0 12px', textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: 11, fontWeight: 600 }}>Hoặc</span>
+                <div style={{ flex: 1, height: '1px', background: 'var(--n-line-soft, rgba(255, 255, 255, 0.12))' }} />
+              </div>
+            </div>
+
             <EnterForm onDone={() => navigate(from, { replace: true })} />
           </div>
         </div>

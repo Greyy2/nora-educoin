@@ -8,7 +8,20 @@ export const tone = (v) => ({ pos: 'var(--n-pos)', neg: 'var(--n-neg)', '': 'inh
 
 export function Avatar({ avatar, size = 44 }) {
   return (
-    <span style={{ width: size, height: size, borderRadius: '50%', background: avatar?.color || '#3b82f6', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: size / 2, flexShrink: 0 }}>
+    <span style={{
+      width: size,
+      height: size,
+      borderRadius: '50%',
+      background: avatar?.color || '#6366F1',
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontSize: Math.round(size / 2.2),
+      flexShrink: 0,
+      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+      border: '2px solid var(--n-surface)',
+      userSelect: 'none',
+    }}>
       {avatar?.emoji || '👤'}
     </span>
   )
@@ -17,10 +30,19 @@ export function Avatar({ avatar, size = 44 }) {
 export function Stat({ label, value, color }) {
   return (
     <div style={{ minWidth: 0 }}>
-      <div style={{ fontSize: 11, color: 'var(--n-ink-2)' }}>{label}</div>
-      <div style={{ fontSize: 14, fontWeight: 600, color, whiteSpace: 'nowrap' }}>{value}</div>
+      <div style={{ fontSize: 11.5, color: 'var(--n-ink-2)', marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: color || 'var(--n-ink)', whiteSpace: 'nowrap', letterSpacing: '-0.01em' }}>{value}</div>
     </div>
   )
 }
 
-export const cardStyle = { background: 'var(--n-surface-2)', border: '1px solid var(--n-line)', borderRadius: 12, padding: 18, textDecoration: 'none', color: 'inherit' }
+export const cardStyle = {
+  background: 'var(--n-surface)',
+  border: '1px solid var(--n-line)',
+  borderRadius: 16,
+  padding: '22px 24px',
+  boxShadow: 'var(--n-shadow)',
+  textDecoration: 'none',
+  color: 'inherit',
+}
+

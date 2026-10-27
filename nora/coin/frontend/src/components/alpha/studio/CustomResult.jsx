@@ -22,7 +22,7 @@ const STAGES = [
 ]
 const BENCH_LABEL = 'Luôn long (benchmark)'
 // MỘT định nghĩa cho mỗi chỉ số; cơ sở nêu một lần (BASIS_NOTE): năm = 365 ngày, lợi suất ngày = vốn mark-to-market cuối ngày UTC, win rate / profit factor theo lệnh đã đóng.
-const BASIS_NOTE = 'Cơ sở: năm = 365 ngày; Sharpe, Sortino, CAGR, Calmar, Max drawdown tính trên lợi suất ngày (vốn cuối ngày UTC); tỉ lệ thắng và Profit factor tính theo từng lệnh đã đóng.'
+const BASIS_NOTE = 'Cơ sở: năm = 365 ngày; Sharpe, Sortino, CAGR, Calmar tính trên lợi suất ngày (vốn cuối ngày UTC); Max drawdown tính trên mức sụt giảm sâu nhất (bao gồm râu nến intrabar worst equity); tỉ lệ thắng và Profit factor tính theo từng lệnh đã đóng.'
 const SEEN_TOURS = new Set() // mỗi lần chạy chỉ tự mở hướng dẫn một lần; nút "Xem giải thích" mở lại
 const STAGE_VI = { train: 'Train', test: 'Test', simulate: 'Toàn kỳ' }
 
@@ -90,16 +90,178 @@ function Rows({ rows, spec, empty }) {
   )
 }
 
-function TradesTable({ trades }) {
+function TradesTable({ trades = [] }) {
   const [pg, setPg] = useState({ offset: 0, limit: 50 })
-  const slice = trades.slice(pg.offset, pg.offset + pg.limit)
+  const [filterSym, setFilterSym] = useState('ALL')
+  const [filterSide, setFilterSide] = useState('ALL')
+  const [filterOutcome, setFilterOutcome] = useState('ALL')
+
+  const safeTrades = Array.isArray(trades) ? trades : []
+
+  const symbols = useMemo(() => {
+    const set = new Set()
+    safeTrades.forEach((t) => {
+      const s = (t.symbol || t.sym || '').replace('@perp', '')
+      if (s) set.add(s)
+    })
+    return Array.from(set).sort()
+  }, [safeTrades])
+
+  const filtered = useMemo(() => {
+    return safeTrades.filter((t) => {
+      const sym = (t.symbol || t.sym || '').replace('@perp', '')
+      if (filterSym !== 'ALL' && sym !== filterSym) return false
+      const side = String(t.side || '').toUpperCase()
+      if (filterSide !== 'ALL' && side !== filterSide) return false
+      const pnl = Number(t.pnl_usd ?? t.pnl ?? t.net_pnl ?? 0)
+      if (filterOutcome === 'WIN' && pnl <= 0) return false
+      if (filterOutcome === 'LOSS' && pnl >= 0) return false
+      return true
+    })
+  }, [safeTrades, filterSym, filterSide, filterOutcome])
+
+  const enriched = useMemo(() => {
+    let runningPnl = 0
+    return filtered.map((t, idx) => {
+      const pnl = Number(t.pnl_usd ?? t.pnl ?? t.net_pnl ?? 0)
+      runningPnl += pnl
+      return {
+        ...t,
+        trade_no: idx + 1,
+        cum_pnl: Math.round(runningPnl * 100) / 100,
+      }
+    })
+  }, [filtered])
+
+  const stats = useMemo(() => {
+    const total = enriched.length
+    if (!total) return null
+    let wins = 0
+    let losses = 0
+    let totalPnl = 0
+    let totalFees = 0
+    let grossWin = 0
+    let grossLoss = 0
+
+    enriched.forEach((t) => {
+      const pnl = Number(t.pnl_usd ?? t.pnl ?? t.net_pnl ?? 0)
+      const fee = Number(t.fees_usd ?? t.fee_usd ?? t.fee ?? t.fees ?? 0)
+      totalPnl += pnl
+      totalFees += fee
+      if (pnl > 0) {
+        wins++
+        grossWin += pnl
+      } else if (pnl < 0) {
+        losses++
+        grossLoss += Math.abs(pnl)
+      }
+    })
+
+    const winRate = (wins / total) * 100
+    const profitFactor = grossLoss > 0 ? grossWin / grossLoss : (wins > 0 ? null : 0)
+    const avgTrade = totalPnl / total
+
+    return {
+      total,
+      wins,
+      losses,
+      totalPnl,
+      totalFees,
+      winRate,
+      profitFactor,
+      avgTrade,
+    }
+  }, [enriched])
+
+  const slice = enriched.slice(pg.offset, pg.offset + pg.limit)
+
   return (
-    <>
-      <Rows rows={slice} spec={TRADE_COLS} empty="Không có lệnh nào được đóng trong kỳ." />
-      {trades.length > 25 && <Pager total={trades.length} offset={pg.offset} limit={pg.limit} onChange={setPg} />}
-    </>
+    <div className="tv-trades-container">
+      {/* TradingView Asset Filter & Quick Stats Toolbar */}
+      <div
+        className="tv-trades-toolbar"
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+          padding: '10px 14px',
+          background: 'rgba(255, 255, 255, 0.03)',
+          border: '1px solid var(--n-border, #334155)',
+          borderRadius: 8,
+          marginBottom: 12,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--n-muted, #94a3b8)' }}>Tài sản:</span>
+          <select
+            className="n-sel"
+            style={{ fontSize: 12, padding: '4px 8px', borderRadius: 4, height: 28 }}
+            value={filterSym}
+            onChange={(e) => { setFilterSym(e.target.value); setPg({ offset: 0, limit: 50 }) }}
+          >
+            <option value="ALL">Tất cả tài sản ({symbols.length})</option>
+            {symbols.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--n-muted, #94a3b8)', marginLeft: 6 }}>Chiều:</span>
+          <select
+            className="n-sel"
+            style={{ fontSize: 12, padding: '4px 8px', borderRadius: 4, height: 28 }}
+            value={filterSide}
+            onChange={(e) => { setFilterSide(e.target.value); setPg({ offset: 0, limit: 50 }) }}
+          >
+            <option value="ALL">Tất cả chiều</option>
+            <option value="LONG">LONG</option>
+            <option value="SHORT">SHORT</option>
+          </select>
+
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--n-muted, #94a3b8)', marginLeft: 6 }}>Kết quả:</span>
+          <select
+            className="n-sel"
+            style={{ fontSize: 12, padding: '4px 8px', borderRadius: 4, height: 28 }}
+            value={filterOutcome}
+            onChange={(e) => { setFilterOutcome(e.target.value); setPg({ offset: 0, limit: 50 }) }}
+          >
+            <option value="ALL">Tất cả kết quả</option>
+            <option value="WIN">Lệnh thắng</option>
+            <option value="LOSS">Lệnh thua</option>
+          </select>
+        </div>
+
+        {stats && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', fontSize: 12 }}>
+            <div>
+              <span className="muted">Số lệnh: </span>
+              <b>{stats.total}</b> <span style={{ opacity: 0.7 }}>({stats.wins}W / {stats.losses}L)</span>
+            </div>
+            <div>
+              <span className="muted">Tỉ lệ thắng: </span>
+              <b className={stats.winRate >= 50 ? 'pos' : 'neg'}>{fmtPct(stats.winRate, 1)}</b>
+            </div>
+            <div>
+              <span className="muted">Tổng Lãi/Lỗ: </span>
+              <b className={signClass(stats.totalPnl)}>{fmtSigned(stats.totalPnl, 2)} USDT</b>
+            </div>
+            <div>
+              <span className="muted">Lãi TB: </span>
+              <b className={signClass(stats.avgTrade)}>{fmtSigned(stats.avgTrade, 2)} USDT</b>
+            </div>
+            <div>
+              <span className="muted">Tổng phí: </span>
+              <span>{fmtMoney(stats.totalFees)} USDT</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <Rows rows={slice} spec={TRADE_COLS} empty="Không có lệnh nào thỏa mãn bộ lọc." />
+      {enriched.length > 50 && <Pager total={enriched.length} offset={pg.offset} limit={pg.limit} onChange={setPg} />}
+    </div>
   )
 }
+
 
 
 const SUBS = [{ value: 'overview', label: 'Overview' }, { value: 'perf', label: 'Performance' }, { value: 'analysis', label: 'Analysis' }]
@@ -327,10 +489,10 @@ export default function CustomResult({ result, jobLine, explain = false, tourKey
   const a0 = ser ? Math.floor(range[0] * ser.dates.length) : 0
   const marks = ser && ser.splitIdx - a0 > 0 && stage === 'all' ? [{ i: ser.splitIdx - a0, label: 'Train | Test' }] : []
   const body = (k) => (ser ? {
-    equity: (f) => <AreaLine dates={sl(ser.dates)} height={Math.round(260 * f)} hover={hi} onHover={setHi} marks={marks} label="Đường vốn" series={[{ key: 'e', label: 'Vốn (USDT)', values: sl(ser.equity), color: 'var(--n-brand, #3b82f6)', area: true }, ...(bench ? [{ key: 'b', label: BENCH_LABEL, values: sl(bench.equity), color: 'var(--n-bench)', dashed: true }] : [])]} />,
-    pnl: (f) => <AreaLine dates={sl(ser.dates)} height={Math.round(260 * f)} hover={hi} onHover={setHi} marks={marks} label="Lãi lỗ" series={[{ key: 'p', label: 'PnL (USDT)', values: sl(ser.pnl), color: 'var(--n-pos)', area: true }, ...(bench ? [{ key: 'b', label: BENCH_LABEL, values: sl(bench.pnl), color: 'var(--n-bench)', dashed: true }] : [])]} />,
-    dd: (f) => <UnderwaterStrip dates={sl(ser.dates)} values={sl(ser.dd)} height={Math.round(180 * f)} hover={hi} onHover={setHi} marks={marks} />,
-    ret: (f) => <AreaLine dates={sl(ser.dates)} height={Math.round(180 * f)} hover={hi} onHover={setHi} label="Lợi suất ngày" valueFormat={(v) => `${fmtNum(v, 1)}%`} series={[{ key: 'r', label: 'Lợi suất ngày (%)', values: sl(ser.ret), color: 'var(--n-info)' }]} />,
+    equity: (f) => <AreaLine dates={sl(ser.dates)} height={Math.round(260 * f)} hover={hi} onHover={setHi} marks={marks} label="Đường vốn" zoomRange={range} onZoom={setRange} series={[{ key: 'e', label: 'Vốn (USDT)', values: sl(ser.equity), color: 'var(--n-brand, #3b82f6)', area: true }, ...(bench ? [{ key: 'b', label: BENCH_LABEL, values: sl(bench.equity), color: 'var(--n-bench)', dashed: true }] : [])]} />,
+    pnl: (f) => <AreaLine dates={sl(ser.dates)} height={Math.round(260 * f)} hover={hi} onHover={setHi} marks={marks} label="Lãi lỗ" zoomRange={range} onZoom={setRange} series={[{ key: 'p', label: 'PnL (USDT)', values: sl(ser.pnl), color: 'var(--n-pos)', area: true }, ...(bench ? [{ key: 'b', label: BENCH_LABEL, values: sl(bench.pnl), color: 'var(--n-bench)', dashed: true }] : [])]} />,
+    dd: (f) => <UnderwaterStrip dates={sl(ser.dates)} values={sl(ser.dd)} height={Math.round(180 * f)} hover={hi} onHover={setHi} marks={marks} zoomRange={range} onZoom={setRange} />,
+    ret: (f) => <AreaLine dates={sl(ser.dates)} height={Math.round(180 * f)} hover={hi} onHover={setHi} label="Lợi suất ngày" zoomRange={range} onZoom={setRange} valueFormat={(v) => `${fmtNum(v, 1)}%`} series={[{ key: 'r', label: 'Lợi suất ngày (%)', values: sl(ser.ret), color: 'var(--n-info)' }]} />,
   }[k] : null)
 
   return (
@@ -377,6 +539,16 @@ export default function CustomResult({ result, jobLine, explain = false, tourKey
           {ser && bench && (shown.equity || shown.pnl) && <p className="n-note se-pad">Đường nét đứt: benchmark luôn long (cùng rổ, vốn và khoảng ngày){stage === 'test' ? ', được backend chạy lại trên chính cửa sổ Test từ vốn đầu' : ''}.</p>}
           {ser && !bench && (shown.equity || shown.pnl) && <p className="n-note se-pad">Không có benchmark cho giai đoạn này.</p>}
           {ser?.downsample?.step > 1 && <p className="n-note se-pad">Biểu đồ đã hạ mẫu ở backend: mỗi điểm gộp {ser.downsample.step} ngày ({fmtNum(ser.downsample.source_points, 0)} → {fmtNum(ser.downsample.points, 0)} điểm); equity lấy cuối nhóm, drawdown lấy đáy nhóm, lợi suất là lãi kép của nhóm.</p>}
+          {ser && (range[0] > 0 || range[1] < 1) && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 12px', marginBottom: 8, background: 'rgba(59, 130, 246, 0.08)', borderRadius: 6, border: '1px solid var(--n-border)' }}>
+              <span className="muted" style={{ fontSize: 12 }}>
+                🔍 Đang thu phóng: {Math.round((range[1] - range[0]) * 100)}% dữ liệu ({Math.round(range[0] * 100)}% – {Math.round(range[1] * 100)}%)
+              </span>
+              <button type="button" className="n-btn sm" onClick={() => setRange([0, 1])} title="Xem toàn bộ chuỗi thời gian">
+                ↺ Xem toàn bộ (Reset)
+              </button>
+            </div>
+          )}
           {ser && CHARTS.filter((c) => shown[c.key]).map((c, i, arr) => (
             <ChartCard key={c.key} title={c.label} tour={c.key}>
               {(f) => <>

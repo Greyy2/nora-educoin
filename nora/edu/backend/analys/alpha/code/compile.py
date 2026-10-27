@@ -838,13 +838,23 @@ def explain_program(program: Program, position: Optional[Dict[str, Any]] = None)
     pos_cfg = resolve_position_auto({**BASE_POSITION, **NORA_DEFAULTS, **(program.position_overrides or {}), **(position or {})},
                                     program.timeframe)   # đúng như build_plan sẽ chạy (atr_frame / cooldown "auto" -> theo khung tín hiệu)
     risk_parts = []   # chỉ nhắc cơ chế thực sự bật (giá trị > 0) — đúng như build_plan sẽ chạy
+    unit_mode = str(pos_cfg.get("exit_unit") or "pct").lower()
+
+    def _fmt_exit_val(raw_val: float) -> str:
+        if unit_mode == "atr":
+            return f"{_clean_num(raw_val)}×ATR"
+        # exit_unit = "pct": nếu raw_val <= 1.0 (vd 0.02) -> 2%, nếu > 1.0 (vd 2.0) -> 2%
+        v = float(raw_val)
+        pct = v * 100.0 if v <= 1.0 else v
+        return f"{_clean_num(pct)}%"
+
     if float(pos_cfg.get("stop_loss_rate") or 0) > 0:
-        risk_parts.append(f"Stop-Loss {_clean_num(pos_cfg['stop_loss_rate'])}×ATR tính từ giá trung bình")
+        risk_parts.append(f"Stop-Loss {_fmt_exit_val(pos_cfg['stop_loss_rate'])} tính từ giá trung bình")
     if float(pos_cfg.get("take_profit_rate") or 0) > 0:
-        risk_parts.append(f"Take-Profit {_clean_num(pos_cfg['take_profit_rate'])}×ATR")
+        risk_parts.append(f"Take-Profit {_fmt_exit_val(pos_cfg['take_profit_rate'])}")
     if float(pos_cfg.get("trailing_stop") or 0) > 0:
         act = float(pos_cfg.get("trailing_activation_pct") or 0)
-        risk_parts.append(f"trailing stop {_clean_num(pos_cfg['trailing_stop'])}×ATR" + (f" (bật khi lãi ≥ {_clean_num(act)}×ATR)" if act > 0 else ""))
+        risk_parts.append(f"trailing stop {_fmt_exit_val(pos_cfg['trailing_stop'])}" + (f" (bật khi lãi ≥ {_fmt_exit_val(act)})" if act > 0 else ""))
     if int(pos_cfg.get("timeout") or 0) > 0:
         risk_parts.append(f"giữ tối đa {int(pos_cfg['timeout'])} phút")
     if int(pos_cfg.get("cooldown") or 0) > 0:
@@ -1053,8 +1063,9 @@ def compile_report(code: str) -> Dict[str, Any]:
     try:
         prog = compile_code(code)
     except DslError as e:
-        return {"ok": False, "program_hash": None, "meta": None, "warnings": [], "error": e.to_dict(), "route": route_info}
-    return {"ok": True, "program_hash": prog.code_hash, "meta": prog.meta(), "warnings": prog.warnings, "error": None, "route": route_info}
+        return {"ok": False, "program_hash": None, "meta": None, "declared_params": {}, "warnings": [], "error": e.to_dict(), "route": route_info}
+    declared = getattr(prog, "position_overrides", {}) or {}
+    return {"ok": True, "program_hash": prog.code_hash, "meta": prog.meta(), "declared_params": declared, "warnings": prog.warnings, "error": None, "route": route_info}
 
 
 def explain_report(code: str, position: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:

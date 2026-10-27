@@ -1,0 +1,25 @@
+{
+  "id": "alpha_1m_01_rsidynamic",
+  "name": "RSI Dynamic Scalper 1m",
+  "code": "class RsiDynamicScalper(NoraStrategy):\n    \"\"\"Chiến lược bắt đáy siêu ngắn hạn trên khung 1m cho BTC & ETH với RSI phục hồi.\"\"\"\n    timeframe = \"1m\"\n\n    rsi_period = 14\n    sma_period = 20\n    stop_loss_pct = 1.0\n    take_profit_pct = 0.6\n    trailing_stop_pct = 0.0\n    trailing_activation_pct = 0.0\n    timeout = 45\n    risk_per_trade_pct = 1.0\n\n    def on_bar(self):\n        r = rsi(close, self.rsi_period)\n        s = sma(close, self.sma_period)\n        enter_sig = (r < 45) & (close > s * 0.999)\n        exit_sig = (r > 60) | (close < s * 0.992)\n        self.close(exit_sig)\n        self.buy(enter_sig)\n",
+  "note": "Chiến lược 1m siêu tốc cho BTC/ETH - Bot #1",
+  "status": "CANDIDATE",
+  "created_at": "2026-10-20T08:46:03Z",
+  "updated_at": "2026-10-20T08:46:03Z",
+  "config": {
+    "timeframe": "1m",
+    "symbols": [
+      "BTC",
+      "ETH"
+    ]
+  },
+  "metrics": {
+    "simulate": {
+      "ret_pct": 16.3,
+      "mdd_pct": 3.55,
+      "sharpe": 3.4,
+      "win_rate_trades": 73.5,
+      "trades": 350
+    }
+  }
+}

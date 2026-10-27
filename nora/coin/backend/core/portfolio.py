@@ -8,6 +8,10 @@ Thuần Python (không import nautilus_trader): vốn, hoa hồng, vị thế đ
 Đường vốn: mỗi MTM_SAMPLE_MINUTES phút (mặc định 60) và mẫu cuối; trường {time (open nến), equity, equity_worst} như `_round_curve` cũ.
 """
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
+import math
+import os
+import time
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 import numpy as np
@@ -18,6 +22,51 @@ from backend.analys.alpha import RiskConfig
 MTM_SAMPLE_MINUTES = 60
 
 
+class LiveLedgerUnavailable(RuntimeError):
+    pass
+
+
+def realized_pnl_since_utc_midnight(trades: List[Dict[str, Any]], now_ms: int) -> float:
+    """Net full-lifecycle PnL for trades closed since 00:00 UTC, not daily mark-to-market change."""
+    now = datetime.fromtimestamp(now_ms / 1000, tz=timezone.utc)
+    day_start_ms = int(datetime(now.year, now.month, now.day, tzinfo=timezone.utc).timestamp() * 1000)
+    pnl_today = 0.0
+    for trade in trades:
+        close_time = trade.get("close_time")
+        if not isinstance(close_time, (int, float)) or close_time < day_start_ms:
+            continue
+        try:
+            pnl = float(trade["pnl"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise LiveLedgerUnavailable("A closed trade has invalid realized PnL") from exc
+        if not math.isfinite(pnl):
+            raise LiveLedgerUnavailable("A closed trade has invalid realized PnL")
+        pnl_today += pnl
+    return round(pnl_today, 4)
+
+
+@dataclass
+class EntryIntent:
+    """Ý định vào lệnh của một slot tại thời điểm nến đóng ts.
+    Hỗ trợ gom batch theo nến, phân xử xung đột cùng market và chia vốn pro-rata đa market."""
+    slot: Any
+    symbol: str
+    ts: int
+    price: float
+    vol: float = 1.0
+    catchup: bool = False
+    priority: float = 0.0
+
+    # Các trường nội bộ phục vụ tính toán hạn mức và rủi ro
+    adm: Optional[policy.Admission] = None
+    lev: float = 1.0
+    sl_abs: float = 0.0
+    unit_pct: float = 0.0
+    raw_margin: float = 0.0
+    raw_planned_risk: float = 0.0
+    max_cap: float = 0.0
+
+
 class Coordinator:
     def __init__(self, risk: RiskConfig, initial_capital: float, trade_start_ms: int, balance_fn: Callable[[], float], n_symbols: int,
                  frame_ms: int, sample_ms: int = MTM_SAMPLE_MINUTES * 60_000):
@@ -25,14 +74,16 @@ class Coordinator:
         self.initial = float(initial_capital)
         self.trade_start = int(trade_start_ms)
         self._balance = balance_fn
-        self.balance = balance_fn
+        self.balance = lambda: self._balance()
         self.frame_ms = int(frame_ms)
         self.sample_ms = int(sample_ms)
         self.kill_pct = float(risk.kill_switch_dd_pct or 0.0)
         self.slots: List[Any] = []
         self.active: List[Any] = []                 # slot đang ENTERING / OPEN
         self.last: List[Tuple[float, float, float]] = [(float("nan"),) * 3] * n_symbols   # (close, low, high) nến cuối của từng tài sản
-        self.reserved = 0.0                         # ký quỹ + phí vào lệnh đang giữ chỗ (sổ vốn cũ)
+        self.reserved = 0.0                         # ký quỹ + phí của vị thế đã khớp đang mở
+        self.pending_reserved = 0.0                 # ký quỹ + phí của các lệnh entry đang chờ khớp (tránh over-allocation)
+        self._pending_intents: Dict[int, List[EntryIntent]] = {}   # gom intents theo nến ts
         self.open_fees = 0.0                        # hoa hồng Nautilus đã trừ khỏi số dư cho vị thế đang mở
         self.peak = float(initial_capital)          # đỉnh vốn đã chốt
         self.peak_mtm = float(initial_capital)
@@ -64,24 +115,264 @@ class Coordinator:
     def set_grid(self, ts: np.ndarray, counts: np.ndarray) -> None:
         self._need_ts, self._need_n, self._ptr = ts, counts, 0
 
+    def register_entry_intent(self, intent: EntryIntent) -> None:
+        """Đăng ký ý định vào lệnh tại mốc nến ts để gom batch và phân xử cùng nến."""
+        self._pending_intents.setdefault(intent.ts, []).append(intent)
+
+    def dispatch_batch_entries(self, ts: int) -> List[Any]:
+        """Phân xử xung đột cùng market và chia vốn pro-rata đa market cho nến đóng ts."""
+        intents = self._pending_intents.pop(ts, [])
+        if not intents:
+            return []
+        return self._process_and_allocate_intents(intents)
+
+    def dispatch_single_catchup(self, intent: EntryIntent) -> List[Any]:
+        """Vào lệnh bù (catchup lúc start): xử lý đơn lẻ theo cùng chuẩn allocation."""
+        return self._process_and_allocate_intents([intent])
+
+    def _process_and_allocate_intents(self, intents: List[EntryIntent]) -> List[Any]:
+        """Lõi phân bổ:
+        1. Xung đột cùng market: tối đa 1 intent/symbol. Ưu tiên priority cao hơn; nếu hoà/không có priority -> fail-closed.
+        2. Phân bổ pro-rata qua các market khác nhau nếu tổng nhu cầu vượt ngân sách vốn hoặc rủi ro.
+        3. Kiểm tra khối lượng tối thiểu (min lot); loại bỏ candidate không đủ lot mà không làm dồn risk vượt trần.
+        """
+        if self.halted_at is not None:
+            return []
+
+        # 1. Nhóm theo symbol và phân xử xung đột cùng market
+        by_symbol: Dict[str, List[EntryIntent]] = {}
+        for it in intents:
+            by_symbol.setdefault(it.symbol, []).append(it)
+
+        surviving: List[EntryIntent] = []
+        for sym, sym_intents in by_symbol.items():
+            if len(sym_intents) == 1:
+                surviving.append(sym_intents[0])
+            else:
+                p_scores = [it.priority for it in sym_intents]
+                max_p = max(p_scores)
+                top_intents = [it for it in sym_intents if it.priority == max_p]
+                if len(top_intents) == 1 and max_p > 0.0:
+                    winner = top_intents[0]
+                    surviving.append(winner)
+                    for other in sym_intents:
+                        if other is not winner:
+                            self.rejected_for_risk += 1
+                            self.emit("intent_superceded", {
+                                "symbol": sym, "strategy": other.slot.sid, "ts": other.ts,
+                                "reason": "SAME_MARKET_SUPERCEDED", "winner": winner.slot.sid,
+                            })
+                else:
+                    # Hoà hoặc không có priority -> FAIL-CLOSED (không gửi lệnh nào cho market này)
+                    for it in sym_intents:
+                        self.rejected_for_risk += 1
+                        self.emit("conflict", {
+                            "symbol": sym, "strategy": it.slot.sid, "ts": it.ts,
+                            "reason": "SAME_MARKET_CONFLICT",
+                            "conflicting_strategies": [x.slot.sid for x in sym_intents],
+                        })
+
+        if not surviving:
+            return []
+
+        # 2. Xét admission và tính toán raw margin / planned risk cho từng candidate
+        eq = self.equity()
+        if eq <= 0:
+            return []
+
+        admitted: List[EntryIntent] = []
+        for c in surviving:
+            adm = self.admit(c.slot)
+            if adm is None:
+                continue
+            sp = c.slot.spec
+            unit = 1.0
+            if sp.exit_unit == "atr":
+                unit = c.vol
+                if not (unit > 0):
+                    c.slot.skipped_no_vol += 1
+                    continue
+            c.slot._apply_unit(unit)
+            unit_pct = unit if sp.exit_unit == "atr" else 0.0
+
+            max_cap = eq * sp.capital_usage
+            budget = min(max_cap, max(0.0, eq - self.reserved - self.pending_reserved))
+            lev = float(sp.max_leverage)
+            sign = c.slot.sign
+
+            sl_abs = 0.0
+            if sp.sl_anchor_mode == 1:
+                if c.slot.dca_steps:
+                    p_last = c.price
+                    for s in c.slot.dca_steps:
+                        p_last = p_last * (1.0 - sign * s / 100.0)
+                    sl_abs = p_last * (1.0 - sign * c.slot.sl_pct / 100.0) if c.slot.sl_pct > 0.0 else p_last
+                else:
+                    sl_abs = c.price * (1.0 - sign * c.slot.sl_pct / 100.0) if c.slot.sl_pct > 0.0 else 0.0
+            sl_eff = abs(c.price - sl_abs) / c.price * 100.0 if (sp.sl_anchor_mode == 1 and sl_abs > 0.0) else c.slot.sl_pct
+
+            # Chặn entry nếu bật trần rủi ro mà không có SL hợp lệ (fail-closed, TODO 1)
+            if self.risk.max_open_risk_pct and self.risk.max_open_risk_pct > 0 and sl_eff <= 0:
+                self.rejected_for_risk += 1
+                self.emit("risk_reject", {
+                    "symbol": c.symbol, "strategy": c.slot.sid, "reason": "MISSING_MANDATORY_STOP_LOSS"
+                })
+                continue
+
+            total_mult = policy.layer_mult_total(sp.dca_mults, len(c.slot.dca_steps))
+            planned = 0.0
+            sizing_slippage_rate = getattr(sp, "slippage_rate", 0.0)
+            if getattr(sp, "slippage_mode", "rate") == "fixed_ticks" and getattr(sp, "slippage_ticks", 0) > 0:
+                increment = float(c.slot.inst.price_increment)
+                entry_slip = sp.slippage_ticks * increment
+                stop_slip = entry_slip * sp.stop_slippage_multiplier
+                # risk_margin models two equal slippage legs; use their mean so
+                # its round-trip cost equals entry slip + adverse stop slip.
+                sizing_slippage_rate = (entry_slip + stop_slip) / (2.0 * c.price)
+            if sp.sizing == "risk":
+                margin, lev, planned = policy.risk_margin(eq, sp.risk_pct, sp.max_notional_pct, sl_eff, sp.fee_rate, sizing_slippage_rate, None,
+                                                          sp.market == "perp", sp.max_leverage, sp.mmr, lev, total_mult)
+            else:
+                margin = policy.flat_margin(eq, sp.order_size_pct)
+
+            if adm.risk_scale != 1.0:
+                margin *= adm.risk_scale
+                planned *= adm.risk_scale
+            margin = policy.clamp_margin(margin, budget, lev, sp.fee_rate, adm.max_new_notional)
+
+            # TODO 1: Tính planned risk từ hard-SL thực tế cho MỌI kiểu sizing (cả flat và risk)
+            if margin > 0 and sl_eff > 0:
+                round_trip = policy.round_trip_cost(sp.fee_rate, sizing_slippage_rate, None, margin * lev * total_mult)
+                planned = policy.planned_risk_cap(margin, lev, sl_eff, round_trip, total_mult)
+            else:
+                planned = 0.0
+
+            # Nếu bật trần rủi ro danh mục: không chấp nhận planned_risk <= 0 hoặc không hợp lệ (fail-closed)
+            if self.risk.max_open_risk_pct and self.risk.max_open_risk_pct > 0 and planned <= 0:
+                self.rejected_for_risk += 1
+                self.emit("risk_reject", {
+                    "symbol": c.symbol, "strategy": c.slot.sid, "reason": "INVALID_PLANNED_RISK"
+                })
+                continue
+
+            margin, planned = policy.apply_risk_ceiling(margin, planned, adm.max_new_risk)
+
+            if margin <= 0:
+                self.rejected_for_capital += 1
+                continue
+
+            c.adm = adm
+            c.raw_margin = margin
+            c.raw_planned_risk = planned
+            c.lev = lev
+            c.sl_abs = sl_abs
+            c.unit_pct = unit_pct
+            c.max_cap = max_cap
+            admitted.append(c)
+
+        if not admitted:
+            return []
+
+        # 3. Chặn cứng giới hạn số vị thế danh mục (max_positions) cho cả batch
+        avail_positions = max(0, int(self.risk.max_positions) - len(self.active))
+        if avail_positions <= 0:
+            for c in admitted:
+                self.rejected_for_risk += 1
+            return []
+
+        if len(admitted) > avail_positions:
+            admitted_sorted = sorted(admitted, key=lambda x: (-x.priority, x.symbol, x.slot.sid))
+            boundary_p = admitted_sorted[avail_positions - 1].priority
+            boundary_candidates = [x for x in admitted_sorted if x.priority == boundary_p]
+            slots_for_boundary = avail_positions - sum(1 for x in admitted_sorted if x.priority > boundary_p)
+            if len(boundary_candidates) > slots_for_boundary:
+                # Hoà điểm ở biên trần max_positions -> fail-closed loại các candidate bị hoà (TODO 5)
+                admitted = [x for x in admitted_sorted if x.priority > boundary_p]
+                for x in boundary_candidates:
+                    self.rejected_for_risk += 1
+                    self.emit("portfolio_cap_conflict", {
+                        "strategy": x.slot.sid, "symbol": x.symbol, "reason": "MAX_POSITIONS_TIE_CONFLICT"
+                    })
+            else:
+                admitted = admitted_sorted[:avail_positions]
+                for dropped in admitted_sorted[avail_positions:]:
+                    self.rejected_for_risk += 1
+
+        if not admitted:
+            return []
+
+        # 4. Phân bổ pro-rata đa market theo ngân sách vốn, rủi ro và trần gross exposure
+        avail_cap = max(0.0, eq - self.reserved - self.pending_reserved)
+        max_portfolio_risk = (self.risk.max_open_risk_pct or 0.0) * eq / 100.0
+        avail_risk = max(0.0, max_portfolio_risk - self.open_risk()) if max_portfolio_risk > 0 else float("inf")
+
+        max_allowed_gross = float(self.risk.max_gross_exposure) * eq if self.risk.max_gross_exposure else float("inf")
+        avail_gross = max(0.0, max_allowed_gross - self.gross())
+
+        # Nhu cầu tiền mặt tính theo notional thực: margin + margin * lev * fee_rate (TODO 4)
+        tot_cash = sum(c.raw_margin * (1.0 + c.lev * c.slot.spec.fee_rate) for c in admitted)
+        tot_risk = sum(c.raw_planned_risk for c in admitted)
+        tot_notional = sum(c.raw_margin * c.lev for c in admitted)
+
+        scale = 1.0
+        if tot_cash > avail_cap and tot_cash > 0:
+            scale = min(scale, avail_cap / tot_cash)
+        if tot_risk > avail_risk and tot_risk > 0:
+            scale = min(scale, avail_risk / tot_risk)
+        if tot_notional > avail_gross and tot_notional > 0:
+            scale = min(scale, avail_gross / tot_notional)
+        scale = max(0.0, min(1.0, scale))
+
+        dispatched: List[Any] = []
+        for c in admitted:
+            margin = c.raw_margin * scale
+            planned = c.raw_planned_risk * scale
+            notional = margin * c.lev
+            fee_est = notional * c.slot.spec.fee_rate
+
+            if margin + fee_est > c.max_cap + 1e-9:
+                continue
+            if margin + fee_est > avail_cap + 1e-9:
+                self.rejected_for_capital += 1
+                continue
+
+            qty = c.slot._round_qty(notional / c.price)
+            if qty is None:
+                self.rejected_for_capital += 1
+                continue
+
+            self.pending_reserved += margin + fee_est
+            avail_cap = max(0.0, avail_cap - (margin + fee_est))
+
+            c.slot._commit_entry(c.price, qty, margin, c.lev, planned, c.unit_pct, c.sl_abs, c.catchup, fee_est)
+            dispatched.append(c)
+
+        return dispatched
+
     def bar_done(self, ts: int) -> None:
-        """Mỗi slot gọi khi xử lý xong nến đóng ở `ts`; slot cuối cùng của ts kích hoạt finish_ts."""
+        """Mỗi slot gọi khi xử lý xong nến đóng ở `ts`; slot cuối cùng của ts kích hoạt dispatch_batch_entries và finish_ts."""
         nt = self._need_ts
         if len(nt) == 0:
             # Chế độ Live: không có lưới chunk tính trước; finish_ts chạy khi đủ live_n nến của cùng ts (hoặc khi ts mới tới mà ts cũ còn thiếu)
             if not self.live_n:
+                self.dispatch_batch_entries(ts)
                 self.finish_ts(ts)
                 return
             if ts != self._cur_ts:
                 if self._cur_ts is not None and self._left > 0:
+                    self.dispatch_batch_entries(self._cur_ts)
                     self.finish_ts(self._cur_ts)
                 self._cur_ts, self._left = ts, self.live_n
             self._left -= 1
             if self._left <= 0:
+                self.dispatch_batch_entries(ts)
                 self.finish_ts(ts)
             return
 
         if ts != self._cur_ts:
+            if self._cur_ts is not None and self._left > 0:
+                self.dispatch_batch_entries(self._cur_ts)
+                self.finish_ts(self._cur_ts)
             p = self._ptr
             while p < len(nt) and nt[p] < ts:
                 p += 1
@@ -90,6 +381,7 @@ class Coordinator:
             self._left = int(self._need_n[p]) if p < len(nt) and nt[p] == ts else 1
         self._left -= 1
         if self._left <= 0:
+            self.dispatch_batch_entries(ts)
             self.finish_ts(ts)
 
     def sample_live(self, ts: int) -> Dict[str, Any]:
@@ -117,7 +409,7 @@ class Coordinator:
         return self._balance() + self.open_fees
 
     def free(self) -> float:
-        return self.equity() - self.reserved
+        return max(0.0, self.equity() - self.reserved - self.pending_reserved)
 
     def mtm(self) -> Tuple[float, float]:
         """(MTM theo giá đóng, MTM xấu nhất) = số dư Nautilus + lãi/lỗ chưa chốt của vị thế mở."""
@@ -215,10 +507,11 @@ class Coordinator:
 
 @dataclass
 class RiskPolicyConfig:
-    max_loss_per_trade_pct: float = 0.015    # 1.5% của sleeve (15 USDT trên 1,000 USDT)
-    max_daily_sleeve_loss_pct: float = 0.03  # 3.0% của sleeve (30 USDT trên 1,000 USDT)
-    max_sleeve_drawdown_pct: float = 0.15    # 15.0% của sleeve (150 USDT trên 1,000 USDT)
-    master_circuit_breaker_pct: float = 0.20 # 20.0% của Master (2,000 USDT trên 10,000 USDT)
+    max_loss_per_trade_pct: float = float(os.environ.get("NORA_MAX_LOSS_PER_TRADE_PCT", "0.025"))    # 2.5% của sleeve (25 USDT trên 1,000 USDT)
+    master_max_risk_per_trade_pct: float = float(os.environ.get("NORA_MASTER_MAX_RISK_PER_TRADE_PCT", "0.0025")) # 0.25% của Master Equity (25 USDT trên 10,000 USDT)
+    max_daily_sleeve_loss_pct: float = float(os.environ.get("NORA_MAX_DAILY_SLEEVE_LOSS_PCT", "0.03"))  # 3.0% của sleeve (30 USDT trên 1,000 USDT)
+    max_sleeve_drawdown_pct: float = float(os.environ.get("NORA_MAX_SLEEVE_DRAWDOWN_PCT", "0.15"))    # 15.0% của sleeve (150 USDT trên 1,000 USDT)
+    master_circuit_breaker_pct: float = float(os.environ.get("NORA_MASTER_CIRCUIT_BREAKER_PCT", "0.02")) # 2.0% của Master (200 USDT trên 10,000 USDT)
 
 
 @dataclass
@@ -265,10 +558,10 @@ class SleeveState:
 
 
 class MasterPortfolioLedger:
-    """Sổ cái Master Quỹ quản lý 1 Master Wallet (10,000 USDT) và các Virtual Sleeves linh hoạt.
+    """Sổ cái Master Quỹ quản lý vốn cấu hình và các Virtual Sleeves linh hoạt.
     
     Tuân thủ nghiêm ngặt các Accounting Invariants:
-    1. initial_capital bất biến = 10,000 USDT (hoặc cấu hình vốn gốc).
+    1. initial_capital bất biến theo cấu hình được owner phê duyệt.
     2. master_cash = initial_capital + sum(realized_pnl) - sum(fees).
     3. master_equity = master_cash + sum(unrealized_pnl).
     4. sum(sleeve_equity_i) + unallocated_capital == master_equity.
@@ -278,7 +571,7 @@ class MasterPortfolioLedger:
 
     def __init__(
         self,
-        initial_capital: float = 10_000.0,
+        initial_capital: float,
         reserve_floor: float = 0.0,
         risk_policy: Optional[RiskPolicyConfig] = None,
     ):
@@ -290,10 +583,14 @@ class MasterPortfolioLedger:
         self.processed_fill_ids: Set[str] = set()
         self.peak_master_equity: float = float(initial_capital)
         self.circuit_breaker_triggered: bool = False
+        self.circuit_breaker_known: bool = True
         self.total_wins: float = 0.0
         self.total_losses: float = 0.0
         self.closed_trades_count: int = 0
         self.winning_trades_count: int = 0
+        self.today_realized_pnl: Optional[float] = None
+        self.open_positions_count: int = 0
+        self.sharpe_ratio: Optional[float] = None
 
     @property
     def profit_factor(self) -> Optional[float]:
@@ -358,7 +655,7 @@ class MasterPortfolioLedger:
 
     @property
     def allocation_headroom_from_initial(self) -> float:
-        """Hạn mức chưa phân bổ theo vốn gốc cấu hình danh mục (10,000 USDT - sum(allocated_capital))."""
+        """Hạn mức chưa phân bổ theo vốn gốc cấu hình danh mục."""
         return max(0.0, self.initial_capital - self.total_allocated_capital)
 
     @property
@@ -489,7 +786,7 @@ class MasterPortfolioLedger:
 
     def verify_invariants(self) -> Dict[str, bool]:
         """Kiểm toán tự động các Invariants toán học của hệ thống."""
-        inv1 = abs(self.initial_capital - 10000.0) < 1e-6
+        inv1 = math.isfinite(self.initial_capital) and self.initial_capital > 0
         inv2 = abs(self.master_cash - (self.initial_capital + self.master_realized_pnl - self.master_fees)) < 1e-6
         inv3 = abs(self.master_equity - (self.master_cash + self.master_unrealized_pnl)) < 1e-6
 
@@ -527,6 +824,10 @@ class MasterPortfolioLedger:
         sum_bot_equity = sum(s.sleeve_equity for s in self.sleeves.values())
         sum_bot_net_pnl = sum((s.net_realized_pnl + s.unrealized_pnl) for s in self.sleeves.values())
 
+        today_realized = getattr(self, "today_realized_pnl", None)
+        today_pnl = None if today_realized is None else round(today_realized, 4)
+        as_of = datetime.now(timezone.utc).isoformat()
+
         return {
             "portfolio_summary": {
                 "initial_capital": self.initial_capital,
@@ -538,6 +839,8 @@ class MasterPortfolioLedger:
                 "available_to_allocate": round(deployable_hd, 4),
                 "master_cash": round(self.master_cash, 4),
                 "master_equity": round(self.master_equity, 4),
+                "today_pnl": today_pnl,
+                "today_realized_pnl": None if today_realized is None else round(today_realized, 4),
                 "realized_pnl": round(self.master_realized_pnl, 4),
                 "unrealized_pnl": round(self.master_unrealized_pnl, 4),
                 "total_fees": round(self.master_fees, 4),
@@ -545,6 +848,8 @@ class MasterPortfolioLedger:
                 "roi_pct": round(roi_pct, 2),
                 "profit_factor": self.profit_factor,
                 "win_rate_pct": self.win_rate_pct,
+                "sharpe_ratio": getattr(self, "sharpe_ratio", None),
+                "open_positions_count": getattr(self, "open_positions_count", 0),
                 "closed_trades_count": self.closed_trades_count,
                 "winning_trades_count": self.winning_trades_count,
                 "deployable_cash": round(self.master_cash, 4),
@@ -554,7 +859,11 @@ class MasterPortfolioLedger:
                 "open_risk": round(sum(s.used_margin for s in self.sleeves.values()), 4),
                 "drawdown_from_initial_pct": round(self.drawdown_from_initial_pct, 4),
                 "drawdown_from_peak_pct": round(self.drawdown_from_peak_pct, 4),
-                "circuit_breaker_status": "TRIGGERED" if self.circuit_breaker_triggered else "NORMAL",
+                "circuit_breaker_status": (
+                    "UNKNOWN" if not self.circuit_breaker_known
+                    else ("TRIGGERED" if self.circuit_breaker_triggered else "NORMAL")
+                ),
+                "as_of": as_of,
             },
             "reconciliation": {
                 "master_initial_capital": self.initial_capital,
@@ -604,20 +913,70 @@ class PortfolioAdmissionController:
     def __init__(self, ledger: MasterPortfolioLedger):
         self.ledger = ledger
 
+    def calculate_max_safe_order_qty(
+        self,
+        sleeve_id: str,
+        price: float,
+        sl_price: float,
+        contract_value: float = 1.0,
+        taker_fee_rate: float = 0.0005,
+        entry_slippage: float = 0.0003,
+        stop_slippage: float = 0.0006,
+        lot_size: float = 0.001,
+    ) -> float:
+        """Tính toán khối lượng lệnh tối đa an toàn qua production admission controller.
+        
+        Bảo đảm net loss tại SL (bao gồm biến động giá, phí 2 chiều, slippage vào/stop và lot rounding)
+        không vượt quá hạn mức rủi ro nhỏ hơn giữa:
+        - Sleeve risk budget: sleeve.allocated_capital * max_loss_per_trade_pct (ví dụ: 25 USDT trên 1,000 USDT)
+        - Master risk budget: master_equity * master_max_risk_per_trade_pct (ví dụ: 25 USDT trên 10,000 USDT)
+        """
+        sleeve = self.ledger.sleeves.get(sleeve_id)
+        if not sleeve or price <= 0 or sl_price <= 0 or sl_price == price:
+            return 0.0
+
+        max_sleeve_risk = sleeve.allocated_capital * self.ledger.risk_policy.max_loss_per_trade_pct
+        max_master_risk = self.ledger.master_equity * self.ledger.risk_policy.master_max_risk_per_trade_pct
+        max_risk = min(max_sleeve_risk, max_master_risk)
+
+        if max_risk <= 0:
+            return 0.0
+
+        unit_drag = (
+            abs(price - sl_price) * contract_value
+            + price * contract_value * taker_fee_rate
+            + sl_price * contract_value * taker_fee_rate
+            + price * contract_value * entry_slippage
+            + sl_price * contract_value * stop_slippage
+        )
+        if unit_drag <= 0:
+            return 0.0
+
+        raw_qty = max_risk / unit_drag
+        steps = math.floor(raw_qty / lot_size)
+        safe_qty = round(steps * lot_size, 8)
+        return max(0.0, safe_qty)
+
     def admit_order(
         self,
         sleeve_id: str,
         side: str,
         requested_qty: float,
         price: float,
-        contract_value: float,
-        margin_rate: float,
+        contract_value: float = 1.0,
+        margin_rate: float = 0.1,
         sl_price: Optional[float] = None,
         is_reduce_only: bool = False,
+        taker_fee_rate: float = 0.0005,
+        entry_slippage: float = 0.0003,
+        stop_slippage: float = 0.0006,
     ) -> Tuple[bool, str]:
         # Lệnh đóng vị thế (reduce-only) luôn được chấp nhận để giảm rủi ro
         if is_reduce_only:
             return True, "ADMITTED_REDUCE_ONLY"
+
+        if not self.ledger.circuit_breaker_known:
+            return False, "MASTER_RISK_STATE_UNAVAILABLE"
 
         # 1. Kiểm tra Circuit Breaker toàn Master
         if self.ledger.circuit_breaker_triggered:
@@ -634,13 +993,22 @@ class PortfolioAdmissionController:
         if sleeve.status == "ONLY_REDUCE":
             return False, "SLEEVE_ONLY_REDUCE"
 
-        # 4. Kiểm tra Max Loss Per Trade nếu có Stop Loss
+        # 4. Kiểm tra Max Loss Per Trade nếu có Stop Loss (toàn bộ chi phí: price drop + 2-way fee + entry slip + stop slip)
         if sl_price is not None and sl_price > 0:
-            loss_per_coin = abs(price - sl_price)
-            max_loss_trade = loss_per_coin * requested_qty * contract_value
-            max_allowed = sleeve.allocated_capital * self.ledger.risk_policy.max_loss_per_trade_pct
-            if max_loss_trade > (max_allowed + 1e-6):
-                return False, f"RISK_PER_TRADE_EXCEEDED: {max_loss_trade:.2f} > limit {max_allowed:.2f}"
+            notional = requested_qty * price * contract_value
+            price_loss = abs(price - sl_price) * requested_qty * contract_value
+            entry_fee = notional * taker_fee_rate
+            exit_fee = requested_qty * sl_price * contract_value * taker_fee_rate
+            entry_slip = notional * entry_slippage
+            exit_slip = requested_qty * sl_price * contract_value * stop_slippage
+            total_net_loss = price_loss + entry_fee + exit_fee + entry_slip + exit_slip
+
+            max_sleeve_risk = sleeve.allocated_capital * self.ledger.risk_policy.max_loss_per_trade_pct
+            max_master_risk = self.ledger.master_equity * self.ledger.risk_policy.master_max_risk_per_trade_pct
+            max_allowed = min(max_sleeve_risk, max_master_risk)
+
+            if total_net_loss > (max_allowed + 1e-6):
+                return False, f"RISK_PER_TRADE_EXCEEDED: net loss at SL {total_net_loss:.4f} > limit {max_allowed:.4f} (sleeve_max={max_sleeve_risk:.2f}, master_max={max_master_risk:.2f})"
 
         # 5. Kiểm tra Ký quỹ của Sleeve
         notional = requested_qty * contract_value * price
@@ -667,11 +1035,14 @@ class PortfolioAdmissionController:
         if requested_allocation <= 0:
             return False, "INVALID_ALLOCATION: Vốn phân bổ cho bot phải lớn hơn 0"
 
+        if not self.ledger.circuit_breaker_known:
+            return False, "MASTER_RISK_STATE_UNAVAILABLE: trạng thái circuit breaker chưa được đối soát"
+
         # 1. Kiểm tra hạn mức từ vốn gốc cấu hình
         if requested_allocation > (self.ledger.allocation_headroom_from_initial + 1e-6):
             return False, (
                 f"EXCEEDS_INITIAL_ALLOCATION_HEADROOM: Yêu cầu {requested_allocation:.2f} USDT vượt quá "
-                f"hạn mức vốn gốc chưa cấp ({self.ledger.allocation_headroom_from_initial:.2f} USDT) từ tổng 10,000 USDT"
+                f"hạn mức vốn gốc chưa cấp ({self.ledger.allocation_headroom_from_initial:.2f} USDT) từ tổng {self.ledger.initial_capital:.2f} USDT"
             )
 
         # 2. Kiểm tra hạn mức từ Master Equity thực tế
@@ -699,10 +1070,14 @@ _ADMISSION_CONTROLLER_INSTANCE: Optional[PortfolioAdmissionController] = None
 def get_master_portfolio_ledger() -> MasterPortfolioLedger:
     global _MASTER_LEDGER_INSTANCE
     if _MASTER_LEDGER_INSTANCE is None:
-        _MASTER_LEDGER_INSTANCE = MasterPortfolioLedger(initial_capital=10_000.0, reserve_floor=0.0)
-        # Khởi tạo 5 sleeve mặc định đề xuất: 1,000 USDT mỗi bot
-        for i, code in enumerate(["A", "B", "C", "D", "E"], 1):
-            _MASTER_LEDGER_INSTANCE.register_sleeve(f"sleeve_{code.lower()}", f"Bot {code} Sleeve", 1000.0)
+        raw_capital = os.environ.get("NORA_MASTER_CAPITAL_PAPER")
+        try:
+            initial_capital = float(raw_capital) if raw_capital is not None else float("nan")
+        except ValueError as exc:
+            raise LiveLedgerUnavailable("NORA_MASTER_CAPITAL_PAPER must be a positive finite USDT amount") from exc
+        if not math.isfinite(initial_capital) or initial_capital <= 0:
+            raise LiveLedgerUnavailable("Paper master capital is not configured from an approved ledger")
+        _MASTER_LEDGER_INSTANCE = MasterPortfolioLedger(initial_capital=initial_capital, reserve_floor=0.0)
     return _MASTER_LEDGER_INSTANCE
 
 
@@ -714,14 +1089,25 @@ def get_portfolio_admission_controller() -> PortfolioAdmissionController:
 
 
 def get_live_master_ledger(mode: str = "paper") -> MasterPortfolioLedger:
-    """Tạo hoặc đồng bộ MasterPortfolioLedger từ các bot đang chạy thực tế trên đĩa."""
-    import os
+    """Build a ledger only when its capital and bot state inputs are explicitly configured and complete."""
     import json
     from backend.models.storage import data_home
-    from backend.adapter.exchange import bot_status, ledger_from_dir, _read_json
+    from backend.adapter.exchange import bot_process_state, bot_status, ledger_from_dir, _read_json
+
+    if mode not in ("paper", "testnet", "live"):
+        raise LiveLedgerUnavailable(f"Unsupported portfolio mode: {mode}")
+    capital_env = f"NORA_MASTER_CAPITAL_{mode.upper()}"
+    raw_capital = os.environ.get(capital_env)
+    try:
+        initial_capital = float(raw_capital) if raw_capital is not None else float("nan")
+    except ValueError as exc:
+        raise LiveLedgerUnavailable(f"{capital_env} must be a positive finite USDT amount") from exc
+    if not math.isfinite(initial_capital) or initial_capital <= 0:
+        raise LiveLedgerUnavailable(f"Master capital for {mode} is not configured from an approved ledger")
 
     root = os.path.join(data_home(), "live", mode)
-    ledger = MasterPortfolioLedger(initial_capital=10_000.0, reserve_floor=0.0)
+    ledger = MasterPortfolioLedger(initial_capital=initial_capital, reserve_floor=0.0)
+    ledger.circuit_breaker_known = False
     if not os.path.isdir(root):
         return ledger
 
@@ -739,35 +1125,61 @@ def get_live_master_ledger(mode: str = "paper") -> MasterPortfolioLedger:
             if os.path.isdir(arch_dir):
                 bot_dirs.append((d, arch_dir, True))
 
+    total_open_positions = 0
+    today_trades: List[Dict[str, Any]] = []
+    now_ms = int(time.time() * 1000)
+    now_utc = datetime.fromtimestamp(now_ms / 1000, tz=timezone.utc)
+    day_start_ms = int(datetime(now_utc.year, now_utc.month, now_utc.day, tzinfo=timezone.utc).timestamp() * 1000)
+
     for d, b_dir, is_archived in bot_dirs:
         meta = _read_json(os.path.join(b_dir, "bot.json"))
         if not meta:
-            continue
-
-        started_at = int(meta.get("started_at") or 0)
-        # Chỉ nạp các bot thuộc phiên Master Fund hiện tại (bỏ qua bot cũ từ các đợt test trước 1792485960)
-        if started_at < 1792485960000:
-            continue
+            raise LiveLedgerUnavailable(f"Bot {d} metadata is missing or invalid: {d}")
 
         st = bot_status(meta, b_dir)
+        process_state = bot_process_state(meta)
+        if process_state != "stopped" and st in ("stopped", "failed"):
+            raise LiveLedgerUnavailable(f"Bot {d} process state is {process_state} despite terminal metadata")
         is_running = (st == "running")
         is_closed = (meta.get("sleeve_status") == "CLOSED") or (is_archived and st == "stopped")
 
-        if not is_running and st != "stopped":
-            continue
+        if not is_running and st not in ("stopped", "failed"):
+            raise LiveLedgerUnavailable(f"Bot {d} has non-terminal or unknown status: {st}")
 
         b_id = meta.get("bot_id", d)
-        # Vốn phân bổ cấu hình gốc của bot
-        orig_cap = float(meta.get("capital") or 1000.0)
+        try:
+            orig_cap = float(meta.get("capital"))
+        except (TypeError, ValueError) as exc:
+            raise LiveLedgerUnavailable(f"Bot {d} has no valid configured capital") from exc
+        if not math.isfinite(orig_cap) or orig_cap <= 0:
+            raise LiveLedgerUnavailable(f"Bot {d} has no valid configured capital")
         strat_name = meta.get("strategy") or b_id
 
-        # Đọc Realized PnL & Phí sàn tích lũy từ events.jsonl qua OwnLedger
+        events_path = os.path.join(b_dir, "events.jsonl")
+        try:
+            with open(events_path, encoding="utf-8") as event_file:
+                for line_number, line in enumerate(event_file, 1):
+                    if line.strip():
+                        try:
+                            event = json.loads(line)
+                        except json.JSONDecodeError as exc:
+                            raise LiveLedgerUnavailable(f"Bot {d} has malformed event data at line {line_number}") from exc
+                        if not isinstance(event, dict):
+                            raise LiveLedgerUnavailable(f"Bot {d} has invalid event data at line {line_number}")
+        except OSError as exc:
+            raise LiveLedgerUnavailable(f"Bot {d} event ledger is missing or unreadable") from exc
+
         led = ledger_from_dir(b_dir, orig_cap, meta.get("cl_tag"))
 
-        # Tích lũy số lệnh thắng/thua để tính Profit Factor & Win Rate chuẩn xác
+        # Tích lũy số lệnh thắng/thua và PnL từ mốc UTC midnight
+        sleeve_today_pnl = 0.0
         for t in led.trades:
             ledger.closed_trades_count += 1
             pnl = float(t.get("pnl") or 0.0)
+            today_trades.append(t)
+            close_time = t.get("close_time") or t.get("ts") or 0
+            if close_time >= day_start_ms:
+                sleeve_today_pnl += pnl
             if pnl > 0:
                 ledger.total_wins += pnl
                 ledger.winning_trades_count += 1
@@ -784,6 +1196,7 @@ def get_live_master_ledger(mode: str = "paper") -> MasterPortfolioLedger:
             )
             sleeve.realized_pnl = led.realized
             sleeve.fees_paid = led.fees
+            sleeve.daily_realized_pnl = round(sleeve_today_pnl, 4)
             sleeve.unrealized_pnl = 0.0
             sleeve.used_margin = 0.0
             sleeve.status = "CLOSED"
@@ -797,28 +1210,58 @@ def get_live_master_ledger(mode: str = "paper") -> MasterPortfolioLedger:
             )
             sleeve.realized_pnl = led.realized
             sleeve.fees_paid = led.fees
+            sleeve.daily_realized_pnl = round(sleeve_today_pnl, 4)
 
             # Đọc vị thế mở thực tế từ positions.json
             pos_file = os.path.join(b_dir, "positions.json")
-            positions = []
-            if os.path.exists(pos_file):
-                try:
-                    with open(pos_file, encoding="utf-8") as f:
-                        positions = json.load(f)
-                except Exception:
-                    pass
+            try:
+                with open(pos_file, encoding="utf-8") as f:
+                    positions = json.load(f)
+            except (OSError, json.JSONDecodeError) as exc:
+                raise LiveLedgerUnavailable(f"Bot {d} position snapshot is missing or unreadable") from exc
+            if not isinstance(positions, list) or any(not isinstance(p, dict) for p in positions):
+                raise LiveLedgerUnavailable(f"Bot {d} position snapshot has an invalid shape")
+            try:
+                position_updated = os.stat(pos_file).st_mtime * 1000
+            except OSError as exc:
+                raise LiveLedgerUnavailable(f"Bot {d} position snapshot is unavailable") from exc
+            if now_ms - position_updated > 5 * 60_000:
+                raise LiveLedgerUnavailable(f"Bot {d} position snapshot is stale")
+            heartbeat = _read_json(os.path.join(b_dir, "heartbeat.json"))
+            heartbeat_updated = heartbeat.get("updated_at") if isinstance(heartbeat, dict) else None
+            if not isinstance(heartbeat_updated, (int, float)) or now_ms - heartbeat_updated > 5 * 60_000:
+                raise LiveLedgerUnavailable(f"Bot {d} heartbeat is missing or stale")
 
-            unreal = sum(float(p.get("unrealized_usd") or 0.0) for p in positions)
+            total_open_positions += len(positions)
+            try:
+                unreal = sum(float(p["unrealized_usd"]) for p in positions)
+            except (KeyError, TypeError, ValueError) as exc:
+                raise LiveLedgerUnavailable(f"Bot {d} position PnL is incomplete") from exc
             sleeve.unrealized_pnl = unreal
 
-            # Ký quỹ thực tế đã cam kết: notional / 10.0 (đòn bẩy chuẩn 10x của OKX SWAP)
             used_m = 0.0
             for p in positions:
-                q = float(p.get("qty") or 0.0)
-                px = float(p.get("mark") or p.get("mark_price") or p.get("avg_price") or 0.0)
-                used_m += (q * px) / 10.0
+                try:
+                    q = float(p["qty"])
+                    px = float(p.get("mark") if p.get("mark") is not None else p["mark_price"])
+                    margin_rate = float(p["margin_rate"])
+                except (KeyError, TypeError, ValueError) as exc:
+                    raise LiveLedgerUnavailable(f"Bot {d} position margin data is incomplete") from exc
+                if not all(math.isfinite(value) for value in (q, px, margin_rate)) or q < 0 or px <= 0 or margin_rate <= 0:
+                    raise LiveLedgerUnavailable(f"Bot {d} position margin data is invalid")
+                used_m += q * px * margin_rate
             sleeve.used_margin = used_m
             sleeve.status = "ACTIVE"
+
+            # Kiểm tra ngưỡng Drawdown và Daily Loss của Sleeve
+            max_sleeve_daily_loss = orig_cap * ledger.risk_policy.max_daily_sleeve_loss_pct
+            sleeve_daily_loss = - (sleeve.daily_realized_pnl + sleeve.unrealized_pnl)
+            if sleeve_daily_loss >= (max_sleeve_daily_loss - 1e-6):
+                sleeve.status = "LOCKED"
+
+            max_sleeve_dd = orig_cap * ledger.risk_policy.max_sleeve_drawdown_pct
+            if (orig_cap - sleeve.sleeve_equity) >= (max_sleeve_dd - 1e-6):
+                sleeve.status = "LOCKED"
         else:
             # Bot đã dừng nhưng chưa quyết toán đóng sleeve
             sleeve = ledger.register_sleeve(
@@ -829,8 +1272,29 @@ def get_live_master_ledger(mode: str = "paper") -> MasterPortfolioLedger:
             )
             sleeve.realized_pnl = led.realized
             sleeve.fees_paid = led.fees
+            sleeve.daily_realized_pnl = round(sleeve_today_pnl, 4)
             sleeve.unrealized_pnl = 0.0
             sleeve.used_margin = 0.0
             sleeve.status = "STOPPED"
+
+    ledger.today_realized_pnl = realized_pnl_since_utc_midnight(today_trades, now_ms)
+    ledger.open_positions_count = total_open_positions
+    ledger.sharpe_ratio = None
+    current_eq = ledger.master_equity
+
+    # Daily loss và overall loss cấp Master
+    master_daily_pnl = ledger.today_realized_pnl + sum(s.unrealized_pnl for s in ledger.sleeves.values())
+    master_daily_loss = - master_daily_pnl
+    max_master_daily_loss = ledger.initial_capital * ledger.risk_policy.master_circuit_breaker_pct
+    overall_master_loss = ledger.initial_capital - current_eq
+    cb_triggered = (master_daily_loss >= max_master_daily_loss - 1e-6) or (overall_master_loss >= max_master_daily_loss - 1e-6)
+    ledger.circuit_breaker_triggered = cb_triggered
+    has_stopped_unreconciled = any(s.status == "STOPPED" for s in ledger.sleeves.values())
+    ledger.circuit_breaker_known = not has_stopped_unreconciled
+
+    if cb_triggered:
+        for s in ledger.sleeves.values():
+            if s.status == "ACTIVE":
+                s.status = "LOCKED"
 
     return ledger

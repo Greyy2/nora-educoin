@@ -9,7 +9,7 @@ Thành phần:
 """
 from typing import Any, Dict, List, Optional
 
-from . import llm, research
+from . import llm, research, sources
 from .llm import complete, extract_json_from_text, set_mock_completer, load_api_key
 from .research import (
     validate_prompt,

@@ -1,0 +1,25 @@
+{
+  "id": "alpha_1m_05_macdimpuls",
+  "name": "MACD Impulse Momentum 1m",
+  "code": "class MacdImpulse1m(NoraStrategy):\n    \"\"\"Xung lượng MACD nhanh (8, 17, 9) bắt nhịp sóng đẩy 1 phút.\"\"\"\n    timeframe = \"1m\"\n\n    macd_fast = 8\n    macd_slow = 17\n    macd_signal = 9\n    stop_loss_pct = 1.1\n    take_profit_pct = 0.7\n    trailing_stop_pct = 0.0\n    trailing_activation_pct = 0.0\n    timeout = 45\n    risk_per_trade_pct = 1.0\n\n    def on_bar(self):\n        macd_line, sig_line, macd_hist = macd(close, self.macd_fast, self.macd_slow, self.macd_signal)\n        enter_sig = (macd_line > sig_line) & (macd_hist > 0.0)\n        exit_sig = macd_line < sig_line\n        self.close(exit_sig)\n        self.buy(enter_sig)\n",
+  "note": "Chiến lược 1m siêu tốc cho BTC/ETH - Bot #5",
+  "status": "CANDIDATE",
+  "created_at": "2026-10-20T08:46:09Z",
+  "updated_at": "2026-10-20T08:46:09Z",
+  "config": {
+    "timeframe": "1m",
+    "symbols": [
+      "BTC",
+      "ETH"
+    ]
+  },
+  "metrics": {
+    "simulate": {
+      "ret_pct": 23.5,
+      "mdd_pct": 4.95,
+      "sharpe": 3.4,
+      "win_rate_trades": 73.5,
+      "trades": 350
+    }
+  }
+}

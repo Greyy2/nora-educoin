@@ -204,21 +204,108 @@ def get_by_display_name(name: str) -> Optional[Dict[str, Any]]:
     return None
 
 
+def hash_password(password: str) -> str:
+    """Băm mật khẩu bằng PBKDF2-HMAC-SHA256 với salt ngẫu nhiên 16 bytes và 100,000 vòng lặp."""
+    if not password:
+        raise ValueError("Vui lòng nhập mật khẩu")
+    salt = secrets.token_hex(16)
+    dk = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 100_000)
+    return f"pbkdf2_sha256$100000${salt}${dk.hex()}"
+
+
+def verify_password(password: str, hashed: Optional[str]) -> bool:
+    """Xác thực mật khẩu với chuỗi hash đã lưu."""
+    if not password or not hashed or not isinstance(hashed, str):
+        return False
+    parts = hashed.split("$")
+    if len(parts) != 4 or parts[0] != "pbkdf2_sha256":
+        return False
+    try:
+        iterations = int(parts[1])
+        salt = parts[2]
+        expected_hash = parts[3]
+        dk = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), iterations)
+        return hmac.compare_digest(dk.hex(), expected_hash)
+    except Exception:
+        return False
+
+
+def authenticate_user(handle: str, password: str) -> Dict[str, Any]:
+    """Xác thực đăng nhập bằng tên đăng nhập (handle) hoặc tên hiển thị (display_name), kèm password."""
+    norm = (handle or "").strip()
+    if not norm:
+        raise ValueError("Vui lòng nhập tên đăng nhập")
+    if not password:
+        raise ValueError("Vui lòng nhập mật khẩu")
+
+    index = _refresh_index()
+    # 1. Tìm theo handle trực tiếp
+    uid = index.get(norm.lower())
+
+    # 2. Tìm theo slug của tên
+    if not uid:
+        slug = slugify_handle(norm)
+        uid = index.get(slug)
+
+    # 3. Tìm theo display_name
+    if not uid:
+        u_obj = get_by_display_name(norm)
+        if u_obj:
+            uid = u_obj.get("id")
+
+    if not uid:
+        raise ValueError("Tài khoản hoặc mật khẩu không chính xác")
+
+    fpath = users_dir(f"{uid}.json")
+    if not os.path.isfile(fpath):
+        raise ValueError("Tài khoản hoặc mật khẩu không chính xác")
+
+    raw_user = read_json(fpath)
+    if not isinstance(raw_user, dict):
+        raise ValueError("Dữ liệu tài khoản không hợp lệ")
+
+    password_hash = raw_user.get("password_hash")
+    if not password_hash:
+        password_hash = hash_password("1")
+        raw_user["password_hash"] = password_hash
+        write_json_atomic(fpath, raw_user)
+
+    if not verify_password(password, password_hash):
+        raise ValueError("Tài khoản hoặc mật khẩu không chính xác")
+
+    clean_user = dict(raw_user)
+    clean_user.pop("password_hash", None)
+    return clean_user
+
+
+def change_password(user_id: str, current_password: str, new_password: str) -> None:
+    """Change a user's password after verifying the current password."""
+    if not new_password or len(new_password) < 8:
+        raise ValueError("Mật khẩu mới phải có ít nhất 8 ký tự")
+    fpath = users_dir(f"{user_id}.json")
+    raw_user = read_json(fpath) if os.path.isfile(fpath) else None
+    if not isinstance(raw_user, dict):
+        raise ValueError("Không tìm thấy tài khoản")
+    password_hash = raw_user.get("password_hash")
+    if not verify_password(current_password, password_hash):
+        raise ValueError("Mật khẩu hiện tại không chính xác")
+    raw_user["password_hash"] = hash_password(new_password)
+    write_json_atomic(fpath, raw_user)
+
+
 def create_user(
-    handle: str,
-    display_name: str,
+    name: str = "",
+    password: Optional[str] = None,
+    handle: Optional[str] = None,
+    display_name: Optional[str] = None,
     avatar: Optional[Dict[str, str]] = None,
     bio: str = "",
     role: str = "learner",
 ) -> Dict[str, Any]:
-    """Tạo user mới và lưu vào data/users/<id>.json."""
-    norm_handle = handle.lower().strip()
-    if not HANDLE_REGEX.match(norm_handle):
-        raise ValueError(f"Handle không hợp lệ (phải từ 3-20 ký tự thường/số/gạch dưới): {handle!r}")
-
-    disp = (display_name or "").strip()
+    """Tạo user mới: chỉ cần Tên + Mật khẩu. Tên hiển thị = Tên đăng nhập. Lọc trùng tên."""
+    disp = (display_name or name or "").strip()
     if not (1 <= len(disp) <= 40):
-        raise ValueError(f"Tên hiển thị phải từ 1 đến 40 ký tự (nhận {len(disp)})")
+        raise ValueError(f"Tên phải từ 1 đến 40 ký tự (nhận {len(disp)})")
 
     bio_str = (bio or "").strip()
     if len(bio_str) > 200:
@@ -227,16 +314,21 @@ def create_user(
     if role not in ("learner", "demo"):
         role = "learner"
 
-    # Kiểm tra trùng handle
+    # Handle mặc định là slug của tên
+    norm_handle = (handle or slugify_handle(disp)).lower().strip()
+    if not HANDLE_REGEX.match(norm_handle):
+        norm_handle = slugify_handle(disp)
+
+    # Prevent duplicate usernames even when a different handle is supplied.
     index = _refresh_index(force=True)
-    if norm_handle in index:
-        raise ValueError(f"Handle @{norm_handle} đã tồn tại")
+    if norm_handle in index or get_by_display_name(disp) is not None:
+        raise ValueError(f"Tên hoặc tài khoản '{disp}' đã tồn tại. Vui lòng chọn tên khác hoặc chuyển sang Đăng nhập.")
 
     user_id = secrets.token_hex(6)  # 12 hex chars
     d_avatar = avatar if (isinstance(avatar, dict) and "emoji" in avatar and "color" in avatar) else default_avatar(norm_handle)
 
     now_iso = datetime.now(timezone.utc).isoformat()
-    record = {
+    record: Dict[str, Any] = {
         "id": user_id,
         "handle": norm_handle,
         "display_name": disp,
@@ -245,6 +337,8 @@ def create_user(
         "role": role,
         "created_at": now_iso,
     }
+    pw = password if (password is not None and password != "") else "1"
+    record["password_hash"] = hash_password(pw)
 
     fpath = users_dir(f"{user_id}.json")
     write_json_atomic(fpath, record)
@@ -253,18 +347,24 @@ def create_user(
         _CACHE_MTIME = os.path.getmtime(users_dir())
     except OSError:
         pass
-    return record
+    out = dict(record)
+    out.pop("password_hash", None)
+    return out
 
 
 def get_user(user_id: str) -> Optional[Dict[str, Any]]:
-    """Lấy thông tin người dùng theo user_id."""
+    """Lấy thông tin người dùng theo user_id (không kèm password_hash)."""
     if not user_id:
         return None
     fpath = users_dir(f"{user_id}.json")
     if not os.path.isfile(fpath):
         return None
     data = read_json(fpath)
-    return data if isinstance(data, dict) else None
+    if isinstance(data, dict):
+        out = dict(data)
+        out.pop("password_hash", None)
+        return out
+    return None
 
 
 def get_by_handle(handle: str) -> Optional[Dict[str, Any]]:
@@ -280,7 +380,7 @@ def get_by_handle(handle: str) -> Optional[Dict[str, Any]]:
 
 
 def list_users() -> List[Dict[str, Any]]:
-    """Liệt kê danh sách tất cả người dùng, sắp xếp theo ngày tạo."""
+    """Liệt kê danh sách tất cả người dùng, sắp xếp theo ngày tạo (không kèm password_hash)."""
     d = users_dir()
     if not os.path.isdir(d):
         return []
@@ -289,7 +389,9 @@ def list_users() -> List[Dict[str, Any]]:
         if fname.endswith(".json"):
             data = read_json(os.path.join(d, fname))
             if isinstance(data, dict) and "id" in data:
-                users.append(data)
+                out = dict(data)
+                out.pop("password_hash", None)
+                users.append(out)
     users.sort(key=lambda u: u.get("created_at") or "")
     return users
 
@@ -319,6 +421,20 @@ def update_user(user_id: str, **fields) -> Dict[str, Any]:
         if len(bio_str) > 200:
             raise ValueError(f"Tiểu sử tối đa 200 ký tự (nhận {len(bio_str)})")
         user["bio"] = bio_str
+        changed = True
+
+    if "role" in fields:
+        r = str(fields["role"] or "").strip().lower()
+        if r in ("learner", "demo", "admin", "reviewer"):
+            user["role"] = r
+            changed = True
+
+    if "email" in fields:
+        user["email"] = str(fields["email"] or "").strip().lower()
+        changed = True
+
+    if "google_sub" in fields:
+        user["google_sub"] = str(fields["google_sub"] or "").strip()
         changed = True
 
     if changed:

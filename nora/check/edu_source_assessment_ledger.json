@@ -1,0 +1,3309 @@
+{
+  "total_records_assessed": 113,
+  "disposition_counts": {
+    "BLOCKED_UNKNOWN_INTENT": 27,
+    "VALID_AS_IS": 86
+  },
+  "user_alphas_breakdown": {
+    "total_user_alphas": 57,
+    "blocked_unknown_intent_count": 27,
+    "valid_as_is_count": 30,
+    "duplicate_of_canonical_count": 0
+  },
+  "ledger": [
+    {
+      "source_type": "user_alpha",
+      "record_id": "026f43441cb2",
+      "owner_id": "16e97dcc8432",
+      "is_vinh": false,
+      "name": "U4_BTC_1h_Different_Window",
+      "code_sha256": "2d186d9a83e5e294e54f3cb491c330266ff4716f866229f65220ebf402357413",
+      "duplicate_group": "GROUP_001",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {},
+      "config_position": {},
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "canonical_reference": null,
+      "evidence_notes": "Biểu thức điều kiện hằng số `close > 1` trên BTC; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "0873864b8db7",
+      "owner_id": "aed197a5e968",
+      "is_vinh": true,
+      "name": "DEMA Turbo Compound (1Y Fast Trend - x1.51 Vốn)",
+      "code_sha256": "37fb3e69aef59904a79cad9b3faaf22f6814d1cfec1ac09b9a843d25c1044e9a",
+      "duplicate_group": "GROUP_002",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 2.2,
+        "exit_unit": "pct",
+        "risk_per_trade_pct": 8.5
+      },
+      "config_position": {
+        "market": "perp",
+        "leverage": 10,
+        "exit_unit": "atr",
+        "atr_frame": "24h",
+        "atr_period": 14,
+        "sizing": "risk",
+        "risk_per_trade_pct": 8.5,
+        "max_notional_pct": 300.0,
+        "stop_fill": "level",
+        "limit_through_pct": 0.0,
+        "cooldown": 1440,
+        "risk_profile": "legacy",
+        "sl_anchor": "",
+        "sl_beyond_last_pct": 0.0,
+        "stop_loss_rate": 2.2,
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "0873864b8db7",
+      "evidence_notes": "Chiến lược hợp lệ của user Vinh: Cú pháp compiler hợp lệ, có đầy đủ chỉ báo và điều kiện vào/thoát. Bảo toàn 100% file gốc."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "090730ae35b8",
+      "owner_id": "aed197a5e968",
+      "is_vinh": true,
+      "name": "Fail-Fast Volatility Breakout (SL 2.4% + Macro Trend)",
+      "code_sha256": "0f63f1c54014c1856189736852b260a6dfc2c25db55f0d01fe8b19a10664a765",
+      "duplicate_group": "GROUP_003",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 2.4,
+        "exit_unit": "pct",
+        "risk_per_trade_pct": 3.9
+      },
+      "config_position": {
+        "market": "perp",
+        "leverage": 10,
+        "exit_unit": "atr",
+        "atr_frame": "24h",
+        "atr_period": 14,
+        "sizing": "risk",
+        "risk_per_trade_pct": 3.9,
+        "max_notional_pct": 300.0,
+        "stop_fill": "level",
+        "limit_through_pct": 0.0,
+        "cooldown": 1440,
+        "risk_profile": "legacy",
+        "sl_anchor": "",
+        "sl_beyond_last_pct": 0.0,
+        "stop_loss_rate": 2.4,
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "090730ae35b8",
+      "evidence_notes": "Chiến lược hợp lệ của user Vinh: Cú pháp compiler hợp lệ, có đầy đủ chỉ báo và điều kiện vào/thoát. Bảo toàn 100% file gốc."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "0bf936687964",
+      "owner_id": "e53ccc4b35d2",
+      "is_vinh": false,
+      "name": "U4_BTC_1h_Different_Window",
+      "code_sha256": "2d186d9a83e5e294e54f3cb491c330266ff4716f866229f65220ebf402357413",
+      "duplicate_group": "GROUP_001",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {},
+      "config_position": {},
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "canonical_reference": null,
+      "evidence_notes": "Biểu thức điều kiện hằng số `close > 1` trên BTC; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "0d51ba8d2012",
+      "owner_id": "43f5220ece1e",
+      "is_vinh": false,
+      "name": "OBV Volume Accumulation + RSI Momentum",
+      "code_sha256": "501222b6b6bfefcd6e8bd62860984e2d2a0d6b01e1f334040e6897bc152f3c3c",
+      "duplicate_group": "GROUP_004",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "config_position": {
+        "market": "perp",
+        "leverage": 10,
+        "exit_unit": "atr",
+        "atr_frame": "24h",
+        "atr_period": 14,
+        "sizing": "risk",
+        "risk_per_trade_pct": 0.5,
+        "max_notional_pct": 300.0,
+        "stop_fill": "level",
+        "limit_through_pct": 0.0,
+        "cooldown": 1440,
+        "risk_profile": "legacy",
+        "sl_anchor": "",
+        "sl_beyond_last_pct": 0.0,
+        "stop_loss_rate": 3.0,
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "0d51ba8d2012",
+      "evidence_notes": "Chiến lược kỹ thuật hợp lệ: Cú pháp custom DSL đạt chuẩn, có logic chỉ báo và quy tắc vào/thoát lệnh. Ghi nhận cảnh báo vị thế: code khai báo exit_unit='pct' nhưng config lưu là 'atr'."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "138df68946ad",
+      "owner_id": "ecf30ed0f194",
+      "is_vinh": false,
+      "name": "U1_BTC_1h_Alpha",
+      "code_sha256": "b13ecc73e5c5f32d3dd3d783c260b7196804352644442a3a3468bb8ed0f6b505",
+      "duplicate_group": "GROUP_005",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {},
+      "config_position": {},
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "canonical_reference": null,
+      "evidence_notes": "Biểu thức điều kiện hằng số `close > 0` trên BTC; luôn vào LONG ngay từ nến 1 và không có điều kiện thoát lệnh. Theo quy tắc cốt lõi 'Unknown semantics remain blocked, not guessed', không tự bịa đặt luật thay thế."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "14e3b934b1e5",
+      "owner_id": "23dc66cd61c6",
+      "is_vinh": false,
+      "name": "ROC Momentum Exhaustion with Take-Profit",
+      "code_sha256": "92d8be2b9c5f7a5d95e7189d8f3b533cfe381cdd963d896eb4fc8d38d38c4e78",
+      "duplicate_group": "GROUP_006",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 5.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5,
+        "atr_frame": "24h"
+      },
+      "config_position": {
+        "market": "perp",
+        "leverage": 10,
+        "exit_unit": "atr",
+        "atr_frame": "24h",
+        "atr_period": 14,
+        "sizing": "risk",
+        "risk_per_trade_pct": 0.5,
+        "max_notional_pct": 300.0,
+        "stop_fill": "level",
+        "limit_through_pct": 0.0,
+        "cooldown": 1440,
+        "risk_profile": "legacy",
+        "sl_anchor": "",
+        "sl_beyond_last_pct": 0.0,
+        "stop_loss_rate": 3.0,
+        "take_profit_rate": 5.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "14e3b934b1e5",
+      "evidence_notes": "Chiến lược kỹ thuật hợp lệ: Cú pháp custom DSL đạt chuẩn, có logic chỉ báo và quy tắc vào/thoát lệnh. Ghi nhận cảnh báo vị thế: code khai báo exit_unit='pct' nhưng config lưu là 'atr'."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "15567e02a806",
+      "owner_id": "23dc66cd61c6",
+      "is_vinh": false,
+      "name": "Triple EMA Trend Alignment (Optimized)",
+      "code_sha256": "42a31d6c2f894f5cd02942045e2491af9504ada4a3189cfea89c5ca5c6bfb5a5",
+      "duplicate_group": "GROUP_007",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 2.5,
+        "exit_unit": "pct",
+        "risk_per_trade_pct": 5.8
+      },
+      "config_position": {
+        "market": "perp",
+        "leverage": 10,
+        "exit_unit": "atr",
+        "atr_frame": "24h",
+        "atr_period": 14,
+        "sizing": "risk",
+        "risk_per_trade_pct": 5.8,
+        "max_notional_pct": 300.0,
+        "stop_fill": "level",
+        "limit_through_pct": 0.0,
+        "cooldown": 1440,
+        "risk_profile": "legacy",
+        "sl_anchor": "",
+        "sl_beyond_last_pct": 0.0,
+        "stop_loss_rate": 2.5,
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "15567e02a806",
+      "evidence_notes": "Chiến lược kỹ thuật hợp lệ: Cú pháp custom DSL đạt chuẩn, có logic chỉ báo và quy tắc vào/thoát lệnh. Ghi nhận cảnh báo vị thế: code khai báo exit_unit='pct' nhưng config lưu là 'atr'."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "18e87aa868ad",
+      "owner_id": "aed197a5e968",
+      "is_vinh": true,
+      "name": "Fast Dynamic Channel Breakout (18D + Macro Trend)",
+      "code_sha256": "fe0447e4a8a42569c8c6b96155731b87e2d51212b79b971adbd167b8bde9b530",
+      "duplicate_group": "GROUP_008",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 2.5,
+        "exit_unit": "pct",
+        "risk_per_trade_pct": 4.0
+      },
+      "config_position": {
+        "market": "perp",
+        "leverage": 10,
+        "exit_unit": "atr",
+        "atr_frame": "24h",
+        "atr_period": 14,
+        "sizing": "risk",
+        "risk_per_trade_pct": 4.0,
+        "max_notional_pct": 300.0,
+        "stop_fill": "level",
+        "limit_through_pct": 0.0,
+        "cooldown": 1440,
+        "risk_profile": "legacy",
+        "sl_anchor": "",
+        "sl_beyond_last_pct": 0.0,
+        "stop_loss_rate": 2.5,
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "18e87aa868ad",
+      "evidence_notes": "Chiến lược hợp lệ của user Vinh: Cú pháp compiler hợp lệ, có đầy đủ chỉ báo và điều kiện vào/thoát. Bảo toàn 100% file gốc."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "1a1a4389a821",
+      "owner_id": "2922e08b6b61",
+      "is_vinh": false,
+      "name": "U1_BTC_1h_Alpha",
+      "code_sha256": "b13ecc73e5c5f32d3dd3d783c260b7196804352644442a3a3468bb8ed0f6b505",
+      "duplicate_group": "GROUP_005",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {},
+      "config_position": {},
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "canonical_reference": null,
+      "evidence_notes": "Biểu thức điều kiện hằng số `close > 0` trên BTC; luôn vào LONG ngay từ nến 1 và không có điều kiện thoát lệnh. Theo quy tắc cốt lõi 'Unknown semantics remain blocked, not guessed', không tự bịa đặt luật thay thế."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "1e4c0b9f84f7",
+      "owner_id": "9b7a10c35886",
+      "is_vinh": false,
+      "name": "U3_BTC_Small_Alpha",
+      "code_sha256": "7ce7835f1f6e714cce396d274f8308674d578f2eaa6e9d889d0bedd1d321a6be",
+      "duplicate_group": "GROUP_009",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {},
+      "config_position": {},
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "canonical_reference": null,
+      "evidence_notes": "Biểu thức điều kiện bất khả thi `close < 0` trên giá thị trường BTC; không bao giờ sinh tín hiệu giao dịch. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "214ea8fdf3e6",
+      "owner_id": "423d35ac9700",
+      "is_vinh": false,
+      "name": "U2_ETH_15m_Alpha",
+      "code_sha256": "2187464b746138dfe1a0458212cfa4be758a5db6ba98772e3edfcac2dfad381d",
+      "duplicate_group": "GROUP_010",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {},
+      "config_position": {},
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "canonical_reference": null,
+      "evidence_notes": "Biểu thức điều kiện hằng số `close > 10` trên ETH; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "234e6df02e37",
+      "owner_id": "5de316621329",
+      "is_vinh": false,
+      "name": "U2_ETH_15m_Alpha",
+      "code_sha256": "2187464b746138dfe1a0458212cfa4be758a5db6ba98772e3edfcac2dfad381d",
+      "duplicate_group": "GROUP_010",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {},
+      "config_position": {},
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "canonical_reference": null,
+      "evidence_notes": "Biểu thức điều kiện hằng số `close > 10` trên ETH; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "270e6e28416f",
+      "owner_id": "a214b36a7eab",
+      "is_vinh": false,
+      "name": "EMA Trend Rider (Rising Slope - Optimized)",
+      "code_sha256": "3fd0c00ed7e14654480bc1d43b61e37b3e26d18e93b09616ad4a1d69585cc2ba",
+      "duplicate_group": "GROUP_011",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 2.5,
+        "exit_unit": "pct",
+        "risk_per_trade_pct": 4.0
+      },
+      "config_position": {
+        "market": "perp",
+        "leverage": 10,
+        "exit_unit": "atr",
+        "atr_frame": "24h",
+        "atr_period": 14,
+        "sizing": "risk",
+        "risk_per_trade_pct": 4.0,
+        "max_notional_pct": 300.0,
+        "stop_fill": "level",
+        "limit_through_pct": 0.0,
+        "cooldown": 1440,
+        "risk_profile": "legacy",
+        "sl_anchor": "",
+        "sl_beyond_last_pct": 0.0,
+        "stop_loss_rate": 2.5,
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "270e6e28416f",
+      "evidence_notes": "Chiến lược kỹ thuật hợp lệ: Cú pháp custom DSL đạt chuẩn, có logic chỉ báo và quy tắc vào/thoát lệnh. Ghi nhận cảnh báo vị thế: code khai báo exit_unit='pct' nhưng config lưu là 'atr'."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "2e41b2cfa24d",
+      "owner_id": "3bbc767faa10",
+      "is_vinh": false,
+      "name": "U1_BTC_1h_Alpha",
+      "code_sha256": "b13ecc73e5c5f32d3dd3d783c260b7196804352644442a3a3468bb8ed0f6b505",
+      "duplicate_group": "GROUP_005",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {},
+      "config_position": {},
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "canonical_reference": null,
+      "evidence_notes": "Biểu thức điều kiện hằng số `close > 0` trên BTC; luôn vào LONG ngay từ nến 1 và không có điều kiện thoát lệnh. Theo quy tắc cốt lõi 'Unknown semantics remain blocked, not guessed', không tự bịa đặt luật thay thế."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "303d4b713dda",
+      "owner_id": "aed197a5e968",
+      "is_vinh": true,
+      "name": "Macro Trend Filtered Breakout (EMA 105 Filter)",
+      "code_sha256": "ec4b97193de3ccb2289746b3810e0e80d59efbce62df3dae006aacffeb54d2d9",
+      "duplicate_group": "GROUP_012",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 2.5,
+        "exit_unit": "pct",
+        "risk_per_trade_pct": 4.1
+      },
+      "config_position": {
+        "market": "perp",
+        "leverage": 10,
+        "exit_unit": "atr",
+        "atr_frame": "24h",
+        "atr_period": 14,
+        "sizing": "risk",
+        "risk_per_trade_pct": 4.1,
+        "max_notional_pct": 300.0,
+        "stop_fill": "level",
+        "limit_through_pct": 0.0,
+        "cooldown": 1440,
+        "risk_profile": "legacy",
+        "sl_anchor": "",
+        "sl_beyond_last_pct": 0.0,
+        "stop_loss_rate": 2.5,
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "303d4b713dda",
+      "evidence_notes": "Chiến lược hợp lệ của user Vinh: Cú pháp compiler hợp lệ, có đầy đủ chỉ báo và điều kiện vào/thoát. Bảo toàn 100% file gốc."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "33312a2f4dfc",
+      "owner_id": "aed197a5e968",
+      "is_vinh": true,
+      "name": "Standard Deviation Dynamic Channel Breakout (v2.0 Regime Filtered)",
+      "code_sha256": "0fb2b1155bed77f82477abbb829bb382263e9e79e773897665bd4d01f374647e",
+      "duplicate_group": "GROUP_013",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 2.5,
+        "exit_unit": "pct",
+        "risk_per_trade_pct": 4.0
+      },
+      "config_position": {
+        "market": "perp",
+        "leverage": 10,
+        "exit_unit": "atr",
+        "atr_frame": "24h",
+        "atr_period": 14,
+        "sizing": "risk",
+        "risk_per_trade_pct": 4.0,
+        "max_notional_pct": 300.0,
+        "stop_fill": "level",
+        "limit_through_pct": 0.0,
+        "cooldown": 1440,
+        "risk_profile": "legacy",
+        "sl_anchor": "",
+        "sl_beyond_last_pct": 0.0,
+        "stop_loss_rate": 2.5,
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "33312a2f4dfc",
+      "evidence_notes": "Chiến lược hợp lệ của user Vinh: Cú pháp compiler hợp lệ, có đầy đủ chỉ báo và điều kiện vào/thoát. Bảo toàn 100% file gốc."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "3cfcc2d296a2",
+      "owner_id": "43f5220ece1e",
+      "is_vinh": false,
+      "name": "Donchian Lower Channel Exit",
+      "code_sha256": "c467c5461d6ec18c2ca9e7ff40b2403740d3b087005ebe00c72306f6a239a270",
+      "duplicate_group": "GROUP_014",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "config_position": {
+        "market": "perp",
+        "leverage": 10,
+        "exit_unit": "atr",
+        "atr_frame": "24h",
+        "atr_period": 14,
+        "sizing": "risk",
+        "risk_per_trade_pct": 0.5,
+        "max_notional_pct": 300.0,
+        "stop_fill": "level",
+        "limit_through_pct": 0.0,
+        "cooldown": 1440,
+        "risk_profile": "legacy",
+        "sl_anchor": "",
+        "sl_beyond_last_pct": 0.0,
+        "stop_loss_rate": 3.0,
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "3cfcc2d296a2",
+      "evidence_notes": "Chiến lược kỹ thuật hợp lệ: Cú pháp custom DSL đạt chuẩn, có logic chỉ báo và quy tắc vào/thoát lệnh. Ghi nhận cảnh báo vị thế: code khai báo exit_unit='pct' nhưng config lưu là 'atr'."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "4f28285aa44c",
+      "owner_id": "23dc66cd61c6",
+      "is_vinh": false,
+      "name": "Dual EMA + ADX Trend Strength Filter",
+      "code_sha256": "c488115d6642f56f4affd2357badc0a26f5311da7bf2e7127a2bf0e30bfaf4ae",
+      "duplicate_group": "GROUP_015",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "config_position": {
+        "market": "perp",
+        "leverage": 10,
+        "exit_unit": "atr",
+        "atr_frame": "24h",
+        "atr_period": 14,
+        "sizing": "risk",
+        "risk_per_trade_pct": 0.5,
+        "max_notional_pct": 300.0,
+        "stop_fill": "level",
+        "limit_through_pct": 0.0,
+        "cooldown": 1440,
+        "risk_profile": "legacy",
+        "sl_anchor": "",
+        "sl_beyond_last_pct": 0.0,
+        "stop_loss_rate": 3.0,
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "4f28285aa44c",
+      "evidence_notes": "Chiến lược kỹ thuật hợp lệ: Cú pháp custom DSL đạt chuẩn, có logic chỉ báo và quy tắc vào/thoát lệnh. Ghi nhận cảnh báo vị thế: code khai báo exit_unit='pct' nhưng config lưu là 'atr'."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "541c55834f56",
+      "owner_id": "dd3d4fbabe8a",
+      "is_vinh": false,
+      "name": "Daily Range Expansion (High - Low) / Close",
+      "code_sha256": "922201493bf17defb2b89bf9836aa8d5b7fb29cf1a7ef81f1cf79bf708e6fcf2",
+      "duplicate_group": "GROUP_016",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "config_position": {
+        "market": "perp",
+        "leverage": 10,
+        "exit_unit": "atr",
+        "atr_frame": "24h",
+        "atr_period": 14,
+        "sizing": "risk",
+        "risk_per_trade_pct": 0.5,
+        "max_notional_pct": 300.0,
+        "stop_fill": "level",
+        "limit_through_pct": 0.0,
+        "cooldown": 1440,
+        "risk_profile": "legacy",
+        "sl_anchor": "",
+        "sl_beyond_last_pct": 0.0,
+        "stop_loss_rate": 3.0,
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "541c55834f56",
+      "evidence_notes": "Chiến lược kỹ thuật hợp lệ: Cú pháp custom DSL đạt chuẩn, có logic chỉ báo và quy tắc vào/thoát lệnh. Ghi nhận cảnh báo vị thế: code khai báo exit_unit='pct' nhưng config lưu là 'atr'."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "571474a18f55",
+      "owner_id": "82e8ccc35eb6",
+      "is_vinh": false,
+      "name": "U3_BTC_Small_Alpha",
+      "code_sha256": "7ce7835f1f6e714cce396d274f8308674d578f2eaa6e9d889d0bedd1d321a6be",
+      "duplicate_group": "GROUP_009",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {},
+      "config_position": {},
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "canonical_reference": null,
+      "evidence_notes": "Biểu thức điều kiện bất khả thi `close < 0` trên giá thị trường BTC; không bao giờ sinh tín hiệu giao dịch. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "5e52d3fdf71f",
+      "owner_id": "76c5814277ab",
+      "is_vinh": false,
+      "name": "Bollinger Band Overextension Exit",
+      "code_sha256": "85f80ce40587685ca1ee868dbc5e4b85afd4417aba4389aa4dd57632e56a6138",
+      "duplicate_group": "GROUP_017",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "config_position": {
+        "market": "perp",
+        "leverage": 10,
+        "exit_unit": "atr",
+        "atr_frame": "24h",
+        "atr_period": 14,
+        "sizing": "risk",
+        "risk_per_trade_pct": 0.5,
+        "max_notional_pct": 300.0,
+        "stop_fill": "level",
+        "limit_through_pct": 0.0,
+        "cooldown": 1440,
+        "risk_profile": "legacy",
+        "sl_anchor": "",
+        "sl_beyond_last_pct": 0.0,
+        "stop_loss_rate": 3.0,
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "5e52d3fdf71f",
+      "evidence_notes": "Chiến lược kỹ thuật hợp lệ: Cú pháp custom DSL đạt chuẩn, có logic chỉ báo và quy tắc vào/thoát lệnh. Ghi nhận cảnh báo vị thế: code khai báo exit_unit='pct' nhưng config lưu là 'atr'."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "6055aa8f661e",
+      "owner_id": "a214b36a7eab",
+      "is_vinh": false,
+      "name": "Triple Filter: EMA + MACD + RSI",
+      "code_sha256": "acb54d7bac3bce4dc07e0d32895f31fbcaf495dbb3a72d690167680d0c8c987f",
+      "duplicate_group": "GROUP_018",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "config_position": {
+        "market": "perp",
+        "leverage": 10,
+        "exit_unit": "atr",
+        "atr_frame": "24h",
+        "atr_period": 14,
+        "sizing": "risk",
+        "risk_per_trade_pct": 0.5,
+        "max_notional_pct": 300.0,
+        "stop_fill": "level",
+        "limit_through_pct": 0.0,
+        "cooldown": 1440,
+        "risk_profile": "legacy",
+        "sl_anchor": "",
+        "sl_beyond_last_pct": 0.0,
+        "stop_loss_rate": 3.0,
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "6055aa8f661e",
+      "evidence_notes": "Chiến lược kỹ thuật hợp lệ: Cú pháp custom DSL đạt chuẩn, có logic chỉ báo và quy tắc vào/thoát lệnh. Ghi nhận cảnh báo vị thế: code khai báo exit_unit='pct' nhưng config lưu là 'atr'."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "616e1b8cbc88",
+      "owner_id": "184e6dc9dfe6",
+      "is_vinh": false,
+      "name": "U2_ETH_15m_Alpha",
+      "code_sha256": "2187464b746138dfe1a0458212cfa4be758a5db6ba98772e3edfcac2dfad381d",
+      "duplicate_group": "GROUP_010",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {},
+      "config_position": {},
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "canonical_reference": null,
+      "evidence_notes": "Biểu thức điều kiện hằng số `close > 10` trên ETH; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "64b657c8de8e",
+      "owner_id": "c7f8e10109b3",
+      "is_vinh": false,
+      "name": "U4_BTC_1h_Different_Window",
+      "code_sha256": "2d186d9a83e5e294e54f3cb491c330266ff4716f866229f65220ebf402357413",
+      "duplicate_group": "GROUP_001",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {},
+      "config_position": {},
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "canonical_reference": null,
+      "evidence_notes": "Biểu thức điều kiện hằng số `close > 1` trên BTC; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "6afa7f774655",
+      "owner_id": "a214b36a7eab",
+      "is_vinh": false,
+      "name": "RSI Rebound with Fast SMA Filter",
+      "code_sha256": "b9dbb0a17eb23a58adc44fb84bd48db5028ff28e7349a76eb3fa186ff9c8a084",
+      "duplicate_group": "GROUP_019",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "config_position": {
+        "market": "perp",
+        "leverage": 10,
+        "exit_unit": "atr",
+        "atr_frame": "24h",
+        "atr_period": 14,
+        "sizing": "risk",
+        "risk_per_trade_pct": 0.5,
+        "max_notional_pct": 300.0,
+        "stop_fill": "level",
+        "limit_through_pct": 0.0,
+        "cooldown": 1440,
+        "risk_profile": "legacy",
+        "sl_anchor": "",
+        "sl_beyond_last_pct": 0.0,
+        "stop_loss_rate": 3.0,
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "6afa7f774655",
+      "evidence_notes": "Chiến lược kỹ thuật hợp lệ: Cú pháp custom DSL đạt chuẩn, có logic chỉ báo và quy tắc vào/thoát lệnh. Ghi nhận cảnh báo vị thế: code khai báo exit_unit='pct' nhưng config lưu là 'atr'."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "715e56a6dd33",
+      "owner_id": "43f5220ece1e",
+      "is_vinh": false,
+      "name": "Linear Regression Channel Deviation",
+      "code_sha256": "fd6435aba90eeb9dc345517ab1ca1fd949d69b6ed6b6061e7abc8eeb8808c9a7",
+      "duplicate_group": "GROUP_020",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "config_position": {
+        "market": "perp",
+        "leverage": 10,
+        "exit_unit": "atr",
+        "atr_frame": "24h",
+        "atr_period": 14,
+        "sizing": "risk",
+        "risk_per_trade_pct": 0.5,
+        "max_notional_pct": 300.0,
+        "stop_fill": "level",
+        "limit_through_pct": 0.0,
+        "cooldown": 1440,
+        "risk_profile": "legacy",
+        "sl_anchor": "",
+        "sl_beyond_last_pct": 0.0,
+        "stop_loss_rate": 3.0,
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "715e56a6dd33",
+      "evidence_notes": "Chiến lược kỹ thuật hợp lệ: Cú pháp custom DSL đạt chuẩn, có logic chỉ báo và quy tắc vào/thoát lệnh. Ghi nhận cảnh báo vị thế: code khai báo exit_unit='pct' nhưng config lưu là 'atr'."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "717c1890c59e",
+      "owner_id": "dd3d4fbabe8a",
+      "is_vinh": false,
+      "name": "Weighted Moving Average (WMA) Crossover (Optimized)",
+      "code_sha256": "7f352e2eacd940b5370be8287320eb314f6ce7a62e0fc14978366346319c4fca",
+      "duplicate_group": "GROUP_021",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 2.5,
+        "exit_unit": "pct",
+        "risk_per_trade_pct": 4.2
+      },
+      "config_position": {
+        "market": "perp",
+        "leverage": 10,
+        "exit_unit": "atr",
+        "atr_frame": "24h",
+        "atr_period": 14,
+        "sizing": "risk",
+        "risk_per_trade_pct": 4.2,
+        "max_notional_pct": 300.0,
+        "stop_fill": "level",
+        "limit_through_pct": 0.0,
+        "cooldown": 1440,
+        "risk_profile": "legacy",
+        "sl_anchor": "",
+        "sl_beyond_last_pct": 0.0,
+        "stop_loss_rate": 2.5,
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "717c1890c59e",
+      "evidence_notes": "Chiến lược kỹ thuật hợp lệ: Cú pháp custom DSL đạt chuẩn, có logic chỉ báo và quy tắc vào/thoát lệnh. Ghi nhận cảnh báo vị thế: code khai báo exit_unit='pct' nhưng config lưu là 'atr'."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "74f607263c5c",
+      "owner_id": "726ff949da79",
+      "is_vinh": false,
+      "name": "U4_BTC_1h_Different_Window",
+      "code_sha256": "2d186d9a83e5e294e54f3cb491c330266ff4716f866229f65220ebf402357413",
+      "duplicate_group": "GROUP_001",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {},
+      "config_position": {},
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "canonical_reference": null,
+      "evidence_notes": "Biểu thức điều kiện hằng số `close > 1` trên BTC; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "7c1bf0a9686a",
+      "owner_id": "dbbb50a338c9",
+      "is_vinh": false,
+      "name": "U4_BTC_1h_Different_Window",
+      "code_sha256": "2d186d9a83e5e294e54f3cb491c330266ff4716f866229f65220ebf402357413",
+      "duplicate_group": "GROUP_001",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {},
+      "config_position": {},
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "canonical_reference": null,
+      "evidence_notes": "Biểu thức điều kiện hằng số `close > 1` trên BTC; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "7f3486d63ca8",
+      "owner_id": "dd3d4fbabe8a",
+      "is_vinh": false,
+      "name": "Dual Oscillator Climax Exit",
+      "code_sha256": "7f4d29ad6a1bdf2b7109d2cb99e13de933ca7fbaaa28c7878d39b46b7f3e6b1a",
+      "duplicate_group": "GROUP_022",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "config_position": {
+        "market": "perp",
+        "leverage": 10,
+        "exit_unit": "atr",
+        "atr_frame": "24h",
+        "atr_period": 14,
+        "sizing": "risk",
+        "risk_per_trade_pct": 0.5,
+        "max_notional_pct": 300.0,
+        "stop_fill": "level",
+        "limit_through_pct": 0.0,
+        "cooldown": 1440,
+        "risk_profile": "legacy",
+        "sl_anchor": "",
+        "sl_beyond_last_pct": 0.0,
+        "stop_loss_rate": 3.0,
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "7f3486d63ca8",
+      "evidence_notes": "Chiến lược kỹ thuật hợp lệ: Cú pháp custom DSL đạt chuẩn, có logic chỉ báo và quy tắc vào/thoát lệnh. Ghi nhận cảnh báo vị thế: code khai báo exit_unit='pct' nhưng config lưu là 'atr'."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "7f67e9aed0aa",
+      "owner_id": "dd3d4fbabe8a",
+      "is_vinh": false,
+      "name": "Stochastic & RSI Confluence System",
+      "code_sha256": "a1a21998a19fb1e16e1b6d2a5a2a91e869fcb3b18c8b764e973f3cc85c5acc22",
+      "duplicate_group": "GROUP_023",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "config_position": {
+        "market": "perp",
+        "leverage": 10,
+        "exit_unit": "atr",
+        "atr_frame": "24h",
+        "atr_period": 14,
+        "sizing": "risk",
+        "risk_per_trade_pct": 0.5,
+        "max_notional_pct": 300.0,
+        "stop_fill": "level",
+        "limit_through_pct": 0.0,
+        "cooldown": 1440,
+        "risk_profile": "legacy",
+        "sl_anchor": "",
+        "sl_beyond_last_pct": 0.0,
+        "stop_loss_rate": 3.0,
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "7f67e9aed0aa",
+      "evidence_notes": "Chiến lược kỹ thuật hợp lệ: Cú pháp custom DSL đạt chuẩn, có logic chỉ báo và quy tắc vào/thoát lệnh. Ghi nhận cảnh báo vị thế: code khai báo exit_unit='pct' nhưng config lưu là 'atr'."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "7f770ebe5ab5",
+      "owner_id": "eb5d7e2e3897",
+      "is_vinh": false,
+      "name": "U3_BTC_Small_Alpha",
+      "code_sha256": "7ce7835f1f6e714cce396d274f8308674d578f2eaa6e9d889d0bedd1d321a6be",
+      "duplicate_group": "GROUP_009",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {},
+      "config_position": {},
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "canonical_reference": null,
+      "evidence_notes": "Biểu thức điều kiện bất khả thi `close < 0` trên giá thị trường BTC; không bao giờ sinh tín hiệu giao dịch. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "856ddc574ce7",
+      "owner_id": "9fc184ee1040",
+      "is_vinh": false,
+      "name": "U2_ETH_15m_Alpha",
+      "code_sha256": "2187464b746138dfe1a0458212cfa4be758a5db6ba98772e3edfcac2dfad381d",
+      "duplicate_group": "GROUP_010",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {},
+      "config_position": {},
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "canonical_reference": null,
+      "evidence_notes": "Biểu thức điều kiện hằng số `close > 10` trên ETH; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "862e0c9eebbe",
+      "owner_id": "e7c998608206",
+      "is_vinh": false,
+      "name": "U2_ETH_15m_Alpha",
+      "code_sha256": "2187464b746138dfe1a0458212cfa4be758a5db6ba98772e3edfcac2dfad381d",
+      "duplicate_group": "GROUP_010",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {},
+      "config_position": {},
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "canonical_reference": null,
+      "evidence_notes": "Biểu thức điều kiện hằng số `close > 10` trên ETH; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "89379cc0ab52",
+      "owner_id": "76c5814277ab",
+      "is_vinh": false,
+      "name": "Stochastic Oscillator (%K, %D) Bull Cross",
+      "code_sha256": "d2efc6655a2b323723ce7d4199f679ccf74a704aecd3c98d23dffbcaa7bed65b",
+      "duplicate_group": "GROUP_024",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "config_position": {
+        "market": "perp",
+        "leverage": 10,
+        "exit_unit": "atr",
+        "atr_frame": "24h",
+        "atr_period": 14,
+        "sizing": "risk",
+        "risk_per_trade_pct": 0.5,
+        "max_notional_pct": 300.0,
+        "stop_fill": "level",
+        "limit_through_pct": 0.0,
+        "cooldown": 1440,
+        "risk_profile": "legacy",
+        "sl_anchor": "",
+        "sl_beyond_last_pct": 0.0,
+        "stop_loss_rate": 3.0,
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "89379cc0ab52",
+      "evidence_notes": "Chiến lược kỹ thuật hợp lệ: Cú pháp custom DSL đạt chuẩn, có logic chỉ báo và quy tắc vào/thoát lệnh. Ghi nhận cảnh báo vị thế: code khai báo exit_unit='pct' nhưng config lưu là 'atr'."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "8a47cdbcc942",
+      "owner_id": "aed197a5e968",
+      "is_vinh": true,
+      "name": "Fast Dip Harvester (3M DCA Dynamic - CAGR 108%)",
+      "code_sha256": "923997b566af877c70bb7f4e408dbbc5b76601d2e11e7c36afb96865dd9891bb",
+      "duplicate_group": "GROUP_025",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 2.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 4.0,
+        "risk_per_trade_pct": 5.0
+      },
+      "config_position": {
+        "market": "perp",
+        "leverage": 10,
+        "exit_unit": "atr",
+        "atr_frame": "24h",
+        "atr_period": 14,
+        "sizing": "risk",
+        "risk_per_trade_pct": 5.0,
+        "max_notional_pct": 300.0,
+        "stop_fill": "level",
+        "limit_through_pct": 0.0,
+        "cooldown": 1440,
+        "risk_profile": "legacy",
+        "sl_anchor": "",
+        "sl_beyond_last_pct": 0.0,
+        "stop_loss_rate": 2.0,
+        "take_profit_rate": 4.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "8a47cdbcc942",
+      "evidence_notes": "Chiến lược FastDip của user Vinh: Bảo toàn 100% nguyên vẹn file gốc. Ghi nhận minh chứng: kết quả lưu chỉ có 3 lệnh (chưa đạt checklist 20 lệnh) và có xung đột exit_unit (code khai báo pct nhưng config lưu atr)."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "930294d28c45",
+      "owner_id": "439fa7538599",
+      "is_vinh": false,
+      "name": "U3_BTC_Small_Alpha",
+      "code_sha256": "7ce7835f1f6e714cce396d274f8308674d578f2eaa6e9d889d0bedd1d321a6be",
+      "duplicate_group": "GROUP_009",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {},
+      "config_position": {},
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "canonical_reference": null,
+      "evidence_notes": "Biểu thức điều kiện bất khả thi `close < 0` trên giá thị trường BTC; không bao giờ sinh tín hiệu giao dịch. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "9eec3d61131d",
+      "owner_id": "79183007b990",
+      "is_vinh": false,
+      "name": "U3_BTC_Small_Alpha",
+      "code_sha256": "7ce7835f1f6e714cce396d274f8308674d578f2eaa6e9d889d0bedd1d321a6be",
+      "duplicate_group": "GROUP_009",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {},
+      "config_position": {},
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "canonical_reference": null,
+      "evidence_notes": "Biểu thức điều kiện bất khả thi `close < 0` trên giá thị trường BTC; không bao giờ sinh tín hiệu giao dịch. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "a4d6826fbbc6",
+      "owner_id": "4547f1f50486",
+      "is_vinh": false,
+      "name": "U4_BTC_1h_Different_Window",
+      "code_sha256": "2d186d9a83e5e294e54f3cb491c330266ff4716f866229f65220ebf402357413",
+      "duplicate_group": "GROUP_001",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {},
+      "config_position": {},
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "canonical_reference": null,
+      "evidence_notes": "Biểu thức điều kiện hằng số `close > 1` trên BTC; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "af2bf88426c4",
+      "owner_id": "bf158b5142e8",
+      "is_vinh": false,
+      "name": "U3_BTC_Small_Alpha",
+      "code_sha256": "7ce7835f1f6e714cce396d274f8308674d578f2eaa6e9d889d0bedd1d321a6be",
+      "duplicate_group": "GROUP_009",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {},
+      "config_position": {},
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "canonical_reference": null,
+      "evidence_notes": "Biểu thức điều kiện bất khả thi `close < 0` trên giá thị trường BTC; không bao giờ sinh tín hiệu giao dịch. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "b4b65cd3493f",
+      "owner_id": "23dc66cd61c6",
+      "is_vinh": false,
+      "name": "Commodity Channel Index (CCI) Snapback",
+      "code_sha256": "957bae2c87205de616a2bc1656fc74faf9cb91c0a97b070922c4bfdafdbc0524",
+      "duplicate_group": "GROUP_026",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "config_position": {
+        "market": "perp",
+        "leverage": 10,
+        "exit_unit": "atr",
+        "atr_frame": "24h",
+        "atr_period": 14,
+        "sizing": "risk",
+        "risk_per_trade_pct": 0.5,
+        "max_notional_pct": 300.0,
+        "stop_fill": "level",
+        "limit_through_pct": 0.0,
+        "cooldown": 1440,
+        "risk_profile": "legacy",
+        "sl_anchor": "",
+        "sl_beyond_last_pct": 0.0,
+        "stop_loss_rate": 3.0,
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "b4b65cd3493f",
+      "evidence_notes": "Chiến lược kỹ thuật hợp lệ: Cú pháp custom DSL đạt chuẩn, có logic chỉ báo và quy tắc vào/thoát lệnh. Ghi nhận cảnh báo vị thế: code khai báo exit_unit='pct' nhưng config lưu là 'atr'."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "b96bafe57445",
+      "owner_id": "76c5814277ab",
+      "is_vinh": false,
+      "name": "Normalized ATR (NATR) Volatility Breakout",
+      "code_sha256": "2b965ffbec384ca9a783720d8300dec9d60afa3fd20e91ea44be8e4a525b6b7a",
+      "duplicate_group": "GROUP_027",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "config_position": {
+        "market": "perp",
+        "leverage": 10,
+        "exit_unit": "atr",
+        "atr_frame": "24h",
+        "atr_period": 14,
+        "sizing": "risk",
+        "risk_per_trade_pct": 0.5,
+        "max_notional_pct": 300.0,
+        "stop_fill": "level",
+        "limit_through_pct": 0.0,
+        "cooldown": 1440,
+        "risk_profile": "legacy",
+        "sl_anchor": "",
+        "sl_beyond_last_pct": 0.0,
+        "stop_loss_rate": 3.0,
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "b96bafe57445",
+      "evidence_notes": "Chiến lược kỹ thuật hợp lệ: Cú pháp custom DSL đạt chuẩn, có logic chỉ báo và quy tắc vào/thoát lệnh. Ghi nhận cảnh báo vị thế: code khai báo exit_unit='pct' nhưng config lưu là 'atr'."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "bd234070bd7b",
+      "owner_id": "bbd150bc473c",
+      "is_vinh": false,
+      "name": "U1_BTC_1h_Alpha",
+      "code_sha256": "b13ecc73e5c5f32d3dd3d783c260b7196804352644442a3a3468bb8ed0f6b505",
+      "duplicate_group": "GROUP_005",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {},
+      "config_position": {},
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "canonical_reference": null,
+      "evidence_notes": "Biểu thức điều kiện hằng số `close > 0` trên BTC; luôn vào LONG ngay từ nến 1 và không có điều kiện thoát lệnh. Theo quy tắc cốt lõi 'Unknown semantics remain blocked, not guessed', không tự bịa đặt luật thay thế."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "be1174b24a44",
+      "owner_id": "657914b99b5b",
+      "is_vinh": false,
+      "name": "U1_BTC_1h_Alpha",
+      "code_sha256": "b13ecc73e5c5f32d3dd3d783c260b7196804352644442a3a3468bb8ed0f6b505",
+      "duplicate_group": "GROUP_005",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {},
+      "config_position": {},
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "canonical_reference": null,
+      "evidence_notes": "Biểu thức điều kiện hằng số `close > 0` trên BTC; luôn vào LONG ngay từ nến 1 và không có điều kiện thoát lệnh. Theo quy tắc cốt lõi 'Unknown semantics remain blocked, not guessed', không tự bịa đặt luật thay thế."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "bf519617d973",
+      "owner_id": "76c5814277ab",
+      "is_vinh": false,
+      "name": "Double Exponential Moving Average (DEMA - Optimized)",
+      "code_sha256": "eb8dec5f68d2a6fb8e6325ac64cfbfb3b8694bdff815d46644930df66ea40803",
+      "duplicate_group": "GROUP_028",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 2.5,
+        "exit_unit": "pct",
+        "risk_per_trade_pct": 6.8
+      },
+      "config_position": {
+        "market": "perp",
+        "leverage": 10,
+        "exit_unit": "atr",
+        "atr_frame": "24h",
+        "atr_period": 14,
+        "sizing": "risk",
+        "risk_per_trade_pct": 6.8,
+        "max_notional_pct": 300.0,
+        "stop_fill": "level",
+        "limit_through_pct": 0.0,
+        "cooldown": 1440,
+        "risk_profile": "legacy",
+        "sl_anchor": "",
+        "sl_beyond_last_pct": 0.0,
+        "stop_loss_rate": 2.5,
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "bf519617d973",
+      "evidence_notes": "Chiến lược kỹ thuật hợp lệ: Cú pháp custom DSL đạt chuẩn, có logic chỉ báo và quy tắc vào/thoát lệnh. Ghi nhận cảnh báo vị thế: code khai báo exit_unit='pct' nhưng config lưu là 'atr'."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "c33cc317bbeb",
+      "owner_id": "dd3d4fbabe8a",
+      "is_vinh": false,
+      "name": "Multi-Day Cumulative Return Dip Buying",
+      "code_sha256": "4cfe76c75822a89c9165e50be4c3c495eec642844170e1fcaa0bb846783ea454",
+      "duplicate_group": "GROUP_029",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "config_position": {
+        "market": "perp",
+        "leverage": 10,
+        "exit_unit": "atr",
+        "atr_frame": "24h",
+        "atr_period": 14,
+        "sizing": "risk",
+        "risk_per_trade_pct": 0.5,
+        "max_notional_pct": 300.0,
+        "stop_fill": "level",
+        "limit_through_pct": 0.0,
+        "cooldown": 1440,
+        "risk_profile": "legacy",
+        "sl_anchor": "",
+        "sl_beyond_last_pct": 0.0,
+        "stop_loss_rate": 3.0,
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "c33cc317bbeb",
+      "evidence_notes": "Chiến lược kỹ thuật hợp lệ: Cú pháp custom DSL đạt chuẩn, có logic chỉ báo và quy tắc vào/thoát lệnh. Ghi nhận cảnh báo vị thế: code khai báo exit_unit='pct' nhưng config lưu là 'atr'."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "cb0b6e0f12e7",
+      "owner_id": "f9292fff53c9",
+      "is_vinh": false,
+      "name": "U1_BTC_1h_Alpha",
+      "code_sha256": "b13ecc73e5c5f32d3dd3d783c260b7196804352644442a3a3468bb8ed0f6b505",
+      "duplicate_group": "GROUP_005",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {},
+      "config_position": {},
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "canonical_reference": null,
+      "evidence_notes": "Biểu thức điều kiện hằng số `close > 0` trên BTC; luôn vào LONG ngay từ nến 1 và không có điều kiện thoát lệnh. Theo quy tắc cốt lõi 'Unknown semantics remain blocked, not guessed', không tự bịa đặt luật thay thế."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "cb750cb1eb10",
+      "owner_id": "76c5814277ab",
+      "is_vinh": false,
+      "name": "EMA Golden Cross + Volume Spike Confluence",
+      "code_sha256": "7fcff575a017688dd4dfc2606edce9c79f311640d64041858cd768952b83ecc0",
+      "duplicate_group": "GROUP_030",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "config_position": {
+        "market": "perp",
+        "leverage": 10,
+        "exit_unit": "atr",
+        "atr_frame": "24h",
+        "atr_period": 14,
+        "sizing": "risk",
+        "risk_per_trade_pct": 0.5,
+        "max_notional_pct": 300.0,
+        "stop_fill": "level",
+        "limit_through_pct": 0.0,
+        "cooldown": 1440,
+        "risk_profile": "legacy",
+        "sl_anchor": "",
+        "sl_beyond_last_pct": 0.0,
+        "stop_loss_rate": 3.0,
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "cb750cb1eb10",
+      "evidence_notes": "Chiến lược kỹ thuật hợp lệ: Cú pháp custom DSL đạt chuẩn, có logic chỉ báo và quy tắc vào/thoát lệnh. Ghi nhận cảnh báo vị thế: code khai báo exit_unit='pct' nhưng config lưu là 'atr'."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "d0518c0cca14",
+      "owner_id": "f4ded6717b32",
+      "is_vinh": false,
+      "name": "U4_BTC_1h_Different_Window",
+      "code_sha256": "2d186d9a83e5e294e54f3cb491c330266ff4716f866229f65220ebf402357413",
+      "duplicate_group": "GROUP_001",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {},
+      "config_position": {},
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "canonical_reference": null,
+      "evidence_notes": "Biểu thức điều kiện hằng số `close > 1` trên BTC; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "e9a9a5b44d03",
+      "owner_id": "95f7a5a4b3ae",
+      "is_vinh": false,
+      "name": "U2_ETH_15m_Alpha",
+      "code_sha256": "2187464b746138dfe1a0458212cfa4be758a5db6ba98772e3edfcac2dfad381d",
+      "duplicate_group": "GROUP_010",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {},
+      "config_position": {},
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "canonical_reference": null,
+      "evidence_notes": "Biểu thức điều kiện hằng số `close > 10` trên ETH; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "ee0cf7f58f94",
+      "owner_id": "97cac5011215",
+      "is_vinh": false,
+      "name": "U2_ETH_15m_Alpha",
+      "code_sha256": "2187464b746138dfe1a0458212cfa4be758a5db6ba98772e3edfcac2dfad381d",
+      "duplicate_group": "GROUP_010",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {},
+      "config_position": {},
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "canonical_reference": null,
+      "evidence_notes": "Biểu thức điều kiện hằng số `close > 10` trên ETH; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "efb1fbe2db86",
+      "owner_id": "aed197a5e968",
+      "is_vinh": true,
+      "name": "Volatility Expansion Channel (StdDev 1.51 + Macro Trend)",
+      "code_sha256": "76c6cac06984a96072ed69a7a2457b11bcc67ebdfbf797819531e86454b00c79",
+      "duplicate_group": "GROUP_031",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 2.5,
+        "exit_unit": "pct",
+        "risk_per_trade_pct": 4.0
+      },
+      "config_position": {
+        "market": "perp",
+        "leverage": 10,
+        "exit_unit": "atr",
+        "atr_frame": "24h",
+        "atr_period": 14,
+        "sizing": "risk",
+        "risk_per_trade_pct": 4.0,
+        "max_notional_pct": 300.0,
+        "stop_fill": "level",
+        "limit_through_pct": 0.0,
+        "cooldown": 1440,
+        "risk_profile": "legacy",
+        "sl_anchor": "",
+        "sl_beyond_last_pct": 0.0,
+        "stop_loss_rate": 2.5,
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "efb1fbe2db86",
+      "evidence_notes": "Chiến lược hợp lệ của user Vinh: Cú pháp compiler hợp lệ, có đầy đủ chỉ báo và điều kiện vào/thoát. Bảo toàn 100% file gốc."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "f261549d9efa",
+      "owner_id": "23dc66cd61c6",
+      "is_vinh": false,
+      "name": "ROC Momentum Surge",
+      "code_sha256": "67fd95542f20e95af99dc8d5795193a381f78a09102d02b1c4a6be4acd5a42be",
+      "duplicate_group": "GROUP_032",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "config_position": {
+        "market": "perp",
+        "leverage": 10,
+        "exit_unit": "atr",
+        "atr_frame": "24h",
+        "atr_period": 14,
+        "sizing": "risk",
+        "risk_per_trade_pct": 0.5,
+        "max_notional_pct": 300.0,
+        "stop_fill": "level",
+        "limit_through_pct": 0.0,
+        "cooldown": 1440,
+        "risk_profile": "legacy",
+        "sl_anchor": "",
+        "sl_beyond_last_pct": 0.0,
+        "stop_loss_rate": 3.0,
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "f261549d9efa",
+      "evidence_notes": "Chiến lược kỹ thuật hợp lệ: Cú pháp custom DSL đạt chuẩn, có logic chỉ báo và quy tắc vào/thoát lệnh. Ghi nhận cảnh báo vị thế: code khai báo exit_unit='pct' nhưng config lưu là 'atr'."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "f4e211e9510d",
+      "owner_id": "a214b36a7eab",
+      "is_vinh": false,
+      "name": "Rolling 30-Day Multi-Week High Breakout",
+      "code_sha256": "c5669851ad4588ae901172abff90d10759f9cf42abb8219ddf824b075b94f892",
+      "duplicate_group": "GROUP_033",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "config_position": {
+        "market": "perp",
+        "leverage": 10,
+        "exit_unit": "atr",
+        "atr_frame": "24h",
+        "atr_period": 14,
+        "sizing": "risk",
+        "risk_per_trade_pct": 0.5,
+        "max_notional_pct": 300.0,
+        "stop_fill": "level",
+        "limit_through_pct": 0.0,
+        "cooldown": 1440,
+        "risk_profile": "legacy",
+        "sl_anchor": "",
+        "sl_beyond_last_pct": 0.0,
+        "stop_loss_rate": 3.0,
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "f4e211e9510d",
+      "evidence_notes": "Chiến lược kỹ thuật hợp lệ: Cú pháp custom DSL đạt chuẩn, có logic chỉ báo và quy tắc vào/thoát lệnh. Ghi nhận cảnh báo vị thế: code khai báo exit_unit='pct' nhưng config lưu là 'atr'."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "fa9587a97fa9",
+      "owner_id": "43f5220ece1e",
+      "is_vinh": false,
+      "name": "Trend Alignment Momentum (Optimized)",
+      "code_sha256": "aa23906648da7cdb6339831d278b730026ff3c843b1c933a1b4590e65123a2eb",
+      "duplicate_group": "GROUP_034",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 2.5,
+        "exit_unit": "pct",
+        "risk_per_trade_pct": 4.0
+      },
+      "config_position": {
+        "market": "perp",
+        "leverage": 10,
+        "exit_unit": "atr",
+        "atr_frame": "24h",
+        "atr_period": 14,
+        "sizing": "risk",
+        "risk_per_trade_pct": 4.0,
+        "max_notional_pct": 300.0,
+        "stop_fill": "level",
+        "limit_through_pct": 0.0,
+        "cooldown": 1440,
+        "risk_profile": "legacy",
+        "sl_anchor": "",
+        "sl_beyond_last_pct": 0.0,
+        "stop_loss_rate": 2.5,
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "fa9587a97fa9",
+      "evidence_notes": "Chiến lược kỹ thuật hợp lệ: Cú pháp custom DSL đạt chuẩn, có logic chỉ báo và quy tắc vào/thoát lệnh. Ghi nhận cảnh báo vị thế: code khai báo exit_unit='pct' nhưng config lưu là 'atr'."
+    },
+    {
+      "source_type": "user_alpha",
+      "record_id": "fd16df3d0a3f",
+      "owner_id": "d836143af954",
+      "is_vinh": false,
+      "name": "U3_BTC_Small_Alpha",
+      "code_sha256": "7ce7835f1f6e714cce396d274f8308674d578f2eaa6e9d889d0bedd1d321a6be",
+      "duplicate_group": "GROUP_009",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {},
+      "config_position": {},
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "canonical_reference": null,
+      "evidence_notes": "Biểu thức điều kiện bất khả thi `close < 0` trên giá thị trường BTC; không bao giờ sinh tín hiệu giao dịch. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "trend_kema_breakout",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "Multi-Asset EMA Momentum",
+      "code_sha256": "896ac65e8891fd063fa693f0f6ef527ee537c38898c17b8575593685246c127b",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 5.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "trend_kema_breakout",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Trend Following - Beginner). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "trend_dual_ema",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "Dual EMA Crossover (Golden Cross)",
+      "code_sha256": "39708c232af6ff478039a86870e547d3c5509a15e2de870b283c9c51ca533b05",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "trend_dual_ema",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Trend Following - Beginner). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "trend_triple_ema",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "Triple EMA Trend Alignment (20/50/200)",
+      "code_sha256": "b8929b0055aca59fa50b8239f8c7af395b11c344d04d15fefe237e1448ab0f75",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "trend_triple_ema",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Trend Following - Intermediate). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "trend_adx_directional",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "ADX + Directional Movement (+DI / -DI)",
+      "code_sha256": "32378bd9b951c548209d3343be4ed223448e4b57aa7f384aa4b2595ff91d5800",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "trend_adx_directional",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Trend Following - Intermediate). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "trend_dema_momentum",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "Double Exponential Moving Average (DEMA)",
+      "code_sha256": "b09a8b07811502e9fef9f0cf71f0f745450f0850e3151d392b30f6c2dd390716",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "trend_dema_momentum",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Trend Following - Intermediate). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "trend_tema_speed",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "Triple Exponential Moving Average (TEMA)",
+      "code_sha256": "b851953e0891ff73eaedffa8c418a332b61eeb9b20b7c08d67a65dab88e0903f",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "trend_tema_speed",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Trend Following - Advanced). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "trend_linearreg_slope",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "Linear Regression Slope Trend",
+      "code_sha256": "2524616cf0c711c58b16c71f18c5b8329b7e80bd3a31f5477654a2c61239ca71",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "trend_linearreg_slope",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Trend Following - Advanced). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "trend_wma_volume",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "Weighted Moving Average (WMA) Crossover",
+      "code_sha256": "f954708d9b4aca1d64b95643d024c8f370ca84e01efa3e031df7235129a29c9c",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "trend_wma_volume",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Trend Following - Intermediate). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "trend_macd_zeroline",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "MACD Zero-Line Trend Filter",
+      "code_sha256": "852db6b66dc1f22e2a888b96dd982cc53a3bd42b99eb02b67a1d873fa649c366",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "trend_macd_zeroline",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Trend Following - Intermediate). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "trend_parabolic_ema",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "EMA Trend Rider (Rising Slope)",
+      "code_sha256": "75493e164fb40f2c8569061b6f2a2299d71b778d6a2a96926524cce59065c710",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "trend_parabolic_ema",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Trend Following - Beginner). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "revert_rsi_bb",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "RSI + Bollinger Bands Oversold Reversal",
+      "code_sha256": "30fb33d247bb6a21df7aa8180901cd0c6b35223f93eff77380a3da9b149f67c3",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "revert_rsi_bb",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Mean Reversion - Intermediate). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "revert_zscore_extreme",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "Rolling Z-Score Statistical Reversion",
+      "code_sha256": "e5acf0c9923df5b05994343c66553a5cbec04927b125666a4cccd7f95f9dec9d",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "revert_zscore_extreme",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Mean Reversion - Intermediate). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "revert_cci_oversold",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "Commodity Channel Index (CCI) Snapback",
+      "code_sha256": "957bae2c87205de616a2bc1656fc74faf9cb91c0a97b070922c4bfdafdbc0524",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "revert_cci_oversold",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Mean Reversion - Intermediate). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "revert_willr_elastic",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "Williams %R Extreme Elasticity",
+      "code_sha256": "1584d3db37d4d4b3bee6c7770aeb9817c56bd0374f7800282b5408c68c7b6d3a",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "revert_willr_elastic",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Mean Reversion - Beginner). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "revert_stoch_k_d",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "Stochastic Oscillator (%K, %D) Bull Cross",
+      "code_sha256": "d2efc6655a2b323723ce7d4199f679ccf74a704aecd3c98d23dffbcaa7bed65b",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "revert_stoch_k_d",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Mean Reversion - Intermediate). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "revert_bbands_tight",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "Bollinger Bands Lower Touch & Bounce",
+      "code_sha256": "a8e148ce2308ad3159317184f3c2833e1e29482798edb0a7f2a5bc74a52c055a",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "revert_bbands_tight",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Mean Reversion - Beginner). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "revert_mfi_oversold",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "Money Flow Index (MFI) Volume Reversion",
+      "code_sha256": "a219656f3d61a4962db3d66a5908450aad3b1bc3b6481f430899adc1ece91fd4",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "revert_mfi_oversold",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Mean Reversion - Intermediate). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "revert_returns_dip",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "Multi-Day Cumulative Return Dip Buying",
+      "code_sha256": "4cfe76c75822a89c9165e50be4c3c495eec642844170e1fcaa0bb846783ea454",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "revert_returns_dip",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Mean Reversion - Intermediate). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "revert_linearreg_disparity",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "Linear Regression Channel Deviation",
+      "code_sha256": "fd6435aba90eeb9dc345517ab1ca1fd949d69b6ed6b6061e7abc8eeb8808c9a7",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "revert_linearreg_disparity",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Mean Reversion - Advanced). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "revert_rsi_divergence",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "RSI Rebound with Fast SMA Filter",
+      "code_sha256": "b9dbb0a17eb23a58adc44fb84bd48db5028ff28e7349a76eb3fa186ff9c8a084",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "revert_rsi_divergence",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Mean Reversion - Intermediate). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "breakout_donchian_turtle",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "Donchian Channel Breakout (Turtle Trading)",
+      "code_sha256": "c5d0e78db5de0796d5e7e25748d1e449a3ce8b3498c9a108991678cf6f07ffa8",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "breakout_donchian_turtle",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Breakout & Momentum - Intermediate). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "breakout_bb_squeeze",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "Bollinger Upper Band Breakout",
+      "code_sha256": "7f04104af977b5a88216f386399938a1f788701b97fd9d6778929cb2622bbcb7",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "breakout_bb_squeeze",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Breakout & Momentum - Intermediate). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "breakout_roc_surge",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "ROC Momentum Surge",
+      "code_sha256": "67fd95542f20e95af99dc8d5795193a381f78a09102d02b1c4a6be4acd5a42be",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "breakout_roc_surge",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Breakout & Momentum - Beginner). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "breakout_volume_zscore",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "High-Volume Breakout (Volume Z-Score Spike)",
+      "code_sha256": "33ffa3e6962199d04eaa08b9555eebb0ef63cbf8d43c6e1753bb143213c1c6ac",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "breakout_volume_zscore",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Breakout & Momentum - Advanced). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "breakout_natr_range",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "Normalized ATR (NATR) Volatility Breakout",
+      "code_sha256": "2b965ffbec384ca9a783720d8300dec9d60afa3fd20e91ea44be8e4a525b6b7a",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "breakout_natr_range",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Breakout & Momentum - Intermediate). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "breakout_obv_accumulation",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "On-Balance Volume (OBV) Trend Breakout",
+      "code_sha256": "4003c758890dd96f30f234ce7bd2ef8b40193c8dfc2e68bf47d1ad60b323808d",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "breakout_obv_accumulation",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Breakout & Momentum - Intermediate). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "breakout_momentum_10d",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "Absolute Momentum 10-Day Threshold",
+      "code_sha256": "75ab2c53c8c4c538c00882076b8146fcaab5a3b9e4c8ad335249c1c8769ef31a",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "breakout_momentum_10d",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Breakout & Momentum - Beginner). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "breakout_range_pct",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "Daily Range Expansion (High - Low) / Close",
+      "code_sha256": "922201493bf17defb2b89bf9836aa8d5b7fb29cf1a7ef81f1cf79bf708e6fcf2",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "breakout_range_pct",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Breakout & Momentum - Advanced). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "breakout_stddev_channel",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "Standard Deviation Dynamic Channel Breakout",
+      "code_sha256": "dcaad518620b57fa278e4eafd028ed003929eed1d72012dfba8f517b0d6e5a29",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "breakout_stddev_channel",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Breakout & Momentum - Intermediate). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "breakout_multi_week_high",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "Rolling 30-Day Multi-Week High Breakout",
+      "code_sha256": "c5669851ad4588ae901172abff90d10759f9cf42abb8219ddf824b075b94f892",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "breakout_multi_week_high",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Breakout & Momentum - Beginner). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "confluence_ema_rsi_pullback",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "EMA Trend + RSI Dip Buying (Trend Pullback)",
+      "code_sha256": "c310eb452af11f7c7e965df7908b0159fa2bb0d01e46c7dc168db5f50cc57011",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "confluence_ema_rsi_pullback",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Multi-Indicator Confluence - Intermediate). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "confluence_keltner_macd",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "Keltner Channel + MACD Confirmation",
+      "code_sha256": "ac0b6a98fdfa72902702ef0d6c3c2e2d442db1aae2917e93d2b7b63605c4f4f7",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "confluence_keltner_macd",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Multi-Indicator Confluence - Intermediate). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "confluence_dual_ema_adx",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "Dual EMA + ADX Trend Strength Filter",
+      "code_sha256": "c488115d6642f56f4affd2357badc0a26f5311da7bf2e7127a2bf0e30bfaf4ae",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "confluence_dual_ema_adx",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Multi-Indicator Confluence - Intermediate). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "confluence_bb_rsi_adx",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "Bollinger Mid + RSI + ADX Filter",
+      "code_sha256": "508dddf761cda651737324e8aea2eb60ae6017f8d7d0d166cf5e4e4fffa9b84f",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "confluence_bb_rsi_adx",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Multi-Indicator Confluence - Advanced). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "confluence_volume_ema_cross",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "EMA Golden Cross + Volume Spike Confluence",
+      "code_sha256": "7fcff575a017688dd4dfc2606edce9c79f311640d64041858cd768952b83ecc0",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "confluence_volume_ema_cross",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Multi-Indicator Confluence - Intermediate). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "confluence_donchian_macd",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "Donchian Breakout + MACD Alignment",
+      "code_sha256": "9fc1ac2e4e60742cf443dcfb1583dacb364dbb0e414f35f056d765c0925c8717",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "confluence_donchian_macd",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Multi-Indicator Confluence - Intermediate). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "confluence_cci_ema_trend",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "EMA 200 Macro Trend + CCI Dip Rebound",
+      "code_sha256": "e28c2eedaebb4268162a035317de244b690c2858357ed99f98992dd72bff4b01",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "confluence_cci_ema_trend",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Multi-Indicator Confluence - Intermediate). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "confluence_stoch_rsi_trend",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "Stochastic & RSI Confluence System",
+      "code_sha256": "a1a21998a19fb1e16e1b6d2a5a2a91e869fcb3b18c8b764e973f3cc85c5acc22",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "confluence_stoch_rsi_trend",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Multi-Indicator Confluence - Intermediate). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "confluence_obv_rsi_momentum",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "OBV Volume Accumulation + RSI Momentum",
+      "code_sha256": "501222b6b6bfefcd6e8bd62860984e2d2a0d6b01e1f334040e6897bc152f3c3c",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "confluence_obv_rsi_momentum",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Multi-Indicator Confluence - Advanced). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "confluence_triple_screen",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "Triple Filter: EMA + MACD + RSI",
+      "code_sha256": "acb54d7bac3bce4dc07e0d32895f31fbcaf495dbb3a72d690167680d0c8c987f",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "confluence_triple_screen",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Multi-Indicator Confluence - Advanced). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "risk_chandelier_exit",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "Chandelier Exit (ATR Trailing Stop)",
+      "code_sha256": "94313fd3cd8027e20e726019d16d7e82693af32f1470a4a9239fa9a1f2846ff7",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 3.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5,
+        "atr_frame": "24h"
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "risk_chandelier_exit",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Risk-Managed & Exits - Advanced). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "risk_dual_exit_asymmetric",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "Dual-Condition Asymmetric Exit",
+      "code_sha256": "cf946253706771a319f02009bb1e31f4b07d32e82dd3d3db9cdf0423c97d872d",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "risk_dual_exit_asymmetric",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Risk-Managed & Exits - Intermediate). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "risk_roc_momentum_exhaustion",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "ROC Momentum Exhaustion with Take-Profit",
+      "code_sha256": "92d8be2b9c5f7a5d95e7189d8f3b533cfe381cdd963d896eb4fc8d38d38c4e78",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 5.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5,
+        "atr_frame": "24h"
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "risk_roc_momentum_exhaustion",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Risk-Managed & Exits - Intermediate). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "risk_atr_fixed_multiple_stop",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "Fixed Multiple ATR Volatility Stop",
+      "code_sha256": "c44dc74bfa681ed55c49fb15cecb431cab579e10eeb18ccb51cdfa91191ab37c",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 2.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5,
+        "atr_frame": "24h"
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "risk_atr_fixed_multiple_stop",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Risk-Managed & Exits - Beginner). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "risk_bollinger_band_profit_take",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "Bollinger Band Overextension Exit",
+      "code_sha256": "85f80ce40587685ca1ee868dbc5e4b85afd4417aba4389aa4dd57632e56a6138",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "risk_bollinger_band_profit_take",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Risk-Managed & Exits - Intermediate). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "risk_fail_fast_breakout",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "Fail-Fast Breakout Invalidation",
+      "code_sha256": "184db94a932500255b0b887b2296af016c1b09291cb207782a5bde5c402bd2b0",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "risk_fail_fast_breakout",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Risk-Managed & Exits - Advanced). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "risk_adx_decay_exit",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "ADX Trend Decay Early Warning Exit",
+      "code_sha256": "0ff680709c633e73a3fe718d29c92d1da5b86e68af6667ee14f9cea812e33e5d",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "risk_adx_decay_exit",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Risk-Managed & Exits - Intermediate). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "risk_stoch_rsi_overbought_exit",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "Dual Oscillator Climax Exit",
+      "code_sha256": "7f4d29ad6a1bdf2b7109d2cb99e13de933ca7fbaaa28c7878d39b46b7f3e6b1a",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "risk_stoch_rsi_overbought_exit",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Risk-Managed & Exits - Intermediate). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "risk_donchian_trailing_ratchet",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "Donchian Lower Channel Exit",
+      "code_sha256": "c467c5461d6ec18c2ca9e7ff40b2403740d3b087005ebe00c72306f6a239a270",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "risk_donchian_trailing_ratchet",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Risk-Managed & Exits - Beginner). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "education_sample",
+      "record_id": "risk_linearreg_deviation_guard",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "Statistical Trend Channel Guard",
+      "code_sha256": "f6916ba8663d52aec5ff9041a5a7be0805f7ba776ec8f12e89317b765282a692",
+      "duplicate_group": "EDU_SAMPLE",
+      "compile_status": "VALID",
+      "timeframe": "24h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "stop_loss_rate": 3.0,
+        "exit_unit": "pct",
+        "take_profit_rate": 0.0,
+        "trailing_stop": 0.0,
+        "trailing_activation_pct": 0.0,
+        "timeout": 0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "risk_linearreg_deviation_guard",
+      "evidence_notes": "Chiến lược mẫu giáo dục chuẩn hóa (Risk-Managed & Exits - Advanced). Đã công bố giả định trượt giá bằng 0 và phí CEX perp."
+    },
+    {
+      "source_type": "onboarding_example",
+      "record_id": "quick_rsi_edu",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "Quick RSI Momentum (Chuẩn EDU)",
+      "code_sha256": "96ef355f09ae44750b50c246b51f2f3ea04c94e43227718f3a7659345924c755",
+      "duplicate_group": "ONBOARDING",
+      "compile_status": "VALID",
+      "timeframe": "1h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {
+        "leverage": 1,
+        "exit_unit": "pct",
+        "stop_loss_rate": 2.0,
+        "take_profit_rate": 4.0,
+        "risk_per_trade_pct": 0.5
+      },
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "quick_rsi_edu",
+      "evidence_notes": "Mẫu onboarding Studio (Quick RSI Momentum (Chuẩn EDU)). Trích xuất trực tiếp từ frontend EduStudioOnboarding.jsx, chuẩn hóa SL 2.0% và TP 4.0%."
+    },
+    {
+      "source_type": "onboarding_example",
+      "record_id": "dual_ema_trend",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "Dual EMA Trend Following",
+      "code_sha256": "6368907072e882161fce777a2d9e71b4b4702a27acaa4ab2d69c9e5831cb0367",
+      "duplicate_group": "ONBOARDING",
+      "compile_status": "VALID",
+      "timeframe": "4h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {},
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "dual_ema_trend",
+      "evidence_notes": "Mẫu onboarding Studio (Dual EMA Trend Following). Trích xuất trực tiếp từ frontend EduStudioOnboarding.jsx, chuẩn hóa SL 2.0% và TP 4.0%."
+    },
+    {
+      "source_type": "onboarding_example",
+      "record_id": "sma_atr_breakout",
+      "owner_id": "system_edu",
+      "is_vinh": false,
+      "name": "SMA + ATR Volatility Breakout",
+      "code_sha256": "f316a957ed08b83b0a9d4a09e960118220882b4f8496208d0e7733fc603dca3d",
+      "duplicate_group": "ONBOARDING",
+      "compile_status": "VALID",
+      "timeframe": "1d",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {},
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "sma_atr_breakout",
+      "evidence_notes": "Mẫu onboarding Studio (SMA + ATR Volatility Breakout). Trích xuất trực tiếp từ frontend EduStudioOnboarding.jsx, chuẩn hóa SL 2.0% và TP 4.0%."
+    },
+    {
+      "source_type": "system_strategy",
+      "record_id": "dca.py",
+      "owner_id": "system_runtime",
+      "is_vinh": false,
+      "name": "dca.py",
+      "code_sha256": "ad3a89909f4a98fcb8cbb13188fc4c0534b5618b56ea72ae41c6e67fb320b1d0",
+      "duplicate_group": "SYSTEM_STRATEGY",
+      "compile_status": "VALID",
+      "timeframe": "1h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {},
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "dca.py",
+      "evidence_notes": "Chiến lược module hệ thống (Nautilus runtime module). Phân tách rõ ràng với student custom DSL."
+    },
+    {
+      "source_type": "system_strategy",
+      "record_id": "kema.py",
+      "owner_id": "system_runtime",
+      "is_vinh": false,
+      "name": "kema.py",
+      "code_sha256": "cf447fe181fdf40471fb8e9c4ecd59c9510ac6fe1cbe6d7313af418b20cec12f",
+      "duplicate_group": "SYSTEM_STRATEGY",
+      "compile_status": "VALID",
+      "timeframe": "1h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {},
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "kema.py",
+      "evidence_notes": "Chiến lược module hệ thống (Nautilus runtime module). Phân tách rõ ràng với student custom DSL."
+    },
+    {
+      "source_type": "system_strategy",
+      "record_id": "sideway.py",
+      "owner_id": "system_runtime",
+      "is_vinh": false,
+      "name": "sideway.py",
+      "code_sha256": "feebb4c0b6c049776b7ca245205b23408ecda259e28a4529c6ecd5acb72cc11b",
+      "duplicate_group": "SYSTEM_STRATEGY",
+      "compile_status": "VALID",
+      "timeframe": "1h",
+      "legs": [
+        "LONG"
+      ],
+      "position_overrides": {},
+      "disposition": "VALID_AS_IS",
+      "canonical_reference": "sideway.py",
+      "evidence_notes": "Chiến lược module hệ thống (Nautilus runtime module). Phân tách rõ ràng với student custom DSL."
+    }
+  ]
+}

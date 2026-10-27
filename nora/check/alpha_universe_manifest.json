@@ -1,0 +1,64 @@
+{
+  "manifest_version": "1.0.0",
+  "name": "COIN_ALPHA_UNIVERSE_MANIFEST_V1",
+  "generated_at_utc": "2026-10-25T22:38:00Z",
+  "scoring_status": "UNSCORED_INVENTORY_ONLY",
+  "active_catalog_digest": {
+    "BTC": "cd026438b6a668b1",
+    "ETH": "8d62dc2d69c4d5cf"
+  },
+  "approved_symbols": ["BTC-USDT-SWAP", "ETH-USDT-SWAP"],
+  "timeframe_tracks": {
+    "swing_track": ["5m", "15m", "1h", "4h", "24h"],
+    "scalp_track": ["1m"]
+  },
+  "system_strategies": [
+    {
+      "strategy_id": "kema",
+      "name": "Keltner Channel + EMA Trend Follower",
+      "family": "TREND_FOLLOWING",
+      "source_file": "nora/coin/data/alpha/strategies/kema.py",
+      "warmup_bars": 100,
+      "candidates": [
+        {"candidate_id": "kema_long", "side": "LONG"},
+        {"candidate_id": "kema_short", "side": "SHORT"}
+      ]
+    },
+    {
+      "strategy_id": "sideway",
+      "name": "Bollinger + RSI Mean Reversion",
+      "family": "MEAN_REVERSION",
+      "source_file": "nora/coin/data/alpha/strategies/sideway.py",
+      "warmup_bars": 120,
+      "candidates": [
+        {"candidate_id": "sideway_long", "side": "LONG"},
+        {"candidate_id": "sideway_short", "side": "SHORT"}
+      ]
+    },
+    {
+      "strategy_id": "dca",
+      "name": "Dynamic Volatility Grid DCA",
+      "family": "GRID_DCA",
+      "source_file": "nora/coin/data/alpha/strategies/dca.py",
+      "warmup_bars": 150,
+      "candidates": [
+        {"candidate_id": "dca_long", "side": "LONG"},
+        {"candidate_id": "dca_short", "side": "SHORT"}
+      ]
+    }
+  ],
+  "matrix_summary": {
+    "candidate_count": 6,
+    "symbol_count": 2,
+    "swing_timeframes_count": 5,
+    "scalp_timeframes_count": 1,
+    "total_swing_variants": 60,
+    "total_scalp_variants": 12,
+    "total_finite_variants": 72
+  },
+  "quarantine_policy": {
+    "fail_closed": true,
+    "pre_parity_book_json_status": "QUARANTINED_STALE",
+    "stale_reason": "PARITY_VALIDATION_NOT_IMPLEMENTED"
+  }
+}

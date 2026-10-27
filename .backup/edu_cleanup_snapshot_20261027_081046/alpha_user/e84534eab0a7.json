@@ -1,0 +1,1216 @@
+{
+ "id": "e84534eab0a7",
+ "name": "Chiến lược đầu tay của e2e_edu_77fab9",
+ "note": "E2E Test Note",
+ "source": "education",
+ "status": "SAVED",
+ "created_at": "2026-10-16T08:51:37.388728+00:00",
+ "updated_at": "2026-10-16T08:51:37.388728+00:00",
+ "code": "class KemaBreakoutStrategy(NoraStrategy):\n    \"\"\"\n    Theo xu hướng giả định rằng các nhịp tăng mạnh có xu hướng kéo dài. Kênh\n    Keltner dựng một dải biến động quanh đường EMA bằng ATR: giá đóng cửa vượt\n    dải trên nghĩa là mức tăng đã lớn hơn biên độ dao động thông thường.\n    \"\"\"\n    timeframe = \"24h\"\n\n    # Tham số chiến lược: đổi các số này rồi bấm Chạy để thấy kết quả mới\n    mid_ema_period = 20\n    vol_atr_period = 14\n    vol_atr_mult = 2.0\n\n    # Vị thế và rủi ro (khai báo tường minh)\n    stop_loss_pct = 3.0  # cắt lỗ: bội số ATR tính từ giá vào lệnh\n    take_profit_pct = 0.0  # chốt lời: bội số ATR tính từ giá vào lệnh, 0 = không dùng\n    trailing_stop_pct = 0.0  # trailing stop: bội số ATR bám theo đỉnh giá kể từ lúc vào lệnh, 0 = không dùng\n    trailing_activation_pct = 0.0  # ngưỡng lãi bật trailing, 0 = không dùng\n    timeout = 0  # số phút giữ lệnh tối đa, 0 = không dùng\n    risk_per_trade_pct = 0.5  # cỡ lệnh: % vốn chịu rủi ro tới mức cắt lỗ\n\n    def on_bar(self):\n\n        # Chỉ báo\n        mid_ema = ema(close, self.mid_ema_period)\n        vol_atr = atr(high, low, close, self.vol_atr_period)\n        upper_band = mid_ema + self.vol_atr_mult * vol_atr\n\n        # Điều kiện vào / thoát lệnh\n        enter_signal = crossover(close, upper_band)\n        exit_signal = close < mid_ema\n\n        # Vị thế: 0 = không giữ, 1 = LONG; lệnh gọi sau ghi đè lệnh trước\n        self.close(exit_signal)\n        self.buy(enter_signal)\n",
+ "program_hash": "f8f8449a4d10",
+ "config": {
+  "symbols": [
+   "BTC"
+  ],
+  "data_symbols": [
+   "BTC@perp"
+  ],
+  "start": "2024-01-01",
+  "end": "2024-01-15",
+  "train_ratio": 0.7,
+  "initial_capital": 10000.0,
+  "timeframe": "24h",
+  "run_frame": "24h",
+  "exchange": "okx",
+  "program": {
+   "name": "KemaBreakoutStrategy",
+   "legs": [
+    "LONG"
+   ],
+   "levels": [
+    0.0,
+    1.0
+   ],
+   "features": [
+    "atr",
+    "ema"
+   ],
+   "warmup_bars": 61
+  },
+  "risk": {
+   "max_positions": 8,
+   "max_per_symbol": 1,
+   "max_gross_exposure": 3.0,
+   "kill_switch_dd_pct": 30.0,
+   "max_open_risk_pct": 6.0,
+   "dd_throttle_pct": 5.0,
+   "dd_throttle_floor": 0.25
+  },
+  "strategies": [
+   "py_f8f8449a4d10_long"
+  ],
+  "position": {
+   "market": "perp",
+   "leverage": 10,
+   "exit_unit": "atr",
+   "atr_frame": "24h",
+   "atr_period": 14,
+   "sizing": "risk",
+   "risk_per_trade_pct": 0.5,
+   "max_notional_pct": 300.0,
+   "stop_fill": "level",
+   "limit_through_pct": 0.0,
+   "cooldown": 1440,
+   "risk_profile": "legacy",
+   "sl_anchor": "",
+   "sl_beyond_last_pct": 0.0,
+   "stop_loss_rate": 3.0,
+   "take_profit_rate": 0.0,
+   "trailing_stop": 0.0,
+   "trailing_activation_pct": 0.0,
+   "timeout": 0
+  }
+ },
+ "metrics": {
+  "simulate": {
+   "ret_pct": 0.0,
+   "mdd_pct": 0.0,
+   "sharpe": 0.0,
+   "sortino": 0.0,
+   "cagr_pct": 0.0,
+   "calmar": null,
+   "trades": 0,
+   "win_rate_trades": null,
+   "profit_factor_trades": null,
+   "fees_usd": 0
+  },
+  "train": {
+   "ret_pct": 0.0,
+   "mdd_pct": 0.0,
+   "sharpe": 0.0,
+   "sortino": 0.0,
+   "cagr_pct": 0.0,
+   "calmar": null,
+   "trades": 0,
+   "win_rate_trades": null,
+   "profit_factor_trades": null,
+   "fees_usd": 0
+  },
+  "test": {
+   "ret_pct": 0.0,
+   "mdd_pct": 0.0,
+   "sharpe": 0.0,
+   "sortino": 0.0,
+   "cagr_pct": 0.0,
+   "calmar": null,
+   "trades": 0,
+   "win_rate_trades": null,
+   "profit_factor_trades": null,
+   "fees_usd": 0
+  },
+  "notes": {
+   "stage_basis": "simulate/train cắt lát đường vốn của lần chạy đầy đủ (train bắt đầu tại start nên trùng); test và các năm giai đoạn test tính từ lần chạy lại [mốc chia, end] bắt đầu từ vốn đầu",
+   "annualization_days": 365,
+   "test_fresh_capital": true
+  }
+ },
+ "checklist": {
+  "all_passed": false,
+  "n_missing": 0,
+  "items": [
+   {
+    "id": "trades_ge_20",
+    "label": "Tối thiểu 20 lệnh giao dịch",
+    "state": "fail",
+    "passed": false,
+    "value": "0 lệnh",
+    "required": "≥ 20 lệnh"
+   },
+   {
+    "id": "has_test_stage",
+    "label": "Có kiểm định ngoài mẫu (Out-Of-Sample)",
+    "state": "pass",
+    "passed": true,
+    "value": "Đã chạy",
+    "required": "Có giai đoạn test"
+   },
+   {
+    "id": "test_sharpe_positive",
+    "label": "Sharpe ngoài mẫu dương (Sharpe Test > 0)",
+    "state": "fail",
+    "passed": false,
+    "value": "0.00",
+    "required": "> 0.0"
+   },
+   {
+    "id": "mdd_under_50",
+    "label": "Mức sụt giảm tối đa dưới 50% (MDD < 50%)",
+    "state": "pass",
+    "passed": true,
+    "value": "0.0%",
+    "required": "< 50%"
+   },
+   {
+    "id": "not_pure_beta",
+    "label": "Không phụ thuộc thuần túy vào thị trường (Beta-driven)",
+    "state": "pass",
+    "passed": true,
+    "value": "Độc lập",
+    "required": "Không kích hoạt beta_driven"
+   }
+  ]
+ },
+ "data_sha": null,
+ "job_id": "20261016_085134_2b7663",
+ "sample_key": null,
+ "final_equity": 10000.0,
+ "evidence": {
+  "job_id": "20261016_085134_2b7663",
+  "program_hash": "f8f8449a4d10",
+  "data_source": "okx",
+  "data_sha256_1m": null,
+  "git_commit": "5fa22ba",
+  "job_created": 1792140694.009468,
+  "job_finished": 1792140696.1116173,
+  "engine": "custom_run (PortfolioEngine)"
+ },
+ "explain": {
+  "indicators": [
+   {
+    "name": "ema",
+    "call": "EMA(giá đóng cửa, 20)",
+    "label_vi": "Đường trung bình động hàm mũ",
+    "meaning_vi": "Tính trung bình động có trọng số mũ, ưu tiên các nến gần nhất để giảm độ trễ so với SMA.",
+    "formula": "\\mathrm{EMA}_n(t) = \\alpha C_t + (1-\\alpha)\\mathrm{EMA}_n(t-1), \\quad \\alpha = \\frac{2}{n+1}",
+    "timeframe": "24h",
+    "warmup": 60,
+    "category": "trend"
+   },
+   {
+    "name": "atr",
+    "call": "ATR(giá cao nhất, giá thấp nhất, giá đóng cửa, 14)",
+    "label_vi": "Biên độ dao động thực tế trung bình",
+    "meaning_vi": "Đo lường mức độ biến động tuyệt đối của thị trường bằng trung bình khoảng biến động n nến.",
+    "formula": "\\mathrm{ATR}_n = \\mathrm{Wilder}(\\mathrm{TR}, n)",
+    "timeframe": "24h",
+    "warmup": 57,
+    "category": "volatility"
+   }
+  ],
+  "rules": [
+   {
+    "index": 1,
+    "line": 34,
+    "level": 0.0,
+    "type": "exit",
+    "condition_vi": "giá đóng cửa nhỏ hơn EMA(giá đóng cửa, 20)",
+    "action_vi": "Thoát vị thế (đưa về 0) khi giá đóng cửa nhỏ hơn EMA(giá đóng cửa, 20)",
+    "is_event": false
+   },
+   {
+    "index": 2,
+    "line": 35,
+    "level": 1.0,
+    "type": "entry_long",
+    "condition_vi": "giá đóng cửa cắt lên EMA(giá đóng cửa, 20) + 2 × ATR(giá cao nhất, giá thấp nhất, giá đóng cửa, 14)",
+    "action_vi": "Vào LONG khi giá đóng cửa cắt lên EMA(giá đóng cửa, 20) + 2 × ATR(giá cao nhất, giá thấp nhất, giá đóng cửa, 14)",
+    "is_event": true
+   }
+  ],
+  "execution": [
+   {
+    "title": "Khớp lệnh",
+    "desc": "Lệnh vào gửi khi nến tín hiệu 24h đóng, khớp ở giá đóng của nến đó; lệnh dừng khớp theo 'level'."
+   },
+   {
+    "title": "Thị trường & Đòn bẩy",
+    "desc": "Hợp đồng phái sinh vĩnh cửu (Perpetual), đòn bẩy trần 10x; chương trình này chỉ dùng chiều Long."
+   },
+   {
+    "title": "Phân bổ vốn",
+    "desc": "Mỗi lệnh chịu rủi ro 0.5% vốn tới mức cắt lỗ (định cỡ theo rủi ro), danh nghĩa tối đa 300% vốn."
+   },
+   {
+    "title": "Quản trị rủi ro",
+    "desc": "Ngoài tín hiệu thoát: Stop-Loss 3×ATR tính từ giá trung bình, nghỉ 1440 phút sau khi thoát. ATR đo trên khung 24h, chu kỳ 14."
+   },
+   {
+    "title": "Chi phí giao dịch",
+    "desc": "Phí taker 0.05%, maker 0.02%, trượt giá 0% mỗi chiều."
+   }
+  ],
+  "warnings": [
+   "Chiến lược chỉ kích hoạt vị thế LONG (mua/nắm giữ), không tham gia chiều SHORT khi thị trường giảm.",
+   "Số nến khởi động khá lớn (61 nến); chiến lược cần đủ dữ liệu lịch sử trước khi bắt đầu sinh tín hiệu."
+  ]
+ },
+ "result": {
+  "config": {
+   "symbols": [
+    "BTC"
+   ],
+   "data_symbols": [
+    "BTC@perp"
+   ],
+   "start": "2024-01-01",
+   "end": "2024-01-15",
+   "train_ratio": 0.7,
+   "initial_capital": 10000.0,
+   "timeframe": "24h",
+   "run_frame": "24h",
+   "exchange": "okx",
+   "program": {
+    "name": "KemaBreakoutStrategy",
+    "legs": [
+     "LONG"
+    ],
+    "levels": [
+     0.0,
+     1.0
+    ],
+    "features": [
+     "atr",
+     "ema"
+    ],
+    "warmup_bars": 61
+   },
+   "risk": {
+    "max_positions": 8,
+    "max_per_symbol": 1,
+    "max_gross_exposure": 3.0,
+    "kill_switch_dd_pct": 30.0,
+    "max_open_risk_pct": 6.0,
+    "dd_throttle_pct": 5.0,
+    "dd_throttle_floor": 0.25
+   },
+   "strategies": [
+    "py_f8f8449a4d10_long"
+   ],
+   "position": {
+    "market": "perp",
+    "leverage": 10,
+    "exit_unit": "atr",
+    "atr_frame": "24h",
+    "atr_period": 14,
+    "sizing": "risk",
+    "risk_per_trade_pct": 0.5,
+    "max_notional_pct": 300.0,
+    "stop_fill": "level",
+    "limit_through_pct": 0.0,
+    "cooldown": 1440,
+    "risk_profile": "legacy",
+    "sl_anchor": "",
+    "sl_beyond_last_pct": 0.0,
+    "stop_loss_rate": 3.0,
+    "take_profit_rate": 0.0,
+    "trailing_stop": 0.0,
+    "trailing_activation_pct": 0.0,
+    "timeout": 0
+   }
+  },
+  "program_hash": "f8f8449a4d10",
+  "data": {
+   "source": "okx",
+   "catalog_digest": {
+    "BTC@perp": "cd026438b6a668b1"
+   }
+  },
+  "metrics": {
+   "simulate": {
+    "ret_pct": 0.0,
+    "mdd_pct": 0.0,
+    "sharpe": 0.0,
+    "sortino": 0.0,
+    "cagr_pct": 0.0,
+    "calmar": null,
+    "trades": 0,
+    "win_rate_trades": null,
+    "profit_factor_trades": null,
+    "fees_usd": 0,
+    "days": 15,
+    "vol_ann_pct": 0.0,
+    "var95_pct": 0.0,
+    "cvar95_pct": 0.0,
+    "win_days_pct": null,
+    "best_day_pct": 0.0,
+    "worst_day_pct": 0.0,
+    "payoff": null,
+    "expectancy_pct": null,
+    "fee_drag_pct": null,
+    "max_dd_days": 0,
+    "max_consec_losses": 0,
+    "top5_share_pct": null,
+    "mae_worst_pct": null,
+    "liq_proximity_max_pct": null,
+    "liquidations": 0
+   },
+   "train": {
+    "ret_pct": 0.0,
+    "mdd_pct": 0.0,
+    "sharpe": 0.0,
+    "sortino": 0.0,
+    "cagr_pct": 0.0,
+    "calmar": null,
+    "trades": 0,
+    "win_rate_trades": null,
+    "profit_factor_trades": null,
+    "fees_usd": 0,
+    "days": 10,
+    "vol_ann_pct": 0.0,
+    "var95_pct": 0.0,
+    "cvar95_pct": 0.0,
+    "win_days_pct": null,
+    "best_day_pct": 0.0,
+    "worst_day_pct": 0.0,
+    "payoff": null,
+    "expectancy_pct": null,
+    "fee_drag_pct": null,
+    "max_dd_days": 0,
+    "max_consec_losses": 0,
+    "top5_share_pct": null,
+    "mae_worst_pct": null,
+    "liq_proximity_max_pct": null,
+    "liquidations": 0
+   },
+   "test": {
+    "ret_pct": 0.0,
+    "mdd_pct": 0.0,
+    "sharpe": 0.0,
+    "sortino": 0.0,
+    "cagr_pct": 0.0,
+    "calmar": null,
+    "trades": 0,
+    "win_rate_trades": null,
+    "profit_factor_trades": null,
+    "fees_usd": 0,
+    "days": 4,
+    "vol_ann_pct": 0.0,
+    "var95_pct": 0.0,
+    "cvar95_pct": 0.0,
+    "win_days_pct": null,
+    "best_day_pct": 0.0,
+    "worst_day_pct": 0.0,
+    "payoff": null,
+    "expectancy_pct": null,
+    "fee_drag_pct": null,
+    "max_dd_days": 0,
+    "max_consec_losses": 0,
+    "top5_share_pct": null,
+    "mae_worst_pct": null,
+    "liq_proximity_max_pct": null,
+    "liquidations": 0
+   },
+   "notes": {
+    "stage_basis": "simulate/train cắt lát đường vốn của lần chạy đầy đủ (train bắt đầu tại start nên trùng); test và các năm giai đoạn test tính từ lần chạy lại [mốc chia, end] bắt đầu từ vốn đầu",
+    "annualization_days": 365,
+    "test_fresh_capital": true
+   }
+  },
+  "yearly": [
+   {
+    "year": 2024,
+    "stage": "train",
+    "days": 10,
+    "cagr_pct": 0.0,
+    "sharpe": 0.0,
+    "mdd_pct": 0.0,
+    "profit_factor_trades": null,
+    "calmar": null
+   },
+   {
+    "year": 2024,
+    "stage": "test",
+    "days": 5,
+    "cagr_pct": 0.0,
+    "sharpe": 0.0,
+    "mdd_pct": 0.0,
+    "profit_factor_trades": null,
+    "calmar": null
+   }
+  ],
+  "series": {
+   "times": [
+    1704067200,
+    1704153600,
+    1704240000,
+    1704326400,
+    1704412800,
+    1704499200,
+    1704585600,
+    1704672000,
+    1704758400,
+    1704844800,
+    1704931200,
+    1705017600,
+    1705104000,
+    1705190400,
+    1705276800,
+    1705363200
+   ],
+   "equity": [
+    10000.0,
+    10000.0,
+    10000.0,
+    10000.0,
+    10000.0,
+    10000.0,
+    10000.0,
+    10000.0,
+    10000.0,
+    10000.0,
+    10000.0,
+    10000.0,
+    10000.0,
+    10000.0,
+    10000.0,
+    10000.0
+   ],
+   "pnl": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "drawdown": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "stage_split": 1704931200,
+   "test": {
+    "times": [
+     1704931200,
+     1705017600,
+     1705104000,
+     1705190400,
+     1705276800,
+     1705363200
+    ],
+    "equity": [
+     10000.0,
+     10000.0,
+     10000.0,
+     10000.0,
+     10000.0,
+     10000.0
+    ],
+    "drawdown": [
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "benchmark": {
+     "times": [
+      1704931200,
+      1705017600,
+      1705104000,
+      1705190400,
+      1705276800,
+      1705363200
+     ],
+     "equity": [
+      10000.0,
+      9995.0,
+      9226.77,
+      9242.32,
+      9003.86,
+      9172.15
+     ],
+     "label": "Luôn long (position=1) cùng rổ/ngày/vốn, chia đều, đòn bẩy 1, không SL/TP/trailing/timeout/kill-switch",
+     "final_equity": 9172.15
+    }
+   },
+   "benchmark": {
+    "times": [
+     1704067200,
+     1704153600,
+     1704240000,
+     1704326400,
+     1704412800,
+     1704499200,
+     1704585600,
+     1704672000,
+     1704758400,
+     1704844800,
+     1704931200,
+     1705017600,
+     1705104000,
+     1705190400,
+     1705276800,
+     1705363200
+    ],
+    "equity": [
+     10000.0,
+     9995.0,
+     10161.54,
+     9685.61,
+     9978.6,
+     9980.29,
+     9938.84,
+     9930.64,
+     10616.5,
+     10424.61,
+     10544.91,
+     10473.17,
+     9668.25,
+     9684.55,
+     9434.7,
+     9611.03
+    ],
+    "label": "Luôn long (position=1) cùng rổ/ngày/vốn, chia đều, đòn bẩy 1, không SL/TP/trailing/timeout/kill-switch",
+    "final_equity": 9611.03
+   },
+   "stages": {
+    "all": {
+     "times": [
+      1704067200,
+      1704153600,
+      1704240000,
+      1704326400,
+      1704412800,
+      1704499200,
+      1704585600,
+      1704672000,
+      1704758400,
+      1704844800,
+      1704931200,
+      1705017600,
+      1705104000,
+      1705190400,
+      1705276800,
+      1705363200
+     ],
+     "equity": [
+      10000.0,
+      10000.0,
+      10000.0,
+      10000.0,
+      10000.0,
+      10000.0,
+      10000.0,
+      10000.0,
+      10000.0,
+      10000.0,
+      10000.0,
+      10000.0,
+      10000.0,
+      10000.0,
+      10000.0,
+      10000.0
+     ],
+     "pnl": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "drawdown_pct": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "ret_pct": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "benchmark": {
+      "equity": [
+       10000.0,
+       9995.0,
+       10161.54,
+       9685.61,
+       9978.6,
+       9980.29,
+       9938.84,
+       9930.64,
+       10616.5,
+       10424.61,
+       10544.91,
+       10473.17,
+       9668.25,
+       9684.55,
+       9434.7,
+       9611.03
+      ],
+      "pnl": [
+       0.0,
+       -5.0,
+       161.54,
+       -314.39,
+       -21.4,
+       -19.71,
+       -61.16,
+       -69.36,
+       616.5,
+       424.61,
+       544.91,
+       473.17,
+       -331.75,
+       -315.45,
+       -565.3,
+       -388.97
+      ],
+      "label": "Luôn long (position=1) cùng rổ/ngày/vốn, chia đều, đòn bẩy 1, không SL/TP/trailing/timeout/kill-switch"
+     },
+     "downsample": {
+      "step": 1,
+      "source_points": 16,
+      "points": 16,
+      "rule": "nhãn/equity/pnl = điểm cuối nhóm; drawdown_pct = đáy nhóm; ret_pct = lãi kép trong nhóm; điểm đầu đứng riêng"
+     }
+    },
+    "train": {
+     "times": [
+      1704067200,
+      1704153600,
+      1704240000,
+      1704326400,
+      1704412800,
+      1704499200,
+      1704585600,
+      1704672000,
+      1704758400,
+      1704844800,
+      1704931200
+     ],
+     "equity": [
+      10000.0,
+      10000.0,
+      10000.0,
+      10000.0,
+      10000.0,
+      10000.0,
+      10000.0,
+      10000.0,
+      10000.0,
+      10000.0,
+      10000.0
+     ],
+     "pnl": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "drawdown_pct": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "ret_pct": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "benchmark": {
+      "equity": [
+       10000.0,
+       9995.0,
+       10161.54,
+       9685.61,
+       9978.6,
+       9980.29,
+       9938.84,
+       9930.64,
+       10616.5,
+       10424.61,
+       10544.91
+      ],
+      "pnl": [
+       0.0,
+       -5.0,
+       161.54,
+       -314.39,
+       -21.4,
+       -19.71,
+       -61.16,
+       -69.36,
+       616.5,
+       424.61,
+       544.91
+      ],
+      "label": "Luôn long (position=1) cùng rổ/ngày/vốn, chia đều, đòn bẩy 1, không SL/TP/trailing/timeout/kill-switch"
+     },
+     "downsample": {
+      "step": 1,
+      "source_points": 11,
+      "points": 11,
+      "rule": "nhãn/equity/pnl = điểm cuối nhóm; drawdown_pct = đáy nhóm; ret_pct = lãi kép trong nhóm; điểm đầu đứng riêng"
+     }
+    },
+    "test": {
+     "times": [
+      1704931200,
+      1705017600,
+      1705104000,
+      1705190400,
+      1705276800,
+      1705363200
+     ],
+     "equity": [
+      10000.0,
+      10000.0,
+      10000.0,
+      10000.0,
+      10000.0,
+      10000.0
+     ],
+     "pnl": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "drawdown_pct": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "ret_pct": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "benchmark": {
+      "equity": [
+       10000.0,
+       9995.0,
+       9226.77,
+       9242.32,
+       9003.86,
+       9172.15
+      ],
+      "pnl": [
+       0.0,
+       -5.0,
+       -773.23,
+       -757.68,
+       -996.14,
+       -827.85
+      ],
+      "label": "Luôn long (position=1) cùng rổ/ngày/vốn, chia đều, đòn bẩy 1, không SL/TP/trailing/timeout/kill-switch"
+     },
+     "downsample": {
+      "step": 1,
+      "source_points": 6,
+      "points": 6,
+      "rule": "nhãn/equity/pnl = điểm cuối nhóm; drawdown_pct = đáy nhóm; ret_pct = lãi kép trong nhóm; điểm đầu đứng riêng"
+     }
+    }
+   }
+  },
+  "trades": [],
+  "positions_open": [],
+  "by_symbol": [
+   {
+    "symbol": "BTC@perp",
+    "pnl_usd": 0.0,
+    "trades": 0,
+    "wins": 0,
+    "fees_usd": 0.0,
+    "open_pnl_usd": 0,
+    "weight_pct": 100.0,
+    "ret_pct": 0.0
+   }
+  ],
+  "warnings": [],
+  "diagnostics": {
+   "signal_activity": {
+    "total_trades": 0,
+    "closed_trades": 0,
+    "open_trades": 0,
+    "avg_holding_days": 0.0,
+    "median_holding_days": 0.0,
+    "exit_reasons": {},
+    "exit_reason_counts": {},
+    "long_trades": 0,
+    "short_trades": 0,
+    "days_in_market_pct": 0.0,
+    "avg_exposure_pct": 0.0,
+    "max_exposure_pct": 0.0,
+    "time_in_market_by_coin": {},
+    "exposure_basis": "mtm_daily_close"
+   },
+   "binding_condition": {
+    "available": true,
+    "timeframe": "24h",
+    "symbols": [
+     "BTC"
+    ],
+    "rules": [
+     {
+      "index": 2,
+      "line": 35,
+      "level": 1.0,
+      "side": "LONG",
+      "n_conjuncts": 1,
+      "conjuncts": [
+       {
+        "index": 1,
+        "text_vi": "giá đóng cửa cắt lên EMA(giá đóng cửa, 20) + 2 × ATR(giá cao nhất, giá thấp nhất, giá đóng cửa, 14)",
+        "pct_true": 0.0,
+        "per_symbol": {
+         "BTC": {
+          "pct_true": 0.0,
+          "bars": 15
+         }
+        }
+       }
+      ],
+      "binding": null,
+      "bars": 15,
+      "all_true_bars": 0
+     }
+    ]
+   },
+   "pnl_structure": {
+    "closed_trades": 0,
+    "win_rate": null,
+    "payoff": null,
+    "top5_profit_pct": null,
+    "max_consecutive_losses": 0,
+    "winning_trades": null,
+    "losing_trades": null,
+    "avg_win": null,
+    "avg_loss": null,
+    "max_win": null,
+    "max_loss": null,
+    "fees_usd": 0.0,
+    "net_pnl_usd": 0.0,
+    "gross_pnl_before_fees_usd": 0.0,
+    "fee_drag_pct": null,
+    "fees_pct_of_capital": 0.0,
+    "by_coin": {},
+    "by_year": {},
+    "short_pnl_usd": 0.0,
+    "short_closed_trades": 0,
+    "by_coin_basis": "đã chốt + lệnh đang mở theo giá cuối"
+   },
+   "market_comparison": {
+    "available": true,
+    "beta": 0.0,
+    "correlation": null,
+    "excess_cagr": 61.92,
+    "market_cagr": -61.92,
+    "market_mdd": 11.13,
+    "strategy_cagr": 0.0,
+    "strategy_mdd": 0.0,
+    "benchmark": "Luôn long (position=1) cùng rổ/ngày/vốn, chia đều, đòn bẩy 1, không SL/TP/trailing/timeout/kill-switch",
+    "strategy_total_return_pct": 0.0,
+    "market_total_return_pct": -3.89,
+    "days": 15
+   },
+   "train_vs_test": {
+    "train_sharpe": 0.0,
+    "test_sharpe": 0.0,
+    "sharpe_decay": null,
+    "train_cagr": 0.0,
+    "test_cagr": 0.0,
+    "train_mdd": 0.0,
+    "test_mdd": 0.0
+   },
+   "regime_analysis": {
+    "available": true,
+    "market": "BTC",
+    "sma_days": 200,
+    "total_days": 15,
+    "total_pnl_usd": 0.0,
+    "bull": {
+     "days": 0,
+     "pct_days": 0.0,
+     "pnl_usd": 0.0,
+     "pnl_share_pct": null,
+     "trades_entered": 0,
+     "days_in_market_pct": null,
+     "market_return_pct": null,
+     "benchmark_pnl_usd": 0.0
+    },
+    "bear": {
+     "days": 0,
+     "pct_days": 0.0,
+     "pnl_usd": 0.0,
+     "pnl_share_pct": null,
+     "trades_entered": 0,
+     "days_in_market_pct": null,
+     "market_return_pct": null,
+     "benchmark_pnl_usd": 0.0
+    },
+    "unknown": {
+     "days": 15,
+     "pct_days": 100.0,
+     "pnl_usd": 0.0,
+     "pnl_share_pct": null,
+     "trades_entered": 0,
+     "days_in_market_pct": 0.0,
+     "market_return_pct": 0.53,
+     "benchmark_pnl_usd": -388.97
+    },
+    "initial_capital": 10000.0
+   }
+  },
+  "insights": [],
+  "final_equity": 10000.0,
+  "explain": {
+   "indicators": [
+    {
+     "name": "ema",
+     "call": "EMA(giá đóng cửa, 20)",
+     "label_vi": "Đường trung bình động hàm mũ",
+     "meaning_vi": "Tính trung bình động có trọng số mũ, ưu tiên các nến gần nhất để giảm độ trễ so với SMA.",
+     "formula": "\\mathrm{EMA}_n(t) = \\alpha C_t + (1-\\alpha)\\mathrm{EMA}_n(t-1), \\quad \\alpha = \\frac{2}{n+1}",
+     "timeframe": "24h",
+     "warmup": 60,
+     "category": "trend"
+    },
+    {
+     "name": "atr",
+     "call": "ATR(giá cao nhất, giá thấp nhất, giá đóng cửa, 14)",
+     "label_vi": "Biên độ dao động thực tế trung bình",
+     "meaning_vi": "Đo lường mức độ biến động tuyệt đối của thị trường bằng trung bình khoảng biến động n nến.",
+     "formula": "\\mathrm{ATR}_n = \\mathrm{Wilder}(\\mathrm{TR}, n)",
+     "timeframe": "24h",
+     "warmup": 57,
+     "category": "volatility"
+    }
+   ],
+   "rules": [
+    {
+     "index": 1,
+     "line": 34,
+     "level": 0.0,
+     "type": "exit",
+     "condition_vi": "giá đóng cửa nhỏ hơn EMA(giá đóng cửa, 20)",
+     "action_vi": "Thoát vị thế (đưa về 0) khi giá đóng cửa nhỏ hơn EMA(giá đóng cửa, 20)",
+     "is_event": false
+    },
+    {
+     "index": 2,
+     "line": 35,
+     "level": 1.0,
+     "type": "entry_long",
+     "condition_vi": "giá đóng cửa cắt lên EMA(giá đóng cửa, 20) + 2 × ATR(giá cao nhất, giá thấp nhất, giá đóng cửa, 14)",
+     "action_vi": "Vào LONG khi giá đóng cửa cắt lên EMA(giá đóng cửa, 20) + 2 × ATR(giá cao nhất, giá thấp nhất, giá đóng cửa, 14)",
+     "is_event": true
+    }
+   ],
+   "execution": [
+    {
+     "title": "Khớp lệnh",
+     "desc": "Lệnh vào gửi khi nến tín hiệu 24h đóng, khớp ở giá đóng của nến đó; lệnh dừng khớp theo 'level'."
+    },
+    {
+     "title": "Thị trường & Đòn bẩy",
+     "desc": "Hợp đồng phái sinh vĩnh cửu (Perpetual), đòn bẩy trần 10x; chương trình này chỉ dùng chiều Long."
+    },
+    {
+     "title": "Phân bổ vốn",
+     "desc": "Mỗi lệnh chịu rủi ro 0.5% vốn tới mức cắt lỗ (định cỡ theo rủi ro), danh nghĩa tối đa 300% vốn."
+    },
+    {
+     "title": "Quản trị rủi ro",
+     "desc": "Ngoài tín hiệu thoát: Stop-Loss 3×ATR tính từ giá trung bình, nghỉ 1440 phút sau khi thoát. ATR đo trên khung 24h, chu kỳ 14."
+    },
+    {
+     "title": "Chi phí giao dịch",
+     "desc": "Phí taker 0.05%, maker 0.02%, trượt giá 0% mỗi chiều."
+    }
+   ],
+   "warnings": [
+    "Chiến lược chỉ kích hoạt vị thế LONG (mua/nắm giữ), không tham gia chiều SHORT khi thị trường giảm.",
+    "Số nến khởi động khá lớn (61 nến); chiến lược cần đủ dữ liệu lịch sử trước khi bắt đầu sinh tín hiệu."
+   ],
+   "notes": {
+    "metrics": {
+     "ret_pct": "Vốn 10,000 → 10,000 USD (0.00%) sau 0 lệnh trong 15 ngày. Lệnh sinh ra từ quy tắc: Vào LONG khi giá đóng cửa cắt lên EMA(giá đóng cửa, 20) + 2 × ATR(giá cao nhất, giá thấp nhất, giá đóng cửa, 14).",
+     "cagr_pct": "Lợi suất quy năm (365 ngày) 0.00%/năm, benchmark luôn long -61.92%/năm.",
+     "sharpe": "Sharpe 0.00, Sortino 0.00 trên đường vốn cuối ngày của lần chạy này. Vị thế có mặt 0.00% số ngày, phơi nhiễm TB 0.00% vốn.",
+     "sortino": "Sortino 0.00 so với Sharpe 0.00 (cùng đường vốn, chỉ tính độ lệch của các ngày lỗ).",
+     "mdd_pct": "Đáy sụt giảm vốn sâu nhất 0.00% (vốn cuối ngày); benchmark luôn long sụt 11.13%. Chuỗi thua dài nhất 0 lệnh. Ngoài tín hiệu thoát: Stop-Loss 3×ATR tính từ giá trung bình, nghỉ 1440 phút sau khi thoát. ATR đo trên khung 24h, chu kỳ 14.",
+     "trades": "0 lệnh đã đóng, 0 đang mở; 0 long / 0 short.",
+     "fees_usd": "Phí 0.00 USD = 0.00% vốn đầu."
+    },
+    "summary": "Vốn 10,000 → 10,000 USD (0.00%), sụt giảm sâu nhất 0.00%, Sharpe 0.00, 0 lệnh. Quy tắc: Vào LONG khi giá đóng cửa cắt lên EMA(giá đóng cửa, 20) + 2 × ATR(giá cao nhất, giá thấp nhất, giá đóng cửa, 14). Thoát khi giá đóng cửa nhỏ hơn EMA(giá đóng cửa, 20). Ngoài tín hiệu thoát: Stop-Loss 3×ATR tính từ giá trung bình, nghỉ 1440 phút sau khi thoát. ATR đo trên khung 24h, chu kỳ 14.",
+    "equity": "Vốn đạt đỉnh 10,000 USD ngày 2024-01-01; đáy sụt giảm 0.00% ngày 2024-01-01; cuối kỳ 10,000 USD, đang cách đỉnh 0.00%.",
+    "yearly": "0/2 năm có lãi; năm tốt nhất 2024 (train): CAGR 0.00%, MDD 0.00%; năm kém nhất 2024 (train): CAGR 0.00%, MDD 0.00%.",
+    "by_symbol": "0/1 tài sản có lãi; tốt nhất BTC@perp 0.00 USD (0 lệnh), kém nhất BTC@perp 0.00 USD (0 lệnh).",
+    "train_test": "Train 2024-01-01 → 2024-01-11, test 2024-01-11 → 2024-01-15: Sharpe train 0.00 → test 0.00; CAGR train 0.00% → test 0.00%; MDD train 0.00% → test 0.00%.",
+    "benchmark": "Chiến lược 0.00% so với benchmark luôn long -3.89%; chênh CAGR 61.92 điểm %/năm, beta 0.000, tương quan None.",
+    "holding": "Giữ TB 0.00 ngày, trung vị 0.00 ngày.",
+    "regime": "Theo BTC so với SMA200: pha bull 0 ngày, PnL 0.00 USD (0 lệnh vào); pha bear 0 ngày, PnL 0.00 USD (0 lệnh vào)."
+   }
+  },
+  "alpha_id": "d8c1c465ef40",
+  "meta": {
+   "wall_s": 0.4,
+   "peak_rss_mb": 509.8
+  },
+  "provenance": {
+   "engine": "nautilus_trader",
+   "version": "1.231.0",
+   "base_frame": "24h",
+   "exec_frame": "24h",
+   "venue": "OKX",
+   "oms": "NETTING",
+   "account": "MARGIN",
+   "fill_convention": "Lệnh market gửi lúc nến i đóng khớp ở GIÁ ĐÓNG nến i (Nautilus bar_execution); engine cũ khớp ở giá MỞ nến i+1. SL/TP/TRAIL/DCA khớp theo đường O→H→L→C của nến (bar_adaptive_high_low_ordering theo intrabar_path).",
+   "slippage_modeled": false,
+   "funding_modeled": false,
+   "liquidation_modeled": false,
+   "job_id": "20261016_085134_2b7663",
+   "computed_at": "2026-10-16T08:51:35Z"
+  },
+  "compile": {
+   "engine": "dsl",
+   "reasons": [
+    "khớp hợp đồng Nora DSL"
+   ],
+   "confidence": "rule"
+  },
+  "checklist": {
+   "all_passed": false,
+   "n_missing": 0,
+   "items": [
+    {
+     "id": "trades_ge_20",
+     "label": "Tối thiểu 20 lệnh giao dịch",
+     "state": "fail",
+     "passed": false,
+     "value": "0 lệnh",
+     "required": "≥ 20 lệnh"
+    },
+    {
+     "id": "has_test_stage",
+     "label": "Có kiểm định ngoài mẫu (Out-Of-Sample)",
+     "state": "pass",
+     "passed": true,
+     "value": "Đã chạy",
+     "required": "Có giai đoạn test"
+    },
+    {
+     "id": "test_sharpe_positive",
+     "label": "Sharpe ngoài mẫu dương (Sharpe Test > 0)",
+     "state": "fail",
+     "passed": false,
+     "value": "0.00",
+     "required": "> 0.0"
+    },
+    {
+     "id": "mdd_under_50",
+     "label": "Mức sụt giảm tối đa dưới 50% (MDD < 50%)",
+     "state": "pass",
+     "passed": true,
+     "value": "0.0%",
+     "required": "< 50%"
+    },
+    {
+     "id": "not_pure_beta",
+     "label": "Không phụ thuộc thuần túy vào thị trường (Beta-driven)",
+     "state": "pass",
+     "passed": true,
+     "value": "Độc lập",
+     "required": "Không kích hoạt beta_driven"
+    }
+   ]
+  }
+ },
+ "owner_id": "f709d20ef2cd",
+ "version": 1
+}

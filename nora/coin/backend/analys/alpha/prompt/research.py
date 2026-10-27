@@ -7,21 +7,27 @@
 5. run_backtest: Chạy backtest Nautilus thật qua run_custom + benchmark.
 6. synthesize: Tổng hợp kết luận (loại bỏ câu bịa số bằng regex; nhãn đạt/không đạt tính bằng code).
 """
+import hashlib
 import json
 import logging
 import math
 import os
 import re
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Set, Tuple
+from urllib.parse import quote, urlsplit
+
+import httpx
 
 from . import llm
 from ..code.compile import compile_code
 from ..code.contract import catalog
 from ..code.route import classify
-from backend.analys.signal import DslError
+from ...signal import DslError
 
 logger = logging.getLogger("backend.analys.alpha.research")
 PROMPTS_DIR = os.path.join(os.path.dirname(__file__), "prompts")
+_DOI_RE = re.compile(r"^10\.\d{4,9}/[^\s]+$", re.IGNORECASE)
 
 
 def _read_prompt_template(name: str) -> str:
@@ -75,20 +81,36 @@ def validate_prompt(text: str, opts: Optional[Dict[str, Any]] = None) -> Dict[st
         temperature=0.1,
     )
 
-    if isinstance(resp, dict):
-        valid = bool(resp.get("valid", False))
-        reason = resp.get("reason", "Prompt hợp lệ" if valid else "Prompt không có ý nghĩa tài chính rõ ràng")
-        norm = resp.get("normalized_prompt") or text_clean
-        asset = resp.get("asset") or opts.get("symbol") or "BTC-USDT"
-        tf = resp.get("timeframe") or opts.get("timeframe") or "1h"
-        side = resp.get("side") or opts.get("side") or "both"
+    if not isinstance(resp, dict):
+        return {
+            "valid": False,
+            "reason": "Không nhận được phản hồi phân tích hợp lệ từ LLM/Provider. Vui lòng kiểm tra cấu hình kết nối.",
+            "normalized_prompt": text_clean,
+            "asset": opts.get("symbol") or "BTC-USDT",
+            "timeframe": opts.get("timeframe") or "1h",
+            "side": opts.get("side") or "both",
+            "opts": opts,
+        }
+
+    raw_valid = resp.get("valid")
+    text_fields = ("reason", "normalized_prompt", "asset", "timeframe", "side")
+    malformed_fields = [field for field in text_fields if field in resp and not isinstance(resp[field], str)]
+    schema_valid = type(raw_valid) is bool and not malformed_fields
+    valid = raw_valid if schema_valid else False
+
+    reason_val = resp.get("reason")
+    if isinstance(reason_val, str) and reason_val.strip():
+        reason = reason_val.strip()
+    elif type(raw_valid) is not bool:
+        reason = "Phản hồi từ provider không đúng schema: 'valid' phải là boolean."
+    elif malformed_fields:
+        reason = f"Phản hồi từ provider không đúng schema: trường phải là chuỗi: {', '.join(malformed_fields)}."
     else:
-        valid = True
-        reason = "Đã phân tích prompt"
-        norm = text_clean
-        asset = opts.get("symbol") or "BTC-USDT"
-        tf = opts.get("timeframe") or "1h"
-        side = opts.get("side") or "both"
+        reason = "Prompt hợp lệ" if valid else "Prompt không có ý nghĩa tài chính rõ ràng hoặc phản hồi từ provider không đạt chuẩn"
+    norm = resp.get("normalized_prompt") if isinstance(resp.get("normalized_prompt"), str) and resp["normalized_prompt"].strip() else text_clean
+    asset = resp.get("asset") if isinstance(resp.get("asset"), str) and resp["asset"].strip() else opts.get("symbol") or "BTC-USDT"
+    tf = resp.get("timeframe") if isinstance(resp.get("timeframe"), str) and resp["timeframe"].strip() else opts.get("timeframe") or "1h"
+    side = resp.get("side") if isinstance(resp.get("side"), str) and resp["side"].strip() else opts.get("side") or "both"
 
     return {
         "valid": valid,
@@ -104,6 +126,101 @@ def validate_prompt(text: str, opts: Optional[Dict[str, Any]] = None) -> Dict[st
 # ══════════════════════════════════════════════════════════════════════════
 # BƯỚC 2: Generate Ideas
 # ══════════════════════════════════════════════════════════════════════════
+
+def _sanitize_citations(cits: Any) -> List[Dict[str, Any]]:
+    """Lọc và chuẩn hoá danh mục tài liệu tham khảo.
+
+    Tài liệu do mô hình LLM gợi ý khi chưa qua crawler/công cụ truy xuất web thực tế
+    bắt buộc phải mang nhãn verified=False và status='unverified_reference'.
+    Tuyệt đối KHÔNG giả mạo cờ verified=True hoặc thời gian truy xuất (retrieval_time).
+    """
+    if not isinstance(cits, list):
+        return []
+    sanitized = []
+    for c in cits:
+        if not isinstance(c, dict):
+            continue
+        title = c.get("title")
+        title = title.strip() if isinstance(title, str) else ""
+        if not title:
+            continue
+        provider = c.get("provider")
+        url = c.get("url")
+        excerpt = c.get("excerpt")
+        sanitized.append({
+            "provider": provider.strip() if isinstance(provider, str) and provider.strip() else "LLM Suggested Reference",
+            "title": title,
+            "url": url.strip() if isinstance(url, str) else "",
+            "doi": c.get("doi") if isinstance(c.get("doi"), str) else "",
+            "retrieval_time": None,
+            "excerpt": excerpt.strip() if isinstance(excerpt, str) else "",
+            "verified": False,
+            "status": "unverified_reference",
+        })
+    return sanitized
+
+
+def _citation_doi(citation: Dict[str, Any]) -> str:
+    value = citation.get("doi") or citation.get("url")
+    if not isinstance(value, str):
+        raise ValueError("Citation phải có DOI hoặc URL DOI.")
+    value = value.strip()
+    if value.lower().startswith("doi:"):
+        value = value[4:].strip()
+    elif value.startswith(("https://", "http://")):
+        parsed = urlsplit(value)
+        if parsed.hostname not in {"doi.org", "www.doi.org", "dx.doi.org"}:
+            raise ValueError("Chỉ chấp nhận DOI URL thuộc doi.org.")
+        value = parsed.path.lstrip("/")
+    value = value.rstrip(".,;)")
+    if not _DOI_RE.fullmatch(value):
+        raise ValueError("DOI không đúng định dạng.")
+    return value
+
+
+def verify_citation(citation: Dict[str, Any]) -> Dict[str, Any]:
+    """Verify one DOI against Crossref through a fixed host; never fetch a caller-provided URL."""
+    doi = _citation_doi(citation)
+    response = httpx.get(
+        f"https://api.crossref.org/works/{quote(doi, safe='/')}",
+        headers={"User-Agent": "NoraBT/1.0 (citation verification)"},
+        timeout=5.0,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    message = payload.get("message") if isinstance(payload, dict) else None
+    if not isinstance(message, dict) or not isinstance(message.get("DOI"), str):
+        raise ValueError("Crossref returned no canonical work metadata for this DOI.")
+    canonical_doi = message["DOI"]
+    if canonical_doi.casefold() != doi.casefold():
+        raise ValueError("Crossref returned metadata for a different DOI.")
+    title_values = message.get("title")
+    title = title_values[0] if isinstance(title_values, list) and title_values and isinstance(title_values[0], str) else ""
+    if not title:
+        raise ValueError("Crossref returned DOI metadata without a title.")
+    published = message.get("published-print") or message.get("published-online") or message.get("created")
+    metadata = {
+        "doi": canonical_doi,
+        "title": title,
+        "publisher": message.get("publisher") if isinstance(message.get("publisher"), str) else "",
+        "published": published,
+        "url": message.get("URL") if isinstance(message.get("URL"), str) else f"https://doi.org/{canonical_doi}",
+        "authors": [
+            {"given": author.get("given", ""), "family": author.get("family", "")}
+            for author in message.get("author", [])
+            if isinstance(author, dict)
+        ],
+    }
+    metadata_json = json.dumps(metadata, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return {
+        **metadata,
+        "provider": "Crossref",
+        "verified": True,
+        "status": "verified",
+        "retrieval_time": datetime.now(timezone.utc).isoformat(),
+        "metadata_sha256": hashlib.sha256(metadata_json.encode("utf-8")).hexdigest(),
+    }
+
 
 def generate_ideas(prompt: str, opts: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
     """Sinh 1-3 ý tưởng giao dịch {id, name, rationale, entry, exit, risk}."""
@@ -121,6 +238,17 @@ def generate_ideas(prompt: str, opts: Optional[Dict[str, Any]] = None) -> List[D
                 "id": 1,
                 "name": "Tên ý tưởng",
                 "rationale": "Lý do tài chính",
+                "economic_mechanism": "Cơ chế kinh tế học / market microstructure giải thích lợi thế",
+                "falsifiable_conditions": "Điều kiện quan sát thực nghiệm khiến giả thuyết bị bác bỏ",
+                "rejection_rules": "Quy tắc dừng nghiên cứu nếu Sharpe < 0.8 hoặc MDD > 20%",
+                "citations": [
+                    {
+                        "provider": "Academic Literature / Market Microstructure",
+                        "title": "Tên bài báo / nghiên cứu tham khảo",
+                        "url": "https://doi.org/...",
+                        "excerpt": "Trích đoạn luận điểm cốt lõi",
+                    }
+                ],
                 "entry": "Điều kiện vào lệnh",
                 "exit": "Điều kiện thoát lệnh",
                 "risk": "Quản lý rủi ro",
@@ -141,11 +269,15 @@ def generate_ideas(prompt: str, opts: Optional[Dict[str, Any]] = None) -> List[D
     elif isinstance(resp, list):
         ideas = resp
     else:
-        # Fallback 1 idea mặc định
+        # Fallback 1 idea mặc định với cơ chế kinh tế và điều kiện bác bỏ rõ ràng, citations rỗng (không bịa nguồn)
         ideas = [{
             "id": 1,
             "name": "Chiến lược theo prompt",
             "rationale": "Giao dịch theo tín hiệu nhận được từ yêu cầu nghiên cứu.",
+            "economic_mechanism": "Khai thác độ trễ phản ứng dòng tiền và quán tính giá (Momentum / Underreaction anomaly).",
+            "falsifiable_conditions": "Nếu phân phối lợi suất vượt trội (excess return) qua các chu kỳ biến động không khác biệt có ý nghĩa thống kê so với phân phối ngẫu nhiên (t-stat < 2.0).",
+            "rejection_rules": "Bác bỏ nếu Sharpe test < 0.5, Max Drawdown vượt quá 25% hoặc tỷ lệ lệnh thắng < 40%.",
+            "citations": [],
             "entry": prompt,
             "exit": "Đóng vị thế khi tín hiệu đảo chiều hoặc chạm dừng lỗ",
             "risk": "Đòn bẩy 1.0x, dừng lỗ 3%",
@@ -154,15 +286,23 @@ def generate_ideas(prompt: str, opts: Optional[Dict[str, Any]] = None) -> List[D
     # Đảm bảo các trường cần thiết và tối đa 3 ý tưởng
     out = []
     for i, it in enumerate(ideas[:3], start=1):
+        default_mech = "Khai thác độ trễ phản ứng dòng tiền và quán tính xu hướng (Momentum / Underreaction anomaly)."
+        default_falsify = "Bị bác bỏ nếu lợi suất vượt trội sau chi phí không đạt mức ý nghĩa thống kê (t-stat < 1.5)."
+        default_rejection = "Bác bỏ nếu Sharpe test < 0.5 hoặc MDD vượt quá 25% trên tập OOS."
         out.append({
             "id": it.get("id", i),
             "name": it.get("name", f"Ý tưởng {i}"),
             "rationale": it.get("rationale", ""),
+            "economic_mechanism": it.get("economic_mechanism") or default_mech,
+            "falsifiable_conditions": it.get("falsifiable_conditions") or default_falsify,
+            "rejection_rules": it.get("rejection_rules") or default_rejection,
+            "citations": _sanitize_citations(it.get("citations")),
             "entry": it.get("entry", ""),
             "exit": it.get("exit", ""),
             "risk": it.get("risk", ""),
         })
     return out
+
 
 
 # ══════════════════════════════════════════════════════════════════════════

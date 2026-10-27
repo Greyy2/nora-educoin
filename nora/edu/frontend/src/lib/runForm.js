@@ -12,12 +12,17 @@ export function validateRun(form, code) {
   if (!form.start || !form.end) out.push('Ngày bắt đầu / kết thúc chưa hợp lệ (dd/mm/yyyy).')
   else if (form.start >= form.end) out.push('Ngày kết thúc phải sau ngày bắt đầu.')
   const r = num(form.train_ratio)
-  if (!(r > 0 && r < 1)) out.push('Tỉ lệ train phải nằm trong khoảng (0, 1), ví dụ 0.7.')
-  if (!(num(form.capital) > 0)) out.push('Vốn ban đầu phải lớn hơn 0.')
-  if (!form.symbols.length) out.push('Chọn ít nhất một tài sản.')
+  if (!Number.isFinite(r) || r < 0.1 || r > 0.95) out.push('Tỉ lệ train phải nằm trong khoảng 0.1–0.95.')
+  const capital = num(form.capital)
+  if (!Number.isFinite(capital) || capital < 100 || capital > 1e9) out.push('Vốn ban đầu phải nằm trong khoảng 100–1.000.000.000 USDT.')
+  if (!Array.isArray(form.symbols) || !form.symbols.length) out.push('Chọn ít nhất một tài sản.')
   POSITION_FIELDS.forEach((f) => {
     const v = form.pos?.[f.key]
-    if (v !== '' && v != null && !(num(v) >= 0)) out.push(`Tham số quản lý vị thế "${f.key}" phải là số không âm.`)
+    if (v === '' || v == null) return
+    const n = num(v)
+    if (!Number.isFinite(n) || n < f.min || n > f.max) {
+      out.push(`Tham số "${f.key}" phải nằm trong khoảng ${f.min}–${f.max}.`)
+    }
   })
   return out
 }

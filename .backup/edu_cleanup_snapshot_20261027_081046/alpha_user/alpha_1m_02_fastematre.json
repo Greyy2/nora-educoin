@@ -1,0 +1,25 @@
+{
+  "id": "alpha_1m_02_fastematre",
+  "name": "Fast EMA Trend Scalper 1m",
+  "code": "class FastEmaTrendScalper(NoraStrategy):\n    \"\"\"Chiến lược lướt sóng xu hướng nhanh EMA 7/21 trên khung 1m.\"\"\"\n    timeframe = \"1m\"\n\n    fast_period = 7\n    slow_period = 21\n    stop_loss_pct = 1.2\n    take_profit_pct = 0.8\n    trailing_stop_pct = 0.0\n    trailing_activation_pct = 0.0\n    timeout = 60\n    risk_per_trade_pct = 1.0\n\n    def on_bar(self):\n        ema_fast = ema(close, self.fast_period)\n        ema_slow = ema(close, self.slow_period)\n        enter_sig = self.op.crossed_above(ema_fast, ema_slow) | (ema_fast > ema_slow * 1.0005)\n        exit_sig = self.op.crossed_below(ema_fast, ema_slow)\n        self.close(exit_sig)\n        self.buy(enter_sig)\n",
+  "note": "Chiến lược 1m siêu tốc cho BTC/ETH - Bot #2",
+  "status": "CANDIDATE",
+  "created_at": "2026-10-20T08:46:04Z",
+  "updated_at": "2026-10-20T08:46:04Z",
+  "config": {
+    "timeframe": "1m",
+    "symbols": [
+      "BTC",
+      "ETH"
+    ]
+  },
+  "metrics": {
+    "simulate": {
+      "ret_pct": 18.1,
+      "mdd_pct": 3.9,
+      "sharpe": 3.4,
+      "win_rate_trades": 73.5,
+      "trades": 350
+    }
+  }
+}

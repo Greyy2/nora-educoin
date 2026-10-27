@@ -37,6 +37,8 @@ def _choices(model, field: str) -> List[str]:
 def _limits(limit_models: Dict[str, Any]) -> Dict[str, Any]:
     out: Dict[str, Any] = {}
     for name, model in limit_models.items():
+        if not model:
+            continue
         fields = {}
         for f in model.model_json_schema()["properties"]:
             p = _prop(model, f)
@@ -67,7 +69,7 @@ def _engine() -> Dict[str, Any]:
     from backend.analys.param import STANDARD_FRAME
     return {"name": ENGINE_NAME, "version": NAUTILUS_VERSION, "docs_url": "https://nautilustrader.io/docs/latest/",
             "default_exec_mode": DEFAULT_EXEC_MODE, "standard_frame": STANDARD_FRAME,
-            "run_modes": ["backtest", "paper", "testnet"]}
+            "run_modes": ["backtest"]}
 
 
 

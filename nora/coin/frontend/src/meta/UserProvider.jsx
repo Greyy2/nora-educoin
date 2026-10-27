@@ -35,8 +35,8 @@ export function UserProvider({ children }) {
     refresh()
   }, [refresh])
 
-  const login = useCallback(async (handle) => {
-    const res = await apiLogin(handle)
+  const login = useCallback(async (handle, password) => {
+    const res = await apiLogin(handle, password)
     if (res?.user) {
       setMe(res.user)
     }

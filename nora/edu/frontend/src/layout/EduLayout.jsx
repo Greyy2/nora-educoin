@@ -16,8 +16,8 @@ const I = {
 }
 
 const EDU_PAGES = [
-  { to: '/edu', end: true, title: 'Market', short: 'Market', icon: I.market },
-  { to: '/edu/studio', end: false, title: 'Studio', short: 'Studio', icon: I.studio },
+  { to: '/market', end: true, title: 'Market', short: 'Market', icon: I.market },
+  { to: '/studio', end: false, title: 'Studio', short: 'Studio', icon: I.studio },
 ]
 
 function ThemeButton() {
@@ -47,6 +47,13 @@ export default function EduLayout({ children }) {
   const apiTone = error ? 'bad' : loading && !data ? 'warn' : 'ok'
   const apiText = error ? 'API ngoại tuyến' : loading && !data ? 'Đang kết nối' : 'API trực tuyến'
 
+  const isStudio = loc.pathname.startsWith('/studio') || loc.pathname.startsWith('/edu/studio')
+  const isMarket = loc.pathname === '/market' || loc.pathname === '/edu' || loc.pathname.startsWith('/market')
+  const isProfile = loc.pathname === '/me' || loc.pathname.startsWith('/u/')
+  const isStrategy = loc.pathname.startsWith('/s/')
+
+  const sectionName = isStudio ? 'Studio' : isProfile ? 'Hồ sơ' : isStrategy ? 'Chiến lược' : 'Market'
+
   return (
     <div className="v2">
       <nav className="n-rail" aria-label="Điều hướng chính Education">
@@ -69,23 +76,12 @@ export default function EduLayout({ children }) {
 
         <div className="n-rail-sp" />
 
-        <Link to="/" className="n-rail-btn" title="← Về Trang chủ Nora">
+        <Link to="/" className="n-rail-btn" title="← Về Trang chủ EDU">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ width: 18, height: 18 }}>
             <path d="M19 12H5M12 19l-7-7 7-7" />
           </svg>
           <span className="n-rl">Trang chủ</span>
         </Link>
-
-        <a
-          href={typeof window !== 'undefined' && window.location.hostname.includes('edu.nora.') ? window.location.origin.replace('edu.nora.', 'coin.nora.') + '/coin' : '/coin'}
-          className="n-rail-btn"
-          title="Chuyển sang Nora Coin"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{ width: 18, height: 18 }}>
-            <path d="M20 12a8 8 0 1 1-3-6.2" /><circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none" />
-          </svg>
-          <span className="n-rl">Coin</span>
-        </a>
       </nav>
 
       <div className="n-main">
@@ -93,9 +89,9 @@ export default function EduLayout({ children }) {
           <div className="n-crumb">
             <Link to="/" style={{ color: 'var(--n-ink-2)' }}>Nora</Link>
             <span className="sep">›</span>
-            <Link to="/edu" style={{ fontWeight: 600 }}>Education</Link>
+            <Link to="/market" style={{ fontWeight: 600 }}>Education</Link>
             <span className="sep">›</span>
-            <span>{loc.pathname.startsWith('/edu/studio') ? 'Studio' : 'Market'}</span>
+            <span>{sectionName}</span>
           </div>
 
           <div className="n-top-sp" />
@@ -108,7 +104,7 @@ export default function EduLayout({ children }) {
           <UserBadge />
         </header>
 
-        <div className={`n-content ${loc.pathname.startsWith('/edu/studio') ? 'flush' : ''}`}>
+        <div className={`n-content ${isStudio ? 'flush' : ''}`}>
           <ErrorBoundary key={loc.pathname}>
             {children || <Outlet />}
           </ErrorBoundary>

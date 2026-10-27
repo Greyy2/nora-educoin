@@ -6,18 +6,20 @@
 - `run_native`: đường Strategy do người dùng viết (kế thừa nautilus Strategy), kết quả qua `results.native_results`.
 """
 import inspect
-from decimal import Decimal
+from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple, Type
 
 import numpy as np
 
 from nautilus_trader.backtest.config import BacktestEngineConfig
 from nautilus_trader.backtest.engine import BacktestEngine as NautilusEngine
+from nautilus_trader.backtest.models import FillModel, LatencyModel
 from nautilus_trader.config import LoggingConfig, RiskEngineConfig
 from nautilus_trader.model.currencies import USDT
-from nautilus_trader.model.data import Bar
-from nautilus_trader.model.enums import AccountType, OmsType
-from nautilus_trader.model.objects import Money
+from nautilus_trader.model.book import OrderBook
+from nautilus_trader.model.data import Bar, QuoteTick
+from nautilus_trader.model.enums import AccountType, BookType, OrderSide, OrderType, OmsType
+from nautilus_trader.model.objects import Money, Price, Quantity
 from nautilus_trader.trading.strategy import Strategy, StrategyConfig
 
 from backend.analys.alpha import RiskConfig
@@ -26,7 +28,7 @@ from backend.analys.param import FRAME_MS
 from backend.core import catalog as cat
 from backend.analys import result as res_mod
 from backend.core.portfolio import Coordinator
-from backend.core.strategy import NoraSlotStrategy
+from backend.core.strategy import NoraSlotStrategy, ENTERING, OPEN
 
 CHUNK_BARS = 300_000        # số nến tối đa mỗi lần nạp vào engine Nautilus (chặn RAM)
 SAMPLE_MS = 60 * 60_000     # đường vốn lấy mẫu mỗi giờ (như Coordinator.MTM_SAMPLE_MINUTES)
@@ -39,8 +41,87 @@ def make_engine(initial_capital: float, leverage: float, adaptive: bool) -> Naut
     eng = NautilusEngine(cfg)
     eng.add_venue(venue=cat.VENUE_OKX, oms_type=OmsType.NETTING, account_type=AccountType.MARGIN, base_currency=USDT,
                   starting_balances=[Money(float(initial_capital), USDT)], default_leverage=Decimal(str(float(leverage))), bar_execution=True,
-                  bar_adaptive_high_low_ordering=bool(adaptive), reject_stop_orders=False, use_message_queue=False)
+                  bar_adaptive_high_low_ordering=bool(adaptive), reject_stop_orders=False, use_message_queue=True,
+                  latency_model=LatencyModel(base_latency_nanos=0, insert_latency_nanos=1),
+                  fill_model=ResearchStopSlippageFillModel())
     return eng
+
+
+class ResearchStopSlippageFillModel(FillModel):
+    """Apply the approved stop-slippage proxy through Nautilus's native fill-model hook."""
+
+    def get_orderbook_for_fill_simulation(self, instrument: Any, order: Any, best_bid: Price, best_ask: Price) -> Optional[OrderBook]:
+        if order is None or order.order_type != OrderType.STOP_MARKET or not order.tags or order.tags[0] != "SL":
+            return None
+
+        from backend.adapter.contracts import APPROVED_RESEARCH_PROXY
+
+        base = instrument.id.symbol.value.split("-")[0].split("@")[0].upper()
+        rates = APPROVED_RESEARCH_PROXY["slippage_taker_bps_per_side"]
+        if base not in rates:
+            raise ValueError(f"{instrument.id}: no approved stop-slippage proxy")
+        multiplier = Decimal(str(APPROVED_RESEARCH_PROXY["stop_slippage_multiplier"]))
+        rate = Decimal(str(float(rates[base]))) * multiplier / Decimal("10000")
+        bid_ref, ask_ref = best_bid.as_decimal(), best_ask.as_decimal()
+        if bid_ref <= 0 or ask_ref <= 0:
+            raise ValueError(f"{instrument.id}: invalid quote for stop-slippage fill")
+        reference = (bid_ref + ask_ref) / Decimal("2")
+        increment = instrument.price_increment.as_decimal()
+        is_sell = order.side == OrderSide.SELL
+        raw = reference * (Decimal("1") - rate if is_sell else Decimal("1") + rate)
+        units = (raw / increment).to_integral_value(rounding=ROUND_FLOOR if is_sell else ROUND_CEILING)
+        fill_price = units * increment
+        bid = fill_price if is_sell else fill_price - increment
+        ask = fill_price + increment if is_sell else fill_price
+        if bid <= 0 or ask <= bid:
+            raise ValueError(f"{instrument.id}: invalid synthetic stop quote around {fill_price}")
+
+        size = order.quantity
+        quote = QuoteTick(
+            instrument.id,
+            Price(bid, instrument.price_precision),
+            Price(ask, instrument.price_precision),
+            size,
+            size,
+            0,
+            0,
+        )
+        book = OrderBook(instrument.id, BookType.L1_MBP)
+        book.update_quote_tick(quote)
+        return book
+
+
+def _round_to_increment(value: Decimal, increment: Decimal, rounding: str) -> Decimal:
+    units = (value / increment).to_integral_value(rounding=rounding)
+    return units * increment
+
+
+def _open_quote_ticks(symbol: str, arrays: Dict[str, np.ndarray], instrument: Any, lo: int, hi: int,
+                      quote_model: Optional[Tuple[str, int]] = None) -> List[QuoteTick]:
+    """Build research-only L1 quotes from candle opens for native Nautilus matching."""
+    increment = instrument.price_increment.as_decimal()
+    size = Quantity(Decimal("1000000"), instrument.size_precision)
+    ticks: List[QuoteTick] = []
+    for idx in range(lo, hi):
+        mid = Decimal(str(float(arrays["o"][idx])))
+        if quote_model and quote_model[0] == "fixed_ticks" and quote_model[1] > 0:
+            slip = increment * quote_model[1]
+            bid, ask = mid - slip, mid + slip
+        else:
+            from backend.adapter.contracts import APPROVED_RESEARCH_PROXY
+            base = symbol.split("-")[0].split("@")[0].upper()
+            rates = APPROVED_RESEARCH_PROXY["slippage_taker_bps_per_side"]
+            if base not in rates:
+                raise ValueError(f"{symbol}: no approved research quote proxy")
+            rate = Decimal(str(float(rates[base]) / 10_000.0))
+            bid = _round_to_increment(mid * (Decimal(1) - rate), increment, ROUND_FLOOR)
+            ask = _round_to_increment(mid * (Decimal(1) + rate), increment, ROUND_CEILING)
+        if bid <= 0 or ask <= bid:
+            raise ValueError(f"{symbol}: invalid synthetic quote around open price {mid}")
+        ts = int(arrays["t"][idx]) * _NS_MS + 2
+        ticks.append(QuoteTick(instrument.id, Price(bid, instrument.price_precision), Price(ask, instrument.price_precision),
+                               size, size, ts, ts))
+    return ticks
 
 
 class Feed(NamedTuple):
@@ -50,7 +131,8 @@ class Feed(NamedTuple):
 
 
 def stream(eng: NautilusEngine, feeds: List[Feed], base_frame: str, instruments: Dict[str, Any],
-           on_chunk: Optional[Callable[[np.ndarray, np.ndarray], None]] = None) -> bool:
+           on_chunk: Optional[Callable[[np.ndarray, np.ndarray], None]] = None,
+           quote_models: Optional[Dict[str, Tuple[str, int]]] = None) -> bool:
     """Nạp nến theo chunk (linspace trên trục thời gian), chạy streaming, kết thúc engine. -> False khi không có nến nào (engine chưa end())."""
     fr = FRAME_MS[base_frame]
     total = sum(len(f.arrays["t"]) for f in feeds)
@@ -67,6 +149,8 @@ def stream(eng: NautilusEngine, feeds: List[Feed], base_frame: str, instruments:
             a, z = int(np.searchsorted(t, edges[c])), int(np.searchsorted(t, edges[c + 1]))
             if z > a:
                 bars += cat.bars_from_arrays(f.symbol, f.arrays, base_frame, instruments[f.symbol], a, z)
+                bars += _open_quote_ticks(f.symbol, f.arrays, instruments[f.symbol], a, z,
+                                          (quote_models or {}).get(f.symbol))
                 ts_all.append(t[a:z] + fr)
                 w_all.append(np.full(z - a, f.weight, dtype=np.int64))
         if not bars:
@@ -95,7 +179,7 @@ def book_instruments(books: List[Dict[str, Any]], spec_of: Callable[[str], Dict[
 
 def build_slots(books: List[Dict[str, Any]], insts: Dict[str, Any], base_frame: str, co: Coordinator, last_open_of: Callable[[int], Optional[int]],
                 close_at_end: bool, trade_start: int, make_sig: Callable[[int, Dict[str, Any], Dict[str, Any]], Any], hyphens: bool = True,
-                claim_external: bool = False) -> List[NoraSlotStrategy]:
+                claim_external: bool = False, execution_target: str = "nautilus") -> List[NoraSlotStrategy]:
     """DUY NHẤT chỗ dựng NoraSlotStrategy (một cho mỗi chiến lược × tài sản) từ `books` — backtest (NautilusRun) và live (nautilus/live.py) cùng dùng.
     make_sig(book_idx, book, entry) -> nguồn tín hiệu của slot: dict mảng tính sẵn (backtest) hoặc SignalProvider (live). Gán `co.slots`."""
     fr = FRAME_MS[base_frame]
@@ -104,7 +188,7 @@ def build_slots(books: List[Dict[str, Any]], insts: Dict[str, Any], base_frame: 
         last_open = last_open_of(b_i)
         for e in b["entries"]:
             slots.append(NoraSlotStrategy(len(slots), e["slot"], e["strategy"], b["symbol"], b_i, insts[b["symbol"]], cat.get_bar_type(b["symbol"], base_frame), fr,
-                                          make_sig(b_i, b, e), co, last_open, close_at_end, trade_start, hyphens, claim_external))
+                                          make_sig(b_i, b, e), co, last_open, close_at_end, trade_start, hyphens, claim_external, execution_target=execution_target))
     co.slots = slots
     return slots
 
@@ -115,11 +199,12 @@ class NautilusRun:
     KEEP_REPORTS = False     # test: giữ các báo cáo Nautilus (fills / positions / account) để đối chiếu
 
     def __init__(self, books: List[Dict[str, Any]], initial_capital: float, risk: RiskConfig, trade_start_ts: int, end_ts: int, base_frame: str,
-                 close_at_end: bool, data: Any):
+                 close_at_end: bool, data: Any, execution_target: str = "nautilus"):
         """data: DataSource (models/models) — nến thực thi + spec hợp đồng đều lấy từ đây (một đường dữ liệu)."""
         self.data = data
         self.books, self.initial, self.risk = books, float(initial_capital), risk
         self.trade_start, self.end_ts, self.base, self.close_at_end = int(trade_start_ts), int(end_ts), base_frame, bool(close_at_end)
+        self.execution_target = execution_target
         self.fr = FRAME_MS[base_frame]
         self.warnings: List[str] = []
         self.reports: Dict[str, Any] = {}
@@ -146,7 +231,10 @@ class NautilusRun:
             raise ValueError(f"Mọi chiến lược của một lần chạy phải cùng intrabar_path (Nautilus cấu hình theo venue), nhận {sorted(paths)}")
         self.adaptive = "adaptive" in paths
         if slip:
-            self.warnings.append(f"slippage_rate={sorted(slip)} không được Nautilus mô phỏng (không có trượt giá %): bỏ qua, khớp ở giá của mô hình Nautilus")
+            self.warnings.append(
+                f"slot slippage_rate={sorted(slip)} không được áp dụng; backtest dùng proxy quote BTC/ETH đã duyệt "
+                "(chỉ phục vụ nghiên cứu, chưa phải slippage đo từ venue)"
+            )
         if thru:
             self.warnings.append(f"limit_through_pct={sorted(thru)} không được hỗ trợ: lệnh limit khớp khi giá chạm mức (không cần đi xuyên qua)")
         if extreme:
@@ -162,6 +250,12 @@ class NautilusRun:
     # ── chạy ──
     def run(self) -> Dict[str, Any]:
         self._check_slots()
+        self.warnings.append(
+            "Market fills use native Nautilus matching against synthetic OHLC-open quotes "
+            "with the approved research spread proxy; quote depth, measured latency, account fee tier, "
+            "funding, liquidation and venue-specific stop slippage are not verified. Stop-loss fills use a "
+            "synthetic x2 proxy at the matching engine's current quote. Not eligible for promotion."
+        )
         insts = self._instruments()
         books = self.books
         lo = self.trade_start // self.fr * self.fr
@@ -183,11 +277,29 @@ class NautilusRun:
         def array_sig(b_i: int, b: Dict[str, Any], e: Dict[str, Any]) -> Dict[str, Any]:
             return {"t": t_lists.setdefault(b_i, b["data"]["t"].tolist()), "match": e["match"].tolist(), "stop": e["stop"].tolist(),
                     "vol": e["vol"].tolist() if e.get("vol") is not None else None, "dca": e["dca"].tolist() if e.get("dca") is not None else None}
-        slots = build_slots(books, insts, self.base, co, lambda i: int(ex[i]["t"][-1]) if len(ex[i]["t"]) else None, self.close_at_end, self.trade_start, array_sig)
+        slots = build_slots(books, insts, self.base, co, lambda i: int(ex[i]["t"][-1]) if len(ex[i]["t"]) else None, self.close_at_end, self.trade_start, array_sig, execution_target=self.execution_target)
         for s in slots:
             eng.add_strategy(s)
         last_open_all = max((int(a["t"][-1]) for a in ex if len(a["t"])), default=None)
-        stream(eng, [Feed(b["symbol"], ex[i], len(b["entries"])) for i, b in enumerate(books)], self.base, insts, on_chunk=co.set_grid)
+        quote_models = {
+            b["symbol"]: ("fixed_ticks", int(getattr(b["entries"][0]["slot"], "slippage_ticks", 0) or 0))
+            for b in books
+            if b["entries"] and str(getattr(b["entries"][0]["slot"], "slippage_mode", "rate")) == "fixed_ticks"
+        }
+        stream(eng, [Feed(b["symbol"], ex[i], len(b["entries"])) for i, b in enumerate(books)],
+               self.base, insts, on_chunk=co.set_grid, quote_models=quote_models)
+        for s in slots:
+            if getattr(s, "_pending_entry_data", None) is not None:
+                s._pending_entry_data = None
+                if s.st == ENTERING:
+                    co.deactivate(s)
+                    s._reset()
+            if self.close_at_end and s.st == OPEN and getattr(s, "execution_target", "") == "next_open":
+                last_px = co.last[s.sym_idx][0]
+                last_ts = int(ex[s.sym_idx]["t"][-1]) if len(ex[s.sym_idx]["t"]) else 0
+                if last_px != last_px:
+                    last_px = s.last_fill
+                s._close_simulated_position("END", last_px, last_ts)
         if self.close_at_end and eng.cache.positions_open():
             self.warnings.append(f"{len(eng.cache.positions_open())} vị thế còn mở sau close_at_end")
         co.final_sample(last_open_all, self.initial)

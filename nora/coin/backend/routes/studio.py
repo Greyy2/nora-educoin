@@ -15,14 +15,17 @@ custom_backtest, http_launch, chế độ chạy Cơ bản/Nâng cao (preset kho
 `http_launch` gọi `_proc.launch` (tra cứu thuộc tính lúc gọi nên monkeypatch `launch` có hiệu lực). Job chạy ở tiến trình riêng: backend/jobs/runner.py.
 """
 import calendar
+import fcntl
 import math
 import os
 import re
 import time
+from contextlib import contextmanager
 from datetime import datetime
-from typing import Any, Dict, List, Tuple, Optional
+from typing import Any, Dict, Iterator, List, Tuple, Optional
 
-from fastapi import HTTPException, APIRouter, Header, Response
+import httpx
+from fastapi import HTTPException, APIRouter, Header, Response, Request
 
 from backend.jobs import runner as _proc, runner as batch_jobs
 from backend.jobs.runner import DEX_UNSUPPORTED, JobBusy, JobError, KINDS, NotReady
@@ -1819,6 +1822,31 @@ def _research_base_dir() -> str:
     return d
 
 
+def _prompt_alphas_dir() -> str:
+    d = os.path.join(data_home(), "prompt_alphas")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+@contextmanager
+def _prompt_alpha_lock(alpha_id: str) -> Iterator[None]:
+    lock_path = os.path.join(_prompt_alphas_dir(), f".{alpha_id}.lock")
+    fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
+
+
+def _require_user(request: Request) -> Dict[str, Any]:
+    me = current_user(request)
+    if not me or not me.get("id"):
+        raise HTTPException(status_code=401, detail="Yêu cầu đăng nhập để truy cập Prompt Alpha")
+    return me
+
+
 def _job_dir(job_id: str) -> str:
     # Bảo vệ path traversal theo định dạng job chuẩn của Nora
     if not re.fullmatch(r"\d{8}_\d{6}_[0-9a-f]{6}", job_id):
@@ -1894,6 +1922,32 @@ class RerunStepRequest(BaseModel):
 class SaveResearchStrategyRequest(BaseModel):
     name: Optional[str] = Field(None, description="Tên chiến lược lưu trữ")
     note: Optional[str] = Field(None, description="Ghi chú người dùng")
+
+
+class ReviewPromptAlphaRequest(BaseModel):
+    status: str = Field(..., description="Trạng thái phê duyệt: validated | rejected | needs_evidence")
+    reviewer: Optional[str] = Field(None, description="Tên nhà nghiên cứu (nếu bỏ trống sẽ lấy từ tài khoản đã đăng nhập)")
+    review_notes: Optional[str] = Field("", description="Ghi chú thẩm định, lý do chấp thuận hoặc bác bỏ (tối thiểu 10 ký tự đối với validated)")
+
+
+class ValidateResearchConfigRequest(BaseModel):
+    provider: Optional[str] = Field("builtin_quant", description="Nhà cung cấp LLM")
+    model: Optional[str] = Field(None, description="Tên mô hình")
+    symbol: Optional[str] = Field("BTC-USDT", description="Cặp giao dịch")
+    timeframe: Optional[str] = Field("1h", description="Khung thời gian")
+    side: Optional[str] = Field("both", description="Chiều vị thế")
+
+
+class UpdateInboxStatusRequest(BaseModel):
+    status: str = Field(..., description="Trạng thái mới: new | interesting | promoted | has_card | dismissed")
+
+
+class DismissFilteredInboxRequest(BaseModel):
+    q: Optional[str] = Field(None, description="Từ khoá tìm kiếm")
+    source_id: Optional[str] = Field(None, description="Mã nguồn")
+    tier: Optional[str] = Field(None, description="Tầng nguồn")
+    min_score: Optional[int] = Field(None, description="Điểm đánh giá tối thiểu")
+
 
 
 def data_window(symbol: str) -> Dict[str, str]:
@@ -2014,24 +2068,418 @@ def start_research(req: StartResearchRequest) -> Dict[str, Any]:
 
 @research_router.get("/engine/status")
 def get_research_engine_status() -> Dict[str, Any]:
-    """Trả về thông tin LLM / Quant Engine đang được kích hoạt."""
+    """Trả về thông tin LLM / Quant Engine và danh sách provider (không làm lộ API key)."""
     from backend.analys.alpha.prompt import llm
     has_gemini = bool(llm.load_gemini_key())
     has_anthropic = bool(llm.load_api_key())
     if has_gemini:
-        provider = "gemini"
-        model = "Gemini 2.5 Flash"
+        active_provider = "gemini"
+        active_model = "Gemini 2.5 Flash"
     elif has_anthropic:
-        provider = "anthropic"
-        model = "Claude 3.5 Sonnet"
+        active_provider = "anthropic"
+        active_model = "Claude 3.5 Sonnet"
     else:
-        provider = "builtin_quant"
-        model = "Nora Rule Quant Engine"
+        active_provider = "builtin_quant"
+        active_model = "Nora Rule Quant Engine"
+
+    providers = [
+        {
+            "id": "gemini",
+            "name": "Google Gemini",
+            "available": has_gemini,
+            "key_configured": has_gemini,
+            "models": ["gemini-2.5-flash", "gemini-1.5-pro"],
+        },
+        {
+            "id": "anthropic",
+            "name": "Anthropic Claude",
+            "available": has_anthropic,
+            "key_configured": has_anthropic,
+            "models": ["claude-3-5-sonnet", "claude-3-haiku"],
+        },
+        {
+            "id": "builtin_quant",
+            "name": "Nora Deterministic Quant Engine",
+            "available": True,
+            "key_configured": True,
+            "models": ["Nora Financial Rule Engine v2"],
+        },
+    ]
+
     return {
-        "provider": provider,
-        "model": model,
+        "provider": active_provider,
+        "model": active_model,
         "active": True,
+        "providers": providers,
     }
+
+
+@research_router.post("/config/validate")
+def validate_research_config(req: ValidateResearchConfigRequest) -> Dict[str, Any]:
+    """Thẩm định cấu hình nghiên cứu và provider; tuyệt đối không để lộ secrets."""
+    valid_tf = {"1m", "5m", "15m", "30m", "1h", "2h", "4h", "1d"}
+    if req.timeframe and req.timeframe not in valid_tf:
+        raise HTTPException(status_code=400, detail=f"Khung thời gian không hợp lệ: {req.timeframe}")
+    if req.side and req.side not in {"both", "long", "short"}:
+        raise HTTPException(status_code=400, detail=f"Chiều vị thế không hợp lệ: {req.side}")
+    return {
+        "ok": True,
+        "valid": True,
+        "symbol": req.symbol or "BTC-USDT",
+        "timeframe": req.timeframe or "1h",
+        "side": req.side or "both",
+        "provider": req.provider or "builtin_quant",
+    }
+
+
+# ─── Nguồn (Sources) & Hộp thư (Inbox) tự động thu thập ──────────────────
+
+@research_router.get("/sources")
+def list_research_sources() -> List[Dict[str, Any]]:
+    """Liệt kê các nguồn nghiên cứu tự động và thủ công (arXiv, OpenAlex, RSS, GitHub)."""
+    from backend.analys.alpha.prompt import sources
+    return sources.get_sources()
+
+
+@research_router.post("/sources/collect")
+def collect_research_sources() -> Dict[str, Any]:
+    """Kích hoạt chu kỳ thu thập tự động từ các nguồn khả dụng."""
+    from backend.analys.alpha.prompt import sources
+    return sources.run_collection_cycle()
+
+
+@research_router.get("/inbox")
+def list_research_inbox(
+    status: Optional[str] = None,
+    source_id: Optional[str] = None,
+    tier: Optional[str] = None,
+    min_score: Optional[int] = None,
+    q: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Lấy danh sách metadata trong hộp thư, hỗ trợ lọc theo trạng thái, nguồn, tầng, điểm và từ khoá."""
+    from backend.analys.alpha.prompt import sources
+    items = sources.get_inbox_items()
+    stats = sources.get_inbox_stats(items)
+    filtered = []
+    for it in items:
+        if status and it.get("status") != status:
+            continue
+        if source_id and it.get("source_id") != source_id:
+            continue
+        if tier and it.get("tier") != tier:
+            continue
+        if min_score is not None and (it.get("score") or 0) < min_score:
+            continue
+        if q:
+            needle = q.lower()
+            text = f"{it.get('title', '')} {it.get('summary', '')} {' '.join(it.get('keywords', []))}".lower()
+            if needle not in text:
+                continue
+        filtered.append(it)
+    return {"stats": stats, "items": filtered}
+
+
+@research_router.post("/inbox/{item_id}/status")
+def update_inbox_status(item_id: str, req: UpdateInboxStatusRequest) -> Dict[str, Any]:
+    """Cập nhật trạng thái một mục trong hộp thư (new, interesting, promoted, dismissed)."""
+    from backend.analys.alpha.prompt import sources
+    try:
+        updated = sources.update_inbox_item_status(item_id, req.status)
+        if not updated:
+            raise HTTPException(status_code=404, detail="Không tìm thấy mục trong hộp thư")
+        return {"ok": True, "item": updated}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@research_router.post("/inbox/{item_id}/promote")
+def promote_inbox_item(item_id: str) -> Dict[str, Any]:
+    """Chuyển đổi một mục trong hộp thư thành Thẻ ý tưởng (SCHEMA.md) để chạy pipeline Alpha."""
+    from backend.analys.alpha.prompt import sources
+    try:
+        return sources.promote_to_idea_card(item_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@research_router.post("/inbox/dismiss_filtered")
+def dismiss_filtered(req: DismissFilteredInboxRequest) -> Dict[str, Any]:
+    """Bỏ qua tất cả các mục 'new' đang khớp với bộ lọc."""
+    from backend.analys.alpha.prompt import sources
+    cnt = sources.dismiss_filtered_inbox(
+        q=req.q,
+        source_id=req.source_id,
+        tier=req.tier,
+        min_score=req.min_score,
+    )
+    return {"ok": True, "dismissed_count": cnt}
+
+
+@research_router.get("/registry")
+def list_prompt_alphas(
+    request: Request,
+    status: Optional[str] = None,
+    q: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """Liệt kê các alpha trong thư viện Prompt Alpha độc lập (yêu cầu xác thực, cô lập theo user)."""
+    me = _require_user(request)
+    user_id = me["id"]
+    is_admin = me.get("role") in ("admin", "reviewer")
+    pdir = _prompt_alphas_dir()
+    items = []
+    for fname in sorted(os.listdir(pdir), reverse=True):
+        if fname.endswith(".json") and not fname.endswith(".tmp"):
+            fpath = os.path.join(pdir, fname)
+            try:
+                with open(fpath, "r", encoding="utf-8") as fh:
+                    data = json.load(fh)
+                if not is_admin and data.get("owner_id") != user_id:
+                    continue
+                if status and data.get("status") != status:
+                    continue
+                if q:
+                    needle = q.lower()
+                    text = f"{data.get('name', '')} {data.get('prompt', '')} {data.get('id', '')}".lower()
+                    if needle not in text:
+                        continue
+                items.append(data)
+            except Exception:
+                continue
+    return items
+
+
+@research_router.get("/registry/{alpha_id}")
+def get_prompt_alpha_detail(alpha_id: str, request: Request) -> Dict[str, Any]:
+    """Lấy chi tiết một Prompt Alpha từ thư viện độc lập (kiểm tra quyền sở hữu)."""
+    me = _require_user(request)
+    is_admin = me.get("role") in ("admin", "reviewer")
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", alpha_id):
+        raise HTTPException(status_code=400, detail="Mã alpha không hợp lệ")
+    fpath = os.path.join(_prompt_alphas_dir(), f"{alpha_id}.json")
+    if not os.path.isfile(fpath):
+        raise HTTPException(status_code=404, detail=f"Không tìm thấy prompt alpha {alpha_id}")
+    try:
+        with open(fpath, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi đọc file: {e}")
+    if not is_admin and data.get("owner_id") != me["id"]:
+        raise HTTPException(status_code=403, detail="Không có quyền truy cập Prompt Alpha này")
+    return data
+
+
+@research_router.post("/registry/{alpha_id}/citations/verify")
+def verify_prompt_alpha_citations(alpha_id: str, request: Request) -> Dict[str, Any]:
+    """Fetch canonical DOI metadata from Crossref for an alpha's saved citations."""
+    me = _require_user(request)
+    is_admin = me.get("role") in ("admin", "reviewer")
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", alpha_id):
+        raise HTTPException(status_code=400, detail="Mã alpha không hợp lệ")
+    fpath = os.path.join(_prompt_alphas_dir(), f"{alpha_id}.json")
+    with _prompt_alpha_lock(alpha_id):
+        if not os.path.isfile(fpath):
+            raise HTTPException(status_code=404, detail=f"Không tìm thấy prompt alpha {alpha_id}")
+        with open(fpath, "r", encoding="utf-8") as fh:
+            rec = json.load(fh)
+        if not is_admin and rec.get("owner_id") != me["id"]:
+            raise HTTPException(status_code=403, detail="Không có quyền xác minh nguồn của Prompt Alpha này")
+        citations = rec.get("citations")
+        if not isinstance(citations, list) or not citations:
+            raise HTTPException(status_code=400, detail="Alpha chưa có citation DOI để xác minh.")
+        source_citations = citations.copy()
+
+    verified = []
+    try:
+        for citation in citations:
+            if not isinstance(citation, dict):
+                raise ValueError("Citation phải là object có DOI.")
+            verified.append(research.verify_citation(citation))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"Không xác minh được citation: {exc}") from exc
+    except httpx.HTTPError as exc:
+        logger.warning("Crossref citation verification failed for alpha %s: %s", alpha_id, exc)
+        raise HTTPException(status_code=502, detail="Không thể xác minh DOI với Crossref; hãy thử lại sau.") from exc
+
+    with _prompt_alpha_lock(alpha_id):
+        if not os.path.isfile(fpath):
+            raise HTTPException(status_code=404, detail=f"Không tìm thấy prompt alpha {alpha_id}")
+        with open(fpath, "r", encoding="utf-8") as fh:
+            rec = json.load(fh)
+        if not is_admin and rec.get("owner_id") != me["id"]:
+            raise HTTPException(status_code=403, detail="Không có quyền xác minh nguồn của Prompt Alpha này")
+        if rec.get("citations") != source_citations:
+            raise HTTPException(status_code=409, detail="Citation đã thay đổi trong lúc xác minh; hãy tải lại và thử lại.")
+        rec["citations"] = verified
+        rec["updated_at"] = datetime.now(timezone.utc).isoformat()
+        _write_json(fpath, rec)
+    return {"ok": True, "record": rec}
+
+
+@research_router.post("/registry/{alpha_id}/review")
+def review_prompt_alpha(alpha_id: str, req: ReviewPromptAlphaRequest, request: Request) -> Dict[str, Any]:
+    """Phê duyệt / thẩm định thủ công cho Prompt Alpha (COIN-PROMPT-06).
+
+    Mọi chuyển trạng thái review (validated, rejected, needs_evidence) bắt buộc phải do
+    người có vai trò reviewer hoặc admin thực hiện. Client không thể mạo danh tên reviewer;
+    danh tính reviewer được trích xuất 100% từ session xác thực.
+    Tác giả không được tự thẩm duyệt 'validated' cho chính mình.
+    Trạng thái 'validated' bắt buộc phải có citation DOI đã xác minh qua Crossref và bằng chứng
+    OOS/Backtest thực nghiệm (tested, >= 10 trades, ghi chú đánh giá OOS rõ ràng tối thiểu 10 ký tự).
+    """
+    me = _require_user(request)
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", alpha_id):
+        raise HTTPException(status_code=400, detail="Mã alpha không hợp lệ")
+    with _prompt_alpha_lock(alpha_id):
+        return _review_prompt_alpha_locked(alpha_id, req, me)
+
+
+def _review_prompt_alpha_locked(
+    alpha_id: str,
+    req: ReviewPromptAlphaRequest,
+    me: Dict[str, Any],
+) -> Dict[str, Any]:
+    is_admin = me.get("role") in ("admin", "reviewer")
+    fpath = os.path.join(_prompt_alphas_dir(), f"{alpha_id}.json")
+    if not os.path.isfile(fpath):
+        raise HTTPException(status_code=404, detail=f"Không tìm thấy prompt alpha {alpha_id}")
+
+    with open(fpath, "r", encoding="utf-8") as fh:
+        rec = json.load(fh)
+
+    new_status = req.status.lower().strip()
+    if new_status not in ("validated", "rejected", "needs_evidence"):
+        raise HTTPException(status_code=400, detail=f"Trạng thái review không hợp lệ: {req.status}")
+
+    # Bắt buộc quyền thẩm định viên (reviewer hoặc admin) cho MỌI thao tác review
+    if not is_admin:
+        raise HTTPException(
+            status_code=403,
+            detail="Chỉ chuyên gia thẩm định (reviewer) hoặc quản trị viên (admin) mới có quyền đánh giá chiến lược."
+        )
+
+    owner_id = rec.get("owner_id")
+    # Tác giả tuyệt đối không thể tự thẩm duyệt validated cho chính mình (chống xung đột lợi ích)
+    if new_status == "validated" and owner_id and owner_id == me["id"]:
+        raise HTTPException(
+            status_code=403,
+            detail="Tác giả không thể tự phê duyệt (validated) chiến lược của chính mình. Cần chuyên gia hoặc quản trị viên độc lập thẩm định."
+        )
+
+    notes = (req.review_notes or "").strip()
+
+    if new_status == "validated":
+        if len(notes) < 10:
+            raise HTTPException(
+                status_code=400,
+                detail="Bắt buộc phải có ghi chú đánh giá OOS và lý do phê duyệt chi tiết (tối thiểu 10 ký tự)"
+            )
+
+        current_st = rec.get("status")
+        if current_st not in ("tested", "validated"):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Không thể phê duyệt (validated) alpha khi chưa kiểm thử đầy đủ (trạng thái hiện tại: {current_st})"
+            )
+
+        metrics = rec.get("metrics") or {}
+        sim = metrics.get("simulate") or metrics.get("test") or metrics
+        trades_count = (
+            sim.get("trades") or sim.get("total_trades") or
+            (metrics.get("trades") if isinstance(metrics.get("trades"), (int, float)) else None) or
+            len(rec.get("trades") or [])
+        )
+        if not trades_count or int(trades_count) < 10:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Chưa đủ bằng chứng OOS/Backtest để phê duyệt: yêu cầu tối thiểu 10 giao dịch (hiện có: {trades_count or 0})"
+            )
+
+        citations = rec.get("citations")
+        has_verified_citation = isinstance(citations, list) and any(
+            isinstance(citation, dict)
+            and citation.get("verified") is True
+            and citation.get("status") == "verified"
+            and citation.get("provider") == "Crossref"
+            and isinstance(citation.get("doi"), str)
+            and bool(re.fullmatch(r"10\.\d{4,9}/[^\s]+", citation["doi"], re.IGNORECASE))
+            and isinstance(citation.get("metadata_sha256"), str)
+            and bool(re.fullmatch(r"[0-9a-f]{64}", citation["metadata_sha256"]))
+            and isinstance(citation.get("retrieval_time"), str)
+            for citation in citations
+        )
+        if not has_verified_citation:
+            raise HTTPException(
+                status_code=400,
+                detail="Cần ít nhất một citation DOI đã xác minh với Crossref trước khi phê duyệt validated."
+            )
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    # Danh tính reviewer được lấy 100% từ authenticated user, KHÔNG tin cậy req.reviewer do caller gửi
+    reviewer_name = me.get("display_name") or me.get("name") or me.get("handle") or me.get("id")
+    rec["status"] = new_status
+    rec["updated_at"] = now_iso
+    rec["review"] = {
+        "status": new_status,
+        "reviewer": reviewer_name,
+        "reviewer_id": me["id"],
+        "reviewer_handle": me.get("handle", ""),
+        "notes": notes,
+        "reviewed_at": now_iso,
+    }
+
+    _write_json(fpath, rec)
+    return {"ok": True, "record": rec}
+
+
+@research_router.post("/registry/{alpha_id}/archive")
+def archive_prompt_alpha(alpha_id: str, request: Request) -> Dict[str, Any]:
+    me = _require_user(request)
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", alpha_id):
+        raise HTTPException(status_code=400, detail="Mã alpha không hợp lệ")
+    with _prompt_alpha_lock(alpha_id):
+        return _archive_prompt_alpha_locked(alpha_id, me)
+
+
+def _archive_prompt_alpha_locked(alpha_id: str, me: Dict[str, Any]) -> Dict[str, Any]:
+    is_admin = me.get("role") in ("admin", "reviewer")
+    fpath = os.path.join(_prompt_alphas_dir(), f"{alpha_id}.json")
+    if not os.path.isfile(fpath):
+        raise HTTPException(status_code=404, detail=f"Không tìm thấy prompt alpha {alpha_id}")
+    with open(fpath, "r", encoding="utf-8") as fh:
+        rec = json.load(fh)
+    if not is_admin and rec.get("owner_id") != me["id"]:
+        raise HTTPException(status_code=403, detail="Không có quyền thao tác trên Prompt Alpha này")
+    rec["status"] = "archived"
+    rec["updated_at"] = datetime.now(timezone.utc).isoformat()
+    _write_json(fpath, rec)
+    return {"ok": True, "record": rec}
+
+
+@research_router.delete("/registry/{alpha_id}")
+def delete_prompt_alpha(alpha_id: str, request: Request) -> Dict[str, Any]:
+    me = _require_user(request)
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", alpha_id):
+        raise HTTPException(status_code=400, detail="Mã alpha không hợp lệ")
+    with _prompt_alpha_lock(alpha_id):
+        return _delete_prompt_alpha_locked(alpha_id, me)
+
+
+def _delete_prompt_alpha_locked(alpha_id: str, me: Dict[str, Any]) -> Dict[str, Any]:
+    is_admin = me.get("role") in ("admin", "reviewer")
+    fpath = os.path.join(_prompt_alphas_dir(), f"{alpha_id}.json")
+    if not os.path.isfile(fpath):
+        raise HTTPException(status_code=404, detail=f"Không tìm thấy prompt alpha {alpha_id}")
+    with open(fpath, "r", encoding="utf-8") as fh:
+        rec = json.load(fh)
+    if not is_admin and rec.get("owner_id") != me["id"]:
+        raise HTTPException(status_code=403, detail="Không có quyền xoá Prompt Alpha này")
+    try:
+        os.remove(fpath)
+        return {"ok": True, "deleted_id": alpha_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi xoá file: {e}")
+
+
 
 
 @research_router.get("/{job_id}")
@@ -2265,8 +2713,8 @@ def save_research_strategy(job_id: str, req: SaveResearchStrategyRequest, reques
     strat_name = (req.name or picked_idea.get("name") or "alpha_research_strat").strip()
     note = (req.note or picked_idea.get("rationale") or f"Tạo từ prompt: {meta.get('prompt', '')[:100]}").strip()
 
-    me = current_user(request)
-    owner_id = me.get("id") if me else None
+    me = _require_user(request)
+    owner_id = me["id"]
 
     # Đưa kết quả bt_step vào ephemerals của runner để store.save_user_alpha đọc được
     inject_ephemeral_result(job_id, "custom_backtest", bt_step)
@@ -2299,15 +2747,50 @@ def save_research_strategy(job_id: str, req: SaveResearchStrategyRequest, reques
             except Exception as e:
                 logger.warning("Không thể bổ sung research metadata vào alpha %s: %s", record['id'], e)
 
+        # Lưu bản ghi độc lập vào thư viện Prompt Alpha (COIN-PROMPT-03)
+        pa_id = f"pa_{re.sub(r'[^0-9a-zA-Z]', '', job_id)}"
+        now_iso = datetime.now(timezone.utc).isoformat()
+        pa_record = {
+            "id": pa_id,
+            "type": "prompt_alpha",
+            "name": strat_name,
+            "status": "tested",
+            "prompt": meta.get("prompt", ""),
+            "hypothesis": {
+                "question": meta.get("prompt", ""),
+                "economic_mechanism": picked_idea.get("economic_mechanism", "Khai thác độ trễ phản ứng dòng tiền và quán tính giá."),
+                "falsifiable_conditions": picked_idea.get("falsifiable_conditions", "Lợi suất vượt trội sau chi phí không đạt mức ý nghĩa thống kê (t-stat < 1.5)."),
+                "rejection_rules": picked_idea.get("rejection_rules", "Bác bỏ nếu Sharpe test < 0.5 hoặc MDD vượt quá 25% trên tập OOS."),
+            },
+            "citations": picked_idea.get("citations", []),
+            "code": code,
+            "formula": formula,
+            "config": bt_step.get("config", meta.get("opts", {})),
+            "metrics": bt_step.get("metrics", {}),
+            "provenance": {
+                "engine": "NautilusTrader",
+                "source": "prompt_research",
+                "job_id": job_id,
+                "created_at": now_iso,
+            },
+            "created_at": now_iso,
+            "updated_at": now_iso,
+            "owner_id": owner_id or "",
+        }
+        _write_json(os.path.join(_prompt_alphas_dir(), f"{pa_id}.json"), pa_record)
+
         return {
             "ok": True,
             "alpha_id": record["id"],
+            "prompt_alpha_id": pa_id,
             "action": action,
             "record": record,
+            "prompt_alpha": pa_record,
         }
     except Exception as e:
         logger.exception("Lỗi lưu alpha từ research: %s", e)
         raise HTTPException(status_code=400, detail=str(e)) from None
+
 
 
 
@@ -2476,4 +2959,3 @@ EDU_STUDIO_ROUTERS = [meta_router, education_router, chart_router, edu_custom_ro
 ROUTERS = [meta_router, book_router, portfolio_router, alphas_router, strategies_router, custom_router, education_router, chart_router, research_router, scan_router]
 router = meta_router
 portfolio = portfolio_router
-

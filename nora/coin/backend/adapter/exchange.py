@@ -554,13 +554,16 @@ def new_bot_id(mode: str) -> str:
 
 
 def find_bot_dir(bot_id: str) -> Optional[str]:
-    """Thư mục data/live/<mode>/<bot_id> nếu tồn tại (mọi mode), ngược lại None. bot_id có ký tự đường dẫn -> None."""
+    """Thư mục data/live/<mode>/<bot_id> nếu tồn tại (mọi mode), kể cả trong archived, ngược lại None. bot_id có ký tự đường dẫn -> None."""
     if not bot_id or bot_id != os.path.basename(bot_id) or bot_id.startswith("."):
         return None
     for m in MODES:
         d = os.path.join(data_home(), "live", m, bot_id)
         if os.path.isdir(d):
             return d
+        d_arch = os.path.join(data_home(), "live", m, "archived", bot_id)
+        if os.path.isdir(d_arch):
+            return d_arch
     return None
 
 
@@ -1173,23 +1176,52 @@ def bot_alive(meta: Dict[str, Any]) -> bool:
     return pid_alive(meta.get("pid"), meta.get("pid_start"))
 
 
+def bot_process_state(meta: Dict[str, Any]) -> str:
+    """Return alive, stopped, or unknown without treating inspection errors as a dead process."""
+    raw_pid = meta.get("pid")
+    if raw_pid in (None, ""):
+        return "unknown" if meta.get("status") in ACTIVE_STATES else "stopped"
+    try:
+        pid = int(raw_pid)
+        if pid <= 0:
+            return "unknown"
+        with open(f"/proc/{pid}/stat", "rb") as fh:
+            fields = fh.read().rsplit(b")", 1)[1].split()
+        if fields[0] == b"Z":
+            return "stopped"
+        recorded_start = meta.get("pid_start")
+        if recorded_start is not None and int(fields[19]) != int(recorded_start):
+            return "stopped"
+        if recorded_start is None:
+            return "unknown"
+        return "alive"
+    except FileNotFoundError:
+        return "stopped"
+    except (OSError, IndexError, TypeError, ValueError):
+        return "unknown"
+
+
 def bot_status(meta: Dict[str, Any], b_dir: str) -> str:
     """starting | running | resuming | stopping | stopped | failed — MỘT hàm cho /live/bots, chi tiết bot và danh sách Công việc.
     Người dùng đã dừng: còn tiến trình = stopping, hết = stopped. Còn lại theo bot.json + tiến trình: đang chạy mà tiến trình chết (sập / API khởi động lại /
     máy khởi động lại) = resuming (supervisor chạy lại CÙNG bot_id), quá MAX_RESUME_FAILURES lần liền = failed."""
-    alive = bot_alive(meta)
+    process_state = bot_process_state(meta)
     if stop_flag(b_dir) is not None:
-        return "stopping" if alive else "stopped"
+        return "stopping" if process_state == "alive" else ("stopped" if process_state == "stopped" else "unknown")
     st = meta.get("status")
     if st == "stopped":
-        return "stopped"
+        return "stopped" if process_state == "stopped" else "unknown"
     if st == "failed":
-        return "failed"
-    if st in ("running", "starting"):
-        if alive:
-            return st
-        return "failed" if int(meta.get("resume_failures") or 0) >= MAX_RESUME_FAILURES else "resuming"
-    return "stopped"
+        return "failed" if process_state == "stopped" else "unknown"
+    if st in ("running", "starting", "resuming"):
+        if process_state == "alive":
+            return "resuming" if st == "resuming" else st
+        if process_state == "stopped":
+            return "failed" if int(meta.get("resume_failures") or 0) >= MAX_RESUME_FAILURES else "resuming"
+        return "unknown"
+    if st in ("resuming", "stopping"):
+        return st if process_state == "alive" else ("stopped" if process_state == "stopped" and st == "stopping" else "unknown")
+    return "unknown"
 
 
 def _mdd_pct(values: List[float]) -> float:
@@ -1210,6 +1242,9 @@ def _bot_summary(meta: Dict[str, Any], b_dir: str, mode: str, snap: Optional[Dic
         "strategy": meta.get("strategy") or ", ".join(meta.get("strategies") or []),
         "symbols": meta.get("symbols", []), "strategies": meta.get("strategies", []), "capital": snap["capital"],
         "equity": round(snap["equity"], 4), "pnl_usd": round(snap["pnl_usd"], 4), "pnl_pct": round(snap["pnl_pct"], 4),
+        "unrealized_pnl": round(snap.get("unrealized", 0.0), 4),
+        "positions": snap.get("positions", []),
+        "positions_count": len(snap.get("positions", [])),
         "mdd_pct": _mdd_pct([snap["capital"]] + [r["equity"] for r in snap["series"]]), "status": status,
         "started_at": started, "stopped_at": meta.get("stopped_at") if status == "stopped" else None,
         "samples": len(snap["series"]), "job_id": meta.get("job_id"), "cl_tag": meta.get("cl_tag"),
@@ -1233,9 +1268,21 @@ def list_bots(mode: Optional[str] = None) -> List[Dict[str, Any]]:
         if not os.path.isdir(m_dir):
             continue
         for b_name in os.listdir(m_dir):
-            meta = _read_json(os.path.join(m_dir, b_name, "bot.json"))
-            if meta:
-                items.append((meta, os.path.join(m_dir, b_name), m))
+            if b_name == "archived":
+                arch_dir = os.path.join(m_dir, "archived")
+                if os.path.isdir(arch_dir):
+                    for arch_b in os.listdir(arch_dir):
+                        arch_b_dir = os.path.join(arch_dir, arch_b)
+                        if os.path.isdir(arch_b_dir):
+                            meta = _read_json(os.path.join(arch_b_dir, "bot.json"))
+                            if meta:
+                                items.append((meta, arch_b_dir, m))
+            else:
+                b_dir = os.path.join(m_dir, b_name)
+                if os.path.isdir(b_dir):
+                    meta = _read_json(os.path.join(b_dir, "bot.json"))
+                    if meta:
+                        items.append((meta, b_dir, m))
     if not items:
         return []
     from concurrent.futures import ThreadPoolExecutor
@@ -1377,41 +1424,49 @@ def close_own_via_rest(b_dir: str, meta: Dict[str, Any], mode: str) -> List[Dict
 
 def delete_bot(bot_id: str, mode: Optional[str] = None, force: bool = False) -> Dict[str, Any]:
     """Xoá thư mục data/live/<mode>/<bot_id>/ (kể cả bot cũ đã lưu trữ).
-    Chỉ chặn khi tiến trình còn sống VÀ chưa có cờ dừng VÀ force=False.
-    Nếu bot đã dừng hoặc tiến trình đã chết -> dọn dẹp và xoá thư mục ngay."""
+    Never signals a process. A live, transitional, or uninspectable bot must be reconciled before deletion."""
     import shutil
-    import signal
-    if not bot_id or bot_id != os.path.basename(bot_id) or bot_id.startswith("."):
+    if not bot_id or bot_id.startswith("."):
         return {"ok": False, "message": "bot_id không hợp lệ"}
+
+    # 1. Hỗ trợ xoá bot trong các thư mục mode thông thường (paper, testnet, live)
     for m in ((mode,) if mode in MODES else MODES):
         b_dir = os.path.join(data_home(), "live", m, bot_id)
         if os.path.isdir(b_dir):
-            meta = _read_json(os.path.join(b_dir, "bot.json")) or {}
-            alive = bot_alive(meta)
-            has_stop = stop_flag(b_dir) is not None
+            meta = _read_json(os.path.join(b_dir, "bot.json"))
+            if not isinstance(meta, dict):
+                return {"ok": False, "unknown": True, "message": "Thiếu metadata bot; cần đối soát trước khi xoá"}
+            process_state = bot_process_state(meta)
+            st = bot_status(meta, b_dir)
 
-            # Chỉ chặn khi bot thực sự đang chạy (tiến trình còn sống VÀ chưa từng dừng VÀ không force)
-            if alive and not has_stop and not force:
-                return {"ok": False, "running": True, "message": "Dừng bot trước khi xoá"}
-
-            # Dọn dẹp tiến trình nếu còn sống
-            if alive:
-                pid = meta.get("pid")
-                if pid:
-                    try:
-                        os.kill(int(pid), signal.SIGTERM)
-                        time.sleep(0.1)
-                        if pid_alive(pid, meta.get("pid_start")):
-                            os.kill(int(pid), signal.SIGKILL)
-                    except OSError:
-                        pass
+            if process_state == "alive" or st in ACTIVE_STATES:
+                return {"ok": False, "running": True, "message": "Bot đang chạy hoặc chuyển trạng thái; dừng và xác nhận đã dừng trước khi xoá"}
+            if process_state == "unknown" or st == "unknown":
+                return {"ok": False, "unknown": True, "message": "Không xác định được trạng thái tiến trình; cần đối soát trước khi xoá"}
 
             try:
                 shutil.rmtree(b_dir)
             except OSError as exc:
                 return {"ok": False, "message": f"Không thể xoá thư mục bot: {exc}"}
             return {"ok": True, "bot_id": bot_id, "mode": m, "deleted": True}
+
+    # 2. Hỗ trợ xoá bot lưu trữ (archive)
+    if mode == "archive" or "archive" in bot_id:
+        # Kiểm tra các đường dẫn lưu trữ
+        candidate_dirs = [
+            os.path.join(data_home(), "live", "archive", "okx", bot_id),
+            os.path.join(data_home(), "live", "archive", bot_id),
+        ]
+        for c_dir in candidate_dirs:
+            if os.path.isdir(c_dir):
+                try:
+                    shutil.rmtree(c_dir)
+                    return {"ok": True, "bot_id": bot_id, "mode": "archive", "deleted": True}
+                except OSError as exc:
+                    return {"ok": False, "message": f"Không thể xoá bot lưu trữ: {exc}"}
+
     return {"ok": False, "message": f"Không tìm thấy bot {bot_id}"}
+
 
 
 def get_bot_trades(bot_id: str, raw: bool = False) -> List[Dict[str, Any]]:

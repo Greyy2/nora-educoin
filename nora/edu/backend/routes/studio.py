@@ -15,14 +15,16 @@ custom_backtest, http_launch, chế độ chạy Cơ bản/Nâng cao (preset kho
 `http_launch` gọi `_proc.launch` (tra cứu thuộc tính lúc gọi nên monkeypatch `launch` có hiệu lực). Job chạy ở tiến trình riêng: backend/jobs/runner.py.
 """
 import calendar
+import fcntl
 import math
 import os
 import re
 import time
+from contextlib import contextmanager
 from datetime import datetime
-from typing import Any, Dict, List, Tuple, Optional
+from typing import Any, Dict, Iterator, List, Tuple, Optional
 
-from fastapi import HTTPException, APIRouter, Header, Response
+from fastapi import HTTPException, APIRouter, Header, Response, Request
 
 from backend.jobs import runner as _proc, runner as batch_jobs
 from backend.jobs.runner import DEX_UNSUPPORTED, JobBusy, JobError, KINDS, NotReady
@@ -36,6 +38,31 @@ from backend.models.meta import build_meta
 
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 MAX_WFA_STRATEGIES, MAX_WFA_CONFIGS = 16, 50
+
+
+@contextmanager
+def _guest_job_admission_lock() -> Iterator[None]:
+    lock_path = os.path.join(batch_jobs.jobs_root(), ".guest-admission.lock")
+    fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+    finally:
+        os.close(fd)
+
+
+def _active_jobs_snapshot() -> List[Dict[str, Any]]:
+    active_states = {"queued", "running"}
+    active = []
+    runner_impl = batch_jobs.runner
+    for _, job_dir in runner_impl._history_dirs():
+        job = runner_impl._summary_cached(job_dir)
+        if job and job.get("status") in active_states:
+            active.append(job)
+    return active
 
 
 # ─── Kiểm đối số ────────────────────────────────────────────────────────────
@@ -232,7 +259,7 @@ def build_job(kind: str, p: Dict[str, Any]) -> Dict[str, Any]:
 
 
 MAX_CUSTOM_DAYS = 4000
-MAX_CUSTOM_SYMBOLS = 16
+MAX_CUSTOM_SYMBOLS = 64
 _BASE_RE = re.compile(r"^[A-Z0-9]{2,12}$")
 
 
@@ -645,13 +672,11 @@ meta_router = APIRouter(prefix="/api/studio", tags=["meta"])
 
 
 def _limit_models() -> Dict[str, Any]:
-    from backend.routes.data import CrawlRequest
     return {
         "custom_backtest": globals().get("CustomBacktestRequest"),
         "book_backtest": globals().get("_DateRange"),
         "book_wfa": globals().get("WfaStrategyIn"),
         "book_mc": globals().get("McRequest"),
-        "data_update": CrawlRequest,
         "book_backtest_req": globals().get("BacktestRequest"),
     }
 
@@ -941,9 +966,13 @@ def post_wfa(req: WfaRequest):
 
 
 @book_router.get("/jobs")
-def get_jobs(limit: int = 20, kind: Optional[str] = None):
+def get_jobs(request: Request, response: Response, limit: int = 20, kind: Optional[str] = None):
+    from backend.routes.system import get_effective_identity
+    effective_uid, _ = get_effective_identity(request, response)
     try:
-        return {"jobs": batch_jobs.list_jobs(limit, kind)}
+        raw = batch_jobs.list_jobs(100, kind)
+        scoped = [j for j in raw if (j.get("params") or {}).get("owner_uid") == effective_uid]
+        return {"jobs": scoped[:limit]}
     except batch_jobs.JobError as e:
         raise HTTPException(422, str(e))
 
@@ -993,23 +1022,35 @@ def get_backtest_summary(limit: int = 100):
 def get_job(job_id: str, request: Request, response: Response, lite: bool = False):
     """lite=true: bỏ result.trade_list (UI phân trang lệnh qua /api/studio/portfolio/trades). Job done/failed/cancelled: ETag + Cache-Control
     private, max-age=86400 và If-None-Match -> 304 (không đọc result.json); đang chạy/queued: no-store."""
-    try:
-        etag = batch_jobs.status_etag(job_id, lite)
-    except batch_jobs.JobError as e:
-        raise HTTPException(422, str(e))
-    cc = "private, max-age=86400"
-    if etag:
-        inm = {t.strip().removeprefix("W/") for t in request.headers.get("if-none-match", "").split(",")}
-        if etag in inm or "*" in inm:
-            return Response(status_code=304, headers={"ETag": etag, "Cache-Control": cc})
+    from backend.routes.system import get_effective_identity
+    effective_uid, _ = get_effective_identity(request, response)
+
     try:
         s = batch_jobs.status(job_id)
+    except batch_jobs.EphemeralGone as e:
+        raise HTTPException(410, str(e)) from e
     except batch_jobs.JobError as e:
         raise HTTPException(422, str(e))
     if s is None:
         if batch_jobs.ephemeral_gone(job_id):
             raise batch_jobs.EphemeralGone(job_id)
         raise HTTPException(404, "không có job này")
+
+    # Kiểm tra phân quyền sở hữu TRƯỚC KHI xử lý ETag / If-None-Match để tránh rò rỉ trạng thái / cache
+    job_owner = (s.get("params") or {}).get("owner_uid")
+    if job_owner != effective_uid:
+        raise HTTPException(404, "không có job này")
+
+    cc = "private, max-age=86400"
+    try:
+        etag = batch_jobs.status_etag(job_id, lite)
+    except batch_jobs.JobError as e:
+        raise HTTPException(422, str(e))
+    if etag:
+        inm = {t.strip().removeprefix("W/") for t in request.headers.get("if-none-match", "").split(",")}
+        if etag in inm or "*" in inm:
+            return Response(status_code=304, headers={"ETag": etag, "Cache-Control": cc})
+
     if s.get("status") in batch_jobs.TERMINAL_STATES:
         etag = batch_jobs.status_etag(job_id, lite) or etag   # tính lại sau status(): job vừa được _finish ghi job.json
         response.headers["Cache-Control"] = cc
@@ -1022,15 +1063,16 @@ def get_job(job_id: str, request: Request, response: Response, lite: bool = Fals
 
 
 @book_router.post("/jobs/{job_id}/cancel")
-def post_cancel(job_id: str, request: Request):
+def post_cancel(job_id: str, request: Request, response: Response):
     """Huỷ job đang chạy/chờ: SIGTERM cả nhóm tiến trình; CLI flush kho kết quả rồi thoát -> có thể chạy tiếp bằng --resume <run_dir>."""
     if request:
-        from backend.routes.system import current_uid
-        req_uid = current_uid(request)
+        from backend.routes.system import get_effective_identity
+        effective_uid, _ = get_effective_identity(request, response)
         try:
             s = batch_jobs.status(job_id)
-            if s and req_uid and s.get("params", {}).get("owner_uid"):
-                if s["params"]["owner_uid"] != req_uid:
+            if s is not None:
+                job_owner = (s.get("params") or {}).get("owner_uid")
+                if job_owner != effective_uid:
                     raise HTTPException(403, "Bạn không có quyền huỷ job của người dùng khác")
         except batch_jobs.JobError:
             pass
@@ -1264,6 +1306,7 @@ class SaveUserAlphaRequest(BaseModel):
     note: Optional[str] = Field("", max_length=2000, description="Ghi chú chiến lược")
     source: Optional[str] = Field("alpha-create", description="Nguồn đẩy (alpha-create | education)")
     alpha_id: Optional[str] = Field(None, max_length=64, description="Có = lưu PHIÊN BẢN MỚI của alpha đã có (giữ id; bản cũ vào user/_versions)")
+    forked_from: Optional[Dict[str, Any]] = Field(None, description="Thông tin tác giả gốc nếu là bản sao/fork")
 
 
 class UpdateStatusRequest(BaseModel):
@@ -1285,6 +1328,7 @@ def post_user_alpha(req: SaveUserAlphaRequest, request: Request) -> Dict[str, An
             source=req.source or "alpha-create",
             alpha_id=req.alpha_id,
             owner_id=owner_id,
+            forked_from=req.forked_from,
         )
         return {
             "ok": True,
@@ -1645,20 +1689,34 @@ def get_run_defaults() -> Dict[str, Any]:
 
 
 @custom_router.post("/backtest")
-def post_custom_backtest(req: CustomBacktestRequest, request: Request) -> Dict[str, str]:
+def post_custom_backtest(req: CustomBacktestRequest, request: Request, response: Response) -> Dict[str, str]:
     """Khởi chạy job custom_backtest -> {"job_id"}. Lỗi code: 422 với thông điệp 'Lỗi biên dịch: dòng L, cột C: ...'."""
+    from backend.routes.system import get_effective_identity
+    effective_uid, is_guest = get_effective_identity(request, response)
+
     try:
         data = req.model_dump(exclude_none=True)
-        if request:
-            from backend.routes.system import current_uid
-            uid = current_uid(request)
-            if uid:
-                data["owner_uid"] = uid
+        data["owner_uid"] = effective_uid
         params = batch_jobs_routes.build_job("custom_backtest", data)
     except batch_jobs.JobError as e:
         raise HTTPException(422, str(e))
-    launched = batch_jobs_routes.http_launch("custom_backtest", params)
-    return launched
+
+    if not is_guest:
+        return batch_jobs_routes.http_launch("custom_backtest", params)
+
+    # The filesystem lock serializes quota checks and launch across API workers
+    # sharing the EDU job root, so every accepted job is visible to the next check.
+    with _guest_job_admission_lock():
+        active = _active_jobs_snapshot()
+        if any((j.get("params") or {}).get("owner_uid") == effective_uid for j in active):
+            raise HTTPException(429, "Khách chỉ được chạy tối đa 1 tác vụ backtest tại một thời điểm.")
+        guest_active = [
+            j for j in active
+            if str((j.get("params") or {}).get("owner_uid", "")).startswith("gst_")
+        ]
+        if len(guest_active) >= 3:
+            raise HTTPException(429, "Hệ thống đang phục vụ tối đa lượt chạy thử cho khách (3/3). Vui lòng thử lại sau hoặc đăng nhập.")
+        return batch_jobs_routes.http_launch("custom_backtest", params)
 
 
 chart_router = APIRouter(prefix="/api/studio/chart", tags=["chart"])
@@ -1797,6 +1855,12 @@ def get_education_sample_result(key: str):
     r = strategies.sample_lookup(sample)
     if r is None:
         raise _not_ready(f"mẫu {key}")
+    if isinstance(r, dict) and isinstance(r.get("warnings"), list):
+        r = dict(r)
+        r["warnings"] = [
+            warning for warning in r["warnings"]
+            if not (isinstance(warning, str) and warning.startswith("Dùng mặc định của engine cho "))
+        ]
     return r
 
 
@@ -2497,13 +2561,14 @@ edu_jobs_router.add_api_route("/{job_id}", get_job, methods=["GET"])
 edu_jobs_router.add_api_route("/{job_id}/cancel", post_cancel, methods=["POST"])
 
 edu_book_jobs_router = APIRouter(prefix="/api/studio/book", tags=["edu_book_jobs"])
+edu_book_jobs_router.add_api_route("", get_book, methods=["GET"])
+edu_book_jobs_router.add_api_route("/", get_book, methods=["GET"])
 edu_book_jobs_router.add_api_route("/jobs", get_jobs, methods=["GET"])
 edu_book_jobs_router.add_api_route("/jobs/{job_id}", get_job, methods=["GET"])
 edu_book_jobs_router.add_api_route("/jobs/{job_id}/cancel", post_cancel, methods=["POST"])
 
-EDU_STUDIO_ROUTERS = [meta_router, education_router, chart_router, edu_custom_router, edu_strategies_router, edu_jobs_router, edu_book_jobs_router]
+EDU_STUDIO_ROUTERS = [meta_router, education_router, chart_router, edu_custom_router, edu_strategies_router, alphas_router, edu_jobs_router, edu_book_jobs_router]
 
 ROUTERS = [meta_router, book_router, portfolio_router, alphas_router, strategies_router, custom_router, education_router, chart_router, research_router, scan_router]
 router = meta_router
 portfolio = portfolio_router
-

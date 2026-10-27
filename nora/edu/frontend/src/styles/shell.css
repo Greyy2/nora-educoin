@@ -2,58 +2,59 @@
 
 .v2 {
   color-scheme: dark;
-  --n-bg: #0e0e10;
-  --n-rail: #121214;
-  --n-surface: #17171a;
-  --n-surface-2: #1d1d21;
-  --n-surface-3: #25252a;
-  --n-line: #2a2a30;
-  --n-line-soft: #212126;
-  --n-ink: #ededf0;
-  --n-ink-2: #aeaeb6;
-  --n-ink-3: #82828b;
-  --n-accent: #e58a2e;
-  --n-accent-ink: #1a1206;
-  --n-accent-wash: rgba(229, 138, 46, 0.12);
-  --n-bench: #a3a39b;
-  --n-pos: #3ecf8e;
-  --n-neg: #f0616d;
-  --n-warn: #e5a93c;
-  --n-info: #5aa0e6;
-  --n-teal: #2fb3b8;
-  --n-blue: #5aa0e6;
-  --n-pos-wash: rgba(62, 207, 142, 0.16);
-  --n-neg-wash: rgba(240, 97, 109, 0.16);
-  --n-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
+  --n-bg: #0B0F17;
+  --n-rail: #0F172A;
+  --n-surface: #1E293B;
+  --n-surface-2: #162032;
+  --n-surface-3: #27354E;
+  --n-line: rgba(255, 255, 255, 0.08);
+  --n-line-soft: rgba(255, 255, 255, 0.04);
+  --n-ink: #F8FAFC;
+  --n-ink-2: #94A3B8;
+  --n-ink-3: #64748B;
+  --n-accent: #6366F1;
+  --n-accent-ink: #FFFFFF;
+  --n-accent-wash: rgba(99, 102, 241, 0.14);
+  --n-bench: #94A3B8;
+  --n-pos: #10B981;
+  --n-neg: #F43F5E;
+  --n-warn: #F59E0B;
+  --n-info: #38BDF8;
+  --n-teal: #14B8A6;
+  --n-blue: #3B82F6;
+  --n-pos-wash: rgba(16, 185, 129, 0.16);
+  --n-neg-wash: rgba(244, 63, 94, 0.16);
+  --n-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.35);
   --n-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Consolas, monospace;
-  --n-sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --n-sans: 'Inter', 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 :root[data-theme="light"] .v2 {
   color-scheme: light;
-  --n-bg: #f4f2ec;
-  --n-rail: #ffffff;
-  --n-surface: #ffffff;
-  --n-surface-2: #faf8f3;
-  --n-surface-3: #f0ede5;
-  --n-line: #e5e1d6;
-  --n-line-soft: #eeeae0;
-  --n-ink: #1d1c19;
-  --n-ink-2: #55534c;
-  --n-ink-3: #85827a;
-  --n-accent: #c96a12;
-  --n-accent-ink: #ffffff;
-  --n-accent-wash: rgba(201, 106, 18, 0.12);
-  --n-bench: #77756d;
-  --n-pos: #0b8a55;
-  --n-neg: #cf3340;
-  --n-warn: #a8690a;
-  --n-info: #2a6fc0;
-  --n-teal: #238791;
-  --n-blue: #2a6fc0;
-  --n-pos-wash: rgba(11, 138, 85, 0.16);
-  --n-neg-wash: rgba(207, 51, 64, 0.14);
-  --n-shadow: 0 1px 2px rgba(60, 50, 30, 0.06);
+  --n-bg: #F8FAFC;
+  --n-rail: #FFFFFF;
+  --n-surface: #FFFFFF;
+  --n-surface-2: #F1F5F9;
+  --n-surface-3: #E2E8F0;
+  --n-line: #E2E8F0;
+  --n-line-soft: #F1F5F9;
+  --n-ink: #0F172A;
+  --n-ink-2: #475569;
+  --n-ink-3: #94A3B8;
+  --n-accent: #4F46E5;
+  --n-accent-ink: #FFFFFF;
+  --n-accent-wash: rgba(79, 70, 229, 0.1);
+  --n-bench: #64748B;
+  --n-pos: #059669;
+  --n-neg: #E11D48;
+  --n-warn: #D97706;
+  --n-info: #0284C7;
+  --n-teal: #0D9488;
+  --n-blue: #2563EB;
+  --n-pos-wash: rgba(5, 150, 105, 0.12);
+  --n-neg-wash: rgba(225, 29, 72, 0.1);
+  --n-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.03);
 }
+
 
 .v2, .v2 * { box-sizing: border-box; }
 .v2 {
@@ -293,7 +294,7 @@
 }
 .n-in:focus, .n-sel:focus { outline: 2px solid var(--n-accent); outline-offset: 0; }
 .n-btn {
-  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 14px; border-radius: 7px; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; text-align: center; gap: 6px; height: 32px; padding: 0 14px; border-radius: 7px; cursor: pointer;
   border: 1px solid var(--n-line); background: var(--n-surface-2); color: var(--n-ink);
 }
 .n-btn:hover { background: var(--n-surface-3); }
@@ -1389,3 +1390,95 @@ td .n-resolved-b { min-width: 320px; }
 .n-drawer { box-shadow: -16px 0 48px rgba(0, 0, 0, .3); }
 .v2 select:not([class]), .v2 input:not([class]):not([type=checkbox]):not([type=radio]):not([type=range]), .v2 textarea:not([class]) { background: var(--n-surface-2); color: var(--n-ink); border: 1px solid var(--n-line); border-radius: 6px; padding: 5px 8px; }
 .v2 input:not([class])::placeholder { color: var(--n-ink-3); }
+
+/* ---------- Style bổ trợ Chuẩn Sova / Claude cho NORA EDU ---------- */
+.n-input {
+  height: 38px;
+  border: 1px solid var(--n-line);
+  background: var(--n-surface-2);
+  color: var(--n-ink);
+  border-radius: 8px;
+  padding: 0 12px;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 36px;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+  outline: none;
+  width: 100%;
+}
+.n-input:focus {
+  border-color: var(--n-accent);
+  box-shadow: 0 0 0 3px var(--n-accent-wash);
+}
+select.n-input {
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 14px;
+  padding-right: 32px;
+  cursor: pointer;
+}
+:root[data-theme="light"] select.n-input {
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+}
+.n-btn.xs {
+  height: 24px;
+  padding: 0 8px;
+  font-size: 11px;
+  border-radius: 6px;
+}
+.n-btn.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--n-ink-2);
+}
+.n-btn.ghost:hover {
+  background: var(--n-surface-3);
+  color: var(--n-ink);
+}
+
+/* Glassmorphism & Card System kiểu Claude / Sova */
+.edu-glass-panel {
+  background: var(--n-surface);
+  border: 1px solid var(--n-line);
+  border-radius: 16px;
+  padding: 20px 24px;
+  box-shadow: var(--n-shadow);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  transition: all 0.2s ease;
+}
+.edu-market-card {
+  background: var(--n-surface);
+  border: 1px solid var(--n-line);
+  border-radius: 16px;
+  padding: 20px 22px;
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: var(--n-shadow);
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.22s, box-shadow 0.22s;
+  position: relative;
+  overflow: hidden;
+}
+.edu-market-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--n-accent);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.15), 0 0 20px var(--n-accent-wash);
+}
+.v2:not([data-theme="light"]) .edu-market-card:hover {
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4), 0 0 24px var(--n-accent-wash);
+}
+.edu-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  background: var(--n-surface-2);
+  border: 1px solid var(--n-line);
+  border-radius: 12px;
+  padding: 12px 10px;
+}
+

@@ -42,6 +42,10 @@ class StrategyParams:
     fee_rate: float = 0.0005               # Phí TAKER mỗi chiều (lệnh market)
     maker_fee_rate: Optional[float] = None # Phí MAKER mỗi chiều (lệnh limit: DCA, chốt lời); None = bằng taker
     slippage_rate: float = 0.0           # Slippage mỗi chiều — Nautilus không mô phỏng trượt giá % (engine bỏ qua + cảnh báo nếu > 0), nên mặc định 0
+    slippage_mode: str = "rate"          # "rate" hoặc "fixed_ticks" (khớp TradingView)
+    slippage_ticks: int = 0              # Số tick bất lợi mỗi market fill khi slippage_mode="fixed_ticks"
+    stop_slippage_multiplier: float = 2.0
+    quantity_step: float = 0.0           # Lot step explicit; 0 = use instrument precision
     stop_loss_rate: float = 0.0            # % Cắt lỗ tính từ GIÁ TRUNG BÌNH (0 = không cắt)
     take_profit_rate: float = 0.0          # % Chốt lời tính từ GIÁ TRUNG BÌNH (0 = không chốt)
     trailing_stop: float = 0.0             # % Trailing stop tính từ đỉnh/đáy có lợi nhất (0 = tắt)
@@ -144,6 +148,10 @@ class StrategyParams:
             "fee_rate": self.fee_rate,
             "maker_fee_rate": self.maker_fee_rate,
             "slippage_rate": self.slippage_rate,
+            "slippage_mode": self.slippage_mode,
+            "slippage_ticks": self.slippage_ticks,
+            "stop_slippage_multiplier": self.stop_slippage_multiplier,
+            "quantity_step": self.quantity_step,
             "dca_steps": self.dca_steps,
             "dca_multipliers": self.dca_multipliers,
         }
@@ -338,6 +346,7 @@ POSITION_KEYS = (
     "trailing_activation_pct", "timeout", "order_size_pct", "dca_step_pct", "dca_max_layers",
     "dca_size_multiplier", "maintenance_margin_rate", "fee_rate", "maker_fee_rate", "slippage_rate",
     "using_match_price", "stop_fill", "intrabar_path", "exit_unit", "atr_frame", "atr_period", "sizing", "risk_per_trade_pct",
+    "slippage_mode", "slippage_ticks", "stop_slippage_multiplier", "quantity_step",
     "max_notional_pct", "cooldown", "signal_mode", "dca_steps", "dca_multipliers", "limit_through_pct",
     "risk_profile", "sl_anchor", "sl_beyond_last_pct",
 )
@@ -449,6 +458,10 @@ def build_params(flow_name: str, flow_ast: Dict[str, Any], flow_type: str, posit
         fee_rate=fee,
         maker_fee_rate=maker,
         slippage_rate=slip,
+        slippage_mode=str(position.get("slippage_mode") or "rate"),
+        slippage_ticks=int(position.get("slippage_ticks") or 0),
+        stop_slippage_multiplier=float(position.get("stop_slippage_multiplier") or 2.0),
+        quantity_step=max(0.0, float(position.get("quantity_step") or 0.0)),
         stop_loss_rate=float(position.get("stop_loss_rate") or 0.0),
         take_profit_rate=float(position.get("take_profit_rate") or 0.0),
         trailing_stop=float(position.get("trailing_stop") or 0.0),

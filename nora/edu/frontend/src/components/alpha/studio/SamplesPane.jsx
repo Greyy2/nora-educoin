@@ -110,7 +110,11 @@ export default function SamplesPane({ samples, onUse, saved, onOpenSaved, openin
           const isActive = activeId && s.savedRec && activeId === s.savedRec.id
 
           const handleClick = () => {
-            if (s.savedRec && onOpenSaved) {
+            if (s.savedRec && s.savedRec.has_result && onOpenSaved) {
+              onOpenSaved(s.savedRec.id)
+            } else if (s.isSample && onUse) {
+              onUse(s)
+            } else if (s.savedRec && onOpenSaved) {
               onOpenSaved(s.savedRec.id)
             } else if (onUse) {
               onUse(s)

@@ -1,0 +1,13 @@
+{
+  "id": "43f5220ece1e",
+  "handle": "momentum_duc",
+  "display_name": "Đức Động Lượng",
+  "avatar": {
+    "emoji": "🦁",
+    "color": "#10B981"
+  },
+  "bio": "Theo đà tăng giá và khối lượng.",
+  "role": "demo",
+  "created_at": "2026-10-12T17:55:51.254160+00:00",
+  "password_hash": "pbkdf2_sha256$100000$cbc9f0b9305a8a4572f5defe8151fbfc$078dfb46e46f60e277d639794ca12343dda3f2f873d64966c7c7509d21e911be"
+}

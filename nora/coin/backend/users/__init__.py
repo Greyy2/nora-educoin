@@ -19,6 +19,10 @@ from backend.users.store import (
     get_by_handle,
     list_users,
     update_user,
+    hash_password,
+    verify_password,
+    authenticate_user,
+    change_password,
 )
 
 __all__ = [
@@ -42,4 +46,8 @@ __all__ = [
     "get_by_handle",
     "list_users",
     "update_user",
+    "hash_password",
+    "verify_password",
+    "authenticate_user",
+    "change_password",
 ]

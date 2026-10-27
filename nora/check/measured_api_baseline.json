@@ -1,0 +1,326 @@
+[
+  {
+    "product": "COIN",
+    "endpoint": "/api/home/summary",
+    "status": 200,
+    "sample_statuses": [
+      200,
+      200,
+      200,
+      200,
+      200
+    ],
+    "payload_bytes": 136,
+    "sample_payload_bytes": [
+      136,
+      136,
+      136,
+      136,
+      136
+    ],
+    "sample_count": 5,
+    "raw_samples_ms": [
+      372.38,
+      1.73,
+      1.61,
+      1.44,
+      1.48
+    ],
+    "avg_ms": 75.73,
+    "min_ms": 1.44,
+    "max_ms": 372.38,
+    "p50_ms": 1.61,
+    "p95_ms": 298.25,
+    "sla": "not established",
+    "sla_status": "NOT_SET",
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "endpoint": "/api/studio/market/regime",
+    "status": 200,
+    "sample_statuses": [
+      200,
+      200,
+      200,
+      200,
+      200
+    ],
+    "payload_bytes": 9419,
+    "sample_payload_bytes": [
+      9419,
+      9419,
+      9419,
+      9419,
+      9419
+    ],
+    "sample_count": 5,
+    "raw_samples_ms": [
+      4.69,
+      4.39,
+      4.02,
+      3.89,
+      3.91
+    ],
+    "avg_ms": 4.18,
+    "min_ms": 3.89,
+    "max_ms": 4.69,
+    "p50_ms": 4.02,
+    "p95_ms": 4.63,
+    "sla": "not established",
+    "sla_status": "NOT_SET",
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "endpoint": "/api/health",
+    "status": 200,
+    "sample_statuses": [
+      200,
+      200,
+      200,
+      200,
+      200
+    ],
+    "payload_bytes": 84,
+    "sample_payload_bytes": [
+      84,
+      84,
+      84,
+      84,
+      84
+    ],
+    "sample_count": 5,
+    "raw_samples_ms": [
+      1.71,
+      1.63,
+      1.67,
+      1.6,
+      1.65
+    ],
+    "avg_ms": 1.65,
+    "min_ms": 1.6,
+    "max_ms": 1.71,
+    "p50_ms": 1.65,
+    "p95_ms": 1.7,
+    "sla": "not established",
+    "sla_status": "NOT_SET",
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "endpoint": "/api/me",
+    "status": 200,
+    "sample_statuses": [
+      200,
+      200,
+      200,
+      200,
+      200
+    ],
+    "payload_bytes": 13,
+    "sample_payload_bytes": [
+      13,
+      13,
+      13,
+      13,
+      13
+    ],
+    "sample_count": 5,
+    "raw_samples_ms": [
+      1.51,
+      1.48,
+      1.47,
+      1.68,
+      2.2
+    ],
+    "avg_ms": 1.67,
+    "min_ms": 1.47,
+    "max_ms": 2.2,
+    "p50_ms": 1.51,
+    "p95_ms": 2.1,
+    "sla": "not established",
+    "sla_status": "NOT_SET",
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "endpoint": "/api/home/summary",
+    "status": 200,
+    "sample_statuses": [
+      200,
+      200,
+      200,
+      200,
+      200
+    ],
+    "payload_bytes": 138,
+    "sample_payload_bytes": [
+      138,
+      138,
+      138,
+      138,
+      138
+    ],
+    "sample_count": 5,
+    "raw_samples_ms": [
+      403.91,
+      1.84,
+      1.73,
+      1.73,
+      1.67
+    ],
+    "avg_ms": 82.18,
+    "min_ms": 1.67,
+    "max_ms": 403.91,
+    "p50_ms": 1.73,
+    "p95_ms": 323.5,
+    "sla": "not established",
+    "sla_status": "NOT_SET",
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "endpoint": "/api/edu/market",
+    "status": 200,
+    "sample_statuses": [
+      200,
+      200,
+      200,
+      200,
+      200
+    ],
+    "payload_bytes": 190080,
+    "sample_payload_bytes": [
+      190080,
+      190080,
+      190080,
+      190080,
+      190080
+    ],
+    "sample_count": 5,
+    "raw_samples_ms": [
+      415.67,
+      5.83,
+      5.76,
+      5.87,
+      5.23
+    ],
+    "avg_ms": 87.67,
+    "min_ms": 5.23,
+    "max_ms": 415.67,
+    "p50_ms": 5.83,
+    "p95_ms": 333.71,
+    "sla": "not established",
+    "sla_status": "NOT_SET",
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "endpoint": "/api/studio/jobs",
+    "status": 200,
+    "sample_statuses": [
+      200,
+      200,
+      200,
+      200,
+      200
+    ],
+    "payload_bytes": 11,
+    "sample_payload_bytes": [
+      11,
+      11,
+      11,
+      11,
+      11
+    ],
+    "sample_count": 5,
+    "raw_samples_ms": [
+      4.13,
+      1.85,
+      1.81,
+      1.74,
+      1.69
+    ],
+    "avg_ms": 2.24,
+    "min_ms": 1.69,
+    "max_ms": 4.13,
+    "p50_ms": 1.81,
+    "p95_ms": 3.67,
+    "sla": "not established",
+    "sla_status": "NOT_SET",
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "endpoint": "/api/health",
+    "status": 200,
+    "sample_statuses": [
+      200,
+      200,
+      200,
+      200,
+      200
+    ],
+    "payload_bytes": 83,
+    "sample_payload_bytes": [
+      83,
+      83,
+      83,
+      83,
+      83
+    ],
+    "sample_count": 5,
+    "raw_samples_ms": [
+      1.39,
+      1.37,
+      1.37,
+      1.36,
+      1.35
+    ],
+    "avg_ms": 1.37,
+    "min_ms": 1.35,
+    "max_ms": 1.39,
+    "p50_ms": 1.37,
+    "p95_ms": 1.39,
+    "sla": "not established",
+    "sla_status": "NOT_SET",
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "endpoint": "/api/me",
+    "status": 200,
+    "sample_statuses": [
+      200,
+      200,
+      200,
+      200,
+      200
+    ],
+    "payload_bytes": 13,
+    "sample_payload_bytes": [
+      13,
+      13,
+      13,
+      13,
+      13
+    ],
+    "sample_count": 5,
+    "raw_samples_ms": [
+      1.5,
+      1.41,
+      1.68,
+      1.6,
+      1.48
+    ],
+    "avg_ms": 1.53,
+    "min_ms": 1.41,
+    "max_ms": 1.68,
+    "p50_ms": 1.5,
+    "p95_ms": 1.66,
+    "sla": "not established",
+    "sla_status": "NOT_SET",
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  }
+]

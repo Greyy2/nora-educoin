@@ -1,0 +1,1080 @@
+[
+  {
+    "product": "COIN",
+    "asset": "AlphaCatalog-BP0ghX2y.js",
+    "bytes": 21789,
+    "gzip_bytes": 8111,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "AreaLine-CVUSDMgj.js",
+    "bytes": 4870,
+    "gzip_bytes": 2258,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "AssistChip-DV-pJPtz.js",
+    "bytes": 466333,
+    "gzip_bytes": 156085,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "Backtest-D9MAs46j.css",
+    "bytes": 4905,
+    "gzip_bytes": 1363,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "Backtest-DjDLY8A6.js",
+    "bytes": 192512,
+    "gzip_bytes": 48667,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "Histogram-Cvee6wgM.js",
+    "bytes": 2027,
+    "gzip_bytes": 1132,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "History-CBXf_hjP.js",
+    "bytes": 8236,
+    "gzip_bytes": 2991,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "Home-DmObc2cc.js",
+    "bytes": 9388,
+    "gzip_bytes": 3329,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_AMS-Regular-BQhdFMY1.woff2",
+    "bytes": 28076,
+    "gzip_bytes": 28104,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_AMS-Regular-DMm9YOAa.woff",
+    "bytes": 33516,
+    "gzip_bytes": 33526,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_AMS-Regular-DRggAlZN.ttf",
+    "bytes": 63632,
+    "gzip_bytes": 34543,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Caligraphic-Bold-ATXxdsX0.ttf",
+    "bytes": 12368,
+    "gzip_bytes": 7728,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Caligraphic-Bold-BEiXGLvX.woff",
+    "bytes": 7716,
+    "gzip_bytes": 7662,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Caligraphic-Bold-Dq_IR9rO.woff2",
+    "bytes": 6912,
+    "gzip_bytes": 6935,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Caligraphic-Regular-CTRA-rTL.woff",
+    "bytes": 7656,
+    "gzip_bytes": 7611,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Caligraphic-Regular-Di6jR-x-.woff2",
+    "bytes": 6908,
+    "gzip_bytes": 6931,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Caligraphic-Regular-wX97UBjC.ttf",
+    "bytes": 12344,
+    "gzip_bytes": 7676,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Fraktur-Bold-BdnERNNW.ttf",
+    "bytes": 19584,
+    "gzip_bytes": 13327,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Fraktur-Bold-BsDP51OF.woff",
+    "bytes": 13296,
+    "gzip_bytes": 13258,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Fraktur-Bold-CL6g_b3V.woff2",
+    "bytes": 11348,
+    "gzip_bytes": 11371,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Fraktur-Regular-CB_wures.ttf",
+    "bytes": 19572,
+    "gzip_bytes": 13254,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Fraktur-Regular-CTYiF6lA.woff2",
+    "bytes": 11316,
+    "gzip_bytes": 11339,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Fraktur-Regular-Dxdc4cR9.woff",
+    "bytes": 13208,
+    "gzip_bytes": 13171,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Main-Bold-Cx986IdX.woff2",
+    "bytes": 25324,
+    "gzip_bytes": 25352,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Main-Bold-Jm3AIy58.woff",
+    "bytes": 29912,
+    "gzip_bytes": 29932,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Main-Bold-waoOVXN0.ttf",
+    "bytes": 51336,
+    "gzip_bytes": 30563,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Main-BoldItalic-DxDJ3AOS.woff2",
+    "bytes": 16780,
+    "gzip_bytes": 16808,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Main-BoldItalic-DzxPMmG6.ttf",
+    "bytes": 32968,
+    "gzip_bytes": 19700,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Main-BoldItalic-SpSLRI95.woff",
+    "bytes": 19412,
+    "gzip_bytes": 19388,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Main-Italic-3WenGoN9.ttf",
+    "bytes": 33580,
+    "gzip_bytes": 20004,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Main-Italic-BMLOBm91.woff",
+    "bytes": 19676,
+    "gzip_bytes": 19654,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Main-Italic-NWA7e6Wa.woff2",
+    "bytes": 16988,
+    "gzip_bytes": 17016,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Main-Regular-B22Nviop.woff2",
+    "bytes": 26272,
+    "gzip_bytes": 26300,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Main-Regular-Dr94JaBh.woff",
+    "bytes": 30772,
+    "gzip_bytes": 30787,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Main-Regular-ypZvNtVU.ttf",
+    "bytes": 53580,
+    "gzip_bytes": 31483,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Math-BoldItalic-B3XSjfu4.ttf",
+    "bytes": 31196,
+    "gzip_bytes": 18992,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Math-BoldItalic-CZnvNsCZ.woff2",
+    "bytes": 16400,
+    "gzip_bytes": 16423,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Math-BoldItalic-iY-2wyZ7.woff",
+    "bytes": 18668,
+    "gzip_bytes": 18633,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Math-Italic-DA0__PXp.woff",
+    "bytes": 18748,
+    "gzip_bytes": 18722,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Math-Italic-flOr_0UB.ttf",
+    "bytes": 31308,
+    "gzip_bytes": 19125,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Math-Italic-t53AETM-.woff2",
+    "bytes": 16440,
+    "gzip_bytes": 16466,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_SansSerif-Bold-CFMepnvq.ttf",
+    "bytes": 24504,
+    "gzip_bytes": 14590,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_SansSerif-Bold-D1sUS0GD.woff2",
+    "bytes": 12216,
+    "gzip_bytes": 12239,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_SansSerif-Bold-DbIhKOiC.woff",
+    "bytes": 14408,
+    "gzip_bytes": 14381,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_SansSerif-Italic-C3H0VqGB.woff2",
+    "bytes": 12028,
+    "gzip_bytes": 12051,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_SansSerif-Italic-DN2j7dab.woff",
+    "bytes": 14112,
+    "gzip_bytes": 14071,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_SansSerif-Italic-YYjJ1zSn.ttf",
+    "bytes": 22364,
+    "gzip_bytes": 14269,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_SansSerif-Regular-BNo7hRIc.ttf",
+    "bytes": 19436,
+    "gzip_bytes": 12359,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_SansSerif-Regular-CS6fqUqJ.woff",
+    "bytes": 12316,
+    "gzip_bytes": 12279,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_SansSerif-Regular-DDBCnlJ7.woff2",
+    "bytes": 10344,
+    "gzip_bytes": 10367,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Script-Regular-C5JkGWo-.ttf",
+    "bytes": 16648,
+    "gzip_bytes": 10686,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Script-Regular-D3wIWfF6.woff2",
+    "bytes": 9644,
+    "gzip_bytes": 9667,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Script-Regular-D5yQViql.woff",
+    "bytes": 10588,
+    "gzip_bytes": 10534,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Size1-Regular-C195tn64.woff",
+    "bytes": 6496,
+    "gzip_bytes": 6450,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Size1-Regular-Dbsnue_I.ttf",
+    "bytes": 12228,
+    "gzip_bytes": 6394,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Size1-Regular-mCD8mA8B.woff2",
+    "bytes": 5468,
+    "gzip_bytes": 5491,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Size2-Regular-B7gKUWhC.ttf",
+    "bytes": 11508,
+    "gzip_bytes": 6092,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Size2-Regular-Dy4dx90m.woff2",
+    "bytes": 5208,
+    "gzip_bytes": 5231,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Size2-Regular-oD1tc_U0.woff",
+    "bytes": 6188,
+    "gzip_bytes": 6136,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Size3-Regular-CTq5MqoE.woff",
+    "bytes": 4420,
+    "gzip_bytes": 4360,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Size3-Regular-DgpXs0kz.ttf",
+    "bytes": 7588,
+    "gzip_bytes": 4274,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Size4-Regular-BF-4gkZK.woff",
+    "bytes": 5980,
+    "gzip_bytes": 5927,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Size4-Regular-DWFBv043.ttf",
+    "bytes": 10364,
+    "gzip_bytes": 5931,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Size4-Regular-Dl5lxZxV.woff2",
+    "bytes": 4928,
+    "gzip_bytes": 4951,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Typewriter-Regular-C0xS9mPB.woff",
+    "bytes": 16028,
+    "gzip_bytes": 15993,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Typewriter-Regular-CO6r4hn1.woff2",
+    "bytes": 13568,
+    "gzip_bytes": 13591,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "KaTeX_Typewriter-Regular-D3Ib7_Hf.ttf",
+    "bytes": 27556,
+    "gzip_bytes": 16279,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "Live-D9AVTkwy.js",
+    "bytes": 270570,
+    "gzip_bytes": 80293,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "Login-DJ4Qgood.js",
+    "bytes": 4424,
+    "gzip_bytes": 1682,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "Portfolio-Bb-MUvF_.js",
+    "bytes": 43141,
+    "gzip_bytes": 12942,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "Portfolio-Bt8nnmMW.css",
+    "bytes": 1965,
+    "gzip_bytes": 757,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "RunModes-DFSZMS_0.js",
+    "bytes": 14207,
+    "gzip_bytes": 5570,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "Studio-DQ24yUHa.js",
+    "bytes": 134900,
+    "gzip_bytes": 38358,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "Term-BKeyjPL_.js",
+    "bytes": 10941,
+    "gzip_bytes": 4694,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "UnderwaterStrip-BOouvlDR.js",
+    "bytes": 2072,
+    "gzip_bytes": 1131,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "alpha-DMMZL9t9.css",
+    "bytes": 30112,
+    "gzip_bytes": 6272,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "home-DNjyhYFN.css",
+    "bytes": 18174,
+    "gzip_bytes": 4396,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "main-Bc4-yBUw.js",
+    "bytes": 528608,
+    "gzip_bytes": 163476,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "main-Dug7_6MH.css",
+    "bytes": 95876,
+    "gzip_bytes": 21653,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "useAsync-Ca9wOU0f.js",
+    "bytes": 1352,
+    "gzip_bytes": 676,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "useJob-C7532LnQ.js",
+    "bytes": 19050,
+    "gzip_bytes": 7274,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "COIN",
+    "asset": "useResizableDrawer-DqBfltwK.js",
+    "bytes": 786,
+    "gzip_bytes": 414,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "CustomResult-Cy08Sv8P.js",
+    "bytes": 535285,
+    "gzip_bytes": 178811,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "CustomResult-DMMZL9t9.css",
+    "bytes": 30112,
+    "gzip_bytes": 6272,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "EduMarket-CROcOl4Q.js",
+    "bytes": 8523,
+    "gzip_bytes": 3277,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "EduStrategy-tqLCkm1N.js",
+    "bytes": 2040,
+    "gzip_bytes": 1089,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "EduUser-BmFSlL39.js",
+    "bytes": 3166,
+    "gzip_bytes": 1258,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "Home-DiWCEi72.js",
+    "bytes": 8761,
+    "gzip_bytes": 3257,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_AMS-Regular-BQhdFMY1.woff2",
+    "bytes": 28076,
+    "gzip_bytes": 28104,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_AMS-Regular-DMm9YOAa.woff",
+    "bytes": 33516,
+    "gzip_bytes": 33526,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_AMS-Regular-DRggAlZN.ttf",
+    "bytes": 63632,
+    "gzip_bytes": 34543,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Caligraphic-Bold-ATXxdsX0.ttf",
+    "bytes": 12368,
+    "gzip_bytes": 7728,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Caligraphic-Bold-BEiXGLvX.woff",
+    "bytes": 7716,
+    "gzip_bytes": 7662,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Caligraphic-Bold-Dq_IR9rO.woff2",
+    "bytes": 6912,
+    "gzip_bytes": 6935,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Caligraphic-Regular-CTRA-rTL.woff",
+    "bytes": 7656,
+    "gzip_bytes": 7611,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Caligraphic-Regular-Di6jR-x-.woff2",
+    "bytes": 6908,
+    "gzip_bytes": 6931,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Caligraphic-Regular-wX97UBjC.ttf",
+    "bytes": 12344,
+    "gzip_bytes": 7676,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Fraktur-Bold-BdnERNNW.ttf",
+    "bytes": 19584,
+    "gzip_bytes": 13327,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Fraktur-Bold-BsDP51OF.woff",
+    "bytes": 13296,
+    "gzip_bytes": 13258,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Fraktur-Bold-CL6g_b3V.woff2",
+    "bytes": 11348,
+    "gzip_bytes": 11371,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Fraktur-Regular-CB_wures.ttf",
+    "bytes": 19572,
+    "gzip_bytes": 13254,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Fraktur-Regular-CTYiF6lA.woff2",
+    "bytes": 11316,
+    "gzip_bytes": 11339,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Fraktur-Regular-Dxdc4cR9.woff",
+    "bytes": 13208,
+    "gzip_bytes": 13171,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Main-Bold-Cx986IdX.woff2",
+    "bytes": 25324,
+    "gzip_bytes": 25352,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Main-Bold-Jm3AIy58.woff",
+    "bytes": 29912,
+    "gzip_bytes": 29932,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Main-Bold-waoOVXN0.ttf",
+    "bytes": 51336,
+    "gzip_bytes": 30563,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Main-BoldItalic-DxDJ3AOS.woff2",
+    "bytes": 16780,
+    "gzip_bytes": 16808,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Main-BoldItalic-DzxPMmG6.ttf",
+    "bytes": 32968,
+    "gzip_bytes": 19700,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Main-BoldItalic-SpSLRI95.woff",
+    "bytes": 19412,
+    "gzip_bytes": 19388,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Main-Italic-3WenGoN9.ttf",
+    "bytes": 33580,
+    "gzip_bytes": 20004,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Main-Italic-BMLOBm91.woff",
+    "bytes": 19676,
+    "gzip_bytes": 19654,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Main-Italic-NWA7e6Wa.woff2",
+    "bytes": 16988,
+    "gzip_bytes": 17016,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Main-Regular-B22Nviop.woff2",
+    "bytes": 26272,
+    "gzip_bytes": 26300,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Main-Regular-Dr94JaBh.woff",
+    "bytes": 30772,
+    "gzip_bytes": 30787,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Main-Regular-ypZvNtVU.ttf",
+    "bytes": 53580,
+    "gzip_bytes": 31483,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Math-BoldItalic-B3XSjfu4.ttf",
+    "bytes": 31196,
+    "gzip_bytes": 18992,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Math-BoldItalic-CZnvNsCZ.woff2",
+    "bytes": 16400,
+    "gzip_bytes": 16423,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Math-BoldItalic-iY-2wyZ7.woff",
+    "bytes": 18668,
+    "gzip_bytes": 18633,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Math-Italic-DA0__PXp.woff",
+    "bytes": 18748,
+    "gzip_bytes": 18722,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Math-Italic-flOr_0UB.ttf",
+    "bytes": 31308,
+    "gzip_bytes": 19125,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Math-Italic-t53AETM-.woff2",
+    "bytes": 16440,
+    "gzip_bytes": 16466,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_SansSerif-Bold-CFMepnvq.ttf",
+    "bytes": 24504,
+    "gzip_bytes": 14590,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_SansSerif-Bold-D1sUS0GD.woff2",
+    "bytes": 12216,
+    "gzip_bytes": 12239,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_SansSerif-Bold-DbIhKOiC.woff",
+    "bytes": 14408,
+    "gzip_bytes": 14381,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_SansSerif-Italic-C3H0VqGB.woff2",
+    "bytes": 12028,
+    "gzip_bytes": 12051,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_SansSerif-Italic-DN2j7dab.woff",
+    "bytes": 14112,
+    "gzip_bytes": 14071,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_SansSerif-Italic-YYjJ1zSn.ttf",
+    "bytes": 22364,
+    "gzip_bytes": 14269,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_SansSerif-Regular-BNo7hRIc.ttf",
+    "bytes": 19436,
+    "gzip_bytes": 12359,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_SansSerif-Regular-CS6fqUqJ.woff",
+    "bytes": 12316,
+    "gzip_bytes": 12279,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_SansSerif-Regular-DDBCnlJ7.woff2",
+    "bytes": 10344,
+    "gzip_bytes": 10367,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Script-Regular-C5JkGWo-.ttf",
+    "bytes": 16648,
+    "gzip_bytes": 10686,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Script-Regular-D3wIWfF6.woff2",
+    "bytes": 9644,
+    "gzip_bytes": 9667,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Script-Regular-D5yQViql.woff",
+    "bytes": 10588,
+    "gzip_bytes": 10534,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Size1-Regular-C195tn64.woff",
+    "bytes": 6496,
+    "gzip_bytes": 6450,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Size1-Regular-Dbsnue_I.ttf",
+    "bytes": 12228,
+    "gzip_bytes": 6394,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Size1-Regular-mCD8mA8B.woff2",
+    "bytes": 5468,
+    "gzip_bytes": 5491,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Size2-Regular-B7gKUWhC.ttf",
+    "bytes": 11508,
+    "gzip_bytes": 6092,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Size2-Regular-Dy4dx90m.woff2",
+    "bytes": 5208,
+    "gzip_bytes": 5231,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Size2-Regular-oD1tc_U0.woff",
+    "bytes": 6188,
+    "gzip_bytes": 6136,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Size3-Regular-CTq5MqoE.woff",
+    "bytes": 4420,
+    "gzip_bytes": 4360,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Size3-Regular-DgpXs0kz.ttf",
+    "bytes": 7588,
+    "gzip_bytes": 4274,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Size4-Regular-BF-4gkZK.woff",
+    "bytes": 5980,
+    "gzip_bytes": 5927,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Size4-Regular-DWFBv043.ttf",
+    "bytes": 10364,
+    "gzip_bytes": 5931,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Size4-Regular-Dl5lxZxV.woff2",
+    "bytes": 4928,
+    "gzip_bytes": 4951,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Typewriter-Regular-C0xS9mPB.woff",
+    "bytes": 16028,
+    "gzip_bytes": 15993,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Typewriter-Regular-CO6r4hn1.woff2",
+    "bytes": 13568,
+    "gzip_bytes": 13591,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "KaTeX_Typewriter-Regular-D3Ib7_Hf.ttf",
+    "bytes": 27556,
+    "gzip_bytes": 16279,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "Login-B7obnKkR.js",
+    "bytes": 4300,
+    "gzip_bytes": 1624,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "MyProfile-2IbAXtzN.js",
+    "bytes": 16831,
+    "gzip_bytes": 4260,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "Studio-cg3nmGpp.js",
+    "bytes": 120382,
+    "gzip_bytes": 35554,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "eduUi-B9xwiAXx.js",
+    "bytes": 975,
+    "gzip_bytes": 578,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "home-DNjyhYFN.css",
+    "bytes": 18174,
+    "gzip_bytes": 4396,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "main-BDJM29y4.css",
+    "bytes": 93551,
+    "gzip_bytes": 21221,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  },
+  {
+    "product": "EDU",
+    "asset": "main-Bwx6qtwx.js",
+    "bytes": 465788,
+    "gzip_bytes": 142619,
+    "generated_at": "2026-10-24T16:57:33.686961+00:00"
+  }
+]

@@ -1017,6 +1017,93 @@ def count_by_owner(base_dir: Optional[str] = None) -> Dict[str, int]:
     return counts
 
 
+def _enrich_alpha_record(rec: Dict[str, Any]) -> Dict[str, Any]:
+    """Tự động bù các trường metrics và by_symbol còn thiếu cho các bản ghi alpha đã lưu trước đây."""
+    if not isinstance(rec, dict):
+        return rec
+    res = rec.get("result")
+    if not isinstance(res, dict):
+        return rec
+
+    # 1. Bù by_symbol (weight_pct, ret_pct, open_pnl_usd)
+    by_sym = res.get("by_symbol")
+    if isinstance(by_sym, list) and len(by_sym) > 0:
+        n_sym = len(by_sym)
+        cfg = rec.get("config") or res.get("config") or {}
+        cap = float(cfg.get("initial_capital", 10000.0) or 10000.0)
+        alloc = cap / n_sym if n_sym else 1.0
+        for row in by_sym:
+            if not isinstance(row, dict):
+                continue
+            if row.get("weight_pct") is None:
+                row["weight_pct"] = round(100.0 / n_sym, 1)
+            if row.get("ret_pct") is None:
+                pnl = float(row.get("pnl_usd", row.get("pnl", 0.0)))
+                row["ret_pct"] = round((pnl / alloc) * 100.0, 2)
+            if row.get("open_pnl_usd") is None:
+                row["open_pnl_usd"] = 0.0
+
+    # 2. Bù metrics nếu thiếu vol_ann_pct hoặc days
+    metrics = res.get("metrics")
+    series = res.get("series")
+    trades = res.get("trades") or []
+    if isinstance(metrics, dict) and isinstance(series, dict) and "equity" in series:
+        sim = metrics.get("simulate")
+        if isinstance(sim, dict) and sim.get("vol_ann_pct") is None:
+            try:
+                import numpy as np
+                from backend.analys.metrics.trades import _metric_block
+                trade_rows = []
+                for t in trades:
+                    tr = dict(t)
+                    if "pnl_usd" not in tr and "pnl" in tr:
+                        tr["pnl_usd"] = tr["pnl"]
+                    if "fees_usd" not in tr and "fees" in tr:
+                        tr["fees_usd"] = tr["fees"]
+                    trade_rows.append(tr)
+
+                eq = np.asarray(series.get("equity", []), dtype=float)
+                times = np.asarray(series.get("times", []), dtype=int)
+                worst = np.asarray(series.get("equity_worst", eq), dtype=float) if "equity_worst" in series else eq
+                if len(eq) > 1:
+                    ret = np.zeros(len(eq))
+                    ret[1:] = eq[1:] / eq[:-1] - 1.0
+                    split = series.get("stage_split") or (times[int(len(times) * 0.7)] if len(times) else 0)
+
+                    # Update simulate
+                    fees_sim = sum(float(r.get("fees_usd", 0.0)) for r in trade_rows)
+                    blk_sim = _metric_block(ret, trade_rows, fees_sim, eq, worst)
+                    for k, v in blk_sim.items():
+                        if sim.get(k) is None:
+                            sim[k] = v
+
+                    # Update train
+                    train = metrics.get("train")
+                    if isinstance(train, dict):
+                        m_train = times <= split
+                        rows_train = [r for r in trade_rows if r.get("close_time", 0) <= split]
+                        fees_train = sum(float(r.get("fees_usd", 0.0)) for r in rows_train)
+                        blk_train = _metric_block(ret[m_train], rows_train, fees_train, eq[m_train], worst[m_train] if worst.size == eq.size else None)
+                        for k, v in blk_train.items():
+                            if train.get(k) is None:
+                                train[k] = v
+
+                    # Update test
+                    test = metrics.get("test")
+                    if isinstance(test, dict):
+                        m_test = times > split
+                        rows_test = [r for r in trade_rows if r.get("close_time", 0) > split]
+                        fees_test = sum(float(r.get("fees_usd", 0.0)) for r in rows_test)
+                        blk_test = _metric_block(ret[m_test], rows_test, fees_test, eq[m_test], worst[m_test] if worst.size == eq.size else None)
+                        for k, v in blk_test.items():
+                            if test.get(k) is None:
+                                test[k] = v
+            except Exception:
+                pass
+
+    return rec
+
+
 def get_user_alpha(alpha_id: str, base_dir: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """Lấy chi tiết một alpha người dùng theo id."""
     user_dir = get_user_alphas_dir(base_dir)
@@ -1025,7 +1112,8 @@ def get_user_alpha(alpha_id: str, base_dir: Optional[str] = None) -> Optional[Di
         return None
     try:
         with open(file_path, "r", encoding="utf-8") as fh:
-            return json.load(fh)
+            rec = json.load(fh)
+            return _enrich_alpha_record(rec)
     except Exception:
         return None
 
@@ -1834,9 +1922,21 @@ def live_candidates(alphas_dir: Optional[str] = None) -> List[Dict[str, Any]]:
                 continue
             wfa, mc = sm.get("S3_wfa"), sm.get("S4_montecarlo")
             tf = book.get("timeframe")
+            parity_verified = False
+            quarantine_status = "QUARANTINED"
+            quarantine_reason = (
+                "PARITY_VALIDATION_NOT_IMPLEMENTED: Kết quả chưa có bằng chứng "
+                "kiểm định do server tạo và xác thực."
+            )
+            provenance = {
+                "parity_contract": "1.0.0" if parity_verified else None,
+                "parity_verified": parity_verified,
+                "execution_realism": "nautilus_parity_v1" if parity_verified else "legacy_ideal_fill",
+            }
             row = {"id": it["id"], "name": next((x["name"] for x in STRATEGIES if it["id"] in x["legs"].values()), it["id"]), "source": "hệ thống",
                    "side": it.get("side"), "timeframe": tf, "symbols": syms, "ret_pct": ret, "mdd_pct": _fnum(m.get("mdd_pct")), "sharpe": _fnum(m.get("sharpe")),
                    "win_rate": _fnum(m.get("win_rate")), "trades": m.get("trades"), "stage": stage,
+                   "promotable": parity_verified, "quarantine_status": quarantine_status, "quarantine_reason": quarantine_reason, "provenance": provenance,
                    "wfa": ({"passed": bool(ev.get("validated") or ev.get("accepted")), "oos_ret_pct": _fnum(wfa.get("ret_pct")), "folds": wfa.get("folds"),
                             "folds_profitable": wfa.get("folds_profitable")} if wfa else None),
                    "mc": ({"p_ruin": _fnum(mc.get("p_mdd_ge_30")), "mdd_p95": _fnum(mc.get("mdd_p95")), "passed": mc.get("passes_full_size")} if mc else None),
@@ -1854,10 +1954,22 @@ def live_candidates(alphas_dir: Optional[str] = None) -> List[Dict[str, Any]]:
             continue
         cfg = ua.get("config") or {}
         te = (ua.get("metrics") or {}).get("test") or {}
+        u_parity_verified = False
+        u_quarantine_status = "QUARANTINED"
+        u_quarantine_reason = (
+            "PARITY_VALIDATION_NOT_IMPLEMENTED: Kết quả chưa có bằng chứng "
+            "kiểm định do server tạo và xác thực."
+        )
+        u_provenance = {
+            "parity_contract": "1.0.0" if u_parity_verified else None,
+            "parity_verified": u_parity_verified,
+            "execution_realism": "nautilus_parity_v1" if u_parity_verified else "legacy_ideal_fill",
+        }
         rows[(ua["id"], str(cfg.get("timeframe")))] = {
             "id": ua["id"], "name": ua.get("name") or ua["id"], "source": "người dùng", "side": None, "timeframe": cfg.get("timeframe"),
             "symbols": [str(x).split("@")[0].split("-")[0] for x in (cfg.get("symbols") or [])], "ret_pct": c["ret_pct"], "mdd_pct": c["mdd_pct"],
             "sharpe": c["sharpe"], "win_rate": c["win_rate"], "trades": c["trades"], "stage": ua.get("status"),
+            "promotable": u_parity_verified, "quarantine_status": u_quarantine_status, "quarantine_reason": u_quarantine_reason, "provenance": u_provenance,
             "book": None, "row_id": f"user:{ua['id']}:{cfg.get('timeframe')}", "wfa": None, "test_ret_pct": _fnum(te.get("ret_pct")), "mc": None, "last_backtest": ua.get("updated_at")}
     out = sorted(rows.values(), key=lambda r: -(r["sharpe"] if r["sharpe"] is not None else -1e9))
     for r in out:           # mỗi dòng = ĐÚNG một (chiến lược, khung tín hiệu) có kết quả backtest lãi đã lưu; không suy khung khác
@@ -2081,7 +2193,5 @@ def _check_position(pos: Dict[str, Any]) -> Dict[str, Any]:
         if isinstance(v, bool) or not isinstance(v, (int, float, str)):
             raise ValueError(f"vị thế {k}: phải là số hoặc chuỗi, nhận {v!r}")
     return dict(pos)
-
-
 
 

@@ -5,24 +5,46 @@ import UserPicker from '../../components/user/UserPicker'
 import { useUser } from '../../meta/UserProvider'
 import { Avatar, Stat, cardStyle, usd, pct, tone } from './eduUi'
 
-const SORTS = [['pnl', 'Tổng PnL'], ['new', 'Mới nhất'], ['name', 'Tên']]
+const SORTS = [['pnl', 'Tổng PnL'], ['sharpe', 'Sharpe tốt nhất'], ['new', 'Mới nhất'], ['name', 'Tên']]
+const TIMEFRAMES = [
+  ['all', 'Mọi khung nến'],
+  ['15m', '15 phút (15m)'],
+  ['1h', '1 giờ (1h)'],
+  ['4h', '4 giờ (4h)'],
+  ['1d', '1 ngày (1d)'],
+]
+const SYMBOLS = [
+  ['all', 'Mọi cặp tài sản'],
+  ['BTC-USDT', 'BTC-USDT'],
+  ['ETH-USDT', 'ETH-USDT'],
+  ['SOL-USDT', 'SOL-USDT'],
+]
 
 export default function EduMarket() {
   const { me } = useUser()
   const [rows, setRows] = useState(() => eduMarketCached('pnl')?.users || [])
   const [sort, setSort] = useState('pnl')
+  const [rankedOnly, setRankedOnly] = useState(false)
+  const [timeframe, setTimeframe] = useState('all')
+  const [symbol, setSymbol] = useState('all')
   const [q, setQ] = useState('')
   const [loading, setLoading] = useState(() => !eduMarketCached('pnl'))
   const [error, setError] = useState(null)
   const [pickerOpen, setPickerOpen] = useState(false)
 
   const load = async () => {
-    const c = eduMarketCached(sort)
-    if (c) setRows(c.users || []); else setLoading(true)
+    setLoading(true)
     setError(null)
-    try { setRows((await getEduMarket(sort))?.users || []) } catch (e) { setError(e.message || 'Không tải được danh sách') } finally { setLoading(false) }
+    try {
+      const res = await getEduMarket({ sort, rankedOnly, timeframe, symbol })
+      setRows(res?.users || [])
+    } catch (e) {
+      setError(e.message || 'Không tải được danh sách')
+    } finally {
+      setLoading(false)
+    }
   }
-  useEffect(() => { load() }, [sort]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { load() }, [sort, rankedOnly, timeframe, symbol]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const shown = useMemo(() => {
     let list = rows
@@ -38,10 +60,20 @@ export default function EduMarket() {
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, marginBottom: 24 }}>
         <div>
           <h1 style={{ fontSize: 28, fontWeight: 700, margin: 0 }}>Market</h1>
-          <p style={{ margin: '6px 0 0', fontSize: 14, color: 'var(--n-ink-2)' }}>Chiến lược của các tác giả, số liệu từ kết quả backtest đã lưu.</p>
+          <p style={{ margin: '6px 0 0', fontSize: 14, color: 'var(--n-ink-2)' }}>Chiến lược cộng đồng định lượng, chuẩn hóa mẫu tối thiểu ≥ 20 lệnh và kỳ kiểm định ≥ 30 ngày (hoặc 500 nến).</p>
         </div>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <input className="n-input" placeholder="Tìm theo tên" value={q} onChange={(e) => setQ(e.target.value)} style={{ fontSize: 13, width: 160 }} />
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--n-ink-2)', cursor: 'pointer', userSelect: 'none' }}>
+            <input type="checkbox" checked={rankedOnly} onChange={(e) => setRankedOnly(e.target.checked)} />
+            Chỉ hiện đạt chuẩn (≥ 20 lệnh)
+          </label>
+          <select className="n-input" value={timeframe} onChange={(e) => setTimeframe(e.target.value)} style={{ fontSize: 13 }} aria-label="Khung thời gian">
+            {TIMEFRAMES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+          </select>
+          <select className="n-input" value={symbol} onChange={(e) => setSymbol(e.target.value)} style={{ fontSize: 13 }} aria-label="Cặp tài sản">
+            {SYMBOLS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+          </select>
+          <input className="n-input" placeholder="Tìm theo tên" value={q} onChange={(e) => setQ(e.target.value)} style={{ fontSize: 13, width: 140 }} />
           <select className="n-input" value={sort} onChange={(e) => setSort(e.target.value)} style={{ fontSize: 13 }} aria-label="Sắp xếp">
             {SORTS.map(([k, l]) => <option key={k} value={k}>Sắp xếp: {l}</option>)}
           </select>

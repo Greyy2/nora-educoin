@@ -1,0 +1,13 @@
+{
+  "id": "b0b314661137",
+  "handle": "mary_49bfbf",
+  "display_name": "Author Mary",
+  "avatar": {
+    "emoji": "🦁",
+    "color": "#EC4899"
+  },
+  "bio": "",
+  "role": "learner",
+  "created_at": "2026-10-24T21:06:08.785869+00:00",
+  "password_hash": "pbkdf2_sha256$100000$cbc9f0b9305a8a4572f5defe8151fbfc$078dfb46e46f60e277d639794ca12343dda3f2f873d64966c7c7509d21e911be"
+}

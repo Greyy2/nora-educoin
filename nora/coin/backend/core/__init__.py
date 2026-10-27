@@ -66,6 +66,7 @@ from backend.core.backtest import NautilusRun, make_engine, run_native, stream
 from backend.core.engine import BacktestEngine, PortfolioEngine
 from backend.core.portfolio import (
     Coordinator,
+    EntryIntent,
     MasterPortfolioLedger,
     PortfolioAdmissionController,
     RiskPolicyConfig,

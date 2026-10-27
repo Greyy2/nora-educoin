@@ -298,9 +298,20 @@ function OverviewView({ data, ctx }) {
     isNum(k.sharpe) && (
       <Kpi key="sharpe" label={<Term k="sharpe">Sharpe</Term>} sub={sortino || calmar ? <>{sortino}{sortino && calmar ? ' · ' : ''}{calmar}</> : null}>{fmtNum(k.sharpe)}</Kpi>
     ),
-    isNum(t.trades) && (
-      <Kpi key="trades" label="Số lệnh" sub={<>toàn kỳ chạy{t.long?.trades >= 0 && t.short?.trades >= 0 ? ` · Long ${t.long.trades} · Short ${t.short.trades}` : ''}</>}>{t.trades}</Kpi>
-    ),
+    isNum(t.pnl_usd) ? (
+      <Kpi
+        key="profit"
+        label="Lợi nhuận chốt"
+        labelText="Lợi nhuận chốt"
+        sub={<>Tổng <b className="mono">{t.trades}</b> lệnh{t.long?.trades >= 0 && t.short?.trades >= 0 ? ` · Long ${t.long.trades} · Short ${t.short.trades}` : ''}</>}
+      >
+        <span className={signClass(t.pnl_usd)}>{arrow(t.pnl_usd)} {fmtMoney(t.pnl_usd, true)}</span><small>USDT</small>
+      </Kpi>
+    ) : isNum(t.trades) ? (
+      <Kpi key="profit_gap" label="Lợi nhuận chốt" sub={<>toàn kỳ · {t.trades} lệnh</>}>
+        <NA note="Chưa có dữ liệu PnL ròng" />
+      </Kpi>
+    ) : null,
     (isNum(winRate) || t.win_rate_note) && (
       <Kpi key="win" label="Tỉ lệ thắng" sub={<><Term k="profit_factor">Profit factor</Term> {isNum(profitFactor) ? fmtNum(profitFactor) : <NA note={t.profit_factor_note} />}</>}>{isNum(winRate) ? fmtPct(winRate, 1) : <NA note={t.win_rate_note} />}</Kpi>
     ),
@@ -324,6 +335,7 @@ function OverviewView({ data, ctx }) {
 
       {dates.length > 1 && (
         <Panel
+          className="n-dd-compact-panel"
           title="Mức sụt giảm vốn (Drawdown / MDD)"
           meta={
             <>
@@ -331,14 +343,13 @@ function OverviewView({ data, ctx }) {
               <span className="n-legend">
                 <span><i style={{ borderTopColor: 'var(--n-neg)' }} />Drawdown (%)</span>
                 <span><i className="dash" style={{ borderTopColor: 'var(--n-ink-3)' }} />Mốc 0%</span>
-                <span><i className="sq" style={{ background: 'var(--n-neg)', opacity: 0.6 }} />Underwater</span>
               </span>
             </>
           }
         >
           <AreaLine
             dates={dates}
-            height={250}
+            height={130}
             hover={hi}
             onHover={setHi}
             label="Mức sụt giảm vốn (Drawdown)"
@@ -355,8 +366,6 @@ function OverviewView({ data, ctx }) {
               },
             ]}
           />
-          <div className="n-uw-h"><Term k="underwater">Underwater</Term> (sụt giảm từ đỉnh)</div>
-          <UnderwaterStrip dates={dates} values={ddValues} hover={hi} onHover={setHi} />
         </Panel>
       )}
 

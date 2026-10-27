@@ -4,7 +4,7 @@ export const GLOSSARY = {
   sharpe: { label: 'Sharpe', def: 'Lợi nhuận trên mỗi đơn vị biến động (năm hoá). Càng cao càng ổn định; trên 1 là khá, trên 2 là rất tốt.' },
   sortino: { label: 'Sortino', def: 'Giống Sharpe nhưng chỉ phạt biến động giảm, không phạt biến động tăng.' },
   calmar: { label: 'Calmar', def: 'Lợi nhuận năm hoá chia cho mức sụt giảm tối đa. Cho biết lãi bao nhiêu trên mỗi 1% sụt sâu nhất.' },
-  mdd: { label: 'Max drawdown (MDD)', def: 'Mức sụt giảm lớn nhất từ một đỉnh vốn xuống đáy kế tiếp, tính theo %.' },
+  mdd: { label: 'Max drawdown (MDD)', def: 'Mức sụt giảm lớn nhất từ một đỉnh vốn xuống đáy kế tiếp, tính theo % (bao gồm cả đáy sâu nhất trong nến intrabar).' },
   underwater: { label: 'Underwater', def: 'Đường thể hiện mức NAV đang thấp hơn đỉnh gần nhất bao nhiêu %; về 0 nghĩa là lập đỉnh mới.' },
   var95: { label: 'VaR 95%', def: 'Mức lỗ trong một ngày mà chỉ khoảng 5% số ngày tệ hơn (dựa trên lịch sử của kỳ đang xem).' },
   cvar: { label: 'CVaR', def: 'Lỗ trung bình trong 5% số ngày tệ nhất, tức là "khi đã vượt VaR thì tệ cỡ nào".' },

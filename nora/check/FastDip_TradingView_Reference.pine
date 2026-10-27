@@ -1,0 +1,95 @@
+//@version=5
+// Run on OKX:BTCUSDT.P, timeframe 1D, UTC.
+// Nora equivalent: BTC@perp, timeframe 24h.
+strategy("Fast Dip Harvester - TradingView Reference (Nora Parity)", overlay=true, margin_long=10, margin_short=10, process_orders_on_close=false, commission_type=strategy.commission.percent, commission_value=0.05, slippage=180, initial_capital=10000, currency=currency.USD, default_qty_type=strategy.cash, default_qty_value=1000)
+
+// Hard-locked canonical run: OKX:BTCUSDT.P, 1D, UTC,
+// 2023-10-06 through 2026-10-03 inclusive.
+if barstate.isfirst and (syminfo.prefix != "OKX" or syminfo.ticker != "BTCUSDT.P" or timeframe.period != "D")
+    runtime.error("Wrong chart. Use OKX:BTCUSDT.P on timeframe 1D.")
+
+start_time = timestamp("UTC", 2023, 10, 6, 0, 0)
+end_time = timestamp("UTC", 2026, 10, 3, 23, 59)
+in_test_window = time >= start_time and time <= end_time
+
+// ==============================================================================
+// NORA <-> TRADINGVIEW PARITY SPECIFICATION (Gate 1.6)
+// ==============================================================================
+// 1. EXECUTION TIMING:
+//    `process_orders_on_close = false` is MANDATORY. In Nora and Nautilus Trader,
+//    signals computed at bar close [t] place market orders filled at bar [t+1] Open.
+//
+// 2. SLIPPAGE TICK CONVERSION (CRITICAL PITFALL):
+//    In Pine Script, the `slippage` argument is specified in TICKS, NOT basis points!
+//    - OKX BTC-USDT-SWAP minimum tick size (`syminfo.mintick`) = 0.1 USDT.
+//    - At BTC ~ 60,000 USDT:
+//      3 bps slippage = 60,000 * 0.0003 = 18.0 USDT.
+//      In ticks = 18.0 / 0.1 = 180 ticks!
+//    - WARNING: Setting `slippage = 3` in Pine Script simulates only 3 ticks = 0.3 USDT
+//      (0.05 bps), underestimating actual execution drag by 60x!
+//      We set `slippage = 180` to enforce true 3 bps parity.
+//
+// 3. COMMISSION:
+//    `commission_value = 0.05` (5 bps OKX VIP0 taker fee).
+//
+// 4. RISK MANAGEMENT & SIZING:
+//    - Master Capital: 10,000 USDT. Sleeve Capital: 1,000 USDT.
+//    - Risk per trade: 0.25% of Master Capital = 25.0 USDT max net loss at SL.
+//    - Slippage is fixed ticks: 180 ticks x syminfo.mintick (0.1 USDT on OKX BTC)
+//      = 18 USDT per market fill; stop slippage is 2x = 36 USDT.
+// ==============================================================================
+
+// --- Inputs ---
+rsi_period   = input.int(10, "RSI Period", minval=1)
+sma_period   = input.int(15, "SMA Period", minval=1)
+macro_period = input.int(50, "Macro EMA Period", minval=1)
+sl_pct       = input.float(2.0, "Stop Loss %", step=0.1) / 100.0
+tp_pct       = input.float(4.0, "Take Profit %", step=0.1) / 100.0
+max_risk_usd = input.float(25.0, "Max Risk at SL (USDT)", step=1.0)
+
+// --- Indicator Calculations ---
+// ta.rsi uses Wilder's smoothing matching Nora's rsi_10 kernel
+rsi_val   = ta.rsi(close, rsi_period)
+// ta.sma matches Nora's sma_15 kernel
+sma_val   = ta.sma(close, sma_period)
+// ta.ema seeds with SMA of first n bars matching Nora's ema_50 kernel
+macro_val = ta.ema(close, macro_period)
+
+// --- Sizing Formula (Net Loss at SL <= 25 USDT) ---
+taker_fee_rate   = 0.0005
+slip_ticks       = 180.0
+entry_slip_usd   = slip_ticks * syminfo.mintick
+stop_slip_usd    = entry_slip_usd * 2.0
+unit_drag        = close * sl_pct + (2.0 * taker_fee_rate * close) + entry_slip_usd + stop_slip_usd
+safe_qty         = max_risk_usd / unit_drag
+// Sizing rounded down by lot size (0.001 BTC on OKX)
+lot_step         = 0.001
+order_qty        = math.floor(safe_qty / lot_step) * lot_step
+
+// --- Strategy Signals ---
+enter_sig = ta.crossover(rsi_val, 40.0) and (close > sma_val) and (close > macro_val)
+exit_sig  = (rsi_val > 65.0) or ta.crossunder(close, sma_val)
+
+// --- Order Execution ---
+if (in_test_window and enter_sig and strategy.position_size == 0)
+    strategy.entry("Long", strategy.long, qty=order_qty, comment="FastDip Entry")
+
+if (strategy.position_size > 0)
+    // Dynamic stop-loss and take-profit orders
+    entry_p = strategy.position_avg_price
+    sl_price = entry_p * (1.0 - sl_pct)
+    tp_price = entry_p * (1.0 + tp_pct)
+    strategy.exit("Bracket Exit", "Long", stop=sl_price, limit=tp_price, comment="SL/TP Exit")
+    
+    // Indicator signal exit
+    if (exit_sig)
+        strategy.close("Long", comment="Signal Exit")
+
+    if (time > end_time)
+        strategy.close("Long", comment="Test Window End")
+
+// --- Plotting ---
+plot(sma_val, "SMA 15", color=color.blue, linewidth=2)
+plot(macro_val, "Macro EMA 50", color=color.orange, linewidth=2)
+hline(40.0, "RSI Bullish Entry", color=color.green, linestyle=hline.style_dotted)
+hline(65.0, "RSI Overbought Exit", color=color.red, linestyle=hline.style_dotted)

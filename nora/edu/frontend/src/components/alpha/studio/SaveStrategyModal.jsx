@@ -31,7 +31,7 @@ export function Checklist({ checklist }) {
   )
 }
 
-export default function SaveStrategyModal({ isOpen, onClose, jobId, code, defaultName = 'Chiến lược của tôi', result, source = 'alpha-create', alphaId = '', alphaVersion = 0, onSaved }) {
+export default function SaveStrategyModal({ isOpen, onClose, jobId, code, defaultName = 'Chiến lược của tôi', result, source = 'alpha-create', alphaId = '', alphaVersion = 0, forkedFrom = null, onSaved }) {
   const navigate = useNavigate()
   const [name, setName] = useState(defaultName)
   const [note, setNote] = useState('')
@@ -51,7 +51,15 @@ export default function SaveStrategyModal({ isOpen, onClose, jobId, code, defaul
     if (!name.trim()) { setError('Vui lòng nhập tên chiến lược'); return }
     setSubmitting(true); setError(null)
     try {
-      const res = await postSaveUserAlpha({ job_id: jobId, code, name: name.trim(), note: note.trim(), source, alpha_id: alphaId && asVersion ? alphaId : undefined })
+      const res = await postSaveUserAlpha({
+        job_id: jobId,
+        code,
+        name: name.trim(),
+        note: note.trim(),
+        source,
+        alpha_id: alphaId && asVersion ? alphaId : undefined,
+        forked_from: forkedFrom || undefined,
+      })
       setDone(res)
       if (onSaved) onSaved(res, name.trim())
     } catch (err) { setError(err.message || 'Lỗi lưu chiến lược') } finally { setSubmitting(false) }
@@ -88,6 +96,11 @@ export default function SaveStrategyModal({ isOpen, onClose, jobId, code, defaul
               <label htmlFor="alpha-name">Tên chiến lược <span className="req">*</span></label>
               <input id="alpha-name" type="text" className="push-alpha-input" value={name} onChange={(e) => setName(e.target.value)} maxLength={100} required />
             </div>
+            {forkedFrom && (
+              <div className="n-note" style={{ display: 'flex', gap: 6, alignItems: 'center', margin: '4px 0 8px' }}>
+                <span style={{ fontSize: 13 }}>🌿 <b>Nguồn gốc sao chép:</b> {forkedFrom.owner_handle ? `@${forkedFrom.owner_handle}` : (forkedFrom.owner_name || 'Tác giả cộng đồng')} (ID: <span className="alpha-badge-id">{forkedFrom.alpha_id}</span>)</span>
+              </div>
+            )}
             {alphaId && (
               <label className="n-note" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <input type="checkbox" checked={asVersion} onChange={(e) => setAsVersion(e.target.checked)} />

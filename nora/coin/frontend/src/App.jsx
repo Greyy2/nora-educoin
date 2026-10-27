@@ -1,7 +1,6 @@
 import React, { Suspense, lazy } from 'react'
 import { createBrowserRouter, RouterProvider, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import CoinLayout from './layout/CoinLayout'
-import EduLayout from './layout/EduLayout'
 import AlphaLayout from './layout/AlphaLayout'
 import { CatalogProvider } from './meta/MetaProvider'
 import { UserProvider, useUser } from './meta/UserProvider'
@@ -25,13 +24,9 @@ function lazyRetry(fn) {
   )
 }
 
-// Lazy load các trang
+// Lazy load các trang COIN
 const Home         = lazyRetry(() => import('./pages/Home'))
 const Login        = lazyRetry(() => import('./pages/Login'))
-const EduMarket    = lazyRetry(() => import('./pages/edu/EduMarket'))
-const MyProfile    = lazyRetry(() => import('./pages/edu/MyProfile'))
-const EduUser      = lazyRetry(() => import('./pages/edu/EduUser'))
-const EduStrategy  = lazyRetry(() => import('./pages/edu/EduStrategy'))
 const Portfolio    = lazyRetry(() => import('./pages/Portfolio'))
 const Backtest     = lazyRetry(() => import('./pages/Backtest'))
 const AlphaCatalog = lazyRetry(() => import('./pages/AlphaCatalog'))
@@ -67,15 +62,6 @@ function AppRoutes() {
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
 
-        {/* Hệ thống Education */}
-        <Route path="/edu" element={<ProtectedRoute><EduLayout /></ProtectedRoute>}>
-          <Route index element={<EduMarket />} />
-          <Route path="studio" element={<Studio mode="education" />} />
-          <Route path="me" element={<MyProfile />} />
-          <Route path="u/:handle" element={<EduUser />} />
-          <Route path="s/:id" element={<EduStrategy />} />
-        </Route>
-
         {/* Hệ thống Coin */}
         <Route path="/coin" element={<ProtectedRoute><CoinLayout /></ProtectedRoute>}>
           <Route index element={<Navigate to="/coin/portfolio" replace />} />
@@ -93,8 +79,6 @@ function AppRoutes() {
           <Route path="history" element={<History />} />
         </Route>
 
-
-
         {/* Redirect tương thích ngược toàn bộ đường dẫn cũ */}
         <Route path="/portfolio" element={<LegacyRedirect to="/coin/portfolio" />} />
         <Route path="/backtest" element={<LegacyRedirect to="/coin/backtest" />} />
@@ -103,7 +87,9 @@ function AppRoutes() {
         <Route path="/alpha/*" element={<LegacyRedirect to="/coin/alpha/create" />} />
         <Route path="/live" element={<LegacyRedirect to="/coin/live" />} />
         <Route path="/history" element={<LegacyRedirect to="/coin/history" />} />
-        <Route path="/education" element={<LegacyRedirect to="/edu/studio" />} />
+        <Route path="/education" element={<LegacyRedirect to="/coin/alpha/create" />} />
+        <Route path="/edu" element={<LegacyRedirect to="/coin/portfolio" />} />
+        <Route path="/edu/*" element={<LegacyRedirect to="/coin/portfolio" />} />
 
         {/* Đường dẫn không xác định về trang chủ */}
         <Route path="*" element={<Navigate to="/" replace />} />

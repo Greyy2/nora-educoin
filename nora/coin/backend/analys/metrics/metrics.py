@@ -301,18 +301,26 @@ def flat_extras(stats: Dict[str, Any]) -> Dict[str, Any]:
             "liquidations": t.get("liquidations"), "fee_drag_pct": _r(t.get("fee_drag_pct"), 1)}
 
 
-def series_metrics(daily, trades: List[Dict[str, Any]]) -> Dict[str, Any]:
+def series_metrics(daily, trades: List[Dict[str, Any]], equity_worst: Optional[Sequence[float]] = None) -> Dict[str, Any]:
     """Số đo phẳng từ chuỗi ngày nối + danh sách lệnh (cho S3/S4/S5): lãi kép, MDD ngày, Sharpe/Sortino quy năm, lệnh, win rate, PF
     + số đo mở rộng (CAGR, Calmar, CVaR, payoff, expectancy, chuỗi thua, MAE...)."""
     d = np.asarray(daily, dtype=float)
     rm = return_metrics(d)
     stats = {"returns": rm, "trades": trade_metrics(trades)}
     ts = trade_stats(trades)                                  # win_rate = Nautilus WinRate trên PnL lệnh
-    return {"ret_pct": round(rm["ret_pct"], 2) if d.size else 0.0, "mdd_pct": round(rm["mdd_daily_pct"], 2),
+    intrabar_mdd = rm["mdd_daily_pct"]
+    if equity_worst is not None:
+        worst = np.asarray(equity_worst, dtype=float)
+        if worst.size == d.size:
+            nav = np.cumprod(np.maximum(0.0, 1.0 + d))
+            peak = np.maximum.accumulate(np.r_[1.0, nav])[1:]
+            intrabar_mdd = float(np.max((peak - np.minimum(nav, worst)) / peak) * 100.0) if worst.size else 0.0
+    return {"ret_pct": round(rm["ret_pct"], 2) if d.size else 0.0, "mdd_pct": round(intrabar_mdd, 2),
             "sharpe": round(rm["sharpe"], 2) if rm["sharpe"] is not None else 0.0,
             "sortino": round(rm["sortino"], 2) if rm["sortino"] is not None else 0.0,
             "trades": len(trades), **ts, "oos_days": int(d.size),
-            "mdd_daily_pct": round(rm["mdd_daily_pct"], 2), "mdd_basis": "daily", **flat_extras(stats)}
+            "mdd_daily_pct": round(rm["mdd_daily_pct"], 2), "mdd_intrabar_pct": round(intrabar_mdd, 2),
+            "mdd_basis": "intrabar" if equity_worst is not None else "daily", **flat_extras(stats)}
 
 
 MAX_CURVE_POINTS = 2000

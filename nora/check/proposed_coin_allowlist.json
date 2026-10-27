@@ -1,0 +1,88 @@
+{
+  "note": "PROPOSED ALLOWLIST FOR COIN - AWAITING OWNER APPROVAL",
+  "candidates": [
+    {
+      "id": "18e87aa868ad",
+      "name": "Fast Dynamic Channel Breakout (18D + Macro Trend)",
+      "status": "IDENTICAL (Tr\u00f9ng kh\u1edbp 100%)",
+      "is_identical": true,
+      "edu_code_sha": "d120800459dfa1cf4b416dfaf0e8909a1f141e5134da6f124148c2ef13fd5373",
+      "coin_code_sha": "d120800459dfa1cf4b416dfaf0e8909a1f141e5134da6f124148c2ef13fd5373",
+      "edu_owner": "education",
+      "coin_owner": "education",
+      "symbols": [
+        "BTC",
+        "ETH",
+        "SOL",
+        "BNB",
+        "XRP",
+        "DOGE",
+        "ADA",
+        "AVAX",
+        "LINK",
+        "TRX"
+      ],
+      "timeframe": "24h"
+    },
+    {
+      "id": "33312a2f4dfc",
+      "name": "Standard Deviation Dynamic Channel Breakout (v2.0 Regime Filtered)",
+      "status": "IDENTICAL (Tr\u00f9ng kh\u1edbp 100%)",
+      "is_identical": true,
+      "edu_code_sha": "c320d9dbef1dad973a81afce327afe5580df1dd3e9e614eef870bb4a4df591a8",
+      "coin_code_sha": "c320d9dbef1dad973a81afce327afe5580df1dd3e9e614eef870bb4a4df591a8",
+      "edu_owner": "education",
+      "coin_owner": "education",
+      "symbols": [
+        "BTC",
+        "ETH",
+        "SOL",
+        "BNB",
+        "XRP",
+        "DOGE",
+        "ADA",
+        "AVAX",
+        "LINK",
+        "TRX"
+      ],
+      "timeframe": "24h"
+    },
+    {
+      "id": "alpha_proxima_research",
+      "name": "Proxima Universal Breakout (Research)",
+      "status": "IDENTICAL (Tr\u00f9ng kh\u1edbp 100%)",
+      "is_identical": true,
+      "edu_code_sha": "37cbf60e5a84c9a6b077718e2a59ff0b6f9ff0bdcc19ba09ebb06f8054f5e4e2",
+      "coin_code_sha": "37cbf60e5a84c9a6b077718e2a59ff0b6f9ff0bdcc19ba09ebb06f8054f5e4e2",
+      "edu_owner": "education",
+      "coin_owner": "coin",
+      "symbols": [
+        "BTC"
+      ],
+      "timeframe": "1m"
+    },
+    {
+      "id": "efa90f74cd08",
+      "name": "Donchian Channel Breakout (Turtle Trading)",
+      "status": "IDENTICAL (Tr\u00f9ng kh\u1edbp 100%)",
+      "is_identical": true,
+      "edu_code_sha": "9642ad27aaca842753240e9a96ba37a868317844ab1403febf8264f7caec1265",
+      "coin_code_sha": "9642ad27aaca842753240e9a96ba37a868317844ab1403febf8264f7caec1265",
+      "edu_owner": "seed",
+      "coin_owner": "seed",
+      "symbols": [
+        "BTC",
+        "ETH",
+        "SOL",
+        "BNB",
+        "XRP",
+        "DOGE",
+        "ADA",
+        "AVAX",
+        "LINK",
+        "TRX"
+      ],
+      "timeframe": "24h"
+    }
+  ]
+}

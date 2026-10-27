@@ -1,0 +1,97 @@
+{
+  "timestamp": "2026-10-27T08:10:50.484549+00:00",
+  "backup_dir": "/home/vmc03/norabt/.backup/edu_cleanup_snapshot_20261027_081046",
+  "kept_users": [
+    "034633bfd1dc",
+    "16e97dcc8432",
+    "184e6dc9dfe6",
+    "23dc66cd61c6",
+    "2922e08b6b61",
+    "3bbc767faa10",
+    "423d35ac9700",
+    "439fa7538599",
+    "43f5220ece1e",
+    "4547f1f50486",
+    "56f3ffcadf28",
+    "5de316621329",
+    "657914b99b5b",
+    "726ff949da79",
+    "76c5814277ab",
+    "79183007b990",
+    "82e8ccc35eb6",
+    "95f7a5a4b3ae",
+    "97cac5011215",
+    "9b7a10c35886",
+    "9fc184ee1040",
+    "a214b36a7eab",
+    "aed197a5e968",
+    "bbd150bc473c",
+    "bf158b5142e8",
+    "c7f8e10109b3",
+    "d836143af954",
+    "dbbb50a338c9",
+    "dd3d4fbabe8a",
+    "e53ccc4b35d2",
+    "e7c998608206",
+    "e947b4705dfb",
+    "eb5d7e2e3897",
+    "ecf30ed0f194",
+    "f4ded6717b32",
+    "f9292fff53c9"
+  ],
+  "deleted_users_count": 998,
+  "deleted_alphas_count": 945,
+  "archived_unlinked_count": 42,
+  "vinh_uid": "aed197a5e968",
+  "vinh_alphas": [
+    "efb1fbe2db86",
+    "090730ae35b8",
+    "18e87aa868ad",
+    "0873864b8db7",
+    "8a47cdbcc942",
+    "303d4b713dda",
+    "33312a2f4dfc"
+  ],
+  "remaining_accounts_count": 36,
+  "remaining_alphas_count": 57,
+  "final_stats": {
+    "total_accounts": 36,
+    "no_alpha_users_count": 3,
+    "no_alpha_users": [
+      [
+        "56f3ffcadf28",
+        "nguoi_moi_99408"
+      ],
+      [
+        "e947b4705dfb",
+        "learner_99192"
+      ],
+      [
+        "034633bfd1dc",
+        "browser_test"
+      ]
+    ],
+    "all_positive_users_count": 30,
+    "vinh_in_all_positive": true,
+    "mixed_users_count": 3,
+    "nonnegative_has_zero_users_count": 0,
+    "total_alphas_in_user_dir": 57,
+    "unlinked_alphas_in_user_dir": 0,
+    "archived_unlinked_alphas_count": 46
+  },
+  "followup_cleanup": {
+    "timestamp": "2026-10-27T08:25:22Z",
+    "deleted_user_profile_copies": 651,
+    "rollback_profile_copies": 651,
+    "remaining_users_backup_profiles": 427,
+    "remaining_alpha_versions": 13,
+    "retained_versions_owned_by_kept_users": 11,
+    "preserved_unattributed_versions": [
+      "26aca0bfd4f9.v1.json",
+      "a68011336aa5.v1.json"
+    ],
+    "unattributed_education_results_preserved": 110,
+    "unattributed_process_job_dirs_preserved": 3,
+    "reason_for_preservation": "No owner/account linkage to the deleted-user snapshot; retained rather than risking deletion of shared or unrelated data."
+  }
+}

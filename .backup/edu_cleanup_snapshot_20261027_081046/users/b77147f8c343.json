@@ -1,0 +1,13 @@
+{
+  "id": "b77147f8c343",
+  "handle": "student_965de4",
+  "display_name": "Hoc vien B",
+  "avatar": {
+    "emoji": "🎯",
+    "color": "#06B6D4"
+  },
+  "bio": "",
+  "role": "learner",
+  "created_at": "2026-10-24T19:21:31.826129+00:00",
+  "password_hash": "pbkdf2_sha256$100000$cbc9f0b9305a8a4572f5defe8151fbfc$078dfb46e46f60e277d639794ca12343dda3f2f873d64966c7c7509d21e911be"
+}

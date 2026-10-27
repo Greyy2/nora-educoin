@@ -148,8 +148,7 @@ export function TradesPanel({ jobId, period, bare = false }) {
   )
 }
 
-/* ─── Regime thị trường: thang đo có dấu, hiện tại, lịch sử & chiến lược đang bật ──────────── */
-const REGIME_DAYS = [7, 30, 90]
+/* ─── Regime thị trường: thang đo có dấu 0 trung tâm, chỉ báo live & stale handling (DEC-05) ──────────── */
 
 export const REGIME_SPECTRUM = [
   { state: 'CRASH', value: -2, label: 'Sập mạnh', short: 'Sập mạnh (-2)', color: 'var(--n-accent, #e11d48)' },
@@ -159,27 +158,27 @@ export const REGIME_SPECTRUM = [
   { state: 'SURGE', value: 2, label: 'Tăng thẳng đứng', short: 'Tăng sốc (+2)', color: 'var(--n-teal, #06b6d4)' },
 ]
 
-export function RegimeScale({ state, label, asOf, since, compact = false, showLabel = true }) {
+export function RegimeScale({ state, label, asOf, isStale: explicitStale, compact = false, showLabel = true }) {
   const match = REGIME_SPECTRUM.find((s) => s.state === state)
   const isVol = state === 'VOL_EXPANSION'
   const isUnknown = state === 'UNKNOWN' || (!match && !isVol)
   const activeValue = match ? match.value : 0
   const displayLabel = label || match?.label || (isVol ? 'Biến động bùng nổ' : 'Chưa đủ dữ liệu')
-  const isStale = Boolean(asOf && (Date.now() - asOf > 86400000))
+  const isStale = explicitStale !== undefined ? explicitStale : Boolean(asOf && (Date.now() - asOf > 30 * 60 * 1000))
 
   if (compact) {
     return (
       <div
-        className="n-rgscale-compact"
+        className={`n-rgscale-compact ${isStale ? 'is-stale' : ''}`}
         role="meter"
         aria-label={`Regime: ${displayLabel}`}
         aria-valuenow={match ? activeValue : undefined}
         aria-valuemin="-2"
         aria-valuemax="2"
         aria-valuetext={displayLabel}
-        title={`${displayLabel}${asOf ? ` · Cập nhật: ${fmtDateTime(asOf)}` : ''}`}
+        title={`${displayLabel}${asOf ? ` · Cập nhật: ${fmtDateTime(asOf)}` : ''}${isStale ? ' · Dữ liệu cũ' : ''}`}
       >
-        <div className="n-rgscale-mini-track">
+        <div className="n-rgscale-mini-track" style={isStale ? { opacity: 0.6 } : undefined}>
           {REGIME_SPECTRUM.map((seg) => {
             const isActive = seg.state === state
             return (
@@ -196,6 +195,7 @@ export function RegimeScale({ state, label, asOf, since, compact = false, showLa
         </div>
         {isVol && <span className="n-rgchip n-rg-VOL_EXPANSION" style={{ fontSize: 10, padding: '1px 5px', marginLeft: 2 }}>Biến động</span>}
         {isUnknown && <span className="n-rgchip n-rg-UNKNOWN" style={{ fontSize: 10, padding: '1px 5px', marginLeft: 2 }}>Khởi động</span>}
+        {isStale && <span className="n-badge bad" style={{ fontSize: 9.5, padding: '0 4px', marginLeft: 2 }}>Cũ</span>}
         {showLabel && (
           <span className={`n-rgscale-mini-lbl ${match ? (activeValue < 0 ? 'neg' : activeValue > 0 ? 'pos' : 'muted') : 'muted'}`}>
             {displayLabel}
@@ -207,7 +207,7 @@ export function RegimeScale({ state, label, asOf, since, compact = false, showLa
 
   return (
     <div
-      className="n-rgscale-featured"
+      className={`n-rgscale-featured ${isStale ? 'is-stale' : ''}`}
       role="meter"
       aria-label={`Thang đo regime thị trường: ${displayLabel}`}
       aria-valuenow={match ? activeValue : undefined}
@@ -228,20 +228,23 @@ export function RegimeScale({ state, label, asOf, since, compact = false, showLa
               </span>
             )}
             {isStale && (
-              <span className="n-badge" title="Dữ liệu nến quá 24h">
-                ⏳ Dữ liệu cũ
+              <span className="n-badge bad" title="Dữ liệu cũ hơn 30 phút hoặc mất kết nối live feed (DEC-05)">
+                ⏳ DỮ LIỆU CŨ / MẤT KẾT NỐI (Feed Stale)
               </span>
             )}
             {isUnknown && (
-              <span className="n-badge" title="Chưa đủ nến warmup để xác định xu hướng">
-                ℹ️ Đang khởi động dữ liệu
+              <span className="n-badge" title="Chưa đủ nến để xác định xu hướng">
+                ℹ️ Chưa đủ dữ liệu / Đang khởi động
               </span>
             )}
           </div>
         </div>
         <div className="n-rgscale-meta-group">
-          {since ? <span className="n-rgscale-since">Kéo dài từ: <b className="mono">{fmtDateTime(since)}</b></span> : null}
-          {asOf ? <span className="n-rgscale-asof muted">Thời điểm dữ liệu (as of): <span className="mono">{fmtDateTime(asOf)}</span></span> : <span className="muted">Chưa có mốc thời gian</span>}
+          {asOf ? (
+            <span className="n-rgscale-asof muted">Thời điểm cập nhật: <span className="mono">{fmtDateTime(asOf)}</span></span>
+          ) : (
+            <span className="muted">Chưa có mốc thời gian</span>
+          )}
         </div>
       </div>
 
@@ -252,7 +255,7 @@ export function RegimeScale({ state, label, asOf, since, compact = false, showLa
           <span>Dương (Tăng giá / Tăng sốc) →</span>
         </div>
 
-        <div className="n-rgscale-track">
+        <div className="n-rgscale-track" style={isStale ? { opacity: 0.72 } : undefined}>
           {REGIME_SPECTRUM.map((seg) => {
             const isActive = seg.state === state
             return (
@@ -287,96 +290,229 @@ export function RegimeScale({ state, label, asOf, since, compact = false, showLa
   )
 }
 
-function RegimeBar({ segs, from, to, labels }) {
-  const span = Math.max(1, to - from)
+export function calculateRegimeScore(state, sharePct = {}) {
+  switch (state) {
+    case 'CRASH':
+      return -0.92
+    case 'TREND_DOWN': {
+      const downPct = sharePct?.TREND_DOWN || 20
+      return -Math.min(0.85, 0.40 + (downPct / 100) * 0.45)
+    }
+    case 'RANGE':
+      return 0.0
+    case 'TREND_UP': {
+      const upPct = sharePct?.TREND_UP || 20
+      return Math.min(0.85, 0.40 + (upPct / 100) * 0.45)
+    }
+    case 'SURGE':
+      return 0.92
+    case 'VOL_EXPANSION':
+      return 0.0
+    default:
+      return 0.0
+  }
+}
+
+export function RegimeBar({ score = 0, state = 'RANGE', label, isStale = false, symbol = '' }) {
+  const isNeg = score < 0
+  const isPos = score > 0
+  const isZero = score === 0 || state === 'RANGE'
+  const isVol = state === 'VOL_EXPANSION'
+  const fillWidth = Math.min(50, Math.abs(score) * 50)
+
   return (
-    <div className="n-rgbar" role="img" aria-label="Lịch sử regime">
-      {segs.map(([a, b, st], i) => (
-        <span key={i} className={`n-rg-${st}`} style={{ left: `${((a - from) / span) * 100}%`, width: `${Math.max(0.15, ((b - a) / span) * 100)}%` }}
-          title={`${labels[st] || st}: ${fmtDateTime(a)} → ${fmtDateTime(b)}`} />
-      ))}
+    <div
+      className={`n-rg-bar-track ${isStale ? 'is-stale' : ''}`}
+      role="meter"
+      aria-label={`${symbol || 'Regime'}: ${label || state}`}
+      aria-valuenow={score}
+      aria-valuemin="-1"
+      aria-valuemax="1"
+      title={`${symbol}: ${label || state} (${score > 0 ? `+${(score * 100).toFixed(0)}%` : `${(score * 100).toFixed(0)}%`})`}
+    >
+      {/* 0 center divider line */}
+      <div className="n-rg-bar-center-line" />
+
+      {/* Negative / Short (extends left from 50%) */}
+      {isNeg && (
+        <div
+          className="n-rg-bar-fill is-short"
+          style={{
+            right: '50%',
+            width: `${fillWidth}%`,
+          }}
+        />
+      )}
+
+      {/* Positive / Long (extends right from 50%) */}
+      {isPos && (
+        <div
+          className="n-rg-bar-fill is-long"
+          style={{
+            left: '50%',
+            width: `${fillWidth}%`,
+          }}
+        />
+      )}
+
+      {/* Center 0 pip for Sideway / Volatility */}
+      {(isZero || isVol) && (
+        <div className={`n-rg-bar-center-pip ${isVol ? 'is-vol' : ''}`} />
+      )}
     </div>
   )
 }
 
-const REGIME_CACHE = new Map()
+export function RegimeMarketList({ symbols = [], labelsVi = {}, asOf, isStale }) {
+  if (!symbols || !symbols.length) return null
+
+  const cleanSym = (s) => (s ? s.split('@')[0].split('-')[0].toUpperCase() : '')
+
+  return (
+    <div className="n-rg-market-container" data-testid="regime-scale">
+      {/* Subheader / Legend bar */}
+      <div className="n-rg-legend-bar">
+        <div className="n-rg-legend-axis">
+          <span className="n-rg-legend-side is-short">← Short (Đỏ)</span>
+          <span className="n-rg-legend-mid">0 · Sideway (Đi ngang)</span>
+          <span className="n-rg-legend-side is-long">Long (Xanh) →</span>
+        </div>
+      </div>
+
+      {/* Market Rows */}
+      <div className="n-rg-market-table">
+        {symbols.map((item) => {
+          const symName = cleanSym(item.symbol)
+          const state = item.current?.state || item.regime || 'UNKNOWN'
+          const label = item.current?.label || labelsVi[state] || state
+          const score = calculateRegimeScore(state, item.share_pct)
+          const hasError = Boolean(item.error)
+          const itemStale = hasError || item.is_stale || isStale
+
+          // Badge configuration
+          let tagClass = 'n-rg-tag-muted'
+          let tagText = label
+          if (state === 'CRASH') { tagClass = 'n-rg-tag-crash'; tagText = 'Sập mạnh (-2)' }
+          else if (state === 'TREND_DOWN') { tagClass = 'n-rg-tag-short'; tagText = 'Short (-1)' }
+          else if (state === 'RANGE') { tagClass = 'n-rg-tag-range'; tagText = 'Sideway (0)' }
+          else if (state === 'TREND_UP') { tagClass = 'n-rg-tag-long'; tagText = 'Long (+1)' }
+          else if (state === 'SURGE') { tagClass = 'n-rg-tag-surge'; tagText = 'Tăng sốc (+2)' }
+          else if (state === 'VOL_EXPANSION') { tagClass = 'n-rg-tag-vol'; tagText = 'Biến động' }
+          else if (hasError) { tagClass = 'n-rg-tag-muted'; tagText = 'Chưa sẵn sàng' }
+
+          return (
+            <div key={item.symbol} className="n-rg-market-row">
+              {/* Col 1: Symbol */}
+              <div className="n-rg-col-sym">
+                <span className="n-rg-sym-name">{symName}</span>
+                <span className="n-rg-sym-badge">PERP</span>
+              </div>
+
+              {/* Col 2: Regime Badge */}
+              <div className="n-rg-col-tag">
+                <span className={`n-rg-tag ${tagClass}`}>
+                  {tagText}
+                </span>
+                {itemStale && !hasError && (
+                  <span className="n-badge bad" style={{ fontSize: 9.5, padding: '1px 4px' }} title="Dữ liệu cũ hoặc chậm">
+                    Cũ
+                  </span>
+                )}
+              </div>
+
+              {/* Col 3: The Center-Split Regime Bar */}
+              <div className="n-rg-col-bar">
+                <RegimeBar
+                  score={score}
+                  state={state}
+                  label={label}
+                  isStale={itemStale}
+                  symbol={symName}
+                />
+              </div>
+
+              {/* Col 4: Score / Percentage Bias */}
+              <div className="n-rg-col-score">
+                <span className={`n-rg-score-text ${score < 0 ? 'neg' : score > 0 ? 'pos' : 'muted'}`}>
+                  {score < 0 ? `${Math.round(score * 100)}%` : score > 0 ? `+${Math.round(score * 100)}%` : '0%'}
+                </span>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+let REGIME_MEMO = null
 
 export function RegimePanel({ bare = false }) {
-  const [days, setDays] = useState(30)
-  const cached = REGIME_CACHE.get(days)
-  const [st, setSt] = useState(() => ({ loading: !cached, data: cached || null, error: null }))
+  const [st, setSt] = useState(() => ({ loading: !REGIME_MEMO, data: REGIME_MEMO, error: null }))
+
   useEffect(() => {
     let dead = false
-    if (!REGIME_CACHE.has(days)) setSt((x) => ({ ...x, loading: true }))
-    getMarketRegime({ days }).then(
+    if (!REGIME_MEMO) setSt((x) => ({ ...x, loading: true }))
+    getMarketRegime().then(
       (data) => {
         if (!dead) {
-          REGIME_CACHE.set(days, data)
+          REGIME_MEMO = data
           setSt({ loading: false, data, error: null })
         }
       },
       (e) => !dead && setSt((x) => ({ ...x, loading: false, error: x.data ? null : e.message })),
     )
     return () => { dead = true }
-  }, [days])
+  }, [])
+
   const d = st.data
-  const rows = (d?.symbols || []).filter((r) => !r.error)
-  const labels = d?.labels_vi || {}
-  const to = Math.max(0, ...rows.map((r) => r.as_of || 0))
-  const from = to - days * 86400000
-  const primarySymbol = rows.find((r) => r.symbol.toUpperCase().startsWith('BTC')) || rows[0]
+  const allSymbols = d?.symbols || []
+  const asOfVal = d?.as_of || null
+  const isStale = d?.is_stale
+
+  // Compute market summary
+  const bearCount = allSymbols.filter((s) => s.current?.state === 'TREND_DOWN' || s.current?.state === 'CRASH').length
+  const bullCount = allSymbols.filter((s) => s.current?.state === 'TREND_UP' || s.current?.state === 'SURGE').length
+  const rangeCount = allSymbols.filter((s) => s.current?.state === 'RANGE').length
+
+  let summaryText = 'Đang phân tích...'
+  if (allSymbols.length) {
+    if (bearCount > bullCount) summaryText = `Thiên hướng Short (${bearCount}/${allSymbols.length} cặp giảm)`
+    else if (bullCount > bearCount) summaryText = `Thiên hướng Long (${bullCount}/${allSymbols.length} cặp tăng)`
+    else summaryText = `Đi ngang cân bằng (${rangeCount}/${allSymbols.length} cặp sideway)`
+  }
 
   return (
-    <Panel className={bare ? 'pf-bare' : ''} title={bare ? null : 'Regime thị trường'} meta={
-      <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
-        {st.loading && <Spinner />}
-        {REGIME_DAYS.map((n) => <button key={n} type="button" className={`n-btn sm ${days === n ? 'on' : ''}`} aria-pressed={days === n} onClick={() => setDays(n)}>{n} ngày</button>)}
-      </span>}>
-      {st.error && <Empty title="Không tải được regime">{st.error}</Empty>}
-      {!st.loading && !st.error && rows.length === 0 && (
-        <Empty title="Chưa có dữ liệu regime">Chưa tìm thấy nến 15m hoặc manifest catalog của các tài sản perp.</Empty>
+    <Panel
+      className={`regime-scale ${bare ? 'pf-bare' : ''}`}
+      data-testid="regime-scale"
+      title={bare ? null : (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+          <span>Regime thị trường</span>
+          <span className="n-badge" style={{ fontSize: 11, fontWeight: 500, background: 'rgba(255,255,255,0.06)' }}>
+            {summaryText}
+          </span>
+        </span>
       )}
-      {rows.length > 0 && (
-        <>
-          {/* Featured Horizontal Scale cho Benchmark / Tài sản chính */}
-          {primarySymbol && (
-            <RegimeScale
-              state={primarySymbol.current?.state}
-              label={primarySymbol.current?.label}
-              asOf={primarySymbol.as_of}
-              since={primarySymbol.current?.since}
-            />
-          )}
-
-          <div className="n-tblwrap">
-            <table className="n-tbl n-rg">
-              <thead><tr><th>Tài sản</th><th>Thang đo & Trạng thái</th><th>Từ</th><th>Lịch sử {days} ngày (nến {d.frame})</th><th>Chiến lược đang bật</th></tr></thead>
-              <tbody>
-                {rows.map((r) => (
-                  <tr key={r.symbol}>
-                    <td><b>{r.symbol.replace('@perp', '')}</b></td>
-                    <td>
-                      <RegimeScale
-                        compact
-                        state={r.current?.state}
-                        label={r.current?.label}
-                        asOf={r.as_of}
-                      />
-                    </td>
-                    <td className="mono">{r.current?.since ? fmtDateTime(r.current.since) : '—'}</td>
-                    <td style={{ minWidth: 200 }}><RegimeBar segs={r.segments || []} from={from} to={to} labels={labels} /></td>
-                    <td>{r.strategies_on?.length ? r.strategies_on.map((id) => <span key={id} className="n-badge" style={{ marginRight: 4 }} title={id}>{legLabel(id)}</span>) : <span className="muted">không chiến lược nào</span>}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="n-rglegend">
-            {(d.names || []).filter((n) => n !== 'UNKNOWN').map((n) => <span key={n}><i className={`n-rg-${n}`} />{labels[n] || n}</span>)}
-          </div>
-          <p className="n-note">Thang đo có dấu: cực âm đỏ bên trái (Sập mạnh -2, Giảm -1) ← 0 ở giữa (Đi ngang) → cực dương xanh bên phải (Tăng +1, Tăng sốc +2).
-            Quy tắc sổ lệnh: LONG không vào khi xu hướng giảm / sập mạnh, SHORT không vào khi xu hướng tăng / tăng thẳng đứng.</p>
-        </>
+      meta={
+        <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+          {st.loading && <Spinner />}
+          {asOfVal && <span className="mono muted" style={{ fontSize: 12 }}>{fmtDateTime(asOfVal)}</span>}
+          {isStale && <span className="n-badge bad" style={{ fontSize: 10 }}>Feed Cũ</span>}
+        </span>
+      }
+    >
+      {st.error && <Empty title="Không tải được regime">{st.error}</Empty>}
+      {!st.loading && !st.error && !allSymbols.length && (
+        <Empty title="Chưa có dữ liệu regime">Chưa tìm thấy dữ liệu thị trường trực tiếp.</Empty>
+      )}
+      {Boolean(allSymbols.length) && (
+        <RegimeMarketList
+          symbols={allSymbols}
+          labelsVi={d?.labels_vi || {}}
+          asOf={asOfVal}
+          isStale={isStale}
+        />
       )}
     </Panel>
   )

@@ -3,8 +3,8 @@
 Tín hiệu (match / stop / vol / dca) tính SẴN bằng backend.signal.compute (cùng đường dữ liệu engine cũ) và tra theo open_time của nến khung chạy
 (ts_event của Bar = open_time + độ dài khung). Lệnh, khớp, phí, số dư, vị thế do Nautilus sinh; strategy chỉ quyết định.
 
-Quy ước thời điểm (khác engine cũ, ghi trong kết quả `fill_convention`): engine cũ vào lệnh ở GIÁ MỞ nến kế tiếp; Nautilus (bar_execution) khớp lệnh
-market gửi lúc nến i ĐÓNG ngay ở giá đóng nến i. Mọi quyết định cuối nến (vào / thoát theo tín hiệu / timeout / kill / end) vì vậy khớp ở close nến i.
+Execution mặc định dùng Nautilus OrderMatchingEngine. Chế độ `next_open` hiện là mô phỏng riêng trong strategy/backtest,
+không đi qua Nautilus matching engine; không được xem là parity với live cho tới khi được thay bằng execution module phù hợp.
 
 Loại lệnh (Nautilus `tags[0]`): ENTRY, DCA, SL, TP, TRAIL, EXIT, TIMEOUT, END, KILL.
 - SL    = STOP_MARKET reduce_only tại policy.sl_level(avg) (hoặc mức tuyệt đối khi sl_anchor entry/last_layer).
@@ -13,6 +13,7 @@ Loại lệnh (Nautilus `tags[0]`): ENTRY, DCA, SL, TP, TRAIL, EXIT, TIMEOUT, EN
           Tương đương chính sách cũ (kích hoạt khi lãi tại đỉnh >= activation, mức = đỉnh · (1 − trail%)); sau DCA đặt lại với trigger_price từ đỉnh.
 - DCA   = LIMIT tại policy.dca_level(last_fill); mỗi lần DCA khớp, SL/TP được `modify_order` (qty + giá từ avg mới), TRAIL đặt lại.
 """
+import math
 import os
 import time
 from datetime import timedelta
@@ -26,6 +27,7 @@ from nautilus_trader.model.objects import Quantity
 from nautilus_trader.trading.strategy import Strategy, StrategyConfig
 
 from backend.analys.position import position_size as policy
+from backend.core.portfolio import EntryIntent
 from backend.models.models import OrderModel, OrderType, PositionModel, PositionStatus, next_id
 
 FLAT, ENTERING, OPEN, EXITING = 0, 1, 2, 3
@@ -37,13 +39,21 @@ _NS_MS = 1_000_000
 CATCHUP_DELAY_S = 5.0          # live: chờ kết nối dữ liệu/sổ lệnh ổn rồi mới vào lệnh bù
 
 
+def _spread_bps(symbol: str, spec_rate: float) -> float:
+    if "BTC" in symbol:
+        return 0.0003
+    elif "ETH" in symbol:
+        return 0.0005
+    return float(spec_rate) if (spec_rate and float(spec_rate) > 0) else 0.0003
+
+
 from backend.analys.signal import SignalProvider, ArraySignals
 
 
 class NoraSlotStrategy(Strategy):
     def __init__(self, idx: int, spec: Any, strategy_id: str, symbol: str, sym_idx: int, instrument: CryptoPerpetual, bar_type: BarType,
                  frame_ms: int, sig: Union[Dict[str, Any], SignalProvider], coord: Any, last_open_ms: Optional[int], close_at_end: bool, trade_start_ms: int,
-                 hyphens: bool = True, claim_external: bool = False):
+                 hyphens: bool = True, claim_external: bool = False, execution_target: str = "nautilus"):
         # hyphens=False (live): OKX chỉ nhận clOrdId chữ-số (không dấu gạch) -> Nautilus sinh id không gạch
         # claim_external (live resume): lệnh/vị thế sàn đã đối soát trên instrument này thuộc chiến lược -> nó nhận lại và quản lý tiếp
         super().__init__(StrategyConfig(strategy_id=f"NORA-{idx:03d}", order_id_tag=f"{idx:03d}", use_hyphens_in_client_order_ids=hyphens,
@@ -52,6 +62,7 @@ class NoraSlotStrategy(Strategy):
         self.inst, self.bar_type, self.fr = instrument, bar_type, int(frame_ms)
         self.coord, self.close_at_end, self.trade_start = coord, bool(close_at_end), int(trade_start_ms)
         self.last_open_ms = last_open_ms
+        self.execution_target = str(execution_target)
         self.is_long = bool(spec.is_long)
         self.sign = 1.0 if self.is_long else -1.0
         self.side_in = OrderSide.BUY if self.is_long else OrderSide.SELL
@@ -114,11 +125,19 @@ class NoraSlotStrategy(Strategy):
         self.mae_usd = 0.0
         self.pending_qty = 0.0
         self.sl_lvl_abs = 0.0
+        self.pending_margin = 0.0
+        self.pending_fee_est = 0.0
+        self.initial_pending_margin = 0.0
+        self.initial_pending_fee_est = 0.0
+        self.protection_unavailable = False
         self.t_fills: List[tuple] = []
         self._layer_of: Dict[Any, int] = {}
         self.exit_kind: Optional[str] = None
         self.o: Dict[str, Any] = {"SL": None, "TP": None, "TRAIL": None, "DCA": None}
         self._dca_margin = 0.0
+        self._pending_entry_data = None
+        self._pending_exit_kind = None
+        self.execution_target = getattr(self, "execution_target", "")
         self._apply_unit(1.0)
 
     def _apply_unit(self, unit: float) -> None:
@@ -189,6 +208,7 @@ class NoraSlotStrategy(Strategy):
 
     def on_bar(self, bar: Bar) -> None:
         ts = bar.ts_event // _NS_MS + self.bar_ts_shift_ms
+        self._cur_bar_ts = ts
         if not isinstance(self.signals, ArraySignals):          # live: bỏ nến lặp / cũ (WS gửi lại sau khi nối lại)
             if ts <= self._last_bar_ts:
                 return
@@ -210,7 +230,16 @@ class NoraSlotStrategy(Strategy):
         ev = self.signals.latest_event(ts) if hasattr(self.signals, "latest_event") else None
         entered = False
         if self.st == FLAT and ev is not None and ev.get("match") and self.coord.halted_at is None and not self.halted:
-            self._enter(price, ev.get("vol", float("nan")), catchup=True)
+            intent = EntryIntent(
+                slot=self,
+                symbol=self.symbol,
+                ts=ts,
+                price=price,
+                vol=float(ev.get("vol", 1.0)),
+                catchup=True,
+                priority=float(getattr(self.spec, "priority", 0.0) or getattr(self.spec, "rank", 0.0) or 0.0),
+            )
+            self.coord.dispatch_single_catchup(intent)
             entered = self.st == ENTERING
         self.coord.emit("catchup", {"symbol": self.symbol, "strategy": self.sid, "match": bool(ev and ev.get("match")), "signal_open_time": ev.get("signal_open_time") if ev else None,
                                     "last_signal_open_time": ev.get("last_open_time") if ev else None, "stop": bool(ev and ev.get("stop")), "entered": entered, "price": price})
@@ -245,11 +274,133 @@ class NoraSlotStrategy(Strategy):
 
         open_ms = ts - self.fr
         h, l, c = bar.high.as_double(), bar.low.as_double(), bar.close.as_double()
+        o = bar.open.as_double()
         if self.coord is not None:
             self.coord.last[self.sym_idx] = (c, l, h)
         if self.last_model is not None and self.last_model_ts == ts:      # vị thế vừa đóng TRONG nến này: nến đóng vẫn tính vào max/min giá
             m = self.last_model
             m.max_price, m.min_price = max(m.max_price, h), min(m.min_price, l)
+
+        if getattr(self, "execution_target", "") == "next_open":
+            # 1. Khớp entry đang chờ tại open của nến này
+            if self._pending_entry_data is not None and self.st == ENTERING:
+                qty, margin, lev, planned, unit_pct, sl_abs, catchup, fee_est = self._pending_entry_data
+                self._pending_entry_data = None
+
+                spread = _spread_bps(self.symbol, getattr(self.spec, "slippage_rate", 0.0003))
+                inc = float(self.inst.price_increment) if hasattr(self.inst, "price_increment") and self.inst.price_increment else (10 ** -self.inst.price_precision)
+                if self.is_long:
+                    exec_px = math.ceil(o * (1.0 + spread) / inc - 1e-12) * inc
+                else:
+                    exec_px = math.floor(o * (1.0 - spread) / inc + 1e-12) * inc
+                exec_px = round(exec_px, self.inst.price_precision)
+
+                taker_fee_rate = float(getattr(self.spec, "fee_rate", 0.0005)) or 0.0005
+                fee = round(exec_px * qty * taker_fee_rate, 8)
+
+                self.st = OPEN
+                self.qty = qty
+                self.avg = exec_px
+                self.layers = 1
+                self.last_fill = exec_px
+                self.entry_time = open_ms
+                self.entry_notional = exec_px * qty
+                self.entry_margin = self.entry_notional / lev
+                self.entry_fee = fee
+                self.margin_used = self.entry_margin
+                self.fee_open += fee
+                self.res_here += self.entry_margin + fee
+                if self.coord is not None:
+                    self.coord.open_fees += fee
+                    self.coord.reserved += self.entry_margin + fee
+                    if self.pending_margin > 0.0:
+                        self.coord.pending_reserved = max(0.0, self.coord.pending_reserved - (self.pending_margin + self.pending_fee_est))
+                        self.pending_margin = 0.0
+                        self.pending_fee_est = 0.0
+                self.max_price = self.min_price = self.peak = exec_px
+                self.t_fills.append(("ENTRY", open_ms, exec_px, qty, fee, "taker", 0))
+                if self.coord is not None:
+                    self.coord.emit("fill", {
+                        "symbol": self.symbol, "strategy": self.sid, "kind": "ENTRY",
+                        "side": "BUY" if self.is_long else "SELL", "px": exec_px, "qty": qty,
+                        "fee": fee, "liquidity": "taker", "ts": open_ms, "catchup": catchup
+                    })
+                self._apply_unit(unit_pct or 1.0)
+
+            # 2. Khớp exit đang chờ tại open của nến này
+            if self._pending_exit_kind is not None and self.st in (OPEN, EXITING):
+                kind = self._pending_exit_kind
+                self._pending_exit_kind = None
+                spread = _spread_bps(self.symbol, getattr(self.spec, "slippage_rate", 0.0003))
+                inc = float(self.inst.price_increment) if hasattr(self.inst, "price_increment") and self.inst.price_increment else (10 ** -self.inst.price_precision)
+                if self.is_long:  # Long exit is SELL -> Bid price (floor)
+                    exec_px = math.floor(o * (1.0 - spread) / inc + 1e-12) * inc
+                else:             # Short exit is BUY -> Ask price (ceil)
+                    exec_px = math.ceil(o * (1.0 + spread) / inc - 1e-12) * inc
+                exec_px = round(exec_px, self.inst.price_precision)
+                self._close_simulated_position(kind, exec_px, open_ms)
+                return
+
+            # 3. Đánh giá Intrabar nếu vị thế đang OPEN
+            if self.st == OPEN:
+                if h > self.max_price:
+                    self.max_price = h
+                if l < self.min_price:
+                    self.min_price = l
+                u = self.unrealized(l if self.is_long else h) - self.fee_open
+                if u < self.mae_usd:
+                    self.mae_usd = u
+                self.peak = max(self.peak, h) if self.is_long else min(self.peak, l)
+
+                spread = _spread_bps(self.symbol, getattr(self.spec, "slippage_rate", 0.0003))
+                sl_lvl = self.sl_lvl_abs if self.spec.sl_anchor_mode == 1 else (policy.sl_level(self.avg, self.sl_pct, self.sign) if self.sl_pct else 0.0)
+                tp_lvl = policy.tp_level(self.avg, self.tp_pct, self.sign) if self.tp_pct else 0.0
+
+                if self.is_long:
+                    # Gap-through stop tại open
+                    if sl_lvl > 0 and o <= sl_lvl:
+                        exec_px = round(o * (1.0 - spread), self.inst.price_precision)
+                        self._close_simulated_position("SL", exec_px, open_ms)
+                        return
+
+                    sl_hit = (sl_lvl > 0 and l <= sl_lvl)
+                    tp_hit = (tp_lvl > 0 and h >= tp_lvl)
+                    if sl_hit and tp_hit:
+                        # Adverse ordering: SL kích hoạt trước
+                        exec_px = round(sl_lvl * (1.0 - spread), self.inst.price_precision)
+                        self._close_simulated_position("SL", exec_px, ts)
+                        return
+                    elif sl_hit:
+                        exec_px = round(sl_lvl * (1.0 - spread), self.inst.price_precision)
+                        self._close_simulated_position("SL", exec_px, ts)
+                        return
+                    elif tp_hit:
+                        exec_px = round(tp_lvl, self.inst.price_precision)
+                        self._close_simulated_position("TP", exec_px, ts)
+                        return
+                else:
+                    # Short position
+                    if sl_lvl > 0 and o >= sl_lvl:
+                        exec_px = round(o * (1.0 + spread), self.inst.price_precision)
+                        self._close_simulated_position("SL", exec_px, open_ms)
+                        return
+
+                    sl_hit = (sl_lvl > 0 and h >= sl_lvl)
+                    tp_hit = (tp_lvl > 0 and l <= tp_lvl)
+                    if sl_hit and tp_hit:
+                        # Adverse ordering: SL kích hoạt trước
+                        exec_px = round(sl_lvl * (1.0 + spread), self.inst.price_precision)
+                        self._close_simulated_position("SL", exec_px, ts)
+                        return
+                    elif sl_hit:
+                        exec_px = round(sl_lvl * (1.0 + spread), self.inst.price_precision)
+                        self._close_simulated_position("SL", exec_px, ts)
+                        return
+                    elif tp_hit:
+                        exec_px = round(tp_lvl, self.inst.price_precision)
+                        self._close_simulated_position("TP", exec_px, ts)
+                        return
+
         if self.enter_on_start and not self.catchup_done:       # dự phòng: nến tới trước hẹn giờ vào lệnh bù
             self.run_catch_up(ts, c)
         sig_val = self.signals.at(ts)
@@ -276,7 +427,16 @@ class NoraSlotStrategy(Strategy):
             if (open_ms >= self.trade_start and not coord_halted and not self.halted
                     and self.last_close_fill_ts < open_ms
                     and (not sp.cooldown_ms or self.last_close_time is None or open_ms - self.last_close_time >= sp.cooldown_ms)):
-                self._enter(c, sig_val["vol"])
+                intent = EntryIntent(
+                    slot=self,
+                    symbol=self.symbol,
+                    ts=ts,
+                    price=c,
+                    vol=float(sig_val["vol"]) if sig_val.get("vol") is not None else 1.0,
+                    priority=float(getattr(sp, "priority", 0.0) or getattr(sp, "rank", 0.0) or 0.0),
+                )
+                if self.coord is not None:
+                    self.coord.register_entry_intent(intent)
         elif self.st == OPEN:
             if h > self.max_price:
                 self.max_price = h
@@ -298,10 +458,11 @@ class NoraSlotStrategy(Strategy):
             elif self.close_at_end and open_ms == self.last_open_ms:
                 self._exit("END")
             else:
-                if self.protect_retry:
-                    self.protect_retry = False
-                    self._protect()
-                self._reconcile_dca()
+                if getattr(self, "execution_target", "") != "next_open":
+                    if self.protect_retry:
+                        self.protect_retry = False
+                        self._protect()
+                    self._reconcile_dca()
 
 
     def _coin(self, qty_units: float) -> float:
@@ -316,77 +477,100 @@ class NoraSlotStrategy(Strategy):
             return None
         return qty if float(qty) >= float(self.inst.min_quantity) and float(qty) > 0.0 else None
 
-    def _enter(self, price: float, vol: float, catchup: bool = False) -> None:
-        co, sp = self.coord, self.spec
-        adm = co.admit(self)
-        if adm is None:
-            return
-        eq = co.equity()
-        if eq <= 0:
-            return
-        unit = 1.0
-        if sp.exit_unit == "atr":
-            unit = vol
-            if not (unit > 0):
-                self.skipped_no_vol += 1
-                return
-        self._apply_unit(unit)
-        unit_pct = unit if sp.exit_unit == "atr" else 0.0
-        max_cap = eq * sp.capital_usage
-        budget = min(max_cap, eq - co.reserved)
-        lev = float(sp.max_leverage)
-        sign = self.sign
-        # mức SL tuyệt đối (sl_anchor entry / last_layer) — như kernel._open
-        sl_abs = 0.0
-        if sp.sl_anchor_mode == 1:
-            if self.dca_steps:
-                p_last = price
-                for s in self.dca_steps:
-                    p_last = p_last * (1.0 - sign * s / 100.0)
-                sl_abs = p_last * (1.0 - sign * self.sl_pct / 100.0) if self.sl_pct > 0.0 else p_last
-            else:
-                sl_abs = price * (1.0 - sign * self.sl_pct / 100.0) if self.sl_pct > 0.0 else 0.0
-        sl_eff = abs(price - sl_abs) / price * 100.0 if (sp.sl_anchor_mode == 1 and sl_abs > 0.0) else self.sl_pct
-        total_mult = policy.layer_mult_total(sp.dca_mults, len(self.dca_steps))
-        planned = 0.0
-        if sp.sizing == "risk":
-            margin, lev, planned = policy.risk_margin(eq, sp.risk_pct, sp.max_notional_pct, sl_eff, sp.fee_rate, sp.slippage_rate, None,
-                                                      sp.market == "perp", sp.max_leverage, sp.mmr, lev, total_mult)
-        else:
-            margin = policy.flat_margin(eq, sp.order_size_pct)
-        if adm.risk_scale != 1.0:
-            margin *= adm.risk_scale
-            planned *= adm.risk_scale
-        margin = policy.clamp_margin(margin, budget, lev, sp.fee_rate, adm.max_new_notional)
-        if sp.sizing == "risk" and margin > 0:
-            planned = min(planned, policy.planned_risk_cap(margin, lev, sl_eff, policy.round_trip_cost(sp.fee_rate, sp.slippage_rate, None, margin * lev * total_mult), total_mult))
-        margin, planned = policy.apply_risk_ceiling(margin, planned, adm.max_new_risk)
-        if margin <= 0:
-            co.rejected_for_capital += 1
-            return
-        notional = margin * lev
-        fee_est = notional * sp.fee_rate
-        if margin + fee_est > max_cap + 1e-9:          # vượt ngân sách vị thế (không đếm, như _gate "budget")
-            return
-        if margin + fee_est > (eq - co.reserved) + 1e-9:
-            co.rejected_for_capital += 1
-            return
-        qty = self._round_qty(notional / price)
-        if qty is None:                                # dưới khối lượng tối thiểu / lot của sàn
-            co.rejected_for_capital += 1
-            return
+    def _close_simulated_position(self, kind: str, close_px: float, ts_close: int) -> None:
+        """Đóng vị thế mô phỏng thực thi (execution_target='next_open') mà không qua Nautilus OrderMatchingEngine."""
+        taker_fee_rate = float(getattr(self.spec, "fee_rate", 0.0005)) or 0.0005
+        exit_fee = round(close_px * self.qty * taker_fee_rate, 8)
+        self.fee_open += exit_fee
+        if self.coord is not None:
+            self.coord.open_fees += exit_fee
+        self.t_fills.append((kind, ts_close, close_px, self.qty, exit_fee, "taker", self.layers))
+
+        entry_fills = [f for f in self.t_fills if f[0] in _ENTRY_KINDS]
+        exit_fills = [f for f in self.t_fills if f[0] not in _ENTRY_KINDS]
+        first_ts = entry_fills[0][1] if entry_fills else self.entry_time
+        avg = self.avg
+        gross_pnl = self.qty * (close_px - avg) * self.sign
+        tot_fees = sum(f[4] for f in self.t_fills)
+        net = gross_pnl - tot_fees
+        status = (PositionStatus.TP if kind == "TP" else PositionStatus.SL if kind == "SL" else PositionStatus.CANCEL if kind in ("END", "KILL")
+                  else PositionStatus.TP if policy.in_profit(close_px, avg, self.is_long) else PositionStatus.SL)
+        ee = self.entry_equity
+        rid = next_id()
+        sp = self.spec
+        model = PositionModel(
+            result_id=rid, account_id=sp.account_id, campaign_id=sp.campaign_id, symbol=self.symbol, pos_type=sp.pos_type, phase=0,
+            enter_time=first_ts, enter_price=entry_fills[0][2] if entry_fills else avg, close_time=ts_close, close_price=close_px, status=status,
+            real_pnl=net, profit_pct=net / ee * 100.0 if ee > 0 else 0.0, flow=sp.flow_name, start_reason=REASONS[entry_fills[0][0]] if entry_fills else "",
+            close_reason=REASONS.get(kind, kind), max_price=self.max_price, min_price=self.min_price, qty=self.qty, entry_equity=ee,
+            entry_margin_usd=self.entry_margin, entry_notional_usd=self.entry_notional, entry_fee_usd=self.entry_fee, exit_fee_usd=exit_fee,
+            layers=self.layers, avg_price=avg, total_margin_usd=self.margin_used, mae_pct=min(0.0, self.mae_usd / ee * 100.0) if ee > 0 else 0.0,
+            fees_usd=tot_fees, funding_usd=0.0, unit_pct=self.unit_pct, leverage_used=self.pos_lev, risk_usd=self.planned_risk,
+            strategy_id=self.sid)
+        orders = [OrderModel(order_id=next_id(), account_id=sp.account_id, position_id=rid, order_time=f[1],
+                             order_type=OrderType.BUY if (f[0] in _ENTRY_KINDS) == self.is_long else OrderType.SELL, order_price=f[2], qty=f[3],
+                             phase=f[6], fee_usd=f[4], liquidity=f[5], slippage=0.0) for f in self.t_fills]
+        resting = kind in ("SL", "TP", "TRAIL")
+        self.last_close_time = ts_close - self.fr if resting else ts_close
+        self.last_close_fill_ts = self.last_close_time
+        self.last_model, self.last_model_ts = model, ts_close
+        if self.coord is not None:
+            self.coord.emit("position_closed", {"symbol": self.symbol, "strategy": self.sid, "kind": kind, "avg_px": avg, "close_px": close_px, "qty": self.qty,
+                                                "pnl": net, "ts": ts_close})
+            self.coord.on_closed(self, ts_close - self.fr, model, orders)
+        self._reset()
+
+    def _commit_entry(self, price: float, qty: Any, margin: float, lev: float, planned: float,
+                      unit_pct: float, sl_abs: float, catchup: bool, fee_est: float) -> None:
+        """Thực thi lệnh vào đã được Coordinator phân bổ vốn và rủi ro hợp lệ."""
+        co = self.coord
         self.pos_lev, self.planned_risk, self.unit_pct, self.next_margin = lev, planned, unit_pct, margin
-        self.entry_equity, self.sl_lvl_abs, self.pending_qty = eq, sl_abs, float(qty) * self.mult
+        self.entry_equity, self.sl_lvl_abs, self.pending_qty = co.equity(), sl_abs, float(qty) * self.mult
+        self.pending_margin = margin
+        self.pending_fee_est = fee_est
+        self.initial_pending_margin = margin
+        self.initial_pending_fee_est = fee_est
         self.st = ENTERING
         co.activate(self)
+        if getattr(self, "execution_target", "") == "next_open":
+            self._pending_entry_data = (float(qty), margin, lev, planned, unit_pct, sl_abs, catchup, fee_est)
+            if not isinstance(self.signals, ArraySignals) and not self.debug_events:
+                co.emit("signal", {"symbol": self.symbol, "strategy": self.sid, "price": price, "qty": float(qty), "catchup": catchup})
+            return
         order = self.order_factory.market(self.inst.id, self.side_in, qty, tags=["ENTRY", "CATCHUP"] if catchup else ["ENTRY"])
         self._layer_of[order.client_order_id] = 0
         if not isinstance(self.signals, ArraySignals) and not self.debug_events:       # live: ghi gọn quyết định vào lệnh (khi debug_events bật, `signal` đã ghi mọi tín hiệu)
             co.emit("signal", {"symbol": self.symbol, "strategy": self.sid, "price": price, "qty": float(qty), "catchup": catchup})
         self.submit_order(order)
 
+    def _enter(self, price: float, vol: float, catchup: bool = False) -> None:
+        """Tương thích ngược: vào lệnh đơn lẻ (hoặc gọi từ kiểm thử)."""
+        intent = EntryIntent(
+            slot=self,
+            symbol=self.symbol,
+            ts=int(getattr(self, "_last_bar_ts", 0) or 0),
+            price=price,
+            vol=vol,
+            catchup=catchup,
+            priority=float(getattr(self.spec, "priority", 0.0) or getattr(self.spec, "rank", 0.0) or 0.0),
+        )
+        self.coord.dispatch_single_catchup(intent)
+
     # ─── thoát lệnh ─────────────────────────────────────────────────────────
     def _exit(self, kind: str) -> None:
+        if getattr(self, "execution_target", "") == "next_open":
+            if kind in ("END", "KILL"):
+                last_px = self.coord.last[self.sym_idx][0] if self.coord else self.last_fill
+                ts = getattr(self, "_cur_bar_ts", getattr(self, "_last_bar_ts", 0))
+                if last_px != last_px:
+                    last_px = self.last_fill
+                self._close_simulated_position(kind, last_px, ts)
+                return
+            if self.st == OPEN:
+                self.exit_kind = kind
+                self._pending_exit_kind = kind
+                self.st = EXITING
+            return
         pos = self._position()
         if pos is None:
             return
@@ -464,8 +648,10 @@ class NoraSlotStrategy(Strategy):
         self.o[kind] = o
         self.submit_order(o)
 
-    def _protect(self) -> None:
+    def _protect(self, allow_dca: bool = True) -> None:
         """Đặt / chỉnh SL, TP, TRAIL, DCA từ vị thế Nautilus hiện tại (gọi sau fill của lớp vào lệnh)."""
+        if getattr(self, "protection_unavailable", False):
+            return
         pos = self._position()
         if pos is None:
             return
@@ -502,7 +688,8 @@ class NoraSlotStrategy(Strategy):
                                                         reduce_only=self.reduce_only, tags=["TRAIL"], **kw)
             self.o["TRAIL"] = o
             self.submit_order(o)
-        self._reconcile_dca()
+        if allow_dca:
+            self._reconcile_dca()
 
     def _reconcile_dca(self) -> None:
         """Tầng DCA kế tiếp: có khi còn tầng, dca_ok và vốn cho phép; huỷ khi cổng DCA đóng."""
@@ -559,6 +746,25 @@ class NoraSlotStrategy(Strategy):
                                  "px": px, "qty": qty, "fee": fee, "liquidity": liq, "ts": ts, "client_order_id": str(event.client_order_id),
                                  "venue_order_id": str(event.venue_order_id), "catchup": "CATCHUP" in order.tags})
         if kind in _ENTRY_KINDS:
+            if getattr(self, "pending_margin", 0.0) > 0.0:
+                if order.is_closed:
+                    p_m = self.pending_margin
+                    p_f = getattr(self, "pending_fee_est", 0.0)
+                    if self.coord is not None:
+                        self.coord.pending_reserved = max(0.0, self.coord.pending_reserved - (p_m + p_f))
+                    self.pending_margin = 0.0
+                    self.pending_fee_est = 0.0
+                else:
+                    tot_qty = float(order.quantity) if float(order.quantity) > 0 else 1.0
+                    fill_ratio = min(1.0, float(event.last_qty) / tot_qty)
+                    init_m = getattr(self, "initial_pending_margin", self.pending_margin)
+                    init_f = getattr(self, "initial_pending_fee_est", self.pending_fee_est)
+                    p_m = min(self.pending_margin, init_m * fill_ratio)
+                    p_f = min(self.pending_fee_est, init_f * fill_ratio)
+                    if self.coord is not None:
+                        self.coord.pending_reserved = max(0.0, self.coord.pending_reserved - (p_m + p_f))
+                    self.pending_margin = max(0.0, self.pending_margin - p_m)
+                    self.pending_fee_est = max(0.0, self.pending_fee_est - p_f)
             if self.st == FLAT:                      # lệnh vào mồ côi (DCA khớp sau khi vị thế đã đóng): coi như vị thế mới
                 self.coord.activate(self)
                 self.st = ENTERING
@@ -586,7 +792,13 @@ class NoraSlotStrategy(Strategy):
                     self._exit(self.exit_kind or "EXIT")
                 else:
                     self.st = OPEN
-                    self._protect()
+                    self._protect(allow_dca=True)
+            else:
+                # Partial fill: vị thế đã tăng nhưng entry chưa đóng hoàn toàn.
+                # BẢO VỆ NGAY: đặt/cập nhật hard-SL theo quantity và average fill thực tế (TODO 2).
+                if self.st != EXITING:
+                    self.st = OPEN
+                    self._protect(allow_dca=False)
         else:
             self.fee_open += fee
             self.coord.open_fees += fee
@@ -658,15 +870,56 @@ class NoraSlotStrategy(Strategy):
             self.o[kind] = None
             self.protect_retry = True
             return
+
+        # TODO 3: Tách handler protective-order reject khỏi reject entry thông thường.
+        # Với hard SL bị sàn reject: ghi nhận protection unavailable, huỷ/khoá DCA và kích hoạt emergency response
+        if kind == "SL" and self.st in (OPEN, ENTERING):
+            self.o["SL"] = None
+            self.protection_unavailable = True
+            self.dca_ok = False
+            if self.o.get("DCA") is not None and not self.o["DCA"].is_closed:
+                self.cancel_order(self.o["DCA"])
+                self.o["DCA"] = None
+            self.coord.venue_rejects.append((self.symbol, self.sid, kind, reason))
+            self.coord.emit("protection_failed", {
+                "symbol": self.symbol, "strategy": self.sid, "kind": kind,
+                "reason": reason, "action": "EMERGENCY_EXIT"
+            })
+            self._exit("KILL")
+            return
         self.coord.venue_rejects.append((self.symbol, self.sid, kind, reason))
         self.coord.emit("reject", {"symbol": self.symbol, "strategy": self.sid, "kind": kind, "reason": reason})
+        if kind == "ENTRY":
+            if getattr(self, "pending_margin", 0.0) > 0.0:
+                p_m = self.pending_margin
+                p_f = getattr(self, "pending_fee_est", 0.0)
+                self.coord.pending_reserved = max(0.0, self.coord.pending_reserved - (p_m + p_f))
+                self.pending_margin = 0.0
+                self.pending_fee_est = 0.0
         if kind == "ENTRY" and self.st == ENTERING and not self.t_fills:
             self.coord.deactivate(self)
             self._reset()
         elif kind in self.o:
             self.o[kind] = None
 
+    def on_order_expired(self, event) -> None:
+        self._order_failed(event)
+
     def on_order_canceled(self, event) -> None:
+        order = self.cache.order(event.client_order_id)
+        kind = order.tags[0] if order is not None and order.tags else ""
+        if kind == "ENTRY":
+            if getattr(self, "pending_margin", 0.0) > 0.0:
+                p_m = self.pending_margin
+                p_f = getattr(self, "pending_fee_est", 0.0)
+                if self.coord is not None:
+                    self.coord.pending_reserved = max(0.0, self.coord.pending_reserved - (p_m + p_f))
+                self.pending_margin = 0.0
+                self.pending_fee_est = 0.0
+            if self.st == ENTERING and not self.t_fills:
+                if self.coord is not None:
+                    self.coord.deactivate(self)
+                self._reset()
         for k, o in self.o.items():
             if o is not None and o.client_order_id == event.client_order_id:
                 self.o[k] = None

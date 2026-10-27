@@ -623,16 +623,19 @@ def _r(a, d: int) -> List[float]:
     return [round(float(x), d) for x in a]
 
 
-def stage_block(times_ms, equity, bench_equity=None, bench_label: Optional[str] = None) -> Dict[str, Any]:
+def stage_block(times_ms, equity, bench_equity=None, bench_label: Optional[str] = None, equity_worst=None) -> Dict[str, Any]:
     """times_ms: nhãn ms (nửa đêm UTC), trả về nhãn giây. bench_equity: cùng lưới thời gian hoặc None."""
     t = np.asarray(times_ms, dtype="int64")
     eq = np.asarray(equity, dtype="float64")
+    worst = np.asarray(equity_worst, dtype="float64") if equity_worst is not None else eq
+    if worst.shape != eq.shape:
+        worst = eq
     peak = np.maximum.accumulate(eq)
     ret = np.zeros(eq.shape[0])
     ret[1:] = (eq[1:] / eq[:-1] - 1.0) * 100.0
     out: Dict[str, Any] = {
         "times": [int(x // 1000) for x in t], "equity": _r(eq, 2), "pnl": _r(eq - eq[0], 2),
-        "drawdown_pct": _r((eq / peak - 1.0) * 100.0, 6), "ret_pct": _r(ret, 6), "benchmark": None,
+        "drawdown_pct": _r((np.minimum(eq, worst) / peak - 1.0) * 100.0, 6), "ret_pct": _r(ret, 6), "benchmark": None,
         "downsample": {"step": 1, "source_points": int(t.shape[0]), "points": int(t.shape[0]), "rule": RULE},
     }
     if bench_equity is not None:

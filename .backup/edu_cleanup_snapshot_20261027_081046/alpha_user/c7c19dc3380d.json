@@ -1,0 +1,223 @@
+{
+ "id": "c7c19dc3380d",
+ "name": "Version Demo v2",
+ "note": "Nâng cấp v2",
+ "source": "education",
+ "status": "SAVED",
+ "created_at": "2026-10-24T16:59:31.048975+00:00",
+ "updated_at": "2026-10-24T16:59:31.439346+00:00",
+ "code": "class VersionDemo(SimpleAlgorithm):\n    timeframe = \"1h\"\n    def __algorithm__(self):\n        c = self.data.pv_close\n        rsi = self.feat.rsi(c, timeperiod=14)\n        self.set_positions(rsi < 30, position=1)\n",
+ "program_hash": "4cc40ebb1e2d",
+ "config": {
+  "symbols": [
+   "BTC@perp"
+  ],
+  "timeframe": "15m"
+ },
+ "metrics": {
+  "simulate": {
+   "total_return_pct": 0.0,
+   "max_drawdown_pct": 0.0,
+   "sharpe": 0.0,
+   "win_rate": 0.0,
+   "total_trades": 0
+  }
+ },
+ "market_context": null,
+ "checklist": {
+  "all_passed": false,
+  "n_missing": 4,
+  "items": [
+   {
+    "id": "trades_ge_20",
+    "label": "Tối thiểu 20 lệnh giao dịch",
+    "state": "missing",
+    "passed": null,
+    "value": "không có dữ liệu",
+    "required": "≥ 20 lệnh"
+   },
+   {
+    "id": "has_test_stage",
+    "label": "Có kiểm định ngoài mẫu (Out-Of-Sample)",
+    "state": "fail",
+    "passed": false,
+    "value": "Chưa có",
+    "required": "Có giai đoạn test"
+   },
+   {
+    "id": "test_sharpe_positive",
+    "label": "Sharpe ngoài mẫu dương (Sharpe Test > 0)",
+    "state": "missing",
+    "passed": null,
+    "value": "không có dữ liệu",
+    "required": "> 0.0"
+   },
+   {
+    "id": "mdd_under_50",
+    "label": "Mức sụt giảm tối đa dưới 50% (MDD < 50%)",
+    "state": "missing",
+    "passed": null,
+    "value": "không có dữ liệu",
+    "required": "< 50%"
+   },
+   {
+    "id": "not_pure_beta",
+    "label": "Không phụ thuộc thuần túy vào thị trường (Beta-driven)",
+    "state": "missing",
+    "passed": null,
+    "value": "không có dữ liệu",
+    "required": "Không kích hoạt beta_driven"
+   }
+  ]
+ },
+ "data_sha": null,
+ "job_id": null,
+ "sample_key": null,
+ "final_equity": null,
+ "evidence": {
+  "job_id": null,
+  "program_hash": "4cc40ebb1e2d",
+  "data_source": null,
+  "data_sha256_1m": null,
+  "catalog_fingerprint": null,
+  "git_commit": "df6c525",
+  "job_created": null,
+  "job_finished": null,
+  "engine": "custom_run (PortfolioEngine)"
+ },
+ "explain": {
+  "indicators": [
+   {
+    "name": "rsi",
+    "call": "RSI(giá đóng cửa, 14)",
+    "label_vi": "Chỉ số sức mạnh tương đối",
+    "meaning_vi": "Đo lường vận tốc và biên độ dao động giá để đánh giá trạng thái hưng phấn hoặc hoảng loạn.",
+    "formula": "\\mathrm{RSI}_n = 100 - \\frac{100}{1 + \\frac{\\mathrm{Wilder}(U, n)}{\\mathrm{Wilder}(D, n)}}",
+    "timeframe": "1h",
+    "warmup": 57,
+    "category": "momentum"
+   }
+  ],
+  "rules": [
+   {
+    "index": 1,
+    "line": 6,
+    "level": 1.0,
+    "type": "entry_long",
+    "condition_vi": "RSI(giá đóng cửa, 14) nhỏ hơn 30",
+    "action_vi": "Vào LONG khi RSI(giá đóng cửa, 14) nhỏ hơn 30",
+    "is_event": false
+   }
+  ],
+  "execution": [
+   {
+    "title": "Khớp lệnh",
+    "desc": "Lệnh vào gửi khi nến tín hiệu 1h đóng, khớp ở giá đóng của nến đó; lệnh dừng khớp theo 'level'."
+   },
+   {
+    "title": "Thị trường & Đòn bẩy",
+    "desc": "Hợp đồng phái sinh vĩnh cửu (Perpetual), đòn bẩy trần 10x; chương trình này chỉ dùng chiều Long."
+   },
+   {
+    "title": "Phân bổ vốn",
+    "desc": "Mỗi lệnh chịu rủi ro 0.5% vốn tới mức cắt lỗ (định cỡ theo rủi ro), danh nghĩa tối đa 300% vốn."
+   },
+   {
+    "title": "Quản trị rủi ro",
+    "desc": "Ngoài tín hiệu thoát: Stop-Loss 3×ATR tính từ giá trung bình, nghỉ 60 phút sau khi thoát. ATR đo trên khung 1h, chu kỳ 14."
+   },
+   {
+    "title": "Chi phí giao dịch",
+    "desc": "Phí taker 0.05%, maker 0.02%, trượt giá 0% mỗi chiều."
+   }
+  ],
+  "warnings": [
+   "Quy tắc 1 (dòng 6): Tín hiệu dạng trạng thái (điều kiện so sánh liên tục); khi điều kiện duy trì đúng qua nhiều nến, lệnh chỉ được kích hoạt lại nếu vị thế trước đó đã đóng.",
+   "Chiến lược không có quy tắc thoát lệnh tường minh (set_positions(0)); vị thế chỉ đóng khi đổi chiều hoặc kết thúc kỳ backtest.",
+   "Chiến lược chỉ kích hoạt vị thế LONG (mua/nắm giữ), không tham gia chiều SHORT khi thị trường giảm."
+  ]
+ },
+ "result": {
+  "program_hash": "4cc40ebb1e2d",
+  "metrics": {
+   "simulate": {
+    "total_return_pct": 0.0,
+    "max_drawdown_pct": 0.0,
+    "sharpe": 0.0,
+    "win_rate": 0.0,
+    "total_trades": 0
+   }
+  },
+  "config": {
+   "symbols": [
+    "BTC@perp"
+   ],
+   "timeframe": "15m"
+  },
+  "indicators": [],
+  "checklist": {
+   "all_passed": false,
+   "n_missing": 4,
+   "items": [
+    {
+     "id": "trades_ge_20",
+     "label": "Tối thiểu 20 lệnh giao dịch",
+     "state": "missing",
+     "passed": null,
+     "value": "không có dữ liệu",
+     "required": "≥ 20 lệnh"
+    },
+    {
+     "id": "has_test_stage",
+     "label": "Có kiểm định ngoài mẫu (Out-Of-Sample)",
+     "state": "fail",
+     "passed": false,
+     "value": "Chưa có",
+     "required": "Có giai đoạn test"
+    },
+    {
+     "id": "test_sharpe_positive",
+     "label": "Sharpe ngoài mẫu dương (Sharpe Test > 0)",
+     "state": "missing",
+     "passed": null,
+     "value": "không có dữ liệu",
+     "required": "> 0.0"
+    },
+    {
+     "id": "mdd_under_50",
+     "label": "Mức sụt giảm tối đa dưới 50% (MDD < 50%)",
+     "state": "missing",
+     "passed": null,
+     "value": "không có dữ liệu",
+     "required": "< 50%"
+    },
+    {
+     "id": "not_pure_beta",
+     "label": "Không phụ thuộc thuần túy vào thị trường (Beta-driven)",
+     "state": "missing",
+     "passed": null,
+     "value": "không có dữ liệu",
+     "required": "Không kích hoạt beta_driven"
+    }
+   ]
+  }
+ },
+ "owner_id": "9fcec22fa0bb",
+ "version": 2,
+ "versions": [
+  {
+   "version": 1,
+   "saved_at": "2026-10-24T16:59:31.048975+00:00",
+   "program_hash": "3e2ed9e243de",
+   "job_id": null,
+   "name": "Version Demo"
+  },
+  {
+   "version": 2,
+   "saved_at": "2026-10-24T16:59:31.439346+00:00",
+   "program_hash": "4cc40ebb1e2d",
+   "job_id": null,
+   "name": "Version Demo v2"
+  }
+ ]
+}

@@ -219,8 +219,8 @@ export const getUserAlphaVersions = (alphaId) => request(`/api/studio/alphas/use
 export const getUserAlphaVersionCode = (alphaId, version) => request(`/api/studio/alphas/user/${enc(alphaId)}/versions/${enc(version)}`)
 
 /** Lưu alpha người dùng: server đọc kết quả từ job_id, kiểm tra program_hash. */
-export const postSaveUserAlpha = ({ job_id, code, name, note = '', source = 'alpha-create', alpha_id }) =>
-  request('/api/studio/alphas/user', { method: 'POST', body: { job_id, code, name, note, source, ...(alpha_id ? { alpha_id } : {}) } })
+export const postSaveUserAlpha = ({ job_id, code, name, note = '', source = 'alpha-create', alpha_id, forked_from }) =>
+  request('/api/studio/alphas/user', { method: 'POST', body: { job_id, code, name, note, source, ...(alpha_id ? { alpha_id } : {}), ...(forked_from ? { forked_from } : {}) } })
     .then((r) => { invalidateResource('alphas'); invalidateResource('meta'); return r })
 
 /** Lưu trữ (archive) alpha người dùng. */
@@ -455,14 +455,22 @@ export const getUserStrategies = (handle) => request(`/api/users/${enc(handle)}/
 /** Đọc phiên hiện tại: {user: User|null}. */
 export const getMe = () => request('/api/me')
 
-/** Đăng nhập theo handle: {ok: true, user: User}. */
-export const login = (handle) => request('/api/me/login', { method: 'POST', body: { handle } })
+/** Đăng nhập theo handle và password: {ok: true, user: User}. */
+export const login = (handle, password) => request('/api/me/login', { method: 'POST', body: { handle, password } })
+
+/** Đổi mật khẩu tài khoản đang đăng nhập. */
+export const changePassword = (currentPassword, newPassword) =>
+  request('/api/me/password', { method: 'POST', body: { current_password: currentPassword, new_password: newPassword } })
 
 /** Đăng xuất (xoá cookie). */
 export const enterByName = (name) => request('/api/me/enter', { method: 'POST', body: { name } })
 
 // Đăng xuất
 export const logout = () => request('/api/me/logout', { method: 'POST' })
+
+/** Đăng nhập qua mạng xã hội (Google Identity Services). */
+export const socialLogin = (credential, provider = 'google') =>
+  request('/api/me/social-login', { method: 'POST', body: { credential, provider } })
 
 /** Sửa thông tin cá nhân: {display_name?, avatar?, bio?}. */
 export const updateMe = (body) => request('/api/me', { method: 'PUT', body })
@@ -476,11 +484,25 @@ export const getHomeSummary = () => request('/api/home/summary')
 // Education Market (backend/routes/edu.py)
 // ═════════════════════════════════════════════════════════════════════════════
 
-/** Lưới user kèm tổng hợp: {users: [{handle, display_name, avatar, bio, n_strategies, total_pnl_usd, max_mdd_pct, best}]}. sort: pnl | new | name. */
+/** Lưới user kèm tổng hợp. Xếp hạng yêu cầu symbol, timeframe và cùng ngày bắt đầu/kết thúc. */
 const _eduCache = { market: {}, user: {} }
-export const eduMarketCached = (sort = 'pnl') => _eduCache.market[sort]
+export const eduMarketCached = (sort = 'best') => _eduCache.market[sort]
 export const eduUserCached = (handle) => _eduCache.user[handle]
-export const getEduMarket = (sort = 'pnl') => request(`/api/edu/market?sort=${enc(sort)}`).then((d) => (_eduCache.market[sort] = d))
+export const getEduMarket = (params = 'best') => {
+  const p = typeof params === 'string' ? { sort: params } : (params || {})
+  const sort = p.sort || 'best'
+  const qs = new URLSearchParams({ sort })
+  if (p.rankedOnly) qs.set('ranked_only', 'true')
+  if (p.timeframe && p.timeframe !== 'all') qs.set('timeframe', p.timeframe)
+  if (p.symbol && p.symbol !== 'all') qs.set('symbol', p.symbol)
+  if (p.startDate) qs.set('start_date', p.startDate)
+  if (p.endDate) qs.set('end_date', p.endDate)
+  if (p.regime && p.regime !== 'all') qs.set('regime', p.regime)
+  if (p.page) qs.set('page', String(p.page))
+  if (p.pageSize || p.page_size) qs.set('page_size', String(p.pageSize || p.page_size))
+  const key = qs.toString()
+  return request(`/api/edu/market?${key}`).then((d) => (_eduCache.market[key] = d))
+}
 
 /** Hồ sơ + chiến lược của 1 user: {user, summary, strategies: [{id, name, category, ret_pct, mdd_pct, sharpe, win_rate, trades, pnl_usd}]}. */
 export const getEduUser = (handle) => request(`/api/edu/users/${enc(handle)}`).then((d) => (_eduCache.user[handle] = d))
@@ -515,4 +537,3 @@ export const getUniverseRuns = () => request('/api/studio/scan/runs')
 export const getUniverseInfo = () => request('/api/studio/scan/universe_info')
 export const getLatestSweep = () => request('/api/studio/scan/sweep/latest')
 export const getLatestWfaCarlo = () => request('/api/studio/scan/wfa_carlo/latest')
-

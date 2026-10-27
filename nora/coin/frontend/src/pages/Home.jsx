@@ -11,26 +11,17 @@ const THEME_KEY = 'nora-theme'
 const sv = (d) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{d}</svg>
 )
-const ICONS = {
-  edu: sv(<><path d="M2 9l10-5 10 5-10 5z" /><path d="M6 11.5V16c3 2 9 2 12 0v-4.5" /></>),
-  coin: sv(<><circle cx="12" cy="12" r="9" /><path d="M14.5 9.2c-.5-.8-1.4-1.2-2.5-1.2-1.4 0-2.5.7-2.5 1.8 0 2.6 5 1.2 5 3.8 0 1.1-1.1 1.9-2.5 1.9-1.1 0-2.1-.5-2.6-1.4M12 6.5V8M12 16v1.5" /></>),
-}
+
 const FLOW = [
-  { t: 'Ý tưởng', s: 'Đặt giả thuyết giao dịch', i: sv(<><path d="M9 18h6M10 21h4" /><path d="M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z" /></>) },
-  { t: 'Chiến lược', s: 'Viết quy tắc vào và thoát lệnh', i: sv(<><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16" /></>) },
-  { t: 'Backtest', s: 'Thử trên dữ liệu thật', i: sv(<><path d="M3 3v18h18" /><path d="M7 15l4-4 3 3 5-6" /></>) },
-  { t: 'Kiểm định bền vững', s: 'Walk-forward, Monte Carlo', i: sv(<><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" /><path d="M9 12l2 2 4-4" /></>) },
-  { t: 'Chạy thử', s: 'Paper / demo trước khi dùng vốn', soon: true, i: sv(<><circle cx="12" cy="12" r="9" /><path d="M10 8.5l5 3.5-5 3.5z" /></>) },
-  { t: 'Vận hành', s: 'Theo dõi và quản lý danh mục', i: sv(<><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 9h18M8 14h3" /></>) },
+  { t: 'Ý tưởng & Giả thuyết', s: 'Đặt giả thuyết thị trường có cơ sở kinh tế', i: sv(<><path d="M9 18h6M10 21h4" /><path d="M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z" /></>) },
+  { t: 'Thiết kế Chiến lược', s: 'Quy tắc vào và thoát lệnh chính xác, quản trị rủi ro', i: sv(<><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16" /></>) },
+  { t: 'Backtest Đa tài sản', s: 'Thử nghiệm trên dữ liệu nến & tick thực', i: sv(<><path d="M3 3v18h18" /><path d="M7 15l4-4 3 3 5-6" /></>) },
+  { t: 'Kiểm định Bền vững', s: 'Walk-Forward Analysis và Monte Carlo 10,000 kịch bản', i: sv(<><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" /><path d="M9 12l2 2 4-4" /></>) },
+  { t: 'Paper / Testnet Demo', s: 'Chạy thử nghiệm an toàn, không dùng vốn thật', i: sv(<><circle cx="12" cy="12" r="9" /><path d="M10 8.5l5 3.5-5 3.5z" /></>) },
+  { t: 'Vận hành Danh mục', s: 'Theo dõi chỉ số Sharpe, MDD, Regime thị trường', i: sv(<><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 9h18M8 14h3" /></>) },
 ]
-const MODULES = [
-  { t: 'Dữ liệu & tư duy định lượng', s: 'Nền tảng để đọc thị trường', tags: ['Nến & khung thời gian', 'Lãi, lỗ & rủi ro', 'Dữ liệu thật đã kiểm định', 'Đọc biểu đồ'] },
-  { t: 'Chỉ báo & tín hiệu', s: 'Biến giá thành tín hiệu', tags: ['Xu hướng (EMA, Keltner)', 'Đảo chiều (RSI, Bollinger)', 'Phá vỡ (Donchian)', 'Kết hợp tín hiệu'] },
-  { t: 'Viết chiến lược', s: 'Từ ý tưởng đến quy tắc', tags: ['Mẫu hướng dẫn', 'Vào & thoát lệnh', 'Cắt lỗ, chốt lời', 'Quản lý vốn'] },
-  { t: 'Kiểm thử & đánh giá', s: 'Biết chiến lược đáng tin đến đâu', tags: ['Backtest', 'Train · Test', 'Sharpe, MDD, Win rate', 'So với mua & giữ'] },
-  { t: 'Cộng đồng & thực chiến', s: 'Học cùng nhau, thử thật', tags: ['Market chiến lược', 'Hồ sơ & thành tích', 'Sao chép & cải tiến', 'Chạy thử demo (sắp có)'] },
-]
-const NAV = [[0, 'Trang chủ'], [1, 'Hệ thống'], [2, 'Education'], [3, 'Coin']]
+
+const NAV = [[0, 'Trang chủ'], [1, 'Tính năng'], [2, 'Quy trình'], [3, 'Bắt đầu']]
 
 function Stat({ v, l, small }) {
   return (
@@ -48,18 +39,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true)
   const [currentSlide, setCurrentSlide] = useState(0)
 
-  const enterSystem = (targetPath) => {
-    if (typeof window !== 'undefined') {
-      const host = window.location.hostname
-      if (targetPath.startsWith('/coin') && host.includes('edu.nora.')) {
-        window.location.href = window.location.origin.replace('edu.nora.', 'coin.nora.') + targetPath
-        return
-      }
-      if (targetPath.startsWith('/edu') && host.includes('coin.nora.')) {
-        window.location.href = window.location.origin.replace('coin.nora.', 'edu.nora.') + targetPath
-        return
-      }
-    }
+  const enterSystem = (targetPath = '/coin/portfolio') => {
     if (me) {
       navigate(targetPath)
     } else {
@@ -113,7 +93,6 @@ export default function Home() {
     }
   }
 
-  const edu = summary?.edu
   const coin = summary?.coin
   const fmtVal = (val) => (val !== null && val !== undefined ? val : '—')
 
@@ -126,17 +105,16 @@ export default function Home() {
         <div className="nora-orb nora-orb-3" />
       </div>
 
-      {/* Header tối giản theo phong cách Claude, các nút dồn sang phải */}
+      {/* Header tối giản COIN */}
       <header className="nora-home-header">
         <Link to="/" className="nora-home-logo" onClick={() => scrollToSlide(0)}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{ width: 20, height: 20, color: 'var(--text-primary)' }}>
-            <path d="M20 12a8 8 0 1 1-3-6.2" />
-            <circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none" />
+            <circle cx="12" cy="12" r="9" />
+            <path d="M14.5 9.2c-.5-.8-1.4-1.2-2.5-1.2-1.4 0-2.5.7-2.5 1.8 0 2.6 5 1.2 5 3.8 0 1.1-1.1 1.9-2.5 1.9-1.1 0-2.1-.5-2.6-1.4M12 6.5V8M12 16v1.5" />
           </svg>
-          <span style={{ fontSize: 16, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--text-primary)' }}>Nora</span>
+          <span style={{ fontSize: 16, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--text-primary)' }}>Nora COIN</span>
         </Link>
 
-        {/* Các điều khiển được gom và dồn hoàn toàn sang phải */}
         <div className="nora-header-right">
           {NAV.map(([i, lbl]) => (
             <button key={i} type="button" className={`nora-nav-btn ${currentSlide === i ? 'active' : ''}`} onClick={() => scrollToSlide(i)}>
@@ -144,7 +122,7 @@ export default function Home() {
             </button>
           ))}
 
-          {/* Theme Toggle Button đồng nhất với các tab view */}
+          {/* Theme Toggle Button */}
           <button
             type="button"
             className="nora-nav-btn nora-theme-toggle"
@@ -177,121 +155,92 @@ export default function Home() {
         </div>
       </header>
 
+      {/* Slide 0: Hero Section */}
       <section id="slide-0" className="nora-slide">
         <div className="nora-hero-content">
-          <div className="nora-hero-kicker"><span>Nora</span></div>
+          <div className="nora-hero-kicker"><span>Nora COIN Workspace</span></div>
           <h1 className="nora-hero-title">
             Kiểm chứng chiến lược<br />
-            <span className="nora-hero-title-grad">trên dữ liệu thật</span>
+            <span className="nora-hero-title-grad">trên dữ liệu thị trường thật</span>
           </h1>
           <p className="nora-hero-subtitle">
-            Viết ý tưởng giao dịch, thử trên dữ liệu thị trường thật và biết rõ nó bền đến đâu.
+            Hệ thống backtest định lượng, đánh giá độ bền ngoài mẫu Walk-Forward, Monte Carlo và quản trị rủi ro danh mục chuyên nghiệp.
           </p>
-          <button type="button" className="n-btn primary nh-start" onClick={() => scrollToSlide(1)}>
-            Bắt đầu
+          <button type="button" className="n-btn primary nh-start" onClick={() => enterSystem('/coin/portfolio')}>
+            Vào Coin Workspace →
           </button>
         </div>
       </section>
 
+      {/* Slide 1: Tính năng cốt lõi COIN */}
       <section id="slide-1" className="nora-slide nh-sec">
         <div className="nh-wrap">
           <div className="nh-head">
-            <h2>Chọn hệ thống</h2>
-            <p>Hai không gian làm việc cho hai mục tiêu khác nhau.</p>
+            <h2>Tính năng cốt lõi</h2>
+            <p>Không gian làm việc chuyên sâu cho giao dịch định lượng & kiểm định danh mục.</p>
           </div>
           <div className="nh-choose">
-            <div className="nh-choice nh-edu">
-              <div className="nh-ico">{ICONS.edu}</div>
-              <h3>Education</h3>
-              <p className="nh-tag">Học giao dịch định lượng bằng cách tự tay làm.</p>
+            <div className="nh-choice nh-coin" style={{ gridColumn: 'span 2' }}>
+              <div className="nh-ico">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" style={{ width: 32, height: 32, color: 'var(--n-accent)' }}>
+                  <rect x="3.5" y="3.5" width="7" height="7" rx="1.5" /><rect x="13.5" y="3.5" width="7" height="7" rx="1.5" /><rect x="3.5" y="13.5" width="7" height="7" rx="1.5" /><rect x="13.5" y="13.5" width="7" height="7" rx="1.5" />
+                </svg>
+              </div>
+              <h3>Hệ thống Định lượng & Danh mục COIN</h3>
+              <p className="nh-tag">Đầy đủ công cụ từ nghiên cứu ý tưởng đến kiểm định bền vững.</p>
               <ul>
-                <li>Lộ trình từ cơ bản đến viết chiến lược hoàn chỉnh</li>
-                <li>Mẫu hướng dẫn sẵn để bắt đầu ngay</li>
-                <li>Xem kết quả kiểm thử ngay sau khi viết</li>
-                <li>Chia sẻ và học hỏi cùng cộng đồng</li>
-              </ul>
-              <button type="button" onClick={() => enterSystem('/edu')} className="nora-btn-cta">
-                <span>Vào Education →</span>
-              </button>
-            </div>
-            <div className="nh-choice nh-coin">
-              <div className="nh-ico">{ICONS.coin}</div>
-              <h3>Coin</h3>
-              <p className="nh-tag">Kiểm thử và đánh giá chiến lược nghiêm túc.</p>
-              <ul>
-                <li>Kiểm thử trên nhiều tài sản cùng lúc</li>
-                <li>Đánh giá độ bền ngoài mẫu, tránh chiến lược chỉ khớp quá khứ</li>
-                <li>Lưu lại toàn bộ lịch sử để xem và đối chiếu</li>
-                <li>Quản lý danh mục chiến lược tập trung</li>
+                <li><strong>Quản lý danh mục & KPI:</strong> Theo dõi NAV, Sharpe, Sortino, Calmar, Max Drawdown và chỉ báo Regime có dấu.</li>
+                <li><strong>Kiểm định đa tầng:</strong> Backtest trên dữ liệu thật, Scan Universe, Walk-Forward Analysis và Monte Carlo 10,000 kịch bản.</li>
+                <li><strong>Nghiên cứu Alpha:</strong> Phát triển ý tưởng, xây dựng giả thuyết thị trường có thể kiểm chứng độc lập.</li>
+                <li><strong>Vận hành Paper / Testnet:</strong> Kiểm soát rủi ro đa tài sản, cầu chì sụt giảm vốn và nút ngắt khẩn cấp.</li>
               </ul>
               <button type="button" onClick={() => enterSystem('/coin/portfolio')} className="nora-btn-cta">
-                <span>Vào Coin →</span>
+                <span>Vào Coin Workspace →</span>
               </button>
             </div>
           </div>
         </div>
       </section>
 
+      {/* Slide 2: Quy trình định lượng 5 bước */}
       <section id="slide-2" className="nora-slide nh-sec">
         <div className="nh-wrap nh-wide">
           <div className="nh-head">
-            <h2>Hệ sinh thái Education</h2>
-            <p>Lộ trình 5 module, từ đọc dữ liệu đến chia sẻ chiến lược cùng cộng đồng.</p>
-          </div>
-          <ol className="nh-road">
-            {MODULES.map((m, i) => (
-              <li key={m.t} className={`nh-mod ${i % 2 ? 'alt' : ''}`} style={{ '--k': i }}>
-                <ul className="nh-tags top">
-                  {m.tags.slice(0, 2).map((t) => <li key={t}>{t}</li>)}
-                </ul>
-                <div className="nh-chev">
-                  <small>MODULE {i + 1}</small>
-                  <strong>{m.t}</strong>
-                  <span>{m.s}</span>
-                </div>
-                <ul className="nh-tags bot">
-                  {m.tags.slice(2).map((t) => <li key={t}>{t}</li>)}
-                </ul>
-              </li>
-            ))}
-          </ol>
-          <div className="nh-stats">
-            <Stat v={loading ? <Spinner /> : fmtVal(edu?.users)} l="người học" />
-            <Stat v={loading ? <Spinner /> : fmtVal(edu?.strategies)} l="chiến lược đã viết" />
-            <Stat v={loading ? <Spinner /> : fmtVal(edu?.samples_ready)} l="mẫu sẵn sàng" />
-          </div>
-        </div>
-      </section>
-
-      <section id="slide-3" className="nora-slide nh-sec">
-        <div className="nh-wrap nh-wide">
-          <div className="nh-head">
-            <h2>Quy trình Coin</h2>
-            <p>Từ ý tưởng đến vận hành, mỗi bước đều có kiểm chứng.</p>
+            <h2>Quy trình kiểm chứng định lượng</h2>
+            <p>Từ ý tưởng ban đầu đến vận hành danh mục thực tế — mọi bước đều có bằng chứng.</p>
           </div>
           <ol className="nh-flow">
-            {FLOW.map((f, i) => (
+            {FLOW.map((f) => (
               <li key={f.t} className="nh-step">
                 <div className="nh-sico">{f.i}</div>
                 <strong>{f.t}</strong>
                 <span>{f.s}</span>
-                {f.soon && <em>sắp có</em>}
               </li>
             ))}
           </ol>
           <div className="nh-stats">
             <Stat v={loading ? <Spinner /> : fmtVal(coin?.system_strategies)} l="chiến lược hệ thống" />
-            <Stat v={loading ? <Spinner /> : fmtVal(coin?.symbols)} l="tài sản" />
-            <Stat v={loading ? <Spinner /> : fmtVal(coin?.data_end)} l="dữ liệu cập nhật đến" small />
+            <Stat v={loading ? <Spinner /> : fmtVal(coin?.symbols)} l="tài sản perp" />
+            <Stat v={loading ? <Spinner /> : fmtVal(coin?.data_end)} l="dữ liệu nến cập nhật đến" small />
           </div>
-          <div style={{ marginTop: 32 }}>
+        </div>
+      </section>
+
+      {/* Slide 3: Khởi đầu */}
+      <section id="slide-3" className="nora-slide nh-sec">
+        <div className="nh-wrap nh-wide">
+          <div className="nh-head">
+            <h2>Sẵn sàng bắt đầu</h2>
+            <p>Truy cập bảng điều khiển danh mục và kiểm chứng chiến lược của bạn ngay bây giờ.</p>
+          </div>
+          <div style={{ textAlign: 'center', marginTop: 32 }}>
             <button
               type="button"
               onClick={() => enterSystem('/coin/portfolio')}
               className="n-btn primary nh-start"
               style={{ textDecoration: 'none', display: 'inline-block' }}
             >
-              Vào Coin
+              Vào Bảng điều khiển COIN →
             </button>
           </div>
         </div>
@@ -308,7 +257,7 @@ export default function Home() {
         borderTop: '1px solid var(--border-color)',
         background: 'var(--header-bg)',
       }}>
-        Nora · 2026 · Kiểm chứng chiến lược trên dữ liệu thật
+        Nora COIN · 2026 · Nền tảng kiểm chứng chiến lược định lượng trên dữ liệu thật
       </footer>
     </div>
   )

@@ -3,12 +3,12 @@ nhưng khớp lệnh, phí, số dư, vị thế do `nautilus_trader.backtest.en
 
 Luồng một lần chạy (`backtest.NautilusRun`; dựng engine / nạp nến theo chunk ở backtest.py, kết quả ở results.py):
   1. Tín hiệu: tính SẴN bằng backend.signal.compute (SignalEngine / matrix_evaluator / entry_event_mask / _regime_gate) — đúng đường dữ liệu engine cũ.
-  2. Nến thực thi: ParquetDataCatalog (1m EXTERNAL, ts_event = đóng) — khung chạy > 1m do `catalog.aggregate_frame` gộp; nạp theo CHUNK (RAM bị chặn),
-     `BacktestEngine.run(streaming=True)` từng chunk.
+  2. Nến thực thi: ParquetDataCatalog (1m EXTERNAL, ts_event = đóng) — khung chạy > 1m do `catalog.aggregate_frame` gộp; nạp theo CHUNK (RAM bị chặn).
+     Market fills đi qua Nautilus matching engine tại open nến kế tiếp, dùng synthetic OHLC-open quotes; stop-loss dùng proxy x2.
   3. Mỗi (chiến lược × tài sản) một `NoraSlotStrategy`; `Coordinator` (portfolio.py) giữ luật rủi ro danh mục, kill switch, đường vốn.
   4. Kết quả: PositionModel / OrderModel dựng từ fill + PositionClosed của Nautilus; final_equity = số dư tài khoản Nautilus.
 
-Không mô phỏng (Nautilus không có; KHÔNG giả): trượt giá %, funding, thanh lý. Mỗi trường hợp ghi vào `results["warnings"]` + cờ riêng.
+Proxy spread và stop-loss là giả lập nghiên cứu, chưa đo/hiệu chuẩn theo fills venue; không mô phỏng depth/partial fills, funding hay thanh lý. Mỗi trường hợp ghi vào `results["warnings"]` + provenance.
 """
 import contextlib
 import io
@@ -25,14 +25,16 @@ from backend.analys.alpha import RiskConfig, aggregate_positions
 from backend.core import catalog as cat
 from backend.core.backtest import CHUNK_BARS, NautilusRun      # noqa: F401 — NautilusRun: lõi chạy ở backtest.py; re-export cho nơi gọi cũ
 
-FILL_CONVENTION = ("Lệnh market gửi lúc nến i đóng khớp ở GIÁ ĐÓNG nến i (Nautilus bar_execution); engine cũ khớp ở giá MỞ nến i+1. "
-                   "SL/TP/TRAIL/DCA khớp theo đường O→H→L→C của nến (bar_adaptive_high_low_ordering theo intrabar_path).")
+FILL_CONVENTION = ("Tín hiệu sau close nến i; market fill tại open nến i+1 qua synthetic OHLC-open quote trên Nautilus matching engine. "
+                   "Stop-loss dùng adverse x2 research proxy; chưa phải execution đo từ venue.")
 
 
 def provenance(base_frame: str) -> Dict[str, Any]:
     """Nguồn gốc MỘT kết quả engine (MỘT định nghĩa; mọi payload kết quả mang khoá `provenance`). Job runner chỉ thêm job_id / computed_at lên dict này."""
     return {"engine": "nautilus_trader", "version": NAUTILUS_VERSION, "base_frame": base_frame, "exec_frame": base_frame, "venue": "OKX", "oms": "NETTING", "account": "MARGIN",
-            "fill_convention": FILL_CONVENTION, "slippage_modeled": False, "funding_modeled": False, "liquidation_modeled": False}
+            "fill_convention": FILL_CONVENTION, "slippage_modeled": True, "slippage_measured": False,
+            "research_cost_proxy": "SYNTHETIC_OHLC_OPEN_SPREAD", "stop_slippage_proxy_multiplier": 2.0,
+            "quote_depth_modeled": False, "funding_modeled": False, "liquidation_modeled": False}
 
 
 # ═══ BacktestEngine: MỘT tài sản, nhiều flow ═══════════════════════════════

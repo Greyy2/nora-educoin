@@ -1,0 +1,13 @@
+{
+  "id": "1146961a84e0",
+  "handle": "dev_192c42",
+  "display_name": "Dev Version",
+  "avatar": {
+    "emoji": "🦊",
+    "color": "#EF4444"
+  },
+  "bio": "",
+  "role": "learner",
+  "created_at": "2026-10-25T23:42:53.538416+00:00",
+  "password_hash": "pbkdf2_sha256$100000$cbc9f0b9305a8a4572f5defe8151fbfc$078dfb46e46f60e277d639794ca12343dda3f2f873d64966c7c7509d21e911be"
+}

@@ -1,0 +1,13 @@
+{
+  "id": "f709d20ef2cd",
+  "handle": "e2e_edu_77fab9",
+  "display_name": "E2E Học Viên",
+  "avatar": {
+    "emoji": "🍀",
+    "color": "#8B5CF6"
+  },
+  "bio": "Test User",
+  "role": "learner",
+  "created_at": "2026-10-16T08:51:33.286770+00:00",
+  "password_hash": "pbkdf2_sha256$100000$cbc9f0b9305a8a4572f5defe8151fbfc$078dfb46e46f60e277d639794ca12343dda3f2f873d64966c7c7509d21e911be"
+}

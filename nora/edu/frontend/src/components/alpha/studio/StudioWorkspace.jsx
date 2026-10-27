@@ -22,6 +22,7 @@ import { POSITION_KEYS, validateRun, buildRunBody } from '../../../lib/runForm'
 import { newDraft, isDraftDirty, configToForm } from '../../../lib/studioDraft'
 import { postCompileStrategy, postCustomBacktest, postLiveBot, postSaveUserAlpha, getUserAlphas, getUserAlphaDetail, getUserAlphaCode, getUserAlphaVersionCode, getEducationSamples, getEducationSampleResult, postAnnotate, getEduSamplesVisible, getEduStrategy } from '../../../api'
 import UserAlphaVersionHistory from './UserAlphaVersionHistory'
+import EduStudioOnboarding from './EduStudioOnboarding'
 import { parseCompileError } from '../../../lib/customResult'
 import PromptResearchView from './PromptResearchView'
 import '../../../styles/alpha.css'
@@ -41,6 +42,25 @@ function loadSession(mode) {
           active: parsed.active || parsed.drafts[0].id,
           form: parsed.form || {},
           seeded: Boolean(hasContent),
+        }
+      }
+    }
+    if (mode === 'education') {
+      const backup = localStorage.getItem('nora_edu_draft_backup')
+      if (backup) {
+        const parsedBackup = JSON.parse(backup)
+        if (parsedBackup?.code) {
+          const d = newDraft(parsedBackup.name || 'Chiến lược của tôi', parsedBackup.code, {
+            alphaId: parsedBackup.alphaId || '',
+            sampleKey: parsedBackup.sampleKey || '',
+            storedId: parsedBackup.storedId || parsedBackup.alphaId || parsedBackup.sampleKey || '',
+          })
+          return {
+            drafts: [d],
+            active: d.id,
+            form: {},
+            seeded: false,
+          }
         }
       }
     }
@@ -80,9 +100,15 @@ export default function StudioWorkspace({ mode = 'create' }) {
   const form = resolveForm(DEFAULT_FORM, st.form, defaults)
   const drafts = st.drafts
   const draft = drafts.find((d) => d.id === st.active) || drafts[0]
-  const setForm = (patch) => set((p) => ({ form: { ...p.form, ...patch } }))
+  const setForm = (patch) => {
+    cancelSeeding()
+    set((p) => ({ seeded: true, form: { ...p.form, ...patch } }))
+  }
   const setDrafts = (next, active) => set({ drafts: next, ...(active ? { active } : {}) })
-  const patchById = (id, patch) => set((p) => ({ drafts: p.drafts.map((d) => (d.id === id ? { ...d, ...patch } : d)) }))
+  const patchById = (id, patch) => {
+    cancelSeeding()
+    set((p) => ({ seeded: true, drafts: p.drafts.map((d) => (d.id === id ? { ...d, ...patch } : d)) }))
+  }
   const patchDraft = (patch) => patchById(draft.id, patch)
 
   // Lưu bản nháp vào sessionStorage để tránh mất khi chuyển tab/tải lại trang
@@ -96,11 +122,21 @@ export default function StudioWorkspace({ mode = 'create' }) {
             storedId: stored?.id || d.saved?.alpha_id || d.alphaId || d.sampleKey || '',
           }))
           sessionStorage.setItem(`${STORAGE_PREFIX}${mode}`, JSON.stringify({ drafts: light, active: st.active, form: st.form }))
+          if (educ && draft?.code) {
+            localStorage.setItem('nora_edu_draft_backup', JSON.stringify({
+              code: draft.code,
+              name: draft.name,
+              alphaId: draft.alphaId || draft.saved?.alpha_id || '',
+              sampleKey: draft.sampleKey || '',
+              storedId: draft.stored?.id || '',
+              ts: Date.now(),
+            }))
+          }
         }
       } catch (e) { /* quota / chế độ riêng tư: bỏ qua, bản nháp vẫn còn trong RAM */ }
     }, 400)
     return () => clearTimeout(h)
-  }, [st.drafts, st.active, st.form, mode])
+  }, [st.drafts, st.active, st.form, mode, educ, draft?.code, draft?.name])
 
   const { me, loading: meLoading } = useUser()
   const saved = useResource('alphas', () => getUserAlphas(me?.id ? { owner_id: me.id } : {}), { deps: [me?.id] })
@@ -118,7 +154,41 @@ export default function StudioWorkspace({ mode = 'create' }) {
   const [setOpen, setSetOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [annOpen, setAnnOpen] = useState(false)
+  const [onboardingOpen, setOnboardingOpen] = useState(false)
   const [strip, setStrip] = useState(false)
+
+  // Tự động gợi ý hướng dẫn 8 bước cho học viên mới truy cập Studio theo DEC-04
+  useEffect(() => {
+    if (educ && !meLoading && !saved.loading) {
+      try {
+        const savedItems = Array.isArray(saved.data) ? saved.data : []
+        if (savedItems.length > 0) {
+          setOnboardingOpen(false)
+          return
+        }
+
+        const hasDirectQuery = typeof window !== 'undefined' && window.location.search && (
+          window.location.search.includes('alpha=') ||
+          window.location.search.includes('fork=') ||
+          window.location.search.includes('sample=')
+        )
+        if (hasDirectQuery) return
+
+        const raw = localStorage.getItem('nora_edu_onboarding')
+        if (raw) {
+          const parsed = JSON.parse(raw)
+          if (parsed?.dismissed || parsed?.completed) return
+          if (typeof parsed?.current_step === 'number') {
+            setOnboardingOpen(true)
+            return
+          }
+        }
+        if (!raw) {
+          setOnboardingOpen(true)
+        }
+      } catch (e) { /* bỏ qua lỗi localStorage */ }
+    }
+  }, [educ, meLoading, saved.loading, saved.data])
   const setRef = useRef(null)
   useEffect(() => {
     if (!setOpen && !historyOpen && !annOpen) return undefined
@@ -193,6 +263,13 @@ export default function StudioWorkspace({ mode = 'create' }) {
         stored: storedRec,
         baseCode: r.code || '',
         baseConfig: r.result?.config || null,
+        forkedFrom: {
+          alpha_id: r.id,
+          owner_handle: r.owner?.handle || '',
+          owner_name: r.owner?.display_name || '',
+          version: r.version || 1,
+          code_hash: r.card?.code_hash || '',
+        },
       })
       set((p) => ({
         seeded: true,
@@ -294,21 +371,15 @@ export default function StudioWorkspace({ mode = 'create' }) {
     return !configChanged && !codeChanged
   })
 
-  const canSave = educ
-    ? (draft.code.trim().length > 0 && changed && !isDup && !busy)
-    : (!!jobResult && draft.runCode === draft.code && changed && !isDup && !busy)
+  const canSave = !!jobResult && draft.runCode === draft.code && changed && !isDup && !busy
 
-  const saveWhy = educ
-    ? (!draft.code.trim() ? 'Nhập mã chiến lược trước khi lưu'
-      : !changed ? 'Chưa sửa so với bản đã lưu'
-      : isDup ? 'Đã lưu chiến lược có cùng code này'
-      : 'Lưu chiến lược vào danh mục của bạn')
-    : (!draft.jobId ? 'Chạy backtest cho code hiện tại trước khi lưu'
-      : !jobResult ? 'Chờ lần chạy hoàn tất'
-      : draft.runCode !== draft.code ? 'Chạy lại sau khi sửa'
-      : !changed ? (draft.sampleKey ? 'Mẫu chưa thay đổi: sửa code hoặc tham số rồi chạy lại' : 'Chưa sửa so với bản đã lưu: sửa code hoặc tham số rồi chạy lại')
-      : isDup ? 'Đã lưu chiến lược có cùng code và tham số này'
-      : 'Lưu chiến lược (code + cấu hình + kết quả đầy đủ)')
+  const saveWhy = !draft.code.trim() ? 'Nhập mã chiến lược trước khi lưu'
+    : !draft.jobId ? 'Chạy backtest cho code hiện tại trước khi lưu'
+    : !jobResult ? 'Chờ lần chạy hoàn tất'
+    : draft.runCode !== draft.code ? 'Chạy lại sau khi sửa'
+    : !changed ? (draft.sampleKey ? 'Mẫu chưa thay đổi: sửa code hoặc tham số rồi chạy lại' : 'Chưa sửa so với bản đã lưu: sửa code hoặc tham số rồi chạy lại')
+    : isDup ? (educ ? 'Đã lưu chiến lược có cùng code này' : 'Đã lưu chiến lược có cùng code và tham số này')
+    : 'Lưu chiến lược (code + cấu hình + kết quả đầy đủ)'
 
   function markSaved(res, name) {
     const savedName = name || draft.name
@@ -339,9 +410,11 @@ export default function StudioWorkspace({ mode = 'create' }) {
   }
 
   async function openSaved(id) {
+    cancelSeeding()
     const have = drafts.find((d) => d.saved?.alpha_id === id)
     if (have) {
       set((p) => ({
+        seeded: true,
         active: have.id,
         form: have.stored?.config ? { ...p.form, ...configToForm(have.stored.config, POSITION_KEYS) } : p.form,
       }))
@@ -360,13 +433,17 @@ export default function StudioWorkspace({ mode = 'create' }) {
         baseCode: rec.code || '',
         baseConfig: rec.config || null,
       })
-      set((p) => ({ drafts: [...p.drafts.filter((x) => x.code.trim() || x.jobId || x.saved || x.alphaId), d], active: d.id, form: { ...p.form, ...configToForm(rec.config, POSITION_KEYS) } }))
+      set((p) => ({ seeded: true, drafts: [...p.drafts.filter((x) => x.code.trim() || x.jobId || x.saved || x.alphaId), d], active: d.id, form: { ...p.form, ...configToForm(rec.config, POSITION_KEYS) } }))
       setCompiled(null); setTab('results')
       if (!rec.result) setNote({ tone: 'bad', text: 'Bản ghi cũ không có kết quả đã lưu: đã nạp code và cấu hình, hãy chạy lại.' })
     } catch (e) { setNote({ tone: 'bad', text: `Không mở được: ${e.message}` }) } finally { setOpeningId('') }
   }
 
-  const addDraft = (name, code) => { const d = newDraft(name, code); set((p) => ({ drafts: [...p.drafts, d], active: d.id })) }
+  const addDraft = (name, code) => {
+    cancelSeeding()
+    const d = newDraft(name, code)
+    set((p) => ({ seeded: true, drafts: [...p.drafts, d], active: d.id }))
+  }
   function closeDraft(id) {
     const d0 = drafts.find((d) => d.id === id)
     if (isDraftDirty(d0) && !window.confirm(`“${d0.name || 'Không tên'}” có thay đổi chưa lưu và sẽ mất khi đóng. Đóng không lưu?`)) return
@@ -382,17 +459,9 @@ export default function StudioWorkspace({ mode = 'create' }) {
   // Education: chỉ user chưa lưu chiến lược nào thấy đúng 1 mẫu hướng dẫn (backend quyết định); user đã có chiến lược không thấy mục mẫu.
   const sampleRes = useAsync(educ ? () => getEduSamplesVisible().then((r) => r.samples || []) : getEducationSamples, [educ, me?.id, meLoading])
   const sampleList = Array.isArray(sampleRes.data) ? sampleRes.data : []
-  const COMBO_STUDENT_NOTE = `# 💡 MẸO COMBO DANH MỤC CHO HỌC VIÊN:
-# 1. Bấm vào biểu tượng Cài đặt (⚙️) ở thanh công cụ phía trên.
-# 2. Bạn có thể chọn 1 coin (vd: BTC) hoặc tích nhiều coin (vd: BTC + ETH + SOL).
-# 3. Hệ thống sẽ tự động chạy chiến lược này trên từng coin và chia đều vốn (Equal Weight) để giảm độ sụt giảm tài khoản (Drawdown)!
-\n`
   const sampleText = async (code) => {
     if (!code) return code
-    let text = code
-    if (educ && !text.includes('MẸO COMBO DANH MỤC')) {
-      text = COMBO_STUDENT_NOTE + text
-    }
+    const text = code
     if (!educ) return text
     try { return (await postAnnotate(text, { as_comments: true })).annotated_code || text } catch (e) { return text }
   }
@@ -404,34 +473,41 @@ export default function StudioWorkspace({ mode = 'create' }) {
   // => Đảm bảo view kết quả (CustomResult) KHÔNG BAO GIỜ BỊ TRỐNG.
   const prevUserIdRef = useRef(me?.id)
   const seedingRef = useRef(false)
+  const seedGenerationRef = useRef(0)
+  const cancelSeeding = () => {
+    seedGenerationRef.current += 1
+    seedingRef.current = false
+  }
 
   // Khi đổi user đăng nhập trong header: reset cờ để nạp đúng chiến lược / mẫu của user mới
   useEffect(() => {
     if (prevUserIdRef.current !== me?.id) {
       prevUserIdRef.current = me?.id
-      seedingRef.current = false
+      cancelSeeding()
       set({ seeded: false })
     }
   }, [me?.id])
 
   useEffect(() => {
     if (meLoading || saved.loading) return
-    if (qJob || qAlpha || qFork) { set({ seeded: true }); return }
-    if (seedingRef.current) return
-
-    const d0 = drafts.find((d) => d.id === st.active) || drafts[0]
-    const hasResultOrJob = !!d0?.jobId || !!d0?.stored?.result
-
-    // Nếu đã seeded VÀ bản nháp hiện tại đã có code và kết quả -> giữ nguyên; nếu chưa có kết quả -> nạp ngay alpha đầu tiên
-    if (st.seeded && hasResultOrJob && d0?.code?.trim()) return
-
+    if (qJob || qAlpha || qFork) { cancelSeeding(); set({ seeded: true }); return }
     const hasSaved = savedItems.length > 0
+    if (st.seeded && hasSaved && !draft.saved?.alpha_id && !draft.alphaId) {
+      cancelSeeding()
+      set({ seeded: false })
+      return
+    }
+    if (seedingRef.current) return
+    if (st.seeded) return
 
-    if (hasSaved) {
-      // User ĐÃ CÓ chiến lược: nạp code và kết quả chiến lược ĐẦU TIÊN trong danh sách
-      const firstStrat = savedItems[0]
+    const firstStrat = hasSaved ? (savedItems.find((s) => s.has_result) || (sampleList.length > 0 ? null : savedItems[0])) : null
+
+    if (firstStrat) {
+      // User ĐÃ CÓ chiến lược có kết quả: nạp code và kết quả chiến lược đó
+      const generation = ++seedGenerationRef.current
       seedingRef.current = true
       getUserAlphaDetail(firstStrat.id).then((rec) => {
+        if (generation !== seedGenerationRef.current) return
         const d = newDraft(rec.name || firstStrat.name || firstStrat.id, rec.code || '', {
           saved: { alpha_id: rec.id, code: rec.code || '', name: rec.name || rec.id },
           stored: rec,
@@ -441,7 +517,7 @@ export default function StudioWorkspace({ mode = 'create' }) {
           baseCode: rec.code || '',
           baseConfig: rec.config || null,
         })
-        set((p) => ({
+        set((p) => p.seeded ? p : ({
           seeded: true,
           drafts: [d],
           active: d.id,
@@ -450,14 +526,15 @@ export default function StudioWorkspace({ mode = 'create' }) {
         setCompiled(null)
         setTab('results')
       }).catch(() => {
-        set({ seeded: true })
+        if (generation === seedGenerationRef.current) set({ seeded: true })
       }).finally(() => {
-        seedingRef.current = false
+        if (generation === seedGenerationRef.current) seedingRef.current = false
       })
     } else {
-      // User CHƯA CÓ chiến lược: nạp code mẫu VÀ kết quả của code mẫu đó
+      // User CHƯA CÓ chiến lược có kết quả: nạp code mẫu VÀ kết quả tính sẵn của code mẫu đó
       const s0 = sampleList[0]
       if (!s0 && sampleRes.loading) return // Đợi danh sách mẫu tải xong
+      const generation = ++seedGenerationRef.current
       seedingRef.current = true
 
       const fetchSample = async () => {
@@ -468,7 +545,13 @@ export default function StudioWorkspace({ mode = 'create' }) {
             if (Array.isArray(allSamples) && allSamples.length) sampleObj = allSamples[0]
           } catch (e) { /* fallback */ }
         }
-        if (!sampleObj) { set({ seeded: true }); seedingRef.current = false; return }
+        if (!sampleObj) {
+          if (generation === seedGenerationRef.current) {
+            set({ seeded: true })
+            seedingRef.current = false
+          }
+          return
+        }
 
         const text = await sampleText(sampleObj.code)
         let sampleResData = sampleObj.result || null
@@ -498,7 +581,8 @@ export default function StudioWorkspace({ mode = 'create' }) {
           alphaVersion: 1,
         })
 
-        set((p) => ({
+        if (generation !== seedGenerationRef.current) return
+        set((p) => p.seeded ? p : ({
           seeded: true,
           drafts: [d],
           active: d.id,
@@ -508,7 +592,9 @@ export default function StudioWorkspace({ mode = 'create' }) {
         setTab('results')
       }
 
-      fetchSample().catch(() => set({ seeded: true })).finally(() => { seedingRef.current = false })
+      fetchSample()
+        .catch(() => { if (generation === seedGenerationRef.current) set({ seeded: true }) })
+        .finally(() => { if (generation === seedGenerationRef.current) seedingRef.current = false })
     }
   }, [meLoading, saved.loading, savedItems.length, sampleList.length, sampleRes.loading, st.seeded, drafts]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -516,7 +602,11 @@ export default function StudioWorkspace({ mode = 'create' }) {
   // 1. Alpha đã lưu: nếu draft đang trỏ tới một alpha nhưng kết quả bị rỗng -> nạp lại từ backend
   const savedHydrated = useRef(new Set())
   useEffect(() => {
-    const targetId = draft.saved?.alpha_id || draft.alphaId || (draft.storedId && !draft.sampleKey ? draft.storedId : '')
+    let targetId = draft.saved?.alpha_id || draft.alphaId || (draft.storedId && !draft.sampleKey ? draft.storedId : '')
+    if (!targetId && savedItems?.length) {
+      const match = savedItems.find((s) => s.name === draft.name || s.id === draft.name)
+      if (match) targetId = match.id
+    }
     if (!targetId || draft.stored?.result || draft.jobId || savedHydrated.current.has(targetId)) return
     savedHydrated.current.add(targetId)
     const id = draft.id
@@ -528,15 +618,21 @@ export default function StudioWorkspace({ mode = 'create' }) {
         name: rec.name || draft.name,
         code: draft.code || rec.code || '',
         baseCode: draft.baseCode || rec.code || '',
+        alphaId: rec.id,
+        alphaVersion: rec.version || 1,
       })
       if (rec.config) set((p) => ({ form: { ...p.form, ...configToForm(rec.config, POSITION_KEYS) } }))
     }).catch(() => { /* bỏ qua */ })
-  }, [draft.id, draft.saved?.alpha_id, draft.alphaId, draft.storedId, draft.sampleKey, draft.stored?.result, draft.jobId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [draft.id, draft.name, draft.saved?.alpha_id, draft.alphaId, draft.storedId, draft.sampleKey, draft.stored?.result, draft.jobId, savedItems]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // 2. Mẫu: nếu draft đang trỏ tới mẫu nhưng kết quả bị rỗng -> nạp kết quả tính sẵn từ backend
   const sampleTried = useRef(new Set())
   useEffect(() => {
-    const key = draft.sampleKey || (draft.storedId && !draft.alphaId && !draft.saved?.alpha_id ? draft.storedId : '')
+    let key = draft.sampleKey || (draft.storedId && !draft.alphaId && !draft.saved?.alpha_id ? draft.storedId : '')
+    if (!key && sampleList?.length) {
+      const match = sampleList.find((s) => s.name === draft.name || s.key === draft.name)
+      if (match) key = match.key
+    }
     if (!key || draft.stored?.result || draft.jobId || sampleTried.current.has(key)) return
     sampleTried.current.add(key)
     const id = draft.id
@@ -548,7 +644,7 @@ export default function StudioWorkspace({ mode = 'create' }) {
       })
       if (resData.config) set((p) => ({ form: { ...p.form, ...configToForm(resData.config, POSITION_KEYS) } }))
     }).catch(() => { /* NOT_READY / lỗi: không thử lại trong phiên */ })
-  }, [draft.id, draft.sampleKey, draft.storedId, draft.alphaId, draft.saved?.alpha_id, draft.stored?.result, draft.jobId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [draft.id, draft.name, draft.sampleKey, draft.storedId, draft.alphaId, draft.saved?.alpha_id, draft.stored?.result, draft.jobId, sampleList]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Giải thích từng dòng (chỉ education) = chú thích `# ▸` trong chính code, do backend sinh (annotate as_comments, idempotent); không có widget nào trong editor.
   const [annBusy, setAnnBusy] = useState(false)
@@ -619,13 +715,14 @@ export default function StudioWorkspace({ mode = 'create' }) {
   }, [educ, allStrategies.length, sampleList.length, savedItems.length])
 
   async function useSample(s) {
+    cancelSeeding()
     // 1. Mẫu đã mở ở một tab -> chọn tab đó (khoá trước, dự phòng theo tên)
     const openDraft = findBy(drafts, s, (d) => d.sampleKey, (d) => d.name)
     if (openDraft) { activateTab(openDraft.id); return }
 
-    // 2. Đã có bản lưu trong kho alpha người dùng -> mở bản lưu
+    // 2. Đã có bản lưu trong kho alpha người dùng VÀ có kết quả -> mở bản lưu
     const matched = findBy(savedItems, s, (a) => a.id, (a) => a.name)
-    if (matched) { await openSaved(matched.id); return }
+    if (matched && matched.has_result) { await openSaved(matched.id); return }
 
     // 3. Tab mới chứa code mẫu; tự động nạp kết quả tính sẵn để view ngay lập tức không bị trống
     let sampleResData = s.result || null
@@ -648,9 +745,9 @@ export default function StudioWorkspace({ mode = 'create' }) {
       // Tab đang mở còn trống (chưa có code/ghi chú, chưa chạy, chưa lưu) -> ghi mẫu vào chính tab đó; ngược lại mở tab mới.
       const cur = p.drafts.find((x) => x.id === p.active) || p.drafts[0]
       if (cur && !cur.code.trim() && !cur.jobId && !cur.saved && !cur.alphaId) {
-        return { drafts: p.drafts.map((x) => (x.id === cur.id ? { ...d, id: cur.id } : x)), active: cur.id, form: formPatch(p) }
+        return { seeded: true, drafts: p.drafts.map((x) => (x.id === cur.id ? { ...d, id: cur.id } : x)), active: cur.id, form: formPatch(p) }
       }
-      return { drafts: [...p.drafts, d], active: d.id, form: formPatch(p) }
+      return { seeded: true, drafts: [...p.drafts, d], active: d.id, form: formPatch(p) }
     })
     setCompiled(null)
     setTab('results')
@@ -690,12 +787,15 @@ export default function StudioWorkspace({ mode = 'create' }) {
   }
 
   const onCodeChange = (code) => {
+    cancelSeeding()
     // Khi sửa code khác mẫu gốc: xoá cờ sampleKey & stored để không tự động nạp lại kết quả mẫu
     const isCustomized = draft.sampleKey && code !== draft.baseCode
-    patchDraft({
-      code,
-      ...(isCustomized ? { sampleKey: '', stored: null, saved: null, alphaId: '' } : {}),
-    })
+    set((p) => ({
+      seeded: true,
+      drafts: p.drafts.map((d) => d.id === draft.id
+        ? { ...d, code, ...(isCustomized ? { sampleKey: '', stored: null, saved: null, alphaId: '' } : {}) }
+        : d),
+    }))
   }
 
   return (
@@ -710,7 +810,7 @@ export default function StudioWorkspace({ mode = 'create' }) {
                 <span className="file-icon" style={{ opacity: 0.75, fontSize: 12 }}>🐍</span>
                 <span>{d.name.endsWith('.py') ? d.name : `${d.name}.py`}</span>
               </button>
-              <button type="button" className="x" aria-label={`Đóng ${d.name}`} onClick={() => closeDraft(d.id)}>×</button>
+              <button type="button" className="x" aria-label={`Tắt tab ${d.name}`} onClick={() => closeDraft(d.id)}>×</button>
             </div>
           ))}
           <button type="button" className="se-add" title="Thêm file mới" aria-label="Thêm bản nháp" onClick={() => addDraft(`Chiến lược ${drafts.length + 1}`, '')}>+</button>
@@ -739,6 +839,17 @@ export default function StudioWorkspace({ mode = 'create' }) {
           <div className="se-btns" ref={setRef}>
             <button type="button" className={`n-icon-btn ${problems.length ? 'warn' : ''}`} aria-label="Cài đặt chạy" aria-expanded={setOpen} title="Cài đặt chạy" onClick={() => setSetOpen(!setOpen)}>{ICON.gear}</button>
             <button type="button" className="n-icon-btn" aria-label="Kiểm tra code" title="Kiểm tra (biên dịch, không chạy)" disabled={!!busy || !draft.code.trim()} onClick={() => { compile(); setStrip(true) }}>{busy === 'compile' ? <Spinner /> : ICON.check}</button>
+            {educ && savedItems.length === 0 && (
+              <button
+                type="button"
+                className="n-icon-btn"
+                aria-label="Hướng dẫn Studio"
+                title="Xem hướng dẫn Studio 8 bước"
+                onClick={() => setOnboardingOpen(true)}
+              >
+                🎓
+              </button>
+            )}
             {educ && <button type="button" className="n-icon-btn" aria-label="Chú thích" aria-expanded={annOpen} title="Chú thích tiếng Việt `# ▸` trên từng dòng" disabled={annBusy || !draft.code.trim()} onClick={() => setAnnOpen(!annOpen)}>{annBusy ? <Spinner /> : <b style={{ fontSize: 12 }}>▸#</b>}</button>}
             <button type="button" className="n-icon-btn" aria-label="Nhân bản" title="Nhân bản sang tab mới" onClick={() => addDraft(`${draft.name} (bản sao)`, draft.code)}>{ICON.copy}</button>
             {educ && annOpen && (
@@ -751,7 +862,7 @@ export default function StudioWorkspace({ mode = 'create' }) {
               <div className="n-pop se-setp" role="dialog" aria-label="Cài đặt chạy">
                 <div className="n-pop-h"><b>Cài đặt chạy</b><button type="button" className="n-btn sm" onClick={() => setSetOpen(false)}>Đóng</button></div>
                 <div className="se-setb">
-                  <RunSettings form={form} setForm={setForm} universe={universe} defaultsError={defaultsError} problems={problems} />
+                  <RunSettings form={form} setForm={setForm} universe={universe} defaultsError={defaultsError} problems={problems} signalFrame={!stale && compiled?.ok ? tm : null} defaultExecMode={defaultExecMode(meta)} />
                 </div>
               </div>
             )}
@@ -839,8 +950,12 @@ export default function StudioWorkspace({ mode = 'create' }) {
                 <CustomResult
                   key={draft.jobId}
                   result={jobResult}
-                  explain={educ}
+                  explain={educ && savedItems.length === 0}
                   tourKey={''}
+                  editorCode={draft.code}
+                  runCode={draft.runCode}
+                  currentForm={form}
+                  defaultMode={defaultExecMode(meta)}
                   jobLine={<JobLine job={job} savedId={draft.saved && draft.saved.alpha_id === draft.runAlpha ? draft.saved.alpha_id : ''} onClear={() => patchDraft({ jobId: '', runCode: '', runAlpha: draft.saved ? draft.saved.alpha_id : '' })} />}
                 />
               )}
@@ -848,8 +963,12 @@ export default function StudioWorkspace({ mode = 'create' }) {
                 <CustomResult
                   key={`s-${draft.stored.id}`}
                   result={draft.stored.result}
-                  explain={educ}
+                  explain={educ && savedItems.length === 0}
                   tourKey={educ && savedItems.length === 0 ? `sample-${draft.stored.id || draft.sampleKey || 's0'}` : ''}
+                  editorCode={draft.code}
+                  runCode={draft.runCode}
+                  currentForm={form}
+                  defaultMode={defaultExecMode(meta)}
                   jobLine={<StoredLine rec={draft.stored} />}
                 />
               )}
@@ -988,9 +1107,25 @@ export default function StudioWorkspace({ mode = 'create' }) {
         source={educ ? 'education' : 'alpha-create'}
         alphaId={draft.alphaId || ''}
         alphaVersion={draft.alphaVersion || 0}
+        forkedFrom={draft.forkedFrom || null}
         onSaved={markSaved}
       />
       <LeaveGuardDialog blocker={blocker} dirtyNames={dirtyDrafts.map((d) => d.name || 'Không tên')} canSave={canSave && dirtyDrafts.length === 1 && dirtyDrafts[0].id === draft.id} onSave={saveForLeave} />
+      {educ && savedItems.length === 0 && (
+        <EduStudioOnboarding
+          isOpen={onboardingOpen}
+          onClose={() => setOnboardingOpen(false)}
+          onLoadSample={(sampleCode) => {
+            cancelSeeding()
+            set((p) => ({
+              seeded: true,
+              drafts: p.drafts.map((d) => d.id === draft.id ? { ...d, code: sampleCode } : d),
+            }))
+            setCompiled(null)
+            setOnboardingOpen(false)
+          }}
+        />
+      )}
     </div>
   )
 }

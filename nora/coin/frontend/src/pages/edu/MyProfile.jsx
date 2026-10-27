@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { getUser, getUserStrategies, updateMe } from '../../api'
+import { changePassword as apiChangePassword, getUser, getUserStrategies, updateMe } from '../../api'
 import { useUser } from '../../meta/UserProvider'
 import UserPicker from '../../components/user/UserPicker'
 import { Spinner } from '../../components/ui'
@@ -21,6 +21,12 @@ export default function MyProfile() {
   const [editBio, setEditBio] = useState('')
   const [editSaving, setEditSaving] = useState(false)
   const [editErr, setEditErr] = useState(null)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [passwordSaving, setPasswordSaving] = useState(false)
+  const [passwordError, setPasswordError] = useState(null)
+  const [passwordSuccess, setPasswordSuccess] = useState(null)
 
   const [pickerOpen, setPickerOpen] = useState(false)
 
@@ -77,6 +83,33 @@ export default function MyProfile() {
     if (!cleanName) {
       setEditErr('Tên hiển thị không được để trống.')
       return
+    }
+
+    const handleChangePassword = async (e) => {
+      e.preventDefault()
+      setPasswordError(null)
+      setPasswordSuccess(null)
+      if (newPassword !== confirmPassword) {
+        setPasswordError('Mật khẩu mới xác nhận không khớp.')
+        return
+      }
+      if (newPassword.length < 8) {
+        setPasswordError('Mật khẩu mới phải có ít nhất 8 ký tự.')
+        return
+      }
+
+      setPasswordSaving(true)
+      try {
+        await apiChangePassword(currentPassword, newPassword)
+        setCurrentPassword('')
+        setNewPassword('')
+        setConfirmPassword('')
+        setPasswordSuccess('Đã đổi mật khẩu.')
+      } catch (err) {
+        setPasswordError(err.message || 'Không thể đổi mật khẩu.')
+      } finally {
+        setPasswordSaving(false)
+      }
     }
 
     setEditSaving(true)
@@ -355,6 +388,71 @@ export default function MyProfile() {
           </div>
         )}
       </div>
+
+      {isMe && me && (
+        <section style={{
+          background: 'var(--n-surface)',
+          border: '1px solid var(--n-line)',
+          borderRadius: 16,
+          padding: 28,
+          marginBottom: 36,
+        }}>
+          <h2 style={{ fontSize: 20, fontWeight: 700, margin: '0 0 8px', color: 'var(--n-ink)' }}>
+            Đổi mật khẩu
+          </h2>
+          <p style={{ fontSize: 13, color: 'var(--n-ink-2)', margin: '0 0 18px' }}>
+            Nhập mật khẩu hiện tại và chọn mật khẩu mới có ít nhất 8 ký tự.
+          </p>
+          <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 520 }}>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: 'var(--n-ink-2)' }}>
+              Mật khẩu hiện tại
+              <input
+                type="password"
+                autoComplete="current-password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                required
+                maxLength={128}
+                disabled={passwordSaving}
+                style={{ padding: '8px 10px', borderRadius: 6, background: 'var(--n-surface-2)', border: '1px solid var(--n-line)', color: 'inherit', fontSize: 13 }}
+              />
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: 'var(--n-ink-2)' }}>
+              Mật khẩu mới
+              <input
+                type="password"
+                autoComplete="new-password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                required
+                minLength={8}
+                maxLength={128}
+                disabled={passwordSaving}
+                style={{ padding: '8px 10px', borderRadius: 6, background: 'var(--n-surface-2)', border: '1px solid var(--n-line)', color: 'inherit', fontSize: 13 }}
+              />
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: 'var(--n-ink-2)' }}>
+              Xác nhận mật khẩu mới
+              <input
+                type="password"
+                autoComplete="new-password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                minLength={8}
+                maxLength={128}
+                disabled={passwordSaving}
+                style={{ padding: '8px 10px', borderRadius: 6, background: 'var(--n-surface-2)', border: '1px solid var(--n-line)', color: 'inherit', fontSize: 13 }}
+              />
+            </label>
+            {passwordError && <div className="n-err" role="alert" style={{ fontSize: 12 }}>{passwordError}</div>}
+            {passwordSuccess && <div role="status" style={{ color: 'var(--n-accent)', fontSize: 13 }}>{passwordSuccess}</div>}
+            <button type="submit" className="n-btn primary sm" disabled={passwordSaving || !currentPassword || !newPassword || !confirmPassword}>
+              {passwordSaving ? 'Đang đổi...' : 'Đổi mật khẩu'}
+            </button>
+          </form>
+        </section>
+      )}
 
       {/* Strategies Overview section */}
       <div>

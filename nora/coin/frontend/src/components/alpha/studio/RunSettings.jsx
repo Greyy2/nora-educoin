@@ -91,19 +91,40 @@ export default function RunSettings({ form, setForm, universe, defaultsError, pr
           </div>
         )}
 
-        <div className="n-chips" role="group" aria-labelledby="se-uni-l">
-          {universe.map((s) => {
-            const on = form.symbols.includes(s)
-            return <label key={s} className={`n-chip-lbl ${on ? 'on' : ''}`}><input type="checkbox" checked={on} onChange={() => toggleSym(s)} />{symName(s)}</label>
-          })}
-        </div>
-        {universe.length === 0 && <span className="n-note">{defaultsError ? `Không tải được mặc định từ kho dữ liệu: ${defaultsError}` : 'Đang tải danh sách tài sản…'}</span>}
-        {universe.length > 0 && (
-          <div className="se-row">
-            <button type="button" className="n-btn sm" onClick={() => setForm({ symbols: universe })}>Chọn tất cả</button>
-            <button type="button" className="n-btn sm" onClick={() => setForm({ symbols: [] })}>Bỏ chọn</button>
-          </div>
-        )}
+        {/* Sắp xếp tài sản: top assets lên đầu (BTC, ETH, SOL, BNB...) */}
+        {(() => {
+          const topOrder = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'DOGE', 'ADA', 'AVAX', 'LINK', 'TRX']
+          const sortedUni = [...universe].sort((a, b) => {
+            const baseA = symName(a).toUpperCase()
+            const baseB = symName(b).toUpperCase()
+            const idxA = topOrder.indexOf(baseA)
+            const idxB = topOrder.indexOf(baseB)
+            if (idxA !== -1 && idxB !== -1) return idxA - idxB
+            if (idxA !== -1) return -1
+            if (idxB !== -1) return 1
+            return baseA.localeCompare(baseB)
+          })
+
+          return (
+            <>
+              <div className="n-chips" role="group" aria-labelledby="se-uni-l">
+                {sortedUni.map((s) => {
+                  const on = form.symbols.includes(s)
+                  return <label key={s} className={`n-chip-lbl ${on ? 'on' : ''}`}><input type="checkbox" checked={on} onChange={() => toggleSym(s)} />{symName(s)}</label>
+                })}
+              </div>
+              {universe.length === 0 && <span className="n-note">{defaultsError ? `Không tải được mặc định từ kho dữ liệu: ${defaultsError}` : 'Đang tải danh sách tài sản…'}</span>}
+              {universe.length > 0 && (
+                <div className="se-row" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+                  <button type="button" className="n-btn sm" onClick={() => setForm({ symbols: sortedUni })}>Chọn tất cả ({sortedUni.length})</button>
+                  <button type="button" className="n-btn sm" onClick={() => setForm({ symbols: sortedUni.slice(0, 10) })}>Chọn Top 10</button>
+                  <button type="button" className="n-btn sm" onClick={() => setForm({ symbols: sortedUni.slice(0, 5) })}>Chọn Top 5</button>
+                  <button type="button" className="n-btn sm" onClick={() => setForm({ symbols: [] })}>Bỏ chọn</button>
+                </div>
+              )}
+            </>
+          )
+        })()}
         <span className="n-note">Hợp đồng vĩnh cửu OKX (perp); khối lượng theo rủi ro mỗi lệnh, cắt lỗ mặc định 3×ATR, phí và trượt giá theo sàn.</span>
       </div>
 

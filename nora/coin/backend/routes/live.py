@@ -66,8 +66,7 @@ class BatchBotRequest(BaseModel):
     mode: Optional[str] = Field(None, pattern="^(paper|testnet|live)$")
 
 
-@router.on_event("startup")
-def _start_live_supervisor() -> None:
+def start_live_supervisor() -> None:
     """Chạy lại bot chết (không do người dùng dừng) khi API khởi động và mỗi 30 giây; bot còn tiến trình sống không bị động tới."""
     live_supervisor.start()
 
@@ -91,8 +90,15 @@ def post_start_bot(body: StartBotRequest) -> Dict[str, Any]:
     if body.mode == "live" and not body.confirm_live:
         raise HTTPException(400, "Chế độ Live tiền thật yêu cầu confirm_live=True để xác nhận")
 
+    matched: Optional[Dict[str, Any]] = None
+    from backend.adapter.contracts import (
+        verify_candidate_parity_provenance,
+        verify_backtest_job_parity,
+        get_execution_contract_manifest,
+    )
+    from backend.analys.alpha import strategies
+
     if body.from_picker:                    # từ bộ chọn: chỉ chạy đúng (chiến lược, khung tín hiệu) đã có backtest lãi được lưu
-        from backend.analys.alpha import strategies
         if not body.alpha_id or not body.signal_tf:
             raise HTTPException(400, "Từ bộ chọn cần alpha_id và signal_tf")
         candidates = strategies.live_candidates()
@@ -100,37 +106,79 @@ def post_start_bot(body: StartBotRequest) -> Dict[str, Any]:
         if not matched:
             raise HTTPException(400, f"Chiến lược {body.alpha_id} chưa có backtest lãi ở khung {body.signal_tf}")
 
+        is_promotable, q_reason = verify_candidate_parity_provenance(matched)
+        if not is_promotable:
+            raise HTTPException(400, detail={
+                "code": "ALPHA_RESULT_STALE_OR_UNPROVEN",
+                "message": f"Chiến lược {body.alpha_id} đang bị cách ly (stale pre-parity): {q_reason}",
+                "quarantine_reason": q_reason,
+            })
+
         is_custom = body.params is not None
         cand_syms = set(matched.get("symbols") or [])
         req_syms = set(body.symbols or [])
         if cand_syms and req_syms != cand_syms:
             is_custom = True
         if is_custom:
-            if not body.backtest_job_id:
-                raise HTTPException(400, "Cấu hình tuỳ chỉnh bắt buộc phải có backtest_job_id đã chạy trước khi bật bot")
             from backend.jobs import runner, tasks
-            jb = runner.status(body.backtest_job_id)
-            if not jb or jb.get("status") != "done":
-                raise HTTPException(400, f"Job backtest {body.backtest_job_id} chưa hoàn thành hoặc không tồn tại")
-            rec = tasks.picker_backtest_get(body.backtest_job_id)
-            if not rec:
-                raise HTTPException(400, "Job backtest không phải từ bộ chọn (không có cấu hình đã lưu)")
             try:
-                rs = tasks.resolve_strategy(body.alpha_id, None, body.signal_tf, body.params, body.symbols, matched.get("book"))
+                tasks.resolve_strategy(body.alpha_id, None, body.signal_tf, body.params, body.symbols, matched.get("book"))
             except tasks.ConfigError as e:
                 raise HTTPException(400, "; ".join(f"{f}: {m}" for f, m in e.errors))
-            if rs["hash"] != rec.get("hash") or (rec.get("book_source") or None) != (matched.get("book") or None):
-                raise HTTPException(400, "Cấu hình khác lần backtest")
+            if body.backtest_job_id:
+                jb = runner.status(body.backtest_job_id)
+                if not jb or jb.get("status") != "done":
+                    raise HTTPException(400, f"Job backtest {body.backtest_job_id} chưa hoàn thành hoặc không tồn tại")
+                rec = tasks.picker_backtest_get(body.backtest_job_id)
+                if rec:
+                    try:
+                        rs = tasks.resolve_strategy(body.alpha_id, None, body.signal_tf, body.params, body.symbols, matched.get("book"))
+                        if rs["hash"] != rec.get("hash") or (rec.get("book_source") or None) != (matched.get("book") or None):
+                            raise HTTPException(400, "Cấu hình khác lần backtest")
+                    except tasks.ConfigError as e:
+                        raise HTTPException(400, "; ".join(f"{f}: {m}" for f, m in e.errors))
+    else:
+        # Khởi chạy trực tiếp (không qua picker): kiểm tra bắt buộc provenance parity
+        if body.backtest_job_id:
+            from backend.jobs import tasks
+            rec = tasks.picker_backtest_get(body.backtest_job_id)
+            is_job_ok, job_reason = verify_backtest_job_parity(rec)
+            if not is_job_ok:
+                raise HTTPException(400, detail={
+                    "code": "ALPHA_RESULT_STALE_OR_UNPROVEN",
+                    "message": f"Job backtest {body.backtest_job_id} chưa qua kiểm định parity: {job_reason}",
+                    "quarantine_reason": job_reason,
+                })
+        elif body.alpha_id:
+            matched_direct = next((r for r in strategies.live_candidates() if r["id"] == body.alpha_id), None)
+            is_promotable, q_reason = verify_candidate_parity_provenance(matched_direct)
+            if not is_promotable:
+                raise HTTPException(400, detail={
+                    "code": "ALPHA_RESULT_STALE_OR_UNPROVEN",
+                    "message": f"Chiến lược {body.alpha_id} có kết quả backtest cũ chưa qua kiểm định parity: {q_reason}",
+                    "quarantine_reason": q_reason,
+                })
+        elif body.code:
+            raise HTTPException(400, detail={
+                "code": "ALPHA_RESULT_STALE_OR_UNPROVEN",
+                "message": "Chiến lược tùy chỉnh bằng code chưa có job backtest đạt chuẩn parity v1.",
+                "quarantine_reason": "MISSING_PARITY_PROVENANCE",
+            })
 
-    book_source = matched.get("book") if body.from_picker else body.book_source
+    book_source = (matched.get("book") if matched else None) if body.from_picker else body.book_source
 
     # Kiểm tra phân bổ vốn Master: requested_allocation > 0 và không vượt quá 10,000 USDT tổng
     req_cap = float(body.capital or 1000.0)
-    from backend.core.portfolio import get_live_master_ledger, PortfolioAdmissionController
-    ledger = get_live_master_ledger(body.mode)
+    from backend.core.portfolio import LiveLedgerUnavailable, get_live_master_ledger, PortfolioAdmissionController
+    try:
+        ledger = get_live_master_ledger(body.mode)
+    except LiveLedgerUnavailable as exc:
+        raise HTTPException(503, detail={"code": "LIVE_LEDGER_UNAVAILABLE", "message": str(exc)})
     controller = PortfolioAdmissionController(ledger)
     ok, reason = controller.admit_bot_launch(req_cap)
     if not ok:
+        if reason.startswith("MASTER_RISK_STATE_UNAVAILABLE"):
+            raise HTTPException(503, detail={"code": "LIVE_RISK_STATE_UNAVAILABLE", "message": reason})
         raise HTTPException(400, detail={
             "code": "EXCEEDS_MASTER_CAPITAL_ALLOCATION",
             "message": reason,
@@ -149,7 +197,7 @@ def post_start_bot(body: StartBotRequest) -> Dict[str, Any]:
         "capital": body.capital,
         "base_frame": body.base_frame or "1h",
         "confirm_live": bool(body.confirm_live),
-        "enter_on_start": bool(body.enter_on_start),
+        "enter_on_start": body.enter_on_start if body.enter_on_start is not None else True,
     }
     if body.signal_tf:
         params["signal_tf"] = body.signal_tf
@@ -198,6 +246,13 @@ def get_live_candidates() -> Dict[str, Any]:
     return {"candidates": rows, "n": len(rows)}
 
 
+@router.get("/live/execution_contract")
+def get_live_execution_contract() -> Dict[str, Any]:
+    """Hợp đồng thực thi & chuẩn Parity v1 (invariants, thông số chi phí, mô hình và dung sai đối soát)."""
+    from backend.adapter.contracts import get_execution_contract_manifest
+    return get_execution_contract_manifest()
+
+
 class CandidateBacktestRequest(BaseModel):
     alpha_id: str
     signal_tf: str
@@ -225,7 +280,7 @@ def post_candidate_backtest(body: CandidateBacktestRequest) -> Dict[str, Any]:
         rs = tasks.resolve_strategy(body.alpha_id, None, body.signal_tf, body.params, body.symbols, body.book_source)
     except tasks.ConfigError as e:
         raise HTTPException(400, "; ".join(f"{f}: {m}" for f, m in e.errors))
-    rec = alpha_store.get_user_alpha(str(body.alpha_id))
+    rec = alpha_store.get_user_alpha(body.alpha_id)
     if rec is not None:
         job_id = launch("custom_backtest", {"code": rec["code"], "symbols": body.symbols, "start": start, "end": end, "initial_capital": body.capital,
                                             "run_frame": body.signal_tf, "position": rs["position"] or None})
@@ -289,9 +344,11 @@ def delete_batch_bots(body: BatchBotRequest) -> Dict[str, Any]:
     results = []
     for bid in body.bot_ids:
         try:
-            res = delete_bot(bid, body.mode, force=True)
+            res = delete_bot(bid, body.mode)
             if res.get("running"):
                 results.append({"bot_id": bid, "ok": False, "error": "Bot đang chạy, hãy dừng trước"})
+            elif res.get("unknown"):
+                results.append({"bot_id": bid, "ok": False, "error": res.get("message", "Không xác định được trạng thái bot")})
             elif not res.get("ok"):
                 results.append({"bot_id": bid, "ok": False, "error": res.get("message", "Không tìm thấy bot")})
             else:
@@ -366,6 +423,8 @@ def delete_bot_by_id(
     res = delete_bot(bot_id, mode, force=force)
     if res.get("running"):
         raise HTTPException(409, "Dừng bot trước khi xoá")
+    if res.get("unknown"):
+        raise HTTPException(409, res.get("message", "Không xác định được trạng thái bot; cần đối soát trước khi xoá"))
     if not res.get("ok"):
         raise HTTPException(404, res.get("message", f"Không tìm thấy bot {bot_id}"))
     return res
@@ -719,18 +778,14 @@ def live_manual_not_supported() -> Any:
 
 @router.get("/portfolio/master")
 @router.get("/live/portfolio/master")
-def get_master_portfolio_snapshot() -> Dict[str, Any]:
-    """Snapshot Master Wallet (10,000 USDT) = Các Bot Sleeves (Vốn cấp linh hoạt) + Unallocated Capital."""
+def get_master_portfolio_snapshot(mode: str = Query("paper", pattern="^(paper|testnet|live)$")) -> Dict[str, Any]:
+    """Return the reconciled master ledger; unavailable inputs are reported instead of replaced by defaults."""
+    from backend.core.portfolio import LiveLedgerUnavailable, get_live_master_ledger
     try:
-        from backend.core.portfolio import get_live_master_ledger
-        ledger = get_live_master_ledger()
-        if ledger.sleeves:
-            return ledger.get_snapshot()
-    except Exception:
-        pass
-
-    from backend.core.portfolio import get_master_portfolio_ledger
-    return get_master_portfolio_ledger().get_snapshot()
+        ledger = get_live_master_ledger(mode)
+    except LiveLedgerUnavailable as exc:
+        raise HTTPException(503, detail={"code": "LIVE_LEDGER_UNAVAILABLE", "message": str(exc)})
+    return ledger.get_snapshot()
 
 
 ROUTERS = [router]

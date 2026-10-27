@@ -12,20 +12,21 @@ const pick = (o, keys) => {
 /** Một khối chỉ số (train / test / simulate) -> số hiển thị, null nếu thiếu. mdd luôn âm. */
 export function normMetrics(m) {
   if (!m || typeof m !== 'object') return null
-  const mdd = pick(m, ['mdd_pct'])
+  const mdd = pick(m, ['mdd_pct', 'max_drawdown_pct', 'mdd', 'drawdown_pct'])
   return {
-    ret: pick(m, ['ret_pct']),
-    cagr: pick(m, ['cagr_pct']),
-    sharpe: pick(m, ['sharpe']),
-    sortino: pick(m, ['sortino']),
+    ret: pick(m, ['ret_pct', 'return_pct', 'total_return_pct', 'ret']),
+    cagr: pick(m, ['cagr_pct', 'cagr']),
+    sharpe: pick(m, ['sharpe', 'sharpe_ratio']),
+    sortino: pick(m, ['sortino', 'sortino_ratio']),
     mdd: isNum(mdd) ? -Math.abs(mdd) : null,
-    calmar: pick(m, ['calmar']),
-    winTrades: pick(m, ['win_rate_trades']),
-    pfTrades: pick(m, ['profit_factor_trades']),
-    trades: pick(m, ['trades']),
-    fees: pick(m, ['fees_usd']),
+    calmar: pick(m, ['calmar', 'calmar_ratio']),
+    winTrades: pick(m, ['win_rate_trades', 'win_rate', 'win_rate_pct']),
+    pfTrades: pick(m, ['profit_factor_trades', 'profit_factor', 'pf']),
+    trades: pick(m, ['trades', 'total_trades', 'count']),
+    fees: pick(m, ['fees_usd', 'fees']),
   }
 }
+
 
 /** Bảng theo năm: [{ year, stage, days, cagr %, sharpe, mdd %, pf, calmar }] (cùng bộ chỉ số phẳng). */
 export function normYearly(rows) {
@@ -62,6 +63,7 @@ export function parseCompileError(err) {
 
 // ---- bảng lệnh / theo tài sản: tên cột chưa chốt nên mỗi cột có danh sách khoá thay thế ----
 export const TRADE_COLS = [
+  { keys: ['trade_no', 'no', 'index'], label: '#', kind: 'int' },
   { keys: ['enter_time', 'entry_time', 'open_time'], label: 'Vào lúc', kind: 'time' },
   { keys: ['close_time', 'exit_time'], label: 'Ra lúc', kind: 'time' },
   { keys: ['symbol', 'sym'], label: 'Tài sản', kind: 'sym' },
@@ -71,15 +73,23 @@ export const TRADE_COLS = [
   { keys: ['qty', 'size', 'quantity'], label: 'Khối lượng', kind: 'qty', r: true },
   { keys: ['ret_pct', 'return_pct', 'pnl_pct'], label: 'Lãi/lỗ %', kind: 'spct', r: true },
   { keys: ['pnl', 'net_pnl', 'pnl_usd'], label: 'Lãi/lỗ (USDT)', kind: 'money', r: true },
-  { keys: ['fee', 'fee_usd', 'fees'], label: 'Phí', kind: 'num', r: true },
+  { keys: ['cum_pnl'], label: 'PnL tích lũy', kind: 'money', r: true },
+  { keys: ['fee', 'fee_usd', 'fees_usd', 'fees'], label: 'Phí', kind: 'num', r: true },
+  { keys: ['funding_usd', 'funding'], label: 'Funding', kind: 'num', r: true },
+  { keys: ['status'], label: 'Trạng thái', kind: 'side' },
+  { keys: ['close_reason', 'reason'], label: 'Lý do đóng', kind: 'text' },
+  { keys: ['leverage'], label: 'Đòn bẩy', kind: 'num', r: true },
+  { keys: ['mae_pct'], label: 'MAE', kind: 'spct', r: true },
+  { keys: ['entry_equity'], label: 'Vốn lúc vào', kind: 'money', r: true },
 ]
 export const SYMBOL_COLS = [
   { keys: ['symbol', 'sym'], label: 'Tài sản', kind: 'sym' },
-  { keys: ['weight', 'weight_pct'], label: 'Tỉ trọng', kind: 'num', r: true },
+  { keys: ['weight', 'weight_pct'], label: 'Tỉ trọng %', kind: 'num', r: true },
   { keys: ['trades', 'n_trades'], label: 'Số lệnh', kind: 'int', r: true },
   { keys: ['wins'], label: 'Lệnh thắng', kind: 'int', r: true },
   { keys: ['ret_pct', 'return_pct'], label: 'Lãi/lỗ %', kind: 'spct', r: true },
   { keys: ['pnl', 'pnl_usd', 'net_pnl'], label: 'Lãi/lỗ (USDT)', kind: 'money', r: true },
+  { keys: ['open_pnl_usd', 'unrealized_pnl'], label: 'Vị thế mở (USDT)', kind: 'money', r: true },
   { keys: ['fees_usd', 'fee', 'fees'], label: 'Phí', kind: 'num', r: true },
 ]
 export const POSITION_COLS = [

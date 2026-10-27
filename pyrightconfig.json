@@ -1,7 +1,28 @@
 {
   "venvPath": "/home/vmc03/.venvs",
-  "venv": "nora",
+  "venv": "nora312",
+  "include": [
+    "nora"
+  ],
   "extraPaths": [
-    "/home/vmc03/norabt/nora"
+    "/home/vmc03/norabt/nora",
+    "/home/vmc03/norabt/nora/edu",
+    "/home/vmc03/norabt/nora/coin"
+  ],
+  "executionEnvironments": [
+    {
+      "root": "nora/edu",
+      "extraPaths": [
+        "/home/vmc03/norabt/nora/edu",
+        "/home/vmc03/norabt/nora"
+      ]
+    },
+    {
+      "root": "nora/coin",
+      "extraPaths": [
+        "/home/vmc03/norabt/nora/coin",
+        "/home/vmc03/norabt/nora"
+      ]
+    }
   ]
 }

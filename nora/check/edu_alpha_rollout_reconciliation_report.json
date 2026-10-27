@@ -1,0 +1,43 @@
+{
+  "status": "RECONCILIATION_VERIFIED",
+  "total_active_user_alphas": 57,
+  "original_user_files_unmodified": true,
+  "vinh_alphas_count": 7,
+  "vinh_all_intact": true,
+  "fa9587a97fa9_v2_intact": true,
+  "fa9587a97fa9_v2_sha256": "73c004968c74790e3a042da899f98887e7b8f0d3f497b96c411c4dfbb1333fc4",
+  "dispositions_summary": {
+    "BLOCKED_UNKNOWN_INTENT": 27,
+    "VALID_AS_IS": 86
+  },
+  "user_alphas_breakdown": {
+    "total_user_alphas": 57,
+    "blocked_unknown_intent_count": 27,
+    "valid_as_is_count": 30,
+    "duplicate_of_canonical_count": 0
+  },
+  "user_normalization_summary": {
+    "total_processed": 57,
+    "blocked_unknown_intent": 27,
+    "vinh_preserved_as_is": 7,
+    "new_version_files_created": 23
+  },
+  "total_version_files_in_storage": 36,
+  "education_samples_count": 50,
+  "onboarding_samples_count": 3,
+  "system_strategies_count": 3,
+  "archived_unlinked_count": 46,
+  "test_evidence": {
+    "test_edu_authoring_contract": "7/7 passed",
+    "test_edu_alpha_regression": "7/7 passed",
+    "test_edu_provenance": "4/4 passed",
+    "test_edu_browser_journeys": "8/8 passed",
+    "total_passed": "26/26 passed"
+  },
+  "disclaimers": [
+    "Kiểm chuẩn kỹ thuật dựa trên compiler và runtime contract nội bộ.",
+    "Các mẫu điều kiện hằng (27 record) được phân loại đúng nghĩa BLOCKED_UNKNOWN_INTENT, không tự bịa đặt luật giao dịch.",
+    "Giả định trượt giá 0% đã công bố tường minh.",
+    "Không đại diện cho cam kết lợi nhuận hoặc tự cấp quyền Live trading."
+  ]
+}

@@ -279,7 +279,9 @@ class Program:
 
     def meta(self) -> Dict[str, Any]:
         return {"timeframe": self.timeframe, "features": self.features, "ops": self.ops, "columns": self.columns,
-                "legs": self.legs, "position_levels": self.levels, "warmup_bars": self.warmup_bars}
+                "legs": self.legs, "position_levels": self.levels, "warmup_bars": self.warmup_bars,
+                "position_overrides": getattr(self, "position_overrides", {}) or {},
+                "declared_params": getattr(self, "position_overrides", {}) or {}}
 
     # ─── tính toán ──────────────────────────────────────────────────────────
     @staticmethod

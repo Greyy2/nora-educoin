@@ -79,7 +79,7 @@ def rows_from_trade_list(trade_list: List[Dict[str, Any]]) -> List[Dict[str, Any
 def trade_stats(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     """win_rate (1 chữ số) + profit_factor (3 chữ số) cho bảng của phễu — Nautilus WinRate / ProfitFactor trên PnL từng lệnh.
     Không xác định -> None + `*_note` (lý do), không dùng 0/99 giả."""
-    pnl = [r["pnl_usd"] for r in rows]
+    pnl = [r.get("pnl_usd", r.get("pnl", 0.0)) for r in rows]
     wr = ns.pnl_stats(pnl)["win_rate"]
     pf = ns.trade_profit_factor(pnl)
     return {"win_rate": round(wr, 1) if wr is not None else None,
@@ -88,7 +88,7 @@ def trade_stats(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 def _side_block(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
-    pnl = np.asarray([r["pnl_usd"] for r in rows], dtype=float)
+    pnl = np.asarray([r.get("pnl_usd", r.get("pnl", 0.0)) for r in rows], dtype=float)
     return {"trades": int(pnl.size), "pnl_usd": float(pnl.sum()) if pnl.size else 0.0,
             "win_rate": float((pnl > 0).mean() * 100.0) if pnl.size else None}
 
@@ -105,7 +105,7 @@ def trade_metrics(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Mọi số đo theo lệnh từ trade_rows (lệnh xếp theo thời điểm đóng)."""
     rows = sorted(rows, key=lambda r: (r["close_time"], r["enter_time"]))
     n = len(rows)
-    pnl = np.asarray([r["pnl_usd"] for r in rows], dtype=float)
+    pnl = np.asarray([r.get("pnl_usd", r.get("pnl", 0.0)) for r in rows], dtype=float)
     pct = np.asarray([r["pnl_pct"] for r in rows if r["pnl_pct"] is not None], dtype=float)     # pnl_pct None (vốn lúc vào ≤ 0) bị bỏ qua, không thay bằng 0
     fees = float(sum(r.get("fees_usd", 0.0) for r in rows))
     funding = float(sum(r.get("funding_usd", 0.0) for r in rows))
@@ -1122,16 +1122,27 @@ def daily_series(curve: List[Dict[str, float]], start: int, end: int, base_ms: i
     pts = [(int(c["time"]) + base_ms, float(c["equity"])) for c in curve if c["time"] >= start]
     if not pts:
         eq = np.full(bounds.shape[0], float(capital))
+        worst = eq.copy()
     else:
         t = np.asarray([p[0] for p in pts], dtype="int64")
         v = np.asarray([p[1] for p in pts], dtype="float64")
+        w = np.asarray([float(c.get("equity_worst", c["equity"])) for c in curve if c["time"] >= start], dtype="float64")
         order = np.argsort(t, kind="stable")
-        t, v = t[order], v[order]
+        t, v, w = t[order], v[order], w[order]
         idx = np.searchsorted(t, bounds, side="right") - 1
-        eq = np.where(idx >= 0, v[np.maximum(idx, 0)], float(capital))
+        idx = np.searchsorted(t, bounds, side="right")
+        eq = np.where(idx > 0, v[idx - 1], float(capital))
+        worst = np.full(bounds.shape[0], float(capital))
+        previous = 0
+        for day, stop in enumerate(idx):
+            if stop > previous:
+                worst[day] = float(np.min(w[previous:stop]))
+            elif day:
+                worst[day] = worst[day - 1]
+            previous = int(stop)
     ret = np.zeros(eq.shape[0])
     ret[1:] = eq[1:] / eq[:-1] - 1.0
-    return {"times": bounds, "equity": eq, "returns": ret}
+    return {"times": bounds, "equity": eq, "equity_worst": worst, "returns": ret}
 
 
 def _segments(times: np.ndarray, split: int) -> Dict[str, np.ndarray]:
@@ -1139,10 +1150,19 @@ def _segments(times: np.ndarray, split: int) -> Dict[str, np.ndarray]:
     return {"simulate": np.ones(n, dtype=bool), "train": times <= split, "test": times > split}
 
 
-def _metric_block(ret: np.ndarray, rows: List[Dict[str, Any]], fees: float) -> Dict[str, Any]:
+def _metric_block(ret: np.ndarray, rows: List[Dict[str, Any]], fees: float, series_equity: Optional[np.ndarray] = None,
+                  series_worst: Optional[np.ndarray] = None) -> Dict[str, Any]:
     """Bộ chỉ số phẳng của Nora (metrics/metrics: năm = 365 ngày, Sharpe/Sortino/CAGR trên lợi suất ngày MTM; lệnh: win rate, profit factor theo lệnh đóng)."""
     from backend.analys.metrics.metrics import series_metrics
-    m = series_metrics(ret[1:] if ret.size else ret, rows)    # bỏ phần tử 0 đứng đầu (không phải ngày giao dịch)
+    m = series_metrics(ret[1:] if ret.size else ret, rows)
+    if series_equity is not None and series_equity.size:
+        eq = np.asarray(series_equity, dtype=float)
+        worst = np.asarray(series_worst, dtype=float) if series_worst is not None else eq
+        if worst.size == eq.size:
+            peak = np.maximum.accumulate(np.r_[eq[0], eq[:-1]])
+            m["mdd_pct"] = round(float(np.max((peak - np.minimum(eq, worst)) / peak) * 100.0), 2)
+            m["mdd_intrabar_pct"] = m["mdd_pct"]
+            m["mdd_basis"] = "intrabar"
     return {"ret_pct": m["ret_pct"], "mdd_pct": m["mdd_pct"], "sharpe": m["sharpe"], "sortino": m["sortino"], "cagr_pct": m.get("cagr_pct"),
             "calmar": m.get("calmar"), "trades": m["trades"], "win_rate_trades": m["win_rate"], "profit_factor_trades": m["profit_factor"],
             "fees_usd": round(fees, 2)}
@@ -1158,13 +1178,15 @@ def build_metrics(series: Dict[str, np.ndarray], split: int, trade_rows: List[Di
     for name, m in _segments(times, split).items():
         if name == "test" and test_run is not None:
             fees = sum(float(o.fee_usd or 0.0) for o in test_run["orders"])
-            out[name] = _metric_block(test_run["series"]["returns"], test_run["rows"], fees)
+            out[name] = _metric_block(test_run["series"]["returns"], test_run["rows"], fees,
+                                      test_run["series"]["equity"], test_run["series"].get("equity_worst"))
             continue
         lo = int(times[m][0]) if m.any() else 0
         hi = int(times[m][-1]) if m.any() else 0
         rows = [r for r in trade_rows if lo < r["close_time"] <= hi] if name != "simulate" else trade_rows
         fees = sum(float(o.fee_usd or 0.0) for o in orders if lo < o.order_time <= hi + DAY) if name != "simulate" else sum(float(o.fee_usd or 0.0) for o in orders)
-        out[name] = _metric_block(ret[m], rows, fees)
+        out[name] = _metric_block(ret[m], rows, fees, series["equity"][m],
+                                  series.get("equity_worst")[m] if "equity_worst" in series else None)
     basis = ("simulate/train cắt lát đường vốn của lần chạy đầy đủ (train bắt đầu tại start nên trùng); test và các năm giai đoạn test tính từ lần chạy lại "
              "[mốc chia, end] bắt đầu từ vốn đầu" if test_run is not None else
              "train/test/yearly cắt lát đường vốn liên tục")
@@ -1218,15 +1240,17 @@ def build_stages(series: Dict[str, np.ndarray], split: int, test_series: Optiona
     times, eq = series["times"], series["equity"]
     label = (bench or {}).get("label")
     beq = _bench_on(bench, times)
+    worst = series.get("equity_worst", eq)
     m = times <= split
     out: Dict[str, Any] = {
-        "all": stage_block(times, eq, beq, label),
-        "train": stage_block(times[m], eq[m], None if beq is None else beq[m], label) if m.any() else None,
+        "all": stage_block(times, eq, beq, label, worst),
+        "train": stage_block(times[m], eq[m], None if beq is None else beq[m], label, worst[m]) if m.any() else None,
         "test": None,
     }
     if test_series is not None:
         tb = _bench_on(test_bench, test_series["times"])
-        out["test"] = stage_block(test_series["times"], test_series["equity"], tb, (test_bench or {}).get("label"))
+        out["test"] = stage_block(test_series["times"], test_series["equity"], tb, (test_bench or {}).get("label"),
+                                  test_series.get("equity_worst"))
     return {k: downsample_stage(v, max_points) for k, v in out.items()}
 
 
@@ -1262,9 +1286,14 @@ def build_result(program, plan, res, eng, a, start: int, end: int, capital: floa
                                                "label": test_bench["label"], "final_equity": round(float(tbe[-1]), 2)}
     opens = eng.open_positions()
     by_symbol = []
+    n_syms = max(1, len(plan.symbols))
+    eq_weight = round(100.0 / n_syms, 1)
     for sym in plan.symbols:
         agg = res["by_symbol"].get(sym, {})
-        by_symbol.append({"symbol": sym.split(":")[-1], "pnl_usd": round(agg.get("pnl_usd", 0.0), 2), "trades": int(agg.get("trades", 0)),
+        pnl = round(agg.get("pnl_usd", 0.0), 2)
+        by_symbol.append({"symbol": sym.split(":")[-1], "weight_pct": eq_weight,
+                          "ret_pct": round(pnl / capital * 100.0, 2) if capital else 0.0,
+                          "pnl_usd": pnl, "trades": int(agg.get("trades", 0)),
                           "wins": int(agg.get("wins", 0)), "fees_usd": round(agg.get("fees_usd", 0.0), 2),
                           "open_pnl_usd": round(sum(o["unrealized_pnl"] for o in opens if o["symbol"] == sym), 2)})
     warns = list(dict.fromkeys(program.warnings + plan.warnings + extra_warnings))
@@ -1341,5 +1370,3 @@ def _episodes(mask: np.ndarray):
         return []
     d = np.diff(np.r_[0, mask.astype(np.int8), 0])
     return list(zip(np.flatnonzero(d == 1), np.flatnonzero(d == -1)))
-
-

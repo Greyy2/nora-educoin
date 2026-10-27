@@ -18,93 +18,80 @@ export const POSITION_FIELDS = [
 
 const symName = (s) => String(s).replace('@perp', '')
 
-export default function RunSettings({ form, setForm, universe, defaultsError, problems }) {
-  const [showComboInfo, setShowComboInfo] = useState(false)
+export default function RunSettings({ form, setForm, universe, defaultsError, problems, signalFrame, defaultExecMode = 'fast' }) {
   const toggleSym = (s) => setForm({ symbols: form.symbols.includes(s) ? form.symbols.filter((x) => x !== s) : [...form.symbols, s] })
   const setPos = (k, v) => setForm({ pos: { ...form.pos, [k]: v } })
   const nPos = Object.values(form.pos || {}).filter((v) => v !== '' && v != null).length
+  const execMode = form.exec_mode || defaultExecMode
 
   return (
     <div className="se-set">
       <div className="n-field">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
           <span className="n-lbl" id="se-uni-l" style={{ margin: 0 }}>{`Tài sản (${form.symbols.length} đã chọn)`}</span>
-          <button
-            type="button"
-            className="n-btn xs"
-            style={{ fontSize: 11, padding: '2px 8px', display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', background: showComboInfo ? 'var(--n-accent, #38bdf8)' : 'rgba(56, 189, 248, 0.1)', color: showComboInfo ? '#000' : 'var(--n-accent, #38bdf8)', border: '1px solid var(--n-accent, #38bdf8)', borderRadius: 14 }}
-            onClick={() => setShowComboInfo((v) => !v)}
-            title="Xem so sánh: Chơi 1 con vs Combo nhiều con"
-          >
-            <span style={{ fontWeight: 800, borderRadius: '50%', background: showComboInfo ? '#000' : 'var(--n-accent, #38bdf8)', color: showComboInfo ? '#fff' : '#000', width: 14, height: 14, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10 }}>i</span>
-            <span style={{ fontWeight: 600 }}>Mẹo Combo</span>
-          </button>
         </div>
 
-        {showComboInfo && (
-          <div style={{
-            margin: '6px 0 10px',
-            padding: '10px 12px',
-            borderRadius: 8,
-            background: 'var(--n-bg-panel, #0f172a)',
-            border: '1px solid var(--n-accent, #38bdf8)',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-            fontSize: 12
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <span style={{ fontWeight: 700, color: 'var(--n-accent, #38bdf8)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                💡 Hướng dẫn: Chơi 1 tài sản vs Combo nhiều tài sản
-              </span>
-              <button type="button" className="n-btn xs ghost" style={{ padding: '0 4px', fontSize: 12 }} onClick={() => setShowComboInfo(false)}>✕</button>
-            </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, lineHeight: 1.45 }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid var(--n-border, rgba(255,255,255,0.1))', color: 'var(--n-text-muted, #94a3b8)' }}>
-                  <th style={{ textAlign: 'left', padding: '4px 6px', width: '22%' }}>Tiêu chí</th>
-                  <th style={{ textAlign: 'left', padding: '4px 6px', width: '38%', color: '#f59e0b' }}>Chơi 1 tài sản (vd: BTC)</th>
-                  <th style={{ textAlign: 'left', padding: '4px 6px', width: '40%', color: '#10b981' }}>Chơi Combo (BTC + ETH + SOL)</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                  <td style={{ padding: '5px 6px', fontWeight: 600, color: '#cbd5e1' }}>Bản chất</td>
-                  <td style={{ padding: '5px 6px' }}>"Bỏ tất cả trứng vào 1 giỏ"</td>
-                  <td style={{ padding: '5px 6px', color: '#34d399' }}>"Chia trứng vào 3 ngăn riêng"</td>
-                </tr>
-                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                  <td style={{ padding: '5px 6px', fontWeight: 600, color: '#cbd5e1' }}>Đường vốn (MDD)</td>
-                  <td style={{ padding: '5px 6px' }}>Giật rất mạnh: BTC sập là tài khoản cắm đầu, đường cong gãy khúc.</td>
-                  <td style={{ padding: '5px 6px', color: '#34d399' }}>Mượt mà hơn (Smooth): Con này lỗ thì con kia lãi gánh lại.</td>
-                </tr>
-                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                  <td style={{ padding: '5px 6px', fontWeight: 600, color: '#cbd5e1' }}>Cơ hội vào lệnh</td>
-                  <td style={{ padding: '5px 6px' }}>Thấp: Khi BTC sideway, bot ngồi chơi, đọng vốn không sinh lời.</td>
-                  <td style={{ padding: '5px 6px', color: '#34d399' }}>Liên tục: Dòng tiền xoay vòng, bắt được sóng của nhiều hệ.</td>
-                </tr>
-                <tr>
-                  <td style={{ padding: '5px 6px', fontWeight: 600, color: '#cbd5e1' }}>Tâm lý giao dịch</td>
-                  <td style={{ padding: '5px 6px' }}>Đau tim, phụ thuộc 100% vào số phận 1 đồng coin.</td>
-                  <td style={{ padding: '5px 6px', color: '#34d399' }}>Tâm lý ổn định, ngủ ngon vì danh mục có sự bọc lót.</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        )}
+        {/* Sắp xếp tài sản: top assets lên đầu (BTC, ETH, SOL, BNB...) */}
+        {(() => {
+          const topOrder = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'DOGE', 'ADA', 'AVAX', 'LINK', 'TRX']
+          const sortedUni = [...universe].sort((a, b) => {
+            const baseA = symName(a).toUpperCase()
+            const baseB = symName(b).toUpperCase()
+            const idxA = topOrder.indexOf(baseA)
+            const idxB = topOrder.indexOf(baseB)
+            if (idxA !== -1 && idxB !== -1) return idxA - idxB
+            if (idxA !== -1) return -1
+            if (idxB !== -1) return 1
+            return baseA.localeCompare(baseB)
+          })
 
-        <div className="n-chips" role="group" aria-labelledby="se-uni-l">
-          {universe.map((s) => {
-            const on = form.symbols.includes(s)
-            return <label key={s} className={`n-chip-lbl ${on ? 'on' : ''}`}><input type="checkbox" checked={on} onChange={() => toggleSym(s)} />{symName(s)}</label>
-          })}
-        </div>
-        {universe.length === 0 && <span className="n-note">{defaultsError ? `Không tải được mặc định từ kho dữ liệu: ${defaultsError}` : 'Đang tải danh sách tài sản…'}</span>}
-        {universe.length > 0 && (
-          <div className="se-row">
-            <button type="button" className="n-btn sm" onClick={() => setForm({ symbols: universe })}>Chọn tất cả</button>
-            <button type="button" className="n-btn sm" onClick={() => setForm({ symbols: [] })}>Bỏ chọn</button>
-          </div>
-        )}
-        <span className="n-note">Hợp đồng vĩnh cửu OKX (perp); khối lượng theo rủi ro mỗi lệnh, cắt lỗ mặc định 3×ATR, phí và trượt giá theo sàn.</span>
+          return (
+            <>
+              <div className="n-chips" role="group" aria-labelledby="se-uni-l">
+                {sortedUni.map((s) => {
+                  const on = form.symbols.includes(s)
+                  return (
+                    <label
+                      key={s}
+                      className={`n-chip-lbl ${on ? 'on' : ''}`}
+                    >
+                      <input type="checkbox" checked={on} onChange={() => toggleSym(s)} />
+                      {symName(s)}
+                    </label>
+                  )
+                })}
+              </div>
+              {universe.length === 0 && <span className="n-note">{defaultsError ? `Không tải được mặc định từ kho dữ liệu: ${defaultsError}` : 'Đang tải danh sách tài sản…'}</span>}
+              {universe.length > 0 && (
+                <div className="se-row" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                  <button
+                    type="button"
+                    className="n-btn sm"
+                    onClick={() => setForm({ symbols: sortedUni })}
+                  >
+                    Chọn tất cả ({sortedUni.length})
+                  </button>
+                  <button
+                    type="button"
+                    className="n-btn sm"
+                    onClick={() => setForm({ symbols: sortedUni.slice(0, 10) })}
+                  >
+                    Chọn Top 10
+                  </button>
+                  <button
+                    type="button"
+                    className="n-btn sm"
+                    onClick={() => setForm({ symbols: sortedUni.slice(0, 5) })}
+                  >
+                    Chọn Top 5
+                  </button>
+                  <button type="button" className="n-btn sm" onClick={() => setForm({ symbols: [] })}>Bỏ chọn</button>
+                </div>
+              )}
+            </>
+          )
+        })()}
+        <span className="n-note">Hợp đồng vĩnh cửu OKX (perp); khối lượng theo rủi ro mỗi lệnh, cắt lỗ mặc định 3×ATR; khớp lệnh tại Open nến kế tiếp với synthetic quote spread proxy.</span>
       </div>
 
       <div className="n-form-row">
@@ -117,9 +104,14 @@ export default function RunSettings({ form, setForm, universe, defaultsError, pr
             onChange={(e) => setForm({ train_ratio: e.target.value })} />
         </Field>
         <Field id="se-cap" label="Vốn ban đầu (USDT)">
-          <input id="se-cap" type="number" className="n-in" inputMode="decimal" min="1" step="any" value={form.capital} onChange={(e) => setForm({ capital: e.target.value })} />
+          <input id="se-cap" type="number" className="n-in" inputMode="decimal" min="100" max="1000000000" step="any" value={form.capital} onChange={(e) => setForm({ capital: e.target.value })} />
         </Field>
       </div>
+      <span className="n-note" aria-live="polite">
+        {execMode === 'standard'
+          ? `Khung mô phỏng: 1m${signalFrame ? ` · tín hiệu ${signalFrame}` : ''}.`
+          : `Khung mô phỏng: khung tín hiệu${signalFrame ? ` ${signalFrame}` : ' (đọc từ code khi chạy)'}.`}
+      </span>
 
 
       <details className="n-details se-pos">

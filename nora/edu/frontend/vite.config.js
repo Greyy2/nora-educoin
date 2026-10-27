@@ -15,7 +15,9 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    emptyOutDir: true,
+    // Hashed assets are immutable and may still be referenced by an open tab.
+    // Keep prior bundles so cached entrypoints do not turn into 404s after deploy.
+    emptyOutDir: false,
     sourcemap: false,
     rollupOptions: {
       input: { main: './index.html' },

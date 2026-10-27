@@ -519,17 +519,36 @@ def _remember_ephemeral(job_dir: str) -> bool:
         max_eph = getattr(sys.modules.get("backend.jobs.runner"), "EPHEMERAL_MAX", EPHEMERAL_MAX)
         while len(_EPH) > max_eph:
             _EPH.popitem(last=False)
+    try:
+        from backend.models.storage import _under, data_home, write_json_atomic
+        mem_dir = _under(data_home(), "mem")
+        os.makedirs(mem_dir, exist_ok=True)
+        write_json_atomic(os.path.join(mem_dir, f"{meta['id']}.json"), snap)
+    except Exception:
+        pass
     shutil.rmtree(job_dir, ignore_errors=True)
     return True
 
 
 def ephemeral_status(job_id: str) -> Optional[Dict[str, Any]]:
-    """Kết quả job tạm đã xong còn trong bộ nhớ API (None nếu không có / API đã khởi động lại)."""
+    """Kết quả job tạm đã xong còn trong bộ nhớ API hoặc đệm _mem (None nếu không có / API đã khởi động lại)."""
     with _LOCK:
         snap = _EPH.get(str(job_id))
         if snap is not None:
             _EPH.move_to_end(str(job_id))
-    return _clone(snap) if snap is not None else None
+            return _clone(snap)
+    try:
+        from backend.models.storage import _under, data_home, read_json
+        mem_file = os.path.join(_under(data_home(), "mem"), f"{job_id}.json")
+        if os.path.isfile(mem_file):
+            snap = read_json(mem_file)
+            if isinstance(snap, dict):
+                with _LOCK:
+                    _EPH[str(job_id)] = snap
+                return _clone(snap)
+    except Exception:
+        pass
+    return None
 
 
 def _same_result(a: str, b: str) -> bool:
@@ -819,13 +838,20 @@ def status(job_id: str) -> Optional[Dict[str, Any]]:
         return ephemeral_status(job_id)
     job_dir = _job_dir(job_id)   # _summary có thể vừa kết thúc + lưu job sang thư mục lâu dài
     out["log_tail"] = out.pop("_lines")[-LOG_TAIL_LINES:]
-    out["result"] = None
     if out["status"] == "done":
         try:
             with open(os.path.join(job_dir, "result.json"), encoding="utf-8") as fh:
                 out["result"] = json.load(fh)
         except (OSError, ValueError):
             out["result"] = None
+        if out["result"] is None:
+            eph = ephemeral_status(job_id)
+            if eph and eph.get("result"):
+                out["result"] = eph["result"]
+                if not out.get("log_tail") and eph.get("log_tail"):
+                    out["log_tail"] = eph["log_tail"]
+                if not out.get("progress") and eph.get("progress"):
+                    out["progress"] = eph["progress"]
     return out
 
 

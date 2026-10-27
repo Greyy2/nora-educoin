@@ -1,0 +1,75 @@
+{
+  "strategy_id": "fast_dip_harvester_tv_parity_v1",
+  "nora": {
+    "product": "coin",
+    "symbol_input": "BTC",
+    "resolved_instrument": "BTC@perp",
+    "timeframe": "24h",
+    "data_source": "OKX catalog"
+  },
+  "tradingview": {
+    "symbol": "OKX:BTCUSDT.P",
+    "timeframe": "1D",
+    "timezone": "UTC",
+    "chart_type": "candles"
+  },
+  "window": {
+    "start": "2023-10-06",
+    "end": "2026-10-03",
+    "include_end_bar": true
+  },
+  "capital": {
+    "initial_capital": 10000.0,
+    "currency": "USDT"
+  },
+  "indicators": {
+    "rsi_period": 10,
+    "sma_period": 15,
+    "macro_ema_period": 50,
+    "entry_rsi_level": 40.0,
+    "exit_rsi_level": 65.0
+  },
+  "position": {
+    "side": "LONG",
+    "market": "perp",
+    "leverage": 10,
+    "pyramiding": 0,
+    "sizing": "risk",
+    "risk_per_trade_pct": 0.25,
+    "max_risk_usd": 25.0,
+    "stop_loss_pct": 2.0,
+    "take_profit_pct": 4.0,
+    "lot_step_btc": 0.001
+  },
+  "costs": {
+    "commission_type": "percent",
+    "taker_fee_rate": 0.0005,
+    "maker_fee_rate": 0.0005,
+    "slippage_mode": "fixed_ticks",
+    "slippage_ticks": 180,
+    "tick_size_usdt": 0.1,
+    "entry_slippage_usdt": 18.0,
+    "stop_slippage_multiplier": 2.0,
+    "stop_slippage_usdt": 36.0
+  },
+  "execution": {
+    "signal_evaluated_at": "bar_close",
+    "process_orders_on_close": false,
+    "market_fill": "next_bar_open",
+    "take_profit_fill": "limit_at_level",
+    "stop_fill": "adverse_fixed_ticks",
+    "same_bar_stop_and_target": "stop_first",
+    "final_bar_entry": false,
+    "timezone": "UTC"
+  },
+  "expected_data": {
+    "bars": 1094,
+    "data_window_note": "Nora catalog run used 1094 daily bars from 2023-10-06 through 2026-10-03 inclusive."
+  },
+  "artifacts": {
+    "nora_source": "FastDip_Nora_Strategy.py",
+    "pine_source": "FastDip_TradingView_Reference.pine",
+    "nora_runner": "run_fastdip_nora.py",
+    "result_report": "FastDip_Nora_Backtest_Result.md"
+  }
+}

@@ -199,8 +199,20 @@ function StepBacktest({ cat, strats, sc, form, setForm, btId, bt, onLaunched, on
   const { meta } = useMeta()
   const dataUniverse = meta?.universe?.data?.assets || cat.universe || []
   const bookUniverse = meta?.universe?.book || []
-  const [useBookUniverse, setUseBookUniverse] = useState(false)
-  const universe = useBookUniverse && bookUniverse.length ? bookUniverse : dataUniverse
+  const rawUniverse = useBookUniverse && bookUniverse.length ? bookUniverse : dataUniverse
+  const TOP_ORDER = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'DOGE', 'ADA', 'AVAX', 'LINK', 'TRX', 'DOT', 'NEAR', 'SUI', 'APT', 'LTC']
+  const universe = useMemo(() => {
+    return [...rawUniverse].sort((a, b) => {
+      const nameA = symName(a).toUpperCase()
+      const nameB = symName(b).toUpperCase()
+      const idxA = TOP_ORDER.indexOf(nameA)
+      const idxB = TOP_ORDER.indexOf(nameB)
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB
+      if (idxA !== -1) return -1
+      if (idxB !== -1) return 1
+      return nameA.localeCompare(nameB)
+    })
+  }, [rawUniverse])
   const dexList = useMemo(() => dexAssets(cat.assets), [cat.assets])
   const dexByKey = useMemo(() => Object.fromEntries(dexList.map((a) => [a.key, a])), [dexList])
   const selDex = form.symbols.find(isDexSym)
@@ -588,6 +600,8 @@ function StepBacktest({ cat, strats, sc, form, setForm, btId, bt, onLaunched, on
                         }}>
                         {useBookUniverse ? 'Đang theo sổ' : 'Theo sổ'}
                       </button>
+                      <button type="button" className="n-btn sm" onClick={() => setPerp(universe.slice(0, 10))}>Chọn Top 10</button>
+                      <button type="button" className="n-btn sm" onClick={() => setPerp(universe.slice(0, 20))}>Chọn Top 20</button>
                       <button type="button" className="n-btn sm" onClick={() => setPerp(universe)}>Tất cả perp</button>
                       <button type="button" className="n-btn sm" onClick={() => setPerp([])}>Bỏ chọn</button>
                     </div>

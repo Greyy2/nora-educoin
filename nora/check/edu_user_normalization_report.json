@@ -1,0 +1,407 @@
+{
+  "total_user_alphas_processed": 57,
+  "blocked_unknown_intent_count": 27,
+  "vinh_preserved_count": 7,
+  "new_version_files_created": 23,
+  "log": [
+    {
+      "id": "026f43441cb2",
+      "name": "U4_BTC_1h_Different_Window",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "action": "no_rewrite_blocked",
+      "reason": "Biểu thức điều kiện hằng số `close > 1` trên BTC; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    {
+      "id": "0873864b8db7",
+      "name": "DEMA Turbo Compound (1Y Fast Trend - x1.51 Vốn)",
+      "disposition": "VALID_AS_IS",
+      "action": "vinh_preserved_intact",
+      "reason": "Vinh strategy preserved 100% intact without modification."
+    },
+    {
+      "id": "090730ae35b8",
+      "name": "Fail-Fast Volatility Breakout (SL 2.4% + Macro Trend)",
+      "disposition": "VALID_AS_IS",
+      "action": "vinh_preserved_intact",
+      "reason": "Vinh strategy preserved 100% intact without modification."
+    },
+    {
+      "id": "0bf936687964",
+      "name": "U4_BTC_1h_Different_Window",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "action": "no_rewrite_blocked",
+      "reason": "Biểu thức điều kiện hằng số `close > 1` trên BTC; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    {
+      "id": "0d51ba8d2012",
+      "name": "OBV Volume Accumulation + RSI Momentum",
+      "disposition": "VALID_AS_IS",
+      "action": "version_v2_created",
+      "plan_warnings_count": 0
+    },
+    {
+      "id": "138df68946ad",
+      "name": "U1_BTC_1h_Alpha",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "action": "no_rewrite_blocked",
+      "reason": "Biểu thức điều kiện hằng số `close > 0` trên BTC; luôn vào LONG ngay từ nến 1 và không có điều kiện thoát lệnh. Theo quy tắc cốt lõi 'Unknown semantics remain blocked, not guessed', không tự bịa đặt luật thay thế."
+    },
+    {
+      "id": "14e3b934b1e5",
+      "name": "ROC Momentum Exhaustion with Take-Profit",
+      "disposition": "VALID_AS_IS",
+      "action": "version_v2_created",
+      "plan_warnings_count": 0
+    },
+    {
+      "id": "15567e02a806",
+      "name": "Triple EMA Trend Alignment (Optimized)",
+      "disposition": "VALID_AS_IS",
+      "action": "version_v2_created",
+      "plan_warnings_count": 0
+    },
+    {
+      "id": "18e87aa868ad",
+      "name": "Fast Dynamic Channel Breakout (18D + Macro Trend)",
+      "disposition": "VALID_AS_IS",
+      "action": "vinh_preserved_intact",
+      "reason": "Vinh strategy preserved 100% intact without modification."
+    },
+    {
+      "id": "1a1a4389a821",
+      "name": "U1_BTC_1h_Alpha",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "action": "no_rewrite_blocked",
+      "reason": "Biểu thức điều kiện hằng số `close > 0` trên BTC; luôn vào LONG ngay từ nến 1 và không có điều kiện thoát lệnh. Theo quy tắc cốt lõi 'Unknown semantics remain blocked, not guessed', không tự bịa đặt luật thay thế."
+    },
+    {
+      "id": "1e4c0b9f84f7",
+      "name": "U3_BTC_Small_Alpha",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "action": "no_rewrite_blocked",
+      "reason": "Biểu thức điều kiện bất khả thi `close < 0` trên giá thị trường BTC; không bao giờ sinh tín hiệu giao dịch. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    {
+      "id": "214ea8fdf3e6",
+      "name": "U2_ETH_15m_Alpha",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "action": "no_rewrite_blocked",
+      "reason": "Biểu thức điều kiện hằng số `close > 10` trên ETH; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    {
+      "id": "234e6df02e37",
+      "name": "U2_ETH_15m_Alpha",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "action": "no_rewrite_blocked",
+      "reason": "Biểu thức điều kiện hằng số `close > 10` trên ETH; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    {
+      "id": "270e6e28416f",
+      "name": "EMA Trend Rider (Rising Slope - Optimized)",
+      "disposition": "VALID_AS_IS",
+      "action": "version_v2_created",
+      "plan_warnings_count": 0
+    },
+    {
+      "id": "2e41b2cfa24d",
+      "name": "U1_BTC_1h_Alpha",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "action": "no_rewrite_blocked",
+      "reason": "Biểu thức điều kiện hằng số `close > 0` trên BTC; luôn vào LONG ngay từ nến 1 và không có điều kiện thoát lệnh. Theo quy tắc cốt lõi 'Unknown semantics remain blocked, not guessed', không tự bịa đặt luật thay thế."
+    },
+    {
+      "id": "303d4b713dda",
+      "name": "Macro Trend Filtered Breakout (EMA 105 Filter)",
+      "disposition": "VALID_AS_IS",
+      "action": "vinh_preserved_intact",
+      "reason": "Vinh strategy preserved 100% intact without modification."
+    },
+    {
+      "id": "33312a2f4dfc",
+      "name": "Standard Deviation Dynamic Channel Breakout (v2.0 Regime Filtered)",
+      "disposition": "VALID_AS_IS",
+      "action": "vinh_preserved_intact",
+      "reason": "Vinh strategy preserved 100% intact without modification."
+    },
+    {
+      "id": "3cfcc2d296a2",
+      "name": "Donchian Lower Channel Exit",
+      "disposition": "VALID_AS_IS",
+      "action": "version_v2_created",
+      "plan_warnings_count": 0
+    },
+    {
+      "id": "4f28285aa44c",
+      "name": "Dual EMA + ADX Trend Strength Filter",
+      "disposition": "VALID_AS_IS",
+      "action": "version_v2_created",
+      "plan_warnings_count": 0
+    },
+    {
+      "id": "541c55834f56",
+      "name": "Daily Range Expansion (High - Low) / Close",
+      "disposition": "VALID_AS_IS",
+      "action": "version_v2_created",
+      "plan_warnings_count": 0
+    },
+    {
+      "id": "571474a18f55",
+      "name": "U3_BTC_Small_Alpha",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "action": "no_rewrite_blocked",
+      "reason": "Biểu thức điều kiện bất khả thi `close < 0` trên giá thị trường BTC; không bao giờ sinh tín hiệu giao dịch. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    {
+      "id": "5e52d3fdf71f",
+      "name": "Bollinger Band Overextension Exit",
+      "disposition": "VALID_AS_IS",
+      "action": "version_v2_created",
+      "plan_warnings_count": 0
+    },
+    {
+      "id": "6055aa8f661e",
+      "name": "Triple Filter: EMA + MACD + RSI",
+      "disposition": "VALID_AS_IS",
+      "action": "version_v2_created",
+      "plan_warnings_count": 0
+    },
+    {
+      "id": "616e1b8cbc88",
+      "name": "U2_ETH_15m_Alpha",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "action": "no_rewrite_blocked",
+      "reason": "Biểu thức điều kiện hằng số `close > 10` trên ETH; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    {
+      "id": "64b657c8de8e",
+      "name": "U4_BTC_1h_Different_Window",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "action": "no_rewrite_blocked",
+      "reason": "Biểu thức điều kiện hằng số `close > 1` trên BTC; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    {
+      "id": "6afa7f774655",
+      "name": "RSI Rebound with Fast SMA Filter",
+      "disposition": "VALID_AS_IS",
+      "action": "version_v2_created",
+      "plan_warnings_count": 0
+    },
+    {
+      "id": "715e56a6dd33",
+      "name": "Linear Regression Channel Deviation",
+      "disposition": "VALID_AS_IS",
+      "action": "version_v2_created",
+      "plan_warnings_count": 0
+    },
+    {
+      "id": "717c1890c59e",
+      "name": "Weighted Moving Average (WMA) Crossover (Optimized)",
+      "disposition": "VALID_AS_IS",
+      "action": "version_v2_created",
+      "plan_warnings_count": 0
+    },
+    {
+      "id": "74f607263c5c",
+      "name": "U4_BTC_1h_Different_Window",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "action": "no_rewrite_blocked",
+      "reason": "Biểu thức điều kiện hằng số `close > 1` trên BTC; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    {
+      "id": "7c1bf0a9686a",
+      "name": "U4_BTC_1h_Different_Window",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "action": "no_rewrite_blocked",
+      "reason": "Biểu thức điều kiện hằng số `close > 1` trên BTC; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    {
+      "id": "7f3486d63ca8",
+      "name": "Dual Oscillator Climax Exit",
+      "disposition": "VALID_AS_IS",
+      "action": "version_v2_created",
+      "plan_warnings_count": 0
+    },
+    {
+      "id": "7f67e9aed0aa",
+      "name": "Stochastic & RSI Confluence System",
+      "disposition": "VALID_AS_IS",
+      "action": "version_v2_created",
+      "plan_warnings_count": 0
+    },
+    {
+      "id": "7f770ebe5ab5",
+      "name": "U3_BTC_Small_Alpha",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "action": "no_rewrite_blocked",
+      "reason": "Biểu thức điều kiện bất khả thi `close < 0` trên giá thị trường BTC; không bao giờ sinh tín hiệu giao dịch. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    {
+      "id": "856ddc574ce7",
+      "name": "U2_ETH_15m_Alpha",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "action": "no_rewrite_blocked",
+      "reason": "Biểu thức điều kiện hằng số `close > 10` trên ETH; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    {
+      "id": "862e0c9eebbe",
+      "name": "U2_ETH_15m_Alpha",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "action": "no_rewrite_blocked",
+      "reason": "Biểu thức điều kiện hằng số `close > 10` trên ETH; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    {
+      "id": "89379cc0ab52",
+      "name": "Stochastic Oscillator (%K, %D) Bull Cross",
+      "disposition": "VALID_AS_IS",
+      "action": "version_v2_created",
+      "plan_warnings_count": 0
+    },
+    {
+      "id": "8a47cdbcc942",
+      "name": "Fast Dip Harvester (3M DCA Dynamic - CAGR 108%)",
+      "disposition": "VALID_AS_IS",
+      "action": "vinh_preserved_intact",
+      "reason": "Vinh strategy preserved 100% intact without modification."
+    },
+    {
+      "id": "930294d28c45",
+      "name": "U3_BTC_Small_Alpha",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "action": "no_rewrite_blocked",
+      "reason": "Biểu thức điều kiện bất khả thi `close < 0` trên giá thị trường BTC; không bao giờ sinh tín hiệu giao dịch. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    {
+      "id": "9eec3d61131d",
+      "name": "U3_BTC_Small_Alpha",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "action": "no_rewrite_blocked",
+      "reason": "Biểu thức điều kiện bất khả thi `close < 0` trên giá thị trường BTC; không bao giờ sinh tín hiệu giao dịch. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    {
+      "id": "a4d6826fbbc6",
+      "name": "U4_BTC_1h_Different_Window",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "action": "no_rewrite_blocked",
+      "reason": "Biểu thức điều kiện hằng số `close > 1` trên BTC; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    {
+      "id": "af2bf88426c4",
+      "name": "U3_BTC_Small_Alpha",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "action": "no_rewrite_blocked",
+      "reason": "Biểu thức điều kiện bất khả thi `close < 0` trên giá thị trường BTC; không bao giờ sinh tín hiệu giao dịch. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    {
+      "id": "b4b65cd3493f",
+      "name": "Commodity Channel Index (CCI) Snapback",
+      "disposition": "VALID_AS_IS",
+      "action": "version_v2_created",
+      "plan_warnings_count": 0
+    },
+    {
+      "id": "b96bafe57445",
+      "name": "Normalized ATR (NATR) Volatility Breakout",
+      "disposition": "VALID_AS_IS",
+      "action": "version_v2_created",
+      "plan_warnings_count": 0
+    },
+    {
+      "id": "bd234070bd7b",
+      "name": "U1_BTC_1h_Alpha",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "action": "no_rewrite_blocked",
+      "reason": "Biểu thức điều kiện hằng số `close > 0` trên BTC; luôn vào LONG ngay từ nến 1 và không có điều kiện thoát lệnh. Theo quy tắc cốt lõi 'Unknown semantics remain blocked, not guessed', không tự bịa đặt luật thay thế."
+    },
+    {
+      "id": "be1174b24a44",
+      "name": "U1_BTC_1h_Alpha",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "action": "no_rewrite_blocked",
+      "reason": "Biểu thức điều kiện hằng số `close > 0` trên BTC; luôn vào LONG ngay từ nến 1 và không có điều kiện thoát lệnh. Theo quy tắc cốt lõi 'Unknown semantics remain blocked, not guessed', không tự bịa đặt luật thay thế."
+    },
+    {
+      "id": "bf519617d973",
+      "name": "Double Exponential Moving Average (DEMA - Optimized)",
+      "disposition": "VALID_AS_IS",
+      "action": "version_v2_created",
+      "plan_warnings_count": 0
+    },
+    {
+      "id": "c33cc317bbeb",
+      "name": "Multi-Day Cumulative Return Dip Buying",
+      "disposition": "VALID_AS_IS",
+      "action": "version_v2_created",
+      "plan_warnings_count": 0
+    },
+    {
+      "id": "cb0b6e0f12e7",
+      "name": "U1_BTC_1h_Alpha",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "action": "no_rewrite_blocked",
+      "reason": "Biểu thức điều kiện hằng số `close > 0` trên BTC; luôn vào LONG ngay từ nến 1 và không có điều kiện thoát lệnh. Theo quy tắc cốt lõi 'Unknown semantics remain blocked, not guessed', không tự bịa đặt luật thay thế."
+    },
+    {
+      "id": "cb750cb1eb10",
+      "name": "EMA Golden Cross + Volume Spike Confluence",
+      "disposition": "VALID_AS_IS",
+      "action": "version_v2_created",
+      "plan_warnings_count": 0
+    },
+    {
+      "id": "d0518c0cca14",
+      "name": "U4_BTC_1h_Different_Window",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "action": "no_rewrite_blocked",
+      "reason": "Biểu thức điều kiện hằng số `close > 1` trên BTC; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    {
+      "id": "e9a9a5b44d03",
+      "name": "U2_ETH_15m_Alpha",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "action": "no_rewrite_blocked",
+      "reason": "Biểu thức điều kiện hằng số `close > 10` trên ETH; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    {
+      "id": "ee0cf7f58f94",
+      "name": "U2_ETH_15m_Alpha",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "action": "no_rewrite_blocked",
+      "reason": "Biểu thức điều kiện hằng số `close > 10` trên ETH; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    {
+      "id": "efb1fbe2db86",
+      "name": "Volatility Expansion Channel (StdDev 1.51 + Macro Trend)",
+      "disposition": "VALID_AS_IS",
+      "action": "vinh_preserved_intact",
+      "reason": "Vinh strategy preserved 100% intact without modification."
+    },
+    {
+      "id": "f261549d9efa",
+      "name": "ROC Momentum Surge",
+      "disposition": "VALID_AS_IS",
+      "action": "version_v2_created",
+      "plan_warnings_count": 0
+    },
+    {
+      "id": "f4e211e9510d",
+      "name": "Rolling 30-Day Multi-Week High Breakout",
+      "disposition": "VALID_AS_IS",
+      "action": "version_v2_created",
+      "plan_warnings_count": 0
+    },
+    {
+      "id": "fa9587a97fa9",
+      "name": "Trend Alignment Momentum (Optimized)",
+      "disposition": "VALID_AS_IS",
+      "action": "version_v3_created",
+      "plan_warnings_count": 0
+    },
+    {
+      "id": "fd16df3d0a3f",
+      "name": "U3_BTC_Small_Alpha",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "action": "no_rewrite_blocked",
+      "reason": "Biểu thức điều kiện bất khả thi `close < 0` trên giá thị trường BTC; không bao giờ sinh tín hiệu giao dịch. Phân loại BLOCKED_UNKNOWN_INTENT."
+    }
+  ]
+}

@@ -118,15 +118,16 @@ export default function StudioWorkspace({ mode = 'create' }) {
   const [setOpen, setSetOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [annOpen, setAnnOpen] = useState(false)
+  const [syntaxOpen, setSyntaxOpen] = useState(false)
   const [strip, setStrip] = useState(false)
   const setRef = useRef(null)
   useEffect(() => {
-    if (!setOpen && !historyOpen && !annOpen) return undefined
-    const click = (e) => { if (setRef.current && !setRef.current.contains(e.target)) { setSetOpen(false); setHistoryOpen(false); setAnnOpen(false) } }
-    const key = (e) => { if (e.key === 'Escape') { setSetOpen(false); setHistoryOpen(false); setAnnOpen(false) } }
+    if (!setOpen && !historyOpen && !annOpen && !syntaxOpen) return undefined
+    const click = (e) => { if (setRef.current && !setRef.current.contains(e.target)) { setSetOpen(false); setHistoryOpen(false); setAnnOpen(false); setSyntaxOpen(false) } }
+    const key = (e) => { if (e.key === 'Escape') { setSetOpen(false); setHistoryOpen(false); setAnnOpen(false); setSyntaxOpen(false) } }
     document.addEventListener('mousedown', click); document.addEventListener('keydown', key)
     return () => { document.removeEventListener('mousedown', click); document.removeEventListener('keydown', key) }
-  }, [setOpen, historyOpen, annOpen])
+  }, [setOpen, historyOpen, annOpen, syntaxOpen])
 
   // mở lại một job từ Lịch sử chạy: /alpha/create?job=... (kết quả tạm, không gắn với code đang soạn nên chưa lưu được cho tới khi chạy lại)
   const [sp] = useSearchParams()
@@ -242,7 +243,7 @@ export default function StudioWorkspace({ mode = 'create' }) {
         const r = await postLiveBot({
           mode: form.run_mode,
           code: code0,
-          symbols: form.symbols?.length ? form.symbols : ['BTC/USDT', 'ETH/USDT'],
+          symbols: form.symbols?.length ? form.symbols : (universe?.length ? universe.slice(0, 10) : ['BTC/USDT']),
           capital: Number(form.capital) || 10000,
           base_frame: form.timeframe || '1h',
         })
@@ -382,17 +383,9 @@ export default function StudioWorkspace({ mode = 'create' }) {
   // Education: chỉ user chưa lưu chiến lược nào thấy đúng 1 mẫu hướng dẫn (backend quyết định); user đã có chiến lược không thấy mục mẫu.
   const sampleRes = useAsync(educ ? () => getEduSamplesVisible().then((r) => r.samples || []) : getEducationSamples, [educ, me?.id, meLoading])
   const sampleList = Array.isArray(sampleRes.data) ? sampleRes.data : []
-  const COMBO_STUDENT_NOTE = `# 💡 MẸO COMBO DANH MỤC CHO HỌC VIÊN:
-# 1. Bấm vào biểu tượng Cài đặt (⚙️) ở thanh công cụ phía trên.
-# 2. Bạn có thể chọn 1 coin (vd: BTC) hoặc tích nhiều coin (vd: BTC + ETH + SOL).
-# 3. Hệ thống sẽ tự động chạy chiến lược này trên từng coin và chia đều vốn (Equal Weight) để giảm độ sụt giảm tài khoản (Drawdown)!
-\n`
   const sampleText = async (code) => {
     if (!code) return code
-    let text = code
-    if (educ && !text.includes('MẸO COMBO DANH MỤC')) {
-      text = COMBO_STUDENT_NOTE + text
-    }
+    const text = code
     if (!educ) return text
     try { return (await postAnnotate(text, { as_comments: true })).annotated_code || text } catch (e) { return text }
   }
@@ -516,7 +509,11 @@ export default function StudioWorkspace({ mode = 'create' }) {
   // 1. Alpha đã lưu: nếu draft đang trỏ tới một alpha nhưng kết quả bị rỗng -> nạp lại từ backend
   const savedHydrated = useRef(new Set())
   useEffect(() => {
-    const targetId = draft.saved?.alpha_id || draft.alphaId || (draft.storedId && !draft.sampleKey ? draft.storedId : '')
+    let targetId = draft.saved?.alpha_id || draft.alphaId || (draft.storedId && !draft.sampleKey ? draft.storedId : '')
+    if (!targetId && savedItems?.length) {
+      const match = savedItems.find((s) => s.name === draft.name || s.id === draft.name)
+      if (match) targetId = match.id
+    }
     if (!targetId || draft.stored?.result || draft.jobId || savedHydrated.current.has(targetId)) return
     savedHydrated.current.add(targetId)
     const id = draft.id
@@ -528,15 +525,21 @@ export default function StudioWorkspace({ mode = 'create' }) {
         name: rec.name || draft.name,
         code: draft.code || rec.code || '',
         baseCode: draft.baseCode || rec.code || '',
+        alphaId: rec.id,
+        alphaVersion: rec.version || 1,
       })
       if (rec.config) set((p) => ({ form: { ...p.form, ...configToForm(rec.config, POSITION_KEYS) } }))
     }).catch(() => { /* bỏ qua */ })
-  }, [draft.id, draft.saved?.alpha_id, draft.alphaId, draft.storedId, draft.sampleKey, draft.stored?.result, draft.jobId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [draft.id, draft.name, draft.saved?.alpha_id, draft.alphaId, draft.storedId, draft.sampleKey, draft.stored?.result, draft.jobId, savedItems]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // 2. Mẫu: nếu draft đang trỏ tới mẫu nhưng kết quả bị rỗng -> nạp kết quả tính sẵn từ backend
   const sampleTried = useRef(new Set())
   useEffect(() => {
-    const key = draft.sampleKey || (draft.storedId && !draft.alphaId && !draft.saved?.alpha_id ? draft.storedId : '')
+    let key = draft.sampleKey || (draft.storedId && !draft.alphaId && !draft.saved?.alpha_id ? draft.storedId : '')
+    if (!key && sampleList?.length) {
+      const match = sampleList.find((s) => s.name === draft.name || s.key === draft.name)
+      if (match) key = match.key
+    }
     if (!key || draft.stored?.result || draft.jobId || sampleTried.current.has(key)) return
     sampleTried.current.add(key)
     const id = draft.id
@@ -548,7 +551,7 @@ export default function StudioWorkspace({ mode = 'create' }) {
       })
       if (resData.config) set((p) => ({ form: { ...p.form, ...configToForm(resData.config, POSITION_KEYS) } }))
     }).catch(() => { /* NOT_READY / lỗi: không thử lại trong phiên */ })
-  }, [draft.id, draft.sampleKey, draft.storedId, draft.alphaId, draft.saved?.alpha_id, draft.stored?.result, draft.jobId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [draft.id, draft.name, draft.sampleKey, draft.storedId, draft.alphaId, draft.saved?.alpha_id, draft.stored?.result, draft.jobId, sampleList]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Giải thích từng dòng (chỉ education) = chú thích `# ▸` trong chính code, do backend sinh (annotate as_comments, idempotent); không có widget nào trong editor.
   const [annBusy, setAnnBusy] = useState(false)
@@ -737,10 +740,59 @@ export default function StudioWorkspace({ mode = 'create' }) {
           </div>
           <span className="se-sp" />
           <div className="se-btns" ref={setRef}>
+            <button type="button" className="n-icon-btn" aria-label="Tài liệu cú pháp Nora" aria-expanded={syntaxOpen} title="Tài liệu & Cú pháp Nora Strategy (Python)" onClick={() => setSyntaxOpen(!syntaxOpen)}>📖</button>
             <button type="button" className={`n-icon-btn ${problems.length ? 'warn' : ''}`} aria-label="Cài đặt chạy" aria-expanded={setOpen} title="Cài đặt chạy" onClick={() => setSetOpen(!setOpen)}>{ICON.gear}</button>
             <button type="button" className="n-icon-btn" aria-label="Kiểm tra code" title="Kiểm tra (biên dịch, không chạy)" disabled={!!busy || !draft.code.trim()} onClick={() => { compile(); setStrip(true) }}>{busy === 'compile' ? <Spinner /> : ICON.check}</button>
             {educ && <button type="button" className="n-icon-btn" aria-label="Chú thích" aria-expanded={annOpen} title="Chú thích tiếng Việt `# ▸` trên từng dòng" disabled={annBusy || !draft.code.trim()} onClick={() => setAnnOpen(!annOpen)}>{annBusy ? <Spinner /> : <b style={{ fontSize: 12 }}>▸#</b>}</button>}
             <button type="button" className="n-icon-btn" aria-label="Nhân bản" title="Nhân bản sang tab mới" onClick={() => addDraft(`${draft.name} (bản sao)`, draft.code)}>{ICON.copy}</button>
+            {syntaxOpen && (
+              <div className="n-pop se-setp" style={{ maxWidth: 540, width: '92vw', maxHeight: '80vh', overflowY: 'auto' }} role="dialog" aria-label="Tài liệu cú pháp Nora">
+                <div className="n-pop-h">
+                  <b>Tài liệu Cú pháp Nora Strategy (Python)</b>
+                  <button type="button" className="n-btn sm" onClick={() => setSyntaxOpen(false)}>Đóng</button>
+                </div>
+                <div className="se-setb" style={{ fontSize: 13, lineHeight: 1.6, padding: '12px 16px' }}>
+                  <p style={{ margin: '0 0 10px 0' }}>
+                    Chiến lược trong Nora Studio tuân thủ định dạng <b>Nora DSL / SimpleAlgorithm</b> thực thi trên nền tảng <b>NautilusTrader</b> có kiểm soát an toàn bộ nhớ (4 GB/job).
+                  </p>
+                  <h4 style={{ margin: '12px 0 6px 0', fontSize: 13.5 }}>1. Cấu trúc lớp chiến lược</h4>
+                  <pre style={{ background: 'var(--n-surface)', padding: 10, borderRadius: 6, fontSize: 12, overflowX: 'auto' }}>
+{`class Strategy(SimpleAlgorithm):
+    def initialize(self):
+        # Đăng ký các chỉ báo cần dùng
+        self.fast = self.ema(period=12)
+        self.slow = self.ema(period=26)
+        self.rsi = self.rsi(period=14)
+
+    def on_bar(self, bar):
+        # Logic giao dịch theo từng nến đóng
+        if self.fast.value > self.slow.value and self.rsi.value < 70:
+            self.buy()
+        elif self.fast.value < self.slow.value:
+            self.close()`}
+                  </pre>
+                  <h4 style={{ margin: '12px 0 6px 0', fontSize: 13.5 }}>2. Các chỉ báo hỗ trợ sẵn</h4>
+                  <ul style={{ paddingLeft: 18, margin: '4px 0' }}>
+                    <li><code>self.ema(period)</code>: Exponential Moving Average</li>
+                    <li><code>self.sma(period)</code>: Simple Moving Average</li>
+                    <li><code>self.rsi(period)</code>: Relative Strength Index</li>
+                    <li><code>self.atr(period)</code>: Average True Range</li>
+                    <li><code>self.bollinger(period, std)</code>: Bollinger Bands</li>
+                    <li><code>self.macd(fast, slow, signal)</code>: MACD</li>
+                  </ul>
+                  <h4 style={{ margin: '12px 0 6px 0', fontSize: 13.5 }}>3. Hành động giao dịch & Quản lý rủi ro</h4>
+                  <ul style={{ paddingLeft: 18, margin: '4px 0' }}>
+                    <li><code>self.buy(qty=None)</code>: Mở vị thế Long</li>
+                    <li><code>self.sell(qty=None)</code>: Mở vị thế Short</li>
+                    <li><code>self.close()</code>: Đóng toàn bộ vị thế</li>
+                    <li><code>self.set_stop_loss(pct)</code>: Đặt dừng lỗ tự động theo % giá</li>
+                  </ul>
+                  <div style={{ marginTop: 12, padding: '8px 10px', borderRadius: 6, background: 'rgba(239, 68, 68, 0.1)', color: 'var(--n-neg)', fontSize: 12 }}>
+                    ⚠️ <b>Lưu ý an toàn:</b> Hệ thống không cho phép import các module hệ thống không an toàn (như <code>os</code>, <code>sys</code>, <code>subprocess</code>, <code>socket</code>). Mọi phép tính số liệu do backend NautilusTrader thực hiện; tiến trình bị giới hạn cứng 4 GB RAM.
+                  </div>
+                </div>
+              </div>
+            )}
             {educ && annOpen && (
               <div className="n-pop se-annp" role="menu" aria-label="Chú thích">
                 <button type="button" role="menuitem" className="n-btn sm" title="Sinh lại chú thích ngắn `# ▸` (không đổi kết quả chạy)" onClick={() => { setAnnOpen(false); reAnnotate(false) }}>Chú thích lại</button>
@@ -873,11 +925,11 @@ export default function StudioWorkspace({ mode = 'create' }) {
                 {(!educ ? allStrategies : savedItems).map((item) => {
                   const isActive = draft.saved?.alpha_id === item.id || draft.alphaId === item.id || draft.sampleKey === item.id
                   const isOpening = openingId === item.id
-                  const sim = item.metrics?.simulate || item.result?.metrics?.simulate || null
-                  const retPct = sim ? (sim.ret_pct ?? sim.return_pct) : null
-                  const mddPct = sim ? (sim.mdd_pct ?? sim.max_drawdown_pct) : null
-                  const sharpe = sim ? sim.sharpe : null
-                  const winRate = sim ? (sim.win_rate_trades ?? sim.win_rate) : null
+                  const sim = item.metrics?.simulate || item.metrics?.all || item.result?.metrics?.simulate || item.result?.metrics?.all || null
+                  const retPct = sim ? (sim.ret_pct ?? sim.return_pct ?? sim.total_return_pct ?? sim.ret) : null
+                  const mddPct = sim ? (sim.mdd_pct ?? sim.max_drawdown_pct ?? sim.mdd) : null
+                  const sharpe = sim ? (sim.sharpe ?? sim.sharpe_ratio) : null
+                  const winRate = sim ? (sim.win_rate_trades ?? sim.win_rate ?? sim.win_rate_pct) : null
                   const checklistItems = Array.isArray(item.checklist)
                     ? item.checklist
                     : Array.isArray(item.checklist?.items)

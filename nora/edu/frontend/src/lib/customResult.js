@@ -16,14 +16,32 @@ export function normMetrics(m) {
   return {
     ret: pick(m, ['ret_pct']),
     cagr: pick(m, ['cagr_pct']),
+    days: pick(m, ['days', 'oos_days']),
     sharpe: pick(m, ['sharpe']),
-    sortino: pick(m, ['sortino']),
+    sortino: pick(m, ['sortino', 'sortino_ratio']),
     mdd: isNum(mdd) ? -Math.abs(mdd) : null,
-    calmar: pick(m, ['calmar']),
+    calmar: pick(m, ['calmar', 'calmar_ratio']),
     winTrades: pick(m, ['win_rate_trades']),
-    pfTrades: pick(m, ['profit_factor_trades']),
+    pfTrades: pick(m, ['profit_factor_trades', 'profit_factor']),
+    pfNote: m.profit_factor_note || null,
     trades: pick(m, ['trades']),
     fees: pick(m, ['fees_usd']),
+    volAnn: pick(m, ['vol_ann_pct']),
+    var95: pick(m, ['var95_pct']),
+    cvar95: pick(m, ['cvar95_pct']),
+    winDays: pick(m, ['win_days_pct']),
+    bestDay: pick(m, ['best_day_pct']),
+    worstDay: pick(m, ['worst_day_pct']),
+    payoff: pick(m, ['payoff']),
+    payoffNote: m.payoff_note || null,
+    expectancyPct: pick(m, ['expectancy_pct']),
+    feeDrag: pick(m, ['fee_drag_pct']),
+    maxDdDays: pick(m, ['max_dd_days']),
+    maxConsecLosses: pick(m, ['max_consec_losses', 'max_consecutive_losses']),
+    top5Share: pick(m, ['top5_share_pct']),
+    maeWorst: pick(m, ['mae_worst_pct']),
+    liqProximity: pick(m, ['liq_proximity_max_pct']),
+    liquidations: pick(m, ['liquidations']),
   }
 }
 
@@ -49,6 +67,36 @@ const iso = (t) => { const ms = toMs(t); return ms == null ? '' : new Date(ms).t
 /** Cảnh báo có thể là chuỗi hoặc { message, line }. */
 export const normWarnings = (w) => (Array.isArray(w) ? w : []).map((x) => (typeof x === 'string' ? x : x?.message || JSON.stringify(x))).filter(Boolean)
 
+const normalizeSymbol = (symbol) => String(symbol).trim().replace(/@perp$/i, '').replace(/-USDT$/i, '').toUpperCase()
+const normalizeOverrides = (overrides) => Object.fromEntries(
+  Object.entries(overrides || {})
+    .filter(([, value]) => value !== '' && value != null)
+    .map(([key, value]) => [key, Number.isFinite(Number(value)) && value !== '' ? Number(value) : value])
+    .sort(([left], [right]) => left.localeCompare(right)),
+)
+
+/** Compare form inputs with the worker's actual run config; null means no detected mismatch. */
+export function runConfigDiff(currentForm, config, defaultMode = 'fast') {
+  if (!currentForm || !config) return null
+  const configSymbols = config.data_symbols || config.symbols
+  if (Array.isArray(currentForm.symbols) && Array.isArray(configSymbols)) {
+    const formSyms = currentForm.symbols.map(normalizeSymbol).sort()
+    const resultSyms = configSymbols.map(normalizeSymbol).sort()
+    if (JSON.stringify(formSyms) !== JSON.stringify(resultSyms)) return 'cặp tài sản'
+  }
+  if (currentForm.start && config.start && currentForm.start !== config.start) return 'ngày bắt đầu'
+  if (currentForm.end && config.end && currentForm.end !== config.end) return 'ngày kết thúc'
+  if (currentForm.train_ratio != null && config.train_ratio != null && Number(currentForm.train_ratio) !== Number(config.train_ratio)) return 'tỉ lệ train'
+  if (currentForm.capital != null && config.initial_capital != null && Number(currentForm.capital) !== Number(config.initial_capital)) return 'vốn ban đầu'
+  const mode = currentForm.exec_mode || defaultMode
+  const expectedFrame = mode === 'standard' ? '1m' : config.timeframe
+  if (expectedFrame && config.run_frame && expectedFrame !== config.run_frame) return 'khung nến'
+  if (config.position_overrides && JSON.stringify(normalizeOverrides(currentForm.pos)) !== JSON.stringify(normalizeOverrides(config.position_overrides))) {
+    return 'tham số quản lý vị thế'
+  }
+  return null
+}
+
 /** Lỗi biên dịch -> { line, col, message } từ object `error`, hoặc từ thông báo HTTP dạng JSON / "dòng N". */
 export function parseCompileError(err) {
   if (!err) return null
@@ -62,6 +110,7 @@ export function parseCompileError(err) {
 
 // ---- bảng lệnh / theo tài sản: tên cột chưa chốt nên mỗi cột có danh sách khoá thay thế ----
 export const TRADE_COLS = [
+  { keys: ['trade_no', 'no', 'index'], label: '#', kind: 'int' },
   { keys: ['enter_time', 'entry_time', 'open_time'], label: 'Vào lúc', kind: 'time' },
   { keys: ['close_time', 'exit_time'], label: 'Ra lúc', kind: 'time' },
   { keys: ['symbol', 'sym'], label: 'Tài sản', kind: 'sym' },
@@ -71,15 +120,23 @@ export const TRADE_COLS = [
   { keys: ['qty', 'size', 'quantity'], label: 'Khối lượng', kind: 'qty', r: true },
   { keys: ['ret_pct', 'return_pct', 'pnl_pct'], label: 'Lãi/lỗ %', kind: 'spct', r: true },
   { keys: ['pnl', 'net_pnl', 'pnl_usd'], label: 'Lãi/lỗ (USDT)', kind: 'money', r: true },
-  { keys: ['fee', 'fee_usd', 'fees'], label: 'Phí', kind: 'num', r: true },
+  { keys: ['cum_pnl'], label: 'PnL tích lũy', kind: 'money', r: true },
+  { keys: ['fee', 'fee_usd', 'fees_usd', 'fees'], label: 'Phí', kind: 'num', r: true },
+  { keys: ['funding_usd', 'funding'], label: 'Funding', kind: 'num', r: true },
+  { keys: ['status'], label: 'Trạng thái', kind: 'side' },
+  { keys: ['close_reason', 'reason'], label: 'Lý do đóng', kind: 'text' },
+  { keys: ['leverage'], label: 'Đòn bẩy', kind: 'num', r: true },
+  { keys: ['mae_pct'], label: 'MAE', kind: 'spct', r: true },
+  { keys: ['entry_equity'], label: 'Vốn lúc vào', kind: 'money', r: true },
 ]
 export const SYMBOL_COLS = [
   { keys: ['symbol', 'sym'], label: 'Tài sản', kind: 'sym' },
-  { keys: ['weight', 'weight_pct'], label: 'Tỉ trọng', kind: 'num', r: true },
+  { keys: ['weight', 'weight_pct'], label: 'Tỉ trọng %', kind: 'num', r: true },
   { keys: ['trades', 'n_trades'], label: 'Số lệnh', kind: 'int', r: true },
   { keys: ['wins'], label: 'Lệnh thắng', kind: 'int', r: true },
   { keys: ['ret_pct', 'return_pct'], label: 'Lãi/lỗ %', kind: 'spct', r: true },
   { keys: ['pnl', 'pnl_usd', 'net_pnl'], label: 'Lãi/lỗ (USDT)', kind: 'money', r: true },
+  { keys: ['open_pnl_usd', 'unrealized_pnl'], label: 'Vị thế mở (USDT)', kind: 'money', r: true },
   { keys: ['fees_usd', 'fee', 'fees'], label: 'Phí', kind: 'num', r: true },
 ]
 export const POSITION_COLS = [

@@ -737,7 +737,8 @@ def build_evidence(result: Dict[str, Any], job_id: Optional[str] = None, job: Op
         "job_id": job_id,
         "program_hash": result.get("program_hash"),
         "data_source": data.get("source"),
-        "data_sha256_1m": data.get("sha256_1m"),
+        "data_sha256_1m": data.get("content_sha256_1m"),
+        "catalog_fingerprint": data.get("catalog_digest"),
         "git_commit": git_commit(),
         "job_created": job.get("created"),
         "job_finished": job.get("finished"),
@@ -754,6 +755,7 @@ def save_user_alpha(
     base_dir: Optional[str] = None,
     alpha_id: Optional[str] = None,
     owner_id: Optional[str] = None,
+    forked_from: Optional[Dict[str, Any]] = None,
 ) -> Tuple[Dict[str, Any], str]:
     """Xác thực và lưu trữ bản ghi Alpha người dùng:
     - Nếu có job_id: đọc kết quả job thật từ máy chủ (job.status == 'done')
@@ -762,6 +764,7 @@ def save_user_alpha(
     - Chống trùng program_hash THEO TỪNG OWNER (cùng owner trùng -> ValueError / 409)
     - Lưu owner_id vào bản ghi
     - Phiên bản mới (versioned): giữ owner_id cũ nếu không truyền mới
+    - Lưu nguồn sao chép bất biến (forked_from) nếu có
     """
     if not job_id:
         from .code.compile import compile_code
@@ -785,7 +788,8 @@ def save_user_alpha(
         }
         return save_user_alpha_from_result(
             owner_id, code, name, result, source=source, note=note or "Bản lưu soạn thảo trực tiếp",
-            base_dir=base_dir, alpha_id=alpha_id, job_id=None, job={"status": "draft"}
+            base_dir=base_dir, alpha_id=alpha_id, job_id=None, job={"status": "draft"},
+            forked_from=forked_from,
         )
 
     from backend.jobs import runner as batch
@@ -803,7 +807,7 @@ def save_user_alpha(
         raise ValueError(f"Job {job_id} không có dữ liệu result.json")
     return save_user_alpha_from_result(
         owner_id, code, name, result, source=source, note=note, base_dir=base_dir,
-        alpha_id=alpha_id, job_id=job_id, job=job,
+        alpha_id=alpha_id, job_id=job_id, job=job, forked_from=forked_from,
     )
 
 
@@ -819,6 +823,7 @@ def save_user_alpha_from_result(
     alpha_id: Optional[str] = None,
     job_id: Optional[str] = None,
     job: Optional[Dict[str, Any]] = None,
+    forked_from: Optional[Dict[str, Any]] = None,
 ) -> Tuple[Dict[str, Any], str]:
     """Một định nghĩa duy nhất cho kiểm tra + checklist + evidence + ghi bản ghi alpha.
     `result` là kết quả Nautilus thật (job hoàn tất hoặc cache mẫu); `job_id`/`job` chỉ có khi đến từ job."""
@@ -892,8 +897,9 @@ def save_user_alpha_from_result(
         "program_hash": prog.code_hash,
         "config": config,
         "metrics": result.get("metrics", {}),
+        "market_context": result.get("market_context"),
         "checklist": checklist,
-        "data_sha": (result.get("data") or {}).get("sha256_1m"),
+        "data_sha": (result.get("data") or {}).get("content_sha256_1m"),
         "job_id": job_id,
         "sample_key": sample_key if sample_key is not None else old_record.get("sample_key"),
         "final_equity": result.get("final_equity"),
@@ -902,6 +908,25 @@ def save_user_alpha_from_result(
         "result": snapshot,
         "owner_id": effective_owner,
     }
+    if forked_from and isinstance(forked_from, dict) and forked_from.get("alpha_id"):
+        # Server-authoritative lookup (DEC-03): bắt buộc tìm thấy chiến lược nguồn
+        src_alpha = get_user_alpha(forked_from["alpha_id"], base_dir)
+        if not src_alpha:
+            raise ValueError(f"Không thể xác thực nguồn fork: không tìm thấy chiến lược {forked_from['alpha_id']}")
+        from backend import users
+        src_owner = users.get_user(src_alpha.get("owner_id")) if src_alpha.get("owner_id") else None
+        record["forked_from"] = {
+            "alpha_id": src_alpha["id"],
+            "version": src_alpha.get("version", 1),
+            "author_uid": src_alpha.get("owner_id"),
+            "author_handle": src_owner.get("handle") if src_owner else (src_alpha.get("author_handle") or "unknown"),
+            "author_name": src_owner.get("display_name") if src_owner else (src_alpha.get("author_name") or "Tác giả"),
+            "code_hash": src_alpha.get("program_hash") or hashlib.sha256((src_alpha.get("code") or "").encode("utf-8")).hexdigest()[:16],
+            "forked_at": now_iso,
+        }
+    elif old_record.get("forked_from"):
+        # Giữ nguyên nguồn gốc khi lưu phiên bản mới của bản fork đã có
+        record["forked_from"] = old_record["forked_from"]
 
     if versioned:
         prev_v = int(old_record.get("version") or 1)
@@ -1017,6 +1042,99 @@ def count_by_owner(base_dir: Optional[str] = None) -> Dict[str, int]:
     return counts
 
 
+def _enrich_alpha_record(rec: Dict[str, Any]) -> Dict[str, Any]:
+    """Tự động bù các trường metrics và by_symbol còn thiếu cho các bản ghi alpha đã lưu trước đây."""
+    if not isinstance(rec, dict):
+        return rec
+    res = rec.get("result")
+    if not isinstance(res, dict):
+        return rec
+    stale_warning = "Dùng mặc định của engine cho "
+    if isinstance(res.get("warnings"), list):
+        res["warnings"] = [
+            warning for warning in res["warnings"]
+            if not (isinstance(warning, str) and warning.startswith(stale_warning))
+        ]
+
+    # 1. Bù by_symbol (weight_pct, ret_pct, open_pnl_usd)
+    by_sym = res.get("by_symbol")
+    if isinstance(by_sym, list) and len(by_sym) > 0:
+        n_sym = len(by_sym)
+        cfg = rec.get("config") or res.get("config") or {}
+        cap = float(cfg.get("initial_capital", 10000.0) or 10000.0)
+        alloc = cap / n_sym if n_sym else 1.0
+        for row in by_sym:
+            if not isinstance(row, dict):
+                continue
+            if row.get("weight_pct") is None:
+                row["weight_pct"] = round(100.0 / n_sym, 1)
+            if row.get("ret_pct") is None:
+                pnl = float(row.get("pnl_usd", row.get("pnl", 0.0)))
+                row["ret_pct"] = round((pnl / alloc) * 100.0, 2)
+            if row.get("open_pnl_usd") is None:
+                row["open_pnl_usd"] = 0.0
+
+    # 2. Bù metrics nếu thiếu vol_ann_pct hoặc days
+    metrics = res.get("metrics")
+    series = res.get("series")
+    trades = res.get("trades") or []
+    if isinstance(metrics, dict) and isinstance(series, dict) and "equity" in series:
+        sim = metrics.get("simulate")
+        if isinstance(sim, dict) and sim.get("vol_ann_pct") is None:
+            try:
+                import numpy as np
+                from backend.analys.metrics.trades import _metric_block
+                trade_rows = []
+                for t in trades:
+                    tr = dict(t)
+                    if "pnl_usd" not in tr and "pnl" in tr:
+                        tr["pnl_usd"] = tr["pnl"]
+                    if "fees_usd" not in tr and "fees" in tr:
+                        tr["fees_usd"] = tr["fees"]
+                    trade_rows.append(tr)
+
+                eq = np.asarray(series.get("equity", []), dtype=float)
+                times = np.asarray(series.get("times", []), dtype=int)
+                worst = np.asarray(series.get("equity_worst", eq), dtype=float) if "equity_worst" in series else eq
+                if len(eq) > 1:
+                    ret = np.zeros(len(eq))
+                    ret[1:] = eq[1:] / eq[:-1] - 1.0
+                    split = series.get("stage_split") or (times[int(len(times) * 0.7)] if len(times) else 0)
+
+                    # Update simulate
+                    fees_sim = sum(float(r.get("fees_usd", 0.0)) for r in trade_rows)
+                    blk_sim = _metric_block(ret, trade_rows, fees_sim, eq, worst)
+                    for k, v in blk_sim.items():
+                        if sim.get(k) is None:
+                            sim[k] = v
+
+                    # Update train
+                    train = metrics.get("train")
+                    if isinstance(train, dict):
+                        m_train = times <= split
+                        rows_train = [r for r in trade_rows if r.get("close_time", 0) <= split]
+                        fees_train = sum(float(r.get("fees_usd", 0.0)) for r in rows_train)
+                        blk_train = _metric_block(ret[m_train], rows_train, fees_train, eq[m_train], worst[m_train] if worst.size == eq.size else None)
+                        for k, v in blk_train.items():
+                            if train.get(k) is None:
+                                train[k] = v
+
+                    # Update test
+                    test = metrics.get("test")
+                    if isinstance(test, dict):
+                        m_test = times > split
+                        rows_test = [r for r in trade_rows if r.get("close_time", 0) > split]
+                        fees_test = sum(float(r.get("fees_usd", 0.0)) for r in rows_test)
+                        blk_test = _metric_block(ret[m_test], rows_test, fees_test, eq[m_test], worst[m_test] if worst.size == eq.size else None)
+                        for k, v in blk_test.items():
+                            if test.get(k) is None:
+                                test[k] = v
+            except Exception:
+                pass
+
+    return rec
+
+
 def get_user_alpha(alpha_id: str, base_dir: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """Lấy chi tiết một alpha người dùng theo id."""
     user_dir = get_user_alphas_dir(base_dir)
@@ -1025,7 +1143,8 @@ def get_user_alpha(alpha_id: str, base_dir: Optional[str] = None) -> Optional[Di
         return None
     try:
         with open(file_path, "r", encoding="utf-8") as fh:
-            return json.load(fh)
+            rec = json.load(fh)
+            return _enrich_alpha_record(rec)
     except Exception:
         return None
 
@@ -1066,11 +1185,80 @@ def delete_user_alpha(alpha_id: str, base_dir: Optional[str] = None) -> bool:
     return deleted
 
 
-def _user_card_metrics(sim: Any) -> Dict[str, Any]:
-    """Số đo thẻ alpha người dùng từ metrics.simulate của kết quả đã lưu."""
+def _market_iso_date(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    try:
+        if isinstance(value, (int, float)):
+            timestamp = value / 1000 if value > 1e11 else value
+            return datetime.fromtimestamp(timestamp, timezone.utc).date().isoformat()
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")[:10]).date().isoformat()
+    except (OverflowError, OSError, TypeError, ValueError):
+        return None
+
+
+def _user_card_metrics(sim: Any, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Số đo thẻ alpha người dùng từ metrics.simulate của kết quả đã lưu (DEC-01 chuẩn hoá xếp hạng)."""
     sim = sim or {}
+    cfg = config or {}
     mdd = _first_num(sim, "mdd_pct")
-    trades = _first_num(sim, "trades")
+    trades = _first_num(sim, "trades", "closed", "closed_trades")
+    t_cnt = int(trades) if trades is not None else None
+
+    # Tính toán khoảng thời gian đánh giá (DEC-01)
+    start_str = cfg.get("start") or cfg.get("start_date") or sim.get("start_date")
+    end_str = cfg.get("end") or cfg.get("end_date") or sim.get("end_date")
+    eval_days = None
+    if start_str and end_str:
+        try:
+            if isinstance(start_str, (int, float)):
+                d0 = datetime.fromtimestamp(start_str / 1000 if start_str > 1e11 else start_str, timezone.utc)
+            else:
+                d0 = datetime.fromisoformat(str(start_str).replace("Z", "+00:00")[:10])
+            if isinstance(end_str, (int, float)):
+                d1 = datetime.fromtimestamp(end_str / 1000 if end_str > 1e11 else end_str, timezone.utc)
+            else:
+                d1 = datetime.fromisoformat(str(end_str).replace("Z", "+00:00")[:10])
+            eval_days = abs((d1 - d0).days)
+        except Exception:
+            eval_days = None
+
+    bars = sim.get("total_bars") or sim.get("bars") or cfg.get("bar_count")
+    bar_cnt = int(bars) if bars is not None else None
+    raw_tf = cfg.get("timeframe") or sim.get("timeframe")
+    tf = str(raw_tf).lower() if raw_tf else None
+    is_sub_hourly = tf in ("1m", "3m", "5m", "15m", "30m") if tf else False
+
+    # Quy tắc chuẩn hoá xếp hạng DEC-01 (Fail-closed):
+    # 1. N >= 20 trades bắt buộc
+    # 2. Khung thời gian (timeframe) bắt buộc phải có để đảm bảo tính so sánh (comparability)
+    # 3. VÀ phải có đủ bằng chứng về thời lượng:
+    #    - eval_days >= 30 (nếu có dữ liệu ngày)
+    #    - HOẶC (khung dưới 1h: 1m..30m) có bar_cnt >= 500 nến
+    # Bất kỳ trường hợp nào thiếu dữ liệu hoặc không thỏa mãn đều phải xếp là unranked!
+    if t_cnt is None or t_cnt < 20:
+        is_ranked = False
+        unranked_reason = f"Mẫu nhỏ ({t_cnt or 0}/20 lệnh)"
+    elif tf is None:
+        is_ranked = False
+        unranked_reason = "Thiếu thông tin khung thời gian (timeframe)"
+    elif eval_days is not None and eval_days >= 30:
+        is_ranked = True
+        unranked_reason = None
+    elif is_sub_hourly and bar_cnt is not None and bar_cnt >= 500:
+        is_ranked = True
+        unranked_reason = None
+    elif eval_days is not None and eval_days < 30:
+        is_ranked = False
+        unranked_reason = f"Thời gian kiểm thử ngắn ({eval_days}/30 ngày)"
+    elif is_sub_hourly and bar_cnt is not None and bar_cnt < 500:
+        is_ranked = False
+        unranked_reason = f"Chưa đủ nến kiểm định ({bar_cnt}/500 nến)"
+    else:
+        # Thiếu cả eval_days lẫn bar_cnt hoặc khung >= 1h không có eval_days -> FAIL-CLOSED
+        is_ranked = False
+        unranked_reason = "Thiếu dữ liệu thời gian/số nến kiểm định (cần ≥30 ngày hoặc ≥500 nến)"
+
     return {
         "ret_pct": _first_num(sim, "ret_pct"),
         "mdd_pct": abs(mdd) if mdd is not None else None,
@@ -1078,7 +1266,14 @@ def _user_card_metrics(sim: Any) -> Dict[str, Any]:
         "sortino": _first_num(sim, "sortino"),
         "profit_factor": _first_num(sim, "profit_factor_trades"),
         "win_rate": _first_num(sim, "win_rate_trades"),
-        "trades": int(trades) if trades is not None else None,
+        "trades": t_cnt,
+        "eval_days": eval_days,
+        "bar_count": bar_cnt,
+        "timeframe": tf,
+        "start_date": _market_iso_date(start_str),
+        "end_date": _market_iso_date(end_str),
+        "is_ranked": is_ranked,
+        "unranked_reason": unranked_reason,
     }
 
 
@@ -1139,6 +1334,9 @@ def sample_run_spec(sample: dict, defaults: Optional[dict] = None) -> dict:
         from backend.data.data import run_defaults
         defaults = run_defaults()
     spec = dict(defaults)
+    if not sample.get("symbols"):
+        from backend.data.data import default_universe
+        spec["symbols"] = default_universe()
     for f in SAMPLE_SPEC_FIELDS:
         if sample.get(f) not in (None, ""):
             spec[f] = sample[f]
@@ -1175,16 +1373,26 @@ def _education_samples() -> List[Dict[str, Any]]:
 
 def strategy_card(rec: Dict[str, Any], sample_meta: Optional[Dict[str, Dict[str, Any]]] = None) -> Dict[str, Any]:
     """Thẻ chiến lược gọn cho Market: số đo từ metrics.simulate + pnl_usd = final_equity − initial_capital (đều từ kết quả thật)."""
-    card = _user_card_metrics((rec.get("metrics") or {}).get("simulate"))
+    card = _user_card_metrics((rec.get("metrics") or {}).get("simulate"), config=rec.get("config"))
     cap = _first_num(rec.get("config"), "initial_capital")
     fin = _num_or_none(rec.get("final_equity"))
     meta = (sample_meta or {}).get(rec.get("sample_key") or "", {})
+    code_str = rec.get("code") or ""
+    code_hash = rec.get("program_hash") or (hashlib.sha256(code_str.encode("utf-8")).hexdigest()[:12] if code_str else None)
+    cfg = rec.get("config") or {}
+    raw_symbol = (cfg.get("symbols") or ["BTC-USDT"])[0] if isinstance(cfg.get("symbols"), list) and cfg.get("symbols") else cfg.get("symbol", "BTC-USDT")
+    from backend.data.data import base_name
+    market_context = rec.get("market_context") or (rec.get("result") or {}).get("market_context")
     card.update({
         "id": rec.get("id"),
         "name": rec.get("name"),
         "category": meta.get("category"),
         "difficulty": meta.get("difficulty"),
-        "timeframe": (rec.get("config") or {}).get("timeframe"),
+        "symbol": f"{base_name(str(raw_symbol))}-USDT",
+        "timeframe": cfg.get("timeframe") or "15m",
+        "market_context": market_context if isinstance(market_context, dict) else None,
+        "code_hash": code_hash,
+        "forked_from": rec.get("forked_from"),
         "pnl_usd": round(fin - cap, 2) if fin is not None and cap is not None else None,
         "sample_key": rec.get("sample_key"),
         "updated_at": rec.get("updated_at"),
@@ -1244,16 +1452,53 @@ def owner_strategy_cards(owner_id: str, base_dir: Optional[str] = None) -> List[
 
 
 def aggregate_cards(cards: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """n_strategies, tổng PnL (USD), MDD lớn nhất (%), chiến lược tốt nhất theo Lãi%."""
+    """n_strategies, tổng PnL (USD), MDD lớn nhất (%), chiến lược tốt nhất theo Lãi% và Sharpe (DEC-01)."""
     pnls = [c["pnl_usd"] for c in cards if c.get("pnl_usd") is not None]
     mdds = [c["mdd_pct"] for c in cards if c.get("mdd_pct") is not None]
-    rets = [c for c in cards if c.get("ret_pct") is not None]
-    top = max(rets, key=lambda c: c["ret_pct"]) if rets else None
+
+    ranked_cards = [c for c in cards if c.get("is_ranked")]
+    ranked_rets = [c for c in ranked_cards if c.get("ret_pct") is not None]
+    rets = ranked_rets if ranked_rets else [c for c in cards if c.get("ret_pct") is not None]
+    top_ret = max(rets, key=lambda c: c["ret_pct"]) if rets else None
+
+    # Tách bạch chiến lược Sharpe cao nhất, ưu tiên tuyệt đối chiến lược đạt chuẩn xếp hạng (DEC-01)
+    ranked_sharpes = [c for c in ranked_cards if c.get("sharpe") is not None]
+    sharpes = ranked_sharpes if ranked_sharpes else [c for c in cards if c.get("sharpe") is not None]
+    top_sharpe = max(sharpes, key=lambda c: c["sharpe"]) if sharpes else None
+
+    ranked_count = len(ranked_cards)
+    unranked_reasons = [c.get("unranked_reason") for c in cards if c.get("unranked_reason")]
     return {
         "n_strategies": len(cards),
+        "ranked_strategies": ranked_count,
+        "is_ranked": ranked_count > 0,
+        "primary_unranked_reason": unranked_reasons[0] if (ranked_count == 0 and unranked_reasons) else None,
         "total_pnl_usd": round(sum(pnls), 2) if pnls else None,
         "max_mdd_pct": max(mdds) if mdds else None,
-        "best": {"id": top["id"], "name": top["name"], "ret_pct": top["ret_pct"], "sharpe": top["sharpe"]} if top else None,
+        "best": {
+            "id": top_ret["id"],
+            "name": top_ret["name"],
+            "ret_pct": top_ret["ret_pct"],
+            "sharpe": top_ret["sharpe"],
+            "trades": top_ret.get("trades"),
+            "symbol": top_ret.get("symbol"),
+            "timeframe": top_ret.get("timeframe"),
+            "is_ranked": top_ret.get("is_ranked", False),
+            "unranked_reason": top_ret.get("unranked_reason"),
+            "market_context": top_ret.get("market_context"),
+        } if top_ret else None,
+        "best_sharpe": {
+            "id": top_sharpe["id"],
+            "name": top_sharpe["name"],
+            "ret_pct": top_sharpe["ret_pct"],
+            "sharpe": top_sharpe["sharpe"],
+            "trades": top_sharpe.get("trades"),
+            "symbol": top_sharpe.get("symbol"),
+            "timeframe": top_sharpe.get("timeframe"),
+            "is_ranked": top_sharpe.get("is_ranked", False),
+            "unranked_reason": top_sharpe.get("unranked_reason"),
+            "market_context": top_sharpe.get("market_context"),
+        } if top_sharpe else None,
     }
 
 
@@ -2081,7 +2326,3 @@ def _check_position(pos: Dict[str, Any]) -> Dict[str, Any]:
         if isinstance(v, bool) or not isinstance(v, (int, float, str)):
             raise ValueError(f"vị thế {k}: phải là số hoặc chuỗi, nhận {v!r}")
     return dict(pos)
-
-
-
-
