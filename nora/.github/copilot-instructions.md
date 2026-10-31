@@ -183,8 +183,8 @@ Phase 3 (COIN Home, Analytics, Prompt Research) đã đạt **LOCAL FUNCTIONAL A
     - `nora/scripts`: **0 errors, 0 warnings, 0 informations**.
   - Đã chuẩn hóa canonical imports (`backend.analys.*`, `backend.core.*`), bổ sung null-safety guards, sửa unbound variables (`entry_fee`, `maker_fee`, `redis`), và sửa các lỗi type expression trong adapter/exchange.
 - **Lưu trữ & Remote Backup GitHub:**
-  - Toàn bộ source code (nhánh `fix/pipeline-audit`, commit `517bcff7`) đã được push thành công lên repo cá nhân: **`https://github.com/Greyy2/norabt.git`** (trên cả 2 nhánh `main` và `fix/pipeline-audit`).
-  - Đã cấu hình remote `greyy2` trong git local để tiện đẩy code trong các phiên làm việc tiếp theo.
+  - Toàn bộ source code (nhánh `fix/pipeline-audit`) đã được push thành công lên repo cá nhân: **`https://github.com/Greyy2/nora-educoin.git`** (trên cả 2 nhánh `main` và `fix/pipeline-audit`).
+  - Đã cấu hình remote `greyy2` (`https://github.com/Greyy2/nora-educoin.git`) trong git local để tiện đẩy code trong các phiên làm việc tiếp theo.
 - **Tổ chức thư mục làm việc theo chỉ đạo quản trị:**
   - Dự án `norabt` đã được di chuyển vật lý về đúng folder cá nhân: **`/home/vmc03/vinh/norabt`**.
   - Đã thiết lập symlink `/home/vmc03/norabt -> /home/vmc03/vinh/norabt` để đảm bảo tuyệt đối không làm đứt gãy các đường dẫn cấu hình, IDE workspaces, logs, và background tasks.
