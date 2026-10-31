@@ -168,3 +168,37 @@ Phase 3 (COIN Home, Analytics, Prompt Research) đã đạt **LOCAL FUNCTIONAL A
 6. **Catalog acceptance:** một danh sách COIN với filter/search/badges, provenance rõ, reference-only không có đường launch; EDU chỉ truy cập dữ liệu EDU. Build và browser journey sau khi thay đổi; chưa tuyên bố public trước khi xác minh deploy.
 7. **Code-only closeout:** chỉ đóng khi config/logic strategy nằm trong source, không còn strategy defaults ẩn hoặc schema/effective-config mismatch, test cả hai product pass, và kho COIN hiển thị đúng một list. Điều này không chứng minh profitability, full TradingView/Nautilus parity, hay live readiness.
 8. **Research/performance gate riêng:** chỉ khi owner yêu cầu mới chốt dữ liệu/cost/risk và chạy WFA/OOS/DSR/PBO/MC/holdout; báo cáo số variant, provenance và giới hạn. Smoke values tuyệt đối không thay thế các gate này.
+
+
+---
+
+## Cập nhật tiến độ & Kế hoạch triển khai (Ghi nhận ngày 2026-10-31)
+
+### 1. Tiến độ đã hoàn thành
+- **Hoàn tất Type-Check / Clean Code (0 lỗi đỏ):**
+  - Đã rà soát và khắc phục toàn bộ lỗi Pyright / Linter trên toàn bộ các thư mục mục tiêu:
+    - `nora/coin/backend`: **0 errors, 0 warnings, 0 informations**.
+    - `nora/edu/backend`: **0 errors, 0 warnings, 0 informations**.
+    - `nora/edu/tests` & `nora/coin/tests`: **0 errors, 0 warnings, 0 informations**.
+    - `nora/scripts`: **0 errors, 0 warnings, 0 informations**.
+  - Đã chuẩn hóa canonical imports (`backend.analys.*`, `backend.core.*`), bổ sung null-safety guards, sửa unbound variables (`entry_fee`, `maker_fee`, `redis`), và sửa các lỗi type expression trong adapter/exchange.
+- **Lưu trữ & Remote Backup GitHub:**
+  - Toàn bộ source code (nhánh `fix/pipeline-audit`, commit `517bcff7`) đã được push thành công lên repo cá nhân: **`https://github.com/Greyy2/norabt.git`** (trên cả 2 nhánh `main` và `fix/pipeline-audit`).
+  - Đã cấu hình remote `greyy2` trong git local để tiện đẩy code trong các phiên làm việc tiếp theo.
+- **Tổ chức thư mục làm việc theo chỉ đạo quản trị:**
+  - Dự án `norabt` đã được di chuyển vật lý về đúng folder cá nhân: **`/home/vmc03/vinh/norabt`**.
+  - Đã thiết lập symlink `/home/vmc03/norabt -> /home/vmc03/vinh/norabt` để đảm bảo tuyệt đối không làm đứt gãy các đường dẫn cấu hình, IDE workspaces, logs, và background tasks.
+- **Khảo sát hạ tầng Server 70:**
+  - Xác nhận ổ cứng: Máy chủ có 1 ổ vật lý duy nhất `/dev/sda` (LVM `ubuntu-vg` 687 GB, đang dùng 352 GB - 54%, còn trống 306 GB). Không có ổ cứng/phân vùng nào chưa mount.
+  - Xác nhận LXC/LXD: Đã được cài đặt sẵn qua Snap (`/snap/bin/lxc`, `/snap/bin/lxd`), user `vmc03` đã thuộc group `lxd`.
+
+### 2. Kế hoạch triển khai tiếp theo
+- **Phương án Container hóa LXC trên Server 70 (Đề xuất theo yêu cầu Sếp):**
+  1. *Tạo Base Template*: Dựng một container Ubuntu 22.04 chuẩn có sẵn môi trường Python 3.12, venv, Nautilus Trader, Numba, TA-Lib để làm khuôn mẫu.
+  2. *Phân bổ Container cho từng thành viên*: Clone container riêng (`vinh-box`, `toan-box`, `huzng-box`).
+  3. *Giới hạn tài nguyên (Resource Quota)*: Áp dụng cgroups `limits.memory = 12GB - 16GB` và `limits.cpu = 4` cho mỗi container để chống OOM treo server chung.
+  4. *Cấu hình Shared Market Data*: Thư mục nến/ticks thị trường (`data/market/okx`) được mount Read-Only từ host vào từng container để tiết kiệm dung lượng ổ 306 GB.
+  5. *Bổ sung Swap*: Kích hoạt file Swap 32 GB - 64 GB trên host nhằm dự phòng tải đỉnh điểm khi nhiều container cùng chạy Monte Carlo / WFA.
+- **Kế hoạch tiếp tục NoraBT (sau khi tạm dừng):**
+  - Tiếp tục thực hiện Bước 3 của roadmap: Chốt contract source-of-truth cho các strategy (KEMA, DCA, Sideway), loại bỏ các dependencies ngầm vào `BASE_POSITION`.
+  - Kiểm thử parity giữa Backtest và Live TradingNode trên môi trường riêng của Vinh trước khi xin cấp vốn Testnet/Demo.
