@@ -227,12 +227,23 @@ def get_user_profile(handle: str) -> Dict[str, Any]:
 
 
 @users_router.get("/api/users/{handle}/strategies")
-def get_user_strategies(handle: str) -> List[Dict[str, Any]]:
-    """Chiến lược người dùng đã lưu (chỉ lấy các bản ghi có owner khớp)."""
+def get_user_strategies(handle: str, request: Request) -> List[Dict[str, Any]]:
+    """Chiến lược người dùng đã lưu (chỉ chính chủ mới xem được toàn bộ danh mục)."""
     u = users.get_by_handle(handle)
     if not u:
         raise HTTPException(status_code=404, detail="Không tìm thấy người dùng")
-    return store.list_user_alphas(owner_id=u["id"])
+    all_alphas = store.list_user_alphas(owner_id=u["id"])
+    me = current_user(request)
+    if not (me and (me.get("id") == u["id"] or me.get("handle") == u["handle"])):
+        if not all_alphas:
+            return []
+        cards = store.owner_strategy_cards(u["id"])
+        summary = store.aggregate_cards(cards)
+        best_id = (summary.get("best") or {}).get("id")
+        if best_id:
+            return [a for a in all_alphas if a.get("id") == best_id]
+        return all_alphas[:1]
+    return all_alphas
 
 
 @users_router.get("/api/me")

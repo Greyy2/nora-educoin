@@ -113,21 +113,16 @@ def build_plan(program: Program, symbols: List[str], position: Optional[Dict[str
     code_pos = _check_position(getattr(program, "position_overrides", {}) or {})
     ui_pos = _check_position(position or {})
 
+    effective_overrides = {**code_pos, **ui_pos}
+    pos = resolve_position_auto({**BASE_POSITION, **NORA_DEFAULTS, **effective_overrides}, program.timeframe)
     conflicts = []
     for k, v_ui in ui_pos.items():
-        if k in code_pos:
+        if k in code_pos and code_pos[k] != v_ui:
             v_code = code_pos[k]
-            diff = False
-            try:
-                diff = abs(float(v_ui) - float(v_code)) > 1e-9
-            except (ValueError, TypeError):
-                diff = str(v_ui).strip() != str(v_code).strip()
-            if diff:
-                msg = f"Tham số vị thế '{k}' khai báo trong code là {v_code} nhưng đang bị cấu hình giao diện ghi đè thành {v_ui}."
-                conflicts.append(msg)
-                warnings.append(msg)
+            msg = f"Tham số vị thế '{k}' khai báo trong code là {v_code} nhưng đang bị cấu hình giao diện ghi đè thành {v_ui}."
+            conflicts.append(msg)
+            warnings.append(msg)
 
-    pos = resolve_position_auto({**BASE_POSITION, **NORA_DEFAULTS, **code_pos, **ui_pos}, program.timeframe)
     # Engine defaults are part of the effective run configuration and are
     # shown in the result payload; they are not runtime warnings.
     if FRAME_ORDER.get(str(pos.get("atr_frame")), 0) < FRAME_ORDER[base]:
@@ -187,7 +182,13 @@ def _check_position(pos: Dict[str, Any]) -> Dict[str, Any]:
     if bad:
         raise ValueError(f"khoá vị thế không hợp lệ: {bad}; có: {sorted(POSITION_KEYS)}")
     for k, v in pos.items():
-        if isinstance(v, bool) or not isinstance(v, (int, float, str)):
+        if k in ("dca_steps", "dca_multipliers"):
+            if not isinstance(v, (list, tuple)) or any(isinstance(x, bool) or not isinstance(x, (int, float)) for x in v):
+                raise ValueError(f"vị thế {k}: phải là danh sách số, nhận {v!r}")
+        elif k in ("using_match_price", "allow_negative_price_rate"):
+            if not isinstance(v, bool):
+                raise ValueError(f"vị thế {k}: phải là boolean (True/False), nhận {v!r}")
+        elif isinstance(v, bool) or not isinstance(v, (int, float, str)):
             raise ValueError(f"vị thế {k}: phải là số hoặc chuỗi, nhận {v!r}")
     return dict(pos)
 

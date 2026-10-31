@@ -1,0 +1,612 @@
+{
+  "timestamp": "2026-10-27T15:47:50Z",
+  "universe_total": 57,
+  "blocked_unknown_intent_count": 27,
+  "oos_positive_excluded_count": 7,
+  "investigation_queue_count": 23,
+  "blocked_group": [
+    {
+      "aid": "026f43441cb2",
+      "name": "U4_BTC_1h_Different_Window",
+      "owner_id": "16e97dcc8432",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện hằng số `close > 1` trên BTC; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT.",
+      "in_investigation_queue": false
+    },
+    {
+      "aid": "0bf936687964",
+      "name": "U4_BTC_1h_Different_Window",
+      "owner_id": "e53ccc4b35d2",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện hằng số `close > 1` trên BTC; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT.",
+      "in_investigation_queue": false
+    },
+    {
+      "aid": "138df68946ad",
+      "name": "U1_BTC_1h_Alpha",
+      "owner_id": "ecf30ed0f194",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện hằng số `close > 0` trên BTC; luôn vào LONG ngay từ nến 1 và không có điều kiện thoát lệnh. Theo quy tắc cốt lõi 'Unknown semantics remain blocked, not guessed', không tự bịa đặt luật thay thế.",
+      "in_investigation_queue": false
+    },
+    {
+      "aid": "1a1a4389a821",
+      "name": "U1_BTC_1h_Alpha",
+      "owner_id": "2922e08b6b61",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện hằng số `close > 0` trên BTC; luôn vào LONG ngay từ nến 1 và không có điều kiện thoát lệnh. Theo quy tắc cốt lõi 'Unknown semantics remain blocked, not guessed', không tự bịa đặt luật thay thế.",
+      "in_investigation_queue": false
+    },
+    {
+      "aid": "1e4c0b9f84f7",
+      "name": "U3_BTC_Small_Alpha",
+      "owner_id": "9b7a10c35886",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện bất khả thi `close < 0` trên giá thị trường BTC; không bao giờ sinh tín hiệu giao dịch. Phân loại BLOCKED_UNKNOWN_INTENT.",
+      "in_investigation_queue": false
+    },
+    {
+      "aid": "214ea8fdf3e6",
+      "name": "U2_ETH_15m_Alpha",
+      "owner_id": "423d35ac9700",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện hằng số `close > 10` trên ETH; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT.",
+      "in_investigation_queue": false
+    },
+    {
+      "aid": "234e6df02e37",
+      "name": "U2_ETH_15m_Alpha",
+      "owner_id": "5de316621329",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện hằng số `close > 10` trên ETH; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT.",
+      "in_investigation_queue": false
+    },
+    {
+      "aid": "2e41b2cfa24d",
+      "name": "U1_BTC_1h_Alpha",
+      "owner_id": "3bbc767faa10",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện hằng số `close > 0` trên BTC; luôn vào LONG ngay từ nến 1 và không có điều kiện thoát lệnh. Theo quy tắc cốt lõi 'Unknown semantics remain blocked, not guessed', không tự bịa đặt luật thay thế.",
+      "in_investigation_queue": false
+    },
+    {
+      "aid": "571474a18f55",
+      "name": "U3_BTC_Small_Alpha",
+      "owner_id": "82e8ccc35eb6",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện bất khả thi `close < 0` trên giá thị trường BTC; không bao giờ sinh tín hiệu giao dịch. Phân loại BLOCKED_UNKNOWN_INTENT.",
+      "in_investigation_queue": false
+    },
+    {
+      "aid": "616e1b8cbc88",
+      "name": "U2_ETH_15m_Alpha",
+      "owner_id": "184e6dc9dfe6",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện hằng số `close > 10` trên ETH; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT.",
+      "in_investigation_queue": false
+    },
+    {
+      "aid": "64b657c8de8e",
+      "name": "U4_BTC_1h_Different_Window",
+      "owner_id": "c7f8e10109b3",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện hằng số `close > 1` trên BTC; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT.",
+      "in_investigation_queue": false
+    },
+    {
+      "aid": "74f607263c5c",
+      "name": "U4_BTC_1h_Different_Window",
+      "owner_id": "726ff949da79",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện hằng số `close > 1` trên BTC; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT.",
+      "in_investigation_queue": false
+    },
+    {
+      "aid": "7c1bf0a9686a",
+      "name": "U4_BTC_1h_Different_Window",
+      "owner_id": "dbbb50a338c9",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện hằng số `close > 1` trên BTC; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT.",
+      "in_investigation_queue": false
+    },
+    {
+      "aid": "7f770ebe5ab5",
+      "name": "U3_BTC_Small_Alpha",
+      "owner_id": "eb5d7e2e3897",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện bất khả thi `close < 0` trên giá thị trường BTC; không bao giờ sinh tín hiệu giao dịch. Phân loại BLOCKED_UNKNOWN_INTENT.",
+      "in_investigation_queue": false
+    },
+    {
+      "aid": "856ddc574ce7",
+      "name": "U2_ETH_15m_Alpha",
+      "owner_id": "9fc184ee1040",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện hằng số `close > 10` trên ETH; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT.",
+      "in_investigation_queue": false
+    },
+    {
+      "aid": "862e0c9eebbe",
+      "name": "U2_ETH_15m_Alpha",
+      "owner_id": "e7c998608206",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện hằng số `close > 10` trên ETH; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT.",
+      "in_investigation_queue": false
+    },
+    {
+      "aid": "930294d28c45",
+      "name": "U3_BTC_Small_Alpha",
+      "owner_id": "439fa7538599",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện bất khả thi `close < 0` trên giá thị trường BTC; không bao giờ sinh tín hiệu giao dịch. Phân loại BLOCKED_UNKNOWN_INTENT.",
+      "in_investigation_queue": false
+    },
+    {
+      "aid": "9eec3d61131d",
+      "name": "U3_BTC_Small_Alpha",
+      "owner_id": "79183007b990",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện bất khả thi `close < 0` trên giá thị trường BTC; không bao giờ sinh tín hiệu giao dịch. Phân loại BLOCKED_UNKNOWN_INTENT.",
+      "in_investigation_queue": false
+    },
+    {
+      "aid": "a4d6826fbbc6",
+      "name": "U4_BTC_1h_Different_Window",
+      "owner_id": "4547f1f50486",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện hằng số `close > 1` trên BTC; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT.",
+      "in_investigation_queue": false
+    },
+    {
+      "aid": "af2bf88426c4",
+      "name": "U3_BTC_Small_Alpha",
+      "owner_id": "bf158b5142e8",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện bất khả thi `close < 0` trên giá thị trường BTC; không bao giờ sinh tín hiệu giao dịch. Phân loại BLOCKED_UNKNOWN_INTENT.",
+      "in_investigation_queue": false
+    },
+    {
+      "aid": "bd234070bd7b",
+      "name": "U1_BTC_1h_Alpha",
+      "owner_id": "bbd150bc473c",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện hằng số `close > 0` trên BTC; luôn vào LONG ngay từ nến 1 và không có điều kiện thoát lệnh. Theo quy tắc cốt lõi 'Unknown semantics remain blocked, not guessed', không tự bịa đặt luật thay thế.",
+      "in_investigation_queue": false
+    },
+    {
+      "aid": "be1174b24a44",
+      "name": "U1_BTC_1h_Alpha",
+      "owner_id": "657914b99b5b",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện hằng số `close > 0` trên BTC; luôn vào LONG ngay từ nến 1 và không có điều kiện thoát lệnh. Theo quy tắc cốt lõi 'Unknown semantics remain blocked, not guessed', không tự bịa đặt luật thay thế.",
+      "in_investigation_queue": false
+    },
+    {
+      "aid": "cb0b6e0f12e7",
+      "name": "U1_BTC_1h_Alpha",
+      "owner_id": "f9292fff53c9",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện hằng số `close > 0` trên BTC; luôn vào LONG ngay từ nến 1 và không có điều kiện thoát lệnh. Theo quy tắc cốt lõi 'Unknown semantics remain blocked, not guessed', không tự bịa đặt luật thay thế.",
+      "in_investigation_queue": false
+    },
+    {
+      "aid": "d0518c0cca14",
+      "name": "U4_BTC_1h_Different_Window",
+      "owner_id": "f4ded6717b32",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện hằng số `close > 1` trên BTC; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT.",
+      "in_investigation_queue": false
+    },
+    {
+      "aid": "e9a9a5b44d03",
+      "name": "U2_ETH_15m_Alpha",
+      "owner_id": "95f7a5a4b3ae",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện hằng số `close > 10` trên ETH; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT.",
+      "in_investigation_queue": false
+    },
+    {
+      "aid": "ee0cf7f58f94",
+      "name": "U2_ETH_15m_Alpha",
+      "owner_id": "97cac5011215",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện hằng số `close > 10` trên ETH; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT.",
+      "in_investigation_queue": false
+    },
+    {
+      "aid": "fd16df3d0a3f",
+      "name": "U3_BTC_Small_Alpha",
+      "owner_id": "d836143af954",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện bất khả thi `close < 0` trên giá thị trường BTC; không bao giờ sinh tín hiệu giao dịch. Phân loại BLOCKED_UNKNOWN_INTENT.",
+      "in_investigation_queue": false
+    }
+  ],
+  "oos_positive_group": [
+    {
+      "aid": "0873864b8db7",
+      "name": "DEMA Turbo Compound (1Y Fast Trend - x1.51 Vốn)",
+      "owner_id": "aed197a5e968",
+      "is_vinh": true,
+      "disposition": "OOS_POSITIVE_EXCLUDED",
+      "category": "OOS_MARGINAL_POSITIVE",
+      "full_ret": 130.52,
+      "oos_ret": 6.87,
+      "trades": 272,
+      "in_investigation_queue": false
+    },
+    {
+      "aid": "090730ae35b8",
+      "name": "Fail-Fast Volatility Breakout (SL 2.4% + Macro Trend)",
+      "owner_id": "aed197a5e968",
+      "is_vinh": true,
+      "disposition": "OOS_POSITIVE_EXCLUDED",
+      "category": "OOS_MARGINAL_POSITIVE",
+      "full_ret": 69.24,
+      "oos_ret": 3.0,
+      "trades": 119,
+      "in_investigation_queue": false
+    },
+    {
+      "aid": "303d4b713dda",
+      "name": "Macro Trend Filtered Breakout (EMA 105 Filter)",
+      "owner_id": "aed197a5e968",
+      "is_vinh": true,
+      "disposition": "OOS_POSITIVE_EXCLUDED",
+      "category": "OOS_MARGINAL_POSITIVE",
+      "full_ret": 69.19,
+      "oos_ret": 3.38,
+      "trades": 112,
+      "in_investigation_queue": false
+    },
+    {
+      "aid": "33312a2f4dfc",
+      "name": "Standard Deviation Dynamic Channel Breakout (v2.0 Regime Filtered)",
+      "owner_id": "aed197a5e968",
+      "is_vinh": true,
+      "disposition": "OOS_POSITIVE_EXCLUDED",
+      "category": "OOS_MARGINAL_POSITIVE",
+      "full_ret": 68.09,
+      "oos_ret": 3.38,
+      "trades": 115,
+      "in_investigation_queue": false
+    },
+    {
+      "aid": "6055aa8f661e",
+      "name": "Triple Filter: EMA + MACD + RSI",
+      "owner_id": "a214b36a7eab",
+      "is_vinh": false,
+      "disposition": "OOS_POSITIVE_EXCLUDED",
+      "category": "OOS_MARGINAL_POSITIVE",
+      "full_ret": 5.09,
+      "oos_ret": 0.81,
+      "trades": 139,
+      "in_investigation_queue": false
+    },
+    {
+      "aid": "8a47cdbcc942",
+      "name": "Fast Dip Harvester (3M DCA Dynamic - CAGR 108%)",
+      "owner_id": "aed197a5e968",
+      "is_vinh": true,
+      "disposition": "OOS_POSITIVE_EXCLUDED",
+      "category": "OOS_POSITIVE_SMALL_SAMPLE",
+      "full_ret": 18.17,
+      "oos_ret": 18.17,
+      "trades": 3,
+      "in_investigation_queue": false
+    },
+    {
+      "aid": "efb1fbe2db86",
+      "name": "Volatility Expansion Channel (StdDev 1.51 + Macro Trend)",
+      "owner_id": "aed197a5e968",
+      "is_vinh": true,
+      "disposition": "OOS_POSITIVE_EXCLUDED",
+      "category": "OOS_MARGINAL_POSITIVE",
+      "full_ret": 67.88,
+      "oos_ret": 3.38,
+      "trades": 115,
+      "in_investigation_queue": false
+    }
+  ],
+  "investigation_queue": [
+    {
+      "aid": "0d51ba8d2012",
+      "name": "OBV Volume Accumulation + RSI Momentum",
+      "owner_id": "43f5220ece1e",
+      "is_vinh": false,
+      "disposition": "OOS_NEGATIVE_QUEUE",
+      "category": "FULL_POSITIVE_OOS_NEGATIVE",
+      "full_ret": 7.28,
+      "train_ret": 19.26,
+      "oos_ret": -11.39,
+      "trades": 256,
+      "in_investigation_queue": true
+    },
+    {
+      "aid": "14e3b934b1e5",
+      "name": "ROC Momentum Exhaustion with Take-Profit",
+      "owner_id": "23dc66cd61c6",
+      "is_vinh": false,
+      "disposition": "OOS_NEGATIVE_QUEUE",
+      "category": "FULL_NON_POSITIVE_OOS_NEGATIVE",
+      "full_ret": -29.81,
+      "train_ret": -22.21,
+      "oos_ret": -27.78,
+      "trades": 736,
+      "in_investigation_queue": true
+    },
+    {
+      "aid": "15567e02a806",
+      "name": "Triple EMA Trend Alignment (Optimized)",
+      "owner_id": "23dc66cd61c6",
+      "is_vinh": false,
+      "disposition": "OOS_NEGATIVE_QUEUE",
+      "category": "FULL_POSITIVE_OOS_NEGATIVE",
+      "full_ret": 0.2,
+      "train_ret": 0.2,
+      "oos_ret": -33.74,
+      "trades": 24,
+      "in_investigation_queue": true
+    },
+    {
+      "aid": "18e87aa868ad",
+      "name": "Fast Dynamic Channel Breakout (18D + Macro Trend)",
+      "owner_id": "aed197a5e968",
+      "is_vinh": true,
+      "disposition": "OOS_NEGATIVE_QUEUE",
+      "category": "FULL_POSITIVE_OOS_NEGATIVE",
+      "full_ret": 70.16,
+      "train_ret": 73.67,
+      "oos_ret": -1.97,
+      "trades": 130,
+      "in_investigation_queue": true
+    },
+    {
+      "aid": "270e6e28416f",
+      "name": "EMA Trend Rider (Rising Slope - Optimized)",
+      "owner_id": "a214b36a7eab",
+      "is_vinh": false,
+      "disposition": "OOS_NEGATIVE_QUEUE",
+      "category": "FULL_NON_POSITIVE_OOS_NEGATIVE",
+      "full_ret": -31.35,
+      "train_ret": -31.35,
+      "oos_ret": -23.26,
+      "trades": 13,
+      "in_investigation_queue": true
+    },
+    {
+      "aid": "3cfcc2d296a2",
+      "name": "Donchian Lower Channel Exit",
+      "owner_id": "43f5220ece1e",
+      "is_vinh": false,
+      "disposition": "OOS_NEGATIVE_QUEUE",
+      "category": "FULL_NON_POSITIVE_OOS_NEGATIVE",
+      "full_ret": -26.41,
+      "train_ret": -3.51,
+      "oos_ret": -26.77,
+      "trades": 351,
+      "in_investigation_queue": true
+    },
+    {
+      "aid": "4f28285aa44c",
+      "name": "Dual EMA + ADX Trend Strength Filter",
+      "owner_id": "23dc66cd61c6",
+      "is_vinh": false,
+      "disposition": "OOS_NEGATIVE_QUEUE",
+      "category": "FULL_NON_POSITIVE_OOS_NEGATIVE",
+      "full_ret": -4.4,
+      "train_ret": -2.52,
+      "oos_ret": -3.66,
+      "trades": 10,
+      "in_investigation_queue": true
+    },
+    {
+      "aid": "541c55834f56",
+      "name": "Daily Range Expansion (High - Low) / Close",
+      "owner_id": "dd3d4fbabe8a",
+      "is_vinh": false,
+      "disposition": "OOS_NEGATIVE_QUEUE",
+      "category": "FULL_POSITIVE_OOS_NEGATIVE",
+      "full_ret": 8.9,
+      "train_ret": 40.78,
+      "oos_ret": -25.74,
+      "trades": 381,
+      "in_investigation_queue": true
+    },
+    {
+      "aid": "5e52d3fdf71f",
+      "name": "Bollinger Band Overextension Exit",
+      "owner_id": "76c5814277ab",
+      "is_vinh": false,
+      "disposition": "OOS_NEGATIVE_QUEUE",
+      "category": "FULL_NON_POSITIVE_OOS_NEGATIVE",
+      "full_ret": -24.74,
+      "train_ret": -3.36,
+      "oos_ret": -24.89,
+      "trades": 504,
+      "in_investigation_queue": true
+    },
+    {
+      "aid": "6afa7f774655",
+      "name": "RSI Rebound with Fast SMA Filter",
+      "owner_id": "a214b36a7eab",
+      "is_vinh": false,
+      "disposition": "OOS_NEGATIVE_QUEUE",
+      "category": "FULL_NON_POSITIVE_OOS_NEGATIVE",
+      "full_ret": -12.03,
+      "train_ret": -4.33,
+      "oos_ret": -10.25,
+      "trades": 57,
+      "in_investigation_queue": true
+    },
+    {
+      "aid": "715e56a6dd33",
+      "name": "Linear Regression Channel Deviation",
+      "owner_id": "43f5220ece1e",
+      "is_vinh": false,
+      "disposition": "OOS_NEGATIVE_QUEUE",
+      "category": "FULL_NON_POSITIVE_OOS_NEGATIVE",
+      "full_ret": -13.52,
+      "train_ret": -6.28,
+      "oos_ret": -11.02,
+      "trades": 99,
+      "in_investigation_queue": true
+    },
+    {
+      "aid": "717c1890c59e",
+      "name": "Weighted Moving Average (WMA) Crossover (Optimized)",
+      "owner_id": "dd3d4fbabe8a",
+      "is_vinh": false,
+      "disposition": "OOS_NEGATIVE_QUEUE",
+      "category": "FULL_POSITIVE_OOS_NEGATIVE",
+      "full_ret": 126.95,
+      "train_ret": 172.89,
+      "oos_ret": -9.49,
+      "trades": 59,
+      "in_investigation_queue": true
+    },
+    {
+      "aid": "7f3486d63ca8",
+      "name": "Dual Oscillator Climax Exit",
+      "owner_id": "dd3d4fbabe8a",
+      "is_vinh": false,
+      "disposition": "OOS_NEGATIVE_QUEUE",
+      "category": "FULL_NON_POSITIVE_OOS_NEGATIVE",
+      "full_ret": -11.22,
+      "train_ret": 1.71,
+      "oos_ret": -17.14,
+      "trades": 424,
+      "in_investigation_queue": true
+    },
+    {
+      "aid": "7f67e9aed0aa",
+      "name": "Stochastic & RSI Confluence System",
+      "owner_id": "dd3d4fbabe8a",
+      "is_vinh": false,
+      "disposition": "OOS_NEGATIVE_QUEUE",
+      "category": "FULL_NON_POSITIVE_OOS_NEGATIVE",
+      "full_ret": -15.9,
+      "train_ret": 0.18,
+      "oos_ret": -16.75,
+      "trades": 158,
+      "in_investigation_queue": true
+    },
+    {
+      "aid": "89379cc0ab52",
+      "name": "Stochastic Oscillator (%K, %D) Bull Cross",
+      "owner_id": "76c5814277ab",
+      "is_vinh": false,
+      "disposition": "OOS_NEGATIVE_QUEUE",
+      "category": "FULL_NON_POSITIVE_OOS_NEGATIVE",
+      "full_ret": -19.14,
+      "train_ret": -0.47,
+      "oos_ret": -20.96,
+      "trades": 299,
+      "in_investigation_queue": true
+    },
+    {
+      "aid": "b4b65cd3493f",
+      "name": "Commodity Channel Index (CCI) Snapback",
+      "owner_id": "23dc66cd61c6",
+      "is_vinh": false,
+      "disposition": "OOS_NEGATIVE_QUEUE",
+      "category": "FULL_NON_POSITIVE_OOS_NEGATIVE",
+      "full_ret": -21.49,
+      "train_ret": -13.35,
+      "oos_ret": -13.17,
+      "trades": 479,
+      "in_investigation_queue": true
+    },
+    {
+      "aid": "b96bafe57445",
+      "name": "Normalized ATR (NATR) Volatility Breakout",
+      "owner_id": "76c5814277ab",
+      "is_vinh": false,
+      "disposition": "OOS_NEGATIVE_QUEUE",
+      "category": "FULL_NON_POSITIVE_OOS_NEGATIVE",
+      "full_ret": -7.44,
+      "train_ret": -4.38,
+      "oos_ret": -6.55,
+      "trades": 45,
+      "in_investigation_queue": true
+    },
+    {
+      "aid": "bf519617d973",
+      "name": "Double Exponential Moving Average (DEMA - Optimized)",
+      "owner_id": "76c5814277ab",
+      "is_vinh": false,
+      "disposition": "OOS_NEGATIVE_QUEUE",
+      "category": "FULL_NON_POSITIVE_OOS_NEGATIVE",
+      "full_ret": -31.86,
+      "train_ret": -31.86,
+      "oos_ret": -12.32,
+      "trades": 9,
+      "in_investigation_queue": true
+    },
+    {
+      "aid": "c33cc317bbeb",
+      "name": "Multi-Day Cumulative Return Dip Buying",
+      "owner_id": "dd3d4fbabe8a",
+      "is_vinh": false,
+      "disposition": "OOS_NEGATIVE_QUEUE",
+      "category": "FULL_NON_POSITIVE_OOS_NEGATIVE",
+      "full_ret": -31.12,
+      "train_ret": -13.9,
+      "oos_ret": -28.81,
+      "trades": 205,
+      "in_investigation_queue": true
+    },
+    {
+      "aid": "cb750cb1eb10",
+      "name": "EMA Golden Cross + Volume Spike Confluence",
+      "owner_id": "76c5814277ab",
+      "is_vinh": false,
+      "disposition": "OOS_NEGATIVE_QUEUE",
+      "category": "FULL_NON_POSITIVE_OOS_NEGATIVE",
+      "full_ret": -4.57,
+      "train_ret": -2.86,
+      "oos_ret": -5.05,
+      "trades": 28,
+      "in_investigation_queue": true
+    },
+    {
+      "aid": "f261549d9efa",
+      "name": "ROC Momentum Surge",
+      "owner_id": "23dc66cd61c6",
+      "is_vinh": false,
+      "disposition": "OOS_NEGATIVE_QUEUE",
+      "category": "FULL_POSITIVE_OOS_NEGATIVE",
+      "full_ret": 1.28,
+      "train_ret": 26.62,
+      "oos_ret": -21.42,
+      "trades": 413,
+      "in_investigation_queue": true
+    },
+    {
+      "aid": "f4e211e9510d",
+      "name": "Rolling 30-Day Multi-Week High Breakout",
+      "owner_id": "a214b36a7eab",
+      "is_vinh": false,
+      "disposition": "OOS_NEGATIVE_QUEUE",
+      "category": "FULL_POSITIVE_OOS_NEGATIVE",
+      "full_ret": 15.97,
+      "train_ret": 24.12,
+      "oos_ret": -6.59,
+      "trades": 166,
+      "in_investigation_queue": true
+    },
+    {
+      "aid": "fa9587a97fa9",
+      "name": "Trend Alignment Momentum (Optimized)",
+      "owner_id": "43f5220ece1e",
+      "is_vinh": false,
+      "disposition": "OOS_NEGATIVE_QUEUE",
+      "category": "FULL_POSITIVE_OOS_NEGATIVE",
+      "full_ret": 63.45,
+      "train_ret": 63.45,
+      "oos_ret": -29.25,
+      "trades": 16,
+      "in_investigation_queue": true
+    }
+  ]
+}

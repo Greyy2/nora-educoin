@@ -213,7 +213,7 @@ def reload_system_strategies() -> Dict[str, Any]:
     return loaded
 
 
-def perp_symbols(universe: List[str] = None) -> List[str]:
+def perp_symbols(universe: Optional[List[str]] = None) -> List[str]:
     return [f"{s}@perp" for s in (universe or UNIVERSE)]
 
 
@@ -403,7 +403,7 @@ def iter_params(space: Dict[str, List[Any]], n: Optional[int], seed: int, full_g
     if full_grid or n is None or total <= n:
         positions = range(total)
     elif total <= sys.maxsize:
-        positions = random.Random(seed).sample(range(total), int(n))
+        positions = random.Random(seed).sample(range(total), n)
     else:   # không gian khổng lồ (> 2^63): rút ngẫu nhiên không lặp
         rng = random.Random(seed)
 
@@ -914,7 +914,8 @@ def save_user_alpha_from_result(
         if not src_alpha:
             raise ValueError(f"Không thể xác thực nguồn fork: không tìm thấy chiến lược {forked_from['alpha_id']}")
         from backend import users
-        src_owner = users.get_user(src_alpha.get("owner_id")) if src_alpha.get("owner_id") else None
+        src_alpha_owner_id = src_alpha.get("owner_id")
+        src_owner = users.get_user(str(src_alpha_owner_id)) if src_alpha_owner_id else None
         record["forked_from"] = {
             "alpha_id": src_alpha["id"],
             "version": src_alpha.get("version", 1),
@@ -970,7 +971,7 @@ def get_user_alpha_version(alpha_id: str, version: int, base_dir: Optional[str] 
         return None
     if int(rec.get("version") or 1) == version:
         return rec
-    path = os.path.join(get_user_alphas_dir(base_dir), "_versions", f"{alpha_id}.v{int(version)}.json")
+    path = os.path.join(get_user_alphas_dir(base_dir), "_versions", f"{alpha_id}.v{version}.json")
     return read_json(path) if os.path.isfile(path) else None
 
 
@@ -1020,7 +1021,7 @@ def list_user_alphas(
                 continue
 
     if sort in ("sharpe", "cagr"):
-        have = sorted((x for x in items if _sort_value(x, sort) is not None), key=lambda x: _sort_value(x, sort), reverse=True)
+        have = sorted((x for x in items if _sort_value(x, sort) is not None), key=lambda x: float(_sort_value(x, sort) or 0.0), reverse=True)
         items = have + [x for x in items if _sort_value(x, sort) is None]
     elif sort == "date":
         items.sort(key=lambda x: x.get("created_at", ""), reverse=True)
@@ -1259,13 +1260,33 @@ def _user_card_metrics(sim: Any, config: Optional[Dict[str, Any]] = None) -> Dic
         is_ranked = False
         unranked_reason = "Thiếu dữ liệu thời gian/số nến kiểm định (cần ≥30 ngày hoặc ≥500 nến)"
 
+    ret = _first_num(sim, "ret_pct")
+    if ret is None:
+        r_val = _first_num(sim, "ret")
+        if r_val is not None:
+            ret = round(r_val * 100.0, 2)
+
+    mdd_val = _first_num(sim, "mdd_pct")
+    if mdd_val is None:
+        m_val = _first_num(sim, "mdd")
+        if m_val is not None:
+            mdd_val = round(abs(m_val) * 100.0, 2)
+    elif mdd_val is not None:
+        mdd_val = abs(mdd_val)
+
+    w_val = _first_num(sim, "win_rate_trades", "win_rate", "winTrades")
+    if w_val is not None and 0.0 < w_val <= 1.0:
+        w_val = round(w_val * 100.0, 2)
+
+    pf_val = _first_num(sim, "profit_factor_trades", "profit_factor", "pfTrades")
+
     return {
-        "ret_pct": _first_num(sim, "ret_pct"),
-        "mdd_pct": abs(mdd) if mdd is not None else None,
+        "ret_pct": ret,
+        "mdd_pct": mdd_val,
         "sharpe": _first_num(sim, "sharpe"),
         "sortino": _first_num(sim, "sortino"),
-        "profit_factor": _first_num(sim, "profit_factor_trades"),
-        "win_rate": _first_num(sim, "win_rate_trades"),
+        "profit_factor": pf_val,
+        "win_rate": w_val,
         "trades": t_cnt,
         "eval_days": eval_days,
         "bar_count": bar_cnt,
@@ -1371,18 +1392,125 @@ def _education_samples() -> List[Dict[str, Any]]:
     return read_json(alpha_education_samples()) or []
 
 
+def resolve_strategy_result(rec: Dict[str, Any]) -> Dict[str, Any]:
+    """Nguồn chân lý duy nhất để phân giải kết quả và metrics cho cả strategy_card và strategy_detail.
+    Bảo đảm Card và Detail luôn đọc cùng 1 artifact / snapshot, cùng run_id, cùng version, cùng metrics.
+    BẮT BUỘC: Không bao giờ báo has_result=True nếu không có dict result artifact hợp lệ để UI hiển thị.
+    PHÂN BIỆT RÕ: current_version (mã hiện tại) và result_version (phiên bản tạo ra kết quả).
+    Nếu dữ liệu lịch sử không lưu version của lượt chạy, result_version = None (không gán bừa current_version).
+    """
+    current_ver = rec.get("version")
+    cur_hash = rec.get("program_hash")
+
+    res = rec.get("result")
+    if isinstance(res, str):
+        try:
+            res = json.loads(res)
+        except Exception:
+            res = None
+
+    if isinstance(res, dict) and res:
+        res_m = res.get("metrics") or {}
+        sim = res_m.get("simulate") or res_m if isinstance(res_m, dict) else {}
+        fin = _num_or_none(rec.get("final_equity")) or _num_or_none(res.get("final_equity"))
+        run_id = res.get("run_id") or (res.get("meta") or {}).get("run_id") or rec.get("run_id")
+        prog_hash = res.get("program_hash") or cur_hash
+        res_ver = res.get("version") or current_ver
+        return {
+            "result": res,
+            "simulate": sim,
+            "final_equity": fin,
+            "is_historical": False,
+            "metrics_status": rec.get("metrics_status") or "ACTIVE",
+            "run_id": run_id,
+            "version": res_ver,
+            "result_version": res_ver,
+            "current_version": current_ver,
+            "program_hash": prog_hash,
+            "has_result": True,
+        }
+
+    # Nếu không có active result, tìm snapshot mới nhất trong contract_history có result artifact hợp lệ
+    ch = rec.get("contract_history")
+    if isinstance(ch, list):
+        for item in reversed(ch):
+            if isinstance(item, dict):
+                snap = item.get("result_snapshot") or {}
+                snap_res = snap.get("result")
+                # QUY TẮC BẢO ĐẢM EDU-16: Chỉ chấp nhận snapshot khi snap_res là dict artifact thực sự
+                # để UI detail có thể mount CustomResult, loại trừ hoàn toàn lệch 'card có số nhưng detail rỗng'
+                if isinstance(snap_res, dict) and snap_res:
+                    res_m = snap_res.get("metrics") or snap.get("metrics") or {}
+                    sim = (res_m.get("simulate") or res_m) if isinstance(res_m, dict) else {}
+                    fin = _num_or_none(snap.get("final_equity")) or _num_or_none(snap_res.get("final_equity"))
+                    run_id = snap_res.get("run_id") or (snap_res.get("meta") or {}).get("run_id") or snap.get("run_id")
+                    # TUYỆT ĐỐI KHÔNG gán current_version cho result_version lịch sử nếu snapshot không ghi lại version!
+                    res_ver = snap.get("version") or snap_res.get("version") or item.get("version")
+                    prog_hash = snap_res.get("program_hash") or snap.get("program_hash") or item.get("program_hash")
+                    return {
+                        "result": snap_res,
+                        "simulate": sim or {},
+                        "final_equity": fin,
+                        "is_historical": True,
+                        "metrics_status": rec.get("metrics_status") or "STALE_SOURCE_CHANGED",
+                        "run_id": run_id,
+                        "version": res_ver,
+                        "result_version": res_ver,
+                        "current_version": current_ver,
+                        "program_hash": prog_hash,
+                        "has_result": True,
+                    }
+
+    return {
+        "result": None,
+        "simulate": {},
+        "final_equity": None,
+        "is_historical": False,
+        "metrics_status": rec.get("metrics_status") or "NO_RESULT",
+        "run_id": None,
+        "version": current_ver,
+        "result_version": None,
+        "current_version": current_ver,
+        "program_hash": cur_hash,
+        "has_result": False,
+    }
+
+
+def _extract_record_metrics(rec: Dict[str, Any]) -> Tuple[Dict[str, Any], Optional[float]]:
+    """Tương thích ngược: ủy quyền cho resolve_strategy_result."""
+    r = resolve_strategy_result(rec)
+    return r["simulate"], r["final_equity"]
+
+
 def strategy_card(rec: Dict[str, Any], sample_meta: Optional[Dict[str, Dict[str, Any]]] = None) -> Dict[str, Any]:
     """Thẻ chiến lược gọn cho Market: số đo từ metrics.simulate + pnl_usd = final_equity − initial_capital (đều từ kết quả thật)."""
-    card = _user_card_metrics((rec.get("metrics") or {}).get("simulate"), config=rec.get("config"))
-    cap = _first_num(rec.get("config"), "initial_capital")
-    fin = _num_or_none(rec.get("final_equity"))
+    resolved = resolve_strategy_result(rec)
+    sim = resolved["simulate"]
+    fin = resolved["final_equity"]
+    card = _user_card_metrics(sim, config=rec.get("config"))
+    # Dùng initial_capital của chính lượt chạy (run config) nếu có, fallback sang rec config
+    run_cfg = (resolved["result"] or {}).get("config") or {}
+    cap = _first_num(run_cfg, "initial_capital") or _first_num(rec.get("config"), "initial_capital")
     meta = (sample_meta or {}).get(rec.get("sample_key") or "", {})
     code_str = rec.get("code") or ""
     code_hash = rec.get("program_hash") or (hashlib.sha256(code_str.encode("utf-8")).hexdigest()[:12] if code_str else None)
     cfg = rec.get("config") or {}
     raw_symbol = (cfg.get("symbols") or ["BTC-USDT"])[0] if isinstance(cfg.get("symbols"), list) and cfg.get("symbols") else cfg.get("symbol", "BTC-USDT")
     from backend.data.data import base_name
-    market_context = rec.get("market_context") or (rec.get("result") or {}).get("market_context")
+    market_context = rec.get("market_context") or (resolved["result"] or {}).get("market_context")
+
+    # Nếu không có kết quả hợp lệ, triệt tiêu toàn bộ metrics trên card để đảm bảo tính đồng nhất tuyệt đối với detail
+    if not resolved["has_result"]:
+        card["ret_pct"] = None
+        card["mdd_pct"] = None
+        card["sharpe"] = None
+        card["trades"] = None
+        card["win_rate"] = None
+        card["profit_factor"] = None
+        pnl_val = None
+    else:
+        pnl_val = round(fin - cap, 2) if fin is not None and cap is not None else None
+
     card.update({
         "id": rec.get("id"),
         "name": rec.get("name"),
@@ -1393,10 +1521,18 @@ def strategy_card(rec: Dict[str, Any], sample_meta: Optional[Dict[str, Dict[str,
         "market_context": market_context if isinstance(market_context, dict) else None,
         "code_hash": code_hash,
         "forked_from": rec.get("forked_from"),
-        "pnl_usd": round(fin - cap, 2) if fin is not None and cap is not None else None,
+        "pnl_usd": pnl_val,
         "sample_key": rec.get("sample_key"),
         "updated_at": rec.get("updated_at"),
         "pass_analyst": bool((rec.get("checklist") or {}).get("all_passed")),
+        "has_result": resolved["has_result"],
+        "is_historical_result": resolved["is_historical"],
+        "metrics_status": resolved["metrics_status"],
+        "run_id": resolved["run_id"],
+        "version": resolved["version"],
+        "result_version": resolved.get("result_version"),
+        "current_version": resolved.get("current_version"),
+        "program_hash": resolved.get("program_hash"),
     })
     return card
 
@@ -1439,10 +1575,17 @@ def card_index(base_dir: Optional[str] = None) -> Dict[str, List[Dict[str, Any]]
             return hit[1]
         meta = _sample_meta()
         idx: Dict[str, List[Dict[str, Any]]] = {}
-        for r in list_user_alphas(base_dir=base_dir):
-            if r.get("status") == "ARCHIVED" or not r.get("owner_id"):
-                continue
-            idx.setdefault(r["owner_id"], []).append(strategy_card(r, meta))
+        if os.path.isdir(d):
+            for fname in sorted(os.listdir(d)):
+                if fname.endswith(".json") and not fname.endswith(".tmp") and not fname.startswith("."):
+                    path = os.path.join(d, fname)
+                    try:
+                        with open(path, "r", encoding="utf-8") as fh:
+                            r = json.load(fh)
+                            if isinstance(r, dict) and r.get("id") and r.get("owner_id") and r.get("status") != "ARCHIVED":
+                                idx.setdefault(r["owner_id"], []).append(strategy_card(r, meta))
+                    except Exception:
+                        continue
         _CARD_INDEX[d] = (sig, idx)
         return idx
 
@@ -1456,17 +1599,17 @@ def aggregate_cards(cards: List[Dict[str, Any]]) -> Dict[str, Any]:
     pnls = [c["pnl_usd"] for c in cards if c.get("pnl_usd") is not None]
     mdds = [c["mdd_pct"] for c in cards if c.get("mdd_pct") is not None]
 
-    ranked_cards = [c for c in cards if c.get("is_ranked")]
-    ranked_rets = [c for c in ranked_cards if c.get("ret_pct") is not None]
-    rets = ranked_rets if ranked_rets else [c for c in cards if c.get("ret_pct") is not None]
-    top_ret = max(rets, key=lambda c: c["ret_pct"]) if rets else None
+    # Ưu tiên chiến lược pass analyst hoặc đạt chuẩn xếp hạng, sau đó lấy theo ret_pct cao nhất
+    pass_cards = [c for c in cards if c.get("pass_analyst") or c.get("is_ranked")]
+    candidates = pass_cards if pass_cards else cards
+    candidates_with_ret = [c for c in candidates if c.get("ret_pct") is not None]
+    top_ret = max(candidates_with_ret, key=lambda c: (c.get("pass_analyst", False), c.get("is_ranked", False), c.get("ret_pct", -float("inf")))) if candidates_with_ret else (candidates[0] if candidates else None)
 
-    # Tách bạch chiến lược Sharpe cao nhất, ưu tiên tuyệt đối chiến lược đạt chuẩn xếp hạng (DEC-01)
-    ranked_sharpes = [c for c in ranked_cards if c.get("sharpe") is not None]
+    ranked_sharpes = [c for c in pass_cards if c.get("sharpe") is not None]
     sharpes = ranked_sharpes if ranked_sharpes else [c for c in cards if c.get("sharpe") is not None]
-    top_sharpe = max(sharpes, key=lambda c: c["sharpe"]) if sharpes else None
+    top_sharpe = max(sharpes, key=lambda c: (c.get("pass_analyst", False), c.get("is_ranked", False), c.get("sharpe", -float("inf")))) if sharpes else None
 
-    ranked_count = len(ranked_cards)
+    ranked_count = len([c for c in cards if c.get("is_ranked")])
     unranked_reasons = [c.get("unranked_reason") for c in cards if c.get("unranked_reason")]
     return {
         "n_strategies": len(cards),
@@ -1478,26 +1621,54 @@ def aggregate_cards(cards: List[Dict[str, Any]]) -> Dict[str, Any]:
         "best": {
             "id": top_ret["id"],
             "name": top_ret["name"],
-            "ret_pct": top_ret["ret_pct"],
-            "sharpe": top_ret["sharpe"],
+            "category": top_ret.get("category"),
+            "difficulty": top_ret.get("difficulty"),
+            "ret_pct": top_ret.get("ret_pct"),
+            "pnl_usd": top_ret.get("pnl_usd"),
+            "mdd_pct": top_ret.get("mdd_pct"),
+            "sharpe": top_ret.get("sharpe"),
+            "win_rate": top_ret.get("win_rate"),
             "trades": top_ret.get("trades"),
             "symbol": top_ret.get("symbol"),
             "timeframe": top_ret.get("timeframe"),
             "is_ranked": top_ret.get("is_ranked", False),
+            "pass_analyst": top_ret.get("pass_analyst", False),
             "unranked_reason": top_ret.get("unranked_reason"),
             "market_context": top_ret.get("market_context"),
+            "has_result": top_ret.get("has_result", False),
+            "is_historical_result": top_ret.get("is_historical_result", False),
+            "metrics_status": top_ret.get("metrics_status"),
+            "run_id": top_ret.get("run_id"),
+            "version": top_ret.get("version"),
+            "result_version": top_ret.get("result_version"),
+            "current_version": top_ret.get("current_version"),
+            "program_hash": top_ret.get("program_hash"),
         } if top_ret else None,
         "best_sharpe": {
             "id": top_sharpe["id"],
             "name": top_sharpe["name"],
-            "ret_pct": top_sharpe["ret_pct"],
-            "sharpe": top_sharpe["sharpe"],
+            "category": top_sharpe.get("category"),
+            "difficulty": top_sharpe.get("difficulty"),
+            "ret_pct": top_sharpe.get("ret_pct"),
+            "pnl_usd": top_sharpe.get("pnl_usd"),
+            "mdd_pct": top_sharpe.get("mdd_pct"),
+            "sharpe": top_sharpe.get("sharpe"),
+            "win_rate": top_sharpe.get("win_rate"),
             "trades": top_sharpe.get("trades"),
             "symbol": top_sharpe.get("symbol"),
             "timeframe": top_sharpe.get("timeframe"),
             "is_ranked": top_sharpe.get("is_ranked", False),
+            "pass_analyst": top_sharpe.get("pass_analyst", False),
             "unranked_reason": top_sharpe.get("unranked_reason"),
             "market_context": top_sharpe.get("market_context"),
+            "has_result": top_sharpe.get("has_result", False),
+            "is_historical_result": top_sharpe.get("is_historical_result", False),
+            "metrics_status": top_sharpe.get("metrics_status"),
+            "run_id": top_sharpe.get("run_id"),
+            "version": top_sharpe.get("version"),
+            "result_version": top_sharpe.get("result_version"),
+            "current_version": top_sharpe.get("current_version"),
+            "program_hash": top_sharpe.get("program_hash"),
         } if top_sharpe else None,
     }
 
@@ -1597,7 +1768,8 @@ def operand(item: Any, schema: Dict[str, Any], t: str = "t") -> Tuple[str, str]:
         a, b = operand(item.get("number_1"), schema, t), operand(item.get("number_2"), schema, t)
         if item.get("logic") == "*":
             return rf"{b[0]}\cdot {a[0]}", f"{b[1]} × {a[1]}"
-        op = {"+": "+", "-": "-", "/": "/"}.get(item.get("logic"), "?")
+        logic = str(item.get("logic") or "")
+        op = {"+": "+", "-": "-", "/": "/"}.get(logic, "?")
         return rf"{a[0]}{op}{b[0]}", f"{a[1]} {op} {b[1]}"
     if "column" in item:
         lag = int(item.get("index", 0) or 0)
@@ -2089,7 +2261,9 @@ def live_candidates(alphas_dir: Optional[str] = None) -> List[Dict[str, Any]]:
                    # tham số ĐÃ TỐI ƯU của chân (đúng bộ sổ đã backtest): run() của sổ ghi đè risk_per_trade_pct bằng của sổ => gộp vào đây
                    "params": _clean_params(BY_ID[it["id"]], {**(it.get("params") or {}), **({"risk_per_trade_pct": book["risk_per_trade_pct"]} if book.get("risk_per_trade_pct") is not None else {})})}
             k = (it["id"], str(tf))
-            if k not in rows or (row["sharpe"] or -1e9) > (rows[k]["sharpe"] or -1e9):
+            cur_s = _fnum(row.get("sharpe")) or -1e9
+            old_s = _fnum(rows[k].get("sharpe")) or -1e9 if k in rows else -1e9
+            if k not in rows or cur_s > old_s:
                 rows[k] = row
     for ua in list_user_alphas(base_dir=base):
         if ua.get("status") == "ARCHIVED":
@@ -2323,6 +2497,12 @@ def _check_position(pos: Dict[str, Any]) -> Dict[str, Any]:
     if bad:
         raise ValueError(f"khoá vị thế không hợp lệ: {bad}; có: {sorted(POSITION_KEYS)}")
     for k, v in pos.items():
-        if isinstance(v, bool) or not isinstance(v, (int, float, str)):
+        if k in ("dca_steps", "dca_multipliers"):
+            if not isinstance(v, (list, tuple)) or any(isinstance(x, bool) or not isinstance(x, (int, float)) for x in v):
+                raise ValueError(f"vị thế {k}: phải là danh sách số, nhận {v!r}")
+        elif k in ("using_match_price", "allow_negative_price_rate"):
+            if not isinstance(v, bool):
+                raise ValueError(f"vị thế {k}: phải là boolean (True/False), nhận {v!r}")
+        elif isinstance(v, bool) or not isinstance(v, (int, float, str)):
             raise ValueError(f"vị thế {k}: phải là số hoặc chuỗi, nhận {v!r}")
     return dict(pos)

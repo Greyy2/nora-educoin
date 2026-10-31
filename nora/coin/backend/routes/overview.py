@@ -166,7 +166,7 @@ def _rolling_sharpe(r: np.ndarray, w: int):
 
 def _monthly(dates: pd.DatetimeIndex, nav: np.ndarray) -> list:
     s = pd.Series(nav, index=dates)
-    ym = s.groupby([s.index.year, s.index.month]).last()
+    ym = s.groupby([dates.year, dates.month]).last()
     out, prev = [], 10000.0
     for (y, m), v in ym.items():
         out.append({"y": int(y), "m": int(m), "ret": round((float(v) / prev - 1.0) * 100.0, 4)})

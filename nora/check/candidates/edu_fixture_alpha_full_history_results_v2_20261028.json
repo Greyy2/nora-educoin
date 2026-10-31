@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "created_on": "2026-10-28",
+  "status": "SUPERSEDED_NOVELTY_GATE_FAIL_NO_JOBS",
+  "amendment_id": "FXA-AMEND-FULL-HISTORY-2026-10-28",
+  "evaluation_method": "single_full_history_run",
+  "window": {
+    "start": "2023-10-06",
+    "end": "2026-10-03"
+  },
+  "api": "http://127.0.0.1:18022",
+  "execution_policy": "Serial jobs only; 2 GB per job maximum.",
+  "wfa_used": false,
+  "parameter_tuning_used": false,
+  "expected_candidate_count": 27,
+  "expected_parent_template_count": 4,
+  "expected_job_count": 31,
+  "completed_job_count": 0,
+  "results": {},
+  "active_task": null,
+  "superseded_by": "EDU-ALPHA-57-NOVELTY-AND-REAL-BACKTEST-2026-10-28",
+  "blockers": [
+    "Candidate v2 failed the required novelty review against the other 30 active alpha strategies and is not eligible for backtesting.",
+    "The current v2 source was production-compiled locally (27/27), but those hashes are not valid for the redesigned candidates that must replace it.",
+    "The sandbox previously denied EDU loopback API access at 127.0.0.1:18022 before a job ID was issued; no retry or alternate route was attempted."
+  ]
+}

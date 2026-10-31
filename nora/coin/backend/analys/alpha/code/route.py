@@ -28,6 +28,7 @@ ALLOWED_MODULE_ROOTS = {
     "datetime",
     "enum",
 }
+ALLOWED_NATIVE_MODULES = {"backend.core.strategy_proxima"}
 
 # Các hàm builtin nguy hiểm bị cấm tuyệt đối
 BANNED_BUILTINS = {
@@ -128,7 +129,7 @@ def verify_native_sandbox(code: str) -> None:
         elif isinstance(node, ast.ImportFrom):
             if node.module:
                 root_pkg = node.module.split(".")[0]
-                if root_pkg not in ALLOWED_MODULE_ROOTS:
+                if root_pkg not in ALLOWED_MODULE_ROOTS and node.module not in ALLOWED_NATIVE_MODULES:
                     raise DslError(
                         f"Cấm import từ '{node.module}' trong sandbox. Các thư viện hợp lệ: {', '.join(sorted(ALLOWED_MODULE_ROOTS))}",
                         node.lineno,

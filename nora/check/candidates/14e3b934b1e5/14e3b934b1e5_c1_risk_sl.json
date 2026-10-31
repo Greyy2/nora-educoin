@@ -1,0 +1,91 @@
+{
+  "candidate_id": "14e3b934b1e5_c1_risk_sl",
+  "parent_aid": "14e3b934b1e5",
+  "parent_name": "ROC Momentum Exhaustion with Take-Profit",
+  "hypothesis": "Hạ rủi ro mỗi lệnh xuống 1.0% và nới stop loss lên 4.0% để tránh bị quét bởi nhiễu biến động nến ngày (intraday wicks).",
+  "hypothesis_type": "sizing_and_risk_control",
+  "code": "class RiskRocMomentumExhaustionStrategy(NoraStrategy):\n    \"\"\"\n    Đà tăng cực đại thường không bền: khi tốc độ tăng suy yếu hoặc giá đã đạt\n    mục tiêu lợi nhuận, đóng vị thế giúp giữ lại phần lợi nhuận cao nhất.\n    \"\"\"\n    timeframe = \"24h\"\n\n    # Tham số chiến lược: đổi các số này rồi bấm Chạy để thấy kết quả mới\n    ema_period = 30\n    roc_period = 10\n    roc_enter_level = 3.0\n\n    # Vị thế và rủi ro (khai báo tường minh)\n    # Các trường *_pct là phần trăm, không phải bội số ATR.\n    stop_loss_pct = 4.0  # SL theo phần trăm giá vào lệnh; 2.5 tương đương 2.5%.\n    take_profit_pct = 5.0  # TP theo phần trăm giá vào lệnh; 0 = tắt.\n    trailing_stop_pct = 0.0  # Khoảng cách trailing theo phần trăm từ đỉnh/đáy kể từ khi vào lệnh; 0 = tắt.\n    trailing_activation_pct = 0.0  # ngưỡng lãi bật trailing, 0 = không dùng\n    timeout = 0  # số phút giữ lệnh tối đa, 0 = không dùng\n    risk_per_trade_pct = 1.0  # cỡ lệnh: % vốn chịu rủi ro tới mức cắt lỗ\n    atr_frame = \"24h\"  # khung nến dùng để đo ATR\n\n    def on_bar(self):\n\n        # Chỉ báo\n        ema = ema(close, self.ema_period)\n        roc = self.feat.roc(close, self.roc_period)\n\n        # Điều kiện vào / thoát theo tín hiệu; chốt lời và cắt lỗ khai báo ở đầu class\n        enter_sig = (close > ema) & (roc > self.roc_enter_level)\n        exit_sig = (close < ema) | (roc < 0.0)\n\n        # Vị thế: 0 = không giữ, 1 = LONG; lệnh gọi sau ghi đè lệnh trước\n        self.close(exit_sig)\n        self.buy(enter_sig)\n",
+  "config": {
+    "symbols": [
+      "BTC",
+      "ETH",
+      "SOL",
+      "BNB",
+      "XRP",
+      "DOGE",
+      "ADA",
+      "AVAX",
+      "LINK",
+      "TRX"
+    ],
+    "data_symbols": [
+      "BTC@perp",
+      "ETH@perp",
+      "SOL@perp",
+      "BNB@perp",
+      "XRP@perp",
+      "DOGE@perp",
+      "ADA@perp",
+      "AVAX@perp",
+      "LINK@perp",
+      "TRX@perp"
+    ],
+    "start": "2023-10-06",
+    "end": "2026-10-03",
+    "train_ratio": 0.7,
+    "initial_capital": 10000.0,
+    "timeframe": "24h",
+    "run_frame": "24h",
+    "exchange": "okx",
+    "program": {
+      "name": "RiskRocMomentumExhaustionStrategy",
+      "legs": [
+        "LONG"
+      ],
+      "levels": [
+        0.0,
+        1.0
+      ],
+      "features": [
+        "ema",
+        "roc"
+      ],
+      "warmup_bars": 90
+    },
+    "risk": {
+      "max_positions": 8,
+      "max_per_symbol": 1,
+      "max_gross_exposure": 3.0,
+      "kill_switch_dd_pct": 30.0,
+      "max_open_risk_pct": 6.0,
+      "dd_throttle_pct": 5.0,
+      "dd_throttle_floor": 0.25
+    },
+    "strategies": [
+      "py_ae598ce4f9a7_long"
+    ],
+    "position": {
+      "market": "perp",
+      "leverage": 1,
+      "exit_unit": "pct",
+      "atr_frame": "24h",
+      "atr_period": 14,
+      "sizing": "risk",
+      "risk_per_trade_pct": 1.0,
+      "max_notional_pct": 300.0,
+      "stop_fill": "level",
+      "limit_through_pct": 0.0,
+      "cooldown": 1440,
+      "risk_profile": "legacy",
+      "sl_anchor": "",
+      "sl_beyond_last_pct": 0.0,
+      "stop_loss_rate": 4.0,
+      "take_profit_rate": 5.0,
+      "trailing_stop": 0.0,
+      "trailing_activation_pct": 0.0,
+      "timeout": 0
+    }
+  },
+  "code_sha256": "9998f3968abda085e756228c6e3e1bf8e48979e831b7437c9bfae30da7b85fa5",
+  "config_sha256": "21503671c19067111471abebb4599c5c739c43c2969205e0ec0e1542bf2eea1f"
+}

@@ -291,6 +291,10 @@ def build_custom_backtest(p: Dict[str, Any]) -> Dict[str, Any]:
     out["start"], out["end"] = check_date(p["start"]), check_date(p["end"])
     if p["start"] >= p["end"]:
         raise JobError("start phải trước end")
+    if p.get("test_start"):
+        out["test_start"] = check_date(p["test_start"])
+        if not out["start"] < out["test_start"] <= out["end"]:
+            raise JobError("test_start phải sau start và không muộn hơn end")
     if (_day_ms(p["end"], 1) - _day_ms(p["start"])) / 86_400_000 > MAX_CUSTOM_DAYS:
         raise JobError(f"khoảng chạy tối đa {MAX_CUSTOM_DAYS} ngày")
     if p.get("train_ratio") is not None:
@@ -1667,15 +1671,16 @@ class CustomBacktestRequest(BaseModel):
     symbols: Optional[List[str]] = Field(None, max_length=16, description="BTC hoặc BTC@perp; bỏ trống = cả 10 tài sản OKX trong kho dữ liệu")
     start: str
     end: str
+    test_start: Optional[str] = Field(None, description="Ngày bắt đầu test OOS chính xác; khi có, ưu tiên hơn train_ratio")
     train_ratio: float = Field(0.7, ge=0.05, le=0.95)
     initial_capital: Optional[float] = Field(None, gt=0, le=1e9, description="Mặc định 10000")
     position: Optional[Dict[str, Any]] = Field(None, description="Ghi đè tham số vị thế (khoá của params.builder.POSITION_KEYS)")
     run_frame: Optional[str] = Field(None, pattern="^(1m|5m|15m|1h|4h|24h)$", description="Khung chạy; thiếu = Nhanh (khung tín hiệu); '1m' = Chuẩn")
 
-    @field_validator("start", "end")
+    @field_validator("start", "end", "test_start")
     @classmethod
     def _date(cls, v):
-        return batch_jobs_routes.check_date(v)
+        return batch_jobs_routes.check_date(v) if v is not None else v
 
 
 @custom_router.get("/defaults")

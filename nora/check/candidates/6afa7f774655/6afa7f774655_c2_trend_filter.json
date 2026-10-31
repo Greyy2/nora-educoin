@@ -1,0 +1,91 @@
+{
+  "candidate_id": "6afa7f774655_c2_trend_filter",
+  "parent_aid": "6afa7f774655",
+  "parent_name": "RSI Rebound with Fast SMA Filter",
+  "hypothesis": "Thêm bộ lọc xu hướng trung hạn (Close > SMA50) nhằm loại bỏ tín hiệu mua bắt đáy trong xu hướng giảm mạnh.",
+  "hypothesis_type": "trend_filter",
+  "code": "class RevertRsiDivergenceStrategy(NoraStrategy):\n    \"\"\"\n    RSI có thể kẹt ở vùng bán quá mức trong các đợt thanh lý kéo dài; đòi hỏi\n    giá đóng cửa cắt lên một đường trung bình rất ngắn giúp loại bớt các pha\n    giảm chưa dừng.\n    \"\"\"\n    timeframe = \"24h\"\n\n    # Tham số chiến lược: đổi các số này rồi bấm Chạy để thấy kết quả mới\n    rsi_period = 14\n    sma_period = 5\n    rsi_enter_level = 35.0\n    rsi_exit_level = 55.0\n\n    # Vị thế và rủi ro (khai báo tường minh)\n    # Các trường *_pct là phần trăm, không phải bội số ATR.\n    stop_loss_pct = 3.0  # SL theo phần trăm giá vào lệnh; 2.5 tương đương 2.5%.\n    take_profit_pct = 0.0  # TP theo phần trăm giá vào lệnh; 0 = tắt.\n    trailing_stop_pct = 0.0  # Khoảng cách trailing theo phần trăm từ đỉnh/đáy kể từ khi vào lệnh; 0 = tắt.\n    trailing_activation_pct = 0.0  # ngưỡng lãi bật trailing, 0 = không dùng\n    timeout = 0  # số phút giữ lệnh tối đa, 0 = không dùng\n    risk_per_trade_pct = 0.5  # cỡ lệnh: % vốn chịu rủi ro tới mức cắt lỗ\n\n    def on_bar(self):\n        trend_filter = close > sma(close, 50)\n\n        # Chỉ báo\n        rsi = rsi(close, self.rsi_period)\n        sma = sma(close, self.sma_period)\n\n        # Điều kiện vào / thoát lệnh\n        enter_sig = trend_filter & (rsi < self.rsi_enter_level) & crossover(close, sma)\n        exit_sig = rsi > self.rsi_exit_level\n\n        # Vị thế: 0 = không giữ, 1 = LONG; lệnh gọi sau ghi đè lệnh trước\n        self.close(exit_sig)\n        self.buy(enter_sig)\n",
+  "config": {
+    "symbols": [
+      "BTC",
+      "ETH",
+      "SOL",
+      "BNB",
+      "XRP",
+      "DOGE",
+      "ADA",
+      "AVAX",
+      "LINK",
+      "TRX"
+    ],
+    "data_symbols": [
+      "BTC@perp",
+      "ETH@perp",
+      "SOL@perp",
+      "BNB@perp",
+      "XRP@perp",
+      "DOGE@perp",
+      "ADA@perp",
+      "AVAX@perp",
+      "LINK@perp",
+      "TRX@perp"
+    ],
+    "start": "2023-10-06",
+    "end": "2026-10-03",
+    "train_ratio": 0.7,
+    "initial_capital": 10000.0,
+    "timeframe": "24h",
+    "run_frame": "24h",
+    "exchange": "okx",
+    "program": {
+      "name": "RevertRsiDivergenceStrategy",
+      "legs": [
+        "LONG"
+      ],
+      "levels": [
+        0.0,
+        1.0
+      ],
+      "features": [
+        "rsi",
+        "sma"
+      ],
+      "warmup_bars": 57
+    },
+    "risk": {
+      "max_positions": 8,
+      "max_per_symbol": 1,
+      "max_gross_exposure": 3.0,
+      "kill_switch_dd_pct": 30.0,
+      "max_open_risk_pct": 6.0,
+      "dd_throttle_pct": 5.0,
+      "dd_throttle_floor": 0.25
+    },
+    "strategies": [
+      "py_6ec7ffdfb32c_long"
+    ],
+    "position": {
+      "market": "perp",
+      "leverage": 1,
+      "exit_unit": "pct",
+      "atr_frame": "24h",
+      "atr_period": 14,
+      "sizing": "risk",
+      "risk_per_trade_pct": 1.0,
+      "max_notional_pct": 300.0,
+      "stop_fill": "level",
+      "limit_through_pct": 0.0,
+      "cooldown": 1440,
+      "risk_profile": "legacy",
+      "sl_anchor": "",
+      "sl_beyond_last_pct": 0.0,
+      "stop_loss_rate": 3.0,
+      "take_profit_rate": 0.0,
+      "trailing_stop": 0.0,
+      "trailing_activation_pct": 0.0,
+      "timeout": 0
+    }
+  },
+  "code_sha256": "1b2ee3dc4ee46b7be24bf3f96f111f1ed953bb923c1aae15b3b8a60057223469",
+  "config_sha256": "47f4a35093690fc857684d11bdb07be2024507034063563dec1ad87e04e20fa5"
+}

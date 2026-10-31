@@ -1,0 +1,42 @@
+{
+  "amendment_id": "EDU-ALPHA-57-NOVELTY-AND-REAL-BACKTEST-2026-10-28",
+  "created_at": "2026-10-28T07:55:33Z",
+  "status": "OWNER_AUTHORIZED_SCOPE",
+  "owner_decision": {
+    "novelty_scope": "Redesign the 27 rewritten target alpha records so their primary thesis and signal construction do not duplicate any of the other 30 current user alpha ideas. Auxiliary indicators may overlap when justified.",
+    "backtest_scope": "Run all 57 current user alpha records after the novelty and production-compile gates pass.",
+    "priority": "Correct source behavior and genuine engine results; profitability is not a requirement for this work."
+  },
+  "evaluation": {
+    "method": "one serial full-history production EDU custom-backtest per alpha",
+    "wfa": false,
+    "parameter_tuning": false,
+    "start": "2023-10-06",
+    "end": "2026-10-03",
+    "run_count": 57,
+    "resource_limit": "2 GB per job, serial only",
+    "preserve_each_alpha_symbol_and_timeframe": true,
+    "record_saved_config_and_effective_run_config_separately": true,
+    "result_interpretation": "Descriptive historical engine results; history has already been viewed and is not an untouched holdout."
+  },
+  "acceptance_gates": [
+    "Reconcile all 57 active user alpha IDs and compare target signal ideas against the entire 57-record inventory.",
+    "Replace the 27 target codes in place only after a novelty matrix records thesis, primary signal, entry/exit contract, supporting indicators, and nearest existing ideas.",
+    "Production-compile all 57 effective programs and bind receipts to exact source and config hashes.",
+    "Verify the EDU engine, current data coverage/continuity, effective dates/timeframes/symbols, and enforced 2 GB job cap before launching.",
+    "Use one independent production job per alpha; capture job ID, engine status, raw data provenance, program hash, completed trades/fills, equity series, costs, diagnostics, runtime, and peak memory.",
+    "Treat compile failures, missing data, zero trades, worker failures, or missing provenance as explicit non-success outcomes; never substitute baseline/cache/mock metrics."
+  ],
+  "prohibitions": [
+    "Do not use mock or fixture results as backtest evidence.",
+    "Do not run before novelty and compile gates pass.",
+    "Do not use WFA, parameter sweeps, or repeated tuning to force positive results.",
+    "Do not start a live or testnet bot.",
+    "Do not call historical returns proof of future profitability or live readiness."
+  ],
+  "current_blockers": [
+    "The 27 current research-v2 programs have substantial signal-family overlap with the other 30 alpha programs and have not passed the novelty gate.",
+    "All 27 current v2 programs pass the local EDU production DSL compiler, but these compile results do not authorize a backtest and will be stale after the required redesign.",
+    "The prior attempt to reach the EDU loopback API was blocked by the sandbox before job submission; do not retry or bypass that policy."
+  ]
+}

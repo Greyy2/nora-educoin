@@ -383,8 +383,8 @@ def test_gate1_1_final_bar_signal_has_no_fill_on_production_path():
 
 def test_gate1_1_dsl_precedence_on_simultaneous_signals():
     """Kiểm tra thứ tự ưu tiên khi cùng lúc có tín hiệu Exit và Buy:
-    Trong FastDip: self.close() được gọi trước self.buy().
-    Theo quy ước DSL của Nora: lệnh gọi sau ghi đè lệnh trước => buy chiếm ưu thế.
+    Theo quy ước DSL của Nora, lệnh gọi sau ghi đè lệnh trước; candidate cần exit ưu tiên
+    phải gọi self.close() sau self.buy().
     """
     from backend.analys.alpha.code.compile import compile_code
 
@@ -408,3 +408,14 @@ def test_gate1_1_dsl_precedence_on_simultaneous_signals():
     # Vì buy gọi sau close nên explicit phải là 1.0 (LONG), không bị close thành NaN/0
     assert explicit[0] == 1.0
     assert explicit[1] == 1.0
+
+    exit_priority_code = """class ExitPriorityTest(NoraStrategy):
+    timeframe = '24h'
+    def on_bar(self):
+        self.buy(close > 0)
+        self.close(close > 0)
+"""
+    exit_priority_prog = compile_code(exit_priority_code, register=False)
+    exit_priority = exit_priority_prog.explicit(df)
+    assert exit_priority[0] == 0.0
+    assert exit_priority[1] == 0.0

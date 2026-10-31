@@ -1,0 +1,29 @@
+{
+  "timestamp": "2026-10-27T16:47:41Z",
+  "command": "/home/vmc03/.venvs/nora312/bin/pytest nora/edu/tests/test_edu_execution_realism.py nora/edu/tests/test_gate1_1_signal_fixture.py nora/edu/tests/test_gate1_3_risk_policy.py nora/edu/tests/test_edu_provenance.py -v",
+  "cwd": "/home/vmc03/norabt",
+  "exit_code": 0,
+  "status": "PASS",
+  "duration_seconds": 8.4,
+  "stdout": "============================= test session starts ==============================\nplatform linux -- Python 3.12.13, pytest-9.1.1, pluggy-1.6.0 -- /home/vmc03/.venvs/nora312/bin/python3\ncachedir: .pytest_cache\nrootdir: /home/vmc03/norabt/nora/edu\nconfigfile: pytest.ini\nplugins: anyio-4.15.1, platformdirs-4.13.5\ncollecting ... collected 14 items\n\nnora/edu/tests/test_edu_execution_realism.py::test_edu_market_signal_fills_next_open_with_coin_btc_proxy PASSED [  7%]\nnora/edu/tests/test_edu_execution_realism.py::test_edu_signal_on_final_bar_remains_unfilled PASSED [ 14%]\nnora/edu/tests/test_edu_execution_realism.py::test_edu_gap_stop_uses_coin_double_slippage_proxy PASSED [ 21%]\nnora/edu/tests/test_edu_execution_realism.py::test_edu_eth_short_stop_uses_coin_double_slippage_proxy PASSED [ 28%]\nnora/edu/tests/test_gate1_1_signal_fixture.py::test_gate1_1_indicator_precision_against_oracle PASSED [ 35%]\nnora/edu/tests/test_gate1_1_signal_fixture.py::test_gate1_1_signals_parity_and_oracle_trace PASSED [ 42%]\nnora/edu/tests/test_gate1_1_signal_fixture.py::test_gate1_1_final_bar_signal_has_no_fill_on_production_path PASSED [ 50%]\nnora/edu/tests/test_gate1_1_signal_fixture.py::test_gate1_1_dsl_precedence_on_simultaneous_signals PASSED [ 57%]\nnora/edu/tests/test_gate1_3_risk_policy.py::test_gate1_3_production_sizing_admission_gate PASSED [ 64%]\nnora/edu/tests/test_gate1_3_risk_policy.py::test_gate1_3_master_circuit_breaker_locks_at_2_percent PASSED [ 71%]\nnora/edu/tests/test_edu_provenance.py::test_compile_report_declared_params PASSED [ 78%]\nnora/edu/tests/test_edu_provenance.py::test_build_plan_provenance_and_conflict PASSED [ 85%]\nnora/edu/tests/test_edu_provenance.py::test_run_custom_provenance_end_to_end PASSED [ 92%]\nnora/edu/tests/test_edu_provenance.py::test_browser_studio_provenance_and_conflict_display PASSED [100%]\n\n============================== 14 passed in 7.73s ==============================\n",
+  "stderr": "",
+  "summary": "14 passed in 15s",
+  "engine_provenance": {
+    "engine": "nautilus_trader",
+    "version": "1.231.0",
+    "execution_model": "Native Nautilus matching engine with BarData feeds",
+    "matching_rules": {
+      "market_orders": "Fills at next bar open (test_edu_market_signal_fills_next_open_with_coin_btc_proxy PASS)",
+      "final_bar_guard": "Signal on final bar remains unfilled (test_edu_signal_on_final_bar_remains_unfilled PASS)",
+      "stop_loss_execution": "Gap stop uses double slippage proxy (test_edu_gap_stop_uses_coin_double_slippage_proxy PASS)",
+      "fee_schedule": {
+        "taker_fee": 0.0005,
+        "maker_fee": 0.0002,
+        "slippage_rate": 0.0003
+      },
+      "position_sizing": "Leveraged equity fraction with max circuit breaker (test_gate1_3 PASS)",
+      "circuit_breaker": "Master circuit breaker locks at 2% risk threshold",
+      "indicators": "Wilder RSI, SMA, EMA precision verified against independent mathematical oracle (test_gate1_1 PASS)"
+    }
+  }
+}

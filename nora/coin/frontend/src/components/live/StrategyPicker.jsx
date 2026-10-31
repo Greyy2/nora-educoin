@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import useAsync from '../../hooks/useAsync'
-import { getLiveCandidates, postLiveBot, postCandidateBacktest, getJob, getCandidateSchema } from '../../api'
+import { getLiveCandidates, getRunDefaults, postLiveBot, postCandidateBacktest, getJob, getCandidateSchema } from '../../api'
 import { Loading, ErrorState, Empty } from '../ui'
 import { fmtNum, fmtSPct, signClass, isNum } from '../../lib/format'
 import '../../styles/alpha.css'
@@ -83,11 +83,9 @@ function ParamEditor({ schema, values, onChange }) {
   )
 }
 
-const POPULAR_ASSETS = ['BTC-USDT-SWAP', 'ETH-USDT-SWAP', 'SOL-USDT-SWAP', 'DOGE-USDT-SWAP', 'BNB-USDT-SWAP', 'XRP-USDT-SWAP']
-
 function StartForm({ row, onCancel, onStarted }) {
   const sigTf = row.signal_tf || row.timeframe || '1h'
-  const defaultSyms = (row.symbols || []).join(', ') || 'BTC-USDT-SWAP'
+  const defaultSyms = (row.symbols || []).join(', ')
 
   const [mode, setMode] = useState('paper')
   const [confirmReal, setConfirmReal] = useState(false)
@@ -106,6 +104,8 @@ function StartForm({ row, onCancel, onStarted }) {
   const [schema, setSchema] = useState(null)
   const [pvals, setPvals] = useState({})
   const [schemaErr, setSchemaErr] = useState(null)
+  const [availableAssets, setAvailableAssets] = useState([])
+  const [assetsErr, setAssetsErr] = useState(null)
 
   useEffect(() => {
     let live = true
@@ -122,6 +122,21 @@ function StartForm({ row, onCancel, onStarted }) {
       })
     return () => { live = false }
   }, [row.id, sigTf, row.book])
+
+  useEffect(() => {
+    let active = true
+    getRunDefaults()
+      .then((defaults) => {
+        if (!active) return
+        const available = defaults.available_symbols || defaults.symbols || []
+        setAvailableAssets(available)
+        setAssetsErr(null)
+      })
+      .catch((error) => {
+        if (active) setAssetsErr(error.message || String(error))
+      })
+    return () => { active = false }
+  }, [])
 
   const changedParams = () => {
     const out = {}
@@ -239,24 +254,18 @@ function StartForm({ row, onCancel, onStarted }) {
             <span>Tài sản giao dịch (Asset / Cặp)</span>
             <span style={{ fontSize: 11, color: 'var(--n-ink-3)' }}>Khuyên dùng: {defaultSyms}</span>
           </label>
-          <div style={{ display: 'flex', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
-            {POPULAR_ASSETS.map((a) => (
-              <button
-                type="button"
-                key={a}
-                className={`n-btn xs ${symbols.includes(a) ? 'primary' : ''}`}
-                style={{ padding: '2px 8px', fontSize: 11 }}
-                onClick={() => setSymbols(a)}
-              >
-                {a.split('-')[0]}
-              </button>
-            ))}
-          </div>
           <input
             value={symbols}
             onChange={(e) => { setSymbols(e.target.value); setBtResult(null); setBtJobId(null) }}
-            placeholder="Ví dụ: BTC-USDT-SWAP, ETH-USDT-SWAP"
+            list="live-market-options"
+            placeholder="Nhập market đã chọn, ví dụ: BTC-USDT-SWAP"
           />
+          <datalist id="live-market-options">
+            {availableAssets.map((asset) => <option key={asset} value={asset} />)}
+          </datalist>
+          {assetsErr
+            ? <span className="n-field-err">Không tải được danh sách market: {assetsErr}</span>
+            : <span className="n-note">Gợi ý lấy từ market có dữ liệu; có thể nhập market OKX khác nếu instrument được hỗ trợ.</span>}
         </div>
 
         {/* Chế độ chạy */}

@@ -1,0 +1,71 @@
+{
+  "protocol_version": "EDU_EVO_PROTOCOL_v1.0",
+  "timestamp": "2026-10-27T15:53:21Z",
+  "author": "Antigravity Research & Verification",
+  "objectives": "Kiểm tra giả thuyết cải thiện hiệu suất các alpha OOS âm bằng phương pháp khoa học, walk-forward analysis và rào chắn rủi ro chặt chẽ; không data-snooping, không sửa kho gốc.",
+  "admission_gates": {
+    "min_total_trades": 20,
+    "min_trades_per_fold": 5,
+    "min_win_rate_pct": 35.0,
+    "min_profit_factor": 1.05,
+    "min_net_expectancy_usd": 0.0,
+    "max_drawdown_pct": 30.0,
+    "min_positive_folds_ratio": 0.66,
+    "fee_stress_test": {
+      "stress_multiplier": 1.5,
+      "criterion": "Net return remains positive under 1.5x fee stress"
+    }
+  },
+  "verdict_definitions": {
+    "WFA_PASS": "Thỏa mãn toàn bộ admission gates: trades >= 20, Net return > 0, Max DD <= 30%, >= 2/3 folds dương và chịu được phí stress 1.5x.",
+    "WFA_FAIL": "Đủ mẫu (>= 20 trades) nhưng vi phạm ít nhất một tiêu chí về lợi nhuận, drawdown, hoặc số fold dương.",
+    "INSUFFICIENT_SAMPLE": "Tổng số lệnh < 20 trades trong 3 năm lịch sử; không thể kết luận thống kê.",
+    "BLOCKED": "Nằm trong danh sách 27 alpha chưa rõ ý đồ hoặc vi phạm quy tắc an toàn; bị cấm tuning/sweep."
+  },
+  "wfa_specification": {
+    "method": "Anchored Walk-Forward Analysis",
+    "folds_count": 3,
+    "folds": [
+      {
+        "fold_index": 1,
+        "train_start": "2023-10-06",
+        "train_end": "2024-09-30",
+        "test_start": "2024-10-01",
+        "test_end": "2025-05-31",
+        "train_days": 360,
+        "test_days": 242
+      },
+      {
+        "fold_index": 2,
+        "train_start": "2023-10-06",
+        "train_end": "2025-05-31",
+        "test_start": "2025-06-01",
+        "test_end": "2026-01-31",
+        "train_days": 603,
+        "test_days": 245
+      },
+      {
+        "fold_index": 3,
+        "train_start": "2023-10-06",
+        "train_end": "2026-01-31",
+        "test_start": "2026-02-01",
+        "test_end": "2026-10-03",
+        "train_days": 848,
+        "test_days": 244
+      }
+    ]
+  },
+  "experiment_budget": {
+    "max_candidates_per_alpha": 2,
+    "max_parameter_trials_per_hypothesis": 3,
+    "cgroup_memory_cap": "2GB per backtest process",
+    "execution_runner": "nora/edu/ops/run_limited.sh dưới nora.slice"
+  },
+  "data_provenance": {
+    "universe_start": "2023-10-06",
+    "universe_end": "2026-10-03",
+    "holdout_availability": "NO_UNTOUCHED_HOLDOUT_AVAILABLE",
+    "rule": "Không sử dụng bất kỳ khoảng thời gian nào trong 2023-10-06 -> 2026-10-03 làm holdout mới sau khi đã xem trong baseline."
+  },
+  "protocol_sha256": "f9c9fd407e24c141f8349e7eedea0d6900ed66469bd5d6ef7b1ac4819252dfbb"
+}

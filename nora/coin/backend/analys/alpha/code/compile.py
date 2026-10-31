@@ -148,6 +148,36 @@ class _Compiler:
         if self.timeframe is None:
             self.timeframe = "24h"
             self.warnings.append("Không khai báo `timeframe`: dùng mặc định 24h.")
+        if "risk_per_trade_pct" in self.position_overrides:
+            try:
+                risk_pct = float(self.position_overrides["risk_per_trade_pct"])
+                if self.position_overrides.get("sizing") != "risk":
+                    self.warnings.append(
+                        f"Khai báo 'risk_per_trade_pct' ({risk_pct}%) nhưng không khai báo 'sizing = \"risk\"': "
+                        f"engine sẽ bỏ qua tham số này và fallback về định cỡ 100% vốn (margin_pct). Vui lòng thêm `sizing = \"risk\"`."
+                    )
+                elif risk_pct > 0.25:
+                    self.warnings.append(
+                        f"Khai báo rủi ro 'risk_per_trade_pct'={risk_pct}% vượt trần chính sách Master Risk (<=0.25%/lệnh): "
+                        f"sẽ bị kẹp trần hoặc cần phê duyệt ngoại lệ policy."
+                    )
+            except (ValueError, TypeError):
+                pass
+        if "leverage" in self.position_overrides:
+            try:
+                lev = float(self.position_overrides["leverage"])
+                if lev > 3.0:
+                    self.warnings.append(
+                        f"Khai báo đòn bẩy leverage={lev}x vượt quá trần Master Risk policy (<=3.0x; trần cứng engine là 10.0x): "
+                        f"chính sách quy định <=3.0x nhưng hiện CHƯA ĐƯỢC THỰC THI kẹp trần trong engine backtest/live (engine hiện vẫn nhận giá trị khai báo nếu nằm trong ngưỡng an toàn thanh lý)."
+                    )
+            except (ValueError, TypeError):
+                pass
+        if "trailing_stop" in self.position_overrides and float(self.position_overrides.get("trailing_stop") or 0.0) > 0:
+            if float(self.position_overrides.get("trailing_activation_pct") or 0.0) <= 0:
+                self.warnings.append(
+                    "Khai báo 'trailing_stop' nhưng 'trailing_activation_pct' = 0: trailing stop sẽ kích hoạt ngay từ điểm vào."
+                )
         profile_name = self.position_overrides.get("risk_profile") or "legacy"
         if profile_name != "legacy":
             from backend.analys.position import validate_strategy_risk
@@ -951,6 +981,9 @@ class NautilusNativeProgram:
         }
 
 
+NATIVE_BASE_NAMES = {"Strategy", "NautilusStrategy", "ProximaNativeStrategy"}
+
+
 def is_nautilus_native(code: str) -> bool:
     """Kiểm tra mã nguồn có phải là chiến lược Native Nautilus Trader (kế thừa Strategy) hay không."""
     if not isinstance(code, str) or not code.strip():
@@ -960,7 +993,7 @@ def is_nautilus_native(code: str) -> bool:
         for node in tree.body:
             if isinstance(node, ast.ClassDef):
                 for base in node.bases:
-                    if isinstance(base, ast.Name) and base.id in ("Strategy", "NautilusStrategy"):
+                    if isinstance(base, ast.Name) and base.id in NATIVE_BASE_NAMES:
                         return True
                     if isinstance(base, ast.Attribute) and base.attr == "Strategy":
                         return True
@@ -982,7 +1015,7 @@ def compile_nautilus_strategy(code: str) -> NautilusNativeProgram:
     for node in tree.body:
         if isinstance(node, ast.ClassDef):
             for base in node.bases:
-                if (isinstance(base, ast.Name) and base.id in ("Strategy", "NautilusStrategy")) or \
+                if (isinstance(base, ast.Name) and base.id in NATIVE_BASE_NAMES) or \
                    (isinstance(base, ast.Attribute) and base.attr == "Strategy"):
                     strat_cls_node = node
                     break

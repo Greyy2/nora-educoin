@@ -541,9 +541,11 @@ def resolve_live_source(params: Dict[str, Any]) -> Dict[str, Any]:
     from backend.data.data import resolve_symbols
     from backend.jobs.tasks import resolve_strategy
 
-    symbols = params.get("symbols") or ["BTC-USDT-SWAP"]
+    symbols = params.get("symbols")
     if isinstance(symbols, str):
         symbols = [x.strip() for x in symbols.split(",") if x.strip()]
+    if not symbols:
+        raise ValueError("Cần chọn ít nhất một market có instrument OKX được hỗ trợ.")
     names = resolve_symbols(list(symbols))
 
     if params.get("strategy_type") == "proxima" or params.get("alpha_id") == "proxima":

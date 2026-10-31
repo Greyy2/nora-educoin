@@ -1,0 +1,1801 @@
+{
+  "timestamp": "2026-10-27T14:01:57Z",
+  "total_user_alphas": 57,
+  "valid_as_is_count": 30,
+  "blocked_count": 27,
+  "baseline_runs": {
+    "0873864b8db7": {
+      "job_id": "20261027_140157_0257fa",
+      "status": "DONE",
+      "category": "OOS_MARGINAL_POSITIVE",
+      "elapsed_s": 35.02,
+      "trades": 272,
+      "simulate": {
+        "ret_pct": 130.52,
+        "mdd_pct": 24.23,
+        "sharpe": 1.26,
+        "sortino": 2.27,
+        "cagr_pct": 32.13,
+        "calmar": 1.57,
+        "win_rate": 31.2,
+        "profit_factor": 1.725,
+        "fees_usd": 995.82,
+        "max_consec_losses": 11
+      },
+      "train": {
+        "ret_pct": 112.4,
+        "mdd_pct": 24.23,
+        "trades": 120
+      },
+      "test_oos": {
+        "ret_pct": 6.87,
+        "mdd_pct": 19.98,
+        "trades": 149,
+        "sharpe": 0.31
+      },
+      "diagnosis": "OOS dương biên (+6.87%, Sharpe OOS 0.31); hiệu suất suy giảm mạnh so với In-Sample (+112.40%).",
+      "peak_rss_mb": 1342.5,
+      "data_digest": {
+        "BTC@perp": "cd026438b6a668b1",
+        "ETH@perp": "8d62dc2d69c4d5cf",
+        "SOL@perp": "685c4c1f3813eb79",
+        "BNB@perp": "01b3175e2fe65172",
+        "XRP@perp": "68e460e35ef502f9",
+        "DOGE@perp": "de356db251313989",
+        "ADA@perp": "185837ce6c23ea26",
+        "AVAX@perp": "1811ab428e5f3ec6",
+        "LINK@perp": "5433ff06b17060f5",
+        "TRX@perp": "2e0c936c0efff766"
+      },
+      "name": "DEMA Turbo Compound (1Y Fast Trend - x1.51 Vốn)",
+      "owner_id": "aed197a5e968",
+      "is_vinh": true,
+      "oos_trades": 149,
+      "train_ret": 112.4,
+      "oos_ret": 6.87,
+      "runtime_exit_unit": "atr",
+      "declared_exit_unit": "pct",
+      "is_unit_mismatch": true
+    },
+    "090730ae35b8": {
+      "job_id": "20261027_140232_74deb2",
+      "status": "DONE",
+      "category": "OOS_MARGINAL_POSITIVE",
+      "elapsed_s": 34.02,
+      "trades": 119,
+      "simulate": {
+        "ret_pct": 69.24,
+        "mdd_pct": 24.67,
+        "sharpe": 0.9,
+        "sortino": 1.2,
+        "cagr_pct": 19.19,
+        "calmar": 0.79,
+        "win_rate": 43.7,
+        "profit_factor": 1.643,
+        "fees_usd": 194.09,
+        "max_consec_losses": 11
+      },
+      "train": {
+        "ret_pct": 64.3,
+        "mdd_pct": 16.07,
+        "trades": 63
+      },
+      "test_oos": {
+        "ret_pct": 3.0,
+        "mdd_pct": 24.65,
+        "trades": 56,
+        "sharpe": 0.19
+      },
+      "diagnosis": "OOS dương biên (+3.00%, Sharpe OOS 0.19); hiệu suất suy giảm mạnh so với In-Sample (+64.30%).",
+      "peak_rss_mb": 1401.3,
+      "data_digest": {
+        "BTC@perp": "cd026438b6a668b1",
+        "ETH@perp": "8d62dc2d69c4d5cf",
+        "SOL@perp": "685c4c1f3813eb79",
+        "BNB@perp": "01b3175e2fe65172",
+        "XRP@perp": "68e460e35ef502f9",
+        "DOGE@perp": "de356db251313989",
+        "ADA@perp": "185837ce6c23ea26",
+        "AVAX@perp": "1811ab428e5f3ec6",
+        "LINK@perp": "5433ff06b17060f5",
+        "TRX@perp": "2e0c936c0efff766"
+      },
+      "name": "Fail-Fast Volatility Breakout (SL 2.4% + Macro Trend)",
+      "owner_id": "aed197a5e968",
+      "is_vinh": true,
+      "oos_trades": 56,
+      "train_ret": 64.3,
+      "oos_ret": 3.0,
+      "runtime_exit_unit": "atr",
+      "declared_exit_unit": "pct",
+      "is_unit_mismatch": true
+    },
+    "0d51ba8d2012": {
+      "job_id": "20261027_140306_60fd23",
+      "status": "DONE",
+      "category": "FULL_POSITIVE_OOS_NEGATIVE",
+      "elapsed_s": 34.02,
+      "trades": 256,
+      "simulate": {
+        "ret_pct": 7.28,
+        "mdd_pct": 28.18,
+        "sharpe": 0.24,
+        "sortino": 0.33,
+        "cagr_pct": 2.37,
+        "calmar": 0.08,
+        "win_rate": 17.6,
+        "profit_factor": 0.921,
+        "fees_usd": 124.31,
+        "max_consec_losses": 34
+      },
+      "train": {
+        "ret_pct": 19.26,
+        "mdd_pct": 12.5,
+        "trades": 96
+      },
+      "test_oos": {
+        "ret_pct": -11.39,
+        "mdd_pct": 24.63,
+        "trades": 159,
+        "sharpe": -0.53
+      },
+      "diagnosis": "Toàn kỳ dương (+7.28%) và Train dương (+19.26%), nhưng OOS âm (-11.39%, Sharpe -0.53).",
+      "peak_rss_mb": 1312.2,
+      "data_digest": {
+        "BTC@perp": "cd026438b6a668b1",
+        "ETH@perp": "8d62dc2d69c4d5cf",
+        "SOL@perp": "685c4c1f3813eb79",
+        "BNB@perp": "01b3175e2fe65172",
+        "XRP@perp": "68e460e35ef502f9",
+        "DOGE@perp": "de356db251313989",
+        "ADA@perp": "185837ce6c23ea26",
+        "AVAX@perp": "1811ab428e5f3ec6",
+        "LINK@perp": "5433ff06b17060f5",
+        "TRX@perp": "2e0c936c0efff766"
+      },
+      "name": "OBV Volume Accumulation + RSI Momentum",
+      "owner_id": "43f5220ece1e",
+      "is_vinh": false,
+      "oos_trades": 159,
+      "train_ret": 19.26,
+      "oos_ret": -11.39,
+      "runtime_exit_unit": "pct",
+      "declared_exit_unit": "pct",
+      "is_unit_mismatch": false
+    },
+    "14e3b934b1e5": {
+      "job_id": "20261027_140340_53ff40",
+      "status": "DONE",
+      "category": "FULL_NON_POSITIVE_OOS_NEGATIVE",
+      "elapsed_s": 37.03,
+      "trades": 736,
+      "simulate": {
+        "ret_pct": -29.81,
+        "mdd_pct": 30.17,
+        "sharpe": -1.79,
+        "sortino": -2.05,
+        "cagr_pct": -11.14,
+        "calmar": -0.37,
+        "win_rate": 44.6,
+        "profit_factor": 0.664,
+        "fees_usd": 238.15,
+        "max_consec_losses": 14
+      },
+      "train": {
+        "ret_pct": -22.21,
+        "mdd_pct": 26.68,
+        "trades": 660
+      },
+      "test_oos": {
+        "ret_pct": -27.78,
+        "mdd_pct": 30.33,
+        "trades": 381,
+        "sharpe": -1.9
+      },
+      "diagnosis": "Train âm (-22.21%); OOS âm (-27.78%); Phí sàn phát sinh 238.2$",
+      "peak_rss_mb": 1391.0,
+      "data_digest": {
+        "BTC@perp": "cd026438b6a668b1",
+        "ETH@perp": "8d62dc2d69c4d5cf",
+        "SOL@perp": "685c4c1f3813eb79",
+        "BNB@perp": "01b3175e2fe65172",
+        "XRP@perp": "68e460e35ef502f9",
+        "DOGE@perp": "de356db251313989",
+        "ADA@perp": "185837ce6c23ea26",
+        "AVAX@perp": "1811ab428e5f3ec6",
+        "LINK@perp": "5433ff06b17060f5",
+        "TRX@perp": "2e0c936c0efff766"
+      },
+      "name": "ROC Momentum Exhaustion with Take-Profit",
+      "owner_id": "23dc66cd61c6",
+      "is_vinh": false,
+      "oos_trades": 381,
+      "train_ret": -22.21,
+      "oos_ret": -27.78,
+      "runtime_exit_unit": "pct",
+      "declared_exit_unit": "pct",
+      "is_unit_mismatch": false
+    },
+    "15567e02a806": {
+      "job_id": "20261027_140417_55510e",
+      "status": "DONE",
+      "category": "FULL_POSITIVE_OOS_NEGATIVE",
+      "elapsed_s": 34.02,
+      "trades": 24,
+      "simulate": {
+        "ret_pct": 0.2,
+        "mdd_pct": 31.84,
+        "sharpe": 0.12,
+        "sortino": 0.16,
+        "cagr_pct": 0.07,
+        "calmar": 0.0,
+        "win_rate": 29.2,
+        "profit_factor": 1.003,
+        "fees_usd": 165.67,
+        "max_consec_losses": 7
+      },
+      "train": {
+        "ret_pct": 0.2,
+        "mdd_pct": 31.84,
+        "trades": 24
+      },
+      "test_oos": {
+        "ret_pct": -33.74,
+        "mdd_pct": 33.74,
+        "trades": 9,
+        "sharpe": -1.69
+      },
+      "diagnosis": "Toàn kỳ dương (+0.20%) và Train dương (+0.20%), nhưng OOS âm (-33.74%, Sharpe -1.69).",
+      "peak_rss_mb": 1489.7,
+      "data_digest": {
+        "BTC@perp": "cd026438b6a668b1",
+        "ETH@perp": "8d62dc2d69c4d5cf",
+        "SOL@perp": "685c4c1f3813eb79",
+        "BNB@perp": "01b3175e2fe65172",
+        "XRP@perp": "68e460e35ef502f9",
+        "DOGE@perp": "de356db251313989",
+        "ADA@perp": "185837ce6c23ea26",
+        "AVAX@perp": "1811ab428e5f3ec6",
+        "LINK@perp": "5433ff06b17060f5",
+        "TRX@perp": "2e0c936c0efff766"
+      },
+      "name": "Triple EMA Trend Alignment (Optimized)",
+      "owner_id": "23dc66cd61c6",
+      "is_vinh": false,
+      "oos_trades": 9,
+      "train_ret": 0.2,
+      "oos_ret": -33.74,
+      "runtime_exit_unit": "pct",
+      "declared_exit_unit": "pct",
+      "is_unit_mismatch": false
+    },
+    "18e87aa868ad": {
+      "job_id": "20261027_140452_004149",
+      "status": "DONE",
+      "category": "FULL_POSITIVE_OOS_NEGATIVE",
+      "elapsed_s": 33.02,
+      "trades": 130,
+      "simulate": {
+        "ret_pct": 70.16,
+        "mdd_pct": 24.88,
+        "sharpe": 0.92,
+        "sortino": 1.25,
+        "cagr_pct": 19.41,
+        "calmar": 0.79,
+        "win_rate": 41.5,
+        "profit_factor": 1.625,
+        "fees_usd": 220.67,
+        "max_consec_losses": 12
+      },
+      "train": {
+        "ret_pct": 73.67,
+        "mdd_pct": 18.72,
+        "trades": 62
+      },
+      "test_oos": {
+        "ret_pct": -1.97,
+        "mdd_pct": 25.06,
+        "trades": 71,
+        "sharpe": 0.05
+      },
+      "diagnosis": "Toàn kỳ dương (+70.16%) và Train dương (+73.67%), nhưng OOS âm (-1.97%, Sharpe 0.05).",
+      "peak_rss_mb": 1353.7,
+      "data_digest": {
+        "BTC@perp": "cd026438b6a668b1",
+        "ETH@perp": "8d62dc2d69c4d5cf",
+        "SOL@perp": "685c4c1f3813eb79",
+        "BNB@perp": "01b3175e2fe65172",
+        "XRP@perp": "68e460e35ef502f9",
+        "DOGE@perp": "de356db251313989",
+        "ADA@perp": "185837ce6c23ea26",
+        "AVAX@perp": "1811ab428e5f3ec6",
+        "LINK@perp": "5433ff06b17060f5",
+        "TRX@perp": "2e0c936c0efff766"
+      },
+      "name": "Fast Dynamic Channel Breakout (18D + Macro Trend)",
+      "owner_id": "aed197a5e968",
+      "is_vinh": true,
+      "oos_trades": 71,
+      "train_ret": 73.67,
+      "oos_ret": -1.97,
+      "runtime_exit_unit": "atr",
+      "declared_exit_unit": "pct",
+      "is_unit_mismatch": true
+    },
+    "270e6e28416f": {
+      "job_id": "20261027_140525_169fda",
+      "status": "DONE",
+      "category": "FULL_NON_POSITIVE_OOS_NEGATIVE",
+      "elapsed_s": 33.02,
+      "trades": 13,
+      "simulate": {
+        "ret_pct": -31.35,
+        "mdd_pct": 31.74,
+        "sharpe": -0.9,
+        "sortino": -0.91,
+        "cagr_pct": -11.79,
+        "calmar": -0.38,
+        "win_rate": 7.7,
+        "profit_factor": 0.021,
+        "fees_usd": 48.02,
+        "max_consec_losses": 9
+      },
+      "train": {
+        "ret_pct": -31.35,
+        "mdd_pct": 31.74,
+        "trades": 13
+      },
+      "test_oos": {
+        "ret_pct": -23.26,
+        "mdd_pct": 31.4,
+        "trades": 17,
+        "sharpe": -0.84
+      },
+      "diagnosis": "Train âm (-31.35%); OOS âm (-23.26%); WinRate quan sát 7.7%",
+      "peak_rss_mb": 1407.8,
+      "data_digest": {
+        "BTC@perp": "cd026438b6a668b1",
+        "ETH@perp": "8d62dc2d69c4d5cf",
+        "SOL@perp": "685c4c1f3813eb79",
+        "BNB@perp": "01b3175e2fe65172",
+        "XRP@perp": "68e460e35ef502f9",
+        "DOGE@perp": "de356db251313989",
+        "ADA@perp": "185837ce6c23ea26",
+        "AVAX@perp": "1811ab428e5f3ec6",
+        "LINK@perp": "5433ff06b17060f5",
+        "TRX@perp": "2e0c936c0efff766"
+      },
+      "name": "EMA Trend Rider (Rising Slope - Optimized)",
+      "owner_id": "a214b36a7eab",
+      "is_vinh": false,
+      "oos_trades": 17,
+      "train_ret": -31.35,
+      "oos_ret": -23.26,
+      "runtime_exit_unit": "pct",
+      "declared_exit_unit": "pct",
+      "is_unit_mismatch": false
+    },
+    "303d4b713dda": {
+      "job_id": "20261027_140558_df0704",
+      "status": "DONE",
+      "category": "OOS_MARGINAL_POSITIVE",
+      "elapsed_s": 34.02,
+      "trades": 112,
+      "simulate": {
+        "ret_pct": 69.19,
+        "mdd_pct": 24.25,
+        "sharpe": 0.92,
+        "sortino": 1.24,
+        "cagr_pct": 19.18,
+        "calmar": 0.81,
+        "win_rate": 45.5,
+        "profit_factor": 1.676,
+        "fees_usd": 189.52,
+        "max_consec_losses": 11
+      },
+      "train": {
+        "ret_pct": 63.67,
+        "mdd_pct": 16.23,
+        "trades": 56
+      },
+      "test_oos": {
+        "ret_pct": 3.38,
+        "mdd_pct": 24.23,
+        "trades": 56,
+        "sharpe": 0.2
+      },
+      "diagnosis": "OOS dương biên (+3.38%, Sharpe OOS 0.2); hiệu suất suy giảm mạnh so với In-Sample (+63.67%).",
+      "peak_rss_mb": 1409.4,
+      "data_digest": {
+        "BTC@perp": "cd026438b6a668b1",
+        "ETH@perp": "8d62dc2d69c4d5cf",
+        "SOL@perp": "685c4c1f3813eb79",
+        "BNB@perp": "01b3175e2fe65172",
+        "XRP@perp": "68e460e35ef502f9",
+        "DOGE@perp": "de356db251313989",
+        "ADA@perp": "185837ce6c23ea26",
+        "AVAX@perp": "1811ab428e5f3ec6",
+        "LINK@perp": "5433ff06b17060f5",
+        "TRX@perp": "2e0c936c0efff766"
+      },
+      "name": "Macro Trend Filtered Breakout (EMA 105 Filter)",
+      "owner_id": "aed197a5e968",
+      "is_vinh": true,
+      "oos_trades": 56,
+      "train_ret": 63.67,
+      "oos_ret": 3.38,
+      "runtime_exit_unit": "atr",
+      "declared_exit_unit": "pct",
+      "is_unit_mismatch": true
+    },
+    "33312a2f4dfc": {
+      "job_id": "20261027_140632_1329a1",
+      "status": "DONE",
+      "category": "OOS_MARGINAL_POSITIVE",
+      "elapsed_s": 33.02,
+      "trades": 115,
+      "simulate": {
+        "ret_pct": 68.09,
+        "mdd_pct": 23.8,
+        "sharpe": 0.91,
+        "sortino": 1.23,
+        "cagr_pct": 18.92,
+        "calmar": 0.81,
+        "win_rate": 45.2,
+        "profit_factor": 1.668,
+        "fees_usd": 188.49,
+        "max_consec_losses": 11
+      },
+      "train": {
+        "ret_pct": 62.57,
+        "mdd_pct": 17.01,
+        "trades": 59
+      },
+      "test_oos": {
+        "ret_pct": 3.38,
+        "mdd_pct": 23.81,
+        "trades": 56,
+        "sharpe": 0.2
+      },
+      "diagnosis": "OOS dương biên (+3.38%, Sharpe OOS 0.2); hiệu suất suy giảm mạnh so với In-Sample (+62.57%).",
+      "peak_rss_mb": 1338.1,
+      "data_digest": {
+        "BTC@perp": "cd026438b6a668b1",
+        "ETH@perp": "8d62dc2d69c4d5cf",
+        "SOL@perp": "685c4c1f3813eb79",
+        "BNB@perp": "01b3175e2fe65172",
+        "XRP@perp": "68e460e35ef502f9",
+        "DOGE@perp": "de356db251313989",
+        "ADA@perp": "185837ce6c23ea26",
+        "AVAX@perp": "1811ab428e5f3ec6",
+        "LINK@perp": "5433ff06b17060f5",
+        "TRX@perp": "2e0c936c0efff766"
+      },
+      "name": "Standard Deviation Dynamic Channel Breakout (v2.0 Regime Filtered)",
+      "owner_id": "aed197a5e968",
+      "is_vinh": true,
+      "oos_trades": 56,
+      "train_ret": 62.57,
+      "oos_ret": 3.38,
+      "runtime_exit_unit": "atr",
+      "declared_exit_unit": "pct",
+      "is_unit_mismatch": true
+    },
+    "3cfcc2d296a2": {
+      "job_id": "20261027_140705_ff1851",
+      "status": "DONE",
+      "category": "FULL_NON_POSITIVE_OOS_NEGATIVE",
+      "elapsed_s": 35.02,
+      "trades": 351,
+      "simulate": {
+        "ret_pct": -26.41,
+        "mdd_pct": 30.21,
+        "sharpe": -0.82,
+        "sortino": -1.03,
+        "cagr_pct": -9.73,
+        "calmar": -0.32,
+        "win_rate": 15.4,
+        "profit_factor": 0.606,
+        "fees_usd": 135.68,
+        "max_consec_losses": 38
+      },
+      "train": {
+        "ret_pct": -3.51,
+        "mdd_pct": 19.03,
+        "trades": 171
+      },
+      "test_oos": {
+        "ret_pct": -26.77,
+        "mdd_pct": 30.09,
+        "trades": 193,
+        "sharpe": -1.78
+      },
+      "diagnosis": "Train âm (-3.51%); OOS âm (-26.77%); WinRate quan sát 15.4%; Phí sàn phát sinh 135.7$",
+      "peak_rss_mb": 1207.0,
+      "data_digest": {
+        "BTC@perp": "cd026438b6a668b1",
+        "ETH@perp": "8d62dc2d69c4d5cf",
+        "SOL@perp": "685c4c1f3813eb79",
+        "BNB@perp": "01b3175e2fe65172",
+        "XRP@perp": "68e460e35ef502f9",
+        "DOGE@perp": "de356db251313989",
+        "ADA@perp": "185837ce6c23ea26",
+        "AVAX@perp": "1811ab428e5f3ec6",
+        "LINK@perp": "5433ff06b17060f5",
+        "TRX@perp": "2e0c936c0efff766"
+      },
+      "name": "Donchian Lower Channel Exit",
+      "owner_id": "43f5220ece1e",
+      "is_vinh": false,
+      "oos_trades": 193,
+      "train_ret": -3.51,
+      "oos_ret": -26.77,
+      "runtime_exit_unit": "pct",
+      "declared_exit_unit": "pct",
+      "is_unit_mismatch": false
+    },
+    "4f28285aa44c": {
+      "job_id": "20261027_140740_8fb2d7",
+      "status": "DONE",
+      "category": "FULL_NON_POSITIVE_OOS_NEGATIVE",
+      "elapsed_s": 34.02,
+      "trades": 10,
+      "simulate": {
+        "ret_pct": -4.4,
+        "mdd_pct": 4.97,
+        "sharpe": -0.78,
+        "sortino": -0.92,
+        "cagr_pct": -1.49,
+        "calmar": -0.3,
+        "win_rate": 0.0,
+        "profit_factor": 0.0,
+        "fees_usd": 7.28,
+        "max_consec_losses": 10
+      },
+      "train": {
+        "ret_pct": -2.52,
+        "mdd_pct": 2.52,
+        "trades": 3
+      },
+      "test_oos": {
+        "ret_pct": -3.66,
+        "mdd_pct": 9.43,
+        "trades": 7,
+        "sharpe": -0.49
+      },
+      "diagnosis": "Train âm (-2.52%); OOS âm (-3.66%); WinRate quan sát 0.0%",
+      "peak_rss_mb": 1403.5,
+      "data_digest": {
+        "BTC@perp": "cd026438b6a668b1",
+        "ETH@perp": "8d62dc2d69c4d5cf",
+        "SOL@perp": "685c4c1f3813eb79",
+        "BNB@perp": "01b3175e2fe65172",
+        "XRP@perp": "68e460e35ef502f9",
+        "DOGE@perp": "de356db251313989",
+        "ADA@perp": "185837ce6c23ea26",
+        "AVAX@perp": "1811ab428e5f3ec6",
+        "LINK@perp": "5433ff06b17060f5",
+        "TRX@perp": "2e0c936c0efff766"
+      },
+      "name": "Dual EMA + ADX Trend Strength Filter",
+      "owner_id": "23dc66cd61c6",
+      "is_vinh": false,
+      "oos_trades": 7,
+      "train_ret": -2.52,
+      "oos_ret": -3.66,
+      "runtime_exit_unit": "pct",
+      "declared_exit_unit": "pct",
+      "is_unit_mismatch": false
+    },
+    "541c55834f56": {
+      "job_id": "20261027_140814_5632b7",
+      "status": "DONE",
+      "category": "FULL_POSITIVE_OOS_NEGATIVE",
+      "elapsed_s": 34.02,
+      "trades": 381,
+      "simulate": {
+        "ret_pct": 8.9,
+        "mdd_pct": 30.33,
+        "sharpe": 0.25,
+        "sortino": 0.36,
+        "cagr_pct": 2.88,
+        "calmar": 0.1,
+        "win_rate": 16.5,
+        "profit_factor": 1.085,
+        "fees_usd": 221.96,
+        "max_consec_losses": 43
+      },
+      "train": {
+        "ret_pct": 40.78,
+        "mdd_pct": 24.0,
+        "trades": 205
+      },
+      "test_oos": {
+        "ret_pct": -25.74,
+        "mdd_pct": 30.44,
+        "trades": 189,
+        "sharpe": -1.35
+      },
+      "diagnosis": "Toàn kỳ dương (+8.90%) và Train dương (+40.78%), nhưng OOS âm (-25.74%, Sharpe -1.35).",
+      "peak_rss_mb": 1274.9,
+      "data_digest": {
+        "BTC@perp": "cd026438b6a668b1",
+        "ETH@perp": "8d62dc2d69c4d5cf",
+        "SOL@perp": "685c4c1f3813eb79",
+        "BNB@perp": "01b3175e2fe65172",
+        "XRP@perp": "68e460e35ef502f9",
+        "DOGE@perp": "de356db251313989",
+        "ADA@perp": "185837ce6c23ea26",
+        "AVAX@perp": "1811ab428e5f3ec6",
+        "LINK@perp": "5433ff06b17060f5",
+        "TRX@perp": "2e0c936c0efff766"
+      },
+      "name": "Daily Range Expansion (High - Low) / Close",
+      "owner_id": "dd3d4fbabe8a",
+      "is_vinh": false,
+      "oos_trades": 189,
+      "train_ret": 40.78,
+      "oos_ret": -25.74,
+      "runtime_exit_unit": "pct",
+      "declared_exit_unit": "pct",
+      "is_unit_mismatch": false
+    },
+    "5e52d3fdf71f": {
+      "job_id": "20261027_140848_9d7c82",
+      "status": "DONE",
+      "category": "FULL_NON_POSITIVE_OOS_NEGATIVE",
+      "elapsed_s": 35.04,
+      "trades": 504,
+      "simulate": {
+        "ret_pct": -24.74,
+        "mdd_pct": 30.02,
+        "sharpe": -1.21,
+        "sortino": -1.53,
+        "cagr_pct": -9.05,
+        "calmar": -0.3,
+        "win_rate": 22.4,
+        "profit_factor": 0.644,
+        "fees_usd": 192.44,
+        "max_consec_losses": 33
+      },
+      "train": {
+        "ret_pct": -3.36,
+        "mdd_pct": 12.69,
+        "trades": 199
+      },
+      "test_oos": {
+        "ret_pct": -24.89,
+        "mdd_pct": 30.41,
+        "trades": 228,
+        "sharpe": -1.36
+      },
+      "diagnosis": "Train âm (-3.36%); OOS âm (-24.89%); WinRate quan sát 22.4%; Phí sàn phát sinh 192.4$",
+      "peak_rss_mb": 1238.9,
+      "data_digest": {
+        "BTC@perp": "cd026438b6a668b1",
+        "ETH@perp": "8d62dc2d69c4d5cf",
+        "SOL@perp": "685c4c1f3813eb79",
+        "BNB@perp": "01b3175e2fe65172",
+        "XRP@perp": "68e460e35ef502f9",
+        "DOGE@perp": "de356db251313989",
+        "ADA@perp": "185837ce6c23ea26",
+        "AVAX@perp": "1811ab428e5f3ec6",
+        "LINK@perp": "5433ff06b17060f5",
+        "TRX@perp": "2e0c936c0efff766"
+      },
+      "name": "Bollinger Band Overextension Exit",
+      "owner_id": "76c5814277ab",
+      "is_vinh": false,
+      "oos_trades": 228,
+      "train_ret": -3.36,
+      "oos_ret": -24.89,
+      "runtime_exit_unit": "pct",
+      "declared_exit_unit": "pct",
+      "is_unit_mismatch": false
+    },
+    "6055aa8f661e": {
+      "job_id": "20261027_140923_e1b12e",
+      "status": "DONE",
+      "category": "OOS_MARGINAL_POSITIVE",
+      "elapsed_s": 34.03,
+      "trades": 139,
+      "simulate": {
+        "ret_pct": 5.09,
+        "mdd_pct": 16.14,
+        "sharpe": 0.22,
+        "sortino": 0.3,
+        "cagr_pct": 1.67,
+        "calmar": 0.1,
+        "win_rate": 12.2,
+        "profit_factor": 0.891,
+        "fees_usd": 70.02,
+        "max_consec_losses": 24
+      },
+      "train": {
+        "ret_pct": 5.13,
+        "mdd_pct": 10.57,
+        "trades": 65
+      },
+      "test_oos": {
+        "ret_pct": 0.81,
+        "mdd_pct": 7.74,
+        "trades": 73,
+        "sharpe": 0.1
+      },
+      "diagnosis": "OOS dương biên (+0.81%, Sharpe OOS 0.1); hiệu suất suy giảm mạnh so với In-Sample (+5.13%).",
+      "peak_rss_mb": 1369.3,
+      "data_digest": {
+        "BTC@perp": "cd026438b6a668b1",
+        "ETH@perp": "8d62dc2d69c4d5cf",
+        "SOL@perp": "685c4c1f3813eb79",
+        "BNB@perp": "01b3175e2fe65172",
+        "XRP@perp": "68e460e35ef502f9",
+        "DOGE@perp": "de356db251313989",
+        "ADA@perp": "185837ce6c23ea26",
+        "AVAX@perp": "1811ab428e5f3ec6",
+        "LINK@perp": "5433ff06b17060f5",
+        "TRX@perp": "2e0c936c0efff766"
+      },
+      "name": "Triple Filter: EMA + MACD + RSI",
+      "owner_id": "a214b36a7eab",
+      "is_vinh": false,
+      "oos_trades": 73,
+      "train_ret": 5.13,
+      "oos_ret": 0.81,
+      "runtime_exit_unit": "pct",
+      "declared_exit_unit": "pct",
+      "is_unit_mismatch": false
+    },
+    "6afa7f774655": {
+      "job_id": "20261027_140957_7116c7",
+      "status": "DONE",
+      "category": "FULL_NON_POSITIVE_OOS_NEGATIVE",
+      "elapsed_s": 34.02,
+      "trades": 57,
+      "simulate": {
+        "ret_pct": -12.03,
+        "mdd_pct": 12.99,
+        "sharpe": -1.38,
+        "sortino": -1.47,
+        "cagr_pct": -4.19,
+        "calmar": -0.32,
+        "win_rate": 7.0,
+        "profit_factor": 0.129,
+        "fees_usd": 24.28,
+        "max_consec_losses": 30
+      },
+      "train": {
+        "ret_pct": -4.33,
+        "mdd_pct": 5.16,
+        "trades": 10
+      },
+      "test_oos": {
+        "ret_pct": -10.25,
+        "mdd_pct": 11.12,
+        "trades": 47,
+        "sharpe": -1.72
+      },
+      "diagnosis": "Train âm (-4.33%); OOS âm (-10.25%); WinRate quan sát 7.0%",
+      "peak_rss_mb": 1417.6,
+      "data_digest": {
+        "BTC@perp": "cd026438b6a668b1",
+        "ETH@perp": "8d62dc2d69c4d5cf",
+        "SOL@perp": "685c4c1f3813eb79",
+        "BNB@perp": "01b3175e2fe65172",
+        "XRP@perp": "68e460e35ef502f9",
+        "DOGE@perp": "de356db251313989",
+        "ADA@perp": "185837ce6c23ea26",
+        "AVAX@perp": "1811ab428e5f3ec6",
+        "LINK@perp": "5433ff06b17060f5",
+        "TRX@perp": "2e0c936c0efff766"
+      },
+      "name": "RSI Rebound with Fast SMA Filter",
+      "owner_id": "a214b36a7eab",
+      "is_vinh": false,
+      "oos_trades": 47,
+      "train_ret": -4.33,
+      "oos_ret": -10.25,
+      "runtime_exit_unit": "pct",
+      "declared_exit_unit": "pct",
+      "is_unit_mismatch": false
+    },
+    "715e56a6dd33": {
+      "job_id": "20261027_141031_388f1f",
+      "status": "DONE",
+      "category": "FULL_NON_POSITIVE_OOS_NEGATIVE",
+      "elapsed_s": 33.02,
+      "trades": 99,
+      "simulate": {
+        "ret_pct": -13.52,
+        "mdd_pct": 14.56,
+        "sharpe": -1.47,
+        "sortino": -1.53,
+        "cagr_pct": -4.73,
+        "calmar": -0.33,
+        "win_rate": 26.3,
+        "profit_factor": 0.279,
+        "fees_usd": 42.22,
+        "max_consec_losses": 21
+      },
+      "train": {
+        "ret_pct": -6.28,
+        "mdd_pct": 7.99,
+        "trades": 36
+      },
+      "test_oos": {
+        "ret_pct": -11.02,
+        "mdd_pct": 11.77,
+        "trades": 63,
+        "sharpe": -1.61
+      },
+      "diagnosis": "Train âm (-6.28%); OOS âm (-11.02%); WinRate quan sát 26.3%",
+      "peak_rss_mb": 1386.8,
+      "data_digest": {
+        "BTC@perp": "cd026438b6a668b1",
+        "ETH@perp": "8d62dc2d69c4d5cf",
+        "SOL@perp": "685c4c1f3813eb79",
+        "BNB@perp": "01b3175e2fe65172",
+        "XRP@perp": "68e460e35ef502f9",
+        "DOGE@perp": "de356db251313989",
+        "ADA@perp": "185837ce6c23ea26",
+        "AVAX@perp": "1811ab428e5f3ec6",
+        "LINK@perp": "5433ff06b17060f5",
+        "TRX@perp": "2e0c936c0efff766"
+      },
+      "name": "Linear Regression Channel Deviation",
+      "owner_id": "43f5220ece1e",
+      "is_vinh": false,
+      "oos_trades": 63,
+      "train_ret": -6.28,
+      "oos_ret": -11.02,
+      "runtime_exit_unit": "pct",
+      "declared_exit_unit": "pct",
+      "is_unit_mismatch": false
+    },
+    "717c1890c59e": {
+      "job_id": "20261027_141104_f7d1c7",
+      "status": "DONE",
+      "category": "FULL_POSITIVE_OOS_NEGATIVE",
+      "elapsed_s": 34.02,
+      "trades": 59,
+      "simulate": {
+        "ret_pct": 126.95,
+        "mdd_pct": 31.89,
+        "sharpe": 1.0,
+        "sortino": 1.73,
+        "cagr_pct": 31.45,
+        "calmar": 1.0,
+        "win_rate": 33.9,
+        "profit_factor": 2.002,
+        "fees_usd": 373.11,
+        "max_consec_losses": 8
+      },
+      "train": {
+        "ret_pct": 172.89,
+        "mdd_pct": 25.53,
+        "trades": 45
+      },
+      "test_oos": {
+        "ret_pct": -9.49,
+        "mdd_pct": 31.95,
+        "trades": 46,
+        "sharpe": -0.07
+      },
+      "diagnosis": "Toàn kỳ dương (+126.95%) và Train dương (+172.89%), nhưng OOS âm (-9.49%, Sharpe -0.07).",
+      "peak_rss_mb": 1335.2,
+      "data_digest": {
+        "BTC@perp": "cd026438b6a668b1",
+        "ETH@perp": "8d62dc2d69c4d5cf",
+        "SOL@perp": "685c4c1f3813eb79",
+        "BNB@perp": "01b3175e2fe65172",
+        "XRP@perp": "68e460e35ef502f9",
+        "DOGE@perp": "de356db251313989",
+        "ADA@perp": "185837ce6c23ea26",
+        "AVAX@perp": "1811ab428e5f3ec6",
+        "LINK@perp": "5433ff06b17060f5",
+        "TRX@perp": "2e0c936c0efff766"
+      },
+      "name": "Weighted Moving Average (WMA) Crossover (Optimized)",
+      "owner_id": "dd3d4fbabe8a",
+      "is_vinh": false,
+      "oos_trades": 46,
+      "train_ret": 172.89,
+      "oos_ret": -9.49,
+      "runtime_exit_unit": "pct",
+      "declared_exit_unit": "pct",
+      "is_unit_mismatch": false
+    },
+    "7f3486d63ca8": {
+      "job_id": "20261027_141138_89cbbf",
+      "status": "DONE",
+      "category": "FULL_NON_POSITIVE_OOS_NEGATIVE",
+      "elapsed_s": 35.02,
+      "trades": 424,
+      "simulate": {
+        "ret_pct": -11.22,
+        "mdd_pct": 22.19,
+        "sharpe": -0.49,
+        "sortino": -0.66,
+        "cagr_pct": -3.89,
+        "calmar": -0.18,
+        "win_rate": 17.7,
+        "profit_factor": 0.804,
+        "fees_usd": 177.63,
+        "max_consec_losses": 35
+      },
+      "train": {
+        "ret_pct": 1.71,
+        "mdd_pct": 11.47,
+        "trades": 158
+      },
+      "test_oos": {
+        "ret_pct": -17.14,
+        "mdd_pct": 24.34,
+        "trades": 267,
+        "sharpe": -0.99
+      },
+      "diagnosis": "Train dương nhẹ (+1.71%); OOS âm (-17.14%); WinRate quan sát 17.7%; Phí sàn phát sinh 177.6$",
+      "peak_rss_mb": 1384.5,
+      "data_digest": {
+        "BTC@perp": "cd026438b6a668b1",
+        "ETH@perp": "8d62dc2d69c4d5cf",
+        "SOL@perp": "685c4c1f3813eb79",
+        "BNB@perp": "01b3175e2fe65172",
+        "XRP@perp": "68e460e35ef502f9",
+        "DOGE@perp": "de356db251313989",
+        "ADA@perp": "185837ce6c23ea26",
+        "AVAX@perp": "1811ab428e5f3ec6",
+        "LINK@perp": "5433ff06b17060f5",
+        "TRX@perp": "2e0c936c0efff766"
+      },
+      "name": "Dual Oscillator Climax Exit",
+      "owner_id": "dd3d4fbabe8a",
+      "is_vinh": false,
+      "oos_trades": 267,
+      "train_ret": 1.71,
+      "oos_ret": -17.14,
+      "runtime_exit_unit": "pct",
+      "declared_exit_unit": "pct",
+      "is_unit_mismatch": false
+    },
+    "7f67e9aed0aa": {
+      "job_id": "20261027_141213_a0b626",
+      "status": "DONE",
+      "category": "FULL_NON_POSITIVE_OOS_NEGATIVE",
+      "elapsed_s": 34.02,
+      "trades": 158,
+      "simulate": {
+        "ret_pct": -15.9,
+        "mdd_pct": 20.49,
+        "sharpe": -0.91,
+        "sortino": -1.15,
+        "cagr_pct": -5.61,
+        "calmar": -0.28,
+        "win_rate": 13.9,
+        "profit_factor": 0.557,
+        "fees_usd": 68.12,
+        "max_consec_losses": 63
+      },
+      "train": {
+        "ret_pct": 0.18,
+        "mdd_pct": 6.95,
+        "trades": 34
+      },
+      "test_oos": {
+        "ret_pct": -16.75,
+        "mdd_pct": 20.57,
+        "trades": 124,
+        "sharpe": -1.42
+      },
+      "diagnosis": "Train dương nhẹ (+0.18%); OOS âm (-16.75%); WinRate quan sát 13.9%",
+      "peak_rss_mb": 1199.8,
+      "data_digest": {
+        "BTC@perp": "cd026438b6a668b1",
+        "ETH@perp": "8d62dc2d69c4d5cf",
+        "SOL@perp": "685c4c1f3813eb79",
+        "BNB@perp": "01b3175e2fe65172",
+        "XRP@perp": "68e460e35ef502f9",
+        "DOGE@perp": "de356db251313989",
+        "ADA@perp": "185837ce6c23ea26",
+        "AVAX@perp": "1811ab428e5f3ec6",
+        "LINK@perp": "5433ff06b17060f5",
+        "TRX@perp": "2e0c936c0efff766"
+      },
+      "name": "Stochastic & RSI Confluence System",
+      "owner_id": "dd3d4fbabe8a",
+      "is_vinh": false,
+      "oos_trades": 124,
+      "train_ret": 0.18,
+      "oos_ret": -16.75,
+      "runtime_exit_unit": "pct",
+      "declared_exit_unit": "pct",
+      "is_unit_mismatch": false
+    },
+    "89379cc0ab52": {
+      "job_id": "20261027_141247_7b7497",
+      "status": "DONE",
+      "category": "FULL_NON_POSITIVE_OOS_NEGATIVE",
+      "elapsed_s": 35.02,
+      "trades": 299,
+      "simulate": {
+        "ret_pct": -19.14,
+        "mdd_pct": 26.32,
+        "sharpe": -0.84,
+        "sortino": -1.12,
+        "cagr_pct": -6.84,
+        "calmar": -0.26,
+        "win_rate": 25.1,
+        "profit_factor": 0.665,
+        "fees_usd": 123.76,
+        "max_consec_losses": 28
+      },
+      "train": {
+        "ret_pct": -0.47,
+        "mdd_pct": 11.67,
+        "trades": 90
+      },
+      "test_oos": {
+        "ret_pct": -20.96,
+        "mdd_pct": 29.79,
+        "trades": 208,
+        "sharpe": -1.4
+      },
+      "diagnosis": "Train âm (-0.47%); OOS âm (-20.96%); WinRate quan sát 25.1%; Phí sàn phát sinh 123.8$",
+      "peak_rss_mb": 1422.8,
+      "data_digest": {
+        "BTC@perp": "cd026438b6a668b1",
+        "ETH@perp": "8d62dc2d69c4d5cf",
+        "SOL@perp": "685c4c1f3813eb79",
+        "BNB@perp": "01b3175e2fe65172",
+        "XRP@perp": "68e460e35ef502f9",
+        "DOGE@perp": "de356db251313989",
+        "ADA@perp": "185837ce6c23ea26",
+        "AVAX@perp": "1811ab428e5f3ec6",
+        "LINK@perp": "5433ff06b17060f5",
+        "TRX@perp": "2e0c936c0efff766"
+      },
+      "name": "Stochastic Oscillator (%K, %D) Bull Cross",
+      "owner_id": "76c5814277ab",
+      "is_vinh": false,
+      "oos_trades": 208,
+      "train_ret": -0.47,
+      "oos_ret": -20.96,
+      "runtime_exit_unit": "pct",
+      "declared_exit_unit": "pct",
+      "is_unit_mismatch": false
+    },
+    "8a47cdbcc942": {
+      "job_id": "20261027_141322_551159",
+      "status": "DONE",
+      "category": "OOS_POSITIVE_SMALL_SAMPLE",
+      "elapsed_s": 14.01,
+      "trades": 3,
+      "simulate": {
+        "ret_pct": 18.17,
+        "mdd_pct": 1.03,
+        "sharpe": 2.82,
+        "sortino": 2275.34,
+        "cagr_pct": 89.93,
+        "calmar": 6000.87,
+        "win_rate": 100.0,
+        "profit_factor": null,
+        "fees_usd": 15.99,
+        "max_consec_losses": 0
+      },
+      "train": {
+        "ret_pct": 0.0,
+        "mdd_pct": 0.0,
+        "trades": 0
+      },
+      "test_oos": {
+        "ret_pct": 18.17,
+        "mdd_pct": 1.03,
+        "trades": 3,
+        "sharpe": 3.36
+      },
+      "diagnosis": "OOS dương (+18.17%) nhưng mẫu quá nhỏ (3 lệnh trên cửa sổ 3 tháng); chưa đủ dữ liệu để đánh giá độ bền thống kê.",
+      "peak_rss_mb": 907.5,
+      "data_digest": {
+        "BTC@perp": "cd026438b6a668b1",
+        "ETH@perp": "8d62dc2d69c4d5cf",
+        "SOL@perp": "685c4c1f3813eb79",
+        "BNB@perp": "01b3175e2fe65172",
+        "XRP@perp": "68e460e35ef502f9",
+        "DOGE@perp": "de356db251313989",
+        "ADA@perp": "185837ce6c23ea26",
+        "AVAX@perp": "1811ab428e5f3ec6",
+        "LINK@perp": "5433ff06b17060f5",
+        "TRX@perp": "2e0c936c0efff766"
+      },
+      "name": "Fast Dip Harvester (3M DCA Dynamic - CAGR 108%)",
+      "owner_id": "aed197a5e968",
+      "is_vinh": true,
+      "oos_trades": 3,
+      "train_ret": 0.0,
+      "oos_ret": 18.17,
+      "runtime_exit_unit": "atr",
+      "declared_exit_unit": "pct",
+      "is_unit_mismatch": true
+    },
+    "b4b65cd3493f": {
+      "job_id": "20261027_141336_d554b0",
+      "status": "DONE",
+      "category": "FULL_NON_POSITIVE_OOS_NEGATIVE",
+      "elapsed_s": 36.02,
+      "trades": 479,
+      "simulate": {
+        "ret_pct": -21.49,
+        "mdd_pct": 27.69,
+        "sharpe": -0.94,
+        "sortino": -1.31,
+        "cagr_pct": -7.76,
+        "calmar": -0.28,
+        "win_rate": 32.2,
+        "profit_factor": 0.691,
+        "fees_usd": 171.95,
+        "max_consec_losses": 20
+      },
+      "train": {
+        "ret_pct": -13.35,
+        "mdd_pct": 16.79,
+        "trades": 189
+      },
+      "test_oos": {
+        "ret_pct": -13.17,
+        "mdd_pct": 21.01,
+        "trades": 287,
+        "sharpe": -0.79
+      },
+      "diagnosis": "Train âm (-13.35%); OOS âm (-13.17%); Phí sàn phát sinh 171.9$",
+      "peak_rss_mb": 1499.3,
+      "data_digest": {
+        "BTC@perp": "cd026438b6a668b1",
+        "ETH@perp": "8d62dc2d69c4d5cf",
+        "SOL@perp": "685c4c1f3813eb79",
+        "BNB@perp": "01b3175e2fe65172",
+        "XRP@perp": "68e460e35ef502f9",
+        "DOGE@perp": "de356db251313989",
+        "ADA@perp": "185837ce6c23ea26",
+        "AVAX@perp": "1811ab428e5f3ec6",
+        "LINK@perp": "5433ff06b17060f5",
+        "TRX@perp": "2e0c936c0efff766"
+      },
+      "name": "Commodity Channel Index (CCI) Snapback",
+      "owner_id": "23dc66cd61c6",
+      "is_vinh": false,
+      "oos_trades": 287,
+      "train_ret": -13.35,
+      "oos_ret": -13.17,
+      "runtime_exit_unit": "pct",
+      "declared_exit_unit": "pct",
+      "is_unit_mismatch": false
+    },
+    "b96bafe57445": {
+      "job_id": "20261027_141412_a82b28",
+      "status": "DONE",
+      "category": "FULL_NON_POSITIVE_OOS_NEGATIVE",
+      "elapsed_s": 33.02,
+      "trades": 45,
+      "simulate": {
+        "ret_pct": -7.44,
+        "mdd_pct": 11.02,
+        "sharpe": -0.82,
+        "sortino": -0.96,
+        "cagr_pct": -2.55,
+        "calmar": -0.23,
+        "win_rate": 17.8,
+        "profit_factor": 0.291,
+        "fees_usd": 25.53,
+        "max_consec_losses": 11
+      },
+      "train": {
+        "ret_pct": -4.38,
+        "mdd_pct": 8.37,
+        "trades": 27
+      },
+      "test_oos": {
+        "ret_pct": -6.55,
+        "mdd_pct": 7.61,
+        "trades": 18,
+        "sharpe": -0.94
+      },
+      "diagnosis": "Train âm (-4.38%); OOS âm (-6.55%); WinRate quan sát 17.8%",
+      "peak_rss_mb": 1283.2,
+      "data_digest": {
+        "BTC@perp": "cd026438b6a668b1",
+        "ETH@perp": "8d62dc2d69c4d5cf",
+        "SOL@perp": "685c4c1f3813eb79",
+        "BNB@perp": "01b3175e2fe65172",
+        "XRP@perp": "68e460e35ef502f9",
+        "DOGE@perp": "de356db251313989",
+        "ADA@perp": "185837ce6c23ea26",
+        "AVAX@perp": "1811ab428e5f3ec6",
+        "LINK@perp": "5433ff06b17060f5",
+        "TRX@perp": "2e0c936c0efff766"
+      },
+      "name": "Normalized ATR (NATR) Volatility Breakout",
+      "owner_id": "76c5814277ab",
+      "is_vinh": false,
+      "oos_trades": 18,
+      "train_ret": -4.38,
+      "oos_ret": -6.55,
+      "runtime_exit_unit": "pct",
+      "declared_exit_unit": "pct",
+      "is_unit_mismatch": false
+    },
+    "bf519617d973": {
+      "job_id": "20261027_141445_c22897",
+      "status": "DONE",
+      "category": "FULL_NON_POSITIVE_OOS_NEGATIVE",
+      "elapsed_s": 33.02,
+      "trades": 9,
+      "simulate": {
+        "ret_pct": -31.86,
+        "mdd_pct": 32.28,
+        "sharpe": -0.69,
+        "sortino": -0.7,
+        "cagr_pct": -12.01,
+        "calmar": -0.38,
+        "win_rate": 0.0,
+        "profit_factor": 0.0,
+        "fees_usd": 43.73,
+        "max_consec_losses": 9
+      },
+      "train": {
+        "ret_pct": -31.86,
+        "mdd_pct": 32.28,
+        "trades": 9
+      },
+      "test_oos": {
+        "ret_pct": -12.32,
+        "mdd_pct": 30.96,
+        "trades": 22,
+        "sharpe": -0.13
+      },
+      "diagnosis": "Train âm (-31.86%); OOS âm (-12.32%); WinRate quan sát 0.0%",
+      "peak_rss_mb": 1408.9,
+      "data_digest": {
+        "BTC@perp": "cd026438b6a668b1",
+        "ETH@perp": "8d62dc2d69c4d5cf",
+        "SOL@perp": "685c4c1f3813eb79",
+        "BNB@perp": "01b3175e2fe65172",
+        "XRP@perp": "68e460e35ef502f9",
+        "DOGE@perp": "de356db251313989",
+        "ADA@perp": "185837ce6c23ea26",
+        "AVAX@perp": "1811ab428e5f3ec6",
+        "LINK@perp": "5433ff06b17060f5",
+        "TRX@perp": "2e0c936c0efff766"
+      },
+      "name": "Double Exponential Moving Average (DEMA - Optimized)",
+      "owner_id": "76c5814277ab",
+      "is_vinh": false,
+      "oos_trades": 22,
+      "train_ret": -31.86,
+      "oos_ret": -12.32,
+      "runtime_exit_unit": "pct",
+      "declared_exit_unit": "pct",
+      "is_unit_mismatch": false
+    },
+    "c33cc317bbeb": {
+      "job_id": "20261027_141518_49a625",
+      "status": "DONE",
+      "category": "FULL_NON_POSITIVE_OOS_NEGATIVE",
+      "elapsed_s": 34.02,
+      "trades": 205,
+      "simulate": {
+        "ret_pct": -31.12,
+        "mdd_pct": 31.48,
+        "sharpe": -2.67,
+        "sortino": -2.78,
+        "cagr_pct": -11.7,
+        "calmar": -0.37,
+        "win_rate": 16.6,
+        "profit_factor": 0.184,
+        "fees_usd": 75.51,
+        "max_consec_losses": 28
+      },
+      "train": {
+        "ret_pct": -13.9,
+        "mdd_pct": 14.34,
+        "trades": 88
+      },
+      "test_oos": {
+        "ret_pct": -28.81,
+        "mdd_pct": 30.16,
+        "trades": 166,
+        "sharpe": -2.31
+      },
+      "diagnosis": "Train âm (-13.90%); OOS âm (-28.81%); WinRate quan sát 16.6%",
+      "peak_rss_mb": 1353.7,
+      "data_digest": {
+        "BTC@perp": "cd026438b6a668b1",
+        "ETH@perp": "8d62dc2d69c4d5cf",
+        "SOL@perp": "685c4c1f3813eb79",
+        "BNB@perp": "01b3175e2fe65172",
+        "XRP@perp": "68e460e35ef502f9",
+        "DOGE@perp": "de356db251313989",
+        "ADA@perp": "185837ce6c23ea26",
+        "AVAX@perp": "1811ab428e5f3ec6",
+        "LINK@perp": "5433ff06b17060f5",
+        "TRX@perp": "2e0c936c0efff766"
+      },
+      "name": "Multi-Day Cumulative Return Dip Buying",
+      "owner_id": "dd3d4fbabe8a",
+      "is_vinh": false,
+      "oos_trades": 166,
+      "train_ret": -13.9,
+      "oos_ret": -28.81,
+      "runtime_exit_unit": "pct",
+      "declared_exit_unit": "pct",
+      "is_unit_mismatch": false
+    },
+    "cb750cb1eb10": {
+      "job_id": "20261027_141552_277c97",
+      "status": "DONE",
+      "category": "FULL_NON_POSITIVE_OOS_NEGATIVE",
+      "elapsed_s": 33.02,
+      "trades": 28,
+      "simulate": {
+        "ret_pct": -4.57,
+        "mdd_pct": 7.86,
+        "sharpe": -0.43,
+        "sortino": -0.52,
+        "cagr_pct": -1.55,
+        "calmar": -0.2,
+        "win_rate": 10.7,
+        "profit_factor": 0.258,
+        "fees_usd": 13.82,
+        "max_consec_losses": 9
+      },
+      "train": {
+        "ret_pct": -2.86,
+        "mdd_pct": 6.01,
+        "trades": 10
+      },
+      "test_oos": {
+        "ret_pct": -5.05,
+        "mdd_pct": 8.12,
+        "trades": 18,
+        "sharpe": -0.64
+      },
+      "diagnosis": "Train âm (-2.86%); OOS âm (-5.05%); WinRate quan sát 10.7%",
+      "peak_rss_mb": 1397.3,
+      "data_digest": {
+        "BTC@perp": "cd026438b6a668b1",
+        "ETH@perp": "8d62dc2d69c4d5cf",
+        "SOL@perp": "685c4c1f3813eb79",
+        "BNB@perp": "01b3175e2fe65172",
+        "XRP@perp": "68e460e35ef502f9",
+        "DOGE@perp": "de356db251313989",
+        "ADA@perp": "185837ce6c23ea26",
+        "AVAX@perp": "1811ab428e5f3ec6",
+        "LINK@perp": "5433ff06b17060f5",
+        "TRX@perp": "2e0c936c0efff766"
+      },
+      "name": "EMA Golden Cross + Volume Spike Confluence",
+      "owner_id": "76c5814277ab",
+      "is_vinh": false,
+      "oos_trades": 18,
+      "train_ret": -2.86,
+      "oos_ret": -5.05,
+      "runtime_exit_unit": "pct",
+      "declared_exit_unit": "pct",
+      "is_unit_mismatch": false
+    },
+    "efb1fbe2db86": {
+      "job_id": "20261027_141625_4de10a",
+      "status": "DONE",
+      "category": "OOS_MARGINAL_POSITIVE",
+      "elapsed_s": 34.02,
+      "trades": 115,
+      "simulate": {
+        "ret_pct": 67.88,
+        "mdd_pct": 23.81,
+        "sharpe": 0.91,
+        "sortino": 1.22,
+        "cagr_pct": 18.87,
+        "calmar": 0.81,
+        "win_rate": 45.2,
+        "profit_factor": 1.666,
+        "fees_usd": 188.36,
+        "max_consec_losses": 11
+      },
+      "train": {
+        "ret_pct": 62.41,
+        "mdd_pct": 17.11,
+        "trades": 59
+      },
+      "test_oos": {
+        "ret_pct": 3.38,
+        "mdd_pct": 23.81,
+        "trades": 56,
+        "sharpe": 0.2
+      },
+      "diagnosis": "OOS dương biên (+3.38%, Sharpe OOS 0.2); hiệu suất suy giảm mạnh so với In-Sample (+62.41%).",
+      "peak_rss_mb": 1227.7,
+      "data_digest": {
+        "BTC@perp": "cd026438b6a668b1",
+        "ETH@perp": "8d62dc2d69c4d5cf",
+        "SOL@perp": "685c4c1f3813eb79",
+        "BNB@perp": "01b3175e2fe65172",
+        "XRP@perp": "68e460e35ef502f9",
+        "DOGE@perp": "de356db251313989",
+        "ADA@perp": "185837ce6c23ea26",
+        "AVAX@perp": "1811ab428e5f3ec6",
+        "LINK@perp": "5433ff06b17060f5",
+        "TRX@perp": "2e0c936c0efff766"
+      },
+      "name": "Volatility Expansion Channel (StdDev 1.51 + Macro Trend)",
+      "owner_id": "aed197a5e968",
+      "is_vinh": true,
+      "oos_trades": 56,
+      "train_ret": 62.41,
+      "oos_ret": 3.38,
+      "runtime_exit_unit": "atr",
+      "declared_exit_unit": "pct",
+      "is_unit_mismatch": true
+    },
+    "f261549d9efa": {
+      "job_id": "20261027_141659_34d465",
+      "status": "DONE",
+      "category": "FULL_POSITIVE_OOS_NEGATIVE",
+      "elapsed_s": 34.03,
+      "trades": 413,
+      "simulate": {
+        "ret_pct": 1.28,
+        "mdd_pct": 29.95,
+        "sharpe": 0.1,
+        "sortino": 0.14,
+        "cagr_pct": 0.43,
+        "calmar": 0.01,
+        "win_rate": 25.7,
+        "profit_factor": 1.014,
+        "fees_usd": 223.91,
+        "max_consec_losses": 28
+      },
+      "train": {
+        "ret_pct": 26.62,
+        "mdd_pct": 15.49,
+        "trades": 172
+      },
+      "test_oos": {
+        "ret_pct": -21.42,
+        "mdd_pct": 25.07,
+        "trades": 241,
+        "sharpe": -1.33
+      },
+      "diagnosis": "Toàn kỳ dương (+1.28%) và Train dương (+26.62%), nhưng OOS âm (-21.42%, Sharpe -1.33).",
+      "peak_rss_mb": 1427.3,
+      "data_digest": {
+        "BTC@perp": "cd026438b6a668b1",
+        "ETH@perp": "8d62dc2d69c4d5cf",
+        "SOL@perp": "685c4c1f3813eb79",
+        "BNB@perp": "01b3175e2fe65172",
+        "XRP@perp": "68e460e35ef502f9",
+        "DOGE@perp": "de356db251313989",
+        "ADA@perp": "185837ce6c23ea26",
+        "AVAX@perp": "1811ab428e5f3ec6",
+        "LINK@perp": "5433ff06b17060f5",
+        "TRX@perp": "2e0c936c0efff766"
+      },
+      "name": "ROC Momentum Surge",
+      "owner_id": "23dc66cd61c6",
+      "is_vinh": false,
+      "oos_trades": 241,
+      "train_ret": 26.62,
+      "oos_ret": -21.42,
+      "runtime_exit_unit": "pct",
+      "declared_exit_unit": "pct",
+      "is_unit_mismatch": false
+    },
+    "f4e211e9510d": {
+      "job_id": "20261027_141733_bd4e0f",
+      "status": "DONE",
+      "category": "FULL_POSITIVE_OOS_NEGATIVE",
+      "elapsed_s": 34.03,
+      "trades": 166,
+      "simulate": {
+        "ret_pct": 15.97,
+        "mdd_pct": 15.1,
+        "sharpe": 0.41,
+        "sortino": 0.58,
+        "cagr_pct": 5.07,
+        "calmar": 0.34,
+        "win_rate": 22.3,
+        "profit_factor": 1.296,
+        "fees_usd": 103.56,
+        "max_consec_losses": 20
+      },
+      "train": {
+        "ret_pct": 24.12,
+        "mdd_pct": 15.1,
+        "trades": 89
+      },
+      "test_oos": {
+        "ret_pct": -6.59,
+        "mdd_pct": 8.64,
+        "trades": 77,
+        "sharpe": -0.57
+      },
+      "diagnosis": "Toàn kỳ dương (+15.97%) và Train dương (+24.12%), nhưng OOS âm (-6.59%, Sharpe -0.57).",
+      "peak_rss_mb": 1328.1,
+      "data_digest": {
+        "BTC@perp": "cd026438b6a668b1",
+        "ETH@perp": "8d62dc2d69c4d5cf",
+        "SOL@perp": "685c4c1f3813eb79",
+        "BNB@perp": "01b3175e2fe65172",
+        "XRP@perp": "68e460e35ef502f9",
+        "DOGE@perp": "de356db251313989",
+        "ADA@perp": "185837ce6c23ea26",
+        "AVAX@perp": "1811ab428e5f3ec6",
+        "LINK@perp": "5433ff06b17060f5",
+        "TRX@perp": "2e0c936c0efff766"
+      },
+      "name": "Rolling 30-Day Multi-Week High Breakout",
+      "owner_id": "a214b36a7eab",
+      "is_vinh": false,
+      "oos_trades": 77,
+      "train_ret": 24.12,
+      "oos_ret": -6.59,
+      "runtime_exit_unit": "pct",
+      "declared_exit_unit": "pct",
+      "is_unit_mismatch": false
+    },
+    "fa9587a97fa9": {
+      "job_id": "20261027_141807_a5ceaf",
+      "status": "DONE",
+      "category": "FULL_POSITIVE_OOS_NEGATIVE",
+      "elapsed_s": 33.02,
+      "trades": 16,
+      "simulate": {
+        "ret_pct": 63.45,
+        "mdd_pct": 33.5,
+        "sharpe": 1.06,
+        "sortino": 1.97,
+        "cagr_pct": 17.81,
+        "calmar": 1.27,
+        "win_rate": 43.8,
+        "profit_factor": 4.691,
+        "fees_usd": 63.71,
+        "max_consec_losses": 7
+      },
+      "train": {
+        "ret_pct": 63.45,
+        "mdd_pct": 33.5,
+        "trades": 16
+      },
+      "test_oos": {
+        "ret_pct": -29.25,
+        "mdd_pct": 33.93,
+        "trades": 19,
+        "sharpe": -1.14
+      },
+      "diagnosis": "Toàn kỳ dương (+63.45%) và Train dương (+63.45%), nhưng OOS âm (-29.25%, Sharpe -1.14).",
+      "peak_rss_mb": 1154.6,
+      "data_digest": {
+        "BTC@perp": "cd026438b6a668b1",
+        "ETH@perp": "8d62dc2d69c4d5cf",
+        "SOL@perp": "685c4c1f3813eb79",
+        "BNB@perp": "01b3175e2fe65172",
+        "XRP@perp": "68e460e35ef502f9",
+        "DOGE@perp": "de356db251313989",
+        "ADA@perp": "185837ce6c23ea26",
+        "AVAX@perp": "1811ab428e5f3ec6",
+        "LINK@perp": "5433ff06b17060f5",
+        "TRX@perp": "2e0c936c0efff766"
+      },
+      "name": "Trend Alignment Momentum (Optimized)",
+      "owner_id": "43f5220ece1e",
+      "is_vinh": false,
+      "oos_trades": 19,
+      "train_ret": 63.45,
+      "oos_ret": -29.25,
+      "runtime_exit_unit": "pct",
+      "declared_exit_unit": "pct",
+      "is_unit_mismatch": false
+    }
+  },
+  "blocked_records": {
+    "026f43441cb2": {
+      "id": "026f43441cb2",
+      "name": "U4_BTC_1h_Different_Window",
+      "owner_id": "16e97dcc8432",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện hằng số `close > 1` trên BTC; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    "0bf936687964": {
+      "id": "0bf936687964",
+      "name": "U4_BTC_1h_Different_Window",
+      "owner_id": "e53ccc4b35d2",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện hằng số `close > 1` trên BTC; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    "138df68946ad": {
+      "id": "138df68946ad",
+      "name": "U1_BTC_1h_Alpha",
+      "owner_id": "ecf30ed0f194",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện hằng số `close > 0` trên BTC; luôn vào LONG ngay từ nến 1 và không có điều kiện thoát lệnh. Theo quy tắc cốt lõi 'Unknown semantics remain blocked, not guessed', không tự bịa đặt luật thay thế."
+    },
+    "1a1a4389a821": {
+      "id": "1a1a4389a821",
+      "name": "U1_BTC_1h_Alpha",
+      "owner_id": "2922e08b6b61",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện hằng số `close > 0` trên BTC; luôn vào LONG ngay từ nến 1 và không có điều kiện thoát lệnh. Theo quy tắc cốt lõi 'Unknown semantics remain blocked, not guessed', không tự bịa đặt luật thay thế."
+    },
+    "1e4c0b9f84f7": {
+      "id": "1e4c0b9f84f7",
+      "name": "U3_BTC_Small_Alpha",
+      "owner_id": "9b7a10c35886",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện bất khả thi `close < 0` trên giá thị trường BTC; không bao giờ sinh tín hiệu giao dịch. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    "214ea8fdf3e6": {
+      "id": "214ea8fdf3e6",
+      "name": "U2_ETH_15m_Alpha",
+      "owner_id": "423d35ac9700",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện hằng số `close > 10` trên ETH; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    "234e6df02e37": {
+      "id": "234e6df02e37",
+      "name": "U2_ETH_15m_Alpha",
+      "owner_id": "5de316621329",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện hằng số `close > 10` trên ETH; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    "2e41b2cfa24d": {
+      "id": "2e41b2cfa24d",
+      "name": "U1_BTC_1h_Alpha",
+      "owner_id": "3bbc767faa10",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện hằng số `close > 0` trên BTC; luôn vào LONG ngay từ nến 1 và không có điều kiện thoát lệnh. Theo quy tắc cốt lõi 'Unknown semantics remain blocked, not guessed', không tự bịa đặt luật thay thế."
+    },
+    "571474a18f55": {
+      "id": "571474a18f55",
+      "name": "U3_BTC_Small_Alpha",
+      "owner_id": "82e8ccc35eb6",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện bất khả thi `close < 0` trên giá thị trường BTC; không bao giờ sinh tín hiệu giao dịch. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    "616e1b8cbc88": {
+      "id": "616e1b8cbc88",
+      "name": "U2_ETH_15m_Alpha",
+      "owner_id": "184e6dc9dfe6",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện hằng số `close > 10` trên ETH; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    "64b657c8de8e": {
+      "id": "64b657c8de8e",
+      "name": "U4_BTC_1h_Different_Window",
+      "owner_id": "c7f8e10109b3",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện hằng số `close > 1` trên BTC; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    "74f607263c5c": {
+      "id": "74f607263c5c",
+      "name": "U4_BTC_1h_Different_Window",
+      "owner_id": "726ff949da79",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện hằng số `close > 1` trên BTC; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    "7c1bf0a9686a": {
+      "id": "7c1bf0a9686a",
+      "name": "U4_BTC_1h_Different_Window",
+      "owner_id": "dbbb50a338c9",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện hằng số `close > 1` trên BTC; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    "7f770ebe5ab5": {
+      "id": "7f770ebe5ab5",
+      "name": "U3_BTC_Small_Alpha",
+      "owner_id": "eb5d7e2e3897",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện bất khả thi `close < 0` trên giá thị trường BTC; không bao giờ sinh tín hiệu giao dịch. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    "856ddc574ce7": {
+      "id": "856ddc574ce7",
+      "name": "U2_ETH_15m_Alpha",
+      "owner_id": "9fc184ee1040",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện hằng số `close > 10` trên ETH; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    "862e0c9eebbe": {
+      "id": "862e0c9eebbe",
+      "name": "U2_ETH_15m_Alpha",
+      "owner_id": "e7c998608206",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện hằng số `close > 10` trên ETH; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    "930294d28c45": {
+      "id": "930294d28c45",
+      "name": "U3_BTC_Small_Alpha",
+      "owner_id": "439fa7538599",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện bất khả thi `close < 0` trên giá thị trường BTC; không bao giờ sinh tín hiệu giao dịch. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    "9eec3d61131d": {
+      "id": "9eec3d61131d",
+      "name": "U3_BTC_Small_Alpha",
+      "owner_id": "79183007b990",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện bất khả thi `close < 0` trên giá thị trường BTC; không bao giờ sinh tín hiệu giao dịch. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    "a4d6826fbbc6": {
+      "id": "a4d6826fbbc6",
+      "name": "U4_BTC_1h_Different_Window",
+      "owner_id": "4547f1f50486",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện hằng số `close > 1` trên BTC; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    "af2bf88426c4": {
+      "id": "af2bf88426c4",
+      "name": "U3_BTC_Small_Alpha",
+      "owner_id": "bf158b5142e8",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện bất khả thi `close < 0` trên giá thị trường BTC; không bao giờ sinh tín hiệu giao dịch. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    "bd234070bd7b": {
+      "id": "bd234070bd7b",
+      "name": "U1_BTC_1h_Alpha",
+      "owner_id": "bbd150bc473c",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện hằng số `close > 0` trên BTC; luôn vào LONG ngay từ nến 1 và không có điều kiện thoát lệnh. Theo quy tắc cốt lõi 'Unknown semantics remain blocked, not guessed', không tự bịa đặt luật thay thế."
+    },
+    "be1174b24a44": {
+      "id": "be1174b24a44",
+      "name": "U1_BTC_1h_Alpha",
+      "owner_id": "657914b99b5b",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện hằng số `close > 0` trên BTC; luôn vào LONG ngay từ nến 1 và không có điều kiện thoát lệnh. Theo quy tắc cốt lõi 'Unknown semantics remain blocked, not guessed', không tự bịa đặt luật thay thế."
+    },
+    "cb0b6e0f12e7": {
+      "id": "cb0b6e0f12e7",
+      "name": "U1_BTC_1h_Alpha",
+      "owner_id": "f9292fff53c9",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện hằng số `close > 0` trên BTC; luôn vào LONG ngay từ nến 1 và không có điều kiện thoát lệnh. Theo quy tắc cốt lõi 'Unknown semantics remain blocked, not guessed', không tự bịa đặt luật thay thế."
+    },
+    "d0518c0cca14": {
+      "id": "d0518c0cca14",
+      "name": "U4_BTC_1h_Different_Window",
+      "owner_id": "f4ded6717b32",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện hằng số `close > 1` trên BTC; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    "e9a9a5b44d03": {
+      "id": "e9a9a5b44d03",
+      "name": "U2_ETH_15m_Alpha",
+      "owner_id": "95f7a5a4b3ae",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện hằng số `close > 10` trên ETH; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    "ee0cf7f58f94": {
+      "id": "ee0cf7f58f94",
+      "name": "U2_ETH_15m_Alpha",
+      "owner_id": "97cac5011215",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện hằng số `close > 10` trên ETH; luôn vào LONG và không có điều kiện thoát lệnh. Phân loại BLOCKED_UNKNOWN_INTENT."
+    },
+    "fd16df3d0a3f": {
+      "id": "fd16df3d0a3f",
+      "name": "U3_BTC_Small_Alpha",
+      "owner_id": "d836143af954",
+      "disposition": "BLOCKED_UNKNOWN_INTENT",
+      "reason": "Biểu thức điều kiện bất khả thi `close < 0` trên giá thị trường BTC; không bao giờ sinh tín hiệu giao dịch. Phân loại BLOCKED_UNKNOWN_INTENT."
+    }
+  },
+  "summary": {
+    "total_evaluated": 30,
+    "oos_marginal_positive": 6,
+    "oos_positive_small_sample": 1,
+    "full_positive_oos_negative": 8,
+    "full_non_positive_oos_negative": 15,
+    "zero_trades": 0,
+    "runtime_error": 0,
+    "vinh_atr_mismatch_count": 7
+  },
+  "report_title": "BÁO CÁO ĐO LƯỜNG BASELINE SƠ BỘ KHO ALPHA EDU",
+  "disclaimer": "Preliminary Baseline Measurement for academic research only; not final acceptance; no live trading approval."
+}

@@ -1,0 +1,64 @@
+{
+  "candidate_id": "0d51ba8d2012_c1_persistence",
+  "status": "EVALUATED_RESEARCH_ONLY",
+  "parent_aid": "0d51ba8d2012",
+  "baseline_job_id": "20261027_195119_75f292",
+  "compile": {
+    "parent_code_sha256": "44bd919a4a501343ac649a042eb41db7d677aa5e7f1d73d0660e3fe597ac3183",
+    "candidate_code_sha256": "67564d79b06ac91f85cf1ec4d4c2fbea3320d98d23382ab0dcb3eb24a53842cd",
+    "parent_program_hash": "457060fb8c85",
+    "candidate_program_hash": "9ecc9aaa16ad",
+    "syntax": "clean_nora_strategy_dsl"
+  },
+  "hypothesis": {
+    "name": "1-bar persistence on RSI midline cross + OBV accumulation",
+    "type": "SIGNAL_CONFIRMATION_PERSISTENCE",
+    "description": "Sau RSI crossed_above 50, kiểm tra thêm 1 close nến kế tiếp: chỉ vào nếu RSI>50 và OBV>SMA20 vẫn đúng tại bar sau; fill ở next-open.",
+    "parameters_changed": [
+      "enter_sig"
+    ]
+  },
+  "run_evidence": {
+    "parent_job_id": "20261027_195119_75f292",
+    "candidate_job_id": "20261027_195333_c7062f",
+    "same_data_catalog": true,
+    "same_effective_position": true,
+    "parent_peak_ram": "[run_limited] peak RAM 1047 MB / limit 2G | exit 0",
+    "candidate_peak_ram": "[run_limited] peak RAM 988 MB / limit 2G | exit 0"
+  },
+  "evaluation": {
+    "full_window": {
+      "parent_return": 7.28,
+      "candidate_return": 9.27,
+      "parent_mdd": 28.18,
+      "candidate_mdd": 29.42,
+      "parent_trades": 256,
+      "candidate_trades": 238,
+      "parent_wr": 17.6,
+      "candidate_wr": 14.3,
+      "parent_pf": 0.921,
+      "candidate_pf": 0.976,
+      "parent_expectancy_pct": 0.0001,
+      "candidate_expectancy_pct": 0.0055,
+      "parent_fees": 124.31,
+      "candidate_fees": 131.95
+    },
+    "test_stage": {
+      "parent_return": -11.39,
+      "candidate_return": -11.16,
+      "parent_mdd": 24.63,
+      "candidate_mdd": 19.74,
+      "parent_trades": 159,
+      "candidate_trades": 151,
+      "parent_wr": 15.1,
+      "candidate_wr": 13.2,
+      "parent_pf": 0.283,
+      "candidate_pf": 0.256,
+      "parent_expectancy_pct": -0.147,
+      "candidate_expectancy_pct": -0.1441,
+      "parent_fees": 60.89,
+      "candidate_fees": 61.24
+    },
+    "verdict": "BETTER_ON_RESEARCH_WINDOW_NOT_PASS"
+  }
+}

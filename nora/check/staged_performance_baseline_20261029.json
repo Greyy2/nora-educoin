@@ -1,0 +1,90 @@
+{
+  "timestamp": "2026-10-29T19:45:26Z",
+  "workloads": {
+    "1_market": {
+      "symbols": [
+        "BTC"
+      ],
+      "repeats": 3,
+      "latency_ms": {
+        "min": 850.72,
+        "median": 858.0,
+        "max": 4455.97
+      },
+      "stage_compile_ms_median": 1.15,
+      "stage_data_ms_median": 0.29,
+      "stage_engine_ms_median": 856.54,
+      "peak_memory": {
+        "VmPeak": "3519792 kB",
+        "VmSize": "3509016 kB",
+        "VmHWM": "693184 kB",
+        "VmRSS": "623800 kB"
+      },
+      "accounting_sanity": {
+        "trades": 98,
+        "ret_pct": -0.73
+      }
+    },
+    "5_markets": {
+      "symbols": [
+        "BTC",
+        "ETH",
+        "SOL",
+        "BNB",
+        "XRP"
+      ],
+      "repeats": 3,
+      "latency_ms": {
+        "min": 5234.32,
+        "median": 5436.29,
+        "max": 16844.92
+      },
+      "stage_compile_ms_median": 1.06,
+      "stage_data_ms_median": 0.91,
+      "stage_engine_ms_median": 5434.24,
+      "peak_memory": {
+        "VmPeak": "3594540 kB",
+        "VmSize": "3543760 kB",
+        "VmHWM": "807556 kB",
+        "VmRSS": "739848 kB"
+      },
+      "accounting_sanity": {
+        "trades": 551,
+        "ret_pct": -6.16
+      }
+    },
+    "10_markets": {
+      "symbols": [
+        "BTC",
+        "ETH",
+        "SOL",
+        "BNB",
+        "XRP",
+        "DOGE",
+        "ADA",
+        "AVAX",
+        "LINK",
+        "TRX"
+      ],
+      "repeats": 3,
+      "latency_ms": {
+        "min": 9803.91,
+        "median": 9907.56,
+        "max": 20242.84
+      },
+      "stage_compile_ms_median": 1.11,
+      "stage_data_ms_median": 1.7,
+      "stage_engine_ms_median": 9904.59,
+      "peak_memory": {
+        "VmPeak": "3629252 kB",
+        "VmSize": "3622052 kB",
+        "VmHWM": "846476 kB",
+        "VmRSS": "840344 kB"
+      },
+      "accounting_sanity": {
+        "trades": 968,
+        "ret_pct": -10.49
+      }
+    }
+  }
+}

@@ -1,0 +1,91 @@
+{
+  "candidate_id": "717c1890c59e_c1_risk_sl",
+  "parent_aid": "717c1890c59e",
+  "parent_name": "Weighted Moving Average (WMA) Crossover (Optimized)",
+  "hypothesis": "Hạ rủi ro mỗi lệnh xuống 1.0% và nới stop loss lên 4.0% để tránh bị quét bởi nhiễu biến động nến ngày (intraday wicks).",
+  "hypothesis_type": "sizing_and_risk_control",
+  "code": "class WmaVolumeStrategy(NoraStrategy):\n    timeframe = \"24h\"\n    wma_fast_period = 12\n    wma_slow_period = 36\n    macro_period = 100\n    # Các trường *_pct là phần trăm, không phải bội số ATR.\n    stop_loss_pct = 4.0\n    risk_per_trade_pct = 1.0\n    def on_bar(self):\n        wma_fast = self.feat.wma(close, self.wma_fast_period)\n        wma_slow = self.feat.wma(close, self.wma_slow_period)\n        macro = ema(close, self.macro_period)\n        self.close(crossunder(close, wma_fast))\n        self.buy(crossover(wma_fast, wma_slow) & (close > macro))\n",
+  "config": {
+    "symbols": [
+      "BTC",
+      "ETH",
+      "SOL",
+      "BNB",
+      "XRP",
+      "DOGE",
+      "ADA",
+      "AVAX",
+      "LINK",
+      "TRX"
+    ],
+    "data_symbols": [
+      "BTC@perp",
+      "ETH@perp",
+      "SOL@perp",
+      "BNB@perp",
+      "XRP@perp",
+      "DOGE@perp",
+      "ADA@perp",
+      "AVAX@perp",
+      "LINK@perp",
+      "TRX@perp"
+    ],
+    "start": "2023-10-06",
+    "end": "2026-10-03",
+    "train_ratio": 0.7,
+    "initial_capital": 10000.0,
+    "timeframe": "24h",
+    "run_frame": "24h",
+    "exchange": "okx",
+    "program": {
+      "name": "WmaVolumeStrategy",
+      "legs": [
+        "LONG"
+      ],
+      "levels": [
+        0.0,
+        1.0
+      ],
+      "features": [
+        "ema",
+        "wma"
+      ],
+      "warmup_bars": 300
+    },
+    "risk": {
+      "max_positions": 8,
+      "max_per_symbol": 1,
+      "max_gross_exposure": 3.0,
+      "kill_switch_dd_pct": 30.0,
+      "max_open_risk_pct": 6.0,
+      "dd_throttle_pct": 5.0,
+      "dd_throttle_floor": 0.25
+    },
+    "strategies": [
+      "py_bb99c4d3ab95_long"
+    ],
+    "position": {
+      "market": "perp",
+      "leverage": 1,
+      "exit_unit": "pct",
+      "atr_frame": "24h",
+      "atr_period": 14,
+      "sizing": "risk",
+      "risk_per_trade_pct": 1.0,
+      "max_notional_pct": 300.0,
+      "stop_fill": "level",
+      "limit_through_pct": 0.0,
+      "cooldown": 1440,
+      "risk_profile": "legacy",
+      "sl_anchor": "",
+      "sl_beyond_last_pct": 0.0,
+      "stop_loss_rate": 4.0,
+      "take_profit_rate": 0.0,
+      "trailing_stop": 0.0,
+      "trailing_activation_pct": 0.0,
+      "timeout": 0
+    }
+  },
+  "code_sha256": "5189035eb06c1713d94891fa22b375d87f9fa7c189bef8aa5cb23f060005c160",
+  "config_sha256": "e0f60e4ec45209c92319d5dea88f7304c2051c3912e8ece895d06079bae42969"
+}

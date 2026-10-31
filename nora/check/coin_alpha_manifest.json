@@ -1,0 +1,1829 @@
+{
+  "generated_at": "2026-10-28T18:24:38Z",
+  "purpose": "Kiem ke read-only kho Alpha COIN (Buoc 3). Khong chay backtest.",
+  "system_candidates": [
+    {
+      "id": "kema_long",
+      "side": "LONG",
+      "family": "KEMA (theo xu hướng)",
+      "description": "Giá đóng cửa cắt LÊN dải trên kênh Keltner (EMA + k × ATR) → mua. Thoát khi giá cắt XUỐNG dải dưới (đảo chiều) hoặc chạm SL.",
+      "source": {
+        "file": "kema.py",
+        "sha256": "1c64e83d0f9e2895e6d1af83d29af4eb03d89040e803a7cecf6214a6d096fbab",
+        "code_hash": "c4f9b646b9b3"
+      },
+      "timeframe_params": [
+        "sig.signal_tf"
+      ],
+      "has_dca": false,
+      "dca_params": {},
+      "dca_gate_params": [],
+      "position_effective": {
+        "exit_unit": {
+          "value": "atr",
+          "source": "strategy_file"
+        },
+        "atr_frame": {
+          "value": "4h",
+          "source": "strategy_file"
+        },
+        "cooldown": {
+          "value": 240,
+          "source": "strategy_file"
+        },
+        "sizing": {
+          "value": "risk",
+          "source": "BASE_POSITION"
+        },
+        "risk_per_trade_pct": {
+          "value": 0.5,
+          "source": "BASE_POSITION"
+        },
+        "max_notional_pct": {
+          "value": 300.0,
+          "source": "BASE_POSITION"
+        },
+        "market": {
+          "value": "perp",
+          "source": "BASE_POSITION"
+        },
+        "stop_fill": {
+          "value": "level",
+          "source": "BASE_POSITION"
+        }
+      },
+      "position_source_note": "exit_unit='atr' TUONG MINH trong file DSL.",
+      "executable": true,
+      "record_type": "system_strategy",
+      "params_schema_count": 19,
+      "params_summary": [
+        {
+          "key": "sig.signal_tf",
+          "label": "Khung tín hiệu",
+          "default": "4h",
+          "type": "choice",
+          "group": "signal"
+        },
+        {
+          "key": "sig.ema_n",
+          "label": "Chu kỳ EMA (đường giữa)",
+          "default": 30,
+          "type": "int",
+          "group": "signal",
+          "range": [
+            5,
+            200
+          ]
+        },
+        {
+          "key": "sig.atr_n",
+          "label": "Chu kỳ ATR của kênh",
+          "default": 14,
+          "type": "int",
+          "group": "signal",
+          "range": [
+            5,
+            50
+          ]
+        },
+        {
+          "key": "sig.k_up",
+          "label": "Hệ số dải trên",
+          "default": 2.0,
+          "type": "float",
+          "group": "signal",
+          "range": [
+            0.5,
+            5.0
+          ]
+        },
+        {
+          "key": "sig.k_dn",
+          "label": "Hệ số dải dưới",
+          "default": 2.0,
+          "type": "float",
+          "group": "signal",
+          "range": [
+            0.5,
+            5.0
+          ]
+        },
+        {
+          "key": "stop_loss_rate",
+          "label": "Cắt lỗ",
+          "default": 3.0,
+          "type": "float",
+          "group": "exit",
+          "range": [
+            0.5,
+            10.0
+          ]
+        },
+        {
+          "key": "take_profit_rate",
+          "label": "Chốt lời",
+          "default": 0.0,
+          "type": "float",
+          "group": "exit",
+          "range": [
+            0.0,
+            10.0
+          ]
+        },
+        {
+          "key": "trailing_stop",
+          "label": "Trailing stop",
+          "default": 0.0,
+          "type": "float",
+          "group": "exit",
+          "range": [
+            0.0,
+            10.0
+          ]
+        },
+        {
+          "key": "trailing_activation_pct",
+          "label": "Bật trailing khi lãi",
+          "default": 0.0,
+          "type": "float",
+          "group": "exit",
+          "range": [
+            0.0,
+            5.0
+          ]
+        },
+        {
+          "key": "timeout",
+          "label": "Giữ lệnh tối đa",
+          "default": 0,
+          "type": "int",
+          "group": "exit",
+          "range": [
+            0,
+            20160
+          ]
+        },
+        {
+          "key": "cooldown",
+          "label": "Nghỉ sau khi thoát",
+          "default": 60,
+          "type": "int",
+          "group": "exit",
+          "range": [
+            0,
+            1440
+          ]
+        },
+        {
+          "key": "atr_frame",
+          "label": "Khung tính ATR",
+          "default": "4h",
+          "type": "choice",
+          "group": "exit"
+        },
+        {
+          "key": "atr_period",
+          "label": "Chu kỳ ATR",
+          "default": 14,
+          "type": "int",
+          "group": "exit",
+          "range": [
+            5,
+            50
+          ]
+        },
+        {
+          "key": "sl_anchor",
+          "label": "Neo Stop Loss",
+          "default": "avg",
+          "type": "choice",
+          "group": "exit"
+        },
+        {
+          "key": "sl_beyond_last_pct",
+          "label": "% Lùi sau tầng DCA cuối",
+          "default": 0.0,
+          "type": "float",
+          "group": "exit",
+          "range": [
+            0.0,
+            10.0
+          ]
+        },
+        {
+          "key": "risk_per_trade_pct",
+          "label": "Rủi ro mỗi lệnh",
+          "default": 0.5,
+          "type": "float",
+          "group": "risk",
+          "range": [
+            0.05,
+            5.0
+          ]
+        },
+        {
+          "key": "max_notional_pct",
+          "label": "Trần danh nghĩa mỗi lệnh",
+          "default": 300.0,
+          "type": "float",
+          "group": "risk",
+          "range": [
+            50.0,
+            500.0
+          ]
+        },
+        {
+          "key": "leverage",
+          "label": "Trần đòn bẩy",
+          "default": 10,
+          "type": "int",
+          "group": "risk",
+          "range": [
+            1,
+            10
+          ]
+        },
+        {
+          "key": "risk_profile",
+          "label": "Họ quản lý rủi ro",
+          "default": "legacy",
+          "type": "choice",
+          "group": "risk"
+        }
+      ]
+    },
+    {
+      "id": "kema_short",
+      "side": "SHORT",
+      "family": "KEMA (theo xu hướng)",
+      "description": "Giá đóng cửa cắt XUỐNG dải dưới kênh Keltner (EMA − k × ATR) → bán. Thoát khi giá cắt LÊN dải trên (đảo chiều) hoặc chạm SL.",
+      "source": {
+        "file": "kema.py",
+        "sha256": "1c64e83d0f9e2895e6d1af83d29af4eb03d89040e803a7cecf6214a6d096fbab",
+        "code_hash": "c4f9b646b9b3"
+      },
+      "timeframe_params": [
+        "sig.signal_tf"
+      ],
+      "has_dca": false,
+      "dca_params": {},
+      "dca_gate_params": [],
+      "position_effective": {
+        "exit_unit": {
+          "value": "atr",
+          "source": "strategy_file"
+        },
+        "atr_frame": {
+          "value": "4h",
+          "source": "strategy_file"
+        },
+        "cooldown": {
+          "value": 240,
+          "source": "strategy_file"
+        },
+        "sizing": {
+          "value": "risk",
+          "source": "BASE_POSITION"
+        },
+        "risk_per_trade_pct": {
+          "value": 0.5,
+          "source": "BASE_POSITION"
+        },
+        "max_notional_pct": {
+          "value": 300.0,
+          "source": "BASE_POSITION"
+        },
+        "market": {
+          "value": "perp",
+          "source": "BASE_POSITION"
+        },
+        "stop_fill": {
+          "value": "level",
+          "source": "BASE_POSITION"
+        }
+      },
+      "position_source_note": "exit_unit='atr' TUONG MINH trong file DSL.",
+      "executable": true,
+      "record_type": "system_strategy",
+      "params_schema_count": 19,
+      "params_summary": [
+        {
+          "key": "sig.signal_tf",
+          "label": "Khung tín hiệu",
+          "default": "4h",
+          "type": "choice",
+          "group": "signal"
+        },
+        {
+          "key": "sig.ema_n",
+          "label": "Chu kỳ EMA (đường giữa)",
+          "default": 30,
+          "type": "int",
+          "group": "signal",
+          "range": [
+            5,
+            200
+          ]
+        },
+        {
+          "key": "sig.atr_n",
+          "label": "Chu kỳ ATR của kênh",
+          "default": 14,
+          "type": "int",
+          "group": "signal",
+          "range": [
+            5,
+            50
+          ]
+        },
+        {
+          "key": "sig.k_up",
+          "label": "Hệ số dải trên",
+          "default": 2.0,
+          "type": "float",
+          "group": "signal",
+          "range": [
+            0.5,
+            5.0
+          ]
+        },
+        {
+          "key": "sig.k_dn",
+          "label": "Hệ số dải dưới",
+          "default": 2.0,
+          "type": "float",
+          "group": "signal",
+          "range": [
+            0.5,
+            5.0
+          ]
+        },
+        {
+          "key": "stop_loss_rate",
+          "label": "Cắt lỗ",
+          "default": 3.0,
+          "type": "float",
+          "group": "exit",
+          "range": [
+            0.5,
+            10.0
+          ]
+        },
+        {
+          "key": "take_profit_rate",
+          "label": "Chốt lời",
+          "default": 0.0,
+          "type": "float",
+          "group": "exit",
+          "range": [
+            0.0,
+            10.0
+          ]
+        },
+        {
+          "key": "trailing_stop",
+          "label": "Trailing stop",
+          "default": 0.0,
+          "type": "float",
+          "group": "exit",
+          "range": [
+            0.0,
+            10.0
+          ]
+        },
+        {
+          "key": "trailing_activation_pct",
+          "label": "Bật trailing khi lãi",
+          "default": 0.0,
+          "type": "float",
+          "group": "exit",
+          "range": [
+            0.0,
+            5.0
+          ]
+        },
+        {
+          "key": "timeout",
+          "label": "Giữ lệnh tối đa",
+          "default": 0,
+          "type": "int",
+          "group": "exit",
+          "range": [
+            0,
+            20160
+          ]
+        },
+        {
+          "key": "cooldown",
+          "label": "Nghỉ sau khi thoát",
+          "default": 60,
+          "type": "int",
+          "group": "exit",
+          "range": [
+            0,
+            1440
+          ]
+        },
+        {
+          "key": "atr_frame",
+          "label": "Khung tính ATR",
+          "default": "4h",
+          "type": "choice",
+          "group": "exit"
+        },
+        {
+          "key": "atr_period",
+          "label": "Chu kỳ ATR",
+          "default": 14,
+          "type": "int",
+          "group": "exit",
+          "range": [
+            5,
+            50
+          ]
+        },
+        {
+          "key": "sl_anchor",
+          "label": "Neo Stop Loss",
+          "default": "avg",
+          "type": "choice",
+          "group": "exit"
+        },
+        {
+          "key": "sl_beyond_last_pct",
+          "label": "% Lùi sau tầng DCA cuối",
+          "default": 0.0,
+          "type": "float",
+          "group": "exit",
+          "range": [
+            0.0,
+            10.0
+          ]
+        },
+        {
+          "key": "risk_per_trade_pct",
+          "label": "Rủi ro mỗi lệnh",
+          "default": 0.5,
+          "type": "float",
+          "group": "risk",
+          "range": [
+            0.05,
+            5.0
+          ]
+        },
+        {
+          "key": "max_notional_pct",
+          "label": "Trần danh nghĩa mỗi lệnh",
+          "default": 300.0,
+          "type": "float",
+          "group": "risk",
+          "range": [
+            50.0,
+            500.0
+          ]
+        },
+        {
+          "key": "leverage",
+          "label": "Trần đòn bẩy",
+          "default": 10,
+          "type": "int",
+          "group": "risk",
+          "range": [
+            1,
+            10
+          ]
+        },
+        {
+          "key": "risk_profile",
+          "label": "Họ quản lý rủi ro",
+          "default": "legacy",
+          "type": "choice",
+          "group": "risk"
+        }
+      ]
+    },
+    {
+      "id": "sideway_long",
+      "side": "LONG",
+      "family": "Sideway (đi ngang)",
+      "description": "Chỉ đánh khi thị trường đi ngang (ER thấp): RSI quá bán và giá dưới dải Bollinger dưới → mua. Chốt lời / cắt lỗ theo ATR.",
+      "source": {
+        "file": "sideway.py",
+        "sha256": "ae29cd7e889f1592a5ab06726677a7a1e59fd451e44fd61d7f268881c93897bf",
+        "code_hash": "6d6f43340b0a"
+      },
+      "timeframe_params": [
+        "sig.entry_tf",
+        "sig.regime_tf"
+      ],
+      "has_dca": false,
+      "dca_params": {},
+      "dca_gate_params": [],
+      "position_effective": {
+        "exit_unit": {
+          "value": "atr",
+          "source": "strategy_file"
+        },
+        "atr_frame": {
+          "value": "1h",
+          "source": "strategy_file"
+        },
+        "cooldown": {
+          "value": 60,
+          "source": "strategy_file"
+        },
+        "sizing": {
+          "value": "risk",
+          "source": "BASE_POSITION"
+        },
+        "risk_per_trade_pct": {
+          "value": 0.5,
+          "source": "BASE_POSITION"
+        },
+        "max_notional_pct": {
+          "value": 300.0,
+          "source": "BASE_POSITION"
+        },
+        "market": {
+          "value": "perp",
+          "source": "BASE_POSITION"
+        },
+        "stop_fill": {
+          "value": "level",
+          "source": "BASE_POSITION"
+        }
+      },
+      "position_source_note": "exit_unit='atr' TUONG MINH trong file DSL.",
+      "executable": true,
+      "record_type": "system_strategy",
+      "params_schema_count": 22,
+      "params_summary": [
+        {
+          "key": "sig.entry_tf",
+          "label": "Khung điểm vào",
+          "default": "5m",
+          "type": "choice",
+          "group": "signal"
+        },
+        {
+          "key": "sig.rsi_n",
+          "label": "Chu kỳ RSI",
+          "default": 14,
+          "type": "int",
+          "group": "signal",
+          "range": [
+            2,
+            50
+          ]
+        },
+        {
+          "key": "sig.rsi_lo",
+          "label": "Ngưỡng RSI quá bán",
+          "default": 25.0,
+          "type": "float",
+          "group": "signal",
+          "range": [
+            10.0,
+            45.0
+          ]
+        },
+        {
+          "key": "sig.bb_n",
+          "label": "Chu kỳ Bollinger",
+          "default": 20,
+          "type": "int",
+          "group": "signal",
+          "range": [
+            5,
+            100
+          ]
+        },
+        {
+          "key": "sig.bb_k",
+          "label": "Độ rộng Bollinger (k)",
+          "default": 2.0,
+          "type": "float",
+          "group": "signal",
+          "range": [
+            1.0,
+            4.0
+          ]
+        },
+        {
+          "key": "sig.regime_tf",
+          "label": "Khung regime",
+          "default": "1h",
+          "type": "choice",
+          "group": "signal"
+        },
+        {
+          "key": "sig.er_n",
+          "label": "Chu kỳ ER",
+          "default": 20,
+          "type": "int",
+          "group": "signal",
+          "range": [
+            5,
+            100
+          ]
+        },
+        {
+          "key": "sig.er_max",
+          "label": "Ngưỡng ER tối đa",
+          "default": 0.3,
+          "type": "float",
+          "group": "signal",
+          "range": [
+            0.1,
+            0.6
+          ]
+        },
+        {
+          "key": "stop_loss_rate",
+          "label": "Cắt lỗ",
+          "default": 1.5,
+          "type": "float",
+          "group": "exit",
+          "range": [
+            0.5,
+            10.0
+          ]
+        },
+        {
+          "key": "take_profit_rate",
+          "label": "Chốt lời",
+          "default": 1.5,
+          "type": "float",
+          "group": "exit",
+          "range": [
+            0.0,
+            10.0
+          ]
+        },
+        {
+          "key": "trailing_stop",
+          "label": "Trailing stop",
+          "default": 0.0,
+          "type": "float",
+          "group": "exit",
+          "range": [
+            0.0,
+            10.0
+          ]
+        },
+        {
+          "key": "trailing_activation_pct",
+          "label": "Bật trailing khi lãi",
+          "default": 0.0,
+          "type": "float",
+          "group": "exit",
+          "range": [
+            0.0,
+            5.0
+          ]
+        },
+        {
+          "key": "timeout",
+          "label": "Giữ lệnh tối đa",
+          "default": 1440,
+          "type": "int",
+          "group": "exit",
+          "range": [
+            0,
+            20160
+          ]
+        },
+        {
+          "key": "cooldown",
+          "label": "Nghỉ sau khi thoát",
+          "default": 60,
+          "type": "int",
+          "group": "exit",
+          "range": [
+            0,
+            1440
+          ]
+        },
+        {
+          "key": "atr_frame",
+          "label": "Khung tính ATR",
+          "default": "1h",
+          "type": "choice",
+          "group": "exit"
+        },
+        {
+          "key": "atr_period",
+          "label": "Chu kỳ ATR",
+          "default": 14,
+          "type": "int",
+          "group": "exit",
+          "range": [
+            5,
+            50
+          ]
+        },
+        {
+          "key": "sl_anchor",
+          "label": "Neo Stop Loss",
+          "default": "avg",
+          "type": "choice",
+          "group": "exit"
+        },
+        {
+          "key": "sl_beyond_last_pct",
+          "label": "% Lùi sau tầng DCA cuối",
+          "default": 0.0,
+          "type": "float",
+          "group": "exit",
+          "range": [
+            0.0,
+            10.0
+          ]
+        },
+        {
+          "key": "risk_per_trade_pct",
+          "label": "Rủi ro mỗi lệnh",
+          "default": 0.5,
+          "type": "float",
+          "group": "risk",
+          "range": [
+            0.05,
+            5.0
+          ]
+        },
+        {
+          "key": "max_notional_pct",
+          "label": "Trần danh nghĩa mỗi lệnh",
+          "default": 300.0,
+          "type": "float",
+          "group": "risk",
+          "range": [
+            50.0,
+            500.0
+          ]
+        },
+        {
+          "key": "leverage",
+          "label": "Trần đòn bẩy",
+          "default": 10,
+          "type": "int",
+          "group": "risk",
+          "range": [
+            1,
+            10
+          ]
+        },
+        {
+          "key": "risk_profile",
+          "label": "Họ quản lý rủi ro",
+          "default": "legacy",
+          "type": "choice",
+          "group": "risk"
+        }
+      ]
+    },
+    {
+      "id": "sideway_short",
+      "side": "SHORT",
+      "family": "Sideway (đi ngang)",
+      "description": "Chỉ đánh khi thị trường đi ngang (ER thấp): RSI quá mua và giá trên dải Bollinger trên → bán. Chốt lời / cắt lỗ theo ATR.",
+      "source": {
+        "file": "sideway.py",
+        "sha256": "ae29cd7e889f1592a5ab06726677a7a1e59fd451e44fd61d7f268881c93897bf",
+        "code_hash": "6d6f43340b0a"
+      },
+      "timeframe_params": [
+        "sig.entry_tf",
+        "sig.regime_tf"
+      ],
+      "has_dca": false,
+      "dca_params": {},
+      "dca_gate_params": [],
+      "position_effective": {
+        "exit_unit": {
+          "value": "atr",
+          "source": "strategy_file"
+        },
+        "atr_frame": {
+          "value": "1h",
+          "source": "strategy_file"
+        },
+        "cooldown": {
+          "value": 60,
+          "source": "strategy_file"
+        },
+        "sizing": {
+          "value": "risk",
+          "source": "BASE_POSITION"
+        },
+        "risk_per_trade_pct": {
+          "value": 0.5,
+          "source": "BASE_POSITION"
+        },
+        "max_notional_pct": {
+          "value": 300.0,
+          "source": "BASE_POSITION"
+        },
+        "market": {
+          "value": "perp",
+          "source": "BASE_POSITION"
+        },
+        "stop_fill": {
+          "value": "level",
+          "source": "BASE_POSITION"
+        }
+      },
+      "position_source_note": "exit_unit='atr' TUONG MINH trong file DSL.",
+      "executable": true,
+      "record_type": "system_strategy",
+      "params_schema_count": 22,
+      "params_summary": [
+        {
+          "key": "sig.entry_tf",
+          "label": "Khung điểm vào",
+          "default": "5m",
+          "type": "choice",
+          "group": "signal"
+        },
+        {
+          "key": "sig.rsi_n",
+          "label": "Chu kỳ RSI",
+          "default": 14,
+          "type": "int",
+          "group": "signal",
+          "range": [
+            2,
+            50
+          ]
+        },
+        {
+          "key": "sig.rsi_hi",
+          "label": "Ngưỡng RSI quá mua",
+          "default": 75.0,
+          "type": "float",
+          "group": "signal",
+          "range": [
+            55.0,
+            90.0
+          ]
+        },
+        {
+          "key": "sig.bb_n",
+          "label": "Chu kỳ Bollinger",
+          "default": 20,
+          "type": "int",
+          "group": "signal",
+          "range": [
+            5,
+            100
+          ]
+        },
+        {
+          "key": "sig.bb_k",
+          "label": "Độ rộng Bollinger (k)",
+          "default": 2.0,
+          "type": "float",
+          "group": "signal",
+          "range": [
+            1.0,
+            4.0
+          ]
+        },
+        {
+          "key": "sig.regime_tf",
+          "label": "Khung regime",
+          "default": "1h",
+          "type": "choice",
+          "group": "signal"
+        },
+        {
+          "key": "sig.er_n",
+          "label": "Chu kỳ ER",
+          "default": 20,
+          "type": "int",
+          "group": "signal",
+          "range": [
+            5,
+            100
+          ]
+        },
+        {
+          "key": "sig.er_max",
+          "label": "Ngưỡng ER tối đa",
+          "default": 0.3,
+          "type": "float",
+          "group": "signal",
+          "range": [
+            0.1,
+            0.6
+          ]
+        },
+        {
+          "key": "stop_loss_rate",
+          "label": "Cắt lỗ",
+          "default": 1.5,
+          "type": "float",
+          "group": "exit",
+          "range": [
+            0.5,
+            10.0
+          ]
+        },
+        {
+          "key": "take_profit_rate",
+          "label": "Chốt lời",
+          "default": 1.5,
+          "type": "float",
+          "group": "exit",
+          "range": [
+            0.0,
+            10.0
+          ]
+        },
+        {
+          "key": "trailing_stop",
+          "label": "Trailing stop",
+          "default": 0.0,
+          "type": "float",
+          "group": "exit",
+          "range": [
+            0.0,
+            10.0
+          ]
+        },
+        {
+          "key": "trailing_activation_pct",
+          "label": "Bật trailing khi lãi",
+          "default": 0.0,
+          "type": "float",
+          "group": "exit",
+          "range": [
+            0.0,
+            5.0
+          ]
+        },
+        {
+          "key": "timeout",
+          "label": "Giữ lệnh tối đa",
+          "default": 1440,
+          "type": "int",
+          "group": "exit",
+          "range": [
+            0,
+            20160
+          ]
+        },
+        {
+          "key": "cooldown",
+          "label": "Nghỉ sau khi thoát",
+          "default": 60,
+          "type": "int",
+          "group": "exit",
+          "range": [
+            0,
+            1440
+          ]
+        },
+        {
+          "key": "atr_frame",
+          "label": "Khung tính ATR",
+          "default": "1h",
+          "type": "choice",
+          "group": "exit"
+        },
+        {
+          "key": "atr_period",
+          "label": "Chu kỳ ATR",
+          "default": 14,
+          "type": "int",
+          "group": "exit",
+          "range": [
+            5,
+            50
+          ]
+        },
+        {
+          "key": "sl_anchor",
+          "label": "Neo Stop Loss",
+          "default": "avg",
+          "type": "choice",
+          "group": "exit"
+        },
+        {
+          "key": "sl_beyond_last_pct",
+          "label": "% Lùi sau tầng DCA cuối",
+          "default": 0.0,
+          "type": "float",
+          "group": "exit",
+          "range": [
+            0.0,
+            10.0
+          ]
+        },
+        {
+          "key": "risk_per_trade_pct",
+          "label": "Rủi ro mỗi lệnh",
+          "default": 0.5,
+          "type": "float",
+          "group": "risk",
+          "range": [
+            0.05,
+            5.0
+          ]
+        },
+        {
+          "key": "max_notional_pct",
+          "label": "Trần danh nghĩa mỗi lệnh",
+          "default": 300.0,
+          "type": "float",
+          "group": "risk",
+          "range": [
+            50.0,
+            500.0
+          ]
+        },
+        {
+          "key": "leverage",
+          "label": "Trần đòn bẩy",
+          "default": 10,
+          "type": "int",
+          "group": "risk",
+          "range": [
+            1,
+            10
+          ]
+        },
+        {
+          "key": "risk_profile",
+          "label": "Họ quản lý rủi ro",
+          "default": "legacy",
+          "type": "choice",
+          "group": "risk"
+        }
+      ]
+    },
+    {
+      "id": "dca_long",
+      "side": "LONG",
+      "family": "DCA (bắt hồi + dồn có điều kiện)",
+      "description": "RSI quá bán và giá dưới dải Bollinger dưới khi thị trường đi ngang → mua; giá giảm tiếp thì dồn thêm tầng theo bước ATR CHỈ khi vẫn đi ngang (ER, ADX thấp). Chốt lời và cắt lỗ cả rổ tính từ giá trung bình.",
+      "source": {
+        "file": "dca.py",
+        "sha256": "ad3a89909f4a98fcb8cbb13188fc4c0534b5618b56ea72ae41c6e67fb320b1d0",
+        "code_hash": "8df12be2560d"
+      },
+      "timeframe_params": [
+        "sig.entry_tf",
+        "sig.regime_tf"
+      ],
+      "has_dca": true,
+      "dca_params": {
+        "dca_step_pct": {
+          "default": 1.0,
+          "group": "dca"
+        },
+        "dca_max_layers": {
+          "default": 3,
+          "group": "dca"
+        },
+        "dca_size_multiplier": {
+          "default": 1.5,
+          "group": "dca"
+        }
+      },
+      "dca_gate_params": [
+        "sig.gate_er_max",
+        "sig.gate_adx_max",
+        "sig.gate_rsi"
+      ],
+      "position_effective": {
+        "exit_unit": {
+          "value": "atr",
+          "source": "strategy_file"
+        },
+        "atr_frame": {
+          "value": "1h",
+          "source": "strategy_file"
+        },
+        "cooldown": {
+          "value": 60,
+          "source": "strategy_file"
+        },
+        "sizing": {
+          "value": "risk",
+          "source": "BASE_POSITION"
+        },
+        "risk_per_trade_pct": {
+          "value": 0.5,
+          "source": "BASE_POSITION"
+        },
+        "max_notional_pct": {
+          "value": 300.0,
+          "source": "BASE_POSITION"
+        },
+        "market": {
+          "value": "perp",
+          "source": "BASE_POSITION"
+        },
+        "stop_fill": {
+          "value": "level",
+          "source": "BASE_POSITION"
+        }
+      },
+      "position_source_note": "exit_unit='atr' TUONG MINH trong file DSL.",
+      "executable": true,
+      "record_type": "system_strategy",
+      "params_schema_count": 29,
+      "params_summary": [
+        {
+          "key": "sig.entry_tf",
+          "label": "Khung điểm vào",
+          "default": "1h",
+          "type": "choice",
+          "group": "signal"
+        },
+        {
+          "key": "sig.rsi_n",
+          "label": "Chu kỳ RSI",
+          "default": 14,
+          "type": "int",
+          "group": "signal",
+          "range": [
+            2,
+            50
+          ]
+        },
+        {
+          "key": "sig.rsi_lo",
+          "label": "RSI quá bán",
+          "default": 30.0,
+          "type": "float",
+          "group": "signal",
+          "range": [
+            10.0,
+            45.0
+          ]
+        },
+        {
+          "key": "sig.bb_n",
+          "label": "Chu kỳ Bollinger",
+          "default": 20,
+          "type": "int",
+          "group": "signal",
+          "range": [
+            5,
+            100
+          ]
+        },
+        {
+          "key": "sig.bb_k",
+          "label": "Độ rộng Bollinger (k)",
+          "default": 2.0,
+          "type": "float",
+          "group": "signal",
+          "range": [
+            1.0,
+            4.0
+          ]
+        },
+        {
+          "key": "sig.regime_tf",
+          "label": "Khung chế độ thị trường",
+          "default": "4h",
+          "type": "choice",
+          "group": "signal"
+        },
+        {
+          "key": "sig.er_n",
+          "label": "Chu kỳ ER",
+          "default": 20,
+          "type": "int",
+          "group": "signal",
+          "range": [
+            5,
+            100
+          ]
+        },
+        {
+          "key": "sig.er_max",
+          "label": "Vào lệnh khi ER dưới",
+          "default": 0.35,
+          "type": "float",
+          "group": "signal",
+          "range": [
+            0.1,
+            0.7
+          ]
+        },
+        {
+          "key": "sig.adx_n",
+          "label": "Chu kỳ ADX",
+          "default": 14,
+          "type": "int",
+          "group": "signal",
+          "range": [
+            5,
+            50
+          ]
+        },
+        {
+          "key": "sig.gate_er_max",
+          "label": "Chỉ dồn khi ER dưới",
+          "default": 0.4,
+          "type": "float",
+          "group": "signal",
+          "range": [
+            0.1,
+            0.8
+          ]
+        },
+        {
+          "key": "sig.gate_adx_max",
+          "label": "Chỉ dồn khi ADX dưới",
+          "default": 25.0,
+          "type": "float",
+          "group": "signal",
+          "range": [
+            10.0,
+            50.0
+          ]
+        },
+        {
+          "key": "sig.gate_rsi",
+          "label": "Chỉ dồn khi RSI còn dưới",
+          "default": 101.0,
+          "type": "float",
+          "group": "signal",
+          "range": [
+            10.0,
+            101.0
+          ]
+        },
+        {
+          "key": "dca_step_pct",
+          "label": "Bước dồn lệnh",
+          "default": 1.0,
+          "type": "float",
+          "group": "dca",
+          "range": [
+            0.25,
+            4.0
+          ]
+        },
+        {
+          "key": "dca_max_layers",
+          "label": "Số tầng dồn tối đa",
+          "default": 3,
+          "type": "int",
+          "group": "dca",
+          "range": [
+            1,
+            6
+          ]
+        },
+        {
+          "key": "dca_size_multiplier",
+          "label": "Hệ số khối lượng tầng sau",
+          "default": 1.5,
+          "type": "float",
+          "group": "dca",
+          "range": [
+            1.0,
+            2.5
+          ]
+        },
+        {
+          "key": "stop_loss_rate",
+          "label": "Cắt lỗ",
+          "default": 6.0,
+          "type": "float",
+          "group": "exit",
+          "range": [
+            0.5,
+            10.0
+          ]
+        },
+        {
+          "key": "take_profit_rate",
+          "label": "Chốt lời",
+          "default": 1.5,
+          "type": "float",
+          "group": "exit",
+          "range": [
+            0.0,
+            10.0
+          ]
+        },
+        {
+          "key": "trailing_stop",
+          "label": "Trailing stop",
+          "default": 0.0,
+          "type": "float",
+          "group": "exit",
+          "range": [
+            0.0,
+            10.0
+          ]
+        },
+        {
+          "key": "trailing_activation_pct",
+          "label": "Bật trailing khi lãi",
+          "default": 0.0,
+          "type": "float",
+          "group": "exit",
+          "range": [
+            0.0,
+            5.0
+          ]
+        },
+        {
+          "key": "timeout",
+          "label": "Giữ lệnh tối đa",
+          "default": 4320,
+          "type": "int",
+          "group": "exit",
+          "range": [
+            0,
+            20160
+          ]
+        },
+        {
+          "key": "cooldown",
+          "label": "Nghỉ sau khi thoát",
+          "default": 60,
+          "type": "int",
+          "group": "exit",
+          "range": [
+            0,
+            1440
+          ]
+        },
+        {
+          "key": "atr_frame",
+          "label": "Khung tính ATR",
+          "default": "1h",
+          "type": "choice",
+          "group": "exit"
+        },
+        {
+          "key": "atr_period",
+          "label": "Chu kỳ ATR",
+          "default": 14,
+          "type": "int",
+          "group": "exit",
+          "range": [
+            5,
+            50
+          ]
+        },
+        {
+          "key": "sl_anchor",
+          "label": "Neo Stop Loss",
+          "default": "avg",
+          "type": "choice",
+          "group": "exit"
+        },
+        {
+          "key": "sl_beyond_last_pct",
+          "label": "% Lùi sau tầng DCA cuối",
+          "default": 0.0,
+          "type": "float",
+          "group": "exit",
+          "range": [
+            0.0,
+            10.0
+          ]
+        },
+        {
+          "key": "risk_per_trade_pct",
+          "label": "Rủi ro mỗi lệnh",
+          "default": 0.5,
+          "type": "float",
+          "group": "risk",
+          "range": [
+            0.05,
+            5.0
+          ]
+        },
+        {
+          "key": "max_notional_pct",
+          "label": "Trần danh nghĩa mỗi lệnh",
+          "default": 300.0,
+          "type": "float",
+          "group": "risk",
+          "range": [
+            50.0,
+            500.0
+          ]
+        },
+        {
+          "key": "leverage",
+          "label": "Trần đòn bẩy",
+          "default": 10,
+          "type": "int",
+          "group": "risk",
+          "range": [
+            1,
+            10
+          ]
+        },
+        {
+          "key": "risk_profile",
+          "label": "Họ quản lý rủi ro",
+          "default": "legacy",
+          "type": "choice",
+          "group": "risk"
+        }
+      ]
+    },
+    {
+      "id": "dca_short",
+      "side": "SHORT",
+      "family": "DCA (bắt hồi + dồn có điều kiện)",
+      "description": "RSI quá mua và giá trên dải Bollinger trên khi thị trường đi ngang → bán; giá tăng tiếp thì dồn thêm tầng theo bước ATR CHỈ khi vẫn đi ngang (ER, ADX thấp). Chốt lời và cắt lỗ cả rổ tính từ giá trung bình.",
+      "source": {
+        "file": "dca.py",
+        "sha256": "ad3a89909f4a98fcb8cbb13188fc4c0534b5618b56ea72ae41c6e67fb320b1d0",
+        "code_hash": "8df12be2560d"
+      },
+      "timeframe_params": [
+        "sig.entry_tf",
+        "sig.regime_tf"
+      ],
+      "has_dca": true,
+      "dca_params": {
+        "dca_step_pct": {
+          "default": 1.0,
+          "group": "dca"
+        },
+        "dca_max_layers": {
+          "default": 3,
+          "group": "dca"
+        },
+        "dca_size_multiplier": {
+          "default": 1.5,
+          "group": "dca"
+        }
+      },
+      "dca_gate_params": [
+        "sig.gate_er_max",
+        "sig.gate_adx_max",
+        "sig.gate_rsi"
+      ],
+      "position_effective": {
+        "exit_unit": {
+          "value": "atr",
+          "source": "strategy_file"
+        },
+        "atr_frame": {
+          "value": "1h",
+          "source": "strategy_file"
+        },
+        "cooldown": {
+          "value": 60,
+          "source": "strategy_file"
+        },
+        "sizing": {
+          "value": "risk",
+          "source": "BASE_POSITION"
+        },
+        "risk_per_trade_pct": {
+          "value": 0.5,
+          "source": "BASE_POSITION"
+        },
+        "max_notional_pct": {
+          "value": 300.0,
+          "source": "BASE_POSITION"
+        },
+        "market": {
+          "value": "perp",
+          "source": "BASE_POSITION"
+        },
+        "stop_fill": {
+          "value": "level",
+          "source": "BASE_POSITION"
+        }
+      },
+      "position_source_note": "exit_unit='atr' TUONG MINH trong file DSL.",
+      "executable": true,
+      "record_type": "system_strategy",
+      "params_schema_count": 29,
+      "params_summary": [
+        {
+          "key": "sig.entry_tf",
+          "label": "Khung điểm vào",
+          "default": "1h",
+          "type": "choice",
+          "group": "signal"
+        },
+        {
+          "key": "sig.rsi_n",
+          "label": "Chu kỳ RSI",
+          "default": 14,
+          "type": "int",
+          "group": "signal",
+          "range": [
+            2,
+            50
+          ]
+        },
+        {
+          "key": "sig.rsi_hi",
+          "label": "RSI quá mua",
+          "default": 70.0,
+          "type": "float",
+          "group": "signal",
+          "range": [
+            55.0,
+            90.0
+          ]
+        },
+        {
+          "key": "sig.bb_n",
+          "label": "Chu kỳ Bollinger",
+          "default": 20,
+          "type": "int",
+          "group": "signal",
+          "range": [
+            5,
+            100
+          ]
+        },
+        {
+          "key": "sig.bb_k",
+          "label": "Độ rộng Bollinger (k)",
+          "default": 2.0,
+          "type": "float",
+          "group": "signal",
+          "range": [
+            1.0,
+            4.0
+          ]
+        },
+        {
+          "key": "sig.regime_tf",
+          "label": "Khung chế độ thị trường",
+          "default": "4h",
+          "type": "choice",
+          "group": "signal"
+        },
+        {
+          "key": "sig.er_n",
+          "label": "Chu kỳ ER",
+          "default": 20,
+          "type": "int",
+          "group": "signal",
+          "range": [
+            5,
+            100
+          ]
+        },
+        {
+          "key": "sig.er_max",
+          "label": "Vào lệnh khi ER dưới",
+          "default": 0.35,
+          "type": "float",
+          "group": "signal",
+          "range": [
+            0.1,
+            0.7
+          ]
+        },
+        {
+          "key": "sig.adx_n",
+          "label": "Chu kỳ ADX",
+          "default": 14,
+          "type": "int",
+          "group": "signal",
+          "range": [
+            5,
+            50
+          ]
+        },
+        {
+          "key": "sig.gate_er_max",
+          "label": "Chỉ dồn khi ER dưới",
+          "default": 0.4,
+          "type": "float",
+          "group": "signal",
+          "range": [
+            0.1,
+            0.8
+          ]
+        },
+        {
+          "key": "sig.gate_adx_max",
+          "label": "Chỉ dồn khi ADX dưới",
+          "default": 25.0,
+          "type": "float",
+          "group": "signal",
+          "range": [
+            10.0,
+            50.0
+          ]
+        },
+        {
+          "key": "sig.gate_rsi",
+          "label": "Chỉ dồn khi RSI còn trên",
+          "default": -1.0,
+          "type": "float",
+          "group": "signal",
+          "range": [
+            -1.0,
+            90.0
+          ]
+        },
+        {
+          "key": "dca_step_pct",
+          "label": "Bước dồn lệnh",
+          "default": 1.0,
+          "type": "float",
+          "group": "dca",
+          "range": [
+            0.25,
+            4.0
+          ]
+        },
+        {
+          "key": "dca_max_layers",
+          "label": "Số tầng dồn tối đa",
+          "default": 3,
+          "type": "int",
+          "group": "dca",
+          "range": [
+            1,
+            6
+          ]
+        },
+        {
+          "key": "dca_size_multiplier",
+          "label": "Hệ số khối lượng tầng sau",
+          "default": 1.5,
+          "type": "float",
+          "group": "dca",
+          "range": [
+            1.0,
+            2.5
+          ]
+        },
+        {
+          "key": "stop_loss_rate",
+          "label": "Cắt lỗ",
+          "default": 6.0,
+          "type": "float",
+          "group": "exit",
+          "range": [
+            0.5,
+            10.0
+          ]
+        },
+        {
+          "key": "take_profit_rate",
+          "label": "Chốt lời",
+          "default": 1.5,
+          "type": "float",
+          "group": "exit",
+          "range": [
+            0.0,
+            10.0
+          ]
+        },
+        {
+          "key": "trailing_stop",
+          "label": "Trailing stop",
+          "default": 0.0,
+          "type": "float",
+          "group": "exit",
+          "range": [
+            0.0,
+            10.0
+          ]
+        },
+        {
+          "key": "trailing_activation_pct",
+          "label": "Bật trailing khi lãi",
+          "default": 0.0,
+          "type": "float",
+          "group": "exit",
+          "range": [
+            0.0,
+            5.0
+          ]
+        },
+        {
+          "key": "timeout",
+          "label": "Giữ lệnh tối đa",
+          "default": 4320,
+          "type": "int",
+          "group": "exit",
+          "range": [
+            0,
+            20160
+          ]
+        },
+        {
+          "key": "cooldown",
+          "label": "Nghỉ sau khi thoát",
+          "default": 60,
+          "type": "int",
+          "group": "exit",
+          "range": [
+            0,
+            1440
+          ]
+        },
+        {
+          "key": "atr_frame",
+          "label": "Khung tính ATR",
+          "default": "1h",
+          "type": "choice",
+          "group": "exit"
+        },
+        {
+          "key": "atr_period",
+          "label": "Chu kỳ ATR",
+          "default": 14,
+          "type": "int",
+          "group": "exit",
+          "range": [
+            5,
+            50
+          ]
+        },
+        {
+          "key": "sl_anchor",
+          "label": "Neo Stop Loss",
+          "default": "avg",
+          "type": "choice",
+          "group": "exit"
+        },
+        {
+          "key": "sl_beyond_last_pct",
+          "label": "% Lùi sau tầng DCA cuối",
+          "default": 0.0,
+          "type": "float",
+          "group": "exit",
+          "range": [
+            0.0,
+            10.0
+          ]
+        },
+        {
+          "key": "risk_per_trade_pct",
+          "label": "Rủi ro mỗi lệnh",
+          "default": 0.5,
+          "type": "float",
+          "group": "risk",
+          "range": [
+            0.05,
+            5.0
+          ]
+        },
+        {
+          "key": "max_notional_pct",
+          "label": "Trần danh nghĩa mỗi lệnh",
+          "default": 300.0,
+          "type": "float",
+          "group": "risk",
+          "range": [
+            50.0,
+            500.0
+          ]
+        },
+        {
+          "key": "leverage",
+          "label": "Trần đòn bẩy",
+          "default": 10,
+          "type": "int",
+          "group": "risk",
+          "range": [
+            1,
+            10
+          ]
+        },
+        {
+          "key": "risk_profile",
+          "label": "Họ quản lý rủi ro",
+          "default": "legacy",
+          "type": "choice",
+          "group": "risk"
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "system_legs": 6,
+    "strategies": 3,
+    "user_records": 4,
+    "research_files": 1,
+    "top_agent_bots": 10,
+    "book_exists": true
+  },
+  "position_contract_notes": {
+    "BASE_POSITION_exit_unit": "atr",
+    "BASE_POSITION_atr_frame": "auto",
+    "BASE_POSITION_cooldown": "auto",
+    "note": "Kema/Sideway khong khai bao exit_unit trong DSL; ke thua BASE_POSITION. DCA khai bao tuong minh exit_unit='atr', atr_frame='1h'. Regression can xac nhan engine nhan dung gia tri qua API."
+  },
+  "top_agent_note": "Top Agent la snapshot bao cao OKX. Khong co code executable. Khong promote/chay bot tu day khi chua co code+contract+kiem chung rieng."
+}

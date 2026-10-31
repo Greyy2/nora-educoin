@@ -4,10 +4,19 @@
   "include": [
     "nora"
   ],
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    "**/.pytest_cache",
+    "**/dist",
+    "**/legacy_monolith_archive"
+  ],
   "extraPaths": [
+    "/home/vmc03/norabt",
     "/home/vmc03/norabt/nora",
     "/home/vmc03/norabt/nora/edu",
-    "/home/vmc03/norabt/nora/coin"
+    "/home/vmc03/norabt/nora/coin",
+    "/home/vmc03/norabt/nora/scripts"
   ],
   "executionEnvironments": [
     {

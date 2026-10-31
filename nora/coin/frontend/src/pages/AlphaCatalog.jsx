@@ -419,6 +419,11 @@ function Card({ s, onOpen }) {
             Alpha người dùng
           </span>
         )}
+        {s.isTopAgent && (
+          <span className="n-badge" style={{ background: 'rgba(234, 179, 8, 0.15)', color: 'var(--n-warn, #eab308)', fontWeight: 600 }}>
+            Tham khảo OKX
+          </span>
+        )}
         {s.isTopAgent && s.summary?.leverage && (
           <span className="n-badge">{s.summary.leverage}x</span>
         )}
@@ -561,6 +566,17 @@ export default function AlphaCatalog() {
   const allStrategies = [...noraStrategies, ...topAgentStrategies]
   const picked = open && allStrategies.find((x) => x.key === open)
 
+  const nCore = allStrategies.filter((s) => !s.is_user_alpha && !s.isTopAgent).length
+  const nUser = allStrategies.filter((s) => s.is_user_alpha).length
+  const nRef = allStrategies.filter((s) => s.isTopAgent).length
+
+  const filteredList = allStrategies.filter((s) => {
+    if (filter === 'core') return !s.is_user_alpha && !s.isTopAgent
+    if (filter === 'user') return !!s.is_user_alpha
+    if (filter === 'reference') return !!s.isTopAgent
+    return true
+  })
+
   return (
     <>
       <PageHead
@@ -569,71 +585,57 @@ export default function AlphaCatalog() {
         subtitle="Danh mục toàn bộ Alpha: mô tả ý tưởng, bộ tham số cấu hình, quy tắc thực thi và công thức toán học định lượng."
       />
       {q.error && <ErrorState title="Không tải được thư viện chiến lược" error={q.error} onRetry={q.reload} />}
-      {q.loading && !q.data && <Loading what="thư viện chiến lược" />}
+      {qAgents.error && <ErrorState title="Không tải được dữ liệu Top agent" error={qAgents.error} onRetry={qAgents.reload} />}
+      {(q.loading && !q.data) || (qAgents.loading && !qAgents.data) ? (
+        <Loading what="thư viện chiến lược" />
+      ) : null}
 
-      {/* Chiến lược của Nora */}
-      {sources.map((src) => {
-        const rawList = src.strategies || []
-        const filteredList = rawList.filter((s) => {
-          if (filter === 'user') return !!s.is_user_alpha
-          if (filter === 'core') return !s.is_user_alpha
-          return true
-        })
-        const nUser = rawList.filter((s) => s.is_user_alpha).length
-        const nCore = rawList.filter((s) => !s.is_user_alpha).length
-
-        return (
-          <Panel
-            key={src.key}
-            title={src.label}
-            meta={
-              <Segmented
-                label="Lọc nhóm"
-                value={filter === 'verified' ? 'all' : filter}
-                onChange={setFilter}
-                options={[
-                  { value: 'all', label: `Tất cả (${rawList.length})` },
-                  { value: 'core', label: `Chiến lược hệ thống (${nCore})` },
-                  { value: 'user', label: `Alpha người dùng (${nUser})` },
-                ]}
-              />
-            }
-          >
-            {!filteredList.length ? (
-              <Empty title={filter === 'user' ? 'Chưa có Alpha người dùng nào được lưu' : 'Chưa có chiến lược phù hợp bộ lọc'} />
-            ) : (
-              <div className="n-ad-grid">
-                {filteredList.map((s) => (
-                  <Card key={s.key} s={s} onOpen={() => setOpen(s.key)} />
-                ))}
-              </div>
-            )}
-          </Panel>
-        )
-      })}
-
-      {/* Mục bên dưới: Top agent trade */}
       <Panel
-        title="Top agent trade"
-        meta={<span>{topAgentStrategies.length} chiến lược bot OKX</span>}
+        title="Danh mục chiến lược & Alpha"
+        meta={
+          <Segmented
+            label="Lọc nhóm"
+            value={filter === 'verified' ? 'all' : filter}
+            onChange={setFilter}
+            options={[
+              { value: 'all', label: `Tất cả (${allStrategies.length})` },
+              { value: 'core', label: `Chiến lược hệ thống (${nCore})` },
+              { value: 'user', label: `Alpha người dùng (${nUser})` },
+              { value: 'reference', label: `Bot tham khảo OKX (${nRef})` },
+            ]}
+          />
+        }
       >
-        <p className="muted" style={{ margin: '0 0 12px 0', fontSize: '13px', lineHeight: '1.5' }}>
-          Chiến lược giao dịch của các bot copy-trade hàng đầu trên sàn OKX. Bao gồm quy tắc quản trị vị thế, công thức thoát lệnh (TP, SL, Trailing, Hoà vốn) và thống kê hiệu suất thực tế.
-        </p>
-        {qAgents.loading && !qAgents.data && <Loading what="danh sách Top agent trade" />}
-        {qAgents.error && <ErrorState title="Không tải được dữ liệu Top agent" error={qAgents.error} onRetry={qAgents.reload} />}
-        {!qAgents.loading && topAgentStrategies.length === 0 && <Empty title={qAgents.data?.reason || 'Chưa có dữ liệu bot'} />}
-        {topAgentStrategies.length > 0 && <TopAgentProvenance prov={qAgents.data?.provenance} />}
-        {topAgentStrategies.length > 0 && (
+        {filter === 'reference' && (
+          <p className="muted" style={{ margin: '0 0 12px 0', fontSize: '13px', lineHeight: '1.5' }}>
+            Chiến lược giao dịch của các bot copy-trade hàng đầu trên sàn OKX (dùng cho tham khảo & đối sánh mô hình).
+          </p>
+        )}
+        {(filter === 'reference' || (filter === 'all' && topAgentStrategies.length > 0)) && (
+          <div style={{ marginBottom: 12 }}>
+            <TopAgentProvenance prov={qAgents.data?.provenance} />
+          </div>
+        )}
+        {!filteredList.length ? (
+          <Empty
+            title={
+              filter === 'user'
+                ? 'Chưa có Alpha người dùng nào được lưu'
+                : filter === 'reference'
+                ? (qAgents.data?.reason || 'Chưa có dữ liệu bot tham khảo')
+                : 'Chưa có chiến lược phù hợp bộ lọc'
+            }
+          />
+        ) : (
           <div className="n-ad-grid">
-            {topAgentStrategies.map((s) => (
+            {filteredList.map((s) => (
               <Card key={s.key} s={s} onOpen={() => setOpen(s.key)} />
             ))}
           </div>
         )}
       </Panel>
 
-      {picked && <StrategyDoc s={picked} onClose={() => setOpen(null)} onReload={q.reload} />}
+      {picked && <StrategyDoc s={picked} onClose={() => setOpen(null)} onReload={() => { q.reload(); qAgents.reload() }} />}
     </>
   )
 }

@@ -11,7 +11,7 @@ export function useRunDefaults() {
   const defaults = useMemo(() => (d.data
     ? { start: d.data.start, end: d.data.end, train_ratio: str(d.data.train_ratio), capital: str(d.data.initial_capital), symbols: d.data.symbols || [] }
     : {}), [d.data])
-  return { defaults, universe: d.data?.symbols || [], loading: d.loading, error: d.error }
+  return { defaults, universe: d.data?.available_symbols || d.data?.symbols || [], loading: d.loading, error: d.error }
 }
 
 // Form hiệu lực = mặc định ← trường người dùng đã chỉnh trong phiên (bộ nhớ, không còn localStorage).

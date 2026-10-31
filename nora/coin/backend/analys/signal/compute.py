@@ -645,12 +645,14 @@ class SignalPortfolio:
         return data_source(getattr(self, "data", None))
 
     def _make_slots(self, symbol: str, ledger: CapitalLedger) -> Tuple[SignalEngine, List[Tuple[Dict, SlotSpec]]]:
-        from backend.analys.param import build_params, manifest_pool_fee
+        from backend.analys.param import build_params, manifest_pool_fee, selected_market_cost_defaults
         eng = SignalEngine(0, 0, symbol, self.start_ts, self.end_ts, trade_start_ts=self.trade_start_ts,
                              initial_capital=self.initial_capital, base_frame=self.base_frame, data=getattr(self, "data", None))
         eng.ledger = ledger
         pairs = []
         pool_fee = None
+        market_costs = selected_market_cost_defaults(self.symbols) if self.venue == "cex" else {}
+        base = symbol.split("@")[0].split(":")[-1].split("-")[0].upper()
         for st in self.strategies:
             if st.get("symbols") and symbol not in st["symbols"]:
                 continue
@@ -659,8 +661,11 @@ class SignalPortfolio:
             name = f"{st['side']}_{st['id']}"
             if self.venue == "dex" and st["position"].get("fee_rate") is None and pool_fee is None:   # phí pool đã xác minh (manifest)
                 pool_fee = manifest_pool_fee(self._src().manifest(symbol)) if symbol else None
-            eng.add_strategy_flow(name, build_params(name, _strategy_flow(st), st["side"], st["position"],
+            position = dict(st["position"])
+            for key, value in market_costs.get(base, {}).items():
+                if position.get(key) is None:
+                    position[key] = value
+            eng.add_strategy_flow(name, build_params(name, _strategy_flow(st), st["side"], position,
                                                      self.venue, pool_fee=pool_fee))
             pairs.append((st, eng.slots[-1]))
         return eng, pairs
-

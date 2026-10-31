@@ -22,6 +22,7 @@ import shutil
 import sqlite3
 import threading
 import time
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, Iterator, List, NamedTuple, Optional, Set, Tuple
 
 import numpy as np
@@ -47,7 +48,9 @@ MAX_DAYS = 4000
 
 def windows(symbols):
     """Cửa sổ dev1/dev2 (ms) theo dữ liệu thật của các tài sản: bắt đầu sau WARMUP, dev1 = 40%, dev2 đến 80%."""
-    ms = [read_manifest(s) for s in symbols]
+    ms = [m for s in symbols if (m := read_manifest(s)) is not None]
+    if not ms:
+        return {"start": 0, "dev1_end": 0, "dev2_end": 0, "end": 0}
     start = max(int(m["start_ts"]) for m in ms) + WARMUP
     end = min(int(m["end_ts"]) for m in ms)
     span = end - start
@@ -58,7 +61,7 @@ def execute(plan, start: int, end: int, initial_capital: float, close_at_end: bo
     """PortfolioEngine cho một Plan -> (get_results(), engine)."""
     from backend.core.engine import BacktestEngine, PortfolioEngine
     from backend.analys.alpha.code.plan import RiskConfig
-    BacktestEngine.MAX_BACKTEST_DAYS = max(BacktestEngine.MAX_BACKTEST_DAYS, MAX_DAYS)
+    setattr(BacktestEngine, "MAX_BACKTEST_DAYS", max(int(getattr(BacktestEngine, "MAX_BACKTEST_DAYS", 1100)), MAX_DAYS))
     eng = PortfolioEngine(plan.symbols, plan.strategies, start - WARMUP, end, trade_start_ts=start, initial_capital=initial_capital,
                           risk=RiskConfig.from_dict(plan.risk), venue=plan.venue, close_at_end=close_at_end, base_frame=plan.base_frame,
                           shared_dir=None)
@@ -88,10 +91,50 @@ def run_benchmark(program, a, plan, names: List[str], start: int, end: int, capi
     from backend.analys.metrics.trades import daily_series
     position = {**(program.position_overrides or {}), **(a.position or {})}
     taker = resolve_costs(plan.venue, "perp", position.get("fee_rate"), position.get("slippage_rate"), position.get("maker_fee_rate"))[0]
-    position.update(NO_EXIT_POSITION)
-    position.update(sizing="margin_pct", leverage=1, order_size_pct=100.0 / len(names) / (1.0 + taker) * (1.0 - 1e-9))
-    key = json.dumps([plan.symbols, program.timeframe, plan.base_frame, start, end, capital, data.get("source"), data.get("sha256_1m"), sorted(position.items())],
-                     sort_keys=True, default=str)
+    bench_position: Dict[str, Any] = dict(NO_EXIT_POSITION)
+    bench_position.update(
+        cooldown=0,
+        sizing="margin_pct",
+        leverage=1,
+        order_size_pct=100.0 / len(names) / (1.0 + taker) * (1.0 - 1e-9),
+        fee_rate=taker,
+    )
+    try:
+        import nautilus_trader
+        nt_version = getattr(nautilus_trader, "__version__", "1.0.0")
+    except Exception:
+        nt_version = "1.0.0"
+    bench_code_str = BENCH_CODE.format(tf=plan.base_frame)
+    bench_code_sha = hashlib.sha256(bench_code_str.encode("utf-8")).hexdigest()[:10]
+    runner_sha = "v2"
+    try:
+        p_runner = Path(__file__)
+        p_core = p_runner.parent.parent.parent / "core" / "backtest.py"
+        h_runner = hashlib.sha256(p_runner.read_bytes())
+        if p_core.is_file():
+            h_runner.update(p_core.read_bytes())
+        runner_sha = h_runner.hexdigest()[:10]
+    except Exception:
+        pass
+    BENCH_ENGINE_VERSION = f"nautilus-{nt_version}-nora-{runner_sha}-bench-{bench_code_sha}"
+    content_hash = data.get("content_sha256_1m") or data.get("sha256_1m")
+    if content_hash:
+        data_fingerprint = f"content_sha256:{json.dumps(content_hash, sort_keys=True) if isinstance(content_hash, dict) else str(content_hash)}"
+    else:
+        # Fallback rõ ràng kèm nhãn fallback để không nhầm lẫn với content sha256
+        data_fingerprint = f"catalog_fallback:{data.get('catalog_digest') or data.get('data_digest') or ''}"
+    norm_symbols = sorted(names)
+    key = json.dumps([
+        BENCH_ENGINE_VERSION,
+        norm_symbols,
+        plan.base_frame,
+        start,
+        end,
+        float(capital),
+        round(float(taker), 6),
+        data.get("source"),
+        data_fingerprint,
+    ], sort_keys=True, default=str)
     hit = _BENCH_CACHE.get(key)
     if hit is not None:
         if loaded is not None:
@@ -110,8 +153,8 @@ def run_benchmark(program, a, plan, names: List[str], start: int, end: int, capi
             return hit
         except Exception:
             pass
-    bench_prog = compile_code(BENCH_CODE.format(tf=program.timeframe))
-    bplan = build_plan(bench_prog, names, position=position, run_frame=plan.base_frame)
+    bench_prog = compile_code(BENCH_CODE.format(tf=plan.base_frame))
+    bplan = build_plan(bench_prog, names, position=bench_position, run_frame=plan.base_frame)
     bplan.risk = {"max_positions": max(1, len(names)), "max_per_symbol": 1, "max_gross_exposure": 1e6, "kill_switch_dd_pct": 0.0, "max_open_risk_pct": 0.0, "dd_throttle_pct": 0.0}
     res, _ = execute(bplan, start, end, capital, loaded=loaded) if loaded is not None else execute(bplan, start, end, capital)
     ser = daily_series(res["equity_curve"], start, end, FRAME_MS[bplan.base_frame], capital)
@@ -204,9 +247,8 @@ def run(items, symbols, start, end, rpt, stop_fill, risk, extra_strategies=None,
         spot = dex.SPOT_POSITION
     strategies = [materialize(by_id[cid], lift_frames(by_id[cid], prm, base_frame), regime=regime, stop_fill=stop_fill,
                               risk_per_trade_pct=rpt, **spot) for cid, prm in items]
-    strategies += list(extra_strategies or [])
     t0 = time.time()
-    kw = {} if initial_capital is None else {"initial_capital": float(initial_capital)}
+    kw: Dict[str, Any] = {} if initial_capital is None else {"initial_capital": float(initial_capital)}
     eng = PortfolioEngine(symbols, strategies, start - warmup, end, trade_start_ts=start, risk=RiskConfig.from_dict(risk),
                           close_at_end=close_at_end, base_frame=base_frame, venue=venue, **kw)
     with contextlib.redirect_stdout(io.StringIO()):
@@ -284,20 +326,20 @@ def paths(p: Dict[str, Any]) -> Set[str]:
     return out
 
 
-def plan(eng: "BacktestEngine") -> Optional[Dict[str, Any]]:
+def plan(eng: Any) -> Optional[Dict[str, Any]]:
     from backend.analys.signal.signal import lag_key
     from backend.analys.signal.compute import slot_fresh_frames, needs_minute_path
     m = read_manifest(eng.symbol)
     if not m:
         return None
     d_hash = m.get("sha256_1m") or hashlib.sha1(f"{m.get('start_ts')}_{m.get('end_ts')}".encode()).hexdigest()[:16]
-    has_minute = bool(needs_minute_path(eng))
+    has_minute = needs_minute_path(eng)
 
-    base_key = hashlib.sha1(f"v{FORMAT_VERSION}|{eng.symbol}|{eng.base_frame}|{d_hash}|{int(eng.start_ts)}|{int(eng.end_ts)}|m:{has_minute}".encode()).hexdigest()
+    base_key = hashlib.sha1(f"v{FORMAT_VERSION}|{eng.symbol}|{eng.base_frame}|{d_hash}|{eng.start_ts}|{eng.end_ts}|m:{has_minute}".encode()).hexdigest()
     refs = eng._refs_by_frame()
     frames = {}
     for fr in sorted(refs):
-        t_key = hashlib.sha1(f"{eng.symbol}|{fr}|t|{d_hash}|{int(eng.end_ts)}".encode()).hexdigest()
+        t_key = hashlib.sha1(f"{eng.symbol}|{fr}|t|{d_hash}|{eng.end_ts}".encode()).hexdigest()
         ix_key = hashlib.sha1(f"{eng.symbol}|{fr}|ix|{eng.base_frame}|{d_hash}|{base_key}".encode()).hexdigest()
         frames[fr] = {"t": t_key, "ix": ix_key}
     cols = {}
@@ -380,16 +422,18 @@ def _write_base(out_dir: str, key: str, symbol: str, data: Dict[str, Any]) -> No
             raise
 
 
-def fill(out_dir: str, pe: "PortfolioEngine", eng: "BacktestEngine", p: Dict[str, Any]) -> Dict[str, int]:
+def fill(out_dir: str, pe: "PortfolioEngine", eng: Any, p: Dict[str, Any]) -> Dict[str, int]:
     from backend.analys.signal.signal import lag_key
     wrote = {"base": 0, "cols": 0, "frames": 0, "index": 0}
-    if load_base(out_dir, p) is None:
+    loaded_b = load_base(out_dir, p)
+    if loaded_b is None:
         sym_data = pe._build_symbol_data(eng, only=set())
         if p.get("minute") and "minute" not in sym_data and hasattr(eng, "minute_path"):
             sym_data["minute"] = eng.minute_path(sym_data["t"])
         _write_base(out_dir, p["base"], eng.symbol, sym_data)
         wrote["base"] = 1
-    base_t = load_base(out_dir, p)["t"]
+        loaded_b = sym_data
+    base_t = loaded_b["t"] if loaded_b is not None else np.array([])
     refs = eng._refs_by_frame()
     loaded = False
     for frame, f in p["frames"].items():
@@ -475,6 +519,8 @@ def release_memory() -> None:
 
 def export_job(job: BacktestJob) -> List[str]:
     eng, _ = make_engine(job)
+    if not job.shared_dir:
+        return []
     info = export(eng, job.shared_dir)
     release_memory()
     return sorted(info["paths"])
@@ -483,7 +529,7 @@ def export_job(job: BacktestJob) -> List[str]:
 class SharedExporter:
     def __init__(self, shared_dir: Optional[str], label: str = "", workers: int = 1,
                  to_job: Optional[Callable[[Any], BacktestJob]] = None):
-        self.shared_dir, self.label, self.workers, self.to_job = shared_dir, label, max(1, int(workers)), to_job
+        self.shared_dir, self.label, self.workers, self.to_job = shared_dir, label, max(1, workers), to_job
         self.seen: Set[Tuple] = set()
         self.t0 = time.time()
 
@@ -556,7 +602,8 @@ def code_version() -> str:
     if _CODE_VERSION is None:
         root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
         try:
-            from backend.nautilus.version import NAUTILUS_VERSION
+            import nautilus_trader
+            NAUTILUS_VERSION = getattr(nautilus_trader, "__version__", "0.0.0")
         except Exception:
             NAUTILUS_VERSION = "0.0.0"
         h = hashlib.sha1(f"v{FORMAT_VERSION}|nautilus {NAUTILUS_VERSION}".encode())
@@ -685,6 +732,17 @@ def run_book_backtest(*args, **kwargs):
 def education_warm(*args, **kwargs):
     from backend.jobs.tasks import education_warm as _fn
     return _fn(*args, **kwargs)
+
+
+if TYPE_CHECKING:
+    from backend.jobs.runner.wfa import (
+        run_portfolio_wfa,
+        candidates_from_report,
+        candidates_from_ids,
+        candidates_from_list,
+        ResultsStore,
+        stream_stage,
+    )
 
 
 __all__ = [

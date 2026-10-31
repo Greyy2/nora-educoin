@@ -3,11 +3,13 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { eduUserCached, getEduUser } from '../../api'
 import { Spinner } from '../../components/ui'
 import { fmtNum, isNum } from '../../lib/format'
+import { useUser } from '../../meta/UserProvider'
 import { Avatar, Stat, cardStyle, usd, pct, spct, tone } from './eduUi'
 
 export default function EduUser() {
   const { handle } = useParams()
   const nav = useNavigate()
+  const { me } = useUser()
   const [data, setData] = useState(() => eduUserCached(handle) || null)
   const [error, setError] = useState(null)
 
@@ -19,6 +21,7 @@ export default function EduUser() {
   if (error) return <div style={{ maxWidth: 1100, margin: '0 auto', padding: 24 }}><div className="n-err">{error}</div></div>
   if (!data) return <div style={{ textAlign: 'center', padding: 48 }}><Spinner /></div>
   const { user, summary, strategies } = data
+  const isOwner = Boolean(data.is_owner ?? (me && (me.id === user.id || me.handle === user.handle)))
 
   return (
     <div style={{ maxWidth: 1160, margin: '0 auto', padding: '32px 24px', fontFamily: 'inherit' }}>
@@ -37,19 +40,26 @@ export default function EduUser() {
           {user.bio && <div style={{ fontSize: 13.5, color: 'var(--n-ink-2)', marginTop: 8, lineHeight: 1.5 }}>{user.bio}</div>}
         </div>
         <div style={{ display: 'flex', gap: 24, background: 'var(--n-surface-2)', padding: '14px 20px', borderRadius: 12, border: '1px solid var(--n-line)' }}>
-          <Stat label="Chiến lược" value={summary.n_strategies} />
+          <Stat label={isOwner ? "Chiến lược" : "Chiến lược công khai"} value={strategies.length} />
           <div style={{ width: 1, background: 'var(--n-line)' }} />
-          <Stat label="Tổng PnL" value={usd(summary.total_pnl_usd)} color={tone(summary.total_pnl_usd)} />
+          <Stat label={isOwner ? "Tổng PnL" : "Lợi nhuận nổi bật"} value={isOwner ? usd(summary.total_pnl_usd) : spct(strategies[0]?.ret_pct)} color={isOwner ? tone(summary.total_pnl_usd) : tone(strategies[0]?.ret_pct)} />
           <div style={{ width: 1, background: 'var(--n-line)' }} />
           <Stat label="Max Drawdown" value={pct(summary.max_mdd_pct)} color={summary.max_mdd_pct != null ? 'var(--n-neg)' : undefined} />
         </div>
       </div>
 
       {/* Bảng danh sách chiến lược */}
-      <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ marginBottom: 16, display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: 'var(--n-ink)' }}>
-          Danh sách thuật toán & chiến lược ({strategies.length})
+          {isOwner
+            ? `Danh sách thuật toán & chiến lược (${strategies.length})`
+            : `Chiến lược nổi bật nhất (${strategies.length})`}
         </h2>
+        {!isOwner && (
+          <span style={{ fontSize: 12, color: 'var(--n-ink-2)', background: 'var(--n-surface-2)', padding: '4px 10px', borderRadius: 6, border: '1px solid var(--n-line)' }}>
+            🔒 Theo quy tắc Market: Người xem chỉ thấy 1 alpha tốt nhất của tác giả khác
+          </span>
+        )}
       </div>
 
       {strategies.length === 0 ? (

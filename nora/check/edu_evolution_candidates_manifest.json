@@ -1,0 +1,417 @@
+{
+  "timestamp": "2026-10-27T15:53:21Z",
+  "protocol_version": "EDU_EVO_PROTOCOL_v1.0",
+  "protocol_sha256": "f9c9fd407e24c141f8349e7eedea0d6900ed66469bd5d6ef7b1ac4819252dfbb",
+  "total_parent_alphas": 23,
+  "total_candidates": 29,
+  "candidates": {
+    "0d51ba8d2012": {
+      "parent_name": "OBV Volume Accumulation + RSI Momentum",
+      "is_vinh": false,
+      "assigned_categories": [
+        "signal/entry"
+      ],
+      "is_low_sample": false,
+      "variants": [
+        {
+          "candidate_id": "0d51ba8d2012_c1_risk_sl",
+          "file": "nora/check/candidates/0d51ba8d2012/0d51ba8d2012_c1_risk_sl.json",
+          "hypothesis_type": "sizing_and_risk_control",
+          "code_sha256": "80ec2d3ee8b5cca4b1eee01d770d94464449a28a92feeab1fd20146771d2cbeb"
+        },
+        {
+          "candidate_id": "0d51ba8d2012_c2_trend_filter",
+          "file": "nora/check/candidates/0d51ba8d2012/0d51ba8d2012_c2_trend_filter.json",
+          "hypothesis_type": "trend_filter",
+          "code_sha256": "facf1d383dd587876df570a47bb5774b5b5d174538688c5e675f45c95aea4020"
+        }
+      ]
+    },
+    "14e3b934b1e5": {
+      "parent_name": "ROC Momentum Exhaustion with Take-Profit",
+      "is_vinh": false,
+      "assigned_categories": [
+        "signal/entry"
+      ],
+      "is_low_sample": false,
+      "variants": [
+        {
+          "candidate_id": "14e3b934b1e5_c1_risk_sl",
+          "file": "nora/check/candidates/14e3b934b1e5/14e3b934b1e5_c1_risk_sl.json",
+          "hypothesis_type": "sizing_and_risk_control",
+          "code_sha256": "9998f3968abda085e756228c6e3e1bf8e48979e831b7437c9bfae30da7b85fa5"
+        }
+      ]
+    },
+    "15567e02a806": {
+      "parent_name": "Triple EMA Trend Alignment (Optimized)",
+      "is_vinh": false,
+      "assigned_categories": [
+        "signal/entry"
+      ],
+      "is_low_sample": false,
+      "variants": [
+        {
+          "candidate_id": "15567e02a806_c1_risk_sl",
+          "file": "nora/check/candidates/15567e02a806/15567e02a806_c1_risk_sl.json",
+          "hypothesis_type": "sizing_and_risk_control",
+          "code_sha256": "4e138a0a0f68bcc98b9dec19ad5fa03e155fd44ee9b33d0855e262c6798bf5da"
+        }
+      ]
+    },
+    "18e87aa868ad": {
+      "parent_name": "Fast Dynamic Channel Breakout (18D + Macro Trend)",
+      "is_vinh": false,
+      "assigned_categories": [
+        "signal/entry"
+      ],
+      "is_low_sample": false,
+      "variants": [
+        {
+          "candidate_id": "18e87aa868ad_c1_risk_sl",
+          "file": "nora/check/candidates/18e87aa868ad/18e87aa868ad_c1_risk_sl.json",
+          "hypothesis_type": "sizing_and_risk_control",
+          "code_sha256": "75f39d947a199cc3bf6a5426bc19b67f1d254eaebceba4f00edfcaddf133fb5f"
+        }
+      ]
+    },
+    "270e6e28416f": {
+      "parent_name": "EMA Trend Rider (Rising Slope - Optimized)",
+      "is_vinh": false,
+      "assigned_categories": [
+        "low-sample"
+      ],
+      "is_low_sample": true,
+      "variants": [],
+      "status": "SKIPPED_LOW_SAMPLE",
+      "notes": "Alpha có 13 trades trong 3 năm (< 20 trades). Thuộc diện INSUFFICIENT_SAMPLE, không được sweep tham số."
+    },
+    "3cfcc2d296a2": {
+      "parent_name": "Donchian Lower Channel Exit",
+      "is_vinh": false,
+      "assigned_categories": [
+        "signal/entry"
+      ],
+      "is_low_sample": false,
+      "variants": [
+        {
+          "candidate_id": "3cfcc2d296a2_c1_risk_sl",
+          "file": "nora/check/candidates/3cfcc2d296a2/3cfcc2d296a2_c1_risk_sl.json",
+          "hypothesis_type": "sizing_and_risk_control",
+          "code_sha256": "b7506147bc06800fc115d7fafb29fc6e8ee05c0169b02d11f1f687e1f3c71774"
+        }
+      ]
+    },
+    "4f28285aa44c": {
+      "parent_name": "Dual EMA + ADX Trend Strength Filter",
+      "is_vinh": false,
+      "assigned_categories": [
+        "low-sample"
+      ],
+      "is_low_sample": true,
+      "variants": [],
+      "status": "SKIPPED_LOW_SAMPLE",
+      "notes": "Alpha có 10 trades trong 3 năm (< 20 trades). Thuộc diện INSUFFICIENT_SAMPLE, không được sweep tham số."
+    },
+    "541c55834f56": {
+      "parent_name": "Daily Range Expansion (High - Low) / Close",
+      "is_vinh": false,
+      "assigned_categories": [
+        "signal/entry"
+      ],
+      "is_low_sample": false,
+      "variants": [
+        {
+          "candidate_id": "541c55834f56_c1_risk_sl",
+          "file": "nora/check/candidates/541c55834f56/541c55834f56_c1_risk_sl.json",
+          "hypothesis_type": "sizing_and_risk_control",
+          "code_sha256": "d6257b75054fdcbdb3d6fa9b29a52ac7b61868041b6d93fa59046be03c143789"
+        },
+        {
+          "candidate_id": "541c55834f56_c2_trend_filter",
+          "file": "nora/check/candidates/541c55834f56/541c55834f56_c2_trend_filter.json",
+          "hypothesis_type": "trend_filter",
+          "code_sha256": "308554cb705ea594b2ab58543df9a11f45fa75e1b536cad0c4c89d001e883ba1"
+        }
+      ]
+    },
+    "5e52d3fdf71f": {
+      "parent_name": "Bollinger Band Overextension Exit",
+      "is_vinh": false,
+      "assigned_categories": [
+        "signal/entry"
+      ],
+      "is_low_sample": false,
+      "variants": [
+        {
+          "candidate_id": "5e52d3fdf71f_c1_risk_sl",
+          "file": "nora/check/candidates/5e52d3fdf71f/5e52d3fdf71f_c1_risk_sl.json",
+          "hypothesis_type": "sizing_and_risk_control",
+          "code_sha256": "3dc438e0ab770da0c664072c7d5449083204efa426b9481386808bda720d9c0c"
+        },
+        {
+          "candidate_id": "5e52d3fdf71f_c2_trend_filter",
+          "file": "nora/check/candidates/5e52d3fdf71f/5e52d3fdf71f_c2_trend_filter.json",
+          "hypothesis_type": "trend_filter",
+          "code_sha256": "aed72b0830d9538a43912600431afcb6adb8526e167123778a1b0ec213e1770a"
+        }
+      ]
+    },
+    "6afa7f774655": {
+      "parent_name": "RSI Rebound with Fast SMA Filter",
+      "is_vinh": false,
+      "assigned_categories": [
+        "signal/entry"
+      ],
+      "is_low_sample": false,
+      "variants": [
+        {
+          "candidate_id": "6afa7f774655_c1_risk_sl",
+          "file": "nora/check/candidates/6afa7f774655/6afa7f774655_c1_risk_sl.json",
+          "hypothesis_type": "sizing_and_risk_control",
+          "code_sha256": "181cdff3fa943a0ae4afbae3d253e1aad993b21f402f5db7b6ae15597109145b"
+        },
+        {
+          "candidate_id": "6afa7f774655_c2_trend_filter",
+          "file": "nora/check/candidates/6afa7f774655/6afa7f774655_c2_trend_filter.json",
+          "hypothesis_type": "trend_filter",
+          "code_sha256": "1b2ee3dc4ee46b7be24bf3f96f111f1ed953bb923c1aae15b3b8a60057223469"
+        }
+      ]
+    },
+    "715e56a6dd33": {
+      "parent_name": "Linear Regression Channel Deviation",
+      "is_vinh": false,
+      "assigned_categories": [
+        "signal/entry"
+      ],
+      "is_low_sample": false,
+      "variants": [
+        {
+          "candidate_id": "715e56a6dd33_c1_risk_sl",
+          "file": "nora/check/candidates/715e56a6dd33/715e56a6dd33_c1_risk_sl.json",
+          "hypothesis_type": "sizing_and_risk_control",
+          "code_sha256": "1772910c1256a39583d5c23266c22022b2c560ea8c4b86de729df56e511baa84"
+        },
+        {
+          "candidate_id": "715e56a6dd33_c2_trend_filter",
+          "file": "nora/check/candidates/715e56a6dd33/715e56a6dd33_c2_trend_filter.json",
+          "hypothesis_type": "trend_filter",
+          "code_sha256": "02bd7cc819bde994f8174078dd215ef3c86ce3040e5089bce5ac795d8013b073"
+        }
+      ]
+    },
+    "717c1890c59e": {
+      "parent_name": "Weighted Moving Average (WMA) Crossover (Optimized)",
+      "is_vinh": false,
+      "assigned_categories": [
+        "signal/entry"
+      ],
+      "is_low_sample": false,
+      "variants": [
+        {
+          "candidate_id": "717c1890c59e_c1_risk_sl",
+          "file": "nora/check/candidates/717c1890c59e/717c1890c59e_c1_risk_sl.json",
+          "hypothesis_type": "sizing_and_risk_control",
+          "code_sha256": "5189035eb06c1713d94891fa22b375d87f9fa7c189bef8aa5cb23f060005c160"
+        }
+      ]
+    },
+    "7f3486d63ca8": {
+      "parent_name": "Dual Oscillator Climax Exit",
+      "is_vinh": false,
+      "assigned_categories": [
+        "signal/entry"
+      ],
+      "is_low_sample": false,
+      "variants": [
+        {
+          "candidate_id": "7f3486d63ca8_c1_risk_sl",
+          "file": "nora/check/candidates/7f3486d63ca8/7f3486d63ca8_c1_risk_sl.json",
+          "hypothesis_type": "sizing_and_risk_control",
+          "code_sha256": "9d6be5acc45c92caabf05727c7f49370bf17ba5df8b9530810b8b1ec88edad46"
+        },
+        {
+          "candidate_id": "7f3486d63ca8_c2_trend_filter",
+          "file": "nora/check/candidates/7f3486d63ca8/7f3486d63ca8_c2_trend_filter.json",
+          "hypothesis_type": "trend_filter",
+          "code_sha256": "0557e1abbf8109bd4d9070497a93e7c8e73ca11470df505f662b7d9f989eafe2"
+        }
+      ]
+    },
+    "7f67e9aed0aa": {
+      "parent_name": "Stochastic & RSI Confluence System",
+      "is_vinh": false,
+      "assigned_categories": [
+        "signal/entry"
+      ],
+      "is_low_sample": false,
+      "variants": [
+        {
+          "candidate_id": "7f67e9aed0aa_c1_risk_sl",
+          "file": "nora/check/candidates/7f67e9aed0aa/7f67e9aed0aa_c1_risk_sl.json",
+          "hypothesis_type": "sizing_and_risk_control",
+          "code_sha256": "dd6ef02f27137c25cd74bc2e5aac68c4b93f5dbcba1fe7a1df87d7984b8aceb9"
+        },
+        {
+          "candidate_id": "7f67e9aed0aa_c2_trend_filter",
+          "file": "nora/check/candidates/7f67e9aed0aa/7f67e9aed0aa_c2_trend_filter.json",
+          "hypothesis_type": "trend_filter",
+          "code_sha256": "46eab385671147e01027ebf9c16072a7cd961c5098c4e965442ee1b2ff66cd29"
+        }
+      ]
+    },
+    "89379cc0ab52": {
+      "parent_name": "Stochastic Oscillator (%K, %D) Bull Cross",
+      "is_vinh": false,
+      "assigned_categories": [
+        "signal/entry"
+      ],
+      "is_low_sample": false,
+      "variants": [
+        {
+          "candidate_id": "89379cc0ab52_c1_risk_sl",
+          "file": "nora/check/candidates/89379cc0ab52/89379cc0ab52_c1_risk_sl.json",
+          "hypothesis_type": "sizing_and_risk_control",
+          "code_sha256": "c926dcbcef79672216b4ba2128a656ebdb11d07fd128c00fe553785ab8c08054"
+        },
+        {
+          "candidate_id": "89379cc0ab52_c2_trend_filter",
+          "file": "nora/check/candidates/89379cc0ab52/89379cc0ab52_c2_trend_filter.json",
+          "hypothesis_type": "trend_filter",
+          "code_sha256": "b5a7850fead95aca85b7ed8f0cd53e7dd650ad17cacd2633f57210de99535bbf"
+        }
+      ]
+    },
+    "b4b65cd3493f": {
+      "parent_name": "Commodity Channel Index (CCI) Snapback",
+      "is_vinh": false,
+      "assigned_categories": [
+        "signal/entry"
+      ],
+      "is_low_sample": false,
+      "variants": [
+        {
+          "candidate_id": "b4b65cd3493f_c1_risk_sl",
+          "file": "nora/check/candidates/b4b65cd3493f/b4b65cd3493f_c1_risk_sl.json",
+          "hypothesis_type": "sizing_and_risk_control",
+          "code_sha256": "cb711cdbf94655b31a1d19abac537ed121116855ae1c147219b74fb1c3c0d0df"
+        },
+        {
+          "candidate_id": "b4b65cd3493f_c2_trend_filter",
+          "file": "nora/check/candidates/b4b65cd3493f/b4b65cd3493f_c2_trend_filter.json",
+          "hypothesis_type": "trend_filter",
+          "code_sha256": "67edaff1ba35938f042d4c3286b1ed12061b6445571a17ce4f1e51864b13ba39"
+        }
+      ]
+    },
+    "b96bafe57445": {
+      "parent_name": "Normalized ATR (NATR) Volatility Breakout",
+      "is_vinh": false,
+      "assigned_categories": [
+        "signal/entry"
+      ],
+      "is_low_sample": false,
+      "variants": [
+        {
+          "candidate_id": "b96bafe57445_c1_risk_sl",
+          "file": "nora/check/candidates/b96bafe57445/b96bafe57445_c1_risk_sl.json",
+          "hypothesis_type": "sizing_and_risk_control",
+          "code_sha256": "d360a9b9a0a2a5e761dc59b513946334b93af038d031998b7f3e93f6bce826e3"
+        }
+      ]
+    },
+    "bf519617d973": {
+      "parent_name": "Double Exponential Moving Average (DEMA - Optimized)",
+      "is_vinh": false,
+      "assigned_categories": [
+        "low-sample"
+      ],
+      "is_low_sample": true,
+      "variants": [],
+      "status": "SKIPPED_LOW_SAMPLE",
+      "notes": "Alpha có 9 trades trong 3 năm (< 20 trades). Thuộc diện INSUFFICIENT_SAMPLE, không được sweep tham số."
+    },
+    "c33cc317bbeb": {
+      "parent_name": "Multi-Day Cumulative Return Dip Buying",
+      "is_vinh": false,
+      "assigned_categories": [
+        "signal/entry"
+      ],
+      "is_low_sample": false,
+      "variants": [
+        {
+          "candidate_id": "c33cc317bbeb_c1_risk_sl",
+          "file": "nora/check/candidates/c33cc317bbeb/c33cc317bbeb_c1_risk_sl.json",
+          "hypothesis_type": "sizing_and_risk_control",
+          "code_sha256": "c0cfe5fa0aa0712ba8cec7775b9bc4df4223b1e0ba8b766ff4a56836421ab7bb"
+        },
+        {
+          "candidate_id": "c33cc317bbeb_c2_trend_filter",
+          "file": "nora/check/candidates/c33cc317bbeb/c33cc317bbeb_c2_trend_filter.json",
+          "hypothesis_type": "trend_filter",
+          "code_sha256": "c61f6cfbbfd88f5bf9729cd51a07ea1d5d49bd2c324207b9b17c2b487172b187"
+        }
+      ]
+    },
+    "cb750cb1eb10": {
+      "parent_name": "EMA Golden Cross + Volume Spike Confluence",
+      "is_vinh": false,
+      "assigned_categories": [
+        "signal/entry"
+      ],
+      "is_low_sample": false,
+      "variants": [
+        {
+          "candidate_id": "cb750cb1eb10_c1_risk_sl",
+          "file": "nora/check/candidates/cb750cb1eb10/cb750cb1eb10_c1_risk_sl.json",
+          "hypothesis_type": "sizing_and_risk_control",
+          "code_sha256": "053c044b455f69e4c9c12a368576301112efc144380bbf95e9e3843ece7ab9e7"
+        }
+      ]
+    },
+    "f261549d9efa": {
+      "parent_name": "ROC Momentum Surge",
+      "is_vinh": false,
+      "assigned_categories": [
+        "signal/entry"
+      ],
+      "is_low_sample": false,
+      "variants": [
+        {
+          "candidate_id": "f261549d9efa_c1_risk_sl",
+          "file": "nora/check/candidates/f261549d9efa/f261549d9efa_c1_risk_sl.json",
+          "hypothesis_type": "sizing_and_risk_control",
+          "code_sha256": "f5c9e4eab0db3c107a15332f3454085b6943920cb86672de8719d27cc13a15c5"
+        }
+      ]
+    },
+    "f4e211e9510d": {
+      "parent_name": "Rolling 30-Day Multi-Week High Breakout",
+      "is_vinh": false,
+      "assigned_categories": [
+        "signal/entry"
+      ],
+      "is_low_sample": false,
+      "variants": [
+        {
+          "candidate_id": "f4e211e9510d_c1_risk_sl",
+          "file": "nora/check/candidates/f4e211e9510d/f4e211e9510d_c1_risk_sl.json",
+          "hypothesis_type": "sizing_and_risk_control",
+          "code_sha256": "7a90c74fabbb2a0a5a640db7c069d7ec693974bdc77bd57bda7478697f6be0b6"
+        }
+      ]
+    },
+    "fa9587a97fa9": {
+      "parent_name": "Trend Alignment Momentum (Optimized)",
+      "is_vinh": false,
+      "assigned_categories": [
+        "low-sample"
+      ],
+      "is_low_sample": true,
+      "variants": [],
+      "status": "SKIPPED_LOW_SAMPLE",
+      "notes": "Alpha có 16 trades trong 3 năm (< 20 trades). Thuộc diện INSUFFICIENT_SAMPLE, không được sweep tham số."
+    }
+  }
+}

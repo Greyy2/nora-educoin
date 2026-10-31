@@ -56,16 +56,16 @@ class ResearchStopSlippageFillModel(FillModel):
 
         from backend.adapter.contracts import APPROVED_RESEARCH_PROXY
 
-        base = instrument.id.symbol.value.split("-")[0].split("@")[0].upper()
-        rates = APPROVED_RESEARCH_PROXY["slippage_taker_bps_per_side"]
-        if base not in rates:
-            raise ValueError(f"{instrument.id}: no approved stop-slippage proxy")
-        multiplier = Decimal(str(APPROVED_RESEARCH_PROXY["stop_slippage_multiplier"]))
-        rate = Decimal(str(float(rates[base]))) * multiplier / Decimal("10000")
         bid_ref, ask_ref = best_bid.as_decimal(), best_ask.as_decimal()
-        if bid_ref <= 0 or ask_ref <= 0:
+        if bid_ref <= 0 or ask_ref < bid_ref:
             raise ValueError(f"{instrument.id}: invalid quote for stop-slippage fill")
         reference = (bid_ref + ask_ref) / Decimal("2")
+        multiplier = Decimal(str(APPROVED_RESEARCH_PROXY["stop_slippage_multiplier"]))
+        rate_tag = next((tag.split("=", 1)[1] for tag in order.tags if tag.startswith("SLIPPAGE_RATE=")), None)
+        rate = Decimal(rate_tag) if rate_tag is not None else (ask_ref - bid_ref) / (Decimal("2") * reference)
+        if rate < 0:
+            raise ValueError(f"{instrument.id}: negative stop-slippage rate")
+        rate *= multiplier
         increment = instrument.price_increment.as_decimal()
         is_sell = order.side == OrderSide.SELL
         raw = reference * (Decimal("1") - rate if is_sell else Decimal("1") + rate)
@@ -97,10 +97,11 @@ def _round_to_increment(value: Decimal, increment: Decimal, rounding: str) -> De
 
 
 def _open_quote_ticks(symbol: str, arrays: Dict[str, np.ndarray], instrument: Any, lo: int, hi: int,
-                      quote_model: Optional[Tuple[str, int]] = None) -> List[QuoteTick]:
+                      quote_model: Optional[Tuple[str, int]] = None, slippage_rate: float = 0.0) -> List[QuoteTick]:
     """Build research-only L1 quotes from candle opens for native Nautilus matching."""
     increment = instrument.price_increment.as_decimal()
     size = Quantity(Decimal("1000000"), instrument.size_precision)
+    rate = Decimal(str(max(0.0, float(slippage_rate))))
     ticks: List[QuoteTick] = []
     for idx in range(lo, hi):
         mid = Decimal(str(float(arrays["o"][idx])))
@@ -108,15 +109,9 @@ def _open_quote_ticks(symbol: str, arrays: Dict[str, np.ndarray], instrument: An
             slip = increment * quote_model[1]
             bid, ask = mid - slip, mid + slip
         else:
-            from backend.adapter.contracts import APPROVED_RESEARCH_PROXY
-            base = symbol.split("-")[0].split("@")[0].upper()
-            rates = APPROVED_RESEARCH_PROXY["slippage_taker_bps_per_side"]
-            if base not in rates:
-                raise ValueError(f"{symbol}: no approved research quote proxy")
-            rate = Decimal(str(float(rates[base]) / 10_000.0))
             bid = _round_to_increment(mid * (Decimal(1) - rate), increment, ROUND_FLOOR)
             ask = _round_to_increment(mid * (Decimal(1) + rate), increment, ROUND_CEILING)
-        if bid <= 0 or ask <= bid:
+        if bid <= 0 or ask < bid:
             raise ValueError(f"{symbol}: invalid synthetic quote around open price {mid}")
         ts = int(arrays["t"][idx]) * _NS_MS + 2
         ticks.append(QuoteTick(instrument.id, Price(bid, instrument.price_precision), Price(ask, instrument.price_precision),
@@ -128,6 +123,7 @@ class Feed(NamedTuple):
     symbol: str                 # ký hiệu catalog (đã chuẩn hoá) — khoá của `instruments`
     arrays: Dict[str, np.ndarray]
     weight: int = 1             # số slot xử lý mỗi nến của feed này (Coordinator.bar_done)
+    slippage_rate: float = 0.0
 
 
 def stream(eng: NautilusEngine, feeds: List[Feed], base_frame: str, instruments: Dict[str, Any],
@@ -150,7 +146,7 @@ def stream(eng: NautilusEngine, feeds: List[Feed], base_frame: str, instruments:
             if z > a:
                 bars += cat.bars_from_arrays(f.symbol, f.arrays, base_frame, instruments[f.symbol], a, z)
                 bars += _open_quote_ticks(f.symbol, f.arrays, instruments[f.symbol], a, z,
-                                          (quote_models or {}).get(f.symbol))
+                                          (quote_models or {}).get(f.symbol), f.slippage_rate)
                 ts_all.append(t[a:z] + fr)
                 w_all.append(np.full(z - a, f.weight, dtype=np.int64))
         if not bars:
@@ -168,12 +164,17 @@ def stream(eng: NautilusEngine, feeds: List[Feed], base_frame: str, instruments:
 def book_instruments(books: List[Dict[str, Any]], spec_of: Callable[[str], Dict[str, Any]]) -> Dict[str, Any]:
     """Instrument Nautilus của mỗi tài sản trong `books`, phí = phí maker/taker của slot (Nautilus tính hoa hồng từ instrument). spec_of(symbol) -> spec OKX."""
     fees: Dict[str, Tuple[float, float]] = {}
+    quote_settings: Dict[str, Tuple[str, int, float]] = {}
     for b in books:
         for e in b["entries"]:
             sp = e["slot"]
             f = (float(sp.maker_fee_rate), float(sp.fee_rate))
             if fees.setdefault(b["symbol"], f) != f:
                 raise ValueError(f"{b['symbol']}: các chiến lược trên cùng tài sản phải cùng phí maker/taker (Nautilus đặt phí trên instrument)")
+            quote = (str(getattr(sp, "slippage_mode", "rate")), int(getattr(sp, "slippage_ticks", 0) or 0),
+                     float(getattr(sp, "slippage_rate", 0.0) or 0.0))
+            if quote_settings.setdefault(b["symbol"], quote) != quote:
+                raise ValueError(f"{b['symbol']}: các chiến lược trên cùng tài sản phải cùng cấu hình quote slippage")
     return {sym: cat.build_instrument(sym, spec_of(sym), maker_fee=m, taker_fee=t) for sym, (m, t) in fees.items()}
 
 
@@ -211,7 +212,7 @@ class NautilusRun:
 
     # ── kiểm tra tham số mô phỏng được / không ──
     def _check_slots(self) -> None:
-        slip, thru, extreme, lev = set(), set(), set(), False
+        thru, extreme, lev = set(), set(), False
         paths, perp = set(), False
         for b in self.books:
             for e in b["entries"]:
@@ -219,8 +220,6 @@ class NautilusRun:
                 if sp.intrabar_path == "adverse_first":
                     raise ValueError(f"{e['strategy']}: intrabar_path='adverse_first' không được hỗ trợ trên Nautilus (chỉ ohlc / adaptive)")
                 paths.add(sp.intrabar_path)
-                if sp.slippage_rate > 0:
-                    slip.add(sp.slippage_rate)
                 if sp.limit_through > 0:
                     thru.add(sp.limit_through)
                 if sp.stop_fill == "extreme":
@@ -230,11 +229,6 @@ class NautilusRun:
         if len(paths) > 1:
             raise ValueError(f"Mọi chiến lược của một lần chạy phải cùng intrabar_path (Nautilus cấu hình theo venue), nhận {sorted(paths)}")
         self.adaptive = "adaptive" in paths
-        if slip:
-            self.warnings.append(
-                f"slot slippage_rate={sorted(slip)} không được áp dụng; backtest dùng proxy quote BTC/ETH đã duyệt "
-                "(chỉ phục vụ nghiên cứu, chưa phải slippage đo từ venue)"
-            )
         if thru:
             self.warnings.append(f"limit_through_pct={sorted(thru)} không được hỗ trợ: lệnh limit khớp khi giá chạm mức (không cần đi xuyên qua)")
         if extreme:
@@ -252,7 +246,7 @@ class NautilusRun:
         self._check_slots()
         self.warnings.append(
             "Market fills use native Nautilus matching against synthetic OHLC-open quotes "
-            "with the approved research spread proxy; quote depth, measured latency, account fee tier, "
+            "with selected-market research cost presets or explicit user overrides; quote depth, measured latency, account fee tier, "
             "funding, liquidation and venue-specific stop slippage are not verified. Stop-loss fills use a "
             "synthetic x2 proxy at the matching engine's current quote. Not eligible for promotion."
         )
@@ -286,7 +280,9 @@ class NautilusRun:
             for b in books
             if b["entries"] and str(getattr(b["entries"][0]["slot"], "slippage_mode", "rate")) == "fixed_ticks"
         }
-        stream(eng, [Feed(b["symbol"], ex[i], len(b["entries"])) for i, b in enumerate(books)],
+        stream(eng, [Feed(b["symbol"], ex[i], len(b["entries"]),
+                          float(getattr(b["entries"][0]["slot"], "slippage_rate", 0.0) or 0.0))
+                     for i, b in enumerate(books)],
                self.base, insts, on_chunk=co.set_grid, quote_models=quote_models)
         for s in slots:
             if getattr(s, "_pending_entry_data", None) is not None:

@@ -1,0 +1,91 @@
+{
+  "candidate_id": "f261549d9efa_c1_risk_sl",
+  "parent_aid": "f261549d9efa",
+  "parent_name": "ROC Momentum Surge",
+  "hypothesis": "Hạ rủi ro mỗi lệnh xuống 1.0% và nới stop loss lên 4.0% để tránh bị quét bởi nhiễu biến động nến ngày (intraday wicks).",
+  "hypothesis_type": "sizing_and_risk_control",
+  "code": "class RocSurgeStrategy(NoraStrategy):\n    \"\"\"\n    ROC là phần trăm thay đổi của giá so với n nến trước, tức tốc độ tăng. Khi\n    tốc độ vượt một ngưỡng dương, đà tăng đang tăng tốc.\n    \"\"\"\n    timeframe = \"24h\"\n\n    # Tham số chiến lược: đổi các số này rồi bấm Chạy để thấy kết quả mới\n    roc_period = 10\n    ema_period = 20\n    roc_enter_level = 5.0\n\n    # Vị thế và rủi ro (khai báo tường minh)\n    # Các trường *_pct là phần trăm, không phải bội số ATR.\n    stop_loss_pct = 4.0  # SL theo phần trăm giá vào lệnh; 2.5 tương đương 2.5%.\n    take_profit_pct = 0.0  # TP theo phần trăm giá vào lệnh; 0 = tắt.\n    trailing_stop_pct = 0.0  # Khoảng cách trailing theo phần trăm từ đỉnh/đáy kể từ khi vào lệnh; 0 = tắt.\n    trailing_activation_pct = 0.0  # ngưỡng lãi bật trailing, 0 = không dùng\n    timeout = 0  # số phút giữ lệnh tối đa, 0 = không dùng\n    risk_per_trade_pct = 1.0  # cỡ lệnh: % vốn chịu rủi ro tới mức cắt lỗ\n\n    def on_bar(self):\n\n        # Chỉ báo\n        roc = self.feat.roc(close, self.roc_period)\n        ema = ema(close, self.ema_period)\n\n        # Điều kiện vào / thoát lệnh\n        enter_sig = self.op.crossed_above_value(roc, self.roc_enter_level) & (close > ema)\n        exit_sig = self.op.crossed_below_value(roc, 0.0)\n\n        # Vị thế: 0 = không giữ, 1 = LONG; lệnh gọi sau ghi đè lệnh trước\n        self.close(exit_sig)\n        self.buy(enter_sig)\n",
+  "config": {
+    "symbols": [
+      "BTC",
+      "ETH",
+      "SOL",
+      "BNB",
+      "XRP",
+      "DOGE",
+      "ADA",
+      "AVAX",
+      "LINK",
+      "TRX"
+    ],
+    "data_symbols": [
+      "BTC@perp",
+      "ETH@perp",
+      "SOL@perp",
+      "BNB@perp",
+      "XRP@perp",
+      "DOGE@perp",
+      "ADA@perp",
+      "AVAX@perp",
+      "LINK@perp",
+      "TRX@perp"
+    ],
+    "start": "2023-10-06",
+    "end": "2026-10-03",
+    "train_ratio": 0.7,
+    "initial_capital": 10000.0,
+    "timeframe": "24h",
+    "run_frame": "24h",
+    "exchange": "okx",
+    "program": {
+      "name": "RocSurgeStrategy",
+      "legs": [
+        "LONG"
+      ],
+      "levels": [
+        0.0,
+        1.0
+      ],
+      "features": [
+        "ema",
+        "roc"
+      ],
+      "warmup_bars": 60
+    },
+    "risk": {
+      "max_positions": 8,
+      "max_per_symbol": 1,
+      "max_gross_exposure": 3.0,
+      "kill_switch_dd_pct": 30.0,
+      "max_open_risk_pct": 6.0,
+      "dd_throttle_pct": 5.0,
+      "dd_throttle_floor": 0.25
+    },
+    "strategies": [
+      "py_b591188a3137_long"
+    ],
+    "position": {
+      "market": "perp",
+      "leverage": 1,
+      "exit_unit": "pct",
+      "atr_frame": "24h",
+      "atr_period": 14,
+      "sizing": "risk",
+      "risk_per_trade_pct": 1.0,
+      "max_notional_pct": 300.0,
+      "stop_fill": "level",
+      "limit_through_pct": 0.0,
+      "cooldown": 1440,
+      "risk_profile": "legacy",
+      "sl_anchor": "",
+      "sl_beyond_last_pct": 0.0,
+      "stop_loss_rate": 4.0,
+      "take_profit_rate": 0.0,
+      "trailing_stop": 0.0,
+      "trailing_activation_pct": 0.0,
+      "timeout": 0
+    }
+  },
+  "code_sha256": "f5c9e4eab0db3c107a15332f3454085b6943920cb86672de8719d27cc13a15c5",
+  "config_sha256": "f7f4f9168237f1fb4365ecc004cfaa9db3d9157401fb6bbf2555509543ca487d"
+}

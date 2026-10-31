@@ -48,7 +48,7 @@ class StubDataSource:
         return self.spec
 
 
-def make_slot(symbol, stop_loss=0.0, pos_type=PositionType.LONG):
+def make_slot(symbol, stop_loss=0.0, pos_type=PositionType.LONG, slippage_rate=0.0003):
     params = StrategyParams(
         market="perp",
         leverage=1,
@@ -56,7 +56,7 @@ def make_slot(symbol, stop_loss=0.0, pos_type=PositionType.LONG):
         take_profit_rate=0.0,
         fee_rate=0.0005,
         maker_fee_rate=0.0002,
-        slippage_rate=0.0003,
+        slippage_rate=slippage_rate,
         order_size_pct=0.1,
         max_capital_usage=1.0,
     )
@@ -186,7 +186,8 @@ def test_edu_eth_short_stop_uses_coin_double_slippage_proxy(monkeypatch):
     )
 
     result = NautilusRun(
-        [make_book(symbol, times, [True, False, False, False], make_slot(symbol, stop_loss=5.0, pos_type=PositionType.SHORT))],
+        [make_book(symbol, times, [True, False, False, False],
+                   make_slot(symbol, stop_loss=5.0, pos_type=PositionType.SHORT, slippage_rate=0.0005))],
         10_000.0,
         make_risk(),
         0,
@@ -202,3 +203,27 @@ def test_edu_eth_short_stop_uses_coin_double_slippage_proxy(monkeypatch):
     assert fill["type"] == "STOP_MARKET"
     assert fill["avg_px"] == 106.11
     assert fill["ts_last"].value == 3 * frame_ms * 1_000_000
+
+
+def test_edu_unlisted_catalog_asset_uses_configured_slippage(monkeypatch):
+    monkeypatch.setattr(NautilusRun, "KEEP_REPORTS", True)
+    symbol = "AERO-USDT-SWAP"
+    frame_ms = 5 * 60_000
+    times = [0, frame_ms, 2 * frame_ms]
+    source = StubDataSource(symbol, times, [100.0] * 3, [101.0] * 3,
+                            [99.0] * 3, [100.0] * 3)
+
+    result = NautilusRun(
+        [make_book(symbol, times, [True, False, False],
+                   make_slot(symbol, slippage_rate=0.0007))],
+        10_000.0,
+        make_risk(),
+        0,
+        3 * frame_ms,
+        "5m",
+        True,
+        source,
+        execution_target="next_open",
+    ).run()
+
+    assert result["positions"][0].enter_price == 100.1

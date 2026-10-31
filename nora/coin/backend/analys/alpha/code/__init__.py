@@ -10,11 +10,21 @@ Thành phần:
 """
 from typing import Any, Dict, List, Optional
 
-from . import compile, contract, plan, route
+from . import compile, contract, plan, route, spec
 from .compile import compile_code, explain_program, is_nautilus_native
 from .contract import check_contract, suggest, DslError
 from .plan import Plan, RiskConfig, build_plan, aggregate_positions, display_name, resolve_run_frame
 from .route import classify
+from .spec import (
+    ALL_SPEC_KEYS,
+    OPTIONAL_SPEC_KEYS,
+    REQUIRED_SPEC_KEYS,
+    SCHEMA_VERSION,
+    canonical_spec_dict,
+    canonical_spec_hash,
+    canonical_spec_json,
+    validate_candidate_spec,
+)
 
 
 def code_to_plan(

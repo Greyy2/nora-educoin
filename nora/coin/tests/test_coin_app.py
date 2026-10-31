@@ -1126,6 +1126,8 @@ def test_coin_execution_contract_draft_and_inspectable():
     assert data["invariants"]["execution_timing"] == "NEXT_CANDLE_OPEN"
     assert data["invariants"]["prohibit_future_data"] is True
     assert data["invariants"]["default_order_type"] == "TAKER"
+    assert data["owner_risk_limits"]["instrument_scope"] == "any_catalog_supported_okx_linear_perpetual"
+    assert "approved_instruments" not in data["owner_risk_limits"]
     assert data["parameters"]["taker_fee_rate"] == 0.0005
     assert data["parameters"]["funding_settlement_hours_utc"] == [0, 8, 16]
     assert data["tolerances"]["fixture_decision_parity"] == 1.0
@@ -1246,6 +1248,7 @@ def test_coin_live_start_quarantines_stale_pre_parity_candidates(monkeypatch):
     code_launch = client.post("/api/studio/live/bot", json={
         "mode": "paper",
         "code": "def on_bar(): pass",
+        "symbols": ["BTC-USDT-SWAP"],
         "capital": 1000,
     })
     assert code_launch.status_code == 400, code_launch.text
@@ -1261,6 +1264,7 @@ def test_coin_live_start_quarantines_stale_pre_parity_candidates(monkeypatch):
         job_launch = client.post("/api/studio/live/bot", json={
             "mode": "paper",
             "backtest_job_id": "forged-job",
+            "symbols": ["BTC-USDT-SWAP"],
             "capital": 1000,
         })
     finally:

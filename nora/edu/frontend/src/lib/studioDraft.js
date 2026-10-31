@@ -37,9 +37,11 @@ export function configToForm(config, positionKeys = []) {
   if (c.initial_capital != null) f.capital = String(c.initial_capital)
   const syms = Array.isArray(c.data_symbols) && c.data_symbols.length ? c.data_symbols : c.symbols
   if (Array.isArray(syms) && syms.length) f.symbols = syms
-  if (c.run_frame && c.timeframe) f.exec_mode = c.run_frame === c.timeframe ? 'fast' : 'standard'
+  f.exec_mode = c.exec_mode || 'fast'
   const pos = {}
-  const position = c.position_overrides || c.position
+  // Chỉ lấy các tham số người dùng thực sự ghi đè ở giao diện (position_overrides).
+  // Không fallback về c.position (vì c.position chứa toàn bộ mặc định của engine, sẽ tự điền vào form và ghi đè code).
+  const position = c.position_overrides || {}
   positionKeys.forEach((k) => { if (position && position[k] != null) pos[k] = String(position[k]) })
   f.pos = pos
   return f

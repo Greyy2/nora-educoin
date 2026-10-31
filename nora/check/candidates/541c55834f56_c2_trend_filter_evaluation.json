@@ -1,0 +1,71 @@
+{
+  "candidate_id": "541c55834f56_c2_trend_filter",
+  "parent_aid": "541c55834f56",
+  "status": "EVALUATED_RESEARCH_ONLY",
+  "parent_job_id": "20261027_214742_038be6",
+  "candidate_job_id": "20261027_214837_f2f662",
+  "engine": "nautilus_trader 1.231.0",
+  "execution": {
+    "runner": "local EDU API custom_backtest worker",
+    "parent_exit_code": 0,
+    "candidate_exit_code": 0,
+    "parent_peak_ram_mb": 1081,
+    "candidate_peak_ram_mb": 984,
+    "memory_limit": "2G",
+    "symbols": ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA", "AVAX", "LINK", "TRX"],
+    "start": "2023-10-06",
+    "end": "2026-10-03",
+    "run_frame": "24h",
+    "initial_capital_usd": 10000,
+    "same_position_settings": true,
+    "same_data_catalog": true,
+    "parent_code_sha256": "f9a0fbc0a647b314662a79e69ef8d26eec4d11a77e2b4c342bd12d5282207b38",
+    "candidate_code_sha256": "308554cb705ea594b2ab58543df9a11f45fa75e1b536cad0c4c89d001e883ba1",
+    "parent_program_hash": "ffbd671df407",
+    "candidate_program_hash": "668630cdf6cf"
+  },
+  "comparison": {
+    "metrics_basis": "full_window_descriptive",
+    "parent": {
+      "return_pct": 8.9,
+      "mdd_pct": 30.33,
+      "trades": 381,
+      "win_rate_pct": 16.5,
+      "profit_factor": 1.085,
+      "expectancy_pct_per_trade": 0.0422,
+      "fees_usd": 221.96
+    },
+    "candidate": {
+      "return_pct": 10.15,
+      "mdd_pct": 26.77,
+      "trades": 329,
+      "win_rate_pct": 19.1,
+      "profit_factor": 1.086,
+      "expectancy_pct_per_trade": 0.0391,
+      "fees_usd": 179.64
+    },
+    "delta_candidate_minus_parent": {
+      "return_pct_points": 1.25,
+      "mdd_pct_points": -3.56,
+      "trades": -52,
+      "win_rate_pct_points": 2.6,
+      "profit_factor": 0.001,
+      "expectancy_pct_points_per_trade": -0.0031,
+      "fees_usd": -42.32
+    }
+  },
+  "api_split_validation": {
+    "effective_parent_test_start": "2025-01-01",
+    "effective_candidate_test_start": "2025-01-01",
+    "required_first_wfa_test_start": "2024-10-01",
+    "exact_fold_valid": false,
+    "note": "The running EDU API OpenAPI contract does not expose test_start; train/test metrics are excluded from WFA acceptance."
+  },
+  "verdict": "PROMISING_FULL_WINDOW_NOT_VALIDATED",
+  "disposition": "The SMA50 filter improved cumulative full-window return and drawdown while preserving similar PF, but reduced per-trade expectancy slightly. This is exploratory evidence on previously viewed data, not a pass, WFA result, or holdout.",
+  "limitations": [
+    "Full-window data was previously viewed; it is not an untouched holdout.",
+    "The API-generated test slice starts at 2025-01-01 instead of the required 2024-10-01.",
+    "No venue-measured funding, slippage, liquidation, or quote-depth evidence is established by these jobs."
+  ]
+}

@@ -20,7 +20,7 @@ sys.path.insert(0, str(COIN_ROOT))
 
 from backend.analys.param import StrategyParams
 from backend.analys.position import SlotSpec
-from backend.core.backtest import NautilusRun
+from backend.core.backtest import NautilusRun, _open_quote_ticks
 from backend.core.backtest import build_slots
 from backend.core.strategy import NoraSlotStrategy
 from backend.core import catalog as cat
@@ -206,7 +206,8 @@ def test_native_intrabar_stop_applies_double_proxy_slippage(monkeypatch, symbol,
         vols=[10.0, 10.0, 10.0, 10.0],
         tick_sz="0.01",
     )
-    slot = make_slot(symbol, pos_type=pos_type, sl=5.0)
+    slip = 0.0005 if symbol.startswith("ETH-") else 0.0003
+    slot = make_slot(symbol, pos_type=pos_type, sl=5.0, slippage_rate=slip)
     book = {
         "symbol": symbol,
         "data": {"t": np.array(times, dtype=np.int64)},
@@ -630,3 +631,31 @@ def test_independent_fixture_same_bar_sl_tp_adverse_ordering():
     from backend.models.models import PositionStatus
     assert pos.status == PositionStatus.SL, f"Quy tắc adverse ordering yêu cầu vị thế phải đóng bởi SL khi cả hai cùng chạm, nhưng nhận {pos.status}"
     assert pos.real_pnl < 0, f"PnL phải là âm do chạm SL, got {pos.real_pnl}"
+
+
+def test_unlisted_catalog_asset_uses_configured_slippage_without_symbol_whitelist(monkeypatch):
+    monkeypatch.setattr(NautilusRun, "KEEP_REPORTS", True)
+    symbol = "AERO-USDT-SWAP"
+    frame_ms = 5 * 60_000
+    times = [0, frame_ms, 2 * frame_ms]
+    source = SimpleStubDataSource(symbol, "5m", times, [100.0] * 3, [101.0] * 3,
+                                  [99.0] * 3, [100.0] * 3, [10.0] * 3)
+    slot = make_slot(symbol, slippage_rate=0.0007)
+
+    result = NautilusRun(
+        [{"symbol": symbol, "data": {"t": np.asarray(times)}, "entries": [{
+            "strategy": "UNLISTED_ASSET", "slot": slot,
+            "match": np.asarray([True, False, False]), "stop": np.zeros(3, dtype=bool),
+            "vol": None, "dca": None,
+        }]}],
+        10_000.0,
+        RiskConfig(max_positions=1, max_per_symbol=1, max_gross_exposure=1e12, kill_switch_dd_pct=0.0),
+        0,
+        3 * frame_ms,
+        "5m",
+        True,
+        source,
+        execution_target="next_open",
+    ).run()
+
+    assert result["positions"][0].enter_price == 100.1

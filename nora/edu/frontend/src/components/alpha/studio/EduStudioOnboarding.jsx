@@ -41,6 +41,14 @@ export const ONBOARDING_DSL_SAMPLES = [
     id = "dual_ema_trend"
     timeframe = "4h"
 
+    # ==========================================
+    # QUẢN TRỊ RỦI RO & BẢO VỆ VỐN (Khuyên dùng trong EDU)
+    # ==========================================
+    sizing = "risk"             # Định cỡ theo rủi ro
+    risk_per_trade_pct = 0.5    # Rủi ro 0.5% vốn mỗi lệnh
+    stop_loss_rate = 3.0        # Cắt lỗ 3% từ điểm vào
+    exit_unit = "pct"
+
     def __algorithm__(self):
         close = self.data.pv_close
         fast = self.feat.ema(close, timeperiod=9)
@@ -57,6 +65,14 @@ export const ONBOARDING_DSL_SAMPLES = [
     code: `class SmaAtrBreakout(SimpleAlgorithm):
     id = "sma_atr_breakout"
     timeframe = "1d"
+
+    # ==========================================
+    # QUẢN TRỊ RỦI RO & BẢO VỆ VỐN (Khuyên dùng trong EDU)
+    # ==========================================
+    sizing = "risk"             # Định cỡ theo rủi ro
+    risk_per_trade_pct = 0.5    # Rủi ro 0.5% vốn mỗi lệnh
+    stop_loss_rate = 3.0        # Cắt lỗ 3x ATR
+    exit_unit = "atr"
 
     def __algorithm__(self):
         close = self.data.pv_close

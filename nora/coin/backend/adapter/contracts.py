@@ -51,7 +51,6 @@ MAX_GROSS_LEVERAGE = 3.0                           # Trần đòn bẩy gộp da
 MAX_NET_EXPOSURE = 2.0                             # Trần vị thế ròng một chiều (BTC+ETH): <= 2.0x equity
 MIDNIGHT_UTC_FLATTEN = True                        # Tất toán vị thế tại 00:00:00 UTC sau khi tính funding
 REJECT_ENTRY_AT_OR_AFTER_BOUNDARY = True           # Từ chối lệnh mới có fill timestamp >= 00:00:00 UTC
-APPROVED_INSTRUMENTS = ("BTC-USDT-SWAP", "ETH-USDT-SWAP")
 APPROVED_VENUES = ("OKX_DEMO", "OKX_TESTNET")
 
 # ── 6. DUNG SAI NGHIỆM THU PARITY (PARITY ACCEPTANCE TOLERANCES) ──
@@ -156,7 +155,7 @@ class ExecutionContractManifest:
                 "max_net_exposure": self.max_net_exposure,
                 "midnight_utc_flatten": self.midnight_utc_flatten,
                 "reject_boundary_entry": self.reject_boundary_entry,
-                "approved_instruments": list(APPROVED_INSTRUMENTS),
+                "instrument_scope": "any_catalog_supported_okx_linear_perpetual",
                 "approved_venues": list(APPROVED_VENUES),
             },
             "tolerances": {

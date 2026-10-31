@@ -1,0 +1,19 @@
+{
+  "candidate_id": "fixture-1a1a4389a821-research-v1",
+  "parent_id": "1a1a4389a821",
+  "fold": 1,
+  "request": {
+    "symbols": [
+      "BTC"
+    ],
+    "start": "2023-10-06",
+    "end": "2025-05-31",
+    "test_start": "2024-10-01",
+    "train_ratio": 0.7,
+    "initial_capital": 10000,
+    "run_frame": "1h"
+  },
+  "response": {
+    "job_id": "20261028_065932_3d7b13"
+  }
+}

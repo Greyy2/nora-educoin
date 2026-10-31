@@ -7,6 +7,9 @@ import { paramLabel, paramUnit, paramHint } from '../../../lib/params'
 
 /** Các tham số quản lý vị thế (khoá = tên khoá `position` của API). Để trống = dùng giá trị trong code / mặc định của engine. */
 export const POSITION_FIELDS = [
+  { key: 'fee_rate', min: 0, max: 0.02, step: 0.0001 },
+  { key: 'maker_fee_rate', min: 0, max: 0.02, step: 0.0001 },
+  { key: 'slippage_rate', min: 0, max: 0.1, step: 0.0001 },
   { key: 'stop_loss_rate', min: 0, max: 50, step: 0.1 },
   { key: 'take_profit_rate', min: 0, max: 50, step: 0.1 },
   { key: 'trailing_stop', min: 0, max: 50, step: 0.1 },
@@ -18,11 +21,13 @@ export const POSITION_FIELDS = [
 
 const symName = (s) => String(s).replace('@perp', '')
 
-export default function RunSettings({ form, setForm, universe, defaultsError, problems }) {
+export default function RunSettings({ form, setForm, universe, defaultsError, problems, specDefaults = {}, specHash = null }) {
   const [showComboInfo, setShowComboInfo] = useState(false)
   const toggleSym = (s) => setForm({ symbols: form.symbols.includes(s) ? form.symbols.filter((x) => x !== s) : [...form.symbols, s] })
-  const setPos = (k, v) => setForm({ pos: { ...form.pos, [k]: v } })
+  const setPos = (k, v) => setForm({ pos: { ...form.pos, [k]: v }, last_spec_hash: specHash || form.last_spec_hash })
+  const resetAllPos = () => setForm({ pos: {}, last_spec_hash: specHash })
   const nPos = Object.values(form.pos || {}).filter((v) => v !== '' && v != null).length
+  const hasSpecHashMismatch = !!(specHash && form.last_spec_hash && form.last_spec_hash !== specHash && nPos > 0)
 
   return (
     <div className="se-set">
@@ -144,19 +149,95 @@ export default function RunSettings({ form, setForm, universe, defaultsError, pr
 
 
       <details className="n-details se-pos">
-          <summary>Quản lý vị thế{nPos ? ` (đã đặt ${nPos})` : ''}</summary>
-          <p className="n-note" style={{ margin: '8px 0' }}>Để trống = dùng giá trị khai báo trong code, hoặc mặc định của engine. Cắt lỗ / chốt lời / trailing tính theo bội số ATR; timeout và cooldown tính bằng phút.</p>
+          <summary style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span>Quản lý vị thế{nPos ? ` (${nPos} tham số đã ghi đè)` : ' (mặc định từ Spec)'}</span>
+            {nPos > 0 && (
+              <button
+                type="button"
+                className="n-btn xs"
+                style={{ fontSize: 11, padding: '2px 8px', color: '#f59e0b', border: '1px solid #f59e0b', background: 'transparent' }}
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); resetAllPos(); }}
+                title="Xóa mọi ghi đè và khôi phục về giá trị mặc định của Spec"
+              >
+                Khôi phục mặc định ({nPos})
+              </button>
+            )}
+          </summary>
+
+          {hasSpecHashMismatch && (
+            <div
+              className="n-alert-warn"
+              style={{
+                margin: '8px 0',
+                padding: '8px 12px',
+                background: 'rgba(245, 158, 11, 0.15)',
+                border: '1px solid #f59e0b',
+                borderRadius: 6,
+                fontSize: 12,
+                color: '#f59e0b',
+              }}
+            >
+              ⚠️ <b>Mã nguồn / Spec của chiến lược đã thay đổi</b> so với cấu hình ghi đè trước đó. Các tham số ghi đè có thể không còn tương thích. Bấm nút <b>"Khôi phục mặc định"</b> để đồng bộ lại với Spec.
+            </div>
+          )}
+
+          <p className="n-note" style={{ margin: '8px 0' }}>
+            Spec sở hữu giá trị mặc định; mọi thay đổi ở đây chỉ lưu dưới dạng ghi đè (overrides). Phí và trượt giá nhập dạng tỷ lệ thập phân (0.0005 = 5 bps). Cắt lỗ / chốt lời / trailing tính theo bội số ATR; timeout và cooldown tính bằng phút.
+          </p>
+
           <div className="n-params">
             {POSITION_FIELDS.map((f) => {
               const unit = paramUnit(f.key)
               const lbl = paramLabel(f.key)
+              const hasOverride = form.pos?.[f.key] !== '' && form.pos?.[f.key] != null
+              const specVal = specDefaults[f.key]
               return (
                 <div className="n-pf" key={f.key}>
-                  <label htmlFor={`se-pos-${f.key}`} title={`${f.key}${paramHint(f.key) ? ` — ${paramHint(f.key)}` : ''}`}>
-                    {lbl}{unit && !lbl.includes('(') ? <span className="u"> ({unit})</span> : null}
-                  </label>
-                  <input id={`se-pos-${f.key}`} type="number" inputMode="decimal" className="n-in" min={f.min} max={f.max} step={f.step} placeholder="mặc định"
-                    value={form.pos?.[f.key] ?? ''} onChange={(e) => setPos(f.key, e.target.value)} />
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                    <label htmlFor={`se-pos-${f.key}`} title={`${f.key}${paramHint(f.key) ? ` — ${paramHint(f.key)}` : ''}`} style={{ margin: 0 }}>
+                      {lbl}{unit && !lbl.includes('(') ? <span className="u"> ({unit})</span> : null}
+                    </label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      {hasOverride ? (
+                        <>
+                          <span
+                            className="n-badge n-badge-override"
+                            style={{ fontSize: 10, padding: '1px 5px', background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', borderRadius: 4, fontWeight: 600 }}
+                          >
+                            [Đã ghi đè]
+                          </span>
+                          <button
+                            type="button"
+                            className="n-btn xs ghost"
+                            style={{ fontSize: 10, padding: '0 4px', color: '#f59e0b' }}
+                            title="Khôi phục về giá trị từ Spec"
+                            onClick={() => setPos(f.key, '')}
+                          >
+                            ↺
+                          </button>
+                        </>
+                      ) : (
+                        <span
+                          className="n-badge n-badge-spec"
+                          style={{ fontSize: 10, padding: '1px 5px', background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', borderRadius: 4, fontWeight: 500 }}
+                        >
+                          [Từ spec]
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <input
+                    id={`se-pos-${f.key}`}
+                    type="number"
+                    inputMode="decimal"
+                    className="n-in"
+                    min={f.min}
+                    max={f.max}
+                    step={f.step}
+                    placeholder={specVal !== undefined ? String(specVal) : 'mặc định'}
+                    value={form.pos?.[f.key] ?? ''}
+                    onChange={(e) => setPos(f.key, e.target.value)}
+                  />
                 </div>
               )
             })}

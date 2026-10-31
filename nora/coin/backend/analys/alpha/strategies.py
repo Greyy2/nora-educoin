@@ -213,7 +213,7 @@ def reload_system_strategies() -> Dict[str, Any]:
     return loaded
 
 
-def perp_symbols(universe: List[str] = None) -> List[str]:
+def perp_symbols(universe: Optional[List[str]] = None) -> List[str]:
     return [f"{s}@perp" for s in (universe or UNIVERSE)]
 
 
@@ -403,7 +403,7 @@ def iter_params(space: Dict[str, List[Any]], n: Optional[int], seed: int, full_g
     if full_grid or n is None or total <= n:
         positions = range(total)
     elif total <= sys.maxsize:
-        positions = random.Random(seed).sample(range(total), int(n))
+        positions = random.Random(seed).sample(range(total), n)
     else:   # không gian khổng lồ (> 2^63): rút ngẫu nhiên không lặp
         rng = random.Random(seed)
 
@@ -945,7 +945,7 @@ def get_user_alpha_version(alpha_id: str, version: int, base_dir: Optional[str] 
         return None
     if int(rec.get("version") or 1) == version:
         return rec
-    path = os.path.join(get_user_alphas_dir(base_dir), "_versions", f"{alpha_id}.v{int(version)}.json")
+    path = os.path.join(get_user_alphas_dir(base_dir), "_versions", f"{alpha_id}.v{version}.json")
     return read_json(path) if os.path.isfile(path) else None
 
 
@@ -995,7 +995,7 @@ def list_user_alphas(
                 continue
 
     if sort in ("sharpe", "cagr"):
-        have = sorted((x for x in items if _sort_value(x, sort) is not None), key=lambda x: _sort_value(x, sort), reverse=True)
+        have = sorted((x for x in items if _sort_value(x, sort) is not None), key=lambda x: float(_sort_value(x, sort) or 0.0), reverse=True)
         items = have + [x for x in items if _sort_value(x, sort) is None]
     elif sort == "date":
         items.sort(key=lambda x: x.get("created_at", ""), reverse=True)
@@ -1440,7 +1440,8 @@ def operand(item: Any, schema: Dict[str, Any], t: str = "t") -> Tuple[str, str]:
         a, b = operand(item.get("number_1"), schema, t), operand(item.get("number_2"), schema, t)
         if item.get("logic") == "*":
             return rf"{b[0]}\cdot {a[0]}", f"{b[1]} × {a[1]}"
-        op = {"+": "+", "-": "-", "/": "/"}.get(item.get("logic"), "?")
+        logic = str(item.get("logic") or "")
+        op = {"+": "+", "-": "-", "/": "/"}.get(logic, "?")
         return rf"{a[0]}{op}{b[0]}", f"{a[1]} {op} {b[1]}"
     if "column" in item:
         lag = int(item.get("index", 0) or 0)
@@ -1944,7 +1945,9 @@ def live_candidates(alphas_dir: Optional[str] = None) -> List[Dict[str, Any]]:
                    # tham số ĐÃ TỐI ƯU của chân (đúng bộ sổ đã backtest): run() của sổ ghi đè risk_per_trade_pct bằng của sổ => gộp vào đây
                    "params": _clean_params(BY_ID[it["id"]], {**(it.get("params") or {}), **({"risk_per_trade_pct": book["risk_per_trade_pct"]} if book.get("risk_per_trade_pct") is not None else {})})}
             k = (it["id"], str(tf))
-            if k not in rows or (row["sharpe"] or -1e9) > (rows[k]["sharpe"] or -1e9):
+            cur_s = _fnum(row.get("sharpe")) or -1e9
+            old_s = _fnum(rows[k].get("sharpe")) or -1e9 if k in rows else -1e9
+            if k not in rows or cur_s > old_s:
                 rows[k] = row
     for ua in list_user_alphas(base_dir=base):
         if ua.get("status") == "ARCHIVED":
@@ -2190,7 +2193,13 @@ def _check_position(pos: Dict[str, Any]) -> Dict[str, Any]:
     if bad:
         raise ValueError(f"khoá vị thế không hợp lệ: {bad}; có: {sorted(POSITION_KEYS)}")
     for k, v in pos.items():
-        if isinstance(v, bool) or not isinstance(v, (int, float, str)):
+        if k in ("dca_steps", "dca_multipliers"):
+            if not isinstance(v, (list, tuple)) or any(isinstance(x, bool) or not isinstance(x, (int, float)) for x in v):
+                raise ValueError(f"vị thế {k}: phải là danh sách số, nhận {v!r}")
+        elif k in ("using_match_price", "allow_negative_price_rate"):
+            if not isinstance(v, bool):
+                raise ValueError(f"vị thế {k}: phải là boolean (True/False), nhận {v!r}")
+        elif isinstance(v, bool) or not isinstance(v, (int, float, str)):
             raise ValueError(f"vị thế {k}: phải là số hoặc chuỗi, nhận {v!r}")
     return dict(pos)
 

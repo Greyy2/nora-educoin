@@ -1,0 +1,92 @@
+{
+  "candidate_id": "18e87aa868ad_c1_risk_sl",
+  "parent_aid": "18e87aa868ad",
+  "parent_name": "Fast Dynamic Channel Breakout (18D + Macro Trend)",
+  "hypothesis": "Hạ rủi ro mỗi lệnh xuống 1.0% và nới stop loss lên 4.0% để tránh bị quét bởi nhiễu biến động nến ngày (intraday wicks).",
+  "hypothesis_type": "sizing_and_risk_control",
+  "code": "class FastDynamicChannelBreakout(NoraStrategy):\n    timeframe = '24h'\n    sma_period = 18\n    std_period = 18\n    std_nbdev = 1.5\n    macro_period = 100\n    stop_loss_pct = 4.0\n    risk_per_trade_pct = 1.0\n\n    def on_bar(self):\n        sma_val = sma(close, self.sma_period)\n        std_val = stddev(close, self.std_period, self.std_nbdev)\n        upper_band = sma_val + std_val\n        macro = ema(close, self.macro_period)\n\n        exit_sig = close < sma_val\n        enter_sig = crossover(close, upper_band) & (close > macro)\n\n        self.close(exit_sig)\n        self.buy(enter_sig)\n",
+  "config": {
+    "symbols": [
+      "BTC",
+      "ETH",
+      "SOL",
+      "BNB",
+      "XRP",
+      "DOGE",
+      "ADA",
+      "AVAX",
+      "LINK",
+      "TRX"
+    ],
+    "data_symbols": [
+      "BTC@perp",
+      "ETH@perp",
+      "SOL@perp",
+      "BNB@perp",
+      "XRP@perp",
+      "DOGE@perp",
+      "ADA@perp",
+      "AVAX@perp",
+      "LINK@perp",
+      "TRX@perp"
+    ],
+    "start": "2023-10-06",
+    "end": "2026-10-03",
+    "train_ratio": 0.7,
+    "initial_capital": 10000.0,
+    "timeframe": "24h",
+    "run_frame": "24h",
+    "exchange": "okx",
+    "program": {
+      "name": "FastDynamicChannelBreakout",
+      "legs": [
+        "LONG"
+      ],
+      "levels": [
+        0.0,
+        1.0
+      ],
+      "features": [
+        "ema",
+        "sma",
+        "stddev"
+      ],
+      "warmup_bars": 300
+    },
+    "risk": {
+      "max_positions": 8,
+      "max_per_symbol": 1,
+      "max_gross_exposure": 3.0,
+      "kill_switch_dd_pct": 30.0,
+      "max_open_risk_pct": 6.0,
+      "dd_throttle_pct": 5.0,
+      "dd_throttle_floor": 0.25
+    },
+    "strategies": [
+      "py_7b5e59eb46a8_long"
+    ],
+    "position": {
+      "market": "perp",
+      "leverage": 1,
+      "exit_unit": "pct",
+      "atr_frame": "24h",
+      "atr_period": 14,
+      "sizing": "risk",
+      "risk_per_trade_pct": 1.0,
+      "max_notional_pct": 300.0,
+      "stop_fill": "level",
+      "limit_through_pct": 0.0,
+      "cooldown": 1440,
+      "risk_profile": "legacy",
+      "sl_anchor": "",
+      "sl_beyond_last_pct": 0.0,
+      "stop_loss_rate": 4.0,
+      "take_profit_rate": 0.0,
+      "trailing_stop": 0.0,
+      "trailing_activation_pct": 0.0,
+      "timeout": 0
+    }
+  },
+  "code_sha256": "75f39d947a199cc3bf6a5426bc19b67f1d254eaebceba4f00edfcaddf133fb5f",
+  "config_sha256": "dfa7b7a122c6c56e6db8530dffecfc4cdc59c9e4295790e0b6973e107272d3f1"
+}

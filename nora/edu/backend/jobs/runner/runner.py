@@ -179,7 +179,7 @@ RUNNER = "backend.jobs.runner"
 KINDS: Dict[str, Dict[str, Any]] = {
     "presets_build": {"label_vi": "Dựng preset", "module": "backend.analys.alpha.strategies", "func": "run_presets_build", "params": set()},
     "custom_backtest": {"label_vi": "Backtest tuỳ chỉnh", "module": "backend.jobs.tasks", "func": "run_custom_backtest",
-                        "params": {"code", "symbols", "start", "end", "train_ratio", "initial_capital", "position", "run_frame", "owner_uid"}},
+                        "params": {"code", "symbols", "start", "end", "test_start", "train_ratio", "initial_capital", "position", "run_frame", "owner_uid"}},
     "education_warm": {"label_vi": "Làm nóng kết quả mẫu giáo dục", "module": "backend.jobs.tasks", "func": "education_warm", "params": {"keys"}},
     "alpha_research": {"label_vi": "Nghiên cứu Alpha (Prompt)", "module": "backend.jobs.tasks", "func": "run_alpha_research",
                        "params": {"prompt", "opts", "pick", "from_step", "edits", "job_id"}},

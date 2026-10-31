@@ -1,0 +1,108 @@
+{
+  "kema_long": {
+    "declared_in_code": {
+      "atr_frame": "4h"
+    },
+    "effective_resolved": {
+      "market": "perp",
+      "leverage": 10,
+      "exit_unit": "atr",
+      "atr_frame": "4h",
+      "atr_period": 14,
+      "sizing": "risk",
+      "risk_per_trade_pct": 0.5,
+      "max_notional_pct": 300.0,
+      "stop_fill": "level",
+      "limit_through_pct": 0.0,
+      "cooldown": 240,
+      "risk_profile": "legacy",
+      "sl_anchor": "",
+      "sl_beyond_last_pct": 0.0,
+      "stop_loss_rate": 3.0,
+      "take_profit_rate": 0.0,
+      "trailing_stop": 0.0,
+      "trailing_activation_pct": 0.0,
+      "timeout": 0
+    }
+  },
+  "kema_short": {
+    "declared_in_code": {
+      "atr_frame": "4h"
+    },
+    "effective_resolved": {
+      "market": "perp",
+      "leverage": 10,
+      "exit_unit": "atr",
+      "atr_frame": "4h",
+      "atr_period": 14,
+      "sizing": "risk",
+      "risk_per_trade_pct": 0.5,
+      "max_notional_pct": 300.0,
+      "stop_fill": "level",
+      "limit_through_pct": 0.0,
+      "cooldown": 240,
+      "risk_profile": "legacy",
+      "sl_anchor": "",
+      "sl_beyond_last_pct": 0.0,
+      "stop_loss_rate": 3.0,
+      "take_profit_rate": 0.0,
+      "trailing_stop": 0.0,
+      "trailing_activation_pct": 0.0,
+      "timeout": 0
+    }
+  },
+  "sideway_long": {
+    "declared_in_code": {
+      "atr_frame": "1h",
+      "cooldown": 60
+    },
+    "effective_resolved": {
+      "market": "perp",
+      "leverage": 10,
+      "exit_unit": "atr",
+      "atr_frame": "1h",
+      "atr_period": 14,
+      "sizing": "risk",
+      "risk_per_trade_pct": 0.5,
+      "max_notional_pct": 300.0,
+      "stop_fill": "level",
+      "limit_through_pct": 0.0,
+      "cooldown": 60,
+      "risk_profile": "legacy",
+      "sl_anchor": "",
+      "sl_beyond_last_pct": 0.0,
+      "stop_loss_rate": 3.0,
+      "take_profit_rate": 0.0,
+      "trailing_stop": 0.0,
+      "trailing_activation_pct": 0.0,
+      "timeout": 0
+    }
+  },
+  "sideway_short": {
+    "declared_in_code": {
+      "atr_frame": "1h",
+      "cooldown": 60
+    },
+    "effective_resolved": {
+      "market": "perp",
+      "leverage": 10,
+      "exit_unit": "atr",
+      "atr_frame": "1h",
+      "atr_period": 14,
+      "sizing": "risk",
+      "risk_per_trade_pct": 0.5,
+      "max_notional_pct": 300.0,
+      "stop_fill": "level",
+      "limit_through_pct": 0.0,
+      "cooldown": 60,
+      "risk_profile": "legacy",
+      "sl_anchor": "",
+      "sl_beyond_last_pct": 0.0,
+      "stop_loss_rate": 3.0,
+      "take_profit_rate": 0.0,
+      "trailing_stop": 0.0,
+      "trailing_activation_pct": 0.0,
+      "timeout": 0
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "amendment_id": "FXA-AMEND-2026-10-28",
+  "created_at": "2026-10-28T05:15:55.977Z",
+  "status": "OWNER_AUTHORIZED_RESEARCH_SCOPE",
+  "basis": {
+    "owner_request": "Develop each of the 27 blocked fixture alpha records as a distinct strategy hypothesis, implement candidates, and evaluate them by backtest.",
+    "prior_protocol": "EDU_EVO_PROTOCOL_v1.0",
+    "prior_protocol_sha256": "f9c9fd407e24c141f8349e7eedea0d6900ed66469bd5d6ef7b1ac4819252dfbb"
+  },
+  "scope": {
+    "blocked_fixture_alpha_count": 27,
+    "candidate_budget": "one pre-registered candidate per parent alpha for this initial research batch",
+    "candidate_identity": "Research proposals for fixture records; not recovered author intent and not edits to user-owned source records.",
+    "evaluation": "Use the existing three development folds and admission gates; all available historical data has already been viewed, so no result is an untouched holdout.",
+    "resource_limit": "Keep the existing EDU limit of 2 GB per job and run jobs serially."
+  },
+  "prohibitions": [
+    "Do not modify or promote any original alpha record.",
+    "Do not add parameter sweeps or repeated variants to force a positive result.",
+    "Do not claim profitability, robustness, live readiness, or future performance without the required evidence.",
+    "Do not start a live or testnet bot as part of this backtest batch."
+  ],
+  "protocol_sha256_after_amendment": null
+}

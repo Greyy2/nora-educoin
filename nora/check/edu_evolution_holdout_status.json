@@ -1,0 +1,15 @@
+{
+  "timestamp": "2026-10-27T16:03:57Z",
+  "holdout_gate_disposition": "NO_UNTOUCHED_HOLDOUT_AVAILABLE",
+  "authoritative_finding": "Toàn bộ dữ liệu giá và khối lượng khả dụng trong kho lưu trữ kết thúc vào ngày 2026-10-03 và đã xuất hiện trong toàn bộ quá trình audit, baseline và chẩn đoán trước đó.",
+  "scientific_integrity_rule": "Theo nguyên tắc phương pháp luận khoa học chặt chẽ, không được phép cắt lát một phần dữ liệu đã biết (đã xem) trong quá khứ và đổi tên thành 'Holdout mới'.",
+  "candidate_freeze_manifest": {
+    "wfa_pass_candidates": [
+      "18e87aa868ad_c1_risk_sl",
+      "717c1890c59e_c1_risk_sl"
+    ],
+    "promotion_status": "RESEARCH_CANDIDATE_ONLY_NOT_PROMOTED_TO_LIVE",
+    "production_gate": "BLOCKED_PENDING_LIVE_OUT_OF_SAMPLE_DATA",
+    "explanation": "Các candidate cải tiến (18e87aa868ad_c1_risk_sl và 717c1890c59e_c1_risk_sl) đã vượt qua WFA và Monte Carlo, nhưng chỉ được phép lưu giữ dưới dạng Research Candidates; tuyệt đối không triển khai bot thật khi chưa có dữ liệu nến tương lai (forward testing) độc lập."
+  }
+}

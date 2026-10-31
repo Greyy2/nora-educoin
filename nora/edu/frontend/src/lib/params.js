@@ -47,6 +47,9 @@ const SYSTEM_PARAM_LABELS = {
   ruin_threshold_pct: { label_vi: 'Ngưỡng phá sản MDD (%)', unit: '%' },
   stress_max_mdd_pct: { label_vi: 'MDD tối đa của kịch bản cực xấu (%)', unit: '%' },
   extra_cost_daily_pct: { label_vi: 'Phí bổ sung kịch bản phí gấp đôi (%/ngày)', unit: '%/ngày', help_vi: 'Bỏ trống = dùng hằng số bảo thủ của backend' },
+  fee_rate: { label_vi: 'Phí Taker', unit: 'tỷ lệ', help_vi: 'Nhập dạng thập phân; 0.0005 = 5 bps. Để trống dùng preset research của market đã chọn, hoặc 0 nếu market không có preset.' },
+  maker_fee_rate: { label_vi: 'Phí Maker', unit: 'tỷ lệ', help_vi: 'Nhập dạng thập phân; 0.0002 = 2 bps. Để trống dùng preset research của market đã chọn, hoặc 0 nếu market không có preset.' },
+  slippage_rate: { label_vi: 'Trượt giá mỗi chiều', unit: 'tỷ lệ', help_vi: 'Nhập dạng thập phân; 0.0003 = 3 bps. Để trống dùng preset research của market đã chọn, hoặc 0 nếu market không có preset.' },
   order_size_pct: { label_vi: 'Cỡ lệnh (% vốn)', unit: '%' },
   market: { label_vi: 'Thị trường', unit: '' },
 }

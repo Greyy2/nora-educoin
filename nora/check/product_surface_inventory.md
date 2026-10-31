@@ -1,20 +1,22 @@
-# Nora Product Surface Inventory & Acceptance Mapping (61 Requirements)
+# Nora Product Surface Inventory & Acceptance Mapping (63 Requirements)
 
-**Date:** 2026-10-24  
+**Initial inventory:** 2026-10-24
+**Current scope update:** 2026-10-29 — EDU-15/16 added; see their Phase 2 follow-up criteria.
 **Deliverable ID:** `p0-product-surface-inventory`  
-**Scope:** Rigorous mapping of all 61 requirements across EDU, COIN Home/Portfolio, Alpha Authoring/Results, Prompt Research, Backtest/WFA/Monte Carlo, Live Operations/Leverage, and Cross-Product Isolation/Performance.
+**Scope:** Rigorous mapping of all 63 current requirements across EDU, COIN Home/Portfolio, Alpha Authoring/Results, Prompt Research, Backtest/WFA/Monte Carlo, Live Operations/Leverage, and Cross-Product Isolation/Performance. The original foundation inventory had 58 requirements; later additions are assigned to their own phase gates and do not retroactively change historical acceptance.
+**Document contract:** `product_ux_acceptance_matrix.md` is canonical for requirement status, owner, acceptance criteria and phase gates. This file records surface/architecture context. For new EDU-15/16 and CROSS-04/05 follow-ups, refer to the matrix rather than maintaining a second copy of their acceptance checklist here.
 
 ---
 
-## Mục lục phân nhóm 61 yêu cầu
+## Mục lục phân nhóm 63 yêu cầu
 
-1. [EDU: Market, authoring, learning, identity, and backtest (EDU-01 – EDU-14)](#1-edu-market-authoring-learning-identity-and-backtest)
+1. [EDU: Market, authoring, learning, identity, and backtest (EDU-01 – EDU-16)](#1-edu-market-authoring-learning-identity-and-backtest)
 2. [COIN: Home and Portfolio (COIN-HOME-01 – COIN-HOME-06)](#2-coin-home-and-portfolio)
 3. [COIN: Alpha authoring and results (COIN-ALPHA-01 – COIN-ALPHA-06)](#3-coin-alpha-authoring-and-results)
 4. [COIN: Prompt / idea research (COIN-PROMPT-01 – COIN-PROMPT-09)](#4-coin-prompt--idea-research)
 5. [COIN: Backtest, WFA, Monte Carlo, charts and runs (COIN-BT-01 – COIN-BT-06)](#5-coin-backtest-wfa-monte-carlo-charts-and-runs)
-6. [COIN: Intraday, live operation, leverage and history (COIN-LIVE-00 – COIN-LIVE-11)](#6-coin-intraday-live-operation-leverage-and-history)
-7. [Cross-product isolation, performance and operations (CROSS-01 – CROSS-05)](#7-cross-product-isolation-performance-and-operations)
+6. [COIN: Intraday, live operation, leverage and history (COIN-LIVE-00 – COIN-LIVE-13)](#6-coin-intraday-live-operation-leverage-and-history)
+7. [Cross-product isolation, performance and operations (CROSS-01 – CROSS-06)](#7-cross-product-isolation-performance-and-operations)
 
 ---
 
@@ -135,6 +137,14 @@
 - **API Endpoint:** `POST /api/studio/custom/backtest`, `GET /api/studio/jobs/{job_id}`
 - **Auth & Ownership:** Per-session 128-bit `edu_guest_id` (`gst_<32hex>`), exact owner job scoping, atomic admission lock (1 active/guest, 3 active aggregate), 2 GB/job limit.
 - **Verified Evidence:** **PASS.** `test_edu_guest_backtest_policy_and_isolation` and `test_edu_guest_admission_quota_is_atomic_and_counts_all_active_jobs` PASSED.
+
+### EDU-15 — Forked/copied alpha parameters must remain editable, valid and reproducible
+- **Surface:** EDU — Market strategy -> fork -> `/studio`, parameter form and run result.
+- **Scope/status:** See canonical EDU-15 row and `p2-edu-alpha-parameter-fidelity` in [product_ux_acceptance_matrix.md](./product_ux_acceptance_matrix.md). Prior representative fork/edit evidence does not establish arbitrary parameter or timeframe coverage.
+
+### EDU-16 — Market result availability and detail must identify the same completed run
+- **Surface:** EDU — `/market` alpha card -> exact backtest result/detail view.
+- **Scope/status:** User-reported mismatch is not yet reproduced. See canonical EDU-16 row and `p2-edu-market-result-reconciliation` in [product_ux_acceptance_matrix.md](./product_ux_acceptance_matrix.md); do not infer a cause from this inventory.
 
 ---
 
@@ -345,14 +355,16 @@
 - **Status:** **PASS.** Login pages branded separately; name quick-entry hardened against account takeover; Google button absent.
 
 ### CROSS-04 — Make all requested views/runs fast, smooth, responsive and accessible
-- **Status:** **UNVERIFIED.** To be baselined in `p0-measured-ux-baseline` and verified in Phase 4.
+- **Status:** **PARTIAL.** EDU backtest performance acceptance is open. The historical 10-market, 1h sample was about 180.5 seconds and 1,795 MB cgroup peak on a 2 GiB limit; this is one prior observation, not a current baseline or SLO.
+- **Scope:** See canonical CROSS-04 and `p2-edu-performance-and-resource-followup` in [product_ux_acceptance_matrix.md](./product_ux_acceptance_matrix.md).
 
 ### CROSS-05 — Keep both backtest systems resource-bounded
-- **Status:** **PRIOR PASS.** Verified system caps: COIN 4 GB/job, EDU 2 GB/job (`ops/run_limited.sh`).
+- **Status:** **PARTIAL.** Hard caps remain verified: COIN 4 GB/job, EDU 2 GB/job. The historical EDU job reached about 88% of its job cgroup limit; this is a safety signal to remeasure, not proof of a universal workload ceiling.
+- **Scope:** See canonical CROSS-05 and `p2-edu-performance-and-resource-followup` in [product_ux_acceptance_matrix.md](./product_ux_acceptance_matrix.md). Keep the shared market catalog read-only and distinguish it from product-local caches/results.
 
 ### CROSS-06 — Split oversized route modules into domain-focused files
-- **Product & Route/View:** COIN and EDU backend route packages. COIN `routes/system.py` is 696 lines; EDU `routes/system.py` is 821 lines at inventory time. Both modules combine multiple API domains, while other domains already have separate route files.
+- **Product & Route/View:** COIN and EDU backend route packages. This is a historical modularization requirement; the route extraction is already implemented and verified.
 - **Goal:** reduce concentration of unrelated route handlers and make ownership/testing/navigation clearer without changing runtime behavior.
 - **Acceptance:** inventory route domains, schemas, shared dependencies, startup hooks and import relationships; split into cohesive modules and register routers explicitly. Preserve every public HTTP method/path, request/response and OpenAPI schema/security, auth/ownership behavior, tags/prefixes, startup behavior and compatibility imports. Avoid circular imports, duplicate route registration and catch-all replacement modules.
 - **Verification:** focused domain tests and both full product suites; before/after OpenAPI contract comparison (paths, methods, request/response schemas and security); product import-origin/isolation tests; frontend API path check; route registration count and `git diff --check`.
-- **Status:** **UNVERIFIED** — `p4-route-modularization` (Phase 4).
+- **Status:** **VERIFIED** — `p4-route-modularization`; see canonical matrix row for OpenAPI and test evidence. The old source line-count snapshot is intentionally omitted because it no longer describes the current modules.

@@ -78,6 +78,11 @@ def test_build_plan_provenance_and_conflict():
 
 def test_run_custom_provenance_end_to_end():
     """Kiểm tra đường chạy thật run_custom: result.json ghi nhận param_provenance và warnings."""
+    from backend.jobs.worker.resource import cgroup_limit_mb
+
+    if cgroup_limit_mb() is None:
+        pytest.skip("Backtest integration test requires an active cgroup memory limit")
+
     from backend.jobs.tasks import run_custom
 
     code = """class QuickRsiEduEndToEnd(SimpleAlgorithm):
@@ -128,16 +133,80 @@ def test_run_custom_provenance_end_to_end():
 
 
 def test_browser_studio_provenance_and_conflict_display():
-    """Kiểm tra trên trình duyệt: bảng Cấu hình hiệu lực, banner xung đột, banner trượt giá, và xử lý run cũ."""
-    from playwright.sync_api import sync_playwright
+    """Kiểm tra UI provenance bằng browser, không phụ thuộc service chạy sẵn trên port cố định."""
+    from contextlib import contextmanager
     import json
+    import socket
+    import threading
+    import time
 
-    with sync_playwright() as p:
-        browser = p.chromium.launch(
-            executable_path="/usr/bin/google-chrome",
-            headless=True,
-            args=["--no-sandbox", "--disable-dev-shm-usage"],
+    import uvicorn
+    from playwright.sync_api import sync_playwright
+
+    from backend.main import app
+
+    @contextmanager
+    def local_edu_server():
+        listener = socket.socket()
+        listener.bind(("127.0.0.1", 0))
+        server = uvicorn.Server(
+            uvicorn.Config(
+                app,
+                host="127.0.0.1",
+                port=listener.getsockname()[1],
+                lifespan="off",
+                log_level="error",
+            )
         )
+        thread = threading.Thread(target=server.run, kwargs={"sockets": [listener]}, daemon=True)
+        thread.start()
+        deadline = time.monotonic() + 10
+        while not server.started and thread.is_alive() and time.monotonic() < deadline:
+            time.sleep(0.05)
+        try:
+            assert server.started, "EDU frontend test server did not start"
+            yield f"http://127.0.0.1:{listener.getsockname()[1]}"
+        finally:
+            server.should_exit = True
+            thread.join(timeout=5)
+            listener.close()
+
+    modern_result = {
+        "ok": True,
+        "final_equity": 10129.05,
+        "metrics": {
+            "simulate": {"trades": 3, "ret_pct": 1.29, "pnl_usd": 129.05, "mdd_pct": 0.21, "sharpe": 2.1, "win_rate": 100},
+            "test": {"sharpe": 2.0},
+        },
+        "config": {
+            "initial_capital": 10000,
+            "symbols": ["BTC@perp"],
+            "start": "2023-10-06",
+            "end": "2026-10-03",
+            "timeframe": "1h",
+            "position": {
+                "leverage": 1,
+                "stop_loss_rate": 0.05,
+                "take_profit_rate": 0.04,
+                "exit_unit": "pct",
+                "slippage_rate": 0.0005,
+                "fee_rate": 0.0005,
+            },
+            "param_provenance": {
+                "leverage": {"source": "code", "value": 1, "unit": "x", "declared_in_code": 1},
+                "stop_loss_rate": {"source": "ui", "value": 0.05, "unit": "%", "declared_in_code": 0.02},
+                "take_profit_rate": {"source": "code", "value": 0.04, "unit": "%", "declared_in_code": 0.04},
+                "slippage_rate": {"source": "ui", "value": 0.0005, "unit": "%", "declared_in_code": None},
+            },
+            "conflicts": [
+                "Tham số vị thế 'stop_loss_rate' khai báo trong code là 0.02 nhưng đang bị cấu hình giao diện ghi đè thành 0.05."
+            ],
+        },
+        "trades": [],
+    }
+
+    with local_edu_server() as base_url, sync_playwright() as p:
+        browser = p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
         context = browser.new_context(viewport={"width": 1280, "height": 800})
         from backend.users.store import sign_uid
         context.add_cookies([{
@@ -147,43 +216,6 @@ def test_browser_studio_provenance_and_conflict_display():
             "path": "/",
         }])
         page = context.new_page()
-
-        # 1. Ca kết quả mới có provenance, xung đột và trượt giá > 0
-        modern_result = {
-            "ok": True,
-            "final_equity": 10129.05,
-            "metrics": {
-                "simulate": {"trades": 3, "ret_pct": 1.29, "pnl_usd": 129.05, "mdd_pct": 0.21, "sharpe": 2.1, "win_rate": 100},
-                "test": {"sharpe": 2.0},
-            },
-            "config": {
-                "initial_capital": 10000,
-                "symbols": ["BTC@perp"],
-                "start": "2023-10-06",
-                "end": "2026-10-03",
-                "timeframe": "1h",
-                "position": {
-                    "leverage": 1,
-                    "stop_loss_rate": 0.05,
-                    "take_profit_rate": 0.04,
-                    "exit_unit": "pct",
-                    "slippage_rate": 0.0005,
-                    "fee_rate": 0.0005,
-                },
-                "param_provenance": {
-                    "leverage": {"source": "code", "value": 1, "unit": "x", "declared_in_code": 1},
-                    "stop_loss_rate": {"source": "ui", "value": 0.05, "unit": "%", "declared_in_code": 0.02},
-                    "take_profit_rate": {"source": "code", "value": 0.04, "unit": "%", "declared_in_code": 0.04},
-                    "slippage_rate": {"source": "ui", "value": 0.0005, "unit": "%", "declared_in_code": None},
-                },
-                "conflicts": [
-                    "Tham số vị thế 'stop_loss_rate' khai báo trong code là 0.02 nhưng đang bị cấu hình giao diện ghi đè thành 0.05."
-                ],
-            },
-            "trades": [],
-        }
-
-        # Routes setup
         page.route("**/api/studio/custom/defaults", lambda r: r.fulfill(
             status=200, content_type="application/json",
             body=json.dumps({"symbols": ["BTC@perp"], "available_symbols": ["BTC@perp"], "start": "2026-01-01", "end": "2026-02-01", "train_ratio": 0.8, "initial_capital": 10000})
@@ -195,69 +227,46 @@ def test_browser_studio_provenance_and_conflict_display():
         job_id = "job_test_provenance_ui"
 
         def route_submit(route):
-            route.fulfill(
-                status=200,
-                content_type="application/json",
-                body=json.dumps({"id": job_id, "job_id": job_id, "status": "running"}),
-            )
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(
+                {"id": job_id, "job_id": job_id, "status": "running"}
+            ))
 
         def route_job(route):
-            route.fulfill(
-                status=200,
-                content_type="application/json",
-                body=json.dumps({
-                    "id": job_id,
-                    "job_id": job_id,
-                    "kind": "custom_backtest",
-                    "status": "done",
-                    "result": modern_result,
-                    "log_tail": [],
-                }),
-            )
+            route.fulfill(status=200, content_type="application/json", body=json.dumps({
+                "id": job_id, "job_id": job_id, "kind": "custom_backtest",
+                "status": "done", "result": modern_result, "log_tail": [],
+            }))
 
         page.route("**/api/studio/custom/backtest*", route_submit)
         page.route(f"**/api/studio/book/jobs/{job_id}*", route_job)
+        page.goto(f"{base_url}/studio", wait_until="networkidle", timeout=15000)
 
-        page.goto("http://127.0.0.1:18022/studio", wait_until="networkidle", timeout=15000)
-
-        # Bấm Chạy backtest
         run_btn = page.get_by_role("button", name="Chạy backtest", exact=True)
         assert run_btn.is_visible()
         run_btn.click()
 
-        # Đợi kết quả hiển thị
         conflict_el = page.locator(".edu-conflict-notice")
         conflict_el.wait_for(state="visible", timeout=10000)
         assert "Cảnh báo: Cấu hình giao diện đang ghi đè tham số" in conflict_el.inner_text()
         assert "stop_loss_rate" in conflict_el.inner_text()
 
-        # Kiểm tra banner trượt giá động (0.05% mỗi chiều)
         slip_el = page.locator(".edu-slippage-notice")
         assert slip_el.is_visible()
         assert "mô phỏng trượt giá 0.05%" in slip_el.inner_text()
 
-        # Chuyển sang tab Analysis để xem bảng Cấu hình hiệu lực & Nguồn tham số
         analysis_tab = page.locator("button:has-text('Analysis')").first
         analysis_tab.wait_for(state="visible", timeout=10000)
         analysis_tab.click()
         page.wait_for_timeout(300)
+        assert page.locator("text=Cấu hình tham số hiệu lực").is_visible()
+        assert page.locator("text=Từ Code").first.is_visible()
+        assert page.locator("text=Từ Giao diện").first.is_visible()
 
-        table_heading = page.locator("text=Cấu hình hiệu lực & Nguồn tham số")
-        assert table_heading.is_visible()
-        assert page.locator("text=📄 Từ Code").first.is_visible()
-        assert page.locator("text=⚙️ Từ Giao diện").first.is_visible()
-
-        # 2. Ca kết quả cũ không có param_provenance -> Hiện "Không có dữ liệu nguồn (run cũ)"
         legacy_result = {
             "ok": True,
             "final_equity": 10050.0,
-            "metrics": {
-                "simulate": {"trades": 1, "ret_pct": 0.5, "pnl_usd": 50.0, "mdd_pct": 0.1, "sharpe": 1.5, "win_rate": 100},
-            },
-            "config": {
-                "initial_capital": 10000,
-                "position": {"leverage": 1, "stop_loss_rate": 0.02, "take_profit_rate": 0.04},
-            },
+            "metrics": {"simulate": {"trades": 1, "ret_pct": 0.5, "pnl_usd": 50.0, "mdd_pct": 0.1, "sharpe": 1.5, "win_rate": 100}},
+            "config": {"initial_capital": 10000, "position": {"leverage": 1, "stop_loss_rate": 0.02, "take_profit_rate": 0.04}},
             "trades": [],
         }
         legacy_job_id = "job_legacy_ui"
@@ -269,18 +278,13 @@ def test_browser_studio_provenance_and_conflict_display():
             status=200, content_type="application/json",
             body=json.dumps({"id": legacy_job_id, "job_id": legacy_job_id, "kind": "custom_backtest", "status": "done", "result": legacy_result, "log_tail": []})
         ))
-
         with page.expect_response(lambda r: f"jobs/{legacy_job_id}" in r.url):
             run_btn.click()
         page.wait_for_timeout(500)
-        slip_legacy = page.locator(".edu-slippage-notice")
-        slip_legacy.wait_for(state="visible", timeout=10000)
-        assert "giả định trượt giá bằng 0" in slip_legacy.inner_text()
+        assert not page.locator(".edu-slippage-notice").is_visible()
 
-        # Mở tab Analysis
         page.locator("button:has-text('Analysis')").first.click()
         page.wait_for_timeout(300)
-        assert page.locator("text=Không có dữ liệu nguồn (run cũ)").first.is_visible()
-
+        assert not page.locator("text=Không có dữ liệu nguồn (run cũ)").is_visible()
+        assert page.locator("text=Đòn bẩy").first.is_visible()
         browser.close()
-

@@ -348,6 +348,40 @@ VENUE_COSTS = {  # (taker, maker, trượt giá)
     ("dex", "spot"): (0.0030, 0.0030, 0.0010),
 }
 
+RESEARCH_MARKET_COST_PRESETS = {
+    "BTC": (0.0005, 0.0002, 0.0003),
+    "ETH": (0.0005, 0.0002, 0.0005),
+    "SOL": (0.0005, 0.0002, 0.0006),
+    "BNB": (0.0005, 0.0002, 0.0005),
+    "XRP": (0.0005, 0.0002, 0.0006),
+    "DOGE": (0.0005, 0.0002, 0.0007),
+    "ADA": (0.0005, 0.0002, 0.0007),
+    "AVAX": (0.0005, 0.0002, 0.0007),
+    "LINK": (0.0005, 0.0002, 0.0007),
+    "TRX": (0.0005, 0.0002, 0.0006),
+}
+
+
+def selected_market_cost_defaults(symbols: List[str]) -> Dict[str, Dict[str, float]]:
+    """Cost mặc định theo market: trung bình các preset được chọn; market không có preset = 0.
+
+    Các giá trị là proxy nghiên cứu chưa xác minh theo tài khoản/venue, không phải cost đo thực tế.
+    """
+    bases = list(dict.fromkeys(str(symbol).upper().split("@")[0].split(":")[-1].split("-")[0] for symbol in symbols))
+    preset_bases = [base for base in bases if base in RESEARCH_MARKET_COST_PRESETS]
+    if preset_bases:
+        averages = tuple(
+            round(sum(RESEARCH_MARKET_COST_PRESETS[base][idx] for base in preset_bases) / len(preset_bases), 12)
+            for idx in range(3)
+        )
+    else:
+        averages = (0.0, 0.0, 0.0)
+    return {
+        base: dict(zip(("fee_rate", "maker_fee_rate", "slippage_rate"),
+                       averages if base in RESEARCH_MARKET_COST_PRESETS else (0.0, 0.0, 0.0)))
+        for base in bases
+    }
+
 
 def manifest_venue(manifest: Optional[Dict[str, Any]]) -> str:
     """Venue của tài sản theo manifest (DataSource.manifest): 'cex' | 'dex'."""

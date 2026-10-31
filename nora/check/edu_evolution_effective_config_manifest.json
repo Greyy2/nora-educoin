@@ -1,0 +1,3377 @@
+{
+  "timestamp": "2026-10-27T15:47:50Z",
+  "total_records": 57,
+  "records": {
+    "026f43441cb2": {
+      "aid": "026f43441cb2",
+      "name": "U4_BTC_1h_Different_Window",
+      "owner_id": "16e97dcc8432",
+      "is_vinh": false,
+      "source": "education",
+      "status": "SAVED",
+      "version": 1,
+      "versions_count": 0,
+      "code_sha256": "b69c7bd6bb03668d0f93720127035438c2b285859c2729e1083b8c78e8ccfec7",
+      "config_sha256": "0efb8436961d82204bec050fea97bdbf40f729eb00dce083275b3792d2ec7cc1",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 0,
+        "position_overrides": {}
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2025-11-01",
+        "end": "2026-01-01",
+        "train_ratio": 0.7,
+        "initial_capital": 10000,
+        "timeframe": "1h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": null,
+          "declared_exit_in_code": null,
+          "is_unit_mismatch": false,
+          "stop_loss_rate": null,
+          "take_profit_rate": null,
+          "risk_per_trade_pct": null,
+          "leverage": null,
+          "sizing": "risk"
+        }
+      }
+    },
+    "0873864b8db7": {
+      "aid": "0873864b8db7",
+      "name": "DEMA Turbo Compound (1Y Fast Trend - x1.51 Vốn)",
+      "owner_id": "aed197a5e968",
+      "is_vinh": true,
+      "source": "education",
+      "status": "SAVED",
+      "version": 1,
+      "versions_count": 0,
+      "code_sha256": "0b98d5f8f13624d0ec61e46b9e1d4f0e9bd631bf43b173dde8c8540b2895a705",
+      "config_sha256": "2270fa8fab65e55bc766485491fee36d0dedc2dbf09d8eede6f6619dbf8ee19e",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 240,
+        "position_overrides": {
+          "stop_loss_rate": 2.2,
+          "exit_unit": "pct",
+          "risk_per_trade_pct": 8.5
+        }
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": "atr",
+          "declared_exit_in_code": "pct",
+          "is_unit_mismatch": true,
+          "stop_loss_rate": 2.2,
+          "take_profit_rate": 0.0,
+          "risk_per_trade_pct": 8.5,
+          "leverage": 10,
+          "sizing": "risk"
+        }
+      }
+    },
+    "090730ae35b8": {
+      "aid": "090730ae35b8",
+      "name": "Fail-Fast Volatility Breakout (SL 2.4% + Macro Trend)",
+      "owner_id": "aed197a5e968",
+      "is_vinh": true,
+      "source": "education",
+      "status": "SAVED",
+      "version": 2,
+      "versions_count": 2,
+      "code_sha256": "8db8d1a474079d5644db1f797f8da06ee09c9cce6091b8da5d82e245a7e8febe",
+      "config_sha256": "7e11743ecf76b0054078584fef4c1d58d0190e581a7f0309ad3c63a27afb90b8",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 300,
+        "position_overrides": {
+          "stop_loss_rate": 2.4,
+          "exit_unit": "pct",
+          "risk_per_trade_pct": 3.9
+        }
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": "atr",
+          "declared_exit_in_code": "pct",
+          "is_unit_mismatch": true,
+          "stop_loss_rate": 2.4,
+          "take_profit_rate": 0.0,
+          "risk_per_trade_pct": 3.9,
+          "leverage": 10,
+          "sizing": "risk"
+        }
+      }
+    },
+    "0bf936687964": {
+      "aid": "0bf936687964",
+      "name": "U4_BTC_1h_Different_Window",
+      "owner_id": "e53ccc4b35d2",
+      "is_vinh": false,
+      "source": "education",
+      "status": "SAVED",
+      "version": 1,
+      "versions_count": 0,
+      "code_sha256": "b69c7bd6bb03668d0f93720127035438c2b285859c2729e1083b8c78e8ccfec7",
+      "config_sha256": "0efb8436961d82204bec050fea97bdbf40f729eb00dce083275b3792d2ec7cc1",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 0,
+        "position_overrides": {}
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2025-11-01",
+        "end": "2026-01-01",
+        "train_ratio": 0.7,
+        "initial_capital": 10000,
+        "timeframe": "1h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": null,
+          "declared_exit_in_code": null,
+          "is_unit_mismatch": false,
+          "stop_loss_rate": null,
+          "take_profit_rate": null,
+          "risk_per_trade_pct": null,
+          "leverage": null,
+          "sizing": "risk"
+        }
+      }
+    },
+    "0d51ba8d2012": {
+      "aid": "0d51ba8d2012",
+      "name": "OBV Volume Accumulation + RSI Momentum",
+      "owner_id": "43f5220ece1e",
+      "is_vinh": false,
+      "source": "seed",
+      "status": "SAVED",
+      "version": 3,
+      "versions_count": 3,
+      "code_sha256": "44bd919a4a501343ac649a042eb41db7d677aa5e7f1d73d0660e3fe597ac3183",
+      "config_sha256": "80a7ade338a4a6465099969e18e46c77751f6c516b2c26187a38de2915d721c6",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 58,
+        "position_overrides": {
+          "stop_loss_rate": 3.0,
+          "exit_unit": "pct",
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0,
+          "risk_per_trade_pct": 0.5
+        }
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": "pct",
+          "declared_exit_in_code": "pct",
+          "is_unit_mismatch": false,
+          "stop_loss_rate": 3.0,
+          "take_profit_rate": 0.0,
+          "risk_per_trade_pct": 0.5,
+          "leverage": 10,
+          "sizing": "risk"
+        }
+      }
+    },
+    "138df68946ad": {
+      "aid": "138df68946ad",
+      "name": "U1_BTC_1h_Alpha",
+      "owner_id": "ecf30ed0f194",
+      "is_vinh": false,
+      "source": "education",
+      "status": "SAVED",
+      "version": 1,
+      "versions_count": 0,
+      "code_sha256": "4e11b090ba8c8152d6a6f3beed72dfa264cce84aff0d281207f1b1da9a65df74",
+      "config_sha256": "bfe2bcb278fdee0a46ddd628b1d66b005799c34cdbcff23b7e1cb3938f8a9d1c",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 0,
+        "position_overrides": {}
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2026-01-01",
+        "end": "2026-03-01",
+        "train_ratio": 0.7,
+        "initial_capital": 10000,
+        "timeframe": "1h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": null,
+          "declared_exit_in_code": null,
+          "is_unit_mismatch": false,
+          "stop_loss_rate": null,
+          "take_profit_rate": null,
+          "risk_per_trade_pct": null,
+          "leverage": null,
+          "sizing": "risk"
+        }
+      }
+    },
+    "14e3b934b1e5": {
+      "aid": "14e3b934b1e5",
+      "name": "ROC Momentum Exhaustion with Take-Profit",
+      "owner_id": "23dc66cd61c6",
+      "is_vinh": false,
+      "source": "seed",
+      "status": "SAVED",
+      "version": 3,
+      "versions_count": 3,
+      "code_sha256": "155b0ae853f6d315e98e233b45ebcb35971877eea80e76b9107f49d56f707737",
+      "config_sha256": "68fe95b09acce326d87ba191a68980af66e881ee5f11bc47b7b24cd9f368b4c4",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 90,
+        "position_overrides": {
+          "stop_loss_rate": 3.0,
+          "exit_unit": "pct",
+          "take_profit_rate": 5.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0,
+          "risk_per_trade_pct": 0.5,
+          "atr_frame": "24h"
+        }
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": "pct",
+          "declared_exit_in_code": "pct",
+          "is_unit_mismatch": false,
+          "stop_loss_rate": 3.0,
+          "take_profit_rate": 5.0,
+          "risk_per_trade_pct": 0.5,
+          "leverage": 10,
+          "sizing": "risk"
+        }
+      }
+    },
+    "15567e02a806": {
+      "aid": "15567e02a806",
+      "name": "Triple EMA Trend Alignment (Optimized)",
+      "owner_id": "23dc66cd61c6",
+      "is_vinh": false,
+      "source": "education",
+      "status": "SAVED",
+      "version": 3,
+      "versions_count": 3,
+      "code_sha256": "45d749a50975d920342f1044c2b682b2c1dd51a5718df8d9bbfc581c974ac7e9",
+      "config_sha256": "0e0091cbcd237d2e4a9dfa4a129be6520d836c08ea981d449130bf6ea9df787c",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 300,
+        "position_overrides": {
+          "stop_loss_rate": 2.5,
+          "exit_unit": "pct",
+          "risk_per_trade_pct": 5.8
+        }
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": "pct",
+          "declared_exit_in_code": "pct",
+          "is_unit_mismatch": false,
+          "stop_loss_rate": 2.5,
+          "take_profit_rate": 0.0,
+          "risk_per_trade_pct": 5.8,
+          "leverage": 10,
+          "sizing": "risk"
+        }
+      }
+    },
+    "18e87aa868ad": {
+      "aid": "18e87aa868ad",
+      "name": "Fast Dynamic Channel Breakout (18D + Macro Trend)",
+      "owner_id": "aed197a5e968",
+      "is_vinh": true,
+      "source": "education",
+      "status": "SAVED",
+      "version": 2,
+      "versions_count": 2,
+      "code_sha256": "d120800459dfa1cf4b416dfaf0e8909a1f141e5134da6f124148c2ef13fd5373",
+      "config_sha256": "96396cb906881afc341a648ef89f468945aaa0abd12958c73b921128537a8b54",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 300,
+        "position_overrides": {
+          "stop_loss_rate": 2.5,
+          "exit_unit": "pct",
+          "risk_per_trade_pct": 4.0
+        }
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": "atr",
+          "declared_exit_in_code": "pct",
+          "is_unit_mismatch": true,
+          "stop_loss_rate": 2.5,
+          "take_profit_rate": 0.0,
+          "risk_per_trade_pct": 4.0,
+          "leverage": 10,
+          "sizing": "risk"
+        }
+      }
+    },
+    "1a1a4389a821": {
+      "aid": "1a1a4389a821",
+      "name": "U1_BTC_1h_Alpha",
+      "owner_id": "2922e08b6b61",
+      "is_vinh": false,
+      "source": "education",
+      "status": "SAVED",
+      "version": 1,
+      "versions_count": 0,
+      "code_sha256": "4e11b090ba8c8152d6a6f3beed72dfa264cce84aff0d281207f1b1da9a65df74",
+      "config_sha256": "bfe2bcb278fdee0a46ddd628b1d66b005799c34cdbcff23b7e1cb3938f8a9d1c",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 0,
+        "position_overrides": {}
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2026-01-01",
+        "end": "2026-03-01",
+        "train_ratio": 0.7,
+        "initial_capital": 10000,
+        "timeframe": "1h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": null,
+          "declared_exit_in_code": null,
+          "is_unit_mismatch": false,
+          "stop_loss_rate": null,
+          "take_profit_rate": null,
+          "risk_per_trade_pct": null,
+          "leverage": null,
+          "sizing": "risk"
+        }
+      }
+    },
+    "1e4c0b9f84f7": {
+      "aid": "1e4c0b9f84f7",
+      "name": "U3_BTC_Small_Alpha",
+      "owner_id": "9b7a10c35886",
+      "is_vinh": false,
+      "source": "education",
+      "status": "SAVED",
+      "version": 1,
+      "versions_count": 0,
+      "code_sha256": "255c955c8b2a1953c929b45a5ae4a716844a4cf80f55c95d449faf66e5aef68c",
+      "config_sha256": "bfe2bcb278fdee0a46ddd628b1d66b005799c34cdbcff23b7e1cb3938f8a9d1c",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 0,
+        "position_overrides": {}
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2026-01-01",
+        "end": "2026-03-01",
+        "train_ratio": 0.7,
+        "initial_capital": 10000,
+        "timeframe": "1h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": null,
+          "declared_exit_in_code": null,
+          "is_unit_mismatch": false,
+          "stop_loss_rate": null,
+          "take_profit_rate": null,
+          "risk_per_trade_pct": null,
+          "leverage": null,
+          "sizing": "risk"
+        }
+      }
+    },
+    "214ea8fdf3e6": {
+      "aid": "214ea8fdf3e6",
+      "name": "U2_ETH_15m_Alpha",
+      "owner_id": "423d35ac9700",
+      "is_vinh": false,
+      "source": "education",
+      "status": "SAVED",
+      "version": 1,
+      "versions_count": 0,
+      "code_sha256": "28058c6f978c69682840b65b68860beb798cb5e0e9c13f1627ecc01ba5d36472",
+      "config_sha256": "b3d1f1a1b7266d5e40526d6f67cd59e1e6b5fc977dbef5bba3b1f7fc2474157d",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 0,
+        "position_overrides": {}
+      },
+      "effective_config": {
+        "symbols": [
+          "ETH-USDT"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000,
+        "timeframe": "15m",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": null,
+          "declared_exit_in_code": null,
+          "is_unit_mismatch": false,
+          "stop_loss_rate": null,
+          "take_profit_rate": null,
+          "risk_per_trade_pct": null,
+          "leverage": null,
+          "sizing": "risk"
+        }
+      }
+    },
+    "234e6df02e37": {
+      "aid": "234e6df02e37",
+      "name": "U2_ETH_15m_Alpha",
+      "owner_id": "5de316621329",
+      "is_vinh": false,
+      "source": "education",
+      "status": "SAVED",
+      "version": 1,
+      "versions_count": 0,
+      "code_sha256": "28058c6f978c69682840b65b68860beb798cb5e0e9c13f1627ecc01ba5d36472",
+      "config_sha256": "b3d1f1a1b7266d5e40526d6f67cd59e1e6b5fc977dbef5bba3b1f7fc2474157d",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 0,
+        "position_overrides": {}
+      },
+      "effective_config": {
+        "symbols": [
+          "ETH-USDT"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000,
+        "timeframe": "15m",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": null,
+          "declared_exit_in_code": null,
+          "is_unit_mismatch": false,
+          "stop_loss_rate": null,
+          "take_profit_rate": null,
+          "risk_per_trade_pct": null,
+          "leverage": null,
+          "sizing": "risk"
+        }
+      }
+    },
+    "270e6e28416f": {
+      "aid": "270e6e28416f",
+      "name": "EMA Trend Rider (Rising Slope - Optimized)",
+      "owner_id": "a214b36a7eab",
+      "is_vinh": false,
+      "source": "education",
+      "status": "SAVED",
+      "version": 3,
+      "versions_count": 3,
+      "code_sha256": "9f2136dbceb1fcdde6f1398157b7599c4dd08d99f431113839e9a2e7d6d6d168",
+      "config_sha256": "1a6f771adcbab4e09fe895863f50de84b5fe3cde903622c31bb1c095ebcf20c3",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 300,
+        "position_overrides": {
+          "stop_loss_rate": 2.5,
+          "exit_unit": "pct",
+          "risk_per_trade_pct": 4.0
+        }
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": "pct",
+          "declared_exit_in_code": "pct",
+          "is_unit_mismatch": false,
+          "stop_loss_rate": 2.5,
+          "take_profit_rate": 0.0,
+          "risk_per_trade_pct": 4.0,
+          "leverage": 10,
+          "sizing": "risk"
+        }
+      }
+    },
+    "2e41b2cfa24d": {
+      "aid": "2e41b2cfa24d",
+      "name": "U1_BTC_1h_Alpha",
+      "owner_id": "3bbc767faa10",
+      "is_vinh": false,
+      "source": "education",
+      "status": "SAVED",
+      "version": 1,
+      "versions_count": 0,
+      "code_sha256": "4e11b090ba8c8152d6a6f3beed72dfa264cce84aff0d281207f1b1da9a65df74",
+      "config_sha256": "bfe2bcb278fdee0a46ddd628b1d66b005799c34cdbcff23b7e1cb3938f8a9d1c",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 0,
+        "position_overrides": {}
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2026-01-01",
+        "end": "2026-03-01",
+        "train_ratio": 0.7,
+        "initial_capital": 10000,
+        "timeframe": "1h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": null,
+          "declared_exit_in_code": null,
+          "is_unit_mismatch": false,
+          "stop_loss_rate": null,
+          "take_profit_rate": null,
+          "risk_per_trade_pct": null,
+          "leverage": null,
+          "sizing": "risk"
+        }
+      }
+    },
+    "303d4b713dda": {
+      "aid": "303d4b713dda",
+      "name": "Macro Trend Filtered Breakout (EMA 105 Filter)",
+      "owner_id": "aed197a5e968",
+      "is_vinh": true,
+      "source": "education",
+      "status": "SAVED",
+      "version": 2,
+      "versions_count": 2,
+      "code_sha256": "09b1764e6144df99ebd68939ad45a75892590a6e00debc59b540390d0e84e277",
+      "config_sha256": "ea4661e2bca22cda2543e4d7b2de07c9dded3656f436131d63153bed1934ff4a",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 315,
+        "position_overrides": {
+          "stop_loss_rate": 2.5,
+          "exit_unit": "pct",
+          "risk_per_trade_pct": 4.1
+        }
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": "atr",
+          "declared_exit_in_code": "pct",
+          "is_unit_mismatch": true,
+          "stop_loss_rate": 2.5,
+          "take_profit_rate": 0.0,
+          "risk_per_trade_pct": 4.1,
+          "leverage": 10,
+          "sizing": "risk"
+        }
+      }
+    },
+    "33312a2f4dfc": {
+      "aid": "33312a2f4dfc",
+      "name": "Standard Deviation Dynamic Channel Breakout (v2.0 Regime Filtered)",
+      "owner_id": "aed197a5e968",
+      "is_vinh": true,
+      "source": "education",
+      "status": "SAVED",
+      "version": 2,
+      "versions_count": 2,
+      "code_sha256": "c320d9dbef1dad973a81afce327afe5580df1dd3e9e614eef870bb4a4df591a8",
+      "config_sha256": "cd323af0a6afba4adb08497e447722e2e292d358638c9471988ed386e10378ca",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 300,
+        "position_overrides": {
+          "stop_loss_rate": 2.5,
+          "exit_unit": "pct",
+          "risk_per_trade_pct": 4.0
+        }
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": "atr",
+          "declared_exit_in_code": "pct",
+          "is_unit_mismatch": true,
+          "stop_loss_rate": 2.5,
+          "take_profit_rate": 0.0,
+          "risk_per_trade_pct": 4.0,
+          "leverage": 10,
+          "sizing": "risk"
+        }
+      }
+    },
+    "3cfcc2d296a2": {
+      "aid": "3cfcc2d296a2",
+      "name": "Donchian Lower Channel Exit",
+      "owner_id": "43f5220ece1e",
+      "is_vinh": false,
+      "source": "seed",
+      "status": "SAVED",
+      "version": 3,
+      "versions_count": 3,
+      "code_sha256": "16df0ff671e0a59a462c425465be1848946467d6e3a02deae1555405a0fbe364",
+      "config_sha256": "bd4be031b9830d6717128de55b22a4cc3fb0d7c4feaf2dc4784feb2f916ffdd0",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 61,
+        "position_overrides": {
+          "stop_loss_rate": 3.0,
+          "exit_unit": "pct",
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0,
+          "risk_per_trade_pct": 0.5
+        }
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": "pct",
+          "declared_exit_in_code": "pct",
+          "is_unit_mismatch": false,
+          "stop_loss_rate": 3.0,
+          "take_profit_rate": 0.0,
+          "risk_per_trade_pct": 0.5,
+          "leverage": 10,
+          "sizing": "risk"
+        }
+      }
+    },
+    "4f28285aa44c": {
+      "aid": "4f28285aa44c",
+      "name": "Dual EMA + ADX Trend Strength Filter",
+      "owner_id": "23dc66cd61c6",
+      "is_vinh": false,
+      "source": "seed",
+      "status": "SAVED",
+      "version": 3,
+      "versions_count": 3,
+      "code_sha256": "4f0a9b973c73ec931b6a98e1048ab110ba951416be5cda6c9e30aaf3d2987c17",
+      "config_sha256": "837841ba925cba94f600bddbb1d628dac81874781ba11aec8a8d070a5e2e8f0f",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 151,
+        "position_overrides": {
+          "stop_loss_rate": 3.0,
+          "exit_unit": "pct",
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0,
+          "risk_per_trade_pct": 0.5
+        }
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": "pct",
+          "declared_exit_in_code": "pct",
+          "is_unit_mismatch": false,
+          "stop_loss_rate": 3.0,
+          "take_profit_rate": 0.0,
+          "risk_per_trade_pct": 0.5,
+          "leverage": 10,
+          "sizing": "risk"
+        }
+      }
+    },
+    "541c55834f56": {
+      "aid": "541c55834f56",
+      "name": "Daily Range Expansion (High - Low) / Close",
+      "owner_id": "dd3d4fbabe8a",
+      "is_vinh": false,
+      "source": "seed",
+      "status": "SAVED",
+      "version": 3,
+      "versions_count": 3,
+      "code_sha256": "f9a0fbc0a647b314662a79e69ef8d26eec4d11a77e2b4c342bd12d5282207b38",
+      "config_sha256": "7bf3410dd685844fa28c1fe69328e784f0d6798f955f3967e6a2f0285c0f2531",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 21,
+        "position_overrides": {
+          "stop_loss_rate": 3.0,
+          "exit_unit": "pct",
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0,
+          "risk_per_trade_pct": 0.5
+        }
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": "pct",
+          "declared_exit_in_code": "pct",
+          "is_unit_mismatch": false,
+          "stop_loss_rate": 3.0,
+          "take_profit_rate": 0.0,
+          "risk_per_trade_pct": 0.5,
+          "leverage": 10,
+          "sizing": "risk"
+        }
+      }
+    },
+    "571474a18f55": {
+      "aid": "571474a18f55",
+      "name": "U3_BTC_Small_Alpha",
+      "owner_id": "82e8ccc35eb6",
+      "is_vinh": false,
+      "source": "education",
+      "status": "SAVED",
+      "version": 1,
+      "versions_count": 0,
+      "code_sha256": "255c955c8b2a1953c929b45a5ae4a716844a4cf80f55c95d449faf66e5aef68c",
+      "config_sha256": "bfe2bcb278fdee0a46ddd628b1d66b005799c34cdbcff23b7e1cb3938f8a9d1c",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 0,
+        "position_overrides": {}
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2026-01-01",
+        "end": "2026-03-01",
+        "train_ratio": 0.7,
+        "initial_capital": 10000,
+        "timeframe": "1h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": null,
+          "declared_exit_in_code": null,
+          "is_unit_mismatch": false,
+          "stop_loss_rate": null,
+          "take_profit_rate": null,
+          "risk_per_trade_pct": null,
+          "leverage": null,
+          "sizing": "risk"
+        }
+      }
+    },
+    "5e52d3fdf71f": {
+      "aid": "5e52d3fdf71f",
+      "name": "Bollinger Band Overextension Exit",
+      "owner_id": "76c5814277ab",
+      "is_vinh": false,
+      "source": "seed",
+      "status": "SAVED",
+      "version": 3,
+      "versions_count": 3,
+      "code_sha256": "f88de3b1055bcb889a1d8bb7a81ae502ee6388e003e77878b27669a1c4f0f5d9",
+      "config_sha256": "46fc9b511736e087a46a996c5dd5147f64e13d44f3606f221bd0335479dc0dc3",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 21,
+        "position_overrides": {
+          "stop_loss_rate": 3.0,
+          "exit_unit": "pct",
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0,
+          "risk_per_trade_pct": 0.5
+        }
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": "pct",
+          "declared_exit_in_code": "pct",
+          "is_unit_mismatch": false,
+          "stop_loss_rate": 3.0,
+          "take_profit_rate": 0.0,
+          "risk_per_trade_pct": 0.5,
+          "leverage": 10,
+          "sizing": "risk"
+        }
+      }
+    },
+    "6055aa8f661e": {
+      "aid": "6055aa8f661e",
+      "name": "Triple Filter: EMA + MACD + RSI",
+      "owner_id": "a214b36a7eab",
+      "is_vinh": false,
+      "source": "seed",
+      "status": "SAVED",
+      "version": 3,
+      "versions_count": 3,
+      "code_sha256": "8275abadc4d4e48fe09acbdd279dcef9c6a045e89dc248ed6e5e42cfc5256854",
+      "config_sha256": "4a7801a2a8be6ad7d25fd9f6d250f7edfce7c995d657a94c00fa9dc045f08114",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 150,
+        "position_overrides": {
+          "stop_loss_rate": 3.0,
+          "exit_unit": "pct",
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0,
+          "risk_per_trade_pct": 0.5
+        }
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": "pct",
+          "declared_exit_in_code": "pct",
+          "is_unit_mismatch": false,
+          "stop_loss_rate": 3.0,
+          "take_profit_rate": 0.0,
+          "risk_per_trade_pct": 0.5,
+          "leverage": 10,
+          "sizing": "risk"
+        }
+      }
+    },
+    "616e1b8cbc88": {
+      "aid": "616e1b8cbc88",
+      "name": "U2_ETH_15m_Alpha",
+      "owner_id": "184e6dc9dfe6",
+      "is_vinh": false,
+      "source": "education",
+      "status": "SAVED",
+      "version": 1,
+      "versions_count": 0,
+      "code_sha256": "28058c6f978c69682840b65b68860beb798cb5e0e9c13f1627ecc01ba5d36472",
+      "config_sha256": "b3d1f1a1b7266d5e40526d6f67cd59e1e6b5fc977dbef5bba3b1f7fc2474157d",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 0,
+        "position_overrides": {}
+      },
+      "effective_config": {
+        "symbols": [
+          "ETH-USDT"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000,
+        "timeframe": "15m",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": null,
+          "declared_exit_in_code": null,
+          "is_unit_mismatch": false,
+          "stop_loss_rate": null,
+          "take_profit_rate": null,
+          "risk_per_trade_pct": null,
+          "leverage": null,
+          "sizing": "risk"
+        }
+      }
+    },
+    "64b657c8de8e": {
+      "aid": "64b657c8de8e",
+      "name": "U4_BTC_1h_Different_Window",
+      "owner_id": "c7f8e10109b3",
+      "is_vinh": false,
+      "source": "education",
+      "status": "SAVED",
+      "version": 1,
+      "versions_count": 0,
+      "code_sha256": "b69c7bd6bb03668d0f93720127035438c2b285859c2729e1083b8c78e8ccfec7",
+      "config_sha256": "0efb8436961d82204bec050fea97bdbf40f729eb00dce083275b3792d2ec7cc1",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 0,
+        "position_overrides": {}
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2025-11-01",
+        "end": "2026-01-01",
+        "train_ratio": 0.7,
+        "initial_capital": 10000,
+        "timeframe": "1h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": null,
+          "declared_exit_in_code": null,
+          "is_unit_mismatch": false,
+          "stop_loss_rate": null,
+          "take_profit_rate": null,
+          "risk_per_trade_pct": null,
+          "leverage": null,
+          "sizing": "risk"
+        }
+      }
+    },
+    "6afa7f774655": {
+      "aid": "6afa7f774655",
+      "name": "RSI Rebound with Fast SMA Filter",
+      "owner_id": "a214b36a7eab",
+      "is_vinh": false,
+      "source": "seed",
+      "status": "SAVED",
+      "version": 3,
+      "versions_count": 3,
+      "code_sha256": "5ca2e43970424a0ea9f942c302b420a0f253a4fd0b04ad7f2737d8fac3803a73",
+      "config_sha256": "c524fa7ff884be2d3d08e4c7bc88f36bc8bb8faf3518bc399a26e5703d99a8fd",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 57,
+        "position_overrides": {
+          "stop_loss_rate": 3.0,
+          "exit_unit": "pct",
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0,
+          "risk_per_trade_pct": 0.5
+        }
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": "pct",
+          "declared_exit_in_code": "pct",
+          "is_unit_mismatch": false,
+          "stop_loss_rate": 3.0,
+          "take_profit_rate": 0.0,
+          "risk_per_trade_pct": 0.5,
+          "leverage": 10,
+          "sizing": "risk"
+        }
+      }
+    },
+    "715e56a6dd33": {
+      "aid": "715e56a6dd33",
+      "name": "Linear Regression Channel Deviation",
+      "owner_id": "43f5220ece1e",
+      "is_vinh": false,
+      "source": "seed",
+      "status": "SAVED",
+      "version": 3,
+      "versions_count": 3,
+      "code_sha256": "4299244c167cb37d22b03a893999dffbbe8946de46a0d5935e5a39169ef6c39d",
+      "config_sha256": "3c0409e191e3bd9abfade1a7f0d8e851140379ec927d8deaf03204d80f0c7e26",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 21,
+        "position_overrides": {
+          "stop_loss_rate": 3.0,
+          "exit_unit": "pct",
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0,
+          "risk_per_trade_pct": 0.5
+        }
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": "pct",
+          "declared_exit_in_code": "pct",
+          "is_unit_mismatch": false,
+          "stop_loss_rate": 3.0,
+          "take_profit_rate": 0.0,
+          "risk_per_trade_pct": 0.5,
+          "leverage": 10,
+          "sizing": "risk"
+        }
+      }
+    },
+    "717c1890c59e": {
+      "aid": "717c1890c59e",
+      "name": "Weighted Moving Average (WMA) Crossover (Optimized)",
+      "owner_id": "dd3d4fbabe8a",
+      "is_vinh": false,
+      "source": "education",
+      "status": "SAVED",
+      "version": 3,
+      "versions_count": 3,
+      "code_sha256": "5bade4fc9da2528fff441235782506bff5302e78334eb23e7de7350f01169718",
+      "config_sha256": "2ab6900e88c610814140fb760649f63a2c6f73993b61d832b87e5fa2f318c219",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 300,
+        "position_overrides": {
+          "stop_loss_rate": 2.5,
+          "exit_unit": "pct",
+          "risk_per_trade_pct": 4.2
+        }
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": "pct",
+          "declared_exit_in_code": "pct",
+          "is_unit_mismatch": false,
+          "stop_loss_rate": 2.5,
+          "take_profit_rate": 0.0,
+          "risk_per_trade_pct": 4.2,
+          "leverage": 10,
+          "sizing": "risk"
+        }
+      }
+    },
+    "74f607263c5c": {
+      "aid": "74f607263c5c",
+      "name": "U4_BTC_1h_Different_Window",
+      "owner_id": "726ff949da79",
+      "is_vinh": false,
+      "source": "education",
+      "status": "SAVED",
+      "version": 1,
+      "versions_count": 0,
+      "code_sha256": "b69c7bd6bb03668d0f93720127035438c2b285859c2729e1083b8c78e8ccfec7",
+      "config_sha256": "0efb8436961d82204bec050fea97bdbf40f729eb00dce083275b3792d2ec7cc1",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 0,
+        "position_overrides": {}
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2025-11-01",
+        "end": "2026-01-01",
+        "train_ratio": 0.7,
+        "initial_capital": 10000,
+        "timeframe": "1h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": null,
+          "declared_exit_in_code": null,
+          "is_unit_mismatch": false,
+          "stop_loss_rate": null,
+          "take_profit_rate": null,
+          "risk_per_trade_pct": null,
+          "leverage": null,
+          "sizing": "risk"
+        }
+      }
+    },
+    "7c1bf0a9686a": {
+      "aid": "7c1bf0a9686a",
+      "name": "U4_BTC_1h_Different_Window",
+      "owner_id": "dbbb50a338c9",
+      "is_vinh": false,
+      "source": "education",
+      "status": "SAVED",
+      "version": 1,
+      "versions_count": 0,
+      "code_sha256": "b69c7bd6bb03668d0f93720127035438c2b285859c2729e1083b8c78e8ccfec7",
+      "config_sha256": "0efb8436961d82204bec050fea97bdbf40f729eb00dce083275b3792d2ec7cc1",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 0,
+        "position_overrides": {}
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2025-11-01",
+        "end": "2026-01-01",
+        "train_ratio": 0.7,
+        "initial_capital": 10000,
+        "timeframe": "1h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": null,
+          "declared_exit_in_code": null,
+          "is_unit_mismatch": false,
+          "stop_loss_rate": null,
+          "take_profit_rate": null,
+          "risk_per_trade_pct": null,
+          "leverage": null,
+          "sizing": "risk"
+        }
+      }
+    },
+    "7f3486d63ca8": {
+      "aid": "7f3486d63ca8",
+      "name": "Dual Oscillator Climax Exit",
+      "owner_id": "dd3d4fbabe8a",
+      "is_vinh": false,
+      "source": "seed",
+      "status": "SAVED",
+      "version": 3,
+      "versions_count": 3,
+      "code_sha256": "ce12b2815db50a56abcc4fd2b220f0847666dfe9f1cf999b1fea74f02b6c1bea",
+      "config_sha256": "649e82a3bd347fe0a3f7201f833e0742dfeabda7e02f2a4a6d7ad4335e4bc128",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 57,
+        "position_overrides": {
+          "stop_loss_rate": 3.0,
+          "exit_unit": "pct",
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0,
+          "risk_per_trade_pct": 0.5
+        }
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": "pct",
+          "declared_exit_in_code": "pct",
+          "is_unit_mismatch": false,
+          "stop_loss_rate": 3.0,
+          "take_profit_rate": 0.0,
+          "risk_per_trade_pct": 0.5,
+          "leverage": 10,
+          "sizing": "risk"
+        }
+      }
+    },
+    "7f67e9aed0aa": {
+      "aid": "7f67e9aed0aa",
+      "name": "Stochastic & RSI Confluence System",
+      "owner_id": "dd3d4fbabe8a",
+      "is_vinh": false,
+      "source": "seed",
+      "status": "SAVED",
+      "version": 3,
+      "versions_count": 3,
+      "code_sha256": "6052e9e917f14f02cc0ebba992940a28cc19bcc2a93c17b021e7fda53fba9e26",
+      "config_sha256": "05975c69cf44483184652745eff912b376a21a13238beab6028be6930983de07",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 58,
+        "position_overrides": {
+          "stop_loss_rate": 3.0,
+          "exit_unit": "pct",
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0,
+          "risk_per_trade_pct": 0.5
+        }
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": "pct",
+          "declared_exit_in_code": "pct",
+          "is_unit_mismatch": false,
+          "stop_loss_rate": 3.0,
+          "take_profit_rate": 0.0,
+          "risk_per_trade_pct": 0.5,
+          "leverage": 10,
+          "sizing": "risk"
+        }
+      }
+    },
+    "7f770ebe5ab5": {
+      "aid": "7f770ebe5ab5",
+      "name": "U3_BTC_Small_Alpha",
+      "owner_id": "eb5d7e2e3897",
+      "is_vinh": false,
+      "source": "education",
+      "status": "SAVED",
+      "version": 1,
+      "versions_count": 0,
+      "code_sha256": "255c955c8b2a1953c929b45a5ae4a716844a4cf80f55c95d449faf66e5aef68c",
+      "config_sha256": "bfe2bcb278fdee0a46ddd628b1d66b005799c34cdbcff23b7e1cb3938f8a9d1c",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 0,
+        "position_overrides": {}
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2026-01-01",
+        "end": "2026-03-01",
+        "train_ratio": 0.7,
+        "initial_capital": 10000,
+        "timeframe": "1h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": null,
+          "declared_exit_in_code": null,
+          "is_unit_mismatch": false,
+          "stop_loss_rate": null,
+          "take_profit_rate": null,
+          "risk_per_trade_pct": null,
+          "leverage": null,
+          "sizing": "risk"
+        }
+      }
+    },
+    "856ddc574ce7": {
+      "aid": "856ddc574ce7",
+      "name": "U2_ETH_15m_Alpha",
+      "owner_id": "9fc184ee1040",
+      "is_vinh": false,
+      "source": "education",
+      "status": "SAVED",
+      "version": 1,
+      "versions_count": 0,
+      "code_sha256": "28058c6f978c69682840b65b68860beb798cb5e0e9c13f1627ecc01ba5d36472",
+      "config_sha256": "b3d1f1a1b7266d5e40526d6f67cd59e1e6b5fc977dbef5bba3b1f7fc2474157d",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 0,
+        "position_overrides": {}
+      },
+      "effective_config": {
+        "symbols": [
+          "ETH-USDT"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000,
+        "timeframe": "15m",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": null,
+          "declared_exit_in_code": null,
+          "is_unit_mismatch": false,
+          "stop_loss_rate": null,
+          "take_profit_rate": null,
+          "risk_per_trade_pct": null,
+          "leverage": null,
+          "sizing": "risk"
+        }
+      }
+    },
+    "862e0c9eebbe": {
+      "aid": "862e0c9eebbe",
+      "name": "U2_ETH_15m_Alpha",
+      "owner_id": "e7c998608206",
+      "is_vinh": false,
+      "source": "education",
+      "status": "SAVED",
+      "version": 1,
+      "versions_count": 0,
+      "code_sha256": "28058c6f978c69682840b65b68860beb798cb5e0e9c13f1627ecc01ba5d36472",
+      "config_sha256": "b3d1f1a1b7266d5e40526d6f67cd59e1e6b5fc977dbef5bba3b1f7fc2474157d",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 0,
+        "position_overrides": {}
+      },
+      "effective_config": {
+        "symbols": [
+          "ETH-USDT"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000,
+        "timeframe": "15m",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": null,
+          "declared_exit_in_code": null,
+          "is_unit_mismatch": false,
+          "stop_loss_rate": null,
+          "take_profit_rate": null,
+          "risk_per_trade_pct": null,
+          "leverage": null,
+          "sizing": "risk"
+        }
+      }
+    },
+    "89379cc0ab52": {
+      "aid": "89379cc0ab52",
+      "name": "Stochastic Oscillator (%K, %D) Bull Cross",
+      "owner_id": "76c5814277ab",
+      "is_vinh": false,
+      "source": "seed",
+      "status": "SAVED",
+      "version": 3,
+      "versions_count": 3,
+      "code_sha256": "f407a700fdf4ff9376f071712a4178fb6d06d918abd45e0086cec3a888990376",
+      "config_sha256": "5794429d10f7ac87e8e5d54260a6f75c0d4142617b872419260c148a3a92f2dd",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 22,
+        "position_overrides": {
+          "stop_loss_rate": 3.0,
+          "exit_unit": "pct",
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0,
+          "risk_per_trade_pct": 0.5
+        }
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": "pct",
+          "declared_exit_in_code": "pct",
+          "is_unit_mismatch": false,
+          "stop_loss_rate": 3.0,
+          "take_profit_rate": 0.0,
+          "risk_per_trade_pct": 0.5,
+          "leverage": 10,
+          "sizing": "risk"
+        }
+      }
+    },
+    "8a47cdbcc942": {
+      "aid": "8a47cdbcc942",
+      "name": "Fast Dip Harvester (3M DCA Dynamic - CAGR 108%)",
+      "owner_id": "aed197a5e968",
+      "is_vinh": true,
+      "source": "education",
+      "status": "SAVED",
+      "version": 1,
+      "versions_count": 0,
+      "code_sha256": "0eb932dea2e05587b95b12cfc25a2afc68008ea6f933605bce1ba8e3d2628f40",
+      "config_sha256": "c4ee13b06a4c88a0375c8f6539de8aaccd54b4d6d350ffe1d36b924ddd43e077",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 150,
+        "position_overrides": {
+          "stop_loss_rate": 2.0,
+          "exit_unit": "pct",
+          "take_profit_rate": 4.0,
+          "risk_per_trade_pct": 5.0
+        }
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2026-07-01",
+        "end": "2026-10-03",
+        "train_ratio": 0.3,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": "atr",
+          "declared_exit_in_code": "pct",
+          "is_unit_mismatch": true,
+          "stop_loss_rate": 2.0,
+          "take_profit_rate": 4.0,
+          "risk_per_trade_pct": 5.0,
+          "leverage": 10,
+          "sizing": "risk"
+        }
+      }
+    },
+    "930294d28c45": {
+      "aid": "930294d28c45",
+      "name": "U3_BTC_Small_Alpha",
+      "owner_id": "439fa7538599",
+      "is_vinh": false,
+      "source": "education",
+      "status": "SAVED",
+      "version": 1,
+      "versions_count": 0,
+      "code_sha256": "255c955c8b2a1953c929b45a5ae4a716844a4cf80f55c95d449faf66e5aef68c",
+      "config_sha256": "bfe2bcb278fdee0a46ddd628b1d66b005799c34cdbcff23b7e1cb3938f8a9d1c",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 0,
+        "position_overrides": {}
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2026-01-01",
+        "end": "2026-03-01",
+        "train_ratio": 0.7,
+        "initial_capital": 10000,
+        "timeframe": "1h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": null,
+          "declared_exit_in_code": null,
+          "is_unit_mismatch": false,
+          "stop_loss_rate": null,
+          "take_profit_rate": null,
+          "risk_per_trade_pct": null,
+          "leverage": null,
+          "sizing": "risk"
+        }
+      }
+    },
+    "9eec3d61131d": {
+      "aid": "9eec3d61131d",
+      "name": "U3_BTC_Small_Alpha",
+      "owner_id": "79183007b990",
+      "is_vinh": false,
+      "source": "education",
+      "status": "SAVED",
+      "version": 1,
+      "versions_count": 0,
+      "code_sha256": "255c955c8b2a1953c929b45a5ae4a716844a4cf80f55c95d449faf66e5aef68c",
+      "config_sha256": "bfe2bcb278fdee0a46ddd628b1d66b005799c34cdbcff23b7e1cb3938f8a9d1c",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 0,
+        "position_overrides": {}
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2026-01-01",
+        "end": "2026-03-01",
+        "train_ratio": 0.7,
+        "initial_capital": 10000,
+        "timeframe": "1h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": null,
+          "declared_exit_in_code": null,
+          "is_unit_mismatch": false,
+          "stop_loss_rate": null,
+          "take_profit_rate": null,
+          "risk_per_trade_pct": null,
+          "leverage": null,
+          "sizing": "risk"
+        }
+      }
+    },
+    "a4d6826fbbc6": {
+      "aid": "a4d6826fbbc6",
+      "name": "U4_BTC_1h_Different_Window",
+      "owner_id": "4547f1f50486",
+      "is_vinh": false,
+      "source": "education",
+      "status": "SAVED",
+      "version": 1,
+      "versions_count": 0,
+      "code_sha256": "b69c7bd6bb03668d0f93720127035438c2b285859c2729e1083b8c78e8ccfec7",
+      "config_sha256": "0efb8436961d82204bec050fea97bdbf40f729eb00dce083275b3792d2ec7cc1",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 0,
+        "position_overrides": {}
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2025-11-01",
+        "end": "2026-01-01",
+        "train_ratio": 0.7,
+        "initial_capital": 10000,
+        "timeframe": "1h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": null,
+          "declared_exit_in_code": null,
+          "is_unit_mismatch": false,
+          "stop_loss_rate": null,
+          "take_profit_rate": null,
+          "risk_per_trade_pct": null,
+          "leverage": null,
+          "sizing": "risk"
+        }
+      }
+    },
+    "af2bf88426c4": {
+      "aid": "af2bf88426c4",
+      "name": "U3_BTC_Small_Alpha",
+      "owner_id": "bf158b5142e8",
+      "is_vinh": false,
+      "source": "education",
+      "status": "SAVED",
+      "version": 1,
+      "versions_count": 0,
+      "code_sha256": "255c955c8b2a1953c929b45a5ae4a716844a4cf80f55c95d449faf66e5aef68c",
+      "config_sha256": "bfe2bcb278fdee0a46ddd628b1d66b005799c34cdbcff23b7e1cb3938f8a9d1c",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 0,
+        "position_overrides": {}
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2026-01-01",
+        "end": "2026-03-01",
+        "train_ratio": 0.7,
+        "initial_capital": 10000,
+        "timeframe": "1h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": null,
+          "declared_exit_in_code": null,
+          "is_unit_mismatch": false,
+          "stop_loss_rate": null,
+          "take_profit_rate": null,
+          "risk_per_trade_pct": null,
+          "leverage": null,
+          "sizing": "risk"
+        }
+      }
+    },
+    "b4b65cd3493f": {
+      "aid": "b4b65cd3493f",
+      "name": "Commodity Channel Index (CCI) Snapback",
+      "owner_id": "23dc66cd61c6",
+      "is_vinh": false,
+      "source": "seed",
+      "status": "SAVED",
+      "version": 3,
+      "versions_count": 3,
+      "code_sha256": "432ba779ab60c150f6cd76d2de54021f4246cc52c7a066ec1a3e8efc4d4449cb",
+      "config_sha256": "1087395153aabd27e4d9cb5eb9891e711924827718eb2ba2ecee7332b71ae65e",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 15,
+        "position_overrides": {
+          "stop_loss_rate": 3.0,
+          "exit_unit": "pct",
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0,
+          "risk_per_trade_pct": 0.5
+        }
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": "pct",
+          "declared_exit_in_code": "pct",
+          "is_unit_mismatch": false,
+          "stop_loss_rate": 3.0,
+          "take_profit_rate": 0.0,
+          "risk_per_trade_pct": 0.5,
+          "leverage": 10,
+          "sizing": "risk"
+        }
+      }
+    },
+    "b96bafe57445": {
+      "aid": "b96bafe57445",
+      "name": "Normalized ATR (NATR) Volatility Breakout",
+      "owner_id": "76c5814277ab",
+      "is_vinh": false,
+      "source": "seed",
+      "status": "SAVED",
+      "version": 3,
+      "versions_count": 3,
+      "code_sha256": "6b9b255a2af1acccb2eaf15eb22d8340bd731145a46abda1684257487beb9fb3",
+      "config_sha256": "f816272a7cb146d3a6e1d0da343cdfefc7ae5a732c8eaedd40f6dca78afefd5b",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 60,
+        "position_overrides": {
+          "stop_loss_rate": 3.0,
+          "exit_unit": "pct",
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0,
+          "risk_per_trade_pct": 0.5
+        }
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": "pct",
+          "declared_exit_in_code": "pct",
+          "is_unit_mismatch": false,
+          "stop_loss_rate": 3.0,
+          "take_profit_rate": 0.0,
+          "risk_per_trade_pct": 0.5,
+          "leverage": 10,
+          "sizing": "risk"
+        }
+      }
+    },
+    "bd234070bd7b": {
+      "aid": "bd234070bd7b",
+      "name": "U1_BTC_1h_Alpha",
+      "owner_id": "bbd150bc473c",
+      "is_vinh": false,
+      "source": "education",
+      "status": "SAVED",
+      "version": 1,
+      "versions_count": 0,
+      "code_sha256": "4e11b090ba8c8152d6a6f3beed72dfa264cce84aff0d281207f1b1da9a65df74",
+      "config_sha256": "bfe2bcb278fdee0a46ddd628b1d66b005799c34cdbcff23b7e1cb3938f8a9d1c",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 0,
+        "position_overrides": {}
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2026-01-01",
+        "end": "2026-03-01",
+        "train_ratio": 0.7,
+        "initial_capital": 10000,
+        "timeframe": "1h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": null,
+          "declared_exit_in_code": null,
+          "is_unit_mismatch": false,
+          "stop_loss_rate": null,
+          "take_profit_rate": null,
+          "risk_per_trade_pct": null,
+          "leverage": null,
+          "sizing": "risk"
+        }
+      }
+    },
+    "be1174b24a44": {
+      "aid": "be1174b24a44",
+      "name": "U1_BTC_1h_Alpha",
+      "owner_id": "657914b99b5b",
+      "is_vinh": false,
+      "source": "education",
+      "status": "SAVED",
+      "version": 1,
+      "versions_count": 0,
+      "code_sha256": "4e11b090ba8c8152d6a6f3beed72dfa264cce84aff0d281207f1b1da9a65df74",
+      "config_sha256": "bfe2bcb278fdee0a46ddd628b1d66b005799c34cdbcff23b7e1cb3938f8a9d1c",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 0,
+        "position_overrides": {}
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2026-01-01",
+        "end": "2026-03-01",
+        "train_ratio": 0.7,
+        "initial_capital": 10000,
+        "timeframe": "1h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": null,
+          "declared_exit_in_code": null,
+          "is_unit_mismatch": false,
+          "stop_loss_rate": null,
+          "take_profit_rate": null,
+          "risk_per_trade_pct": null,
+          "leverage": null,
+          "sizing": "risk"
+        }
+      }
+    },
+    "bf519617d973": {
+      "aid": "bf519617d973",
+      "name": "Double Exponential Moving Average (DEMA - Optimized)",
+      "owner_id": "76c5814277ab",
+      "is_vinh": false,
+      "source": "education",
+      "status": "SAVED",
+      "version": 3,
+      "versions_count": 3,
+      "code_sha256": "c34de4a963fe5e9f01283a6c9266bc48157295185579aece0934a0c0967f816b",
+      "config_sha256": "b0b6db26f1fcb2bb04a98027c2a49bb4fa303c652d235113e6e9ea8b3cff5c3e",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 300,
+        "position_overrides": {
+          "stop_loss_rate": 2.5,
+          "exit_unit": "pct",
+          "risk_per_trade_pct": 6.8
+        }
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": "pct",
+          "declared_exit_in_code": "pct",
+          "is_unit_mismatch": false,
+          "stop_loss_rate": 2.5,
+          "take_profit_rate": 0.0,
+          "risk_per_trade_pct": 6.8,
+          "leverage": 10,
+          "sizing": "risk"
+        }
+      }
+    },
+    "c33cc317bbeb": {
+      "aid": "c33cc317bbeb",
+      "name": "Multi-Day Cumulative Return Dip Buying",
+      "owner_id": "dd3d4fbabe8a",
+      "is_vinh": false,
+      "source": "seed",
+      "status": "SAVED",
+      "version": 3,
+      "versions_count": 3,
+      "code_sha256": "091b2185a9117d2c7f2fb22b5b7e149983529c85744070f38b8a03a85468aacd",
+      "config_sha256": "de1629a0a0bf1f663e41aa6ed8a5e7791a901ad1e344127ef89019bd69121a7b",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 5,
+        "position_overrides": {
+          "stop_loss_rate": 3.0,
+          "exit_unit": "pct",
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0,
+          "risk_per_trade_pct": 0.5
+        }
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": "pct",
+          "declared_exit_in_code": "pct",
+          "is_unit_mismatch": false,
+          "stop_loss_rate": 3.0,
+          "take_profit_rate": 0.0,
+          "risk_per_trade_pct": 0.5,
+          "leverage": 10,
+          "sizing": "risk"
+        }
+      }
+    },
+    "cb0b6e0f12e7": {
+      "aid": "cb0b6e0f12e7",
+      "name": "U1_BTC_1h_Alpha",
+      "owner_id": "f9292fff53c9",
+      "is_vinh": false,
+      "source": "education",
+      "status": "SAVED",
+      "version": 1,
+      "versions_count": 0,
+      "code_sha256": "4e11b090ba8c8152d6a6f3beed72dfa264cce84aff0d281207f1b1da9a65df74",
+      "config_sha256": "bfe2bcb278fdee0a46ddd628b1d66b005799c34cdbcff23b7e1cb3938f8a9d1c",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 0,
+        "position_overrides": {}
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2026-01-01",
+        "end": "2026-03-01",
+        "train_ratio": 0.7,
+        "initial_capital": 10000,
+        "timeframe": "1h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": null,
+          "declared_exit_in_code": null,
+          "is_unit_mismatch": false,
+          "stop_loss_rate": null,
+          "take_profit_rate": null,
+          "risk_per_trade_pct": null,
+          "leverage": null,
+          "sizing": "risk"
+        }
+      }
+    },
+    "cb750cb1eb10": {
+      "aid": "cb750cb1eb10",
+      "name": "EMA Golden Cross + Volume Spike Confluence",
+      "owner_id": "76c5814277ab",
+      "is_vinh": false,
+      "source": "seed",
+      "status": "SAVED",
+      "version": 3,
+      "versions_count": 3,
+      "code_sha256": "e18347792d1e6e9cd9cef46360282015c456f0ca312a1e42129c0f9f402ece7f",
+      "config_sha256": "61f68b0baa42721e95a911798222ed7a9c0a0f46ec3745e382f46f4cdcf19bd5",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 151,
+        "position_overrides": {
+          "stop_loss_rate": 3.0,
+          "exit_unit": "pct",
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0,
+          "risk_per_trade_pct": 0.5
+        }
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": "pct",
+          "declared_exit_in_code": "pct",
+          "is_unit_mismatch": false,
+          "stop_loss_rate": 3.0,
+          "take_profit_rate": 0.0,
+          "risk_per_trade_pct": 0.5,
+          "leverage": 10,
+          "sizing": "risk"
+        }
+      }
+    },
+    "d0518c0cca14": {
+      "aid": "d0518c0cca14",
+      "name": "U4_BTC_1h_Different_Window",
+      "owner_id": "f4ded6717b32",
+      "is_vinh": false,
+      "source": "education",
+      "status": "SAVED",
+      "version": 1,
+      "versions_count": 0,
+      "code_sha256": "b69c7bd6bb03668d0f93720127035438c2b285859c2729e1083b8c78e8ccfec7",
+      "config_sha256": "0efb8436961d82204bec050fea97bdbf40f729eb00dce083275b3792d2ec7cc1",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 0,
+        "position_overrides": {}
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2025-11-01",
+        "end": "2026-01-01",
+        "train_ratio": 0.7,
+        "initial_capital": 10000,
+        "timeframe": "1h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": null,
+          "declared_exit_in_code": null,
+          "is_unit_mismatch": false,
+          "stop_loss_rate": null,
+          "take_profit_rate": null,
+          "risk_per_trade_pct": null,
+          "leverage": null,
+          "sizing": "risk"
+        }
+      }
+    },
+    "e9a9a5b44d03": {
+      "aid": "e9a9a5b44d03",
+      "name": "U2_ETH_15m_Alpha",
+      "owner_id": "95f7a5a4b3ae",
+      "is_vinh": false,
+      "source": "education",
+      "status": "SAVED",
+      "version": 1,
+      "versions_count": 0,
+      "code_sha256": "28058c6f978c69682840b65b68860beb798cb5e0e9c13f1627ecc01ba5d36472",
+      "config_sha256": "b3d1f1a1b7266d5e40526d6f67cd59e1e6b5fc977dbef5bba3b1f7fc2474157d",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 0,
+        "position_overrides": {}
+      },
+      "effective_config": {
+        "symbols": [
+          "ETH-USDT"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000,
+        "timeframe": "15m",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": null,
+          "declared_exit_in_code": null,
+          "is_unit_mismatch": false,
+          "stop_loss_rate": null,
+          "take_profit_rate": null,
+          "risk_per_trade_pct": null,
+          "leverage": null,
+          "sizing": "risk"
+        }
+      }
+    },
+    "ee0cf7f58f94": {
+      "aid": "ee0cf7f58f94",
+      "name": "U2_ETH_15m_Alpha",
+      "owner_id": "97cac5011215",
+      "is_vinh": false,
+      "source": "education",
+      "status": "SAVED",
+      "version": 1,
+      "versions_count": 0,
+      "code_sha256": "28058c6f978c69682840b65b68860beb798cb5e0e9c13f1627ecc01ba5d36472",
+      "config_sha256": "b3d1f1a1b7266d5e40526d6f67cd59e1e6b5fc977dbef5bba3b1f7fc2474157d",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 0,
+        "position_overrides": {}
+      },
+      "effective_config": {
+        "symbols": [
+          "ETH-USDT"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000,
+        "timeframe": "15m",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": null,
+          "declared_exit_in_code": null,
+          "is_unit_mismatch": false,
+          "stop_loss_rate": null,
+          "take_profit_rate": null,
+          "risk_per_trade_pct": null,
+          "leverage": null,
+          "sizing": "risk"
+        }
+      }
+    },
+    "efb1fbe2db86": {
+      "aid": "efb1fbe2db86",
+      "name": "Volatility Expansion Channel (StdDev 1.51 + Macro Trend)",
+      "owner_id": "aed197a5e968",
+      "is_vinh": true,
+      "source": "education",
+      "status": "SAVED",
+      "version": 2,
+      "versions_count": 2,
+      "code_sha256": "205a3ddb655e010b1be96129e7b044bb2fe18ef075e16d69df3ca7b28799ef43",
+      "config_sha256": "6db4d895008c7ac945bfe0b7887fab208342fa58f04c5d8f69a7a15cb6747c6f",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 300,
+        "position_overrides": {
+          "stop_loss_rate": 2.5,
+          "exit_unit": "pct",
+          "risk_per_trade_pct": 4.0
+        }
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": "atr",
+          "declared_exit_in_code": "pct",
+          "is_unit_mismatch": true,
+          "stop_loss_rate": 2.5,
+          "take_profit_rate": 0.0,
+          "risk_per_trade_pct": 4.0,
+          "leverage": 10,
+          "sizing": "risk"
+        }
+      }
+    },
+    "f261549d9efa": {
+      "aid": "f261549d9efa",
+      "name": "ROC Momentum Surge",
+      "owner_id": "23dc66cd61c6",
+      "is_vinh": false,
+      "source": "seed",
+      "status": "SAVED",
+      "version": 3,
+      "versions_count": 3,
+      "code_sha256": "730f5481c03959a138fa9ac423995c93502b38504a51b8de7e52dc276db63a26",
+      "config_sha256": "863cdb2c0c1a079466812246d9efd19222af324b4802e8fe3059e4affa3551d5",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 60,
+        "position_overrides": {
+          "stop_loss_rate": 3.0,
+          "exit_unit": "pct",
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0,
+          "risk_per_trade_pct": 0.5
+        }
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": "pct",
+          "declared_exit_in_code": "pct",
+          "is_unit_mismatch": false,
+          "stop_loss_rate": 3.0,
+          "take_profit_rate": 0.0,
+          "risk_per_trade_pct": 0.5,
+          "leverage": 10,
+          "sizing": "risk"
+        }
+      }
+    },
+    "f4e211e9510d": {
+      "aid": "f4e211e9510d",
+      "name": "Rolling 30-Day Multi-Week High Breakout",
+      "owner_id": "a214b36a7eab",
+      "is_vinh": false,
+      "source": "seed",
+      "status": "SAVED",
+      "version": 3,
+      "versions_count": 3,
+      "code_sha256": "1ea9f475265a505d4663e66673b5b9a444e7935f71b39e08ef6bb32db69d59fb",
+      "config_sha256": "cf2b5aa92e5bdc24eef128edbafcf71e5072a0a5324177ac6988ebadaeefdfd6",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 31,
+        "position_overrides": {
+          "stop_loss_rate": 3.0,
+          "exit_unit": "pct",
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0,
+          "risk_per_trade_pct": 0.5
+        }
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": "pct",
+          "declared_exit_in_code": "pct",
+          "is_unit_mismatch": false,
+          "stop_loss_rate": 3.0,
+          "take_profit_rate": 0.0,
+          "risk_per_trade_pct": 0.5,
+          "leverage": 10,
+          "sizing": "risk"
+        }
+      }
+    },
+    "fa9587a97fa9": {
+      "aid": "fa9587a97fa9",
+      "name": "Trend Alignment Momentum (Optimized)",
+      "owner_id": "43f5220ece1e",
+      "is_vinh": false,
+      "source": "education",
+      "status": "SAVED",
+      "version": 4,
+      "versions_count": 4,
+      "code_sha256": "bb9aab3054c38562a9a7ae7472139789d561845449100b944bd165adeace066d",
+      "config_sha256": "235f204cd354d9e8cd9d6c1c9ca59909ff7552dac895505a75f9de4365e72643",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 300,
+        "position_overrides": {
+          "stop_loss_rate": 2.5,
+          "exit_unit": "pct",
+          "risk_per_trade_pct": 4.0
+        }
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": "pct",
+          "declared_exit_in_code": "pct",
+          "is_unit_mismatch": false,
+          "stop_loss_rate": 2.5,
+          "take_profit_rate": 0.0,
+          "risk_per_trade_pct": 4.0,
+          "leverage": 10,
+          "sizing": "risk"
+        }
+      }
+    },
+    "fd16df3d0a3f": {
+      "aid": "fd16df3d0a3f",
+      "name": "U3_BTC_Small_Alpha",
+      "owner_id": "d836143af954",
+      "is_vinh": false,
+      "source": "education",
+      "status": "SAVED",
+      "version": 1,
+      "versions_count": 0,
+      "code_sha256": "255c955c8b2a1953c929b45a5ae4a716844a4cf80f55c95d449faf66e5aef68c",
+      "config_sha256": "bfe2bcb278fdee0a46ddd628b1d66b005799c34cdbcff23b7e1cb3938f8a9d1c",
+      "compiler": {
+        "status": "VALID",
+        "timeframe": "24h",
+        "warmup_bars": 0,
+        "position_overrides": {}
+      },
+      "effective_config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2026-01-01",
+        "end": "2026-03-01",
+        "train_ratio": 0.7,
+        "initial_capital": 10000,
+        "timeframe": "1h",
+        "run_frame": "24h",
+        "position": {
+          "exit_unit": null,
+          "declared_exit_in_code": null,
+          "is_unit_mismatch": false,
+          "stop_loss_rate": null,
+          "take_profit_rate": null,
+          "risk_per_trade_pct": null,
+          "leverage": null,
+          "sizing": "risk"
+        }
+      }
+    }
+  }
+}

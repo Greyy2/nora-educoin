@@ -1,0 +1,822 @@
+{
+  "schema_version": 2,
+  "created_at": "2026-10-28T07:27:00.519063+00:00",
+  "status": "NOVELTY_REJECTED_BACKTEST_BLOCKED",
+  "disclaimer": "Research-v2 definitions are applied in place but failed the owner-required novelty audit against other current EDU alphas. Do not production-backtest this version. This file is a migration manifest, not an additional alpha-record source.",
+  "novelty_gate": {
+    "status": "FAIL",
+    "compared_against_active_alpha_count": 30,
+    "reason": "Substantial overlap in DEMA/EMA trend, Donchian/channel breakout, ROC momentum, RSI/Stochastic/CCI recovery, MACD, Bollinger and OBV signal families.",
+    "backtest_allowed": false,
+    "superseded_by_amendment": "EDU-ALPHA-57-NOVELTY-AND-REAL-BACKTEST-2026-10-28"
+  },
+  "source_baseline_timestamp": "2026-10-27T14:01:57Z",
+  "candidate_count": 27,
+  "compile_pass_count": 0,
+  "compile_receipts_sha256": null,
+  "candidates": [
+    {
+      "candidate_id": "fixture-026f43441cb2-research-v2",
+      "parent_id": "026f43441cb2",
+      "parent_source_sha256": "b69c7bd6bb03668d0f93720127035438c2b285859c2729e1083b8c78e8ccfec7",
+      "parent_record_sha256": "d8a04ce001f76f4c9f7b7f82b5d41c7338fca731fbd53a42461ecd9816469c89",
+      "parent_config_sha256": "93cf38ebebe09b4e222165cf2494c0460a48456fd0b2fc5c85a2491692c09b40",
+      "owner_id": "16e97dcc8432",
+      "template_name": "U4_BTC_1h_Different_Window",
+      "timeframe": "1h",
+      "config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "timeframe": "1h",
+        "start": "2025-11-01",
+        "end": "2026-01-01",
+        "initial_capital": 10000
+      },
+      "thesis": "A faster double-EMA cross tests whether reduced lag compensates for added whipsaw.",
+      "entry_rule": "DEMA12 crosses above DEMA36.",
+      "exit_rule": "DEMA12 crosses below DEMA36.",
+      "falsifier": "Reject if turnover-adjusted performance is below the pre-registered EMA trend benchmark.",
+      "signal_priority": "Exit takes precedence when entry and exit are both true on the same bar.",
+      "code": "class U4DemaCross(NoraStrategy):\n    timeframe = \"1h\"\n\n    def on_bar(self):\n        close = close\n        dema_fast = self.feat.dema(close, 12)\n        dema_slow = self.feat.dema(close, 36)\n        entry = self.op.crossed_above(dema_fast, dema_slow)\n        exit_signal = self.op.crossed_below(dema_fast, dema_slow)\n        self.buy(entry)\n        self.close(exit_signal)\n",
+      "code_sha256": "83294d71ec0c750f1f2518c7b64d096eef0feb8a23e58f0b8f091450af12b1d5",
+      "syntax_status": "AST_PARSE_PASS",
+      "dsl_compile_status": "NOT_RUN",
+      "backtest_status": "NOT_RUN",
+      "disposition": "RESEARCH_PROPOSAL"
+    },
+    {
+      "candidate_id": "fixture-0bf936687964-research-v2",
+      "parent_id": "0bf936687964",
+      "parent_source_sha256": "b69c7bd6bb03668d0f93720127035438c2b285859c2729e1083b8c78e8ccfec7",
+      "parent_record_sha256": "20a4c609a423a70cdac2d5a971f705624e0a86ac56cfece2cfbba4f0bae35d3b",
+      "parent_config_sha256": "93cf38ebebe09b4e222165cf2494c0460a48456fd0b2fc5c85a2491692c09b40",
+      "owner_id": "e53ccc4b35d2",
+      "template_name": "U4_BTC_1h_Different_Window",
+      "timeframe": "1h",
+      "config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "timeframe": "1h",
+        "start": "2025-11-01",
+        "end": "2026-01-01",
+        "initial_capital": 10000
+      },
+      "thesis": "A 20-bar prior-high breakout holds until a faster trend guide is lost.",
+      "entry_rule": "Close crosses above prior 20-bar Donchian high.",
+      "exit_rule": "Close crosses below EMA10.",
+      "falsifier": "Reject if results depend on one breakout or turnover costs erase net returns.",
+      "signal_priority": "Exit takes precedence when entry and exit are both true on the same bar.",
+      "code": "class U4DonchianTrendBreak(NoraStrategy):\n    timeframe = \"1h\"\n\n    def on_bar(self):\n        close = close\n        upper = self.feat.donchian_upper(high, 20)\n        ema10 = self.feat.ema(close, 10)\n        entry = self.op.crossed_above(close, upper)\n        exit_signal = self.op.crossed_below(close, ema10)\n        self.buy(entry)\n        self.close(exit_signal)\n",
+      "code_sha256": "fc32e355cd97b0598cc3b83bf9f70920fb7b149866a1f48fab27130c10049b02",
+      "syntax_status": "AST_PARSE_PASS",
+      "dsl_compile_status": "NOT_RUN",
+      "backtest_status": "NOT_RUN",
+      "disposition": "RESEARCH_PROPOSAL"
+    },
+    {
+      "candidate_id": "fixture-138df68946ad-research-v2",
+      "parent_id": "138df68946ad",
+      "parent_source_sha256": "4e11b090ba8c8152d6a6f3beed72dfa264cce84aff0d281207f1b1da9a65df74",
+      "parent_record_sha256": "a81f858ee456148a143a3de413e2c3904fb0dbfc8014c202d97f249bd4f769ce",
+      "parent_config_sha256": "2e9d41097d671e11b3cc70e68d32d15be2f84c283ad22adbfc9fe90dc09ba76a",
+      "owner_id": "ecf30ed0f194",
+      "template_name": "U1_BTC_1h_Alpha",
+      "timeframe": "1h",
+      "config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "timeframe": "1h",
+        "start": "2026-01-01",
+        "end": "2026-03-01",
+        "initial_capital": 10000
+      },
+      "thesis": "A positive turn in regression slope is a directional momentum signal, unlike an absolute price threshold.",
+      "entry_rule": "Linear-regression slope14 crosses above zero while close is above EMA50.",
+      "exit_rule": "Slope14 crosses below zero.",
+      "falsifier": "Reject if exposure-adjusted results do not improve on a trend benchmark.",
+      "signal_priority": "Exit takes precedence when entry and exit are both true on the same bar.",
+      "code": "class U1LinearSlopeTurn(NoraStrategy):\n    timeframe = \"1h\"\n\n    def on_bar(self):\n        close = close\n        slope14 = self.feat.linearreg_slope(close, 14)\n        ema50 = self.feat.ema(close, 50)\n        entry = self.op.crossed_above_value(slope14, 0) & (close > ema50)\n        exit_signal = self.op.crossed_below_value(slope14, 0)\n        self.buy(entry)\n        self.close(exit_signal)\n",
+      "code_sha256": "671c2ac3de835ca0e0327523b660f7b09539b1588a56c6f7c8a5d2d38ea042e8",
+      "syntax_status": "AST_PARSE_PASS",
+      "dsl_compile_status": "NOT_RUN",
+      "backtest_status": "NOT_RUN",
+      "disposition": "RESEARCH_PROPOSAL"
+    },
+    {
+      "candidate_id": "fixture-1a1a4389a821-research-v2",
+      "parent_id": "1a1a4389a821",
+      "parent_source_sha256": "4e11b090ba8c8152d6a6f3beed72dfa264cce84aff0d281207f1b1da9a65df74",
+      "parent_record_sha256": "04b50eb00631f91399dc0a0f2275c24d69300fc8ea44d667136d67d4dd66d5b0",
+      "parent_config_sha256": "2e9d41097d671e11b3cc70e68d32d15be2f84c283ad22adbfc9fe90dc09ba76a",
+      "owner_id": "2922e08b6b61",
+      "template_name": "U1_BTC_1h_Alpha",
+      "timeframe": "1h",
+      "config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "timeframe": "1h",
+        "start": "2026-01-01",
+        "end": "2026-03-01",
+        "initial_capital": 10000
+      },
+      "thesis": "Pullback entry only while the intermediate EMA trend is rising.",
+      "entry_rule": "Close crosses above EMA20 while EMA20 is above EMA50.",
+      "exit_rule": "Close crosses below EMA50.",
+      "falsifier": "Reject if net edge disappears after fees or is concentrated in one trend segment.",
+      "signal_priority": "Exit takes precedence when entry and exit are both true on the same bar.",
+      "code": "class U1EmaPullback(NoraStrategy):\n    timeframe = \"1h\"\n\n    def on_bar(self):\n        close = close\n        ema20 = self.feat.ema(close, 20)\n        ema50 = self.feat.ema(close, 50)\n        entry = self.op.crossed_above(close, ema20) & (ema20 > ema50)\n        exit_signal = self.op.crossed_below(close, ema50)\n        self.buy(entry)\n        self.close(exit_signal)\n",
+      "code_sha256": "9e58605b20998d9efd5845b97c21881f2deec84d336561ea8c873e8a3c4be279",
+      "syntax_status": "AST_PARSE_PASS",
+      "dsl_compile_status": "NOT_RUN",
+      "backtest_status": "NOT_RUN",
+      "disposition": "RESEARCH_PROPOSAL"
+    },
+    {
+      "candidate_id": "fixture-1e4c0b9f84f7-research-v2",
+      "parent_id": "1e4c0b9f84f7",
+      "parent_source_sha256": "255c955c8b2a1953c929b45a5ae4a716844a4cf80f55c95d449faf66e5aef68c",
+      "parent_record_sha256": "4166c1bd5bb00dfaa118340d794cf29f75157fe8f7127fa12098929cab3a8938",
+      "parent_config_sha256": "2e9d41097d671e11b3cc70e68d32d15be2f84c283ad22adbfc9fe90dc09ba76a",
+      "owner_id": "9b7a10c35886",
+      "template_name": "U3_BTC_Small_Alpha",
+      "timeframe": "1h",
+      "config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "timeframe": "1h",
+        "start": "2026-01-01",
+        "end": "2026-03-01",
+        "initial_capital": 10000
+      },
+      "thesis": "A structural breakdown closes the long allocation; re-entry waits for a moving-average reclaim.",
+      "entry_rule": "Close crosses above EMA20.",
+      "exit_rule": "Close breaks below the prior 20-bar Donchian low.",
+      "falsifier": "Reject if whipsaws increase turnover/costs or breakdowns fail to reduce tail losses.",
+      "signal_priority": "Exit takes precedence when entry and exit are both true on the same bar.",
+      "code": "class U3DonchianBreakdownGate(NoraStrategy):\n    timeframe = \"1h\"\n\n    def on_bar(self):\n        close = close\n        lower = self.feat.donchian_lower(low, 20)\n        ema20 = self.feat.ema(close, 20)\n        entry = self.op.crossed_above(close, ema20)\n        exit_signal = self.op.crossed_below(close, lower)\n        self.buy(entry)\n        self.close(exit_signal)\n",
+      "code_sha256": "8a82cdbef908c4d07f0a44fbf8bad45462de2c21e2bb161be13127fa38a6cc07",
+      "syntax_status": "AST_PARSE_PASS",
+      "dsl_compile_status": "NOT_RUN",
+      "backtest_status": "NOT_RUN",
+      "disposition": "RESEARCH_PROPOSAL"
+    },
+    {
+      "candidate_id": "fixture-214ea8fdf3e6-research-v2",
+      "parent_id": "214ea8fdf3e6",
+      "parent_source_sha256": "28058c6f978c69682840b65b68860beb798cb5e0e9c13f1627ecc01ba5d36472",
+      "parent_record_sha256": "bd6f7bf3ec94ceb0451fdac23c6ec22afb2b149c6a923ef429f580c8f16bec64",
+      "parent_config_sha256": "750e78bbba158f4f19f411472c3b7cddc18b2d79e39adfefbf9e366e165c72ee",
+      "owner_id": "423d35ac9700",
+      "template_name": "U2_ETH_15m_Alpha",
+      "timeframe": "15m",
+      "config": {
+        "symbols": [
+          "ETH-USDT"
+        ],
+        "timeframe": "15m",
+        "bar_count": 800,
+        "initial_capital": 10000
+      },
+      "thesis": "A price breakout is accepted only when cumulative volume flow is already positive.",
+      "entry_rule": "Close crosses above prior Donchian high while OBV is above its 20-bar mean.",
+      "exit_rule": "Close falls below EMA20 or OBV crosses below its mean.",
+      "falsifier": "Reject if volume data semantics/provenance are not verified for ETH.",
+      "signal_priority": "Exit takes precedence when entry and exit are both true on the same bar.",
+      "code": "class U2ObvBreakout(NoraStrategy):\n    timeframe = \"15m\"\n\n    def on_bar(self):\n        close = close\n        upper = self.feat.donchian_upper(high, 20)\n        ema20 = self.feat.ema(close, 20)\n        obv = self.feat.obv(close, volume)\n        obv_mean = self.feat.sma(obv, 20)\n        entry = self.op.crossed_above(close, upper) & (obv > obv_mean)\n        exit_signal = (close < ema20) | self.op.crossed_below(obv, obv_mean)\n        self.buy(entry)\n        self.close(exit_signal)\n",
+      "code_sha256": "92a297c360e6a668017ef1ec17093cdf755981808e91f0318d733ff81c746f18",
+      "syntax_status": "AST_PARSE_PASS",
+      "dsl_compile_status": "NOT_RUN",
+      "backtest_status": "NOT_RUN",
+      "disposition": "RESEARCH_PROPOSAL"
+    },
+    {
+      "candidate_id": "fixture-234e6df02e37-research-v2",
+      "parent_id": "234e6df02e37",
+      "parent_source_sha256": "28058c6f978c69682840b65b68860beb798cb5e0e9c13f1627ecc01ba5d36472",
+      "parent_record_sha256": "7eddc7f1b67b4cb2447f0766f0205fe6463ac71b7bb9075e7ce6403ae9a0f8e2",
+      "parent_config_sha256": "750e78bbba158f4f19f411472c3b7cddc18b2d79e39adfefbf9e366e165c72ee",
+      "owner_id": "5de316621329",
+      "template_name": "U2_ETH_15m_Alpha",
+      "timeframe": "15m",
+      "config": {
+        "symbols": [
+          "ETH-USDT"
+        ],
+        "timeframe": "15m",
+        "bar_count": 800,
+        "initial_capital": 10000
+      },
+      "thesis": "A short-horizon range breakout is traded only when volatility is not already extreme.",
+      "entry_rule": "Close crosses above prior 20-bar Donchian high and NATR14 is below twice its 50-bar mean.",
+      "exit_rule": "Close crosses below EMA20.",
+      "falsifier": "Reject if trade costs make net expectancy non-positive.",
+      "signal_priority": "Exit takes precedence when entry and exit are both true on the same bar.",
+      "code": "class U2DonchianExpansion(NoraStrategy):\n    timeframe = \"15m\"\n\n    def on_bar(self):\n        close = close\n        upper = self.feat.donchian_upper(high, 20)\n        natr14 = self.feat.natr(high, low, close, 14)\n        natr_mean = self.feat.sma(natr14, 50)\n        ema20 = self.feat.ema(close, 20)\n        entry = self.op.crossed_above(close, upper) & (natr14 < 2.0 * natr_mean)\n        exit_signal = self.op.crossed_below(close, ema20)\n        self.buy(entry)\n        self.close(exit_signal)\n",
+      "code_sha256": "40ccf47d2f28c8e040402bdefe4dd55af5afff2134fff66838306f50a80ff29c",
+      "syntax_status": "AST_PARSE_PASS",
+      "dsl_compile_status": "NOT_RUN",
+      "backtest_status": "NOT_RUN",
+      "disposition": "RESEARCH_PROPOSAL"
+    },
+    {
+      "candidate_id": "fixture-2e41b2cfa24d-research-v2",
+      "parent_id": "2e41b2cfa24d",
+      "parent_source_sha256": "4e11b090ba8c8152d6a6f3beed72dfa264cce84aff0d281207f1b1da9a65df74",
+      "parent_record_sha256": "1b7d107593f6672d1a9a4109aafa372e2c3197a9167e8988fe00e92fe0b6a820",
+      "parent_config_sha256": "2e9d41097d671e11b3cc70e68d32d15be2f84c283ad22adbfc9fe90dc09ba76a",
+      "owner_id": "3bbc767faa10",
+      "template_name": "U1_BTC_1h_Alpha",
+      "timeframe": "1h",
+      "config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "timeframe": "1h",
+        "start": "2026-01-01",
+        "end": "2026-03-01",
+        "initial_capital": 10000
+      },
+      "thesis": "A volatility contraction followed by an upper-band break may capture expansion rather than buy any positive price.",
+      "entry_rule": "Prior-bar NATR14 is below its SMA20 and close crosses above the Bollinger upper band.",
+      "exit_rule": "Close crosses below the Bollinger middle band.",
+      "falsifier": "Reject if results fail pre-registered cost stress or depend on one squeeze threshold.",
+      "signal_priority": "Exit takes precedence when entry and exit are both true on the same bar.",
+      "code": "class U1BollingerSqueezeBreak(NoraStrategy):\n    timeframe = \"1h\"\n\n    def on_bar(self):\n        close = close\n        natr14 = self.feat.natr(high, low, close, 14)\n        natr_mean = self.feat.sma(natr14, 20)\n        upper, middle, lower = self.feat.bbands(close, 20, 2.0, 2.0)\n        squeezed = self.op.previous(natr14 < natr_mean, 1)\n        entry = squeezed & self.op.crossed_above(close, upper)\n        exit_signal = self.op.crossed_below(close, middle)\n        self.buy(entry)\n        self.close(exit_signal)\n",
+      "code_sha256": "0c4b795ff9496eeadbd37bc242dc3b93cadfa1bbaa776ca095c9bbed17665fd3",
+      "syntax_status": "AST_PARSE_PASS",
+      "dsl_compile_status": "NOT_RUN",
+      "backtest_status": "NOT_RUN",
+      "disposition": "RESEARCH_PROPOSAL"
+    },
+    {
+      "candidate_id": "fixture-571474a18f55-research-v2",
+      "parent_id": "571474a18f55",
+      "parent_source_sha256": "255c955c8b2a1953c929b45a5ae4a716844a4cf80f55c95d449faf66e5aef68c",
+      "parent_record_sha256": "172761f250875d90b22a6de89f1e79becbd443b209b408f5bf36a822094b1e6f",
+      "parent_config_sha256": "2e9d41097d671e11b3cc70e68d32d15be2f84c283ad22adbfc9fe90dc09ba76a",
+      "owner_id": "82e8ccc35eb6",
+      "template_name": "U3_BTC_Small_Alpha",
+      "timeframe": "1h",
+      "config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "timeframe": "1h",
+        "start": "2026-01-01",
+        "end": "2026-03-01",
+        "initial_capital": 10000
+      },
+      "thesis": "Directional movement distinguishes a positive trend transition from price-level noise.",
+      "entry_rule": "Plus DI crosses above minus DI while close is above EMA50.",
+      "exit_rule": "ADX is above 25 and minus DI exceeds plus DI.",
+      "falsifier": "Reject if the fixed ADX rule leaves too few trades or is unstable across folds.",
+      "signal_priority": "Exit takes precedence when entry and exit are both true on the same bar.",
+      "code": "class U3DirectionalTrendGate(NoraStrategy):\n    timeframe = \"1h\"\n\n    def on_bar(self):\n        close = close\n        adx14 = self.feat.adx(high, low, close, 14)\n        plus_di = self.feat.plus_di(high, low, close, 14)\n        minus_di = self.feat.minus_di(high, low, close, 14)\n        ema50 = self.feat.ema(close, 50)\n        entry = self.op.crossed_above(plus_di, minus_di) & (close > ema50)\n        exit_signal = (adx14 > 25) & (minus_di > plus_di)\n        self.buy(entry)\n        self.close(exit_signal)\n",
+      "code_sha256": "87324a1d6d527ea46010bbba152b0ac95da2a12d015e860ce21d6c5348319bc9",
+      "syntax_status": "AST_PARSE_PASS",
+      "dsl_compile_status": "NOT_RUN",
+      "backtest_status": "NOT_RUN",
+      "disposition": "RESEARCH_PROPOSAL"
+    },
+    {
+      "candidate_id": "fixture-616e1b8cbc88-research-v2",
+      "parent_id": "616e1b8cbc88",
+      "parent_source_sha256": "28058c6f978c69682840b65b68860beb798cb5e0e9c13f1627ecc01ba5d36472",
+      "parent_record_sha256": "35f8f4221547f1c7be4dc4f3c754b030e099c3a2f9258d2711cd2f2892d24650",
+      "parent_config_sha256": "750e78bbba158f4f19f411472c3b7cddc18b2d79e39adfefbf9e366e165c72ee",
+      "owner_id": "184e6dc9dfe6",
+      "template_name": "U2_ETH_15m_Alpha",
+      "timeframe": "15m",
+      "config": {
+        "symbols": [
+          "ETH-USDT"
+        ],
+        "timeframe": "15m",
+        "bar_count": 800,
+        "initial_capital": 10000
+      },
+      "thesis": "A range breakout concurrent with rising normalized volatility may identify expansion rather than quiet drift.",
+      "entry_rule": "NATR14 crosses above its 20-bar mean while close crosses above the prior 20-bar Donchian high.",
+      "exit_rule": "Close crosses below EMA20.",
+      "falsifier": "Reject if outcome is highly sensitive to the fixed volatility lookback or threshold.",
+      "signal_priority": "Exit takes precedence when entry and exit are both true on the same bar.",
+      "code": "class U2NatrExpansionBreak(NoraStrategy):\n    timeframe = \"15m\"\n\n    def on_bar(self):\n        close = close\n        natr14 = self.feat.natr(high, low, close, 14)\n        natr_mean = self.feat.sma(natr14, 20)\n        upper = self.feat.donchian_upper(high, 20)\n        ema20 = self.feat.ema(close, 20)\n        entry = self.op.crossed_above(natr14, natr_mean) & self.op.crossed_above(close, upper)\n        exit_signal = self.op.crossed_below(close, ema20)\n        self.buy(entry)\n        self.close(exit_signal)\n",
+      "code_sha256": "5ed02904c9a9c7a30a2d1c6ad89cf12000a9a4ee3f8694bf9c5bf3f9f9e3c717",
+      "syntax_status": "AST_PARSE_PASS",
+      "dsl_compile_status": "NOT_RUN",
+      "backtest_status": "NOT_RUN",
+      "disposition": "RESEARCH_PROPOSAL"
+    },
+    {
+      "candidate_id": "fixture-64b657c8de8e-research-v2",
+      "parent_id": "64b657c8de8e",
+      "parent_source_sha256": "b69c7bd6bb03668d0f93720127035438c2b285859c2729e1083b8c78e8ccfec7",
+      "parent_record_sha256": "8ed55205e11b61f962a9f6326105a8e1d920dce38aa742cb583854da089f6af4",
+      "parent_config_sha256": "93cf38ebebe09b4e222165cf2494c0460a48456fd0b2fc5c85a2491692c09b40",
+      "owner_id": "c7f8e10109b3",
+      "template_name": "U4_BTC_1h_Different_Window",
+      "timeframe": "1h",
+      "config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "timeframe": "1h",
+        "start": "2025-11-01",
+        "end": "2026-01-01",
+        "initial_capital": 10000
+      },
+      "thesis": "A lower-band reclaim is treated as mean reversion only while the long-term close regime is positive.",
+      "entry_rule": "Close crosses above Bollinger lower while close is above EMA100.",
+      "exit_rule": "Close crosses above Bollinger middle.",
+      "falsifier": "Reject if the trend filter leaves too little sample or the result is inferior to a simple benchmark.",
+      "signal_priority": "Exit takes precedence when entry and exit are both true on the same bar.",
+      "code": "class U4TrendFilteredReversion(NoraStrategy):\n    timeframe = \"1h\"\n\n    def on_bar(self):\n        close = close\n        upper, middle, lower = self.feat.bbands(close, 20, 2.0, 2.0)\n        ema100 = self.feat.ema(close, 100)\n        entry = self.op.crossed_above(close, lower) & (close > ema100)\n        exit_signal = self.op.crossed_above(close, middle)\n        self.buy(entry)\n        self.close(exit_signal)\n",
+      "code_sha256": "7e843ba57750213fa4a8617498a63f324d76fba299ed114e6fe3d486de710901",
+      "syntax_status": "AST_PARSE_PASS",
+      "dsl_compile_status": "NOT_RUN",
+      "backtest_status": "NOT_RUN",
+      "disposition": "RESEARCH_PROPOSAL"
+    },
+    {
+      "candidate_id": "fixture-74f607263c5c-research-v2",
+      "parent_id": "74f607263c5c",
+      "parent_source_sha256": "b69c7bd6bb03668d0f93720127035438c2b285859c2729e1083b8c78e8ccfec7",
+      "parent_record_sha256": "71b7f98cd177e922bbdc5d8f0f7ce4f26552c718208ccbaf62b502cf53614c19",
+      "parent_config_sha256": "93cf38ebebe09b4e222165cf2494c0460a48456fd0b2fc5c85a2491692c09b40",
+      "owner_id": "726ff949da79",
+      "template_name": "U4_BTC_1h_Different_Window",
+      "timeframe": "1h",
+      "config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "timeframe": "1h",
+        "start": "2025-11-01",
+        "end": "2026-01-01",
+        "initial_capital": 10000
+      },
+      "thesis": "A breakout must coincide with a fresh volume-flow confirmation, not merely positive OBV level.",
+      "entry_rule": "Close crosses above prior Donchian high on the same bar OBV crosses above its 20-bar mean.",
+      "exit_rule": "Close crosses below EMA20 or OBV crosses below its mean.",
+      "falsifier": "Reject if the signal relies on isolated volume spikes or lacks reproducible volume provenance.",
+      "signal_priority": "Exit takes precedence when entry and exit are both true on the same bar.",
+      "code": "class U4ObvBreakoutConfirmation(NoraStrategy):\n    timeframe = \"1h\"\n\n    def on_bar(self):\n        close = close\n        upper = self.feat.donchian_upper(high, 20)\n        ema20 = self.feat.ema(close, 20)\n        obv = self.feat.obv(close, volume)\n        obv_mean = self.feat.sma(obv, 20)\n        entry = self.op.crossed_above(close, upper) & self.op.crossed_above(obv, obv_mean)\n        exit_signal = (self.op.crossed_below(close, ema20)\n                       | self.op.crossed_below(obv, obv_mean))\n        self.buy(entry)\n        self.close(exit_signal)\n",
+      "code_sha256": "9103b111a5a153caef23936c6cbc8df04d77ccfe7fe711172f6b72f026b477e9",
+      "syntax_status": "AST_PARSE_PASS",
+      "dsl_compile_status": "NOT_RUN",
+      "backtest_status": "NOT_RUN",
+      "disposition": "RESEARCH_PROPOSAL"
+    },
+    {
+      "candidate_id": "fixture-7c1bf0a9686a-research-v2",
+      "parent_id": "7c1bf0a9686a",
+      "parent_source_sha256": "b69c7bd6bb03668d0f93720127035438c2b285859c2729e1083b8c78e8ccfec7",
+      "parent_record_sha256": "bf9cf0c0808bff5171fa6f774b2d1be9846d3c212c8c7ffece5c8e8cf73c22f4",
+      "parent_config_sha256": "93cf38ebebe09b4e222165cf2494c0460a48456fd0b2fc5c85a2491692c09b40",
+      "owner_id": "dbbb50a338c9",
+      "template_name": "U4_BTC_1h_Different_Window",
+      "timeframe": "1h",
+      "config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "timeframe": "1h",
+        "start": "2025-11-01",
+        "end": "2026-01-01",
+        "initial_capital": 10000
+      },
+      "thesis": "A rising MACD histogram confirms improving momentum after the MACD line leads its signal.",
+      "entry_rule": "MACD line crosses above signal, histogram has risen for two bars, and close is above EMA50.",
+      "exit_rule": "MACD line crosses below signal.",
+      "falsifier": "Reject if histogram confirmation fails to improve expectancy over a plain MACD cross.",
+      "signal_priority": "Exit takes precedence when entry and exit are both true on the same bar.",
+      "code": "class U4MacdHistogramAcceleration(NoraStrategy):\n    timeframe = \"1h\"\n\n    def on_bar(self):\n        close = close\n        macd_line, signal_line, histogram = self.feat.macd(close, 12, 26, 9)\n        ema50 = self.feat.ema(close, 50)\n        hist_rising = self.op.rising(histogram, 2)\n        entry = self.op.crossed_above(macd_line, signal_line) & hist_rising & (close > ema50)\n        exit_signal = self.op.crossed_below(macd_line, signal_line)\n        self.buy(entry)\n        self.close(exit_signal)\n",
+      "code_sha256": "bcc36bcf8292a019fae951d79f40f2c4cd72d0fe18fc0648affde1876564335f",
+      "syntax_status": "AST_PARSE_PASS",
+      "dsl_compile_status": "NOT_RUN",
+      "backtest_status": "NOT_RUN",
+      "disposition": "RESEARCH_PROPOSAL"
+    },
+    {
+      "candidate_id": "fixture-7f770ebe5ab5-research-v2",
+      "parent_id": "7f770ebe5ab5",
+      "parent_source_sha256": "255c955c8b2a1953c929b45a5ae4a716844a4cf80f55c95d449faf66e5aef68c",
+      "parent_record_sha256": "382588da7cded9ecd418ac6c57449b82c61cbd0b0efd616633c9d2133c033a3b",
+      "parent_config_sha256": "2e9d41097d671e11b3cc70e68d32d15be2f84c283ad22adbfc9fe90dc09ba76a",
+      "owner_id": "eb5d7e2e3897",
+      "template_name": "U3_BTC_Small_Alpha",
+      "timeframe": "1h",
+      "config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "timeframe": "1h",
+        "start": "2026-01-01",
+        "end": "2026-03-01",
+        "initial_capital": 10000
+      },
+      "thesis": "A long-only regime gate re-enters after short-term momentum turns positive rather than reacting to price sign.",
+      "entry_rule": "ROC10 crosses above zero while close is above EMA20.",
+      "exit_rule": "ROC10 crosses below zero.",
+      "falsifier": "Reject if the gate exits too late or misses rebounds enough to underperform its exposure-matched benchmark.",
+      "signal_priority": "Exit takes precedence when entry and exit are both true on the same bar.",
+      "code": "class U3RocRecoveryGate(NoraStrategy):\n    timeframe = \"1h\"\n\n    def on_bar(self):\n        close = close\n        roc10 = self.feat.roc(close, 10)\n        ema20 = self.feat.ema(close, 20)\n        entry = self.op.crossed_above_value(roc10, 0) & (close > ema20)\n        exit_signal = self.op.crossed_below_value(roc10, 0)\n        self.buy(entry)\n        self.close(exit_signal)\n",
+      "code_sha256": "0b9874223f9964d08d6cdbd293b18c9498cbdf877e01474e2f77631bd450e6a8",
+      "syntax_status": "AST_PARSE_PASS",
+      "dsl_compile_status": "NOT_RUN",
+      "backtest_status": "NOT_RUN",
+      "disposition": "RESEARCH_PROPOSAL"
+    },
+    {
+      "candidate_id": "fixture-856ddc574ce7-research-v2",
+      "parent_id": "856ddc574ce7",
+      "parent_source_sha256": "28058c6f978c69682840b65b68860beb798cb5e0e9c13f1627ecc01ba5d36472",
+      "parent_record_sha256": "8121a0c9b98859daef3f8a83ad3a9878709e414eed7b475d925041eaa8f8bf91",
+      "parent_config_sha256": "750e78bbba158f4f19f411472c3b7cddc18b2d79e39adfefbf9e366e165c72ee",
+      "owner_id": "9fc184ee1040",
+      "template_name": "U2_ETH_15m_Alpha",
+      "timeframe": "15m",
+      "config": {
+        "symbols": [
+          "ETH-USDT"
+        ],
+        "timeframe": "15m",
+        "bar_count": 800,
+        "initial_capital": 10000
+      },
+      "thesis": "A stochastic turn from oversold may capture a rebound while a trend filter avoids some falling-market entries.",
+      "entry_rule": "Slow %K crosses above %D below 20 while close is above EMA50.",
+      "exit_rule": "Slow %K crosses below %D above 80 or close falls below EMA20.",
+      "falsifier": "Reject if trade sample is insufficient or results exist only in one market regime.",
+      "signal_priority": "Exit takes precedence when entry and exit are both true on the same bar.",
+      "code": "class U2StochasticRecovery(NoraStrategy):\n    timeframe = \"15m\"\n\n    def on_bar(self):\n        close = close\n        slowk, slowd = self.feat.stoch(high, low, close, 14, 3, 0, 3, 0)\n        ema50 = self.feat.ema(close, 50)\n        ema20 = self.feat.ema(close, 20)\n        entry = self.op.crossed_above(slowk, slowd) & (slowk < 20) & (close > ema50)\n        exit_signal = (self.op.crossed_below(slowk, slowd) & (slowk > 80)) | (close < ema20)\n        self.buy(entry)\n        self.close(exit_signal)\n",
+      "code_sha256": "23b58eb4326b9b130a7b5781370cf2e636f226992148a5392d9abb9c779d5c4c",
+      "syntax_status": "AST_PARSE_PASS",
+      "dsl_compile_status": "NOT_RUN",
+      "backtest_status": "NOT_RUN",
+      "disposition": "RESEARCH_PROPOSAL"
+    },
+    {
+      "candidate_id": "fixture-862e0c9eebbe-research-v2",
+      "parent_id": "862e0c9eebbe",
+      "parent_source_sha256": "28058c6f978c69682840b65b68860beb798cb5e0e9c13f1627ecc01ba5d36472",
+      "parent_record_sha256": "2ef24141ee9ae23d9e50c6a045c9a552418b8f6d2eb98a51f870525e025cc5a7",
+      "parent_config_sha256": "750e78bbba158f4f19f411472c3b7cddc18b2d79e39adfefbf9e366e165c72ee",
+      "owner_id": "e7c998608206",
+      "template_name": "U2_ETH_15m_Alpha",
+      "timeframe": "15m",
+      "config": {
+        "symbols": [
+          "ETH-USDT"
+        ],
+        "timeframe": "15m",
+        "bar_count": 800,
+        "initial_capital": 10000
+      },
+      "thesis": "A CCI recovery from an unusually weak reading is considered only in a positive medium-term regime.",
+      "entry_rule": "CCI14 crosses above -100 while close is above EMA50.",
+      "exit_rule": "CCI14 crosses above +100 or close falls below EMA20.",
+      "falsifier": "Reject if net results are worse than a simple, pre-registered mean-reversion benchmark.",
+      "signal_priority": "Exit takes precedence when entry and exit are both true on the same bar.",
+      "code": "class U2CciSnapbackTrend(NoraStrategy):\n    timeframe = \"15m\"\n\n    def on_bar(self):\n        close = close\n        cci14 = self.feat.cci(high, low, close, 14)\n        ema50 = self.feat.ema(close, 50)\n        ema20 = self.feat.ema(close, 20)\n        entry = self.op.crossed_above_value(cci14, -100) & (close > ema50)\n        exit_signal = self.op.crossed_above_value(cci14, 100) | (close < ema20)\n        self.buy(entry)\n        self.close(exit_signal)\n",
+      "code_sha256": "a66db59124ce2c88c365d37684009d68f22792c944a3a3d783c6368efcf9e0b0",
+      "syntax_status": "AST_PARSE_PASS",
+      "dsl_compile_status": "NOT_RUN",
+      "backtest_status": "NOT_RUN",
+      "disposition": "RESEARCH_PROPOSAL"
+    },
+    {
+      "candidate_id": "fixture-930294d28c45-research-v2",
+      "parent_id": "930294d28c45",
+      "parent_source_sha256": "255c955c8b2a1953c929b45a5ae4a716844a4cf80f55c95d449faf66e5aef68c",
+      "parent_record_sha256": "adf43b18bc919226e209635ca4bcb789101f3632caa63296c9e868c1f0099099",
+      "parent_config_sha256": "2e9d41097d671e11b3cc70e68d32d15be2f84c283ad22adbfc9fe90dc09ba76a",
+      "owner_id": "439fa7538599",
+      "template_name": "U3_BTC_Small_Alpha",
+      "timeframe": "1h",
+      "config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "timeframe": "1h",
+        "start": "2026-01-01",
+        "end": "2026-03-01",
+        "initial_capital": 10000
+      },
+      "thesis": "An RSI strength regime requires recovery above the neutral line and a positive price trend.",
+      "entry_rule": "RSI14 crosses above 50 while close is above EMA50.",
+      "exit_rule": "RSI14 crosses below 45.",
+      "falsifier": "Reject if thresholds are unstable across folds or the trade sample is inadequate.",
+      "signal_priority": "Exit takes precedence when entry and exit are both true on the same bar.",
+      "code": "class U3RsiStrengthGate(NoraStrategy):\n    timeframe = \"1h\"\n\n    def on_bar(self):\n        close = close\n        rsi14 = self.feat.rsi(close, 14)\n        ema50 = self.feat.ema(close, 50)\n        entry = self.op.crossed_above_value(rsi14, 50) & (close > ema50)\n        exit_signal = self.op.crossed_below_value(rsi14, 45)\n        self.buy(entry)\n        self.close(exit_signal)\n",
+      "code_sha256": "52f830c0ab251a186a4800e94b3f3ec9f9d504d4525f8096e7973d46b7c9ab0f",
+      "syntax_status": "AST_PARSE_PASS",
+      "dsl_compile_status": "NOT_RUN",
+      "backtest_status": "NOT_RUN",
+      "disposition": "RESEARCH_PROPOSAL"
+    },
+    {
+      "candidate_id": "fixture-9eec3d61131d-research-v2",
+      "parent_id": "9eec3d61131d",
+      "parent_source_sha256": "255c955c8b2a1953c929b45a5ae4a716844a4cf80f55c95d449faf66e5aef68c",
+      "parent_record_sha256": "ec4cf11574337efb104694b02b7f5b92e97168c815934207802976c2ecaca9fa",
+      "parent_config_sha256": "2e9d41097d671e11b3cc70e68d32d15be2f84c283ad22adbfc9fe90dc09ba76a",
+      "owner_id": "79183007b990",
+      "template_name": "U3_BTC_Small_Alpha",
+      "timeframe": "1h",
+      "config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "timeframe": "1h",
+        "start": "2026-01-01",
+        "end": "2026-03-01",
+        "initial_capital": 10000
+      },
+      "thesis": "A zero-line momentum regime controls long exposure and avoids the impossible negative-price condition.",
+      "entry_rule": "MACD line crosses above zero.",
+      "exit_rule": "MACD line crosses below zero.",
+      "falsifier": "Reject if it fails to improve drawdown or net risk-adjusted results against the same-market benchmark.",
+      "signal_priority": "Exit takes precedence when entry and exit are both true on the same bar.",
+      "code": "class U3MacdRiskGate(NoraStrategy):\n    timeframe = \"1h\"\n\n    def on_bar(self):\n        close = close\n        macd_line, signal_line, histogram = self.feat.macd(close, 12, 26, 9)\n        entry = self.op.crossed_above_value(macd_line, 0)\n        exit_signal = self.op.crossed_below_value(macd_line, 0)\n        self.buy(entry)\n        self.close(exit_signal)\n",
+      "code_sha256": "23375b931df8d07f0d336ec5ce656501e0a894f4c4c2b4fca808e07fc9220871",
+      "syntax_status": "AST_PARSE_PASS",
+      "dsl_compile_status": "NOT_RUN",
+      "backtest_status": "NOT_RUN",
+      "disposition": "RESEARCH_PROPOSAL"
+    },
+    {
+      "candidate_id": "fixture-a4d6826fbbc6-research-v2",
+      "parent_id": "a4d6826fbbc6",
+      "parent_source_sha256": "b69c7bd6bb03668d0f93720127035438c2b285859c2729e1083b8c78e8ccfec7",
+      "parent_record_sha256": "526021c8684d8ee5253d378d302494a490ede4bb358a5255df51171890320103",
+      "parent_config_sha256": "93cf38ebebe09b4e222165cf2494c0460a48456fd0b2fc5c85a2491692c09b40",
+      "owner_id": "4547f1f50486",
+      "template_name": "U4_BTC_1h_Different_Window",
+      "timeframe": "1h",
+      "config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "timeframe": "1h",
+        "start": "2025-11-01",
+        "end": "2026-01-01",
+        "initial_capital": 10000
+      },
+      "thesis": "RSI neutral-line recovery is used as momentum entry only above a slower trend filter.",
+      "entry_rule": "RSI14 crosses above 50 while close is above EMA100.",
+      "exit_rule": "RSI14 crosses below 45.",
+      "falsifier": "Reject if it fails against an exposure-matched trend benchmark.",
+      "signal_priority": "Exit takes precedence when entry and exit are both true on the same bar.",
+      "code": "class U4RsiMomentumRegime(NoraStrategy):\n    timeframe = \"1h\"\n\n    def on_bar(self):\n        close = close\n        rsi14 = self.feat.rsi(close, 14)\n        ema100 = self.feat.ema(close, 100)\n        entry = self.op.crossed_above_value(rsi14, 50) & (close > ema100)\n        exit_signal = self.op.crossed_below_value(rsi14, 45)\n        self.buy(entry)\n        self.close(exit_signal)\n",
+      "code_sha256": "0a6931d532143d2f48ee7e3d1dbdefb0c3e8341cf23e805c3b56ce0638ac7649",
+      "syntax_status": "AST_PARSE_PASS",
+      "dsl_compile_status": "NOT_RUN",
+      "backtest_status": "NOT_RUN",
+      "disposition": "RESEARCH_PROPOSAL"
+    },
+    {
+      "candidate_id": "fixture-af2bf88426c4-research-v2",
+      "parent_id": "af2bf88426c4",
+      "parent_source_sha256": "255c955c8b2a1953c929b45a5ae4a716844a4cf80f55c95d449faf66e5aef68c",
+      "parent_record_sha256": "4a6561061ddf6edb7c80b993151fc52b91d32699c30f255c1e1b54fd634e81fc",
+      "parent_config_sha256": "2e9d41097d671e11b3cc70e68d32d15be2f84c283ad22adbfc9fe90dc09ba76a",
+      "owner_id": "bf158b5142e8",
+      "template_name": "U3_BTC_Small_Alpha",
+      "timeframe": "1h",
+      "config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "timeframe": "1h",
+        "start": "2026-01-01",
+        "end": "2026-03-01",
+        "initial_capital": 10000
+      },
+      "thesis": "After a lower-band excursion, re-entry waits for a middle-band reclaim and positive one-bar return.",
+      "entry_rule": "Close crosses above Bollinger middle within eight bars of closing below lower band, with ROC1 positive.",
+      "exit_rule": "Close crosses below Bollinger lower band.",
+      "falsifier": "Reject if late entries underperform or the result is too sensitive to band settings.",
+      "signal_priority": "Exit takes precedence when entry and exit are both true on the same bar.",
+      "code": "class U3BollingerReclaim(NoraStrategy):\n    timeframe = \"1h\"\n\n    def on_bar(self):\n        close = close\n        upper, middle, lower = self.feat.bbands(close, 20, 2.0, 2.0)\n        roc1 = self.feat.roc(close, 1)\n        recent_lower_break = self.op.bars_since(close < lower) <= 8\n        entry = self.op.crossed_above(close, middle) & recent_lower_break & (roc1 > 0)\n        exit_signal = self.op.crossed_below(close, lower)\n        self.buy(entry)\n        self.close(exit_signal)\n",
+      "code_sha256": "17f6c6678a1840423feade38d6b272d31768b9f1eb2bd6e6c75c6d77ea2b450c",
+      "syntax_status": "AST_PARSE_PASS",
+      "dsl_compile_status": "NOT_RUN",
+      "backtest_status": "NOT_RUN",
+      "disposition": "RESEARCH_PROPOSAL"
+    },
+    {
+      "candidate_id": "fixture-bd234070bd7b-research-v2",
+      "parent_id": "bd234070bd7b",
+      "parent_source_sha256": "4e11b090ba8c8152d6a6f3beed72dfa264cce84aff0d281207f1b1da9a65df74",
+      "parent_record_sha256": "f72cc18be6432162bfc8d9f58da30664034bb85c9d4d4d98997e56b9596f63f7",
+      "parent_config_sha256": "2e9d41097d671e11b3cc70e68d32d15be2f84c283ad22adbfc9fe90dc09ba76a",
+      "owner_id": "bbd150bc473c",
+      "template_name": "U1_BTC_1h_Alpha",
+      "timeframe": "1h",
+      "config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "timeframe": "1h",
+        "start": "2026-01-01",
+        "end": "2026-03-01",
+        "initial_capital": 10000
+      },
+      "thesis": "An oversold recovery is considered only when the long-term price regime is positive.",
+      "entry_rule": "RSI14 crosses above 35 within eight bars of RSI being below 30, with close above EMA100.",
+      "exit_rule": "RSI14 crosses above 70 or close falls below EMA50.",
+      "falsifier": "Reject if it does not improve risk-adjusted results over same-window buy-and-hold.",
+      "signal_priority": "Exit takes precedence when entry and exit are both true on the same bar.",
+      "code": "class U1RsiRecoveryTrend(NoraStrategy):\n    timeframe = \"1h\"\n\n    def on_bar(self):\n        close = close\n        rsi14 = self.feat.rsi(close, 14)\n        ema100 = self.feat.ema(close, 100)\n        ema50 = self.feat.ema(close, 50)\n        recent_oversold = self.op.bars_since(rsi14 < 30) <= 8\n        entry = self.op.crossed_above_value(rsi14, 35) & recent_oversold & (close > ema100)\n        exit_signal = self.op.crossed_above_value(rsi14, 70) | (close < ema50)\n        self.buy(entry)\n        self.close(exit_signal)\n",
+      "code_sha256": "24f1a9bd8e0dae169d4715023759ff8e507ecf4a9a5ed46684c58c90312847ab",
+      "syntax_status": "AST_PARSE_PASS",
+      "dsl_compile_status": "NOT_RUN",
+      "backtest_status": "NOT_RUN",
+      "disposition": "RESEARCH_PROPOSAL"
+    },
+    {
+      "candidate_id": "fixture-be1174b24a44-research-v2",
+      "parent_id": "be1174b24a44",
+      "parent_source_sha256": "4e11b090ba8c8152d6a6f3beed72dfa264cce84aff0d281207f1b1da9a65df74",
+      "parent_record_sha256": "27a84d7db714c8f245df47d48ad7df80e11fe9ce5aed2fb77a52db914fe37db3",
+      "parent_config_sha256": "2e9d41097d671e11b3cc70e68d32d15be2f84c283ad22adbfc9fe90dc09ba76a",
+      "owner_id": "657914b99b5b",
+      "template_name": "U1_BTC_1h_Alpha",
+      "timeframe": "1h",
+      "config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "timeframe": "1h",
+        "start": "2026-01-01",
+        "end": "2026-03-01",
+        "initial_capital": 10000
+      },
+      "thesis": "Volume-flow confirmation may distinguish accumulation from a price-only trend.",
+      "entry_rule": "Close is above EMA50 and OBV crosses above its 20-bar mean.",
+      "exit_rule": "Close falls below EMA20 or OBV crosses below its mean.",
+      "falsifier": "Reject if volume provenance is not consistent or net performance does not improve.",
+      "signal_priority": "Exit takes precedence when entry and exit are both true on the same bar.",
+      "code": "class U1ObvAccumulation(NoraStrategy):\n    timeframe = \"1h\"\n\n    def on_bar(self):\n        close = close\n        ema50 = self.feat.ema(close, 50)\n        ema20 = self.feat.ema(close, 20)\n        obv = self.feat.obv(close, volume)\n        obv_mean = self.feat.sma(obv, 20)\n        entry = (close > ema50) & self.op.crossed_above(obv, obv_mean)\n        exit_signal = (close < ema20) | self.op.crossed_below(obv, obv_mean)\n        self.buy(entry)\n        self.close(exit_signal)\n",
+      "code_sha256": "0cf8e505ed75037680015097713cd358449cb1a7bc4c15086bfd8249656f78af",
+      "syntax_status": "AST_PARSE_PASS",
+      "dsl_compile_status": "NOT_RUN",
+      "backtest_status": "NOT_RUN",
+      "disposition": "RESEARCH_PROPOSAL"
+    },
+    {
+      "candidate_id": "fixture-cb0b6e0f12e7-research-v2",
+      "parent_id": "cb0b6e0f12e7",
+      "parent_source_sha256": "4e11b090ba8c8152d6a6f3beed72dfa264cce84aff0d281207f1b1da9a65df74",
+      "parent_record_sha256": "b0ced9c835c0ed709e691de14938efbcb61e1fa4ae3fac8e0c2f6342604f3941",
+      "parent_config_sha256": "2e9d41097d671e11b3cc70e68d32d15be2f84c283ad22adbfc9fe90dc09ba76a",
+      "owner_id": "f9292fff53c9",
+      "template_name": "U1_BTC_1h_Alpha",
+      "timeframe": "1h",
+      "config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "timeframe": "1h",
+        "start": "2026-01-01",
+        "end": "2026-03-01",
+        "initial_capital": 10000
+      },
+      "thesis": "A prior-range breakout with a bullish close avoids treating positive price as a signal.",
+      "entry_rule": "Close crosses above the prior 20-bar Donchian high and closes above open.",
+      "exit_rule": "Close crosses below EMA10.",
+      "falsifier": "Reject if false breakouts and costs erase the net edge.",
+      "signal_priority": "Exit takes precedence when entry and exit are both true on the same bar.",
+      "code": "class U1DonchianBullBreak(NoraStrategy):\n    timeframe = \"1h\"\n\n    def on_bar(self):\n        close = close\n        upper = self.feat.donchian_upper(high, 20)\n        ema10 = self.feat.ema(close, 10)\n        entry = self.op.crossed_above(close, upper) & (close > open)\n        exit_signal = self.op.crossed_below(close, ema10)\n        self.buy(entry)\n        self.close(exit_signal)\n",
+      "code_sha256": "4fd7e71c6f9e4ead3594d8f3b5759a5aec5c14f16bd212bcd05c2d2c5b9d6f9d",
+      "syntax_status": "AST_PARSE_PASS",
+      "dsl_compile_status": "NOT_RUN",
+      "backtest_status": "NOT_RUN",
+      "disposition": "RESEARCH_PROPOSAL"
+    },
+    {
+      "candidate_id": "fixture-d0518c0cca14-research-v2",
+      "parent_id": "d0518c0cca14",
+      "parent_source_sha256": "b69c7bd6bb03668d0f93720127035438c2b285859c2729e1083b8c78e8ccfec7",
+      "parent_record_sha256": "dab46b34780a89ba4bc6541644487e9562e4bac94f2212bbb8095155ddd17a4f",
+      "parent_config_sha256": "93cf38ebebe09b4e222165cf2494c0460a48456fd0b2fc5c85a2491692c09b40",
+      "owner_id": "f4ded6717b32",
+      "template_name": "U4_BTC_1h_Different_Window",
+      "timeframe": "1h",
+      "config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "timeframe": "1h",
+        "start": "2025-11-01",
+        "end": "2026-01-01",
+        "initial_capital": 10000
+      },
+      "thesis": "A low-volatility contraction followed by a prior-range high break targets volatility expansion.",
+      "entry_rule": "Previous NATR14 is below its 20-bar mean and close crosses above prior Donchian high.",
+      "exit_rule": "Close crosses below EMA20.",
+      "falsifier": "Reject if fold results are unstable or thresholds appear selected after viewing outcomes.",
+      "signal_priority": "Exit takes precedence when entry and exit are both true on the same bar.",
+      "code": "class U4SqueezeDonchianBreak(NoraStrategy):\n    timeframe = \"1h\"\n\n    def on_bar(self):\n        close = close\n        natr14 = self.feat.natr(high, low, close, 14)\n        natr_mean = self.feat.sma(natr14, 20)\n        upper = self.feat.donchian_upper(high, 20)\n        ema20 = self.feat.ema(close, 20)\n        squeezed = self.op.previous(natr14 < natr_mean, 1)\n        entry = squeezed & self.op.crossed_above(close, upper)\n        exit_signal = self.op.crossed_below(close, ema20)\n        self.buy(entry)\n        self.close(exit_signal)\n",
+      "code_sha256": "506ffd73a0be32a25cff1f014872e1687f910456f89fe29efaad5da2b7c09299",
+      "syntax_status": "AST_PARSE_PASS",
+      "dsl_compile_status": "NOT_RUN",
+      "backtest_status": "NOT_RUN",
+      "disposition": "RESEARCH_PROPOSAL"
+    },
+    {
+      "candidate_id": "fixture-e9a9a5b44d03-research-v2",
+      "parent_id": "e9a9a5b44d03",
+      "parent_source_sha256": "28058c6f978c69682840b65b68860beb798cb5e0e9c13f1627ecc01ba5d36472",
+      "parent_record_sha256": "faf1cb4b54508e6ee5a55dfe1099f2cd9e3f3c51645c3c092df2d7de9cb2aa2c",
+      "parent_config_sha256": "750e78bbba158f4f19f411472c3b7cddc18b2d79e39adfefbf9e366e165c72ee",
+      "owner_id": "95f7a5a4b3ae",
+      "template_name": "U2_ETH_15m_Alpha",
+      "timeframe": "15m",
+      "config": {
+        "symbols": [
+          "ETH-USDT"
+        ],
+        "timeframe": "15m",
+        "bar_count": 800,
+        "initial_capital": 10000
+      },
+      "thesis": "A MACD zero-line transition with a higher-timeframe trend filter seeks a durable momentum regime.",
+      "entry_rule": "MACD line crosses above zero while close is above EMA100.",
+      "exit_rule": "MACD line crosses below zero or close falls below EMA50.",
+      "falsifier": "Reject if the chosen data window cannot support enough independent trades.",
+      "signal_priority": "Exit takes precedence when entry and exit are both true on the same bar.",
+      "code": "class U2MacdZeroRegime(NoraStrategy):\n    timeframe = \"15m\"\n\n    def on_bar(self):\n        close = close\n        macd_line, signal_line, histogram = self.feat.macd(close, 12, 26, 9)\n        ema100 = self.feat.ema(close, 100)\n        ema50 = self.feat.ema(close, 50)\n        entry = self.op.crossed_above_value(macd_line, 0) & (close > ema100)\n        exit_signal = self.op.crossed_below_value(macd_line, 0) | (close < ema50)\n        self.buy(entry)\n        self.close(exit_signal)\n",
+      "code_sha256": "ff08fd5c0593ea93377a86ba04585c2d5515d0e00c1c9a89b3b1dae6c08c082c",
+      "syntax_status": "AST_PARSE_PASS",
+      "dsl_compile_status": "NOT_RUN",
+      "backtest_status": "NOT_RUN",
+      "disposition": "RESEARCH_PROPOSAL"
+    },
+    {
+      "candidate_id": "fixture-ee0cf7f58f94-research-v2",
+      "parent_id": "ee0cf7f58f94",
+      "parent_source_sha256": "28058c6f978c69682840b65b68860beb798cb5e0e9c13f1627ecc01ba5d36472",
+      "parent_record_sha256": "e54f28ae9050c845a5eb98afbc70fa4664b592ac4414113faa6a2a997349f215",
+      "parent_config_sha256": "750e78bbba158f4f19f411472c3b7cddc18b2d79e39adfefbf9e366e165c72ee",
+      "owner_id": "97cac5011215",
+      "template_name": "U2_ETH_15m_Alpha",
+      "timeframe": "15m",
+      "config": {
+        "symbols": [
+          "ETH-USDT"
+        ],
+        "timeframe": "15m",
+        "bar_count": 800,
+        "initial_capital": 10000
+      },
+      "thesis": "A reclaim of the lower volatility band after weakness may capture a short mean-reversion move.",
+      "entry_rule": "Close crosses back above Bollinger lower band while RSI14 is below 45.",
+      "exit_rule": "Close crosses above Bollinger middle band.",
+      "falsifier": "Reject if cost stress removes the edge or only 800 bars are available for evaluation.",
+      "signal_priority": "Exit takes precedence when entry and exit are both true on the same bar.",
+      "code": "class U2BollingerReclaim(NoraStrategy):\n    timeframe = \"15m\"\n\n    def on_bar(self):\n        close = close\n        rsi14 = self.feat.rsi(close, 14)\n        upper, middle, lower = self.feat.bbands(close, 20, 2.0, 2.0)\n        entry = self.op.crossed_above(close, lower) & (rsi14 < 45)\n        exit_signal = self.op.crossed_above(close, middle)\n        self.buy(entry)\n        self.close(exit_signal)\n",
+      "code_sha256": "54251a3551fd6a8d70735937055ad38006de4e6a5e99a8c9a786c9c33a42601f",
+      "syntax_status": "AST_PARSE_PASS",
+      "dsl_compile_status": "NOT_RUN",
+      "backtest_status": "NOT_RUN",
+      "disposition": "RESEARCH_PROPOSAL"
+    },
+    {
+      "candidate_id": "fixture-fd16df3d0a3f-research-v2",
+      "parent_id": "fd16df3d0a3f",
+      "parent_source_sha256": "255c955c8b2a1953c929b45a5ae4a716844a4cf80f55c95d449faf66e5aef68c",
+      "parent_record_sha256": "e268f00d7e17f73ebf78bc97fd01ef4755cb5d1b8ed8b3fd3cebbbab07d4c8d8",
+      "parent_config_sha256": "2e9d41097d671e11b3cc70e68d32d15be2f84c283ad22adbfc9fe90dc09ba76a",
+      "owner_id": "d836143af954",
+      "template_name": "U3_BTC_Small_Alpha",
+      "timeframe": "1h",
+      "config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "timeframe": "1h",
+        "start": "2026-01-01",
+        "end": "2026-03-01",
+        "initial_capital": 10000
+      },
+      "thesis": "A long-only allocation gate avoids holding through a defined bearish intermediate trend.",
+      "entry_rule": "Close crosses above EMA50.",
+      "exit_rule": "Close crosses below EMA50.",
+      "falsifier": "Reject if drawdown reduction comes only from near-permanent cash exposure without better risk-adjusted results.",
+      "signal_priority": "Exit takes precedence when entry and exit are both true on the same bar.",
+      "code": "class U3EmaRegimeGate(NoraStrategy):\n    timeframe = \"1h\"\n\n    def on_bar(self):\n        close = close\n        ema50 = self.feat.ema(close, 50)\n        entry = self.op.crossed_above(close, ema50)\n        exit_signal = self.op.crossed_below(close, ema50)\n        self.buy(entry)\n        self.close(exit_signal)\n",
+      "code_sha256": "89ae87608c23306f74e1ec2fece135e0242dcbbf8446a841f797a4c9d820faf1",
+      "syntax_status": "AST_PARSE_PASS",
+      "dsl_compile_status": "NOT_RUN",
+      "backtest_status": "NOT_RUN",
+      "disposition": "RESEARCH_PROPOSAL"
+    }
+  ]
+}

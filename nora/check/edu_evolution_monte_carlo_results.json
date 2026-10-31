@@ -1,0 +1,54 @@
+{
+  "timestamp": "2026-10-27T16:03:09Z",
+  "bootstrap_parameters": {
+    "simulations": 1000,
+    "seed": 42,
+    "resampling_method": "Trade-level IID bootstrap with replacement",
+    "initial_capital_usd": 10000.0,
+    "admission_criteria": {
+      "min_prob_profit_pct": 70.0,
+      "max_prob_ruin_mdd_30_pct": 10.0,
+      "median_return": "> 0"
+    }
+  },
+  "candidates": {
+    "18e87aa868ad_c1_risk_sl": {
+      "simulations": 1000,
+      "seed": 42,
+      "trades_count": 181,
+      "mean_return_pct": 16.68,
+      "median_return_pct": 14.35,
+      "ci_95_lower_pct": -28.85,
+      "ci_95_upper_pct": 66.92,
+      "prob_profit_pct": 74.2,
+      "prob_ruin_mdd_30_pct": 4.6,
+      "median_max_dd_pct": 13.78,
+      "p95_max_dd_pct": 29.75,
+      "mc_verdict": "UNVERIFIED / EXPLORATORY",
+      "candidate_id": "18e87aa868ad_c1_risk_sl",
+      "parent_aid": "18e87aa868ad",
+      "parent_name": "Fast Dynamic Channel Breakout (18D + Macro Trend)",
+      "hypothesis_type": "sizing_and_risk_control"
+    },
+    "717c1890c59e_c1_risk_sl": {
+      "simulations": 1000,
+      "seed": 42,
+      "trades_count": 104,
+      "mean_return_pct": 17.5,
+      "median_return_pct": 14.07,
+      "ci_95_lower_pct": -18.53,
+      "ci_95_upper_pct": 66.76,
+      "prob_profit_pct": 76.7,
+      "prob_ruin_mdd_30_pct": 0.5,
+      "median_max_dd_pct": 10.24,
+      "p95_max_dd_pct": 20.35,
+      "mc_verdict": "UNVERIFIED / EXPLORATORY",
+      "candidate_id": "717c1890c59e_c1_risk_sl",
+      "parent_aid": "717c1890c59e",
+      "parent_name": "Weighted Moving Average (WMA) Crossover (Optimized)",
+      "hypothesis_type": "sizing_and_risk_control"
+    }
+  },
+  "audit_status": "UNVERIFIED_EXPLORATORY_ONLY",
+  "audit_note": "IID trade bootstrap phá vỡ tính phụ thuộc thời gian và chạy trên dữ liệu lịch sử đã xem; không cấu thành bằng chứng kiểm định độc lập."
+}

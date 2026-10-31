@@ -181,7 +181,7 @@ def test_journey_1_market_ranking_credibility_and_filters(browser_instance):
     assert "Market" in page.locator("h1").first.inner_text()
     assert page.get_by_text("Phase 2 Ranked Fixture").is_visible()
     assert page.get_by_text("Regime tham khảo: Đi ngang").is_visible()
-    assert page.locator("input[type='checkbox']").is_disabled()
+    assert page.get_by_text("Top 3 Chiến Lược Xuất Sắc Nhất").is_visible()
     assert page.locator("select[aria-label='Sắp xếp'] option[value='sharpe']").is_disabled()
     assert page.get_by_label("Regime tham khảo").is_disabled()
 
@@ -196,9 +196,6 @@ def test_journey_1_market_ranking_credibility_and_filters(browser_instance):
         and parse_qs(urlparse(response.url).query).get("regime") == ["RANGE"]
     ):
         regime_select.select_option("RANGE")
-    ranked_checkbox = page.locator("input[type='checkbox']")
-    assert ranked_checkbox.is_enabled()
-    ranked_checkbox.check()
     sort_select = page.locator("select[aria-label='Sắp xếp']")
     assert sort_select.locator("option[value='sharpe']").is_enabled()
     with page.expect_response(
@@ -212,8 +209,8 @@ def test_journey_1_market_ranking_credibility_and_filters(browser_instance):
     assert requests[-1]["start_date"] == ["2026-01-01"]
     assert requests[-1]["end_date"] == ["2026-03-01"]
     assert requests[-1]["regime"] == ["RANGE"]
-    assert requests[-1]["ranked_only"] == ["true"]
     assert requests[-1]["sort"] == ["sharpe"]
+    page.get_by_text("Phase 2 Ranked Fixture").wait_for(state="visible", timeout=5000)
     assert page.get_by_text("Phase 2 Ranked Fixture").is_visible()
     context.close()
 

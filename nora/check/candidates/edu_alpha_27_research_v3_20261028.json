@@ -1,0 +1,676 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-10-28T08:38:59.788035+00:00",
+  "status": "APPLIED_IN_PLACE_LOCAL_RULE_NOVELTY_AND_PRODUCTION_DSL_COMPILE_PASS",
+  "scope": "Exactly 27 blocked EDU alpha IDs; no duplicate alpha records created.",
+  "count": 27,
+  "compiled_count": 27,
+  "backtested_count": 0,
+  "novelty_gate": "PASS_RULE_LEVEL",
+  "novelty_scope": "All 27 source-level entry rules were individually reviewed against the current 30 other alpha records and pairwise within the 27. No identical primary entry definition or same-indicator/same-trigger strategy remains. Closely related families are listed per row with their operational distinction.",
+  "novelty_limit": "Rule-level distinctness is not proof of statistical or economic independence. Candlestick, range-structure, gap, volatility, and flow ideas can remain related at a broader taxonomy level; performance correlation requires real backtest outputs.",
+  "comparison_count": 27,
+  "signal_validation": {
+    "kind": "synthetic_ohlcv_dsl_interpreter",
+    "bars": 3000,
+    "seed": 20261028,
+    "entries": "27/27 targets",
+    "prefix_invariance_checks": 108,
+    "delayed_harami_confirmation": "PASS",
+    "nautilus_backtest": false
+  },
+  "evaluation": "No profitability or runtime-engine claim. Backtest is a separate gate and has not run.",
+  "results": [
+    {
+      "alpha_id": "026f43441cb2",
+      "owner_id": "16e97dcc8432",
+      "timeframe": "1h",
+      "class": "U4WilliamsBullishDivergence",
+      "primary_signal_family": "Williams %R bullish divergence and structural reclaim",
+      "thesis": "A lower price trough with a higher Williams %R trough signals weakening downside momentum; enter only after price confirms by reclaiming the previous high.",
+      "entry_rule": "Recent five-bar price low is below the preceding five-bar low, Williams %R low is higher, and close crosses above previous high while Williams %R is above -50.",
+      "exit_rule": "Close breaks below the prior five-bar price trough.",
+      "novelty_rationale": "Uses paired price/oscillator trough divergence plus a separate price confirmation, not a simple oversold threshold cross.",
+      "features_used": [
+        "rolling_min",
+        "willr"
+      ],
+      "closest_existing_alpha_ids": [
+        "89379cc0ab52",
+        "6afa7f774655"
+      ],
+      "comparison_difference": "Williams %R price/oscillator trough divergence with structural confirmation, not Stochastic K/D or RSI threshold rebound.",
+      "closest_internal_alpha_ids": [],
+      "source_sha256": "8e33964337e89085c98935efdf9791f63843fc10f4fb7f801861006ff24734f7",
+      "program_hash": "cd6ba201a203",
+      "superseded_source_sha256": null,
+      "superseded_v2_source_sha256": "83294d71ec0c750f1f2518c7b64d096eef0feb8a23e58f0b8f091450af12b1d5"
+    },
+    {
+      "alpha_id": "0bf936687964",
+      "owner_id": "e53ccc4b35d2",
+      "timeframe": "1h",
+      "class": "U4GapDownReclaim",
+      "primary_signal_family": "Opening gap-down reclaim",
+      "thesis": "Auction-gap exhaustion: fade only a material opening gap down that is fully reclaimed by the close.",
+      "entry_rule": "Open is at least 1% below prior close and current close recovers above that prior close.",
+      "exit_rule": "Close falls below the prior bar low.",
+      "novelty_rationale": "A discrete open-to-prior-close dislocation and same-bar recovery; unlike the existing continuous trend, channel and momentum systems.",
+      "features_used": [],
+      "closest_existing_alpha_ids": [
+        "c33cc317bbeb",
+        "14e3b934b1e5"
+      ],
+      "comparison_difference": "A discrete open-to-prior-close dislocation and full same-bar gap reclaim, not cumulative multi-day return or ROC exhaustion.",
+      "closest_internal_alpha_ids": [
+        "571474a18f55"
+      ],
+      "source_sha256": "97444efe817ff03b5254af80b57fd62481ded0394f710ef97ef9474f10200836",
+      "program_hash": "4b760859657f",
+      "superseded_source_sha256": null,
+      "superseded_v2_source_sha256": "fc32e355cd97b0598cc3b83bf9f70920fb7b149866a1f48fab27130c10049b02"
+    },
+    {
+      "alpha_id": "138df68946ad",
+      "owner_id": "ecf30ed0f194",
+      "timeframe": "1h",
+      "class": "U1PathEfficiencyTrend",
+      "primary_signal_family": "Path-efficiency regime",
+      "thesis": "Trade directional movement only when net displacement is large relative to the absolute path travelled.",
+      "entry_rule": "Ten-bar absolute log-return efficiency crosses above 0.45 while ten-bar net displacement is positive.",
+      "exit_rule": "Efficiency falls below 0.20 or ten-bar net displacement turns negative.",
+      "novelty_rationale": "Measures path smoothness as net movement divided by total movement; it is not an EMA, regression-slope, ROC-threshold or channel signal.",
+      "features_used": [
+        "log_returns",
+        "rolling_sum"
+      ],
+      "closest_existing_alpha_ids": [
+        "270e6e28416f",
+        "715e56a6dd33"
+      ],
+      "comparison_difference": "Net displacement divided by total absolute path, not EMA slope or regression-channel deviation.",
+      "closest_internal_alpha_ids": [],
+      "source_sha256": "a9293510bb8eb905b4a20b4562e9d0a063a3dc7b5909b5daa3db82e88c3756de",
+      "program_hash": "0b1c75e48919",
+      "superseded_source_sha256": null,
+      "superseded_v2_source_sha256": "671c2ac3de835ca0e0327523b660f7b09539b1588a56c6f7c8a5d2d38ea042e8"
+    },
+    {
+      "alpha_id": "1a1a4389a821",
+      "owner_id": "2922e08b6b61",
+      "timeframe": "1h",
+      "class": "U1BullishEngulfing",
+      "primary_signal_family": "Bullish engulfing reversal",
+      "thesis": "A two-candle reversal requires a bearish prior real body followed by a bullish body that engulfs it.",
+      "entry_rule": "Previous candle is bearish; current candle is bullish, opens at/below prior close and closes above prior open.",
+      "exit_rule": "Close falls below the prior candle low.",
+      "novelty_rationale": "The primary event is a two-body engulfing pattern; no moving-average alignment or oscillator threshold is used.",
+      "features_used": [],
+      "closest_existing_alpha_ids": [],
+      "comparison_difference": "The 30 existing records have no real-body engulfing pattern; this uses prior bearish/current bullish body containment reversal.",
+      "closest_internal_alpha_ids": [
+        "856ddc574ce7",
+        "862e0c9eebbe",
+        "bd234070bd7b"
+      ],
+      "source_sha256": "6d5e18fc62c289d3cca1be1f25c6c00bcc799f96b0dce78502715d2134cdb060",
+      "program_hash": "d7405082eee9",
+      "superseded_source_sha256": null,
+      "superseded_v2_source_sha256": "9e58605b20998d9efd5845b97c21881f2deec84d336561ea8c873e8a3c4be279"
+    },
+    {
+      "alpha_id": "1e4c0b9f84f7",
+      "owner_id": "9b7a10c35886",
+      "timeframe": "1h",
+      "class": "U3BearTrapSweepReclaim",
+      "primary_signal_family": "Prior-low liquidity sweep and reclaim",
+      "thesis": "A failed downside auction is a bear trap only when price trades below the previous low and closes back above that level.",
+      "entry_rule": "Low sweeps the previous low, then the candle closes above that previous low and above its open.",
+      "exit_rule": "Close loses the swept prior-low level.",
+      "novelty_rationale": "Requires an intrabar low sweep followed by a close reclaim; differs from close-only moving-average re-entry and channel-break exits.",
+      "features_used": [],
+      "closest_existing_alpha_ids": [
+        "3cfcc2d296a2",
+        "c33cc317bbeb"
+      ],
+      "comparison_difference": "Requires an intrabar low sweep and close reclaim of that exact prior low; neither channel exit nor multi-day close-return dip uses that event.",
+      "closest_internal_alpha_ids": [
+        "7c1bf0a9686a"
+      ],
+      "source_sha256": "210da1c705b6d09a8bd1ca58cfddf3ccf4698f1413b76d2889b8ce462f13e24a",
+      "program_hash": "5b948e3d8456",
+      "superseded_source_sha256": null,
+      "superseded_v2_source_sha256": "8a82cdbef908c4d07f0a44fbf8bad45462de2c21e2bb161be13127fa38a6cc07"
+    },
+    {
+      "alpha_id": "214ea8fdf3e6",
+      "owner_id": "423d35ac9700",
+      "timeframe": "15m",
+      "class": "U2MoneyFlowRecovery",
+      "primary_signal_family": "Money Flow Index recovery",
+      "thesis": "Use price-and-volume money flow to confirm a recovery from selling pressure.",
+      "entry_rule": "MFI(14) crosses above 20 while the candle closes above its open.",
+      "exit_rule": "MFI crosses below 50 or close falls below the prior low.",
+      "novelty_rationale": "MFI weights typical-price direction by volume; this is not OBV's signed-volume accumulation rule.",
+      "features_used": [
+        "mfi"
+      ],
+      "closest_existing_alpha_ids": [
+        "0d51ba8d2012"
+      ],
+      "comparison_difference": "MFI price-weighted money flow threshold recovery, not OBV signed-volume accumulation plus RSI.",
+      "closest_internal_alpha_ids": [],
+      "source_sha256": "9ca270c0e9ef4757edfefb84e3a0d05091e8106e74673998c44def8f26020487",
+      "program_hash": "2b176bbe6dec",
+      "superseded_source_sha256": null,
+      "superseded_v2_source_sha256": "92a297c360e6a668017ef1ec17093cdf755981808e91f0318d733ff81c746f18"
+    },
+    {
+      "alpha_id": "234e6df02e37",
+      "owner_id": "5de316621329",
+      "timeframe": "15m",
+      "class": "U2NarrowRangeFourRelease",
+      "primary_signal_family": "NR4 single-candle compression release",
+      "thesis": "A narrowest-in-four-bars candle marks local compression; enter only on a bullish close through that candle's high.",
+      "entry_rule": "Previous true range is smaller than the three ranges before it, and current close crosses above previous high.",
+      "exit_rule": "Close falls below the low of the compression candle.",
+      "novelty_rationale": "Uses a one-bar NR4 auction pattern and its high/low as the trigger, not rolling volatility bands or a Donchian period breakout.",
+      "features_used": [
+        "trange"
+      ],
+      "closest_existing_alpha_ids": [
+        "18e87aa868ad",
+        "b96bafe57445"
+      ],
+      "comparison_difference": "The narrowest true range among exactly four bars followed by a one-bar break, not a rolling channel or NATR breakout.",
+      "closest_internal_alpha_ids": [
+        "74f607263c5c"
+      ],
+      "source_sha256": "72e5d4fe74d4582013551334c3abaa1a60ade24d61f53300535e145214d8ebed",
+      "program_hash": "832f6d225212",
+      "superseded_source_sha256": null,
+      "superseded_v2_source_sha256": "40ccf47d2f28c8e040402bdefe4dd55af5afff2134fff66838306f50a80ff29c"
+    },
+    {
+      "alpha_id": "2e41b2cfa24d",
+      "owner_id": "3bbc767faa10",
+      "timeframe": "1h",
+      "class": "U1CloseLocationAccumulation",
+      "primary_signal_family": "Cumulative close-location pressure",
+      "thesis": "Sustained closes near candle highs indicate persistent buying pressure even without volume confirmation.",
+      "entry_rule": "Three-bar sum of close-location values crosses above 1.5.",
+      "exit_rule": "Three-bar pressure sum falls below zero.",
+      "novelty_rationale": "Aggregates where each close sits inside its own candle range; unlike price averages, volatility bands or volume-flow indicators.",
+      "features_used": [
+        "rolling_sum"
+      ],
+      "closest_existing_alpha_ids": [
+        "0d51ba8d2012"
+      ],
+      "comparison_difference": "Three-bar close-location pressure derived only from OHLC, not OBV/volume flow.",
+      "closest_internal_alpha_ids": [],
+      "source_sha256": "bac193862dd02234700f0cf179645466a52b644f561a46ba9a4d174cd87eabd1",
+      "program_hash": "95c2aaa94b98",
+      "superseded_source_sha256": null,
+      "superseded_v2_source_sha256": "0c4b795ff9496eeadbd37bc242dc3b93cadfa1bbaa776ca095c9bbed17665fd3"
+    },
+    {
+      "alpha_id": "571474a18f55",
+      "owner_id": "82e8ccc35eb6",
+      "timeframe": "1h",
+      "class": "U3GapAndGo",
+      "primary_signal_family": "Opening gap continuation",
+      "thesis": "A directional opening imbalance is continuation only if buyers hold the gap and finish the candle strong.",
+      "entry_rule": "Open is at least 0.5% above prior close, close stays above prior close, and close is in the top 20% of the candle.",
+      "exit_rule": "Close loses prior close or closes below the candle midpoint.",
+      "novelty_rationale": "Uses open-gap persistence plus intrabar close location, not DI/ADX or a rolling-price breakout.",
+      "features_used": [],
+      "closest_existing_alpha_ids": [
+        "18e87aa868ad",
+        "303d4b713dda"
+      ],
+      "comparison_difference": "Positive opening gap acceptance with close-location confirmation, not rolling-channel or macro-filtered breakout.",
+      "closest_internal_alpha_ids": [
+        "0bf936687964"
+      ],
+      "source_sha256": "0efa0d53c78b0be22774a1b5b1de7fd88dfd5e8f9fe5efe519809a1f5954b96c",
+      "program_hash": "383a3fd324f9",
+      "superseded_source_sha256": null,
+      "superseded_v2_source_sha256": "87324a1d6d527ea46010bbba152b0ac95da2a12d015e860ce21d6c5348319bc9"
+    },
+    {
+      "alpha_id": "616e1b8cbc88",
+      "owner_id": "184e6dc9dfe6",
+      "timeframe": "15m",
+      "class": "U2HammerRejection",
+      "primary_signal_family": "Single-bar lower-wick rejection",
+      "thesis": "A lower-tail rejection signals buyers absorbed an intrabar selloff and reclaimed the candle body.",
+      "entry_rule": "Bullish candle with lower wick at least twice the real body and close in the upper half of its range.",
+      "exit_rule": "Close falls below the rejection candle low.",
+      "novelty_rationale": "Reads wick/body geometry within one candle; it is not a moving-average or volatility crossover.",
+      "features_used": [],
+      "closest_existing_alpha_ids": [],
+      "comparison_difference": "A one-bar lower-wick/body geometry trigger; the existing 30 contain no candlestick-wick pattern.",
+      "closest_internal_alpha_ids": [
+        "ee0cf7f58f94"
+      ],
+      "source_sha256": "9aa06b4ad9087032973c66d7830aaa8205bc9ca2dfd794ea660335a50e022260",
+      "program_hash": "c3ad2a02f705",
+      "superseded_source_sha256": null,
+      "superseded_v2_source_sha256": "5ed02904c9a9c7a30a2d1c6ad89cf12000a9a4ee3f8694bf9c5bf3f9f9e3c717"
+    },
+    {
+      "alpha_id": "64b657c8de8e",
+      "owner_id": "c7f8e10109b3",
+      "timeframe": "1h",
+      "class": "U4LogReturnShockRebound",
+      "primary_signal_family": "Standardized log-return shock reversal",
+      "thesis": "Fade a statistically exceptional one-bar loss only after a bullish close confirms immediate rejection.",
+      "entry_rule": "Previous one-bar log return is below -2 rolling standard deviations; current candle closes bullish.",
+      "exit_rule": "Close falls below the shock candle low or the previous close is reclaimed.",
+      "novelty_rationale": "Standardizes a one-bar log-return tail event; it does not use a price band, RSI or multi-day cumulative dip.",
+      "features_used": [
+        "log_returns",
+        "rolling_std"
+      ],
+      "closest_existing_alpha_ids": [
+        "5e52d3fdf71f",
+        "6afa7f774655"
+      ],
+      "comparison_difference": "A lagged standardized one-bar log-return tail shock and next-bar rejection, not price-band overextension or RSI rebound.",
+      "closest_internal_alpha_ids": [],
+      "source_sha256": "437c69d775f493c73e005cdf7166b5eaa025960dd9594d96aa9011c3e3326e64",
+      "program_hash": "132c54c18f32",
+      "superseded_source_sha256": null,
+      "superseded_v2_source_sha256": "7e843ba57750213fa4a8617498a63f324d76fba299ed114e6fe3d486de710901"
+    },
+    {
+      "alpha_id": "74f607263c5c",
+      "owner_id": "726ff949da79",
+      "timeframe": "1h",
+      "class": "U4InsideBarRelease",
+      "primary_signal_family": "Inside-bar mother-range release",
+      "thesis": "A mother-bar/inside-bar sequence defines a local auction boundary; only an upside close through the mother high enters long.",
+      "entry_rule": "Previous candle is inside the candle before it; current close crosses above the mother-bar high.",
+      "exit_rule": "Close falls below the mother-bar low.",
+      "novelty_rationale": "Uses nested high-low containment and a two-bar reference range, not a rolling channel or volatility-band threshold.",
+      "features_used": [],
+      "closest_existing_alpha_ids": [
+        "18e87aa868ad",
+        "f4e211e9510d"
+      ],
+      "comparison_difference": "Nested two-bar high/low containment and mother-bar resolution, not an N-bar channel high.",
+      "closest_internal_alpha_ids": [
+        "234e6df02e37",
+        "bd234070bd7b"
+      ],
+      "source_sha256": "e844e000ea2b8103aa122888795526a7db2ac628612b82cf35a0b8bc65179905",
+      "program_hash": "cb5c6fee0ba3",
+      "superseded_source_sha256": null,
+      "superseded_v2_source_sha256": "9103b111a5a153caef23936c6cbc8df04d77ccfe7fe711172f6b72f026b477e9"
+    },
+    {
+      "alpha_id": "7c1bf0a9686a",
+      "owner_id": "dbbb50a338c9",
+      "timeframe": "1h",
+      "class": "U4BullishOutsideReversal",
+      "primary_signal_family": "Bullish outside-bar reversal",
+      "thesis": "An outside candle that engulfs both sides of the prior range but closes bullish represents a full intrabar reversal.",
+      "entry_rule": "Current high exceeds prior high, current low undercuts prior low, and current bullish close exceeds prior close.",
+      "exit_rule": "Close falls below the outside candle low.",
+      "novelty_rationale": "Requires a two-sided range expansion and bullish resolution; unlike MACD momentum confirmation or one-sided breakouts.",
+      "features_used": [],
+      "closest_existing_alpha_ids": [
+        "541c55834f56",
+        "18e87aa868ad"
+      ],
+      "comparison_difference": "Two-sided outside-range expansion with bullish close acceptance; not close-only range-percent breakout or one-sided channel breakout.",
+      "closest_internal_alpha_ids": [
+        "1e4c0b9f84f7",
+        "d0518c0cca14"
+      ],
+      "source_sha256": "dbb1c76974268dae3c53005019b47cdc2fba9c3d905b645192123828f6258d4d",
+      "program_hash": "286bbd7d339f",
+      "superseded_source_sha256": null,
+      "superseded_v2_source_sha256": "bcc36bcf8292a019fae951d79f40f2c4cd72d0fe18fc0648affde1876564335f"
+    },
+    {
+      "alpha_id": "7f770ebe5ab5",
+      "owner_id": "eb5d7e2e3897",
+      "timeframe": "1h",
+      "class": "U3HigherLowStaircase",
+      "primary_signal_family": "Higher-low staircase with local confirmation",
+      "thesis": "A three-step sequence of higher swing lows signals rising demand; confirmation requires a close above the prior bar high.",
+      "entry_rule": "Three successive lows rise and close crosses above previous high.",
+      "exit_rule": "Close breaks below the previous low.",
+      "novelty_rationale": "Uses an ordered swing-low structure and local confirmation, not a moving-average, ROC or oscillator regime.",
+      "features_used": [],
+      "closest_existing_alpha_ids": [
+        "270e6e28416f",
+        "15567e02a806"
+      ],
+      "comparison_difference": "Ordered rising lows plus local high confirmation, not moving-average alignment or EMA slope.",
+      "closest_internal_alpha_ids": [],
+      "source_sha256": "bf442c9fac1ac3823c948b9a406bbada6bd939924cfe75ed9256ed261f9b3b82",
+      "program_hash": "6f27be862c15",
+      "superseded_source_sha256": null,
+      "superseded_v2_source_sha256": "0b9874223f9964d08d6cdbd293b18c9498cbdf877e01474e2f77631bd450e6a8"
+    },
+    {
+      "alpha_id": "856ddc574ce7",
+      "owner_id": "9fc184ee1040",
+      "timeframe": "15m",
+      "class": "U2PiercingLine",
+      "primary_signal_family": "Piercing-line two-candle reversal",
+      "thesis": "A two-candle piercing reversal requires the second bullish body to recover more than half of the prior bearish body.",
+      "entry_rule": "After a bearish candle, bullish current close opens below prior close and finishes above the prior-body midpoint but below prior open.",
+      "exit_rule": "Close falls below the two-bar pattern low.",
+      "novelty_rationale": "Uses body-midpoint recovery after a bearish impulse; unlike stochastic or RSI oversold crosses.",
+      "features_used": [],
+      "closest_existing_alpha_ids": [
+        "6afa7f774655",
+        "7f67e9aed0aa"
+      ],
+      "comparison_difference": "Two-candle bearish-body midpoint recovery, not RSI or Stochastic oscillator threshold recovery.",
+      "closest_internal_alpha_ids": [
+        "1a1a4389a821",
+        "862e0c9eebbe"
+      ],
+      "source_sha256": "d45070d251ae821025a88879cd67ae5a3c2031a5f48d1913c285544190ca7077",
+      "program_hash": "f22875d647c1",
+      "superseded_source_sha256": null,
+      "superseded_v2_source_sha256": "23b58eb4326b9b130a7b5781370cf2e636f226992148a5392d9abb9c779d5c4c"
+    },
+    {
+      "alpha_id": "862e0c9eebbe",
+      "owner_id": "e7c998608206",
+      "timeframe": "15m",
+      "class": "U2MorningStar",
+      "primary_signal_family": "Morning-star three-candle reversal",
+      "thesis": "A three-candle morning-star sequence waits for a bearish impulse, a small indecision body, then a bullish midpoint reclaim.",
+      "entry_rule": "Two bars ago is bearish and wide; prior body is small; current bullish close reclaims the first body's midpoint.",
+      "exit_rule": "Close breaks below the three-bar pattern low.",
+      "novelty_rationale": "Requires a three-stage decline/indecision/reclaim sequence, distinct from single-threshold CCI recovery.",
+      "features_used": [],
+      "closest_existing_alpha_ids": [
+        "6afa7f774655",
+        "b4b65cd3493f"
+      ],
+      "comparison_difference": "Three-stage bearish impulse, small-body pause, then midpoint reclaim; not a single oscillator snapback.",
+      "closest_internal_alpha_ids": [
+        "1a1a4389a821",
+        "856ddc574ce7",
+        "bd234070bd7b"
+      ],
+      "source_sha256": "6e4138a54ed8b801b5c5ad9659ac7996a7b7dec282fed9deb0364a609b710ffe",
+      "program_hash": "25f537874f9e",
+      "superseded_source_sha256": null,
+      "superseded_v2_source_sha256": "a66db59124ce2c88c365d37684009d68f22792c944a3a3d783c6368efcf9e0b0"
+    },
+    {
+      "alpha_id": "930294d28c45",
+      "owner_id": "439fa7538599",
+      "timeframe": "1h",
+      "class": "U3TweezerBottom",
+      "primary_signal_family": "Tweezer-bottom double test",
+      "thesis": "Two lows testing nearly the same price, followed by a bullish close, mark a repeated support rejection.",
+      "entry_rule": "Current low is within 0.15% of prior low, prior candle is bearish, and current candle closes bullish above prior high.",
+      "exit_rule": "Close breaks below the lower of the two test lows.",
+      "novelty_rationale": "A repeated-price support test is the signal; no RSI strength threshold or moving-average regime is used.",
+      "features_used": [],
+      "closest_existing_alpha_ids": [
+        "3cfcc2d296a2",
+        "c33cc317bbeb"
+      ],
+      "comparison_difference": "Adjacent-bar nearly equal lows followed by break of that bar's high, not a rolling channel or cumulative return dip.",
+      "closest_internal_alpha_ids": [
+        "e9a9a5b44d03"
+      ],
+      "source_sha256": "bc717b91dce95d6708b656123171e806b9a9b6a301bf58ca4622054773cdd5b0",
+      "program_hash": "dc7dfc8db2c3",
+      "superseded_source_sha256": null,
+      "superseded_v2_source_sha256": "52f830c0ab251a186a4800e94b3f3ec9f9d504d4525f8096e7973d46b7c9ab0f"
+    },
+    {
+      "alpha_id": "9eec3d61131d",
+      "owner_id": "79183007b990",
+      "timeframe": "1h",
+      "class": "U3SelloffStreakReclaim",
+      "primary_signal_family": "Three-close selloff exhaustion and reclaim",
+      "thesis": "A three-close selloff is actionable only after price reverses the local auction and closes above the previous bar high.",
+      "entry_rule": "Three prior closes decline consecutively; current candle closes bullish above the previous high.",
+      "exit_rule": "Close breaks below the previous low or a two-close decline resumes.",
+      "novelty_rationale": "Combines a defined multi-bar selling streak with a separate structural reclaim; it is not a generic oscillator threshold.",
+      "features_used": [],
+      "closest_existing_alpha_ids": [
+        "c33cc317bbeb",
+        "14e3b934b1e5"
+      ],
+      "comparison_difference": "A discrete four-close selloff sequence with bullish close above the previous high, not a cumulative return threshold or ROC surge.",
+      "closest_internal_alpha_ids": [],
+      "source_sha256": "33839f9922a9ea7b9eb760f1dcc93be9e29775d2ec22b1042ca1d942288d0530",
+      "program_hash": "2e0ba7fdd00e",
+      "superseded_source_sha256": null,
+      "superseded_v2_source_sha256": "23375b931df8d07f0d336ec5ce656501e0a894f4c4c2b4fca808e07fc9220871"
+    },
+    {
+      "alpha_id": "a4d6826fbbc6",
+      "owner_id": "4547f1f50486",
+      "timeframe": "1h",
+      "class": "U1VolumePriceTrendFlow",
+      "primary_signal_family": "Rolling volume-weighted return flow",
+      "thesis": "Weight each close-to-close return by traded volume so large price moves on high activity matter more than small moves.",
+      "entry_rule": "Five-bar volume-weighted log-return flow crosses above zero.",
+      "exit_rule": "Five-bar volume-weighted log-return flow crosses below zero.",
+      "novelty_rationale": "Uses continuous return magnitude times volume rather than OBV's signed volume; it is not close-location pressure.",
+      "features_used": [
+        "log_returns",
+        "rolling_sum"
+      ],
+      "closest_existing_alpha_ids": [
+        "0d51ba8d2012"
+      ],
+      "comparison_difference": "Continuous log-return magnitude multiplied by volume, not OBV's signed volume accumulation.",
+      "closest_internal_alpha_ids": [],
+      "source_sha256": "89415c85fa36965b13ed80419dd053f6861f8fb2c50fc9cd43d135957d0e36d9",
+      "program_hash": "960518956dd6",
+      "superseded_source_sha256": null,
+      "superseded_v2_source_sha256": "0a6931d532143d2f48ee7e3d1dbdefb0c3e8341cf23e805c3b56ce0638ac7649"
+    },
+    {
+      "alpha_id": "af2bf88426c4",
+      "owner_id": "bf158b5142e8",
+      "timeframe": "1h",
+      "class": "U3DownsideShockReclaim",
+      "primary_signal_family": "Downside range-shock midpoint reclaim",
+      "thesis": "After an exceptional one-bar downside excursion, require the next close to recover the prior candle midpoint before entering.",
+      "entry_rule": "Prior true range exceeds twice its 20-bar average and current close reclaims the prior candle midpoint.",
+      "exit_rule": "Close breaks below the shock candle low.",
+      "novelty_rationale": "Uses a lagged true-range shock and exact candle-midpoint recovery, not Bollinger-band reclaim or ROC momentum.",
+      "features_used": [
+        "rolling_mean",
+        "trange"
+      ],
+      "closest_existing_alpha_ids": [
+        "b96bafe57445",
+        "090730ae35b8"
+      ],
+      "comparison_difference": "A lagged true-range shock followed by midpoint reclaim, not volatility expansion/breakout continuation.",
+      "closest_internal_alpha_ids": [],
+      "source_sha256": "2ee4a4e3c6f095cef3b33a69ae5987578de44e84f1f8b989ecd84852b62c552b",
+      "program_hash": "6803359300c1",
+      "superseded_source_sha256": null,
+      "superseded_v2_source_sha256": "17f6c6678a1840423feade38d6b272d31768b9f1eb2bd6e6c75c6d77ea2b450c"
+    },
+    {
+      "alpha_id": "bd234070bd7b",
+      "owner_id": "bbd150bc473c",
+      "timeframe": "1h",
+      "class": "U1HaramiRangeBreak",
+      "primary_signal_family": "Bearish-mother bullish-harami delayed resolution",
+      "thesis": "A bearish mother candle followed by a bullish real body contained within it marks selling contraction; a later close through the mother high confirms resolution.",
+      "entry_rule": "Previous candle is bullish harami inside the bearish candle two bars back; current close crosses above the mother high.",
+      "exit_rule": "Close breaks below the lower of the harami and mother-bar lows.",
+      "novelty_rationale": "Separates containment from confirmation across different bars, unlike an inside-bar pattern or same-bar engulfing reversal.",
+      "features_used": [],
+      "closest_existing_alpha_ids": [
+        "18e87aa868ad"
+      ],
+      "comparison_difference": "A bullish real body inside a bearish mother real body, with confirmation on a later bar; not an N-bar price channel.",
+      "closest_internal_alpha_ids": [
+        "74f607263c5c",
+        "1a1a4389a821"
+      ],
+      "source_sha256": "4bfce83b24703dd5b3c48ddf7d0fa2e818c22924510a28f1eb2e75d501e98901",
+      "program_hash": "474f4db4e10e",
+      "superseded_source_sha256": null,
+      "superseded_v2_source_sha256": "24f1a9bd8e0dae169d4715023759ff8e507ecf4a9a5ed46684c58c90312847ab"
+    },
+    {
+      "alpha_id": "be1174b24a44",
+      "owner_id": "657914b99b5b",
+      "timeframe": "1h",
+      "class": "U1VolumeAbsorption",
+      "primary_signal_family": "High-volume low-impact absorption",
+      "thesis": "Unusually high volume with a small real body and close near the high suggests sell pressure was absorbed rather than accepted lower.",
+      "entry_rule": "Volume z-score exceeds 2, real body is under 20% of range, and close is in the top quarter of the candle.",
+      "exit_rule": "Close falls below the absorption candle low.",
+      "novelty_rationale": "Measures high effort with low directional price impact and bullish resolution; not a volume-spike trend crossover or OBV mean cross.",
+      "features_used": [
+        "volume_z"
+      ],
+      "closest_existing_alpha_ids": [
+        "cb750cb1eb10",
+        "0d51ba8d2012"
+      ],
+      "comparison_difference": "High effort with low real-body impact and upper-range close, not volume-spike trend confluence or OBV direction.",
+      "closest_internal_alpha_ids": [],
+      "source_sha256": "cb2d7f09a62b23479673400e26a531ab711fa3498a69767cdbab33a6857fd08f",
+      "program_hash": "b0061a648500",
+      "superseded_source_sha256": null,
+      "superseded_v2_source_sha256": "0cf8e505ed75037680015097713cd358449cb1a7bc4c15086bfd8249656f78af"
+    },
+    {
+      "alpha_id": "cb0b6e0f12e7",
+      "owner_id": "f9292fff53c9",
+      "timeframe": "1h",
+      "class": "U1DirectionalBodyBalance",
+      "primary_signal_family": "Rolling bullish-versus-bearish body balance",
+      "thesis": "Compare the magnitude of bullish and bearish real bodies over five bars to detect sustained directional auction control.",
+      "entry_rule": "Bullish real-body sum crosses above twice the bearish real-body sum.",
+      "exit_rule": "Bullish body sum falls below bearish body sum.",
+      "novelty_rationale": "Uses body displacement separated by direction, not opening gaps, close-location pressure or a price-average cross.",
+      "features_used": [
+        "rolling_sum"
+      ],
+      "closest_existing_alpha_ids": [
+        "14e3b934b1e5",
+        "f261549d9efa"
+      ],
+      "comparison_difference": "Separate five-bar bullish/bearish real-body magnitudes, not close-return ROC momentum.",
+      "closest_internal_alpha_ids": [
+        "2e41b2cfa24d",
+        "a4d6826fbbc6"
+      ],
+      "source_sha256": "900b8f073f63fdab35664bd18205ac8c5ba2e16c10d7f61246ae93582ae29b77",
+      "program_hash": "b8ef98e378b8",
+      "superseded_source_sha256": null,
+      "superseded_v2_source_sha256": "4fd7e71c6f9e4ead3594d8f3b5759a5aec5c14f16bd212bcd05c2d2c5b9d6f9d"
+    },
+    {
+      "alpha_id": "d0518c0cca14",
+      "owner_id": "f4ded6717b32",
+      "timeframe": "1h",
+      "class": "U4DownsideSemivarianceContraction",
+      "primary_signal_family": "Downside-only semivariance contraction",
+      "thesis": "When downside-return risk contracts sharply from its recent baseline and price has recovered over five bars, the market may be transitioning out of a stressed selloff.",
+      "entry_rule": "Ten-bar mean squared negative log return crosses below half its value five bars earlier while five-bar price return is positive.",
+      "exit_rule": "Downside semivariance returns above its five-bar-lagged level or five-bar price return turns negative.",
+      "novelty_rationale": "Measures only the second moment of negative returns and its contraction; unlike full-range NATR/standard-deviation breakouts or one-bar failed-breakdown patterns.",
+      "features_used": [
+        "log_returns",
+        "rolling_mean"
+      ],
+      "closest_existing_alpha_ids": [
+        "b96bafe57445",
+        "090730ae35b8"
+      ],
+      "comparison_difference": "Downside-only return semivariance contraction plus positive five-bar recovery, not full-range volatility expansion or channel breakout.",
+      "closest_internal_alpha_ids": [],
+      "source_sha256": "13fd2e667d24a1bb234c22bf807c1fc5c1f5c87f2ddc107deb0f0fc2529a04dc",
+      "program_hash": "348aea0b2669",
+      "superseded_source_sha256": null,
+      "superseded_v2_source_sha256": "506ffd73a0be32a25cff1f014872e1687f910456f89fe29efaad5da2b7c09299"
+    },
+    {
+      "alpha_id": "e9a9a5b44d03",
+      "owner_id": "95f7a5a4b3ae",
+      "timeframe": "15m",
+      "class": "U2DoubleBottomRetest",
+      "primary_signal_family": "Separated double-bottom retest and breakout",
+      "thesis": "A second low retesting a prior multi-bar trough after an intervening rebound is a structural support test, not a one-bar wick signal.",
+      "entry_rule": "The recent three-bar trough is within 0.3% of an earlier three-bar trough, an intervening three-bar rebound exceeds both troughs by 0.5%, and close breaks above that rebound high.",
+      "exit_rule": "Close breaks below the lower of the two troughs.",
+      "novelty_rationale": "Requires separated trough windows and a later breakout confirmation; unlike the adjacent-bar tweezer pattern.",
+      "features_used": [
+        "rolling_max",
+        "rolling_min"
+      ],
+      "closest_existing_alpha_ids": [
+        "3cfcc2d296a2",
+        "c33cc317bbeb"
+      ],
+      "comparison_difference": "Two separated trough windows, measured intervening neckline rebound, and neckline break; not a channel exit or one-window cumulative return dip.",
+      "closest_internal_alpha_ids": [
+        "930294d28c45"
+      ],
+      "source_sha256": "0336386d2dcbcafa6321e29a304891cff0c29b7fbb0a4b0b5410b72bd92f74f3",
+      "program_hash": "6e372a4a7178",
+      "superseded_source_sha256": null,
+      "superseded_v2_source_sha256": "ff08fd5c0593ea93377a86ba04585c2d5515d0e00c1c9a89b3b1dae6c08c082c"
+    },
+    {
+      "alpha_id": "ee0cf7f58f94",
+      "owner_id": "97cac5011215",
+      "timeframe": "15m",
+      "class": "U2RepeatedLowerTailReclaim",
+      "primary_signal_family": "Repeated lower-tail rejection sequence",
+      "thesis": "Two consecutive candles with large lower tails indicate repeated intrabar rejection; entry waits for a separate bullish confirmation bar.",
+      "entry_rule": "Previous two candles each have lower wick at least as large as their real body; current candle closes bullish above prior high.",
+      "exit_rule": "Close falls below the lowest low of the three-bar pattern.",
+      "novelty_rationale": "Requires two consecutive wick rejections and a third-bar confirmation; distinct event sequence from single-bar hammer.",
+      "features_used": [],
+      "closest_existing_alpha_ids": [],
+      "comparison_difference": "Two consecutive lower-tail rejections plus a third-bar confirmation; the existing 30 contain no multi-bar wick sequence.",
+      "closest_internal_alpha_ids": [
+        "616e1b8cbc88"
+      ],
+      "source_sha256": "14dc4b41d3f09729f68cd047b2dd05eefbb3ef6d1e0f38536cb38a6ebe382470",
+      "program_hash": "793db8e489ab",
+      "superseded_source_sha256": null,
+      "superseded_v2_source_sha256": "54251a3551fd6a8d70735937055ad38006de4e6a5e99a8c9a786c9c33a42601f"
+    },
+    {
+      "alpha_id": "fd16df3d0a3f",
+      "owner_id": "d836143af954",
+      "timeframe": "1h",
+      "class": "U3ThreeCandleBodyAdvance",
+      "primary_signal_family": "Three-candle body expansion",
+      "thesis": "Three consecutive bullish candles with progressively larger real bodies indicate increasing buyer commitment.",
+      "entry_rule": "Three consecutive candles are bullish and each real body is larger than the preceding body.",
+      "exit_rule": "Two consecutive bearish candles or close below the three-bar pattern low.",
+      "novelty_rationale": "Uses candle-body expansion and direction, not a moving-average cross or generic close-return momentum.",
+      "features_used": [],
+      "closest_existing_alpha_ids": [
+        "f261549d9efa",
+        "270e6e28416f"
+      ],
+      "comparison_difference": "Three bullish real bodies strictly increasing in size, not close-return ROC surge or EMA rising-slope.",
+      "closest_internal_alpha_ids": [],
+      "source_sha256": "cb22c9dd481ec29dfdbbc0de3275ec1a9e0b7d6873f412da1d290678f5092728",
+      "program_hash": "1c236ba759fc",
+      "superseded_source_sha256": null,
+      "superseded_v2_source_sha256": "89ae87608c23306f74e1ec2fece135e0242dcbbf8446a841f797a4c9d820faf1"
+    }
+  ]
+}

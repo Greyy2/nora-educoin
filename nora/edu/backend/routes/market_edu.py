@@ -23,14 +23,19 @@ _MARKET: Dict[str, Any] = {"sig": None, "rows": []}
 
 
 def _market_rows() -> list:
-    """Hàng user + tổng hợp, cache theo chữ ký thư mục alpha/user và users."""
+    """Hàng user + tổng hợp, cache theo chữ ký thư mục alpha/user và users.
+    Chỉ hiển thị các tác giả có ít nhất 1 chiến lược (Market là nơi trưng bày chiến lược tốt nhất).
+    """
     sig = store.dir_signature(store.get_user_alphas_dir(), users.users_dir())
     if _MARKET["sig"] != sig:
         idx = store.card_index()
         rows = []
         for u in users.list_users():
             user_cards = idx.get(u["id"], [])
-            rows.append({**_public_user(u), **store.aggregate_cards(user_cards)})
+            if user_cards:
+                agg = store.aggregate_cards(user_cards)
+                if agg.get("best"):
+                    rows.append({**_public_user(u), **agg})
         _MARKET["rows"] = rows
         _MARKET["sig"] = sig
     return _MARKET["rows"]
@@ -121,6 +126,9 @@ def market(
     else:
         rows = list(_market_rows())
 
+    # Market chỉ hiển thị các tác giả có ít nhất 1 chiến lược tốt nhất
+    rows = [r for r in rows if (r.get("n_strategies") or 0) > 0 and r.get("best")]
+
     me = current_user(request) if request else None
     if me:
         rows = [r for r in rows if r.get("id") != me.get("id") and r.get("handle") != me.get("handle")]
@@ -167,6 +175,57 @@ def market(
     else:
         rows.sort(key=lambda r: (r["total_pnl_usd"] is None, -(r["total_pnl_usd"] or 0)))
 
+    # Top 3 vinh danh toàn sàn (không bị cắt lát theo trang phân trang)
+    all_valid = [r for r in rows if (r.get("n_strategies") or 0) > 0 and r.get("best")]
+
+    def _is_num(val):
+        return val is not None and isinstance(val, (int, float)) and not math.isnan(val)
+
+    top_pnl = sorted(
+        [r for r in all_valid if _is_num((r.get("best") or {}).get("ret_pct"))],
+        key=lambda r: (
+            -(r["best"].get("ret_pct") or 0),
+            (r["best"].get("mdd_pct") if r["best"].get("mdd_pct") is not None else 999),
+            -(r["best"].get("sharpe") or 0),
+            -(r["best"].get("trades") or 0),
+        ),
+    )[:3]
+
+    top_mdd = sorted(
+        [r for r in all_valid if _is_num((r.get("best") or {}).get("mdd_pct")) and (r["best"].get("trades") or 0) > 0],
+        key=lambda r: (
+            (r["best"].get("mdd_pct") if r["best"].get("mdd_pct") is not None else 999),
+            -(r["best"].get("ret_pct") or 0),
+            -(r["best"].get("sharpe") or 0),
+            -(r["best"].get("trades") or 0),
+        ),
+    )[:3]
+
+    top_sharpe = sorted(
+        [r for r in all_valid if _is_num((r.get("best") or {}).get("sharpe"))],
+        key=lambda r: (
+            -(r["best"].get("sharpe") or 0),
+            -(r["best"].get("ret_pct") or 0),
+            (r["best"].get("mdd_pct") if r["best"].get("mdd_pct") is not None else 999),
+        ),
+    )[:3]
+
+    top_win = sorted(
+        [r for r in all_valid if _is_num((r.get("best") or {}).get("win_rate")) and (r["best"].get("trades") or 0) > 0],
+        key=lambda r: (
+            -(r["best"].get("win_rate") or 0),
+            -(r["best"].get("trades") or 0),
+            -(r["best"].get("ret_pct") or 0),
+        ),
+    )[:3]
+
+    spotlight = {
+        "pnl": top_pnl,
+        "mdd": top_mdd,
+        "sharpe": top_sharpe,
+        "win_rate": top_win,
+    }
+
     # Phân trang (mặc định 9 thẻ / trang)
     total = len(rows)
     if page is not None or page_size is not None:
@@ -197,6 +256,7 @@ def market(
     return {
         "users": paged_rows,
         "pagination": pagination_info,
+        "spotlight": spotlight,
         "facets": {
             "timeframe": timeframe,
             "symbol": target_sym,
@@ -217,7 +277,28 @@ def user_strategies(handle: str, request: Request) -> Dict[str, Any]:
         raise HTTPException(404, "Không tìm thấy người dùng")
     cards = store.owner_strategy_cards(u["id"])
     cards.sort(key=lambda c: (c["ret_pct"] is None, -(c["ret_pct"] or 0)))
-    return {"user": _public_user(u), "summary": store.aggregate_cards(cards), "strategies": cards}
+    full_summary = store.aggregate_cards(cards)
+
+    me = current_user(request) if request else None
+    is_owner = bool(me and (me.get("id") == u["id"] or me.get("handle") == u["handle"]))
+
+    # Theo quy tắc Market/Bảo mật: Người khác (hoặc khách) chỉ luôn thấy 1 alpha tốt nhất của tác giả
+    if not is_owner and cards:
+        best_id = (full_summary.get("best") or {}).get("id")
+        if best_id:
+            cards = [c for c in cards if c.get("id") == best_id]
+        else:
+            cards = cards[:1]
+        summary = store.aggregate_cards(cards)
+    else:
+        summary = full_summary
+
+    return {
+        "user": _public_user(u),
+        "summary": summary,
+        "strategies": cards,
+        "is_owner": is_owner,
+    }
 
 
 @edu_router.get("/strategies/{alpha_id}")
@@ -228,9 +309,21 @@ def strategy_detail(alpha_id: str) -> Dict[str, Any]:
         raise HTTPException(404, "Không tìm thấy chiến lược")
     owner = users.get_user(rec["owner_id"])
     card = store.strategy_card(rec, store._sample_meta())
+    resolved = store.resolve_strategy_result(rec)
+
     return {
-        "id": rec["id"], "name": rec.get("name"), "code": rec.get("code"),
-        "result": rec.get("result"), "card": card,
+        "id": rec["id"],
+        "name": rec.get("name"),
+        "code": rec.get("code"),
+        "result": resolved["result"],
+        "is_historical_result": resolved["is_historical"],
+        "metrics_status": resolved["metrics_status"],
+        "run_id": resolved["run_id"],
+        "version": resolved["version"],
+        "result_version": resolved.get("result_version"),
+        "current_version": resolved.get("current_version"),
+        "program_hash": resolved.get("program_hash"),
+        "card": card,
         "owner": _public_user(owner) if owner else None,
     }
 

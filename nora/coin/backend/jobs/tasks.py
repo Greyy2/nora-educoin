@@ -33,7 +33,7 @@ from backend.jobs.runner.backtest import (WARMUP, _pool_shared, execute, load_it
 from backend.jobs.runner.wfa import (candidates_from_ids, candidates_from_list, candidates_from_report,
                                      plan_is_jobs, print_summary, run_portfolio_wfa)
 
-CUSTOM_BACKTEST_DEFAULTS = {"code": "", "symbols": None, "start": "", "end": "", "train_ratio": DEFAULT_TRAIN_RATIO, "initial_capital": None, "position": None, "run_frame": ""}
+CUSTOM_BACKTEST_DEFAULTS = {"code": "", "symbols": None, "start": "", "end": "", "train_ratio": DEFAULT_TRAIN_RATIO, "initial_capital": None, "position": None, "run_frame": "", "close_at_end": False}
 BOOK_BACKTEST_DEFAULTS = {"book": "", "strategies": None, "symbols": "", "start": "", "end": "", "risk_per_trade": None, "stop_fill": "level", "regime": False, "timeframe": "1m", "out": "",
                           "data": "candle", "latency_ms": None, "gas_usd": None, "capital": None}
 BOOK_WFA_DEFAULTS = {"report": "", "include_rejected": False, "candidates": "", "strategies": None, "symbols": "", "n": 3, "seed": 7,
@@ -206,7 +206,7 @@ def run_custom(params=None):
         _mark(3, 5, "Tính toán ma trận tín hiệu", f"khung {program.timeframe} với warmup lịch sử")
 
         def run_one(s: int, e: int, ev):
-            return execute(plan, s, e, capital, loaded=ev)
+            return execute(plan, s, e, capital, close_at_end=bool(a.close_at_end), loaded=ev)
     split = stage_split(start, end, float(a.train_ratio))
     # 4 lần chạy engine độc lập (chính, test, benchmark toàn kỳ, benchmark test): nạp dữ liệu TUẦN TỰ theo thứ tự này (lần rộng nhất dựng cửa sổ, các lần sau cắt từ bộ nhớ đệm),
     # kernel numba (nogil) chạy SONG SONG bằng thread. Kết quả từng lần không phụ thuộc lần khác (cùng chương trình/cấu hình/dữ liệu, warmup như lần chạy chính).
@@ -264,6 +264,10 @@ def _finish(program, plan, a, start: int, end: int, capital: float, data: Dict[s
     out["provenance"] = stamp_provenance(out.get("provenance") or engine_provenance(plan.base_frame))
     from backend.analys.alpha.code.route import classify
     out["compile"] = classify(a.code)
+    out["execution_options"] = {
+        "close_at_end": bool(a.close_at_end),
+        "warmup_ms": WARMUP,
+    }
 
     if progress:
         progress.status = "done"
@@ -591,4 +595,3 @@ from backend.jobs.runner.backtest import (
     BacktestJob,
     SharedExporter,
 )
-

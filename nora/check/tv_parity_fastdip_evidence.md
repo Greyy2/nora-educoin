@@ -1,8 +1,8 @@
-# FastDip Nora vs TradingView evidence
+# FastDip Nora vs local Pine replay audit
 
-> Đây là Nora run + Pine replay độc lập trên cùng data manifest. Chưa phải export Strategy Tester từ TradingView.
+> Đây không phải TradingView Strategy Tester evidence. Đây là Nora run so với một Python replay viết tay theo logic Pine; audit dưới đây tìm thấy mismatch nên không được gọi là parity.
 
-- **Status:** `NORA_VS_INDEPENDENT_PINE_REPLAY; ACTUAL_TRADINGVIEW_EXPORT_PENDING`
+- **Status:** `PARITY_NOT_PROVEN; LOCAL_REPLAY_EXIT_TIME_MISMATCH; ACTUAL_TRADINGVIEW_EXPORT_PENDING`
 - **Data:** BTC 24h, 2023-10-06 đến 2026-10-03, 1094 bars, UTC
 - **Nora program hash:** `18501143b505`
 - **Pine SHA-256:** `0a0086f9424d47ec76daca90d7db808e8d0d431408aae9802f72c6b8a8b965b0`
@@ -66,8 +66,12 @@
 
 ## Kết luận tạm thời
 
-- Nora và independent Pine replay hiện khớp signal bars, fixed-tick fill, quantity, fees và PnL trong tolerance đã chốt.
+- **Điều đã đối chiếu cục bộ:** Nora và Python replay có cùng 320 signal rows, cùng 3 trade, và các giá entry/exit, quantity, phí, PnL hiển thị trùng tới 4 chữ số thập phân. Cả 3 replay trades đều là TP; không có stop-fill evidence.
+- **Mismatch quan sát được:** mỗi `close_time` trong Nora ledger muộn hơn `exit_time` của replay đúng 86,400,000 ms (một ngày/bar): trade 1 `2024-01-31` vs `2024-01-30`; trade 2 `2024-10-15` vs `2024-10-14`; trade 3 `2026-08-20` vs `2026-08-19`. Giá/PnL trùng không xóa được sai khác thời điểm. Chưa xác định được đây là semantics timestamp hay execution-lifecycle bug; cần truy lại raw fill/event timestamp và bar index trước khi đối chiếu lại.
+- **Gate của generator không đủ chặt:** code so sánh signal bar/type, nhưng không assert; trade rows được ghép theo vị trí bằng `zip`, không kiểm tra số lượng trước khi ghép. So sánh từng trade không bao gồm entry/exit bar/time hoặc exit reason. Vì vậy phần “mismatch” được ghi trong báo cáo cũ không phải một bộ kiểm định đầy đủ; test có thể báo các cột PnL trùng dù lifecycle lệch.
+- **Source provenance không khớp:** SHA-256 trong manifest là `0a0086f9424d47ec76daca90d7db808e8d0d431408aae9802f72c6b8a8b965b0`, còn [FastDip_TradingView_Reference.pine](./FastDip_TradingView_Reference.pine) hiện tại có SHA-256 `df3bc9cffd199323a2e09aaf23bef236d038033bf4d65c3017d68927192d8f94`. Không có bản source bất biến ứng với hash trong manifest, nên evidence JSON không được gắn với Pine file hiện tại.
+- **Execution cost mismatch:** Python replay đặt stop slippage là `2 × 180 ticks` (36 USDT/BTC); Pine source hiện cấu hình `slippage=180` ticks global và không thể đại diện bằng cấu hình đó cho cùng mức stop proxy 36 USDT. Ba trade hiện có đều TP nên không kiểm tra được khác biệt này.
 - MDD replay độc lập là **0.1261%** so với Nora report **0.21%**; đây là khác biệt về cách dựng equity/intrabar drawdown, chưa được gọi là TradingView MDD cho tới khi có Strategy Tester export.
-- Nếu Strategy Tester export của TradingView trùng bảng Pine replay theo số trade, signal bar, entry/exit bar, giá, qty, reason, phí và PnL thì mới được nâng lên `TV_PARITY_PASS`.
-- File này chưa tự tuyên bố TradingView PASS vì browser hiện chưa cung cấp Strategy Tester export thật.
+- **Actual TradingView:** chưa chạy Strategy Tester và chưa có export. Browser chỉ xác nhận trang chart công khai; Pine Editor mở ở trạng thái guest/default, không có strategy Tester receipt. Không upload source code người dùng lên dịch vụ bên thứ ba trong lượt này.
+- **Verdict:** `NOT_PARITY / NOT_VERIFIED`. Chỉ được đánh giá lại sau khi source/data/config hashes khớp, so sánh đủ số trade và đầy đủ signal/fill/exit timestamps, prices, quantity, reason, fees/PnL, có fixture stop/TP-gap/intrabar ordering, và có Strategy Tester export thật nếu tuyên bố parity với TradingView.
 - Chi tiết machine-readable nằm trong `tv_parity_fastdip_evidence.json`; bảng trade nằm trong `tv_parity_fastdip_trades.csv`.

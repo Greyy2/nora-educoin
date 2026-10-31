@@ -1,0 +1,90 @@
+{
+  "candidate_id": "15567e02a806_c1_risk_sl",
+  "parent_aid": "15567e02a806",
+  "parent_name": "Triple EMA Trend Alignment (Optimized)",
+  "hypothesis": "Hạ rủi ro mỗi lệnh xuống 1.0% và nới stop loss lên 4.0% để tránh bị quét bởi nhiễu biến động nến ngày (intraday wicks).",
+  "hypothesis_type": "sizing_and_risk_control",
+  "code": "class TripleEmaStrategy(NoraStrategy):\n    timeframe = \"24h\"\n    ema_short_period = 12\n    ema_mid_period = 36\n    ema_long_period = 100\n    # Các trường *_pct là phần trăm, không phải bội số ATR.\n    stop_loss_pct = 4.0\n    risk_per_trade_pct = 1.0\n    def on_bar(self):\n        ema_short = ema(close, self.ema_short_period)\n        ema_mid = ema(close, self.ema_mid_period)\n        ema_long = ema(close, self.ema_long_period)\n        self.close(crossunder(close, ema_short))\n        self.buy(crossover(ema_short, ema_mid) & (close > ema_long))\n",
+  "config": {
+    "symbols": [
+      "BTC",
+      "ETH",
+      "SOL",
+      "BNB",
+      "XRP",
+      "DOGE",
+      "ADA",
+      "AVAX",
+      "LINK",
+      "TRX"
+    ],
+    "data_symbols": [
+      "BTC@perp",
+      "ETH@perp",
+      "SOL@perp",
+      "BNB@perp",
+      "XRP@perp",
+      "DOGE@perp",
+      "ADA@perp",
+      "AVAX@perp",
+      "LINK@perp",
+      "TRX@perp"
+    ],
+    "start": "2023-10-06",
+    "end": "2026-10-03",
+    "train_ratio": 0.7,
+    "initial_capital": 10000.0,
+    "timeframe": "24h",
+    "run_frame": "24h",
+    "exchange": "okx",
+    "program": {
+      "name": "TripleEmaStrategy",
+      "legs": [
+        "LONG"
+      ],
+      "levels": [
+        0.0,
+        1.0
+      ],
+      "features": [
+        "ema"
+      ],
+      "warmup_bars": 300
+    },
+    "risk": {
+      "max_positions": 8,
+      "max_per_symbol": 1,
+      "max_gross_exposure": 3.0,
+      "kill_switch_dd_pct": 30.0,
+      "max_open_risk_pct": 6.0,
+      "dd_throttle_pct": 5.0,
+      "dd_throttle_floor": 0.25
+    },
+    "strategies": [
+      "py_fb995388bbce_long"
+    ],
+    "position": {
+      "market": "perp",
+      "leverage": 1,
+      "exit_unit": "pct",
+      "atr_frame": "24h",
+      "atr_period": 14,
+      "sizing": "risk",
+      "risk_per_trade_pct": 1.0,
+      "max_notional_pct": 300.0,
+      "stop_fill": "level",
+      "limit_through_pct": 0.0,
+      "cooldown": 1440,
+      "risk_profile": "legacy",
+      "sl_anchor": "",
+      "sl_beyond_last_pct": 0.0,
+      "stop_loss_rate": 4.0,
+      "take_profit_rate": 0.0,
+      "trailing_stop": 0.0,
+      "trailing_activation_pct": 0.0,
+      "timeout": 0
+    }
+  },
+  "code_sha256": "4e138a0a0f68bcc98b9dec19ad5fa03e155fd44ee9b33d0855e262c6798bf5da",
+  "config_sha256": "8db5b88a4fb022f1fc274ed7817bcae1735d25df3917a489552119930a5bb77a"
+}

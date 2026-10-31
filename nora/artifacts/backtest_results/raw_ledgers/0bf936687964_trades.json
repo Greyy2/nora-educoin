@@ -1,0 +1,25 @@
+[
+  {
+    "symbol": "BTC@perp",
+    "strategy": "py_20da6ae1b0d3_long",
+    "side": "LONG",
+    "enter_time": 1704153600000,
+    "enter_price": 44233.4,
+    "close_time": 1705968000000,
+    "close_price": 39259.9,
+    "pnl": -54.1647,
+    "status": "SL",
+    "close_reason": "Stop-loss (từ giá TB)",
+    "qty": 0.0108,
+    "notional": 477.72,
+    "margin_usd": 79.62,
+    "avg_price": 44233.4,
+    "pnl_pct": -0.5416,
+    "fees_usd": 0.4509,
+    "funding_usd": 0.0,
+    "layers": 1,
+    "mae_pct": -0.4397,
+    "leverage": 6.0,
+    "entry_equity": 10000.0
+  }
+]

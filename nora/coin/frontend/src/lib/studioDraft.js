@@ -38,7 +38,8 @@ export function configToForm(config, positionKeys = []) {
   const syms = Array.isArray(c.data_symbols) && c.data_symbols.length ? c.data_symbols : c.symbols
   if (Array.isArray(syms) && syms.length) f.symbols = syms
   const pos = {}
-  positionKeys.forEach((k) => { if (c.position && c.position[k] != null) pos[k] = String(c.position[k]) })
+  const position = c.position_overrides || {}
+  positionKeys.forEach((k) => { if (position && position[k] != null) pos[k] = String(position[k]) })
   f.pos = pos
   return f
 }

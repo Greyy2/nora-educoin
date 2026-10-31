@@ -803,7 +803,15 @@ export default function StudioWorkspace({ mode = 'create' }) {
               <div className="n-pop se-setp" role="dialog" aria-label="Cài đặt chạy">
                 <div className="n-pop-h"><b>Cài đặt chạy</b><button type="button" className="n-btn sm" onClick={() => setSetOpen(false)}>Đóng</button></div>
                 <div className="se-setb">
-                  <RunSettings form={form} setForm={setForm} universe={universe} defaultsError={defaultsError} problems={problems} />
+                  <RunSettings
+                    form={form}
+                    setForm={setForm}
+                    universe={universe}
+                    defaultsError={defaultsError}
+                    problems={problems}
+                    specDefaults={compiled?.meta?.position_overrides || {}}
+                    specHash={compiled?.hash || null}
+                  />
                 </div>
               </div>
             )}

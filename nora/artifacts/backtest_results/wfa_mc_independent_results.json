@@ -1,0 +1,2204 @@
+{
+  "report_title": "BÁO CÁO THI CÔNG WFA ĐỘC LẬP & MONTE CARLO LÃI KÉP (25 ĐỐI TƯỢNG)",
+  "run_timestamp_utc": "2026-10-30T07:18:47.372935+00:00",
+  "methodology": {
+    "execution_mode": "INDEPENDENT_ENGINE_RUN_PER_FOLD",
+    "boundary_handling": "WARMUP_20D_PRELOAD_WITH_CLOSE_AT_END",
+    "metric_calculation": "DAILY_EQUITY_RETURNS_MTM_365D_SHARPE",
+    "monte_carlo_model": "COMPOUNDED_STATIONARY_BOOTSTRAP_DAILY_RETURNS_10K_SIMS",
+    "zero_leakage_guaranteed": false,
+    "execution_status": "TECHNICAL_DRY_RUN_UNTIL_READINESS_GATES_PASS"
+  },
+  "provenance_hashes": {
+    "cohort_freeze_sha256": "318e5a5ae70a8eb0583ceadd9a550052c86837b03f62cabf401bb1b65daec068",
+    "manifest_sha256": "f1d40f99a39fd4b71301266f894e30106b2bf822c5eb6eb94cde7efc9bc06970",
+    "protocol_sha256": "89da56e341fbe205942ad8199e5de8abec37c6e66300f6e8b5b8f526da389bf6"
+  },
+  "total_records": 25,
+  "disposition_summary": {
+    "KEEP": 0,
+    "REVIEW": 0,
+    "REJECT": 9,
+    "INSUFFICIENT_SAMPLE": 12,
+    "NOT_APPLICABLE": 0,
+    "RESEARCH_PROXY_NO_DECISION": 3,
+    "PORTFOLIO_COMBO_EVALUATED_SEPARATELY": 1
+  },
+  "records": [
+    {
+      "id": "kema_long",
+      "name": "System Leg kema_long",
+      "venue": "coin",
+      "category": "COIN System Leg",
+      "source_classification": "FIXED_PARAM_ROLLING_OOS",
+      "wfa_method_assigned": "FIXED_PARAM_ROLLING_OOS",
+      "total_agg_oos_trades": 28,
+      "total_fees_usd": 26.57,
+      "folds_metrics": {
+        "fold_1": {
+          "period": "2024-12-01 -> 2025-06-30",
+          "trades": 10,
+          "ret_pct": -2.73,
+          "mdd_pct": 2.92,
+          "fees_usd": 6.85,
+          "daily_sharpe": -2.21,
+          "days_count": 212
+        },
+        "fold_2": {
+          "period": "2025-07-01 -> 2026-01-31",
+          "trades": 12,
+          "ret_pct": -1.69,
+          "mdd_pct": 4.19,
+          "fees_usd": 13.84,
+          "daily_sharpe": -0.86,
+          "days_count": 215
+        },
+        "fold_3": {
+          "period": "2026-02-01 -> 2026-09-01",
+          "trades": 6,
+          "ret_pct": -0.66,
+          "mdd_pct": 1.71,
+          "fees_usd": 5.88,
+          "daily_sharpe": 1.46,
+          "days_count": 213
+        }
+      },
+      "aggregated_oos_metrics": {
+        "trades": 28,
+        "folds_positive_count": 0,
+        "consistency": "0/3 Folds Positive",
+        "cum_return_pct": -0.54,
+        "mdd_pct": 5.81,
+        "daily_sharpe": -0.07,
+        "total_days": 640
+      },
+      "monte_carlo_block_bootstrap": {
+        "base_block_5": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 5,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -0.73,
+          "mdd_p50_pct": 3.93,
+          "mdd_p95_pct": 7.48
+        },
+        "sensitivity_block_3": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 3,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -0.7,
+          "mdd_p50_pct": 3.86,
+          "mdd_p95_pct": 7.36
+        },
+        "sensitivity_block_10": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 10,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -0.74,
+          "mdd_p50_pct": 3.92,
+          "mdd_p95_pct": 7.27
+        }
+      },
+      "deflated_sharpe_ratio": {
+        "dsr_status": "DSR_UNAVAILABLE_TRIALS_UNAUDITED",
+        "dsr_value": null,
+        "note": "Số lượng thử nghiệm lịch sử thực tế chưa được kiểm kê. DSR không xuất số giả và không dùng để phán quyết."
+      },
+      "disposition": "INSUFFICIENT_SAMPLE",
+      "disposition_reason": "Tổng số lệnh OOS gộp (28) < 30 lệnh tối thiểu theo Phương án A đã chọn."
+    },
+    {
+      "id": "kema_short",
+      "name": "System Leg kema_short",
+      "venue": "coin",
+      "category": "COIN System Leg",
+      "source_classification": "FIXED_PARAM_ROLLING_OOS",
+      "wfa_method_assigned": "FIXED_PARAM_ROLLING_OOS",
+      "total_agg_oos_trades": 29,
+      "total_fees_usd": 29.67,
+      "folds_metrics": {
+        "fold_1": {
+          "period": "2024-12-01 -> 2025-06-30",
+          "trades": 10,
+          "ret_pct": -2.37,
+          "mdd_pct": 3.33,
+          "fees_usd": 8.95,
+          "daily_sharpe": -1.56,
+          "days_count": 212
+        },
+        "fold_2": {
+          "period": "2025-07-01 -> 2026-01-31",
+          "trades": 9,
+          "ret_pct": -0.92,
+          "mdd_pct": 1.83,
+          "fees_usd": 10.95,
+          "daily_sharpe": 0.59,
+          "days_count": 215
+        },
+        "fold_3": {
+          "period": "2026-02-01 -> 2026-09-01",
+          "trades": 10,
+          "ret_pct": -0.87,
+          "mdd_pct": 2.54,
+          "fees_usd": 9.77,
+          "daily_sharpe": -0.53,
+          "days_count": 213
+        }
+      },
+      "aggregated_oos_metrics": {
+        "trades": 29,
+        "folds_positive_count": 0,
+        "consistency": "0/3 Folds Positive",
+        "cum_return_pct": -2.1,
+        "mdd_pct": 4.02,
+        "daily_sharpe": -0.4,
+        "total_days": 640
+      },
+      "monte_carlo_block_bootstrap": {
+        "base_block_5": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 5,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -1.35,
+          "mdd_p50_pct": 3.56,
+          "mdd_p95_pct": 6.67
+        },
+        "sensitivity_block_3": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 3,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -1.24,
+          "mdd_p50_pct": 3.53,
+          "mdd_p95_pct": 6.59
+        },
+        "sensitivity_block_10": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 10,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -1.25,
+          "mdd_p50_pct": 3.54,
+          "mdd_p95_pct": 6.45
+        }
+      },
+      "deflated_sharpe_ratio": {
+        "dsr_status": "DSR_UNAVAILABLE_TRIALS_UNAUDITED",
+        "dsr_value": null,
+        "note": "Số lượng thử nghiệm lịch sử thực tế chưa được kiểm kê. DSR không xuất số giả và không dùng để phán quyết."
+      },
+      "disposition": "INSUFFICIENT_SAMPLE",
+      "disposition_reason": "Tổng số lệnh OOS gộp (29) < 30 lệnh tối thiểu theo Phương án A đã chọn."
+    },
+    {
+      "id": "sideway_long",
+      "name": "System Leg sideway_long",
+      "venue": "coin",
+      "category": "COIN System Leg",
+      "source_classification": "LOW_SAMPLE_CRITICAL",
+      "wfa_method_assigned": "FIXED_PARAM_ROLLING_OOS",
+      "total_agg_oos_trades": 2,
+      "total_fees_usd": 4.92,
+      "folds_metrics": {
+        "fold_1": {
+          "period": "2024-12-01 -> 2025-06-30",
+          "trades": 1,
+          "ret_pct": -0.62,
+          "mdd_pct": 0.87,
+          "fees_usd": 2.22,
+          "daily_sharpe": -1.26,
+          "days_count": 212
+        },
+        "fold_2": {
+          "period": "2025-07-01 -> 2026-01-31",
+          "trades": 0,
+          "ret_pct": 0.0,
+          "mdd_pct": 0.0,
+          "fees_usd": 0,
+          "daily_sharpe": 0.0,
+          "days_count": 215
+        },
+        "fold_3": {
+          "period": "2026-02-01 -> 2026-09-01",
+          "trades": 1,
+          "ret_pct": 0.51,
+          "mdd_pct": 0.54,
+          "fees_usd": 2.7,
+          "daily_sharpe": 1.31,
+          "days_count": 213
+        }
+      },
+      "aggregated_oos_metrics": {
+        "trades": 2,
+        "folds_positive_count": 1,
+        "consistency": "1/3 Folds Positive",
+        "cum_return_pct": -0.12,
+        "mdd_pct": 0.65,
+        "daily_sharpe": -0.1,
+        "total_days": 640
+      },
+      "monte_carlo_block_bootstrap": {
+        "base_block_5": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 5,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": 0.0,
+          "mdd_p50_pct": 0.0,
+          "mdd_p95_pct": 1.26
+        },
+        "sensitivity_block_3": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 3,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": 0.0,
+          "mdd_p50_pct": 0.0,
+          "mdd_p95_pct": 1.26
+        },
+        "sensitivity_block_10": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 10,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": 0.0,
+          "mdd_p50_pct": 0.0,
+          "mdd_p95_pct": 1.26
+        }
+      },
+      "deflated_sharpe_ratio": {
+        "dsr_status": "DSR_UNAVAILABLE_TRIALS_UNAUDITED",
+        "dsr_value": null,
+        "note": "Số lượng thử nghiệm lịch sử thực tế chưa được kiểm kê. DSR không xuất số giả và không dùng để phán quyết."
+      },
+      "disposition": "INSUFFICIENT_SAMPLE",
+      "disposition_reason": "Tổng số lệnh OOS gộp (2) < 30 lệnh tối thiểu theo Phương án A đã chọn."
+    },
+    {
+      "id": "sideway_short",
+      "name": "System Leg sideway_short",
+      "venue": "coin",
+      "category": "COIN System Leg",
+      "source_classification": "LOW_SAMPLE_CRITICAL",
+      "wfa_method_assigned": "FIXED_PARAM_ROLLING_OOS",
+      "total_agg_oos_trades": 2,
+      "total_fees_usd": 7.75,
+      "folds_metrics": {
+        "fold_1": {
+          "period": "2024-12-01 -> 2025-06-30",
+          "trades": 0,
+          "ret_pct": 0.0,
+          "mdd_pct": 0.0,
+          "fees_usd": 0,
+          "daily_sharpe": 0.0,
+          "days_count": 212
+        },
+        "fold_2": {
+          "period": "2025-07-01 -> 2026-01-31",
+          "trades": 1,
+          "ret_pct": 0.12,
+          "mdd_pct": 0.78,
+          "fees_usd": 5.44,
+          "daily_sharpe": 1.01,
+          "days_count": 215
+        },
+        "fold_3": {
+          "period": "2026-02-01 -> 2026-09-01",
+          "trades": 1,
+          "ret_pct": 0.42,
+          "mdd_pct": 0.21,
+          "fees_usd": 2.31,
+          "daily_sharpe": 1.31,
+          "days_count": 213
+        }
+      },
+      "aggregated_oos_metrics": {
+        "trades": 2,
+        "folds_positive_count": 2,
+        "consistency": "2/3 Folds Positive",
+        "cum_return_pct": 0.54,
+        "mdd_pct": 0.03,
+        "daily_sharpe": 0.91,
+        "total_days": 640
+      },
+      "monte_carlo_block_bootstrap": {
+        "base_block_5": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 5,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": 0.15,
+          "mdd_p50_pct": 0.0,
+          "mdd_p95_pct": 0.03
+        },
+        "sensitivity_block_3": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 3,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": 0.15,
+          "mdd_p50_pct": 0.0,
+          "mdd_p95_pct": 0.03
+        },
+        "sensitivity_block_10": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 10,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": 0.15,
+          "mdd_p50_pct": 0.0,
+          "mdd_p95_pct": 0.03
+        }
+      },
+      "deflated_sharpe_ratio": {
+        "dsr_status": "DSR_UNAVAILABLE_TRIALS_UNAUDITED",
+        "dsr_value": null,
+        "note": "Số lượng thử nghiệm lịch sử thực tế chưa được kiểm kê. DSR không xuất số giả và không dùng để phán quyết."
+      },
+      "disposition": "INSUFFICIENT_SAMPLE",
+      "disposition_reason": "Tổng số lệnh OOS gộp (2) < 30 lệnh tối thiểu theo Phương án A đã chọn."
+    },
+    {
+      "id": "dca_long",
+      "name": "System Leg dca_long",
+      "venue": "coin",
+      "category": "COIN System Leg",
+      "source_classification": "FIXED_PARAM_ROLLING_OOS",
+      "wfa_method_assigned": "FIXED_PARAM_ROLLING_OOS",
+      "total_agg_oos_trades": 59,
+      "total_fees_usd": 13.98,
+      "folds_metrics": {
+        "fold_1": {
+          "period": "2024-12-01 -> 2025-06-30",
+          "trades": 21,
+          "ret_pct": -0.65,
+          "mdd_pct": 1.4,
+          "fees_usd": 5.7,
+          "daily_sharpe": -1.14,
+          "days_count": 212
+        },
+        "fold_2": {
+          "period": "2025-07-01 -> 2026-01-31",
+          "trades": 17,
+          "ret_pct": 0.16,
+          "mdd_pct": 0.33,
+          "fees_usd": 4.39,
+          "daily_sharpe": 0.55,
+          "days_count": 215
+        },
+        "fold_3": {
+          "period": "2026-02-01 -> 2026-09-01",
+          "trades": 21,
+          "ret_pct": 0.35,
+          "mdd_pct": 0.16,
+          "fees_usd": 3.89,
+          "daily_sharpe": 1.84,
+          "days_count": 213
+        }
+      },
+      "aggregated_oos_metrics": {
+        "trades": 59,
+        "folds_positive_count": 2,
+        "consistency": "2/3 Folds Positive",
+        "cum_return_pct": -0.15,
+        "mdd_pct": 1.26,
+        "daily_sharpe": -0.12,
+        "total_days": 640
+      },
+      "monte_carlo_block_bootstrap": {
+        "base_block_5": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 5,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": 0.01,
+          "mdd_p50_pct": 0.59,
+          "mdd_p95_pct": 1.71
+        },
+        "sensitivity_block_3": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 3,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -0.02,
+          "mdd_p50_pct": 0.6,
+          "mdd_p95_pct": 1.59
+        },
+        "sensitivity_block_10": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 10,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": 0.04,
+          "mdd_p50_pct": 0.57,
+          "mdd_p95_pct": 1.83
+        }
+      },
+      "deflated_sharpe_ratio": {
+        "dsr_status": "DSR_UNAVAILABLE_TRIALS_UNAUDITED",
+        "dsr_value": null,
+        "note": "Số lượng thử nghiệm lịch sử thực tế chưa được kiểm kê. DSR không xuất số giả và không dùng để phán quyết."
+      },
+      "disposition": "REJECT",
+      "disposition_reason": "Lỗ OOS gộp (-0.15%); Daily Sharpe thấp (-0.12 < 0.8)"
+    },
+    {
+      "id": "dca_short",
+      "name": "System Leg dca_short",
+      "venue": "coin",
+      "category": "COIN System Leg",
+      "source_classification": "FIXED_PARAM_ROLLING_OOS",
+      "wfa_method_assigned": "FIXED_PARAM_ROLLING_OOS",
+      "total_agg_oos_trades": 43,
+      "total_fees_usd": 10.36,
+      "folds_metrics": {
+        "fold_1": {
+          "period": "2024-12-01 -> 2025-06-30",
+          "trades": 21,
+          "ret_pct": 0.01,
+          "mdd_pct": 0.65,
+          "fees_usd": 5.81,
+          "daily_sharpe": 0.04,
+          "days_count": 212
+        },
+        "fold_2": {
+          "period": "2025-07-01 -> 2026-01-31",
+          "trades": 12,
+          "ret_pct": 0.22,
+          "mdd_pct": 0.23,
+          "fees_usd": 2.29,
+          "daily_sharpe": 1.23,
+          "days_count": 215
+        },
+        "fold_3": {
+          "period": "2026-02-01 -> 2026-09-01",
+          "trades": 10,
+          "ret_pct": 0.2,
+          "mdd_pct": 0.13,
+          "fees_usd": 2.26,
+          "daily_sharpe": 1.49,
+          "days_count": 213
+        }
+      },
+      "aggregated_oos_metrics": {
+        "trades": 43,
+        "folds_positive_count": 3,
+        "consistency": "3/3 Folds Positive",
+        "cum_return_pct": 0.44,
+        "mdd_pct": 0.54,
+        "daily_sharpe": 0.54,
+        "total_days": 640
+      },
+      "monte_carlo_block_bootstrap": {
+        "base_block_5": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 5,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": 0.33,
+          "mdd_p50_pct": 0.18,
+          "mdd_p95_pct": 1.0
+        },
+        "sensitivity_block_3": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 3,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": 0.32,
+          "mdd_p50_pct": 0.19,
+          "mdd_p95_pct": 0.97
+        },
+        "sensitivity_block_10": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 10,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": 0.33,
+          "mdd_p50_pct": 0.17,
+          "mdd_p95_pct": 1.0
+        }
+      },
+      "deflated_sharpe_ratio": {
+        "dsr_status": "DSR_UNAVAILABLE_TRIALS_UNAUDITED",
+        "dsr_value": null,
+        "note": "Số lượng thử nghiệm lịch sử thực tế chưa được kiểm kê. DSR không xuất số giả và không dùng để phán quyết."
+      },
+      "disposition": "REJECT",
+      "disposition_reason": "Daily Sharpe thấp (0.54 < 0.8)"
+    },
+    {
+      "id": "combo_6_system_legs",
+      "name": "Combo 6 System Legs (Portfolio)",
+      "venue": "coin",
+      "category": "COIN Portfolio",
+      "source_classification": "PORTFOLIO_COMBO",
+      "wfa_method_assigned": "PORTFOLIO_ROLLING_OOS",
+      "total_agg_oos_trades": 66,
+      "total_fees_usd": 42.37,
+      "folds_metrics": {
+        "fold_1": {
+          "period": "2024-12-01 -> 2025-06-30",
+          "trades": 29,
+          "ret_pct": -3.24,
+          "mdd_pct": 3.54,
+          "fees_usd": 12.72,
+          "daily_sharpe": -2.48,
+          "days_count": 212
+        },
+        "fold_2": {
+          "period": "2025-07-01 -> 2026-01-31",
+          "trades": 22,
+          "ret_pct": -1.16,
+          "mdd_pct": 3.55,
+          "fees_usd": 18.52,
+          "daily_sharpe": 0.18,
+          "days_count": 215
+        },
+        "fold_3": {
+          "period": "2026-02-01 -> 2026-09-01",
+          "trades": 15,
+          "ret_pct": 0.81,
+          "mdd_pct": 2.82,
+          "fees_usd": 11.13,
+          "daily_sharpe": 1.77,
+          "days_count": 213
+        }
+      },
+      "aggregated_oos_metrics": {
+        "trades": 66,
+        "folds_positive_count": 1,
+        "consistency": "1/3 Folds Positive",
+        "cum_return_pct": 2.38,
+        "mdd_pct": 4.65,
+        "daily_sharpe": 0.36,
+        "total_days": 640
+      },
+      "monte_carlo_block_bootstrap": {
+        "base_block_5": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 5,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": 0.97,
+          "mdd_p50_pct": 3.78,
+          "mdd_p95_pct": 7.36
+        },
+        "sensitivity_block_3": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 3,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": 1.06,
+          "mdd_p50_pct": 3.71,
+          "mdd_p95_pct": 7.23
+        },
+        "sensitivity_block_10": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 10,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": 1.03,
+          "mdd_p50_pct": 3.81,
+          "mdd_p95_pct": 7.15
+        }
+      },
+      "deflated_sharpe_ratio": {
+        "dsr_status": "DSR_UNAVAILABLE_TRIALS_UNAUDITED",
+        "dsr_value": null,
+        "note": "Số lượng thử nghiệm lịch sử thực tế chưa được kiểm kê. DSR không xuất số giả và không dùng để phán quyết."
+      },
+      "disposition": "PORTFOLIO_COMBO_EVALUATED_SEPARATELY",
+      "disposition_reason": "Đánh giá cấp danh mục độc lập; cấm xếp hạng cùng các alpha đơn lẻ."
+    },
+    {
+      "id": "efa90f74cd08_v2",
+      "name": "Donchian Channel Breakout V2 (Explicit ATR)",
+      "venue": "coin",
+      "category": "COIN User V2",
+      "source_classification": "FIXED_PARAM_ROLLING_OOS",
+      "wfa_method_assigned": "FIXED_PARAM_ROLLING_OOS",
+      "total_agg_oos_trades": 28,
+      "total_fees_usd": 4.95,
+      "folds_metrics": {
+        "fold_1": {
+          "period": "2024-12-01 -> 2025-06-30",
+          "trades": 8,
+          "ret_pct": -0.61,
+          "mdd_pct": 0.91,
+          "fees_usd": 1.22,
+          "daily_sharpe": -1.04,
+          "days_count": 212
+        },
+        "fold_2": {
+          "period": "2025-07-01 -> 2026-01-31",
+          "trades": 12,
+          "ret_pct": -1.11,
+          "mdd_pct": 2.43,
+          "fees_usd": 2.51,
+          "daily_sharpe": -0.86,
+          "days_count": 215
+        },
+        "fold_3": {
+          "period": "2026-02-01 -> 2026-09-01",
+          "trades": 8,
+          "ret_pct": 0.29,
+          "mdd_pct": 0.82,
+          "fees_usd": 1.22,
+          "daily_sharpe": 0.38,
+          "days_count": 213
+        }
+      },
+      "aggregated_oos_metrics": {
+        "trades": 28,
+        "folds_positive_count": 1,
+        "consistency": "1/3 Folds Positive",
+        "cum_return_pct": -1.42,
+        "mdd_pct": 3.1,
+        "daily_sharpe": -0.5,
+        "total_days": 640
+      },
+      "monte_carlo_block_bootstrap": {
+        "base_block_5": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 5,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -0.77,
+          "mdd_p50_pct": 1.98,
+          "mdd_p95_pct": 4.18
+        },
+        "sensitivity_block_3": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 3,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -0.8,
+          "mdd_p50_pct": 2.0,
+          "mdd_p95_pct": 4.21
+        },
+        "sensitivity_block_10": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 10,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -0.76,
+          "mdd_p50_pct": 1.97,
+          "mdd_p95_pct": 4.05
+        }
+      },
+      "deflated_sharpe_ratio": {
+        "dsr_status": "DSR_UNAVAILABLE_TRIALS_UNAUDITED",
+        "dsr_value": null,
+        "note": "Số lượng thử nghiệm lịch sử thực tế chưa được kiểm kê. DSR không xuất số giả và không dùng để phán quyết."
+      },
+      "disposition": "INSUFFICIENT_SAMPLE",
+      "disposition_reason": "Tổng số lệnh OOS gộp (28) < 30 lệnh tối thiểu theo Phương án A đã chọn."
+    },
+    {
+      "id": "18e87aa868ad_v2",
+      "name": "Fast Dynamic Channel Breakout V2 (Explicit ATR)",
+      "venue": "coin",
+      "category": "COIN User V2",
+      "source_classification": "FIXED_PARAM_ROLLING_OOS",
+      "wfa_method_assigned": "FIXED_PARAM_ROLLING_OOS",
+      "total_agg_oos_trades": 33,
+      "total_fees_usd": 7.43,
+      "folds_metrics": {
+        "fold_1": {
+          "period": "2024-12-01 -> 2025-06-30",
+          "trades": 13,
+          "ret_pct": -0.51,
+          "mdd_pct": 1.2,
+          "fees_usd": 2.59,
+          "daily_sharpe": -0.71,
+          "days_count": 212
+        },
+        "fold_2": {
+          "period": "2025-07-01 -> 2026-01-31",
+          "trades": 15,
+          "ret_pct": -0.73,
+          "mdd_pct": 2.56,
+          "fees_usd": 3.49,
+          "daily_sharpe": -0.58,
+          "days_count": 215
+        },
+        "fold_3": {
+          "period": "2026-02-01 -> 2026-09-01",
+          "trades": 5,
+          "ret_pct": 0.2,
+          "mdd_pct": 0.54,
+          "fees_usd": 1.35,
+          "daily_sharpe": 0.35,
+          "days_count": 213
+        }
+      },
+      "aggregated_oos_metrics": {
+        "trades": 33,
+        "folds_positive_count": 1,
+        "consistency": "1/3 Folds Positive",
+        "cum_return_pct": -1.03,
+        "mdd_pct": 2.97,
+        "daily_sharpe": -0.38,
+        "total_days": 640
+      },
+      "monte_carlo_block_bootstrap": {
+        "base_block_5": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 5,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -0.58,
+          "mdd_p50_pct": 1.77,
+          "mdd_p95_pct": 3.84
+        },
+        "sensitivity_block_3": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 3,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -0.56,
+          "mdd_p50_pct": 1.76,
+          "mdd_p95_pct": 3.85
+        },
+        "sensitivity_block_10": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 10,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -0.58,
+          "mdd_p50_pct": 1.79,
+          "mdd_p95_pct": 3.83
+        }
+      },
+      "deflated_sharpe_ratio": {
+        "dsr_status": "DSR_UNAVAILABLE_TRIALS_UNAUDITED",
+        "dsr_value": null,
+        "note": "Số lượng thử nghiệm lịch sử thực tế chưa được kiểm kê. DSR không xuất số giả và không dùng để phán quyết."
+      },
+      "disposition": "REJECT",
+      "disposition_reason": "Lỗ OOS gộp (-1.03%); Chỉ có 1/3 folds lãi; Daily Sharpe thấp (-0.38 < 0.8)"
+    },
+    {
+      "id": "33312a2f4dfc_v2",
+      "name": "StdDev Dynamic Channel Breakout V2 (Explicit ATR)",
+      "venue": "coin",
+      "category": "COIN User V2",
+      "source_classification": "FIXED_PARAM_ROLLING_OOS",
+      "wfa_method_assigned": "FIXED_PARAM_ROLLING_OOS",
+      "total_agg_oos_trades": 27,
+      "total_fees_usd": 6.26,
+      "folds_metrics": {
+        "fold_1": {
+          "period": "2024-12-01 -> 2025-06-30",
+          "trades": 12,
+          "ret_pct": -0.34,
+          "mdd_pct": 1.12,
+          "fees_usd": 2.27,
+          "daily_sharpe": -0.46,
+          "days_count": 212
+        },
+        "fold_2": {
+          "period": "2025-07-01 -> 2026-01-31",
+          "trades": 12,
+          "ret_pct": -0.47,
+          "mdd_pct": 2.34,
+          "fees_usd": 3.23,
+          "daily_sharpe": -0.33,
+          "days_count": 215
+        },
+        "fold_3": {
+          "period": "2026-02-01 -> 2026-09-01",
+          "trades": 3,
+          "ret_pct": 0.51,
+          "mdd_pct": 0.38,
+          "fees_usd": 0.76,
+          "daily_sharpe": 0.86,
+          "days_count": 213
+        }
+      },
+      "aggregated_oos_metrics": {
+        "trades": 27,
+        "folds_positive_count": 1,
+        "consistency": "1/3 Folds Positive",
+        "cum_return_pct": -0.31,
+        "mdd_pct": 2.5,
+        "daily_sharpe": -0.1,
+        "total_days": 640
+      },
+      "monte_carlo_block_bootstrap": {
+        "base_block_5": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 5,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -0.11,
+          "mdd_p50_pct": 1.67,
+          "mdd_p95_pct": 3.84
+        },
+        "sensitivity_block_3": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 3,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -0.12,
+          "mdd_p50_pct": 1.68,
+          "mdd_p95_pct": 3.84
+        },
+        "sensitivity_block_10": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 10,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -0.15,
+          "mdd_p50_pct": 1.65,
+          "mdd_p95_pct": 3.71
+        }
+      },
+      "deflated_sharpe_ratio": {
+        "dsr_status": "DSR_UNAVAILABLE_TRIALS_UNAUDITED",
+        "dsr_value": null,
+        "note": "Số lượng thử nghiệm lịch sử thực tế chưa được kiểm kê. DSR không xuất số giả và không dùng để phán quyết."
+      },
+      "disposition": "INSUFFICIENT_SAMPLE",
+      "disposition_reason": "Tổng số lệnh OOS gộp (27) < 30 lệnh tối thiểu theo Phương án A đã chọn."
+    },
+    {
+      "id": "okx_01pp",
+      "name": "Top Agent okx_01pp",
+      "venue": "coin",
+      "category": "COIN Top Agent",
+      "source_classification": "PROXY_ENTRY_RESEARCH_ONLY",
+      "wfa_method_assigned": "RESEARCH_ONLY_NO_DECISION",
+      "total_agg_oos_trades": 709,
+      "total_fees_usd": 288.61,
+      "folds_metrics": {
+        "fold_1": {
+          "period": "2024-12-01 -> 2025-06-30",
+          "trades": 264,
+          "ret_pct": -3.0,
+          "mdd_pct": 3.21,
+          "fees_usd": 89.14,
+          "daily_sharpe": -2.62,
+          "days_count": 212
+        },
+        "fold_2": {
+          "period": "2025-07-01 -> 2026-01-31",
+          "trades": 217,
+          "ret_pct": -2.88,
+          "mdd_pct": 3.34,
+          "fees_usd": 90.49,
+          "daily_sharpe": -3.83,
+          "days_count": 215
+        },
+        "fold_3": {
+          "period": "2026-02-01 -> 2026-09-01",
+          "trades": 228,
+          "ret_pct": -1.96,
+          "mdd_pct": 2.21,
+          "fees_usd": 108.98,
+          "daily_sharpe": -2.42,
+          "days_count": 213
+        }
+      },
+      "aggregated_oos_metrics": {
+        "trades": 709,
+        "folds_positive_count": 0,
+        "consistency": "0/3 Folds Positive",
+        "cum_return_pct": -7.64,
+        "mdd_pct": 7.86,
+        "daily_sharpe": -2.84,
+        "total_days": 640
+      },
+      "monte_carlo_block_bootstrap": {
+        "base_block_5": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 5,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -4.36,
+          "mdd_p50_pct": 4.64,
+          "mdd_p95_pct": 7.08
+        },
+        "sensitivity_block_3": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 3,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -4.38,
+          "mdd_p50_pct": 4.68,
+          "mdd_p95_pct": 7.1
+        },
+        "sensitivity_block_10": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 10,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -4.37,
+          "mdd_p50_pct": 4.63,
+          "mdd_p95_pct": 6.9
+        }
+      },
+      "deflated_sharpe_ratio": {
+        "dsr_status": "DSR_UNAVAILABLE_TRIALS_UNAUDITED",
+        "dsr_value": null,
+        "note": "Số lượng thử nghiệm lịch sử thực tế chưa được kiểm kê. DSR không xuất số giả và không dùng để phán quyết."
+      },
+      "disposition": "RESEARCH_PROXY_NO_DECISION",
+      "disposition_reason": "Top Agent chỉ có tham số thoát lệnh từ OKX, điều kiện vào lệnh là proxy nghiên cứu; chỉ mang tính khảo sát kỹ thuật."
+    },
+    {
+      "id": "okx_auroraxwt",
+      "name": "Top Agent okx_auroraxwt",
+      "venue": "coin",
+      "category": "COIN Top Agent",
+      "source_classification": "PROXY_ENTRY_RESEARCH_ONLY",
+      "wfa_method_assigned": "RESEARCH_ONLY_NO_DECISION",
+      "total_agg_oos_trades": 352,
+      "total_fees_usd": 664.62,
+      "folds_metrics": {
+        "fold_1": {
+          "period": "2024-12-01 -> 2025-06-30",
+          "trades": 104,
+          "ret_pct": -8.22,
+          "mdd_pct": 8.88,
+          "fees_usd": 205.41,
+          "daily_sharpe": -3.89,
+          "days_count": 212
+        },
+        "fold_2": {
+          "period": "2025-07-01 -> 2026-01-31",
+          "trades": 126,
+          "ret_pct": -12.07,
+          "mdd_pct": 12.33,
+          "fees_usd": 225.29,
+          "daily_sharpe": -6.03,
+          "days_count": 215
+        },
+        "fold_3": {
+          "period": "2026-02-01 -> 2026-09-01",
+          "trades": 122,
+          "ret_pct": -7.72,
+          "mdd_pct": 10.07,
+          "fees_usd": 233.92,
+          "daily_sharpe": -2.1,
+          "days_count": 213
+        }
+      },
+      "aggregated_oos_metrics": {
+        "trades": 352,
+        "folds_positive_count": 0,
+        "consistency": "0/3 Folds Positive",
+        "cum_return_pct": -25.54,
+        "mdd_pct": 25.77,
+        "daily_sharpe": -3.48,
+        "total_days": 640
+      },
+      "monte_carlo_block_bootstrap": {
+        "base_block_5": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 5,
+          "prob_mdd_ge_15_pct": 59.47,
+          "prob_mdd_ge_20_pct": 10.1,
+          "median_terminal_ret_pct": -15.38,
+          "mdd_p50_pct": 15.79,
+          "mdd_p95_pct": 21.3
+        },
+        "sensitivity_block_3": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 3,
+          "prob_mdd_ge_15_pct": 59.93,
+          "prob_mdd_ge_20_pct": 11.85,
+          "median_terminal_ret_pct": -15.39,
+          "mdd_p50_pct": 15.86,
+          "mdd_p95_pct": 21.66
+        },
+        "sensitivity_block_10": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 10,
+          "prob_mdd_ge_15_pct": 59.78,
+          "prob_mdd_ge_20_pct": 9.35,
+          "median_terminal_ret_pct": -15.38,
+          "mdd_p50_pct": 15.77,
+          "mdd_p95_pct": 20.94
+        }
+      },
+      "deflated_sharpe_ratio": {
+        "dsr_status": "DSR_UNAVAILABLE_TRIALS_UNAUDITED",
+        "dsr_value": null,
+        "note": "Số lượng thử nghiệm lịch sử thực tế chưa được kiểm kê. DSR không xuất số giả và không dùng để phán quyết."
+      },
+      "disposition": "RESEARCH_PROXY_NO_DECISION",
+      "disposition_reason": "Top Agent chỉ có tham số thoát lệnh từ OKX, điều kiện vào lệnh là proxy nghiên cứu; chỉ mang tính khảo sát kỹ thuật."
+    },
+    {
+      "id": "okx_dark_wood_dahlia",
+      "name": "Top Agent okx_dark_wood_dahlia",
+      "venue": "coin",
+      "category": "COIN Top Agent",
+      "source_classification": "PROXY_ENTRY_RESEARCH_ONLY",
+      "wfa_method_assigned": "RESEARCH_ONLY_NO_DECISION",
+      "total_agg_oos_trades": 1284,
+      "total_fees_usd": 623.77,
+      "folds_metrics": {
+        "fold_1": {
+          "period": "2024-12-01 -> 2025-06-30",
+          "trades": 417,
+          "ret_pct": -5.01,
+          "mdd_pct": 5.12,
+          "fees_usd": 163.58,
+          "daily_sharpe": -3.84,
+          "days_count": 212
+        },
+        "fold_2": {
+          "period": "2025-07-01 -> 2026-01-31",
+          "trades": 434,
+          "ret_pct": -5.13,
+          "mdd_pct": 5.18,
+          "fees_usd": 247.38,
+          "daily_sharpe": -5.36,
+          "days_count": 215
+        },
+        "fold_3": {
+          "period": "2026-02-01 -> 2026-09-01",
+          "trades": 433,
+          "ret_pct": -3.38,
+          "mdd_pct": 3.72,
+          "fees_usd": 212.81,
+          "daily_sharpe": -3.36,
+          "days_count": 213
+        }
+      },
+      "aggregated_oos_metrics": {
+        "trades": 1284,
+        "folds_positive_count": 0,
+        "consistency": "0/3 Folds Positive",
+        "cum_return_pct": -12.93,
+        "mdd_pct": 12.99,
+        "daily_sharpe": -4.09,
+        "total_days": 640
+      },
+      "monte_carlo_block_bootstrap": {
+        "base_block_5": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 5,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -7.46,
+          "mdd_p50_pct": 7.57,
+          "mdd_p95_pct": 10.55
+        },
+        "sensitivity_block_3": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 3,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -7.48,
+          "mdd_p50_pct": 7.61,
+          "mdd_p95_pct": 10.61
+        },
+        "sensitivity_block_10": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 10,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -7.45,
+          "mdd_p50_pct": 7.55,
+          "mdd_p95_pct": 10.61
+        }
+      },
+      "deflated_sharpe_ratio": {
+        "dsr_status": "DSR_UNAVAILABLE_TRIALS_UNAUDITED",
+        "dsr_value": null,
+        "note": "Số lượng thử nghiệm lịch sử thực tế chưa được kiểm kê. DSR không xuất số giả và không dùng để phán quyết."
+      },
+      "disposition": "RESEARCH_PROXY_NO_DECISION",
+      "disposition_reason": "Top Agent chỉ có tham số thoát lệnh từ OKX, điều kiện vào lệnh là proxy nghiên cứu; chỉ mang tính khảo sát kỹ thuật."
+    },
+    {
+      "id": "edu_canonical_beginner_dual_ema",
+      "name": "Nora EDU — Beginner Dual EMA Trend Following",
+      "venue": "edu",
+      "category": "EDU Canonical",
+      "source_classification": "FIXED_PARAM_ROLLING_OOS",
+      "wfa_method_assigned": "FIXED_PARAM_ROLLING_OOS",
+      "total_agg_oos_trades": 411,
+      "total_fees_usd": 460.47,
+      "folds_metrics": {
+        "fold_1": {
+          "period": "2024-12-01 -> 2025-06-30",
+          "trades": 148,
+          "ret_pct": -2.99,
+          "mdd_pct": 4.39,
+          "fees_usd": 144.67,
+          "daily_sharpe": -1.26,
+          "days_count": 212
+        },
+        "fold_2": {
+          "period": "2025-07-01 -> 2026-01-31",
+          "trades": 128,
+          "ret_pct": -2.87,
+          "mdd_pct": 4.64,
+          "fees_usd": 163.07,
+          "daily_sharpe": -1.44,
+          "days_count": 215
+        },
+        "fold_3": {
+          "period": "2026-02-01 -> 2026-09-01",
+          "trades": 135,
+          "ret_pct": -2.95,
+          "mdd_pct": 3.99,
+          "fees_usd": 152.73,
+          "daily_sharpe": -1.18,
+          "days_count": 213
+        }
+      },
+      "aggregated_oos_metrics": {
+        "trades": 411,
+        "folds_positive_count": 0,
+        "consistency": "0/3 Folds Positive",
+        "cum_return_pct": -8.56,
+        "mdd_pct": 9.55,
+        "daily_sharpe": -1.28,
+        "total_days": 640
+      },
+      "monte_carlo_block_bootstrap": {
+        "base_block_5": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 5,
+          "prob_mdd_ge_15_pct": 0.13,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -4.93,
+          "mdd_p50_pct": 6.45,
+          "mdd_p95_pct": 11.03
+        },
+        "sensitivity_block_3": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 3,
+          "prob_mdd_ge_15_pct": 0.15,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -5.04,
+          "mdd_p50_pct": 6.58,
+          "mdd_p95_pct": 11.24
+        },
+        "sensitivity_block_10": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 10,
+          "prob_mdd_ge_15_pct": 0.09,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -4.97,
+          "mdd_p50_pct": 6.34,
+          "mdd_p95_pct": 10.6
+        }
+      },
+      "deflated_sharpe_ratio": {
+        "dsr_status": "DSR_UNAVAILABLE_TRIALS_UNAUDITED",
+        "dsr_value": null,
+        "note": "Số lượng thử nghiệm lịch sử thực tế chưa được kiểm kê. DSR không xuất số giả và không dùng để phán quyết."
+      },
+      "disposition": "REJECT",
+      "disposition_reason": "Lỗ OOS gộp (-8.56%); Chỉ có 0/3 folds lãi; Daily Sharpe thấp (-1.28 < 0.8)"
+    },
+    {
+      "id": "edu_canonical_advanced_volatility_breakout",
+      "name": "Nora EDU — Advanced Volatility Breakout & ATR Guard",
+      "venue": "edu",
+      "category": "EDU Canonical",
+      "source_classification": "FIXED_PARAM_ROLLING_OOS",
+      "wfa_method_assigned": "FIXED_PARAM_ROLLING_OOS",
+      "total_agg_oos_trades": 59,
+      "total_fees_usd": 71.26,
+      "folds_metrics": {
+        "fold_1": {
+          "period": "2024-12-01 -> 2025-06-30",
+          "trades": 23,
+          "ret_pct": 0.85,
+          "mdd_pct": 2.23,
+          "fees_usd": 27.5,
+          "daily_sharpe": 0.53,
+          "days_count": 212
+        },
+        "fold_2": {
+          "period": "2025-07-01 -> 2026-01-31",
+          "trades": 16,
+          "ret_pct": 0.23,
+          "mdd_pct": 1.54,
+          "fees_usd": 21.42,
+          "daily_sharpe": 0.2,
+          "days_count": 215
+        },
+        "fold_3": {
+          "period": "2026-02-01 -> 2026-09-01",
+          "trades": 20,
+          "ret_pct": -1.64,
+          "mdd_pct": 2.36,
+          "fees_usd": 22.34,
+          "daily_sharpe": -1.82,
+          "days_count": 213
+        }
+      },
+      "aggregated_oos_metrics": {
+        "trades": 59,
+        "folds_positive_count": 2,
+        "consistency": "2/3 Folds Positive",
+        "cum_return_pct": -0.57,
+        "mdd_pct": 4.01,
+        "daily_sharpe": -0.14,
+        "total_days": 640
+      },
+      "monte_carlo_block_bootstrap": {
+        "base_block_5": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 5,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -0.38,
+          "mdd_p50_pct": 2.25,
+          "mdd_p95_pct": 4.53
+        },
+        "sensitivity_block_3": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 3,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -0.45,
+          "mdd_p50_pct": 2.31,
+          "mdd_p95_pct": 4.78
+        },
+        "sensitivity_block_10": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 10,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -0.4,
+          "mdd_p50_pct": 2.23,
+          "mdd_p95_pct": 4.3
+        }
+      },
+      "deflated_sharpe_ratio": {
+        "dsr_status": "DSR_UNAVAILABLE_TRIALS_UNAUDITED",
+        "dsr_value": null,
+        "note": "Số lượng thử nghiệm lịch sử thực tế chưa được kiểm kê. DSR không xuất số giả và không dùng để phán quyết."
+      },
+      "disposition": "REJECT",
+      "disposition_reason": "Lỗ OOS gộp (-0.57%); Daily Sharpe thấp (-0.14 < 0.8)"
+    },
+    {
+      "id": "026f43441cb2",
+      "name": "EDU User 026f4344",
+      "venue": "edu",
+      "category": "EDU Active User",
+      "source_classification": "FIXED_PARAM_ROLLING_OOS",
+      "wfa_method_assigned": "FIXED_PARAM_ROLLING_OOS",
+      "total_agg_oos_trades": 202,
+      "total_fees_usd": 283.01,
+      "folds_metrics": {
+        "fold_1": {
+          "period": "2024-12-01 -> 2025-06-30",
+          "trades": 64,
+          "ret_pct": -3.64,
+          "mdd_pct": 3.96,
+          "fees_usd": 93.29,
+          "daily_sharpe": -2.26,
+          "days_count": 212
+        },
+        "fold_2": {
+          "period": "2025-07-01 -> 2026-01-31",
+          "trades": 72,
+          "ret_pct": 0.27,
+          "mdd_pct": 4.11,
+          "fees_usd": 120.71,
+          "daily_sharpe": 0.16,
+          "days_count": 215
+        },
+        "fold_3": {
+          "period": "2026-02-01 -> 2026-09-01",
+          "trades": 66,
+          "ret_pct": -4.31,
+          "mdd_pct": 4.57,
+          "fees_usd": 69.01,
+          "daily_sharpe": -3.55,
+          "days_count": 213
+        }
+      },
+      "aggregated_oos_metrics": {
+        "trades": 202,
+        "folds_positive_count": 1,
+        "consistency": "1/3 Folds Positive",
+        "cum_return_pct": -7.54,
+        "mdd_pct": 7.9,
+        "daily_sharpe": -1.61,
+        "total_days": 640
+      },
+      "monte_carlo_block_bootstrap": {
+        "base_block_5": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 5,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -4.45,
+          "mdd_p50_pct": 5.54,
+          "mdd_p95_pct": 9.2
+        },
+        "sensitivity_block_3": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 3,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -4.41,
+          "mdd_p50_pct": 5.45,
+          "mdd_p95_pct": 9.14
+        },
+        "sensitivity_block_10": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 10,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -4.55,
+          "mdd_p50_pct": 5.72,
+          "mdd_p95_pct": 9.42
+        }
+      },
+      "deflated_sharpe_ratio": {
+        "dsr_status": "DSR_UNAVAILABLE_TRIALS_UNAUDITED",
+        "dsr_value": null,
+        "note": "Số lượng thử nghiệm lịch sử thực tế chưa được kiểm kê. DSR không xuất số giả và không dùng để phán quyết."
+      },
+      "disposition": "REJECT",
+      "disposition_reason": "Lỗ OOS gộp (-7.54%); Chỉ có 1/3 folds lãi; Daily Sharpe thấp (-1.61 < 0.8)"
+    },
+    {
+      "id": "0873864b8db7",
+      "name": "EDU User 0873864b",
+      "venue": "edu",
+      "category": "EDU Active User",
+      "source_classification": "LOW_SAMPLE_CRITICAL",
+      "wfa_method_assigned": "FIXED_PARAM_ROLLING_OOS",
+      "total_agg_oos_trades": 20,
+      "total_fees_usd": 110.88,
+      "folds_metrics": {
+        "fold_1": {
+          "period": "2024-12-01 -> 2025-06-30",
+          "trades": 13,
+          "ret_pct": -6.11,
+          "mdd_pct": 6.78,
+          "fees_usd": 43.0,
+          "daily_sharpe": -1.76,
+          "days_count": 212
+        },
+        "fold_2": {
+          "period": "2025-07-01 -> 2026-01-31",
+          "trades": 4,
+          "ret_pct": -2.68,
+          "mdd_pct": 6.32,
+          "fees_usd": 40.8,
+          "daily_sharpe": -0.51,
+          "days_count": 215
+        },
+        "fold_3": {
+          "period": "2026-02-01 -> 2026-09-01",
+          "trades": 3,
+          "ret_pct": -2.74,
+          "mdd_pct": 6.07,
+          "fees_usd": 27.08,
+          "daily_sharpe": -0.97,
+          "days_count": 213
+        }
+      },
+      "aggregated_oos_metrics": {
+        "trades": 20,
+        "folds_positive_count": 0,
+        "consistency": "0/3 Folds Positive",
+        "cum_return_pct": -11.12,
+        "mdd_pct": 11.12,
+        "daily_sharpe": -0.99,
+        "total_days": 640
+      },
+      "monte_carlo_block_bootstrap": {
+        "base_block_5": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 5,
+          "prob_mdd_ge_15_pct": 5.82,
+          "prob_mdd_ge_20_pct": 0.43,
+          "median_terminal_ret_pct": -6.37,
+          "mdd_p50_pct": 8.51,
+          "mdd_p95_pct": 15.28
+        },
+        "sensitivity_block_3": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 3,
+          "prob_mdd_ge_15_pct": 7.2,
+          "prob_mdd_ge_20_pct": 0.62,
+          "median_terminal_ret_pct": -6.45,
+          "mdd_p50_pct": 8.7,
+          "mdd_p95_pct": 15.87
+        },
+        "sensitivity_block_10": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 10,
+          "prob_mdd_ge_15_pct": 5.2,
+          "prob_mdd_ge_20_pct": 0.29,
+          "median_terminal_ret_pct": -6.35,
+          "mdd_p50_pct": 8.28,
+          "mdd_p95_pct": 15.09
+        }
+      },
+      "deflated_sharpe_ratio": {
+        "dsr_status": "DSR_UNAVAILABLE_TRIALS_UNAUDITED",
+        "dsr_value": null,
+        "note": "Số lượng thử nghiệm lịch sử thực tế chưa được kiểm kê. DSR không xuất số giả và không dùng để phán quyết."
+      },
+      "disposition": "INSUFFICIENT_SAMPLE",
+      "disposition_reason": "Tổng số lệnh OOS gộp (20) < 30 lệnh tối thiểu theo Phương án A đã chọn."
+    },
+    {
+      "id": "090730ae35b8",
+      "name": "EDU User 090730ae",
+      "venue": "edu",
+      "category": "EDU Active User",
+      "source_classification": "FIXED_PARAM_ROLLING_OOS",
+      "wfa_method_assigned": "FIXED_PARAM_ROLLING_OOS",
+      "total_agg_oos_trades": 10,
+      "total_fees_usd": 34.95,
+      "folds_metrics": {
+        "fold_1": {
+          "period": "2024-12-01 -> 2025-06-30",
+          "trades": 5,
+          "ret_pct": -2.55,
+          "mdd_pct": 5.04,
+          "fees_usd": 10.28,
+          "daily_sharpe": -1.02,
+          "days_count": 212
+        },
+        "fold_2": {
+          "period": "2025-07-01 -> 2026-01-31",
+          "trades": 4,
+          "ret_pct": -1.99,
+          "mdd_pct": 8.57,
+          "fees_usd": 19.87,
+          "daily_sharpe": -0.31,
+          "days_count": 215
+        },
+        "fold_3": {
+          "period": "2026-02-01 -> 2026-09-01",
+          "trades": 1,
+          "ret_pct": 8.61,
+          "mdd_pct": 3.45,
+          "fees_usd": 4.8,
+          "daily_sharpe": 1.46,
+          "days_count": 213
+        }
+      },
+      "aggregated_oos_metrics": {
+        "trades": 10,
+        "folds_positive_count": 1,
+        "consistency": "1/3 Folds Positive",
+        "cum_return_pct": 3.74,
+        "mdd_pct": 9.93,
+        "daily_sharpe": 0.29,
+        "total_days": 640
+      },
+      "monte_carlo_block_bootstrap": {
+        "base_block_5": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 5,
+          "prob_mdd_ge_15_pct": 3.1,
+          "prob_mdd_ge_20_pct": 0.33,
+          "median_terminal_ret_pct": 1.51,
+          "mdd_p50_pct": 6.74,
+          "mdd_p95_pct": 13.85
+        },
+        "sensitivity_block_3": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 3,
+          "prob_mdd_ge_15_pct": 3.79,
+          "prob_mdd_ge_20_pct": 0.37,
+          "median_terminal_ret_pct": 1.52,
+          "mdd_p50_pct": 6.81,
+          "mdd_p95_pct": 14.32
+        },
+        "sensitivity_block_10": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 10,
+          "prob_mdd_ge_15_pct": 2.35,
+          "prob_mdd_ge_20_pct": 0.21,
+          "median_terminal_ret_pct": 1.57,
+          "mdd_p50_pct": 6.65,
+          "mdd_p95_pct": 13.49
+        }
+      },
+      "deflated_sharpe_ratio": {
+        "dsr_status": "DSR_UNAVAILABLE_TRIALS_UNAUDITED",
+        "dsr_value": null,
+        "note": "Số lượng thử nghiệm lịch sử thực tế chưa được kiểm kê. DSR không xuất số giả và không dùng để phán quyết."
+      },
+      "disposition": "INSUFFICIENT_SAMPLE",
+      "disposition_reason": "Tổng số lệnh OOS gộp (10) < 30 lệnh tối thiểu theo Phương án A đã chọn."
+    },
+    {
+      "id": "0bf936687964",
+      "name": "EDU User 0bf93668",
+      "venue": "edu",
+      "category": "EDU Active User",
+      "source_classification": "LOW_SAMPLE_CRITICAL",
+      "wfa_method_assigned": "FIXED_PARAM_ROLLING_OOS",
+      "total_agg_oos_trades": 0,
+      "total_fees_usd": 0.0,
+      "folds_metrics": {
+        "fold_1": {
+          "period": "2024-12-01 -> 2025-06-30",
+          "trades": 0,
+          "ret_pct": 0.0,
+          "mdd_pct": 0.0,
+          "fees_usd": 0,
+          "daily_sharpe": 0.0,
+          "days_count": 212
+        },
+        "fold_2": {
+          "period": "2025-07-01 -> 2026-01-31",
+          "trades": 0,
+          "ret_pct": 0.0,
+          "mdd_pct": 0.0,
+          "fees_usd": 0,
+          "daily_sharpe": 0.0,
+          "days_count": 215
+        },
+        "fold_3": {
+          "period": "2026-02-01 -> 2026-09-01",
+          "trades": 0,
+          "ret_pct": 0.0,
+          "mdd_pct": 0.0,
+          "fees_usd": 0,
+          "daily_sharpe": 0.0,
+          "days_count": 213
+        }
+      },
+      "aggregated_oos_metrics": {
+        "trades": 0,
+        "folds_positive_count": 0,
+        "consistency": "0/3 Folds Positive",
+        "cum_return_pct": 0.0,
+        "mdd_pct": 0.0,
+        "daily_sharpe": 0.0,
+        "total_days": 640
+      },
+      "monte_carlo_block_bootstrap": {
+        "base_block_5": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 5,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": 0.0,
+          "mdd_p50_pct": 0.0,
+          "mdd_p95_pct": 0.0
+        },
+        "sensitivity_block_3": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 3,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": 0.0,
+          "mdd_p50_pct": 0.0,
+          "mdd_p95_pct": 0.0
+        },
+        "sensitivity_block_10": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 10,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": 0.0,
+          "mdd_p50_pct": 0.0,
+          "mdd_p95_pct": 0.0
+        }
+      },
+      "deflated_sharpe_ratio": {
+        "dsr_status": "DSR_UNAVAILABLE_TRIALS_UNAUDITED",
+        "dsr_value": null,
+        "note": "Số lượng thử nghiệm lịch sử thực tế chưa được kiểm kê. DSR không xuất số giả và không dùng để phán quyết."
+      },
+      "disposition": "INSUFFICIENT_SAMPLE",
+      "disposition_reason": "Tổng số lệnh OOS gộp (0) < 30 lệnh tối thiểu theo Phương án A đã chọn."
+    },
+    {
+      "id": "0d51ba8d2012",
+      "name": "EDU User 0d51ba8d",
+      "venue": "edu",
+      "category": "EDU Active User",
+      "source_classification": "FIXED_PARAM_ROLLING_OOS",
+      "wfa_method_assigned": "FIXED_PARAM_ROLLING_OOS",
+      "total_agg_oos_trades": 15,
+      "total_fees_usd": 20.06,
+      "folds_metrics": {
+        "fold_1": {
+          "period": "2024-12-01 -> 2025-06-30",
+          "trades": 5,
+          "ret_pct": 0.55,
+          "mdd_pct": 1.87,
+          "fees_usd": 7.11,
+          "daily_sharpe": 0.37,
+          "days_count": 212
+        },
+        "fold_2": {
+          "period": "2025-07-01 -> 2026-01-31",
+          "trades": 4,
+          "ret_pct": -1.49,
+          "mdd_pct": 3.34,
+          "fees_usd": 5.68,
+          "daily_sharpe": -0.58,
+          "days_count": 215
+        },
+        "fold_3": {
+          "period": "2026-02-01 -> 2026-09-01",
+          "trades": 6,
+          "ret_pct": -2.09,
+          "mdd_pct": 2.63,
+          "fees_usd": 7.27,
+          "daily_sharpe": -1.86,
+          "days_count": 213
+        }
+      },
+      "aggregated_oos_metrics": {
+        "trades": 15,
+        "folds_positive_count": 1,
+        "consistency": "1/3 Folds Positive",
+        "cum_return_pct": -3.01,
+        "mdd_pct": 5.35,
+        "daily_sharpe": -0.54,
+        "total_days": 640
+      },
+      "monte_carlo_block_bootstrap": {
+        "base_block_5": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 5,
+          "prob_mdd_ge_15_pct": 0.04,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -1.6,
+          "mdd_p50_pct": 3.71,
+          "mdd_p95_pct": 8.14
+        },
+        "sensitivity_block_3": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 3,
+          "prob_mdd_ge_15_pct": 0.03,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -1.6,
+          "mdd_p50_pct": 3.72,
+          "mdd_p95_pct": 8.23
+        },
+        "sensitivity_block_10": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 10,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -1.62,
+          "mdd_p50_pct": 3.67,
+          "mdd_p95_pct": 7.73
+        }
+      },
+      "deflated_sharpe_ratio": {
+        "dsr_status": "DSR_UNAVAILABLE_TRIALS_UNAUDITED",
+        "dsr_value": null,
+        "note": "Số lượng thử nghiệm lịch sử thực tế chưa được kiểm kê. DSR không xuất số giả và không dùng để phán quyết."
+      },
+      "disposition": "INSUFFICIENT_SAMPLE",
+      "disposition_reason": "Tổng số lệnh OOS gộp (15) < 30 lệnh tối thiểu theo Phương án A đã chọn."
+    },
+    {
+      "id": "138df68946ad",
+      "name": "EDU User 138df689",
+      "venue": "edu",
+      "category": "EDU Active User",
+      "source_classification": "FIXED_PARAM_ROLLING_OOS",
+      "wfa_method_assigned": "FIXED_PARAM_ROLLING_OOS",
+      "total_agg_oos_trades": 445,
+      "total_fees_usd": 701.69,
+      "folds_metrics": {
+        "fold_1": {
+          "period": "2024-12-01 -> 2025-06-30",
+          "trades": 153,
+          "ret_pct": -3.32,
+          "mdd_pct": 3.6,
+          "fees_usd": 202.48,
+          "daily_sharpe": -2.35,
+          "days_count": 212
+        },
+        "fold_2": {
+          "period": "2025-07-01 -> 2026-01-31",
+          "trades": 149,
+          "ret_pct": -2.21,
+          "mdd_pct": 4.25,
+          "fees_usd": 237.97,
+          "daily_sharpe": -1.54,
+          "days_count": 215
+        },
+        "fold_3": {
+          "period": "2026-02-01 -> 2026-09-01",
+          "trades": 143,
+          "ret_pct": -1.48,
+          "mdd_pct": 3.52,
+          "fees_usd": 261.24,
+          "daily_sharpe": -0.84,
+          "days_count": 213
+        }
+      },
+      "aggregated_oos_metrics": {
+        "trades": 445,
+        "folds_positive_count": 0,
+        "consistency": "0/3 Folds Positive",
+        "cum_return_pct": -6.86,
+        "mdd_pct": 8.33,
+        "daily_sharpe": -1.52,
+        "total_days": 640
+      },
+      "monte_carlo_block_bootstrap": {
+        "base_block_5": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 5,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -3.98,
+          "mdd_p50_pct": 5.14,
+          "mdd_p95_pct": 8.76
+        },
+        "sensitivity_block_3": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 3,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -4.05,
+          "mdd_p50_pct": 5.19,
+          "mdd_p95_pct": 8.81
+        },
+        "sensitivity_block_10": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 10,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -3.98,
+          "mdd_p50_pct": 5.15,
+          "mdd_p95_pct": 8.73
+        }
+      },
+      "deflated_sharpe_ratio": {
+        "dsr_status": "DSR_UNAVAILABLE_TRIALS_UNAUDITED",
+        "dsr_value": null,
+        "note": "Số lượng thử nghiệm lịch sử thực tế chưa được kiểm kê. DSR không xuất số giả và không dùng để phán quyết."
+      },
+      "disposition": "REJECT",
+      "disposition_reason": "Lỗ OOS gộp (-6.86%); Chỉ có 0/3 folds lãi; Daily Sharpe thấp (-1.52 < 0.8)"
+    },
+    {
+      "id": "14e3b934b1e5",
+      "name": "EDU User 14e3b934",
+      "venue": "edu",
+      "category": "EDU Active User",
+      "source_classification": "FIXED_PARAM_ROLLING_OOS",
+      "wfa_method_assigned": "FIXED_PARAM_ROLLING_OOS",
+      "total_agg_oos_trades": 38,
+      "total_fees_usd": 44.72,
+      "folds_metrics": {
+        "fold_1": {
+          "period": "2024-12-01 -> 2025-06-30",
+          "trades": 16,
+          "ret_pct": -1.77,
+          "mdd_pct": 2.8,
+          "fees_usd": 16.42,
+          "daily_sharpe": -1.13,
+          "days_count": 212
+        },
+        "fold_2": {
+          "period": "2025-07-01 -> 2026-01-31",
+          "trades": 9,
+          "ret_pct": 0.44,
+          "mdd_pct": 1.87,
+          "fees_usd": 12.18,
+          "daily_sharpe": 0.33,
+          "days_count": 215
+        },
+        "fold_3": {
+          "period": "2026-02-01 -> 2026-09-01",
+          "trades": 13,
+          "ret_pct": -0.88,
+          "mdd_pct": 2.02,
+          "fees_usd": 16.12,
+          "daily_sharpe": -0.54,
+          "days_count": 213
+        }
+      },
+      "aggregated_oos_metrics": {
+        "trades": 38,
+        "folds_positive_count": 1,
+        "consistency": "1/3 Folds Positive",
+        "cum_return_pct": -2.21,
+        "mdd_pct": 3.17,
+        "daily_sharpe": -0.48,
+        "total_days": 640
+      },
+      "monte_carlo_block_bootstrap": {
+        "base_block_5": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 5,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -1.31,
+          "mdd_p50_pct": 2.93,
+          "mdd_p95_pct": 5.56
+        },
+        "sensitivity_block_3": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 3,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -1.33,
+          "mdd_p50_pct": 3.05,
+          "mdd_p95_pct": 5.84
+        },
+        "sensitivity_block_10": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 10,
+          "prob_mdd_ge_15_pct": 0.0,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -1.24,
+          "mdd_p50_pct": 2.84,
+          "mdd_p95_pct": 5.33
+        }
+      },
+      "deflated_sharpe_ratio": {
+        "dsr_status": "DSR_UNAVAILABLE_TRIALS_UNAUDITED",
+        "dsr_value": null,
+        "note": "Số lượng thử nghiệm lịch sử thực tế chưa được kiểm kê. DSR không xuất số giả và không dùng để phán quyết."
+      },
+      "disposition": "REJECT",
+      "disposition_reason": "Lỗ OOS gộp (-2.21%); Chỉ có 1/3 folds lãi; Daily Sharpe thấp (-0.48 < 0.8)"
+    },
+    {
+      "id": "15567e02a806",
+      "name": "EDU User 15567e02",
+      "venue": "edu",
+      "category": "EDU Active User",
+      "source_classification": "LOW_SAMPLE_CRITICAL",
+      "wfa_method_assigned": "FIXED_PARAM_ROLLING_OOS",
+      "total_agg_oos_trades": 4,
+      "total_fees_usd": 54.3,
+      "folds_metrics": {
+        "fold_1": {
+          "period": "2024-12-01 -> 2025-06-30",
+          "trades": 2,
+          "ret_pct": -0.22,
+          "mdd_pct": 7.91,
+          "fees_usd": 27.49,
+          "daily_sharpe": 0.03,
+          "days_count": 212
+        },
+        "fold_2": {
+          "period": "2025-07-01 -> 2026-01-31",
+          "trades": 2,
+          "ret_pct": -11.55,
+          "mdd_pct": 13.34,
+          "fees_usd": 26.81,
+          "daily_sharpe": -1.53,
+          "days_count": 215
+        },
+        "fold_3": {
+          "period": "2026-02-01 -> 2026-09-01",
+          "trades": 0,
+          "ret_pct": 25.93,
+          "mdd_pct": 9.12,
+          "fees_usd": 0,
+          "daily_sharpe": 1.57,
+          "days_count": 213
+        }
+      },
+      "aggregated_oos_metrics": {
+        "trades": 4,
+        "folds_positive_count": 1,
+        "consistency": "1/3 Folds Positive",
+        "cum_return_pct": 11.14,
+        "mdd_pct": 14.48,
+        "daily_sharpe": 0.41,
+        "total_days": 640
+      },
+      "monte_carlo_block_bootstrap": {
+        "base_block_5": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 5,
+          "prob_mdd_ge_15_pct": 32.56,
+          "prob_mdd_ge_20_pct": 14.78,
+          "median_terminal_ret_pct": 2.84,
+          "mdd_p50_pct": 11.79,
+          "mdd_p95_pct": 25.55
+        },
+        "sensitivity_block_3": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 3,
+          "prob_mdd_ge_15_pct": 33.0,
+          "prob_mdd_ge_20_pct": 14.44,
+          "median_terminal_ret_pct": 3.31,
+          "mdd_p50_pct": 11.89,
+          "mdd_p95_pct": 25.34
+        },
+        "sensitivity_block_10": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 10,
+          "prob_mdd_ge_15_pct": 32.17,
+          "prob_mdd_ge_20_pct": 14.4,
+          "median_terminal_ret_pct": 2.45,
+          "mdd_p50_pct": 11.67,
+          "mdd_p95_pct": 25.16
+        }
+      },
+      "deflated_sharpe_ratio": {
+        "dsr_status": "DSR_UNAVAILABLE_TRIALS_UNAUDITED",
+        "dsr_value": null,
+        "note": "Số lượng thử nghiệm lịch sử thực tế chưa được kiểm kê. DSR không xuất số giả và không dùng để phán quyết."
+      },
+      "disposition": "INSUFFICIENT_SAMPLE",
+      "disposition_reason": "Tổng số lệnh OOS gộp (4) < 30 lệnh tối thiểu theo Phương án A đã chọn."
+    },
+    {
+      "id": "18e87aa868ad",
+      "name": "EDU User 18e87aa8",
+      "venue": "edu",
+      "category": "EDU Active User",
+      "source_classification": "FIXED_PARAM_ROLLING_OOS",
+      "wfa_method_assigned": "FIXED_PARAM_ROLLING_OOS",
+      "total_agg_oos_trades": 12,
+      "total_fees_usd": 42.47,
+      "folds_metrics": {
+        "fold_1": {
+          "period": "2024-12-01 -> 2025-06-30",
+          "trades": 6,
+          "ret_pct": -3.81,
+          "mdd_pct": 5.4,
+          "fees_usd": 13.68,
+          "daily_sharpe": -1.38,
+          "days_count": 212
+        },
+        "fold_2": {
+          "period": "2025-07-01 -> 2026-01-31",
+          "trades": 4,
+          "ret_pct": -2.48,
+          "mdd_pct": 9.02,
+          "fees_usd": 20.23,
+          "daily_sharpe": -0.36,
+          "days_count": 215
+        },
+        "fold_3": {
+          "period": "2026-02-01 -> 2026-09-01",
+          "trades": 2,
+          "ret_pct": 2.94,
+          "mdd_pct": 2.42,
+          "fees_usd": 8.56,
+          "daily_sharpe": 0.8,
+          "days_count": 213
+        }
+      },
+      "aggregated_oos_metrics": {
+        "trades": 12,
+        "folds_positive_count": 1,
+        "consistency": "1/3 Folds Positive",
+        "cum_return_pct": -3.44,
+        "mdd_pct": 10.74,
+        "daily_sharpe": -0.22,
+        "total_days": 640
+      },
+      "monte_carlo_block_bootstrap": {
+        "base_block_5": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 5,
+          "prob_mdd_ge_15_pct": 7.64,
+          "prob_mdd_ge_20_pct": 1.12,
+          "median_terminal_ret_pct": -1.97,
+          "mdd_p50_pct": 7.63,
+          "mdd_p95_pct": 16.17
+        },
+        "sensitivity_block_3": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 3,
+          "prob_mdd_ge_15_pct": 8.45,
+          "prob_mdd_ge_20_pct": 1.64,
+          "median_terminal_ret_pct": -2.01,
+          "mdd_p50_pct": 7.74,
+          "mdd_p95_pct": 16.74
+        },
+        "sensitivity_block_10": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 10,
+          "prob_mdd_ge_15_pct": 6.56,
+          "prob_mdd_ge_20_pct": 0.92,
+          "median_terminal_ret_pct": -1.98,
+          "mdd_p50_pct": 7.51,
+          "mdd_p95_pct": 15.71
+        }
+      },
+      "deflated_sharpe_ratio": {
+        "dsr_status": "DSR_UNAVAILABLE_TRIALS_UNAUDITED",
+        "dsr_value": null,
+        "note": "Số lượng thử nghiệm lịch sử thực tế chưa được kiểm kê. DSR không xuất số giả và không dùng để phán quyết."
+      },
+      "disposition": "INSUFFICIENT_SAMPLE",
+      "disposition_reason": "Tổng số lệnh OOS gộp (12) < 30 lệnh tối thiểu theo Phương án A đã chọn."
+    },
+    {
+      "id": "1a1a4389a821",
+      "name": "EDU User 1a1a4389",
+      "venue": "edu",
+      "category": "EDU Active User",
+      "source_classification": "FIXED_PARAM_ROLLING_OOS",
+      "wfa_method_assigned": "FIXED_PARAM_ROLLING_OOS",
+      "total_agg_oos_trades": 1019,
+      "total_fees_usd": 1168.02,
+      "folds_metrics": {
+        "fold_1": {
+          "period": "2024-12-01 -> 2025-06-30",
+          "trades": 343,
+          "ret_pct": -5.03,
+          "mdd_pct": 5.06,
+          "fees_usd": 371.11,
+          "daily_sharpe": -2.8,
+          "days_count": 212
+        },
+        "fold_2": {
+          "period": "2025-07-01 -> 2026-01-31",
+          "trades": 334,
+          "ret_pct": -4.63,
+          "mdd_pct": 5.65,
+          "fees_usd": 411.73,
+          "daily_sharpe": -2.55,
+          "days_count": 215
+        },
+        "fold_3": {
+          "period": "2026-02-01 -> 2026-09-01",
+          "trades": 342,
+          "ret_pct": -4.4,
+          "mdd_pct": 5.34,
+          "fees_usd": 385.18,
+          "daily_sharpe": -2.79,
+          "days_count": 213
+        }
+      },
+      "aggregated_oos_metrics": {
+        "trades": 1019,
+        "folds_positive_count": 0,
+        "consistency": "0/3 Folds Positive",
+        "cum_return_pct": -13.41,
+        "mdd_pct": 14.23,
+        "daily_sharpe": -2.71,
+        "total_days": 640
+      },
+      "monte_carlo_block_bootstrap": {
+        "base_block_5": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 5,
+          "prob_mdd_ge_15_pct": 0.24,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -7.83,
+          "mdd_p50_pct": 8.47,
+          "mdd_p95_pct": 12.28
+        },
+        "sensitivity_block_3": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 3,
+          "prob_mdd_ge_15_pct": 0.23,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -7.94,
+          "mdd_p50_pct": 8.6,
+          "mdd_p95_pct": 12.49
+        },
+        "sensitivity_block_10": {
+          "status": "COMPLETED",
+          "simulations": 10000,
+          "block_days": 10,
+          "prob_mdd_ge_15_pct": 0.19,
+          "prob_mdd_ge_20_pct": 0.0,
+          "median_terminal_ret_pct": -7.91,
+          "mdd_p50_pct": 8.48,
+          "mdd_p95_pct": 12.18
+        }
+      },
+      "deflated_sharpe_ratio": {
+        "dsr_status": "DSR_UNAVAILABLE_TRIALS_UNAUDITED",
+        "dsr_value": null,
+        "note": "Số lượng thử nghiệm lịch sử thực tế chưa được kiểm kê. DSR không xuất số giả và không dùng để phán quyết."
+      },
+      "disposition": "REJECT",
+      "disposition_reason": "Lỗ OOS gộp (-13.41%); Chỉ có 0/3 folds lãi; Daily Sharpe thấp (-2.71 < 0.8)"
+    }
+  ]
+}

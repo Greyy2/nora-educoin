@@ -1,0 +1,198 @@
+{
+  "service": "http://127.0.0.1:18022",
+  "endpoint": "POST /api/studio/strategies/compile",
+  "count": 27,
+  "pass": 27,
+  "fail": 0,
+  "results": [
+    {
+      "candidate_id": "fixture-026f43441cb2-research-v1",
+      "parent_id": "026f43441cb2",
+      "ok": true,
+      "program_hash": "16fdf6717127",
+      "error": null
+    },
+    {
+      "candidate_id": "fixture-0bf936687964-research-v1",
+      "parent_id": "0bf936687964",
+      "ok": true,
+      "program_hash": "4a8900ff160e",
+      "error": null
+    },
+    {
+      "candidate_id": "fixture-138df68946ad-research-v1",
+      "parent_id": "138df68946ad",
+      "ok": true,
+      "program_hash": "fb5876a73a7e",
+      "error": null
+    },
+    {
+      "candidate_id": "fixture-1a1a4389a821-research-v1",
+      "parent_id": "1a1a4389a821",
+      "ok": true,
+      "program_hash": "988892b32aa1",
+      "error": null
+    },
+    {
+      "candidate_id": "fixture-1e4c0b9f84f7-research-v1",
+      "parent_id": "1e4c0b9f84f7",
+      "ok": true,
+      "program_hash": "bf5b10cafdcf",
+      "error": null
+    },
+    {
+      "candidate_id": "fixture-214ea8fdf3e6-research-v1",
+      "parent_id": "214ea8fdf3e6",
+      "ok": true,
+      "program_hash": "91f3be4a99ec",
+      "error": null
+    },
+    {
+      "candidate_id": "fixture-234e6df02e37-research-v1",
+      "parent_id": "234e6df02e37",
+      "ok": true,
+      "program_hash": "b7021fc9bd39",
+      "error": null
+    },
+    {
+      "candidate_id": "fixture-2e41b2cfa24d-research-v1",
+      "parent_id": "2e41b2cfa24d",
+      "ok": true,
+      "program_hash": "8baeee796565",
+      "error": null
+    },
+    {
+      "candidate_id": "fixture-571474a18f55-research-v1",
+      "parent_id": "571474a18f55",
+      "ok": true,
+      "program_hash": "b48bcf916828",
+      "error": null
+    },
+    {
+      "candidate_id": "fixture-616e1b8cbc88-research-v1",
+      "parent_id": "616e1b8cbc88",
+      "ok": true,
+      "program_hash": "d4173bac30bc",
+      "error": null
+    },
+    {
+      "candidate_id": "fixture-64b657c8de8e-research-v1",
+      "parent_id": "64b657c8de8e",
+      "ok": true,
+      "program_hash": "7ed71704cf44",
+      "error": null
+    },
+    {
+      "candidate_id": "fixture-74f607263c5c-research-v1",
+      "parent_id": "74f607263c5c",
+      "ok": true,
+      "program_hash": "53df555e961b",
+      "error": null
+    },
+    {
+      "candidate_id": "fixture-7c1bf0a9686a-research-v1",
+      "parent_id": "7c1bf0a9686a",
+      "ok": true,
+      "program_hash": "c9632ce2701b",
+      "error": null
+    },
+    {
+      "candidate_id": "fixture-7f770ebe5ab5-research-v1",
+      "parent_id": "7f770ebe5ab5",
+      "ok": true,
+      "program_hash": "4c3306a0ff5b",
+      "error": null
+    },
+    {
+      "candidate_id": "fixture-856ddc574ce7-research-v1",
+      "parent_id": "856ddc574ce7",
+      "ok": true,
+      "program_hash": "c1b8441d30b3",
+      "error": null
+    },
+    {
+      "candidate_id": "fixture-862e0c9eebbe-research-v1",
+      "parent_id": "862e0c9eebbe",
+      "ok": true,
+      "program_hash": "ec5dde986ca2",
+      "error": null
+    },
+    {
+      "candidate_id": "fixture-930294d28c45-research-v1",
+      "parent_id": "930294d28c45",
+      "ok": true,
+      "program_hash": "f268aab3ed26",
+      "error": null
+    },
+    {
+      "candidate_id": "fixture-9eec3d61131d-research-v1",
+      "parent_id": "9eec3d61131d",
+      "ok": true,
+      "program_hash": "b86ede40380a",
+      "error": null
+    },
+    {
+      "candidate_id": "fixture-a4d6826fbbc6-research-v1",
+      "parent_id": "a4d6826fbbc6",
+      "ok": true,
+      "program_hash": "5fd72adb18f5",
+      "error": null
+    },
+    {
+      "candidate_id": "fixture-af2bf88426c4-research-v1",
+      "parent_id": "af2bf88426c4",
+      "ok": true,
+      "program_hash": "965a445754e4",
+      "error": null
+    },
+    {
+      "candidate_id": "fixture-bd234070bd7b-research-v1",
+      "parent_id": "bd234070bd7b",
+      "ok": true,
+      "program_hash": "74ce58558b86",
+      "error": null
+    },
+    {
+      "candidate_id": "fixture-be1174b24a44-research-v1",
+      "parent_id": "be1174b24a44",
+      "ok": true,
+      "program_hash": "4d2239f58e84",
+      "error": null
+    },
+    {
+      "candidate_id": "fixture-cb0b6e0f12e7-research-v1",
+      "parent_id": "cb0b6e0f12e7",
+      "ok": true,
+      "program_hash": "7ec85e29a4c5",
+      "error": null
+    },
+    {
+      "candidate_id": "fixture-d0518c0cca14-research-v1",
+      "parent_id": "d0518c0cca14",
+      "ok": true,
+      "program_hash": "d0cde90f8311",
+      "error": null
+    },
+    {
+      "candidate_id": "fixture-e9a9a5b44d03-research-v1",
+      "parent_id": "e9a9a5b44d03",
+      "ok": true,
+      "program_hash": "f09e805f818f",
+      "error": null
+    },
+    {
+      "candidate_id": "fixture-ee0cf7f58f94-research-v1",
+      "parent_id": "ee0cf7f58f94",
+      "ok": true,
+      "program_hash": "c6ef6cc3770d",
+      "error": null
+    },
+    {
+      "candidate_id": "fixture-fd16df3d0a3f-research-v1",
+      "parent_id": "fd16df3d0a3f",
+      "ok": true,
+      "program_hash": "77a4ff0af129",
+      "error": null
+    }
+  ]
+}

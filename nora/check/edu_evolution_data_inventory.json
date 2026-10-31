@@ -1,0 +1,43 @@
+{
+  "timestamp": "2026-10-27T15:47:50Z",
+  "symbols_available": [
+    "BTC",
+    "ETH",
+    "SOL",
+    "BNB",
+    "XRP",
+    "DOGE",
+    "ADA",
+    "AVAX",
+    "LINK",
+    "TRX"
+  ],
+  "catalog_source": "okx_perp",
+  "timeframes_cached": [
+    "1m",
+    "15m",
+    "1h",
+    "4h",
+    "24h"
+  ],
+  "earliest_timestamp": "2023-10-06T00:00:00Z",
+  "latest_timestamp": "2026-10-03T00:00:00Z",
+  "latest_data_date": "2026-10-03",
+  "knowledge_cutoff_date": "2026-10-27",
+  "holdout_status": "NO_UNTOUCHED_HOLDOUT_AVAILABLE",
+  "holdout_explanation": "Toàn bộ dữ liệu khả dụng trong kho nến lịch sử kết thúc vào ngày 2026-10-03 và đã được đưa vào các lượt chạy baseline/chẩn đoán trước đó. Không có dữ liệu độc lập mới ngoài 2026-10-03. Theo quy tắc cốt lõi, không đổi tên vùng dữ liệu đã xem thành holdout mới.",
+  "timeline_windows": {
+    "3_year_standard": {
+      "start": "2023-10-06",
+      "end": "2026-10-03",
+      "total_days": 1094,
+      "applies_to": "29 Alphas"
+    },
+    "3_month_fastdip": {
+      "start": "2026-07-01",
+      "end": "2026-10-03",
+      "total_days": 94,
+      "applies_to": "1 Alpha (8a47cdbcc942)"
+    }
+  }
+}

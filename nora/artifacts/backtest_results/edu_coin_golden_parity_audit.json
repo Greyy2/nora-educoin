@@ -1,0 +1,184 @@
+{
+  "test_name": "test_edu_golden_parity",
+  "scope": "QuickRsi fixture on BTC 1h (2025-01-01 -> 2025-02-01) with initial capital 10,000 USD",
+  "trade_count": 11,
+  "metric_level_parity": {
+    "edu_metrics": {
+      "trades": 11,
+      "ret_pct": -1.4,
+      "mdd_pct": 2.25,
+      "win_rate_trades": 36.4,
+      "fees_usd": 17.95
+    },
+    "coin_metrics": {
+      "trades": 11,
+      "ret_pct": -1.4,
+      "mdd_pct": 2.25,
+      "win_rate_trades": 36.4,
+      "fees_usd": 17.95
+    },
+    "absolute_differences": {
+      "trades": 0.0,
+      "ret_pct": 0.0,
+      "mdd_pct": 0.0,
+      "win_rate_trades": 0.0,
+      "fees_usd": 0.0
+    },
+    "metrics_exact_match": true
+  },
+  "trade_level_parity": {
+    "all_11_trades_economic_fields_match": true,
+    "trade_level_mismatches_count": 0
+  },
+  "fee_context_and_notes": {
+    "reported_runtime_fee_usd": 17.95,
+    "old_oracle_fee_usd": 18.32,
+    "difference_usd": 0.37,
+    "caveat": "Phí 17.95 USD là tổng phí thực tế tính từ 11 trade rows của cả hai engine hiện tại. Con số 18.32 USD trong baseline cũ là narrative lịch sử từ commit trước, chưa có artifact baseline cũ độc lập để đối soát. Phạm vi chứng minh đối soát này giới hạn chặt chẽ trên fixture cụ thể QuickRsi / BTC 1h (tháng 1/2025); không suy rộng sang toàn bộ 57 alpha EDU, không áp dụng cho thị trường live hay sàn OKX thực tế."
+  },
+  "trades_details": [
+    {
+      "trade_index": 1,
+      "enter_time": 1736265600000,
+      "close_time": 1736319600000,
+      "enter_price": 97961.5,
+      "close_price": 95205.2,
+      "qty": 0.0214,
+      "notional_usd": 2096.38,
+      "pnl_usd": -61.0517,
+      "fees_usd": 2.0669,
+      "economic_fields_match": true,
+      "field_differences": {}
+    },
+    {
+      "trade_index": 2,
+      "enter_time": 1736323200000,
+      "close_time": 1736359200000,
+      "enter_price": 95685.7,
+      "close_price": 92444.5,
+      "qty": 0.0186,
+      "notional_usd": 1779.75,
+      "pnl_usd": -62.0359,
+      "fees_usd": 1.7496,
+      "economic_fields_match": true,
+      "field_differences": {}
+    },
+    {
+      "trade_index": 3,
+      "enter_time": 1736362800000,
+      "close_time": 1736456400000,
+      "enter_price": 94268.3,
+      "close_price": 91146.2,
+      "qty": 0.0121,
+      "notional_usd": 1140.65,
+      "pnl_usd": -38.8992,
+      "fees_usd": 1.1218,
+      "economic_fields_match": true,
+      "field_differences": {}
+    },
+    {
+      "trade_index": 4,
+      "enter_time": 1736758800000,
+      "close_time": 1736769600000,
+      "enter_price": 93088.1,
+      "close_price": 90792.0,
+      "qty": 0.0169,
+      "notional_usd": 1573.19,
+      "pnl_usd": -40.3579,
+      "fees_usd": 1.5538,
+      "economic_fields_match": true,
+      "field_differences": {}
+    },
+    {
+      "trade_index": 5,
+      "enter_time": 1736773200000,
+      "close_time": 1736830800000,
+      "enter_price": 90770.0,
+      "close_price": 95103.5,
+      "qty": 0.0127,
+      "notional_usd": 1152.78,
+      "pnl_usd": 53.8552,
+      "fees_usd": 1.1803,
+      "economic_fields_match": true,
+      "field_differences": {}
+    },
+    {
+      "trade_index": 6,
+      "enter_time": 1737331200000,
+      "close_time": 1737356400000,
+      "enter_price": 101362.2,
+      "close_price": 107554.0,
+      "qty": 0.0083,
+      "notional_usd": 841.31,
+      "pnl_usd": 50.5249,
+      "fees_usd": 0.867,
+      "economic_fields_match": true,
+      "field_differences": {}
+    },
+    {
+      "trade_index": 7,
+      "enter_time": 1737601200000,
+      "close_time": 1737655200000,
+      "enter_price": 102682.6,
+      "close_price": 105913.0,
+      "qty": 0.0137,
+      "notional_usd": 1406.75,
+      "pnl_usd": 42.8276,
+      "fees_usd": 1.4289,
+      "economic_fields_match": true,
+      "field_differences": {}
+    },
+    {
+      "trade_index": 8,
+      "enter_time": 1737936000000,
+      "close_time": 1737943200000,
+      "enter_price": 102642.4,
+      "close_price": 101086.3,
+      "qty": 0.0299,
+      "notional_usd": 3069.01,
+      "pnl_usd": -49.5731,
+      "fees_usd": 3.0457,
+      "economic_fields_match": true,
+      "field_differences": {}
+    },
+    {
+      "trade_index": 9,
+      "enter_time": 1737946800000,
+      "close_time": 1737961200000,
+      "enter_price": 101020.3,
+      "close_price": 98637.2,
+      "qty": 0.0205,
+      "notional_usd": 2070.92,
+      "pnl_usd": -50.9,
+      "fees_usd": 2.0465,
+      "economic_fields_match": true,
+      "field_differences": {}
+    },
+    {
+      "trade_index": 10,
+      "enter_time": 1737964800000,
+      "close_time": 1738180800000,
+      "enter_price": 99055.8,
+      "close_price": 103584.4,
+      "qty": 0.0127,
+      "notional_usd": 1258.01,
+      "pnl_usd": 56.2265,
+      "fees_usd": 1.2868,
+      "economic_fields_match": true,
+      "field_differences": {}
+    },
+    {
+      "trade_index": 11,
+      "enter_time": 1738350000000,
+      "close_time": 1738454400000,
+      "enter_price": 102664.8,
+      "close_price": 100193.9,
+      "qty": 0.0158,
+      "notional_usd": 1622.1,
+      "pnl_usd": -40.6428,
+      "fees_usd": 1.6026,
+      "economic_fields_match": true,
+      "field_differences": {}
+    }
+  ]
+}

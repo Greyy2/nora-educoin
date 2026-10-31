@@ -1,0 +1,546 @@
+{
+  "timestamp": "2026-10-27T16:47:41Z",
+  "total_dossiers": 23,
+  "dossiers": {
+    "0d51ba8d2012": {
+      "name": "OBV Volume Accumulation + RSI Momentum",
+      "owner_id": "43f5220ece1e",
+      "assigned_categories": [
+        "sizing/risk",
+        "exit"
+      ],
+      "performance_metrics": {
+        "total_trades": 256,
+        "wins": 45,
+        "losses": 211,
+        "win_rate_pct": 17.6,
+        "profit_factor": 0.921,
+        "net_ret_pct": 7.28,
+        "max_drawdown_pct": 28.18,
+        "gross_pnl_usd": 852.31,
+        "total_fees_usd": 124.31
+      },
+      "exit_reasons": {
+        "Stop-loss (từ giá TB)": 201,
+        "Tín hiệu thoát (AST stop)": 55
+      }
+    },
+    "14e3b934b1e5": {
+      "name": "ROC Momentum Exhaustion with Take-Profit",
+      "owner_id": "23dc66cd61c6",
+      "assigned_categories": [
+        "sizing/risk"
+      ],
+      "performance_metrics": {
+        "total_trades": 736,
+        "wins": 328,
+        "losses": 408,
+        "win_rate_pct": 44.6,
+        "profit_factor": 0.664,
+        "net_ret_pct": -29.81,
+        "max_drawdown_pct": 30.17,
+        "gross_pnl_usd": -2742.85,
+        "total_fees_usd": 238.15
+      },
+      "exit_reasons": {
+        "Stop-loss (từ giá TB)": 376,
+        "Take-profit (từ giá TB)": 315,
+        "Tín hiệu thoát (AST stop)": 45
+      }
+    },
+    "15567e02a806": {
+      "name": "Triple EMA Trend Alignment (Optimized)",
+      "owner_id": "23dc66cd61c6",
+      "assigned_categories": [
+        "sizing/risk",
+        "exit"
+      ],
+      "performance_metrics": {
+        "total_trades": 24,
+        "wins": 7,
+        "losses": 17,
+        "win_rate_pct": 29.2,
+        "profit_factor": 1.003,
+        "net_ret_pct": 0.2,
+        "max_drawdown_pct": 31.84,
+        "gross_pnl_usd": 185.67,
+        "total_fees_usd": 165.67
+      },
+      "exit_reasons": {
+        "Stop-loss (từ giá TB)": 16,
+        "Tín hiệu thoát (AST stop)": 6,
+        "Kill switch danh mục": 2
+      }
+    },
+    "18e87aa868ad": {
+      "name": "Fast Dynamic Channel Breakout (18D + Macro Trend)",
+      "owner_id": "aed197a5e968",
+      "assigned_categories": [
+        "signal/entry"
+      ],
+      "performance_metrics": {
+        "total_trades": 130,
+        "wins": 54,
+        "losses": 76,
+        "win_rate_pct": 41.5,
+        "profit_factor": 1.625,
+        "net_ret_pct": 70.16,
+        "max_drawdown_pct": 24.88,
+        "gross_pnl_usd": 7236.67,
+        "total_fees_usd": 220.67
+      },
+      "exit_reasons": {
+        "Tín hiệu thoát (AST stop)": 116,
+        "Stop-loss (từ giá TB)": 14
+      }
+    },
+    "270e6e28416f": {
+      "name": "EMA Trend Rider (Rising Slope - Optimized)",
+      "owner_id": "a214b36a7eab",
+      "assigned_categories": [
+        "low-sample",
+        "sizing/risk",
+        "exit",
+        "signal/entry"
+      ],
+      "performance_metrics": {
+        "total_trades": 13,
+        "wins": 1,
+        "losses": 12,
+        "win_rate_pct": 7.7,
+        "profit_factor": 0.021,
+        "net_ret_pct": -31.35,
+        "max_drawdown_pct": 31.74,
+        "gross_pnl_usd": -3086.98,
+        "total_fees_usd": 48.02
+      },
+      "exit_reasons": {
+        "Stop-loss (từ giá TB)": 12,
+        "Kill switch danh mục": 1
+      }
+    },
+    "3cfcc2d296a2": {
+      "name": "Donchian Lower Channel Exit",
+      "owner_id": "43f5220ece1e",
+      "assigned_categories": [
+        "sizing/risk",
+        "exit",
+        "signal/entry"
+      ],
+      "performance_metrics": {
+        "total_trades": 351,
+        "wins": 54,
+        "losses": 297,
+        "win_rate_pct": 15.4,
+        "profit_factor": 0.606,
+        "net_ret_pct": -26.41,
+        "max_drawdown_pct": 30.21,
+        "gross_pnl_usd": -2505.32,
+        "total_fees_usd": 135.68
+      },
+      "exit_reasons": {
+        "Stop-loss (từ giá TB)": 293,
+        "Tín hiệu thoát (AST stop)": 57,
+        "Kill switch danh mục": 1
+      }
+    },
+    "4f28285aa44c": {
+      "name": "Dual EMA + ADX Trend Strength Filter",
+      "owner_id": "23dc66cd61c6",
+      "assigned_categories": [
+        "low-sample",
+        "exit",
+        "signal/entry"
+      ],
+      "performance_metrics": {
+        "total_trades": 10,
+        "wins": 0,
+        "losses": 10,
+        "win_rate_pct": 0.0,
+        "profit_factor": 0.0,
+        "net_ret_pct": -4.4,
+        "max_drawdown_pct": 4.97,
+        "gross_pnl_usd": -432.72,
+        "total_fees_usd": 7.28
+      },
+      "exit_reasons": {
+        "Stop-loss (từ giá TB)": 10
+      }
+    },
+    "541c55834f56": {
+      "name": "Daily Range Expansion (High - Low) / Close",
+      "owner_id": "dd3d4fbabe8a",
+      "assigned_categories": [
+        "sizing/risk",
+        "exit"
+      ],
+      "performance_metrics": {
+        "total_trades": 381,
+        "wins": 63,
+        "losses": 318,
+        "win_rate_pct": 16.5,
+        "profit_factor": 1.085,
+        "net_ret_pct": 8.9,
+        "max_drawdown_pct": 30.33,
+        "gross_pnl_usd": 1111.96,
+        "total_fees_usd": 221.96
+      },
+      "exit_reasons": {
+        "Stop-loss (từ giá TB)": 298,
+        "Tín hiệu thoát (AST stop)": 79,
+        "Kill switch danh mục": 4
+      }
+    },
+    "5e52d3fdf71f": {
+      "name": "Bollinger Band Overextension Exit",
+      "owner_id": "76c5814277ab",
+      "assigned_categories": [
+        "sizing/risk",
+        "signal/entry"
+      ],
+      "performance_metrics": {
+        "total_trades": 504,
+        "wins": 113,
+        "losses": 391,
+        "win_rate_pct": 22.4,
+        "profit_factor": 0.644,
+        "net_ret_pct": -24.74,
+        "max_drawdown_pct": 30.02,
+        "gross_pnl_usd": -2281.56,
+        "total_fees_usd": 192.44
+      },
+      "exit_reasons": {
+        "Stop-loss (từ giá TB)": 300,
+        "Tín hiệu thoát (AST stop)": 200,
+        "Kill switch danh mục": 4
+      }
+    },
+    "6afa7f774655": {
+      "name": "RSI Rebound with Fast SMA Filter",
+      "owner_id": "a214b36a7eab",
+      "assigned_categories": [
+        "exit",
+        "signal/entry"
+      ],
+      "performance_metrics": {
+        "total_trades": 57,
+        "wins": 4,
+        "losses": 53,
+        "win_rate_pct": 7.0,
+        "profit_factor": 0.129,
+        "net_ret_pct": -12.03,
+        "max_drawdown_pct": 12.99,
+        "gross_pnl_usd": -1178.72,
+        "total_fees_usd": 24.28
+      },
+      "exit_reasons": {
+        "Stop-loss (từ giá TB)": 53,
+        "Tín hiệu thoát (AST stop)": 4
+      }
+    },
+    "715e56a6dd33": {
+      "name": "Linear Regression Channel Deviation",
+      "owner_id": "43f5220ece1e",
+      "assigned_categories": [
+        "exit",
+        "signal/entry"
+      ],
+      "performance_metrics": {
+        "total_trades": 99,
+        "wins": 26,
+        "losses": 73,
+        "win_rate_pct": 26.3,
+        "profit_factor": 0.279,
+        "net_ret_pct": -13.52,
+        "max_drawdown_pct": 14.56,
+        "gross_pnl_usd": -1309.78,
+        "total_fees_usd": 42.22
+      },
+      "exit_reasons": {
+        "Tín hiệu thoát (AST stop)": 27,
+        "Stop-loss (từ giá TB)": 72
+      }
+    },
+    "717c1890c59e": {
+      "name": "Weighted Moving Average (WMA) Crossover (Optimized)",
+      "owner_id": "dd3d4fbabe8a",
+      "assigned_categories": [
+        "sizing/risk"
+      ],
+      "performance_metrics": {
+        "total_trades": 59,
+        "wins": 20,
+        "losses": 39,
+        "win_rate_pct": 33.9,
+        "profit_factor": 2.002,
+        "net_ret_pct": 126.95,
+        "max_drawdown_pct": 31.89,
+        "gross_pnl_usd": 13068.11,
+        "total_fees_usd": 373.11
+      },
+      "exit_reasons": {
+        "Stop-loss (từ giá TB)": 35,
+        "Tín hiệu thoát (AST stop)": 23,
+        "Kill switch danh mục": 1
+      }
+    },
+    "7f3486d63ca8": {
+      "name": "Dual Oscillator Climax Exit",
+      "owner_id": "dd3d4fbabe8a",
+      "assigned_categories": [
+        "signal/entry"
+      ],
+      "performance_metrics": {
+        "total_trades": 424,
+        "wins": 75,
+        "losses": 349,
+        "win_rate_pct": 17.7,
+        "profit_factor": 0.804,
+        "net_ret_pct": -11.22,
+        "max_drawdown_pct": 22.19,
+        "gross_pnl_usd": -944.37,
+        "total_fees_usd": 177.63
+      },
+      "exit_reasons": {
+        "Tín hiệu thoát (AST stop)": 182,
+        "Stop-loss (từ giá TB)": 242
+      }
+    },
+    "7f67e9aed0aa": {
+      "name": "Stochastic & RSI Confluence System",
+      "owner_id": "dd3d4fbabe8a",
+      "assigned_categories": [
+        "exit",
+        "signal/entry"
+      ],
+      "performance_metrics": {
+        "total_trades": 158,
+        "wins": 22,
+        "losses": 136,
+        "win_rate_pct": 13.9,
+        "profit_factor": 0.557,
+        "net_ret_pct": -15.9,
+        "max_drawdown_pct": 20.49,
+        "gross_pnl_usd": -1521.88,
+        "total_fees_usd": 68.12
+      },
+      "exit_reasons": {
+        "Stop-loss (từ giá TB)": 136,
+        "Tín hiệu thoát (AST stop)": 22
+      }
+    },
+    "89379cc0ab52": {
+      "name": "Stochastic Oscillator (%K, %D) Bull Cross",
+      "owner_id": "76c5814277ab",
+      "assigned_categories": [
+        "sizing/risk",
+        "exit",
+        "signal/entry"
+      ],
+      "performance_metrics": {
+        "total_trades": 299,
+        "wins": 75,
+        "losses": 224,
+        "win_rate_pct": 25.1,
+        "profit_factor": 0.665,
+        "net_ret_pct": -19.14,
+        "max_drawdown_pct": 26.32,
+        "gross_pnl_usd": -1790.24,
+        "total_fees_usd": 123.76
+      },
+      "exit_reasons": {
+        "Stop-loss (từ giá TB)": 223,
+        "Tín hiệu thoát (AST stop)": 76
+      }
+    },
+    "b4b65cd3493f": {
+      "name": "Commodity Channel Index (CCI) Snapback",
+      "owner_id": "23dc66cd61c6",
+      "assigned_categories": [
+        "sizing/risk",
+        "exit",
+        "signal/entry"
+      ],
+      "performance_metrics": {
+        "total_trades": 479,
+        "wins": 154,
+        "losses": 325,
+        "win_rate_pct": 32.2,
+        "profit_factor": 0.691,
+        "net_ret_pct": -21.49,
+        "max_drawdown_pct": 27.69,
+        "gross_pnl_usd": -1977.05,
+        "total_fees_usd": 171.95
+      },
+      "exit_reasons": {
+        "Stop-loss (từ giá TB)": 324,
+        "Tín hiệu thoát (AST stop)": 155
+      }
+    },
+    "b96bafe57445": {
+      "name": "Normalized ATR (NATR) Volatility Breakout",
+      "owner_id": "76c5814277ab",
+      "assigned_categories": [
+        "exit",
+        "signal/entry"
+      ],
+      "performance_metrics": {
+        "total_trades": 45,
+        "wins": 8,
+        "losses": 37,
+        "win_rate_pct": 17.8,
+        "profit_factor": 0.291,
+        "net_ret_pct": -7.44,
+        "max_drawdown_pct": 11.02,
+        "gross_pnl_usd": -718.47,
+        "total_fees_usd": 25.53
+      },
+      "exit_reasons": {
+        "Stop-loss (từ giá TB)": 30,
+        "Tín hiệu thoát (AST stop)": 15
+      }
+    },
+    "bf519617d973": {
+      "name": "Double Exponential Moving Average (DEMA - Optimized)",
+      "owner_id": "76c5814277ab",
+      "assigned_categories": [
+        "low-sample",
+        "sizing/risk",
+        "exit",
+        "signal/entry"
+      ],
+      "performance_metrics": {
+        "total_trades": 9,
+        "wins": 0,
+        "losses": 9,
+        "win_rate_pct": 0.0,
+        "profit_factor": 0.0,
+        "net_ret_pct": -31.86,
+        "max_drawdown_pct": 32.28,
+        "gross_pnl_usd": -3142.27,
+        "total_fees_usd": 43.73
+      },
+      "exit_reasons": {
+        "Stop-loss (từ giá TB)": 6,
+        "Tín hiệu thoát (AST stop)": 3
+      }
+    },
+    "c33cc317bbeb": {
+      "name": "Multi-Day Cumulative Return Dip Buying",
+      "owner_id": "dd3d4fbabe8a",
+      "assigned_categories": [
+        "sizing/risk",
+        "exit",
+        "signal/entry"
+      ],
+      "performance_metrics": {
+        "total_trades": 205,
+        "wins": 34,
+        "losses": 171,
+        "win_rate_pct": 16.6,
+        "profit_factor": 0.184,
+        "net_ret_pct": -31.12,
+        "max_drawdown_pct": 31.48,
+        "gross_pnl_usd": -3036.49,
+        "total_fees_usd": 75.51
+      },
+      "exit_reasons": {
+        "Stop-loss (từ giá TB)": 169,
+        "Tín hiệu thoát (AST stop)": 34,
+        "Kill switch danh mục": 2
+      }
+    },
+    "cb750cb1eb10": {
+      "name": "EMA Golden Cross + Volume Spike Confluence",
+      "owner_id": "76c5814277ab",
+      "assigned_categories": [
+        "exit",
+        "signal/entry"
+      ],
+      "performance_metrics": {
+        "total_trades": 28,
+        "wins": 3,
+        "losses": 25,
+        "win_rate_pct": 10.7,
+        "profit_factor": 0.258,
+        "net_ret_pct": -4.57,
+        "max_drawdown_pct": 7.86,
+        "gross_pnl_usd": -443.18,
+        "total_fees_usd": 13.82
+      },
+      "exit_reasons": {
+        "Stop-loss (từ giá TB)": 24,
+        "Tín hiệu thoát (AST stop)": 4
+      }
+    },
+    "f261549d9efa": {
+      "name": "ROC Momentum Surge",
+      "owner_id": "23dc66cd61c6",
+      "assigned_categories": [
+        "sizing/risk",
+        "exit"
+      ],
+      "performance_metrics": {
+        "total_trades": 413,
+        "wins": 106,
+        "losses": 307,
+        "win_rate_pct": 25.7,
+        "profit_factor": 1.014,
+        "net_ret_pct": 1.28,
+        "max_drawdown_pct": 29.95,
+        "gross_pnl_usd": 351.91,
+        "total_fees_usd": 223.91
+      },
+      "exit_reasons": {
+        "Stop-loss (từ giá TB)": 275,
+        "Tín hiệu thoát (AST stop)": 138
+      }
+    },
+    "f4e211e9510d": {
+      "name": "Rolling 30-Day Multi-Week High Breakout",
+      "owner_id": "a214b36a7eab",
+      "assigned_categories": [
+        "exit"
+      ],
+      "performance_metrics": {
+        "total_trades": 166,
+        "wins": 37,
+        "losses": 129,
+        "win_rate_pct": 22.3,
+        "profit_factor": 1.296,
+        "net_ret_pct": 15.97,
+        "max_drawdown_pct": 15.1,
+        "gross_pnl_usd": 1700.56,
+        "total_fees_usd": 103.56
+      },
+      "exit_reasons": {
+        "Stop-loss (từ giá TB)": 125,
+        "Tín hiệu thoát (AST stop)": 41
+      }
+    },
+    "fa9587a97fa9": {
+      "name": "Trend Alignment Momentum (Optimized)",
+      "owner_id": "43f5220ece1e",
+      "assigned_categories": [
+        "low-sample",
+        "sizing/risk"
+      ],
+      "performance_metrics": {
+        "total_trades": 16,
+        "wins": 7,
+        "losses": 9,
+        "win_rate_pct": 43.8,
+        "profit_factor": 4.691,
+        "net_ret_pct": 63.45,
+        "max_drawdown_pct": 33.5,
+        "gross_pnl_usd": 6408.71,
+        "total_fees_usd": 63.71
+      },
+      "exit_reasons": {
+        "Stop-loss (từ giá TB)": 9,
+        "Tín hiệu thoát (AST stop)": 2,
+        "Kill switch danh mục": 5
+      }
+    }
+  }
+}

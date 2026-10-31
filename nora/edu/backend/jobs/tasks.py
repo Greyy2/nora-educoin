@@ -33,7 +33,8 @@ from backend.jobs.runner.backtest import (WARMUP, _pool_shared, execute, load_it
 from backend.jobs.runner.wfa import (candidates_from_ids, candidates_from_list, candidates_from_report,
                                      plan_is_jobs, print_summary, run_portfolio_wfa)
 
-CUSTOM_BACKTEST_DEFAULTS = {"code": "", "symbols": None, "start": "", "end": "", "train_ratio": DEFAULT_TRAIN_RATIO, "initial_capital": None, "position": None, "run_frame": "", "owner_uid": None}
+CUSTOM_BACKTEST_DEFAULTS = {"code": "", "symbols": None, "start": "", "end": "", "test_start": None, "train_ratio": DEFAULT_TRAIN_RATIO, "initial_capital": None, "position": None, "run_frame": "", "owner_uid": None,
+                            "include_benchmark": True, "include_diagnostics": True, "parallel_runs": True}
 BOOK_BACKTEST_DEFAULTS = {"book": "", "strategies": None, "symbols": "", "start": "", "end": "", "risk_per_trade": None, "stop_fill": "level", "regime": False, "timeframe": "1m", "out": "",
                           "data": "candle", "latency_ms": None, "gas_usd": None, "capital": None}
 BOOK_WFA_DEFAULTS = {"report": "", "include_rejected": False, "candidates": "", "strategies": None, "symbols": "", "n": 3, "seed": 7,
@@ -302,6 +303,25 @@ def run_parallel(steps) -> Dict[str, Any]:
     return out
 
 
+def run_sequential(steps) -> Dict[str, Any]:
+    """Chạy các bước lần lượt và dừng sau bước lỗi để giữ trần RAM khi không cho phép engine chạy đồng thời."""
+    import contextlib
+    import io
+    import threading
+    out: Dict[str, Any] = {}
+    with contextlib.redirect_stdout(io.StringIO()):
+        for name, fn in steps:
+            ev = threading.Event()
+            try:
+                out[name] = fn(ev)
+            except BaseException as exc:  # noqa: BLE001 — caller quyết định lỗi bước nào là fatal
+                out[name] = exc
+                ev.set()
+                break
+            ev.set()
+    return out
+
+
 def run_custom(params=None):
     """Chạy backtest custom và trả kết quả dict (không tự ghi result.json)."""
     warnings.filterwarnings("ignore")
@@ -378,19 +398,22 @@ def run_custom(params=None):
 
         def run_one(s: int, e: int, ev):
             return execute(plan, s, e, capital, loaded=ev)
-    split = stage_split(start, end, float(a.train_ratio))
+    split = date_ms(a.test_start) if a.test_start else stage_split(start, end, float(a.train_ratio))
+    if not start < split < end:
+        raise ValueError("test_start phải sau start và không muộn hơn end")
     # 4 lần chạy engine độc lập (chính, test, benchmark toàn kỳ, benchmark test): nạp dữ liệu TUẦN TỰ theo thứ tự này (lần rộng nhất dựng cửa sổ, các lần sau cắt từ bộ nhớ đệm),
     # kernel numba (nogil) chạy SONG SONG bằng thread. Kết quả từng lần không phụ thuộc lần khác (cùng chương trình/cấu hình/dữ liệu, warmup như lần chạy chính).
     steps = [("main", lambda ev: run_one(start, end, ev))]
     if split < end:     # giai đoạn test = lần chạy riêng bắt đầu từ vốn đầu tại đầu test
         steps.append(("test", lambda ev: run_one(split, end, ev)))
     # benchmark luôn long qua cùng engine (cache theo cấu hình: chỉ chạy một lần mỗi job/tiến trình)
-    steps.append(("bench", lambda ev: run_benchmark(program, a, plan, names, start, end, capital, data, loaded=ev)))
-    if split < end:     # benchmark của giai đoạn Test: cùng cửa sổ [mốc chia, end], vốn đầu
-        steps.append(("test_bench", lambda ev: run_benchmark(program, a, plan, names, split, end, capital, data, loaded=ev)))
+    if a.include_benchmark:
+        steps.append(("bench", lambda ev: run_benchmark(program, a, plan, names, start, end, capital, data, loaded=ev)))
+        if split < end:     # benchmark của giai đoạn Test: cùng cửa sổ [mốc chia, end], vốn đầu
+            steps.append(("test_bench", lambda ev: run_benchmark(program, a, plan, names, split, end, capital, data, loaded=ev)))
 
     _mark(4, 5, "Khớp lệnh", f"mô phỏng vị thế · {plan.base_frame}")
-    got = run_parallel(steps)
+    got = (run_parallel if a.parallel_runs else run_sequential)(steps)
     return _finish(program, plan, a, start, end, capital, data, warns, split, got, t0, progress, _mark)
 
 
@@ -414,10 +437,11 @@ def _finish(program, plan, a, start: int, end: int, capital: float, data: Dict[s
     if isinstance(got.get("test"), BaseException):
         raise got["test"]
     bench = test_bench = None
-    if isinstance(got["bench"], BaseException):     # thiếu benchmark thì chẩn đoán market_comparison ghi available=False, không bịa số
-        warns = warns + [f"không chạy được benchmark luôn long: {got['bench']}"]
-    else:
-        bench = got["bench"]
+    if "bench" in got:
+        if isinstance(got["bench"], BaseException):     # thiếu benchmark thì chẩn đoán market_comparison ghi available=False, không bịa số
+            warns = warns + [f"không chạy được benchmark luôn long: {got['bench']}"]
+        else:
+            bench = got["bench"]
     if "test_bench" in got:
         if isinstance(got["test_bench"], BaseException):    # thiếu thì series.stages.test.benchmark = None, không co dãn benchmark toàn kỳ
             warns = warns + [f"không chạy được benchmark giai đoạn test: {got['test_bench']}"]
@@ -425,8 +449,9 @@ def _finish(program, plan, a, start: int, end: int, capital: float, data: Dict[s
             test_bench = got["test_bench"]
 
     mark(5, 5, "Tính toán chỉ số & chẩn đoán", "Sharpe, Drawdown, PnL & báo cáo")
-    out = build_result(program, plan, res, eng, a, start, end, capital, data, warns, test_res, split, bench=bench, inputs=diagnostic_inputs(plan, program, end),
-                       test_bench=test_bench)
+    inputs = diagnostic_inputs(plan, program, end) if a.include_diagnostics else {"errors": []}
+    out = build_result(program, plan, res, eng, a, start, end, capital, data, warns, test_res, split, bench=bench, inputs=inputs,
+                       test_bench=test_bench, split_at=split)
     from backend.analys.alpha.strategies import evaluate_checklist, generate_alpha_id
     out["alpha_id"] = generate_alpha_id(program.code_hash, out["config"])
     out["checklist"] = evaluate_checklist(out)

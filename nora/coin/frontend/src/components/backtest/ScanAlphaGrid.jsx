@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from 'react'
+import React, { useEffect, useState, useMemo } from 'react'
 import { fmtNum } from '../../lib/format'
+import { getRunDefaults } from '../../api'
 import { Spinner } from '../ui'
 
 /**
@@ -170,7 +171,9 @@ export default function ScanAlphaGrid({ onLaunchScan, isScanning = false }) {
   })
 
   // Cấu hình thị trường và vốn
-  const [symbols, setSymbols] = useState(['BTC@perp'])
+  const [symbols, setSymbols] = useState([])
+  const [marketOptions, setMarketOptions] = useState([])
+  const [marketLoadError, setMarketLoadError] = useState('')
   const [timeframe, setTimeframe] = useState('15m')
   const [capital, setCapital] = useState(10000)
 
@@ -178,6 +181,24 @@ export default function ScanAlphaGrid({ onLaunchScan, isScanning = false }) {
   const [isGenerated, setIsGenerated] = useState(false)
   const [generatedTimestamp, setGeneratedTimestamp] = useState(null)
   const [scanDoneMsg, setScanDoneMsg] = useState(null)
+
+  useEffect(() => {
+    let active = true
+    getRunDefaults()
+      .then((defaults) => {
+        if (!active) return
+        const available = defaults.available_symbols || defaults.symbols || []
+        setMarketOptions(available)
+        setSymbols((current) => current.length ? current : (
+          defaults.symbols?.length ? [defaults.symbols[0]] : available.length ? [available[0]] : []
+        ))
+        setMarketLoadError('')
+      })
+      .catch((error) => {
+        if (active) setMarketLoadError(error.message || String(error))
+      })
+    return () => { active = false }
+  }, [])
 
   // Khởi tạo state grid cho từng chiến lược
   const [gridValues, setGridValues] = useState(() => {
@@ -260,6 +281,10 @@ export default function ScanAlphaGrid({ onLaunchScan, isScanning = false }) {
 
   // Bước 1: Tạo tổ hợp Alpha (Gen Alpha)
   const handleGenerateAlpha = () => {
+    if (!symbols.length) {
+      setScanDoneMsg(marketLoadError || 'Chưa có market khả dụng trong catalog dữ liệu.')
+      return
+    }
     setIsGenerated(true)
     setGeneratedTimestamp(new Date().toLocaleTimeString())
     setScanDoneMsg(`Đã tạo thành công ${fmtNum(totalVariants, 0)} tổ hợp Alpha cho chiến dịch "${campaignName}"!`)
@@ -268,6 +293,10 @@ export default function ScanAlphaGrid({ onLaunchScan, isScanning = false }) {
   // Bước 2: Khởi chạy Run Backtest (Chỉ gọi được sau khi đã Gen)
   const handleRunBacktest = () => {
     setScanDoneMsg(null)
+    if (!symbols.length) {
+      setScanDoneMsg(marketLoadError || 'Chưa có market khả dụng trong catalog dữ liệu.')
+      return
+    }
     if (onLaunchScan) {
       onLaunchScan({
         campaignName: campaignName || `${curStrat.name}_SCAN`,
@@ -414,19 +443,15 @@ export default function ScanAlphaGrid({ onLaunchScan, isScanning = false }) {
               <span style={{ fontSize: 12, color: 'var(--n-ink-2)', fontWeight: 600 }}>Thị trường:</span>
               <select
                 className="n-sel sm"
-                value={symbols[0]}
-                onChange={(e) => setSymbols([e.target.value])}
+                value={symbols[0] || ''}
+                onChange={(e) => setSymbols(e.target.value ? [e.target.value] : [])}
+                disabled={!marketOptions.length}
                 style={{ width: 115, fontSize: 12, height: 30, background: 'var(--n-surface)', textAlign: 'center' }}
               >
-                <option value="BTC@perp">BTC@perp</option>
-                <option value="ETH@perp">ETH@perp</option>
-                <option value="SOL@perp">SOL@perp</option>
-                <option value="BNB@perp">BNB@perp</option>
-                <option value="XRP@perp">XRP@perp</option>
-                <option value="DOGE@perp">DOGE@perp</option>
-                <option value="ADA@perp">ADA@perp</option>
-                <option value="AVAX@perp">AVAX@perp</option>
+                {!marketOptions.length && <option value="">{marketLoadError ? 'Không tải market' : 'Đang tải market…'}</option>}
+                {marketOptions.map((symbol) => <option key={symbol} value={symbol}>{symbol}</option>)}
               </select>
+              {marketLoadError && <span className="n-field-err">{marketLoadError}</span>}
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>

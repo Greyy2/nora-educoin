@@ -1,0 +1,1521 @@
+{
+  "timestamp": "2026-10-27T15:58:01Z",
+  "protocol_version": "EDU_EVO_PROTOCOL_v1.0",
+  "protocol_sha256": "f9c9fd407e24c141f8349e7eedea0d6900ed66469bd5d6ef7b1ac4819252dfbb",
+  "total_evaluated": 23,
+  "candidates_evaluated": {
+    "0d51ba8d2012": {
+      "name": "OBV Volume Accumulation + RSI Momentum",
+      "parent_aid": "0d51ba8d2012",
+      "overall_verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+      "variant_evaluations": [
+        {
+          "candidate_id": "0d51ba8d2012_c1_risk_sl",
+          "hypothesis_type": "sizing_and_risk_control",
+          "total_trades": 270,
+          "avg_test_return_pct": -5.46,
+          "max_drawdown_pct": 30.7,
+          "positive_folds_ratio": 0.67,
+          "stressed_net_pnl_usd": -1731.35,
+          "gate_checks": {
+            "trades_gte_20": true,
+            "return_positive": false,
+            "mdd_lte_30": false,
+            "positive_folds_gte_66pct": true,
+            "passed_fee_stress_1_5x": false
+          },
+          "verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+          "folds_detail": [
+            {
+              "fold_index": 1,
+              "window": "2024-10-01 -> 2025-05-31",
+              "train_ret_pct": 9.39,
+              "test_ret_pct": 6.04,
+              "test_mdd_pct": 30.7,
+              "test_trades": 114,
+              "test_fees_usd": 92.57
+            },
+            {
+              "fold_index": 2,
+              "window": "2025-06-01 -> 2026-01-31",
+              "train_ret_pct": 31.64,
+              "test_ret_pct": -23.45,
+              "test_mdd_pct": 28.05,
+              "test_trades": 92,
+              "test_fees_usd": 51.25
+            },
+            {
+              "fold_index": 3,
+              "window": "2026-02-01 -> 2026-10-03",
+              "train_ret_pct": 6.84,
+              "test_ret_pct": 1.02,
+              "test_mdd_pct": 20.21,
+              "test_trades": 64,
+              "test_fees_usd": 40.88
+            }
+          ]
+        },
+        {
+          "candidate_id": "0d51ba8d2012_c2_trend_filter",
+          "hypothesis_type": "trend_filter",
+          "total_trades": 160,
+          "avg_test_return_pct": -1.62,
+          "max_drawdown_pct": 27.45,
+          "positive_folds_ratio": 0.67,
+          "stressed_net_pnl_usd": -557.18,
+          "gate_checks": {
+            "trades_gte_20": true,
+            "return_positive": false,
+            "mdd_lte_30": true,
+            "positive_folds_gte_66pct": true,
+            "passed_fee_stress_1_5x": false
+          },
+          "verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+          "folds_detail": [
+            {
+              "fold_index": 1,
+              "window": "2024-10-01 -> 2025-05-31",
+              "train_ret_pct": 3.32,
+              "test_ret_pct": 4.03,
+              "test_mdd_pct": 27.45,
+              "test_trades": 65,
+              "test_fees_usd": 66.02
+            },
+            {
+              "fold_index": 2,
+              "window": "2025-06-01 -> 2026-01-31",
+              "train_ret_pct": 21.84,
+              "test_ret_pct": -16.68,
+              "test_mdd_pct": 18.28,
+              "test_trades": 48,
+              "test_fees_usd": 38.22
+            },
+            {
+              "fold_index": 3,
+              "window": "2026-02-01 -> 2026-10-03",
+              "train_ret_pct": 2.56,
+              "test_ret_pct": 7.8,
+              "test_mdd_pct": 16.89,
+              "test_trades": 47,
+              "test_fees_usd": 40.13
+            }
+          ]
+        }
+      ]
+    },
+    "14e3b934b1e5": {
+      "name": "ROC Momentum Exhaustion with Take-Profit",
+      "parent_aid": "14e3b934b1e5",
+      "overall_verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+      "variant_evaluations": [
+        {
+          "candidate_id": "14e3b934b1e5_c1_risk_sl",
+          "hypothesis_type": "sizing_and_risk_control",
+          "total_trades": 1102,
+          "avg_test_return_pct": -21.94,
+          "max_drawdown_pct": 30.74,
+          "positive_folds_ratio": 0.0,
+          "stressed_net_pnl_usd": -6861.75,
+          "gate_checks": {
+            "trades_gte_20": true,
+            "return_positive": false,
+            "mdd_lte_30": false,
+            "positive_folds_gte_66pct": false,
+            "passed_fee_stress_1_5x": false
+          },
+          "verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+          "folds_detail": [
+            {
+              "fold_index": 1,
+              "window": "2024-10-01 -> 2025-05-31",
+              "train_ret_pct": -0.77,
+              "test_ret_pct": -27.21,
+              "test_mdd_pct": 30.39,
+              "test_trades": 563,
+              "test_fees_usd": 278.77
+            },
+            {
+              "fold_index": 2,
+              "window": "2025-06-01 -> 2026-01-31",
+              "train_ret_pct": -13.87,
+              "test_ret_pct": -27.02,
+              "test_mdd_pct": 30.74,
+              "test_trades": 291,
+              "test_fees_usd": 141.31
+            },
+            {
+              "fold_index": 3,
+              "window": "2026-02-01 -> 2026-10-03",
+              "train_ret_pct": -23.46,
+              "test_ret_pct": -11.6,
+              "test_mdd_pct": 15.89,
+              "test_trades": 248,
+              "test_fees_usd": 137.42
+            }
+          ]
+        }
+      ]
+    },
+    "15567e02a806": {
+      "name": "Triple EMA Trend Alignment (Optimized)",
+      "parent_aid": "15567e02a806",
+      "overall_verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+      "variant_evaluations": [
+        {
+          "candidate_id": "15567e02a806_c1_risk_sl",
+          "hypothesis_type": "sizing_and_risk_control",
+          "total_trades": 98,
+          "avg_test_return_pct": 8.75,
+          "max_drawdown_pct": 15.75,
+          "positive_folds_ratio": 0.33,
+          "stressed_net_pnl_usd": 2572.46,
+          "gate_checks": {
+            "trades_gte_20": true,
+            "return_positive": true,
+            "mdd_lte_30": true,
+            "positive_folds_gte_66pct": false,
+            "passed_fee_stress_1_5x": true
+          },
+          "verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+          "folds_detail": [
+            {
+              "fold_index": 1,
+              "window": "2024-10-01 -> 2025-05-31",
+              "train_ret_pct": 0.0,
+              "test_ret_pct": 35.78,
+              "test_mdd_pct": 15.75,
+              "test_trades": 52,
+              "test_fees_usd": 61.84
+            },
+            {
+              "fold_index": 2,
+              "window": "2025-06-01 -> 2026-01-31",
+              "train_ret_pct": 48.65,
+              "test_ret_pct": -6.28,
+              "test_mdd_pct": 9.91,
+              "test_trades": 32,
+              "test_fees_usd": 28.53
+            },
+            {
+              "fold_index": 3,
+              "window": "2026-02-01 -> 2026-10-03",
+              "train_ret_pct": 40.33,
+              "test_ret_pct": -3.25,
+              "test_mdd_pct": 3.5,
+              "test_trades": 14,
+              "test_fees_usd": 14.71
+            }
+          ]
+        }
+      ]
+    },
+    "18e87aa868ad": {
+      "name": "Fast Dynamic Channel Breakout (18D + Macro Trend)",
+      "parent_aid": "18e87aa868ad",
+      "overall_verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+      "variant_evaluations": [
+        {
+          "candidate_id": "18e87aa868ad_c1_risk_sl",
+          "hypothesis_type": "sizing_and_risk_control",
+          "total_trades": 218,
+          "avg_test_return_pct": 2.61,
+          "max_drawdown_pct": 22.91,
+          "positive_folds_ratio": 0.67,
+          "stressed_net_pnl_usd": 698.18,
+          "gate_checks": {
+            "trades_gte_20": true,
+            "return_positive": true,
+            "mdd_lte_30": true,
+            "positive_folds_gte_66pct": true,
+            "passed_fee_stress_1_5x": true
+          },
+          "verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+          "folds_detail": [
+            {
+              "fold_index": 1,
+              "window": "2024-10-01 -> 2025-05-31",
+              "train_ret_pct": 0.0,
+              "test_ret_pct": 15.09,
+              "test_mdd_pct": 22.91,
+              "test_trades": 121,
+              "test_fees_usd": 98.78
+            },
+            {
+              "fold_index": 2,
+              "window": "2025-06-01 -> 2026-01-31",
+              "train_ret_pct": 33.35,
+              "test_ret_pct": -13.86,
+              "test_mdd_pct": 15.54,
+              "test_trades": 74,
+              "test_fees_usd": 46.86
+            },
+            {
+              "fold_index": 3,
+              "window": "2026-02-01 -> 2026-10-03",
+              "train_ret_pct": 15.48,
+              "test_ret_pct": 6.61,
+              "test_mdd_pct": 6.41,
+              "test_trades": 23,
+              "test_fees_usd": 26.0
+            }
+          ]
+        }
+      ]
+    },
+    "270e6e28416f": {
+      "name": "EMA Trend Rider (Rising Slope - Optimized)",
+      "parent_aid": "270e6e28416f",
+      "disposition": "INSUFFICIENT_SAMPLE",
+      "reason": "Mẫu giao dịch lịch sử < 20 trades. Theo protocol không sweep tham số ngẫu nhiên.",
+      "variants_tested": 0,
+      "best_variant": null,
+      "overall_verdict": "INSUFFICIENT_SAMPLE"
+    },
+    "3cfcc2d296a2": {
+      "name": "Donchian Lower Channel Exit",
+      "parent_aid": "3cfcc2d296a2",
+      "overall_verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+      "variant_evaluations": [
+        {
+          "candidate_id": "3cfcc2d296a2_c1_risk_sl",
+          "hypothesis_type": "sizing_and_risk_control",
+          "total_trades": 262,
+          "avg_test_return_pct": -20.31,
+          "max_drawdown_pct": 30.62,
+          "positive_folds_ratio": 0.0,
+          "stressed_net_pnl_usd": -6169.91,
+          "gate_checks": {
+            "trades_gte_20": true,
+            "return_positive": false,
+            "mdd_lte_30": false,
+            "positive_folds_gte_66pct": false,
+            "passed_fee_stress_1_5x": false
+          },
+          "verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+          "folds_detail": [
+            {
+              "fold_index": 1,
+              "window": "2024-10-01 -> 2025-05-31",
+              "train_ret_pct": 2.31,
+              "test_ret_pct": -30.21,
+              "test_mdd_pct": 30.62,
+              "test_trades": 116,
+              "test_fees_usd": 59.47
+            },
+            {
+              "fold_index": 2,
+              "window": "2025-06-01 -> 2026-01-31",
+              "train_ret_pct": -3.22,
+              "test_ret_pct": -26.13,
+              "test_mdd_pct": 30.09,
+              "test_trades": 53,
+              "test_fees_usd": 33.61
+            },
+            {
+              "fold_index": 3,
+              "window": "2026-02-01 -> 2026-10-03",
+              "train_ret_pct": -21.48,
+              "test_ret_pct": -4.6,
+              "test_mdd_pct": 23.28,
+              "test_trades": 93,
+              "test_fees_usd": 58.73
+            }
+          ]
+        }
+      ]
+    },
+    "4f28285aa44c": {
+      "name": "Dual EMA + ADX Trend Strength Filter",
+      "parent_aid": "4f28285aa44c",
+      "disposition": "INSUFFICIENT_SAMPLE",
+      "reason": "Mẫu giao dịch lịch sử < 20 trades. Theo protocol không sweep tham số ngẫu nhiên.",
+      "variants_tested": 0,
+      "best_variant": null,
+      "overall_verdict": "INSUFFICIENT_SAMPLE"
+    },
+    "541c55834f56": {
+      "name": "Daily Range Expansion (High - Low) / Close",
+      "parent_aid": "541c55834f56",
+      "overall_verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+      "variant_evaluations": [
+        {
+          "candidate_id": "541c55834f56_c1_risk_sl",
+          "hypothesis_type": "sizing_and_risk_control",
+          "total_trades": 354,
+          "avg_test_return_pct": -14.8,
+          "max_drawdown_pct": 31.01,
+          "positive_folds_ratio": 0.0,
+          "stressed_net_pnl_usd": -4550.55,
+          "gate_checks": {
+            "trades_gte_20": true,
+            "return_positive": false,
+            "mdd_lte_30": false,
+            "positive_folds_gte_66pct": false,
+            "passed_fee_stress_1_5x": false
+          },
+          "verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+          "folds_detail": [
+            {
+              "fold_index": 1,
+              "window": "2024-10-01 -> 2025-05-31",
+              "train_ret_pct": 45.46,
+              "test_ret_pct": -11.36,
+              "test_mdd_pct": 31.01,
+              "test_trades": 198,
+              "test_fees_usd": 122.67
+            },
+            {
+              "fold_index": 2,
+              "window": "2025-06-01 -> 2026-01-31",
+              "train_ret_pct": 17.43,
+              "test_ret_pct": -24.03,
+              "test_mdd_pct": 30.42,
+              "test_trades": 55,
+              "test_fees_usd": 34.46
+            },
+            {
+              "fold_index": 3,
+              "window": "2026-02-01 -> 2026-10-03",
+              "train_ret_pct": 17.43,
+              "test_ret_pct": -9.02,
+              "test_mdd_pct": 23.52,
+              "test_trades": 101,
+              "test_fees_usd": 61.96
+            }
+          ]
+        },
+        {
+          "candidate_id": "541c55834f56_c2_trend_filter",
+          "hypothesis_type": "trend_filter",
+          "total_trades": 362,
+          "avg_test_return_pct": -11.72,
+          "max_drawdown_pct": 31.02,
+          "positive_folds_ratio": 0.33,
+          "stressed_net_pnl_usd": -3662.98,
+          "gate_checks": {
+            "trades_gte_20": true,
+            "return_positive": false,
+            "mdd_lte_30": false,
+            "positive_folds_gte_66pct": false,
+            "passed_fee_stress_1_5x": false
+          },
+          "verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+          "folds_detail": [
+            {
+              "fold_index": 1,
+              "window": "2024-10-01 -> 2025-05-31",
+              "train_ret_pct": 29.75,
+              "test_ret_pct": 1.12,
+              "test_mdd_pct": 31.02,
+              "test_trades": 171,
+              "test_fees_usd": 151.7
+            },
+            {
+              "fold_index": 2,
+              "window": "2025-06-01 -> 2026-01-31",
+              "train_ret_pct": 3.35,
+              "test_ret_pct": -25.91,
+              "test_mdd_pct": 27.12,
+              "test_trades": 118,
+              "test_fees_usd": 85.15
+            },
+            {
+              "fold_index": 3,
+              "window": "2026-02-01 -> 2026-10-03",
+              "train_ret_pct": 3.35,
+              "test_ret_pct": -10.36,
+              "test_mdd_pct": 20.42,
+              "test_trades": 73,
+              "test_fees_usd": 59.1
+            }
+          ]
+        }
+      ]
+    },
+    "5e52d3fdf71f": {
+      "name": "Bollinger Band Overextension Exit",
+      "parent_aid": "5e52d3fdf71f",
+      "overall_verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+      "variant_evaluations": [
+        {
+          "candidate_id": "5e52d3fdf71f_c1_risk_sl",
+          "hypothesis_type": "sizing_and_risk_control",
+          "total_trades": 419,
+          "avg_test_return_pct": -18.06,
+          "max_drawdown_pct": 31.55,
+          "positive_folds_ratio": 0.33,
+          "stressed_net_pnl_usd": -5540.89,
+          "gate_checks": {
+            "trades_gte_20": true,
+            "return_positive": false,
+            "mdd_lte_30": false,
+            "positive_folds_gte_66pct": false,
+            "passed_fee_stress_1_5x": false
+          },
+          "verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+          "folds_detail": [
+            {
+              "fold_index": 1,
+              "window": "2024-10-01 -> 2025-05-31",
+              "train_ret_pct": 4.63,
+              "test_ret_pct": -31.5,
+              "test_mdd_pct": 31.55,
+              "test_trades": 210,
+              "test_fees_usd": 109.25
+            },
+            {
+              "fold_index": 2,
+              "window": "2025-06-01 -> 2026-01-31",
+              "train_ret_pct": -1.79,
+              "test_ret_pct": -24.61,
+              "test_mdd_pct": 30.05,
+              "test_trades": 67,
+              "test_fees_usd": 40.36
+            },
+            {
+              "fold_index": 3,
+              "window": "2026-02-01 -> 2026-10-03",
+              "train_ret_pct": -19.97,
+              "test_ret_pct": 1.93,
+              "test_mdd_pct": 9.89,
+              "test_trades": 142,
+              "test_fees_usd": 96.17
+            }
+          ]
+        },
+        {
+          "candidate_id": "5e52d3fdf71f_c2_trend_filter",
+          "hypothesis_type": "trend_filter",
+          "total_trades": 291,
+          "avg_test_return_pct": -12.32,
+          "max_drawdown_pct": 23.57,
+          "positive_folds_ratio": 0.0,
+          "stressed_net_pnl_usd": -3815.61,
+          "gate_checks": {
+            "trades_gte_20": true,
+            "return_positive": false,
+            "mdd_lte_30": true,
+            "positive_folds_gte_66pct": false,
+            "passed_fee_stress_1_5x": false
+          },
+          "verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+          "folds_detail": [
+            {
+              "fold_index": 1,
+              "window": "2024-10-01 -> 2025-05-31",
+              "train_ret_pct": 3.36,
+              "test_ret_pct": -21.36,
+              "test_mdd_pct": 23.57,
+              "test_trades": 130,
+              "test_fees_usd": 94.95
+            },
+            {
+              "fold_index": 2,
+              "window": "2025-06-01 -> 2026-01-31",
+              "train_ret_pct": -4.24,
+              "test_ret_pct": -14.29,
+              "test_mdd_pct": 16.94,
+              "test_trades": 94,
+              "test_fees_usd": 72.36
+            },
+            {
+              "fold_index": 3,
+              "window": "2026-02-01 -> 2026-10-03",
+              "train_ret_pct": -15.62,
+              "test_ret_pct": -1.31,
+              "test_mdd_pct": 8.46,
+              "test_trades": 67,
+              "test_fees_usd": 71.9
+            }
+          ]
+        }
+      ]
+    },
+    "6afa7f774655": {
+      "name": "RSI Rebound with Fast SMA Filter",
+      "parent_aid": "6afa7f774655",
+      "overall_verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+      "variant_evaluations": [
+        {
+          "candidate_id": "6afa7f774655_c1_risk_sl",
+          "hypothesis_type": "sizing_and_risk_control",
+          "total_trades": 65,
+          "avg_test_return_pct": -9.7,
+          "max_drawdown_pct": 13.46,
+          "positive_folds_ratio": 0.0,
+          "stressed_net_pnl_usd": -2938.49,
+          "gate_checks": {
+            "trades_gte_20": true,
+            "return_positive": false,
+            "mdd_lte_30": true,
+            "positive_folds_gte_66pct": false,
+            "passed_fee_stress_1_5x": false
+          },
+          "verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+          "folds_detail": [
+            {
+              "fold_index": 1,
+              "window": "2024-10-01 -> 2025-05-31",
+              "train_ret_pct": 0.0,
+              "test_ret_pct": -9.46,
+              "test_mdd_pct": 9.78,
+              "test_trades": 19,
+              "test_fees_usd": 15.91
+            },
+            {
+              "fold_index": 2,
+              "window": "2025-06-01 -> 2026-01-31",
+              "train_ret_pct": -6.5,
+              "test_ret_pct": -7.94,
+              "test_mdd_pct": 9.74,
+              "test_trades": 15,
+              "test_fees_usd": 14.02
+            },
+            {
+              "fold_index": 3,
+              "window": "2026-02-01 -> 2026-10-03",
+              "train_ret_pct": -11.31,
+              "test_ret_pct": -11.71,
+              "test_mdd_pct": 13.46,
+              "test_trades": 31,
+              "test_fees_usd": 25.05
+            }
+          ]
+        },
+        {
+          "candidate_id": "6afa7f774655_c2_trend_filter",
+          "hypothesis_type": "trend_filter",
+          "total_trades": 0,
+          "avg_test_return_pct": 0.0,
+          "max_drawdown_pct": 0.0,
+          "positive_folds_ratio": 0.0,
+          "stressed_net_pnl_usd": 0.0,
+          "gate_checks": {
+            "trades_gte_20": false,
+            "return_positive": false,
+            "mdd_lte_30": true,
+            "positive_folds_gte_66pct": false,
+            "passed_fee_stress_1_5x": false
+          },
+          "verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+          "folds_detail": [
+            {
+              "fold_index": 1,
+              "window": "2024-10-01 -> 2025-05-31",
+              "train_ret_pct": 0.0,
+              "test_ret_pct": 0.0,
+              "test_mdd_pct": 0.0,
+              "test_trades": 0,
+              "test_fees_usd": 0.0
+            },
+            {
+              "fold_index": 2,
+              "window": "2025-06-01 -> 2026-01-31",
+              "train_ret_pct": 0.0,
+              "test_ret_pct": 0.0,
+              "test_mdd_pct": 0.0,
+              "test_trades": 0,
+              "test_fees_usd": 0.0
+            },
+            {
+              "fold_index": 3,
+              "window": "2026-02-01 -> 2026-10-03",
+              "train_ret_pct": 0.0,
+              "test_ret_pct": 0.0,
+              "test_mdd_pct": 0.0,
+              "test_trades": 0,
+              "test_fees_usd": 0.0
+            }
+          ]
+        }
+      ]
+    },
+    "715e56a6dd33": {
+      "name": "Linear Regression Channel Deviation",
+      "parent_aid": "715e56a6dd33",
+      "overall_verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+      "variant_evaluations": [
+        {
+          "candidate_id": "715e56a6dd33_c1_risk_sl",
+          "hypothesis_type": "sizing_and_risk_control",
+          "total_trades": 110,
+          "avg_test_return_pct": -11.49,
+          "max_drawdown_pct": 16.32,
+          "positive_folds_ratio": 0.0,
+          "stressed_net_pnl_usd": -3485.91,
+          "gate_checks": {
+            "trades_gte_20": true,
+            "return_positive": false,
+            "mdd_lte_30": true,
+            "positive_folds_gte_66pct": false,
+            "passed_fee_stress_1_5x": false
+          },
+          "verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+          "folds_detail": [
+            {
+              "fold_index": 1,
+              "window": "2024-10-01 -> 2025-05-31",
+              "train_ret_pct": -0.75,
+              "test_ret_pct": -16.12,
+              "test_mdd_pct": 16.32,
+              "test_trades": 50,
+              "test_fees_usd": 33.74
+            },
+            {
+              "fold_index": 2,
+              "window": "2025-06-01 -> 2026-01-31",
+              "train_ret_pct": -10.17,
+              "test_ret_pct": -13.92,
+              "test_mdd_pct": 14.36,
+              "test_trades": 44,
+              "test_fees_usd": 29.96
+            },
+            {
+              "fold_index": 3,
+              "window": "2026-02-01 -> 2026-10-03",
+              "train_ret_pct": -17.5,
+              "test_ret_pct": -4.42,
+              "test_mdd_pct": 6.45,
+              "test_trades": 16,
+              "test_fees_usd": 16.12
+            }
+          ]
+        },
+        {
+          "candidate_id": "715e56a6dd33_c2_trend_filter",
+          "hypothesis_type": "trend_filter",
+          "total_trades": 22,
+          "avg_test_return_pct": -4.45,
+          "max_drawdown_pct": 7.36,
+          "positive_folds_ratio": 0.0,
+          "stressed_net_pnl_usd": -1349.21,
+          "gate_checks": {
+            "trades_gte_20": true,
+            "return_positive": false,
+            "mdd_lte_30": true,
+            "positive_folds_gte_66pct": false,
+            "passed_fee_stress_1_5x": false
+          },
+          "verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+          "folds_detail": [
+            {
+              "fold_index": 1,
+              "window": "2024-10-01 -> 2025-05-31",
+              "train_ret_pct": -1.26,
+              "test_ret_pct": -7.36,
+              "test_mdd_pct": 7.36,
+              "test_trades": 11,
+              "test_fees_usd": 11.26
+            },
+            {
+              "fold_index": 2,
+              "window": "2025-06-01 -> 2026-01-31",
+              "train_ret_pct": -6.51,
+              "test_ret_pct": -3.74,
+              "test_mdd_pct": 5.04,
+              "test_trades": 8,
+              "test_fees_usd": 11.2
+            },
+            {
+              "fold_index": 3,
+              "window": "2026-02-01 -> 2026-10-03",
+              "train_ret_pct": -6.59,
+              "test_ret_pct": -2.25,
+              "test_mdd_pct": 3.76,
+              "test_trades": 3,
+              "test_fees_usd": 5.97
+            }
+          ]
+        }
+      ]
+    },
+    "717c1890c59e": {
+      "name": "Weighted Moving Average (WMA) Crossover (Optimized)",
+      "parent_aid": "717c1890c59e",
+      "overall_verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+      "variant_evaluations": [
+        {
+          "candidate_id": "717c1890c59e_c1_risk_sl",
+          "hypothesis_type": "sizing_and_risk_control",
+          "total_trades": 121,
+          "avg_test_return_pct": 4.53,
+          "max_drawdown_pct": 14.33,
+          "positive_folds_ratio": 0.67,
+          "stressed_net_pnl_usd": 1294.47,
+          "gate_checks": {
+            "trades_gte_20": true,
+            "return_positive": true,
+            "mdd_lte_30": true,
+            "positive_folds_gte_66pct": true,
+            "passed_fee_stress_1_5x": true
+          },
+          "verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+          "folds_detail": [
+            {
+              "fold_index": 1,
+              "window": "2024-10-01 -> 2025-05-31",
+              "train_ret_pct": 0.0,
+              "test_ret_pct": 13.32,
+              "test_mdd_pct": 14.33,
+              "test_trades": 62,
+              "test_fees_usd": 64.88
+            },
+            {
+              "fold_index": 2,
+              "window": "2025-06-01 -> 2026-01-31",
+              "train_ret_pct": 23.9,
+              "test_ret_pct": -8.19,
+              "test_mdd_pct": 10.08,
+              "test_trades": 46,
+              "test_fees_usd": 37.9
+            },
+            {
+              "fold_index": 3,
+              "window": "2026-02-01 -> 2026-10-03",
+              "train_ret_pct": 13.74,
+              "test_ret_pct": 8.47,
+              "test_mdd_pct": 10.29,
+              "test_trades": 13,
+              "test_fees_usd": 28.29
+            }
+          ]
+        }
+      ]
+    },
+    "7f3486d63ca8": {
+      "name": "Dual Oscillator Climax Exit",
+      "parent_aid": "7f3486d63ca8",
+      "overall_verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+      "variant_evaluations": [
+        {
+          "candidate_id": "7f3486d63ca8_c1_risk_sl",
+          "hypothesis_type": "sizing_and_risk_control",
+          "total_trades": 457,
+          "avg_test_return_pct": -13.59,
+          "max_drawdown_pct": 20.95,
+          "positive_folds_ratio": 0.0,
+          "stressed_net_pnl_usd": -4216.7,
+          "gate_checks": {
+            "trades_gte_20": true,
+            "return_positive": false,
+            "mdd_lte_30": true,
+            "positive_folds_gte_66pct": false,
+            "passed_fee_stress_1_5x": false
+          },
+          "verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+          "folds_detail": [
+            {
+              "fold_index": 1,
+              "window": "2024-10-01 -> 2025-05-31",
+              "train_ret_pct": 2.09,
+              "test_ret_pct": -16.57,
+              "test_mdd_pct": 20.95,
+              "test_trades": 200,
+              "test_fees_usd": 131.68
+            },
+            {
+              "fold_index": 2,
+              "window": "2025-06-01 -> 2026-01-31",
+              "train_ret_pct": 5.04,
+              "test_ret_pct": -16.99,
+              "test_mdd_pct": 19.26,
+              "test_trades": 142,
+              "test_fees_usd": 81.78
+            },
+            {
+              "fold_index": 3,
+              "window": "2026-02-01 -> 2026-10-03",
+              "train_ret_pct": -12.06,
+              "test_ret_pct": -7.2,
+              "test_mdd_pct": 18.42,
+              "test_trades": 115,
+              "test_fees_usd": 67.95
+            }
+          ]
+        },
+        {
+          "candidate_id": "7f3486d63ca8_c2_trend_filter",
+          "hypothesis_type": "trend_filter",
+          "total_trades": 294,
+          "avg_test_return_pct": -11.79,
+          "max_drawdown_pct": 22.67,
+          "positive_folds_ratio": 0.0,
+          "stressed_net_pnl_usd": -3657.59,
+          "gate_checks": {
+            "trades_gte_20": true,
+            "return_positive": false,
+            "mdd_lte_30": true,
+            "positive_folds_gte_66pct": false,
+            "passed_fee_stress_1_5x": false
+          },
+          "verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+          "folds_detail": [
+            {
+              "fold_index": 1,
+              "window": "2024-10-01 -> 2025-05-31",
+              "train_ret_pct": 2.92,
+              "test_ret_pct": -11.78,
+              "test_mdd_pct": 15.55,
+              "test_trades": 132,
+              "test_fees_usd": 111.87
+            },
+            {
+              "fold_index": 2,
+              "window": "2025-06-01 -> 2026-01-31",
+              "train_ret_pct": 5.18,
+              "test_ret_pct": -21.14,
+              "test_mdd_pct": 22.67,
+              "test_trades": 95,
+              "test_fees_usd": 73.37
+            },
+            {
+              "fold_index": 3,
+              "window": "2026-02-01 -> 2026-10-03",
+              "train_ret_pct": -12.17,
+              "test_ret_pct": -2.45,
+              "test_mdd_pct": 18.91,
+              "test_trades": 67,
+              "test_fees_usd": 55.93
+            }
+          ]
+        }
+      ]
+    },
+    "7f67e9aed0aa": {
+      "name": "Stochastic & RSI Confluence System",
+      "parent_aid": "7f67e9aed0aa",
+      "overall_verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+      "variant_evaluations": [
+        {
+          "candidate_id": "7f67e9aed0aa_c1_risk_sl",
+          "hypothesis_type": "sizing_and_risk_control",
+          "total_trades": 185,
+          "avg_test_return_pct": -13.81,
+          "max_drawdown_pct": 23.01,
+          "positive_folds_ratio": 0.0,
+          "stressed_net_pnl_usd": -4202.65,
+          "gate_checks": {
+            "trades_gte_20": true,
+            "return_positive": false,
+            "mdd_lte_30": true,
+            "positive_folds_gte_66pct": false,
+            "passed_fee_stress_1_5x": false
+          },
+          "verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+          "folds_detail": [
+            {
+              "fold_index": 1,
+              "window": "2024-10-01 -> 2025-05-31",
+              "train_ret_pct": 0.0,
+              "test_ret_pct": -7.01,
+              "test_mdd_pct": 11.32,
+              "test_trades": 60,
+              "test_fees_usd": 45.56
+            },
+            {
+              "fold_index": 2,
+              "window": "2025-06-01 -> 2026-01-31",
+              "train_ret_pct": -0.53,
+              "test_ret_pct": -22.18,
+              "test_mdd_pct": 23.01,
+              "test_trades": 80,
+              "test_fees_usd": 46.15
+            },
+            {
+              "fold_index": 3,
+              "window": "2026-02-01 -> 2026-10-03",
+              "train_ret_pct": -18.75,
+              "test_ret_pct": -12.23,
+              "test_mdd_pct": 22.95,
+              "test_trades": 45,
+              "test_fees_usd": 29.6
+            }
+          ]
+        },
+        {
+          "candidate_id": "7f67e9aed0aa_c2_trend_filter",
+          "hypothesis_type": "trend_filter",
+          "total_trades": 0,
+          "avg_test_return_pct": 0.0,
+          "max_drawdown_pct": 0.0,
+          "positive_folds_ratio": 0.0,
+          "stressed_net_pnl_usd": 0.0,
+          "gate_checks": {
+            "trades_gte_20": false,
+            "return_positive": false,
+            "mdd_lte_30": true,
+            "positive_folds_gte_66pct": false,
+            "passed_fee_stress_1_5x": false
+          },
+          "verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+          "folds_detail": [
+            {
+              "fold_index": 1,
+              "window": "2024-10-01 -> 2025-05-31",
+              "train_ret_pct": 0.0,
+              "test_ret_pct": 0.0,
+              "test_mdd_pct": 0.0,
+              "test_trades": 0,
+              "test_fees_usd": 0.0
+            },
+            {
+              "fold_index": 2,
+              "window": "2025-06-01 -> 2026-01-31",
+              "train_ret_pct": 0.0,
+              "test_ret_pct": 0.0,
+              "test_mdd_pct": 0.0,
+              "test_trades": 0,
+              "test_fees_usd": 0.0
+            },
+            {
+              "fold_index": 3,
+              "window": "2026-02-01 -> 2026-10-03",
+              "train_ret_pct": 0.0,
+              "test_ret_pct": 0.0,
+              "test_mdd_pct": 0.0,
+              "test_trades": 0,
+              "test_fees_usd": 0.0
+            }
+          ]
+        }
+      ]
+    },
+    "89379cc0ab52": {
+      "name": "Stochastic Oscillator (%K, %D) Bull Cross",
+      "parent_aid": "89379cc0ab52",
+      "overall_verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+      "variant_evaluations": [
+        {
+          "candidate_id": "89379cc0ab52_c1_risk_sl",
+          "hypothesis_type": "sizing_and_risk_control",
+          "total_trades": 316,
+          "avg_test_return_pct": -18.97,
+          "max_drawdown_pct": 30.86,
+          "positive_folds_ratio": 0.0,
+          "stressed_net_pnl_usd": -5784.35,
+          "gate_checks": {
+            "trades_gte_20": true,
+            "return_positive": false,
+            "mdd_lte_30": false,
+            "positive_folds_gte_66pct": false,
+            "passed_fee_stress_1_5x": false
+          },
+          "verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+          "folds_detail": [
+            {
+              "fold_index": 1,
+              "window": "2024-10-01 -> 2025-05-31",
+              "train_ret_pct": -1.29,
+              "test_ret_pct": -17.91,
+              "test_mdd_pct": 18.77,
+              "test_trades": 130,
+              "test_fees_usd": 80.94
+            },
+            {
+              "fold_index": 2,
+              "window": "2025-06-01 -> 2026-01-31",
+              "train_ret_pct": -3.06,
+              "test_ret_pct": -24.83,
+              "test_mdd_pct": 30.86,
+              "test_trades": 103,
+              "test_fees_usd": 59.94
+            },
+            {
+              "fold_index": 3,
+              "window": "2026-02-01 -> 2026-10-03",
+              "train_ret_pct": -29.94,
+              "test_ret_pct": -14.16,
+              "test_mdd_pct": 23.62,
+              "test_trades": 83,
+              "test_fees_usd": 47.83
+            }
+          ]
+        },
+        {
+          "candidate_id": "89379cc0ab52_c2_trend_filter",
+          "hypothesis_type": "trend_filter",
+          "total_trades": 60,
+          "avg_test_return_pct": -3.58,
+          "max_drawdown_pct": 9.97,
+          "positive_folds_ratio": 0.33,
+          "stressed_net_pnl_usd": -1107.04,
+          "gate_checks": {
+            "trades_gte_20": true,
+            "return_positive": false,
+            "mdd_lte_30": true,
+            "positive_folds_gte_66pct": false,
+            "passed_fee_stress_1_5x": false
+          },
+          "verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+          "folds_detail": [
+            {
+              "fold_index": 1,
+              "window": "2024-10-01 -> 2025-05-31",
+              "train_ret_pct": -3.26,
+              "test_ret_pct": -4.59,
+              "test_mdd_pct": 7.56,
+              "test_trades": 22,
+              "test_fees_usd": 26.85
+            },
+            {
+              "fold_index": 2,
+              "window": "2025-06-01 -> 2026-01-31",
+              "train_ret_pct": -2.94,
+              "test_ret_pct": -7.18,
+              "test_mdd_pct": 9.97,
+              "test_trades": 24,
+              "test_fees_usd": 23.36
+            },
+            {
+              "fold_index": 3,
+              "window": "2026-02-01 -> 2026-10-03",
+              "train_ret_pct": -6.16,
+              "test_ret_pct": 1.04,
+              "test_mdd_pct": 6.02,
+              "test_trades": 14,
+              "test_fees_usd": 17.87
+            }
+          ]
+        }
+      ]
+    },
+    "b4b65cd3493f": {
+      "name": "Commodity Channel Index (CCI) Snapback",
+      "parent_aid": "b4b65cd3493f",
+      "overall_verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+      "variant_evaluations": [
+        {
+          "candidate_id": "b4b65cd3493f_c1_risk_sl",
+          "hypothesis_type": "sizing_and_risk_control",
+          "total_trades": 516,
+          "avg_test_return_pct": -13.39,
+          "max_drawdown_pct": 23.82,
+          "positive_folds_ratio": 0.33,
+          "stressed_net_pnl_usd": -4165.11,
+          "gate_checks": {
+            "trades_gte_20": true,
+            "return_positive": false,
+            "mdd_lte_30": true,
+            "positive_folds_gte_66pct": false,
+            "passed_fee_stress_1_5x": false
+          },
+          "verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+          "folds_detail": [
+            {
+              "fold_index": 1,
+              "window": "2024-10-01 -> 2025-05-31",
+              "train_ret_pct": -2.02,
+              "test_ret_pct": -22.16,
+              "test_mdd_pct": 23.82,
+              "test_trades": 246,
+              "test_fees_usd": 124.3
+            },
+            {
+              "fold_index": 2,
+              "window": "2025-06-01 -> 2026-01-31",
+              "train_ret_pct": -19.7,
+              "test_ret_pct": -19.5,
+              "test_mdd_pct": 23.8,
+              "test_trades": 165,
+              "test_fees_usd": 101.38
+            },
+            {
+              "fold_index": 3,
+              "window": "2026-02-01 -> 2026-10-03",
+              "train_ret_pct": -30.77,
+              "test_ret_pct": 1.5,
+              "test_mdd_pct": 14.86,
+              "test_trades": 105,
+              "test_fees_usd": 72.55
+            }
+          ]
+        },
+        {
+          "candidate_id": "b4b65cd3493f_c2_trend_filter",
+          "hypothesis_type": "trend_filter",
+          "total_trades": 155,
+          "avg_test_return_pct": -9.04,
+          "max_drawdown_pct": 21.63,
+          "positive_folds_ratio": 0.0,
+          "stressed_net_pnl_usd": -2778.33,
+          "gate_checks": {
+            "trades_gte_20": true,
+            "return_positive": false,
+            "mdd_lte_30": true,
+            "positive_folds_gte_66pct": false,
+            "passed_fee_stress_1_5x": false
+          },
+          "verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+          "folds_detail": [
+            {
+              "fold_index": 1,
+              "window": "2024-10-01 -> 2025-05-31",
+              "train_ret_pct": -2.64,
+              "test_ret_pct": -18.74,
+              "test_mdd_pct": 21.63,
+              "test_trades": 78,
+              "test_fees_usd": 54.04
+            },
+            {
+              "fold_index": 2,
+              "window": "2025-06-01 -> 2026-01-31",
+              "train_ret_pct": -17.58,
+              "test_ret_pct": -7.62,
+              "test_mdd_pct": 11.2,
+              "test_trades": 41,
+              "test_fees_usd": 46.47
+            },
+            {
+              "fold_index": 3,
+              "window": "2026-02-01 -> 2026-10-03",
+              "train_ret_pct": -19.0,
+              "test_ret_pct": -0.76,
+              "test_mdd_pct": 9.64,
+              "test_trades": 36,
+              "test_fees_usd": 32.15
+            }
+          ]
+        }
+      ]
+    },
+    "b96bafe57445": {
+      "name": "Normalized ATR (NATR) Volatility Breakout",
+      "parent_aid": "b96bafe57445",
+      "overall_verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+      "variant_evaluations": [
+        {
+          "candidate_id": "b96bafe57445_c1_risk_sl",
+          "hypothesis_type": "sizing_and_risk_control",
+          "total_trades": 38,
+          "avg_test_return_pct": -1.15,
+          "max_drawdown_pct": 7.78,
+          "positive_folds_ratio": 0.33,
+          "stressed_net_pnl_usd": -370.11,
+          "gate_checks": {
+            "trades_gte_20": true,
+            "return_positive": false,
+            "mdd_lte_30": true,
+            "positive_folds_gte_66pct": false,
+            "passed_fee_stress_1_5x": false
+          },
+          "verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+          "folds_detail": [
+            {
+              "fold_index": 1,
+              "window": "2024-10-01 -> 2025-05-31",
+              "train_ret_pct": 19.13,
+              "test_ret_pct": 7.88,
+              "test_mdd_pct": 7.36,
+              "test_trades": 21,
+              "test_fees_usd": 21.66
+            },
+            {
+              "fold_index": 2,
+              "window": "2025-06-01 -> 2026-01-31",
+              "train_ret_pct": 27.39,
+              "test_ret_pct": -6.62,
+              "test_mdd_pct": 7.78,
+              "test_trades": 5,
+              "test_fees_usd": 9.14
+            },
+            {
+              "fold_index": 3,
+              "window": "2026-02-01 -> 2026-10-03",
+              "train_ret_pct": 18.94,
+              "test_ret_pct": -4.72,
+              "test_mdd_pct": 6.08,
+              "test_trades": 12,
+              "test_fees_usd": 17.41
+            }
+          ]
+        }
+      ]
+    },
+    "bf519617d973": {
+      "name": "Double Exponential Moving Average (DEMA - Optimized)",
+      "parent_aid": "bf519617d973",
+      "disposition": "INSUFFICIENT_SAMPLE",
+      "reason": "Mẫu giao dịch lịch sử < 20 trades. Theo protocol không sweep tham số ngẫu nhiên.",
+      "variants_tested": 0,
+      "best_variant": null,
+      "overall_verdict": "INSUFFICIENT_SAMPLE"
+    },
+    "c33cc317bbeb": {
+      "name": "Multi-Day Cumulative Return Dip Buying",
+      "parent_aid": "c33cc317bbeb",
+      "overall_verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+      "variant_evaluations": [
+        {
+          "candidate_id": "c33cc317bbeb_c1_risk_sl",
+          "hypothesis_type": "sizing_and_risk_control",
+          "total_trades": 262,
+          "avg_test_return_pct": -25.0,
+          "max_drawdown_pct": 32.75,
+          "positive_folds_ratio": 0.0,
+          "stressed_net_pnl_usd": -7577.86,
+          "gate_checks": {
+            "trades_gte_20": true,
+            "return_positive": false,
+            "mdd_lte_30": false,
+            "positive_folds_gte_66pct": false,
+            "passed_fee_stress_1_5x": false
+          },
+          "verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+          "folds_detail": [
+            {
+              "fold_index": 1,
+              "window": "2024-10-01 -> 2025-05-31",
+              "train_ret_pct": -3.24,
+              "test_ret_pct": -30.09,
+              "test_mdd_pct": 32.01,
+              "test_trades": 117,
+              "test_fees_usd": 70.14
+            },
+            {
+              "fold_index": 2,
+              "window": "2025-06-01 -> 2026-01-31",
+              "train_ret_pct": -20.43,
+              "test_ret_pct": -31.43,
+              "test_mdd_pct": 32.75,
+              "test_trades": 108,
+              "test_fees_usd": 57.05
+            },
+            {
+              "fold_index": 3,
+              "window": "2026-02-01 -> 2026-10-03",
+              "train_ret_pct": -31.36,
+              "test_ret_pct": -13.49,
+              "test_mdd_pct": 13.9,
+              "test_trades": 37,
+              "test_fees_usd": 26.54
+            }
+          ]
+        },
+        {
+          "candidate_id": "c33cc317bbeb_c2_trend_filter",
+          "hypothesis_type": "trend_filter",
+          "total_trades": 51,
+          "avg_test_return_pct": -8.02,
+          "max_drawdown_pct": 13.97,
+          "positive_folds_ratio": 0.0,
+          "stressed_net_pnl_usd": -2430.74,
+          "gate_checks": {
+            "trades_gte_20": true,
+            "return_positive": false,
+            "mdd_lte_30": true,
+            "positive_folds_gte_66pct": false,
+            "passed_fee_stress_1_5x": false
+          },
+          "verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+          "folds_detail": [
+            {
+              "fold_index": 1,
+              "window": "2024-10-01 -> 2025-05-31",
+              "train_ret_pct": -3.63,
+              "test_ret_pct": -13.8,
+              "test_mdd_pct": 13.97,
+              "test_trades": 29,
+              "test_fees_usd": 28.53
+            },
+            {
+              "fold_index": 2,
+              "window": "2025-06-01 -> 2026-01-31",
+              "train_ret_pct": -10.05,
+              "test_ret_pct": -7.28,
+              "test_mdd_pct": 8.91,
+              "test_trades": 20,
+              "test_fees_usd": 18.17
+            },
+            {
+              "fold_index": 3,
+              "window": "2026-02-01 -> 2026-10-03",
+              "train_ret_pct": -14.28,
+              "test_ret_pct": -2.97,
+              "test_mdd_pct": 3.54,
+              "test_trades": 2,
+              "test_fees_usd": 4.78
+            }
+          ]
+        }
+      ]
+    },
+    "cb750cb1eb10": {
+      "name": "EMA Golden Cross + Volume Spike Confluence",
+      "parent_aid": "cb750cb1eb10",
+      "overall_verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+      "variant_evaluations": [
+        {
+          "candidate_id": "cb750cb1eb10_c1_risk_sl",
+          "hypothesis_type": "sizing_and_risk_control",
+          "total_trades": 35,
+          "avg_test_return_pct": -4.93,
+          "max_drawdown_pct": 14.29,
+          "positive_folds_ratio": 0.0,
+          "stressed_net_pnl_usd": -1498.96,
+          "gate_checks": {
+            "trades_gte_20": true,
+            "return_positive": false,
+            "mdd_lte_30": true,
+            "positive_folds_gte_66pct": false,
+            "passed_fee_stress_1_5x": false
+          },
+          "verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+          "folds_detail": [
+            {
+              "fold_index": 1,
+              "window": "2024-10-01 -> 2025-05-31",
+              "train_ret_pct": 0.0,
+              "test_ret_pct": -4.98,
+              "test_mdd_pct": 14.29,
+              "test_trades": 17,
+              "test_fees_usd": 18.61
+            },
+            {
+              "fold_index": 2,
+              "window": "2025-06-01 -> 2026-01-31",
+              "train_ret_pct": 2.59,
+              "test_ret_pct": -7.38,
+              "test_mdd_pct": 8.48,
+              "test_trades": 10,
+              "test_fees_usd": 11.52
+            },
+            {
+              "fold_index": 3,
+              "window": "2026-02-01 -> 2026-10-03",
+              "train_ret_pct": -4.97,
+              "test_ret_pct": -2.42,
+              "test_mdd_pct": 7.16,
+              "test_trades": 8,
+              "test_fees_usd": 11.8
+            }
+          ]
+        }
+      ]
+    },
+    "f261549d9efa": {
+      "name": "ROC Momentum Surge",
+      "parent_aid": "f261549d9efa",
+      "overall_verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+      "variant_evaluations": [
+        {
+          "candidate_id": "f261549d9efa_c1_risk_sl",
+          "hypothesis_type": "sizing_and_risk_control",
+          "total_trades": 418,
+          "avg_test_return_pct": -8.98,
+          "max_drawdown_pct": 26.84,
+          "positive_folds_ratio": 0.33,
+          "stressed_net_pnl_usd": -2837.73,
+          "gate_checks": {
+            "trades_gte_20": true,
+            "return_positive": false,
+            "mdd_lte_30": true,
+            "positive_folds_gte_66pct": false,
+            "passed_fee_stress_1_5x": false
+          },
+          "verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+          "folds_detail": [
+            {
+              "fold_index": 1,
+              "window": "2024-10-01 -> 2025-05-31",
+              "train_ret_pct": 10.13,
+              "test_ret_pct": 7.07,
+              "test_mdd_pct": 26.84,
+              "test_trades": 184,
+              "test_fees_usd": 147.92
+            },
+            {
+              "fold_index": 2,
+              "window": "2025-06-01 -> 2026-01-31",
+              "train_ret_pct": 42.94,
+              "test_ret_pct": -22.26,
+              "test_mdd_pct": 23.67,
+              "test_trades": 135,
+              "test_fees_usd": 75.5
+            },
+            {
+              "fold_index": 3,
+              "window": "2026-02-01 -> 2026-10-03",
+              "train_ret_pct": 13.74,
+              "test_ret_pct": -11.76,
+              "test_mdd_pct": 22.94,
+              "test_trades": 99,
+              "test_fees_usd": 62.04
+            }
+          ]
+        }
+      ]
+    },
+    "f4e211e9510d": {
+      "name": "Rolling 30-Day Multi-Week High Breakout",
+      "parent_aid": "f4e211e9510d",
+      "overall_verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+      "variant_evaluations": [
+        {
+          "candidate_id": "f4e211e9510d_c1_risk_sl",
+          "hypothesis_type": "sizing_and_risk_control",
+          "total_trades": 152,
+          "avg_test_return_pct": -1.57,
+          "max_drawdown_pct": 20.69,
+          "positive_folds_ratio": 0.33,
+          "stressed_net_pnl_usd": -528.25,
+          "gate_checks": {
+            "trades_gte_20": true,
+            "return_positive": false,
+            "mdd_lte_30": true,
+            "positive_folds_gte_66pct": false,
+            "passed_fee_stress_1_5x": false
+          },
+          "verdict": "UNVERIFIED / INVALID_FOLD_WINDOWS",
+          "folds_detail": [
+            {
+              "fold_index": 1,
+              "window": "2024-10-01 -> 2025-05-31",
+              "train_ret_pct": 22.24,
+              "test_ret_pct": 10.16,
+              "test_mdd_pct": 20.69,
+              "test_trades": 71,
+              "test_fees_usd": 60.22
+            },
+            {
+              "fold_index": 2,
+              "window": "2025-06-01 -> 2026-01-31",
+              "train_ret_pct": 37.85,
+              "test_ret_pct": -5.76,
+              "test_mdd_pct": 8.74,
+              "test_trades": 39,
+              "test_fees_usd": 25.36
+            },
+            {
+              "fold_index": 3,
+              "window": "2026-02-01 -> 2026-10-03",
+              "train_ret_pct": 32.37,
+              "test_ret_pct": -9.1,
+              "test_mdd_pct": 11.58,
+              "test_trades": 42,
+              "test_fees_usd": 30.92
+            }
+          ]
+        }
+      ]
+    },
+    "fa9587a97fa9": {
+      "name": "Trend Alignment Momentum (Optimized)",
+      "parent_aid": "fa9587a97fa9",
+      "disposition": "INSUFFICIENT_SAMPLE",
+      "reason": "Mẫu giao dịch lịch sử < 20 trades. Theo protocol không sweep tham số ngẫu nhiên.",
+      "variants_tested": 0,
+      "best_variant": null,
+      "overall_verdict": "INSUFFICIENT_SAMPLE"
+    }
+  },
+  "verdict_summary": {
+    "WFA_PASS": 0,
+    "WFA_FAIL": 0,
+    "UNVERIFIED": 19,
+    "INSUFFICIENT_SAMPLE": 4,
+    "BLOCKED": 0
+  },
+  "audit_status": "ALL_WFA_RUNS_UNVERIFIED_DUE_TO_STAGE_SPLIT_SNAPPING",
+  "audit_note": "Downgraded due to stage_split Jan 1 snapping, non-isolated candidate parameters, and incomplete gate checks.",
+  "audit_timestamp": "2026-10-27T17:08:29Z"
+}

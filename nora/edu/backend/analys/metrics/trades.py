@@ -1270,7 +1270,8 @@ def build_stages(series: Dict[str, np.ndarray], split: int, test_series: Optiona
 def build_result(program, plan, res, eng, a, start: int, end: int, capital: float, data: Dict[str, Any], extra_warnings: List[str],
                  test_res: Optional[Dict[str, Any]] = None, test_start: Optional[int] = None, bench: Optional[Dict[str, Any]] = None,
                  inputs: Optional[Dict[str, Any]] = None, test_bench: Optional[Dict[str, Any]] = None,
-                 alpha_id: Optional[str] = None, checklist: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+                 alpha_id: Optional[str] = None, checklist: Optional[Dict[str, Any]] = None,
+                 split_at: Optional[int] = None) -> Dict[str, Any]:
     from backend.analys.param import FRAME_MS
     from backend.analys.metrics.metrics import result_payload
     from backend.analys.metrics.trades import rows_from_trade_list
@@ -1278,7 +1279,8 @@ def build_result(program, plan, res, eng, a, start: int, end: int, capital: floa
     trades = payload["trade_list"]
     rows = rows_from_trade_list(trades)
     series = daily_series(res["equity_curve"], start, end, FRAME_MS[plan.base_frame], capital)
-    split = stage_split(start, end, float(a.train_ratio))
+    split = split_at if split_at is not None else stage_split(start, end, float(a.train_ratio))
+    effective_train_ratio = (split - start) / (end - start)
     test_run = test_series = None
     if test_res is not None:
         test_series = daily_series(test_res["equity_curve"], test_start, end, FRAME_MS[plan.base_frame], capital)
@@ -1310,32 +1312,42 @@ def build_result(program, plan, res, eng, a, start: int, end: int, capital: floa
                           "wins": int(agg.get("wins", 0)), "fees_usd": round(agg.get("fees_usd", 0.0), 2),
                           "open_pnl_usd": round(sum(o["unrealized_pnl"] for o in opens if o["symbol"] == sym), 2)})
     warns = list(dict.fromkeys(program.warnings + plan.warnings + extra_warnings))
-    from backend.analys.metrics.trades import diagnose_run
-    from backend.analys.metrics.charts import generate_insights
     fees_total = sum(float(o.fee_usd or 0.0) for o in res["orders"])
     inputs = inputs or {}
-    diagnostics = diagnose_run(program, series, trades, metrics, capital, start, end, fees_total=fees_total, open_positions=opens, benchmark=bench,
-                               market=inputs.get("market"), prices=inputs.get("prices"), frames=inputs.get("frames"))
-    insights = generate_insights(diagnostics, metrics)
+    if getattr(a, "include_diagnostics", True):
+        from backend.analys.metrics.trades import diagnose_run
+        from backend.analys.metrics.charts import generate_insights
+        diagnostics = diagnose_run(program, series, trades, metrics, capital, start, end, fees_total=fees_total, open_positions=opens, benchmark=bench,
+                                   market=inputs.get("market"), prices=inputs.get("prices"), frames=inputs.get("frames"))
+        insights = generate_insights(diagnostics, metrics)
+    else:
+        diagnostics, insights = {}, []
     if bench is not None:
         beq = bench["equity"]
         series_out["benchmark"] = {"times": [int(t // 1000) for t in bench["times"]], "equity": [round(float(x), 2) for x in beq], "label": bench["label"],
                                    "final_equity": round(float(beq[-1]), 2)}
     warns += [f"chẩn đoán thiếu dữ liệu: {e}" for e in inputs.get("errors", [])]
     series_out["stages"] = build_stages(series, split, test_series, bench, test_bench)
-    if test_series is not None and test_bench is None:
+    if test_series is not None and test_bench is None and getattr(a, "include_benchmark", True):
         warns.append("không có benchmark cho giai đoạn Test (chạy lại benchmark cửa sổ test không thành công)")
     from backend.analys.alpha.code.compile import explain_program
     from backend.analys.metrics.charts import build_notes
     out = {
         "config": {"symbols": [s.split("@")[0] for s in plan.symbols], "data_symbols": plan.symbols, "start": iso_date(start),
-                   "end": iso_date(end - DAY), "train_ratio": float(a.train_ratio), "initial_capital": capital, "timeframe": program.timeframe,
+                   "end": iso_date(end - DAY), "test_start": iso_date(split),
+                   "train_ratio": float(a.train_ratio), "effective_train_ratio": effective_train_ratio,
+                   "split_source": "test_start" if getattr(a, "test_start", None) else "train_ratio",
+                   "include_benchmark": bool(getattr(a, "include_benchmark", True)),
+                   "include_diagnostics": bool(getattr(a, "include_diagnostics", True)),
+                   "parallel_runs": bool(getattr(a, "parallel_runs", True)),
+                   "initial_capital": capital, "timeframe": program.timeframe,
                    "run_frame": plan.base_frame, "position_overrides": dict(a.position or {}), "exchange": data["source"], "program": {"name": program.name, "legs": program.legs,
                    "levels": program.levels, "features": program.features, "warmup_bars": program.warmup_bars},
                    "risk": plan.risk, "strategies": [s["id"] for s in plan.strategies], **plan.echo},
         "program_hash": program.code_hash, "data": data, "metrics": metrics, "yearly": yearly_table(series, split, rows, test_series, test_run["rows"] if test_run else None),
         "series": series_out,
-        "trades": trades, "positions_open": opens, "by_symbol": by_symbol, "warnings": warns,
+        "trades": trades, "test_trades": test_run["rows"] if test_run else [], "positions_open": opens,
+        "by_symbol": by_symbol, "warnings": warns,
         "diagnostics": diagnostics, "insights": insights,
         "final_equity": round(float(eq[-1]), 2) if eq.size else capital,
     }

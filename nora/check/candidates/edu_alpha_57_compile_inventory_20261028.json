@@ -1,0 +1,3609 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-10-28T08:04:20.971526+00:00",
+  "scope": "57 current EDU user alpha records; source code excluded",
+  "python": "3.12.13",
+  "dsl_version": "1",
+  "data_home": "/home/vmc03/norabt/nora/edu/data",
+  "record_count": 57,
+  "compile_pass_count": 57,
+  "compile_fail_count": 0,
+  "results": [
+    {
+      "alpha_id": "026f43441cb2",
+      "target_27": true,
+      "owner_id": "16e97dcc8432",
+      "name": "U4DemaCross",
+      "source_sha256": "83294d71ec0c750f1f2518c7b64d096eef0feb8a23e58f0b8f091450af12b1d5",
+      "stored_program_hash": null,
+      "compiled_program_hash": "7a81988a8b83",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "dema"
+      ],
+      "config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "timeframe": "1h",
+        "start": "2025-11-01",
+        "end": "2026-01-01",
+        "initial_capital": 10000
+      },
+      "saved_version": 2
+    },
+    {
+      "alpha_id": "0873864b8db7",
+      "target_27": false,
+      "owner_id": "aed197a5e968",
+      "name": "DEMA Turbo Compound (1Y Fast Trend - x1.51 Vốn)",
+      "source_sha256": "0b98d5f8f13624d0ec61e46b9e1d4f0e9bd631bf43b173dde8c8540b2895a705",
+      "stored_program_hash": "ea0a2ae14434",
+      "compiled_program_hash": "ea0a2ae14434",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "dema",
+        "ema"
+      ],
+      "config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "exchange": "okx",
+        "program": {
+          "name": "DemaTurboCompoundStrategy",
+          "legs": [
+            "LONG"
+          ],
+          "levels": [
+            0.0,
+            1.0
+          ],
+          "features": [
+            "dema",
+            "ema"
+          ],
+          "warmup_bars": 240
+        },
+        "risk": {
+          "max_positions": 8,
+          "max_per_symbol": 1,
+          "max_gross_exposure": 3.0,
+          "kill_switch_dd_pct": 30.0,
+          "max_open_risk_pct": 6.0,
+          "dd_throttle_pct": 5.0,
+          "dd_throttle_floor": 0.25
+        },
+        "strategies": [
+          "py_ea0a2ae14434_long"
+        ],
+        "position": {
+          "market": "perp",
+          "leverage": 10,
+          "exit_unit": "atr",
+          "atr_frame": "24h",
+          "atr_period": 14,
+          "sizing": "risk",
+          "risk_per_trade_pct": 8.5,
+          "max_notional_pct": 300.0,
+          "stop_fill": "level",
+          "limit_through_pct": 0.0,
+          "cooldown": 1440,
+          "risk_profile": "legacy",
+          "sl_anchor": "",
+          "sl_beyond_last_pct": 0.0,
+          "stop_loss_rate": 2.2,
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0
+        }
+      },
+      "saved_version": 1
+    },
+    {
+      "alpha_id": "090730ae35b8",
+      "target_27": false,
+      "owner_id": "aed197a5e968",
+      "name": "Fail-Fast Volatility Breakout (SL 2.4% + Macro Trend)",
+      "source_sha256": "8db8d1a474079d5644db1f797f8da06ee09c9cce6091b8da5d82e245a7e8febe",
+      "stored_program_hash": "27eab5826e54",
+      "compiled_program_hash": "27eab5826e54",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "ema",
+        "sma",
+        "stddev"
+      ],
+      "config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "exchange": "okx",
+        "program": {
+          "name": "FailFastVolatilityBreakout",
+          "legs": [
+            "LONG"
+          ],
+          "levels": [
+            0.0,
+            1.0
+          ],
+          "features": [
+            "ema",
+            "sma",
+            "stddev"
+          ],
+          "warmup_bars": 300
+        },
+        "risk": {
+          "max_positions": 8,
+          "max_per_symbol": 1,
+          "max_gross_exposure": 3.0,
+          "kill_switch_dd_pct": 30.0,
+          "max_open_risk_pct": 6.0,
+          "dd_throttle_pct": 5.0,
+          "dd_throttle_floor": 0.25
+        },
+        "strategies": [
+          "py_27eab5826e54_long"
+        ],
+        "position": {
+          "market": "perp",
+          "leverage": 10,
+          "exit_unit": "atr",
+          "atr_frame": "24h",
+          "atr_period": 14,
+          "sizing": "risk",
+          "risk_per_trade_pct": 3.9,
+          "max_notional_pct": 300.0,
+          "stop_fill": "level",
+          "limit_through_pct": 0.0,
+          "cooldown": 1440,
+          "risk_profile": "legacy",
+          "sl_anchor": "",
+          "sl_beyond_last_pct": 0.0,
+          "stop_loss_rate": 2.4,
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0
+        }
+      },
+      "saved_version": 2
+    },
+    {
+      "alpha_id": "0bf936687964",
+      "target_27": true,
+      "owner_id": "e53ccc4b35d2",
+      "name": "U4DonchianTrendBreak",
+      "source_sha256": "fc32e355cd97b0598cc3b83bf9f70920fb7b149866a1f48fab27130c10049b02",
+      "stored_program_hash": null,
+      "compiled_program_hash": "06d8d7a9bff4",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "donchian_upper",
+        "ema"
+      ],
+      "config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "timeframe": "1h",
+        "start": "2025-11-01",
+        "end": "2026-01-01",
+        "initial_capital": 10000
+      },
+      "saved_version": 2
+    },
+    {
+      "alpha_id": "0d51ba8d2012",
+      "target_27": false,
+      "owner_id": "43f5220ece1e",
+      "name": "OBV Volume Accumulation + RSI Momentum",
+      "source_sha256": "44bd919a4a501343ac649a042eb41db7d677aa5e7f1d73d0660e3fe597ac3183",
+      "stored_program_hash": "457060fb8c85",
+      "compiled_program_hash": "457060fb8c85",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "obv",
+        "rsi",
+        "sma"
+      ],
+      "config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "exchange": "okx",
+        "program": {
+          "name": "ConfluenceObvRsiMomentumStrategy",
+          "legs": [
+            "LONG"
+          ],
+          "levels": [
+            0.0,
+            1.0
+          ],
+          "features": [
+            "obv",
+            "rsi",
+            "sma"
+          ],
+          "warmup_bars": 58
+        },
+        "risk": {
+          "max_positions": 8,
+          "max_per_symbol": 1,
+          "max_gross_exposure": 3.0,
+          "kill_switch_dd_pct": 30.0,
+          "max_open_risk_pct": 6.0,
+          "dd_throttle_pct": 5.0,
+          "dd_throttle_floor": 0.25
+        },
+        "strategies": [
+          "py_457060fb8c85_long"
+        ],
+        "position": {
+          "market": "perp",
+          "leverage": 10,
+          "exit_unit": "pct",
+          "atr_frame": "24h",
+          "atr_period": 14,
+          "sizing": "risk",
+          "risk_per_trade_pct": 0.5,
+          "max_notional_pct": 300.0,
+          "stop_fill": "level",
+          "limit_through_pct": 0.0,
+          "cooldown": 1440,
+          "risk_profile": "legacy",
+          "sl_anchor": "",
+          "sl_beyond_last_pct": 0.0,
+          "stop_loss_rate": 3.0,
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0
+        }
+      },
+      "saved_version": 3
+    },
+    {
+      "alpha_id": "138df68946ad",
+      "target_27": true,
+      "owner_id": "ecf30ed0f194",
+      "name": "U1LinearSlopeTurn",
+      "source_sha256": "671c2ac3de835ca0e0327523b660f7b09539b1588a56c6f7c8a5d2d38ea042e8",
+      "stored_program_hash": null,
+      "compiled_program_hash": "61f418267680",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "ema",
+        "linearreg_slope"
+      ],
+      "config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "timeframe": "1h",
+        "start": "2026-01-01",
+        "end": "2026-03-01",
+        "initial_capital": 10000
+      },
+      "saved_version": 2
+    },
+    {
+      "alpha_id": "14e3b934b1e5",
+      "target_27": false,
+      "owner_id": "23dc66cd61c6",
+      "name": "ROC Momentum Exhaustion with Take-Profit",
+      "source_sha256": "155b0ae853f6d315e98e233b45ebcb35971877eea80e76b9107f49d56f707737",
+      "stored_program_hash": "ae598ce4f9a7",
+      "compiled_program_hash": "ae598ce4f9a7",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "ema",
+        "roc"
+      ],
+      "config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "exchange": "okx",
+        "program": {
+          "name": "RiskRocMomentumExhaustionStrategy",
+          "legs": [
+            "LONG"
+          ],
+          "levels": [
+            0.0,
+            1.0
+          ],
+          "features": [
+            "ema",
+            "roc"
+          ],
+          "warmup_bars": 90
+        },
+        "risk": {
+          "max_positions": 8,
+          "max_per_symbol": 1,
+          "max_gross_exposure": 3.0,
+          "kill_switch_dd_pct": 30.0,
+          "max_open_risk_pct": 6.0,
+          "dd_throttle_pct": 5.0,
+          "dd_throttle_floor": 0.25
+        },
+        "strategies": [
+          "py_ae598ce4f9a7_long"
+        ],
+        "position": {
+          "market": "perp",
+          "leverage": 10,
+          "exit_unit": "pct",
+          "atr_frame": "24h",
+          "atr_period": 14,
+          "sizing": "risk",
+          "risk_per_trade_pct": 0.5,
+          "max_notional_pct": 300.0,
+          "stop_fill": "level",
+          "limit_through_pct": 0.0,
+          "cooldown": 1440,
+          "risk_profile": "legacy",
+          "sl_anchor": "",
+          "sl_beyond_last_pct": 0.0,
+          "stop_loss_rate": 3.0,
+          "take_profit_rate": 5.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0
+        }
+      },
+      "saved_version": 3
+    },
+    {
+      "alpha_id": "15567e02a806",
+      "target_27": false,
+      "owner_id": "23dc66cd61c6",
+      "name": "Triple EMA Trend Alignment (Optimized)",
+      "source_sha256": "45d749a50975d920342f1044c2b682b2c1dd51a5718df8d9bbfc581c974ac7e9",
+      "stored_program_hash": "fb995388bbce",
+      "compiled_program_hash": "fb995388bbce",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "ema"
+      ],
+      "config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "exchange": "okx",
+        "program": {
+          "name": "TripleEmaStrategy",
+          "legs": [
+            "LONG"
+          ],
+          "levels": [
+            0.0,
+            1.0
+          ],
+          "features": [
+            "ema"
+          ],
+          "warmup_bars": 300
+        },
+        "risk": {
+          "max_positions": 8,
+          "max_per_symbol": 1,
+          "max_gross_exposure": 3.0,
+          "kill_switch_dd_pct": 30.0,
+          "max_open_risk_pct": 6.0,
+          "dd_throttle_pct": 5.0,
+          "dd_throttle_floor": 0.25
+        },
+        "strategies": [
+          "py_fb995388bbce_long"
+        ],
+        "position": {
+          "market": "perp",
+          "leverage": 10,
+          "exit_unit": "pct",
+          "atr_frame": "24h",
+          "atr_period": 14,
+          "sizing": "risk",
+          "risk_per_trade_pct": 5.8,
+          "max_notional_pct": 300.0,
+          "stop_fill": "level",
+          "limit_through_pct": 0.0,
+          "cooldown": 1440,
+          "risk_profile": "legacy",
+          "sl_anchor": "",
+          "sl_beyond_last_pct": 0.0,
+          "stop_loss_rate": 2.5,
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0
+        }
+      },
+      "saved_version": 3
+    },
+    {
+      "alpha_id": "18e87aa868ad",
+      "target_27": false,
+      "owner_id": "aed197a5e968",
+      "name": "Fast Dynamic Channel Breakout (18D + Macro Trend)",
+      "source_sha256": "d120800459dfa1cf4b416dfaf0e8909a1f141e5134da6f124148c2ef13fd5373",
+      "stored_program_hash": "7b5e59eb46a8",
+      "compiled_program_hash": "7b5e59eb46a8",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "ema",
+        "sma",
+        "stddev"
+      ],
+      "config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "exchange": "okx",
+        "program": {
+          "name": "FastDynamicChannelBreakout",
+          "legs": [
+            "LONG"
+          ],
+          "levels": [
+            0.0,
+            1.0
+          ],
+          "features": [
+            "ema",
+            "sma",
+            "stddev"
+          ],
+          "warmup_bars": 300
+        },
+        "risk": {
+          "max_positions": 8,
+          "max_per_symbol": 1,
+          "max_gross_exposure": 3.0,
+          "kill_switch_dd_pct": 30.0,
+          "max_open_risk_pct": 6.0,
+          "dd_throttle_pct": 5.0,
+          "dd_throttle_floor": 0.25
+        },
+        "strategies": [
+          "py_7b5e59eb46a8_long"
+        ],
+        "position": {
+          "market": "perp",
+          "leverage": 10,
+          "exit_unit": "atr",
+          "atr_frame": "24h",
+          "atr_period": 14,
+          "sizing": "risk",
+          "risk_per_trade_pct": 4.0,
+          "max_notional_pct": 300.0,
+          "stop_fill": "level",
+          "limit_through_pct": 0.0,
+          "cooldown": 1440,
+          "risk_profile": "legacy",
+          "sl_anchor": "",
+          "sl_beyond_last_pct": 0.0,
+          "stop_loss_rate": 2.5,
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0
+        }
+      },
+      "saved_version": 2
+    },
+    {
+      "alpha_id": "1a1a4389a821",
+      "target_27": true,
+      "owner_id": "2922e08b6b61",
+      "name": "U1EmaPullback",
+      "source_sha256": "9e58605b20998d9efd5845b97c21881f2deec84d336561ea8c873e8a3c4be279",
+      "stored_program_hash": null,
+      "compiled_program_hash": "eb79b59f0914",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "ema"
+      ],
+      "config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "timeframe": "1h",
+        "start": "2026-01-01",
+        "end": "2026-03-01",
+        "initial_capital": 10000
+      },
+      "saved_version": 2
+    },
+    {
+      "alpha_id": "1e4c0b9f84f7",
+      "target_27": true,
+      "owner_id": "9b7a10c35886",
+      "name": "U3DonchianBreakdownGate",
+      "source_sha256": "8a82cdbef908c4d07f0a44fbf8bad45462de2c21e2bb161be13127fa38a6cc07",
+      "stored_program_hash": null,
+      "compiled_program_hash": "29f52c5764a7",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "donchian_lower",
+        "ema"
+      ],
+      "config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "timeframe": "1h",
+        "start": "2026-01-01",
+        "end": "2026-03-01",
+        "initial_capital": 10000
+      },
+      "saved_version": 2
+    },
+    {
+      "alpha_id": "214ea8fdf3e6",
+      "target_27": true,
+      "owner_id": "423d35ac9700",
+      "name": "U2ObvBreakout",
+      "source_sha256": "92a297c360e6a668017ef1ec17093cdf755981808e91f0318d733ff81c746f18",
+      "stored_program_hash": null,
+      "compiled_program_hash": "7f5f3690e915",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "donchian_upper",
+        "ema",
+        "obv",
+        "sma"
+      ],
+      "config": {
+        "symbols": [
+          "ETH-USDT"
+        ],
+        "timeframe": "15m",
+        "bar_count": 800,
+        "initial_capital": 10000
+      },
+      "saved_version": 2
+    },
+    {
+      "alpha_id": "234e6df02e37",
+      "target_27": true,
+      "owner_id": "5de316621329",
+      "name": "U2DonchianExpansion",
+      "source_sha256": "40ccf47d2f28c8e040402bdefe4dd55af5afff2134fff66838306f50a80ff29c",
+      "stored_program_hash": null,
+      "compiled_program_hash": "671c22983083",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "donchian_upper",
+        "ema",
+        "natr",
+        "sma"
+      ],
+      "config": {
+        "symbols": [
+          "ETH-USDT"
+        ],
+        "timeframe": "15m",
+        "bar_count": 800,
+        "initial_capital": 10000
+      },
+      "saved_version": 2
+    },
+    {
+      "alpha_id": "270e6e28416f",
+      "target_27": false,
+      "owner_id": "a214b36a7eab",
+      "name": "EMA Trend Rider (Rising Slope - Optimized)",
+      "source_sha256": "9f2136dbceb1fcdde6f1398157b7599c4dd08d99f431113839e9a2e7d6d6d168",
+      "stored_program_hash": "0bd988459b4a",
+      "compiled_program_hash": "0bd988459b4a",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "ema"
+      ],
+      "config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "exchange": "okx",
+        "program": {
+          "name": "EmaRisingSlopeStrategy",
+          "legs": [
+            "LONG"
+          ],
+          "levels": [
+            0.0,
+            1.0
+          ],
+          "features": [
+            "ema"
+          ],
+          "warmup_bars": 300
+        },
+        "risk": {
+          "max_positions": 8,
+          "max_per_symbol": 1,
+          "max_gross_exposure": 3.0,
+          "kill_switch_dd_pct": 30.0,
+          "max_open_risk_pct": 6.0,
+          "dd_throttle_pct": 5.0,
+          "dd_throttle_floor": 0.25
+        },
+        "strategies": [
+          "py_0bd988459b4a_long"
+        ],
+        "position": {
+          "market": "perp",
+          "leverage": 10,
+          "exit_unit": "pct",
+          "atr_frame": "24h",
+          "atr_period": 14,
+          "sizing": "risk",
+          "risk_per_trade_pct": 4.0,
+          "max_notional_pct": 300.0,
+          "stop_fill": "level",
+          "limit_through_pct": 0.0,
+          "cooldown": 1440,
+          "risk_profile": "legacy",
+          "sl_anchor": "",
+          "sl_beyond_last_pct": 0.0,
+          "stop_loss_rate": 2.5,
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0
+        }
+      },
+      "saved_version": 3
+    },
+    {
+      "alpha_id": "2e41b2cfa24d",
+      "target_27": true,
+      "owner_id": "3bbc767faa10",
+      "name": "U1BollingerSqueezeBreak",
+      "source_sha256": "0c4b795ff9496eeadbd37bc242dc3b93cadfa1bbaa776ca095c9bbed17665fd3",
+      "stored_program_hash": null,
+      "compiled_program_hash": "7b8da9871e62",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "bbands",
+        "natr",
+        "sma"
+      ],
+      "config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "timeframe": "1h",
+        "start": "2026-01-01",
+        "end": "2026-03-01",
+        "initial_capital": 10000
+      },
+      "saved_version": 2
+    },
+    {
+      "alpha_id": "303d4b713dda",
+      "target_27": false,
+      "owner_id": "aed197a5e968",
+      "name": "Macro Trend Filtered Breakout (EMA 105 Filter)",
+      "source_sha256": "09b1764e6144df99ebd68939ad45a75892590a6e00debc59b540390d0e84e277",
+      "stored_program_hash": "53a2e56d1a43",
+      "compiled_program_hash": "53a2e56d1a43",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "ema",
+        "sma",
+        "stddev"
+      ],
+      "config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "exchange": "okx",
+        "program": {
+          "name": "MacroTrendFilteredBreakout",
+          "legs": [
+            "LONG"
+          ],
+          "levels": [
+            0.0,
+            1.0
+          ],
+          "features": [
+            "ema",
+            "sma",
+            "stddev"
+          ],
+          "warmup_bars": 315
+        },
+        "risk": {
+          "max_positions": 8,
+          "max_per_symbol": 1,
+          "max_gross_exposure": 3.0,
+          "kill_switch_dd_pct": 30.0,
+          "max_open_risk_pct": 6.0,
+          "dd_throttle_pct": 5.0,
+          "dd_throttle_floor": 0.25
+        },
+        "strategies": [
+          "py_53a2e56d1a43_long"
+        ],
+        "position": {
+          "market": "perp",
+          "leverage": 10,
+          "exit_unit": "atr",
+          "atr_frame": "24h",
+          "atr_period": 14,
+          "sizing": "risk",
+          "risk_per_trade_pct": 4.1,
+          "max_notional_pct": 300.0,
+          "stop_fill": "level",
+          "limit_through_pct": 0.0,
+          "cooldown": 1440,
+          "risk_profile": "legacy",
+          "sl_anchor": "",
+          "sl_beyond_last_pct": 0.0,
+          "stop_loss_rate": 2.5,
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0
+        }
+      },
+      "saved_version": 2
+    },
+    {
+      "alpha_id": "33312a2f4dfc",
+      "target_27": false,
+      "owner_id": "aed197a5e968",
+      "name": "Standard Deviation Dynamic Channel Breakout (v2.0 Regime Filtered)",
+      "source_sha256": "c320d9dbef1dad973a81afce327afe5580df1dd3e9e614eef870bb4a4df591a8",
+      "stored_program_hash": "6e3cb7feae61",
+      "compiled_program_hash": "6e3cb7feae61",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "ema",
+        "sma",
+        "stddev"
+      ],
+      "config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "exchange": "okx",
+        "program": {
+          "name": "StandardDeviationDynamicChannelBreakout",
+          "legs": [
+            "LONG"
+          ],
+          "levels": [
+            0.0,
+            1.0
+          ],
+          "features": [
+            "ema",
+            "sma",
+            "stddev"
+          ],
+          "warmup_bars": 300
+        },
+        "risk": {
+          "max_positions": 8,
+          "max_per_symbol": 1,
+          "max_gross_exposure": 3.0,
+          "kill_switch_dd_pct": 30.0,
+          "max_open_risk_pct": 6.0,
+          "dd_throttle_pct": 5.0,
+          "dd_throttle_floor": 0.25
+        },
+        "strategies": [
+          "py_6e3cb7feae61_long"
+        ],
+        "position": {
+          "market": "perp",
+          "leverage": 10,
+          "exit_unit": "atr",
+          "atr_frame": "24h",
+          "atr_period": 14,
+          "sizing": "risk",
+          "risk_per_trade_pct": 4.0,
+          "max_notional_pct": 300.0,
+          "stop_fill": "level",
+          "limit_through_pct": 0.0,
+          "cooldown": 1440,
+          "risk_profile": "legacy",
+          "sl_anchor": "",
+          "sl_beyond_last_pct": 0.0,
+          "stop_loss_rate": 2.5,
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0
+        }
+      },
+      "saved_version": 2
+    },
+    {
+      "alpha_id": "3cfcc2d296a2",
+      "target_27": false,
+      "owner_id": "43f5220ece1e",
+      "name": "Donchian Lower Channel Exit",
+      "source_sha256": "16df0ff671e0a59a462c425465be1848946467d6e3a02deae1555405a0fbe364",
+      "stored_program_hash": "c8b6938bc0db",
+      "compiled_program_hash": "c8b6938bc0db",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "donchian_lower",
+        "ema"
+      ],
+      "config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "exchange": "okx",
+        "program": {
+          "name": "RiskDonchianTrailingRatchetStrategy",
+          "legs": [
+            "LONG"
+          ],
+          "levels": [
+            0.0,
+            1.0
+          ],
+          "features": [
+            "donchian_lower",
+            "ema"
+          ],
+          "warmup_bars": 61
+        },
+        "risk": {
+          "max_positions": 8,
+          "max_per_symbol": 1,
+          "max_gross_exposure": 3.0,
+          "kill_switch_dd_pct": 30.0,
+          "max_open_risk_pct": 6.0,
+          "dd_throttle_pct": 5.0,
+          "dd_throttle_floor": 0.25
+        },
+        "strategies": [
+          "py_c8b6938bc0db_long"
+        ],
+        "position": {
+          "market": "perp",
+          "leverage": 10,
+          "exit_unit": "pct",
+          "atr_frame": "24h",
+          "atr_period": 14,
+          "sizing": "risk",
+          "risk_per_trade_pct": 0.5,
+          "max_notional_pct": 300.0,
+          "stop_fill": "level",
+          "limit_through_pct": 0.0,
+          "cooldown": 1440,
+          "risk_profile": "legacy",
+          "sl_anchor": "",
+          "sl_beyond_last_pct": 0.0,
+          "stop_loss_rate": 3.0,
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0
+        }
+      },
+      "saved_version": 3
+    },
+    {
+      "alpha_id": "4f28285aa44c",
+      "target_27": false,
+      "owner_id": "23dc66cd61c6",
+      "name": "Dual EMA + ADX Trend Strength Filter",
+      "source_sha256": "4f0a9b973c73ec931b6a98e1048ab110ba951416be5cda6c9e30aaf3d2987c17",
+      "stored_program_hash": "fad928147ae1",
+      "compiled_program_hash": "fad928147ae1",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "adx",
+        "ema"
+      ],
+      "config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "exchange": "okx",
+        "program": {
+          "name": "ConfluenceDualEmaAdxStrategy",
+          "legs": [
+            "LONG"
+          ],
+          "levels": [
+            0.0,
+            1.0
+          ],
+          "features": [
+            "adx",
+            "ema"
+          ],
+          "warmup_bars": 151
+        },
+        "risk": {
+          "max_positions": 8,
+          "max_per_symbol": 1,
+          "max_gross_exposure": 3.0,
+          "kill_switch_dd_pct": 30.0,
+          "max_open_risk_pct": 6.0,
+          "dd_throttle_pct": 5.0,
+          "dd_throttle_floor": 0.25
+        },
+        "strategies": [
+          "py_fad928147ae1_long"
+        ],
+        "position": {
+          "market": "perp",
+          "leverage": 10,
+          "exit_unit": "pct",
+          "atr_frame": "24h",
+          "atr_period": 14,
+          "sizing": "risk",
+          "risk_per_trade_pct": 0.5,
+          "max_notional_pct": 300.0,
+          "stop_fill": "level",
+          "limit_through_pct": 0.0,
+          "cooldown": 1440,
+          "risk_profile": "legacy",
+          "sl_anchor": "",
+          "sl_beyond_last_pct": 0.0,
+          "stop_loss_rate": 3.0,
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0
+        }
+      },
+      "saved_version": 3
+    },
+    {
+      "alpha_id": "541c55834f56",
+      "target_27": false,
+      "owner_id": "dd3d4fbabe8a",
+      "name": "Daily Range Expansion (High - Low) / Close",
+      "source_sha256": "f9a0fbc0a647b314662a79e69ef8d26eec4d11a77e2b4c342bd12d5282207b38",
+      "stored_program_hash": "ffbd671df407",
+      "compiled_program_hash": "ffbd671df407",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "range_pct",
+        "sma"
+      ],
+      "config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "exchange": "okx",
+        "program": {
+          "name": "RangePctStrategy",
+          "legs": [
+            "LONG"
+          ],
+          "levels": [
+            0.0,
+            1.0
+          ],
+          "features": [
+            "range_pct",
+            "sma"
+          ],
+          "warmup_bars": 21
+        },
+        "risk": {
+          "max_positions": 8,
+          "max_per_symbol": 1,
+          "max_gross_exposure": 3.0,
+          "kill_switch_dd_pct": 30.0,
+          "max_open_risk_pct": 6.0,
+          "dd_throttle_pct": 5.0,
+          "dd_throttle_floor": 0.25
+        },
+        "strategies": [
+          "py_ffbd671df407_long"
+        ],
+        "position": {
+          "market": "perp",
+          "leverage": 10,
+          "exit_unit": "pct",
+          "atr_frame": "24h",
+          "atr_period": 14,
+          "sizing": "risk",
+          "risk_per_trade_pct": 0.5,
+          "max_notional_pct": 300.0,
+          "stop_fill": "level",
+          "limit_through_pct": 0.0,
+          "cooldown": 1440,
+          "risk_profile": "legacy",
+          "sl_anchor": "",
+          "sl_beyond_last_pct": 0.0,
+          "stop_loss_rate": 3.0,
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0
+        }
+      },
+      "saved_version": 3
+    },
+    {
+      "alpha_id": "571474a18f55",
+      "target_27": true,
+      "owner_id": "82e8ccc35eb6",
+      "name": "U3DirectionalTrendGate",
+      "source_sha256": "87324a1d6d527ea46010bbba152b0ac95da2a12d015e860ce21d6c5348319bc9",
+      "stored_program_hash": null,
+      "compiled_program_hash": "c8b38f4a66d8",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "adx",
+        "ema",
+        "minus_di",
+        "plus_di"
+      ],
+      "config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "timeframe": "1h",
+        "start": "2026-01-01",
+        "end": "2026-03-01",
+        "initial_capital": 10000
+      },
+      "saved_version": 2
+    },
+    {
+      "alpha_id": "5e52d3fdf71f",
+      "target_27": false,
+      "owner_id": "76c5814277ab",
+      "name": "Bollinger Band Overextension Exit",
+      "source_sha256": "f88de3b1055bcb889a1d8bb7a81ae502ee6388e003e77878b27669a1c4f0f5d9",
+      "stored_program_hash": "cb0a966c335f",
+      "compiled_program_hash": "cb0a966c335f",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "bbands"
+      ],
+      "config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "exchange": "okx",
+        "program": {
+          "name": "RiskBollingerBandProfitTakeStrategy",
+          "legs": [
+            "LONG"
+          ],
+          "levels": [
+            0.0,
+            1.0
+          ],
+          "features": [
+            "bbands"
+          ],
+          "warmup_bars": 21
+        },
+        "risk": {
+          "max_positions": 8,
+          "max_per_symbol": 1,
+          "max_gross_exposure": 3.0,
+          "kill_switch_dd_pct": 30.0,
+          "max_open_risk_pct": 6.0,
+          "dd_throttle_pct": 5.0,
+          "dd_throttle_floor": 0.25
+        },
+        "strategies": [
+          "py_cb0a966c335f_long"
+        ],
+        "position": {
+          "market": "perp",
+          "leverage": 10,
+          "exit_unit": "pct",
+          "atr_frame": "24h",
+          "atr_period": 14,
+          "sizing": "risk",
+          "risk_per_trade_pct": 0.5,
+          "max_notional_pct": 300.0,
+          "stop_fill": "level",
+          "limit_through_pct": 0.0,
+          "cooldown": 1440,
+          "risk_profile": "legacy",
+          "sl_anchor": "",
+          "sl_beyond_last_pct": 0.0,
+          "stop_loss_rate": 3.0,
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0
+        }
+      },
+      "saved_version": 3
+    },
+    {
+      "alpha_id": "6055aa8f661e",
+      "target_27": false,
+      "owner_id": "a214b36a7eab",
+      "name": "Triple Filter: EMA + MACD + RSI",
+      "source_sha256": "8275abadc4d4e48fe09acbdd279dcef9c6a045e89dc248ed6e5e42cfc5256854",
+      "stored_program_hash": "4489cf261562",
+      "compiled_program_hash": "4489cf261562",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "ema",
+        "macd",
+        "rsi"
+      ],
+      "config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "exchange": "okx",
+        "program": {
+          "name": "ConfluenceTripleScreenStrategy",
+          "legs": [
+            "LONG"
+          ],
+          "levels": [
+            0.0,
+            1.0
+          ],
+          "features": [
+            "ema",
+            "macd",
+            "rsi"
+          ],
+          "warmup_bars": 150
+        },
+        "risk": {
+          "max_positions": 8,
+          "max_per_symbol": 1,
+          "max_gross_exposure": 3.0,
+          "kill_switch_dd_pct": 30.0,
+          "max_open_risk_pct": 6.0,
+          "dd_throttle_pct": 5.0,
+          "dd_throttle_floor": 0.25
+        },
+        "strategies": [
+          "py_4489cf261562_long"
+        ],
+        "position": {
+          "market": "perp",
+          "leverage": 10,
+          "exit_unit": "pct",
+          "atr_frame": "24h",
+          "atr_period": 14,
+          "sizing": "risk",
+          "risk_per_trade_pct": 0.5,
+          "max_notional_pct": 300.0,
+          "stop_fill": "level",
+          "limit_through_pct": 0.0,
+          "cooldown": 1440,
+          "risk_profile": "legacy",
+          "sl_anchor": "",
+          "sl_beyond_last_pct": 0.0,
+          "stop_loss_rate": 3.0,
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0
+        }
+      },
+      "saved_version": 3
+    },
+    {
+      "alpha_id": "616e1b8cbc88",
+      "target_27": true,
+      "owner_id": "184e6dc9dfe6",
+      "name": "U2NatrExpansionBreak",
+      "source_sha256": "5ed02904c9a9c7a30a2d1c6ad89cf12000a9a4ee3f8694bf9c5bf3f9f9e3c717",
+      "stored_program_hash": null,
+      "compiled_program_hash": "106b975dcad6",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "donchian_upper",
+        "ema",
+        "natr",
+        "sma"
+      ],
+      "config": {
+        "symbols": [
+          "ETH-USDT"
+        ],
+        "timeframe": "15m",
+        "bar_count": 800,
+        "initial_capital": 10000
+      },
+      "saved_version": 2
+    },
+    {
+      "alpha_id": "64b657c8de8e",
+      "target_27": true,
+      "owner_id": "c7f8e10109b3",
+      "name": "U4TrendFilteredReversion",
+      "source_sha256": "7e843ba57750213fa4a8617498a63f324d76fba299ed114e6fe3d486de710901",
+      "stored_program_hash": null,
+      "compiled_program_hash": "3d74ba7d653c",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "bbands",
+        "ema"
+      ],
+      "config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "timeframe": "1h",
+        "start": "2025-11-01",
+        "end": "2026-01-01",
+        "initial_capital": 10000
+      },
+      "saved_version": 2
+    },
+    {
+      "alpha_id": "6afa7f774655",
+      "target_27": false,
+      "owner_id": "a214b36a7eab",
+      "name": "RSI Rebound with Fast SMA Filter",
+      "source_sha256": "5ca2e43970424a0ea9f942c302b420a0f253a4fd0b04ad7f2737d8fac3803a73",
+      "stored_program_hash": "6ec7ffdfb32c",
+      "compiled_program_hash": "6ec7ffdfb32c",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "rsi",
+        "sma"
+      ],
+      "config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "exchange": "okx",
+        "program": {
+          "name": "RevertRsiDivergenceStrategy",
+          "legs": [
+            "LONG"
+          ],
+          "levels": [
+            0.0,
+            1.0
+          ],
+          "features": [
+            "rsi",
+            "sma"
+          ],
+          "warmup_bars": 57
+        },
+        "risk": {
+          "max_positions": 8,
+          "max_per_symbol": 1,
+          "max_gross_exposure": 3.0,
+          "kill_switch_dd_pct": 30.0,
+          "max_open_risk_pct": 6.0,
+          "dd_throttle_pct": 5.0,
+          "dd_throttle_floor": 0.25
+        },
+        "strategies": [
+          "py_6ec7ffdfb32c_long"
+        ],
+        "position": {
+          "market": "perp",
+          "leverage": 10,
+          "exit_unit": "pct",
+          "atr_frame": "24h",
+          "atr_period": 14,
+          "sizing": "risk",
+          "risk_per_trade_pct": 0.5,
+          "max_notional_pct": 300.0,
+          "stop_fill": "level",
+          "limit_through_pct": 0.0,
+          "cooldown": 1440,
+          "risk_profile": "legacy",
+          "sl_anchor": "",
+          "sl_beyond_last_pct": 0.0,
+          "stop_loss_rate": 3.0,
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0
+        }
+      },
+      "saved_version": 3
+    },
+    {
+      "alpha_id": "715e56a6dd33",
+      "target_27": false,
+      "owner_id": "43f5220ece1e",
+      "name": "Linear Regression Channel Deviation",
+      "source_sha256": "4299244c167cb37d22b03a893999dffbbe8946de46a0d5935e5a39169ef6c39d",
+      "stored_program_hash": "038c53ed8d5b",
+      "compiled_program_hash": "038c53ed8d5b",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "linearreg",
+        "stddev"
+      ],
+      "config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "exchange": "okx",
+        "program": {
+          "name": "RevertLinearregDisparityStrategy",
+          "legs": [
+            "LONG"
+          ],
+          "levels": [
+            0.0,
+            1.0
+          ],
+          "features": [
+            "linearreg",
+            "stddev"
+          ],
+          "warmup_bars": 21
+        },
+        "risk": {
+          "max_positions": 8,
+          "max_per_symbol": 1,
+          "max_gross_exposure": 3.0,
+          "kill_switch_dd_pct": 30.0,
+          "max_open_risk_pct": 6.0,
+          "dd_throttle_pct": 5.0,
+          "dd_throttle_floor": 0.25
+        },
+        "strategies": [
+          "py_038c53ed8d5b_long"
+        ],
+        "position": {
+          "market": "perp",
+          "leverage": 10,
+          "exit_unit": "pct",
+          "atr_frame": "24h",
+          "atr_period": 14,
+          "sizing": "risk",
+          "risk_per_trade_pct": 0.5,
+          "max_notional_pct": 300.0,
+          "stop_fill": "level",
+          "limit_through_pct": 0.0,
+          "cooldown": 1440,
+          "risk_profile": "legacy",
+          "sl_anchor": "",
+          "sl_beyond_last_pct": 0.0,
+          "stop_loss_rate": 3.0,
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0
+        }
+      },
+      "saved_version": 3
+    },
+    {
+      "alpha_id": "717c1890c59e",
+      "target_27": false,
+      "owner_id": "dd3d4fbabe8a",
+      "name": "Weighted Moving Average (WMA) Crossover (Optimized)",
+      "source_sha256": "5bade4fc9da2528fff441235782506bff5302e78334eb23e7de7350f01169718",
+      "stored_program_hash": "bb99c4d3ab95",
+      "compiled_program_hash": "bb99c4d3ab95",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "ema",
+        "wma"
+      ],
+      "config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "exchange": "okx",
+        "program": {
+          "name": "WmaVolumeStrategy",
+          "legs": [
+            "LONG"
+          ],
+          "levels": [
+            0.0,
+            1.0
+          ],
+          "features": [
+            "ema",
+            "wma"
+          ],
+          "warmup_bars": 300
+        },
+        "risk": {
+          "max_positions": 8,
+          "max_per_symbol": 1,
+          "max_gross_exposure": 3.0,
+          "kill_switch_dd_pct": 30.0,
+          "max_open_risk_pct": 6.0,
+          "dd_throttle_pct": 5.0,
+          "dd_throttle_floor": 0.25
+        },
+        "strategies": [
+          "py_bb99c4d3ab95_long"
+        ],
+        "position": {
+          "market": "perp",
+          "leverage": 10,
+          "exit_unit": "pct",
+          "atr_frame": "24h",
+          "atr_period": 14,
+          "sizing": "risk",
+          "risk_per_trade_pct": 4.2,
+          "max_notional_pct": 300.0,
+          "stop_fill": "level",
+          "limit_through_pct": 0.0,
+          "cooldown": 1440,
+          "risk_profile": "legacy",
+          "sl_anchor": "",
+          "sl_beyond_last_pct": 0.0,
+          "stop_loss_rate": 2.5,
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0
+        }
+      },
+      "saved_version": 3
+    },
+    {
+      "alpha_id": "74f607263c5c",
+      "target_27": true,
+      "owner_id": "726ff949da79",
+      "name": "U4ObvBreakoutConfirmation",
+      "source_sha256": "9103b111a5a153caef23936c6cbc8df04d77ccfe7fe711172f6b72f026b477e9",
+      "stored_program_hash": null,
+      "compiled_program_hash": "f3384c28fed8",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "donchian_upper",
+        "ema",
+        "obv",
+        "sma"
+      ],
+      "config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "timeframe": "1h",
+        "start": "2025-11-01",
+        "end": "2026-01-01",
+        "initial_capital": 10000
+      },
+      "saved_version": 2
+    },
+    {
+      "alpha_id": "7c1bf0a9686a",
+      "target_27": true,
+      "owner_id": "dbbb50a338c9",
+      "name": "U4MacdHistogramAcceleration",
+      "source_sha256": "bcc36bcf8292a019fae951d79f40f2c4cd72d0fe18fc0648affde1876564335f",
+      "stored_program_hash": null,
+      "compiled_program_hash": "eebc12442671",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "ema",
+        "macd"
+      ],
+      "config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "timeframe": "1h",
+        "start": "2025-11-01",
+        "end": "2026-01-01",
+        "initial_capital": 10000
+      },
+      "saved_version": 2
+    },
+    {
+      "alpha_id": "7f3486d63ca8",
+      "target_27": false,
+      "owner_id": "dd3d4fbabe8a",
+      "name": "Dual Oscillator Climax Exit",
+      "source_sha256": "ce12b2815db50a56abcc4fd2b220f0847666dfe9f1cf999b1fea74f02b6c1bea",
+      "stored_program_hash": "462b4e785383",
+      "compiled_program_hash": "462b4e785383",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "rsi",
+        "sma",
+        "stoch"
+      ],
+      "config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "exchange": "okx",
+        "program": {
+          "name": "RiskStochRsiOverboughtExitStrategy",
+          "legs": [
+            "LONG"
+          ],
+          "levels": [
+            0.0,
+            1.0
+          ],
+          "features": [
+            "rsi",
+            "sma",
+            "stoch"
+          ],
+          "warmup_bars": 57
+        },
+        "risk": {
+          "max_positions": 8,
+          "max_per_symbol": 1,
+          "max_gross_exposure": 3.0,
+          "kill_switch_dd_pct": 30.0,
+          "max_open_risk_pct": 6.0,
+          "dd_throttle_pct": 5.0,
+          "dd_throttle_floor": 0.25
+        },
+        "strategies": [
+          "py_462b4e785383_long"
+        ],
+        "position": {
+          "market": "perp",
+          "leverage": 10,
+          "exit_unit": "pct",
+          "atr_frame": "24h",
+          "atr_period": 14,
+          "sizing": "risk",
+          "risk_per_trade_pct": 0.5,
+          "max_notional_pct": 300.0,
+          "stop_fill": "level",
+          "limit_through_pct": 0.0,
+          "cooldown": 1440,
+          "risk_profile": "legacy",
+          "sl_anchor": "",
+          "sl_beyond_last_pct": 0.0,
+          "stop_loss_rate": 3.0,
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0
+        }
+      },
+      "saved_version": 3
+    },
+    {
+      "alpha_id": "7f67e9aed0aa",
+      "target_27": false,
+      "owner_id": "dd3d4fbabe8a",
+      "name": "Stochastic & RSI Confluence System",
+      "source_sha256": "6052e9e917f14f02cc0ebba992940a28cc19bcc2a93c17b021e7fda53fba9e26",
+      "stored_program_hash": "14240de90b61",
+      "compiled_program_hash": "14240de90b61",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "rsi",
+        "stoch"
+      ],
+      "config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "exchange": "okx",
+        "program": {
+          "name": "ConfluenceStochRsiTrendStrategy",
+          "legs": [
+            "LONG"
+          ],
+          "levels": [
+            0.0,
+            1.0
+          ],
+          "features": [
+            "rsi",
+            "stoch"
+          ],
+          "warmup_bars": 58
+        },
+        "risk": {
+          "max_positions": 8,
+          "max_per_symbol": 1,
+          "max_gross_exposure": 3.0,
+          "kill_switch_dd_pct": 30.0,
+          "max_open_risk_pct": 6.0,
+          "dd_throttle_pct": 5.0,
+          "dd_throttle_floor": 0.25
+        },
+        "strategies": [
+          "py_14240de90b61_long"
+        ],
+        "position": {
+          "market": "perp",
+          "leverage": 10,
+          "exit_unit": "pct",
+          "atr_frame": "24h",
+          "atr_period": 14,
+          "sizing": "risk",
+          "risk_per_trade_pct": 0.5,
+          "max_notional_pct": 300.0,
+          "stop_fill": "level",
+          "limit_through_pct": 0.0,
+          "cooldown": 1440,
+          "risk_profile": "legacy",
+          "sl_anchor": "",
+          "sl_beyond_last_pct": 0.0,
+          "stop_loss_rate": 3.0,
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0
+        }
+      },
+      "saved_version": 3
+    },
+    {
+      "alpha_id": "7f770ebe5ab5",
+      "target_27": true,
+      "owner_id": "eb5d7e2e3897",
+      "name": "U3RocRecoveryGate",
+      "source_sha256": "0b9874223f9964d08d6cdbd293b18c9498cbdf877e01474e2f77631bd450e6a8",
+      "stored_program_hash": null,
+      "compiled_program_hash": "273f83e9426b",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "ema",
+        "roc"
+      ],
+      "config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "timeframe": "1h",
+        "start": "2026-01-01",
+        "end": "2026-03-01",
+        "initial_capital": 10000
+      },
+      "saved_version": 2
+    },
+    {
+      "alpha_id": "856ddc574ce7",
+      "target_27": true,
+      "owner_id": "9fc184ee1040",
+      "name": "U2StochasticRecovery",
+      "source_sha256": "23b58eb4326b9b130a7b5781370cf2e636f226992148a5392d9abb9c779d5c4c",
+      "stored_program_hash": null,
+      "compiled_program_hash": "a281d16d0ec1",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "ema",
+        "stoch"
+      ],
+      "config": {
+        "symbols": [
+          "ETH-USDT"
+        ],
+        "timeframe": "15m",
+        "bar_count": 800,
+        "initial_capital": 10000
+      },
+      "saved_version": 2
+    },
+    {
+      "alpha_id": "862e0c9eebbe",
+      "target_27": true,
+      "owner_id": "e7c998608206",
+      "name": "U2CciSnapbackTrend",
+      "source_sha256": "a66db59124ce2c88c365d37684009d68f22792c944a3a3d783c6368efcf9e0b0",
+      "stored_program_hash": null,
+      "compiled_program_hash": "04ed6e97557f",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "cci",
+        "ema"
+      ],
+      "config": {
+        "symbols": [
+          "ETH-USDT"
+        ],
+        "timeframe": "15m",
+        "bar_count": 800,
+        "initial_capital": 10000
+      },
+      "saved_version": 2
+    },
+    {
+      "alpha_id": "89379cc0ab52",
+      "target_27": false,
+      "owner_id": "76c5814277ab",
+      "name": "Stochastic Oscillator (%K, %D) Bull Cross",
+      "source_sha256": "f407a700fdf4ff9376f071712a4178fb6d06d918abd45e0086cec3a888990376",
+      "stored_program_hash": "b16870687a62",
+      "compiled_program_hash": "b16870687a62",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "stoch"
+      ],
+      "config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "exchange": "okx",
+        "program": {
+          "name": "RevertStochKDStrategy",
+          "legs": [
+            "LONG"
+          ],
+          "levels": [
+            0.0,
+            1.0
+          ],
+          "features": [
+            "stoch"
+          ],
+          "warmup_bars": 22
+        },
+        "risk": {
+          "max_positions": 8,
+          "max_per_symbol": 1,
+          "max_gross_exposure": 3.0,
+          "kill_switch_dd_pct": 30.0,
+          "max_open_risk_pct": 6.0,
+          "dd_throttle_pct": 5.0,
+          "dd_throttle_floor": 0.25
+        },
+        "strategies": [
+          "py_b16870687a62_long"
+        ],
+        "position": {
+          "market": "perp",
+          "leverage": 10,
+          "exit_unit": "pct",
+          "atr_frame": "24h",
+          "atr_period": 14,
+          "sizing": "risk",
+          "risk_per_trade_pct": 0.5,
+          "max_notional_pct": 300.0,
+          "stop_fill": "level",
+          "limit_through_pct": 0.0,
+          "cooldown": 1440,
+          "risk_profile": "legacy",
+          "sl_anchor": "",
+          "sl_beyond_last_pct": 0.0,
+          "stop_loss_rate": 3.0,
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0
+        }
+      },
+      "saved_version": 3
+    },
+    {
+      "alpha_id": "8a47cdbcc942",
+      "target_27": false,
+      "owner_id": "aed197a5e968",
+      "name": "Fast Dip Harvester (3M DCA Dynamic - CAGR 108%)",
+      "source_sha256": "0eb932dea2e05587b95b12cfc25a2afc68008ea6f933605bce1ba8e3d2628f40",
+      "stored_program_hash": "28bc7ccb1408",
+      "compiled_program_hash": "28bc7ccb1408",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "ema",
+        "rsi",
+        "sma"
+      ],
+      "config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2026-07-01",
+        "end": "2026-10-03",
+        "train_ratio": 0.3,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "exchange": "okx",
+        "program": {
+          "name": "FastDipHarvesterStrategy",
+          "legs": [
+            "LONG"
+          ],
+          "levels": [
+            0.0,
+            1.0
+          ],
+          "features": [
+            "ema",
+            "rsi",
+            "sma"
+          ],
+          "warmup_bars": 150
+        },
+        "risk": {
+          "max_positions": 8,
+          "max_per_symbol": 1,
+          "max_gross_exposure": 3.0,
+          "kill_switch_dd_pct": 30.0,
+          "max_open_risk_pct": 6.0,
+          "dd_throttle_pct": 5.0,
+          "dd_throttle_floor": 0.25
+        },
+        "strategies": [
+          "py_28bc7ccb1408_long"
+        ],
+        "position": {
+          "market": "perp",
+          "leverage": 10,
+          "exit_unit": "atr",
+          "atr_frame": "24h",
+          "atr_period": 14,
+          "sizing": "risk",
+          "risk_per_trade_pct": 5.0,
+          "max_notional_pct": 300.0,
+          "stop_fill": "level",
+          "limit_through_pct": 0.0,
+          "cooldown": 1440,
+          "risk_profile": "legacy",
+          "sl_anchor": "",
+          "sl_beyond_last_pct": 0.0,
+          "stop_loss_rate": 2.0,
+          "take_profit_rate": 4.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0
+        }
+      },
+      "saved_version": 1
+    },
+    {
+      "alpha_id": "930294d28c45",
+      "target_27": true,
+      "owner_id": "439fa7538599",
+      "name": "U3RsiStrengthGate",
+      "source_sha256": "52f830c0ab251a186a4800e94b3f3ec9f9d504d4525f8096e7973d46b7c9ab0f",
+      "stored_program_hash": null,
+      "compiled_program_hash": "5a8a9221e92a",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "ema",
+        "rsi"
+      ],
+      "config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "timeframe": "1h",
+        "start": "2026-01-01",
+        "end": "2026-03-01",
+        "initial_capital": 10000
+      },
+      "saved_version": 2
+    },
+    {
+      "alpha_id": "9eec3d61131d",
+      "target_27": true,
+      "owner_id": "79183007b990",
+      "name": "U3MacdRiskGate",
+      "source_sha256": "23375b931df8d07f0d336ec5ce656501e0a894f4c4c2b4fca808e07fc9220871",
+      "stored_program_hash": null,
+      "compiled_program_hash": "dd612431427e",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "macd"
+      ],
+      "config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "timeframe": "1h",
+        "start": "2026-01-01",
+        "end": "2026-03-01",
+        "initial_capital": 10000
+      },
+      "saved_version": 2
+    },
+    {
+      "alpha_id": "a4d6826fbbc6",
+      "target_27": true,
+      "owner_id": "4547f1f50486",
+      "name": "U4RsiMomentumRegime",
+      "source_sha256": "0a6931d532143d2f48ee7e3d1dbdefb0c3e8341cf23e805c3b56ce0638ac7649",
+      "stored_program_hash": null,
+      "compiled_program_hash": "fb156661f792",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "ema",
+        "rsi"
+      ],
+      "config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "timeframe": "1h",
+        "start": "2025-11-01",
+        "end": "2026-01-01",
+        "initial_capital": 10000
+      },
+      "saved_version": 2
+    },
+    {
+      "alpha_id": "af2bf88426c4",
+      "target_27": true,
+      "owner_id": "bf158b5142e8",
+      "name": "U3BollingerReclaim",
+      "source_sha256": "17f6c6678a1840423feade38d6b272d31768b9f1eb2bd6e6c75c6d77ea2b450c",
+      "stored_program_hash": null,
+      "compiled_program_hash": "7aaf6a0b8f0b",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "bbands",
+        "roc"
+      ],
+      "config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "timeframe": "1h",
+        "start": "2026-01-01",
+        "end": "2026-03-01",
+        "initial_capital": 10000
+      },
+      "saved_version": 2
+    },
+    {
+      "alpha_id": "b4b65cd3493f",
+      "target_27": false,
+      "owner_id": "23dc66cd61c6",
+      "name": "Commodity Channel Index (CCI) Snapback",
+      "source_sha256": "432ba779ab60c150f6cd76d2de54021f4246cc52c7a066ec1a3e8efc4d4449cb",
+      "stored_program_hash": "36c7d1728ca0",
+      "compiled_program_hash": "36c7d1728ca0",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "cci"
+      ],
+      "config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "exchange": "okx",
+        "program": {
+          "name": "RevertCciOversoldStrategy",
+          "legs": [
+            "LONG"
+          ],
+          "levels": [
+            0.0,
+            1.0
+          ],
+          "features": [
+            "cci"
+          ],
+          "warmup_bars": 15
+        },
+        "risk": {
+          "max_positions": 8,
+          "max_per_symbol": 1,
+          "max_gross_exposure": 3.0,
+          "kill_switch_dd_pct": 30.0,
+          "max_open_risk_pct": 6.0,
+          "dd_throttle_pct": 5.0,
+          "dd_throttle_floor": 0.25
+        },
+        "strategies": [
+          "py_36c7d1728ca0_long"
+        ],
+        "position": {
+          "market": "perp",
+          "leverage": 10,
+          "exit_unit": "pct",
+          "atr_frame": "24h",
+          "atr_period": 14,
+          "sizing": "risk",
+          "risk_per_trade_pct": 0.5,
+          "max_notional_pct": 300.0,
+          "stop_fill": "level",
+          "limit_through_pct": 0.0,
+          "cooldown": 1440,
+          "risk_profile": "legacy",
+          "sl_anchor": "",
+          "sl_beyond_last_pct": 0.0,
+          "stop_loss_rate": 3.0,
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0
+        }
+      },
+      "saved_version": 3
+    },
+    {
+      "alpha_id": "b96bafe57445",
+      "target_27": false,
+      "owner_id": "76c5814277ab",
+      "name": "Normalized ATR (NATR) Volatility Breakout",
+      "source_sha256": "6b9b255a2af1acccb2eaf15eb22d8340bd731145a46abda1684257487beb9fb3",
+      "stored_program_hash": "f615f53413c1",
+      "compiled_program_hash": "f615f53413c1",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "ema",
+        "natr"
+      ],
+      "config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "exchange": "okx",
+        "program": {
+          "name": "NatrRangeStrategy",
+          "legs": [
+            "LONG"
+          ],
+          "levels": [
+            0.0,
+            1.0
+          ],
+          "features": [
+            "ema",
+            "natr"
+          ],
+          "warmup_bars": 60
+        },
+        "risk": {
+          "max_positions": 8,
+          "max_per_symbol": 1,
+          "max_gross_exposure": 3.0,
+          "kill_switch_dd_pct": 30.0,
+          "max_open_risk_pct": 6.0,
+          "dd_throttle_pct": 5.0,
+          "dd_throttle_floor": 0.25
+        },
+        "strategies": [
+          "py_f615f53413c1_long"
+        ],
+        "position": {
+          "market": "perp",
+          "leverage": 10,
+          "exit_unit": "pct",
+          "atr_frame": "24h",
+          "atr_period": 14,
+          "sizing": "risk",
+          "risk_per_trade_pct": 0.5,
+          "max_notional_pct": 300.0,
+          "stop_fill": "level",
+          "limit_through_pct": 0.0,
+          "cooldown": 1440,
+          "risk_profile": "legacy",
+          "sl_anchor": "",
+          "sl_beyond_last_pct": 0.0,
+          "stop_loss_rate": 3.0,
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0
+        }
+      },
+      "saved_version": 3
+    },
+    {
+      "alpha_id": "bd234070bd7b",
+      "target_27": true,
+      "owner_id": "bbd150bc473c",
+      "name": "U1RsiRecoveryTrend",
+      "source_sha256": "24f1a9bd8e0dae169d4715023759ff8e507ecf4a9a5ed46684c58c90312847ab",
+      "stored_program_hash": null,
+      "compiled_program_hash": "5c359cd6cb5d",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "ema",
+        "rsi"
+      ],
+      "config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "timeframe": "1h",
+        "start": "2026-01-01",
+        "end": "2026-03-01",
+        "initial_capital": 10000
+      },
+      "saved_version": 2
+    },
+    {
+      "alpha_id": "be1174b24a44",
+      "target_27": true,
+      "owner_id": "657914b99b5b",
+      "name": "U1ObvAccumulation",
+      "source_sha256": "0cf8e505ed75037680015097713cd358449cb1a7bc4c15086bfd8249656f78af",
+      "stored_program_hash": null,
+      "compiled_program_hash": "2c48defb5335",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "ema",
+        "obv",
+        "sma"
+      ],
+      "config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "timeframe": "1h",
+        "start": "2026-01-01",
+        "end": "2026-03-01",
+        "initial_capital": 10000
+      },
+      "saved_version": 2
+    },
+    {
+      "alpha_id": "bf519617d973",
+      "target_27": false,
+      "owner_id": "76c5814277ab",
+      "name": "Double Exponential Moving Average (DEMA - Optimized)",
+      "source_sha256": "c34de4a963fe5e9f01283a6c9266bc48157295185579aece0934a0c0967f816b",
+      "stored_program_hash": "8eae942a49ff",
+      "compiled_program_hash": "8eae942a49ff",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "dema",
+        "ema"
+      ],
+      "config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "exchange": "okx",
+        "program": {
+          "name": "DemaMomentumStrategy",
+          "legs": [
+            "LONG"
+          ],
+          "levels": [
+            0.0,
+            1.0
+          ],
+          "features": [
+            "dema",
+            "ema"
+          ],
+          "warmup_bars": 300
+        },
+        "risk": {
+          "max_positions": 8,
+          "max_per_symbol": 1,
+          "max_gross_exposure": 3.0,
+          "kill_switch_dd_pct": 30.0,
+          "max_open_risk_pct": 6.0,
+          "dd_throttle_pct": 5.0,
+          "dd_throttle_floor": 0.25
+        },
+        "strategies": [
+          "py_8eae942a49ff_long"
+        ],
+        "position": {
+          "market": "perp",
+          "leverage": 10,
+          "exit_unit": "pct",
+          "atr_frame": "24h",
+          "atr_period": 14,
+          "sizing": "risk",
+          "risk_per_trade_pct": 6.8,
+          "max_notional_pct": 300.0,
+          "stop_fill": "level",
+          "limit_through_pct": 0.0,
+          "cooldown": 1440,
+          "risk_profile": "legacy",
+          "sl_anchor": "",
+          "sl_beyond_last_pct": 0.0,
+          "stop_loss_rate": 2.5,
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0
+        }
+      },
+      "saved_version": 3
+    },
+    {
+      "alpha_id": "c33cc317bbeb",
+      "target_27": false,
+      "owner_id": "dd3d4fbabe8a",
+      "name": "Multi-Day Cumulative Return Dip Buying",
+      "source_sha256": "091b2185a9117d2c7f2fb22b5b7e149983529c85744070f38b8a03a85468aacd",
+      "stored_program_hash": "374b4e4b5bf0",
+      "compiled_program_hash": "374b4e4b5bf0",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "returns"
+      ],
+      "config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "exchange": "okx",
+        "program": {
+          "name": "RevertReturnsDipStrategy",
+          "legs": [
+            "LONG"
+          ],
+          "levels": [
+            0.0,
+            1.0
+          ],
+          "features": [
+            "returns"
+          ],
+          "warmup_bars": 5
+        },
+        "risk": {
+          "max_positions": 8,
+          "max_per_symbol": 1,
+          "max_gross_exposure": 3.0,
+          "kill_switch_dd_pct": 30.0,
+          "max_open_risk_pct": 6.0,
+          "dd_throttle_pct": 5.0,
+          "dd_throttle_floor": 0.25
+        },
+        "strategies": [
+          "py_374b4e4b5bf0_long"
+        ],
+        "position": {
+          "market": "perp",
+          "leverage": 10,
+          "exit_unit": "pct",
+          "atr_frame": "24h",
+          "atr_period": 14,
+          "sizing": "risk",
+          "risk_per_trade_pct": 0.5,
+          "max_notional_pct": 300.0,
+          "stop_fill": "level",
+          "limit_through_pct": 0.0,
+          "cooldown": 1440,
+          "risk_profile": "legacy",
+          "sl_anchor": "",
+          "sl_beyond_last_pct": 0.0,
+          "stop_loss_rate": 3.0,
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0
+        }
+      },
+      "saved_version": 3
+    },
+    {
+      "alpha_id": "cb0b6e0f12e7",
+      "target_27": true,
+      "owner_id": "f9292fff53c9",
+      "name": "U1DonchianBullBreak",
+      "source_sha256": "4fd7e71c6f9e4ead3594d8f3b5759a5aec5c14f16bd212bcd05c2d2c5b9d6f9d",
+      "stored_program_hash": null,
+      "compiled_program_hash": "63f0bc27521b",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "donchian_upper",
+        "ema"
+      ],
+      "config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "timeframe": "1h",
+        "start": "2026-01-01",
+        "end": "2026-03-01",
+        "initial_capital": 10000
+      },
+      "saved_version": 2
+    },
+    {
+      "alpha_id": "cb750cb1eb10",
+      "target_27": false,
+      "owner_id": "76c5814277ab",
+      "name": "EMA Golden Cross + Volume Spike Confluence",
+      "source_sha256": "e18347792d1e6e9cd9cef46360282015c456f0ca312a1e42129c0f9f402ece7f",
+      "stored_program_hash": "7e78209ffc49",
+      "compiled_program_hash": "7e78209ffc49",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "ema",
+        "volume_z"
+      ],
+      "config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "exchange": "okx",
+        "program": {
+          "name": "ConfluenceVolumeEmaCrossStrategy",
+          "legs": [
+            "LONG"
+          ],
+          "levels": [
+            0.0,
+            1.0
+          ],
+          "features": [
+            "ema",
+            "volume_z"
+          ],
+          "warmup_bars": 151
+        },
+        "risk": {
+          "max_positions": 8,
+          "max_per_symbol": 1,
+          "max_gross_exposure": 3.0,
+          "kill_switch_dd_pct": 30.0,
+          "max_open_risk_pct": 6.0,
+          "dd_throttle_pct": 5.0,
+          "dd_throttle_floor": 0.25
+        },
+        "strategies": [
+          "py_7e78209ffc49_long"
+        ],
+        "position": {
+          "market": "perp",
+          "leverage": 10,
+          "exit_unit": "pct",
+          "atr_frame": "24h",
+          "atr_period": 14,
+          "sizing": "risk",
+          "risk_per_trade_pct": 0.5,
+          "max_notional_pct": 300.0,
+          "stop_fill": "level",
+          "limit_through_pct": 0.0,
+          "cooldown": 1440,
+          "risk_profile": "legacy",
+          "sl_anchor": "",
+          "sl_beyond_last_pct": 0.0,
+          "stop_loss_rate": 3.0,
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0
+        }
+      },
+      "saved_version": 3
+    },
+    {
+      "alpha_id": "d0518c0cca14",
+      "target_27": true,
+      "owner_id": "f4ded6717b32",
+      "name": "U4SqueezeDonchianBreak",
+      "source_sha256": "506ffd73a0be32a25cff1f014872e1687f910456f89fe29efaad5da2b7c09299",
+      "stored_program_hash": null,
+      "compiled_program_hash": "b507bd4ccf93",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "donchian_upper",
+        "ema",
+        "natr",
+        "sma"
+      ],
+      "config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "timeframe": "1h",
+        "start": "2025-11-01",
+        "end": "2026-01-01",
+        "initial_capital": 10000
+      },
+      "saved_version": 2
+    },
+    {
+      "alpha_id": "e9a9a5b44d03",
+      "target_27": true,
+      "owner_id": "95f7a5a4b3ae",
+      "name": "U2MacdZeroRegime",
+      "source_sha256": "ff08fd5c0593ea93377a86ba04585c2d5515d0e00c1c9a89b3b1dae6c08c082c",
+      "stored_program_hash": null,
+      "compiled_program_hash": "367d606e1d98",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "ema",
+        "macd"
+      ],
+      "config": {
+        "symbols": [
+          "ETH-USDT"
+        ],
+        "timeframe": "15m",
+        "bar_count": 800,
+        "initial_capital": 10000
+      },
+      "saved_version": 2
+    },
+    {
+      "alpha_id": "ee0cf7f58f94",
+      "target_27": true,
+      "owner_id": "97cac5011215",
+      "name": "U2BollingerReclaim",
+      "source_sha256": "54251a3551fd6a8d70735937055ad38006de4e6a5e99a8c9a786c9c33a42601f",
+      "stored_program_hash": null,
+      "compiled_program_hash": "7d22cd5ca476",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "bbands",
+        "rsi"
+      ],
+      "config": {
+        "symbols": [
+          "ETH-USDT"
+        ],
+        "timeframe": "15m",
+        "bar_count": 800,
+        "initial_capital": 10000
+      },
+      "saved_version": 2
+    },
+    {
+      "alpha_id": "efb1fbe2db86",
+      "target_27": false,
+      "owner_id": "aed197a5e968",
+      "name": "Volatility Expansion Channel (StdDev 1.51 + Macro Trend)",
+      "source_sha256": "205a3ddb655e010b1be96129e7b044bb2fe18ef075e16d69df3ca7b28799ef43",
+      "stored_program_hash": "7232f9a97247",
+      "compiled_program_hash": "7232f9a97247",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "ema",
+        "sma",
+        "stddev"
+      ],
+      "config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "exchange": "okx",
+        "program": {
+          "name": "VolatilityExpansionChannel",
+          "legs": [
+            "LONG"
+          ],
+          "levels": [
+            0.0,
+            1.0
+          ],
+          "features": [
+            "ema",
+            "sma",
+            "stddev"
+          ],
+          "warmup_bars": 300
+        },
+        "risk": {
+          "max_positions": 8,
+          "max_per_symbol": 1,
+          "max_gross_exposure": 3.0,
+          "kill_switch_dd_pct": 30.0,
+          "max_open_risk_pct": 6.0,
+          "dd_throttle_pct": 5.0,
+          "dd_throttle_floor": 0.25
+        },
+        "strategies": [
+          "py_7232f9a97247_long"
+        ],
+        "position": {
+          "market": "perp",
+          "leverage": 10,
+          "exit_unit": "atr",
+          "atr_frame": "24h",
+          "atr_period": 14,
+          "sizing": "risk",
+          "risk_per_trade_pct": 4.0,
+          "max_notional_pct": 300.0,
+          "stop_fill": "level",
+          "limit_through_pct": 0.0,
+          "cooldown": 1440,
+          "risk_profile": "legacy",
+          "sl_anchor": "",
+          "sl_beyond_last_pct": 0.0,
+          "stop_loss_rate": 2.5,
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0
+        }
+      },
+      "saved_version": 2
+    },
+    {
+      "alpha_id": "f261549d9efa",
+      "target_27": false,
+      "owner_id": "23dc66cd61c6",
+      "name": "ROC Momentum Surge",
+      "source_sha256": "730f5481c03959a138fa9ac423995c93502b38504a51b8de7e52dc276db63a26",
+      "stored_program_hash": "b591188a3137",
+      "compiled_program_hash": "b591188a3137",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "ema",
+        "roc"
+      ],
+      "config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "exchange": "okx",
+        "program": {
+          "name": "RocSurgeStrategy",
+          "legs": [
+            "LONG"
+          ],
+          "levels": [
+            0.0,
+            1.0
+          ],
+          "features": [
+            "ema",
+            "roc"
+          ],
+          "warmup_bars": 60
+        },
+        "risk": {
+          "max_positions": 8,
+          "max_per_symbol": 1,
+          "max_gross_exposure": 3.0,
+          "kill_switch_dd_pct": 30.0,
+          "max_open_risk_pct": 6.0,
+          "dd_throttle_pct": 5.0,
+          "dd_throttle_floor": 0.25
+        },
+        "strategies": [
+          "py_b591188a3137_long"
+        ],
+        "position": {
+          "market": "perp",
+          "leverage": 10,
+          "exit_unit": "pct",
+          "atr_frame": "24h",
+          "atr_period": 14,
+          "sizing": "risk",
+          "risk_per_trade_pct": 0.5,
+          "max_notional_pct": 300.0,
+          "stop_fill": "level",
+          "limit_through_pct": 0.0,
+          "cooldown": 1440,
+          "risk_profile": "legacy",
+          "sl_anchor": "",
+          "sl_beyond_last_pct": 0.0,
+          "stop_loss_rate": 3.0,
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0
+        }
+      },
+      "saved_version": 3
+    },
+    {
+      "alpha_id": "f4e211e9510d",
+      "target_27": false,
+      "owner_id": "a214b36a7eab",
+      "name": "Rolling 30-Day Multi-Week High Breakout",
+      "source_sha256": "1ea9f475265a505d4663e66673b5b9a444e7935f71b39e08ef6bb32db69d59fb",
+      "stored_program_hash": "3e10619e8fbb",
+      "compiled_program_hash": "3e10619e8fbb",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "donchian_upper",
+        "sma"
+      ],
+      "config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "exchange": "okx",
+        "program": {
+          "name": "MultiWeekHighStrategy",
+          "legs": [
+            "LONG"
+          ],
+          "levels": [
+            0.0,
+            1.0
+          ],
+          "features": [
+            "donchian_upper",
+            "sma"
+          ],
+          "warmup_bars": 31
+        },
+        "risk": {
+          "max_positions": 8,
+          "max_per_symbol": 1,
+          "max_gross_exposure": 3.0,
+          "kill_switch_dd_pct": 30.0,
+          "max_open_risk_pct": 6.0,
+          "dd_throttle_pct": 5.0,
+          "dd_throttle_floor": 0.25
+        },
+        "strategies": [
+          "py_3e10619e8fbb_long"
+        ],
+        "position": {
+          "market": "perp",
+          "leverage": 10,
+          "exit_unit": "pct",
+          "atr_frame": "24h",
+          "atr_period": 14,
+          "sizing": "risk",
+          "risk_per_trade_pct": 0.5,
+          "max_notional_pct": 300.0,
+          "stop_fill": "level",
+          "limit_through_pct": 0.0,
+          "cooldown": 1440,
+          "risk_profile": "legacy",
+          "sl_anchor": "",
+          "sl_beyond_last_pct": 0.0,
+          "stop_loss_rate": 3.0,
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0
+        }
+      },
+      "saved_version": 3
+    },
+    {
+      "alpha_id": "fa9587a97fa9",
+      "target_27": false,
+      "owner_id": "43f5220ece1e",
+      "name": "Trend Alignment Momentum (Optimized)",
+      "source_sha256": "bb9aab3054c38562a9a7ae7472139789d561845449100b944bd165adeace066d",
+      "stored_program_hash": "512093da7914",
+      "compiled_program_hash": "512093da7914",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "ema",
+        "sma",
+        "stddev"
+      ],
+      "config": {
+        "symbols": [
+          "BTC",
+          "ETH",
+          "SOL",
+          "BNB",
+          "XRP",
+          "DOGE",
+          "ADA",
+          "AVAX",
+          "LINK",
+          "TRX"
+        ],
+        "data_symbols": [
+          "BTC@perp",
+          "ETH@perp",
+          "SOL@perp",
+          "BNB@perp",
+          "XRP@perp",
+          "DOGE@perp",
+          "ADA@perp",
+          "AVAX@perp",
+          "LINK@perp",
+          "TRX@perp"
+        ],
+        "start": "2023-10-06",
+        "end": "2026-10-03",
+        "train_ratio": 0.7,
+        "initial_capital": 10000.0,
+        "timeframe": "24h",
+        "run_frame": "24h",
+        "exchange": "okx",
+        "program": {
+          "name": "TrendAlignmentMomentumStrategy",
+          "legs": [
+            "LONG"
+          ],
+          "levels": [
+            0.0,
+            1.0
+          ],
+          "features": [
+            "ema",
+            "sma",
+            "stddev"
+          ],
+          "warmup_bars": 300
+        },
+        "risk": {
+          "max_positions": 8,
+          "max_per_symbol": 1,
+          "max_gross_exposure": 3.0,
+          "kill_switch_dd_pct": 30.0,
+          "max_open_risk_pct": 6.0,
+          "dd_throttle_pct": 5.0,
+          "dd_throttle_floor": 0.25
+        },
+        "strategies": [
+          "py_512093da7914_long"
+        ],
+        "position": {
+          "market": "perp",
+          "leverage": 10,
+          "exit_unit": "pct",
+          "atr_frame": "24h",
+          "atr_period": 14,
+          "sizing": "risk",
+          "risk_per_trade_pct": 4.0,
+          "max_notional_pct": 300.0,
+          "stop_fill": "level",
+          "limit_through_pct": 0.0,
+          "cooldown": 1440,
+          "risk_profile": "legacy",
+          "sl_anchor": "",
+          "sl_beyond_last_pct": 0.0,
+          "stop_loss_rate": 2.5,
+          "take_profit_rate": 0.0,
+          "trailing_stop": 0.0,
+          "trailing_activation_pct": 0.0,
+          "timeout": 0
+        }
+      },
+      "saved_version": 4
+    },
+    {
+      "alpha_id": "fd16df3d0a3f",
+      "target_27": true,
+      "owner_id": "d836143af954",
+      "name": "U3EmaRegimeGate",
+      "source_sha256": "89ae87608c23306f74e1ec2fece135e0242dcbbf8446a841f797a4c9d820faf1",
+      "stored_program_hash": null,
+      "compiled_program_hash": "75fd96905b7d",
+      "compile_status": "PASS",
+      "compile_error": null,
+      "features": [
+        "ema"
+      ],
+      "config": {
+        "symbols": [
+          "BTC-USDT"
+        ],
+        "timeframe": "1h",
+        "start": "2026-01-01",
+        "end": "2026-03-01",
+        "initial_capital": 10000
+      },
+      "saved_version": 2
+    }
+  ]
+}

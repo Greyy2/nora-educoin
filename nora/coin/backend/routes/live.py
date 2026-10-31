@@ -42,7 +42,7 @@ class StartBotRequest(BaseModel):
     mode: str = Field("paper", pattern="^(paper|testnet|live)$")
     alpha_id: Optional[str] = None
     code: Optional[str] = None
-    symbols: List[str] = Field(default_factory=lambda: ["BTC-USDT-SWAP"])
+    symbols: List[str] = Field(..., min_length=1)
     capital: float = Field(1000.0, gt=0)
     base_frame: Optional[str] = "1h"
     confirm_live: Optional[bool] = False
@@ -256,7 +256,7 @@ def get_live_execution_contract() -> Dict[str, Any]:
 class CandidateBacktestRequest(BaseModel):
     alpha_id: str
     signal_tf: str
-    symbols: List[str] = Field(default_factory=lambda: ["BTC-USDT-SWAP"])
+    symbols: List[str] = Field(..., min_length=1)
     capital: float = Field(1000.0, gt=0)
     start: Optional[str] = None
     end: Optional[str] = None

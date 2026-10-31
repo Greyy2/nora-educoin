@@ -1482,3 +1482,142 @@ select.n-input {
   padding: 12px 10px;
 }
 
+/* ── EDU MARKET PAGINATION SYSTEM ── */
+.edu-pagination-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 36px;
+  padding: 14px 20px;
+  border-radius: 16px;
+  background: var(--n-surface);
+  border: 1px solid var(--n-line);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05), 0 2px 6px -1px rgba(0, 0, 0, 0.02);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.edu-pagination-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--n-ink-2);
+  flex-wrap: wrap;
+}
+
+.edu-pagination-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  background: var(--n-accent-wash);
+  border: 1px solid rgba(99, 102, 241, 0.22);
+  border-radius: 8px;
+  color: var(--n-accent);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: -0.01em;
+}
+
+.edu-pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.edu-pagination-nav {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px;
+  height: 36px !important;
+  min-height: 36px !important;
+  max-height: 36px !important;
+  padding: 0 13px !important;
+  border: 1px solid var(--n-line) !important;
+  border-radius: 10px !important;
+  background: var(--n-surface-2) !important;
+  color: var(--n-ink) !important;
+  font-size: 12.5px !important;
+  font-weight: 500 !important;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box !important;
+  line-height: 1 !important;
+  white-space: nowrap;
+}
+
+.edu-pagination-nav:hover:not(:disabled) {
+  background: var(--n-surface-3) !important;
+  border-color: var(--n-accent) !important;
+  color: var(--n-accent) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.edu-pagination-nav:disabled {
+  opacity: 0.38 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.edu-pagination-page {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  width: 36px !important;
+  height: 36px !important;
+  min-width: 36px !important;
+  min-height: 36px !important;
+  max-width: 36px !important;
+  max-height: 36px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 1px solid var(--n-line) !important;
+  border-radius: 10px !important;
+  background: var(--n-surface-2) !important;
+  color: var(--n-ink-2) !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box !important;
+  line-height: 1 !important;
+}
+
+.edu-pagination-page > span {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  height: 100% !important;
+  line-height: 1 !important;
+  text-align: center !important;
+  pointer-events: none;
+}
+
+.edu-pagination-page:hover:not(:disabled):not(.active) {
+  background: var(--n-surface-3) !important;
+  border-color: var(--n-accent) !important;
+  color: var(--n-accent) !important;
+  transform: translateY(-1px);
+}
+
+.edu-pagination-page.active {
+  background: var(--n-accent) !important;
+  border-color: var(--n-accent) !important;
+  color: var(--n-accent-ink, #ffffff) !important;
+  font-weight: 700 !important;
+  box-shadow: 0 4px 14px var(--n-accent-wash, rgba(99, 102, 241, 0.35)) !important;
+  cursor: default;
+}
+

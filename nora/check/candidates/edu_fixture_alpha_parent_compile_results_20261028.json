@@ -1,0 +1,83 @@
+{
+  "endpoint": "POST /api/studio/strategies/compile",
+  "template_count": 4,
+  "pass": 4,
+  "fail": 0,
+  "results": [
+    {
+      "parent_ids": [
+        "026f43441cb2",
+        "0bf936687964",
+        "64b657c8de8e",
+        "74f607263c5c",
+        "7c1bf0a9686a",
+        "a4d6826fbbc6",
+        "d0518c0cca14"
+      ],
+      "symbol": "BTC",
+      "timeframe": "1h",
+      "source_sha256": "b69c7bd6bb03668d0f93720127035438c2b285859c2729e1083b8c78e8ccfec7",
+      "effective_parent_code_sha256": "2f008a76af8f4ab197240fa9180e8a6cced7206893e23d9810fca49ffdcd2339",
+      "timeframe_injected_from_config": "1h",
+      "ok": true,
+      "program_hash": "9c14f1932583",
+      "error": null
+    },
+    {
+      "parent_ids": [
+        "138df68946ad",
+        "1a1a4389a821",
+        "2e41b2cfa24d",
+        "bd234070bd7b",
+        "be1174b24a44",
+        "cb0b6e0f12e7"
+      ],
+      "symbol": "BTC",
+      "timeframe": "1h",
+      "source_sha256": "4e11b090ba8c8152d6a6f3beed72dfa264cce84aff0d281207f1b1da9a65df74",
+      "effective_parent_code_sha256": "d040daef3a0179071616620acbe5791d3bb6c027afa1c52d936360d0c890148c",
+      "timeframe_injected_from_config": "1h",
+      "ok": true,
+      "program_hash": "f47de622d26a",
+      "error": null
+    },
+    {
+      "parent_ids": [
+        "1e4c0b9f84f7",
+        "571474a18f55",
+        "7f770ebe5ab5",
+        "930294d28c45",
+        "9eec3d61131d",
+        "af2bf88426c4",
+        "fd16df3d0a3f"
+      ],
+      "symbol": "BTC",
+      "timeframe": "1h",
+      "source_sha256": "255c955c8b2a1953c929b45a5ae4a716844a4cf80f55c95d449faf66e5aef68c",
+      "effective_parent_code_sha256": "afe79f4282dc6db4f521efc0caefec3f38ca81ed8cd25e0880ed6253592ab00c",
+      "timeframe_injected_from_config": "1h",
+      "ok": true,
+      "program_hash": "6e7bb87fa47d",
+      "error": null
+    },
+    {
+      "parent_ids": [
+        "214ea8fdf3e6",
+        "234e6df02e37",
+        "616e1b8cbc88",
+        "856ddc574ce7",
+        "862e0c9eebbe",
+        "e9a9a5b44d03",
+        "ee0cf7f58f94"
+      ],
+      "symbol": "ETH",
+      "timeframe": "15m",
+      "source_sha256": "28058c6f978c69682840b65b68860beb798cb5e0e9c13f1627ecc01ba5d36472",
+      "effective_parent_code_sha256": "1c5630e968a78fa3035effe78376b0733f7085b72c243cb8f12309568a1cb3fd",
+      "timeframe_injected_from_config": "15m",
+      "ok": true,
+      "program_hash": "41ae2d62350e",
+      "error": null
+    }
+  ]
+}

@@ -21,6 +21,27 @@ export default defineConfig({
     sourcemap: false,
     rollupOptions: {
       input: { main: './index.html' },
+      output: {
+        manualChunks: {
+          // React core — tiny, always cached
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          // Chart canvas primitives — shared by CustomResult, Studio, WFA views
+          'charts': [
+            './src/components/charts/AreaLine.jsx',
+            './src/components/charts/UnderwaterStrip.jsx',
+            './src/components/charts/SignalChart.jsx',
+            './src/components/charts/WfaEvaluationChart.jsx',
+            './src/components/charts/BacktestEvaluationChart.jsx',
+          ],
+          // Backtest result display — only loaded after a run completes
+          'result': [
+            './src/components/alpha/studio/CustomResult.jsx',
+            './src/components/alpha/studio/Diagnostics.jsx',
+            './src/components/alpha/studio/ResultExplain.jsx',
+            './src/components/alpha/studio/TestingStatusCard.jsx',
+          ],
+        },
+      },
     },
   },
 })

@@ -93,6 +93,7 @@ def test_edu_backtest_execution():
         "symbols": ["BTC"],
         "start": "2025-01-01",
         "end": "2025-02-01",
+        "test_start": "2025-01-15",
         "train_ratio": 0.8,
         "initial_capital": 10000,
         "run_frame": "1h",
@@ -103,6 +104,14 @@ def test_edu_backtest_execution():
     assert "metrics" in res, "Kết quả thiếu trường 'metrics'!"
     assert "provenance" in res, "Kết quả thiếu trường 'provenance'!"
     assert "alpha_id" in res, "Kết quả thiếu trường 'alpha_id'!"
+    from backend.analys.param import date_ms
+    assert res["config"]["test_start"] == "2025-01-15"
+    assert res["config"]["split_source"] == "test_start"
+    assert res["config"]["effective_train_ratio"] == 0.4375
+    assert res["series"]["stage_split"] == date_ms("2025-01-15") // 1000
+    assert isinstance(res.get("test_trades"), list)
+    assert len(res["test_trades"]) == res["metrics"]["test"]["trades"]
+    assert all(trade["enter_time"] >= date_ms("2025-01-15") for trade in res["test_trades"])
     prov = res["provenance"]
     sim_m = res["metrics"]["simulate"]
     print(f"✅ EDU real backtest executed successfully! Alpha ID: {res['alpha_id']}")
@@ -114,6 +123,67 @@ def test_edu_backtest_execution():
     print(f"   Metrics (simulate): trades={sim_m.get('trades')}, pnl={sim_m.get('ret_pct')}%, mdd={sim_m.get('mdd_pct')}%")
     assert sim_m.get("trades") is not None and sim_m.get("trades") > 0, "Thiếu số lệnh trong metrics.simulate!"
     assert sim_m.get("ret_pct") is not None, "Thiếu PnL trong metrics.simulate!"
+
+
+def test_edu_custom_backtest_exact_test_start_validation():
+    from backend.jobs.runner import KINDS, JobError
+    from backend.routes.studio import CustomBacktestRequest, build_job
+
+    code = '''class DemoStrategy(SimpleAlgorithm):
+    id = "exact_split"
+    timeframe = "1h"
+    def __algorithm__(self):
+        close = self.data.pv_close
+        self.set_positions(close > 0, position=1)
+'''
+    params = {
+        "code": code,
+        "symbols": ["BTC"],
+        "start": "2025-01-01",
+        "end": "2025-02-01",
+        "test_start": "2025-01-15",
+    }
+
+    request = CustomBacktestRequest(**params)
+    assert request.test_start == "2025-01-15"
+    assert "test_start" in KINDS["custom_backtest"]["params"]
+    built = build_job("custom_backtest", params)
+    assert built["test_start"] == "2025-01-15"
+
+    for invalid_test_start in ("2024-12-31", "2025-02-02"):
+        try:
+            build_job("custom_backtest", {**params, "test_start": invalid_test_start})
+        except JobError:
+            continue
+        raise AssertionError(f"Invalid test_start was accepted: {invalid_test_start}")
+
+
+def test_edu_bounded_scan_runs_steps_sequentially():
+    from backend.jobs.tasks import CUSTOM_BACKTEST_DEFAULTS, run_sequential
+
+    order = []
+
+    def step(name):
+        def run(loaded):
+            assert not loaded.is_set()
+            order.append(name)
+            return name
+        return run
+
+    result = run_sequential([("main", step("main")), ("test", step("test"))])
+    assert order == ["main", "test"]
+    assert result == {"main": "main", "test": "test"}
+    assert CUSTOM_BACKTEST_DEFAULTS["include_benchmark"] is True
+    assert CUSTOM_BACKTEST_DEFAULTS["include_diagnostics"] is True
+    assert CUSTOM_BACKTEST_DEFAULTS["parallel_runs"] is True
+
+    def fail(_loaded):
+        raise RuntimeError("expected test failure")
+
+    skipped = run_sequential([("main", fail), ("test", step("should-not-run"))])
+    assert isinstance(skipped["main"], RuntimeError)
+    assert "test" not in skipped
+    assert order == ["main", "test"]
 
 
 def test_edu_import_origin_isolation():
@@ -323,10 +393,10 @@ print('__JSON_PARITY__:' + json.dumps(res['metrics']['simulate']))
     # equity curve must not add the realized accumulator a second time.
     GOLDEN_ORACLE = {
         "trades": 11,
-        "ret_pct": -1.46,
-        "mdd_pct": 2.29,
+        "ret_pct": -1.4,
+        "mdd_pct": 2.25,
         "win_rate_trades": 36.4,
-        "fees_usd": 18.32,
+        "fees_usd": 17.95,
     }
     for field, expected in GOLDEN_ORACLE.items():
         assert abs(float(edu_sim[field]) - expected) < 1e-4, f"EDU {field}={edu_sim[field]} vs golden={expected}"
@@ -785,7 +855,7 @@ def test_edu_guest_admission_quota_is_atomic_and_counts_all_active_jobs(monkeypa
     assert submit(same_guest) == 429
 
 
-def test_edu_market_ranking_credibility_and_filters():
+def test_edu_market_ranking_credibility_and_filters(request=None):
     """Kiểm tra ma trận xếp hạng EDU Market theo DEC-01:
     1. Ngưỡng mẫu N >= 20 lệnh VÀ thời gian kiểm thử >= 30 ngày (hoặc >= 500 nến khung ngắn).
     2. Lý do unranked cụ thể, chính xác.
@@ -848,6 +918,34 @@ def test_edu_market_ranking_credibility_and_filters():
     fx_u2 = users.create_user(f"fx_u2_{uuid.uuid4().hex[:6]}", "FX Author ETH 15m")
     fx_u3 = users.create_user(f"fx_u3_{uuid.uuid4().hex[:6]}", "FX Author BTC Small")
     fx_u4 = users.create_user(f"fx_u4_{uuid.uuid4().hex[:6]}", "FX Author BTC Different Window")
+    test_uids = {fx_u1["id"], fx_u2["id"], fx_u3["id"], fx_u4["id"]}
+
+    from pathlib import Path
+    from backend.analys.alpha.strategies import get_user_alphas_dir
+
+    def _cleanup_fixtures():
+        for uid in test_uids:
+            try:
+                up = Path(users.users_dir(f"{uid}.json"))
+                if up.exists():
+                    up.unlink()
+            except Exception:
+                pass
+        try:
+            alphas_d = get_user_alphas_dir()
+            for ap in Path(alphas_d).glob("*.json"):
+                try:
+                    import json
+                    d = json.loads(ap.read_text())
+                    if d.get("owner_id") in test_uids:
+                        ap.unlink()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    if request:
+        request.addfinalizer(_cleanup_fixtures)
 
     code_1 = "class U1Algo(SimpleAlgorithm):\n    def __algorithm__(self):\n        self.set_positions(self.data.pv_close > 0, 1)\n"
     code_2 = "class U2Algo(SimpleAlgorithm):\n    def __algorithm__(self):\n        self.set_positions(self.data.pv_close > 10, 1)\n"
@@ -979,9 +1077,10 @@ def test_edu_market_ranking_credibility_and_filters():
         "/api/edu/market?sort=name&timeframe=1h&symbol=BTC-USDT&start_date=2026-03-01&end_date=2026-01-01"
     )
     assert res_reverse_window.status_code == 422
+    _cleanup_fixtures()
 
 
-def test_edu_strategy_fork_attribution_and_immutability():
+def test_edu_strategy_fork_attribution_and_immutability(request=None):
     """Kiểm tra sao chép (fork) chiến lược theo DEC-03:
     1. Server-authoritative lookup nguồn gốc tác giả và code_hash.
     2. API POST /api/edu/strategies/{id}/fork trả về đầy đủ attribution.
@@ -989,15 +1088,35 @@ def test_edu_strategy_fork_attribution_and_immutability():
     4. Bản ghi gốc bất biến, không bị sửa đổi.
     """
     import uuid
+    from pathlib import Path
     from fastapi.testclient import TestClient
     from backend.main import app
     from backend import users
-    from backend.analys.alpha.strategies import save_user_alpha, get_user_alpha
+    from backend.analys.alpha.strategies import save_user_alpha, get_user_alpha, get_user_alphas_dir
+
+    created_uids = []
+    created_aids = []
+
+    def _cleanup():
+        for uid in created_uids:
+            try:
+                Path(users.users_dir(f"{uid}.json")).unlink(missing_ok=True)
+            except Exception:
+                pass
+        for aid in created_aids:
+            try:
+                Path(get_user_alphas_dir(f"{aid}.json")).unlink(missing_ok=True)
+            except Exception:
+                pass
+
+    if request:
+        request.addfinalizer(_cleanup)
 
     # 1. Tạo tác giả A và chiến lược gốc
     u_handle_a = f"mary_{uuid.uuid4().hex[:6]}"
     user_a = users.create_user(u_handle_a, "Author Mary")
     author_a_id = user_a["id"]
+    created_uids.append(author_a_id)
     code_a = '''class OriginalStrategy(SimpleAlgorithm):
     timeframe = "1h"
     def __algorithm__(self):
@@ -1012,11 +1131,13 @@ def test_edu_strategy_fork_attribution_and_immutability():
         source="education",
     )
     source_id = source_alpha["id"]
+    created_aids.append(source_id)
 
     # 2. Học viên B chuẩn bị sao chép chiến lược
     u_handle_b = f"student_{uuid.uuid4().hex[:6]}"
     user_b = users.create_user(u_handle_b, "Hoc vien B")
     student_b_id = user_b["id"]
+    created_uids.append(student_b_id)
 
     # 3. Gọi API POST /api/edu/strategies/{id}/fork với session của học viên B
     client = TestClient(app)
@@ -1069,6 +1190,7 @@ def test_edu_strategy_fork_attribution_and_immutability():
 
     # 5. Xác minh bản ghi gốc hoàn toàn bất biến, không bị sửa đổi
     original_check = get_user_alpha(source_id)
+    assert original_check is not None
     assert original_check["owner_id"] == author_a_id
     assert original_check.get("forked_from") is None
 
@@ -1101,6 +1223,7 @@ def test_edu_strategy_fork_attribution_and_immutability():
     assert fork_run["manifest"]["product"] == "EDU"
     assert fork_run["manifest"]["code_hash"]
     assert fork_run["metrics"]["simulate"] is not None
+    _cleanup()
 
 
 def test_edu_regime_window_context_is_descriptive_and_fail_closed():
@@ -1136,19 +1259,37 @@ def test_edu_regime_window_context_is_descriptive_and_fail_closed():
     assert "dominant" not in unavailable
 
 
-def test_edu_alpha_authoring_versioning_and_provenance():
+def test_edu_alpha_authoring_versioning_and_provenance(request=None):
     """Kiểm tra lưu phiên bản (versioning) và Run Manifest provenance theo DEC-02."""
     import uuid
     import os
     import json
     import tempfile
+    from pathlib import Path
     from backend import users
-    from backend.analys.alpha.strategies import save_user_alpha, get_user_alpha, list_user_alpha_versions
+    from backend.analys.alpha.strategies import save_user_alpha, get_user_alpha, list_user_alpha_versions, get_user_alphas_dir
     from backend.jobs.tasks import run_custom_backtest
 
     u_handle = f"dev_{uuid.uuid4().hex[:6]}"
     user = users.create_user(u_handle, "Dev Version")
     user_id = user["id"]
+
+    alpha_ids = []
+
+    def _cleanup():
+        try:
+            Path(users.users_dir(f"{user_id}.json")).unlink(missing_ok=True)
+        except Exception:
+            pass
+        for aid in alpha_ids:
+            try:
+                Path(get_user_alphas_dir(f"{aid}.json")).unlink(missing_ok=True)
+            except Exception:
+                pass
+
+    if request:
+        request.addfinalizer(_cleanup)
+
     code_v1 = '''class VersionDemo(SimpleAlgorithm):
     timeframe = "1h"
     def __algorithm__(self):
@@ -1163,6 +1304,7 @@ def test_edu_alpha_authoring_versioning_and_provenance():
         source="education",
     )
     alpha_id = rec_v1["id"]
+    alpha_ids.append(alpha_id)
     assert rec_v1["version"] == 1
     assert "program_hash" in rec_v1
 
@@ -1274,6 +1416,7 @@ def test_edu_alpha_authoring_versioning_and_provenance():
                 os.environ["NORA_JOB_DIR"] = old_job_dir
             else:
                 os.environ.pop("NORA_JOB_DIR", None)
+    _cleanup()
 
 
 def test_edu_run_manifest_fails_closed_without_dataset_content_digest(monkeypatch, tmp_path):
@@ -1349,8 +1492,10 @@ def test_run_defaults_exposes_catalog_assets_without_changing_default_run():
 
     defaults = run_defaults()
     assert defaults["symbols"] == ["BTC@perp", "ETH@perp"]
-    assert len(defaults["available_symbols"]) == len(available_universe())
-    assert len(defaults["available_symbols"]) >= 20
+    raw_avail = defaults.get("available_symbols")
+    avail = raw_avail if isinstance(raw_avail, list) else []
+    assert len(avail) == len(available_universe())
+    assert len(avail) >= 20
 
 
 

@@ -1,0 +1,92 @@
+{
+  "candidate_id": "7f3486d63ca8_c2_trend_filter",
+  "parent_aid": "7f3486d63ca8",
+  "parent_name": "Dual Oscillator Climax Exit",
+  "hypothesis": "Thêm bộ lọc xu hướng trung hạn (Close > SMA50) nhằm loại bỏ tín hiệu mua bắt đáy trong xu hướng giảm mạnh.",
+  "hypothesis_type": "trend_filter",
+  "code": "class RiskStochRsiOverboughtExitStrategy(NoraStrategy):\n    \"\"\"\n    Khi cả RSI và Stochastic cùng ở vùng quá mua, tỷ lệ lợi nhuận kỳ vọng so với\n    rủi ro của việc tiếp tục giữ vị thế mua giảm đi.\n    \"\"\"\n    timeframe = \"24h\"\n\n    # Tham số chiến lược: đổi các số này rồi bấm Chạy để thấy kết quả mới\n    sma_period = 30\n    rsi_period = 14\n    stoch_k_period = 14\n    stoch_k_smooth = 3\n    stoch_d_period = 3\n    rsi_exit_level = 75.0\n    slowk_exit_level = 80.0\n\n    # Vị thế và rủi ro (khai báo tường minh)\n    # Các trường *_pct là phần trăm, không phải bội số ATR.\n    stop_loss_pct = 3.0  # SL theo phần trăm giá vào lệnh; 2.5 tương đương 2.5%.\n    take_profit_pct = 0.0  # TP theo phần trăm giá vào lệnh; 0 = tắt.\n    trailing_stop_pct = 0.0  # Khoảng cách trailing theo phần trăm từ đỉnh/đáy kể từ khi vào lệnh; 0 = tắt.\n    trailing_activation_pct = 0.0  # ngưỡng lãi bật trailing, 0 = không dùng\n    timeout = 0  # số phút giữ lệnh tối đa, 0 = không dùng\n    risk_per_trade_pct = 0.5  # cỡ lệnh: % vốn chịu rủi ro tới mức cắt lỗ\n\n    def on_bar(self):\n        trend_filter = close > sma(close, 50)\n\n        # Chỉ báo\n        sma = sma(close, self.sma_period)\n        rsi = rsi(close, self.rsi_period)\n        slowk, slowd = self.feat.stoch(high, low, close, self.stoch_k_period, self.stoch_k_smooth, 0, self.stoch_d_period, 0)\n\n        # Điều kiện vào / thoát lệnh\n        enter_sig = trend_filter & crossover(close, sma)\n        exit_climax = (rsi > self.rsi_exit_level) & (slowk > self.slowk_exit_level)\n        exit_stop = close < sma\n\n        # Vị thế: 0 = không giữ, 1 = LONG; lệnh gọi sau ghi đè lệnh trước\n        self.close(exit_climax | exit_stop)\n        self.buy(enter_sig)\n",
+  "config": {
+    "symbols": [
+      "BTC",
+      "ETH",
+      "SOL",
+      "BNB",
+      "XRP",
+      "DOGE",
+      "ADA",
+      "AVAX",
+      "LINK",
+      "TRX"
+    ],
+    "data_symbols": [
+      "BTC@perp",
+      "ETH@perp",
+      "SOL@perp",
+      "BNB@perp",
+      "XRP@perp",
+      "DOGE@perp",
+      "ADA@perp",
+      "AVAX@perp",
+      "LINK@perp",
+      "TRX@perp"
+    ],
+    "start": "2023-10-06",
+    "end": "2026-10-03",
+    "train_ratio": 0.7,
+    "initial_capital": 10000.0,
+    "timeframe": "24h",
+    "run_frame": "24h",
+    "exchange": "okx",
+    "program": {
+      "name": "RiskStochRsiOverboughtExitStrategy",
+      "legs": [
+        "LONG"
+      ],
+      "levels": [
+        0.0,
+        1.0
+      ],
+      "features": [
+        "rsi",
+        "sma",
+        "stoch"
+      ],
+      "warmup_bars": 57
+    },
+    "risk": {
+      "max_positions": 8,
+      "max_per_symbol": 1,
+      "max_gross_exposure": 3.0,
+      "kill_switch_dd_pct": 30.0,
+      "max_open_risk_pct": 6.0,
+      "dd_throttle_pct": 5.0,
+      "dd_throttle_floor": 0.25
+    },
+    "strategies": [
+      "py_462b4e785383_long"
+    ],
+    "position": {
+      "market": "perp",
+      "leverage": 1,
+      "exit_unit": "pct",
+      "atr_frame": "24h",
+      "atr_period": 14,
+      "sizing": "risk",
+      "risk_per_trade_pct": 1.0,
+      "max_notional_pct": 300.0,
+      "stop_fill": "level",
+      "limit_through_pct": 0.0,
+      "cooldown": 1440,
+      "risk_profile": "legacy",
+      "sl_anchor": "",
+      "sl_beyond_last_pct": 0.0,
+      "stop_loss_rate": 3.0,
+      "take_profit_rate": 0.0,
+      "trailing_stop": 0.0,
+      "trailing_activation_pct": 0.0,
+      "timeout": 0
+    }
+  },
+  "code_sha256": "0557e1abbf8109bd4d9070497a93e7c8e73ca11470df505f662b7d9f989eafe2",
+  "config_sha256": "4dc99c9f7509a9a157f1b2034f95673d0f9685b2b34b41adec2862b3b562034c"
+}

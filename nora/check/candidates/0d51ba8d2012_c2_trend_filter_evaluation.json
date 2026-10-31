@@ -1,0 +1,68 @@
+{
+  "candidate_id": "0d51ba8d2012_c2_trend_filter",
+  "parent_aid": "0d51ba8d2012",
+  "status": "EVALUATED_RESEARCH_ONLY",
+  "job_id": "20261027_214402_3f09f1",
+  "engine": "nautilus_trader 1.231.0",
+  "execution": {
+    "runner": "local EDU API custom_backtest worker",
+    "state": "done",
+    "exit_code": 0,
+    "peak_ram_mb": 1024,
+    "memory_limit": "2G",
+    "symbols": ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA", "AVAX", "LINK", "TRX"],
+    "start": "2023-10-06",
+    "end": "2026-10-03",
+    "run_frame": "24h",
+    "initial_capital_usd": 10000,
+    "position_matches_parent_job": "20261027_195119_75f292",
+    "data_catalog_matches_parent_job": true,
+    "program_hash": "9355e9b34c68",
+    "candidate_code_sha256": "facf1d383dd587876df570a47bb5774b5b5d174538688c5e675f45c95aea4020"
+  },
+  "comparison": {
+    "parent_job_id": "20261027_195119_75f292",
+    "metrics_basis": "full_window_descriptive",
+    "parent": {
+      "return_pct": 7.28,
+      "mdd_pct": 28.18,
+      "trades": 256,
+      "win_rate_pct": 17.6,
+      "profit_factor": 0.921,
+      "expectancy_pct_per_trade": 0.0001,
+      "fees_usd": 124.31
+    },
+    "candidate": {
+      "return_pct": 5.87,
+      "mdd_pct": 22.7,
+      "trades": 144,
+      "win_rate_pct": 18.8,
+      "profit_factor": 0.851,
+      "expectancy_pct_per_trade": -0.0233,
+      "fees_usd": 71.46
+    },
+    "delta_candidate_minus_parent": {
+      "return_pct_points": -1.41,
+      "mdd_pct_points": -5.48,
+      "trades": -112,
+      "win_rate_pct_points": 1.2,
+      "profit_factor": -0.07,
+      "expectancy_pct_points_per_trade": -0.0234,
+      "fees_usd": -52.85
+    }
+  },
+  "api_split_validation": {
+    "requested_exact_test_start": false,
+    "effective_test_start": "2025-01-01",
+    "required_first_wfa_test_start": "2024-10-01",
+    "exact_fold_valid": false,
+    "note": "The running EDU API OpenAPI contract does not expose test_start; its response used the default year boundary. Train/test metrics are not valid for the frozen exact-fold WFA."
+  },
+  "verdict": "NOT_PASS",
+  "disposition": "The trend filter reduced trades and drawdown but did not improve full-window net return or trade expectancy. It does not pass. Do not select or promote it.",
+  "limitations": [
+    "This is a full-window descriptive comparison on previously viewed data, not an untouched holdout.",
+    "The API-generated test slice starts at 2025-01-01 instead of the required 2024-10-01; test metrics are excluded from the verdict.",
+    "No venue-measured funding, slippage, liquidation, or quote-depth evidence is established by this run."
+  ]
+}

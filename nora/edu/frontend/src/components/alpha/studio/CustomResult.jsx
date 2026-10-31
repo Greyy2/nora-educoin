@@ -108,7 +108,7 @@ function Rows({ rows, spec, empty }) {
 }
 
 function TradesTable({ trades }) {
-  const [pg, setPg] = useState({ offset: 0, limit: 50 })
+  const [pg, setPg] = useState({ offset: 0, limit: 15 })
   const [filterSym, setFilterSym] = useState('ALL')
   const [filterSide, setFilterSide] = useState('ALL')
   const [filterOutcome, setFilterOutcome] = useState('ALL')
@@ -192,7 +192,7 @@ function TradesTable({ trades }) {
 
   return (
     <div className="tv-trades-container">
-      {/* TradingView Asset Filter & Quick Stats Toolbar */}
+      {/* TradingView Asset Filter & Quick Stats Toolbar (Ngang & Nhỏ gọn) */}
       <div
         className="tv-trades-toolbar"
         style={{
@@ -200,56 +200,95 @@ function TradesTable({ trades }) {
           flexWrap: 'wrap',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: 12,
-          padding: '10px 14px',
-          background: 'rgba(255, 255, 255, 0.03)',
-          border: '1px solid var(--n-border, #334155)',
+          gap: 10,
+          padding: '8px 12px',
+          background: 'var(--n-surface-2)',
+          border: '1px solid var(--n-line)',
           borderRadius: 8,
           marginBottom: 12,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--n-muted, #94a3b8)' }}>Tài sản:</span>
-          <select
-            className="n-sel"
-            style={{ fontSize: 12, padding: '4px 8px', borderRadius: 4, height: 28 }}
-            value={filterSym}
-            onChange={(e) => { setFilterSym(e.target.value); setPg({ offset: 0, limit: 50 }) }}
-          >
-            <option value="ALL">Tất cả tài sản ({symbols.length})</option>
-            {symbols.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
+        {/* Bộ lọc ngang nhỏ gọn */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--n-ink-2)', whiteSpace: 'nowrap' }}>Tài sản:</span>
+            <select
+              className="n-sel"
+              style={{
+                width: 'auto',
+                minWidth: 130,
+                maxWidth: 180,
+                height: 26,
+                fontSize: 11.5,
+                padding: '2px 8px',
+                borderRadius: 5,
+                background: 'var(--n-surface)',
+                border: '1px solid var(--n-line)',
+                color: 'var(--n-ink)',
+              }}
+              value={filterSym}
+              onChange={(e) => { setFilterSym(e.target.value); setPg({ offset: 0, limit: 15 }) }}
+            >
+              <option value="ALL">Tất cả tài sản ({symbols.length})</option>
+              {symbols.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
 
-          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--n-muted, #94a3b8)', marginLeft: 6 }}>Chiều:</span>
-          <select
-            className="n-sel"
-            style={{ fontSize: 12, padding: '4px 8px', borderRadius: 4, height: 28 }}
-            value={filterSide}
-            onChange={(e) => { setFilterSide(e.target.value); setPg({ offset: 0, limit: 50 }) }}
-          >
-            <option value="ALL">Tất cả chiều</option>
-            <option value="LONG">LONG</option>
-            <option value="SHORT">SHORT</option>
-          </select>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--n-ink-2)', whiteSpace: 'nowrap' }}>Chiều:</span>
+            <select
+              className="n-sel"
+              style={{
+                width: 'auto',
+                minWidth: 100,
+                height: 26,
+                fontSize: 11.5,
+                padding: '2px 8px',
+                borderRadius: 5,
+                background: 'var(--n-surface)',
+                border: '1px solid var(--n-line)',
+                color: 'var(--n-ink)',
+              }}
+              value={filterSide}
+              onChange={(e) => { setFilterSide(e.target.value); setPg({ offset: 0, limit: 15 }) }}
+            >
+              <option value="ALL">Tất cả chiều</option>
+              <option value="LONG">LONG</option>
+              <option value="SHORT">SHORT</option>
+            </select>
+          </div>
 
-          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--n-muted, #94a3b8)', marginLeft: 6 }}>Kết quả:</span>
-          <select
-            className="n-sel"
-            style={{ fontSize: 12, padding: '4px 8px', borderRadius: 4, height: 28 }}
-            value={filterOutcome}
-            onChange={(e) => { setFilterOutcome(e.target.value); setPg({ offset: 0, limit: 50 }) }}
-          >
-            <option value="ALL">Tất cả kết quả</option>
-            <option value="WIN">Lệnh thắng</option>
-            <option value="LOSS">Lệnh thua</option>
-          </select>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--n-ink-2)', whiteSpace: 'nowrap' }}>Kết quả:</span>
+            <select
+              className="n-sel"
+              style={{
+                width: 'auto',
+                minWidth: 110,
+                height: 26,
+                fontSize: 11.5,
+                padding: '2px 8px',
+                borderRadius: 5,
+                background: 'var(--n-surface)',
+                border: '1px solid var(--n-line)',
+                color: 'var(--n-ink)',
+              }}
+              value={filterOutcome}
+              onChange={(e) => { setFilterOutcome(e.target.value); setPg({ offset: 0, limit: 15 }) }}
+            >
+              <option value="ALL">Tất cả kết quả</option>
+              <option value="WIN">Lệnh thắng</option>
+              <option value="LOSS">Lệnh thua</option>
+            </select>
+          </div>
         </div>
 
+        {/* Thống kê nhanh trên cùng thanh */}
         {stats && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', fontSize: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', fontSize: 11.5, color: 'var(--n-ink-2)' }}>
             <div>
               <span className="muted">Số lệnh: </span>
-              <b>{stats.total}</b> <span style={{ opacity: 0.7 }}>({stats.wins}W / {stats.losses}L)</span>
+              <b style={{ color: 'var(--n-ink)' }}>{stats.total}</b> <span style={{ opacity: 0.7 }}>({stats.wins}W / {stats.losses}L)</span>
             </div>
             <div>
               <span className="muted">Tỉ lệ thắng: </span>
@@ -265,14 +304,14 @@ function TradesTable({ trades }) {
             </div>
             <div>
               <span className="muted">Tổng phí: </span>
-              <span>{fmtMoney(stats.totalFees)} USDT</span>
+              <span style={{ color: 'var(--n-ink)' }}>{fmtMoney(stats.totalFees)} USDT</span>
             </div>
           </div>
         )}
       </div>
 
       <Rows rows={slice} spec={TRADE_COLS} empty="Không có lệnh nào thỏa mãn bộ lọc." />
-      {enriched.length > 50 && <Pager total={enriched.length} offset={pg.offset} limit={pg.limit} onChange={setPg} />}
+      {enriched.length > 15 && <Pager total={enriched.length} offset={pg.offset} limit={pg.limit} onChange={setPg} sizes={[15, 30, 50, 100]} />}
     </div>
   )
 }
@@ -301,37 +340,28 @@ function EffectiveConfigTable({ cfg }) {
   const sourceBadge = (src) => {
     switch (src) {
       case 'code':
-        return <span style={{ background: 'rgba(34, 197, 94, 0.15)', color: '#4ade80', padding: '1px 6px', borderRadius: 4, fontSize: 11, border: '1px solid rgba(34, 197, 94, 0.3)' }}>📄 Từ Code</span>
+        return <span style={{ background: 'rgba(34, 197, 94, 0.15)', color: '#4ade80', padding: '1px 6px', borderRadius: 4, fontSize: 11, border: '1px solid rgba(34, 197, 94, 0.3)' }}>Từ Code</span>
       case 'ui':
-        return <span style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa', padding: '1px 6px', borderRadius: 4, fontSize: 11, border: '1px solid rgba(59, 130, 246, 0.3)' }}>⚙️ Từ Giao diện</span>
-      case 'nora_default':
-      case 'system_default':
-        return <span style={{ background: 'rgba(148, 163, 184, 0.1)', color: '#94a3b8', padding: '1px 6px', borderRadius: 4, fontSize: 11 }}>Mặc định</span>
+        return <span style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa', padding: '1px 6px', borderRadius: 4, fontSize: 11, border: '1px solid rgba(59, 130, 246, 0.3)' }}>Từ Giao diện</span>
       default:
-        return <span style={{ background: 'rgba(148, 163, 184, 0.08)', color: '#94a3b8', padding: '1px 6px', borderRadius: 4, fontSize: 11, fontStyle: 'italic' }}>Không có dữ liệu nguồn (run cũ)</span>
+        return <span style={{ background: 'rgba(148, 163, 184, 0.1)', color: 'var(--n-ink-2)', padding: '1px 6px', borderRadius: 4, fontSize: 11 }}>Mặc định</span>
     }
   }
 
   return (
     <section className="se-cc">
       <div className="se-cc-h">
-        <b>Cấu hình hiệu lực & Nguồn tham số</b>
+        <b>Cấu hình tham số hiệu lực</b>
         <span className="sp" />
-        <span className="muted" style={{ fontSize: 11 }}>Minh bạch các giá trị Engine thực thi</span>
+        <span className="muted" style={{ fontSize: 11 }}>Các giá trị Engine áp dụng thực thi</span>
       </div>
       <div className="se-cc-b">
-        {!hasProvenance && (
-          <div className="n-note" style={{ marginBottom: 10, padding: '6px 10px', background: 'rgba(255, 255, 255, 0.04)', borderRadius: 4 }}>
-            ℹ️ <b>Không có dữ liệu nguồn (run cũ):</b> Bản ghi này được tạo trước khi hệ thống bổ sung tracking nguồn gốc tham số. Chạy lại backtest để xem phân định rõ nguồn từ Code hay Giao diện.
-          </div>
-        )}
         <table className="n-tbl" style={{ width: '100%', fontSize: 12 }}>
           <thead>
             <tr>
               <th>Tham số</th>
               <th>Giá trị áp dụng</th>
-              <th>Đơn vị</th>
-              <th>Nguồn gốc</th>
+              {hasProvenance && <th>Thiết lập từ</th>}
             </tr>
           </thead>
           <tbody>
@@ -340,13 +370,12 @@ function EffectiveConfigTable({ cfg }) {
               const val = item ? item.value : pos[key]
               if (val == null) return null
               const unit = item?.unit || (key.includes('pct') ? '%' : '')
-              const src = item?.source || (hasProvenance ? 'system_default' : 'legacy')
+              const src = item?.source || 'system_default'
               return (
                 <tr key={key}>
                   <td><b>{label}</b> <code style={{ fontSize: 10, color: 'var(--n-muted)' }}>({key})</code></td>
                   <td><b>{fmt ? fmt(val, unit) : val}</b></td>
-                  <td>{unit || '—'}</td>
-                  <td>{sourceBadge(src)}</td>
+                  {hasProvenance && <td>{sourceBadge(src)}</td>}
                 </tr>
               )
             })}
@@ -670,25 +699,22 @@ export default function CustomResult({ result, jobLine, explain = false, tourKey
 
       {(() => {
         const effSlip = Number(cfg?.position?.slippage_rate ?? cfg?.param_provenance?.slippage_rate?.value ?? 0)
+        if (effSlip <= 0) return null
         return (
           <div className="edu-slippage-notice" style={{
             margin: '6px 0 10px',
             padding: '8px 12px',
-            background: effSlip > 0 ? 'rgba(59, 130, 246, 0.08)' : 'rgba(234, 179, 8, 0.08)',
-            border: effSlip > 0 ? '1px solid rgba(59, 130, 246, 0.25)' : '1px solid rgba(234, 179, 8, 0.25)',
+            background: 'rgba(59, 130, 246, 0.08)',
+            border: '1px solid rgba(59, 130, 246, 0.25)',
             borderRadius: 6,
             fontSize: 12,
-            color: effSlip > 0 ? '#93c5fd' : '#fef08a',
+            color: '#93c5fd',
             display: 'flex',
             alignItems: 'center',
             gap: 8,
           }}>
-            <span>{effSlip > 0 ? 'ℹ️' : '⚠️'}</span>
-            {effSlip > 0 ? (
-              <span><b>Lưu ý giáo dục:</b> Backtest EDU đang mô phỏng trượt giá {(effSlip * 100).toFixed(2)}% mỗi chiều.</span>
-            ) : (
-              <span><b>Lưu ý giáo dục:</b> Backtest EDU hiện giả định trượt giá bằng 0 (slippage = 0), kết quả giao dịch thực tế trên sàn có thể chênh lệch do độ sâu thanh khoản thị trường.</span>
-            )}
+            <span>ℹ️</span>
+            <span>Backtest EDU đang mô phỏng trượt giá {(effSlip * 100).toFixed(2)}% mỗi chiều.</span>
           </div>
         )
       })()}

@@ -674,7 +674,9 @@ class NoraSlotStrategy(Strategy):
             if lvl > 0:
                 px = inst.make_price(lvl)
                 self._upsert("SL", lambda: self.order_factory.stop_market(inst.id, self.side_out, qty, px, trigger_type=TriggerType.LAST_PRICE,
-                                                                          reduce_only=self.reduce_only, tags=["SL"]), quantity=qty, trigger_price=px)
+                                                                          reduce_only=self.reduce_only,
+                                                                          tags=["SL", f"SLIPPAGE_RATE={self.spec.slippage_rate}"]),
+                             quantity=qty, trigger_price=px)
         if self.tp_pct:
             px = inst.make_price(policy.tp_level(avg, self.tp_pct, sign))
             self._upsert("TP", lambda: self.order_factory.limit(inst.id, self.side_out, qty, px, reduce_only=self.reduce_only, tags=["TP"]), quantity=qty, price=px)
