@@ -102,8 +102,8 @@ class PositionModel:
             phase=int(row.get("lab_result_phase") or 0),
             enter_time=int(row.get("lab_result_chart") or row.get("lab_result_enter_time") or 0),
             enter_price=float(row.get("lab_result_chart_price") or row.get("lab_result_enter_price") or 0.0),
-            close_time=int(row.get("lab_result_close_time")) if row.get("lab_result_close_time") else None,
-            close_price=float(row.get("lab_result_sell_price")) if row.get("lab_result_sell_price") else None,
+            close_time=int(val) if (val := row.get("lab_result_close_time")) is not None else None,
+            close_price=float(val) if (val := row.get("lab_result_sell_price")) is not None else None,
             status=PositionStatus(raw_status) if raw_status in [0, 1, 2, 3, 4, 5, 6] else PositionStatus.OPEN,
             real_pnl=float(row.get("lab_result_realpnl") or row.get("lab_result_profit") or 0.0),
             profit_pct=float(row.get("lab_result_realprofit") or row.get("lab_result_eventprofit") or 0.0),
@@ -406,6 +406,7 @@ class PositionBook:
         self.account.close_trade(self.reserved_here, trade_cash)
         net = trade_cash - self.funding_paid
         pos = self.position
+        assert pos is not None
         pos.close_time = t
         pos.close_price = price
         pos.status = status
@@ -482,10 +483,12 @@ class DataSource(Protocol):
     def exec_arrays(self, symbol: str, frame: str, start: int, end: int) -> Dict[str, Any]:
         """Nến THỰC THI của engine: nến 1m THẬT (không nến bù) gộp thành khung `frame`, theo open_time trong [start, end] ->
         {"t" (open_time ms, int64), "o", "h", "l", "c", "v"} (numpy). Engine đổi mảng này thành Bar Nautilus."""
+        raise NotImplementedError
 
     def instrument_spec(self, symbol: str) -> Dict[str, Any]:
         """Spec hợp đồng của tài sản: tickSz, lotSz, ctVal, minSz, margin_init, margin_maint, maker_fee, taker_fee (+ base_symbol).
         Engine dựng Instrument Nautilus (độ chính xác giá/khối lượng) từ đây."""
+        raise NotImplementedError
 
     def require_ok(self, symbols: List[str]) -> Any:
         """Cổng chất lượng dữ liệu BẮT BUỘC (raise nếu synthetic / sai sha256 / thiếu dữ liệu)."""
@@ -495,6 +498,7 @@ class DataSource(Protocol):
 
     def base_name(self, symbol: str) -> str:
         """Tên tài sản trần: 'cex:btc@perp' -> 'BTC'."""
+        raise NotImplementedError
 
     def shared_plan(self, eng: Any) -> Optional[Dict[str, Any]]:
         """Khoá kho mmap dùng chung cho đúng bộ dữ liệu engine `eng` sẽ dựng (None: không dùng kho)."""
@@ -511,6 +515,7 @@ class DataSource(Protocol):
     @property
     def memo(self) -> DataMemo:
         """Bộ nhớ đệm mảng đã dựng của tiến trình (PortfolioEngine._load_symbol)."""
+        raise NotImplementedError
 
 
 _DEFAULT_DATA: List[Any] = [None]

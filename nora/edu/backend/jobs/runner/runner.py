@@ -157,8 +157,9 @@ def graceful_sigterm(progress: Optional[Progress] = None) -> Iterator[None]:
 # Job nền nặng (backtest, WFA, dữ liệu...), chạy NGOÀI tiến trình API qua MỘT cửa: backend/jobs/runner.py.
 #
 # Vì sao: API có trần RAM riêng nên không được chạy việc nặng trong tiến trình. Mỗi job là một tiến trình con
-# `ops/run_limited.sh -- -m backend.jobs.runner <job_dir>`: scope có trần mặc định 2G, nora.slice có trần tổng 10G và không swap.
-# Job nặng chờ lock theo sản phẩm, chia worker theo ngân sách cgroup hiệu lực rồi gọi run_job(params) của module trong KINDS.
+# `ops/run_limited.sh -- -m backend.jobs.runner <job_dir>`: scope có trần mặc định 4G, nora.slice có trần tổng 10G và không swap.
+# Job nặng chờ lock theo sản phẩm; live_bot không giữ lock backtest nhưng vẫn chịu trần scope và trần nora.slice. Runner chia worker
+# theo ngân sách cgroup hiệu lực rồi gọi run_job(params) của module trong KINDS.
 # API chỉ khởi chạy, theo dõi và đọc kết quả. UI, terminal (curl) và script đều đi qua cùng endpoint -> cùng job.
 #
 # Mỗi job có thư mục <data>/cache/process/<job_id>/ (kết quả lâu dài: backtest|wfa|carlo/<job_id>):
@@ -177,14 +178,33 @@ RUN_LIMITED = os.path.join(NORA_DIR, "ops", "run_limited.sh")
 # Danh sách trắng: loại job -> (module có run_job(params), các khoá tham số được phép)
 RUNNER = "backend.jobs.runner"
 KINDS: Dict[str, Dict[str, Any]] = {
+    "book_backtest": {"label_vi": "Backtest sổ", "module": "backend.jobs.tasks", "func": "run_book_backtest",
+                      "params": {"book", "strategies", "symbols", "start", "end", "risk_per_trade", "stop_fill", "regime", "timeframe", "data", "latency_ms", "gas_usd"}},
+    "book_wfa": {"label_vi": "WFA sổ", "module": "backend.jobs.tasks", "func": "run_book_wfa",
+                 "params": {"report", "include_rejected", "candidates", "strategies", "symbols", "n", "start", "end", "train_days",
+                            "test_days", "step_days", "sims", "mc_seed", "risk_per_trade", "workers", "resume", "max_configs", "force_large",
+                            "timeframe", "regime"}},
     "presets_build": {"label_vi": "Dựng preset", "module": "backend.analys.alpha.strategies", "func": "run_presets_build", "params": set()},
+    "data_update": {"label_vi": "Cập nhật dữ liệu OKX", "module": "backend.data.crawl", "func": "run_job", "params": {"symbols"}},
     "custom_backtest": {"label_vi": "Backtest tuỳ chỉnh", "module": "backend.jobs.tasks", "func": "run_custom_backtest",
-                        "params": {"code", "symbols", "start", "end", "test_start", "train_ratio", "initial_capital", "position", "run_frame", "owner_uid"}},
+                        "params": {"code", "symbols", "start", "end", "train_ratio", "initial_capital", "position", "run_frame"}},
     "education_warm": {"label_vi": "Làm nóng kết quả mẫu giáo dục", "module": "backend.jobs.tasks", "func": "education_warm", "params": {"keys"}},
+    "live_bot": {"label_vi": "Bot Live / Paper / Testnet", "module": "backend.jobs.tasks", "func": "run_live_bot",
+                 "params": {"bot_id", "mode", "source", "alpha_id", "code", "symbols", "capital", "base_frame", "anchor_tf", "confirm_live", "enter_on_start", "position", "resume", "signal_tf", "params", "book_source", "backtest_job_id", "debug_events", "strategy_type", "r_ratio", "vl_mult", "tp_mult", "f_mult"}},
     "alpha_research": {"label_vi": "Nghiên cứu Alpha (Prompt)", "module": "backend.jobs.tasks", "func": "run_alpha_research",
                        "params": {"prompt", "opts", "pick", "from_step", "edits", "job_id"}},
+    "data_scan_crawl": {"label_vi": "Crawl nến 100 coin quét", "module": "backend.data.crawl", "func": "run_scan_crawl",
+                        "params": {"coins", "start_ms", "end_ms", "workers", "resume"}},
+    "universe_scan": {"label_vi": "Quét thị trường 100 coin", "module": "backend.jobs.tasks", "func": "run_universe_scan",
+                      "params": {"alpha_id", "signal_tf", "book_source", "is_start", "is_end", "oos_start", "oos_end", "capital", "coins"}},
+    "parameter_sweep": {"label_vi": "Quét tham số thông minh (Funnel/Optuna)", "module": "backend.jobs.tasks", "func": "run_parameter_sweep",
+                        "params": {"alpha_id", "symbol", "signal_tf", "book_source", "capital", "method", "fast_top_k", "max_workers"}},
+    "optuna_sweep": {"label_vi": "Tối ưu tham số Bayesian Optuna", "module": "backend.jobs.tasks", "func": "run_optuna_sweep",
+                     "params": {"alpha_id", "symbol", "signal_tf", "book_source", "capital", "n_trials", "top_k_nautilus"}},
+    "proxima_sweep": {"label_vi": "Quét tham số Proxima (R, VL, TP, F)", "module": "backend.jobs.tasks", "func": "run_proxima_sweep",
+                      "params": {"symbol", "r_list", "vl_list", "tp_list", "f_list", "capital", "days"}},
 }
-NO_LOCK_KINDS: set = set()
+NO_LOCK_KINDS: set = {"live_bot"}   # bot live chạy dài hạn, không lock hàng đợi backtest
 
 MAX_ACTIVE = 150        # số job đang chạy/chờ tối đa cùng lúc (hỗ trợ chạy > 50 bot song song)
 # Giới hạn số bot live đang chạy đồng thời — sau khi tối ưu cache (128MB) và glibc arena (2), mỗi bot chỉ chiếm ~200-350MB RAM.
@@ -353,36 +373,57 @@ def _active_count() -> int:
 
 
 def _count_running_live_bots() -> int:
-    """EDU không quản lý bot live."""
-    return 0
+    """Đếm số bot live đang thực sự chạy (pid còn sống + kind=live_bot)."""
+    n = 0
+    root = jobs_root()
+    try:
+        names = os.listdir(root)
+    except OSError:
+        return 0
+    for name in names:
+        meta = _read_meta(os.path.join(root, name))
+        if meta and meta.get("kind") == "live_bot" and meta.get("state") == "running" and _alive(meta.get("pid")):
+            n += 1
+    return n
 
 
 def running_live_bot_info() -> Dict[str, Any]:
-    """EDU stub cho live bot info."""
+    """Thông tin resource bot live: running_bots, max_bots, pct, at_limit. Dùng cho endpoint /live/resource_status."""
+    from backend.jobs.worker.resource import mem_available_mb
+    running = _count_running_live_bots()
+    max_bots = MAX_LIVE_BOTS
+    avail = mem_available_mb()
     return {
-        "running_bots": 0,
-        "max_bots": 0,
-        "at_limit": False,
-        "slots_left": 0,
-        "ram_available_mb": 0,
+        "running_bots": running,
+        "max_bots": max_bots,
+        "at_limit": max_bots > 0 and running >= max_bots,
+        "slots_left": max(0, max_bots - running) if max_bots > 0 else None,
+        "ram_available_mb": round(avail, 0),
     }
 
 
 def _env() -> Dict[str, str]:
     env = dict(os.environ)
+    # Khi API chạy từ user service, run_limited.sh cần bus của user session để gọi systemd-run --user.
     env.setdefault("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
     env.setdefault("DBUS_SESSION_BUS_ADDRESS", f"unix:path={env['XDG_RUNTIME_DIR']}/bus")
-    env["PYTHONUNBUFFERED"] = "1"
+    env["PYTHONUNBUFFERED"] = "1"     # log của job hiện ngay trong out.log (không chờ đầy bộ đệm)
     return env
 
 
-FAILED_LOG_KEEP_DAYS = 0
-PAUSED_KEEP_DAYS = 7
+FAILED_LOG_KEEP_DAYS = 0        # người dùng chốt 2026-10-08: job LỖI xoá ở lượt dọn kế tiếp (job mới / API khởi động)
+PAUSED_KEEP_DAYS = 7            # job đã HUỶ còn tiến độ chạy dở (progress.json, chạy tiếp bằng --resume) giữ 7 ngày; huỷ mà không có gì -> xoá như job lỗi
 
 
 def _live_bot_status(meta: Dict[str, Any]) -> Optional[Tuple[str, bool]]:
-    """EDU không hỗ trợ live bot."""
-    return None
+    """Job live_bot -> (trạng thái của BOT, job này đã bị thay bằng job chạy lại?) hoặc None khi chưa có bot.json (bot đang dựng). Trạng thái do core/live.bot_status
+    (bot.json + tiến trình + cờ người dùng dừng) — MỘT nguồn, cùng giá trị với GET /live/bots."""
+    from backend.core import live as lv
+    d = lv.find_bot_dir(str((meta.get("params") or {}).get("bot_id") or ""))
+    bm = _read_json(os.path.join(d, "bot.json")) if d else None
+    if not bm or not d:
+        return None
+    return lv.bot_status(bm, d), bool(bm.get("job_id") and bm.get("job_id") != meta.get("id"))
 
 
 def _prune_failed(kinds, days: float, now: Optional[float], paused_days: float = PAUSED_KEEP_DAYS) -> List[str]:
@@ -519,36 +560,17 @@ def _remember_ephemeral(job_dir: str) -> bool:
         max_eph = getattr(sys.modules.get("backend.jobs.runner"), "EPHEMERAL_MAX", EPHEMERAL_MAX)
         while len(_EPH) > max_eph:
             _EPH.popitem(last=False)
-    try:
-        from backend.models.storage import _under, data_home, write_json_atomic
-        mem_dir = _under(data_home(), "mem")
-        os.makedirs(mem_dir, exist_ok=True)
-        write_json_atomic(os.path.join(mem_dir, f"{meta['id']}.json"), snap)
-    except Exception:
-        pass
     shutil.rmtree(job_dir, ignore_errors=True)
     return True
 
 
 def ephemeral_status(job_id: str) -> Optional[Dict[str, Any]]:
-    """Kết quả job tạm đã xong còn trong bộ nhớ API hoặc đệm _mem (None nếu không có / API đã khởi động lại)."""
+    """Kết quả job tạm đã xong còn trong bộ nhớ API (None nếu không có / API đã khởi động lại)."""
     with _LOCK:
         snap = _EPH.get(str(job_id))
         if snap is not None:
             _EPH.move_to_end(str(job_id))
-            return _clone(snap)
-    try:
-        from backend.models.storage import _under, data_home, read_json
-        mem_file = os.path.join(_under(data_home(), "mem"), f"{job_id}.json")
-        if os.path.isfile(mem_file):
-            snap = read_json(mem_file)
-            if isinstance(snap, dict):
-                with _LOCK:
-                    _EPH[str(job_id)] = snap
-                return _clone(snap)
-    except Exception:
-        pass
-    return None
+    return _clone(snap) if snap is not None else None
 
 
 def _same_result(a: str, b: str) -> bool:
@@ -576,7 +598,7 @@ def persist_job(job_dir: str, dry_run: bool = False) -> Dict[str, Any]:
     if (meta.get("state") != "done" or os.path.realpath(os.path.dirname(os.path.realpath(job_dir))) != os.path.realpath(jobs_root())
             or not _JOB_ID_RE.match(str(jid))):
         return out
-    base = persist_dest_base(kind)
+    base = persist_dest_base(str(kind or ""))
     if not base:
         out["action"] = "would_clean" if dry_run else "cleaned"
         if not dry_run:
@@ -800,7 +822,7 @@ def cancel(job_id: str) -> Optional[Dict[str, Any]]:
     if meta is None:
         return None
     pid = meta.get("pid")
-    if meta.get("state") != "running" or not _alive(pid):
+    if meta.get("state") != "running" or not _alive(pid) or pid is None:
         raise JobError(f"job không còn chạy (trạng thái {meta.get('state')})")
     if meta.get("kind") == "live_bot":      # người dùng huỷ job bot = dừng bot (giữ nguyên vị thế): đặt cờ `stop` close=False để supervisor KHÔNG chạy lại
         from backend.core import live as lv
@@ -820,8 +842,9 @@ def cancel(job_id: str) -> Optional[Dict[str, Any]]:
 
     def _hard_kill():
         try:
-            os.killpg(int(pid), 0)            # nhóm còn sống?
-            os.killpg(int(pid), signal.SIGKILL)
+            if pid is not None:
+                os.killpg(int(pid), 0)            # nhóm còn sống?
+                os.killpg(int(pid), signal.SIGKILL)
         except (ProcessLookupError, PermissionError):
             pass
     timer = threading.Timer(20.0, _hard_kill)
@@ -838,20 +861,13 @@ def status(job_id: str) -> Optional[Dict[str, Any]]:
         return ephemeral_status(job_id)
     job_dir = _job_dir(job_id)   # _summary có thể vừa kết thúc + lưu job sang thư mục lâu dài
     out["log_tail"] = out.pop("_lines")[-LOG_TAIL_LINES:]
+    out["result"] = None
     if out["status"] == "done":
         try:
             with open(os.path.join(job_dir, "result.json"), encoding="utf-8") as fh:
                 out["result"] = json.load(fh)
         except (OSError, ValueError):
             out["result"] = None
-        if out["result"] is None:
-            eph = ephemeral_status(job_id)
-            if eph and eph.get("result"):
-                out["result"] = eph["result"]
-                if not out.get("log_tail") and eph.get("log_tail"):
-                    out["log_tail"] = eph["log_tail"]
-                if not out.get("progress") and eph.get("progress"):
-                    out["progress"] = eph["progress"]
     return out
 
 
@@ -991,7 +1007,7 @@ def list_jobs(limit: int = 20, kind: Optional[str] = None) -> List[Dict[str, Any
         s.pop("_lines", None)
         if s.get("superseded"):
             continue
-        s["label"] = job_label(s.get("kind"), s.get("params"))
+        s["label"] = job_label(str(s.get("kind") or ""), s.get("params"))
         rows.append(s)
         if len(rows) >= limit:
             break

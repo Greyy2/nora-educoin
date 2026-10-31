@@ -173,7 +173,7 @@ class NoraSlotStrategy(Strategy):
 
     def _seed_heartbeat(self, now_ms: int) -> None:
         rec = getattr(self.coord, "recorder", None)
-        ev = self.signals.latest_event(now_ms) if hasattr(self.signals, "latest_event") else None
+        ev = getattr(self.signals, "latest_event", lambda ms: None)(now_ms) if hasattr(self.signals, "latest_event") else None
         if rec is not None and ev is not None and hasattr(rec, "seed_signal"):
             rec.seed_signal(self.symbol, int(ev.get("last_open_time") or 0) + self.fr, ev)
 
@@ -227,7 +227,7 @@ class NoraSlotStrategy(Strategy):
 
     def _catch_up(self, price: float, ts: int) -> None:
         """enter_on_start: cùng luật vào lệnh (admit, cỡ lệnh, SL/TP/TRAIL) như vào thường, chỉ trễ tới lúc khởi động. Ghi sự kiện `catchup` vào events.jsonl."""
-        ev = self.signals.latest_event(ts) if hasattr(self.signals, "latest_event") else None
+        ev = getattr(self.signals, "latest_event", lambda t: None)(ts) if hasattr(self.signals, "latest_event") else None
         entered = False
         if self.st == FLAT and ev is not None and ev.get("match") and self.coord.halted_at is None and not self.halted:
             intent = EntryIntent(
@@ -261,7 +261,7 @@ class NoraSlotStrategy(Strategy):
         if rec is not None:
             rec.record_bar(self.symbol, bar, ts)
 
-        if self.st == FLAT and hasattr(self.signals, "match_close_ts") and ts not in self.signals.match_close_ts:
+        if self.st == FLAT and hasattr(self.signals, "match_close_ts") and ts not in getattr(self.signals, "match_close_ts", ()):
             c = bar.close.as_double()
             if self.coord is not None:
                 self.coord.last[self.sym_idx] = (c, c, c)
@@ -412,7 +412,7 @@ class NoraSlotStrategy(Strategy):
                 self.coord.emit("signal", {"symbol": self.symbol, "strategy": self.sid, "open_ms": open_ms, "trade_start": self.trade_start, "halted": coord_halted or self.halted,
                                            "last_close_fill_ts": self.last_close_fill_ts, "price": c})
             if (open_ms >= self.trade_start and not coord_halted and not self.halted
-                    and self.last_close_fill_ts < open_ms
+                    and (self.last_close_fill_ts is None or self.last_close_fill_ts < open_ms)
                     and (not sp.cooldown_ms or self.last_close_time is None or open_ms - self.last_close_time >= sp.cooldown_ms)):
                 intent = EntryIntent(
                     slot=self,
@@ -778,16 +778,19 @@ class NoraSlotStrategy(Strategy):
                     self.pending_margin = max(0.0, self.pending_margin - p_m)
                     self.pending_fee_est = max(0.0, self.pending_fee_est - p_f)
             if self.st == FLAT:                      # lệnh vào mồ côi (DCA khớp sau khi vị thế đã đóng): coi như vị thế mới
-                self.coord.activate(self)
+                if self.coord is not None:
+                    self.coord.activate(self)
                 self.st = ENTERING
                 self.pending_qty = qty
             layer = self._layer_of.get(cid, self.layers)
             margin = px * qty / self.pos_lev
             self.fee_open += fee
-            self.coord.open_fees += fee
+            if self.coord is not None:
+                self.coord.open_fees += fee
             self.margin_used += margin
             self.res_here += margin + fee
-            self.coord.reserved += margin + fee
+            if self.coord is not None:
+                self.coord.reserved += margin + fee
             first = not self.t_fills
             self.t_fills.append((kind, ts, px, qty, fee, liq, layer))
             if first:

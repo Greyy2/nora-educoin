@@ -270,6 +270,8 @@ def simulate_strategy_execution(candidate_name, symbol, closes, highs, lows, ope
     n = len(closes)
     in_pos = False
     entry_price = 0.0
+    entry_fee = 0.0
+    maker_fee = 0.0
     entry_idx = 0
     trades = []
     equity_curve = [10000.0]

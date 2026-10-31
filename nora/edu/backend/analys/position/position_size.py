@@ -399,13 +399,10 @@ def get_risk_profile(name_or_alias: str) -> RiskProfile:
 
 def validate_strategy_risk(params: Any, profile_name: Optional[str] = None) -> List[RiskIssue]:
     """Kiểm tra tính hợp lệ của tham số chiến lược theo Risk Profile đã chọn."""
-    if isinstance(params, dict):
-        p_dict = params
-        def _get(k, d=None):
-            return p_dict.get(k, d)
-    else:
-        def _get(k, d=None):
-            return getattr(params, k, d)
+    def _get(k, d=None):
+        if isinstance(params, dict):
+            return params.get(k, d)
+        return getattr(params, k, d)
 
     p_name = profile_name or _get("risk_profile") or "legacy"
     profile = get_risk_profile(str(p_name))
@@ -542,6 +539,10 @@ class SlotSpec:
         maker = getattr(params, "maker_fee_rate", None)
         self.maker_fee_rate = self.fee_rate if maker is None else max(0.0, float(maker))
         self.slippage_rate = max(0.0, float(params.slippage_rate or 0.0))
+        self.slippage_mode = str(getattr(params, "slippage_mode", "rate") or "rate")
+        self.slippage_ticks = max(0, int(getattr(params, "slippage_ticks", 0) or 0))
+        self.stop_slippage_multiplier = max(0.0, float(getattr(params, "stop_slippage_multiplier", 2.0) or 2.0))
+        self.quantity_step = max(0.0, float(getattr(params, "quantity_step", 0.0) or 0.0))
         self.capital = float(initial_capital)
         self.capital_usage = max(0.0, min(float(params.max_capital_usage or 1.0), 1.0))
         self.entry_equity = self.capital if entry_equity is None else float(entry_equity)   # vốn đã chốt lúc dựng slot (sổ vốn chung)

@@ -14,7 +14,7 @@ import numpy as np
 from nautilus_trader.model.currencies import USDT
 from nautilus_trader.model.enums import LiquiditySide, OrderSide, OrderStatus, OrderType as NtOrderType
 
-from backend.alpha.plan import aggregate_positions
+from backend.analys.alpha.code.plan import aggregate_positions
 from backend.models.models import OrderModel, OrderType, PositionModel, PositionStatus, PositionType, next_id
 from backend.core import catalog as cat
 from backend.core.strategy import FLAT, REASONS

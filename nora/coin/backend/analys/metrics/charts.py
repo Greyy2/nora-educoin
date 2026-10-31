@@ -6,7 +6,7 @@ Nguồn gộp: docs/bmad/p9_review_log.md (mục P9.5, P9.10a).
 import math
 import threading
 from collections import OrderedDict
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 import numpy as np
 import pandas as pd
@@ -109,9 +109,11 @@ def distribution(ret_pct: np.ndarray, var95_pct: Optional[float]) -> Dict[str, A
 def monthly_table(nav: pd.Series, init: float) -> Dict[str, Any]:
     ym = nav.groupby([nav.index.year, nav.index.month]).last()
     prev_nav, month_ret = init, {}
-    for (y, m), v in ym.items():
-        month_ret[(int(y), int(m))] = (float(v) / prev_nav - 1.0) * 100.0 if prev_nav > 0 else None
-        prev_nav = float(v)
+    for idx_val, v in ym.items():
+        if isinstance(idx_val, tuple) and len(idx_val) == 2:
+            y, m = idx_val
+            month_ret[(int(y), int(m))] = (float(v) / prev_nav - 1.0) * 100.0 if prev_nav > 0 else None
+            prev_nav = float(v)
     years, prev_year_nav = [], init
     for y in sorted({k[0] for k in month_ret}):
         end_nav = float(nav[nav.index.year == y].iloc[-1])
@@ -329,7 +331,7 @@ def build_dashboard(result: Dict[str, Any], bench_closes: Optional[pd.Series] = 
         "var95_pct": _num(var_pct), "cvar95_1d": _num(cvar_pct / 100.0 * nav_last) if cvar_pct is not None else None,
         "spark_nav": _lst(nav_p[-SPARK:]), "spark_ret": _lst(ret_p[-SPARK:] * 100.0, 3), "spark_dd": _lst(dd_p[-SPARK:]),
     }
-    series = {"dates": [f"{d:%Y-%m-%d}" for d in dates], "nav": _lst(nav_p), "bench": bench_p, "drawdown_pct": _lst(dd_p),
+    series = {"dates": [f"{d:%Y-%m-%d}" for d in cast(Any, dates)], "nav": _lst(nav_p), "bench": bench_p, "drawdown_pct": _lst(dd_p),
               "daily_pnl": _lst(pnl_p), "rolling_sharpe_63": _lst(roll_sharpe.to_numpy()[sel])}
 
     # Lệnh
@@ -349,7 +351,7 @@ def build_dashboard(result: Dict[str, Any], bench_closes: Optional[pd.Series] = 
     pct = lambda x: _num(x / nav_last * 100.0, 1) if nav_last > 0 else None
     ids = [s["id"] for s in cfg.get("strategies") or []] or sorted({t["strategy"] for t in trades})
     halted = bool(result.get("halted_at"))
-    from backend.nautilus.stats import trade_profit_factor
+    from backend.analys.metrics.stats import trade_profit_factor
     from backend.analys.metrics.trades import profit_factor_note
     pf_period = trade_profit_factor([t["pnl"] for t in p_trades])      # Nautilus ProfitFactor trên PnL lệnh của kỳ
     pf_note = profit_factor_note([t["pnl"] for t in p_trades], pf_period)

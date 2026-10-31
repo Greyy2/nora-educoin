@@ -2,7 +2,7 @@
 import json
 import os
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, cast
 
 import numpy as np
 import pandas as pd
@@ -11,8 +11,8 @@ from fastapi import APIRouter
 from backend.jobs import runner as batch_jobs
 from backend.data.data import daily_close
 from backend.adapter import exchange as led
-from backend.analys.metrics import stats as nstats
 from backend.adapter.exchange import find_bot_dir, get_bot_trades, list_bots
+from backend.analys.metrics import stats as nstats
 from backend.routes.studio import _bt_row
 
 overview_router = APIRouter(prefix="/api/studio", tags=["overview"])
@@ -21,7 +21,7 @@ router = overview_router
 _TR_CACHE: Dict[str, Any] = {}
 
 
-def _bt_trades(job_id: str) -> Optional[Dict[str, float]]:
+def _bt_trades(job_id: str) -> Optional[Dict[str, Any]]:
     """Lệnh đã đóng của 1 backtest: số lệnh, số thắng, tổng lãi, tổng lỗ (đệm theo mtime)."""
     path = os.path.join(batch_jobs.job_dir(job_id), "result.json")
     try:
@@ -54,20 +54,21 @@ def _group(bots, mode_paper: bool) -> Dict[str, Any]:
         if isinstance(b.get("mdd_pct"), (int, float)):
             g["mdd_pct"] = b["mdd_pct"] if g["mdd_pct"] is None else max(g["mdd_pct"], b["mdd_pct"])
         for t in get_bot_trades(b["bot_id"]):
-            if isinstance(t.get("pnl"), (int, float)):
-                g["closed"] += 1
-                g["wins"] += t["pnl"] > 0
-                g["gain"] += max(t["pnl"], 0.0)
-                g["loss"] += max(-t["pnl"], 0.0)
-    g["pnl_usd"] = round(g["pnl_usd"], 4)
-    g["pnl_pct"] = round(g["pnl_usd"] / g["capital"] * 100, 4) if g["capital"] else None
+            p = t.get("pnl")
+            if not isinstance(p, (int, float)):
+                continue
+            g["closed"] += 1
+            if p > 0:
+                g["wins"] += 1; g["gain"] += p
+            elif p < 0:
+                g["loss"] -= p
     return g
 
 
 @overview_router.get("/overview")
 def get_overview() -> Dict[str, Any]:
     rows = [x for x in (_bt_row(j) for j in batch_jobs.list_jobs(500, "book_backtest") if j.get("status") == "done") if x]
-    bt = {"runs": len(rows), "closed": 0, "wins": 0, "gain": 0.0, "loss": 0.0}
+    bt: Dict[str, Any] = {"runs": len(rows), "closed": 0, "wins": 0, "gain": 0.0, "loss": 0.0}
     for r in rows:
         a = _bt_trades(r["id"])
         if a:
@@ -83,16 +84,15 @@ def get_overview() -> Dict[str, Any]:
     parts = (bt, paper, live)
     closed = sum(p["closed"] for p in parts)
     gain, loss = sum(p["gain"] for p in parts), sum(p["loss"] for p in parts)
-    all_mdd = [m for m in (bt["mdd_pct"], paper["mdd_pct"], live["mdd_pct"]) if m is not None]
-    for p in parts:
-        p["win_pct"] = round(p["wins"] / p["closed"] * 100, 2) if p["closed"] else None
-        p["gain"], p["loss"] = round(p["gain"], 4), round(p["loss"], 4)
-    bot_n = paper["bots"] + live["bots"]
-    total = {"active_bots": paper["running"] + live["running"], "runs": bt["runs"] + bot_n, "trades": closed,
-             "win_pct": round(sum(p["wins"] for p in parts) / closed * 100, 2) if closed else None,
-             "profit_factor": round(gain / loss, 3) if loss > 0 else None,
-             "bot_pnl_usd": round(paper["pnl_usd"] + live["pnl_usd"], 4) if bot_n else None,
-             "avg_bt_ret_pct": bt["avg_ret_pct"], "max_mdd_pct": max(all_mdd) if all_mdd else None}
+    total = {
+        "pnl_usd": round(sum(p.get("pnl_usd") or 0.0 for p in (paper, live)) + (bt.get("pnl_usd") or 0.0), 2),
+        "closed": closed, "wins": sum(p["wins"] for p in parts),
+        "win_rate": round(sum(p["wins"] for p in parts) / closed, 4) if closed else None,
+        "profit_factor": round(gain / loss, 4) if loss > 0 else (round(gain, 4) if gain > 0 else None),
+        "capital": round(paper["capital"] + live["capital"], 2),
+        "active_bots": paper["running"] + live["running"],
+        "total_bots": paper["bots"] + live["bots"],
+    }
     return {"total": total, "backtest": bt, "paper": paper, "live": live}
 
 
@@ -107,7 +107,7 @@ def _daily_returns(times, equity, base: float) -> Optional[pd.Series]:
     if len(times) < 2 or not base or base <= 0:
         return None
     df = pd.Series(np.asarray(equity, dtype=float), index=(np.asarray(times, dtype=np.int64) // _DAY)).groupby(level=0).last()
-    df = df.reindex(range(int(df.index[0]), int(df.index[-1]) + 1)).ffill()
+    df = df.reindex(range(int(df.index.values[0]), int(df.index.values[-1]) + 1)).ffill()
     prev = df.shift(1)
     prev.iloc[0] = base
     r = (df / prev - 1.0).replace([np.inf, -np.inf], np.nan).dropna()
@@ -147,11 +147,12 @@ def _src_bot(bot_id: str) -> Optional[pd.Series]:
     try:
         with open(os.path.join(b_dir, "bot.json"), encoding="utf-8") as fh:
             meta = json.load(fh)
-        snap = led.snapshot(b_dir, meta)       # chỉ đọc
+        snap = led.snapshot(b_dir, meta) if led is not None else {}       # chỉ đọc
     except (OSError, ValueError):
         return None
     ser = snap.get("series") or []
-    r = _daily_returns([x["time"] for x in ser], [x["equity"] for x in ser], snap.get("capital")) if ser else None
+    cap = float(snap.get("capital") or 10000.0)
+    r = _daily_returns([x["time"] for x in ser], [x["equity"] for x in ser], cap) if ser else None
     _SRC_CACHE["bot:" + bot_id] = (mt, r)
     return r
 
@@ -166,9 +167,10 @@ def _rolling_sharpe(r: np.ndarray, w: int):
 
 def _monthly(dates: pd.DatetimeIndex, nav: np.ndarray) -> list:
     s = pd.Series(nav, index=dates)
-    ym = s.groupby([dates.year, dates.month]).last()
+    ym = s.groupby([dates.year, dates.month]).last()  # type: ignore[attr-defined]
     out, prev = [], 10000.0
-    for (y, m), v in ym.items():
+    for key, v in ym.items():
+        y, m = key  # type: ignore
         out.append({"y": int(y), "m": int(m), "ret": round((float(v) / prev - 1.0) * 100.0, 4)})
         prev = float(v)
     return out
@@ -200,7 +202,7 @@ def get_overview_series() -> Dict[str, Any]:
         return {**meta, "dates": [], "available": False}
     df = pd.concat(srcs, axis=1)
     cnt = df.notna().sum(axis=1)
-    r = df.mean(axis=1, skipna=True).dropna().sort_index()
+    r = cast(pd.Series, df.mean(axis=1, skipna=True)).dropna().sort_index()
     cnt = cnt.reindex(r.index)
     idx = pd.to_datetime(r.index.to_numpy() * _DAY, unit="ms")
     nav = 10000.0 * np.cumprod(1.0 + r.to_numpy())
@@ -210,8 +212,8 @@ def get_overview_series() -> Dict[str, Any]:
     bc = daily_close("BTC@perp", int(time.time() * 1000))
     if bc is not None:
         lab = pd.Series(bc[1], index=(bc[0] - _DAY) // _DAY)
-        lab = lab[~lab.index.duplicated(keep="last")]
-        b = lab.reindex(r.index).ffill()
+        lab_s = cast(pd.Series, lab[~lab.index.duplicated(keep="last")])
+        b = cast(pd.Series, lab_s.reindex(r.index)).ffill()
         if b.notna().any() and float(b.dropna().iloc[0]) > 0:
             b = b.bfill()
             bench = [round(float(x), 2) for x in 10000.0 * b.to_numpy() / float(b.iloc[0])]

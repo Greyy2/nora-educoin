@@ -36,7 +36,7 @@ _FRAME_TO_SPEC = {
 }
 
 
-_CACHE_INSTRUMENTS: Dict[Tuple[str, Optional[float], Optional[float]], CryptoPerpetual] = {}
+_CACHE_INSTRUMENTS: Dict[Tuple[Any, ...], CryptoPerpetual] = {}
 _CACHE_LOCK = threading.RLock()
 _SPECS: Dict[str, Any] = {"mtime": None, "data": {}}
 
@@ -64,7 +64,8 @@ def load_instruments_specs() -> Dict[str, Any]:
 
 
 def _decimals(x: Decimal) -> int:
-    return max(0, -x.normalize().as_tuple().exponent)
+    exp = x.normalize().as_tuple().exponent
+    return max(0, -exp) if isinstance(exp, int) else 0
 
 
 def coin_currency(code: str) -> Currency:

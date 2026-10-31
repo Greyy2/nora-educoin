@@ -44,6 +44,7 @@ try:
     import redis
     _HAS_REDIS = True
 except ImportError:
+    redis = None  # type: ignore[assignment]
     _HAS_REDIS = False
 
 log = logging.getLogger("backend.adapter.runner")
@@ -680,7 +681,7 @@ class RedisBus:
             self._connect()
 
     def _connect(self) -> None:
-        if not _HAS_REDIS:
+        if not _HAS_REDIS or redis is None:
             log.warning("Thư viện redis chưa cài đặt -> Dùng fallback in-memory bus.")
             return
 

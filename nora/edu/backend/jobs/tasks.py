@@ -18,14 +18,14 @@ import shutil
 import time
 import warnings
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 
 from backend.analys.alpha import strategies
 from backend.analys.param import DAY_MS as DAY, DEFAULT_CAPITAL, DEFAULT_TRAIN_RATIO, date_ms
 from backend.models.storage import as_list, json_default, load_report, load_samples, options, write_job_result
-from backend.data.data import base_name, check_data, data_info, load_prices, resolve_symbols, strategy_frames
+from backend.data.data import check_data, data_info, load_prices, resolve_symbols, strategy_frames
 from backend.core.engine import provenance as engine_provenance
 from backend.analys.metrics.trades import build_result, stage_split
 from backend.jobs.runner.backtest import (WARMUP, _pool_shared, execute, load_items,
@@ -33,8 +33,7 @@ from backend.jobs.runner.backtest import (WARMUP, _pool_shared, execute, load_it
 from backend.jobs.runner.wfa import (candidates_from_ids, candidates_from_list, candidates_from_report,
                                      plan_is_jobs, print_summary, run_portfolio_wfa)
 
-CUSTOM_BACKTEST_DEFAULTS = {"code": "", "symbols": None, "start": "", "end": "", "test_start": None, "train_ratio": DEFAULT_TRAIN_RATIO, "initial_capital": None, "position": None, "run_frame": "", "owner_uid": None,
-                            "include_benchmark": True, "include_diagnostics": True, "parallel_runs": True}
+CUSTOM_BACKTEST_DEFAULTS = {"code": "", "symbols": None, "start": "", "end": "", "test_start": None, "train_ratio": DEFAULT_TRAIN_RATIO, "initial_capital": None, "position": None, "run_frame": "", "owner_uid": None, "close_at_end": False, "include_benchmark": True, "include_diagnostics": True, "parallel_runs": True}
 BOOK_BACKTEST_DEFAULTS = {"book": "", "strategies": None, "symbols": "", "start": "", "end": "", "risk_per_trade": None, "stop_fill": "level", "regime": False, "timeframe": "1m", "out": "",
                           "data": "candle", "latency_ms": None, "gas_usd": None, "capital": None}
 BOOK_WFA_DEFAULTS = {"report": "", "include_rejected": False, "candidates": "", "strategies": None, "symbols": "", "n": 3, "seed": 7,
@@ -75,176 +74,8 @@ def diagnostic_inputs(plan, program, end: int, start: Optional[int] = None) -> D
 
 
 def run_custom_backtest(params=None):
-    """Chạy job custom_backtest với `params` -> dict kết quả, ghi $NORA_JOB_DIR/result.json và run_manifest.json (DEC-02)."""
-    import hashlib
-    import re
-    t_start = datetime.now(timezone.utc)
-    params_dict = dict(params or {})
-    custom_params = {k: v for k, v in params_dict.items() if k in CUSTOM_BACKTEST_DEFAULTS}
-    out = run_custom(custom_params)
-    t_end = datetime.now(timezone.utc)
-    if params_dict.get("owner_uid") and isinstance(out, dict):
-        out["owner_uid"] = params_dict["owner_uid"]
-
-    job_dir = os.environ.get("NORA_JOB_DIR")
-    job_id = params_dict.get("job_id") or (os.path.basename(os.path.normpath(job_dir)) if job_dir else None)
-
-    if isinstance(out, dict):
-        code_str = (params or {}).get("code") or ""
-        code_hash = hashlib.sha256(code_str.encode("utf-8")).hexdigest()
-        cfg = out.get("config") or {}
-        sim = (out.get("metrics") or {}).get("simulate") or {}
-        syms = (params or {}).get("symbols") or cfg.get("symbols") or ["BTC-USDT"]
-        main_sym = syms[0] if isinstance(syms, list) and syms else str(syms)
-        timeframe = (params or {}).get("timeframe") or cfg.get("timeframe") or "15m"
-        run_start = (params or {}).get("start") or cfg.get("start")
-        run_end = (params or {}).get("end") or cfg.get("end")
-        if run_start and run_end:
-            # DEC-01 context is descriptive only; execution continues to use the original backtest result.
-            from backend.analys.metrics.regime import summarize_window_context
-            out["market_context"] = summarize_window_context(
-                main_sym,
-                date_ms(run_start),
-                date_ms(run_end) + DAY,
-            )
-        else:
-            out["market_context"] = {
-                "status": "unavailable",
-                "symbol": main_sym,
-                "timeframe": "15m",
-                "method": "dominant_causal_label_over_closed_bars_in_backtest_window",
-                "reference_only": True,
-                "reason": "Backtest window is missing",
-            }
-        # Only accept content hashes emitted for data actually consumed by this run.
-        run_data = out.get("data") or {}
-        data_sha_map = (
-            out.get("data_sha")
-            or run_data.get("content_sha256_1m")
-            or (out.get("evidence") or {}).get("data_sha256_1m")
-            or {}
-        )
-        requested_symbols = syms if isinstance(syms, list) else [syms]
-        requested_bases = {
-            base_name(str(item)): str(item).split("@", 1)[0].upper()
-            for item in requested_symbols
-        }
-        source_hashes = {}
-        if isinstance(data_sha_map, dict):
-            for key, value in data_sha_map.items():
-                digest = str(value).removeprefix("sha256:")
-                if re.fullmatch(r"[0-9a-fA-F]{64}", digest):
-                    source_hashes[base_name(str(key))] = digest.lower()
-        elif isinstance(data_sha_map, str) and len(requested_bases) == 1:
-            digest = data_sha_map.removeprefix("sha256:")
-            if re.fullmatch(r"[0-9a-fA-F]{64}", digest):
-                source_hashes[next(iter(requested_bases))] = digest.lower()
-
-        missing_symbols = [symbol for base, symbol in requested_bases.items() if base not in source_hashes]
-        if missing_symbols:
-            raise RuntimeError(
-                "Run manifest requires SHA-256 content hashes for every consumed dataset; "
-                f"missing: {', '.join(missing_symbols)}"
-            )
-        data_digests = {
-            symbol: source_hashes[base]
-            for base, symbol in sorted(requested_bases.items(), key=lambda item: item[1])
-        }
-        market_context = out.get("market_context")
-        if isinstance(market_context, dict):
-            main_digest = source_hashes.get(base_name(str(main_sym)))
-            if main_digest:
-                market_context["dataset_digest"] = f"sha256:{main_digest}"
-        aggregate_payload = json.dumps(data_digests, sort_keys=True, separators=(",", ":")).encode("utf-8")
-        data_digest = hashlib.sha256(aggregate_payload).hexdigest()
-
-        # VmHWM is this worker process's peak resident set since process start.
-        try:
-            with open("/proc/self/status", "r", encoding="utf-8") as status_file:
-                vmhwm = next(line for line in status_file if line.startswith("VmHWM:"))
-            measured_rss = int(vmhwm.split()[1]) * 1024
-        except (OSError, StopIteration, ValueError, IndexError) as err:
-            raise RuntimeError(f"Unable to measure worker peak RSS for run manifest: {err}") from err
-        if measured_rss <= 0:
-            raise RuntimeError("Unable to measure a positive worker peak RSS for run manifest")
-
-        manifest = {
-            "job_id": job_id,
-            "owner_uid": (params or {}).get("owner_uid"),
-            "product": "EDU",
-            "code_hash": code_hash,
-            "effective_params": {
-                "symbols": syms,
-                "start": (params or {}).get("start") or cfg.get("start"),
-                "end": (params or {}).get("end") or cfg.get("end"),
-                "train_ratio": (params or {}).get("train_ratio") or cfg.get("train_ratio"),
-                "initial_capital": (params or {}).get("initial_capital") or cfg.get("initial_capital"),
-                "position": (params or {}).get("position") or cfg.get("position"),
-                "timeframe": timeframe,
-            },
-            "dataset": {
-                "symbol": main_sym,
-                "timeframe": timeframe,
-                "start_date": (params or {}).get("start") or cfg.get("start"),
-                "end_date": (params or {}).get("end") or cfg.get("end"),
-                "bar_count": sim.get("total_bars") or sim.get("bars"),
-                "data_digest": f"sha256:{data_digest}",
-                "data_digests": {symbol: f"sha256:{digest}" for symbol, digest in data_digests.items()},
-                "data_digest_method": "sha256_of_canonical_symbol_to_content_sha256_map",
-                "catalog_fingerprint": run_data.get("catalog_digest"),
-                "content_digest_scope": run_data.get("content_digest_scope"),
-                "market_context": market_context,
-            },
-            "engine": {
-                "name": "nora-edu-dsl",
-                "version": "1.0.0",
-                "memory_cap_bytes": 2147483648,
-            },
-            "timestamps": {
-                "queued_at": (params or {}).get("queued_at") or t_start.isoformat(),
-                "started_at": t_start.isoformat(),
-                "completed_at": t_end.isoformat(),
-                "duration_ms": max(1, int((t_end - t_start).total_seconds() * 1000)),
-            },
-            "execution_metrics": {
-                "peak_rss_bytes": measured_rss,
-                "peak_rss_scope": "worker_process_lifetime",
-                "exit_code": 0,
-                "status": "COMPLETED",
-            },
-        }
-        out["manifest"] = manifest
-
-        if job_dir and os.path.isdir(job_dir):
-            manifest_path = os.path.join(job_dir, "run_manifest.json")
-            if os.path.exists(manifest_path):
-                try:
-                    with open(manifest_path, "r", encoding="utf-8") as fh:
-                        existing_manifest = json.load(fh)
-                except (OSError, json.JSONDecodeError) as read_err:
-                    raise RuntimeError(f"Existing run_manifest.json is unreadable: {read_err}") from read_err
-                identity_fields = ("job_id", "owner_uid", "product", "code_hash", "effective_params", "dataset", "engine")
-                if any(existing_manifest.get(field) != manifest.get(field) for field in identity_fields):
-                    raise RuntimeError("Existing run_manifest.json does not match this run; refusing to reuse it")
-                out["manifest"] = existing_manifest
-            else:
-                try:
-                    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
-                    with open(os.open(manifest_path, flags, 0o644), "w", encoding="utf-8") as fh:
-                        json.dump(manifest, fh, indent=2, ensure_ascii=False)
-                except FileExistsError:
-                    try:
-                        with open(manifest_path, "r", encoding="utf-8") as fh:
-                            existing_manifest = json.load(fh)
-                    except (OSError, json.JSONDecodeError) as read_err:
-                        raise RuntimeError(f"Concurrent run_manifest.json is unreadable: {read_err}") from read_err
-                    identity_fields = ("job_id", "owner_uid", "product", "code_hash", "effective_params", "dataset", "engine")
-                    if any(existing_manifest.get(field) != manifest.get(field) for field in identity_fields):
-                        raise RuntimeError("Concurrent run_manifest.json does not match this run; refusing to reuse it")
-                    out["manifest"] = existing_manifest
-                except Exception as write_err:
-                    raise RuntimeError(f"Lỗi ghi nhận run_manifest.json chứng thực: {write_err}") from write_err
-
+    """Chạy job custom_backtest với `params` -> dict kết quả (cũng ghi $NORA_JOB_DIR/result.json)."""
+    out = run_custom(params)
     write_job_result(out)
     return out
 
@@ -303,7 +134,7 @@ def run_parallel(steps) -> Dict[str, Any]:
     return out
 
 
-def run_sequential(steps) -> Dict[str, Any]:
+def run_sequential(steps: List[Tuple[str, Any]]) -> Dict[str, Any]:
     """Chạy các bước lần lượt và dừng sau bước lỗi để giữ trần RAM khi không cho phép engine chạy đồng thời."""
     import contextlib
     import io
@@ -341,8 +172,8 @@ def run_custom(params=None):
     from backend.analys.signal.signal import DslError
     from backend.analys.alpha.code.compile import compile_code
     from backend.analys.signal.compute import SignalEngine
-    from backend.analys.alpha.code.plan import build_plan, resolve_run_frame
-    SignalEngine.MAX_BACKTEST_DAYS = 4000
+    from backend.analys.alpha.code.plan import build_plan
+    setattr(SignalEngine, "MAX_BACKTEST_DAYS", 4000)
 
     t0 = time.time()
     job_dir = os.environ.get("NORA_JOB_DIR")
@@ -363,18 +194,15 @@ def run_custom(params=None):
     except DslError as e:
         raise ValueError(f"Lỗi biên dịch chiến lược: {e}") from None
 
-    target_tf = getattr(program, "timeframe", None)
-    # Khung tường minh (kể cả 1m) được giữ nguyên; thiếu khung nghĩa là dùng khung tín hiệu để chạy nhanh.
-    effective_run_frame = resolve_run_frame(a.run_frame, target_tf)
-
     native = bool(getattr(program, "is_native", False))
     if native:      # Strategy Nautilus bản địa: không có plan DSL -> Plan thật (cùng kiểu build_plan trả về) để benchmark / chẩn đoán / build_result dùng chung
-        from backend.analys.alpha.code.plan import Plan
+        from backend.analys.alpha.code.plan import Plan, resolve_run_frame
         names = resolve_symbols(as_list(a.symbols) or program.symbols or None)
-        plan = Plan(strategies=[{"id": program.name}], symbols=[f"{n}@perp" for n in names], risk={}, base_frame=effective_run_frame)
+        base_frame = resolve_run_frame(a.run_frame, getattr(program, "timeframe", None))
+        plan = Plan(strategies=[{"id": program.name}], symbols=[f"{n}@perp" for n in names], risk={}, base_frame=base_frame)
     else:
         names = resolve_symbols(as_list(a.symbols))
-        plan = build_plan(program, names, position=a.position or None, run_frame=effective_run_frame)
+        plan = build_plan(program, names, position=a.position or None, run_frame=a.run_frame)
 
     _mark(2, 5, "Nạp & xác thực dữ liệu", f"{len(plan.symbols)} tài sản · khung {plan.base_frame}")
     check_data(plan.symbols)
@@ -387,33 +215,30 @@ def run_custom(params=None):
     if native:
         _mark(3, 5, "Khởi tạo Nautilus Engine", f"Chiến lược {program.name} · venue OKX")
 
-        def run_one(s: int, e: int, ev):
-            from backend.nautilus.backtest import run_native
+        def run_one_native(s: int, e: int, ev):
+            from backend.core.backtest import run_native
             ev.set()        # chạy thẳng từ catalog Nautilus: không có bước nạp tín hiệu tuần tự
             r = run_native(program.strategy_cls, plan.symbols, s, e, capital, plan.base_frame, strategy_id=program.name)
             r["provenance"] = engine_provenance(plan.base_frame)
             return r, _OpenPositions(r["open_positions"])
+        run_one = run_one_native
     else:
         _mark(3, 5, "Tính toán ma trận tín hiệu", f"khung {program.timeframe} với warmup lịch sử")
 
-        def run_one(s: int, e: int, ev):
-            return execute(plan, s, e, capital, loaded=ev)
-    split = date_ms(a.test_start) if a.test_start else stage_split(start, end, float(a.train_ratio))
-    if not start < split < end:
-        raise ValueError("test_start phải sau start và không muộn hơn end")
-    # 4 lần chạy engine độc lập (chính, test, benchmark toàn kỳ, benchmark test): nạp dữ liệu TUẦN TỰ theo thứ tự này (lần rộng nhất dựng cửa sổ, các lần sau cắt từ bộ nhớ đệm),
-    # kernel numba (nogil) chạy SONG SONG bằng thread. Kết quả từng lần không phụ thuộc lần khác (cùng chương trình/cấu hình/dữ liệu, warmup như lần chạy chính).
-    steps = [("main", lambda ev: run_one(start, end, ev))]
+        def run_one_dsl(s: int, e: int, ev):
+            return execute(plan, s, e, capital, close_at_end=bool(a.close_at_end), loaded=ev)
+        run_one = run_one_dsl
+    split = stage_split(start, end, float(a.train_ratio))
+    steps: List[Tuple[str, Any]] = [("main", lambda ev: run_one(start, end, ev))]
     if split < end:     # giai đoạn test = lần chạy riêng bắt đầu từ vốn đầu tại đầu test
         steps.append(("test", lambda ev: run_one(split, end, ev)))
     # benchmark luôn long qua cùng engine (cache theo cấu hình: chỉ chạy một lần mỗi job/tiến trình)
-    if a.include_benchmark:
-        steps.append(("bench", lambda ev: run_benchmark(program, a, plan, names, start, end, capital, data, loaded=ev)))
-        if split < end:     # benchmark của giai đoạn Test: cùng cửa sổ [mốc chia, end], vốn đầu
-            steps.append(("test_bench", lambda ev: run_benchmark(program, a, plan, names, split, end, capital, data, loaded=ev)))
+    steps.append(("bench", lambda ev: run_benchmark(program, a, plan, names, start, end, capital, data, loaded=ev)))
+    if split < end:     # benchmark của giai đoạn Test: cùng cửa sổ [mốc chia, end], vốn đầu
+        steps.append(("test_bench", lambda ev: run_benchmark(program, a, plan, names, split, end, capital, data, loaded=ev)))
 
     _mark(4, 5, "Khớp lệnh", f"mô phỏng vị thế · {plan.base_frame}")
-    got = (run_parallel if a.parallel_runs else run_sequential)(steps)
+    got = run_parallel(steps)
     return _finish(program, plan, a, start, end, capital, data, warns, split, got, t0, progress, _mark)
 
 
@@ -437,11 +262,10 @@ def _finish(program, plan, a, start: int, end: int, capital: float, data: Dict[s
     if isinstance(got.get("test"), BaseException):
         raise got["test"]
     bench = test_bench = None
-    if "bench" in got:
-        if isinstance(got["bench"], BaseException):     # thiếu benchmark thì chẩn đoán market_comparison ghi available=False, không bịa số
-            warns = warns + [f"không chạy được benchmark luôn long: {got['bench']}"]
-        else:
-            bench = got["bench"]
+    if isinstance(got["bench"], BaseException):     # thiếu benchmark thì chẩn đoán market_comparison ghi available=False, không bịa số
+        warns = warns + [f"không chạy được benchmark luôn long: {got['bench']}"]
+    else:
+        bench = got["bench"]
     if "test_bench" in got:
         if isinstance(got["test_bench"], BaseException):    # thiếu thì series.stages.test.benchmark = None, không co dãn benchmark toàn kỳ
             warns = warns + [f"không chạy được benchmark giai đoạn test: {got['test_bench']}"]
@@ -449,9 +273,8 @@ def _finish(program, plan, a, start: int, end: int, capital: float, data: Dict[s
             test_bench = got["test_bench"]
 
     mark(5, 5, "Tính toán chỉ số & chẩn đoán", "Sharpe, Drawdown, PnL & báo cáo")
-    inputs = diagnostic_inputs(plan, program, end) if a.include_diagnostics else {"errors": []}
-    out = build_result(program, plan, res, eng, a, start, end, capital, data, warns, test_res, split, bench=bench, inputs=inputs,
-                       test_bench=test_bench, split_at=split)
+    out = build_result(program, plan, res, eng, a, start, end, capital, data, warns, test_res, split, bench=bench, inputs=diagnostic_inputs(plan, program, end),
+                       test_bench=test_bench)
     from backend.analys.alpha.strategies import evaluate_checklist, generate_alpha_id
     out["alpha_id"] = generate_alpha_id(program.code_hash, out["config"])
     out["checklist"] = evaluate_checklist(out)
@@ -460,6 +283,10 @@ def _finish(program, plan, a, start: int, end: int, capital: float, data: Dict[s
     out["provenance"] = stamp_provenance(out.get("provenance") or engine_provenance(plan.base_frame))
     from backend.analys.alpha.code.route import classify
     out["compile"] = classify(a.code)
+    out["execution_options"] = {
+        "close_at_end": bool(a.close_at_end),
+        "warmup_ms": WARMUP,
+    }
 
     if progress:
         progress.status = "done"
@@ -486,7 +313,7 @@ def run_book_backtest(params=None):
     from backend.jobs.worker import require_memory_limit
     require_memory_limit("run_book_backtest")
     from backend.analys.signal.compute import SignalEngine
-    SignalEngine.MAX_BACKTEST_DAYS = 4000
+    setattr(SignalEngine, "MAX_BACKTEST_DAYS", 4000)
     from backend.analys.alpha.strategies import perp_symbols
 
     from backend.data.data import classify_symbols
@@ -667,7 +494,7 @@ def config_hash(alpha_id: str, signal_tf: Any, params: Dict[str, Any], symbols: 
     """Băm chuẩn tắc của cấu hình ĐÃ GIẢI (alpha, khung tín hiệu, tham số đầy đủ, rổ tài sản)."""
     import hashlib
     names = sorted(resolve_symbols(list(symbols))) if symbols else []
-    blob = json.dumps({"a": alpha_id, "tf": signal_tf or None, "p": params, "s": names}, sort_keys=True, default=str, ensure_ascii=False)
+    blob = json.dumps({"a": str(alpha_id), "tf": signal_tf or None, "p": params, "s": names}, sort_keys=True, default=str, ensure_ascii=False)
     return hashlib.sha256(blob.encode()).hexdigest()[:16]
 
 
@@ -723,7 +550,7 @@ def picker_backtest_save(job_id: str, config: Dict[str, Any]) -> None:
             db = json.load(fh)
     except (OSError, ValueError):
         db = {}
-    db[job_id] = {**config, "ts": time.time()}
+    db[str(job_id)] = {**config, "ts": time.time()}
     for k in sorted(db, key=lambda x: db[x].get("ts", 0))[:-200]:
         db.pop(k, None)
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -736,7 +563,7 @@ def picker_backtest_save(job_id: str, config: Dict[str, Any]) -> None:
 def picker_backtest_get(job_id: str):
     try:
         with open(_picker_store(), encoding="utf-8") as fh:
-            return json.load(fh).get(job_id)
+            return json.load(fh).get(str(job_id))
     except (OSError, ValueError):
         return None
 

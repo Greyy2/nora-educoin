@@ -80,7 +80,7 @@ class Coordinator:
         self.kill_pct = float(risk.kill_switch_dd_pct or 0.0)
         self.slots: List[Any] = []
         self.active: List[Any] = []                 # slot đang ENTERING / OPEN
-        self.last: List[Tuple[float, float, float]] = [(float("nan"),) * 3] * n_symbols   # (close, low, high) nến cuối của từng tài sản
+        self.last: List[Tuple[float, float, float]] = [(float("nan"), float("nan"), float("nan"))] * n_symbols   # (close, low, high) nến cuối của từng tài sản
         self.reserved = 0.0                         # ký quỹ + phí của vị thế đã khớp đang mở
         self.pending_reserved = 0.0                 # ký quỹ + phí của các lệnh entry đang chờ khớp (tránh over-allocation)
         self._pending_intents: Dict[int, List[EntryIntent]] = {}   # gom intents theo nến ts
@@ -221,8 +221,16 @@ class Coordinator:
 
             total_mult = policy.layer_mult_total(sp.dca_mults, len(c.slot.dca_steps))
             planned = 0.0
+            sizing_slippage_rate = getattr(sp, "slippage_rate", 0.0)
+            if getattr(sp, "slippage_mode", "rate") == "fixed_ticks" and getattr(sp, "slippage_ticks", 0) > 0:
+                increment = float(c.slot.inst.price_increment)
+                entry_slip = sp.slippage_ticks * increment
+                stop_slip = entry_slip * sp.stop_slippage_multiplier
+                # risk_margin models two equal slippage legs; use their mean so
+                # its round-trip cost equals entry slip + adverse stop slip.
+                sizing_slippage_rate = (entry_slip + stop_slip) / (2.0 * c.price)
             if sp.sizing == "risk":
-                margin, lev, planned = policy.risk_margin(eq, sp.risk_pct, sp.max_notional_pct, sl_eff, sp.fee_rate, sp.slippage_rate, None,
+                margin, lev, planned = policy.risk_margin(eq, sp.risk_pct, sp.max_notional_pct, sl_eff, sp.fee_rate, sizing_slippage_rate, None,
                                                           sp.market == "perp", sp.max_leverage, sp.mmr, lev, total_mult)
             else:
                 margin = policy.flat_margin(eq, sp.order_size_pct)
@@ -234,7 +242,7 @@ class Coordinator:
 
             # TODO 1: Tính planned risk từ hard-SL thực tế cho MỌI kiểu sizing (cả flat và risk)
             if margin > 0 and sl_eff > 0:
-                round_trip = policy.round_trip_cost(sp.fee_rate, sp.slippage_rate, None, margin * lev * total_mult)
+                round_trip = policy.round_trip_cost(sp.fee_rate, sizing_slippage_rate, None, margin * lev * total_mult)
                 planned = policy.planned_risk_cap(margin, lev, sl_eff, round_trip, total_mult)
             else:
                 planned = 0.0
@@ -504,7 +512,6 @@ class RiskPolicyConfig:
     max_daily_sleeve_loss_pct: float = float(os.environ.get("NORA_MAX_DAILY_SLEEVE_LOSS_PCT", "0.03"))  # 3.0% của sleeve (30 USDT trên 1,000 USDT)
     max_sleeve_drawdown_pct: float = float(os.environ.get("NORA_MAX_SLEEVE_DRAWDOWN_PCT", "0.15"))    # 15.0% của sleeve (150 USDT trên 1,000 USDT)
     master_circuit_breaker_pct: float = float(os.environ.get("NORA_MASTER_CIRCUIT_BREAKER_PCT", "0.02")) # 2.0% của Master (200 USDT trên 10,000 USDT)
-
 
 
 @dataclass
@@ -1141,7 +1148,8 @@ def get_live_master_ledger(mode: str = "paper") -> MasterPortfolioLedger:
 
         b_id = meta.get("bot_id", d)
         try:
-            orig_cap = float(meta.get("capital"))
+            cap_val = meta.get("capital")
+            orig_cap = float(cap_val) if cap_val is not None else float("nan")
         except (TypeError, ValueError) as exc:
             raise LiveLedgerUnavailable(f"Bot {d} has no valid configured capital") from exc
         if not math.isfinite(orig_cap) or orig_cap <= 0:

@@ -399,13 +399,10 @@ def get_risk_profile(name_or_alias: str) -> RiskProfile:
 
 def validate_strategy_risk(params: Any, profile_name: Optional[str] = None) -> List[RiskIssue]:
     """Kiểm tra tính hợp lệ của tham số chiến lược theo Risk Profile đã chọn."""
-    if isinstance(params, dict):
-        p_dict = params
-        def _get(k, d=None):
-            return p_dict.get(k, d)
-    else:
-        def _get(k, d=None):
-            return getattr(params, k, d)
+    def _get(k, d=None):
+        if isinstance(params, dict):
+            return params.get(k, d)
+        return getattr(params, k, d)
 
     p_name = profile_name or _get("risk_profile") or "legacy"
     profile = get_risk_profile(str(p_name))

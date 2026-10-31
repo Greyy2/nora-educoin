@@ -431,7 +431,7 @@ class ProximaNativeStrategy(Strategy):
 
         # 1. Nạp nến vào Reader
         m_bar = reader.feed_1m_bar(bar_dict)
-        if m_bar.closed_1h_bars:
+        if m_bar is not None and m_bar.closed_1h_bars:
             signal_engine.update_anchor_indicators(m_bar.closed_1h_bars)
 
         # 2. Không phát lệnh nếu chưa hoàn thành Warmup

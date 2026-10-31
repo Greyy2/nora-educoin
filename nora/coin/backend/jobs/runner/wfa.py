@@ -242,7 +242,7 @@ def stream_stage(items: Iterable[Tuple[int, Any, Any]], fn: Callable, *, workers
             pending[next(seq)] = (ord_, params, key)
             yield job
 
-    for i, res in pool_imap_bounded(fn, feeder(), workers, max_inflight=max_inflight, label=label or "wfa"):
+    for i, res in pool_imap_bounded(fn, feeder(), workers, max_inflight=max_inflight or (workers * 2), label=label or "wfa"):
         ord_, params, key = pending.pop(i)
         metrics = normalize(res)
         to_store, score = handle(ord_, params, metrics, False)
@@ -395,8 +395,7 @@ def run_portfolio_wfa(candidates, symbols, start_ts, end_ts, cfg, risk, risk_per
     fold_records = []
     for fi, fold in enumerate(folds):
         cids = [c["id"] for c in candidates]
-        is_sel = {cid: _strip(is_by[(fi, cid, picks[fi][cid])]) | {"score": round(is_score(is_by[(fi, cid, picks[fi][cid])],
-                                                                                          cfg.min_is_trades), 4)}
+        is_sel = {cid: _strip(is_by[(fi, cid, picks[fi][cid])]) | {"score": round(sc, 4) if (sc := is_score(is_by[(fi, cid, picks[fi][cid])], cfg.min_is_trades)) is not None else None}
                   for cid in cids if picks[fi][cid] is not None}
         rec = {
             "fold": fi + 1,
@@ -408,7 +407,7 @@ def run_portfolio_wfa(candidates, symbols, start_ts, end_ts, cfg, risk, risk_per
             "chosen": {cid: (candidates[i]["configs"][picks[fi][cid]] if picks[fi][cid] is not None else None)
                        for i, cid in enumerate(cids)},
             "is": is_sel,
-            "is_ret_pct": round(sum(m["ret_pct"] for m in is_sel.values()) / len(is_sel), 2) if is_sel else 0.0,
+            "is_ret_pct": round(sum(float(m.get("ret_pct") or 0.0) for m in is_sel.values()) / len(is_sel), 2) if is_sel else 0.0,
             "is_candidates": {cid: [{"ret_pct": m["ret_pct"], "mdd_pct": m["mdd_pct"], "trades": m["trades"],
                                      "score": is_score(m, cfg.min_is_trades)}
                                     for m in (is_by[(fi, cid, ci)] for ci in range(len(candidates[i]["configs"])))]

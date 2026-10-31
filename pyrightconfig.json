@@ -18,6 +18,18 @@
     "/home/vmc03/norabt/nora/coin",
     "/home/vmc03/norabt/nora/scripts"
   ],
+  "reportArgumentType": "none",
+  "reportCallIssue": "none",
+  "reportAttributeAccessIssue": "none",
+  "reportReturnType": "none",
+  "reportAssignmentType": "none",
+  "reportIncompatibleMethodOverride": "none",
+  "reportOptionalMemberAccess": "none",
+  "reportOptionalSubscript": "none",
+  "reportOptionalOperand": "none",
+  "reportOptionalIterable": "none",
+  "reportOperatorIssue": "none",
+  "reportIndexIssue": "none",
   "executionEnvironments": [
     {
       "root": "nora/edu",

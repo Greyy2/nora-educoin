@@ -22,7 +22,7 @@ import re
 import time
 from contextlib import contextmanager
 from datetime import datetime
-from typing import Any, Dict, Iterator, List, Tuple, Optional
+from typing import Any, Dict, Iterator, List, Tuple, Optional, cast
 
 import httpx
 from fastapi import HTTPException, APIRouter, Header, Response, Request
@@ -442,7 +442,7 @@ def _book_strategies() -> List[Dict[str, Any]]:
 
 
 def _basic_risk(items: List[Tuple[str, Dict[str, Any]]]) -> float:
-    vals = [full.get("risk_per_trade_pct") for _, full in items if full.get("risk_per_trade_pct") is not None]
+    vals = [float(full["risk_per_trade_pct"]) for _, full in items if full.get("risk_per_trade_pct") is not None]
     return min(vals) if vals else BASE_RISK_PER_TRADE_PCT
 
 
@@ -735,7 +735,7 @@ class BacktestRequest(_DateRange):
     regime: bool = Field(False, description="Bật lọc regime + cầu chì (metrics/regime.py, models/params.py REGIME_MAP)")
     timeframe: str = Field("15m", pattern="^(15m|1h|4h)$", description="Khung chạy (nến mô phỏng); khung tín hiệu nhỏ hơn được nâng lên")
     run_frame: Optional[str] = Field(None, pattern="^(15m|1h|4h)$", description="Khung chạy (engine base_frame); có thì ghi đè timeframe. Giá trị hợp lệ = meta.frames.book")
-    mode: str = Field("basic", **MODE_FIELD)
+    mode: str = Field("basic", pattern="^(basic|advanced)$", description=MODE_FIELD["description"])
     data: str = Field("candle", pattern="^(candle|tick)$", description="candle: nến; tick: 501 NOT_READY (backtest tick/AMM chỉ dành cho DEX, Nautilus không hỗ trợ)")
     latency_ms: Optional[int] = Field(None, ge=0, le=3_600_000, description="Chỉ data=tick: trễ từ lúc nến đóng tới lúc bot hành động; bỏ trống = thời gian một block của mạng")
     gas_usd: Optional[float] = Field(None, ge=0.0, le=1000.0, description="Chỉ data=tick: gas mỗi swap (USD); bỏ trống = cấu hình của mạng")
@@ -767,7 +767,7 @@ class WfaRequest(_DateRange):
     train_days: Optional[int] = Field(None, ge=7, le=1000)
     test_days: Optional[int] = Field(None, ge=1, le=365)
     risk_per_trade_pct: Optional[float] = Field(None, gt=0.0, le=5.0)
-    mode: str = Field("basic", **MODE_FIELD)
+    mode: str = Field("basic", pattern="^(basic|advanced)$", description=MODE_FIELD["description"])
     step_days: Optional[int] = Field(None, ge=1, le=365, description="Chỉ advanced: bước trượt fold (mặc định = test_days)")
     embargo_days: Optional[int] = Field(None, ge=0, le=30, description="Chỉ advanced: chưa hỗ trợ (>0 -> 422)")
     sims: Optional[int] = Field(None, ge=100, le=MC_MAX_SIMULATIONS, description="Chỉ advanced: số kịch bản MC của gate WFA; < 10.000 -> custom_gates")
@@ -798,7 +798,7 @@ class McRequest(BaseModel):
     stress_max_mdd_pct: float = Field(STRESS_MAX_MDD_PCT, gt=0.0, le=100.0, description="MDD tối đa cho phép của MỌI kịch bản cực xấu (gate)")
     extra_cost_daily_pct: Optional[float] = Field(None, ge=0.0, le=5.0,
                                                   description="Phí bổ sung (%/ngày hoạt động) cho kịch bản cost_x2; bỏ trống = hằng số bảo thủ 0,07%")
-    mode: str = Field("basic", **MODE_FIELD)
+    mode: str = Field("basic", pattern="^(basic|advanced)$", description=MODE_FIELD["description"])
     stress_scenarios: Optional[List[str]] = Field(None, max_length=len(STRESS_SCENARIOS), description="Chỉ advanced: tập con kịch bản cực xấu (mặc định đủ cả); thiếu -> custom_gates")
 
     @model_validator(mode="after")
@@ -887,7 +887,9 @@ def _universe_windows(book: Optional[Dict[str, Any]]):
         try:
             import pandas as pd
             from backend.data.data import read_manifest
-            ms = [read_manifest(s) for s in universe]
+            ms = [m for s in universe if (m := read_manifest(s)) is not None]
+            if not ms:
+                raise ValueError("không có manifest")
             start = max(int(m["start_ts"]) for m in ms) + 20 * 86_400_000
             end = min(int(m["end_ts"]) for m in ms)
             span = end - start
@@ -919,14 +921,6 @@ def get_book():
             "universe": universe, "windows": windows, "assets": _assets()}
 
 
-def _read_json(path: str):
-    try:
-        with open(path, encoding="utf-8") as fh:
-            return json.load(fh)
-    except FileNotFoundError:
-        return None
-    except (OSError, ValueError) as e:
-        raise HTTPException(500, f"{os.path.basename(path)} hỏng: {e}")
 
 
 @book_router.post("/backtest")
@@ -1062,6 +1056,8 @@ def post_mc(req: McRequest):
         source = {"kind": "wfa", "job_id": req.wfa_job_id, "basis": req.basis}
         provenance = job["result"].get("provenance")   # nguồn gốc của lần chạy engine tạo ra chuỗi OOS
     else:
+        if not req.daily_returns:
+            raise HTTPException(422, "cần daily_returns")
         provenance = None   # chỉ chuỗi ngày người dùng gửi: không có lần chạy engine nào
         daily, source, shock, turnover = req.daily_returns, {"kind": "daily_returns"}, None, None   # chỉ chuỗi ngày: không biết vòng quay
         # kiểm ở đây (không trong validator pydantic): lỗi validator kèm đầu vào NaN làm FastAPI không dựng được phản hồi 422
@@ -1179,7 +1175,7 @@ def get_portfolio_trades(source: str = Query("backtest", pattern="^backtest$"), 
     if period != "ALL":
         nav = pd_mod.daily_nav_series(res)
         if len(nav):
-            cut = pd_mod._cutoff(nav.index[-1], period)
+            cut = pd_mod._cutoff(cast(Any, nav.index[-1]), period)
             if cut is not None:
                 start_ms = int((cut + pd_mod.pd.Timedelta(days=1)).value // 1_000_000)
                 rows = [t for t in rows if t["close_time"] >= start_ms]

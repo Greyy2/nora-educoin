@@ -947,14 +947,6 @@ def get_book():
             "universe": universe, "windows": windows, "assets": _assets()}
 
 
-def _read_json(path: str):
-    try:
-        with open(path, encoding="utf-8") as fh:
-            return json.load(fh)
-    except FileNotFoundError:
-        return None
-    except (OSError, ValueError) as e:
-        raise HTTPException(500, f"{os.path.basename(path)} hỏng: {e}")
 
 
 @book_router.post("/backtest")

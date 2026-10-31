@@ -421,7 +421,7 @@ def _live_bot_status(meta: Dict[str, Any]) -> Optional[Tuple[str, bool]]:
     from backend.core import live as lv
     d = lv.find_bot_dir(str((meta.get("params") or {}).get("bot_id") or ""))
     bm = _read_json(os.path.join(d, "bot.json")) if d else None
-    if not bm:
+    if not bm or not d:
         return None
     return lv.bot_status(bm, d), bool(bm.get("job_id") and bm.get("job_id") != meta.get("id"))
 
@@ -598,7 +598,7 @@ def persist_job(job_dir: str, dry_run: bool = False) -> Dict[str, Any]:
     if (meta.get("state") != "done" or os.path.realpath(os.path.dirname(os.path.realpath(job_dir))) != os.path.realpath(jobs_root())
             or not _JOB_ID_RE.match(str(jid))):
         return out
-    base = persist_dest_base(kind)
+    base = persist_dest_base(str(kind or ""))
     if not base:
         out["action"] = "would_clean" if dry_run else "cleaned"
         if not dry_run:
@@ -822,7 +822,7 @@ def cancel(job_id: str) -> Optional[Dict[str, Any]]:
     if meta is None:
         return None
     pid = meta.get("pid")
-    if meta.get("state") != "running" or not _alive(pid):
+    if meta.get("state") != "running" or not _alive(pid) or pid is None:
         raise JobError(f"job không còn chạy (trạng thái {meta.get('state')})")
     if meta.get("kind") == "live_bot":      # người dùng huỷ job bot = dừng bot (giữ nguyên vị thế): đặt cờ `stop` close=False để supervisor KHÔNG chạy lại
         from backend.core import live as lv
@@ -842,8 +842,9 @@ def cancel(job_id: str) -> Optional[Dict[str, Any]]:
 
     def _hard_kill():
         try:
-            os.killpg(int(pid), 0)            # nhóm còn sống?
-            os.killpg(int(pid), signal.SIGKILL)
+            if pid is not None:
+                os.killpg(int(pid), 0)            # nhóm còn sống?
+                os.killpg(int(pid), signal.SIGKILL)
         except (ProcessLookupError, PermissionError):
             pass
     timer = threading.Timer(20.0, _hard_kill)
@@ -1006,7 +1007,7 @@ def list_jobs(limit: int = 20, kind: Optional[str] = None) -> List[Dict[str, Any
         s.pop("_lines", None)
         if s.get("superseded"):
             continue
-        s["label"] = job_label(s.get("kind"), s.get("params"))
+        s["label"] = job_label(str(s.get("kind") or ""), s.get("params"))
         rows.append(s)
         if len(rows) >= limit:
             break

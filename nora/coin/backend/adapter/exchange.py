@@ -436,8 +436,8 @@ except ImportError:
     setattr(_pyo3, "OKXEnvironment", OKXEnvironment)
 
 from nautilus_trader.core.nautilus_pyo3 import OKXContractType, OKXInstrumentType, OKXMarginMode
-from nautilus_trader.live.config import LiveExecEngineConfig, LiveRiskEngineConfig
-from nautilus_trader.live.node import TradingNode, TradingNodeConfig
+from nautilus_trader.live.config import LiveExecEngineConfig, LiveRiskEngineConfig, TradingNodeConfig
+from nautilus_trader.live.node import TradingNode
 from nautilus_trader.model.currencies import USDT
 from nautilus_trader.model.identifiers import InstrumentId, TraderId
 
@@ -606,7 +606,7 @@ class RecorderActor(Actor):
     """Actor ghi nhận trạng thái bot vào đĩa: events.jsonl (fill / reject / position_closed), equity.jsonl + positions.json mỗi `interval_s` giây (timer của Nautilus).
     Với Paper còn đăng ký QuoteTick các instrument để Sandbox khớp lệnh theo giá thị trường thật."""
 
-    def __init__(self, bot_dir: str, coord: Coordinator, quote_ids: Optional[List[InstrumentId]] = None, interval_s: int = 60, ledger: Optional[led.OwnLedger] = None,
+    def __init__(self, bot_dir: str, coord: Coordinator, quote_ids: Optional[List[InstrumentId]] = None, interval_s: int = 60, ledger: Optional[OwnLedger] = None,
                  health_bar_types: Optional[List[Any]] = None, heartbeat_s: int = HEARTBEAT_S):
         super().__init__()
         self.health_bar_types = list(health_bar_types or [])      # khung chạy lớn (> 15m): thêm nến 1m CHỈ để biết dữ liệu còn tới (không đưa vào tín hiệu)

@@ -3,7 +3,7 @@
 Tín hiệu (match / stop / vol / dca) tính SẴN bằng backend.signal.compute (cùng đường dữ liệu engine cũ) và tra theo open_time của nến khung chạy
 (ts_event của Bar = open_time + độ dài khung). Lệnh, khớp, phí, số dư, vị thế do Nautilus sinh; strategy chỉ quyết định.
 
-Execution mặc định dùng Nautilus OrderMatchingEngine. Chế độ `next_open` hiện là mô phỏng riêng trong strategy/backtest,
+Execution mặc định dùng Nautilus OrderMatchingEngine cho paper/live. Chế độ `next_open` hiện là mô phỏng riêng trong strategy/backtest,
 không đi qua Nautilus matching engine; không được xem là parity với live cho tới khi được thay bằng execution module phù hợp.
 
 Loại lệnh (Nautilus `tags[0]`): ENTRY, DCA, SL, TP, TRAIL, EXIT, TIMEOUT, END, KILL.
@@ -173,7 +173,7 @@ class NoraSlotStrategy(Strategy):
 
     def _seed_heartbeat(self, now_ms: int) -> None:
         rec = getattr(self.coord, "recorder", None)
-        ev = self.signals.latest_event(now_ms) if hasattr(self.signals, "latest_event") else None
+        ev = getattr(self.signals, "latest_event", lambda ms: None)(now_ms) if hasattr(self.signals, "latest_event") else None
         if rec is not None and ev is not None and hasattr(rec, "seed_signal"):
             rec.seed_signal(self.symbol, int(ev.get("last_open_time") or 0) + self.fr, ev)
 
@@ -227,7 +227,7 @@ class NoraSlotStrategy(Strategy):
 
     def _catch_up(self, price: float, ts: int) -> None:
         """enter_on_start: cùng luật vào lệnh (admit, cỡ lệnh, SL/TP/TRAIL) như vào thường, chỉ trễ tới lúc khởi động. Ghi sự kiện `catchup` vào events.jsonl."""
-        ev = self.signals.latest_event(ts) if hasattr(self.signals, "latest_event") else None
+        ev = getattr(self.signals, "latest_event", lambda t: None)(ts) if hasattr(self.signals, "latest_event") else None
         entered = False
         if self.st == FLAT and ev is not None and ev.get("match") and self.coord.halted_at is None and not self.halted:
             intent = EntryIntent(
@@ -261,7 +261,7 @@ class NoraSlotStrategy(Strategy):
         if rec is not None:
             rec.record_bar(self.symbol, bar, ts)
 
-        if self.st == FLAT and hasattr(self.signals, "match_close_ts") and ts not in self.signals.match_close_ts:
+        if self.st == FLAT and hasattr(self.signals, "match_close_ts") and ts not in getattr(self.signals, "match_close_ts", ()):
             c = bar.close.as_double()
             if self.coord is not None:
                 self.coord.last[self.sym_idx] = (c, c, c)
@@ -287,13 +287,7 @@ class NoraSlotStrategy(Strategy):
                 qty, margin, lev, planned, unit_pct, sl_abs, catchup, fee_est = self._pending_entry_data
                 self._pending_entry_data = None
 
-                spread = _spread_bps(self.symbol, getattr(self.spec, "slippage_rate", 0.0003))
-                inc = float(self.inst.price_increment) if hasattr(self.inst, "price_increment") and self.inst.price_increment else (10 ** -self.inst.price_precision)
-                if self.is_long:
-                    exec_px = math.ceil(o * (1.0 + spread) / inc - 1e-12) * inc
-                else:
-                    exec_px = math.floor(o * (1.0 - spread) / inc + 1e-12) * inc
-                exec_px = round(exec_px, self.inst.price_precision)
+                exec_px = self._execution_price(o, buy=self.is_long, kind="ENTRY")
 
                 taker_fee_rate = float(getattr(self.spec, "fee_rate", 0.0005)) or 0.0005
                 fee = round(exec_px * qty * taker_fee_rate, 8)
@@ -331,13 +325,7 @@ class NoraSlotStrategy(Strategy):
             if self._pending_exit_kind is not None and self.st in (OPEN, EXITING):
                 kind = self._pending_exit_kind
                 self._pending_exit_kind = None
-                spread = _spread_bps(self.symbol, getattr(self.spec, "slippage_rate", 0.0003))
-                inc = float(self.inst.price_increment) if hasattr(self.inst, "price_increment") and self.inst.price_increment else (10 ** -self.inst.price_precision)
-                if self.is_long:  # Long exit is SELL -> Bid price (floor)
-                    exec_px = math.floor(o * (1.0 - spread) / inc + 1e-12) * inc
-                else:             # Short exit is BUY -> Ask price (ceil)
-                    exec_px = math.ceil(o * (1.0 + spread) / inc - 1e-12) * inc
-                exec_px = round(exec_px, self.inst.price_precision)
+                exec_px = self._execution_price(o, buy=not self.is_long, kind=kind)
                 self._close_simulated_position(kind, exec_px, open_ms)
                 return
 
@@ -352,14 +340,13 @@ class NoraSlotStrategy(Strategy):
                     self.mae_usd = u
                 self.peak = max(self.peak, h) if self.is_long else min(self.peak, l)
 
-                spread = _spread_bps(self.symbol, getattr(self.spec, "slippage_rate", 0.0003))
                 sl_lvl = self.sl_lvl_abs if self.spec.sl_anchor_mode == 1 else (policy.sl_level(self.avg, self.sl_pct, self.sign) if self.sl_pct else 0.0)
                 tp_lvl = policy.tp_level(self.avg, self.tp_pct, self.sign) if self.tp_pct else 0.0
 
                 if self.is_long:
                     # Gap-through stop tại open
                     if sl_lvl > 0 and o <= sl_lvl:
-                        exec_px = round(o * (1.0 - spread), self.inst.price_precision)
+                        exec_px = self._execution_price(o, buy=not self.is_long, kind="SL")
                         self._close_simulated_position("SL", exec_px, open_ms)
                         return
 
@@ -367,11 +354,11 @@ class NoraSlotStrategy(Strategy):
                     tp_hit = (tp_lvl > 0 and h >= tp_lvl)
                     if sl_hit and tp_hit:
                         # Adverse ordering: SL kích hoạt trước
-                        exec_px = round(sl_lvl * (1.0 - spread), self.inst.price_precision)
+                        exec_px = self._execution_price(sl_lvl, buy=not self.is_long, kind="SL")
                         self._close_simulated_position("SL", exec_px, ts)
                         return
                     elif sl_hit:
-                        exec_px = round(sl_lvl * (1.0 - spread), self.inst.price_precision)
+                        exec_px = self._execution_price(sl_lvl, buy=not self.is_long, kind="SL")
                         self._close_simulated_position("SL", exec_px, ts)
                         return
                     elif tp_hit:
@@ -381,7 +368,7 @@ class NoraSlotStrategy(Strategy):
                 else:
                     # Short position
                     if sl_lvl > 0 and o >= sl_lvl:
-                        exec_px = round(o * (1.0 + spread), self.inst.price_precision)
+                        exec_px = self._execution_price(o, buy=not self.is_long, kind="SL")
                         self._close_simulated_position("SL", exec_px, open_ms)
                         return
 
@@ -389,11 +376,11 @@ class NoraSlotStrategy(Strategy):
                     tp_hit = (tp_lvl > 0 and l <= tp_lvl)
                     if sl_hit and tp_hit:
                         # Adverse ordering: SL kích hoạt trước
-                        exec_px = round(sl_lvl * (1.0 + spread), self.inst.price_precision)
+                        exec_px = self._execution_price(sl_lvl, buy=not self.is_long, kind="SL")
                         self._close_simulated_position("SL", exec_px, ts)
                         return
                     elif sl_hit:
-                        exec_px = round(sl_lvl * (1.0 + spread), self.inst.price_precision)
+                        exec_px = self._execution_price(sl_lvl, buy=not self.is_long, kind="SL")
                         self._close_simulated_position("SL", exec_px, ts)
                         return
                     elif tp_hit:
@@ -425,7 +412,7 @@ class NoraSlotStrategy(Strategy):
                 self.coord.emit("signal", {"symbol": self.symbol, "strategy": self.sid, "open_ms": open_ms, "trade_start": self.trade_start, "halted": coord_halted or self.halted,
                                            "last_close_fill_ts": self.last_close_fill_ts, "price": c})
             if (open_ms >= self.trade_start and not coord_halted and not self.halted
-                    and self.last_close_fill_ts < open_ms
+                    and (self.last_close_fill_ts is None or self.last_close_fill_ts < open_ms)
                     and (not sp.cooldown_ms or self.last_close_time is None or open_ms - self.last_close_time >= sp.cooldown_ms)):
                 intent = EntryIntent(
                     slot=self,
@@ -472,10 +459,33 @@ class NoraSlotStrategy(Strategy):
     # ─── vào lệnh (= PositionManager._open) ─────────────────────────────────
     def _round_qty(self, q: float) -> Optional[Quantity]:
         try:
+            step = float(getattr(self.spec, "quantity_step", 0.0) or 0.0)
+            if step > 0.0:
+                q = math.floor(q / step + 1e-12) * step
             qty = self.inst.make_qty(q / self.mult, round_down=True)       # q tính bằng COIN; số lượng lệnh của sàn tính bằng HỢP ĐỒNG (mult = ctVal; backtest mult = 1)
         except ValueError:
             return None
         return qty if float(qty) >= float(self.inst.min_quantity) and float(qty) > 0.0 else None
+
+    def _execution_price(self, price: float, *, buy: bool, kind: str) -> float:
+        """Apply the configured TradingView-compatible fixed-tick cost model."""
+        mode = str(getattr(self.spec, "slippage_mode", "rate") or "rate")
+        if kind == "TP":
+            return round(price, self.inst.price_precision)
+        if mode == "fixed_ticks" and int(getattr(self.spec, "slippage_ticks", 0) or 0) > 0:
+            ticks = int(self.spec.slippage_ticks)
+            if kind == "SL":
+                ticks = round(ticks * float(getattr(self.spec, "stop_slippage_multiplier", 2.0) or 2.0))
+            increment = float(self.inst.price_increment)
+            adjusted = price + ticks * increment if buy else price - ticks * increment
+            return round(adjusted, self.inst.price_precision)
+        spread = _spread_bps(self.symbol, getattr(self.spec, "slippage_rate", 0.0003))
+        increment = float(self.inst.price_increment)
+        if buy:
+            adjusted = math.ceil(price * (1.0 + spread) / increment - 1e-12) * increment
+        else:
+            adjusted = math.floor(price * (1.0 - spread) / increment + 1e-12) * increment
+        return round(adjusted, self.inst.price_precision)
 
     def _close_simulated_position(self, kind: str, close_px: float, ts_close: int) -> None:
         """Đóng vị thế mô phỏng thực thi (execution_target='next_open') mà không qua Nautilus OrderMatchingEngine."""
@@ -768,16 +778,19 @@ class NoraSlotStrategy(Strategy):
                     self.pending_margin = max(0.0, self.pending_margin - p_m)
                     self.pending_fee_est = max(0.0, self.pending_fee_est - p_f)
             if self.st == FLAT:                      # lệnh vào mồ côi (DCA khớp sau khi vị thế đã đóng): coi như vị thế mới
-                self.coord.activate(self)
+                if self.coord is not None:
+                    self.coord.activate(self)
                 self.st = ENTERING
                 self.pending_qty = qty
             layer = self._layer_of.get(cid, self.layers)
             margin = px * qty / self.pos_lev
             self.fee_open += fee
-            self.coord.open_fees += fee
+            if self.coord is not None:
+                self.coord.open_fees += fee
             self.margin_used += margin
             self.res_here += margin + fee
-            self.coord.reserved += margin + fee
+            if self.coord is not None:
+                self.coord.reserved += margin + fee
             first = not self.t_fills
             self.t_fills.append((kind, ts, px, qty, fee, liq, layer))
             if first:

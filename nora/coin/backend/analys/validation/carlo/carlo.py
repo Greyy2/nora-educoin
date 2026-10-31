@@ -146,8 +146,8 @@ def vertical_exposure(trades: List[Dict[str, Any]], rpt_pct: Optional[float],
 
 def merge_exposure(rows: List[Optional[Dict[str, float]]]) -> Optional[Dict[str, float]]:
     """Gộp nhiều cửa sổ (vd. các fold OOS): lấy mức xấu nhất từng khoá."""
-    rows = [r for r in rows if r]
-    return {k: max(r[k] for r in rows) for k in rows[0]} if rows else None
+    valid_rows: List[Dict[str, float]] = [r for r in rows if r is not None]
+    return {k: max(r[k] for r in valid_rows) for k in valid_rows[0]} if valid_rows else None
 
 
 def vertical_sequences(shock: Dict[str, float], scale: float = 1.0) -> Dict[str, np.ndarray]:
@@ -196,8 +196,9 @@ def stress_scenarios(daily, scale: float = 1.0, extra_cost_daily: Optional[float
             continue
         row = _path_row(name, seq, max_mdd_pct=max_mdd_pct, with_path=with_path)
         if name == "cost_x2":
-            row["note_vi"] = f"Trừ thêm {c * 100:.3f}%/ngày hoạt động (đo từ vòng quay vốn của lệnh trong lượt chạy)"
-        elif name in VERTICAL_NAMES:
+            cost_val = 0.0 if c is None else c * 100
+            row["note_vi"] = f"Trừ thêm {cost_val:.3f}%/ngày hoạt động (đo từ vòng quay vốn của lệnh trong lượt chạy)"
+        elif name in VERTICAL_NAMES and shock:
             row["note_vi"] = (f"Lỗ LONG khi sập {shock['crash_loss'] * scale * 100:.1f}% vốn, lỗ SHORT khi tăng dựng "
                               f"{shock['surge_loss'] * scale * 100:.1f}% vốn (vị thế ngược chiều lớn nhất từng mở)")
         rows.append(row)
@@ -240,14 +241,14 @@ def measure_turnover(trades: Optional[List[Dict[str, Any]]], n_days: int) -> Dic
 
 def merge_turnover(parts: List[Optional[Dict[str, Any]]]) -> Dict[str, Any]:
     """Gộp vòng quay của nhiều cửa sổ (fold OOS): Σ danh nghĩa/vốn chia Σ ngày; bất kỳ cửa sổ nào không đo được -> không đo được."""
-    parts = [p if p is not None else {"turnover_daily": None, "note": "cửa sổ không có số đo vòng quay", "sum": 0.0, "days": 0,
+    safe_parts: List[Dict[str, Any]] = [p if p is not None else {"turnover_daily": None, "note": "cửa sổ không có số đo vòng quay", "sum": 0.0, "days": 0,
                                       "trades": 0, "measurable": 0} for p in parts]
-    if not parts:
+    if not safe_parts:
         return {"turnover_daily": None, "note": "không có cửa sổ nào để đo vòng quay", "sum": 0.0, "days": 0, "trades": 0, "measurable": 0}
-    bad = next((p for p in parts if p["turnover_daily"] is None), None)
-    days = sum(p["days"] for p in parts)
-    base = {"sum": sum(p["sum"] for p in parts), "days": days, "trades": sum(p["trades"] for p in parts),
-            "measurable": sum(p["measurable"] for p in parts)}
+    bad = next((p for p in safe_parts if p["turnover_daily"] is None), None)
+    days = sum(p["days"] for p in safe_parts)
+    base = {"sum": sum(p["sum"] for p in safe_parts), "days": days, "trades": sum(p["trades"] for p in safe_parts),
+            "measurable": sum(p["measurable"] for p in safe_parts)}
     if bad is not None or days <= 0:
         return {**base, "turnover_daily": None, "note": (bad or {}).get("note") or "không có ngày nào để quy vòng quay theo ngày"}
     return {**base, "turnover_daily": base["sum"] / days, "note": None}
@@ -441,6 +442,7 @@ def run_monte_carlo_daily_detail(
     cols = np.asarray([k - 1 for k in days if k > 0], dtype=int)      # đường vốn sau k ngày = eq[k-1]
     mdds, rets, fan_vals, worst_idx = _daily_bootstrap(d, n, block_days, horizon_days, seed, scale, cols)
     summary = _daily_summary(mdds, rets, ruin_threshold_pct, n, block_days, horizon_days, seed)
+    assert fan_vals is not None
     q = np.percentile(fan_vals * 100, FAN_QUANTILES, axis=0)
     fan: Dict[str, Any] = {"days": days}
     for name, row in zip(("p5", "p25", "p50", "p75", "p95"), q):
@@ -551,6 +553,8 @@ def mc_report(daily, cfg: Dict[str, Any], *, shock: Optional[Dict[str, float]] =
     if cust:
         out["gate"]["gate_eligible"] = False   # kết quả dùng ngưỡng tuỳ chỉnh không bao giờ là gate
     out = with_gate_thresholds(out)
+    if out is None:
+        return {}
     out["params"].update(turnover_daily=turnover, source=source, basis=basis, mode=cfg["mode"], custom_gates=cust, promotable=not cust,
                          ignored_client_params=cfg["ignored_client_params"])
     return out

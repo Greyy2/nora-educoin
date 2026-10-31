@@ -53,7 +53,7 @@ def _limits(limit_models: Dict[str, Any]) -> Dict[str, Any]:
 
 def _gates() -> List[Dict[str, Any]]:
     """Hằng số ngưỡng Monte Carlo hiện hành (carlo/carlo.py) — UI đọc cho chú giải và cổng chuẩn."""
-    from backend.carlo import carlo
+    from backend.analys.validation.carlo import carlo
     return [{"key": name, "value": getattr(carlo, name), "source": "carlo/carlo.py"}
             for name in ("MC_MIN_SIMULATIONS", "MC_MAX_SIMULATIONS", "MC_RUIN_THRESHOLD_PCT", "MC_MAX_RUIN_PCT", "STRESS_MAX_MDD_PCT")]
 
@@ -63,7 +63,7 @@ def _live() -> Dict[str, Any]:
 
 
 def _engine() -> Dict[str, Any]:
-    from backend.nautilus.version import ENGINE_NAME, NAUTILUS_VERSION
+    from backend.core import ENGINE_NAME, NAUTILUS_VERSION
     from backend.analys.param import STANDARD_FRAME
     return {"name": ENGINE_NAME, "version": NAUTILUS_VERSION, "docs_url": "https://nautilustrader.io/docs/latest/",
             "default_exec_mode": DEFAULT_EXEC_MODE, "standard_frame": STANDARD_FRAME,
@@ -107,12 +107,12 @@ def _risk_profiles() -> Dict[str, Any]:
 def build_meta(limit_models: Dict[str, Any]) -> Dict[str, Any]:
     """limit_models: {tên: lớp pydantic} của route — nguồn giới hạn trường (`limits`); các khoá bắt buộc: custom_backtest (trường run_frame),
     book_backtest_req (trường run_frame) cho danh sách khung."""
-    from backend.carlo import carlo
+    from backend.analys.validation.carlo import carlo
     from backend.data import data as market_data
-    from backend.metrics.charts import EDUCATION_HIDDEN_SECTIONS, NOTE_TOUR
-    from backend.metrics.metrics import METRIC_DEFS, METRIC_GROUPS
+    from backend.analys.metrics.charts import EDUCATION_HIDDEN_SECTIONS, NOTE_TOUR
+    from backend.analys.metrics.metrics import METRIC_DEFS, METRIC_GROUPS
     from backend.analys.param import DEFAULT_ALLOCATION
-    from backend.alpha.strategies import book_engine_status
+    from backend.analys.alpha.strategies import book_engine_status
     home = store.data_home()
     rel = lambda p: os.path.relpath(p, home)   # noqa: E731
     main_path, explore_path = store.alpha_file("book"), store.alpha_dir("explore", "book.json")

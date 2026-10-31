@@ -80,7 +80,7 @@ class Coordinator:
         self.kill_pct = float(risk.kill_switch_dd_pct or 0.0)
         self.slots: List[Any] = []
         self.active: List[Any] = []                 # slot đang ENTERING / OPEN
-        self.last: List[Tuple[float, float, float]] = [(float("nan"),) * 3] * n_symbols   # (close, low, high) nến cuối của từng tài sản
+        self.last: List[Tuple[float, float, float]] = [(float("nan"), float("nan"), float("nan"))] * n_symbols   # (close, low, high) nến cuối của từng tài sản
         self.reserved = 0.0                         # ký quỹ + phí của vị thế đã khớp đang mở
         self.pending_reserved = 0.0                 # ký quỹ + phí của các lệnh entry đang chờ khớp (tránh over-allocation)
         self._pending_intents: Dict[int, List[EntryIntent]] = {}   # gom intents theo nến ts
@@ -1148,7 +1148,8 @@ def get_live_master_ledger(mode: str = "paper") -> MasterPortfolioLedger:
 
         b_id = meta.get("bot_id", d)
         try:
-            orig_cap = float(meta.get("capital"))
+            cap_val = meta.get("capital")
+            orig_cap = float(cap_val) if cap_val is not None else float("nan")
         except (TypeError, ValueError) as exc:
             raise LiveLedgerUnavailable(f"Bot {d} has no valid configured capital") from exc
         if not math.isfinite(orig_cap) or orig_cap <= 0:

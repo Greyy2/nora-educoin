@@ -151,6 +151,8 @@ def post_start_bot(body: StartBotRequest) -> Dict[str, Any]:
                 })
         elif body.alpha_id:
             matched_direct = next((r for r in strategies.live_candidates() if r["id"] == body.alpha_id), None)
+            if matched_direct is None:
+                raise HTTPException(404, f"Không tìm thấy chiến lược {body.alpha_id}")
             is_promotable, q_reason = verify_candidate_parity_provenance(matched_direct)
             if not is_promotable:
                 raise HTTPException(400, detail={

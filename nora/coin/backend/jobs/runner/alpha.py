@@ -742,7 +742,7 @@ def run_optuna_sweep(
     study.optimize(objective, n_trials=n_trials)
 
     # Lấy top k trials tốt nhất để Nautilus thẩm định lại chuẩn xác 100%
-    sorted_trials = sorted([t for t in study.trials if t.value is not None and t.value > -900], key=lambda t: t.value, reverse=True)
+    sorted_trials = sorted([t for t in study.trials if t.value is not None and t.value > -900], key=lambda t: float(t.value or 0.0), reverse=True)
     best_candidates = sorted_trials[:top_k_nautilus]
 
     nautilus_strats = []

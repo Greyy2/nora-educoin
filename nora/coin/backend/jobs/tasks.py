@@ -18,7 +18,7 @@ import shutil
 import time
 import warnings
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 
@@ -33,7 +33,7 @@ from backend.jobs.runner.backtest import (WARMUP, _pool_shared, execute, load_it
 from backend.jobs.runner.wfa import (candidates_from_ids, candidates_from_list, candidates_from_report,
                                      plan_is_jobs, print_summary, run_portfolio_wfa)
 
-CUSTOM_BACKTEST_DEFAULTS = {"code": "", "symbols": None, "start": "", "end": "", "train_ratio": DEFAULT_TRAIN_RATIO, "initial_capital": None, "position": None, "run_frame": "", "close_at_end": False}
+CUSTOM_BACKTEST_DEFAULTS = {"code": "", "symbols": None, "start": "", "end": "", "test_start": None, "train_ratio": DEFAULT_TRAIN_RATIO, "initial_capital": None, "position": None, "run_frame": "", "owner_uid": None, "close_at_end": False, "include_benchmark": True, "include_diagnostics": True, "parallel_runs": True}
 BOOK_BACKTEST_DEFAULTS = {"book": "", "strategies": None, "symbols": "", "start": "", "end": "", "risk_per_trade": None, "stop_fill": "level", "regime": False, "timeframe": "1m", "out": "",
                           "data": "candle", "latency_ms": None, "gas_usd": None, "capital": None}
 BOOK_WFA_DEFAULTS = {"report": "", "include_rejected": False, "candidates": "", "strategies": None, "symbols": "", "n": 3, "seed": 7,
@@ -134,6 +134,25 @@ def run_parallel(steps) -> Dict[str, Any]:
     return out
 
 
+def run_sequential(steps: List[Tuple[str, Any]]) -> Dict[str, Any]:
+    """Chạy các bước lần lượt và dừng sau bước lỗi để giữ trần RAM khi không cho phép engine chạy đồng thời."""
+    import contextlib
+    import io
+    import threading
+    out: Dict[str, Any] = {}
+    with contextlib.redirect_stdout(io.StringIO()):
+        for name, fn in steps:
+            ev = threading.Event()
+            try:
+                out[name] = fn(ev)
+            except BaseException as exc:  # noqa: BLE001 — caller quyết định lỗi bước nào là fatal
+                out[name] = exc
+                ev.set()
+                break
+            ev.set()
+    return out
+
+
 def run_custom(params=None):
     """Chạy backtest custom và trả kết quả dict (không tự ghi result.json)."""
     warnings.filterwarnings("ignore")
@@ -154,7 +173,7 @@ def run_custom(params=None):
     from backend.analys.alpha.code.compile import compile_code
     from backend.analys.signal.compute import SignalEngine
     from backend.analys.alpha.code.plan import build_plan
-    SignalEngine.MAX_BACKTEST_DAYS = 4000
+    setattr(SignalEngine, "MAX_BACKTEST_DAYS", 4000)
 
     t0 = time.time()
     job_dir = os.environ.get("NORA_JOB_DIR")
@@ -196,21 +215,21 @@ def run_custom(params=None):
     if native:
         _mark(3, 5, "Khởi tạo Nautilus Engine", f"Chiến lược {program.name} · venue OKX")
 
-        def run_one(s: int, e: int, ev):
-            from backend.nautilus.backtest import run_native
+        def run_one_native(s: int, e: int, ev):
+            from backend.core.backtest import run_native
             ev.set()        # chạy thẳng từ catalog Nautilus: không có bước nạp tín hiệu tuần tự
             r = run_native(program.strategy_cls, plan.symbols, s, e, capital, plan.base_frame, strategy_id=program.name)
             r["provenance"] = engine_provenance(plan.base_frame)
             return r, _OpenPositions(r["open_positions"])
+        run_one = run_one_native
     else:
         _mark(3, 5, "Tính toán ma trận tín hiệu", f"khung {program.timeframe} với warmup lịch sử")
 
-        def run_one(s: int, e: int, ev):
+        def run_one_dsl(s: int, e: int, ev):
             return execute(plan, s, e, capital, close_at_end=bool(a.close_at_end), loaded=ev)
+        run_one = run_one_dsl
     split = stage_split(start, end, float(a.train_ratio))
-    # 4 lần chạy engine độc lập (chính, test, benchmark toàn kỳ, benchmark test): nạp dữ liệu TUẦN TỰ theo thứ tự này (lần rộng nhất dựng cửa sổ, các lần sau cắt từ bộ nhớ đệm),
-    # kernel numba (nogil) chạy SONG SONG bằng thread. Kết quả từng lần không phụ thuộc lần khác (cùng chương trình/cấu hình/dữ liệu, warmup như lần chạy chính).
-    steps = [("main", lambda ev: run_one(start, end, ev))]
+    steps: List[Tuple[str, Any]] = [("main", lambda ev: run_one(start, end, ev))]
     if split < end:     # giai đoạn test = lần chạy riêng bắt đầu từ vốn đầu tại đầu test
         steps.append(("test", lambda ev: run_one(split, end, ev)))
     # benchmark luôn long qua cùng engine (cache theo cấu hình: chỉ chạy một lần mỗi job/tiến trình)
@@ -294,7 +313,7 @@ def run_book_backtest(params=None):
     from backend.jobs.worker import require_memory_limit
     require_memory_limit("run_book_backtest")
     from backend.analys.signal.compute import SignalEngine
-    SignalEngine.MAX_BACKTEST_DAYS = 4000
+    setattr(SignalEngine, "MAX_BACKTEST_DAYS", 4000)
     from backend.analys.alpha.strategies import perp_symbols
 
     from backend.data.data import classify_symbols
@@ -314,13 +333,15 @@ def run_book_backtest(params=None):
         out = run_tick(items, symbols, start, end, rpt, risk, a.stop_fill, a.timeframe or "1m", float(a.capital or DEFAULT_CAPITAL),
                        latency_ms=a.latency_ms, gas_usd=a.gas_usd)
     else:
+        data_start: int = 0
+        data_end: int = 0
         if not (a.start and a.end):  # thiếu một đầu -> lấy theo dữ liệu có sẵn
             from backend.data.data import read_manifest
             ms = [read_manifest(s) for s in symbols]
             if not all(ms):
                 raise SystemExit(f"Thiếu dữ liệu (manifest) cho: {[s for s, m in zip(symbols, ms) if not m]}")
-            data_start = max(int(m["start_ts"]) for m in ms) + WARMUP
-            data_end = min(int(m["end_ts"]) for m in ms)
+            data_start = max(int(m["start_ts"]) for m in ms if m) + WARMUP
+            data_end = min(int(m["end_ts"]) for m in ms if m)
         start = date_ms(a.start) if a.start else data_start
         end = date_ms(a.end) + DAY if a.end else data_end
         if end <= start:
@@ -399,6 +420,7 @@ def run_book_wfa(params=None):
     if is_total > a.max_configs and not a.force_large:
         raise SystemExit(f"Từ chối: {is_total:,} job IS ({len(folds)} fold × {n_cfg} cấu hình) vượt max_configs {a.max_configs:,}. "
                          f"Giảm n / số chiến lược hoặc đặt force_large.")
+    run_dir: str = ""
     if a.resume:
         run_dir = os.path.abspath(a.resume if os.path.isabs(a.resume) or os.path.isdir(a.resume)
                                   else os.path.join(run_dir_of("wfa"), a.resume))

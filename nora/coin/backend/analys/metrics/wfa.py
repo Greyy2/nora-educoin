@@ -23,7 +23,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 
 from backend.analys.param import config_from_dict
-from backend.carlo.carlo import (MC_MAX_RUIN_PCT, MC_MIN_SIMULATIONS, MC_RUIN_THRESHOLD_PCT, STRESS_MAX_MDD_PCT,
+from backend.analys.validation.carlo.carlo import (MC_MAX_RUIN_PCT, MC_MIN_SIMULATIONS, MC_RUIN_THRESHOLD_PCT, STRESS_MAX_MDD_PCT,
                                  evaluate_mc_gate, extra_cost_from_turnover, merge_exposure, merge_turnover,
                                  run_monte_carlo_daily_gate)
 
